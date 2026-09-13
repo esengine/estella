@@ -13,7 +13,7 @@ import type {
 } from '../AssetLoader';
 import type { RegistryEra } from '../registryAssets';
 import type { AnimatorControllerDef, AnimatorState } from '../../animation/Animator';
-import { isBlend1D, type AnimatorMotion } from '../../animation/motion';
+import { isBlend1D, isBlend2D, type AnimatorMotion } from '../../animation/motion';
 import { resolveDocumentRef } from '../documentRef';
 
 /**
@@ -37,6 +37,8 @@ function* flatten(motion: AnimatorMotion): Generator<AnimatorMotion> {
     yield motion;
     if (isBlend1D(motion)) {
         for (const stop of motion.thresholds) yield* flatten(stop.motion);
+    } else if (isBlend2D(motion)) {
+        for (const point of motion.points) yield* flatten(point.motion);
     }
 }
 
@@ -68,7 +70,7 @@ async function acquireMotionAssets(
 ): Promise<void> {
     const wanted = new Map<string, string>();
     for (const motion of motionsOf(def.states)) {
-        if (isBlend1D(motion)) continue;
+        if (isBlend1D(motion) || isBlend2D(motion)) continue;
         const type = MOTION_ASSET_TYPES[motion.kind];
         if (!type || !motion.clip) continue;
         motion.clip = resolveDocumentRef(path, motion.clip);

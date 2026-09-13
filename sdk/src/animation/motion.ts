@@ -55,10 +55,34 @@ export interface AnimatorBlend1DMotion {
     thresholds: AnimatorBlendStop[];
 }
 
-export type AnimatorMotion = AnimatorClipMotion | AnimatorBlend1DMotion;
+/** One stop of a 2D blend, placed in the plane the two parameters span. */
+export interface AnimatorBlendPoint {
+    position: { x: number; y: number };
+    motion: AnimatorMotion;
+}
+
+/**
+ * Selection among motions by TWO parameters. What a 1D blend cannot say is any
+ * locomotion that turns: forward speed and strafe are one motion here, where
+ * stacking two 1D blends would make the character pick a direction and a speed
+ * independently and land between the clips that describe neither.
+ */
+export interface AnimatorBlend2DMotion {
+    kind: 'blend2d';
+    parameterX: string;
+    parameterY: string;
+    points: AnimatorBlendPoint[];
+}
+
+export type AnimatorMotion =
+    | AnimatorClipMotion | AnimatorBlend1DMotion | AnimatorBlend2DMotion;
 
 export function isBlend1D(m: AnimatorMotion): m is AnimatorBlend1DMotion {
     return m.kind === 'blend1d';
+}
+
+export function isBlend2D(m: AnimatorMotion): m is AnimatorBlend2DMotion {
+    return m.kind === 'blend2d';
 }
 
 // =============================================================================
@@ -131,6 +155,12 @@ export interface MotionContext {
     borrowPose(): Pose;
     releasePose(pose: Pose): void;
     /**
+     * Borrow a list to gather weighted poses into. Its entries are reused, so a
+     * caller fills a PREFIX and passes the count on rather than truncating it.
+     */
+    borrowMix(): WeightedPose[];
+    releaseMix(mix: WeightedPose[]): void;
+    /**
      * Whether the animator is taking this motion's root track as DISPLACEMENT.
      * A driver that can state a root pose must then leave the root's position and
      * rotation out of what it samples: the same movement written to the entity and
@@ -191,10 +221,10 @@ export interface MotionDriver<M extends AnimatorMotion = AnimatorMotion> {
  */
 export class MotionRegistry {
     private readonly drivers_ = new Map<string, MotionDriver<never>>();
-    /** Scratch poses lent to composite motions. A pool and not one buffer per
-     *  driver: nesting decides how many are live at once, and only the stack
-     *  knows that. */
+    /** Scratch lent to composite motions. Pools and not one buffer per driver:
+     *  nesting decides how many are live at once, and only the stack knows that. */
     private readonly posePool_: Pose[] = [];
+    private readonly mixPool_: WeightedPose[][] = [];
 
     register<M extends AnimatorMotion>(kind: M['kind'], driver: MotionDriver<M>): void {
         this.drivers_.set(kind, driver as MotionDriver<never>);
@@ -244,6 +274,8 @@ export class MotionRegistry {
             this.driverFor(motion)?.rootMotion?.(this.ctx_, motion, span, out) ?? false,
         borrowPose: () => this.posePool_.pop() ?? new Pose(),
         releasePose: (pose) => { this.posePool_.push(pose); },
+        borrowMix: () => this.mixPool_.pop() ?? [],
+        releaseMix: (mix) => { this.mixPool_.push(mix); },
     };
 }
 
@@ -320,9 +352,10 @@ function blendValue(ctx: MotionContext, blend: AnimatorBlend1DMotion): number {
  * cannot find its parent's operands here. Reused for the same reason {@link PAIR}
  * is: mixing is the steady state of an animated entity, not an event.
  */
-const MIX: [WeightedPose, WeightedPose] = [
-    { pose: null!, weight: 0 }, { pose: null!, weight: 0 },
-];
+/** Grow `mix` to hold `count` weighted poses, keeping the entries already in it. */
+function mixCapacity(mix: WeightedPose[], count: number): void {
+    while (mix.length < count) mix.push({ pose: null!, weight: 0 });
+}
 
 /**
  * A blend states values, so it MIXES: at 0.5 between walk and run the character
@@ -354,6 +387,7 @@ export const blend1DMotionDriver: MotionDriver<AnimatorBlend1DMotion> = {
 
         const from = ctx.borrowPose();
         const to = ctx.borrowPose();
+        const mix = ctx.borrowMix();
         try {
             from.reset();
             to.reset();
@@ -365,11 +399,13 @@ export const blend1DMotionDriver: MotionDriver<AnimatorBlend1DMotion> = {
             if (!sampledTo) return sampledFrom && ctx.sample(lower.motion, ta, pose);
             if (!sampledFrom) return ctx.sample(upper.motion, tb, pose);
 
-            MIX[0].pose = from; MIX[0].weight = 1 - t;
-            MIX[1].pose = to; MIX[1].weight = t;
-            mixPoses(MIX, pose, ctx.world);
+            mixCapacity(mix, 2);
+            mix[0]!.pose = from; mix[0]!.weight = 1 - t;
+            mix[1]!.pose = to; mix[1]!.weight = t;
+            mixPoses(mix, pose, ctx.world, 2);
             return true;
         } finally {
+            ctx.releaseMix(mix);
             ctx.releasePose(to);
             ctx.releasePose(from);
         }
@@ -400,5 +436,182 @@ export const blend1DMotionDriver: MotionDriver<AnimatorBlend1DMotion> = {
     rootMotion(ctx, blend, span, out) {
         const selected = blendSelection(ctx, blend);
         return selected !== null && ctx.rootDelta(selected, span, out);
+    },
+};
+
+// =============================================================================
+// 2D blend — the same mixing, over a plane instead of a line
+// =============================================================================
+
+/**
+ * Gradient-band weights, normalized to sum to one: each point keeps what the
+ * neighbour nearest to pushing it out leaves it. That puts a sample standing on a
+ * clip entirely on that clip, and holds one outside the hull by its nearest edge
+ * rather than letting it fall to nothing. Only `weight` is written.
+ */
+export function blend2DWeights(
+    blend: AnimatorBlend2DMotion, x: number, y: number, out: { weight: number }[],
+): void {
+    const points = blend.points;
+    let total = 0;
+    for (let i = 0; i < points.length; i++) {
+        const pi = points[i]!.position;
+        let weight = 1;
+        for (let j = 0; j < points.length && weight > 0; j++) {
+            if (j === i) continue;
+            const ijx = points[j]!.position.x - pi.x;
+            const ijy = points[j]!.position.y - pi.y;
+            const span = ijx * ijx + ijy * ijy;
+            if (span <= 0) continue;
+            const along = ((x - pi.x) * ijx + (y - pi.y) * ijy) / span;
+            if (1 - along < weight) weight = 1 - along;
+        }
+        out[i]!.weight = weight > 0 ? weight : 0;
+        total += out[i]!.weight;
+    }
+    // Two points at the same place, or none: nothing said where the sample is,
+    // so the first point answers rather than the pose collapsing to the world.
+    if (total <= 0) {
+        if (points.length > 0) out[0]!.weight = 1;
+        return;
+    }
+    for (let i = 0; i < points.length; i++) out[i]!.weight /= total;
+}
+
+/** Read into on every call and consumed before anything re-enters — this module
+ *  never calls out while it holds a claim on this. */
+const DOMINANT: { weight: number }[] = [];
+
+/** The point carrying the most weight: what a motion that can only be SWITCHED
+ *  to gets, and who speaks for the blend's events and its end. */
+export function dominantBlendPoint(
+    blend: AnimatorBlend2DMotion, x: number, y: number,
+): AnimatorBlendPoint | null {
+    const points = blend.points;
+    if (points.length === 0) return null;
+    while (DOMINANT.length < points.length) DOMINANT.push({ weight: 0 });
+    blend2DWeights(blend, x, y, DOMINANT);
+    let best = 0;
+    for (let i = 1; i < points.length; i++) {
+        if (DOMINANT[i]!.weight > DOMINANT[best]!.weight) best = i;
+    }
+    return points[best]!;
+}
+
+/** Where this blend sits in its plane, both parameters being floats even when
+ *  nothing set them. */
+function blend2DAt(ctx: MotionContext, blend: AnimatorBlend2DMotion): { x: number; y: number } {
+    AT.x = Number(ctx.params[blend.parameterX] ?? 0);
+    AT.y = Number(ctx.params[blend.parameterY] ?? 0);
+    return AT;
+}
+
+const AT = { x: 0, y: 0 };
+
+function dominantOf(
+    ctx: MotionContext, blend: AnimatorBlend2DMotion,
+): AnimatorMotion | null {
+    const { x, y } = blend2DAt(ctx, blend);
+    return dominantBlendPoint(blend, x, y)?.motion ?? null;
+}
+
+/**
+ * The same operation the 1D blend performs, with the weights coming from a plane
+ * rather than a line — which is why this shares the pose mixer and the phase
+ * synchronisation rather than restating either.
+ */
+export const blend2DMotionDriver: MotionDriver<AnimatorBlend2DMotion> = {
+    apply(ctx, blend, enter) {
+        const dominant = dominantOf(ctx, blend);
+        if (dominant) ctx.drive(dominant, enter);
+    },
+    sample(ctx, blend, time, pose) {
+        const points = blend.points;
+        if (points.length === 0) return false;
+        if (points.length === 1) return ctx.sample(points[0]!.motion, time, pose);
+
+        const mix = ctx.borrowMix();
+        let sampled = 0;
+        try {
+            mixCapacity(mix, points.length);
+            const { x, y } = blend2DAt(ctx, blend);
+            blend2DWeights(blend, x, y, mix);
+
+            // The blend's own length is its points' lengths under those weights,
+            // and each point is then read at its own share of it — the 1D blend's
+            // phase rule, which stops the shorter clips racing.
+            let whole = 0;
+            for (let i = 0; i < points.length; i++) {
+                if (mix[i]!.weight <= 0) continue;
+                const span = ctx.duration(points[i]!.motion);
+                if (span <= 0) { whole = 0; break; }
+                whole += mix[i]!.weight * span;
+            }
+
+            // Compacting into the prefix is safe because the entry being written
+            // is never past the one being read.
+            for (let i = 0; i < points.length; i++) {
+                const weight = mix[i]!.weight;
+                if (weight <= 0) continue;
+                const motion = points[i]!.motion;
+                const at = whole > 0 ? time * (ctx.duration(motion) / whole) : time;
+                const scratch = ctx.borrowPose();
+                scratch.reset();
+                if (!ctx.sample(motion, at, scratch)) { ctx.releasePose(scratch); continue; }
+                mix[sampled]!.pose = scratch;
+                mix[sampled]!.weight = weight;
+                sampled++;
+            }
+
+            if (sampled === 0) return false;
+            if (sampled === 1) {
+                // Its weight is whatever the points that could not be sampled
+                // left it; as the only thing there is to show it arrives whole.
+                mix[0]!.weight = 1;
+            }
+            mixPoses(mix, pose, ctx.world, sampled);
+            return true;
+        } finally {
+            for (let i = 0; i < sampled; i++) ctx.releasePose(mix[i]!.pose);
+            ctx.releaseMix(mix);
+        }
+    },
+    duration(ctx, blend) {
+        const points = blend.points;
+        if (points.length === 0) return 0;
+        const mix = ctx.borrowMix();
+        try {
+            mixCapacity(mix, points.length);
+            const { x, y } = blend2DAt(ctx, blend);
+            blend2DWeights(blend, x, y, mix);
+            let whole = 0;
+            for (let i = 0; i < points.length; i++) {
+                if (mix[i]!.weight <= 0) continue;
+                const span = ctx.duration(points[i]!.motion);
+                // A point that does not state its length cannot be averaged with
+                // one that does, so the dominant point answers alone.
+                if (span <= 0) return ctx.duration(dominantOf(ctx, blend) ?? points[0]!.motion);
+                whole += mix[i]!.weight * span;
+            }
+            return whole;
+        } finally {
+            ctx.releaseMix(mix);
+        }
+    },
+    loops(ctx, blend) {
+        const dominant = dominantOf(ctx, blend);
+        return dominant ? ctx.loops(dominant) : false;
+    },
+    isFinished(ctx, blend) {
+        const dominant = dominantOf(ctx, blend);
+        return dominant ? ctx.finished(dominant) : false;
+    },
+    events(ctx, blend, span, out) {
+        const dominant = dominantOf(ctx, blend);
+        if (dominant) ctx.events(dominant, span, out);
+    },
+    rootMotion(ctx, blend, span, out) {
+        const dominant = dominantOf(ctx, blend);
+        return dominant !== null && ctx.rootDelta(dominant, span, out);
     },
 };

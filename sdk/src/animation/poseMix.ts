@@ -131,16 +131,19 @@ function mixScalarField(
 
 /**
  * Blend `sources` into `out`, then write it. Weights need not sum to one: each
- * field divides by the weight that actually reached it.
- *
- * `out` is seeded from the world like any pose, so a component some motion
- * touches only partly keeps its other fields.
+ * field divides by the weight that actually reached it. `out` is seeded from the
+ * world like any pose, so a component some motion touches only partly keeps its
+ * other fields; `count` reads a prefix, so a varying blend need not allocate.
  */
-export function mixPoses(sources: readonly WeightedPose[], out: Pose, world: PoseWorld): void {
+export function mixPoses(
+    sources: readonly WeightedPose[], out: Pose, world: PoseWorld,
+    count: number = sources.length,
+): void {
     out.reset();
 
     const byComponent = new Map<string, Contribution[]>();
-    for (const { pose, weight } of sources) {
+    for (let i = 0; i < count; i++) {
+        const { pose, weight } = sources[i]!;
         if (weight <= 0) continue;
         for (const track of pose.tracks) {
             if (track.touched.size === 0) continue;

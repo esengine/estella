@@ -1,13 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * The claim: a 1D blend over sampleable motions MIXES its neighbouring stops
- * rather than picking one, at a shared phase rather than a shared second.
+ * The claim: a blend over sampleable motions MIXES the stops around the
+ * parameter rather than picking one, at a shared phase rather than a shared
+ * second — over a line and over a plane, by the same operation.
  */
 import { describe, it, expect } from 'vitest';
 import {
     Animator, AnimatorControllerAPI, blend1DPair, selectBlendStop,
-    type AnimatorData, type AnimatorControllerDef, type AnimatorBlend1DMotion,
+    blend2DWeights, dominantBlendPoint,
+    type AnimatorData, type AnimatorControllerDef,
+    type AnimatorBlend1DMotion, type AnimatorBlend2DMotion, type AnimatorMotion,
 } from '../src/animation';
 import { createTimelineMotionDriver, TIMELINE_MOTION } from '../src/timeline';
 import { TimelineAPI } from '../src/timeline/TimelineControl';
@@ -85,7 +88,7 @@ const clip = (name: string) => ({ kind: TIMELINE_MOTION, clip: name });
 
 /** One state playing `motion`, driven by the float parameters named. */
 function controllerOf(
-    motion: AnimatorBlend1DMotion,
+    motion: AnimatorMotion,
     assets: Record<string, TimelineAsset>,
     params: string[],
 ): AnimatorControllerAPI {
@@ -268,6 +271,149 @@ describe('a blend nested inside a blend', () => {
         ctrl.update(world, 0.016);
 
         // Inner low is 75, inner high is 275; a quarter of the way up is 125.
+        expect(liftOf(world)).toBeCloseTo(125, 4);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Over a plane
+// ---------------------------------------------------------------------------
+
+const at = (x: number, y: number, name: string) => ({ position: { x, y }, motion: clip(name) });
+
+/** Weights for `blend` at (x, y), as a plain array. */
+function weightsAt(blend: AnimatorBlend2DMotion, x: number, y: number): number[] {
+    const out = blend.points.map(() => ({ weight: 0 }));
+    blend2DWeights(blend, x, y, out);
+    return out.map(o => o.weight);
+}
+
+describe('how a 2D blend divides its plane', () => {
+    /** North/south/east/west around the origin — the shape a locomotion grid is. */
+    const compass: AnimatorBlend2DMotion = {
+        kind: 'blend2d', parameterX: 'right', parameterY: 'forward',
+        points: [at(1, 0, 'east'), at(0, 1, 'north'), at(-1, 0, 'west'), at(0, -1, 'south')],
+    };
+
+    it('gives a point standing on a clip that clip alone', () => {
+        expect(weightsAt(compass, 1, 0)).toEqual([1, 0, 0, 0]);
+        expect(weightsAt(compass, 0, -1)).toEqual([0, 0, 0, 1]);
+    });
+
+    it('shares a diagonal between the two clips that reach it', () => {
+        // What no pair of 1D blends can say: half east and half north is ONE
+        // motion, where two lines would pick a direction and a speed apart.
+        const [east, north, west, south] = weightsAt(compass, 0.5, 0.5);
+        expect(east).toBeCloseTo(0.5, 6);
+        expect(north).toBeCloseTo(0.5, 6);
+        expect(west).toBe(0);
+        expect(south).toBe(0);
+    });
+
+    it('always divides the whole of it, never more or less', () => {
+        for (const [x, y] of [[0, 0], [0.3, -0.2], [-0.9, 0.4], [2, 2], [-5, 0]] as const) {
+            const sum = weightsAt(compass, x, y).reduce((a, b) => a + b, 0);
+            expect(sum).toBeCloseTo(1, 6);
+        }
+    });
+
+    it('holds a sample outside the hull by the clip nearest it', () => {
+        const line: AnimatorBlend2DMotion = {
+            kind: 'blend2d', parameterX: 'x', parameterY: 'y',
+            points: [at(0, 0, 'idle'), at(2, 0, 'run')],
+        };
+        expect(weightsAt(line, 3, 0)).toEqual([0, 1]);
+        expect(weightsAt(line, -4, 0)).toEqual([1, 0]);
+    });
+
+    it('names the heaviest point as the one a switched motion gets', () => {
+        expect(dominantBlendPoint(compass, 0.9, 0.1)?.motion).toBe(compass.points[0]!.motion);
+        expect(dominantBlendPoint(compass, -0.1, -0.9)?.motion).toBe(compass.points[3]!.motion);
+    });
+});
+
+describe('a 2D blend through the animator', () => {
+    const held = {
+        'east.estimeline': hold(100, 10), 'north.estimeline': hold(200, 10),
+        'west.estimeline': hold(0, 10), 'south.estimeline': hold(300, 10),
+    };
+    const compass: AnimatorBlend2DMotion = {
+        kind: 'blend2d', parameterX: 'right', parameterY: 'forward',
+        points: [
+            at(1, 0, 'east.estimeline'), at(0, 1, 'north.estimeline'),
+            at(-1, 0, 'west.estimeline'), at(0, -1, 'south.estimeline'),
+        ],
+    };
+
+    it('mixes the two clips a diagonal reaches', () => {
+        const world = seedWorld();
+        const ctrl = controllerOf(compass, held, ['right', 'forward']);
+        attach(world);
+
+        ctrl.setFloat(E, 'right', 0.5);
+        ctrl.setFloat(E, 'forward', 0.5);
+        ctrl.update(world, 0.016);
+
+        // Half of east (100) and half of north (200). Either one alone — which is
+        // what selecting would give — is 100 or 200.
+        expect(liftOf(world)).toBeCloseTo(150, 4);
+    });
+
+    it('plays one clip whole where the parameters stand on it', () => {
+        const world = seedWorld();
+        const ctrl = controllerOf(compass, held, ['right', 'forward']);
+        attach(world);
+
+        ctrl.setFloat(E, 'forward', -1);
+        ctrl.update(world, 0.016);
+
+        expect(liftOf(world)).toBeCloseTo(300, 4);
+    });
+
+    it('samples every contributing point at the same phase', () => {
+        const world = seedWorld();
+        const ramps: AnimatorBlend2DMotion = {
+            kind: 'blend2d', parameterX: 'x', parameterY: 'y',
+            points: [at(0, 0, 'slow.estimeline'), at(2, 0, 'fast.estimeline')],
+        };
+        const ctrl = controllerOf(
+            ramps, { 'slow.estimeline': ramp(2), 'fast.estimeline': ramp(1) }, ['x', 'y'],
+        );
+        attach(world);
+        ctrl.setFloat(E, 'x', 1);
+        ctrl.update(world, 0);
+        ctrl.update(world, 0.75);
+
+        expect(liftOf(world)).toBeCloseTo(50, 3);
+    });
+
+    it('keeps its own weights while a nested blend resolves', () => {
+        // Each point of the plane is a line of its own. Both borrow the same kind
+        // of scratch, so an inner blend that got the outer one's list would mix
+        // the outer weights into its own answer.
+        const world = seedWorld();
+        const lean = (a: string, b: string): AnimatorBlend1DMotion => ({
+            kind: 'blend1d', parameter: 'lean',
+            thresholds: [{ value: 0, motion: clip(a) }, { value: 1, motion: clip(b) }],
+        });
+        const outer: AnimatorBlend2DMotion = {
+            kind: 'blend2d', parameterX: 'gait', parameterY: 'y',
+            points: [
+                { position: { x: 0, y: 0 }, motion: lean('a.estimeline', 'b.estimeline') },
+                { position: { x: 1, y: 0 }, motion: lean('c.estimeline', 'd.estimeline') },
+            ],
+        };
+        const ctrl = controllerOf(outer, {
+            'a.estimeline': hold(0, 10), 'b.estimeline': hold(100, 10),
+            'c.estimeline': hold(200, 10), 'd.estimeline': hold(300, 10),
+        }, ['gait', 'lean', 'y']);
+        attach(world);
+
+        ctrl.setFloat(E, 'gait', 0.25);
+        ctrl.setFloat(E, 'lean', 0.75);
+        ctrl.update(world, 0.016);
+
+        // Inner low is 75, inner high 275; three quarters of the way to the first.
         expect(liftOf(world)).toBeCloseTo(125, 4);
     });
 });

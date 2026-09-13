@@ -22,7 +22,7 @@ import { isUuidRef } from '../asset/AssetRegistry';
 import type { Entity } from '../types';
 import type { World } from '../ecs/world';
 import {
-    MotionRegistry, blend1DMotionDriver,
+    MotionRegistry, blend1DMotionDriver, blend2DMotionDriver,
     type AnimatorMotion, type AnimatorClipMotion, type AnimatorBlend1DMotion,
     type MotionContext, type MotionDriver, type MotionEvent, type MotionSpan,
     type RootMotionDelta,
@@ -511,6 +511,7 @@ export class AnimatorControllerAPI {
         // which is what keeps this file from importing them.
         this.motions_.register(SPRITE_MOTION, spriteMotionDriver);
         this.motions_.register('blend1d', blend1DMotionDriver);
+        this.motions_.register('blend2d', blend2DMotionDriver);
     }
 
     /**
