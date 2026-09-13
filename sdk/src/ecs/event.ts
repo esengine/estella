@@ -113,6 +113,17 @@ export class EventBus<T> {
         this.writeBuffer_ = tmp;
         this.writeBuffer_.length = 0;
     }
+
+    /** @internal How much has been written since the last swap — a speculation
+     *  takes this before it runs and un-writes back to it if it is abandoned. */
+    writeMark(): number {
+        return this.writeBuffer_.length;
+    }
+
+    /** @internal */
+    rewindWrite(mark: number): void {
+        if (mark < this.writeBuffer_.length) this.writeBuffer_.length = mark;
+    }
 }
 
 // =============================================================================
@@ -153,6 +164,19 @@ export class EventRegistry {
         for (const bus of this.buses_.values()) {
             bus.swap();
         }
+    }
+
+    /** @internal Where every bus's write half stands right now. */
+    writeMarks(): Map<symbol, number> {
+        const marks = new Map<symbol, number>();
+        for (const [id, bus] of this.buses_) marks.set(id, bus.writeMark());
+        return marks;
+    }
+
+    /** @internal Un-write back to `marks`. A bus made DURING the speculation is
+     *  absent from them, so it rewinds to empty rather than being left alone. */
+    rewindWrites(marks: Map<symbol, number>): void {
+        for (const [id, bus] of this.buses_) bus.rewindWrite(marks.get(id) ?? 0);
     }
 }
 

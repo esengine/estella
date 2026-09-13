@@ -3328,6 +3328,8 @@ static prototype: EventReaderInstance<any>
 
 ## EventRegistry — class @experimental
 ```
+@internal rewindWrites: (marks: Map<symbol, number>) => void
+@internal writeMarks: () => Map<symbol, number>
 busNamed: (name: string) => EventBus<unknown> | undefined
 getBus: <T>(event: EventDef<T>) => EventBus<T>
 register: <T>(event: EventDef<T>) => void
@@ -10265,6 +10267,7 @@ tabIndex: number | undefined
 @internal bufferedWriteRows: (component: AnyComponentDef) => number
 @internal builtin: BuiltinBridge
 @internal changes_: ChangeTracker
+@internal closeSpeculation: () => void
 @internal compositionChanges: () => CompositionDelta | null
 @internal connectCpp: (cppRegistry: CppRegistry, module?: ESEngineModule, options?: BridgeConnectOptions) => void
 @internal disconnectCpp: () => void
@@ -10291,6 +10294,7 @@ tabIndex: number | undefined
 @internal isIterating: () => boolean
 @internal layoutEpoch: () => number | null
 @internal markChanged: (entity: Entity, component: AnyComponentDef) => void
+@internal openSpeculation: (log: { record(world: World, entity: Entity, component: AnyComponentDef): void; }) => void
 @internal queries_: QueryCache
 @internal queryCostEnabled: boolean
 @internal queryEntities: (components: AnyComponentDef[], withFilters?: AnyComponentDef[], withoutFilters?: AnyComponentDef[], precomputedKey?: string, filter?: QueryFilter, precomputedDepIds?: symbol[]) => readonly Entity[]
@@ -10310,6 +10314,7 @@ tabIndex: number | undefined
 @internal scriptSpanOf: (component: AnyComponentDef) => { rows: number; stride: number; sparse: number; sparseCount: number; owners: number; ownerCount: number; } | undefined
 @internal setQueryCostEnabled: (enabled: boolean) => void
 @internal setTransformChangeTracking: (on: boolean) => boolean
+@internal speculating: boolean
 @internal suspendIteration: () => number
 @internal takeCompositionChanges: () => void
 @internal topologyReaderCount: (component: AnyComponentDef) => number

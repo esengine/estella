@@ -219,6 +219,12 @@ export class World {
      * mutating the set a query is walking is what `Commands` exists to defer.
      */
     spawn(name?: string): Entity {
+        if (this.speculation_) {
+            throw new Error(
+                'Cannot spawn entity inside a speculation. ' +
+                'Use its Commands, which allocate no identity until the step commits.'
+            );
+        }
         if (this.isIterating()) {
             throw new Error(
                 'Cannot spawn entity during query iteration. ' +
@@ -277,6 +283,12 @@ export class World {
      * as with {@link spawn} this throws during query iteration.
      */
     despawn(entity: Entity): void {
+        if (this.speculation_) {
+            throw new Error(
+                'Cannot despawn entity inside a speculation. ' +
+                'Use its Commands, which apply only if the step commits.'
+            );
+        }
         if (this.isIterating()) {
             throw new Error(
                 'Cannot despawn entity during query iteration. ' +
@@ -667,6 +679,7 @@ export class World {
      * replaces it.
      */
     insert<C extends AnyComponentDef>(entity: Entity, component: C, data?: Partial<ComponentData<C>>): ComponentData<C> {
+        this.speculation_?.record(this, entity, component);
         if (this.isHierarchyComponent_(component)) {
             return this.insertHierarchy_(entity, component, data) as ComponentData<C>;
         }
@@ -681,6 +694,7 @@ export class World {
      * reads. Insert-or-replace: an entity that lacks the component gets it.
      */
     set<C extends AnyComponentDef>(entity: Entity, component: C, data: ComponentData<C>): void {
+        this.speculation_?.record(this, entity, component);
         if (this.isHierarchyComponent_(component)) {
             this.insertHierarchy_(entity, component, data);
             return;
@@ -785,6 +799,7 @@ export class World {
      * Asking for a component the entity lacks throws; {@link tryGet} allows it.
      */
     get<C extends AnyComponentDef>(entity: Entity, component: C): ComponentData<C> {
+        this.speculation_?.record(this, entity, component);
         if (isBuiltinComponent(component)) {
             return this.builtin_.get(entity, component) as ComponentData<C>;
         }
@@ -807,6 +822,7 @@ export class World {
      *  absent. Reading only, on the same terms — writing to the result is
      *  deprecated; {@link update} is the edit. */
     tryGet<C extends AnyComponentDef>(entity: Entity, component: C): ComponentData<C> | null {
+        this.speculation_?.record(this, entity, component);
         if (isBuiltinComponent(component)) {
             if (!this.builtin_.hasCpp) return null;
             const bset = this.builtin_.getEntitySet(component._cppName);
@@ -832,6 +848,7 @@ export class World {
     /** Take `component` off `entity`. Throws during query iteration, as
      *  {@link spawn} does. */
     remove(entity: Entity, component: AnyComponentDef): void {
+        this.speculation_?.record(this, entity, component);
         if (this.isIterating()) {
             throw new Error(
                 'Cannot remove component during query iteration. ' +
@@ -1400,6 +1417,32 @@ export class World {
     /** @internal Mark component as changed without writing data (for in-place Mut query) */
     markChanged(entity: Entity, component: AnyComponentDef): void {
         this.recordComponentWrite_(entity, component);
+    }
+
+    /**
+     * @internal The open speculation's undo log, or null.
+     *
+     * The pre-image is taken where the HANDLE leaves, not where the write
+     * arrives: script storage hands out the stored object itself, so by `set`
+     * the old value is gone (docs/MUTATION_CONTRACT.md). Hence `get`/`tryGet`
+     * ask here too, and only a component's first touch is kept.
+     */
+    private speculation_: { record(world: World, entity: Entity, component: AnyComponentDef): void } | null = null;
+
+    /** @internal */
+    openSpeculation(log: { record(world: World, entity: Entity, component: AnyComponentDef): void }): void {
+        if (this.speculation_) throw new Error('A speculation is already open on this World — nesting is not supported.');
+        this.speculation_ = log;
+    }
+
+    /** @internal */
+    closeSpeculation(): void {
+        this.speculation_ = null;
+    }
+
+    /** @internal Whether a step that can be taken back is running. */
+    get speculating(): boolean {
+        return this.speculation_ !== null;
     }
 
     /** @internal Whether any query is asking about `component`'s changes. */
