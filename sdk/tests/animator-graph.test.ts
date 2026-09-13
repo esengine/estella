@@ -13,6 +13,7 @@ import {
     addParam, removeParam, updateParam,
     addLayer as addAnimatorLayer, removeLayer as removeAnimatorLayer,
     updateLayer as updateAnimatorLayer, moveLayer as moveAnimatorLayer,
+    addIK as addAnimatorIK, removeIK as removeAnimatorIK, updateIK as updateAnimatorIK,
 } from '../src/animation/animatorGraph';
 import { animatorLayerCount, ANIMATOR_FORMAT_VERSION } from '../src/animation/Animator';
 import type { AnimatorControllerDef } from '../src/animation/Animator';
@@ -171,5 +172,41 @@ describe('editing a controller with layers', () => {
         def = removeAnimatorLayer(def, 1);
         expect(animatorLayerCount(def)).toBe(1);
         expect(def.states.map(s => s.name)).toEqual(['Idle']);
+    });
+});
+
+describe('editing a controller’s constraints', () => {
+    const base = (): AnimatorControllerDef => ({
+        version: ANIMATOR_FORMAT_VERSION, parameters: [],
+        states: [{ name: 'Idle', transitions: [] }], initialState: 'Idle',
+    });
+
+    it('adds one that reaches for nothing until an author says what', () => {
+        const def = addAnimatorIK(base(), 'two-bone');
+        expect(def.ik).toHaveLength(1);
+        expect(def.ik![0]).toEqual({ kind: 'two-bone', tip: '', target: '' });
+    });
+
+    it('drops the field the other kind owns when the kind changes', () => {
+        // A pole on a look-at is a field nothing reads; leaving it writes a file
+        // that answers a question it was not asked.
+        let def = addAnimatorIK(base(), 'two-bone');
+        def = updateAnimatorIK(def, 0, { tip: 'Hand', target: 'Goal', pole: 'Elbow' });
+        expect(def.ik![0]!.pole).toBe('Elbow');
+
+        def = updateAnimatorIK(def, 0, { kind: 'look-at', axis: 'x' });
+        expect(def.ik![0]!.pole).toBeUndefined();
+        expect(def.ik![0]!.axis).toBe('x');
+        expect(def.ik![0]!.tip).toBe('Hand');
+
+        def = updateAnimatorIK(def, 0, { kind: 'two-bone' });
+        expect(def.ik![0]!.axis).toBeUndefined();
+    });
+
+    it('removes one, and refuses an index it has not got', () => {
+        const def = addAnimatorIK(base(), 'look-at');
+        expect(removeAnimatorIK(def, 0).ik).toEqual([]);
+        expect(removeAnimatorIK(def, 7)).toBe(def);
+        expect(updateAnimatorIK(def, 7, { tip: 'x' })).toBe(def);
     });
 });

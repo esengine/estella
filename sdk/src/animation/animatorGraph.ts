@@ -15,6 +15,7 @@
 
 import { ANIMATOR_FORMAT_VERSION } from './Animator';
 import { animatorLayer } from './Animator';
+import type { AnimatorIK, AnimatorIKKind } from './animatorIK';
 import type {
     AnimatorControllerDef,
     AnimatorLayer,
@@ -260,4 +261,34 @@ export function moveLayer(
     const next = layers.slice();
     next.splice(dest, 0, next.splice(from, 1)[0]!);
     return { ...def, layers: next };
+}
+
+// — IK constraints —
+
+/** A new constraint, off until an author names what it reaches for: an empty tip
+ *  resolves to nothing, so it is inert rather than wrong. */
+export function addIK(def: AnimatorControllerDef, kind: AnimatorIKKind): AnimatorControllerDef {
+    const ik: AnimatorIK = { kind, tip: '', target: '' };
+    return { ...def, ik: [...(def.ik ?? []), ik] };
+}
+
+export function removeIK(def: AnimatorControllerDef, index: number): AnimatorControllerDef {
+    if (!def.ik?.[index]) return def;
+    return { ...def, ik: def.ik.filter((_, i) => i !== index) };
+}
+
+/**
+ * Patch one constraint. Changing `kind` drops the fields the other kind owns —
+ * a pole on a look-at and an axis on a two-bone are fields nothing reads, and
+ * leaving them makes a file that answers a question it was not asked.
+ */
+export function updateIK(
+    def: AnimatorControllerDef, index: number, patch: Partial<AnimatorIK>,
+): AnimatorControllerDef {
+    const current = def.ik?.[index];
+    if (!current) return def;
+    const merged = { ...current, ...patch };
+    if (merged.kind === 'look-at') delete merged.pole;
+    else delete merged.axis;
+    return { ...def, ik: def.ik!.map((x, i) => (i === index ? merged : x)) };
 }
