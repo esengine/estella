@@ -48,9 +48,9 @@
               "z": 0
             },
             "scale": {
-              "x": 14.0,
+              "x": 14,
               "y": 0.4,
-              "z": 10.0
+              "z": 10
             }
           }
         },
@@ -106,7 +106,7 @@
             "scale": {
               "x": 2.4,
               "y": 0.3,
-              "z": 3.0
+              "z": 3
             }
           }
         },
@@ -162,7 +162,7 @@
             "scale": {
               "x": 2.4,
               "y": 0.9,
-              "z": 3.0
+              "z": 3
             }
           }
         },
@@ -217,8 +217,8 @@
             },
             "scale": {
               "x": 0.4,
-              "y": 2.0,
-              "z": 8.0
+              "y": 2,
+              "z": 8
             }
           }
         },
@@ -682,6 +682,722 @@
         }
       ],
       "visible": true
+    },
+    {
+      "id": 33,
+      "name": "Ball",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 250,
+              "y": 260,
+              "z": -300
+            },
+            "scale": {
+              "x": 0.6,
+              "y": 0.6,
+              "z": 0.6
+            }
+          }
+        },
+        {
+          "type": "RigidBody3D",
+          "data": {
+            "bodyType": 2,
+            "linearDamping": 0.05,
+            "angularDamping": 0.05
+          }
+        },
+        {
+          "type": "SphereCollider3D",
+          "data": {
+            "radius": 30,
+            "friction": 0.25,
+            "restitution": 0.35
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:sphere",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.82,
+              "g": 0.62,
+              "b": 0.26,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 34,
+      "name": "Barrel",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 300,
+              "y": 120,
+              "z": -300
+            },
+            "rotation": {
+              "x": 0,
+              "y": 0,
+              "z": 0.1045,
+              "w": 0.9945
+            },
+            "scale": {
+              "x": 0.8,
+              "y": 0.8,
+              "z": 0.8
+            }
+          }
+        },
+        {
+          "type": "RigidBody3D",
+          "data": {
+            "bodyType": 2,
+            "linearDamping": 0.1,
+            "angularDamping": 0.1
+          }
+        },
+        {
+          "type": "CapsuleCollider3D",
+          "data": {
+            "radius": 20,
+            "halfHeight": 40,
+            "friction": 0.4
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:capsule",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.28,
+              "g": 0.7,
+              "b": 0.66,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 35,
+      "name": "Cone",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 420,
+              "y": 200,
+              "z": -300
+            },
+            "scale": {
+              "x": 0.8,
+              "y": 0.8,
+              "z": 0.8
+            }
+          }
+        },
+        {
+          "type": "RigidBody3D",
+          "data": {
+            "bodyType": 2,
+            "linearDamping": 0.05,
+            "angularDamping": 0.1
+          }
+        },
+        {
+          "type": "ConvexCollider3D",
+          "data": {
+            "mesh": "builtin:cone",
+            "friction": 0.4
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cone",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.6,
+              "g": 0.42,
+              "b": 0.72,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 36,
+      "name": "Ramp",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 180,
+              "y": 0,
+              "z": -300
+            },
+            "scale": {
+              "x": 3,
+              "y": 1.2,
+              "z": 2
+            }
+          }
+        },
+        {
+          "type": "RigidBody3D",
+          "data": {
+            "bodyType": 0
+          }
+        },
+        {
+          "type": "MeshCollider3D",
+          "data": {
+            "mesh": "builtin:cone",
+            "friction": 0.5
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cone",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.55,
+              "g": 0.57,
+              "b": 0.62,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 37,
+      "name": "LampAnchor",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -520,
+              "y": 300,
+              "z": 200
+            },
+            "scale": {
+              "x": 0.5,
+              "y": 0.2,
+              "z": 0.5
+            }
+          }
+        },
+        {
+          "type": "RigidBody3D",
+          "data": {
+            "bodyType": 0
+          }
+        },
+        {
+          "type": "BoxCollider3D",
+          "data": {
+            "halfExtents": {
+              "x": 25,
+              "y": 10,
+              "z": 25
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.55,
+              "g": 0.57,
+              "b": 0.62,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 38,
+      "name": "Lamp",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -520,
+              "y": 250,
+              "z": 200
+            },
+            "scale": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            }
+          }
+        },
+        {
+          "type": "RigidBody3D",
+          "data": {
+            "bodyType": 2,
+            "linearDamping": 0.1,
+            "angularDamping": 0.2
+          }
+        },
+        {
+          "type": "SphereCollider3D",
+          "data": {
+            "radius": 25
+          }
+        },
+        {
+          "type": "DistanceJoint3D",
+          "data": {
+            "connectedEntity": 37,
+            "anchor": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "connectedAnchor": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "minLength": 0,
+            "maxLength": 120,
+            "damping": 0.4
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:sphere",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.82,
+              "g": 0.62,
+              "b": 0.26,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 39,
+      "name": "WeldA",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -300,
+              "y": 200,
+              "z": 200
+            },
+            "scale": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            }
+          }
+        },
+        {
+          "type": "RigidBody3D",
+          "data": {
+            "bodyType": 2,
+            "linearDamping": 0.1
+          }
+        },
+        {
+          "type": "BoxCollider3D",
+          "data": {
+            "halfExtents": {
+              "x": 25,
+              "y": 25,
+              "z": 25
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.28,
+              "g": 0.7,
+              "b": 0.66,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 40,
+      "name": "WeldB",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -240,
+              "y": 200,
+              "z": 200
+            },
+            "scale": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 0.5
+            }
+          }
+        },
+        {
+          "type": "RigidBody3D",
+          "data": {
+            "bodyType": 2,
+            "linearDamping": 0.1
+          }
+        },
+        {
+          "type": "BoxCollider3D",
+          "data": {
+            "halfExtents": {
+              "x": 25,
+              "y": 25,
+              "z": 25
+            }
+          }
+        },
+        {
+          "type": "FixedJoint3D",
+          "data": {
+            "connectedEntity": 39
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.6,
+              "g": 0.42,
+              "b": 0.72,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 41,
+      "name": "ChainAnchor",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -400,
+              "y": 300,
+              "z": 350
+            },
+            "scale": {
+              "x": 0.4,
+              "y": 0.2,
+              "z": 0.4
+            }
+          }
+        },
+        {
+          "type": "RigidBody3D",
+          "data": {
+            "bodyType": 0
+          }
+        },
+        {
+          "type": "BoxCollider3D",
+          "data": {
+            "halfExtents": {
+              "x": 20,
+              "y": 10,
+              "z": 20
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.55,
+              "g": 0.57,
+              "b": 0.62,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 42,
+      "name": "ChainBall",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -400,
+              "y": 220,
+              "z": 350
+            },
+            "scale": {
+              "x": 0.45,
+              "y": 0.45,
+              "z": 0.45
+            }
+          }
+        },
+        {
+          "type": "RigidBody3D",
+          "data": {
+            "bodyType": 2,
+            "linearDamping": 0.05,
+            "angularDamping": 0.05
+          }
+        },
+        {
+          "type": "SphereCollider3D",
+          "data": {
+            "radius": 22
+          }
+        },
+        {
+          "type": "PointJoint3D",
+          "data": {
+            "connectedEntity": 41,
+            "anchor": {
+              "x": 0,
+              "y": 80,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:sphere",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.6,
+              "g": 0.42,
+              "b": 0.72,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 43,
+      "name": "LiftAnchor",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -160,
+              "y": 320,
+              "z": 320
+            },
+            "scale": {
+              "x": 0.3,
+              "y": 0.3,
+              "z": 0.3
+            }
+          }
+        },
+        {
+          "type": "RigidBody3D",
+          "data": {
+            "bodyType": 0
+          }
+        },
+        {
+          "type": "BoxCollider3D",
+          "data": {
+            "halfExtents": {
+              "x": 15,
+              "y": 15,
+              "z": 15
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.55,
+              "g": 0.57,
+              "b": 0.62,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 44,
+      "name": "Lift",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -160,
+              "y": 240,
+              "z": 320
+            },
+            "scale": {
+              "x": 1.2,
+              "y": 0.2,
+              "z": 1.2
+            }
+          }
+        },
+        {
+          "type": "RigidBody3D",
+          "data": {
+            "bodyType": 2,
+            "linearDamping": 0.2
+          }
+        },
+        {
+          "type": "BoxCollider3D",
+          "data": {
+            "halfExtents": {
+              "x": 60,
+              "y": 10,
+              "z": 60
+            }
+          }
+        },
+        {
+          "type": "SliderJoint3D",
+          "data": {
+            "connectedEntity": 43,
+            "anchor": {
+              "x": 0,
+              "y": 80,
+              "z": 0
+            },
+            "axis": {
+              "x": 0,
+              "y": 1,
+              "z": 0
+            },
+            "enableLimit": true,
+            "lowerTranslation": -140,
+            "upperTranslation": 140
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.28,
+              "g": 0.7,
+              "b": 0.66,
+              "a": 1
+            }
+          }
+        }
+      ]
     }
   ]
 }

@@ -16,6 +16,13 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **Every 3D collider shape and joint, authored in a scene.** physics-3d carried
+  45 boxes and one hinge, and that was the whole corpus: the sphere, capsule,
+  convex and mesh colliders and four of the five joints shipped with no instance
+  in any scene anywhere, not even a fixture. The example now rolls a ball down a
+  mesh ramp, topples a capsule, hangs a lamp on a distance joint, welds two
+  crates together, pins a ball-and-socket and runs a lift along a slider.
+
 - **The UI controls demo authors its widgets instead of building them.** Every
   built-in widget shipped twice — a factory a game calls, and a prefab the
   editor's *Create → UI* menu drops, generated from that factory — and only the
@@ -24,6 +31,16 @@ published separately; it ships inside the editor.
   "place one and it works" was a claim nobody had made twice. The demo now
   places all nine, exclusivity included (a `UIToggleGroup` on the toggles'
   common ancestor), and its code answers what they do rather than building them.
+
+- **A 3D body is the shape its collider names.** Only `BoxCollider3D` had ever
+  worked. Reading a builtin component off an entity that does not carry one
+  answers with a default-constructed value rather than nothing — and its
+  `enabled` is `true`, so the body builder took the box branch for every entity
+  and built a sphere, a capsule, a hull and a mesh alike as a 0.5-metre box.
+  Nothing noticed because no scene in the corpus had ever authored any other
+  shape: a ball sank to the floor and sat there, and a capsule stood where it
+  landed. Every collider read is now behind the `has` check its sibling in
+  `ColliderShape3D` already had.
 
 - **A ScrollView scrolls where the editor drops it.** The widget builds its
   parts and its behaviour together in code, so the prefab behind *Create → UI →

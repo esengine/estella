@@ -171,28 +171,37 @@ function createBody(app: App, module: Physics3DWasmModule, entity: Entity,
                  body.angularDamping, body.fixedRotation ? 1 : 0, body.layer,
                  body.continuousCollision ? 1 : 0] as const;
 
-    const box = app.world.get(entity, BoxCollider3D) as BoxCollider3DData | undefined;
+    // `has` before `get`: a builtin read on an entity that does not carry the
+    // component answers with a default-constructed one, `enabled` and all — so
+    // every sphere, capsule, hull and mesh was built as the default box.
+    const has = (c: Parameters<typeof app.world.has>[1]) => app.world.has(entity, c);
+    const box = has(BoxCollider3D)
+        ? app.world.get(entity, BoxCollider3D) as BoxCollider3DData : undefined;
     if (box?.enabled) {
         return module._physics3d_addBox(
             entity as number, box.halfExtents.x / ppu, box.halfExtents.y / ppu,
             box.halfExtents.z / ppu, px, py, pz, r.x, r.y, r.z, r.w,
             ...how, box.friction, box.restitution, box.isSensor ? 1 : 0);
     }
-    const sphere = app.world.get(entity, SphereCollider3D) as SphereCollider3DData | undefined;
+    const sphere = has(SphereCollider3D)
+        ? app.world.get(entity, SphereCollider3D) as SphereCollider3DData : undefined;
     if (sphere?.enabled) {
         return module._physics3d_addSphere(
             entity as number, sphere.radius / ppu, px, py, pz, r.x, r.y, r.z, r.w,
             ...how, sphere.friction, sphere.restitution, sphere.isSensor ? 1 : 0);
     }
-    const meshCollider = app.world.get(entity, MeshCollider3D) as MeshCollider3DData | undefined;
+    const meshCollider = has(MeshCollider3D)
+        ? app.world.get(entity, MeshCollider3D) as MeshCollider3DData : undefined;
     if (meshCollider?.enabled && meshCollider.mesh !== 0) {
         return addMeshBody(module, entity, meshCollider, px, py, pz, r, ppu, body.layer);
     }
-    const hull = app.world.get(entity, ConvexCollider3D) as ConvexCollider3DData | undefined;
+    const hull = has(ConvexCollider3D)
+        ? app.world.get(entity, ConvexCollider3D) as ConvexCollider3DData : undefined;
     if (hull?.enabled && hull.mesh !== 0) {
         return addConvexBody(module, entity, hull, px, py, pz, r, ppu, how);
     }
-    const capsule = app.world.get(entity, CapsuleCollider3D) as CapsuleCollider3DData | undefined;
+    const capsule = has(CapsuleCollider3D)
+        ? app.world.get(entity, CapsuleCollider3D) as CapsuleCollider3DData : undefined;
     if (capsule?.enabled) {
         return module._physics3d_addCapsule(
             entity as number, capsule.radius / ppu, capsule.halfHeight / ppu,
