@@ -17,6 +17,10 @@ import { defineEvent, EventRegistry } from '../src/ecs/event';
 import { ResourceStorage } from '../src/ecs/resource';
 import { speculate } from '../src/ecs/speculation';
 import { App } from '../src/app/app';
+import { Schedule } from '../src/ecs/system';
+import { defineSystem } from '../src/ecs/system';
+import { Speculation, type SpeculationInstance } from '../src/ecs/speculation';
+import { Res } from '../src/ecs/resource';
 import { Transform } from '../src/ecs/component';
 import type { ESEngineModule, CppRegistry } from '../src/wasm';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
@@ -145,5 +149,36 @@ describe.skipIf(!HAS_WASM)('a speculated step, over engine components', () => {
             app.world.disconnectCpp();
             (registry as unknown as { delete(): void }).delete();
         }
+    });
+});
+
+// The capability as a system actually receives it. Everything above drives the
+// pieces by hand, which is not where a game meets them: the scheduler is what
+// hands out a scope, and a step taken inside one is what has to leave nothing.
+describe('a speculation a system asked for', () => {
+    it('runs inside the schedule and takes its step back', async () => {
+        const app = App.new();
+        const world = app.world;
+        const victim = world.spawn();
+        world.insert(victim, Health, { hp: 100 });
+
+        let outcome: string | null = null;
+        app.addSystemToSchedule(Schedule.Update, defineSystem(
+            [Res(Speculation)],
+            (speculation: SpeculationInstance) => {
+                outcome = speculation.run((commands) => {
+                    const hp = world.get(victim, Health);
+                    world.set(victim, Health, { ...hp, hp: 0 });
+                    commands.spawn().insert(Effect, { kind: 'death' });
+                    return 'abandon';
+                });
+            },
+        ));
+
+        await app.tick(1 / 60);
+
+        expect(outcome).toBe('abandon');
+        expect(world.get(victim, Health).hp).toBe(100);
+        expect(world.getEntitiesWithComponents([Effect]).length).toBe(0);
     });
 });

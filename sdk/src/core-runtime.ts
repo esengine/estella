@@ -400,6 +400,16 @@ export {
 } from './ecs/commands';
 
 // =============================================================================
+// Speculation (a gameplay step that can be taken back)
+// =============================================================================
+
+export {
+    Speculation,
+    SpeculationInstance,
+    type SpeculationOutcome,
+} from './ecs/speculation';
+
+// =============================================================================
 // Transactions (editor undo/redo)
 // =============================================================================
 

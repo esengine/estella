@@ -21,7 +21,7 @@ import { Entity } from '../types';
 import { AnyComponentDef } from './component';
 import { CommandsInstance } from './commands';
 import { EventRegistry } from './event';
-import { ResourceStorage } from './resource';
+import { defineResource, ResourceStorage } from './resource';
 import { deepClone } from '../util/deepClone';
 import type { World } from './world';
 
@@ -136,3 +136,42 @@ export function speculate(
     if (marks && events) events.rewindWrites(marks);
     return 'abandon';
 }
+
+// =============================================================================
+// As a service a system asks for
+// =============================================================================
+
+/**
+ * The scope a system was handed. `run` is one step: the body mutates, then says
+ * whether it happened.
+ *
+ * @experimental
+ */
+export class SpeculationInstance {
+    private readonly world_: World;
+    private readonly resources_: ResourceStorage;
+    private readonly events_: EventRegistry | null;
+
+    constructor(world: World, resources: ResourceStorage, events: EventRegistry | null) {
+        this.world_ = world;
+        this.resources_ = resources;
+        this.events_ = events;
+    }
+
+    run(body: (commands: CommandsInstance) => SpeculationOutcome): SpeculationOutcome {
+        return speculate(
+            { world: this.world_, resources: this.resources_, events: this.events_ ?? undefined },
+            body,
+        );
+    }
+}
+
+/**
+ * `Res(Speculation)` — the engine's existing way for a system to be handed a
+ * service, which is what this is. The parameter vocabulary is a frozen public
+ * type: a capability that grows it breaks that promise for every reader of
+ * `SystemParam`, and a service does not need to.
+ *
+ * @experimental
+ */
+export const Speculation = defineResource<SpeculationInstance>(null!, 'Speculation');

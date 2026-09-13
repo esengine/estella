@@ -8,6 +8,7 @@
 import { World } from '../ecs/world';
 import { Schedule, SystemDef, SystemRunner, SystemSet, mergeOrderingEdges, rescopeSystem, type RunCondition } from '../ecs/system';
 import { builtinResource, declaredResource, ResourceStorage, Time, TimeData, type ResourceDef } from '../ecs/resource';
+import { Speculation, SpeculationInstance } from '../ecs/speculation';
 import { installAot, prepareAot, type AotHost } from '../ecs/aot/installAot';
 import { installNativeAot, nativeAotBindings } from '../ecs/aot/installNativeAot';
 import { createNativeHeap } from '../ecs/bridge/nativeHeap';
@@ -1155,9 +1156,15 @@ export class App {
      * such thing and it runs BEFORE the first frame: a twin declaring `Res(Time)`
      * is refused outright if this App cannot yet say what Time's fields are.
      */
+    private ensureSpeculation_(): void {
+        if (this.resources_.has(Speculation)) return;
+        this.resources_.insert(Speculation, new SpeculationInstance(this.world, this.resources_, this.eventRegistry_));
+    }
+
     private ensureTime_(): void {
         if (this.resources_.has(Time)) return;
         this.resources_.insert(Time, { delta: 0, elapsed: 0, frameCount: 0, fixedDelta: this.fixedTimestep_, fixedAlpha: 0, fixedTick: 0, scale: 1, unscaledDelta: 0 });
+        this.ensureSpeculation_();
     }
 
     /** Once per app, on the way into the first frame: the clock every system
