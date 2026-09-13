@@ -66,11 +66,14 @@ built-in rebinder swaps it in). `v2-manifest.json` is a full manifest that mirro
 the running one with only the `cdn` texture bumped, so the diff is exactly one
 changed asset.
 
-The channel lives **outside `assets/`**, so a cooked build never bundles it: the
-same URL 404s and a shipped build honestly reports **已是最新版本**. A real
-deployment sets `window.__estellaHotUpdate` to point at its CDN instead — and the
-render verify below exercises that path against a genuinely cooked,
-content-addressed CDN update.
+A shipped build honestly reports **已是最新版本**, because the endpoint is
+addressed against the page ORIGIN and a packaged realm (a mini-game, a device) has
+none to resolve it against. The channel's files do travel in the package — the cook
+ships every `.json` asset whether or not a scene names one, since a data table is
+loaded by code and culling it would 404 only on the device — so it is the URL, not
+the absence of the bytes, that makes the check come back empty. A real deployment
+sets `window.__estellaHotUpdate` to point at its CDN instead, and the render verify
+below exercises that path against a genuinely cooked, content-addressed CDN update.
 
 ## How it works — content addressing
 
