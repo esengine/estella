@@ -296,6 +296,7 @@ export const CAPABILITIES = [
   'lighting-2d',
   'sprite-sorting', 'sprite-mask', 'ui-widgets', 'velocity-motion',
   'ssao', 'navigation-3d', 'root-motion', 'animation-events', 'shader-readiness',
+  'animation-layers', 'animation-ik',
   'tilemap', 'tile-collision',
   'touch', 'safe-area', 'pause-resume',
   'texture-atlas',
@@ -361,6 +362,12 @@ export const EVIDENCE = {
   ssao: /"type":\s*"ssao"/,
   'navigation-3d': /\b(NavVolume|NavLink|NavAgent3D)\b/,
   'root-motion': /\brootMotion\b/,
+  // The MASK, not the layer list: a controller can carry an empty `layers` and
+  // claim the stack, and what a stack is for is one machine reaching part of the
+  // rig while another reaches the rest.
+  'animation-layers': /"mask":\s*\{\s*"paths"/,
+  // The constraint a controller declares, not the solver behind it.
+  'animation-ik': /"kind":\s*"(two-bone|look-at)"/,
   // The authored track, not any key called events: the runtime always read them,
   // and what shipped is a format and an editor that can write them.
   'animation-events': /"type":\s*"customEvent"/,
@@ -405,6 +412,9 @@ export const KNOWN_GAPS = {
   // hot-update-demo ships one now, so the package SHAPE is a real project's.
   // What no automated run reaches is the vendor mounting it: only a mini-game
   // host implements the download, and none of the tiers builds for one.
+  'animation-ik': 'two-bone and look-at constraints run in the engine and the editor authors them, '
+    + 'but no rig in the corpus has a limb: the 3D skeletons here are joints hanging off one root, '
+    + 'and a two-bone solve is the tip and the TWO joints above it — a chain nothing shipped has',
   subpackage: 'hot-update-demo delivers `pack` as a 分包 and its button loads it, but no tier builds that project for a mini-game host — the vendor download itself is verified by hand in devtools',
 };
 
@@ -521,7 +531,8 @@ export const GOLDEN = [
   {
     id: 'third-person-3d',
     certifies: ['third-person', 'level-of-detail', 'ssao', 'navigation-3d',
-                'root-motion', 'animation-events', 'world-streaming', 'shader-readiness'],
+                'root-motion', 'animation-events', 'world-streaming', 'shader-readiness',
+                'animation-layers'],
     // A packaged frame looks the same whether first sight of the outpost cost a
     // compile or not; the run is what reads the counter on both sides of the
     // boundary. Scheduled by `a-streamed-place-is-ready-before-it-is-seen`.

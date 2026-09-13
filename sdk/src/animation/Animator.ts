@@ -816,7 +816,11 @@ export class AnimatorControllerAPI {
         // posed; taking displacement from more than one would have two answers
         // to a question the character controller asks once.
         const drivesRoot = index === 0 && targetLeaf.rootMotion === true;
-        const posed = motion !== null
+        // A layer at zero says nothing, a motion that WRITES the entity included:
+        // a sprite sheet switched by a silent layer is that layer speaking. Its
+        // machine still runs and still posts events — heard, not shown.
+        const weight = index === 0 ? 1 : (def.layers![index - 1]!.weight ?? 1);
+        const posed = motion !== null && weight > 0
             && this.poseLayer(world, ctx, lrt, motion, drivesRoot, stateChanged);
 
         if (posed) this.compose(world, ctx, def, index, rt, posed, motion!);

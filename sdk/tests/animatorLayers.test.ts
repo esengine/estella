@@ -14,6 +14,7 @@ import {
 import { createTimelineMotionDriver, TIMELINE_MOTION } from '../src/timeline';
 import { TimelineAPI } from '../src/timeline/TimelineControl';
 import { defineComponent, Name, Children, Parent } from '../src/ecs/component';
+import { SpriteAnimator } from '../src/animation/SpriteAnimator';
 import { WrapMode, TrackType, InterpType, type TimelineAsset } from '../src/timeline/TimelineTypes';
 
 const E = 1;
@@ -536,5 +537,67 @@ describe('a masked layer', () => {
         const { world, ids } = run({ paths: ['chest', 'tail'] });
         expect(liftAt(world, ids.arms)).toBeCloseTo(90, 4);
         expect(liftAt(world, ids.legs)).toBe(10);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// A motion that writes the entity instead of stating a pose
+// ---------------------------------------------------------------------------
+
+describe('a layer playing something that cannot be sampled', () => {
+    /** A controller whose upper layer drives a sprite sheet. */
+    function spriteStack(weight: number, mask?: { paths: string[] }): AnimatorControllerAPI {
+        const ctrl = new AnimatorControllerAPI();
+        ctrl.registerController('rig', {
+            version: 2, parameters: [],
+            initialState: 'Base',
+            states: [{ name: 'Base', motion: { kind: 'sprite', clip: 'base_clip' }, transitions: [] }],
+            layers: [{
+                name: 'Upper', weight, mask, initialState: 'Over',
+                states: [{ name: 'Over', motion: { kind: 'sprite', clip: 'over_clip' }, transitions: [] }],
+            }],
+        });
+        return ctrl;
+    }
+
+    function seedSprite() {
+        const world = seedWorld();
+        world.insert(E, SpriteAnimator, {
+            clip: '', currentFrame: 0, frameTimer: 0, speed: 1,
+            loop: true, playing: false, finished: false, enabled: true,
+        });
+        return world;
+    }
+
+    const clipOf = (world: any) => (world.get(E, SpriteAnimator) as { clip: string }).clip;
+
+    it('drives the entity directly, so the upper layer simply wins', () => {
+        // A sprite sheet has nothing to be halfway between, so it joins no stack:
+        // it is switched, and the last layer to switch it is the one on screen.
+        const world = seedSprite();
+        const ctrl = spriteStack(1);
+        attach(world);
+        ctrl.update(world, 0.016);
+        expect(clipOf(world)).toBe('over_clip');
+    });
+
+    it('is not held back by a mask, which only a pose can be', () => {
+        // Worth stating rather than leaving to be discovered: an author who masks
+        // a sprite layer gets no masking and no complaint.
+        const world = seedSprite();
+        const ctrl = spriteStack(1, { paths: ['nothing'] });
+        attach(world);
+        ctrl.update(world, 0.016);
+        expect(clipOf(world)).toBe('over_clip');
+    });
+
+    it('says nothing at all at weight zero', () => {
+        // The one thing weight DOES reach here. A layer at zero that still
+        // switched the sheet would be a silent layer speaking.
+        const world = seedSprite();
+        const ctrl = spriteStack(0);
+        attach(world);
+        ctrl.update(world, 0.016);
+        expect(clipOf(world)).toBe('base_clip');
     });
 });
