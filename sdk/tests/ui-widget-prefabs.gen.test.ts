@@ -20,6 +20,7 @@ import { UIDropdown } from '../src/ui/behavior/dropdown';
 import { registerComponent } from '../src/ecs/component';
 import { spawnUIEntity } from '../src/ui/core/compose';
 import { UIMask, MaskMode } from '../src/ui/core/ui-mask';
+import { UIScroll, ScrollMovement } from '../src/ui/core/ui-scroll';
 import { UIPositionType } from '../src/ui/core/ui-node';
 import { Interactable } from '../src/ui/input/interactable';
 import { themeColors } from '../src/ui/theme/tokens';
@@ -203,12 +204,11 @@ describe('UI widget prefab codegen', () => {
         expect(entityById(prefab, prefab.rootEntityId).children.length).toBe(1);
     });
 
-    it('ScrollView: a clipped scroll viewport shell (scroll model wired by createScrollView)', () => {
+    it('ScrollView: a clipped viewport that scrolls where it is dropped', () => {
         const prefab = generate('ScrollView', (world) => {
-            // The serializable half of createScrollView: a Scissor-masked viewport
-            // + a hit-target + an absolutely-placed content frame (taller than the
-            // window so there is something to scroll). The scroll model — wheel /
-            // drag / kinetic fling — is runtime-only; wire it with createScrollView.
+            // A Scissor-masked viewport over a content frame taller than it.
+            // UIScroll is what makes it scroll WHERE IT IS DROPPED — the widget
+            // builds that half in code, so a prefab without it clipped and sat.
             const viewport = spawnUIEntity({
                 world,
                 node: { width: px(240), height: px(320) },
@@ -217,18 +217,31 @@ describe('UI widget prefab codegen', () => {
             markThemed(world, viewport, { visual: 'control' });
             world.insert(viewport, UIMask, { enabled: true, mode: MaskMode.Scissor });
             world.insert(viewport, Interactable, { enabled: true, blockRaycast: true, raycastTarget: true });
-            spawnUIEntity({
+            const content = spawnUIEntity({
                 world, parent: viewport,
                 node: {
                     position: UIPositionType.Absolute,
                     insetLeft: px(0), insetTop: px(0), width: px(240), height: px(640),
                 },
             });
+            // Named rather than left to the "first child" sentinel: 0 is also a
+            // legal entity id, and the prefab writer maps an entity field through
+            // its own ids — a 0 comes out pointing at the viewport itself.
+            world.insert(viewport, UIScroll, {
+                enabled: true, content, horizontal: false, vertical: true,
+                movement: ScrollMovement.Clamped, wheelSpeed: 1, dragScroll: true,
+                decelerationRate: 0.135,
+            });
             return viewport as unknown as number;
         });
         expect(typesOf(prefab, prefab.rootEntityId)).toEqual(expect.arrayContaining([
-            'UINode', 'UIVisual', 'UIMask', 'Interactable',
+            'UINode', 'UIVisual', 'UIMask', 'Interactable', 'UIScroll',
         ]));
-        expect(entityById(prefab, prefab.rootEntityId).children.length).toBe(1);
+        const root = entityById(prefab, prefab.rootEntityId);
+        expect(root.children.length).toBe(1);
+        // The thing that MOVES is the frame, never the window it moves behind:
+        // a scroller pointed at itself clips nothing and slides the whole widget.
+        const scroll = root.components.find((cc) => cc.type === 'UIScroll')!;
+        expect((scroll.data as { content: string }).content).toBe(root.children[0]);
     });
 });

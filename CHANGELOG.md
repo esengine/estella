@@ -16,6 +16,15 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A ScrollView scrolls where the editor drops it.** The widget builds its
+  parts and its behaviour together in code, so the prefab behind *Create → UI →
+  ScrollView* carried only the parts: a box that clipped its content and never
+  moved unless game code went looking for it. `UIScroll` — the component whose
+  whole purpose is to be authored in a scene, and which the behaviour plugin
+  already adopts into a live scroller — was the missing half, and the prefab now
+  carries it, pointed at the frame that moves rather than the window it moves
+  behind.
+
 - **A spatial source you can hear in the audio demo.** Nothing in the shipped
   corpus had ever set `AudioSource.spatial`, and no scene anywhere carried an
   `AudioListener` — so the warning the engine logs for a spatial sound with no

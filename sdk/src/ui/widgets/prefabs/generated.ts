@@ -3180,6 +3180,19 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "blockRaycast": true,
               "raycastTarget": true
             }
+          },
+          {
+            "type": "UIScroll",
+            "data": {
+              "enabled": true,
+              "content": "1",
+              "horizontal": false,
+              "vertical": true,
+              "movement": 0,
+              "wheelSpeed": 1,
+              "dragScroll": true,
+              "decelerationRate": 0.135
+            }
           }
         ],
         "visible": true
