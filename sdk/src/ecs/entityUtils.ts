@@ -16,7 +16,7 @@
  */
 import type { Entity } from '../types';
 import type { World } from './world';
-import { Disabled, renderableComponents, Transform } from './component';
+import { Children, Disabled, renderableComponents, Transform, type ChildrenData } from './component';
 import { UINode, UIDisplay, type UINodeData } from '../ui/core/ui-node';
 
 /**
@@ -65,18 +65,28 @@ export function isEntityVisible(world: World, entity: Entity): boolean {
     return true;
 }
 
+/**
+ * Switch `entity` and everything under it off, or back on — a character switched
+ * off with its sword still swinging is not switched off.
+ *
+ * Tagged per entity rather than derived from an ancestor, so a query costs one
+ * lookup: a subtree RE-PARENTED under a disabled entity needs this called again.
+ */
 export function setEntityActive(world: World, entity: Entity, active: boolean): void {
-    if (active) {
-        if (world.has(entity, Disabled)) {
-            world.remove(entity, Disabled);
+    const apply = (e: Entity): void => {
+        if (!world.valid(e)) return;
+        if (active) {
+            if (world.has(e, Disabled)) world.remove(e, Disabled);
+        } else if (!world.has(e, Disabled)) {
+            world.insert(e, Disabled, {});
         }
-    } else {
-        if (!world.has(entity, Disabled)) {
-            world.insert(entity, Disabled, {});
-        }
-    }
+        if (!world.has(e, Children)) return;
+        for (const child of (world.get(e, Children) as ChildrenData).entities) apply(child as Entity);
+    };
+    apply(entity);
 }
 
+/** Whether this entity itself is switched on — see {@link setEntityActive}. */
 export function isEntityActive(world: World, entity: Entity): boolean {
     return !world.has(entity, Disabled);
 }

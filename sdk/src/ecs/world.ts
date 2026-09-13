@@ -6,7 +6,7 @@
  */
 
 import { Entity, entityGeneration, entityIndex, makeEntity, INVALID_ENTITY } from '../types';
-import { AnyComponentDef, ComponentDef, ComponentData, BuiltinComponentDef, isBuiltinComponent, getComponentRegistry, getUserComponents, getComponent, Name, Parent, Children, type ParentData, type ChildrenData } from './component';
+import { AnyComponentDef, ComponentDef, ComponentData, BuiltinComponentDef, isBuiltinComponent, getComponentRegistry, getUserComponents, getComponent, Disabled, Name, Parent, Children, type ParentData, type ChildrenData } from './component';
 import type { CppRegistry, ESEngineModule } from '../wasm';
 import { handleWasmError } from '../wasm/wasmError';
 import { BuiltinBridge, convertFromWasm, convertForWasm, type BridgeConnectOptions, type BuiltinMethods, type CompositionDelta } from './bridge/BuiltinBridge';
@@ -118,6 +118,26 @@ export interface QueryFilter {
 /** Components whose value feeds the world-transform composition. Hierarchy is
  *  in here too: a reparent moves a subtree without touching its transforms. */
 const COMPOSITION_INPUTS = new Set(['Transform', 'Parent', 'Children']);
+
+
+/**
+ * The cache dependencies of a query, Disabled included: switching one entity off
+ * changes what EVERY query answers. Shared because QueryInstance and the AOT
+ * plan precompute this set once and would each have to remember.
+ */
+export function queryDepIds(
+    components: readonly AnyComponentDef[],
+    withFilters: readonly AnyComponentDef[],
+    withoutFilters: readonly AnyComponentDef[],
+    filterDeps: readonly AnyComponentDef[] = [],
+): symbol[] {
+    const ids: symbol[] = [Disabled._id];
+    for (const c of components) ids.push(c._id);
+    for (const c of withFilters) ids.push(c._id);
+    for (const c of withoutFilters) ids.push(c._id);
+    for (const c of filterDeps) ids.push(c._id);
+    return ids;
+}
 
 /**
  * The entity store, as `GetWorld()` hands it to a system — the escape hatch for
@@ -1012,11 +1032,7 @@ export class World {
         withFilters: AnyComponentDef[],
         withoutFilters: AnyComponentDef[],
     ): symbol[] {
-        const ids: symbol[] = [];
-        for (const c of components) ids.push(c._id);
-        for (const c of withFilters) ids.push(c._id);
-        for (const c of withoutFilters) ids.push(c._id);
-        return ids;
+        return queryDepIds(components, withFilters, withoutFilters);
     }
 
     /**
@@ -1069,8 +1085,15 @@ export class World {
             }
         }
 
+        // `Disabled`'s whole contract is that the systems skip it, answered once
+        // here rather than remembered at 78 call sites. A query that NAMES the
+        // tag is the exception: managing the switch means seeing it.
+        const namesDisabled = components.includes(Disabled)
+            || withFilters.includes(Disabled) || withoutFilters.includes(Disabled);
+
         return this.queries_.getOrCompute(cacheKey, depIds, () => {
             const entities: Entity[] = [];
+            const off = namesDisabled ? null : this.scripts_.getStorageById(Disabled._id);
 
             const reqScript: Map<Entity, unknown>[] = [];
             const reqBuiltin: BuiltinMethods[] = [];
@@ -1120,6 +1143,7 @@ export class World {
             const rbLen = reqBuiltin.length;
 
             for (const entity of candidates) {
+                if (off?.has(entity)) continue;
                 let match = true;
                 for (let i = 0; i < rsLen; i++) {
                     if (!reqScript[i].has(entity)) { match = false; break; }

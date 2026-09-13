@@ -16,6 +16,18 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A disabled entity is actually skipped.** `Disabled`'s doc promised that "the
+  engine's systems skip it" and nothing read the tag: `setEntityActive` returned,
+  every query went on answering with the entity, and the only record of this was
+  a comment in the UI builtins explaining that a verb built on it "would look
+  right in the inspector and change nothing on screen". Queries now exclude
+  disabled entities — the one place every system, including the AOT-compiled
+  ones, meets the world — and the query cache watches the tag, so switching one
+  invalidates what was already found. A query that names `Disabled` still sees
+  them, because managing the switch means reaching what is switched off, and
+  `setEntityActive` takes the whole subtree with it: a character switched off
+  with its sword still swinging is not switched off.
+
 - **A sorting group in the sprite demo.** The component that makes a subtree
   sort as one unit — the fix for a character whose sword draws behind the wrong
   prop — had a pixel criterion of its own and no instance in any shipped scene.

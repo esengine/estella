@@ -17,6 +17,9 @@ describe('Entity visibility helpers', () => {
         const components = new Map<string, any>();
         const key = (comp: any) => comp._name ?? comp.name;
         return {
+            // One entity, no tree: switching off walks the subtree, and an
+            // entity with no Children is where that walk stops.
+            valid: () => true,
             has: (_e: number, comp: any) => components.has(key(comp)),
             get: (_e: number, comp: any) => components.get(key(comp)),
             set: (_e: number, comp: any, data: any) => {

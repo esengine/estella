@@ -8,7 +8,7 @@
 import { Entity } from '../types';
 import { AnyComponentDef, ComponentData, isBuiltinComponent } from './component';
 import type { World, QueryFilter } from './world';
-import { computeQueryCacheKey } from './world';
+import { computeQueryCacheKey, queryDepIds } from './world';
 
 // =============================================================================
 // Mutable Component Wrapper
@@ -440,12 +440,10 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         // Same set the cache validity check reads; order is irrelevant (it maps
         // each id to its version). Must match what getEntitiesWithComponents would
         // otherwise build per call.
-        this.depIds_ = [
-            ...this.allRequired_.map(c => c._id),
-            ...descriptor._with.map(c => c._id),
-            ...descriptor._without.map(c => c._id),
-            ...(this.compiledFilter_?.deps.map(c => c._id) ?? []),
-        ];
+        this.depIds_ = queryDepIds(
+            this.allRequired_, descriptor._with, descriptor._without,
+            this.compiledFilter_?.deps ?? [],
+        );
         this.getters_ = this.actualComponents_.map(comp => world.resolveGetter(comp, 'borrowed'));
         this.gettersRetained_ = this.actualComponents_.map(comp => world.resolveGetter(comp, 'retained'));
         this.mutSetters_ = descriptor._mutIndices.map(idx =>

@@ -38,7 +38,7 @@
  */
 
 import type { AnyComponentDef } from '../component';
-import { computeQueryCacheKey, type World } from '../world';
+import { computeQueryCacheKey, type World, queryDepIds } from '../world';
 import type { Entity } from '../../types';
 import { CMD_DESPAWN } from './AotContext';
 import type { AotRuntime } from './AotRuntime';
@@ -293,7 +293,7 @@ export class AotDispatch {
                 resolvers: comps.map((c) => resolverFor(this.world, c)),
                 mutated: [...(twin.mutated[k] ?? [])],
                 key: computeQueryCacheKey(comps),
-                depIds: comps.map((c) => c._id as symbol),
+                depIds: queryDepIds(comps, NO_FILTERS, NO_FILTERS),
                 width: 1 + comps.length,
                 resolved,
                 reader: null,

@@ -125,7 +125,7 @@ const DISPOSITION = {
   ParticleForceField: ['owed', 'particle-demo adds force fields from code, and the field has a radius gizmo the Inspector already draws'],
   NavArea: ['owed', 'cost-modifying nav regions (mud, road) never appear; enemy-ai-3d authors NavVolume, NavLink and NavObstacle but no area'],
   Marker: ['owed', 'Create > Marker and Create > Trigger Area are one click each, and not one project places either — the converged target for .tmj object groups has no hand-authored instance'],
-  Disabled: ['owed', 'the engine can deactivate an entity and the editor has no switch for it (the Outliner eye toggles visibility, a different thing), so no scene ships one'],
+  Disabled: ['owed', 'queries skip it now, but the editor still has no switch for it — the Outliner eye toggles visibility, which is a different thing — so no scene ships one'],
   Velocity: ['owed', 'motion without a physics body — the cheapest thing in the engine, authored nowhere'],
 };
 

@@ -1156,7 +1156,9 @@ export const ParticleEmitter = defineBuiltin<ParticleEmitterData>('ParticleEmitt
 
 /**
  * Marks an entity inactive: it keeps its components and its place in the tree,
- * and the engine's systems skip it. A tag, so it carries no data.
+ * and every query skips it — which is how the systems skip it. A query that
+ * NAMES this one sees them, since managing the switch means reaching what is
+ * switched off; `setEntityActive` sets it, and takes the subtree with it.
  */
 export const Disabled = defineTag('Disabled');
 
