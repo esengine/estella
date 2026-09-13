@@ -104,6 +104,14 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **A state says what it plays one way, from the file in.** A controller written
+  before motions existed spells a state's motion as `clip`, `blend` or `spine` —
+  each one kind's own word for what `motion` says generally — and every reader
+  after the runtime was on its own to remember all four. Migration folds them
+  now, down nested machines and inside layers, and removes the older fields
+  rather than shadowing them. The editor opens through that same migration, so a
+  file opened and saved comes back current and the panel reads one field.
+
 - **One place knows how to average a rotation.** The pose mixer, the layer stack
   and a blend's displacement had each written out the hemisphere alignment that
   makes {q} and {-q} average to the short way round — a rule that is easy to get
