@@ -51,6 +51,11 @@ export {
     evaluateAnimatorPath,
     enterStatePath,
     leafStateOf,
+    animatorLayerCount,
+    animatorLayer,
+    layerState,
+    setLayerState,
+    ANIMATOR_FORMAT_VERSION,
     resolveParams,
     selectBlendClip,
     motionOf,
@@ -62,6 +67,8 @@ export {
     type AnimatorSpineMotion,
     type AnimatorSubMachine,
     type AnimatorScope,
+    type AnimatorLayer,
+    type AnimatorLayerBlend,
     type SpineAnimationDriver,
     type AnimatorParam,
     type AnimatorParamType,
@@ -133,6 +140,17 @@ export {
     type AnimClipVec2,
     type AnimClipSizing,
 } from './AnimClipLoader';
+
+export {
+    migrateAnimatorController,
+    type AnimatorMigration,
+} from './animatorMigrate';
+
+export {
+    overlayPose,
+    addPoseOver,
+    type LayerReach,
+} from './layerStack';
 
 export {
     MotionRegistry,

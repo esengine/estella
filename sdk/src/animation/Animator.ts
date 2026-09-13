@@ -30,6 +30,7 @@ import {
 import { SPRITE_MOTION, spriteMotionDriver } from './spriteMotion';
 import { Pose } from './pose';
 import { mixPoses } from './poseMix';
+import { overlayPose, addPoseOver } from './layerStack';
 import { AnimatorRootMotion, type AnimatorRootMotionData } from './animatorRootMotion';
 import type { AnimatorEventSink } from './animatorEvent';
 import { Transform, type TransformData } from '../ecs/component';
@@ -154,19 +155,73 @@ export interface AnimatorState {
     y?: number;
 }
 
+/** How a layer's pose meets what the layers under it already said. */
+export type AnimatorLayerBlend = 'override' | 'additive';
+
+/**
+ * A layer over the base one: a state machine of its own, and how much of what it
+ * says survives. Neither `weight` nor `blend` exists on the base layer, both
+ * being statements about what is underneath and nothing being.
+ */
+export interface AnimatorLayer extends AnimatorScope {
+    name: string;
+    /** 0 leaves the layers below untouched, 1 states this layer whole. */
+    weight?: number;
+    blend?: AnimatorLayerBlend;
+}
+
+/** What a `.esanimator` this build writes claims. */
+export const ANIMATOR_FORMAT_VERSION = 2;
+
 export interface AnimatorControllerDef {
+    /**
+     * Absent is 1, the shape before layers. A file claiming a version this build
+     * does not know is refused rather than read for the parts it recognises,
+     * which would drop a layer silently and animate the wrong character.
+     */
+    version?: number;
     parameters: AnimatorParam[];
     states: AnimatorState[];
     initialState: string;
     /** Transitions evaluated from every state, before the current state's own. */
     anyStateTransitions?: AnimatorTransition[];
+    /** Layers over the base one, laid down in order. */
+    layers?: AnimatorLayer[];
 }
 
 /**
- * The shape shared by the top-level controller and every nested machine: a set of
- * states, an entry point, and machine-wide any-state transitions.
+ * The shape shared by the top-level controller, every layer and every nested
+ * machine: a set of states, an entry point, and machine-wide any-state
+ * transitions.
  */
 export type AnimatorScope = Pick<AnimatorControllerDef, 'states' | 'initialState' | 'anyStateTransitions'>;
+
+/** How many state machines run on one entity: the base layer and those over it. */
+export function animatorLayerCount(def: AnimatorControllerDef): number {
+    return 1 + (def.layers?.length ?? 0);
+}
+
+/**
+ * Layer `index`'s active state. Read and written through here so each layer's
+ * state has one home: the base layer's is `currentState`, which is what a
+ * single-layer controller has always had and what every reader of one expects.
+ */
+export function layerState(a: AnimatorData, index: number): string {
+    return index === 0 ? a.currentState : (a.layerStates?.[index - 1] ?? '');
+}
+
+export function setLayerState(a: AnimatorData, index: number, path: string): void {
+    if (index === 0) { a.currentState = path; return; }
+    if (!a.layerStates) a.layerStates = [];
+    while (a.layerStates.length < index) a.layerStates.push('');
+    a.layerStates[index - 1] = path;
+}
+
+/** Layer `index`, the base one at 0. Null for an index the controller has not got. */
+export function animatorLayer(def: AnimatorControllerDef, index: number): AnimatorScope | null {
+    if (index === 0) return def;
+    return def.layers?.[index - 1] ?? null;
+}
 
 // =============================================================================
 // Pure transition evaluator (no World, no side effects → unit-testable)
@@ -226,7 +281,7 @@ function firstReady(
  * triggers a fired transition consumed. Pure.
  */
 export function evaluateAnimatorTransitions(
-    def: AnimatorControllerDef,
+    def: AnimatorScope,
     currentState: string,
     params: AnimatorParamValues,
     triggers: ReadonlySet<string>,
@@ -299,7 +354,7 @@ export interface AnimatorPathEvalResult {
  * initial state when needed). `clipFinished` reflects the leaf clip. Pure.
  */
 export function evaluateAnimatorPath(
-    def: AnimatorControllerDef,
+    def: AnimatorScope,
     currentPath: string,
     params: AnimatorParamValues,
     triggers: ReadonlySet<string>,
@@ -338,7 +393,7 @@ export function evaluateAnimatorPath(
 }
 
 /** The leaf (motion-bearing) state of a resolved path, or null if unresolvable. */
-export function leafStateOf(def: AnimatorControllerDef, path: string): AnimatorState | null {
+export function leafStateOf(def: AnimatorScope, path: string): AnimatorState | null {
     const resolved = resolveStatePath(def, path ? path.split(STATE_PATH_SEP) : []);
     return resolved ? resolved.states[resolved.states.length - 1] : null;
 }
@@ -434,8 +489,12 @@ export function resolveParams(
 export interface AnimatorData {
     /** Registered controller name (see AnimatorControllerAPI.registerController). */
     controller: string;
-    /** Active state; empty until the first update seeds it from initialState. */
+    /** The base layer's active state; empty until the first update seeds it. */
     currentState: string;
+    /** The active state of each layer ABOVE the base one, by that layer's index
+     *  minus one — the base layer's is {@link currentState}, for the same reason
+     *  the base layer has no weight. */
+    layerStates: string[];
     enabled: boolean;
 }
 
@@ -449,6 +508,7 @@ export interface AnimatorData {
 export const Animator: ComponentDef<AnimatorData> = defineComponent('Animator', {
     controller: '',
     currentState: '',
+    layerStates: [] as string[],
     enabled: true,
 }, {
     assetFields: [{ field: 'controller', type: 'animatorcontroller' }],
@@ -642,59 +702,131 @@ export class AnimatorControllerAPI {
             const def = this.getController(a.controller);
             if (!def || def.states.length === 0) continue;
 
-            // Seed / repair the active state path. The path descends into a
-            // sub-machine's initial state when the entry point is a container.
-            let fromPath = a.currentState;
-            let leaf = fromPath ? leafStateOf(def, fromPath) : null;
-            if (!leaf) {
-                fromPath = enterStatePath(def, def.initialState).join(STATE_PATH_SEP);
-                leaf = leafStateOf(def, fromPath);
-                if (!leaf) continue;
-            }
-
+            const count = animatorLayerCount(def);
             const params = resolveParams(def, this.params.get(entity) ?? EMPTY_PARAMS);
-            const triggerSet = this.triggers.get(entity);
             const ctx = this.motions_.context(world, entity, params);
-            const rt = this.runtimeFor(entity);
-            // Advance BEFORE asking whether the motion ran out: judging the clip
-            // on the previous frame's clock holds every exit-time transition one
-            // frame past the clip it was waiting for.
-            this.advance(rt, dt);
-            const leafMotion = motionOf(leaf);
-            const clipFinished = leafMotion !== null && this.motionEnded(ctx, leafMotion, rt.time);
+            const rt = this.runtimeFor(entity, count);
+            rt.composed.reset();
 
-            const { nextPath, consumedTriggers, fadeDuration } = evaluateAnimatorPath(
-                def, fromPath, params, triggerSet ?? EMPTY_TRIGGERS, clipFinished,
-            );
-            if (triggerSet) for (const t of consumedTriggers) triggerSet.delete(t);
-
-            const target = nextPath ?? fromPath;
-            const stateChanged = target !== a.currentState;
-            if (stateChanged) {
-                a.currentState = target;
-                world.insert(entity, Animator, a);
+            let wrote = false;
+            this.spentTriggers_.length = 0;
+            for (let index = 0; index < count; index++) {
+                wrote = this.stepLayer(world, entity, a, def, index, ctx, rt, dt, events) || wrote;
             }
-            const targetLeaf = nextPath ? leafStateOf(def, target) : leaf;
-            if (!targetLeaf) continue;
-            // Drive the active leaf every frame: a blend's selection can change as
-            // its parameter crosses a threshold without any state change. A driver
-            // is a no-op in steady state, which is what keeps that cheap.
-            const motion = targetLeaf === leaf ? leafMotion : motionOf(targetLeaf);
+            // Consumed after EVERY layer has been asked, not as each fires: one
+            // trigger is one event every layer is told about, so an attack both
+            // machines answer cannot depend on which was stepped first.
+            const triggers = this.triggers.get(entity);
+            if (triggers) for (const t of this.spentTriggers_) triggers.delete(t);
+            // One write for the whole stack: a layer states values, and what the
+            // entity ends up as is the stack's answer, not the topmost writer's.
+            if (wrote) rt.composed.applyTo(world);
+        }
+    }
 
-            if (stateChanged) {
-                this.beginState(rt, leafMotion, leaf.rootMotion === true, motion, fadeDuration);
-            }
-            const drivesRoot = targetLeaf.rootMotion === true;
-            if (motion) this.driveMotion(ctx, world, rt, motion, drivesRoot, stateChanged);
+    /**
+     * Run one layer: its own clock, its own transitions, its own pose — laid over
+     * what the layers under it already put in `rt.composed`. Answers whether it
+     * left anything there, a layer driving a sprite sheet having written the
+     * entity directly instead.
+     */
+    private stepLayer(
+        world: World, entity: Entity, a: AnimatorData, def: AnimatorControllerDef,
+        index: number, ctx: MotionContext, rt: AnimatorRuntime, dt: number,
+        events: AnimatorEventSink | undefined,
+    ): boolean {
+        const scope = animatorLayer(def, index);
+        if (!scope || scope.states.length === 0) return false;
 
-            // What the state's own clock covered this frame. Empty on the frame it
-            // was entered, and closed there rather than half-open: an event
-            // authored at the very start of a clip happens on that frame or never.
-            const span: MotionSpan = {
-                from: rt.prevTime, to: rt.time, inclusiveStart: rt.entered,
-            };
-            if (motion && events) this.emitEvents(ctx, entity, motion, span, events);
-            this.publishRootMotion(world, entity, ctx, motion, span, drivesRoot);
+        // Seed / repair the active state path. The path descends into a
+        // sub-machine's initial state when the entry point is a container.
+        let fromPath = layerState(a, index);
+        let leaf = fromPath ? leafStateOf(scope, fromPath) : null;
+        if (!leaf) {
+            fromPath = enterStatePath(scope, scope.initialState).join(STATE_PATH_SEP);
+            leaf = leafStateOf(scope, fromPath);
+            if (!leaf) return false;
+        }
+
+        const params = ctx.params;
+        const triggerSet = this.triggers.get(entity);
+        const lrt = rt.layers[index]!;
+        // Advance BEFORE asking whether the motion ran out: judging the clip
+        // on the previous frame's clock holds every exit-time transition one
+        // frame past the clip it was waiting for.
+        this.advance(lrt, dt);
+        const leafMotion = motionOf(leaf);
+        const clipFinished = leafMotion !== null && this.motionEnded(ctx, leafMotion, lrt.time);
+
+        const { nextPath, consumedTriggers, fadeDuration } = evaluateAnimatorPath(
+            scope, fromPath, params, triggerSet ?? EMPTY_TRIGGERS, clipFinished,
+        );
+        for (const t of consumedTriggers) this.spentTriggers_.push(t);
+
+        const target = nextPath ?? fromPath;
+        // Also true on the frame a layer is SEEDED, its recorded state being
+        // empty and the entry point what it is about to start playing.
+        const stateChanged = target !== layerState(a, index);
+        if (stateChanged) {
+            setLayerState(a, index, target);
+            world.insert(entity, Animator, a);
+        }
+        const targetLeaf = nextPath ? leafStateOf(scope, target) : leaf;
+        if (!targetLeaf) return false;
+        // Drive the active leaf every frame: a blend's selection can change as
+        // its parameter crosses a threshold without any state change. A driver
+        // is a no-op in steady state, which is what keeps that cheap.
+        const motion = targetLeaf === leaf ? leafMotion : motionOf(targetLeaf);
+
+        if (stateChanged) {
+            this.beginState(lrt, leafMotion, leaf.rootMotion === true, motion, fadeDuration);
+        }
+        // Where the character GOES has one author. A layer states how it is
+        // posed; taking displacement from more than one would have two answers
+        // to a question the character controller asks once.
+        const drivesRoot = index === 0 && targetLeaf.rootMotion === true;
+        const posed = motion !== null
+            && this.poseLayer(world, ctx, lrt, motion, drivesRoot, stateChanged);
+
+        if (posed) this.compose(world, ctx, def, index, rt, posed, motion!);
+
+        // What the state's own clock covered this frame. Empty on the frame it
+        // was entered, and closed there rather than half-open: an event
+        // authored at the very start of a clip happens on that frame or never.
+        const span: MotionSpan = {
+            from: lrt.prevTime, to: lrt.time, inclusiveStart: lrt.entered,
+        };
+        if (motion && events) this.emitEvents(ctx, entity, motion, span, events);
+        if (index === 0) this.publishRootMotion(world, entity, ctx, motion, span, drivesRoot);
+        return posed !== null;
+    }
+
+    /**
+     * Put `pose` into the stack. The base layer states it outright; a layer over
+     * it leans the stack toward what it says, or adds what it says beyond its own
+     * rest pose — neither of which commutes, which is the whole difference
+     * between this and the pose mixer a crossfade uses.
+     */
+    private compose(
+        world: World, ctx: MotionContext, def: AnimatorControllerDef, index: number,
+        rt: AnimatorRuntime, pose: Pose, motion: AnimatorMotion,
+    ): void {
+        if (index === 0) {
+            overlayPose(rt.composed, pose, 1, world, null);
+            return;
+        }
+        const layer = def.layers![index - 1]!;
+        const weight = layer.weight ?? 1;
+        if (layer.blend !== 'additive') {
+            overlayPose(rt.composed, pose, weight, world, null);
+            return;
+        }
+        rt.rest.reset();
+        ctx.extractRootMotion = false;
+        // The clip's own first frame is its rest: an additive clip says "from
+        // where this motion starts", so nothing else has to be authored for it.
+        if (ctx.sample(motion, 0, rt.rest)) {
+            addPoseOver(rt.composed, pose, rt.rest, weight, world, null);
         }
     }
 
@@ -759,7 +891,7 @@ export class AnimatorControllerAPI {
      * motion has no partial state to hold, so a fade over one would be a pause.
      */
     private beginState(
-        rt: AnimatorRuntime,
+        rt: LayerRuntime,
         leaving: AnimatorMotion | null, leavingDrivesRoot: boolean,
         entering: AnimatorMotion | null, fadeDuration: number,
     ): void {
@@ -780,7 +912,7 @@ export class AnimatorControllerAPI {
     }
 
     /** Advance the state's clock, and the fade's if one is running. */
-    private advance(rt: AnimatorRuntime, dt: number): void {
+    private advance(rt: LayerRuntime, dt: number): void {
         rt.prevTime = rt.time;
         rt.entered = false;
         rt.time += dt;
@@ -791,13 +923,15 @@ export class AnimatorControllerAPI {
     }
 
     /**
-     * Put the motion on the entity. Through a pose where it can be sampled - two
-     * composed while a fade runs - so what lands does not depend on sample order.
+     * What this layer's motion says, as a pose for the stack to compose — two
+     * composed here already when a fade is running, mixing being the operation
+     * that does not care which was sampled first. Null for a motion that can only
+     * be driven, a sprite sheet writing the entity itself and joining no stack.
      */
-    private driveMotion(
-        ctx: MotionContext, world: World, rt: AnimatorRuntime,
+    private poseLayer(
+        world: World, ctx: MotionContext, rt: LayerRuntime,
         motion: AnimatorMotion, drivesRoot: boolean, enter: boolean,
-    ): void {
+    ): Pose | null {
         if (rt.fadeFrom !== null) {
             rt.poseFrom.reset();
             rt.poseTo.reset();
@@ -812,19 +946,16 @@ export class AnimatorControllerAPI {
                     [{ pose: rt.poseFrom, weight: 1 - t }, { pose: rt.poseTo, weight: t }],
                     rt.mixed, world,
                 );
-                rt.mixed.applyTo(world);
-                return;
+                return rt.mixed;
             }
             rt.fadeFrom = null;
         }
 
         rt.poseTo.reset();
         ctx.extractRootMotion = drivesRoot;
-        if (ctx.sample(motion, rt.time, rt.poseTo)) {
-            rt.poseTo.applyTo(world);
-            return;
-        }
+        if (ctx.sample(motion, rt.time, rt.poseTo)) return rt.poseTo;
         ctx.drive(motion, enter);
+        return null;
     }
 
     /** Whether a motion has run out. A clip whose length the driver states is
@@ -839,19 +970,31 @@ export class AnimatorControllerAPI {
         return this.motions_.driverFor(motion)?.sample !== undefined;
     }
 
-    private runtimeFor(entity: Entity): AnimatorRuntime {
+    /**
+     * This entity's clocks, grown to the controller it is now running. Grown and
+     * not rebuilt: a controller swapped for one with more layers keeps the base
+     * layer mid-clip, which is what the entity is visibly doing.
+     */
+    private runtimeFor(entity: Entity, layers: number): AnimatorRuntime {
         let rt = this.runtimes_.get(entity);
         if (!rt) {
-            rt = {
+            rt = { layers: [], composed: new Pose(), rest: new Pose() };
+            this.runtimes_.set(entity, rt);
+        }
+        while (rt.layers.length < layers) {
+            rt.layers.push({
                 time: 0, prevTime: 0, entered: true,
                 fadeFrom: null, fadeFromRoot: false,
                 fadeFromTime: 0, fadeElapsed: 0, fadeDuration: 0,
                 poseFrom: new Pose(), poseTo: new Pose(), mixed: new Pose(),
-            };
-            this.runtimes_.set(entity, rt);
+            });
         }
         return rt;
     }
+
+    /** What this entity's layers used up this frame, spent once they have all
+     *  been asked. */
+    private readonly spentTriggers_: string[] = [];
 
     /** Reused across entities and frames: a steady animation states no events,
      *  and an array per animated entity per frame would be the only allocation. */
@@ -868,6 +1011,16 @@ const IDENTITY_QUAT = { w: 1, x: 0, y: 0, z: 0 };
 /** One entity's playback state: transient, so it lives here and not on the
  *  component, which is what a scene saves and an inspector shows. */
 interface AnimatorRuntime {
+    /** One per layer, the base layer at 0. */
+    layers: LayerRuntime[];
+    /** What the whole stack came to, written to the world once. */
+    composed: Pose;
+    /** An additive layer's own resting pose, which is what its clip departs from. */
+    rest: Pose;
+}
+
+/** One layer's clock and the poses it composes from. */
+interface LayerRuntime {
     /** Seconds the current state's motion has been playing. */
     time: number;
     /** What {@link time} was before this frame's advance — the other end of the

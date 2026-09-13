@@ -13,6 +13,7 @@
  * runtime AnimatorControllerDef, so there is no separate editor model.
  */
 
+import { ANIMATOR_FORMAT_VERSION } from './Animator';
 import type {
     AnimatorControllerDef,
     AnimatorState,
@@ -49,7 +50,12 @@ export function animatorEdges(def: AnimatorControllerDef): AnimatorEdge[] {
 
 /** A blank controller with one initial state and no parameters. */
 export function emptyAnimatorController(): AnimatorControllerDef {
-    return { parameters: [], states: [{ name: 'Idle', x: 80, y: 80, transitions: [] }], initialState: 'Idle' };
+    return {
+        version: ANIMATOR_FORMAT_VERSION,
+        parameters: [],
+        states: [{ name: 'Idle', x: 80, y: 80, transitions: [] }],
+        initialState: 'Idle',
+    };
 }
 
 export function addState(def: AnimatorControllerDef, name: string, x = 0, y = 0): AnimatorControllerDef {

@@ -14,6 +14,7 @@ import type {
 import type { RegistryEra } from '../registryAssets';
 import type { AnimatorControllerDef, AnimatorState } from '../../animation/Animator';
 import { isBlend1D, isBlend2D, type AnimatorMotion } from '../../animation/motion';
+import { migrateAnimatorController } from '../../animation/animatorMigrate';
 import { resolveDocumentRef } from '../documentRef';
 
 /**
@@ -49,7 +50,7 @@ export class AnimatorControllerAssetLoader implements AssetLoader<AnimatorContro
     readonly registry: RegistryAssetLoader<AnimatorControllerResult> = {
         prepare: async (path: string, ctx: LoadContext): Promise<RegistryEra<AnimatorControllerResult>> => {
             const text = await ctx.loadText(ctx.catalog.getBuildPath(path));
-            const def = JSON.parse(text) as AnimatorControllerDef;
+            const { def } = migrateAnimatorController(JSON.parse(text));
             await acquireMotionAssets(def, path, ctx);
             return {
                 published: def,

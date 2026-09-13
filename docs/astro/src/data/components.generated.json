@@ -17,6 +17,11 @@
           "default": "empty"
         },
         {
+          "key": "layerStates",
+          "type": "array",
+          "default": "empty"
+        },
+        {
           "key": "enabled",
           "type": "boolean",
           "default": "true"
