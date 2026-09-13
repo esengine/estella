@@ -26,7 +26,9 @@ export const setupSystem = defineSystem(
                         (Math.random() - 0.5) * HALF_WIDTH * 2,
                         (Math.random() - 0.5) * HALF_HEIGHT * 2,
                     ),
-                    propOverride('Star', 'speed', speed),
+                    // The drift itself is Velocity's, integrated by the engine;
+                    // this only says how fast this layer of the field moves.
+                    propOverride('Velocity', 'linear', { x: 0, y: -speed, z: 0 }),
                     propOverride('Sprite', 'color', { r: 1, g: 1, b: 1, a: 0.3 + layer * 0.3 }),
                 ],
             });

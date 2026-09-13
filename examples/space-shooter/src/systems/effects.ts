@@ -45,14 +45,15 @@ export const explosionSystem = defineSystem(
     { name: 'ExplosionSystem' }
 );
 
+/**
+ * Wrap the starfield. The DRIFT is `Velocity` on each star, integrated by the
+ * engine — no physics body, no per-frame arithmetic here; all this does is put a
+ * star that has left the bottom back at the top.
+ */
 export const starScrollSystem = defineSystem(
-    [Res(Time), Query(Mut(Transform), Star)],
-    (time, query) => {
-        const dt = time.delta;
-
-        for (const [_entity, transform, star] of query) {
-            transform.position.y -= star.speed * dt;
-
+    [Query(Mut(Transform), Star)],
+    (query) => {
+        for (const [_entity, transform] of query) {
             if (transform.position.y < -HALF_HEIGHT - 10) {
                 transform.position.y = HALF_HEIGHT + 10;
                 transform.position.x = (Math.random() - 0.5) * HALF_WIDTH * 2;

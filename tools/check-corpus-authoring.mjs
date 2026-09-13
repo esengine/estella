@@ -120,7 +120,6 @@ const DISPOSITION = {
 
 
   BitmapText: ['owed', 'Create > Bitmap Text exists; every corpus scene uses Text instead, so the pixel-font path ships unwitnessed'],
-  Velocity: ['owed', 'motion without a physics body — the cheapest thing in the engine, authored nowhere'],
 };
 
 const snapshot = JSON.parse(readFileSync(SNAPSHOT, 'utf8'));

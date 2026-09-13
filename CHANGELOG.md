@@ -24,6 +24,12 @@ published separately; it ships inside the editor.
   it runs, so switching a boss back on cannot un-switch a prop that was switched
   off on its own. `set_entity_active` is the same door for automation.
 
+- **The starfield drifts by `Velocity`.** Forty stars each had their `y`
+  decremented by a system every frame, which is the one thing the engine's own
+  `Velocity` component does — and nothing in the corpus had ever carried it.
+  The prefab does now; the scroll system is down to putting a star that has left
+  the bottom back at the top, and `Star` is the tag it always was.
+
 - **Six components a shipped scene now authors.** The hull bar's mask in
   space-shooter, all three trails in trail-demo, a crosswind through the
   third-person demo's ambient motes, a costly patch of mud in the 3D AI example,

@@ -16,10 +16,9 @@ export const Bullet = defineComponent('Bullet', {
     fromPlayer: true,
 });
 
-export const Star = defineComponent('Star', {
-    speed: 30,
-    layer: 0,
-});
+// A tag in all but name: what a star DOES is drift, and that is `Velocity` on
+// the prefab. This marks the ones the wrap belongs to.
+export const Star = defineComponent('Star', {});
 
 export const Explosion = defineComponent('Explosion', {
     timer: 0.3,
