@@ -32,6 +32,7 @@ import { Pose } from './pose';
 import { mixPoses, type WeightedPose } from './poseMix';
 import { overlayPose, addPoseOver } from './layerStack';
 import { MaskReach, type AnimatorMask } from './animatorMask';
+import { solveAnimatorIK, type AnimatorIK } from './animatorIK';
 import { AnimatorRootMotion, type AnimatorRootMotionData } from './animatorRootMotion';
 import type { AnimatorEventSink } from './animatorEvent';
 import { Transform, type TransformData } from '../ecs/component';
@@ -190,6 +191,12 @@ export interface AnimatorControllerDef {
     anyStateTransitions?: AnimatorTransition[];
     /** Layers over the base one, laid down in order. */
     layers?: AnimatorLayer[];
+    /**
+     * Constraints applied to the stack's answer, in order. Not per layer: a layer
+     * answers who is speaking, and a foot belongs on the ground whichever one
+     * decided how the leg swings.
+     */
+    ik?: AnimatorIK[];
 }
 
 /**
@@ -731,6 +738,12 @@ export class AnimatorControllerAPI {
             // machines answer cannot depend on which was stepped first.
             const triggers = this.triggers.get(entity);
             if (triggers) for (const t of this.spentTriggers_) triggers.delete(t);
+            // Constraints read the stack's answer and bend it, so they run
+            // between composing and writing — on the pose this frame stated,
+            // never on the world's record of the last one.
+            if (wrote && def.ik?.length) {
+                solveAnimatorIK(world, entity, rt.composed, def.ik, params);
+            }
             // One write for the whole stack: a layer states values, and what the
             // entity ends up as is the stack's answer, not the topmost writer's.
             if (wrote) rt.composed.applyTo(world);

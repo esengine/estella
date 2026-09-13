@@ -147,6 +147,12 @@ export {
 } from './AnimClipLoader';
 
 export {
+    solveAnimatorIK,
+    type AnimatorIK,
+    type AnimatorIKKind,
+} from './animatorIK';
+
+export {
     MaskReach,
     type AnimatorMask,
 } from './animatorMask';
