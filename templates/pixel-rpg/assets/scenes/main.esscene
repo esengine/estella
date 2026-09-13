@@ -8,7 +8,16 @@
       "parent": null,
       "children": [],
       "components": [
-        { "type": "Transform", "data": { "position": { "x": 0, "y": 0, "z": 10 } } },
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 10
+            }
+          }
+        },
         {
           "type": "Camera",
           "data": {
@@ -28,11 +37,23 @@
       "parent": null,
       "children": [],
       "components": [
-        { "type": "Transform", "data": { "position": { "x": -256, "y": 192, "z": 0 } } },
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -256,
+              "y": 192,
+              "z": 0
+            }
+          }
+        },
         {
           "type": "TilemapLayer",
           "data": {
-            "cellSize": { "x": 16, "y": 16 },
+            "cellSize": {
+              "x": 16,
+              "y": 16
+            },
             "renderLayer": 0,
             "opacity": 1,
             "visible": true,
@@ -49,10 +70,38 @@
       "parent": null,
       "children": [],
       "components": [
-        { "type": "Transform", "data": { "position": { "x": -24, "y": -8, "z": 0 } } },
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -24,
+              "y": -8,
+              "z": 0
+            }
+          }
+        },
         {
           "type": "Talkable",
-          "data": { "line": "The road south leaves the valley. The pond is east." }
+          "data": {
+            "line": "The road south leaves the valley. The pond is east."
+          }
+        },
+        {
+          "type": "BitmapText",
+          "data": {
+            "text": "SIGN",
+            "font": "@uuid:d5e6f7a8-b9c0-4d1e-8f2a-3b4c5d6e7f80",
+            "fontSize": 5,
+            "color": {
+              "r": 0.95,
+              "g": 0.9,
+              "b": 0.75,
+              "a": 1
+            },
+            "align": 1,
+            "spacing": 1,
+            "layer": 1
+          }
         }
       ],
       "visible": true
@@ -63,18 +112,32 @@
       "parent": null,
       "children": [],
       "components": [
-        { "type": "Transform", "data": { "position": { "x": -8, "y": -72, "z": 1 } } },
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -8,
+              "y": -72,
+              "z": 1
+            }
+          }
+        },
         {
           "type": "Sprite",
           "data": {
-            "size": { "x": 16, "y": 16 },
+            "size": {
+              "x": 16,
+              "y": 16
+            },
             "texture": "@uuid:7e1c2a90-11d4-4b8a-9d1a-2c6f0b8e4a02",
             "layer": 5
           }
         },
         {
           "type": "SpriteAnimator",
-          "data": { "clip": "assets/animations/walk-down.esanim" }
+          "data": {
+            "clip": "assets/animations/walk-down.esanim"
+          }
         },
         {
           "type": "Facings",
@@ -85,18 +148,37 @@
             "up": "assets/animations/walk-up.esanim"
           }
         },
-        { "type": "Player", "data": {} },
-        { "type": "RigidBody2D", "data": { "bodyType": 1 } },
+        {
+          "type": "Player",
+          "data": {}
+        },
+        {
+          "type": "RigidBody2D",
+          "data": {
+            "bodyType": 1
+          }
+        },
         {
           "type": "BoxCollider2D",
           "data": {
-            "halfExtents": { "x": 0.05, "y": 0.035 },
-            "offset": { "x": 0, "y": -0.045 },
+            "halfExtents": {
+              "x": 0.05,
+              "y": 0.035
+            },
+            "offset": {
+              "x": 0,
+              "y": -0.045
+            },
             "categoryBits": 1,
             "maskBits": 65535
           }
         },
-        { "type": "CharacterController2D", "data": { "maskBits": 65535 } }
+        {
+          "type": "CharacterController2D",
+          "data": {
+            "maskBits": 65535
+          }
+        }
       ],
       "visible": true
     },
@@ -104,17 +186,28 @@
       "id": 4,
       "name": "Canvas",
       "parent": null,
-      "children": [5],
+      "children": [
+        5
+      ],
       "components": [
-        { "type": "Transform", "data": {} },
+        {
+          "type": "Transform",
+          "data": {}
+        },
         {
           "type": "Canvas",
           "data": {
-            "designResolution": { "x": 320, "y": 180 },
+            "designResolution": {
+              "x": 320,
+              "y": 180
+            },
             "scaleMode": 2
           }
         },
-        { "type": "UINode", "data": {} }
+        {
+          "type": "UINode",
+          "data": {}
+        }
       ],
       "visible": true
     },
@@ -124,15 +217,30 @@
       "parent": 4,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
+        {
+          "type": "Transform",
+          "data": {}
+        },
         {
           "type": "UINode",
           "data": {
             "position": 1,
-            "insetLeft": { "value": 16, "unit": 0 },
-            "insetRight": { "value": 16, "unit": 0 },
-            "insetBottom": { "value": 10, "unit": 0 },
-            "height": { "value": 14, "unit": 0 }
+            "insetLeft": {
+              "value": 16,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 16,
+              "unit": 0
+            },
+            "insetBottom": {
+              "value": 10,
+              "unit": 0
+            },
+            "height": {
+              "value": 14,
+              "unit": 0
+            }
           }
         },
         {
@@ -140,14 +248,27 @@
           "data": {
             "content": "Arrow keys or WASD to walk.",
             "fontSize": 10,
-            "color": { "r": 0.95, "g": 0.95, "b": 0.9, "a": 1 },
+            "color": {
+              "r": 0.95,
+              "g": 0.95,
+              "b": 0.9,
+              "a": 1
+            },
             "align": 1,
             "verticalAlign": 1,
-            "strokeColor": { "r": 0.05, "g": 0.05, "b": 0.08, "a": 1 },
+            "strokeColor": {
+              "r": 0.05,
+              "g": 0.05,
+              "b": 0.08,
+              "a": 1
+            },
             "strokeWidth": 2
           }
         },
-        { "type": "SayLine", "data": {} }
+        {
+          "type": "SayLine",
+          "data": {}
+        }
       ],
       "visible": true
     }

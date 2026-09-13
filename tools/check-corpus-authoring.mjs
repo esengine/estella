@@ -84,6 +84,7 @@ const NOT_INSTANCE_FORMATS = {
   '.png': 'a texture',
   '.ktx2': 'a compressed texture',
   '.hdr': 'an environment map',
+  '.fnt': 'a bitmap font\'s metrics; the page beside it is a texture and what USES it is authored elsewhere',
   '.gltf': 'an imported model',
   '.bin': 'model or compressed-asset payload',
   '.atlas': 'a Spine atlas, written by Spine',
@@ -119,7 +120,6 @@ const DISPOSITION = {
   //   Each reason names where the coverage belongs. —
 
 
-  BitmapText: ['owed', 'Create > Bitmap Text exists; every corpus scene uses Text instead, so the pixel-font path ships unwitnessed'],
 };
 
 const snapshot = JSON.parse(readFileSync(SNAPSHOT, 'utf8'));

@@ -217,6 +217,10 @@ const SKELETAL_ATLAS_TYPES = new Set(['spine-atlas', 'dragonbones-atlas']);
 // A bitmap font is the same shape one step over: TEXT, naming its page image as a
 // sibling, and nothing else in the project names that image either.
 const FNT_PAGE = /(?:^|\n)\s*page\b[^\n]*\bfile="([^"]+)"/g;
+// The `.meta` type the editor writes for one. It was spelled `bitmapFont` here
+// and nowhere else in the project — no importer produced that, so the scan below
+// never ran and a build shipped a font whose page had been culled.
+const BITMAP_FONT = 'bitmapfont';
 
 // 'json' is a game's own data table. It is scanned like the rest because a
 // data-driven game names assets FROM its data — a spawn table holding `@uuid:`
@@ -322,7 +326,7 @@ async function computeDeps(
   const byPath = new Map(entries.map((e) => [e.path, e]));
   const uuids = new Set(entries.map((e) => e.uuid));
   const refEntries = (targets ?? entries).filter(
-    (e) => JSON_REF_TYPES.has(e.type) || e.type === 'bitmapFont'
+    (e) => JSON_REF_TYPES.has(e.type) || e.type === BITMAP_FONT
       || SKELETAL_ATLAS_TYPES.has(getEditorType(e.path)),
   );
   type DepResult = { uuid: string; refs: string[] } | { warning: string };
@@ -334,7 +338,7 @@ async function computeDeps(
     // Spine's atlas is a TEXT manifest and needs its own parser; DragonBones'
     // is JSON, so the generic walk below already finds its `imagePath`.
     const isSpineAtlas = getEditorType(entry.path) === 'spine-atlas';
-    const isBitmapFont = entry.type === 'bitmapFont';
+    const isBitmapFont = entry.type === BITMAP_FONT;
     try {
       const refs = new Set<string>();
       if (isBitmapFont) {

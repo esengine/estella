@@ -24,6 +24,12 @@ published separately; it ships inside the editor.
   it runs, so switching a boss back on cannot un-switch a prop that was switched
   off on its own. `set_entity_active` is the same door for automation.
 
+- **A bitmap font is an asset the editor knows.** `BitmapText` has shipped with
+  a `font` slot since it existed, and no `.fnt` could fill it: the editor had no
+  type for one, so a bitmap font read as an unknown file and the slot refused it.
+  The pixel-RPG template's signpost is lettered with one now — the first bitmap
+  text in the corpus.
+
 - **The starfield drifts by `Velocity`.** Forty stars each had their `y`
   decremented by a system every frame, which is the one thing the engine's own
   `Velocity` component does — and nothing in the corpus had ever carried it.
@@ -38,6 +44,16 @@ published separately; it ships inside the editor.
   posts ships switched off, which is the first thing in the corpus to use
   `Disabled` and the only place it can be watched working: a query answers with
   three of the scene's four posts, and no hunter is ever sent to the fourth.
+
+- **A build keeps the page a bitmap font names.** The cook has a rule for this —
+  a `.fnt` names its page as a sibling in TEXT, nothing else in a project names
+  that image, and an unscanned one ships a font that 404s. The rule compared the
+  `.meta` type against `bitmapFont`, which no importer has ever written; the
+  pipeline test supplied that spelling in its own fixture, so the rule and the
+  test agreed about a value no real asset could carry. A gate now holds every
+  type the cook reads against the ones an import actually writes, which turned up
+  a second: `json` — a game's own data table — was a `.meta` type the editor's
+  own list did not have, so a spawn table read as an unknown file.
 
 - **A disabled entity is actually skipped.** `Disabled`'s doc promised that "the
   engine's systems skip it" and nothing read the tag: `setEntityActive` returned,

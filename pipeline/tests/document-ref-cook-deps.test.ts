@@ -92,7 +92,10 @@ beforeAll(() => {
   writeAsset('assets/anim/idle.esanim', 'animclip', CLIP, clip);
   writeAsset('assets/anim/player.esanimator', 'animatorcontroller', CONTROLLER, controller);
   writeAsset('assets/fonts/tiny.png', 'texture', FNT_PAGE, 'PNG');
-  writeAsset('assets/fonts/tiny.fnt', 'bitmapFont', FNT, fnt);
+  // The type an IMPORT writes for a .fnt. It read `bitmapFont` here and in the
+  // scan it drives, and nothing else in the project spelled it that way — so the
+  // two agreed with each other about a value no real asset could carry.
+  writeAsset('assets/fonts/tiny.fnt', 'bitmapfont', FNT, fnt);
   writeAsset('assets/scenes/main.esscene', 'scene', SCENE, scene);
 });
 
