@@ -70,6 +70,16 @@ published separately; it ships inside the editor.
   that rig touches, answering the same `attack` trigger the base machine does —
   so the mask is observable rather than merely configured.
 
+- **A clip means the same thing on a rig bound differently.** A name map alone is
+  only right between rigs that happen to share a bind pose. An avatar records that
+  pose, and a controller names the avatar its *clips* came from, so a stated
+  rotation is read as what it means — the offset from where that joint rests —
+  and restated from where this rig's joint rests. The editor can describe a rig
+  it already has: **Create Avatar from Rig** reads the pose the joints are
+  standing in, which is the bind pose, because nobody was going to type a
+  quaternion per joint. What this does *not* do is scale — a clip authored on
+  longer bones still asks for the same angles.
+
 - **One clip drives rigs that do not share its bone names.** A clip addresses
   what it animates by the name whoever exported the model chose, so two
   characters rigged by two people share no clip at all — an enemy has to be
