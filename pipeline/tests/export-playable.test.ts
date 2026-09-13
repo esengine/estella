@@ -116,8 +116,17 @@ describe('exportGame (playable)', () => {
     expect(inlinedText(html, '__ENGINE_GLUE__')).toContain('WEB_GLUE');   // web glue text inlined
     expect(html).toContain('__ENGINE_GLUE__');                       // glue + wasm inlined as globals
     expect(html).toContain('__ENGINE_WASM__');
-    expect(html).toContain('createObjectURL');                       // real host bundled (blob loader)
-    expect(html).toContain('SpawnMarker');                           // project script bundled
+    // Through the decoder, both of them: the game travels deflated now, so the
+    // page's own text would answer for the loader and not for what it starts.
+    expect(inlinedText(html, '__GAME_BUNDLE__')).toContain('createObjectURL'); // real host bundled
+    expect(inlinedText(html, '__GAME_BUNDLE__')).toContain('SpawnMarker');     // project script bundled
+    // And it travels deflated. Inlining the source again would satisfy every
+    // assertion above — this is the one that would notice, and the 2MB cap is
+    // spent on this span more than on any other.
+    const game = inlinedText(html, '__GAME_BUNDLE__');
+    expect(html).not.toContain(game.slice(0, 200));
+    expect(res.inlineParts?.find((p) => p.path === 'game-bundle.js')?.bytes ?? 0)
+      .toBeLessThan(game.length);
     expect(html).toContain(`@uuid:${TEX}`);                          // asset keyed by ref
     expect(html).toContain('data:image/png;base64,');               // asset inlined as data URL
     // Logical path → embedded key map (path refs alias in memory at runtime;

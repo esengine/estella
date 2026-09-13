@@ -8,7 +8,9 @@
  *            through instantiateWasm — so no separate single-file engine build;
  *          - assets as base64 data URLs + scenes inlined as <script> globals
  *            (keyed by the scene's @uuid: refs — EmbeddedAssetProvider resolves them);
- *          - the playable host + esengine + project scripts esbuilt to ONE IIFE;
+ *          - the playable host + esengine + project scripts esbuilt to ONE IIFE,
+ *            deflated like the engine's own payloads and started by a small loader
+ *            script — it is the page's largest span, and a 2MB cap is spent on it;
  *          - whatever the chosen ad network's profile injects (playableAdProfile.ts).
  *        Boots the SAME shipping runtime via initPlayableRuntime (play == ship).
  *
@@ -91,6 +93,13 @@ function pack(bytes: Uint8Array | Buffer): PackedBytes {
   return { z: deflateRawSync(bytes, { level: 9 }).toString('base64'), n: bytes.length };
 }
 
+/** The loader lives beside the host it starts. One option names where the
+ *  runtime's sources are, so a second way of finding them is a second thing to
+ *  keep in step with a move. */
+function loaderEntryFor(hostEntry: string): string {
+  return path.join(path.dirname(hostEntry), `playableLoader${path.extname(hostEntry)}`);
+}
+
 /**
  * The playable page. Deliberately WITHOUT the web export's rotate-to-fit overlay:
  * inside an ad SDK the container's size is the SDK's business, so `@media
@@ -111,7 +120,7 @@ function pack(bytes: Uint8Array | Buffer): PackedBytes {
 function indexHtml(
   title: string,
   globals: string,
-  bundle: string,
+  loader: string,
   network: { head: string; bridge: string },
 ): string {
   return `<!doctype html>
@@ -129,7 +138,7 @@ function indexHtml(
   <body>
     <canvas id="canvas"></canvas>${network.bridge ? `\n    <script>${inlineSafe(network.bridge)}</script>` : ''}
     <script>${inlineSafe(globals)}</script>
-    <script>${inlineSafe(bundle)}</script>
+    <script>${inlineSafe(loader)}</script>
   </body>
 </html>
 `;
@@ -280,6 +289,7 @@ export async function exportPlayable(opts: {
     (scriptsAbs && existsSync(scriptsAbs) ? `import ${JSON.stringify(scriptsAbs)};\n` : '') +
     `import ${JSON.stringify(opts.playableHostEntry)};\n`;
   let bundle = '';
+  let loader = '';
   try {
     const { build } = await loadEsbuild();
     const res = await build({
@@ -298,6 +308,21 @@ export async function exportPlayable(opts: {
     });
     errors.push(...explainBundleErrors(res.errors));
     bundle = res.outputFiles?.[0]?.text ?? '';
+    // Built apart from the game, because it is the one script the page can still
+    // read: a loader inside the payload it inflates could never start it.
+    const loaded = await build({
+      entryPoints: [loaderEntryFor(opts.playableHostEntry)],
+      bundle: true,
+      format: 'iife',
+      platform: 'browser',
+      target: 'es2020',
+      minify: opts.minify ?? true,
+      write: false,
+      outfile: 'game-loader.js',
+      logLevel: 'silent',
+    });
+    errors.push(...explainBundleErrors(loaded.errors));
+    loader = loaded.outputFiles?.[0]?.text ?? '';
   } catch (err) {
     const e = err as { errors?: BundleMessage[]; message?: string };
     errors.push(...(e.errors ? explainBundleErrors(e.errors) : [String(e.message ?? err)]));
@@ -347,12 +372,15 @@ export async function exportPlayable(opts: {
     // agree on five names, and a sixth setting simply never got a global.
     // A playable is one file on an ad network's page: it takes the GL context
     // its host hands over, so a WebGPU request has nowhere to land.
-    `window.__GAME_RUNTIME__=${JSON.stringify(playableRuntimeFields(opts.runtime ?? DEFAULT_RUNTIME_CONFIG))};`;
+    `window.__GAME_RUNTIME__=${JSON.stringify(playableRuntimeFields(opts.runtime ?? DEFAULT_RUNTIME_CONFIG))};` +
+    // Last of the globals: the loader script that follows them inflates this one
+    // and hands it to the page.
+    span('game-bundle.js', `window.__GAME_BUNDLE__=${JSON.stringify(pack(Buffer.from(bundle, 'utf8')))};`);
   const adProfile = opts.adProfile ?? genericPlayableProfile;
   const network = playableAdInjection(adProfile, { title, orientation });
   const outFile = path.join(absOut, 'index.html');
-  span('game-bundle.js', bundle);
-  await writeFile(outFile, indexHtml(title, globals, bundle, network));
+  span('game-loader.js', loader);
+  await writeFile(outFile, indexHtml(title, globals, loader, network));
   await rm(cookDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 
   const htmlBytes = (await stat(outFile)).size;
