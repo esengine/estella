@@ -70,6 +70,28 @@ published separately; it ships inside the editor.
   that rig touches, answering the same `attack` trigger the base machine does —
   so the mask is observable rather than merely configured.
 
+- **The posed skeleton can be made to reach something.** A clip states where a
+  foot goes; the ground states where it belongs, and nothing could reconcile the
+  two. Two constraints land: **two-bone**, which puts a limb's tip on a target,
+  and **look-at**, which turns a joint until its own axis points at one. Both
+  name what they touch by `childPath` — the spelling a clip and a mask already
+  use — and both are authored beside the parameters, with a weight a float
+  parameter can fade.
+
+  Constraints belong to the **controller**, not to a layer. A layer answers who
+  is speaking; a constraint is what reality imposes on what was said, and a foot
+  belongs on the ground whichever layer decided how the leg swings — so they run
+  once, between composing the stack and writing it. They read the pose *this
+  frame* stated: `Transform.worldPosition` is last frame's, computed before the
+  animator wrote anything, and a solver reading it plants the foot against a
+  character that has already moved on.
+
+  The two-bone solve is **constructed, not corrected**: the elbow lies on a
+  circle about the root-to-target line, the law of cosines fixes where along it
+  and how far off, and the pole picks the point. Weight is a share of the
+  *answer*, in local rotations — the same thing a layer's weight is — rather than
+  a share of a correction applied joint by joint, which compounds down a chain.
+
 - **A blend is something an author can make.** `blend1d` shipped long before
   layers and `blend2d` arrived with them, and neither could be written anywhere
   but the file: the state inspector had one Clip box. An engine capability nobody
