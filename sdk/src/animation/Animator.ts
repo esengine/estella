@@ -226,6 +226,16 @@ export function animatorLayer(def: AnimatorControllerDef, index: number): Animat
     return def.layers?.[index - 1] ?? null;
 }
 
+/**
+ * Every machine a controller runs, base layer first. The ONE way to walk them: a
+ * reader that reaches for `def.states` sees the base layer and calls it the
+ * controller, which is how the loader shipped acquiring no clip any layer played
+ * — silent in a real project, green in every hand-built test.
+ */
+export function animatorScopes(def: AnimatorControllerDef): AnimatorScope[] {
+    return [def, ...(def.layers ?? [])];
+}
+
 // =============================================================================
 // Pure transition evaluator (no World, no side effects → unit-testable)
 // =============================================================================
@@ -703,7 +713,7 @@ export class AnimatorControllerAPI {
             if (!a.enabled) continue;
 
             const def = this.getController(a.controller);
-            if (!def || def.states.length === 0) continue;
+            if (!def || animatorScopes(def).every((s) => s.states.length === 0)) continue;
 
             const count = animatorLayerCount(def);
             const params = resolveParams(def, this.params.get(entity) ?? EMPTY_PARAMS);

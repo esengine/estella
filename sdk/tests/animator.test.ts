@@ -441,4 +441,31 @@ describe('AnimatorController runtime load-by-path', () => {
         expect((era.published as { initialState: string }).initialState).toBe('idle');
         expect(getRegisteredAnimatorController(PATH), 'prepare wrote a store').toBeUndefined();
     });
+
+    it('acquires and resolves the clips a LAYER plays, not only the base one', async () => {
+        // Shipped once without this: the loader walked `def.states` and called it
+        // the controller, so no clip a layer played was fetched or resolved —
+        // visible in a real project, invisible to a hand-built one.
+        const withLayer = {
+            version: 2, parameters: [], initialState: 'Hold',
+            states: [{ name: 'Hold', transitions: [], motion: { kind: 'timeline', clip: 'base.estimeline' } }],
+            layers: [{
+                name: 'Upper', initialState: 'Hold',
+                states: [{ name: 'Hold', transitions: [], motion: { kind: 'timeline', clip: 'upper.estimeline' } }],
+            }],
+        };
+        const acquired: string[] = [];
+        const ctx = {
+            catalog: { getBuildPath: (p: string) => p },
+            loadText: async () => JSON.stringify(withLayer),
+            acquireAsset: async (_type: string, ref: string) => { acquired.push(ref); },
+        } as unknown as LoadContext;
+
+        const era = await new AnimatorControllerAssetLoader().registry.prepare('assets/rig.esanimator', ctx);
+        expect(acquired.sort()).toEqual(['assets/base.estimeline', 'assets/upper.estimeline']);
+        // Resolved IN PLACE, or the driver looks the clip up under a name nothing
+        // was registered as and the layer is silent in exactly the same way.
+        const def = era.published as { layers: { states: { motion: { clip: string } }[] }[] };
+        expect(def.layers[0]!.states[0]!.motion.clip).toBe('assets/upper.estimeline');
+    });
 });

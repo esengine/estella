@@ -265,15 +265,19 @@ function rewriteAnimatorRefs(
 ): Uint8Array {
   const json = JSON.parse(Buffer.from(bytes).toString('utf8')) as {
     states?: { motion?: unknown; stateMachine?: { states?: unknown[] } }[];
+    layers?: { states?: unknown[] }[];
   };
   // Only a motion whose clip is an ASSET: a sprite clip and a spine animation
   // are names their own runtime holds, and rewriting those would break them.
   const ASSET_KINDS = new Set(['timeline']);
   const walk = (motion: unknown): void => {
     if (!motion || typeof motion !== 'object') return;
-    const m = motion as { kind?: string; clip?: string; thresholds?: { motion?: unknown }[] };
-    if (m.kind === 'blend1d') {
-      for (const stop of m.thresholds ?? []) walk(stop.motion);
+    const m = motion as {
+      kind?: string; clip?: string;
+      thresholds?: { motion?: unknown }[]; points?: { motion?: unknown }[];
+    };
+    if (m.kind === 'blend1d' || m.kind === 'blend2d') {
+      for (const child of m.thresholds ?? m.points ?? []) walk(child.motion);
       return;
     }
     if (m.kind && ASSET_KINDS.has(m.kind) && typeof m.clip === 'string') {
@@ -287,7 +291,11 @@ function rewriteAnimatorRefs(
       states(st.stateMachine?.states);
     }
   };
+  // Every machine, not just the base one: a clip only a layer plays ships with
+  // its authored ref intact, which resolves to nothing once staging has moved
+  // the file — the layer is then silent in the package and nowhere else.
   states(json.states);
+  for (const layer of json.layers ?? []) states(layer.states);
   return new TextEncoder().encode(JSON.stringify(json, null, 2) + '\n');
 }
 

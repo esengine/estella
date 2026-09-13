@@ -25,6 +25,7 @@ const SPECULAR = '11111111-1111-4111-8111-111111111111';
 const ESENV = '22222222-2222-4222-8222-222222222222';
 const CLIP = '33333333-3333-4333-8333-333333333333';
 const CONTROLLER = '44444444-4444-4444-8444-444444444444';
+const LAYER_CLIP = '88888888-8888-4888-8888-888888888888';
 const FRAME = '55555555-5555-4555-8555-555555555555';
 const FNT = '66666666-6666-4666-8666-666666666666';
 const FNT_PAGE = '77777777-7777-4777-8777-777777777777';
@@ -44,9 +45,25 @@ const esenv = JSON.stringify({
   faceSize: 8, mipCount: 1, maxRange: 8,
 });
 
+// A layer's clip is named NOWHERE else — not by the scene, not by the base
+// machine. A rewriter that walks `states` and calls that the controller stages
+// this one with its authored ref, and the layer is silent in the package only.
 const controller = JSON.stringify({
-  parameters: [], initialState: 'Idle',
+  version: 2, parameters: [], initialState: 'Idle',
   states: [{ name: 'Idle', clip: 'assets/anim/idle.esanim', loop: true, transitions: [] }],
+  layers: [{
+    name: 'Upper', initialState: 'Wave',
+    states: [{
+      name: 'Wave', transitions: [],
+      // A SIBLING name, which is what the editor writes and what staging then
+              // moves out from under — the same shape the environment's atlas has.
+              motion: { kind: 'timeline', clip: 'wave.estimeline', loop: false },
+    }],
+  }],
+});
+
+const layerClip = JSON.stringify({
+  version: '1.2', type: 'timeline', duration: 1, wrapMode: 'once', tracks: [],
 });
 
 // A bitmap font is TEXT, and names its page image the way a spine atlas does:
@@ -90,6 +107,7 @@ beforeAll(() => {
   writeAsset('assets/env/sky.esenv', 'environment', ESENV, esenv);
   writeAsset('assets/anim/frame0.png', 'texture', FRAME, 'PNG');
   writeAsset('assets/anim/idle.esanim', 'animclip', CLIP, clip);
+  writeAsset('assets/anim/wave.estimeline', 'animation', LAYER_CLIP, layerClip);
   writeAsset('assets/anim/player.esanimator', 'animatorcontroller', CONTROLLER, controller);
   writeAsset('assets/fonts/tiny.png', 'texture', FNT_PAGE, 'PNG');
   // The type an IMPORT writes for a .fnt. It read `bitmapFont` here and in the
@@ -119,10 +137,15 @@ describe('assets named only inside another document are cooked', () => {
     expect(index.deps[CONTROLLER]).toContain(CLIP);
   });
 
+  it('links it to the clip only a LAYER plays', async () => {
+    const { index } = await scanAssetDatabase(root, { write: false });
+    expect(index.deps[CONTROLLER]).toContain(LAYER_CLIP);
+  });
+
   it('ships both, and the clip\'s own frame through it', async () => {
     const res = await cookAssets(root, { entryScenes: ['assets/scenes/main.esscene'], outDir: 'build' });
     expect(res.ok).toBe(true);
-    expect(res.included).toEqual(expect.arrayContaining([SCENE, ESENV, SPECULAR, CONTROLLER, CLIP, FRAME, FNT, FNT_PAGE]));
+    expect(res.included).toEqual(expect.arrayContaining([SCENE, ESENV, SPECULAR, CONTROLLER, CLIP, LAYER_CLIP, FRAME, FNT, FNT_PAGE]));
     expect(res.unused).toEqual([]);
   });
 
@@ -146,6 +169,17 @@ describe('assets named only inside another document are cooked', () => {
     const font = manifest.entries.find((e) => e.uuid === FNT)!;
     const stagedFnt = readFileSync(path.join(res.outDir, font.path), 'utf8');
     expect(stagedFnt).toContain('file="assets/fonts/tiny.png"');
+
+    // A layer's clip is staged under a name the package has, same as the base
+    // machine's. Left as authored it resolves to nothing and the layer poses
+    // nothing — in the build only, the editor serving the whole project.
+    const ctrl = manifest.entries.find((e) => e.uuid === CONTROLLER)!;
+    const stagedCtrl = JSON.parse(readFileSync(path.join(res.outDir, ctrl.path), 'utf8')) as {
+      layers: { states: { motion: { clip: string } }[] }[];
+    };
+    const layerRef = stagedCtrl.layers[0]!.states[0]!.motion.clip;
+    expect(layerRef).toBe('assets/anim/wave.estimeline');
+    expect(manifest.entries.some((e) => e.sourcePath === layerRef)).toBe(true);
 
     // And the package is self-consistent: nothing it staged names a path it lacks.
     expect(res.warnings.filter((w) => /does not carry/.test(w))).toEqual([]);

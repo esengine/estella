@@ -12,6 +12,7 @@ import type {
     AssetLoader, LoadContext, AnimatorControllerResult, RegistryAssetLoader,
 } from '../AssetLoader';
 import type { RegistryEra } from '../registryAssets';
+import { animatorScopes } from '../../animation/Animator';
 import type { AnimatorControllerDef, AnimatorState } from '../../animation/Animator';
 import { isBlend1D, isBlend2D, type AnimatorMotion } from '../../animation/motion';
 import { migrateAnimatorController } from '../../animation/animatorMigrate';
@@ -26,12 +27,17 @@ const MOTION_ASSET_TYPES: Readonly<Record<string, string>> = {
     timeline: 'timeline',
 };
 
-/** Every motion in the graph, descending through blends and sub-machines. */
+/** Every motion in the controller, across its layers, blends and sub-machines. */
 function* motionsOf(states: readonly AnimatorState[]): Generator<AnimatorMotion> {
     for (const state of states) {
         if (state.motion) yield* flatten(state.motion);
         if (state.stateMachine) yield* motionsOf(state.stateMachine.states);
     }
+}
+
+/** Across every layer: a clip only a layer plays is a clip a game plays. */
+function* motionsOfController(def: AnimatorControllerDef): Generator<AnimatorMotion> {
+    for (const scope of animatorScopes(def)) yield* motionsOf(scope.states);
 }
 
 function* flatten(motion: AnimatorMotion): Generator<AnimatorMotion> {
@@ -70,7 +76,7 @@ async function acquireMotionAssets(
     def: AnimatorControllerDef, path: string, ctx: LoadContext,
 ): Promise<void> {
     const wanted = new Map<string, string>();
-    for (const motion of motionsOf(def.states)) {
+    for (const motion of motionsOfController(def)) {
         if (isBlend1D(motion) || isBlend2D(motion)) continue;
         const type = MOTION_ASSET_TYPES[motion.kind];
         if (!type || !motion.clip) continue;

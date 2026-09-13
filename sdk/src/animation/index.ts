@@ -53,6 +53,7 @@ export {
     leafStateOf,
     animatorLayerCount,
     animatorLayer,
+    animatorScopes,
     layerState,
     setLayerState,
     ANIMATOR_FORMAT_VERSION,
