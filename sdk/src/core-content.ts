@@ -427,6 +427,7 @@ export {
     MotionRegistry,
     blend1DMotionDriver,
     blend2DMotionDriver,
+    isBlend1D,
     isBlend2D,
     spriteMotionDriver,
     SPRITE_MOTION,
