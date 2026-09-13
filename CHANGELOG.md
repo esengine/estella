@@ -16,6 +16,12 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A sorting group in the sprite demo.** The component that makes a subtree
+  sort as one unit — the fix for a character whose sword draws behind the wrong
+  prop — had a pixel criterion of its own and no instance in any shipped scene.
+  sprite-rendering now carries one whose member claims a layer nine levels above
+  the group's, so what the group takes over is visible on screen.
+
 - **Every 2D collider shape and joint, authored in a scene.** The capsule,
   segment, chain and polygon colliders and three of the six joints had no
   instance in any scene either. physics-playground's showcase now hangs a

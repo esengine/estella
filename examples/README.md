@@ -18,7 +18,7 @@ for your own game.
 | **scene-flow** | Basics | Runtime scene flow — menu → level 1 → level 2 through `SceneManager` fade transitions, over a persistent shell scene. |
 | **save-load** | Basics | Versioned persistence — `SaveManager` save/load with a live v1→v2 migration, plus raw `Storage` preferences. |
 | **timers-demo** | Basics | `TimerManager` delays, intervals and handles — pause/resume/cancel/reset plus `timeScale`, replacing hand-rolled `time.delta` accumulators. |
-| **sprite-rendering** | Rendering | Draw sprites with rotation, tint and flipping. |
+| **sprite-rendering** | Rendering | Draw sprites with rotation, tint and flipping. A SortingGroup shows a subtree taking over its members' layers. |
 | **sprite-animation** | Animation | Frame animation via `.esanim` clips with an idle/walk switcher. |
 | **spine-demo** | Animation | A Spine skeleton cycling idle/walk/run/jump/shoot (1-5 to switch). |
 | **dragonbones-demo** | Animation | A DragonBones armature crossfading stand/walk/jump/fall (1-4 to switch), with two figures sharing one parsed skeleton. |

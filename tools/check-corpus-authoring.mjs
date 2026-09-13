@@ -119,7 +119,6 @@ const DISPOSITION = {
   //   Each reason names where the coverage belongs. —
 
 
-  SortingGroup: ['owed', 'the component that makes a subtree sort as one unit — the fix for every "my character\'s sword draws behind the wrong prop", demonstrated nowhere'],
   CacheAsBitmap: ['owed', 'flattening a static subtree into one texture is a performance decision with no example showing when to take it'],
   BitmapText: ['owed', 'Create > Bitmap Text exists; every corpus scene uses Text instead, so the pixel-font path ships unwitnessed'],
   SpriteMask: ['owed', 'space-shooter masks from code; masking is authored geometry and belongs in a scene'],
