@@ -10,12 +10,16 @@
  *          effect, announce the death — because that is the smallest gameplay
  *          act that touches all three.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { World } from '../src/ecs/world';
 import { defineComponent } from '../src/ecs/component';
 import { defineEvent, EventRegistry } from '../src/ecs/event';
 import { ResourceStorage } from '../src/ecs/resource';
 import { speculate } from '../src/ecs/speculation';
+import { App } from '../src/app/app';
+import { Transform } from '../src/ecs/component';
+import type { ESEngineModule, CppRegistry } from '../src/wasm';
+import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';
 
 const Health = defineComponent('SpecHealth', { hp: 100 });
 const Effect = defineComponent('SpecEffect', { kind: '' });
@@ -108,5 +112,38 @@ describe('a speculated step', () => {
             return 'abandon';
         });
         expect(world.get(victim, Health).hp).toBe(100);
+    });
+});
+
+// The other storage, against the real registry rather than a stand-in: builtins
+// are projected out of C++ rather than lent, and a kernel that had only ever met
+// script components would not know whether its pre-image survives that.
+describe.skipIf(!HAS_WASM)('a speculated step, over engine components', () => {
+    let module: ESEngineModule;
+    beforeAll(async () => { module = await loadWasmModule(); });
+
+    it('restores a builtin the C++ side holds', () => {
+        const app = App.new();
+        const registry = new module.Registry() as unknown as CppRegistry;
+        app.connectCpp(registry, module);
+        try {
+            const world = app.world;
+            const resources = new ResourceStorage();
+            const mover = world.spawn();
+            world.insert(mover, Transform, { position: { x: 1, y: 2, z: 0 } } as never);
+
+            speculate({ world, resources }, () => {
+                const t = world.get(mover, Transform) as { position: { x: number; y: number; z: number } };
+                world.set(mover, Transform, { ...t, position: { x: 99, y: 99, z: 0 } } as never);
+                return 'abandon';
+            });
+
+            const after = world.get(mover, Transform) as { position: { x: number; y: number; z: number } };
+            expect([after.position.x, after.position.y]).toEqual([1, 2]);
+        } finally {
+            for (const e of app.world.getAllEntities()) { try { app.world.despawn(e); } catch { /* gone */ } }
+            app.world.disconnectCpp();
+            (registry as unknown as { delete(): void }).delete();
+        }
     });
 });
