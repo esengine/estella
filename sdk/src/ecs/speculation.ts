@@ -97,6 +97,87 @@ export class SpeculationLog {
     forget(): void {
         this.before_.clear();
     }
+
+    /** @internal Where the step LEFT every component it touched. Read with the
+     *  speculation already closed, so looking does not record. */
+    postImage(world: World): string {
+        const rows: string[] = [];
+        for (const [key, { entity, component }] of this.before_) {
+            const held = world.has(entity, component) ? world.tryGet(entity, component) : undefined;
+            rows.push(`${key}=${held === undefined || held === null ? 'absent' : stableText(held)}`);
+        }
+        return rows.sort().join('|');
+    }
+}
+
+/** Key order is not a difference a replay should report, so sort it away. */
+function stableText(value: unknown): string {
+    if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'undefined';
+    if (Array.isArray(value)) return `[${value.map(stableText).join(',')}]`;
+    const rec = value as Record<string, unknown>;
+    return `{${Object.keys(rec).sort().map((k) => `${k}:${stableText(rec[k])}`).join(',')}}`;
+}
+
+/** What one run of a step did, on the three surfaces the scope owns. */
+interface Trace {
+    outcome: SpeculationOutcome;
+    values: string;
+    commands: string;
+    events: string;
+}
+
+/** Run the step and take it back, keeping an account of what it did. */
+function trace(scope: SpeculationScope, body: (commands: CommandsInstance) => SpeculationOutcome): Trace {
+    const { world, resources, events } = scope;
+    const log = new SpeculationLog();
+    const commands = new CommandsInstance(world, resources);
+    const marks = events?.writeMarks();
+
+    world.openSpeculation(log);
+    let outcome: SpeculationOutcome;
+    try {
+        outcome = body(commands);
+    } finally {
+        world.closeSpeculation();
+    }
+    const taken: Trace = {
+        outcome,
+        values: log.postImage(world),
+        commands: commands.describe(),
+        events: marks && events ? events.writtenSince(marks) : '',
+    };
+    log.undo(world);
+    if (marks && events) events.rewindWrites(marks);
+    return taken;
+}
+
+/** Whether a step reached the same place twice, and what differed if not. */
+export interface ReplayReport {
+    stable: boolean;
+    why: string;
+}
+
+/**
+ * Run the same step twice from the same state, over the three surfaces this
+ * scope aligns; both runs are taken back. A predicted step already promises to
+ * depend "only on world state + actions + dt" (replication/client.ts), and
+ * nothing held it to that — a clock or a random source reads green until desync.
+ */
+export function replay(
+    scope: SpeculationScope,
+    body: (commands: CommandsInstance) => SpeculationOutcome,
+): ReplayReport {
+    const first = trace(scope, body);
+    const second = trace(scope, body);
+    for (const surface of ['outcome', 'values', 'commands', 'events'] as const) {
+        if (first[surface] !== second[surface]) {
+            return {
+                stable: false,
+                why: `${surface} differed between runs: ${String(first[surface])} then ${String(second[surface])}`,
+            };
+        }
+    }
+    return { stable: true, why: '' };
 }
 
 /**
@@ -159,10 +240,17 @@ export class SpeculationInstance {
     }
 
     run(body: (commands: CommandsInstance) => SpeculationOutcome): SpeculationOutcome {
-        return speculate(
-            { world: this.world_, resources: this.resources_, events: this.events_ ?? undefined },
-            body,
-        );
+        return speculate(this.scope_(), body);
+    }
+
+    /** Ask whether the step is a function of the world alone. Takes both runs
+     *  back, so asking costs the world nothing. */
+    replay(body: (commands: CommandsInstance) => SpeculationOutcome): ReplayReport {
+        return replay(this.scope_(), body);
+    }
+
+    private scope_(): SpeculationScope {
+        return { world: this.world_, resources: this.resources_, events: this.events_ ?? undefined };
     }
 }
 

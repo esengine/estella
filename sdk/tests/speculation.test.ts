@@ -15,7 +15,7 @@ import { World } from '../src/ecs/world';
 import { defineComponent } from '../src/ecs/component';
 import { defineEvent, EventRegistry } from '../src/ecs/event';
 import { ResourceStorage } from '../src/ecs/resource';
-import { speculate } from '../src/ecs/speculation';
+import { speculate, replay } from '../src/ecs/speculation';
 import { App } from '../src/app/app';
 import { Schedule } from '../src/ecs/system';
 import { defineSystem } from '../src/ecs/system';
@@ -180,5 +180,68 @@ describe('a speculation a system asked for', () => {
         expect(outcome).toBe('abandon');
         expect(world.get(victim, Health).hp).toBe(100);
         expect(world.getEntitiesWithComponents([Effect]).length).toBe(0);
+    });
+});
+
+// The contract the replication client already depends on — a predicted step
+// "depends only on world state + actions + dt" — with something holding it.
+describe('replaying a step', () => {
+    it('says so when the same step lands in the same place', () => {
+        const { world, resources, events, victim } = scene();
+        const report = replay({ world, resources, events }, (commands) => {
+            const hp = world.get(victim, Health);
+            world.set(victim, Health, { ...hp, hp: hp.hp - 10 });
+            commands.spawn().insert(Effect, { kind: 'hit' });
+            events.getBus(Died).send({ entity: victim });
+            return 'commit';
+        });
+        expect(report).toEqual({ stable: true, why: '' });
+    });
+
+    it('names the surface when the step is not a function of the world', () => {
+        const { world, resources, events, victim } = scene();
+        const report = replay({ world, resources, events }, () => {
+            const hp = world.get(victim, Health);
+            world.set(victim, Health, { ...hp, hp: Math.random() });
+            return 'commit';
+        });
+        expect(report.stable).toBe(false);
+        expect(report.why).toMatch(/^values differed between runs/);
+    });
+
+    it('catches a step whose STRUCTURE wanders, not just its values', () => {
+        const { world, resources, events } = scene();
+        let n = 0;
+        const report = replay({ world, resources, events }, (commands) => {
+            for (let i = 0; i <= n; i++) commands.spawn().insert(Effect, { kind: 'hit' });
+            n++;
+            return 'commit';
+        });
+        expect(report.stable).toBe(false);
+        expect(report.why).toMatch(/^commands differed between runs/);
+    });
+
+    it('and an announcement that wanders', () => {
+        const { world, resources, events, victim } = scene();
+        let n = 0;
+        const report = replay({ world, resources, events }, () => {
+            events.getBus(Died).send({ entity: victim + n++ });
+            return 'commit';
+        });
+        expect(report.stable).toBe(false);
+        expect(report.why).toMatch(/^events differed between runs/);
+    });
+
+    it('leaves the world where it found it, whatever it asked', () => {
+        const { world, resources, events, victim } = scene();
+        replay({ world, resources, events }, (commands) => {
+            world.set(victim, Health, { hp: 7 });
+            commands.spawn().insert(Effect, { kind: 'hit' });
+            events.getBus(Died).send({ entity: victim });
+            return 'commit';
+        });
+        expect(world.get(victim, Health).hp).toBe(100);
+        expect(world.getEntitiesWithComponents([Effect]).length).toBe(0);
+        expect(delivered(events)).toEqual([]);
     });
 });

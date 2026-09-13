@@ -406,7 +406,9 @@ export {
 export {
     Speculation,
     SpeculationInstance,
+    replay,
     type SpeculationOutcome,
+    type ReplayReport,
 } from './ecs/speculation';
 
 // =============================================================================

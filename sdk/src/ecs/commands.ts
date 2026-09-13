@@ -11,6 +11,14 @@ import type { World } from './world';
 import { ResourceDef, ResourceStorage } from './resource';
 import { log } from '../util/logger';
 
+/** Key order is not a difference a replay should report, so sort it away. */
+function stableText(value: unknown): string {
+    if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'undefined';
+    if (Array.isArray(value)) return `[${value.map(stableText).join(',')}]`;
+    const rec = value as Record<string, unknown>;
+    return `{${Object.keys(rec).sort().map((k) => `${k}:${stableText(rec[k])}`).join(',')}}`;
+}
+
 // =============================================================================
 // Commands Descriptor (for system parameters)
 // =============================================================================
@@ -116,6 +124,16 @@ export class EntityCommands {
             this.entityRef_ = { entity };
             this.isNew_ = false;
         }
+    }
+
+    /** @internal What this spawn or edit WOULD do, as text a second run can be
+     *  compared against — a queued spawn has no entity yet, so identity cannot
+     *  be part of the comparison and the composition is. */
+    describe(): string {
+        const parts = this.components_.map((c) => `${c.component._name}=${stableText(c.data)}`).sort();
+        return `${this.isNew_ ? 'spawn' : `edit#${this.entityRef_.entity}`}`
+            + `${this.spawnName_ ? `:${this.spawnName_}` : ''}`
+            + `(${parts.join(',')})${this.parent_ === null ? '' : `<-${this.parent_}`}`;
     }
 
     insert<T extends object>(component: AnyComponentDef, data?: Partial<T>): this {
@@ -249,6 +267,18 @@ export class CommandsInstance {
         if (parent !== null && parent !== undefined) {
             this.world_.setParent(entity, parent);
         }
+    }
+
+    /** @internal Everything queued and not yet applied, as comparable text. */
+    describe(): string {
+        const spawned = this.spawned_.map((ec) => ec.describe());
+        const pending = this.pending_.map((c) => {
+            const anyCmd = c as { type: string; entity?: Entity; component?: { _name: string }; data?: unknown };
+            return `${anyCmd.type}#${anyCmd.entity ?? '-'}`
+                + `${anyCmd.component ? `:${anyCmd.component._name}` : ''}`
+                + `${anyCmd.data === undefined ? '' : `=${stableText(anyCmd.data)}`}`;
+        });
+        return [...spawned, ...pending].join('|');
     }
 
     flush(): void {

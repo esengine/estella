@@ -124,6 +124,11 @@ export class EventBus<T> {
     rewindWrite(mark: number): void {
         if (mark < this.writeBuffer_.length) this.writeBuffer_.length = mark;
     }
+
+    /** @internal Payloads written past `mark`, oldest first, as text. */
+    writtenSince(mark: number): string[] {
+        return this.writeBuffer_.slice(mark).map((e) => JSON.stringify(e) ?? 'undefined');
+    }
 }
 
 // =============================================================================
@@ -177,6 +182,18 @@ export class EventRegistry {
      *  absent from them, so it rewinds to empty rather than being left alone. */
     rewindWrites(marks: Map<symbol, number>): void {
         for (const [id, bus] of this.buses_) bus.rewindWrite(marks.get(id) ?? 0);
+    }
+
+    /** @internal What has been written since `marks`, as comparable text: a
+     *  replay asks whether the same step announces the same things. */
+    writtenSince(marks: Map<symbol, number>): string {
+        const out: string[] = [];
+        for (const [id, bus] of this.buses_) {
+            const from = marks.get(id) ?? 0;
+            const wrote = bus.writtenSince(from);
+            if (wrote.length > 0) out.push(`${String(id.description ?? id.toString())}:${wrote.join(',')}`);
+        }
+        return out.sort().join('|');
     }
 }
 
