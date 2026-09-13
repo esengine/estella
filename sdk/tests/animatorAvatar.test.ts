@@ -230,3 +230,98 @@ describe('one clip over two rigs', () => {
         expect(facingY).toBeCloseTo(100 / Math.hypot(50, 100), 3);
     });
 });
+
+// ---------------------------------------------------------------------------
+// Rigs bound in different poses
+// ---------------------------------------------------------------------------
+
+/** A quarter turn about Z, as a quaternion. */
+const quarterZ = { w: Math.SQRT1_2, x: 0, y: 0, z: Math.SQRT1_2 };
+const identityQ = { w: 1, x: 0, y: 0, z: 0 };
+
+describe('one clip over rigs bound differently', () => {
+    /**
+     * The source rig rests with its arm down (identity); the target rests with it
+     * already out (a quarter turn). The clip says "arm at a quarter turn", which
+     * on the source rig means "raised by a quarter turn" — and that is what the
+     * target has to end up doing, from ITS rest, not the absolute value.
+     */
+    function rebased(withRest: boolean) {
+        const world = makeWorld();
+        rig(world, 1, 2, 'Arm');
+        world.update(2, Transform, (t: any) => { t.rotation = { ...quarterZ }; });
+
+        const clips = parseAvatar({ joints: {}, rest: { Arm: identityQ } });
+        const target = parseAvatar({ joints: {}, rest: { Arm: quarterZ } });
+        const avatars: Record<string, AnimatorAvatar> = {
+            'assets/clips.esavatar': withRest ? clips : parseAvatar({ joints: {} }),
+            'assets/rig.esavatar': withRest ? target : parseAvatar({ joints: {} }),
+        };
+
+        const timeline = new TimelineAPI();
+        timeline.registerAsset('wave.estimeline', turn('Arm'));
+        const ctrl = new AnimatorControllerAPI();
+        ctrl.registerMotionDriver(TIMELINE_MOTION, createTimelineMotionDriver(timeline));
+        ctrl.useAssetAvatars((ref) => avatars[ref]);
+        ctrl.registerController('rig', {
+            version: 2, parameters: [], initialState: 'Wave',
+            avatar: 'assets/clips.esavatar',
+            states: [{
+                name: 'Wave', transitions: [],
+                motion: { kind: TIMELINE_MOTION, clip: 'wave.estimeline', loop: true },
+            }],
+        } as AnimatorControllerDef);
+        attach(world, 1, 'assets/rig.esavatar');
+        ctrl.update(world, 0.016);
+        return (world.get(2, Transform) as { rotation: { z: number; w: number } }).rotation;
+    }
+
+    it('restates the clip from the target rig’s own rest pose', () => {
+        // The clip's quarter turn is a quarter turn OFF the source rest, so off a
+        // target resting at a quarter turn it lands at a half — z = 1.
+        const r = rebased(true);
+        expect(r.z).toBeCloseTo(1, 4);
+        expect(r.w).toBeCloseTo(0, 4);
+    });
+
+    it('takes the clip literally when neither rig states a rest pose', () => {
+        // The older behaviour, and the right one for rigs that share a bind pose:
+        // no rest is not an identity rest, it is nothing to rebase against.
+        const r = rebased(false);
+        expect(r.z).toBeCloseTo(Math.SQRT1_2, 4);
+    });
+
+    it('leaves a joint alone when only one side states its rest', () => {
+        // The source rest is deliberately NOT the identity: a missing target rest
+        // defaulted to one would rebase by its inverse, and with both at identity
+        // that mistake reads exactly like doing nothing.
+        const world = makeWorld();
+        rig(world, 1, 2, 'Arm');
+        const avatars: Record<string, AnimatorAvatar> = {
+            'assets/clips.esavatar': parseAvatar({ joints: {}, rest: { Arm: quarterZ } }),
+            'assets/rig.esavatar': parseAvatar({ joints: {}, rest: { Leg: quarterZ } }),
+        };
+        const timeline = new TimelineAPI();
+        timeline.registerAsset('wave.estimeline', turn('Arm'));
+        const ctrl = new AnimatorControllerAPI();
+        ctrl.registerMotionDriver(TIMELINE_MOTION, createTimelineMotionDriver(timeline));
+        ctrl.useAssetAvatars((ref) => avatars[ref]);
+        ctrl.registerController('rig', {
+            version: 2, parameters: [], initialState: 'Wave',
+            avatar: 'assets/clips.esavatar',
+            states: [{
+                name: 'Wave', transitions: [],
+                motion: { kind: TIMELINE_MOTION, clip: 'wave.estimeline', loop: true },
+            }],
+        } as AnimatorControllerDef);
+        attach(world, 1, 'assets/rig.esavatar');
+        ctrl.update(world, 0.016);
+        expect(turnedZ(world, 2)).toBeCloseTo(Math.SQRT1_2, 4);
+    });
+
+    it('refuses a rest pose that is not a rotation', () => {
+        expect(() => parseAvatar({ joints: {}, rest: { Arm: { w: 1, x: 0, y: 0 } } }))
+            .toThrow(/quaternion/);
+        expect(() => parseAvatar({ joints: {}, rest: [] })).toThrow(/rest/);
+    });
+});

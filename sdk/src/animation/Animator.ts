@@ -32,7 +32,9 @@ import { Pose } from './pose';
 import { mixPoses, type WeightedPose } from './poseMix';
 import { overlayPose, addPoseOver } from './layerStack';
 import { MaskReach, type AnimatorMask } from './animatorMask';
-import { avatarResolver, type AnimatorAvatar, type JointResolver } from './animatorAvatar';
+import {
+    avatarResolver, rebasePose, type AnimatorAvatar, type JointResolver,
+} from './animatorAvatar';
 import { solveAnimatorIK, type AnimatorIK } from './animatorIK';
 import { AnimatorRootMotion, type AnimatorRootMotionData } from './animatorRootMotion';
 import type { AnimatorEventSink } from './animatorEvent';
@@ -190,6 +192,13 @@ export interface AnimatorControllerDef {
     initialState: string;
     /** Transitions evaluated from every state, before the current state's own. */
     anyStateTransitions?: AnimatorTransition[];
+    /**
+     * The `.esavatar` this controller's CLIPS were authored against. With one on
+     * the rig as well, a pose is restated from that rig's bind pose to this one;
+     * without it a name map alone is only right between rigs that share a bind
+     * pose.
+     */
+    avatar?: string;
     /** Layers over the base one, laid down in order. */
     layers?: AnimatorLayer[];
     /**
@@ -674,11 +683,9 @@ export class AnimatorControllerAPI {
         this.assetAvatars_ = source;
     }
 
-    /** The resolver this rig's joints are found through this frame. */
-    private jointsOf(world: World, data: AnimatorData): JointResolver {
-        const ref = data.avatar;
-        const avatar = ref ? this.assetAvatars_?.(ref) ?? null : null;
-        return avatarResolver(world, avatar);
+    /** This rig's avatar, or null where its clips need no translating. */
+    private avatarOf(ref: string | undefined): AnimatorAvatar | null {
+        return ref ? this.assetAvatars_?.(ref) ?? null : null;
     }
 
     getController(name: string): AnimatorControllerDef | undefined {
@@ -757,7 +764,9 @@ export class AnimatorControllerAPI {
 
             const count = animatorLayerCount(def);
             const params = resolveParams(def, this.params.get(entity) ?? EMPTY_PARAMS);
-            const joints = this.jointsOf(world, a);
+            const rig = this.avatarOf(a.avatar);
+            const clips = this.avatarOf(def.avatar);
+            const joints = avatarResolver(world, rig);
             const ctx = this.motions_.context(world, entity, params, joints);
             const rt = this.runtimeFor(entity, count);
             rt.composed.reset();
@@ -772,6 +781,11 @@ export class AnimatorControllerAPI {
             // machines answer cannot depend on which was stepped first.
             const triggers = this.triggers.get(entity);
             if (triggers) for (const t of this.spentTriggers_) triggers.delete(t);
+            // Restating the stack for THIS rig comes before the constraints:
+            // they measure where joints are, and this is what moves them.
+            if (wrote && rig && clips) {
+                rebasePose(rt.composed, entity, clips, rig, joints, world);
+            }
             // Constraints read the stack's answer and bend it, so they run
             // between composing and writing — on the pose this frame stated,
             // never on the world's record of the last one.

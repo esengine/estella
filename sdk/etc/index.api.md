@@ -410,6 +410,7 @@ ComponentDef<AnimatorData>
 ## AnimatorAvatar — interface @experimental
 ```
 joints: Record<string, string>
+rest: Record<string, Quat> | undefined
 ```
 
 ## AnimatorBlend1D — interface @experimental
@@ -498,6 +499,7 @@ static prototype: AnimatorControllerAPI
 ## AnimatorControllerDef — interface @experimental
 ```
 anyStateTransitions: AnimatorTransition[] | undefined
+avatar: string | undefined
 ik: AnimatorIK[] | undefined
 initialState: string
 layers: AnimatorLayer[] | undefined

@@ -22,8 +22,12 @@
 import type { Entity } from '../types';
 import type { World } from '../ecs/world';
 import { resolveChildEntity } from '../ecs/childPath';
+import { Transform } from '../ecs/component';
+import { q } from '../math/quat';
+import type { Pose, PoseWorld } from './pose';
+import type { QuatLike } from './quatMix';
 
-/** A rig's own spelling for each joint a clip may name. */
+/** A rig's own spelling for each joint a clip may name, and how it stands at rest. */
 export interface AnimatorAvatar {
     /**
      * The name a clip uses → the `childPath` this rig reaches that joint by. A
@@ -31,7 +35,16 @@ export interface AnimatorAvatar {
      * keeps working and an avatar can translate only what differs.
      */
     joints: Record<string, string>;
+    /**
+     * Each joint's rotation in the BIND pose, by the name `joints` uses. What a
+     * clip states is where a joint is, and what it MEANS is the offset from where
+     * that joint rests — two rigs bound differently need this to read one clip
+     * the same way. Absent for a rig nothing is retargeted onto.
+     */
+    rest?: Record<string, Quat>;
 }
+
+interface Quat { w: number; x: number; y: number; z: number }
 
 /** Finding a joint on a rig, whichever way a clip spelled it. */
 export type JointResolver = (root: Entity, path: string) => Entity | null;
@@ -68,7 +81,26 @@ export function parseAvatar(raw: unknown): AnimatorAvatar {
         // An entry mapping a name to itself is what having no entry already means.
         if (path && path !== name) out[name] = path;
     }
-    return { joints: out };
+    const rest = obj['rest'] === undefined ? undefined : readRest(obj['rest']);
+    return rest ? { joints: out, rest } : { joints: out };
+}
+
+/** The bind pose, one rotation per joint. A joint listed without a usable
+ *  rotation is refused rather than defaulted: an identity nobody meant would
+ *  rebase every clip through a pose the rig is not in. */
+function readRest(raw: unknown): Record<string, Quat> {
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+        throw new Error('Avatar "rest" must be an object of joint rotations');
+    }
+    const out: Record<string, Quat> = {};
+    for (const [name, value] of Object.entries(raw as Record<string, unknown>)) {
+        const q = value as Partial<Quat> | null;
+        if (!q || ['w', 'x', 'y', 'z'].some((k) => typeof q[k as 'w'] !== 'number')) {
+            throw new Error(`Avatar rest pose for "${name}" must be a quaternion`);
+        }
+        out[name] = { w: q.w!, x: q.x!, y: q.y!, z: q.z! };
+    }
+    return out;
 }
 
 /** A blank avatar, which translates nothing and resolves every path as itself. */
@@ -86,4 +118,32 @@ export function avatarResolver(
 ): JointResolver {
     if (!avatar) return (root, path) => resolveChildEntity(world, root, path);
     return (root, path) => resolveChildEntity(world, root, avatar.joints[path] ?? path);
+}
+
+/**
+ * Re-state `pose` as this rig would stand it: a clip says where a joint IS and
+ * MEANS the offset from its rest, so another bind pose needs
+ * `targetRest · sourceRest⁻¹`. Once on the stack's answer — composing commutes
+ * with a left multiplication — and before the constraints, which read positions.
+ */
+export function rebasePose(
+    pose: Pose, root: Entity, source: AnimatorAvatar, target: AnimatorAvatar,
+    resolveJoint: JointResolver, world: PoseWorld,
+): void {
+    const from = source.rest;
+    const to = target.rest;
+    if (!from || !to) return;
+    for (const [joint, sourceRest] of Object.entries(from)) {
+        const targetRest = to[joint];
+        if (!targetRest) continue;
+        const entity = resolveJoint(root, joint);
+        if (entity === null) continue;
+        const track = pose.track(world, entity, Transform);
+        if (!track || !track.touched.has('rotation')) continue;
+        const stated = track.data.rotation as QuatLike | undefined;
+        if (!stated) continue;
+        const offset = q.mul(q.conjugate(sourceRest), stated);
+        const rebased = q.normalize(q.mul(targetRest, offset));
+        track.data.rotation = { w: rebased.w, x: rebased.x, y: rebased.y, z: rebased.z };
+    }
 }
