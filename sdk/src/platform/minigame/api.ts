@@ -248,6 +248,10 @@ export interface MiniGameGlobal {
 
     onShow?(cb: () => void): void;
     onHide?(cb: () => void): void;
+    /** The window changed size — a rotation, a foldable, split screen. Carries
+     *  the new size, which is authoritative: a `getSystemInfoSync` beside it can
+     *  still answer with the old one. */
+    onWindowResize?(cb: (res: { windowWidth: number; windowHeight: number }) => void): void;
 
     /** Monetization + share — optional like every capability a vendor may lack
      *  (or a game may not have configured): the adapter probes at use time. */

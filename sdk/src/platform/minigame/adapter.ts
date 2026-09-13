@@ -367,13 +367,24 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
      */
     createScreenCanvas(): MiniGameCanvas {
         const canvas = this.g_.createCanvas();
-        const info = this.g_.getSystemInfoSync();
-        const dpr = info.pixelRatio ?? 1;
-        // Left at the host's own default when the info is incomplete — a 0×0
-        // surface would be worse than the host's guess.
-        if (info.windowWidth) canvas.width = info.windowWidth * dpr;
-        if (info.windowHeight) canvas.height = info.windowHeight * dpr;
+        this.sizeScreenCanvas_(canvas, this.g_.getSystemInfoSync());
+        // The window is not fixed — a rotation, a foldable, a host that opens in
+        // the other orientation. Sized once, the canvas keeps the old space while
+        // touches keep arriving in the window's, and taps stop landing at all.
+        this.g_.onWindowResize?.((res) => this.sizeScreenCanvas_(canvas, res));
         return canvas;
+    }
+
+    /** Size the display canvas to a window measurement. Left at the host's own
+     *  default when the measurement is incomplete — a 0×0 surface would be worse
+     *  than the host's guess. */
+    private sizeScreenCanvas_(
+        canvas: MiniGameCanvas,
+        size: { windowWidth?: number; windowHeight?: number },
+    ): void {
+        const dpr = this.g_.getSystemInfoSync().pixelRatio ?? 1;
+        if (size.windowWidth) canvas.width = size.windowWidth * dpr;
+        if (size.windowHeight) canvas.height = size.windowHeight * dpr;
     }
 
     now(): number {

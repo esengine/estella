@@ -15,6 +15,12 @@ published separately; it ships inside the editor.
 ## [Unreleased]
 
 ### Fixed
+- **A mini-game's canvas follows its window.** It was sized once at boot from
+  `getSystemInfoSync` and never again, so any later change — a rotation, a foldable,
+  split screen, or a host that opens in the other orientation from the one `game.json`
+  asked for — left the canvas in the old coordinate space while touches kept arriving
+  in the window's. The game still rendered, and stopped answering taps entirely.
+
 
 - **A remote group with no CDN root loads from the package.** Its bytes ship inside
   the build (editor Play, a mini-game with no CDN), but the load path fell through to

@@ -5177,6 +5177,7 @@ onTouchEnd: (cb: (res: MiniGameTouchEvent) => void) => void
 onTouchMove: (cb: (res: MiniGameTouchEvent) => void) => void
 onTouchStart: (cb: (res: MiniGameTouchEvent) => void) => void
 onUnhandledRejection: ((cb: (res: { reason?: unknown; }) => void) => void) | undefined
+onWindowResize: ((cb: (res: { windowWidth: number; windowHeight: number; }) => void) => void) | undefined
 removeStorageSync: (key: string) => void
 request: (opts: MiniGameRequestOptions) => void
 requestMidasPayment: ((opts: { mode: string; offerId: string; buyQuantity: number; zoneId?: string; currencyType?: string; platform?: string; env?: number; success?: () => void; fail?: (err: { errMsg?: string; errCode?: number; }) => void; }) => void) | undefined
