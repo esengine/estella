@@ -19,60 +19,32 @@
  */
 
 import type { Pose, PoseTrack, PoseWorld } from './pose';
-
-interface Quat { w: number; x: number; y: number; z: number }
-
-function isQuat(v: unknown): v is Quat {
-    if (v === null || typeof v !== 'object') return false;
-    const o = v as Record<string, unknown>;
-    return typeof o.w === 'number' && typeof o.x === 'number'
-        && typeof o.y === 'number' && typeof o.z === 'number';
-}
+import {
+    deltaQuat, isQuatLike as isQuat, leanQuat, turnByQuat, type QuatLike as Quat,
+} from './quatMix';
 
 function isNumericObject(v: unknown): v is Record<string, number> {
     if (v === null || typeof v !== 'object' || Array.isArray(v)) return false;
     const keys = Object.keys(v as object);
-    return keys.length > 0 && keys.every(k => typeof (v as Record<string, unknown>)[k] === 'number');
+    if (keys.length === 0) return false;
+    return keys.every(k => typeof (v as Record<string, unknown>)[k] === 'number');
 }
 
-function normalize(q: Quat): void {
-    const len = Math.hypot(q.w, q.x, q.y, q.z);
-    if (len <= 0) { q.w = 1; q.x = 0; q.y = 0; q.z = 0; return; }
-    q.w /= len; q.x /= len; q.y /= len; q.z /= len;
-}
+/** Scratch for one additive field; this runs on one track at a time and does
+ *  not re-enter. */
+const DELTA: Quat = { w: 1, x: 0, y: 0, z: 0 };
+const PART: Quat = { w: 1, x: 0, y: 0, z: 0 };
 
 /**
- * Move `dst` a `weight` share of the way to `src`. Aligned to the near hemisphere
- * first: {q} and {-q} name the same rotation, and averaged as written they cancel
- * toward the long way round.
+ * `dst` turned further by the rotation `from` → `to`, a `weight` share of it.
+ * Leaning the identity toward the delta is what SCALES a rotation, there being
+ * nothing to scale linearly; the turn is then applied on top.
  */
-function leanQuat(dst: Quat, src: Quat, weight: number): void {
-    const dot = dst.w * src.w + dst.x * src.x + dst.y * src.y + dst.z * src.z;
-    const s = dot < 0 ? -weight : weight;
-    const keep = 1 - weight;
-    dst.w = dst.w * keep + src.w * s;
-    dst.x = dst.x * keep + src.x * s;
-    dst.y = dst.y * keep + src.y * s;
-    dst.z = dst.z * keep + src.z * s;
-    normalize(dst);
-}
-
-/** `dst` turned further by the rotation `from` → `to`, a `weight` share of it. */
 function turnQuat(dst: Quat, from: Quat, to: Quat, weight: number): void {
-    // The delta is `to * from⁻¹` in the clip's own frame; leaning the identity
-    // toward it is what scales a rotation, there being nothing to scale linearly.
-    const dw = to.w * from.w + to.x * from.x + to.y * from.y + to.z * from.z;
-    const dx = to.x * from.w - to.w * from.x - to.y * from.z + to.z * from.y;
-    const dy = to.y * from.w - to.w * from.y - to.z * from.x + to.x * from.z;
-    const dz = to.z * from.w - to.w * from.z - to.x * from.y + to.y * from.x;
-    const part: Quat = { w: 1, x: 0, y: 0, z: 0 };
-    leanQuat(part, { w: dw, x: dx, y: dy, z: dz }, weight);
-    const w = part.w * dst.w - part.x * dst.x - part.y * dst.y - part.z * dst.z;
-    const x = part.w * dst.x + part.x * dst.w + part.y * dst.z - part.z * dst.y;
-    const y = part.w * dst.y - part.x * dst.z + part.y * dst.w + part.z * dst.x;
-    const z = part.w * dst.z + part.x * dst.y - part.y * dst.x + part.z * dst.w;
-    dst.w = w; dst.x = x; dst.y = y; dst.z = z;
-    normalize(dst);
+    deltaQuat(DELTA, from, to);
+    PART.w = 1; PART.x = 0; PART.y = 0; PART.z = 0;
+    leanQuat(PART, DELTA, weight);
+    turnByQuat(dst, PART);
 }
 
 /** Which tracks of `layer` this stack lets through; null admits every one. */

@@ -29,7 +29,7 @@ import {
 } from './motion';
 import { SPRITE_MOTION, spriteMotionDriver } from './spriteMotion';
 import { Pose } from './pose';
-import { mixPoses } from './poseMix';
+import { mixPoses, type WeightedPose } from './poseMix';
 import { overlayPose, addPoseOver } from './layerStack';
 import { MaskReach, type AnimatorMask } from './animatorMask';
 import { AnimatorRootMotion, type AnimatorRootMotionData } from './animatorRootMotion';
@@ -966,10 +966,9 @@ export class AnimatorControllerAPI {
             if (from && to) {
                 const t = Math.min(rt.fadeElapsed / rt.fadeDuration, 1);
                 rt.mixed.reset();
-                mixPoses(
-                    [{ pose: rt.poseFrom, weight: 1 - t }, { pose: rt.poseTo, weight: t }],
-                    rt.mixed, world,
-                );
+                rt.fade[0].pose = rt.poseFrom; rt.fade[0].weight = 1 - t;
+                rt.fade[1].pose = rt.poseTo; rt.fade[1].weight = t;
+                mixPoses(rt.fade, rt.mixed, world, 2);
                 return rt.mixed;
             }
             rt.fadeFrom = null;
@@ -1011,6 +1010,7 @@ export class AnimatorControllerAPI {
                 fadeFrom: null, fadeFromRoot: false,
                 fadeFromTime: 0, fadeElapsed: 0, fadeDuration: 0,
                 poseFrom: new Pose(), poseTo: new Pose(), mixed: new Pose(),
+                fade: [{ pose: null!, weight: 0 }, { pose: null!, weight: 0 }],
             });
         }
         return rt;
@@ -1063,6 +1063,10 @@ interface LayerRuntime {
     poseFrom: Pose;
     poseTo: Pose;
     mixed: Pose;
+    /** The two-slot list a crossfade mixes from. Owned rather than borrowed: a
+     *  layer fades once per frame and never inside itself, which is exactly the
+     *  case the pools exist for and this is not. */
+    fade: [WeightedPose, WeightedPose];
     /** This layer's mask, resolved against the rig it is running on. */
     reach?: MaskReach;
 }

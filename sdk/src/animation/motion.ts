@@ -23,6 +23,7 @@ import type { Entity, Quat, Vec3 } from '../types';
 import type { World } from '../ecs/world';
 import { Pose } from './pose';
 import { mixPoses, type WeightedPose } from './poseMix';
+import { accumulateQuat, leanQuat, normalizeQuat } from './quatMix';
 
 /** Parameter values a graph exposes to its motions (floats and bools). */
 export type MotionParams = Readonly<Record<string, number | boolean>>;
@@ -160,6 +161,9 @@ export interface MotionContext {
      */
     borrowMix(): WeightedPose[];
     releaseMix(mix: WeightedPose[]): void;
+    /** Borrow a displacement to combine nested ones into; hand it back. */
+    borrowDelta(): RootMotionDelta;
+    releaseDelta(delta: RootMotionDelta): void;
     /**
      * Whether the animator is taking this motion's root track as DISPLACEMENT.
      * A driver that can state a root pose must then leave the root's position and
@@ -225,6 +229,7 @@ export class MotionRegistry {
      *  nesting decides how many are live at once, and only the stack knows that. */
     private readonly posePool_: Pose[] = [];
     private readonly mixPool_: WeightedPose[][] = [];
+    private readonly deltaPool_: RootMotionDelta[] = [];
 
     register<M extends AnimatorMotion>(kind: M['kind'], driver: MotionDriver<M>): void {
         this.drivers_.set(kind, driver as MotionDriver<never>);
@@ -276,6 +281,10 @@ export class MotionRegistry {
         releasePose: (pose) => { this.posePool_.push(pose); },
         borrowMix: () => this.mixPool_.pop() ?? [],
         releaseMix: (mix) => { this.mixPool_.push(mix); },
+        borrowDelta: () => this.deltaPool_.pop() ?? {
+            position: { x: 0, y: 0, z: 0 }, rotation: { w: 1, x: 0, y: 0, z: 0 },
+        },
+        releaseDelta: (delta) => { this.deltaPool_.push(delta); },
     };
 }
 
@@ -433,11 +442,72 @@ export const blend1DMotionDriver: MotionDriver<AnimatorBlend1DMotion> = {
         const selected = blendSelection(ctx, blend);
         if (selected) ctx.events(selected, span, out);
     },
+    /**
+     * Weighted like the pose. Picking makes a character crossing run's threshold
+     * jump its speed in one frame, the one thing a locomotion tree prevents. A
+     * stop stating no displacement does not push the character, so the other end
+     * keeps only its share rather than answering whole.
+     */
     rootMotion(ctx, blend, span, out) {
-        const selected = blendSelection(ctx, blend);
-        return selected !== null && ctx.rootDelta(selected, span, out);
+        const { lower, upper, t } = blend1DPair(blend, blendValue(ctx, blend));
+        if (!lower) return false;
+        if (!upper) return ctx.rootDelta(lower.motion, span, out);
+
+        const other = ctx.borrowDelta();
+        try {
+            const from = ctx.rootDelta(lower.motion, span, out);
+            const to = ctx.rootDelta(upper.motion, span, other);
+            if (from && to) { leanDelta(out, other, t); return true; }
+            if (from) { scaleDelta(out, 1 - t); return true; }
+            if (to) { copyDelta(out, other); scaleDelta(out, t); return true; }
+            return false;
+        } finally {
+            ctx.releaseDelta(other);
+        }
     },
 };
+
+/** Displacement arithmetic. A rotation is not scaled linearly, so a share of one
+ *  is the identity leaned toward it — the same rule the layer stack uses. */
+function scaleDelta(out: RootMotionDelta, weight: number): void {
+    out.position.x *= weight; out.position.y *= weight; out.position.z *= weight;
+    IDENTITY_TURN.w = 1; IDENTITY_TURN.x = 0; IDENTITY_TURN.y = 0; IDENTITY_TURN.z = 0;
+    leanQuat(IDENTITY_TURN, out.rotation, weight);
+    out.rotation.w = IDENTITY_TURN.w; out.rotation.x = IDENTITY_TURN.x;
+    out.rotation.y = IDENTITY_TURN.y; out.rotation.z = IDENTITY_TURN.z;
+}
+
+function copyDelta(out: RootMotionDelta, src: RootMotionDelta): void {
+    out.position.x = src.position.x; out.position.y = src.position.y; out.position.z = src.position.z;
+    out.rotation.w = src.rotation.w; out.rotation.x = src.rotation.x;
+    out.rotation.y = src.rotation.y; out.rotation.z = src.rotation.z;
+}
+
+function zeroDelta(out: RootMotionDelta): void {
+    out.position.x = 0; out.position.y = 0; out.position.z = 0;
+    out.rotation.w = 0; out.rotation.x = 0; out.rotation.y = 0; out.rotation.z = 0;
+}
+
+/** Move `out` a `weight` share of the way to `src`. */
+function leanDelta(out: RootMotionDelta, src: RootMotionDelta, weight: number): void {
+    out.position.x += (src.position.x - out.position.x) * weight;
+    out.position.y += (src.position.y - out.position.y) * weight;
+    out.position.z += (src.position.z - out.position.z) * weight;
+    leanQuat(out.rotation, src.rotation, weight);
+}
+
+/** Accumulate `src * weight` into a zeroed `out`; the caller normalizes at the end. */
+function addDelta(out: RootMotionDelta, src: RootMotionDelta, weight: number): void {
+    out.position.x += src.position.x * weight;
+    out.position.y += src.position.y * weight;
+    out.position.z += src.position.z * weight;
+    accumulateQuat(out.rotation, HEMISPHERE, src.rotation, weight);
+}
+
+const IDENTITY_TURN = { w: 1, x: 0, y: 0, z: 0 };
+/** Every contribution aligns to the identity, which is the rotation a motion
+ *  stating no turn already has — so the reference is never absent. */
+const HEMISPHERE = { w: 1, x: 0, y: 0, z: 0 };
 
 // =============================================================================
 // 2D blend — the same mixing, over a plane instead of a line
@@ -611,7 +681,28 @@ export const blend2DMotionDriver: MotionDriver<AnimatorBlend2DMotion> = {
         if (dominant) ctx.events(dominant, span, out);
     },
     rootMotion(ctx, blend, span, out) {
-        const dominant = dominantOf(ctx, blend);
-        return dominant !== null && ctx.rootDelta(dominant, span, out);
+        const points = blend.points;
+        if (points.length === 0) return false;
+        const mix = ctx.borrowMix();
+        const part = ctx.borrowDelta();
+        try {
+            mixCapacity(mix, points.length);
+            const { x, y } = blend2DAt(ctx, blend);
+            blend2DWeights(blend, x, y, mix);
+            zeroDelta(out);
+            let stated = false;
+            for (let i = 0; i < points.length; i++) {
+                const weight = mix[i]!.weight;
+                if (weight <= 0) continue;
+                if (!ctx.rootDelta(points[i]!.motion, span, part)) continue;
+                addDelta(out, part, weight);
+                stated = true;
+            }
+            if (stated) normalizeQuat(out.rotation);
+            return stated;
+        } finally {
+            ctx.releaseDelta(part);
+            ctx.releaseMix(mix);
+        }
     },
 };

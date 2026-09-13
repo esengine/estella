@@ -14,7 +14,7 @@ import {
 } from '../src/animation';
 import { createTimelineMotionDriver, TIMELINE_MOTION } from '../src/timeline';
 import { TimelineAPI } from '../src/timeline/TimelineControl';
-import { defineComponent } from '../src/ecs/component';
+import { defineComponent, Transform } from '../src/ecs/component';
 import { WrapMode, TrackType, InterpType, type TimelineAsset } from '../src/timeline/TimelineTypes';
 
 const E = 1;
@@ -415,5 +415,78 @@ describe('a 2D blend through the animator', () => {
 
         // Inner low is 75, inner high 275; three quarters of the way to the first.
         expect(liftOf(world)).toBeCloseTo(125, 4);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Displacement follows the same weights the pose does
+// ---------------------------------------------------------------------------
+
+/** A clip that walks `metres` along +Z over its whole length, as root motion. */
+function travel(metres: number): TimelineAsset {
+    const key = (time: number, value: number) => ({
+        time, value, inTangent: 0, outTangent: 0, interpolation: InterpType.Linear,
+    });
+    return {
+        version: '1.2', type: 'timeline', duration: 1, wrapMode: WrapMode.Loop,
+        tracks: [{
+            type: TrackType.Property, component: 'Transform', childPath: '', name: 'root',
+            channels: [{ property: 'position.z', keyframes: [key(0, 0), key(1, metres)] }],
+        }],
+    } as TimelineAsset;
+}
+
+describe('a blend’s displacement', () => {
+    const locomotion: AnimatorBlend1DMotion = {
+        kind: 'blend1d', parameter: 'speed',
+        thresholds: [
+            { value: 0, motion: clip('walk.estimeline') },
+            { value: 1, motion: clip('run.estimeline') },
+        ],
+    };
+
+    /** How far the blend asks to move over one whole second at `speed`. */
+    function asked(speed: number): number {
+        const world = seedWorld();
+        world.insert(E, Transform, {
+            position: { x: 0, y: 0, z: 0 }, rotation: { w: 1, x: 0, y: 0, z: 0 },
+            scale: { x: 1, y: 1, z: 1 },
+        });
+
+        const timeline = new TimelineAPI();
+        timeline.registerAsset('walk.estimeline', travel(100));
+        timeline.registerAsset('run.estimeline', travel(400));
+        const ctrl = new AnimatorControllerAPI();
+        ctrl.registerMotionDriver(TIMELINE_MOTION, createTimelineMotionDriver(timeline));
+
+        const anyCtrl = ctrl as unknown as {
+            motions_: {
+                context(w: unknown, e: number, p: unknown): {
+                    rootDelta(m: unknown, s: unknown, o: { position: { z: number } }): boolean;
+                };
+            };
+        };
+        const ctx = anyCtrl.motions_.context(world, E, { speed });
+        const out = { position: { x: 0, y: 0, z: 0 }, rotation: { w: 1, x: 0, y: 0, z: 0 } };
+        const stated = ctx.rootDelta(locomotion, { from: 0, to: 1, inclusiveStart: true }, out);
+        return stated ? out.position.z : NaN;
+    }
+
+    it('is weighted, not picked', () => {
+        // Picking makes a character crossing run's threshold jump from 100 to 400
+        // in one frame — the one thing a locomotion tree exists to prevent.
+        expect(asked(0)).toBeCloseTo(100, 3);
+        expect(asked(1)).toBeCloseTo(400, 3);
+        expect(asked(0.5)).toBeCloseTo(250, 3);
+        expect(asked(0.25)).toBeCloseTo(175, 3);
+    });
+
+    it('climbs without a step anywhere across the range', () => {
+        let previous = asked(0);
+        for (let speed = 0.05; speed <= 1.0001; speed += 0.05) {
+            const here = asked(speed);
+            expect(here - previous).toBeCloseTo(15, 3);
+            previous = here;
+        }
     });
 });

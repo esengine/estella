@@ -5191,6 +5191,7 @@ shift: boolean
 
 ## MotionContext — interface @experimental
 ```
+borrowDelta: () => RootMotionDelta
 borrowMix: () => WeightedPose[]
 borrowPose: () => Pose
 drive: (motion: AnimatorMotion, enter: boolean) => void
@@ -5201,6 +5202,7 @@ extractRootMotion: boolean
 finished: (motion: AnimatorMotion) => boolean
 loops: (motion: AnimatorMotion) => boolean
 params: Readonly<Record<string, number | boolean>>
+releaseDelta: (delta: RootMotionDelta) => void
 releaseMix: (mix: WeightedPose[]) => void
 releasePose: (pose: Pose) => void
 rootDelta: (motion: AnimatorMotion, span: MotionSpan, out: RootMotionDelta) => boolean

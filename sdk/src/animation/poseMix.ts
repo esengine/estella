@@ -17,6 +17,10 @@
  */
 
 import type { Pose, PoseTrack, PoseWorld } from './pose';
+import {
+    accumulateQuat, canonicalizeQuat, isQuatLike as isQuat, normalizeQuat,
+    type QuatLike as Quat,
+} from './quatMix';
 
 /** A pose and how much of it the result is made of. */
 export interface WeightedPose {
@@ -24,56 +28,11 @@ export interface WeightedPose {
     weight: number;
 }
 
-interface Quat { w: number; x: number; y: number; z: number }
-
-function isQuat(v: unknown): v is Quat {
-    if (v === null || typeof v !== 'object') return false;
-    const o = v as Record<string, unknown>;
-    return typeof o.w === 'number' && typeof o.x === 'number'
-        && typeof o.y === 'number' && typeof o.z === 'number';
-}
-
 function isNumericObject(v: unknown): v is Record<string, number> {
     if (v === null || typeof v !== 'object' || Array.isArray(v)) return false;
     const keys = Object.keys(v as object);
     if (keys.length === 0) return false;
     return keys.every(k => typeof (v as Record<string, unknown>)[k] === 'number');
-}
-
-/**
- * The representative of the pair {q, -q}, which name the same rotation. Applied
- * to the RESULT this is what makes the mix order-independent: aligning b to a or
- * a to b differs only in overall sign, and collapsing that leaves one answer.
- */
-function canonicalize(out: Quat): void {
-    if (out.w > 0) return;
-    if (out.w < 0 || out.x < 0
-        || (out.x === 0 && (out.y < 0 || (out.y === 0 && out.z < 0)))) {
-        out.w = -out.w; out.x = -out.x; out.y = -out.y; out.z = -out.z;
-    }
-}
-
-/**
- * Accumulate `q * weight` into `acc`, against the hemisphere `ref` names.
- * Without the alignment, two quaternions a full turn apart in representation
- * cancel instead of blending - the 180-degree flip a naive average produces.
- */
-function accumulateQuat(acc: Quat, ref: Quat, q: Quat, weight: number): void {
-    const dot = ref.w * q.w + ref.x * q.x + ref.y * q.y + ref.z * q.z;
-    const s = dot < 0 ? -weight : weight;
-    acc.w += q.w * s;
-    acc.x += q.x * s;
-    acc.y += q.y * s;
-    acc.z += q.z * s;
-}
-
-function normalizeQuat(out: Quat): void {
-    const len = Math.hypot(out.w, out.x, out.y, out.z);
-    if (len < 1e-8) {
-        out.w = 1; out.x = 0; out.y = 0; out.z = 0;
-        return;
-    }
-    out.w /= len; out.x /= len; out.y /= len; out.z /= len;
 }
 
 /** The contributors to one component, gathered once per mixed track. */
@@ -95,7 +54,7 @@ function mixQuaternionField(field: string, parts: Contribution[], into: Record<s
     }
     if (ref === null) return;
     normalizeQuat(acc);
-    canonicalize(acc);
+    canonicalizeQuat(acc);
     // `+ 0` collapses -0 to 0. Negating a zero component leaves one, and while
     // it compares equal it is still a trace of which hemisphere was picked -
     // enough to make two orderings differ bit for bit.
