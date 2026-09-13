@@ -164,7 +164,7 @@ function designAspect(id) {
  * a landscape surface draws the package's rotate gate against the editor's
  * letterbox — a difference of surface, not of game.
  */
-function captureEditorFrame(id, out) {
+function captureEditorFrame(id, out, timeoutMs) {
   const a = designAspect(id);
   const major = 820;
   const panel = a.h >= a.w
@@ -187,6 +187,9 @@ function captureEditorFrame(id, out) {
         ESTELLA_SHOT_PLAY: '1',
         ESTELLA_SHOT_CROP: 'iframe[title="Game"]',
         ESTELLA_SHOT_EVAL: `window.__estellaEditor.setPanelSize('viewport', ${JSON.stringify(panel)})`,
+        // The settle window the PACKAGE gets, so one policy covers both sides:
+        // a project that needs longer needs it wherever its frames are drawn.
+        ...(timeoutMs ? { ESTELLA_SHOT_PLAY_TIMEOUT: String(timeoutMs) } : {}),
         ESTELLA_WIN_W: '1500',
         ESTELLA_WIN_H: '1040',
       },
@@ -408,7 +411,7 @@ for (const { id, target } of pairs) {
 
   const tolerance = COMPARABLE.has(target) && !NO_PARITY ? parityFor(golden) : null;
   const editorPng = path.join(WORK, `${id}-editor.png`);
-  const editor = tolerance != null ? captureEditorFrame(id, editorPng) : null;
+  const editor = tolerance != null ? captureEditorFrame(id, editorPng, timeoutMs) : null;
   if (editor && !editor.ok) {
     results.push({ id, target, stage: 'editor-frame', ok: false, why: editor.why });
     console.log(`✗ ${id} ${target} — the editor never produced a play frame`);
