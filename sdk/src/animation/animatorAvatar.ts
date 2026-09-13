@@ -42,6 +42,13 @@ export interface AnimatorAvatar {
      * the same way. Absent for a rig nothing is retargeted onto.
      */
     rest?: Record<string, Quat>;
+    /**
+     * Root to the joint furthest from it, at rest — the ONE measure every avatar
+     * uses, since two measured differently give a ratio that means nothing. What
+     * it buys is displacement: a step authored on a smaller rig slides on a
+     * taller one unless it travels further.
+     */
+    scale?: number;
 }
 
 interface Quat { w: number; x: number; y: number; z: number }
@@ -81,8 +88,28 @@ export function parseAvatar(raw: unknown): AnimatorAvatar {
         // An entry mapping a name to itself is what having no entry already means.
         if (path && path !== name) out[name] = path;
     }
+    const scale = obj['scale'];
+    if (scale !== undefined && (typeof scale !== 'number' || !(scale > 0))) {
+        throw new Error('Avatar "scale" must be a positive number');
+    }
     const rest = obj['rest'] === undefined ? undefined : readRest(obj['rest']);
-    return rest ? { joints: out, rest } : { joints: out };
+    const avatar: AnimatorAvatar = { joints: out };
+    if (rest) avatar.rest = rest;
+    if (scale !== undefined) avatar.scale = scale as number;
+    return avatar;
+}
+
+/**
+ * How far a clip authored against `source` should travel on `target`. One where
+ * either rig does not state its size — a ratio against a guess would move a
+ * character by an amount nobody chose.
+ */
+export function travelRatio(
+    source: AnimatorAvatar | null, target: AnimatorAvatar | null,
+): number {
+    const from = source?.scale;
+    const to = target?.scale;
+    return from && to ? to / from : 1;
 }
 
 /** The bind pose, one rotation per joint. A joint listed without a usable

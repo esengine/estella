@@ -476,6 +476,7 @@ export {
     parseAvatar,
     emptyAvatar,
     avatarResolver,
+    travelRatio,
     AVATAR_FORMAT_VERSION,
     overlayPose,
     addPoseOver,

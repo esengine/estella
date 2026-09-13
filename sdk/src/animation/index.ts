@@ -153,6 +153,7 @@ export {
     parseAvatar,
     emptyAvatar,
     avatarResolver,
+    travelRatio,
     AVATAR_FORMAT_VERSION,
     type AnimatorAvatar,
     type JointResolver,

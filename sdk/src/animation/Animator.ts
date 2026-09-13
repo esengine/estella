@@ -33,7 +33,7 @@ import { mixPoses, type WeightedPose } from './poseMix';
 import { overlayPose, addPoseOver } from './layerStack';
 import { MaskReach, type AnimatorMask } from './animatorMask';
 import {
-    avatarResolver, rebasePose, type AnimatorAvatar, type JointResolver,
+    avatarResolver, rebasePose, travelRatio, type AnimatorAvatar, type JointResolver,
 } from './animatorAvatar';
 import { solveAnimatorIK, type AnimatorIK } from './animatorIK';
 import { AnimatorRootMotion, type AnimatorRootMotionData } from './animatorRootMotion';
@@ -767,6 +767,7 @@ export class AnimatorControllerAPI {
             const rig = this.avatarOf(a.avatar);
             const clips = this.avatarOf(def.avatar);
             const joints = avatarResolver(world, rig);
+            const travel = travelRatio(clips, rig);
             const ctx = this.motions_.context(world, entity, params, joints);
             const rt = this.runtimeFor(entity, count);
             rt.composed.reset();
@@ -774,7 +775,8 @@ export class AnimatorControllerAPI {
             let wrote = false;
             this.spentTriggers_.length = 0;
             for (let index = 0; index < count; index++) {
-                wrote = this.stepLayer(world, entity, a, def, index, ctx, rt, dt, events) || wrote;
+                wrote = this.stepLayer(world, entity, a, def, index, ctx, rt, dt, events, travel)
+                    || wrote;
             }
             // Consumed after EVERY layer has been asked, not as each fires: one
             // trigger is one event every layer is told about, so an attack both
@@ -807,7 +809,7 @@ export class AnimatorControllerAPI {
     private stepLayer(
         world: World, entity: Entity, a: AnimatorData, def: AnimatorControllerDef,
         index: number, ctx: MotionContext, rt: AnimatorRuntime, dt: number,
-        events: AnimatorEventSink | undefined,
+        events: AnimatorEventSink | undefined, travel: number,
     ): boolean {
         const scope = animatorLayer(def, index);
         if (!scope || scope.states.length === 0) return false;
@@ -875,7 +877,9 @@ export class AnimatorControllerAPI {
             from: lrt.prevTime, to: lrt.time, inclusiveStart: lrt.entered,
         };
         if (motion && events) this.emitEvents(ctx, entity, motion, span, events);
-        if (index === 0) this.publishRootMotion(world, entity, ctx, motion, span, drivesRoot);
+        if (index === 0) {
+            this.publishRootMotion(world, entity, ctx, motion, span, drivesRoot, travel);
+        }
         return posed !== null;
     }
 
@@ -935,7 +939,7 @@ export class AnimatorControllerAPI {
      */
     private publishRootMotion(
         world: World, entity: Entity, ctx: MotionContext,
-        motion: AnimatorMotion | null, span: MotionSpan, drivesRoot: boolean,
+        motion: AnimatorMotion | null, span: MotionSpan, drivesRoot: boolean, travel: number,
     ): void {
         if (!world.has(entity, AnimatorRootMotion)) return;
         const out = this.rootScratch_;
@@ -953,9 +957,11 @@ export class AnimatorControllerAPI {
 
         world.update(entity, AnimatorRootMotion, (data: AnimatorRootMotionData) => {
             data.active = active;
-            data.deltaPosition.x = moved.x;
-            data.deltaPosition.y = moved.y;
-            data.deltaPosition.z = moved.z;
+            // Scaled, not the turn beside it: a taller rig covers more ground per
+            // step and turns by the same angle.
+            data.deltaPosition.x = moved.x * travel;
+            data.deltaPosition.y = moved.y * travel;
+            data.deltaPosition.z = moved.z * travel;
             data.deltaRotation.w = turn.w;
             data.deltaRotation.x = turn.x;
             data.deltaRotation.y = turn.y;

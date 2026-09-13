@@ -7,6 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     Animator, AnimatorControllerAPI, parseAvatar, emptyAvatar, avatarResolver,
+    travelRatio, AnimatorRootMotion,
     type AnimatorData, type AnimatorControllerDef, type AnimatorAvatar,
 } from '../src/animation';
 import { Parent, Children, Name, Transform } from '../src/ecs/component';
@@ -325,3 +326,89 @@ describe('one clip over rigs bound differently', () => {
         expect(() => parseAvatar({ joints: {}, rest: [] })).toThrow(/rest/);
     });
 });
+
+// ---------------------------------------------------------------------------
+// Rigs of different sizes
+// ---------------------------------------------------------------------------
+
+describe('how far a retargeted clip travels', () => {
+    it('is the ratio of the two rigs, or one when either is silent', () => {
+        const small = parseAvatar({ joints: {}, scale: 100 });
+        const tall = parseAvatar({ joints: {}, scale: 250 });
+        const unsized = parseAvatar({ joints: {} });
+
+        expect(travelRatio(small, tall)).toBeCloseTo(2.5, 6);
+        expect(travelRatio(tall, small)).toBeCloseTo(0.4, 6);
+        // Not a guess: a ratio against an assumed size moves a character by an
+        // amount nobody chose.
+        expect(travelRatio(small, unsized)).toBe(1);
+        expect(travelRatio(null, tall)).toBe(1);
+    });
+
+    it('refuses a size that is not a positive number', () => {
+        expect(() => parseAvatar({ joints: {}, scale: 0 })).toThrow(/scale/);
+        expect(() => parseAvatar({ joints: {}, scale: -3 })).toThrow(/scale/);
+        expect(() => parseAvatar({ joints: {}, scale: 'tall' })).toThrow(/scale/);
+    });
+
+    it('walks the taller rig further, and turns it the same', () => {
+        // A clip stating one unit of travel and a quarter turn, on a rig twice
+        // the size of the one it was authored for: two units, same quarter turn.
+        const world = makeWorld();
+        rig(world, 1, 2, 'Arm');
+        world.insert(1, AnimatorRootMotion, {
+            enabled: true, active: false,
+            deltaPosition: { x: 0, y: 0, z: 0 },
+            deltaRotation: { w: 1, x: 0, y: 0, z: 0 }, deltaTime: 0,
+        });
+        world.insert(1, Transform, {
+            position: { x: 0, y: 0, z: 0 }, rotation: { w: 1, x: 0, y: 0, z: 0 },
+            scale: { x: 1, y: 1, z: 1 },
+        });
+
+        const avatars: Record<string, AnimatorAvatar> = {
+            'assets/clips.esavatar': parseAvatar({ joints: {}, scale: 100 }),
+            'assets/rig.esavatar': parseAvatar({ joints: {}, scale: 200 }),
+        };
+        const timeline = new TimelineAPI();
+        timeline.registerAsset('walk.estimeline', travels());
+        const ctrl = new AnimatorControllerAPI();
+        ctrl.registerMotionDriver(TIMELINE_MOTION, createTimelineMotionDriver(timeline));
+        ctrl.useAssetAvatars((ref) => avatars[ref]);
+        ctrl.registerController('rig', {
+            version: 2, parameters: [], initialState: 'Walk',
+            avatar: 'assets/clips.esavatar',
+            states: [{
+                name: 'Walk', transitions: [], rootMotion: true,
+                motion: { kind: TIMELINE_MOTION, clip: 'walk.estimeline', loop: true },
+            }],
+        } as AnimatorControllerDef);
+        attach(world, 1, 'assets/rig.esavatar');
+
+        ctrl.update(world, 0);
+        ctrl.update(world, 1);
+        const asked = world.get(1, AnimatorRootMotion) as {
+            deltaPosition: { z: number }; deltaRotation: { z: number };
+        };
+        expect(asked.deltaPosition.z).toBeCloseTo(200, 2);
+        expect(asked.deltaRotation.z).toBeCloseTo(Math.SQRT1_2, 3);
+    });
+});
+
+/** A clip walking 100 units along +Z and turning a quarter, over one second. */
+function travels(): TimelineAsset {
+    const key = (time: number, value: number) => ({
+        time, value, inTangent: 0, outTangent: 0, interpolation: InterpType.Linear,
+    });
+    return {
+        version: '1.2', type: 'timeline', duration: 1, wrapMode: WrapMode.Loop,
+        tracks: [{
+            type: TrackType.Property, component: 'Transform', childPath: '', name: 'root',
+            channels: [
+                { property: 'position.z', keyframes: [key(0, 0), key(1, 100)] },
+                { property: 'rotation.z', keyframes: [key(0, 0), key(1, Math.SQRT1_2)] },
+                { property: 'rotation.w', keyframes: [key(0, 1), key(1, Math.SQRT1_2)] },
+            ],
+        }],
+    } as TimelineAsset;
+}

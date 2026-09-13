@@ -77,8 +77,14 @@ published separately; it ships inside the editor.
   and restated from where this rig's joint rests. The editor can describe a rig
   it already has: **Create Avatar from Rig** reads the pose the joints are
   standing in, which is the bind pose, because nobody was going to type a
-  quaternion per joint. What this does *not* do is scale — a clip authored on
-  longer bones still asks for the same angles.
+  quaternion per joint.
+
+  **And a step travels the distance the rig it is on would travel.** An avatar
+  measures its rig — root to the joint furthest from it, one measure every avatar
+  uses, since two measured differently give a ratio that means nothing — and root
+  motion is scaled by the ratio. The turn beside it is not: a taller character
+  covers more ground per step and turns by the same angle. A rig that states no
+  size is not guessed at; the clip travels as authored.
 
 - **One clip drives rigs that do not share its bone names.** A clip addresses
   what it animates by the name whoever exported the model chose, so two
