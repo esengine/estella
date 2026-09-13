@@ -1,0 +1,232 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * The claim: ONE clip drives two rigs whose bones are named differently, at the
+ * same time, without a copy of the clip per rig.
+ */
+import { describe, it, expect } from 'vitest';
+import {
+    Animator, AnimatorControllerAPI, parseAvatar, emptyAvatar, avatarResolver,
+    type AnimatorData, type AnimatorControllerDef, type AnimatorAvatar,
+} from '../src/animation';
+import { Parent, Children, Name, Transform } from '../src/ecs/component';
+import { createTimelineMotionDriver, TIMELINE_MOTION } from '../src/timeline';
+import { TimelineAPI } from '../src/timeline/TimelineControl';
+import { WrapMode, TrackType, InterpType, type TimelineAsset } from '../src/timeline/TimelineTypes';
+
+function makeWorld() {
+    const store = new Map<unknown, Map<number, unknown>>();
+    const mapOf = (c: unknown) => {
+        let m = store.get(c);
+        if (!m) { m = new Map(); store.set(c, m); }
+        return m;
+    };
+    return {
+        insert(e: number, c: unknown, d: unknown) { mapOf(c).set(e, d); },
+        get(e: number, c: unknown) { return mapOf(c).get(e); },
+        has(e: number, c: unknown) { return mapOf(c).has(e); },
+        set(e: number, c: unknown, d: unknown) { mapOf(c).set(e, d); },
+        tryGet(e: number, c: unknown) { return mapOf(c).get(e) ?? null; },
+        update(e: number, c: unknown, edit: (d: any) => void) {
+            const d = mapOf(c).get(e); edit(d); mapOf(c).set(e, d);
+        },
+        getEntitiesWithComponents(comps: unknown[]) {
+            const [first, ...rest] = comps;
+            return [...mapOf(first).keys()].filter(e => rest.every(c => mapOf(c).has(e)));
+        },
+    } as any;
+}
+
+/** A rig whose one joint is called `boneName`, rooted at `root`. */
+function rig(world: any, root: number, joint: number, boneName: string) {
+    const place = (id: number, name: string) => {
+        world.insert(id, Name, { value: name });
+        world.insert(id, Transform, {
+            position: { x: 0, y: 0, z: 0 }, rotation: { w: 1, x: 0, y: 0, z: 0 },
+            scale: { x: 1, y: 1, z: 1 },
+        });
+    };
+    place(root, `Rig${root}`);
+    place(joint, boneName);
+    world.insert(joint, Parent, { entity: root });
+    world.insert(root, Children, { entities: [joint] });
+}
+
+/** A clip turning whatever joint `childPath` names a quarter turn about Z. */
+function turn(childPath: string): TimelineAsset {
+    const key = (value: number) => ([
+        { time: 0, value, inTangent: 0, outTangent: 0, interpolation: InterpType.Linear },
+    ]);
+    return {
+        version: '1.2', type: 'timeline', duration: 10, wrapMode: WrapMode.Loop,
+        tracks: [{
+            type: TrackType.Property, component: 'Transform', childPath, name: 't',
+            channels: [
+                { property: 'rotation.x', keyframes: key(0) },
+                { property: 'rotation.y', keyframes: key(0) },
+                { property: 'rotation.z', keyframes: key(Math.SQRT1_2) },
+                { property: 'rotation.w', keyframes: key(Math.SQRT1_2) },
+            ],
+        }],
+    } as TimelineAsset;
+}
+
+const turnedZ = (world: any, entity: number) =>
+    Number((world.get(entity, Transform) as { rotation: { z: number } }).rotation.z);
+
+/** One controller playing one clip, with avatars resolved from a table. */
+function controllerWith(avatars: Record<string, AnimatorAvatar>): AnimatorControllerAPI {
+    const timeline = new TimelineAPI();
+    timeline.registerAsset('wave.estimeline', turn('Arm'));
+    const ctrl = new AnimatorControllerAPI();
+    ctrl.registerMotionDriver(TIMELINE_MOTION, createTimelineMotionDriver(timeline));
+    ctrl.useAssetAvatars((ref) => avatars[ref]);
+    ctrl.registerController('rig', {
+        version: 2, parameters: [], initialState: 'Wave',
+        states: [{
+            name: 'Wave', transitions: [],
+            motion: { kind: TIMELINE_MOTION, clip: 'wave.estimeline', loop: true },
+        }],
+    } as AnimatorControllerDef);
+    return ctrl;
+}
+
+const attach = (world: any, entity: number, avatar: string) =>
+    world.insert(entity, Animator, {
+        controller: 'rig', avatar, currentState: '', layerStates: [], enabled: true,
+    } as AnimatorData);
+
+describe('reading an avatar', () => {
+    it('keeps only the joints that differ', () => {
+        // A name mapped to itself is what having no entry already means; keeping
+        // both spellings of that would be two records of one fact.
+        const avatar = parseAvatar({ joints: { Arm: 'mixamorig:LeftArm', Head: 'Head' } });
+        expect(avatar.joints).toEqual({ Arm: 'mixamorig:LeftArm' });
+    });
+
+    it('refuses a file from a later build, and a shape that is not one', () => {
+        expect(() => parseAvatar({ joints: {}, version: 99 })).toThrow(/version/);
+        expect(() => parseAvatar({ joints: [] })).toThrow(/joints/);
+        expect(() => parseAvatar({ joints: { Arm: 7 } })).toThrow(/childPath/);
+        expect(() => parseAvatar(null)).toThrow(/object/);
+    });
+
+    it('starts blank, translating nothing', () => {
+        expect(emptyAvatar().joints).toEqual({});
+    });
+
+    it('resolves a path with no entry as itself', () => {
+        const world = makeWorld();
+        rig(world, 1, 2, 'Arm');
+        const resolve = avatarResolver(world, parseAvatar({ joints: { Leg: 'Thigh' } }));
+        expect(resolve(1, 'Arm')).toBe(2);
+        expect(resolve(1, 'Missing')).toBeNull();
+    });
+});
+
+describe('one clip over two rigs', () => {
+    it('drives both, each by its own bone names, in the same frame', () => {
+        // The point of the whole thing. The clip names `Arm`; one rig calls that
+        // joint `Arm` and the other `mixamorig:LeftArm`, and neither needs a copy
+        // of the clip nor a controller of its own.
+        const world = makeWorld();
+        rig(world, 1, 2, 'Arm');
+        rig(world, 10, 11, 'mixamorig:LeftArm');
+
+        const imported = parseAvatar({ joints: { Arm: 'mixamorig:LeftArm' } });
+        const ctrl = controllerWith({ 'assets/imported.esavatar': imported });
+        attach(world, 1, '');
+        attach(world, 10, 'assets/imported.esavatar');
+
+        ctrl.update(world, 0.016);
+
+        expect(turnedZ(world, 2)).toBeCloseTo(Math.SQRT1_2, 4);
+        expect(turnedZ(world, 11)).toBeCloseTo(Math.SQRT1_2, 4);
+    });
+
+    it('leaves the rig alone when the avatar names a joint it has not got', () => {
+        const world = makeWorld();
+        rig(world, 1, 2, 'Arm');
+        const wrong = parseAvatar({ joints: { Arm: 'NoSuchBone' } });
+        const ctrl = controllerWith({ 'assets/wrong.esavatar': wrong });
+        attach(world, 1, 'assets/wrong.esavatar');
+
+        ctrl.update(world, 0.016);
+        expect(turnedZ(world, 2)).toBe(0);
+    });
+
+    it('translates the joints a MASK names as well', () => {
+        // A mask is the controller talking about a rig it has never seen, same as
+        // a clip and a constraint. Resolved without the avatar it admits nothing,
+        // and a layer that writes nothing looks exactly like one that is off.
+        const world = makeWorld();
+        rig(world, 1, 2, 'mixamorig:LeftArm');
+        const avatar = parseAvatar({ joints: { Arm: 'mixamorig:LeftArm' } });
+
+        const timeline = new TimelineAPI();
+        timeline.registerAsset('wave.estimeline', turn('Arm'));
+        const ctrl = new AnimatorControllerAPI();
+        ctrl.registerMotionDriver(TIMELINE_MOTION, createTimelineMotionDriver(timeline));
+        ctrl.useAssetAvatars(() => avatar);
+        ctrl.registerController('rig', {
+            version: 2, parameters: [], initialState: 'Rest',
+            states: [{ name: 'Rest', transitions: [] }],
+            layers: [{
+                name: 'Upper', mask: { paths: ['Arm'] }, initialState: 'Wave',
+                states: [{
+                    name: 'Wave', transitions: [],
+                    motion: { kind: TIMELINE_MOTION, clip: 'wave.estimeline', loop: true },
+                }],
+            }],
+        } as AnimatorControllerDef);
+        attach(world, 1, 'assets/a.esavatar');
+
+        ctrl.update(world, 0.016);
+        expect(turnedZ(world, 2)).toBeCloseTo(Math.SQRT1_2, 4);
+    });
+
+    it('translates the joints a CONSTRAINT names as well', () => {
+        // A constraint addresses joints the same way a clip does, so a rig whose
+        // avatar renames one has to have it renamed here too — or IK reaches for
+        // a joint the clip is no longer driving.
+        const world = makeWorld();
+        rig(world, 1, 2, 'mixamorig:LeftArm');
+        // A second joint on the same rig, to aim at.
+        world.insert(3, Name, { value: 'Goal' });
+        world.insert(3, Transform, {
+            position: { x: 0, y: 100, z: 0 }, rotation: { w: 1, x: 0, y: 0, z: 0 },
+            scale: { x: 1, y: 1, z: 1 },
+        });
+        world.insert(3, Parent, { entity: 1 });
+        world.insert(1, Children, { entities: [2, 3] });
+        world.update(2, Transform, (t: any) => { t.position = { x: 50, y: 0, z: 0 }; });
+
+        const avatar = parseAvatar({ joints: { Arm: 'mixamorig:LeftArm' } });
+        const timeline = new TimelineAPI();
+        timeline.registerAsset('wave.estimeline', turn('Arm'));
+        const ctrl = new AnimatorControllerAPI();
+        ctrl.registerMotionDriver(TIMELINE_MOTION, createTimelineMotionDriver(timeline));
+        ctrl.useAssetAvatars(() => avatar);
+        ctrl.registerController('rig', {
+            version: 2, parameters: [], initialState: 'Wave',
+            states: [{
+                name: 'Wave', transitions: [],
+                motion: { kind: TIMELINE_MOTION, clip: 'wave.estimeline', loop: true },
+            }],
+            // Names the joint the CLIP's way; the avatar has to reach it.
+            ik: [{ kind: 'look-at', tip: 'Arm', target: 'Goal', axis: 'x' }],
+        } as AnimatorControllerDef);
+        attach(world, 1, 'assets/a.esavatar');
+
+        ctrl.update(world, 0.016);
+
+        // The constraint aims the arm's +X along (-50,100) normalized. Measured
+        // on X as well as Y: the clip's own quarter turn puts +X at (0,1), which
+        // passes a test that only looks up.
+        const r = (world.get(2, Transform) as { rotation: { w: number; x: number; y: number; z: number } }).rotation;
+        const facingX = 1 - 2 * (r.y * r.y + r.z * r.z);
+        const facingY = 2 * (r.x * r.y + r.w * r.z);
+        expect(facingX).toBeCloseTo(-50 / Math.hypot(50, 100), 3);
+        expect(facingY).toBeCloseTo(100 / Math.hypot(50, 100), 3);
+    });
+});

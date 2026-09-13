@@ -112,7 +112,7 @@ function build(
 
 function attach(world: any): void {
     world.insert(E, Animator, {
-        controller: 'rig', currentState: '', layerStates: [], enabled: true,
+        controller: 'rig', avatar: '', currentState: '', layerStates: [], enabled: true,
     } as AnimatorData);
 }
 

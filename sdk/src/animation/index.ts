@@ -150,6 +150,15 @@ export {
 } from './AnimClipLoader';
 
 export {
+    parseAvatar,
+    emptyAvatar,
+    avatarResolver,
+    AVATAR_FORMAT_VERSION,
+    type AnimatorAvatar,
+    type JointResolver,
+} from './animatorAvatar';
+
+export {
     solveAnimatorIK,
     type AnimatorIK,
     type AnimatorIKKind,

@@ -12,6 +12,11 @@
           "default": "none"
         },
         {
+          "key": "avatar",
+          "type": "Asset<avatar>",
+          "default": "none"
+        },
+        {
           "key": "currentState",
           "type": "string",
           "default": "empty"

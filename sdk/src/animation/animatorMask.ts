@@ -13,17 +13,18 @@
 
 import type { Entity } from '../types';
 import type { World } from '../ecs/world';
-import { resolveChildEntity, collectSubtree } from '../ecs/childPath';
+import { collectSubtree } from '../ecs/childPath';
+import type { JointResolver } from './animatorAvatar';
 import type { PoseTrack } from './pose';
 import type { LayerReach } from './layerStack';
 
 /** Which subtrees of the animated entity a layer may write. */
 export interface AnimatorMask {
     /**
-     * Each names a subtree by `childPath`, the subtree's own root included; the
-     * empty path is the whole rig. A mask with no paths admits nothing, which is
-     * a layer switched off rather than a layer with no restriction — that is
-     * spelled by having no mask at all.
+     * Each names a subtree by `childPath`, its own root included; the empty path
+     * is the whole rig, and no paths admits nothing — a layer switched off, which
+     * having no mask at all does not mean. Named the CLIP's way like everything
+     * a controller says, and translated by the rig's avatar.
      */
     paths: string[];
 }
@@ -37,10 +38,13 @@ export interface AnimatorMask {
 export class MaskReach implements LayerReach {
     private readonly admitted_ = new Set<Entity>();
 
-    resolve(world: Pick<World, 'tryGet'>, root: Entity, mask: AnimatorMask): void {
+    resolve(
+        world: Pick<World, 'tryGet'>, root: Entity, mask: AnimatorMask,
+        resolveJoint: JointResolver,
+    ): void {
         this.admitted_.clear();
         for (const path of mask.paths) {
-            const at = resolveChildEntity(world, root, path);
+            const at = resolveJoint(root, path);
             if (at !== null) collectSubtree(world, at, this.admitted_);
         }
     }

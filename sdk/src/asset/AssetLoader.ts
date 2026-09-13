@@ -70,6 +70,10 @@ export interface AnimatorControllerResult {
     controllerId: string;
 }
 
+export interface AvatarResult {
+    avatarId: string;
+}
+
 export interface LocaleResult {
     /** The locale the table's entries were merged into. */
     locale: string;

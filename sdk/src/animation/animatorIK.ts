@@ -25,6 +25,7 @@ import type { Entity } from '../types';
 import type { World } from '../ecs/world';
 import { Parent, Transform, type TransformData } from '../ecs/component';
 import { resolveChildEntity } from '../ecs/childPath';
+import type { JointResolver } from './animatorAvatar';
 import { q } from '../math/quat';
 import { leanQuat } from './quatMix';
 import type { Pose } from './pose';
@@ -229,9 +230,10 @@ const scale = (v: Vec3, k: number): Vec3 => ({ x: v.x * k, y: v.y * k, z: v.z * 
  */
 function solveTwoBone(
     world: World, pose: Pose, rigRoot: Entity, ik: AnimatorIK, weight: number,
+    resolveJoint: JointResolver,
 ): boolean {
-    const tip = resolveChildEntity(world, rigRoot, ik.tip);
-    const target = resolveChildEntity(world, rigRoot, ik.target);
+    const tip = resolveJoint(rigRoot, ik.tip);
+    const target = resolveJoint(rigRoot, ik.target);
     if (tip === null || target === null) return false;
     const mid = parentOf(world, tip);
     const root = mid === null ? null : parentOf(world, mid);
@@ -255,7 +257,7 @@ function solveTwoBone(
     // Which way the elbow leaves the line. A pole names it; without one the limb
     // keeps the bend it already has; and a limb that is dead straight has no bend
     // to keep, so any direction off the line will do.
-    const pole = ik.pole ? resolveChildEntity(world, rigRoot, ik.pole) : null;
+    const pole = ik.pole ? resolveJoint(rigRoot, ik.pole) : null;
     const poleAt = pole === null ? null : place(world, pose, rigRoot, pole);
     const bendTowards = pickBend(along, [
         poleAt ? orthogonal(sub(poleAt.position, pRoot.position), along) : null,
@@ -294,9 +296,10 @@ function pickBend(along: Vec3, candidates: (Vec3 | null)[]): Vec3 {
 /** Look-at: the tip turns so its own `axis` points at the target. */
 function solveLookAt(
     world: World, pose: Pose, rigRoot: Entity, ik: AnimatorIK, weight: number,
+    resolveJoint: JointResolver,
 ): boolean {
-    const tip = resolveChildEntity(world, rigRoot, ik.tip);
-    const target = resolveChildEntity(world, rigRoot, ik.target);
+    const tip = resolveJoint(rigRoot, ik.tip);
+    const target = resolveJoint(rigRoot, ik.target);
     if (tip === null || target === null) return false;
     const pTip = place(world, pose, rigRoot, tip);
     const pTarget = place(world, pose, rigRoot, target);
@@ -318,11 +321,12 @@ function solveLookAt(
 export function solveAnimatorIK(
     world: World, rigRoot: Entity, pose: Pose,
     constraints: readonly AnimatorIK[], params: MotionParams,
+    resolveJoint: JointResolver = (root, path) => resolveChildEntity(world, root, path),
 ): void {
     for (const ik of constraints) {
         const weight = weightOf(ik, params);
         if (weight <= 0) continue;
-        if (ik.kind === 'look-at') solveLookAt(world, pose, rigRoot, ik, weight);
-        else solveTwoBone(world, pose, rigRoot, ik, weight);
+        if (ik.kind === 'look-at') solveLookAt(world, pose, rigRoot, ik, weight, resolveJoint);
+        else solveTwoBone(world, pose, rigRoot, ik, weight, resolveJoint);
     }
 }

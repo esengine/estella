@@ -283,7 +283,7 @@ describe('a constraint through the animator', () => {
             ik: [{ kind: 'two-bone', tip: 'Spine/Upper/Fore/Hand', target: 'Target' }],
         } as AnimatorControllerDef);
         world.insert(RIG, Animator, {
-            controller: 'rig', currentState: '', layerStates: [], enabled: true,
+            controller: 'rig', avatar: '', currentState: '', layerStates: [], enabled: true,
         } as AnimatorData);
 
         ctrl.update(world, 0.016);

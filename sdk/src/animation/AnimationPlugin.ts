@@ -19,6 +19,7 @@ import type { AnimCore } from './Tween';
 import { Tween, TweenAPI } from './Tween';
 import { SpriteAnimation, SpriteAnimationAPI, type SpriteAnimClip } from './SpriteAnimator';
 import { AnimatorController, AnimatorControllerAPI, type AnimatorControllerDef } from './Animator';
+import type { AnimatorAvatar } from './animatorAvatar';
 import { appRegistryAsset } from '../asset/registryLookup';
 import { playModeOnly } from '../ecs/env';
 import { SystemLabel } from '../ecs/systemLabels';
@@ -62,6 +63,7 @@ export class AnimationPlugin implements Plugin {
         // answer to the authored ref as well as the resolved path. A code
         // registration still wins over one.
         anim.useAssetClips((ref) => appRegistryAsset<SpriteAnimClip>(app, 'anim-clip', ref));
+        animator.useAssetAvatars((ref) => appRegistryAsset<AnimatorAvatar>(app, 'avatar', ref));
         animator.useAssetControllers(
             (ref) => appRegistryAsset<AnimatorControllerDef>(app, 'animatorcontroller', ref),
         );

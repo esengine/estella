@@ -84,6 +84,10 @@ export function createTimelineMotionDriver(timeline: TimelineAPI): MotionDriver<
             if (!asset) return false;
             const local = applyWrapMode(time * speedOf(motion), asset.duration, wrapOf(motion, asset));
             deps.world = ctx.world;
+            // Through the animator's resolver: a rig with an avatar spells its
+            // joints its own way, and a driver reaching for childPath directly
+            // would drive the joints of whoever exported the clip.
+            deps.resolveChild = ctx.resolveJoint;
             sampleTimelineIntoPose(
                 asset, local.time, ctx.entity, deps, pose,
                 ctx.extractRootMotion ? WITHOUT_ROOT : undefined,

@@ -32,6 +32,7 @@ import { Pose } from './pose';
 import { mixPoses, type WeightedPose } from './poseMix';
 import { overlayPose, addPoseOver } from './layerStack';
 import { MaskReach, type AnimatorMask } from './animatorMask';
+import { avatarResolver, type AnimatorAvatar, type JointResolver } from './animatorAvatar';
 import { solveAnimatorIK, type AnimatorIK } from './animatorIK';
 import { AnimatorRootMotion, type AnimatorRootMotionData } from './animatorRootMotion';
 import type { AnimatorEventSink } from './animatorEvent';
@@ -516,6 +517,9 @@ export interface AnimatorData {
     controller: string;
     /** The base layer's active state; empty until the first update seeds it. */
     currentState: string;
+    /** A `.esavatar` saying how THIS rig spells the joints the clips name. Empty
+     *  where the clips were authored against this rig and need no translation. */
+    avatar: string;
     /** The active state of each layer ABOVE the base one, by that layer's index
      *  minus one — the base layer's is {@link currentState}, for the same reason
      *  the base layer has no weight. */
@@ -532,20 +536,30 @@ export interface AnimatorData {
  */
 export const Animator: ComponentDef<AnimatorData> = defineComponent('Animator', {
     controller: '',
+    avatar: '',
     currentState: '',
     layerStates: [] as string[],
     enabled: true,
 }, {
-    assetFields: [{ field: 'controller', type: 'animatorcontroller' }],
+    assetFields: [
+        { field: 'controller', type: 'animatorcontroller' },
+        { field: 'avatar', type: 'avatar' },
+    ],
     // Preload a `.esanimator` path (or an editor-serialized uuid ref) with the
     // scene so the controller is registered before the first tick. A plain
     // `registerController` name (code path) is left alone — this callback is the
     // discovery authority; the assetField above only drives the editor picker.
     discoverAssets: data => {
+        const found: { type: string; path: string }[] = [];
         const c = data.controller;
-        return typeof c === 'string' && (c.endsWith('.esanimator') || isUuidRef(c))
-            ? [{ type: 'animatorcontroller', path: c }]
-            : [];
+        if (typeof c === 'string' && (c.endsWith('.esanimator') || isUuidRef(c))) {
+            found.push({ type: 'animatorcontroller', path: c });
+        }
+        const a = data.avatar;
+        if (typeof a === 'string' && (a.endsWith('.esavatar') || isUuidRef(a))) {
+            found.push({ type: 'avatar', path: a });
+        }
+        return found;
     },
 });
 
@@ -584,6 +598,7 @@ export function clearAnimatorControllerStore(): void {
  */
 export class AnimatorControllerAPI {
     private assetControllers_: ((ref: string) => AnimatorControllerDef | undefined) | null = null;
+    private assetAvatars_: ((ref: string) => AnimatorAvatar | undefined) | null = null;
     private readonly controllers = new Map<string, AnimatorControllerDef>();
     private readonly params = new Map<Entity, Map<string, number | boolean>>();
     private readonly triggers = new Map<Entity, Set<string>>();
@@ -651,6 +666,19 @@ export class AnimatorControllerAPI {
      */
     useAssetControllers(source: (ref: string) => AnimatorControllerDef | undefined): void {
         this.assetControllers_ = source;
+    }
+
+    /** Where a `.esavatar` comes from. Same shape as the controller source, and
+     *  optional for the same reason: without one, every path resolves as itself. */
+    useAssetAvatars(source: (ref: string) => AnimatorAvatar | undefined): void {
+        this.assetAvatars_ = source;
+    }
+
+    /** The resolver this rig's joints are found through this frame. */
+    private jointsOf(world: World, data: AnimatorData): JointResolver {
+        const ref = data.avatar;
+        const avatar = ref ? this.assetAvatars_?.(ref) ?? null : null;
+        return avatarResolver(world, avatar);
     }
 
     getController(name: string): AnimatorControllerDef | undefined {
@@ -729,7 +757,8 @@ export class AnimatorControllerAPI {
 
             const count = animatorLayerCount(def);
             const params = resolveParams(def, this.params.get(entity) ?? EMPTY_PARAMS);
-            const ctx = this.motions_.context(world, entity, params);
+            const joints = this.jointsOf(world, a);
+            const ctx = this.motions_.context(world, entity, params, joints);
             const rt = this.runtimeFor(entity, count);
             rt.composed.reset();
 
@@ -747,7 +776,7 @@ export class AnimatorControllerAPI {
             // between composing and writing — on the pose this frame stated,
             // never on the world's record of the last one.
             if (wrote && def.ik?.length) {
-                solveAnimatorIK(world, entity, rt.composed, def.ik, params);
+                solveAnimatorIK(world, entity, rt.composed, def.ik, params, joints);
             }
             // One write for the whole stack: a layer states values, and what the
             // entity ends up as is the stack's answer, not the topmost writer's.
@@ -852,7 +881,7 @@ export class AnimatorControllerAPI {
         }
         const layer = def.layers![index - 1]!;
         const weight = layer.weight ?? 1;
-        const reach = this.reachFor(world, ctx.entity, rt.layers[index]!, layer.mask);
+        const reach = this.reachFor(world, ctx.entity, rt.layers[index]!, layer.mask, ctx.resolveJoint);
         if (layer.blend !== 'additive') {
             overlayPose(rt.composed, pose, weight, world, reach);
             return;
@@ -961,10 +990,11 @@ export class AnimatorControllerAPI {
     /** This layer's mask against this rig, or null where it writes all of it. */
     private reachFor(
         world: World, entity: Entity, rt: LayerRuntime, mask: AnimatorMask | undefined,
+        resolveJoint: JointResolver,
     ): MaskReach | null {
         if (!mask) return null;
         const reach = rt.reach ?? (rt.reach = new MaskReach());
-        reach.resolve(world, entity, mask);
+        reach.resolve(world, entity, mask, resolveJoint);
         return reach;
     }
 

@@ -87,6 +87,7 @@ export const EXT_TO_TYPE = Object.freeze({
     '.esfsm': 'statemachine',
     '.esbt': 'behaviortree',
     '.esanimator': 'animatorcontroller',
+    '.esavatar': 'avatar',
     '.eslocale': 'locale',
     '.inputmap': 'inputmap',
     // Fonts

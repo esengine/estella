@@ -41,6 +41,7 @@ import { TimelineAssetLoader } from './loaders/TimelineAssetLoader';
 import { PrefabAssetLoader } from './loaders/PrefabAssetLoader';
 import { FsmAssetLoader } from './loaders/FsmAssetLoader';
 import { AnimatorControllerAssetLoader } from './loaders/AnimatorControllerAssetLoader';
+import { AvatarAssetLoader } from './loaders/AvatarAssetLoader';
 import { BtAssetLoader } from './loaders/BtAssetLoader';
 import { LocaleAssetLoader } from './loaders/LocaleAssetLoader';
 import { JsonAssetLoader } from './loaders/JsonAssetLoader';
@@ -1300,6 +1301,7 @@ export class Assets {
         const fsmPaths = discovered.byType.get('statemachine') ?? new Set<string>();
         const btPaths = discovered.byType.get('behaviortree') ?? new Set<string>();
         const animatorPaths = discovered.byType.get('animatorcontroller') ?? new Set<string>();
+        const avatarPaths = discovered.byType.get('avatar') ?? new Set<string>();
         const meshPaths = discovered.byType.get('mesh') ?? new Set<string>();
         const environmentPaths = discovered.byType.get('environment') ?? new Set<string>();
         const spinePairs = discovered.spines;
@@ -1402,6 +1404,7 @@ export class Assets {
         pushAcquire(fsmPaths, p => this.acquireTyped('statemachine', p), 'statemachine');
         pushAcquire(btPaths, p => this.acquireTyped('behaviortree', p), 'behaviortree');
         pushAcquire(animatorPaths, p => this.acquireTyped('animatorcontroller', p), 'animatorcontroller');
+        pushAcquire(avatarPaths, p => this.acquireTyped('avatar', p), 'avatar');
 
         const totalCount = tasks.length;
         onProgress?.(0, totalCount);
@@ -2225,6 +2228,7 @@ export class Assets {
         this.register(new PrefabAssetLoader());
         this.register(new FsmAssetLoader());
         this.register(new AnimatorControllerAssetLoader());
+        this.register(new AvatarAssetLoader());
         this.register(new BtAssetLoader());
         this.register(new LocaleAssetLoader());
         this.register(new JsonAssetLoader());

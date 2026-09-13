@@ -23,6 +23,8 @@ import type { Entity, Quat, Vec3 } from '../types';
 import type { World } from '../ecs/world';
 import { Pose } from './pose';
 import { mixPoses, type WeightedPose } from './poseMix';
+import { resolveChildEntity } from '../ecs/childPath';
+import type { JointResolver } from './animatorAvatar';
 import { accumulateQuat, leanQuat, normalizeQuat } from './quatMix';
 
 /** Parameter values a graph exposes to its motions (floats and bools). */
@@ -165,6 +167,13 @@ export interface MotionContext {
     borrowDelta(): RootMotionDelta;
     releaseDelta(delta: RootMotionDelta): void;
     /**
+     * The joint `path` names on the rig being animated. A driver goes through
+     * here rather than resolving a childPath itself: a rig with an avatar spells
+     * its joints its own way, and that translation has to reach every reader of
+     * a path or a clip drives half a skeleton.
+     */
+    resolveJoint: JointResolver;
+    /**
      * Whether the animator is taking this motion's root track as DISPLACEMENT.
      * A driver that can state a root pose must then leave the root's position and
      * rotation out of what it samples: the same movement written to the entity and
@@ -252,12 +261,15 @@ export class MotionRegistry {
      * alternative is an object and three closures per animated entity per frame.
      * A driver must not keep it — it describes only the call it was handed to.
      */
-    context(world: World, entity: Entity, params: MotionParams): MotionContext {
+    context(
+        world: World, entity: Entity, params: MotionParams, resolveJoint?: JointResolver,
+    ): MotionContext {
         const ctx = this.ctx_;
         ctx.world = world;
         ctx.entity = entity;
         ctx.params = params;
         ctx.extractRootMotion = false;
+        ctx.resolveJoint = resolveJoint ?? ((root, path) => resolveChildEntity(world, root, path));
         return ctx;
     }
 
@@ -285,6 +297,7 @@ export class MotionRegistry {
             position: { x: 0, y: 0, z: 0 }, rotation: { w: 1, x: 0, y: 0, z: 0 },
         },
         releaseDelta: (delta) => { this.deltaPool_.push(delta); },
+        resolveJoint: (root, path) => resolveChildEntity(this.ctx_.world, root, path),
     };
 }
 
