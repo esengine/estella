@@ -53,6 +53,7 @@ export { NetIds } from './NetIds';
 export { ReplicationServer } from './server';
 export {
     ReplicationClient,
+    predictionReplays,
     type ReplicationClientOptions,
     type PredictionOptions,
     type PredictionSmoothing,

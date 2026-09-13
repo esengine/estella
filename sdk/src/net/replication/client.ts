@@ -22,6 +22,7 @@
  *          snapshot interpolation entirely.
  */
 import type { World } from '../../ecs/world';
+import { replay, type ReplayReport, type SpeculationScope } from '../../ecs/speculation';
 import type { Entity } from '../../types';
 import { getComponent } from '../../ecs/component';
 import { ABI_LAYOUT_HASH } from '../../ecs/component.generated';
@@ -64,6 +65,28 @@ export interface PredictionOptions {
      * never accumulate. Off by default (corrections snap).
      */
     smoothing?: PredictionSmoothing;
+}
+
+/**
+ * Ask whether an `apply` is what reconciliation needs it to be.
+ *
+ * The promise above is the one the rebuild rests on, and until now only a
+ * desync could report it broken. Runs the step twice from the same state and
+ * takes both back, so a game can ask in a test without paying for it in play.
+ *
+ * @experimental
+ */
+export function predictionReplays(
+    scope: SpeculationScope,
+    prediction: PredictionOptions,
+    entity: Entity,
+    actions: Record<string, unknown>,
+    dt: number,
+): ReplayReport {
+    return replay(scope, () => {
+        prediction.apply(scope.world, entity, actions, dt);
+        return 'commit';
+    });
 }
 
 export interface PredictionSmoothing {

@@ -14,7 +14,8 @@ import { App } from '../src/app/app';
 import { defineComponent, clearUserComponents } from '../src/ecs/component';
 import { defineSystem, Schedule, GetWorld } from '../src/ecs/system';
 import { MemoryTransport } from '../src/net/MemoryTransport';
-import { replicationPlugin, Net, Replicated, type ReplicationServer } from '../src/net/replication';
+import { replicationPlugin, Net, Replicated, predictionReplays, type ReplicationServer } from '../src/net/replication';
+import { ResourceStorage } from '../src/ecs/resource';
 import type { Entity } from '../src/types';
 import type { World } from '../src/ecs/world';
 
@@ -344,5 +345,48 @@ describe('per-tick input queue (tickInputOf)', () => {
         expect(server.tickInputOf(connId)!.actions).toEqual({ n: 2 });
         await serverApp.tick(STEP); // queue dry → the held command repeats
         expect(server.tickInputOf(connId)!.actions).toEqual({ n: 2 });
+    });
+});
+
+// The promise `apply` carries — "must depend only on world state + actions +
+// dt (it re-runs during reconciliation)" — is what the rebuild rests on, and
+// until there was a machine for it only a desync could report it broken.
+describe('the rule reconciliation replays', () => {
+    it('is a function of the world, and the same one twice', () => {
+        const app = App.new();
+        const world = app.world;
+        const pawn = world.spawn();
+        world.insert(pawn, NetPos, { x: 0, y: 0 });
+
+        const report = predictionReplays(
+            { world, resources: new ResourceStorage() },
+            { apply: applyMove },
+            pawn,
+            { move: { x: 1, y: 0 } },
+            STEP,
+        );
+        expect(report).toEqual({ stable: true, why: '' });
+        // Asking moved nothing: both runs were taken back.
+        expect(world.get(pawn, NetPos).x).toBe(0);
+    });
+
+    it('and is reported when it is not', () => {
+        const app = App.new();
+        const world = app.world;
+        const pawn = world.spawn();
+        world.insert(pawn, NetPos, { x: 0, y: 0 });
+
+        const drifts = (w: World, e: Entity): void => {
+            w.set(e, NetPos, { x: Math.random(), y: 0 });
+        };
+        const report = predictionReplays(
+            { world, resources: new ResourceStorage() },
+            { apply: drifts },
+            pawn,
+            {},
+            STEP,
+        );
+        expect(report.stable).toBe(false);
+        expect(report.why).toMatch(/^values differed between runs/);
     });
 });
