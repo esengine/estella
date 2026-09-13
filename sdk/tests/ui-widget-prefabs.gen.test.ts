@@ -2,7 +2,7 @@
 // and verifies the captured tree. Writing the .esprefab files is the codegen;
 // the assertions are the guard that the factory still round-trips to a prefab.
 import { describe, it, expect, afterAll } from 'vitest';
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { World } from '../src/ecs/world';
 import type { PrefabData } from '../src/prefab/types';
@@ -28,6 +28,13 @@ import { markThemed } from '../src/ui/theme/theme-style';
 import { px } from '../src/ui/core/dimension';
 
 const OUT_DIR = resolve(__dirname, '../src/ui/widgets/prefabs');
+/** Rewriting identical bytes still moves the mtime, and these are SOURCES: every
+ *  freshness check that compares a build against them then calls a current dist
+ *  stale, and release criteria that read one refuse to answer. */
+function writeIfChanged(file: string, body: string): void {
+    if (existsSync(file) && readFileSync(file, 'utf8') === body) return;
+    writeFileSync(file, body);
+}
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const noEvents = { on: () => {} } as any;
 const c = themeColors();
@@ -44,7 +51,7 @@ const GENERATED: Record<string, PrefabData> = {};
 function generate(name: string, build: (w: World) => number): PrefabData {
     const prefab = widgetToPrefab(build, name);
     mkdirSync(OUT_DIR, { recursive: true });
-    writeFileSync(resolve(OUT_DIR, `${name}.esprefab`), JSON.stringify(prefab, null, 2) + '\n');
+    writeIfChanged(resolve(OUT_DIR, `${name}.esprefab`), JSON.stringify(prefab, null, 2) + '\n');
     GENERATED[name] = prefab;
     return prefab;
 }
@@ -57,7 +64,7 @@ afterAll(() => {
         "import type { PrefabData } from '../../../prefab/types';\n\n" +
         `export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = ${JSON.stringify(GENERATED, null, 2)};\n\n` +
         `export const BUILTIN_UI_WIDGET_NAMES = ${JSON.stringify(names)} as const;\n`;
-    writeFileSync(resolve(OUT_DIR, 'generated.ts'), body);
+    writeIfChanged(resolve(OUT_DIR, 'generated.ts'), body);
 });
 
 describe('UI widget prefab codegen', () => {
