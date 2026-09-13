@@ -131,7 +131,7 @@ export function queryDepIds(
     withoutFilters: readonly AnyComponentDef[],
     filterDeps: readonly AnyComponentDef[] = [],
 ): symbol[] {
-    const ids: symbol[] = [Disabled._id, Children._id];
+    const ids: symbol[] = [Disabled._id];
     for (const c of components) ids.push(c._id);
     for (const c of withFilters) ids.push(c._id);
     for (const c of withoutFilters) ids.push(c._id);
@@ -629,6 +629,12 @@ export class World {
     private trackHierarchyWrite_(child: Entity, parent: Entity | null): void {
         const parents = this.builtin_.getOrCreateEntitySet(Parent._cppName);
         const children = this.builtin_.getOrCreateEntitySet(Children._cppName);
+        // Re-parenting moves the switched-off closure, so every query's answer can
+        // change — but ONLY in a world that has something switched off. Charged
+        // against the tag rather than the hierarchy, which moves on every despawn.
+        if (this.scripts_.getStorageById(Disabled._id)?.size) {
+            this.queries_.markComponentDirty(Disabled._id);
+        }
 
         if (parent === null) {
             if (parents.delete(child)) this.changes_.recordRemoved(Parent, child);
@@ -1023,8 +1029,9 @@ export class World {
     private inactiveEntities_(): { has(entity: Entity): boolean } | null {
         const storage = this.scripts_.getStorageById(Disabled._id);
         if (!storage || storage.size === 0) return null;
-        const version = this.queries_.componentVersion(Disabled._id)
-            + this.queries_.componentVersion(Children._id);
+        // One version covers both halves: a re-parent in a world that has anything
+        // switched off bumps the tag's version too (see trackHierarchyWrite_).
+        const version = this.queries_.componentVersion(Disabled._id);
         if (this.inactive_ && this.inactiveVersion_ === version) return this.inactive_.set;
 
         const set = new Set<Entity>();

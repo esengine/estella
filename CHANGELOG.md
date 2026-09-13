@@ -31,7 +31,9 @@ published separately; it ships inside the editor.
   right in the inspector and change nothing on screen". Queries now exclude
   disabled entities — the one place every system, including the AOT-compiled
   ones, meets the world — and the query cache watches the tag, so switching one
-  invalidates what was already found. A query that names `Disabled` still sees
+  invalidates what was already found — charged against the tag rather than the
+  hierarchy, which moves on every despawn and would have dropped every cached
+  query on unrelated churn. A query that names `Disabled` still sees
   them, because managing the switch means reaching what is switched off, and
   `setEntityActive` takes the whole subtree with it: a character switched off
   with its sword still swinging is not switched off.
