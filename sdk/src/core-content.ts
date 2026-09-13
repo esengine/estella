@@ -421,6 +421,7 @@ export {
     selectBlendClip,
     motionOf,
     selectBlendStop,
+    blend1DPair,
     MotionRegistry,
     blend1DMotionDriver,
     spriteMotionDriver,

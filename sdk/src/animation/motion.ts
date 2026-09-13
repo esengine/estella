@@ -21,7 +21,8 @@
 
 import type { Entity, Quat, Vec3 } from '../types';
 import type { World } from '../ecs/world';
-import type { Pose } from './pose';
+import { Pose } from './pose';
+import { mixPoses, type WeightedPose } from './poseMix';
 
 /** Parameter values a graph exposes to its motions (floats and bools). */
 export type MotionParams = Readonly<Record<string, number | boolean>>;
@@ -123,6 +124,13 @@ export interface MotionContext {
     /** A nested motion's displacement over `span`; false when it states none. */
     rootDelta(motion: AnimatorMotion, span: MotionSpan, out: RootMotionDelta): boolean;
     /**
+     * Borrow scratch for composing nested samples; hand it back with
+     * {@link releasePose}. Pooled rather than owned by a driver, because a blend
+     * nested inside a blend samples while its parent's scratch is still live.
+     */
+    borrowPose(): Pose;
+    releasePose(pose: Pose): void;
+    /**
      * Whether the animator is taking this motion's root track as DISPLACEMENT.
      * A driver that can state a root pose must then leave the root's position and
      * rotation out of what it samples: the same movement written to the entity and
@@ -183,6 +191,10 @@ export interface MotionDriver<M extends AnimatorMotion = AnimatorMotion> {
  */
 export class MotionRegistry {
     private readonly drivers_ = new Map<string, MotionDriver<never>>();
+    /** Scratch poses lent to composite motions. A pool and not one buffer per
+     *  driver: nesting decides how many are live at once, and only the stack
+     *  knows that. */
+    private readonly posePool_: Pose[] = [];
 
     register<M extends AnimatorMotion>(kind: M['kind'], driver: MotionDriver<M>): void {
         this.drivers_.set(kind, driver as MotionDriver<never>);
@@ -230,6 +242,8 @@ export class MotionRegistry {
         },
         rootDelta: (motion, span, out) =>
             this.driverFor(motion)?.rootMotion?.(this.ctx_, motion, span, out) ?? false,
+        borrowPose: () => this.posePool_.pop() ?? new Pose(),
+        releasePose: (pose) => { this.posePool_.push(pose); },
     };
 }
 
@@ -238,21 +252,55 @@ export class MotionRegistry {
 // =============================================================================
 
 /**
+ * Where a parameter sits among a blend's stops. `upper` is null wherever one stop
+ * answers for the whole blend.
+ *
+ * REUSED — destructure it before anything re-enters this module: a nested blend
+ * resolves into the same object while its parent's answer is still being read.
+ */
+export interface Blend1DPair {
+    lower: AnimatorBlendStop | null;
+    upper: AnimatorBlendStop | null;
+    /** 0 at `lower`, 1 at `upper`; 0 whenever `upper` is null. */
+    t: number;
+}
+
+const PAIR: Blend1DPair = { lower: null, upper: null, t: 0 };
+
+/**
+ * Divide `value` between the two stops it falls between. Under every threshold
+ * the lowest stop answers whole, which is what makes a speed parameter resting
+ * at zero play idle rather than nothing.
+ */
+export function blend1DPair(
+    blend: AnimatorBlend1DMotion, value: number,
+): Readonly<Blend1DPair> {
+    let lower: AnimatorBlendStop | null = null;
+    let upper: AnimatorBlendStop | null = null;
+    let lowest: AnimatorBlendStop | null = null;
+    for (const stop of blend.thresholds) {
+        if (lowest === null || stop.value < lowest.value) lowest = stop;
+        if (stop.value <= value && (lower === null || stop.value > lower.value)) lower = stop;
+        if (stop.value > value && (upper === null || stop.value < upper.value)) upper = stop;
+    }
+    if (lower === null) { lower = lowest; upper = null; }
+    const span = lower !== null && upper !== null ? upper.value - lower.value : 0;
+    PAIR.lower = lower;
+    PAIR.upper = span > 0 ? upper : null;
+    PAIR.t = span > 0 ? (value - lower!.value) / span : 0;
+    return PAIR;
+}
+
+/**
  * The stop a 1D blend selects for `value`: the greatest threshold at or below it,
- * clamped up to the first when the parameter sits under them all. Pure.
+ * clamped up to the lowest when the parameter sits under them all. This is what a
+ * motion that can only be SWITCHED to gets — a sprite sheet has no meaning
+ * halfway between two clips — while one that states values is mixed instead.
  */
 export function selectBlendStop(
     blend: AnimatorBlend1DMotion, value: number,
 ): AnimatorBlendStop | null {
-    let atOrBelow: AnimatorBlendStop | null = null;
-    let lowest: AnimatorBlendStop | null = null;
-    for (const stop of blend.thresholds) {
-        if (lowest === null || stop.value < lowest.value) lowest = stop;
-        if (stop.value <= value && (atOrBelow === null || stop.value > atOrBelow.value)) {
-            atOrBelow = stop;
-        }
-    }
-    return atOrBelow ?? lowest;
+    return blend1DPair(blend, value).lower;
 }
 
 /** The motion a blend is currently selecting, or null when it has no stops. */
@@ -262,23 +310,80 @@ function blendSelection(
     return selectBlendStop(blend, Number(ctx.params[blend.parameter] ?? 0))?.motion ?? null;
 }
 
+/** The parameter this blend reads, which is a float even when nothing set it. */
+function blendValue(ctx: MotionContext, blend: AnimatorBlend1DMotion): number {
+    return Number(ctx.params[blend.parameter] ?? 0);
+}
+
 /**
- * Selection, not weighted mixing: a 1D blend picks the stop its parameter names
- * and plays it whole. Crossfading between neighbouring stops is the pose mixer's
- * to add, and lands here without the graph or any other driver changing.
+ * Filled only once every nested sample has returned, so a blend inside a blend
+ * cannot find its parent's operands here. Reused for the same reason {@link PAIR}
+ * is: mixing is the steady state of an animated entity, not an event.
+ */
+const MIX: [WeightedPose, WeightedPose] = [
+    { pose: null!, weight: 0 }, { pose: null!, weight: 0 },
+];
+
+/**
+ * A blend states values, so it MIXES: at 0.5 between walk and run the character
+ * is half of each, rather than walking until run's threshold is crossed. A
+ * motion that can only be switched to still picks ({@link selectBlendStop}) —
+ * `apply` is the seam for exactly those, and the two answers differ only there.
  */
 export const blend1DMotionDriver: MotionDriver<AnimatorBlend1DMotion> = {
     apply(ctx, blend, enter) {
         const selected = blendSelection(ctx, blend);
         if (selected) ctx.drive(selected, enter);
     },
+    /**
+     * The stops are sampled at the same PHASE, not the same second: a 2s idle and
+     * a 0.6s run share a clock only once each is measured against its own length,
+     * and without that the faster clip's feet slide. Mixing then goes through the
+     * pose mixer a crossfade uses — the weights differ, the operation does not.
+     */
     sample(ctx, blend, time, pose) {
-        const selected = blendSelection(ctx, blend);
-        return selected !== null && ctx.sample(selected, time, pose);
+        const { lower, upper, t } = blend1DPair(blend, blendValue(ctx, blend));
+        if (!lower) return false;
+        if (!upper) return ctx.sample(lower.motion, time, pose);
+
+        const da = ctx.duration(lower.motion);
+        const db = ctx.duration(upper.motion);
+        const whole = da > 0 && db > 0 ? da + (db - da) * t : 0;
+        const ta = whole > 0 ? time * (da / whole) : time;
+        const tb = whole > 0 ? time * (db / whole) : time;
+
+        const from = ctx.borrowPose();
+        const to = ctx.borrowPose();
+        try {
+            from.reset();
+            to.reset();
+            const sampledFrom = ctx.sample(lower.motion, ta, from);
+            const sampledTo = ctx.sample(upper.motion, tb, to);
+            // One end that cannot be sampled leaves the other whole rather than
+            // half: a pose is the only thing there is to show, and half of it
+            // against the world's own values would read as the blend sinking.
+            if (!sampledTo) return sampledFrom && ctx.sample(lower.motion, ta, pose);
+            if (!sampledFrom) return ctx.sample(upper.motion, tb, pose);
+
+            MIX[0].pose = from; MIX[0].weight = 1 - t;
+            MIX[1].pose = to; MIX[1].weight = t;
+            mixPoses(MIX, pose, ctx.world);
+            return true;
+        } finally {
+            ctx.releasePose(to);
+            ctx.releasePose(from);
+        }
     },
     duration(ctx, blend) {
-        const selected = blendSelection(ctx, blend);
-        return selected ? ctx.duration(selected) : 0;
+        const { lower, upper, t } = blend1DPair(blend, blendValue(ctx, blend));
+        if (!lower) return 0;
+        const da = ctx.duration(lower.motion);
+        if (!upper) return da;
+        const db = ctx.duration(upper.motion);
+        // A stop that does not state its length cannot be averaged with one that
+        // does — the answer would be shorter than the clip actually playing — so
+        // the selected stop answers, which is what a sprite blend always got.
+        return da > 0 && db > 0 ? da + (db - da) * t : da;
     },
     loops(ctx, blend) {
         const selected = blendSelection(ctx, blend);
