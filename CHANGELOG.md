@@ -70,7 +70,22 @@ published separately; it ships inside the editor.
   that rig touches, answering the same `attack` trigger the base machine does —
   so the mask is observable rather than merely configured.
 
+- **A blend is something an author can make.** `blend1d` shipped long before
+  layers and `blend2d` arrived with them, and neither could be written anywhere
+  but the file: the state inspector had one Clip box. An engine capability nobody
+  can author reads as present in every census and answers no author's question.
+  The kind picker now offers None / Clip / Blend 1D / Blend 2D; a clip says which
+  runtime plays it (a sprite sheet is switched to, a timeline states values and
+  can be blended); a 1D blend edits its stops and a 2D one places its points; and
+  a clip already typed is carried into the blend as its first stop rather than
+  dropped.
+
 ### Changed
+
+- **One place knows how to average a rotation.** The pose mixer, the layer stack
+  and a blend's displacement had each written out the hemisphere alignment that
+  makes {q} and {-q} average to the short way round — a rule that is easy to get
+  subtly right in one place and subtly wrong in the next.
 
 - **`.esanimator` carries a format version**, and the guard that matters is the
   upward one: a file from a later build is refused rather than read for the parts
@@ -80,10 +95,34 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A layer's clips reach the game that plays them.** Driving the real editor
+  found what every unit gate had missed: the base layer animated and the upper
+  layer did nothing. Two readers walked `def.states` and called that the whole
+  controller — the asset loader, which therefore fetched and resolved no clip any
+  layer played, and the cook's ref rewriter, which staged a layer's clip under
+  the name the author typed rather than the one the package carries. Both fail in
+  silence, the first in any real project and the second in builds only.
+  `animatorScopes` is now the one way to walk a controller's machines. The
+  dependency scan needed nothing: it recurses over a document's values rather
+  than its shape, which is why it saw a layer's clip all along.
+
+- **A blend weights its displacement the way it weights its pose.** The pose
+  crossed from walk to run smoothly while root motion still picked the dominant
+  stop, so a character crossing run's threshold changed speed in one frame — the
+  one thing a locomotion tree exists to prevent.
+
+- **A canvas node names what its state plays.** The label read only the older
+  single-kind fields, so every node of a controller written in the `motion`
+  shape — which is every controller the engine writes — showed as playing
+  nothing.
+
 - **`check-animator-parameters` could not see into a layer.** A parameter
   consumed only by a layer read as a dead knob. It also states something new: a
   mask admitting no track of its own layer's clips poses nothing, and in the
   editor that looks exactly like a layer that works.
+
+- **`isBlend1D` was never on the public surface** while its twin was, so nothing
+  outside the SDK could ask which of the two a motion is.
 
 ## [0.65.0] - 2026-09-13
 
