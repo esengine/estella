@@ -2,7 +2,8 @@
 
 A four-pad drum machine that shows off the engine's audio system: one-shot SFX
 with per-hit variation, a looping beat on the music bus, per-bus volume control,
-and a **real** spectrum visualizer driven by the master-bus analyser.
+a **real** spectrum visualizer driven by the master-bus analyser, and a spatial
+source orbiting the listener.
 
 ## Controls
 
@@ -11,6 +12,7 @@ and a **real** spectrum visualizer driven by the master-bus analyser.
 | `1` `2` `3` `4` / click a pad  | Kick / Snare / Hi-Hat / Clap             |
 | **Beat** button                | Toggle the looping beat (music bus)      |
 | **Master / Music / SFX**       | Click to cycle that bus's volume         |
+| *(nothing)*                    | The orbiting dot pans and swells on its own |
 
 ## What it shows
 
@@ -22,6 +24,11 @@ and a **real** spectrum visualizer driven by the master-bus analyser.
 - **Volume** buttons step each bus through the mixer with `setMasterVolume` /
   `setMusicVolume` / `setSFXVolume`, so you can hear the bus tree at work.
 - **Visualizer** is a true frequency spectrum, not a canned animation.
+- **The teal dot** is an `AudioSource` with `spatial` on, authored in the scene
+  together with the `AudioListener` on the camera. Nothing in the code plays it
+  or touches its volume: `playOnAwake` starts it and the engine attenuates and
+  pans it from where the entity is, so it swells as it passes the centre and
+  moves between your ears as it swings by.
 
 ## How it works
 
@@ -43,16 +50,18 @@ than breaks.
 
 ```
 assets/
-  scenes/main.esscene    # camera, pads, beat + volume buttons, spectrum bars
-  audio/*.wav            # kick / snare / hi-hat / clap samples
+  scenes/main.esscene    # camera (+ AudioListener), pads, buttons, bars,
+                         #   and the spatial hum source
+  audio/*.wav            # kick / snare / hi-hat / clap, plus the looping hum
 src/
   main.ts                # registers the systems
-  config.ts              # pad samples, beat url, volume steps, spectrum bins
-  components.ts          # Pad, BeatToggle, VolumeKnob, VisualizerBar (+ labels)
+  config.ts              # pad samples, volume steps, spectrum bins
+  components.ts          # Pad, BeatToggle, VolumeKnob, VisualizerBar, Orbiting
   systems/
     preload.ts           # warm the buffer cache at startup
     sfx.ts               # pads → playSFX with pitch/pan variation
     beat.ts              # toggle the looping music-bus beat
     volume.ts            # cycle per-bus volume, update labels
     visualizer.ts        # real spectrum → bar heights (audio.getSpectrum)
+    orbit.ts             # moves the spatial source; the audio follows on its own
 ```

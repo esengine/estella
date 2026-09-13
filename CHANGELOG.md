@@ -14,7 +14,31 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **A spatial source you can hear in the audio demo.** Nothing in the shipped
+  corpus had ever set `AudioSource.spatial`, and no scene anywhere carried an
+  `AudioListener` — so the warning the engine logs for a spatial sound with no
+  ear in the world had never been seen by anyone, and neither had the feature.
+  The demo now orbits one around the camera that carries the listener; the scene
+  authors the clip, the distances and `playOnAwake`, and the code only moves the
+  entity.
+
 ### Fixed
+
+- **A spatial source is heard where it IS.** Audio read `Transform.position` —
+  an entity's offset from its parent — while every other subsystem reads
+  `worldPosition`. A hum parented to anything stayed at its parent's origin, and
+  a listener on a child of the camera heard from the camera rig rather than the
+  camera: exactly the two arrangements a game reaches for first, and the only
+  ones that made the alias `WorldTransform` read like what it was not.
+
+- **An authored `playOnAwake` brings in its own clip.** The scene had already
+  said to play it, but the frame looked the buffer up once and gave up for good
+  if nothing had preloaded that url, leaving a component that silently did
+  nothing and one line in the log. It now loads the clip it names — once per
+  clip, not once a frame, and once only for a clip that cannot load at all.
+
 - **A mini-game's canvas follows its window.** It was sized once at boot from
   `getSystemInfoSync` and never again, so any later change — a rotation, a foldable,
   split screen, or a host that opens in the other orientation from the one `game.json`

@@ -14,3 +14,8 @@ export const VolumeLabel = defineComponent('VolumeLabel', { bus: 'master' });
 
 // A spectrum bar: reads analyser bin `index` each frame to set its height.
 export const VisualizerBar = defineComponent('VisualizerBar', { index: 0 });
+
+// The spatial source's orbit around the listener: `radius` its half-width,
+// `speed` radians per second. The AudioSource riding it is authored in the
+// scene — this only moves the entity, which is what makes the sound move.
+export const Orbiting = defineComponent('Orbiting', { radius: 320, speed: 0.6 });

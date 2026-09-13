@@ -117,7 +117,6 @@ const DISPOSITION = {
 
   // — owed: a creator-facing component nothing in the shipped corpus authors.
   //   Each reason names where the coverage belongs. —
-  AudioListener: ['owed', 'spatial audio has no corpus at all: no scene sets AudioSource.spatial, so the listener every 3D mix needs is absent and the engine\'s "spatial audio used but no AudioListener entity found" warning has never been seen. audio-demo or third-person-3d'],
   UIDialog: ['owed', 'the Create picker builds a Dialog in one click and its own header promises a prefab dialog works "without any code hookup" — ui-controls calls createDialog() from code instead, so the promise has no witness'],
   UIToggle: ['owed', 'Create > UI > Toggle exists; ui-controls builds toggles with createToggle() and no scene carries one'],
   UIToggleGroup: ['owed', 'exclusive toggles (tab bar, difficulty picker) sit on the common ancestor — a relationship only an authored hierarchy demonstrates'],

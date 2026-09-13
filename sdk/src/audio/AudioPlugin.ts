@@ -14,6 +14,16 @@ import type { AudioHandle } from './PlatformAudioBackend';
 import { isEditor, isPlayMode } from '../ecs/env';
 import { log } from '../util/logger';
 
+/**
+ * Where a transform IS, which for a parented entity is not where it says it is:
+ * `position` is the offset from its parent, and a footstep loop under a walking
+ * character would stay at the character's origin forever. The engine derives the
+ * world fields; the fallback is for a world running without them.
+ */
+function worldPositionOf(t: WorldTransformData): Vec3 {
+    return t.worldPosition ?? t.position;
+}
+
 export interface AudioPluginConfig {
     initialPoolSize?: number;
     masterVolume?: number;
@@ -74,6 +84,9 @@ export class AudioPlugin implements Plugin {
             playedEntities.delete(entity);
         });
         const liveEntities = new Set<number>();
+        /** Clips an authored playOnAwake is waiting on, and ones that will never arrive. */
+        const loadingClips = new Set<string>();
+        const unplayableClips = new Set<string>();
         let spatialListenerWarned = false;
         let wasPlayMode = false;
 
@@ -110,8 +123,8 @@ export class AudioPlugin implements Plugin {
                         const listener = world.get(entity, AudioListener) as AudioListenerData;
                         if (listener.enabled) {
                             const wt = world.get(entity, WorldTransform) as WorldTransformData;
-                            listenerAt = wt.position;
-                            listenerRight = q.rotate(wt.rotation, { x: 1, y: 0, z: 0 });
+                            listenerAt = worldPositionOf(wt);
+                            listenerRight = q.rotate(wt.worldRotation ?? wt.rotation, { x: 1, y: 0, z: 0 });
                             hasListener = true;
                             break;
                         }
@@ -141,15 +154,20 @@ export class AudioPlugin implements Plugin {
                                 });
                                 activeSourceHandles.set(id, handle);
                                 playedEntities.add(id);
-                            } else {
-                                // playOnAwake is a one-shot at spawn; mark it done even
-                                // on a miss, or this re-looks-up and re-warns every frame
-                                // forever. (Preload the clip before spawning.)
-                                playedEntities.add(id);
-                                log.warn(
-                                    'audio',
-                                    `playOnAwake: clip "${source.clip}" not preloaded`,
-                                );
+                            } else if (!unplayableClips.has(source.clip)) {
+                                // A scene setting playOnAwake has already said to play
+                                // it; demanding a preload call beside it is a component
+                                // that silently does nothing. Unplayed until it lands.
+                                if (!loadingClips.has(source.clip)) {
+                                    const clip = source.clip;
+                                    loadingClips.add(clip);
+                                    void audioAPI.preload(clip)
+                                        .catch((err) => {
+                                            unplayableClips.add(clip);
+                                            log.warn('audio', `playOnAwake: cannot load clip "${clip}"`, err);
+                                        })
+                                        .finally(() => loadingClips.delete(clip));
+                                }
                             }
                         }
 
@@ -166,7 +184,7 @@ export class AudioPlugin implements Plugin {
                             }
 
                             const wt = world.tryGet?.(entity, WorldTransform) as WorldTransformData | undefined;
-                            const sourceAt: Vec3 = wt?.position ?? { x: 0, y: 0, z: 0 };
+                            const sourceAt: Vec3 = wt ? worldPositionOf(wt) : { x: 0, y: 0, z: 0 };
                             const distance = spatialDistance(sourceAt, listenerAt);
 
                             const spatialConfig: SpatialAudioConfig = {
