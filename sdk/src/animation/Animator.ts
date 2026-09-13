@@ -464,23 +464,28 @@ function spriteBlendMotion(st: AnimatorState, blend: AnimatorBlend1D): AnimatorB
 }
 
 /**
- * What a state plays, whichever way it was authored: `motion`, or the
- * `clip`/`blend`/`spine` fields every controller written before motions used.
- * Read here rather than rewritten on load, so those keep working untouched.
+ * What `clip`, `blend` or `spine` mean as a {@link AnimatorMotion} — each is one
+ * kind's own word for what `motion` says generally. Pure, so the migration and
+ * the runtime's cache share one conversion rather than two that can drift.
+ */
+export function legacyMotionOf(st: AnimatorState): AnimatorMotion | null {
+    if (st.spine) return { kind: SPINE_MOTION, clip: st.spine.animation, loop: st.spine.loop };
+    if (st.blend) return spriteBlendMotion(st, st.blend);
+    if (st.clip) return { kind: SPRITE_MOTION, clip: st.clip, speed: st.speed, loop: st.loop };
+    return null;
+}
+
+/**
+ * What a state plays. A file is normalized on load, so this converts only for a
+ * controller built in code with the older fields — which nothing new writes, and
+ * which stays readable rather than becoming a silent no-motion.
  * Null for a state with no motion of its own (a container).
  */
 export function motionOf(st: AnimatorState): AnimatorMotion | null {
+    if (st.motion) return st.motion;
     const cached = migratedMotions.get(st);
     if (cached !== undefined) return cached;
-
-    let motion: AnimatorMotion | null = null;
-    if (st.motion) motion = st.motion;
-    else if (st.spine) {
-        motion = { kind: SPINE_MOTION, clip: st.spine.animation, loop: st.spine.loop };
-    } else if (st.blend) motion = spriteBlendMotion(st, st.blend);
-    else if (st.clip) {
-        motion = { kind: SPRITE_MOTION, clip: st.clip, speed: st.speed, loop: st.loop };
-    }
+    const motion = legacyMotionOf(st);
 
     migratedMotions.set(st, motion);
     return motion;

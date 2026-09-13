@@ -13,8 +13,8 @@
  */
 
 import {
-    ANIMATOR_FORMAT_VERSION,
-    type AnimatorControllerDef, type AnimatorLayer,
+    ANIMATOR_FORMAT_VERSION, legacyMotionOf,
+    type AnimatorControllerDef, type AnimatorLayer, type AnimatorScope, type AnimatorState,
 } from './Animator';
 
 /** What a pass over a controller blob came to. */
@@ -75,12 +75,36 @@ export function migrateAnimatorController(raw: unknown): AnimatorMigration {
     if (fromVersion === ANIMATOR_FORMAT_VERSION) {
         return { def, migrated: false, fromVersion };
     }
-    // Version 1 is version 2 without layers, which reads correctly as a stack of
-    // one. Stamping it is the whole upgrade, and it is what makes a re-save land
-    // on a file the guard above will recognise.
+    // Version 1 is version 2 without layers — a stack of one — whose states may
+    // spell a motion any of four ways. Folding those into `motion` here lets
+    // every later reader ask one question instead of four.
     return {
-        def: { ...def, version: ANIMATOR_FORMAT_VERSION },
+        def: { ...normalizeScope(def), version: ANIMATOR_FORMAT_VERSION, layers: def.layers?.map(normalizeLayer) },
         migrated: true,
         fromVersion,
     };
+}
+
+/** A state whose motion is spelled the one way, with the older spellings gone —
+ *  left in place they would be a second answer nothing reconciles. */
+function normalizeState(state: AnimatorState): AnimatorState {
+    const next: AnimatorState = { ...state };
+    const motion = state.motion ?? legacyMotionOf(state);
+    delete next.clip;
+    delete next.blend;
+    delete next.spine;
+    if (motion) next.motion = motion;
+    else delete next.motion;
+    if (state.stateMachine) {
+        next.stateMachine = { ...state.stateMachine, states: state.stateMachine.states.map(normalizeState) };
+    }
+    return next;
+}
+
+function normalizeScope<T extends AnimatorScope>(scope: T): T {
+    return { ...scope, states: scope.states.map(normalizeState) };
+}
+
+function normalizeLayer(layer: AnimatorLayer): AnimatorLayer {
+    return normalizeScope(layer);
 }

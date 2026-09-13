@@ -380,6 +380,56 @@ describe('the controller format guard', () => {
             .toThrow(/version/);
     });
 
+    it('folds the four older spellings of a motion into the one', () => {
+        // A v1 file could say what a state plays as `clip`, `blend` or `spine`.
+        // Left alone, every later reader has to ask four questions — which is how
+        // the editor's node label came to answer only three of them.
+        const { def } = migrateAnimatorController({
+            parameters: [{ name: 'speed', type: 'float' }],
+            initialState: 'Idle',
+            states: [
+                { name: 'Idle', clip: 'idle', speed: 2, loop: true, transitions: [] },
+                { name: 'Talk', spine: { animation: 'talk', loop: false }, transitions: [] },
+                {
+                    name: 'Move', transitions: [],
+                    blend: { parameter: 'speed', thresholds: [{ value: 0, clip: 'walk' }] },
+                },
+                {
+                    name: 'Combat', transitions: [],
+                    stateMachine: { initialState: 'Swing', states: [{ name: 'Swing', clip: 'swing', transitions: [] }] },
+                },
+            ],
+        });
+
+        const byName = new Map(def.states.map((s) => [s.name, s]));
+        expect(byName.get('Idle')!.motion).toEqual({ kind: 'sprite', clip: 'idle', speed: 2, loop: true });
+        expect(byName.get('Talk')!.motion).toEqual({ kind: 'spine', clip: 'talk', loop: false });
+        expect(byName.get('Move')!.motion).toMatchObject({ kind: 'blend1d', parameter: 'speed' });
+        // Down a nested machine too, or a sub-state keeps the old shape alone.
+        expect(byName.get('Combat')!.stateMachine!.states[0]!.motion)
+            .toEqual({ kind: 'sprite', clip: 'swing', speed: undefined, loop: undefined });
+
+        // And the older spellings are GONE, not merely shadowed.
+        for (const state of def.states) {
+            expect(state.clip).toBeUndefined();
+            expect(state.blend).toBeUndefined();
+            expect(state.spine).toBeUndefined();
+        }
+    });
+
+    it('folds them inside a layer as well', () => {
+        const { def } = migrateAnimatorController({
+            parameters: [], initialState: 'Idle',
+            states: [{ name: 'Idle', transitions: [] }],
+            layers: [{
+                name: 'Upper', initialState: 'Wave',
+                states: [{ name: 'Wave', clip: 'wave', transitions: [] }],
+            }],
+        });
+        expect(def.layers![0]!.states[0]!.motion).toMatchObject({ kind: 'sprite', clip: 'wave' });
+        expect(def.layers![0]!.states[0]!.clip).toBeUndefined();
+    });
+
     it('refuses a layer that is not a machine', () => {
         expect(() => migrateAnimatorController({ ...v1(), layers: [{ name: 'arms' }] }))
             .toThrow(/layer/);
