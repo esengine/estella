@@ -16,6 +16,20 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **Every 2D collider shape and joint, authored in a scene.** The capsule,
+  segment, chain and polygon colliders and three of the six joints had no
+  instance in any scene either. physics-playground's showcase now hangs a
+  pendulum on a distance joint, drops a capsule onto a segment rail, welds two
+  crates, lays a chain of edges as terrain, and drives a motorised cart up a
+  polygon ramp — which is the one of those a box cannot be.
+
+- **A joint's anchors say whose body they are on.** `anchorA` is on the
+  CONNECTED body and `anchorB` on the joint's own entity, and nothing said so:
+  the fields are two identical-looking vectors whose defaults pin both centres
+  to a single point rather than keeping the offset they were placed with. Both
+  now carry that in their tooltip, along with the 3D joints' single `anchor`,
+  which is in its own entity's frame instead.
+
 - **Every 3D collider shape and joint, authored in a scene.** physics-3d carried
   45 boxes and one hinge, and that was the whole corpus: the sphere, capsule,
   convex and mesh colliders and four of the five joints shipped with no instance

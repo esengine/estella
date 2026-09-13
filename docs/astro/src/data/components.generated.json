@@ -1006,12 +1006,14 @@
         {
           "key": "anchorA",
           "type": "Vec2",
-          "default": "(0, 0)"
+          "default": "(0, 0)",
+          "doc": "Where the joint attaches on the connected body, in that body's frame (pixels)."
         },
         {
           "key": "anchorB",
           "type": "Vec2",
-          "default": "(0, 0)"
+          "default": "(0, 0)",
+          "doc": "Where it attaches on this entity, in its own frame (pixels)."
         },
         {
           "key": "length",
@@ -1365,12 +1367,14 @@
         {
           "key": "anchorA",
           "type": "Vec2",
-          "default": "(0, 0)"
+          "default": "(0, 0)",
+          "doc": "Where the joint attaches on the connected body, in that body's frame (pixels)."
         },
         {
           "key": "anchorB",
           "type": "Vec2",
-          "default": "(0, 0)"
+          "default": "(0, 0)",
+          "doc": "Where it attaches on this entity, in its own frame (pixels)."
         },
         {
           "key": "linearHertz",
@@ -1614,12 +1618,14 @@
         {
           "key": "anchorA",
           "type": "Vec2",
-          "default": "(0, 0)"
+          "default": "(0, 0)",
+          "doc": "Where the joint attaches on the connected body, in that body's frame (pixels)."
         },
         {
           "key": "anchorB",
           "type": "Vec2",
-          "default": "(0, 0)"
+          "default": "(0, 0)",
+          "doc": "Where it attaches on this entity, in its own frame (pixels)."
         },
         {
           "key": "enableMotor",
@@ -1686,7 +1692,8 @@
         {
           "key": "anchor",
           "type": "Vec3",
-          "default": "(0, 0, 0)"
+          "default": "(0, 0, 0)",
+          "doc": "Where the joint attaches, in THIS entity's frame (world units)."
         },
         {
           "key": "axis",
@@ -3160,7 +3167,8 @@
         {
           "key": "anchor",
           "type": "Vec3",
-          "default": "(0, 0, 0)"
+          "default": "(0, 0, 0)",
+          "doc": "Where the joint attaches, in THIS entity's frame (world units)."
         },
         {
           "key": "collideConnected",
@@ -3617,17 +3625,20 @@
         {
           "key": "anchorA",
           "type": "Vec2",
-          "default": "(0, 0)"
+          "default": "(0, 0)",
+          "doc": "Where the joint attaches on the connected body, in that body's frame (pixels)."
         },
         {
           "key": "anchorB",
           "type": "Vec2",
-          "default": "(0, 0)"
+          "default": "(0, 0)",
+          "doc": "Where it attaches on this entity, in its own frame (pixels)."
         },
         {
           "key": "axis",
           "type": "Vec2",
-          "default": "(1, 0)"
+          "default": "(1, 0)",
+          "doc": "Direction of travel, in the connected body's frame."
         },
         {
           "key": "enableSpring",
@@ -3713,7 +3724,8 @@
         {
           "key": "anchor",
           "type": "Vec3",
-          "default": "(0, 0, 0)"
+          "default": "(0, 0, 0)",
+          "doc": "Where the joint attaches, in THIS entity's frame (world units)."
         },
         {
           "key": "axis",
@@ -5527,17 +5539,20 @@
         {
           "key": "anchorA",
           "type": "Vec2",
-          "default": "(0, 0)"
+          "default": "(0, 0)",
+          "doc": "Where the joint attaches on the connected body, in that body's frame (pixels)."
         },
         {
           "key": "anchorB",
           "type": "Vec2",
-          "default": "(0, 0)"
+          "default": "(0, 0)",
+          "doc": "Where it attaches on this entity, in its own frame (pixels)."
         },
         {
           "key": "axis",
           "type": "Vec2",
-          "default": "(0, 1)"
+          "default": "(0, 1)",
+          "doc": "Direction of travel, in the connected body's frame."
         },
         {
           "key": "enableSpring",

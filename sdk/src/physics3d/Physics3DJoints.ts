@@ -38,7 +38,10 @@ export const PointJoint3D = defineComponent<PointJoint3DData>('PointJoint3D', {
     anchor: { x: 0, y: 0, z: 0 },
     collideConnected: false,
     enabled: true,
-}, { entityFields: ['connectedEntity'] });
+}, {
+    entityFields: ['connectedEntity'],
+    fields: { anchor: { tooltip: 'Where the joint attaches, in THIS entity\'s frame (world units).' } },
+});
 
 export interface HingeJoint3DData {
     connectedEntity: number;
@@ -75,7 +78,10 @@ export const HingeJoint3D = defineComponent<HingeJoint3DData>('HingeJoint3D', {
     collideConnected: false,
     enabled: true,
     angle: 0,
-}, { entityFields: ['connectedEntity'] });
+}, {
+    entityFields: ['connectedEntity'],
+    fields: { anchor: { tooltip: 'Where the joint attaches, in THIS entity\'s frame (world units).' } },
+});
 
 export interface SliderJoint3DData {
     connectedEntity: number;
@@ -113,7 +119,10 @@ export const SliderJoint3D = defineComponent<SliderJoint3DData>('SliderJoint3D',
     collideConnected: false,
     enabled: true,
     translation: 0,
-}, { entityFields: ['connectedEntity'] });
+}, {
+    entityFields: ['connectedEntity'],
+    fields: { anchor: { tooltip: 'Where the joint attaches, in THIS entity\'s frame (world units).' } },
+});
 
 export interface DistanceJoint3DData {
     connectedEntity: number;

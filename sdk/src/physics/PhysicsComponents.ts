@@ -258,6 +258,14 @@ export const OneWayPlatform2D = defineComponent<OneWayPlatform2DData>('OneWayPla
 // Joint Components
 // =============================================================================
 
+// The joint's OWN entity is body B; `connectedEntity` is body A. So an axis or a
+// limit "from A" is measured from the body the joint points at, and two zero
+// anchors pin both centres to one point rather than keeping their offset.
+const JOINT_ANCHORS = {
+    anchorA: { tooltip: 'Where the joint attaches on the connected body, in that body\'s frame (pixels).' },
+    anchorB: { tooltip: 'Where it attaches on this entity, in its own frame (pixels).' },
+} as const;
+
 export interface HingeJoint2DData {
     connectedEntity: number;
     anchorA: Vec2;
@@ -284,7 +292,11 @@ export const HingeJoint2D = defineComponent<HingeJoint2DData>('HingeJoint2D', {
     upperAngle: 0,
     collideConnected: false,
     enabled: true,
-}, { entityFields: ['connectedEntity'] });
+}, {
+    entityFields: ['connectedEntity'],
+    fields: { ...JOINT_ANCHORS,
+    },
+});
 
 export interface DistanceJoint2DData {
     connectedEntity: number;
@@ -320,7 +332,11 @@ export const DistanceJoint2D = defineComponent<DistanceJoint2DData>('DistanceJoi
     motorSpeed: 0,
     collideConnected: false,
     enabled: true,
-}, { entityFields: ['connectedEntity'] });
+}, {
+    entityFields: ['connectedEntity'],
+    fields: { ...JOINT_ANCHORS,
+    },
+});
 
 export interface SliderJoint2DData {
     connectedEntity: number;
@@ -356,7 +372,12 @@ export const SliderJoint2D = defineComponent<SliderJoint2DData>('SliderJoint2D',
     motorSpeed: 0,
     collideConnected: false,
     enabled: true,
-}, { entityFields: ['connectedEntity'] });
+}, {
+    entityFields: ['connectedEntity'],
+    fields: { ...JOINT_ANCHORS,
+    axis: { tooltip: 'Direction of travel, in the connected body\'s frame.' },
+    },
+});
 
 export interface FixedJoint2DData {
     connectedEntity: number;
@@ -380,7 +401,11 @@ export const FixedJoint2D = defineComponent<FixedJoint2DData>('FixedJoint2D', {
     angularDampingRatio: 1,
     collideConnected: false,
     enabled: true,
-}, { entityFields: ['connectedEntity'] });
+}, {
+    entityFields: ['connectedEntity'],
+    fields: { ...JOINT_ANCHORS,
+    },
+});
 
 export interface WheelJoint2DData {
     connectedEntity: number;
@@ -416,7 +441,12 @@ export const WheelJoint2D = defineComponent<WheelJoint2DData>('WheelJoint2D', {
     motorSpeed: 0,
     collideConnected: false,
     enabled: true,
-}, { entityFields: ['connectedEntity'] });
+}, {
+    entityFields: ['connectedEntity'],
+    fields: { ...JOINT_ANCHORS,
+    axis: { tooltip: 'Direction of travel, in the connected body\'s frame.' },
+    },
+});
 
 export interface MotorJoint2DData {
     connectedEntity: number;

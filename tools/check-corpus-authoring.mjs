@@ -118,13 +118,6 @@ const DISPOSITION = {
   // — owed: a creator-facing component nothing in the shipped corpus authors.
   //   Each reason names where the coverage belongs. —
 
-  CapsuleCollider2D: ['owed', 'physics-playground and physics-spinner build capsules in code; the Inspector shape and its gizmo have no authored instance'],
-  ChainCollider2D: ['owed', 'physics-spinner builds its chain in code — the one 2D shape whose authored form (a point list) the editor actually has an editing mode for'],
-  PolygonCollider2D: ['owed', 'no project authors a polygon collider, in code or in a scene'],
-  SegmentCollider2D: ['owed', 'no project authors a segment collider, in code or in a scene'],
-  DistanceJoint2D: ['owed', 'physics-playground authors Hinge/Motor/Slider and stops there'],
-  FixedJoint2D: ['owed', 'same scene, same gap'],
-  WheelJoint2D: ['owed', 'a vehicle is the demonstration, and the corpus has no vehicle'],
 
   SortingGroup: ['owed', 'the component that makes a subtree sort as one unit — the fix for every "my character\'s sword draws behind the wrong prop", demonstrated nowhere'],
   CacheAsBitmap: ['owed', 'flattening a static subtree into one texture is a performance decision with no example showing when to take it'],
