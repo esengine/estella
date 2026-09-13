@@ -219,6 +219,7 @@ export const GATES = [
   { id: 'shader-literals', run: 'node tools/check-shader-literals.mjs' },
   { id: 'import-settings', run: 'node tools/check-import-settings.mjs' },
   { id: 'gizmo-coverage', run: 'node tools/check-gizmo-coverage.mjs', needs: 'editor' },
+  { id: 'corpus-authoring', run: 'node tools/check-corpus-authoring.mjs' },
   { id: 'lod-authoring', run: 'node tools/check-lod-authoring.mjs', needs: 'editor' },
   { id: 'shadow-plan', run: 'node tools/check-shadow-plan.mjs' },
   { id: 'light-cap', run: 'node tools/check-light-cap.mjs' },
