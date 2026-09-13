@@ -78,6 +78,8 @@ const DISPOSITION = {
   'Light.innerRadius': 'extent',
   'Light.cookieSize': 'extent',
   'MeleeAttack.radius': 'extent',
+  'AudioSource.minDistance': 'extent',
+  'AudioSource.maxDistance': 'extent',
   'NavAgent.radius': 'extent',
   'NavAgent.arriveRadius': 'extent',
   'NavArea.halfExtents': 'extent',
@@ -144,8 +146,6 @@ const DISPOSITION = {
   // Each of these IS a region of world and nothing draws it. An entry leaves this
   // block by being drawn, never by being explained; adding one is a visible diff,
   // which is the only ratchet there is.
-  'AudioSource.minDistance': ['owed', 'the sphere inside which a 3D source is at full volume'],
-  'AudioSource.maxDistance': ['owed', 'the sphere past which a 3D source is inaudible'],
   'Hunter.attackRange': ['owed', 'the reach it closes to before swinging — MeleeAttack.radius is drawn, this twin is not'],
   'Perceiver.range': ['owed', 'how far it can see; the cone it sees through is not drawn either'],
   'ThirdPersonCamera.distance': ['owed', 'the boom length — where the camera actually ends up'],
