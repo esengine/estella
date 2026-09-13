@@ -51,30 +51,15 @@ describe('a disabled entity', () => {
         expect(world.getEntitiesWithComponents([Health, Disabled])).toEqual([entities[0]]);
     });
 
-    it('takes its subtree with it', () => {
-        // `Children` is written by the engine's hierarchy, which a unit test has
-        // no wasm for — so the TREE is modelled and the walk over it is what runs.
-        // That a real setParent produces this shape is the engine's own contract.
-        const tags = new Map<Entity, Set<symbol>>();
-        const kids = new Map<Entity, Entity[]>([[1 as Entity, [2 as Entity]], [2 as Entity, [3 as Entity]]]);
-        const tree = {
-            valid: () => true,
-            has: (e: Entity, c: { _id: symbol }) =>
-                c === Children ? kids.has(e) : (tags.get(e)?.has(c._id) ?? false),
-            get: (e: Entity) => ({ entities: kids.get(e) ?? [] }),
-            insert: (e: Entity, c: { _id: symbol }) => {
-                if (!tags.has(e)) tags.set(e, new Set());
-                tags.get(e)!.add(c._id);
-            },
-            remove: (e: Entity, c: { _id: symbol }) => { tags.get(e)?.delete(c._id); },
-        } as unknown as World;
-
-        setEntityActive(tree, 1 as Entity, false);
-        // A character switched off with its sword still swinging is not off.
-        for (const e of [1, 2, 3]) expect(isEntityActive(tree, e as Entity), `entity ${e}`).toBe(false);
-
-        setEntityActive(tree, 1 as Entity, true);
-        for (const e of [1, 2, 3]) expect(isEntityActive(tree, e as Entity), `entity ${e}`).toBe(true);
+    it('marks itself and nothing else — the subtree is derived', () => {
+        const { world, entities } = worldWith(2);
+        setEntityActive(world, entities[0]!, false);
+        // The tag says what the AUTHOR switched off; which entities that takes
+        // out of a query is a walk down the tree, driven by the play-realm check
+        // (a real hierarchy is the one thing a unit test has no engine for).
+        expect(isEntityActive(world, entities[0]!)).toBe(false);
+        expect(isEntityActive(world, entities[1]!)).toBe(true);
+        expect(world.getEntitiesWithComponents([Health, Disabled])).toEqual([entities[0]]);
     });
 
     it('leaves the cached answer behind when it is switched', () => {

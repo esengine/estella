@@ -131,7 +131,7 @@ export function queryDepIds(
     withoutFilters: readonly AnyComponentDef[],
     filterDeps: readonly AnyComponentDef[] = [],
 ): symbol[] {
-    const ids: symbol[] = [Disabled._id];
+    const ids: symbol[] = [Disabled._id, Children._id];
     for (const c of components) ids.push(c._id);
     for (const c of withFilters) ids.push(c._id);
     for (const c of withoutFilters) ids.push(c._id);
@@ -156,6 +156,9 @@ export class World {
     readonly changes_ = new ChangeTracker();
     /** @internal */
     readonly queries_ = new QueryCache();
+    /** @see inactiveEntities_ */
+    private inactive_: { set: Set<Entity> } | null = null;
+    private inactiveVersion_ = -1;
     private entities_ = new Map<Entity, number>();
     private indexGeneration_ = new Map<number, number>();  // index -> current generation (for isStale detection)
     private iterationDepth_ = 0;
@@ -1009,6 +1012,36 @@ export class World {
         return Array.from(types);
     }
 
+
+    /**
+     * Every entity switched off, ITSELF or by an ancestor.
+     *
+     * Derived, not tagged down the tree: a scene that wrote the tag on each
+     * descendant would lose which of them the author switched off. Recomputed
+     * when the tag or the hierarchy moves; free when nothing is switched off.
+     */
+    private inactiveEntities_(): { has(entity: Entity): boolean } | null {
+        const storage = this.scripts_.getStorageById(Disabled._id);
+        if (!storage || storage.size === 0) return null;
+        const version = this.queries_.componentVersion(Disabled._id)
+            + this.queries_.componentVersion(Children._id);
+        if (this.inactive_ && this.inactiveVersion_ === version) return this.inactive_.set;
+
+        const set = new Set<Entity>();
+        const walk = (entity: Entity): void => {
+            if (set.has(entity)) return;
+            set.add(entity);
+            if (!this.has(entity, Children)) return;
+            for (const child of (this.get(entity, Children) as ChildrenData).entities) {
+                walk(child as Entity);
+            }
+        };
+        for (const entity of storage.keys()) walk(entity as Entity);
+        this.inactive_ = { set };
+        this.inactiveVersion_ = version;
+        return set;
+    }
+
     private resolveStorages_(
         comps: AnyComponentDef[],
         scriptOut: Map<Entity, unknown>[],
@@ -1093,7 +1126,7 @@ export class World {
 
         return this.queries_.getOrCompute(cacheKey, depIds, () => {
             const entities: Entity[] = [];
-            const off = namesDisabled ? null : this.scripts_.getStorageById(Disabled._id);
+            const off = namesDisabled ? null : this.inactiveEntities_();
 
             const reqScript: Map<Entity, unknown>[] = [];
             const reqBuiltin: BuiltinMethods[] = [];

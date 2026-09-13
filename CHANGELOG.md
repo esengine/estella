@@ -16,6 +16,14 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **The outliner switches an entity off.** Right-click → Disable writes the
+  engine's `Disabled` tag onto that entity, and the row is struck through — the
+  eye beside it means something else, and always did: hiding stops the drawing
+  and leaves the entity in the world. Only the entity the author picked carries
+  the tag; which of its descendants that takes out of the game is derived while
+  it runs, so switching a boss back on cannot un-switch a prop that was switched
+  off on its own. `set_entity_active` is the same door for automation.
+
 - **A disabled entity is actually skipped.** `Disabled`'s doc promised that "the
   engine's systems skip it" and nothing read the tag: `setEntityActive` returned,
   every query went on answering with the entity, and the only record of this was

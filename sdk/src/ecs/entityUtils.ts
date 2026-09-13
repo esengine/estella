@@ -16,7 +16,7 @@
  */
 import type { Entity } from '../types';
 import type { World } from './world';
-import { Children, Disabled, renderableComponents, Transform, type ChildrenData } from './component';
+import { Disabled, renderableComponents, Transform } from './component';
 import { UINode, UIDisplay, type UINodeData } from '../ui/core/ui-node';
 
 /**
@@ -66,27 +66,22 @@ export function isEntityVisible(world: World, entity: Entity): boolean {
 }
 
 /**
- * Switch `entity` and everything under it off, or back on — a character switched
- * off with its sword still swinging is not switched off.
- *
- * Tagged per entity rather than derived from an ancestor, so a query costs one
- * lookup: a subtree RE-PARENTED under a disabled entity needs this called again.
+ * Switch `entity` off, or back on. Everything under it goes with it — a
+ * character switched off with its sword still swinging is not switched off —
+ * and the subtree is DERIVED, so switching the character back on does not
+ * un-switch a sword the author had switched off on its own.
  */
 export function setEntityActive(world: World, entity: Entity, active: boolean): void {
-    const apply = (e: Entity): void => {
-        if (!world.valid(e)) return;
-        if (active) {
-            if (world.has(e, Disabled)) world.remove(e, Disabled);
-        } else if (!world.has(e, Disabled)) {
-            world.insert(e, Disabled, {});
-        }
-        if (!world.has(e, Children)) return;
-        for (const child of (world.get(e, Children) as ChildrenData).entities) apply(child as Entity);
-    };
-    apply(entity);
+    if (!world.valid(entity)) return;
+    if (active) {
+        if (world.has(entity, Disabled)) world.remove(entity, Disabled);
+    } else if (!world.has(entity, Disabled)) {
+        world.insert(entity, Disabled, {});
+    }
 }
 
-/** Whether this entity itself is switched on — see {@link setEntityActive}. */
+/** Whether this entity ITSELF is switched on. An ancestor's switch takes it out
+ *  of every query without changing this — see {@link setEntityActive}. */
 export function isEntityActive(world: World, entity: Entity): boolean {
     return !world.has(entity, Disabled);
 }

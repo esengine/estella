@@ -45,6 +45,12 @@ export class QueryCache {
         this.structuralVersion_++;
     }
 
+    /** A component's current version — for a derived set that has to recompute
+     *  when it moves, without standing up a second invalidation scheme. */
+    componentVersion(componentId: symbol): number {
+        return this.componentVersions_.get(componentId) ?? 0;
+    }
+
     markComponentDirty(componentId: symbol): void {
         const cur = this.componentVersions_.get(componentId) ?? 0;
         this.componentVersions_.set(componentId, cur + 1);
