@@ -130,6 +130,10 @@ export const BLIND = {
     // game reads it and every golden project's layout walks it every frame, but
     // nothing imports the name.
     Children: 'engine-maintained from Parent — walked every frame, named in no import list',
+    // A newer blindness: `exercised` reads a project's TypeScript, and this unit
+    // is what a SCENE writes as `unit: 1`. The one golden project that laid UI
+    // out in code now authors that panel, so the evidence moved out of reach.
+    percent: 'the code spelling of a unit every authored UINode carries — the corpus writes it in scenes, which `exercised` does not read',
     CommandsInstance: RECEIVED,
     EntityCommands: RECEIVED,
     EventReaderInstance: RECEIVED,
