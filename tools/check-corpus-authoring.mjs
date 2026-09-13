@@ -117,15 +117,6 @@ const DISPOSITION = {
 
   // — owed: a creator-facing component nothing in the shipped corpus authors.
   //   Each reason names where the coverage belongs. —
-  UIDialog: ['owed', 'the Create picker builds a Dialog in one click and its own header promises a prefab dialog works "without any code hookup" — ui-controls calls createDialog() from code instead, so the promise has no witness'],
-  UIToggle: ['owed', 'Create > UI > Toggle exists; ui-controls builds toggles with createToggle() and no scene carries one'],
-  UIToggleGroup: ['owed', 'exclusive toggles (tab bar, difficulty picker) sit on the common ancestor — a relationship only an authored hierarchy demonstrates'],
-  UISlider: ['owed', 'ui-controls drives sliders from code; the widget prefab the editor drops has never been in a shipped scene'],
-  UIDropdown: ['owed', 'same picker, same silence — and a dropdown is the widget whose authored structure (list, item template) is hardest to get right from a screenshot'],
-  UIScroll: ['owed', 'no corpus scene scrolls anything; ui-list virtualizes from code'],
-  UIMask: ['owed', 'clipping a subtree is authored geometry, and nothing in the corpus clips one'],
-  TextInput: ['owed', 'chat and rich-text create inputs in code; the editor offers TextInput as a one-click widget that no scene has ever held'],
-  ThemeStyle: ['owed', 'the widget factories mark entities with theme roles so re-theming reaches them; a hand-authored UI gets none of that, and no corpus scene shows how to tag one'],
 
   CapsuleCollider2D: ['owed', 'physics-playground and physics-spinner build capsules in code; the Inspector shape and its gizmo have no authored instance'],
   ChainCollider2D: ['owed', 'physics-spinner builds its chain in code — the one 2D shape whose authored form (a point list) the editor actually has an editing mode for'],

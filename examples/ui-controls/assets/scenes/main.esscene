@@ -35,7 +35,8 @@
       "name": "Canvas",
       "parent": null,
       "children": [
-        2
+        2,
+        44
       ],
       "components": [
         {
@@ -67,10 +68,12 @@
         3,
         4,
         6,
+        20,
         8,
         10,
         12,
-        14
+        14,
+        41
       ],
       "components": [
         {
@@ -81,12 +84,30 @@
           "type": "UINode",
           "data": {
             "position": 1,
-            "width": { "value": 460, "unit": 0 },
-            "height": { "value": 414, "unit": 0 },
-            "insetLeft": { "value": 50, "unit": 1 },
-            "insetTop": { "value": 50, "unit": 1 },
-            "marginLeft": { "value": -230, "unit": 0 },
-            "marginTop": { "value": -207, "unit": 0 }
+            "width": {
+              "value": 460,
+              "unit": 0
+            },
+            "height": {
+              "value": 526,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 50,
+              "unit": 1
+            },
+            "insetTop": {
+              "value": 50,
+              "unit": 1
+            },
+            "marginLeft": {
+              "value": -230,
+              "unit": 0
+            },
+            "marginTop": {
+              "value": -263,
+              "unit": 0
+            }
           }
         },
         {
@@ -95,15 +116,28 @@
             "direction": 1,
             "justifyContent": 0,
             "alignItems": 3,
-            "gap": { "x": 0, "y": 16 },
-            "padding": { "left": 24, "top": 24, "right": 24, "bottom": 24 }
+            "gap": {
+              "x": 0,
+              "y": 16
+            },
+            "padding": {
+              "left": 24,
+              "top": 24,
+              "right": 24,
+              "bottom": 24
+            }
           }
         },
         {
           "type": "UIVisual",
           "data": {
             "visualType": 1,
-            "color": { "r": 0.16, "g": 0.16, "b": 0.18, "a": 1 },
+            "color": {
+              "r": 0.16,
+              "g": 0.16,
+              "b": 0.18,
+              "a": 1
+            },
             "enabled": true
           }
         }
@@ -116,10 +150,18 @@
       "parent": 2,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
+        {
+          "type": "Transform",
+          "data": {}
+        },
         {
           "type": "UINode",
-          "data": { "height": { "value": 30, "unit": 0 } }
+          "data": {
+            "height": {
+              "value": 30,
+              "unit": 0
+            }
+          }
         },
         {
           "type": "Text",
@@ -128,7 +170,12 @@
             "i18nKey": "ui.title",
             "fontSize": 20,
             "bold": true,
-            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
             "align": 0,
             "verticalAlign": 1
           }
@@ -141,17 +188,30 @@
       "name": "ClicksRow",
       "parent": 2,
       "children": [
-        5
+        5,
+        16
       ],
       "components": [
-        { "type": "Transform", "data": {} },
+        {
+          "type": "Transform",
+          "data": {}
+        },
         {
           "type": "UINode",
-          "data": { "height": { "value": 40, "unit": 0 } }
+          "data": {
+            "height": {
+              "value": 40,
+              "unit": 0
+            }
+          }
         },
         {
           "type": "FlexContainer",
-          "data": { "direction": 0, "justifyContent": 3, "alignItems": 1 }
+          "data": {
+            "direction": 0,
+            "justifyContent": 3,
+            "alignItems": 1
+          }
         }
       ],
       "visible": true
@@ -162,17 +222,28 @@
       "parent": 4,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
+        {
+          "type": "Transform",
+          "data": {}
+        },
         {
           "type": "UINode",
-          "data": { "flexGrow": 1, "alignSelf": 4 }
+          "data": {
+            "flexGrow": 1,
+            "alignSelf": 4
+          }
         },
         {
           "type": "Text",
           "data": {
             "content": "Clicks: 0",
             "fontSize": 14,
-            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
             "align": 0,
             "verticalAlign": 1
           }
@@ -185,17 +256,30 @@
       "name": "AnimateRow",
       "parent": 2,
       "children": [
-        7
+        7,
+        18
       ],
       "components": [
-        { "type": "Transform", "data": {} },
+        {
+          "type": "Transform",
+          "data": {}
+        },
         {
           "type": "UINode",
-          "data": { "height": { "value": 40, "unit": 0 } }
+          "data": {
+            "height": {
+              "value": 40,
+              "unit": 0
+            }
+          }
         },
         {
           "type": "FlexContainer",
-          "data": { "direction": 0, "justifyContent": 3, "alignItems": 1 }
+          "data": {
+            "direction": 0,
+            "justifyContent": 3,
+            "alignItems": 1
+          }
         }
       ],
       "visible": true
@@ -206,10 +290,16 @@
       "parent": 6,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
+        {
+          "type": "Transform",
+          "data": {}
+        },
         {
           "type": "UINode",
-          "data": { "flexGrow": 1, "alignSelf": 4 }
+          "data": {
+            "flexGrow": 1,
+            "alignSelf": 4
+          }
         },
         {
           "type": "Text",
@@ -217,7 +307,12 @@
             "content": "Animate",
             "i18nKey": "ui.animate",
             "fontSize": 14,
-            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
             "align": 0,
             "verticalAlign": 1
           }
@@ -230,17 +325,30 @@
       "name": "VolumeRow",
       "parent": 2,
       "children": [
-        9
+        9,
+        32
       ],
       "components": [
-        { "type": "Transform", "data": {} },
+        {
+          "type": "Transform",
+          "data": {}
+        },
         {
           "type": "UINode",
-          "data": { "height": { "value": 40, "unit": 0 } }
+          "data": {
+            "height": {
+              "value": 40,
+              "unit": 0
+            }
+          }
         },
         {
           "type": "FlexContainer",
-          "data": { "direction": 0, "justifyContent": 3, "alignItems": 1 }
+          "data": {
+            "direction": 0,
+            "justifyContent": 3,
+            "alignItems": 1
+          }
         }
       ],
       "visible": true
@@ -251,17 +359,28 @@
       "parent": 8,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
+        {
+          "type": "Transform",
+          "data": {}
+        },
         {
           "type": "UINode",
-          "data": { "flexGrow": 1, "alignSelf": 4 }
+          "data": {
+            "flexGrow": 1,
+            "alignSelf": 4
+          }
         },
         {
           "type": "Text",
           "data": {
             "content": "Volume  60%",
             "fontSize": 14,
-            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
             "align": 0,
             "verticalAlign": 1
           }
@@ -274,17 +393,30 @@
       "name": "LoadingRow",
       "parent": 2,
       "children": [
-        11
+        11,
+        35
       ],
       "components": [
-        { "type": "Transform", "data": {} },
+        {
+          "type": "Transform",
+          "data": {}
+        },
         {
           "type": "UINode",
-          "data": { "height": { "value": 40, "unit": 0 } }
+          "data": {
+            "height": {
+              "value": 40,
+              "unit": 0
+            }
+          }
         },
         {
           "type": "FlexContainer",
-          "data": { "direction": 0, "justifyContent": 3, "alignItems": 1 }
+          "data": {
+            "direction": 0,
+            "justifyContent": 3,
+            "alignItems": 1
+          }
         }
       ],
       "visible": true
@@ -295,10 +427,16 @@
       "parent": 10,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
+        {
+          "type": "Transform",
+          "data": {}
+        },
         {
           "type": "UINode",
-          "data": { "flexGrow": 1, "alignSelf": 4 }
+          "data": {
+            "flexGrow": 1,
+            "alignSelf": 4
+          }
         },
         {
           "type": "Text",
@@ -306,7 +444,12 @@
             "content": "Loading",
             "i18nKey": "ui.loading",
             "fontSize": 14,
-            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
             "align": 0,
             "verticalAlign": 1
           }
@@ -319,17 +462,30 @@
       "name": "ModalRow",
       "parent": 2,
       "children": [
-        13
+        13,
+        37
       ],
       "components": [
-        { "type": "Transform", "data": {} },
+        {
+          "type": "Transform",
+          "data": {}
+        },
         {
           "type": "UINode",
-          "data": { "height": { "value": 40, "unit": 0 } }
+          "data": {
+            "height": {
+              "value": 40,
+              "unit": 0
+            }
+          }
         },
         {
           "type": "FlexContainer",
-          "data": { "direction": 0, "justifyContent": 3, "alignItems": 1 }
+          "data": {
+            "direction": 0,
+            "justifyContent": 3,
+            "alignItems": 1
+          }
         }
       ],
       "visible": true
@@ -340,10 +496,16 @@
       "parent": 12,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
+        {
+          "type": "Transform",
+          "data": {}
+        },
         {
           "type": "UINode",
-          "data": { "flexGrow": 1, "alignSelf": 4 }
+          "data": {
+            "flexGrow": 1,
+            "alignSelf": 4
+          }
         },
         {
           "type": "Text",
@@ -351,7 +513,12 @@
             "content": "Modal",
             "i18nKey": "ui.modal",
             "fontSize": 14,
-            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
             "align": 0,
             "verticalAlign": 1
           }
@@ -364,17 +531,30 @@
       "name": "AccentRow",
       "parent": 2,
       "children": [
-        15
+        15,
+        39
       ],
       "components": [
-        { "type": "Transform", "data": {} },
+        {
+          "type": "Transform",
+          "data": {}
+        },
         {
           "type": "UINode",
-          "data": { "height": { "value": 40, "unit": 0 } }
+          "data": {
+            "height": {
+              "value": 40,
+              "unit": 0
+            }
+          }
         },
         {
           "type": "FlexContainer",
-          "data": { "direction": 0, "justifyContent": 3, "alignItems": 1 }
+          "data": {
+            "direction": 0,
+            "justifyContent": 3,
+            "alignItems": 1
+          }
         }
       ],
       "visible": true
@@ -385,10 +565,16 @@
       "parent": 14,
       "children": [],
       "components": [
-        { "type": "Transform", "data": {} },
+        {
+          "type": "Transform",
+          "data": {}
+        },
         {
           "type": "UINode",
-          "data": { "flexGrow": 1, "alignSelf": 4 }
+          "data": {
+            "flexGrow": 1,
+            "alignSelf": 4
+          }
         },
         {
           "type": "Text",
@@ -396,13 +582,4987 @@
             "content": "Accent",
             "i18nKey": "ui.accent",
             "fontSize": 14,
-            "color": { "r": 1, "g": 1, "b": 1, "a": 1 },
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
             "align": 0,
             "verticalAlign": 1
           }
         }
       ],
       "visible": true
+    },
+    {
+      "id": 16,
+      "name": "ClickButton",
+      "parent": 4,
+      "children": [
+        17
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 0,
+            "display": 0,
+            "opacity": 1,
+            "pointerEvents": 0,
+            "width": {
+              "value": 140,
+              "unit": 0
+            },
+            "height": {
+              "value": 34,
+              "unit": 0
+            },
+            "minWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "minHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "flexGrow": 0,
+            "flexShrink": 1,
+            "flexBasis": {
+              "value": 0,
+              "unit": 2
+            },
+            "alignSelf": 0,
+            "marginLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 2
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "texture": 0,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "fit": 0,
+            "uvOffset": {
+              "x": 0,
+              "y": 0
+            },
+            "uvScale": {
+              "x": 1,
+              "y": 1
+            },
+            "sliceBorder": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 0
+            },
+            "tileSize": {
+              "x": 32,
+              "y": 32
+            },
+            "fillMethod": 0,
+            "fillOrigin": 0,
+            "fillAmount": 1,
+            "material": 0,
+            "enabled": true
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "enabled": true,
+            "blockRaycast": true,
+            "raycastTarget": true
+          }
+        },
+        {
+          "type": "Focusable",
+          "data": {
+            "tabIndex": 0,
+            "isFocused": false
+          }
+        },
+        {
+          "type": "UIController",
+          "data": {
+            "controllers": [
+              {
+                "name": "$interaction",
+                "pages": [
+                  "normal",
+                  "hover",
+                  "pressed",
+                  "disabled",
+                  "focused"
+                ],
+                "current": "normal"
+              }
+            ]
+          }
+        },
+        {
+          "type": "UIGear",
+          "data": {
+            "bindings": [
+              {
+                "controller": "$interaction",
+                "component": "UIVisual",
+                "property": "color",
+                "pages": {
+                  "normal": {
+                    "r": 0.22,
+                    "g": 0.22,
+                    "b": 0.26,
+                    "a": 1
+                  },
+                  "hover": {
+                    "r": 0.28,
+                    "g": 0.28,
+                    "b": 0.32,
+                    "a": 1
+                  },
+                  "pressed": {
+                    "r": 0.18,
+                    "g": 0.18,
+                    "b": 0.22,
+                    "a": 1
+                  },
+                  "disabled": {
+                    "r": 0.22,
+                    "g": 0.22,
+                    "b": 0.26,
+                    "a": 0.5
+                  },
+                  "focused": {
+                    "r": 0.3,
+                    "g": 0.34,
+                    "b": 0.44,
+                    "a": 1
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "states": {
+              "normal": "control",
+              "hover": "controlHover",
+              "pressed": "controlActive",
+              "disabled": "control",
+              "focused": "controlFocus"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "name": "ClickButtonLabel",
+      "parent": 16,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "display": 0,
+            "opacity": 1,
+            "pointerEvents": 0,
+            "width": {
+              "value": 0,
+              "unit": 2
+            },
+            "height": {
+              "value": 0,
+              "unit": 2
+            },
+            "minWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "minHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "flexGrow": 0,
+            "flexShrink": 1,
+            "flexBasis": {
+              "value": 0,
+              "unit": 2
+            },
+            "alignSelf": 0,
+            "marginLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Click me",
+            "i18nKey": "",
+            "font": 0,
+            "fontFamily": "",
+            "fontSize": 14,
+            "color": {
+              "r": 0.92,
+              "g": 0.92,
+              "b": 0.94,
+              "a": 1
+            },
+            "align": 1,
+            "verticalAlign": 1,
+            "wordWrap": false,
+            "overflow": 0,
+            "lineHeight": 1.2,
+            "bold": false,
+            "italic": false,
+            "strokeColor": {
+              "r": 0,
+              "g": 0,
+              "b": 0,
+              "a": 1
+            },
+            "strokeWidth": 0,
+            "shadowColor": {
+              "r": 0,
+              "g": 0,
+              "b": 0,
+              "a": 1
+            },
+            "shadowBlur": 0,
+            "shadowOffsetX": 0,
+            "shadowOffsetY": 0,
+            "richText": false,
+            "renderMode": 0,
+            "layer": 0,
+            "enabled": true
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "text": "text"
+          }
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "name": "AnimateToggle",
+      "parent": 6,
+      "children": [
+        19
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 0,
+            "display": 0,
+            "opacity": 1,
+            "pointerEvents": 0,
+            "width": {
+              "value": 28,
+              "unit": 0
+            },
+            "height": {
+              "value": 28,
+              "unit": 0
+            },
+            "minWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "minHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "flexGrow": 0,
+            "flexShrink": 1,
+            "flexBasis": {
+              "value": 0,
+              "unit": 2
+            },
+            "alignSelf": 0,
+            "marginLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 2
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "texture": 0,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "fit": 0,
+            "uvOffset": {
+              "x": 0,
+              "y": 0
+            },
+            "uvScale": {
+              "x": 1,
+              "y": 1
+            },
+            "sliceBorder": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 0
+            },
+            "tileSize": {
+              "x": 32,
+              "y": 32
+            },
+            "fillMethod": 0,
+            "fillOrigin": 0,
+            "fillAmount": 1,
+            "material": 0,
+            "enabled": true
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "enabled": true,
+            "blockRaycast": true,
+            "raycastTarget": true
+          }
+        },
+        {
+          "type": "Focusable",
+          "data": {
+            "tabIndex": 0,
+            "isFocused": false
+          }
+        },
+        {
+          "type": "UIController",
+          "data": {
+            "controllers": [
+              {
+                "name": "$interaction",
+                "pages": [
+                  "normal",
+                  "hover",
+                  "pressed",
+                  "disabled",
+                  "focused"
+                ],
+                "current": "normal"
+              }
+            ]
+          }
+        },
+        {
+          "type": "UIGear",
+          "data": {
+            "bindings": [
+              {
+                "controller": "$interaction",
+                "component": "UIVisual",
+                "property": "color",
+                "pages": {
+                  "normal": {
+                    "r": 0.22,
+                    "g": 0.22,
+                    "b": 0.26,
+                    "a": 1
+                  },
+                  "hover": {
+                    "r": 0.28,
+                    "g": 0.28,
+                    "b": 0.32,
+                    "a": 1
+                  },
+                  "pressed": {
+                    "r": 0.18,
+                    "g": 0.18,
+                    "b": 0.22,
+                    "a": 1
+                  },
+                  "disabled": {
+                    "r": 0.22,
+                    "g": 0.22,
+                    "b": 0.26,
+                    "a": 0.5
+                  },
+                  "focused": {
+                    "r": 0.3,
+                    "g": 0.34,
+                    "b": 0.44,
+                    "a": 1
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "states": {
+              "normal": "control",
+              "hover": "controlHover",
+              "pressed": "controlActive",
+              "disabled": "control",
+              "focused": "controlFocus"
+            }
+          }
+        },
+        {
+          "type": "UIToggle",
+          "data": {
+            "isOn": true,
+            "check": 19
+          }
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "name": "AnimateToggleNode",
+      "parent": 18,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "display": 0,
+            "opacity": 1,
+            "pointerEvents": 0,
+            "width": {
+              "value": 0,
+              "unit": 2
+            },
+            "height": {
+              "value": 0,
+              "unit": 2
+            },
+            "minWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "minHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "flexGrow": 0,
+            "flexShrink": 1,
+            "flexBasis": {
+              "value": 0,
+              "unit": 2
+            },
+            "alignSelf": 0,
+            "marginLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "texture": 0,
+            "color": {
+              "r": 0.25,
+              "g": 0.56,
+              "b": 0.96,
+              "a": 1
+            },
+            "fit": 0,
+            "uvOffset": {
+              "x": 0,
+              "y": 0
+            },
+            "uvScale": {
+              "x": 1,
+              "y": 1
+            },
+            "sliceBorder": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 0
+            },
+            "tileSize": {
+              "x": 32,
+              "y": 32
+            },
+            "fillMethod": 0,
+            "fillOrigin": 0,
+            "fillAmount": 1,
+            "material": 0,
+            "enabled": true
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "visual": "primary"
+          }
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "name": "DifficultyRow",
+      "parent": 2,
+      "children": [
+        21,
+        22
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "height": {
+              "value": 40,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "FlexContainer",
+          "data": {
+            "direction": 0,
+            "justifyContent": 3,
+            "alignItems": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "name": "DifficultyLabel",
+      "parent": 20,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "flexGrow": 1,
+            "alignSelf": 4
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Difficulty: Normal",
+            "fontSize": 14,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "align": 0,
+            "verticalAlign": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "name": "DifficultyGroup",
+      "parent": 20,
+      "children": [
+        23,
+        25,
+        26,
+        28,
+        29,
+        31
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "width": {
+              "value": 250,
+              "unit": 0
+            },
+            "height": {
+              "value": 28,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "FlexContainer",
+          "data": {
+            "direction": 0,
+            "justifyContent": 2,
+            "alignItems": 1,
+            "gap": {
+              "x": 6,
+              "y": 0
+            }
+          }
+        },
+        {
+          "type": "UIToggleGroup",
+          "data": {
+            "allowSwitchOff": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "name": "EasyToggle",
+      "parent": 22,
+      "children": [
+        24
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 0,
+            "display": 0,
+            "opacity": 1,
+            "pointerEvents": 0,
+            "width": {
+              "value": 28,
+              "unit": 0
+            },
+            "height": {
+              "value": 28,
+              "unit": 0
+            },
+            "minWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "minHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "flexGrow": 0,
+            "flexShrink": 1,
+            "flexBasis": {
+              "value": 0,
+              "unit": 2
+            },
+            "alignSelf": 0,
+            "marginLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 2
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "texture": 0,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "fit": 0,
+            "uvOffset": {
+              "x": 0,
+              "y": 0
+            },
+            "uvScale": {
+              "x": 1,
+              "y": 1
+            },
+            "sliceBorder": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 0
+            },
+            "tileSize": {
+              "x": 32,
+              "y": 32
+            },
+            "fillMethod": 0,
+            "fillOrigin": 0,
+            "fillAmount": 1,
+            "material": 0,
+            "enabled": true
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "enabled": true,
+            "blockRaycast": true,
+            "raycastTarget": true
+          }
+        },
+        {
+          "type": "Focusable",
+          "data": {
+            "tabIndex": 0,
+            "isFocused": false
+          }
+        },
+        {
+          "type": "UIController",
+          "data": {
+            "controllers": [
+              {
+                "name": "$interaction",
+                "pages": [
+                  "normal",
+                  "hover",
+                  "pressed",
+                  "disabled",
+                  "focused"
+                ],
+                "current": "normal"
+              }
+            ]
+          }
+        },
+        {
+          "type": "UIGear",
+          "data": {
+            "bindings": [
+              {
+                "controller": "$interaction",
+                "component": "UIVisual",
+                "property": "color",
+                "pages": {
+                  "normal": {
+                    "r": 0.22,
+                    "g": 0.22,
+                    "b": 0.26,
+                    "a": 1
+                  },
+                  "hover": {
+                    "r": 0.28,
+                    "g": 0.28,
+                    "b": 0.32,
+                    "a": 1
+                  },
+                  "pressed": {
+                    "r": 0.18,
+                    "g": 0.18,
+                    "b": 0.22,
+                    "a": 1
+                  },
+                  "disabled": {
+                    "r": 0.22,
+                    "g": 0.22,
+                    "b": 0.26,
+                    "a": 0.5
+                  },
+                  "focused": {
+                    "r": 0.3,
+                    "g": 0.34,
+                    "b": 0.44,
+                    "a": 1
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "states": {
+              "normal": "control",
+              "hover": "controlHover",
+              "pressed": "controlActive",
+              "disabled": "control",
+              "focused": "controlFocus"
+            }
+          }
+        },
+        {
+          "type": "UIToggle",
+          "data": {
+            "isOn": false,
+            "check": 24
+          }
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "name": "EasyToggleNode",
+      "parent": 23,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "display": 0,
+            "opacity": 1,
+            "pointerEvents": 0,
+            "width": {
+              "value": 0,
+              "unit": 2
+            },
+            "height": {
+              "value": 0,
+              "unit": 2
+            },
+            "minWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "minHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "flexGrow": 0,
+            "flexShrink": 1,
+            "flexBasis": {
+              "value": 0,
+              "unit": 2
+            },
+            "alignSelf": 0,
+            "marginLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "texture": 0,
+            "color": {
+              "r": 0.25,
+              "g": 0.56,
+              "b": 0.96,
+              "a": 1
+            },
+            "fit": 0,
+            "uvOffset": {
+              "x": 0,
+              "y": 0
+            },
+            "uvScale": {
+              "x": 1,
+              "y": 1
+            },
+            "sliceBorder": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 0
+            },
+            "tileSize": {
+              "x": 32,
+              "y": 32
+            },
+            "fillMethod": 0,
+            "fillOrigin": 0,
+            "fillAmount": 1,
+            "material": 0,
+            "enabled": true
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "visual": "primary"
+          }
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "name": "EasyText",
+      "parent": 22,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "width": {
+              "value": 52,
+              "unit": 0
+            },
+            "alignSelf": 4
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Easy",
+            "fontSize": 12,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "align": 0,
+            "verticalAlign": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "name": "NormalToggle",
+      "parent": 22,
+      "children": [
+        27
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 0,
+            "display": 0,
+            "opacity": 1,
+            "pointerEvents": 0,
+            "width": {
+              "value": 28,
+              "unit": 0
+            },
+            "height": {
+              "value": 28,
+              "unit": 0
+            },
+            "minWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "minHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "flexGrow": 0,
+            "flexShrink": 1,
+            "flexBasis": {
+              "value": 0,
+              "unit": 2
+            },
+            "alignSelf": 0,
+            "marginLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 2
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "texture": 0,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "fit": 0,
+            "uvOffset": {
+              "x": 0,
+              "y": 0
+            },
+            "uvScale": {
+              "x": 1,
+              "y": 1
+            },
+            "sliceBorder": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 0
+            },
+            "tileSize": {
+              "x": 32,
+              "y": 32
+            },
+            "fillMethod": 0,
+            "fillOrigin": 0,
+            "fillAmount": 1,
+            "material": 0,
+            "enabled": true
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "enabled": true,
+            "blockRaycast": true,
+            "raycastTarget": true
+          }
+        },
+        {
+          "type": "Focusable",
+          "data": {
+            "tabIndex": 0,
+            "isFocused": false
+          }
+        },
+        {
+          "type": "UIController",
+          "data": {
+            "controllers": [
+              {
+                "name": "$interaction",
+                "pages": [
+                  "normal",
+                  "hover",
+                  "pressed",
+                  "disabled",
+                  "focused"
+                ],
+                "current": "normal"
+              }
+            ]
+          }
+        },
+        {
+          "type": "UIGear",
+          "data": {
+            "bindings": [
+              {
+                "controller": "$interaction",
+                "component": "UIVisual",
+                "property": "color",
+                "pages": {
+                  "normal": {
+                    "r": 0.22,
+                    "g": 0.22,
+                    "b": 0.26,
+                    "a": 1
+                  },
+                  "hover": {
+                    "r": 0.28,
+                    "g": 0.28,
+                    "b": 0.32,
+                    "a": 1
+                  },
+                  "pressed": {
+                    "r": 0.18,
+                    "g": 0.18,
+                    "b": 0.22,
+                    "a": 1
+                  },
+                  "disabled": {
+                    "r": 0.22,
+                    "g": 0.22,
+                    "b": 0.26,
+                    "a": 0.5
+                  },
+                  "focused": {
+                    "r": 0.3,
+                    "g": 0.34,
+                    "b": 0.44,
+                    "a": 1
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "states": {
+              "normal": "control",
+              "hover": "controlHover",
+              "pressed": "controlActive",
+              "disabled": "control",
+              "focused": "controlFocus"
+            }
+          }
+        },
+        {
+          "type": "UIToggle",
+          "data": {
+            "isOn": true,
+            "check": 27
+          }
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "name": "NormalToggleNode",
+      "parent": 26,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "display": 0,
+            "opacity": 1,
+            "pointerEvents": 0,
+            "width": {
+              "value": 0,
+              "unit": 2
+            },
+            "height": {
+              "value": 0,
+              "unit": 2
+            },
+            "minWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "minHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "flexGrow": 0,
+            "flexShrink": 1,
+            "flexBasis": {
+              "value": 0,
+              "unit": 2
+            },
+            "alignSelf": 0,
+            "marginLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "texture": 0,
+            "color": {
+              "r": 0.25,
+              "g": 0.56,
+              "b": 0.96,
+              "a": 1
+            },
+            "fit": 0,
+            "uvOffset": {
+              "x": 0,
+              "y": 0
+            },
+            "uvScale": {
+              "x": 1,
+              "y": 1
+            },
+            "sliceBorder": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 0
+            },
+            "tileSize": {
+              "x": 32,
+              "y": 32
+            },
+            "fillMethod": 0,
+            "fillOrigin": 0,
+            "fillAmount": 1,
+            "material": 0,
+            "enabled": true
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "visual": "primary"
+          }
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "name": "NormalText",
+      "parent": 22,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "width": {
+              "value": 52,
+              "unit": 0
+            },
+            "alignSelf": 4
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Normal",
+            "fontSize": 12,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "align": 0,
+            "verticalAlign": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "name": "HardToggle",
+      "parent": 22,
+      "children": [
+        30
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 0,
+            "display": 0,
+            "opacity": 1,
+            "pointerEvents": 0,
+            "width": {
+              "value": 28,
+              "unit": 0
+            },
+            "height": {
+              "value": 28,
+              "unit": 0
+            },
+            "minWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "minHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "flexGrow": 0,
+            "flexShrink": 1,
+            "flexBasis": {
+              "value": 0,
+              "unit": 2
+            },
+            "alignSelf": 0,
+            "marginLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 2
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "texture": 0,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "fit": 0,
+            "uvOffset": {
+              "x": 0,
+              "y": 0
+            },
+            "uvScale": {
+              "x": 1,
+              "y": 1
+            },
+            "sliceBorder": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 0
+            },
+            "tileSize": {
+              "x": 32,
+              "y": 32
+            },
+            "fillMethod": 0,
+            "fillOrigin": 0,
+            "fillAmount": 1,
+            "material": 0,
+            "enabled": true
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "enabled": true,
+            "blockRaycast": true,
+            "raycastTarget": true
+          }
+        },
+        {
+          "type": "Focusable",
+          "data": {
+            "tabIndex": 0,
+            "isFocused": false
+          }
+        },
+        {
+          "type": "UIController",
+          "data": {
+            "controllers": [
+              {
+                "name": "$interaction",
+                "pages": [
+                  "normal",
+                  "hover",
+                  "pressed",
+                  "disabled",
+                  "focused"
+                ],
+                "current": "normal"
+              }
+            ]
+          }
+        },
+        {
+          "type": "UIGear",
+          "data": {
+            "bindings": [
+              {
+                "controller": "$interaction",
+                "component": "UIVisual",
+                "property": "color",
+                "pages": {
+                  "normal": {
+                    "r": 0.22,
+                    "g": 0.22,
+                    "b": 0.26,
+                    "a": 1
+                  },
+                  "hover": {
+                    "r": 0.28,
+                    "g": 0.28,
+                    "b": 0.32,
+                    "a": 1
+                  },
+                  "pressed": {
+                    "r": 0.18,
+                    "g": 0.18,
+                    "b": 0.22,
+                    "a": 1
+                  },
+                  "disabled": {
+                    "r": 0.22,
+                    "g": 0.22,
+                    "b": 0.26,
+                    "a": 0.5
+                  },
+                  "focused": {
+                    "r": 0.3,
+                    "g": 0.34,
+                    "b": 0.44,
+                    "a": 1
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "states": {
+              "normal": "control",
+              "hover": "controlHover",
+              "pressed": "controlActive",
+              "disabled": "control",
+              "focused": "controlFocus"
+            }
+          }
+        },
+        {
+          "type": "UIToggle",
+          "data": {
+            "isOn": false,
+            "check": 30
+          }
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "name": "HardToggleNode",
+      "parent": 29,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "display": 0,
+            "opacity": 1,
+            "pointerEvents": 0,
+            "width": {
+              "value": 0,
+              "unit": 2
+            },
+            "height": {
+              "value": 0,
+              "unit": 2
+            },
+            "minWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "minHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "flexGrow": 0,
+            "flexShrink": 1,
+            "flexBasis": {
+              "value": 0,
+              "unit": 2
+            },
+            "alignSelf": 0,
+            "marginLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "texture": 0,
+            "color": {
+              "r": 0.25,
+              "g": 0.56,
+              "b": 0.96,
+              "a": 1
+            },
+            "fit": 0,
+            "uvOffset": {
+              "x": 0,
+              "y": 0
+            },
+            "uvScale": {
+              "x": 1,
+              "y": 1
+            },
+            "sliceBorder": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 0
+            },
+            "tileSize": {
+              "x": 32,
+              "y": 32
+            },
+            "fillMethod": 0,
+            "fillOrigin": 0,
+            "fillAmount": 1,
+            "material": 0,
+            "enabled": true
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "visual": "primary"
+          }
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "name": "HardText",
+      "parent": 22,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "width": {
+              "value": 52,
+              "unit": 0
+            },
+            "alignSelf": 4
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Hard",
+            "fontSize": 12,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "align": 0,
+            "verticalAlign": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": 32,
+      "name": "VolumeSlider",
+      "parent": 8,
+      "children": [
+        34,
+        33
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 0,
+            "display": 0,
+            "opacity": 1,
+            "pointerEvents": 0,
+            "width": {
+              "value": 244,
+              "unit": 0
+            },
+            "height": {
+              "value": 18,
+              "unit": 0
+            },
+            "minWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "minHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "flexGrow": 0,
+            "flexShrink": 1,
+            "flexBasis": {
+              "value": 0,
+              "unit": 2
+            },
+            "alignSelf": 0,
+            "marginLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 2
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "texture": 0,
+            "color": {
+              "r": 0.15,
+              "g": 0.15,
+              "b": 0.15,
+              "a": 1
+            },
+            "fit": 0,
+            "uvOffset": {
+              "x": 0,
+              "y": 0
+            },
+            "uvScale": {
+              "x": 1,
+              "y": 1
+            },
+            "sliceBorder": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 0
+            },
+            "tileSize": {
+              "x": 32,
+              "y": 32
+            },
+            "fillMethod": 0,
+            "fillOrigin": 0,
+            "fillAmount": 1,
+            "material": 0,
+            "enabled": true
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "visual": "track"
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "enabled": true,
+            "blockRaycast": true,
+            "raycastTarget": true
+          }
+        },
+        {
+          "type": "Focusable",
+          "data": {
+            "tabIndex": 0,
+            "isFocused": false
+          }
+        },
+        {
+          "type": "UISlider",
+          "data": {
+            "min": 0,
+            "max": 100,
+            "step": 1,
+            "value": 60,
+            "fill": 34,
+            "handle": 33
+          }
+        }
+      ]
+    },
+    {
+      "id": 33,
+      "name": "VolumeSliderHandle",
+      "parent": 32,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "display": 0,
+            "opacity": 1,
+            "pointerEvents": 0,
+            "width": {
+              "value": 14,
+              "unit": 0
+            },
+            "height": {
+              "value": 0,
+              "unit": 2
+            },
+            "minWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "minHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "flexGrow": 0,
+            "flexShrink": 1,
+            "flexBasis": {
+              "value": 0,
+              "unit": 2
+            },
+            "alignSelf": 0,
+            "marginLeft": {
+              "value": -7,
+              "unit": 0
+            },
+            "marginTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 50,
+              "unit": 1
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "texture": 0,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "fit": 0,
+            "uvOffset": {
+              "x": 0,
+              "y": 0
+            },
+            "uvScale": {
+              "x": 1,
+              "y": 1
+            },
+            "sliceBorder": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 0
+            },
+            "tileSize": {
+              "x": 32,
+              "y": 32
+            },
+            "fillMethod": 0,
+            "fillOrigin": 0,
+            "fillAmount": 1,
+            "material": 0,
+            "enabled": true
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "visual": "onPrimary"
+          }
+        }
+      ]
+    },
+    {
+      "id": 34,
+      "name": "VolumeSliderFill",
+      "parent": 32,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "display": 0,
+            "opacity": 1,
+            "pointerEvents": 0,
+            "width": {
+              "value": 0,
+              "unit": 2
+            },
+            "height": {
+              "value": 0,
+              "unit": 2
+            },
+            "minWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "minHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "flexGrow": 0,
+            "flexShrink": 1,
+            "flexBasis": {
+              "value": 0,
+              "unit": 2
+            },
+            "alignSelf": 0,
+            "marginLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 5,
+            "texture": 0,
+            "color": {
+              "r": 0.25,
+              "g": 0.56,
+              "b": 0.96,
+              "a": 1
+            },
+            "fit": 0,
+            "uvOffset": {
+              "x": 0,
+              "y": 0
+            },
+            "uvScale": {
+              "x": 1,
+              "y": 1
+            },
+            "sliceBorder": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 0
+            },
+            "tileSize": {
+              "x": 32,
+              "y": 32
+            },
+            "fillMethod": 0,
+            "fillOrigin": 0,
+            "fillAmount": 0.5,
+            "material": 0,
+            "enabled": true
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "visual": "primary"
+          }
+        }
+      ]
+    },
+    {
+      "id": 35,
+      "name": "LoadingBar",
+      "parent": 10,
+      "children": [
+        36
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 0,
+            "display": 0,
+            "opacity": 1,
+            "pointerEvents": 0,
+            "width": {
+              "value": 244,
+              "unit": 0
+            },
+            "height": {
+              "value": 14,
+              "unit": 0
+            },
+            "minWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "minHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "flexGrow": 0,
+            "flexShrink": 1,
+            "flexBasis": {
+              "value": 0,
+              "unit": 2
+            },
+            "alignSelf": 0,
+            "marginLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 2
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "texture": 0,
+            "color": {
+              "r": 0.15,
+              "g": 0.15,
+              "b": 0.15,
+              "a": 1
+            },
+            "fit": 0,
+            "uvOffset": {
+              "x": 0,
+              "y": 0
+            },
+            "uvScale": {
+              "x": 1,
+              "y": 1
+            },
+            "sliceBorder": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 0
+            },
+            "tileSize": {
+              "x": 32,
+              "y": 32
+            },
+            "fillMethod": 0,
+            "fillOrigin": 0,
+            "fillAmount": 1,
+            "material": 0,
+            "enabled": true
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "visual": "track"
+          }
+        }
+      ]
+    },
+    {
+      "id": 36,
+      "name": "LoadingBarFill",
+      "parent": 35,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "display": 0,
+            "opacity": 1,
+            "pointerEvents": 0,
+            "width": {
+              "value": 0,
+              "unit": 2
+            },
+            "height": {
+              "value": 0,
+              "unit": 2
+            },
+            "minWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "minHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "flexGrow": 0,
+            "flexShrink": 1,
+            "flexBasis": {
+              "value": 0,
+              "unit": 2
+            },
+            "alignSelf": 0,
+            "marginLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 5,
+            "texture": 0,
+            "color": {
+              "r": 0.25,
+              "g": 0.56,
+              "b": 0.96,
+              "a": 1
+            },
+            "fit": 0,
+            "uvOffset": {
+              "x": 0,
+              "y": 0
+            },
+            "uvScale": {
+              "x": 1,
+              "y": 1
+            },
+            "sliceBorder": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 0
+            },
+            "tileSize": {
+              "x": 32,
+              "y": 32
+            },
+            "fillMethod": 0,
+            "fillOrigin": 0,
+            "fillAmount": 0.4,
+            "material": 0,
+            "enabled": true
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "visual": "primary"
+          }
+        }
+      ]
+    },
+    {
+      "id": 37,
+      "name": "ModalButton",
+      "parent": 12,
+      "children": [
+        38
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 0,
+            "display": 0,
+            "opacity": 1,
+            "pointerEvents": 0,
+            "width": {
+              "value": 140,
+              "unit": 0
+            },
+            "height": {
+              "value": 34,
+              "unit": 0
+            },
+            "minWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "minHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "flexGrow": 0,
+            "flexShrink": 1,
+            "flexBasis": {
+              "value": 0,
+              "unit": 2
+            },
+            "alignSelf": 0,
+            "marginLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 2
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "texture": 0,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "fit": 0,
+            "uvOffset": {
+              "x": 0,
+              "y": 0
+            },
+            "uvScale": {
+              "x": 1,
+              "y": 1
+            },
+            "sliceBorder": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 0
+            },
+            "tileSize": {
+              "x": 32,
+              "y": 32
+            },
+            "fillMethod": 0,
+            "fillOrigin": 0,
+            "fillAmount": 1,
+            "material": 0,
+            "enabled": true
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "enabled": true,
+            "blockRaycast": true,
+            "raycastTarget": true
+          }
+        },
+        {
+          "type": "Focusable",
+          "data": {
+            "tabIndex": 0,
+            "isFocused": false
+          }
+        },
+        {
+          "type": "UIController",
+          "data": {
+            "controllers": [
+              {
+                "name": "$interaction",
+                "pages": [
+                  "normal",
+                  "hover",
+                  "pressed",
+                  "disabled",
+                  "focused"
+                ],
+                "current": "normal"
+              }
+            ]
+          }
+        },
+        {
+          "type": "UIGear",
+          "data": {
+            "bindings": [
+              {
+                "controller": "$interaction",
+                "component": "UIVisual",
+                "property": "color",
+                "pages": {
+                  "normal": {
+                    "r": 0.22,
+                    "g": 0.22,
+                    "b": 0.26,
+                    "a": 1
+                  },
+                  "hover": {
+                    "r": 0.28,
+                    "g": 0.28,
+                    "b": 0.32,
+                    "a": 1
+                  },
+                  "pressed": {
+                    "r": 0.18,
+                    "g": 0.18,
+                    "b": 0.22,
+                    "a": 1
+                  },
+                  "disabled": {
+                    "r": 0.22,
+                    "g": 0.22,
+                    "b": 0.26,
+                    "a": 0.5
+                  },
+                  "focused": {
+                    "r": 0.3,
+                    "g": 0.34,
+                    "b": 0.44,
+                    "a": 1
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "states": {
+              "normal": "control",
+              "hover": "controlHover",
+              "pressed": "controlActive",
+              "disabled": "control",
+              "focused": "controlFocus"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 38,
+      "name": "ModalButtonLabel",
+      "parent": 37,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "display": 0,
+            "opacity": 1,
+            "pointerEvents": 0,
+            "width": {
+              "value": 0,
+              "unit": 2
+            },
+            "height": {
+              "value": 0,
+              "unit": 2
+            },
+            "minWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "minHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "flexGrow": 0,
+            "flexShrink": 1,
+            "flexBasis": {
+              "value": 0,
+              "unit": 2
+            },
+            "alignSelf": 0,
+            "marginLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Open…",
+            "i18nKey": "",
+            "font": 0,
+            "fontFamily": "",
+            "fontSize": 14,
+            "color": {
+              "r": 0.92,
+              "g": 0.92,
+              "b": 0.94,
+              "a": 1
+            },
+            "align": 1,
+            "verticalAlign": 1,
+            "wordWrap": false,
+            "overflow": 0,
+            "lineHeight": 1.2,
+            "bold": false,
+            "italic": false,
+            "strokeColor": {
+              "r": 0,
+              "g": 0,
+              "b": 0,
+              "a": 1
+            },
+            "strokeWidth": 0,
+            "shadowColor": {
+              "r": 0,
+              "g": 0,
+              "b": 0,
+              "a": 1
+            },
+            "shadowBlur": 0,
+            "shadowOffsetX": 0,
+            "shadowOffsetY": 0,
+            "richText": false,
+            "renderMode": 0,
+            "layer": 0,
+            "enabled": true
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "text": "text"
+          }
+        }
+      ]
+    },
+    {
+      "id": 39,
+      "name": "AccentDropdown",
+      "parent": 14,
+      "children": [
+        40
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 0,
+            "display": 0,
+            "opacity": 1,
+            "pointerEvents": 0,
+            "width": {
+              "value": 150,
+              "unit": 0
+            },
+            "height": {
+              "value": 34,
+              "unit": 0
+            },
+            "minWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "minHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "flexGrow": 0,
+            "flexShrink": 1,
+            "flexBasis": {
+              "value": 0,
+              "unit": 2
+            },
+            "alignSelf": 0,
+            "marginLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 2
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "texture": 0,
+            "color": {
+              "r": 0.22,
+              "g": 0.22,
+              "b": 0.26,
+              "a": 1
+            },
+            "fit": 0,
+            "uvOffset": {
+              "x": 0,
+              "y": 0
+            },
+            "uvScale": {
+              "x": 1,
+              "y": 1
+            },
+            "sliceBorder": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 0
+            },
+            "tileSize": {
+              "x": 32,
+              "y": 32
+            },
+            "fillMethod": 0,
+            "fillOrigin": 0,
+            "fillAmount": 1,
+            "material": 0,
+            "enabled": true
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "enabled": true,
+            "blockRaycast": true,
+            "raycastTarget": true
+          }
+        },
+        {
+          "type": "Focusable",
+          "data": {
+            "tabIndex": 0,
+            "isFocused": false
+          }
+        },
+        {
+          "type": "UIController",
+          "data": {
+            "controllers": [
+              {
+                "name": "$interaction",
+                "pages": [
+                  "normal",
+                  "hover",
+                  "pressed"
+                ],
+                "current": "normal"
+              }
+            ]
+          }
+        },
+        {
+          "type": "UIGear",
+          "data": {
+            "bindings": [
+              {
+                "controller": "$interaction",
+                "component": "UIVisual",
+                "property": "color",
+                "pages": {
+                  "normal": {
+                    "r": 0.22,
+                    "g": 0.22,
+                    "b": 0.26,
+                    "a": 1
+                  },
+                  "hover": {
+                    "r": 0.28,
+                    "g": 0.28,
+                    "b": 0.32,
+                    "a": 1
+                  },
+                  "pressed": {
+                    "r": 0.18,
+                    "g": 0.18,
+                    "b": 0.22,
+                    "a": 1
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "states": {
+              "normal": "control",
+              "hover": "controlHover",
+              "pressed": "controlActive"
+            }
+          }
+        },
+        {
+          "type": "UIDropdown",
+          "data": {
+            "options": [
+              "Azure",
+              "Emerald",
+              "Amber",
+              "Rose"
+            ],
+            "selectedIndex": 0,
+            "optionHeight": 30,
+            "label": 40
+          }
+        }
+      ]
+    },
+    {
+      "id": 40,
+      "name": "AccentDropdownLabel",
+      "parent": 39,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "display": 0,
+            "opacity": 1,
+            "pointerEvents": 0,
+            "width": {
+              "value": 0,
+              "unit": 2
+            },
+            "height": {
+              "value": 0,
+              "unit": 2
+            },
+            "minWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "minHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "flexGrow": 0,
+            "flexShrink": 1,
+            "flexBasis": {
+              "value": 0,
+              "unit": 2
+            },
+            "alignSelf": 0,
+            "marginLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Azure",
+            "i18nKey": "",
+            "font": 0,
+            "fontFamily": "",
+            "fontSize": 14,
+            "color": {
+              "r": 0.92,
+              "g": 0.92,
+              "b": 0.94,
+              "a": 1
+            },
+            "align": 1,
+            "verticalAlign": 1,
+            "wordWrap": false,
+            "overflow": 0,
+            "lineHeight": 1.2,
+            "bold": false,
+            "italic": false,
+            "strokeColor": {
+              "r": 0,
+              "g": 0,
+              "b": 0,
+              "a": 1
+            },
+            "strokeWidth": 0,
+            "shadowColor": {
+              "r": 0,
+              "g": 0,
+              "b": 0,
+              "a": 1
+            },
+            "shadowBlur": 0,
+            "shadowOffsetX": 0,
+            "shadowOffsetY": 0,
+            "richText": false,
+            "renderMode": 0,
+            "layer": 0,
+            "enabled": true
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "text": "text"
+          }
+        }
+      ]
+    },
+    {
+      "id": 41,
+      "name": "NameRow",
+      "parent": 2,
+      "children": [
+        42,
+        43
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "height": {
+              "value": 40,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "FlexContainer",
+          "data": {
+            "direction": 0,
+            "justifyContent": 3,
+            "alignItems": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": 42,
+      "name": "NameLabel",
+      "parent": 41,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "flexGrow": 1,
+            "alignSelf": 4
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Name",
+            "fontSize": 14,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "align": 0,
+            "verticalAlign": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": 43,
+      "name": "NameField",
+      "parent": 41,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 0,
+            "display": 0,
+            "opacity": 1,
+            "pointerEvents": 0,
+            "width": {
+              "value": 244,
+              "unit": 0
+            },
+            "height": {
+              "value": 32,
+              "unit": 0
+            },
+            "minWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "minHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "flexGrow": 0,
+            "flexShrink": 1,
+            "flexBasis": {
+              "value": 0,
+              "unit": 2
+            },
+            "alignSelf": 0,
+            "marginLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 2
+            }
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "enabled": true,
+            "blockRaycast": true,
+            "raycastTarget": true
+          }
+        },
+        {
+          "type": "Focusable",
+          "data": {
+            "tabIndex": 0,
+            "isFocused": false
+          }
+        },
+        {
+          "type": "TextInput",
+          "data": {
+            "value": "",
+            "placeholder": "Your name",
+            "placeholderColor": {
+              "r": 0.92,
+              "g": 0.92,
+              "b": 0.94,
+              "a": 0.5
+            },
+            "fontFamily": "",
+            "fontSize": 14,
+            "color": {
+              "r": 0.92,
+              "g": 0.92,
+              "b": 0.94,
+              "a": 1
+            },
+            "backgroundColor": {
+              "r": 0.22,
+              "g": 0.22,
+              "b": 0.26,
+              "a": 1
+            },
+            "padding": 6,
+            "maxLength": 0,
+            "multiline": false,
+            "password": false,
+            "readOnly": false,
+            "focused": false,
+            "cursorPos": 0,
+            "renderMode": 0
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "input": {
+              "background": "control",
+              "text": "text",
+              "placeholder": "text"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 44,
+      "name": "Modal",
+      "parent": 1,
+      "children": [
+        45
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "display": 1,
+            "opacity": 1,
+            "pointerEvents": 0,
+            "width": {
+              "value": 0,
+              "unit": 2
+            },
+            "height": {
+              "value": 0,
+              "unit": 2
+            },
+            "minWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "minHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "flexGrow": 0,
+            "flexShrink": 1,
+            "flexBasis": {
+              "value": 0,
+              "unit": 2
+            },
+            "alignSelf": 0,
+            "marginLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "texture": 0,
+            "color": {
+              "r": 0,
+              "g": 0,
+              "b": 0,
+              "a": 0.5
+            },
+            "fit": 0,
+            "uvOffset": {
+              "x": 0,
+              "y": 0
+            },
+            "uvScale": {
+              "x": 1,
+              "y": 1
+            },
+            "sliceBorder": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 0
+            },
+            "tileSize": {
+              "x": 32,
+              "y": 32
+            },
+            "fillMethod": 0,
+            "fillOrigin": 0,
+            "fillAmount": 1,
+            "material": 0,
+            "enabled": true
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "visual": "backdrop"
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "enabled": true,
+            "blockRaycast": true,
+            "raycastTarget": true
+          }
+        },
+        {
+          "type": "UIDialog",
+          "data": {
+            "closeOnEscape": true,
+            "closeOnBackdrop": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 45,
+      "name": "ModalPanel",
+      "parent": 44,
+      "children": [
+        46,
+        47,
+        50
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "display": 0,
+            "opacity": 1,
+            "pointerEvents": 0,
+            "width": {
+              "value": 400,
+              "unit": 0
+            },
+            "height": {
+              "value": 260,
+              "unit": 0
+            },
+            "minWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "minHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "flexGrow": 0,
+            "flexShrink": 1,
+            "flexBasis": {
+              "value": 0,
+              "unit": 2
+            },
+            "alignSelf": 0,
+            "marginLeft": {
+              "value": -200,
+              "unit": 0
+            },
+            "marginTop": {
+              "value": -150,
+              "unit": 0
+            },
+            "marginRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 50,
+              "unit": 1
+            },
+            "insetTop": {
+              "value": 50,
+              "unit": 1
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 2
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "texture": 0,
+            "color": {
+              "r": 0.16,
+              "g": 0.16,
+              "b": 0.18,
+              "a": 1
+            },
+            "fit": 0,
+            "uvOffset": {
+              "x": 0,
+              "y": 0
+            },
+            "uvScale": {
+              "x": 1,
+              "y": 1
+            },
+            "sliceBorder": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 0
+            },
+            "tileSize": {
+              "x": 32,
+              "y": 32
+            },
+            "fillMethod": 0,
+            "fillOrigin": 0,
+            "fillAmount": 1,
+            "material": 0,
+            "enabled": true
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "visual": "surface"
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "enabled": true,
+            "blockRaycast": true,
+            "raycastTarget": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 46,
+      "name": "ModalTitle",
+      "parent": 45,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 22,
+              "unit": 0
+            },
+            "height": {
+              "value": 26,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Hello from a modal",
+            "fontSize": 18,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "align": 1,
+            "verticalAlign": 1,
+            "bold": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 47,
+      "name": "ModalScroll",
+      "parent": 45,
+      "children": [
+        48
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "display": 0,
+            "opacity": 1,
+            "pointerEvents": 0,
+            "width": {
+              "value": 344,
+              "unit": 0
+            },
+            "height": {
+              "value": 120,
+              "unit": 0
+            },
+            "minWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "minHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "flexGrow": 0,
+            "flexShrink": 1,
+            "flexBasis": {
+              "value": 0,
+              "unit": 2
+            },
+            "alignSelf": 0,
+            "marginLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 28,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 62,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 2
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "texture": 0,
+            "color": {
+              "r": 0.22,
+              "g": 0.22,
+              "b": 0.26,
+              "a": 1
+            },
+            "fit": 0,
+            "uvOffset": {
+              "x": 0,
+              "y": 0
+            },
+            "uvScale": {
+              "x": 1,
+              "y": 1
+            },
+            "sliceBorder": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 0
+            },
+            "tileSize": {
+              "x": 32,
+              "y": 32
+            },
+            "fillMethod": 0,
+            "fillOrigin": 0,
+            "fillAmount": 1,
+            "material": 0,
+            "enabled": true
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "visual": "control"
+          }
+        },
+        {
+          "type": "UIMask",
+          "data": {
+            "enabled": true,
+            "mode": 0
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "enabled": true,
+            "blockRaycast": true,
+            "raycastTarget": true
+          }
+        },
+        {
+          "type": "UIScroll",
+          "data": {
+            "enabled": true,
+            "content": 48,
+            "horizontal": false,
+            "vertical": true,
+            "movement": 0,
+            "wheelSpeed": 1,
+            "dragScroll": true,
+            "decelerationRate": 0.135
+          }
+        }
+      ]
+    },
+    {
+      "id": 48,
+      "name": "ModalScrollContent",
+      "parent": 47,
+      "children": [
+        49
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "display": 0,
+            "opacity": 1,
+            "pointerEvents": 0,
+            "width": {
+              "value": 344,
+              "unit": 0
+            },
+            "height": {
+              "value": 260,
+              "unit": 0
+            },
+            "minWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "minHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "flexGrow": 0,
+            "flexShrink": 1,
+            "flexBasis": {
+              "value": 0,
+              "unit": 2
+            },
+            "alignSelf": 0,
+            "marginLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 49,
+      "name": "ModalBody",
+      "parent": 48,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "value": 12,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 12,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 10,
+              "unit": 0
+            },
+            "height": {
+              "value": 240,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "A dialog is a backdrop plus a panel you fill with children — Escape and a click on the scrim both close it, with no code to hook up.\n\nThis panel is a ScrollView: drag it, or roll the wheel over it. The viewport clips with a UIMask and the frame behind it moves, which is what the UIScroll component on the viewport asks for.\n\nEvery control on the panel behind this one is authored the same way — dropped into the scene, wired by name.",
+            "fontSize": 13,
+            "color": {
+              "r": 0.85,
+              "g": 0.87,
+              "b": 0.92,
+              "a": 1
+            },
+            "align": 0,
+            "verticalAlign": 0,
+            "wordWrap": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 50,
+      "name": "ModalClose",
+      "parent": 45,
+      "children": [
+        51
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "display": 0,
+            "opacity": 1,
+            "pointerEvents": 0,
+            "width": {
+              "value": 120,
+              "unit": 0
+            },
+            "height": {
+              "value": 34,
+              "unit": 0
+            },
+            "minWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "minHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "flexGrow": 0,
+            "flexShrink": 1,
+            "flexBasis": {
+              "value": 0,
+              "unit": 2
+            },
+            "alignSelf": 0,
+            "marginLeft": {
+              "value": -60,
+              "unit": 0
+            },
+            "marginTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 50,
+              "unit": 1
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 2
+            },
+            "insetBottom": {
+              "value": 22,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "texture": 0,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "fit": 0,
+            "uvOffset": {
+              "x": 0,
+              "y": 0
+            },
+            "uvScale": {
+              "x": 1,
+              "y": 1
+            },
+            "sliceBorder": {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "w": 0
+            },
+            "tileSize": {
+              "x": 32,
+              "y": 32
+            },
+            "fillMethod": 0,
+            "fillOrigin": 0,
+            "fillAmount": 1,
+            "material": 0,
+            "enabled": true
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "enabled": true,
+            "blockRaycast": true,
+            "raycastTarget": true
+          }
+        },
+        {
+          "type": "Focusable",
+          "data": {
+            "tabIndex": 0,
+            "isFocused": false
+          }
+        },
+        {
+          "type": "UIController",
+          "data": {
+            "controllers": [
+              {
+                "name": "$interaction",
+                "pages": [
+                  "normal",
+                  "hover",
+                  "pressed",
+                  "disabled",
+                  "focused"
+                ],
+                "current": "normal"
+              }
+            ]
+          }
+        },
+        {
+          "type": "UIGear",
+          "data": {
+            "bindings": [
+              {
+                "controller": "$interaction",
+                "component": "UIVisual",
+                "property": "color",
+                "pages": {
+                  "normal": {
+                    "r": 0.22,
+                    "g": 0.22,
+                    "b": 0.26,
+                    "a": 1
+                  },
+                  "hover": {
+                    "r": 0.28,
+                    "g": 0.28,
+                    "b": 0.32,
+                    "a": 1
+                  },
+                  "pressed": {
+                    "r": 0.18,
+                    "g": 0.18,
+                    "b": 0.22,
+                    "a": 1
+                  },
+                  "disabled": {
+                    "r": 0.22,
+                    "g": 0.22,
+                    "b": 0.26,
+                    "a": 0.5
+                  },
+                  "focused": {
+                    "r": 0.3,
+                    "g": 0.34,
+                    "b": 0.44,
+                    "a": 1
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "states": {
+              "normal": "control",
+              "hover": "controlHover",
+              "pressed": "controlActive",
+              "disabled": "control",
+              "focused": "controlFocus"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 51,
+      "name": "ModalCloseLabel",
+      "parent": 50,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "display": 0,
+            "opacity": 1,
+            "pointerEvents": 0,
+            "width": {
+              "value": 0,
+              "unit": 2
+            },
+            "height": {
+              "value": 0,
+              "unit": 2
+            },
+            "minWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "minHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxWidth": {
+              "value": 0,
+              "unit": 2
+            },
+            "maxHeight": {
+              "value": 0,
+              "unit": 2
+            },
+            "flexGrow": 0,
+            "flexShrink": 1,
+            "flexBasis": {
+              "value": 0,
+              "unit": 2
+            },
+            "alignSelf": 0,
+            "marginLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "marginBottom": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetRight": {
+              "value": 0,
+              "unit": 0
+            },
+            "insetBottom": {
+              "value": 0,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Close",
+            "i18nKey": "",
+            "font": 0,
+            "fontFamily": "",
+            "fontSize": 14,
+            "color": {
+              "r": 0.92,
+              "g": 0.92,
+              "b": 0.94,
+              "a": 1
+            },
+            "align": 1,
+            "verticalAlign": 1,
+            "wordWrap": false,
+            "overflow": 0,
+            "lineHeight": 1.2,
+            "bold": false,
+            "italic": false,
+            "strokeColor": {
+              "r": 0,
+              "g": 0,
+              "b": 0,
+              "a": 1
+            },
+            "strokeWidth": 0,
+            "shadowColor": {
+              "r": 0,
+              "g": 0,
+              "b": 0,
+              "a": 1
+            },
+            "shadowBlur": 0,
+            "shadowOffsetX": 0,
+            "shadowOffsetY": 0,
+            "richText": false,
+            "renderMode": 0,
+            "layer": 0,
+            "enabled": true
+          }
+        },
+        {
+          "type": "ThemeStyle",
+          "data": {
+            "text": "text"
+          }
+        }
+      ]
     }
   ]
 }

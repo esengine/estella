@@ -1,9 +1,14 @@
-import type { SliderHandle, ProgressHandle } from 'esengine';
+import type { Entity } from 'esengine';
+
+// Every control the systems talk to, looked up once by the name it carries in
+// the scene. A null here means the scene stopped carrying that entity, which is
+// the only way this demo can break.
+export const ids: Record<string, Entity | null> = {};
 
 export const state = {
-    slider: null as SliderHandle | null,
-    progress: null as ProgressHandle | null,
+    wired: false,
+    clicks: 0,
+    paused: false,
     progressT: 0,
     progressDir: 1,
-    paused: false,
 };

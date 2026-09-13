@@ -16,6 +16,15 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **The UI controls demo authors its widgets instead of building them.** Every
+  built-in widget shipped twice — a factory a game calls, and a prefab the
+  editor's *Create → UI* menu drops, generated from that factory — and only the
+  first was ever exercised: no scene in the corpus carried a `UIToggle`, a
+  `UISlider`, a `UIDropdown`, a `UIDialog`, a `UIScroll` or a `TextInput`, so
+  "place one and it works" was a claim nobody had made twice. The demo now
+  places all nine, exclusivity included (a `UIToggleGroup` on the toggles'
+  common ancestor), and its code answers what they do rather than building them.
+
 - **A ScrollView scrolls where the editor drops it.** The widget builds its
   parts and its behaviour together in code, so the prefab behind *Create → UI →
   ScrollView* carried only the parts: a box that clipped its content and never

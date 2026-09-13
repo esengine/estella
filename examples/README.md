@@ -39,7 +39,7 @@ for your own game.
 | **drawing-demo** | Rendering | The three drawing tiers — immediate `Draw` radar overlay, retained `Graphics` vector star, procedural `Mesh2D` ribbon. |
 | **video-playback** | Rendering | Play a video on a Sprite with the declarative `Video` component — "a Sprite whose texture is alive". |
 | **tilemap-demo** | Tilemap | Two scenes: a Tiled `.tmj` import and an engine-native `.estileset` — multi-tileset, parallax, animated water, per-tile collision. |
-| **ui-controls** | UI | Buttons, sliders, toggles and progress bars. |
+| **ui-controls** | UI | Every built-in widget, authored in the scene: button, toggle, toggle group, slider, progress, dropdown, text input, a modal and a scroll view. |
 | **ui-interaction** | UI | Dragging, focus and pointer interaction. |
 | **ui-layout** | UI | Flexbox-style responsive UI layout. |
 | **ui-list** | UI | A virtualized list and grid — `createListView`, live data, `scrollToIndex`. |
