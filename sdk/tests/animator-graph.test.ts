@@ -11,7 +11,10 @@ import {
     addState, removeState, moveState, renameState, setInitial,
     addTransition, removeTransition, updateTransition, setConditions,
     addParam, removeParam, updateParam,
+    addLayer as addAnimatorLayer, removeLayer as removeAnimatorLayer,
+    updateLayer as updateAnimatorLayer, moveLayer as moveAnimatorLayer,
 } from '../src/animation/animatorGraph';
+import { animatorLayerCount, ANIMATOR_FORMAT_VERSION } from '../src/animation/Animator';
 import type { AnimatorControllerDef } from '../src/animation/Animator';
 
 describe('animatorGraph', () => {
@@ -92,5 +95,81 @@ describe('animatorGraph', () => {
         const edges = animatorEdges(def);
         expect(edges).toHaveLength(1);
         expect(edges[0]).toMatchObject({ id: 'Idle->Run#0', from: 'Idle', to: 'Run', index: 0 });
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Layers
+// ---------------------------------------------------------------------------
+
+describe('editing a controller with layers', () => {
+    const base = (): AnimatorControllerDef => ({
+        version: ANIMATOR_FORMAT_VERSION,
+        parameters: [],
+        states: [{ name: 'Idle', transitions: [] }],
+        initialState: 'Idle',
+    });
+
+    it('adds a layer with a machine of its own', () => {
+        const def = addAnimatorLayer(base(), 'arms');
+        expect(animatorLayerCount(def)).toBe(2);
+        expect(def.layers![0]!.states).toHaveLength(1);
+        expect(def.layers![0]!.initialState).toBe('Idle');
+    });
+
+    it('refuses a second layer by the same name', () => {
+        const once = addAnimatorLayer(base(), 'arms');
+        expect(addAnimatorLayer(once, 'arms')).toBe(once);
+    });
+
+    it('edits the layer the op was given and no other', () => {
+        // The base and the layer both hold a state called Idle. An op that
+        // reached the wrong one would still "work", which is why this asserts on
+        // both sides rather than on the one it edited.
+        let def = addAnimatorLayer(base(), 'arms');
+        def = addState(def, 'Wave', 0, 0, 1);
+        expect(def.layers![0]!.states.map(s => s.name)).toEqual(['Idle', 'Wave']);
+        expect(def.states.map(s => s.name)).toEqual(['Idle']);
+
+        def = addState(def, 'Run', 0, 0);
+        expect(def.states.map(s => s.name)).toEqual(['Idle', 'Run']);
+        expect(def.layers![0]!.states.map(s => s.name)).toEqual(['Idle', 'Wave']);
+    });
+
+    it('renames within one layer, rewiring that layer’s any-state edges', () => {
+        let def = addAnimatorLayer(base(), 'arms');
+        def = updateAnimatorLayer(def, 1, {});
+        def = { ...def, layers: [{ ...def.layers![0]!, anyStateTransitions: [{ to: 'Idle', conditions: [] }] }] };
+        def = renameState(def, 'Idle', 'Calm', 1);
+
+        expect(def.layers![0]!.initialState).toBe('Calm');
+        expect(def.layers![0]!.anyStateTransitions![0]!.to).toBe('Calm');
+        expect(def.initialState).toBe('Idle');
+    });
+
+    it('sets what a layer IS, and refuses to on the base', () => {
+        let def = addAnimatorLayer(base(), 'arms');
+        def = updateAnimatorLayer(def, 1, { weight: 0.4, blend: 'additive', mask: { paths: ['chest'] } });
+        expect(def.layers![0]!.weight).toBe(0.4);
+        expect(def.layers![0]!.blend).toBe('additive');
+        expect(def.layers![0]!.mask!.paths).toEqual(['chest']);
+
+        // The base layer has no weight to set — it is what the others modify.
+        expect(updateAnimatorLayer(def, 0, { weight: 0.5 })).toBe(def);
+        expect(removeAnimatorLayer(def, 0)).toBe(def);
+    });
+
+    it('reorders layers, order being what a stack means', () => {
+        let def = addAnimatorLayer(addAnimatorLayer(base(), 'arms'), 'aim');
+        expect(def.layers!.map(l => l.name)).toEqual(['arms', 'aim']);
+        def = moveAnimatorLayer(def, 2, 1);
+        expect(def.layers!.map(l => l.name)).toEqual(['aim', 'arms']);
+    });
+
+    it('removes a layer without disturbing the base', () => {
+        let def = addAnimatorLayer(base(), 'arms');
+        def = removeAnimatorLayer(def, 1);
+        expect(animatorLayerCount(def)).toBe(1);
+        expect(def.states.map(s => s.name)).toEqual(['Idle']);
     });
 });

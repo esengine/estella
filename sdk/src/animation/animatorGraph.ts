@@ -14,8 +14,11 @@
  */
 
 import { ANIMATOR_FORMAT_VERSION } from './Animator';
+import { animatorLayer } from './Animator';
 import type {
     AnimatorControllerDef,
+    AnimatorLayer,
+    AnimatorScope,
     AnimatorState,
     AnimatorTransition,
     AnimatorCondition,
@@ -32,20 +35,52 @@ import {
 /** A flattened transition edge, for the graph canvas. */
 export type AnimatorEdge = GraphEdge<AnimatorTransition>;
 
-const spec: GraphSpec<AnimatorControllerDef, AnimatorState, AnimatorTransition> = {
-    states: def => def.states,
-    withStates: (def, states) => ({ ...def, states }),
-    initial: def => def.initialState,
-    withInitial: (def, initialState) => ({ ...def, initialState }),
-    transitions: state => state.transitions,
-    withTransitions: (state, transitions) => ({ ...state, transitions }),
-    makeState: (name, x, y) => ({ name, x, y, transitions: [] }),
-    makeTransition: to => ({ to, conditions: [] }),
-};
+type AnimatorSpec = GraphSpec<AnimatorControllerDef, AnimatorState, AnimatorTransition>;
+
+/** A controller with layer `index` patched; the base layer is the def itself. */
+function withLayer(
+    def: AnimatorControllerDef, index: number, patch: Partial<AnimatorLayer>,
+): AnimatorControllerDef {
+    if (index === 0) return { ...def, ...patch };
+    const layers = (def.layers ?? []).map((l, i) => (i === index - 1 ? { ...l, ...patch } : l));
+    return { ...def, layers };
+}
+
+/** Layer `index` as a scope, or an empty one for an index that is not there. */
+function scopeAt(def: AnimatorControllerDef, index: number): AnimatorScope {
+    return animatorLayer(def, index) ?? EMPTY_SCOPE;
+}
+
+const EMPTY_SCOPE: AnimatorScope = { states: [], initialState: '' };
+
+/**
+ * Every graph op is the same op on a different layer, so the layer is the only
+ * thing that varies here — which is what keeps adding layers from multiplying
+ * the editor's vocabulary. Memoized because a spec is identity-free and the ops
+ * are called per keystroke.
+ */
+const specs = new Map<number, AnimatorSpec>();
+
+function specFor(index: number): AnimatorSpec {
+    let found = specs.get(index);
+    if (found) return found;
+    found = {
+        states: def => scopeAt(def, index).states,
+        withStates: (def, states) => withLayer(def, index, { states }),
+        initial: def => scopeAt(def, index).initialState,
+        withInitial: (def, initialState) => withLayer(def, index, { initialState }),
+        transitions: state => state.transitions,
+        withTransitions: (state, transitions) => ({ ...state, transitions }),
+        makeState: (name, x, y) => ({ name, x, y, transitions: [] }),
+        makeTransition: to => ({ to, conditions: [] }),
+    };
+    specs.set(index, found);
+    return found;
+}
 
 /** Flatten every state's outgoing transitions into addressable edges. */
-export function animatorEdges(def: AnimatorControllerDef): AnimatorEdge[] {
-    return graphEdges(spec, def);
+export function animatorEdges(def: AnimatorControllerDef, layer = 0): AnimatorEdge[] {
+    return graphEdges(specFor(layer), def);
 }
 
 /** A blank controller with one initial state and no parameters. */
@@ -58,33 +93,35 @@ export function emptyAnimatorController(): AnimatorControllerDef {
     };
 }
 
-export function addState(def: AnimatorControllerDef, name: string, x = 0, y = 0): AnimatorControllerDef {
-    return addGraphState(spec, def, name, x, y);
+export function addState(def: AnimatorControllerDef, name: string, x = 0, y = 0, layer = 0): AnimatorControllerDef {
+    return addGraphState(specFor(layer), def, name, x, y);
 }
 
-export function removeState(def: AnimatorControllerDef, name: string): AnimatorControllerDef {
-    return removeGraphState(spec, def, name);
+export function removeState(def: AnimatorControllerDef, name: string, layer = 0): AnimatorControllerDef {
+    return removeGraphState(specFor(layer), def, name);
 }
 
-export function moveState(def: AnimatorControllerDef, name: string, x: number, y: number): AnimatorControllerDef {
-    return moveGraphState(spec, def, name, x, y);
+export function moveState(def: AnimatorControllerDef, name: string, x: number, y: number, layer = 0): AnimatorControllerDef {
+    return moveGraphState(specFor(layer), def, name, x, y);
 }
 
 /**
  * Rename a state. On top of the shared rewiring (initial + per-state transition
  * targets) an animator also has any-state transitions to repoint.
  */
-export function renameState(def: AnimatorControllerDef, oldName: string, newName: string): AnimatorControllerDef {
-    const next = renameGraphState(spec, def, oldName, newName);
-    if (next === def || !def.anyStateTransitions) return next;
-    return {
-        ...next,
-        anyStateTransitions: def.anyStateTransitions.map(t => (t.to === oldName ? { ...t, to: newName } : t)),
-    };
+export function renameState(
+    def: AnimatorControllerDef, oldName: string, newName: string, layer = 0,
+): AnimatorControllerDef {
+    const next = renameGraphState(specFor(layer), def, oldName, newName);
+    const anyState = scopeAt(def, layer).anyStateTransitions;
+    if (next === def || !anyState) return next;
+    return withLayer(next, layer, {
+        anyStateTransitions: anyState.map(t => (t.to === oldName ? { ...t, to: newName } : t)),
+    });
 }
 
-export function setInitial(def: AnimatorControllerDef, name: string): AnimatorControllerDef {
-    return setGraphInitial(spec, def, name);
+export function setInitial(def: AnimatorControllerDef, name: string, layer = 0): AnimatorControllerDef {
+    return setGraphInitial(specFor(layer), def, name);
 }
 
 /**
@@ -101,12 +138,13 @@ function withMotion(s: AnimatorState, motion: Partial<AnimatorState>): AnimatorS
 }
 
 /** Set the state's motion to a single sprite clip (clears any other motion). */
-export function setStateClip(def: AnimatorControllerDef, name: string, clip: string): AnimatorControllerDef {
-    return {
-        ...def,
-        states: def.states.map((s) =>
+export function setStateClip(
+    def: AnimatorControllerDef, name: string, clip: string, layer = 0,
+): AnimatorControllerDef {
+    return withLayer(def, layer, {
+        states: scopeAt(def, layer).states.map((s) =>
             s.name === name ? withMotion(s, clip ? { clip } : {}) : s),
-    };
+    });
 }
 
 /**
@@ -114,28 +152,29 @@ export function setStateClip(def: AnimatorControllerDef, name: string, clip: str
  * either. Null clears it, leaving a state that plays nothing.
  */
 export function setStateMotion(
-    def: AnimatorControllerDef, name: string, motion: AnimatorMotion | null,
+    def: AnimatorControllerDef, name: string, motion: AnimatorMotion | null, layer = 0,
 ): AnimatorControllerDef {
-    return {
-        ...def,
-        states: def.states.map((s) =>
+    return withLayer(def, layer, {
+        states: scopeAt(def, layer).states.map((s) =>
             s.name === name ? withMotion(s, motion ? { motion } : {}) : s),
-    };
+    });
 }
 
 export function setStateProps(
     def: AnimatorControllerDef, name: string,
-    patch: { speed?: number; loop?: boolean; rootMotion?: boolean },
+    patch: { speed?: number; loop?: boolean; rootMotion?: boolean }, layer = 0,
 ): AnimatorControllerDef {
-    return { ...def, states: def.states.map((s) => (s.name === name ? { ...s, ...patch } : s)) };
+    return withLayer(def, layer, {
+        states: scopeAt(def, layer).states.map((s) => (s.name === name ? { ...s, ...patch } : s)),
+    });
 }
 
-export function addTransition(def: AnimatorControllerDef, from: string, to: string): AnimatorControllerDef {
-    return addGraphTransition(spec, def, from, to);
+export function addTransition(def: AnimatorControllerDef, from: string, to: string, layer = 0): AnimatorControllerDef {
+    return addGraphTransition(specFor(layer), def, from, to);
 }
 
-export function removeTransition(def: AnimatorControllerDef, from: string, index: number): AnimatorControllerDef {
-    return removeGraphTransition(spec, def, from, index);
+export function removeTransition(def: AnimatorControllerDef, from: string, index: number, layer = 0): AnimatorControllerDef {
+    return removeGraphTransition(specFor(layer), def, from, index);
 }
 
 export function updateTransition(
@@ -143,13 +182,17 @@ export function updateTransition(
     from: string,
     index: number,
     patch: Partial<AnimatorTransition>,
+    layer = 0,
 ): AnimatorControllerDef {
-    return updateGraphTransition(spec, def, from, index, patch);
+    return updateGraphTransition(specFor(layer), def, from, index, patch);
 }
 
 /** Replace the whole condition list on a transition. */
-export function setConditions(def: AnimatorControllerDef, from: string, index: number, conditions: AnimatorCondition[]): AnimatorControllerDef {
-    return updateTransition(def, from, index, { conditions });
+export function setConditions(
+    def: AnimatorControllerDef, from: string, index: number,
+    conditions: AnimatorCondition[], layer = 0,
+): AnimatorControllerDef {
+    return updateTransition(def, from, index, { conditions }, layer);
 }
 
 // — Parameters —
@@ -165,4 +208,56 @@ export function removeParam(def: AnimatorControllerDef, name: string): AnimatorC
 
 export function updateParam(def: AnimatorControllerDef, name: string, patch: Partial<AnimatorParam>): AnimatorControllerDef {
     return { ...def, parameters: def.parameters.map((p) => (p.name === name ? { ...p, ...patch } : p)) };
+}
+
+// — Layers —
+
+/**
+ * A new layer over the ones already there, with one state of its own. Added at
+ * the top because that is what "over" means and it is where an author who just
+ * asked for a layer expects to find it.
+ */
+export function addLayer(def: AnimatorControllerDef, name: string): AnimatorControllerDef {
+    if (!name || (def.layers ?? []).some(l => l.name === name)) return def;
+    const layer: AnimatorLayer = {
+        name,
+        states: [{ name: 'Idle', x: 80, y: 80, transitions: [] }],
+        initialState: 'Idle',
+    };
+    return { ...def, layers: [...(def.layers ?? []), layer] };
+}
+
+/** Drop layer `index`. The base layer is not one of these and cannot be removed:
+ *  a controller with no base is a controller that poses nothing. */
+export function removeLayer(def: AnimatorControllerDef, index: number): AnimatorControllerDef {
+    if (index <= 0 || !def.layers?.[index - 1]) return def;
+    return { ...def, layers: def.layers.filter((_, i) => i !== index - 1) };
+}
+
+/** Patch what layer `index` is, as opposed to what its machine does. Refuses the
+ *  base layer, which has no weight, blend or mask to set. */
+export function updateLayer(
+    def: AnimatorControllerDef, index: number,
+    patch: Pick<Partial<AnimatorLayer>, 'name' | 'weight' | 'blend' | 'mask'>,
+): AnimatorControllerDef {
+    if (index <= 0 || !def.layers?.[index - 1]) return def;
+    return withLayer(def, index, patch);
+}
+
+/**
+ * Move layer `index` to `to`, both counted with the base layer at 0. Order is
+ * what a stack means, so this is an edit like any other rather than a view
+ * setting — and the base layer neither moves nor is displaced.
+ */
+export function moveLayer(
+    def: AnimatorControllerDef, index: number, to: number,
+): AnimatorControllerDef {
+    const layers = def.layers;
+    if (!layers || index <= 0 || to <= 0) return def;
+    const from = index - 1;
+    const dest = Math.min(to - 1, layers.length - 1);
+    if (from === dest || !layers[from]) return def;
+    const next = layers.slice();
+    next.splice(dest, 0, next.splice(from, 1)[0]!);
+    return { ...def, layers: next };
 }
