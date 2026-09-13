@@ -1,4 +1,5 @@
 {
+  "version": 2,
   "parameters": [
     {
       "name": "speed",
@@ -202,6 +203,62 @@
         }
       ],
       "duration": 0.12
+    }
+  ],
+  "layers": [
+    {
+      "name": "Upper body",
+      "weight": 1,
+      "blend": "override",
+      "mask": {
+        "paths": [
+          "Bone0"
+        ]
+      },
+      "initialState": "Rest",
+      "states": [
+        {
+          "name": "Rest",
+          "motion": {
+            "kind": "timeline",
+            "clip": "swing.estimeline",
+            "loop": false
+          },
+          "transitions": [],
+          "x": 80,
+          "y": 80
+        },
+        {
+          "name": "Swing",
+          "motion": {
+            "kind": "timeline",
+            "clip": "swing.estimeline",
+            "loop": false
+          },
+          "transitions": [
+            {
+              "to": "Rest",
+              "conditions": [],
+              "hasExitTime": true,
+              "duration": 0.12
+            }
+          ],
+          "x": 320,
+          "y": 80
+        }
+      ],
+      "anyStateTransitions": [
+        {
+          "to": "Swing",
+          "conditions": [
+            {
+              "param": "attack",
+              "op": "trigger"
+            }
+          ],
+          "duration": 0.05
+        }
+      ]
     }
   ]
 }
