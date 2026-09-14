@@ -259,17 +259,17 @@ function main() {
                 + ` — ${ready.compiles} compile(s) of ${ready.uniqueKeys} unique key(s)`
                 + ` over ${ready.asks} ask(s) for ${ready.entities} renderable(s);`
                 + ` ${ready.materialCompiles} material compile(s) of ${ready.materialAsks} ask(s)`
-                + `  keys ${keySet(ready)}`);
+                + `  keys ${keySetText(ready)}`);
         }
         const both = prewarmed.get(arm);
         if (both?.has('document') && both.has('entities')) {
             const doc = both.get('document');
             const live = both.get('entities');
-            const same = doc.keysLo === live.keysLo && doc.keysHi === live.keysHi;
+            const same = sameKeys(doc, live);
             failedTotal += same ? 0 : 1;
             console.log(`\n  ${same ? '✓' : '✗'} what a PREPARED cell knows it will need equals`
                 + ` what its published entities ask for`
-                + ` — ${keySet(doc)} from the document, ${keySet(live)} from the world`);
+                + ` — ${keySetText(doc)} from the document, ${keySetText(live)} from the world`);
             const materials = doc.materialAsks === live.materialAsks;
             failedTotal += materials ? 0 : 1;
             console.log(`  ${materials ? '✓' : '✗'} and the material-owned path is enumerated the`
@@ -759,15 +759,22 @@ function realization(window, arrival) {
     }
 }
 
-/** The variant keys a prewarm derived, as a set a reader can compare by eye. */
+const KEY_WORDS = ['keysLo', 'keysHi', 'keysLo2', 'keysHi2'];
+/** The variant keys a prewarm derived, as a set a reader can compare by eye. A
+ *  bit per mesh variant, over as many words as the engine's variant space needs:
+ *  reading only the first two would call two answers equal on the strength of
+ *  the half of them that happens to be read. */
 function keySet(r) {
     const keys = [];
-    for (let i = 0; i < 32; i++) {
-        if (r.keysLo & (1 << i)) keys.push(i);
-        if (r.keysHi & (1 << i)) keys.push(i + 32);
-    }
-    return `{${keys.join(', ')}}`;
+    KEY_WORDS.forEach((word, w) => {
+        for (let i = 0; i < 32; i++) if (r[word] & (1 << i)) keys.push(w * 32 + i);
+    });
+    return keys;
 }
+/** Whether two prewarms need the same set — every word, for the reason above. */
+const sameKeys = (a, b) => KEY_WORDS.every((word) => a[word] === b[word]);
+/** Rendered for a log line. */
+const keySetText = (r) => `{${keySet(r).join(', ')}}`;
 
 /** What one frame cost, by the domain that owns each system. */
 function byDomain(frame) {

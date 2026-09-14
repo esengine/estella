@@ -2160,6 +2160,25 @@
       ]
     },
     {
+      "name": "MeshLightmap",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "lightmap",
+          "type": "Asset<texture>",
+          "default": "none",
+          "doc": "Baked lightmap atlas. Needs a mesh with a second UV set."
+        },
+        {
+          "key": "scaleOffset",
+          "type": "Vec4",
+          "default": "(1, 1, 0, 0)",
+          "doc": "Atlas rectangle: xy scales the second UV set, zw offsets it.",
+          "advanced": true
+        }
+      ]
+    },
+    {
       "name": "MeshMorph",
       "source": "cpp",
       "fields": [

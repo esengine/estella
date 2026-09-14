@@ -165,4 +165,32 @@ struct MeshMorph {
     MeshMorph() = default;
 };
 
+// =============================================================================
+// MeshLightmap Component
+// =============================================================================
+
+/**
+ * @brief Where a @ref MeshRenderer's BAKED light comes from: the atlas, and the
+ *        rectangle of it this object occupies.
+ *
+ * @details Per ENTITY and not part of the mesh because of the rectangle: one mesh
+ *          placed twice is lit twice, in two patches of one atlas. Needs a mesh
+ *          carrying TexCoord1 — one without draws as before.
+ */
+ES_COMPONENT()
+struct MeshLightmap {
+    /** @brief The baked atlas. Invalid = this object has no bake, which is not
+     *         the same as a black one: it keeps the light it gets in real time. */
+    ES_PROPERTY(asset = texture, tooltip="Baked lightmap atlas. Needs a mesh with a second UV set.")
+    resource::TextureHandle lightmap;
+
+    /** @brief Where in the atlas: xy scales the mesh's second UV, zw offsets it.
+     *         (1,1,0,0) reads the whole texture, which is what a bake of a single
+     *         object produces. */
+    ES_PROPERTY(advanced, tooltip="Atlas rectangle: xy scales the second UV set, zw offsets it.")
+    glm::vec4 scaleOffset{1.0f, 1.0f, 0.0f, 0.0f};
+
+    MeshLightmap() = default;
+};
+
 }  // namespace esengine::ecs

@@ -114,6 +114,12 @@ std::string wgslCanonicalVSOut(bool lit) {
         "#ifdef MESH_NORMALS\n"
         "    @location(3) v_worldNormal : vec3f,\n"
         "    @location(4) v_worldXYZ : vec3f,\n"
+        "#endif\n"
+        // mesh.esshader's twin of the same varying, carried through a material's
+        // variant so the LAYOUT matches. What a material's fragment makes of it
+        // is the material's, as all of its shading is.
+        "#ifdef MESH_LIGHTMAP\n"
+        "    @location(5) v_lightmap : vec3f,\n"
         "#endif\n";
     src += "};\n";
     return src;
@@ -161,6 +167,9 @@ std::string canonicalVertexStageWGSL(bool lit) {
         "#ifdef MESH_NORMALS\n"
         "    @location(3) a_normal : vec3f,\n"
         "#endif\n"
+        "#ifdef MESH_LIGHTMAP\n"
+        "    @location(7) a_texCoord1 : vec2f,\n"
+        "#endif\n"
         "#ifdef SKINNED\n"
         "    @location(5) a_joints : vec4u,\n"
         "    @location(6) a_weights : vec4f,\n"
@@ -170,6 +179,9 @@ std::string canonicalVertexStageWGSL(bool lit) {
         "    @location(8)  a_model0 : vec4f,\n"
         "    @location(9)  a_model1 : vec4f,\n"
         "    @location(10) a_model2 : vec4f,\n"
+        "#ifdef MESH_LIGHTMAP\n"
+        "    @location(11) a_lightmapRect : vec4f,\n"
+        "#endif\n"
         "    @location(12) a_instTint : vec4f,\n"
         "#endif\n"
         "#ifdef MESH_NORMALS\n"
@@ -254,6 +266,10 @@ std::string canonicalVertexStageWGSL(bool lit) {
         "    out.v_worldNormal = mat3x3f(v.a_nrm0, v.a_nrm1, v.a_nrm2) * localNormal;\n"
         "#endif\n"
         "    out.v_worldXYZ = world.xyz;\n"
+        "#endif\n"
+        "#ifdef MESH_LIGHTMAP\n"
+        "    out.v_lightmap = vec3f(v.a_texCoord1 * v.a_lightmapRect.xy + v.a_lightmapRect.zw,\n"
+        "                           select(0.0, 1.0, v.a_lightmapRect.x > 0.0));\n"
         "#endif\n";
     if (lit) {
         src += "    out.v_worldPos = world.xy;\n";
@@ -333,6 +349,9 @@ std::string canonicalVertexStage(bool lit) {
         "#ifdef MESH_NORMALS\n"
         "layout(location = 3) in vec3 a_normal;\n"
         "#endif\n"
+        "#ifdef MESH_LIGHTMAP\n"
+        "layout(location = 7) in vec2 a_texCoord1;\n"
+        "#endif\n"
         "#ifdef SKINNED\n"
         "layout(location = 5) in uvec4 a_joints;\n"
         "layout(location = 6) in vec4 a_weights;\n"
@@ -346,6 +365,9 @@ std::string canonicalVertexStage(bool lit) {
         "layout(location = 8)  in vec4 a_model0;\n"
         "layout(location = 9)  in vec4 a_model1;\n"
         "layout(location = 10) in vec4 a_model2;\n"
+        "#ifdef MESH_LIGHTMAP\n"
+        "layout(location = 11) in vec4 a_lightmapRect;\n"
+        "#endif\n"
         "layout(location = 12) in vec4 a_instTint;\n"
         "#endif\n"
         "#ifdef MESH_NORMALS\n"
@@ -385,6 +407,9 @@ std::string canonicalVertexStage(bool lit) {
         "#ifdef MESH_NORMALS\n"
         "out highp vec3 v_worldNormal;\n"
         "out highp vec3 v_worldXYZ;\n"
+        "#endif\n"
+        "#ifdef MESH_LIGHTMAP\n"
+        "out highp vec3 v_lightmap;\n"
         "#endif\n";
     if (lit) {
         src += "out highp vec2 v_worldPos;\n";
@@ -450,6 +475,10 @@ std::string canonicalVertexStage(bool lit) {
         "    v_worldNormal = mat3(a_nrm0, a_nrm1, a_nrm2) * localNormal;\n"
         "#endif\n"
         "    v_worldXYZ = world.xyz;\n"
+        "#endif\n"
+        "#ifdef MESH_LIGHTMAP\n"
+        "    v_lightmap = vec3(a_texCoord1 * a_lightmapRect.xy + a_lightmapRect.zw,\n"
+        "                      a_lightmapRect.x > 0.0 ? 1.0 : 0.0);\n"
         "#endif\n";
     if (lit) {
         src += "    v_worldPos = world.xy;\n";

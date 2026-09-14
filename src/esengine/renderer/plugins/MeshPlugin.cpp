@@ -95,6 +95,7 @@ MeshProgramFacts meshFactsFromDocument(RenderFrameContext& ctx, const MeshDocume
         }
     }
     facts.skinned = resident && skinnedBy(*resident, row.jointCount, warnedBones) > 0;
+    facts.lightmapped = resident && resident->hasLightmapUV;
     return facts;
 }
 
@@ -245,9 +246,10 @@ void reportLodAuthoring(const LodLevels& levels, bool& warned) {
 }
 
 u32 meshVariant(bool normals, bool lit, bool normalMapped, bool skinned, bool depthOnly,
-                bool envMapped) {
+                bool envMapped, bool lightmapped) {
     return (normals ? 1u : 0u) | (lit ? 2u : 0u) | (normalMapped ? 4u : 0u)
-         | (skinned ? 8u : 0u) | (depthOnly ? 16u : 0u) | (envMapped ? 32u : 0u);
+         | (skinned ? 8u : 0u) | (depthOnly ? 16u : 0u) | (envMapped ? 32u : 0u)
+         | (lightmapped ? 64u : 0u);
 }
 
 /**
@@ -264,9 +266,12 @@ struct MeshDrawKeys {
 };
 
 u32 meshVariantFrom(const MeshProgramFacts& facts, bool envMapped, bool shadowDepth) {
+    // `lightmapped` survives the shadow pass, unlike the three describing
+    // shading: it declares two vertex attributes, and a layout may not carry one
+    // the program ignores. The depth fragment simply never reads the atlas.
     return meshVariant(facts.hasNormals, facts.lit && !shadowDepth,
                        facts.normalTextureId != 0 && !shadowDepth, facts.skinned, shadowDepth,
-                       envMapped);
+                       envMapped, facts.lightmapped);
 }
 
 /** @brief The facts a LIVE entity answers with: its components and its mesh. */
@@ -284,6 +289,7 @@ MeshProgramFacts meshFactsFromEntity(RenderFrameContext& ctx, ecs::Registry& reg
         }
     }
     facts.skinned = resident && skinJointCount(registry, entity, *resident, warnedBones) > 0;
+    facts.lightmapped = resident && resident->hasLightmapUV;
     return facts;
 }
 
@@ -331,6 +337,7 @@ u32 MeshPlugin::meshProgram(RenderFrameContext& ctx, u32 variant) {
     const bool normals = (variant & 1u) != 0, lit = (variant & 2u) != 0;
     const bool normalMapped = (variant & 4u) != 0, skinned = (variant & 8u) != 0;
     const bool depthOnly = (variant & 16u) != 0, envMapped = (variant & 32u) != 0;
+    const bool lightmapped = (variant & 64u) != 0;
     if (mesh_compiled_[variant]) return mesh_programs_[variant];
     mesh_compiled_[variant] = true;
     // Counted because the cost of this function is entirely the times it does
@@ -345,6 +352,7 @@ u32 MeshPlugin::meshProgram(RenderFrameContext& ctx, u32 variant) {
     if (lit) features.emplace_back("LIT");
     if (normalMapped) features.emplace_back("NORMAL_MAP");
     if (skinned) features.emplace_back("SKINNED");
+    if (lightmapped) features.emplace_back("MESH_LIGHTMAP");
     if (depthOnly) features.emplace_back("SHADOW_DEPTH");
     // Resident geometry owns its texture slots, so it is the vertex source that can
     // carry a shadow map and a reflection — the batch stream's are a per-vertex
@@ -400,7 +408,7 @@ RenderPrewarmResult MeshPlugin::prewarmFacts(RenderFrameContext& ctx,
             if (shadowDepth && (!shadowPasses || !residentGeometry)) continue;
             const u32 variant = meshVariantFrom(facts[i], envMapped, shadowDepth);
             ++out.asks;
-            if ((out.keys & (1ull << variant)) == 0) { out.keys |= 1ull << variant; ++out.uniqueKeys; }
+            if (out.addKey(variant)) ++out.uniqueKeys;
             if (!mesh_compiled_[variant]) ++out.compiles;
             meshProgram(ctx, variant);
         }
@@ -650,9 +658,11 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
             const u32 residentShader = meshProgram(ctx, keys.variant);
             tick(3);
             if (resident->isDrawable() && residentShader != 0) {
-                const u32 stride = skinned ? MESH_INSTANCE_STRIDE_SKINNED
-                                 : resident->hasNormals ? MESH_INSTANCE_STRIDE_LIT
-                                 : MESH_INSTANCE_STRIDE;
+                // The shape the mesh was REALIZED in, not a second derivation:
+                // the record is read through that layout, so the fact that built
+                // it must pack it. (It already excludes a skinned mesh.)
+                const bool lightmapped = resident->hasLightmapUV;
+                const u32 stride = meshInstanceStride(skinned, resident->hasNormals, lightmapped);
                 u32 instOffset = buffers.allocVertices(LayoutId::MeshInstance, stride);
                 auto* dst = buffers.vertexData(LayoutId::MeshInstance) + instOffset;
                 u32 tintRGBA = packColor(mesh.color);
@@ -686,6 +696,19 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                     for (u32 row = 0; row < 3; ++row) {
                         std::memcpy(dst + 52 + row * 12, &nrm[row][0], 12);
                     }
+                }
+                if (lightmapped) {
+                    // A zero scale where this object has no bake — the shader
+                    // reads it as "none" rather than as an atlas of black, which
+                    // an unlit surface would wear as darkness it never had.
+                    glm::vec4 rect{0.0f};
+                    if (const auto* baked = registry.tryGet<ecs::MeshLightmap>(entity)) {
+                        if (Texture* atlas = ctx.resources.getTexture(baked->lightmap)) {
+                            rect = baked->scaleOffset;
+                            key.lightmapTextureId = atlas->getId();
+                        }
+                    }
+                    std::memcpy(dst + meshInstanceLightmapOffset(resident->hasNormals), &rect, 16);
                 }
                 }
 

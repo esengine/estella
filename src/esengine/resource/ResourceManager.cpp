@@ -544,15 +544,20 @@ bool ResourceManager::realizeMesh(Mesh& mesh, ConstSpan<u8> vertexBytes, ConstSp
     }
     bool hasNormals = false;
     bool skinned = false;
+    bool lightmapUV = false;
     for (const GfxVertexAttribute& c : channels) {
         if (c.location == static_cast<u32>(MeshChannel::Normal)) hasNormals = true;
         if (c.location == static_cast<u32>(MeshChannel::Joints)) skinned = true;
+        if (c.location == static_cast<u32>(MeshChannel::TexCoord1)) lightmapUV = true;
     }
     skinned = skinned && !inverseBind.empty();
+    // Bones move a character and a bake cannot hold one still, so a skinned mesh
+    // reads no atlas however many UV sets it carries — and its record stays the
+    // tint alone.
+    const bool lightmapped = lightmapUV && !skinned;
 
     layout.strides[0] = vertexStride;
-    layout.strides[1] = skinned ? MESH_INSTANCE_STRIDE_SKINNED
-                       : hasNormals ? MESH_INSTANCE_STRIDE_LIT : MESH_INSTANCE_STRIDE;
+    layout.strides[1] = meshInstanceStride(skinned, hasNormals, lightmapped);
     layout.instanceStep[1] = true;
     u32 next = bound;
     // Only where the shader will read them: a layout may not declare an attribute
@@ -571,6 +576,10 @@ bool ResourceManager::realizeMesh(Mesh& mesh, ConstSpan<u8> vertexBytes, ConstSp
             layout.attributes[next++] = {MESH_INSTANCE_FIRST_LOCATION + 5 + row, 3,
                                          GfxDataType::Float, false, 52 + row * 12u, 1};
         }
+    }
+    if (lightmapped) {
+        layout.attributes[next++] = {MESH_INSTANCE_FIRST_LOCATION + 3, 4, GfxDataType::Float,
+                                     false, meshInstanceLightmapOffset(hasNormals), 1};
     }
     layout.attributeCount = next;
 
@@ -606,6 +615,7 @@ bool ResourceManager::realizeMesh(Mesh& mesh, ConstSpan<u8> vertexBytes, ConstSp
     mesh.indexCount = static_cast<u32>(indices.size());
     mesh.realizationGeneration = device_->deviceGeneration();
     mesh.hasNormals = hasNormals;
+    mesh.hasLightmapUV = lightmapped;
     mesh.localMin = localMin;
     mesh.localMax = localMax;
     mesh.inverseBind.clear();

@@ -272,7 +272,7 @@ bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSr
     // forgot the unit would sample slot 0 silently. GLSL ES 300 has no layout(binding).
     if (hasUniform(SHADOW_MAP_SAMPLER) || hasUniform(ENV_MAP_SAMPLER)
         || hasUniform(SHADOW_2D_SAMPLER) || hasUniform(SHAPE_2D_SAMPLER)
-        || hasUniform(MORPH_DELTA_SAMPLER)) {
+        || hasUniform(MORPH_DELTA_SAMPLER) || hasUniform(LIGHTMAP_SAMPLER)) {
         bind();
         if (hasUniform(SHADOW_MAP_SAMPLER)) {
             setUniform(SHADOW_MAP_SAMPLER, static_cast<i32>(SHADOW_MAP_TEXTURE_UNIT));
@@ -289,6 +289,9 @@ bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSr
         // The one sampler here read by the VERTEX stage.
         if (hasUniform(MORPH_DELTA_SAMPLER)) {
             setUniform(MORPH_DELTA_SAMPLER, static_cast<i32>(MORPH_DELTA_TEXTURE_UNIT));
+        }
+        if (hasUniform(LIGHTMAP_SAMPLER)) {
+            setUniform(LIGHTMAP_SAMPLER, static_cast<i32>(LIGHTMAP_TEXTURE_UNIT));
         }
         unbind();
     }

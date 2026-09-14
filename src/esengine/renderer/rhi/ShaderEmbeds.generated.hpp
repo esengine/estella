@@ -382,6 +382,12 @@ inline constexpr const char* MESH = R"esshader(#pragma shader "Mesh"
 
 
 
+#pragma feature MESH_LIGHTMAP
+
+
+
+
+
 #pragma feature SHADOW_DEPTH
 
 
@@ -400,6 +406,9 @@ layout(location = 3) in vec3 a_normal;
 layout(location = 5) in uvec4 a_joints;
 layout(location = 6) in vec4 a_weights;
 #endif
+#ifdef MESH_LIGHTMAP
+layout(location = 7) in vec2 a_texCoord1;
+#endif
 
 
 
@@ -410,6 +419,12 @@ layout(location = 6) in vec4 a_weights;
 layout(location = 8)  in vec4 a_model0;
 layout(location = 9)  in vec4 a_model1;
 layout(location = 10) in vec4 a_model2;
+#ifdef MESH_LIGHTMAP
+
+
+
+layout(location = 11) in vec4 a_lightmapRect;
+#endif
 #endif
 layout(location = 12) in vec4 a_instTint;
 #if defined(MESH_NORMALS) && !defined(SKINNED)
@@ -462,6 +477,16 @@ void applyMorph(inout vec3 position, inout vec3 normal) {
 
 out vec2 v_texCoord;
 out vec4 v_color;
+#ifdef MESH_LIGHTMAP
+
+
+
+
+
+
+
+out highp vec3 v_lightmap;
+#endif
 #ifdef LIT
 out highp vec3 v_worldNormal;
 
@@ -504,6 +529,10 @@ void main() {
     gl_Position = u_projection * world;
     v_texCoord = a_texCoord;
     v_color = a_color * a_instTint;
+#ifdef MESH_LIGHTMAP
+    v_lightmap = vec3(a_texCoord1 * a_lightmapRect.xy + a_lightmapRect.zw,
+                      a_lightmapRect.x > 0.0 ? 1.0 : 0.0);
+#endif
 #ifdef SHADOW_DEPTH
     v_shadowClip = gl_Position;
 #endif
@@ -526,6 +555,9 @@ precision mediump float;
 
 in vec2 v_texCoord;
 in vec4 v_color;
+#ifdef MESH_LIGHTMAP
+in highp vec3 v_lightmap;
+#endif
 #ifdef LIT
 in highp vec3 v_worldNormal;
 in highp vec3 v_worldPos;
@@ -537,6 +569,9 @@ in highp vec4 v_shadowClip;
 uniform sampler2D u_texture;
 #ifdef NORMAL_MAP
 uniform sampler2D u_normalMap;
+#endif
+#ifdef MESH_LIGHTMAP
+uniform sampler2D u_lightmap;
 #endif
 
 out vec4 fragColor;
@@ -550,6 +585,9 @@ void main() {
                                      0.0, 1.0)), 1.0);
 #else
     vec4 base = texture(u_texture, v_texCoord) * v_color;
+#ifdef MESH_LIGHTMAP
+    vec3 baked = texture(u_lightmap, v_lightmap.xy).rgb;
+#endif
 #ifdef LIT
     highp vec3 N = normalize(v_worldNormal);
 #ifdef NORMAL_MAP
@@ -559,10 +597,24 @@ void main() {
 
 
 
-    fragColor = vec4(applyLightingPBR(base.rgb, N, v_worldPos, viewDirection(v_worldPos),
-                                      0.0, 1.0, 1.0, 1.0), base.a);
+    vec3 shaded = applyLightingPBR(base.rgb, N, v_worldPos, viewDirection(v_worldPos),
+                                   0.0, 1.0, 1.0, 1.0);
+#ifdef MESH_LIGHTMAP
+
+
+
+    shaded += base.rgb * baked * v_lightmap.z;
+#endif
+    fragColor = vec4(shaded, base.a);
+#else
+#ifdef MESH_LIGHTMAP
+
+
+
+    fragColor = vec4(base.rgb * mix(vec3(1.0), baked, v_lightmap.z), base.a);
 #else
     fragColor = base;
+#endif
 #endif
 #endif
 }
@@ -601,6 +653,12 @@ struct VSIn {
     @location(8)  a_model0 : vec4f,
     @location(9)  a_model1 : vec4f,
     @location(10) a_model2 : vec4f,
+#ifdef MESH_LIGHTMAP
+    @location(11) a_lightmapRect : vec4f,
+#endif
+#endif
+#ifdef MESH_LIGHTMAP
+    @location(7) a_texCoord1 : vec2f,
 #endif
     @location(12) a_instTint : vec4f,
 
@@ -624,6 +682,9 @@ struct VSOut {
 #ifdef SHADOW_DEPTH
 
     @location(4) v_shadowClip : vec4f,
+#endif
+#ifdef MESH_LIGHTMAP
+    @location(5) v_lightmap : vec3f,
 #endif
 };
 
@@ -665,6 +726,10 @@ struct VSOut {
     out.pos = frame.projection * world;
     out.v_texCoord = v.a_texCoord;
     out.v_color = v.a_color * v.a_instTint;
+#ifdef MESH_LIGHTMAP
+    out.v_lightmap = vec3f(v.a_texCoord1 * v.a_lightmapRect.xy + v.a_lightmapRect.zw,
+                           select(0.0, 1.0, v.a_lightmapRect.x > 0.0));
+#endif
 #ifdef SHADOW_DEPTH
     out.v_shadowClip = out.pos;
 #endif
@@ -705,6 +770,11 @@ struct VSOut {
 @group(1) @binding(3) var t3 : texture_2d<f32>;
 @group(1) @binding(11) var s3 : sampler;
 #endif
+#ifdef MESH_LIGHTMAP
+
+@group(1) @binding(5) var t5 : texture_2d<f32>;
+@group(1) @binding(13) var s5 : sampler;
+#endif
 
 
 @group(1) @binding(7) var t7 : texture_2d<f32>;
@@ -721,6 +791,9 @@ struct VSOut {
 #ifdef SHADOW_DEPTH
     @location(4) v_shadowClip : vec4f,
 #endif
+#ifdef MESH_LIGHTMAP
+    @location(5) v_lightmap : vec3f,
+#endif
 };
 
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
@@ -732,6 +805,9 @@ struct VSOut {
                                  0.0, 1.0)), 1.0);
 #else
     let base = textureSampleLevel(t0, s0, v.v_texCoord, 0.0) * v.v_color;
+#ifdef MESH_LIGHTMAP
+    let baked = textureSampleLevel(t5, s5, v.v_lightmap.xy, 0.0).rgb;
+#endif
 #ifdef LIT
     var N = normalize(v.v_worldNormal);
 #ifdef NORMAL_MAP
@@ -741,10 +817,20 @@ struct VSOut {
 
 
 
-    return vec4f(applyLightingPBR(base.rgb, N, v.v_worldPos, viewDirection(v.v_worldPos),
-                                  0.0, 1.0, 1.0, 1.0), base.a);
+    var shaded = applyLightingPBR(base.rgb, N, v.v_worldPos, viewDirection(v.v_worldPos),
+                                  0.0, 1.0, 1.0, 1.0);
+#ifdef MESH_LIGHTMAP
+
+    shaded = shaded + base.rgb * baked * v.v_lightmap.z;
+#endif
+    return vec4f(shaded, base.a);
+#else
+#ifdef MESH_LIGHTMAP
+
+    return vec4f(base.rgb * mix(vec3f(1.0), baked, vec3f(v.v_lightmap.z)), base.a);
 #else
     return base;
+#endif
 #endif
 #endif
 }

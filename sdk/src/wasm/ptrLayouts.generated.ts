@@ -259,6 +259,13 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'enabled', type: 'bool', offset: 16 },
         ],
     },
+    MeshLightmap: {
+        ptrFn: 'getMeshLightmapPtr',
+        fields: [
+            { name: 'lightmap', type: 'u32', offset: 0 },
+            { name: 'scaleOffset', type: 'vec4', offset: 4 },
+        ],
+    },
     MeshRenderer: {
         ptrFn: 'getMeshRendererPtr',
         fields: [

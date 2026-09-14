@@ -79,6 +79,11 @@ public:
      *  and which shader variant draws it. */
     bool hasNormals = false;
 
+    /** Whether the vertices carry a second UV set — the one a bake is read
+     *  through. Beside hasNormals and for the same reason: an optional channel
+     *  the geometry owns decides the record's shape and the variant. */
+    bool hasLightmapUV = false;
+
     /** Local-space bounds of the vertices, for the frustum cull. */
     glm::vec3 localMin{0.0f, 0.0f, 0.0f};
     glm::vec3 localMax{0.0f, 0.0f, 0.0f};

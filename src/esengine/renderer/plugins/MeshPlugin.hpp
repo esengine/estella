@@ -42,14 +42,14 @@ private:
     u32 last_compiled_variant_ = 0;
     std::vector<BatchVertex> scratch_;  ///< Reused per mesh; amortizes the transform buffer.
     /// Resident-geometry programs, indexed by {has normals, lit, normal-mapped,
-    /// skinned, depth-only, environment-mapped}: what the geometry carries and what
-    /// the draw asked for are separate questions. Compiled on first use.
-    std::array<u32, 64> mesh_programs_{};
-    std::array<bool, 64> mesh_compiled_{};
+    /// skinned, depth-only, environment-mapped, lightmapped}: what the geometry
+    /// carries and what the draw asked for are separate. Compiled on first use.
+    std::array<u32, MESH_VARIANTS> mesh_programs_{};
+    std::array<bool, MESH_VARIANTS> mesh_compiled_{};
     /// The shader RESOURCES behind those ids, kept because init() runs again
     /// after a device rebuild: with no handle to release, each rebuild left a
     /// dead shader in the pool and one more program the host never freed.
-    std::array<resource::ShaderHandle, 64> mesh_shaders_{};
+    std::array<resource::ShaderHandle, MESH_VARIANTS> mesh_shaders_{};
     /// One entity's bone matrices while they are being built; reused per draw.
     std::vector<glm::mat4> pose_scratch_;
     u32 meshProgram(RenderFrameContext& ctx, u32 variant);

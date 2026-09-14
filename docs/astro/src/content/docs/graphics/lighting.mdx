@@ -347,6 +347,56 @@ saying something about its art direction; the fix is to turn shadows off (`shado
 of 0 on a sun, or a smaller `radius` that takes a light out of view) on the ones whose
 shadows nobody looks at.
 
+## Baked light
+
+Sixteen lights reach one frame. The seventeenth is dropped — by brightness, with a
+warning naming what was refused — and that ceiling is not a quality setting: a room
+with thirty lamps in it cannot be lit in real time here at all.
+
+A **bake** is the way past it. Light that never moves is computed once, offline, and
+stored as a texture; at run time the surface reads a texel instead of summing lights.
+A hundred lamps then cost exactly what one costs, and what they cost is a sample.
+
+The engine reads a bake through two things, and you give it both:
+
+- **A mesh with a second UV set.** The first UV set is how the art is wrapped, and it
+  overlaps on purpose — two arms share the texels of one arm. A bake cannot: each
+  surface needs its own patch, or one wall's light lands on another. Both importers
+  carry the channel through when a model has one (`TEXCOORD_1` in glTF, a second UV
+  layer in FBX), so this is a question for whoever authored the model.
+- **A `MeshLightmap` component.** `lightmap` is the atlas, and `scaleOffset` is the
+  rectangle of it this object occupies — `xy` scales the second UV set, `zw` offsets
+  it. `(1, 1, 0, 0)` reads the whole texture, which is what a bake of a single object
+  produces. The rectangle is per entity and not per mesh, because the same mesh placed
+  twice is lit twice, differently.
+
+What the bake MEANS depends on the renderer's `lit` flag, and the two are worth
+telling apart:
+
+| `lit` | With a `MeshLightmap` | Without |
+| --- | --- | --- |
+| on | Real-time light **plus** the bake, which carries the indirect term | Real-time light only |
+| off | The bake is **all** of the surface's light | Unlit — the texture as authored |
+
+The second row is the one a bake is for. A scene whose lights all went into the atlas
+draws with `lit` off and pays for no lights at all — on a phone, that is the difference
+between a lit room and a slideshow.
+
+An object whose geometry carries the channel but has no `MeshLightmap` draws exactly as
+it did before: the rectangle is zero, and the shader reads that as "no bake" rather than
+as an atlas of black.
+
+:::caution
+Estella has no lightmapper yet — nothing in the editor *produces* an atlas. The reading
+side is what shipped here, so a bake authored elsewhere (Blender's Cycles, a Substance
+bake, any renderer that writes a lightmap and its UV layout) can be brought in and read
+today. Baking from inside the editor is the next piece.
+:::
+
+Skinned meshes take no bake: bones move a character, and a bake cannot hold one still
+long enough to light it. A character in a baked room is lit in real time, by the lights
+that stayed behind.
+
 ## Linear color space
 
 By default the engine renders **gamma-space** — colors blend as-authored, the way 2D

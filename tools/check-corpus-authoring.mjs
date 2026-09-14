@@ -120,6 +120,7 @@ const DISPOSITION = {
   // — owed: a creator-facing component nothing in the shipped corpus authors.
   //   Each reason names where the coverage belongs. —
 
+  MeshLightmap: ['owed', 'the reading side shipped before the baking side, deliberately: nothing in the editor produces an atlas yet, so a corpus scene would have to carry one baked in another tool. The coverage belongs with the lightmapper, in the example whose room it lights'],
 
 };
 

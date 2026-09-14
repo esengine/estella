@@ -140,6 +140,10 @@ struct BatchDrawKey {
     // (1-based, 0 = none) and the mesh's own delta texture behind it.
     u32 morphIndex = 0;
     u32 morphTextureId = 0;
+    /// The baked atlas this draw reads, on the last slot a draw's own stream has.
+    /// Part of the key and not only of the command: two objects sharing a mesh but
+    /// baked into different atlases are two draws.
+    u32 lightmapTextureId = 0;
 };
 
 /**

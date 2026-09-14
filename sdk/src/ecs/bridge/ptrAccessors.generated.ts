@@ -937,6 +937,34 @@ export function createMeshCollider3DData(): MeshCollider3DPtrData {
     };
 }
 
+export interface MeshLightmapPtrData {
+    lightmap: number;
+    scaleOffset: Vec4;
+}
+
+export function fillMeshLightmap(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: MeshLightmapPtrData,
+): void {
+    out.lightmap = u32[ptr >> 2];
+    const scaleOffset_ = out.scaleOffset; scaleOffset_.x = f32[(ptr + 4) >> 2]; scaleOffset_.y = f32[((ptr + 4) >> 2) + 1]; scaleOffset_.z = f32[((ptr + 4) >> 2) + 2]; scaleOffset_.w = f32[((ptr + 4) >> 2) + 3];
+}
+
+export function writeMeshLightmap(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: MeshLightmapPtrData,
+): void {
+    u32[ptr >> 2] = data.lightmap;
+    f32[(ptr + 4) >> 2] = data.scaleOffset.x; f32[((ptr + 4) >> 2) + 1] = data.scaleOffset.y; f32[((ptr + 4) >> 2) + 2] = data.scaleOffset.z; f32[((ptr + 4) >> 2) + 3] = data.scaleOffset.w;
+}
+
+export function createMeshLightmapData(): MeshLightmapPtrData {
+    return {
+        lightmap: 0,
+        scaleOffset: { x: 0, y: 0, z: 0, w: 0 },
+    };
+}
+
 export interface MeshRendererPtrData {
     texture: number;
     normalMap: number;
@@ -2325,6 +2353,7 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     LODGroup: { fill: fillLODGroup, write: writeLODGroup, create: createLODGroupData },
     Light: { fill: fillLight, write: writeLight, create: createLightData },
     MeshCollider3D: { fill: fillMeshCollider3D, write: writeMeshCollider3D, create: createMeshCollider3DData },
+    MeshLightmap: { fill: fillMeshLightmap, write: writeMeshLightmap, create: createMeshLightmapData },
     MeshRenderer: { fill: fillMeshRenderer, write: writeMeshRenderer, create: createMeshRendererData },
     ParticleEmitter: { fill: fillParticleEmitter, write: writeParticleEmitter, create: createParticleEmitterData },
     ParticleForceField: { fill: fillParticleForceField, write: writeParticleForceField, create: createParticleForceFieldData },

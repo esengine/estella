@@ -153,14 +153,21 @@ function drive(name, options) {
 
 const digestOf = (r) => `${r.digestHi.toString(16)}${r.digestLo.toString(16).padStart(8, '0')}`;
 
-const keySet = (r) => {
+const KEY_WORDS = ['keysLo', 'keysHi', 'keysLo2', 'keysHi2'];
+/** The variant keys a prewarm derived, as a set a reader can compare by eye. A
+ *  bit per mesh variant, over as many words as the engine's variant space needs:
+ *  reading only the first two would call two answers equal on the strength of
+ *  the half of them that happens to be read. */
+function keySet(r) {
     const keys = [];
-    for (let i = 0; i < 32; i++) {
-        if (r.keysLo & (1 << i)) keys.push(i);
-        if (r.keysHi & (1 << i)) keys.push(i + 32);
-    }
+    KEY_WORDS.forEach((word, w) => {
+        for (let i = 0; i < 32; i++) if (r[word] & (1 << i)) keys.push(w * 32 + i);
+    });
     return keys;
-};
+}
+/** Whether two prewarms need the same set — every word, for the reason above. */
+const sameKeys = (a, b) => KEY_WORDS.every((word) => a[word] === b[word]);
+
 
 function main() {
     if (!existsSync(SAMPLE)) {
@@ -237,7 +244,7 @@ function main() {
     const plain = runs.get('plain').get('entities');
     const shaded = runs.get('material').get('entities');
     console.log('');
-    check(plain.keysLo === shaded.keysLo && plain.keysHi === shaded.keysHi,
+    check(sameKeys(plain, shaded),
         'the plain and material worlds need the SAME stock variants',
         `{${keySet(plain).join(', ')}} against {${keySet(shaded).join(', ')}}`);
     check(plain.materialAsks === 0 && shaded.materialAsks > 0,

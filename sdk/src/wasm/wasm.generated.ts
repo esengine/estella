@@ -579,6 +579,11 @@ export interface MeshCollider3D {
     enabled: boolean;
 }
 
+export interface MeshLightmap {
+    lightmap: number;
+    scaleOffset: Vec4;
+}
+
 export interface MeshMorph {
     weights: VectorFloat;
 }
@@ -972,6 +977,10 @@ export interface Registry {
     getMeshCollider3D(entity: Entity): MeshCollider3D;
     addMeshCollider3D(entity: Entity, component: MeshCollider3D): void;
     removeMeshCollider3D(entity: Entity): void;
+    hasMeshLightmap(entity: Entity): boolean;
+    getMeshLightmap(entity: Entity): MeshLightmap;
+    addMeshLightmap(entity: Entity, component: MeshLightmap): void;
+    removeMeshLightmap(entity: Entity): void;
     hasMeshMorph(entity: Entity): boolean;
     getMeshMorph(entity: Entity): MeshMorph;
     addMeshMorph(entity: Entity, component: MeshMorph): void;
@@ -1104,6 +1113,7 @@ export interface ESEngineModule {
     LODGroup: new () => LODGroup;
     Light: new () => Light;
     MeshCollider3D: new () => MeshCollider3D;
+    MeshLightmap: new () => MeshLightmap;
     MeshMorph: new () => MeshMorph;
     MeshRenderer: new () => MeshRenderer;
     MeshSkin: new () => MeshSkin;

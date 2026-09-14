@@ -115,6 +115,18 @@ export const SCENES = [
   // DIFFERENT copy of the deform. Through the other source, the same shape: the
   // two must move the quad alike or one of them is not deforming at all.
   { id: "mesh-morph-material", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-morph-mat.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.75,\"y\":0.5,\"rgb\":[0,0,255],\"tol\":30},{\"x\":0.25,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]" } },
+  // A BAKE, read through the second UV set. The atlas runs red-to-blue left to
+  // right and the quad's second UV set is the transpose of its first, so reading
+  // the wrong channel turns the halves and swaps two of these four points.
+  { id: "lightmap-unlit", tier: "pr", webgpu: true, env: { "ESTELLA_VERIFY_SCENE": "/scenes/lightmap-unlit.esscene", "ESTELLA_VERIFY_MANIFEST": "/scenes/lightmap-unlit.textures.json", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "2", "ESTELLA_VERIFY_EXPECT": "[{\"x\":0.3,\"y\":0.25,\"rgb\":[0,0,255],\"tol\":30},{\"x\":0.7,\"y\":0.25,\"rgb\":[0,0,255],\"tol\":30},{\"x\":0.3,\"y\":0.75,\"rgb\":[255,0,0],\"tol\":30},{\"x\":0.7,\"y\":0.75,\"rgb\":[255,0,0],\"tol\":30}]" } },
+  // A baked object and an unbaked one in ONE lit frame. Cyan and yellow halves
+  // say the green sun SURVIVED, so the bake adds rather than replaces; the plain
+  // green quad says an unbaked one is not brightened by an unbound unit's white.
+  { id: "lightmap-mixed", tier: "pr", webgpu: true, env: { "ESTELLA_VERIFY_SCENE": "/scenes/lightmap-mixed.esscene", "ESTELLA_VERIFY_MANIFEST": "/scenes/lightmap-mixed.textures.json", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "2", "ESTELLA_VERIFY_EXPECT": "[{\"x\":0.25,\"y\":0.4,\"rgb\":[0,255,255],\"tol\":40},{\"x\":0.25,\"y\":0.6,\"rgb\":[255,255,0],\"tol\":40},{\"x\":0.75,\"y\":0.4,\"rgb\":[0,255,0],\"tol\":40},{\"x\":0.75,\"y\":0.6,\"rgb\":[0,255,0],\"tol\":40}]" } },
+  // Why the rectangle rides the per-object record: ONE mesh and ONE atlas, and
+  // the two objects drawn from them read different halves of it. A rectangle
+  // that belonged to the mesh would paint these two the same colour.
+  { id: "lightmap-atlas", tier: "pr", webgpu: true, env: { "ESTELLA_VERIFY_SCENE": "/scenes/lightmap-atlas-share.esscene", "ESTELLA_VERIFY_MANIFEST": "/scenes/lightmap-atlas-share.textures.json", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "2", "ESTELLA_VERIFY_EXPECT": "[{\"x\":0.25,\"y\":0.4,\"rgb\":[255,0,0],\"tol\":30},{\"x\":0.25,\"y\":0.6,\"rgb\":[255,0,0],\"tol\":30},{\"x\":0.75,\"y\":0.4,\"rgb\":[0,0,255],\"tol\":30},{\"x\":0.75,\"y\":0.6,\"rgb\":[0,0,255],\"tol\":30}]" } },
   // A clip driving the weight, which is what an imported `weights` channel
   // becomes. The shape has to cross the boundary as a LIST — a weight written
   // into a component the runtime hands back as an embind vector goes nowhere.

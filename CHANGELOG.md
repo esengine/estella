@@ -14,6 +14,44 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **A mesh can be read through the light that was baked into it.** Sixteen lights
+  reach one frame; the seventeenth is dropped by brightness, with a warning naming
+  what was refused. That ceiling is not a quality setting — a room with thirty
+  lamps in it cannot be lit in real time at all — and a bake is the way past it:
+  light that never moves is computed once and stored as a texture, so a hundred
+  lamps cost what one costs, and what they cost is a sample.
+
+  A `MeshLightmap` says where an object's bake is: `lightmap` is the atlas, and
+  `scaleOffset` is the rectangle of it this object occupies. The rectangle rides
+  the **per-object** record beside the model matrix, and that is the reason it is
+  a component rather than part of the mesh — the same mesh placed twice is lit
+  twice, differently, and occupies two patches of one atlas.
+
+  It is read through the second UV set, which a model has been carrying since
+  0.63 and which nothing read: the first UV set overlaps on purpose, and a bake
+  cannot, so `TEXCOORD_1` leaves `meshShaderReads`' exclusion list now that it
+  has a reader. A mesh without one draws exactly as before.
+
+  What the bake MEANS depends on whether the draw also takes real-time light, and
+  the two are worth telling apart: a lit surface adds it as the **indirect** term,
+  so a sun's contribution survives; an unlit one takes it as **all** of its light,
+  which is the case a bake is for — a scene whose lights all went into the atlas
+  pays for none of them. An object with no bake is not darkened by the difference:
+  the rectangle reads as zero, and the shader takes that as "none" rather than as
+  an atlas of black.
+
+  **There is no lightmapper yet** — nothing in the editor produces an atlas. This
+  is the reading side, and it went first on purpose: a bake authored by hand can
+  falsify it, where a baker built first would have nothing to say whether it baked
+  the right thing. Three pixel gates hold it, one claim each — which UV set was
+  read, that the bake adds to real-time light rather than replacing it, and that
+  one mesh drawn twice reads two different halves of one atlas.
+
+  Skinned meshes take no bake: bones move a character, and a bake cannot hold one
+  still long enough to light it.
+
 ## [0.66.0] - 2026-09-14
 
 ### Added

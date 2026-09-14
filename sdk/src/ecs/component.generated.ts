@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, Cl
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '7aee1689088373e3';
+export const ABI_LAYOUT_HASH = 'ca7cd852d3bc316f';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -523,6 +523,20 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             friction: { min: 0 },
             restitution: { min: 0, max: 1 },
             layer: { min: 0, max: 15, advanced: true },
+        },
+    },
+    MeshLightmap: {
+        defaults: {
+            lightmap: 0,
+            scaleOffset: { x: 1, y: 1, z: 0, w: 0 },
+        },
+        assetFields: [{ field: 'lightmap', type: 'texture' as AssetFieldType }],
+        entityFields: [],
+        colorFields: [],
+        animatableFields: [],
+        fields: {
+            lightmap: { tooltip: "Baked lightmap atlas. Needs a mesh with a second UV set." },
+            scaleOffset: { tooltip: "Atlas rectangle: xy scales the second UV set, zw offsets it.", advanced: true },
         },
     },
     MeshMorph: {
@@ -1396,6 +1410,11 @@ export interface MeshCollider3DData {
     restitution: number;
     layer: number;
     enabled: boolean;
+}
+
+export interface MeshLightmapData {
+    lightmap: number;
+    scaleOffset: Vec4;
 }
 
 export interface MeshMorphData {

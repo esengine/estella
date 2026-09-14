@@ -1,0 +1,136 @@
+{
+  "version": 4,
+  "name": "LightmapAtlasShare",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 10
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 100,
+            "isActive": true,
+            "priority": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Left",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -50,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "layer": 0,
+            "enabled": true,
+            "lit": false,
+            "mesh": "/scenes/lightmap-quad.esmesh"
+          }
+        },
+        {
+          "type": "MeshLightmap",
+          "data": {
+            "lightmap": "@uuid:bbbbbbbb-1111-2222-3333-555555555555",
+            "scaleOffset": {
+              "x": 0.5,
+              "y": 1,
+              "z": 0,
+              "w": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Right",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 50,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 0.5,
+              "y": 0.5,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "layer": 0,
+            "enabled": true,
+            "lit": false,
+            "mesh": "/scenes/lightmap-quad.esmesh"
+          }
+        },
+        {
+          "type": "MeshLightmap",
+          "data": {
+            "lightmap": "@uuid:bbbbbbbb-1111-2222-3333-555555555555",
+            "scaleOffset": {
+              "x": 0.5,
+              "y": 1,
+              "z": 0.5,
+              "w": 0
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

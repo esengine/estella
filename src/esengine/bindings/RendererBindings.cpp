@@ -872,30 +872,33 @@ void engine_prepareMeshPrograms(u32 rowsPtr, u32 count, u32 outPtr) {
 }
 
 #ifdef ES_ENABLE_TEST_PROBES
-/** Eleven words: five counts, the 64-bit stock key set, the requirement digest
- *  that also covers the material programs, and the epoch the digest was taken
- *  under — a digest without its epoch cannot say whether it is still true. */
+/** Fifteen words: five counts, the stock key set (a bit per mesh variant, so two
+ *  64-bit words), the requirement digest that also covers the material programs,
+ *  and the epoch the digest was taken under — a digest without its epoch cannot
+ *  say whether it is still true. */
 static void writePrewarm(u32* out, const RenderPrewarmResult& r) {
     out[0] = r.asks;
     out[1] = r.compiles;
     out[2] = r.uniqueKeys;
     out[3] = r.materialAsks;
     out[4] = r.materialCompiles;
-    out[5] = static_cast<u32>(r.keys & 0xFFFFFFFFull);
-    out[6] = static_cast<u32>(r.keys >> 32);
+    for (u32 w = 0; w < 2; ++w) {
+        out[5 + w * 2] = static_cast<u32>(r.keys[w] & 0xFFFFFFFFull);
+        out[6 + w * 2] = static_cast<u32>(r.keys[w] >> 32);
+    }
     const u64 digest = r.requirementDigest();
-    out[7] = static_cast<u32>(digest & 0xFFFFFFFFull);
-    out[8] = static_cast<u32>(digest >> 32);
+    out[9] = static_cast<u32>(digest & 0xFFFFFFFFull);
+    out[10] = static_cast<u32>(digest >> 32);
     const auto* rc = ctx().tryGet<RenderContext>();
     const u64 epoch = rc ? rc->programEpoch() : 0;
-    out[9] = static_cast<u32>(epoch & 0xFFFFFFFFull);
-    out[10] = static_cast<u32>(epoch >> 32);
+    out[11] = static_cast<u32>(epoch & 0xFFFFFFFFull);
+    out[12] = static_cast<u32>(epoch >> 32);
     // Not a third truth in the stamp: the guard that says the two above were
     // read on one device. A generation that moved mid-derivation invalidates the
     // whole readying rather than being recorded alongside it.
     const u64 generation = g_device ? g_device->deviceGeneration() : 0;
-    out[11] = static_cast<u32>(generation & 0xFFFFFFFFull);
-    out[12] = static_cast<u32>(generation >> 32);
+    out[13] = static_cast<u32>(generation & 0xFFFFFFFFull);
+    out[14] = static_cast<u32>(generation >> 32);
 }
 
 void engine_prewarmMeshVariants(ecs::Registry& registry, u32 entitiesPtr, u32 count, u32 outPtr) {

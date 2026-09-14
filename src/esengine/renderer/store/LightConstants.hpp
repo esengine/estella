@@ -38,6 +38,16 @@ inline constexpr const char* ENV_MAP_SAMPLER = "u_envMap";
 inline constexpr u32 ENV_MAP_TEXTURE_UNIT = 3;
 
 /**
+ * @brief The baked-light atlas, and the unit a lightmapped mesh samples it from.
+ * @details Unit 5 and not 4: the morph deltas hold that one and 6/7 are the
+ *          frame's 2D masks, so this is the last a draw's own stream can claim.
+ *          A lit fragment ADDS the bake as its indirect term; an unlit one takes
+ *          it as the whole of its light.
+ */
+inline constexpr const char* LIGHTMAP_SAMPLER = "u_lightmap";
+inline constexpr u32 LIGHTMAP_TEXTURE_UNIT = 5;
+
+/**
  * @brief Max simultaneous 2D lights packed into the UBO. The injected fragment loop is a fixed
  *        bound; inactive slots are zeroed (intensity 0) so they contribute nothing. Must match
  *        the `u_lights[..]` array size in ShaderParser's injected GLSL.

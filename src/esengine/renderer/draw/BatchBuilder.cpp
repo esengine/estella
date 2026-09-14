@@ -148,6 +148,14 @@ void pushBatchDraw(DrawList& drawList, const ClipState& clips,
         cmd.texture_ids[4] = key.morphTextureId;
         cmd.texture_count = 5;
     }
+    // The baked atlas, on the last slot below the frame's two masks. A draw whose
+    // geometry can read one but has none binds nothing here: the fill is white,
+    // and its record's rectangle is what says the bake does not apply.
+    if (key.lightmapTextureId != 0 && cmd.texture_count >= 1 && key.layoutId != LayoutId::Batch) {
+        for (u8 slot = cmd.texture_count; slot < 5; ++slot) cmd.texture_ids[slot] = key.textureId;
+        cmd.texture_ids[5] = key.lightmapTextureId;
+        cmd.texture_count = 6;
+    }
     cmd.entity = key.entity;
     cmd.type = key.type;
     cmd.layer = layer;

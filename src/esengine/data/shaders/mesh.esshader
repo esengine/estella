@@ -27,6 +27,12 @@
 // channel — which is why this rides LIT rather than a vertex attribute.
 #pragma feature NORMAL_MAP
 
+// Baked light: the second UV set a bake is laid out in, and the rectangle of the
+// atlas THIS object occupies. A feature rather than a number in a block — unlike
+// the morph weights below — because a vertex attribute a shader does not declare
+// may not appear in the layout it is drawn through, which WebGPU rejects.
+#pragma feature MESH_LIGHTMAP
+
 // The shadow-map pass: the same geometry, from the light, writing depth as colour
 // instead of shading. A feature and not a second shader, because what has to be
 // identical between the two passes is the VERTEX stage — a skinned occluder must
@@ -49,6 +55,9 @@ layout(location = 3) in vec3 a_normal;
 layout(location = 5) in uvec4 a_joints;
 layout(location = 6) in vec4 a_weights;
 #endif
+#ifdef MESH_LIGHTMAP
+layout(location = 7) in vec2 a_texCoord1;
+#endif
 
 // 8.. and not 3..: a channel's semantic IS its location, so adding normals to a
 // mesh must not move the per-object record (see MESH_INSTANCE_FIRST_LOCATION).
@@ -59,6 +68,12 @@ layout(location = 6) in vec4 a_weights;
 layout(location = 8)  in vec4 a_model0;
 layout(location = 9)  in vec4 a_model1;
 layout(location = 10) in vec4 a_model2;
+#ifdef MESH_LIGHTMAP
+// Appended to the record, so the tint and the normal matrix keep the offsets
+// they had. Never on a skinned draw: bones move a character, and a character is
+// what a bake cannot hold still long enough to light.
+layout(location = 11) in vec4 a_lightmapRect;
+#endif
 #endif
 layout(location = 12) in vec4 a_instTint;
 #if defined(MESH_NORMALS) && !defined(SKINNED)
@@ -111,6 +126,16 @@ void applyMorph(inout vec3 position, inout vec3 normal) {
 
 out vec2 v_texCoord;
 out vec4 v_color;
+#ifdef MESH_LIGHTMAP
+// xy = where in the atlas; z = whether this draw has a bake at all.
+//
+// The third component and not a fallback texture, because the two branches below
+// want DIFFERENT values for "no bake": the lit one adds the bake and wants black,
+// the unlit one multiplies by it and wants white. An unbound unit holds one
+// colour, so it can be right for one of them and never for both — and the engine
+// fills an unused unit with white, which is exactly the half that would be wrong.
+out highp vec3 v_lightmap;
+#endif
 #ifdef LIT
 out highp vec3 v_worldNormal;
 // The full position, not just the plane's: a tangent frame is derived from how
@@ -153,6 +178,10 @@ void main() {
     gl_Position = u_projection * world;
     v_texCoord = a_texCoord;
     v_color = a_color * a_instTint;
+#ifdef MESH_LIGHTMAP
+    v_lightmap = vec3(a_texCoord1 * a_lightmapRect.xy + a_lightmapRect.zw,
+                      a_lightmapRect.x > 0.0 ? 1.0 : 0.0);
+#endif
 #ifdef SHADOW_DEPTH
     v_shadowClip = gl_Position;
 #endif
@@ -175,6 +204,9 @@ precision mediump float;
 
 in vec2 v_texCoord;
 in vec4 v_color;
+#ifdef MESH_LIGHTMAP
+in highp vec3 v_lightmap;
+#endif
 #ifdef LIT
 in highp vec3 v_worldNormal;
 in highp vec3 v_worldPos;
@@ -186,6 +218,9 @@ in highp vec4 v_shadowClip;
 uniform sampler2D u_texture;
 #ifdef NORMAL_MAP
 uniform sampler2D u_normalMap;
+#endif
+#ifdef MESH_LIGHTMAP
+uniform sampler2D u_lightmap;
 #endif
 
 out vec4 fragColor;
@@ -199,6 +234,9 @@ void main() {
                                      0.0, 1.0)), 1.0);
 #else
     vec4 base = texture(u_texture, v_texCoord) * v_color;
+#ifdef MESH_LIGHTMAP
+    vec3 baked = texture(u_lightmap, v_lightmap.xy).rgb;
+#endif
 #ifdef LIT
     highp vec3 N = normalize(v_worldNormal);
 #ifdef NORMAL_MAP
@@ -208,10 +246,24 @@ void main() {
     // point in space, and xy is not one. Specular stays ON — switching it off is
     // not a cheaper PBR, it is a different surface, and a mesh whose material
     // says nothing must still be lit the way the same mesh out of a glTF is.
-    fragColor = vec4(applyLightingPBR(base.rgb, N, v_worldPos, viewDirection(v_worldPos),
-                                      0.0, 1.0, 1.0, 1.0), base.a);
+    vec3 shaded = applyLightingPBR(base.rgb, N, v_worldPos, viewDirection(v_worldPos),
+                                   0.0, 1.0, 1.0, 1.0);
+#ifdef MESH_LIGHTMAP
+    // The INDIRECT term. A real-time light says what reaches this point straight
+    // from a source, and the bake says what reached it off everything else — so
+    // the two are added, and a surface that has both is not lit twice.
+    shaded += base.rgb * baked * v_lightmap.z;
+#endif
+    fragColor = vec4(shaded, base.a);
+#else
+#ifdef MESH_LIGHTMAP
+    // Unlit AND lightmapped: the bake is the whole of this surface's light, not
+    // an addition to a direct term it has none of. This is the case a bake is
+    // FOR — a scene whose lights all went into the atlas pays for none of them.
+    fragColor = vec4(base.rgb * mix(vec3(1.0), baked, v_lightmap.z), base.a);
 #else
     fragColor = base;
+#endif
 #endif
 #endif
 }
@@ -250,6 +302,12 @@ struct VSIn {
     @location(8)  a_model0 : vec4f,
     @location(9)  a_model1 : vec4f,
     @location(10) a_model2 : vec4f,
+#ifdef MESH_LIGHTMAP
+    @location(11) a_lightmapRect : vec4f,
+#endif
+#endif
+#ifdef MESH_LIGHTMAP
+    @location(7) a_texCoord1 : vec2f,
 #endif
     @location(12) a_instTint : vec4f,
     // What the GLSL twin reads as gl_VertexID: a morph delta is addressed by it.
@@ -273,6 +331,9 @@ struct VSOut {
 #ifdef SHADOW_DEPTH
     // The clip position, not the depth it divides down to — see the GLSL twin.
     @location(4) v_shadowClip : vec4f,
+#endif
+#ifdef MESH_LIGHTMAP
+    @location(5) v_lightmap : vec3f,
 #endif
 };
 
@@ -314,6 +375,10 @@ struct VSOut {
     out.pos = frame.projection * world;
     out.v_texCoord = v.a_texCoord;
     out.v_color = v.a_color * v.a_instTint;
+#ifdef MESH_LIGHTMAP
+    out.v_lightmap = vec3f(v.a_texCoord1 * v.a_lightmapRect.xy + v.a_lightmapRect.zw,
+                           select(0.0, 1.0, v.a_lightmapRect.x > 0.0));
+#endif
 #ifdef SHADOW_DEPTH
     out.v_shadowClip = out.pos;
 #endif
@@ -354,6 +419,11 @@ struct VSOut {
 @group(1) @binding(3) var t3 : texture_2d<f32>;
 @group(1) @binding(11) var s3 : sampler;
 #endif
+#ifdef MESH_LIGHTMAP
+// The baked atlas, on the last slot a draw's own stream can claim.
+@group(1) @binding(5) var t5 : texture_2d<f32>;
+@group(1) @binding(13) var s5 : sampler;
+#endif
 // The 2D shadow mask, on the top slot. Unconditional, because the injected
 // lighting reads it for every Lit shader rather than behind a feature.
 @group(1) @binding(7) var t7 : texture_2d<f32>;
@@ -370,6 +440,9 @@ struct VSOut {
 #ifdef SHADOW_DEPTH
     @location(4) v_shadowClip : vec4f,
 #endif
+#ifdef MESH_LIGHTMAP
+    @location(5) v_lightmap : vec3f,
+#endif
 };
 
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
@@ -381,6 +454,9 @@ struct VSOut {
                                  0.0, 1.0)), 1.0);
 #else
     let base = textureSampleLevel(t0, s0, v.v_texCoord, 0.0) * v.v_color;
+#ifdef MESH_LIGHTMAP
+    let baked = textureSampleLevel(t5, s5, v.v_lightmap.xy, 0.0).rgb;
+#endif
 #ifdef LIT
     var N = normalize(v.v_worldNormal);
 #ifdef NORMAL_MAP
@@ -390,10 +466,20 @@ struct VSOut {
     // point in space, and xy is not one. Specular stays ON — switching it off is
     // not a cheaper PBR, it is a different surface, and a mesh whose material
     // says nothing must still be lit the way the same mesh out of a glTF is.
-    return vec4f(applyLightingPBR(base.rgb, N, v.v_worldPos, viewDirection(v.v_worldPos),
-                                  0.0, 1.0, 1.0, 1.0), base.a);
+    var shaded = applyLightingPBR(base.rgb, N, v.v_worldPos, viewDirection(v.v_worldPos),
+                                  0.0, 1.0, 1.0, 1.0);
+#ifdef MESH_LIGHTMAP
+    // The INDIRECT term — see the GLSL twin.
+    shaded = shaded + base.rgb * baked * v.v_lightmap.z;
+#endif
+    return vec4f(shaded, base.a);
+#else
+#ifdef MESH_LIGHTMAP
+    // Unlit AND lightmapped: the bake is the whole of this surface's light.
+    return vec4f(base.rgb * mix(vec3f(1.0), baked, vec3f(v.v_lightmap.z)), base.a);
 #else
     return base;
+#endif
 #endif
 #endif
 }

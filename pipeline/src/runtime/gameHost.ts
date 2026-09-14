@@ -141,7 +141,7 @@ async function boot(): Promise<void> {
 
   if (headless) {
     let statsOn = false;
-    const PREWARM_WORDS = 13;
+    const PREWARM_WORDS = 15;
     const PREPARE_WORDS = 11;
 
     /** Eleven words back from the production readying: whether a claim may be
@@ -165,10 +165,10 @@ async function boot(): Promise<void> {
       return {
         asks: o[0], compiles: o[1], uniqueKeys: o[2],
         materialAsks: o[3], materialCompiles: o[4],
-        keysLo: o[5], keysHi: o[6],
-        digestLo: o[7], digestHi: o[8],
-        programEpoch: o[9] + o[10] * 0x100000000,
-        deviceGeneration: o[11] + o[12] * 0x100000000,
+        keysLo: o[5], keysHi: o[6], keysLo2: o[7], keysHi2: o[8],
+        digestLo: o[9], digestHi: o[10],
+        programEpoch: o[11] + o[12] * 0x100000000,
+        deviceGeneration: o[13] + o[14] * 0x100000000,
       };
     };
 

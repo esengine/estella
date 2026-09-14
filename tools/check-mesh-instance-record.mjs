@@ -40,6 +40,7 @@ const constant = (name) => {
 const FIRST = constant('MESH_INSTANCE_FIRST_LOCATION');
 const STRIDE = constant('MESH_INSTANCE_STRIDE');
 const STRIDE_LIT = constant('MESH_INSTANCE_STRIDE_LIT');
+const LIGHTMAP_BYTES = constant('MESH_INSTANCE_LIGHTMAP_BYTES');
 
 /** Every instance-range attribute a source declares: location → name, per language. */
 function declarations(text) {
@@ -87,27 +88,39 @@ for (const [file, langs] of Object.entries(sources)) {
 }
 
 /**
- * What the declarations add up to, against what the packer sends. The model rows
- * and the lightmap rectangle are vec4s, the tint is four bytes it packs itself,
- * and the normal rows are the vec3s only lit geometry carries.
+ * What the declarations add up to, against what the packer sends. Measured by
+ * WHERE each part is rather than by how many there are: normals and a bake are
+ * each optional, so a count alone cannot say which record a total is of.
  */
+const LIGHTMAP = FIRST + 3;
 const TINT = FIRST + 4;
 const NORMAL_FIRST = FIRST + 5;
-const wide = every.filter((loc) => loc < TINT).length;
+const modelRows = every.filter((loc) => loc < LIGHTMAP).length;
 const normalRows = every.filter((loc) => loc >= NORMAL_FIRST).length;
-const base = wide * 16 + 4;
+const base = modelRows * 16 + 4;
 const lit = base + normalRows * 12;
 if (!spellings.has(TINT)) {
     problems.push(`no attribute at location ${TINT}, where the record's tint is`);
 }
 if (base !== STRIDE) {
-    problems.push(`${wide} vec4 part(s) plus the tint is ${base} bytes, but`
+    problems.push(`${modelRows} model row(s) plus the tint is ${base} bytes, but`
         + ` MESH_INSTANCE_STRIDE is ${STRIDE} — the record is packed to a different shape`
         + ' than it is declared');
 }
 if (lit !== STRIDE_LIT) {
     problems.push(`with ${normalRows} normal row(s) that is ${lit} bytes, but`
         + ` MESH_INSTANCE_STRIDE_LIT is ${STRIDE_LIT}`);
+}
+// The bake's rectangle is APPENDED, so its size is all the packer needs to agree
+// on: everything before it keeps the offset it had, which is what lets one
+// record serve an object with a bake and one without.
+if (spellings.has(LIGHTMAP) && LIGHTMAP_BYTES !== 16) {
+    problems.push(`location ${LIGHTMAP} declares a vec4 atlas rectangle, which is 16 bytes,`
+        + ` but MESH_INSTANCE_LIGHTMAP_BYTES is ${LIGHTMAP_BYTES}`);
+}
+if (!spellings.has(LIGHTMAP) && LIGHTMAP_BYTES !== 0) {
+    problems.push(`MESH_INSTANCE_LIGHTMAP_BYTES is ${LIGHTMAP_BYTES}, but no attribute at`
+        + ` location ${LIGHTMAP} carries an atlas rectangle — the bytes are sent and never read`);
 }
 
 if (problems.length) {
@@ -119,5 +132,7 @@ if (problems.length) {
     process.exit(1);
 }
 
+const bake = spellings.has(LIGHTMAP) ? ` (+${LIGHTMAP_BYTES} where a bake is read)` : '';
 console.log(`check-mesh-instance-record: ${every.length} part(s) of the per-object record,`
-    + ` spelled the same in all four declarations and adding to ${STRIDE}/${STRIDE_LIT} bytes.`);
+    + ` spelled the same in all four declarations and adding to ${STRIDE}/${STRIDE_LIT}`
+    + ` bytes${bake}.`);

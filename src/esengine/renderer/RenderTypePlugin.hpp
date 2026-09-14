@@ -23,6 +23,7 @@
 
 #include <cmath>
 #include <algorithm>
+#include <array>
 #include <unordered_set>
 #include <vector>
 
@@ -130,6 +131,10 @@ struct MeshProgramFacts {
     bool lit = false;
     u32 normalTextureId = 0;
     bool skinned = false;
+    /** Whether the GEOMETRY can be read through a bake — it carries the second UV
+     *  set, and is not posed by bones. Whether it HAS one is the atlas rectangle
+     *  in its record, which is a number rather than a program. */
+    bool lightmapped = false;
     u32 materialId = 0;
 };
 
@@ -142,8 +147,18 @@ struct RenderPrewarmResult {
     u32 uniqueKeys = 0;
     u32 materialAsks = 0;
     u32 materialCompiles = 0;
-    /** Which keys, not how many: an equality claim needs the set. 64 variants. */
-    u64 keys = 0;
+    /** Which keys, not how many: an equality claim needs the set. One bit per
+     *  MESH_VARIANTS, so it is two words rather than one. */
+    std::array<u64, MESH_VARIANTS / 64> keys{};
+
+    /** @brief Whether this key is already in the set; adds it if not. */
+    bool addKey(u32 variant) {
+        u64& word = keys[variant / 64];
+        const u64 bit = 1ull << (variant % 64);
+        if (word & bit) return false;
+        word |= bit;
+        return true;
+    }
     /** The material programs the content needs, by identity rather than count.
      *  A material world whose shading changed must not digest the same as the
      *  one before it, and `materialAsks` alone cannot say that. */
@@ -179,7 +194,7 @@ struct RenderPrewarmResult {
                 h *= 1099511628211ull;
             }
         };
-        mix(keys);
+        for (u64 word : keys) mix(word);
         for (u64 k : sorted) mix(k);
         return h;
     }
@@ -190,7 +205,7 @@ struct RenderPrewarmResult {
         uniqueKeys += other.uniqueKeys;
         materialAsks += other.materialAsks;
         materialCompiles += other.materialCompiles;
-        keys |= other.keys;
+        for (usize w = 0; w < keys.size(); ++w) keys[w] |= other.keys[w];
         // A union, so combining two plugins' answers cannot depend on the order
         // they ran in — the digest above rests on that.
         for (u64 k : other.materialKeys) addMaterialKey(k);

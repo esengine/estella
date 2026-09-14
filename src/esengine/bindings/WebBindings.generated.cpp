@@ -684,6 +684,29 @@ MeshCollider3DJS meshcollider3dToJS(const esengine::ecs::MeshCollider3D& c) {
     return js;
 }
 
+struct MeshLightmapJS {
+    u32 lightmap;
+    glm::vec4 scaleOffset;
+};
+
+void meshlightmapApplyJS(esengine::ecs::MeshLightmap& c, const MeshLightmapJS& js) {
+    c.lightmap = resource::TextureHandle(js.lightmap);
+    c.scaleOffset = js.scaleOffset;
+}
+
+esengine::ecs::MeshLightmap meshlightmapFromJS(const MeshLightmapJS& js) {
+    esengine::ecs::MeshLightmap c;
+    meshlightmapApplyJS(c, js);
+    return c;
+}
+
+MeshLightmapJS meshlightmapToJS(const esengine::ecs::MeshLightmap& c) {
+    MeshLightmapJS js;
+    js.lightmap = c.lightmap.id();
+    js.scaleOffset = c.scaleOffset;
+    return js;
+}
+
 struct MeshRendererJS {
     u32 texture;
     u32 normalMap;
@@ -1642,6 +1665,10 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("layer", &MeshCollider3DJS::layer)
         .field("enabled", &MeshCollider3DJS::enabled);
 
+    value_object<MeshLightmapJS>("MeshLightmap")
+        .field("lightmap", &MeshLightmapJS::lightmap)
+        .field("scaleOffset", &MeshLightmapJS::scaleOffset);
+
     value_object<esengine::ecs::MeshMorph>("MeshMorph")
         .field("weights", &esengine::ecs::MeshMorph::weights);
 
@@ -2357,6 +2384,30 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::MeshCollider3D>(entity);
         }))
 
+        // MeshLightmap
+        .function("hasMeshLightmap", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::MeshLightmap>(static_cast<Entity>(e));
+        }))
+        .function("getMeshLightmap", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::MeshLightmap>(entity)) return MeshLightmapJS{};
+            return meshlightmapToJS(r.get<esengine::ecs::MeshLightmap>(entity));
+        }))
+        .function("addMeshLightmap", optional_override([](Registry& r, u32 e, const MeshLightmapJS& js) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            if (auto* existing = r.tryGet<esengine::ecs::MeshLightmap>(entity)) {
+                meshlightmapApplyJS(*existing, js);
+                return;
+            }
+            r.emplaceOrReplace<esengine::ecs::MeshLightmap>(entity, meshlightmapFromJS(js));
+        }))
+        .function("removeMeshLightmap", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::MeshLightmap>(entity)) return;
+            r.remove<esengine::ecs::MeshLightmap>(entity);
+        }))
+
         // MeshMorph
         .function("hasMeshMorph", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::MeshMorph>(static_cast<Entity>(e));
@@ -2956,6 +3007,7 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("LODGroup")));
     arr.set(i++, val(std::string("Light")));
     arr.set(i++, val(std::string("MeshCollider3D")));
+    arr.set(i++, val(std::string("MeshLightmap")));
     arr.set(i++, val(std::string("MeshMorph")));
     arr.set(i++, val(std::string("MeshRenderer")));
     arr.set(i++, val(std::string("MeshSkin")));
@@ -3142,6 +3194,8 @@ static_assert(offsetof(esengine::ecs::MeshCollider3D, friction) == 4, "ABI offse
 static_assert(offsetof(esengine::ecs::MeshCollider3D, restitution) == 8, "ABI offset drift: esengine::ecs::MeshCollider3D.restitution (EHT expected 8)");
 static_assert(offsetof(esengine::ecs::MeshCollider3D, layer) == 12, "ABI offset drift: esengine::ecs::MeshCollider3D.layer (EHT expected 12)");
 static_assert(offsetof(esengine::ecs::MeshCollider3D, enabled) == 16, "ABI offset drift: esengine::ecs::MeshCollider3D.enabled (EHT expected 16)");
+static_assert(offsetof(esengine::ecs::MeshLightmap, lightmap) == 0, "ABI offset drift: esengine::ecs::MeshLightmap.lightmap (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::MeshLightmap, scaleOffset) == 4, "ABI offset drift: esengine::ecs::MeshLightmap.scaleOffset (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::MeshRenderer, texture) == 0, "ABI offset drift: esengine::ecs::MeshRenderer.texture (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::MeshRenderer, normalMap) == 4, "ABI offset drift: esengine::ecs::MeshRenderer.normalMap (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::MeshRenderer, color) == 8, "ABI offset drift: esengine::ecs::MeshRenderer.color (EHT expected 8)");
@@ -3379,7 +3433,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "7aee1689088373e3";
+static const char* kEsAbiLayoutHash = "ca7cd852d3bc316f";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

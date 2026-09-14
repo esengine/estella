@@ -105,6 +105,10 @@ static constexpr u32 MESH_INSTANCE_STRIDE_LIT = 88;
 /// skinned mesh's own transform is ignored (glTF says so) because its joints are
 /// already placed in the world — and the pose itself is a uniform block.
 static constexpr u32 MESH_INSTANCE_STRIDE_SKINNED = 4;
+/// What a lightmapped object APPENDS: the atlas rectangle its second UV set is
+/// read through (xy scale, zw offset). Per object, because the same mesh placed
+/// twice is lit twice and occupies two patches of one atlas.
+static constexpr u32 MESH_INSTANCE_LIGHTMAP_BYTES = 16;
 /// Bone matrices one skinned draw may carry. 64 mat4 is 4KB, inside the 16KB a
 /// WebGL2 uniform block is guaranteed; a mesh wanting more is drawn static.
 static constexpr u32 MESH_MAX_BONES = 64;
@@ -119,11 +123,33 @@ static constexpr u32 MORPH_TEXTURE_WIDTH = 2048;
 /// Beyond it the geometry draws unmorphed — a texture the device refuses is a
 /// mesh that does not draw at all.
 static constexpr u32 MORPH_MAX_TEXELS = MORPH_TEXTURE_WIDTH * MORPH_TEXTURE_WIDTH;
-/// The attributes that record occupies (4 matrix rows + the tint).
-static constexpr u32 MESH_INSTANCE_ATTRIBUTES = 5;
+/// The attributes that record occupies (4 matrix rows + the tint + the atlas
+/// rectangle) — the budget check, so the widest record is the one measured.
+static constexpr u32 MESH_INSTANCE_ATTRIBUTES = 6;
+/// Programs the resident-mesh shader has: one per combination of {normals, lit,
+/// normal-mapped, skinned, depth-only, env-mapped, lightmapped}. Seven bits, not
+/// one: the geometry, the draw, the frame and the pass each answer a different.
+static constexpr u32 MESH_VARIANTS = 128;
 /// Where those attributes start. FIXED, not "after the mesh's channels": a mesh
 /// that gains normals would otherwise move them, and every mesh shader with it.
 static constexpr u32 MESH_INSTANCE_FIRST_LOCATION = 8;
+
+/**
+ * @brief How many bytes one object's record is, for the shape it is drawn in.
+ * @details One author for a number three places need — the layout, the
+ *          allocation and the packer — so a part added to the record cannot
+ *          reach two of them and miss the third.
+ */
+constexpr u32 meshInstanceStride(bool skinned, bool hasNormals, bool lightmapped) {
+    if (skinned) return MESH_INSTANCE_STRIDE_SKINNED;
+    return (hasNormals ? MESH_INSTANCE_STRIDE_LIT : MESH_INSTANCE_STRIDE)
+         + (lightmapped ? MESH_INSTANCE_LIGHTMAP_BYTES : 0);
+}
+
+/** @brief Where the atlas rectangle sits: appended, so nothing before it moves. */
+constexpr u32 meshInstanceLightmapOffset(bool hasNormals) {
+    return hasNormals ? MESH_INSTANCE_STRIDE_LIT : MESH_INSTANCE_STRIDE;
+}
 
 /**
  * @brief What a mesh vertex channel MEANS, and the attribute location it binds to.
@@ -140,20 +166,21 @@ enum class MeshChannel : u8 {
     Tangent   = 4,
     Joints    = 5,
     Weights   = 6,
-    /// A second UV set. Location 7 is the last one before the per-object record
-    /// at MESH_INSTANCE_FIRST_LOCATION, which is why that constant is fixed.
+    /// A second UV set — what a bake is read through, laid out so no two of a
+    /// model's surfaces overlap. Location 7 is the last before the per-object
+    /// record at MESH_INSTANCE_FIRST_LOCATION, which is why that is fixed.
     TexCoord1 = 7,
 };
 
 /**
  * @brief Whether the mesh shaders READ a channel, as opposed to the file carrying it.
  * @details An attribute nothing reads spends a slot and a fetch per vertex, so a
- *          channel kept for its information stays out of the LAYOUT. Binding it
- *          anyway was tried on both backends and neither refused: a cost, not a
- *          correctness fix. check-mesh-shader-inputs holds this both ways.
+ *          channel kept for its information stays out of the LAYOUT. TexCoord1
+ *          left this list when a bake gave it a reader.
+ *          check-mesh-shader-inputs holds this both ways.
  */
 constexpr bool meshShaderReads(MeshChannel c) {
-    return c != MeshChannel::Tangent && c != MeshChannel::TexCoord1;
+    return c != MeshChannel::Tangent;
 }
 
 /**
