@@ -68,6 +68,33 @@
           ]
         }
       ]
+    },
+    {
+      "type": "property",
+      "name": "Banner",
+      "childPath": "Banner",
+      "component": "MeshMorph",
+      "channels": [
+        {
+          "property": "weights.0",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.25,
+              "value": 1,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        }
+      ]
     }
   ]
 }

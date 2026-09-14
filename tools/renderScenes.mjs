@@ -115,6 +115,10 @@ export const SCENES = [
   // DIFFERENT copy of the deform. Through the other source, the same shape: the
   // two must move the quad alike or one of them is not deforming at all.
   { id: "mesh-morph-material", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-morph-mat.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.75,\"y\":0.5,\"rgb\":[0,0,255],\"tol\":30},{\"x\":0.25,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]" } },
+  // A clip driving the weight, which is what an imported `weights` channel
+  // becomes. The shape has to cross the boundary as a LIST — a weight written
+  // into a component the runtime hands back as an embind vector goes nowhere.
+  { id: "mesh-morph-animated", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PLAY: "1", ESTELLA_VERIFY_SCENE: "/scenes/mesh-morph-anim.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "30", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.75,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":30},{\"x\":0.25,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]" } },
     // A mesh casting on a mesh: a floor 200 units below a blocker, sun leaning 0.5 in
     // x, so the shadow lands 100 along +x and x 75..175 is floor the light cannot see.
     // The blocker itself stays lit — shadowing one's own caster is the classic bug.

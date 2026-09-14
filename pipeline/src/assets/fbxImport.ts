@@ -543,7 +543,8 @@ function buildAnimations(scene: FbxScene, payload: Uint8Array, nodes: ImportedNo
             const path = paths.get(target.node);
             if (path === undefined) continue;
             const entry = byNode.get(path)
-                ?? { node: nodeNameFor(nodes, target.node), channels: new Map() };
+                ?? { node: nodeNameFor(nodes, target.node), childPath: path,
+                     component: 'Transform', channels: new Map() };
             for (const property of ['translation', 'rotation', 'scale'] as const) {
                 const channel = target[property];
                 const spec = ANIMATED_PATHS[property]!;

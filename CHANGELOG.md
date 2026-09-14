@@ -26,8 +26,12 @@ published separately; it ships inside the editor.
 
   The weights are a **budget on what is live**, not on what a mesh carries: the
   eight heaviest are blended and the rest read as zero, which is what an
-  untouched weight already means. Three pixel gates hold it — the same quad, the
+  untouched weight already means. Four pixel gates hold it — the same quad, the
   same two points, and the weight the only thing that differs.
+
+  A `weights` animation channel comes with the model too: it becomes a track per
+  primitive that node draws, one channel per target, and the clip that raises the
+  example robot's banner now furls it as it rises.
 
 - **A controller is a stack of machines, not one.** One state machine can say a
   character is running or that it is waving, never both. A `.esanimator` now

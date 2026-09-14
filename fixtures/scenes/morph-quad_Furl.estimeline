@@ -1,0 +1,35 @@
+{
+  "version": "1.2",
+  "type": "timeline",
+  "duration": 0.5,
+  "wrapMode": "once",
+  "tracks": [
+    {
+      "type": "property",
+      "name": "Quad",
+      "childPath": "",
+      "component": "MeshMorph",
+      "channels": [
+        {
+          "property": "weights.0",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.5,
+              "value": 1,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

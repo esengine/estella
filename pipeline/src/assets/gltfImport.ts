@@ -739,7 +739,48 @@ const INTERPOLATION: Record<string, string> = {
  * node, since a track drives one component on one entity and the runtime reads
  * and writes that component once per track.
  */
+/**
+ * The shape tracks a `weights` channel becomes: one per primitive that node
+ * draws and carries targets. The entity is the one the prefab put the MeshMorph
+ * on — the node itself where it draws a single mesh, a child named after the
+ * mesh where it draws several.
+ */
+function morphTracks(drawn: ImportedMesh[], path: string, label: string,
+                     times: Float32Array, values: Float32Array,
+                     interpolation: string): AnimatedNode[] {
+    return drawn.filter((m) => (m.data.morph?.names.length ?? 0) > 0).map((mesh) => {
+        const targets = mesh.data.morph!.names.length;
+        const channels = new Map<string, OutKeyframe[]>();
+        // `weights.<i>` and not the name: the component holds a list, and entry i
+        // is target i — the same positional addressing the weights themselves use.
+        samplerKeyframes(times, values, targets, interpolation)
+            .forEach((keyframes, i) => channels.set(`weights.${i}`, keyframes));
+        return {
+            node: label, component: 'MeshMorph',
+            childPath: drawn.length === 1 ? path : `${path ? `${path}/` : ''}${mesh.name}`,
+            channels,
+        };
+    });
+}
+
+/** What a node draws, as the meshes this import produced for it. */
+function drawnBy(nodes: ImportedNode[], meshes: ImportedMesh[], target: number): ImportedMesh[] {
+    const node = findNode(nodes, target);
+    return (node?.meshes ?? []).map((i) => meshes[i]).filter((m): m is ImportedMesh => !!m);
+}
+
+/** The imported node a source index became, anywhere in the tree. */
+function findNode(nodes: ImportedNode[], index: number): ImportedNode | undefined {
+    for (const node of nodes) {
+        if (node.index === index) return node;
+        const hit = findNode(node.children, index);
+        if (hit) return hit;
+    }
+    return undefined;
+}
+
 function readAnimations(json: GltfJson, src: GltfBytes, nodes: ImportedNode[],
+                        meshes: ImportedMesh[],
                         stem: string, warnings: string[]): ImportedAnimation[] {
     const animations = json.animations ?? [];
     if (animations.length === 0) return [];
@@ -757,31 +798,51 @@ function readAnimations(json: GltfJson, src: GltfBytes, nodes: ImportedNode[],
 
         for (const channel of animation.channels ?? []) {
             const target = channel.target?.node;
-            const spec = ANIMATED_PATHS[channel.target?.path ?? ''];
+            const kind = channel.target?.path ?? '';
+            const spec = ANIMATED_PATHS[kind];
             if (target === undefined || !paths.has(target)) continue;
-            if (!spec) {
-                warnings.push(`${name}: "${channel.target?.path}" channels are not imported`
-                    + ' (morph target weights need blend shapes)');
+            if (!spec && kind !== 'weights') {
+                warnings.push(`${name}: "${kind}" channels are not imported`);
                 continue;
             }
             const sampler = animation.samplers?.[channel.sampler];
             if (!sampler) continue;
+            const path = paths.get(target)!;
+            const label = nodeNameFor(nodes, target);
+            const interpolation = INTERPOLATION[sampler.interpolation ?? 'LINEAR'] ?? 'linear';
+
+            // A weights channel drives the SHAPE of whatever that node draws, and
+            // one node may draw several primitives — each with its own targets and
+            // its own entity. The channel is one statement about all of them.
+            const drawn = spec ? [] : drawnBy(nodes, meshes, target);
+            if (!spec && !drawn.some((m) => (m.data.morph?.names.length ?? 0) > 0)) {
+                warnings.push(`${name}: "${label}" is animated by weights and draws nothing with`
+                    + ' morph targets — that channel moves nothing');
+                continue;
+            }
+
             const times = readAccessor(src, sampler.input);
             const values = readAccessor(src, sampler.output);
             if (times.length === 0 || values.length === 0) continue;
+            duration = Math.max(duration, times[times.length - 1] ?? 0);
+
+            if (!spec) {
+                for (const track of morphTracks(drawn, path, label, times, values, interpolation)) {
+                    byNode.set(`MeshMorph ${track.childPath}`, track);
+                }
+                continue;
+            }
             if (skinned.has(target)) drivesSkin = true;
 
             const comps = spec.channels.length;
-            const frames = samplerKeyframes(times, values, comps,
-                                            INTERPOLATION[sampler.interpolation ?? 'LINEAR'] ?? 'linear');
+            const frames = samplerKeyframes(times, values, comps, interpolation);
             if (spec.property === 'rotation') alignQuaternionSigns(frames);
-            duration = Math.max(duration, times[times.length - 1] ?? 0);
 
-            const path = paths.get(target)!;
-            const entry = byNode.get(path)
-                ?? { node: nodeNameFor(nodes, target), channels: new Map<string, OutKeyframe[]>() };
+            const entry = byNode.get(`Transform ${path}`)
+                ?? { node: label, childPath: path, component: 'Transform',
+                     channels: new Map<string, OutKeyframe[]>() };
             spec.channels.forEach((property, c) => entry.channels.set(property, frames[c]!));
-            byNode.set(path, entry);
+            byNode.set(`Transform ${path}`, entry);
         }
 
         if (byNode.size === 0) {
@@ -1096,6 +1157,6 @@ export async function importGltfMeshes(
     const nodes = readNodes(json, meshIndexOf, warnings);
     return {
         meshes, textures, externalFiles, nodes, warnings,
-        animations: readAnimations(json, src, nodes, stem, warnings),
+        animations: readAnimations(json, src, nodes, meshes, stem, warnings),
     };
 }

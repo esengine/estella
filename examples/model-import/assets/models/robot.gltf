@@ -5,8 +5,8 @@
   },
   "buffers": [
     {
-      "byteLength": 360,
-      "uri": "data:application/octet-stream;base64,AADwwgAAcEIAAAAAAADwQgAAcEIAAAAAAADwwgAAcMIAAAAAAADwQgAAcMIAAAAAAAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AACAPwAAgD8AAAIAAQABAAIAAwAAAHDCAACgQQAAAAAAAHBCAACgQQAAAAAAAHDCAACgwQAAAAAAAHBCAACgwQAAAAAAAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAIA/AACAPwAAAgABAAEAAgADAAAAAAAAAIA+AAAAAAAA3EIAAAAAAAAAAAAAIEMAAAAAAAAAAAAAAAAAAAAAAABwwgAAwEAAAAAAAAAAAAAAAAAAAAAAAABwwgAAwMAAAAAA"
+      "byteLength": 368,
+      "uri": "data:application/octet-stream;base64,AADwwgAAcEIAAAAAAADwQgAAcEIAAAAAAADwwgAAcMIAAAAAAADwQgAAcMIAAAAAAAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AACAPwAAgD8AAAIAAQABAAIAAwAAAHDCAACgQQAAAAAAAHBCAACgQQAAAAAAAHDCAACgwQAAAAAAAHBCAACgwQAAAAAAAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAIA/AACAPwAAAgABAAEAAgADAAAAAAAAAIA+AAAAAAAA3EIAAAAAAAAAAAAAIEMAAAAAAAAAAAAAAAAAAAAAAABwwgAAwEAAAAAAAAAAAAAAAAAAAAAAAABwwgAAwMAAAAAAAAAAAAAAgD8="
     }
   ],
   "bufferViews": [
@@ -64,6 +64,11 @@
       "buffer": 0,
       "byteOffset": 312,
       "byteLength": 48
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 360,
+      "byteLength": 8
     }
   ],
   "accessors": [
@@ -167,6 +172,18 @@
         0.0,
         6.0,
         0.0
+      ]
+    },
+    {
+      "bufferView": 11,
+      "componentType": 5126,
+      "count": 2,
+      "type": "SCALAR",
+      "min": [
+        0.0
+      ],
+      "max": [
+        1.0
       ]
     }
   ],
@@ -298,7 +315,7 @@
         1
       ],
       "weights": [
-        0.6
+        0.0
       ]
     }
   ],
@@ -320,12 +337,24 @@
             "node": 2,
             "path": "translation"
           }
+        },
+        {
+          "sampler": 1,
+          "target": {
+            "node": 2,
+            "path": "weights"
+          }
         }
       ],
       "samplers": [
         {
           "input": 8,
           "output": 9,
+          "interpolation": "LINEAR"
+        },
+        {
+          "input": 8,
+          "output": 11,
           "interpolation": "LINEAR"
         }
       ]

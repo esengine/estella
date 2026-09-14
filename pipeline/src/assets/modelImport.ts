@@ -247,13 +247,18 @@ export function samplerKeyframes(times: ArrayLike<number>, values: ArrayLike<num
 export interface AnimatedNode {
     /** The node's own name — the track's label. */
     node: string;
+    /** The entity the track writes, under the prefab root. */
+    childPath: string;
+    /** The component whose fields the channels below name. */
+    component: string;
     channels: Map<string, OutKeyframe[]>;
 }
 
 /**
  * An animation as an `.estimeline` document. Channels are grouped per target
- * node, since a track drives one component on one entity and the runtime reads
- * and writes that component once per track.
+ * entity AND component, since a track drives one component on one entity and the
+ * runtime reads and writes that component once per track — a node whose shape
+ * and placement both move is two tracks.
  *
  * @param byNode childPath → the node's channels, in the order tracks are written.
  */
@@ -265,8 +270,9 @@ export function timelineDocument(duration: number,
         duration,
         // Neither format says anything about looping, and the import does not guess.
         wrapMode: 'once',
-        tracks: [...byNode].map(([childPath, entry]) => ({
-            type: 'property', name: entry.node, childPath, component: 'Transform',
+        tracks: [...byNode.values()].map((entry) => ({
+            type: 'property', name: entry.node, childPath: entry.childPath,
+            component: entry.component,
             channels: [...entry.channels].map(([property, keyframes]) => ({ property, keyframes })),
         })),
     };

@@ -105,7 +105,7 @@
           "type": "MeshMorph",
           "data": {
             "weights": [
-              0.6
+              0
             ]
           }
         }

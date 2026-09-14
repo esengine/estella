@@ -133,7 +133,7 @@ export function materializeNumberVectors(
  * metadata rather than carried on the component definition: that definition is
  * a public type, and how a field crosses THIS boundary is not part of it.
  */
-function numberListFieldsOf(cppName: string): readonly string[] {
+export function numberListFieldsOf(cppName: string): readonly string[] {
     return (COMPONENT_META[cppName]?.numberListFields ?? []) as readonly string[];
 }
 
@@ -827,18 +827,9 @@ export class BuiltinBridge {
             try {
                 const methods = this.getBuiltinMethods(component._cppName);
                 isNew = !methods.has(entity);
-                const payload = convertForWasm(merged as Record<string, unknown>, component.colorKeys);
-                const vectors = materializeEntityVectors(
-                    payload, component.entityFields ?? [],
-                    this.module_ as unknown as { VectorEntity?: new () => WasmVector } | null);
-                vectors.push(...materializeNumberVectors(
-                    payload, numberListFieldsOf(component._cppName),
-                    this.module_ as unknown as { VectorFloat?: new () => WasmVector } | null));
-                try {
-                    methods.add(entity, payload);
-                } finally {
-                    for (const v of vectors) v.delete();
-                }
+                this.replace(entity, component._cppName,
+                             convertForWasm(merged as Record<string, unknown>, component.colorKeys),
+                             component.entityFields ?? []);
             } catch (e) {
                 handleWasmError(e, `insertBuiltin(${component._name}, entity=${entity})`);
             }
@@ -851,6 +842,24 @@ export class BuiltinBridge {
         }
 
         return { merged, isNew: isNew || !tracked };
+    }
+
+    /**
+     * Hand a component's whole value to C++, converting the fields embind cannot
+     * take as a JS array. The write `insert` performs, without its structural
+     * bookkeeping — so a replace cannot marshal differently from an add.
+     */
+    replace(entity: Entity, cppName: string, payload: Record<string, unknown>,
+            entityFields: readonly string[] = []): void {
+        const module = this.module_ as unknown as
+            { VectorEntity?: new () => WasmVector; VectorFloat?: new () => WasmVector } | null;
+        const vectors = materializeEntityVectors(payload, entityFields, module);
+        vectors.push(...materializeNumberVectors(payload, numberListFieldsOf(cppName), module));
+        try {
+            this.getBuiltinMethods(cppName).add(entity, payload);
+        } finally {
+            for (const v of vectors) v.delete();
+        }
     }
 
     get<T>(entity: Entity, component: BuiltinComponentDef<T>): T {

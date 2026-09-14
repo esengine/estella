@@ -9,7 +9,8 @@ import { Entity, entityGeneration, entityIndex, makeEntity, INVALID_ENTITY } fro
 import { AnyComponentDef, ComponentDef, ComponentData, BuiltinComponentDef, isBuiltinComponent, getComponentRegistry, getUserComponents, getComponent, Disabled, Name, Parent, Children, type ParentData, type ChildrenData } from './component';
 import type { CppRegistry, ESEngineModule } from '../wasm';
 import { handleWasmError } from '../wasm/wasmError';
-import { BuiltinBridge, convertFromWasm, convertForWasm, type BridgeConnectOptions, type BuiltinMethods, type CompositionDelta } from './bridge/BuiltinBridge';
+import { BuiltinBridge, convertFromWasm, convertForWasm, type BridgeConnectOptions,
+         type BuiltinMethods, type CompositionDelta } from './bridge/BuiltinBridge';
 import { ScriptStorage } from './ScriptStorage';
 import type { PoolMemory, ScriptPool } from './ScriptPool';
 import { NameIndex } from './NameIndex';
@@ -719,10 +720,12 @@ export class World {
                             delete wasmData[k];
                         }
                     }
-                    this.builtin_.getBuiltinMethods(component._cppName).add(
-                        entity,
-                        convertForWasm(wasmData, component.colorKeys)
-                    );
+                    // Through the bridge's own write, so a replace marshals the
+                    // way an add does: a list field crosses as the vector embind
+                    // registered, never as the JS array a document holds.
+                    this.builtin_.replace(entity, component._cppName,
+                                          convertForWasm(wasmData, component.colorKeys),
+                                          component.entityFields ?? []);
                 } catch (e) {
                     handleWasmError(e, `set(${component._name}, entity=${entity})`);
                 }

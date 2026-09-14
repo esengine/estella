@@ -717,13 +717,15 @@ describe('glTF animation import', () => {
     expect(result.warnings.some(w => /moves nothing/.test(w))).toBe(true);
   });
 
-  it('reports a morph-weight channel rather than dropping it', async () => {
+  it('reports a weights channel aimed at geometry with no shapes', async () => {
     const result = await importGltfMeshes(animatedGltf({
       times: [0, 1], components: 1, path: 'weights', values: [0, 1],
     }), 'robot');
 
+    // Not dropped in silence, and not a track either: the channel is about a
+    // shape the mesh it draws does not have.
     expect(result.animations).toHaveLength(0);
-    expect(result.warnings.some(w => /weights/.test(w))).toBe(true);
+    expect(result.warnings.some(w => /draws nothing with morph targets/.test(w))).toBe(true);
   });
 });
 
@@ -1032,6 +1034,39 @@ describe('glTF morph targets', () => {
     expect(morph.names).toEqual(['Smile', 'Blink']);
     expect([...morph.deltas.subarray(0, 18)]).toEqual(new Array(18).fill(0));
     expect(morph.deltas[18 + 2 * 6]).toBe(3);
+  });
+
+  it('turns a weights channel into a track per shape, on the entity that holds them', async () => {
+    const doc = JSON.parse(new TextDecoder().decode(morphGltf({ names: ['Smile', 'Blink'] })));
+    // Two keyframes moving the SECOND target only: a reader that mixed the two up
+    // would still find a track, driving the wrong shape.
+    const raw = Buffer.from(doc.buffers[0].uri.split(',')[1], 'base64');
+    const extra = Buffer.from(new Float32Array([0, 1, /* weights */ 0, 0, 0, 1]).buffer);
+    doc.buffers[0].uri = 'data:application/octet-stream;base64,'
+      + Buffer.concat([raw, extra]).toString('base64');
+    doc.buffers[0].byteLength = raw.length + extra.length;
+    doc.bufferViews.push({ buffer: 0, byteOffset: raw.length, byteLength: 8 });
+    doc.bufferViews.push({ buffer: 0, byteOffset: raw.length + 8, byteLength: 16 });
+    doc.accessors.push({ bufferView: doc.bufferViews.length - 2, componentType: 5126, count: 2, type: 'SCALAR' });
+    doc.accessors.push({ bufferView: doc.bufferViews.length - 1, componentType: 5126, count: 4, type: 'SCALAR' });
+    doc.animations = [{
+      name: 'Express',
+      samplers: [{ input: doc.accessors.length - 2, output: doc.accessors.length - 1 }],
+      channels: [{ sampler: 0, target: { node: 0, path: 'weights' } }],
+    }];
+
+    const { animations, warnings } = await importGltfMeshes(
+      new TextEncoder().encode(JSON.stringify(doc)), 'face');
+
+    expect(warnings.join('\n')).not.toMatch(/moves nothing/);
+    const tracks = (animations[0]!.document as { tracks: Record<string, unknown>[] }).tracks;
+    expect(tracks).toHaveLength(1);
+    expect(tracks[0]!.component).toBe('MeshMorph');
+    // One channel per target, addressed the way a weight is — by position.
+    const channels = tracks[0]!.channels as { property: string; keyframes: { value: number }[] }[];
+    expect(channels.map((c) => c.property)).toEqual(['weights.0', 'weights.1']);
+    expect(channels[0]!.keyframes.map((k) => k.value)).toEqual([0, 0]);
+    expect(channels[1]!.keyframes.map((k) => k.value)).toEqual([0, 1]);
   });
 
   it('leaves geometry with no targets without a morph section', async () => {
