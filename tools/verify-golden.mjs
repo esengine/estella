@@ -411,7 +411,11 @@ for (const { id, target } of pairs) {
 
   const tolerance = COMPARABLE.has(target) && !NO_PARITY ? parityFor(golden) : null;
   const editorPng = path.join(WORK, `${id}-editor.png`);
-  const editor = tolerance != null ? captureEditorFrame(id, editorPng, timeoutMs) : null;
+  // ...times SHARE, as launchPackage already does for the other side: both frames
+  // are taken on ONE rasterizer and only the package's half knew it was sharing.
+  const editor = tolerance != null
+    ? captureEditorFrame(id, editorPng, timeoutMs ? timeoutMs * SHARE : timeoutMs)
+    : null;
   if (editor && !editor.ok) {
     results.push({ id, target, stage: 'editor-frame', ok: false, why: editor.why });
     console.log(`✗ ${id} ${target} — the editor never produced a play frame`);
