@@ -89,6 +89,29 @@ export const CENSUS_FLOOR = '0.60.0';
  * that does not exist, and release notes are a different act. Theirs is ungated.
  */
 export const SHIPPED = {
+  // — 0.66.0 —
+  'A model brings the shapes it can be blended towards.': { certifies: 'morph-target' },
+  'A controller is a stack of machines, not one.': { certifies: 'animation-layers' },
+  'A layer writes the part of the rig it was given.': { certifies: 'animation-layers' },
+  'The third-person rig runs and swings at the same time.': { certifies: 'animation-layers' },
+  'A blend mixes its neighbours instead of picking one.': { certifies: 'animation-blend' },
+  'A blend over a plane.': { certifies: 'animation-blend-2d' },
+  'A clip means the same thing on a rig bound differently.': { certifies: 'animation-retarget' },
+  'One clip drives rigs that do not share its bone names.': { certifies: 'animation-retarget' },
+  'The posed skeleton can be made to reach something.': { certifies: 'animation-ik' },
+  'A blend is something an author can make.':
+    { notCertifiable: 'the editor\'s motion picker — a game ships the blend, never the panel that'
+      + ' made it, and what the panel produces is certified as animation-blend. The animator'
+      + ' editor checks drive this door against a real editor' },
+  'A step of gameplay nobody has seen yet, and can take it back':
+    { notCertifiable: 'a scope a GAME opens around its own mutation: nothing is left behind when'
+      + ' it is abandoned, so a package that used it would look exactly like one that did not.'
+      + ' Held by the speculation clauses, which check all three ways a step leaks' },
+  'A step can be asked whether it is a function of the world.':
+    { notCertifiable: 'a question asked in a test, and both runs are taken back — a game that'
+      + ' asks it plays the same as one that does not. multiplayer-arena\'s applyMove is'
+      + ' module-local game code, so a game holds its own rule from its own test' },
+
   // — 0.65.0 —
   'A spatial source you can hear in the audio demo.': { certifies: 'audio' },
   'A ScrollView scrolls where the editor drops it.': { certifies: 'ui-widgets' },
@@ -297,7 +320,7 @@ export const CAPABILITIES = [
   'sprite-sorting', 'sprite-mask', 'ui-widgets', 'velocity-motion',
   'ssao', 'navigation-3d', 'root-motion', 'animation-events', 'shader-readiness',
   'animation-layers', 'animation-ik', 'morph-target',
-  'animation-blend', 'animation-retarget',
+  'animation-blend', 'animation-blend-2d', 'animation-retarget',
   'tilemap', 'tile-collision',
   'touch', 'safe-area', 'pause-resume',
   'texture-atlas',
@@ -359,6 +382,7 @@ export const EVIDENCE = {
   // A motion that MIXES rather than picks. The kind, not the word "blend": a
   // state named "Blend" proves nothing, and the kind is what the runtime reads.
   'animation-blend': /"kind"\s*:\s*"blend[12]d"/,
+  'animation-blend-2d': /"kind"\s*:\s*"blend2d"/,
   // A controller that says which skeleton its clips came from. The reference,
   // not the file: an `.esavatar` nothing points at retargets nothing.
   'animation-retarget': /"avatar"\s*:\s*"[^"]+\.esavatar"/,
@@ -430,6 +454,10 @@ export const KNOWN_GAPS = {
     + 'the editor generates an avatar from a rig — but every rigged model in the corpus is '
     + 'authored against its OWN clips, so nothing here plays a clip made for another skeleton: '
     + 'certifying it needs a second rig whose bones are named differently',
+  'animation-blend-2d': 'blend2d places its stops on a plane and the editor authors them, but '
+    + 'every animator in the corpus blends along ONE parameter: third-person-3d picks its gait by '
+    + 'speed alone. Certifying it needs a rig whose motion answers to two at once — '
+    + 'speed and direction, or aim pitch and yaw. `animation-blend` is the line, not the plane',
   subpackage: 'hot-update-demo delivers `pack` as a 分包 and its button loads it, but no tier builds that project for a mini-game host — the vendor download itself is verified by hand in devtools',
 };
 

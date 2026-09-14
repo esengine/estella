@@ -14,6 +14,8 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.66.0] - 2026-09-14
+
 ### Added
 
 - **A model brings the shapes it can be blended towards.** A glTF morph target
@@ -160,6 +162,39 @@ published separately; it ships inside the editor.
   a clip already typed is carried into the blend as its first stop rather than
   dropped.
 
+- **A step of gameplay nobody has seen yet, and can take it back.** A small
+  mutation can now be expressed as begin → mutate → commit or abandon, with
+  nothing left behind when it is abandoned — and the three ways a step leaks fail
+  differently, so each is closed where it happens. Structural change goes to a
+  command queue the scope owns and flushes only on commit, so an abandoned step
+  never allocates an identity; events sit in the write half of their bus until
+  the next swap, where a watermark un-writes them; values are copied on first
+  touch, and the first touch is where the HANDLE leaves rather than where the
+  write lands, because script storage hands out the stored object itself.
+
+  It arrives as a service, not as new vocabulary: `Res(Speculation)` hands a
+  system its scope the way `Res(Time)` hands it the clock. A parameter kind
+  would have changed `SystemParam` and `InferParam`, both frozen — the freeze bar
+  refused it, and the refusal was right. 570 public promises kept.
+
+- **A step can be asked whether it is a function of the world.** The engine
+  already replays: a replication client rebuilds an owned entity from authority
+  plus its unacknowledged inputs, and that only works if a predicted step depends
+  on nothing but world state, actions and dt. A step that reads a clock or a
+  random source breaks the promise and stays green until a client desyncs
+  somewhere nobody is looking.
+
+  `replay` asks the question rather than adding a second answer. It runs the step
+  twice through the speculation scope and compares the three surfaces that scope
+  already aligns — where every touched component was left, what the command queue
+  holds, what was announced — then takes both runs back, so asking costs the
+  world nothing. A step that wanders in values, in structure or in what it
+  announces is reported unstable **with the surface named**.
+
+  `predictionReplays` puts the same machine beside `PredictionOptions.apply`,
+  whose doc comment has always carried that promise with nothing able to report
+  it broken. A game can now hold its own rule from its own test.
+
 ### Changed
 
 - **A state says what it plays one way, from the file in.** A controller written
@@ -211,6 +246,31 @@ published separately; it ships inside the editor.
 
 - **`isBlend1D` was never on the public surface** while its twin was, so nothing
   outside the SDK could ask which of the two a motion is.
+
+- **An unexpected error no longer takes the editor with it.** The handler that
+  exists so the editor keeps running long enough to save your work put up a
+  modal dialog to say so — and a modal dialog holds the main process until
+  someone clicks it. Every menu, every panel and every save queued behind it
+  while the window carried on drawing frames, so the editor looked alive and
+  answered nothing. Only a dialog attached to a window is safe; without one it
+  goes application-modal and blocks just the same, so a windowless process now
+  takes the log entry alone.
+
+  What raised those errors was the project watcher. `fs.watch` takes no exclude
+  list, so watching the project root necessarily descends into `.esengine/play`,
+  which is rebuilt from scratch on every Play — and a directory deleted mid-scan
+  throws from inside the watcher's own callback, where no caller can catch it.
+  The ignore rule that was meant to cover it filters events, and the descent
+  happens before any event exists. Each top-level content directory is now
+  watched in its own right, which puts the rule where the descent is.
+
+- **`step` reports the frames that ran, not the number it was asked for.** The
+  reply restated the request, so a realm that gave up part way through was
+  indistinguishable from one that finished — and a driver reading the world
+  afterwards blamed whatever it found. It now carries the realm's own count and
+  frame clock. The bail-out behind it was 30 seconds under a comment calling it
+  generous for 600 frames of gameplay; on a software rasteriser a 210-frame 3D
+  step takes closer to four minutes.
 
 ## [0.65.0] - 2026-09-13
 
@@ -12212,7 +12272,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.65.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.66.0...HEAD
+[0.66.0]: https://github.com/esengine/estella/compare/v0.65.0...v0.66.0
 [0.65.0]: https://github.com/esengine/estella/compare/v0.64.0...v0.65.0
 [0.64.0]: https://github.com/esengine/estella/compare/v0.63.0...v0.64.0
 [0.63.0]: https://github.com/esengine/estella/compare/v0.62.0...v0.63.0
