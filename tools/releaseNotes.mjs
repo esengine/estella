@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(render): lights become an atlas a mesh can be read through':
+    { note: 'The bake itself: lights become an atlas.' },
+
   'feat(render): a model can be unwrapped for the light that will be baked into it':
     { note: 'A model can be given somewhere to receive baked light.' },
   'feat(import): Generate Lightmap UVs reaches the mesh it decides':

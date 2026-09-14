@@ -144,6 +144,16 @@ export {
     unwrapLightmapUV, type UnwrapOptions, type UnwrapResult,
 } from './lightmap';
 /**
+ * Bakes lights into an atlas a `MeshLightmap` reads. Direct light, then what
+ * bounced — the term a frame here cannot compute, and the way past its ceiling
+ * of sixteen lights.
+ *
+ * @experimental Pre-1.0: the options will follow what an authoring panel needs.
+ */
+export {
+    bakeLightmap, type BakeOptions, type BakeResult, type BakeSurface, type BakeLight,
+} from './lightmap';
+/**
  * Stock geometry a `builtin:<id>` mesh ref names. Public because the editor's
  * pickers and Create menu are built from this list. `@beta`.
  *

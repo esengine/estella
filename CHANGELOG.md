@@ -16,6 +16,39 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **The bake itself: lights become an atlas.** `bakeLightmap` takes surfaces and
+  lights and returns the texture a `MeshLightmap` reads, plus the rectangle each
+  object occupies in it. It runs the way the navmesh builder does — plain
+  TypeScript, a stage per file, one orchestration: lay out, rasterise, solve
+  direct, bounce, dilate, encode.
+
+  **Direct light** is a shadow ray per lamp per texel, so what stands in the way
+  leaves a shadow, and there is no ceiling on how many lamps there are — which is
+  the whole point, since a frame carries sixteen and drops the seventeenth by
+  brightness. **The bounce** reads the atlas the pass before it wrote, so each
+  round carries light one surface further and costs what the first did; that is
+  the term a real-time frame here has no way to compute at all. Irradiance is
+  what is stored, not colour: the surface's own texture is applied where the bake
+  is read, so one atlas survives a retexture.
+
+  Every object's patch is sized by the surface it actually has, at one
+  world-to-texel ratio across the whole atlas — the same rule the unwrap follows
+  inside one mesh, applied between them. Surfaces that do not fit are refused
+  rather than quietly shrunk: a wall lit at a different resolution from the floor
+  it meets is a seam, and choosing between a bigger atlas and a coarser density
+  is the author's call.
+
+  Five gates, one claim each: twenty lights all reach the picture, a wall leaves
+  a shadow, a panel facing away from every lamp is lit only once light may
+  bounce, two objects occupy two patches, and the same scene bakes to the same
+  bytes twice. Five sabotages, each red only where it should be — including one
+  that stayed green until the determinism gate was given a scene that actually
+  bounces, since over a lone plane every ray misses and a random hemisphere
+  passes too.
+
+  **There is still nothing in the editor that triggers a bake.** The pieces are a
+  library the next step drives.
+
 - **A model can be given somewhere to receive baked light.** A bake is read
   through a second UV set, and it has to be one where no two surfaces share a
   texel — which the UV set the art is wrapped in deliberately is not: two arms
