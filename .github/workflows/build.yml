@@ -660,10 +660,11 @@ jobs:
     name: Packages (golden + released)
     runs-on: ubuntu-latest
     needs: build-emscripten
-    # 30 was sized when this job took 11.3 min end to end. The golden step alone
-    # is 14m37s now that third-person-3d settles instead of failing at 30 s, and
-    # the streamed-world step below has never once run. Room to find out.
-    timeout-minutes: 45
+    # Sized from measurements now, not from room to find out: golden is 14m37s and
+    # the streamed world 20m, which at 45 killed the job two minutes AFTER residency
+    # had passed 51/51 — and a job killed at its ceiling reports cancelled, not the
+    # green step it was standing on. The four steps after it have still never run.
+    timeout-minutes: 90
 
     steps:
     - uses: actions/checkout@v7
