@@ -297,6 +297,7 @@ export const CAPABILITIES = [
   'sprite-sorting', 'sprite-mask', 'ui-widgets', 'velocity-motion',
   'ssao', 'navigation-3d', 'root-motion', 'animation-events', 'shader-readiness',
   'animation-layers', 'animation-ik', 'morph-target',
+  'animation-blend', 'animation-retarget',
   'tilemap', 'tile-collision',
   'touch', 'safe-area', 'pause-resume',
   'texture-atlas',
@@ -355,6 +356,12 @@ export const EVIDENCE = {
   // towards is geometry with an unused section, and that is what an import of a
   // model whose targets nobody authored produces.
   'morph-target': /\bMeshMorph\b/,
+  // A motion that MIXES rather than picks. The kind, not the word "blend": a
+  // state named "Blend" proves nothing, and the kind is what the runtime reads.
+  'animation-blend': /"kind"\s*:\s*"blend[12]d"/,
+  // A controller that says which skeleton its clips came from. The reference,
+  // not the file: an `.esavatar` nothing points at retargets nothing.
+  'animation-retarget': /"avatar"\s*:\s*"[^"]+\.esavatar"/,
   'physics-3d': /\b(RigidBody3D|CharacterController3D|BoxCollider3D|MeshCollider3D)\b/,
   'mesh-shadow': /\bmeshShadows\b/,
   'level-of-detail': /\bLODGroup\b/,
@@ -419,6 +426,10 @@ export const KNOWN_GAPS = {
   'animation-ik': 'two-bone and look-at constraints run in the engine and the editor authors them, '
     + 'but no rig in the corpus has a limb: the 3D skeletons here are joints hanging off one root, '
     + 'and a two-bone solve is the tip and the TWO joints above it — a chain nothing shipped has',
+  'animation-retarget': 'the avatar asset, the name map and the rest-pose rebase all run, and '
+    + 'the editor generates an avatar from a rig — but every rigged model in the corpus is '
+    + 'authored against its OWN clips, so nothing here plays a clip made for another skeleton: '
+    + 'certifying it needs a second rig whose bones are named differently',
   subpackage: 'hot-update-demo delivers `pack` as a 分包 and its button loads it, but no tier builds that project for a mini-game host — the vendor download itself is verified by hand in devtools',
 };
 
@@ -536,7 +547,7 @@ export const GOLDEN = [
     id: 'third-person-3d',
     certifies: ['third-person', 'level-of-detail', 'ssao', 'navigation-3d',
                 'root-motion', 'animation-events', 'world-streaming', 'shader-readiness',
-                'animation-layers'],
+                'animation-layers', 'animation-blend'],
     // A packaged frame looks the same whether first sight of the outpost cost a
     // compile or not; the run is what reads the counter on both sides of the
     // boundary. Scheduled by `a-streamed-place-is-ready-before-it-is-seen`.
