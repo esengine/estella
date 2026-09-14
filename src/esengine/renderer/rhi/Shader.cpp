@@ -20,6 +20,7 @@
 #include "../store/MaterialConstants.hpp"
 #include "../store/SkinConstants.hpp"
 #include "../store/LightConstants.hpp"
+#include "../store/MorphConstants.hpp"
 #include "../../core/Log.hpp"
 
 #include <cstring>
@@ -252,6 +253,13 @@ bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSr
         device_->uniformBlockBinding(program_, skinBlock, SKIN_CONSTANTS_BINDING);
     }
 
+    // And the per-draw shape weights, which every mesh vertex stage declares —
+    // whether a draw HAS shapes is a number in the block, not a variant.
+    u32 morphBlock = device_->getUniformBlockIndex(program_, MORPH_CONSTANTS_BLOCK);
+    if (morphBlock != GFX_INVALID_UNIFORM_BLOCK) {
+        device_->uniformBlockBinding(program_, morphBlock, MORPH_CONSTANTS_BINDING);
+    }
+
     // Same for the per-draw params block (rewriteLooseUniforms generates it for
     // shaders whose loose uniforms were lifted); commitParams binds the UBO.
     u32 drawParamsBlock = device_->getUniformBlockIndex(program_, DRAW_PARAMS_BLOCK);
@@ -263,7 +271,8 @@ bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSr
     // blocks above are: the header reaches every Lit shader, so a compile site that
     // forgot the unit would sample slot 0 silently. GLSL ES 300 has no layout(binding).
     if (hasUniform(SHADOW_MAP_SAMPLER) || hasUniform(ENV_MAP_SAMPLER)
-        || hasUniform(SHADOW_2D_SAMPLER) || hasUniform(SHAPE_2D_SAMPLER)) {
+        || hasUniform(SHADOW_2D_SAMPLER) || hasUniform(SHAPE_2D_SAMPLER)
+        || hasUniform(MORPH_DELTA_SAMPLER)) {
         bind();
         if (hasUniform(SHADOW_MAP_SAMPLER)) {
             setUniform(SHADOW_MAP_SAMPLER, static_cast<i32>(SHADOW_MAP_TEXTURE_UNIT));
@@ -276,6 +285,10 @@ bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSr
         }
         if (hasUniform(SHAPE_2D_SAMPLER)) {
             setUniform(SHAPE_2D_SAMPLER, static_cast<i32>(SHAPE_2D_TEXTURE_UNIT));
+        }
+        // The one sampler here read by the VERTEX stage.
+        if (hasUniform(MORPH_DELTA_SAMPLER)) {
+            setUniform(MORPH_DELTA_SAMPLER, static_cast<i32>(MORPH_DELTA_TEXTURE_UNIT));
         }
         unbind();
     }

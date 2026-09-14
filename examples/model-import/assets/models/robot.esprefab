@@ -100,6 +100,14 @@
             "cullBackfaces": true,
             "enabled": true
           }
+        },
+        {
+          "type": "MeshMorph",
+          "data": {
+            "weights": [
+              0.6
+            ]
+          }
         }
       ]
     }

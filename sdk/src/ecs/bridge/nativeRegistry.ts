@@ -144,6 +144,32 @@ export function createNativeRegistry(
         hostCall(scope, REGISTRY_BINDINGS.setMeshSkinJoints, [e, [...(data.joints ?? [])]]);
     };
 
+    // The rest of the components a variable-length field keeps out of the buffer
+    // loop below. Driven by the metadata rather than named one at a time: their
+    // accessors are GENERATED, so a new number list needs no edit here.
+    for (const [cppName, meta] of Object.entries(COMPONENT_META)) {
+        const fields = (meta?.numberListFields ?? []) as readonly string[];
+        if (!fields.length || PTR_ACCESSORS[cppName]) continue;
+        reg[`has${cppName}`] = (e: Entity): boolean =>
+            !!hostCallOpt(scope, `es_${cppName}_has`, [e]);
+        reg[`remove${cppName}`] = (e: Entity): void => {
+            hostCallOpt(scope, `es_${cppName}_remove`, [e]);
+        };
+        reg[`get${cppName}`] = (e: Entity): Record<string, unknown> => {
+            const out: Record<string, unknown> = {};
+            for (const f of fields) {
+                out[f] = hostCallOpt(scope, `es_${cppName}_${f}_get`, [e]) ?? [];
+            }
+            return out;
+        };
+        reg[`add${cppName}`] = (e: Entity, data: Record<string, unknown>): void => {
+            for (const f of fields) {
+                hostCallOpt(scope, `es_${cppName}_${f}_set`,
+                            [e, [...((data[f] as Iterable<number>) ?? [])]]);
+            }
+        };
+    }
+
     reg.delete = (): void => {};
 
     // The scene queries the wasm module answers as module-level functions. There is

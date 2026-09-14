@@ -5,7 +5,7 @@ Symbols: 114 public · 99 beta · 1739 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"422d8d4f497e4e40"
+"7aee1689088373e3"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -5108,13 +5108,13 @@ aabbMin: [number, number, number]
 channels: MeshChannelDesc[]
 indices: Uint32Array<ArrayBufferLike>
 inverseBindMatrices: Float32Array<ArrayBufferLike> | undefined
-morph: MeshMorphData | undefined
+morph: MeshMorphTargets | undefined
 vertexCount: number
 vertexStride: number
 vertices: Uint8Array<ArrayBufferLike>
 ```
 
-## MeshMorphData — interface @experimental
+## MeshMorphTargets — interface @experimental
 ```
 deltas: Float32Array<ArrayBufferLike>
 hasNormals: boolean

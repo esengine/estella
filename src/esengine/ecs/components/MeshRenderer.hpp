@@ -141,4 +141,27 @@ struct MeshSkin {
     MeshSkin() = default;
 };
 
+// =============================================================================
+// MeshMorph Component
+// =============================================================================
+
+/**
+ * @brief What SHAPE a @ref MeshRenderer is in: how far it is blended towards each
+ *        of the shapes its mesh carries.
+ *
+ * @details The third of the trio, for the reason the second exists: MeshRenderer
+ *          says what is drawn and MeshSkin what moves it. Entry i weights target
+ *          i — positional, because a name lives with the geometry.
+ */
+ES_COMPONENT()
+struct MeshMorph {
+    /** @brief Weight per target, 0 leaving the mesh as authored. Not clamped: a
+     *         negative weight and one past 1 are both shapes an author may want,
+     *         and glTF states neither bound. */
+    ES_PROPERTY(animatable, tooltip="Weight per morph target of the mesh, in the order the mesh carries them.")
+    std::vector<f32> weights;
+
+    MeshMorph() = default;
+};
+
 }  // namespace esengine::ecs

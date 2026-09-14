@@ -75,9 +75,9 @@ export interface NativeEngineApi {
     meshRenderer_setGeometry?(registry: unknown, entity: number, posUvPtr: number, vertexCount: number, colorsPtr: number, indicesPtr: number, indexCount: number): void;
     meshRenderer_setMaterialAll?(registry: unknown, materialId: number): number;
     meshRenderer_setMeshAll?(registry: unknown, meshHandle: number): number;
-    mesh_createFromChannels?(channelsPtr: number, channelCount: number, vertexStride: number, vertexPtr: number, vertexBytes: number, indexPtr: number, indexCount: number, minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number, bindPtr: number, bindFloats: number): number;
+    mesh_createFromChannels?(channelsPtr: number, channelCount: number, vertexStride: number, vertexPtr: number, vertexBytes: number, indexPtr: number, indexCount: number, minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number, bindPtr: number, bindFloats: number, morphPtr: number, morphFloats: number, morphTargets: number, morphNormals: number): number;
     mesh_release?(meshHandle: number): void;
-    mesh_rematerializeFromChannels?(targetHandle: number, channelsPtr: number, channelCount: number, vertexStride: number, vertexPtr: number, vertexBytes: number, indexPtr: number, indexCount: number, minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number, bindPtr: number, bindFloats: number): number;
+    mesh_rematerializeFromChannels?(targetHandle: number, channelsPtr: number, channelCount: number, vertexStride: number, vertexPtr: number, vertexBytes: number, indexPtr: number, indexCount: number, minX: number, minY: number, minZ: number, maxX: number, maxY: number, maxZ: number, bindPtr: number, bindFloats: number, morphPtr: number, morphFloats: number, morphTargets: number, morphNormals: number): number;
     particle_getAliveCount?(entity: number): number;
     particle_play?(registry: unknown, entity: number): void;
     particle_reset?(registry: unknown, entity: number): void;

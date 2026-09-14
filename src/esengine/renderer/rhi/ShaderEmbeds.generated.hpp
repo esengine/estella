@@ -426,6 +426,38 @@ layout(std140) uniform SkinConstants {
 };
 #endif
 
+
+
+
+
+layout(std140) uniform MorphConstants {
+
+    vec4 u_morphInfo;
+    vec4 u_morphShape[8];
+};
+
+
+
+uniform highp sampler2D u_morphDeltas;
+
+vec3 morphDelta(float index) {
+    float width = u_morphInfo.w;
+    return texelFetch(u_morphDeltas, ivec2(int(mod(index, width)), int(index / width)), 0).xyz;
+}
+
+
+
+void applyMorph(inout vec3 position, inout vec3 normal) {
+    int live = int(u_morphInfo.x);
+    float perVertex = u_morphInfo.z;
+    for (int i = 0; i < 8; i++) {
+        if (i >= live) break;
+        float at = (u_morphShape[i].x * u_morphInfo.y + float(gl_VertexID)) * perVertex;
+        position += u_morphShape[i].y * morphDelta(at);
+        if (perVertex > 1.5) normal += u_morphShape[i].y * morphDelta(at + 1.0);
+    }
+}
+
 out vec2 v_texCoord;
 out vec4 v_color;
 #ifdef LIT
@@ -445,6 +477,13 @@ out highp vec4 v_shadowClip;
 #endif
 
 void main() {
+    vec3 local = a_position;
+#ifdef MESH_NORMALS
+    vec3 localNormal = a_normal;
+#else
+    vec3 localNormal = vec3(0.0, 0.0, 1.0);
+#endif
+    applyMorph(local, localNormal);
 #ifdef SKINNED
 
 
@@ -452,10 +491,10 @@ void main() {
               + a_weights.y * u_bones[a_joints.y]
               + a_weights.z * u_bones[a_joints.z]
               + a_weights.w * u_bones[a_joints.w];
-    vec4 world = skin * vec4(a_position, 1.0);
+    vec4 world = skin * vec4(local, 1.0);
 #else
     mat4 model = mat4(a_model0, a_model1, a_model2, a_model3);
-    vec4 world = model * vec4(a_position, 1.0);
+    vec4 world = model * vec4(local, 1.0);
 #endif
     gl_Position = u_projection * world;
     v_texCoord = a_texCoord;
@@ -465,9 +504,9 @@ void main() {
 #endif
 #ifdef LIT
 #if defined(MESH_NORMALS) && defined(SKINNED)
-    v_worldNormal = mat3(skin) * a_normal;
+    v_worldNormal = mat3(skin) * localNormal;
 #elif defined(MESH_NORMALS)
-    v_worldNormal = mat3(a_nrm0, a_nrm1, a_nrm2) * a_normal;
+    v_worldNormal = mat3(a_nrm0, a_nrm1, a_nrm2) * localNormal;
 #else
 
     v_worldNormal = vec3(0.0, 0.0, 1.0);
@@ -530,6 +569,19 @@ struct SkinConstants { bones : array<mat4x4f, 64> };
 @group(0) @binding(5) var<uniform> skin : SkinConstants;
 #endif
 
+
+
+
+
+struct MorphConstants { info : vec4f, shape : array<vec4f, 8> };
+@group(0) @binding(6) var<uniform> morph : MorphConstants;
+@group(1) @binding(4) var t4 : texture_2d<f32>;
+
+fn morphDelta(index : f32) -> vec3f {
+    let width = morph.info.w;
+    return textureLoad(t4, vec2i(i32(index % width), i32(index / width)), 0).xyz;
+}
+
 struct VSIn {
     @location(0) a_position : vec3f,
     @location(1) a_color : vec4f,
@@ -547,6 +599,8 @@ struct VSIn {
     @location(11) a_model3 : vec4f,
 #endif
     @location(12) a_instTint : vec4f,
+
+    @builtin(vertex_index) vertexIndex : u32,
 #ifdef MESH_NORMALS
 #ifndef SKINNED
     @location(13) a_nrm0 : vec3f,
@@ -570,6 +624,23 @@ struct VSOut {
 };
 
 @vertex fn vs_main(v : VSIn) -> VSOut {
+    var local = v.a_position;
+#ifdef MESH_NORMALS
+    var localNormal = v.a_normal;
+#else
+    var localNormal = vec3f(0.0, 0.0, 1.0);
+#endif
+
+
+    let live = i32(morph.info.x);
+    for (var i = 0; i < 8; i = i + 1) {
+        if (i >= live) { break; }
+        let at = (morph.shape[i].x * morph.info.y + f32(v.vertexIndex)) * morph.info.z;
+        local = local + morph.shape[i].y * morphDelta(at);
+        if (morph.info.z > 1.5) {
+            localNormal = localNormal + morph.shape[i].y * morphDelta(at + 1.0);
+        }
+    }
 #ifdef SKINNED
 
 
@@ -577,10 +648,10 @@ struct VSOut {
              + v.a_weights.y * skin.bones[v.a_joints.y]
              + v.a_weights.z * skin.bones[v.a_joints.z]
              + v.a_weights.w * skin.bones[v.a_joints.w];
-    let world = pose * vec4f(v.a_position, 1.0);
+    let world = pose * vec4f(local, 1.0);
 #else
     let model = mat4x4f(v.a_model0, v.a_model1, v.a_model2, v.a_model3);
-    let world = model * vec4f(v.a_position, 1.0);
+    let world = model * vec4f(local, 1.0);
 #endif
 
     var out : VSOut;
@@ -593,9 +664,9 @@ struct VSOut {
 #ifdef LIT
 #ifdef MESH_NORMALS
 #ifdef SKINNED
-    out.v_worldNormal = mat3x3f(pose[0].xyz, pose[1].xyz, pose[2].xyz) * v.a_normal;
+    out.v_worldNormal = mat3x3f(pose[0].xyz, pose[1].xyz, pose[2].xyz) * localNormal;
 #else
-    out.v_worldNormal = mat3x3f(v.a_nrm0, v.a_nrm1, v.a_nrm2) * v.a_normal;
+    out.v_worldNormal = mat3x3f(v.a_nrm0, v.a_nrm1, v.a_nrm2) * localNormal;
 #endif
 #else
 

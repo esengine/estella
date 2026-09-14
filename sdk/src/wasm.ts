@@ -264,7 +264,9 @@ export interface ESEngineModule {
                              indexPtr: number, indexCount: number,
                              minX: number, minY: number, minZ: number,
                              maxX: number, maxY: number, maxZ: number,
-                             bindPtr: number, bindFloats: number): number;
+                             bindPtr: number, bindFloats: number,
+                             morphPtr: number, morphFloats: number,
+                             morphTargets: number, morphNormals: number): number;
     /**
      * Put replayed geometry behind an EXISTING mesh handle after a device loss.
      * Returns the handle it was given, or 0 if the engine refused — never a new
@@ -278,7 +280,9 @@ export interface ESEngineModule {
                                     indexPtr: number, indexCount: number,
                                     minX: number, minY: number, minZ: number,
                                     maxX: number, maxY: number, maxZ: number,
-                                    bindPtr: number, bindFloats: number): number;
+                                    bindPtr: number, bindFloats: number,
+                                    morphPtr: number, morphFloats: number,
+                                    morphTargets: number, morphNormals: number): number;
     /**
      * The renderer's program-readiness epoch. Advanced whenever programs that
      * WERE ready go cold, so a readiness record carrying an older one is naming

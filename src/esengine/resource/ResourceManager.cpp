@@ -20,6 +20,9 @@
 #include "../renderer/rhi/Texture.hpp"
 #include "../renderer/rhi/Buffer.hpp"
 
+#include <cstring>
+#include <vector>
+
 namespace esengine::resource {
 
 void ResourceManager::init(GfxDevice& device) {
@@ -488,10 +491,37 @@ void ResourceManager::releaseVertexBuffer(VertexBufferHandle handle) {
 // Mesh Resources
 // =============================================================================
 
+namespace {
+
+/**
+ * IEEE binary32 to binary16. A morph delta is a small offset, so the end that
+ * matters is the subnormal one — hence the explicit path rather than a cast.
+ * A value too large for half saturates to infinity, which is what a delta that
+ * big would look like on screen either way.
+ */
+u16 packHalf(f32 value) {
+    u32 bits = 0;
+    std::memcpy(&bits, &value, sizeof(bits));
+    const u32 sign = (bits >> 16) & 0x8000u;
+    const i32 exponent = static_cast<i32>((bits >> 23) & 0xFFu) - 127 + 15;
+    const u32 mantissa = bits & 0x7FFFFFu;
+    if (exponent >= 31) return static_cast<u16>(sign | 0x7C00u);
+    if (exponent <= 0) {
+        if (exponent < -10) return static_cast<u16>(sign);
+        const u32 shift = static_cast<u32>(14 - exponent);
+        const u32 subnormal = (mantissa | 0x800000u) >> shift;
+        return static_cast<u16>(sign | (subnormal + ((mantissa >> (shift - 1)) & 1u)));
+    }
+    const u32 half = sign | (static_cast<u32>(exponent) << 10) | (mantissa >> 13);
+    return static_cast<u16>(half + ((mantissa & 0x1FFFu) > 0x1000u ? 1u : 0u));
+}
+
+}  // namespace
+
 bool ResourceManager::realizeMesh(Mesh& mesh, ConstSpan<u8> vertexBytes, ConstSpan<u32> indices,
                                  ConstSpan<GfxVertexAttribute> channels, u32 vertexStride,
                                  const glm::vec3& localMin, const glm::vec3& localMax,
-                                 ConstSpan<f32> inverseBind) {
+                                 ConstSpan<f32> inverseBind, const MeshMorphSource& morph) {
     if (!device_ || vertexBytes.empty() || indices.empty() || channels.empty()) return false;
 
     // The mesh describes its own vertices; the per-object transform is the
@@ -584,16 +614,87 @@ bool ResourceManager::realizeMesh(Mesh& mesh, ConstSpan<u8> vertexBytes, ConstSp
         mesh.inverseBind.resize(joints);
         std::memcpy(mesh.inverseBind.data(), inverseBind.data(), joints * sizeof(glm::mat4));
     }
+    mesh.vertexCount = vertexStride > 0 ? static_cast<u32>(vertexBytes.size()) / vertexStride : 0;
+
+    // The shapes, last: geometry that draws is worth having even when the deltas
+    // behind it are refused, and the refusal leaves a mesh in its authored shape
+    // rather than no mesh at all.
+    const esengine::TextureHandle previousMorph = mesh.morphTexture;
+    mesh.morphTexture = esengine::TextureHandle::Invalid;
+    mesh.morphTargetCount = 0;
+    mesh.morphHasNormals = false;
+    if (morph.targetCount > 0 && !morph.deltas.empty()) {
+        mesh.morphTexture = createMorphTexture(morph, mesh.vertexCount);
+        if (mesh.morphTexture != esengine::TextureHandle::Invalid) {
+            mesh.morphTargetCount = morph.targetCount;
+            mesh.morphHasNormals = morph.hasNormals;
+        }
+    }
+    if (previousMorph != esengine::TextureHandle::Invalid) device_->deleteTexture(previousMorph);
     return true;
+}
+
+/**
+ * @brief One mesh's deltas as a texture the vertex stage reads.
+ *
+ * @details A row per MORPH_TEXTURE_WIDTH texels rather than per target: a target
+ *          of ten thousand vertices would ask for a texture wider than any
+ *          device guarantees. Half precision because a delta is an offset off a
+ *          coordinate the vertex already carries at full precision.
+ */
+esengine::TextureHandle ResourceManager::createMorphTexture(const MeshMorphSource& morph,
+                                                            u32 vertexCount) {
+    if (!device_ || vertexCount == 0) return esengine::TextureHandle::Invalid;
+    const u32 perVertex = morph.hasNormals ? 2u : 1u;
+    const u32 components = morph.hasNormals ? 6u : 3u;
+    const u64 texels = static_cast<u64>(morph.targetCount) * vertexCount * perVertex;
+    if (morph.deltas.size() < static_cast<u64>(morph.targetCount) * vertexCount * components) {
+        ES_LOG_WARN("mesh morph: {} deltas describe fewer than {} targets over {} vertices;"
+                    " drawing the authored shape",
+                    morph.deltas.size(), morph.targetCount, vertexCount);
+        return esengine::TextureHandle::Invalid;
+    }
+    if (texels > MORPH_MAX_TEXELS) {
+        ES_LOG_WARN("mesh morph: {} targets over {} vertices needs {} texels and the largest"
+                    " texture here holds {}; drawing the authored shape",
+                    morph.targetCount, vertexCount, texels, MORPH_MAX_TEXELS);
+        return esengine::TextureHandle::Invalid;
+    }
+
+    const u32 height = static_cast<u32>((texels + MORPH_TEXTURE_WIDTH - 1) / MORPH_TEXTURE_WIDTH);
+    std::vector<u16> pixels(static_cast<usize>(MORPH_TEXTURE_WIDTH) * height * 4, 0);
+    for (u32 t = 0; t < morph.targetCount; ++t) {
+        for (u32 v = 0; v < vertexCount; ++v) {
+            const usize src = (static_cast<usize>(t) * vertexCount + v) * components;
+            const usize dst = (static_cast<usize>(t) * vertexCount + v) * perVertex * 4;
+            for (u32 c = 0; c < 3; ++c) pixels[dst + c] = packHalf(morph.deltas[src + c]);
+            if (!morph.hasNormals) continue;
+            for (u32 c = 0; c < 3; ++c) pixels[dst + 4 + c] = packHalf(morph.deltas[src + 3 + c]);
+        }
+    }
+
+    TextureDesc desc;
+    desc.width = MORPH_TEXTURE_WIDTH;
+    desc.height = height;
+    desc.format = GfxPixelFormat::RGBA16F;
+    // Fetched by texel index, never filtered: a value between two deltas belongs
+    // to no vertex, and asking for one is how a half-texel offset gets invented.
+    desc.minFilter = TextureFilter::Nearest;
+    desc.magFilter = TextureFilter::Nearest;
+    desc.wrapS = TextureWrap::ClampToEdge;
+    desc.wrapT = TextureWrap::ClampToEdge;
+    desc.mipmaps = false;
+    return device_->createTexture(desc, pixels.data());
 }
 
 MeshHandle ResourceManager::createMesh(ConstSpan<u8> vertexBytes, ConstSpan<u32> indices,
                                        ConstSpan<GfxVertexAttribute> channels, u32 vertexStride,
                                        const glm::vec3& localMin, const glm::vec3& localMax,
-                                       MeshRecovery recovery, ConstSpan<f32> inverseBind) {
+                                       MeshRecovery recovery, ConstSpan<f32> inverseBind,
+                                       const MeshMorphSource& morph) {
     auto mesh = makeUnique<Mesh>();
     if (!realizeMesh(*mesh, vertexBytes, indices, channels, vertexStride,
-                     localMin, localMax, inverseBind)) {
+                     localMin, localMax, inverseBind, morph)) {
         return MeshHandle();
     }
     mesh->recovery = recovery;
@@ -604,7 +705,7 @@ bool ResourceManager::rematerializeMesh(MeshHandle target, ConstSpan<u8> vertexB
                                         ConstSpan<u32> indices,
                                         ConstSpan<GfxVertexAttribute> channels, u32 vertexStride,
                                         const glm::vec3& localMin, const glm::vec3& localMax,
-                                        ConstSpan<f32> inverseBind) {
+                                        ConstSpan<f32> inverseBind, const MeshMorphSource& morph) {
     Mesh* mesh = meshes_.get(target);
     if (!mesh) {
         ES_LOG_ERROR("rematerializeMesh: handle {} names no live mesh", target.id());
@@ -618,7 +719,7 @@ bool ResourceManager::rematerializeMesh(MeshHandle target, ConstSpan<u8> vertexB
         return false;
     }
     if (!realizeMesh(*mesh, vertexBytes, indices, channels, vertexStride,
-                     localMin, localMax, inverseBind)) {
+                     localMin, localMax, inverseBind, morph)) {
         ES_LOG_ERROR("rematerializeMesh: mesh {} could not be rebuilt; it stays owed",
                      target.id());
         return false;
@@ -656,6 +757,10 @@ u32 ResourceManager::invalidateGpuMeshes() {
         mesh.vertexBuffer = BufferHandle::Invalid;
         mesh.indexBuffer = BufferHandle::Invalid;
         mesh.layout = VertexLayoutHandle::Invalid;
+        // Forgotten for the same reason, and the COUNT with it: a mesh that still
+        // claimed targets would be drawn morphed against a texture that is gone.
+        mesh.morphTexture = esengine::TextureHandle::Invalid;
+        mesh.morphTargetCount = 0;
 
         if (mesh.recovery == MeshRecovery::SourceReplayable) {
             awaitingRematerialization_.push_back(handle);
@@ -687,6 +792,10 @@ void ResourceManager::releaseMesh(MeshHandle handle) {
     // createVertexLayout caches by description and other meshes share the result.
     releaseVertexBuffer(mesh->vertices);
     releaseIndexBuffer(mesh->indices);
+    // The delta texture IS the mesh's own — nothing shares it, unlike the layout.
+    if (mesh->morphTexture != esengine::TextureHandle::Invalid && device_) {
+        device_->deleteTexture(mesh->morphTexture);
+    }
     meshes_.release(handle.id());
 
     // A released mesh cannot be owed: the identity the debt named is gone, and a

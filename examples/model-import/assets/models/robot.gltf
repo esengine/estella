@@ -5,8 +5,8 @@
   },
   "buffers": [
     {
-      "byteLength": 312,
-      "uri": "data:application/octet-stream;base64,AADwwgAAcEIAAAAAAADwQgAAcEIAAAAAAADwwgAAcMIAAAAAAADwQgAAcMIAAAAAAAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AACAPwAAgD8AAAIAAQABAAIAAwAAAHDCAACgQQAAAAAAAHBCAACgQQAAAAAAAHDCAACgwQAAAAAAAHBCAACgwQAAAAAAAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAIA/AACAPwAAAgABAAEAAgADAAAAAAAAAIA+AAAAAAAA3EIAAAAAAAAAAAAAIEMAAAAA"
+      "byteLength": 360,
+      "uri": "data:application/octet-stream;base64,AADwwgAAcEIAAAAAAADwQgAAcEIAAAAAAADwwgAAcMIAAAAAAADwQgAAcMIAAAAAAAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AAAAAAAAAAAAAIA/AACAPwAAgD8AAAIAAQABAAIAAwAAAHDCAACgQQAAAAAAAHBCAACgQQAAAAAAAHDCAACgwQAAAAAAAHBCAACgwQAAAAAAAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAAAAAAAAAAAAgD8AAIA/AACAPwAAAgABAAEAAgADAAAAAAAAAIA+AAAAAAAA3EIAAAAAAAAAAAAAIEMAAAAAAAAAAAAAAAAAAAAAAABwwgAAwEAAAAAAAAAAAAAAAAAAAAAAAABwwgAAwMAAAAAA"
     }
   ],
   "bufferViews": [
@@ -59,6 +59,11 @@
       "buffer": 0,
       "byteOffset": 288,
       "byteLength": 24
+    },
+    {
+      "buffer": 0,
+      "byteOffset": 312,
+      "byteLength": 48
     }
   ],
   "accessors": [
@@ -147,6 +152,22 @@
       "componentType": 5126,
       "count": 2,
       "type": "VEC3"
+    },
+    {
+      "bufferView": 10,
+      "componentType": 5126,
+      "count": 4,
+      "type": "VEC3",
+      "min": [
+        -60.0,
+        -6.0,
+        0.0
+      ],
+      "max": [
+        0.0,
+        6.0,
+        0.0
+      ]
     }
   ],
   "images": [
@@ -231,9 +252,19 @@
           },
           "indices": 7,
           "material": 1,
-          "mode": 4
+          "mode": 4,
+          "targets": [
+            {
+              "POSITION": 10
+            }
+          ]
         }
-      ]
+      ],
+      "extras": {
+        "targetNames": [
+          "Furl"
+        ]
+      }
     }
   ],
   "nodes": [
@@ -265,6 +296,9 @@
         0.9,
         0.9,
         1
+      ],
+      "weights": [
+        0.6
       ]
     }
   ],

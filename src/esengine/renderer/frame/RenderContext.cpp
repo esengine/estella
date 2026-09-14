@@ -16,6 +16,7 @@
 #include "./FrameConstants.hpp"
 #include "../draw/DrawParams.hpp"
 #include "../store/SkinConstants.hpp"
+#include "../store/MorphConstants.hpp"
 #include "../../core/Log.hpp"
 
 #include <cmath>
@@ -151,6 +152,15 @@ void RenderContext::initFrameUbo() {
         {GfxBufferUsage::Uniform, static_cast<u32>(sizeof(SkinConstants)), /*dynamic=*/true},
         bones.data());
     device_.setUniformBuffer(SKIN_CONSTANTS_BINDING, skinUbo_);
+
+    // The shapes one draw is blended towards. Bound once like the pose above,
+    // but read by EVERY mesh draw: a mesh with no shapes finds a zeroed block,
+    // which is the same statement as having none. See MorphConstants.hpp.
+    const std::vector<u8> shapes(sizeof(MorphConstants), 0);
+    morphUbo_ = device_.createBuffer(
+        {GfxBufferUsage::Uniform, static_cast<u32>(sizeof(MorphConstants)), /*dynamic=*/true},
+        shapes.data());
+    device_.setUniformBuffer(MORPH_CONSTANTS_BINDING, morphUbo_);
 
     ES_LOG_DEBUG("FrameConstants UBO created (handle: {})", static_cast<u32>(frameUbo_));
 }

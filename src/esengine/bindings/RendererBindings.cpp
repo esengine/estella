@@ -253,6 +253,7 @@ struct MeshUpload {
     u32 indexCount = 0;
     const f32* bind = nullptr;
     u32 bindFloats = 0;
+    MeshMorphSource morph;
     glm::vec3 localMin{0.0f};
     glm::vec3 localMax{0.0f};
 
@@ -274,7 +275,9 @@ bool marshalMeshChannels(MeshUpload& out, const char* who,
                          uintptr_t indexPtr, u32 indexCount,
                          f32 minX, f32 minY, f32 minZ,
                          f32 maxX, f32 maxY, f32 maxZ,
-                         uintptr_t bindPtr, u32 bindFloats) {
+                         uintptr_t bindPtr, u32 bindFloats,
+                         uintptr_t morphPtr, u32 morphFloats,
+                         u32 morphTargets, u32 morphNormals) {
     if (channelCount == 0 || channelCount > MAX_VERTEX_ATTRIBUTES) return false;
     if (vertexStride == 0 || vertexBytes == 0 || indexCount == 0) return false;
     if (indexCount % 3 != 0) {
@@ -321,6 +324,13 @@ bool marshalMeshChannels(MeshUpload& out, const char* who,
     // it; a mesh with joints and no matrices is drawn static rather than wrong.
     out.bind = bindFloats > 0 ? boundarySpan<f32>(bindPtr, bindFloats, who) : nullptr;
     out.bindFloats = bindFloats;
+    // The shapes ride with the vertices for the reason the bind pose does: a
+    // delta is addressed BY a vertex index, so the two are one statement.
+    if (morphTargets > 0 && morphFloats > 0) {
+        if (const f32* deltas = boundarySpan<f32>(morphPtr, morphFloats, who)) {
+            out.morph = {ConstSpan<f32>(deltas, morphFloats), morphTargets, morphNormals != 0};
+        }
+    }
     out.channelCount = channelCount;
     out.vertexStride = vertexStride;
     out.verts = verts;
@@ -342,18 +352,21 @@ u32 mesh_createFromChannels(uintptr_t channelsPtr, u32 channelCount, u32 vertexS
                             uintptr_t indexPtr, u32 indexCount,
                             f32 minX, f32 minY, f32 minZ,
                             f32 maxX, f32 maxY, f32 maxZ,
-                            uintptr_t bindPtr, u32 bindFloats) {
+                            uintptr_t bindPtr, u32 bindFloats,
+                            uintptr_t morphPtr, u32 morphFloats,
+                            u32 morphTargets, u32 morphNormals) {
     auto* rm = ctx().tryGet<resource::ResourceManager>();
     MeshUpload up;
     if (!rm || !marshalMeshChannels(up, "mesh_createFromChannels",
                                     channelsPtr, channelCount, vertexStride,
                                     vertexPtr, vertexBytes, indexPtr, indexCount,
-                                    minX, minY, minZ, maxX, maxY, maxZ, bindPtr, bindFloats)) {
+                                    minX, minY, minZ, maxX, maxY, maxZ, bindPtr, bindFloats,
+                                    morphPtr, morphFloats, morphTargets, morphNormals)) {
         return 0;
     }
     auto handle = rm->createMesh(up.vertexSpan(), up.indexSpan(), up.channelSpan(), up.vertexStride,
                                  up.localMin, up.localMax,
-                                 MeshRecovery::SourceReplayable, up.bindSpan());
+                                 MeshRecovery::SourceReplayable, up.bindSpan(), up.morph);
     return handle.id();
 }
 
@@ -366,19 +379,23 @@ u32 mesh_rematerializeFromChannels(u32 targetHandle,
                                    uintptr_t indexPtr, u32 indexCount,
                                    f32 minX, f32 minY, f32 minZ,
                                    f32 maxX, f32 maxY, f32 maxZ,
-                                   uintptr_t bindPtr, u32 bindFloats) {
+                                   uintptr_t bindPtr, u32 bindFloats,
+                                   uintptr_t morphPtr, u32 morphFloats,
+                                   u32 morphTargets, u32 morphNormals) {
     auto* rm = ctx().tryGet<resource::ResourceManager>();
     MeshUpload up;
     if (!rm || targetHandle == 0
         || !marshalMeshChannels(up, "mesh_rematerializeFromChannels",
                                 channelsPtr, channelCount, vertexStride,
                                 vertexPtr, vertexBytes, indexPtr, indexCount,
-                                minX, minY, minZ, maxX, maxY, maxZ, bindPtr, bindFloats)) {
+                                minX, minY, minZ, maxX, maxY, maxZ, bindPtr, bindFloats,
+                                morphPtr, morphFloats, morphTargets, morphNormals)) {
         return 0;
     }
     return rm->rematerializeMesh(resource::MeshHandle(targetHandle),
                                  up.vertexSpan(), up.indexSpan(), up.channelSpan(),
-                                 up.vertexStride, up.localMin, up.localMax, up.bindSpan())
+                                 up.vertexStride, up.localMin, up.localMax, up.bindSpan(),
+                                 up.morph)
         ? targetHandle : 0;
 }
 

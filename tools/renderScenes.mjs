@@ -106,6 +106,15 @@ export const SCENES = [
   // and there was no skinned one, so a skinned mesh fell back to the engine's
   // shader and ignored what it was made of (sabotage: the probes come back white).
   { id: "mesh-skin-material", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-skin-mat.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.35,\"y\":0.6,\"rgb\":[0,0,255],\"tol\":30},{\"x\":0.75,\"y\":0.35,\"rgb\":[0,0,255],\"tol\":30},{\"x\":0.75,\"y\":0.60,\"rgb\":[0,0,0],\"tol\":20}]" } },
+  // The two halves of one claim: the SAME mesh, the same two points, and the
+  // weight is the only thing that differs. A quad in its authored place proves
+  // nothing alone — a morph that never reached the GPU passes the first.
+  { id: "mesh-morph-rest", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-morph-off.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.25,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":30},{\"x\":0.75,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]" } },
+  { id: "mesh-morph-shaped", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-morph-on.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.75,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":30},{\"x\":0.25,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]" } },
+  // A material shader writes no vertex stage, so it takes the engine's — a
+  // DIFFERENT copy of the deform. Through the other source, the same shape: the
+  // two must move the quad alike or one of them is not deforming at all.
+  { id: "mesh-morph-material", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-morph-mat.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.75,\"y\":0.5,\"rgb\":[0,0,255],\"tol\":30},{\"x\":0.25,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]" } },
     // A mesh casting on a mesh: a floor 200 units below a blocker, sun leaning 0.5 in
     // x, so the shadow lands 100 along +x and x 75..175 is floor the light cannot see.
     // The blocker itself stays lit — shadowing one's own caster is the classic bug.

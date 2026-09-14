@@ -365,6 +365,10 @@ private:
          *         so an unused declaration is as legal as in GLSL. */
         u32 group0Mask = 0;
         u32 group1Mask = 0;
+        /// Which of group1Mask's bindings the VERTEX stage declares. A texture is
+        /// fragment-visible by default here; one the vertex stage names has to say
+        /// so, and the layout it produces is a different layout.
+        u32 group1VertexMask = 0;
         /// Which of group1Mask's bindings are `texture_depth_2d`.
         u32 group1DepthMask = 0;
     };
@@ -401,11 +405,13 @@ private:
      *         are texture_2d/sampler pairs per the WebGPUMappings unit→binding
      *         convention (engine units 0..7 at 0..7/8..15, material units 8..15
      *         at 16..23/24..31). */
-    WGPUBindGroupLayout groupLayoutFor(u32 group, u32 mask, u32 depthMask = 0);
+    WGPUBindGroupLayout groupLayoutFor(u32 group, u32 mask, u32 depthMask = 0,
+                                       u32 vertexMask = 0);
     /** @brief Returns the cached explicit pipeline layout for a program's masks.
      *         A program with group-1 bindings but an empty group 0 still gets a
      *         (zero-entry) group-0 layout, so group indices stay positional. */
-    WGPUPipelineLayout pipelineLayoutFor(u32 group0Mask, u32 group1Mask, u32 group1DepthMask = 0);
+    WGPUPipelineLayout pipelineLayoutFor(u32 group0Mask, u32 group1Mask, u32 group1DepthMask = 0,
+                                        u32 group1VertexMask = 0);
     /** @brief Lazily creates the dummy backfill resources: a zeroed uniform
      *         buffer and a 1x1 white texture, standing in for declared-but-
      *         unbound bindings (GL reads an unbound block/unit without

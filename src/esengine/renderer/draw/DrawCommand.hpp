@@ -146,6 +146,10 @@ struct DrawCommand {
     u32 skin_offset = 0;
     u32 skin_count = 0;
 
+    // A morphed draw's shapes: 1 + where its block sits in the frame's pool, so
+    // 0 means the geometry is in the shape it was authored in.
+    u32 morph_index = 0;
+
     bool hasPersistentGeometry() const { return vertex_buffer != BufferHandle::Invalid; }
 
     // Vertices owned by this command (from vertex_byte_offset). Needed so the merge pass
@@ -320,6 +324,8 @@ struct DrawCommand {
         if (!hasPersistentGeometry() || !next.hasPersistentGeometry()) return false;
         if (instance_stride == 0 || instance_stride != next.instance_stride) return false;
         if (skin_count != 0 || next.skin_count != 0) return false;
+        // Same reason: one draw can only be in one shape.
+        if (morph_index != 0 || next.morph_index != 0) return false;
         // BOTH, not just this one: an opaque head asked about a draw whose
         // result depends on when it happens would otherwise swallow it and
         // paint it with the head's own state.

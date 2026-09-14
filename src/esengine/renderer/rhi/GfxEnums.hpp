@@ -106,6 +106,17 @@ static constexpr u32 MESH_INSTANCE_STRIDE_SKINNED = 4;
 /// Bone matrices one skinned draw may carry. 64 mat4 is 4KB, inside the 16KB a
 /// WebGL2 uniform block is guaranteed; a mesh wanting more is drawn static.
 static constexpr u32 MESH_MAX_BONES = 64;
+/// Morph targets one draw may be blended by AT ONCE — a budget on what is LIVE,
+/// since a face holds a handful of expressions open while its mesh carries a
+/// hundred. The heaviest weights are taken; the rest read as zero.
+static constexpr u32 MESH_MAX_ACTIVE_MORPHS = 8;
+/// Texels per row of a mesh's delta texture. 2048 is the smallest MAX_TEXTURE_SIZE
+/// WebGL2 guarantees, so a square of them is the most any device here must hold.
+static constexpr u32 MORPH_TEXTURE_WIDTH = 2048;
+/// Deltas one mesh may carry: targets * vertices * (2 with normals, else 1).
+/// Beyond it the geometry draws unmorphed — a texture the device refuses is a
+/// mesh that does not draw at all.
+static constexpr u32 MORPH_MAX_TEXELS = MORPH_TEXTURE_WIDTH * MORPH_TEXTURE_WIDTH;
 /// The attributes that record occupies (4 matrix rows + the tint).
 static constexpr u32 MESH_INSTANCE_ATTRIBUTES = 5;
 /// Where those attributes start. FIXED, not "after the mesh's channels": a mesh

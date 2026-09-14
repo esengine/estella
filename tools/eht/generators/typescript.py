@@ -37,19 +37,20 @@ class TypeScriptGenerator:
         for name, members in self.types.CUSTOM_STRUCTS.items():
             fields = ' '.join(f'{m}: {self.types.member_ts_type(cpp)};' for m, cpp in members)
             lines.append(f'export interface {name} {{ {fields} }}')
-        lines.extend([
-            'export type Mat4 = number[];',
-            '',
-            '// Emscripten Vector Types',
-            'export interface VectorEntity {',
-            '    size(): number;',
-            '    get(index: number): number;',
-            '    push_back(value: number): void;',
-            '    set(index: number, value: number): boolean;',
-            '    delete(): void;',
-            '}',
-            '',
-        ])
+        lines.extend(['export type Mat4 = number[];', '', '// Emscripten Vector Types'])
+        # One interface per registered vector, driven by the same registry embind
+        # reads: a second list here would be one that could disagree with it.
+        for js_name in dict.fromkeys(n for _, n, _ in self.types.VECTOR_TYPES.values()):
+            lines.extend([
+                f'export interface {js_name} {{',
+                '    size(): number;',
+                '    get(index: number): number;',
+                '    push_back(value: number): void;',
+                '    set(index: number, value: number): boolean;',
+                '    delete(): void;',
+                '}',
+                '',
+            ])
         return lines
 
     def _gen_enums(self) -> List[str]:

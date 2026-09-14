@@ -135,6 +135,11 @@ struct BatchDrawKey {
     // like the buffers above: what deforms a draw is the draw's, not the batch's.
     u32 skinOffset = 0;
     u32 skinCount = 0;
+
+    // The shapes this draw is blended towards: the block in the frame's pool
+    // (1-based, 0 = none) and the mesh's own delta texture behind it.
+    u32 morphIndex = 0;
+    u32 morphTextureId = 0;
 };
 
 /**

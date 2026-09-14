@@ -61,6 +61,15 @@ class MetadataGenerator:
             return {'skeletonField': skel_field, 'atlasField': atlas_field, 'runtime': runtime}
         return None
 
+    def _is_number_list(self, prop) -> bool:
+        """A list of numbers the boundary marshals as a registered embind vector.
+
+        Apart from `entityFields` because that list also re-aims entity references
+        when a prefab is instantiated; these are values, and a reference is not.
+        """
+        t = self.types.clean_type(prop.cpp_type)
+        return t in self.types.VECTOR_TYPES and 'entity_ref' not in prop.annotations
+
     def _get_entity_fields(self, comp: Component) -> List[str]:
         return [p.name for p in comp.properties if 'entity_ref' in p.annotations]
 
@@ -268,6 +277,8 @@ class MetadataGenerator:
         # `std::vector<Entity>` (Children.entities), which must stay an array.
         if self.types.is_entity_vector(t):
             return 'Entity[]'
+        if t in self.types.VECTOR_TYPES:
+            return f'{self.types.CPP_TO_TS[self.types.VECTOR_TYPES[t][0]]}[]'
         if self.types.is_struct_vector(t):
             return f'{self.types.vector_elem_ts(t)}[]'
         if self.types.is_handle(t):
@@ -431,6 +442,13 @@ class MetadataGenerator:
             '     * and keep the hand-written pair the registry wires them by.',
             '     */',
             '    listFields?: string[];',
+            '    /**',
+            '     * List fields whose elements are NUMBERS, which the web boundary',
+            '     * marshals as a registered embind vector rather than a JS array.',
+            '     * Apart from `entityFields`: that list also re-aims references when',
+            '     * a prefab is instantiated, and a weight is a value, not a reference.',
+            '     */',
+            '    numberListFields?: string[];',
             '    colorFields: string[];',
             '    animatableFields: string[];',
             '    /**',
@@ -508,10 +526,15 @@ class MetadataGenerator:
                 lines.append('        entityFields: [],')
 
             list_fields = [p.name for p in comp.properties
-                           if self.types.is_struct_vector(p.cpp_type)]
+                           if self.types.is_struct_vector(p.cpp_type)
+                           or self._is_number_list(p)]
             if list_fields:
                 parts = ', '.join(f"'{f}'" for f in list_fields)
                 lines.append(f'        listFields: [{parts}],')
+            number_lists = [p.name for p in comp.properties if self._is_number_list(p)]
+            if number_lists:
+                parts = ', '.join(f"'{f}'" for f in number_lists)
+                lines.append(f'        numberListFields: [{parts}],')
 
             if color_fields:
                 parts = ', '.join(f"'{f}'" for f in color_fields)

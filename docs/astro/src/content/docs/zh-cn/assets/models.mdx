@@ -156,6 +156,22 @@ mesh 就会变形。
 | 每个 mesh 最多 64 根骨骼 | 姿态走 uniform 块，64 根是 4KB —— 在 WebGL2 对一个块的保证范围内。超过的 mesh 按不变形绘制。 |
 | 骨骼数必须与绑定姿态一致 | `MeshSkin` 列出的骨骼数对不上时按不变形绘制，而不是让顶点去解析错误的矩阵。 |
 
+## Morph target
+
+模型带着可混合的形状进来（在多数 DCC 里叫 blend shape）：`.esmesh` 在顶点旁边存下每个
+target 对每个顶点的 delta，prefab 给实体挂一个 `MeshMorph`，它的 `weights` 说明当前朝
+每个形状混合了多少。第 *i* 项对应第 *i* 个 target，顺序就是文件列出的顺序；名字跟着几何
+走，所以权重是按位置寻址形状的。
+
+权重 0 是作者创作时的形状，1 是完整的 target。两者都不是上界：glTF 没有规定边界，超过 1
+或低于 0 都是作者可能想要的形状。
+
+| 限制 | 为什么 |
+|---|---|
+| 同时最多混合 8 个形状 | 限制的是**活跃**数量，不是 mesh 能携带的数量——一张脸同时张开的表情就那么几个，而它的 mesh 可以有上百个形状。取权重最大的那些，其余按 0 读，这和作者没动过的权重是同一件事。 |
+| 只有几何自带法线时法线才变形 | 没有 `NORMAL` 通道的 mesh 按一个常量法线着色，任何 delta 都弯不动它。 |
+| 不带切线 | 切线基是逐像素从变形后的表面推出来的。 |
+
 ## FBX
 
 FBX 由编译进编辑器的 [ufbx](https://github.com/ufbx/ufbx) 读取——不需要 Autodesk FBX
@@ -193,7 +209,7 @@ Physical、Blender 的 Principled 最终都落到[材质](#材质)那一节列�
 
 | 不导入 | 为什么 |
 |---|---|
-| morph target / blend shape、`weights` 动画通道 | 在多个形状之间混合需要那些 target 本身，而它们没有被带过来。 |
+| `weights` 动画通道 | 形状本身会被导入（见 [Morph target](#morph-target)）；驱动它们的剪辑还没有被带过来。 |
 | 第二套 UV（`TEXCOORD_1`）、`KHR_texture_transform`、FBX 的 uv transform | UV 按作者写的原样使用。 |
 | 非三角形 primitive（`mode` ≠ 4） | 渲染器画的是三角形列表。 |
 | `normalTexture.scale` | 法线贴图按全强度应用。 |

@@ -66,6 +66,8 @@ const ENGINE_SAMPLERS = [
   { name: 'u_envMap', unit: 3 },
   { name: 'u_shadow2D', unit: 7 },
   { name: 'u_lightShape2D', unit: 6 },
+  // The one the VERTEX stage reads, pinned in MorphConstants.hpp.
+  { name: 'u_morphDeltas', unit: 4 },
 ];
 
 // Group-1 unit map — mirrors WebGPUMappings textureBindingForUnit/samplerBindingForUnit.

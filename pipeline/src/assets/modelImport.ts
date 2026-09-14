@@ -29,6 +29,8 @@ export interface ImportedMesh {
     /** Source node indices of the joints its `Joints` channel indexes, in order.
      *  Absent for geometry nothing skins. */
     skinJoints?: number[];
+    /** The weight each morph target starts at, where the source states them. */
+    morphWeights?: number[];
 }
 
 /** Where a material's image comes from: a product this import writes, or a file already on disk. */
@@ -442,6 +444,20 @@ function skinComponent(mesh: ImportedMesh): ComponentData[] {
     return [{ type: 'MeshSkin', data: { joints: mesh.skinJoints.map(i => `n${i}`) } }];
 }
 
+/**
+ * The shape this mesh starts in. Written whenever it HAS shapes, even at rest:
+ * the component is what a clip and the inspector address, and a mesh whose
+ * weights arrive only once something moves them is one an author cannot open.
+ */
+function morphComponent(mesh: ImportedMesh): ComponentData[] {
+    const targets = mesh.data.morph?.names.length ?? 0;
+    if (targets === 0) return [];
+    const authored = mesh.morphWeights ?? [];
+    return [{ type: 'MeshMorph', data: {
+        weights: Array.from({ length: targets }, (_, i) => authored[i] ?? 0),
+    } }];
+}
+
 /** Only what differs from a Transform's defaults, so a diff shows the placement. */
 function transformComponent(trs?: Trs, scale?: number): ComponentData {
     const s = trs?.scale ?? [1, 1, 1];
@@ -479,7 +495,8 @@ export function assembleModelPrefab(name: string, meshes: ImportedMesh[],
         // One primitive rides the node itself; several cannot, since a MeshRenderer
         // draws one mesh — they become its children, at its own origin.
         const own = drawn.length === 1 && drawn[0]
-            ? [meshComponent(drawn[0], name, refs), ...skinComponent(drawn[0])] : [];
+            ? [meshComponent(drawn[0], name, refs), ...skinComponent(drawn[0]),
+               ...morphComponent(drawn[0])] : [];
         const self = entity(id, node.name, parent,
                             [transformComponent(node, rootScale), ...own]);
         entities.push(self);
@@ -489,7 +506,7 @@ export function assembleModelPrefab(name: string, meshes: ImportedMesh[],
                 self.children.push(childId);
                 entities.push(entity(childId, mesh.name, id,
                                      [transformComponent(), meshComponent(mesh, name, refs),
-                                      ...skinComponent(mesh)]));
+                                      ...skinComponent(mesh), ...morphComponent(mesh)]));
             });
         }
         for (const child of node.children) self.children.push(emitNode(child, id));

@@ -70,8 +70,11 @@ export function convertForWasm(
     return obj;
 }
 
-/** An embind std::vector<Entity>, which its owner has to free. */
+/** An embind std::vector, which its owner has to free. */
 interface WasmVector { push_back(v: number): void; delete(): void }
+
+/** The read side of one: what a component's list field comes back as. */
+interface WasmVectorRead { size(): number; get(i: number): number; delete(): void }
 
 /**
  * Replace a LIST of entities with the vector embind expects, returning the ones
@@ -94,6 +97,58 @@ export function materializeEntityVectors(
         made.push(vec);
     }
     return made;
+}
+
+/**
+ * Replace a list of NUMBERS with the vector embind expects, returning the ones
+ * created so the caller can free them. The same boundary
+ * {@link materializeEntityVectors} crosses, for values rather than references.
+ */
+export function materializeNumberVectors(
+    obj: Record<string, unknown>, fields: readonly string[],
+    module: { VectorFloat?: new () => WasmVector } | null,
+): WasmVector[] {
+    const made: WasmVector[] = [];
+    if (!module?.VectorFloat) return made;
+    for (const key of fields) {
+        const val = obj[key];
+        if (!Array.isArray(val)) continue;
+        const vec = new module.VectorFloat();
+        for (const n of val) vec.push_back(Number(n));
+        obj[key] = vec;
+        made.push(vec);
+    }
+    return made;
+}
+
+/**
+ * Snapshot a component's list fields back into JS arrays, freeing the embind
+ * vectors they came back as.
+ *
+ * Read here and not left to the caller: an embind vector is a heap object that
+ * leaks unless freed, and an array is what everything above this already speaks.
+ */
+/**
+ * Which of a builtin's fields hold a list of numbers. Read off the generated
+ * metadata rather than carried on the component definition: that definition is
+ * a public type, and how a field crosses THIS boundary is not part of it.
+ */
+function numberListFieldsOf(cppName: string): readonly string[] {
+    return (COMPONENT_META[cppName]?.numberListFields ?? []) as readonly string[];
+}
+
+export function snapshotNumberVectors(
+    obj: Record<string, unknown>, fields: readonly string[],
+): Record<string, unknown> {
+    for (const key of fields) {
+        const vec = obj[key] as WasmVectorRead | undefined;
+        if (!vec || typeof vec.size !== 'function') continue;
+        const out: number[] = [];
+        for (let i = 0; i < vec.size(); i++) out.push(vec.get(i));
+        obj[key] = out;
+        vec.delete();
+    }
+    return obj;
 }
 
 // =============================================================================
@@ -776,6 +831,9 @@ export class BuiltinBridge {
                 const vectors = materializeEntityVectors(
                     payload, component.entityFields ?? [],
                     this.module_ as unknown as { VectorEntity?: new () => WasmVector } | null);
+                vectors.push(...materializeNumberVectors(
+                    payload, numberListFieldsOf(component._cppName),
+                    this.module_ as unknown as { VectorFloat?: new () => WasmVector } | null));
                 try {
                     methods.add(entity, payload);
                 } finally {
@@ -802,7 +860,8 @@ export class BuiltinBridge {
         try {
             const raw = this.getBuiltinMethods(component._cppName).get(entity);
             return convertFromWasm(
-                raw as Record<string, unknown>,
+                snapshotNumberVectors(raw as Record<string, unknown>,
+                                      numberListFieldsOf(component._cppName)),
                 component.colorKeys,
             ) as T;
         } catch (e) {

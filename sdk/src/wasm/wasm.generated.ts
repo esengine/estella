@@ -21,6 +21,14 @@ export interface VectorEntity {
     delete(): void;
 }
 
+export interface VectorFloat {
+    size(): number;
+    get(index: number): number;
+    push_back(value: number): void;
+    set(index: number, value: number): boolean;
+    delete(): void;
+}
+
 // Enums
 
 export enum AlignContent {
@@ -571,6 +579,10 @@ export interface MeshCollider3D {
     enabled: boolean;
 }
 
+export interface MeshMorph {
+    weights: VectorFloat;
+}
+
 export interface MeshRenderer {
     texture: number;
     normalMap: number;
@@ -960,6 +972,10 @@ export interface Registry {
     getMeshCollider3D(entity: Entity): MeshCollider3D;
     addMeshCollider3D(entity: Entity, component: MeshCollider3D): void;
     removeMeshCollider3D(entity: Entity): void;
+    hasMeshMorph(entity: Entity): boolean;
+    getMeshMorph(entity: Entity): MeshMorph;
+    addMeshMorph(entity: Entity, component: MeshMorph): void;
+    removeMeshMorph(entity: Entity): void;
     hasMeshRenderer(entity: Entity): boolean;
     getMeshRenderer(entity: Entity): MeshRenderer;
     addMeshRenderer(entity: Entity, component: MeshRenderer): void;
@@ -1088,6 +1104,7 @@ export interface ESEngineModule {
     LODGroup: new () => LODGroup;
     Light: new () => Light;
     MeshCollider3D: new () => MeshCollider3D;
+    MeshMorph: new () => MeshMorph;
     MeshRenderer: new () => MeshRenderer;
     MeshSkin: new () => MeshSkin;
     Parent: new () => Parent;

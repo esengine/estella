@@ -12,7 +12,7 @@
  */
 /// <reference path="./draco3dgltf.d.ts" />
 import { MESH_MAX_BONES, MeshChannel, MeshChannelType, packChannels,
-         type MeshMorphData } from 'esengine';
+         type MeshMorphTargets } from 'esengine';
 import { MeshoptDecoder } from 'meshoptimizer/decoder';
 import {
     ANIMATED_PATHS, alignQuaternionSigns, animationProductName, disambiguateNodes,
@@ -684,7 +684,7 @@ type GltfPrimitive = GltfMesh['primitives'][number];
  */
 function morphTargets(src: GltfBytes, mesh: GltfMesh, prim: GltfPrimitive,
                       vertexCount: number, hasNormals: boolean,
-                      label: string, warnings: string[]): MeshMorphData | undefined {
+                      label: string, warnings: string[]): MeshMorphTargets | undefined {
     const targets = prim.targets ?? [];
     if (!targets.length) return undefined;
     if (targets.some(t => t.TANGENT !== undefined)) {
@@ -869,6 +869,15 @@ export async function importGltfMeshes(
         else if (seen !== node.skin) {
             warnings.push(`mesh ${node.mesh} is drawn under two skins; it is bound to the first`);
         }
+    }
+
+    // The weights a mesh's shapes start at. On the NODE where one states them,
+    // since one mesh may be drawn twice in different shapes — and the first such
+    // node wins, the same way the skin above does.
+    const meshWeights = new Map<number, number[]>();
+    for (const node of json.nodes ?? []) {
+        if (node.mesh === undefined || !node.weights) continue;
+        if (!meshWeights.has(node.mesh)) meshWeights.set(node.mesh, node.weights);
     }
 
     // ~800KB of decoder, loaded only for a file that carries Draco — the same
@@ -1070,6 +1079,10 @@ export async function importGltfMeshes(
                     triangleCount: indices.length / 3,
                     ...(prim.material !== undefined ? { material: materialFor(prim.material) } : {}),
                     ...(skinned ? { skinJoints: skin!.joints } : {}),
+                    // The node's own weights override the mesh's: one mesh may be
+                    // instanced into several nodes, each holding a different shape.
+                    ...(morph ? { morphWeights: meshWeights.get(meshIndex) ?? mesh.weights ?? [] }
+                              : {}),
                 });
             } catch (err) {
                 warnings.push(`${label}: ${err instanceof Error ? err.message : String(err)}`);

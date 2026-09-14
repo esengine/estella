@@ -466,7 +466,8 @@ public:
     MeshHandle createMesh(ConstSpan<u8> vertexBytes, ConstSpan<u32> indices,
                           ConstSpan<GfxVertexAttribute> channels, u32 vertexStride,
                           const glm::vec3& localMin, const glm::vec3& localMax,
-                          MeshRecovery recovery, ConstSpan<f32> inverseBind = {});
+                          MeshRecovery recovery, ConstSpan<f32> inverseBind = {},
+                          const MeshMorphSource& morph = {});
 
     /**
      * @brief Puts new geometry behind an EXISTING mesh handle.
@@ -480,7 +481,7 @@ public:
     bool rematerializeMesh(MeshHandle target, ConstSpan<u8> vertexBytes, ConstSpan<u32> indices,
                            ConstSpan<GfxVertexAttribute> channels, u32 vertexStride,
                            const glm::vec3& localMin, const glm::vec3& localMax,
-                           ConstSpan<f32> inverseBind = {});
+                           ConstSpan<f32> inverseBind = {}, const MeshMorphSource& morph = {});
 
     /** @brief The mesh a handle names, or null. */
     Mesh* getMesh(MeshHandle handle);
@@ -700,7 +701,10 @@ private:
     bool realizeMesh(Mesh& mesh, ConstSpan<u8> vertexBytes, ConstSpan<u32> indices,
                      ConstSpan<GfxVertexAttribute> channels, u32 vertexStride,
                      const glm::vec3& localMin, const glm::vec3& localMax,
-                     ConstSpan<f32> inverseBind);
+                     ConstSpan<f32> inverseBind, const MeshMorphSource& morph);
+    /** The deltas as a texture the vertex stage fetches from, or an invalid
+     *  handle where they do not fit one — see realizeMesh for what that means. */
+    esengine::TextureHandle createMorphTexture(const MeshMorphSource& morph, u32 vertexCount);
 
     std::vector<MeshHandle> awaitingRematerialization_;
     u32 meshes_lost_non_recoverable_ = 0;

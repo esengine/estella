@@ -16,6 +16,19 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A model brings the shapes it can be blended towards.** A glTF morph target
+  was reported at the door and dropped; now the `.esmesh` carries one delta per
+  vertex per target beside the vertices it moves, and the prefab an import writes
+  gives the entity a `MeshMorph` whose weights say what shape it is in. The
+  deltas deform on the GPU, before the pose — a face can be posed by bones and
+  shaped by its expressions at once — and the material path deforms with the
+  engine's own, so a mesh drawn by a custom shader moves the same way.
+
+  The weights are a **budget on what is live**, not on what a mesh carries: the
+  eight heaviest are blended and the rest read as zero, which is what an
+  untouched weight already means. Three pixel gates hold it — the same quad, the
+  same two points, and the weight the only thing that differs.
+
 - **A controller is a stack of machines, not one.** One state machine can say a
   character is running or that it is waving, never both. A `.esanimator` now
   carries layers over its base one — each a machine with its own clock, its own

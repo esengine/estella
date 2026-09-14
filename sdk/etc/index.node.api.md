@@ -5090,13 +5090,13 @@ aabbMin: [number, number, number]
 channels: MeshChannelDesc[]
 indices: Uint32Array<ArrayBufferLike>
 inverseBindMatrices: Float32Array<ArrayBufferLike> | undefined
-morph: MeshMorphData | undefined
+morph: MeshMorphTargets | undefined
 vertexCount: number
 vertexStride: number
 vertices: Uint8Array<ArrayBufferLike>
 ```
 
-## MeshMorphData — interface @experimental
+## MeshMorphTargets — interface @experimental
 ```
 deltas: Float32Array<ArrayBufferLike>
 hasNormals: boolean

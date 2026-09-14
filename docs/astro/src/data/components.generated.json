@@ -2160,6 +2160,21 @@
       ]
     },
     {
+      "name": "MeshMorph",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "weights",
+          "type": "array",
+          "default": "empty",
+          "doc": "Weight per morph target of the mesh, in the order the mesh carries them."
+        }
+      ],
+      "animatable": [
+        "weights"
+      ]
+    },
+    {
       "name": "MeshRenderer",
       "source": "cpp",
       "fields": [

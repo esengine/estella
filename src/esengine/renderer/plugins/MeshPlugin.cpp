@@ -3,6 +3,7 @@
 #include "MeshPlugin.hpp"
 #include "../draw/BatchBuilder.hpp"
 #include "../store/MaterialStore.hpp"
+#include "../store/MorphConstants.hpp"
 #include "../frame/RenderFrame.hpp"
 #include "../frame/RenderContext.hpp"
 #include "../rhi/Texture.hpp"
@@ -20,6 +21,7 @@
 #include <glm/gtc/matrix_access.hpp>
 
 #include <algorithm>
+#include <cmath>
 #include <string>
 #include <vector>
 
@@ -118,6 +120,51 @@ u32 skinPose(ecs::Registry& registry, Entity entity, const Mesh& mesh,
         out[i] = world * mesh.inverseBind[i];
     }
     return count;
+}
+
+/**
+ * @brief The shapes this entity is in, as the block one draw is deformed by.
+ *
+ * @details Only the heaviest MESH_MAX_ACTIVE_MORPHS are taken, and a weight left
+ *          out reads as zero — which is what a weight an author never moved
+ *          already means. Zero weights are dropped first, so the budget is spent
+ *          on shapes that are saying something.
+ *
+ * @return False when the entity is in the shape the mesh was authored in.
+ */
+bool morphShapes(ecs::Registry& registry, Entity entity, const Mesh& mesh,
+                 MorphConstants& out) {
+    if (!mesh.isMorphable()) return false;
+    const auto* morph = registry.tryGet<ecs::MeshMorph>(entity);
+    if (!morph) return false;
+
+    // Weight i addresses target i, so a list longer than the mesh names shapes
+    // it does not have — those entries are not read rather than shifting the rest.
+    const u32 count = std::min(static_cast<u32>(morph->weights.size()), mesh.morphTargetCount);
+    u32 live = 0;
+    for (u32 t = 0; t < count; ++t) {
+        const f32 weight = morph->weights[t];
+        if (weight == 0.0f) continue;
+        if (live < MESH_MAX_ACTIVE_MORPHS) {
+            out.shape[live++] = glm::vec4(static_cast<f32>(t), weight, 0.0f, 0.0f);
+            continue;
+        }
+        // Full: the smallest of what is held loses its place, and only to
+        // something heavier — so what survives is the heaviest set, whatever
+        // order the weights arrived in.
+        u32 lightest = 0;
+        for (u32 i = 1; i < MESH_MAX_ACTIVE_MORPHS; ++i) {
+            if (std::abs(out.shape[i].y) < std::abs(out.shape[lightest].y)) lightest = i;
+        }
+        if (std::abs(weight) > std::abs(out.shape[lightest].y)) {
+            out.shape[lightest] = glm::vec4(static_cast<f32>(t), weight, 0.0f, 0.0f);
+        }
+    }
+    if (live == 0) return false;
+    out.info = glm::vec4(static_cast<f32>(live), static_cast<f32>(mesh.vertexCount),
+                         mesh.morphHasNormals ? 2.0f : 1.0f,
+                         static_cast<f32>(MORPH_TEXTURE_WIDTH));
+    return true;
 }
 
 /**
@@ -609,6 +656,14 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 u32 instOffset = buffers.allocVertices(LayoutId::MeshInstance, stride);
                 auto* dst = buffers.vertexData(LayoutId::MeshInstance) + instOffset;
                 u32 tintRGBA = packColor(mesh.color);
+                // The shapes, whether or not bones move it: the two deform the
+                // same vertices, and a morph target is what the mesh is BEFORE a
+                // pose is applied to it.
+                MorphConstants shapes{};
+                if (morphShapes(registry, entity, *resident, shapes)) {
+                    key.morphIndex = draw_list.addMorphShapes(shapes);
+                    key.morphTextureId = static_cast<u32>(resident->morphTexture);
+                }
                 if (skinned) {
                     std::memcpy(dst, &tintRGBA, 4);
                     key.skinOffset = draw_list.addSkinMatrices(pose_scratch_.data(), poseSize);

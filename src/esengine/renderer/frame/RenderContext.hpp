@@ -211,10 +211,14 @@ private:
     BufferHandle drawParamsFallback_ = BufferHandle::Invalid;
     /// One skinned draw's bone matrices, rewritten immediately before that draw.
     BufferHandle skinUbo_ = BufferHandle::Invalid;
+    /// One morphed draw's shape weights, on the same terms.
+    BufferHandle morphUbo_ = BufferHandle::Invalid;
 
 public:
     /** @brief The per-draw bone-matrix block a skinned draw writes into. */
     BufferHandle skinUbo() const { return skinUbo_; }
+    /** @brief The per-draw shape-weight block a morphed draw writes into. */
+    BufferHandle morphUbo() const { return morphUbo_; }
 
 private:
     f32 lastElapsed_ = 0.0f;

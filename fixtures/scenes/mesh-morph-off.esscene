@@ -1,0 +1,74 @@
+{
+  "version": 4,
+  "name": "MeshMorphOff",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 10
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 100,
+            "isActive": true,
+            "priority": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Quad",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "scenes/morph-quad.esmesh",
+            "color": {
+              "r": 0,
+              "g": 1,
+              "b": 0,
+              "a": 1
+            },
+            "enabled": true
+          }
+        },
+        {
+          "type": "MeshMorph",
+          "data": {
+            "weights": [
+              0
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

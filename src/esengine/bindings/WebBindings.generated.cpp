@@ -1451,6 +1451,8 @@ UIVisualJS uivisualToJS(const esengine::ecs::UIVisual& c) {
 EMSCRIPTEN_BINDINGS(esengine_components) {
     register_vector<u32>("VectorEntity");
 
+    register_vector<f32>("VectorFloat");
+
     value_object<BitmapTextJS>("BitmapText")
         .field("text", &BitmapTextJS::text)
         .field("color", &BitmapTextJS::color)
@@ -1639,6 +1641,9 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("restitution", &MeshCollider3DJS::restitution)
         .field("layer", &MeshCollider3DJS::layer)
         .field("enabled", &MeshCollider3DJS::enabled);
+
+    value_object<esengine::ecs::MeshMorph>("MeshMorph")
+        .field("weights", &esengine::ecs::MeshMorph::weights);
 
     value_object<MeshRendererJS>("MeshRenderer")
         .field("texture", &MeshRendererJS::texture)
@@ -2352,6 +2357,27 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::MeshCollider3D>(entity);
         }))
 
+        // MeshMorph
+        .function("hasMeshMorph", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::MeshMorph>(static_cast<Entity>(e));
+        }))
+        .function("getMeshMorph", optional_override([](Registry& r, u32 e) -> esengine::ecs::MeshMorph& {
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::MeshMorph s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::MeshMorph>(entity)) return s_dummy;
+            return r.get<esengine::ecs::MeshMorph>(entity);
+        }), allow_raw_pointers())
+        .function("addMeshMorph", optional_override([](Registry& r, u32 e, const esengine::ecs::MeshMorph& c) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::MeshMorph>(entity, c);
+        }))
+        .function("removeMeshMorph", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::MeshMorph>(entity)) return;
+            r.remove<esengine::ecs::MeshMorph>(entity);
+        }))
+
         // MeshRenderer
         .function("hasMeshRenderer", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::MeshRenderer>(static_cast<Entity>(e));
@@ -2930,6 +2956,7 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("LODGroup")));
     arr.set(i++, val(std::string("Light")));
     arr.set(i++, val(std::string("MeshCollider3D")));
+    arr.set(i++, val(std::string("MeshMorph")));
     arr.set(i++, val(std::string("MeshRenderer")));
     arr.set(i++, val(std::string("MeshSkin")));
     arr.set(i++, val(std::string("Parent")));
@@ -3352,7 +3379,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "422d8d4f497e4e40";
+static const char* kEsAbiLayoutHash = "7aee1689088373e3";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

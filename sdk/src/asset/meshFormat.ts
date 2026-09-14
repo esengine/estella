@@ -79,7 +79,7 @@ export interface MeshChannelDesc {
  * carries. Deltas rather than whole positions because a target usually moves a
  * fraction of the mesh, and what is stored is then zero wherever it says nothing.
  */
-export interface MeshMorphData {
+export interface MeshMorphTargets {
     /** One name per target, in the order weights address them. */
     names: string[];
     /** Whether each target carries a normal delta behind its position delta.
@@ -117,7 +117,7 @@ export interface MeshData {
      * vertex per target, so a file carrying the two apart could not say which
      * vertex a delta moves.
      */
-    morph?: MeshMorphData;
+    morph?: MeshMorphTargets;
 }
 
 /** Bytes one component of a channel type occupies. */

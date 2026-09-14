@@ -80,6 +80,11 @@ export class MeshAssetLoader implements AssetLoader<MeshResult> {
             // guess what a vertex is bound to.
             const bind = mesh.inverseBindMatrices;
             const bindPtr = bind ? alloc(bind.byteLength) : 0;
+            // The shapes go over for the same reason: a delta is addressed by a
+            // vertex index, so the engine holding one without the other could
+            // only guess which vertex a shape moves.
+            const morph = mesh.morph;
+            const morphPtr = morph ? alloc(morph.deltas.byteLength) : 0;
             m!.HEAPU8.set(table, tablePtr);
             m!.HEAPU8.set(mesh.vertices, vertexPtr);
             m!.HEAPU8.set(new Uint8Array(mesh.indices.buffer, mesh.indices.byteOffset,
@@ -88,6 +93,14 @@ export class MeshAssetLoader implements AssetLoader<MeshResult> {
                 m!.HEAPU8.set(new Uint8Array(bind.buffer, bind.byteOffset, bind.byteLength),
                               bindPtr);
             }
+            if (morph) {
+                m!.HEAPU8.set(new Uint8Array(morph.deltas.buffer, morph.deltas.byteOffset,
+                                             morph.deltas.byteLength), morphPtr);
+            }
+            const shapes: [number, number, number, number] = [
+                morphPtr, morph?.deltas.length ?? 0, morph?.names.length ?? 0,
+                morph?.hasNormals ? 1 : 0,
+            ];
             return mint
                 ? m!.mesh_createFromChannels!(
                     tablePtr, mesh.channels.length, mesh.vertexStride,
@@ -95,7 +108,7 @@ export class MeshAssetLoader implements AssetLoader<MeshResult> {
                     indexPtr, mesh.indices.length,
                     mesh.aabbMin[0], mesh.aabbMin[1], mesh.aabbMin[2],
                     mesh.aabbMax[0], mesh.aabbMax[1], mesh.aabbMax[2],
-                    bindPtr, bind?.length ?? 0)
+                    bindPtr, bind?.length ?? 0, ...shapes)
                 : m!.mesh_rematerializeFromChannels!(
                     target,
                     tablePtr, mesh.channels.length, mesh.vertexStride,
@@ -103,7 +116,7 @@ export class MeshAssetLoader implements AssetLoader<MeshResult> {
                     indexPtr, mesh.indices.length,
                     mesh.aabbMin[0], mesh.aabbMin[1], mesh.aabbMin[2],
                     mesh.aabbMax[0], mesh.aabbMax[1], mesh.aabbMax[2],
-                    bindPtr, bind?.length ?? 0);
+                    bindPtr, bind?.length ?? 0, ...shapes);
         });
     }
 

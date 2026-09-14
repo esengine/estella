@@ -288,7 +288,7 @@ void RenderFrame::drawScene() {
     {
         ES_PROFILE_SCOPE("render.submit");
         draw_list_.execute(device_, pool_, context_.materials(), context_.getWhiteTextureId(),
-                           &frame_capture_, context_.skinUbo());
+                           &frame_capture_, context_.skinUbo(), context_.morphUbo());
     }
 
     // Handed over to whatever the graph runs next. Blend/depth/colour-mask come
@@ -677,7 +677,7 @@ void RenderFrame::replayToDrawCall(i32 stopAtDrawCall) {
     context_.updateCameraConstants(view_projection_);
     context_.lights().uploadAndBind();
     draw_list_.execute(device_, pool_, context_.materials(), context_.getWhiteTextureId(),
-                       &frame_capture_, context_.skinUbo());
+                       &frame_capture_, context_.skinUbo(), context_.morphUbo());
 
     // Leave scissor disabled for whatever renders next; invalidate so the next
     // setPipeline re-applies its full state (stencil included).
@@ -750,7 +750,7 @@ void RenderFrame::renderSurface(ecs::Registry& registry, const glm::mat4& viewPr
     context_.updateCameraConstants(viewProjection);
     context_.lights().uploadAndBind();
     draw_list_.execute(device_, pool_, context_.materials(), context_.getWhiteTextureId(),
-                       &frame_capture_, context_.skinUbo());
+                       &frame_capture_, context_.skinUbo(), context_.morphUbo());
     frame_capture_.endCapture();
 
     rt->unbind();
@@ -1711,7 +1711,8 @@ void RenderFrame::executeShadowPass(ecs::Registry& registry) {
         // nothing — the whole pass came back empty for exactly this.
         context_.lights().uploadAndBind();
         list.execute(device_, shadow_pool_, context_.materials(),
-                     context_.getWhiteTextureId(), nullptr, context_.skinUbo());
+                     context_.getWhiteTextureId(), nullptr, context_.skinUbo(),
+                     context_.morphUbo());
         ++shadowTiles;
         shadowDraws += list.mergedDrawCallCount();
     }

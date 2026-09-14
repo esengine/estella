@@ -170,6 +170,23 @@ joints.
 | 64 joints per mesh | The pose is a uniform block, which is 4KB at that size — inside what a WebGL2 block is guaranteed. A mesh wanting more draws undeformed. |
 | Joint count must match the bind pose | A mesh whose `MeshSkin` names a different number of joints draws undeformed rather than with vertices resolved against the wrong matrices. |
 
+## Morph targets
+
+A model that carries shapes to blend towards — blend shapes, in most DCC tools — brings
+them with it: the `.esmesh` holds one delta per vertex per target beside the vertices, and
+the prefab gives the entity a `MeshMorph` whose `weights` say how far it is blended towards
+each. Entry *i* is target *i*, in the order the file lists them; the names the source
+carries are kept with the geometry, so a weight addresses a shape by position.
+
+A weight of 0 leaves the mesh as authored and 1 is the target in full. Neither is a bound:
+glTF states none, and pushing past 1 or below 0 is a shape an author may want.
+
+| Limit | Why |
+|---|---|
+| 8 shapes blended at once | A budget on what is LIVE, not on what a mesh carries — a face holds a handful of expressions open while its mesh has a hundred. The heaviest weights are taken; the rest read as zero, which is what an untouched weight already means. |
+| Normals deform only where the geometry has them | A mesh with no `NORMAL` channel is shaded off a constant normal, which no delta can bend. |
+| Tangents are not carried | The tangent frame is derived per pixel, from the surface as deformed. |
+
 ## FBX
 
 FBX is read by [ufbx](https://github.com/ufbx/ufbx), built into the editor — no Autodesk
@@ -214,7 +231,7 @@ when it runs.
 
 | Not imported | Why |
 |---|---|
-| Morph targets / blend shapes, `weights` animation channels | Blending between shapes needs the targets themselves, which are not carried. |
+| `weights` animation channels | The shapes themselves are imported (see [Morph targets](#morph-targets)); a clip that drives them is not carried yet. |
 | A second UV set (`TEXCOORD_1`), `KHR_texture_transform`, an FBX uv transform | UVs are used as authored. |
 | Non-triangle primitives (`mode` ≠ 4) | The renderer draws triangle lists. |
 | `normalTexture.scale` | The map is applied at full strength. |

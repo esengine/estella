@@ -39,12 +39,29 @@ const byHand = new Set(
     [...regSrc.matchAll(/reg\.add([A-Z][A-Za-z0-9_]*)\s*=/g)].map((m) => m[1]),
 );
 
-const stranded = components.filter((c) => !withAccessor.has(c) && !byHand.has(c));
+// The third route: a component whose only fields are number lists has no POD
+// layout either, and the registry presents it from the metadata naming them.
+// Whether that loop is THERE is read here — deleting it must strand them.
+const hasMetadataLoop = /numberListFields[\s\S]{0,2000}?reg\[`add\$\{cppName\}`\]/.test(regSrc);
+/** A component's own slice of the metadata: from its name to the next one's. */
+const entries = [...meta.matchAll(/^ {4}([A-Z][A-Za-z0-9_]*):\s*\{/gm)];
+const byMetadata = new Set(
+    hasMetadataLoop
+        ? entries
+            .filter(([, ], i) => /\n\s+numberListFields:/.test(
+                meta.slice(entries[i].index, entries[i + 1]?.index ?? meta.length)))
+            .map((m) => m[1])
+        : [],
+);
+
+const stranded = components.filter(
+    (c) => !withAccessor.has(c) && !byHand.has(c) && !byMetadata.has(c));
 if (stranded.length) {
     console.error('check-native-components: no route to the registry on a device for '
         + `${stranded.length} component(s):`);
     for (const c of stranded) {
-        console.error(`  ${c} — no ptr accessor and no reg.add${c} in nativeRegistry.ts`);
+        console.error(`  ${c} — no ptr accessor, no reg.add${c} in nativeRegistry.ts, and no`
+            + ' number-list fields the metadata loop there would present it by');
     }
     console.error('\nGive it a POD layout, or present it by hand the way MeshSkin and the '
         + 'hierarchy components are.');
@@ -53,4 +70,5 @@ if (stranded.length) {
 
 console.log(`check-native-components: ${components.length} builtin(s) reach the registry on a `
     + `device — ${withAccessor.size} by ptr accessor, ${byHand.size} presented by hand `
-    + `(${[...byHand].sort().join(', ')}).`);
+    + `(${[...byHand].sort().join(', ')}), ${byMetadata.size} from their number-list metadata`
+    + `${byMetadata.size ? ` (${[...byMetadata].sort().join(', ')})` : ''}.`);

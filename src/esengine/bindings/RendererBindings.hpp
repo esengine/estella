@@ -76,7 +76,9 @@ u32 mesh_createFromChannels(uintptr_t channelsPtr, u32 channelCount, u32 vertexS
                             uintptr_t indexPtr, u32 indexCount,
                             f32 minX, f32 minY, f32 minZ,
                             f32 maxX, f32 maxY, f32 maxZ,
-                            uintptr_t bindPtr, u32 bindFloats);
+                            uintptr_t bindPtr, u32 bindFloats,
+                            uintptr_t morphPtr, u32 morphFloats,
+                            u32 morphTargets, u32 morphNormals);
 /** @brief Releases a mesh and the buffers it owns. */
 /** @brief Puts replayed geometry behind an EXISTING mesh handle after a device
  *         loss. Returns @p targetHandle on success, 0 on failure — never a new
@@ -87,7 +89,9 @@ u32 mesh_rematerializeFromChannels(u32 targetHandle,
                                    uintptr_t indexPtr, u32 indexCount,
                                    f32 minX, f32 minY, f32 minZ,
                                    f32 maxX, f32 maxY, f32 maxZ,
-                                   uintptr_t bindPtr, u32 bindFloats);
+                                   uintptr_t bindPtr, u32 bindFloats,
+                                   uintptr_t morphPtr, u32 morphFloats,
+                                   u32 morphTargets, u32 morphNormals);
 
 void mesh_release(u32 meshHandle);
 

@@ -45,6 +45,7 @@ void DrawList::clear() {
     commands_.clear();
     sort_entries_.clear();
     skin_matrices_.clear();
+    morph_shapes_.clear();
     merged_draw_calls_ = 0;
     depth_required_ = false;
 }
@@ -53,6 +54,11 @@ u32 DrawList::addSkinMatrices(const glm::mat4* matrices, u32 count) {
     const u32 at = static_cast<u32>(skin_matrices_.size());
     skin_matrices_.insert(skin_matrices_.end(), matrices, matrices + count);
     return at;
+}
+
+u32 DrawList::addMorphShapes(const MorphConstants& shapes) {
+    morph_shapes_.push_back(shapes);
+    return static_cast<u32>(morph_shapes_.size());
 }
 
 void DrawList::push(const DrawCommand& cmd) {
@@ -173,9 +179,11 @@ void DrawList::finalize(TransientBufferPool& pool) {
 
 void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
                        MaterialStore& materials, u32 white_texture_id,
-                       FrameCapture* capture, BufferHandle skin_ubo) {
+                       FrameCapture* capture, BufferHandle skin_ubo, BufferHandle morph_ubo) {
     PipelineDesc lastDesc{};
     PipelineHandle lastHandle = PipelineHandle::Invalid;
+    /// Whether the block still holds a morphed draw's shapes — see the upload below.
+    bool morph_live = false;
 
     for (u32 i = 0; i < merged_draw_calls_; ++i) {
         const auto& cmd = commands_[i];
@@ -222,6 +230,21 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
         if (cmd.skin_count > 0 && skin_ubo != BufferHandle::Invalid) {
             device.updateBuffer(skin_ubo, 0, skin_matrices_.data() + cmd.skin_offset,
                                 cmd.skin_count * sizeof(glm::mat4));
+        }
+
+        // The shapes, the same way. Cleared on the way OUT of a morphed draw
+        // rather than written before every other one: a mesh with none would
+        // otherwise be deformed by whatever the last morphed draw left behind.
+        if (morph_ubo != BufferHandle::Invalid) {
+            if (cmd.morph_index > 0) {
+                device.updateBuffer(morph_ubo, 0, &morph_shapes_[cmd.morph_index - 1],
+                                    sizeof(MorphConstants));
+                morph_live = true;
+            } else if (morph_live) {
+                const MorphConstants none{};
+                device.updateBuffer(morph_ubo, 0, &none, sizeof(MorphConstants));
+                morph_live = false;
+            }
         }
 
         // Dynamic per-draw state (sorted+merged draws already group these coarsely).

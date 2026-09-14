@@ -109,6 +109,7 @@ void pushBatchDraw(DrawList& drawList, const ClipState& clips,
     cmd.vertex_layout = key.vertexLayout;
     cmd.skin_offset = key.skinOffset;
     cmd.skin_count = key.skinCount;
+    cmd.morph_index = key.morphIndex;
     cmd.shader_id = key.shaderId;
     cmd.blend_mode = key.blend;
     cmd.layout_id = key.layoutId;
@@ -139,6 +140,13 @@ void pushBatchDraw(DrawList& drawList, const ClipState& clips,
         for (u8 slot = cmd.texture_count; slot < 3; ++slot) cmd.texture_ids[slot] = key.textureId;
         cmd.texture_ids[3] = key.envTextureId;
         cmd.texture_count = 4;
+    }
+    // The mesh's own deltas, one slot further still. Read in the VERTEX stage,
+    // unlike the three above — the only sampler here that is.
+    if (key.morphTextureId != 0 && cmd.texture_count >= 1 && key.layoutId != LayoutId::Batch) {
+        for (u8 slot = cmd.texture_count; slot < 4; ++slot) cmd.texture_ids[slot] = key.textureId;
+        cmd.texture_ids[4] = key.morphTextureId;
+        cmd.texture_count = 5;
     }
     cmd.entity = key.entity;
     cmd.type = key.type;

@@ -34,7 +34,13 @@ class TypeSystem:
 
     SKIP_TYPES = {'glm::mat4', 'std::function'}
 
-    VECTOR_TYPES = {'std::vector<Entity>': ('u32', 'VectorEntity', 'VectorEntity')}
+    # `std::vector<T>` fields the boundary marshals: element C++ type, the embind
+    # vector registered for it, and the TS interface that names it. Adding one is
+    # an entry here — every generator below reads the registry.
+    VECTOR_TYPES = {
+        'std::vector<Entity>': ('u32', 'VectorEntity', 'VectorEntity'),
+        'std::vector<f32>': ('f32', 'VectorFloat', 'VectorFloat'),
+    }
 
     CPP_TO_TS = {
         'bool': 'boolean',

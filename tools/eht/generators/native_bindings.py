@@ -71,6 +71,11 @@ class NativeBindingsGenerator:
         out = []
         for prop in comp.properties:
             t = self.types.clean_type(prop.cpp_type)
+            # A list of plain numbers crosses as a list of numbers: no members to
+            # walk, which is what the empty list below means downstream.
+            if t in self.types.VECTOR_TYPES and 'entity_ref' not in prop.annotations:
+                out.append((prop, []))
+                continue
             if not self.types.is_struct_vector(t):
                 continue
             elem = self.types.vector_elem(t)
@@ -89,12 +94,15 @@ class NativeBindingsGenerator:
                f'    const auto* c = esn_reg().tryGet<{full}>(esn_entity(ctx, argv[0]));',
                '    if (!c) return arr;',
                '    uint32_t i = 0;',
-               f'    for (const auto& v : c->{prop.name}) {{',
-               '        JSValue o = JS_NewObject(ctx);']
-        for m in members:
-            out.append(f'        JS_SetPropertyStr(ctx, o, "{m}", JS_NewFloat64(ctx, v.{m}));')
-        out += ['        JS_SetPropertyUint32(ctx, arr, i++, o);',
-                '    }',
+               f'    for (const auto& v : c->{prop.name}) {{']
+        if members:
+            out.append('        JSValue o = JS_NewObject(ctx);')
+            for m in members:
+                out.append(f'        JS_SetPropertyStr(ctx, o, "{m}", JS_NewFloat64(ctx, v.{m}));')
+            out.append('        JS_SetPropertyUint32(ctx, arr, i++, o);')
+        else:
+            out.append('        JS_SetPropertyUint32(ctx, arr, i++, JS_NewFloat64(ctx, v));')
+        out += ['    }',
                 '    return arr;',
                 '}',
                 f'static JSValue {set_name}(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {{',
@@ -110,10 +118,13 @@ class NativeBindingsGenerator:
                 '        JSValue e = JS_GetPropertyUint32(ctx, argv[1], i);',
                 f'        decltype(c.{prop.name})::value_type v{{}};',
                 '        double n = 0;']
-        for m in members:
-            out += [f'        {{ JSValue f = JS_GetPropertyStr(ctx, e, "{m}");',
-                    f'          if (JS_ToFloat64(ctx, &n, f) == 0) v.{m} = static_cast<decltype(v.{m})>(n);',
-                    '          JS_FreeValue(ctx, f); }']
+        if members:
+            for m in members:
+                out += [f'        {{ JSValue f = JS_GetPropertyStr(ctx, e, "{m}");',
+                        f'          if (JS_ToFloat64(ctx, &n, f) == 0) v.{m} = static_cast<decltype(v.{m})>(n);',
+                        '          JS_FreeValue(ctx, f); }']
+        else:
+            out += ['        if (JS_ToFloat64(ctx, &n, e) == 0) v = static_cast<decltype(v)>(n);']
         out += [f'        c.{prop.name}.push_back(v);',
                 '        JS_FreeValue(ctx, e);',
                 '    }',

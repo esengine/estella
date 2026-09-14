@@ -29,6 +29,19 @@ enum class MeshRecovery : u8 {
 };
 
 /**
+ * @brief The shapes handed to a realization: the deltas, and how to read them.
+ *
+ * @details One record because the three are unreadable apart — the array is flat,
+ *          and the count and the flag are what say where target i begins.
+ */
+struct MeshMorphSource {
+    /// `targetCount * vertexCount * (hasNormals ? 6 : 3)` floats.
+    ConstSpan<f32> deltas;
+    u32 targetCount = 0;
+    bool hasNormals = false;
+};
+
+/**
  * @brief Buffers, the layout that describes them, and the bounds culling reads.
  *
  * @details One record because the three are inseparable: a buffer without its
@@ -76,6 +89,20 @@ public:
 
     bool isSkinned() const { return !inverseBind.empty(); }
 
+    /** The shapes this geometry can be blended towards, as a texture of deltas:
+     *  one texel per (target, vertex), and a second behind it where the targets
+     *  bend normals. Realized with the buffers above and lost with them. */
+    TextureHandle morphTexture = TextureHandle::Invalid;
+    u32 morphTargetCount = 0;
+    bool morphHasNormals = false;
+    /** Vertices the deltas are indexed by — the stride from one target to the
+     *  next inside the texture, and the reason it is kept beside them. */
+    u32 vertexCount = 0;
+
+    bool isMorphable() const {
+        return morphTargetCount > 0 && morphTexture != TextureHandle::Invalid;
+    }
+
     /** Whether a live GPU realization stands behind this identity. False from a
      *  device loss until the rematerialization that replaces it, which is what
      *  stops the draw path consuming buffers that died with their device. */
@@ -84,6 +111,7 @@ public:
             && indexBuffer != BufferHandle::Invalid
             && layout != VertexLayoutHandle::Invalid;
     }
+
 
     bool isDrawable() const { return hasRealization() && indexCount > 0; }
 };

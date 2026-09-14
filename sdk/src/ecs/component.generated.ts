@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, Cl
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '422d8d4f497e4e40';
+export const ABI_LAYOUT_HASH = '7aee1689088373e3';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -75,6 +75,13 @@ export interface ComponentMetaEntry {
      * and keep the hand-written pair the registry wires them by.
      */
     listFields?: string[];
+    /**
+     * List fields whose elements are NUMBERS, which the web boundary
+     * marshals as a registered embind vector rather than a JS array.
+     * Apart from `entityFields`: that list also re-aims references when
+     * a prefab is instantiated, and a weight is a value, not a reference.
+     */
+    numberListFields?: string[];
     colorFields: string[];
     animatableFields: string[];
     /**
@@ -516,6 +523,20 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             friction: { min: 0 },
             restitution: { min: 0, max: 1 },
             layer: { min: 0, max: 15, advanced: true },
+        },
+    },
+    MeshMorph: {
+        defaults: {
+            weights: [],
+        },
+        assetFields: [],
+        entityFields: [],
+        listFields: ['weights'],
+        numberListFields: ['weights'],
+        colorFields: [],
+        animatableFields: ['weights'],
+        fields: {
+            weights: { tooltip: "Weight per morph target of the mesh, in the order the mesh carries them." },
         },
     },
     MeshRenderer: {
@@ -1375,6 +1396,10 @@ export interface MeshCollider3DData {
     restitution: number;
     layer: number;
     enabled: boolean;
+}
+
+export interface MeshMorphData {
+    weights: number[];
 }
 
 export interface MeshRendererData {
