@@ -11,7 +11,7 @@
  *        at all — and the specular half one ordinary RGBA8 image, so nothing
  *        downstream learns a cube map or a float format.
  */
-import { PNG } from 'pngjs';
+import { encodeRgbaPng } from './png';
 
 /** A panorama in linear light: equirectangular, row 0 = up (+Y). */
 export interface Panorama {
@@ -428,13 +428,6 @@ export function prefilterOctahedral(env: Panorama, faceSize = ENV_FACE_SIZE,
     return { width, height, rgba };
 }
 
-/** Encode raw RGBA8 (row 0 = top) as PNG bytes. */
-export function encodeAtlasPng(width: number, height: number, rgba: Uint8Array): Uint8Array {
-    const png = new PNG({ width, height });
-    png.data = Buffer.from(rgba);
-    return new Uint8Array(PNG.sync.write(png));
-}
-
 /** Everything a `.hdr` becomes, less the reference the caller has to resolve. */
 export interface ImportedEnvironment {
     /** `<stem>_env.png` — the octahedral atlas. */
@@ -468,7 +461,7 @@ export function importEnvironment(bytes: Uint8Array, stem: string,
     const atlas = prefilterOctahedral(panorama, faceSize, mipCount, ENV_MAX_RANGE);
     return {
         atlasName: `${stem}_env.png`,
-        atlasBytes: encodeAtlasPng(atlas.width, atlas.height, atlas.rgba),
+        atlasBytes: encodeRgbaPng(atlas.width, atlas.height, atlas.rgba),
         warnings,
         document: {
             version: ENVIRONMENT_FORMAT_VERSION,
