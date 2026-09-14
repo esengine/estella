@@ -249,6 +249,10 @@ export const GATES = [
   { id: 'verifier-exit', run: 'node tools/check-verifier-exit.mjs', needs: 'editor' },
   { id: 'render-scenes', run: 'node tools/check-render-scenes.mjs' },
   { id: 'release-metadata', run: 'node tools/check-release-metadata.mjs' },
+  // The other half: metadata reads the CHANGELOG's shape, this reads whether
+  // anything shipped without reaching it. Three releases running lost features
+  // that only a hand-read of `git log` found.
+  { id: 'changelog-covers', run: 'node tools/check-changelog-covers.mjs', needs: 'editor' },
   // A published desktop artifact has one name, declared, whitespace-free, and
   // still distinct once the asset store has normalised it.
   { id: 'release-artifact-names', run: 'node tools/check-release-artifact-names.mjs', needs: 'editor' },
