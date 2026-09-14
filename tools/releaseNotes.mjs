@@ -28,6 +28,13 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(gates): the per-object mesh record is described in one shape':
+    { internal: 'a gate over four declarations of one vertex layout — a game draws'
+      + ' the same whether or not they can drift' },
+  'perf(render): a model matrix travels as three rows, not four':
+    { internal: '16 bytes an instance and one attribute slot, both spent on a row that'
+      + ' is (0,0,0,1) on every transform — the frame is identical either way' },
+
   'fix(gates): the animator parameter census reads a blend over a plane':
     { internal: 'a gate reading a project\'s own animator files — a game plays the'
       + ' same whether or not the census can see a blend over a plane' },
