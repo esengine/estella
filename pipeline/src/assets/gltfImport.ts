@@ -11,7 +11,8 @@
  *        the cook then ships them as the engine format they already are.
  */
 /// <reference path="./draco3dgltf.d.ts" />
-import { MESH_MAX_BONES, MeshChannel, MeshChannelType, packChannels } from 'esengine';
+import { MESH_MAX_BONES, MeshChannel, MeshChannelType, packChannels,
+         type MeshMorphData } from 'esengine';
 import { MeshoptDecoder } from 'meshoptimizer/decoder';
 import {
     ANIMATED_PATHS, alignQuaternionSigns, animationProductName, disambiguateNodes,
@@ -72,12 +73,22 @@ interface GltfJson {
         /** A meshopt fallback buffer has no uri: nothing reads it once the views decode. */
         extensions?: { EXT_meshopt_compression?: { fallback?: boolean } };
     }[];
-    meshes?: { name?: string; primitives: {
-        attributes: Record<string, number>; indices?: number; mode?: number; material?: number;
-        extensions?: { KHR_draco_mesh_compression?: DracoPrimitive } & Record<string, unknown>;
-        /** Morph targets — shapes the runtime blends between; not imported. */
-        targets?: unknown[];
-    }[] }[];
+    meshes?: {
+        name?: string;
+        /** The weights each target starts at, when the file states them. */
+        weights?: number[];
+        /** Where an exporter writes the target names; the spec gives them no home
+         *  of their own, so the convention is this one. */
+        extras?: { targetNames?: string[] };
+        primitives: {
+            attributes: Record<string, number>; indices?: number; mode?: number; material?: number;
+            extensions?: { KHR_draco_mesh_compression?: DracoPrimitive } & Record<string, unknown>;
+            extras?: { targetNames?: string[] };
+            /** Morph targets — the shapes the runtime blends towards, as deltas
+             *  off the attributes beside them. */
+            targets?: Record<string, number>[];
+        }[];
+    }[];
     materials?: {
         name?: string;
         pbrMetallicRoughness?: {
@@ -97,6 +108,8 @@ interface GltfJson {
     nodes?: {
         name?: string; children?: number[]; mesh?: number; skin?: number;
         matrix?: number[]; translation?: number[]; rotation?: number[]; scale?: number[];
+        /** Overrides the mesh's own starting weights for this instance of it. */
+        weights?: number[];
     }[];
     skins?: { name?: string; joints: number[]; inverseBindMatrices?: number; skeleton?: number }[];
     animations?: {
@@ -660,6 +673,62 @@ function bindMatrices(src: GltfBytes, skin: NonNullable<GltfJson['skins']>[numbe
     return out;
 }
 
+type GltfMesh = NonNullable<GltfJson['meshes']>[number];
+type GltfPrimitive = GltfMesh['primitives'][number];
+
+/**
+ * The shapes this primitive can be blended towards, as deltas off the vertices
+ * beside them. A target whose accessor does not cover every vertex is kept and
+ * left at zero rather than dropped: weights address targets by position, so
+ * removing one would renumber every target behind it.
+ */
+function morphTargets(src: GltfBytes, mesh: GltfMesh, prim: GltfPrimitive,
+                      vertexCount: number, hasNormals: boolean,
+                      label: string, warnings: string[]): MeshMorphData | undefined {
+    const targets = prim.targets ?? [];
+    if (!targets.length) return undefined;
+    if (targets.some(t => t.TANGENT !== undefined)) {
+        warnings.push(`${label}: morph target tangents are not imported`
+            + ' (the tangent frame is derived per pixel, from the surface as deformed)');
+    }
+    // Normals deform only where there are any: geometry without them is shaded
+    // off a constant normal, which no delta can bend.
+    const carriesNormals = hasNormals && targets.some(t => t.NORMAL !== undefined);
+    const comps = carriesNormals ? 6 : 3;
+    const deltas = new Float32Array(targets.length * vertexCount * comps);
+    const declared = mesh.extras?.targetNames ?? prim.extras?.targetNames ?? [];
+    const names = targets.map((_, t) => declared[t] ?? `target ${t}`);
+
+    for (let t = 0; t < targets.length; t++) {
+        for (const [semantic, at] of [['POSITION', 0], ['NORMAL', 3]] as const) {
+            if (semantic === 'NORMAL' && !carriesNormals) continue;
+            const index = targets[t]![semantic];
+            if (index === undefined) continue;
+            const acc = src.json.accessors?.[index];
+            // Zeroes are a legal accessor, and for a morph delta they are a target
+            // that does nothing — which is exactly what a Draco blob leaves behind,
+            // since the extension compresses the attributes and not the targets.
+            if (acc && acc.bufferView === undefined && !acc.sparse) {
+                warnings.push(`${label}: morph target "${names[t]}" declares ${semantic}`
+                    + ' deltas with no data — that target moves nothing');
+                continue;
+            }
+            const values = readAccessor(src, index);
+            if (values.length !== vertexCount * 3) {
+                warnings.push(`${label}: morph target "${names[t]}" carries`
+                    + ` ${values.length / 3} ${semantic} deltas for ${vertexCount} vertices`
+                    + ' — that target moves nothing');
+                continue;
+            }
+            const base = t * vertexCount * comps + at;
+            for (let i = 0; i < vertexCount; i++) {
+                for (let c = 0; c < 3; c++) deltas[base + i * comps + c] = values[i * 3 + c] ?? 0;
+            }
+        }
+    }
+    return { names, hasNormals: carriesNormals, deltas };
+}
+
 /** glTF's sampler interpolation → the engine's, which spells the same curves. */
 const INTERPOLATION: Record<string, string> = {
     LINEAR: 'linear', STEP: 'step', CUBICSPLINE: 'hermite',
@@ -848,11 +917,6 @@ export async function importGltfMeshes(
             for (const name of Object.keys(prim.extensions ?? {})) {
                 if (name !== 'KHR_draco_mesh_compression') warnings.push(`${label}: ${name} not imported`);
             }
-            // Deformation is the difference between a model that moves and one
-            // that does not, so it is never dropped in silence.
-            if (prim.targets?.length) {
-                warnings.push(`${label}: ${prim.targets.length} morph target(s) not imported`);
-            }
             const posIndex = prim.attributes.POSITION;
             if (posIndex === undefined) {
                 warnings.push(`${label}: no POSITION — skipped`);
@@ -992,12 +1056,15 @@ export async function importGltfMeshes(
                     }
                 }
 
+                const morph = morphTargets(src, mesh, prim, vertexCount, !!normals, label, warnings);
+
                 meshIndexOf.set(`${meshIndex}_${primIndex}`, meshes.length);
                 meshes.push({
                     name: single ? stem : `${stem}_${meshIndex}_${primIndex}`,
                     data: {
                         channels, vertexStride, vertexCount, vertices, indices, aabbMin: min, aabbMax: max,
                         ...(skinned ? { inverseBindMatrices: bindMatrices(src, skin!, warnings) } : {}),
+                        ...(morph ? { morph } : {}),
                     },
                     vertexCount,
                     triangleCount: indices.length / 3,

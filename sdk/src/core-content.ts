@@ -130,7 +130,7 @@ export { setTextureBudget, getResourceStats, trimTextureCache, type ResourceStat
  */
 export {
     MeshChannel, MeshChannelType, MESH_MAX_BONES, packChannels, encodeMesh, decodeMesh,
-    encodeChannelTable, type MeshChannelDesc, type MeshData,
+    encodeChannelTable, type MeshChannelDesc, type MeshData, type MeshMorphData,
 } from './asset/meshFormat';
 export type { MeshResult } from './asset/loaders/MeshAssetLoader';
 /**

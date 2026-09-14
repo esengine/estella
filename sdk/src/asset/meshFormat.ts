@@ -12,10 +12,12 @@
 
 /** Magic 'ESMH', little-endian. */
 const MAGIC = 0x484d5345;
-const VERSION = 2;
+const VERSION = 3;
 /** v1 had no joint count; a file that predates skinning reads with the shorter one. */
 const HEADER_BYTES_V1 = 44;
-const HEADER_BYTES = 48;
+/** v2 ended at the joint count; a file that predates morph targets reads with that. */
+const HEADER_BYTES_V2 = 48;
+const HEADER_BYTES = 56;
 const CHANNEL_BYTES = 8;
 /** One inverse bind matrix: 16 floats. */
 const MATRIX_BYTES = 64;
@@ -72,6 +74,27 @@ export interface MeshChannelDesc {
     offset: number;
 }
 
+/**
+ * The shapes a mesh can be blended towards, as offsets from the vertices it
+ * carries. Deltas rather than whole positions because a target usually moves a
+ * fraction of the mesh, and what is stored is then zero wherever it says nothing.
+ */
+export interface MeshMorphData {
+    /** One name per target, in the order weights address them. */
+    names: string[];
+    /** Whether each target carries a normal delta behind its position delta.
+     *  A mesh-wide fact, not a per-target one: the deltas are one packed array
+     *  and a reader cannot find target `i` without a fixed stride. */
+    hasNormals: boolean;
+    /**
+     * `targets * vertexCount * (hasNormals ? 6 : 3)` floats: for each target,
+     * for each vertex, the position delta and — when carried — the normal delta.
+     * Float32 and not half: half is what the GPU wants, and narrowing here would
+     * make every other reader (a collider, an editor preview) inherit that choice.
+     */
+    deltas: Float32Array;
+}
+
 export interface MeshData {
     channels: MeshChannelDesc[];
     vertexStride: number;
@@ -88,6 +111,13 @@ export interface MeshData {
      * geometry that is not skinned.
      */
     inverseBindMatrices?: Float32Array;
+    /**
+     * The shapes this geometry can be blended towards. Like the bind pose, it
+     * lives with the vertices because it is indexed BY them — one delta per
+     * vertex per target, so a file carrying the two apart could not say which
+     * vertex a delta moves.
+     */
+    morph?: MeshMorphData;
 }
 
 /** Bytes one component of a channel type occupies. */
@@ -118,11 +148,20 @@ export function packChannels(semantics: { semantic: number; components: number; 
     return { channels, vertexStride: offset };
 }
 
+/** Bytes the target names occupy: each carries its own length, the whole padded
+ *  to 4 so the deltas behind it start where a float may be written. */
+function morphNameBytes(names: Uint8Array[]): number {
+    return (names.reduce((n, b) => n + 2 + b.length, 0) + 3) & ~3;
+}
+
 export function encodeMesh(data: MeshData): Uint8Array {
     const jointCount = (data.inverseBindMatrices?.length ?? 0) / 16;
+    const names = (data.morph?.names ?? []).map(n => new TextEncoder().encode(n));
+    const nameBytes = morphNameBytes(names);
+    const deltaFloats = data.morph?.deltas.length ?? 0;
     const size = HEADER_BYTES + data.channels.length * CHANNEL_BYTES
         + data.vertexCount * data.vertexStride + data.indices.length * 4
-        + jointCount * MATRIX_BYTES;
+        + jointCount * MATRIX_BYTES + nameBytes + deltaFloats * 4;
     const out = new Uint8Array(size);
     const view = new DataView(out.buffer);
 
@@ -137,6 +176,9 @@ export function encodeMesh(data: MeshData): Uint8Array {
         view.setFloat32(32 + i * 4, data.aabbMax[i], true);
     }
     view.setUint32(44, jointCount, true);
+    view.setUint16(48, names.length, true);
+    view.setUint16(50, data.morph?.hasNormals ? 1 : 0, true);
+    view.setUint32(52, nameBytes, true);
 
     let at = HEADER_BYTES;
     for (const c of data.channels) {
@@ -157,6 +199,19 @@ export function encodeMesh(data: MeshData): Uint8Array {
         // aligned, and a Float32Array view on it may not be constructible.
         for (let i = 0; i < data.inverseBindMatrices.length; i++) {
             view.setFloat32(at + i * 4, data.inverseBindMatrices[i]!, true);
+        }
+    }
+    at += jointCount * MATRIX_BYTES;
+    if (data.morph) {
+        let nameAt = at;
+        for (const name of names) {
+            view.setUint16(nameAt, name.length, true);
+            out.set(name, nameAt + 2);
+            nameAt += 2 + name.length;
+        }
+        at += nameBytes;
+        for (let i = 0; i < data.morph.deltas.length; i++) {
+            view.setFloat32(at + i * 4, data.morph.deltas[i]!, true);
         }
     }
     return out;
@@ -190,8 +245,13 @@ export function decodeMesh(bytes: Uint8Array): MeshData {
     const aabbMax: [number, number, number] = [
         view.getFloat32(32, true), view.getFloat32(36, true), view.getFloat32(40, true)];
 
-    const headerBytes = version >= 2 ? HEADER_BYTES : HEADER_BYTES_V1;
+    const headerBytes = version >= 3 ? HEADER_BYTES
+        : version >= 2 ? HEADER_BYTES_V2 : HEADER_BYTES_V1;
     const jointCount = version >= 2 ? view.getUint32(44, true) : 0;
+    const morphCount = version >= 3 ? view.getUint16(48, true) : 0;
+    const morphNormals = version >= 3 && view.getUint16(50, true) !== 0;
+    const nameBytes = version >= 3 ? view.getUint32(52, true) : 0;
+    const morphComponents = morphNormals ? 6 : 3;
 
     const channels: MeshChannelDesc[] = [];
     let at = headerBytes;
@@ -210,7 +270,9 @@ export function decodeMesh(bytes: Uint8Array): MeshData {
     }
 
     const vertexBytes = vertexCount * vertexStride;
-    const expected = at + vertexBytes + indexCount * 4 + jointCount * MATRIX_BYTES;
+    const deltaFloats = morphCount * vertexCount * morphComponents;
+    const expected = at + vertexBytes + indexCount * 4 + jointCount * MATRIX_BYTES
+        + nameBytes + deltaFloats * 4;
     if (bytes.byteLength < expected) {
         throw new Error(`.esmesh is truncated: ${bytes.byteLength} bytes, header describes ${expected}`);
     }
@@ -222,11 +284,34 @@ export function decodeMesh(bytes: Uint8Array): MeshData {
     for (let i = 0; i < indexCount; i++) indices[i] = view.getUint32(indexBase + i * 4, true);
 
     const out: MeshData = { channels, vertexStride, vertexCount, vertices, indices, aabbMin, aabbMax };
+    const bindBase = indexBase + indexCount * 4;
     if (jointCount > 0) {
-        const base = indexBase + indexCount * 4;
         const matrices = new Float32Array(jointCount * 16);
-        for (let i = 0; i < matrices.length; i++) matrices[i] = view.getFloat32(base + i * 4, true);
+        for (let i = 0; i < matrices.length; i++) {
+            matrices[i] = view.getFloat32(bindBase + i * 4, true);
+        }
         out.inverseBindMatrices = matrices;
+    }
+    if (morphCount > 0) {
+        const nameBase = bindBase + jointCount * MATRIX_BYTES;
+        const names: string[] = [];
+        let nameAt = nameBase;
+        for (let i = 0; i < morphCount; i++) {
+            const length = view.getUint16(nameAt, true);
+            // Read against the section's own size rather than the file's: a length
+            // that runs past it names bytes that belong to the deltas, and the
+            // string that comes back would look like a target this mesh has.
+            if (nameAt + 2 + length > nameBase + nameBytes) {
+                throw new Error(`.esmesh morph target ${i} names ${length} bytes,`
+                    + ' which runs past the name section');
+            }
+            names.push(new TextDecoder().decode(bytes.subarray(nameAt + 2, nameAt + 2 + length)));
+            nameAt += 2 + length;
+        }
+        const deltaBase = nameBase + nameBytes;
+        const deltas = new Float32Array(deltaFloats);
+        for (let i = 0; i < deltas.length; i++) deltas[i] = view.getFloat32(deltaBase + i * 4, true);
+        out.morph = { names, hasNormals: morphNormals, deltas };
     }
     return out;
 }

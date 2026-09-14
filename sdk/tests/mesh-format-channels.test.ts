@@ -32,8 +32,8 @@ function mesh(): Uint8Array {
   });
 }
 
-/** Where the channel table starts: the v2 header is 48 bytes. */
-const TABLE = 48;
+/** Where the channel table starts: the v3 header is 56 bytes. */
+const TABLE = 56;
 
 describe('decodeMesh channel table', () => {
   it('refuses a semantic the format does not define', () => {

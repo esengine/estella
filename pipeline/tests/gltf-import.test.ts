@@ -339,7 +339,7 @@ describe('glTF material import', () => {
     expect(meshes[0]!.material?.baseColorTexture?.settings?.wrapMode).toBe('clamp');
   });
 
-  it('reports deformation it cannot carry: morph targets, and joints nothing binds', async () => {
+  it('reports deformation it cannot carry: joints nothing binds', async () => {
     const doc = {
       ...withInlineImage(),
       skins: [{}],
@@ -347,11 +347,8 @@ describe('glTF material import', () => {
     };
     const { warnings } = await importGltfMeshes(gltf(doc, [{
       attributes: { POSITION: 0, TEXCOORD_0: 1, JOINTS_0: 1 }, indices: 2, material: 0, mode: 4,
-      targets: [{}, {}],
     }]), 'model');
-    const line = warnings.join('\n');
-    expect(line).toContain('2 morph target(s) not imported');
-    expect(line).toContain('a skin naming joints');
+    expect(warnings.join('\n')).toContain('a skin naming joints');
   });
 
   it('reports a uv rewrite it does not apply', async () => {
@@ -945,5 +942,100 @@ describe('a second UV set', () => {
     // mesh without a second set stays a mesh without one.
     expect(mesh.data.channels.some(c => c.semantic === MeshChannel.TexCoord1)).toBe(false);
     expect(uvsOf(mesh, MeshChannel.TexCoord1)).toEqual([]);
+  });
+});
+
+/**
+ * A triangle with two shapes to blend towards: the first moves one vertex, the
+ * second moves another AND turns its normal. The two differ on purpose — a
+ * reader that mixed the targets up would still find deltas, just the wrong ones.
+ */
+function morphGltf(opts: { names?: string[]; badCount?: boolean } = {}): Uint8Array {
+  const positions = new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]);
+  const normals = new Float32Array([0, 0, 1, 0, 0, 1, 0, 0, 1]);
+  const uv = new Float32Array([0, 0, 1, 0, 0, 1]);
+  const indices = new Uint16Array([0, 1, 2]);
+  const shape0 = new Float32Array([0, 0, 0, 0, 2, 0, 0, 0, 0]);
+  const shape1 = new Float32Array([0, 0, 0, 0, 0, 0, 3, 0, 0]);
+  const shape1Normals = new Float32Array([0, 0, 0, 0, 0, 0, 0, 1, -1]);
+  const parts = [positions, normals, uv, indices, shape0, shape1, shape1Normals];
+  const bytes = Buffer.concat(parts.map((a) => Buffer.from(a.buffer)));
+  const offsets: number[] = [];
+  let at = 0;
+  for (const part of parts) { offsets.push(at); at += part.byteLength; }
+
+  const doc = {
+    asset: { version: '2.0' },
+    buffers: [{ byteLength: bytes.length, uri: `data:application/octet-stream;base64,${bytes.toString('base64')}` }],
+    bufferViews: parts.map((part, i) => ({
+      buffer: 0, byteOffset: offsets[i], byteLength: part.byteLength,
+    })),
+    accessors: [
+      { bufferView: 0, componentType: 5126, count: 3, type: 'VEC3' },
+      { bufferView: 1, componentType: 5126, count: 3, type: 'VEC3' },
+      { bufferView: 2, componentType: 5126, count: 3, type: 'VEC2' },
+      { bufferView: 3, componentType: 5123, count: 3, type: 'SCALAR' },
+      { bufferView: 4, componentType: 5126, count: opts.badCount ? 2 : 3, type: 'VEC3' },
+      { bufferView: 5, componentType: 5126, count: 3, type: 'VEC3' },
+      { bufferView: 6, componentType: 5126, count: 3, type: 'VEC3' },
+    ],
+    meshes: [{
+      name: 'Face',
+      ...(opts.names ? { extras: { targetNames: opts.names } } : {}),
+      primitives: [{
+        attributes: { POSITION: 0, NORMAL: 1, TEXCOORD_0: 2 }, indices: 3, mode: 4,
+        targets: [{ POSITION: 4 }, { POSITION: 5, NORMAL: 6 }],
+      }],
+    }],
+    nodes: [{ mesh: 0 }], scenes: [{ nodes: [0] }], scene: 0,
+  };
+  return new TextEncoder().encode(JSON.stringify(doc));
+}
+
+describe('glTF morph targets', () => {
+  it('carries the deltas each target moves its vertices by', async () => {
+    const { meshes, warnings } = await importGltfMeshes(
+      morphGltf({ names: ['Smile', 'Blink'] }), 'face');
+
+    const morph = meshes[0]!.data.morph!;
+    expect(morph.names).toEqual(['Smile', 'Blink']);
+    expect(warnings.join('\n')).not.toMatch(/morph target/);
+
+    // Six floats per vertex — the geometry has normals and the second target
+    // bends them, so every target is stored with room for one.
+    expect(morph.hasNormals).toBe(true);
+    expect(morph.deltas).toHaveLength(2 * 3 * 6);
+    // Target 0 lifts vertex 1 by 2 along y and touches nothing else.
+    expect(morph.deltas[1 * 6 + 1]).toBe(2);
+    expect([...morph.deltas.subarray(0, 18)].filter((d) => d !== 0)).toHaveLength(1);
+    // Target 1 moves vertex 2 along x and turns its normal.
+    expect(morph.deltas[18 + 2 * 6]).toBe(3);
+    expect(morph.deltas[18 + 2 * 6 + 4]).toBe(1);
+    expect(morph.deltas[18 + 2 * 6 + 5]).toBe(-1);
+  });
+
+  it('names a target the file left unnamed by its position', async () => {
+    const { meshes } = await importGltfMeshes(morphGltf(), 'face');
+    // Positional because a weight is: an unnamed target still has to be
+    // addressable, and calling it nothing would renumber the ones behind it.
+    expect(meshes[0]!.data.morph?.names).toEqual(['target 0', 'target 1']);
+  });
+
+  it('keeps a target whose deltas do not cover every vertex, saying it moves nothing', async () => {
+    const { meshes, warnings } = await importGltfMeshes(
+      morphGltf({ names: ['Smile', 'Blink'], badCount: true }), 'face');
+
+    const morph = meshes[0]!.data.morph!;
+    expect(warnings.join('\n')).toContain('"Smile" carries 2 POSITION deltas for 3 vertices');
+    // Kept, not dropped: weights address targets by position, so removing one
+    // would re-aim every weight behind it at the wrong shape.
+    expect(morph.names).toEqual(['Smile', 'Blink']);
+    expect([...morph.deltas.subarray(0, 18)]).toEqual(new Array(18).fill(0));
+    expect(morph.deltas[18 + 2 * 6]).toBe(3);
+  });
+
+  it('leaves geometry with no targets without a morph section', async () => {
+    const { meshes } = await importGltfMeshes(gltf(withInlineImage()), 'model');
+    expect(meshes[0]!.data.morph).toBeUndefined();
   });
 });
