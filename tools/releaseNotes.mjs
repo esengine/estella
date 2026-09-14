@@ -30,6 +30,12 @@ export const NOTES_FLOOR = 'v0.65.0';
 export const NOTED = {
   'feat(render): a mesh can be read through the light baked into it':
     { note: 'A mesh can be read through the light that was baked into it.' },
+  'fix(checks): the watcher check survives a loaded machine, and says what it saw':
+    { internal: 'the same check\'s start-up race and its assertion — the watcher'
+      + ' it questions behaved the same before and after' },
+  'fix(checks): a watch that never fires says so':
+    { internal: 'a check\'s own wait, which reported a timeout as a type error —'
+      + ' the watcher it questions behaved the same before and after' },
 
   'feat(gates): the per-object mesh record is described in one shape':
     { internal: 'a gate over four declarations of one vertex layout — a game draws'
