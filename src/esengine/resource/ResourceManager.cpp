@@ -559,17 +559,17 @@ bool ResourceManager::realizeMesh(Mesh& mesh, ConstSpan<u8> vertexBytes, ConstSp
     // its shader does not consume, which WebGPU rejects. A skinned record thus
     // carries neither model nor normal matrix — its bones are world-space.
     if (!skinned) {
-        for (u32 row = 0; row < 4; ++row) {
+        for (u32 row = 0; row < 3; ++row) {
             layout.attributes[next++] = {MESH_INSTANCE_FIRST_LOCATION + row, 4, GfxDataType::Float,
                                          false, row * 16u, 1};
         }
     }
     layout.attributes[next++] = {MESH_INSTANCE_FIRST_LOCATION + 4, 4, GfxDataType::UnsignedByte,
-                                 true, skinned ? 0u : 64u, 1};
+                                 true, skinned ? 0u : 48u, 1};
     if (hasNormals && !skinned) {
         for (u32 row = 0; row < 3; ++row) {
             layout.attributes[next++] = {MESH_INSTANCE_FIRST_LOCATION + 5 + row, 3,
-                                         GfxDataType::Float, false, 68 + row * 12u, 1};
+                                         GfxDataType::Float, false, 52 + row * 12u, 1};
         }
     }
     layout.attributeCount = next;

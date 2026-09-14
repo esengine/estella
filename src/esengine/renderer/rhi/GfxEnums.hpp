@@ -93,12 +93,14 @@ enum class LayoutId : u8 {
 
 static constexpr u32 LAYOUT_COUNT = 5;
 
-/// One per-object record for a resident mesh: a model matrix and a tint.
-static constexpr u32 MESH_INSTANCE_STRIDE = 68;
+/// One per-object record for a resident mesh: three ROWS of an affine model
+/// matrix, then a tint. The matrix's fourth row is (0,0,0,1) on every transform
+/// a Transform can state, so it is neither sent nor given an attribute slot.
+static constexpr u32 MESH_INSTANCE_STRIDE = 52;
 /// The same plus a normal matrix (three vec3 rows), for geometry with normals.
 /// Carried per object because a non-uniform scale makes the model matrix the
 /// wrong transform for a normal, and inverting one per vertex is the alternative.
-static constexpr u32 MESH_INSTANCE_STRIDE_LIT = 104;
+static constexpr u32 MESH_INSTANCE_STRIDE_LIT = 88;
 /// A SKINNED object's record: the tint, and nothing else. No model matrix — a
 /// skinned mesh's own transform is ignored (glTF says so) because its joints are
 /// already placed in the world — and the pose itself is a uniform block.

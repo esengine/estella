@@ -672,14 +672,19 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 glm::mat4 model = glm::translate(glm::mat4(1.0f), position)
                                 * glm::mat4_cast(rotation)
                                 * glm::scale(glm::mat4(1.0f), scale);
-                std::memcpy(dst, &model[0][0], 64);
-                std::memcpy(dst + 64, &tintRGBA, 4);
+                // Three rows, not four columns: the row the shader rebuilds is
+                // the one an affine transform never varies.
+                for (u32 row = 0; row < 3; ++row) {
+                    const glm::vec4 r{model[0][row], model[1][row], model[2][row], model[3][row]};
+                    std::memcpy(dst + row * 16, &r, 16);
+                }
+                std::memcpy(dst + 48, &tintRGBA, 4);
                 if (resident->hasNormals) {
                     // Written per object rather than derived per vertex: this is
                     // the transform a normal takes under a non-uniform scale.
                     const glm::mat3 nrm = glm::transpose(glm::inverse(glm::mat3(model)));
                     for (u32 row = 0; row < 3; ++row) {
-                        std::memcpy(dst + 68 + row * 12, &nrm[row][0], 12);
+                        std::memcpy(dst + 52 + row * 12, &nrm[row][0], 12);
                     }
                 }
                 }

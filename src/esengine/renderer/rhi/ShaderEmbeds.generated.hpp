@@ -404,10 +404,12 @@ layout(location = 6) in vec4 a_weights;
 
 
 #ifndef SKINNED
+
+
+
 layout(location = 8)  in vec4 a_model0;
 layout(location = 9)  in vec4 a_model1;
 layout(location = 10) in vec4 a_model2;
-layout(location = 11) in vec4 a_model3;
 #endif
 layout(location = 12) in vec4 a_instTint;
 #if defined(MESH_NORMALS) && !defined(SKINNED)
@@ -493,7 +495,10 @@ void main() {
               + a_weights.w * u_bones[a_joints.w];
     vec4 world = skin * vec4(local, 1.0);
 #else
-    mat4 model = mat4(a_model0, a_model1, a_model2, a_model3);
+    mat4 model = mat4(vec4(a_model0.x, a_model1.x, a_model2.x, 0.0),
+                      vec4(a_model0.y, a_model1.y, a_model2.y, 0.0),
+                      vec4(a_model0.z, a_model1.z, a_model2.z, 0.0),
+                      vec4(a_model0.w, a_model1.w, a_model2.w, 1.0));
     vec4 world = model * vec4(local, 1.0);
 #endif
     gl_Position = u_projection * world;
@@ -596,7 +601,6 @@ struct VSIn {
     @location(8)  a_model0 : vec4f,
     @location(9)  a_model1 : vec4f,
     @location(10) a_model2 : vec4f,
-    @location(11) a_model3 : vec4f,
 #endif
     @location(12) a_instTint : vec4f,
 
@@ -650,7 +654,10 @@ struct VSOut {
              + v.a_weights.w * skin.bones[v.a_joints.w];
     let world = pose * vec4f(local, 1.0);
 #else
-    let model = mat4x4f(v.a_model0, v.a_model1, v.a_model2, v.a_model3);
+    let model = mat4x4f(vec4f(v.a_model0.x, v.a_model1.x, v.a_model2.x, 0.0),
+                        vec4f(v.a_model0.y, v.a_model1.y, v.a_model2.y, 0.0),
+                        vec4f(v.a_model0.z, v.a_model1.z, v.a_model2.z, 0.0),
+                        vec4f(v.a_model0.w, v.a_model1.w, v.a_model2.w, 1.0));
     let world = model * vec4f(local, 1.0);
 #endif
 
