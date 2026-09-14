@@ -296,7 +296,7 @@ export const CAPABILITIES = [
   'lighting-2d',
   'sprite-sorting', 'sprite-mask', 'ui-widgets', 'velocity-motion',
   'ssao', 'navigation-3d', 'root-motion', 'animation-events', 'shader-readiness',
-  'animation-layers', 'animation-ik',
+  'animation-layers', 'animation-ik', 'morph-target',
   'tilemap', 'tile-collision',
   'touch', 'safe-area', 'pause-resume',
   'texture-atlas',
@@ -351,6 +351,10 @@ export const EVIDENCE = {
   // The clip the import wrote, referenced by the prefab the scene places.
   'model-animation': /\.estimeline\b/,
   'model-skinning': /\bMeshSkin\b/,
+  // The COMPONENT, not the mesh: a `.esmesh` carrying shapes nothing is blended
+  // towards is geometry with an unused section, and that is what an import of a
+  // model whose targets nobody authored produces.
+  'morph-target': /\bMeshMorph\b/,
   'physics-3d': /\b(RigidBody3D|CharacterController3D|BoxCollider3D|MeshCollider3D)\b/,
   'mesh-shadow': /\bmeshShadows\b/,
   'level-of-detail': /\bLODGroup\b/,
@@ -467,7 +471,7 @@ export const GOLDEN = [
   },
   {
     id: 'model-import',
-    certifies: ['model-import', 'model-animation'],
+    certifies: ['model-import', 'model-animation', 'morph-target'],
     // Desktop too: these claims are about the ENGINE, and the native runtime is
     // a second one. Certified only on web, an import that reaches no native
     // frame reads as covered right up until a device says otherwise.

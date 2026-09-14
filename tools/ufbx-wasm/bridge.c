@@ -316,8 +316,17 @@ static int build_part(es_writer *w, const ufbx_mesh *mesh, const ufbx_mesh_part 
         lookups = (int32_t **)calloc(blend->channels.count, sizeof(*lookups));
         if (shapes && lookups) {
             for (size_t c = 0; c < blend->channels.count; c++) {
-                const ufbx_blend_shape *shape = blend->channels.data[c]->target_shape;
+                const ufbx_blend_channel *channel = blend->channels.data[c];
+                const ufbx_blend_shape *shape = channel->target_shape;
                 if (!shape) continue;
+                // A progressive morph: the channel passes through shapes on its
+                // way to the last one. Only the last is carried, and a shape a
+                // reader drops without saying so is the deformation gone.
+                if (channel->keyframes.count > 1) {
+                    warnf(w, "%s: shape \"%s\" passes through %zu in-between target(s);"
+                          " only the final one is imported", label, channel->name.data,
+                          channel->keyframes.count - 1);
+                }
                 shapes[out->morph_targets] = shape;
                 lookups[out->morph_targets] = shape_lookup(shape, mesh->num_vertices);
                 if (shape->normal_offsets.count > 0) out->morph_normals = 1;

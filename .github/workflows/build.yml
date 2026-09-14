@@ -669,6 +669,20 @@ jobs:
     - name: Launch the golden packages and compare them to the editor (PR tier)
       run: node tools/verify-golden.mjs --tier pr
 
+    # A parity failure is a claim about two PICTURES, and until now neither left
+    # the runner: "the package is not showing what the editor showed" named two
+    # paths that were deleted with the machine. A pixel gate that can only fail
+    # here has to hand over what it compared, or nobody can tell a real
+    # regression from a frame the software rasteriser had not finished.
+    - name: Keep the frames a parity failure compared
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: golden-parity-frames
+        path: .golden/*.png
+        if-no-files-found: warn
+        retention-days: 7
+
     # Which places EXIST in that package, and what leaves with them. A camera
     # cannot answer this: a cell that is not drawn and a cell that is not there
     # look the same, and a body an unload forgot is invisible until someone

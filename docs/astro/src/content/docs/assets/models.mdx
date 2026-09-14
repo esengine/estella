@@ -186,6 +186,7 @@ glTF states none, and pushing past 1 or below 0 is a shape an author may want.
 | 8 shapes blended at once | A budget on what is LIVE, not on what a mesh carries — a face holds a handful of expressions open while its mesh has a hundred. The heaviest weights are taken; the rest read as zero, which is what an untouched weight already means. |
 | Normals deform only where the geometry has them | A mesh with no `NORMAL` channel is shaded off a constant normal, which no delta can bend. |
 | Tangents are not carried | The tangent frame is derived per pixel, from the surface as deformed. |
+| An FBX's in-between shapes | A channel that passes through shapes on its way to the last one carries only the last; the import says which it dropped. |
 
 ## FBX
 
