@@ -33,6 +33,11 @@ published separately; it ships inside the editor.
   primitive that node draws, one channel per target, and the clip that raises the
   example robot's banner now furls it as it rises.
 
+  The inspector shows **a slider per shape, under the name the mesh gave it** —
+  a weight is positional, so a column of unlabelled numbers would be unusable for
+  the thing morph targets are for. The labels come from a source the field
+  declares, read through the same `.esmesh` reader the asset panel uses.
+
 - **A controller is a stack of machines, not one.** One state machine can say a
   character is running or that it is waving, never both. A `.esanimator` now
   carries layers over its base one — each a machine with its own clock, its own

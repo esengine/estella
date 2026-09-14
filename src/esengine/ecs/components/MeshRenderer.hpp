@@ -158,7 +158,8 @@ struct MeshMorph {
     /** @brief Weight per target, 0 leaving the mesh as authored. Not clamped: a
      *         negative weight and one past 1 are both shapes an author may want,
      *         and glTF states neither bound. */
-    ES_PROPERTY(animatable, tooltip="Weight per morph target of the mesh, in the order the mesh carries them.")
+    ES_PROPERTY(animatable, label_source=meshMorphTargets,
+                tooltip="Weight per morph target of the mesh, in the order the mesh carries them.")
     std::vector<f32> weights;
 
     MeshMorph() = default;

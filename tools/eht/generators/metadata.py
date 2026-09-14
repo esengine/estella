@@ -120,6 +120,8 @@ class MetadataGenerator:
                 entries.append(('advanced', 'true'))
             if 'enum_source' in a:
                 entries.append(('enumSource', json.dumps(a['enum_source'], ensure_ascii=False)))
+            if 'label_source' in a:
+                entries.append(('labelSource', json.dumps(a['label_source'], ensure_ascii=False)))
             if 'bitmask_source' in a:
                 entries.append(('bitmask', '{ source: ' + json.dumps(a['bitmask_source'], ensure_ascii=False) + ' }'))
             if 'normalized_of' in a:

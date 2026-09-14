@@ -67,6 +67,13 @@ export interface FieldMeta {
      * source yields none, so free-int editing survives a project with no named set.
      */
     enumSource?: string;
+    /**
+     * Names a registered source of LABELS for the entries of a LIST field: the
+     * inspector shows a row per entry under the name that source gives it (a
+     * morph weight under its shape's name). The labels come from elsewhere —
+     * a mesh's own targets — which is why the field cannot state them itself.
+     */
+    labelSource?: string;
     /** Render as a bitmask multi-select; each option is a single bit. */
     flags?: ReadonlyArray<{ label: string; value: number }>;
     /** Render as a color-gradient editor (the field value is `{ stops: [...] }`). */

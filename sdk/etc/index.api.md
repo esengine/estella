@@ -3476,6 +3476,7 @@ enumSource: string | undefined
 flags: readonly { label: string; value: number; }[] | undefined
 gradient: boolean | undefined
 label: string | undefined
+labelSource: string | undefined
 map: boolean | undefined
 max: number | undefined
 min: number | undefined

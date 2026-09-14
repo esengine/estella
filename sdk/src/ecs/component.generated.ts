@@ -536,7 +536,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         colorFields: [],
         animatableFields: ['weights'],
         fields: {
-            weights: { tooltip: "Weight per morph target of the mesh, in the order the mesh carries them." },
+            weights: { tooltip: "Weight per morph target of the mesh, in the order the mesh carries them.", labelSource: "meshMorphTargets" },
         },
     },
     MeshRenderer: {

@@ -61,6 +61,11 @@ class CppParser:
     KV_ANNOTATIONS = frozenset({
         'asset', 'anim_flag', 'min', 'max', 'step', 'unit', 'label',
         'tooltip', 'category', 'enum_source', 'bitmask_source', 'invalidates',
+        # `label_source=<name>` names a source of LABELS for a list field's entries,
+        # so the inspector can show a weight per shape under the shape's own name.
+        # Like enum_source the source is registered editor-side; unlike it, what it
+        # names is a row rather than a value.
+        'label_source',
         # `enum=SomeEnum` links an int field to a C++ ES_ENUM so EHT generates the
         # editor dropdown from that enum's values — for fields kept as i32 (not the
         # enum type) but still single-choice. Enum-TYPED fields need no annotation.
