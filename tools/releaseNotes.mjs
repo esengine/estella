@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(render): a mesh can be read through the light baked into it':
+    { note: 'A mesh can be read through the light that was baked into it.' },
+
   'feat(gates): the per-object mesh record is described in one shape':
     { internal: 'a gate over four declarations of one vertex layout — a game draws'
       + ' the same whether or not they can drift' },
