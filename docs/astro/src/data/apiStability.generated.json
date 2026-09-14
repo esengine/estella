@@ -3,10 +3,10 @@
   "counts": {
     "public": 114,
     "beta": 101,
-    "experimental": 1881,
+    "experimental": 1884,
     "deprecated": 3
   },
-  "total": 2096,
+  "total": 2099,
   "subsystems": [
     {
       "id": "ecs",
@@ -340,6 +340,17 @@
         "MeshRenderer",
         "MeshRendererAPI",
         "MeshRenderers"
+      ]
+    },
+    {
+      "id": "lightmap",
+      "title": "Baked lighting",
+      "titleZh": "烘焙光照",
+      "tier": "experimental",
+      "why": "half a line: the engine reads a bake and nothing here produces one yet, so the shape of this will follow what a baker turns out to need",
+      "whyZh": "只做了一半：引擎读得了烘焙图，而这里还产不出一张，所以这套接口的形状要跟着烘焙器最终需要什么走",
+      "entry": [
+        "unwrapLightmapUV"
       ]
     },
     {

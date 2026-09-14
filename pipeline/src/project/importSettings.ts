@@ -173,6 +173,13 @@ const MODEL: ImporterFieldSpec[] = [
     tooltip: 'Uniform scale on the imported prefab\u0027s root. A model is authored in metres '
       + 'and a world unit is a design pixel, so a real-world model arrives a few pixels across.',
   },
+  {
+    key: 'lightmapUV', label: 'Generate Lightmap UVs', type: 'bool', default: false,
+    category: 'Import',
+    tooltip: 'Unwrap a second UV set so this model can receive baked light. Off by default '
+      + 'because it splits vertices and most models are never baked; skinned meshes never get '
+      + 'one, and a model that already carries the channel keeps its own.',
+  },
 ];
 
 const PANORAMA: ImporterFieldSpec[] = [

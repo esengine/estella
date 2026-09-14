@@ -99,6 +99,37 @@ Content Browser). Saving it re-imports the model.
 `Scale` lands on the prefab root's `Transform`, never baked into the geometry — the
 `.esmesh` stays faithful to the source, and the number stays visible and editable.
 
+## Lightmap UVs
+
+A baked lightmap is read through a **second** UV set, and it has to be one where
+no two surfaces land on the same texels. The set the art is wrapped in is not:
+two arms deliberately share one arm's pixels, which is what keeps a texture
+small. Give them the same lightmap texels and one arm's shadow falls on the
+other.
+
+Turn on **Generate Lightmap UVs** in the model's import settings and the import
+unwraps one: the surface is cut into nearly-flat charts, each is projected onto
+its own plane, and they are packed into the unit square at **one** world-to-texel
+ratio — so a wall is lit at the same resolution as the floor it meets. Vertices
+on a chart boundary are split, so the mesh comes back with more of them than the
+source had; nothing moves, and every shape, skin weight and vertex colour follows
+its vertex.
+
+It is off by default because most models are never baked, and a split vertex
+costs memory whether or not anything reads the channel. Two models never get one:
+
+- A **skinned** mesh, because bones move it and a bake cannot follow.
+- A model that **already carries** a second UV set, because the layout is the
+  author's and the art may be painted against it. Blender's *Smart UV Project*
+  into a second UV map is exactly this, and it is usually better than what an
+  importer can infer.
+
+The import reports how much of the atlas the charts fill. A low number means the
+charts are many and small: raise the chart angle and they merge, at the cost of
+more stretch inside each one.
+
+See [Baked light](/docs/graphics/lighting/#baked-light) for what reads the result.
+
 ## Re-importing
 
 An import runs again when:

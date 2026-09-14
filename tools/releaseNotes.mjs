@@ -28,6 +28,11 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(render): a model can be unwrapped for the light that will be baked into it':
+    { note: 'A model can be given somewhere to receive baked light.' },
+  'feat(import): Generate Lightmap UVs reaches the mesh it decides':
+    { note: 'A model can be given somewhere to receive baked light.' },
+
   'feat(render): a mesh can be read through the light baked into it':
     { note: 'A mesh can be read through the light that was baked into it.' },
   'fix(checks): the watcher check survives a loaded machine, and says what it saw':

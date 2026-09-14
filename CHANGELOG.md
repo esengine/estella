@@ -16,6 +16,35 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A model can be given somewhere to receive baked light.** A bake is read
+  through a second UV set, and it has to be one where no two surfaces share a
+  texel — which the UV set the art is wrapped in deliberately is not: two arms
+  share one arm's pixels, and given the same lightmap texels one arm's shadow
+  falls on the other. Almost no model carries a second set, so until now the
+  reading side shipped in 0.67 could be pointed at nothing.
+
+  **Generate Lightmap UVs**, in a model's import settings, unwraps one. The
+  surface is cut into nearly-flat charts, each is projected onto its own plane,
+  and they are packed into the unit square at **one** world-to-texel ratio — so a
+  wall is lit at the same resolution as the floor it meets, which is what stops a
+  seam showing where they join. Vertices on a chart boundary are split, so the
+  mesh comes back with more of them than the source had; nothing moves, and every
+  shape, skin weight and vertex colour follows its vertex.
+
+  Off by default, because most models are never baked and a split vertex costs
+  memory whether or not anything reads the channel. Two never get one: a skinned
+  mesh, because bones move it and a bake cannot follow; and a model that already
+  carries a second set, because that layout is the author's and the art may be
+  painted against it.
+
+  What it must guarantee is one property rather than a resemblance, so that is
+  what the gates check — every triangle rasterised into a grid of lumels, and not
+  one of them covered twice. Four more hold the rest of it: a cube comes back as
+  six charts with all eight corners split three ways, the UVs stay inside the unit
+  square, every face is lit at the same resolution, and no vertex moves. A sixth
+  runs the whole thing over a model out of the corpus, because a cube's charts are
+  six flat quads and a real one's are neither.
+
 - **A mesh can be read through the light that was baked into it.** Sixteen lights
   reach one frame; the seventeenth is dropped by brightness, with a warning naming
   what was refused. That ceiling is not a quality setting — a room with thirty

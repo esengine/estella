@@ -11,7 +11,7 @@
  *        second set of rules for what a model IS in this engine.
  */
 import {
-    MeshChannel, encodeMesh, PREFAB_FORMAT_VERSION, TIMELINE_FORMAT_VERSION,
+    MeshChannel, encodeMesh, unwrapLightmapUV, PREFAB_FORMAT_VERSION, TIMELINE_FORMAT_VERSION,
     MATERIAL_FORMAT_VERSION, BlendMode, CullMode,
     type MeshData, type MaterialAssetData, type PrefabData, type PrefabEntityData,
     type PrefabComponentData as ComponentData,
@@ -285,6 +285,40 @@ export function animationProductName(stem: string, name: string): string {
 }
 
 /* -- Products ----------------------------------------------------------- */
+
+/**
+ * Gives every mesh a bake can be read on a lightmap UV set, and says who it
+ * skipped. Mutates in place: the caller holds the products it is about to write.
+ * Skinned is skipped because bones move it and a bake cannot follow; one that
+ * already carries the channel keeps a layout its art may be painted against.
+ */
+export function applyLightmapUV(meshes: ImportedMesh[]): string[] {
+    const warnings: string[] = [];
+    for (const mesh of meshes) {
+        if (mesh.skinJoints && mesh.skinJoints.length > 0) {
+            warnings.push(`${mesh.name}: skinned, so it gets no lightmap UV — bones move it and`
+                + ' a bake cannot');
+            continue;
+        }
+        if (mesh.data.channels.some((c) => c.semantic === MeshChannel.TexCoord1)) {
+            warnings.push(`${mesh.name}: already carries a second UV set, which is kept`);
+            continue;
+        }
+        try {
+            const { mesh: unwrapped, charts, coverage } = unwrapLightmapUV(mesh.data);
+            mesh.data = unwrapped;
+            mesh.vertexCount = unwrapped.vertexCount;
+            if (coverage < 0.15) {
+                warnings.push(`${mesh.name}: ${charts} chart(s) fill only`
+                    + ` ${Math.round(coverage * 100)}% of its atlas — a wider chart angle packs`
+                    + ' tighter, at the cost of more stretch');
+            }
+        } catch (err) {
+            warnings.push(`${mesh.name}: no lightmap UV (${(err as Error).message})`);
+        }
+    }
+    return warnings;
+}
 
 /** The bytes to write for an imported mesh. */
 export function encodeImportedMesh(mesh: ImportedMesh): Uint8Array {

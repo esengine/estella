@@ -294,6 +294,16 @@ export const SUBSYSTEMS = [
         entry: ['MeshRenderer', 'MeshRendererAPI', 'MeshRenderers'],
     },
     {
+        id: 'lightmap',
+        title: 'Baked lighting',
+        titleZh: '烘焙光照',
+        source: ['lightmap'],
+        tier: 'experimental',
+        why: 'half a line: the engine reads a bake and nothing here produces one yet, so the shape of this will follow what a baker turns out to need',
+        whyZh: '只做了一半：引擎读得了烘焙图，而这里还产不出一张，所以这套接口的形状要跟着烘焙器最终需要什么走',
+        entry: ['unwrapLightmapUV'],
+    },
+    {
         id: 'dragonbones',
         title: 'DragonBones',
         titleZh: 'DragonBones',

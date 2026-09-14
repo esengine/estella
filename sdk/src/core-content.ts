@@ -134,6 +134,16 @@ export {
 } from './asset/meshFormat';
 export type { MeshResult } from './asset/loaders/MeshAssetLoader';
 /**
+ * Gives a mesh the second UV set a baked lightmap is read through — no two
+ * surfaces on one texel, which the UV set the art is wrapped in does not promise.
+ * An import calls it; so would a tool that unwraps geometry it generated.
+ *
+ * @experimental Pre-1.0: the options will follow what a baker turns out to need.
+ */
+export {
+    unwrapLightmapUV, type UnwrapOptions, type UnwrapResult,
+} from './lightmap';
+/**
  * Stock geometry a `builtin:<id>` mesh ref names. Public because the editor's
  * pickers and Create menu are built from this list. `@beta`.
  *
