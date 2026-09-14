@@ -59,10 +59,16 @@ function consumers(scope, into = new Set()) {
     return into;
 }
 
+// A blend2d selects on two and nests under `points`; reading only the 1D shape
+// calls its parameters dead and misses every blend stopped inside one.
 function collectMotion(motion, into) {
     if (!motion || typeof motion !== 'object') return;
-    if (typeof motion.parameter === 'string') into.add(motion.parameter);
-    for (const stop of motion.thresholds ?? []) collectMotion(stop.motion, into);
+    for (const key of ['parameter', 'parameterX', 'parameterY']) {
+        if (typeof motion[key] === 'string') into.add(motion[key]);
+    }
+    for (const stop of [...motion.thresholds ?? [], ...motion.points ?? []]) {
+        collectMotion(stop.motion, into);
+    }
 }
 
 const written = new Set(writtenByGameplay());

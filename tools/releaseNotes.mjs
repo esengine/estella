@@ -28,6 +28,10 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(gates): the animator parameter census reads a blend over a plane':
+    { internal: 'a gate reading a project\'s own animator files — a game plays the'
+      + ' same whether or not the census can see a blend over a plane' },
+
   // — after 0.66.0 —
   'feat(gates): a feature that ships without a note fails the build':
     { internal: 'a gate over this repository\'s own release process — a creator'
