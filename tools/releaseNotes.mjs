@@ -28,6 +28,13 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'refactor(pipeline): the PNG encoder gets its own file':
+    { internal: 'where one exported function lives — the bytes both imports write'
+      + ' are identical before and after' },
+  'feat(pipeline): a scene of placed surfaces becomes an atlas, and says what it skipped':
+    { internal: 'the cook-side half of a bake with no trigger yet: no editor action'
+      + ' reaches it, so a creator cannot observe it until one does' },
+
   'feat(render): lights become an atlas a mesh can be read through':
     { note: 'The bake itself: lights become an atlas.' },
 

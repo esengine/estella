@@ -19,6 +19,7 @@ export * from './assets/modelImport';
 export * from './assets/readModelSource';
 export * from './assets/gltfImport';
 export * from './assets/fbxImport';
+export * from './assets/lightmapBake';
 export * from './assets/assetMeta';
 export * from './assets/assetDb';
 export * from './assets/cookAssets';
