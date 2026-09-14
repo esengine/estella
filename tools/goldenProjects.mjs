@@ -49,7 +49,7 @@ export const DEFAULT_RESPONDS = 0.15;
  */
 export const EVIDENCE_FORMATS = [
   '.ts', '.esproject', '.esscene', '.esprefab',
-  '.esanimator', '.estimeline', '.esanim',
+  '.esanimator', '.estimeline', '.esanim', '.esavatar',
   '.esmaterial', '.esshader', '.esenv',
   '.estileset', '.tmj', '.eslocale', '.esbt', '.inputmap',
   '.json',
@@ -383,9 +383,10 @@ export const EVIDENCE = {
   // state named "Blend" proves nothing, and the kind is what the runtime reads.
   'animation-blend': /"kind"\s*:\s*"blend[12]d"/,
   'animation-blend-2d': /"kind"\s*:\s*"blend2d"/,
-  // A controller that says which skeleton its clips came from. The reference,
-  // not the file: an `.esavatar` nothing points at retargets nothing.
-  'animation-retarget': /"avatar"\s*:\s*"[^"]+\.esavatar"/,
+  // A RIG that needs translating, not a controller naming its own source: every
+  // controller may carry the avatar its clips came from, so matching that alone
+  // certifies a project retargeting nothing. `[^}]*` stays inside one component.
+  'animation-retarget': /"controller"\s*:\s*"[^"]+\.esanimator"[^}]*"avatar"\s*:\s*"[^"]+\.esavatar"/,
   'physics-3d': /\b(RigidBody3D|CharacterController3D|BoxCollider3D|MeshCollider3D)\b/,
   'mesh-shadow': /\bmeshShadows\b/,
   'level-of-detail': /\bLODGroup\b/,
@@ -447,17 +448,6 @@ export const KNOWN_GAPS = {
   // hot-update-demo ships one now, so the package SHAPE is a real project's.
   // What no automated run reaches is the vendor mounting it: only a mini-game
   // host implements the download, and none of the tiers builds for one.
-  'animation-ik': 'two-bone and look-at constraints run in the engine and the editor authors them, '
-    + 'but no rig in the corpus has a limb: the 3D skeletons here are joints hanging off one root, '
-    + 'and a two-bone solve is the tip and the TWO joints above it — a chain nothing shipped has',
-  'animation-retarget': 'the avatar asset, the name map and the rest-pose rebase all run, and '
-    + 'the editor generates an avatar from a rig — but every rigged model in the corpus is '
-    + 'authored against its OWN clips, so nothing here plays a clip made for another skeleton: '
-    + 'certifying it needs a second rig whose bones are named differently',
-  'animation-blend-2d': 'blend2d places its stops on a plane and the editor authors them, but '
-    + 'every animator in the corpus blends along ONE parameter: third-person-3d picks its gait by '
-    + 'speed alone. Certifying it needs a rig whose motion answers to two at once — '
-    + 'speed and direction, or aim pitch and yaw. `animation-blend` is the line, not the plane',
   subpackage: 'hot-update-demo delivers `pack` as a 分包 and its button loads it, but no tier builds that project for a mini-game host — the vendor download itself is verified by hand in devtools',
 };
 
@@ -570,6 +560,18 @@ export const GOLDEN = [
     // moves with it — the whole picture is the solver's, so a package that lost
     // the 3D world draws an empty room rather than a still one.
     interact: { keys: ['KeyW'], frames: 40 },
+  },
+  {
+    id: 'character-rig',
+    certifies: ['animation-ik', 'animation-retarget', 'animation-blend-2d'],
+    // Two CC0 packs by different artists: the hero's Rigify skeleton carries the
+    // clips, the knight's own naming carries none. What the avatar translates is
+    // a difference two people actually made, not one invented for a fixture.
+    targets: ['web'],
+    tier: 'pr',
+    // All three at once: W walks the blend plane's speed axis, C its stance axis,
+    // Space bends the arm onto a target no clip reaches for.
+    interact: { keys: ['KeyW', 'KeyC', 'Space'], frames: 90 },
   },
   {
     id: 'third-person-3d',

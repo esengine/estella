@@ -64,6 +64,7 @@ const NOT_INSTANCE_FORMATS = {
   '.esanimator': 'an animator graph: states and transitions over clips',
   '.estimeline': 'a timeline: tracks over time, addressed to entities the scene owns',
   '.esanim': 'a clip: curves over time',
+  '.esavatar': 'how one rig spells the joints another rig\'s clips name',
   '.esmaterial': 'a material: shader + uniform values',
   '.esshader': 'shader source',
   '.esenv': 'an environment: sky, ambient and the HDR behind them',

@@ -1,0 +1,144 @@
+{
+ "version": 4,
+ "name": "Main",
+ "entities": [
+  {
+   "id": 0,
+   "name": "Camera",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 95,
+       "z": 330
+      }
+     }
+    },
+    {
+     "type": "Camera",
+     "data": {
+      "projectionType": 0,
+      "fov": 45,
+      "nearPlane": 10,
+      "farPlane": 2000,
+      "isActive": true,
+      "priority": 0
+     }
+    }
+   ]
+  },
+  {
+   "id": 1,
+   "name": "Sun",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 1,
+      "color": {
+       "r": 1,
+       "g": 0.97,
+       "b": 0.9,
+       "a": 1
+      },
+      "intensity": 0.9,
+      "direction": {
+       "x": 0.5,
+       "y": -0.25
+      },
+      "meshShadows": true,
+      "enabled": true
+     }
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "parent": null,
+   "prefab": "assets/models/hero.esprefab",
+   "overrides": [
+    {
+     "prefabEntityId": "n54",
+     "type": "property",
+     "componentType": "Transform",
+     "propertyName": "position",
+     "value": {
+      "x": -70,
+      "y": 0,
+      "z": 0
+     }
+    },
+    {
+     "prefabEntityId": "n54",
+     "type": "component_added",
+     "componentType": "Animator",
+     "componentData": {
+      "type": "Animator",
+      "data": {
+       "controller": "assets/models/locomotion.esanimator",
+       "avatar": "",
+       "currentState": "",
+       "layerStates": [],
+       "enabled": true
+      }
+     }
+    }
+   ],
+   "added": [],
+   "removed": []
+  },
+  {
+   "id": 3,
+   "parent": null,
+   "prefab": "assets/models/knight.esprefab",
+   "overrides": [
+    {
+     "prefabEntityId": "n49",
+     "type": "property",
+     "componentType": "Transform",
+     "propertyName": "position",
+     "value": {
+      "x": 70,
+      "y": 0,
+      "z": 0
+     }
+    },
+    {
+     "prefabEntityId": "n49",
+     "type": "component_added",
+     "componentType": "Animator",
+     "componentData": {
+      "type": "Animator",
+      "data": {
+       "controller": "assets/models/locomotion.esanimator",
+       "avatar": "assets/models/knight.esavatar",
+       "currentState": "",
+       "layerStates": [],
+       "enabled": true
+      }
+     }
+    }
+   ],
+   "added": [],
+   "removed": []
+  }
+ ]
+}

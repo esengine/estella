@@ -1,0 +1,99 @@
+{
+  "version": 2,
+  "parameters": [
+    {
+      "name": "speed",
+      "type": "float",
+      "default": 0
+    },
+    {
+      "name": "stance",
+      "type": "float",
+      "default": 0
+    },
+    {
+      "name": "reach",
+      "type": "float",
+      "default": 0
+    }
+  ],
+  "avatar": "assets/models/hero.esavatar",
+  "initialState": "Locomotion",
+  "states": [
+    {
+      "name": "Locomotion",
+      "motion": {
+        "kind": "blend2d",
+        "parameterX": "speed",
+        "parameterY": "stance",
+        "points": [
+          {
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "motion": {
+              "kind": "timeline",
+              "clip": "assets/models/hero_Idle_Loop.estimeline",
+              "loop": true
+            }
+          },
+          {
+            "position": {
+              "x": 0.5,
+              "y": 0
+            },
+            "motion": {
+              "kind": "timeline",
+              "clip": "assets/models/hero_Walk_Loop.estimeline",
+              "loop": true
+            }
+          },
+          {
+            "position": {
+              "x": 1,
+              "y": 0
+            },
+            "motion": {
+              "kind": "timeline",
+              "clip": "assets/models/hero_Jog_Fwd_Loop.estimeline",
+              "loop": true
+            }
+          },
+          {
+            "position": {
+              "x": 0,
+              "y": 1
+            },
+            "motion": {
+              "kind": "timeline",
+              "clip": "assets/models/hero_Crouch_Idle_Loop.estimeline",
+              "loop": true
+            }
+          },
+          {
+            "position": {
+              "x": 1,
+              "y": 1
+            },
+            "motion": {
+              "kind": "timeline",
+              "clip": "assets/models/hero_Crouch_Fwd_Loop.estimeline",
+              "loop": true
+            }
+          }
+        ]
+      },
+      "transitions": []
+    }
+  ],
+  "ik": [
+    {
+      "kind": "two-bone",
+      "tip": "root/DEF-hips/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-shoulder.R/DEF-upper_arm.R/DEF-forearm.R/DEF-hand.R",
+      "target": "root/DEF-hips/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-neck/DEF-head",
+      "parameter": "reach",
+      "weight": 1
+    }
+  ]
+}

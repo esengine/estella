@@ -1,0 +1,3390 @@
+{
+  "version": "1.2",
+  "type": "timeline",
+  "duration": 2.9166667461395264,
+  "wrapMode": "once",
+  "tracks": [
+    {
+      "type": "property",
+      "name": "DEF-hips",
+      "childPath": "root/DEF-hips",
+      "component": "Transform",
+      "channels": [
+        {
+          "property": "position.x",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.03243803232908249,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.3333333432674408,
+              "value": 0.033184606581926346,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.0833333730697632,
+              "value": 0.037163857370615005,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.4583333730697632,
+              "value": 0.03812820091843605,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.7916666269302368,
+              "value": 0.037413109093904495,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.5416667461395264,
+              "value": 0.03343750536441803,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.0324423648416996,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "position.y",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.2799503803253174,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.3333333432674408,
+              "value": 0.28018760681152344,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.0833333730697632,
+              "value": 0.28138312697410583,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.4583333730697632,
+              "value": 0.2816561460494995,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.7916666269302368,
+              "value": 0.28145432472229004,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.5416667461395264,
+              "value": 0.28026700019836426,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.2799517810344696,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "position.z",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.46925273537635803,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.3333333432674408,
+              "value": 0.47029170393943787,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.0833333730697632,
+              "value": 0.4759007394313812,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.4583333730697632,
+              "value": 0.47727876901626587,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.7916666269302368,
+              "value": 0.47625625133514404,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.5416667461395264,
+              "value": 0.4706445038318634,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.4692588150501251,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.x",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.8760467171669006,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.4583333730697632,
+              "value": 0.8657438158988953,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.8760390877723694,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.y",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.029607564210891724,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.4583333730697632,
+              "value": 0.01627812162041664,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.02959725633263588,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.z",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": -0.11536695808172226,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.4583333730697632,
+              "value": -0.10576974600553513,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": -0.11535981297492981,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.w",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.4672858715057373,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.4583333730697632,
+              "value": 0.48891258239746094,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.4673025608062744,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "property",
+      "name": "DEF-spine.002",
+      "childPath": "root/DEF-hips/DEF-spine.001/DEF-spine.002",
+      "component": "Transform",
+      "channels": [
+        {
+          "property": "rotation.x",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.053957510739564896,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.7916666865348816,
+              "value": 0.06270749866962433,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.4583333730697632,
+              "value": 0.06197186931967735,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.0539625845849514,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.y",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.03366967290639877,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.7916666865348816,
+              "value": 0.03197293356060982,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.4583333730697632,
+              "value": 0.03083222731947899,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.03366779536008835,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.z",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.0682302936911583,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.7916666865348816,
+              "value": 0.058435454964637756,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.4583333730697632,
+              "value": 0.05378846451640129,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.06821887195110321,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.w",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.9956403374671936,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.7916666865348816,
+              "value": 0.9958066344261169,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.4583333730697632,
+              "value": 0.9961504340171814,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.9956408739089966,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "property",
+      "name": "DEF-spine.003",
+      "childPath": "root/DEF-hips/DEF-spine.001/DEF-spine.002/DEF-spine.003",
+      "component": "Transform",
+      "channels": [
+        {
+          "property": "rotation.x",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.38775795698165894,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.875,
+              "value": 0.411916047334671,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.7083333730697632,
+              "value": 0.4059583246707916,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.38777169585227966,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.y",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.06204695254564285,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.875,
+              "value": 0.058882441371679306,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.7083333730697632,
+              "value": 0.05882339924573898,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.062045030295848846,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.z",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.0005428903386928141,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.875,
+              "value": -0.01268063485622406,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.7083333730697632,
+              "value": -0.01207035407423973,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.0005312165012583137,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.w",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.9196704030036926,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.875,
+              "value": 0.9092289805412292,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.7083333730697632,
+              "value": 0.9119166135787964,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.919664740562439,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "property",
+      "name": "DEF-neck",
+      "childPath": "root/DEF-hips/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-neck",
+      "component": "Transform",
+      "channels": [
+        {
+          "property": "rotation.x",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.011468220502138138,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.875,
+              "value": -0.005981593858450651,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.011458288878202438,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.y",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": -0.027825575321912766,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.875,
+              "value": -0.024088524281978607,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": -0.02782326564192772,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.z",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.023986192420125008,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.875,
+              "value": 0.03051317110657692,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.02399187907576561,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.w",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.9992591738700867,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.875,
+              "value": 0.9992261528968811,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.9992592334747314,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "property",
+      "name": "DEF-head",
+      "childPath": "root/DEF-hips/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-neck/DEF-head",
+      "component": "Transform",
+      "channels": [
+        {
+          "property": "rotation.x",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": -0.3284352123737335,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.1666666716337204,
+              "value": -0.3212123215198517,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.5,
+              "value": -0.2889021635055542,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.6666666865348816,
+              "value": -0.28114765882492065,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.0416667461395264,
+              "value": -0.2898883819580078,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.2916667461395264,
+              "value": -0.29766926169395447,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.7083332538604736,
+              "value": -0.3223044276237488,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": -0.32835623621940613,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.y",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.047438137233257294,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.1666666716337204,
+              "value": 0.04967625066637993,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.5,
+              "value": 0.059428270906209946,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.6666666865348816,
+              "value": 0.06241768226027489,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.0416667461395264,
+              "value": 0.06210479885339737,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.2916667461395264,
+              "value": 0.06064055487513542,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.7083332538604736,
+              "value": 0.050463903695344925,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.04747834801673889,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.z",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": -0.01278113853186369,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.1666666716337204,
+              "value": -0.016091931611299515,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.5,
+              "value": -0.03168320655822754,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.6666666865348816,
+              "value": -0.03604142367839813,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.0416667461395264,
+              "value": -0.035661257803440094,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.2916667461395264,
+              "value": -0.03426101431250572,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.7083332538604736,
+              "value": -0.017564933747053146,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": -0.012844286859035492,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.w",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.94324791431427,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.1666666716337204,
+              "value": 0.9455664753913879,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.5,
+              "value": 0.9549868702888489,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.6666666865348816,
+              "value": 0.9569540619850159,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.0416667461395264,
+              "value": 0.954377293586731,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.2916667461395264,
+              "value": 0.9521249532699585,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.7083332538604736,
+              "value": 0.9451268315315247,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.9432725310325623,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "property",
+      "name": "DEF-shoulder.L",
+      "childPath": "root/DEF-hips/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-shoulder.L",
+      "component": "Transform",
+      "channels": [
+        {
+          "property": "rotation.x",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": -0.5607680082321167,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.75,
+              "value": -0.5608753561973572,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.625,
+              "value": -0.5608112215995789,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2,
+              "value": -0.5604535937309265,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.2083332538604736,
+              "value": -0.5607437491416931,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.7083332538604736,
+              "value": -0.5610043406486511,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": -0.5607717037200928,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.y",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": -0.4116745591163635,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.75,
+              "value": -0.4107109010219574,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.625,
+              "value": -0.3966130316257477,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2,
+              "value": -0.393321692943573,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.2083332538604736,
+              "value": -0.39591100811958313,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.7083332538604736,
+              "value": -0.4092613756656647,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": -0.4116445779800415,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.z",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": -0.4254390001296997,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.75,
+              "value": -0.422525018453598,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.625,
+              "value": -0.3844697177410126,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2,
+              "value": -0.37655508518218994,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.2083332538604736,
+              "value": -0.38275662064552307,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.7083332538604736,
+              "value": -0.4182322025299072,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": -0.4253472089767456,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.w",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.5788480043411255,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.75,
+              "value": 0.5815565586090088,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.625,
+              "value": 0.6167430281639099,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2,
+              "value": 0.6240161061286926,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.2083332538604736,
+              "value": 0.6183189153671265,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.7083332538604736,
+              "value": 0.5855435132980347,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.5789332389831543,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "property",
+      "name": "DEF-upper_arm.L",
+      "childPath": "root/DEF-hips/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-shoulder.L/DEF-upper_arm.L",
+      "component": "Transform",
+      "channels": [
+        {
+          "property": "rotation.x",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": -0.010147660039365292,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.5416666865348816,
+              "value": -0.012603338807821274,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.0833332538604736,
+              "value": -0.012547357939183712,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": -0.010152348317205906,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.y",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.6341614127159119,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.5416666865348816,
+              "value": 0.6309658288955688,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.0833332538604736,
+              "value": 0.6310413479804993,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.6341555714607239,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.z",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": -0.6142764687538147,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.5416666865348816,
+              "value": -0.6219220161437988,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.0833332538604736,
+              "value": -0.6217443943023682,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": -0.614290714263916,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.w",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.4694685637950897,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.5416666865348816,
+              "value": 0.4636123478412628,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.0833332538604736,
+              "value": 0.4637492001056671,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.46945783495903015,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "property",
+      "name": "DEF-forearm.L",
+      "childPath": "root/DEF-hips/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-shoulder.L/DEF-upper_arm.L/DEF-forearm.L",
+      "component": "Transform",
+      "channels": [
+        {
+          "property": "rotation.x",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.3843024969100952,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.75,
+              "value": 0.3852764964103699,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.625,
+              "value": 0.4001995623111725,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2,
+              "value": 0.4035528302192688,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.2083332538604736,
+              "value": 0.4009239673614502,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.7083332538604736,
+              "value": 0.3869304955005646,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.3843354880809784,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.y",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": -0.2563912272453308,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.75,
+              "value": -0.2552829682826996,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.625,
+              "value": -0.23082898557186127,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2,
+              "value": -0.22551368176937103,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.2083332538604736,
+              "value": -0.22959004342556,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.7083332538604736,
+              "value": -0.25202012062072754,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": -0.25633591413497925,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.z",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.11199476569890976,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.75,
+              "value": 0.10806051641702652,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.625,
+              "value": 0.05296009033918381,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2,
+              "value": 0.04155730456113815,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.2083332538604736,
+              "value": 0.05044715479016304,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.7083332538604736,
+              "value": 0.10156363248825073,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.1118617057800293,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.w",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.8797910809516907,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.75,
+              "value": 0.8801792860031128,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.625,
+              "value": 0.8852985501289368,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2,
+              "value": 0.8857548832893372,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.2083332538604736,
+              "value": 0.8854396939277649,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.7083332538604736,
+              "value": 0.8811671137809753,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.8798097372055054,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "property",
+      "name": "DEF-hand.L",
+      "childPath": "root/DEF-hips/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-shoulder.L/DEF-upper_arm.L/DEF-forearm.L/DEF-hand.L",
+      "component": "Transform",
+      "channels": [
+        {
+          "property": "rotation.x",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.0663914680480957,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.6666666865348816,
+              "value": 0.06040355563163757,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2,
+              "value": 0.08149496465921402,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.06673657894134521,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.y",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": -0.20718778669834137,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.6666666865348816,
+              "value": -0.20751042664051056,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2,
+              "value": -0.206330806016922,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": -0.20716890692710876,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.z",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": -0.06956235319375992,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.6666666865348816,
+              "value": -0.07098017632961273,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2,
+              "value": -0.06601325422525406,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": -0.06948079913854599,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.w",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.9735637903213501,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.6666666865348816,
+              "value": 0.9737826585769653,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2,
+              "value": 0.9728455543518066,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.9735500812530518,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "property",
+      "name": "DEF-shoulder.R",
+      "childPath": "root/DEF-hips/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-shoulder.R",
+      "component": "Transform",
+      "channels": [
+        {
+          "property": "rotation.x",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": -0.6040205359458923,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.75,
+              "value": -0.6054986119270325,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.6666666269302368,
+              "value": -0.6245402097702026,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2,
+              "value": -0.6274325847625732,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.2083332538604736,
+              "value": -0.6246258616447449,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.6666667461395264,
+              "value": -0.608918309211731,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": -0.604067325592041,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.y",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.34510281682014465,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.75,
+              "value": 0.3425029218196869,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.6666666269302368,
+              "value": 0.30640894174575806,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2,
+              "value": 0.3004416227340698,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.2083332538604736,
+              "value": 0.3062340021133423,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.6666667461395264,
+              "value": 0.3363855481147766,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.34502115845680237,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.z",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.35671770572662354,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.75,
+              "value": 0.35403376817703247,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.6666666269302368,
+              "value": 0.3167716860771179,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2,
+              "value": 0.31061115860939026,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.2083332538604736,
+              "value": 0.31659117341041565,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.6666667461395264,
+              "value": 0.34771841764450073,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.3566332757472992,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.w",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.6235509514808655,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.75,
+              "value": 0.6250786781311035,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.6666666269302368,
+              "value": 0.6447626948356628,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2,
+              "value": 0.6477530598640442,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.2083332538604736,
+              "value": 0.6448513865470886,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.6666667461395264,
+              "value": 0.6286137104034424,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.6235991716384888,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "property",
+      "name": "DEF-upper_arm.R",
+      "childPath": "root/DEF-hips/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-shoulder.R/DEF-upper_arm.R",
+      "component": "Transform",
+      "channels": [
+        {
+          "property": "rotation.x",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": -0.006130380555987358,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.5416666865348816,
+              "value": -0.012603459879755974,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.0833332538604736,
+              "value": -0.012460443191230297,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": -0.006143168546259403,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.y",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": -0.6391828060150146,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.5416666865348816,
+              "value": -0.6309659481048584,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.0833332538604736,
+              "value": -0.6311649084091187,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": -0.6391680240631104,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.z",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.6017605066299438,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.5416666865348816,
+              "value": 0.621921956539154,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.0833332538604736,
+              "value": 0.6214543581008911,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.6017982959747314,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.w",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.4788445830345154,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.5416666865348816,
+              "value": 0.46361204981803894,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.0833332538604736,
+              "value": 0.4639720618724823,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.47881656885147095,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "property",
+      "name": "DEF-forearm.R",
+      "childPath": "root/DEF-hips/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-shoulder.R/DEF-upper_arm.R/DEF-forearm.R",
+      "component": "Transform",
+      "channels": [
+        {
+          "property": "rotation.x",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.5824582576751709,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.5824577808380127,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.y",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.22150593996047974,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.2215082049369812,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.z",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": -0.16895322501659393,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": -0.1689550280570984,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.w",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.7636310458183289,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.7636303305625916,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "property",
+      "name": "DEF-hand.R",
+      "childPath": "root/DEF-hips/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-shoulder.R/DEF-upper_arm.R/DEF-forearm.R/DEF-hand.R",
+      "component": "Transform",
+      "channels": [
+        {
+          "property": "rotation.x",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.08361530303955078,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.6666666865348816,
+              "value": 0.07380588352680206,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2,
+              "value": 0.10837119817733765,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.3333332538604736,
+              "value": 0.10371791571378708,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.08418066054582596,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.y",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.008569161407649517,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.6666666865348816,
+              "value": 0.007440903689712286,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2,
+              "value": 0.011061149649322033,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.3333332538604736,
+              "value": 0.010631618089973927,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.008631685748696327,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.z",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.05317183583974838,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.6666666865348816,
+              "value": 0.05725005641579628,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2,
+              "value": 0.042808648198843,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.3333332538604736,
+              "value": 0.04476408660411835,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.05293625220656395,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.w",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.9950416088104248,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.6666666865348816,
+              "value": 0.9956002235412598,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2,
+              "value": 0.9931267499923706,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.3333332538604736,
+              "value": 0.9935420155525208,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.9950059652328491,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "property",
+      "name": "DEF-thigh.L",
+      "childPath": "root/DEF-hips/DEF-thigh.L",
+      "component": "Transform",
+      "channels": [
+        {
+          "property": "rotation.x",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.3630828857421875,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.4583333730697632,
+              "value": 0.40238156914711,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.8333333730697632,
+              "value": 0.39620479941368103,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.5416667461395264,
+              "value": 0.36995381116867065,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.3631138205528259,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.y",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.1799018383026123,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.4583333730697632,
+              "value": 0.21326766908168793,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.8333333730697632,
+              "value": 0.2093411087989807,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.5416667461395264,
+              "value": 0.18666575849056244,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.17993730306625366,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.z",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": -0.022181358188390732,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.4583333730697632,
+              "value": -0.02629512920975685,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.8333333730697632,
+              "value": -0.025810975581407547,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.5416667461395264,
+              "value": -0.02301531657576561,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": -0.0221856776624918,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.w",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.9139552712440491,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.4583333730697632,
+              "value": 0.8898958563804626,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.8333333730697632,
+              "value": 0.8936061263084412,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.5416667461395264,
+              "value": 0.909813404083252,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.9139358997344971,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "property",
+      "name": "DEF-shin.L",
+      "childPath": "root/DEF-hips/DEF-thigh.L/DEF-shin.L",
+      "component": "Transform",
+      "channels": [
+        {
+          "property": "rotation.x",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.7343314290046692,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.4583333730697632,
+              "value": 0.7235349416732788,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.7343186140060425,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.y",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": -0.012830502353608608,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.4583333730697632,
+              "value": -0.04548608884215355,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": -0.012822470627725124,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.z",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.013871606439352036,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.4583333730697632,
+              "value": 0.04788270220160484,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.013862420804798603,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.w",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.6785280108451843,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.4583333730697632,
+              "value": 0.6871211528778076,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.6785422563552856,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "property",
+      "name": "DEF-foot.L",
+      "childPath": "root/DEF-hips/DEF-thigh.L/DEF-shin.L/DEF-foot.L",
+      "component": "Transform",
+      "channels": [
+        {
+          "property": "rotation.x",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": -0.43715324997901917,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.4166666567325592,
+              "value": -0.43770885467529297,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.5833333730697632,
+              "value": -0.4381757378578186,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": -0.4371463358402252,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.y",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.051328059285879135,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.4166666567325592,
+              "value": 0.05397491902112961,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.5833333730697632,
+              "value": 0.08001948893070221,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.051474567502737045,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.z",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.038214270025491714,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.4166666567325592,
+              "value": 0.037402551621198654,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.5833333730697632,
+              "value": 0.05021369457244873,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.03837144374847412,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.w",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.8971076607704163,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.4166666567325592,
+              "value": 0.8967155814170837,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.5833333730697632,
+              "value": 0.8939113616943359,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.8970959186553955,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "property",
+      "name": "DEF-thigh.R",
+      "childPath": "root/DEF-hips/DEF-thigh.R",
+      "component": "Transform",
+      "channels": [
+        {
+          "property": "rotation.x",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.711060106754303,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.5,
+              "value": 0.7034590244293213,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.8333333730697632,
+              "value": 0.7027472853660583,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.5833332538604736,
+              "value": 0.7081347703933716,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.710944652557373,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.y",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": -0.03445131704211235,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.5,
+              "value": -0.07098673284053802,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.8333333730697632,
+              "value": -0.06652447581291199,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.5833332538604736,
+              "value": -0.04025048762559891,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": -0.03449198976159096,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.z",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.004247839096933603,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.5,
+              "value": 0.008752420544624329,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.8333333730697632,
+              "value": 0.008202306926250458,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.5833332538604736,
+              "value": 0.004962848033756018,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.004252853337675333,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.w",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.7022739052772522,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.5,
+              "value": 0.7071277499198914,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.8333333730697632,
+              "value": 0.7082750797271729,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.5833332538604736,
+              "value": 0.7049116492271423,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.7023887634277344,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "property",
+      "name": "DEF-shin.R",
+      "childPath": "root/DEF-hips/DEF-thigh.R/DEF-shin.R",
+      "component": "Transform",
+      "channels": [
+        {
+          "property": "rotation.x",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.9169245958328247,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.4166666269302368,
+              "value": 0.914662778377533,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.9169370532035828,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.y",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": -0.010677320882678032,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.4166666269302368,
+              "value": -0.009650621563196182,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": -0.010692451149225235,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.z",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.024564756080508232,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.4166666269302368,
+              "value": 0.021851912140846252,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.02460174635052681,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.w",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.3981606662273407,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.4166666269302368,
+              "value": 0.40351128578186035,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.3981291651725769,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "property",
+      "name": "DEF-foot.R",
+      "childPath": "root/DEF-hips/DEF-thigh.R/DEF-shin.R/DEF-foot.R",
+      "component": "Transform",
+      "channels": [
+        {
+          "property": "rotation.x",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": -0.6433344483375549,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.4166666567325592,
+              "value": -0.6370105743408203,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.2083333730697632,
+              "value": -0.587368905544281,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.5833333730697632,
+              "value": -0.5762202143669128,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.9166666269302368,
+              "value": -0.5857669115066528,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.5833332538604736,
+              "value": -0.6289852857589722,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": -0.6429829597473145,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.y",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.0315638929605484,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.4166666567325592,
+              "value": 0.026313859969377518,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.2083333730697632,
+              "value": 0.0018059322610497475,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.5833333730697632,
+              "value": -0.0024460391141474247,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.9166666269302368,
+              "value": 0.003176487982273102,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.5833332538604736,
+              "value": 0.02540411613881588,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.03147822618484497,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.z",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": -0.22575713694095612,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.4166666567325592,
+              "value": -0.2248736470937729,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.2083333730697632,
+              "value": -0.2232600301504135,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.5833333730697632,
+              "value": -0.22306399047374725,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.9166666269302368,
+              "value": -0.22436362504959106,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.5833332538604736,
+              "value": -0.2263857126235962,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": -0.22580586373806,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.w",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.7308613657951355,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.4166666567325592,
+              "value": 0.7368561029434204,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.2083333730697632,
+              "value": 0.777913510799408,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.5833333730697632,
+              "value": 0.786261260509491,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.9166666269302368,
+              "value": 0.7787991166114807,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.5833332538604736,
+              "value": 0.7432911992073059,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.7311592102050781,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "property",
+      "name": "DEF-toe.R",
+      "childPath": "root/DEF-hips/DEF-thigh.R/DEF-shin.R/DEF-foot.R/DEF-toe.R",
+      "component": "Transform",
+      "channels": [
+        {
+          "property": "rotation.x",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.0003385325544513762,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.4166666567325592,
+              "value": 0.0003399050619918853,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.2083333730697632,
+              "value": 0.0003537317970767617,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.5833333730697632,
+              "value": 0.0003570204135030508,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.9583333730697632,
+              "value": 0.0003542499034665525,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.00033862635609693825,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.y",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": -0.7568827867507935,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.4166666567325592,
+              "value": -0.7545042037963867,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.2083333730697632,
+              "value": -0.7304468154907227,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.5833333730697632,
+              "value": -0.7244998216629028,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.9583333730697632,
+              "value": -0.7295382022857666,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": -0.7566750049591064,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.z",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.6535505056381226,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.4166666567325592,
+              "value": 0.6562950015068054,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.2083333730697632,
+              "value": 0.6829693913459778,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.5833333730697632,
+              "value": 0.6892748475074768,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.9583333730697632,
+              "value": 0.6839399337768555,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.653791069984436,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        },
+        {
+          "property": "rotation.w",
+          "keyframes": [
+            {
+              "time": 0,
+              "value": 0.00039213255513459444,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 0.4166666567325592,
+              "value": 0.0003909032675437629,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.2083333730697632,
+              "value": 0.00037844135658815503,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.5833333730697632,
+              "value": 0.00037536307354457676,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 1.9583333730697632,
+              "value": 0.0003779828839469701,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            },
+            {
+              "time": 2.9166667461395264,
+              "value": 0.00039201590698212385,
+              "inTangent": 0,
+              "outTangent": 0,
+              "interpolation": "linear"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

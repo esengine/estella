@@ -1,0 +1,1811 @@
+{
+  "version": "2",
+  "name": "knight",
+  "rootEntityId": "n49",
+  "entities": [
+    {
+      "prefabEntityId": "n49",
+      "name": "Rig",
+      "parent": null,
+      "children": [
+        "n43",
+        "n44",
+        "n45",
+        "n46",
+        "n47",
+        "n48",
+        "n42"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "scale": {
+              "x": 100,
+              "y": 100,
+              "z": 100
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n43",
+      "name": "Knight_ArmLeft",
+      "parent": "n49",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/knight_2_0.esmesh",
+            "lit": true,
+            "texture": "assets/models/knight.png",
+            "material": "assets/models/knight_m0.esmaterial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "opaque": true,
+            "enabled": true
+          }
+        },
+        {
+          "type": "MeshSkin",
+          "data": {
+            "joints": [
+              "n42",
+              "n23",
+              "n14",
+              "n13",
+              "n4",
+              "n3",
+              "n2",
+              "n1",
+              "n0",
+              "n9",
+              "n8",
+              "n7",
+              "n6",
+              "n5",
+              "n11",
+              "n18",
+              "n17",
+              "n16",
+              "n15",
+              "n22",
+              "n21",
+              "n20",
+              "n19",
+              "n24",
+              "n30",
+              "n29",
+              "n27",
+              "n25",
+              "n26",
+              "n28",
+              "n31",
+              "n37",
+              "n36",
+              "n34",
+              "n32",
+              "n33",
+              "n35",
+              "n38",
+              "n39",
+              "n40",
+              "n41"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n44",
+      "name": "Knight_ArmRight",
+      "parent": "n49",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/knight_3_0.esmesh",
+            "lit": true,
+            "texture": "assets/models/knight.png",
+            "material": "assets/models/knight_m0.esmaterial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "opaque": true,
+            "enabled": true
+          }
+        },
+        {
+          "type": "MeshSkin",
+          "data": {
+            "joints": [
+              "n42",
+              "n23",
+              "n14",
+              "n13",
+              "n4",
+              "n3",
+              "n2",
+              "n1",
+              "n0",
+              "n9",
+              "n8",
+              "n7",
+              "n6",
+              "n5",
+              "n11",
+              "n18",
+              "n17",
+              "n16",
+              "n15",
+              "n22",
+              "n21",
+              "n20",
+              "n19",
+              "n24",
+              "n30",
+              "n29",
+              "n27",
+              "n25",
+              "n26",
+              "n28",
+              "n31",
+              "n37",
+              "n36",
+              "n34",
+              "n32",
+              "n33",
+              "n35",
+              "n38",
+              "n39",
+              "n40",
+              "n41"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n45",
+      "name": "Knight_Body",
+      "parent": "n49",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/knight_4_0.esmesh",
+            "lit": true,
+            "texture": "assets/models/knight.png",
+            "material": "assets/models/knight_m0.esmaterial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "opaque": true,
+            "enabled": true
+          }
+        },
+        {
+          "type": "MeshSkin",
+          "data": {
+            "joints": [
+              "n42",
+              "n23",
+              "n14",
+              "n13",
+              "n4",
+              "n3",
+              "n2",
+              "n1",
+              "n0",
+              "n9",
+              "n8",
+              "n7",
+              "n6",
+              "n5",
+              "n11",
+              "n18",
+              "n17",
+              "n16",
+              "n15",
+              "n22",
+              "n21",
+              "n20",
+              "n19",
+              "n24",
+              "n30",
+              "n29",
+              "n27",
+              "n25",
+              "n26",
+              "n28",
+              "n31",
+              "n37",
+              "n36",
+              "n34",
+              "n32",
+              "n33",
+              "n35",
+              "n38",
+              "n39",
+              "n40",
+              "n41"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n46",
+      "name": "Knight_Head",
+      "parent": "n49",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/knight_5_0.esmesh",
+            "lit": true,
+            "texture": "assets/models/knight.png",
+            "material": "assets/models/knight_m0.esmaterial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "opaque": true,
+            "enabled": true
+          }
+        },
+        {
+          "type": "MeshSkin",
+          "data": {
+            "joints": [
+              "n42",
+              "n23",
+              "n14",
+              "n13",
+              "n4",
+              "n3",
+              "n2",
+              "n1",
+              "n0",
+              "n9",
+              "n8",
+              "n7",
+              "n6",
+              "n5",
+              "n11",
+              "n18",
+              "n17",
+              "n16",
+              "n15",
+              "n22",
+              "n21",
+              "n20",
+              "n19",
+              "n24",
+              "n30",
+              "n29",
+              "n27",
+              "n25",
+              "n26",
+              "n28",
+              "n31",
+              "n37",
+              "n36",
+              "n34",
+              "n32",
+              "n33",
+              "n35",
+              "n38",
+              "n39",
+              "n40",
+              "n41"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n47",
+      "name": "Knight_LegLeft",
+      "parent": "n49",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/knight_6_0.esmesh",
+            "lit": true,
+            "texture": "assets/models/knight.png",
+            "material": "assets/models/knight_m0.esmaterial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "opaque": true,
+            "enabled": true
+          }
+        },
+        {
+          "type": "MeshSkin",
+          "data": {
+            "joints": [
+              "n42",
+              "n23",
+              "n14",
+              "n13",
+              "n4",
+              "n3",
+              "n2",
+              "n1",
+              "n0",
+              "n9",
+              "n8",
+              "n7",
+              "n6",
+              "n5",
+              "n11",
+              "n18",
+              "n17",
+              "n16",
+              "n15",
+              "n22",
+              "n21",
+              "n20",
+              "n19",
+              "n24",
+              "n30",
+              "n29",
+              "n27",
+              "n25",
+              "n26",
+              "n28",
+              "n31",
+              "n37",
+              "n36",
+              "n34",
+              "n32",
+              "n33",
+              "n35",
+              "n38",
+              "n39",
+              "n40",
+              "n41"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n48",
+      "name": "Knight_LegRight",
+      "parent": "n49",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/knight_7_0.esmesh",
+            "lit": true,
+            "texture": "assets/models/knight.png",
+            "material": "assets/models/knight_m0.esmaterial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "opaque": true,
+            "enabled": true
+          }
+        },
+        {
+          "type": "MeshSkin",
+          "data": {
+            "joints": [
+              "n42",
+              "n23",
+              "n14",
+              "n13",
+              "n4",
+              "n3",
+              "n2",
+              "n1",
+              "n0",
+              "n9",
+              "n8",
+              "n7",
+              "n6",
+              "n5",
+              "n11",
+              "n18",
+              "n17",
+              "n16",
+              "n15",
+              "n22",
+              "n21",
+              "n20",
+              "n19",
+              "n24",
+              "n30",
+              "n29",
+              "n27",
+              "n25",
+              "n26",
+              "n28",
+              "n31",
+              "n37",
+              "n36",
+              "n34",
+              "n32",
+              "n33",
+              "n35",
+              "n38",
+              "n39",
+              "n40",
+              "n41"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n42",
+      "name": "root",
+      "parent": "n49",
+      "children": [
+        "n23",
+        "n24",
+        "n30",
+        "n31",
+        "n37",
+        "n38",
+        "n39",
+        "n40",
+        "n41"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 1.1920927533992653e-7,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n23",
+      "name": "hips",
+      "parent": "n42",
+      "children": [
+        "n14",
+        "n18",
+        "n22"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0.4056634306907654,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": -1.1920927533992653e-7,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n14",
+      "name": "spine",
+      "parent": "n23",
+      "children": [
+        "n13"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0.19197750091552734,
+              "z": 0
+            },
+            "rotation": {
+              "w": 1,
+              "x": 0,
+              "y": 7.105427357601002e-15,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n13",
+      "name": "chest",
+      "parent": "n14",
+      "children": [
+        "n4",
+        "n9",
+        "n11",
+        "n12"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0.37498795986175537,
+              "z": 0
+            },
+            "scale": {
+              "x": 1,
+              "y": 0.9999999403953552,
+              "z": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n4",
+      "name": "upperarm.l",
+      "parent": "n13",
+      "children": [
+        "n3"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0.21200737357139587,
+              "y": 0.13413214683532715,
+              "z": 8.40246201505579e-8
+            },
+            "rotation": {
+              "w": 0.5141218900680542,
+              "x": -0.5141214728355408,
+              "y": -0.485467791557312,
+              "z": -0.4854677617549896
+            },
+            "scale": {
+              "x": 0.9999993443489075,
+              "y": 0.9999993443489075,
+              "z": 0.9999997615814209
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n3",
+      "name": "lowerarm.l",
+      "parent": "n4",
+      "children": [
+        "n2"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -3.219664979070558e-9,
+              "y": 0.24189729988574982,
+              "z": -1.1940561250867177e-7
+            },
+            "rotation": {
+              "w": 0.9984706044197083,
+              "x": 1.6480538045371418e-9,
+              "y": -5.950362336193393e-8,
+              "z": -0.05528552085161209
+            },
+            "scale": {
+              "x": 1.000000238418579,
+              "y": 0.9999998807907104,
+              "z": 0.9999999403953552
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n2",
+      "name": "wrist.l",
+      "parent": "n3",
+      "children": [
+        "n1"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 8.719291955117114e-9,
+              "y": 0.26004382967948914,
+              "z": -1.5019517574099694e-10
+            },
+            "rotation": {
+              "w": 0.9996446967124939,
+              "x": -9.737839007373239e-11,
+              "y": -2.984370806036196e-10,
+              "z": 0.02665809914469719
+            },
+            "scale": {
+              "x": 0.9999999403953552,
+              "y": 0.9999999403953552,
+              "z": 0.9999999403953552
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n1",
+      "name": "hand.l",
+      "parent": "n2",
+      "children": [
+        "n0"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 9.08162434143378e-13,
+              "y": 0.07382583618164062,
+              "z": 2.220446049250313e-16
+            },
+            "rotation": {
+              "w": 1,
+              "x": 1.2001791782623172e-9,
+              "y": 1.3310183533121744e-7,
+              "z": -0.000005455195605463814
+            },
+            "scale": {
+              "x": 1,
+              "y": 0.9999999403953552,
+              "z": 0.9999999403953552
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n0",
+      "name": "handslot.l",
+      "parent": "n1",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 8.348148838877023e-10,
+              "y": 0.09612506628036499,
+              "z": -0.05750012397766113
+            },
+            "rotation": {
+              "w": 0.7071067094802856,
+              "x": 1.6097531085890182e-9,
+              "y": 1.6097529975667157e-9,
+              "z": -0.7071068286895752
+            },
+            "scale": {
+              "x": 0.9999999403953552,
+              "y": 1,
+              "z": 0.9999999403953552
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n9",
+      "name": "upperarm.r",
+      "parent": "n13",
+      "children": [
+        "n8"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -0.21200737357139587,
+              "y": 0.13413214683532715,
+              "z": 8.40246201505579e-8
+            },
+            "rotation": {
+              "w": 0.514121949672699,
+              "x": -0.514121413230896,
+              "y": 0.48546773195266724,
+              "z": 0.4854677617549896
+            },
+            "scale": {
+              "x": 0.9999993443489075,
+              "y": 0.9999993443489075,
+              "z": 0.9999997615814209
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n8",
+      "name": "lowerarm.r",
+      "parent": "n9",
+      "children": [
+        "n7"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -7.121856576697283e-11,
+              "y": 0.2418973296880722,
+              "z": -1.1940561250867177e-7
+            },
+            "rotation": {
+              "w": 0.9984706044197083,
+              "x": 1.6480535824925369e-9,
+              "y": 5.950363046736129e-8,
+              "z": 0.05528552085161209
+            },
+            "scale": {
+              "x": 1.000000238418579,
+              "y": 0.9999998807907104,
+              "z": 0.9999999403953552
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n7",
+      "name": "wrist.r",
+      "parent": "n8",
+      "children": [
+        "n6"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -8.718383348593761e-9,
+              "y": 0.26004382967948914,
+              "z": -1.5019517574099694e-10
+            },
+            "rotation": {
+              "w": 0.9996446967124939,
+              "x": -9.737839007373239e-11,
+              "y": 2.984370806036196e-10,
+              "z": -0.02665809914469719
+            },
+            "scale": {
+              "x": 0.9999999403953552,
+              "y": 0.9999999403953552,
+              "z": 0.9999999403953552
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n6",
+      "name": "hand.r",
+      "parent": "n7",
+      "children": [
+        "n5"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 1.3322676295501878e-15,
+              "y": 0.07382583618164062,
+              "z": 2.220446049250313e-16
+            },
+            "rotation": {
+              "w": 1,
+              "x": 1.1999315985278258e-9,
+              "y": -8.93185898576121e-8,
+              "z": 0.000005455195605463814
+            },
+            "scale": {
+              "x": 1,
+              "y": 0.9999999403953552,
+              "z": 0.9999999403953552
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n5",
+      "name": "handslot.r",
+      "parent": "n6",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -8.348148838877023e-10,
+              "y": 0.09612506628036499,
+              "z": -0.05750012397766113
+            },
+            "rotation": {
+              "w": 0.7071067094802856,
+              "x": 1.6097330135522725e-9,
+              "y": -1.60973290252997e-9,
+              "z": 0.7071068286895752
+            },
+            "scale": {
+              "x": 0.9999999403953552,
+              "y": 1,
+              "z": 0.9999999403953552
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n11",
+      "name": "head",
+      "parent": "n13",
+      "children": [
+        "n10"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0.26879656314849854,
+              "z": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n10",
+      "name": "Knight_Helmet",
+      "parent": "n11",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 4.76837158203125e-7,
+              "y": -0.025534328351245028,
+              "z": -1.0854230936274689e-7
+            },
+            "rotation": {
+              "w": 1,
+              "x": -7.85025605384411e-37,
+              "y": -7.1054265105680546e-15,
+              "z": 1.1048254461819734e-22
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/knight_0_0.esmesh",
+            "lit": true,
+            "texture": "assets/models/knight.png",
+            "material": "assets/models/knight_m0.esmaterial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "opaque": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n12",
+      "name": "Knight_Cape",
+      "parent": "n13",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 1.998904568454266e-21,
+              "y": 0.24326236658075567,
+              "z": -1.406604042131221e-7
+            },
+            "rotation": {
+              "w": 1,
+              "x": 4.4484787892440694e-36,
+              "y": -7.105427357601002e-15,
+              "z": -6.2606778228725875e-22
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "assets/models/knight_1_0.esmesh",
+            "lit": true,
+            "texture": "assets/models/knight.png",
+            "material": "assets/models/knight_m0.esmaterial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "opaque": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n18",
+      "name": "upperleg.l",
+      "parent": "n23",
+      "children": [
+        "n17"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0.17094506323337555,
+              "y": 0.11358726024627686,
+              "z": 1.392327231286572e-8
+            },
+            "rotation": {
+              "w": 0.017373191192746162,
+              "x": 0.9998490810394287,
+              "y": -7.132756252303807e-8,
+              "z": -1.2042738362083583e-8
+            },
+            "scale": {
+              "x": 1,
+              "y": 0.9999998211860657,
+              "z": 1.0000011920928955
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n17",
+      "name": "lowerleg.l",
+      "parent": "n18",
+      "children": [
+        "n16"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 3.5798182196344897e-9,
+              "y": 0.22707749903202057,
+              "z": -6.1398597317463555e-9
+            },
+            "rotation": {
+              "w": 0.9943422079086304,
+              "x": 0.1062251403927803,
+              "y": 6.865285229196161e-8,
+              "z": -7.376987554152947e-8
+            },
+            "scale": {
+              "x": 1,
+              "y": 1.0000004768371582,
+              "z": 1.0000001192092896
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n16",
+      "name": "foot.l",
+      "parent": "n17",
+      "children": [
+        "n15"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 1.8322229844436322e-10,
+              "y": 0.14943702518939972,
+              "z": 9.665366285105392e-10
+            },
+            "rotation": {
+              "w": 0.8903692960739136,
+              "x": -0.45523902773857117,
+              "y": 1.619712719502786e-8,
+              "z": -3.4356844480498694e-8
+            },
+            "scale": {
+              "x": 1,
+              "y": 1.0000008344650269,
+              "z": 0.9999987483024597
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n15",
+      "name": "toes.l",
+      "parent": "n16",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -2.1305965325346676e-10,
+              "y": 0.16565002501010895,
+              "z": 5.171735040221392e-9
+            },
+            "rotation": {
+              "w": 6.948484809754518e-8,
+              "x": -3.04790823690837e-8,
+              "y": 0.9203547835350037,
+              "z": -0.3910844624042511
+            },
+            "scale": {
+              "x": 1,
+              "y": 0.9999999403953552,
+              "z": 1.0000001192092896
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n22",
+      "name": "upperleg.r",
+      "parent": "n23",
+      "children": [
+        "n21"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -0.17094506323337555,
+              "y": 0.11358726024627686,
+              "z": 1.392327231286572e-8
+            },
+            "rotation": {
+              "w": 0.017373191192746162,
+              "x": 0.9998490810394287,
+              "y": 7.426564252455137e-8,
+              "z": -3.172627316416765e-8
+            },
+            "scale": {
+              "x": 1,
+              "y": 0.9999998211860657,
+              "z": 1.0000011920928955
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n21",
+      "name": "lowerleg.r",
+      "parent": "n22",
+      "children": [
+        "n20"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -3.5798182196344897e-9,
+              "y": 0.22707749903202057,
+              "z": -6.1398597317463555e-9
+            },
+            "rotation": {
+              "w": 0.9943422079086304,
+              "x": 0.1062251403927803,
+              "y": -6.865286650281632e-8,
+              "z": 7.376987554152947e-8
+            },
+            "scale": {
+              "x": 1,
+              "y": 1.0000004768371582,
+              "z": 1.0000001192092896
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n20",
+      "name": "foot.r",
+      "parent": "n21",
+      "children": [
+        "n19"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -1.832210216878849e-10,
+              "y": 0.14943702518939972,
+              "z": 9.665415134918476e-10
+            },
+            "rotation": {
+              "w": 0.8903692960739136,
+              "x": -0.45523902773857117,
+              "y": 1.659824135913368e-7,
+              "z": 2.2509516472979385e-9
+            },
+            "scale": {
+              "x": 1,
+              "y": 1.0000008344650269,
+              "z": 0.9999987483024597
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n19",
+      "name": "toes.r",
+      "parent": "n20",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 2.1305768260759805e-10,
+              "y": 0.16565002501010895,
+              "z": 5.171739481113491e-9
+            },
+            "rotation": {
+              "w": 6.94848623083999e-8,
+              "x": -3.047908592179738e-8,
+              "y": -0.9203547835350037,
+              "z": 0.3910844624042511
+            },
+            "scale": {
+              "x": 1,
+              "y": 0.9999999403953552,
+              "z": 1.0000001192092896
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n24",
+      "name": "kneeIK.l",
+      "parent": "n42",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0.1709449142217636,
+              "y": 0.29231026768684387,
+              "z": 0.5758124589920044
+            },
+            "rotation": {
+              "w": 0.7071068286895752,
+              "x": 0.7071068286895752,
+              "y": -2.2930233001261513e-7,
+              "z": -4.6055184554916195e-8
+            },
+            "scale": {
+              "x": 1,
+              "y": 0.9999998807907104,
+              "z": 0.9999998807907104
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n30",
+      "name": "control-toe-roll.l",
+      "parent": "n42",
+      "children": [
+        "n29"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0.1709449738264084,
+              "y": 0.025990262627601624,
+              "z": 0.24578937888145447
+            },
+            "rotation": {
+              "w": 0.7071068286895752,
+              "x": -0.7071068286895752,
+              "y": -7.052850037325697e-8,
+              "z": -7.052848616240226e-8
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n29",
+      "name": "control-heel-roll.l",
+      "parent": "n30",
+      "children": [
+        "n27",
+        "n28"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 1.945810979009366e-8,
+              "y": 0.3628326654434204,
+              "z": -2.42861286636753e-15
+            },
+            "rotation": {
+              "w": 2.339829540917677e-34,
+              "x": -7.105437521996369e-15,
+              "y": 1.3832116828440821e-22,
+              "z": -1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n27",
+      "name": "control-foot-roll.l",
+      "parent": "n29",
+      "children": [
+        "n25",
+        "n26"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -1.1148216572109959e-8,
+              "y": 0.21343614161014557,
+              "z": -2.50941980953559e-15
+            },
+            "rotation": {
+              "w": 2.9526043832106552e-8,
+              "x": 1.0403525152469228e-7,
+              "y": -0.39108434319496155,
+              "z": -0.9203548431396484
+            },
+            "scale": {
+              "x": 1,
+              "y": 0.9999999403953552,
+              "z": 0.9999998807907104
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n25",
+      "name": "heelIK.l",
+      "parent": "n27",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 8.589881694831547e-9,
+              "y": 0.16565003991127014,
+              "z": -5.0913655513795675e-9
+            },
+            "rotation": {
+              "w": 0.9203548431396484,
+              "x": -0.39108434319496155,
+              "y": -6.88499994794256e-8,
+              "z": -6.562877530313926e-8
+            },
+            "scale": {
+              "x": 1,
+              "y": 0.9999999403953552,
+              "z": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n26",
+      "name": "IK-foot.l",
+      "parent": "n27",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 8.589881694831547e-9,
+              "y": 0.16565003991127014,
+              "z": -5.0913655513795675e-9
+            },
+            "rotation": {
+              "w": 6.917388749250975e-22,
+              "x": -1,
+              "y": 3.10862701004928e-15,
+              "z": -1.9470719792025193e-7
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 0.9999999403953552
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n28",
+      "name": "IK-toe.l",
+      "parent": "n29",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -4.556949040335212e-9,
+              "y": -7.950292091329914e-10,
+              "z": -1.862645149230957e-9
+            },
+            "rotation": {
+              "w": 1,
+              "x": 1.3700857946876735e-22,
+              "y": -6.740978038336361e-17,
+              "z": -1.94669347308718e-8
+            },
+            "scale": {
+              "x": 1,
+              "y": 0.9999999403953552,
+              "z": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n31",
+      "name": "kneeIK.r",
+      "parent": "n42",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -0.1709451824426651,
+              "y": 0.29231026768684387,
+              "z": 0.5758123397827148
+            },
+            "rotation": {
+              "w": 0.7071068286895752,
+              "x": 0.7071068286895752,
+              "y": -3.8238496813391976e-8,
+              "z": 1.4500865574973432e-7
+            },
+            "scale": {
+              "x": 1,
+              "y": 0.9999998807907104,
+              "z": 0.9999998807907104
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n37",
+      "name": "control-toe-roll.r",
+      "parent": "n42",
+      "children": [
+        "n36"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -0.17094509303569794,
+              "y": 0.025990262627601624,
+              "z": 0.2457892894744873
+            },
+            "rotation": {
+              "w": 0.7071068286895752,
+              "x": -0.7071068286895752,
+              "y": -7.052850747868433e-8,
+              "z": -7.052850037325697e-8
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n36",
+      "name": "control-heel-roll.r",
+      "parent": "n37",
+      "children": [
+        "n34",
+        "n35"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 1.945810623737998e-8,
+              "y": 0.3628326654434204,
+              "z": 2.42861286636753e-15
+            },
+            "rotation": {
+              "w": 2.3398304592726387e-34,
+              "x": -7.105437521996369e-15,
+              "y": 1.3832106731021235e-22,
+              "z": -1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n34",
+      "name": "control-foot-roll.r",
+      "parent": "n36",
+      "children": [
+        "n32",
+        "n33"
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 3.752941513113228e-9,
+              "y": 0.21343614161014557,
+              "z": 0
+            },
+            "rotation": {
+              "w": 2.952605271389075e-8,
+              "x": 1.0403522310298285e-7,
+              "y": -0.39108434319496155,
+              "z": -0.9203548431396484
+            },
+            "scale": {
+              "x": 1,
+              "y": 0.9999999403953552,
+              "z": 0.9999998807907104
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n32",
+      "name": "heelIK.r",
+      "parent": "n34",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -6.311275058124011e-9,
+              "y": 0.16565003991127014,
+              "z": 1.366082358345011e-9
+            },
+            "rotation": {
+              "w": 0.9203548431396484,
+              "x": -0.39108434319496155,
+              "y": -6.885001369028032e-8,
+              "z": -6.562875398685719e-8
+            },
+            "scale": {
+              "x": 1,
+              "y": 0.9999999403953552,
+              "z": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n33",
+      "name": "IK-foot.r",
+      "parent": "n34",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -2.1212436251971667e-8,
+              "y": 0.16565003991127014,
+              "z": 1.366076585185283e-9
+            },
+            "rotation": {
+              "w": 6.917388749250975e-22,
+              "x": 1,
+              "y": 4.4408645699298404e-16,
+              "z": 1.9470719792025193e-7
+            },
+            "scale": {
+              "x": 1,
+              "y": 1,
+              "z": 0.9999999403953552
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n35",
+      "name": "IK-toe.r",
+      "parent": "n36",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -4.556945487621533e-9,
+              "y": 7.950362035380465e-10,
+              "z": -1.862645149230957e-9
+            },
+            "rotation": {
+              "w": 1,
+              "x": 1.3700850373812045e-22,
+              "y": -6.740986641014731e-17,
+              "z": -1.9466920520017084e-8
+            },
+            "scale": {
+              "x": 1,
+              "y": 0.9999999403953552,
+              "z": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n38",
+      "name": "elbowIK.l",
+      "parent": "n42",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0.4535074830055237,
+              "y": 1.10676109790802,
+              "z": -0.5888593792915344
+            },
+            "rotation": {
+              "w": 0.7071068286895752,
+              "x": -0.7071068286895752,
+              "y": -7.279511038404962e-8,
+              "z": -7.279508906776755e-8
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n39",
+      "name": "handIK.l",
+      "parent": "n42",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0.7131814956665039,
+              "y": 1.10676109790802,
+              "z": 2.5491414135103696e-7
+            },
+            "rotation": {
+              "w": 0.5,
+              "x": -0.4999999403953552,
+              "y": -0.5000000596046448,
+              "z": -0.5000000596046448
+            },
+            "scale": {
+              "x": 0.9999998807907104,
+              "y": 0.9999997615814209,
+              "z": 0.9999999403953552
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n40",
+      "name": "elbowIK.r",
+      "parent": "n42",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -0.4535071849822998,
+              "y": 1.10676109790802,
+              "z": -0.5888596177101135
+            },
+            "rotation": {
+              "w": 0.7071068286895752,
+              "x": -0.7071068286895752,
+              "y": -7.279511038404962e-8,
+              "z": -7.279508906776755e-8
+            }
+          }
+        }
+      ]
+    },
+    {
+      "prefabEntityId": "n41",
+      "name": "handIK.r",
+      "parent": "n42",
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -0.7131815552711487,
+              "y": 1.10676109790802,
+              "z": -8.515731053648778e-8
+            },
+            "rotation": {
+              "w": 0.5000000596046448,
+              "x": -0.5000000596046448,
+              "y": 0.4999999403953552,
+              "z": 0.5
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

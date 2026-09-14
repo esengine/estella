@@ -1,0 +1,13 @@
+{
+  "formatVersion": "1",
+  "name": "Character Rig",
+  "description": "Two skeletons named differently by two artists: one clip set drives both, a blend plane answers speed and stance at once, and a two-bone solve puts a hand where the clips did not.",
+  "tag": "3D",
+  "version": "0.1.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 960,
+    "height": 640
+  },
+  "spineVersion": "none"
+}
