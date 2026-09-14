@@ -7,3 +7,7 @@ export declare function texturedTriangle(): Uint8Array;
 
 /** Two bones and a quad bound to them, the upper bone turning 90° about Z. */
 export declare function skinnedBar(): Uint8Array;
+
+/** A quad with two blend shapes — one slides its top edge, one lifts it — the
+ *  first left at 40% by the file. */
+export declare function morphedQuad(): Uint8Array;

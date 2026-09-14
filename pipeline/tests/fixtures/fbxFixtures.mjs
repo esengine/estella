@@ -201,6 +201,64 @@ export function texturedTriangle() {
  * bone at the origin, upper bone one unit up — so the inverse bind matrix a test
  * reads back is a translation it can check by eye.
  */
+/**
+ * One blend shape: the vertices it moves, and by how much. FBX stores a shape as
+ * its own Geometry — a sparse list of vertex indices with an offset each — which
+ * is why `indexes` is not the whole mesh.
+ */
+function shapeGeometry(id, name, indexes, offsets, normals) {
+  return `\tGeometry: ${id}, "Geometry::${name}", "Shape" {
+\t\tVersion: 100
+${array('Indexes', indexes, 2)}${array('Vertices', offsets, 2)}${
+  normals ? array('Normals', normals, 2) : ''}\t}
+`;
+}
+
+/** The channel a shape hangs off: its name, and the weight the file leaves it at. */
+function blendChannel(id, name, percent) {
+  return `\tDeformer: ${id}, "SubDeformer::${name}", "BlendShapeChannel" {
+\t\tVersion: 100
+\t\tDeformPercent: ${percent}
+${array('FullWeights', [100], 2)}\t}
+`;
+}
+
+/**
+ * A quad with two shapes to blend towards: one slides the top edge right, the
+ * other lifts it — and the file leaves the first at 40%. Different on purpose,
+ * so a reader that mixed the two up, or lost the authored weight, says so.
+ */
+export function morphedQuad() {
+  const objects = [
+    geometry(1000, 'quad', {
+      vertices: [-1, 0, 0, 1, 0, 0, 1, 2, 0, -1, 2, 0],
+      faces: [[0, 1, 2, 3]],
+      normals: Array.from({ length: 4 }, () => [0, 0, 1]).flat(),
+      uvs: [0, 0, 1, 0, 1, 1, 0, 1],
+    }),
+    model(2000, 'Quad', 'Mesh'),
+    `\tDeformer: 5000, "Deformer::BlendShape", "BlendShape" {
+\t\tVersion: 100
+\t}
+`,
+    blendChannel(5100, 'Slide', 40),
+    blendChannel(5200, 'Lift', 0),
+    // Only the top two vertices move, which is what makes the list sparse.
+    shapeGeometry(6000, 'Slide', [2, 3], [3, 0, 0, 3, 0, 0]),
+    shapeGeometry(6100, 'Lift', [2, 3], [0, 5, 0, 0, 5, 0]),
+  ].join('');
+  const connections = [
+    connect(2000, 0),
+    connect(1000, 2000),
+    connect(5000, 1000),
+    connect(5100, 5000),
+    connect(5200, 5000),
+    connect(6000, 5100),
+    connect(6100, 5200),
+  ].join('');
+  return encode(`${header('estella fbxFixtures')}Objects:  {\n${objects}}\nConnections:  {\n${connections}}\n`);
+}
+
 export function skinnedBar() {
   const objects = [
     geometry(1000, 'bar', {

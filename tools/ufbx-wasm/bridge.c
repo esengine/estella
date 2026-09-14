@@ -208,11 +208,17 @@ typedef struct {
     es_joints *joints;
     es_vec4 *weights;
     uint32_t *indices;
+    /** Morph deltas, `vertex_count * morph_targets * (morph_normals ? 6 : 3)`
+     *  floats: per target, per vertex, the position offset and — where the
+     *  shapes state one — the normal offset behind it. */
+    float *morph;
+    size_t morph_targets;
     int has_normals;
     int has_uvs;
     int has_uvs1;
     int has_colors;
     int has_skin;
+    int morph_normals;
 } es_part;
 
 static void es_part_free(es_part *p) {
@@ -224,6 +230,7 @@ static void es_part_free(es_part *p) {
     free(p->joints);
     free(p->weights);
     free(p->indices);
+    free(p->morph);
     memset(p, 0, sizeof(*p));
 }
 
@@ -267,8 +274,28 @@ static void read_skin_vertex(const ufbx_skin_deformer *skin, uint32_t vertex,
  * merges the corners that agree on every stream, so what comes out is the
  * smallest vertex buffer that still draws what was authored.
  */
+/**
+ * One shape's offsets as a vertex-indexed table: `-1` where it says nothing.
+ *
+ * `offset_vertices` is a sparse list — a shape states only the vertices it
+ * moves — and it is walked once per CORNER, so the lookup is built rather than
+ * searched. ufbx warns the indices may be out of bounds for the mesh; one that
+ * is lands nowhere rather than in another vertex's row.
+ */
+static int32_t *shape_lookup(const ufbx_blend_shape *shape, size_t vertices) {
+    int32_t *at = (int32_t *)malloc(vertices * sizeof(int32_t));
+    if (!at) return NULL;
+    for (size_t v = 0; v < vertices; v++) at[v] = -1;
+    for (size_t i = 0; i < shape->num_offsets; i++) {
+        uint32_t v = shape->offset_vertices.data[i];
+        if (v < vertices) at[v] = (int32_t)i;
+    }
+    return at;
+}
+
 static int build_part(es_writer *w, const ufbx_mesh *mesh, const ufbx_mesh_part *part,
-                      const ufbx_skin_deformer *skin, const char *label, es_part *out) {
+                      const ufbx_skin_deformer *skin, const ufbx_blend_deformer *blend,
+                      const char *label, es_part *out) {
     memset(out, 0, sizeof(*out));
     size_t corners = part->num_triangles * 3;
     if (corners == 0) return 0;
@@ -280,6 +307,30 @@ static int build_part(es_writer *w, const ufbx_mesh *mesh, const ufbx_mesh_part 
     out->has_colors = mesh->vertex_color.exists;
     out->has_skin = skin != NULL;
 
+    // The shapes this mesh can be blended towards. A channel with no target is a
+    // channel that states nothing, so it is not one of them.
+    const ufbx_blend_shape **shapes = NULL;
+    int32_t **lookups = NULL;
+    if (blend && blend->channels.count > 0) {
+        shapes = (const ufbx_blend_shape **)calloc(blend->channels.count, sizeof(*shapes));
+        lookups = (int32_t **)calloc(blend->channels.count, sizeof(*lookups));
+        if (shapes && lookups) {
+            for (size_t c = 0; c < blend->channels.count; c++) {
+                const ufbx_blend_shape *shape = blend->channels.data[c]->target_shape;
+                if (!shape) continue;
+                shapes[out->morph_targets] = shape;
+                lookups[out->morph_targets] = shape_lookup(shape, mesh->num_vertices);
+                if (shape->normal_offsets.count > 0) out->morph_normals = 1;
+                out->morph_targets++;
+            }
+        }
+    }
+    // A normal offset with no normal to offset moves nothing, and the mesh format
+    // stores the two together — so the geometry decides whether they are carried.
+    if (!out->has_normals) out->morph_normals = 0;
+    const size_t morph_comps = out->morph_normals ? 6u : 3u;
+    const size_t morph_stride = out->morph_targets * morph_comps;
+
     out->positions = (es_vec3 *)malloc(corners * sizeof(es_vec3));
     out->indices = (uint32_t *)malloc(corners * sizeof(uint32_t));
     if (out->has_normals) out->normals = (es_vec3 *)malloc(corners * sizeof(es_vec3));
@@ -290,14 +341,19 @@ static int build_part(es_writer *w, const ufbx_mesh *mesh, const ufbx_mesh_part 
         out->joints = (es_joints *)malloc(corners * sizeof(es_joints));
         out->weights = (es_vec4 *)malloc(corners * sizeof(es_vec4));
     }
+    if (morph_stride > 0) out->morph = (float *)calloc(corners * morph_stride, sizeof(float));
     size_t tri_cap = mesh->max_face_triangles * 3;
     uint32_t *tri = (uint32_t *)malloc(tri_cap * sizeof(uint32_t));
     if (!out->positions || !out->indices || !tri
         || (out->has_normals && !out->normals) || (out->has_uvs && !out->uvs)
         || (out->has_uvs1 && !out->uvs1)
         || (out->has_colors && !out->colors)
-        || (out->has_skin && (!out->joints || !out->weights))) {
+        || (out->has_skin && (!out->joints || !out->weights))
+        || (morph_stride > 0 && !out->morph)) {
         free(tri);
+        if (lookups) for (size_t c = 0; c < out->morph_targets; c++) free(lookups[c]);
+        free(lookups);
+        free((void *)shapes);
         es_part_free(out);
         warnf(w, "%s: out of memory expanding %zu triangles", label, part->num_triangles);
         return 0;
@@ -335,16 +391,41 @@ static int build_part(es_writer *w, const ufbx_mesh *mesh, const ufbx_mesh_part 
                 read_skin_vertex(skin, mesh->vertex_indices.data[ix],
                                  &out->joints[at], &out->weights[at]);
             }
+            if (morph_stride > 0) {
+                // The offsets are per VERTEX and this loop is per corner: two
+                // corners of the same vertex carry the same offset, which is what
+                // lets the deduplication below fold them back together.
+                const uint32_t vertex = mesh->vertex_indices.data[ix];
+                float *row = out->morph + at * morph_stride;
+                for (size_t t = 0; t < out->morph_targets; t++) {
+                    const int32_t o = lookups[t] ? lookups[t][vertex] : -1;
+                    if (o < 0) continue;
+                    const ufbx_vec3 d = shapes[t]->position_offsets.data[o];
+                    float *cell = row + t * morph_comps;
+                    cell[0] = (float)d.x;
+                    cell[1] = (float)d.y;
+                    cell[2] = (float)d.z;
+                    if (!out->morph_normals
+                        || (size_t)o >= shapes[t]->normal_offsets.count) continue;
+                    const ufbx_vec3 n = shapes[t]->normal_offsets.data[o];
+                    cell[3] = (float)n.x;
+                    cell[4] = (float)n.y;
+                    cell[5] = (float)n.z;
+                }
+            }
             at++;
         }
     }
     free(tri);
+    if (lookups) for (size_t c = 0; c < out->morph_targets; c++) free(lookups[c]);
+    free(lookups);
+    free((void *)shapes);
     if (at == 0) {
         es_part_free(out);
         return 0;
     }
 
-    ufbx_vertex_stream streams[7];
+    ufbx_vertex_stream streams[8];
     size_t stream_count = 0;
     streams[stream_count].data = out->positions;
     streams[stream_count].vertex_count = at;
@@ -376,6 +457,13 @@ static int build_part(es_writer *w, const ufbx_mesh *mesh, const ufbx_mesh_part 
         streams[stream_count].data = out->weights;
         streams[stream_count].vertex_count = at;
         streams[stream_count++].vertex_size = sizeof(es_vec4);
+    }
+    // Through the deduplication like every other per-vertex value: a delta left
+    // out of it would stay in corner order while the vertices moved to theirs.
+    if (morph_stride > 0) {
+        streams[stream_count].data = out->morph;
+        streams[stream_count].vertex_count = at;
+        streams[stream_count++].vertex_size = morph_stride * sizeof(float);
     }
 
     ufbx_error error;
@@ -523,8 +611,10 @@ static void write_meshes(es_writer *w, const ufbx_scene *scene) {
             warnf(w, "mesh \"%s\": %zu skin deformers; only the first is imported",
                   mesh->name.data, mesh->skin_deformers.count);
         }
-        if (mesh->blend_deformers.count > 0) {
-            warnf(w, "mesh \"%s\": %zu blend shape(s) not imported",
+        const ufbx_blend_deformer *blend = mesh->blend_deformers.count > 0
+            ? mesh->blend_deformers.data[0] : NULL;
+        if (mesh->blend_deformers.count > 1) {
+            warnf(w, "mesh \"%s\": %zu blend deformers; only the first is imported",
                   mesh->name.data, mesh->blend_deformers.count);
         }
         if (skin && skin->clusters.count > 65535) {
@@ -541,7 +631,7 @@ static void write_meshes(es_writer *w, const ufbx_scene *scene) {
             char label[256];
             snprintf(label, sizeof(label), "mesh \"%s\"[%zu]", mesh->name.data, p);
             es_part built;
-            if (!build_part(w, mesh, part, skin, label, &built)) continue;
+            if (!build_part(w, mesh, part, skin, blend, label, &built)) continue;
 
             if (!first) es_buf_text(&w->json, ",");
             first = 0;
@@ -604,6 +694,35 @@ static void write_meshes(es_writer *w, const ufbx_scene *scene) {
             json_key(&w->json, "weights");
             if (built.has_skin) {
                 json_slice(w, built.weights, built.vertex_count * sizeof(es_vec4));
+            } else {
+                es_buf_text(&w->json, "null");
+            }
+            es_buf_text(&w->json, ",");
+            json_key(&w->json, "morphTargets");
+            es_buf_text(&w->json, "[");
+            for (size_t t = 0, emitted = 0; t < (blend ? blend->channels.count : 0); t++) {
+                const ufbx_blend_channel *ch = blend->channels.data[t];
+                if (!ch->target_shape) continue;
+                if (emitted++) es_buf_text(&w->json, ",");
+                es_buf_text(&w->json, "{");
+                json_key(&w->json, "name");
+                json_string(&w->json, ch->name);
+                es_buf_text(&w->json, ",");
+                // What the file says this shape is blended to right now — the
+                // weight the component starts at, as the source authored it.
+                json_key(&w->json, "weight");
+                json_number(&w->json, (double)ch->weight);
+                es_buf_text(&w->json, "}");
+            }
+            es_buf_text(&w->json, "],");
+            json_key(&w->json, "morphNormals");
+            es_buf_text(&w->json, built.morph_normals ? "true" : "false");
+            es_buf_text(&w->json, ",");
+            json_key(&w->json, "morphDeltas");
+            if (built.morph_targets > 0) {
+                json_slice(w, built.morph,
+                           built.vertex_count * built.morph_targets
+                               * (built.morph_normals ? 6u : 3u) * sizeof(float));
             } else {
                 es_buf_text(&w->json, "null");
             }

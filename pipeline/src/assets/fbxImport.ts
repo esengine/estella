@@ -85,6 +85,11 @@ interface FbxMeshPart {
     colors: Slice | null;
     joints: Slice | null;
     weights: Slice | null;
+    /** The shapes this part can be blended towards, in the order its deltas are in. */
+    morphTargets: { name: string; weight: number }[];
+    /** Whether each target carries a normal offset behind its position offset. */
+    morphNormals: boolean;
+    morphDeltas: Slice | null;
     indices: Slice;
     /** Source node index per bone, in the order the `Joints` channel indexes them. */
     skinJoints?: number[];
@@ -505,6 +510,17 @@ function buildMesh(part: FbxMeshPart, name: string, payload: Uint8Array,
         }
     }
 
+    // The shapes, transposed. The bridge writes one RECORD PER VERTEX, which is
+    // what the deduplication it runs the vertices through can fold; the format
+    // stores one SECTION PER TARGET. The only place that knows both layouts.
+    const targets = part.morphTargets ?? [];
+    const morph = targets.length > 0 && part.morphDeltas
+        ? { names: targets.map((t, i) => t.name || `target ${i}`),
+            hasNormals: !!part.morphNormals && !!normals,
+            deltas: transposeMorph(floats(payload, part.morphDeltas), targets.length,
+                                   vertexCount, part.morphNormals && !!normals ? 6 : 3) }
+        : undefined;
+
     return {
         name,
         data: {
@@ -513,12 +529,28 @@ function buildMesh(part: FbxMeshPart, name: string, payload: Uint8Array,
             ...(skinned && part.inverseBindMatrices
                 ? { inverseBindMatrices: floats(payload, part.inverseBindMatrices).slice() }
                 : {}),
+            ...(morph ? { morph } : {}),
         },
         vertexCount,
         triangleCount: indices.length / 3,
         ...(material ? { material } : {}),
         ...(skinned ? { skinJoints: part.skinJoints } : {}),
+        ...(morph ? { morphWeights: targets.map((t) => t.weight) } : {}),
     };
+}
+
+/** Per-vertex records of every target → per-target sections of every vertex. */
+function transposeMorph(packed: Float32Array, targets: number, vertexCount: number,
+                        comps: number): Float32Array {
+    const out = new Float32Array(targets * vertexCount * comps);
+    for (let t = 0; t < targets; t++) {
+        for (let v = 0; v < vertexCount; v++) {
+            const from = (v * targets + t) * comps;
+            const to = (t * vertexCount + v) * comps;
+            for (let c = 0; c < comps; c++) out[to + c] = packed[from + c] ?? 0;
+        }
+    }
+    return out;
 }
 
 /* -- Animation ---------------------------------------------------------- */

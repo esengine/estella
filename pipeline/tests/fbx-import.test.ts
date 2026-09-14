@@ -13,7 +13,7 @@ import { importFbxMeshes, dropInvisibleColors } from '../src/assets/fbxImport';
 import { assembleModelPrefab, materialProducts,
          type ImportedMesh, type ImportedNode } from '../src/assets/modelImport';
 import { MeshChannel } from 'esengine';
-import { texturedTriangle, skinnedBar } from './fixtures/fbxFixtures.mjs';
+import { texturedTriangle, skinnedBar, morphedQuad } from './fixtures/fbxFixtures.mjs';
 
 /** One channel's floats for vertex `index`, read back out of the packed buffer. */
 function attribute(mesh: ImportedMesh, semantic: number, index: number, comps: number): number[] {
@@ -269,5 +269,43 @@ describe('fbx vertex colours that would import an invisible mesh', () => {
     const warnings: string[] = [];
     expect(dropInvisibleColors(layer(64, 0), 64, 'm', warnings)).toBeNull();
     expect(warnings).toHaveLength(1);
+  });
+});
+
+describe('fbx blend shapes', () => {
+  it('carries each shape, its name and the weight the file left it at', async () => {
+    const { meshes, warnings } = await importFbxMeshes(morphedQuad(), 'quad', 'quad.fbx');
+
+    expect(warnings.join('\n')).not.toMatch(/blend shape/i);
+    expect(warnings.join('\n')).not.toMatch(/blend shape/i);
+    const morph = meshes[0]!.data.morph!;
+    expect(morph.names).toEqual(['Slide', 'Lift']);
+    // 40% in the file is 0.4 on the component: the channel's weight is a
+    // percentage there and a fraction here, and shipping the percentage would
+    // be a mesh forty times past its own shape.
+    expect(meshes[0]!.morphWeights).toEqual([0.4, 0]);
+
+    // Two of four vertices move, and they move differently per target — so the
+    // deltas are read against the deduplicated vertex order, not corner order.
+    const vertexCount = meshes[0]!.vertexCount;
+    const slide = [...morph.deltas.subarray(0, vertexCount * 3)];
+    const lift = [...morph.deltas.subarray(vertexCount * 3, vertexCount * 6)];
+    expect(slide.filter((d) => d !== 0)).toEqual([3, 3]);
+    expect(lift.filter((d) => d !== 0)).toEqual([5, 5]);
+    // Along x for one shape and y for the other: an axis mix-up survives a
+    // count and shows up only here.
+    for (let v = 0; v < vertexCount; v++) {
+      expect(slide[v * 3 + 1]).toBe(0);
+      expect(lift[v * 3]).toBe(0);
+    }
+  });
+
+  it('gives the prefab a MeshMorph holding those weights', async () => {
+    const { meshes, nodes } = await importFbxMeshes(morphedQuad(), 'quad', 'quad.fbx');
+    const prefab = assembleModelPrefab('quad', meshes, { nodes });
+    const morph = prefab.entities
+      .flatMap((e) => e.components)
+      .find((c) => c.type === 'MeshMorph');
+    expect(morph?.data).toEqual({ weights: [0.4, 0] });
   });
 });

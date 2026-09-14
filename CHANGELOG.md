@@ -33,6 +33,11 @@ published separately; it ships inside the editor.
   primitive that node draws, one channel per target, and the clip that raises the
   example robot's banner now furls it as it rises.
 
+  **FBX brings its blend shapes too**, through the same door: ufbx's sparse
+  per-vertex offsets become the same `.esmesh` section a glTF's targets do, at
+  the weight the file left each channel on. Neither front end is the one that
+  carries shapes.
+
   The inspector shows **a slider per shape, under the name the mesh gave it** —
   a weight is positional, so a column of unlabelled numbers would be unusable for
   the thing morph targets are for. The labels come from a source the field
