@@ -633,6 +633,19 @@ jobs:
       if: matrix.shard == 1
       run: pnpm --filter @estella/editor exec vitest run
 
+    # The authoring checks above spent months failing at random with
+    # `timeout tools/call open_project`. The cause was never the call: a main
+    # process exception put up a modal dialog, and a dialog waits for a click
+    # that an unattended run never makes, so every later call queued behind a
+    # frozen event loop while the renderer kept drawing frames.
+    - name: The crash handler must not stop the editor
+      # Work, not reporting: one shard does it for the matrix.
+      if: matrix.shard == 1
+      working-directory: desktop
+      env:
+        ELECTRON_DISABLE_SANDBOX: '1'
+      run: xvfb-run -a --server-args="-screen 0 1920x1080x24" node scripts/resilience-liveness.test.mjs
+
     - name: Run MCP end-to-end
       # Work, not reporting: one shard does it for the matrix.
       if: matrix.shard == 1

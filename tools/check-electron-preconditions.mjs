@@ -30,7 +30,8 @@ const tracked = (glob) => execFileSync('git', ['ls-files', glob], { cwd: ROOT, e
  * in the private editor submodule, which cannot import from tools/; the native
  * desktop render host is not Electron at all and wants xvfb for Vulkan.
  */
-const NOT_OURS = [/scripts\/editor-checks\//, /scripts\/editor-mcp/, /verify-desktop-render/];
+const NOT_OURS = [/scripts\/editor-checks\//, /scripts\/editor-mcp/,
+                  /scripts\/resilience-liveness/, /verify-desktop-render/];
 
 function sources(dir) {
   const out = [];
