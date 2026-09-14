@@ -16,6 +16,24 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **Bake Lighting.** The trigger the bake was missing: a command that collects
+  the open scene, solves it, writes the atlas beside the scene file, and records
+  on each object where in that atlas it reads. Sixteen lights is what a frame
+  carries; past that, this is the way they still reach the picture.
+
+  It runs in the editor's main process rather than the window, because a bake is
+  seconds of ray casting and the editor has to stay answerable while it happens.
+  The collector reads the document for what a mesh IS (a ref survives a reload
+  where a handle does not) and the world for where it STANDS (already resolved
+  through the hierarchy and through every prefab instance).
+
+  What it cannot light, it names. An object with no second UV set is called out
+  by name with the setting that fixes it, because in a result it looks exactly
+  like one the bake simply missed — and only the author can turn that setting on.
+
+  An end-to-end check holds it, because nothing shorter reaches the chain: it
+  bakes a real scene in the real editor and reads the saved document back.
+
 - **The bake itself: lights become an atlas.** `bakeLightmap` takes surfaces and
   lights and returns the texture a `MeshLightmap` reads, plus the rectangle each
   object occupies in it. It runs the way the navmesh builder does — plain
