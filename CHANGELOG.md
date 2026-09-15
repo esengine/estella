@@ -16,6 +16,21 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **Stock geometry takes a bake, and the density suits this engine's units.**
+  Trying to bake a real example found both. `physics-3d` is twenty-two builtin
+  cubes and two lights — the most ordinary lightmap candidate there is — and
+  every one of them was skipped, because a builtin has no `.esmesh` to read a UV
+  set out of and no import setting anyone could turn on for it. Its UVs are
+  derived per bake instead, which rewrites nothing: stock geometry is rebuilt
+  from code every run.
+
+  Then the bake refused the scene. A world unit here is a **design pixel**, so a
+  builtin cube is a hundred units across and the old default of two texels per
+  unit asked for a patch larger than the whole atlas. The defaults are now a
+  1024 atlas at a quarter texel per unit, which is a lumel every few design
+  pixels. A refused bake also says so where the user is, rather than as a
+  console line nobody reads.
+
 - **A bounce carries the colour of what it came off.** Baked light reflected a
   neutral grey whatever it hit, so a red wall lit a white floor white — most of
   the difference between a bounce and a flat ambient term. A surface's albedo now

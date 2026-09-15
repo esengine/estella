@@ -10,14 +10,18 @@
  */
 import { readFileSync } from 'node:fs';
 import { PNG } from 'pngjs';
-import { bakeLightmap, decodeMesh, MeshChannel,
-         type BakeSurface, type BakeLight, type BakeOptions } from 'esengine';
+import { bakeLightmap, decodeMesh, unwrapLightmapUV, builtinMeshTemplate, MeshChannel,
+         type MeshData, type BakeSurface, type BakeLight, type BakeOptions } from 'esengine';
 import { encodeRgbaPng } from './png';
 
 /** One placed object, as the editor's world describes it. */
 export interface SceneBakeSurface {
-    /** Absolute path of the `.esmesh` this object draws. */
+    /** Absolute path of the `.esmesh` this object draws, or '' when
+     *  {@link builtinRef} names the geometry instead. */
     meshFile: string;
+    /** `builtin:<id>` for stock geometry, which is built from code and has no
+     *  file to read a UV set out of. */
+    builtinRef?: string;
     /** How it is named where a warning has to be readable. */
     label: string;
     /** Column-major 4x4 world transform. */
@@ -48,6 +52,15 @@ export interface SceneBakeResult {
     lumels: number;
     size: number;
     warnings: string[];
+}
+
+/** Stock geometry with a lightmap UV set, unwrapped once per bake. */
+function builtinGeometry(ref: string, cache: Map<string, MeshData | null>): MeshData | null {
+    if (!cache.has(ref)) {
+        const template = builtinMeshTemplate(ref);
+        cache.set(ref, template ? unwrapLightmapUV(template.build()).mesh : null);
+    }
+    return cache.get(ref) ?? null;
 }
 
 /** sRGB to linear, one channel. A texture stores what a screen shows, and an
@@ -116,14 +129,23 @@ export function bakeSceneLightmap(input: SceneBakeInput): SceneBakeResult {
     // One decode per texture however many objects share it: a bake reads these
     // once and a scene reuses the same few across most of its surfaces.
     const averages = new Map<string, [number, number, number] | null>();
+    // Stock geometry is rebuilt from code every run, so its lightmap UVs are
+    // DERIVED here rather than being an asset: unwrapping an imported mesh
+    // rewrites a file the scene already references, and this rewrites nothing.
+    const builtins = new Map<string, MeshData | null>();
 
     for (let i = 0; i < input.surfaces.length; i++) {
         const s = input.surfaces[i];
         let mesh;
         try {
-            mesh = decodeMesh(new Uint8Array(readFileSync(s.meshFile)));
+            mesh = s.builtinRef ? builtinGeometry(s.builtinRef, builtins)
+                                : decodeMesh(new Uint8Array(readFileSync(s.meshFile)));
         } catch (err) {
             warnings.push(`${s.label}: ${(err as Error).message}`);
+            continue;
+        }
+        if (!mesh) {
+            warnings.push(`${s.label}: "${s.builtinRef}" is not stock geometry this build has`);
             continue;
         }
         if (!mesh.channels.some((c) => c.semantic === MeshChannel.TexCoord1)) {

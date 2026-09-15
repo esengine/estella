@@ -133,6 +133,33 @@ describe('baking a scene', () => {
         expect(broken.warnings.join(' ')).toContain('could not be read');
     });
 
+    it('lights stock geometry, which has no file at all', () => {
+        // Most scenes are built out of builtin primitives, and none of them is a
+        // .esmesh anyone could turn an import setting on for. Their UVs are
+        // derived per bake instead — nothing on disk is rewritten.
+        const result = bakeSceneLightmap({
+            surfaces: [{
+                meshFile: '', builtinRef: 'builtin:cube', label: 'Crate',
+                transform: IDENTITY, baseColor: [0.8, 0.8, 0.8],
+            }],
+            lights: LAMP,
+            options: SMALL,
+        });
+        expect(result.warnings.join(' ')).not.toContain('no second UV set');
+        expect(result.lumels).toBeGreaterThan(0);
+        expect(result.scaleOffset[0]).not.toBeNull();
+    });
+
+    it('names stock geometry this build does not have', () => {
+        const result = bakeSceneLightmap({
+            surfaces: [{ meshFile: '', builtinRef: 'builtin:dodecahedron', label: 'Odd',
+                         transform: IDENTITY }],
+            lights: LAMP,
+            options: SMALL,
+        });
+        expect(result.warnings.join(' ')).toContain('not stock geometry');
+    });
+
     it('says when it had to guess what a surface reflects', () => {
         // Neutral grey is a guess, and a bounce off a red wall that arrives grey
         // is the kind of wrong that looks like the bake simply being dull.

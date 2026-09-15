@@ -17,7 +17,10 @@ import { solveDirect, solveBounce, type BakeLight, type HitLookup } from './solv
 export interface BakeOptions {
     /** Side of the square atlas, in texels. */
     atlasSize?: number;
-    /** How finely a surface is lit, in texels per world unit. */
+    /** How finely a surface is lit, in texels per world unit. A world unit here
+     *  is a DESIGN PIXEL, so a room is hundreds of units across and a lumel every
+     *  few of them is already fine — a density borrowed from an engine whose unit
+     *  is a metre would ask for an atlas no scene could fit. */
     texelsPerUnit?: number;
     /** How many times light is allowed to reflect. Zero is direct light only —
      *  useful, because past the sixteen a frame can carry it is still the answer. */
@@ -42,8 +45,8 @@ export interface BakeResult {
 }
 
 const DEFAULTS = {
-    atlasSize: 512,
-    texelsPerUnit: 2,
+    atlasSize: 1024,
+    texelsPerUnit: 0.25,
     bounces: 2,
     samples: 64,
     ambient: [0, 0, 0] as readonly [number, number, number],

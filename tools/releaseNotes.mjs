@@ -28,6 +28,11 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(lighting): stock geometry takes a bake, and a refused one says why':
+    { note: 'Stock geometry takes a bake, and the density suits this engine\'s units.' },
+  'feat(render): a bake derives UVs for geometry that has no file':
+    { note: 'Stock geometry takes a bake, and the density suits this engine\'s units.' },
+
   'feat(lighting): a bounce carries the colour of what it came off':
     { note: 'A bounce carries the colour of what it came off.' },
   'feat(render): a surface reflects the colour it actually has':
