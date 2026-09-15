@@ -16,6 +16,19 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **Run works from wherever you are standing.** The running game's frame is
+  parented by whichever panel hosts it — a Game tab, or the Viewport itself in
+  play-in-viewport mode. Opening any asset document puts it in the tab over the
+  Viewport, and Run then started a session with nothing to attach to: the editor
+  sat on "Starting" until the deadline with no error to show for it. Both modes
+  now bring the panel hosting the game forward, which is what Play does
+  everywhere else.
+
+  Nothing could see this. Every play gate starts from a fresh project with the
+  Viewport in front, and every document gate opens a document and never plays —
+  the two halves of the ordinary authoring loop, each green on its own. The new
+  check is the loop itself: open a document, press Run.
+
 - **A mini-game package can read its own prefabs and materials.** The mini-game
   filesystem adapter rewrote every custom extension whose content is JSON —
   `.esprefab`, `.esmaterial`, `.estileset`, `.esanimator`, `.eslocale` — to

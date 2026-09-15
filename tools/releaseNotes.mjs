@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(play): Run brings the realm up from wherever the author is standing':
+    { note: 'Run works from wherever you are standing.' },
+
   'fix(logic): a node starved of its input does not run on an invented value':
     { internal: 'Inside the script graph, which no shipped corpus authors yet.' },
 
