@@ -12,7 +12,6 @@
  *          the bytes arrive, so the same code serves both realms.
  */
 
-import { toBuildPath } from '../assetTypes';
 import { extractUuid } from '../asset/AssetRegistry';
 import { platformReadTextFile, platformLoadImagePixels } from '../platform';
 import { ManifestModel, type AddressableManifest } from '../asset/AddressableManifest';
@@ -271,7 +270,7 @@ export function indexPackagedManifest(manifest: AddressableManifest): PackagedAs
         // A scene spells asset refs `@uuid:<v4>`, while the manifest indexes bare
         // uuids — strip the prefix before looking up, or every `@uuid:` ref falls
         // through as a literal path and 404s.
-        resolvePath: (ref) => model.resolvePath(extractUuid(ref) ?? ref, toBuildPath),
+        resolvePath: (ref) => model.resolvePath(extractUuid(ref) ?? ref),
         // The authored logical path behind any spelling — its uuid, its logical
         // address, or its staged (content-addressed) path. Lets a loader recover the
         // directory a sibling was authored in after the rename hid it.

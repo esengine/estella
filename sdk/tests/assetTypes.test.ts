@@ -13,7 +13,6 @@ import {
     getWeChatPackOptions,
     getAssetMimeType,
     isCustomExtension,
-    toBuildPath,
 } from '../src/assetTypes';
 
 describe('getAssetTypeEntry', () => {
@@ -193,24 +192,5 @@ describe('isCustomExtension', () => {
 
     it('should return false for unknown', () => {
         expect(isCustomExtension('file.xyz')).toBe(false);
-    });
-});
-
-describe('toBuildPath', () => {
-    it('should convert json-content custom extension to .json', () => {
-        expect(toBuildPath('data/item.esmaterial')).toBe('data/item.json');
-        expect(toBuildPath('data/hero.esprefab')).toBe('data/hero.json');
-    });
-
-    it('should not convert non-json content types', () => {
-        expect(toBuildPath('spine/char.atlas')).toBe('spine/char.atlas');
-    });
-
-    it('should not convert non-packable files', () => {
-        expect(toBuildPath('assets/hero.png')).toBe('assets/hero.png');
-    });
-
-    it('should pass through unknown extensions', () => {
-        expect(toBuildPath('file.xyz')).toBe('file.xyz');
     });
 });

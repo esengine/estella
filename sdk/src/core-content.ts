@@ -33,7 +33,6 @@ export {
     getWeChatPackOptions,
     getAssetMimeType,
     isCustomExtension,
-    toBuildPath,
 } from './assetTypes';
 
 // =============================================================================

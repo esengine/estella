@@ -4,8 +4,9 @@
  * @file    fs.ts
  * @brief   Filesystem helpers over a mini-game FileSystemManager (vendor-neutral).
  *
- * Thin wrappers over `MiniGameGlobal.getFileSystemManager()`. Path conversion
- * (toBuildPath) happens at the adapter level, not here — this layer is pure I/O.
+ * Thin wrappers over `MiniGameGlobal.getFileSystemManager()`. A path arrives
+ * already resolved against the package's manifest — the file ships under the
+ * name the cook staged it as, so this layer reads it verbatim.
  * The `hostLabel` threads the vendor name ("WeChat" / "抖音") into permission
  * guidance so the message names the right devtools.
  */

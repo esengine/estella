@@ -14,6 +14,27 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A mini-game package can read its own prefabs and materials.** The mini-game
+  filesystem adapter rewrote every custom extension whose content is JSON —
+  `.esprefab`, `.esmaterial`, `.estileset`, `.esanimator`, `.eslocale` — to
+  `.json` before handing the name to the host. That was how a long-replaced
+  exporter staged them; the cook keeps the authored extension, and the export
+  declares it in `packOptions.include` so the packer ships it under that name.
+  So a WeChat build resolved a prefab to exactly the right file, asked the
+  device for one it had never written, and died on the first load with
+  `File not found: "assets/…/Foo.json"` — a name the project does not contain
+  anywhere, which is why it read as a culled asset rather than a wrong spelling.
+  The adapter now reads the path the manifest gives it.
+  ([#61](https://github.com/esengine/estella/issues/61))
+
+  The two halves of this — what the exporter NAMES a file and what the runtime
+  ASKS for — never read each other, so only a build can show that they agree:
+  a new export gate walks the real resolution a packaged runtime performs over
+  the manifest an export actually wrote, and asserts every spelling of every
+  asset lands on a file the package carries.
+
 ## [0.67.0] - 2026-09-15
 
 ### Added

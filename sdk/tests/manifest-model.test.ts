@@ -132,24 +132,15 @@ describe('ManifestModel resolution', () => {
         expect(model().resolvePath('uuid-1')).toBe('images/a.abc123.png');
     });
 
-    it('resolvePath: key hit after normalize', () => {
-        // ref isn't a key, but normalize maps it onto one.
-        const r = model().resolvePath('raw', (s) => (s === 'raw' ? 'uuid-1' : s));
-        expect(r).toBe('images/a.abc123.png');
-    });
-
-    it('resolvePath: path hit (identity normalize)', () => {
+    it('resolvePath: path hit', () => {
         expect(model().resolvePath('b.png')).toBe('b.png');
     });
 
-    it('resolvePath: path hit after normalize (toBuildPath-style)', () => {
-        const r = model().resolvePath('b.src', (s) => (s === 'b.src' ? 'b.png' : s));
-        expect(r).toBe('b.png');
-    });
-
-    it('resolvePath: miss returns the normalized ref', () => {
-        expect(model().resolvePath('nope', (s) => `${s}.x`)).toBe('nope.x');
-        expect(model().resolvePath('nope')).toBe('nope');
+    // A build path is the name the cook staged the file under. A ref nothing
+    // knows comes back spelled exactly as it was asked for, so the read that
+    // fails names the file the caller actually wanted.
+    it('resolvePath: miss returns the ref verbatim', () => {
+        expect(model().resolvePath('assets/hero.esprefab')).toBe('assets/hero.esprefab');
     });
 
     // The address is the asset's LOGICAL source path, kept when content-addressed

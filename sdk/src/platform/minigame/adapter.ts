@@ -31,7 +31,6 @@ import type {
 } from '../types';
 import type { PlatformAudioBackend } from '../../audio/PlatformAudioBackend';
 import type { PlatformVideoBackend, VideoBackendContext } from '../../video/PlatformVideoBackend';
-import { toBuildPath } from '../../assetTypes';
 import { log } from '../../util/logger';
 import type {
     MiniGameGlobal, MiniGameProfile, MiniGameCanvas, MiniGameFileSystemManager, MiniGameTouchEvent,
@@ -73,15 +72,15 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
     }
 
     async readFile(path: string): Promise<ArrayBuffer> {
-        return mgReadFileSync(this.fs(), toBuildPath(path), this.profile_.hostLabel);
+        return mgReadFileSync(this.fs(), path, this.profile_.hostLabel);
     }
 
     async readTextFile(path: string): Promise<string> {
-        return mgReadTextFileSync(this.fs(), toBuildPath(path), this.profile_.hostLabel);
+        return mgReadTextFileSync(this.fs(), path, this.profile_.hostLabel);
     }
 
     async fileExists(path: string): Promise<boolean> {
-        return mgFileExistsSync(this.fs(), toBuildPath(path));
+        return mgFileExistsSync(this.fs(), path);
     }
 
     async loadImagePixels(path: string): Promise<ImageLoadResult> {
