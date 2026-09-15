@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(sdk): a reloaded bundle addresses the world it is reloading into':
+    { note: 'A hot reload no longer empties the running game of every resource' },
+
   'feat(corpus): a room that is actually lit, and a gate that keeps it lit':
     { note: 'A room in the corpus is actually lit.' },
   'refactor(engine): the collector composes a transform through the SDK\'s own':

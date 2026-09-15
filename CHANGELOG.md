@@ -173,6 +173,31 @@ published separately; it ships inside the editor.
   Skinned meshes take no bake: bones move a character, and a bake cannot hold one
   still long enough to light it.
 
+### Fixed
+
+- **A hot reload no longer empties the running game of every resource**
+  ([#60](https://github.com/esengine/estella/issues/60)). Edit a script while the
+  game is playing and the editor re-imports the bundle and swaps the system
+  bodies in place, keeping the live World. The re-imported `defineResource`
+  minted a *fresh* identity, so every swapped system addressed a slot nothing had
+  filled — and a resource read that misses does not fail, it materialises the
+  default, which for the usual `defineResource<T>(null!, 'Name')` is `null`. The
+  symptom was the whole project throwing `Cannot read properties of null` from
+  every system, every frame, one edit after Play, until something forced a full
+  restart. `defineEvent` had the same flaw: its re-import wrote to a bus nothing
+  resolving the event by name could reach, and left the old one behind.
+
+  Both are now interned by NAME, module-globally, the way component identity
+  already was — so two declarations of one name are one resource (one event), and
+  a re-evaluated bundle lands on the live world's storage. A name was already the
+  address a compiled manifest, `getResourceByName` and the editor's resource list
+  used; the symbol was the one door that disagreed, which is why `declaredResource`
+  needed an "ambiguous" state to cope. That state is gone with the disagreement.
+
+  `check-reload-identity` is the gate: every public `define*` door owes an answer
+  about what its *second* evaluation addresses — read from its source, not from a
+  list — so a door added later cannot be silent about it.
+
 ## [0.66.0] - 2026-09-14
 
 ### Added

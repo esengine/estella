@@ -47,15 +47,25 @@ export interface EventDef<T> {
  */
 export function defineEvent<T>(name: string, payload?: T & object): EventDef<T> {
     const def: EventDef<T> = {
-        _id: Symbol(`Event_${name}`),
+        _id: eventId(name),
         _name: name,
         ...(payload === undefined ? {} : { _default: payload as object }),
     };
-    // By name as well, because a compiled module's manifest carries names. The
-    // FIRST wins: a second event of the same name is a different event, and
-    // quietly rebinding the name would deliver one system's payloads to another.
-    if (!byName.has(name)) byName.set(name, def as EventDef<unknown>);
+    byName.set(name, def as EventDef<unknown>);
     return def;
+}
+
+// Interned by NAME, like component and resource identity. A manifest addresses
+// an event by name, so a fresh symbol per call made the two doors disagree: a
+// hot reload's systems wrote to a bus nothing resolving by name could reach.
+const eventIdRegistry = new Map<string, symbol>();
+function eventId(name: string): symbol {
+    let id = eventIdRegistry.get(name);
+    if (id === undefined) {
+        id = Symbol(`Event_${name}`);
+        eventIdRegistry.set(name, id);
+    }
+    return id;
 }
 
 const byName = new Map<string, EventDef<unknown>>();

@@ -30,29 +30,39 @@ export interface ResourceDef<T> {
 
 let resourceCounter = 0;
 
+// Interned by NAME, module-globally, like component identity (component.ts). A
+// hot reload re-evaluates this declaration, and a fresh symbol would address a
+// slot nothing filled — which `get` answers with the DEFAULT, not a failure.
+const resourceIdRegistry = new Map<string, symbol>();
+function resourceId(name: string): symbol {
+    let id = resourceIdRegistry.get(name);
+    if (id === undefined) {
+        id = Symbol(`Resource_${name}`);
+        resourceIdRegistry.set(name, id);
+    }
+    return id;
+}
+
 /**
- * Declare a resource: one value the whole world shares, addressed by the
- * definition rather than by a name. `name` is for diagnostics and the editor
- * only — two calls answer two distinct resources however they are named.
+ * Declare a resource: one value the whole world shares. A NAMED one is addressed
+ * by its name, so two declarations of one name are one resource; an unnamed one
+ * is addressed by the definition, and two calls answer two.
+ *
+ * An empty slot materialises the LATEST declaration's `defaultValue`.
  *
  * @public
  */
 export function defineResource<T>(defaultValue: T, name?: string): ResourceDef<T> {
-    const id = ++resourceCounter;
+    const anonymous = `Resource_${++resourceCounter}`;
     const def: ResourceDef<T> = {
-        _id: Symbol(`Resource_${id}_${name ?? ''}`),
-        _name: name ?? `Resource_${id}`,
+        _id: name === undefined ? Symbol(anonymous) : resourceId(name),
+        _name: name ?? anonymous,
         _default: defaultValue
     };
     // The engine's own resources answer to their NAME too, because a compiled
-    // module's manifest carries names. Only the DECLARED ones: a project's
-    // resource is identified by reference, and two may share a name.
+    // module's manifest carries names.
     if (name && RESOURCE_SHAPES[name]) builtinByName.set(name, def as ResourceDef<unknown>);
-    else if (name !== undefined) {
-        // Two declarations of one name cannot both be what a manifest means.
-        if (declaredByName.has(name)) ambiguousNames.add(name);
-        declaredByName.set(name, def as ResourceDef<unknown>);
-    }
+    else if (name !== undefined) declaredByName.set(name, def as ResourceDef<unknown>);
     return def;
 }
 
@@ -60,7 +70,6 @@ export function defineResource<T>(defaultValue: T, name?: string): ResourceDef<T
 const builtinByName = new Map<string, ResourceDef<unknown>>();
 /** And for the names a PROJECT declares, which a manifest also carries. */
 const declaredByName = new Map<string, ResourceDef<unknown>>();
-const ambiguousNames = new Set<string>();
 
 /**
  * The engine resource a manifest's NAME refers to, or undefined when the module
@@ -78,13 +87,12 @@ export function builtinResource(name: string): ResourceDef<unknown> | undefined 
  * A named resource a project DECLARED, whether or not anything has inserted one.
  *
  * The storage learns a name on INSERT, so a resource nothing had touched was
- * invisible to the AOT handshake. Undefined for an AMBIGUOUS name: two
- * declarations sharing one is a project no manifest can describe.
+ * invisible to the AOT handshake.
  *
  * @internal
  */
 export function declaredResource(name: string): ResourceDef<unknown> | undefined {
-    return ambiguousNames.has(name) ? undefined : declaredByName.get(name);
+    return declaredByName.get(name);
 }
 
 // =============================================================================

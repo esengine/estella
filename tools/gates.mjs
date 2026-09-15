@@ -173,6 +173,10 @@ export const GATES = [
   // A field declares that it carries an asset in one place; everything that acts
   // on live assets has to read THAT rather than keep a list of components beside it.
   { id: 'live-asset-rebind', run: 'node tools/check-live-asset-rebind.mjs' },
+  // A hot reload re-evaluates the project bundle against a World still alive, so
+  // every public `define*` door owes an answer about what its second evaluation
+  // addresses — resources and events answered wrong, and every system read null.
+  { id: 'reload-identity', run: 'node tools/check-reload-identity.mjs' },
   // A scene that unloads and a load that failed halfway own the same things;
   // two implementations of giving them back is how one came to miss four steps.
   { id: 'scene-teardown', run: 'node tools/check-scene-teardown.mjs' },

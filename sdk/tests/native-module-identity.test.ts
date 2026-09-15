@@ -4,16 +4,18 @@
  * @file  native-module-identity.test.ts — a subpath a native game imports and
  *        the graph the runtime installs from are ONE module.
  *
- * `Res` is keyed by identity, so a separately bundled `esengine/physics3d`
- * mints a second `Physics3D`: the runtime installs a resource under the first,
- * the game asks with the second, and the two halves miss each other with no
- * error anywhere. `Physics3D !== undefined` cannot see that — the last case
- * here is the sabotage, and it is what makes the assertion above mean something.
+ * A separately bundled `esengine/physics3d` mints a second `Physics3D`, and
+ * everything it carries is then a second copy: the plugin, the queries object,
+ * the bridge to the module. The RESOURCE token survives that — identity is
+ * interned by name (resource.ts) — but nothing else does, so the namespace still
+ * has to hand back this graph's exports rather than a rival's.
+ * `Physics3D !== undefined` cannot see any of it; the last cases here are the
+ * sabotage, and they are what make the assertions above mean something.
  */
 import { describe, it, expect } from 'vitest';
 import { App } from '../src/app/app';
 import { defineResource } from '../src/ecs/resource';
-import { Physics3D } from '../src/physics3d/Physics3DPlugin';
+import { Physics3D, Physics3DPlugin } from '../src/physics3d/Physics3DPlugin';
 import { Physics2D } from '../src/physics/Physics2DPlugin';
 import { Spine } from '../src/spine/SpinePlugin';
 import {
@@ -66,14 +68,27 @@ describe('identity, which is the whole point', () => {
         expect(app.hasResource(asTheGameImportsIt)).toBe(true);
     });
 
-    it('a second bundle of the same module is NOT found — the failure this prevents', () => {
+    it('a second bundle of the same module still addresses the one slot', () => {
         const app = App.new();
         app.insertResource(Physics3D, null);
 
-        // Byte-for-byte what Physics3DPlugin.ts declares. Same name, same default,
-        // different object — which is all a separately bundled subpath would be.
+        // Byte-for-byte what Physics3DPlugin.ts declares: same name, different
+        // object — a separately bundled subpath, and equally a hot reload.
         const rival = defineResource<unknown>(null, 'Physics3D');
-        expect(app.hasResource(rival)).toBe(false);
         expect(rival).not.toBe(Physics3D);
+        expect(app.hasResource(rival)).toBe(true);
+    });
+
+    it('and a DIFFERENT name is a different slot — the sabotage', () => {
+        const app = App.new();
+        app.insertResource(Physics3D, null);
+        expect(app.hasResource(defineResource<unknown>(null, 'Physics3DRival'))).toBe(false);
+    });
+
+    it('but the namespace must still hand back THIS graph\'s plugin, not a rival\'s', () => {
+        // The name rescues the resource TOKEN and nothing else: a rival bundle's
+        // plugin would install a rival's queries against a rival's wasm module,
+        // and no name anywhere would reconcile the two.
+        expect(imported('esengine/physics3d').Physics3DPlugin).toBe(Physics3DPlugin);
     });
 });

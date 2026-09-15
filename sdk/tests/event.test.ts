@@ -30,10 +30,13 @@ describe('defineEvent', () => {
         expect(a._id).not.toBe(b._id);
     });
 
-    it('should create unique ids even for same name', () => {
+    it('answers the same id for the same name, so a re-imported bundle rebinds', () => {
+        // A hot reload re-evaluates the project bundle, so this declaration runs
+        // again; a fresh id would give the new systems a bus of their own while
+        // everything addressing the event by name still answered the old one.
         const a = defineEvent('Same');
         const b = defineEvent('Same');
-        expect(a._id).not.toBe(b._id);
+        expect(a._id).toBe(b._id);
     });
 });
 

@@ -216,12 +216,19 @@ describe('resource vocabulary', () => {
         expect(descriptor._resource).toBe(Score);
     });
 
-    it('two definitions are two resources however they are named', () => {
-        // The name is diagnostics, not identity: a project that reuses one must
-        // still get its own value rather than silently sharing.
+    it('a name IS the identity: two declarations of one name are one resource', () => {
+        // Every other door already addressed a resource by name (a compiled
+        // manifest, getResourceByName, the editor's list). The symbol was the one
+        // that did not, so a re-imported bundle addressed a slot nothing filled.
         const a = defineResource(0, 'VocabDuplicate');
         const b = defineResource(0, 'VocabDuplicate');
-        expect(a._id).not.toBe(b._id);
+        expect(a._id).toBe(b._id);
+    });
+
+    it('and only within one name — the sabotage that makes the above mean something', () => {
+        expect(defineResource(0, 'VocabA')._id).not.toBe(defineResource(0, 'VocabB')._id);
+        // An UNNAMED resource has no address to share, so each call is its own.
+        expect(defineResource(0)._id).not.toBe(defineResource(0)._id);
     });
 });
 

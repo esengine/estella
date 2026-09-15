@@ -11,9 +11,9 @@
  *
  * Each subpath is represented by an export the CORE namespace does not have, so
  * a regression that quietly re-flattens subpaths onto `globalThis.ESEngine`
- * fails here instead of on a phone. physics3d carries the identity claim, since
- * `Res` is keyed by object identity and a second copy is invisible to any check
- * that only asks whether a name is defined.
+ * fails here instead of on a phone. physics3d carries the identity claim: a
+ * resource token answers to its NAME (resource.ts), so a second copy resolves —
+ * but a token by another name must not, or the claim asks nothing.
  *
  *   node tools/check-native-subpath-imports.mjs
  */
@@ -97,7 +97,7 @@ function exportNative(dir, name) {
 }
 
 // 2. The host's own bundle publishes what those scripts will ask for, and the
-//    token is the one the runtime installs under — not a same-named twin.
+//    token a script holds reaches the slot the runtime installs under.
 {
     const harness = path.join(WORK, 'harness.mjs');
     writeFileSync(harness, `
@@ -114,7 +114,8 @@ const { App } = globalThis.ESEngine;
 const app = App.new();
 app.insertResource(p3, null);
 out.identity = app.hasResource(p3) === true;
-out.rivalRejected = app.hasResource(globalThis.ESEngine.defineResource(null, 'Physics3D')) === false;
+out.rivalResolves = app.hasResource(globalThis.ESEngine.defineResource(null, 'Physics3D')) === true;
+out.strangerRejected = app.hasResource(globalThis.ESEngine.defineResource(null, 'Physics3DStranger')) === false;
 console.log(JSON.stringify(out));
 `);
     const r = spawnSync(process.execPath, [harness], { encoding: 'utf8', cwd: ROOT });
@@ -131,8 +132,10 @@ console.log(JSON.stringify(out));
         }
         check('a resource installed by the runtime answers to the imported token',
               seen.identity === true, 'Res(Physics3D) resolves');
-        check('a same-named token from a second bundle does NOT',
-              seen.rivalRejected === true, 'identity, not the name, is the key');
+        check('a same-named token from a second bundle reaches the same slot',
+              seen.rivalResolves === true, 'the name is the address — a re-import lands on it');
+        check('and a token by another name does NOT',
+              seen.strangerRejected === true, 'the sabotage: without it the claim above asks nothing');
     }
 }
 
