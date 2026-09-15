@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(platform): a mini-game reads the file the package actually carries':
+    { note: 'A mini-game package can read its own prefabs and materials.' },
+
   'fix(pipeline): a bake writes the ref a package can resolve':
     { note: 'A baked room is lit in the package too.' },
 
