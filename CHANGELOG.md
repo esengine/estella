@@ -16,6 +16,23 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A room in the corpus is actually lit.** `physics-3d` — twenty-two boxes and
+  two lamps — now ships with its lighting baked: an atlas beside the scene, and a
+  `MeshLightmap` on every object saying where in it to read. It is the first
+  shipped scene that carries one, and what closes the last debt
+  `check-corpus-authoring` was tracking.
+
+  `estella.mjs bake-scene` is the door CI and a rebake go through, beside the
+  editor's Bake Lighting for a creator. It reads the document rather than a
+  world, so it **refuses a scene with a hierarchy** — resolving one is the
+  editor's answer, and an atlas lit for a place nothing is at looks like a bake
+  that is wrong rather than one never run.
+
+  A gate holds the result, because a baked room rots the moment the baker changes
+  and a stale atlas looks exactly like a correct one. The bake is deterministic,
+  so what is committed is simply compared to what a bake of it produces now —
+  red if either the atlas or the scene has drifted, with the command to fix it.
+
 - **Stock geometry takes a bake, and the density suits this engine's units.**
   Trying to bake a real example found both. `physics-3d` is twenty-two builtin
   cubes and two lights — the most ordinary lightmap candidate there is — and

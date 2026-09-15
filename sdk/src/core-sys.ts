@@ -17,6 +17,14 @@
 // =============================================================================
 
 export { exact, scalar, v2, v3, q, col } from './math';
+/**
+ * A world transform as a column-major 4x4, from a resolved TRS. Public because
+ * more than one reader outside the engine wants it in that form — a bake
+ * collects it from the editor's world, a tool collects it from a document.
+ *
+ * @experimental Pre-1.0.
+ */
+export { composeTRS } from './math/mat4';
 // The engine's one curve: a timeline channel, a particle's size over life, and the
 // editor's curve control all author and sample THIS.
 export {

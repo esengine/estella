@@ -28,6 +28,11 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(corpus): a room that is actually lit, and a gate that keeps it lit':
+    { note: 'A room in the corpus is actually lit.' },
+  'refactor(engine): the collector composes a transform through the SDK\'s own':
+    { internal: 'where one expression lives — the matrix it produces is identical' },
+
   'feat(lighting): stock geometry takes a bake, and a refused one says why':
     { note: 'Stock geometry takes a bake, and the density suits this engine\'s units.' },
   'feat(render): a bake derives UVs for geometry that has no file':

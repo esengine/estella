@@ -16,6 +16,7 @@ const USAGE = `usage: node pipeline/bin/estella.mjs export <projectDir> [options
        node pipeline/bin/estella.mjs import-model <file.gltf|file.glb|file.fbx> [outDir]
                                      [--project <dir>] [--scale <n>]
        node pipeline/bin/estella.mjs import-hdr <file.hdr> [outDir] [--face-size <n>]
+       node pipeline/bin/estella.mjs bake-scene <scene.esscene> [--check]
 
   --platform <id>     web | desktop | wechat | playable | android | ios (default web)
   --out <dir>         output dir (default <projectDir>/dist-<platform>)
@@ -60,6 +61,13 @@ function parseArgs(argv) {
   if (command === '--help' || command === '-h' || command === 'help') {
     console.log(USAGE);
     process.exit(0);
+  }
+  if (command === 'bake-scene') {
+    if (!projectDir) {
+      console.error(USAGE);
+      process.exit(2);
+    }
+    return { command, source: path.resolve(projectDir), check: rest.includes('--check') };
   }
   if (command === 'import-model' || command === 'import-gltf' || command === 'import-hdr') {
     if (!projectDir) {
@@ -107,6 +115,133 @@ const HOST_DESKTOP_OS = process.platform === 'darwin' ? 'macos'
  * with a `require` shim, because some dependencies are CommonJS (pngjs). esbuild
  * itself stays external and resolves at runtime.
  */
+const BAKE_IDENTITY_Q = { x: 0, y: 0, z: 0, w: 1 };
+const BAKE_ONE = { x: 1, y: 1, z: 1 };
+const BAKE_ZERO = { x: 0, y: 0, z: 0 };
+const BAKE_LIGHT_KIND = { 0: 'point', 1: 'directional', 2: 'spot' };
+
+const bakeComponent = (entity, type) => entity.components?.find((c) => c.type === type);
+const bakeVec = (v, fallback) => ({ ...fallback, ...(v ?? {}) });
+
+/** Column-major 4x4 from a document's Transform. Flat scenes only — see bakeScene. */
+function bakeTransformOf(entity) {
+  const tf = bakeComponent(entity, 'Transform')?.data ?? {};
+  const p = bakeVec(tf.position, BAKE_ZERO);
+  const { x, y, z, w } = bakeVec(tf.rotation, BAKE_IDENTITY_Q);
+  const s = bakeVec(tf.scale, BAKE_ONE);
+  return [
+    (1 - 2 * (y * y + z * z)) * s.x, (2 * (x * y + z * w)) * s.x, (2 * (x * z - y * w)) * s.x, 0,
+    (2 * (x * y - z * w)) * s.y, (1 - 2 * (x * x + z * z)) * s.y, (2 * (y * z + x * w)) * s.y, 0,
+    (2 * (x * z + y * w)) * s.z, (2 * (y * z - x * w)) * s.z, (1 - 2 * (x * x + y * y)) * s.z, 0,
+    p.x, p.y, p.z, 1,
+  ];
+}
+
+/** Where a light aims: -Z under its rotation, as the renderer reads it. */
+function bakeForwardOf(q) {
+  const { x, y, z, w } = q;
+  return [-2 * (x * z + y * w), -2 * (y * z - x * w), -(1 - 2 * (x * x + y * y))];
+}
+
+/**
+ * Bakes a shipped scene, or checks that what is committed IS a bake of it.
+ *
+ * Reads the DOCUMENT rather than a world, which is why a scene with a hierarchy
+ * is refused: resolving one is the editor's job, and an atlas lit for a place
+ * nothing is at looks like a bake that is wrong rather than one never run.
+ */
+async function bakeScene(baker, sceneFile, check) {
+  const sceneDir = path.dirname(sceneFile);
+  const rel = path.relative(REPO, sceneFile);
+  const scene = JSON.parse(readFileSync(sceneFile, 'utf8'));
+
+  const parented = (scene.entities ?? []).filter((e) => e.parent != null);
+  if (parented.length > 0) {
+    console.error(`bake-scene: ${rel} has ${parented.length} parented entit(ies), whose world`
+      + ' transforms only the editor resolves — bake it there instead.');
+    return 1;
+  }
+
+  const surfaces = [];
+  const lights = [];
+  for (const entity of scene.entities ?? []) {
+    const tf = bakeComponent(entity, 'Transform')?.data ?? {};
+    const mesh = bakeComponent(entity, 'MeshRenderer');
+    const light = bakeComponent(entity, 'Light');
+    if (mesh && mesh.data?.enabled !== false) {
+      const ref = typeof mesh.data?.mesh === 'string' ? mesh.data.mesh : '';
+      const builtin = ref.startsWith('builtin:') ? ref : undefined;
+      const file = builtin ? '' : path.resolve(sceneDir, ref);
+      if (builtin || (ref && existsSync(file))) {
+        const c = mesh.data?.color;
+        surfaces.push({
+          entity: entity.id, label: entity.name ?? String(entity.id),
+          meshFile: file, builtinRef: builtin, transform: bakeTransformOf(entity),
+          baseColor: c ? [c.r ?? 1, c.g ?? 1, c.b ?? 1] : undefined,
+        });
+      }
+    }
+    if (light && light.data?.enabled !== false) {
+      const d = light.data ?? {};
+      const p = bakeVec(tf.position, BAKE_ZERO);
+      const kind = BAKE_LIGHT_KIND[d.type ?? 0] ?? 'point';
+      const cos = (deg) => Math.cos(((deg ?? 45) * Math.PI) / 180 / 2);
+      lights.push({
+        kind, position: [p.x, p.y, p.z],
+        direction: bakeForwardOf(bakeVec(tf.rotation, BAKE_IDENTITY_Q)),
+        color: [d.color?.r ?? 1, d.color?.g ?? 1, d.color?.b ?? 1],
+        intensity: d.intensity ?? 1,
+        radius: kind === 'directional' ? undefined : (d.radius ?? 200),
+        innerCos: cos(d.innerAngle), outerCos: cos(d.outerAngle),
+      });
+    }
+  }
+
+  const result = baker.bakeSceneLightmap({ surfaces, lights });
+  for (const w of result.warnings) console.warn(`  ! ${w}`);
+
+  const stem = path.basename(sceneFile).replace(/\.esscene$/i, '');
+  const atlasName = `${stem}_lightmap.png`;
+  const atlasFile = path.join(sceneDir, atlasName);
+
+  const placed = new Map();
+  result.scaleOffset.forEach((rect, i) => { if (rect) placed.set(surfaces[i].entity, rect); });
+  for (const entity of scene.entities ?? []) {
+    const rect = placed.get(entity.id);
+    const at = entity.components.findIndex((c) => c.type === 'MeshLightmap');
+    if (!rect) {
+      if (at >= 0) entity.components.splice(at, 1);
+      continue;
+    }
+    const data = { lightmap: atlasName,
+                   scaleOffset: { x: rect[0], y: rect[1], z: rect[2], w: rect[3] } };
+    if (at >= 0) entity.components[at] = { type: 'MeshLightmap', data };
+    else entity.components.push({ type: 'MeshLightmap', data });
+  }
+  const document = `${JSON.stringify(scene, null, 2)}\n`;
+
+  if (check) {
+    const staleAtlas = !existsSync(atlasFile)
+      || Buffer.compare(readFileSync(atlasFile), Buffer.from(result.atlasBytes)) !== 0;
+    const staleScene = readFileSync(sceneFile, 'utf8') !== document;
+    if (staleAtlas || staleScene) {
+      const what = [staleAtlas && 'the atlas', staleScene && 'the scene'].filter(Boolean).join(' and ');
+      console.error(`bake-scene: ${rel} is not what a bake of it produces (${what} differ).`);
+      console.error(`Rebake: node pipeline/bin/estella.mjs bake-scene ${rel}`);
+      return 1;
+    }
+    console.log(`bake-scene: ${rel} matches a fresh bake`
+      + ` (${result.lumels} lumel(s) over ${placed.size} object(s)).`);
+    return 0;
+  }
+
+  writeFileSync(atlasFile, result.atlasBytes);
+  writeFileSync(sceneFile, document);
+  console.log(`bake-scene: ${result.lumels} lumel(s) over ${placed.size} object(s)`
+    + ` -> ${path.relative(REPO, atlasFile)}`);
+  return 0;
+}
+
 async function loadPipeline(entry, outName) {
   const require = createRequire(path.join(PIPELINE, 'package.json'));
   const esbuild = require('esbuild');
@@ -289,6 +424,16 @@ if (opts.command === 'import-model' || opts.command === 'import-gltf') {
     cleanupMeta();
   }
   process.exit(imported > 0 ? 0 : 1);
+}
+
+if (opts.command === 'bake-scene') {
+  const { mod: baker, cleanup } = await loadPipeline(
+    path.join(PIPELINE, 'src', 'assets', 'lightmapBake.ts'), 'lightmapBake.mjs');
+  try {
+    process.exit(await bakeScene(baker, opts.source, opts.check));
+  } finally {
+    cleanup();
+  }
 }
 
 if (opts.command === 'import-hdr') {

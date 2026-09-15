@@ -85,6 +85,18 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "MeshLightmap",
+          "data": {
+            "lightmap": "main_lightmap.png",
+            "scaleOffset": {
+              "x": 0.59765625,
+              "y": 0.59765625,
+              "z": 0,
+              "w": 0
+            }
+          }
         }
       ]
     },
@@ -139,6 +151,18 @@
               "g": 0.32,
               "b": 0.28,
               "a": 1
+            }
+          }
+        },
+        {
+          "type": "MeshLightmap",
+          "data": {
+            "lightmap": "main_lightmap.png",
+            "scaleOffset": {
+              "x": 0.1455078125,
+              "y": 0.1455078125,
+              "z": 0.59765625,
+              "w": 0.21875
             }
           }
         }
@@ -197,6 +221,18 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "MeshLightmap",
+          "data": {
+            "lightmap": "main_lightmap.png",
+            "scaleOffset": {
+              "x": 0.169921875,
+              "y": 0.169921875,
+              "z": 0.81640625,
+              "w": 0
+            }
+          }
         }
       ]
     },
@@ -251,6 +287,18 @@
               "g": 0.36,
               "b": 0.44,
               "a": 1
+            }
+          }
+        },
+        {
+          "type": "MeshLightmap",
+          "data": {
+            "lightmap": "main_lightmap.png",
+            "scaleOffset": {
+              "x": 0.21875,
+              "y": 0.21875,
+              "z": 0.59765625,
+              "w": 0
             }
           }
         }
@@ -311,6 +359,18 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "MeshLightmap",
+          "data": {
+            "lightmap": "main_lightmap.png",
+            "scaleOffset": {
+              "x": 0.05078125,
+              "y": 0.05078125,
+              "z": 0.939453125,
+              "w": 0.3935546875
+            }
+          }
         }
       ]
     },
@@ -367,6 +427,18 @@
               "g": 0.44,
               "b": 0.24,
               "a": 1
+            }
+          }
+        },
+        {
+          "type": "MeshLightmap",
+          "data": {
+            "lightmap": "main_lightmap.png",
+            "scaleOffset": {
+              "x": 0.05078125,
+              "y": 0.05078125,
+              "z": 0.666015625,
+              "w": 0.4267578125
             }
           }
         }
@@ -427,6 +499,18 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "MeshLightmap",
+          "data": {
+            "lightmap": "main_lightmap.png",
+            "scaleOffset": {
+              "x": 0.05078125,
+              "y": 0.05078125,
+              "z": 0.59765625,
+              "w": 0.4326171875
+            }
+          }
         }
       ]
     },
@@ -481,6 +565,18 @@
               "g": 0.3,
               "b": 0.34,
               "a": 1
+            }
+          }
+        },
+        {
+          "type": "MeshLightmap",
+          "data": {
+            "lightmap": "main_lightmap.png",
+            "scaleOffset": {
+              "x": 0.0712890625,
+              "y": 0.0712890625,
+              "z": 0.8818359375,
+              "w": 0.322265625
             }
           }
         }
@@ -560,6 +656,18 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "MeshLightmap",
+          "data": {
+            "lightmap": "main_lightmap.png",
+            "scaleOffset": {
+              "x": 0.138671875,
+              "y": 0.138671875,
+              "z": 0.7431640625,
+              "w": 0.322265625
+            }
+          }
         }
       ]
     },
@@ -606,6 +714,18 @@
               "g": 0.62,
               "b": 0.3,
               "a": 1
+            }
+          }
+        },
+        {
+          "type": "MeshLightmap",
+          "data": {
+            "lightmap": "main_lightmap.png",
+            "scaleOffset": {
+              "x": 0.0625,
+              "y": 0.0625,
+              "z": 0.666015625,
+              "w": 0.3642578125
             }
           }
         }
@@ -735,6 +855,18 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "MeshLightmap",
+          "data": {
+            "lightmap": "main_lightmap.png",
+            "scaleOffset": {
+              "x": 0.044921875,
+              "y": 0.044921875,
+              "z": 0.939453125,
+              "w": 0.4443359375
+            }
+          }
         }
       ]
     },
@@ -796,6 +928,18 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "MeshLightmap",
+          "data": {
+            "lightmap": "main_lightmap.png",
+            "scaleOffset": {
+              "x": 0.0419921875,
+              "y": 0.0419921875,
+              "z": 0.759765625,
+              "w": 0.4609375
+            }
+          }
         }
       ]
     },
@@ -850,6 +994,18 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "MeshLightmap",
+          "data": {
+            "lightmap": "main_lightmap.png",
+            "scaleOffset": {
+              "x": 0.0576171875,
+              "y": 0.0576171875,
+              "z": 0.8818359375,
+              "w": 0.3935546875
+            }
+          }
         }
       ]
     },
@@ -900,6 +1056,18 @@
               "g": 0.57,
               "b": 0.62,
               "a": 1
+            }
+          }
+        },
+        {
+          "type": "MeshLightmap",
+          "data": {
+            "lightmap": "main_lightmap.png",
+            "scaleOffset": {
+              "x": 0.15234375,
+              "y": 0.15234375,
+              "z": 0.81640625,
+              "w": 0.169921875
             }
           }
         }
@@ -955,6 +1123,18 @@
               "g": 0.57,
               "b": 0.62,
               "a": 1
+            }
+          }
+        },
+        {
+          "type": "MeshLightmap",
+          "data": {
+            "lightmap": "main_lightmap.png",
+            "scaleOffset": {
+              "x": 0.033203125,
+              "y": 0.033203125,
+              "z": 0.6484375,
+              "w": 0.4775390625
             }
           }
         }
@@ -1029,6 +1209,18 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "MeshLightmap",
+          "data": {
+            "lightmap": "main_lightmap.png",
+            "scaleOffset": {
+              "x": 0.037109375,
+              "y": 0.037109375,
+              "z": 0.8017578125,
+              "w": 0.4609375
+            }
+          }
         }
       ]
     },
@@ -1083,6 +1275,18 @@
               "g": 0.7,
               "b": 0.66,
               "a": 1
+            }
+          }
+        },
+        {
+          "type": "MeshLightmap",
+          "data": {
+            "lightmap": "main_lightmap.png",
+            "scaleOffset": {
+              "x": 0.04296875,
+              "y": 0.04296875,
+              "z": 0.8818359375,
+              "w": 0.451171875
             }
           }
         }
@@ -1147,6 +1351,18 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "MeshLightmap",
+          "data": {
+            "lightmap": "main_lightmap.png",
+            "scaleOffset": {
+              "x": 0.04296875,
+              "y": 0.04296875,
+              "z": 0.716796875,
+              "w": 0.4609375
+            }
+          }
         }
       ]
     },
@@ -1200,6 +1416,18 @@
               "g": 0.57,
               "b": 0.62,
               "a": 1
+            }
+          }
+        },
+        {
+          "type": "MeshLightmap",
+          "data": {
+            "lightmap": "main_lightmap.png",
+            "scaleOffset": {
+              "x": 0.0283203125,
+              "y": 0.0283203125,
+              "z": 0.681640625,
+              "w": 0.4775390625
             }
           }
         }
@@ -1266,6 +1494,18 @@
               "a": 1
             }
           }
+        },
+        {
+          "type": "MeshLightmap",
+          "data": {
+            "lightmap": "main_lightmap.png",
+            "scaleOffset": {
+              "x": 0.0341796875,
+              "y": 0.0341796875,
+              "z": 0.8388671875,
+              "w": 0.4609375
+            }
+          }
         }
       ]
     },
@@ -1319,6 +1559,18 @@
               "g": 0.57,
               "b": 0.62,
               "a": 1
+            }
+          }
+        },
+        {
+          "type": "MeshLightmap",
+          "data": {
+            "lightmap": "main_lightmap.png",
+            "scaleOffset": {
+              "x": 0.025390625,
+              "y": 0.025390625,
+              "z": 0.59765625,
+              "w": 0.4833984375
             }
           }
         }
@@ -1394,6 +1646,18 @@
               "g": 0.7,
               "b": 0.66,
               "a": 1
+            }
+          }
+        },
+        {
+          "type": "MeshLightmap",
+          "data": {
+            "lightmap": "main_lightmap.png",
+            "scaleOffset": {
+              "x": 0.068359375,
+              "y": 0.068359375,
+              "z": 0.59765625,
+              "w": 0.3642578125
             }
           }
         }

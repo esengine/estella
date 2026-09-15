@@ -161,6 +161,25 @@ export function invertViewOrbit(
 
 const _mulM = new Float32Array(16);
 
+/**
+ * A world transform as a column-major 4x4, from the TRS the engine resolved.
+ *
+ * One author for it, because more than one reader wants it in this form — a bake
+ * collects it from the editor's world, and a tool collects it from a document —
+ * and two transcriptions of a rotation matrix are two chances to transpose one.
+ */
+export function composeTRS(p: { x: number; y: number; z: number },
+                           q: { x: number; y: number; z: number; w: number },
+                           s: { x: number; y: number; z: number }): number[] {
+    const { x, y, z, w } = q;
+    return [
+        (1 - 2 * (y * y + z * z)) * s.x, (2 * (x * y + z * w)) * s.x, (2 * (x * z - y * w)) * s.x, 0,
+        (2 * (x * y - z * w)) * s.y, (1 - 2 * (x * x + z * z)) * s.y, (2 * (y * z + x * w)) * s.y, 0,
+        (2 * (x * z + y * w)) * s.z, (2 * (y * z - x * w)) * s.z, (1 - 2 * (x * x + y * y)) * s.z, 0,
+        p.x, p.y, p.z, 1,
+    ];
+}
+
 export function multiply(a: Float32Array, b: Float32Array): Float32Array {
     const m = _mulM;
     for (let i = 0; i < 4; i++) {

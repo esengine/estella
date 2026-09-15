@@ -221,6 +221,15 @@ export const GATES = [
   { id: 'import-settings', run: 'node tools/check-import-settings.mjs' },
   { id: 'gizmo-coverage', run: 'node tools/check-gizmo-coverage.mjs', needs: 'editor' },
   { id: 'corpus-authoring', run: 'node tools/check-corpus-authoring.mjs' },
+  {
+    // A baked room in the corpus rots the moment the baker changes, and a stale
+    // atlas looks exactly like a correct one. Rebaking is deterministic, so what
+    // is committed can simply be compared to what a bake of it produces now.
+    id: 'corpus-bake',
+    run: 'node pipeline/bin/estella.mjs bake-scene'
+      + ' examples/physics-3d/assets/scenes/main.esscene --check',
+    why: 'the bake reads the meshes the scene names, and takes about ten seconds',
+  },
   { id: 'asset-vocabulary', run: 'node tools/check-asset-vocabulary.mjs' },
   { id: 'lod-authoring', run: 'node tools/check-lod-authoring.mjs', needs: 'editor' },
   { id: 'shadow-plan', run: 'node tools/check-shadow-plan.mjs' },
