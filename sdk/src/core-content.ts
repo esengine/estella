@@ -152,6 +152,16 @@ export {
  */
 export {
     bakeLightmap, type BakeOptions, type BakeResult, type BakeSurface, type BakeLight,
+    type ProbeGrid, bakeHoldsStill, type BakeMobility,
+} from './lightmap';
+/**
+ * Nine coefficients, as the shader reads them. A panorama import and a probe
+ * solve both produce these, and this is the one basis both go through.
+ *
+ * @experimental Pre-1.0: exported for the importers that write coefficients.
+ */
+export {
+    shBasis, convolveCosine, evalIrradianceSH, SH_BASIS_SCALE, SH_COSINE_BAND,
 } from './lightmap';
 /**
  * Stock geometry a `builtin:<id>` mesh ref names. Public because the editor's

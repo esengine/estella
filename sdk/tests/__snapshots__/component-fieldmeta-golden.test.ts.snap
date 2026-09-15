@@ -430,6 +430,10 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
     "probes": {
       "tooltip": "Baked probe grid (.esprobes) filling this box.",
     },
+    "spacing": {
+      "min": 1,
+      "tooltip": "World units between probes the next bake lays down.",
+    },
   },
   "Marker": {
     "properties": {

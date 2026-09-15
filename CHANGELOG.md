@@ -16,6 +16,24 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A bake now solves the probes too, and refuses to light what moves.** One pass
+  over one light field produces both: the atlas the surfaces read, and nine
+  coefficients at every point of each `LightProbeVolume`'s grid. A probe gathers
+  the whole sphere where a lumel gathers a hemisphere, and reads the same atlas a
+  bounce does — so a character standing in a red room is lit red by the walls that
+  are lit.
+
+  What a bake may hold still is the physics components' to say, and nothing else
+  declares it: a `CharacterController3D` exists to walk, and a `RigidBody3D` that
+  is not Static is moved by the solver. Those objects are refused an atlas patch —
+  a bake writes light into a PLACE, and they will not be there — and take the
+  volume's light instead. Bake Lighting and `estella.mjs bake-scene` go through
+  the same rule, so the editor and CI cannot disagree about which objects moved.
+
+  `physics-3d` now carries a volume. It also stopped baking its thirteen moving
+  bodies, its hero among them — a character had been wearing the light of the spot
+  it spawns at.
+
 - **Light probes: what lights a thing a bake cannot hold still.** A bake answers
   "what light reaches this surface" for geometry that never moves, and nothing
   answered it for a character — a figure walking out of a lit room kept the one
@@ -44,6 +62,26 @@ published separately; it ships inside the editor.
   whether it solved the right thing. Baking one is the next step.
 
 ### Fixed
+
+- **A scene's ambient light reaches its bake.** `LightType.Ambient` is the third
+  value of the enum and `Spot` the fourth, and both bake collectors read the third
+  as a spot lamp — so the sky lit nothing it was not standing next to. An ambient
+  light occupies no slot and aims nowhere; it is now the bake's ambient term, the
+  way the renderer already folds it into its own. Outdoors this is most of the
+  indirect light there is: `physics-3d`'s probes go from black to carrying its
+  sky's blue.
+
+- **A bake's products can be carried by a package.** `bake-scene` wrote the atlas
+  and nothing else — no `.meta`, so the cook had no identity to carry it by, and
+  the export said so in a warning nobody reads. The scene named an atlas the
+  package did not hold, and the room shipped unlit. The check now fails on a
+  product with no `.meta` and says which command mints one; the editor's own bake
+  already minted them.
+
+- **A gather reads the lit side of a surface.** Light bounced off the BACK of a
+  wall as readily as off its front, because an atlas is per triangle and has no
+  side. A ray arriving at a face from behind now finds it unlit, which is what
+  keeps a probe standing behind a wall from being lit by what the wall hides.
 
 - **A per-draw block reaches the draw that wrote it.** The pose of a skinned
   draw, the shapes of a morphed one and (now) the indirect light of a probe-lit

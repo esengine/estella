@@ -655,12 +655,14 @@ LightJS lightToJS(const esengine::ecs::Light& c) {
 struct LightProbeVolumeJS {
     u32 probes;
     glm::vec3 halfExtents;
+    f32 spacing;
     bool enabled;
 };
 
 void lightprobevolumeApplyJS(esengine::ecs::LightProbeVolume& c, const LightProbeVolumeJS& js) {
     c.probes = resource::ProbeVolumeHandle(js.probes);
     c.halfExtents = js.halfExtents;
+    c.spacing = js.spacing;
     c.enabled = js.enabled;
 }
 
@@ -674,6 +676,7 @@ LightProbeVolumeJS lightprobevolumeToJS(const esengine::ecs::LightProbeVolume& c
     LightProbeVolumeJS js;
     js.probes = c.probes.id();
     js.halfExtents = c.halfExtents;
+    js.spacing = c.spacing;
     js.enabled = c.enabled;
     return js;
 }
@@ -1687,6 +1690,7 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
     value_object<LightProbeVolumeJS>("LightProbeVolume")
         .field("probes", &LightProbeVolumeJS::probes)
         .field("halfExtents", &LightProbeVolumeJS::halfExtents)
+        .field("spacing", &LightProbeVolumeJS::spacing)
         .field("enabled", &LightProbeVolumeJS::enabled);
 
     value_object<MeshCollider3DJS>("MeshCollider3D")
@@ -3247,7 +3251,8 @@ static_assert(offsetof(esengine::ecs::Light, drawEnvironment) == 88, "ABI offset
 static_assert(offsetof(esengine::ecs::Light, enabled) == 89, "ABI offset drift: esengine::ecs::Light.enabled (EHT expected 89)");
 static_assert(offsetof(esengine::ecs::LightProbeVolume, probes) == 0, "ABI offset drift: esengine::ecs::LightProbeVolume.probes (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::LightProbeVolume, halfExtents) == 4, "ABI offset drift: esengine::ecs::LightProbeVolume.halfExtents (EHT expected 4)");
-static_assert(offsetof(esengine::ecs::LightProbeVolume, enabled) == 16, "ABI offset drift: esengine::ecs::LightProbeVolume.enabled (EHT expected 16)");
+static_assert(offsetof(esengine::ecs::LightProbeVolume, spacing) == 16, "ABI offset drift: esengine::ecs::LightProbeVolume.spacing (EHT expected 16)");
+static_assert(offsetof(esengine::ecs::LightProbeVolume, enabled) == 20, "ABI offset drift: esengine::ecs::LightProbeVolume.enabled (EHT expected 20)");
 static_assert(offsetof(esengine::ecs::MeshCollider3D, mesh) == 0, "ABI offset drift: esengine::ecs::MeshCollider3D.mesh (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::MeshCollider3D, friction) == 4, "ABI offset drift: esengine::ecs::MeshCollider3D.friction (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::MeshCollider3D, restitution) == 8, "ABI offset drift: esengine::ecs::MeshCollider3D.restitution (EHT expected 8)");
@@ -3492,7 +3497,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "cccf3c7425936b84";
+static const char* kEsAbiLayoutHash = "bfed6926d0e50843";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

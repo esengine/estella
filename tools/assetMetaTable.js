@@ -79,6 +79,7 @@ export const EXT_TO_TYPE = Object.freeze({
     '.aseprite': 'animated',
     '.ase': 'animated',
     '.esenv': 'environment',
+    '.esprobes': 'probeVolume',
     '.esmesh': 'mesh',
     '.esanim': 'animclip',
     '.esanimclip': 'animclip',

@@ -254,7 +254,8 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
         fields: [
             { name: 'probes', type: 'u32', offset: 0 },
             { name: 'halfExtents', type: 'vec3', offset: 4 },
-            { name: 'enabled', type: 'bool', offset: 16 },
+            { name: 'spacing', type: 'f32', offset: 16 },
+            { name: 'enabled', type: 'bool', offset: 20 },
         ],
     },
     MeshCollider3D: {

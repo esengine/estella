@@ -13,6 +13,7 @@ import { MeshChannel, MeshChannelType, type MeshData, type MeshChannelDesc } fro
 import { Bvh, type TriangleSoup } from './bvh';
 import { layoutAtlas, rasterizeLumels, type BakeSurface, type SurfacePatch } from './atlas';
 import { solveDirect, solveBounce, type BakeLight, type HitLookup } from './solve';
+import { solveProbes, type ProbeGrid } from './probes';
 
 export interface BakeOptions {
     /** Side of the square atlas, in texels. */
@@ -32,6 +33,13 @@ export interface BakeOptions {
     /** Texels the solved edges are smeared outwards, so a bilinear tap near a
      *  chart's border does not read the empty atlas beside it. */
     dilate?: number;
+    /** Grids of probes to solve in the same light field — what lights the things
+     *  a bake cannot hold still. Solved after the surfaces, because a probe
+     *  gathers what they ended up giving off. */
+    probeGrids?: readonly ProbeGrid[];
+    /** Directions each probe gathers. Over the whole sphere, so this buys less
+     *  per ray than a lumel's hemisphere does. */
+    probeSamples?: number;
 }
 
 export interface BakeResult {
@@ -42,6 +50,9 @@ export interface BakeResult {
     scaleOffset: Array<[number, number, number, number]>;
     /** Texels the surfaces actually cover, out of the atlas. */
     lumels: number;
+    /** Nine RGB coefficients per probe, one array per requested grid, in grid
+     *  order with x varying fastest — what a `.esprobes` carries. */
+    probes: Float32Array[];
 }
 
 const DEFAULTS = {
@@ -51,6 +62,8 @@ const DEFAULTS = {
     samples: 64,
     ambient: [0, 0, 0] as readonly [number, number, number],
     dilate: 2,
+    probeGrids: [] as readonly ProbeGrid[],
+    probeSamples: 128,
 };
 
 const chan = (m: MeshData, s: number): MeshChannelDesc | undefined =>
@@ -66,6 +79,7 @@ function collect(surfaces: readonly BakeSurface[], patches: readonly SurfacePatc
     const triSurface = new Int32Array(total);
     const patch = new Float32Array(surfaces.length * 4);
     const albedo = new Float32Array(surfaces.length * 3);
+    const triNormal = new Float32Array(total * 3);
 
     let at = 0;
     for (let s = 0; s < surfaces.length; s++) {
@@ -80,6 +94,7 @@ function collect(surfaces: readonly BakeSurface[], patches: readonly SurfacePatc
 
         const pos = chan(mesh, MeshChannel.Position);
         const uv1 = chan(mesh, MeshChannel.TexCoord1);
+        const nrm = chan(mesh, MeshChannel.Normal);
         const view = new DataView(mesh.vertices.buffer, mesh.vertices.byteOffset, mesh.vertices.byteLength);
         const idx = mesh.indices;
         for (let i = 0; i + 2 < idx.length; i += 3, at++) {
@@ -100,10 +115,36 @@ function collect(surfaces: readonly BakeSurface[], patches: readonly SurfacePatc
                     triUV[at * 6 + k * 2] = view.getFloat32(b, true);
                     triUV[at * 6 + k * 2 + 1] = view.getFloat32(b + 4, true);
                 }
+                if (nrm && nrm.type === MeshChannelType.Float32) {
+                    const b = v * mesh.vertexStride + nrm.offset;
+                    const x = view.getFloat32(b, true);
+                    const y = view.getFloat32(b + 4, true);
+                    const z = view.getFloat32(b + 8, true);
+                    // The transform's rotation, which is its upper 3x3 — a
+                    // non-uniform scale would want the inverse transpose, and
+                    // only the SIGN of this is read.
+                    triNormal[at * 3] += m[0] * x + m[4] * y + m[8] * z;
+                    triNormal[at * 3 + 1] += m[1] * x + m[5] * y + m[9] * z;
+                    triNormal[at * 3 + 2] += m[2] * x + m[6] * y + m[10] * z;
+                }
             }
         }
     }
-    return { soup: { positions, count: total }, lookup: { triUV, triSurface, patch, albedo } };
+    // Geometry with no declared normal gets the winding's: something has to say
+    // which side is lit, and a zero vector would call every arrival a back.
+    for (let t = 0; t < total; t++) {
+        const at = t * 3;
+        if (triNormal[at] !== 0 || triNormal[at + 1] !== 0 || triNormal[at + 2] !== 0) continue;
+        const p = t * 9;
+        const e1 = [positions[p + 3] - positions[p], positions[p + 4] - positions[p + 1],
+                    positions[p + 5] - positions[p + 2]];
+        const e2 = [positions[p + 6] - positions[p], positions[p + 7] - positions[p + 1],
+                    positions[p + 8] - positions[p + 2]];
+        triNormal[at] = e1[1] * e2[2] - e1[2] * e2[1];
+        triNormal[at + 1] = e1[2] * e2[0] - e1[0] * e2[2];
+        triNormal[at + 2] = e1[0] * e2[1] - e1[1] * e2[0];
+    }
+    return { soup: { positions, count: total }, lookup: { triUV, triSurface, patch, albedo, triNormal } };
 }
 
 /** Smears solved texels outwards so a bilinear tap near an edge reads light
@@ -198,10 +239,16 @@ export function bakeLightmap(surfaces: readonly BakeSurface[], lights: readonly 
         pixels[i * 4 + 3] = 255;
     }
 
+    // The probes read the atlas as a bounce does — after it holds everything the
+    // surfaces ended up giving off, and before it is quantised to eight bits.
+    const probes = opts.probeGrids.map((grid) =>
+        solveProbes(grid, bvh, lookup, radiance, size, opts.probeSamples, opts.ambient));
+
     return {
         pixels,
         size,
         scaleOffset: patches.map((p) => p.scaleOffset),
         lumels: lumels.count,
+        probes,
     };
 }

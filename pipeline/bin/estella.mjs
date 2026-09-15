@@ -118,7 +118,11 @@ const HOST_DESKTOP_OS = process.platform === 'darwin' ? 'macos'
 const BAKE_IDENTITY_Q = { x: 0, y: 0, z: 0, w: 1 };
 const BAKE_ONE = { x: 1, y: 1, z: 1 };
 const BAKE_ZERO = { x: 0, y: 0, z: 0 };
-const BAKE_LIGHT_KIND = { 0: 'point', 1: 'directional', 2: 'spot' };
+// LightType's own order. 2 is AMBIENT, which occupies no slot and no direction:
+// it is light from everywhere, and a bake takes it as its ambient term rather
+// than as a fourth kind of lamp.
+const BAKE_LIGHT_KIND = { 0: 'point', 1: 'directional', 3: 'spot' };
+const BAKE_LIGHT_AMBIENT = 2;
 
 const bakeComponent = (entity, type) => entity.components?.find((c) => c.type === type);
 const bakeVec = (v, fallback) => ({ ...fallback, ...(v ?? {}) });
@@ -164,26 +168,50 @@ async function bakeScene(baker, sceneFile, check) {
 
   const surfaces = [];
   const lights = [];
+  const volumes = [];
+  const ambient = [0, 0, 0];
   for (const entity of scene.entities ?? []) {
     const tf = bakeComponent(entity, 'Transform')?.data ?? {};
     const mesh = bakeComponent(entity, 'MeshRenderer');
     const light = bakeComponent(entity, 'Light');
+    const volume = bakeComponent(entity, 'LightProbeVolume');
+    if (volume && volume.data?.enabled !== false) {
+      const p = bakeVec(tf.position, BAKE_ZERO);
+      const h = bakeVec(volume.data?.halfExtents, { x: 100, y: 100, z: 100 });
+      volumes.push({
+        entity: entity.id, label: entity.name ?? String(entity.id),
+        center: [p.x, p.y, p.z], halfExtents: [h.x, h.y, h.z],
+        spacing: volume.data?.spacing ?? 100,
+      });
+    }
     if (mesh && mesh.data?.enabled !== false) {
       const ref = typeof mesh.data?.mesh === 'string' ? mesh.data.mesh : '';
       const builtin = ref.startsWith('builtin:') ? ref : undefined;
       const file = builtin ? '' : path.resolve(sceneDir, ref);
       if (builtin || (ref && existsSync(file))) {
         const c = mesh.data?.color;
+        const body = bakeComponent(entity, 'RigidBody3D');
         surfaces.push({
           entity: entity.id, label: entity.name ?? String(entity.id),
           meshFile: file, builtinRef: builtin, transform: bakeTransformOf(entity),
           baseColor: c ? [c.r ?? 1, c.g ?? 1, c.b ?? 1] : undefined,
+          holdsStill: baker.bakeHoldsStill({
+            characterController: !!bakeComponent(entity, 'CharacterController3D'),
+            bodyType: body ? (body.data?.bodyType ?? 2) : undefined,
+          }),
         });
       }
     }
     if (light && light.data?.enabled !== false) {
       const d = light.data ?? {};
       const p = bakeVec(tf.position, BAKE_ZERO);
+      if ((d.type ?? 0) === BAKE_LIGHT_AMBIENT) {
+        const i = d.intensity ?? 1;
+        ambient[0] += (d.color?.r ?? 1) * i;
+        ambient[1] += (d.color?.g ?? 1) * i;
+        ambient[2] += (d.color?.b ?? 1) * i;
+        continue;
+      }
       const kind = BAKE_LIGHT_KIND[d.type ?? 0] ?? 'point';
       const cos = (deg) => Math.cos(((deg ?? 45) * Math.PI) / 180 / 2);
       lights.push({
@@ -197,12 +225,27 @@ async function bakeScene(baker, sceneFile, check) {
     }
   }
 
-  const result = baker.bakeSceneLightmap({ surfaces, lights });
+  const result = baker.bakeSceneLightmap({
+    surfaces, lights, probeVolumes: volumes, options: { ambient },
+  });
   for (const w of result.warnings) console.warn(`  ! ${w}`);
 
   const stem = path.basename(sceneFile).replace(/\.esscene$/i, '');
   const atlasName = `${stem}_lightmap.png`;
   const atlasFile = path.join(sceneDir, atlasName);
+
+  // One file per volume, named for the entity that holds it: adding a second
+  // volume must not rename the first one's grid.
+  const grids = new Map();
+  result.probes.forEach((doc, i) => {
+    if (!doc) return;
+    grids.set(volumes[i].entity, {
+      name: `${stem}_probes_${volumes[i].entity}.esprobes`,
+      text: `{\n  "version": ${doc.version},\n`
+        + `  "resolution": ${JSON.stringify(doc.resolution)},\n`
+        + `  "irradiance": ${JSON.stringify(doc.irradiance)}\n}\n`,
+    });
+  });
 
   const placed = new Map();
   result.scaleOffset.forEach((rect, i) => { if (rect) placed.set(surfaces[i].entity, rect); });
@@ -218,26 +261,57 @@ async function bakeScene(baker, sceneFile, check) {
     if (at >= 0) entity.components[at] = { type: 'MeshLightmap', data };
     else entity.components.push({ type: 'MeshLightmap', data });
   }
+  for (const entity of scene.entities ?? []) {
+    const at = entity.components.findIndex((c) => c.type === 'LightProbeVolume');
+    if (at < 0) continue;
+    // A refused volume loses its ref rather than keeping the last grid: a box
+    // the author has since resized is not described by what fitted the old one.
+    const grid = grids.get(entity.id);
+    entity.components[at] = {
+      type: 'LightProbeVolume',
+      data: { ...entity.components[at].data, probes: grid ? grid.name : '' },
+    };
+  }
   const document = `${JSON.stringify(scene, null, 2)}\n`;
+
+  // A product with no `.meta` has no identity, so the cook carries neither it nor
+  // the light in it. Checked here rather than written: a uuid is the stable name
+  // refs resolve through, and minting one is the importer's to do.
+  const products = [atlasFile, ...[...grids.values()].map((g) => path.join(sceneDir, g.name))];
+  const unnamed = products.filter((f) => existsSync(f) && !existsSync(`${f}.meta`));
+  if (check && unnamed.length > 0) {
+    for (const f of unnamed) console.error(`bake-scene: ${path.relative(REPO, f)} has no .meta`);
+    console.error('A package carries what has an identity. Give them one:'
+      + `  node tools/asset-meta.js ${path.relative(REPO, sceneDir)}`);
+    return 1;
+  }
 
   if (check) {
     const staleAtlas = !existsSync(atlasFile)
       || Buffer.compare(readFileSync(atlasFile), Buffer.from(result.atlasBytes)) !== 0;
     const staleScene = readFileSync(sceneFile, 'utf8') !== document;
-    if (staleAtlas || staleScene) {
-      const what = [staleAtlas && 'the atlas', staleScene && 'the scene'].filter(Boolean).join(' and ');
+    const staleGrids = [...grids.values()].some((g) => {
+      const file = path.join(sceneDir, g.name);
+      return !existsSync(file) || readFileSync(file, 'utf8') !== g.text;
+    });
+    if (staleAtlas || staleScene || staleGrids) {
+      const what = [staleAtlas && 'the atlas', staleScene && 'the scene',
+                    staleGrids && 'a probe grid'].filter(Boolean).join(' and ');
       console.error(`bake-scene: ${rel} is not what a bake of it produces (${what} differ).`);
       console.error(`Rebake: node pipeline/bin/estella.mjs bake-scene ${rel}`);
       return 1;
     }
     console.log(`bake-scene: ${rel} matches a fresh bake`
-      + ` (${result.lumels} lumel(s) over ${placed.size} object(s)).`);
+      + ` (${result.lumels} lumel(s) over ${placed.size} object(s)`
+      + `${grids.size ? `, ${grids.size} probe grid(s)` : ''}).`);
     return 0;
   }
 
   writeFileSync(atlasFile, result.atlasBytes);
+  for (const g of grids.values()) writeFileSync(path.join(sceneDir, g.name), g.text);
   writeFileSync(sceneFile, document);
   console.log(`bake-scene: ${result.lumels} lumel(s) over ${placed.size} object(s)`
+    + `${grids.size ? `, ${grids.size} probe grid(s)` : ''}`
     + ` -> ${path.relative(REPO, atlasFile)}`);
   return 0;
 }

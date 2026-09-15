@@ -70,6 +70,7 @@ export const NOT_EVIDENCE_FORMATS = {
   '.hdr': 'an environment map; the .esenv referencing it is the claim',
   '.gltf': 'an imported model; the .esmesh and prefab it produced are the claim',
   '.esmesh': 'the import result, not an authored file — regenerated from the .gltf',
+  '.esprobes': 'a bake result; the LightProbeVolume naming it is the claim',
   '.atlas': 'a Spine atlas, written by Spine',
   '.skel': 'a Spine skeleton, written by Spine',
   '.mp4': 'video content',

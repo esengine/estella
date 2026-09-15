@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, Cl
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = 'cccf3c7425936b84';
+export const ABI_LAYOUT_HASH = 'bfed6926d0e50843';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -510,6 +510,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         defaults: {
             probes: 0,
             halfExtents: { x: 100, y: 100, z: 100 },
+            spacing: 100,
             enabled: true,
         },
         assetFields: [{ field: 'probes', type: 'probeVolume' as AssetFieldType }],
@@ -519,6 +520,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         fields: {
             probes: { tooltip: "Baked probe grid (.esprobes) filling this box." },
             halfExtents: { min: 0, tooltip: "Half the box this volume covers, from the entity's position." },
+            spacing: { min: 1, tooltip: "World units between probes the next bake lays down." },
         },
     },
     MeshCollider3D: {
@@ -1422,6 +1424,7 @@ export interface LightData {
 export interface LightProbeVolumeData {
     probes: number;
     halfExtents: Vec3;
+    spacing: number;
     enabled: boolean;
 }
 

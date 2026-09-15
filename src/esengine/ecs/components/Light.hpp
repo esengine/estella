@@ -208,6 +208,12 @@ struct LightProbeVolume {
     ES_PROPERTY(min=0, tooltip="Half the box this volume covers, from the entity's position.")
     glm::vec3 halfExtents{100.0f, 100.0f, 100.0f};
 
+    /** @brief World units a bake puts between probes. What the BAKE reads — the
+     *         grid it produced carries its own resolution, so changing this
+     *         changes nothing until the next one. */
+    ES_PROPERTY(min=1, tooltip="World units between probes the next bake lays down.")
+    f32 spacing{100.0f};
+
     /** @brief Disabled volumes are skipped during collection. */
     ES_PROPERTY()
     bool enabled{true};

@@ -39,9 +39,20 @@ export interface HitLookup {
     patch: Float32Array;
     /** Albedo per surface, three floats each. */
     albedo: Float32Array;
+    /** Which way each triangle FACES, three floats each. A surface gives off
+     *  light on one side; a ray arriving at the other finds an unlit back. */
+    triNormal: Float32Array;
 }
 
-const SHADOW_EPSILON = 1e-3;
+/** Whether a ray travelling `d` arrived at triangle `tri`'s lit side. */
+export function facesRay(lookup: HitLookup, tri: number,
+                         dx: number, dy: number, dz: number): boolean {
+    const at = tri * 3;
+    return lookup.triNormal[at] * dx + lookup.triNormal[at + 1] * dy
+         + lookup.triNormal[at + 2] * dz < 0;
+}
+
+export const SHADOW_EPSILON = 1e-3;
 
 /** Cosine-weighted directions over a hemisphere, as a fixed low-discrepancy set.
  *  Fixed and not random: a bake that answers differently twice cannot be told
@@ -156,7 +167,7 @@ export function solveBounce(lumels: LumelField, bvh: Bvh, lookup: HitLookup,
             const dz = basis[2] * a + basis[5] * c + nz * d;
             const tri = bvh.hit(px + nx * SHADOW_EPSILON, py + ny * SHADOW_EPSILON, pz + nz * SHADOW_EPSILON,
                                 dx, dy, dz, far, SHADOW_EPSILON);
-            if (tri < 0) continue;
+            if (tri < 0 || !facesRay(lookup, tri, dx, dy, dz)) continue;
             const texel = texelOf(lookup, tri, bvh.hitU, bvh.hitV, atlasSize);
             if (texel < 0) continue;
             const surface = lookup.triSurface[tri];
@@ -173,7 +184,7 @@ export function solveBounce(lumels: LumelField, bvh: Bvh, lookup: HitLookup,
 }
 
 /** Where on the atlas a hit lands, or -1 when it falls outside it. */
-function texelOf(lookup: HitLookup, tri: number, u: number, v: number, size: number): number {
+export function texelOf(lookup: HitLookup, tri: number, u: number, v: number, size: number): number {
     const at = tri * 6;
     const w0 = 1 - u - v;
     const uu = w0 * lookup.triUV[at] + u * lookup.triUV[at + 2] + v * lookup.triUV[at + 4];

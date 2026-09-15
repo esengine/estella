@@ -68,6 +68,7 @@ const NOT_INSTANCE_FORMATS = {
   '.esmaterial': 'a material: shader + uniform values',
   '.esshader': 'shader source',
   '.esenv': 'an environment: sky, ambient and the HDR behind them',
+  '.esprobes': 'a bake\'s answer at a grid of points: nine coefficients each',
   '.estileset': 'a tileset: tiles, collision shapes and terrain rules',
   '.eslocale': 'translated strings',
   '.esbt': 'a behaviour tree',
@@ -119,7 +120,6 @@ const DISPOSITION = {
 
   // — owed: a creator-facing component nothing in the shipped corpus authors.
   //   Each reason names where the coverage belongs. —
-  LightProbeVolume: ['owed', 'the reading side is in and a grid written by hand falsifies it, but nothing SOLVES one yet; a corpus scene can carry a volume once a bake can fill it'],
 
 };
 

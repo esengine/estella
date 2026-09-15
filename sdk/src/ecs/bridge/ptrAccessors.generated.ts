@@ -900,6 +900,7 @@ export function createLightData(): LightPtrData {
 export interface LightProbeVolumePtrData {
     probes: number;
     halfExtents: Vec3;
+    spacing: number;
     enabled: boolean;
 }
 
@@ -909,7 +910,8 @@ export function fillLightProbeVolume(
 ): void {
     out.probes = u32[ptr >> 2];
     const halfExtents_ = out.halfExtents; halfExtents_.x = f32[(ptr + 4) >> 2]; halfExtents_.y = f32[((ptr + 4) >> 2) + 1]; halfExtents_.z = f32[((ptr + 4) >> 2) + 2];
-    out.enabled = u8[ptr + 16] !== 0;
+    out.spacing = f32[(ptr + 16) >> 2];
+    out.enabled = u8[ptr + 20] !== 0;
 }
 
 export function writeLightProbeVolume(
@@ -918,13 +920,15 @@ export function writeLightProbeVolume(
 ): void {
     u32[ptr >> 2] = data.probes;
     f32[(ptr + 4) >> 2] = data.halfExtents.x; f32[((ptr + 4) >> 2) + 1] = data.halfExtents.y; f32[((ptr + 4) >> 2) + 2] = data.halfExtents.z;
-    u8[ptr + 16] = data.enabled ? 1 : 0;
+    f32[(ptr + 16) >> 2] = data.spacing;
+    u8[ptr + 20] = data.enabled ? 1 : 0;
 }
 
 export function createLightProbeVolumeData(): LightProbeVolumePtrData {
     return {
         probes: 0,
         halfExtents: { x: 0, y: 0, z: 0 },
+        spacing: 0,
         enabled: false,
     };
 }

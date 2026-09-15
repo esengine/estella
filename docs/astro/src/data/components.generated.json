@@ -2067,6 +2067,13 @@
           "range": "≥ 0"
         },
         {
+          "key": "spacing",
+          "type": "number",
+          "default": "100",
+          "doc": "World units between probes the next bake lays down.",
+          "range": "≥ 1"
+        },
+        {
           "key": "enabled",
           "type": "boolean",
           "default": "true"

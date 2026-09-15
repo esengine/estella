@@ -28,6 +28,11 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(render): a bake solves the probes in the light field it already has':
+    { note: 'A bake now solves the probes too, and refuses to light what moves.' },
+  'feat(lighting): Bake Lighting solves the probes, and refuses to light what moves':
+    { note: 'A bake now solves the probes too, and refuses to light what moves.' },
+
   'feat(render): a thing that moves takes the light of the room it is in':
     { note: 'Light probes: what lights a thing a bake cannot hold still.' },
   'feat(lighting): a probe volume is a box a creator can see and place':
