@@ -90,6 +90,31 @@ export const CENSUS_FLOOR = '0.60.0';
  * that does not exist, and release notes are a different act. Theirs is ungated.
  */
 export const SHIPPED = {
+  // — 0.67.0 —
+  'A mesh can be read through the light that was baked into it.': { certifies: 'lightmap' },
+  'The bake itself: lights become an atlas.': { certifies: 'lightmap' },
+  'A bounce carries the colour of what it came off.': { certifies: 'lightmap' },
+  'Stock geometry takes a bake, and the density suits this engine\'s units.':
+    { certifies: 'lightmap' },
+  'A room in the corpus is actually lit.': { certifies: 'lightmap' },
+  'Light probes: what lights a thing a bake cannot hold still.': { certifies: 'light-probe' },
+  'A bake now solves the probes too, and refuses to light what moves.':
+    { certifies: 'light-probe' },
+  'A model can be given somewhere to receive baked light.':
+    { notCertifiable: 'the import setting that writes a second UV set into an .esmesh; the one'
+      + ' scene that ships baked is built from stock geometry, whose UVs a bake derives per run,'
+      + ' so no package carries an IMPORTED unwrap. unwrap.test.ts holds the layout, and'
+      + ' check-import-settings holds that the setting has a reader' },
+  'Bake Lighting.':
+    { notCertifiable: 'the editor command that triggers a bake — a package carries the atlas,'
+      + ' never the menu item that wrote it, and that atlas is certified as lightmap. The'
+      + ' end-to-end editor check bakes a real scene and reads the saved document back' },
+  'A scene says how it is lit, and whether its light still describes it.':
+    { notCertifiable: 'a bake\'s INPUTS and whether they still match: the knobs change nothing a'
+      + ' package draws, and staleness is a question only the editor asks. What ships is the'
+      + ' light itself, certified as lightmap and light-probe, and the corpus-bake gate holds'
+      + ' the committed atlas against a fresh bake so a stale one cannot pass as correct' },
+
   // — 0.66.0 —
   'A model brings the shapes it can be blended towards.': { certifies: 'morph-target' },
   'A controller is a stack of machines, not one.': { certifies: 'animation-layers' },
@@ -169,9 +194,10 @@ export const SHIPPED = {
   // — 0.63.0 —
   'One number turns the sky, the irradiance and the reflection': { certifies: 'environment' },
   'A second UV set survives the import boundary':
-    { notCertifiable: 'a channel carried and deliberately unread — no lightmapper, no graph node,'
-      + ' no material change — so no game act can observe it; check-mesh-vocabulary holds the two'
-      + ' halves of the format and the .esmesh decode fixtures hold the bytes' },
+    { notCertifiable: 'the channel a lightmap is read through. It has a reader now — the bake —'
+      + ' but the one scene that ships baked is built from stock geometry, whose UVs a bake'
+      + ' derives per run, so no package carries an IMPORTED unwrap; check-mesh-vocabulary holds'
+      + ' the two halves of the format and the .esmesh decode fixtures hold the bytes' },
   'The camera a frame was drawn with is a value anyone can hold':
     { notCertifiable: 'a publication the renderer makes for overlay authors; a game draws from the'
       + ' resolve directly and never asks which camera a past frame used' },
@@ -317,6 +343,7 @@ export const CAPABILITIES = [
   'spine', 'material', 'asset-lifecycle',
   'model-import', 'model-animation', 'model-skinning',
   'physics-3d', 'mesh-shadow', 'environment', 'level-of-detail', 'world-streaming',
+  'lightmap', 'light-probe',
   'lighting-2d',
   'sprite-sorting', 'sprite-mask', 'ui-widgets', 'velocity-motion',
   'ssao', 'navigation-3d', 'root-motion', 'animation-events', 'shader-readiness',
@@ -395,6 +422,13 @@ export const EVIDENCE = {
   // its world is cut and by carrying something that asks for places.
   'world-streaming': /\b(StreamedWorld|WorldStreamingSource)\b/,
   environment: /\.esenv\b/,
+  // The component that names a patch, not the atlas file beside the scene: a
+  // scene carrying one draws light a bake wrote, so a bake that stops writing
+  // changes the picture the suite compares.
+  lightmap: /\bMeshLightmap\b/,
+  // The volume, which is where a MOVING thing takes its indirect light from —
+  // the half of a bake no atlas can hold.
+  'light-probe': /\bLightProbeVolume\b/,
   // The post effect a scene turns on, not the pass that implements it.
   ssao: /"type":\s*"ssao"/,
   'navigation-3d': /\b(NavVolume|NavLink|NavAgent3D)\b/,
@@ -554,7 +588,10 @@ export const GOLDEN = [
   },
   {
     id: 'physics-3d',
-    certifies: ['physics-3d'],
+    // Also the only scene that ships its lighting baked: an atlas its surfaces
+    // read and a volume its thirteen moving bodies take their indirect light
+    // from. Both halves of a bake are in the picture the suite compares.
+    certifies: ['physics-3d', 'lightmap', 'light-probe'],
     targets: ['web', 'desktop'],
     tier: 'nightly',
     // The character walks on the key it declares, and the debug overlay it draws

@@ -14,6 +14,8 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.67.0] - 2026-09-15
+
 ### Added
 
 - **A scene says how it is lit, and whether its light still describes it.** The
@@ -78,55 +80,6 @@ published separately; it ships inside the editor.
   The reading side goes first on purpose, as the lightmap's did: a grid written
   by hand can falsify it, where a solver built first would have nothing to say
   whether it solved the right thing. Baking one is the next step.
-
-### Fixed
-
-- **The command line bakes the meshes a scene actually names.** An asset ref is
-  PROJECT-relative, and `bake-scene` resolved it against the scene's own folder —
-  so every object drawing a real `.esmesh` fell out of the bake with "draws no
-  mesh asset", and only scenes built from stock geometry came out lit. It now
-  resolves against the project root and reads `@uuid:` refs out of the `.meta`
-  index, which is what the editor's own collector does.
-
-- **Both bake doors read a light the same way.** A spot's inner angle defaults to
-  30 degrees, and the command line filled an unstated one in with 45. One reading
-  now serves both — the document's values over the component's own defaults —
-  along with one transform compose and one `.esprobes` writer. Three places where
-  the editor and CI could quietly disagree about the same scene.
-
-- **A scene's ambient light reaches its bake.** `LightType.Ambient` is the third
-  value of the enum and `Spot` the fourth, and both bake collectors read the third
-  as a spot lamp — so the sky lit nothing it was not standing next to. An ambient
-  light occupies no slot and aims nowhere; it is now the bake's ambient term, the
-  way the renderer already folds it into its own. Outdoors this is most of the
-  indirect light there is: `physics-3d`'s probes go from black to carrying its
-  sky's blue.
-
-- **A bake's products can be carried by a package.** `bake-scene` wrote the atlas
-  and nothing else — no `.meta`, so the cook had no identity to carry it by, and
-  the export said so in a warning nobody reads. The scene named an atlas the
-  package did not hold, and the room shipped unlit. The check now fails on a
-  product with no `.meta` and says which command mints one; the editor's own bake
-  already minted them.
-
-- **A gather reads the lit side of a surface.** Light bounced off the BACK of a
-  wall as readily as off its front, because an atlas is per triangle and has no
-  side. A ray arriving at a face from behind now finds it unlit, which is what
-  keeps a probe standing behind a wall from being lit by what the wall hides.
-
-- **A per-draw block reaches the draw that wrote it.** The pose of a skinned
-  draw, the shapes of a morphed one and (now) the indirect light of a probe-lit
-  one shared one buffer each, rewritten immediately before the draw that reads
-  it. That is correct where an upload takes effect at the call, and wrong on a
-  backend that QUEUES them: on WebGPU the writes land together when the pass is
-  submitted, so every draw in that pass read whatever the LAST of them wrote —
-  one pose on every character in the room, one set of shapes on every face.
-
-  Every skin and morph gate in the suite drew a single object, so none of them
-  could see it. Each draw now takes a buffer of its own from a frame-scoped pool,
-  and a draw with nothing to say binds a zeroed block that is never written —
-  "none" as an object rather than an erasure someone has to remember to perform.
-  Two morphed draws in one frame, blended different amounts, is now a gate.
 
 - **A room in the corpus is actually lit.** `physics-3d` — twenty-two boxes and
   two lamps — now ships with its lighting baked: an atlas beside the scene, and a
@@ -286,6 +239,53 @@ published separately; it ships inside the editor.
   still long enough to light it.
 
 ### Fixed
+
+- **The command line bakes the meshes a scene actually names.** An asset ref is
+  PROJECT-relative, and `bake-scene` resolved it against the scene's own folder —
+  so every object drawing a real `.esmesh` fell out of the bake with "draws no
+  mesh asset", and only scenes built from stock geometry came out lit. It now
+  resolves against the project root and reads `@uuid:` refs out of the `.meta`
+  index, which is what the editor's own collector does.
+
+- **Both bake doors read a light the same way.** A spot's inner angle defaults to
+  30 degrees, and the command line filled an unstated one in with 45. One reading
+  now serves both — the document's values over the component's own defaults —
+  along with one transform compose and one `.esprobes` writer. Three places where
+  the editor and CI could quietly disagree about the same scene.
+
+- **A scene's ambient light reaches its bake.** `LightType.Ambient` is the third
+  value of the enum and `Spot` the fourth, and both bake collectors read the third
+  as a spot lamp — so the sky lit nothing it was not standing next to. An ambient
+  light occupies no slot and aims nowhere; it is now the bake's ambient term, the
+  way the renderer already folds it into its own. Outdoors this is most of the
+  indirect light there is: `physics-3d`'s probes go from black to carrying its
+  sky's blue.
+
+- **A bake's products can be carried by a package.** `bake-scene` wrote the atlas
+  and nothing else — no `.meta`, so the cook had no identity to carry it by, and
+  the export said so in a warning nobody reads. The scene named an atlas the
+  package did not hold, and the room shipped unlit. The check now fails on a
+  product with no `.meta` and says which command mints one; the editor's own bake
+  already minted them.
+
+- **A gather reads the lit side of a surface.** Light bounced off the BACK of a
+  wall as readily as off its front, because an atlas is per triangle and has no
+  side. A ray arriving at a face from behind now finds it unlit, which is what
+  keeps a probe standing behind a wall from being lit by what the wall hides.
+
+- **A per-draw block reaches the draw that wrote it.** The pose of a skinned
+  draw, the shapes of a morphed one and (now) the indirect light of a probe-lit
+  one shared one buffer each, rewritten immediately before the draw that reads
+  it. That is correct where an upload takes effect at the call, and wrong on a
+  backend that QUEUES them: on WebGPU the writes land together when the pass is
+  submitted, so every draw in that pass read whatever the LAST of them wrote —
+  one pose on every character in the room, one set of shapes on every face.
+
+  Every skin and morph gate in the suite drew a single object, so none of them
+  could see it. Each draw now takes a buffer of its own from a frame-scoped pool,
+  and a draw with nothing to say binds a zeroed block that is never written —
+  "none" as an object rather than an erasure someone has to remember to perform.
+  Two morphed draws in one frame, blended different amounts, is now a gate.
 
 - **A hot reload no longer empties the running game of every resource**
   ([#60](https://github.com/esengine/estella/issues/60)). Edit a script while the
@@ -12568,7 +12568,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.66.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.67.0...HEAD
+[0.67.0]: https://github.com/esengine/estella/compare/v0.66.0...v0.67.0
 [0.66.0]: https://github.com/esengine/estella/compare/v0.65.0...v0.66.0
 [0.65.0]: https://github.com/esengine/estella/compare/v0.64.0...v0.65.0
 [0.64.0]: https://github.com/esengine/estella/compare/v0.63.0...v0.64.0
