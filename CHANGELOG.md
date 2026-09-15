@@ -53,15 +53,26 @@ published separately; it ships inside the editor.
   documented as a `BehaviorContext` superset and was missing the one thing
   gameplay is written against.
 
+  A graph can SPAWN. `entity.spawn` hands the new entity to the next node on the
+  wire, so it cannot wait for a load — and loading is all `instantiatePrefab` is
+  asynchronous for. The wait moved to where the graph itself is loaded: the
+  loader prepares every prefab its spawn nodes name (loaded, flattened, asset
+  handles written in) through the context door that records the acquisition, so
+  the prefab is owned by that graph's era and given back when it retires.
+  `preparePrefab` / `spawnPrepared` are the same pair for code — the scene path
+  reused rather than reimplemented, so a prefab spawned at runtime and one
+  placed in a scene resolve identically.
+
   Two projects carry it. `examples/script-graph-demo` is two squares that move
   because of what they were drawn to do, one of them through a value node the
   project registered itself. `examples/dodge-graph` is a GAME — move with the
   arrows, dodge the falling blocks, score, lose, press Space to start over —
   with no gameplay code at all: one component declares what the run remembers
-  (graph variables belong to one entity; a score three blocks and a HUD agree on
-  does not), and three graphs do the rest. A gate plays it: holds a key and the
-  player moves, releases it and they stop, lets a block through and the HUD says
-  so, presses Space and the run begins again.
+  (graph variables belong to one entity; a score the blocks and the HUD agree on
+  does not), and four graphs do the rest — including the one that spawns the
+  blocks, of which the scene contains none. A gate plays it: holds a key and the
+  player moves, releases it and they stop, dodges and the score rises, chases a
+  block and the run ends, presses Space and it begins again on a clear board.
 
 ### Fixed
 

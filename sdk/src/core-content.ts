@@ -1006,6 +1006,7 @@ export {
     describeNode,
     sequenceCount,
     BUILTIN_NODE_KINDS,
+    scriptGraphPrefabRefs,
     compileScriptGraph,
     createScriptRunState,
     stepScriptGraph,

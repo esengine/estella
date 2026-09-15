@@ -133,6 +133,21 @@ export function describeNode(
                 inputs: [{ name: 'seconds', type: 'number' }], outputs: NO_PORTS, pure: false,
             };
 
+        case 'entity.spawn':
+            // A built-in rather than a registered verb: what it spawns is the
+            // prefab THIS graph prepared, and a name in the shared registry has
+            // no way to reach a particular graph's preparations.
+            return {
+                execIn: true, execOut: [THEN],
+                inputs: [
+                    { name: 'x', type: 'number' },
+                    { name: 'y', type: 'number' },
+                    { name: 'parent', type: 'entity' },
+                ],
+                outputs: [{ name: 'entity', type: 'entity' }],
+                pure: false,
+            };
+
         case 'var.get':
             return {
                 execIn: false, execOut: [], inputs: NO_PORTS,
@@ -174,6 +189,24 @@ export function describeNode(
 export const BUILTIN_NODE_KINDS: readonly string[] = [
     'event.start', 'event.update', 'event.destroy', 'event.on',
     'flow.branch', 'flow.sequence', 'flow.while', 'flow.delay',
+    'entity.spawn',
     'var.get', 'var.set',
     'lit.number', 'lit.bool', 'lit.string',
 ];
+
+/** The prefab an `entity.spawn` node names, or '' — read by the compile step
+ *  (to say what to prepare) and by the loader (to prepare it). One reader of
+ *  the literal, so the two cannot disagree about which refs a graph needs. */
+export function spawnPrefabRef(node: ScriptGraphNode): string {
+    return node.kind === 'entity.spawn' ? String(node.literals?.prefab ?? '') : '';
+}
+
+/** Every prefab a graph may spawn, deduplicated, in document order. */
+export function scriptGraphPrefabRefs(graph: ScriptGraph): string[] {
+    const out: string[] = [];
+    for (const node of graph.nodes) {
+        const ref = spawnPrefabRef(node);
+        if (ref && !out.includes(ref)) out.push(ref);
+    }
+    return out;
+}

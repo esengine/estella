@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { Backend } from './Backend';
 import type { AssetLease } from './AssetLease';
+import type { PreparedPrefab } from '../prefab/preparedPrefab';
 import type { RegistryEra } from './registryAssets';
 import type { Catalog } from './Catalog';
 import type { TextureHandle, FontHandle } from '../types';
@@ -120,6 +121,12 @@ export interface LoadContext {
      * one specialization, for the flip variants a texture has.
      */
     acquireAsset<T>(type: string, ref: string): Promise<AssetLease<T>>;
+    /**
+     * A prefab loaded, flattened and resolved, so it can be spawned in one
+     * frame. Optional: a context built for a loader that never spawns has no
+     * reason to carry it.
+     */
+    preparePrefab?(ref: string): Promise<AssetLease<PreparedPrefab>>;
     loadText(path: string): Promise<string>;
     loadBinary(path: string): Promise<ArrayBuffer>;
     /**

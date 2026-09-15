@@ -16,6 +16,7 @@ import {
     fireScriptGraphEvent, type ScriptTickContext,
 } from '../src/logic/ScriptGraphRunner';
 import { SCRIPT_GRAPH_VERSION, type ScriptGraph, type ScriptGraphEdge, type ScriptGraphNode } from '../src/logic/types';
+import { scriptGraphPrefabRefs } from '../src/logic/nodes';
 
 interface TestCtx { log: string[]; }
 
@@ -348,6 +349,33 @@ describe('flow.delay waits without blocking the frame', () => {
         expect(r.log).toEqual(['late']);
         r.tick(0.06);
         expect(r.log).toEqual(['late']);
+    });
+});
+
+describe('entity.spawn', () => {
+    it('names the prefab it needs, so whoever loads the graph can prepare it', () => {
+        const g = graphOf([
+            node('a', 'entity.spawn', { literals: { prefab: 'assets/bullet.esprefab' } }),
+            node('b', 'entity.spawn', { literals: { prefab: 'assets/bullet.esprefab' } }),
+            node('c', 'entity.spawn', { literals: { prefab: 'assets/enemy.esprefab' } }),
+            node('d', 'flow.branch'),
+        ], []);
+        // Deduplicated: two nodes spawning one prefab is one preparation.
+        expect(scriptGraphPrefabRefs(g)).toEqual(['assets/bullet.esprefab', 'assets/enemy.esprefab']);
+    });
+
+    it('reports a prefab nothing prepared instead of spawning nothing quietly', () => {
+        const { reg } = registry();
+        const g = graphOf([
+            node('start', 'event.start'),
+            node('sp', 'entity.spawn', { literals: { prefab: 'assets/gone.esprefab' } }),
+            node('say', 'call', { ref: 'test.say', literals: { text: 'after' } }),
+        ], [edge('start', 'then', 'sp', ''), edge('sp', 'then', 'say', '')]);
+        const r = run(g, reg);
+        r.tick();
+        expect(r.problems.some((p) => p.includes('was not prepared'))).toBe(true);
+        // …and the chain continues: one unspawnable prefab is not the graph.
+        expect(r.log).toEqual(['after']);
     });
 });
 

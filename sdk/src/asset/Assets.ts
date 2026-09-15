@@ -45,6 +45,7 @@ import { AnimatorControllerAssetLoader } from './loaders/AnimatorControllerAsset
 import { AvatarAssetLoader } from './loaders/AvatarAssetLoader';
 import { BtAssetLoader } from './loaders/BtAssetLoader';
 import { ScriptGraphAssetLoader } from './loaders/ScriptGraphAssetLoader';
+import { preparePrefab, type PreparedPrefab } from '../prefab/preparedPrefab';
 import { LocaleAssetLoader } from './loaders/LocaleAssetLoader';
 import { JsonAssetLoader } from './loaders/JsonAssetLoader';
 import { getComponentDefaults } from '../ecs/component';
@@ -355,6 +356,9 @@ export class Assets {
     private textureLoader_: TextureLoader;
     private textureImportResolver_: TextureImportSettingsResolver | null = null;
     private spineLoader_: SpineAssetLoader;
+
+    /** Prefabs flattened and resolved for one-frame spawning, by resolved path. */
+    private preparedPrefabs_ = new Map<string, { holders: number; prepared: PreparedPrefab }>();
 
     private textureCache_ = new AsyncCache<TextureResult>((result) => {
         // A texture whose load finished after its getOrLoad timed out has no
@@ -2443,6 +2447,42 @@ export class Assets {
     }
 
     /**
+     * A prepared prefab as a lease: one preparation per ref per realm, released
+     * when the last holder lets go. Shared, because two graphs spawning the same
+     * prefab want the same flattened copy — preparing it twice would load its
+     * textures twice and leave two scopes to release.
+     */
+    private async preparePrefabLease_(ref: string): Promise<AssetLease<PreparedPrefab>> {
+        const key = `prepared-prefab:${this.resolveLoadPath_(ref)}`;
+        let entry = this.preparedPrefabs_.get(key);
+        if (!entry) {
+            entry = { holders: 0, prepared: await preparePrefab(this, ref) };
+            this.preparedPrefabs_.set(key, entry);
+        }
+        const held = entry;
+        const receipt = (): AssetLease<PreparedPrefab> => {
+            held.holders++;
+            let released = false;
+            return {
+                key,
+                generation: 0,
+                value: held.prepared,
+                release: () => {
+                    if (released) return;
+                    released = true;
+                    if (--held.holders > 0) return;
+                    this.preparedPrefabs_.delete(key);
+                    held.prepared.release();
+                },
+                // A second receipt for the same preparation — the splitting owner
+                // stays bound to this one, which is the point of splitting.
+                retain: () => receipt(),
+            };
+        };
+        return receipt();
+    }
+
+    /**
      * Run one preparation: what the loader takes IS the result's ownership and
      * IS the graph's edges. A transaction, because an acquisition on the way to
      * a value that never arrives has no owner — the thing that would have held
@@ -2469,6 +2509,7 @@ export class Assets {
             acquireTexture: async (path, flipY) =>
                 recorder.own(path, await base.acquireTexture(path, flipY), 'texture'),
             acquireAsset: async (type, ref) => recorder.own(ref, await base.acquireAsset(type, ref), type),
+            preparePrefab: async (ref) => recorder.own(ref, await this.preparePrefabLease_(ref), 'prefab'),
             createOwnedTexture: async (width, height, pixels, flipY) => {
                 const lease = await base.createOwnedTexture!(width, height, pixels, flipY);
                 return recorder.own(`composed:${lease.value.handle}`, lease);

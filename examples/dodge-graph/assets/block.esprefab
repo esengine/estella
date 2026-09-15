@@ -1,0 +1,47 @@
+{
+  "version": "2",
+  "name": "Block",
+  "rootEntityId": "root",
+  "entities": [
+    {
+      "prefabEntityId": "root",
+      "name": "Block",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 360,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "size": {
+              "x": 56,
+              "y": 56
+            },
+            "color": {
+              "r": 0.8,
+              "g": 0.42,
+              "b": 0.36,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "ScriptGraphAgent",
+          "data": {
+            "graph": "assets/logic/block.esgraph"
+          }
+        }
+      ]
+    }
+  ]
+}

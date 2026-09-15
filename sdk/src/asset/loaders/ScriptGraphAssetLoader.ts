@@ -8,11 +8,18 @@
  * The payload IS the runtime definition — the compile here only indexes it (pins
  * resolved, wires turned into lookups), which is why it happens once per era and
  * not once per name.
+ *
+ * It also PREPARES what the graph may spawn. A spawn node hands the new entity
+ * to the next node on the wire, so it cannot wait for a load; the wait belongs
+ * here, where the graph itself is being loaded. Acquired through the context, so
+ * the prefab is owned by this era and given back when it retires.
  */
 import type { AssetLoader, LoadContext, RegistryAssetLoader, ScriptGraphResult } from '../AssetLoader';
 import type { RegistryEra } from '../registryAssets';
 import { compileAgainstRegistry } from '../../logic/ScriptGraphAgent';
+import { scriptGraphPrefabRefs } from '../../logic/nodes';
 import type { ScriptGraph } from '../../logic/types';
+import { log } from '../../util/logger';
 
 export class ScriptGraphAssetLoader implements AssetLoader<ScriptGraphResult> {
     readonly type = 'scriptgraph';
@@ -22,7 +29,17 @@ export class ScriptGraphAssetLoader implements AssetLoader<ScriptGraphResult> {
         prepare: async (path: string, ctx: LoadContext): Promise<RegistryEra<ScriptGraphResult>> => {
             const text = await ctx.loadText(ctx.catalog.getBuildPath(path));
             const graph = JSON.parse(text) as ScriptGraph;
-            return { published: compileAgainstRegistry(graph), value: { graphId: path } };
+            const compiled = compileAgainstRegistry(graph);
+            for (const ref of scriptGraphPrefabRefs(graph)) {
+                try {
+                    compiled.prefabs.set(ref, (await ctx.preparePrefab!(ref)).value);
+                } catch (e) {
+                    // Reported, not thrown: one unspawnable prefab must not take
+                    // the whole graph — every other node in it still runs.
+                    log.warn('logic', `${path}: prefab "${ref}" did not prepare: ${String(e)}`);
+                }
+            }
+            return { published: compiled, value: { graphId: path } };
         },
     };
 }

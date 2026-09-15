@@ -28,6 +28,12 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(logic): a graph can spawn a prefab, and the node says which one':
+    { note: 'Gameplay you can draw.' },
+
+  'feat(prefab): a prefab you can spawn in one frame, because its loading is done':
+    { note: 'Gameplay you can draw.' },
+
   'feat(logic): a graph can reach a keyboard, another entity, and who an event named':
     { note: 'Gameplay you can draw.' },
 

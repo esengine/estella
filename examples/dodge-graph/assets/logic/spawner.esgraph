@@ -1,0 +1,236 @@
+{
+  "version": "1.0",
+  "name": "Spawner",
+  "variables": [
+    {
+      "name": "wait",
+      "type": "number",
+      "default": 0.4
+    }
+  ],
+  "nodes": [
+    {
+      "id": "upd",
+      "kind": "event.update",
+      "x": 0,
+      "y": 60
+    },
+    {
+      "id": "game",
+      "kind": "call",
+      "ref": "entity.byName",
+      "literals": {
+        "name": "Game"
+      },
+      "x": -182,
+      "y": 440
+    },
+    {
+      "id": "alive",
+      "kind": "call",
+      "ref": "property.get",
+      "literals": {
+        "path": "GameState.alive"
+      },
+      "x": 34,
+      "y": 250
+    },
+    {
+      "id": "live",
+      "kind": "flow.branch",
+      "x": 250,
+      "y": 60
+    },
+    {
+      "id": "getW",
+      "kind": "var.get",
+      "literals": {
+        "name": "wait"
+      },
+      "x": 68,
+      "y": 440
+    },
+    {
+      "id": "tick",
+      "kind": "call",
+      "ref": "math.subtract",
+      "x": 284,
+      "y": 250
+    },
+    {
+      "id": "setW",
+      "kind": "var.set",
+      "literals": {
+        "name": "wait"
+      },
+      "x": 500,
+      "y": 60
+    },
+    {
+      "id": "due",
+      "kind": "call",
+      "ref": "compare.less",
+      "literals": {
+        "b": 0
+      },
+      "x": 534,
+      "y": 250
+    },
+    {
+      "id": "drop",
+      "kind": "flow.branch",
+      "x": 750,
+      "y": 60
+    },
+    {
+      "id": "spawn",
+      "kind": "entity.spawn",
+      "literals": {
+        "prefab": "assets/block.esprefab",
+        "y": 360
+      },
+      "x": 1000,
+      "y": 60
+    },
+    {
+      "id": "col",
+      "kind": "call",
+      "ref": "math.random",
+      "literals": {
+        "min": -340,
+        "max": 340
+      },
+      "x": 784,
+      "y": 250
+    },
+    {
+      "id": "rearm",
+      "kind": "var.set",
+      "literals": {
+        "name": "wait"
+      },
+      "x": 1250,
+      "y": 60
+    },
+    {
+      "id": "gap",
+      "kind": "call",
+      "ref": "math.random",
+      "literals": {
+        "min": 0.55,
+        "max": 1.1
+      },
+      "x": 1034,
+      "y": 250
+    },
+    {
+      "id": "getW_1",
+      "kind": "var.get",
+      "literals": {
+        "name": "wait"
+      },
+      "x": 318,
+      "y": 440
+    }
+  ],
+  "edges": [
+    {
+      "id": "upd.then->live.",
+      "from": "upd",
+      "fromPort": "then",
+      "to": "live",
+      "toPort": ""
+    },
+    {
+      "id": "game.entity->alive.entity",
+      "from": "game",
+      "fromPort": "entity",
+      "to": "alive",
+      "toPort": "entity"
+    },
+    {
+      "id": "alive.value->live.cond",
+      "from": "alive",
+      "fromPort": "value",
+      "to": "live",
+      "toPort": "cond"
+    },
+    {
+      "id": "live.true->setW.",
+      "from": "live",
+      "fromPort": "true",
+      "to": "setW",
+      "toPort": ""
+    },
+    {
+      "id": "getW.value->tick.a",
+      "from": "getW",
+      "fromPort": "value",
+      "to": "tick",
+      "toPort": "a"
+    },
+    {
+      "id": "upd.dt->tick.b",
+      "from": "upd",
+      "fromPort": "dt",
+      "to": "tick",
+      "toPort": "b"
+    },
+    {
+      "id": "tick.result->setW.value",
+      "from": "tick",
+      "fromPort": "result",
+      "to": "setW",
+      "toPort": "value"
+    },
+    {
+      "id": "setW.then->drop.",
+      "from": "setW",
+      "fromPort": "then",
+      "to": "drop",
+      "toPort": ""
+    },
+    {
+      "id": "getW_1.value->due.a",
+      "from": "getW_1",
+      "fromPort": "value",
+      "to": "due",
+      "toPort": "a"
+    },
+    {
+      "id": "due.result->drop.cond",
+      "from": "due",
+      "fromPort": "result",
+      "to": "drop",
+      "toPort": "cond"
+    },
+    {
+      "id": "drop.true->spawn.",
+      "from": "drop",
+      "fromPort": "true",
+      "to": "spawn",
+      "toPort": ""
+    },
+    {
+      "id": "col.result->spawn.x",
+      "from": "col",
+      "fromPort": "result",
+      "to": "spawn",
+      "toPort": "x"
+    },
+    {
+      "id": "spawn.then->rearm.",
+      "from": "spawn",
+      "fromPort": "then",
+      "to": "rearm",
+      "toPort": ""
+    },
+    {
+      "id": "gap.result->rearm.value",
+      "from": "gap",
+      "fromPort": "result",
+      "to": "rearm",
+      "toPort": "value"
+    }
+  ]
+}

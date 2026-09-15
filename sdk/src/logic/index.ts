@@ -29,6 +29,8 @@ export {
     describeNode,
     sequenceCount,
     BUILTIN_NODE_KINDS,
+    spawnPrefabRef,
+    scriptGraphPrefabRefs,
     THEN,
     type ScriptNodeShape,
     type ScriptVerbCatalog,

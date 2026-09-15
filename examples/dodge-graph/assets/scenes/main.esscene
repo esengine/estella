@@ -97,126 +97,6 @@
       ]
     },
     {
-      "id": 3,
-      "name": "Block1",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": -220,
-              "y": 340,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "Sprite",
-          "data": {
-            "size": {
-              "x": 56,
-              "y": 56
-            },
-            "color": {
-              "r": 0.8,
-              "g": 0.42,
-              "b": 0.36,
-              "a": 1
-            }
-          }
-        },
-        {
-          "type": "ScriptGraphAgent",
-          "data": {
-            "graph": "assets/logic/block.esgraph"
-          }
-        }
-      ]
-    },
-    {
-      "id": 4,
-      "name": "Block2",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 150,
-              "y": 560,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "Sprite",
-          "data": {
-            "size": {
-              "x": 56,
-              "y": 56
-            },
-            "color": {
-              "r": 0.8,
-              "g": 0.42,
-              "b": 0.36,
-              "a": 1
-            }
-          }
-        },
-        {
-          "type": "ScriptGraphAgent",
-          "data": {
-            "graph": "assets/logic/block.esgraph"
-          }
-        }
-      ]
-    },
-    {
-      "id": 5,
-      "name": "Block3",
-      "parent": null,
-      "children": [],
-      "visible": true,
-      "components": [
-        {
-          "type": "Transform",
-          "data": {
-            "position": {
-              "x": 260,
-              "y": 800,
-              "z": 0
-            }
-          }
-        },
-        {
-          "type": "Sprite",
-          "data": {
-            "size": {
-              "x": 56,
-              "y": 56
-            },
-            "color": {
-              "r": 0.8,
-              "g": 0.42,
-              "b": 0.36,
-              "a": 1
-            }
-          }
-        },
-        {
-          "type": "ScriptGraphAgent",
-          "data": {
-            "graph": "assets/logic/block.esgraph"
-          }
-        }
-      ]
-    },
-    {
       "id": 6,
       "name": "ScoreText",
       "parent": null,
@@ -250,6 +130,31 @@
           "type": "ScriptGraphAgent",
           "data": {
             "graph": "assets/logic/hud.esgraph"
+          }
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Spawner",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ScriptGraphAgent",
+          "data": {
+            "graph": "assets/logic/spawner.esgraph"
           }
         }
       ]

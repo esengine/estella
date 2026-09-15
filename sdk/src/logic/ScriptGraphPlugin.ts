@@ -102,6 +102,7 @@ export function stepScriptGraphs(
         ctx.blackboard = st.bb;
         return {
             ctx: ctx as AiContext, bb: st.bb, registry: aiRegistry, dt: delta,
+            world: world as unknown as World,
             onProblem: message => onProblem?.(entity, message),
         };
     };
@@ -270,6 +271,7 @@ export class ScriptGraphPlugin implements Plugin {
             ctx.input = input_;
             return {
                 ctx: ctx as AiContext, bb: st.bb, registry: aiRegistry, dt: dt_,
+                world: world as unknown as World,
                 onProblem: message => onProblem(entity, message),
             };
         });
