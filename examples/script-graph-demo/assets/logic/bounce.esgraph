@@ -1,0 +1,42 @@
+{
+  "version": "1.0",
+  "name": "Bounce",
+  "variables": [
+    { "name": "x", "type": "number", "default": -220 },
+    { "name": "dir", "type": "number", "default": 1 }
+  ],
+  "nodes": [
+    { "id": "update", "kind": "event.update", "x": 40, "y": 60 },
+    { "id": "getX", "kind": "var.get", "x": 40, "y": 200, "literals": { "name": "x" } },
+    { "id": "getDir", "kind": "var.get", "x": 40, "y": 290, "literals": { "name": "dir" } },
+    { "id": "speed", "kind": "call", "ref": "math.multiply", "x": 240, "y": 290, "literals": { "b": 260 } },
+    { "id": "step", "kind": "call", "ref": "math.multiply", "x": 430, "y": 290 },
+    { "id": "moved", "kind": "call", "ref": "math.add", "x": 620, "y": 200 },
+    { "id": "setX", "kind": "var.set", "x": 300, "y": 60, "literals": { "name": "x" } },
+    { "id": "write", "kind": "call", "ref": "property.set", "x": 500, "y": 60,
+      "literals": { "path": "Transform.position.x" } },
+    { "id": "past", "kind": "call", "ref": "compare.greater", "x": 620, "y": 420, "literals": { "b": 220 } },
+    { "id": "absX", "kind": "call", "ref": "math.abs", "x": 430, "y": 420 },
+    { "id": "turn", "kind": "flow.branch", "x": 760, "y": 60 },
+    { "id": "flip", "kind": "call", "ref": "math.multiply", "x": 900, "y": 300, "literals": { "b": -1 } },
+    { "id": "setDir", "kind": "var.set", "x": 940, "y": 60, "literals": { "name": "dir" } }
+  ],
+  "edges": [
+    { "id": "e1", "from": "update", "fromPort": "then", "to": "setX", "toPort": "" },
+    { "id": "e2", "from": "getDir", "fromPort": "value", "to": "speed", "toPort": "a" },
+    { "id": "e3", "from": "speed", "fromPort": "result", "to": "step", "toPort": "a" },
+    { "id": "e4", "from": "update", "fromPort": "dt", "to": "step", "toPort": "b" },
+    { "id": "e5", "from": "getX", "fromPort": "value", "to": "moved", "toPort": "a" },
+    { "id": "e6", "from": "step", "fromPort": "result", "to": "moved", "toPort": "b" },
+    { "id": "e7", "from": "moved", "fromPort": "result", "to": "setX", "toPort": "value" },
+    { "id": "e8", "from": "setX", "fromPort": "then", "to": "write", "toPort": "" },
+    { "id": "e9", "from": "getX", "fromPort": "value", "to": "write", "toPort": "value" },
+    { "id": "e10", "from": "write", "fromPort": "then", "to": "turn", "toPort": "" },
+    { "id": "e11", "from": "getX", "fromPort": "value", "to": "absX", "toPort": "a" },
+    { "id": "e12", "from": "absX", "fromPort": "result", "to": "past", "toPort": "a" },
+    { "id": "e13", "from": "past", "fromPort": "result", "to": "turn", "toPort": "cond" },
+    { "id": "e14", "from": "turn", "fromPort": "true", "to": "setDir", "toPort": "" },
+    { "id": "e15", "from": "getDir", "fromPort": "value", "to": "flip", "toPort": "a" },
+    { "id": "e16", "from": "flip", "fromPort": "result", "to": "setDir", "toPort": "value" }
+  ]
+}

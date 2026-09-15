@@ -40,6 +40,8 @@ interface AgentState {
     run: ScriptRunState | null;
     graphKey: string | null;
     compiled: CompiledScriptGraph | null;
+    /** Refs this agent asked for and nothing had, reported once each. */
+    missing: Set<string>;
 }
 
 /** The slice of `World` the step needs — lets tests inject a fake. */
@@ -56,7 +58,7 @@ type MutableAiContext = { -readonly [K in keyof AiContext]: AiContext[K] };
 export function agentGraphBlackboard(states: Map<Entity, AgentState>, entity: Entity): Blackboard {
     let st = states.get(entity);
     if (!st) {
-        st = { bb: new Blackboard(), run: null, graphKey: null, compiled: null };
+        st = { bb: new Blackboard(), run: null, graphKey: null, compiled: null, missing: new Set() };
         states.set(entity, st);
     }
     return st.bb;
@@ -106,14 +108,25 @@ export function stepScriptGraphs(
         present.add(entity);
         const agent = world.get(entity, ScriptGraphAgent);
         if (!agent.graph) continue;
-        const compiled = resolveGraph?.(agent.graph) ?? getScriptGraph(agent.graph);
-        if (!compiled) continue;
 
         let st = states.get(entity);
         if (!st) {
-            st = { bb: new Blackboard(), run: null, graphKey: null, compiled: null };
+            st = { bb: new Blackboard(), run: null, graphKey: null, compiled: null, missing: new Set() };
             states.set(entity, st);
         }
+
+        const compiled = resolveGraph?.(agent.graph) ?? getScriptGraph(agent.graph);
+        // A ref nothing has is the loudest thing this system can find: the
+        // entity carries a graph, and NOT running it looks exactly like running
+        // one that does nothing.
+        if (!compiled) {
+            if (!st.missing.has(agent.graph)) {
+                st.missing.add(agent.graph);
+                onProblem?.(entity, `graph "${agent.graph}" is not registered — nothing runs`);
+            }
+            continue;
+        }
+        st.missing.delete(agent.graph);
         if (st.run === null || st.graphKey !== agent.graph) {
             st.run = createScriptRunState(compiled);
             st.graphKey = agent.graph;

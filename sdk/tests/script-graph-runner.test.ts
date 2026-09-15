@@ -141,6 +141,24 @@ describe('exec flows depth-first', () => {
         expect(r.log).toEqual(['start', 'update', 'update']);
     });
 
+    it('publishes the frame delta on the update entry', () => {
+        const { reg } = registry();
+        const g = graphOf([
+            node('upd', 'event.update'),
+            node('scale', 'call', { ref: 'test.add', literals: { b: 0 } }),
+            node('say', 'call', { ref: 'test.say' }),
+        ], [
+            edge('upd', 'then', 'say', ''),
+            edge('upd', 'dt', 'scale', 'a'),
+            edge('scale', 'sum', 'say', 'text'),
+        ]);
+        const r = run(g, reg);
+        r.tick(0.25);
+        // Not 0: an entry that declares a port and produces nothing is a graph
+        // whose every node runs and whose world never moves.
+        expect(r.log).toEqual(['0.25']);
+    });
+
     it('runs event.destroy only on teardown', () => {
         const { reg } = registry();
         const g = graphOf([

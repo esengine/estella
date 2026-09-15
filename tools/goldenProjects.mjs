@@ -51,7 +51,7 @@ export const EVIDENCE_FORMATS = [
   '.ts', '.esproject', '.esscene', '.esprefab',
   '.esanimator', '.estimeline', '.esanim', '.esavatar',
   '.esmaterial', '.esshader', '.esenv',
-  '.estileset', '.tmj', '.eslocale', '.esbt', '.inputmap',
+  '.estileset', '.tmj', '.eslocale', '.esbt', '.esgraph', '.inputmap',
   '.json',
 ];
 
@@ -356,6 +356,7 @@ export const CAPABILITIES = [
   'hot-update', 'rollback', 'subpackage',
   'networking',
   'persistence', 'save-versioning',
+  'script-graph',
   // What a game needs and no sample carried end to end. Each holds a gap below
   // until the phase covering it lands, so the gate prints how much of a game the
   // corpus still cannot certify. See docs/REARCH_CELESTIAL_HEIGHTS.md.
@@ -374,6 +375,9 @@ export const EVIDENCE = {
   input: /\b(Input|defineInputMap|isKeyDown|InputState)\b/,
   animation: /\b(SpriteAnimator|Animator|spriteAnim|Flipbook|TimelinePlayer|AnimClip)\b/,
   ecs: /\b(defineComponent|defineSystem)\b/,
+  // The component that RUNS one. A `.esgraph` on disk that no scene
+  // attaches is a picture of gameplay, not gameplay.
+  'script-graph': /\bScriptGraphAgent\b/,
   'third-person': /\b(ThirdPersonController|ThirdPersonCamera)\b/,
   particles: /\bParticleEmitter\b/,
   'lighting-2d': /\b(Light2D|ShadowCaster2D)\b/,
@@ -667,6 +671,13 @@ export const GOLDEN = [
     targets: ['web', 'desktop', 'android', 'ios'],
     tier: 'nightly',
     interactGap: 'a showcase that cycles its own animations; nothing to press',
+  },
+  {
+    id: 'script-graph-demo',
+    certifies: ['script-graph'],
+    targets: ['web', 'desktop'],
+    tier: 'nightly',
+    interactGap: 'both squares are graph-driven on a clock; no input path yet',
   },
   {
     id: 'save-load',

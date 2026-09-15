@@ -14,6 +14,38 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **Gameplay you can draw.** A `.esgraph` is logic as a picture: an event lights
+  the white wire, the wire runs one node after another, and the coloured wires
+  carry values between them. It is the entry non-programmers have in every other
+  engine, and the one Estella did not have.
+
+  The vocabulary is not new, which is the whole point. A node that DOES
+  something is an `aiRegistry` action and a node that ANSWERS something is the
+  generalisation of a condition — so one `registerAction` in your project shows
+  up in a state machine's hook, a behaviour tree's leaf, an event wire AND the
+  graph palette, with the pins it declares. `registerValue` is the same door for
+  a name that computes: declare what it takes and what it hands back, and the
+  editor draws the node. There is no privileged built-in set to imitate; the
+  engine's own maths, comparisons and `property.get` come through that door too.
+
+  What the interpreter promises is what the picture shows: a sequence finishes
+  pin 0's whole chain before pin 1 starts; one wire carries one value (a pure
+  node is evaluated once per activation of the node reading it, and asked again
+  on the next, which is how a `while` condition can become false); a node whose
+  input wire leads to something this build could not make does not run at all;
+  and a graph that loops forever spends a step budget, stops that instance, and
+  names the node. The play realm is the editor's own process — "the author will
+  not draw that" is not a safety story.
+
+  A `.esgraph` IS the runtime definition. Nothing compiles it, so the graph the
+  editor runs and the graph the package ships are the same bytes, and a graph is
+  attached to an entity the way an FSM is: a `ScriptGraphAgent` naming it.
+  `examples/script-graph-demo` is two squares that move because of what they
+  were drawn to do, one of them through a value node the project registered
+  itself.
+
 ### Fixed
 
 - **Run works from wherever you are standing.** The running game's frame is

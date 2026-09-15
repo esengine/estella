@@ -1,0 +1,149 @@
+{
+  "version": "1.0",
+  "name": "Wave",
+  "variables": [
+    {
+      "name": "elapsed",
+      "type": "number",
+      "default": 0
+    }
+  ],
+  "nodes": [
+    {
+      "id": "update",
+      "kind": "event.update",
+      "x": 40,
+      "y": 60
+    },
+    {
+      "id": "getT",
+      "kind": "var.get",
+      "x": 40,
+      "y": 210,
+      "literals": {
+        "name": "elapsed"
+      }
+    },
+    {
+      "id": "rate",
+      "kind": "call",
+      "ref": "math.multiply",
+      "x": 240,
+      "y": 330,
+      "literals": {
+        "b": 110
+      }
+    },
+    {
+      "id": "advance",
+      "kind": "call",
+      "ref": "math.add",
+      "x": 240,
+      "y": 210
+    },
+    {
+      "id": "setT",
+      "kind": "var.set",
+      "x": 430,
+      "y": 60,
+      "literals": {
+        "name": "elapsed"
+      }
+    },
+    {
+      "id": "wave",
+      "kind": "call",
+      "ref": "demo.pingPong",
+      "x": 430,
+      "y": 260,
+      "literals": {
+        "range": 140
+      }
+    },
+    {
+      "id": "lift",
+      "kind": "call",
+      "ref": "math.add",
+      "x": 660,
+      "y": 260,
+      "literals": {
+        "b": -70
+      }
+    },
+    {
+      "id": "write",
+      "kind": "call",
+      "ref": "property.set",
+      "x": 660,
+      "y": 60,
+      "literals": {
+        "path": "Transform.position.y"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "update",
+      "fromPort": "then",
+      "to": "setT",
+      "toPort": ""
+    },
+    {
+      "id": "e2",
+      "from": "getT",
+      "fromPort": "value",
+      "to": "advance",
+      "toPort": "a"
+    },
+    {
+      "id": "e3",
+      "from": "update",
+      "fromPort": "dt",
+      "to": "rate",
+      "toPort": "a"
+    },
+    {
+      "id": "e4",
+      "from": "advance",
+      "fromPort": "result",
+      "to": "setT",
+      "toPort": "value"
+    },
+    {
+      "id": "e5",
+      "from": "getT",
+      "fromPort": "value",
+      "to": "wave",
+      "toPort": "t"
+    },
+    {
+      "id": "e6",
+      "from": "wave",
+      "fromPort": "value",
+      "to": "lift",
+      "toPort": "a"
+    },
+    {
+      "id": "e7",
+      "from": "lift",
+      "fromPort": "result",
+      "to": "write",
+      "toPort": "value"
+    },
+    {
+      "id": "e8",
+      "from": "setT",
+      "fromPort": "then",
+      "to": "write",
+      "toPort": ""
+    },
+    {
+      "id": "e3b",
+      "from": "rate",
+      "fromPort": "result",
+      "to": "advance",
+      "toPort": "b"
+    }
+  ]
+}
