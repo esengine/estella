@@ -28,6 +28,11 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(render): a thing that moves takes the light of the room it is in':
+    { note: 'Light probes: what lights a thing a bake cannot hold still.' },
+  'feat(lighting): a probe volume is a box a creator can see and place':
+    { note: 'Light probes: what lights a thing a bake cannot hold still.' },
+
   'fix(sdk): a reloaded bundle addresses the world it is reloading into':
     { note: 'A hot reload no longer empties the running game of every resource' },
   'feat(sdk): an app says what its resources are called':

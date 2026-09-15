@@ -970,6 +970,8 @@ struct LightConstants {
     u_envTint : vec4f,
 };
 @group(0) @binding(2) var<uniform> lc : LightConstants;
+struct ProbeConstants { u_probeIrradiance : array<vec4f, 9> };
+@group(0) @binding(7) var<uniform> pc : ProbeConstants;
 fn packDepth(d : f32) -> vec3f {
     let enc = fract(d * vec3f(1.0, 255.0, 65025.0));
     return enc - enc.yzz * vec3f(1.0 / 255.0, 1.0 / 255.0, 0.0);
@@ -1197,18 +1199,29 @@ fn envDirection(d : vec3f) -> vec3f {
     let c = cos(a);
     return vec3f(c * d.x + s * d.z, d.y, -s * d.x + c * d.z);
 }
+fn shIrradiance(sh : array<vec4f, 9>, N : vec3f) -> vec3f {
+    return sh[0].rgb * 0.282095
+        + sh[1].rgb * (0.488603 * N.y)
+        + sh[2].rgb * (0.488603 * N.z)
+        + sh[3].rgb * (0.488603 * N.x)
+        + sh[4].rgb * (1.092548 * N.x * N.y)
+        + sh[5].rgb * (1.092548 * N.y * N.z)
+        + sh[6].rgb * (0.315392 * (3.0 * N.z * N.z - 1.0))
+        + sh[7].rgb * (1.092548 * N.x * N.z)
+        + sh[8].rgb * (0.546274 * (N.x * N.x - N.y * N.y));
+}
 fn envIrradiance(Nw : vec3f) -> vec3f {
-    let N = envDirection(Nw);
-    let sh = lc.u_envIrradiance[0].rgb * 0.282095
-        + lc.u_envIrradiance[1].rgb * (0.488603 * N.y)
-        + lc.u_envIrradiance[2].rgb * (0.488603 * N.z)
-        + lc.u_envIrradiance[3].rgb * (0.488603 * N.x)
-        + lc.u_envIrradiance[4].rgb * (1.092548 * N.x * N.y)
-        + lc.u_envIrradiance[5].rgb * (1.092548 * N.y * N.z)
-        + lc.u_envIrradiance[6].rgb * (0.315392 * (3.0 * N.z * N.z - 1.0))
-        + lc.u_envIrradiance[7].rgb * (1.092548 * N.x * N.z)
-        + lc.u_envIrradiance[8].rgb * (0.546274 * (N.x * N.x - N.y * N.y));
+    let sh = shIrradiance(lc.u_envIrradiance, envDirection(Nw));
     return lc.u_ambient.rgb + max(sh, vec3f(0.0)) * lc.u_envTint.rgb;
+}
+// The GLSL twin's indirectIrradiance: a volume replaces the environment, because a
+// surface has one indirect term and a volume already holds every light and bounce
+// that reached the point.
+fn indirectIrradiance(N : vec3f) -> vec3f {
+    if (pc.u_probeIrradiance[0].w > 0.5) {
+        return max(shIrradiance(pc.u_probeIrradiance, N), vec3f(0.0));
+    }
+    return envIrradiance(N);
 }
 fn octEncode(d : vec3f) -> vec2f {
     var p = d.xz / max(abs(d.x) + abs(d.y) + abs(d.z), 1e-6);
@@ -1287,7 +1300,7 @@ fn applyLightingPBR(albedo : vec3f, N : vec3f, worldPos : vec3f, V : vec3f, meta
     let F0 = mix(vec3f(0.04), albedo, vec3f(metallic));
     let a = max(roughness * roughness, 1e-3);
     let NdotV = max(dot(N, V), 1e-4);
-    var lit = envIrradiance(N) * ao;
+    var lit = indirectIrradiance(N) * ao;
     var gloss = vec3f(0.0);
     for (var i = 0; i < 16; i++) {
         let pd = lc.u_lights[i].posDir;
@@ -1672,6 +1685,12 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    highp vec4 u_envParams;\n"       // x = has map, y = range, z = maxLod, w = face
             "    highp vec4 u_envTint;\n"         // the ambient light's colour, scaling both halves
             "};\n"
+            // Where THIS draw stands, when a grid was baked around it. The flag in
+            // w is the only way a fragment tells "no volume" from "a probe in the
+            // dark" — zeroed coefficients are an answer, not an absence.
+            "layout(std140) uniform ProbeConstants {\n"
+            "    highp vec4 u_probeIrradiance[9];\n"
+            "};\n"
             // The shadow map rides the draw's third texture slot, behind the feature the
             // MESH vertex sources set: the batch stream owns 0..7 as a per-vertex merge
             // product, so a sampler pinned to slot 2 there would read someone's sprite.
@@ -1925,21 +1944,34 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    highp float c = cos(a);\n"
             "    return vec3(c * d.x + s * d.z, d.y, -s * d.x + c * d.z);\n"
             "}\n"
-            // The environment's diffuse half. With no environment the coefficients are
-            // zero and this IS the flat ambient term, which is what keeps every existing
+            // Nine coefficients at a normal. One expression: an environment and a
+            // probe volume differ in where the nine came from, not in what they mean.
+            "highp vec3 shIrradiance(in highp vec4 sh[9], in highp vec3 N) {\n"
+            "    return sh[0].rgb * 0.282095\n"
+            "        + sh[1].rgb * (0.488603 * N.y)\n"
+            "        + sh[2].rgb * (0.488603 * N.z)\n"
+            "        + sh[3].rgb * (0.488603 * N.x)\n"
+            "        + sh[4].rgb * (1.092548 * N.x * N.y)\n"
+            "        + sh[5].rgb * (1.092548 * N.y * N.z)\n"
+            "        + sh[6].rgb * (0.315392 * (3.0 * N.z * N.z - 1.0))\n"
+            "        + sh[7].rgb * (1.092548 * N.x * N.z)\n"
+            "        + sh[8].rgb * (0.546274 * (N.x * N.x - N.y * N.y));\n"
+            "}\n"
+            // The environment's diffuse half. With no environment the coefficients
+            // are zero and this IS the flat ambient term, which keeps every existing
             // scene pixel-identical rather than merely close.
             "highp vec3 envIrradiance(in highp vec3 Nw) {\n"
-            "    highp vec3 N = envDirection(Nw);\n"
-            "    highp vec3 sh = u_envIrradiance[0].rgb * 0.282095\n"
-            "        + u_envIrradiance[1].rgb * (0.488603 * N.y)\n"
-            "        + u_envIrradiance[2].rgb * (0.488603 * N.z)\n"
-            "        + u_envIrradiance[3].rgb * (0.488603 * N.x)\n"
-            "        + u_envIrradiance[4].rgb * (1.092548 * N.x * N.y)\n"
-            "        + u_envIrradiance[5].rgb * (1.092548 * N.y * N.z)\n"
-            "        + u_envIrradiance[6].rgb * (0.315392 * (3.0 * N.z * N.z - 1.0))\n"
-            "        + u_envIrradiance[7].rgb * (1.092548 * N.x * N.z)\n"
-            "        + u_envIrradiance[8].rgb * (0.546274 * (N.x * N.x - N.y * N.y));\n"
+            "    highp vec3 sh = shIrradiance(u_envIrradiance, envDirection(Nw));\n"
             "    return u_ambient.rgb + max(sh, vec3(0.0)) * u_envTint.rgb;\n"
+            "}\n"
+            // The indirect term every lit surface starts from. A volume REPLACES the
+            // environment rather than adding to it — a surface has one indirect term
+            // — and its nine are world-space, so neither rotation nor tint applies.
+            "highp vec3 indirectIrradiance(in highp vec3 N) {\n"
+            "    if (u_probeIrradiance[0].w > 0.5) {\n"
+            "        return max(shIrradiance(u_probeIrradiance, N), vec3(0.0));\n"
+            "    }\n"
+            "    return envIrradiance(N);\n"
             "}\n"
             // Direction -> the octahedral unit square, +Y at the centre. The importer's
             // octEncode, in the shading language; the two must agree texel for texel.
@@ -2039,7 +2071,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    highp float NdotV = max(dot(N, V), 1e-4);\n"
             // Occlusion darkens the light that arrives from everywhere, which is the
             // environment; a surface's own lights are unobstructed by it.
-            "    highp vec3 lit = envIrradiance(N) * ao;\n"
+            "    highp vec3 lit = indirectIrradiance(N) * ao;\n"
             "    highp vec3 gloss = vec3(0.0);\n"
             // A Light has no third coordinate, so distance stays in the plane and a
             // point light's height is its radius. Normal and view are the 3D part.

@@ -32,6 +32,7 @@ import { MeshAssetLoader, type MeshResult } from './loaders/MeshAssetLoader';
 import { nativeEngineApi, type EngineApi } from '../ecs/bridge/engineApi';
 import { isBuiltinMeshRef } from './builtinMeshes';
 import { EnvironmentAssetLoader } from './loaders/EnvironmentAssetLoader';
+import { ProbeVolumeAssetLoader } from './loaders/ProbeVolumeAssetLoader';
 import { FontAssetLoader } from './loaders/FontAssetLoader';
 import { AudioAssetLoader } from './loaders/AudioAssetLoader';
 import { AnimClipAssetLoader } from './loaders/AnimClipAssetLoader';
@@ -280,6 +281,7 @@ export interface SceneAssetResult {
     fontHandles: Map<string, number>;
     meshHandles: Map<string, number>;
     environmentHandles: Map<string, number>;
+    probeVolumeHandles: Map<string, number>;
     releaseCallbacks: ReleaseCallback[];
     /**
      * What this preload actually acquired. Release side reads THIS rather than
@@ -1304,6 +1306,7 @@ export class Assets {
         const avatarPaths = discovered.byType.get('avatar') ?? new Set<string>();
         const meshPaths = discovered.byType.get('mesh') ?? new Set<string>();
         const environmentPaths = discovered.byType.get('environment') ?? new Set<string>();
+        const probeVolumePaths = discovered.byType.get('probeVolume') ?? new Set<string>();
         const spinePairs = discovered.spines;
 
         const textureHandles = new Map<string, number>();
@@ -1311,6 +1314,7 @@ export class Assets {
         const fontHandles = new Map<string, number>();
         const meshHandles = new Map<string, number>();
         const environmentHandles = new Map<string, number>();
+        const probeVolumeHandles = new Map<string, number>();
         const releaseCallbacks: ReleaseCallback[] = [];
         const scope = new AssetScope();
 
@@ -1377,6 +1381,8 @@ export class Assets {
                     'mesh', meshHandles);
         pushAcquire(environmentPaths, p => this.acquireTyped<{ handle: number }>('environment', p),
                     'environment', environmentHandles);
+        pushAcquire(probeVolumePaths, p => this.acquireTyped<{ handle: number }>('probeVolume', p),
+                    'probeVolume', probeVolumeHandles);
         // A pair, so not `pushAcquire` (which keys by one path); the receipt is
         // the scene's exactly as every other one is. The runtime scene loader
         // opts out: its second phase binds to entities that do not exist yet.
@@ -1415,12 +1421,12 @@ export class Assets {
         });
 
         return { textureHandles, materialHandles, fontHandles, meshHandles, environmentHandles,
-                 releaseCallbacks, scope, missing };
+                 probeVolumeHandles, releaseCallbacks, scope, missing };
     }
 
     resolveSceneAssetPaths(sceneData: SceneData, result: SceneAssetResult): void {
         const { textureHandles, materialHandles, fontHandles, meshHandles,
-                environmentHandles } = result;
+                environmentHandles, probeVolumeHandles } = result;
         const counter = this.refCounter_;
 
         for (const entity of sceneData.entities) {
@@ -1496,6 +1502,10 @@ export class Assets {
                         }
                         case 'environment': {
                             comp.data[field] = environmentHandles.get(path) ?? 0;
+                            break;
+                        }
+                        case 'probeVolume': {
+                            comp.data[field] = probeVolumeHandles.get(path) ?? 0;
                             break;
                         }
                     }
@@ -2218,6 +2228,7 @@ export class Assets {
         const core = (): EngineApi | null => this.module_ ?? nativeEngineApi();
         this.register(new MeshAssetLoader(core));
         this.register(new EnvironmentAssetLoader(core));
+        this.register(new ProbeVolumeAssetLoader(core));
         // The audio loader needs the AudioAPI outside load() too (unload /
         // invalidate have no LoadContext), so it shares Assets' lazy accessor.
         this.register(new AudioAssetLoader(() => this.getAudio_()));

@@ -652,6 +652,32 @@ LightJS lightToJS(const esengine::ecs::Light& c) {
     return js;
 }
 
+struct LightProbeVolumeJS {
+    u32 probes;
+    glm::vec3 halfExtents;
+    bool enabled;
+};
+
+void lightprobevolumeApplyJS(esengine::ecs::LightProbeVolume& c, const LightProbeVolumeJS& js) {
+    c.probes = resource::ProbeVolumeHandle(js.probes);
+    c.halfExtents = js.halfExtents;
+    c.enabled = js.enabled;
+}
+
+esengine::ecs::LightProbeVolume lightprobevolumeFromJS(const LightProbeVolumeJS& js) {
+    esengine::ecs::LightProbeVolume c;
+    lightprobevolumeApplyJS(c, js);
+    return c;
+}
+
+LightProbeVolumeJS lightprobevolumeToJS(const esengine::ecs::LightProbeVolume& c) {
+    LightProbeVolumeJS js;
+    js.probes = c.probes.id();
+    js.halfExtents = c.halfExtents;
+    js.enabled = c.enabled;
+    return js;
+}
+
 struct MeshCollider3DJS {
     u32 mesh;
     f32 friction;
@@ -1658,6 +1684,11 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("drawEnvironment", &LightJS::drawEnvironment)
         .field("enabled", &LightJS::enabled);
 
+    value_object<LightProbeVolumeJS>("LightProbeVolume")
+        .field("probes", &LightProbeVolumeJS::probes)
+        .field("halfExtents", &LightProbeVolumeJS::halfExtents)
+        .field("enabled", &LightProbeVolumeJS::enabled);
+
     value_object<MeshCollider3DJS>("MeshCollider3D")
         .field("mesh", &MeshCollider3DJS::mesh)
         .field("friction", &MeshCollider3DJS::friction)
@@ -2360,6 +2391,30 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::Light>(entity);
         }))
 
+        // LightProbeVolume
+        .function("hasLightProbeVolume", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::LightProbeVolume>(static_cast<Entity>(e));
+        }))
+        .function("getLightProbeVolume", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::LightProbeVolume>(entity)) return LightProbeVolumeJS{};
+            return lightprobevolumeToJS(r.get<esengine::ecs::LightProbeVolume>(entity));
+        }))
+        .function("addLightProbeVolume", optional_override([](Registry& r, u32 e, const LightProbeVolumeJS& js) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            if (auto* existing = r.tryGet<esengine::ecs::LightProbeVolume>(entity)) {
+                lightprobevolumeApplyJS(*existing, js);
+                return;
+            }
+            r.emplaceOrReplace<esengine::ecs::LightProbeVolume>(entity, lightprobevolumeFromJS(js));
+        }))
+        .function("removeLightProbeVolume", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::LightProbeVolume>(entity)) return;
+            r.remove<esengine::ecs::LightProbeVolume>(entity);
+        }))
+
         // MeshCollider3D
         .function("hasMeshCollider3D", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::MeshCollider3D>(static_cast<Entity>(e));
@@ -3006,6 +3061,7 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("Interactable")));
     arr.set(i++, val(std::string("LODGroup")));
     arr.set(i++, val(std::string("Light")));
+    arr.set(i++, val(std::string("LightProbeVolume")));
     arr.set(i++, val(std::string("MeshCollider3D")));
     arr.set(i++, val(std::string("MeshLightmap")));
     arr.set(i++, val(std::string("MeshMorph")));
@@ -3189,6 +3245,9 @@ static_assert(offsetof(esengine::ecs::Light, environment) == 80, "ABI offset dri
 static_assert(offsetof(esengine::ecs::Light, environmentRotation) == 84, "ABI offset drift: esengine::ecs::Light.environmentRotation (EHT expected 84)");
 static_assert(offsetof(esengine::ecs::Light, drawEnvironment) == 88, "ABI offset drift: esengine::ecs::Light.drawEnvironment (EHT expected 88)");
 static_assert(offsetof(esengine::ecs::Light, enabled) == 89, "ABI offset drift: esengine::ecs::Light.enabled (EHT expected 89)");
+static_assert(offsetof(esengine::ecs::LightProbeVolume, probes) == 0, "ABI offset drift: esengine::ecs::LightProbeVolume.probes (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::LightProbeVolume, halfExtents) == 4, "ABI offset drift: esengine::ecs::LightProbeVolume.halfExtents (EHT expected 4)");
+static_assert(offsetof(esengine::ecs::LightProbeVolume, enabled) == 16, "ABI offset drift: esengine::ecs::LightProbeVolume.enabled (EHT expected 16)");
 static_assert(offsetof(esengine::ecs::MeshCollider3D, mesh) == 0, "ABI offset drift: esengine::ecs::MeshCollider3D.mesh (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::MeshCollider3D, friction) == 4, "ABI offset drift: esengine::ecs::MeshCollider3D.friction (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::MeshCollider3D, restitution) == 8, "ABI offset drift: esengine::ecs::MeshCollider3D.restitution (EHT expected 8)");
@@ -3433,7 +3492,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "ca7cd852d3bc316f";
+static const char* kEsAbiLayoutHash = "cccf3c7425936b84";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

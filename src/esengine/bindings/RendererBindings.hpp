@@ -101,6 +101,12 @@ u32 environment_create(uintptr_t shPtr, u32 specularHandle, f32 faceSize, u32 mi
 
 /** @brief Releases an environment; its atlas is an ordinary texture and outlives it. */
 void environment_release(u32 environmentHandle);
+
+/** @brief Registers a grid of baked irradiance: `x*y*z*27` floats, x fastest. */
+u32 probe_volume_create(i32 resX, i32 resY, i32 resZ, uintptr_t shPtr);
+
+/** @brief Releases a probe volume. */
+void probe_volume_release(u32 volumeHandle);
 /** @brief Freezes every MeshRenderer in the world; returns how many were frozen. */
 u32 meshRenderer_makeAllResident(ecs::Registry& registry);
 /** @brief Points every MeshRenderer at one resident mesh; returns how many. */

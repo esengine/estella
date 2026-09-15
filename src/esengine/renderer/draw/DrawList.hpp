@@ -8,6 +8,8 @@
 #include "../rhi/TransientBufferPool.hpp"
 #include "../frame/FrameCapture.hpp"
 #include "../store/MorphConstants.hpp"
+#include "../store/ProbeConstants.hpp"
+#include "../rhi/PerDrawBlocks.hpp"
 #include "../../math/Math.hpp"
 
 #include <algorithm>
@@ -50,8 +52,9 @@ public:
     void execute(GfxDevice& device, TransientBufferPool& buffers,
                  MaterialStore& materials, u32 white_texture_id = 0,
                  FrameCapture* capture = nullptr,
-                 BufferHandle skin_ubo = BufferHandle::Invalid,
-                 BufferHandle morph_ubo = BufferHandle::Invalid);
+                 PerDrawBlocks* skin_blocks = nullptr,
+                 PerDrawBlocks* morph_blocks = nullptr,
+                 PerDrawBlocks* probe_blocks = nullptr);
 
     /** Append one draw's bone matrices; returns where they start. Frame-scoped,
      *  like the vertex pool: a command references an offset, not a copy. */
@@ -61,6 +64,10 @@ public:
     /** Append one draw's shapes; returns 1 + where they sit, so that 0 stays
      *  available for "this draw is in the shape it was authored in". */
     u32 addMorphShapes(const MorphConstants& shapes);
+
+    /** Append one draw's indirect light; returns 1 + where it sits, so that 0
+     *  stays available for "no volume holds this draw". */
+    u32 addProbe(const ProbeConstants& probe);
 
     u32 commandCount() const { return static_cast<u32>(commands_.size()); }
     u32 mergedDrawCallCount() const { return merged_draw_calls_; }
@@ -182,6 +189,7 @@ private:
     /// Every skinned draw's bone matrices for this frame, indexed by skin_offset.
     std::vector<glm::mat4> skin_matrices_;
     std::vector<MorphConstants> morph_shapes_;
+    std::vector<ProbeConstants> probes_;
     std::vector<SortEntry> sort_entries_;
     std::vector<DrawCommand> sorted_scratch_;  // reused across frames to avoid a
                                                // per-frame heap alloc in finalize()

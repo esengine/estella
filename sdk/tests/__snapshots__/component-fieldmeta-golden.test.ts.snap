@@ -422,6 +422,15 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "tooltip": "Point, Directional, Ambient, or Spot.",
     },
   },
+  "LightProbeVolume": {
+    "halfExtents": {
+      "min": 0,
+      "tooltip": "Half the box this volume covers, from the entity's position.",
+    },
+    "probes": {
+      "tooltip": "Baked probe grid (.esprobes) filling this box.",
+    },
+  },
   "Marker": {
     "properties": {
       "map": true,

@@ -29,6 +29,7 @@
 #include "../renderer/rhi/Buffer.hpp"
 #include "Mesh.hpp"
 #include "Environment.hpp"
+#include "ProbeVolume.hpp"
 #include "../text/BitmapFont.hpp"
 
 // Standard library
@@ -552,6 +553,20 @@ public:
     void releaseEnvironment(EnvironmentHandle handle);
 
     /**
+     * @brief Registers a grid of baked irradiance.
+     * @param resolution Probes along x, y and z.
+     * @param irradiance Nine RGB coefficients per probe, x fastest then y then z.
+     */
+    ProbeVolumeHandle createProbeVolume(const glm::ivec3& resolution, ConstSpan<f32> irradiance);
+
+    /** @brief The probe volume a handle names, or null. */
+    ProbeVolume* getProbeVolume(ProbeVolumeHandle handle);
+    const ProbeVolume* getProbeVolume(ProbeVolumeHandle handle) const;
+
+    /** @brief Releases a probe volume. */
+    void releaseProbeVolume(ProbeVolumeHandle handle);
+
+    /**
      * @brief Gets a vertex buffer by handle
      * @param handle The buffer handle
      * @return Pointer to the buffer, or nullptr if invalid
@@ -691,6 +706,7 @@ private:
     ResourcePool<IndexBuffer> indexBuffers_;
     ResourcePool<Mesh> meshes_;
     ResourcePool<Environment> environments_;
+    ResourcePool<ProbeVolume> probeVolumes_;
     ResourcePool<text::BitmapFont> fonts_;
     /// Handles whose GPU texture died with the device, still showing the
     /// placeholder. Empty means the content is whole again.

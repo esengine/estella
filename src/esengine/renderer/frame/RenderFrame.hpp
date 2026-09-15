@@ -583,6 +583,9 @@ private:
     /// flush() uploads + binds the result so Lit material shaders read it.
     void collectLights(ecs::Registry& registry);
 
+    /** @brief Gathers the frame's LightProbeVolume components into the ProbeStore. */
+    void collectProbes(ecs::Registry& registry);
+
     /// Makes this ambient light the frame's environment, when it names one that is
     /// loaded. `scale` is the light's colour times its intensity, folded into the
     /// coefficients — an environment is what the light casts, not a second source.

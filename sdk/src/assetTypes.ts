@@ -89,6 +89,9 @@ const ASSET_TYPE_REGISTRY: readonly AssetTypeEntry[] = [
     // of the octahedral atlas they were baked beside — hence the transitive dep,
     // without which the cook ships the document and culls the image it is half of.
     { extensions: ['esenv'], contentType: 'json', editorType: 'json', addressableType: 'json', wechatPackInclude: true, hasTransitiveDeps: true },
+    // Baked probe grid: the same nine coefficients an `.esenv` carries, at every
+    // point of a grid instead of once. No transitive dep — a volume names no image.
+    { extensions: ['esprobes'], contentType: 'json', editorType: 'json', addressableType: 'json', wechatPackInclude: true, hasTransitiveDeps: false },
 ];
 
 const MIME_MAP: Record<string, string> = {
@@ -128,6 +131,7 @@ const MIME_MAP: Record<string, string> = {
     esanimator: 'application/json',
     esbt: 'application/json',
     esenv: 'application/json',
+    esprobes: 'application/json',
     bmfont: 'application/json',
     fnt: 'text/plain',
 };

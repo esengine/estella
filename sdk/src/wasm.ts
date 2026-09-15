@@ -315,6 +315,14 @@ export interface ESEngineModule {
                         mipCount: number, maxRange: number): number;
     /** Release an environment; its atlas is an ordinary texture and outlives it. */
     environment_release?(environmentHandle: number): void;
+    /**
+     * Register a grid of baked irradiance: `resX*resY*resZ*27` floats, nine RGB
+     * coefficients per probe with x varying fastest. The same nine an environment
+     * carries, at points instead of once — which is what lights a thing that moves.
+     */
+    probe_volume_create?(resX: number, resY: number, resZ: number, shPtr: number): number;
+    /** Release a probe volume. */
+    probe_volume_release?(volumeHandle: number): void;
     /** The same for every MeshRenderer in the world; returns how many were frozen. */
     meshRenderer_makeAllResident?(registry: CppRegistry): number;
     /**

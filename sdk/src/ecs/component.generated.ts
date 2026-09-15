@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, Cl
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = 'ca7cd852d3bc316f';
+export const ABI_LAYOUT_HASH = 'cccf3c7425936b84';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -504,6 +504,21 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             environment: { tooltip: "Baked environment (.esenv) this Ambient light casts.", shownWhen: { field: "type", values: [2] } },
             environmentRotation: { unit: "deg", tooltip: "Turn the environment about the up axis, in degrees.", shownWhen: { field: "type", values: [2] } },
             drawEnvironment: { tooltip: "Draw this environment as the sky behind the scene.", shownWhen: { field: "type", values: [2] } },
+        },
+    },
+    LightProbeVolume: {
+        defaults: {
+            probes: 0,
+            halfExtents: { x: 100, y: 100, z: 100 },
+            enabled: true,
+        },
+        assetFields: [{ field: 'probes', type: 'probeVolume' as AssetFieldType }],
+        entityFields: [],
+        colorFields: [],
+        animatableFields: [],
+        fields: {
+            probes: { tooltip: "Baked probe grid (.esprobes) filling this box." },
+            halfExtents: { min: 0, tooltip: "Half the box this volume covers, from the entity's position." },
         },
     },
     MeshCollider3D: {
@@ -1401,6 +1416,12 @@ export interface LightData {
     environment: number;
     environmentRotation: number;
     drawEnvironment: boolean;
+    enabled: boolean;
+}
+
+export interface LightProbeVolumeData {
+    probes: number;
+    halfExtents: Vec3;
     enabled: boolean;
 }
 

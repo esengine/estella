@@ -15,7 +15,7 @@ export type { AssetFieldMeta, SkeletalFieldMeta };
 // extending the generated base.
 import type {
     TransformData, SpriteData, ShapeRendererData, LightData, ShadowCaster2DData, DraggableData,
-    SortingGroupData, SpriteMaskData,
+    SortingGroupData, SpriteMaskData, LightProbeVolumeData,
     CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData, DragonBonesAnimationData,
     TilemapLayerData, BitmapTextData, TrailRendererData, ParticleForceFieldData,
     CameraData as CameraDataCpp, ParticleEmitterData as ParticleEmitterDataCpp,
@@ -805,7 +805,7 @@ export type ScaleMode = (typeof ScaleMode)[keyof typeof ScaleMode];
 // automatically; tsc then enforces every consumer matches.
 export type {
     TransformData, SpriteData, ShapeRendererData, LightData, ShadowCaster2DData, DraggableData,
-    SortingGroupData, SpriteMaskData,
+    SortingGroupData, SpriteMaskData, LightProbeVolumeData,
     CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData, DragonBonesAnimationData,
     TilemapLayerData, BitmapTextData, TrailRendererData, ParticleForceFieldData,
 };
@@ -919,6 +919,13 @@ export const Light = defineBuiltin<LightData>('Light',
 
 export const ShadowCaster2D = defineBuiltin<ShadowCaster2DData>('ShadowCaster2D',
     metaDefaults<ShadowCaster2DData>('ShadowCaster2D')
+);
+
+// A box of baked irradiance: what lights the things a lightmap cannot hold still.
+// Typed because the viewport outlines it — a region of world nothing renders is a
+// box a creator would otherwise place blind.
+export const LightProbeVolume = defineBuiltin<LightProbeVolumeData>('LightProbeVolume',
+    metaDefaults<LightProbeVolumeData>('LightProbeVolume')
 );
 
 /**

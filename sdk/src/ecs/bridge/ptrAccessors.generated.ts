@@ -897,6 +897,38 @@ export function createLightData(): LightPtrData {
     };
 }
 
+export interface LightProbeVolumePtrData {
+    probes: number;
+    halfExtents: Vec3;
+    enabled: boolean;
+}
+
+export function fillLightProbeVolume(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: LightProbeVolumePtrData,
+): void {
+    out.probes = u32[ptr >> 2];
+    const halfExtents_ = out.halfExtents; halfExtents_.x = f32[(ptr + 4) >> 2]; halfExtents_.y = f32[((ptr + 4) >> 2) + 1]; halfExtents_.z = f32[((ptr + 4) >> 2) + 2];
+    out.enabled = u8[ptr + 16] !== 0;
+}
+
+export function writeLightProbeVolume(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: LightProbeVolumePtrData,
+): void {
+    u32[ptr >> 2] = data.probes;
+    f32[(ptr + 4) >> 2] = data.halfExtents.x; f32[((ptr + 4) >> 2) + 1] = data.halfExtents.y; f32[((ptr + 4) >> 2) + 2] = data.halfExtents.z;
+    u8[ptr + 16] = data.enabled ? 1 : 0;
+}
+
+export function createLightProbeVolumeData(): LightProbeVolumePtrData {
+    return {
+        probes: 0,
+        halfExtents: { x: 0, y: 0, z: 0 },
+        enabled: false,
+    };
+}
+
 export interface MeshCollider3DPtrData {
     mesh: number;
     friction: number;
@@ -2352,6 +2384,7 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     Interactable: { fill: fillInteractable, write: writeInteractable, create: createInteractableData },
     LODGroup: { fill: fillLODGroup, write: writeLODGroup, create: createLODGroupData },
     Light: { fill: fillLight, write: writeLight, create: createLightData },
+    LightProbeVolume: { fill: fillLightProbeVolume, write: writeLightProbeVolume, create: createLightProbeVolumeData },
     MeshCollider3D: { fill: fillMeshCollider3D, write: writeMeshCollider3D, create: createMeshCollider3DData },
     MeshLightmap: { fill: fillMeshLightmap, write: writeMeshLightmap, create: createMeshLightmapData },
     MeshRenderer: { fill: fillMeshRenderer, write: writeMeshRenderer, create: createMeshRendererData },

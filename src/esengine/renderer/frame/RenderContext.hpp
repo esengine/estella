@@ -23,6 +23,8 @@
 #include "../rhi/Buffer.hpp"
 #include "../rhi/GfxEnums.hpp"
 #include "../store/LightStore.hpp"
+#include "../store/ProbeStore.hpp"
+#include "../rhi/PerDrawBlocks.hpp"
 #include "../store/MaterialStore.hpp"
 #include "../rhi/Shader.hpp"
 
@@ -193,6 +195,11 @@ public:
     LightStore& lights() { return lights_; }
     const LightStore& lights() const { return lights_; }
 
+    /** @brief The frame's probe volumes. Gathered beside the lights, because it
+     *         answers the same question at the points a light cannot be asked. */
+    ProbeStore& probes() { return probes_; }
+    const ProbeStore& probes() const { return probes_; }
+
 private:
     void initDefaultTextures();
     TextureHandle make1x1Texture(u32 rgba);
@@ -209,21 +216,26 @@ private:
     BufferHandle frameUbo_ = BufferHandle::Invalid;
     BufferHandle timeUbo_ = BufferHandle::Invalid;
     BufferHandle drawParamsFallback_ = BufferHandle::Invalid;
-    /// One skinned draw's bone matrices, rewritten immediately before that draw.
-    BufferHandle skinUbo_ = BufferHandle::Invalid;
-    /// One morphed draw's shape weights, on the same terms.
-    BufferHandle morphUbo_ = BufferHandle::Invalid;
+    /// A bone-matrix block per skinned draw, a shape-weight block per morphed one,
+    /// and an indirect-light block per draw standing in a volume. One buffer EACH
+    /// and not one shared: see PerDrawBlocks.
+    PerDrawBlocks skinBlocks_;
+    PerDrawBlocks morphBlocks_;
+    PerDrawBlocks probeBlocks_;
 
 public:
-    /** @brief The per-draw bone-matrix block a skinned draw writes into. */
-    BufferHandle skinUbo() const { return skinUbo_; }
-    /** @brief The per-draw shape-weight block a morphed draw writes into. */
-    BufferHandle morphUbo() const { return morphUbo_; }
+    /** @brief The pool a skinned draw takes its pose buffer from. */
+    PerDrawBlocks& skinBlocks() { return skinBlocks_; }
+    /** @brief The pool a morphed draw takes its shape buffer from. */
+    PerDrawBlocks& morphBlocks() { return morphBlocks_; }
+    /** @brief The pool a draw inside a probe volume takes its light buffer from. */
+    PerDrawBlocks& probeBlocks() { return probeBlocks_; }
 
 private:
     f32 lastElapsed_ = 0.0f;
     MaterialStore materials_;
     LightStore lights_;
+    ProbeStore probes_;
 
     GfxDevice& device_;
     bool initialized_ = false;

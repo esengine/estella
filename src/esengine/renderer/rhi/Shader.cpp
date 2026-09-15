@@ -21,6 +21,7 @@
 #include "../store/SkinConstants.hpp"
 #include "../store/LightConstants.hpp"
 #include "../store/MorphConstants.hpp"
+#include "../store/ProbeConstants.hpp"
 #include "../../core/Log.hpp"
 
 #include <cstring>
@@ -258,6 +259,14 @@ bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSr
     u32 morphBlock = device_->getUniformBlockIndex(program_, MORPH_CONSTANTS_BLOCK);
     if (morphBlock != GFX_INVALID_UNIFORM_BLOCK) {
         device_->uniformBlockBinding(program_, morphBlock, MORPH_CONSTANTS_BINDING);
+    }
+
+    // And the indirect light where this draw stands, which DrawList rewrites per
+    // draw. Every Lit fragment stage declares it — whether a draw STANDS in a
+    // volume is a number in the block, not a variant.
+    u32 probeBlock = device_->getUniformBlockIndex(program_, PROBE_CONSTANTS_BLOCK);
+    if (probeBlock != GFX_INVALID_UNIFORM_BLOCK) {
+        device_->uniformBlockBinding(program_, probeBlock, PROBE_CONSTANTS_BINDING);
     }
 
     // Same for the per-draw params block (rewriteLooseUniforms generates it for

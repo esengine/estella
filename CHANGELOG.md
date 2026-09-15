@@ -16,6 +16,49 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **Light probes: what lights a thing a bake cannot hold still.** A bake answers
+  "what light reaches this surface" for geometry that never moves, and nothing
+  answered it for a character — a figure walking out of a lit room kept the one
+  flat environment the whole scene shares. A `LightProbeVolume` is a box of that
+  answer solved on a grid: a draw standing inside takes its indirect light from
+  the eight probes around it, read trilinearly, instead of from the frame's
+  environment.
+
+  The grid is the same nine spherical-harmonic coefficients an `.esenv` already
+  carries, evaluated by the same expression — an environment is this field held
+  constant, and a volume is it sampled. That is why the two are one function and
+  not two: they differ in where the nine came from, not in what they mean.
+
+  Per DRAW and not per object, which is the opposite of a lightmap's rectangle
+  and for the reason that decides it: a rectangle belongs to an object, because
+  one mesh placed twice occupies two patches of one atlas, while irradiance is a
+  function of WHERE — and a batch of instances has only one position to speak of.
+  A draw standing in a volume is therefore its own draw.
+
+  A surface that reads its own atlas does not also read a volume: the bake
+  already holds every bounce that reached those texels, and taking both counts
+  them twice. Skinned meshes never take a bake, so they always take this.
+
+  The reading side goes first on purpose, as the lightmap's did: a grid written
+  by hand can falsify it, where a solver built first would have nothing to say
+  whether it solved the right thing. Baking one is the next step.
+
+### Fixed
+
+- **A per-draw block reaches the draw that wrote it.** The pose of a skinned
+  draw, the shapes of a morphed one and (now) the indirect light of a probe-lit
+  one shared one buffer each, rewritten immediately before the draw that reads
+  it. That is correct where an upload takes effect at the call, and wrong on a
+  backend that QUEUES them: on WebGPU the writes land together when the pass is
+  submitted, so every draw in that pass read whatever the LAST of them wrote —
+  one pose on every character in the room, one set of shapes on every face.
+
+  Every skin and morph gate in the suite drew a single object, so none of them
+  could see it. Each draw now takes a buffer of its own from a frame-scoped pool,
+  and a draw with nothing to say binds a zeroed block that is never written —
+  "none" as an object rather than an erasure someone has to remember to perform.
+  Two morphed draws in one frame, blended different amounts, is now a gate.
+
 - **A room in the corpus is actually lit.** `physics-3d` — twenty-two boxes and
   two lamps — now ships with its lighting baked: an atlas beside the scene, and a
   `MeshLightmap` on every object saying where in it to read. It is the first

@@ -189,4 +189,28 @@ struct Light {
     bool enabled{true};
 };
 
+/**
+ * @brief A box of baked irradiance: the light for what a bake cannot hold still.
+ *
+ * @details A draw standing inside takes its indirect light from the eight probes
+ *          around it rather than from the frame's one environment. The box is
+ *          AXIS-ALIGNED on the entity's world position; rotation and scale are not
+ *          read, because a grid solved on world axes cannot be sampled on others.
+ */
+ES_COMPONENT()
+struct LightProbeVolume {
+    /** @brief The grid this box is read through. Invalid = nothing baked yet, which
+     *         leaves everything inside lit exactly as it was. */
+    ES_PROPERTY(asset = probeVolume, tooltip="Baked probe grid (.esprobes) filling this box.")
+    resource::ProbeVolumeHandle probes;
+
+    /** @brief Half the box's size, in world units, from the entity's position. */
+    ES_PROPERTY(min=0, tooltip="Half the box this volume covers, from the entity's position.")
+    glm::vec3 halfExtents{100.0f, 100.0f, 100.0f};
+
+    /** @brief Disabled volumes are skipped during collection. */
+    ES_PROPERTY()
+    bool enabled{true};
+};
+
 }  // namespace esengine::ecs

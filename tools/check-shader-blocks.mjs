@@ -109,13 +109,19 @@ function glslBlock(name) {
         .map((f) => `${bare(f[1])}${f[2] ? `[${f[2]}]` : ''}`);
 }
 
+/**
+ * Commas BETWEEN things, which the ones inside `array<T, N>` are not. One rule
+ * for the two readers that need it: a struct's fields, and a function's
+ * arguments — where counting an array's length as an argument makes the same
+ * helper look like it takes one more on WGSL than it does on GLSL.
+ */
+const BETWEEN = /,(?![^<]*>)/;
+
 /** WGSL: `struct Name { a : vec4f, b : array<T, 16> };` */
 function wgslBlock(name) {
     const m = new RegExp(`struct\\s+${name}\\s*\\{([^}]*)\\}`, 'm').exec(text);
     if (!m) return null;
-    // Split on the commas BETWEEN fields, which the ones inside `array<T, N>`
-    // are not — reading a field as "up to the next comma" loses every length.
-    return m[1].split(/,(?![^<]*>)/).map((f) => f.trim()).filter(Boolean).map((f) => {
+    return m[1].split(BETWEEN).map((f) => f.trim()).filter(Boolean).map((f) => {
         const [, name, type] = /^(\w+)\s*:\s*([\s\S]+)$/.exec(f) ?? [];
         if (!name) return '';
         const count = /array\s*<[^,>]+,\s*(\d+)\s*>/.exec(type);
@@ -187,7 +193,7 @@ function helpers(pattern) {
     for (const m of text.matchAll(pattern)) {
         const args = m[2].trim();
         const counts = out.get(m[1]) ?? [];
-        counts.push(args === '' ? 0 : args.split(',').length);
+        counts.push(args === '' ? 0 : args.split(BETWEEN).length);
         out.set(m[1], counts.sort());
     }
     return out;

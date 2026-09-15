@@ -288,7 +288,8 @@ void RenderFrame::drawScene() {
     {
         ES_PROFILE_SCOPE("render.submit");
         draw_list_.execute(device_, pool_, context_.materials(), context_.getWhiteTextureId(),
-                           &frame_capture_, context_.skinUbo(), context_.morphUbo());
+                           &frame_capture_, &context_.skinBlocks(), &context_.morphBlocks(),
+                           &context_.probeBlocks());
     }
 
     // Handed over to whatever the graph runs next. Blend/depth/colour-mask come
@@ -328,6 +329,13 @@ void RenderFrame::beginFrame() {
     // that they can differ is the whole claim.
     lod_counts_ = {};
     lod_view_state_.beginFrame();
+
+    // The per-draw blocks go back at the FRAME boundary and not at each pass's:
+    // a frame reaches the device as several passes with one submission behind
+    // them, so a buffer reused between two of them is read by both.
+    context_.skinBlocks().beginFrame();
+    context_.morphBlocks().beginFrame();
+    context_.probeBlocks().beginFrame();
 }
 
 void RenderFrame::applySceneDepthNeed() {
@@ -677,7 +685,8 @@ void RenderFrame::replayToDrawCall(i32 stopAtDrawCall) {
     context_.updateCameraConstants(view_projection_);
     context_.lights().uploadAndBind();
     draw_list_.execute(device_, pool_, context_.materials(), context_.getWhiteTextureId(),
-                       &frame_capture_, context_.skinUbo(), context_.morphUbo());
+                       &frame_capture_, &context_.skinBlocks(), &context_.morphBlocks(),
+                       &context_.probeBlocks());
 
     // Leave scissor disabled for whatever renders next; invalidate so the next
     // setPipeline re-applies its full state (stencil included).
@@ -750,7 +759,8 @@ void RenderFrame::renderSurface(ecs::Registry& registry, const glm::mat4& viewPr
     context_.updateCameraConstants(viewProjection);
     context_.lights().uploadAndBind();
     draw_list_.execute(device_, pool_, context_.materials(), context_.getWhiteTextureId(),
-                       &frame_capture_, context_.skinUbo(), context_.morphUbo());
+                       &frame_capture_, &context_.skinBlocks(), &context_.morphBlocks(),
+                       &context_.probeBlocks());
     frame_capture_.endCapture();
 
     rt->unbind();
@@ -1099,6 +1109,33 @@ static glm::vec3 lightForward(ecs::Transform* transform) {
     if (!transform) return glm::vec3(0.0f, 0.0f, -1.0f);
     transform->ensureDecomposed();
     return transform->worldRotation * glm::vec3(0.0f, 0.0f, -1.0f);
+}
+
+/**
+ * @brief Gathers the frame's probe volumes: a world box each, and the grid inside it.
+ *
+ * @details A volume BORROWS its coefficients from the resource manager rather than
+ *          copying them — the store is filled and read within one collect, and a
+ *          grid is kilobytes an every-frame copy would spend nothing to gain.
+ */
+void RenderFrame::collectProbes(ecs::Registry& registry) {
+    ProbeStore& probes = context_.probes();
+    probes.clear();
+
+    auto view = registry.view<ecs::LightProbeVolume>();
+    for (auto entity : view) {
+        const auto& volume = view.get(entity);
+        if (!volume.enabled) continue;
+        const ProbeVolume* grid = resource_manager_.getProbeVolume(volume.probes);
+        if (!grid) continue;
+        // The box is axis-aligned around the entity's world position: a grid was
+        // solved on world axes, so a turned volume would be read along axes it
+        // never had. Scale is not read for the same reason.
+        const auto* transform = registry.tryGet<ecs::Transform>(entity);
+        const glm::vec3 centre = transform ? glm::vec3(transform->worldPosition) : glm::vec3(0.0f);
+        const glm::vec3 half = glm::abs(volume.halfExtents);
+        probes.add(centre - half, centre + half, grid);
+    }
 }
 
 void RenderFrame::collectLights(ecs::Registry& registry) {
@@ -1711,8 +1748,8 @@ void RenderFrame::executeShadowPass(ecs::Registry& registry) {
         // nothing — the whole pass came back empty for exactly this.
         context_.lights().uploadAndBind();
         list.execute(device_, shadow_pool_, context_.materials(),
-                     context_.getWhiteTextureId(), nullptr, context_.skinUbo(),
-                     context_.morphUbo());
+                     context_.getWhiteTextureId(), nullptr, &context_.skinBlocks(),
+                     &context_.morphBlocks(), &context_.probeBlocks());
         ++shadowTiles;
         shadowDraws += list.mergedDrawCallCount();
     }
@@ -1813,6 +1850,9 @@ void RenderFrame::collectAll(ecs::Registry& registry) {
     // After the groups, because a mask's reach is stated in the order a group may own.
     { ES_PROFILE_SCOPE("render.collect.spriteMasks"); buildSpriteMasks(registry); }
     { ES_PROFILE_SCOPE("render.collect.lights"); collectLights(registry); }
+    // Beside the lights and for the same reason: this answers what reaches a point
+    // that no light can be asked about, and the mesh collect below reads both.
+    { ES_PROFILE_SCOPE("render.collect.probes"); collectProbes(registry); }
     // Decided here, drawn by the graph. Nothing in this function may touch the
     // device: the frame reaches the host as several calls with its own draws
     // between them, and a pass opened here would swallow them.

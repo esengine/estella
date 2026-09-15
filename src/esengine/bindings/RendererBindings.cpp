@@ -430,6 +430,30 @@ void environment_release(u32 environmentHandle) {
     }
 }
 
+/**
+ * @brief Registers a grid of baked irradiance — an environment sampled at points.
+ * @param shPtr `resX*resY*resZ*27` floats: nine RGB coefficients per probe, in
+ *              grid order with x varying fastest.
+ */
+u32 probe_volume_create(i32 resX, i32 resY, i32 resZ, uintptr_t shPtr) {
+    auto* rm = ctx().tryGet<resource::ResourceManager>();
+    if (!rm) return 0;
+    if (resX <= 0 || resY <= 0 || resZ <= 0) return 0;
+    const u64 want = static_cast<u64>(resX) * static_cast<u64>(resY)
+                   * static_cast<u64>(resZ) * 27u;
+    const f32* sh = boundarySpan<f32>(shPtr, want, "probe_volume_create.irradiance");
+    if (!sh) return 0;
+    return rm->createProbeVolume({resX, resY, resZ},
+                                 ConstSpan<f32>(sh, static_cast<usize>(want))).id();
+}
+
+/** @brief Releases a probe volume. */
+void probe_volume_release(u32 volumeHandle) {
+    if (auto* rm = ctx().tryGet<resource::ResourceManager>()) {
+        rm->releaseProbeVolume(resource::ProbeVolumeHandle(volumeHandle));
+    }
+}
+
 namespace {
 // Freezes a MeshRenderer's inline geometry onto the GPU: the same vertices, uploaded
 // once and drawn with a per-object transform. The inline payload is cleared, so

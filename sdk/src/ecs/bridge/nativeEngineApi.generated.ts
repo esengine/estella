@@ -114,6 +114,8 @@ export interface NativeEngineApi {
     postprocess_setUniformFloat?(passName: string, uniform: string, value: number): void;
     postprocess_setUniformVec4?(passName: string, uniform: string, x: number, y: number, z: number, w: number): void;
     postprocess_shutdown?(): void;
+    probe_volume_create?(resX: number, resY: number, resZ: number, shPtr: number): number;
+    probe_volume_release?(volumeHandle: number): void;
     registry_batchSyncPhysicsTransforms?(registry: unknown, bufferPtr: number, count: number, ppu: number): void;
     registry_getCanvasEntity?(registry: unknown): number;
     registry_getGeneration?(registry: unknown, entity: number): number;
@@ -378,6 +380,8 @@ export function createNativeEngineApi(
     bind('postprocess_setUniformFloat', 'es_postprocess_setUniformFloat', false);
     bind('postprocess_setUniformVec4', 'es_postprocess_setUniformVec4', false);
     bind('postprocess_shutdown', 'es_postprocess_shutdown', false);
+    bind('probe_volume_create', 'es_probe_volume_create', false);
+    bind('probe_volume_release', 'es_probe_volume_release', false);
     bind('registry_batchSyncPhysicsTransforms', 'es_registry_batchSyncPhysicsTransforms', true);
     bind('registry_getCanvasEntity', 'es_registry_getCanvasEntity', true);
     bind('registry_getGeneration', 'es_registry_getGeneration', true);

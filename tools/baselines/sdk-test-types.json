@@ -36,9 +36,6 @@
   "tests/api-baseline-rules.test.ts": {
     "TS7016|Could not find a declaration file for module '../../tools/lib/apiSnapshot.mjs'. 'tools/lib/apiSnapshot.mjs' implicitly has an 'any' type.": 1
   },
-  "tests/asset-refcounter-integration.test.ts": {
-    "TS2739|Type '{ textureHandles: Map<any, any>; materialHandles: Map<any, any>; fontHandles: Map<any, any>; releaseCallbacks: never[]; missing: never[]; }' is missing the following properties from type 'SceneAssetResult': meshHandles, environmentHandles, scope": 1
-  },
   "tests/assets-invalidate-event.test.ts": {
     "TS2673|Constructor of class 'Assets' is private and only accessible within the class declaration.": 1
   },

@@ -16,6 +16,7 @@ import { AssetRefCounter } from '../src/asset/AssetRefCounter';
 import type { Backend } from '../src/asset/Backend';
 import type { SceneData } from '../src/scene/scene';
 import type { SceneAssetResult } from '../src/asset/Assets';
+import { AssetScope } from '../src/asset/AssetLease';
 
 vi.mock('../src/wasm/resourceManager', () => ({
     requireResourceManager: () => ({ releaseTexture: vi.fn() }),
@@ -53,7 +54,11 @@ function emptyResult(): SceneAssetResult {
         textureHandles: new Map(),
         materialHandles: new Map(),
         fontHandles: new Map(),
+        meshHandles: new Map(),
+        environmentHandles: new Map(),
+        probeVolumeHandles: new Map(),
         releaseCallbacks: [],
+        scope: new AssetScope(),
         missing: [],
     };
 }

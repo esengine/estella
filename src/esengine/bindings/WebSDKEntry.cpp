@@ -530,6 +530,8 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("mesh_release", &esengine::mesh_release);
     emscripten::function("environment_create", &esengine::environment_create);
     emscripten::function("environment_release", &esengine::environment_release);
+    emscripten::function("probe_volume_create", &esengine::probe_volume_create);
+    emscripten::function("probe_volume_release", &esengine::probe_volume_release);
     emscripten::function("meshRenderer_localBounds", &esengine::meshRenderer_localBounds);
     emscripten::function("meshRenderer_makeAllResident", &esengine::meshRenderer_makeAllResident);
     emscripten::function("meshRenderer_setMeshAll", &esengine::meshRenderer_setMeshAll);

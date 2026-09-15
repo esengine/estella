@@ -127,6 +127,25 @@ export const SCENES = [
   // the two objects drawn from them read different halves of it. A rectangle
   // that belonged to the mesh would paint these two the same colour.
   { id: "lightmap-atlas", tier: "pr", webgpu: true, env: { "ESTELLA_VERIFY_SCENE": "/scenes/lightmap-atlas-share.esscene", "ESTELLA_VERIFY_MANIFEST": "/scenes/lightmap-atlas-share.textures.json", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "2", "ESTELLA_VERIFY_EXPECT": "[{\"x\":0.25,\"y\":0.4,\"rgb\":[255,0,0],\"tol\":30},{\"x\":0.25,\"y\":0.6,\"rgb\":[255,0,0],\"tol\":30},{\"x\":0.75,\"y\":0.4,\"rgb\":[0,0,255],\"tol\":30},{\"x\":0.75,\"y\":0.6,\"rgb\":[0,0,255],\"tol\":30}]" } },
+  // TWO morphed draws in one pass, a quarter of the way and all of it. A per-draw
+  // block they SHARE is written twice before either draws on a backend that queues
+  // uploads, so both wear the last weight — invisible to a single-object scene.
+  { id: "mesh-morph-two", tier: "pr", webgpu: true, env: { "ESTELLA_VERIFY_SCENE": "/scenes/mesh-morph-two.esscene", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "2", "ESTELLA_VERIFY_EXPECT": "[{\"x\":0.375,\"y\":0.25,\"rgb\":[0,255,0],\"tol\":30},{\"x\":0.75,\"y\":0.25,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.75,\"y\":0.75,\"rgb\":[0,255,0],\"tol\":30}]" } },
+  // WHAT LIGHTS A THING THAT MOVES. There is no light in this scene at all: the
+  // only thing that can colour these triangles is the grid the volume holds.
+  { id: "probe-lit", tier: "pr", webgpu: true, env: { "ESTELLA_VERIFY_SCENE": "/scenes/probe-lit.esscene", "ESTELLA_VERIFY_MANIFEST": "/scenes/probe-lit.textures.json", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "2", "ESTELLA_VERIFY_EXPECT": "[{\"x\":0.3,\"y\":0.556,\"rgb\":[255,0,0],\"tol\":30},{\"x\":0.7,\"y\":0.556,\"rgb\":[255,0,0],\"tol\":30}]" } },
+  // The nine coefficients carry a DIRECTION, not just an amount. The fixture's
+  // two triangles face +Z and +X, and the grid is grey with red along +X — so a
+  // volume flattened to its constant term paints these two the same grey.
+  { id: "probe-facing", tier: "pr", webgpu: true, env: { "ESTELLA_VERIFY_SCENE": "/scenes/probe-facing.esscene", "ESTELLA_VERIFY_MANIFEST": "/scenes/probe-facing.textures.json", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "2", "ESTELLA_VERIFY_EXPECT": "[{\"x\":0.3,\"y\":0.556,\"rgb\":[128,128,128],\"tol\":30},{\"x\":0.7,\"y\":0.556,\"rgb\":[255,128,128],\"tol\":30}]" } },
+  // Red at one end of the box, blue at the other. The object in the MIDDLE is the
+  // claim: nearest-probe would paint it one of the two, and only a read that
+  // interpolates can put it between them.
+  { id: "probe-blend", tier: "pr", webgpu: true, env: { "ESTELLA_VERIFY_SCENE": "/scenes/probe-blend.esscene", "ESTELLA_VERIFY_MANIFEST": "/scenes/probe-blend.textures.json", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "2", "ESTELLA_VERIFY_EXPECT": "[{\"x\":0.26,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":30},{\"x\":0.46,\"y\":0.5,\"rgb\":[128,0,128],\"tol\":30},{\"x\":0.66,\"y\":0.5,\"rgb\":[0,0,255],\"tol\":30}]" } },
+  // A baked surface and a probe-lit one inside ONE volume. The bake already holds
+  // every bounce that reached it, so the atlas half must stay red: a draw taking
+  // both would come out purple, and only a frame with both in it can say so.
+  { id: "probe-lightmap", tier: "pr", webgpu: true, env: { "ESTELLA_VERIFY_SCENE": "/scenes/probe-lightmap.esscene", "ESTELLA_VERIFY_MANIFEST": "/scenes/probe-lightmap.textures.json", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "2", "ESTELLA_VERIFY_EXPECT": "[{\"x\":0.25,\"y\":0.5667,\"rgb\":[255,0,0],\"tol\":30},{\"x\":0.85,\"y\":0.5,\"rgb\":[0,0,255],\"tol\":30}]" } },
   // A clip driving the weight, which is what an imported `weights` channel
   // becomes. The shape has to cross the boundary as a LIST — a weight written
   // into a component the runtime hands back as an embind vector goes nowhere.

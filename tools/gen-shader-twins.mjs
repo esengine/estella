@@ -56,7 +56,18 @@ const BLOCK_BINDINGS = {
   MaterialConstants: 1,
   LightConstants: 2,
   TimeConstants: 3,
+  // The indirect light where a draw stands, which the injected Lit header
+  // declares for every Lit fragment stage — see ProbeConstants.hpp.
+  ProbeConstants: 7,
 };
+
+/** The blocks above, as the pattern that finds them. Derived and not spelled a
+ *  second time: a block added to the table but missing from a hand-written
+ *  alternation is one glslang refuses for want of a binding. */
+const BLOCK_DECLARATION = new RegExp(
+  String.raw`layout\s*\(\s*std140\s*\)\s*uniform\s+(${Object.keys(BLOCK_BINDINGS).join('|')})\b`,
+  'g',
+);
 
 // The samplers the Lit-2D header declares, on the units it pins them to. Mirrors
 // LightConstants.hpp, which is where a unit is decided: a twin generated against a
@@ -109,7 +120,7 @@ function adaptGlsl(glsl, textures) {
 
   // Engine UBO slots as explicit bindings (SPIR-V descriptor set 0 = WGSL group 0).
   out = out.replace(
-    /layout\s*\(\s*std140\s*\)\s*uniform\s+(FrameConstants|MaterialConstants|LightConstants|TimeConstants)\b/g,
+    BLOCK_DECLARATION,
     (m, name) => `layout(std140, binding = ${BLOCK_BINDINGS[name]}) uniform ${name}`,
   );
 

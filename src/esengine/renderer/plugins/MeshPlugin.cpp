@@ -4,6 +4,7 @@
 #include "../draw/BatchBuilder.hpp"
 #include "../store/MaterialStore.hpp"
 #include "../store/MorphConstants.hpp"
+#include "../store/ProbeConstants.hpp"
 #include "../frame/RenderFrame.hpp"
 #include "../frame/RenderContext.hpp"
 #include "../rhi/Texture.hpp"
@@ -710,6 +711,16 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                     }
                     std::memcpy(dst + meshInstanceLightmapOffset(resident->hasNormals), &rect, 16);
                 }
+                }
+
+                // A draw reading its own atlas does not ask: the bake holds the
+                // bounces that reached those texels. The ENTITY's position, not its
+                // vertices' — bones place a skinned mesh, a Transform says where.
+                if (!shadowDepth && key.lightmapTextureId == 0) {
+                    ProbeConstants probe;
+                    if (ctx.render_context.probes().sample(position, probe)) {
+                        key.probeIndex = draw_list.addProbe(probe);
+                    }
                 }
 
                 // A material's default program is built for the BATCH vertex

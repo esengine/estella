@@ -571,6 +571,12 @@ export interface Light {
     enabled: boolean;
 }
 
+export interface LightProbeVolume {
+    probes: number;
+    halfExtents: Vec3;
+    enabled: boolean;
+}
+
 export interface MeshCollider3D {
     mesh: number;
     friction: number;
@@ -973,6 +979,10 @@ export interface Registry {
     getLight(entity: Entity): Light;
     addLight(entity: Entity, component: Light): void;
     removeLight(entity: Entity): void;
+    hasLightProbeVolume(entity: Entity): boolean;
+    getLightProbeVolume(entity: Entity): LightProbeVolume;
+    addLightProbeVolume(entity: Entity, component: LightProbeVolume): void;
+    removeLightProbeVolume(entity: Entity): void;
     hasMeshCollider3D(entity: Entity): boolean;
     getMeshCollider3D(entity: Entity): MeshCollider3D;
     addMeshCollider3D(entity: Entity, component: MeshCollider3D): void;
@@ -1112,6 +1122,7 @@ export interface ESEngineModule {
     Interactable: new () => Interactable;
     LODGroup: new () => LODGroup;
     Light: new () => Light;
+    LightProbeVolume: new () => LightProbeVolume;
     MeshCollider3D: new () => MeshCollider3D;
     MeshLightmap: new () => MeshLightmap;
     MeshMorph: new () => MeshMorph;

@@ -150,6 +150,11 @@ struct DrawCommand {
     // 0 means the geometry is in the shape it was authored in.
     u32 morph_index = 0;
 
+    // The indirect light where this draw stands: 1 + where its block sits in the
+    // frame's pool, so 0 means no volume holds it and the frame's environment
+    // answers instead.
+    u32 probe_index = 0;
+
     bool hasPersistentGeometry() const { return vertex_buffer != BufferHandle::Invalid; }
 
     // Vertices owned by this command (from vertex_byte_offset). Needed so the merge pass
@@ -326,6 +331,10 @@ struct DrawCommand {
         if (skin_count != 0 || next.skin_count != 0) return false;
         // Same reason: one draw can only be in one shape.
         if (morph_index != 0 || next.morph_index != 0) return false;
+        // And one draw can only be in one PLACE, which is what a probe volume is
+        // asked about. Instancing is the claim that a record per object says
+        // everything that differs between them; irradiance is not in that record.
+        if (probe_index != 0 || next.probe_index != 0) return false;
         // BOTH, not just this one: an opaque head asked about a draw whose
         // result depends on when it happens would otherwise swallow it and
         // paint it with the head's own state.

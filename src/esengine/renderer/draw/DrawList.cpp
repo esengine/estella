@@ -3,6 +3,7 @@
 #include "./DrawList.hpp"
 #include "./BatchVertex.hpp"
 #include "../store/MaterialStore.hpp"
+#include "../store/SkinConstants.hpp"
 #include "../../core/FrameProfiler.hpp"
 
 #include <glm/glm.hpp>
@@ -46,6 +47,7 @@ void DrawList::clear() {
     sort_entries_.clear();
     skin_matrices_.clear();
     morph_shapes_.clear();
+    probes_.clear();
     merged_draw_calls_ = 0;
     depth_required_ = false;
 }
@@ -59,6 +61,11 @@ u32 DrawList::addSkinMatrices(const glm::mat4* matrices, u32 count) {
 u32 DrawList::addMorphShapes(const MorphConstants& shapes) {
     morph_shapes_.push_back(shapes);
     return static_cast<u32>(morph_shapes_.size());
+}
+
+u32 DrawList::addProbe(const ProbeConstants& probe) {
+    probes_.push_back(probe);
+    return static_cast<u32>(probes_.size());
 }
 
 void DrawList::push(const DrawCommand& cmd) {
@@ -179,11 +186,10 @@ void DrawList::finalize(TransientBufferPool& pool) {
 
 void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
                        MaterialStore& materials, u32 white_texture_id,
-                       FrameCapture* capture, BufferHandle skin_ubo, BufferHandle morph_ubo) {
+                       FrameCapture* capture, PerDrawBlocks* skin_blocks,
+                       PerDrawBlocks* morph_blocks, PerDrawBlocks* probe_blocks) {
     PipelineDesc lastDesc{};
     PipelineHandle lastHandle = PipelineHandle::Invalid;
-    /// Whether the block still holds a morphed draw's shapes — see the upload below.
-    bool morph_live = false;
 
     for (u32 i = 0; i < merged_draw_calls_; ++i) {
         const auto& cmd = commands_[i];
@@ -224,27 +230,35 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
             materials.bindForDraw(cmd.material_id);
         }
 
-        // The pose, for a draw that has one. Written immediately before the draw
-        // that reads it: one draw's bones are in flight at a time, which is what
-        // lets a single block serve every skinned mesh in the frame.
-        if (cmd.skin_count > 0 && skin_ubo != BufferHandle::Invalid) {
-            device.updateBuffer(skin_ubo, 0, skin_matrices_.data() + cmd.skin_offset,
-                                cmd.skin_count * sizeof(glm::mat4));
+        // The pose, for a draw that has one — in a buffer of this draw's own. A
+        // block shared between two draws of one pass is read by both with what
+        // the last wrote, which is a room of characters in one pose.
+        if (cmd.skin_count > 0 && skin_blocks) {
+            device.setUniformBuffer(
+                SKIN_CONSTANTS_BINDING,
+                skin_blocks->write(skin_matrices_.data() + cmd.skin_offset,
+                                   cmd.skin_count * static_cast<u32>(sizeof(glm::mat4))));
         }
 
-        // The shapes, the same way. Cleared on the way OUT of a morphed draw
-        // rather than written before every other one: a mesh with none would
-        // otherwise be deformed by whatever the last morphed draw left behind.
-        if (morph_ubo != BufferHandle::Invalid) {
-            if (cmd.morph_index > 0) {
-                device.updateBuffer(morph_ubo, 0, &morph_shapes_[cmd.morph_index - 1],
-                                    sizeof(MorphConstants));
-                morph_live = true;
-            } else if (morph_live) {
-                const MorphConstants none{};
-                device.updateBuffer(morph_ubo, 0, &none, sizeof(MorphConstants));
-                morph_live = false;
-            }
+        // The shapes, the same way — and a draw with none binds the zeroed block
+        // rather than erasing the last one's, so "unshaped" is an object instead
+        // of an erasure someone has to remember to perform.
+        if (morph_blocks) {
+            device.setUniformBuffer(MORPH_CONSTANTS_BINDING,
+                                    cmd.morph_index > 0
+                                        ? morph_blocks->write(&morph_shapes_[cmd.morph_index - 1],
+                                                              sizeof(MorphConstants))
+                                        : morph_blocks->zero());
+        }
+
+        // The indirect light, on exactly those terms: a draw standing in no volume
+        // binds zeroes, and reads the frame's environment because of them.
+        if (probe_blocks) {
+            device.setUniformBuffer(PROBE_CONSTANTS_BINDING,
+                                    cmd.probe_index > 0
+                                        ? probe_blocks->write(&probes_[cmd.probe_index - 1],
+                                                              sizeof(ProbeConstants))
+                                        : probe_blocks->zero());
         }
 
         // Dynamic per-draw state (sorted+merged draws already group these coarsely).

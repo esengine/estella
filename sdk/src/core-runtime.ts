@@ -95,6 +95,8 @@ export {
     LightType,
     SpriteMaskInteraction,
     ShadowCaster2D,
+    LightProbeVolume,
+    type LightProbeVolumeData,
     SortingGroup,
     SpriteMask,
     TrailRenderer,

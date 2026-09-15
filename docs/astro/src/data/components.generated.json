@@ -2050,6 +2050,30 @@
       ]
     },
     {
+      "name": "LightProbeVolume",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "probes",
+          "type": "Asset<probeVolume>",
+          "default": "none",
+          "doc": "Baked probe grid (.esprobes) filling this box."
+        },
+        {
+          "key": "halfExtents",
+          "type": "Vec3",
+          "default": "(100, 100, 100)",
+          "doc": "Half the box this volume covers, from the entity's position.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ]
+    },
+    {
       "name": "Marker",
       "source": "ts",
       "fields": [

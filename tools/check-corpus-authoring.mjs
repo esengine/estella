@@ -119,6 +119,7 @@ const DISPOSITION = {
 
   // — owed: a creator-facing component nothing in the shipped corpus authors.
   //   Each reason names where the coverage belongs. —
+  LightProbeVolume: ['owed', 'the reading side is in and a grid written by hand falsifies it, but nothing SOLVES one yet; a corpus scene can carry a volume once a bake can fill it'],
 
 };
 

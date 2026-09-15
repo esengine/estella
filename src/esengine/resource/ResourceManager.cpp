@@ -854,6 +854,35 @@ void ResourceManager::releaseEnvironment(EnvironmentHandle handle) {
     environments_.release(handle.id());
 }
 
+ProbeVolumeHandle ResourceManager::createProbeVolume(const glm::ivec3& resolution,
+                                                     ConstSpan<f32> irradiance) {
+    auto volume = std::make_unique<ProbeVolume>();
+    volume->resolution = resolution;
+    const usize want = static_cast<usize>(volume->probeCount()) * 27;
+    if (want == 0 || irradiance.size() != want) {
+        ES_LOG_ERROR("createProbeVolume: {}x{}x{} probes want {} coefficients, got {}",
+                     resolution.x, resolution.y, resolution.z, want, irradiance.size());
+        return ProbeVolumeHandle();
+    }
+    volume->irradiance.resize(want / 3);
+    for (usize i = 0; i < volume->irradiance.size(); ++i) {
+        volume->irradiance[i] = {irradiance[i * 3], irradiance[i * 3 + 1], irradiance[i * 3 + 2]};
+    }
+    return probeVolumes_.add(std::move(volume));
+}
+
+ProbeVolume* ResourceManager::getProbeVolume(ProbeVolumeHandle handle) {
+    return probeVolumes_.get(handle);
+}
+
+const ProbeVolume* ResourceManager::getProbeVolume(ProbeVolumeHandle handle) const {
+    return probeVolumes_.get(handle);
+}
+
+void ResourceManager::releaseProbeVolume(ProbeVolumeHandle handle) {
+    probeVolumes_.release(handle.id());
+}
+
 // =============================================================================
 // Index Buffer Resources
 // =============================================================================
