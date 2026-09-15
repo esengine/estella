@@ -5,10 +5,14 @@
  * @brief   The concrete leaf context + the shared action/condition registry.
  *
  * AiContext is a BehaviorContext superset (adds the blackboard): writing an FSM
- * action or a BT leaf is the same programming model as a `defineBehavior.update`
- * — same entity/world/commands access, plus `blackboard` for AI data flow. This
- * is the engine layer, so it may reference World/Commands; the FSM/BT cores stay
- * generic and wasm-free.
+ * action, a BT leaf or a script-graph node is the same programming model as a
+ * `defineBehavior.update` — same entity/world/commands/input/time access, plus
+ * `blackboard` for AI data flow. This is the engine layer, so it may reference
+ * World/Commands; the FSM/BT cores stay generic and wasm-free.
+ *
+ * `input` arrives through {@link noInput} when a caller has none — a test, or a
+ * host with no devices. Nothing pressed is the truthful answer there, and it
+ * keeps the context's shape from being conditional.
  */
 
 import type { Entity } from '../../types';
@@ -17,12 +21,16 @@ import type { CommandsInstance } from '../../ecs/commands';
 import type { AnyComponentDef, ComponentData } from '../../ecs/component';
 import type { Blackboard } from './Blackboard';
 import { AiRegistry, type AiAction, type AiActionSpec, type AiCondition, type AiValueSpec } from './registry';
+import { InputState } from '../../input/input';
 
 export interface AiContext {
     /** The agent entity this action/condition runs for. */
     readonly entity: Entity;
     /** Frame delta in seconds. */
     readonly dt: number;
+    /** Runtime input — the same state `defineBehavior` reads. A leaf that cannot
+     *  see the keyboard is a leaf no game logic can be written in. */
+    readonly input: InputState;
     /** This agent's blackboard — the AI data plane. */
     readonly blackboard: Blackboard;
     /** The world, for cross-entity access. */
@@ -43,6 +51,10 @@ export interface AiContext {
  * App instances; `.esfsm`/`.esbt` data references resolve against it.
  */
 export const aiRegistry = new AiRegistry<AiContext>();
+
+/** An input state with nothing pressed — what a caller with no devices supplies. */
+export const noInput = (): InputState => EMPTY_INPUT;
+const EMPTY_INPUT = new InputState();
 
 /**
  * Register a named action referenced by FSM state hooks / BT leaves / event

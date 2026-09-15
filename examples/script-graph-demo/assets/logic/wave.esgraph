@@ -12,14 +12,14 @@
     {
       "id": "update",
       "kind": "event.update",
-      "x": 40,
+      "x": 0,
       "y": 60
     },
     {
       "id": "getT",
       "kind": "var.get",
-      "x": 40,
-      "y": 210,
+      "x": -182,
+      "y": 440,
       "literals": {
         "name": "elapsed"
       }
@@ -28,8 +28,8 @@
       "id": "rate",
       "kind": "call",
       "ref": "math.multiply",
-      "x": 240,
-      "y": 330,
+      "x": -182,
+      "y": 630,
       "literals": {
         "b": 110
       }
@@ -38,13 +38,13 @@
       "id": "advance",
       "kind": "call",
       "ref": "math.add",
-      "x": 240,
-      "y": 210
+      "x": 34,
+      "y": 250
     },
     {
       "id": "setT",
       "kind": "var.set",
-      "x": 430,
+      "x": 250,
       "y": 60,
       "literals": {
         "name": "elapsed"
@@ -54,8 +54,8 @@
       "id": "wave",
       "kind": "call",
       "ref": "demo.pingPong",
-      "x": 430,
-      "y": 260,
+      "x": 68,
+      "y": 440,
       "literals": {
         "range": 140
       }
@@ -64,8 +64,8 @@
       "id": "lift",
       "kind": "call",
       "ref": "math.add",
-      "x": 660,
-      "y": 260,
+      "x": 284,
+      "y": 250,
       "literals": {
         "b": -70
       }
@@ -74,10 +74,19 @@
       "id": "write",
       "kind": "call",
       "ref": "property.set",
-      "x": 660,
+      "x": 500,
       "y": 60,
       "literals": {
         "path": "Transform.position.y"
+      }
+    },
+    {
+      "id": "getT_1",
+      "kind": "var.get",
+      "x": -148,
+      "y": 630,
+      "literals": {
+        "name": "elapsed"
       }
     }
   ],
@@ -111,8 +120,8 @@
       "toPort": "value"
     },
     {
-      "id": "e5",
-      "from": "getT",
+      "id": "getT_1.value->wave.t",
+      "from": "getT_1",
       "fromPort": "value",
       "to": "wave",
       "toPort": "t"

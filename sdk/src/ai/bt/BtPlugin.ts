@@ -21,7 +21,8 @@ import { Commands, type CommandsInstance } from '../../ecs/commands';
 import { playModeOnly } from '../../ecs/env';
 import type { AnyComponentDef, ComponentData } from '../../ecs/component';
 import { Blackboard } from '../fsm/Blackboard';
-import { aiRegistry, type AiContext } from '../fsm/AiContext';
+import { aiRegistry, noInput, type AiContext } from '../fsm/AiContext';
+import { Input, type InputState } from '../../input/input';
 import { tickBt, createBtRunState, type BtRunState } from './BtRunner';
 import { BehaviorTreeAgent, getBt, allBts } from './BehaviorTreeAgent';
 import { appRegistryAsset, appRegistryAssets } from '../../asset/registryLookup';
@@ -66,6 +67,7 @@ export function stepBehaviorTrees(
     // authored ref, so resolve before lookup (falls back to the raw ref for
     // `registerBt` code names). Optional so tests need no realm.
     resolveTree?: (ref: string) => BtDefinition | undefined,
+    input: InputState = noInput(),
 ): void {
     if (dt <= 0) return;
 
@@ -73,6 +75,7 @@ export function stepBehaviorTrees(
         entity: 0 as Entity,
         dt,
         blackboard: null as unknown as Blackboard,
+        input,
         world: world as unknown as World,
         commands,
         get: c => world.get(ctx.entity, c),
@@ -160,9 +163,9 @@ export class BtPlugin implements Plugin {
         app.addSystemToSchedule(
             Schedule.Update,
             defineSystem(
-                [Res(Time), Commands(), GetWorld()],
-                (time: TimeData, commands: CommandsInstance, world) => {
-                    stepBehaviorTrees(world as AiWorldView, commands, time.delta, states, resolveTree);
+                [Res(Time), Res(Input), Commands(), GetWorld()],
+                (time: TimeData, input: InputState, commands: CommandsInstance, world) => {
+                    stepBehaviorTrees(world as AiWorldView, commands, time.delta, states, resolveTree, input);
                 },
                 // See fsmTouches: the reach is the union over the loaded trees,
                 // which is why it is asked for rather than stated.

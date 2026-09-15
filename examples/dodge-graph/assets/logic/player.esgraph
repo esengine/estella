@@ -1,0 +1,260 @@
+{
+  "version": "1.0",
+  "name": "Player",
+  "nodes": [
+    {
+      "id": "upd",
+      "kind": "event.update",
+      "x": 0,
+      "y": 60
+    },
+    {
+      "id": "game",
+      "kind": "call",
+      "x": -182,
+      "y": 440,
+      "ref": "entity.byName",
+      "literals": {
+        "name": "Game"
+      }
+    },
+    {
+      "id": "alive",
+      "kind": "call",
+      "x": 34,
+      "y": 250,
+      "ref": "property.get",
+      "literals": {
+        "path": "GameState.alive"
+      }
+    },
+    {
+      "id": "gate",
+      "kind": "flow.branch",
+      "x": 250,
+      "y": 60
+    },
+    {
+      "id": "axis",
+      "kind": "call",
+      "x": -216,
+      "y": 250,
+      "ref": "input.axis",
+      "literals": {
+        "negative": "ArrowLeft",
+        "positive": "ArrowRight"
+      }
+    },
+    {
+      "id": "speed",
+      "kind": "call",
+      "x": -216,
+      "y": 440,
+      "ref": "math.multiply",
+      "literals": {
+        "b": 430
+      }
+    },
+    {
+      "id": "step",
+      "kind": "call",
+      "x": -216,
+      "y": 630,
+      "ref": "math.multiply"
+    },
+    {
+      "id": "getX",
+      "kind": "var.get",
+      "x": -216,
+      "y": 820,
+      "literals": {
+        "name": "x"
+      }
+    },
+    {
+      "id": "sum",
+      "kind": "call",
+      "x": 68,
+      "y": 440,
+      "ref": "math.add"
+    },
+    {
+      "id": "clamp",
+      "kind": "call",
+      "x": 284,
+      "y": 250,
+      "ref": "math.clamp",
+      "literals": {
+        "min": -360,
+        "max": 360
+      }
+    },
+    {
+      "id": "setX",
+      "kind": "var.set",
+      "x": 500,
+      "y": 60,
+      "literals": {
+        "name": "x"
+      }
+    },
+    {
+      "id": "write",
+      "kind": "call",
+      "x": 750,
+      "y": 60,
+      "ref": "property.set",
+      "literals": {
+        "path": "Transform.position.x"
+      }
+    },
+    {
+      "id": "start",
+      "kind": "event.start",
+      "x": 0,
+      "y": 960
+    },
+    {
+      "id": "seed",
+      "kind": "call",
+      "ref": "property.get",
+      "x": 34,
+      "y": 1150,
+      "literals": {
+        "path": "Transform.position.x"
+      }
+    },
+    {
+      "id": "seedSet",
+      "kind": "var.set",
+      "x": 250,
+      "y": 960,
+      "literals": {
+        "name": "x"
+      }
+    },
+    {
+      "id": "getX_1",
+      "kind": "var.get",
+      "x": 534,
+      "y": 250,
+      "literals": {
+        "name": "x"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "upd.then->gate.",
+      "from": "upd",
+      "fromPort": "then",
+      "to": "gate",
+      "toPort": ""
+    },
+    {
+      "id": "game.entity->alive.entity",
+      "from": "game",
+      "fromPort": "entity",
+      "to": "alive",
+      "toPort": "entity"
+    },
+    {
+      "id": "alive.value->gate.cond",
+      "from": "alive",
+      "fromPort": "value",
+      "to": "gate",
+      "toPort": "cond"
+    },
+    {
+      "id": "gate.true->setX.",
+      "from": "gate",
+      "fromPort": "true",
+      "to": "setX",
+      "toPort": ""
+    },
+    {
+      "id": "axis.result->speed.a",
+      "from": "axis",
+      "fromPort": "result",
+      "to": "speed",
+      "toPort": "a"
+    },
+    {
+      "id": "speed.result->step.a",
+      "from": "speed",
+      "fromPort": "result",
+      "to": "step",
+      "toPort": "a"
+    },
+    {
+      "id": "upd.dt->step.b",
+      "from": "upd",
+      "fromPort": "dt",
+      "to": "step",
+      "toPort": "b"
+    },
+    {
+      "id": "getX.value->sum.a",
+      "from": "getX",
+      "fromPort": "value",
+      "to": "sum",
+      "toPort": "a"
+    },
+    {
+      "id": "step.result->sum.b",
+      "from": "step",
+      "fromPort": "result",
+      "to": "sum",
+      "toPort": "b"
+    },
+    {
+      "id": "sum.result->clamp.value",
+      "from": "sum",
+      "fromPort": "result",
+      "to": "clamp",
+      "toPort": "value"
+    },
+    {
+      "id": "clamp.result->setX.value",
+      "from": "clamp",
+      "fromPort": "result",
+      "to": "setX",
+      "toPort": "value"
+    },
+    {
+      "id": "setX.then->write.",
+      "from": "setX",
+      "fromPort": "then",
+      "to": "write",
+      "toPort": ""
+    },
+    {
+      "id": "getX_1.value->write.value",
+      "from": "getX_1",
+      "fromPort": "value",
+      "to": "write",
+      "toPort": "value"
+    },
+    {
+      "id": "start.then->seedSet.",
+      "from": "start",
+      "fromPort": "then",
+      "to": "seedSet",
+      "toPort": ""
+    },
+    {
+      "id": "seed.value->seedSet.value",
+      "from": "seed",
+      "fromPort": "value",
+      "to": "seedSet",
+      "toPort": "value"
+    }
+  ],
+  "variables": [
+    {
+      "name": "x",
+      "type": "number",
+      "default": 0
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "formatVersion": "1",
+  "name": "Dodge",
+  "description": "A whole game whose logic is script graphs — move, dodge, score, lose, restart. No gameplay code.",
+  "tag": "Scripting",
+  "version": "0.1.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": { "width": 800, "height": 600 },
+  "spineVersion": "none"
+}

@@ -677,7 +677,17 @@ export const GOLDEN = [
     certifies: ['script-graph'],
     targets: ['web', 'desktop'],
     tier: 'nightly',
-    interactGap: 'both squares are graph-driven on a clock; no input path yet',
+    interactGap: 'both squares are graph-driven on a clock; the INPUT path is dodge-graph\'s',
+  },
+  {
+    id: 'dodge-graph',
+    // A game, not a demonstration: it reads the keyboard, scores, ends and
+    // restarts, and every one of those is a graph. The capability is the same
+    // one script-graph-demo carries; what this adds is that it is playable.
+    certifies: ['script-graph'],
+    targets: ['web', 'desktop'],
+    tier: 'nightly',
+    interact: { keys: ['ArrowRight'], frames: 40 },
   },
   {
     id: 'save-load',

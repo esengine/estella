@@ -12,6 +12,7 @@ import { aiRegistry, type AiContext } from '../src/ai/fsm/AiContext';
 import { ensureBuiltinAiRegistrations } from '../src/ai/builtins';
 import { compileFsm, createFsmRunState, stepFsm } from '../src/ai/fsm/FsmRunner';
 import { Blackboard } from '../src/ai/fsm/Blackboard';
+import { noInput } from '../src/ai/fsm/AiContext';
 import { createBtRunState, tickBt } from '../src/ai/bt/BtRunner';
 import type { BtDefinition } from '../src/ai/bt/types';
 import type { FsmDefinition } from '../src/ai/fsm/types';
@@ -26,6 +27,7 @@ function makeCtx(components: Map<string, unknown>): AiContext {
         entity: 1 as never,
         dt: 1 / 60,
         blackboard: new Blackboard(),
+        input: noInput(),
         world: {} as never,
         commands: {} as never,
         get: (c: { _name: string }) => structuredClone(components.get(c._name)) as never,

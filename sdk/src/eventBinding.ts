@@ -36,7 +36,8 @@ import { playModeOnly } from './ecs/env';
 import { log } from './util/logger';
 import { ensureEntityEvents, EntityEventQueue, type EntityEvent, type Unsubscribe } from './ecs/entityEvents';
 import { Blackboard } from './ai/fsm/Blackboard';
-import { aiRegistry, type AiContext } from './ai/fsm/AiContext';
+import { Input, type InputState } from './input/input';
+import { aiRegistry, noInput, type AiContext } from './ai/fsm/AiContext';
 import { invokeAction, type AiParamValue } from './ai/fsm/registry';
 import { AiFsm } from './ai/fsm/FsmPlugin';
 import { ensureBuiltinAiRegistrations } from './ai/builtins';
@@ -139,6 +140,9 @@ export interface EventBindingHost {
     commands(): CommandsInstance | null;
     /** Current frame delta, for actions that care. */
     dt(): number;
+    /** Runtime input, for the leaves that read it. A host with no devices — a
+     *  test, a server — omits it and the leaves read nothing pressed. */
+    input?(): InputState;
 }
 
 export interface EventBindingRuntime {
@@ -176,6 +180,7 @@ export function createEventBindingRuntime(host: EventBindingHost): EventBindingR
             entity: target,
             dt: host.dt(),
             blackboard: bb,
+            input: host.input?.() ?? noInput(),
             world,
             commands: host.commands() as CommandsInstance,
             get: (c) => world.get(target, c),
@@ -266,6 +271,7 @@ export class EventBindingPlugin implements Plugin {
 
         let commands_: CommandsInstance | null = null;
         let dt_ = 0;
+        let input_: InputState = noInput();
 
         const runtime = createEventBindingRuntime({
             world,
@@ -279,15 +285,17 @@ export class EventBindingPlugin implements Plugin {
             },
             commands: () => commands_,
             dt: () => dt_,
+            input: () => input_,
         });
         this.runtime_ = runtime;
 
         app.addSystemToSchedule(
             Schedule.PreUpdate,
             defineSystem(
-                [Res(Time), Commands()],
-                (time: TimeData, commands: CommandsInstance) => {
+                [Res(Time), Res(Input), Commands()],
+                (time: TimeData, input: InputState, commands: CommandsInstance) => {
                     dt_ = time.delta;
+                    input_ = input;
                     commands_ = commands;
                     runtime.sync();
                 },

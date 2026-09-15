@@ -18,7 +18,9 @@
 
 import { aiRegistry, type AiContext } from '../ai/fsm/AiContext';
 import type { AiOutputDef, AiOutputs, AiParamDef, AiParams, AiTouches } from '../ai/fsm/registry';
-import { getEntityProperty } from '../ecs/propertyPath';
+import { getEntityProperty, setEntityProperty } from '../ecs/propertyPath';
+import { Name } from '../ecs/component';
+import type { Entity } from '../types';
 import { log } from '../util/logger';
 
 const num = (v: unknown): number => (typeof v === 'number' ? v : Number(v) || 0);
@@ -88,15 +90,19 @@ export function ensureBuiltinScriptNodes(): void {
         [{ name: 'a', type: 'string' }, { name: 'b', type: 'string' }], OUT_S,
         (_c, p, out) => { out.result = str(p.a) + str(p.b); });
 
-    // The read half of `property.set`, and the same addressing: "Component" plus
-    // a dot path. Numbers come back as numbers, everything else as its string, so
-    // one node serves every field without a type per node.
+    // The read half of `property.set`, and the same addressing. Numbers come
+    // back as numbers and everything else as its string, so one node serves
+    // every field; `entity` 0 is the one this graph rides on.
     value('property.get',
-        [{ name: 'path', type: 'string', tooltip: 'Component.field, e.g. Transform.position.x' }],
+        [
+            { name: 'path', type: 'string', tooltip: 'Component.field, e.g. Transform.position.x' },
+            { name: 'entity', type: 'number', tooltip: 'Leave 0 for this entity' },
+        ],
         [{ name: 'value', type: 'number' }, { name: 'text', type: 'string' }],
         (ctx, p, out) => {
             const path = str(p.path).trim();
-            const raw = path ? getEntityProperty(ctx.world, ctx.entity, path) : undefined;
+            const target = (Number(p.entity ?? 0) || (ctx.entity as number)) as Entity;
+            const raw = path ? getEntityProperty(ctx.world, target, path) : undefined;
             out.value = typeof raw === 'number' ? raw : Number(raw) || 0;
             out.text = str(raw);
         },
@@ -108,6 +114,43 @@ export function ensureBuiltinScriptNodes(): void {
     value('entity.self', [], [{ name: 'entity', type: 'entity' }],
         (ctx, _p, out) => { out.entity = ctx.entity as number; });
 
+    // — Input. A leaf that cannot see the keyboard is a leaf no game logic can
+    //   be written in; every authored surface reads the same InputState a
+    //   `defineBehavior` does. —
+    value('input.down', [{ name: 'key', type: 'string', tooltip: 'KeyboardEvent.code, e.g. ArrowLeft' }], OUT_B,
+        (ctx, p, out) => { out.result = ctx.input.isKeyDown(str(p.key)); }, {});
+    value('input.pressed', [{ name: 'key', type: 'string' }], OUT_B,
+        (ctx, p, out) => { out.result = ctx.input.isKeyPressed(str(p.key)); }, {});
+    // The 1-D axis a character moves along: two keys, one number, so a graph
+    // spends one node on "left or right" instead of a branch per direction.
+    value('input.axis',
+        [{ name: 'negative', type: 'string' }, { name: 'positive', type: 'string' }], OUT_N,
+        (ctx, p, out) => {
+            out.result = (ctx.input.isKeyDown(str(p.positive)) ? 1 : 0)
+                - (ctx.input.isKeyDown(str(p.negative)) ? 1 : 0);
+        }, {});
+    value('input.pointer', [], [{ name: 'x', type: 'number' }, { name: 'y', type: 'number' }],
+        (ctx, _p, out) => {
+            const m = ctx.input.getMousePosition();
+            out.x = m.x; out.y = m.y;
+        }, {});
+
+    // — Other entities. A game is entities acting on each other, and a graph
+    //   that can only reach the one it rides on cannot express that. —
+    value('entity.byName', [{ name: 'name', type: 'string' }], [{ name: 'entity', type: 'entity' }],
+        (ctx, p, out) => { out.entity = findByName(ctx, str(p.name)) as number; }, { reads: [Name._name] });
+
+    if (!aiRegistry.hasAction('entity.despawn')) {
+        aiRegistry.registerAction('entity.despawn', {
+            params: [{ name: 'entity', type: 'number', tooltip: 'Leave 0 for this entity' }],
+            touches: { opaque: true },
+            run: (ctx, _bb, _arg, params) => {
+                const target = Number(params?.entity ?? 0) || (ctx.entity as number);
+                ctx.commands.despawn(target as Entity);
+            },
+        });
+    }
+
     // An effectful name, so it carries an exec pin and sequences like any other
     // statement — a log line that ran "somewhere in the data" would be useless.
     if (!aiRegistry.hasAction('debug.log')) {
@@ -117,4 +160,11 @@ export function ensureBuiltinScriptNodes(): void {
             run: (_ctx, _bb, _arg, params) => { log.info('logic', str(params?.message)); },
         });
     }
+}
+
+/** The nearest entity carrying `name`, or 0. The world's own index — the same
+ *  answer `findEntityByName` gives every other caller. */
+function findByName(ctx: AiContext, name: string): Entity {
+    if (!name) return 0 as Entity;
+    return (ctx.world.findEntityByName(name) ?? 0) as Entity;
 }

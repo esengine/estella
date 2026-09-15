@@ -42,9 +42,26 @@ published separately; it ships inside the editor.
   A `.esgraph` IS the runtime definition. Nothing compiles it, so the graph the
   editor runs and the graph the package ships are the same bytes, and a graph is
   attached to an entity the way an FSM is: a `ScriptGraphAgent` naming it.
-  `examples/script-graph-demo` is two squares that move because of what they
-  were drawn to do, one of them through a value node the project registered
-  itself.
+
+  The vocabulary reaches what a game needs: the keyboard (`input.axis`,
+  `input.down`, `input.pressed`, `input.pointer`), another entity
+  (`entity.byName`, and an optional target on `property.get`/`property.set`),
+  who else an event named (`event.on` publishes `other`, which is the contact's
+  partner on a physics event), and `entity.despawn`. Input arrives through the
+  context every authored surface shares, so a state machine's hook and a
+  behaviour tree's leaf can read the keyboard now too — `AiContext` was
+  documented as a `BehaviorContext` superset and was missing the one thing
+  gameplay is written against.
+
+  Two projects carry it. `examples/script-graph-demo` is two squares that move
+  because of what they were drawn to do, one of them through a value node the
+  project registered itself. `examples/dodge-graph` is a GAME — move with the
+  arrows, dodge the falling blocks, score, lose, press Space to start over —
+  with no gameplay code at all: one component declares what the run remembers
+  (graph variables belong to one entity; a score three blocks and a HUD agree on
+  does not), and three graphs do the rest. A gate plays it: holds a key and the
+  player moves, releases it and they stop, lets a block through and the HUD says
+  so, presses Space and the run begins again.
 
 ### Fixed
 

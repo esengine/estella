@@ -66,7 +66,7 @@ interface Run {
     problems: string[];
     tick(dt?: number): void;
     destroy(): void;
-    fire(type: string, target?: number): void;
+    fire(type: string, target?: number, other?: number): void;
     halted(): boolean;
 }
 
@@ -85,7 +85,7 @@ function run(graph: ScriptGraph, reg: AiRegistry<TestCtx>, budget?: number): Run
         problems,
         tick: (dt = 1 / 60) => stepScriptGraph(compiled, state, tickCtx(dt)),
         destroy: () => destroyScriptGraph(compiled, state, tickCtx(0)),
-        fire: (type, target = 7) => fireScriptGraphEvent(compiled, state, tickCtx(0), type, target),
+        fire: (type, target = 7, other = 0) => fireScriptGraphEvent(compiled, state, tickCtx(0), type, target, other),
         halted: () => state.halted,
     };
 }
@@ -231,6 +231,17 @@ describe('data is pulled', () => {
             edge('sp', 'entity', 'say', 'text'),
         ]);
         expect(runOnce(g, reg)).toEqual(['spawn', '41']);
+    });
+
+    it('publishes who else the event named, so a graph can act on them', () => {
+        const { reg } = registry();
+        const g = graphOf([
+            node('on', 'event.on', { literals: { type: 'trigger_enter' } }),
+            node('say', 'call', { ref: 'test.say' }),
+        ], [edge('on', 'then', 'say', ''), edge('on', 'other', 'say', 'text')]);
+        const r = run(g, reg);
+        r.fire('trigger_enter', 3, 99);
+        expect(r.log).toEqual(['99']);
     });
 
     it('publishes the event target on the entry that heard it', () => {

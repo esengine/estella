@@ -1,0 +1,764 @@
+{
+  "version": "1.0",
+  "name": "Block",
+  "nodes": [
+    {
+      "id": "upd",
+      "kind": "event.update",
+      "x": 0,
+      "y": 60
+    },
+    {
+      "id": "step",
+      "kind": "call",
+      "x": 68,
+      "y": 440,
+      "ref": "math.multiply",
+      "literals": {
+        "a": -320
+      }
+    },
+    {
+      "id": "getY",
+      "kind": "var.get",
+      "x": 68,
+      "y": 630,
+      "literals": {
+        "name": "y"
+      }
+    },
+    {
+      "id": "nextY",
+      "kind": "call",
+      "x": 284,
+      "y": 250,
+      "ref": "math.add"
+    },
+    {
+      "id": "setY",
+      "kind": "var.set",
+      "x": 500,
+      "y": 60,
+      "literals": {
+        "name": "y"
+      }
+    },
+    {
+      "id": "writeY",
+      "kind": "call",
+      "x": 750,
+      "y": 60,
+      "ref": "property.set",
+      "literals": {
+        "path": "Transform.position.y"
+      }
+    },
+    {
+      "id": "below",
+      "kind": "call",
+      "x": 784,
+      "y": 250,
+      "ref": "compare.less",
+      "literals": {
+        "b": -340
+      }
+    },
+    {
+      "id": "wrap",
+      "kind": "flow.branch",
+      "x": 1000,
+      "y": 60
+    },
+    {
+      "id": "top",
+      "kind": "var.set",
+      "x": 1250,
+      "y": 60,
+      "literals": {
+        "name": "y"
+      }
+    },
+    {
+      "id": "topVal",
+      "kind": "lit.number",
+      "x": 1034,
+      "y": 250,
+      "literals": {
+        "value": 360
+      }
+    },
+    {
+      "id": "newX",
+      "kind": "call",
+      "x": 1284,
+      "y": 250,
+      "ref": "math.random",
+      "literals": {
+        "min": -340,
+        "max": 340
+      }
+    },
+    {
+      "id": "setX",
+      "kind": "var.set",
+      "x": 1500,
+      "y": 60,
+      "literals": {
+        "name": "x"
+      }
+    },
+    {
+      "id": "writeX",
+      "kind": "call",
+      "x": 1750,
+      "y": 60,
+      "ref": "property.set",
+      "literals": {
+        "path": "Transform.position.x"
+      }
+    },
+    {
+      "id": "getX",
+      "kind": "var.get",
+      "x": 1534,
+      "y": 250,
+      "literals": {
+        "name": "x"
+      }
+    },
+    {
+      "id": "game",
+      "kind": "call",
+      "x": -216,
+      "y": 250,
+      "ref": "entity.byName",
+      "literals": {
+        "name": "Game"
+      }
+    },
+    {
+      "id": "score",
+      "kind": "call",
+      "x": 1568,
+      "y": 440,
+      "ref": "property.get",
+      "literals": {
+        "path": "GameState.score"
+      }
+    },
+    {
+      "id": "plus",
+      "kind": "call",
+      "x": 1784,
+      "y": 250,
+      "ref": "math.add",
+      "literals": {
+        "b": 1
+      }
+    },
+    {
+      "id": "bump",
+      "kind": "call",
+      "x": 2000,
+      "y": 60,
+      "ref": "property.set",
+      "literals": {
+        "path": "GameState.score"
+      }
+    },
+    {
+      "id": "hit",
+      "kind": "flow.branch",
+      "x": 1250,
+      "y": 60
+    },
+    {
+      "id": "player",
+      "kind": "call",
+      "x": -216,
+      "y": 440,
+      "ref": "entity.byName",
+      "literals": {
+        "name": "Player"
+      }
+    },
+    {
+      "id": "px",
+      "kind": "call",
+      "x": -216,
+      "y": 630,
+      "ref": "property.get",
+      "literals": {
+        "path": "Transform.position.x"
+      }
+    },
+    {
+      "id": "py",
+      "kind": "call",
+      "x": -216,
+      "y": 820,
+      "ref": "property.get",
+      "literals": {
+        "path": "Transform.position.y"
+      }
+    },
+    {
+      "id": "dx",
+      "kind": "call",
+      "x": -216,
+      "y": 1010,
+      "ref": "math.subtract"
+    },
+    {
+      "id": "dy",
+      "kind": "call",
+      "x": -216,
+      "y": 1200,
+      "ref": "math.subtract"
+    },
+    {
+      "id": "adx",
+      "kind": "call",
+      "x": -216,
+      "y": 1390,
+      "ref": "math.abs"
+    },
+    {
+      "id": "ady",
+      "kind": "call",
+      "x": -216,
+      "y": 1580,
+      "ref": "math.abs"
+    },
+    {
+      "id": "nearX",
+      "kind": "call",
+      "x": 818,
+      "y": 630,
+      "ref": "compare.less",
+      "literals": {
+        "b": 62
+      }
+    },
+    {
+      "id": "nearY",
+      "kind": "call",
+      "x": 818,
+      "y": 820,
+      "ref": "compare.less",
+      "literals": {
+        "b": 62
+      }
+    },
+    {
+      "id": "both",
+      "kind": "call",
+      "x": 1034,
+      "y": 440,
+      "ref": "logic.and"
+    },
+    {
+      "id": "out",
+      "kind": "call",
+      "x": 1500,
+      "y": 60,
+      "ref": "property.set",
+      "literals": {
+        "path": "GameState.alive",
+        "value": "false"
+      }
+    },
+    {
+      "id": "start",
+      "kind": "event.start",
+      "x": 0,
+      "y": 960
+    },
+    {
+      "id": "seed",
+      "kind": "call",
+      "ref": "property.get",
+      "x": 34,
+      "y": 1150,
+      "literals": {
+        "path": "Transform.position.y"
+      }
+    },
+    {
+      "id": "seedSet",
+      "kind": "var.set",
+      "x": 250,
+      "y": 960,
+      "literals": {
+        "name": "y"
+      }
+    },
+    {
+      "id": "alive",
+      "kind": "call",
+      "ref": "property.get",
+      "x": 34,
+      "y": 250,
+      "literals": {
+        "path": "GameState.alive"
+      }
+    },
+    {
+      "id": "live",
+      "kind": "flow.branch",
+      "x": 250,
+      "y": 60
+    },
+    {
+      "id": "waitY",
+      "kind": "call",
+      "ref": "math.random",
+      "x": 284,
+      "y": 440,
+      "literals": {
+        "min": 380,
+        "max": 820
+      }
+    },
+    {
+      "id": "park",
+      "kind": "var.set",
+      "x": 500,
+      "y": 60,
+      "literals": {
+        "name": "y"
+      }
+    },
+    {
+      "id": "parkW",
+      "kind": "call",
+      "ref": "property.set",
+      "x": 750,
+      "y": 60,
+      "literals": {
+        "path": "Transform.position.y"
+      }
+    },
+    {
+      "id": "getY_1",
+      "kind": "var.get",
+      "x": 534,
+      "y": 250,
+      "literals": {
+        "name": "y"
+      }
+    },
+    {
+      "id": "getY_2",
+      "kind": "var.get",
+      "x": 568,
+      "y": 440,
+      "literals": {
+        "name": "y"
+      }
+    },
+    {
+      "id": "getY_3",
+      "kind": "var.get",
+      "x": -432,
+      "y": 1390,
+      "literals": {
+        "name": "y"
+      }
+    },
+    {
+      "id": "getY_4",
+      "kind": "var.get",
+      "x": 534,
+      "y": 440,
+      "literals": {
+        "name": "y"
+      }
+    },
+    {
+      "id": "getX_1",
+      "kind": "var.get",
+      "x": -432,
+      "y": 1200,
+      "literals": {
+        "name": "x"
+      }
+    },
+    {
+      "id": "game_1",
+      "kind": "call",
+      "x": 1784,
+      "y": 440,
+      "ref": "entity.byName",
+      "literals": {
+        "name": "Game"
+      }
+    },
+    {
+      "id": "game_2",
+      "kind": "call",
+      "x": 1284,
+      "y": 440,
+      "ref": "entity.byName",
+      "literals": {
+        "name": "Game"
+      }
+    },
+    {
+      "id": "game_3",
+      "kind": "call",
+      "x": -182,
+      "y": 440,
+      "ref": "entity.byName",
+      "literals": {
+        "name": "Game"
+      }
+    },
+    {
+      "id": "player_1",
+      "kind": "call",
+      "x": -432,
+      "y": 1010,
+      "ref": "entity.byName",
+      "literals": {
+        "name": "Player"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "upd.dt->step.b",
+      "from": "upd",
+      "fromPort": "dt",
+      "to": "step",
+      "toPort": "b"
+    },
+    {
+      "id": "getY.value->nextY.a",
+      "from": "getY",
+      "fromPort": "value",
+      "to": "nextY",
+      "toPort": "a"
+    },
+    {
+      "id": "step.result->nextY.b",
+      "from": "step",
+      "fromPort": "result",
+      "to": "nextY",
+      "toPort": "b"
+    },
+    {
+      "id": "nextY.result->setY.value",
+      "from": "nextY",
+      "fromPort": "result",
+      "to": "setY",
+      "toPort": "value"
+    },
+    {
+      "id": "setY.then->writeY.",
+      "from": "setY",
+      "fromPort": "then",
+      "to": "writeY",
+      "toPort": ""
+    },
+    {
+      "id": "getY_1.value->writeY.value",
+      "from": "getY_1",
+      "fromPort": "value",
+      "to": "writeY",
+      "toPort": "value"
+    },
+    {
+      "id": "writeY.then->wrap.",
+      "from": "writeY",
+      "fromPort": "then",
+      "to": "wrap",
+      "toPort": ""
+    },
+    {
+      "id": "getY_2.value->below.a",
+      "from": "getY_2",
+      "fromPort": "value",
+      "to": "below",
+      "toPort": "a"
+    },
+    {
+      "id": "below.result->wrap.cond",
+      "from": "below",
+      "fromPort": "result",
+      "to": "wrap",
+      "toPort": "cond"
+    },
+    {
+      "id": "wrap.true->top.",
+      "from": "wrap",
+      "fromPort": "true",
+      "to": "top",
+      "toPort": ""
+    },
+    {
+      "id": "topVal.value->top.value",
+      "from": "topVal",
+      "fromPort": "value",
+      "to": "top",
+      "toPort": "value"
+    },
+    {
+      "id": "top.then->setX.",
+      "from": "top",
+      "fromPort": "then",
+      "to": "setX",
+      "toPort": ""
+    },
+    {
+      "id": "newX.result->setX.value",
+      "from": "newX",
+      "fromPort": "result",
+      "to": "setX",
+      "toPort": "value"
+    },
+    {
+      "id": "setX.then->writeX.",
+      "from": "setX",
+      "fromPort": "then",
+      "to": "writeX",
+      "toPort": ""
+    },
+    {
+      "id": "getX.value->writeX.value",
+      "from": "getX",
+      "fromPort": "value",
+      "to": "writeX",
+      "toPort": "value"
+    },
+    {
+      "id": "writeX.then->bump.",
+      "from": "writeX",
+      "fromPort": "then",
+      "to": "bump",
+      "toPort": ""
+    },
+    {
+      "id": "game.entity->score.entity",
+      "from": "game",
+      "fromPort": "entity",
+      "to": "score",
+      "toPort": "entity"
+    },
+    {
+      "id": "score.value->plus.a",
+      "from": "score",
+      "fromPort": "value",
+      "to": "plus",
+      "toPort": "a"
+    },
+    {
+      "id": "plus.result->bump.value",
+      "from": "plus",
+      "fromPort": "result",
+      "to": "bump",
+      "toPort": "value"
+    },
+    {
+      "id": "game_1.entity->bump.entity",
+      "from": "game_1",
+      "fromPort": "entity",
+      "to": "bump",
+      "toPort": "entity"
+    },
+    {
+      "id": "wrap.false->hit.",
+      "from": "wrap",
+      "fromPort": "false",
+      "to": "hit",
+      "toPort": ""
+    },
+    {
+      "id": "player.entity->px.entity",
+      "from": "player",
+      "fromPort": "entity",
+      "to": "px",
+      "toPort": "entity"
+    },
+    {
+      "id": "player_1.entity->py.entity",
+      "from": "player_1",
+      "fromPort": "entity",
+      "to": "py",
+      "toPort": "entity"
+    },
+    {
+      "id": "px.value->dx.b",
+      "from": "px",
+      "fromPort": "value",
+      "to": "dx",
+      "toPort": "b"
+    },
+    {
+      "id": "getX_1.value->dx.a",
+      "from": "getX_1",
+      "fromPort": "value",
+      "to": "dx",
+      "toPort": "a"
+    },
+    {
+      "id": "py.value->dy.b",
+      "from": "py",
+      "fromPort": "value",
+      "to": "dy",
+      "toPort": "b"
+    },
+    {
+      "id": "getY_3.value->dy.a",
+      "from": "getY_3",
+      "fromPort": "value",
+      "to": "dy",
+      "toPort": "a"
+    },
+    {
+      "id": "dx.result->adx.a",
+      "from": "dx",
+      "fromPort": "result",
+      "to": "adx",
+      "toPort": "a"
+    },
+    {
+      "id": "dy.result->ady.a",
+      "from": "dy",
+      "fromPort": "result",
+      "to": "ady",
+      "toPort": "a"
+    },
+    {
+      "id": "adx.result->nearX.a",
+      "from": "adx",
+      "fromPort": "result",
+      "to": "nearX",
+      "toPort": "a"
+    },
+    {
+      "id": "ady.result->nearY.a",
+      "from": "ady",
+      "fromPort": "result",
+      "to": "nearY",
+      "toPort": "a"
+    },
+    {
+      "id": "nearX.result->both.a",
+      "from": "nearX",
+      "fromPort": "result",
+      "to": "both",
+      "toPort": "a"
+    },
+    {
+      "id": "nearY.result->both.b",
+      "from": "nearY",
+      "fromPort": "result",
+      "to": "both",
+      "toPort": "b"
+    },
+    {
+      "id": "both.result->hit.cond",
+      "from": "both",
+      "fromPort": "result",
+      "to": "hit",
+      "toPort": "cond"
+    },
+    {
+      "id": "hit.true->out.",
+      "from": "hit",
+      "fromPort": "true",
+      "to": "out",
+      "toPort": ""
+    },
+    {
+      "id": "game_2.entity->out.entity",
+      "from": "game_2",
+      "fromPort": "entity",
+      "to": "out",
+      "toPort": "entity"
+    },
+    {
+      "id": "start.then->seedSet.",
+      "from": "start",
+      "fromPort": "then",
+      "to": "seedSet",
+      "toPort": ""
+    },
+    {
+      "id": "seed.value->seedSet.value",
+      "from": "seed",
+      "fromPort": "value",
+      "to": "seedSet",
+      "toPort": "value"
+    },
+    {
+      "id": "upd.then->live.",
+      "from": "upd",
+      "fromPort": "then",
+      "to": "live",
+      "toPort": ""
+    },
+    {
+      "id": "alive.value->live.cond",
+      "from": "alive",
+      "fromPort": "value",
+      "to": "live",
+      "toPort": "cond"
+    },
+    {
+      "id": "live.true->setY.",
+      "from": "live",
+      "fromPort": "true",
+      "to": "setY",
+      "toPort": ""
+    },
+    {
+      "id": "game_3.entity->alive.entity",
+      "from": "game_3",
+      "fromPort": "entity",
+      "to": "alive",
+      "toPort": "entity"
+    },
+    {
+      "id": "live.false->park.",
+      "from": "live",
+      "fromPort": "false",
+      "to": "park",
+      "toPort": ""
+    },
+    {
+      "id": "waitY.result->park.value",
+      "from": "waitY",
+      "fromPort": "result",
+      "to": "park",
+      "toPort": "value"
+    },
+    {
+      "id": "park.then->parkW.",
+      "from": "park",
+      "fromPort": "then",
+      "to": "parkW",
+      "toPort": ""
+    },
+    {
+      "id": "getY_4.value->parkW.value",
+      "from": "getY_4",
+      "fromPort": "value",
+      "to": "parkW",
+      "toPort": "value"
+    }
+  ],
+  "variables": [
+    {
+      "name": "y",
+      "type": "number",
+      "default": 340
+    },
+    {
+      "name": "x",
+      "type": "number",
+      "default": 0
+    }
+  ]
+}

@@ -21,7 +21,8 @@ import { playModeOnly } from '../ecs/env';
 import type { AnyComponentDef, ComponentData } from '../ecs/component';
 import { log } from '../util/logger';
 import { Blackboard } from '../ai/fsm/Blackboard';
-import { aiRegistry, type AiContext } from '../ai/fsm/AiContext';
+import { aiRegistry, noInput, type AiContext } from '../ai/fsm/AiContext';
+import { Input, type InputState } from '../input/input';
 import { ensureBuiltinAiRegistrations } from '../ai/builtins';
 import { ensureBuiltinScriptNodes } from './builtinNodes';
 import { TouchesBuilder, touchesOfLeaves, type LeafRef } from '../ai/worldView';
@@ -64,11 +65,12 @@ export function agentGraphBlackboard(states: Map<Entity, AgentState>, entity: En
     return st.bb;
 }
 
-function contextFor(world: ScriptGraphWorldView, commands: CommandsInstance): MutableAiContext {
+function contextFor(world: ScriptGraphWorldView, commands: CommandsInstance, input: InputState): MutableAiContext {
     const ctx: MutableAiContext = {
         entity: 0 as Entity,
         dt: 0,
         blackboard: null as unknown as Blackboard,
+        input,
         world: world as unknown as World,
         commands,
         get: c => world.get(ctx.entity, c),
@@ -91,8 +93,9 @@ export function stepScriptGraphs(
     states: Map<Entity, AgentState>,
     resolveGraph?: (ref: string) => CompiledScriptGraph | undefined,
     onProblem?: (entity: Entity, message: string) => void,
+    input: InputState = noInput(),
 ): void {
-    const ctx = contextFor(world, commands);
+    const ctx = contextFor(world, commands, input);
     const tick = (entity: Entity, st: AgentState, delta: number): ScriptTickContext<AiContext> => {
         ctx.entity = entity;
         ctx.dt = delta;
@@ -183,7 +186,10 @@ function createEventBridge(
         const self = event.currentTarget;
         const st = states.get(self);
         if (!st?.compiled || !st.run) return;
-        fireScriptGraphEvent(st.compiled, st.run, tickOf(self, st), event.type, event.target as number);
+        // The payload's `other` when it has one — physics names the contact's
+        // partner there, and that is the entity a game reacts to.
+        const other = Number((event.data as { other?: number } | undefined)?.other ?? 0);
+        fireScriptGraphEvent(st.compiled, st.run, tickOf(self, st), event.type, event.target as number, other);
     };
 
     return {
@@ -247,6 +253,7 @@ export class ScriptGraphPlugin implements Plugin {
         const events = ensureEntityEvents(app);
         let commands_: CommandsInstance | null = null;
         let dt_ = 0;
+        let input_: InputState = noInput();
 
         const onProblem = (entity: Entity, message: string): void => {
             log.warn('logic', `ScriptGraphAgent on entity ${entity as number}: ${message}`);
@@ -254,12 +261,13 @@ export class ScriptGraphPlugin implements Plugin {
 
         // An event arrives outside the system body, so the context it runs on is
         // built from the frame's last known commands and delta.
-        const ctx = contextFor(world, null as unknown as CommandsInstance);
+        const ctx = contextFor(world, null as unknown as CommandsInstance, noInput());
         const bridge = createEventBridge(world, events, states, (entity, st) => {
             ctx.entity = entity;
             ctx.dt = dt_;
             ctx.blackboard = st.bb;
             ctx.commands = commands_ as CommandsInstance;
+            ctx.input = input_;
             return {
                 ctx: ctx as AiContext, bb: st.bb, registry: aiRegistry, dt: dt_,
                 onProblem: message => onProblem(entity, message),
@@ -272,11 +280,12 @@ export class ScriptGraphPlugin implements Plugin {
         app.addSystemToSchedule(
             Schedule.Update,
             defineSystem(
-                [Res(Time), Commands(), GetWorld()],
-                (time: TimeData, commands: CommandsInstance, w) => {
+                [Res(Time), Res(Input), Commands(), GetWorld()],
+                (time: TimeData, input: InputState, commands: CommandsInstance, w) => {
                     commands_ = commands;
                     dt_ = time.delta;
-                    stepScriptGraphs(w as ScriptGraphWorldView, commands, time.delta, states, resolveGraph, onProblem);
+                    input_ = input;
+                    stepScriptGraphs(w as ScriptGraphWorldView, commands, time.delta, states, resolveGraph, onProblem, input);
                     bridge.sync();
                 },
                 // Asked per analysis, not once: a graph loaded later changes the

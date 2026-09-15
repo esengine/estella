@@ -103,7 +103,13 @@ export function describeNode(
         case 'event.destroy':
             return entry(NO_PORTS, 'destroy');
         case 'event.on':
-            return entry([{ name: 'target', type: 'entity' }], 'event');
+            // `other` is who ELSE the event named — the contact's partner on a
+            // physics event, 0 where the event names nobody. It is the only
+            // payload field a wire can carry, and the one a game acts on.
+            return entry([
+                { name: 'target', type: 'entity' },
+                { name: 'other', type: 'entity' },
+            ], 'event');
 
         case 'flow.branch':
             return {

@@ -210,6 +210,7 @@ dt: number
 entity: number
 get: <C extends AnyComponentDef>(component: C) => ComponentData<C>
 has: (component: AnyComponentDef) => boolean
+input: InputState
 set: <C extends AnyComponentDef>(component: C, data: ComponentData<C>) => void
 world: World
 ```
@@ -12344,7 +12345,7 @@ EventBindingPlugin
 
 ## fireScriptGraphEvent — function @experimental
 ```
-<Ctx>(compiled: CompiledScriptGraph, run: ScriptRunState, tick: ScriptTickContext<Ctx>, type: string, target: number): void
+<Ctx>(compiled: CompiledScriptGraph, run: ScriptRunState, tick: ScriptTickContext<Ctx>, type: string, target: number, other?: number): void
 ```
 
 ## flattenPrefab — function @experimental
@@ -14299,7 +14300,7 @@ StatsPlugin
 
 ## stepScriptGraphs — function @experimental
 ```
-(world: ScriptGraphWorldView, commands: CommandsInstance, dt: number, states: Map<Entity, AgentState>, resolveGraph?: (ref: string) => CompiledScriptGraph | undefined, onProblem?: (entity: Entity, message: string) => void): void
+(world: ScriptGraphWorldView, commands: CommandsInstance, dt: number, states: Map<Entity, AgentState>, resolveGraph?: (ref: string) => CompiledScriptGraph | undefined, onProblem?: (entity: Entity, message: string) => void, input?: InputState): void
 ```
 
 ## stopNavAgent — function @experimental

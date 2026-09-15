@@ -16,13 +16,15 @@ import type { Entity } from '../../types';
 import type { World } from '../../ecs/world';
 import { defineSystem, Schedule, GetWorld, type SystemTouches } from '../../ecs/system';
 import { Res, Time, type TimeData } from '../../ecs/resource';
+import { Input } from '../../input/input';
 import { defineResource } from '../../ecs/resource';
 import { Commands, type CommandsInstance } from '../../ecs/commands';
 import { playModeOnly } from '../../ecs/env';
 import type { AnyComponentDef, ComponentData } from '../../ecs/component';
 import { Blackboard } from './Blackboard';
 import { createFsmRunState, stepFsm, type CompiledFsm, type FsmRunState } from './FsmRunner';
-import { aiRegistry, type AiContext } from './AiContext';
+import { aiRegistry, noInput, type AiContext } from './AiContext';
+import type { InputState } from '../../input/input';
 import { StateMachineAgent, getFsm, allFsms } from './StateMachineAgent';
 import { appRegistryAsset, appRegistryAssets } from '../../asset/registryLookup';
 import { actionRefName, actionRefArg, actionRefParams } from './types';
@@ -69,6 +71,7 @@ export function stepStateMachines(
     // ref, so resolve before lookup. Falls back to the raw ref for `registerFsm`
     // code names, which are keyed verbatim. Optional so tests need no realm.
     resolveFsm?: (ref: string) => CompiledFsm | undefined,
+    input: InputState = noInput(),
 ): void {
     if (dt <= 0) return;
 
@@ -76,6 +79,7 @@ export function stepStateMachines(
         entity: 0 as Entity,
         dt,
         blackboard: null as unknown as Blackboard,
+        input,
         world: world as unknown as World,
         commands,
         get: c => world.get(ctx.entity, c),
@@ -182,9 +186,9 @@ export class FsmPlugin implements Plugin {
         app.addSystemToSchedule(
             Schedule.Update,
             defineSystem(
-                [Res(Time), Commands(), GetWorld()],
-                (time: TimeData, commands: CommandsInstance, world) => {
-                    stepStateMachines(world as FsmWorldView, commands, time.delta, states, resolveFsm);
+                [Res(Time), Res(Input), Commands(), GetWorld()],
+                (time: TimeData, input: InputState, commands: CommandsInstance, world) => {
+                    stepStateMachines(world as FsmWorldView, commands, time.delta, states, resolveFsm, input);
                 },
                 // Asked per analysis, not once: a graph loaded later changes the
                 // answer, and no graph at all means this system touches only the

@@ -2,7 +2,6 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    main.ts
- * @brief   Startup. Everything this demo does is in the graphs — this only
- *          pulls in what the project declares.
+ * @brief   Startup. There is no gameplay code in this project; see components.ts.
  */
 import './components';

@@ -18,6 +18,7 @@ import type { AiAction, AiActionInput, AiCondition, AiParamValue, AiTouches } fr
 import { TimelinePlayer } from '../timeline/TimelinePlayerComponent';
 import { SpriteAnimator } from '../animation/SpriteAnimator';
 import { setEntityProperty } from '../ecs/propertyPath';
+import type { Entity } from '../types';
 
 const TIMELINE: AiTouches = { reads: [TimelinePlayer._name], writes: [TimelinePlayer._name] };
 const SPRITE_ANIM: AiTouches = { reads: [SpriteAnimator._name], writes: [SpriteAnimator._name] };
@@ -120,12 +121,17 @@ export function ensureBuiltinAiRegistrations(): void {
             params: [
                 { name: 'path', type: 'string', tooltip: 'Component.field, e.g. UIVisual.color.a' },
                 { name: 'value', type: 'string' },
+                // Optional third, so a game can write the entity it just found.
+                // Trailing and empty by default, so a reference authored before
+                // it reads and writes back byte-identically.
+                { name: 'entity', type: 'number', tooltip: 'Leave empty for this entity' },
             ],
             run: (ctx, _bb, _arg, params) => {
                 const path = typeof params?.path === 'string' ? params.path.trim() : '';
                 const raw = params?.value;
                 if (!path || raw === undefined) return;
-                setEntityProperty(ctx.world, ctx.entity, path, parseValue(raw));
+                const target = Number(params?.entity ?? 0) || (ctx.entity as number);
+                setEntityProperty(ctx.world, target as Entity, path, parseValue(raw));
             },
             // The component it writes is the first segment of the authored path,
             // so the reach is unknowable when this registers and plain in the
