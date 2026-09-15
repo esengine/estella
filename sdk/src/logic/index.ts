@@ -69,3 +69,19 @@ export {
 } from './ScriptGraphPlugin';
 
 export { ensureBuiltinScriptNodes } from './builtinNodes';
+
+export {
+    addScriptNode,
+    moveScriptNode,
+    removeScriptNode,
+    setScriptNodeLiteral,
+    canConnectPorts,
+    connectScriptNodes,
+    disconnectScriptInput,
+    disconnectScriptExec,
+    removeScriptEdge,
+    scriptGraphEdges,
+    addScriptVariable,
+    removeScriptVariable,
+    renameScriptVariable,
+} from './graphOps';

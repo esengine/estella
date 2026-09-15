@@ -1035,6 +1035,18 @@ export {
     stepScriptGraphs,
     scriptGraphTouches,
     ensureBuiltinScriptNodes,
+    addScriptNode,
+    moveScriptNode,
+    removeScriptNode,
+    setScriptNodeLiteral,
+    canConnectPorts,
+    connectScriptNodes,
+    disconnectScriptInput,
+    disconnectScriptExec,
+    removeScriptEdge,
+    addScriptVariable,
+    removeScriptVariable,
+    renameScriptVariable,
     type ScriptGraphAgentData,
 } from './logic';
 

@@ -333,6 +333,26 @@ describe('a graph that asks for what is not there says so', () => {
         expect(r.problems.some((p) => p.includes('test.missing'))).toBe(true);
     });
 
+    it('does not run a node whose input wire has no source', () => {
+        const { reg } = registry();
+        const g = graphOf([
+            node('start', 'event.start'),
+            node('gone', 'call', { ref: 'test.missing' }),
+            node('say', 'call', { ref: 'test.say', literals: { text: 'fallback' } }),
+            node('after', 'call', { ref: 'test.say', literals: { text: 'after' } }),
+        ], [
+            edge('start', 'then', 'say', ''),
+            edge('gone', 'n', 'say', 'text'),
+            edge('say', 'then', 'after', ''),
+        ]);
+        const r = run(g, reg);
+        r.tick();
+        // Not `fallback`: the port's zero is a value nobody authored, and a node
+        // that runs on one writes nonsense downstream instead of stopping here.
+        expect(r.log).toEqual([]);
+        expect(r.problems.some((p) => p.includes('no source'))).toBe(true);
+    });
+
     it('reports a data cycle instead of recursing forever', () => {
         const { reg } = registry();
         const g = graphOf([

@@ -28,6 +28,15 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(logic): a node starved of its input does not run on an invented value':
+    { internal: 'Inside the script graph, which no shipped corpus authors yet.' },
+
+  'feat(logic): a script graph is something you can draw':
+    { internal: 'The editor half of the script graph. The whole feature gets one note once a shipped example authors a graph.' },
+
+  'feat(logic): the edits a script-graph editor makes, and the rules they obey':
+    { internal: 'The graph ops the panel drives. No creator meets them except through that panel.' },
+
   'feat(assets): a script graph is a live asset like the other authored graphs':
     { internal: 'The .esgraph asset slot. Nothing authors one yet — no panel, no new-asset entry.' },
 
