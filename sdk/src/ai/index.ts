@@ -15,6 +15,7 @@ export {
     aiRegistry,
     registerAction,
     registerCondition,
+    registerValue,
     type AiContext,
 } from './fsm/AiContext';
 export {

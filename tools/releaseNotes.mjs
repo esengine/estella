@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(logic): a graph is nodes, wires, and one vocabulary it shares':
+    { internal: 'The script-graph core and the registry half it needs. Nothing authors one yet — no asset type, no component, no panel.' },
+
   'fix(platform): a mini-game reads the file the package actually carries':
     { note: 'A mini-game package can read its own prefabs and materials.' },
 

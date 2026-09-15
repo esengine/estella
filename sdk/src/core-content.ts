@@ -904,6 +904,7 @@ export {
     aiRegistry,
     registerAction,
     registerCondition,
+    registerValue,
     // The declared-parameter surface: an action says what it takes, and the
     // projection to/from the canonical `arg` string keeps old data running.
     invokeAction,
@@ -914,6 +915,9 @@ export {
     type AiParams,
     type AiActionSpec,
     type AiActionInput,
+    type AiOutputDef,
+    type AiOutputs,
+    type AiValueSpec,
     StateMachineAgent,
     registerFsm,
     getFsm,
@@ -988,6 +992,39 @@ export {
     type BtRunState,
     type BehaviorTreeAgentData,
 } from './ai';
+
+// =============================================================================
+// Script graph — the `.esgraph` authoring form: events, an exec wire, data wires
+// =============================================================================
+
+export {
+    SCRIPT_GRAPH_VERSION,
+    emptyScriptGraph,
+    canConnect,
+    coerceValue,
+    defaultForType,
+    describeNode,
+    sequenceCount,
+    BUILTIN_NODE_KINDS,
+    compileScriptGraph,
+    createScriptRunState,
+    stepScriptGraph,
+    destroyScriptGraph,
+    fireScriptGraphEvent,
+    DEFAULT_STEP_BUDGET,
+    type ScriptGraph,
+    type ScriptGraphNode,
+    type ScriptGraphEdge,
+    type ScriptGraphVariable,
+    type ScriptPort,
+    type ScriptValue,
+    type ScriptValueType,
+    type ScriptNodeShape,
+    type ScriptVerbCatalog,
+    type CompiledScriptGraph,
+    type ScriptRunState,
+    type ScriptTickContext,
+} from './logic';
 
 // =============================================================================
 // AI — Perception (sight/FOV sensing into a Perception component)

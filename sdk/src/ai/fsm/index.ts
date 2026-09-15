@@ -27,6 +27,10 @@ export {
     type AiParamDef,
     type AiParamValue,
     type AiParams,
+    type AiOutputDef,
+    type AiOutputs,
+    type AiValueSpec,
+    type AiTouches,
 } from './registry';
 export {
     compileFsm,

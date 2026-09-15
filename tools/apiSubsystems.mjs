@@ -253,6 +253,16 @@ export const SUBSYSTEMS = [
         entry: ['Nav', 'NavAgent', 'StateMachineAgent', 'BehaviorTreeAgent', 'Perception'],
     },
     {
+        id: 'script-graph',
+        title: 'Script graphs — visual logic',
+        titleZh: '脚本图 —— 可视化逻辑',
+        source: ['logic'],
+        tier: 'experimental',
+        why: 'the node vocabulary is still growing: a name that gains an output changes what an authored graph can read, so the shape is not one to freeze yet',
+        whyZh: '节点词汇表还在长：一个名字多一个输出就改变了已画好的图能读到什么，形状还不到冻结的时候',
+        entry: ['compileScriptGraph', 'stepScriptGraph', 'describeNode', 'canConnect'],
+    },
+    {
         id: 'networking',
         title: 'Networking & replication',
         titleZh: '网络与状态复制',

@@ -28,19 +28,25 @@ export type AiParamValue = string | number | boolean;
 /** Declared parameters of one action reference, keyed by {@link AiParamDef.name}. */
 export type AiParams = Readonly<Record<string, AiParamValue>>;
 
-// Returns Status (a BT leaf that may run across frames) or nothing (a one-shot
-// FSM action). FSM ignores the return; BT reads it, treating void as Success.
-// `arg` is the canonical string form of the reference (what authored data has
-// always carried); `params` is the same input keyed by declared parameter name,
-// empty for an action that declares none. An action reads whichever it prefers —
-// both are always supplied, so neither channel is a second way to be wrong.
+// Returns Status (a BT leaf running across frames) or nothing; FSM ignores the
+// return, BT treats void as Success. `arg` and `params` are one input in two
+// forms, both always supplied, so neither is a second way to be wrong.
 export type AiAction<Ctx> = (
     ctx: Ctx,
     bb: Blackboard,
     arg?: string,
     params?: AiParams,
+    out?: AiOutputs,
 ) => void | Status;
 export type AiCondition<Ctx> = (ctx: Ctx, bb: Blackboard) => boolean;
+
+/**
+ * Values a name hands back, keyed by {@link AiOutputDef.name} — filled through
+ * the `out` parameter rather than the return, which already answers the BT's
+ * question. One channel with two meanings reports a leaf as Running because it
+ * produced a value.
+ */
+export type AiOutputs = Record<string, AiParamValue>;
 
 /**
  * One declared parameter. The vocabulary is deliberately the component-field one
@@ -68,6 +74,20 @@ export interface AiParamDef {
 }
 
 /**
+ * One declared output — what a name hands back. Deliberately thinner than
+ * {@link AiParamDef}: an output has no control to render, so it carries the
+ * type a wire is checked against and a label, and nothing an inspector would
+ * need.
+ */
+export interface AiOutputDef {
+    /** Key in the {@link AiOutputs} record, and the fallback label. */
+    name: string;
+    type: 'string' | 'number' | 'bool' | 'entity';
+    label?: string;
+    tooltip?: string;
+}
+
+/**
  * What a leaf reaches for on the world, by component name.
  *
  * The system running a graph is only as knowable as its leaves. `opaque` is a
@@ -91,6 +111,15 @@ export interface AiActionSpec<Ctx> {
     run: AiAction<Ctx>;
     /** Declared parameters, in canonical string order. */
     params?: readonly AiParamDef[];
+    /** Declared outputs — what it writes into the `out` record it is handed. */
+    outputs?: readonly AiOutputDef[];
+    /**
+     * True when running it changes nothing: the name answers a question. A pure
+     * name may be evaluated on demand and in any order, which is what lets a
+     * script graph pull a value up its data wires instead of sequencing it.
+     * A leaf that mutates the world and ALSO hands back a value is not pure.
+     */
+    pure?: boolean;
     /** What it reaches for. Undeclared means unknown, not nothing. */
     touches?: AiTouchesSource;
     /**
@@ -105,8 +134,27 @@ export interface AiActionSpec<Ctx> {
 interface ActionEntry<Ctx> {
     fn: AiAction<Ctx>;
     params: readonly AiParamDef[];
+    outputs: readonly AiOutputDef[];
+    pure: boolean;
     separator: string;
     touches?: AiTouchesSource;
+}
+
+/**
+ * A name that answers a question instead of doing something — the registration
+ * shape for a pure leaf. {@link AiActionSpec} minus the parts a question has no
+ * use for: no Status (nothing runs across frames) and no canonical-string
+ * projection (a value is reached by a wire, never by a hand-typed `arg`).
+ */
+export interface AiValueSpec<Ctx> {
+    /** Declared inputs — the same vocabulary an action's parameters use. */
+    params?: readonly AiParamDef[];
+    /** Declared outputs. A value with none is a name nothing can read. */
+    outputs: readonly AiOutputDef[];
+    /** What it reads. Undeclared means unknown, not nothing. */
+    touches?: AiTouches;
+    /** Fill `out` with the declared outputs. Must not change the world. */
+    evaluate(ctx: Ctx, bb: Blackboard, params: AiParams, out: AiOutputs): void;
 }
 
 /** A condition registered with metadata rather than as a bare predicate. */
@@ -141,13 +189,34 @@ export class AiRegistry<Ctx = unknown> {
         const run = spec.run;
         const wrapped: AiAction<Ctx> = params.length === 0
             ? run // no declaration, no projection — byte-identical behaviour
-            : (ctx, bb, arg, given) => {
+            : (ctx, bb, arg, given, out) => {
                 const named = given && Object.keys(given).length > 0
                     ? given
                     : parseActionArg(arg, params, separator);
-                return run(ctx, bb, arg ?? formatActionArg(named, params, separator), named);
+                return run(ctx, bb, arg ?? formatActionArg(named, params, separator), named, out);
             };
-        this.actions.set(name, { fn: wrapped, params, separator, touches: spec.touches });
+        this.actions.set(name, {
+            fn: wrapped, params, outputs: spec.outputs ?? [], pure: spec.pure === true,
+            separator, touches: spec.touches,
+        });
+    }
+
+    /**
+     * Register a pure name — see {@link AiValueSpec}. It lands in the SAME store
+     * actions do, so one lookup, one catalog and one extractor serve both: a
+     * palette asks what names exist, not what kind of thing each one is.
+     */
+    registerValue(name: string, spec: AiValueSpec<Ctx>): void {
+        const { evaluate } = spec;
+        this.registerAction(name, {
+            params: spec.params,
+            outputs: spec.outputs,
+            pure: true,
+            touches: spec.touches,
+            run: (ctx, bb, _arg, params, out) => {
+                if (out) evaluate(ctx, bb, params ?? {}, out);
+            },
+        });
     }
 
     registerCondition(name: string, fn: AiCondition<Ctx> | AiConditionSpec<Ctx>): void {
@@ -183,6 +252,16 @@ export class AiRegistry<Ctx = unknown> {
     /** The separator joining `name`'s parameters in the canonical string form. */
     getActionSeparator(name: string): string {
         return this.actions.get(name)?.separator ?? ':';
+    }
+
+    /** What `name` hands back (empty when it declares nothing). */
+    getActionOutputs(name: string): readonly AiOutputDef[] {
+        return this.actions.get(name)?.outputs ?? [];
+    }
+
+    /** Whether running `name` changes nothing — see {@link AiActionSpec.pure}. */
+    isActionPure(name: string): boolean {
+        return this.actions.get(name)?.pure ?? false;
     }
 
     getCondition(name: string): AiCondition<Ctx> | undefined {
@@ -279,6 +358,7 @@ export function invokeAction<Ctx>(
     ctx: Ctx,
     bb: Blackboard,
     input: AiActionInput = {},
+    out?: AiOutputs,
 ): void | Status {
     const fn = registry.getAction(name);
     if (!fn) return undefined;
@@ -287,7 +367,7 @@ export function invokeAction<Ctx>(
     const arg = named
         ? formatActionArg(named, registry.getActionParams(name), registry.getActionSeparator(name)) ?? input.arg
         : input.arg;
-    return fn(ctx, bb, arg, named);
+    return fn(ctx, bb, arg, named, out);
 }
 
 function coerce(raw: string, type: AiParamDef['type']): AiParamValue {

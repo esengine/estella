@@ -16,7 +16,7 @@ import type { World } from '../../ecs/world';
 import type { CommandsInstance } from '../../ecs/commands';
 import type { AnyComponentDef, ComponentData } from '../../ecs/component';
 import type { Blackboard } from './Blackboard';
-import { AiRegistry, type AiAction, type AiActionSpec, type AiCondition } from './registry';
+import { AiRegistry, type AiAction, type AiActionSpec, type AiCondition, type AiValueSpec } from './registry';
 
 export interface AiContext {
     /** The agent entity this action/condition runs for. */
@@ -56,4 +56,13 @@ export function registerAction(name: string, fn: AiAction<AiContext> | AiActionS
 /** Register a named condition referenced by FSM transitions / BT conditions. */
 export function registerCondition(name: string, fn: AiCondition<AiContext>): void {
     aiRegistry.registerCondition(name, fn);
+}
+
+/**
+ * Register a named VALUE — a pure name that answers a question, which a script
+ * graph reads by wiring its declared outputs. Same store as the actions, so it
+ * shows up in the same palettes.
+ */
+export function registerValue(name: string, spec: AiValueSpec<AiContext>): void {
+    aiRegistry.registerValue(name, spec);
 }

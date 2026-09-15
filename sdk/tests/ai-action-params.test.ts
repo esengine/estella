@@ -16,7 +16,7 @@ import {
     type AiParams,
 } from '../src/ai/fsm/registry';
 import { Blackboard } from '../src/ai/fsm/Blackboard';
-import { aiRegistry, registerAction, type AiContext } from '../src/ai/fsm/AiContext';
+import { aiRegistry, registerAction, registerValue, type AiContext } from '../src/ai/fsm/AiContext';
 
 const PAIR: AiParamDef[] = [
     { name: 'controller', type: 'enum' },
@@ -137,5 +137,63 @@ describe('the public registerAction', () => {
         expect(aiRegistry.getActionParams('test.plain')).toEqual([]);
         invokeAction(aiRegistry, 'test.plain', ctx, bb, { arg: 'raw' });
         expect(seen).toBe('raw');
+    });
+});
+
+/**
+ * A name declares what it TAKES and what it HANDS BACK. The second half is what
+ * a script graph reads off a wire; the first half was always there.
+ */
+describe('declared outputs', () => {
+    const bb = new Blackboard();
+    const ctx = {} as AiContext;
+
+    it('hands values back through the out record, leaving the return to the BT', () => {
+        registerAction('test.rollDice', {
+            params: [{ name: 'sides', type: 'number' }],
+            outputs: [{ name: 'value', type: 'number' }],
+            run: (_ctx, _bb, _arg, params, out) => {
+                if (out) out.value = Number(params?.sides ?? 0);
+            },
+        });
+
+        expect(aiRegistry.getActionOutputs('test.rollDice')).toEqual([{ name: 'value', type: 'number' }]);
+        const out: Record<string, string | number | boolean> = {};
+        const status = invokeAction(aiRegistry, 'test.rollDice', ctx, bb, { arg: '20' }, out);
+        expect(out).toEqual({ value: 20 });
+        expect(status).toBeUndefined();
+    });
+
+    it('a name with no `out` handed to it still runs — every caller need not want one', () => {
+        let ran = false;
+        registerAction('test.sideEffect', {
+            outputs: [{ name: 'ignored', type: 'bool' }],
+            run: () => { ran = true; },
+        });
+        invokeAction(aiRegistry, 'test.sideEffect', ctx, bb);
+        expect(ran).toBe(true);
+    });
+
+    it('registerValue lands in the SAME store, marked pure', () => {
+        registerValue('test.double', {
+            params: [{ name: 'n', type: 'number' }],
+            outputs: [{ name: 'result', type: 'number' }],
+            evaluate: (_ctx, _bb, params, out) => { out.result = Number(params.n ?? 0) * 2; },
+        });
+
+        expect(aiRegistry.hasAction('test.double')).toBe(true);
+        expect(aiRegistry.actionNames()).toContain('test.double');
+        expect(aiRegistry.isActionPure('test.double')).toBe(true);
+        expect(aiRegistry.isActionPure('test.rollDice')).toBe(false);
+
+        const out: Record<string, string | number | boolean> = {};
+        invokeAction(aiRegistry, 'test.double', ctx, bb, { params: { n: 21 } }, out);
+        expect(out).toEqual({ result: 42 });
+    });
+
+    it('an action that declares nothing declares nothing — not "no outputs, pure"', () => {
+        registerAction('test.bare', () => {});
+        expect(aiRegistry.getActionOutputs('test.bare')).toEqual([]);
+        expect(aiRegistry.isActionPure('test.bare')).toBe(false);
     });
 });
