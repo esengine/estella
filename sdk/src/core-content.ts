@@ -1024,6 +1024,18 @@ export {
     type CompiledScriptGraph,
     type ScriptRunState,
     type ScriptTickContext,
+    ScriptGraphAgent,
+    registerScriptGraph,
+    getScriptGraph,
+    clearScriptGraphStore,
+    ScriptGraphPlugin,
+    scriptGraphPlugin,
+    ScriptGraphs,
+    AiScriptGraphs,
+    stepScriptGraphs,
+    scriptGraphTouches,
+    ensureBuiltinScriptNodes,
+    type ScriptGraphAgentData,
 } from './logic';
 
 // =============================================================================

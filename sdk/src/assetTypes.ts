@@ -85,6 +85,8 @@ const ASSET_TYPE_REGISTRY: readonly AssetTypeEntry[] = [
     { extensions: ['esanimator'], contentType: 'json', editorType: 'json', addressableType: 'json', wechatPackInclude: true, hasTransitiveDeps: false },
     // Behavior tree (registerBt / BtAssetLoader) — data-driven BT definition.
     { extensions: ['esbt'], contentType: 'json', editorType: 'json', addressableType: 'json', wechatPackInclude: true, hasTransitiveDeps: false },
+    // Script graph (registerScriptGraph / ScriptGraphAssetLoader) — visual logic.
+    { extensions: ['esgraph'], contentType: 'json', editorType: 'json', addressableType: 'json', wechatPackInclude: true, hasTransitiveDeps: false },
     // Prefiltered environment: nine irradiance coefficients inline, plus the path
     // of the octahedral atlas they were baked beside — hence the transitive dep,
     // without which the cook ships the document and culls the image it is half of.

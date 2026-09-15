@@ -260,7 +260,7 @@ export const SUBSYSTEMS = [
         tier: 'experimental',
         why: 'the node vocabulary is still growing: a name that gains an output changes what an authored graph can read, so the shape is not one to freeze yet',
         whyZh: '节点词汇表还在长：一个名字多一个输出就改变了已画好的图能读到什么，形状还不到冻结的时候',
-        entry: ['compileScriptGraph', 'stepScriptGraph', 'describeNode', 'canConnect'],
+        entry: ['ScriptGraphAgent', 'registerScriptGraph', 'registerValue', 'scriptGraphPlugin'],
     },
     {
         id: 'networking',

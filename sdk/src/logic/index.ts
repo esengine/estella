@@ -45,3 +45,27 @@ export {
     type ScriptRunState,
     type ScriptTickContext,
 } from './ScriptGraphRunner';
+
+export {
+    ScriptGraphAgent,
+    registerScriptGraph,
+    getScriptGraph,
+    allScriptGraphs,
+    clearScriptGraphStore,
+    compileAgainstRegistry,
+    type ScriptGraphAgentData,
+} from './ScriptGraphAgent';
+
+export {
+    ScriptGraphPlugin,
+    scriptGraphPlugin,
+    ScriptGraphs,
+    AiScriptGraphs,
+    stepScriptGraphs,
+    scriptGraphLeaves,
+    scriptGraphTouches,
+    agentGraphBlackboard,
+    type ScriptGraphWorldView,
+} from './ScriptGraphPlugin';
+
+export { ensureBuiltinScriptNodes } from './builtinNodes';

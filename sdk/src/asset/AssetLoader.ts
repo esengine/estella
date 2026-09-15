@@ -85,6 +85,10 @@ export interface BtResult {
     btId: string;
 }
 
+export interface ScriptGraphResult {
+    graphId: string;
+}
+
 export interface PrefabResult {
     data: unknown;
 }

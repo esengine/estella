@@ -28,6 +28,15 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(assets): a script graph is a live asset like the other authored graphs':
+    { internal: 'The .esgraph asset slot. Nothing authors one yet — no panel, no new-asset entry.' },
+
+  'feat(assets): the Content Browser knows a .esgraph when it sees one':
+    { internal: 'Badge and icon for an asset type nothing can create yet.' },
+
+  'feat(logic): an entity can carry a graph, and the graph can reach the world':
+    { internal: 'The engine binding and the built-in value vocabulary. Still nothing authors a graph — the asset has no editor yet.' },
+
   'feat(logic): a graph is nodes, wires, and one vocabulary it shares':
     { internal: 'The script-graph core and the registry half it needs. Nothing authors one yet — no asset type, no component, no panel.' },
 

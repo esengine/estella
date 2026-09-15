@@ -3584,6 +3584,17 @@
       ]
     },
     {
+      "name": "ScriptGraphAgent",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "graph",
+          "type": "Asset<scriptgraph>",
+          "default": "none"
+        }
+      ]
+    },
+    {
       "name": "SegmentCollider2D",
       "source": "cpp",
       "fields": [

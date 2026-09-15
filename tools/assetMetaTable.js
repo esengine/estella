@@ -87,6 +87,7 @@ export const EXT_TO_TYPE = Object.freeze({
     '.estileset': 'tileset',
     '.esfsm': 'statemachine',
     '.esbt': 'behaviortree',
+    '.esgraph': 'scriptgraph',
     '.esanimator': 'animatorcontroller',
     '.esavatar': 'avatar',
     '.eslocale': 'locale',

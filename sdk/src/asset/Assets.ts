@@ -44,6 +44,7 @@ import { FsmAssetLoader } from './loaders/FsmAssetLoader';
 import { AnimatorControllerAssetLoader } from './loaders/AnimatorControllerAssetLoader';
 import { AvatarAssetLoader } from './loaders/AvatarAssetLoader';
 import { BtAssetLoader } from './loaders/BtAssetLoader';
+import { ScriptGraphAssetLoader } from './loaders/ScriptGraphAssetLoader';
 import { LocaleAssetLoader } from './loaders/LocaleAssetLoader';
 import { JsonAssetLoader } from './loaders/JsonAssetLoader';
 import { getComponentDefaults } from '../ecs/component';
@@ -1302,6 +1303,7 @@ export class Assets {
         const timelinePaths = discovered.byType.get('timeline') ?? new Set<string>();
         const fsmPaths = discovered.byType.get('statemachine') ?? new Set<string>();
         const btPaths = discovered.byType.get('behaviortree') ?? new Set<string>();
+        const graphPaths = discovered.byType.get('scriptgraph') ?? new Set<string>();
         const animatorPaths = discovered.byType.get('animatorcontroller') ?? new Set<string>();
         const avatarPaths = discovered.byType.get('avatar') ?? new Set<string>();
         const meshPaths = discovered.byType.get('mesh') ?? new Set<string>();
@@ -1409,6 +1411,7 @@ export class Assets {
         // fsm/bt is that path resolves once the scene finishes preloading.
         pushAcquire(fsmPaths, p => this.acquireTyped('statemachine', p), 'statemachine');
         pushAcquire(btPaths, p => this.acquireTyped('behaviortree', p), 'behaviortree');
+        pushAcquire(graphPaths, p => this.acquireTyped('scriptgraph', p), 'scriptgraph');
         pushAcquire(animatorPaths, p => this.acquireTyped('animatorcontroller', p), 'animatorcontroller');
         pushAcquire(avatarPaths, p => this.acquireTyped('avatar', p), 'avatar');
 
@@ -2241,6 +2244,7 @@ export class Assets {
         this.register(new AnimatorControllerAssetLoader());
         this.register(new AvatarAssetLoader());
         this.register(new BtAssetLoader());
+        this.register(new ScriptGraphAssetLoader());
         this.register(new LocaleAssetLoader());
         this.register(new JsonAssetLoader());
     }

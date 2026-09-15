@@ -169,6 +169,7 @@ export const COMPONENT_DOCS: Record<string, ComponentDoc> = {
   PerceptionTarget: { category: 'gameplay', summary: 'Tag: perceivers can see this entity.', doc: 'gameplay/ai/perception' },
   StateMachineAgent: { category: 'gameplay', summary: 'Runs a gameplay state machine asset, calling registry actions as states enter, update and exit.', doc: 'gameplay/ai/state-machines' },
   BehaviorTreeAgent: { category: 'gameplay', summary: 'Ticks a behavior tree asset against a blackboard, calling registry actions at its leaves.', doc: 'gameplay/ai/behavior-trees' },
+  ScriptGraphAgent: { category: 'gameplay', summary: 'Runs a script graph asset on this entity — events, an exec wire, and data wires between registered names.', doc: null },
   EventBinding: { category: 'gameplay', summary: 'Wires an event on this entity to named actions — gameplay authored in the inspector, with no script.', doc: 'scripting/events', anchor: 'the-data', anchorZh: '数据本身' },
   AudioSource: { category: 'gameplay', summary: 'Declarative playback attached to an entity, attenuated by distance when spatial.', doc: 'assets/audio', anchor: 'declarative-playback--audiosource', anchorZh: '声明式播放--audiosource' },
   AudioListener: { category: 'gameplay', summary: 'The ear spatial audio is mixed relative to — usually the camera or the player.', doc: 'assets/audio', anchor: 'spatial-audio', anchorZh: '空间音频' },

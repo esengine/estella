@@ -232,6 +232,7 @@ const BITMAP_FONT = 'bitmapfont';
 // inside a document, so an unscanned type 404s what the document needs.
 const JSON_REF_TYPES = new Set([
   'scene', 'prefab', 'material', 'tileset', 'tilemap', 'animclip', 'animation', 'statemachine', 'behaviortree',
+  'scriptgraph',
   'environment', 'animatorcontroller', 'avatar',
   'json',
 ]);

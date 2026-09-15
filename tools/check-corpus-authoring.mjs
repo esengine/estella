@@ -120,6 +120,7 @@ const DISPOSITION = {
 
   // — owed: a creator-facing component nothing in the shipped corpus authors.
   //   Each reason names where the coverage belongs. —
+  ScriptGraphAgent: ['owed', 'the script-graph editor is not landed yet, so no example can hold a `.esgraph` an author made; the coverage belongs in an example whose logic is a graph rather than a script'],
 
 };
 
