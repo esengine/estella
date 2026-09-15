@@ -9,6 +9,7 @@
  * the world the transforms come from, and this holds the meshes they name.
  */
 import { readFileSync } from 'node:fs';
+import { PNG } from 'pngjs';
 import { bakeLightmap, decodeMesh, MeshChannel,
          type BakeSurface, type BakeLight, type BakeOptions } from 'esengine';
 import { encodeRgbaPng } from './png';
@@ -21,7 +22,15 @@ export interface SceneBakeSurface {
     label: string;
     /** Column-major 4x4 world transform. */
     transform: number[];
-    albedo?: [number, number, number];
+    /**
+     * The surface's base colour factor — for an imported model this IS the
+     * material's `baseColorFactor`, which the import writes onto the component.
+     */
+    baseColor?: [number, number, number];
+    /** Absolute path of the base colour texture, whose average completes the
+     *  albedo. A bounce off a red wall has to arrive red, and the colour is in
+     *  the texture as often as it is in the factor. */
+    baseColorTexture?: string;
 }
 
 export interface SceneBakeInput {
@@ -41,6 +50,58 @@ export interface SceneBakeResult {
     warnings: string[];
 }
 
+/** sRGB to linear, one channel. A texture stores what a screen shows, and an
+ *  average taken before this is decoded is brighter than the surface is. */
+function toLinear(v: number): number {
+    const c = v / 255;
+    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+}
+
+/** A texture's mean colour in linear light, or null when it cannot be read. */
+function averageOf(file: string): [number, number, number] | null {
+    const png = PNG.sync.read(readFileSync(file));
+    let r = 0, g = 0, b = 0;
+    const pixels = png.width * png.height;
+    if (pixels === 0) return null;
+    for (let i = 0; i < pixels; i++) {
+        r += toLinear(png.data[i * 4]);
+        g += toLinear(png.data[i * 4 + 1]);
+        b += toLinear(png.data[i * 4 + 2]);
+    }
+    return [r / pixels, g / pixels, b / pixels];
+}
+
+/**
+ * What fraction of each channel this surface reflects.
+ *
+ * The factor and the texture BOTH carry it — a shader multiplies them, and a
+ * bounce that used only one would drop the colour whenever the other held it.
+ * A surface with neither reflects a neutral grey, which is a guess, so it says so.
+ */
+function albedoOf(s: SceneBakeSurface, cache: Map<string, [number, number, number] | null>,
+                  warnings: string[]): [number, number, number] | undefined {
+    const factor = s.baseColor;
+    if (!s.baseColorTexture) {
+        if (!factor) {
+            warnings.push(`${s.label}: no base colour, so light bounces off it as neutral grey`);
+        }
+        return factor;
+    }
+    if (!cache.has(s.baseColorTexture)) {
+        try {
+            cache.set(s.baseColorTexture, averageOf(s.baseColorTexture));
+        } catch {
+            cache.set(s.baseColorTexture, null);
+            warnings.push(`${s.label}: its base colour texture could not be read, so light`
+                + ' bounces off it by its colour factor alone');
+        }
+    }
+    const mean = cache.get(s.baseColorTexture) ?? null;
+    if (!mean) return factor;
+    const f = factor ?? [1, 1, 1];
+    return [mean[0] * f[0], mean[1] * f[1], mean[2] * f[2]];
+}
+
 /**
  * Bakes what the caller placed, skipping what cannot receive light and saying so.
  *
@@ -52,6 +113,9 @@ export function bakeSceneLightmap(input: SceneBakeInput): SceneBakeResult {
     const warnings: string[] = [];
     const surfaces: BakeSurface[] = [];
     const slot: number[] = [];
+    // One decode per texture however many objects share it: a bake reads these
+    // once and a scene reuses the same few across most of its surfaces.
+    const averages = new Map<string, [number, number, number] | null>();
 
     for (let i = 0; i < input.surfaces.length; i++) {
         const s = input.surfaces[i];
@@ -68,7 +132,7 @@ export function bakeSceneLightmap(input: SceneBakeInput): SceneBakeResult {
             continue;
         }
         slot.push(i);
-        surfaces.push({ mesh, transform: s.transform, albedo: s.albedo });
+        surfaces.push({ mesh, transform: s.transform, albedo: albedoOf(s, averages, warnings) });
     }
 
     if (surfaces.length === 0) {

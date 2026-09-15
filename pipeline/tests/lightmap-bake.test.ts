@@ -14,6 +14,7 @@ import path from 'node:path';
 import { encodeMesh, unwrapLightmapUV, MeshChannel, MeshChannelType,
          type MeshData, type BakeLight } from 'esengine';
 import { bakeSceneLightmap, type SceneBakeSurface } from '../src/assets/lightmapBake';
+import { encodeRgbaPng } from '../src/assets/png';
 
 let dir = '';
 
@@ -51,16 +52,23 @@ beforeAll(async () => {
     dir = await mkdtemp(path.join(tmpdir(), 'estella-bake-'));
     await writeFile(path.join(dir, 'unwrapped.esmesh'), encodeMesh(unwrapLightmapUV(floor(4)).mesh));
     await writeFile(path.join(dir, 'raw.esmesh'), encodeMesh(floor(4)));
+    // A texture that is HALF white and half black: its mean is a middle grey no
+    // single pixel of it is, so an average that read one texel would be wrong.
+    const half = new Uint8Array(4 * 4 * 4).fill(255);
+    for (let i = 8; i < 16; i++) { half[i * 4] = 0; half[i * 4 + 1] = 0; half[i * 4 + 2] = 0; }
+    await writeFile(path.join(dir, 'half.png'), encodeRgbaPng(4, 4, half));
 });
 
 afterAll(async () => {
     await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 });
 
-const surface = (file: string, label: string, x = 0): SceneBakeSurface => ({
+const surface = (file: string, label: string, x = 0,
+                baseColor: [number, number, number] = [0.8, 0.8, 0.8]): SceneBakeSurface => ({
     meshFile: path.join(dir, file),
     label,
     transform: [...IDENTITY.slice(0, 12), x, 0, 0, 1],
+    baseColor,
 });
 
 describe('baking a scene', () => {
@@ -95,6 +103,45 @@ describe('baking a scene', () => {
         });
         expect(result.lumels).toBe(0);
         expect(result.warnings.join(' ')).toContain('nothing in this scene');
+    });
+
+    it('takes a surface\'s colour from its factor AND its texture', () => {
+        // A shader multiplies the two, so a bounce that read only one drops the
+        // colour whenever the other holds it. Read back through the warning the
+        // guess would have produced: with a texture there is nothing to guess.
+        const withTexture = bakeSceneLightmap({
+            surfaces: [{
+                ...surface('unwrapped.esmesh', 'Floor'),
+                baseColor: undefined,
+                baseColorTexture: path.join(dir, 'half.png'),
+            }],
+            lights: LAMP,
+            options: SMALL,
+        });
+        expect(withTexture.warnings.join(' ')).not.toContain('neutral grey');
+
+        // And an unreadable one falls back to the factor, saying so rather than
+        // pretending the surface is white.
+        const broken = bakeSceneLightmap({
+            surfaces: [{
+                ...surface('unwrapped.esmesh', 'Floor'),
+                baseColorTexture: path.join(dir, 'raw.esmesh'),
+            }],
+            lights: LAMP,
+            options: SMALL,
+        });
+        expect(broken.warnings.join(' ')).toContain('could not be read');
+    });
+
+    it('says when it had to guess what a surface reflects', () => {
+        // Neutral grey is a guess, and a bounce off a red wall that arrives grey
+        // is the kind of wrong that looks like the bake simply being dull.
+        const result = bakeSceneLightmap({
+            surfaces: [{ ...surface('unwrapped.esmesh', 'Floor'), baseColor: undefined }],
+            lights: LAMP,
+            options: SMALL,
+        });
+        expect(result.warnings.join(' ')).toContain('neutral grey');
     });
 
     it('writes a PNG the editor can adopt as an asset', () => {

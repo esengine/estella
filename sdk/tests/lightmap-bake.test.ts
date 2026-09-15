@@ -196,6 +196,29 @@ describe('a baked lightmap', () => {
         expect(brightestOf(lit, 1)).toBeGreaterThan(0);
     });
 
+    it('carries the colour of what the light bounced off', () => {
+        // The reason a bounce takes an albedo at all. A white panel over a red
+        // floor comes back red, and over a white floor it does not — colour
+        // bleeding is most of what separates a bounce from a flat ambient term.
+        const ground = baked(floor(8));
+        const panel = baked(ceiling(2));
+        const lights: BakeLight[] = [
+            { kind: 'point', position: [0, 6, 0], color: [1, 1, 1], intensity: 8, radius: 40 },
+        ];
+        const under = (albedo: [number, number, number]): [number, number, number] => {
+            const r = bakeLightmap([
+                { mesh: ground, transform: IDENTITY, albedo },
+                { mesh: panel, transform: translated(0, 3, 0), albedo: [1, 1, 1] },
+            ], lights, { ...LIT, bounces: 1, samples: 64 });
+            return brightestChannels(r, 1);
+        };
+        const [rr, rg] = under([1, 0.1, 0.1]);
+        const [wr, wg] = under([1, 1, 1]);
+        expect(rr).toBeGreaterThan(0);
+        expect(rr / Math.max(rg, 1)).toBeGreaterThan(3);
+        expect(wr / Math.max(wg, 1)).toBeLessThan(1.2);
+    });
+
     it('gives each object its own patch of the atlas', () => {
         const a = baked(floor(4));
         const b = baked(floor(4));
@@ -241,6 +264,27 @@ function brightestOf(result: ReturnType<typeof bakeLightmap>, surface: number): 
         }
     }
     return best;
+}
+
+/** The channels of the brightest texel in one surface's patch. */
+function brightestChannels(result: ReturnType<typeof bakeLightmap>,
+                           surface: number): [number, number, number] {
+    const [su, sv, ou, ov] = result.scaleOffset[surface];
+    let best = -1;
+    let out: [number, number, number] = [0, 0, 0];
+    const x0 = Math.floor(ou * result.size), x1 = Math.ceil((ou + su) * result.size);
+    const y0 = Math.floor(ov * result.size), y1 = Math.ceil((ov + sv) * result.size);
+    for (let y = y0; y < y1; y++) {
+        for (let x = x0; x < x1; x++) {
+            const at = (y * result.size + x) * 4;
+            const sum = result.pixels[at] + result.pixels[at + 1] + result.pixels[at + 2];
+            if (sum > best) {
+                best = sum;
+                out = [result.pixels[at], result.pixels[at + 1], result.pixels[at + 2]];
+            }
+        }
+    }
+    return out;
 }
 
 /** Brightness of the floor at world z, on its centre line. */

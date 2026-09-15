@@ -28,6 +28,11 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(lighting): a bounce carries the colour of what it came off':
+    { note: 'A bounce carries the colour of what it came off.' },
+  'feat(render): a surface reflects the colour it actually has':
+    { note: 'A bounce carries the colour of what it came off.' },
+
   'feat(lighting): Bake Lighting, and the atlas the scene reads it from':
     { note: 'Bake Lighting.' },
   'chore(editor): the bake reaches the menu':

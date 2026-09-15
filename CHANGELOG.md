@@ -16,6 +16,15 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A bounce carries the colour of what it came off.** Baked light reflected a
+  neutral grey whatever it hit, so a red wall lit a white floor white — most of
+  the difference between a bounce and a flat ambient term. A surface's albedo now
+  comes from both of the things a shader multiplies: the base colour factor (for
+  an imported model, the material's own, which the import writes onto the
+  component) and the mean of its base colour texture, decoded out of sRGB first
+  so the average is of light rather than of what a screen shows. A surface with
+  neither is still a neutral grey, and says so rather than guessing quietly.
+
 - **Bake Lighting.** The trigger the bake was missing: a command that collects
   the open scene, solves it, writes the atlas beside the scene file, and records
   on each object where in that atlas it reads. Sixteen lights is what a frame
