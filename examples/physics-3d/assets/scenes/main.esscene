@@ -89,7 +89,7 @@
         {
           "type": "MeshLightmap",
           "data": {
-            "lightmap": "main_lightmap.png",
+            "lightmap": "@uuid:b55cdc1e-9d77-4868-aa6e-e24c4156a10f",
             "scaleOffset": {
               "x": 0.59765625,
               "y": 0.59765625,
@@ -157,7 +157,7 @@
         {
           "type": "MeshLightmap",
           "data": {
-            "lightmap": "main_lightmap.png",
+            "lightmap": "@uuid:b55cdc1e-9d77-4868-aa6e-e24c4156a10f",
             "scaleOffset": {
               "x": 0.1455078125,
               "y": 0.1455078125,
@@ -225,7 +225,7 @@
         {
           "type": "MeshLightmap",
           "data": {
-            "lightmap": "main_lightmap.png",
+            "lightmap": "@uuid:b55cdc1e-9d77-4868-aa6e-e24c4156a10f",
             "scaleOffset": {
               "x": 0.169921875,
               "y": 0.169921875,
@@ -293,7 +293,7 @@
         {
           "type": "MeshLightmap",
           "data": {
-            "lightmap": "main_lightmap.png",
+            "lightmap": "@uuid:b55cdc1e-9d77-4868-aa6e-e24c4156a10f",
             "scaleOffset": {
               "x": 0.21875,
               "y": 0.21875,
@@ -535,7 +535,7 @@
         {
           "type": "MeshLightmap",
           "data": {
-            "lightmap": "main_lightmap.png",
+            "lightmap": "@uuid:b55cdc1e-9d77-4868-aa6e-e24c4156a10f",
             "scaleOffset": {
               "x": 0.0712890625,
               "y": 0.0712890625,
@@ -966,7 +966,7 @@
         {
           "type": "MeshLightmap",
           "data": {
-            "lightmap": "main_lightmap.png",
+            "lightmap": "@uuid:b55cdc1e-9d77-4868-aa6e-e24c4156a10f",
             "scaleOffset": {
               "x": 0.15234375,
               "y": 0.15234375,
@@ -1033,7 +1033,7 @@
         {
           "type": "MeshLightmap",
           "data": {
-            "lightmap": "main_lightmap.png",
+            "lightmap": "@uuid:b55cdc1e-9d77-4868-aa6e-e24c4156a10f",
             "scaleOffset": {
               "x": 0.033203125,
               "y": 0.033203125,
@@ -1290,7 +1290,7 @@
         {
           "type": "MeshLightmap",
           "data": {
-            "lightmap": "main_lightmap.png",
+            "lightmap": "@uuid:b55cdc1e-9d77-4868-aa6e-e24c4156a10f",
             "scaleOffset": {
               "x": 0.0283203125,
               "y": 0.0283203125,
@@ -1421,7 +1421,7 @@
         {
           "type": "MeshLightmap",
           "data": {
-            "lightmap": "main_lightmap.png",
+            "lightmap": "@uuid:b55cdc1e-9d77-4868-aa6e-e24c4156a10f",
             "scaleOffset": {
               "x": 0.025390625,
               "y": 0.025390625,
@@ -1547,7 +1547,7 @@
         {
           "type": "LightProbeVolume",
           "data": {
-            "probes": "main_probes_50.esprobes",
+            "probes": "@uuid:23105ef9-d948-48f2-808c-266c136c0b46",
             "halfExtents": {
               "x": 750,
               "y": 220,

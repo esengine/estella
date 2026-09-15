@@ -281,14 +281,25 @@ async function bakeScene(baker, sceneFile, check) {
   const atlasName = `${stem}_lightmap.png`;
   const atlasFile = path.join(sceneDir, atlasName);
 
+  // The REF and not the file name: a package addresses assets by uuid and renames
+  // files to their content hash. Read from the product's own `.meta`, since `byUuid`
+  // was built before this bake wrote anything.
+  const refTo = (absFile) => {
+    try {
+      const meta = JSON.parse(readFileSync(`${absFile}.meta`, 'utf8'));
+      return typeof meta.uuid === 'string' ? `@uuid:${meta.uuid}` : '';
+    } catch { return ''; }
+  };
+  const atlasRef = refTo(atlasFile);
+
   // One file per volume, named for the entity that holds it: adding a second
   // volume must not rename the first one's grid.
   const grids = new Map();
   result.probes.forEach((doc, i) => {
     if (!doc) return;
+    const name = `${stem}_probes_${volumes[i].entity}.esprobes`;
     grids.set(volumes[i].entity, {
-      name: `${stem}_probes_${volumes[i].entity}.esprobes`,
-      text: baker.probeDocumentText(doc),
+      name, text: baker.probeDocumentText(doc), ref: refTo(path.join(sceneDir, name)),
     });
   });
 
@@ -301,7 +312,7 @@ async function bakeScene(baker, sceneFile, check) {
       if (at >= 0) entity.components.splice(at, 1);
       continue;
     }
-    const data = { lightmap: atlasName,
+    const data = { lightmap: atlasRef || atlasName,
                    scaleOffset: { x: rect[0], y: rect[1], z: rect[2], w: rect[3] } };
     if (at >= 0) entity.components[at] = { type: 'MeshLightmap', data };
     else entity.components.push({ type: 'MeshLightmap', data });
@@ -322,7 +333,7 @@ async function bakeScene(baker, sceneFile, check) {
     const grid = grids.get(entity.id);
     entity.components[at] = {
       type: 'LightProbeVolume',
-      data: { ...entity.components[at].data, probes: grid ? grid.name : '' },
+      data: { ...entity.components[at].data, probes: grid ? (grid.ref || grid.name) : '' },
     };
   }
   const document = `${JSON.stringify(scene, null, 2)}\n`;
@@ -363,6 +374,17 @@ async function bakeScene(baker, sceneFile, check) {
   writeFileSync(atlasFile, result.atlasBytes);
   for (const g of grids.values()) writeFileSync(path.join(sceneDir, g.name), g.text);
   writeFileSync(sceneFile, document);
+
+  // A product written for the first time has no `.meta` yet, so the scene had to
+  // name it by file name — which an export cannot resolve. Said here rather than
+  // left to --check, since this is the run that produced it.
+  const nameless = [atlasRef ? '' : atlasName,
+                    ...[...grids.values()].filter((g) => !g.ref).map((g) => g.name)].filter(Boolean);
+  if (nameless.length > 0) {
+    console.warn(`bake-scene: ${nameless.join(', ')} — no .meta, so the scene names it by file`
+      + ' name and a package cannot carry it. Mint one and bake again:'
+      + `  node tools/asset-meta.js ${path.relative(REPO, sceneDir)}`);
+  }
   console.log(`bake-scene: ${result.lumels} lumel(s) over ${placed.size} object(s)`
     + `${grids.size ? `, ${grids.size} probe grid(s)` : ''}`
     + ` -> ${path.relative(REPO, atlasFile)}`);

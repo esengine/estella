@@ -240,6 +240,24 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A baked room is lit in the package too.** `bake-scene` wrote the atlas's file
+  NAME into every `MeshLightmap`, and an asset ref resolves from the PROJECT
+  root — so the name meant something beside the scene and nothing anywhere else.
+  The editor drew the room correctly, because it reads the file off the disk it
+  is sitting on. The packaged game asked its server for `main_lightmap.png`, got
+  a 404, and ran the room unlit with the atlas sitting right there in the package
+  under its content hash. The probe grid went the same way. Both doors now write
+  the `@uuid:` the product's own `.meta` carries, which is what the editor's bake
+  already did — of the two halves of "an asset ref is project-relative", the
+  reading one was fixed this release and the writing one was not.
+
+  `check-asset-refs` holds every asset-valued field in the corpus to a ref a
+  package can resolve: a `@uuid:`, a `builtin:`, or a path from the project root.
+  Which fields those are it reads from `component.assetFields`, not a list of its
+  own. Nothing shorter reaches this: the bake is deterministic and its own gate
+  compares a fresh bake to the committed one, so both sides spelled the same
+  wrong name and agreed.
+
 - **The command line bakes the meshes a scene actually names.** An asset ref is
   PROJECT-relative, and `bake-scene` resolved it against the scene's own folder —
   so every object drawing a real `.esmesh` fell out of the bake with "draws no

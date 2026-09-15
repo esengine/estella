@@ -235,6 +235,7 @@ export const GATES = [
     why: 'the bake reads the meshes the scene names, and takes about ten seconds',
   },
   { id: 'asset-vocabulary', run: 'node tools/check-asset-vocabulary.mjs' },
+  { id: 'asset-refs', run: 'node tools/check-asset-refs.mjs' },
   { id: 'lod-authoring', run: 'node tools/check-lod-authoring.mjs', needs: 'editor' },
   { id: 'shadow-plan', run: 'node tools/check-shadow-plan.mjs' },
   { id: 'light-cap', run: 'node tools/check-light-cap.mjs' },

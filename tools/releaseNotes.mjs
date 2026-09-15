@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(pipeline): a bake writes the ref a package can resolve':
+    { note: 'A baked room is lit in the package too.' },
+
   'feat(lighting): a scene says how it is lit, and whether its light still describes it':
     { note: 'A scene says how it is lit, and whether its light still describes it.' },
   'feat(lighting): a Lighting panel, and a scene that says whether its light is stale':
