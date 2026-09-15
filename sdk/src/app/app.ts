@@ -888,6 +888,15 @@ export class App {
         return this.resources_.getRegisteredNames();
     }
 
+    /**
+     * Every resource this app holds, as `[name, value]` — what an inspector
+     * shows. Includes the slots only a read has materialised, which
+     * {@link getRegisteredResourceNames} (insert-only) does not.
+     */
+    getResourceEntries(): Array<[string, unknown]> {
+        return this.resources_.entries();
+    }
+
     // =========================================================================
     // Scene Management
     // =========================================================================

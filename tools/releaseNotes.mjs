@@ -30,6 +30,10 @@ export const NOTES_FLOOR = 'v0.65.0';
 export const NOTED = {
   'fix(sdk): a reloaded bundle addresses the world it is reloading into':
     { note: 'A hot reload no longer empties the running game of every resource' },
+  'feat(sdk): an app says what its resources are called':
+    { internal: 'the door it replaces was only ever wrong between two unreleased commits — a creator sees the same resource names either way' },
+  'fix(editor): the resource door reads the declared name, and the live check asks about it':
+    { internal: 'the same unreleased window — and the live check it extends is a criterion, which a creator never runs' },
 
   'feat(corpus): a room that is actually lit, and a gate that keeps it lit':
     { note: 'A room in the corpus is actually lit.' },

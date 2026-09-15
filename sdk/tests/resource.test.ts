@@ -315,3 +315,29 @@ describe('ResourceStorage', () => {
         });
     });
 });
+
+/** What an inspector shows: the DECLARED name, never one recovered from the id. */
+describe('ResourceStorage.entries', () => {
+    it('answers the DECLARED name, not the symbol that addresses it', () => {
+        const storage = new ResourceStorage();
+        storage.insert(defineResource({ total: 0 }, 'EntriesScore'), { total: 3 });
+
+        expect(storage.entries()).toEqual([['EntriesScore', { total: 3 }]]);
+    });
+
+    it('includes a slot only a READ has materialised — most of them, in a running game', () => {
+        const storage = new ResourceStorage();
+        storage.get(defineResource({ phase: 'menu' }, 'EntriesPhase'));
+
+        expect(storage.entries()).toEqual([['EntriesPhase', { phase: 'menu' }]]);
+    });
+
+    it('drops a removed one rather than reporting it under an empty name', () => {
+        const storage = new ResourceStorage();
+        const Gone = defineResource(0, 'EntriesGone');
+        storage.insert(Gone, 1);
+        storage.remove(Gone);
+
+        expect(storage.entries()).toEqual([]);
+    });
+});

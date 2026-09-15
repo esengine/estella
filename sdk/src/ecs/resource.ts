@@ -207,14 +207,22 @@ export class ResourceStorage {
      * would report present the moment any system took it as a parameter.
      */
     private defaulted_ = new Set<symbol>();
+    /** What each slot is called, so nobody has to reconstruct it from a symbol. */
+    private names_ = new Map<symbol, string>();
+
+    /** Record what a slot is called, whichever door reached it. */
+    private note_(resource: ResourceDef<unknown>): void {
+        this.names_.set(resource._id, resource._name);
+        if (resource._name && !resource._name.startsWith('Resource_')) {
+            this.nameRegistry_.set(resource._name, resource);
+        }
+    }
 
     insert<T>(resource: ResourceDef<T>, value: T): void {
         this.resources_.set(resource._id, value);
         this.defaulted_.delete(resource._id);
         this.ticks_.set(resource._id, ++this.globalTick_);
-        if (resource._name && !resource._name.startsWith('Resource_')) {
-            this.nameRegistry_.set(resource._name, resource as ResourceDef<unknown>);
-        }
+        this.note_(resource as ResourceDef<unknown>);
     }
 
     get<T>(resource: ResourceDef<T>): T {
@@ -223,6 +231,7 @@ export class ResourceStorage {
             // into the shared ResourceDef or a sibling world.
             this.resources_.set(resource._id, deepClone(resource._default));
             this.defaulted_.add(resource._id);
+            this.names_.set(resource._id, resource._name);
         }
         return this.resources_.get(resource._id) as T;
     }
@@ -231,6 +240,7 @@ export class ResourceStorage {
         this.resources_.set(resource._id, value);
         this.defaulted_.delete(resource._id);
         this.ticks_.set(resource._id, ++this.globalTick_);
+        this.note_(resource as ResourceDef<unknown>);
     }
 
     has<T>(resource: ResourceDef<T>): boolean {
@@ -242,7 +252,19 @@ export class ResourceStorage {
         this.defaulted_.delete(resource._id);
         this.resMutPool_.delete(resource._id);
         this.ticks_.delete(resource._id);
+        this.names_.delete(resource._id);
         this.nameRegistry_.delete(resource._name);
+    }
+
+    /**
+     * Every slot this storage holds, as `[name, value]` — including one only a
+     * read has materialised, which is most of them in a running game.
+     *
+     * The name is the declaration's. Reconstructing it from the id's
+     * description is a second author of what a resource is called.
+     */
+    entries(): Array<[string, unknown]> {
+        return [...this.resources_].map(([id, value]) => [this.names_.get(id) ?? '', value]);
     }
 
     getChangeTick(resource: ResourceDef<unknown>): number {

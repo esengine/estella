@@ -731,6 +731,7 @@ getRegisteredResourceNames: () => string[]
 getResource: <T>(resource: ResourceDef<T>) => T
 getResourceByName: (name: string) => unknown | undefined
 getResourceChangeTick: (name: string) => number
+getResourceEntries: () => Array<[string, unknown]>
 getSystemTimings: () => ReadonlyMap<string, number> | null
 getTargetFrameRate: () => number
 hasResource: <T>(resource: ResourceDef<T>) => boolean
