@@ -3,7 +3,7 @@
 //
 // Package a project without the editor. `--help` states the options.
 import path from 'node:path';
-import { existsSync, readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { installedTemplateDir, iosTemplateSources } from '../../build-tools/utils/nativeTemplate.js';
@@ -118,33 +118,52 @@ const HOST_DESKTOP_OS = process.platform === 'darwin' ? 'macos'
 const BAKE_IDENTITY_Q = { x: 0, y: 0, z: 0, w: 1 };
 const BAKE_ONE = { x: 1, y: 1, z: 1 };
 const BAKE_ZERO = { x: 0, y: 0, z: 0 };
-// LightType's own order. 2 is AMBIENT, which occupies no slot and no direction:
-// it is light from everywhere, and a bake takes it as its ambient term rather
-// than as a fourth kind of lamp.
-const BAKE_LIGHT_KIND = { 0: 'point', 1: 'directional', 3: 'spot' };
-const BAKE_LIGHT_AMBIENT = 2;
 
 const bakeComponent = (entity, type) => entity.components?.find((c) => c.type === type);
-const bakeVec = (v, fallback) => ({ ...fallback, ...(v ?? {}) });
 
-/** Column-major 4x4 from a document's Transform. Flat scenes only — see bakeScene. */
-function bakeTransformOf(entity) {
-  const tf = bakeComponent(entity, 'Transform')?.data ?? {};
-  const p = bakeVec(tf.position, BAKE_ZERO);
-  const { x, y, z, w } = bakeVec(tf.rotation, BAKE_IDENTITY_Q);
-  const s = bakeVec(tf.scale, BAKE_ONE);
-  return [
-    (1 - 2 * (y * y + z * z)) * s.x, (2 * (x * y + z * w)) * s.x, (2 * (x * z - y * w)) * s.x, 0,
-    (2 * (x * y - z * w)) * s.y, (1 - 2 * (x * x + z * z)) * s.y, (2 * (y * z + x * w)) * s.y, 0,
-    (2 * (x * z + y * w)) * s.z, (2 * (y * z - x * w)) * s.z, (1 - 2 * (x * x + y * y)) * s.z, 0,
-    p.x, p.y, p.z, 1,
-  ];
+/** The project a scene belongs to: the nearest ancestor holding a `.esproject`.
+ *  An asset ref is PROJECT-relative, which is what the editor resolves against. */
+function bakeProjectRoot(sceneFile) {
+  let dir = path.dirname(sceneFile);
+  for (;;) {
+    if (existsSync(path.join(dir, 'project.esproject'))) return dir;
+    const up = path.dirname(dir);
+    if (up === dir) return null;
+    dir = up;
+  }
 }
 
-/** Where a light aims: -Z under its rotation, as the renderer reads it. */
-function bakeForwardOf(q) {
-  const { x, y, z, w } = q;
-  return [-2 * (x * z + y * w), -2 * (y * z - x * w), -(1 - 2 * (x * x + y * y))];
+/** uuid -> project-relative path, out of the `.meta` beside each asset. A scene
+ *  the editor saved names its assets by uuid and one a person wrote names them
+ *  by path; both have to reach the same file. */
+function bakeAssetIndex(root) {
+  const index = new Map();
+  if (!root) return index;
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const at = path.join(dir, entry.name);
+      if (entry.isDirectory()) { if (entry.name[0] !== '.') walk(at); continue; }
+      if (!entry.name.endsWith('.meta')) continue;
+      try {
+        const uuid = JSON.parse(readFileSync(at, 'utf8')).uuid;
+        if (typeof uuid === 'string') {
+          index.set(uuid, path.relative(root, at.slice(0, -'.meta'.length)).split(path.sep).join('/'));
+        }
+      } catch { /* a half-written .meta names nothing */ }
+    }
+  };
+  walk(root);
+  return index;
+}
+const bakeVec = (v, fallback) => ({ ...fallback, ...(v ?? {}) });
+
+/** Column-major 4x4 from a document's Transform, through the SDK's own compose.
+ *  Flat scenes only — see bakeScene. */
+function bakeTransformOf(baker, entity) {
+  const tf = bakeComponent(entity, 'Transform')?.data ?? {};
+  return baker.composeTRS(bakeVec(tf.position, BAKE_ZERO),
+                          bakeVec(tf.rotation, BAKE_IDENTITY_Q),
+                          bakeVec(tf.scale, BAKE_ONE));
 }
 
 /**
@@ -166,10 +185,36 @@ async function bakeScene(baker, sceneFile, check) {
     return 1;
   }
 
+  // The scene's own knobs, where it states them. Absent leaves the bake at its
+  // defaults, which is what every scene got before the component existed.
+  const declared = (scene.entities ?? [])
+    .map((e) => bakeComponent(e, 'BakedLighting')).find(Boolean)?.data ?? {};
+  const options = {
+    atlasSize: declared.atlasSize, texelsPerUnit: declared.texelsPerUnit,
+    bounces: declared.bounces, samples: declared.samples,
+    probeSamples: declared.probeSamples,
+  };
+  for (const k of Object.keys(options)) if (typeof options[k] !== 'number') delete options[k];
+
+  // Where an asset ref resolves to. Not relative to the SCENE: a ref is what the
+  // project's asset browser shows, and the editor resolves it against the root.
+  const projectRoot = bakeProjectRoot(sceneFile);
+  const byUuid = bakeAssetIndex(projectRoot);
+  const resolveRef = (ref) => {
+    if (typeof ref !== 'string' || ref === '') return '';
+    const relative = ref.startsWith('@uuid:') ? byUuid.get(ref.slice(6)) : ref;
+    if (!relative) return '';
+    return projectRoot ? path.resolve(projectRoot, relative) : path.resolve(sceneDir, relative);
+  };
+
   const surfaces = [];
   const lights = [];
   const volumes = [];
   const ambient = [0, 0, 0];
+  // The REF as the document spells it, not the path it resolves to: the editor's
+  // collector fingerprints the same string, and an absolute path would differ
+  // between two checkouts of one project.
+  const fingerprintSurfaces = [];
   for (const entity of scene.entities ?? []) {
     const tf = bakeComponent(entity, 'Transform')?.data ?? {};
     const mesh = bakeComponent(entity, 'MeshRenderer');
@@ -187,46 +232,48 @@ async function bakeScene(baker, sceneFile, check) {
     if (mesh && mesh.data?.enabled !== false) {
       const ref = typeof mesh.data?.mesh === 'string' ? mesh.data.mesh : '';
       const builtin = ref.startsWith('builtin:') ? ref : undefined;
-      const file = builtin ? '' : path.resolve(sceneDir, ref);
+      const file = builtin ? '' : resolveRef(ref);
       if (builtin || (ref && existsSync(file))) {
         const c = mesh.data?.color;
         const body = bakeComponent(entity, 'RigidBody3D');
+        const textureRef = typeof mesh.data?.texture === 'string' ? mesh.data.texture : '';
+        const textureFile = resolveRef(textureRef);
+        const transform = bakeTransformOf(baker, entity);
+        const holdsStill = baker.bakeHoldsStill({
+          characterController: !!bakeComponent(entity, 'CharacterController3D'),
+          bodyType: body ? (body.data?.bodyType ?? 2) : undefined,
+        });
+        const albedo = c ? [c.r ?? 1, c.g ?? 1, c.b ?? 1] : undefined;
         surfaces.push({
           entity: entity.id, label: entity.name ?? String(entity.id),
-          meshFile: file, builtinRef: builtin, transform: bakeTransformOf(entity),
-          baseColor: c ? [c.r ?? 1, c.g ?? 1, c.b ?? 1] : undefined,
-          holdsStill: baker.bakeHoldsStill({
-            characterController: !!bakeComponent(entity, 'CharacterController3D'),
-            bodyType: body ? (body.data?.bodyType ?? 2) : undefined,
-          }),
+          meshFile: file, builtinRef: builtin, transform,
+          baseColor: albedo, holdsStill,
+          baseColorTexture: textureFile && existsSync(textureFile) ? textureFile : undefined,
         });
+        fingerprintSurfaces.push({ mesh: ref, transform, albedo, texture: textureRef, holdsStill });
       }
     }
-    if (light && light.data?.enabled !== false) {
-      const d = light.data ?? {};
+    if (light) {
       const p = bakeVec(tf.position, BAKE_ZERO);
-      if ((d.type ?? 0) === BAKE_LIGHT_AMBIENT) {
-        const i = d.intensity ?? 1;
-        ambient[0] += (d.color?.r ?? 1) * i;
-        ambient[1] += (d.color?.g ?? 1) * i;
-        ambient[2] += (d.color?.b ?? 1) * i;
-        continue;
+      const made = baker.bakeLightOf(light.data, [p.x, p.y, p.z],
+                                     bakeVec(tf.rotation, BAKE_IDENTITY_Q));
+      if (made?.lamp) lights.push(made.lamp);
+      else if (made?.ambient) {
+        ambient[0] += made.ambient[0];
+        ambient[1] += made.ambient[1];
+        ambient[2] += made.ambient[2];
       }
-      const kind = BAKE_LIGHT_KIND[d.type ?? 0] ?? 'point';
-      const cos = (deg) => Math.cos(((deg ?? 45) * Math.PI) / 180 / 2);
-      lights.push({
-        kind, position: [p.x, p.y, p.z],
-        direction: bakeForwardOf(bakeVec(tf.rotation, BAKE_IDENTITY_Q)),
-        color: [d.color?.r ?? 1, d.color?.g ?? 1, d.color?.b ?? 1],
-        intensity: d.intensity ?? 1,
-        radius: kind === 'directional' ? undefined : (d.radius ?? 200),
-        innerCos: cos(d.innerAngle), outerCos: cos(d.outerAngle),
-      });
     }
   }
 
+  const fingerprint = baker.bakeFingerprint({
+    surfaces: fingerprintSurfaces, lights,
+    volumes: volumes.map((v) => ({ center: v.center, halfExtents: v.halfExtents,
+                                   spacing: v.spacing })),
+    ambient, options,
+  });
   const result = baker.bakeSceneLightmap({
-    surfaces, lights, probeVolumes: volumes, options: { ambient },
+    surfaces, lights, probeVolumes: volumes, options: { ...options, ambient },
   });
   for (const w of result.warnings) console.warn(`  ! ${w}`);
 
@@ -241,9 +288,7 @@ async function bakeScene(baker, sceneFile, check) {
     if (!doc) return;
     grids.set(volumes[i].entity, {
       name: `${stem}_probes_${volumes[i].entity}.esprobes`,
-      text: `{\n  "version": ${doc.version},\n`
-        + `  "resolution": ${JSON.stringify(doc.resolution)},\n`
-        + `  "irradiance": ${JSON.stringify(doc.irradiance)}\n}\n`,
+      text: baker.probeDocumentText(doc),
     });
   });
 
@@ -260,6 +305,14 @@ async function bakeScene(baker, sceneFile, check) {
                    scaleOffset: { x: rect[0], y: rect[1], z: rect[2], w: rect[3] } };
     if (at >= 0) entity.components[at] = { type: 'MeshLightmap', data };
     else entity.components.push({ type: 'MeshLightmap', data });
+  }
+  for (const entity of scene.entities ?? []) {
+    const at = entity.components.findIndex((c) => c.type === 'BakedLighting');
+    if (at < 0) continue;
+    entity.components[at] = {
+      type: 'BakedLighting',
+      data: { ...entity.components[at].data, bakedFrom: fingerprint },
+    };
   }
   for (const entity of scene.entities ?? []) {
     const at = entity.components.findIndex((c) => c.type === 'LightProbeVolume');

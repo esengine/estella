@@ -134,6 +134,7 @@ const DISPOSITION = {
   'TrailRenderer.minVertexDistance': ['no-place', 'how far the entity moves before a point is kept — a sampling step'],
 
   // Not a length in world space at all.
+  'BakedLighting.atlasSize': ['not-world', 'the side of a TEXTURE in texels; what it covers in the world is every lightmapped surface at once'],
   'Canvas.matchWidthOrHeight': ['not-world', 'a 0..1 blend between two fits, not a length'],
   'UIDropdown.optionHeight': ['not-world', 'a row height inside a laid-out box, resolved by layout rather than placed'],
   'SpriteMask.rangeEndOrder': ['not-world', 'the last draw ORDER a mask reaches, not a distance it reaches over'],

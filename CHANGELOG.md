@@ -16,6 +16,24 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A scene says how it is lit, and whether its light still describes it.** The
+  bake's knobs — atlas size, density, bounces, samples — had no home: both doors
+  fell back to the same defaults and neither could be told otherwise. A
+  `BakedLighting` component is that home, on the shape `StreamedWorld` has, and
+  both doors read it.
+
+  It also records what the last bake READ, as a fingerprint of every value a bake
+  takes: the meshes and where they stand, the lights, the volumes, the knobs.
+  Comparing it to what the scene fingerprints to now answers "is this light out
+  of date" without re-running the bake to find out — and both collectors
+  fingerprint the REFS a document spells rather than the paths they resolve to,
+  so a project in two checkouts fingerprints alike.
+
+  A **Lighting panel** shows that answer, with what a bake would take and what it
+  would refuse, and the knobs beside it. It is a view of the one component, not a
+  second home for the numbers: editing there goes through the same write door as
+  any inspector edit. `get_bake_status` is the same reading, for automation.
+
 - **A bake now solves the probes too, and refuses to light what moves.** One pass
   over one light field produces both: the atlas the surfaces read, and nine
   coefficients at every point of each `LightProbeVolume`'s grid. A probe gathers
@@ -62,6 +80,19 @@ published separately; it ships inside the editor.
   whether it solved the right thing. Baking one is the next step.
 
 ### Fixed
+
+- **The command line bakes the meshes a scene actually names.** An asset ref is
+  PROJECT-relative, and `bake-scene` resolved it against the scene's own folder —
+  so every object drawing a real `.esmesh` fell out of the bake with "draws no
+  mesh asset", and only scenes built from stock geometry came out lit. It now
+  resolves against the project root and reads `@uuid:` refs out of the `.meta`
+  index, which is what the editor's own collector does.
+
+- **Both bake doors read a light the same way.** A spot's inner angle defaults to
+  30 degrees, and the command line filled an unstated one in with 45. One reading
+  now serves both — the document's values over the component's own defaults —
+  along with one transform compose and one `.esprobes` writer. Three places where
+  the editor and CI could quietly disagree about the same scene.
 
 - **A scene's ambient light reaches its bake.** `LightType.Ambient` is the third
   value of the enum and `Spot` the fourth, and both bake collectors read the third

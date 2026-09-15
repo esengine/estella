@@ -152,7 +152,18 @@ export {
  */
 export {
     bakeLightmap, type BakeOptions, type BakeResult, type BakeSurface, type BakeLight,
-    type ProbeGrid, bakeHoldsStill, type BakeMobility,
+    type ProbeGrid, bakeHoldsStill, type BakeMobility, BAKE_DEFAULTS,
+} from './lightmap';
+/**
+ * What a scene declares about its baked light: the knobs, and the fingerprint of
+ * what the last bake read. The engine never looks at it — a bake is a
+ * creation-time act — but every door into one does.
+ *
+ * @experimental Pre-1.0: the knobs follow what a baker turns out to need.
+ */
+export {
+    BakedLighting, type BakedLightingData, bakeFingerprint, type BakeInputs,
+    bakeLightOf, bakeLightForward, type AuthoredLight, type BakeLightContribution,
 } from './lightmap';
 /**
  * Nine coefficients, as the shader reads them. A panorama import and a probe

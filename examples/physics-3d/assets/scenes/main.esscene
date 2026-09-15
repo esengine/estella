@@ -1508,6 +1508,26 @@
       ]
     },
     {
+      "id": 49,
+      "name": "Lighting",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "BakedLighting",
+          "data": {
+            "atlasSize": 1024,
+            "texelsPerUnit": 0.25,
+            "bounces": 2,
+            "samples": 64,
+            "probeSamples": 128,
+            "bakedFrom": "d5774992810126ae"
+          }
+        }
+      ]
+    },
+    {
       "id": 50,
       "name": "Probes",
       "parent": null,

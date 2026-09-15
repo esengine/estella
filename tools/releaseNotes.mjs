@@ -28,6 +28,11 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(lighting): a scene says how it is lit, and whether its light still describes it':
+    { note: 'A scene says how it is lit, and whether its light still describes it.' },
+  'feat(lighting): a Lighting panel, and a scene that says whether its light is stale':
+    { note: 'A scene says how it is lit, and whether its light still describes it.' },
+
   'feat(render): a bake solves the probes in the light field it already has':
     { note: 'A bake now solves the probes too, and refuses to light what moves.' },
   'feat(lighting): Bake Lighting solves the probes, and refuses to light what moves':

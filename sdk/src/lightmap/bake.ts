@@ -55,7 +55,9 @@ export interface BakeResult {
     probes: Float32Array[];
 }
 
-const DEFAULTS = {
+/** What a bake does where the caller says nothing — and what a scene's own
+ *  `BakedLighting` starts at, so the two cannot drift apart. */
+export const BAKE_DEFAULTS = {
     atlasSize: 1024,
     texelsPerUnit: 0.25,
     bounces: 2,
@@ -185,7 +187,7 @@ function dilate(radiance: Float32Array, solved: Uint8Array, size: number, rounds
  */
 export function bakeLightmap(surfaces: readonly BakeSurface[], lights: readonly BakeLight[],
                              options: BakeOptions = {}): BakeResult {
-    const opts = { ...DEFAULTS, ...options };
+    const opts = { ...BAKE_DEFAULTS, ...options };
     const size = opts.atlasSize;
     const patches = layoutAtlas(surfaces, size, opts.texelsPerUnit);
     if (!patches) {

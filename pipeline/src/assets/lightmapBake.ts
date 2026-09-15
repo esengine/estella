@@ -15,9 +15,11 @@ import { bakeLightmap, decodeMesh, unwrapLightmapUV, builtinMeshTemplate, MeshCh
          type ProbeGrid } from 'esengine';
 import { encodeRgbaPng } from './png';
 
-// The rule a collector needs before it can fill in `holdsStill`, re-exported so
-// the CLI reaches it through the one module it loads.
-export { bakeHoldsStill, type BakeMobility } from 'esengine';
+// What a collector needs to describe a surface, re-exported so the CLI reaches
+// them through the one module it loads. composeTRS especially: a second
+// implementation would put the two doors a rounding error apart.
+export { bakeHoldsStill, bakeFingerprint, bakeLightOf, composeTRS, BAKE_DEFAULTS,
+         type BakeMobility, type BakeInputs } from 'esengine';
 
 /** One placed object, as the editor's world describes it. */
 export interface SceneBakeSurface {
@@ -108,6 +110,17 @@ export interface SceneBakeResult {
 /** Six significant figures: a grid is hundreds of numbers, and the digits past
  *  these say nothing a bake of it would reproduce anyway. */
 const round6 = (v: number): number => Number(v.toPrecision(6));
+
+/**
+ * An `.esprobes` document as its file. One line per member, because a grid is
+ * hundreds of numbers and a diff of it is worth reading only if they stay put —
+ * and ONE writer, so the two bake doors produce the same bytes.
+ */
+export function probeDocumentText(doc: ProbeVolumeDocument): string {
+    return `{\n  "version": ${doc.version},\n`
+        + `  "resolution": ${JSON.stringify(doc.resolution)},\n`
+        + `  "irradiance": ${JSON.stringify(doc.irradiance)}\n}\n`;
+}
 
 /** Stock geometry with a lightmap UV set, unwrapped once per bake. */
 function builtinGeometry(ref: string, cache: Map<string, MeshData | null>): MeshData | null {
