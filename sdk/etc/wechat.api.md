@@ -1293,11 +1293,13 @@ attenuationModel: number
 bus: string
 clip: string
 enabled: boolean
+finished: boolean
 loop: boolean
 maxDistance: number
 minDistance: number
 pitch: number
 playOnAwake: boolean
+playing: boolean
 priority: number
 rolloff: number
 spatial: boolean

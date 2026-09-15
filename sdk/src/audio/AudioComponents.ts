@@ -9,6 +9,17 @@ export interface AudioSourceData {
     volume: number;
     pitch: number;
     loop: boolean;
+    /**
+     * Raise it and the clip sounds; lower it and the voice stops. The engine
+     * lowers it again when a non-looping clip ends, so it reads as "is this
+     * sounding" — the flag contract TimelinePlayer and SpriteAnimator keep.
+     */
+    playing: boolean;
+    /**
+     * Latched true when a non-looping clip reaches its end; cleared when
+     * `playing` is raised again. Runtime-observable — don't author it.
+     */
+    finished: boolean;
     playOnAwake: boolean;
     spatial: boolean;
     minDistance: number;
@@ -25,6 +36,8 @@ export const AudioSource = defineComponent<AudioSourceData>('AudioSource', {
     volume: 1.0,
     pitch: 1.0,
     loop: false,
+    playing: false,
+    finished: false,
     playOnAwake: false,
     spatial: false,
     minDistance: 100,
@@ -35,6 +48,10 @@ export const AudioSource = defineComponent<AudioSourceData>('AudioSource', {
     enabled: true,
 }, {
     assetFields: [{ field: 'clip', type: 'audio' }],
+    fields: {
+        playing: { tooltip: 'Raise to play, lower to stop. The engine lowers it when a non-looping clip ends.' },
+        finished: { advanced: true, tooltip: 'Clip completed (runtime, read-only). Raise Playing to play it again.' },
+    },
 });
 
 export interface AudioListenerData {

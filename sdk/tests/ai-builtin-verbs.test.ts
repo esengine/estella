@@ -3,8 +3,9 @@
 /**
  * @file    ai-builtin-verbs.test.ts
  * @brief   The engine verbs an authored wire can reach with no game code:
- *          `property.set` (the generic reflection write) and `ui.setVisible`
- *          (show/hide, on the switch the renderer actually honours).
+ *          `property.set` (the generic reflection write), `ui.setVisible`
+ *          (show/hide, on the switch the renderer actually honours), and the
+ *          audio verbs (the AudioSource flag, from a hook or a graph node).
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import { aiRegistry } from '../src/ai/fsm/AiContext';
@@ -12,6 +13,7 @@ import { ensureBuiltinAiRegistrations } from '../src/ai/builtins';
 import { ensureControllerAiRegistrations } from '../src/ui/controller/ai-builtins';
 import { Blackboard } from '../src/ai/fsm/Blackboard';
 import { UINode } from '../src/ui/core/ui-node';
+import { AudioSource } from '../src/audio/AudioComponents';
 import { UIDisplay } from '../src/wasm/wasm.generated';
 import { registerComponent, defineComponent } from '../src/ecs/component';
 import type { AnyComponentDef } from '../src/ecs/component';
@@ -42,7 +44,10 @@ function ctxFor(world: ReturnType<typeof makeWorld>, entity = E) {
         entity,
         world,
         dt: 0,
-        get: (c: AnyComponentDef) => world.get(entity, c),
+        // A COPY, the way an engine-backed component reads: a verb that edits
+        // the draft and forgets to hand it back changes nothing, and a test
+        // holding the stored object would confirm the write that never happened.
+        get: (c: AnyComponentDef) => ({ ...(world.get(entity, c) as object) }),
         set: (c: AnyComponentDef, d: unknown) => world.set(entity, c, d),
         has: (c: AnyComponentDef) => world.has(entity, c),
     } as never;
@@ -118,5 +123,53 @@ describe('ui.setVisible', () => {
 
     it('declares a bool parameter, so the inspector renders a checkbox', () => {
         expect(aiRegistry.getActionParams('ui.setVisible')).toEqual([{ name: 'visible', type: 'bool' }]);
+    });
+});
+
+describe('the audio verbs', () => {
+    /** A source as the scene authored it: a clip, silent. */
+    function sourced() {
+        const world = makeWorld();
+        world.insert(E, AudioSource, { ...AudioSource._default, clip: 'boom.wav' });
+        return world;
+    }
+
+    it('starts the source this entity carries', () => {
+        const world = sourced();
+        aiRegistry.getAction('audio.play')!(ctxFor(world), new Blackboard());
+        expect((world.get(E, AudioSource) as { playing: boolean }).playing).toBe(true);
+    });
+
+    it('takes the clip as a parameter, so a graph can wire one in', () => {
+        const world = sourced();
+        // Through the canonical string an .esfsm carries AND through the named
+        // parameter a graph pin supplies — one declaration, both forms.
+        aiRegistry.getAction('audio.play')!(ctxFor(world), new Blackboard(), 'hurt.wav');
+        expect(world.get(E, AudioSource)).toMatchObject({ clip: 'hurt.wav', playing: true });
+
+        aiRegistry.getAction('audio.play')!(ctxFor(world), new Blackboard(), undefined, { clip: 'die.wav' });
+        expect(world.get(E, AudioSource)).toMatchObject({ clip: 'die.wav', playing: true });
+    });
+
+    it('stops it, and answers whether the clip finished', () => {
+        const world = sourced();
+        world.set(E, AudioSource, { ...AudioSource._default, clip: 'boom.wav', finished: true });
+
+        expect(aiRegistry.getCondition('audio.finished')!(ctxFor(world), new Blackboard())).toBe(true);
+
+        // Both flags up — the latch still standing as a new play begins, before
+        // the system that clears it has run. A sound that is going has not
+        // finished.
+        world.set(E, AudioSource, { ...AudioSource._default, clip: 'boom.wav', playing: true, finished: true });
+        expect(aiRegistry.getCondition('audio.finished')!(ctxFor(world), new Blackboard())).toBe(false);
+
+        aiRegistry.getAction('audio.stop')!(ctxFor(world), new Blackboard());
+        expect((world.get(E, AudioSource) as { playing: boolean }).playing).toBe(false);
+    });
+
+    it('does nothing at all to an entity with no AudioSource', () => {
+        const world = makeWorld();
+        aiRegistry.getAction('audio.play')!(ctxFor(world), new Blackboard(), 'boom.wav');
+        expect(world.has(E, AudioSource)).toBe(false);
     });
 });

@@ -14,14 +14,19 @@
  */
 
 import { aiRegistry, type AiContext } from './fsm/AiContext';
-import type { AiAction, AiActionInput, AiCondition, AiParamValue, AiTouches } from './fsm/registry';
+import type { AiAction, AiActionInput, AiCondition, AiParamDef, AiParamValue, AiTouches } from './fsm/registry';
 import { TimelinePlayer } from '../timeline/TimelinePlayerComponent';
 import { SpriteAnimator } from '../animation/SpriteAnimator';
+import { AudioSource } from '../audio/AudioComponents';
 import { setEntityProperty } from '../ecs/propertyPath';
+import type { AnyComponentDef, ComponentData } from '../ecs/component';
 import type { Entity } from '../types';
 
 const TIMELINE: AiTouches = { reads: [TimelinePlayer._name], writes: [TimelinePlayer._name] };
 const SPRITE_ANIM: AiTouches = { reads: [SpriteAnimator._name], writes: [SpriteAnimator._name] };
+const AUDIO: AiTouches = { reads: [AudioSource._name], writes: [AudioSource._name] };
+/** The one parameter the play verbs take: which clip, empty for the current one. */
+const CLIP_PARAM: readonly AiParamDef[] = [{ name: 'clip', type: 'string', tooltip: 'Leave empty to replay the current one' }];
 
 /**
  * Register the engine's built-in actions/conditions. Idempotent (and safe after
@@ -57,16 +62,14 @@ export function ensureBuiltinAiRegistrations(): void {
         return player.finished && !player.playing;
     }, { reads: [TimelinePlayer._name] });
 
-    // `arg` is the clip to play (a `.esanim` ref/path); without it the action
-    // resumes/replays the animator's current clip. Same-clip play while already
-    // playing is a no-op, so `onUpdate: spriteAnim.play` is safe.
-    action('spriteAnim.play', (ctx, _bb, arg) => {
-        if (!ctx.has(SpriteAnimator)) return;
-        const sp = ctx.get(SpriteAnimator);
-        const switching = !!arg && arg !== sp.clip;
-        if (!switching && sp.playing) return;
+    // `clip` is a `.esanim` ref/path; without it the action resumes/replays the
+    // animator's current clip. Same-clip play while already playing is a no-op,
+    // so `onUpdate: spriteAnim.play` is safe.
+    playVerb('spriteAnim.play', SpriteAnimator, SPRITE_ANIM, (sp, clip) => {
+        const switching = !!clip && clip !== sp.clip;
+        if (!switching && sp.playing) return false;
         if (switching) {
-            sp.clip = arg!;
+            sp.clip = clip;
             sp.currentFrame = 0;
             sp.frameTimer = 0;
             sp.finished = false;
@@ -74,21 +77,19 @@ export function ensureBuiltinAiRegistrations(): void {
         // Raising the flag on a finished one-shot replays it from the top —
         // the SpriteAnimator flag contract (mirrors TimelinePlayer's).
         sp.playing = true;
-        ctx.set(SpriteAnimator, sp);
-    }, SPRITE_ANIM);
+        return true;
+    });
 
     // Unconditional rewind + play (re-trigger a one-shot mid-flight), with the
-    // same optional clip arg.
-    action('spriteAnim.restart', (ctx, _bb, arg) => {
-        if (!ctx.has(SpriteAnimator)) return;
-        const sp = ctx.get(SpriteAnimator);
-        if (arg) sp.clip = arg;
+    // same optional clip.
+    playVerb('spriteAnim.restart', SpriteAnimator, SPRITE_ANIM, (sp, clip) => {
+        if (clip) sp.clip = clip;
         sp.currentFrame = 0;
         sp.frameTimer = 0;
         sp.finished = false;
         sp.playing = true;
-        ctx.set(SpriteAnimator, sp);
-    }, SPRITE_ANIM);
+        return true;
+    });
 
     action('spriteAnim.stop', ctx => {
         if (!ctx.has(SpriteAnimator)) return;
@@ -107,6 +108,40 @@ export function ensureBuiltinAiRegistrations(): void {
         const sp = ctx.get(SpriteAnimator);
         return sp.finished && !sp.playing;
     }, { reads: [SpriteAnimator._name] });
+
+    // — Sound. An AudioSource is played by raising its flag, the same contract
+    //   the timeline and the sprite animator keep, so every authored surface
+    //   starts a sound through the component it can already see. —
+    playVerb('audio.play', AudioSource, AUDIO, (source, clip) => {
+        const switching = !!clip && clip !== source.clip;
+        if (switching) {
+            source.clip = clip;
+            source.finished = false;
+        }
+        // Already sounding THIS clip: raising a raised flag is not a replay, and
+        // `onUpdate: audio.play` must not machine-gun the voice. Naming ANOTHER
+        // clip is a second sound, so it goes through even mid-voice.
+        if (!switching && source.playing) return false;
+        source.playing = true;
+        return true;
+    });
+
+    action('audio.stop', ctx => {
+        if (!ctx.has(AudioSource)) return;
+        const source = ctx.get(AudioSource);
+        if (!source.playing) return;
+        source.playing = false;
+        ctx.set(AudioSource, source);
+    }, AUDIO);
+
+    // Latched only when a non-looping clip ends — the same shape as
+    // `timeline.finished`, so `onEnter: audio.play` plus an `audio.finished`
+    // transition is a state that lasts exactly as long as its sound.
+    condition('audio.finished', ctx => {
+        if (!ctx.has(AudioSource)) return false;
+        const source = ctx.get(AudioSource);
+        return source.finished && !source.playing;
+    }, { reads: [AudioSource._name] });
 
     // The general-purpose write, through the engine's reflection writer — the
     // same addressing a UIGear binding and a Timeline track use ("Component" +
@@ -161,6 +196,31 @@ function parseValue(raw: AiParamValue): unknown {
     } catch {
         return raw.trim();
     }
+}
+
+/**
+ * A `play`-shaped verb: one optional `clip` parameter, declared — which is what
+ * gives it an input pin in a graph instead of only a hand-typed `arg` — and a
+ * component edit that says whether anything changed.
+ */
+function playVerb<C extends AnyComponentDef>(
+    name: string,
+    component: C,
+    touches: AiTouches,
+    edit: (data: ComponentData<C>, clip: string) => boolean,
+): void {
+    if (aiRegistry.hasAction(name)) return;
+    aiRegistry.registerAction(name, {
+        params: CLIP_PARAM,
+        touches,
+        run: (ctx, _bb, _arg, params) => {
+            if (!ctx.has(component)) return;
+            const data = ctx.get(component);
+            if (edit(data, typeof params?.clip === 'string' ? params.clip.trim() : '')) {
+                ctx.set(component, data);
+            }
+        },
+    });
 }
 
 function action(name: string, fn: AiAction<AiContext>, touches?: AiTouches): void {

@@ -96,9 +96,11 @@ describe('AudioPlugin', () => {
             const handle1 = createMockHandle({ id: 1 });
             const handle2 = createMockHandle({ id: 2 });
 
-            const handles = new Map<number, AudioHandle>();
-            handles.set(10, handle1);
-            handles.set(20, handle2);
+            // The plugin records a voice as the handle AND the clip it is a play
+            // of, which is how one source can be given a second sound.
+            const handles = new Map<number, { handle: AudioHandle; clip: string }>();
+            handles.set(10, { handle: handle1, clip: 'a.wav' });
+            handles.set(20, { handle: handle2, clip: 'b.wav' });
             (plugin as any).activeSourceHandles_ = handles;
 
             plugin.stopAllSources();

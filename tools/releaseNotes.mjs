@@ -28,6 +28,12 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(audio): a sound anything authored can start':
+    { note: 'A sound anything authored can start.' },
+
+  'feat(audio): the audio verbs describe themselves in the palettes':
+    { note: 'A sound anything authored can start.' },
+
   'feat(logic): a graph can spawn a prefab, and the node says which one':
     { note: 'Gameplay you can draw.' },
 

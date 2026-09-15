@@ -123,6 +123,19 @@
           "default": "false"
         },
         {
+          "key": "playing",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Raise to play, lower to stop. The engine lowers it when a non-looping clip ends."
+        },
+        {
+          "key": "finished",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Clip completed (runtime, read-only). Raise Playing to play it again.",
+          "advanced": true
+        },
+        {
           "key": "playOnAwake",
           "type": "boolean",
           "default": "false"

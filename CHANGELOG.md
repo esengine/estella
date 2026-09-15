@@ -74,7 +74,37 @@ published separately; it ships inside the editor.
   player moves, releases it and they stop, dodges and the score rises, chases a
   block and the run ends, presses Space and it begins again on a clear board.
 
+- **A sound anything authored can start.** An `AudioSource` could only ever be
+  played by `playOnAwake`. Once the entity existed, nothing an author can reach
+  — a state machine's hook, a behaviour tree's leaf, an event wire, a graph
+  node, the inspector — could make it sound again, and the engine's own answer
+  to "play a sound" was a system holding `Res(Audio)`, which is code.
+
+  It now carries the flag contract `TimelinePlayer` and `SpriteAnimator` already
+  keep: raise `playing` and the clip sounds, lower it and the voice stops, and
+  the engine lowers it again when a non-looping clip ends — so the field reads
+  as "is this sounding" rather than "was it ever asked to". `finished` latches
+  beside it, which is what a state lasting exactly as long as its sound needs.
+  `playOnAwake` is now one trigger expressed through that same switch rather
+  than a second road into the backend.
+
+  `audio.play`, `audio.stop` and `audio.finished` are that flag as vocabulary,
+  registered the way every other verb is, so one name reaches all four authored
+  surfaces at once. `audio.play` takes the clip as a DECLARED parameter, which
+  is what gives it an input pin in a graph instead of only a hand-typed
+  argument — and `spriteAnim.play` and `spriteAnim.restart` declare theirs now
+  too, so the three play verbs are one shape. Naming a different clip while a
+  voice is in flight is a second sound, not a no-op: the voice is a play OF a
+  clip, so the old one stops and the new one starts, which is what a character
+  with a hurt clip and a death clip is.
+
 ### Fixed
+
+- **A sound stops when whatever owned it goes away.** Switching an AudioSource
+  off, clearing its clip, or removing the component dropped the handle to the
+  voice WITHOUT stopping it. The sound kept playing with nothing anywhere able
+  to reach it again — a looping one until the session ended. The pass that
+  notices a source left now stops its voice rather than forgetting it.
 
 - **Run works from wherever you are standing.** The running game's frame is
   parented by whichever panel hosts it — a Game tab, or the Viewport itself in
