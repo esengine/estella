@@ -97,6 +97,30 @@ published separately; it ships inside the editor.
   Per-instance, not per-object-record, because the record was out of room at the
   time. The entry below is the change that moved it.
 
+- **A scatter brush.** Drag across the ground and copies of the selected object
+  land across it, turned and sized a little differently each — the first of the
+  authoring tools ruling 03 is about, since everything the renderer needed for
+  scale was already there and nothing an author could do reached it.
+
+  What it lays down are ORDINARY entities, which is the whole architecture. That
+  was measured rather than assumed: the editor opens, walks and saves a scene of
+  eight thousand of them in well under a second, so nothing new had to be
+  invented, and instancing, LOD, culling, prefab overrides and selecting one of
+  them all keep working on what the brush makes. What they cost is disk — about
+  634 bytes each, against maybe 40 bytes of information — and a check now holds
+  that number so a field added to every scattered object is reported.
+
+  One stroke is one undo step. It was not, and could not have been: the editor's
+  transaction coalesced field EDITS, so a gesture that created things recorded
+  one step per creation — a brush placing two hundred objects would have left two
+  hundred rows in History and two hundred keystrokes to take back. Strokes now
+  span a history group, which every drag gesture gets, not only this one.
+
+  Contributed tools also have somewhere to live now: the registry has always
+  taken them, and nothing showed them, so a plugin could register a viewport tool
+  no human could arm. The floating tool palette lists them, and the brush reaches
+  the palette and a keybinding through commands like any other action.
+
 - **A mesh has somewhere to put its own vertex attributes.** All 16 vertex
   attribute slots had a semantic owner — 0-7 the mesh's own channels (serialised
   in `.esmesh`), 8-15 the engine's per-object record — so a mesh that wanted to

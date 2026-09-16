@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(editor): a scatter brush, and one stroke that undoes in one step':
+    { note: 'A scatter brush.' },
+
   'feat(render): the per-object record leaves the vertex attributes':
     { note: 'A mesh has somewhere to put its own vertex attributes.' },
 
