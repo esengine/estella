@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(decal): the surface under a projector, cut to its box':
+    { note: "A decal's geometry, cut." },
+
   'feat(render): a material can say its surface goes ON another one':
     { note: 'A surface can say it goes ON another one.' },
 

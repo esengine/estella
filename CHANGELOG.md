@@ -97,6 +97,26 @@ published separately; it ships inside the editor.
   Per-instance, not per-object-record, because the record was out of room at the
   time. The entry below is the change that moved it.
 
+- **A decal's geometry, cut.** What a projector produces here is not a sticker
+  hovering in front of a wall — it is the wall, cut to the projector's box and
+  drawn again with the decal's own material, won on depth by that material's
+  bias. So a decal is ordinary geometry: lit and shadowed exactly as the surface
+  under it, instanced, culled and picked like anything else, with no pass, no
+  depth read and no G-buffer anywhere in it.
+
+  `bakeDecalMesh` takes the surfaces under a projector and its transform — the
+  box IS the entity's own transform, so a decal is placed with the gizmo
+  everything else uses — and answers one mesh in the projector's space. Nothing
+  authors one yet; that is the next piece.
+
+  Two things only a test could have found, both from the placement an author
+  actually makes. A receiver lying FLUSH with a face of the box — which is where
+  a projector is put — had every vertex on a clip plane, and whether it counted
+  as inside was decided by the last bit of the transform: a floor came out
+  ±6e-16 either side and half the decal was clipped away. And a vertex exactly
+  on a plane was emitted twice, fanning into zero-area triangles the mesh would
+  have carried forever.
+
 - **A surface can say it goes ON another one.** Two coplanar surfaces — a decal
   on a wall, a marking on a road, a patch on a floor — had no way to settle which
   one the depth test keeps. Whichever drew first won, which is not a thing an

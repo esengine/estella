@@ -304,6 +304,16 @@ export const SUBSYSTEMS = [
         entry: ['MeshRenderer', 'MeshRendererAPI', 'MeshRenderers'],
     },
     {
+        id: 'decal',
+        title: 'Decals',
+        titleZh: '贴花',
+        source: ['decal'],
+        tier: 'experimental',
+        why: 'the cut is proven and nothing authors one yet — the shape will follow what a projector panel turns out to need',
+        whyZh: '裁剪本身已经证明是对的,但还没有任何创作面去做一个贴花,所以这套接口的形状要跟着投影盒面板最终需要什么走',
+        entry: ['bakeDecalMesh', 'clipToProjector'],
+    },
+    {
         id: 'lightmap',
         title: 'Baked lighting',
         titleZh: '烘焙光照',

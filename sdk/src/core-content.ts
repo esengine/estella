@@ -165,6 +165,18 @@ export {
     bakeLightOf, bakeLightForward, type AuthoredLight, type BakeLightContribution,
 } from './lightmap';
 /**
+ * A decal's geometry: the surface under a projector, cut to its box. Ordinary
+ * triangles, so nothing downstream — lighting, shadows, instancing, culling,
+ * picking — has to learn what a decal is; what wins it against the surface it
+ * was cut from is the depth bias its material carries.
+ *
+ * @experimental Pre-1.0: the cut follows what an authoring panel needs.
+ */
+export {
+    bakeDecalMesh, clipToProjector, projectorUV, DEFAULT_FACING_COSINE, CLIP_EPSILON,
+    type DecalReceiver, type DecalBakeOptions, type ClipVertex, type ClipTriangle,
+} from './decal';
+/**
  * Nine coefficients, as the shader reads them. A panorama import and a probe
  * solve both produce these, and this is the one basis both go through.
  *
