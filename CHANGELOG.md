@@ -350,6 +350,15 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A half-transparent texture looks the same on WebGPU as on WebGL2.** Without a
+  WebGL2 context a texture was read through a 2D canvas, whose pixels already come
+  back unpremultiplied, and then divided by alpha a second time. Every
+  half-transparent texel on WebGPU came out brighter — (200,100,40) at half
+  alpha drew as (128,100,40) where WebGL2 drew (100,50,20) — and a baked
+  reflection atlas, whose alpha IS its brightness, turned a room's red and green
+  walls grey. That read now goes through the one image-decode path every other
+  texture already uses, and the reflection-room gate runs on both backends.
+
 - **The editor packages playable ads again.** Since 0.65 a playable's game
   travels deflated and a small loader starts it, and the exporter looked for that
   loader beside the playable host. The editor exports from the host bundles it

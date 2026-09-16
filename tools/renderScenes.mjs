@@ -306,9 +306,9 @@ export const SCENES = [
   // which is the claim that a probe REPLACES an answer rather than adding one.
   { id: "reflection-probe-off", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/reflection-probe.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_SET_FIELD: "{\"entity\": 2, \"component\": \"ReflectionProbe\", \"key\": \"enabled\", \"value\": false, \"steps\": 2}", ESTELLA_VERIFY_EXPECT: "[{\"x\": 0.25, \"y\": 0.5, \"rgb\": [0, 228, 0], \"tol\": 30}, {\"x\": 0.75, \"y\": 0.5, \"rgb\": [0, 228, 0], \"tol\": 30}]" } },
   // A BAKED room and a mirror ball in it: red on its left, green on its right.
-  // webgl2 only, and NAMED: the second backend reads this atlas to a different
-  // texel for the same direction, column and params — the room goes pale there.
-  { id: "reflection-room", tier: "pr", webgpu: false, env: { ESTELLA_VERIFY_SCENE: "/scenes/reflection-room.esscene", ESTELLA_VERIFY_W: "512", ESTELLA_VERIFY_H: "384", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\": 0.2, \"y\": 0.55, \"rgb\": [255, 62, 54], \"tol\": 45}, {\"x\": 0.42, \"y\": 0.62, \"rgb\": [42, 255, 71], \"tol\": 45}]" } },
+  // A baked atlas has mixed channels at low alpha, which is what texture-alpha
+  // guards on WebGPU: dividing by alpha twice turns this ball grey.
+  { id: "reflection-room", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/reflection-room.esscene", ESTELLA_VERIFY_W: "512", ESTELLA_VERIFY_H: "384", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\": 0.2, \"y\": 0.55, \"rgb\": [255, 62, 54], \"tol\": 45}, {\"x\": 0.42, \"y\": 0.62, \"rgb\": [42, 255, 71], \"tol\": 45}]" } },
   // The same ball with the probe off: both sides take the flat sky, and the room
   // stops being visible in it.
   { id: "reflection-room-sky", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/reflection-room.esscene", ESTELLA_VERIFY_W: "512", ESTELLA_VERIFY_H: "384", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_SET_FIELD: "{\"entity\": 8, \"component\": \"ReflectionProbe\", \"key\": \"enabled\", \"value\": false, \"steps\": 2}", ESTELLA_VERIFY_EXPECT: "[{\"x\": 0.2, \"y\": 0.55, \"rgb\": [37, 37, 39], \"tol\": 25}, {\"x\": 0.42, \"y\": 0.62, \"rgb\": [37, 37, 39], \"tol\": 25}]" } },
@@ -390,6 +390,10 @@ export const SCENES = [
     // Linear-light pipeline (colorSpace: 'linear'). The lit falloff moves 52 to 125 (perceptually-uniform light); the mid-gray texture must ROUND-TRIP exactly (sRGB store → hw decode → blit encode = identity) — a missing sRGB upload variant would read ~187, so tol 6 is a hard discriminator.
   { id: "linear-lit", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_COLORSPACE: "linear", ESTELLA_VERIFY_SCENE: "/scenes/mat-lit-point.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mat-lit-point.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[0,254,0],\"tol\":25},{\"x\":0.75,\"y\":0.5,\"rgb\":[0,125,0],\"tol\":25}]" } },
   { id: "linear-midtone", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_COLORSPACE: "linear", ESTELLA_VERIFY_SCENE: "/scenes/srgb-midtone.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/srgb-midtone.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[128,128,128],\"tol\":6}]" } },
+  // A half-transparent texel whose channels are neither 0 nor 255: (200,100,40) at alpha 128 over
+  // black is (100,50,20) on every backend. Dividing by alpha a second time reads (128,100,40) —
+  // and a texture of pure channels hides that, since 0 and 255 survive the division.
+  { id: "texture-alpha", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/alpha-midtone.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/alpha-midtone.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[100,50,20],\"tol\":6}]" } },
   // The output transform on the scene whose whole subject is one known value:
   // 0.502 sRGB in, 157 out, with the capture engaged by the curve alone — no
   // effects, no linear mode. Hand-derived, so a wrong shoulder is a wrong number.

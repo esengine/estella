@@ -57,17 +57,29 @@ export interface DecodedPixels {
 export async function decodeImagePixels(src: ImageBitmapSource): Promise<DecodedPixels> {
     const bitmap = await decodeImageBitmap(src, false);
     try {
-        const canvas = platformCreateCanvas(bitmap.width, bitmap.height);
-        canvas.width = bitmap.width;
-        canvas.height = bitmap.height;
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        if (!ctx) throw new Error('imageDecode: 2D context unavailable for pixel decode');
-        ctx.drawImage(bitmap, 0, 0);
-        const data = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
-        return { width: bitmap.width, height: bitmap.height, pixels: new Uint8Array(data.data.buffer) };
+        return readImagePixels(bitmap);
     } finally {
         bitmap.close?.();
     }
+}
+
+/**
+ * The RGBA of an image that is already decoded, in its own row order.
+ *
+ * `ImageData` is unpremultiplied by definition, so these bytes are the upload as
+ * they stand: dividing them by alpha again drives every half-transparent texel
+ * toward white, and an RGBM texel — whose alpha IS its brightness — to grey.
+ */
+export function readImagePixels(image: PlatformImage | ImageBitmap): DecodedPixels {
+    const { width, height } = image;
+    const canvas = platformCreateCanvas(width, height);
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) throw new Error('imageDecode: 2D context unavailable for pixel decode');
+    ctx.drawImage(image, 0, 0);
+    const data = ctx.getImageData(0, 0, width, height);
+    return { width, height, pixels: new Uint8Array(data.data.buffer) };
 }
 
 /**

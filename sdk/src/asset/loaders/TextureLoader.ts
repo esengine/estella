@@ -2,9 +2,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AssetLoader, LoadContext, TextureResult } from '../AssetLoader';
 import { linearColorSpace } from '../../ecs/env';
-import { platformCreateCanvas, platformCreateImage } from '../../platform/base';
-import type { PlatformCanvas, PlatformCanvas2DContext, PlatformImage } from '../../platform/types';
-import { decodeImageBitmap } from '../imageDecode';
+import { platformCreateImage } from '../../platform/base';
+import type { PlatformImage } from '../../platform/types';
+import { decodeImageBitmap, readImagePixels } from '../imageDecode';
 import { requireResourceManager } from '../../wasm/resourceManager';
 import type { ESEngineModule } from '../../wasm';
 import { withMalloc } from '../../wasm/wasmScratch';
@@ -109,8 +109,6 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     private lastDecision_: TextureUploadDecision = RAW_PAYLOAD_UPLOAD;
     private deviceFormats_: CompressedTextureFormat[] | null = null;
 
-    private canvas_: PlatformCanvas | null = null;
-    private ctx_: PlatformCanvas2DContext | null = null;
     /**
      * Optional hook that returns per-asset import settings. Invoked at
      * load-time with the ORIGINAL ref (pre-resolution), so callers can key
@@ -134,15 +132,6 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     private pixelDecoder_: TexturePixelDecoder | null = null;
     setPixelDecoder(decoder: TexturePixelDecoder | null): void { this.pixelDecoder_ = decoder; }
     get pixelDecoder(): TexturePixelDecoder | null { return this.pixelDecoder_; }
-
-    private ensureCanvas_(): { canvas: PlatformCanvas; ctx: PlatformCanvas2DContext } {
-        if (this.canvas_ && this.ctx_) return { canvas: this.canvas_, ctx: this.ctx_ };
-        this.canvas_ = platformCreateCanvas(256, 256);
-        const ctx = this.canvas_.getContext('2d', { willReadFrequently: true });
-        if (!ctx) throw new Error('TextureLoader: failed to create 2D context');
-        this.ctx_ = ctx;
-        return { canvas: this.canvas_, ctx: this.ctx_ };
-    }
 
     async load(path: string, ctx: LoadContext): Promise<TextureResult> {
         const settings = this.pendingSettings_;
@@ -442,18 +431,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
             throw new Error('TextureLoader: 2D-canvas fallback needs a wasm module (native uses the pixel-decode path)');
         }
         const module = this.module_;
-        const { canvas, ctx } = this.ensureCanvas_();
-        if (canvas.width < width || canvas.height < height) {
-            canvas.width = Math.max(canvas.width, nextPowerOf2(width));
-            canvas.height = Math.max(canvas.height, nextPowerOf2(height));
-        }
-
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0);
-
-        const imageData = ctx.getImageData(0, 0, width, height);
-        const pixels = new Uint8Array(imageData.data.buffer);
-        unpremultiplyAlpha(pixels);
+        const { pixels } = readImagePixels(img);
 
         const rm = requireResourceManager();
         // Format 2 = sRGB color under the linear pipeline (see rm_createTexture).
@@ -465,24 +443,6 @@ export class TextureLoader implements AssetLoader<TextureResult> {
 
         return { handle, width, height };
     }
-}
-
-function unpremultiplyAlpha(pixels: Uint8Array): void {
-    for (let i = 0; i < pixels.length; i += 4) {
-        const a = pixels[i + 3];
-        if (a > 0 && a < 255) {
-            const scale = 255 / a;
-            pixels[i] = Math.min(255, Math.round(pixels[i] * scale));
-            pixels[i + 1] = Math.min(255, Math.round(pixels[i + 1] * scale));
-            pixels[i + 2] = Math.min(255, Math.round(pixels[i + 2] * scale));
-        }
-    }
-}
-
-function nextPowerOf2(n: number): number {
-    let p = 1;
-    while (p < n) p *= 2;
-    return p;
 }
 
 /**
