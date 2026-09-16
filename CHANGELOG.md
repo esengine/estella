@@ -97,6 +97,38 @@ published separately; it ships inside the editor.
   Per-instance, not per-object-record, because the record was out of room at the
   time. The entry below is the change that moved it.
 
+- **A wall can stop a frame from drawing what is behind it.** `Occluder` declares
+  a box sight does not pass through. Every camera rasterises the ones it can see
+  onto a small depth grid before collecting, and a renderable whose bounds are
+  behind that grid never becomes a draw. Nine cubes behind a wall and two beside
+  it: three draws with the component, twelve without, and the same four pixels
+  either way — an occluder changes what a frame COSTS and never what it shows.
+
+  The box is authored rather than taken from the geometry, and that is the design.
+  A mesh's bounds CONTAIN the mesh: a box around a pillar or a rock claims the air
+  at its corners, and whatever stands in that air would stop being drawn while the
+  player can plainly see it. Only whoever built the wall can say where the inside
+  of it is, so `halfExtents` is theirs to place — in world units, turned by the
+  entity, and drawn in the viewport like every other extent.
+
+  What it refuses is bounded on purpose. Only draws a depth test would have hidden
+  anyway, so sprites, UI and anything whose material turns depth off are never
+  taken away; only the camera's own collect, so a caster keeps casting into a
+  shadow map the player cannot see; and never a box the camera stands inside,
+  which would otherwise declare the whole view blocked. A scene that declares no
+  occluder — every 2D one — pays one comparison per renderable.
+
+  Two questions now have one answer. `RenderCollectContext::visible` asks "outside
+  the view" and "behind something solid" together; the mesh collect had been
+  testing the frustum itself and would have missed the second entirely. Three
+  counters say which is which: `render.cull.occluders` (boxes taken),
+  `render.cull.occluded` (renderables refused), `render.culled` (every cull).
+
+  Measuring it is what set its own resolution: read four grid texels a side rather
+  than two, because a level's texels align to the grid and not to the object, and
+  at two the region read overhangs by the object's own width — six of nine cubes
+  standing squarely behind a wall went uncalled.
+
 - **Decals you can place.** Put a `DecalProjector` on an entity, point its box at
   something, and Bake Decal cuts what it covers into a mesh on that same entity —
   drawn with the decal's own material, won on depth by that material's bias. The

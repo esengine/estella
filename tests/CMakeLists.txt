@@ -238,6 +238,16 @@ add_test(NAME test_lod_selection COMMAND test_lod_selection)
 # without a device — the pixel gates say a draw came out the wrong colour, this
 # says whether the read left the box, took the wrong volume, or accepted a grid
 # too short to fill it.
+# What an occluder hides and what it must not. Header-only, so it runs without a
+# device — and it runs every claim under BOTH depth conventions, which is the one
+# thing a pixel gate on one backend cannot ask.
+add_executable(test_occlusion_view renderer/test_occlusion_view.cpp)
+target_include_directories(test_occlusion_view PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party/glm
+)
+add_test(NAME test_occlusion_view COMMAND test_occlusion_view)
+
 add_executable(test_probe_store renderer/test_probe_store.cpp)
 target_include_directories(test_probe_store PRIVATE
     ${CMAKE_SOURCE_DIR}/src

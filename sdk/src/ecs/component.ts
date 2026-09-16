@@ -15,7 +15,7 @@ export type { AssetFieldMeta, SkeletalFieldMeta };
 // extending the generated base.
 import type {
     TransformData, SpriteData, ShapeRendererData, LightData, ShadowCaster2DData, DraggableData,
-    SortingGroupData, SpriteMaskData, LightProbeVolumeData,
+    SortingGroupData, SpriteMaskData, LightProbeVolumeData, OccluderData,
     CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData, DragonBonesAnimationData,
     TilemapLayerData, BitmapTextData, TrailRendererData, ParticleForceFieldData,
     CameraData as CameraDataCpp, ParticleEmitterData as ParticleEmitterDataCpp,
@@ -805,7 +805,7 @@ export type ScaleMode = (typeof ScaleMode)[keyof typeof ScaleMode];
 // automatically; tsc then enforces every consumer matches.
 export type {
     TransformData, SpriteData, ShapeRendererData, LightData, ShadowCaster2DData, DraggableData,
-    SortingGroupData, SpriteMaskData, LightProbeVolumeData,
+    SortingGroupData, SpriteMaskData, LightProbeVolumeData, OccluderData,
     CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData, DragonBonesAnimationData,
     TilemapLayerData, BitmapTextData, TrailRendererData, ParticleForceFieldData,
 };
@@ -926,6 +926,18 @@ export const ShadowCaster2D = defineBuiltin<ShadowCaster2DData>('ShadowCaster2D'
 // box a creator would otherwise place blind.
 export const LightProbeVolume = defineBuiltin<LightProbeVolumeData>('LightProbeVolume',
     metaDefaults<LightProbeVolumeData>('LightProbeVolume')
+);
+
+/**
+ * A box sight does not pass through: what stands behind it is not collected, and
+ * the picture is unchanged. Authored, not taken from the geometry beside it — the
+ * box has to lie INSIDE the wall, and bounds that contain a mesh claim the air at
+ * its corners, where things would stop being drawn in front of the player.
+ *
+ * @experimental
+ */
+export const Occluder = defineBuiltin<OccluderData>('Occluder',
+    metaDefaults<OccluderData>('Occluder')
 );
 
 /**

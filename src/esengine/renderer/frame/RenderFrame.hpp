@@ -90,6 +90,8 @@ public:
         u32 particles = 0;
         u32 shapes = 0;
         u32 culled = 0;
+        /// Of `culled`, how many an occluder refused rather than the frustum.
+        u32 occluded = 0;
         f32 gpu_time_ms = -1.0f; // -1 when the timer is unavailable
     };
 
@@ -468,6 +470,8 @@ private:
 
     glm::mat4 view_projection_{1.0f};
     Frustum frustum_;
+    /// The other half of this camera's cull, rebuilt from the scene each collect.
+    OcclusionView occlusion_;
     RenderTargetManager::Handle current_target_ = 0;
     RenderStage current_stage_ = RenderStage::Transparent;
 
@@ -585,6 +589,12 @@ private:
 
     /** @brief Gathers the frame's LightProbeVolume components into the ProbeStore. */
     void collectProbes(ecs::Registry& registry);
+
+    /**
+     * @brief Rasterises the scene's declared occluders into this camera's
+     *        @ref occlusion_, which the collect below then tests bounds against.
+     */
+    void collectOccluders(ecs::Registry& registry);
 
     /// Makes this ambient light the frame's environment, when it names one that is
     /// loaded. `scale` is the light's colour times its intensity, folded into the

@@ -47,7 +47,10 @@ void SpritePlugin::collect(RenderCollectContext& collect_ctx) {
                                                     0.0f);
         glm::vec3 halfExtents = flatHalfExtents(
             turn, glm::vec3(std::abs(finalSize.x), std::abs(finalSize.y), 0.0f) * 0.5f);
-        if (!collect_ctx.visible(aabbCenter, halfExtents)) {
+        // Never depth-tested unless a material says so, and that is resolved
+        // below — so a sprite is judged by the view alone, and an occluder in
+        // front of it does not get to speak.
+        if (!collect_ctx.visible(aabbCenter, halfExtents, false)) {
             ++collect_ctx.culled;
             continue;
         }

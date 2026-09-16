@@ -78,6 +78,7 @@ const DISPOSITION = {
   'Light.innerRadius': 'extent',
   'Light.cookieSize': 'extent',
   'LightProbeVolume.halfExtents': 'extent',
+  'Occluder.halfExtents': 'extent',
   'MeleeAttack.radius': 'extent',
   'AudioSource.minDistance': 'extent',
   'AudioSource.maxDistance': 'extent',

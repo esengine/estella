@@ -25,6 +25,7 @@
 #include "../ecs/components/LODGroup.hpp"
 #include "../ecs/components/Light.hpp"
 #include "../ecs/components/MeshRenderer.hpp"
+#include "../ecs/components/Occluder.hpp"
 #include "../ecs/components/ParticleEmitter.hpp"
 #include "../ecs/components/ParticleForceField.hpp"
 #include "../ecs/components/RigidBody2D.hpp"
@@ -1723,6 +1724,10 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
     value_object<MeshSkinJS>("MeshSkin")
         .field("joints", &MeshSkinJS::joints);
 
+    value_object<esengine::ecs::Occluder>("Occluder")
+        .field("halfExtents", &esengine::ecs::Occluder::halfExtents)
+        .field("enabled", &esengine::ecs::Occluder::enabled);
+
     value_object<ParentJS>("Parent")
         .field("entity", &ParentJS::entity);
 
@@ -2536,6 +2541,27 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::MeshSkin>(entity);
         }))
 
+        // Occluder
+        .function("hasOccluder", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::Occluder>(static_cast<Entity>(e));
+        }))
+        .function("getOccluder", optional_override([](Registry& r, u32 e) -> esengine::ecs::Occluder& {
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::Occluder s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::Occluder>(entity)) return s_dummy;
+            return r.get<esengine::ecs::Occluder>(entity);
+        }), allow_raw_pointers())
+        .function("addOccluder", optional_override([](Registry& r, u32 e, const esengine::ecs::Occluder& c) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::Occluder>(entity, c);
+        }))
+        .function("removeOccluder", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::Occluder>(entity)) return;
+            r.remove<esengine::ecs::Occluder>(entity);
+        }))
+
         // Parent
         .function("hasParent", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::Parent>(static_cast<Entity>(e));
@@ -3071,6 +3097,7 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("MeshMorph")));
     arr.set(i++, val(std::string("MeshRenderer")));
     arr.set(i++, val(std::string("MeshSkin")));
+    arr.set(i++, val(std::string("Occluder")));
     arr.set(i++, val(std::string("Parent")));
     arr.set(i++, val(std::string("ParticleEmitter")));
     arr.set(i++, val(std::string("ParticleForceField")));
@@ -3271,6 +3298,8 @@ static_assert(offsetof(esengine::ecs::MeshRenderer, parallax) == 32, "ABI offset
 static_assert(offsetof(esengine::ecs::MeshRenderer, material) == 40, "ABI offset drift: esengine::ecs::MeshRenderer.material (EHT expected 40)");
 static_assert(offsetof(esengine::ecs::MeshRenderer, enabled) == 44, "ABI offset drift: esengine::ecs::MeshRenderer.enabled (EHT expected 44)");
 static_assert(offsetof(esengine::ecs::MeshRenderer, mesh) == 48, "ABI offset drift: esengine::ecs::MeshRenderer.mesh (EHT expected 48)");
+static_assert(offsetof(esengine::ecs::Occluder, halfExtents) == 0, "ABI offset drift: esengine::ecs::Occluder.halfExtents (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::Occluder, enabled) == 12, "ABI offset drift: esengine::ecs::Occluder.enabled (EHT expected 12)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, rate) == 0, "ABI offset drift: esengine::ecs::ParticleEmitter.rate (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, burstCount) == 4, "ABI offset drift: esengine::ecs::ParticleEmitter.burstCount (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, burstInterval) == 8, "ABI offset drift: esengine::ecs::ParticleEmitter.burstInterval (EHT expected 8)");
@@ -3497,7 +3526,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "bfed6926d0e50843";
+static const char* kEsAbiLayoutHash = "8ef437d46a35780d";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

@@ -1065,6 +1065,34 @@ export function createMeshRendererData(): MeshRendererPtrData {
     };
 }
 
+export interface OccluderPtrData {
+    halfExtents: Vec3;
+    enabled: boolean;
+}
+
+export function fillOccluder(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: OccluderPtrData,
+): void {
+    const halfExtents_ = out.halfExtents; halfExtents_.x = f32[ptr >> 2]; halfExtents_.y = f32[(ptr >> 2) + 1]; halfExtents_.z = f32[(ptr >> 2) + 2];
+    out.enabled = u8[ptr + 12] !== 0;
+}
+
+export function writeOccluder(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: OccluderPtrData,
+): void {
+    f32[ptr >> 2] = data.halfExtents.x; f32[(ptr >> 2) + 1] = data.halfExtents.y; f32[(ptr >> 2) + 2] = data.halfExtents.z;
+    u8[ptr + 12] = data.enabled ? 1 : 0;
+}
+
+export function createOccluderData(): OccluderPtrData {
+    return {
+        halfExtents: { x: 0, y: 0, z: 0 },
+        enabled: false,
+    };
+}
+
 export interface ParticleEmitterPtrData {
     rate: number;
     burstCount: number;
@@ -2392,6 +2420,7 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     MeshCollider3D: { fill: fillMeshCollider3D, write: writeMeshCollider3D, create: createMeshCollider3DData },
     MeshLightmap: { fill: fillMeshLightmap, write: writeMeshLightmap, create: createMeshLightmapData },
     MeshRenderer: { fill: fillMeshRenderer, write: writeMeshRenderer, create: createMeshRendererData },
+    Occluder: { fill: fillOccluder, write: writeOccluder, create: createOccluderData },
     ParticleEmitter: { fill: fillParticleEmitter, write: writeParticleEmitter, create: createParticleEmitterData },
     ParticleForceField: { fill: fillParticleForceField, write: writeParticleForceField, create: createParticleForceFieldData },
     RigidBody2D: { fill: fillRigidBody2D, write: writeRigidBody2D, create: createRigidBody2DData },

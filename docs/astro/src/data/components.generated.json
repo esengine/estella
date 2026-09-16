@@ -2742,6 +2742,25 @@
       "tag": true
     },
     {
+      "name": "Occluder",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "halfExtents",
+          "type": "Vec3",
+          "default": "(50, 50, 50)",
+          "doc": "Half the solid box, in world units, from the entity's position.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true",
+          "doc": "Off: this box hides nothing."
+        }
+      ]
+    },
+    {
       "name": "OneWayPlatform2D",
       "source": "ts",
       "fields": [

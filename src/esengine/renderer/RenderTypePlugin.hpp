@@ -5,6 +5,7 @@
 #include "../core/Types.hpp"
 #include "./frame/RenderStage.hpp"
 #include "./frame/Frustum.hpp"
+#include "./frame/OcclusionView.hpp"
 #include "./lod/LodSelection.hpp"
 #include "./lod/LodViewState.hpp"
 #include "./frame/FrameConstants.hpp"
@@ -231,6 +232,13 @@ struct RenderCollectContext {
      */
     const std::unordered_set<u32>* screen_ui = nullptr;
 
+    /**
+     * @brief What this view is already blocked by, or null for a collect that
+     *        must not ask — a shadow face looks from a light, and a camera's
+     *        answer about what a camera cannot see says nothing about it.
+     */
+    const OcclusionView* occlusion = nullptr;
+
     /** @brief Whether this collect is the frame's screen overlay. */
     bool isOverlay() const { return frame_context.purpose == RenderPurpose::ScreenOverlay; }
 
@@ -247,15 +255,23 @@ struct RenderCollectContext {
     }
 
     /**
-     * @brief Whether a renderable bounded by @p centre / @p halfExtents survives
-     *        this collect's cull.
+     * @brief Whether a renderable bounded by @p centre / @p halfExtents is drawn.
      *
-     * @details The overlay has no camera to be outside of: a screen element is on
-     *          the screen by construction, and a frustum test would ask about
-     *          wherever something else happens to be looking.
+     * @details TWO questions, one answer: outside the view, and inside it behind
+     *          something solid. @p depthTested admits the second — an occluder may
+     *          refuse only a draw a DEPTH TEST would have hidden anyway, since one
+     *          that ignores depth paints over the wall and really is seen.
      */
-    bool visible(const glm::vec3& centre, const glm::vec3& halfExtents) const {
-        return isOverlay() || frustum.intersectsAABB(centre, halfExtents);
+    bool visible(const glm::vec3& centre, const glm::vec3& halfExtents, bool depthTested) {
+        // A screen element is on the screen by construction, with no camera to be
+        // outside of — a frustum test would ask about wherever one is looking.
+        if (isOverlay()) return true;
+        if (!frustum.intersectsAABB(centre, halfExtents)) return false;
+        if (depthTested && occlusion && occlusion->hidden(centre, halfExtents)) {
+            ++occluded;
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -278,6 +294,16 @@ struct RenderCollectContext {
      *          what its frustum skipped is `render.shadow.collects`.
      */
     u32 culled = 0;
+
+    /**
+     * @brief How many of those @ref culled an OCCLUDER refused.
+     *
+     * @details A subset, not a second total: the plugin counts the cull where it
+     *          happens and this says which question rejected it. One number for
+     *          both cannot tell an occluder that stopped working from a camera
+     *          that turned away.
+     */
+    u32 occluded = 0;
 
     /**
      * @brief Which view is looking, where its level choices are kept, and where

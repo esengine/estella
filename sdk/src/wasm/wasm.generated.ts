@@ -613,6 +613,11 @@ export interface MeshSkin {
     joints: VectorEntity;
 }
 
+export interface Occluder {
+    halfExtents: Vec3;
+    enabled: boolean;
+}
+
 export interface Parent {
     entity: number;
 }
@@ -1004,6 +1009,10 @@ export interface Registry {
     getMeshSkin(entity: Entity): MeshSkin;
     addMeshSkin(entity: Entity, component: MeshSkin): void;
     removeMeshSkin(entity: Entity): void;
+    hasOccluder(entity: Entity): boolean;
+    getOccluder(entity: Entity): Occluder;
+    addOccluder(entity: Entity, component: Occluder): void;
+    removeOccluder(entity: Entity): void;
     hasParent(entity: Entity): boolean;
     getParent(entity: Entity): Parent;
     addParent(entity: Entity, component: Parent): void;
@@ -1129,6 +1138,7 @@ export interface ESEngineModule {
     MeshMorph: new () => MeshMorph;
     MeshRenderer: new () => MeshRenderer;
     MeshSkin: new () => MeshSkin;
+    Occluder: new () => Occluder;
     Parent: new () => Parent;
     ParticleEmitter: new () => ParticleEmitter;
     ParticleForceField: new () => ParticleForceField;

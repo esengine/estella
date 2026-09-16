@@ -467,7 +467,6 @@ RenderPrewarmResult MeshPlugin::prewarm(RenderFrameContext& ctx, ecs::Registry& 
 
 void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
     auto& registry = collect_ctx.registry;
-    auto& frustum = collect_ctx.frustum;
     auto& clips = collect_ctx.clip_state;
     auto& buffers = collect_ctx.buffer_pool;
     auto& draw_list = collect_ctx.draw_list;
@@ -542,9 +541,19 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         const glm::vec3 localMax = group ? levels.localMax
                                  : resident ? resident->localMax : glm::vec3(mesh.localMax, 0.0f);
 
+        // BEFORE the cull, because whether this draw depth-tests decides if an
+        // occluder may refuse it, and the material is where that is finally said.
+        // Reused by the draw key below: two lookups is how the two come to differ.
+        const MaterialRecord* material = (mesh.material != 0 && ctx.materials)
+            ? ctx.materials->find(mesh.material) : nullptr;
+        const bool depthTested = material ? material->depthTest : mesh.opaque;
+
         glm::vec3 aabbCenter(0.0f), halfExtents(0.0f);
         orientedWorldAabb(position, rotation, scale, localMin, localMax, aabbCenter, halfExtents);
-        if (!frustum.intersectsAABB(aabbCenter, halfExtents)) {
+        // The collect's own predicate, not a frustum test of this plugin's: it
+        // answers "outside the view" AND "behind something solid", and a mesh is
+        // what both were built for.
+        if (!collect_ctx.visible(aabbCenter, halfExtents, depthTested)) {
             ++collect_ctx.culled;
             tick(2);
             continue;
@@ -615,7 +624,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         // the default batch shader; a material owns shading fully, so it takes
         // precedence over the lit toggle.
         if (mesh.material != 0) {
-            if (const MaterialRecord* m = ctx.materials ? ctx.materials->find(mesh.material) : nullptr) {
+            if (const MaterialRecord* m = material) {
                 key.shaderId = (m->shader != 0) ? m->shader : ctx.batch_shader_id;
                 key.blend = m->blend;
                 key.materialId = mesh.material;

@@ -97,6 +97,8 @@ export {
     ShadowCaster2D,
     LightProbeVolume,
     type LightProbeVolumeData,
+    Occluder,
+    type OccluderData,
     SortingGroup,
     SpriteMask,
     TrailRenderer,

@@ -8,6 +8,7 @@
 #include "../draw/ImmediateDraw.hpp"
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/Light.hpp"
+#include "../../ecs/components/Occluder.hpp"
 #include "../../ecs/components/ShadowCaster2D.hpp"
 #include "../../ecs/components/SortingGroup.hpp"
 #include "../../ecs/components/SpriteMask.hpp"
@@ -543,6 +544,11 @@ void RenderFrame::flush() {
     ES_PROFILE_COUNTER("render.targets.bytes", target_pool_.bytes());
 
     ES_PROFILE_COUNTER("render.culled", stats_.culled);
+    // Which question did the culling, and how much was declared to do it with. A
+    // scene whose occluders stopped being taken — turned past the near plane, or
+    // authored to nothing — reads zero boxes here while render.culled says nothing.
+    ES_PROFILE_COUNTER("render.cull.occluded", stats_.occluded);
+    ES_PROFILE_COUNTER("render.cull.occluders", occlusion_.boxes());
     ES_PROFILE_COUNTER("render.sprites", stats_.sprites);
     // The 3D path had no counter at all, and its cost is the one a pixel hides
     // best: identical geometry drawn N times merges into ONE instanced call, so
@@ -1131,6 +1137,32 @@ void RenderFrame::collectProbes(ecs::Registry& registry) {
         const glm::vec3 half = glm::abs(volume.halfExtents);
         probes.add(centre - half, centre + half, grid);
     }
+}
+
+/**
+ * @brief Rasterises this camera's occluders: every declared box, as this view sees it.
+ *
+ * @details Before the plugins, because every one of them reads it: a renderable is
+ *          tested against the whole scene's occluders and not against those that
+ *          happen to have been walked first. The box is ORIENTED, never its own
+ *          bounding box — that would claim the corners the wall does not fill.
+ */
+void RenderFrame::collectOccluders(ecs::Registry& registry) {
+    occlusion_.begin(view_projection_);
+    auto view = registry.view<ecs::Occluder>();
+    for (auto entity : view) {
+        const auto& occluder = view.get(entity);
+        if (!occluder.enabled) continue;
+        auto* transform = registry.tryGet<ecs::Transform>(entity);
+        if (!transform) continue;
+        transform->ensureDecomposed();
+        // Scale is not read, matching every other authored extent and the box the
+        // viewport draws: one value, two readers, and the picture an author places
+        // the box by IS what the cull uses.
+        occlusion_.addBox(transform->worldPosition, transform->worldRotation,
+                          glm::abs(occluder.halfExtents));
+    }
+    occlusion_.finish();
 }
 
 void RenderFrame::collectLights(ecs::Registry& registry) {
@@ -1847,6 +1879,9 @@ void RenderFrame::collectAll(ecs::Registry& registry) {
     // Beside the lights and for the same reason: this answers what reaches a point
     // that no light can be asked about, and the mesh collect below reads both.
     { ES_PROFILE_SCOPE("render.collect.probes"); collectProbes(registry); }
+    // Before the plugins and after nothing: it reads the scene and this camera's
+    // projection, both of which are already settled when the collect opens.
+    { ES_PROFILE_SCOPE("render.collect.occluders"); collectOccluders(registry); }
     // Decided here, drawn by the graph. Nothing in this function may touch the
     // device: the frame reaches the host as several calls with its own draws
     // between them, and a pass opened here would swallow them.
@@ -1864,6 +1899,10 @@ void RenderFrame::collectAll(ecs::Registry& registry) {
     // through a view matrix puts a HUD wherever the view happens to be looking.
     collectCtx.screen_ui = screen_domain_;
     collectCtx.lod = {view_id_, &lod_view_state_, &lod_counts_};
+    // Only the camera collect. The shadow collect above builds its own context and
+    // leaves this null: what a player cannot see still casts, and a caster dropped
+    // because the camera cannot see IT takes its shadow off the ground with it.
+    collectCtx.occlusion = &occlusion_;
     { ES_PROFILE_SCOPE("render.collect.sky"); collectSky(collectCtx); }
     for (auto& plugin : plugins_) {
         ES_PROFILE_SCOPE(plugin->collectScope());
@@ -1874,6 +1913,7 @@ void RenderFrame::collectAll(ecs::Registry& registry) {
     // like the per-type counts beside it, so a frame composited from several
     // cameras reports every cull each of them made.
     stats_.culled += collectCtx.culled;
+    stats_.occluded += collectCtx.occluded;
 
     // OR-ed across the frame's cameras, applied at the next beginFrame and never
     // mid-frame: the capture is scratch each camera composites out of, and the

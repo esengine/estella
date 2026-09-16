@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, Cl
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = 'bfed6926d0e50843';
+export const ABI_LAYOUT_HASH = '8ef437d46a35780d';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -610,6 +610,20 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         animatableFields: [],
         fields: {
             joints: { tooltip: "Joint entities, in the order the mesh's bind matrices are in." },
+        },
+    },
+    Occluder: {
+        defaults: {
+            halfExtents: { x: 50, y: 50, z: 50 },
+            enabled: true,
+        },
+        assetFields: [],
+        entityFields: [],
+        colorFields: [],
+        animatableFields: [],
+        fields: {
+            halfExtents: { min: 0, tooltip: "Half the solid box, in world units, from the entity's position." },
+            enabled: { tooltip: "Off: this box hides nothing." },
         },
     },
     Parent: {
@@ -1461,6 +1475,17 @@ export interface MeshRendererData {
 
 export interface MeshSkinData {
     joints: Entity[];
+}
+
+/**
+ * The fields of the engine's `Occluder` component, generated from
+ * the C++ struct so the two shapes cannot drift.
+ *
+ * @beta
+ */
+export interface OccluderData {
+    halfExtents: Vec3;
+    enabled: boolean;
 }
 
 /**

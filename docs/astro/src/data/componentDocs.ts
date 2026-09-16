@@ -85,6 +85,7 @@ export const COMPONENT_DOCS: Record<string, ComponentDoc> = {
   SpriteMask: { category: 'graphics', summary: "Turns this entity's Sprite into a stencil that cuts the sprites drawn after it — a window, or a hole.", doc: 'graphics/sprites', anchor: 'sprite-masks', anchorZh: '精灵遮罩' },
   SortingGroup: { category: 'graphics', summary: 'Makes an entity and its whole subtree sort as one unit — the group states the layer and order, members state their place inside it.', doc: 'graphics/sprites', anchor: 'sorting-groups', anchorZh: '排序组' },
   LODGroup: { category: 'graphics', summary: 'Cheaper stand-in meshes for a MeshRenderer, chosen by how much of the screen the object covers.', doc: 'performance/level-of-detail', anchor: 'the-lodgroup-component', anchorZh: 'lodgroup-组件' },
+  Occluder: { category: 'graphics', summary: 'A box sight does not pass through — what stands behind it is not collected, and the picture is unchanged.', doc: 'performance/occlusion-culling', anchor: 'the-box-is-authored-and-it-belongs-inside-the-wall', anchorZh: '盒子是创作出来的而且它要在墙的里面' },
   Video: { category: 'graphics', summary: 'Plays a video stream onto a surface in the world or the UI.', doc: 'graphics/video', anchor: 'the-video-component', anchorZh: 'video-组件' },
 
   // ── UI ─────────────────────────────────────────────────────────────────────

@@ -291,6 +291,13 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'mesh', type: 'u32', offset: 48 },
         ],
     },
+    Occluder: {
+        ptrFn: 'getOccluderPtr',
+        fields: [
+            { name: 'halfExtents', type: 'vec3', offset: 0 },
+            { name: 'enabled', type: 'bool', offset: 12 },
+        ],
+    },
     ParticleEmitter: {
         ptrFn: 'getParticleEmitterPtr',
         fields: [
