@@ -251,7 +251,7 @@ function replicateScene(scene: SceneData, spec: ReplicateSpec): SceneData {
  */
 async function loadScene(
     sceneUrl: string, manifestUrl?: string, replicate?: ReplicateSpec | null,
-): Promise<number> {
+): Promise<SceneLoadReport> {
     if (!app) throw new Error('loadScene before boot');
     const res = await fetch(sceneUrl);
     if (!res.ok) throw new Error(`scene fetch failed: ${res.status} ${sceneUrl}`);
@@ -260,12 +260,14 @@ async function loadScene(
     const uuidToUrl = await fetchManifest(manifestUrl);
     const assets = app.getResource(Assets);
     let resolved: SceneData = raw;
+    let missing: string[] = [];
     if (assets) {
         assets.baseUrl = ''; // manifest urls are root-relative
         assets.setAssetRefResolver((ref: string) =>
             ref.startsWith(UUID_PREFIX) ? (uuidToUrl.get(ref.slice(UUID_PREFIX.length)) ?? null) : ref,
         );
         const result = await assets.preloadSceneAssets(raw);
+        missing = result.missing.map((m) => m.ref);
         resolved = JSON.parse(JSON.stringify(raw)) as SceneData; // resolveSceneAssetPaths mutates
         assets.resolveSceneAssetPaths(resolved, result);
     }
@@ -285,7 +287,16 @@ async function loadScene(
     const entityMap = map as unknown as Map<number, number>;
     await loadSpine(app, raw, entityMap, toUrl);
     await loadDragonBones(app, raw, entityMap, toUrl);
-    return map.size;
+    return { entities: map.size, missing };
+}
+
+/**
+ * What a scene load leaves behind. `missing` names every ref the preload could not
+ * turn into an asset: a frame drawn without one is not the frame the scene declares.
+ */
+interface SceneLoadReport {
+    entities: number;
+    missing: string[];
 }
 
 async function fetchManifest(manifestUrl?: string): Promise<Map<string, string>> {

@@ -105,7 +105,7 @@
         {
           "type": "MeshLightmap",
           "data": {
-            "lightmap": "reflection-room_lightmap.png",
+            "lightmap": "/scenes/reflection-room_lightmap.png",
             "scaleOffset": {
               "x": 0.3515625,
               "y": 0.3515625,
@@ -156,7 +156,7 @@
         {
           "type": "MeshLightmap",
           "data": {
-            "lightmap": "reflection-room_lightmap.png",
+            "lightmap": "/scenes/reflection-room_lightmap.png",
             "scaleOffset": {
               "x": 0.3515625,
               "y": 0.3515625,
@@ -207,7 +207,7 @@
         {
           "type": "MeshLightmap",
           "data": {
-            "lightmap": "reflection-room_lightmap.png",
+            "lightmap": "/scenes/reflection-room_lightmap.png",
             "scaleOffset": {
               "x": 0.28125,
               "y": 0.28125,
@@ -258,7 +258,7 @@
         {
           "type": "MeshLightmap",
           "data": {
-            "lightmap": "reflection-room_lightmap.png",
+            "lightmap": "/scenes/reflection-room_lightmap.png",
             "scaleOffset": {
               "x": 0.28125,
               "y": 0.28125,
@@ -309,7 +309,7 @@
         {
           "type": "MeshLightmap",
           "data": {
-            "lightmap": "reflection-room_lightmap.png",
+            "lightmap": "/scenes/reflection-room_lightmap.png",
             "scaleOffset": {
               "x": 0.28125,
               "y": 0.28125,
@@ -361,7 +361,7 @@
         {
           "type": "MeshLightmap",
           "data": {
-            "lightmap": "reflection-room_lightmap.png",
+            "lightmap": "/scenes/reflection-room_lightmap.png",
             "scaleOffset": {
               "x": 0.1640625,
               "y": 0.1640625,

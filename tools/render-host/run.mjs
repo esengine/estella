@@ -200,13 +200,17 @@ function finish(result, server) {
   // which no pixel in the frame can show.
   const pickOk = !result.pick || result.pick.hit === result.pick.want;
   const renderedOk = result.capture?.rendered ?? false;
-  const ok = result.ok && renderedOk && (result.expect?.ok ?? true) && (result.count?.ok ?? true) &&
+  // A scene that could not load an asset it names draws a frame nobody declared, so
+  // its pixels answer a different question — say which asset instead.
+  const assetsOk = (result.missingAssets?.length ?? 0) === 0;
+  const ok = result.ok && renderedOk && assetsOk && (result.expect?.ok ?? true) && (result.count?.ok ?? true) &&
     (result.seam?.ok ?? true) &&
     (result.resize?.ok ?? true) && (result.preview?.ok ?? true) &&
     (result.meshPreview?.ok ?? true) && (result.grid?.ok ?? true) &&
     (result.draws?.ok ?? true) && (result.counters?.ok ?? true) &&
     deviceLossOk && meshOk && pickOk;
-  console.log(`\n[verify:render] ${ok ? 'PASS' : 'FAIL'} — ${SCENE} (${BACKEND})`);
+  const why = assetsOk ? '' : `: could not load ${result.missingAssets.join(', ')}`;
+  console.log(`\n[verify:render] ${ok ? 'PASS' : 'FAIL'} — ${SCENE} (${BACKEND})${why}`);
   console.log('DRIVE_RESULT ' + JSON.stringify(result));
   try {
     server?.close();
@@ -252,7 +256,7 @@ app.whenReady().then(async () => {
     // ESTELLA_VERIFY_SCALE = {"copies":N,"cols":C,"spacing":[x,y]}: the fixture holds ONE
     // of the thing being measured and this lays N of it out on a grid — a scale scene as a
     // FILE would be a megabyte of JSON in every clone, for a pure function of those two.
-    const entityCount = await exec(
+    const { entities: entityCount, missing: missingAssets } = await exec(
       `window.__estellaHeadless.api.loadScene(${JSON.stringify(SCENE)}, ${JSON.stringify(MANIFEST)}`
       + `${SCALE ? ', ' + JSON.stringify(JSON.parse(SCALE)) : ''})`,
     );
@@ -843,7 +847,7 @@ app.whenReady().then(async () => {
         };
       `);
     }
-    finish({ ok: true, entityCount, drawCalls, draws, counters, profile, capture, expect, count, seam, resize, preview, meshPreview, grid, deviceLoss, meshResident, meshAsset, meshMaterial, meshPrefab, setField, animator, pick, cameraTarget }, server);
+    finish({ ok: true, entityCount, missingAssets, drawCalls, draws, counters, profile, capture, expect, count, seam, resize, preview, meshPreview, grid, deviceLoss, meshResident, meshAsset, meshMaterial, meshPrefab, setField, animator, pick, cameraTarget }, server);
   } catch (e) {
     finish({ ok: false, error: String((e && e.stack) || e) }, server);
   }
