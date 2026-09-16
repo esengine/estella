@@ -371,7 +371,13 @@ void main() {
 #endif
     float ao = mix(1.0, texture(u_occlusionMap, v_texCoord).r, u_occlusionStrength);
     vec3 mr = texture(u_metallicRoughnessMap, v_texCoord).rgb;
+#ifdef MESH_NORMALS
+    // The surface's OWN place, which a point light, a probe volume and a
+    // reflection's box projection all measure against; z = 0 is a plane's answer.
+    highp vec3 P = v_worldXYZ;
+#else
     highp vec3 P = vec3(v_worldPos, 0.0);
+#endif
     // specular 1: a glTF material reflects unless KHR_materials_specular says less.
     vec3 lit = applyLightingPBR(base.rgb, N, P, viewDirection(P),
                                 u_metallic * mr.b, u_roughness * mr.g, 1.0, ao);
@@ -381,6 +387,10 @@ void main() {
 
 #pragma fragment wgsl
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    // WGSL has no module varying: the entry point hands the injected header the
+    // run its GLSL twin reads straight off one. Without this every material-shaded
+    // draw read instance 0's indirect light — one probe volume for the lot.
+    g_probeSlot = v.v_probeSlot;
     let base = textureSampleLevel(t0, s0, v.v_texCoord, 0.0) * v.v_color * mc.u_tint;
     if (base.a < mc.u_alphaCutoff) { discard; }
 #ifdef MESH_NORMALS
@@ -393,7 +403,11 @@ void main() {
     let ao = mix(1.0, occl, mc.u_occlusionStrength);
     let mr = textureSampleLevel(u_metallicRoughnessMap, u_metallicRoughnessMap_s,
                                 v.v_texCoord, 0.0).rgb;
+#ifdef MESH_NORMALS
+    let P = v.v_worldXYZ;
+#else
     let P = vec3f(v.v_worldPos, 0.0);
+#endif
     let lit = applyLightingPBR(base.rgb, N, P, viewDirection(P),
                                mc.u_metallic * mr.b, mc.u_roughness * mr.g, 1.0, ao);
     let emit = mc.u_emissive.rgb
