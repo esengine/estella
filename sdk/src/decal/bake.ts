@@ -25,6 +25,71 @@ export interface DecalReceiver {
     indices: Uint32Array;
 }
 
+/**
+ * One mesh, placed, as surfaces a projector can print on.
+ *
+ * Here and not in each caller because it is the same knowledge the cut needs:
+ * which channel is which, and that a transform moves a position one way and a
+ * normal the other.
+ */
+export function receiverFromMesh(mesh: MeshData, transform: ArrayLike<number>): DecalReceiver | null {
+    const pos = mesh.channels.find((c) => c.semantic === MeshChannel.Position);
+    const nrm = mesh.channels.find((c) => c.semantic === MeshChannel.Normal);
+    if (!pos || pos.type !== MeshChannelType.Float32) return null;
+    const m = transform;
+    const view = new DataView(mesh.vertices.buffer, mesh.vertices.byteOffset, mesh.vertices.byteLength);
+    const positions = new Float32Array(mesh.vertexCount * 3);
+    const normals = new Float32Array(mesh.vertexCount * 3);
+    // The inverse-transpose a normal takes, for the usual reason: under a
+    // non-uniform scale the position transform tilts a normal off its surface.
+    const nm = normalMatrixOf(m);
+    for (let v = 0; v < mesh.vertexCount; ++v) {
+        const b = v * mesh.vertexStride + pos.offset;
+        const x = view.getFloat32(b, true);
+        const y = view.getFloat32(b + 4, true);
+        const z = pos.components >= 3 ? view.getFloat32(b + 8, true) : 0;
+        positions[v * 3] = m[0]! * x + m[4]! * y + m[8]! * z + m[12]!;
+        positions[v * 3 + 1] = m[1]! * x + m[5]! * y + m[9]! * z + m[13]!;
+        positions[v * 3 + 2] = m[2]! * x + m[6]! * y + m[10]! * z + m[14]!;
+        // Geometry with no normal channel faces the viewer, as a flat surface
+        // does everywhere else here — and then only a head-on projector prints.
+        let nx = 0, ny = 0, nz = 1;
+        if (nrm && nrm.type === MeshChannelType.Float32) {
+            const nb = v * mesh.vertexStride + nrm.offset;
+            nx = view.getFloat32(nb, true);
+            ny = view.getFloat32(nb + 4, true);
+            nz = view.getFloat32(nb + 8, true);
+        }
+        const wx = nm[0]! * nx + nm[3]! * ny + nm[6]! * nz;
+        const wy = nm[1]! * nx + nm[4]! * ny + nm[7]! * nz;
+        const wz = nm[2]! * nx + nm[5]! * ny + nm[8]! * nz;
+        const len = Math.hypot(wx, wy, wz) || 1;
+        normals[v * 3] = wx / len;
+        normals[v * 3 + 1] = wy / len;
+        normals[v * 3 + 2] = wz / len;
+    }
+    return { positions, normals, indices: mesh.indices };
+}
+
+/** The 3x3 inverse-transpose of a column-major 4x4, column-major. */
+function normalMatrixOf(m: ArrayLike<number>): number[] {
+    const a = [m[0]!, m[1]!, m[2]!, m[4]!, m[5]!, m[6]!, m[8]!, m[9]!, m[10]!];
+    const det = a[0]! * (a[4]! * a[8]! - a[5]! * a[7]!)
+              - a[3]! * (a[1]! * a[8]! - a[2]! * a[7]!)
+              + a[6]! * (a[1]! * a[5]! - a[2]! * a[4]!);
+    if (Math.abs(det) < 1e-12) return [1, 0, 0, 0, 1, 0, 0, 0, 1];
+    const inv = 1 / det;
+    // Cofactors, transposed twice — which is the cofactor matrix itself.
+    return [
+        (a[4]! * a[8]! - a[5]! * a[7]!) * inv, (a[5]! * a[6]! - a[3]! * a[8]!) * inv,
+        (a[3]! * a[7]! - a[4]! * a[6]!) * inv,
+        (a[2]! * a[7]! - a[1]! * a[8]!) * inv, (a[0]! * a[8]! - a[2]! * a[6]!) * inv,
+        (a[1]! * a[6]! - a[0]! * a[7]!) * inv,
+        (a[1]! * a[5]! - a[2]! * a[4]!) * inv, (a[2]! * a[3]! - a[0]! * a[5]!) * inv,
+        (a[0]! * a[4]! - a[1]! * a[3]!) * inv,
+    ];
+}
+
 export interface DecalBakeOptions {
     /** How far from facing the projector a surface may be. @see DEFAULT_FACING_COSINE */
     facing?: number;

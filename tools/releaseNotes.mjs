@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(decal): a projector you can place, and a bake that prints it':
+    { note: 'Decals you can place.' },
+
   'feat(decal): the surface under a projector, cut to its box':
     { note: "A decal's geometry, cut." },
 

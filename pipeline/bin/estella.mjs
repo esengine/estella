@@ -229,7 +229,10 @@ async function bakeScene(baker, sceneFile, check) {
         spacing: volume.data?.spacing ?? 100,
       });
     }
-    if (mesh && mesh.data?.enabled !== false) {
+    // A decal is not a lightmap receiver: what it prints on was baked already,
+    // and baking the overlay too would light the same surface twice.
+    const isDecal = !!bakeComponent(entity, 'DecalProjector');
+    if (mesh && mesh.data?.enabled !== false && !isDecal) {
       const ref = typeof mesh.data?.mesh === 'string' ? mesh.data.mesh : '';
       const builtin = ref.startsWith('builtin:') ? ref : undefined;
       const file = builtin ? '' : resolveRef(ref);

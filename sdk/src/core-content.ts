@@ -173,7 +173,9 @@ export {
  * @experimental Pre-1.0: the cut follows what an authoring panel needs.
  */
 export {
-    bakeDecalMesh, clipToProjector, projectorUV, DEFAULT_FACING_COSINE, CLIP_EPSILON,
+    DecalProjector, type DecalProjectorData,
+    bakeDecalMesh, receiverFromMesh, clipToProjector, projectorUV,
+    DEFAULT_FACING_COSINE, CLIP_EPSILON,
     type DecalReceiver, type DecalBakeOptions, type ClipVertex, type ClipTriangle,
 } from './decal';
 /**

@@ -1,0 +1,12 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "decal-target.esshader",
+  "blendMode": 0,
+  "depthTest": true,
+  "depthWrite": true,
+  "depthBias": -8,
+  "properties": {
+    "u_tint": { "r": 1, "g": 0.32, "b": 0.12, "a": 1 }
+  }
+}

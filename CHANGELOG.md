@@ -97,6 +97,22 @@ published separately; it ships inside the editor.
   Per-instance, not per-object-record, because the record was out of room at the
   time. The entry below is the change that moved it.
 
+- **Decals you can place.** Put a `DecalProjector` on an entity, point its box at
+  something, and Bake Decal cuts what it covers into a mesh on that same entity —
+  drawn with the decal's own material, won on depth by that material's bias. The
+  box IS the entity's transform, so a decal is placed, turned and sized with the
+  gizmo everything else uses.
+
+  The example ships one: a target printed across a floor and up onto the step
+  beside it, at two different heights — which is what says it CONFORMS. A quad
+  hovering in front of a wall cannot do that, and the check reads it off the
+  written mesh rather than off a picture of it.
+
+  Looking at the picture found a bug nothing else would have: the mesh was minted,
+  the ref stored, and nothing drew — the registry had not indexed the file yet, so
+  a freshly baked decal appeared only after the scene was opened again. The ref is
+  stored after the index knows the file now.
+
 - **A decal's geometry, cut.** What a projector produces here is not a sticker
   hovering in front of a wall — it is the wall, cut to the projector's box and
   drawn again with the decal's own material, won on depth by that material's

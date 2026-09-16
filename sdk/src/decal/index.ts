@@ -8,4 +8,5 @@ export {
     clipToProjector, projectorUV, DEFAULT_FACING_COSINE, CLIP_EPSILON,
     type ClipVertex, type ClipTriangle,
 } from './clip';
-export { bakeDecalMesh, type DecalReceiver, type DecalBakeOptions } from './bake';
+export { bakeDecalMesh, receiverFromMesh, type DecalReceiver, type DecalBakeOptions } from './bake';
+export { DecalProjector, type DecalProjectorData } from './components';

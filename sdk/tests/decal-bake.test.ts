@@ -9,10 +9,10 @@
  * screenshot taken from the angle it was authored at. Pure TS.
  */
 import { describe, it, expect } from 'vitest';
-import { bakeDecalMesh, type DecalReceiver } from '../src/decal/bake';
+import { bakeDecalMesh, receiverFromMesh, type DecalReceiver } from '../src/decal/bake';
 import { CLIP_EPSILON } from '../src/decal/clip';
 import { composeTRS } from '../src/math/mat4';
-import { MeshChannel } from '../src/asset/meshFormat';
+import { MeshChannel, MeshChannelType, type MeshData } from '../src/asset/meshFormat';
 
 /** A big flat floor at world y = 0, facing up. */
 function floor(extent = 500): DecalReceiver {
@@ -49,6 +49,63 @@ const uvsOf = (m: { vertices: Uint8Array; vertexCount: number }): number[][] => 
     for (let i = 0; i < m.vertexCount; ++i) out.push([f[i * 8 + 6]!, f[i * 8 + 7]!]);
     return out;
 };
+
+/** One quad as a `.esmesh` would carry it: position + normal, interleaved. */
+function quadMesh(): MeshData {
+    const v = new Float32Array([
+        -1, 0, -1, 0, 1, 0, 1, 0, -1, 0, 1, 0,
+        1, 0, 1, 0, 1, 0, -1, 0, 1, 0, 1, 0,
+    ]);
+    return {
+        channels: [
+            { semantic: MeshChannel.Position, components: 3, type: MeshChannelType.Float32, offset: 0 },
+            { semantic: MeshChannel.Normal, components: 3, type: MeshChannelType.Float32, offset: 12 },
+        ],
+        vertexStride: 24,
+        vertexCount: 4,
+        vertices: new Uint8Array(v.buffer),
+        indices: new Uint32Array([0, 1, 2, 0, 2, 3]),
+        aabbMin: [-1, 0, -1],
+        aabbMax: [1, 0, 1],
+    };
+}
+
+describe('receiverFromMesh', () => {
+    it('places a mesh by its transform', () => {
+        // Ten times bigger, moved 50 along +X.
+        const r = receiverFromMesh(quadMesh(),
+            composeTRS({ x: 50, y: 0, z: 0 }, { x: 0, y: 0, z: 0, w: 1 },
+                       { x: 10, y: 10, z: 10 }))!;
+        expect(r.positions[0]).toBeCloseTo(40, 4);
+        expect(r.positions[2]).toBeCloseTo(-10, 4);
+        expect(r.indices).toHaveLength(6);
+    });
+
+    it('turns a normal by the INVERSE-transpose, not the transform', () => {
+        // Flattened on Y: the position transform would tilt an up-facing normal
+        // towards nothing; the inverse-transpose keeps it up.
+        const r = receiverFromMesh(quadMesh(),
+            composeTRS({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0, w: 1 },
+                       { x: 10, y: 0.1, z: 10 }))!;
+        expect(r.normals[1]).toBeCloseTo(1, 4);
+        expect(Math.abs(r.normals[0]!)).toBeLessThan(1e-4);
+    });
+
+    it('gives geometry with no normals the viewer-facing one', () => {
+        const noNormals = quadMesh();
+        noNormals.channels = [noNormals.channels[0]!];
+        const r = receiverFromMesh(noNormals, composeTRS(
+            { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0, w: 1 }, { x: 1, y: 1, z: 1 }))!;
+        expect(r.normals[2]).toBeCloseTo(1, 5);
+    });
+
+    it('refuses geometry with no positions', () => {
+        const nothing = quadMesh();
+        nothing.channels = [];
+        expect(receiverFromMesh(nothing, composeTRS(
+            { x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 0, w: 1 }, { x: 1, y: 1, z: 1 }))).toBeNull();
+    });
+});
 
 describe('decal bake', () => {
     it('cuts a patch of floor the size of the projector', () => {

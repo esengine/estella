@@ -1037,6 +1037,29 @@
       ]
     },
     {
+      "name": "DecalProjector",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "facing",
+          "type": "number",
+          "default": "0.2",
+          "doc": "How squarely a surface must face the projector to take the decal.",
+          "range": "-1–1, step 0.05"
+        },
+        {
+          "key": "bakedFrom",
+          "type": "string",
+          "default": "empty",
+          "doc": "What the last cut read.",
+          "advanced": true
+        }
+      ],
+      "animatable": [
+        "facing"
+      ]
+    },
+    {
       "name": "Disabled",
       "source": "ts",
       "fields": [],

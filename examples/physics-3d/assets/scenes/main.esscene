@@ -1,6 +1,6 @@
 {
   "version": 4,
-  "name": "Main",
+  "name": "3D Physics",
   "entities": [
     {
       "id": 0,
@@ -1555,6 +1555,61 @@
             },
             "spacing": 250,
             "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 51,
+      "name": "TargetDecal",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 270,
+              "y": 30,
+              "z": 0
+            },
+            "rotation": {
+              "x": -0.7071067811865476,
+              "y": 0,
+              "z": 0,
+              "w": 0.7071067811865476
+            },
+            "scale": {
+              "x": 300,
+              "y": 300,
+              "z": 240
+            }
+          }
+        },
+        {
+          "type": "DecalProjector",
+          "data": {
+            "facing": 0.2,
+            "bakedFrom": "assets/scenes/main_decal_51.esmesh"
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "@uuid:1608694e-bdef-4fba-9769-23872d62f45e",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "layer": 0,
+            "enabled": true,
+            "material": "assets/materials/decal-target.esmaterial"
           }
         }
       ]
