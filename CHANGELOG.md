@@ -97,6 +97,18 @@ published separately; it ships inside the editor.
   Per-instance, not per-object-record, because the record was out of room at the
   time. The entry below is the change that moved it.
 
+- **A surface can say it goes ON another one.** Two coplanar surfaces — a decal
+  on a wall, a marking on a road, a patch on a floor — had no way to settle which
+  one the depth test keeps. Whichever drew first won, which is not a thing an
+  author can say. A material now carries `depthBias`, in units of the depth
+  buffer's own resolution, and both backends apply it to the constant and the
+  slope-scaled term (a constant alone stops separating them at a grazing angle).
+
+  It is the piece a decal cannot be built without, and it has none of a decal's
+  other machinery: no new pass, no depth read, no G-buffer. Two pixel scenes hold
+  it — the same wall and the same patch, differing in that one number, showing
+  the patch in one and the wall in the other.
+
 - **A scatter brush.** Drag across the ground and copies of the selected object
   land across it, turned and sized a little differently each — the first of the
   authoring tools ruling 03 is about, since everything the renderer needed for

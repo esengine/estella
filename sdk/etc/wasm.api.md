@@ -323,7 +323,7 @@ initRendererWebGPU: (canvasSelector: string, width: number, height: number, read
 initRendererWithContext: (contextHandle: number) => boolean
 markDeviceRestored: (() => number) | undefined
 material_compileEsshader: (source: string, featuresCsv: string) => number
-material_define: (materialId: number, shaderHandle: number, blendMode: number, flags: number) => void
+material_define: (materialId: number, shaderHandle: number, blendMode: number, flags: number, depthBias: number) => void
 material_setTexture: (materialId: number, name: string, textureHandle: number) => void
 material_setUniform: (materialId: number, name: string, arity: number, v0: number, v1: number, v2: number, v3: number) => void
 material_undefine: (materialId: number) => void

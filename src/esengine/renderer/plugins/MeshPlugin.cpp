@@ -622,6 +622,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 key.depthTest = m->depthTest;
                 key.depthWrite = m->depthWrite;
                 key.cull = static_cast<u8>(m->cull);
+                key.depthBias = m->depthBias;
             }
         } else if (mesh.lit && ctx.frame) {
             if (litProgram == 0) litProgram = ctx.frame->batchProgram({"LIT"});

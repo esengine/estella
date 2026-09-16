@@ -159,6 +159,7 @@ private:
     void setColorMask(bool r, bool g, bool b, bool a);
     void setCulling(bool enabled);
     void setCullFace(bool front);
+    void setDepthBias(i16 bias);
 
     // Pipeline cache: a handle is (index + 1) into pipelines_; PipelineHandle::Invalid is 0.
     // WebGL2 has no native pipeline object, so a pipeline is applied as a bundle of GL
@@ -205,6 +206,7 @@ private:
     static constexpr u32 kTextureSlots = 16;
     u32 active_texture_unit_ = 0;
     u32 bound_texture_[kTextureSlots] = {};
+    i16 current_depth_bias_ = 0;
     int scissor_test_ = -1;  // tri-state: -1 unknown, 0 disabled, 1 enabled
 
     struct LayoutRecord {

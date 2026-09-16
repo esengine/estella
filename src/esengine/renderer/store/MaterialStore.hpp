@@ -118,6 +118,9 @@ struct MaterialRecord {
     bool depthTest = false;
     bool depthWrite = true;
     CullMode cull = CullMode::None;
+    /// Depth-buffer units toward the eye — what a surface laid ON another one
+    /// says so it wins. @see PipelineDesc::depthBias.
+    i16 depthBias = 0;
 
     /// Packed std140 MaterialConstants payload (sized to the shader's blockSize), the GPU
     /// UBO it uploads to (lazy), and whether the bytes changed since the last upload.

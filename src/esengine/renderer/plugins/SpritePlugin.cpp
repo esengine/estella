@@ -112,6 +112,7 @@ void SpritePlugin::collect(RenderCollectContext& collect_ctx) {
                 key.depthTest = m->depthTest;
                 key.depthWrite = m->depthWrite;
                 key.cull = static_cast<u8>(m->cull);
+                key.depthBias = m->depthBias;
             }
         } else if (sprite.lit && ctx.frame) {
             // A material owns shading fully, so it takes precedence over the toggle.

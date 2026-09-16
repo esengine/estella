@@ -1,0 +1,11 @@
+{
+  "version": "1.0",
+  "type": "material",
+  "shader": "tint.esshader",
+  "blendMode": 0,
+  "depthTest": true,
+  "depthWrite": true,
+  "properties": {
+    "u_tint": { "r": 0, "g": 1, "b": 0, "a": 1 }
+  }
+}

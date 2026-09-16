@@ -84,6 +84,9 @@ export interface MaterialOptions {
     depthTest?: boolean;
     depthWrite?: boolean;
     cull?: CullMode;
+    /** Depth-buffer units toward the eye — the only way to say which of two
+     *  COPLANAR surfaces wins (a decal on a wall). 0 leaves it where it is. */
+    depthBias?: number;
     /** Enabled static switches (#pragma switch) for the record; the shader permutation is
      *  chosen at compile time (see Material.compileShader). Stored for inspection/serialization. */
     switches?: Record<string, boolean>;
@@ -103,6 +106,7 @@ export interface MaterialAssetData {
     depthTest?: boolean;
     depthWrite?: boolean;
     cull?: number;
+    depthBias?: number;
     /**
      * Parent material asset ref — present on a material instance (UE MaterialInstanceConstant).
      * The shader and any non-overridden render state are inherited from the parent; `shader`
@@ -121,13 +125,16 @@ export interface MaterialData {
     depthTest: boolean;
     depthWrite: boolean;
     cull: CullMode;
+    /** Depth-buffer units toward the eye — the only way to say which of two
+     *  COPLANAR surfaces wins (a decal on a wall). 0 leaves it where it is. */
+    depthBias: number;
     /** Enabled static switches (the shader permutation was chosen for these at compile time). */
     switches: Record<string, boolean>;
     /**
      * Instance parenting (UE MaterialInstanceConstant): when set, this material inherits the
      * parent's shader + render state + params, and only its own diffs are stored — `uniforms`
      * holds just the overridden params, and `overrides` names the overridden render-state
-     * fields ('blendMode' | 'depthTest' | 'depthWrite' | 'cull'). Undefined on a base material.
+     * fields. Undefined on a base material.
      */
     parent?: MaterialHandle;
     overrides: Set<string>;
@@ -261,6 +268,7 @@ interface ResolvedMaterial {
     depthTest: boolean;
     depthWrite: boolean;
     cull: CullMode;
+    depthBias: number;
     uniforms: Map<string, UniformValue>;
 }
 
@@ -274,7 +282,8 @@ function resolveMaterial(handle: MaterialHandle): ResolvedMaterial | null {
     if (!parent) {
         return {
             shader: data.shader, blendMode: data.blendMode, depthTest: data.depthTest,
-            depthWrite: data.depthWrite, cull: data.cull, uniforms: new Map(data.uniforms),
+            depthWrite: data.depthWrite, cull: data.cull, depthBias: data.depthBias,
+            uniforms: new Map(data.uniforms),
         };
     }
     const uniforms = parent.uniforms;  // fresh map from the recursive call
@@ -285,6 +294,7 @@ function resolveMaterial(handle: MaterialHandle): ResolvedMaterial | null {
         depthTest: data.overrides.has('depthTest') ? data.depthTest : parent.depthTest,
         depthWrite: data.overrides.has('depthWrite') ? data.depthWrite : parent.depthWrite,
         cull: data.overrides.has('cull') ? data.cull : parent.cull,
+        depthBias: data.overrides.has('depthBias') ? data.depthBias : parent.depthBias,
         uniforms,
     };
 }
@@ -295,7 +305,8 @@ function flushMaterial(handle: MaterialHandle): void {
     const resolved = resolveMaterial(handle);
     if (resolved && module) {
         module.material_define(handle, resolved.shader, resolved.blendMode,
-            materialFlags(resolved.depthTest, resolved.depthWrite, resolved.cull));
+            materialFlags(resolved.depthTest, resolved.depthWrite, resolved.cull),
+            resolved.depthBias);
         for (const [name, value] of resolved.uniforms) pushUniform(handle, name, value);
     }
     const kids = childrenOf.get(handle);
@@ -362,6 +373,7 @@ export const Material = {
             depthTest: options.depthTest ?? false,
             depthWrite: options.depthWrite ?? true,
             cull: options.cull ?? CullMode.None,
+            depthBias: options.depthBias ?? 0,
             switches: options.switches ? { ...options.switches } : {},
             overrides: new Set(),
             dirty_: true,
@@ -493,6 +505,20 @@ export const Material = {
         }
     },
 
+    /**
+     * How far toward the eye this surface is pushed, in depth-buffer units —
+     * what makes a decal win against the wall it is laid on. Negative is toward
+     * the eye; 0 leaves the surface where its geometry puts it.
+     */
+    setDepthBias(material: MaterialHandle, units: number): void {
+        const data = materials.get(material);
+        if (data) {
+            data.depthBias = Math.round(units);
+            if (data.parent !== undefined) data.overrides.add('depthBias');
+            flushMaterial(material);
+        }
+    },
+
     /** Sets the triangle culling mode. */
     setCull(material: MaterialHandle, cull: CullMode): void {
         const data = materials.get(material);
@@ -571,6 +597,7 @@ export const Material = {
             if (data.depthTest !== undefined) this.setDepthTest(handle, data.depthTest);
             if (data.depthWrite !== undefined) this.setDepthWrite(handle, data.depthWrite);
             if (data.cull !== undefined) this.setCull(handle, data.cull as CullMode);
+            if (data.depthBias !== undefined) this.setDepthBias(handle, data.depthBias);
             return handle;
         }
 
@@ -581,6 +608,7 @@ export const Material = {
             depthTest: data.depthTest ?? false,
             depthWrite: data.depthWrite ?? true,
             cull: (data.cull as CullMode) ?? CullMode.None,
+            depthBias: data.depthBias ?? 0,
             switches: data.switches,
         });
     },
@@ -609,6 +637,7 @@ export const Material = {
             depthTest: sourceData.depthTest,
             depthWrite: sourceData.depthWrite,
             cull: sourceData.cull,
+            depthBias: sourceData.depthBias,
             switches: {},  // instance inherits the parent's shader permutation (switch override = follow-up)
             parent: source,
             overrides: new Set(),
@@ -649,6 +678,7 @@ export const Material = {
             if (data.overrides.has('depthTest')) asset.depthTest = data.depthTest;
             if (data.overrides.has('depthWrite')) asset.depthWrite = data.depthWrite;
             if (data.overrides.has('cull')) asset.cull = data.cull;
+            if (data.overrides.has('depthBias')) asset.depthBias = data.depthBias;
             return asset;
         }
 
@@ -660,6 +690,7 @@ export const Material = {
             depthTest: data.depthTest,
             depthWrite: data.depthWrite,
             cull: data.cull,
+            depthBias: data.depthBias,
             properties,
         };
         if (Object.keys(data.switches).length > 0) asset.switches = { ...data.switches };

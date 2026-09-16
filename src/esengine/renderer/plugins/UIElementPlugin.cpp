@@ -250,6 +250,7 @@ void UIElementPlugin::collect(RenderCollectContext& collect_ctx) {
                 key.depthTest = m->depthTest;
                 key.depthWrite = m->depthWrite;
                 key.cull = static_cast<u8>(m->cull);
+                key.depthBias = m->depthBias;
             }
         }
 

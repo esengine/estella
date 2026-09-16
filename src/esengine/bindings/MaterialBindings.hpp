@@ -32,12 +32,13 @@ namespace esengine {
 u32 material_compileEsshader(const std::string& source, const std::string& featuresCsv);
 
 /**
- * Publish a material's resolved render state. @p shaderHandle is the SDK shader
- * resource handle, translated here to the program id the render path binds;
- * @p flags packs depthTest (bit 0), depthWrite (bit 1) and CullMode (bits 2-3).
- * Param values arrive separately, via material_setUniform / material_setTexture.
+ * Publish a material's resolved render state. @p shaderHandle is translated here
+ * to the program id the render path binds; @p flags packs depthTest (bit 0),
+ * depthWrite (bit 1) and CullMode (bits 2-3), while @p depthBias is its own
+ * parameter because it is a value, not a switch.
  */
-void material_define(u32 materialId, u32 shaderHandle, u32 blendMode, u32 flags);
+void material_define(u32 materialId, u32 shaderHandle, u32 blendMode, u32 flags,
+                     i32 depthBias);
 
 /** Pack a named param's float components into the material's std140 block, by
  *  reflected offset. A no-op when the shader declares no matching `#pragma param`. */

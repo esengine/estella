@@ -409,7 +409,7 @@ export interface ESEngineModule {
     // which is what makes them work on a device too; declared here because embind
     // registers them by hand for the web.
     material_compileEsshader(source: string, featuresCsv: string): number;
-    material_define(materialId: number, shaderHandle: number, blendMode: number, flags: number): void;
+    material_define(materialId: number, shaderHandle: number, blendMode: number, flags: number, depthBias: number): void;
     material_setUniform(materialId: number, name: string, arity: number,
                         v0: number, v1: number, v2: number, v3: number): void;
     material_setTexture(materialId: number, name: string, textureHandle: number): void;

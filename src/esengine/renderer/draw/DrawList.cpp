@@ -232,6 +232,7 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
         desc.stencil = stencil;
         desc.cullEnabled = cmd.cull != 0;
         desc.cullFront = cmd.cull == 2;
+        desc.depthBias = cmd.depth_bias;
 
         if (lastHandle == PipelineHandle::Invalid || !(desc == lastDesc)) {
             lastHandle = device.createPipeline(desc);

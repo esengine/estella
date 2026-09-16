@@ -5100,13 +5100,14 @@ static prototype: MaskReach
 
 ## Material — const @experimental
 ```
-{ createShader(vertexSrc: string, fragmentSrc: string): ShaderHandle; releaseShader(shader: ShaderHandle): void; create(options: MaterialOptions): MaterialHandle; compileShader(esshaderSource: string, features?: string[]): ShaderHandle; getSwitch(material: MaterialHandle, name: string): boolean; setSwitch(material: MaterialHandle, name: string, on: boolean): void; get(material: MaterialHandle): MaterialData | undefined; setUniform(material: MaterialHandle, name: string, value: UniformValue): void; getUniform(material: MaterialHandle, name: string): UniformValue | undefined; setBlendMode(material: MaterialHandle, mode: BlendMode): void; getBlendMode(material: MaterialHandle): BlendMode; setDepthTest(material: MaterialHandle, enabled: boolean): void; setDepthWrite(material: MaterialHandle, enabled: boolean): void; setCull(material: MaterialHandle, cull: CullMode): void; getShader(material: MaterialHandle): ShaderHandle; release(material: MaterialHandle): void; isValid(material: MaterialHandle): boolean; renderPreview(material: MaterialHandle, w: number, h: number): Promise<ImageData | null>; releaseAll(): void; createFromAsset(data: MaterialAssetData, shaderHandle: ShaderHandle, parentHandle?: MaterialHandle): MaterialHandle; createInstance(source: MaterialHandle): MaterialHandle; toAssetData(material: MaterialHandle, shaderPath: string, parentPath?: string): MaterialAssetData | null; getUniforms(material: MaterialHandle): Map<string, UniformValue>; tex(textureId: number, slot?: number): TextureRef; }
+{ createShader(vertexSrc: string, fragmentSrc: string): ShaderHandle; releaseShader(shader: ShaderHandle): void; create(options: MaterialOptions): MaterialHandle; compileShader(esshaderSource: string, features?: string[]): ShaderHandle; getSwitch(material: MaterialHandle, name: string): boolean; setSwitch(material: MaterialHandle, name: string, on: boolean): void; get(material: MaterialHandle): MaterialData | undefined; setUniform(material: MaterialHandle, name: string, value: UniformValue): void; getUniform(material: MaterialHandle, name: string): UniformValue | undefined; setBlendMode(material: MaterialHandle, mode: BlendMode): void; getBlendMode(material: MaterialHandle): BlendMode; setDepthTest(material: MaterialHandle, enabled: boolean): void; setDepthWrite(material: MaterialHandle, enabled: boolean): void; setDepthBias(material: MaterialHandle, units: number): void; setCull(material: MaterialHandle, cull: CullMode): void; getShader(material: MaterialHandle): ShaderHandle; release(material: MaterialHandle): void; isValid(material: MaterialHandle): boolean; renderPreview(material: MaterialHandle, w: number, h: number): Promise<ImageData | null>; releaseAll(): void; createFromAsset(data: MaterialAssetData, shaderHandle: ShaderHandle, parentHandle?: MaterialHandle): MaterialHandle; createInstance(source: MaterialHandle): MaterialHandle; toAssetData(material: MaterialHandle, shaderPath: string, parentPath?: string): MaterialAssetData | null; getUniforms(material: MaterialHandle): Map<string, UniformValue>; tex(textureId: number, slot?: number): TextureRef; }
 ```
 
 ## MaterialAssetData — interface @experimental
 ```
 blendMode: number | undefined
 cull: number | undefined
+depthBias: number | undefined
 depthTest: boolean | undefined
 depthWrite: boolean | undefined
 instanceOf: string | undefined
@@ -5123,6 +5124,7 @@ blendMode: BlendMode
 cachedBuffer_: Float32Array<ArrayBufferLike> | null
 cachedIdx_: number
 cull: CullMode
+depthBias: number
 depthTest: boolean
 depthWrite: boolean
 dirty_: boolean
@@ -5160,6 +5162,7 @@ number
 ```
 blendMode: BlendMode | undefined
 cull: CullMode | undefined
+depthBias: number | undefined
 depthTest: boolean | undefined
 depthWrite: boolean | undefined
 shader: number

@@ -1,0 +1,120 @@
+{
+  "version": 4,
+  "name": "Main",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 400
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 200,
+            "nearPlane": 1,
+            "farPlane": 2000,
+            "isActive": true,
+            "priority": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Wall",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 3.0,
+              "y": 3.0,
+              "z": 0.2
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "opaque": true,
+            "lit": false,
+            "cullBackfaces": true,
+            "material": "/scenes/mat-decal/wall.esmaterial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "layer": 0,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Decal",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 1.2,
+              "y": 1.2,
+              "z": 0.2
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "opaque": true,
+            "lit": false,
+            "cullBackfaces": true,
+            "material": "/scenes/mat-decal/decal.esmaterial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "layer": 0,
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}

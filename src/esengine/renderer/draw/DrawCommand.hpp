@@ -107,6 +107,7 @@ struct DrawCommand {
     bool depth_test = false;
     bool depth_write = true;
     u8 cull = 0;  ///< CullMode: 0 = none, 1 = back, 2 = front.
+    i16 depth_bias = 0;  ///< Depth-buffer units toward the eye. @see PipelineDesc.
     BatchBreak break_reason = BatchBreak::RunStart;  ///< Why this draw call started.
 
     u8 texture_count = 0;
@@ -371,6 +372,8 @@ struct DrawCommand {
             if (shader_id != next.shader_id) return BatchBreak::Shader;
             if (material_id != next.material_id) return BatchBreak::Material;
             if (cull != next.cull) return BatchBreak::Cull;
+        if (depth_bias != next.depth_bias) return BatchBreak::Cull;
+            if (depth_bias != next.depth_bias) return BatchBreak::Cull;
             if (state_flags != next.state_flags) return BatchBreak::State;
             if (state_flags & CMD_STATE_SCISSOR) {
                 if (scissor != next.scissor) return BatchBreak::Scissor;

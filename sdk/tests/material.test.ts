@@ -162,7 +162,7 @@ describe('Material API', () => {
                 cull: CullMode.Back,
             });
             expect(mock.material_define).toHaveBeenCalledWith(
-                h, 42, BlendMode.Additive, flags(true, true, CullMode.Back),
+                h, 42, BlendMode.Additive, flags(true, true, CullMode.Back), 0,
             );
         });
 
@@ -299,7 +299,7 @@ describe('Material API', () => {
             mock.material_define.mockClear();
             Material.setBlendMode(h, BlendMode.Additive);
             expect(mock.material_define).toHaveBeenCalledWith(
-                h, 1, BlendMode.Additive, flags(false, true, CullMode.None),
+                h, 1, BlendMode.Additive, flags(false, true, CullMode.None), 0,
             );
         });
 
@@ -315,7 +315,7 @@ describe('Material API', () => {
             Material.setDepthTest(h, true);
             expect(Material.get(h)!.depthTest).toBe(true);
             expect(mock.material_define).toHaveBeenCalledWith(
-                h, 1, BlendMode.Normal, flags(true, true, CullMode.None),
+                h, 1, BlendMode.Normal, flags(true, true, CullMode.None), 0,
             );
         });
 
@@ -325,7 +325,47 @@ describe('Material API', () => {
             Material.setDepthWrite(h, false);
             expect(Material.get(h)!.depthWrite).toBe(false);
             expect(mock.material_define).toHaveBeenCalledWith(
-                h, 1, BlendMode.Normal, flags(false, false, CullMode.None),
+                h, 1, BlendMode.Normal, flags(false, false, CullMode.None), 0,
+            );
+        });
+
+        it('carries a depth bias through to the engine, as its own value', () => {
+            const h = Material.create({ shader: 1 as ShaderHandle });
+            mock.material_define.mockClear();
+            Material.setDepthBias(h, -8);
+            // Its own argument and not a bit in `flags`: a value packed into a
+            // word of switches is how the two sides come to disagree about it.
+            expect(mock.material_define).toHaveBeenCalledWith(
+                h, 1, BlendMode.Normal, flags(false, true, CullMode.None), -8,
+            );
+            expect(Material.get(h)?.depthBias).toBe(-8);
+        });
+
+        it('rounds a bias to whole depth-buffer units', () => {
+            const h = Material.create({ shader: 1 as ShaderHandle, depthBias: -2.6 });
+            expect(Material.get(h)?.depthBias).toBe(-2.6);
+            Material.setDepthBias(h, -2.6);
+            expect(Material.get(h)?.depthBias).toBe(-3);
+        });
+
+        it('lets an instance override its parent bias, and inherit it otherwise', () => {
+            const base = Material.create({ shader: 1 as ShaderHandle, depthBias: -4 });
+            const inherits = Material.createInstance(base);
+            const overrides = Material.createInstance(base);
+            mock.material_define.mockClear();
+            Material.setDepthBias(overrides, -16);
+
+            expect(mock.material_define).toHaveBeenCalledWith(
+                overrides, 1, BlendMode.Normal, flags(false, true, CullMode.None), -16,
+            );
+            mock.material_define.mockClear();
+            Material.setDepthBias(base, -9);
+            // The non-overriding child follows its parent; the overriding one does not.
+            expect(mock.material_define).toHaveBeenCalledWith(
+                inherits, 1, BlendMode.Normal, flags(false, true, CullMode.None), -9,
+            );
+            expect(mock.material_define).toHaveBeenCalledWith(
+                overrides, 1, BlendMode.Normal, flags(false, true, CullMode.None), -16,
             );
         });
 
@@ -335,7 +375,7 @@ describe('Material API', () => {
             Material.setCull(h, CullMode.Front);
             expect(Material.get(h)!.cull).toBe(CullMode.Front);
             expect(mock.material_define).toHaveBeenCalledWith(
-                h, 1, BlendMode.Normal, flags(false, true, CullMode.Front),
+                h, 1, BlendMode.Normal, flags(false, true, CullMode.Front), 0,
             );
         });
     });
@@ -447,7 +487,7 @@ describe('Material API', () => {
             mock.material_define.mockClear();
             const inst = Material.createInstance(src);
             expect(mock.material_define).toHaveBeenCalledWith(
-                inst, 5, BlendMode.Multiply, flags(false, true, CullMode.None),
+                inst, 5, BlendMode.Multiply, flags(false, true, CullMode.None), 0,
             );
         });
 
@@ -572,6 +612,7 @@ describe('Material API', () => {
                 depthTest: true,
                 depthWrite: true,
                 cull: CullMode.None,
+                depthBias: 0,
                 properties: { u_time: 0.5 },
             });
         });

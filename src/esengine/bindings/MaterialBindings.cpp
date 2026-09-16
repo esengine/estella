@@ -16,6 +16,7 @@
 #include "../resource/ResourceManager.hpp"
 #include "../resource/ShaderParser.hpp"
 
+#include <algorithm>
 #include <cstdlib>
 #include <sstream>
 
@@ -107,7 +108,8 @@ u32 material_compileEsshader(const std::string& source, const std::string& featu
     return handle.id();
 }
 
-void material_define(u32 materialId, u32 shaderHandle, u32 blendMode, u32 flags) {
+void material_define(u32 materialId, u32 shaderHandle, u32 blendMode, u32 flags,
+                     i32 depthBias) {
     auto* rc = g_renderContext;
     if (!rc) return;
     // The handle is the identity; the program id is a cache of what it currently
@@ -121,6 +123,9 @@ void material_define(u32 materialId, u32 shaderHandle, u32 blendMode, u32 flags)
     rec.depthTest = (flags & 0x1u) != 0;
     rec.depthWrite = (flags & 0x2u) != 0;
     rec.cull = static_cast<CullMode>((flags >> 2) & 0x3u);
+    // Its own parameter and not another flag bit: this is a VALUE, and packing
+    // one into a word of booleans is how two sides come to disagree about it.
+    rec.depthBias = static_cast<i16>(std::clamp(depthBias, -32768, 32767));
     rc->materials().define(materialId, rec);
 }
 

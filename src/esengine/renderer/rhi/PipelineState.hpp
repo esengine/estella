@@ -51,6 +51,10 @@ struct PipelineDesc {
     GfxStencilMode stencil = GfxStencilMode::Off;
     bool cullEnabled = false;
     bool cullFront = false;
+    /// How far toward the eye this surface is pushed, in units of the depth
+    /// buffer's resolution — the only way to say which of two COPLANAR surfaces
+    /// wins. Drives both the constant and the slope-scaled term.
+    i16 depthBias = 0;
 
     bool operator==(const PipelineDesc&) const = default;
 };

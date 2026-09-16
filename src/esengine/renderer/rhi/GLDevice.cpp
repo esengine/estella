@@ -982,11 +982,30 @@ void GLDevice::setPipeline(PipelineHandle handle) {
     setDepthWrite(desc.depthWrite);
     setCulling(desc.cullEnabled);
     if (desc.cullEnabled) setCullFace(desc.cullFront);
+    setDepthBias(desc.depthBias);
     applyStencilMode(desc.stencil);
 
     current_pipeline_ = handle;
     current_stencil_mode_ = desc.stencil;
     current_layout_ = desc.vertexLayout;
+}
+
+/**
+ * @brief Push this surface toward the eye by @p bias units of depth resolution.
+ *
+ * @details Both terms take it: the constant separates coplanar surfaces head-on,
+ *          the slope-scaled one keeps them separated at a grazing angle, where a
+ *          constant offset spans less depth than one pixel of the surface does.
+ */
+void GLDevice::setDepthBias(i16 bias) {
+    if (bias == current_depth_bias_) return;
+    if (bias == 0) {
+        glDisable(GL_POLYGON_OFFSET_FILL);
+    } else {
+        glEnable(GL_POLYGON_OFFSET_FILL);
+        glPolygonOffset(static_cast<f32>(bias), static_cast<f32>(bias));
+    }
+    current_depth_bias_ = bias;
 }
 
 void GLDevice::setStencilReference(i32 ref) {

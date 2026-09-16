@@ -318,6 +318,11 @@ inline WGPUDepthStencilState toWGPUDepthStencil(const PipelineDesc& desc, WGPUTe
     ds.stencilBack = toWGPUStencilFace(desc.stencil);
     ds.stencilReadMask = 0xFFu;
     ds.stencilWriteMask = toWGPUStencilWriteMask(desc.stencil);
+    // Both terms, for the reason GLDevice::setDepthBias gives: head-on the
+    // constant separates coplanar surfaces, at a grazing angle only the
+    // slope-scaled one does.
+    ds.depthBias = desc.depthBias;
+    ds.depthBiasSlopeScale = static_cast<float>(desc.depthBias);
     return ds;
 }
 
