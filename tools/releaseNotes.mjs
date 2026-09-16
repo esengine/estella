@@ -34,8 +34,36 @@ export const NOTED = {
   'fix(lightmap): the bake\'s ray tracer walked its own tree wrong':
     { note: "The bake's ray tracer walked its own tree wrong." },
 
-  'feat(bake): the editor bakes reflections too, and says where they went':
+  'fix(lightmap): a scene with nothing in it no longer walks one node forever':
+    { note: "The bake's ray tracer walked its own tree wrong." },
+
+  'feat(bake): the editor bakes reflections too, and says which column each probe got':
     { note: 'What a shiny thing reflects indoors is the room, not the sky.' },
+
+  'fix(render): a material shades at the place its surface really is':
+    { note: 'A material-shaded surface shaded itself at z = 0.' },
+
+  'fix(texture): WebGPU stops dividing a texture by its alpha twice':
+    { note: 'A half-transparent texture looks the same on WebGPU as on WebGL2.' },
+
+  'fix(render): a mirror reads its reflection at level 0 on WebGL2 too':
+    { note: 'A mirror has no seam across it on WebGL2.' },
+
+  'fix(native): the host evaluates a script by its size, not by strlen':
+    { note: 'A native build runs a script that holds a NUL character.' },
+
+  'fix(export): a playable exports from the hosts an editor ships':
+    { note: 'The editor packages playable ads again.' },
+
+  'fix(export): the editor prebuilds every host an export asks for':
+    { note: 'The editor packages playable ads again.' },
+
+  'fix(verify): a pixel gate whose scene could not load an asset fails and names it':
+    { internal: 'Only the render gates read it: a scene missing an asset now fails its own check.' },
+
+  'fix(verify): a scene load says which assets it could not load':
+    { internal: 'The automation door the render gates drive; no creator calls it.' },
+
 
   'feat(render): a wall stops the frame from drawing what stands behind it':
     { note: 'A wall can stop a frame from drawing what is behind it.' },
