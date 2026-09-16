@@ -1,0 +1,180 @@
+{
+  "version": 4,
+  "name": "Reflection Fold",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": -60,
+              "z": 400
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 0,
+            "fov": 20,
+            "nearPlane": 10,
+            "farPlane": 9000,
+            "isActive": true,
+            "priority": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Sky",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Light",
+          "data": {
+            "type": 2,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "intensity": 1,
+            "environment": "/scenes/studio.esenv"
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Probe",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ReflectionProbe",
+          "data": {
+            "reflection": "/scenes/reflect-atlas.esenv",
+            "halfExtents": {
+              "x": 300,
+              "y": 300,
+              "z": 300
+            },
+            "slot": 1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Ball",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 3,
+              "y": 3,
+              "z": 3
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:sphere",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "material": "/scenes/mat-env/chrome.esmaterial"
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Marker",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -14,
+              "y": -46,
+              "z": 300
+            },
+            "scale": {
+              "x": 0.06,
+              "y": 0.06,
+              "z": 0.06
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": false,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.8,
+              "g": 0,
+              "b": 0,
+              "a": 1
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -350,6 +350,12 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A mirror has no seam across it on WebGL2.** The prefiltered atlas stacks its
+  own mips, and the WebGL2 shader let the hardware pick one: wherever the
+  octahedral fold makes the derivatives jump, it read the neighbouring column,
+  and a thin grey arc and a vertical line crossed every shiny sphere. It now reads
+  level 0 by name, as the WebGPU shader always did.
+
 - **A half-transparent texture looks the same on WebGPU as on WebGL2.** Without a
   WebGL2 context a texture was read through a 2D canvas, whose pixels already come
   back unpremultiplied, and then divided by alpha a second time. Every

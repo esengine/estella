@@ -309,6 +309,10 @@ export const SCENES = [
   // A baked atlas has mixed channels at low alpha, which is what texture-alpha
   // guards on WebGPU: dividing by alpha twice turns this ball grey.
   { id: "reflection-room", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/reflection-room.esscene", ESTELLA_VERIFY_W: "512", ESTELLA_VERIFY_H: "384", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\": 0.2, \"y\": 0.55, \"rgb\": [255, 62, 54], \"tol\": 45}, {\"x\": 0.42, \"y\": 0.62, \"rgb\": [42, 255, 71], \"tol\": 45}]" } },
+  // A mirror ball filling the frame inside a probe whose column is one red everywhere (the
+  // marker a darker red, so the frame is not flat): every pixel is that red. A tap letting the
+  // hardware pick a mip reads the next column across the octahedral fold — 65310 of 65536.
+  { id: "reflection-fold", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/reflection-fold.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_COUNT: "[{\"rgb\": [243, 0, 0], \"tol\": 45, \"atLeast\": 65536}]" } },
   // The same ball with the probe off: both sides take the flat sky, and the room
   // stops being visible in it.
   { id: "reflection-room-sky", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/reflection-room.esscene", ESTELLA_VERIFY_W: "512", ESTELLA_VERIFY_H: "384", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_SET_FIELD: "{\"entity\": 8, \"component\": \"ReflectionProbe\", \"key\": \"enabled\", \"value\": false, \"steps\": 2}", ESTELLA_VERIFY_EXPECT: "[{\"x\": 0.2, \"y\": 0.55, \"rgb\": [37, 37, 39], \"tol\": 25}, {\"x\": 0.42, \"y\": 0.62, \"rgb\": [37, 37, 39], \"tol\": 25}]" } },

@@ -2155,7 +2155,10 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    highp vec2 hi = vec2(column * col + size + 1.5, yOff + size + 1.5);\n"
             "    highp vec2 px = clamp(vec2(column * col + 1.0 + uv.x * size,\n"
             "                              yOff + 1.0 + uv.y * size), lo, hi);\n"
-            "    highp vec4 t = texture(u_envMap, px / vec2(atlasW, atlasH));\n"
+            // Level 0 by name, like the WGSL twin: the atlas stacks its own mips, and
+            // one the hardware picks mixes neighbouring columns wherever the fold
+            // makes the derivatives jump.
+            "    highp vec4 t = textureLod(u_envMap, px / vec2(atlasW, atlasH), 0.0);\n"
             "    return t.rgb * t.rgb * (t.a * t.a * u_envParams.y);\n"
             "#endif\n"
             "}\n"
