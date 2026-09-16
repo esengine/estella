@@ -948,6 +948,23 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "effectStack": true,
     },
   },
+  "ReflectionProbe": {
+    "enabled": {
+      "tooltip": "Off: what stands inside this box reflects the sky again.",
+    },
+    "halfExtents": {
+      "min": 0,
+      "tooltip": "Half the box this probe answers inside, from the entity's position.",
+    },
+    "reflection": {
+      "tooltip": "The scene's baked reflections (the baker writes this).",
+    },
+    "slot": {
+      "advanced": true,
+      "min": 0,
+      "tooltip": "Which column of the atlas this probe occupies (the baker writes this).",
+    },
+  },
   "ShadowCaster2D": {
     "size": {
       "min": 0,
