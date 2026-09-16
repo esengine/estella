@@ -469,6 +469,15 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "tooltip": "Parallax scroll factor (1 = with world, <1 = slower, 0 = locked to camera).",
     },
   },
+  "Occluder": {
+    "enabled": {
+      "tooltip": "Off: this box hides nothing.",
+    },
+    "halfExtents": {
+      "min": 0,
+      "tooltip": "Half the solid box, in world units, from the entity's position.",
+    },
+  },
   "ParticleEmitter": {
     "angleSpreadMax": {
       "category": "Velocity",
