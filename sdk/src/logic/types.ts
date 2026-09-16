@@ -9,10 +9,11 @@
  * ships are the same bytes (the `.esbt` contract).
  *
  * What a node's PORTS are is deliberately absent from the file. A port list
- * comes from the node's kind (the built-in table) or, for a `call`, from what
- * the name declared to the registry — one author, two readers (the interpreter
- * and the canvas). Written into the file it would be a second author, and an
- * old file would keep drawing a port its verb no longer has.
+ * comes from the node's kind (the built-in table), from what a `call`'s name
+ * declared to the registry, or from what a called GRAPH declares — one author,
+ * two readers (the interpreter and the canvas). Written into the file it would
+ * be a second author, and an old file would keep drawing a port its verb no
+ * longer has.
  */
 
 /** What a wire carries. `exec` is the control wire; the rest are data. */
@@ -55,6 +56,19 @@ export interface ScriptGraphEdge {
     toPort: string;
 }
 
+/**
+ * One port of a callable graph — its side of the signature. The node calling it
+ * reads this, which is why a graph's ports live on the graph and not on the
+ * call: change the signature and every caller is redrawn from it.
+ */
+export interface ScriptGraphPort {
+    name: string;
+    type: Exclude<ScriptValueType, 'exec'>;
+    label?: string;
+    /** What an unwired input carries into the call. */
+    default?: ScriptValue;
+}
+
 /** A graph-local variable: declared by the asset, valued per entity. */
 export interface ScriptGraphVariable {
     name: string;
@@ -65,10 +79,18 @@ export interface ScriptGraphVariable {
 export interface ScriptGraph {
     version: string;
     name?: string;
+    /**
+     * Declaring either side makes this graph CALLABLE: a `graph.call` elsewhere
+     * gets these as its pins. A graph with neither is only ever ticked by the
+     * occasions its entry nodes name.
+     */
+    inputs?: ScriptGraphPort[];
+    outputs?: ScriptGraphPort[];
     variables?: ScriptGraphVariable[];
     nodes: ScriptGraphNode[];
     edges: ScriptGraphEdge[];
 }
+
 
 export const SCRIPT_GRAPH_VERSION = '1.0';
 

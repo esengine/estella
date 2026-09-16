@@ -28,6 +28,12 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(logic): a graph can call another graph, and pay for it out of one budget':
+    { note: 'A graph can call another graph.' },
+
+  'feat(logic): a signature to declare and a graph to call, on the shared canvas':
+    { note: 'A graph can call another graph.' },
+
   'feat(scene): a graph can change the scene, through the door every surface holds':
     { note: 'A graph can change the scene.' },
 

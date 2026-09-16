@@ -10,6 +10,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { AiRegistry } from '../src/ai/fsm/registry';
+import { scriptCatalog, type ScriptVerbCatalog } from '../src/logic/nodes';
 import {
     addScriptNode, moveScriptNode, removeScriptNode, setScriptNodeLiteral,
     canConnectPorts, connectScriptNodes, disconnectScriptInput, removeScriptEdge,
@@ -18,7 +19,7 @@ import {
 import { emptyScriptGraph, type ScriptGraph } from '../src/logic/types';
 import { describeNode } from '../src/logic/nodes';
 
-function catalog(): AiRegistry<unknown> {
+function catalog(): ScriptVerbCatalog {
     const reg = new AiRegistry<unknown>();
     reg.registerAction('demo.say', {
         params: [{ name: 'text', type: 'string' }],
@@ -32,11 +33,11 @@ function catalog(): AiRegistry<unknown> {
         outputs: [{ name: 'on', type: 'bool' }],
         evaluate: (_c, _b, _p, out) => { out.on = true; },
     });
-    return reg;
+    return scriptCatalog(reg);
 }
 
 /** start → say, with a count feeding the text. */
-function scene(): { graph: ScriptGraph; reg: AiRegistry<unknown> } {
+function scene(): { graph: ScriptGraph; reg: ScriptVerbCatalog } {
     const reg = catalog();
     let graph = emptyScriptGraph('demo');
     graph = addScriptNode(graph, 'event.start', 0, 0).graph;

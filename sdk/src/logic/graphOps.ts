@@ -10,7 +10,10 @@
  * the same ones to a file somebody wrote by hand.
  */
 
-import { canConnect, type ScriptGraph, type ScriptGraphEdge, type ScriptGraphVariable, type ScriptValue } from './types';
+import {
+    canConnect,
+    type ScriptGraph, type ScriptGraphEdge, type ScriptGraphPort, type ScriptGraphVariable, type ScriptValue,
+} from './types';
 import { describeNode, type ScriptVerbCatalog } from './nodes';
 
 function clone(graph: ScriptGraph): ScriptGraph {
@@ -147,6 +150,66 @@ export function addScriptVariable(graph: ScriptGraph, variable: ScriptGraphVaria
 export function removeScriptVariable(graph: ScriptGraph, name: string): ScriptGraph {
     const next = clone(graph);
     next.variables = (next.variables ?? []).filter((v) => v.name !== name);
+    return next;
+}
+
+/**
+ * Declare a port on this graph's signature — what a `graph.call` elsewhere will
+ * show. The side is the author's choice, not a guess from the wires: a port with
+ * nothing wired to it yet still has to exist to wire INTO.
+ */
+export function addScriptGraphPort(
+    graph: ScriptGraph, side: 'inputs' | 'outputs', port: ScriptGraphPort,
+): ScriptGraph {
+    const next = clone(graph);
+    next[side] ??= [];
+    if (!next[side]!.some((p) => p.name === port.name)) next[side]!.push(port);
+    return next;
+}
+
+/**
+ * Drop a port. Wires that landed on it go with it — unlike a variable, whose
+ * nodes stay readable, a pin that no longer exists has nowhere to draw an edge.
+ */
+export function removeScriptGraphPort(
+    graph: ScriptGraph, side: 'inputs' | 'outputs', name: string,
+): ScriptGraph {
+    const next = clone(graph);
+    next[side] = (next[side] ?? []).filter((p) => p.name !== name);
+    const kind = side === 'inputs' ? 'graph.input' : 'graph.output';
+    const ends = new Set(next.nodes.filter((n) => n.kind === kind).map((n) => n.id));
+    next.edges = next.edges.filter((e) => !(
+        side === 'inputs' ? ends.has(e.from) && e.fromPort === name : ends.has(e.to) && e.toPort === name
+    ));
+    return next;
+}
+
+/** Rename a port, carrying the wires on it along. */
+export function renameScriptGraphPort(
+    graph: ScriptGraph, side: 'inputs' | 'outputs', from: string, to: string,
+): ScriptGraph {
+    if (!to || from === to) return graph;
+    const next = clone(graph);
+    const port = (next[side] ?? []).find((p) => p.name === from);
+    if (!port || (next[side] ?? []).some((p) => p.name === to)) return graph;
+    port.name = to;
+    const kind = side === 'inputs' ? 'graph.input' : 'graph.output';
+    const ends = new Set(next.nodes.filter((n) => n.kind === kind).map((n) => n.id));
+    for (const e of next.edges) {
+        if (side === 'inputs' && ends.has(e.from) && e.fromPort === from) e.fromPort = to;
+        if (side === 'outputs' && ends.has(e.to) && e.toPort === from) e.toPort = to;
+    }
+    return next;
+}
+
+/** Retype a port, dropping wires the new type cannot carry. */
+export function retypeScriptGraphPort(
+    graph: ScriptGraph, side: 'inputs' | 'outputs', name: string, type: ScriptGraphPort['type'],
+): ScriptGraph {
+    const next = clone(graph);
+    const port = (next[side] ?? []).find((p) => p.name === name);
+    if (!port || port.type === type) return graph;
+    port.type = type;
     return next;
 }
 

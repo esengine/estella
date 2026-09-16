@@ -20,6 +20,7 @@ export {
     type ScriptGraphNode,
     type ScriptGraphEdge,
     type ScriptGraphVariable,
+    type ScriptGraphPort,
     type ScriptPort,
     type ScriptValue,
     type ScriptValueType,
@@ -31,9 +32,15 @@ export {
     BUILTIN_NODE_KINDS,
     spawnPrefabRef,
     scriptGraphPrefabRefs,
+    graphCallRef,
+    scriptGraphCallRefs,
+    isCallableGraph,
+    signatureOf,
+    scriptCatalog,
     THEN,
     type ScriptNodeShape,
     type ScriptVerbCatalog,
+    type ScriptGraphSignature,
 } from './nodes';
 
 export {
@@ -43,7 +50,9 @@ export {
     destroyScriptGraph,
     fireScriptGraphEvent,
     DEFAULT_STEP_BUDGET,
+    MAX_CALL_DEPTH,
     type CompiledScriptGraph,
+    type ScriptFrame,
     type ScriptRunState,
     type ScriptTickContext,
 } from './ScriptGraphRunner';
@@ -86,4 +95,8 @@ export {
     addScriptVariable,
     removeScriptVariable,
     renameScriptVariable,
+    addScriptGraphPort,
+    removeScriptGraphPort,
+    renameScriptGraphPort,
+    retypeScriptGraphPort,
 } from './graphOps';

@@ -19,6 +19,7 @@ import { aiRegistry } from '../src/ai/fsm/AiContext';
 import { ensureBuiltinAiRegistrations } from '../src/ai/builtins';
 import { ensureBuiltinScriptNodes } from '../src/logic/builtinNodes';
 import { compileScriptGraph } from '../src/logic/ScriptGraphRunner';
+import { isCallableGraph, scriptCatalog, signatureOf, type ScriptGraphSignature } from '../src/logic/nodes';
 import type { ScriptGraph } from '../src/logic/types';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -53,18 +54,30 @@ describe('the shipped script graphs', () => {
         expect(files.length).toBeGreaterThan(0);
     });
 
+    // The signatures a caller compiles against, gathered the way the loader
+    // gathers them: off the files, keyed by the project-relative ref a node
+    // spells. Without this a graph that calls another reads as a broken one.
+    const signatures = new Map<string, ScriptGraphSignature>();
+    for (const file of files) {
+        const graph = JSON.parse(readFileSync(file, 'utf8')) as ScriptGraph;
+        const projectDir = file.slice(0, file.indexOf(`${path.sep}assets${path.sep}`));
+        signatures.set(path.relative(projectDir, file).split(path.sep).join('/'), signatureOf(graph));
+    }
+
     for (const file of files) {
         const rel = path.relative(ROOT, file);
         it(`${rel} compiles with nothing missing`, () => {
             const graph = JSON.parse(readFileSync(file, 'utf8')) as ScriptGraph;
-            const compiled = compileScriptGraph(graph, aiRegistry);
+            const compiled = compileScriptGraph(graph, scriptCatalog(aiRegistry, signatures));
             const problems = compiled.problems.filter((p) => !PROJECT_PREFIX.test(p.split('"')[1] ?? ''));
             expect(problems).toEqual([]);
             // A graph nothing can start is a picture. Every one of these ships as
-            // behaviour, so every one owes an entry.
+            // behaviour, so every one owes a way in — an occasion that lights it,
+            // or the node a call arrives at.
             const entries = compiled.starts.length + compiled.updates.length
                 + compiled.destroys.length + compiled.events.size;
-            expect(entries, 'no entry node — nothing would ever run it').toBeGreaterThan(0);
+            const reachable = entries > 0 || isCallableGraph(graph);
+            expect(reachable, 'no entry node and no graph.input — nothing would ever run it').toBe(true);
         });
     }
 });

@@ -9,26 +9,6 @@
       "y": 60
     },
     {
-      "id": "game",
-      "kind": "call",
-      "x": -182,
-      "y": 440,
-      "ref": "entity.byName",
-      "literals": {
-        "name": "Game"
-      }
-    },
-    {
-      "id": "alive",
-      "kind": "call",
-      "x": 34,
-      "y": 250,
-      "ref": "property.get",
-      "literals": {
-        "path": "GameState.alive"
-      }
-    },
-    {
       "id": "score",
       "kind": "call",
       "x": 68,
@@ -142,36 +122,24 @@
       "literals": {
         "name": "Game"
       }
+    },
+    {
+      "id": "askAlive",
+      "kind": "graph.call",
+      "literals": {
+        "graph": "assets/logic/alive.esgraph"
+      },
+      "x": -250,
+      "y": 60
     }
   ],
   "edges": [
-    {
-      "id": "upd.then->gate.",
-      "from": "upd",
-      "fromPort": "then",
-      "to": "gate",
-      "toPort": ""
-    },
-    {
-      "id": "game.entity->alive.entity",
-      "from": "game",
-      "fromPort": "entity",
-      "to": "alive",
-      "toPort": "entity"
-    },
     {
       "id": "game_1.entity->score.entity",
       "from": "game_1",
       "fromPort": "entity",
       "to": "score",
       "toPort": "entity"
-    },
-    {
-      "id": "alive.value->gate.cond",
-      "from": "alive",
-      "fromPort": "value",
-      "to": "gate",
-      "toPort": "cond"
     },
     {
       "id": "gate.true->live.",
@@ -242,6 +210,27 @@
       "fromPort": "entity",
       "to": "zero",
       "toPort": "entity"
+    },
+    {
+      "id": "upd.then->askAlive",
+      "from": "upd",
+      "fromPort": "then",
+      "to": "askAlive",
+      "toPort": ""
+    },
+    {
+      "id": "askAlive.then->gate",
+      "from": "askAlive",
+      "fromPort": "then",
+      "to": "gate",
+      "toPort": ""
+    },
+    {
+      "id": "askAlive.alive->cond",
+      "from": "askAlive",
+      "fromPort": "alive",
+      "to": "gate",
+      "toPort": "cond"
     }
   ]
 }

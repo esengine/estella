@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { Backend } from './Backend';
 import type { AssetLease } from './AssetLease';
+import type { ScriptGraphSignature } from '../logic/nodes';
 import type { PreparedPrefab } from '../prefab/preparedPrefab';
 import type { RegistryEra } from './registryAssets';
 import type { Catalog } from './Catalog';
@@ -88,6 +89,12 @@ export interface BtResult {
 
 export interface ScriptGraphResult {
     graphId: string;
+    /**
+     * What this graph takes and hands back, for one CALLING it: a caller's pins
+     * come from the callee's declaration, and acquiring it is how the caller
+     * gets both the ownership and the shape in one door.
+     */
+    signature?: ScriptGraphSignature;
 }
 
 export interface PrefabResult {

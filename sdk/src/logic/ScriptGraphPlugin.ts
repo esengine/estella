@@ -104,6 +104,7 @@ export function stepScriptGraphs(
             ctx: ctx as AiContext, bb: st.bb, registry: aiRegistry, dt: delta,
             world: world as unknown as World,
             onProblem: message => onProblem?.(entity, message),
+            ...(resolveGraph ? { resolveGraph } : {}),
         };
     };
 
@@ -273,6 +274,7 @@ export class ScriptGraphPlugin implements Plugin {
                 ctx: ctx as AiContext, bb: st.bb, registry: aiRegistry, dt: dt_,
                 world: world as unknown as World,
                 onProblem: message => onProblem(entity, message),
+                resolveGraph,
             };
         });
 

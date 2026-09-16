@@ -1,0 +1,67 @@
+{
+  "version": "1.0",
+  "name": "Alive",
+  "outputs": [
+    {
+      "name": "alive",
+      "type": "bool"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "in",
+      "kind": "graph.input",
+      "x": 0,
+      "y": 0
+    },
+    {
+      "id": "game",
+      "kind": "call",
+      "ref": "entity.byName",
+      "literals": {
+        "name": "Game"
+      },
+      "x": -40,
+      "y": 140
+    },
+    {
+      "id": "read",
+      "kind": "call",
+      "ref": "property.get",
+      "literals": {
+        "path": "GameState.alive"
+      },
+      "x": 190,
+      "y": 140
+    },
+    {
+      "id": "out",
+      "kind": "graph.output",
+      "x": 430,
+      "y": 0
+    }
+  ],
+  "edges": [
+    {
+      "id": "in.then->out",
+      "from": "in",
+      "fromPort": "then",
+      "to": "out",
+      "toPort": ""
+    },
+    {
+      "id": "game.entity->read.entity",
+      "from": "game",
+      "fromPort": "entity",
+      "to": "read",
+      "toPort": "entity"
+    },
+    {
+      "id": "read.value->out.alive",
+      "from": "read",
+      "fromPort": "value",
+      "to": "out",
+      "toPort": "alive"
+    }
+  ]
+}

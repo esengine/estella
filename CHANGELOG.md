@@ -74,6 +74,35 @@ published separately; it ships inside the editor.
   player moves, releases it and they stop, dodges and the score rises, chases a
   block and the run ends, presses Space and it begins again on a clear board.
 
+- **A graph can call another graph.** The last thing a `.esgraph` could not do
+  was reuse itself: a long graph could only be tidied by moving nodes around,
+  and the same four nodes were redrawn everywhere the same question got asked.
+
+  A graph that carries a `graph.input` is one a call can enter, and what it
+  declares as `inputs`/`outputs` IS the signature — so a `graph.call` elsewhere
+  draws exactly those pins, and changing the signature redraws every caller
+  rather than leaving one on a stale shape. It is a built-in node kind rather
+  than a registered name, for the reason `entity.spawn` is: a graph is an asset
+  of the realm that loaded it, and the registry is process-wide.
+
+  What it promises is a call, not a coroutine. The callee runs to completion
+  inside the caller's step; it keeps its OWN frame per call site, so its
+  variables are local to the call and survive between calls the way an entity's
+  graph does; and it spends the CALLER's budget, or calling often would buy the
+  unbounded work that looping cannot. A graph that reaches itself stops at a
+  call depth rather than on the JS stack, and a `flow.delay` inside a called
+  graph is refused at compile: the call returns within the caller's step, so
+  there is no later tick for a timer to expire on.
+
+  The signature travels with the ACQUISITION. A loader takes the graphs its call
+  nodes name — which is what makes them owned by this era and there to run — and
+  reads their declaration off the same door, because the caller's pins are the
+  callee's declaration and the two facts have to arrive together.
+
+  `examples/dodge-graph` now asks one question through one graph: three of its
+  graphs drew the same "is the run still alive" four nodes, and now they call
+  `alive.esgraph` instead.
+
 - **A graph can change the scene.** It is the one thing gameplay needs that no
   component can express — the write would retire the world the component lives
   in — so an authored surface could reach everything about a game except its
@@ -118,6 +147,13 @@ published separately; it ships inside the editor.
   with a hurt clip and a death clip is.
 
 ### Fixed
+
+- **Two nodes under one id are reported instead of one replacing the other.**
+  Every lookup in a compiled graph is by node id, so a file carrying the same id
+  twice quietly kept whichever came last, and any wire drawn to either landed on
+  it. `dodge-graph` carried such a pair — harmlessly, because both nodes did the
+  same thing, which is exactly how a graph where they did not would have gone
+  unnoticed.
 
 - **A sound stops when whatever owned it goes away.** Switching an AudioSource
   off, clearing its clip, or removing the component dropped the handle to the

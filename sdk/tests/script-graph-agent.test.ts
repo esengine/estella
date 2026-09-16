@@ -19,6 +19,7 @@ import {
 } from '../src/logic/ScriptGraphPlugin';
 import { ensureBuiltinScriptNodes } from '../src/logic/builtinNodes';
 import { SCRIPT_GRAPH_VERSION, type ScriptGraph } from '../src/logic/types';
+import { scriptCatalog } from '../src/logic/nodes';
 import { compileScriptGraph } from '../src/logic/ScriptGraphRunner';
 
 interface HealthData { value: number }
@@ -212,7 +213,7 @@ describe('what the system reaches for comes from the graphs, not the system', ()
                 { id: 'b', kind: 'flow.branch' },
             ],
             [],
-        ), aiRegistry);
+        ), scriptCatalog(aiRegistry));
         expect([...scriptGraphLeaves(compiled)]).toEqual([{ kind: 'action', name: 'test.hit' }]);
     });
 });

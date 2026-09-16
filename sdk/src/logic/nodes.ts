@@ -14,7 +14,7 @@
  */
 
 import type { AiOutputDef, AiParamDef } from '../ai/fsm/registry';
-import type { ScriptGraph, ScriptGraphNode, ScriptPort, ScriptValueType } from './types';
+import type { ScriptGraph, ScriptGraphNode, ScriptGraphPort, ScriptPort, ScriptValueType } from './types';
 
 /**
  * The registry, narrowed to what a shape needs. An `AiRegistry` satisfies it
@@ -27,6 +27,55 @@ export interface ScriptVerbCatalog {
     getActionParams(name: string): readonly AiParamDef[];
     getActionOutputs(name: string): readonly AiOutputDef[];
     isActionPure(name: string): boolean;
+    /**
+     * The signature a callable graph declares, or null where this build has no
+     * such graph. A called graph's pins come from the GRAPH, so changing its
+     * signature redraws every caller rather than leaving them on a stale one.
+     */
+    graphSignature(ref: string): ScriptGraphSignature | null;
+}
+
+/** What a callable graph takes and hands back. */
+export interface ScriptGraphSignature {
+    inputs: readonly ScriptGraphPort[];
+    outputs: readonly ScriptGraphPort[];
+}
+
+/**
+ * Whether a call can ENTER this graph: it carries the node a call arrives at.
+ * Declaring ports alone does not — a signature with nothing behind it is a
+ * graph a caller would fall straight through.
+ */
+export function isCallableGraph(graph: ScriptGraph): boolean {
+    return graph.nodes.some((n) => n.kind === 'graph.input');
+}
+
+/**
+ * A catalog over a verb registry plus whatever graph signatures the caller
+ * knows. Two sources because they have two owners: a verb is a process-wide
+ * registration, a graph is an asset of the realm that loaded it.
+ */
+export function scriptCatalog(
+    verbs: Omit<ScriptVerbCatalog, 'graphSignature'>,
+    signatures?: ReadonlyMap<string, ScriptGraphSignature>,
+): ScriptVerbCatalog {
+    return {
+        hasAction: (name) => verbs.hasAction(name),
+        getActionParams: (name) => verbs.getActionParams(name),
+        getActionOutputs: (name) => verbs.getActionOutputs(name),
+        isActionPure: (name) => verbs.isActionPure(name),
+        graphSignature: (ref) => signatures?.get(ref) ?? null,
+    };
+}
+
+/** A graph's own signature, as a catalog answers it. */
+export function signatureOf(graph: ScriptGraph): ScriptGraphSignature {
+    return { inputs: graph.inputs ?? [], outputs: graph.outputs ?? [] };
+}
+
+/** A declared graph port as a node pin. */
+function portOfSignature(p: ScriptGraphPort): ScriptPort {
+    return { name: p.name, type: p.type, label: p.label };
 }
 
 /** A node's pins, plus the two facts the interpreter needs to place it. */
@@ -148,6 +197,34 @@ export function describeNode(
                 pure: false,
             };
 
+        case 'graph.input':
+            // Where a call ARRIVES. Not an entry: no occasion lights it, the
+            // caller does — which is why it has no `entry` and still no exec in.
+            return {
+                execIn: false, execOut: [THEN], inputs: NO_PORTS,
+                outputs: (graph.inputs ?? []).map(portOfSignature), pure: false,
+            };
+        case 'graph.output':
+            // Where a call RETURNS. Control stops here: what follows is the
+            // caller's next node, not this graph's.
+            return {
+                execIn: true, execOut: [],
+                inputs: (graph.outputs ?? []).map(portOfSignature), outputs: NO_PORTS, pure: false,
+            };
+        case 'graph.call': {
+            // A built-in rather than a registered verb, for the reason
+            // `entity.spawn` is one: a graph is an ASSET of the realm that
+            // loaded it, and the registry is process-wide.
+            const signature = catalog.graphSignature(graphCallRef(node));
+            if (!signature) return null;
+            return {
+                execIn: true, execOut: [THEN],
+                inputs: signature.inputs.map(portOfSignature),
+                outputs: signature.outputs.map(portOfSignature),
+                pure: false,
+            };
+        }
+
         case 'var.get':
             return {
                 execIn: false, execOut: [], inputs: NO_PORTS,
@@ -185,11 +262,15 @@ export function describeNode(
     return null;
 }
 
-/** Every built-in kind, for the editor palette. `call` is not one — it is a name. */
+/**
+ * Every built-in kind, for the editor palette. `call` is not one — it is a
+ * name; nor is `graph.call`, which is a GRAPH, listed the way the verbs are.
+ */
 export const BUILTIN_NODE_KINDS: readonly string[] = [
     'event.start', 'event.update', 'event.destroy', 'event.on',
     'flow.branch', 'flow.sequence', 'flow.while', 'flow.delay',
     'entity.spawn',
+    'graph.input', 'graph.output',
     'var.get', 'var.set',
     'lit.number', 'lit.bool', 'lit.string',
 ];
@@ -203,9 +284,25 @@ export function spawnPrefabRef(node: ScriptGraphNode): string {
 
 /** Every prefab a graph may spawn, deduplicated, in document order. */
 export function scriptGraphPrefabRefs(graph: ScriptGraph): string[] {
+    return refsOf(graph, spawnPrefabRef);
+}
+
+/** The graph a `graph.call` node calls, or '' — the same single-reader rule
+ *  {@link spawnPrefabRef} keeps, so the loader and the compile step cannot
+ *  disagree about which graphs this one needs. */
+export function graphCallRef(node: ScriptGraphNode): string {
+    return node.kind === 'graph.call' ? String(node.literals?.graph ?? '') : '';
+}
+
+/** Every graph this one may call, deduplicated, in document order. */
+export function scriptGraphCallRefs(graph: ScriptGraph): string[] {
+    return refsOf(graph, graphCallRef);
+}
+
+function refsOf(graph: ScriptGraph, of: (node: ScriptGraphNode) => string): string[] {
     const out: string[] = [];
     for (const node of graph.nodes) {
-        const ref = spawnPrefabRef(node);
+        const ref = of(node);
         if (ref && !out.includes(ref)) out.push(ref);
     }
     return out;

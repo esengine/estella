@@ -16,7 +16,7 @@ import {
     fireScriptGraphEvent, type ScriptTickContext,
 } from '../src/logic/ScriptGraphRunner';
 import { SCRIPT_GRAPH_VERSION, type ScriptGraph, type ScriptGraphEdge, type ScriptGraphNode } from '../src/logic/types';
-import { scriptGraphPrefabRefs } from '../src/logic/nodes';
+import { scriptCatalog, scriptGraphPrefabRefs } from '../src/logic/nodes';
 
 interface TestCtx { log: string[]; }
 
@@ -72,7 +72,7 @@ interface Run {
 }
 
 function run(graph: ScriptGraph, reg: AiRegistry<TestCtx>, budget?: number): Run {
-    const compiled = compileScriptGraph(graph, reg);
+    const compiled = compileScriptGraph(graph, scriptCatalog(reg));
     const state = createScriptRunState(compiled);
     const ctx: TestCtx = { log: [] };
     const problems: string[] = [...compiled.problems];
@@ -432,3 +432,21 @@ function runOnce(g: ScriptGraph, reg: AiRegistry<TestCtx>): string[] {
     r.tick();
     return r.log;
 }
+
+describe('a graph whose file contradicts itself', () => {
+    it('reports two nodes under one id instead of letting one replace the other', () => {
+        const { reg } = registry();
+        const g = graphOf([
+            node('start', 'event.start'),
+            node('twin', 'call', { ref: 'test.say', literals: { text: 'first' } }),
+            node('twin', 'call', { ref: 'test.say', literals: { text: 'second' } }),
+        ], [edge('start', 'then', 'twin', '')]);
+
+        const r = run(g, reg);
+        r.tick();
+
+        // Every lookup here is by id, so the second would quietly become the
+        // node every wire drawn to either one lands on.
+        expect(r.problems.join('\n')).toMatch(/a second node carries this id/);
+    });
+});

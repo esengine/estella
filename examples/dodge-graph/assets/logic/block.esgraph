@@ -318,40 +318,19 @@
       "y": 1010
     },
     {
-      "id": "alive",
-      "kind": "call",
-      "ref": "property.get",
-      "literals": {
-        "path": "GameState.alive"
-      },
-      "x": 34,
-      "y": 1150
-    },
-    {
       "id": "live",
       "kind": "flow.branch",
       "x": 250,
       "y": 960
     },
     {
-      "id": "game_1",
-      "kind": "call",
-      "ref": "entity.byName",
+      "id": "askAlive",
+      "kind": "graph.call",
       "literals": {
-        "name": "Game"
+        "graph": "assets/logic/alive.esgraph"
       },
-      "x": 1034,
-      "y": 1720
-    },
-    {
-      "id": "game_1_1",
-      "kind": "call",
-      "ref": "entity.byName",
-      "literals": {
-        "name": "Game"
-      },
-      "x": -182,
-      "y": 1340
+      "x": -250,
+      "y": 60
     }
   ],
   "edges": [
@@ -587,27 +566,6 @@
       "toPort": "entity"
     },
     {
-      "id": "upd.then->live.",
-      "from": "upd",
-      "fromPort": "then",
-      "to": "live",
-      "toPort": ""
-    },
-    {
-      "id": "game_1_1.entity->alive.entity",
-      "from": "game_1_1",
-      "fromPort": "entity",
-      "to": "alive",
-      "toPort": "entity"
-    },
-    {
-      "id": "alive.value->live.cond",
-      "from": "alive",
-      "fromPort": "value",
-      "to": "live",
-      "toPort": "cond"
-    },
-    {
       "id": "live.true->setY.",
       "from": "live",
       "fromPort": "true",
@@ -620,6 +578,27 @@
       "fromPort": "false",
       "to": "die",
       "toPort": ""
+    },
+    {
+      "id": "upd.then->askAlive",
+      "from": "upd",
+      "fromPort": "then",
+      "to": "askAlive",
+      "toPort": ""
+    },
+    {
+      "id": "askAlive.then->gate",
+      "from": "askAlive",
+      "fromPort": "then",
+      "to": "live",
+      "toPort": ""
+    },
+    {
+      "id": "askAlive.alive->cond",
+      "from": "askAlive",
+      "fromPort": "alive",
+      "to": "live",
+      "toPort": "cond"
     }
   ]
 }
