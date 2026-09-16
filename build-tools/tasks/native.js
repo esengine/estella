@@ -130,7 +130,8 @@ async function generateSdkBundle(rootDir, genDir) {
     const embedded = '\n' + js;
     // A BYTE ARRAY, not a string literal: MSVC caps a literal at 65535 bytes and
     // counts the concatenated result too, so for an ~800 KB bundle neither one
-    // literal nor many works. NUL-terminated, so the host still reads a char*.
+    // literal nor many works. NUL-terminated for QuickJS, which wants that byte
+    // past the end — but measured by its size: JS may hold a NUL of its own.
     const bytes = Buffer.from(embedded, 'utf8');
     const rows = [];
     for (let at = 0; at < bytes.length; at += 32) {
@@ -146,7 +147,8 @@ async function generateSdkBundle(rootDir, genDir) {
         + rows.join('\n')
         + '\n  0\n};\n'
         + 'static const char* const kSdkBundleJS =\n'
-        + '    reinterpret_cast<const char*>(kSdkBundleBytes);\n';
+        + '    reinterpret_cast<const char*>(kSdkBundleBytes);\n'
+        + 'static const size_t kSdkBundleSize = sizeof(kSdkBundleBytes) - 1;\n';
     const headerPath = path.join(genDir, 'esengine_bundle.h');
     writeFileSync(headerPath, header, 'utf8');
     writeFileSync(path.join(genDir, 'esengine_bundle.embedded.js'), embedded, 'utf8');

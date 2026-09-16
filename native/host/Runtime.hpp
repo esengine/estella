@@ -142,7 +142,7 @@ void logJsError(JSContext* ctx, const char* where);
 void jsEntry(HostState& h);
 
 /** Evaluate a global script; exceptions are logged, not propagated. */
-void evalJs(HostState& h, const char* src, const char* name);
+void evalJs(HostState& h, const std::string& src, const char* name);
 
 /** Call a global function by name; missing is a no-op, exceptions are logged. */
 void callJs(HostState& h, const char* fn, int argc, JSValue* argv);

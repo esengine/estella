@@ -179,6 +179,10 @@ try {
             failed += 1;
         } else if (!verdict.rendered) {
             console.error(`✗ ${label}: ran and drew nothing — ${JSON.stringify(verdict)}`);
+            // The host already said why, and a runner's log is the only place anyone
+            // reads it: a SyntaxError in the SDK bundle looked like a blank screen.
+            const said = result.output.split('\n').filter((l) => /\bERROR\b/.test(l));
+            if (said.length > 0) console.error(said.slice(0, 12).join('\n'));
             failed += 1;
         } else {
             const points = desktopPixelsFor(label);

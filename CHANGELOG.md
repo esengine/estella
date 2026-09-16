@@ -350,6 +350,13 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A native build runs a script that holds a NUL character.** The desktop and
+  mobile hosts measured the embedded SDK and the project's scripts with
+  `strlen`, so the first NUL byte ended them. The script-graph runner carried
+  three, and every packaged desktop game stopped at a SyntaxError in the SDK and
+  drew nothing. Both are now evaluated by their size, and the runner writes its
+  separator as an escape.
+
 - **A mirror has no seam across it on WebGL2.** The prefiltered atlas stacks its
   own mips, and the WebGL2 shader let the hardware pick one: wherever the
   octahedral fold makes the derivatives jump, it read the neighbouring column,

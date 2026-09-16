@@ -347,9 +347,9 @@ void jsEntry(HostState& h) {
     JS_UpdateStackTop(h.rt);
 }
 
-void evalJs(HostState& h, const char* src, const char* name) {
+void evalJs(HostState& h, const std::string& src, const char* name) {
     jsEntry(h);
-    JSValue r = JS_Eval(h.js, src, strlen(src), name, JS_EVAL_TYPE_GLOBAL);
+    JSValue r = JS_Eval(h.js, src.c_str(), src.size(), name, JS_EVAL_TYPE_GLOBAL);
     if (JS_IsException(r)) logJsError(h.js, name);
     JS_FreeValue(h.js, r);
 }
@@ -437,7 +437,7 @@ void initRuntime(HostState& h) {
     // Layer 1: the real SDK bundle, embedded — installs `ESEngine`.
     const double tCtx = nowMs();
     std::string bcPath = h.cacheDir.empty() ? std::string() : (h.cacheDir + "/esengine.native.bc");
-    JSValue br = evalCachedScript(h, kSdkBundleJS, strlen(kSdkBundleJS), "esengine.native.js",
+    JSValue br = evalCachedScript(h, kSdkBundleJS, kSdkBundleSize, "esengine.native.js",
                                   bcPath, "esengine.native.qjsbc");
     if (JS_IsException(br)) logJsError(h.js, "SDK bundle");
     JS_FreeValue(h.js, br);
@@ -465,7 +465,7 @@ bool runPackagedGame(HostState& h) {
     }
     std::vector<u8> scripts = readAsset(h, "scripts.js");
     if (!scripts.empty()) {
-        evalJs(h, std::string(reinterpret_cast<const char*>(scripts.data()), scripts.size()).c_str(),
+        evalJs(h, std::string(reinterpret_cast<const char*>(scripts.data()), scripts.size()),
                "scripts.js");
     }
     const double tScripts = nowMs();
