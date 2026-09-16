@@ -28,6 +28,12 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(scene): a graph can change the scene, through the door every surface holds':
+    { note: 'A graph can change the scene.' },
+
+  'feat(scene): the scene verbs describe themselves in the palettes':
+    { note: 'A graph can change the scene.' },
+
   'feat(audio): a sound anything authored can start':
     { note: 'A sound anything authored can start.' },
 

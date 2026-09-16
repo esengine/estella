@@ -2495,6 +2495,7 @@ insertResource: <T>(resource: ResourceDef<T>, value: T) => CommandsInstance
 queueInsert: (entity: Entity, component: AnyComponentDef, data: unknown) => void
 queueRemove: (entity: Entity, component: AnyComponentDef) => void
 queueSetParent: (entity: Entity, parent: Entity) => void
+resource: <T>(def: ResourceDef<T>) => T | null
 spawn: (name?: string) => EntityCommands
 static new (world: World, resources: ResourceStorage): CommandsInstance
 static prototype: CommandsInstance

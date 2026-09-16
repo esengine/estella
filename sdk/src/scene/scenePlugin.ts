@@ -16,6 +16,7 @@ import { playModeOnly } from '../ecs/env';
 import type { SystemDef } from '../ecs/system';
 import type { World } from '../ecs/world';
 import { log } from '../util/logger';
+import { ensureSceneAiRegistrations } from './ai-builtins';
 
 const sceneTransitionSystem = defineSystem(
     [ResMut(SceneManager), Res(Time)],
@@ -49,6 +50,7 @@ export const sceneManagerPlugin: Plugin = {
     name: 'sceneManager',
     profileDomain: 'scene',
     build(app: App): void {
+        ensureSceneAiRegistrations();
         const state = new SceneManagerState(app);
         app.insertResource(SceneManager, state);
         app.insertResource(SceneStreaming, new SceneStreamingController(state));

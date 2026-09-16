@@ -228,6 +228,16 @@ export class CommandsInstance {
         return this;
     }
 
+    /**
+     * A world-level service, for the work no component write can express.
+     * Null where nothing installed it — an app assembled without that plugin
+     * is a fact to report, not a crash. Here rather than on each context
+     * because this is the one door every authored surface already holds.
+     */
+    resource<T>(def: ResourceDef<T>): T | null {
+        return this.resources_.has(def) ? this.resources_.get(def) : null;
+    }
+
     insertResource<T>(resource: ResourceDef<T>, value: T): this {
         this.pending_.push({
             type: 'insert_resource',

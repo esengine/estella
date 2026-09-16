@@ -74,6 +74,25 @@ published separately; it ships inside the editor.
   player moves, releases it and they stop, dodges and the score rises, chases a
   block and the run ends, presses Space and it begins again on a clear board.
 
+- **A graph can change the scene.** It is the one thing gameplay needs that no
+  component can express — the write would retire the world the component lives
+  in — so an authored surface could reach everything about a game except its
+  shape: a menu that starts the level, a death that restarts it. `scene.load`
+  and `scene.reload` close that, with the fade as a declared parameter.
+  `reload` is its own verb rather than loading the active scene by name: asked
+  for the scene already running, a switch does nothing, which is the right
+  answer for a gate and the wrong one for every retry there is.
+
+  What they reach through is the door every authored surface already holds.
+  `Commands` carries the world's services as well as its structural edits, so
+  `commands.resource(SceneManager)` is how an FSM hook, a behaviour-tree leaf,
+  a graph node AND a `defineBehavior` reach one — the last of those could not
+  reach a service at all before, which is why "switch scene" was a `defineSystem`
+  holding `Res(SceneManager)` and nothing else. A service nobody installed
+  answers `null` rather than materialising its default, so a verb in an app
+  assembled without that plugin says so instead of acting on a value no plugin
+  put there.
+
 - **A sound anything authored can start.** An `AudioSource` could only ever be
   played by `playOnAwake`. Once the entity existed, nothing an author can reach
   — a state machine's hook, a behaviour tree's leaf, an event wire, a graph
