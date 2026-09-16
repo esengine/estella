@@ -128,10 +128,9 @@ async function generateSdkBundle(rootDir, genDir) {
     // out as a file too, because the bytecode step must compile these exact bytes
     // for the host to accept the result (see precompileBundleBytecode).
     const embedded = '\n' + js;
-    // A BYTE ARRAY, not a string literal: MSVC caps a literal at 65535 bytes and
-    // counts the concatenated result too, so for an ~800 KB bundle neither one
-    // literal nor many works. NUL-terminated for QuickJS, which wants that byte
-    // past the end — but measured by its size: JS may hold a NUL of its own.
+    // A BYTE ARRAY: MSVC caps a string literal (and a concatenation) at 65535 bytes.
+    // NUL-terminated because QuickJS wants that byte past the end, but measured by
+    // its size, since JS may hold a NUL of its own.
     const bytes = Buffer.from(embedded, 'utf8');
     const rows = [];
     for (let at = 0; at < bytes.length; at += 32) {
