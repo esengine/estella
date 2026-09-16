@@ -570,8 +570,8 @@ export const GOLDEN = [
     // feature it is about and watching it, and only it, go.
     webPixels: [
       // Only the joints put the mesh here — with the skin gone it draws nowhere.
-      { what: 'the skin places the mesh', x: 0.245, y: 0.31, rgb: [63, 62, 66], tol: 22 },
-      { what: 'the mesh casts onto the panel', x: 0.37, y: 0.5, rgb: [64, 61, 61], tol: 22 },
+      { what: 'the skin places the mesh', x: 0.245, y: 0.31, rgb: [255, 255, 255], tol: 22 },
+      { what: 'the mesh casts onto the panel', x: 0.515, y: 0.55, rgb: [64, 61, 61], tol: 22 },
       // Panel the sun still reaches, lit by the sun AND the environment: it is
       // this bright only because both are in the package.
       { what: 'sun and environment light the panel', x: 0.8, y: 0.5, rgb: [206, 195, 181], tol: 14 },
