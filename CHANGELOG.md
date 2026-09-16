@@ -121,7 +121,12 @@ published separately; it ships inside the editor.
   stood. Every bake in the corpus carried it: shadows that leaked, bounces that
   never arrived, probes gathering light through walls. The tree now stores the
   left child and reads the right beside it, and agrees with brute force on every
-  ray; the shipped bakes are rebaked.
+  ray; the shipped bakes are rebaked. Two more ways the same walk went wrong are
+  closed with it: a scene with no surfaces at all (probes only) is one empty leaf,
+  which the walk read as an inner node and circled forever, and a tree deeper than
+  the walk's fixed 64-entry stack silently dropped its deepest nodes. Inner nodes
+  are now marked apart from leaves, the stack is sized to the tree, and a walk that
+  revisits a node throws instead of hanging.
 
 - **A material-shaded surface shaded itself at z = 0.** The Model shader passed
   `vec3(v_worldPos, 0)` as the place it stands — which a directional light cannot

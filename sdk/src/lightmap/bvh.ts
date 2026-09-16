@@ -17,19 +17,24 @@ export interface TriangleSoup {
 }
 
 const LEAF_TRIS = 4;
-const STACK = 64;
+/** The count an inner node carries: a leaf's is never negative, an empty one included. */
+const INNER = -1;
 
 export class Bvh {
     /** Six floats per node: min xyz, max xyz. */
     private readonly bounds: Float32Array;
     /** Two ints per node: a leaf's first triangle or an inner node's LEFT child
-     *  (the right is the one after it), then the triangle count — zero for an
-     *  inner node. */
+     *  (the right is the one after it), then the triangle count — {@link INNER}
+     *  for an inner node. */
     private readonly node: Int32Array;
     /** Triangle indices, reordered so a leaf's are contiguous. */
     private readonly order: Int32Array;
     private readonly tris: TriangleSoup;
     private used = 0;
+    private depth = 0;
+    /** Sized to the tree: a walk leaves one waiting sibling per level, and a
+     *  fixed stack drops the deepest ones without a word. */
+    private readonly stack: Int32Array;
 
     constructor(tris: TriangleSoup) {
         this.tris = tris;
@@ -39,7 +44,8 @@ export class Bvh {
         this.bounds = new Float32Array(maxNodes * 6);
         this.node = new Int32Array(maxNodes * 2);
         this.used = 1;
-        this.build(0, 0, tris.count);
+        this.build(0, 0, tris.count, 0);
+        this.stack = new Int32Array(this.depth + 2);
     }
 
     private centroid(tri: number, axis: number): number {
@@ -65,7 +71,8 @@ export class Bvh {
 
     /** Split on the widest axis at the centroid midpoint — cheap, and a bake
      *  builds this once per scene while it traverses it for hours. */
-    private build(node: number, from: number, to: number): void {
+    private build(node: number, from: number, to: number, depth: number): void {
+        if (depth > this.depth) this.depth = depth;
         this.bound(node, from, to);
         const n = to - from;
         if (n <= LEAF_TRIS) {
@@ -97,9 +104,9 @@ export class Bvh {
         const left = this.used++;
         const right = this.used++;
         this.node[node * 2] = left;
-        this.node[node * 2 + 1] = 0;
-        this.build(left, from, split);
-        this.build(right, split, to);
+        this.node[node * 2 + 1] = INNER;
+        this.build(left, from, split, depth + 1);
+        this.build(right, split, to, depth + 1);
     }
 
     /**
@@ -126,8 +133,6 @@ export class Bvh {
     hitU = 0;
     hitV = 0;
 
-    private readonly stack = new Int32Array(STACK);
-
     private trace(ox: number, oy: number, oz: number, dx: number, dy: number, dz: number,
                   far: number, epsilon: number, anyHit: boolean): number {
         const invX = 1 / dx, invY = 1 / dy, invZ = 1 / dz;
@@ -135,7 +140,11 @@ export class Bvh {
         let bestT = far;
         let sp = 0;
         this.stack[sp++] = 0;
+        // A tree is walked once per node at most; past that the walk is going in
+        // circles, and a bake that hangs says less than one that throws.
+        let visits = 0;
         while (sp > 0) {
+            if (++visits > this.used) throw new Error('Bvh: the walk revisited a node — the tree is malformed');
             const node = this.stack[--sp];
             const b = node * 6;
             const tx1 = (this.bounds[b] - ox) * invX, tx2 = (this.bounds[b + 3] - ox) * invX;
@@ -147,7 +156,7 @@ export class Bvh {
             if (tmax < Math.max(tmin, epsilon) || tmin > bestT) continue;
 
             const count = this.node[node * 2 + 1];
-            if (count === 0) {
+            if (count === INNER) {
                 const left = this.node[node * 2];
                 this.stack[sp++] = left;
                 this.stack[sp++] = left + 1;

@@ -92,6 +92,38 @@ describe('the bake\'s ray tree', () => {
             .toBe(`${asked}/${asked} agree`);
     });
 
+    it('answers nothing for a scene with nothing in it', () => {
+        // The empty scene is one leaf with no triangles, and a walk that reads a
+        // count of zero as "inner node" goes round that one node forever.
+        const bvh = new Bvh({ positions: new Float32Array(0), count: 0 });
+        expect(bvh.hit(0, 0, 0, 0, 1, 0, 1e7, 0)).toBe(-1);
+        expect(bvh.occluded(0, 0, 0, 0, 1, 0, 1e7, 0)).toBe(false);
+    });
+
+    it('finds what testing every triangle finds in a tree deeper than any fixed stack', () => {
+        // Triangles at -2^i along X: the midpoint split peels one off per level,
+        // and the rest — the side a walk pops first — goes one level deeper, so the
+        // stack holds a waiting sibling per level for all ninety of them.
+        const count = 90;
+        const positions = new Float32Array(count * 9);
+        for (let i = 0; i < count; i++) {
+            const s = 2 ** i;
+            positions.set([-s, 0, -s / 4, -1.25 * s, 0, -s / 4, -s, 0, s / 4], i * 9);
+        }
+        const tris: TriangleSoup = { positions, count };
+        const bvh = new Bvh(tris);
+        const missed: number[] = [];
+        for (let i = 0; i < count; i++) {
+            const s = 2 ** i;
+            const o = [-1.05 * s, s, 0];
+            const d = [0, -1, 0];
+            const want = brute(tris, o, d, 3e38);
+            if (want !== i) throw new Error(`the ray at triangle ${i} does not hit it alone (brute force: ${want})`);
+            if (bvh.hit(o[0]!, o[1]!, o[2]!, d[0]!, d[1]!, d[2]!, 3e38, 0) !== want) missed.push(i);
+        }
+        expect(missed).toEqual([]);
+    });
+
     it('blocks a segment exactly where a triangle is in it', () => {
         const tris = soup(200, 3);
         const bvh = new Bvh(tris);
