@@ -16,6 +16,7 @@ export type { AssetFieldMeta, SkeletalFieldMeta };
 import type {
     TransformData, SpriteData, ShapeRendererData, LightData, ShadowCaster2DData, DraggableData,
     SortingGroupData, SpriteMaskData, LightProbeVolumeData, OccluderData,
+    ReflectionProbeData,
     CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData, DragonBonesAnimationData,
     TilemapLayerData, BitmapTextData, TrailRendererData, ParticleForceFieldData,
     CameraData as CameraDataCpp, ParticleEmitterData as ParticleEmitterDataCpp,
@@ -806,6 +807,7 @@ export type ScaleMode = (typeof ScaleMode)[keyof typeof ScaleMode];
 export type {
     TransformData, SpriteData, ShapeRendererData, LightData, ShadowCaster2DData, DraggableData,
     SortingGroupData, SpriteMaskData, LightProbeVolumeData, OccluderData,
+    ReflectionProbeData,
     CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData, DragonBonesAnimationData,
     TilemapLayerData, BitmapTextData, TrailRendererData, ParticleForceFieldData,
 };
@@ -926,6 +928,18 @@ export const ShadowCaster2D = defineBuiltin<ShadowCaster2DData>('ShadowCaster2D'
 // box a creator would otherwise place blind.
 export const LightProbeVolume = defineBuiltin<LightProbeVolumeData>('LightProbeVolume',
     metaDefaults<LightProbeVolumeData>('LightProbeVolume')
+);
+
+/**
+ * A box inside which reflections come from a bake rather than from the sky: the
+ * specular half of what LightProbeVolume answers. The atlas is the SCENE's and
+ * `slot` says which column of it is here, so a room full of shiny things is still
+ * one draw — a texture per probe would be a bind per draw.
+ *
+ * @experimental
+ */
+export const ReflectionProbe = defineBuiltin<ReflectionProbeData>('ReflectionProbe',
+    metaDefaults<ReflectionProbeData>('ReflectionProbe')
 );
 
 /**

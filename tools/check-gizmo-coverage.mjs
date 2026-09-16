@@ -79,6 +79,7 @@ const DISPOSITION = {
   'Light.cookieSize': 'extent',
   'LightProbeVolume.halfExtents': 'extent',
   'Occluder.halfExtents': 'extent',
+  'ReflectionProbe.halfExtents': 'extent',
   'MeleeAttack.radius': 'extent',
   'AudioSource.minDistance': 'extent',
   'AudioSource.maxDistance': 'extent',

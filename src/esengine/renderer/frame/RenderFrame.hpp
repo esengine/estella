@@ -596,6 +596,9 @@ private:
      */
     void collectOccluders(ecs::Registry& registry);
 
+    /** @brief Gathers the scene's reflection probes and binds the atlas they name. */
+    void collectReflections(ecs::Registry& registry);
+
     /// Makes this ambient light the frame's environment, when it names one that is
     /// loaded. `scale` is the light's colour times its intensity, folded into the
     /// coefficients — an environment is what the light casts, not a second source.

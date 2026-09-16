@@ -3,9 +3,10 @@
   "type": "material",
   "shader": "builtin:model",
   "blendMode": 0,
-  "depthTest": false,
+  "depthTest": true,
+  "depthWrite": true,
   "properties": {
     "u_metallic": 1,
-    "u_roughness": 1
+    "u_roughness": 0.08
   }
 }

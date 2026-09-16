@@ -1025,9 +1025,11 @@ struct LightConstants {
     u_envIrradiance : array<vec4f, 9>,
     u_envParams : vec4f,
     u_envTint : vec4f,
+    u_reflParams : vec4f,
+    u_reflBox : array<vec4f, 30>,
 };
 @group(0) @binding(2) var<uniform> lc : LightConstants;
-struct ProbeConstants { u_probeIrradiance : array<vec4f, 900> };
+struct ProbeConstants { u_probeIrradiance : array<vec4f, 1000> };
 @group(0) @binding(7) var<uniform> pc : ProbeConstants;
 // Which run of that block this fragment's instance reads. WGSL has no module
 // varying, so the entry point hands it over — the GLSL twin reads the varying
@@ -1279,13 +1281,20 @@ fn envIrradiance(Nw : vec3f) -> vec3f {
 // surface has one indirect term and a volume already holds every light and bounce
 // that reached the point.
 fn indirectIrradiance(N : vec3f) -> vec3f {
-    let base = i32(g_probeSlot) * 9;
+    let base = clamp(i32(g_probeSlot), 0, 99) * 10;
     if (pc.u_probeIrradiance[base].w > 0.5) {
         var sh : array<vec4f, 9>;
         for (var i = 0; i < 9; i = i + 1) { sh[i] = pc.u_probeIrradiance[base + i]; }
         return max(shIrradiance(sh, N), vec3f(0.0));
     }
     return envIrradiance(N);
+}
+// Which column of the atlas this instance reflects, from the run its own index
+// names. Zero — an instance inside no probe, or a draw that carries no run at all
+// — is the environment, which is what every surface reflected before probes.
+fn reflectionColumn() -> f32 {
+    let base = clamp(i32(g_probeSlot), 0, 99) * 10;
+    return pc.u_probeIrradiance[base + 9].x;
 }
 fn octEncode(d : vec3f) -> vec2f {
     var p = d.xz / max(abs(d.x) + abs(d.y) + abs(d.z), 1e-6);
@@ -1295,28 +1304,59 @@ fn octEncode(d : vec3f) -> vec2f {
     }
     return p * 0.5 + 0.5;
 }
-fn envSampleMip(R : vec3f, mip : f32) -> vec3f {
+fn envSampleColumn(R : vec3f, mip : f32, column : f32) -> vec3f {
 #ifndef ES_ENV_MAP
     return vec3f(0.0);
 #else
     let face = lc.u_envParams.w;
     let size = face * exp2(-mip);
     let yOff = 2.0 * face * (1.0 - exp2(-mip)) + 2.0 * mip;
-    let atlasW = face + 2.0;
+    let col = face + 2.0;
+    let atlasW = col * lc.u_reflParams.x;
     let atlasH = 2.0 * face * (1.0 - exp2(-(lc.u_envParams.z + 1.0)))
                + 2.0 * (lc.u_envParams.z + 1.0);
-    let uv = octEncode(envDirection(R));
-    let px = vec2f(1.0 + uv.x * size, yOff + 1.0 + uv.y * size);
+    // The sky turns with the environment; a baked column does not — it was solved
+    // in world space, and turning it would spin a room about its own middle.
+    let uv = octEncode(select(R, envDirection(R), column < 0.5));
+    // Kept inside this column's own face, border ring included: a tap that leaves
+    // it reads whatever the sampler's wrap mode says, and the two backends do not
+    // answer that alike — one repeats to the far edge, the other clamps.
+    let lo2 = vec2f(column * col + 0.5, yOff + 0.5);
+    let hi2 = vec2f(column * col + size + 1.5, yOff + size + 1.5);
+    let px = clamp(vec2f(column * col + 1.0 + uv.x * size, yOff + 1.0 + uv.y * size), lo2, hi2);
     let t = textureSampleLevel(t3, s3, px / vec2f(atlasW, atlasH), 0.0);
     return t.rgb * t.rgb * (t.a * t.a * lc.u_envParams.y);
 #endif
 }
-fn envRadiance(R : vec3f, roughness : f32) -> vec3f {
+fn envSampleMip(R : vec3f, mip : f32) -> vec3f { return envSampleColumn(R, mip, 0.0); }
+// Where the reflected ray LEAVES this column's box, aimed from there rather than
+// from infinitely far: what makes a reflection slide across a wall as the eye moves
+// instead of being painted onto it.
+fn reflectionDirection(R : vec3f, P : vec3f, column : f32) -> vec3f {
+    if (column < 0.5) { return R; }
+    let i = i32(column) * 2 - 2;
+    let lo = lc.u_reflBox[i].xyz;
+    let hi = lc.u_reflBox[i + 1].xyz;
+    // Never zero, so a ray parallel to a face divides to an infinity the min
+    // discards rather than to the NaN that would blacken the pixel.
+    let d = max(abs(R), vec3f(1e-6)) * (step(vec3f(0.0), R) * 2.0 - vec3f(1.0));
+    let t = min(min(max((hi.x - P.x) / d.x, (lo.x - P.x) / d.x),
+                    max((hi.y - P.y) / d.y, (lo.y - P.y) / d.y)),
+                    max((hi.z - P.z) / d.z, (lo.z - P.z) / d.z));
+    if (!(t > 0.0)) { return R; }
+    return (P + R * t) - (lo + hi) * 0.5;
+}
+fn envRadiance(R : vec3f, roughness : f32, column : f32, P : vec3f) -> vec3f {
     if (lc.u_envParams.x < 0.5) { return lc.u_ambient.rgb; }
+    let dir = reflectionDirection(R, P, column);
     let lod = clamp(roughness, 0.0, 1.0) * lc.u_envParams.z;
     let lo = floor(lod);
-    let a = envSampleMip(R, lo);
-    let b = envSampleMip(R, min(lo + 1.0, lc.u_envParams.z));
+    let a = envSampleColumn(dir, lo, column);
+    let b = envSampleColumn(dir, min(lo + 1.0, lc.u_envParams.z), column);
+    // A baked column is the WHOLE radiance that reached its probe — the sky, the
+    // ambient and every bounce. Adding the flat term or the sky's tint on top
+    // would count the light the capture already saw a second time.
+    if (column >= 0.5) { return mix(a, b, lod - lo); }
     return lc.u_ambient.rgb + mix(a, b, lod - lo) * lc.u_envTint.rgb;
 }
 // Which definition of "where is the light" this surface is shaded with. One with a
@@ -1420,7 +1460,7 @@ fn applyLightingPBR(albedo : vec3f, N : vec3f, worldPos : vec3f, V : vec3f, meta
         }
     }
     let ab = envBRDFApprox(NdotV, roughness);
-    gloss += envRadiance(reflect(-V, N), roughness) * (ao * specular)
+    gloss += envRadiance(reflect(-V, N), roughness, reflectionColumn(), worldPos) * (ao * specular)
            * (F0 * ab.x + vec3f(ab.y));
     return albedo * (1.0 - metallic) * lit + gloss;
 }
@@ -1781,12 +1821,14 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    highp vec4 u_envIrradiance[9];\n"  // SH9, rgb in xyz; zero = no environment
             "    highp vec4 u_envParams;\n"       // x = has map, y = range, z = maxLod, w = face
             "    highp vec4 u_envTint;\n"         // the ambient light's colour, scaling both halves
+            "    highp vec4 u_reflParams;\n"      // x = columns in the bound atlas (1 = sky only)
+            "    highp vec4 u_reflBox[30];\n"     // [2i] = column i+1's world min, [2i+1] its max
             "};\n"
             // One run of nine per INSTANCE, not one for the draw: a merged draw
             // holds objects standing in many places. The flag in w tells "no
             // volume" from "a probe in the dark".
             "layout(std140) uniform ProbeConstants {\n"
-            "    highp vec4 u_probeIrradiance[9 * 100];\n"
+            "    highp vec4 u_probeIrradiance[10 * 100];\n"
             "};\n"
             "flat in highp float v_probeSlot;\n"
             // The shadow map rides the draw's third texture slot, behind the feature the
@@ -2065,8 +2107,13 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // The indirect term every lit surface starts from. A volume REPLACES the
             // environment rather than adding to it — a surface has one indirect term
             // — and its nine are world-space, so neither rotation nor tint applies.
+            "highp int probeRun() { return clamp(int(v_probeSlot), 0, 99) * 10; }\n"
+            // Which column of the atlas this instance reflects. Zero — inside no probe,
+            // or a draw carrying no run at all — is the environment, which is what every
+            // surface reflected before there were probes.
+            "highp float reflectionColumn() { return u_probeIrradiance[probeRun() + 9].x; }\n"
             "highp vec3 indirectIrradiance(in highp vec3 N) {\n"
-            "    highp int base = clamp(int(v_probeSlot), 0, 99) * 9;\n"
+            "    highp int base = probeRun();\n"
             "    if (u_probeIrradiance[base].w > 0.5) {\n"
             "        highp vec4 sh[9];\n"
             "        for (int i = 0; i < 9; i++) sh[i] = u_probeIrradiance[base + i];\n"
@@ -2086,30 +2133,66 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // One mip of the prefiltered atlas. The mips stack downward, each face ringed
             // by a border texel, so the offset is a closed form rather than a table:
             // sum(face >> j, j < mip) = 2*face*(1 - 2^-mip), plus two rows per mip.
-            "highp vec3 envSampleMip(in highp vec3 R, in highp float mip) {\n"
+            "highp vec3 envSampleColumn(in highp vec3 R, in highp float mip,\n"
+            "                           in highp float column) {\n"
             "#ifndef ES_ENV_MAP\n"
             "    return vec3(0.0);\n"
             "#else\n"
             "    highp float face = u_envParams.w;\n"
             "    highp float size = face * exp2(-mip);\n"
             "    highp float yOff = 2.0 * face * (1.0 - exp2(-mip)) + 2.0 * mip;\n"
-            "    highp float atlasW = face + 2.0;\n"
+            "    highp float col = face + 2.0;\n"
+            "    highp float atlasW = col * u_reflParams.x;\n"
             "    highp float atlasH = 2.0 * face * (1.0 - exp2(-(u_envParams.z + 1.0)))\n"
             "                       + 2.0 * (u_envParams.z + 1.0);\n"
-            "    highp vec2 uv = octEncode(envDirection(R));\n"
-            "    highp vec2 px = vec2(1.0 + uv.x * size, yOff + 1.0 + uv.y * size);\n"
+            // The sky turns with the environment; a baked column does not — it was
+            // solved in world space, and turning it would spin a room about its middle.
+            "    highp vec2 uv = octEncode(column < 0.5 ? envDirection(R) : R);\n"
+            // Kept inside this column's own face, border ring included: a tap that
+            // leaves it reads whatever the sampler's wrap mode says, and the two
+            // backends do not answer that alike.
+            "    highp vec2 lo = vec2(column * col + 0.5, yOff + 0.5);\n"
+            "    highp vec2 hi = vec2(column * col + size + 1.5, yOff + size + 1.5);\n"
+            "    highp vec2 px = clamp(vec2(column * col + 1.0 + uv.x * size,\n"
+            "                              yOff + 1.0 + uv.y * size), lo, hi);\n"
             "    highp vec4 t = texture(u_envMap, px / vec2(atlasW, atlasH));\n"
             "    return t.rgb * t.rgb * (t.a * t.a * u_envParams.y);\n"
             "#endif\n"
             "}\n"
+            "highp vec3 envSampleMip(in highp vec3 R, in highp float mip) {\n"
+            "    return envSampleColumn(R, mip, 0.0);\n"
+            "}\n"
+            // Where the reflected ray LEAVES this column's box, aimed from there rather
+            // than from infinitely far: what makes a reflection slide across a wall as
+            // the eye moves instead of being painted onto it.
+            "highp vec3 reflectionDirection(in highp vec3 R, in highp vec3 P,\n"
+            "                               in highp float column) {\n"
+            "    if (column < 0.5) return R;\n"
+            "    highp int i = int(column) * 2 - 2;\n"
+            "    highp vec3 lo = u_reflBox[i].xyz;\n"
+            "    highp vec3 hi = u_reflBox[i + 1].xyz;\n"
+            // Never zero, so a ray parallel to a face divides to an infinity the min
+            // discards rather than to the NaN that would blacken the pixel.
+            "    highp vec3 d = max(abs(R), vec3(1e-6)) * (step(vec3(0.0), R) * 2.0 - 1.0);\n"
+            "    highp vec3 far = max((hi - P) / d, (lo - P) / d);\n"
+            "    highp float t = min(min(far.x, far.y), far.z);\n"
+            "    if (!(t > 0.0)) return R;\n"
+            "    return (P + R * t) - (lo + hi) * 0.5;\n"
+            "}\n"
             // The environment's specular half, at the roughness asked for. Without a map
             // this is the flat ambient term, the same way the diffuse half is.
-            "highp vec3 envRadiance(in highp vec3 R, in highp float roughness) {\n"
+            "highp vec3 envRadiance(in highp vec3 R, in highp float roughness,\n"
+            "                       in highp float column, in highp vec3 P) {\n"
             "    if (u_envParams.x < 0.5) return u_ambient.rgb;\n"
+            "    highp vec3 dir = reflectionDirection(R, P, column);\n"
             "    highp float lod = clamp(roughness, 0.0, 1.0) * u_envParams.z;\n"
             "    highp float lo = floor(lod);\n"
-            "    highp vec3 a = envSampleMip(R, lo);\n"
-            "    highp vec3 b = envSampleMip(R, min(lo + 1.0, u_envParams.z));\n"
+            "    highp vec3 a = envSampleColumn(dir, lo, column);\n"
+            "    highp vec3 b = envSampleColumn(dir, min(lo + 1.0, u_envParams.z), column);\n"
+            // A baked column is the WHOLE radiance that reached its probe — the sky,
+            // the ambient and every bounce. Adding the flat term or the sky's tint on
+            // top would count the light the capture already saw a second time.
+            "    if (column >= 0.5) return mix(a, b, lod - lo);\n"
             "    return u_ambient.rgb + mix(a, b, lod - lo) * u_envTint.rgb;\n"
             "}\n"
             // Where a positional light is, from here, and how far. Real geometry measures
@@ -2242,7 +2325,8 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // radiance from every direction. A metal has no diffuse, so without a
             // reflection of it a metal is black wherever no light happens to point.
             "    highp vec2 ab = envBRDFApprox(NdotV, roughness);\n"
-            "    gloss += envRadiance(reflect(-V, N), roughness) * (ao * specular)\n"
+            "    gloss += envRadiance(reflect(-V, N), roughness, reflectionColumn(), worldPos)\n"
+            "           * (ao * specular)\n"
             "           * (F0 * ab.x + ab.y);\n"
             "    return albedo * (1.0 - metallic) * lit + gloss;\n"
             "}\n"

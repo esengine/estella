@@ -297,6 +297,21 @@ export const SCENES = [
   // The same sky in a MIRROR: two metal quads, roughness 0 and 1. A head-on
   // surface reflects +Z, which is the image centre — green there, and the whole
   // sphere averaged at the rough end. One flat term would draw them alike.
+
+  // TWO mirrors under one sky, one inside a ReflectionProbe: the baked column is
+  // red and the sky green, so the picture says which answer each surface took.
+  // One atlas serves both — a reflection is a number per instance, not a bind.
+  { id: "reflection-probe", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/reflection-probe.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_COUNTERS: "{\"render.reflection.probes\": 1}", ESTELLA_VERIFY_EXPECT: "[{\"x\": 0.25, \"y\": 0.5, \"rgb\": [255, 0, 0], \"tol\": 30}, {\"x\": 0.75, \"y\": 0.5, \"rgb\": [0, 228, 0], \"tol\": 30}, {\"x\": 0.5, \"y\": 0.5, \"rgb\": [0, 0, 0], \"tol\": 20}]" } },
+  // The same scene with the probe switched off: both mirrors take the sky again,
+  // which is the claim that a probe REPLACES an answer rather than adding one.
+  { id: "reflection-probe-off", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/reflection-probe.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_SET_FIELD: "{\"entity\": 2, \"component\": \"ReflectionProbe\", \"key\": \"enabled\", \"value\": false, \"steps\": 2}", ESTELLA_VERIFY_EXPECT: "[{\"x\": 0.25, \"y\": 0.5, \"rgb\": [0, 228, 0], \"tol\": 30}, {\"x\": 0.75, \"y\": 0.5, \"rgb\": [0, 228, 0], \"tol\": 30}]" } },
+  // A BAKED room and a mirror ball in it: red on its left, green on its right.
+  // webgl2 only, and NAMED: the second backend reads this atlas to a different
+  // texel for the same direction, column and params — the room goes pale there.
+  { id: "reflection-room", tier: "pr", webgpu: false, env: { ESTELLA_VERIFY_SCENE: "/scenes/reflection-room.esscene", ESTELLA_VERIFY_W: "512", ESTELLA_VERIFY_H: "384", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\": 0.2, \"y\": 0.55, \"rgb\": [255, 62, 54], \"tol\": 45}, {\"x\": 0.42, \"y\": 0.62, \"rgb\": [42, 255, 71], \"tol\": 45}]" } },
+  // The same ball with the probe off: both sides take the flat sky, and the room
+  // stops being visible in it.
+  { id: "reflection-room-sky", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/reflection-room.esscene", ESTELLA_VERIFY_W: "512", ESTELLA_VERIFY_H: "384", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_SET_FIELD: "{\"entity\": 8, \"component\": \"ReflectionProbe\", \"key\": \"enabled\", \"value\": false, \"steps\": 2}", ESTELLA_VERIFY_EXPECT: "[{\"x\": 0.2, \"y\": 0.55, \"rgb\": [37, 37, 39], \"tol\": 25}, {\"x\": 0.42, \"y\": 0.62, \"rgb\": [37, 37, 39], \"tol\": 25}]" } },
   { id: "mat-env-mirror", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-env-mirror.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.25,\"y\":0.5,\"rgb\":[0,228,0],\"tol\":20},{\"x\":0.75,\"y\":0.5,\"rgb\":[29,23,24],\"tol\":20},{\"x\":0.5,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20}]" } },
   // Sky and DIELECTRIC apart: they read the atlas and the irradiance coefficients
   // through different code, and one turning without the other is the defect. The

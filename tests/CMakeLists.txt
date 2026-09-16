@@ -255,6 +255,16 @@ target_include_directories(test_probe_store PRIVATE
 )
 add_test(NAME test_probe_store COMMAND test_probe_store)
 
+# Which baked column a point reflects. Header-only, so it runs without a device —
+# the pixel gate says a surface came out the wrong colour, this says whether the
+# lookup took the wrong box or let two bakes into one frame.
+add_executable(test_reflection_store renderer/test_reflection_store.cpp)
+target_include_directories(test_reflection_store PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party/glm
+)
+add_test(NAME test_reflection_store COMMAND test_reflection_store)
+
 add_executable(test_shadow_atlas renderer/test_shadow_atlas.cpp)
 target_include_directories(test_shadow_atlas PRIVATE
     ${CMAKE_SOURCE_DIR}/src

@@ -111,6 +111,14 @@ inline constexpr u32 SHADOW_CUBE_FACES = 6;
 inline constexpr u32 MAX_SHADOW_TILES = 16;
 
 /**
+ * @brief Columns of the reflection atlas one frame can address — column 0 the
+ *        environment's, so fifteen probes and a sky.
+ * @details Here rather than with the store that fills them: what bounds it is the
+ *          array in the block below, a box per column.
+ */
+inline constexpr u32 MAX_REFLECTION_PROBES = 15;
+
+/**
  * @brief One 2D light, std140-packed (six vec4s, 96 bytes, 16-aligned).
  * @details Every lane is spoken for; each field says which. An Ambient light occupies no
  *          slot at all — it folds into LightConstants::ambient.
@@ -174,12 +182,21 @@ struct LightConstants {
     /// of the environment. Kept out of the coefficients so the reflection — sampled
     /// from a texture the light does not own — is tinted by the same number.
     glm::vec4 envTint{0.0f};
+    /// x = how many COLUMNS the bound atlas holds, the environment's included, so
+    /// one texture serves the sky and every baked room; y/z/w unused. One is the
+    /// environment alone, which is what a scene with no bake has always been.
+    glm::vec4 reflParams{1.0f, 0.0f, 0.0f, 0.0f};
+    /// The world box column i answers inside: [2i] = min, [2i+1] = max. Column 0
+    /// is the environment and has none — a sky is not somewhere. The shader
+    /// PROJECTS onto a box, which is what slides a reflection across a wall.
+    glm::vec4 reflBox[2 * MAX_REFLECTION_PROBES]{};
 };
 
 static_assert(sizeof(GpuLight) == 96, "GpuLight must be std140-tight (six vec4s)");
 static_assert(sizeof(LightConstants) == 16 + 96 * MAX_LIGHTS + 16
                                         + 64 * MAX_SHADOW_TILES + 16 * MAX_SHADOW_TILES
-                                        + 16 + 16 * 9 + 16 + 16,
+                                        + 16 + 16 * 9 + 16 + 16
+                                        + 16 + 32 * MAX_REFLECTION_PROBES,
               "LightConstants must match the std140 GLSL block layout");
 
 }  // namespace esengine

@@ -24,6 +24,7 @@
 #include "../rhi/GfxEnums.hpp"
 #include "../store/LightStore.hpp"
 #include "../store/ProbeStore.hpp"
+#include "../store/ReflectionStore.hpp"
 #include "../rhi/PerDrawBlocks.hpp"
 #include "../store/MaterialStore.hpp"
 #include "../rhi/Shader.hpp"
@@ -200,6 +201,11 @@ public:
     ProbeStore& probes() { return probes_; }
     const ProbeStore& probes() const { return probes_; }
 
+    /** @brief The frame's reflection probes — the same question about the half of
+     *         the environment a surface MIRRORS rather than scatters. */
+    ReflectionStore& reflections() { return reflections_; }
+    const ReflectionStore& reflections() const { return reflections_; }
+
 private:
     void initDefaultTextures();
     TextureHandle make1x1Texture(u32 rgba);
@@ -242,6 +248,7 @@ private:
     MaterialStore materials_;
     LightStore lights_;
     ProbeStore probes_;
+    ReflectionStore reflections_;
 
     GfxDevice& device_;
     bool initialized_ = false;

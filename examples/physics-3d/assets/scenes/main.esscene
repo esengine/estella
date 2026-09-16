@@ -1037,8 +1037,8 @@
             "scaleOffset": {
               "x": 0.033203125,
               "y": 0.033203125,
-              "z": 0.7431640625,
-              "w": 0.2900390625
+              "z": 0.810546875,
+              "w": 0.322265625
             }
           }
         }
@@ -1522,7 +1522,7 @@
             "bounces": 2,
             "samples": 64,
             "probeSamples": 128,
-            "bakedFrom": "d5774992810126ae"
+            "bakedFrom": "5a02a75515a28e41"
           }
         }
       ]
@@ -1610,6 +1610,90 @@
             "layer": 0,
             "enabled": true,
             "material": "assets/materials/decal-target.esmaterial"
+          }
+        }
+      ]
+    },
+    {
+      "id": 60,
+      "name": "Chrome",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -360,
+              "y": 70,
+              "z": -150
+            },
+            "scale": {
+              "x": 0.9,
+              "y": 0.9,
+              "z": 0.9
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:sphere",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "material": "assets/materials/chrome.esmaterial"
+          }
+        },
+        {
+          "type": "MeshLightmap",
+          "data": {
+            "lightmap": "@uuid:b55cdc1e-9d77-4868-aa6e-e24c4156a10f",
+            "scaleOffset": {
+              "x": 0.0673828125,
+              "y": 0.0673828125,
+              "z": 0.7431640625,
+              "w": 0.2900390625
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 61,
+      "name": "RoomProbe",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -360,
+              "y": 100,
+              "z": -150
+            }
+          }
+        },
+        {
+          "type": "ReflectionProbe",
+          "data": {
+            "reflection": "@uuid:5d7cf6c2-c34e-46f0-849b-3be348db3ff6",
+            "halfExtents": {
+              "x": 320,
+              "y": 220,
+              "z": 320
+            },
+            "slot": 1,
+            "enabled": true
           }
         }
       ]

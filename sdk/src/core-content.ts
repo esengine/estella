@@ -152,6 +152,7 @@ export {
 export {
     bakeLightmap, type BakeOptions, type BakeResult, type BakeSurface, type BakeLight,
     type ProbeGrid, bakeHoldsStill, type BakeMobility, BAKE_DEFAULTS,
+    captureReflection, flatSky, type CapturedPanorama, type SkyRadiance,
 } from './lightmap';
 /**
  * What a scene declares about its baked light: the knobs, and the fingerprint of

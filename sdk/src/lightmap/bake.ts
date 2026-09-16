@@ -14,6 +14,8 @@ import { Bvh, type TriangleSoup } from './bvh';
 import { layoutAtlas, rasterizeLumels, type BakeSurface, type SurfacePatch } from './atlas';
 import { solveDirect, solveBounce, type BakeLight, type HitLookup } from './solve';
 import { solveProbes, type ProbeGrid } from './probes';
+import { captureReflection, flatSky, type CapturedPanorama, type SkyRadiance }
+    from './reflection';
 
 export interface BakeOptions {
     /** Side of the square atlas, in texels. */
@@ -40,6 +42,16 @@ export interface BakeOptions {
     /** Directions each probe gathers. Over the whole sphere, so this buys less
      *  per ray than a lumel's hemisphere does. */
     probeSamples?: number;
+    /** Where reflections are captured from — a panorama each, solved in the same
+     *  light field the probes are. The specular half of the same question. */
+    reflectionProbes?: readonly (readonly [number, number, number])[];
+    /** Width of a captured panorama; its height is half. Small on purpose: what
+     *  a rough surface reflects is a blur, and the prefilter below widens the
+     *  lobe anyway. */
+    reflectionWidth?: number;
+    /** What a captured ray brings back when it escapes the scene. The environment
+     *  where the caller could sample one, the flat ambient where it could not. */
+    reflectionSky?: SkyRadiance;
 }
 
 export interface BakeResult {
@@ -53,6 +65,9 @@ export interface BakeResult {
     /** Nine RGB coefficients per probe, one array per requested grid, in grid
      *  order with x varying fastest — what a `.esprobes` carries. */
     probes: Float32Array[];
+    /** One captured sphere per {@link BakeOptions.reflectionProbes}, in the order
+     *  they were given, for the caller to prefilter into an atlas column. */
+    reflections: CapturedPanorama[];
 }
 
 /** What a bake does where the caller says nothing — and what a scene's own
@@ -66,6 +81,8 @@ export const BAKE_DEFAULTS = {
     dilate: 2,
     probeGrids: [] as readonly ProbeGrid[],
     probeSamples: 128,
+    reflectionProbes: [] as readonly (readonly [number, number, number])[],
+    reflectionWidth: 64,
 };
 
 const chan = (m: MeshData, s: number): MeshChannelDesc | undefined =>
@@ -246,11 +263,19 @@ export function bakeLightmap(surfaces: readonly BakeSurface[], lights: readonly 
     const probes = opts.probeGrids.map((grid) =>
         solveProbes(grid, bvh, lookup, radiance, size, opts.probeSamples, opts.ambient));
 
+    // Captured from the same field, after the same bounces: a reflection of a
+    // wall and the light that wall casts are then the same number.
+    const width = Math.max(8, opts.reflectionWidth);
+    const sky = options.reflectionSky ?? flatSky(opts.ambient);
+    const reflections = opts.reflectionProbes.map((at) =>
+        captureReflection(at, bvh, lookup, radiance, size, width, Math.max(4, width >> 1), sky));
+
     return {
         pixels,
         size,
         scaleOffset: patches.map((p) => p.scaleOffset),
         lumels: lumels.count,
         probes,
+        reflections,
     };
 }

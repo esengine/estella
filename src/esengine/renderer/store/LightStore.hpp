@@ -111,6 +111,23 @@ public:
 
     bool hasEnvironment() const { return hasEnvironment_; }
 
+    /**
+     * @brief Points the frame at a BAKED atlas: its format, and a box per column.
+     *
+     * @details Overwrites `envParams` because the atlas the frame binds is this
+     *          one — the columns past 0 are the scene's rooms, and column 0 is the
+     *          sky as the bake saw it. The irradiance and the tint stay the ambient
+     *          light's: the diffuse half is not what a reflection atlas holds.
+     */
+    void setReflections(const glm::vec4& params, const glm::vec4* boxes, u32 count) {
+        data_.envParams = params;
+        data_.reflParams = glm::vec4(static_cast<f32>(count) + 1.0f, 0.0f, 0.0f, 0.0f);
+        for (u32 i = 0; i < count * 2 && i < 2 * MAX_REFLECTION_PROBES; ++i) {
+            data_.reflBox[i] = boxes[i];
+        }
+        dirty_ = true;
+    }
+
     /// Gives light @p slot a channel of the frame's 2D shadow mask, and says the mask
     /// exists. A slot nobody names keeps the -1 it was collected with, which is a light
     /// that lights without shadowing.

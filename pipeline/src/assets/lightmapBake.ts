@@ -12,8 +12,10 @@ import { readFileSync } from 'node:fs';
 import { PNG } from 'pngjs';
 import { bakeLightmap, decodeMesh, unwrapLightmapUV, builtinMeshTemplate, MeshChannel,
          type MeshData, type BakeSurface, type BakeLight, type BakeOptions,
-         type ProbeGrid } from 'esengine';
+         type CapturedPanorama, type ProbeGrid } from 'esengine';
 import { encodeRgbaPng } from './png';
+import { bakeSceneReflections, bakeSky, type BakeEnvironment,
+         type ReflectionBakeResult } from './reflectionBake';
 
 // What a collector needs to describe a surface, re-exported so the CLI reaches
 // them through the one module it loads. composeTRS especially: a second
@@ -70,7 +72,20 @@ export interface SceneBakeInput {
     surfaces: SceneBakeSurface[];
     lights: BakeLight[];
     probeVolumes?: SceneProbeVolume[];
+    /** Where reflections are captured from, in the order their atlas columns are
+     *  numbered — column 0 being the sky, a probe's is its index plus one. */
+    reflectionProbes?: SceneReflectionProbe[];
+    /** The environment the scene is lit by: what a captured ray that escapes
+     *  brings back, and the format the reflection atlas adopts. */
+    environment?: BakeEnvironment | null;
     options?: BakeOptions;
+}
+
+/** One reflection probe, as the editor's world describes it. */
+export interface SceneReflectionProbe {
+    entity: number;
+    label: string;
+    center: [number, number, number];
 }
 
 /**
@@ -104,6 +119,8 @@ export interface SceneBakeResult {
     /** The `.esprobes` document per requested volume, in order — `null` for one
      *  that was refused, so a caller can line results up with what it sent. */
     probes: Array<ProbeVolumeDocument | null>;
+    /** The scene's reflections as one atlas, or null when it declared no probe. */
+    reflection: ReflectionBakeResult | null;
     warnings: string[];
 }
 
@@ -259,6 +276,20 @@ export function bakeSceneLightmap(input: SceneBakeInput): SceneBakeResult {
             + ' only real-time light. Add a LightProbeVolume covering where they go.');
     }
     const probes: Array<ProbeVolumeDocument | null> = requested.map(() => null);
+    // Captured in the light field the surfaces end up in, so a mirror and the
+    // wall it mirrors agree; the sky is the environment's where there is one.
+    const ambient = input.options?.ambient ?? [0, 0, 0];
+    const reflectionProbes = input.reflectionProbes ?? [];
+    const reflectionOptions = {
+        reflectionProbes: reflectionProbes.map((p) => p.center),
+        reflectionSky: bakeSky(input.environment, ambient),
+    };
+    const packReflections = (panoramas: CapturedPanorama[]): ReflectionBakeResult | null => {
+        if (reflectionProbes.length === 0) return null;
+        const packed = bakeSceneReflections({ panoramas, environment: input.environment, ambient });
+        for (const w of packed.warnings) warnings.push(w);
+        return packed;
+    };
     const asDocument = (grid: ProbeGrid, sh: Float32Array): ProbeVolumeDocument => ({
         version: 1,
         resolution: [grid.resolution[0], grid.resolution[1], grid.resolution[2]],
@@ -270,17 +301,19 @@ export function bakeSceneLightmap(input: SceneBakeInput): SceneBakeResult {
         // The volumes are still solved: a scene whose only light is ambient has
         // nothing to bake into an atlas and still has somewhere to stand.
         const empty = bakeLightmap([], input.lights,
-                                   { ...input.options, probeGrids: grids });
+                                   { ...input.options, probeGrids: grids, ...reflectionOptions });
         gridSlot.forEach((at, k) => { probes[at] = asDocument(grids[k], empty.probes[k]); });
         return {
             atlasBytes: encodeRgbaPng(1, 1, new Uint8Array([0, 0, 0, 255])),
             scaleOffset: input.surfaces.map(() => null),
-            lumels: 0, size: 1, probes, warnings,
+            lumels: 0, size: 1, probes,
+            reflection: packReflections(empty.reflections),
+            warnings,
         };
     }
 
     const result = bakeLightmap(surfaces, input.lights,
-                                { ...input.options, probeGrids: grids });
+                                { ...input.options, probeGrids: grids, ...reflectionOptions });
     const scaleOffset: Array<[number, number, number, number] | null> =
         input.surfaces.map(() => null);
     slot.forEach((at, k) => { scaleOffset[at] = result.scaleOffset[k]; });
@@ -292,6 +325,7 @@ export function bakeSceneLightmap(input: SceneBakeInput): SceneBakeResult {
         lumels: result.lumels,
         size: result.size,
         probes,
+        reflection: packReflections(result.reflections),
         warnings,
     };
 }

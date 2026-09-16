@@ -3453,6 +3453,39 @@
       ]
     },
     {
+      "name": "ReflectionProbe",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "reflection",
+          "type": "Asset<environment>",
+          "default": "none",
+          "doc": "The scene's baked reflections (the baker writes this)."
+        },
+        {
+          "key": "halfExtents",
+          "type": "Vec3",
+          "default": "(200, 200, 200)",
+          "doc": "Half the box this probe answers inside, from the entity's position.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "slot",
+          "type": "number",
+          "default": "0",
+          "doc": "Which column of the atlas this probe occupies (the baker writes this).",
+          "range": "≥ 0",
+          "advanced": true
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true",
+          "doc": "Off: what stands inside this box reflects the sky again."
+        }
+      ]
+    },
+    {
       "name": "Replicated",
       "source": "ts",
       "fields": [

@@ -11,7 +11,7 @@
  */
 
 import type { Bvh } from './bvh';
-import { texelOf, facesRay, type HitLookup } from './solve';
+import { rayRadiance, type HitLookup } from './solve';
 import { shBasis, convolveCosine } from './sh';
 
 /** Where one grid of probes sits, and how many. */
@@ -71,7 +71,7 @@ export function solveProbes(grid: ProbeGrid, bvh: Bvh, lookup: HitLookup,
 
     const dirs = sphere(samples);
     const basis = new Float32Array(9);
-    const far = 1e7;
+    const seen = new Float32Array(3);
     // The Monte-Carlo weight of one direction over the sphere, folded in once.
     const weight = (4 * Math.PI) / samples;
 
@@ -84,19 +84,11 @@ export function solveProbes(grid: ProbeGrid, bvh: Bvh, lookup: HitLookup,
                 const at = (x + y * nx + z * nx * ny) * 27;
                 for (let s = 0; s < samples; s++) {
                     const dx = dirs[s * 3]!, dy = dirs[s * 3 + 1]!, dz = dirs[s * 3 + 2]!;
-                    let r = ambient[0], g = ambient[1], b = ambient[2];
-                    const tri = bvh.hit(px, py, pz, dx, dy, dz, far, 0);
-                    if (tri >= 0) {
-                        r = 0; g = 0; b = 0;
-                        const texel = facesRay(lookup, tri, dx, dy, dz)
-                            ? texelOf(lookup, tri, bvh.hitU, bvh.hitV, atlasSize) : -1;
-                        if (texel >= 0) {
-                            const surface = lookup.triSurface[tri]!;
-                            r = atlas[texel * 3]! * lookup.albedo[surface * 3]!;
-                            g = atlas[texel * 3 + 1]! * lookup.albedo[surface * 3 + 1]!;
-                            b = atlas[texel * 3 + 2]! * lookup.albedo[surface * 3 + 2]!;
-                        }
+                    if (!rayRadiance(bvh, lookup, atlas, atlasSize, px, py, pz, dx, dy, dz,
+                                     seen)) {
+                        seen[0] = ambient[0]; seen[1] = ambient[1]; seen[2] = ambient[2];
                     }
+                    const r = seen[0]!, g = seen[1]!, b = seen[2]!;
                     shBasis(dx, dy, dz, basis);
                     for (let i = 0; i < 9; i++) {
                         const w = basis[i]! * weight;

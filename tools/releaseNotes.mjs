@@ -28,6 +28,15 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(render): what a shiny thing reflects indoors is the room, not the sky':
+    { note: 'What a shiny thing reflects indoors is the room, not the sky.' },
+
+  'fix(lightmap): the bake\'s ray tracer walked its own tree wrong':
+    { note: "The bake's ray tracer walked its own tree wrong." },
+
+  'feat(bake): the editor bakes reflections too, and says where they went':
+    { note: 'What a shiny thing reflects indoors is the room, not the sky.' },
+
   'feat(render): a wall stops the frame from drawing what stands behind it':
     { note: 'A wall can stop a frame from drawing what is behind it.' },
 

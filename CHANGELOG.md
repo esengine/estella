@@ -97,6 +97,40 @@ published separately; it ships inside the editor.
   Per-instance, not per-object-record, because the record was out of room at the
   time. The entry below is the change that moved it.
 
+- **What a shiny thing reflects indoors is the room, not the sky.** A
+  `ReflectionProbe` is a box inside which reflections come from a bake — the
+  specular half of the question `LightProbeVolume` already answered for the
+  diffuse one. Bake Lighting captures a sphere from each probe, prefilters it
+  with the environment importer's own code, and packs every probe into ONE atlas
+  whose column 0 is the sky the scene was baked under. A surface carries which
+  column it reflects as a number per instance, so a room full of shiny things is
+  still one draw; a texture per probe would have been a bind per draw.
+
+  The reflection is PROJECTED onto the probe's box, which is what slides it
+  across a wall as the eye moves instead of painting it on. Outside every box the
+  sky answers exactly as before, and a scene with no bake is byte-for-byte the
+  frame it always was.
+
+  Both bake doors produce it — `bake-scene` on the command line and the editor's
+  Bake Lighting — and both write the same two files beside the lightmap.
+
+- **The bake's ray tracer walked its own tree wrong.** The traversal took the
+  left child to be the node after the parent, which is true only of the root: a
+  left subtree allocates everything under it first. Held against brute force over
+  600 rays, the tree missed 154 of them — it reported open sky where a triangle
+  stood. Every bake in the corpus carried it: shadows that leaked, bounces that
+  never arrived, probes gathering light through walls. The tree now stores the
+  left child and reads the right beside it, and agrees with brute force on every
+  ray; the shipped bakes are rebaked.
+
+- **A material-shaded surface shaded itself at z = 0.** The Model shader passed
+  `vec3(v_worldPos, 0)` as the place it stands — which a directional light cannot
+  tell from the truth, and a point light, a probe volume and a reflection's box
+  projection all can. It uses the position the vertex stage already hands it.
+  On WebGPU the same shader never told the injected header which instance it was,
+  so every material-shaded draw read instance 0's indirect light — one probe
+  volume's worth for the lot.
+
 - **A wall can stop a frame from drawing what is behind it.** `Occluder` declares
   a box sight does not pass through. Every camera rasterises the ones it can see
   onto a small depth grid before collecting, and a renderable whose bounds are

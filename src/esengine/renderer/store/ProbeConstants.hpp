@@ -31,25 +31,29 @@ inline constexpr const char* PROBE_CONSTANTS_BLOCK = "ProbeConstants";
 /**
  * @brief How many instances of one merged draw carry their own irradiance.
  *
- * @details The coefficients ride the draw's uniform block, one run of nine vec4
- *          per instance, so 100 runs is 14.4KB — inside the 16KB a WebGL2
- *          uniform block is guaranteed. A run reaching this many stops merging
- *          rather than drawing someone else's light.
+ * @details It rides the draw's uniform block, one run of ten vec4 per instance,
+ *          so 100 runs is 16000 bytes — inside the 16KB a WebGL2 uniform block is
+ *          guaranteed. A run reaching this many stops merging rather than drawing
+ *          someone else's light.
  */
 inline constexpr u32 PROBE_MAX_INSTANCES = 100;
 
-/// Texels one probe's coefficients occupy in that block.
-inline constexpr u32 PROBE_TEXELS = 9;
+/// Texels one instance's indirect light occupies in that block.
+inline constexpr u32 PROBE_TEXELS = 10;
 
-/** @brief One probe's coefficients, as the CPU gathers them before packing. */
+/** @brief The indirect light one instance stands in — both halves of it. */
 struct ProbeConstants {
     /// SH9, rgb in xyz. `[0].w` is 1 where this draw stands in a volume — a flag
     /// and not the absence of coefficients, since zeroes ARE an answer here: a
     /// probe in the dark.
     glm::vec4 irradiance[9]{};
+    /// x = which column of the frame's reflection atlas this instance reflects.
+    /// 0 is the environment, so an instance inside no probe needs nothing written
+    /// here and a zeroed run is already right.
+    glm::vec4 reflection{0.0f};
 };
 
-static_assert(sizeof(ProbeConstants) == 16 * 9,
+static_assert(sizeof(ProbeConstants) == 16 * PROBE_TEXELS,
               "ProbeConstants must be a tight array of vec4 to match std140");
 
 }  // namespace esengine

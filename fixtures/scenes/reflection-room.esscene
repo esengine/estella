@@ -1,0 +1,442 @@
+{
+  "version": 4,
+  "name": "ReflectionRoom",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 560
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 0,
+            "fov": 60,
+            "nearPlane": 10,
+            "farPlane": 9000,
+            "isActive": true,
+            "priority": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Sky",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Light",
+          "data": {
+            "type": 2,
+            "color": {
+              "r": 0.85,
+              "g": 0.85,
+              "b": 0.9,
+              "a": 1
+            },
+            "intensity": 0.18,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Floor",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": -220,
+              "z": 0
+            },
+            "scale": {
+              "x": 7,
+              "y": 0.2,
+              "z": 7
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.75,
+              "g": 0.75,
+              "b": 0.75,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "MeshLightmap",
+          "data": {
+            "lightmap": "reflection-room_lightmap.png",
+            "scaleOffset": {
+              "x": 0.3515625,
+              "y": 0.3515625,
+              "z": 0,
+              "w": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Ceiling",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 220,
+              "z": 0
+            },
+            "scale": {
+              "x": 7,
+              "y": 0.2,
+              "z": 7
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.75,
+              "g": 0.75,
+              "b": 0.75,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "MeshLightmap",
+          "data": {
+            "lightmap": "reflection-room_lightmap.png",
+            "scaleOffset": {
+              "x": 0.3515625,
+              "y": 0.3515625,
+              "z": 0.3515625,
+              "w": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "LeftWall",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -350,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 0.2,
+              "y": 4.4,
+              "z": 7
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.9,
+              "g": 0.12,
+              "b": 0.1,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "MeshLightmap",
+          "data": {
+            "lightmap": "reflection-room_lightmap.png",
+            "scaleOffset": {
+              "x": 0.28125,
+              "y": 0.28125,
+              "z": 0.703125,
+              "w": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "RightWall",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 350,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 0.2,
+              "y": 4.4,
+              "z": 7
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.1,
+              "g": 0.8,
+              "b": 0.2,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "MeshLightmap",
+          "data": {
+            "lightmap": "reflection-room_lightmap.png",
+            "scaleOffset": {
+              "x": 0.28125,
+              "y": 0.28125,
+              "z": 0.703125,
+              "w": 0.28125
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "BackWall",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": -350
+            },
+            "scale": {
+              "x": 7,
+              "y": 4.4,
+              "z": 0.2
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:cube",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 0.15,
+              "g": 0.25,
+              "b": 0.9,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "MeshLightmap",
+          "data": {
+            "lightmap": "reflection-room_lightmap.png",
+            "scaleOffset": {
+              "x": 0.28125,
+              "y": 0.28125,
+              "z": 0,
+              "w": 0.3515625
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Chrome",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -120,
+              "y": -80,
+              "z": 150
+            },
+            "scale": {
+              "x": 2.2,
+              "y": 2.2,
+              "z": 2.2
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "builtin:sphere",
+            "lit": true,
+            "opaque": true,
+            "cullBackfaces": true,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "material": "/scenes/mat-env/chrome.esmaterial"
+          }
+        },
+        {
+          "type": "MeshLightmap",
+          "data": {
+            "lightmap": "reflection-room_lightmap.png",
+            "scaleOffset": {
+              "x": 0.1640625,
+              "y": 0.1640625,
+              "z": 0.28125,
+              "w": 0.3515625
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "RoomProbe",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ReflectionProbe",
+          "data": {
+            "reflection": "/scenes/reflection-room_reflections.esenv",
+            "halfExtents": {
+              "x": 345,
+              "y": 215,
+              "z": 345
+            },
+            "slot": 1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "name": "Lamp",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 170,
+              "z": -40
+            }
+          }
+        },
+        {
+          "type": "Light",
+          "data": {
+            "type": 0,
+            "color": {
+              "r": 1,
+              "g": 0.97,
+              "b": 0.9,
+              "a": 1
+            },
+            "intensity": 2.2,
+            "radius": 1400,
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}

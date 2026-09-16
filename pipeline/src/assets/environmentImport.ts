@@ -37,6 +37,10 @@ export interface EnvironmentAssetData {
     mipCount: number;
     /** The RGBM decode range: `(rgb*a)^2 * maxRange` is the stored radiance. */
     maxRange: number;
+    /** Octahedral pyramids standing side by side in that atlas. Absent is one —
+     *  a sky. A scene BAKE writes several, column 0 the sky and the rest a
+     *  reflection probe each. */
+    columns?: number;
 }
 
 export const ENVIRONMENT_FORMAT_VERSION = 1;

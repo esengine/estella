@@ -542,7 +542,8 @@ public:
      * @return Handle to the environment, or invalid when the coefficients are not nine.
      */
     EnvironmentHandle createEnvironment(ConstSpan<f32> irradiance, TextureHandle specular,
-                                        f32 faceSize, u32 mipCount, f32 maxRange);
+                                        f32 faceSize, u32 mipCount, f32 maxRange,
+                                        u32 columns = 1);
 
     /** @brief The environment a handle names, or null. */
     Environment* getEnvironment(EnvironmentHandle handle);

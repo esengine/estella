@@ -25,6 +25,7 @@
 #include "esengine/ecs/components/Occluder.hpp"
 #include "esengine/ecs/components/ParticleEmitter.hpp"
 #include "esengine/ecs/components/ParticleForceField.hpp"
+#include "esengine/ecs/components/ReflectionProbe.hpp"
 #include "esengine/ecs/components/RigidBody2D.hpp"
 #include "esengine/ecs/components/ShadowCaster2D.hpp"
 #include "esengine/ecs/components/ShapeRenderer.hpp"
@@ -196,6 +197,11 @@ ComponentAt engineComponentAt(ecs::Registry& registry, const char* name) {
     if (std::strcmp(name, "ParticleForceField") == 0) {
         return [&registry](std::uint32_t raw) -> void* {
             return registry.tryGet<esengine::ecs::ParticleForceField>(Entity::fromRaw(raw));
+        };
+    }
+    if (std::strcmp(name, "ReflectionProbe") == 0) {
+        return [&registry](std::uint32_t raw) -> void* {
+            return registry.tryGet<esengine::ecs::ReflectionProbe>(Entity::fromRaw(raw));
         };
     }
     if (std::strcmp(name, "RigidBody2D") == 0) {
@@ -432,6 +438,11 @@ CandidatesOf engineComponentCandidates(ecs::Registry& registry, const char* name
             return denseAsIds(registry.entitiesWith<esengine::ecs::ParticleForceField>());
         };
     }
+    if (std::strcmp(name, "ReflectionProbe") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::ReflectionProbe>());
+        };
+    }
     if (std::strcmp(name, "RigidBody2D") == 0) {
         return [&registry]() -> Candidates {
             return denseAsIds(registry.entitiesWith<esengine::ecs::RigidBody2D>());
@@ -558,6 +569,7 @@ bool isEngineComponent(const char* name) {
     if (std::strcmp(name, "Parent") == 0) return true;
     if (std::strcmp(name, "ParticleEmitter") == 0) return true;
     if (std::strcmp(name, "ParticleForceField") == 0) return true;
+    if (std::strcmp(name, "ReflectionProbe") == 0) return true;
     if (std::strcmp(name, "RigidBody2D") == 0) return true;
     if (std::strcmp(name, "RigidBody3D") == 0) return true;
     if (std::strcmp(name, "SegmentCollider2D") == 0) return true;

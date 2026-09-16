@@ -34,6 +34,9 @@ export interface BakeInputs {
         halfExtents: readonly [number, number, number];
         spacing: number;
     }>;
+    /** Where each reflection probe stands. A capture is a function of the POINT,
+     *  so that is the whole of what one contributes to a bake. */
+    reflections?: ReadonlyArray<readonly [number, number, number]>;
     ambient?: readonly [number, number, number];
     options?: BakeOptions;
 }
@@ -73,6 +76,7 @@ export function bakeFingerprint(inputs: BakeInputs): string {
     for (const v of inputs.volumes) {
         lines.push(`v|${nums(v.center)}|${nums(v.halfExtents)}|${num(v.spacing)}`);
     }
+    for (const r of inputs.reflections ?? []) lines.push(`r|${nums(r)}`);
     lines.sort();
     lines.push(`o|${opts.atlasSize}|${opts.texelsPerUnit}|${opts.bounces}|${opts.samples}`
         + `|${opts.probeSamples}|${opts.dilate}|${nums(inputs.ambient ?? opts.ambient)}`);

@@ -372,6 +372,15 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'enabled', type: 'bool', offset: 25 },
         ],
     },
+    ReflectionProbe: {
+        ptrFn: 'getReflectionProbePtr',
+        fields: [
+            { name: 'reflection', type: 'u32', offset: 0 },
+            { name: 'halfExtents', type: 'vec3', offset: 4 },
+            { name: 'slot', type: 'u32', offset: 16 },
+            { name: 'enabled', type: 'bool', offset: 20 },
+        ],
+    },
     RigidBody2D: {
         ptrFn: 'getRigidBody2DPtr',
         fields: [

@@ -16,6 +16,9 @@ interface EnvironmentAssetData {
     faceSize?: number;
     mipCount?: number;
     maxRange?: number;
+    /** Octahedral pyramids standing side by side in that atlas. A scene BAKE
+     *  writes several — column 0 the sky, the rest a reflection probe each. */
+    columns?: number;
 }
 
 /** A baked environment, named by the handle a Light references. */
@@ -69,7 +72,8 @@ export class EnvironmentAssetLoader implements AssetLoader<EnvironmentResult> {
             const shPtr = alloc(27 * 4);
             m.HEAPF32.set(Float32Array.from(data.irradiance), shPtr >> 2);
             return m.environment_create!(shPtr, specularHandle, data.faceSize ?? 0,
-                                         data.mipCount ?? 0, data.maxRange ?? 0);
+                                         data.mipCount ?? 0, data.maxRange ?? 0,
+                                         data.columns ?? 1);
         });
 
         if (!handle) {

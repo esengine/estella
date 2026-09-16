@@ -183,6 +183,33 @@ export function solveBounce(lumels: LumelField, bvh: Bvh, lookup: HitLookup,
     }
 }
 
+/**
+ * What the GEOMETRY along a ray gives off, written into @p out at @p at.
+ *
+ * @returns false where the ray met nothing: the sky is the caller's to write,
+ *          and the two hold different ones — a probe gathers a flat ambient, a
+ *          capture points the same ray at the environment. What a SURFACE gives
+ *          off is one answer, and the two halves of a bake must not differ on it.
+ */
+export function rayRadiance(bvh: Bvh, lookup: HitLookup, atlas: Float32Array, atlasSize: number,
+                            fromX: number, fromY: number, fromZ: number,
+                            dx: number, dy: number, dz: number,
+                            out: Float32Array, at = 0): boolean {
+    const tri = bvh.hit(fromX, fromY, fromZ, dx, dy, dz, 1e7, 0);
+    if (tri < 0) return false;
+    // Geometry with no place in the atlas is black rather than sky: something is
+    // there, and it is unlit.
+    out[at] = 0; out[at + 1] = 0; out[at + 2] = 0;
+    if (!facesRay(lookup, tri, dx, dy, dz)) return true;
+    const texel = texelOf(lookup, tri, bvh.hitU, bvh.hitV, atlasSize);
+    if (texel < 0) return true;
+    const surface = lookup.triSurface[tri]!;
+    out[at] = atlas[texel * 3]! * lookup.albedo[surface * 3]!;
+    out[at + 1] = atlas[texel * 3 + 1]! * lookup.albedo[surface * 3 + 1]!;
+    out[at + 2] = atlas[texel * 3 + 2]! * lookup.albedo[surface * 3 + 2]!;
+    return true;
+}
+
 /** Where on the atlas a hit lands, or -1 when it falls outside it. */
 export function texelOf(lookup: HitLookup, tri: number, u: number, v: number, size: number): number {
     const at = tri * 6;

@@ -5,6 +5,8 @@ export { bakeLightmap, type BakeOptions, type BakeResult } from './bake';
 export type { BakeSurface } from './atlas';
 export type { BakeLight } from './solve';
 export { solveProbes, probeAt, type ProbeGrid } from './probes';
+export { captureReflection, flatSky, type CapturedPanorama, type SkyRadiance }
+    from './reflection';
 export { bakeHoldsStill, type BakeMobility } from './mobility';
 export { bakeFingerprint, type BakeInputs } from './fingerprint';
 export { BakedLighting, type BakedLightingData } from './components';

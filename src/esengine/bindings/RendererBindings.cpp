@@ -413,14 +413,14 @@ void mesh_release(u32 meshHandle) {
  * @param specularHandle The octahedral atlas, or 0 for a diffuse-only environment.
  */
 u32 environment_create(uintptr_t shPtr, u32 specularHandle, f32 faceSize, u32 mipCount,
-                       f32 maxRange) {
+                       f32 maxRange, u32 columns) {
     auto* rm = ctx().tryGet<resource::ResourceManager>();
     if (!rm) return 0;
     const f32* sh = boundarySpan<f32>(shPtr, 27, "environment_create.irradiance");
     if (!sh) return 0;
     return rm->createEnvironment(ConstSpan<f32>(sh, 27),
                                  resource::TextureHandle(specularHandle),
-                                 faceSize, mipCount, maxRange).id();
+                                 faceSize, mipCount, maxRange, columns).id();
 }
 
 /** @brief Releases an environment. Its atlas is an ordinary texture and outlives it. */

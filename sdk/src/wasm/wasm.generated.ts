@@ -692,6 +692,13 @@ export interface ParticleForceField {
     enabled: boolean;
 }
 
+export interface ReflectionProbe {
+    reflection: number;
+    halfExtents: Vec3;
+    slot: number;
+    enabled: boolean;
+}
+
 export interface RigidBody2D {
     bodyType: number;
     gravityScale: number;
@@ -1025,6 +1032,10 @@ export interface Registry {
     getParticleForceField(entity: Entity): ParticleForceField;
     addParticleForceField(entity: Entity, component: ParticleForceField): void;
     removeParticleForceField(entity: Entity): void;
+    hasReflectionProbe(entity: Entity): boolean;
+    getReflectionProbe(entity: Entity): ReflectionProbe;
+    addReflectionProbe(entity: Entity, component: ReflectionProbe): void;
+    removeReflectionProbe(entity: Entity): void;
     hasRigidBody2D(entity: Entity): boolean;
     getRigidBody2D(entity: Entity): RigidBody2D;
     addRigidBody2D(entity: Entity, component: RigidBody2D): void;
@@ -1142,6 +1153,7 @@ export interface ESEngineModule {
     Parent: new () => Parent;
     ParticleEmitter: new () => ParticleEmitter;
     ParticleForceField: new () => ParticleForceField;
+    ReflectionProbe: new () => ReflectionProbe;
     RigidBody2D: new () => RigidBody2D;
     RigidBody3D: new () => RigidBody3D;
     SegmentCollider2D: new () => SegmentCollider2D;

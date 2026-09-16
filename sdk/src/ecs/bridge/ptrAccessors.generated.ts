@@ -1389,6 +1389,42 @@ export function createParticleForceFieldData(): ParticleForceFieldPtrData {
     };
 }
 
+export interface ReflectionProbePtrData {
+    reflection: number;
+    halfExtents: Vec3;
+    slot: number;
+    enabled: boolean;
+}
+
+export function fillReflectionProbe(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: ReflectionProbePtrData,
+): void {
+    out.reflection = u32[ptr >> 2];
+    const halfExtents_ = out.halfExtents; halfExtents_.x = f32[(ptr + 4) >> 2]; halfExtents_.y = f32[((ptr + 4) >> 2) + 1]; halfExtents_.z = f32[((ptr + 4) >> 2) + 2];
+    out.slot = u32[(ptr + 16) >> 2];
+    out.enabled = u8[ptr + 20] !== 0;
+}
+
+export function writeReflectionProbe(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: ReflectionProbePtrData,
+): void {
+    u32[ptr >> 2] = data.reflection;
+    f32[(ptr + 4) >> 2] = data.halfExtents.x; f32[((ptr + 4) >> 2) + 1] = data.halfExtents.y; f32[((ptr + 4) >> 2) + 2] = data.halfExtents.z;
+    u32[(ptr + 16) >> 2] = data.slot;
+    u8[ptr + 20] = data.enabled ? 1 : 0;
+}
+
+export function createReflectionProbeData(): ReflectionProbePtrData {
+    return {
+        reflection: 0,
+        halfExtents: { x: 0, y: 0, z: 0 },
+        slot: 0,
+        enabled: false,
+    };
+}
+
 export interface RigidBody2DPtrData {
     bodyType: number;
     gravityScale: number;
@@ -2423,6 +2459,7 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     Occluder: { fill: fillOccluder, write: writeOccluder, create: createOccluderData },
     ParticleEmitter: { fill: fillParticleEmitter, write: writeParticleEmitter, create: createParticleEmitterData },
     ParticleForceField: { fill: fillParticleForceField, write: writeParticleForceField, create: createParticleForceFieldData },
+    ReflectionProbe: { fill: fillReflectionProbe, write: writeReflectionProbe, create: createReflectionProbeData },
     RigidBody2D: { fill: fillRigidBody2D, write: writeRigidBody2D, create: createRigidBody2DData },
     RigidBody3D: { fill: fillRigidBody3D, write: writeRigidBody3D, create: createRigidBody3DData },
     SegmentCollider2D: { fill: fillSegmentCollider2D, write: writeSegmentCollider2D, create: createSegmentCollider2DData },

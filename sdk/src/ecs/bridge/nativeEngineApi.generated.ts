@@ -51,7 +51,7 @@ export interface NativeEngineApi {
     engine_prepareMeshPrograms?(rowsPtr: number, count: number, outPtr: number): void;
     engine_setCpuProfiling?(on: boolean): void;
     engine_setRandomSeed?(seed: number): void;
-    environment_create?(shPtr: number, specularHandle: number, faceSize: number, mipCount: number, maxRange: number): number;
+    environment_create?(shPtr: number, specularHandle: number, faceSize: number, mipCount: number, maxRange: number, columns: number): number;
     environment_release?(environmentHandle: number): void;
     geometry_create?(): number;
     geometry_init?(handle: number, verticesPtr: number, vertexCount: number, layoutPtr: number, layoutCount: number, dynamic: boolean): void;

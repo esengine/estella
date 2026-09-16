@@ -28,6 +28,7 @@
 #include "../ecs/components/Occluder.hpp"
 #include "../ecs/components/ParticleEmitter.hpp"
 #include "../ecs/components/ParticleForceField.hpp"
+#include "../ecs/components/ReflectionProbe.hpp"
 #include "../ecs/components/RigidBody2D.hpp"
 #include "../ecs/components/RigidBody3D.hpp"
 #include "../ecs/components/ShadowCaster2D.hpp"
@@ -1010,6 +1011,35 @@ ParticleEmitterJS particleemitterToJS(const esengine::ecs::ParticleEmitter& c) {
     return js;
 }
 
+struct ReflectionProbeJS {
+    u32 reflection;
+    glm::vec3 halfExtents;
+    u32 slot;
+    bool enabled;
+};
+
+void reflectionprobeApplyJS(esengine::ecs::ReflectionProbe& c, const ReflectionProbeJS& js) {
+    c.reflection = resource::EnvironmentHandle(js.reflection);
+    c.halfExtents = js.halfExtents;
+    c.slot = js.slot;
+    c.enabled = js.enabled;
+}
+
+esengine::ecs::ReflectionProbe reflectionprobeFromJS(const ReflectionProbeJS& js) {
+    esengine::ecs::ReflectionProbe c;
+    reflectionprobeApplyJS(c, js);
+    return c;
+}
+
+ReflectionProbeJS reflectionprobeToJS(const esengine::ecs::ReflectionProbe& c) {
+    ReflectionProbeJS js;
+    js.reflection = c.reflection.id();
+    js.halfExtents = c.halfExtents;
+    js.slot = c.slot;
+    js.enabled = c.enabled;
+    return js;
+}
+
 struct RigidBody2DJS {
     i32 bodyType;
     f32 gravityScale;
@@ -1798,6 +1828,12 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("direction", &esengine::ecs::ParticleForceField::direction)
         .field("falloff", &esengine::ecs::ParticleForceField::falloff)
         .field("enabled", &esengine::ecs::ParticleForceField::enabled);
+
+    value_object<ReflectionProbeJS>("ReflectionProbe")
+        .field("reflection", &ReflectionProbeJS::reflection)
+        .field("halfExtents", &ReflectionProbeJS::halfExtents)
+        .field("slot", &ReflectionProbeJS::slot)
+        .field("enabled", &ReflectionProbeJS::enabled);
 
     value_object<RigidBody2DJS>("RigidBody2D")
         .field("bodyType", &RigidBody2DJS::bodyType)
@@ -2627,6 +2663,30 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             r.remove<esengine::ecs::ParticleForceField>(entity);
         }))
 
+        // ReflectionProbe
+        .function("hasReflectionProbe", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::ReflectionProbe>(static_cast<Entity>(e));
+        }))
+        .function("getReflectionProbe", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::ReflectionProbe>(entity)) return ReflectionProbeJS{};
+            return reflectionprobeToJS(r.get<esengine::ecs::ReflectionProbe>(entity));
+        }))
+        .function("addReflectionProbe", optional_override([](Registry& r, u32 e, const ReflectionProbeJS& js) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            if (auto* existing = r.tryGet<esengine::ecs::ReflectionProbe>(entity)) {
+                reflectionprobeApplyJS(*existing, js);
+                return;
+            }
+            r.emplaceOrReplace<esengine::ecs::ReflectionProbe>(entity, reflectionprobeFromJS(js));
+        }))
+        .function("removeReflectionProbe", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::ReflectionProbe>(entity)) return;
+            r.remove<esengine::ecs::ReflectionProbe>(entity);
+        }))
+
         // RigidBody2D
         .function("hasRigidBody2D", optional_override([](Registry& r, u32 e) {
             return r.has<esengine::ecs::RigidBody2D>(static_cast<Entity>(e));
@@ -3101,6 +3161,7 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("Parent")));
     arr.set(i++, val(std::string("ParticleEmitter")));
     arr.set(i++, val(std::string("ParticleForceField")));
+    arr.set(i++, val(std::string("ReflectionProbe")));
     arr.set(i++, val(std::string("RigidBody2D")));
     arr.set(i++, val(std::string("RigidBody3D")));
     arr.set(i++, val(std::string("SegmentCollider2D")));
@@ -3364,6 +3425,10 @@ static_assert(offsetof(esengine::ecs::ParticleForceField, radius) == 8, "ABI off
 static_assert(offsetof(esengine::ecs::ParticleForceField, direction) == 12, "ABI offset drift: esengine::ecs::ParticleForceField.direction (EHT expected 12)");
 static_assert(offsetof(esengine::ecs::ParticleForceField, falloff) == 24, "ABI offset drift: esengine::ecs::ParticleForceField.falloff (EHT expected 24)");
 static_assert(offsetof(esengine::ecs::ParticleForceField, enabled) == 25, "ABI offset drift: esengine::ecs::ParticleForceField.enabled (EHT expected 25)");
+static_assert(offsetof(esengine::ecs::ReflectionProbe, reflection) == 0, "ABI offset drift: esengine::ecs::ReflectionProbe.reflection (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::ReflectionProbe, halfExtents) == 4, "ABI offset drift: esengine::ecs::ReflectionProbe.halfExtents (EHT expected 4)");
+static_assert(offsetof(esengine::ecs::ReflectionProbe, slot) == 16, "ABI offset drift: esengine::ecs::ReflectionProbe.slot (EHT expected 16)");
+static_assert(offsetof(esengine::ecs::ReflectionProbe, enabled) == 20, "ABI offset drift: esengine::ecs::ReflectionProbe.enabled (EHT expected 20)");
 static_assert(offsetof(esengine::ecs::RigidBody2D, bodyType) == 0, "ABI offset drift: esengine::ecs::RigidBody2D.bodyType (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::RigidBody2D, gravityScale) == 4, "ABI offset drift: esengine::ecs::RigidBody2D.gravityScale (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::RigidBody2D, linearDamping) == 8, "ABI offset drift: esengine::ecs::RigidBody2D.linearDamping (EHT expected 8)");
@@ -3526,7 +3591,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "8ef437d46a35780d";
+static const char* kEsAbiLayoutHash = "10bb7593c5d041c3";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

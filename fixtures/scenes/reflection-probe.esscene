@@ -1,0 +1,177 @@
+{
+  "version": 4,
+  "name": "ReflectionProbe",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 10
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 300,
+            "isActive": true,
+            "priority": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Sky",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Light",
+          "data": {
+            "type": 2,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "intensity": 1,
+            "environment": "/scenes/studio.esenv"
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Probe",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -150,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "ReflectionProbe",
+          "data": {
+            "reflection": "/scenes/reflect-atlas.esenv",
+            "halfExtents": {
+              "x": 140,
+              "y": 140,
+              "z": 140
+            },
+            "slot": 1,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Inside",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -150,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 200,
+              "y": 200,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "/scenes/shadow-quad.esmesh",
+            "material": "/scenes/mat-env/mirror.esmaterial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "lit": true,
+            "enabled": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Outside",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 150,
+              "y": 0,
+              "z": 0
+            },
+            "scale": {
+              "x": 200,
+              "y": 200,
+              "z": 1
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "/scenes/shadow-quad.esmesh",
+            "material": "/scenes/mat-env/mirror.esmaterial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "lit": true,
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}

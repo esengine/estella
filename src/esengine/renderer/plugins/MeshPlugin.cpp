@@ -725,14 +725,16 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 }
                 }
 
-                // A draw reading its own atlas does not ask: the bake holds the
-                // bounces that reached those texels. The ENTITY's position, not its
-                // vertices' — bones place a skinned mesh, a Transform says where.
-                if (!shadowDepth && key.lightmapTextureId == 0) {
+                // A draw reading its own atlas does not ask for IRRADIANCE, and asks
+                // for its reflection either way — a lightmapped wall mirrors the room
+                // like anything else. At the ENTITY's position: bones place a skin.
+                if (!shadowDepth) {
                     ProbeConstants probe;
-                    if (ctx.render_context.probes().sample(position, probe)) {
-                        key.probeIndex = draw_list.addProbe(probe);
-                    }
+                    const bool volume = key.lightmapTextureId == 0
+                        && ctx.render_context.probes().sample(position, probe);
+                    const u32 slot = ctx.render_context.reflections().slotAt(position);
+                    probe.reflection.x = static_cast<f32>(slot);
+                    if (volume || slot != 0) key.probeIndex = draw_list.addProbe(probe);
                 }
 
                 // A material's default program is built for the BATCH vertex

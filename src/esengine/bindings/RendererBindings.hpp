@@ -95,9 +95,10 @@ u32 mesh_rematerializeFromChannels(u32 targetHandle,
 
 void mesh_release(u32 meshHandle);
 
-/** @brief Registers a baked environment (27 irradiance floats + a reflection atlas). */
+/** @brief Registers a baked environment (27 irradiance floats + a reflection atlas,
+ *         which holds `columns` pyramids side by side). */
 u32 environment_create(uintptr_t shPtr, u32 specularHandle, f32 faceSize, u32 mipCount,
-                       f32 maxRange);
+                       f32 maxRange, u32 columns);
 
 /** @brief Releases an environment; its atlas is an ordinary texture and outlives it. */
 void environment_release(u32 environmentHandle);

@@ -21,6 +21,7 @@
 #include "../renderer/rhi/Texture.hpp"
 #include "../renderer/rhi/Buffer.hpp"
 
+#include <algorithm>
 #include <cstring>
 #include <vector>
 
@@ -779,7 +780,7 @@ void ResourceManager::releaseMesh(MeshHandle handle) {
 
 EnvironmentHandle ResourceManager::createEnvironment(ConstSpan<f32> irradiance,
                                                      TextureHandle specular, f32 faceSize,
-                                                     u32 mipCount, f32 maxRange) {
+                                                     u32 mipCount, f32 maxRange, u32 columns) {
     if (irradiance.size() != 27) {
         ES_LOG_ERROR("createEnvironment: {} coefficients, want 27", irradiance.size());
         return EnvironmentHandle();
@@ -793,6 +794,7 @@ EnvironmentHandle ResourceManager::createEnvironment(ConstSpan<f32> irradiance,
     environment->faceSize = faceSize;
     environment->mipCount = mipCount;
     environment->maxRange = maxRange;
+    environment->columns = std::max(columns, 1u);
     return environments_.add(std::move(environment));
 }
 

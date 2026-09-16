@@ -282,7 +282,7 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
                 const u32 index = at < probe_slots_.size() ? probe_slots_[at] : 0u;
                 if (index == 0) continue;
                 std::memcpy(&probe_run_[static_cast<size_t>(n) * PROBE_TEXELS],
-                            probes_[index - 1].irradiance, sizeof(ProbeConstants));
+                            &probes_[index - 1], sizeof(ProbeConstants));
             }
             device.setUniformBuffer(
                 PROBE_CONSTANTS_BINDING,

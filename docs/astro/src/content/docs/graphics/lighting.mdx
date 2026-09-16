@@ -386,12 +386,44 @@ An object whose geometry carries the channel but has no `MeshLightmap` draws exa
 it did before: the rectangle is zero, and the shader reads that as "no bake" rather than
 as an atlas of black.
 
-:::caution
-Estella has no lightmapper yet — nothing in the editor *produces* an atlas. The reading
-side is what shipped here, so a bake authored elsewhere (Blender's Cycles, a Substance
-bake, any renderer that writes a lightmap and its UV layout) can be brought in and read
-today. Baking from inside the editor is the next piece.
-:::
+The editor bakes one: **Lighting → Bake Lighting** writes the atlas beside the scene
+and fills in every `MeshLightmap`, and `node pipeline/bin/estella.mjs bake-scene
+<scene>` does the same thing from the command line. A bake authored elsewhere
+(Blender's Cycles, a Substance bake, any renderer that writes a lightmap and its UV
+layout) is still read exactly as well — the component is the contract, not the baker.
+
+### What a shiny surface reflects indoors
+
+A lightmap is the diffuse half. The other half is what a **mirror** shows, and without
+a probe that is always the sky — indoors, a chrome ball reflects the clouds through
+the ceiling.
+
+`ReflectionProbe` is the answer, and it is the same shape as `LightProbeVolume`: a box,
+filled by the same bake.
+
+```typescript
+world.insert(room, ReflectionProbe, { halfExtents: { x: 400, y: 220, z: 400 } });
+```
+
+The baker captures the sphere seen from the probe's position, prefilters it for every
+roughness, and writes every probe of the scene into ONE atlas beside the lightmap —
+`reflection` names it and `slot` says which column is this one's. Both fields are the
+baker's to write; what you place is the box.
+
+Three things worth knowing:
+
+- **The reflection is projected onto the box**, so it slides across a wall as the eye
+  moves instead of being painted on. Size the box to the room, not to the object.
+- **Where two boxes overlap the smaller wins** — a cupboard inside a hall reflects what
+  the cupboard was baked to say.
+- **Do not put a probe inside a shiny object.** The capture is taken from that point;
+  standing inside the ball, all it sees is the inside of the ball.
+
+<Aside type="tip">
+The probe reads what the bake solved, so bake the lighting first and the reflections
+follow. Moving a probe changes the bake's fingerprint, and the Lighting panel says the
+scene is out of date.
+</Aside>
 
 Skinned meshes take no bake: bones move a character, and a bake cannot hold one still
 long enough to light it. A character in a baked room is lit in real time, by the lights

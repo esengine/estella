@@ -99,6 +99,8 @@ export {
     type LightProbeVolumeData,
     Occluder,
     type OccluderData,
+    ReflectionProbe,
+    type ReflectionProbeData,
     SortingGroup,
     SpriteMask,
     TrailRenderer,

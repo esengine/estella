@@ -9,6 +9,7 @@
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/Light.hpp"
 #include "../../ecs/components/Occluder.hpp"
+#include "../../ecs/components/ReflectionProbe.hpp"
 #include "../../ecs/components/ShadowCaster2D.hpp"
 #include "../../ecs/components/SortingGroup.hpp"
 #include "../../ecs/components/SpriteMask.hpp"
@@ -549,6 +550,7 @@ void RenderFrame::flush() {
     // authored to nothing — reads zero boxes here while render.culled says nothing.
     ES_PROFILE_COUNTER("render.cull.occluded", stats_.occluded);
     ES_PROFILE_COUNTER("render.cull.occluders", occlusion_.boxes());
+    ES_PROFILE_COUNTER("render.reflection.probes", context_.reflections().count());
     ES_PROFILE_COUNTER("render.sprites", stats_.sprites);
     // The 3D path had no counter at all, and its cost is the one a pixel hides
     // best: identical geometry drawn N times merges into ONE instanced call, so
@@ -1163,6 +1165,54 @@ void RenderFrame::collectOccluders(ecs::Registry& registry) {
                           glm::abs(occluder.halfExtents));
     }
     occlusion_.finish();
+}
+
+/**
+ * @brief Gathers the frame's reflection probes: a box each, and the atlas column
+ *        the bake gave it.
+ *
+ * @details After the lights, because it OVERRIDES what they bound: a baked scene
+ *          reflects its bake, whose column 0 is the sky it was solved under. The
+ *          irradiance stays the ambient light's — an atlas is the other half.
+ */
+void RenderFrame::collectReflections(ecs::Registry& registry) {
+    ReflectionStore& store = context_.reflections();
+    store.clear();
+
+    auto view = registry.view<ecs::ReflectionProbe>();
+    for (auto entity : view) {
+        const auto& probe = view.get(entity);
+        if (!probe.enabled || !probe.reflection.isValid()) continue;
+        const auto* transform = registry.tryGet<ecs::Transform>(entity);
+        if (!transform) continue;
+        const glm::vec3 centre = glm::vec3(transform->worldPosition);
+        const glm::vec3 half = glm::abs(probe.halfExtents);
+        store.add(centre - half, centre + half, probe.slot, probe.reflection.id());
+    }
+    if (store.empty()) return;
+
+    const Environment* baked =
+        resource_manager_.getEnvironment(resource::EnvironmentHandle(store.environment()));
+    if (!baked || !baked->hasSpecular()) return;
+    Texture* atlas = resource_manager_.getTexture(baked->specular);
+    if (!atlas) return;
+
+    // Boxes by COLUMN and not in the order the registry walked them: the shader
+    // indexes by the number written on the probe, and a frame that packed them
+    // tightly would project one room's reflection onto another's walls.
+    glm::vec4 boxes[2 * MAX_REFLECTION_PROBES]{};
+    u32 highest = 0;
+    for (const ReflectionStore::Probe& probe : store.probes()) {
+        const u32 at = (probe.slot - 1) * 2;
+        boxes[at] = glm::vec4(probe.min, 0.0f);
+        boxes[at + 1] = glm::vec4(probe.max, 0.0f);
+        highest = std::max(highest, probe.slot);
+    }
+    environment_texture_id_ = atlas->getId();
+    context_.lights().setReflections(
+        glm::vec4(1.0f, baked->maxRange, static_cast<f32>(baked->mipCount) - 1.0f,
+                  baked->faceSize),
+        boxes, highest);
 }
 
 void RenderFrame::collectLights(ecs::Registry& registry) {
@@ -1879,6 +1929,9 @@ void RenderFrame::collectAll(ecs::Registry& registry) {
     // Beside the lights and for the same reason: this answers what reaches a point
     // that no light can be asked about, and the mesh collect below reads both.
     { ES_PROFILE_SCOPE("render.collect.probes"); collectProbes(registry); }
+    // After the lights: what a bake says a surface MIRRORS replaces what the
+    // ambient light's own environment would have answered.
+    { ES_PROFILE_SCOPE("render.collect.reflections"); collectReflections(registry); }
     // Before the plugins and after nothing: it reads the scene and this camera's
     // projection, both of which are already settled when the collect opens.
     { ES_PROFILE_SCOPE("render.collect.occluders"); collectOccluders(registry); }

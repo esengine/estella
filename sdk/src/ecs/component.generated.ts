@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, Cl
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '8ef437d46a35780d';
+export const ABI_LAYOUT_HASH = '10bb7593c5d041c3';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -780,6 +780,24 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             radius: { min: 0, category: "Field" },
             direction: { category: "Field" },
             falloff: { category: "Field" },
+        },
+    },
+    ReflectionProbe: {
+        defaults: {
+            reflection: 0,
+            halfExtents: { x: 200, y: 200, z: 200 },
+            slot: 0,
+            enabled: true,
+        },
+        assetFields: [{ field: 'reflection', type: 'environment' as AssetFieldType }],
+        entityFields: [],
+        colorFields: [],
+        animatableFields: [],
+        fields: {
+            reflection: { tooltip: "The scene's baked reflections (the baker writes this)." },
+            halfExtents: { min: 0, tooltip: "Half the box this probe answers inside, from the entity's position." },
+            slot: { min: 0, tooltip: "Which column of the atlas this probe occupies (the baker writes this).", advanced: true },
+            enabled: { tooltip: "Off: what stands inside this box reflects the sky again." },
         },
     },
     RigidBody2D: {
@@ -1571,6 +1589,19 @@ export interface ParticleForceFieldData {
     radius: number;
     direction: Vec3;
     falloff: boolean;
+    enabled: boolean;
+}
+
+/**
+ * The fields of the engine's `ReflectionProbe` component, generated from
+ * the C++ struct so the two shapes cannot drift.
+ *
+ * @beta
+ */
+export interface ReflectionProbeData {
+    reflection: number;
+    halfExtents: Vec3;
+    slot: number;
     enabled: boolean;
 }
 

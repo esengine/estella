@@ -34,6 +34,12 @@ public:
     /** RGBM decode range: `(rgb*a)^2 * maxRange` is the stored radiance. */
     f32 maxRange = 0.0f;
 
+    /** @brief How many octahedral pyramids stand side by side in the atlas.
+     *  @details One for a sky imported from a panorama. A scene's BAKE writes
+     *           several — column 0 the sky it was baked under, the rest a
+     *           reflection probe each — so one bound texture serves them all. */
+    u32 columns = 1;
+
     bool hasSpecular() const { return specular.isValid() && mipCount > 0 && faceSize > 0.0f; }
 };
 

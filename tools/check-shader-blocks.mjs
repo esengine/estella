@@ -152,8 +152,23 @@ function constants() {
 }
 
 const CONSTS = constants();
-const resolve = (field) => field.replace(/\[([A-Z_][A-Z_0-9]*)\]/, (m, k) =>
-    CONSTS.has(k) ? `[${CONSTS.get(k)}]` : m);
+/**
+ * A C++ array length as a NUMBER: `[MAX_LIGHTS]`, and the products a block writes
+ * when one constant bounds two of something — `[2 * MAX_REFLECTION_PROBES]` is a
+ * box per column, low corner and high. Left unresolved the comparison would fail
+ * on the spelling and say nothing about the length, which is what it is here for.
+ */
+const resolve = (field) => field.replace(/\[([^\]]+)\]/, (m, expr) => {
+    const parts = expr.split('*').map((t) => t.trim());
+    let product = 1;
+    for (const part of parts) {
+        const value = /^\d+$/.test(part) ? Number(part)
+            : CONSTS.has(part) ? Number(CONSTS.get(part)) : NaN;
+        if (!Number.isFinite(value)) return m;
+        product *= value;
+    }
+    return `[${product}]`;
+});
 
 const problems = [];
 let checked = 0;

@@ -173,7 +173,7 @@ function bakeTransformOf(baker, entity) {
  * is refused: resolving one is the editor's job, and an atlas lit for a place
  * nothing is at looks like a bake that is wrong rather than one never run.
  */
-async function bakeScene(baker, sceneFile, check) {
+async function bakeScene(baker, meta, sceneFile, check) {
   const sceneDir = path.dirname(sceneFile);
   const rel = path.relative(REPO, sceneFile);
   const scene = JSON.parse(readFileSync(sceneFile, 'utf8'));
@@ -210,7 +210,25 @@ async function bakeScene(baker, sceneFile, check) {
   const surfaces = [];
   const lights = [];
   const volumes = [];
+  const reflectionProbes = [];
   const ambient = [0, 0, 0];
+  // The sky a capture sees and the format its atlas adopts. Read from the FIRST
+  // ambient light naming one, which is the frame's environment too.
+  let environment = null;
+  const readEnvironment = (ref) => {
+    const file = resolveRef(ref);
+    if (!file || !existsSync(file)) return null;
+    try {
+      const document = JSON.parse(readFileSync(file, 'utf8'));
+      // A sibling of the document, which is how an import names it — or a ref,
+      // which is how one survives a package renaming files to their hash.
+      const spec = typeof document.specular === 'string' ? document.specular : '';
+      const atlas = spec.startsWith('@uuid:') ? resolveRef(spec)
+                                              : path.resolve(path.dirname(file), spec);
+      return { document, atlasPng: atlas && existsSync(atlas)
+        ? new Uint8Array(readFileSync(atlas)) : new Uint8Array() };
+    } catch { return null; }
+  };
   // The REF as the document spells it, not the path it resolves to: the editor's
   // collector fingerprints the same string, and an absolute path would differ
   // between two checkouts of one project.
@@ -256,7 +274,17 @@ async function bakeScene(baker, sceneFile, check) {
         fingerprintSurfaces.push({ mesh: ref, transform, albedo, texture: textureRef, holdsStill });
       }
     }
+    const reflection = bakeComponent(entity, 'ReflectionProbe');
+    if (reflection && reflection.data?.enabled !== false) {
+      const p = bakeVec(tf.position, BAKE_ZERO);
+      reflectionProbes.push({ entity: entity.id, label: entity.name ?? String(entity.id),
+                              center: [p.x, p.y, p.z] });
+    }
     if (light) {
+      if (!environment && typeof light.data?.environment === 'string'
+          && light.data.environment !== '') {
+        environment = readEnvironment(light.data.environment);
+      }
       const p = bakeVec(tf.position, BAKE_ZERO);
       const made = baker.bakeLightOf(light.data, [p.x, p.y, p.z],
                                      bakeVec(tf.rotation, BAKE_IDENTITY_Q));
@@ -273,10 +301,14 @@ async function bakeScene(baker, sceneFile, check) {
     surfaces: fingerprintSurfaces, lights,
     volumes: volumes.map((v) => ({ center: v.center, halfExtents: v.halfExtents,
                                    spacing: v.spacing })),
+    // A reflection is captured from a POINT, so where it stands is the whole of
+    // what it contributes — a moved probe is a stale bake.
+    reflections: reflectionProbes.map((p) => p.center),
     ambient, options,
   });
   const result = baker.bakeSceneLightmap({
-    surfaces, lights, probeVolumes: volumes, options: { ...options, ambient },
+    surfaces, lights, probeVolumes: volumes, reflectionProbes, environment,
+    options: { ...options, ambient },
   });
   for (const w of result.warnings) console.warn(`  ! ${w}`);
 
@@ -306,6 +338,20 @@ async function bakeScene(baker, sceneFile, check) {
     });
   });
 
+  // The scene's reflections: one atlas and one document beside the lightmap, and
+  // a column number written onto each probe. Named for the scene rather than for
+  // a probe — there is one of these however many probes stand in it.
+  const reflectionName = `${stem}_reflections.png`;
+  const reflectionDocName = `${stem}_reflections.esenv`;
+  const reflectionFile = path.join(sceneDir, reflectionName);
+  const reflectionDocFile = path.join(sceneDir, reflectionDocName);
+  let reflectionText = null;
+  if (result.reflection) {
+    result.reflection.document.specular = reflectionName;
+    reflectionText = `${JSON.stringify(result.reflection.document, null, 2)}\n`;
+  }
+  const reflectionRef = reflectionText ? (refTo(reflectionDocFile) || reflectionDocName) : '';
+
   const placed = new Map();
   result.scaleOffset.forEach((rect, i) => { if (rect) placed.set(surfaces[i].entity, rect); });
   for (const entity of scene.entities ?? []) {
@@ -329,6 +375,20 @@ async function bakeScene(baker, sceneFile, check) {
     };
   }
   for (const entity of scene.entities ?? []) {
+    const at = entity.components.findIndex((c) => c.type === 'ReflectionProbe');
+    if (at < 0) continue;
+    // Column 0 is the sky, so the first probe is column 1. A probe the bake did
+    // not take keeps neither ref nor column: a stale one would reflect whatever
+    // room happens to be baked at that number.
+    const column = reflectionProbes.findIndex((p) => p.entity === entity.id);
+    entity.components[at] = {
+      type: 'ReflectionProbe',
+      data: { ...entity.components[at].data,
+              reflection: column >= 0 ? reflectionRef : '',
+              slot: column >= 0 ? column + 1 : 0 },
+    };
+  }
+  for (const entity of scene.entities ?? []) {
     const at = entity.components.findIndex((c) => c.type === 'LightProbeVolume');
     if (at < 0) continue;
     // A refused volume loses its ref rather than keeping the last grid: a box
@@ -344,7 +404,8 @@ async function bakeScene(baker, sceneFile, check) {
   // A product with no `.meta` has no identity, so the cook carries neither it nor
   // the light in it. Checked here rather than written: a uuid is the stable name
   // refs resolve through, and minting one is the importer's to do.
-  const products = [atlasFile, ...[...grids.values()].map((g) => path.join(sceneDir, g.name))];
+  const products = [atlasFile, ...[...grids.values()].map((g) => path.join(sceneDir, g.name)),
+                    ...(reflectionText ? [reflectionFile, reflectionDocFile] : [])];
   const unnamed = products.filter((f) => existsSync(f) && !existsSync(`${f}.meta`));
   if (check && unnamed.length > 0) {
     for (const f of unnamed) console.error(`bake-scene: ${path.relative(REPO, f)} has no .meta`);
@@ -361,21 +422,38 @@ async function bakeScene(baker, sceneFile, check) {
       const file = path.join(sceneDir, g.name);
       return !existsSync(file) || readFileSync(file, 'utf8') !== g.text;
     });
-    if (staleAtlas || staleScene || staleGrids) {
+    const staleReflections = reflectionText != null && (
+      !existsSync(reflectionFile)
+      || Buffer.compare(readFileSync(reflectionFile),
+                        Buffer.from(result.reflection.atlasBytes)) !== 0
+      || !existsSync(reflectionDocFile)
+      || readFileSync(reflectionDocFile, 'utf8') !== reflectionText);
+    if (staleAtlas || staleScene || staleGrids || staleReflections) {
       const what = [staleAtlas && 'the atlas', staleScene && 'the scene',
-                    staleGrids && 'a probe grid'].filter(Boolean).join(' and ');
+                    staleGrids && 'a probe grid',
+                    staleReflections && 'the reflections'].filter(Boolean).join(' and ');
       console.error(`bake-scene: ${rel} is not what a bake of it produces (${what} differ).`);
       console.error(`Rebake: node pipeline/bin/estella.mjs bake-scene ${rel}`);
       return 1;
     }
     console.log(`bake-scene: ${rel} matches a fresh bake`
       + ` (${result.lumels} lumel(s) over ${placed.size} object(s)`
-      + `${grids.size ? `, ${grids.size} probe grid(s)` : ''}).`);
+      + `${grids.size ? `, ${grids.size} probe grid(s)` : ''}`
+      + `${result.reflection ? `, ${result.reflection.columns} reflection column(s)` : ''}).`);
     return 0;
   }
 
   writeFileSync(atlasFile, result.atlasBytes);
   for (const g of grids.values()) writeFileSync(path.join(sceneDir, g.name), g.text);
+  if (reflectionText) {
+    writeFileSync(reflectionFile, result.reflection.atlasBytes);
+    writeFileSync(reflectionDocFile, reflectionText);
+    // An RGBM encoding of radiance, the three settings an HDR import gives its own
+    // atlas. Adopted here because this bake IS this file's importer, and a default
+    // meta would linearize the multiplier and then compress it.
+    await meta.adoptOrphan(reflectionFile, { sRGB: false, compress: false, wrapMode: 'clamp' });
+    await meta.adoptOrphan(reflectionDocFile);
+  }
   writeFileSync(sceneFile, document);
 
   // A product written for the first time has no `.meta` yet, so the scene had to
@@ -581,10 +659,13 @@ if (opts.command === 'import-model' || opts.command === 'import-gltf') {
 if (opts.command === 'bake-scene') {
   const { mod: baker, cleanup } = await loadPipeline(
     path.join(PIPELINE, 'src', 'assets', 'lightmapBake.ts'), 'lightmapBake.mjs');
+  const { mod: meta, cleanup: cleanupMeta } = await loadPipeline(
+    path.join(PIPELINE, 'src', 'assets', 'assetMeta.ts'), 'assetMeta.mjs');
   try {
-    process.exit(await bakeScene(baker, opts.source, opts.check));
+    process.exit(await bakeScene(baker, meta, opts.source, opts.check));
   } finally {
     cleanup();
+    cleanupMeta();
   }
 }
 

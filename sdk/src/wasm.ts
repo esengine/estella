@@ -308,11 +308,12 @@ export interface ESEngineModule {
     mesh_release?(meshHandle: number): void;
     /**
      * Register a baked environment: 27 floats of irradiance (nine RGB spherical-
-     * harmonic coefficients, already convolved and over pi) plus the prefiltered
-     * octahedral atlas an ambient light reflects. A 0 atlas is diffuse-only.
+     * harmonic coefficients, convolved and over pi) plus the prefiltered atlas an
+     * ambient light reflects; 0 is diffuse-only. `columns` is the pyramids in that
+     * atlas — one for a sky, several for a bake whose column 0 IS the sky.
      */
     environment_create?(shPtr: number, specularHandle: number, faceSize: number,
-                        mipCount: number, maxRange: number): number;
+                        mipCount: number, maxRange: number, columns: number): number;
     /** Release an environment; its atlas is an ordinary texture and outlives it. */
     environment_release?(environmentHandle: number): void;
     /**
