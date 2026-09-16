@@ -185,6 +185,9 @@ void main() {
 #ifdef SHADOW_DEPTH
     v_shadowClip = gl_Position;
 #endif
+    // Only the vertex stage has an instance index, and every instance of a
+    // merged run reads its own coefficients.
+    v_probeSlot = float(ES_INSTANCE_ID);
 #ifdef LIT
 #if defined(MESH_NORMALS) && defined(SKINNED)
     v_worldNormal = mat3(skin) * localNormal;
@@ -335,9 +338,12 @@ struct VSOut {
 #ifdef MESH_LIGHTMAP
     @location(5) v_lightmap : vec3f,
 #endif
+    // Which run of the probe block this instance reads. Flat: an index, and the
+    // fragment stage has no instance number of its own.
+    @location(6) @interpolate(flat) v_probeSlot : f32,
 };
 
-@vertex fn vs_main(v : VSIn) -> VSOut {
+@vertex fn vs_main(v : VSIn, @builtin(instance_index) inst : u32) -> VSOut {
     var local = v.a_position;
 #ifdef MESH_NORMALS
     var localNormal = v.a_normal;
@@ -382,6 +388,8 @@ struct VSOut {
 #ifdef SHADOW_DEPTH
     out.v_shadowClip = out.pos;
 #endif
+    // The GLSL twin's v_probeSlot fill.
+    out.v_probeSlot = f32(inst);
 #ifdef LIT
 #ifdef MESH_NORMALS
 #ifdef SKINNED
@@ -443,9 +451,15 @@ struct VSOut {
 #ifdef MESH_LIGHTMAP
     @location(5) v_lightmap : vec3f,
 #endif
+    // Which run of the probe block this instance reads. Flat: an index, and the
+    // fragment stage has no instance number of its own.
+    @location(6) @interpolate(flat) v_probeSlot : f32,
 };
 
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    // WGSL has no module varying: the entry point hands the injected header the
+    // slot its GLSL twin reads straight off one.
+    g_probeSlot = v.v_probeSlot;
 #ifdef SHADOW_DEPTH
     // The expression the receiver evaluates on u_shadowMatrix, evaluated here on the
     // same matrix and at the same point: whatever each backend's clip z means, both

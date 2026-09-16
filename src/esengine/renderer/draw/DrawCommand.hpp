@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #pragma once
 
+#include "../store/ProbeConstants.hpp"
 #include "../../core/Types.hpp"
 #include "../frame/RenderStage.hpp"
 #include "./RenderItem.hpp"
@@ -154,6 +155,10 @@ struct DrawCommand {
     // frame's pool, so 0 means no volume holds it and the frame's environment
     // answers instead.
     u32 probe_index = 0;
+    // Where this draw's instances start in the frame's probe texture. A merged
+    // run reads slot `probe_base + gl_InstanceID`, which is why the merge
+    // records every instance's probe in draw order rather than dropping it.
+    u32 probe_base = 0;
 
     bool hasPersistentGeometry() const { return vertex_buffer != BufferHandle::Invalid; }
 
@@ -331,10 +336,9 @@ struct DrawCommand {
         if (skin_count != 0 || next.skin_count != 0) return false;
         // Same reason: one draw can only be in one shape.
         if (morph_index != 0 || next.morph_index != 0) return false;
-        // And one draw can only be in one PLACE, which is what a probe volume is
-        // asked about. Instancing is the claim that a record per object says
-        // everything that differs between them; irradiance is not in that record.
-        if (probe_index != 0 || next.probe_index != 0) return false;
+        // Indirect light is NOT in this list: it is per instance, so two draws
+        // standing in different places are one geometry drawn twice.
+
         // BOTH, not just this one: an opaque head asked about a draw whose
         // result depends on when it happens would otherwise swallow it and
         // paint it with the head's own state.
@@ -357,6 +361,12 @@ struct DrawCommand {
         // command is the same geometry again — see sameInstancedGeometry, which
         // the merge answers by relocating the records rather than by a draw.
         if (instance_count != 0 || next.instance_count != 0) {
+            // A run carrying irradiance is bounded by what one block holds; one
+            // standing in no volume carries none and is not bounded.
+            if ((probe_index != 0 || next.probe_index != 0)
+                && instance_count + next.instance_count > PROBE_MAX_INSTANCES) {
+                return BatchBreak::Instanced;
+            }
             if (!sameInstancedGeometry(next)) return BatchBreak::Instanced;
             if (shader_id != next.shader_id) return BatchBreak::Shader;
             if (material_id != next.material_id) return BatchBreak::Material;

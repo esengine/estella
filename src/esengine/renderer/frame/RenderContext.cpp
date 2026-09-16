@@ -151,7 +151,10 @@ void RenderContext::initFrameUbo() {
     // one pass is read by both — see PerDrawBlocks.
     skinBlocks_.init(device_, static_cast<u32>(sizeof(SkinConstants)));
     morphBlocks_.init(device_, static_cast<u32>(sizeof(MorphConstants)));
-    probeBlocks_.init(device_, static_cast<u32>(sizeof(ProbeConstants)));
+    // A run per instance, not one for the draw: the block is what a merged draw
+    // says about every object in it, and GL wants the whole declared block bound.
+    probeBlocks_.init(device_,
+                      static_cast<u32>(sizeof(ProbeConstants)) * PROBE_MAX_INSTANCES);
     // What a draw with no shapes and no volume reads. A pose has no zero: geometry
     // without one is drawn by a shader that does not declare the block.
     device_.setUniformBuffer(MORPH_CONSTANTS_BINDING, morphBlocks_.zero());

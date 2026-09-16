@@ -48,6 +48,7 @@ void DrawList::clear() {
     skin_matrices_.clear();
     morph_shapes_.clear();
     probes_.clear();
+    probe_slots_.clear();
     merged_draw_calls_ = 0;
     depth_required_ = false;
 }
@@ -128,6 +129,10 @@ void DrawList::finalize(TransientBufferPool& pool) {
                     head.instances_relocated = true;
                     head.instance_count += commands_[i].instance_count;
                     head.entity_count += commands_[i].entity_count;
+                    // One more instance in this run, and its own irradiance with
+                    // it: the merge is the last place an instance's probe and its
+                    // position in the run are both known.
+                    probe_slots_.push_back(commands_[i].probe_index);
                     didMerge = true;
                 } else {
                     blocker = BatchBreak::Instanced;
@@ -161,6 +166,10 @@ void DrawList::finalize(TransientBufferPool& pool) {
             if (writeIdx != i) {
                 commands_[writeIdx] = commands_[i];
             }
+            if (commands_[writeIdx].instance_count != 0) {
+                commands_[writeIdx].probe_base = static_cast<u32>(probe_slots_.size());
+                probe_slots_.push_back(commands_[writeIdx].probe_index);
+            }
             commands_[writeIdx].break_reason = blocker;
             ++breaks[static_cast<u32>(blocker)];
             // The run head owns slot 0; staging verts already default to texIndex 0,
@@ -190,6 +199,7 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
                        PerDrawBlocks* morph_blocks, PerDrawBlocks* probe_blocks) {
     PipelineDesc lastDesc{};
     PipelineHandle lastHandle = PipelineHandle::Invalid;
+
 
     for (u32 i = 0; i < merged_draw_calls_; ++i) {
         const auto& cmd = commands_[i];
@@ -251,14 +261,27 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
                                         : morph_blocks->zero());
         }
 
-        // The indirect light, on exactly those terms: a draw standing in no volume
-        // binds zeroes, and reads the frame's environment because of them.
+        // WHERE this draw's instances read their irradiance, not what it is: the
+        // coefficients are in the frame's texture, one run per instance, so a
+        // merged draw holding objects in many places still says one thing here.
         if (probe_blocks) {
-            device.setUniformBuffer(PROBE_CONSTANTS_BINDING,
-                                    cmd.probe_index > 0
-                                        ? probe_blocks->write(&probes_[cmd.probe_index - 1],
-                                                              sizeof(ProbeConstants))
-                                        : probe_blocks->zero());
+            // Every instance of this run, in the order it draws them, capped at
+            // what the block holds — a longer run carries no irradiance at all,
+            // so its tail reads zeroes and takes the environment.
+            const u32 runs = std::min(cmd.instance_count > 0 ? cmd.instance_count : 1u,
+                                      PROBE_MAX_INSTANCES);
+            probe_run_.assign(static_cast<size_t>(runs) * PROBE_TEXELS, glm::vec4(0.0f));
+            for (u32 n = 0; n < runs; ++n) {
+                const size_t at = static_cast<size_t>(cmd.probe_base) + n;
+                const u32 index = at < probe_slots_.size() ? probe_slots_[at] : 0u;
+                if (index == 0) continue;
+                std::memcpy(&probe_run_[static_cast<size_t>(n) * PROBE_TEXELS],
+                            probes_[index - 1].irradiance, sizeof(ProbeConstants));
+            }
+            device.setUniformBuffer(
+                PROBE_CONSTANTS_BINDING,
+                probe_blocks->write(probe_run_.data(),
+                                    static_cast<u32>(probe_run_.size() * sizeof(glm::vec4))));
         }
 
         // Dynamic per-draw state (sorted+merged draws already group these coarsely).

@@ -28,6 +28,12 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(render): indirect light per instance, so a probe stops refusing the merge':
+    { note: 'A scene can hold a thousand of something again.' },
+
+  'test(render): the instancing check asks a scene that has probes in it':
+    { internal: 'The check moved with the fix; what a creator sees is the fix.' },
+
   'feat(editor): what a frame costs, and the first check to ask about scale':
     { note: 'Automation can read what a frame cost.' },
 

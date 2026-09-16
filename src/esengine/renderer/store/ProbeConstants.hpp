@@ -28,7 +28,20 @@ inline constexpr u32 PROBE_CONSTANTS_BINDING = 7;
 /** @brief GLSL block name; must match the injected Lit header + Shader::compile lookup. */
 inline constexpr const char* PROBE_CONSTANTS_BLOCK = "ProbeConstants";
 
-/** @brief std140 mirror of the block. */
+/**
+ * @brief How many instances of one merged draw carry their own irradiance.
+ *
+ * @details The coefficients ride the draw's uniform block, one run of nine vec4
+ *          per instance, so 100 runs is 14.4KB — inside the 16KB a WebGL2
+ *          uniform block is guaranteed. A run reaching this many stops merging
+ *          rather than drawing someone else's light.
+ */
+inline constexpr u32 PROBE_MAX_INSTANCES = 100;
+
+/// Texels one probe's coefficients occupy in that block.
+inline constexpr u32 PROBE_TEXELS = 9;
+
+/** @brief One probe's coefficients, as the CPU gathers them before packing. */
 struct ProbeConstants {
     /// SH9, rgb in xyz. `[0].w` is 1 where this draw stands in a volume — a flag
     /// and not the absence of coefficients, since zeroes ARE an answer here: a

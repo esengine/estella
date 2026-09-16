@@ -72,6 +72,7 @@ public:
     u32 commandCount() const { return static_cast<u32>(commands_.size()); }
     u32 mergedDrawCallCount() const { return merged_draw_calls_; }
 
+
     const DrawCommand* commands() const { return commands_.data(); }
     const DrawCommand& command(u32 index) const { return commands_[index]; }
 
@@ -190,6 +191,13 @@ private:
     std::vector<glm::mat4> skin_matrices_;
     std::vector<MorphConstants> morph_shapes_;
     std::vector<ProbeConstants> probes_;
+    /// One entry per INSTANCE of every merged run, in the order the run draws
+    /// them: the merge is where an instance's probe is still known, and the
+    /// texture is packed from this afterwards.
+    std::vector<u32> probe_slots_;
+    /// One draw's run of coefficients, rebuilt per draw — reused so a frame of
+    /// merged draws does not allocate per draw.
+    std::vector<glm::vec4> probe_run_;
     std::vector<SortEntry> sort_entries_;
     std::vector<DrawCommand> sorted_scratch_;  // reused across frames to avoid a
                                                // per-frame heap alloc in finalize()

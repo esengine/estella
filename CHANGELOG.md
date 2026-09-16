@@ -74,6 +74,31 @@ published separately; it ships inside the editor.
   player moves, releases it and they stop, dodges and the score rises, chases a
   block and the run ends, presses Space and it begins again on a clear board.
 
+- **A scene can hold a thousand of something again.** The renderer merges draws
+  of one mesh into a single instanced draw, and one `LightProbeVolume` anywhere
+  in the scene turned that off completely: indirect light was bound PER DRAW, and
+  the merge refuses a draw carrying it — "a record per object says everything
+  that differs between them, and irradiance is not in that record". So 200 copies
+  of one crate cost **200** draw calls in any scene lit by probes, and nothing
+  said so.
+
+  Irradiance is in the record now. A draw's block carries a run of coefficients
+  per INSTANCE rather than one for the draw, the vertex stage hands the fragment
+  its instance's slot, and the merge stopped refusing. The same 200 copies cost
+  **2** more draw calls, with the volume still in the scene; the scale corpus
+  went from 43 draws to **1** for its 4225 meshes.
+
+  What bounds a run is what one uniform block holds — 100 instances, inside the
+  16KB WebGL2 guarantees — and only for runs that actually stand in a volume: a
+  scene with no probes merges without limit, which is what the 4225 are. A run
+  longer than the cap carries no irradiance by construction, so its tail reads
+  the zeroes and falls back to the environment, which is its answer anyway.
+
+  Per-instance, not per-object-record, because the record is out of room: the 16
+  vertex attribute slots are a fixed vocabulary — 0-7 the mesh's own channels
+  (serialised in `.esmesh`), 8-15 the per-object transform — with nothing spare.
+  Moving that record to a texture is what would free them, and is its own change.
+
 - **Automation can read what a frame cost.** A probe could ask what a game was
   doing and not what it was paying: `Stats` is installed by StatsPlugin, which a
   play realm does not build, so the reading came back as a materialised default —

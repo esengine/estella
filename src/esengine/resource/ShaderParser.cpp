@@ -121,6 +121,11 @@ std::string wgslCanonicalVSOut(bool lit) {
         "#ifdef MESH_LIGHTMAP\n"
         "    @location(5) v_lightmap : vec3f,\n"
         "#endif\n";
+    if (lit) {
+        // Which run of coefficients this instance reads. Flat: an index, not a
+        // gradient — and the fragment stage has no instance number of its own.
+        src += "    @location(6) @interpolate(flat) v_probeSlot : f32,\n";
+    }
     src += "};\n";
     return src;
 }
@@ -413,6 +418,10 @@ std::string canonicalVertexStage(bool lit) {
         "#endif\n";
     if (lit) {
         src += "out highp vec2 v_worldPos;\n";
+        // Which run of coefficients THIS instance reads. The fragment stage has
+        // no instance index, and the draw's own base is the same for every
+        // instance in a merged run — so the one stage that can say it, says it.
+
     }
     src +=
         "\n"
@@ -482,6 +491,9 @@ std::string canonicalVertexStage(bool lit) {
         "#endif\n";
     if (lit) {
         src += "    v_worldPos = world.xy;\n";
+        // The instance's own run of probe coefficients — declared by the Lit
+        // vertex header, so filled under the same condition.
+        src += "    v_probeSlot = float(ES_INSTANCE_ID);\n";
     }
     src += "}\n";
     return src;
@@ -970,8 +982,12 @@ struct LightConstants {
     u_envTint : vec4f,
 };
 @group(0) @binding(2) var<uniform> lc : LightConstants;
-struct ProbeConstants { u_probeIrradiance : array<vec4f, 9> };
+struct ProbeConstants { u_probeIrradiance : array<vec4f, 900> };
 @group(0) @binding(7) var<uniform> pc : ProbeConstants;
+// Which run of that block this fragment's instance reads. WGSL has no module
+// varying, so the entry point hands it over — the GLSL twin reads the varying
+// straight, which is the one place the two stages differ in shape.
+var<private> g_probeSlot : f32 = 0.0;
 fn packDepth(d : f32) -> vec3f {
     let enc = fract(d * vec3f(1.0, 255.0, 65025.0));
     return enc - enc.yzz * vec3f(1.0 / 255.0, 1.0 / 255.0, 0.0);
@@ -1218,8 +1234,11 @@ fn envIrradiance(Nw : vec3f) -> vec3f {
 // surface has one indirect term and a volume already holds every light and bounce
 // that reached the point.
 fn indirectIrradiance(N : vec3f) -> vec3f {
-    if (pc.u_probeIrradiance[0].w > 0.5) {
-        return max(shIrradiance(pc.u_probeIrradiance, N), vec3f(0.0));
+    let base = i32(g_probeSlot) * 9;
+    if (pc.u_probeIrradiance[base].w > 0.5) {
+        var sh : array<vec4f, 9>;
+        for (var i = 0; i < 9; i = i + 1) { sh[i] = pc.u_probeIrradiance[base + i]; }
+        return max(shIrradiance(sh, N), vec3f(0.0));
     }
     return envIrradiance(N);
 }
@@ -1668,6 +1687,21 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
     // can't silently mismatch renderer/LightConstants.hpp and corrupt lighting. Members + locals
     // carry explicit highp for the same reason MaterialConstants does: a fragment shader has no
     // default float precision until its `precision` line, which follows this injected header.
+
+    // Declared by every Lit vertex because every Lit fragment takes it in. One
+    // that never fills it reads slot 0 (the fragment clamps), not garbage.
+    if (stage == ShaderStage::Vertex && parsed.domain == "Lit") {
+        // The twin generator compiles this stage under Vulkan semantics, where the
+        // instance number is spelled differently and gl_InstanceID does not exist.
+        assembled << "#ifdef VULKAN\n"
+                     "#define ES_INSTANCE_ID gl_InstanceIndex\n"
+                     "#else\n"
+                     "#define ES_INSTANCE_ID gl_InstanceID\n"
+                     "#endif\n"
+                     "flat out highp float v_probeSlot;\n";
+        headerLines += 6;
+    }
+
     // The light-array size and packing here MUST match renderer/LightConstants.hpp (MAX_LIGHTS,
     // GpuLight = four vec4s).
     if (stage == ShaderStage::Fragment && parsed.domain == "Lit") {
@@ -1685,12 +1719,13 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    highp vec4 u_envParams;\n"       // x = has map, y = range, z = maxLod, w = face
             "    highp vec4 u_envTint;\n"         // the ambient light's colour, scaling both halves
             "};\n"
-            // Where THIS draw stands, when a grid was baked around it. The flag in
-            // w is the only way a fragment tells "no volume" from "a probe in the
-            // dark" — zeroed coefficients are an answer, not an absence.
+            // One run of nine per INSTANCE, not one for the draw: a merged draw
+            // holds objects standing in many places. The flag in w tells "no
+            // volume" from "a probe in the dark".
             "layout(std140) uniform ProbeConstants {\n"
-            "    highp vec4 u_probeIrradiance[9];\n"
+            "    highp vec4 u_probeIrradiance[9 * 100];\n"
             "};\n"
+            "flat in highp float v_probeSlot;\n"
             // The shadow map rides the draw's third texture slot, behind the feature the
             // MESH vertex sources set: the batch stream owns 0..7 as a per-vertex merge
             // product, so a sampler pinned to slot 2 there would read someone's sprite.
@@ -1968,8 +2003,11 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // environment rather than adding to it — a surface has one indirect term
             // — and its nine are world-space, so neither rotation nor tint applies.
             "highp vec3 indirectIrradiance(in highp vec3 N) {\n"
-            "    if (u_probeIrradiance[0].w > 0.5) {\n"
-            "        return max(shIrradiance(u_probeIrradiance, N), vec3(0.0));\n"
+            "    highp int base = clamp(int(v_probeSlot), 0, 99) * 9;\n"
+            "    if (u_probeIrradiance[base].w > 0.5) {\n"
+            "        highp vec4 sh[9];\n"
+            "        for (int i = 0; i < 9; i++) sh[i] = u_probeIrradiance[base + i];\n"
+            "        return max(shIrradiance(sh, N), vec3(0.0));\n"
             "    }\n"
             "    return envIrradiance(N);\n"
             "}\n"

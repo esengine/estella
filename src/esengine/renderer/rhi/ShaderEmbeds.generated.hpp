@@ -536,6 +536,9 @@ void main() {
 #ifdef SHADOW_DEPTH
     v_shadowClip = gl_Position;
 #endif
+
+
+    v_probeSlot = float(ES_INSTANCE_ID);
 #ifdef LIT
 #if defined(MESH_NORMALS) && defined(SKINNED)
     v_worldNormal = mat3(skin) * localNormal;
@@ -686,9 +689,12 @@ struct VSOut {
 #ifdef MESH_LIGHTMAP
     @location(5) v_lightmap : vec3f,
 #endif
+
+
+    @location(6) @interpolate(flat) v_probeSlot : f32,
 };
 
-@vertex fn vs_main(v : VSIn) -> VSOut {
+@vertex fn vs_main(v : VSIn, @builtin(instance_index) inst : u32) -> VSOut {
     var local = v.a_position;
 #ifdef MESH_NORMALS
     var localNormal = v.a_normal;
@@ -733,6 +739,8 @@ struct VSOut {
 #ifdef SHADOW_DEPTH
     out.v_shadowClip = out.pos;
 #endif
+
+    out.v_probeSlot = f32(inst);
 #ifdef LIT
 #ifdef MESH_NORMALS
 #ifdef SKINNED
@@ -794,9 +802,15 @@ struct VSOut {
 #ifdef MESH_LIGHTMAP
     @location(5) v_lightmap : vec3f,
 #endif
+
+
+    @location(6) @interpolate(flat) v_probeSlot : f32,
 };
 
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+
+
+    g_probeSlot = v.v_probeSlot;
 #ifdef SHADOW_DEPTH
 
 
