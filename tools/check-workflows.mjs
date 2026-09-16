@@ -126,8 +126,46 @@ const POSIX_ENV = /(?<!\$\{\{[^}]*)\$[A-Z][A-Z0-9_]{2,}|^\s*(if|elif|while)\s+\[
 const violations = [];
 const shellViolations = [];
 
+/**
+ * Upload steps whose `path` runs through a dot-directory or names a dot-file without
+ * `include-hidden-files: true`. upload-artifact skips hidden paths by default and only
+ * WARNS that it found nothing, so the step passes and the artifact never exists — the
+ * parity frames a golden failure is meant to hand over went missing exactly that way.
+ */
+function hiddenUploads(lines) {
+    const out = [];
+    for (let i = 0; i < lines.length; i++) {
+        if (!/^\s*(?:-\s+)?uses:\s*actions\/upload-artifact@/.test(lines[i])) continue;
+        let start = i;
+        while (start > 0 && !/^\s*-\s/.test(lines[start])) start--;
+        const dash = /^\s*/.exec(lines[start])[0].length;
+        let end = start + 1;
+        while (end < lines.length && (lines[end].trim() === ''
+            || /^\s*/.exec(lines[end])[0].length > dash)) end++;
+        const step = lines.slice(start, end);
+        if (step.some((l) => /^\s*include-hidden-files:\s*true\s*$/.test(l))) continue;
+        const paths = [];
+        const at = step.findIndex((l) => /^\s*path:/.test(l));
+        if (at < 0) continue;
+        const inline = /^\s*path:\s*(.*)$/.exec(step[at])[1].trim();
+        if (inline && !/^[|>]/.test(inline)) paths.push(inline);
+        else {
+            const indent = /^\s*/.exec(step[at])[0].length;
+            for (let k = at + 1; k < step.length && /^\s*/.exec(step[k])[0].length > indent; k++) {
+                if (step[k].trim()) paths.push(step[k].trim());
+            }
+        }
+        const hidden = paths.filter((p) => !p.includes('${{')
+            && p.split('/').some((seg) => /^\.[^./]/.test(seg)));
+        if (hidden.length > 0) out.push({ line: i + 1, paths: hidden });
+    }
+    return out;
+}
+const hiddenUploadViolations = [];
+
 for (const file of readdirSync(WORKFLOWS).filter((f) => /\.ya?ml$/.test(f))) {
     const lines = readFileSync(path.join(WORKFLOWS, file), 'utf8').split('\n');
+    for (const v of hiddenUploads(lines)) hiddenUploadViolations.push({ file, ...v });
     const found = jobs(lines);
     const jobsAt = lines.findIndex((l) => /^jobs:\s*$/.test(l));
     const workflowShell = declaresShell(lines.slice(0, jobsAt < 0 ? lines.length : jobsAt));
@@ -193,6 +231,16 @@ if (gateProblems.length > 0) {
     process.exit(1);
 }
 
+if (hiddenUploadViolations.length > 0) {
+    console.error(`\n✗ ${hiddenUploadViolations.length} artifact upload(s) name a hidden path and would upload nothing:\n`);
+    for (const v of hiddenUploadViolations) {
+        console.error(`  ${path.join('.github/workflows', v.file)}:${v.line}  ${v.paths.join(', ')}`);
+    }
+    console.error('\nAdd `include-hidden-files: true` to the step: upload-artifact skips dot-paths');
+    console.error('by default and only warns, so the artifact is simply never there.\n');
+    process.exit(1);
+}
+
 if (shellViolations.length > 0) {
     console.error(`\n✗ ${shellViolations.length} step(s) that can run on windows use POSIX shell without saying so:\n`);
     for (const v of shellViolations) {
@@ -248,5 +296,6 @@ if (violations.length > 0) {
 
 console.log('✓ every workflow step that runs workspace tooling installs it first');
 console.log('✓ every windows-capable step that speaks POSIX shell says which shell it wants');
+console.log('✓ every artifact upload from a hidden path says it includes hidden files');
 console.log(`✓ ${GATES.length} static gate(s) in one list; CI runs it through run-gates.mjs`);
 console.log('✓ the release\'s dry run signs by the same mechanism its publish does');
