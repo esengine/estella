@@ -1232,6 +1232,17 @@
           }
         },
         {
+          "type": "Occluder",
+          "data": {
+            "halfExtents": {
+              "x": 20,
+              "y": 110,
+              "z": 240
+            },
+            "enabled": true
+          }
+        },
+        {
           "type": "WorldPersistent",
           "data": {}
         }
@@ -1289,6 +1300,17 @@
               "b": 0.38,
               "a": 1
             }
+          }
+        },
+        {
+          "type": "Occluder",
+          "data": {
+            "halfExtents": {
+              "x": 20,
+              "y": 110,
+              "z": 240
+            },
+            "enabled": true
           }
         },
         {
