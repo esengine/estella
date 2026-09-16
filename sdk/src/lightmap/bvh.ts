@@ -22,8 +22,9 @@ const STACK = 64;
 export class Bvh {
     /** Six floats per node: min xyz, max xyz. */
     private readonly bounds: Float32Array;
-    /** Two ints per node: a leaf's first triangle or an inner node's right child,
-     *  then the triangle count — zero for an inner node. */
+    /** Two ints per node: a leaf's first triangle or an inner node's LEFT child
+     *  (the right is the one after it), then the triangle count — zero for an
+     *  inner node. */
     private readonly node: Int32Array;
     /** Triangle indices, reordered so a leaf's are contiguous. */
     private readonly order: Int32Array;
@@ -90,9 +91,12 @@ export class Bvh {
         let split = i;
         if (split === from || split === to) split = (from + to) >> 1;
 
+        // The two children are allocated together, so ONE index names both: the
+        // left, and the right beside it. `node + 1` is the left only for the root —
+        // building a left subtree allocates everything under it first.
         const left = this.used++;
         const right = this.used++;
-        this.node[node * 2] = right;
+        this.node[node * 2] = left;
         this.node[node * 2 + 1] = 0;
         this.build(left, from, split);
         this.build(right, split, to);
@@ -144,8 +148,9 @@ export class Bvh {
 
             const count = this.node[node * 2 + 1];
             if (count === 0) {
-                this.stack[sp++] = node + 1;
-                this.stack[sp++] = this.node[node * 2];
+                const left = this.node[node * 2];
+                this.stack[sp++] = left;
+                this.stack[sp++] = left + 1;
                 continue;
             }
             const first = this.node[node * 2];
