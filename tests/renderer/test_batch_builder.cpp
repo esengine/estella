@@ -405,11 +405,18 @@ TEST_CASE("execute: a sampling draw pins every sampler unit it does not use") {
 
     u32 boundAt[MAX_CMD_TEXTURE_SLOTS] = {};
     bool seen[MAX_CMD_TEXTURE_SLOTS] = {};
+    bool record = false;
     for (const auto& [unit, tex] : h.device.bindLog) {
+        // The frame's per-object record rides its own unit above the draw's eight.
+        if (unit == MESH_INSTANCE_TEXTURE_UNIT) {
+            record = true;
+            continue;
+        }
         REQUIRE(unit < MAX_CMD_TEXTURE_SLOTS);
         boundAt[unit] = static_cast<u32>(tex);
         seen[unit] = true;
     }
+    CHECK(record);
     for (u32 unit = 0; unit < MAX_CMD_TEXTURE_SLOTS; ++unit) {
         CHECK(seen[unit]);  // no unit left to whatever ran before
         CHECK(boundAt[unit] == (unit == 0 ? 7u : white));
