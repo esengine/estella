@@ -28,6 +28,15 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(render): a wall stops the frame from drawing what stands behind it':
+    { note: 'A wall can stop a frame from drawing what is behind it.' },
+
+  'feat(editor): the box an occluder blocks sight with, drawn where you place it':
+    { note: 'A wall can stop a frame from drawing what is behind it.' },
+
+  'feat(corpus): the corridor walls say sight stops at them':
+    { note: 'A wall can stop a frame from drawing what is behind it.' },
+
   'feat(decal): a projector you can place, and a bake that prints it':
     { note: 'Decals you can place.' },
 
