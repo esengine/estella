@@ -74,6 +74,24 @@ published separately; it ships inside the editor.
   player moves, releases it and they stop, dodges and the score rises, chases a
   block and the run ends, presses Space and it begins again on a clear board.
 
+- **Automation can read what a frame cost.** A probe could ask what a game was
+  doing and not what it was paying: `Stats` is installed by StatsPlugin, which a
+  play realm does not build, so the reading came back as a materialised default —
+  a frame that drew nothing and a frame that drew a thousand things are the same
+  zeroes. `renderStats()` reads the renderer directly and stands in the probe
+  scope beside `find` and `step`.
+
+  The first thing it was asked is the claim every scale feature rests on: 200
+  copies of one mesh cost **1** more draw call, 212 runs coalesced into their
+  neighbours. The instanced merge works, and now a check says so instead of the
+  code saying so.
+
+  It also found what turns it off. Indirect light is bound PER DRAW and the merge
+  refuses a draw carrying it, so a single `LightProbeVolume` anywhere in the scene
+  costs those same 200 copies 200 draw calls — nothing merges at all. The check
+  takes the volume away and records why; closing that is what the scale work
+  starts from.
+
 - **A graph can call another graph.** The last thing a `.esgraph` could not do
   was reuse itself: a long graph could only be tidied by moving nodes around,
   and the same four nodes were redrawn everywhere the same question got asked.

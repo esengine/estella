@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(editor): what a frame costs, and the first check to ask about scale':
+    { note: 'Automation can read what a frame cost.' },
+
   'feat(logic): a graph can call another graph, and pay for it out of one budget':
     { note: 'A graph can call another graph.' },
 
