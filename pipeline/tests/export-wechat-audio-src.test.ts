@@ -71,7 +71,7 @@ describe('the source a cooked mini-game hands its audio player', () => {
     const res = await exportGame({
       root,
       entryScene: 'scenes/main.esscene',
-      gameHostEntry: 'unused-for-wechat',
+      hostsDir: 'unused-for-wechat',
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: path.join(root, '_wxwasm'),
       outDir: out,

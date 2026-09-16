@@ -91,7 +91,7 @@ describe('exportGame — a platform the project defines', () => {
     const res = await exportGame({
       root,
       entryScene: 'scenes/main.esscene',
-      gameHostEntry: 'unused',
+      hostsDir: 'unused',
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: platform!.wasmDir,
       outDir: out,
@@ -140,7 +140,7 @@ describe('exportGame — a platform the project defines', () => {
     const res = await exportGame({
       root,
       entryScene: 'scenes/main.esscene',
-      gameHostEntry: 'unused',
+      hostsDir: 'unused',
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: path.join(root, '_wasm'),
       outDir: outBare,

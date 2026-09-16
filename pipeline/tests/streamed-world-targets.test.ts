@@ -38,7 +38,7 @@ describe('targets that cannot ship a cut world', () => {
                 entryScene: 'assets/scenes/main.esscene',
                 outDir: path.join(project, 'out'),
                 platform: 'playable',
-                gameHostEntry: path.join(project, 'host.ts'),
+                hostsDir: path.join(project, 'hosts'),
                 // Never reached: the refusal happens before anything is staged.
                 sdkDistDir: path.join(project, 'sdk'),
                 wasmDir: path.join(project, 'wasm'),

@@ -13,7 +13,7 @@ import { exportGame } from '../src/export/exportGame';
 import { runtimeConfigOf } from '../src/project/runtimeConfig';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const GAME_HOST = path.join(HERE, '..', '..', 'pipeline', 'src', 'runtime', 'gameHost.ts');
+const HOSTS = path.join(HERE, '..', '..', 'pipeline', 'src', 'runtime');
 
 const SCN = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
 const PFB = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
@@ -49,7 +49,7 @@ function setup(scene: unknown, extra?: (root: string) => void): Fixture {
 }
 
 const run = (f: Fixture, runtime?: Parameters<typeof exportGame>[0]['runtime']) => exportGame({
-  root: f.root, entryScene: 'scenes/main.esscene', gameHostEntry: GAME_HOST,
+  root: f.root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS,
   sdkDistDir: path.join(f.root, '_sdk'), wasmDir: path.join(f.root, '_wasm'),
   outDir: f.out, ...(runtime ? { runtime } : {}),
 });

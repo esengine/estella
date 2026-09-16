@@ -19,6 +19,7 @@
  *        + fs); IPC wiring in main.ts.
  */
 import { loadEsbuild } from '../bundle/esbuildRuntime';
+import { runtimeHostEntry } from '../bundle/runtimeHosts';
 import {
   DEFAULT_RUNTIME_CONFIG, packagedRuntimeFields, type RuntimeProjectConfig,
 } from '../project/runtimeConfig';
@@ -91,13 +92,6 @@ interface PackedBytes {
 
 function pack(bytes: Uint8Array | Buffer): PackedBytes {
   return { z: deflateRawSync(bytes, { level: 9 }).toString('base64'), n: bytes.length };
-}
-
-/** The loader lives beside the host it starts. One option names where the
- *  runtime's sources are, so a second way of finding them is a second thing to
- *  keep in step with a move. */
-function loaderEntryFor(hostEntry: string): string {
-  return path.join(path.dirname(hostEntry), `playableLoader${path.extname(hostEntry)}`);
 }
 
 /**
@@ -183,7 +177,7 @@ async function collectSideModules(
 /**
  * Export the open project as a single-file playable ad. Reuses the shipped WEB
  * engine runtime (esengine.js glue + esengine.wasm) inlined — no separate
- * SINGLE_FILE build. `playableHostEntry` is the host source; `wasmDir` the web wasm dir.
+ * SINGLE_FILE build. `hostsDir` holds the runtime hosts; `wasmDir` the web wasm dir.
  */
 /** The packaged fields minus what a playable's host cannot serve. */
 function playableRuntimeFields(rc: Parameters<typeof packagedRuntimeFields>[0]) {
@@ -195,7 +189,7 @@ export async function exportPlayable(opts: {
   root: string;
   entryScene: string;
   scriptsEntry?: string;
-  playableHostEntry: string;
+  hostsDir: string;
   /** Web SDK dist dir — `esengine` is INLINED for playable (no import map), so the
    *  bundle aliases it here (the project root has no esengine to resolve). */
   sdkDir: string;
@@ -287,7 +281,7 @@ export async function exportPlayable(opts: {
   const scriptsAbs = opts.scriptsEntry ? path.join(opts.root, opts.scriptsEntry) : null;
   const entrySrc =
     (scriptsAbs && existsSync(scriptsAbs) ? `import ${JSON.stringify(scriptsAbs)};\n` : '') +
-    `import ${JSON.stringify(opts.playableHostEntry)};\n`;
+    `import ${JSON.stringify(runtimeHostEntry(opts.hostsDir, 'playableHost'))};\n`;
   let bundle = '';
   let loader = '';
   try {
@@ -311,7 +305,7 @@ export async function exportPlayable(opts: {
     // Built apart from the game, because it is the one script the page can still
     // read: a loader inside the payload it inflates could never start it.
     const loaded = await build({
-      entryPoints: [loaderEntryFor(opts.playableHostEntry)],
+      entryPoints: [runtimeHostEntry(opts.hostsDir, 'playableLoader')],
       bundle: true,
       format: 'iife',
       platform: 'browser',

@@ -26,7 +26,7 @@ const REDSRC = path.join(ROOT, 'red-src');
 const opts = (root: string, outDir: string) => ({
   root,
   entryScene: 'assets/scenes/main.esscene',
-  gameHostEntry: path.resolve(HERE, '..', '..', 'pipeline', 'src', 'runtime', 'gameHost.ts'),
+  hostsDir: path.resolve(HERE, '..', '..', 'pipeline', 'src', 'runtime'),
   scriptsEntry: 'src/main.ts',
   sdkDistDir: path.resolve(HERE, '..', '..', 'sdk', 'dist'),
   wasmDir: path.resolve(HERE, '..', '..', 'build', 'wasm', 'web'),

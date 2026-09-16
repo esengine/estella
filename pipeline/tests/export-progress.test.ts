@@ -13,7 +13,7 @@ import { exportGame } from '../src/export/exportGame';
 import type { ExportProgress } from '../src/export/exportProgress';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const GAME_HOST = path.join(HERE, '..', '..', 'pipeline', 'src', 'runtime', 'gameHost.ts');
+const HOSTS = path.join(HERE, '..', '..', 'pipeline', 'src', 'runtime');
 
 let root: string;
 const TEX = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
@@ -46,7 +46,7 @@ describe('export progress', () => {
     const res = await exportGame({
       root,
       entryScene: 'scenes/main.esscene',
-      gameHostEntry: GAME_HOST,
+      hostsDir: HOSTS,
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: path.join(root, '_wasm'),
@@ -71,7 +71,7 @@ describe('export progress', () => {
     const res = await exportGame({
       root,
       entryScene: 'scenes/main.esscene',
-      gameHostEntry: GAME_HOST,
+      hostsDir: HOSTS,
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: path.join(root, '_wasm'),

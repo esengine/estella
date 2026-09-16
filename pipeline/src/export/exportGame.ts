@@ -21,6 +21,7 @@
  */
 import type { BuildOptions, Plugin } from 'esbuild';
 import { loadEsbuild } from '../bundle/esbuildRuntime';
+import { runtimeHostEntry } from '../bundle/runtimeHosts';
 import { writeFile, readFile, mkdir, cp, readdir, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -322,6 +323,7 @@ function esengineGlobalPlugin(): Plugin {
 
 export interface ExportGameOptions {
   root: string;
+  /** The project-relative scene to boot. */
   entryScene: string;
   /** Project-relative scenes dir (manifest layout); default the entry's dir.
    *  Every `.esscene` under it ships as a switchable scene. */
@@ -329,10 +331,13 @@ export interface ExportGameOptions {
   /** Scenes excluded from the build (`packaging.excludeScenes`); the entry
    *  scene always ships. */
   excludeScenes?: string[];
-  gameHostEntry: string;
+  /** Where every runtime host is (runtimeHosts.ts): `pipeline/src/runtime`, or the
+   *  tree an editor prebuilt from it, since a packaged app ships no sources. */
+  hostsDir: string;
   /** Project-relative startup entry (e.g. src/main.ts) → bundled to scripts.mjs. */
   scriptsEntry?: string;
   sdkDistDir: string;
+  /** The engine runtime to copy. */
   wasmDir: string;
   outDir: string;
   /**
@@ -350,8 +355,6 @@ export interface ExportGameOptions {
   atlasTextures?: boolean;
   title?: string;
   platform?: ExportPlatform;
-  /** Playable host source (src/playableHost.ts). */
-  playableHostEntry?: string;
   /** The ad network a playable targets (`packaging.platforms.playable.network`),
    *  resolved by the caller since a project can define its own. Absent ⇒ generic. */
   playableAdProfile?: PlayableAdProfile;
@@ -444,17 +447,10 @@ export interface ExportGameOptions {
 }
 
 /**
- * Export the open project. `entryScene` is the project-relative scene to boot;
- * `gameHostEntry` the game-host esbuild entry — the prebuilt realm-host bundle
- * (dist-electron/hosts/gameHost.js; a packaged app ships no src/ and esbuild
- * cannot read app.asar) or any source esbuild can reach (tests). `wasmDir` is
- * the engine runtime to copy. `platform` selects the target (default web).
- *
- * Every target's package is WEIGHED here, at the one point they all pass
- * through. The pipelines below return early for the mini-game, WeChat and
- * playable targets — measuring inside each of them would be four accountings
- * that drift, and a platform a project defines for itself would have none at
- * all. See sizeReport.ts for what is counted.
+ * Export the open project for `platform` (default web). Every target's package is
+ * WEIGHED here, the one point they all pass through: measuring inside each early-
+ * returning pipeline would be accountings that drift, and a platform a project
+ * defines for itself would have none. See sizeReport.ts for what is counted.
  */
 export async function exportGame(opts: ExportGameOptions): Promise<ExportGameResult> {
   return attachSizeReport(await produceExport(opts), opts);
@@ -609,8 +605,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       root: opts.root,
       entryScene: opts.entryScene,
       scriptsEntry: opts.scriptsEntry,
-      // Default beside the game host, same flavor (prebuilt .js or a source .ts).
-      playableHostEntry: opts.playableHostEntry ?? path.join(path.dirname(opts.gameHostEntry), `playableHost${path.extname(opts.gameHostEntry)}`),
+      hostsDir: opts.hostsDir,
       sdkDir: opts.sdkDistDir,
       wasmDir: opts.wasmDir,
       outDir: opts.outDir,
@@ -739,7 +734,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     const { build } = await loadEsbuild();
     if (!nativeContent) {
       progress({ phase: 'Bundling game host' });
-      const host = await build({ ...common, entryPoints: [opts.gameHostEntry], outfile: path.join(payloadDir, 'game.js') });
+      const host = await build({ ...common, entryPoints: [runtimeHostEntry(opts.hostsDir, 'gameHost')], outfile: path.join(payloadDir, 'game.js') });
       errors.push(...explainBundleErrors(host.errors));
     }
     // 3. Project bundle (defineComponent/defineSystem). ESM + esengine external on

@@ -85,7 +85,7 @@ describe('exportGame (wechat) — every asset resolves to a file the package car
     const res = await exportGame({
       root,
       entryScene: 'scenes/main.esscene',
-      gameHostEntry: 'unused-for-wechat',
+      hostsDir: 'unused-for-wechat',
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: path.join(root, '_wxwasm'),

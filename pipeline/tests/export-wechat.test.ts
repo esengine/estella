@@ -58,7 +58,7 @@ describe('exportGame (wechat)', () => {
     const res = await exportGame({
       root,
       entryScene: 'scenes/main.esscene',
-      gameHostEntry: 'unused-for-wechat',
+      hostsDir: 'unused-for-wechat',
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: path.join(root, '_wxwasm'),
@@ -135,7 +135,7 @@ describe('exportGame (wechat)', () => {
     const res = await exportGame({
       root,
       entryScene: 'scenes/main.esscene',
-      gameHostEntry: 'unused-for-wechat',
+      hostsDir: 'unused-for-wechat',
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: wxDir,
@@ -176,7 +176,7 @@ describe('exportGame (wechat)', () => {
     const res = await exportGame({
       root,
       entryScene: 'scenes/main.esscene',
-      gameHostEntry: 'unused-for-wechat',
+      hostsDir: 'unused-for-wechat',
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: path.join(root, '_wxwasm'),
@@ -211,7 +211,7 @@ describe('exportGame (wechat)', () => {
     const res = await exportGame({
       root,
       entryScene: 'scenes/main.esscene',
-      gameHostEntry: 'unused-for-wechat',
+      hostsDir: 'unused-for-wechat',
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: path.join(root, '_wxwasm'),
@@ -251,7 +251,7 @@ describe('exportGame (wechat)', () => {
     const res = await exportGame({
       root,
       entryScene: 'scenes/main.esscene',
-      gameHostEntry: 'unused-for-wechat',
+      hostsDir: 'unused-for-wechat',
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: path.join(root, '_wxwasm'),
@@ -271,7 +271,7 @@ describe('exportGame (wechat)', () => {
     const res = await exportGame({
       root,
       entryScene: 'scenes/main.esscene',
-      gameHostEntry: 'unused-for-wechat',
+      hostsDir: 'unused-for-wechat',
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: path.join(root, '_no-such-wasm'),
@@ -308,7 +308,7 @@ describe('exportGame (wechat)', () => {
     const res = await exportGame({
       root,
       entryScene: 'scenes-spine/spine.esscene',
-      gameHostEntry: 'unused-for-wechat',
+      hostsDir: 'unused-for-wechat',
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: wxDir,
@@ -334,7 +334,7 @@ describe('exportGame (wechat)', () => {
     const res = await exportGame({
       root,
       entryScene: 'scenes-spine/spine.esscene',
-      gameHostEntry: 'unused-for-wechat',
+      hostsDir: 'unused-for-wechat',
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: path.join(root, '_wxwasm'), // engine only — no spine42
@@ -367,7 +367,7 @@ describe('exportGame (wechat)', () => {
     const res = await exportGame({
       root,
       entryScene: 'scenes-ktx2/ktx2.esscene',
-      gameHostEntry: 'unused-for-wechat',
+      hostsDir: 'unused-for-wechat',
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: wxDir,
@@ -395,7 +395,7 @@ describe('exportGame (wechat)', () => {
     const res = await exportGame({
       root,
       entryScene: 'scenes-ktx2/ktx2.esscene',
-      gameHostEntry: 'unused-for-wechat',
+      hostsDir: 'unused-for-wechat',
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: path.join(root, '_wxwasm'), // engine only — no basis
@@ -420,7 +420,7 @@ describe('exportGame (wechat)', () => {
     const res = await exportGame({
       root,
       entryScene: 'scenes/main.esscene',
-      gameHostEntry: 'unused-for-wechat',
+      hostsDir: 'unused-for-wechat',
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: path.join(root, '_wxwasm'),
@@ -438,7 +438,7 @@ describe('exportGame (wechat)', () => {
     const res = await exportGame({
       root,
       entryScene: 'scenes/main.esscene',
-      gameHostEntry: 'unused-for-wechat',
+      hostsDir: 'unused-for-wechat',
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: path.join(root, '_wxwasm'),
@@ -482,7 +482,7 @@ describe('exportGame (wechat)', () => {
     const res = await exportGame({
       root,
       entryScene: 'scenes-multi/main.esscene',
-      gameHostEntry: 'unused-for-wechat',
+      hostsDir: 'unused-for-wechat',
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: path.join(root, '_wxwasm'),
@@ -550,7 +550,7 @@ describe('exportGame (wechat) — open data context', () => {
   const exportIt = (root: string, out: string) => exportGame({
     root,
     entryScene: 'scenes/main.esscene',
-    gameHostEntry: 'unused-for-wechat',
+    hostsDir: 'unused-for-wechat',
     sdkDistDir: path.join(root, '_sdk'),
     wasmDir: path.join(root, '_wxwasm'),
     outDir: out,

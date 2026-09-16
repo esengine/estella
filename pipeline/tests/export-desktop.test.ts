@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { exportGame } from '../src/export/exportGame';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const GAME_HOST = path.join(HERE, '..', '..', 'pipeline', 'src', 'runtime', 'gameHost.ts');
+const HOSTS = path.join(HERE, '..', '..', 'pipeline', 'src', 'runtime');
 
 let root: string;
 let out: string;
@@ -63,7 +63,7 @@ function fakeTemplate(os: 'macos' | 'windows'): string {
 const desktopExport = (outDir: string) => ({
   root,
   entryScene: 'scenes/main.esscene',
-  gameHostEntry: GAME_HOST,
+  hostsDir: HOSTS,
   scriptsEntry: 'src/main.ts',
   sdkDistDir: path.join(root, '_sdk'),
   wasmDir: path.join(root, '_wasm'),
@@ -77,7 +77,7 @@ describe('exportGame (desktop)', () => {
     const res = await exportGame({
       root,
       entryScene: 'scenes/main.esscene',
-      gameHostEntry: GAME_HOST,
+      hostsDir: HOSTS,
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: path.join(root, '_wasm'),
@@ -188,7 +188,7 @@ describe('exportGame (desktop)', () => {
     const res = await exportGame({
       root,
       entryScene: 'scenes/main.esscene',
-      gameHostEntry: GAME_HOST,
+      hostsDir: HOSTS,
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: path.join(root, '_wasm'),

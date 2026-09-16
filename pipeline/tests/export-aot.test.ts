@@ -19,7 +19,7 @@ import { exportGame } from '../src/export/exportGame';
 import { emccPath } from '../../build-tools/utils/emscripten.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const GAME_HOST = path.join(HERE, '..', 'src', 'runtime', 'gameHost.ts');
+const HOSTS = path.join(HERE, '..', 'src', 'runtime');
 /** Where an export stages the module, and where the config points at it. */
 const STAGED = path.join('aot', 'systems.wasm');
 const EMCC = emccPath();
@@ -73,7 +73,7 @@ function setup(files: Record<string, string>): { root: string; out: string } {
 }
 
 const run = (f: { root: string; out: string }) => exportGame({
-  root: f.root, entryScene: 'scenes/main.esscene', gameHostEntry: GAME_HOST,
+  root: f.root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS,
   scriptsEntry: 'src/main.ts',
   sdkDistDir: path.join(f.root, '_sdk'), wasmDir: path.join(f.root, '_wasm'),
   outDir: f.out,

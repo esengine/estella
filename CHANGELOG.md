@@ -350,6 +350,21 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **The editor packages playable ads again.** Since 0.65 a playable's game
+  travels deflated and a small loader starts it, and the exporter looked for that
+  loader beside the playable host. The editor exports from the host bundles it
+  prebuilds (an installed editor ships no sources), and that prebuild kept its own
+  list of hosts, without the loader — so every playable export from the editor
+  stopped at "Could not resolve …/hosts/playableLoader.js" (#62). The command line
+  and every exporter test bundle the hosts from their sources, where the loader
+  was always right there.
+
+  The hosts an export bundles are now named once, in the pipeline, and the
+  editor's prebuild takes its entries from that list; an export is told the one
+  directory the hosts are in, not a path per host. A test now exports a playable
+  from a prebuilt host tree, and an editor check packages the playable-ad
+  template through the editor's own export.
+
 - **Two nodes under one id are reported instead of one replacing the other.**
   Every lookup in a compiled graph is by node id, so a file carrying the same id
   twice quietly kept whichever came last, and any wire drawn to either landed on

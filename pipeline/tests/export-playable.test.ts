@@ -15,6 +15,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 import { exportGame } from '../src/export/exportGame';
+import { runtimeHostPrebuild } from '../src/bundle/runtimeHosts';
+import { build } from 'esbuild';
 import { inflateRaw } from '../src/runtime/inflate';
 
 /**
@@ -45,7 +47,7 @@ function inlinedText(html: string, global: string, pick?: (v: PackedModules) => 
 }
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const PLAYABLE_HOST = path.join(HERE, '..', '..', 'pipeline', 'src', 'runtime', 'playableHost.ts');
+const HOSTS = path.join(HERE, '..', '..', 'pipeline', 'src', 'runtime');
 
 let root: string;
 let out: string;
@@ -90,8 +92,7 @@ describe('exportGame (playable)', () => {
     const res = await exportGame({
       root,
       entryScene: 'scenes/main.esscene',
-      gameHostEntry: 'unused-for-playable',
-      playableHostEntry: PLAYABLE_HOST,
+      hostsDir: HOSTS,
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: path.join(root, '_wasm'),
@@ -145,6 +146,26 @@ describe('exportGame (playable)', () => {
     expect(html).not.toContain('screen.orientation');
   }, 60_000);
 
+  // The editor never bundles the hosts from their sources: a packaged app ships
+  // none, so it exports from the tree it prebuilt. Every other test here reads the
+  // sources, where a host the prebuild never emitted is still right beside them.
+  it('packages from the host tree an editor prebuilds', async () => {
+    const prebuilt = path.join(root, '_prebuilt-hosts');
+    await build({ ...runtimeHostPrebuild(HOSTS, prebuilt), logLevel: 'silent' });
+    const dir = path.join(root, 'dist-prebuilt');
+    const res = await exportGame({
+      root, entryScene: 'scenes/main.esscene', hostsDir: prebuilt, scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'),
+      outDir: dir, platform: 'playable', minify: false,
+    });
+
+    expect(res.errors).toEqual([]);
+    const html = readFileSync(path.join(dir, 'index.html'), 'utf8');
+    expect(inlinedText(html, '__GAME_BUNDLE__')).toContain('createObjectURL');
+    // Outside the payload: the loader is the one script that starts it.
+    expect(html).toContain('atob(__GAME_BUNDLE__.z)');
+  }, 60_000);
+
   // No dev build of a playable exists, so this target minifies unless told not
   // to — the opposite default from every other. Unminified spent 0.31MB of a
   // 2MB budget on whitespace.
@@ -153,8 +174,7 @@ describe('exportGame (playable)', () => {
       const res = await exportGame({
         root,
         entryScene: 'scenes/main.esscene',
-        gameHostEntry: 'unused-for-playable',
-        playableHostEntry: PLAYABLE_HOST,
+        hostsDir: HOSTS,
         scriptsEntry: 'src/main.ts',
         sdkDistDir: path.join(root, '_sdk'),
         wasmDir: path.join(root, '_wasm'),
@@ -177,8 +197,7 @@ describe('exportGame (playable)', () => {
   it('injects the ad network profile head + CTA bridge, and warns against ITS limit', async () => {
     const o = path.join(root, 'dist-playable-network');
     const res = await exportGame({
-      root, entryScene: 'scenes/main.esscene', gameHostEntry: 'unused-for-playable',
-      playableHostEntry: PLAYABLE_HOST, scriptsEntry: 'src/main.ts',
+      root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS, scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'),
       outDir: o, platform: 'playable',
       playableAdProfile: {
@@ -213,8 +232,7 @@ describe('exportGame (playable)', () => {
   it('writes playable.zip for a zip-delivery network and measures that', async () => {
     const o = path.join(root, 'dist-playable-zip');
     const res = await exportGame({
-      root, entryScene: 'scenes/main.esscene', gameHostEntry: 'unused-for-playable',
-      playableHostEntry: PLAYABLE_HOST, scriptsEntry: 'src/main.ts',
+      root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS, scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'),
       outDir: o, platform: 'playable',
       playableAdProfile: {
@@ -246,8 +264,7 @@ describe('exportGame (playable)', () => {
   it('injects nothing and keeps the default cap with no network selected', async () => {
     const o = path.join(root, 'dist-playable-generic');
     const res = await exportGame({
-      root, entryScene: 'scenes/main.esscene', gameHostEntry: 'unused-for-playable',
-      playableHostEntry: PLAYABLE_HOST, scriptsEntry: 'src/main.ts',
+      root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS, scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'),
       outDir: o, platform: 'playable',
     });
@@ -267,8 +284,7 @@ describe('exportGame (playable)', () => {
   it('inlines the project camera fit as __GAME_SCREENFIT__ (only when opted in)', async () => {
     const o = path.join(root, 'dist-playable-fit');
     const res = await exportGame({
-      root, entryScene: 'scenes/main.esscene', gameHostEntry: 'unused-for-playable',
-      playableHostEntry: PLAYABLE_HOST, scriptsEntry: 'src/main.ts',
+      root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS, scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'),
       outDir: o, platform: 'playable',
       runtime: runtimeConfigOf({
@@ -291,8 +307,7 @@ describe('exportGame (playable)', () => {
   it('does not pin the page even when the project is portrait', async () => {
     const o = path.join(root, 'dist-playable-portrait');
     const res = await exportGame({
-      root, entryScene: 'scenes/main.esscene', gameHostEntry: 'unused-for-playable',
-      playableHostEntry: PLAYABLE_HOST, scriptsEntry: 'src/main.ts',
+      root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS, scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'),
       outDir: o, title: 'Playable Demo', platform: 'playable', orientation: 'portrait',
       playableAdProfile: {
@@ -340,7 +355,7 @@ export function packagedRuntimeInit(c){return c;}\n`);
   }
 
   const run = (r: string, o: string) => exportGame({
-    root: r, entryScene: 'scenes/main.esscene', gameHostEntry: 'x', playableHostEntry: PLAYABLE_HOST,
+    root: r, entryScene: 'scenes/main.esscene', hostsDir: HOSTS,
     sdkDistDir: path.join(r, '_sdk'), wasmDir: path.join(r, '_wasm'), outDir: o, platform: 'playable',
   });
 
@@ -353,7 +368,7 @@ export function packagedRuntimeInit(c){return c;}\n`);
       writeFileSync(path.join(r, 'scenes', 'main.esscene'),
         JSON.stringify({ version: '1.0', name: 'Main', entities: [{ id: 0, components: [] }] }));
       const res = await exportGame({
-        root: r, entryScene: 'scenes/main.esscene', gameHostEntry: 'x', playableHostEntry: PLAYABLE_HOST,
+        root: r, entryScene: 'scenes/main.esscene', hostsDir: HOSTS,
         sdkDistDir: path.join(r, '_sdk'), wasmDir: path.join(r, '_wasm'), outDir: o, platform: 'playable',
         runtime: runtimeConfigOf({ features: { physics: { enabled: true, gravity: { x: 0, y: -20 } } } }),
       });
@@ -441,7 +456,7 @@ export function packagedRuntimeInit(c){return c;}\n`);
   }
 
   const run = (r: string, o: string) => exportGame({
-    root: r, entryScene: 'scenes/main.esscene', gameHostEntry: 'x', playableHostEntry: PLAYABLE_HOST,
+    root: r, entryScene: 'scenes/main.esscene', hostsDir: HOSTS,
     sdkDistDir: path.join(r, '_sdk'), wasmDir: path.join(r, '_wasm'), outDir: o, platform: 'playable',
   });
 

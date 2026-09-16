@@ -22,7 +22,7 @@ import { exportGame } from '../src/export/exportGame';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..');
-const GAME_HOST = path.join(HERE, '..', '..', 'pipeline', 'src', 'runtime', 'gameHost.ts');
+const HOSTS = path.join(HERE, '..', '..', 'pipeline', 'src', 'runtime');
 
 describe('collectSubsystems', () => {
   it('sees components wherever they sit in the document', () => {
@@ -133,7 +133,7 @@ describe('exportGame warns about content the target cannot render', () => {
   afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
   const run = (platform: 'android' | 'web', outDir: string) => exportGame({
-    root, entryScene: 'scenes/main.esscene', gameHostEntry: GAME_HOST,
+    root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS,
     sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'),
     outDir, platform, title: 'Game',
   });

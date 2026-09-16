@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { exportGame } from '../src/export/exportGame';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const GAME_HOST = path.join(HERE, '..', '..', 'pipeline', 'src', 'runtime', 'gameHost.ts');
+const HOSTS = path.join(HERE, '..', '..', 'pipeline', 'src', 'runtime');
 
 const SCN = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
 const meta = (uuid: string, type: string) => JSON.stringify({ uuid, version: '2.0', type, importer: {} });
@@ -39,7 +39,7 @@ function setup(): { root: string; out: string } {
 }
 
 const run = (f: { root: string; out: string }, sourcemap?: boolean) => exportGame({
-  root: f.root, entryScene: 'scenes/main.esscene', gameHostEntry: GAME_HOST,
+  root: f.root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS,
   sdkDistDir: path.join(f.root, '_sdk'), wasmDir: path.join(f.root, '_wasm'),
   outDir: f.out, ...(sourcemap === undefined ? {} : { sourcemap }),
 });

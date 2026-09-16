@@ -124,7 +124,7 @@ describe.skipIf(!process.env.ESTELLA_COOK_FIXTURE)('cooked-verify fixture', () =
     const res = await exportGame({
       root: SRC,
       entryScene: 'scenes/main.esscene',
-      gameHostEntry: path.resolve(HERE, '..', '..', 'pipeline', 'src', 'runtime', 'gameHost.ts'),
+      hostsDir: path.resolve(HERE, '..', '..', 'pipeline', 'src', 'runtime'),
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.resolve(HERE, '..', '..', 'sdk', 'dist'),
       wasmDir: path.resolve(HERE, '..', '..', 'build', 'wasm', 'web'),
@@ -139,7 +139,7 @@ describe.skipIf(!process.env.ESTELLA_COOK_FIXTURE)('cooked-verify fixture', () =
     const interp = await exportGame({
       root: SRC,
       entryScene: 'scenes/main.esscene',
-      gameHostEntry: path.resolve(HERE, '..', '..', 'pipeline', 'src', 'runtime', 'gameHost.ts'),
+      hostsDir: path.resolve(HERE, '..', '..', 'pipeline', 'src', 'runtime'),
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.resolve(HERE, '..', '..', 'sdk', 'dist'),
       wasmDir: path.resolve(HERE, '..', '..', 'build', 'wasm', 'web'),
