@@ -663,10 +663,13 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 // the record is read through that layout, so the fact that built
                 // it must pack it. (It already excludes a skinned mesh.)
                 const bool lightmapped = resident->hasLightmapUV;
-                const u32 stride = meshInstanceStride(skinned, resident->hasNormals, lightmapped);
-                u32 instOffset = buffers.allocVertices(LayoutId::MeshInstance, stride);
+                u32 instOffset = buffers.allocVertices(LayoutId::MeshInstance,
+                                                       MESH_INSTANCE_STRIDE);
                 auto* dst = buffers.vertexData(LayoutId::MeshInstance) + instOffset;
-                u32 tintRGBA = packColor(mesh.color);
+                // The record is one fixed shape, so every texel this variant
+                // does not write still has to say something. Zero is the answer
+                // each of them reads as absent.
+                std::memset(dst, 0, MESH_INSTANCE_STRIDE);
                 // The shapes, whether or not bones move it: the two deform the
                 // same vertices, and a morph target is what the mesh is BEFORE a
                 // pose is applied to it.
@@ -675,8 +678,8 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                     key.morphIndex = draw_list.addMorphShapes(shapes);
                     key.morphTextureId = static_cast<u32>(resident->morphTexture);
                 }
+                std::memcpy(dst + MESH_INSTANCE_TEXEL_TINT * 16, &mesh.color, 16);
                 if (skinned) {
-                    std::memcpy(dst, &tintRGBA, 4);
                     key.skinOffset = draw_list.addSkinMatrices(pose_scratch_.data(), poseSize);
                     key.skinCount = poseSize;
                 } else {
@@ -687,15 +690,14 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 // the one an affine transform never varies.
                 for (u32 row = 0; row < 3; ++row) {
                     const glm::vec4 r{model[0][row], model[1][row], model[2][row], model[3][row]};
-                    std::memcpy(dst + row * 16, &r, 16);
+                    std::memcpy(dst + (MESH_INSTANCE_TEXEL_MODEL + row) * 16, &r, 16);
                 }
-                std::memcpy(dst + 48, &tintRGBA, 4);
                 if (resident->hasNormals) {
                     // Written per object rather than derived per vertex: this is
                     // the transform a normal takes under a non-uniform scale.
                     const glm::mat3 nrm = glm::transpose(glm::inverse(glm::mat3(model)));
                     for (u32 row = 0; row < 3; ++row) {
-                        std::memcpy(dst + 52 + row * 12, &nrm[row][0], 12);
+                        std::memcpy(dst + (MESH_INSTANCE_TEXEL_NORMAL + row) * 16, &nrm[row][0], 12);
                     }
                 }
                 if (lightmapped) {
@@ -709,7 +711,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                             key.lightmapTextureId = atlas->getId();
                         }
                     }
-                    std::memcpy(dst + meshInstanceLightmapOffset(resident->hasNormals), &rect, 16);
+                    std::memcpy(dst + MESH_INSTANCE_TEXEL_LIGHTMAP * 16, &rect, 16);
                 }
                 }
 
@@ -743,7 +745,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 key.shaderId = materialProgram != 0 ? materialProgram : residentShader;
                 key.layoutId = LayoutId::MeshInstance;
                 key.instanceCount = 1;
-                key.instanceStride = stride;
+                key.instanceStride = MESH_INSTANCE_STRIDE;
                 key.vertexBuffer = resident->vertexBuffer;
                 key.indexBuffer = resident->indexBuffer;
                 key.vertexLayout = resident->layout;

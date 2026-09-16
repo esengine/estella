@@ -65,4 +65,18 @@ private:
     BufferHandle zero_ = BufferHandle::Invalid;
 };
 
+/**
+ * @brief The uniform blocks a draw rewrites immediately before it.
+ *
+ * @details One parameter and not four: every caller passes the same set from the
+ *          same owner, so a block added to the vocabulary reaches the draw loop
+ *          without every call site having to learn its name.
+ */
+struct PerDrawBlockSet {
+    PerDrawBlocks* skin = nullptr;
+    PerDrawBlocks* morph = nullptr;
+    PerDrawBlocks* probe = nullptr;
+    PerDrawBlocks* instance = nullptr;
+};
+
 }  // namespace esengine

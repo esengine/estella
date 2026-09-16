@@ -75,12 +75,20 @@ public:
     BufferHandle vertexBuffer(LayoutId layout) const;
     BufferHandle indexBuffer(LayoutId layout) const;
 
+    /** @brief The frame's per-object records. Invalid until a frame writes some. */
+    TextureHandle instanceTexture() const { return stream(LayoutId::MeshInstance).texture; }
+
 private:
     struct Stream {
         BufferHandle vbo = BufferHandle::Invalid;  // for ParticleInstance: the per-instance (streamed) buffer
         BufferHandle ebo = BufferHandle::Invalid;
         VertexLayoutHandle layout = VertexLayoutHandle::Invalid;
         BufferHandle quad_vbo = BufferHandle::Invalid;  // ParticleInstance only: static unit-quad geometry (slot 0)
+        /// MeshInstance only: the frame's records live in a texture, because a
+        /// vertex attribute can only be read at the instance the hardware is on
+        /// and a record has to be reachable by index.
+        TextureHandle texture = TextureHandle::Invalid;
+        u32 texture_rows = 0;  ///< Rows the texture currently holds.
         std::vector<u8> vertex_staging;
         std::vector<u32> index_staging;  // 32-bit indices: a single Batch stream can exceed 65535 vertices
         u32 vertex_stride = 0;
@@ -91,6 +99,8 @@ private:
     };
 
     void setupStream(LayoutId layout);
+    void uploadInstanceRows(Stream& s, u32& grows, u32& writes);
+    static constexpr u32 instanceRowBytes() { return MESH_INSTANCE_TEXTURE_WIDTH * 16; }
     void growVertexStaging(Stream& s, u32 requiredBytes);
     void growIndexStaging(Stream& s, u32 requiredCount);
 

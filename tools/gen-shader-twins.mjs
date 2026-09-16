@@ -56,6 +56,10 @@ const BLOCK_BINDINGS = {
   MaterialConstants: 1,
   LightConstants: 2,
   TimeConstants: 3,
+  // Where a draw's objects start in the frame's record texture, which the
+  // injected header declares for every vertex stage that reads a record — see
+  // InstanceConstants.hpp.
+  InstanceConstants: 8,
   // The indirect light where a draw stands, which the injected Lit header
   // declares for every Lit fragment stage — see ProbeConstants.hpp.
   ProbeConstants: 7,
@@ -77,8 +81,11 @@ const ENGINE_SAMPLERS = [
   { name: 'u_envMap', unit: 3 },
   { name: 'u_shadow2D', unit: 7 },
   { name: 'u_lightShape2D', unit: 6 },
-  // The one the VERTEX stage reads, pinned in MorphConstants.hpp.
+  // The two the VERTEX stage reads, pinned in MorphConstants.hpp and
+  // InstanceConstants.hpp. The record sits on the TOP unit, above every unit a
+  // material's own textures are handed (see GfxEnums MESH_INSTANCE_TEXTURE_UNIT).
   { name: 'u_morphDeltas', unit: 4 },
+  { name: 'u_instanceData', unit: 15 },
 ];
 
 // Group-1 unit map — mirrors WebGPUMappings textureBindingForUnit/samplerBindingForUnit.
@@ -375,7 +382,7 @@ const permutationKey = (on) => [...on].sort().join(',');
 
 /**
  * One body carrying every permutation, selected by the same `#ifdef` the GLSL
- * side gets from real defines — `preprocessWGSL` resolves it at assembly, so
+ * side gets from real defines — `preprocessConditionals` resolves it at assembly, so
  * both targets see identical variant logic.
  */
 export function composePermutations(toggles, bodies, remaining = toggles, on = []) {

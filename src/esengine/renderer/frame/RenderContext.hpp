@@ -216,20 +216,26 @@ private:
     BufferHandle frameUbo_ = BufferHandle::Invalid;
     BufferHandle timeUbo_ = BufferHandle::Invalid;
     BufferHandle drawParamsFallback_ = BufferHandle::Invalid;
-    /// A bone-matrix block per skinned draw, a shape-weight block per morphed one,
-    /// and an indirect-light block per draw standing in a volume. One buffer EACH
-    /// and not one shared: see PerDrawBlocks.
+    /// A block each per skinned draw, per morphed one, per draw standing in a
+    /// volume, and per draw reading the record texture. One buffer EACH and not
+    /// one shared: see PerDrawBlocks.
     PerDrawBlocks skinBlocks_;
     PerDrawBlocks morphBlocks_;
     PerDrawBlocks probeBlocks_;
+    PerDrawBlocks instanceBlocks_;
 
 public:
-    /** @brief The pool a skinned draw takes its pose buffer from. */
-    PerDrawBlocks& skinBlocks() { return skinBlocks_; }
-    /** @brief The pool a morphed draw takes its shape buffer from. */
-    PerDrawBlocks& morphBlocks() { return morphBlocks_; }
-    /** @brief The pool a draw inside a probe volume takes its light buffer from. */
-    PerDrawBlocks& probeBlocks() { return probeBlocks_; }
+    /** @brief The blocks the draw loop rewrites before each draw. */
+    PerDrawBlockSet perDrawBlocks() {
+        return {&skinBlocks_, &morphBlocks_, &probeBlocks_, &instanceBlocks_};
+    }
+    /** @brief Hand every one of them back at the top of a frame. */
+    void beginPerDrawBlocks() {
+        skinBlocks_.beginFrame();
+        morphBlocks_.beginFrame();
+        probeBlocks_.beginFrame();
+        instanceBlocks_.beginFrame();
+    }
 
 private:
     f32 lastElapsed_ = 0.0f;

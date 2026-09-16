@@ -288,8 +288,7 @@ void RenderFrame::drawScene() {
     {
         ES_PROFILE_SCOPE("render.submit");
         draw_list_.execute(device_, pool_, context_.materials(), context_.getWhiteTextureId(),
-                           &frame_capture_, &context_.skinBlocks(), &context_.morphBlocks(),
-                           &context_.probeBlocks());
+                           &frame_capture_, context_.perDrawBlocks());
     }
 
     // Handed over to whatever the graph runs next. Blend/depth/colour-mask come
@@ -333,9 +332,7 @@ void RenderFrame::beginFrame() {
     // The per-draw blocks go back at the FRAME boundary and not at each pass's:
     // a frame reaches the device as several passes with one submission behind
     // them, so a buffer reused between two of them is read by both.
-    context_.skinBlocks().beginFrame();
-    context_.morphBlocks().beginFrame();
-    context_.probeBlocks().beginFrame();
+    context_.beginPerDrawBlocks();
 }
 
 void RenderFrame::applySceneDepthNeed() {
@@ -685,8 +682,7 @@ void RenderFrame::replayToDrawCall(i32 stopAtDrawCall) {
     context_.updateCameraConstants(view_projection_);
     context_.lights().uploadAndBind();
     draw_list_.execute(device_, pool_, context_.materials(), context_.getWhiteTextureId(),
-                       &frame_capture_, &context_.skinBlocks(), &context_.morphBlocks(),
-                       &context_.probeBlocks());
+                       &frame_capture_, context_.perDrawBlocks());
 
     // Leave scissor disabled for whatever renders next; invalidate so the next
     // setPipeline re-applies its full state (stencil included).
@@ -759,8 +755,7 @@ void RenderFrame::renderSurface(ecs::Registry& registry, const glm::mat4& viewPr
     context_.updateCameraConstants(viewProjection);
     context_.lights().uploadAndBind();
     draw_list_.execute(device_, pool_, context_.materials(), context_.getWhiteTextureId(),
-                       &frame_capture_, &context_.skinBlocks(), &context_.morphBlocks(),
-                       &context_.probeBlocks());
+                       &frame_capture_, context_.perDrawBlocks());
     frame_capture_.endCapture();
 
     rt->unbind();
@@ -1748,8 +1743,7 @@ void RenderFrame::executeShadowPass(ecs::Registry& registry) {
         // nothing — the whole pass came back empty for exactly this.
         context_.lights().uploadAndBind();
         list.execute(device_, shadow_pool_, context_.materials(),
-                     context_.getWhiteTextureId(), nullptr, &context_.skinBlocks(),
-                     &context_.morphBlocks(), &context_.probeBlocks());
+                     context_.getWhiteTextureId(), nullptr, context_.perDrawBlocks());
         ++shadowTiles;
         shadowDraws += list.mergedDrawCallCount();
     }

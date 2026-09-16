@@ -3,6 +3,7 @@
 #include "./DrawList.hpp"
 #include "./BatchVertex.hpp"
 #include "../store/MaterialStore.hpp"
+#include "../store/InstanceConstants.hpp"
 #include "../store/SkinConstants.hpp"
 #include "../../core/FrameProfiler.hpp"
 
@@ -195,11 +196,15 @@ void DrawList::finalize(TransientBufferPool& pool) {
 
 void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
                        MaterialStore& materials, u32 white_texture_id,
-                       FrameCapture* capture, PerDrawBlocks* skin_blocks,
-                       PerDrawBlocks* morph_blocks, PerDrawBlocks* probe_blocks) {
+                       FrameCapture* capture, const PerDrawBlockSet& blocks) {
     PipelineDesc lastDesc{};
     PipelineHandle lastHandle = PipelineHandle::Invalid;
 
+    // Once for the pass, not once per draw: every resident mesh reads the same
+    // texture. Rebound each pass because growing it mints a new handle.
+    if (buffers.instanceTexture() != TextureHandle::Invalid) {
+        device.bindTexture(MESH_INSTANCE_TEXTURE_UNIT, buffers.instanceTexture());
+    }
 
     for (u32 i = 0; i < merged_draw_calls_; ++i) {
         const auto& cmd = commands_[i];
@@ -243,28 +248,28 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
         // The pose, for a draw that has one — in a buffer of this draw's own. A
         // block shared between two draws of one pass is read by both with what
         // the last wrote, which is a room of characters in one pose.
-        if (cmd.skin_count > 0 && skin_blocks) {
+        if (cmd.skin_count > 0 && blocks.skin) {
             device.setUniformBuffer(
                 SKIN_CONSTANTS_BINDING,
-                skin_blocks->write(skin_matrices_.data() + cmd.skin_offset,
+                blocks.skin->write(skin_matrices_.data() + cmd.skin_offset,
                                    cmd.skin_count * static_cast<u32>(sizeof(glm::mat4))));
         }
 
         // The shapes, the same way — and a draw with none binds the zeroed block
         // rather than erasing the last one's, so "unshaped" is an object instead
         // of an erasure someone has to remember to perform.
-        if (morph_blocks) {
+        if (blocks.morph) {
             device.setUniformBuffer(MORPH_CONSTANTS_BINDING,
                                     cmd.morph_index > 0
-                                        ? morph_blocks->write(&morph_shapes_[cmd.morph_index - 1],
+                                        ? blocks.morph->write(&morph_shapes_[cmd.morph_index - 1],
                                                               sizeof(MorphConstants))
-                                        : morph_blocks->zero());
+                                        : blocks.morph->zero());
         }
 
         // WHERE this draw's instances read their irradiance, not what it is: the
         // coefficients are in the frame's texture, one run per instance, so a
         // merged draw holding objects in many places still says one thing here.
-        if (probe_blocks) {
+        if (blocks.probe) {
             // Every instance of this run, in the order it draws them, capped at
             // what the block holds — a longer run carries no irradiance at all,
             // so its tail reads zeroes and takes the environment.
@@ -280,7 +285,7 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
             }
             device.setUniformBuffer(
                 PROBE_CONSTANTS_BINDING,
-                probe_blocks->write(probe_run_.data(),
+                blocks.probe->write(probe_run_.data(),
                                     static_cast<u32>(probe_run_.size() * sizeof(glm::vec4))));
         }
 
@@ -312,12 +317,15 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
         }
 
         if (cmd.hasPersistentGeometry()) {
-            // The mesh's buffers for geometry, the frame's pool for transforms.
-            // Only the second was written this frame: an unchanged mesh costs no
-            // upload, and drawing it twice costs one more transform.
+            // gl_InstanceID restarts at zero every draw while the frame's
+            // records are one continuous run, so a draw has to say where its own
+            // run begins in them.
+            if (blocks.instance) {
+                const InstanceConstants at{cmd.vertex_byte_offset / MESH_INSTANCE_STRIDE, {}};
+                device.setUniformBuffer(INSTANCE_CONSTANTS_BINDING,
+                                        blocks.instance->write(&at, sizeof(at)));
+            }
             device.setVertexBuffer(0, cmd.vertex_buffer, 0);
-            device.setVertexBuffer(1, buffers.vertexBuffer(LayoutId::MeshInstance),
-                                   cmd.vertex_byte_offset);
             device.setIndexBuffer(cmd.index_buffer);
             device.drawElementsInstanced(
                 cmd.index_count, GfxDataType::UnsignedInt,

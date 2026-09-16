@@ -47,6 +47,7 @@ enum class TextureFormat {
     RGBA8,    ///< 4 channels, 8 bits each (32 bpp)
     SRGB8A8,  ///< sRGB-encoded RGBA8: hardware-linearized on sample (32 bpp)
     RGBA16F,  ///< Half-float HDR (64 bpp); render use gated on supportsFloatTargets
+    RGBA32F,  ///< Full-float storage (128 bpp); fetched by texel, never filtered
     Depth24   ///< Depth buffer format (24 bits)
 };
 

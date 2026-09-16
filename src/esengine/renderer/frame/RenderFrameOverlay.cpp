@@ -80,8 +80,7 @@ void RenderFrame::drawScreenOverlay() {
     {
         ES_PROFILE_SCOPE("render.overlay.submit");
         draw_list_.execute(device_, pool_, context_.materials(), context_.getWhiteTextureId(),
-                           &frame_capture_, &context_.skinBlocks(), &context_.morphBlocks(),
-                           &context_.probeBlocks());
+                           &frame_capture_, context_.perDrawBlocks());
     }
     device_.invalidatePipelineCache();
     device_.setScissorTest(false);

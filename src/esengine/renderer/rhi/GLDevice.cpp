@@ -63,6 +63,9 @@
 #ifndef GL_RGBA16F
     #define GL_RGBA16F 0x881A
 #endif
+#ifndef GL_RGBA32F
+    #define GL_RGBA32F 0x8814
+#endif
 #ifndef GL_HALF_FLOAT
     #define GL_HALF_FLOAT 0x140B
 #endif
@@ -190,6 +193,7 @@ GLPixelFormatInfo toGLPixelFormat(GfxPixelFormat fmt) {
     case GfxPixelFormat::RGBA8:            return { GL_RGBA8,             GL_RGBA,            GL_UNSIGNED_BYTE };
     case GfxPixelFormat::SRGB8_ALPHA8:     return { GL_SRGB8_ALPHA8,      GL_RGBA,            GL_UNSIGNED_BYTE };
     case GfxPixelFormat::RGBA16F:          return { GL_RGBA16F,           GL_RGBA,            GL_HALF_FLOAT };
+    case GfxPixelFormat::RGBA32F:          return { GL_RGBA32F,           GL_RGBA,            GL_FLOAT };
     case GfxPixelFormat::DepthComponent24: return { GL_DEPTH_COMPONENT24, GL_DEPTH_COMPONENT, GL_UNSIGNED_INT };
     case GfxPixelFormat::Depth24Stencil8:  return { GL_DEPTH24_STENCIL8,  GL_DEPTH_STENCIL,   GL_UNSIGNED_INT_24_8 };
     default:                               return { GL_RGBA8,             GL_RGBA,            GL_UNSIGNED_BYTE };

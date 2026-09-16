@@ -52,9 +52,7 @@ public:
     void execute(GfxDevice& device, TransientBufferPool& buffers,
                  MaterialStore& materials, u32 white_texture_id = 0,
                  FrameCapture* capture = nullptr,
-                 PerDrawBlocks* skin_blocks = nullptr,
-                 PerDrawBlocks* morph_blocks = nullptr,
-                 PerDrawBlocks* probe_blocks = nullptr);
+                 const PerDrawBlockSet& blocks = {});
 
     /** Append one draw's bone matrices; returns where they start. Frame-scoped,
      *  like the vertex pool: a command references an offset, not a copy. */

@@ -1475,9 +1475,13 @@ WGPUBindGroupLayout WebGPUDevice::groupLayoutFor(u32 group, u32 mask, u32 depthM
                 WGPUBindGroupLayoutEntry e{};
                 e.binding = tb;
                 e.visibility = stages(tb);
-                e.texture.sampleType = (depthMask & (1u << tb))
-                                           ? WGPUTextureSampleType_Depth
-                                           : WGPUTextureSampleType_Float;
+                // A unit with no sampler cannot be textureSample'd, so it is
+                // unfilterable by construction — which is what lets rgba32float
+                // bind here. Filterable formats satisfy it too.
+                e.texture.sampleType =
+                    (depthMask & (1u << tb))  ? WGPUTextureSampleType_Depth
+                    : (mask & (1u << sb))     ? WGPUTextureSampleType_Float
+                                              : WGPUTextureSampleType_UnfilterableFloat;
                 e.texture.viewDimension = WGPUTextureViewDimension_2D;
                 entries[count++] = e;
             }

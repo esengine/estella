@@ -160,6 +160,7 @@ inline WGPUTextureFormat toWGPUTextureFormat(GfxPixelFormat fmt) {
     case GfxPixelFormat::RGBA8:            return WGPUTextureFormat_RGBA8Unorm;
     case GfxPixelFormat::SRGB8_ALPHA8:     return WGPUTextureFormat_RGBA8UnormSrgb;
     case GfxPixelFormat::RGBA16F:          return WGPUTextureFormat_RGBA16Float;
+    case GfxPixelFormat::RGBA32F:          return WGPUTextureFormat_RGBA32Float;
     case GfxPixelFormat::DepthComponent24: return WGPUTextureFormat_Depth24Plus;
     case GfxPixelFormat::Depth24Stencil8:  return WGPUTextureFormat_Depth24PlusStencil8;
     default:                               return WGPUTextureFormat_RGBA8Unorm;
@@ -168,7 +169,9 @@ inline WGPUTextureFormat toWGPUTextureFormat(GfxPixelFormat fmt) {
 
 /** Bytes per pixel of an uncompressed upload in @p fmt (RGB8 expands to RGBA8). */
 inline u32 wgpuBytesPerPixel(GfxPixelFormat fmt) {
-    return fmt == GfxPixelFormat::RGBA16F ? 8u : 4u;
+    if (fmt == GfxPixelFormat::RGBA16F) return 8u;
+    if (fmt == GfxPixelFormat::RGBA32F) return 16u;
+    return 4u;
 }
 
 inline WGPUTextureFormat toWGPUCompressedFormat(GfxCompressedFormat fmt) {

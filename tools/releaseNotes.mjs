@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(render): the per-object record leaves the vertex attributes':
+    { note: 'A mesh has somewhere to put its own vertex attributes.' },
+
   'feat(render): indirect light per instance, so a probe stops refusing the merge':
     { note: 'A scene can hold a thousand of something again.' },
 

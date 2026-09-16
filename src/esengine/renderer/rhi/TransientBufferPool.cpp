@@ -40,6 +40,8 @@ void TransientBufferPool::recreateGpuResources() {
         s.ebo_capacity = 0;
         s.vertex_write_pos = 0;
         s.index_write_pos = 0;
+        s.texture = TextureHandle::Invalid;
+        s.texture_rows = 0;
     }
     initialized_ = false;
     init(initial_vertex_bytes_, initial_index_count_);
@@ -56,6 +58,11 @@ void TransientBufferPool::shutdown() {
         if (s.vbo != BufferHandle::Invalid) { device_.deleteBuffer(s.vbo); s.vbo = BufferHandle::Invalid; }
         if (s.ebo != BufferHandle::Invalid) { device_.deleteBuffer(s.ebo); s.ebo = BufferHandle::Invalid; }
         if (s.quad_vbo != BufferHandle::Invalid) { device_.deleteBuffer(s.quad_vbo); s.quad_vbo = BufferHandle::Invalid; }
+        if (s.texture != TextureHandle::Invalid) {
+            device_.deleteTexture(s.texture);
+            s.texture = TextureHandle::Invalid;
+        }
+        s.texture_rows = 0;
         s.vertex_staging.clear();
         s.index_staging.clear();
         s.vertex_write_pos = 0;
@@ -79,6 +86,47 @@ TransientBufferPool::Stream& TransientBufferPool::stream(LayoutId layout) {
 
 const TransientBufferPool::Stream& TransientBufferPool::stream(LayoutId layout) const {
     return streams_[static_cast<u32>(layout)];
+}
+
+/**
+ * @brief The frame's records onto the GPU, as whole rows.
+ *
+ * @details Whole rows because a partial one asks the upload to describe a
+ *          rectangle the staging is not laid out as. The record divides the row
+ *          evenly, so a row boundary never falls inside one.
+ */
+void TransientBufferPool::uploadInstanceRows(Stream& s, u32& grows, u32& writes) {
+    const u32 rowBytes = instanceRowBytes();
+    const u32 rows = (s.vertex_write_pos + rowBytes - 1) / rowBytes;
+    if (static_cast<u64>(s.vertex_staging.size()) < static_cast<u64>(rows) * rowBytes) {
+        s.vertex_staging.resize(static_cast<usize>(rows) * rowBytes);
+    }
+    if (rows > s.texture_rows) {
+        // Doubling, the way the staging grows: a workload creeping upward
+        // otherwise reallocates a texture every frame.
+        const u32 want = std::max(rows, s.texture_rows * 2);
+        if (s.texture != TextureHandle::Invalid) device_.deleteTexture(s.texture);
+        TextureDesc desc;
+        desc.width = MESH_INSTANCE_TEXTURE_WIDTH;
+        desc.height = want;
+        desc.format = GfxPixelFormat::RGBA32F;
+        // Fetched by index, never filtered: a value between two records belongs
+        // to no object, and full floats are not filterable everywhere anyway.
+        desc.minFilter = TextureFilter::Nearest;
+        desc.magFilter = TextureFilter::Nearest;
+        desc.wrapS = TextureWrap::ClampToEdge;
+        desc.wrapT = TextureWrap::ClampToEdge;
+        desc.mipmaps = false;
+        s.texture = device_.createTexture(desc, s.vertex_staging.data());
+        s.texture_rows = s.texture == TextureHandle::Invalid ? 0 : want;
+        ++grows;
+        return;
+    }
+    // No flip: this is a record store addressed by index, not an image, so row 0
+    // has to stay the row the writer wrote first.
+    device_.updateTexture(s.texture, 0, 0, MESH_INSTANCE_TEXTURE_WIDTH, rows,
+                          s.vertex_staging.data(), /*flipY=*/false);
+    ++writes;
 }
 
 u32 TransientBufferPool::allocVertices(LayoutId layout, u32 byteSize) {
@@ -131,6 +179,13 @@ void TransientBufferPool::upload() {
     // Growth goes through resizeBuffer, which keeps the handle stable, so per-draw
     // buffer bindings and the backend's cached vertex state stay valid.
     for (auto& s : streams_) {
+        if (&s == &stream(LayoutId::MeshInstance)) {
+            if (s.vertex_write_pos == 0) continue;
+            ++streams;
+            vertexBytes += s.vertex_write_pos;
+            uploadInstanceRows(s, grows, writes);
+            continue;
+        }
         if (s.vbo == BufferHandle::Invalid) continue;
         if (s.vertex_write_pos == 0 && s.index_write_pos == 0) continue;
         ++streams;
@@ -217,13 +272,12 @@ void TransientBufferPool::setupStream(LayoutId layout) {
     Stream& s = stream(layout);
 
     if (layout == LayoutId::MeshInstance) {
-        // Only a stream. The geometry is the mesh's and so is the layout — this
-        // holds the per-object transforms written for the frame, which is the one
-        // part of drawing a resident mesh that is not resident.
-        s.vertex_staging.resize(initial_vertex_bytes_);
-        s.vbo_capacity = initial_vertex_bytes_;
-        s.vbo = device_.createBuffer({GfxBufferUsage::Vertex, s.vbo_capacity, /*dynamic=*/true}, nullptr);
+        // Only a stream, and not a vertex one: the frame's per-object records go
+        // in a texture, so a shader can reach any record by index rather than only
+        // the one the hardware happens to be on.
         s.vertex_stride = MESH_INSTANCE_STRIDE;
+        s.vertex_staging.resize(instanceRowBytes());
+        s.texture_rows = 0;
         return;
     }
 

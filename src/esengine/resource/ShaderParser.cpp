@@ -13,7 +13,9 @@
 
 #include "ShaderParser.hpp"
 #include "../core/Log.hpp"
+#include "../renderer/store/InstanceConstants.hpp"
 #include "../renderer/store/MaterialConstants.hpp"
+#include "../renderer/rhi/GfxEnums.hpp"
 #include "../renderer/rhi/WgslBindings.hpp"
 
 #include <sstream>
@@ -29,6 +31,79 @@ namespace esengine::resource {
 // =============================================================================
 
 namespace {
+
+/**
+ * @brief How a vertex stage reaches its own object's record.
+ *
+ * @details Built from the layout constants rather than written out, so the texel
+ *          a shader reads and the texel the packer writes cannot drift apart.
+ *          `esInstance*` is the name a stage reaches for; a stage that names one
+ *          gets this header, the way a stage that names `tN` gets that unit.
+ */
+/** @brief The same record, for a WGSL vertex stage. @see instanceRecordGLSL */
+std::string instanceRecordWGSL() {
+    const std::string texels = std::to_string(MESH_INSTANCE_TEXELS);
+    const std::string width = std::to_string(MESH_INSTANCE_TEXTURE_WIDTH);
+    const std::string unit = std::to_string(MESH_INSTANCE_TEXTURE_UNIT);
+    return
+        "struct InstanceConstants { base : vec4u };\n"
+        "@group(0) @binding(" + std::to_string(INSTANCE_CONSTANTS_BINDING)
+            + ") var<uniform> inst : InstanceConstants;\n"
+        // vs_main's instance_index, put where the helpers can reach it — WGSL has
+        // no global for it the way GLSL has gl_InstanceID.
+        "var<private> g_instanceId : i32 = 0;\n"
+        "fn esInstanceTexel(texel : i32) -> vec4f {\n"
+        "    let at = (i32(inst.base.x) + g_instanceId) * " + texels + " + texel;\n"
+        "    return textureLoad(t" + unit + ", vec2i(at % " + width + ", at / " + width + "), 0);\n"
+        "}\n"
+        "fn esInstanceModel() -> mat4x4f {\n"
+        "    let r0 = esInstanceTexel(" + std::to_string(MESH_INSTANCE_TEXEL_MODEL) + ");\n"
+        "    let r1 = esInstanceTexel(" + std::to_string(MESH_INSTANCE_TEXEL_MODEL + 1) + ");\n"
+        "    let r2 = esInstanceTexel(" + std::to_string(MESH_INSTANCE_TEXEL_MODEL + 2) + ");\n"
+        "    return mat4x4f(vec4f(r0.x, r1.x, r2.x, 0.0), vec4f(r0.y, r1.y, r2.y, 0.0),\n"
+        "                   vec4f(r0.z, r1.z, r2.z, 0.0), vec4f(r0.w, r1.w, r2.w, 1.0));\n"
+        "}\n"
+        "fn esInstanceNormalMatrix() -> mat3x3f {\n"
+        "    return mat3x3f(esInstanceTexel(" + std::to_string(MESH_INSTANCE_TEXEL_NORMAL) + ").xyz,\n"
+        "                   esInstanceTexel(" + std::to_string(MESH_INSTANCE_TEXEL_NORMAL + 1) + ").xyz,\n"
+        "                   esInstanceTexel(" + std::to_string(MESH_INSTANCE_TEXEL_NORMAL + 2) + ").xyz);\n"
+        "}\n"
+        "fn esInstanceTint() -> vec4f { return esInstanceTexel("
+            + std::to_string(MESH_INSTANCE_TEXEL_TINT) + "); }\n"
+        "fn esInstanceLightmapRect() -> vec4f { return esInstanceTexel("
+            + std::to_string(MESH_INSTANCE_TEXEL_LIGHTMAP) + "); }\n";
+}
+
+std::string instanceRecordGLSL() {
+    const std::string texels = std::to_string(MESH_INSTANCE_TEXELS);
+    const std::string width = std::to_string(MESH_INSTANCE_TEXTURE_WIDTH);
+    return
+        "layout(std140) uniform InstanceConstants {\n"
+        "    highp uvec4 u_instanceBase;\n"
+        "};\n"
+        "uniform highp sampler2D u_instanceData;\n"
+        "highp vec4 esInstanceTexel(int texel) {\n"
+        "    int at = (int(u_instanceBase.x) + ES_INSTANCE_ID) * " + texels + " + texel;\n"
+        "    return texelFetch(u_instanceData, ivec2(at % " + width + ", at / " + width + "), 0);\n"
+        "}\n"
+        "highp mat4 esInstanceModel() {\n"
+        "    highp vec4 r0 = esInstanceTexel(" + std::to_string(MESH_INSTANCE_TEXEL_MODEL) + ");\n"
+        "    highp vec4 r1 = esInstanceTexel(" + std::to_string(MESH_INSTANCE_TEXEL_MODEL + 1) + ");\n"
+        "    highp vec4 r2 = esInstanceTexel(" + std::to_string(MESH_INSTANCE_TEXEL_MODEL + 2) + ");\n"
+        "    return mat4(vec4(r0.x, r1.x, r2.x, 0.0), vec4(r0.y, r1.y, r2.y, 0.0),\n"
+        "                vec4(r0.z, r1.z, r2.z, 0.0), vec4(r0.w, r1.w, r2.w, 1.0));\n"
+        "}\n"
+        "highp mat3 esInstanceNormalMatrix() {\n"
+        "    return mat3(esInstanceTexel(" + std::to_string(MESH_INSTANCE_TEXEL_NORMAL) + ").xyz,\n"
+        "                esInstanceTexel(" + std::to_string(MESH_INSTANCE_TEXEL_NORMAL + 1) + ").xyz,\n"
+        "                esInstanceTexel(" + std::to_string(MESH_INSTANCE_TEXEL_NORMAL + 2) + ").xyz);\n"
+        "}\n"
+        "highp vec4 esInstanceTint() { return esInstanceTexel("
+            + std::to_string(MESH_INSTANCE_TEXEL_TINT) + "); }\n"
+        "highp vec4 esInstanceLightmapRect() { return esInstanceTexel("
+            + std::to_string(MESH_INSTANCE_TEXEL_LIGHTMAP) + "); }\n";
+}
+
 
 constexpr u32 kMaxIncludeDepth = 16;
 
@@ -178,32 +253,17 @@ std::string canonicalVertexStageWGSL(bool lit) {
         "#ifdef SKINNED\n"
         "    @location(5) a_joints : vec4u,\n"
         "    @location(6) a_weights : vec4f,\n"
-        "    @location(12) a_instTint : vec4f,\n"
-        "#else\n"
-        "#ifdef MESH\n"
-        "    @location(8)  a_model0 : vec4f,\n"
-        "    @location(9)  a_model1 : vec4f,\n"
-        "    @location(10) a_model2 : vec4f,\n"
-        "#ifdef MESH_LIGHTMAP\n"
-        "    @location(11) a_lightmapRect : vec4f,\n"
-        "#endif\n"
-        "    @location(12) a_instTint : vec4f,\n"
-        "#endif\n"
-        "#ifdef MESH_NORMALS\n"
-        "    @location(13) a_nrm0 : vec3f,\n"
-        "    @location(14) a_nrm1 : vec3f,\n"
-        "    @location(15) a_nrm2 : vec3f,\n"
-        "#endif\n"
-        "#endif\n"
         "#endif\n"
         "#ifdef MESH\n"
         // What the GLSL twin reads as gl_VertexID.
         "    @builtin(vertex_index) vertexIndex : u32,\n"
         "#endif\n"
+        "#endif\n"
         "};\n"
         "\n"
-        "@vertex fn vs_main(v : VSIn) -> VSOut {\n"
+        "@vertex fn vs_main(v : VSIn, @builtin(instance_index) instanceId : u32) -> VSOut {\n"
         "    var out : VSOut;\n"
+        "    g_instanceId = i32(instanceId);\n"
         "#ifdef MESH\n"
         "    var local = v.a_position;\n"
         "#ifdef MESH_NORMALS\n"
@@ -247,12 +307,10 @@ std::string canonicalVertexStageWGSL(bool lit) {
         "             + v.a_weights.z * skin.bones[v.a_joints.z]\n"
         "             + v.a_weights.w * skin.bones[v.a_joints.w];\n"
         "    let world = pose * vec4f(local, 1.0);\n"
-        "    out.v_color = v.a_color * v.a_instTint;\n"
+        "    out.v_color = v.a_color * esInstanceTint();\n"
         "#elif defined(MESH)\n"
-        "    let world = vec4f(dot(v.a_model0, vec4f(local, 1.0)),\n"
-        "                      dot(v.a_model1, vec4f(local, 1.0)),\n"
-        "                      dot(v.a_model2, vec4f(local, 1.0)), 1.0);\n"
-        "    out.v_color = v.a_color * v.a_instTint;\n"
+        "    let world = esInstanceModel() * vec4f(local, 1.0);\n"
+        "    out.v_color = v.a_color * esInstanceTint();\n"
         "#else\n"
         "    let world = vec4f(v.a_position, 1.0);\n"
         "    out.v_color = v.a_color;\n"
@@ -268,16 +326,20 @@ std::string canonicalVertexStageWGSL(bool lit) {
         "#ifdef SKINNED\n"
         "    out.v_worldNormal = mat3x3f(pose[0].xyz, pose[1].xyz, pose[2].xyz) * localNormal;\n"
         "#else\n"
-        "    out.v_worldNormal = mat3x3f(v.a_nrm0, v.a_nrm1, v.a_nrm2) * localNormal;\n"
+        "    out.v_worldNormal = esInstanceNormalMatrix() * localNormal;\n"
         "#endif\n"
         "    out.v_worldXYZ = world.xyz;\n"
         "#endif\n"
         "#ifdef MESH_LIGHTMAP\n"
-        "    out.v_lightmap = vec3f(v.a_texCoord1 * v.a_lightmapRect.xy + v.a_lightmapRect.zw,\n"
-        "                           select(0.0, 1.0, v.a_lightmapRect.x > 0.0));\n"
+        "    let lmRect = esInstanceLightmapRect();\n"
+        "    out.v_lightmap = vec3f(v.a_texCoord1 * lmRect.xy + lmRect.zw,\n"
+        "                           select(0.0, 1.0, lmRect.x > 0.0));\n"
         "#endif\n";
     if (lit) {
         src += "    out.v_worldPos = world.xy;\n";
+        // Declared by wgslVSOut under the same condition, so filled here —
+        // a slot left at zero makes every instance read the first probe.
+        src += "    out.v_probeSlot = f32(instanceId);\n";
     }
     src +=
         "    return out;\n"
@@ -360,26 +422,10 @@ std::string canonicalVertexStage(bool lit) {
         "#ifdef SKINNED\n"
         "layout(location = 5) in uvec4 a_joints;\n"
         "layout(location = 6) in vec4 a_weights;\n"
-        "layout(location = 12) in vec4 a_instTint;\n"
         // This draw's pose, rewritten immediately before it (SkinConstants, binding 5).
         "layout(std140) uniform SkinConstants {\n"
         "    mat4 u_bones[64];\n"
         "};\n"
-        "#else\n"
-        "#ifdef MESH\n"
-        "layout(location = 8)  in vec4 a_model0;\n"
-        "layout(location = 9)  in vec4 a_model1;\n"
-        "layout(location = 10) in vec4 a_model2;\n"
-        "#ifdef MESH_LIGHTMAP\n"
-        "layout(location = 11) in vec4 a_lightmapRect;\n"
-        "#endif\n"
-        "layout(location = 12) in vec4 a_instTint;\n"
-        "#endif\n"
-        "#ifdef MESH_NORMALS\n"
-        "layout(location = 13) in vec3 a_nrm0;\n"
-        "layout(location = 14) in vec3 a_nrm1;\n"
-        "layout(location = 15) in vec3 a_nrm2;\n"
-        "#endif\n"
         "#endif\n"
         "#endif\n"
         "#ifdef MESH\n"
@@ -460,12 +506,10 @@ std::string canonicalVertexStage(bool lit) {
         "              + a_weights.z * u_bones[a_joints.z]\n"
         "              + a_weights.w * u_bones[a_joints.w];\n"
         "    vec4 world = skin * vec4(local, 1.0);\n"
-        "    v_color = a_color * a_instTint;\n"
+        "    v_color = a_color * esInstanceTint();\n"
         "#elif defined(MESH)\n"
-        "    vec4 world = vec4(dot(a_model0, vec4(local, 1.0)),\n"
-        "                      dot(a_model1, vec4(local, 1.0)),\n"
-        "                      dot(a_model2, vec4(local, 1.0)), 1.0);\n"
-        "    v_color = a_color * a_instTint;\n"
+        "    vec4 world = esInstanceModel() * vec4(local, 1.0);\n"
+        "    v_color = a_color * esInstanceTint();\n"
         "#else\n"
         "    vec4 world = vec4(a_position, 1.0);\n"
         "    v_color = a_color;\n"
@@ -481,13 +525,14 @@ std::string canonicalVertexStage(bool lit) {
         "#ifdef SKINNED\n"
         "    v_worldNormal = mat3(skin) * localNormal;\n"
         "#else\n"
-        "    v_worldNormal = mat3(a_nrm0, a_nrm1, a_nrm2) * localNormal;\n"
+        "    v_worldNormal = esInstanceNormalMatrix() * localNormal;\n"
         "#endif\n"
         "    v_worldXYZ = world.xyz;\n"
         "#endif\n"
         "#ifdef MESH_LIGHTMAP\n"
-        "    v_lightmap = vec3(a_texCoord1 * a_lightmapRect.xy + a_lightmapRect.zw,\n"
-        "                      a_lightmapRect.x > 0.0 ? 1.0 : 0.0);\n"
+        "    highp vec4 lmRect = esInstanceLightmapRect();\n"
+        "    v_lightmap = vec3(a_texCoord1 * lmRect.xy + lmRect.zw,\n"
+        "                      lmRect.x > 0.0 ? 1.0 : 0.0);\n"
         "#endif\n";
     if (lit) {
         src += "    v_worldPos = world.xy;\n";
@@ -1426,7 +1471,7 @@ std::string trimWs(const std::string& s) {
 // #ifdef/#ifndef/#else/#elif defined(NAME)/#endif over the assembled text,
 // with the feature set as the defined names. GLSL keeps real #defines for the
 // driver, so both targets see identical variant logic in the authored bodies.
-std::string preprocessWGSL(const std::string& source, const std::vector<std::string>& features) {
+std::string preprocessConditionals(const std::string& source, const std::vector<std::string>& features) {
     const std::unordered_set<std::string> defined(features.begin(), features.end());
     struct Frame {
         bool parentActive;  ///< Whether the enclosing region emits lines.
@@ -1509,7 +1554,7 @@ ShaderParser::AssembledStage assembleWGSLStage(const ParsedShader& parsed,
     // injecting the shared headers would double-declare them.
     auto fullIt = parsed.wgslStageFull.find(stage);
     if (fullIt != parsed.wgslStageFull.end() && fullIt->second) {
-        result.source = preprocessWGSL(bodyIt->second, features);
+        result.source = preprocessConditionals(bodyIt->second, features);
         result.headerLineCount = 0;
         return result;
     }
@@ -1546,13 +1591,19 @@ ShaderParser::AssembledStage assembleWGSLStage(const ParsedShader& parsed,
         if (lit) inject(kLitHeaderWGSL);
         inject(kColorHelpersWGSL);
     }
+    // The records, for a stage that names them — the same question, and the same
+    // answer, as the GLSL side. Before the texture completion below, so the unit
+    // this reaches for is one of the ones it sees.
+    if (stage == ShaderStage::Vertex && bodyIt->second.find("esInstance") != std::string::npos) {
+        inject(instanceRecordWGSL());
+    }
     // Last, so it sees every declaration made above as well as the body's own.
     inject(wgslReachedTextureDecls(assembled.str() + bodyIt->second,
                                    parsed.domain == "PostProcess"));
 
     assembled << bodyIt->second;
 
-    result.source = preprocessWGSL(assembled.str(), features);
+    result.source = preprocessConditionals(assembled.str(), features);
     result.headerLineCount = headerLines;
     return result;
 }
@@ -1688,18 +1739,30 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
     // carry explicit highp for the same reason MaterialConstants does: a fragment shader has no
     // default float precision until its `precision` line, which follows this injected header.
 
-    // Declared by every Lit vertex because every Lit fragment takes it in. One
-    // that never fills it reads slot 0 (the fragment clamps), not garbage.
-    if (stage == ShaderStage::Vertex && parsed.domain == "Lit") {
-        // The twin generator compiles this stage under Vulkan semantics, where the
-        // instance number is spelled differently and gl_InstanceID does not exist.
+    if (stage == ShaderStage::Vertex) {
+        // Every vertex stage, not only the Lit ones: an unlit mesh reads the same
+        // record. Spelled twice because the twin generator compiles this under
+        // Vulkan semantics, where gl_InstanceID does not exist.
         assembled << "#ifdef VULKAN\n"
                      "#define ES_INSTANCE_ID gl_InstanceIndex\n"
                      "#else\n"
                      "#define ES_INSTANCE_ID gl_InstanceID\n"
-                     "#endif\n"
-                     "flat out highp float v_probeSlot;\n";
-        headerLines += 6;
+                     "#endif\n";
+        headerLines += 5;
+        // The records themselves, for a stage that names them. Reached-not-declared
+        // is how wgslReachedTextureDecls decides the same question: one author for
+        // the declaration, rather than a copy in every shader that reads a record.
+        if (stageIt->second.find("esInstance") != std::string::npos) {
+            const std::string decl = instanceRecordGLSL();
+            assembled << decl;
+            headerLines += static_cast<u32>(std::count(decl.begin(), decl.end(), '\n'));
+        }
+    }
+    // Declared by every Lit vertex because every Lit fragment takes it in. One
+    // that never fills it reads slot 0 (the fragment clamps), not garbage.
+    if (stage == ShaderStage::Vertex && parsed.domain == "Lit") {
+        assembled << "flat out highp float v_probeSlot;\n";
+        headerLines += 1;
     }
 
     // The light-array size and packing here MUST match renderer/LightConstants.hpp (MAX_LIGHTS,
@@ -2394,6 +2457,18 @@ void ShaderParser::computeMaterialLayout(ParsedShader& shader) {
     for (auto& p : shader.properties) {
         if (!p.fromParam) continue;  // legacy properties-block entries are reflection-only
         if (p.type == ShaderPropertyType::Texture) {
+            // The top unit is the frame's per-object record, on every mesh shader
+            // there is. Handing it out here would bind a material's texture over
+            // the records and draw every object at the origin.
+            if (textureUnit >= MESH_INSTANCE_TEXTURE_UNIT) {
+                ES_LOG_ERROR("shader {}: texture param \"{}\" would take unit {}, which is the"
+                             " per-object record; a material reads at most {} textures",
+                             shader.name, p.name, textureUnit,
+                             MESH_INSTANCE_TEXTURE_UNIT - MATERIAL_TEXTURE_UNIT_BASE);
+                p.textureUnit = -1;
+                p.std140Offset = -1;
+                continue;
+            }
             p.textureUnit = static_cast<i32>(textureUnit++);
             p.std140Offset = -1;
             continue;

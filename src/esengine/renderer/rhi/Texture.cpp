@@ -30,6 +30,7 @@ GfxPixelFormat toGfxPixelFormat(TextureFormat format) {
     case TextureFormat::RGBA8:   return GfxPixelFormat::RGBA8;
     case TextureFormat::SRGB8A8: return GfxPixelFormat::SRGB8_ALPHA8;
     case TextureFormat::RGBA16F: return GfxPixelFormat::RGBA16F;
+    case TextureFormat::RGBA32F: return GfxPixelFormat::RGBA32F;
     case TextureFormat::Depth24: return GfxPixelFormat::DepthComponent24;
     default:                     return GfxPixelFormat::RGBA8;
     }

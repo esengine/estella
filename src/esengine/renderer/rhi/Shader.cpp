@@ -20,6 +20,7 @@
 #include "../store/MaterialConstants.hpp"
 #include "../store/SkinConstants.hpp"
 #include "../store/LightConstants.hpp"
+#include "../store/InstanceConstants.hpp"
 #include "../store/MorphConstants.hpp"
 #include "../store/ProbeConstants.hpp"
 #include "../../core/Log.hpp"
@@ -269,6 +270,13 @@ bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSr
         device_->uniformBlockBinding(program_, probeBlock, PROBE_CONSTANTS_BINDING);
     }
 
+    // And where this draw's objects start in the frame's record texture, which
+    // DrawList rewrites per draw for the same reason.
+    u32 instanceBlock = device_->getUniformBlockIndex(program_, INSTANCE_CONSTANTS_BLOCK);
+    if (instanceBlock != GFX_INVALID_UNIFORM_BLOCK) {
+        device_->uniformBlockBinding(program_, instanceBlock, INSTANCE_CONSTANTS_BINDING);
+    }
+
     // Same for the per-draw params block (rewriteLooseUniforms generates it for
     // shaders whose loose uniforms were lifted); commitParams binds the UBO.
     u32 drawParamsBlock = device_->getUniformBlockIndex(program_, DRAW_PARAMS_BLOCK);
@@ -276,34 +284,26 @@ bool Shader::compile(const std::string& vertexSrc, const std::string& fragmentSr
         device_->uniformBlockBinding(program_, drawParamsBlock, DRAW_PARAMS_BINDING);
     }
 
-    // Engine-injected samplers sit on fixed units, pinned here for the same reason the
-    // blocks above are: the header reaches every Lit shader, so a compile site that
-    // forgot the unit would sample slot 0 silently. GLSL ES 300 has no layout(binding).
-    if (hasUniform(SHADOW_MAP_SAMPLER) || hasUniform(ENV_MAP_SAMPLER)
-        || hasUniform(SHADOW_2D_SAMPLER) || hasUniform(SHAPE_2D_SAMPLER)
-        || hasUniform(MORPH_DELTA_SAMPLER) || hasUniform(LIGHTMAP_SAMPLER)) {
-        bind();
-        if (hasUniform(SHADOW_MAP_SAMPLER)) {
-            setUniform(SHADOW_MAP_SAMPLER, static_cast<i32>(SHADOW_MAP_TEXTURE_UNIT));
-        }
-        if (hasUniform(ENV_MAP_SAMPLER)) {
-            setUniform(ENV_MAP_SAMPLER, static_cast<i32>(ENV_MAP_TEXTURE_UNIT));
-        }
-        if (hasUniform(SHADOW_2D_SAMPLER)) {
-            setUniform(SHADOW_2D_SAMPLER, static_cast<i32>(SHADOW_2D_TEXTURE_UNIT));
-        }
-        if (hasUniform(SHAPE_2D_SAMPLER)) {
-            setUniform(SHAPE_2D_SAMPLER, static_cast<i32>(SHAPE_2D_TEXTURE_UNIT));
-        }
-        // The one sampler here read by the VERTEX stage.
-        if (hasUniform(MORPH_DELTA_SAMPLER)) {
-            setUniform(MORPH_DELTA_SAMPLER, static_cast<i32>(MORPH_DELTA_TEXTURE_UNIT));
-        }
-        if (hasUniform(LIGHTMAP_SAMPLER)) {
-            setUniform(LIGHTMAP_SAMPLER, static_cast<i32>(LIGHTMAP_TEXTURE_UNIT));
-        }
-        unbind();
+    // Engine-injected samplers sit on fixed units, pinned here because GLSL ES 300
+    // has no layout(binding) and a compile site that forgot one samples slot 0
+    // silently. The last two are read by the VERTEX stage.
+    struct PinnedSampler { const char* name; u32 unit; };
+    static const PinnedSampler kPinned[] = {
+        {SHADOW_MAP_SAMPLER, SHADOW_MAP_TEXTURE_UNIT},
+        {ENV_MAP_SAMPLER, ENV_MAP_TEXTURE_UNIT},
+        {SHADOW_2D_SAMPLER, SHADOW_2D_TEXTURE_UNIT},
+        {SHAPE_2D_SAMPLER, SHAPE_2D_TEXTURE_UNIT},
+        {LIGHTMAP_SAMPLER, LIGHTMAP_TEXTURE_UNIT},
+        {MORPH_DELTA_SAMPLER, MORPH_DELTA_TEXTURE_UNIT},
+        {INSTANCE_DATA_SAMPLER, MESH_INSTANCE_TEXTURE_UNIT},
+    };
+    bool pinned = false;
+    for (const PinnedSampler& p : kPinned) {
+        if (!hasUniform(p.name)) continue;
+        if (!pinned) { bind(); pinned = true; }
+        setUniform(p.name, static_cast<i32>(p.unit));
     }
+    if (pinned) unbind();
 
     ES_LOG_DEBUG("Shader compiled successfully (program handle: {}, active uniforms: {})",
                  static_cast<u32>(program_), activeUniforms_.size());

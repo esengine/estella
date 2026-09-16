@@ -412,29 +412,8 @@ layout(location = 7) in vec2 a_texCoord1;
 
 
 
-#ifndef SKINNED
 
 
-
-layout(location = 8)  in vec4 a_model0;
-layout(location = 9)  in vec4 a_model1;
-layout(location = 10) in vec4 a_model2;
-#ifdef MESH_LIGHTMAP
-
-
-
-layout(location = 11) in vec4 a_lightmapRect;
-#endif
-#endif
-layout(location = 12) in vec4 a_instTint;
-#if defined(MESH_NORMALS) && !defined(SKINNED)
-
-
-
-layout(location = 13) in vec3 a_nrm0;
-layout(location = 14) in vec3 a_nrm1;
-layout(location = 15) in vec3 a_nrm2;
-#endif
 
 #ifdef SKINNED
 
@@ -520,18 +499,16 @@ void main() {
               + a_weights.w * u_bones[a_joints.w];
     vec4 world = skin * vec4(local, 1.0);
 #else
-    mat4 model = mat4(vec4(a_model0.x, a_model1.x, a_model2.x, 0.0),
-                      vec4(a_model0.y, a_model1.y, a_model2.y, 0.0),
-                      vec4(a_model0.z, a_model1.z, a_model2.z, 0.0),
-                      vec4(a_model0.w, a_model1.w, a_model2.w, 1.0));
+    mat4 model = esInstanceModel();
     vec4 world = model * vec4(local, 1.0);
 #endif
     gl_Position = u_projection * world;
     v_texCoord = a_texCoord;
-    v_color = a_color * a_instTint;
+    v_color = a_color * esInstanceTint();
 #ifdef MESH_LIGHTMAP
-    v_lightmap = vec3(a_texCoord1 * a_lightmapRect.xy + a_lightmapRect.zw,
-                      a_lightmapRect.x > 0.0 ? 1.0 : 0.0);
+    highp vec4 lmRect = esInstanceLightmapRect();
+    v_lightmap = vec3(a_texCoord1 * lmRect.xy + lmRect.zw,
+                      lmRect.x > 0.0 ? 1.0 : 0.0);
 #endif
 #ifdef SHADOW_DEPTH
     v_shadowClip = gl_Position;
@@ -543,7 +520,7 @@ void main() {
 #if defined(MESH_NORMALS) && defined(SKINNED)
     v_worldNormal = mat3(skin) * localNormal;
 #elif defined(MESH_NORMALS)
-    v_worldNormal = mat3(a_nrm0, a_nrm1, a_nrm2) * localNormal;
+    v_worldNormal = esInstanceNormalMatrix() * localNormal;
 #else
 
     v_worldNormal = vec3(0.0, 0.0, 1.0);
@@ -652,27 +629,12 @@ struct VSIn {
 #ifdef SKINNED
     @location(5) a_joints : vec4u,
     @location(6) a_weights : vec4f,
-#else
-    @location(8)  a_model0 : vec4f,
-    @location(9)  a_model1 : vec4f,
-    @location(10) a_model2 : vec4f,
-#ifdef MESH_LIGHTMAP
-    @location(11) a_lightmapRect : vec4f,
-#endif
 #endif
 #ifdef MESH_LIGHTMAP
     @location(7) a_texCoord1 : vec2f,
 #endif
-    @location(12) a_instTint : vec4f,
 
     @builtin(vertex_index) vertexIndex : u32,
-#ifdef MESH_NORMALS
-#ifndef SKINNED
-    @location(13) a_nrm0 : vec3f,
-    @location(14) a_nrm1 : vec3f,
-    @location(15) a_nrm2 : vec3f,
-#endif
-#endif
 };
 struct VSOut {
     @builtin(position) pos : vec4f,
@@ -695,6 +657,7 @@ struct VSOut {
 };
 
 @vertex fn vs_main(v : VSIn, @builtin(instance_index) inst : u32) -> VSOut {
+    g_instanceId = i32(inst);
     var local = v.a_position;
 #ifdef MESH_NORMALS
     var localNormal = v.a_normal;
@@ -721,20 +684,17 @@ struct VSOut {
              + v.a_weights.w * skin.bones[v.a_joints.w];
     let world = pose * vec4f(local, 1.0);
 #else
-    let model = mat4x4f(vec4f(v.a_model0.x, v.a_model1.x, v.a_model2.x, 0.0),
-                        vec4f(v.a_model0.y, v.a_model1.y, v.a_model2.y, 0.0),
-                        vec4f(v.a_model0.z, v.a_model1.z, v.a_model2.z, 0.0),
-                        vec4f(v.a_model0.w, v.a_model1.w, v.a_model2.w, 1.0));
-    let world = model * vec4f(local, 1.0);
+    let world = esInstanceModel() * vec4f(local, 1.0);
 #endif
 
     var out : VSOut;
     out.pos = frame.projection * world;
     out.v_texCoord = v.a_texCoord;
-    out.v_color = v.a_color * v.a_instTint;
+    out.v_color = v.a_color * esInstanceTint();
 #ifdef MESH_LIGHTMAP
-    out.v_lightmap = vec3f(v.a_texCoord1 * v.a_lightmapRect.xy + v.a_lightmapRect.zw,
-                           select(0.0, 1.0, v.a_lightmapRect.x > 0.0));
+    let lmRect = esInstanceLightmapRect();
+    out.v_lightmap = vec3f(v.a_texCoord1 * lmRect.xy + lmRect.zw,
+                           select(0.0, 1.0, lmRect.x > 0.0));
 #endif
 #ifdef SHADOW_DEPTH
     out.v_shadowClip = out.pos;
@@ -746,7 +706,7 @@ struct VSOut {
 #ifdef SKINNED
     out.v_worldNormal = mat3x3f(pose[0].xyz, pose[1].xyz, pose[2].xyz) * localNormal;
 #else
-    out.v_worldNormal = mat3x3f(v.a_nrm0, v.a_nrm1, v.a_nrm2) * localNormal;
+    out.v_worldNormal = esInstanceNormalMatrix() * localNormal;
 #endif
 #else
 

@@ -502,9 +502,9 @@ bool ResourceManager::realizeMesh(Mesh& mesh, ConstSpan<u8> vertexBytes, ConstSp
                                  ConstSpan<f32> inverseBind, const MeshMorphSource& morph) {
     if (!device_ || vertexBytes.empty() || indices.empty() || channels.empty()) return false;
 
-    // The mesh describes its own vertices; the per-object transform is the
-    // engine's and is appended here, so no caller has to know how a transform
-    // reaches the shader — the reason a mesh is drawn without touching its bytes.
+    // The mesh describes its own vertices and nothing else: the per-object
+    // transform reaches the shader through the frame's record texture, which is
+    // what leaves every slot above the mesh channels free.
     VertexLayoutDesc layout;
     // A channel no shader reads stays out of the layout (meshShaderReads): it
     // would spend an attribute slot and a fetch per vertex. The stride is
@@ -512,7 +512,7 @@ bool ResourceManager::realizeMesh(Mesh& mesh, ConstSpan<u8> vertexBytes, ConstSp
     u32 bound = 0;
     for (const GfxVertexAttribute& c : channels) {
         if (!meshShaderReads(static_cast<MeshChannel>(c.location))) continue;
-        if (bound + MESH_INSTANCE_ATTRIBUTES >= MAX_VERTEX_ATTRIBUTES) {
+        if (bound >= MAX_VERTEX_ATTRIBUTES) {
             ES_LOG_ERROR("realizeMesh: {} bound channels exceeds the layout budget", bound + 1);
             return false;
         }
@@ -535,31 +535,7 @@ bool ResourceManager::realizeMesh(Mesh& mesh, ConstSpan<u8> vertexBytes, ConstSp
     const bool lightmapped = lightmapUV && !skinned;
 
     layout.strides[0] = vertexStride;
-    layout.strides[1] = meshInstanceStride(skinned, hasNormals, lightmapped);
-    layout.instanceStep[1] = true;
-    u32 next = bound;
-    // Only where the shader will read them: a layout may not declare an attribute
-    // its shader does not consume, which WebGPU rejects. A skinned record thus
-    // carries neither model nor normal matrix — its bones are world-space.
-    if (!skinned) {
-        for (u32 row = 0; row < 3; ++row) {
-            layout.attributes[next++] = {MESH_INSTANCE_FIRST_LOCATION + row, 4, GfxDataType::Float,
-                                         false, row * 16u, 1};
-        }
-    }
-    layout.attributes[next++] = {MESH_INSTANCE_FIRST_LOCATION + 4, 4, GfxDataType::UnsignedByte,
-                                 true, skinned ? 0u : 48u, 1};
-    if (hasNormals && !skinned) {
-        for (u32 row = 0; row < 3; ++row) {
-            layout.attributes[next++] = {MESH_INSTANCE_FIRST_LOCATION + 5 + row, 3,
-                                         GfxDataType::Float, false, 52 + row * 12u, 1};
-        }
-    }
-    if (lightmapped) {
-        layout.attributes[next++] = {MESH_INSTANCE_FIRST_LOCATION + 3, 4, GfxDataType::Float,
-                                     false, meshInstanceLightmapOffset(hasNormals), 1};
-    }
-    layout.attributeCount = next;
+    layout.attributeCount = bound;
 
     // The old records go only once the new ones stand: a rematerialization that
     // fails half-way must leave the mesh as it found it, not stripped of the

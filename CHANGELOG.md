@@ -94,10 +94,31 @@ published separately; it ships inside the editor.
   longer than the cap carries no irradiance by construction, so its tail reads
   the zeroes and falls back to the environment, which is its answer anyway.
 
-  Per-instance, not per-object-record, because the record is out of room: the 16
-  vertex attribute slots are a fixed vocabulary — 0-7 the mesh's own channels
-  (serialised in `.esmesh`), 8-15 the per-object transform — with nothing spare.
-  Moving that record to a texture is what would free them, and is its own change.
+  Per-instance, not per-object-record, because the record was out of room at the
+  time. The entry below is the change that moved it.
+
+- **A mesh has somewhere to put its own vertex attributes.** All 16 vertex
+  attribute slots had a semantic owner — 0-7 the mesh's own channels (serialised
+  in `.esmesh`), 8-15 the engine's per-object record — so a mesh that wanted to
+  carry anything else had nowhere to carry it, and neither did the record when it
+  wanted to grow.
+
+  The record is a texture now, read by index rather than by whichever instance
+  the hardware happens to be on, and **slots 8-15 are free**. A draw says where
+  its own run of records begins (`gl_InstanceID` restarts every draw while the
+  frame's records are one run), and the whole layout collapses to one fixed
+  eight-texel shape: the stride the layout, the allocation and the packer each
+  used to derive for themselves is gone, and so is every variant of it.
+
+  Full floats, because what a record carries is a world-space translation and a
+  half loses whole units of one a thousand away — so `RGBA32F` is a format the
+  engine has now, on both backends. On WebGPU it is unfilterable, which the
+  bind-group layout has to say: a unit that declares no sampler cannot be
+  filtered, so that is the answer read out of the shader itself rather than a
+  second table to keep.
+
+  Every one of the 174 pixel scenes draws what it drew before, on both backends,
+  and 200 copies of a crate still cost 1-2 draw calls.
 
 - **Automation can read what a frame cost.** A probe could ask what a game was
   doing and not what it was paying: `Stats` is installed by StatsPlugin, which a
