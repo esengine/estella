@@ -16,7 +16,7 @@
  *
  *   node tools/run-gates.mjs --scope local
  *   node tools/run-gates.mjs --scope ci
- *   node tools/run-gates.mjs --scope local --suites owed    (the pre-push hook)
+ *   node tools/run-gates.mjs --scope local --suites owed
  *   node tools/run-gates.mjs --scope local --keep-going --matrix out.json
  */
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -44,15 +44,14 @@ if (!SCOPES.includes(SCOPE)) {
 const HAS_EDITOR = existsSync(path.join(ROOT, 'desktop', 'package.json'));
 /**
  * Which suite gates this caller pays for: `all` (default, and CI), `owed` (those
- * whose `owns` this change touched — the pre-push hook), or `none`.
+ * whose `owns` this change touched), or `none`.
  *
  * @details A machine that cannot run an owed suite is not silently excused: it
- *          says what it needs and the push stops, per check-suite-preconditions.
+ *          says what it needs and the run stops, per check-suite-preconditions.
  */
 const SUITE_MODES = ['all', 'owed', 'none'];
 if (argv.includes('--no-suites')) {
-  console.error('run-gates: --no-suites is now --suites none (or --suites owed, which the'
-    + ' pre-push hook uses).');
+  console.error('run-gates: --no-suites is now --suites none (or --suites owed).');
   process.exit(2);
 }
 const SUITE_MODE = flag('suites', 'all');

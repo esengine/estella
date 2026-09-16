@@ -8,8 +8,8 @@
  * `covers` made "the gate list is green" mean something by naming the tests a
  * suite runs. `owns` is the other direction — the source whose direct unit-test
  * owner that suite IS — and it is what `--suites owed` reads to decide which
- * suites a push has to pay for. A stale root there owns nothing, silently, and
- * the hole it leaves looks exactly like a clean diff: no suite owed, push green,
+ * suites a change has to pay for. A stale root there owns nothing, silently, and
+ * the hole it leaves looks exactly like a clean diff: no suite owed, run green,
  * the double that stands in for the changed tool never compared against it.
  *
  * So the claim is checked rather than trusted: the roots exist, the tests a

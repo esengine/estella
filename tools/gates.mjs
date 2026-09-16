@@ -3,12 +3,10 @@
 /**
  * @file  gates.mjs — the static gates, in order, and where each one runs.
  *
- * There were two lists again. `pnpm run verify` (which the pre-push hook ran)
- * held eighteen gates and CI's Tests job held six, overlapping in one. So
- * seventeen gates only ever ran on a machine with the hook installed, and five
- * only ran in CI — which is how a push went out green and CI failed on
- * check-examples, and how every gate written this year could have been silently
- * skipped by pushing from anywhere else.
+ * There were two lists again. `pnpm run verify` held eighteen gates and CI's
+ * Tests job held six, overlapping in one. So seventeen gates never ran in CI and
+ * five never ran locally — which is how a local run went green and CI failed on
+ * check-examples.
  *
  * One ordered list, then, with `where` saying which scope pays for each. Order
  * is load-bearing: the declaration checks and the example type-check both read

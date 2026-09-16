@@ -127,7 +127,7 @@ running locally before a docs PR.
 | `npm run verify:imports` | `docs/astro` | A guide importing a symbol the SDK does not export — a renamed or invented API. Runs before the build. |
 | `npm run verify:structure` | `docs/astro` | The rule above going soft: a page in no sidebar group, a sidebar entry with no page, a group page not labelled Overview, or a page that exists in only one language. Runs before the build. |
 | `npm run verify:links` | `docs/astro` | Any in-site link or `#anchor` that does not resolve against the pages the build emitted, including a root-relative link that forgot the `/docs` base. Runs **after** the build. |
-| `node tools/component-reference.mjs --check` | repo root | The component reference disagreeing with the engine's component registry, or a component with no entry in `src/data/componentDocs.ts`. Part of `pnpm run verify`, so pre-push catches it. Refresh with `--update` after building the SDK. |
+| `node tools/component-reference.mjs --check` | repo root | The component reference disagreeing with the engine's component registry, or a component with no entry in `src/data/componentDocs.ts`. Part of `pnpm run verify`. Refresh with `--update` after building the SDK. |
 
 ### Available Components
 
