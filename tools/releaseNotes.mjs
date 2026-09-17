@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(render): the device rebuilds every object it issued behind the same handle':
+    { note: 'The picture comes back after the GPU is lost.' },
+
   'fix(render): a vertex stage names gl_InstanceID only after its attributes':
     { note: '3D meshes draw on Windows with WebGL2 again.' },
 

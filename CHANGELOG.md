@@ -16,6 +16,14 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **The picture comes back after the GPU is lost.** When the graphics context went away — a
+  driver reset, Chrome's GPU process crashing on Windows, a laptop switching GPUs — the
+  engine reported "Device recovered" while the view stayed blank or came back without its
+  grid, meshes, materials or text. Each part of the renderer rebuilt its own GPU objects,
+  and the ones nothing rebuilt drew with dead handles. The device now rebuilds everything it
+  issued behind the same handles, puts back the contents it kept, and reloads the rest from
+  their assets, on WebGL2 and WebGPU alike.
+
 - **A hot update on iOS, Android and desktop builds is still there after a restart
   without a network.** The native host only stores cache files under plain names, and
   hot update asked to store each downloaded asset under its full URL; every write was
