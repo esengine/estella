@@ -16,6 +16,10 @@
  *   node tools/verify-golden.mjs --tier nightly --only platformer,spine-demo
  *   node tools/verify-golden.mjs --tier pr --shots <dir>
  *   node tools/verify-golden.mjs --tier pr --shard 2/4
+ *
+ * A shard is one machine's share of the tier, launched one project at a time;
+ * `ESTELLA_GOLDEN_SHARD` names it where the command line is not the runner's to
+ * write, as in the release gate. `--jobs` is for a machine running the whole list.
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -85,12 +89,12 @@ function exporterReason(out) {
 
 const only = ONLY ? new Set(ONLY.split(',').map((s) => s.trim())) : null;
 const tiered = atTier(TIER).filter((g) => !only || only.has(g.id));
-const shardArg = flag('shard', '');
+const shardArg = flag('shard', argv.includes('--worker') ? '' : (process.env.ESTELLA_GOLDEN_SHARD ?? ''));
 const shard = /^\d+\/\d+$/.test(shardArg)
   ? { index: Number(shardArg.split('/')[0]) - 1, of: Number(shardArg.split('/')[1]) }
   : null;
-if (argv.includes('--shard') && (!shard || shard.index < 0 || shard.index >= shard.of)) {
-  console.error('golden: --shard wants i/n with 1 <= i <= n, e.g. --shard 2/4');
+if (shardArg && (!shard || shard.index < 0 || shard.index >= shard.of)) {
+  console.error(`golden: a shard is i/n with 1 <= i <= n, e.g. 2/4 — got "${shardArg}"`);
   process.exit(2);
 }
 const projects = shard ? sharesOf(tiered, shard.of, OWNED)[shard.index] : tiered;
@@ -109,16 +113,15 @@ console.log(`golden ${TIER}: ${projects.length} project(s), ${pairs.length} pair
  * `--jobs N`: the projects, N at a time, each worker this script over its share.
  * The release tier's seventeen took 33 minutes in a row with three cores idle.
  */
-const JOBS = Math.max(1, Number(flag('jobs', '1')) || 1);
+const JOBS = shard ? 1 : Math.max(1, Number(flag('jobs', '1')) || 1);
 /** How many launches share this runner's rasterizer: a worker's, or one. */
 const SHARE = argv.includes('--worker') ? JOBS : 1;
 if (JOBS > 1 && !argv.includes('--worker') && projects.length > 1) {
   ensureElectronBinary();
   const bins = sharesOf(projects, Math.min(JOBS, projects.length), OWNED).map((share) => ({ ids: share.map((g) => g.id) }));
   // `--jobs` goes through: a worker does not fork again (`--worker`), and it
-  // needs the count to know what it shares the rasterizer with — see SHARE. The
-  // shard does not: a worker's `--only` is already inside it.
-  const own = new Set(['--only', '--shard']);
+  // needs the count to know what it shares the rasterizer with — see SHARE.
+  const own = new Set(['--only']);
   const passthrough = argv.filter((a, i) => !own.has(a) && !own.has(argv[i - 1]));
   const outcomes = await Promise.all(bins.map((bin, i) => new Promise((resolve) => {
     const tag = `[${i + 1}/${bins.length}]`;

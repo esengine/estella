@@ -160,8 +160,21 @@ jobs:
         include:
           - shard: flagship
             criteria: --only flagship-plays-through
-          - shard: golden
+          # A runner per share, one editor at a time: three editors on one
+          # four-core runner starved each other's play realms, which stopped
+          # answering before their scene loaded on about half the launches.
+          - shard: golden-1
             criteria: --only golden-packages
+            golden: 1/4
+          - shard: golden-2
+            criteria: --only golden-packages
+            golden: 2/4
+          - shard: golden-3
+            criteria: --only golden-packages
+            golden: 3/4
+          - shard: golden-4
+            criteria: --only golden-packages
+            golden: 4/4
           - shard: perf
             criteria: --only performance-ceilings
           - shard: static
@@ -173,7 +186,8 @@ jobs:
             criteria: --except flagship-plays-through,golden-packages,performance-ceilings,static-gates,streamed-world-comes-and-goes
     env:
       ESTELLA_NATIVE_TEMPLATES: ${{ github.workspace }}/.native-templates
-    # The longest shard is golden at about a quarter of an hour.
+      # Empty outside the golden shards, where verify-golden takes the whole tier.
+      ESTELLA_GOLDEN_SHARD: ${{ matrix.golden }}
     timeout-minutes: 60
 
     steps:
