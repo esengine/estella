@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(gates): the release-notes ledger reads whole histories, and says so when it cannot':
+    { internal: 'A repository gate; no creator runs it.' },
+
   'fix(checks): camera-frustum takes a capture once two in a row agree on the viewport':
     { internal: 'An editor check; the editor did not change.' },
 

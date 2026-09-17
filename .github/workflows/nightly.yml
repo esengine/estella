@@ -205,6 +205,7 @@ jobs:
     - uses: ./.github/actions/editor-checkout
       with:
         ssh-key: ${{ secrets.EDITOR_SSH_KEY }}
+        history: full
     - uses: ./.github/actions/setup
     - uses: ./.github/actions/render-host
     - uses: ./.github/actions/editor-host

@@ -197,6 +197,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v7
+      with:
+        # The release-notes ledger reads every commit since a release tag, in both
+        # repositories; one commit of each reads as thirty entries naming nothing.
+        fetch-depth: 0
 
     # Eighteen gates in the list need the editor. Without its checkout the runner
     # named them and ran none, on every push — the release-notes ledger went red
@@ -204,6 +208,7 @@ jobs:
     - uses: ./.github/actions/editor-checkout
       with:
         ssh-key: ${{ secrets.EDITOR_SSH_KEY }}
+        history: full
 
     - uses: ./.github/actions/setup
 

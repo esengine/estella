@@ -13,6 +13,10 @@ inputs:
   ssh-key:
     description: Private half of the estella-editor read-only deploy key.
     required: true
+  history:
+    description: "'full' for the editor's whole history, which a gate reading its commits needs; otherwise one commit."
+    required: false
+    default: shallow
 
 runs:
   using: composite
@@ -21,6 +25,7 @@ runs:
       shell: bash
       env:
         EDITOR_SSH_KEY: ${{ inputs.ssh-key }}
+        HISTORY: ${{ inputs.history }}
       run: |
         set -euo pipefail
         if [ -z "${EDITOR_SSH_KEY}" ]; then
@@ -38,5 +43,9 @@ runs:
         # .gitmodules names the https URL so a developer with account access can
         # clone it without a key; the deploy key is SSH-only, hence the rewrite.
         git config --global url."git@github.com:esengine/estella-editor".insteadOf "https://github.com/esengine/estella-editor"
-        git submodule update --init --depth 1 desktop
+        if [ "${HISTORY}" = full ]; then
+          git submodule update --init desktop
+        else
+          git submodule update --init --depth 1 desktop
+        fi
         test -f desktop/package.json

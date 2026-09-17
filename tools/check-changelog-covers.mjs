@@ -50,6 +50,21 @@ if (!existsSync(CHANGELOG)) {
 }
 const changelog = readFileSync(CHANGELOG, 'utf8');
 
+// A checkout without the history cannot answer: every entry would read as naming
+// no commit. A shallow CI clone reported thirty of them before this said so.
+const hasCommit = (rev, cwd = ROOT) => !!rev && !!git(['rev-parse', '--verify', '--quiet', `${rev}^{commit}`], cwd).trim();
+const desktopGit = existsSync(path.join(ROOT, 'desktop', '.git'));
+const unreadable = [
+  ...(hasCommit(NOTES_FLOOR) ? [] : [`${NOTES_FLOOR} is not in this checkout`]),
+  ...(!desktopGit || hasCommit(gitlinkAt(NOTES_FLOOR), path.join(ROOT, 'desktop'))
+    ? [] : [`the editor commit ${NOTES_FLOOR} points at is not in desktop/`]),
+];
+if (unreadable.length) {
+  console.error(`check-changelog-covers: cannot read the history it judges — ${unreadable.join('; ')}.`
+    + ' Fetch both repositories whole (fetch-depth: 0, and the editor without --depth).');
+  process.exit(2);
+}
+
 // Everything since the floor, HEAD included: a feature is owed a note from the
 // moment it lands, not from the moment somebody cuts a release.
 const commits = [
