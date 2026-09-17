@@ -14,6 +14,19 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A hot update on iOS, Android and desktop builds is still there after a restart
+  without a network.** The native host only stores cache files under plain names, and
+  hot update asked to store each downloaded asset under its full URL; every write was
+  refused and nothing said so, so an updated game needed the CDN again on its next
+  launch. Entries are now stored under a hash of the key on every platform, and a
+  refused write is reported once in the log.
+
+- **A WeChat mini-game is judged against WeChat's real 30MB total.** The size report
+  flagged a package over 20MB across its main package and subpackages, a limit WeChat
+  no longer has; the 4MB main-package limit is unchanged.
+
 ## [0.68.0] - 2026-09-17
 
 ### Added

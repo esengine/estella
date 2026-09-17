@@ -28,6 +28,12 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(platform): a hot update on a native build is stored under a name the host accepts':
+    { note: 'A hot update on iOS, Android and desktop builds is still there after a restart' },
+
+  'fix(export): the WeChat total budget is the 30MB WeChat allows':
+    { note: 'A WeChat mini-game is judged against WeChat\'s real 30MB total.' },
+
   'fix(gates): a package is judged at one frame of game time per rendered frame':
     { internal: 'The package launcher the verifiers share; no creator runs it.' },
 
