@@ -263,6 +263,20 @@ jobs:
     - name: Run the exit criteria
       run: node tools/run-release-gate.mjs --host linux ${{ matrix.criteria }}
 
+    # As Build keeps its golden frames: a parity or a dead gesture is a claim about
+    # a picture, and a picture left on the runner cannot be told from a slow one.
+    - name: Keep the frames a failure was judged on
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: exit-frames-${{ matrix.shard }}
+        path: |
+          .golden/**/*.png
+          .golden/*.log
+        include-hidden-files: true
+        if-no-files-found: ignore
+        retention-days: 7
+
   # every-pixel-gate-runs, whose second half needs a GPU: a Linux runner ships no
   # graphics driver and every webgpu run there died in requestDevice. The
   # criterion says so itself, in its `why`.
