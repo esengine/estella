@@ -1989,11 +1989,13 @@ export class Assets {
      *
      * Cache sizes are not expected to return to baseline — that is what a cache
      * is for. `refCounts` and `handlePaths` are: every load handing one out has a
-     * release taking it back. `pendingLoads` should be zero at rest.
+     * release taking it back. `pendingLoads` and `propagations` should be zero at rest.
      */
     sizes(): {
         textureCached: number;
         pendingLoads: number;
+        /** Rebuilds of dependents still running after an invalidation. */
+        propagations: number;
         refCounts: number;
         refRows: number;
         genericCaches: number;
@@ -2014,6 +2016,7 @@ export class Assets {
         return {
             textureCached: tex.cached,
             pendingLoads: pending,
+            propagations: this.settling_.size,
             refCounts: this.textureRefs_.size + this.genericRefs_.size,
             refRows: this.textureRefs_.rows + this.genericRefs_.rows,
             genericCaches: this.genericCache_.size,

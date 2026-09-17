@@ -972,7 +972,7 @@ ResourceDef<AssetsClass>
 @internal releaseTyped: (type: string, ref: string) => void
 @internal releaseTypedLease: (type: string, lease: AssetRefLease<PreparedLoad<unknown>>) => void
 @internal resolveRegistryAsset: <T>(type: string, ref: string) => T | undefined
-@internal sizes: () => { textureCached: number; pendingLoads: number; refCounts: number; refRows: number; genericCaches: number; genericCached: number; handlePaths: number; invalidateListeners: number; registrySlots: number; trackedRefRows: number; }
+@internal sizes: () => { textureCached: number; pendingLoads: number; propagations: number; refCounts: number; refRows: number; genericCaches: number; genericCached: number; handlePaths: number; invalidateListeners: number; registrySlots: number; trackedRefRows: number; }
 acquireSpine: (skeletonRef: string, atlasRef?: string) => Promise<AssetLease<SpineResult>>
 acquireTexture: (ref: string) => Promise<AssetLease<TextureResult>>
 acquireTyped: <T>(type: string, ref: string) => Promise<AssetLease<T>>
