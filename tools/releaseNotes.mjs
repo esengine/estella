@@ -28,6 +28,15 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(assets): adopting a file never replaces the sidecar its creator wrote':
+    { note: 'A new prefab, material, animation clip or graph keeps the id it was created' },
+
+  'fix(assets): a new asset\'s sidecar lands before its content, through one door':
+    { note: 'A new prefab, material, animation clip or graph keeps the id it was created' },
+
+  'fix(checks): gizmo-near-clip reads the beam once the viewport has drawn it':
+    { internal: 'An editor check; the editor did not change.' },
+
   'fix(play): a realm whose frame was not in the page says so':
     { note: 'A Play that never comes up says how far it got.' },
 
