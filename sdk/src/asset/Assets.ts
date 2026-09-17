@@ -15,7 +15,7 @@ import type {
 import { AsyncCache } from './AsyncCache';
 import { TextureContent, textureContentName, type ESEngineModule } from '../wasm';
 import type { CppResourceManager } from '../wasm';
-import { requireResourceManager, getResourceManager, evictTextureDimensions } from '../wasm/resourceManager';
+import { requireResourceManager, getResourceManager, evictTextureDimensions, textureRefill } from '../wasm/resourceManager';
 import type { TextureImportSettings, TextureImportSettingsResolver } from './loaders/TextureLoader';
 import type { TextureFormatReport } from './textureFormatReport';
 import { TextureLoader, textureResidencyKey } from './loaders/TextureLoader';
@@ -463,11 +463,9 @@ export class Assets {
     }
 
     /**
-     * Refills every owed texture this layer can, and gives up on the rest.
-     *
-     * An asset texture is loaded the ordinary way and moved behind the handle
-     * everything holds. Content nobody here can remake is forgone by name: waiting
-     * for it would keep the device recovering forever.
+     * Refills every owed texture someone can: an asset texture is loaded again and
+     * moved behind its handle, any other goes to the refill its creator provided.
+     * Content nobody can remake is forgone by name, or the device recovers forever.
      */
     async reuploadTexturesAfterDeviceLoss(): Promise<number> {
         const rm = requireResourceManager();
@@ -476,9 +474,19 @@ export class Assets {
         let restored = 0;
         for (const { handle, content, path } of this.texturesAwaitingReupload()) {
             if (content !== TextureContent.Asset || !path) {
-                log.warn('assets', `Device recovery: texture ${handle} (${textureContentName(content)})`
-                    + ' has no provider to refill it; it stays blank');
-                rm.forgoTextureContent?.(handle);
+                const refill = textureRefill(handle);
+                if (!refill) {
+                    log.warn('assets', `Device recovery: texture ${handle} (${textureContentName(content)})`
+                        + ' has no provider to refill it; it stays blank');
+                    rm.forgoTextureContent?.(handle);
+                    continue;
+                }
+                try {
+                    if (await refill()) restored++;
+                } catch (e) {
+                    log.warn('assets', `Device recovery: refilling texture ${handle}`
+                        + ` (${textureContentName(content)}) failed`, e);
+                }
                 continue;
             }
             const cut = path.lastIndexOf(':');

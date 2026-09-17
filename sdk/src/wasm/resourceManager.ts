@@ -22,6 +22,7 @@ class ResourceManagerBridge extends WasmBridge<CppResourceManager> {
 const bridge = new ResourceManagerBridge();
 let rm_: CppResourceManager | null = null;
 const dimsCache_ = new Map<number, TextureDimensions>();
+const refills_ = new Map<number, TextureRefill>();
 
 /** @internal Wired by the engine plugins — not part of the public API. */
 export function initResourceManager(rm: CppResourceManager, module?: ESEngineModule): void {
@@ -35,12 +36,14 @@ export function initResourceManager(rm: CppResourceManager, module?: ESEngineMod
         rm_ = rm;
     }
     dimsCache_.clear();
+    refills_.clear();
 }
 
 export function shutdownResourceManager(): void {
     bridge.disconnect();
     rm_ = null;
     dimsCache_.clear();
+    refills_.clear();
 }
 
 export function getResourceManager(): CppResourceManager | null {
@@ -111,6 +114,28 @@ export function getResourceStats(): ResourceStats | null {
 export function trimTextureCache(): number {
     if (!rm_ || typeof rm_.trimTextureCache !== 'function') return 0;
     return rm_.trimTextureCache();
+}
+
+/** Puts a texture's content back after a device loss; true once its handle holds it again. */
+export type TextureRefill = () => boolean | Promise<boolean>;
+
+/**
+ * @internal Names who refills `handle` when the device owes its content — for a
+ * texture no asset path can load again. Handles belong to one resource manager,
+ * so the refills go with it.
+ */
+export function provideTextureContent(handle: number, refill: TextureRefill): void {
+    refills_.set(handle, refill);
+}
+
+/** @internal The texture is being released; nothing will be owed for it. */
+export function withdrawTextureContent(handle: number): void {
+    refills_.delete(handle);
+}
+
+/** @internal Who refills `handle`, if anyone said. */
+export function textureRefill(handle: number): TextureRefill | undefined {
+    return refills_.get(handle);
 }
 
 export function evictTextureDimensions(handle: number): void {

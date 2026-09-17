@@ -50,7 +50,7 @@ export interface CppRegistry extends GeneratedRegistry {
 export const TextureContent = {
     /** Rewritten before every use (a decoded video frame). */
     Transient: 0,
-    /** The engine keeps the bytes (a glyph page). */
+    /** The engine keeps the bytes (a tile collection composed at load). */
     Retained: 1,
     /** The asset layer loads it again from its path. */
     Asset: 2,
@@ -58,6 +58,10 @@ export const TextureContent = {
     Canvas: 3,
     /** Refilled by the video it shows. */
     Video: 4,
+    /** Repainted from the glyphs placed on it. */
+    GlyphPage: 6,
+    /** A skeleton's atlas page, decoded again from its image. */
+    AtlasPage: 7,
 } as const;
 export type TextureContent = typeof TextureContent[keyof typeof TextureContent];
 

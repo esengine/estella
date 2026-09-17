@@ -26,7 +26,7 @@ import { SpineManager, type SpineVersion } from './SpineManager';
 import { prepareSpine, spineEraOf, spinePairKey,
          type SpineAssetValue, type SpineEraBinding, type SpineEraClaim, type SpineIO,
          type SpinePair } from './prepareSpine';
-import { requireResourceManager } from '../wasm/resourceManager';
+import { requireResourceManager, withdrawTextureContent } from '../wasm/resourceManager';
 import { createAtlasPageTexture, type RuntimeAssetSource } from '../runtime/runtimeAssets';
 import type { BasisTranscoder } from '../asset/compressed';
 import type { AssetsData } from '../asset/AssetPlugin';
@@ -165,7 +165,10 @@ function hostEra(
     const drop = (): void => {
         if (--claims > 0) return;
         const rm = requireResourceManager();
-        for (const handle of pages) rm.releaseTexture(handle);
+        for (const handle of pages) {
+            withdrawTextureContent(handle);
+            rm.releaseTexture(handle);
+        }
         pages.length = 0;
     };
     return {

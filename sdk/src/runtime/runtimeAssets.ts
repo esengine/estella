@@ -13,7 +13,7 @@ import { TextureContent, type ESEngineModule } from '../wasm';
 import { linearColorSpace } from '../ecs/env';
 import type { Backend } from '../asset/Backend';
 import type { ParsedTextureImportSettings } from '../asset/textureImportSettings';
-import { requireResourceManager } from '../wasm/resourceManager';
+import { provideTextureContent, requireResourceManager } from '../wasm/resourceManager';
 import { isKtx2Path, type BasisTranscoder } from '../asset/compressed';
 import { withMalloc } from '../wasm/wasmScratch';
 
@@ -84,10 +84,9 @@ const WRAP_MODE_MAP: Record<string, number> = { 'repeat': 0, 'clamp': 1, 'mirror
  *  `module` is the wasm-heap marshalling vehicle; it may be null on the native
  *  (embedded-Dawn) backend, whose ResourceManager takes the bytes directly. */
 /**
- * A texture for an ATLAS PAGE, in whichever form the cook left it. A KTX2 page
- * goes to the ResourceManager where it can decode one (a native host's own basis)
- * and to the realm's wasm transcoder where it cannot — the choice TextureLoader
- * makes for an ordinary texture, which is why it is not made twice more.
+ * A texture for an ATLAS PAGE, in whichever form the cook left it — KTX2 through the
+ * ResourceManager or the realm's transcoder, the choice TextureLoader makes. After a
+ * device loss the page is decoded again and moved behind the handle the skeleton holds.
  */
 export async function createAtlasPageTexture(
     staged: string,
@@ -96,9 +95,28 @@ export async function createAtlasPageTexture(
     transcoderProvider: (() => Promise<BasisTranscoder | null>) | undefined,
     module: ESEngineModule | null,
 ): Promise<{ handle: number; width: number; height: number }> {
+    const upload = () => uploadAtlasPage(staged, fetchBinary, decodePixels, transcoderProvider, module);
+    const page = await upload();
+    provideTextureContent(page.handle, async () => {
+        const fresh = await upload();
+        const rm = requireResourceManager();
+        const moved = rm.adoptTextureContent?.(page.handle, fresh.handle) ?? false;
+        rm.releaseTexture(fresh.handle);
+        return moved;
+    });
+    return page;
+}
+
+async function uploadAtlasPage(
+    staged: string,
+    fetchBinary: (path: string) => Promise<ArrayBuffer>,
+    decodePixels: (path: string) => Promise<{ width: number; height: number; pixels: Uint8Array }>,
+    transcoderProvider: (() => Promise<BasisTranscoder | null>) | undefined,
+    module: ESEngineModule | null,
+): Promise<{ handle: number; width: number; height: number }> {
     if (!isKtx2Path(staged)) {
         const decoded = await decodePixels(staged);
-        return { handle: createTextureFromPixels(module, decoded, TextureContent.Retained, false), ...decoded };
+        return { handle: createTextureFromPixels(module, decoded, TextureContent.AtlasPage, false), ...decoded };
     }
     const bytes = new Uint8Array(await fetchBinary(staged));
     const rm = requireResourceManager();
@@ -112,7 +130,7 @@ export async function createAtlasPageTexture(
     const rgba = transcoder.transcodeToRgba(bytes);
     if (!rgba) throw new Error(`KTX2 transcode failed: ${staged}`);
     const decoded = { width: rgba.width, height: rgba.height, pixels: rgba.data };
-    return { handle: createTextureFromPixels(module, decoded, TextureContent.Retained, false), ...decoded };
+    return { handle: createTextureFromPixels(module, decoded, TextureContent.AtlasPage, false), ...decoded };
 }
 
 export function createTextureFromPixels(

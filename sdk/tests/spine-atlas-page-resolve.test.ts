@@ -23,6 +23,7 @@ const { rm } = vi.hoisted(() => ({
 }));
 vi.mock('../src/wasm/resourceManager', () => ({
     requireResourceManager: () => rm,
+    provideTextureContent: () => {},
 }));
 
 import { loadSpineAssets } from '../src/spine/loadSpineScene';

@@ -123,3 +123,73 @@ describe('REARCH_GUI P1.1c: GlyphAtlas', () => {
         expect(atlas.getGlyph(HUGE, 'Arial')).toBeNull();
     });
 });
+
+describe('GlyphAtlas: a page painted again is the page that was uploaded', () => {
+    const PAGE = 64;
+
+    /** Every texel differs by glyph, row and column, so a misplaced or flipped cell shows. */
+    function patternRasterizer(grow = new Set<number>()) {
+        const rasterize = vi.fn((cp: number): RasterGlyph | null => {
+            if (cp === UNKNOWN) return null;
+            if (cp === SPACE) return { pixels: new Uint8Array(0), width: 0, height: 0, advance: 12, bearingX: 0, bearingY: 0 };
+            const w = grow.has(cp) ? 20 : 9 + (cp % 3), h = grow.has(cp) ? 20 : 11 + (cp % 2);
+            const pixels = new Uint8Array(w * h * 4);
+            for (let row = 0; row < h; row++) {
+                for (let col = 0; col < w; col++) {
+                    pixels.fill((cp + row * 7 + col * 3) & 0xff, (row * w + col) * 4, (row * w + col + 1) * 4);
+                }
+            }
+            return { pixels, width: w, height: h, advance: w, bearingX: 0, bearingY: h };
+        });
+        return { renderSize: 48, spread: 6, rasterize } as GlyphRasterizer;
+    }
+
+    /** Keeps each page as the GPU would hold it, and the painter the atlas handed over. */
+    function imageStore() {
+        const images: Uint8Array[] = [];
+        const painters: Array<(pixels: Uint8Array) => void> = [];
+        const store: AtlasPageStore = {
+            createPage(size, paint) {
+                images.push(new Uint8Array(size * size * 4));
+                painters.push(paint);
+                return images.length - 1;
+            },
+            uploadSubRegion(pageId, x, y, w, h, pixels) {
+                for (let row = 0; row < h; row++) {
+                    images[pageId].set(pixels.subarray(row * w * 4, (row + 1) * w * 4), ((y + row) * PAGE + x) * 4);
+                }
+            },
+        };
+        return { store, images, painters };
+    }
+
+    it('repaints every page byte for byte, across pages, skipping blanks', () => {
+        const { store, images, painters } = imageStore();
+        const atlas = new GlyphAtlas(patternRasterizer(), store, { pageSize: PAGE, padding: 1 });
+        for (let i = 0; i < 30; i++) atlas.getGlyph(0x100 + i, 'Arial', i % 4);
+        atlas.getGlyph(SPACE, 'Arial');
+        atlas.getGlyph(UNKNOWN, 'Arial');
+        expect(atlas.pageCount).toBe(2);
+
+        for (let page = 0; page < images.length; page++) {
+            const repainted = new Uint8Array(PAGE * PAGE * 4);
+            painters[page](repainted);
+            expect(repainted.some((v) => v !== 0)).toBe(true);
+            expect(repainted).toEqual(images[page]);
+        }
+    });
+
+    it('clips a glyph that now rasterizes larger to the cell it was given', () => {
+        const grow = new Set<number>();
+        const { store, images, painters } = imageStore();
+        const atlas = new GlyphAtlas(patternRasterizer(grow), store, { pageSize: PAGE, padding: 1 });
+        atlas.getGlyph(0x100, 'Arial');
+        atlas.getGlyph(0x101, 'Arial');
+        // The last glyph packed, so nothing painted after it covers an overflow.
+        grow.add(0x101);
+
+        const repainted = new Uint8Array(PAGE * PAGE * 4);
+        painters[0](repainted);
+        expect(repainted).toEqual(images[0]);
+    });
+});

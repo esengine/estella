@@ -49,11 +49,13 @@ enum class ShaderTargetLanguage : u8;  // ShaderParser.hpp
  */
 enum class ResourceContent : u32 {
     Transient = 0,  ///< Rewritten by its owner before every use (a video frame).
-    Retained = 1,   ///< The device keeps the bytes (a glyph page).
+    Retained = 1,   ///< The device keeps the bytes (a tile collection composed at load).
     Asset = 2,      ///< The asset layer loads it again from its path.
     Canvas = 3,     ///< Redrawn from the canvas it mirrors.
     Video = 4,      ///< Refilled by the next decoded frame.
     Mesh = 5,       ///< Geometry the asset layer replays (MeshRecovery::SourceReplayable).
+    GlyphPage = 6,  ///< Repainted from the glyphs placed on it.
+    AtlasPage = 7,  ///< A skeleton's atlas page, decoded again from its image.
 };
 
 /** @brief The device's policy for a content code; unknown codes are Asset, the one that asks. */

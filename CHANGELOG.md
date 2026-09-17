@@ -30,7 +30,9 @@ published separately; it ships inside the editor.
   grid, meshes, materials or text. Each part of the renderer rebuilt its own GPU objects,
   and the ones nothing rebuilt drew with dead handles. The device now rebuilds everything it
   issued behind the same handles, puts back the contents it kept, and reloads the rest from
-  their assets, on WebGL2 and WebGPU alike.
+  their assets, on WebGL2 and WebGPU alike. Text pages are repainted from their glyphs and
+  skeleton atlas pages decoded again from their images, so neither keeps a second copy in
+  memory — 4 MiB for every 1024×1024 page.
 
 - **A hot update on iOS, Android and desktop builds is still there after a restart
   without a network.** The native host only stores cache files under plain names, and

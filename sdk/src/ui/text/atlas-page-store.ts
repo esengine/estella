@@ -9,7 +9,7 @@
  */
 import { TextureContent, type ESEngineModule } from '../../wasm';
 import { createTextureFromPixels, updateTextureSubregion } from '../../runtime/runtimeAssets';
-import { requireResourceManager } from '../../wasm/resourceManager';
+import { provideTextureContent, requireResourceManager } from '../../wasm/resourceManager';
 import type { AtlasPageStore } from './glyph-atlas';
 
 export class EngineAtlasPageStore implements AtlasPageStore {
@@ -21,17 +21,25 @@ export class EngineAtlasPageStore implements AtlasPageStore {
      *  (embedded-Dawn) core, whose ResourceManager takes the bytes directly. */
     constructor(private readonly module: ESEngineModule | null) {}
 
-    createPage(size: number): number {
+    createPage(size: number, paint: (pixels: Uint8Array) => void): number {
         // Blank (transparent) RGBA8 page; linear filtering keeps SDF text smooth
         // when scaled, clamp avoids edge bleed at the page border.
         const pixels = new Uint8Array(size * size * 4);
         const handle = createTextureFromPixels(
             this.module,
             { width: size, height: size, pixels },
-            TextureContent.Retained,
+            TextureContent.GlyphPage,
             /* flipY */ false,
             { filterMode: 'linear', wrapMode: 'clamp' },
         );
+        // Repainting on demand instead of the device keeping a copy: a page is
+        // 4 MiB of wasm heap at the default size, for an event most sessions never see.
+        provideTextureContent(handle, () => {
+            const page = new Uint8Array(size * size * 4);
+            paint(page);
+            updateTextureSubregion(this.module, handle, 0, 0, size, size, page);
+            return true;
+        });
         // The batch binds by GL texture id (mirrors how spine resolves its atlas
         // pages); submitTextBatch gets this id as the page id.
         const glId = requireResourceManager().getTextureGLId(handle);

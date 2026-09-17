@@ -49,8 +49,12 @@ export interface GlyphRasterizer {
 }
 
 export interface AtlasPageStore {
-    /** Allocate a blank `size`×`size` page; return an opaque page id (e.g. a texture handle). */
-    createPage(size: number): number;
+    /**
+     * Allocate a blank `size`×`size` page; return an opaque page id (e.g. a texture
+     * handle). `paint` draws every glyph placed on the page so far into a blank
+     * page-sized RGBA buffer — how a page that lost its pixels gets them back.
+     */
+    createPage(size: number, paint: (pixels: Uint8Array) => void): number;
     /** Upload `pixels` into the [x,y,w,h] sub-rect of page `pageId`. */
     uploadSubRegion(pageId: number, x: number, y: number, w: number, h: number, pixels: Uint8Array): void;
 }
@@ -82,6 +86,18 @@ export interface GlyphAtlasOptions {
 
 const STYLE_COUNT_HINT = 4;  // plain / bold / italic / bold-italic — for key spread only
 
+/** What a page's cell holds: enough to rasterize the glyph again into the same place. */
+interface GlyphPlacement {
+    codepoint: number;
+    fontFamily: string;
+    style: number;
+    pixelSize: number;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+}
+
 /**
  * Caches glyphs into one or more atlas pages, rasterizing on first use.
  */
@@ -95,6 +111,7 @@ export class GlyphAtlas {
     private readonly cache = new Map<string, GlyphEntry | null>();
     private readonly pages: number[] = [];
     private readonly packers: Packer[] = [];
+    private readonly placements: GlyphPlacement[][] = [];
 
     constructor(
         private readonly rasterizer: GlyphRasterizer,
@@ -201,11 +218,16 @@ export class GlyphAtlas {
             return null;
         }
 
-        this.store.uploadSubRegion(placed.pageId, placed.x, placed.y, raster.width, raster.height, raster.pixels);
+        const pageId = this.pages[placed.page];
+        this.store.uploadSubRegion(pageId, placed.x, placed.y, raster.width, raster.height, raster.pixels);
+        this.placements[placed.page].push({
+            codepoint, fontFamily, style, pixelSize,
+            x: placed.x, y: placed.y, width: raster.width, height: raster.height,
+        });
 
         const inv = 1 / this.pageSize;
         const entry: GlyphEntry = {
-            pageId: placed.pageId,
+            pageId,
             u0: placed.x * inv,
             v0: placed.y * inv,
             u1: (placed.x + raster.width) * inv,
@@ -221,7 +243,7 @@ export class GlyphAtlas {
     }
 
     /** Reserve a w×h cell across pages, opening a new page when the last is full. */
-    private place(w: number, h: number): { pageId: number; x: number; y: number } | null {
+    private place(w: number, h: number): { page: number; x: number; y: number } | null {
         const cellW = w + this.padding;
         const cellH = h + this.padding;
         if (cellW > this.pageSize || cellH > this.pageSize) return null;
@@ -231,7 +253,7 @@ export class GlyphAtlas {
         for (let attempt = 0; attempt < 2; attempt++) {
             const pi = this.packers.length - 1;
             const pos = this.packers[pi].pack(cellW, cellH);
-            if (pos) return { pageId: this.pages[pi], x: pos.x, y: pos.y };
+            if (pos) return { page: pi, x: pos.x, y: pos.y };
             // Current page full → open a fresh one and retry once.
             this.addPage();
         }
@@ -239,8 +261,28 @@ export class GlyphAtlas {
     }
 
     private addPage(): void {
-        const pageId = this.store.createPage(this.pageSize);
-        this.pages.push(pageId);
+        const page = this.pages.length;
+        this.placements.push([]);
+        this.pages.push(this.store.createPage(this.pageSize, (pixels) => this.paintPage(page, pixels)));
         this.packers.push(new ShelfPacker(this.pageSize, this.pageSize));
+    }
+
+    /**
+     * Rasterizes a page's glyphs again into the cells they were packed into. A
+     * glyph that now comes out larger (its font finished loading) is clipped to
+     * its cell rather than drawn over a neighbour's.
+     */
+    private paintPage(page: number, pixels: Uint8Array): void {
+        const size = this.pageSize;
+        for (const g of this.placements[page]) {
+            const raster = this.rasterizer.rasterize(g.codepoint, g.fontFamily, g.style, g.pixelSize);
+            if (!raster) continue;
+            const width = Math.min(raster.width, g.width);
+            const height = Math.min(raster.height, g.height);
+            for (let row = 0; row < height; row++) {
+                const from = row * raster.width * 4;
+                pixels.set(raster.pixels.subarray(from, from + width * 4), ((g.y + row) * size + g.x) * 4);
+            }
+        }
     }
 }
