@@ -8,9 +8,10 @@ checkout.
 ## The editor submodule (`desktop/`)
 
 The editor is a **private** repository mounted at `desktop/`, so the workflow
-token cannot read it. The jobs that drive an editor need it — **Editor authoring
-checks**, **Golden packages**, **Packages (streamed, compiled, released)** and the
-release workflow's **electron-builder** job — and they fetch it through
+token cannot read it. The jobs that drive or check an editor need it — **Tests
+(engine + SDK)** for the gate list's editor gates, **Editor authoring checks**,
+**Golden packages** and the release workflow's **electron-builder** job — and they
+fetch it through
 `./.github/actions/editor-checkout`, which uses a
 **read-only deploy key**:
 

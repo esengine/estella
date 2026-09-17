@@ -198,6 +198,13 @@ jobs:
     steps:
     - uses: actions/checkout@v7
 
+    # Eighteen gates in the list need the editor. Without its checkout the runner
+    # named them and ran none, on every push — the release-notes ledger went red
+    # only at night, and the editor's own type check not at all.
+    - uses: ./.github/actions/editor-checkout
+      with:
+        ssh-key: ${{ secrets.EDITOR_SSH_KEY }}
+
     - uses: ./.github/actions/setup
 
     # Every static gate, from the one list in tools/gates.mjs. CI and the
@@ -652,14 +659,6 @@ jobs:
         else
           echo "::warning::bundletool unavailable — the .aab tests run structural-only"
         fi
-
-    # The editor's unit suites. They ran in the `test` job, which has no editor
-    # checkout — `pnpm --filter` prints "No projects matched" and exits 0, so the
-    # job reported success having run none of them.
-    - name: Run Desktop tests
-      # Work, not reporting: one shard does it for the matrix.
-      if: matrix.shard == 1
-      run: pnpm --filter @estella/editor exec vitest run
 
     # The authoring checks above spent months failing at random with
     # `timeout tools/call open_project`. The cause was never the call: a main
