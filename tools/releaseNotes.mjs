@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(editor): a project opened from inside the editor finishes loading':
+    { note: 'Opening a project from inside the editor no longer leaves the loading screen up.' },
+
   'feat(editor): one ledger says when the editor has caught up, and every capture waits for it':
     { note: 'An agent\'s picture of the editor shows the edit it made.' },
 

@@ -355,6 +355,12 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **Opening a project from inside the editor no longer leaves the loading screen up.**
+  An agent's `open_project` while a project was already open — once that project had
+  finished loading — put the loading screen back over the editor with nothing left to
+  lift it, not even the timeout that lets you in when loading runs long. Every open now
+  loads to the end, from the launcher or not.
+
 - **An agent's picture of the editor shows the edit it made.** `screenshot` and
   `capture_viewport` captured whatever was on screen the moment they were called:
   a texture still loading, a bake landing, a scene half adopted, the loading
