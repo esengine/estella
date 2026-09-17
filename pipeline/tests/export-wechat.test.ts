@@ -156,7 +156,7 @@ describe('exportGame (wechat)', () => {
     const initial = res.size?.verdicts.find((v) => v.budget.scope === 'initial');
     const total = res.size?.verdicts.find((v) => v.budget.scope === 'total');
     expect(initial?.budget.maxBytes).toBe(4 * 1024 * 1024);
-    expect(total?.budget.maxBytes).toBe(20 * 1024 * 1024);
+    expect(total?.budget.maxBytes).toBe(30 * 1024 * 1024);
     expect(initial?.status).toBe('ok');
     expect(res.size?.byKind.find((k) => k.kind === 'engine')?.bytes).toBeGreaterThan(0);
     // The fixture's subpackage asset (`subpackages/level2/extra.png`, 8 bytes of
@@ -192,7 +192,7 @@ describe('exportGame (wechat)', () => {
     expect(initial?.budget.note).toBe('project budget');
     // Replacing the main-package limit is not a waiver of the other one.
     expect(res.size?.verdicts.find((v) => v.budget.scope === 'total')?.budget.maxBytes)
-      .toBe(20 * 1024 * 1024);
+      .toBe(30 * 1024 * 1024);
   }, 60_000);
 
   // The platform this matters most on: a mini-game has no `fetch`, so a

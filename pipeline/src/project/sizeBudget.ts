@@ -81,7 +81,7 @@ const NO_BUDGETS: readonly SizeBudget[] = [];
 
 const WECHAT_BUDGETS: readonly SizeBudget[] = [
     { scope: 'initial', maxBytes: 4 * MB, note: "WeChat caps a mini-game's main package at 4MB" },
-    { scope: 'total', maxBytes: 20 * MB, note: 'WeChat caps a mini-game at 20MB across all subpackages' },
+    { scope: 'total', maxBytes: 30 * MB, note: 'WeChat caps a mini-game at 30MB across the main package and all subpackages' },
 ];
 
 /**

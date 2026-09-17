@@ -165,7 +165,7 @@ describe('budgets', () => {
     expect(initial.maxBytes).toBe(2 * MB);
     expect(initial.note).toBe(PROJECT_BUDGET_NOTE);
     // The platform's OTHER limit still applies — a project ceiling is not a waiver.
-    expect(budgets.find((b) => b.scope === 'total')?.maxBytes).toBe(20 * MB);
+    expect(budgets.find((b) => b.scope === 'total')?.maxBytes).toBe(30 * MB);
   });
 
   it('gives a target with no limit of its own the project\'s, measured before play', () => {
@@ -179,7 +179,7 @@ describe('budgets', () => {
       profile: [{ scope: 'initial', maxBytes: 8 * MB, note: 'this host raised it' }],
     });
     expect(budgets.find((b) => b.scope === 'initial')?.maxBytes).toBe(8 * MB);
-    expect(budgets.find((b) => b.scope === 'total')?.maxBytes).toBe(20 * MB);
+    expect(budgets.find((b) => b.scope === 'total')?.maxBytes).toBe(30 * MB);
   });
 
   it('skips a deliverable limit when no upload file was produced', () => {
