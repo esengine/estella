@@ -1,0 +1,55 @@
+name: Android runtime template from this checkout
+description: Build the Android runtime template (arm64-v8a + x86_64) from the checked-out engine into a directory.
+
+# One build, wherever an Android template has to come from this commit — the
+# release, the nightly exit criteria, the smoke and compat runs. Four hand copies
+# had already drifted: one keyed its cache by hand and another lost the partial
+# restore, so the same commit paid for Dawn in one job and not the next.
+#
+# Expects the checkout's engine submodules, the setup action and a built SDK: the
+# SDK bundle is compiled INTO the host, and every caller builds it for its own use.
+
+inputs:
+  out:
+    description: Directory the template archive is written into.
+    required: false
+    default: artifacts
+
+runs:
+  using: composite
+  steps:
+    - name: Read the native dependency pins
+      id: pins
+      shell: bash
+      run: node build-tools/cli.js native --deps-cache-key android >> "$GITHUB_OUTPUT"
+
+    # The partial restore on purpose: a Dawn build for a different pin is still most
+    # of this one's object files.
+    - name: Cache the pinned checkouts + Dawn builds
+      uses: actions/cache@v4
+      with:
+        path: build/native-deps
+        key: ${{ steps.pins.outputs.key }}
+        restore-keys: native-deps-android-
+
+    - name: Set up the Android NDK
+      id: ndk
+      uses: nttld/setup-ndk@v1
+      with:
+        ndk-version: r28
+
+    - name: Fetch Dawn + QuickJS at their pinned commits
+      shell: bash
+      run: node build-tools/cli.js native --fetch-deps
+
+    # Both ABIs into ONE template: arm64 is every real device, x86_64 the emulator.
+    # The emitter refuses an incomplete template, so an x86_64-only build fails at
+    # the emit rather than the compile.
+    - name: Build the template (arm64 + x86_64)
+      shell: bash
+      env:
+        ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+        OUT: ${{ inputs.out }}
+      run: |
+        node build-tools/cli.js native --abi arm64-v8a
+        node build-tools/cli.js native --abi x86_64 --template-out "$OUT"

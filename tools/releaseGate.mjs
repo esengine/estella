@@ -81,7 +81,7 @@ export const CRITERIA = [
   {
     id: '3d-runs-where-it-ships',
     host: 'android',
-    why: 'the same emulator boot, for the 3D corpus — nightly answers it against the RELEASED template, which is the host a creator already has; HEAD\'s own template costs 40 minutes to build and is native-smoke\'s question, asked by the release pipeline',
+    why: 'the same emulator boot, for the 3D corpus — only an emulator answers it, and it boots the template built from the commit being judged',
     says: 'a game whose world is 3D boots and draws on a device',
     // The web half is golden-packages' own command, and was run twice for one
     // verdict. Only an emulator answers this: a solver that never compiled into

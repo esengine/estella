@@ -1,55 +1,64 @@
-name: Runtime template from a release
-description: Download and unpack a published native runtime template into template/.
+name: Runtime template into template/
+description: Verify and unpack a native runtime template into template/ — archives already on disk, or a published release.
 
 # What a game is packaged INTO. verify-native-boot defaults to <root>/template,
 # which a plain checkout does not have — and unchecked, every one of 47 exports
 # failed with an empty reason before it learned to say so.
 #
-# The RELEASE template on purpose, not this branch's: building one costs ~40
-# minutes, which a nightly cannot pay daily. What that answers is the half a
-# creator lives in — today's game content on the host they already installed.
-# HEAD's own template is native-smoke's question, and the release pipeline calls
-# it. Two halves, not two copies.
+# Where the archive comes from is the caller's question: `from-dir` takes archives
+# already on disk (built from this checkout by the android-template action, or an
+# artifact of this run), and without it the release names one. Either way it is
+# checked the same way before anything is packaged into it.
 
 inputs:
   platform:
     description: android or ios.
     required: true
+  from-dir:
+    description: Directory holding the template archive already (blank = download it from a release).
+    required: false
+    default: ''
   tag:
-    description: Release tag to take it from (blank = the latest release).
+    description: Release tag to download from when `from-dir` is blank (blank = the latest release).
     required: false
     default: ''
   token:
-    description: Token for `gh release download`.
-    required: true
+    description: Token for `gh release download`; needed only when downloading.
+    required: false
+    default: ''
 
 runs:
   using: composite
   steps:
-    - name: Take the template from the release
+    - name: Take the template
       shell: bash
       env:
         GH_TOKEN: ${{ inputs.token }}
         TAG: ${{ inputs.tag }}
         PLATFORM: ${{ inputs.platform }}
+        FROM_DIR: ${{ inputs.from-dir }}
       run: |
         set -euo pipefail
-        if [ -z "$TAG" ]; then
-          TAG=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)
-          echo "no tag given — taking the $PLATFORM template from $TAG"
+        DIR="$FROM_DIR"
+        if [ -z "$DIR" ]; then
+          if [ -z "$TAG" ]; then
+            TAG=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)
+            echo "no tag given — taking the $PLATFORM template from $TAG"
+          fi
+          # NOT `templates/`, which the checkout already uses for the eight project
+          # starters: downloading into it works only while nothing else there is a
+          # zip, and `unzip templates/*.zip` would then take whichever came first.
+          DIR=.native-template-dl
+          rm -rf "$DIR"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+            -p "estella-native-$PLATFORM-*.zip" -D "$DIR"
         fi
-        # NOT `templates/`, which the checkout already uses for the eight project
-        # starters: downloading into it works only while nothing else there is a
-        # zip, and `unzip templates/*.zip` would then take whichever came first.
-        rm -rf .native-template-dl
-        gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
-          -p "estella-native-$PLATFORM-*.zip" -D .native-template-dl
         # Under release strictness, so nothing is packaged around an archive the
         # publish gate would reject anyway.
-        node build-tools/cli.js verify-template .native-template-dl/*.zip
+        node build-tools/cli.js verify-template "$DIR"/estella-native-"$PLATFORM"-*.zip
         rm -rf template && mkdir -p template
-        unzip -q .native-template-dl/*.zip -d template
+        unzip -q "$DIR"/estella-native-"$PLATFORM"-*.zip -d template
         # `mkdir -p` already made the directory, so its existence proves nothing;
         # what the next step needs is that the archive put something in it.
         [ -n "$(ls -A template)" ] || { echo "::error::$PLATFORM template unpacked to nothing"; exit 1; }
-        echo "unpacked $(ls .native-template-dl) into template/ ($(ls -A template | wc -l) entries)"
+        echo "unpacked $(ls "$DIR") into template/ ($(ls -A template | wc -l) entries)"

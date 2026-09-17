@@ -298,7 +298,8 @@ jobs:
     name: Exit criteria (android)
     runs-on: ubuntu-latest
     needs: build-emscripten
-    timeout-minutes: 90
+    # About forty minutes of it building the template this commit ships.
+    timeout-minutes: 150
 
     steps:
     - uses: actions/checkout@v7
@@ -316,13 +317,18 @@ jobs:
         actions-cache-folder: .emsdk-ci
         cache-key: emsdk-5.0.0-${{ runner.os }}-${{ runner.arch }}
 
-    # A game is packaged INTO a template, and this job never had one: the default
-    # path is a directory a checkout does not carry, so all 47 exports failed at
-    # once. The action's own comment says why this takes the released one.
+    # A game is packaged INTO a template, and it is THIS commit's. The released one
+    # answered a different question — today's examples on the host a creator already
+    # has — and was red every night an example used something newer than the release,
+    # whatever the code in front of it did. render-host above built the SDK the
+    # host embeds.
+    - uses: ./.github/actions/android-template
+      with:
+        out: .native-template-build
     - uses: ./.github/actions/native-template
       with:
         platform: android
-        token: ${{ secrets.GITHUB_TOKEN }}
+        from-dir: .native-template-build
 
     # Nested virtualisation for the emulator, as the compat matrix does.
     - name: Enable KVM
