@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(play): a project prepares one play realm at a time':
+    { note: 'Play started while the editor was still preparing it gets a whole game.' },
+
   'fix(tilemap): a layer hidden in Tiled is hidden in the game':
     { note: 'A layer hidden in Tiled stays hidden.' },
 

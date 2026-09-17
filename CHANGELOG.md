@@ -355,6 +355,13 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **Play started while the editor was still preparing it gets a whole game.**
+  Opening a project prepares the play realm in the background, and preparing it
+  deletes the copy it is about to replace. A Play pressed before that finished
+  prepared the same directory at the same time, so one of the two could fail
+  halfway and the game could load files from both. A project's play realm and its
+  script bundle are now prepared one at a time.
+
 - **A layer hidden in Tiled stays hidden.** A map placed with the Tilemap
   component drew every layer at full strength, in the editor and in every
   package: the asset loader kept a layer's tiles and size and dropped what Tiled
