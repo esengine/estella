@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(gates): an Electron download the host refuses is retried, and third-person says when no game ran':
+    { internal: 'Verifier tooling; no creator runs it.' },
+
   'fix(editor): a project opened from inside the editor finishes loading':
     { note: 'Opening a project from inside the editor no longer leaves the loading screen up.' },
 
