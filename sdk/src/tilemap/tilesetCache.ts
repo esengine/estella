@@ -1,25 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { ResolvedTileset, ResolvedTileCollision } from './tilesetResolve';
-import type { TiledObjectGroupData } from './tiledLoader';
+import type { TiledObjectGroupData, TiledLayerData, TiledChunkData } from './tiledLoader';
 import type { AssetsData } from '../asset/AssetPlugin';
 
-export interface LoadedTilemapChunk {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    tiles: Uint16Array;
-}
-
-export interface LoadedTilemapLayer {
-    name: string;
-    width: number;
-    height: number;
-    tiles: Uint16Array;
-    chunks: LoadedTilemapChunk[];
-    infinite: boolean;
-}
+/** A layer as its map was parsed, whole: what it draws with is part of what it is. */
+export type LoadedTilemapLayer = TiledLayerData;
+export type LoadedTilemapChunk = TiledChunkData;
 
 export interface LoadedTilemapTileset {
     textureHandle: number;

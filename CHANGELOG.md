@@ -355,6 +355,12 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A layer hidden in Tiled stays hidden.** A map placed with the Tilemap
+  component drew every layer at full strength, in the editor and in every
+  package: the asset loader kept a layer's tiles and size and dropped what Tiled
+  says about drawing it — visibility, opacity, tint and parallax. They now reach
+  the layer, through the same mapping the older `loadTiledMap` path already used.
+
 - **An editor an agent started closes when the agent does.** The editor the MCP
   server launches outlived it: an agent that exited, crashed or was killed left
   its editor running, and an unattended one with unsaved edits sat at the

@@ -4,7 +4,7 @@ import { TilemapAPI } from './tilemapAPI';
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 import { TilemapLayer } from './components';
-import { Transform, Marker, RuntimeOnly } from '../ecs/component';
+import { Transform, Marker, RuntimeOnly, type TilemapLayerData } from '../ecs/component';
 
 // Matches TilemapSystem::CHUNK_SIZE on the C++ side.
 const TILEMAP_CHUNK_SIZE = 16;
@@ -1195,6 +1195,20 @@ export function generateLayerTileShapes(
     return entities;
 }
 
+/** The TilemapLayer a Tiled layer becomes: its lattice, and what Tiled says about drawing it. */
+export function tiledLayerComponent(
+    layer: TiledLayerData, tileWidth: number, tileHeight: number, renderLayer: number,
+): Pick<TilemapLayerData, 'cellSize' | 'renderLayer' | 'visible' | 'opacity' | 'tintColor' | 'parallaxFactor'> {
+    return {
+        cellSize: { x: tileWidth, y: tileHeight },
+        renderLayer,
+        visible: layer.visible,
+        opacity: layer.opacity,
+        tintColor: { ...layer.tintColor },
+        parallaxFactor: { x: layer.parallaxX, y: layer.parallaxY },
+    };
+}
+
 export function loadTiledMap(
     world: World,
     mapData: TiledMapData,
@@ -1217,14 +1231,9 @@ export function loadTiledMap(
         const columns = firstTileset?.columns ?? 1;
 
         world.insert(entity, TilemapLayer, {
-            cellSize: { x: mapData.tileWidth, y: mapData.tileHeight },
+            ...tiledLayerComponent(layer, mapData.tileWidth, mapData.tileHeight, layerIndex),
             tileset: textureHandle,
             tilesetColumns: columns,
-            renderLayer: layerIndex,
-            tintColor: { ...layer.tintColor },
-            opacity: layer.opacity,
-            visible: layer.visible,
-            parallaxFactor: { x: layer.parallaxX, y: layer.parallaxY },
         });
 
         TilemapAPI.initInfiniteLayer(entity, mapData.tileWidth, mapData.tileHeight);

@@ -16,7 +16,7 @@ import { _bindTileCollisionLookup, type LayerCollisionTable } from './tileQuery'
 import type { ResolvedTileCollision } from './tilesetResolve';
 import {
     generateLayerCollision, generateLayerTileShapes, generateChunkCollision, generateChunkTileShapes,
-    spawnObjectRegion, isCollisionObjectGroup, decodeTiledGid,
+    spawnObjectRegion, isCollisionObjectGroup, decodeTiledGid, tiledLayerComponent,
 } from './tiledLoader';
 import { decodeTilemapChunks } from './chunkCodec';
 import { Assets } from '../asset/AssetPlugin';
@@ -425,10 +425,8 @@ export class TilemapRuntime {
                             // source on every load and never serialized (RuntimeOnly).
                             const child = world.spawn(layer.name || `TiledLayer_${i}`);
                             world.insert(child, Transform, { position: { x: 0, y: 0, z: 0 } });
-                            world.insert(child, TilemapLayer, {
-                                cellSize: { x: cached.tileWidth, y: cached.tileHeight },
-                                renderLayer: i,
-                            });
+                            world.insert(child, TilemapLayer,
+                                tiledLayerComponent(layer, cached.tileWidth, cached.tileHeight, i));
                             world.insert(child, RuntimeOnly, {});
                             world.setParent(child, entity);
 

@@ -4909,21 +4909,16 @@ uiTheme: "dark" | "light" | undefined
 uiThemeOverrides: ThemeOverrides | undefined
 ```
 
-## LoadedTilemapLayer — interface @experimental
+## LoadedTilemapLayer — type @experimental
 ```
-chunks: LoadedTilemapChunk[]
-height: number
-infinite: boolean
-name: string
-tiles: Uint16Array<ArrayBufferLike>
-width: number
+TiledLayerData
 ```
 
 ## LoadedTilemapSource — interface @experimental
 ```
 collisionTileIds: number[] | undefined
 hexSideLength: number | undefined
-layers: LoadedTilemapLayer[]
+layers: TiledLayerData[]
 objectGroups: TiledObjectGroupData[] | undefined
 orientation: string | undefined
 staggerAxis: string | undefined
