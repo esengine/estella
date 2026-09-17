@@ -692,8 +692,13 @@ void WebGPUDevice::resizeBuffer(BufferHandle buffer, u32 sizeBytes, const void* 
     if (it == buffers_.end()) return;
 
     // The RHI contract: the handle stays stable across growth. WebGPU buffers are
-    // fixed-size, so re-create the WGPUBuffer behind the same id.
-    if (it->second.buffer) wgpuBufferRelease(it->second.buffer);
+    // fixed-size, so re-create the WGPUBuffer behind the same id. A cached bind
+    // group names the old WGPUBuffer, not the id, and would keep drawing its bytes.
+    if (it->second.buffer) {
+        evictBindGroups(static_cast<u64>(reinterpret_cast<uintptr_t>(it->second.buffer)));
+        wgpuBufferRelease(it->second.buffer);
+    }
+    bind_group_dirty_ = true;
 
     WGPUBufferDescriptor bd{};
     bd.usage = toWGPUBufferUsage(it->second.usage);

@@ -63,6 +63,8 @@ export const SCENES = [
   { id: "sprite-batch", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/sprite-rendering.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/sprite-rendering.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_COUNTERS: "{\"render.sprites\":19,\"batch.draws\":3,\"batch.merged\":16,\"batch.break.runStart\":1,\"batch.break.indexGap\":2}" } },
     // Editor grid on/off pixel diff — guards the custom-draw reflected material path (drawMeshWithMaterial + MaterialConstants UBO).
   { id: "editor-grid", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_GRID: "64", ESTELLA_VERIFY_STEPS: "3" } },
+    // The same grid respaced after it has drawn: a uniform changed after its first upload has to reach the frame, which on WebGPU it once did not (the grid stayed where the view first looked).
+  { id: "editor-grid-respace", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_GRID: "64", ESTELLA_VERIFY_GRID_RESPACE: "160", ESTELLA_VERIFY_STEPS: "3" } },
     // The same grid from straight above a 3D view. It stands on the ground there, so it fills the frame; the 2D plane would be edge-on and light one band.
   { id: "editor-grid-3d", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-instanced.esscene", ESTELLA_VERIFY_GRID: "64", ESTELLA_VERIFY_PERSPECTIVE: "1", ESTELLA_VERIFY_ORBIT: "0,90", ESTELLA_VERIFY_STEPS: "3" } },
   // The same 3D view head-on, where this fixture's eye lies IN the ground: every

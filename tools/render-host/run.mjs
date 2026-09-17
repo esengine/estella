@@ -19,6 +19,7 @@
  *   ESTELLA_VERIFY_STEPS     fixed-dt frames to advance before capture (default 30)
  *   ESTELLA_VERIFY_GRID      editor-grid on/off pixel-diff assertion (value = spacing)
  *   ESTELLA_VERIFY_GRID_EXPECT  what that diff must be: "frame" (default) or "nothing"
+ *   ESTELLA_VERIFY_GRID_RESPACE  respace the drawn grid; the frame must change with it
  *   ESTELLA_VERIFY_DEPTH_LAYERS  bitmask of layers resolved by depth (2.5D)
  *   ESTELLA_VERIFY_RENDER_RESOLUTION  render at the scene's own resolution and
  *                                scale the finished image (1 = design, 2 = integer)
@@ -816,6 +817,22 @@ app.whenReady().then(async () => {
         await writeFile(process.env.ESTELLA_VERIFY_GRID_OUT, Buffer.from(dataUrl.split(',')[1], 'base64'));
       }
       await readFrame('window.__estellaGridOn = px.slice(); return true;');
+      // ESTELLA_VERIFY_GRID_RESPACE: the spacing rides a material uniform the frames
+      // above already uploaded, so a backend that keeps binding the first upload
+      // draws the old grid again. The view does not move, so only the grid can differ.
+      let respaced = null;
+      if (process.env.ESTELLA_VERIFY_GRID_RESPACE) {
+        await exec(`window.__estellaHeadless.api.setGrid(true, ${Number(process.env.ESTELLA_VERIFY_GRID_RESPACE)})`);
+        await exec('window.__estellaHeadless.api.step(2, 1 / 60)');
+        respaced = await readFrame(`
+          const on = window.__estellaGridOn;
+          let differing = 0;
+          for (let i = 0; i < px.length; i += 4) {
+            if (Math.abs(on[i] - px[i]) + Math.abs(on[i + 1] - px[i + 1]) + Math.abs(on[i + 2] - px[i + 2]) > 12) differing++;
+          }
+          return differing;
+        `);
+      }
       await exec('window.__estellaHeadless.api.setGrid(false)');
       await exec('window.__estellaHeadless.api.step(2, 1 / 60)');
       grid = await readFrame(`
@@ -846,6 +863,7 @@ app.whenReady().then(async () => {
           ok: want === 'nothing' ? differing === 0 : want === 'grazing' ? lopsided : covers,
         };
       `);
+      if (respaced != null) grid = { ...grid, respacedPixels: respaced, ok: grid.ok && respaced > 300 };
     }
     finish({ ok: true, entityCount, missingAssets, drawCalls, draws, counters, profile, capture, expect, count, seam, resize, preview, meshPreview, grid, deviceLoss, meshResident, meshAsset, meshMaterial, meshPrefab, setField, animator, pick, cameraTarget }, server);
   } catch (e) {
