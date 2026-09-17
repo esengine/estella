@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(gates): a package is judged at one frame of game time per rendered frame':
+    { internal: 'The package launcher the verifiers share; no creator runs it.' },
+
   'fix(gates): third-person runs its package on one frame of game time per frame':
     { internal: 'A verifier and its launcher; no creator runs them.' },
 
