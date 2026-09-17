@@ -567,6 +567,9 @@ export const SCENES = [
   // asset layer replaces the inline payload. Its fixture is written by the
   // engine's own encoder from this scene's vertices, so the assertions hold.
   { id: "mesh-asset", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_MESH_ASSET: "/scenes/two-triangles.esmesh", ESTELLA_VERIFY_SCENE: "/scenes/mesh-renderer.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-renderer.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.30,\"y\":0.556,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.70,\"y\":0.556,\"rgb\":[0,255,0],\"tol\":40},{\"x\":0.30,\"y\":0.40,\"rgb\":[255,0,0],\"tol\":40}]" } },
+  // The same triangles with no colour channel, as a decal bake writes them. Every mesh
+  // shader reads one: WebGL2 read black and WebGPU refused the pipeline.
+  { id: "mesh-colorless", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_MESH_ASSET: "/scenes/colorless-triangles.esmesh", ESTELLA_VERIFY_SCENE: "/scenes/mesh-renderer.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-renderer.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.30,\"y\":0.556,\"rgb\":[255,255,255],\"tol\":40},{\"x\":0.70,\"y\":0.556,\"rgb\":[255,255,255],\"tol\":40}]" } },
   { id: "mesh-resident", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_MESH_RESIDENT: "1", ESTELLA_VERIFY_SCENE: "/scenes/mesh-renderer.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-renderer.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.30,\"y\":0.556,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.70,\"y\":0.556,\"rgb\":[0,255,0],\"tol\":40},{\"x\":0.30,\"y\":0.40,\"rgb\":[255,0,0],\"tol\":40}]" } },
   // A material drawing GPU-resident geometry. Its shader writes only a fragment,
   // so the ENGINE owns the vertex stage and compiles a second variant for this

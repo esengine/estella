@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(render): a mesh with no colour channel draws, as white vertices':
+    { note: 'A baked decal draws on devices and under WebGPU.' },
+
   'fix(render): a material that writes only its fragment draws on a mesh under WebGPU':
     { note: 'A material that writes only its fragment stage draws on a mesh under WebGPU and on' },
 

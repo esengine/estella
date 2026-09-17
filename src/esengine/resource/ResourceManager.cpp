@@ -503,6 +503,36 @@ bool ResourceManager::realizeMesh(Mesh& mesh, ConstSpan<u8> vertexBytes, ConstSp
                                  ConstSpan<f32> inverseBind, const MeshMorphSource& morph) {
     if (!device_ || vertexBytes.empty() || indices.empty() || channels.empty()) return false;
 
+    // Every mesh shader reads a colour, and a layout without one is a pipeline WebGPU
+    // refuses (WebGL2 reads black). A producer that wrote none meant white, so the
+    // channel is added here, where every mesh reaches the device.
+    std::vector<u8> coloredBytes;
+    std::vector<GfxVertexAttribute> coloredChannels;
+    const bool hasColor = std::any_of(channels.begin(), channels.end(), [](const GfxVertexAttribute& c) {
+        return c.location == static_cast<u32>(MeshChannel::Color);
+    });
+    if (!hasColor && vertexStride > 0) {
+        const usize count = vertexBytes.size() / vertexStride;
+        const u32 colorOffset = (vertexStride + 3u) & ~3u;
+        const u32 stride = colorOffset + 4u;
+        coloredBytes.assign(count * stride, 0);
+        for (usize v = 0; v < count; ++v) {
+            std::memcpy(&coloredBytes[v * stride], &vertexBytes[v * vertexStride], vertexStride);
+            std::memset(&coloredBytes[v * stride + colorOffset], 0xFF, 4);
+        }
+        coloredChannels.assign(channels.begin(), channels.end());
+        GfxVertexAttribute color;
+        color.location = static_cast<u32>(MeshChannel::Color);
+        color.components = 4;
+        color.type = GfxDataType::UnsignedByte;
+        color.normalized = true;
+        color.offset = colorOffset;
+        coloredChannels.push_back(color);
+        vertexBytes = ConstSpan<u8>(coloredBytes);
+        channels = ConstSpan<GfxVertexAttribute>(coloredChannels);
+        vertexStride = stride;
+    }
+
     // The mesh describes its own vertices and nothing else: the per-object
     // transform reaches the shader through the frame's record texture, which is
     // what leaves every slot above the mesh channels free.

@@ -355,12 +355,18 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A baked decal draws on devices and under WebGPU.** A decal bake writes its mesh
+  without a vertex colour, and every mesh shader reads one: WebGL2 read black, while
+  WebGPU and the native hosts rejected the pipeline, so `physics-3d` drew nothing at
+  all on Android. A mesh with no colour channel now draws as white vertices, which is
+  what an import without vertex colours already meant.
+
 - **A material that writes only its fragment stage draws on a mesh under WebGPU and on
   devices.** Its generated WebGPU twin carried a copy of the vertex stage made for
-  sprites, so on a mesh the device rejected the pipeline and the surface never drew —
-  `physics-3d`'s decal target on Android among them. Twins for such materials now
-  carry only the fragment stage, and the engine supplies the vertex stage for every
-  source; an older twin is regenerated when the project is opened or exported.
+  sprites, so on a mesh the device rejected the pipeline and the surface never drew.
+  Twins for such materials now carry only the fragment stage, and the engine supplies
+  the vertex stage for every source; an older twin is regenerated when the project is
+  opened or exported.
 
 - **Opening a project from inside the editor no longer leaves the loading screen up.**
   An agent's `open_project` while a project was already open — once that project had
