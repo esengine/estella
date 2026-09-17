@@ -576,6 +576,9 @@ export const SCENES = [
   // twin without it shows wall throughout. The decal's layer fixes it second,
   // since a material-id tie follows load order.
   { id: "mat-decal", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-decal.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.25,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":40}]" } },
+  // A GENERATED twin on a mesh. A generated vertex stage is frozen at the batch
+  // source, so WebGPU refused the pipeline; the two halves read the uv varying.
+  { id: "mat-generated-mesh", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-generated-mesh.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.3,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.7,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":40}]" } },
   { id: "mat-decal-flat", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mat-decal-flat.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":40},{\"x\":0.25,\"y\":0.5,\"rgb\":[0,255,0],\"tol\":40}]" } },
   { id: "mesh-material", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_MESH_ASSET: "/scenes/white-triangles.esmesh", ESTELLA_VERIFY_MESH_MATERIAL: "/scenes/mesh-material/tintonly.esmaterial", ESTELLA_VERIFY_SCENE: "/scenes/mesh-material.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-material.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.30,\"y\":0.556,\"rgb\":[0,0,255],\"tol\":40},{\"x\":0.70,\"y\":0.556,\"rgb\":[0,0,255],\"tol\":40},{\"x\":0.5,\"y\":0.12,\"rgb\":[0,0,0],\"tol\":30}]" } },
   // What a normal is FOR: two coplanar triangles, one white colour, normals

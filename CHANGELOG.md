@@ -355,6 +355,13 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A material that writes only its fragment stage draws on a mesh under WebGPU and on
+  devices.** Its generated WebGPU twin carried a copy of the vertex stage made for
+  sprites, so on a mesh the device rejected the pipeline and the surface never drew —
+  `physics-3d`'s decal target on Android among them. Twins for such materials now
+  carry only the fragment stage, and the engine supplies the vertex stage for every
+  source; an older twin is regenerated when the project is opened or exported.
+
 - **Opening a project from inside the editor no longer leaves the loading screen up.**
   An agent's `open_project` while a project was already open — once that project had
   finished loading — put the loading screen back over the editor with nothing left to

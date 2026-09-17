@@ -264,32 +264,42 @@ function rewriteCalls(src, fname, mapArgs) {
   return result + src.slice(last);
 }
 
+const VARYING_DECL = /^([ \t]*)(flat\s+)?(out|in)\s+((?:highp\s+)?(?:float|int|uint|[iu]?vec[234]|mat[234]))\s+(\w+)\s*;/gm;
+
 /**
  * Assign explicit, name-stable varying locations across both stages: glslang's
  * --auto-map-locations numbers each stage independently by declaration order,
  * which silently mismatches when the fragment lists varyings in another order.
  */
 function assignVaryingLocations(vert, frag) {
-  const varyingDecl = /^([ \t]*)(flat\s+)?(out|in)\s+((?:highp\s+)?(?:float|int|uint|[iu]?vec[234]|mat[234]))\s+(\w+)\s*;/gm;
   const order = [];
-  const vertOut = vert.replace(varyingDecl, (m, ws, flat, dir, type, name) => {
+  const vertOut = vert.replace(VARYING_DECL, (m, ws, flat, dir, type, name) => {
     if (dir !== 'out') return m;
     order.push(name);
     return `${ws}layout(location = ${order.length - 1}) ${flat ?? ''}out ${type} ${name};`;
   });
-  const fragIn = frag.replace(varyingDecl, (m, ws, flat, dir, type, name) => {
+  return { vert: vertOut, frag: locateFragmentVaryings(frag, new Map(order.map((n, i) => [n, i]))) };
+}
+
+/** The locations of the engine's WGSL varying struct, by name. */
+export function varyingLocations(struct) {
+  return new Map([...struct.matchAll(/@location\((\d+)\)\s*(?:@interpolate\([^)]*\)\s*)?(\w+)\s*:/g)]
+    .map((m) => [m[2], Number(m[1])]));
+}
+
+function locateFragmentVaryings(frag, locations) {
+  const fragIn = frag.replace(VARYING_DECL, (m, ws, flat, dir, type, name) => {
     if (dir !== 'in') return m;
-    const loc = order.indexOf(name);
-    if (loc < 0) throw new Error(`fragment varying '${name}' has no matching vertex output`);
+    const loc = locations.get(name);
+    if (loc === undefined) throw new Error(`fragment varying '${name}' has no matching vertex output`);
     return `${ws}layout(location = ${loc}) ${flat ?? ''}in ${type} ${name};`;
   });
   // Fragment outputs: sequential locations (single fragColor = location 0).
   let fragLoc = 0;
-  const fragOut = fragIn.replace(varyingDecl, (m, ws, flat, dir, type, name) => {
+  return fragIn.replace(VARYING_DECL, (m, ws, flat, dir, type, name) => {
     if (dir !== 'out') return m;
     return `${ws}layout(location = ${fragLoc++}) ${flat ?? ''}out ${type} ${name};`;
   });
-  return { vert: vertOut, frag: fragOut };
 }
 
 /** GLSL (adapted) → WGSL via the vendored glslang + naga wasm, renaming the entry. */
@@ -403,7 +413,12 @@ export async function processFile(module, file, opts) {
   const info = module.esshader_cookInfo(source, '');
   if (!info.valid) throw new Error(`parse failed: ${info.error}`);
   const assembled = assembledHash(info);
-  if (!opts.force && !needsTwin(original)
+  // On the engine's vertex stage, the engine keeps that stage in every language: a
+  // translated copy is frozen at the batch source and cannot follow a material to
+  // a mesh. Only the fragment is generated, reading the engine's varying locations.
+  const engineVertex = info.canonicalVaryings !== '';
+  const staleVertex = engineVertex && /#pragma vertex wgsl full\b/.test(original);
+  if (!opts.force && !needsTwin(original) && !staleVertex
       && original.match(STORED_ASSEMBLED_RE)?.[1] === assembled) {
     return { file, status: 'has-twin' };
   }
@@ -425,21 +440,26 @@ export async function processFile(module, file, opts) {
       if (!cooked.valid) throw new Error(`parse failed for [${key}]: ${cooked.error}`);
       const textures = [];
       for (let i = 0; i < cooked.textures.length; i++) textures.push(cooked.textures[i]);
+      // The stage tag is what glslang reads the shader stage from; the
+      // permutations reuse it in turn rather than each taking a name of its own.
+      if (engineVertex) {
+        const located = locateFragmentVaryings(
+          adaptGlsl(cooked.fragGlsl, textures), varyingLocations(info.canonicalVaryings));
+        frag.set(key, await glslToWgsl(located, 'frag', 'fs_main', workDir));
+        continue;
+      }
       const adapted = assignVaryingLocations(
         adaptGlsl(cooked.vertGlsl, textures),
         adaptGlsl(cooked.fragGlsl, textures),
       );
-      // The stage tag is what glslang reads the shader stage from; the
-      // permutations reuse it in turn rather than each taking a name of its own.
       vert.set(key, await glslToWgsl(adapted.vert, 'vert', 'vs_main', workDir));
       frag.set(key, await glslToWgsl(adapted.frag, 'frag', 'fs_main', workDir));
     }
 
     const banner = bannerFor(sourceHash(source), assembled);
-    const vertBody = composePermutations(toggles, vert);
     const fragBody = composePermutations(toggles, frag);
     const twin =
-      `\n#pragma vertex wgsl full\n${banner}\n${vertBody}\n#pragma end\n` +
+      (engineVertex ? '' : `\n#pragma vertex wgsl full\n${banner}\n${composePermutations(toggles, vert)}\n#pragma end\n`) +
       `\n#pragma fragment wgsl full\n${banner}\n${fragBody}\n#pragma end\n`;
 
     if (opts.check) return { file, status: 'would-generate' };

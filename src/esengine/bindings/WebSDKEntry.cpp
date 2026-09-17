@@ -124,6 +124,7 @@ emscripten::val esshader_cookInfo(const std::string& source, const std::string& 
     out.set("hasWgslVertex", parsed.wgslStages.count(resource::ShaderStage::Vertex) != 0);
     out.set("hasWgslFragment", parsed.wgslStages.count(resource::ShaderStage::Fragment) != 0);
     out.set("hasSwitches", !parsed.switches.empty());
+    out.set("canonicalVaryings", resource::ShaderParser::canonicalVaryingsWGSL(parsed));
     // The switch/feature NAMES, so a cook can enumerate the permutations it has
     // to emit a twin for — WGSL resolves them at assembly time (preprocessConditionals),
     // which needs every branch present in the body.

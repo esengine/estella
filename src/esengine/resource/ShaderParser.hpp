@@ -282,6 +282,15 @@ public:
                                      ShaderTargetLanguage target = ShaderTargetLanguage::GLSL_ES300);
 
     /**
+     * @brief The WGSL varying struct the engine's vertex stage emits for @p parsed,
+     *        or empty when the shader writes its own vertex stage.
+     * @details A fragment twin generated for a shader on the engine's vertex stage
+     *          reads its inputs at these locations, so every vertex source the
+     *          engine retargets the material to feeds the same fragment.
+     */
+    static std::string canonicalVaryingsWGSL(const ParsedShader& parsed);
+
+    /**
      * @brief Stable cache key for a feature set (order-independent), e.g. "GRAYSCALE|TINT".
      *        Consumers key their compiled-variant cache on (shader, variantKey(features)).
      */

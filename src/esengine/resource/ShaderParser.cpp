@@ -1652,6 +1652,11 @@ ShaderParser::AssembledStage assembleWGSLStage(const ParsedShader& parsed,
 
 bool ShaderParser::s_linearColor = false;
 
+std::string ShaderParser::canonicalVaryingsWGSL(const ParsedShader& parsed) {
+    if (!parsed.valid || !parsed.vertexIsCanonical) return {};
+    return wgslCanonicalVSOut(parsed.domain == "Lit");
+}
+
 void ShaderParser::setLinearColorSpace(bool linear) { s_linearColor = linear; }
 bool ShaderParser::linearColorSpace() { return s_linearColor; }
 

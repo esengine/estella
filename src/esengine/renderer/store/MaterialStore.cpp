@@ -105,6 +105,17 @@ u32 MaterialStore::variantProgram(u32 materialId, resource::ResourceManager& res
         mesh_programs_[key] = 0;
         return 0;
     }
+    // A full WGSL vertex twin is a translation of the BATCH vertex stage, frozen
+    // into the file: compiled for this source it reads attributes the layout does
+    // not have, and the device rejects the pipeline.
+    const auto fullVertex = parsed.wgslStageFull.find(resource::ShaderStage::Vertex);
+    if (target == resource::ShaderTargetLanguage::WGSL
+        && fullVertex != parsed.wgslStageFull.end() && fullVertex->second) {
+        ES_LOG_WARN("MaterialStore: material {} carries a generated WGSL vertex stage, so it "
+                    "cannot draw {} — regenerate its twin", materialId, what);
+        mesh_programs_[key] = 0;
+        return 0;
+    }
     if (!parsed.valid || vert.empty() || frag.empty()) {
         ES_LOG_WARN("MaterialStore: no {} variant for material {} ({})",
                     what, materialId, parsed.valid ? "stage assembly failed" : parsed.errorMessage);

@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(render): a material that writes only its fragment draws on a mesh under WebGPU':
+    { note: 'A material that writes only its fragment stage draws on a mesh under WebGPU and on' },
+
   'fix(gates): an Electron download the host refuses is retried, and third-person says when no game ran':
     { internal: 'Verifier tooling; no creator runs it.' },
 

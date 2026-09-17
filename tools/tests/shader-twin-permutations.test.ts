@@ -7,7 +7,7 @@
  */
 import { describe, it, expect } from 'vitest';
 // @ts-expect-error — a repo tool, shipped as .mjs with no declarations
-import { needsTwin, permutationsOf, composePermutations } from '../gen-shader-twins.mjs';
+import { needsTwin, permutationsOf, composePermutations, varyingLocations } from '../gen-shader-twins.mjs';
 
 const GLSL_ONLY = '#pragma shader "X"\n#pragma switch USE_GREEN default(off)\n#pragma fragment\nvoid main() {}\n#pragma end\n';
 
@@ -50,5 +50,14 @@ describe('composePermutations', () => {
         // Balanced: one #endif per #ifdef, or the assembly-time preprocessor
         // silently swallows the rest of the stage.
         expect((out.match(/#ifdef/g) ?? []).length).toBe((out.match(/#endif/g) ?? []).length);
+    });
+});
+
+describe('varyingLocations', () => {
+    it('reads every location of the engine varying struct, flat and conditional ones included', () => {
+        const struct = 'struct VSOut {\n    @builtin(position) pos : vec4f,\n    @location(0) v_color : vec4f,\n'
+            + '#ifdef MESH_NORMALS\n    @location(3) v_worldNormal : vec3f,\n#endif\n'
+            + '    @location(6) @interpolate(flat) v_probeSlot : f32,\n};\n';
+        expect([...varyingLocations(struct)]).toEqual([['v_color', 0], ['v_worldNormal', 3], ['v_probeSlot', 6]]);
     });
 });
