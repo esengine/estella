@@ -56,4 +56,15 @@ struct ProbeConstants {
 static_assert(sizeof(ProbeConstants) == 16 * PROBE_TEXELS,
               "ProbeConstants must be a tight array of vec4 to match std140");
 
+/**
+ * @brief Bytes the block is declared with: every run, then one vec4 that is not data.
+ *
+ * @details ANGLE on D3D11 turns a block whose only member is a large array into a
+ *          StructuredBuffer placed after the stage's texture registers. A lit material
+ *          under a reflection samples sixteen, so it lands out of range and Chrome's
+ *          GPU process aborts. A second member keeps the block a constant buffer.
+ */
+inline constexpr u32 PROBE_BLOCK_BYTES =
+    static_cast<u32>(sizeof(ProbeConstants)) * PROBE_MAX_INSTANCES + 16;
+
 }  // namespace esengine

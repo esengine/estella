@@ -154,8 +154,7 @@ void RenderContext::initFrameUbo() {
     morphBlocks_.init(device_, static_cast<u32>(sizeof(MorphConstants)));
     // A run per instance, not one for the draw: the block is what a merged draw
     // says about every object in it, and GL wants the whole declared block bound.
-    probeBlocks_.init(device_,
-                      static_cast<u32>(sizeof(ProbeConstants)) * PROBE_MAX_INSTANCES);
+    probeBlocks_.init(device_, PROBE_BLOCK_BYTES);
     instanceBlocks_.init(device_, static_cast<u32>(sizeof(InstanceConstants)));
     // What a draw with no shapes and no volume reads. A pose has no zero: geometry
     // without one is drawn by a shader that does not declare the block.

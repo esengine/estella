@@ -231,6 +231,23 @@ for (const name of wgslFns.keys()) {
     if (!glslFns.has(name)) problems.push(`the helper ${name}() is WGSL-only — the GLSL twin has none`);
 }
 
+/**
+ * ANGLE on D3D11 compiles a block whose only member is an array of fifty or more into a
+ * StructuredBuffer, placed after the stage's texture registers. These headers are the
+ * fragment stage's, where a lit material already uses all sixteen: the register is out
+ * of range and Chrome's GPU process aborts on the first draw.
+ */
+const ANGLE_STRUCTURED_BUFFER_MIN = 50;
+for (const [, name, body] of glslText.matchAll(/layout\(std140\)\s+uniform\s+(\w+)\s*\{([^}]*)\}/g)) {
+    const fields = body.split(';').map((f) => f.trim()).filter(Boolean);
+    const array = fields.length === 1 ? /\[([^\]]+)\]$/.exec(fields[0]) : null;
+    const length = array ? Number(resolve(`[${array[1]}]`).slice(1, -1)) : 0;
+    if (length >= ANGLE_STRUCTURED_BUFFER_MIN) {
+        problems.push(`${name}: its only member is an array of ${length}, which ANGLE turns into a`
+            + ' StructuredBuffer on D3D11 — give the block a second member (see PROBE_BLOCK_BYTES)');
+    }
+}
+
 if (problems.length > 0) {
     console.error('check-shader-blocks: the injected shader headers disagree:');
     for (const p of problems) console.error(`  ${p}`);

@@ -1029,7 +1029,7 @@ struct LightConstants {
     u_reflBox : array<vec4f, 30>,
 };
 @group(0) @binding(2) var<uniform> lc : LightConstants;
-struct ProbeConstants { u_probeIrradiance : array<vec4f, 1000> };
+struct ProbeConstants { u_probeIrradiance : array<vec4f, 1000>, u_probeTail : vec4f };
 @group(0) @binding(7) var<uniform> pc : ProbeConstants;
 // Which run of that block this fragment's instance reads. WGSL has no module
 // varying, so the entry point hands it over — the GLSL twin reads the varying
@@ -1834,6 +1834,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // volume" from "a probe in the dark".
             "layout(std140) uniform ProbeConstants {\n"
             "    highp vec4 u_probeIrradiance[10 * 100];\n"
+            "    highp vec4 u_probeTail;\n"      // see PROBE_BLOCK_BYTES
             "};\n"
             "flat in highp float v_probeSlot;\n"
             // The shadow map rides the draw's third texture slot, behind the feature the
