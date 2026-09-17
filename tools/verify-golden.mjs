@@ -15,12 +15,13 @@
  *   node tools/verify-golden.mjs --tier pr
  *   node tools/verify-golden.mjs --tier nightly --only platformer,spine-demo
  *   node tools/verify-golden.mjs --tier pr --shots <dir>
+ *   node tools/verify-golden.mjs --tier pr --shard 2/4
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { mkdirSync, rmSync, readFileSync, existsSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { atTier, projectDir, parityFor, interactFor, audioFor, suspendFor, safeAreaFor, atlasFor, webPixels, launchTimeoutFor, ROOT } from './goldenProjects.mjs';
+import { atTier, sharesOf, projectDir, parityFor, interactFor, audioFor, suspendFor, safeAreaFor, atlasFor, webPixels, launchTimeoutFor, ROOT } from './goldenProjects.mjs';
 import { frameDistance, frameCellMax, readPNG } from './frameCompare.mjs';
 import { retryOnDeadGpu, deadGpuVerdict, launchNeverHappenedVerdict, failureLines } from './lib/deadGpu.mjs';
 import { runElectron, ensureElectronBinary } from './lib/electronRun.mjs';
@@ -83,7 +84,20 @@ function exporterReason(out) {
 }
 
 const only = ONLY ? new Set(ONLY.split(',').map((s) => s.trim())) : null;
-const projects = atTier(TIER).filter((g) => !only || only.has(g.id));
+const tiered = atTier(TIER).filter((g) => !only || only.has(g.id));
+const shardArg = flag('shard', '');
+const shard = /^\d+\/\d+$/.test(shardArg)
+  ? { index: Number(shardArg.split('/')[0]) - 1, of: Number(shardArg.split('/')[1]) }
+  : null;
+if (argv.includes('--shard') && (!shard || shard.index < 0 || shard.index >= shard.of)) {
+  console.error('golden: --shard wants i/n with 1 <= i <= n, e.g. --shard 2/4');
+  process.exit(2);
+}
+const projects = shard ? sharesOf(tiered, shard.of, OWNED)[shard.index] : tiered;
+if (shard) {
+  console.log(`golden ${TIER}: shard ${shard.index + 1}/${shard.of} — ${projects.map((g) => g.id).join(', ') || 'nothing'}`
+    + ` of ${tiered.length} project(s)`);
+}
 
 const pairs = projects.flatMap((g) => g.targets.filter((t) => OWNED.has(t)).map((t) => ({ id: g.id, target: t })));
 const deferred = projects.flatMap((g) => g.targets.filter((t) => !OWNED.has(t)).map((t) => `${g.id}:${t}`));
@@ -94,25 +108,17 @@ console.log(`golden ${TIER}: ${projects.length} project(s), ${pairs.length} pair
 /**
  * `--jobs N`: the projects, N at a time, each worker this script over its share.
  * The release tier's seventeen took 33 minutes in a row with three cores idle.
- * A project stays whole (a worker's `--only` is by id); shares are balanced by
- * what a project asks for, not by count — celestial-heights alone is a third.
  */
 const JOBS = Math.max(1, Number(flag('jobs', '1')) || 1);
 /** How many launches share this runner's rasterizer: a worker's, or one. */
 const SHARE = argv.includes('--worker') ? JOBS : 1;
 if (JOBS > 1 && !argv.includes('--worker') && projects.length > 1) {
   ensureElectronBinary();
-  const weight = (g) => g.targets.filter((t) => OWNED.has(t)).length
-    * (1 + [interactFor(g), audioFor(g), safeAreaFor(g), atlasFor(g)].filter(Boolean).length + (suspendFor(g) ? 3 : 0));
-  const bins = Array.from({ length: Math.min(JOBS, projects.length) }, () => ({ ids: [], load: 0 }));
-  for (const g of [...projects].sort((a, b) => weight(b) - weight(a))) {
-    const bin = bins.reduce((least, b) => (b.load < least.load ? b : least));
-    bin.ids.push(g.id);
-    bin.load += weight(g);
-  }
+  const bins = sharesOf(projects, Math.min(JOBS, projects.length), OWNED).map((share) => ({ ids: share.map((g) => g.id) }));
   // `--jobs` goes through: a worker does not fork again (`--worker`), and it
-  // needs the count to know what it shares the rasterizer with — see SHARE.
-  const own = new Set(['--only']);
+  // needs the count to know what it shares the rasterizer with — see SHARE. The
+  // shard does not: a worker's `--only` is already inside it.
+  const own = new Set(['--only', '--shard']);
   const passthrough = argv.filter((a, i) => !own.has(a) && !own.has(argv[i - 1]));
   const outcomes = await Promise.all(bins.map((bin, i) => new Promise((resolve) => {
     const tag = `[${i + 1}/${bins.length}]`;
@@ -152,11 +158,19 @@ function manifestOf(id) {
   }
 }
 
-/** A package derives its orientation gate from this, so the comparison surface
- *  has to agree with it. */
-function designAspect(id) {
+/**
+ * The surface a project is drawn on, in the aspect it is authored for. A package
+ * derives its orientation gate from that aspect, and a point is a fraction of the
+ * surface — so the editor's frame and the package's take this one size, whether or
+ * not the editor is opened at all.
+ */
+function surfaceOf(id) {
   const r = manifestOf(id).designResolution;
-  return r?.width > 0 && r?.height > 0 ? { w: r.width, h: r.height } : { w: 16, h: 9 };
+  const a = r?.width > 0 && r?.height > 0 ? { w: r.width, h: r.height } : { w: 16, h: 9 };
+  const major = 820;
+  return a.h >= a.w
+    ? { width: Math.round((major * a.w) / a.h), height: major }
+    : { width: major, height: Math.round((major * a.h) / a.w) };
 }
 
 /**
@@ -176,11 +190,7 @@ function keepAttempt(label, n, output) {
  * letterbox — a difference of surface, not of game.
  */
 function captureEditorFrame(id, out, timeoutMs) {
-  const a = designAspect(id);
-  const major = 820;
-  const panel = a.h >= a.w
-    ? { width: Math.round((major * a.w) / a.h), height: major }
-    : { width: major, height: Math.round((major * a.h) / a.w) };
+  const panel = surfaceOf(id);
   const attempt = () => {
     // A partial file from the attempt before would be read as this attempt's frame.
     rmSync(out, { force: true });
@@ -438,9 +448,10 @@ for (const { id, target } of pairs) {
   }
 
   const packagePng = SHOTS ? path.join(SHOTS, `${id}-${target}.png`) : path.join(WORK, `${id}-${target}.png`);
+  const surface = editor ? { width: editor.w, height: editor.h } : surfaceOf(id);
   const launch = launchPackage(id, target, [
     '--dir', out, '--out', packagePng,
-    ...(editor ? ['--w', String(editor.w), '--h', String(editor.h)] : []),
+    '--w', String(surface.width), '--h', String(surface.height),
     ...(timeoutMs ? ['--timeout', String(timeoutMs)] : []),
   ]);
 

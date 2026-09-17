@@ -548,6 +548,12 @@ export const GOLDEN = [
     // Nothing in it responds to input: the scene is a placed model, and the
     // chain it certifies is the import's — products, refs, prefab, package.
     interactGap: 'a placed model has nothing to drive; the import chain is what this certifies',
+    // Both colours of the model's own texture: an import that lost the texture, or
+    // the model, leaves the clear colour here.
+    webPixels: [
+      { what: 'the model draws its texture', x: 0.19, y: 0.385, rgb: [212, 156, 75], tol: 24 },
+      { what: 'and the texture\'s second colour', x: 0.40, y: 0.385, rgb: [58, 46, 40], tol: 24 },
+    ],
   },
   {
     id: 'lighting-3d',
@@ -586,9 +592,14 @@ export const GOLDEN = [
     targets: ['web', 'desktop'],
     tier: 'pr',
     interactGap: 'the torch follows a pointer the runner does not have; what it certifies is that the pass survives the package',
-    // No points: one light follows the pointer, so where a shadow falls is where the
-    // runner's pointer happens to be. What a 2D shadow LOOKS like is nine render
-    // criteria's answer; this asks only that the pass survives a package.
+    // The launcher moves no pointer, so the torch rests where the scene puts it.
+    // Two cells one distance from it, past a block and in the open, differ only by
+    // the shadow pass — whether it survives a package, not what a shadow looks like.
+    webPixels: [
+      { what: 'the torch lights the floor', x: 0.55, y: 0.42, rgb: [172, 165, 147], tol: 30 },
+      { what: 'the open side is lit at that distance', x: 0.65, y: 0.42, rgb: [63, 61, 56], tol: 24 },
+      { what: 'the block shadows its far side', x: 0.35, y: 0.42, rgb: [13, 14, 14], tol: 24 },
+    ],
   },
   {
     id: 'physics-3d',
@@ -664,6 +675,11 @@ export const GOLDEN = [
     // does (drift 0.041 against a driven 0.100), so a pixel A/B cannot say the
     // key caused it. The keyboard is covered by platformer and input-actions.
     interactGap: 'an autonomous enemy moves as much as the input does; the A/B cannot attribute it',
+    // Away from the patrol: the ground and the water are layers of their own.
+    webPixels: [
+      { what: 'the ground layer draws', x: 0.84, y: 0.93, rgb: [198, 124, 89], tol: 24 },
+      { what: 'the water layer draws', x: 0.43, y: 0.83, rgb: [54, 192, 245], tol: 24 },
+    ],
   },
   {
     id: 'spine-demo',
@@ -833,6 +849,24 @@ export function atTier(tier) {
   const want = rank(tier);
   if (want < 0) throw new Error(`unknown tier "${tier}" (have: ${TIERS.join(', ')})`);
   return GOLDEN.filter((g) => rank(g.tier) <= want);
+}
+
+/**
+ * `projects` in `n` shares balanced by what each asks of a launch — the targets
+ * in `owned`, times what gets driven at them — rather than by count:
+ * celestial-heights alone is a third. A project stays whole, and each lands in
+ * exactly one share, so a shard left out is a project nobody launched.
+ */
+export function sharesOf(projects, n, owned) {
+  const weight = (g) => g.targets.filter((t) => owned.has(t)).length
+    * (1 + [interactFor(g), audioFor(g), safeAreaFor(g), atlasFor(g)].filter(Boolean).length + (suspendFor(g) ? 3 : 0));
+  const bins = Array.from({ length: n }, () => ({ projects: [], load: 0 }));
+  for (const g of [...projects].sort((a, b) => weight(b) - weight(a))) {
+    const bin = bins.reduce((least, b) => (b.load < least.load ? b : least));
+    bin.projects.push(g);
+    bin.load += weight(g);
+  }
+  return bins.map((b) => b.projects);
 }
 
 /** Every (project, target) pair a tier must package and launch. */
