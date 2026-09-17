@@ -494,6 +494,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
         .function("updateTextureSubregion", &esengine::rm_updateTextureSubregion)
         .function("registerTextureWithPath", &esengine::rm_registerTextureWithPath)
         .function("setTextureBudget", &esengine::rm_setTextureBudget)
+        .function("setRetainedBudget", &esengine::rm_setRetainedBudget)
         .function("acquireTextureByPath", &esengine::rm_acquireTextureByPath)
         .function("invalidateTexturePath", &esengine::rm_invalidateTexturePath)
         .function("trimTextureCache", &esengine::rm_trimTextureCache)

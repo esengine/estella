@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { COMPONENT_META } from './ecs/component.generated';
-import { getResourceManager, setTextureBudget } from './wasm/resourceManager';
+import { getResourceManager, setRetainedBudget, setTextureBudget } from './wasm/resourceManager';
 
 // Values with a C++ backing read the generated metadata (Canvas ctor defaults,
 // Sprite's editor_default annotation) so these constants cannot drift from the
@@ -51,6 +51,12 @@ export const RuntimeConfig = {
      * apply without re-init. 0 turns the warm cache off.
      */
     audioCacheBudget: 32 * 1024 * 1024,
+    /**
+     * How many bytes of CPU copies the graphics device may keep to survive a GPU
+     * loss before it warns (see setRetainedBudget). The engine keeps about 28 KiB
+     * of its own; this is one 2048×2048 image. 0 never warns.
+     */
+    retainedBudget: 16 * 1024 * 1024,
 };
 
 // =============================================================================
@@ -68,6 +74,7 @@ export interface RuntimeBuildConfig {
     assetFailureCooldown?: number;
     textureCacheBudget?: number;
     audioCacheBudget?: number;
+    retainedBudget?: number;
 }
 
 export function applyBuildRuntimeConfig(app: { setMaxDeltaTime(v: number): void; setMaxFixedSteps(v: number): void }, config: RuntimeBuildConfig): void {
@@ -108,6 +115,10 @@ export function applyBuildRuntimeConfig(app: { setMaxDeltaTime(v: number): void;
         // This runs after app creation, where corePlugin already applied the
         // default budget — push the configured value through to the pool.
         if (getResourceManager()) setTextureBudget(config.textureCacheBudget);
+    }
+    if (config.retainedBudget !== undefined) {
+        RuntimeConfig.retainedBudget = config.retainedBudget;
+        if (getResourceManager()) setRetainedBudget(config.retainedBudget);
     }
     if (config.audioCacheBudget !== undefined) {
         // AudioAPI reads this live at every budget check — no push needed.

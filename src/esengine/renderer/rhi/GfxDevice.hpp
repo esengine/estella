@@ -176,6 +176,15 @@ public:
     usize retainedBytes() const { return retained_bytes_; }
 
     /**
+     * @brief Warns once when retainedBytes() grows past `bytes`; 0 never warns.
+     * @details Falling back under it re-arms the warning.
+     */
+    void setRetainedBudget(usize bytes) {
+        retained_budget_ = bytes;
+        over_retained_budget_ = false;
+    }
+
+    /**
      * @brief Gives up on the device: no further recovery will be attempted.
      * @details The clean end of a loss that could not be recovered from. The
      *          report is kept; what changes is that the renderer stops waiting.
@@ -792,6 +801,7 @@ private:
     void keepBytes(std::vector<u8>& slot, std::vector<u8> bytes);
     void dropBytes(std::vector<u8>& slot);
     std::vector<u8> takeBytes(std::vector<u8>& slot);
+    void judgeRetainedBudget(usize grownBy);
     void eraseBuffer(u32 id);
     void eraseTexture(u32 id);
     i32 nativeUniformLocation(GfxProgramRecord& record, u32 id, i32 location);
@@ -807,6 +817,8 @@ private:
     GfxResourceRegistry registry_;
     u32 owed_count_ = 0;
     usize retained_bytes_ = 0;
+    usize retained_budget_ = 0;
+    bool over_retained_budget_ = false;
     ShaderHandle current_program_ = ShaderHandle::Invalid;
     PipelineHandle current_pipeline_ = PipelineHandle::Invalid;
     /// Native uniform locations per program for the current generation; -2 = not asked yet.

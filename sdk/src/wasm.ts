@@ -143,6 +143,8 @@ export interface CppResourceManager {
     updateTextureSubregion(handle: number, x: number, y: number, width: number, height: number, pixels: number, pixelsLen: number): void;
     registerTextureWithPath(handle: number, path: string): void;
     setTextureBudget(bytes: number): void;
+    /** Optional: the native core does not wire it. */
+    setRetainedBudget?(bytes: number): void;
     acquireTextureByPath(path: string): number;
     invalidateTexturePath(path: string): boolean;
     trimTextureCache(): number;

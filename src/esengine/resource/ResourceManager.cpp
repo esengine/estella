@@ -356,6 +356,10 @@ void ResourceManager::setTextureBudget(usize bytes) {
     textures_.setBudget(bytes);
 }
 
+void ResourceManager::setRetainedBudget(usize bytes) {
+    if (device_) device_->setRetainedBudget(bytes);
+}
+
 TextureHandle ResourceManager::acquireTextureByPath(const std::string& path) {
     auto handle = textures_.findByPath(path);
     if (!handle.isValid()) {

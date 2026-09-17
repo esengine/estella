@@ -534,6 +534,7 @@ if (stats && stats.textureBytes > stats.textureBudget * 0.9) {
 | `textureBytes` | Resident texture bytes (RGBA8 estimate) — held + evictable. |
 | `textureBudget` | The current resident-byte budget (`0` = eviction off). |
 | `textureEvictableCount` | Cached refcount-0 textures awaiting revive or eviction. |
+| `retainedBytes` | CPU copies the device keeps to restore content after a GPU loss; warns past `RuntimeConfig.retainedBudget`. Also the per-frame counter `render.retained.bytes`. |
 
 `trimTextureCache()` frees every evictable entry immediately and returns how
 many textures it freed — the engine calls it on OS memory warnings; call it

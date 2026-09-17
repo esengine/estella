@@ -3,6 +3,7 @@
 // when nothing is owed. Per-backend guards: test_webgpu_device.cpp.
 
 #include "MockGfxDevice.hpp"
+#include "esengine/core/Log.hpp"
 #include "esengine/renderer/rhi/GfxEnums.hpp"
 #include "esengine/renderer/rhi/Texture.hpp"
 
@@ -319,6 +320,30 @@ int main() {
         d.deleteTexture(kept);
         d.deleteBuffer(block);
         CHECK(d.retainedBytes() == 0, "deleting gives every byte back");
+    }
+
+    // --- Growing past the retained budget is said once, until it falls back under ---
+    {
+        MockGfxDevice d;
+        int warnings = 0;
+        const u32 sink = Log::addSink([&](const LogEntry& entry) {
+            if (entry.level == LogLevel::Warn && entry.message.find("budget") != std::string::npos) ++warnings;
+        });
+        d.setRetainedBudget(100);
+        TextureDesc desc;
+        desc.width = 4;
+        desc.height = 4;
+        const TextureHandle first = d.createTexture(desc, GfxContent::retained(), nullptr);
+        CHECK(warnings == 0, "64 bytes under a 100-byte budget say nothing");
+        const TextureHandle second = d.createTexture(desc, GfxContent::retained(), nullptr);
+        CHECK(warnings == 1, "crossing the budget warns");
+        d.createTexture(desc, GfxContent::retained(), nullptr);
+        CHECK(warnings == 1, "and growing further past it does not repeat");
+        d.deleteTexture(first);
+        d.deleteTexture(second);
+        d.createTexture(desc, GfxContent::retained(), nullptr);
+        CHECK(warnings == 2, "falling back under re-arms it");
+        Log::removeSink(sink);
     }
 
     // --- A recovery that fails leaves it retryable, not half-open ---

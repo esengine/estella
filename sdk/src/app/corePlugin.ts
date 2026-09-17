@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { Plugin } from './app';
-import { initResourceManager, shutdownResourceManager, setTextureBudget, trimTextureCache } from '../wasm/resourceManager';
+import { initResourceManager, shutdownResourceManager, setRetainedBudget, setTextureBudget, trimTextureCache } from '../wasm/resourceManager';
 import { platformOnMemoryWarning } from '../platform/base';
 import { RuntimeConfig } from '../defaults';
 import { initDrawAPI, shutdownDrawAPI } from '../render/draw';
@@ -25,6 +25,7 @@ export const corePlugin: Plugin = {
         // pool up to this byte budget, so the next load revives them instead of
         // re-decoding. Without this call the pool default (0) frees at once.
         setTextureBudget(RuntimeConfig.textureCacheBudget);
+        setRetainedBudget(RuntimeConfig.retainedBudget);
         // OS memory pressure → drop the texture warm cache. Held textures are
         // untouched; only the revive shortcut is sacrificed until it refills.
         offMemoryWarning = platformOnMemoryWarning(() => {

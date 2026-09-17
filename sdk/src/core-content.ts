@@ -115,7 +115,7 @@ export { LiveBindings, type LiveBindingsData } from './hotUpdateRebind';
 // Resource budget (VRAM)
 // =============================================================================
 
-export { setTextureBudget, getResourceStats, trimTextureCache, type ResourceStats } from './wasm/resourceManager';
+export { setTextureBudget, setRetainedBudget, getResourceStats, trimTextureCache, type ResourceStats } from './wasm/resourceManager';
 
 /** A texture whose content is a canvas SOMETHING ELSE draws on, re-taken on
  *  demand — the seam a service outside the engine needs to put another

@@ -379,6 +379,9 @@ public:
      */
     void setTextureBudget(usize bytes);
 
+    /** @brief See GfxDevice::setRetainedBudget. */
+    void setRetainedBudget(usize bytes);
+
     /**
      * @brief Reuses a cached texture by its build path: returns its handle with an
      *        added reference (reviving an evictable one), or an invalid handle if

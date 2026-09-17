@@ -205,17 +205,35 @@ void GfxDevice::forgoContent(const GfxOwedContent& owed) {
 void GfxDevice::keepBytes(std::vector<u8>& slot, std::vector<u8> bytes) {
     retained_bytes_ -= slot.size();
     retained_bytes_ += bytes.size();
+    const usize grownBy = bytes.size() > slot.size() ? bytes.size() - slot.size() : 0;
     slot = std::move(bytes);
+    judgeRetainedBudget(grownBy);
 }
 
 void GfxDevice::dropBytes(std::vector<u8>& slot) {
     retained_bytes_ -= slot.size();
     slot = {};
+    judgeRetainedBudget(0);
 }
 
 std::vector<u8> GfxDevice::takeBytes(std::vector<u8>& slot) {
     retained_bytes_ -= slot.size();
+    judgeRetainedBudget(0);
     return std::exchange(slot, {});
+}
+
+void GfxDevice::judgeRetainedBudget(usize grownBy) {
+    if (retained_budget_ == 0 || retained_bytes_ <= retained_budget_) {
+        over_retained_budget_ = false;
+        return;
+    }
+    if (over_retained_budget_ || grownBy == 0) return;
+    over_retained_budget_ = true;
+    constexpr f64 MiB = 1024.0 * 1024.0;
+    ES_LOG_WARN("The graphics device keeps {:.2f} MiB of CPU copies to restore content after a GPU loss, "
+                "past its {:.2f} MiB budget (the last copy was {} bytes). Content that can be loaded "
+                "or drawn again should say who refills it instead of being retained.",
+                static_cast<f64>(retained_bytes_) / MiB, static_cast<f64>(retained_budget_) / MiB, grownBy);
 }
 
 void GfxDevice::eraseBuffer(u32 id) {

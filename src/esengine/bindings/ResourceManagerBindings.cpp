@@ -198,6 +198,10 @@ void rm_setTextureBudget(resource::ResourceManager& rm, u32 bytes) {
     rm.setTextureBudget(static_cast<usize>(bytes));
 }
 
+void rm_setRetainedBudget(resource::ResourceManager& rm, u32 bytes) {
+    rm.setRetainedBudget(static_cast<usize>(bytes));
+}
+
 u32 rm_acquireTextureByPath(resource::ResourceManager& rm, const std::string& path) {
     return rm.acquireTextureByPath(path).id();
 }

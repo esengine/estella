@@ -239,6 +239,7 @@ registerTextureWithPath: (handle: number, path: string) => void
 releaseBitmapFont: (handle: number) => void
 releaseShader: (handle: number) => void
 releaseTexture: (handle: number) => void
+setRetainedBudget: ((bytes: number) => void) | undefined
 setTextureBudget: (bytes: number) => void
 setTextureMetadata: (handle: number, left: number, right: number, top: number, bottom: number) => void
 supportsCompressedFormat: ((format: number) => boolean) | undefined

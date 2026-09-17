@@ -61,6 +61,7 @@ void rm_releaseTexture(resource::ResourceManager& rm, u32 handleId);
 u32 rm_getTextureRefCount(resource::ResourceManager& rm, u32 handleId);
 void rm_registerTextureWithPath(resource::ResourceManager& rm, u32 handleId, const std::string& path);
 void rm_setTextureBudget(resource::ResourceManager& rm, u32 bytes);
+void rm_setRetainedBudget(resource::ResourceManager& rm, u32 bytes);
 u32 rm_acquireTextureByPath(resource::ResourceManager& rm, const std::string& path);
 bool rm_invalidateTexturePath(resource::ResourceManager& rm, const std::string& path);
 u32 rm_trimTextureCache(resource::ResourceManager& rm);

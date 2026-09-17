@@ -212,6 +212,7 @@ const stats = getResourceStats();      // 引擎初始化前为 null
 // stats.textureBytes          — 常驻纹理字节数(持有 + 可逐出)
 // stats.textureBudget         — 当前预算(0 = 逐出关闭)
 // stats.textureEvictableCount — 等待复活或逐出的热缓存条目数
+// stats.retainedBytes         — 为扛过 GPU 丢失而保留的 CPU 副本(见下)
 // …还有 shaderCount / textureCount / vertexBufferCount / indexBufferCount
 //  与 cacheHits / cacheMisses
 
@@ -226,6 +227,15 @@ const freed = trimTextureCache();      // 立即丢弃所有可逐出纹理
 还有两个小帮手补全这个表面:`getTextureDimensions(handle)` 返回纹理的
 `{ width, height }`(首次查询后缓存在 TS 侧),`evictTextureDimensions(handle)` 丢弃那条
 缓存——资源系统在纹理真正释放时会这么做,所以只有绕过资源系统自己销毁重建纹理时才需要它。
+
+### 为 GPU 丢失保留的内存
+
+图形上下文丢失时(驱动重置、手机浏览器回收 GPU),引擎会在游戏持有的句柄背后重建每张纹理和每个
+缓冲。大多数内容从它的来处回来——资产重新加载、文字页按字形重绘、骨骼图集页重新解码。没有这种
+来处的内容(运行时构建的网格、加载时拼合的瓦片集)会保留一份 CPU 副本,它占你的内存,却不出现在
+任何 GPU 数字里。`stats.retainedBytes` 就是这份副本;引擎自身约 28 KB。副本超过
+`RuntimeConfig.retainedBudget`(默认 **16 MB**,构建配置里的 `retainedBudget`,或
+`setRetainedBudget(bytes)`;0 表示从不告警)时会告警一次。
 
 想逐帧观察这些数字(编辑器内和运行时),见[性能分析](/docs/zh-cn/performance/profiling/)。
 逐纹理的**采样/过滤**参数(像素风 nearest 还是平滑 linear)见

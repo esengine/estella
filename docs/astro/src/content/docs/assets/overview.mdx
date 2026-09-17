@@ -245,6 +245,7 @@ const stats = getResourceStats();      // null before the engine initializes
 // stats.textureBytes          — resident texture bytes (held + evictable)
 // stats.textureBudget         — the current budget (0 = eviction off)
 // stats.textureEvictableCount — warm-cache entries awaiting revive/evict
+// stats.retainedBytes         — CPU copies kept to survive a GPU loss (below)
 // …plus shaderCount / textureCount / vertexBufferCount / indexBufferCount
 //  and cacheHits / cacheMisses
 
@@ -264,6 +265,19 @@ a texture's `{ width, height }` (cached on the TS side after the first query),
 and `evictTextureDimensions(handle)` drops that cached entry — the asset system
 does this when a texture is truly freed, so you only need it if you destroy and
 recreate textures around the asset system's back.
+
+### Memory kept for a lost GPU
+
+When the graphics context is lost (a driver reset, a mobile browser reclaiming
+the GPU), the engine rebuilds every texture and buffer behind the handles your
+game holds. Most content comes back from where it came from — an asset is
+loaded again, a text page is repainted from its glyphs, a skeleton's atlas page
+is decoded again. What has no such source (a mesh built at runtime, a tile
+collection composed at load) is kept as a CPU copy, which counts against your
+memory but not against any GPU figure. `stats.retainedBytes` is that copy; the
+engine's own is about 28 KB. It warns once when the copy grows past
+`RuntimeConfig.retainedBudget` (**16 MB** by default, `retainedBudget` in the
+build config, or `setRetainedBudget(bytes)`; 0 never warns).
 
 For watching these numbers frame-over-frame in the editor and at runtime, see
 [Profiling](/docs/performance/profiling/). Per-texture **sampling/filtering**

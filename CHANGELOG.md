@@ -20,7 +20,9 @@ published separately; it ships inside the editor.
   picture back after a graphics reset, the engine keeps a CPU copy of some textures and
   buffers — a cost no GPU figure shows, and a real one on a mini-game's memory budget.
   `retainedBytes` says how large it is, the resource census tracks it, and each frame
-  reports it as the `render.retained.bytes` counter.
+  reports it as the `render.retained.bytes` counter. The engine warns once when it grows
+  past `RuntimeConfig.retainedBudget` — 16 MB by default, `retainedBudget` in the build
+  config, or `setRetainedBudget()`.
 
 ### Fixed
 

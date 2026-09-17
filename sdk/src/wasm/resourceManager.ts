@@ -74,6 +74,15 @@ export function setTextureBudget(bytes: number): void {
     requireResourceManager().setTextureBudget(Math.max(0, Math.floor(bytes)));
 }
 
+/**
+ * Warn once when the CPU copies the graphics device keeps to survive a GPU loss
+ * ({@link ResourceStats.retainedBytes}) grow past `bytes`; 0 never warns. The
+ * engine applies `RuntimeConfig.retainedBudget` at startup.
+ */
+export function setRetainedBudget(bytes: number): void {
+    requireResourceManager().setRetainedBudget?.(Math.max(0, Math.floor(bytes)));
+}
+
 /** GPU resource counts + texture residency figures. See {@link getResourceStats}. */
 export interface ResourceStats {
     shaderCount: number;

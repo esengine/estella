@@ -482,6 +482,7 @@ if (stats && stats.textureBytes > stats.textureBudget * 0.9) {
 | `textureBytes` | 驻留贴图字节数(RGBA8 估算)——持有的 + 可逐出的。 |
 | `textureBudget` | 当前驻留字节预算(`0` = 关闭逐出缓存)。 |
 | `textureEvictableCount` | 引用数为 0、等待复活或逐出的缓存贴图数。 |
+| `retainedBytes` | 设备为在 GPU 丢失后恢复内容而保留的 CPU 副本;超过 `RuntimeConfig.retainedBudget` 时告警。逐帧计数器为 `render.retained.bytes`。 |
 
 `trimTextureCache()` 立即释放所有可逐出条目并返回释放的贴图数——引擎在收到 OS
 内存警告时会调用它;在已知的内存尖峰前你也可以主动调用。被持有(有引用)的贴图
