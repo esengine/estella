@@ -24,13 +24,26 @@ import { runTool } from './runTool.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
+let binaryResolved = false;
+
 /**
- * Resolve Electron's binary once, before anything launches it in parallel. A binary
- * the install left out is downloaded on first launch, and two first launches at
- * once had one executing the file while the other still wrote it: spawn ETXTBSY.
+ * Resolve Electron's binary once, before anything launches it. A binary the install
+ * left out is downloaded on first launch: two first launches at once raced into
+ * spawn ETXTBSY, and a download the host refused once (HTTP 500) failed every
+ * verifier after it with no reading at all.
  */
-export function ensureElectronBinary() {
-  createRequire(path.join(ROOT, 'package.json'))('electron');
+export function ensureElectronBinary({ attempts = 4, backoffMs = 10_000 } = {}) {
+  for (let attempt = 1; !binaryResolved; attempt++) {
+    try {
+      createRequire(path.join(ROOT, 'package.json'))('electron');
+      binaryResolved = true;
+    } catch (err) {
+      if (attempt >= attempts) throw err;
+      const wait = backoffMs * attempt;
+      console.error(`electron binary: attempt ${attempt} failed — retrying in ${wait / 1000}s`);
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, wait);
+    }
+  }
 }
 
 /** xvfb-run's own default is 1280x1024x8, which is smaller than the windows
@@ -49,6 +62,7 @@ export const NEEDS_XVFB = process.platform === 'linux'
  * nested package has its own. `env` merges over what this adds, never replacing.
  */
 export function runElectron(args, { via = 'pnpm', env, ...options } = {}) {
+  ensureElectronBinary();
   const electron = via === 'npx' ? ['npx', 'electron'] : ['pnpm', 'exec', 'electron'];
   const [cmd, ...rest] = NEEDS_XVFB
     ? ['xvfb-run', '-a', '--server-args', SCREEN, ...electron]

@@ -64,6 +64,23 @@ function reading(stdout, label) {
 }
 
 /**
+ * One launch of the package, answering its stdout. A launch that printed no `label`
+ * reading ran no game, and judging it anyway turned one reason into a page of
+ * `undefined` — so it stops here and says what the launcher did print.
+ */
+function launch(args, label) {
+    const r = runElectron([LAUNCHER, ...args], { encoding: 'utf8', cwd: ROOT });
+    if (!reading(r.stdout, label)) {
+        console.error(`✗ third-person: a launch printed no ${label} reading, so no game ran to judge`);
+        for (const l of `${r.stderr ?? ''}${r.stdout ?? ''}`.trim().split('\n').slice(-12)) {
+            console.error(`    ${l}`);
+        }
+        process.exit(1);
+    }
+    return r.stdout;
+}
+
+/**
  * Drive the package with one gesture and read what the character became.
  *
  * `scene` picks the fixture: `gym` answers to what a character DOES, `arena` to
@@ -71,24 +88,21 @@ function reading(stdout, label) {
  * standing somewhere answers another's question — a solid one already did.
  */
 function run(dir, input, scene = 'gym') {
-    const r = runElectron([
-        LAUNCHER, '--dir', dir, '--w', String(W), '--h', String(H),
+    const stdout = launch([
+        '--dir', dir, '--w', String(W), '--h', String(H),
         '--settle', '30', '--timeout', '60000', '--scene', scene,
         '--input', JSON.stringify(input), '--gameplay', 'Player,Camera',
         '--particles', 'FootDust,HitSpark',
         '--combat', 'Player:DummyA,DummyB,Player,Enemy',
         '--ai', 'Enemy',
         '--out', path.join(WORK, 'frame.png'),
-    ], { encoding: 'utf8', cwd: ROOT });
-    const seen = reading(r.stdout, 'gameplay');
-    if (!seen) {
-        return { error: `no reading — ${(r.stdout || r.stderr || '').trim().slice(-200)}` };
-    }
+    ], 'gameplay');
+    const seen = reading(stdout, 'gameplay');
     // The far end of the effect chain, beside what the character became: the
     // reading is one launch, so asking twice would be two different games.
-    seen.particles = reading(r.stdout, 'particles') ?? {};
-    seen.combat = reading(r.stdout, 'combat') ?? { attack: null, targets: {} };
-    seen.ai = reading(r.stdout, 'ai') ?? { found: false };
+    seen.particles = reading(stdout, 'particles') ?? {};
+    seen.combat = reading(stdout, 'combat') ?? { attack: null, targets: {} };
+    seen.ai = reading(stdout, 'ai') ?? { found: false };
     return seen;
 }
 
@@ -476,12 +490,11 @@ const START = { y: 60, z: 120 };
 // claim is about the MECHANISM reaching the package and not about the layout:
 // what a receding field must do is spend more than one level on it.
 {
-    const r = runElectron([
-        LAUNCHER, '--dir', dir, '--w', String(W), '--h', String(H),
+    const counters = reading(launch([
+        '--dir', dir, '--w', String(W), '--h', String(H),
         '--settle', '40', '--timeout', '60000', '--scene', 'main', '--render',
         '--out', path.join(WORK, 'field.png'),
-    ], { encoding: 'utf8', cwd: ROOT });
-    const counters = reading(r.stdout, 'render') ?? {};
+    ], 'render'), 'render');
     const level = (n) => counters[`render.lod.level${n}`] ?? 0;
     const selected = counters['render.lod.groups'] ?? 0;
     const spread = [level(0), level(1), level(2), counters['render.lod.culled'] ?? 0]
@@ -499,18 +512,18 @@ function excursion({ out, frames, swings = 0, back = 0 }) {
     const holds = out > 0 ? [{ key: 'KeyS', from: 0, to: out }] : [];
     for (let i = 0; i < swings; i++) holds.push({ key: 'KeyJ', from: 225 + i * 20, to: 228 + i * 20 });
     if (back > 0) holds.push({ key: 'KeyW', from: out + 10, to: out + 10 + back });
-    const r = runElectron([
-        LAUNCHER, '--dir', dir, '--w', String(W), '--h', String(H),
+    const stdout = launch([
+        '--dir', dir, '--w', String(W), '--h', String(H),
         '--settle', '30', '--timeout', '120000', '--scene', 'main', '--streaming',
         '--gameplay', 'Player,Camera', '--combat', 'Player:Sentry,Beacon,Player',
         '--ai', 'Sentry', '--render', '--input', JSON.stringify({ holds, frames }),
-    ], { encoding: 'utf8', cwd: ROOT });
+    ], 'gameplay');
     return {
-        at: reading(r.stdout, 'gameplay'),
-        world: reading(r.stdout, 'streaming'),
-        counters: reading(r.stdout, 'render') ?? {},
-        combat: reading(r.stdout, 'combat') ?? { targets: {} },
-        ai: reading(r.stdout, 'ai') ?? { found: false },
+        at: reading(stdout, 'gameplay'),
+        world: reading(stdout, 'streaming'),
+        counters: reading(stdout, 'render') ?? {},
+        combat: reading(stdout, 'combat') ?? { targets: {} },
+        ai: reading(stdout, 'ai') ?? { found: false },
     };
 }
 
