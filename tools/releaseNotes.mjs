@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(play): a realm that misses its deadline is asked where it is, and a replaced one is not heard':
+    { note: 'A Play that never comes up says how far it got.' },
+
   'fix(play): a Play that never comes up says how far it got':
     { note: 'A Play that never comes up says how far it got.' },
 

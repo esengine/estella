@@ -364,11 +364,17 @@ published separately; it ships inside the editor.
 
 - **A Play that never comes up says how far it got.** A game that stayed silent
   for 90 seconds was always reported as "handed the scene but never reported
-  ready" — including one whose realm never loaded at all, so it was never handed
-  anything. The message now names which of the two happened. The reason also
-  stays on the failed session rather than only in a toast: the realm is torn down
-  the moment its session fails, which cleared the one error anything could read
-  back, so an automated run that waited on Play saw no error and no game.
+  ready", and pointed at an Output Log with nothing in it — including a game that
+  never loaded, so was never handed anything. Now a game that never loaded says
+  so; one that did is asked where its start-up is, and the message names the step
+  and how long it has been on it ("loading the scene and its assets for 90s"), or
+  says the game stopped answering. The reason also stays on the failed session
+  rather than only in a toast: the game is torn down the moment its session
+  fails, which cleared the one error anything could read back.
+
+  A game the editor had already replaced could also answer for its replacement —
+  both post from the same frame — so a Play could report running before its own
+  game had loaded. Every message now carries the page it came from.
 
 - **A native build runs a script that holds a NUL character.** The desktop and
   mobile hosts measured the embedded SDK and the project's scripts with
