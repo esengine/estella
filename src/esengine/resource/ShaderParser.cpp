@@ -75,12 +75,10 @@ std::string instanceRecordWGSL() {
 }
 
 /**
- * @brief What a GLSL stage sees of the record before its own source: the block, the
- *        texture and prototypes, none of which name a system value.
- * @details The bodies follow the stage (instanceRecordGLSLBodies). ANGLE on D3D11 puts
- *          SV_InstanceID into the input signature where gl_InstanceID first appears and
- *          caches input layouts without the signature, so one stage naming it before its
- *          attributes shifts the attributes of every program drawn with that layout.
+ * @brief The record's block, texture and prototypes; the bodies follow the stage.
+ * @details ANGLE on D3D11 caches input layouts by vertex format and puts SV_InstanceID
+ *          where gl_InstanceID first appears, so naming it before the attributes shifts
+ *          them for every program sharing the layout.
  */
 std::string instanceRecordGLSLDecls() {
     return
