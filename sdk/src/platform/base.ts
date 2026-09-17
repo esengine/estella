@@ -8,6 +8,9 @@
 import type { PlatformAdapter } from './types';
 import type { PlatformAudioBackend } from '../audio/PlatformAudioBackend';
 import { NullAudioBackend } from '../audio/NullAudioBackend';
+import { log } from '../util/logger';
+
+let cacheWriteFailureReported = false;
 
 // =============================================================================
 // Platform Instance (set by entry point)
@@ -212,16 +215,19 @@ export async function platformReadCacheFile(key: string): Promise<ArrayBuffer | 
 }
 
 /** Persist a content-addressed asset to the cache. No-op when the platform has no
- *  cache (web) or is uninitialized (tests); swallows write errors (best-effort — a
- *  failed cache write must not fail the update). */
+ *  cache (web) or is uninitialized (tests). A failed write never fails the update,
+ *  but it is said once: silence is how the native host refused every write unseen. */
 export async function platformWriteCacheFile(key: string, bytes: ArrayBuffer): Promise<void> {
     if (!isPlatformInitialized()) return;
     const p = getPlatform();
     if (!p.writeCacheFile) return;
     try {
         await p.writeCacheFile(key, bytes);
-    } catch {
-        // best-effort cache; ignore
+    } catch (err) {
+        if (!cacheWriteFailureReported) {
+            cacheWriteFailureReported = true;
+            log.warn('asset', `cache write failed, so updated assets will need the network next launch: ${String(err)}`);
+        }
     }
 }
 

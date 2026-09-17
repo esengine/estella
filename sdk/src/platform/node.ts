@@ -14,7 +14,6 @@
 import { readFile as fsReadFile, access, mkdir, writeFile, rename } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { createHash } from 'node:crypto';
 import type {
     PlatformAdapter,
     PlatformRequestOptions,
@@ -28,6 +27,7 @@ import type {
     PlatformSocketOptions,
 } from './types';
 import { GameSocket } from '../net/GameSocket';
+import { cacheEntryName } from './cacheEntryName';
 
 function isUrl(path: string): boolean {
     return /^https?:\/\//.test(path);
@@ -161,15 +161,13 @@ class NodePlatformAdapter implements PlatformAdapter {
     }
 
     // Content-addressed disk cache (hot-update offline store). Dir defaults to the
-    // OS temp dir; override with ESENGINE_CACHE_DIR. The key is a content-addressed
-    // url — an immutable name — so the filename is just its sha256 (filesystem-safe,
-    // collision-resistant).
+    // OS temp dir; override with ESENGINE_CACHE_DIR.
     private cacheDir_(): string {
         return process.env.ESENGINE_CACHE_DIR ?? join(tmpdir(), 'esengine-cache');
     }
 
     private cacheFile_(key: string): string {
-        return join(this.cacheDir_(), createHash('sha256').update(key).digest('hex'));
+        return join(this.cacheDir_(), cacheEntryName(key));
     }
 
     async readCacheFile(key: string): Promise<ArrayBuffer | null> {

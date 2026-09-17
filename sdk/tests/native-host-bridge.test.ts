@@ -74,6 +74,45 @@ describe('createHostBridge', () => {
         expect(sink.onTouchStart).toHaveBeenCalledTimes(1);
     });
 
+    /** The host's cache as AssetBindings.cpp keeps it: a name outside
+     *  [A-Za-z0-9._-] is refused, a write answers false and a read answers null. */
+    const strictCacheScope = () => {
+        const files = new Map<string, ArrayBuffer>();
+        const accepted = (name: string) => /^[A-Za-z0-9._-]+$/.test(name);
+        return {
+            files,
+            scope: hostScope({
+                es_readCacheFile: (name: string) => (accepted(name) ? files.get(name) ?? null : null),
+                es_writeCacheFile: (name: string, bytes: ArrayBuffer) => {
+                    if (!accepted(name)) return false;
+                    files.set(name, bytes);
+                    return true;
+                },
+            }),
+        };
+    };
+
+    it('caches a hot update under a name the host accepts, and reads it back', async () => {
+        const { scope, files } = strictCacheScope();
+        const bridge = createHostBridge(scope);
+        const url = 'https://cdn.example.com/v2/assets/9f86d081884c7d65.png';
+
+        await bridge.writeCacheFile!(url, new Uint8Array([1, 2, 3]).buffer);
+
+        expect(files.size).toBe(1);
+        const read = await bridge.readCacheFile!(url);
+        expect(read && [...new Uint8Array(read)]).toEqual([1, 2, 3]);
+        expect(await bridge.readCacheFile!('https://cdn.example.com/v2/assets/other.png')).toBeNull();
+    });
+
+    it('reports a write the host refused instead of pretending it landed', async () => {
+        const bridge = createHostBridge(hostScope({
+            es_readCacheFile: () => null,
+            es_writeCacheFile: () => false,
+        }));
+        await expect(bridge.writeCacheFile!('https://cdn.example.com/a.png', new ArrayBuffer(1))).rejects.toThrow(/refused/);
+    });
+
     /** A host with both stores, kept apart so a test can say which one was written. */
     const twoStoreScope = (): { scope: ReturnType<typeof hostScope>; cache: Map<string, string>; data: Map<string, string> } => {
         const cache = new Map<string, string>();

@@ -19,6 +19,7 @@ import type {
 } from './bridge';
 import type { PlatformGlyph, PlatformGlyphRequest, PlatformRequestOptions } from '../types';
 import { assertHostEnvironment } from './hostEnvironment';
+import { cacheEntryName } from '../cacheEntryName';
 import { hasAudioBindings } from '../../ecs/bridge/nativeBindings';
 
 /** Touch phases the host reports, matching the order it dispatches. */
@@ -202,11 +203,10 @@ export function createHostBridge(
         ...storage,
         ...(bindings.es_readCacheFile && bindings.es_writeCacheFile
             ? {
-                readCacheFile: (key: string) => Promise.resolve(bindings.es_readCacheFile!(key)),
-                writeCacheFile: (key: string, bytes: ArrayBuffer) => {
-                    bindings.es_writeCacheFile!(key, bytes);
-                    return Promise.resolve();
-                },
+                readCacheFile: (key: string) => Promise.resolve(bindings.es_readCacheFile!(cacheEntryName(key))),
+                writeCacheFile: (key: string, bytes: ArrayBuffer) => bindings.es_writeCacheFile!(cacheEntryName(key), bytes)
+                    ? Promise.resolve()
+                    : Promise.reject(new Error(`the host refused to cache ${key}`)),
             }
             : {}),
         registerInput: (sink) => {
