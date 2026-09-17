@@ -48,26 +48,6 @@ public:
     bool init(Unique<GfxDevice> device);
 
     /**
-     * @brief Brings the renderer back after a device loss.
-     * @details Rebuilds the device, then every subsystem that owns GPU objects,
-     *          in the one order that works (see the definition). Leaves the
-     *          device Recovering: it draws, but its textures are placeholders
-     *          until the asset layer re-uploads them.
-     * @return True when the renderer is usable again.
-     */
-    bool recoverDevice();
-
-    /**
-     * @brief Ends recovery — if the content is actually back.
-     * @details The engine holds the criterion, so declaring the device whole is
-     *          not the caller's to assert: one that restored half its textures
-     *          would report Live and draw the rest white, the hardest state to
-     *          read — the report says healthy and the screen disagrees.
-     * @return Textures still on the placeholder; 0 means the device is Live.
-     */
-    u32 finishDeviceRecovery();
-
-    /**
      * @brief Shut down all subsystems and release resources
      */
     void shutdown();

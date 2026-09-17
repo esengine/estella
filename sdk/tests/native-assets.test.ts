@@ -17,6 +17,7 @@ import { builtinMeshTemplate } from '../src/asset/builtinMeshes';
 import { createNativeResourceManager } from '../src/ecs/bridge/nativeResourceManager';
 import { Assets } from '../src/asset/AssetPlugin';
 import { shutdownResourceManager } from '../src/wasm/resourceManager';
+import { TextureContent } from '../src/wasm';
 import { setPlatform } from '../src/platform/base';
 import type { NativeBridge } from '../src/platform/native/bridge';
 
@@ -91,11 +92,11 @@ describe('createNativeResourceManager', () => {
         const rm = createNativeResourceManager(scope);
 
         const px = new Uint8Array([1, 2, 3, 4]);
-        const handle = rm.createTextureFromBytes!(1, 1, px, 1, true);
+        const handle = rm.createTextureFromBytes!(1, 1, px, 1, true, TextureContent.Asset);
         expect(handle).toBe(1);
         // Byte count beside the buffer, and the plain path's defaults where the
         // caller gave no import settings (filter Linear, wrap ClampToEdge).
-        expect(createSpy).toHaveBeenCalledWith(1, 1, px, px.length, 1, true, 1, 1);
+        expect(createSpy).toHaveBeenCalledWith(1, 1, px, px.length, 1, true, 1, 1, TextureContent.Asset);
         expect(rm.getTextureDimensions(handle)).toEqual({ width: 1, height: 1 });
 
         rm.releaseTexture(handle);
@@ -105,8 +106,8 @@ describe('createNativeResourceManager', () => {
 
     it('fails loud on the wasm/GL-only surface (no heap or GL on native)', () => {
         const rm = createNativeResourceManager({});
-        expect(() => rm.createTexture(1, 1, 0, 4, 1, true)).toThrow(/not supported/);
-        expect(() => rm.registerExternalTexture(0, 1, 1)).toThrow(/not supported/);
+        expect(() => rm.createTexture(1, 1, 0, 4, 1, true, TextureContent.Asset)).toThrow(/not supported/);
+        expect(() => rm.registerExternalTexture(0, 1, 1, TextureContent.Asset)).toThrow(/not supported/);
     });
 });
 

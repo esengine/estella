@@ -91,26 +91,11 @@ public:
 
     bool pollDeviceLost() override;
 
-    /**
-     * @brief Takes over a replacement device, rebuilding everything under it.
-     * @details Only whoever created a WebGPU device can replace it, so recovery
-     *          arrives from outside rather than being something this class can
-     *          perform. Every cached object belonged to the dead device and is
-     *          released; the surface is re-created against the new one.
-     */
-    bool adoptDevice(WGPUDevice device);
-
     /** @brief Hands a replacement in for the next recovery attempt to take up. */
     bool provideReplacementDevice(void* nativeDevice) override {
         pending_device_ = static_cast<WGPUDevice>(nativeDevice);
         return pending_device_ != nullptr;
     }
-
-protected:
-    void captureDeviceIdentity() override;
-    bool recreateDevice() override;
-
-public:
 
     void setViewport(i32 x, i32 y, u32 w, u32 h) override;
     void clearStencil(i32 value) override;
@@ -118,27 +103,10 @@ public:
     void setScissorTest(bool enabled) override;
     void setScissor(i32 x, i32 y, i32 w, i32 h) override;
 
-    BufferHandle createBuffer(const BufferDesc& desc, const void* initialData) override;
-    void deleteBuffer(BufferHandle buffer) override;
-    void updateBuffer(BufferHandle buffer, u32 offsetBytes, const void* data, u32 sizeBytes) override;
-    void resizeBuffer(BufferHandle buffer, u32 sizeBytes, const void* data) override;
     void setUniformBuffer(u32 slot, BufferHandle buffer) override;
-
-    VertexLayoutHandle createVertexLayout(const VertexLayoutDesc& desc) override;
-    void deleteVertexLayout(VertexLayoutHandle layout) override;
     void setVertexBuffer(u32 slot, BufferHandle buffer, u32 offsetBytes) override;
     void setIndexBuffer(BufferHandle buffer) override;
 
-    TextureHandle createTexture(const TextureDesc& desc, const void* pixels) override;
-    TextureHandle createCompressedTexture(const TextureDesc& desc, GfxCompressedFormat format,
-                                          const void* data, u32 byteLength, u32 mipLevels) override;
-    TextureHandle importExternalTexture(u32 nativeId, const TextureDesc& desc) override;
-    void deleteTexture(TextureHandle texture) override;
-    void updateTexture(TextureHandle texture, i32 x, i32 y, u32 width, u32 height,
-                       const void* pixels, bool flipY) override;
-    void setTextureParams(TextureHandle texture, TextureFilter minFilter, TextureFilter magFilter,
-                          TextureWrap wrapS, TextureWrap wrapT) override;
-    void generateMipmaps(TextureHandle texture) override;
     void bindTexture(u32 slot, TextureHandle texture) override;
     bool supportsCompressedFormat(GfxCompressedFormat format) override;
     // Float-target rendering is a WebGPU core capability.
@@ -151,37 +119,14 @@ public:
 
     /// WebGPU stores a texture from the top down.
     bool textureOriginTopLeft() const override { return true; }
-    ShaderHandle createProgram(const GfxShaderSource& source,
-                               const GfxAttribBinding* bindings, u32 bindingCount,
-                               std::string* outLog, GfxShaderStage* outFailedStage) override;
-    void deleteProgram(ShaderHandle program) override;
-    void useProgram(ShaderHandle program) override;
-    i32 getUniformLocation(ShaderHandle program, const char* name) override;
-    i32 getAttribLocation(ShaderHandle program, const char* name) override;
-    void setUniform1i(i32 location, i32 value) override;
-    void setUniform1f(i32 location, f32 value) override;
-    void setUniform2f(i32 location, f32 x, f32 y) override;
-    void setUniform3f(i32 location, f32 x, f32 y, f32 z) override;
-    void setUniform4f(i32 location, f32 x, f32 y, f32 z, f32 w) override;
-    void setUniformMat3(i32 location, const f32* value) override;
-    void setUniformMat4(i32 location, const f32* value) override;
-    std::vector<GfxUniformInfo> getActiveUniforms(ShaderHandle program) override;
 
-    u32 getUniformBlockIndex(ShaderHandle program, const char* blockName) override;
-    void uniformBlockBinding(ShaderHandle program, u32 blockIndex, u32 bindingPoint) override;
-
-    PipelineHandle createPipeline(const PipelineDesc& desc) override;
-    void setPipeline(PipelineHandle pipeline) override;
     void setStencilReference(i32 reference) override;
-    void invalidatePipelineCache() override;
 
     void drawElements(u32 indexCount, GfxDataType indexType, u32 indexByteOffset) override;
     void drawArrays(u32 firstVertex, u32 vertexCount) override;
     void drawElementsInstanced(u32 indexCount, GfxDataType indexType, u32 indexByteOffset,
                                u32 instanceCount) override;
 
-    FramebufferHandle createFramebuffer(const FramebufferDesc& desc) override;
-    void deleteFramebuffer(FramebufferHandle framebuffer) override;
     void beginRenderPass(const RenderPassDesc& desc) override;
     void endRenderPass() override;
     void resizeBackbuffer(u32 width, u32 height) override;
@@ -191,7 +136,6 @@ public:
     bool takeReadback(ReadbackHandle handle, void* dest, usize destSize) override;
     void discardReadback(ReadbackHandle handle) override;
 
-    u32 createTimerQuery() override;
     void beginTimerQuery(u32 query) override;
     void endTimerQuery() override;
     bool timerDisjoint() override;
@@ -202,6 +146,53 @@ public:
     std::string getString(GfxStringName name) override;
     i32 getInt(GfxIntParam param) override;
 
+protected:
+    void captureDeviceIdentity() override;
+    bool recreateDevice() override;
+
+    bool backendCreateBuffer(u32 id, const BufferDesc& desc, const void* data) override;
+    void backendDeleteBuffer(u32 id) override;
+    void backendUpdateBuffer(u32 id, u32 offsetBytes, const void* data, u32 sizeBytes) override;
+    void backendResizeBuffer(u32 id, const BufferDesc& desc, const void* data) override;
+
+    bool backendCreateTexture(u32 id, const TextureDesc& desc, const void* pixels) override;
+    bool backendCreateCompressedTexture(u32 id, const TextureDesc& desc, GfxCompressedFormat format,
+                                        const void* data, u32 byteLength, u32 mipLevels) override;
+    /** A foreign surface (canvas, video frame) arrives as a WGPUTexture, never an integer. */
+    bool backendAdoptTexture(u32, u32, const TextureDesc&) override { return false; }
+    void backendDeleteTexture(u32 id) override;
+    void backendMoveTexture(u32 into, u32 from) override;
+    void backendUpdateTexture(u32 id, i32 x, i32 y, u32 width, u32 height,
+                              const void* pixels, bool flipY) override;
+    void backendSetTextureParams(u32 id, const TextureDesc& desc) override;
+    void backendGenerateMipmaps(u32 id) override;
+
+    bool backendCreateProgram(u32 id, const GfxShaderSource& source,
+                              const GfxAttribBinding* bindings, u32 bindingCount,
+                              std::string* outLog, GfxShaderStage* outFailedStage) override;
+    void backendDeleteProgram(u32 id) override;
+    // Programs bind through pipelines, uniforms through UBO bindings and blocks by
+    // @group/@binding: the GL-shaped program state has nothing to reach here.
+    void backendUseProgram(u32) override {}
+    i32 backendUniformLocation(u32, const char*) override { return -1; }
+    i32 backendAttribLocation(u32, const char*) override { return -1; }
+    void backendSetUniform(i32, const GfxUniformValue&) override {}
+    std::vector<GfxUniformInfo> backendActiveUniforms(u32) override { return {}; }
+    u32 backendUniformBlockIndex(u32, const char*) override { return GFX_INVALID_UNIFORM_BLOCK; }
+    void backendUniformBlockBinding(u32, u32, u32) override {}
+
+    bool backendAcceptsVertexLayout(const VertexLayoutDesc& desc) override;
+    void backendDeleteVertexLayout(u32) override {}
+    void backendSetPipeline(u32 id, const PipelineDesc& desc) override;
+    void backendInvalidatePipelineCache() override {}
+
+    bool backendCreateFramebuffer(u32 id, const FramebufferDesc& desc) override;
+    void backendDeleteFramebuffer(u32) override {}
+
+    bool backendCreateTimerQuery(u32 id) override;
+    u32 backendReadbackCount() const override { return static_cast<u32>(readbacks_.size()); }
+
+public:
     // -------------------------------------------------------------------------
     // Bring-up introspection (tests / slice-2 plumbing)
     // -------------------------------------------------------------------------
@@ -308,27 +299,12 @@ private:
     /** Match the backbuffer's depth-stencil companion to @p width x @p height. */
     bool ensureSurfaceDepth(u32 width, u32 height);
 
-public:
-    usize bufferCount() const { return buffers_.size(); }
-    usize textureCount() const { return textures_.size(); }
-    usize layoutCount() const { return layouts_.size(); }
-    usize pipelineDescCount() const { return pipelines_.size(); }
+    /**
+     * @brief Takes up a replacement device: every object of the old one is released
+     *        and the surface is re-made, leaving the registry to rebuild the rest.
+     */
+    bool adoptDevice(WGPUDevice device);
 
-    GfxLiveObjects liveObjects() const override {
-        return GfxLiveObjects{
-            static_cast<u32>(buffers_.size()),
-            static_cast<u32>(textures_.size()),
-            static_cast<u32>(programs_.size()),
-            static_cast<u32>(layouts_.size()),
-            static_cast<u32>(pipelines_.size()),
-            static_cast<u32>(framebuffers_.size()),
-            static_cast<u32>(readbacks_.size()),
-        };
-    }
-    const VertexLayoutDesc* layoutDesc(VertexLayoutHandle handle) const;
-    const PipelineDesc* pipelineDesc(PipelineHandle handle) const;
-
-private:
     /** A GL-style rect's y (origin bottom-left) in this pass' coordinates
      *  (origin top-left). See the definition. */
     i32 flipRectY(i32 y, i32 height) const;
@@ -373,13 +349,8 @@ private:
         u32 group1DepthMask = 0;
     };
     struct PipelineRec {
-        PipelineDesc desc;
         /// Lazily built per pass shape: [ds * kColorVariantCount + color].
         WGPURenderPipeline variants[static_cast<u32>(kDsVariantCount) * static_cast<u32>(kColorVariantCount)] = {};
-    };
-    struct FramebufferRec {
-        u32 color0 = 0;        ///< TextureHandle id of the color attachment.
-        u32 depthStencil = 0;  ///< TextureHandle id (0 = none).
     };
     struct ReadbackRec {
         WGPUBuffer buffer = nullptr;  ///< CopyDst|MapRead staging buffer.
@@ -400,6 +371,14 @@ private:
     /** @brief Builds (once) and returns the WGPURenderPipeline for a handle,
      *         in the variant matching the current pass's depth-stencil shape. */
     WGPURenderPipeline ensurePipeline(u32 id);
+
+    WGPUBuffer makeBuffer(GfxBufferUsage usage, u32 size, const void* data);
+    /** @brief A texture and its views; false with @p out untouched when creation fails. */
+    bool makeTexture(const TextureDesc& desc, const void* pixels, TextureRec& out);
+    void writeTexture(const TextureRec& rec, i32 x, i32 y, u32 width, u32 height,
+                      const void* pixels, bool flipY);
+    /** @brief Releases a texture's views and storage, dropping bind groups that name them. */
+    void releaseTexture(TextureRec& rec);
     /** @brief Returns the cached explicit bind-group layout for a binding mask.
      *         Group 0 entries are uniform buffers at their slot; group 1 entries
      *         are texture_2d/sampler pairs per the WebGPUMappings unit→binding
@@ -471,10 +450,6 @@ private:
     WGPUTexture surface_depth_texture_ = nullptr;
     WGPUTextureView surface_depth_view_ = nullptr;
 
-    // Offscreen targets.
-    std::unordered_map<u32, FramebufferRec> framebuffers_;
-    u32 next_framebuffer_id_ = 1;
-
     // In-flight readbacks: staging buffers whose mapAsync callback flips status.
     std::unordered_map<u32, ReadbackRec> readbacks_;
     u32 next_readback_id_ = 1;
@@ -500,7 +475,7 @@ private:
     WGPUBindGroupLayout clear_bgl_ = nullptr;
     WGPUPipelineLayout clear_layout_ = nullptr;
     WGPUBindGroup clear_bind_group_ = nullptr;
-    BufferHandle clear_color_ubo_{};
+    WGPUBuffer clear_color_buffer_ = nullptr;
 
     // Per-pass state.
     u32 pass_width_ = 0;   ///< Current pass target size (scissor-off rectangle).
@@ -518,7 +493,7 @@ private:
     u32 surface_depth_height_ = 0;
     WGPUTexture frame_texture_ = nullptr;   ///< The frame's swapchain texture (released at endFrame).
     WGPUTextureView frame_view_ = nullptr;
-    u32 current_pipeline_ = 0;
+    u32 bound_pipeline_ = 0;
     u32 bound_index_buffer_ = 0;
     i32 stencil_ref_ = 0;  ///< Last user-set reference (re-applied after internal quads).
     /// Nine: the eight the engine had, plus where a draw's objects start in the
@@ -594,18 +569,19 @@ private:
     // compatibility holds by identity.
     std::unordered_map<u64, WGPUBindGroupLayout> group_layouts_;
     std::unordered_map<u64, WGPUPipelineLayout> pipeline_layouts_;
-    BufferHandle dummy_ubo_{};   ///< Zeroed backfill for declared-but-unbound UBO slots.
-    u32 dummy_texture_ = 0;      ///< 1x1 white backfill for declared-but-unbound units.
+    // Backfill belongs to this backend, not to the registry: nothing above it can
+    // name these, so they are made again lazily rather than recovered.
+    BufferRec dummy_ubo_;         ///< Zeroed backfill for declared-but-unbound UBO slots.
+    TextureRec dummy_texture_;    ///< 1x1 white backfill for declared-but-unbound units.
     /// The same for a depth unit: an RGBA8 dummy under a `sampleType = Depth`
     /// entry is a validation error, so a declared-but-unbound depth binding
     /// needs a depth texture to stand in.
-    u32 dummy_depth_texture_ = 0;
+    TextureRec dummy_depth_texture_;
 
-    u32 next_id_ = 1;
+    /** This device's objects by registry id. */
     std::unordered_map<u32, BufferRec> buffers_;
     std::unordered_map<u32, TextureRec> textures_;
     std::unordered_map<u32, ProgramRec> programs_;
-    std::unordered_map<u32, VertexLayoutDesc> layouts_;
     std::unordered_map<u32, PipelineRec> pipelines_;
     std::vector<std::string> stub_logged_;
 };

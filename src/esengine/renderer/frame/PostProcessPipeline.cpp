@@ -194,25 +194,6 @@ void PostProcessPipeline::shutdown() {
     ES_LOG_INFO("PostProcessPipeline shutdown");
 }
 
-void PostProcessPipeline::recreateGpuResources() {
-    if (!initialized_) return;
-    // Handles dropped, not deleted; the framebuffers are Unique<> and simply let
-    // go of objects that no longer exist. ensureFBOs re-creates them at the
-    // current size on the next frame, exactly as a resize does.
-    screen_quad_vbo_ = BufferHandle::Invalid;
-    screen_quad_layout_ = VertexLayoutHandle::Invalid;
-    sceneTexture_ = TextureHandle::Invalid;
-    for (auto& pass : passes_) { pass.paramUbo = BufferHandle::Invalid; pass.paramDirty = true; }
-    for (auto& pass : screenPasses_) { pass.paramUbo = BufferHandle::Invalid; pass.paramDirty = true; }
-
-    if (graph_) graph_->releasePool();
-    screenFBO_.reset();
-    sceneResource_ = rg::kNoResource;
-    screenFBOCreated_ = false;
-    screenCaptureActive_ = false;
-    ensureGraph();
-}
-
 void PostProcessPipeline::resize(u32 width, u32 height) {
     if (!initialized_) return;
     if (width == width_ && height == height_) return;
@@ -334,7 +315,8 @@ void PostProcessPipeline::ensureScreenQuad() {
         -1.0f,  3.0f,  0.0f, 2.0f,
     };
     screen_quad_vbo_ = device_.createBuffer(
-        {GfxBufferUsage::Vertex, static_cast<u32>(sizeof(vertices)), /*dynamic=*/false}, vertices);
+        {GfxBufferUsage::Vertex, static_cast<u32>(sizeof(vertices)), /*dynamic=*/false},
+        GfxContent::retained(), vertices);
 
     VertexLayoutDesc desc;
     desc.attributeCount = 2;
@@ -485,7 +467,7 @@ void PostProcessPipeline::renderPass(PostProcessPass& pass, const rg::PassContex
                 if (pass.paramUbo == BufferHandle::Invalid) {
                     pass.paramUbo = device->createBuffer(
                         {GfxBufferUsage::Uniform, layout->blockSize, /*dynamic=*/true},
-                        pass.paramBytes.data());
+                        GfxContent::retained(), pass.paramBytes.data());
                 } else {
                     device->updateBuffer(pass.paramUbo, 0, pass.paramBytes.data(),
                                          static_cast<u32>(pass.paramBytes.size()));

@@ -18,7 +18,7 @@
  *          arriving late. Muted streams, silent videos, and a track that ends
  *          before the last frame all drive on the engine wall clock instead.
  */
-import type { ESEngineModule } from '../wasm';
+import { TextureContent, type ESEngineModule } from '../wasm';
 import type { PlatformVideoBackend, VideoBackendContext, VideoStreamHandle, VideoStreamOptions } from './PlatformVideoBackend';
 import type { SideModule } from '../sideModules/host';
 import type { AudioAPI } from '../audio/Audio';
@@ -323,6 +323,7 @@ class WasmVideoStreamHandle implements VideoStreamHandle {
             this.texture_ = createTextureFromPixels(
                 module,
                 { width: this.width_, height: this.height_, pixels },
+                TextureContent.Video,
                 /* flipY */ false,
                 { filterMode: 'linear', wrapMode: 'clamp' },
             );

@@ -305,11 +305,9 @@ MeshDrawKeys meshDrawFor(RenderFrameContext& ctx, ecs::Registry& registry, Entit
 }  // namespace
 
 void MeshPlugin::init(RenderFrameContext& ctx) {
-    // A rebuild after a lost device runs this again, and every program minted
-    // against the dead context is gone — so the cache empties here rather than
-    // handing out ids that name nothing. The RESOURCES are released, not just
-    // forgotten: a shader nobody holds still sits in the pool, gets recompiled
-    // on the next loss, and keeps a host program object alive for good.
+    // A renderer initialized again runs this on a cache that compiled before. The
+    // RESOURCES are released, not just forgotten: a shader nobody holds still
+    // sits in the pool and keeps its program alive for good.
     for (auto& shader : mesh_shaders_) {
         if (shader.isValid()) ctx.resources.releaseShader(shader);
         shader = {};

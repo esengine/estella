@@ -349,23 +349,14 @@ export function getContextLossGuardInfo(): { target: string; lostEventsSeen: num
 }
 
 /**
- * Ask the engine to rebuild the renderer after a loss.
+ * Ask the engine to rebuild the device and every object it issued, behind the
+ * same handles.
  *
- * False means "not yet", not "never": a browser hands a WebGL context back when
- * it is ready. On success the device is Recovering — drawing, with placeholder
- * textures — until {@link finishDeviceRecovery}.
+ * False means "not yet": a browser hands a WebGL context back when it is ready.
+ * The device then draws while Recovering and turns Live once nothing is owed.
  */
 export function recoverDevice(): boolean {
     return module?.recoverDevice?.() ?? false;
-}
-
-/**
- * Ends recovery — the engine decides whether it actually ended, and answers how
- * many textures are still the placeholder. Above zero it stays Recovering: a
- * device reporting Live with white content is the hardest failure to read.
- */
-export function finishDeviceRecovery(): number {
-    return module?.markDeviceRestored?.() ?? 0;
 }
 
 /**

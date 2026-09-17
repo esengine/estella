@@ -9,7 +9,7 @@
  *          runtime loader nor the spine loader has to import the other.
 import { linearColorSpace } from '../ecs/env';
  */
-import type { ESEngineModule } from '../wasm';
+import { TextureContent, type ESEngineModule } from '../wasm';
 import { linearColorSpace } from '../ecs/env';
 import type { Backend } from '../asset/Backend';
 import type { ParsedTextureImportSettings } from '../asset/textureImportSettings';
@@ -98,7 +98,7 @@ export async function createAtlasPageTexture(
 ): Promise<{ handle: number; width: number; height: number }> {
     if (!isKtx2Path(staged)) {
         const decoded = await decodePixels(staged);
-        return { handle: createTextureFromPixels(module, decoded, false), ...decoded };
+        return { handle: createTextureFromPixels(module, decoded, TextureContent.Retained, false), ...decoded };
     }
     const bytes = new Uint8Array(await fetchBinary(staged));
     const rm = requireResourceManager();
@@ -112,12 +112,13 @@ export async function createAtlasPageTexture(
     const rgba = transcoder.transcodeToRgba(bytes);
     if (!rgba) throw new Error(`KTX2 transcode failed: ${staged}`);
     const decoded = { width: rgba.width, height: rgba.height, pixels: rgba.data };
-    return { handle: createTextureFromPixels(module, decoded, false), ...decoded };
+    return { handle: createTextureFromPixels(module, decoded, TextureContent.Retained, false), ...decoded };
 }
 
 export function createTextureFromPixels(
     module: ESEngineModule | null,
     result: { width: number; height: number; pixels: Uint8Array },
+    content: TextureContent,
     flipY: boolean = true,
     params?: TextureParams,
 ): number {
@@ -130,7 +131,7 @@ export function createTextureFromPixels(
     if (rm.createTextureFromBytes) {
         const filter = params?.filterMode ? FILTER_MODE_MAP[params.filterMode] ?? 1 : undefined;
         const wrap = params?.wrapMode ? WRAP_MODE_MAP[params.wrapMode] ?? 1 : undefined;
-        return rm.createTextureFromBytes(result.width, result.height, result.pixels, format, flipY, filter, wrap);
+        return rm.createTextureFromBytes(result.width, result.height, result.pixels, format, flipY, content, filter, wrap);
     }
     if (!module) {
         throw new Error('createTextureFromPixels: a wasm module is required for the heap upload path');
@@ -141,9 +142,9 @@ export function createTextureFromPixels(
         if (params && (params.filterMode || params.wrapMode) && rm.createTextureEx) {
             const filter = FILTER_MODE_MAP[params.filterMode ?? 'linear'] ?? 1;
             const wrap = WRAP_MODE_MAP[params.wrapMode ?? 'clamp'] ?? 1;
-            return rm.createTextureEx(result.width, result.height, ptr, result.pixels.length, format, flipY, filter, wrap);
+            return rm.createTextureEx(result.width, result.height, ptr, result.pixels.length, format, flipY, filter, wrap, content);
         }
-        return rm.createTexture(result.width, result.height, ptr, result.pixels.length, format, flipY);
+        return rm.createTexture(result.width, result.height, ptr, result.pixels.length, format, flipY, content);
     });
 }
 

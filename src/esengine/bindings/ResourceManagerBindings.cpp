@@ -37,18 +37,19 @@ TextureFormat boundaryTextureFormat(i32 format) {
 }  // namespace
 
 u32 rm_createTexture(resource::ResourceManager& rm, u32 width, u32 height,
-                      uintptr_t pixelsPtr, u32 pixelsLen, i32 format, bool flipY) {
+                      uintptr_t pixelsPtr, u32 pixelsLen, i32 format, bool flipY, u32 content) {
     const u8* pixels = boundarySpan<u8>(pixelsPtr, pixelsLen, "rm_createTexture");
     if (!pixels) return 0;
     ConstSpan<u8> pixelSpan(pixels, pixelsLen);
 
-    auto handle = rm.createTexture(width, height, pixelSpan, boundaryTextureFormat(format), flipY);
+    auto handle = rm.createTexture(static_cast<resource::ResourceContent>(content), width, height,
+                                   pixelSpan, boundaryTextureFormat(format), flipY);
     return handle.id();
 }
 
 u32 rm_createTextureEx(resource::ResourceManager& rm, u32 width, u32 height,
                         uintptr_t pixelsPtr, u32 pixelsLen, i32 format, bool flipY,
-                        i32 filterMode, i32 wrapMode) {
+                        i32 filterMode, i32 wrapMode, u32 content) {
     const u8* pixels = pixelsPtr ? boundarySpan<u8>(pixelsPtr, pixelsLen, "rm_createTextureEx") : nullptr;
     if (pixelsPtr && !pixels) return 0;
 
@@ -70,7 +71,7 @@ u32 rm_createTextureEx(resource::ResourceManager& rm, u32 width, u32 height,
         default: spec.wrapS = TextureWrap::ClampToEdge; spec.wrapT = TextureWrap::ClampToEdge; break;
     }
 
-    auto handle = rm.createTexture(spec);
+    auto handle = rm.createTexture(static_cast<resource::ResourceContent>(content), spec);
     if (!handle.isValid()) {
         return 0;
     }
@@ -103,11 +104,11 @@ bool rm_supportsCompressedFormat(resource::ResourceManager& rm, i32 format) {
 
 /** Uploads pre-transcoded blocks (level 0 first) as one compressed texture. */
 u32 rm_createCompressedTexture(resource::ResourceManager& rm, u32 width, u32 height,
-                               i32 format, uintptr_t dataPtr, u32 dataLen, u32 mipLevels) {
+                               i32 format, uintptr_t dataPtr, u32 dataLen, u32 mipLevels, u32 content) {
     if (format < 0 || format > static_cast<i32>(GfxCompressedFormat::S3TC_DXT5_SRGB)) return 0;
     const u8* data = boundarySpan<u8>(dataPtr, dataLen, "rm_createCompressedTexture");
     if (!data) return 0;
-    auto handle = rm.createCompressedTexture(width, height,
+    auto handle = rm.createCompressedTexture(static_cast<resource::ResourceContent>(content), width, height,
                                              static_cast<GfxCompressedFormat>(format),
                                              ConstSpan<u8>(data, dataLen),
                                              mipLevels ? mipLevels : 1);
@@ -121,14 +122,18 @@ u32 rm_createShader(resource::ResourceManager& rm,
 }
 
 u32 rm_registerExternalTexture(resource::ResourceManager& rm, u32 glTextureId,
-                                u32 width, u32 height) {
-    auto handle = rm.registerExternalTexture(glTextureId, width, height);
+                                u32 width, u32 height, u32 content) {
+    auto handle = rm.registerExternalTexture(static_cast<resource::ResourceContent>(content),
+                                             glTextureId, width, height);
     return handle.id();
 }
 
-bool rm_retargetExternalTexture(resource::ResourceManager& rm, u32 handle,
-                                u32 glTextureId, u32 width, u32 height) {
-    return rm.retargetExternalTexture(resource::TextureHandle(handle), glTextureId, width, height);
+u32 rm_wrapDeviceTexture(resource::ResourceManager& rm, u32 textureId, u32 width, u32 height) {
+    return rm.wrapDeviceTexture(TextureHandle{textureId}, width, height).id();
+}
+
+void rm_forgoTextureContent(resource::ResourceManager& rm, u32 handle) {
+    rm.forgoTextureContent(resource::TextureHandle(handle));
 }
 
 bool rm_adoptTextureContent(resource::ResourceManager& rm, u32 target, u32 source) {
@@ -136,15 +141,16 @@ bool rm_adoptTextureContent(resource::ResourceManager& rm, u32 target, u32 sourc
 }
 
 std::string rm_texturesAwaitingReupload(resource::ResourceManager& rm) {
-    // One crossing: a loss parks every texture at once, so a call per handle is
-    // a call per texture. A blank path is one no asset layer can bring back —
-    // it lets the caller tell "not mine" from "mine and I failed".
+    // One crossing: a loss owes every sourced texture at once, so a call per
+    // handle is a call per texture.
     std::string out;
-    for (resource::TextureHandle handle : rm.texturesAwaitingReupload()) {
+    for (const auto& owed : rm.texturesAwaitingReupload()) {
         if (!out.empty()) out += '\n';
-        out += std::to_string(handle.id());
+        out += std::to_string(owed.handle.id());
         out += '|';
-        out += rm.getTexturePath(handle);
+        out += std::to_string(static_cast<u32>(owed.content));
+        out += '|';
+        out += rm.getTexturePath(owed.handle);
     }
     return out;
 }
@@ -164,21 +170,15 @@ std::string rm_meshRealizations(resource::ResourceManager& rm) {
         if (!out.empty()) out += ',';
         out += std::to_string(row.handle);
         out += ':';
-        out += std::to_string(row.generation);
-        out += ':';
         out += row.realized ? '1' : '0';
     }
     return out;
 }
 
-u32 rm_meshesLostNonRecoverable(resource::ResourceManager& rm) {
-    return rm.meshesLostNonRecoverable();
-}
-
 u32 rm_registerExternalTextureSized(resource::ResourceManager& rm, u32 glTextureId,
-                                     u32 width, u32 height, u32 bytes) {
-    auto handle = rm.registerExternalTexture(glTextureId, width, height,
-                                             static_cast<usize>(bytes));
+                                     u32 width, u32 height, u32 bytes, u32 content) {
+    auto handle = rm.registerExternalTexture(static_cast<resource::ResourceContent>(content),
+                                             glTextureId, width, height, static_cast<usize>(bytes));
     return handle.id();
 }
 

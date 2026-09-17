@@ -79,11 +79,6 @@ struct MockGfxDevice final : GfxDevice {
     int takeReadbackCalls = 0;
     int discardReadbackCalls = 0;
 
-    u32 nextTextureId = 100;
-    u32 nextBufferId = 200;
-    u32 nextFramebufferId = 500;
-    u32 nextVertexLayoutId = 800;
-    u32 nextPipelineId = 0;
     u32 nextReadbackId = 900;
 
     FramebufferHandle lastReadbackTarget = FramebufferHandle::Default;
@@ -107,8 +102,13 @@ struct MockGfxDevice final : GfxDevice {
     std::vector<u8> lastUpdateData;
     BufferDesc lastBufferDesc{};
     bool lastCreateBufferHadData = false;
+    std::vector<u8> lastCreateBufferBytes;
     TextureDesc lastTextureDesc{};
     bool lastCreateTextureHadPixels = false;
+    std::vector<u8> lastCreateTextureBytes;
+    /// What a program's block index lookup answers; GL-shaped by default "absent".
+    u32 blockIndexAnswer = GFX_INVALID_UNIFORM_BLOCK;
+    std::vector<std::pair<u32, u32>> blockBindingLog;
     TextureHandle lastDeletedTexture = TextureHandle::Invalid;
     GfxCompressedFormat lastCompressedFormat = GfxCompressedFormat::ETC2_RGBA8;
     u32 lastCompressedByteLength = 0;
@@ -133,60 +133,14 @@ struct MockGfxDevice final : GfxDevice {
      *  path a caller's "leaves it as it found it" promise is only true along. */
     bool createBufferSucceeds = true;
 
-    BufferHandle createBuffer(const BufferDesc& desc, const void* initialData) override {
-        ++createBufferCalls;
-        lastBufferDesc = desc;
-        lastCreateBufferHadData = initialData != nullptr;
-        if (!createBufferSucceeds) return BufferHandle::Invalid;
-        return BufferHandle{nextBufferId++};
-    }
-    void deleteBuffer(BufferHandle) override { ++deleteBufferCalls; }
-    void updateBuffer(BufferHandle, u32, const void* data, u32 sizeBytes) override {
-        ++updateBufferCalls;
-        lastUpdateData.assign(static_cast<const u8*>(data), static_cast<const u8*>(data) + sizeBytes);
-    }
-    void resizeBuffer(BufferHandle, u32, const void*) override { ++resizeBufferCalls; }
     void setUniformBuffer(u32 slot, BufferHandle buffer) override {
         ++setUniformBufferCalls;
         lastUniformBufferSlot = slot;
         lastUniformBuffer = buffer;
     }
-
-    VertexLayoutHandle createVertexLayout(const VertexLayoutDesc& desc) override {
-        ++createVertexLayoutCalls;
-        lastVertexLayoutDesc = desc;
-        return VertexLayoutHandle{nextVertexLayoutId++};
-    }
-    void deleteVertexLayout(VertexLayoutHandle) override { ++deleteVertexLayoutCalls; }
     void setVertexBuffer(u32, BufferHandle buffer, u32) override { ++setVertexBufferCalls; lastVbo = buffer; }
     void setIndexBuffer(BufferHandle buffer) override { ++setIndexBufferCalls; lastIbo = buffer; }
 
-    TextureHandle createTexture(const TextureDesc& desc, const void* pixels) override {
-        ++createTextureCalls;
-        lastTextureDesc = desc;
-        lastCreateTextureHadPixels = pixels != nullptr;
-        return createTextureFails ? TextureHandle::Invalid : TextureHandle{nextTextureId++};
-    }
-    TextureHandle createCompressedTexture(const TextureDesc& desc, GfxCompressedFormat format,
-                                          const void*, u32 byteLength, u32 mipLevels) override {
-        ++createCompressedTextureCalls;
-        lastTextureDesc = desc;
-        lastCompressedFormat = format;
-        lastCompressedByteLength = byteLength;
-        lastCompressedMipLevels = mipLevels;
-        return TextureHandle{nextTextureId++};
-    }
-    TextureHandle importExternalTexture(u32 nativeId, const TextureDesc& desc) override {
-        ++importExternalTextureCalls;
-        lastTextureDesc = desc;
-        return TextureHandle{nativeId};
-    }
-    void deleteTexture(TextureHandle texture) override { ++deleteTextureCalls; lastDeletedTexture = texture; }
-    void updateTexture(TextureHandle, i32, i32, u32, u32, const void*, bool) override { ++updateTextureCalls; }
-    void setTextureParams(TextureHandle, TextureFilter, TextureFilter, TextureWrap, TextureWrap) override {
-        ++setTextureParamsCalls;
-    }
-    void generateMipmaps(TextureHandle) override { ++generateMipmapsCalls; }
     void bindTexture(u32 unit, TextureHandle texture) override {
         ++bindTextureCalls;
         bindLog.push_back({unit, texture});
@@ -203,36 +157,7 @@ struct MockGfxDevice final : GfxDevice {
     /// Answers as GL does; a test that cares sets it.
     bool originTopLeft = false;
     bool textureOriginTopLeft() const override { return originTopLeft; }
-    ShaderHandle createProgram(const GfxShaderSource& source, const GfxAttribBinding*, u32,
-                               std::string*, GfxShaderStage* stage) override {
-        ++createProgramCalls;
-        lastShaderLanguage = source.language;
-        if (stage) *stage = GfxShaderStage::None;
-        return ShaderHandle{1};  // pretend link succeeds, program 1
-    }
-    void deleteProgram(ShaderHandle) override { ++deleteProgramCalls; }
-    void useProgram(ShaderHandle program) override { ++useProgramCalls; lastProgram = program; }
-    i32 getUniformLocation(ShaderHandle, const char*) override { return 0; }
-    i32 getAttribLocation(ShaderHandle, const char*) override { return 0; }
-    void setUniform1i(i32 loc, i32 v) override { ++setUniform1iCalls; lastUniform1iLoc = loc; lastUniform1iVal = v; }
-    void setUniform1f(i32, f32) override { ++setUniform1fCalls; }
-    void setUniform2f(i32, f32, f32) override {}
-    void setUniform3f(i32, f32, f32, f32) override {}
-    void setUniform4f(i32, f32, f32, f32, f32) override { ++setUniform4fCalls; }
-    void setUniformMat3(i32, const f32*) override {}
-    void setUniformMat4(i32, const f32*) override {}
-    std::vector<GfxUniformInfo> getActiveUniforms(ShaderHandle) override { ++getActiveUniformsCalls; return {}; }
-
-    u32 getUniformBlockIndex(ShaderHandle, const char*) override { return GFX_INVALID_UNIFORM_BLOCK; }
-    void uniformBlockBinding(ShaderHandle, u32, u32) override {}
-
-    PipelineHandle createPipeline(const PipelineDesc& desc) override {
-        lastPipelineDesc = desc;
-        return static_cast<PipelineHandle>(++nextPipelineId);
-    }
-    void setPipeline(PipelineHandle) override { ++setPipelineCalls; }
     void setStencilReference(i32) override {}
-    void invalidatePipelineCache() override {}
 
     void drawElements(u32 indexCount, GfxDataType, u32 byteOffset) override {
         ++drawElementsCalls;
@@ -246,12 +171,6 @@ struct MockGfxDevice final : GfxDevice {
         lastDrawInstanceCount = instanceCount;
     }
 
-    FramebufferHandle createFramebuffer(const FramebufferDesc& desc) override {
-        ++createFramebufferCalls;
-        lastFramebufferDesc = desc;
-        return FramebufferHandle{nextFramebufferId++};
-    }
-    void deleteFramebuffer(FramebufferHandle) override { ++deleteFramebufferCalls; }
     void beginRenderPass(const RenderPassDesc& desc) override {
         ++beginRenderPassCalls;
         lastPassDesc = desc;
@@ -276,7 +195,6 @@ struct MockGfxDevice final : GfxDevice {
     }
     void discardReadback(ReadbackHandle) override { ++discardReadbackCalls; }
 
-    u32 createTimerQuery() override { return 0; }  // report "no GPU timing" like a bare backend
     void beginTimerQuery(u32) override {}
     void endTimerQuery() override {}
     bool timerDisjoint() override { return false; }
@@ -286,6 +204,109 @@ struct MockGfxDevice final : GfxDevice {
     u32 getError() override { return 0; }
     std::string getString(GfxStringName) override { return {}; }
     i32 getInt(GfxIntParam) override { return 16; }
+
+protected:
+    bool backendCreateBuffer(u32, const BufferDesc& desc, const void* data) override {
+        ++createBufferCalls;
+        lastBufferDesc = desc;
+        lastCreateBufferHadData = data != nullptr;
+        if (data) {
+            lastCreateBufferBytes.assign(static_cast<const u8*>(data), static_cast<const u8*>(data) + desc.size);
+        } else {
+            lastCreateBufferBytes.clear();
+        }
+        return createBufferSucceeds;
+    }
+    void backendDeleteBuffer(u32) override { ++deleteBufferCalls; }
+    void backendUpdateBuffer(u32, u32, const void* data, u32 sizeBytes) override {
+        ++updateBufferCalls;
+        lastUpdateData.assign(static_cast<const u8*>(data), static_cast<const u8*>(data) + sizeBytes);
+    }
+    void backendResizeBuffer(u32, const BufferDesc&, const void*) override { ++resizeBufferCalls; }
+
+    bool backendCreateTexture(u32, const TextureDesc& desc, const void* pixels) override {
+        ++createTextureCalls;
+        lastTextureDesc = desc;
+        lastCreateTextureHadPixels = pixels != nullptr;
+        if (pixels) {
+            const usize bytes = static_cast<usize>(desc.width) * desc.height * gfxBytesPerPixel(desc.format);
+            lastCreateTextureBytes.assign(static_cast<const u8*>(pixels), static_cast<const u8*>(pixels) + bytes);
+        } else {
+            lastCreateTextureBytes.clear();
+        }
+        return !createTextureFails;
+    }
+    bool backendCreateCompressedTexture(u32, const TextureDesc& desc, GfxCompressedFormat format,
+                                        const void*, u32 byteLength, u32 mipLevels) override {
+        ++createCompressedTextureCalls;
+        lastTextureDesc = desc;
+        lastCompressedFormat = format;
+        lastCompressedByteLength = byteLength;
+        lastCompressedMipLevels = mipLevels;
+        return true;
+    }
+    bool backendAdoptTexture(u32, u32 nativeId, const TextureDesc& desc) override {
+        ++importExternalTextureCalls;
+        lastTextureDesc = desc;
+        return nativeId != 0;
+    }
+    void backendDeleteTexture(u32 id) override { ++deleteTextureCalls; lastDeletedTexture = TextureHandle{id}; }
+    void backendMoveTexture(u32, u32) override {}
+    void backendUpdateTexture(u32, i32, i32, u32, u32, const void*, bool) override { ++updateTextureCalls; }
+    void backendSetTextureParams(u32, const TextureDesc&) override { ++setTextureParamsCalls; }
+    void backendGenerateMipmaps(u32) override { ++generateMipmapsCalls; }
+
+    bool backendCreateProgram(u32, const GfxShaderSource& source, const GfxAttribBinding*, u32,
+                              std::string*, GfxShaderStage* stage) override {
+        ++createProgramCalls;
+        lastShaderLanguage = source.language;
+        if (stage) *stage = GfxShaderStage::None;
+        return true;
+    }
+    void backendDeleteProgram(u32) override { ++deleteProgramCalls; }
+    void backendUseProgram(u32 id) override { ++useProgramCalls; lastProgram = ShaderHandle{id}; }
+    i32 backendUniformLocation(u32, const char*) override { return 0; }
+    i32 backendAttribLocation(u32, const char*) override { return 0; }
+    void backendSetUniform(i32 location, const GfxUniformValue& value) override {
+        switch (value.type) {
+        case GfxUniformValue::Type::Int:
+            ++setUniform1iCalls;
+            lastUniform1iLoc = location;
+            lastUniform1iVal = value.i;
+            break;
+        case GfxUniformValue::Type::Float: ++setUniform1fCalls; break;
+        case GfxUniformValue::Type::Vec4: ++setUniform4fCalls; break;
+        default: break;
+        }
+    }
+    std::vector<GfxUniformInfo> backendActiveUniforms(u32) override { ++getActiveUniformsCalls; return {}; }
+    u32 backendUniformBlockIndex(u32, const char*) override { return blockIndexAnswer; }
+    void backendUniformBlockBinding(u32, u32 block, u32 binding) override {
+        blockBindingLog.push_back({block, binding});
+    }
+
+    bool backendAcceptsVertexLayout(const VertexLayoutDesc& desc) override {
+        ++createVertexLayoutCalls;
+        lastVertexLayoutDesc = desc;
+        return true;
+    }
+    void backendDeleteVertexLayout(u32) override { ++deleteVertexLayoutCalls; }
+    void backendSetPipeline(u32, const PipelineDesc& desc) override {
+        ++setPipelineCalls;
+        lastPipelineDesc = desc;
+    }
+    void backendInvalidatePipelineCache() override {}
+
+    bool backendCreateFramebuffer(u32, const FramebufferDesc& desc) override {
+        ++createFramebufferCalls;
+        lastFramebufferDesc = desc;
+        return true;
+    }
+    void backendDeleteFramebuffer(u32) override { ++deleteFramebufferCalls; }
+
+    // No GPU timing, like a bare backend.
+    bool backendCreateTimerQuery(u32) override { return false; }
+    u32 backendReadbackCount() const override { return 0; }
 };
 
 }  // namespace esengine

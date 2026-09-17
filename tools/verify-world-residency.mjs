@@ -397,8 +397,8 @@ function main() {
 
     // ---- 5. A readiness claim across a device generation ----------------
     //
-    // The epoch says readiness taken before a rebuild is worth nothing, and
-    // publication is where that debt comes due. All four facts are read.
+    // A rebuild puts every program back behind its handle, so readiness taken
+    // before it is still true: the claim survives and publication pays nothing.
     const CELL_COMPILES = 'render.mesh.programCompiles';
     const revalidate = drive(dir, 'readiness-across-loss', [
         { do: 'step', frames: 30 },
@@ -424,17 +424,17 @@ function main() {
     claim(afterLoss.device.generation > preLoss.device.generation,
         'losing the device and recovering advances the device generation',
         `generation ${preLoss.device.generation} → ${afterLoss.device.generation}`);
-    claim(afterLoss.device.programEpoch > preLoss.device.programEpoch,
-        'and the program epoch too, independently — the stock cache went cold',
+    claim(afterLoss.device.programEpoch === preLoss.device.programEpoch,
+        'but not the program epoch — the programs came back behind their handles',
         `epoch ${preLoss.device.programEpoch} → ${afterLoss.device.programEpoch}`);
     claim(afterLoss.claim !== null
         && afterLoss.claim.programEpoch === preLoss.claim?.programEpoch,
-        'the claim the cell is holding is now from a dead epoch, and it still holds it',
+        'the claim the cell is holding is still from the live epoch',
         `still ${JSON.stringify(afterLoss.claim)}`);
     claim(afterPublish.claim !== null
         && afterPublish.claim.programEpoch === afterLoss.device.programEpoch
-        && afterPublish.claim.restamps === 1,
-        'publishing it replaced the stale claim with one from the live epoch',
+        && afterPublish.claim.restamps === 0,
+        'publishing it kept the claim it was prepared with',
         `claim ${JSON.stringify(afterPublish.claim)}`);
     claim(resident(revalidate.revealed, C),
         'the cell published', `resident ${JSON.stringify(revalidate.revealed.streaming.residentCells)}`);

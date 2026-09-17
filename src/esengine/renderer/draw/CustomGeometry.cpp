@@ -53,10 +53,12 @@ void CustomGeometry::init(GfxDevice& device, const f32* vertices, u32 vertexCoun
     vertexCount_ = vertexCount * sizeof(f32) / stride_;
 
     if (dynamic) {
-        vbo_ = Shared<VertexBuffer>(VertexBuffer::create(device, vertexCount * sizeof(f32)));
+        vbo_ = Shared<VertexBuffer>(VertexBuffer::create(device, GfxContent::retained(),
+                                                          vertexCount * sizeof(f32)));
         vbo_->setDataRaw(vertices, vertexCount * sizeof(f32));
     } else {
-        vbo_ = Shared<VertexBuffer>(VertexBuffer::createRaw(device, vertices, vertexCount * sizeof(f32)));
+        vbo_ = Shared<VertexBuffer>(VertexBuffer::createRaw(device, GfxContent::retained(), vertices,
+                                                             vertexCount * sizeof(f32)));
     }
     vbo_->setLayout(layout);
 
@@ -77,12 +79,12 @@ void CustomGeometry::init(GfxDevice& device, const f32* vertices, u32 vertexCoun
 
 void CustomGeometry::setIndices(const u16* indices, u32 indexCount) {
     if (!isValid() || !device_) return;
-    ibo_ = Shared<IndexBuffer>(IndexBuffer::create(*device_, indices, indexCount));
+    ibo_ = Shared<IndexBuffer>(IndexBuffer::create(*device_, GfxContent::retained(), indices, indexCount));
 }
 
 void CustomGeometry::setIndices(const u32* indices, u32 indexCount) {
     if (!isValid() || !device_) return;
-    ibo_ = Shared<IndexBuffer>(IndexBuffer::create(*device_, indices, indexCount));
+    ibo_ = Shared<IndexBuffer>(IndexBuffer::create(*device_, GfxContent::retained(), indices, indexCount));
 }
 
 void CustomGeometry::updateVertices(const f32* vertices, u32 vertexCount, u32 offset) {

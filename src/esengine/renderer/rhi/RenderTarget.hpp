@@ -33,9 +33,6 @@ public:
     u32 getWidth() const { return width_; }
     u32 getHeight() const { return height_; }
 
-    /// Re-creates the framebuffer after a device loss, at the size it already has.
-    void recreateGpuResources(GfxDevice& device);
-
     bool isValid() const { return framebuffer_ != nullptr; }
     FramebufferHandle getFramebuffer() const;
 
@@ -62,14 +59,6 @@ public:
     RenderTarget* get(Handle handle);
     void release(Handle handle);
 
-    /// Re-creates every live target after a device loss. Handles are indices, so
-    /// everything holding one keeps pointing at the same target.
-    void recreateGpuResources() {
-        if (!device_) return;
-        for (auto& target : targets_) {
-            if (target) target->recreateGpuResources(*device_);
-        }
-    }
     bool isValid(Handle handle) const;
 
 private:

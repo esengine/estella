@@ -40,6 +40,9 @@ int main() {
               "compile pins the injected samplers to their texture units");
         CHECK(d.useProgramCalls == 2, "seeding them binds and unbinds the program once");
 
+        shader->bind();
+        CHECK(d.useProgramCalls == 3 && d.lastProgram == ShaderHandle{1}, "bind routes through device.useProgram");
+
         shader->setUniform("u_tex", 3);
         CHECK(d.setUniform1iCalls == 8, "setUniform(name,int) routes through device.setUniform1i");
         CHECK(d.lastUniform1iVal == 3, "uniform value forwarded");
@@ -47,8 +50,6 @@ int main() {
         shader->setUniform("u_color", glm::vec4(1, 0, 0, 1));
         CHECK(d.setUniform4fCalls == 1, "setUniform(name,vec4) routes through device.setUniform4f");
 
-        shader->bind();
-        CHECK(d.useProgramCalls == 3 && d.lastProgram == ShaderHandle{1}, "bind routes through device.useProgram");
         shader->unbind();
         CHECK(d.useProgramCalls == 4 && d.lastProgram == ShaderHandle::Invalid,
               "unbind routes through device.useProgram(Invalid)");

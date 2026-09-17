@@ -34,16 +34,6 @@ void MaterialStore::clear() {
     layouts_.clear();
 }
 
-void MaterialStore::recreateGpuResources() {
-    // Buffers are dropped, not deleted: they died with the device. The material
-    // RECORDS stay, so every materialId the scene refers to still resolves and
-    // bindForDraw re-creates the UBO from the parameters it already holds.
-    for (auto& [id, rec] : materials_) {
-        rec.ubo = BufferHandle::Invalid;
-        rec.uboDirty = true;
-    }
-}
-
 u32 MaterialStore::meshProgram(u32 materialId, resource::ResourceManager& resources,
                                bool withNormals, bool skinned, bool envMapped) const {
     // Keyed by shader AND vertex shape: a layout may not declare an attribute its
@@ -149,24 +139,6 @@ void MaterialStore::seedSamplers(Shader& shader, const resource::ParsedShader& p
     shader.unbind();
 }
 
-void MaterialStore::refreshShaderPrograms(resource::ResourceManager& resources) {
-    // The cached program id is the one thing a record holds that the device can
-    // invalidate; shaderRef is what makes recomputing it possible at all.
-    for (auto& [id, rec] : materials_) {
-        rec.shader = 0;
-        Shader* shader = resources.getShader(rec.shaderRef);
-        if (!shader) continue;
-        rec.shader = shader->getProgramId();
-        // And the sampler units, which the relink behind that id cleared. Reading
-        // the id back is half of restoring a program: the other half is the
-        // uniform state that says which unit each texture param reads.
-        auto src = sources_.find(rec.shaderRef.id());
-        if (src != sources_.end()) {
-            seedSamplers(*shader, resource::ShaderParser::parse(src->second.source));
-        }
-    }
-}
-
 void MaterialStore::bindForDraw(u32 materialId) {
     if (!device_) return;
     auto it = materials_.find(materialId);
@@ -181,7 +153,7 @@ void MaterialStore::bindForDraw(u32 materialId) {
         const u32 byteSize = static_cast<u32>(rec.uboBytes.size());
         if (rec.ubo == BufferHandle::Invalid) {
             rec.ubo = device_->createBuffer({GfxBufferUsage::Uniform, byteSize, /*dynamic=*/true},
-                                            rec.uboBytes.data());
+                                            GfxContent::retained(), rec.uboBytes.data());
             rec.uboDirty = false;
         } else if (rec.uboDirty) {
             // Full re-spec (not a sub-update): orphans the old store so a draw still

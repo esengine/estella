@@ -224,10 +224,10 @@ bool buildScene(EstellaContext& ctx, ecs::Registry& registry) {
         255, 0, 0, 255,   0, 0, 255, 255,   // row 0: red, blue
         0, 0, 255, 255,   255, 0, 0, 255,   // row 1: blue, red
     };
-    auto checkerTex = rm.createTexture(2, 2, ConstSpan<u8>(checker, sizeof(checker)),
+    auto checkerTex = rm.createTexture(resource::ResourceContent::Retained, 2, 2, ConstSpan<u8>(checker, sizeof(checker)),
                                        TextureFormat::RGBA8);
     const u8 green[4] = {0, 255, 0, 255};
-    auto greenTex = rm.createTexture(1, 1, ConstSpan<u8>(green, sizeof(green)),
+    auto greenTex = rm.createTexture(resource::ResourceContent::Retained, 1, 1, ConstSpan<u8>(green, sizeof(green)),
                                      TextureFormat::RGBA8);
     if (!checkerTex.isValid() || !greenTex.isValid()) return false;
 
@@ -267,7 +267,7 @@ bool buildScene(EstellaContext& ctx, ecs::Registry& registry) {
     // the two explicit lights below: white * (0.2 ambient + red point) ≈
     // (255, 51, 51) at the sprite center on BOTH backends.
     const u8 white[4] = {255, 255, 255, 255};
-    auto whiteTex = rm.createTexture(1, 1, ConstSpan<u8>(white, sizeof(white)),
+    auto whiteTex = rm.createTexture(resource::ResourceContent::Retained, 1, 1, ConstSpan<u8>(white, sizeof(white)),
                                      TextureFormat::RGBA8);
     if (!whiteTex.isValid()) return false;
     {

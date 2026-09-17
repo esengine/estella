@@ -141,8 +141,7 @@ public:
     /**
      * @brief Visits every live resource, with the handle naming it.
      * @details For sweeps that must reach resources by identity rather than by
-     *          path — a device loss invalidates all of them, including the ones
-     *          created from pixels and never given a path.
+     *          path, including the ones created from pixels and never given one.
      */
     template<typename Fn>
     void forEachAlive(Fn&& fn) {
@@ -150,6 +149,16 @@ public:
             Entry& entry = entries_[i];
             if (!entry.resource) continue;
             fn(Handle<T>::fromParts(static_cast<u32>(i), entry.generation), *entry.resource);
+        }
+    }
+
+    template<typename Fn>
+    void forEachAlive(Fn&& fn) const {
+        for (usize i = 1; i < entries_.size(); ++i) {
+            const Entry& entry = entries_[i];
+            if (!entry.resource) continue;
+            fn(Handle<T>::fromParts(static_cast<u32>(i), entry.generation),
+               static_cast<const T&>(*entry.resource));
         }
     }
 

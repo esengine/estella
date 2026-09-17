@@ -151,6 +151,7 @@ int main() {
         // compile() already seeded the engine-injected shadow sampler, so this is the
         // second loose int write rather than the first.
         const int seeded = d.setUniform1iCalls;
+        shader->bind();
         shader->setUniform("u_texture", 3);
         CHECK(d.setUniform1iCalls == seeded + 1, "sampler still goes through the loose path");
 

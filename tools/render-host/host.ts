@@ -20,7 +20,7 @@ import {
     createWebApp, setEditorMode, setPlayMode, Assets, acquireWebGPUDevice,
     loadSceneData, Renderer, instantiatePrefab, writeFieldPath, Transform, Name,
     getComponent, DeviceStatus, getDeviceStatus, getDeviceLostReport, recoverDevice,
-    finishDeviceRecovery, getContextLossGuardInfo, decodeImagePixels, captureFramePixels,
+    getContextLossGuardInfo, decodeImagePixels, captureFramePixels,
     RenderTexture, Camera, Sprite,
     EditorView, EditorGrid, installEditorGrid, editorViewHalfHeight, setEditorViewHalfHeight,
     ProfileRecorder, AnimatorController, Timeline,
@@ -689,12 +689,11 @@ window.__estellaHeadless = {
         status: () => getDeviceStatus(),
         report: () => getDeviceLostReport(),
         recover: () => recoverDevice(),
-        finishRecovery: () => finishDeviceRecovery(),
         recoverFull: async () => (await app?.getResource(Assets)?.recoverFromDeviceLoss()) ?? false,
         // Which textures did not come back, not how many: a failing recovery
         // needs the list, and a number cannot give it.
         awaiting: () => (app?.getResource(Assets)?.texturesAwaitingReupload() ?? [])
-            .map((t: { handle: number; path: string }) => `${t.handle}|${t.path}`),
+            .map((t: { handle: number; content: number; path: string }) => `${t.handle}|${t.content}|${t.path}`),
         // Identity and realization apart, which a frame cannot show: a recovery
         // that minted fresh handles draws exactly like one that put the geometry
         // back behind the handles the world already points at.

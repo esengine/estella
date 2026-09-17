@@ -327,25 +327,13 @@ bool provideReplacementDevice() {
 }
 
 /**
- * @brief Rebuilds the renderer after a loss; see EstellaContext::recoverDevice.
- * @details Leaves the device Recovering — drawable, but its textures are
- *          placeholders until the asset layer re-uploads and calls
- *          markDeviceRestored.
+ * @brief Rebuilds the device and everything it issued; see GfxDevice::recoverDevice.
+ * @details The device stays Recovering, drawing, until the content it is owed
+ *          has been refilled or given up on, then turns Live by itself.
  */
 bool recoverDevice() {
-    return g_activeContext ? g_activeContext->recoverDevice() : false;
-}
-
-/**
- * @brief Ends recovery, and answers whether it actually ended.
- * @details Routed through the context rather than straight to the device: the
- *          device cannot see the textures still parked on the placeholder, and
- *          the context is the one layer that knows both. Reaching for the
- *          device here is the shorter path that skips the only criterion.
- * @return Textures still awaiting re-upload; 0 means the device is Live.
- */
-u32 markDeviceRestored() {
-    return g_activeContext ? g_activeContext->finishDeviceRecovery() : 0;
+    GfxDevice* device = activeGfxDevice();
+    return device && device->recoverDevice();
 }
 
 /**
@@ -481,7 +469,6 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("notifyDeviceLost", &esengine::notifyDeviceLost);
     emscripten::function("recoverDevice", &esengine::recoverDevice);
     emscripten::function("provideReplacementDevice", &esengine::provideReplacementDevice);
-    emscripten::function("markDeviceRestored", &esengine::markDeviceRestored);
 
     emscripten::class_<esengine::resource::ResourceManager>("ResourceManager")
         .function("createTexture", &esengine::rm_createTexture)
@@ -491,10 +478,10 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
         .function("createCompressedTexture", &esengine::rm_createCompressedTexture)
         .function("registerExternalTexture", &esengine::rm_registerExternalTexture)
         .function("registerExternalTextureSized", &esengine::rm_registerExternalTextureSized)
-        .function("retargetExternalTexture", &esengine::rm_retargetExternalTexture)
+        .function("wrapDeviceTexture", &esengine::rm_wrapDeviceTexture)
         .function("texturesAwaitingReupload", &esengine::rm_texturesAwaitingReupload)
+        .function("forgoTextureContent", &esengine::rm_forgoTextureContent)
         .function("meshesAwaitingRemat", &esengine::rm_meshesAwaitingRemat)
-        .function("meshesLostNonRecoverable", &esengine::rm_meshesLostNonRecoverable)
         .function("meshRealizations", &esengine::rm_meshRealizations)
         .function("adoptTextureContent", &esengine::rm_adoptTextureContent)
         .function("releaseTexture", &esengine::rm_releaseTexture)

@@ -27,6 +27,23 @@
 
 namespace esengine::resource {
 
+namespace {
+
+bool meshOwed(const Mesh& mesh, const std::vector<GfxOwedContent>& owed) {
+    for (const GfxOwedContent& entry : owed) {
+        if (entry.kind == GfxOwedContent::Kind::Buffer
+            && (entry.id == static_cast<u32>(mesh.vertexBuffer) || entry.id == static_cast<u32>(mesh.indexBuffer))) {
+            return true;
+        }
+        if (entry.kind == GfxOwedContent::Kind::Texture && entry.id == static_cast<u32>(mesh.morphTexture)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+}  // namespace
+
 void ResourceManager::init(GfxDevice& device) {
     if (initialized_) {
         ES_LOG_WARN("ResourceManager already initialized");
@@ -176,9 +193,17 @@ u32 ResourceManager::getShaderRefCount(ShaderHandle handle) const {
 // Texture Resources
 // =============================================================================
 
-TextureHandle ResourceManager::createTexture(const TextureSpecification& spec) {
+GfxContent toGfxContent(ResourceContent content) {
+    switch (content) {
+    case ResourceContent::Transient: return GfxContent::transient();
+    case ResourceContent::Retained:  return GfxContent::retained();
+    default:                         return GfxContent::sourced(static_cast<u32>(content), 0);
+    }
+}
+
+TextureHandle ResourceManager::createTexture(ResourceContent content, const TextureSpecification& spec) {
     if (!device_) return {};
-    auto texture = Texture::create(*device_, spec);
+    auto texture = Texture::create(*device_, toGfxContent(content), spec);
     if (!texture) {
         ES_LOG_ERROR("Failed to create texture from spec");
         return TextureHandle();
@@ -187,11 +212,11 @@ TextureHandle ResourceManager::createTexture(const TextureSpecification& spec) {
     return textures_.add(std::move(texture), "", bytes);
 }
 
-TextureHandle ResourceManager::createTexture(u32 width, u32 height, ConstSpan<u8> pixels,
-                                              TextureFormat format, bool flipY) {
+TextureHandle ResourceManager::createTexture(ResourceContent content, u32 width, u32 height,
+                                              ConstSpan<u8> pixels, TextureFormat format, bool flipY) {
     if (!device_) return {};
-    std::vector<u8> pixelVec(pixels.begin(), pixels.end());
-    auto texture = Texture::create(*device_, width, height, pixelVec, format, flipY);
+    auto texture = Texture::create(*device_, toGfxContent(content), width, height,
+                                   std::span<const u8>(pixels.data(), pixels.size()), format, flipY);
     if (!texture) {
         ES_LOG_ERROR("Failed to create texture from pixels");
         return TextureHandle();
@@ -200,11 +225,11 @@ TextureHandle ResourceManager::createTexture(u32 width, u32 height, ConstSpan<u8
     return textures_.add(std::move(texture), "", bytes);
 }
 
-TextureHandle ResourceManager::createCompressedTexture(u32 width, u32 height,
+TextureHandle ResourceManager::createCompressedTexture(ResourceContent content, u32 width, u32 height,
                                                        GfxCompressedFormat format, ConstSpan<u8> data,
                                                        u32 mipLevels) {
     if (!device_) return {};
-    auto texture = Texture::createCompressed(*device_, width, height, format,
+    auto texture = Texture::createCompressed(*device_, toGfxContent(content), width, height, format,
                                              std::span<const u8>(data.data(), data.size()), mipLevels);
     if (!texture) {
         ES_LOG_ERROR("Failed to create compressed texture");
@@ -261,10 +286,12 @@ u32 ResourceManager::getTextureRefCount(TextureHandle handle) const {
     return textures_.getRefCount(handle);
 }
 
-TextureHandle ResourceManager::registerExternalTexture(u32 glTextureId, u32 width, u32 height, usize bytes) {
+TextureHandle ResourceManager::registerExternalTexture(ResourceContent content, u32 glTextureId,
+                                                       u32 width, u32 height, usize bytes) {
     if (!device_) return {};
-    auto texture = Texture::createFromExternalId(*device_, glTextureId, width, height, TextureFormat::RGBA8);
-    if (!texture) {
+    auto texture = Texture::createFromExternalId(*device_, toGfxContent(content), glTextureId,
+                                                 width, height, TextureFormat::RGBA8);
+    if (!texture || texture->handle() == ::esengine::TextureHandle::Invalid) {
         ES_LOG_ERROR("Failed to register external texture (GL ID: {})", glTextureId);
         return TextureHandle();
     }
@@ -274,85 +301,45 @@ TextureHandle ResourceManager::registerExternalTexture(u32 glTextureId, u32 widt
     return textures_.add(std::move(texture), "", bytes);
 }
 
-u32 ResourceManager::recreateGpuShaders() {
-    u32 rebuilt = 0;
-    u32 failed = 0;
-    shaders_.forEachAlive([&](ShaderHandle, Shader& shader) {
-        if (shader.recompile()) ++rebuilt;
-        else ++failed;
-    });
-    if (failed > 0) ES_LOG_ERROR("Device recovery: {} shader(s) failed to rebuild", failed);
-    ES_LOG_INFO("Device recovery: {} shader(s) rebuilt behind their handles", rebuilt);
-    return rebuilt;
-}
-
-u32 ResourceManager::releaseLostGpuShaders() {
-    u32 released = 0;
-    shaders_.forEachAlive([&](ShaderHandle, Shader& shader) {
-        shader.releaseProgram();
-        ++released;
-    });
-    return released;
-}
-
-void ResourceManager::invalidateGpuTextures(::esengine::TextureHandle placeholder) {
-    awaitingReupload_.clear();
-    textures_.forEachAlive([&](TextureHandle handle, Texture& texture) {
-        // Retargeted, never deleted: the GPU object is already gone, and asking
-        // a dead device to free its id is at best a no-op. owns=false so the
-        // shared placeholder is not freed when one of them is released.
-        texture.retarget(placeholder, /*owns=*/false);
-        awaitingReupload_.push_back(handle);
-    });
-    ES_LOG_INFO("Device loss: {} texture(s) now on the placeholder, awaiting re-upload",
-                awaitingReupload_.size());
-}
-
-bool ResourceManager::retargetExternalTexture(TextureHandle handle, u32 glTextureId,
-                                              u32 width, u32 height) {
-    if (!device_) return false;
-    Texture* texture = textures_.get(handle);
-    if (!texture) return false;
-
-    TextureDesc desc;
-    desc.width = width;
-    desc.height = height;
-    desc.format = GfxPixelFormat::RGBA8;
-    texture->retarget(device_->importExternalTexture(glTextureId, desc), /*owns=*/false);
-
-    for (usize i = 0; i < awaitingReupload_.size(); ++i) {
-        if (awaitingReupload_[i] == handle) {
-            awaitingReupload_[i] = awaitingReupload_.back();
-            awaitingReupload_.pop_back();
-            break;
-        }
-    }
-    return true;
+TextureHandle ResourceManager::wrapDeviceTexture(::esengine::TextureHandle texture, u32 width, u32 height) {
+    if (!device_) return {};
+    auto wrapper = Texture::borrow(*device_, texture, width, height);
+    if (!wrapper) return {};
+    // The owner pays for the memory; a borrow costs the budget nothing.
+    return textures_.add(std::move(wrapper), "", 0);
 }
 
 bool ResourceManager::adoptTextureContent(TextureHandle target, TextureHandle source) {
     Texture* to = textures_.get(target);
     Texture* from = textures_.get(source);
-    if (!to || !from) return false;
-
-    // Ownership moves with the object: the source record is about to be released,
-    // and a borrowed GPU texture whose owner is freed is a dangling bind.
-    const ::esengine::TextureHandle gpu = from->handle();
-    from->retarget(::esengine::TextureHandle::Invalid, /*owns=*/false);
-    to->retarget(gpu, /*owns=*/true);
-
-    for (usize i = 0; i < awaitingReupload_.size(); ++i) {
-        if (awaitingReupload_[i] == target) {
-            awaitingReupload_[i] = awaitingReupload_.back();
-            awaitingReupload_.pop_back();
-            break;
-        }
-    }
-    return true;
+    return to && from && to->adoptContent(*from);
 }
 
-std::vector<TextureHandle> ResourceManager::texturesAwaitingReupload() const {
-    return awaitingReupload_;
+std::vector<ResourceManager::OwedTexture> ResourceManager::texturesAwaitingReupload() const {
+    std::vector<OwedTexture> out;
+    if (!device_) return out;
+    const std::vector<GfxOwedContent> owed = device_->owedContent();
+    if (owed.empty()) return out;
+    textures_.forEachAlive([&](TextureHandle handle, const Texture& texture) {
+        for (const GfxOwedContent& entry : owed) {
+            if (entry.kind == GfxOwedContent::Kind::Texture && entry.id == texture.getId()) {
+                out.push_back({handle, static_cast<ResourceContent>(entry.provider)});
+                break;
+            }
+        }
+    });
+    return out;
+}
+
+void ResourceManager::forgoTextureContent(TextureHandle handle) {
+    const Texture* texture = textures_.get(handle);
+    if (!device_ || !texture) return;
+    for (const GfxOwedContent& entry : device_->owedContent()) {
+        if (entry.kind == GfxOwedContent::Kind::Texture && entry.id == texture->getId()) {
+            device_->forgoContent(entry);
+            return;
+        }
+    }
 }
 
 void ResourceManager::registerTextureWithPath(TextureHandle handle, const std::string& path) {
@@ -375,11 +362,12 @@ TextureHandle ResourceManager::acquireTextureByPath(const std::string& path) {
         ++stats_.cacheMisses;
         return handle;
     }
-    // A texture on the placeholder no longer holds this path's content, so a
-    // residency hit answers the re-upload with the very thing it replaces — a
-    // recovery that confirms itself and draws white. Linear: empty at rest.
-    for (TextureHandle awaiting : awaitingReupload_) {
-        if (awaiting == handle) {
+    // A texture still owed its content does not hold this path's pixels, so a
+    // residency hit would answer the re-upload with the very thing it replaces —
+    // a recovery that confirms itself and draws blank. Empty at rest.
+    const Texture* texture = textures_.get(handle);
+    for (const GfxOwedContent& entry : device_ ? device_->owedContent() : std::vector<GfxOwedContent>{}) {
+        if (texture && entry.kind == GfxOwedContent::Kind::Texture && entry.id == texture->getId()) {
             ++stats_.cacheMisses;
             return TextureHandle{};
         }
@@ -465,9 +453,9 @@ void ResourceManager::removeTextureMetadata(TextureHandle handle) {
 // Vertex Buffer Resources
 // =============================================================================
 
-VertexBufferHandle ResourceManager::createVertexBuffer(u32 sizeBytes) {
+VertexBufferHandle ResourceManager::createVertexBuffer(GfxContent content, u32 sizeBytes) {
     if (!device_) return {};
-    auto buffer = VertexBuffer::create(*device_, sizeBytes);
+    auto buffer = VertexBuffer::create(*device_, content, sizeBytes);
     if (!buffer) {
         ES_LOG_ERROR("Failed to create dynamic vertex buffer");
         return VertexBufferHandle();
@@ -574,8 +562,13 @@ bool ResourceManager::realizeMesh(Mesh& mesh, ConstSpan<u8> vertexBytes, ConstSp
     const VertexBufferHandle previousVertices = mesh.vertices;
     const IndexBufferHandle previousIndices = mesh.indices;
 
-    const VertexBufferHandle vertices = createVertexBuffer(vertexBytes);
-    const IndexBufferHandle indices_handle = createIndexBuffer(indices);
+    // A replayable mesh is refilled by its source; one built in this process has
+    // no other copy, so the device keeps it.
+    const GfxContent content = mesh.recovery == MeshRecovery::SourceReplayable
+        ? toGfxContent(ResourceContent::Mesh)
+        : GfxContent::retained();
+    const VertexBufferHandle vertices = createVertexBuffer(content, vertexBytes);
+    const IndexBufferHandle indices_handle = createIndexBuffer(content, indices);
     const VertexBuffer* vb = getVertexBuffer(vertices);
     const IndexBuffer* ib = getIndexBuffer(indices_handle);
     const VertexLayoutHandle layoutHandle = device_->createVertexLayout(layout);
@@ -598,7 +591,6 @@ bool ResourceManager::realizeMesh(Mesh& mesh, ConstSpan<u8> vertexBytes, ConstSp
     mesh.indexBuffer = ib->handle();
     mesh.layout = layoutHandle;
     mesh.indexCount = static_cast<u32>(indices.size());
-    mesh.realizationGeneration = device_->deviceGeneration();
     mesh.hasNormals = hasNormals;
     mesh.hasLightmapUV = lightmapped;
     mesh.localMin = localMin;
@@ -619,7 +611,7 @@ bool ResourceManager::realizeMesh(Mesh& mesh, ConstSpan<u8> vertexBytes, ConstSp
     mesh.morphTargetCount = 0;
     mesh.morphHasNormals = false;
     if (morph.targetCount > 0 && !morph.deltas.empty()) {
-        mesh.morphTexture = createMorphTexture(morph, mesh.vertexCount);
+        mesh.morphTexture = createMorphTexture(content, morph, mesh.vertexCount);
         if (mesh.morphTexture != esengine::TextureHandle::Invalid) {
             mesh.morphTargetCount = morph.targetCount;
             mesh.morphHasNormals = morph.hasNormals;
@@ -637,7 +629,7 @@ bool ResourceManager::realizeMesh(Mesh& mesh, ConstSpan<u8> vertexBytes, ConstSp
  *          device guarantees. Half precision because a delta is an offset off a
  *          coordinate the vertex already carries at full precision.
  */
-esengine::TextureHandle ResourceManager::createMorphTexture(const MeshMorphSource& morph,
+esengine::TextureHandle ResourceManager::createMorphTexture(GfxContent content, const MeshMorphSource& morph,
                                                             u32 vertexCount) {
     if (!device_ || vertexCount == 0) return esengine::TextureHandle::Invalid;
     const u32 perVertex = morph.hasNormals ? 2u : 1u;
@@ -679,7 +671,7 @@ esengine::TextureHandle ResourceManager::createMorphTexture(const MeshMorphSourc
     desc.wrapS = TextureWrap::ClampToEdge;
     desc.wrapT = TextureWrap::ClampToEdge;
     desc.mipmaps = false;
-    return device_->createTexture(desc, pixels.data());
+    return device_->createTexture(desc, content, pixels.data());
 }
 
 MeshHandle ResourceManager::createMesh(ConstSpan<u8> vertexBytes, ConstSpan<u32> indices,
@@ -688,11 +680,11 @@ MeshHandle ResourceManager::createMesh(ConstSpan<u8> vertexBytes, ConstSpan<u32>
                                        MeshRecovery recovery, ConstSpan<f32> inverseBind,
                                        const MeshMorphSource& morph) {
     auto mesh = makeUnique<Mesh>();
+    mesh->recovery = recovery;
     if (!realizeMesh(*mesh, vertexBytes, indices, channels, vertexStride,
                      localMin, localMax, inverseBind, morph)) {
         return MeshHandle();
     }
-    mesh->recovery = recovery;
     return meshes_.add(std::move(mesh));
 }
 
@@ -719,16 +711,6 @@ bool ResourceManager::rematerializeMesh(MeshHandle target, ConstSpan<u8> vertexB
                      target.id());
         return false;
     }
-
-    // Acknowledged only now. The debt is cleared by a rebuild that WORKED, never
-    // by the attempt — a handle dropped on failure is a hole nothing reports.
-    for (usize i = 0; i < awaitingRematerialization_.size(); ++i) {
-        if (awaitingRematerialization_[i] == target) {
-            awaitingRematerialization_[i] = awaitingRematerialization_.back();
-            awaitingRematerialization_.pop_back();
-            break;
-        }
-    }
     return true;
 }
 
@@ -740,44 +722,24 @@ const Mesh* ResourceManager::getMesh(MeshHandle handle) const {
     return meshes_.get(handle);
 }
 
-u32 ResourceManager::invalidateGpuMeshes() {
-    awaitingRematerialization_.clear();
-    meshes_lost_non_recoverable_ = 0;
-    meshes_.forEachAlive([&](MeshHandle handle, Mesh& mesh) {
-        // Abandoned, never deleted: the GPU objects went with the device, so the
-        // records are told to forget them rather than ask a dead device to free
-        // ids it no longer has.
-        if (auto* vb = vertexBuffers_.get(mesh.vertices)) vb->abandonGpuBuffer();
-        if (auto* ib = indexBuffers_.get(mesh.indices)) ib->abandonGpuBuffer();
-        mesh.vertexBuffer = BufferHandle::Invalid;
-        mesh.indexBuffer = BufferHandle::Invalid;
-        mesh.layout = VertexLayoutHandle::Invalid;
-        // Forgotten for the same reason, and the COUNT with it: a mesh that still
-        // claimed targets would be drawn morphed against a texture that is gone.
-        mesh.morphTexture = esengine::TextureHandle::Invalid;
-        mesh.morphTargetCount = 0;
-
-        if (mesh.recovery == MeshRecovery::SourceReplayable) {
-            awaitingRematerialization_.push_back(handle);
-        } else {
-            ++meshes_lost_non_recoverable_;
-        }
-    });
-    ES_LOG_INFO("Device loss: {} mesh(es) awaiting rematerialization, {} host-only mesh(es) gone"
-                " for good", awaitingRematerialization_.size(), meshes_lost_non_recoverable_);
-    return static_cast<u32>(awaitingRematerialization_.size());
-}
-
 std::vector<ResourceManager::MeshRealization> ResourceManager::meshRealizations() {
     std::vector<MeshRealization> out;
+    const std::vector<GfxOwedContent> owed = device_ ? device_->owedContent() : std::vector<GfxOwedContent>{};
     meshes_.forEachAlive([&](MeshHandle handle, Mesh& mesh) {
-        out.push_back({handle.id(), mesh.realizationGeneration, mesh.hasRealization()});
+        out.push_back({handle.id(), mesh.hasRealization() && !meshOwed(mesh, owed)});
     });
     return out;
 }
 
 std::vector<MeshHandle> ResourceManager::meshesAwaitingRematerialization() const {
-    return awaitingRematerialization_;
+    std::vector<MeshHandle> out;
+    if (!device_) return out;
+    const std::vector<GfxOwedContent> owed = device_->owedContent();
+    if (owed.empty()) return out;
+    meshes_.forEachAlive([&](MeshHandle handle, const Mesh& mesh) {
+        if (meshOwed(mesh, owed)) out.push_back(handle);
+    });
+    return out;
 }
 
 void ResourceManager::releaseMesh(MeshHandle handle) {
@@ -792,16 +754,6 @@ void ResourceManager::releaseMesh(MeshHandle handle) {
         device_->deleteTexture(mesh->morphTexture);
     }
     meshes_.release(handle.id());
-
-    // A released mesh cannot be owed: the identity the debt named is gone, and a
-    // rematerialization aimed at it would land on whatever reuses the slot.
-    for (usize i = 0; i < awaitingRematerialization_.size(); ++i) {
-        if (awaitingRematerialization_[i] == handle) {
-            awaitingRematerialization_[i] = awaitingRematerialization_.back();
-            awaitingRematerialization_.pop_back();
-            break;
-        }
-    }
 }
 
 // =============================================================================
@@ -873,9 +825,9 @@ void ResourceManager::releaseProbeVolume(ProbeVolumeHandle handle) {
 // Index Buffer Resources
 // =============================================================================
 
-IndexBufferHandle ResourceManager::createIndexBuffer(ConstSpan<u32> indices) {
+IndexBufferHandle ResourceManager::createIndexBuffer(GfxContent content, ConstSpan<u32> indices) {
     if (!device_) return {};
-    auto buffer = IndexBuffer::create(*device_, indices.data(), static_cast<u32>(indices.size()));
+    auto buffer = IndexBuffer::create(*device_, content, indices.data(), static_cast<u32>(indices.size()));
     if (!buffer) {
         ES_LOG_ERROR("Failed to create index buffer (u32)");
         return IndexBufferHandle();
@@ -883,9 +835,9 @@ IndexBufferHandle ResourceManager::createIndexBuffer(ConstSpan<u32> indices) {
     return indexBuffers_.add(std::move(buffer));
 }
 
-IndexBufferHandle ResourceManager::createIndexBuffer(ConstSpan<u16> indices) {
+IndexBufferHandle ResourceManager::createIndexBuffer(GfxContent content, ConstSpan<u16> indices) {
     if (!device_) return {};
-    auto buffer = IndexBuffer::create(*device_, indices.data(), static_cast<u32>(indices.size()));
+    auto buffer = IndexBuffer::create(*device_, content, indices.data(), static_cast<u32>(indices.size()));
     if (!buffer) {
         ES_LOG_ERROR("Failed to create index buffer (u16)");
         return IndexBufferHandle();

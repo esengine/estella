@@ -190,7 +190,6 @@ export {
     getDeviceLostReport,
     reportDeviceLost,
     recoverDevice,
-    finishDeviceRecovery,
     getContextLossGuardInfo,
 } from './render/renderer';
 

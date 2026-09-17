@@ -3,7 +3,7 @@
 // Browser / Electron video backend. An HTMLVideoElement streams and decodes;
 // on WebGL2 each frame is texImage2D'd straight onto the engine context
 // (zero-copy), else a canvas readback feeds updateTextureSubregion (WebGPU).
-import type { ESEngineModule } from '../wasm';
+import { TextureContent, type ESEngineModule } from '../wasm';
 import type { PlatformVideoBackend, VideoStreamHandle, VideoStreamOptions } from './PlatformVideoBackend';
 import { createTextureFromPixels, updateTextureSubregion } from '../runtime/runtimeAssets';
 import { requireResourceManager } from '../wasm/resourceManager';
@@ -173,7 +173,7 @@ class WebVideoStreamHandle implements VideoStreamHandle {
         pool[id] = tex;
         this.glTexId_ = id;
         this.glPool_ = pool;
-        this.texture_ = requireResourceManager().registerExternalTexture(id, this.width_, this.height_);
+        this.texture_ = requireResourceManager().registerExternalTexture(id, this.width_, this.height_, TextureContent.Video);
     }
 
     private uploadCPU_(module: ESEngineModule): void {
@@ -192,6 +192,7 @@ class WebVideoStreamHandle implements VideoStreamHandle {
             this.texture_ = createTextureFromPixels(
                 module,
                 { width: this.width_, height: this.height_, pixels },
+                TextureContent.Video,
                 /* flipY */ false,
                 { filterMode: 'linear', wrapMode: 'clamp' },
             );

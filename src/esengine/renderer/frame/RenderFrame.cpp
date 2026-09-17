@@ -203,51 +203,6 @@ void RenderFrame::shutdown() {
     ES_LOG_INFO("RenderFrame shutdown");
 }
 
-void RenderFrame::recreateGpuResources() {
-    pool_.recreateGpuResources();
-    shadow_pool_.recreateGpuResources();
-    // The buffers behind these died with the device; the next pass makes as many
-    // as it needs. Kept here rather than recreated eagerly: how many is a property
-    // of the frame that has not been collected yet.
-    releaseShadowFrameUbos();
-    // The mask's buffer and layout died with the device too, and its shader has to be
-    // compiled again against the new one. Forgotten rather than deleted: the handles
-    // name nothing now, and the next frame that needs a mask makes its own.
-    shadow_2d_vbo_ = BufferHandle::Invalid;
-    shadow_2d_vbo_bytes_ = 0;
-    shadow_2d_layout_ = VertexLayoutHandle::Invalid;
-    shadow_2d_shader_ = {};
-    shadow_2d_shader_tried_ = false;
-    target_manager_.recreateGpuResources();
-    // The framebuffers the pool is holding died with the device: the loans go
-    // back and the memory behind them goes with it, or the next frame would draw
-    // its shadows into a handle that names nothing. Re-borrowed on demand.
-    releaseFrameTargets();
-    target_pool_.clear();
-    // The variant handles are unchanged; this re-reads the program ids behind them.
-    batch_shader_id_ = initBatchShader();
-#ifdef ES_ENABLE_POSTPROCESS
-    if (post_process_) post_process_->recreateGpuResources();
-#endif
-
-    // Plugins cache the batch program id at init, and that id died with the
-    // device — a collect pass would keep keying draws to a program the restored
-    // context rejects. init() is where they take it, so init() is what runs.
-    RenderFrameContext ctx{
-        context_,
-        resource_manager_,
-        context_.getWhiteTextureId(),
-        batch_shader_id_,
-        RenderStage::Transparent,
-        glm::mat4(1.0f),
-        nullptr,
-        this
-    };
-    for (auto& plugin : plugins_) {
-        plugin->init(ctx);
-    }
-}
-
 void RenderFrame::resize(u32 width, u32 height) {
     width_ = width;
     height_ = height;
@@ -1746,7 +1701,7 @@ void RenderFrame::ensureShadowFrameUbos(u32 count) {
     const u32 bytes = RenderContext::frameConstantsSize();
     while (shadow_frame_ubos_.size() < count) {
         const BufferHandle ubo = device_.createBuffer(
-            {GfxBufferUsage::Uniform, bytes, /*dynamic=*/true}, nullptr);
+            {GfxBufferUsage::Uniform, bytes, /*dynamic=*/true}, GfxContent::transient(), nullptr);
         if (ubo == BufferHandle::Invalid) break;
         shadow_frame_ubos_.push_back(ubo);
     }

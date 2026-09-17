@@ -7,7 +7,7 @@
  *          page id IS the texture handle, so the text
  *          renderer can pass it straight to submitTextBatch as the atlas texture.
  */
-import type { ESEngineModule } from '../../wasm';
+import { TextureContent, type ESEngineModule } from '../../wasm';
 import { createTextureFromPixels, updateTextureSubregion } from '../../runtime/runtimeAssets';
 import { requireResourceManager } from '../../wasm/resourceManager';
 import type { AtlasPageStore } from './glyph-atlas';
@@ -28,6 +28,7 @@ export class EngineAtlasPageStore implements AtlasPageStore {
         const handle = createTextureFromPixels(
             this.module,
             { width: size, height: size, pixels },
+            TextureContent.Retained,
             /* flipY */ false,
             { filterMode: 'linear', wrapMode: 'clamp' },
         );

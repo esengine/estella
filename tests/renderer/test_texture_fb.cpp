@@ -28,7 +28,7 @@ int main() {
         TextureSpecification spec;
         spec.width = 8; spec.height = 8; spec.format = TextureFormat::RGBA8; spec.generateMips = true;
         {
-            auto tex = Texture::create(d, spec);
+            auto tex = Texture::create(d, GfxContent::transient(), spec);
             CHECK(tex != nullptr, "Texture::create returns a texture");
             CHECK(d.createTextureCalls == 1, "create routes through device.createTexture");
             CHECK(d.lastTextureDesc.width == 8 && d.lastTextureDesc.height == 8,
@@ -37,11 +37,11 @@ int main() {
                   "creation descriptor carries the pixel format");
             CHECK(d.lastTextureDesc.mipmaps, "generateMips is declared in the descriptor");
             CHECK(!d.lastCreateTextureHadPixels, "empty spec allocates without pixel data");
-            CHECK(tex->handle() == TextureHandle{100}, "texture handle is device-assigned");
+            CHECK(tex->handle() == TextureHandle{1}, "texture handle is device-assigned");
             tex->bind(2);
             CHECK(d.bindTextureCalls == 1, "bind routes through device.bindTexture");
         }
-        CHECK(d.deleteTextureCalls == 1 && d.lastDeletedTexture == TextureHandle{100},
+        CHECK(d.deleteTextureCalls == 1 && d.lastDeletedTexture == TextureHandle{1},
               "destructor routes through device.deleteTexture");
     }
 
@@ -49,7 +49,7 @@ int main() {
     {
         MockGfxDevice d;
         std::vector<u8> pixels(2 * 2 * 4, 0xFF);
-        auto tex = Texture::create(d, 2, 2, pixels, TextureFormat::RGBA8, /*flipY*/ true);
+        auto tex = Texture::create(d, GfxContent::retained(), 2, 2, pixels, TextureFormat::RGBA8, /*flipY*/ true);
         CHECK(tex != nullptr, "Texture::create(pixels) returns a texture");
         CHECK(d.createTextureCalls == 1 && d.lastCreateTextureHadPixels,
               "pixels are uploaded with the creation call");
@@ -63,7 +63,7 @@ int main() {
         MockGfxDevice d;
         TextureSpecification spec;
         spec.width = 4; spec.height = 4; spec.format = TextureFormat::RGBA8;  // needs 4*4*4 = 64 bytes
-        auto tex = Texture::create(d, spec);
+        auto tex = Texture::create(d, GfxContent::transient(), spec);
         const int before = d.updateTextureCalls;
         std::vector<u8> tooSmall(16, 0xAB);  // 16 < 64
         tex->setDataRaw(tooSmall.data(), static_cast<u32>(tooSmall.size()));
@@ -81,20 +81,28 @@ int main() {
         d.createTextureFails = true;
         TextureSpecification spec;
         spec.width = 8; spec.height = 8; spec.format = TextureFormat::RGBA8;
-        auto tex = Texture::create(d, spec);
+        auto tex = Texture::create(d, GfxContent::transient(), spec);
         CHECK(tex == nullptr, "create returns null when device.createTexture fails");
     }
 
-    // --- createFromExternalId must NOT delete the externally-owned texture ---
-    // The external owner frees that id; deleting it here too is a double-free.
+    // --- a host-made texture is the device's once imported; a borrowed one is not ---
     {
         MockGfxDevice d;
         {
-            auto tex = Texture::createFromExternalId(d, 42, 8, 8);
-            CHECK(tex != nullptr && tex->handle() == TextureHandle{42}, "wrapper holds the external id");
+            auto tex = Texture::createFromExternalId(d, GfxContent::sourced(2, 0), 42, 8, 8);
+            CHECK(tex != nullptr && tex->handle() != TextureHandle::Invalid, "the import has a device handle");
             CHECK(d.importExternalTextureCalls == 1, "external id is registered with the device");
         }
-        CHECK(d.deleteTextureCalls == 0, "destructor does NOT delete an externally-owned texture");
+        CHECK(d.deleteTextureCalls == 1, "destructor deletes an imported texture: the device owns it");
+
+        TextureSpecification spec;
+        spec.width = 4; spec.height = 4; spec.format = TextureFormat::RGBA8;
+        auto owner = Texture::create(d, GfxContent::transient(), spec);
+        {
+            auto borrowed = Texture::borrow(d, owner->handle(), 4, 4);
+            CHECK(borrowed != nullptr && borrowed->handle() == owner->handle(), "a borrow names the owner's texture");
+        }
+        CHECK(d.deleteTextureCalls == 1, "destructor does NOT delete a borrowed texture");
     }
 
     // --- an engine-owned texture IS still deleted on destruction ---
@@ -102,7 +110,7 @@ int main() {
         MockGfxDevice d;
         TextureSpecification spec;
         spec.width = 4; spec.height = 4; spec.format = TextureFormat::RGBA8;
-        { auto tex = Texture::create(d, spec); }
+        { auto tex = Texture::create(d, GfxContent::transient(), spec); }
         CHECK(d.deleteTextureCalls == 1, "destructor deletes an engine-owned texture");
     }
 

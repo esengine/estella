@@ -123,10 +123,6 @@ public:
      */
     void resize(u32 width, u32 height);
 
-    /// Rebuilds the intermediates and per-pass buffers after a device loss. The
-    /// blit shader is not re-created — the manager rebuilt it behind its handle.
-    void recreateGpuResources();
-
     /**
      * @brief Adds a post-processing pass
      * @param name Unique name for the pass

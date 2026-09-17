@@ -20,6 +20,7 @@
 
 // Project includes
 #include "../../core/Types.hpp"
+#include "./GfxContent.hpp"
 #include "./GfxEnums.hpp"
 
 // Standard library
@@ -131,7 +132,7 @@ public:
      * @details Creates a texture with uninitialized pixel data.
      *          Use setData() to upload pixels later.
      */
-    static Unique<Texture> create(GfxDevice& device, const TextureSpecification& spec);
+    static Unique<Texture> create(GfxDevice& device, GfxContent content, const TextureSpecification& spec);
 
     /**
      * @brief Creates a texture from a span of pixel data
@@ -141,7 +142,8 @@ public:
      * @param format Pixel format (default RGBA8)
      * @return Unique pointer to the texture
      */
-    static Unique<Texture> create(GfxDevice& device, u32 width, u32 height, std::span<const u8> pixels,
+    static Unique<Texture> create(GfxDevice& device, GfxContent content, u32 width, u32 height,
+                                   std::span<const u8> pixels,
                                    TextureFormat format = TextureFormat::RGBA8,
                                    bool flipY = false);
 
@@ -154,23 +156,23 @@ public:
      * @param flipY Flip vertically on upload (for web image data)
      * @return Unique pointer to the texture
      */
-    static Unique<Texture> create(GfxDevice& device, u32 width, u32 height, const std::vector<u8>& pixels,
+    static Unique<Texture> create(GfxDevice& device, GfxContent content, u32 width, u32 height,
+                                   const std::vector<u8>& pixels,
                                    TextureFormat format = TextureFormat::RGBA8,
                                    bool flipY = false);
 
-    // =========================================================================
-    // Device Loss
-    // =========================================================================
+    /**
+     * @brief Names a texture the device already holds for another owner (a render
+     *        target's colour plane), without taking it over.
+     */
+    static Unique<Texture> borrow(GfxDevice& device, TextureHandle texture, u32 width, u32 height);
 
     /**
-     * @brief Points this texture at a different GPU object, keeping its identity.
-     * @details How a device loss stays invisible above: the resource::Handle
-     *          naming this Texture never changes, so no component, material or
-     *          font has to learn that the pixels were re-uploaded. The old GPU
-     *          object is NOT deleted — it died with the device.
-     * @param owns Whether this Texture should free @p gpuHandle at destruction.
+     * @brief Takes @p from's pixels behind this texture's handle; @p from is empty afterwards.
+     * @details How owed content is paid: the provider loads it the ordinary way and
+     *          hands the result over, so nothing that names this texture changes.
      */
-    void retarget(TextureHandle gpuHandle, bool owns);
+    bool adoptContent(Texture& from);
 
     // =========================================================================
     // Operations
@@ -251,7 +253,8 @@ public:
      * @param format Pixel format (default RGBA8)
      * @return Unique pointer to the texture
      */
-    static Unique<Texture> createRaw(GfxDevice& device, u32 width, u32 height, const void* data,
+    static Unique<Texture> createRaw(GfxDevice& device, GfxContent content, u32 width, u32 height,
+                                      const void* data,
                                       TextureFormat format = TextureFormat::RGBA8,
                                       bool flipY = false);
 
@@ -261,19 +264,16 @@ public:
      *        compressed data is immutable here.
      * @param data Compressed block data for mip level 0.
      */
-    static Unique<Texture> createCompressed(GfxDevice& device, u32 width, u32 height,
+    static Unique<Texture> createCompressed(GfxDevice& device, GfxContent content, u32 width, u32 height,
                                             GfxCompressedFormat format, std::span<const u8> data,
                                             u32 mipLevels = 1);
 
     /**
-     * @brief Wraps an existing GL texture ID
-     * @param glTextureId The OpenGL texture ID created externally
-     * @param width Texture width in pixels
-     * @param height Texture height in pixels
-     * @param format Pixel format
-     * @return Unique pointer to the texture wrapper
+     * @brief Hands the device a texture the host made with its own API; the device owns it from here.
+     * @param glTextureId The host's id for it (a WebGL texture registered with the GL layer)
      */
-    static Unique<Texture> createFromExternalId(GfxDevice& device, u32 glTextureId, u32 width, u32 height,
+    static Unique<Texture> createFromExternalId(GfxDevice& device, GfxContent content, u32 glTextureId,
+                                                 u32 width, u32 height,
                                                  TextureFormat format = TextureFormat::RGBA8);
 
     /**
@@ -291,15 +291,14 @@ private:
      * @param flipY Vertical flip on the initial upload
      * @return True on success
      */
-    bool initialize(const TextureSpecification& spec, const void* pixels, bool flipY);
+    bool initialize(const TextureSpecification& spec, GfxContent content, const void* pixels, bool flipY);
 
     GfxDevice* device_ = nullptr;  ///< Set by the create* factories; all GL goes through it.
     TextureHandle handle_ = TextureHandle::Invalid;
     u32 width_ = 0;
     u32 height_ = 0;
     TextureFormat format_ = TextureFormat::None;
-    // False for textures wrapping an externally-owned GL id (createFromExternalId):
-    // the external owner frees it, so this wrapper must NOT delete it (double-free).
+    /// False for a borrowed texture, whose owner deletes it.
     bool owns_ = true;
 };
 

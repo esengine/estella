@@ -80,17 +80,17 @@ VertexBuffer& VertexBuffer::operator=(VertexBuffer&& other) noexcept {
     return *this;
 }
 
-Unique<VertexBuffer> VertexBuffer::createRaw(GfxDevice& device, const void* data, u32 sizeBytes) {
+Unique<VertexBuffer> VertexBuffer::createRaw(GfxDevice& device, GfxContent content, const void* data, u32 sizeBytes) {
     auto buffer = makeUnique<VertexBuffer>();
     buffer->device_ = &device;
-    buffer->handle_ = device.createBuffer({GfxBufferUsage::Vertex, sizeBytes, /*dynamic=*/false}, data);
+    buffer->handle_ = device.createBuffer({GfxBufferUsage::Vertex, sizeBytes, /*dynamic=*/false}, content, data);
     return buffer;
 }
 
-Unique<VertexBuffer> VertexBuffer::create(GfxDevice& device, u32 size) {
+Unique<VertexBuffer> VertexBuffer::create(GfxDevice& device, GfxContent content, u32 size) {
     auto buffer = makeUnique<VertexBuffer>();
     buffer->device_ = &device;
-    buffer->handle_ = device.createBuffer({GfxBufferUsage::Vertex, size, /*dynamic=*/true}, nullptr);
+    buffer->handle_ = device.createBuffer({GfxBufferUsage::Vertex, size, /*dynamic=*/true}, content, nullptr);
     return buffer;
 }
 
@@ -135,23 +135,23 @@ IndexBuffer& IndexBuffer::operator=(IndexBuffer&& other) noexcept {
     return *this;
 }
 
-Unique<IndexBuffer> IndexBuffer::create(GfxDevice& device, const u32* indices, u32 count) {
+Unique<IndexBuffer> IndexBuffer::create(GfxDevice& device, GfxContent content, const u32* indices, u32 count) {
     auto buffer = makeUnique<IndexBuffer>();
     buffer->device_ = &device;
     buffer->count_ = count;
     buffer->is16Bit_ = false;
     buffer->handle_ = device.createBuffer(
-        {GfxBufferUsage::Index, count * static_cast<u32>(sizeof(u32)), /*dynamic=*/false}, indices);
+        {GfxBufferUsage::Index, count * static_cast<u32>(sizeof(u32)), /*dynamic=*/false}, content, indices);
     return buffer;
 }
 
-Unique<IndexBuffer> IndexBuffer::create(GfxDevice& device, const u16* indices, u32 count) {
+Unique<IndexBuffer> IndexBuffer::create(GfxDevice& device, GfxContent content, const u16* indices, u32 count) {
     auto buffer = makeUnique<IndexBuffer>();
     buffer->device_ = &device;
     buffer->count_ = count;
     buffer->is16Bit_ = true;
     buffer->handle_ = device.createBuffer(
-        {GfxBufferUsage::Index, count * static_cast<u32>(sizeof(u16)), /*dynamic=*/false}, indices);
+        {GfxBufferUsage::Index, count * static_cast<u32>(sizeof(u16)), /*dynamic=*/false}, content, indices);
     return buffer;
 }
 

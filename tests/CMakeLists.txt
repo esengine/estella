@@ -160,6 +160,7 @@ add_test(NAME test_resource_pool COMMAND test_resource_pool)
 # create/uniform/reflect/delete through GfxDevice.
 add_executable(test_shader_device
     renderer/test_shader_device.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/GfxDevice.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/Shader.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/renderer/draw/DrawParams.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
@@ -175,6 +176,7 @@ add_test(NAME test_shader_device COMMAND test_shader_device)
 # loose uploads for lifted members).
 add_executable(test_draw_params
     renderer/test_draw_params.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/GfxDevice.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/Shader.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/renderer/draw/DrawParams.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
@@ -284,6 +286,7 @@ add_test(NAME test_hdr_format COMMAND test_hdr_format)
 # an id, so acquireTextureByPath is the only place that decision is made.
 add_executable(test_texture_cache
     resource/test_texture_cache.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/GfxDevice.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/resource/ResourceManager.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/resource/ShaderParser.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/text/BitmapFont.cpp
@@ -306,6 +309,7 @@ add_test(NAME test_texture_cache COMMAND test_texture_cache)
 # asserts is the engine's invalidation and not a model of it.
 add_executable(test_mesh_recovery
     resource/test_mesh_recovery.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/GfxDevice.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/resource/ResourceManager.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/resource/ShaderParser.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/text/BitmapFont.cpp
@@ -337,6 +341,7 @@ add_test(NAME test_shader_variant COMMAND test_shader_variant)
 # MockGfxDevice. The harness stubs the (uncalled) stb file loader.
 add_executable(test_texture_fb
     renderer/test_texture_fb.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/GfxDevice.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/Texture.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/Framebuffer.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
@@ -352,6 +357,7 @@ add_test(NAME test_texture_fb COMMAND test_texture_fb)
 # how many physical targets a chain actually costs.
 add_executable(test_render_graph
     renderer/test_render_graph.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/GfxDevice.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/renderer/graph/RenderGraph.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/renderer/graph/TargetPool.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/Texture.cpp
@@ -369,6 +375,7 @@ add_test(NAME test_render_graph COMMAND test_render_graph)
 # upload/attribute-setup/bind/delete route through GfxDevice.
 add_executable(test_buffer_device
     renderer/test_buffer_device.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/GfxDevice.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/Buffer.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/renderer/draw/CustomGeometry.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
@@ -380,6 +387,7 @@ add_test(NAME test_buffer_device COMMAND test_buffer_device)
 # Header-only, so nothing but Log.cpp is needed to link.
 add_executable(test_device_loss
     renderer/test_device_loss.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/GfxDevice.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/Texture.cpp
     ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
 )
@@ -394,6 +402,7 @@ if(EMSCRIPTEN)
     add_executable(test_webgpu_device
         renderer/test_webgpu_device.cpp
         ${CMAKE_SOURCE_DIR}/src/esengine/renderer/webgpu/WebGPUDevice.cpp
+        ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/GfxDevice.cpp
         ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
     )
     target_include_directories(test_webgpu_device PRIVATE
@@ -413,6 +422,7 @@ if(EMSCRIPTEN)
     add_executable(webgpu_bringup
         renderer/webgpu_bringup.cpp
         ${CMAKE_SOURCE_DIR}/src/esengine/renderer/webgpu/WebGPUDevice.cpp
+        ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/GfxDevice.cpp
         ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
         # The twins assemble from the embedded .esshaders (WGSL target).
         ${CMAKE_SOURCE_DIR}/src/esengine/resource/ShaderParser.cpp
@@ -467,6 +477,7 @@ add_test(NAME test_boundary_span COMMAND test_boundary_span)
 # a link error, on every push, for as long as nobody read the C++ job's log.
 add_executable(test_batch_builder
     renderer/test_batch_builder.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/GfxDevice.cpp
 )
 target_link_libraries(test_batch_builder PRIVATE esengine)
 target_include_directories(test_batch_builder PRIVATE
@@ -479,6 +490,7 @@ target_include_directories(test_batch_builder PRIVATE
 # only as an empty WebGPU readback; this counts it on a mock device instead.
 add_executable(test_frame_lifecycle
     renderer/test_frame_lifecycle.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/GfxDevice.cpp
 )
 target_link_libraries(test_frame_lifecycle PRIVATE esengine)
 target_include_directories(test_frame_lifecycle PRIVATE
@@ -492,6 +504,8 @@ add_test(NAME test_batch_builder COMMAND test_batch_builder)
 # assert the compressed upload + capability-gated RGBA8 fallback. No GL, no emsdk.
 add_executable(test_compressed_format
     renderer/test_compressed_format.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/GfxDevice.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
 )
 target_include_directories(test_compressed_format PRIVATE ${CMAKE_SOURCE_DIR}/src)
 add_test(NAME test_compressed_format COMMAND test_compressed_format)

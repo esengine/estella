@@ -14,7 +14,7 @@
  * enabled JS-side via `getExtension`. The C++ `GfxDevice::compressedTexImage2D`
  * entry backs the non-WebGL2 fallback path instead.
  */
-import type { ESEngineModule } from '../wasm';
+import { TextureContent, type ESEngineModule } from '../wasm';
 import { requireResourceManager } from '../wasm/resourceManager';
 import { applyBoundTextureSampling } from './glTextureUpload';
 
@@ -245,9 +245,9 @@ function registerGlTexture(
     // Older wasm builds / minimal mocks lack the sized variant — fall back to
     // the estimate rather than fail the upload.
     if (gpuBytes > 0 && typeof rm.registerExternalTextureSized === 'function') {
-        return rm.registerExternalTextureSized(id, width, height, gpuBytes);
+        return rm.registerExternalTextureSized(id, width, height, gpuBytes, TextureContent.Asset);
     }
-    return rm.registerExternalTexture(id, width, height);
+    return rm.registerExternalTexture(id, width, height, TextureContent.Asset);
 }
 
 /** Upload pre-transcoded compressed blocks via `gl.compressedTexImage2D`. */

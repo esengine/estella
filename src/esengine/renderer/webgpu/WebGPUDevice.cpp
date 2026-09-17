@@ -173,32 +173,45 @@ void WebGPUDevice::shutdown() {
 }
 
 void WebGPUDevice::releaseDeviceObjects() {
+    if (pass_) { wgpuRenderPassEncoderRelease(pass_); pass_ = nullptr; }
+    if (encoder_) { wgpuCommandEncoderRelease(encoder_); encoder_ = nullptr; }
+    if (frame_view_) { wgpuTextureViewRelease(frame_view_); frame_view_ = nullptr; }
+    if (frame_texture_) { wgpuTextureRelease(frame_texture_); frame_texture_ = nullptr; }
+    capture_id_ = 0;
+    capture_copied_ = false;
+    pass_is_surface_ = false;
+    pass_timed_ = false;
+
+    // bind_group_/texture_group_ point INTO the cache — release the cache, not them.
+    for (auto& e : bind_group_cache_) if (e.bg) wgpuBindGroupRelease(e.bg);
+    bind_group_cache_.clear();
+    bind_group_ = nullptr;
+    texture_group_ = nullptr;
+    bind_group_dirty_ = true;
+    bound_pipeline_ = 0;
+
     for (auto& [id, rec] : buffers_) {
         if (rec.buffer) wgpuBufferRelease(rec.buffer);
     }
     buffers_.clear();
-    for (auto& [id, rec] : textures_) {
-        if (rec.view) wgpuTextureViewRelease(rec.view);
-        if (rec.texture) wgpuTextureRelease(rec.texture);
-    }
+    for (auto& [id, rec] : textures_) releaseTexture(rec);
     textures_.clear();
     for (auto& [id, rec] : programs_) {
         if (rec.vertex) wgpuShaderModuleRelease(rec.vertex);
         if (rec.fragment) wgpuShaderModuleRelease(rec.fragment);
     }
     programs_.clear();
-    layouts_.clear();
     for (auto& [id, rec] : pipelines_) {
         for (WGPURenderPipeline variant : rec.variants) {
             if (variant) wgpuRenderPipelineRelease(variant);
         }
     }
     pipelines_.clear();
-    // bind_group_/texture_group_ point INTO the cache — release the cache, not them.
-    for (auto& e : bind_group_cache_) if (e.bg) wgpuBindGroupRelease(e.bg);
-    bind_group_cache_.clear();
-    bind_group_ = nullptr;
-    texture_group_ = nullptr;
+
+    if (dummy_ubo_.buffer) wgpuBufferRelease(dummy_ubo_.buffer);
+    dummy_ubo_ = BufferRec{};
+    releaseTexture(dummy_texture_);
+    releaseTexture(dummy_depth_texture_);
 
     // GPU timing resources.
     if (timestamp_qset_) { wgpuQuerySetRelease(timestamp_qset_); timestamp_qset_ = nullptr; }
@@ -208,6 +221,7 @@ void WebGPUDevice::releaseDeviceObjects() {
     timestamp_supported_ = false;
     timestamp_init_done_ = false;
     if (clear_bind_group_) { wgpuBindGroupRelease(clear_bind_group_); clear_bind_group_ = nullptr; }
+    if (clear_color_buffer_) { wgpuBufferRelease(clear_color_buffer_); clear_color_buffer_ = nullptr; }
     for (auto& [key, pipeline] : clear_pipelines_) {
         if (pipeline) wgpuRenderPipelineRelease(pipeline);
     }
@@ -222,10 +236,6 @@ void WebGPUDevice::releaseDeviceObjects() {
         if (layout) wgpuBindGroupLayoutRelease(layout);
     }
     group_layouts_.clear();
-    dummy_ubo_ = BufferHandle{};  // the WGPUBuffer/WGPUTexture went with the maps above
-    dummy_texture_ = 0;
-    dummy_depth_texture_ = 0;
-    framebuffers_.clear();
     // Erase before release: aborting a pending map fires the callback, which must
     // miss the lookup rather than see a half-dead record.
     while (!readbacks_.empty()) releaseReadback(readbacks_.begin()->first);
@@ -597,35 +607,29 @@ void WebGPUDevice::setScissor(i32 x, i32 y, i32 w, i32 h) {
 // Buffers
 // =============================================================================
 
-// Unlike GL — where a lost context turns every call into a silent no-op — calling
-// into a lost WebGPU device is not defined to be harmless. The guards below are
-// the backend's half of the contract; the frame loop stops submitting above them.
-
-BufferHandle WebGPUDevice::createBuffer(const BufferDesc& desc, const void* initialData) {
-    if (!isDeviceUsable()) return BufferHandle::Invalid;
+WGPUBuffer WebGPUDevice::makeBuffer(GfxBufferUsage usage, u32 size, const void* data) {
     if (!device_) {
-        ES_LOG_ERROR("WebGPUDevice::createBuffer: no device");
-        return BufferHandle::Invalid;
+        ES_LOG_ERROR("WebGPUDevice: no device to create a buffer on");
+        return nullptr;
     }
-
     WGPUBufferDescriptor bd{};
-    bd.usage = toWGPUBufferUsage(desc.usage);
+    bd.usage = toWGPUBufferUsage(usage);
     // Round the allocation, never the caller's data — see alignedWriteSize.
-    bd.size = webgpu::alignedWriteSize(desc.size);
-
+    bd.size = webgpu::alignedWriteSize(size);
     WGPUBuffer buffer = wgpuDeviceCreateBuffer(device_, &bd);
     if (!buffer) {
-        ES_LOG_ERROR("WebGPUDevice::createBuffer: creation failed ({} bytes)", desc.size);
-        return BufferHandle::Invalid;
+        ES_LOG_ERROR("WebGPUDevice: buffer creation failed ({} bytes)", size);
+        return nullptr;
     }
+    if (data && size > 0) writeBufferPadded(buffer, 0, data, size);
+    return buffer;
+}
 
-    const u32 id = next_id_++;
+bool WebGPUDevice::backendCreateBuffer(u32 id, const BufferDesc& desc, const void* data) {
+    WGPUBuffer buffer = makeBuffer(desc.usage, desc.size, data);
+    if (!buffer) return false;
     buffers_[id] = BufferRec{buffer, desc.size, desc.usage};
-
-    if (initialData && desc.size > 0) {
-        writeBufferPadded(buffer, 0, initialData, desc.size);
-    }
-    return BufferHandle{id};
+    return true;
 }
 
 void WebGPUDevice::writeBufferPadded(WGPUBuffer buffer, u32 offset, const void* data, u32 size) {
@@ -638,8 +642,8 @@ void WebGPUDevice::writeBufferPadded(WGPUBuffer buffer, u32 offset, const void* 
     wgpuQueueWriteBuffer(queue_, buffer, offset, padded.data(), padded.size());
 }
 
-void WebGPUDevice::deleteBuffer(BufferHandle buffer) {
-    auto it = buffers_.find(static_cast<u32>(buffer));
+void WebGPUDevice::backendDeleteBuffer(u32 id) {
+    auto it = buffers_.find(id);
     if (it == buffers_.end()) return;
     if (it->second.buffer) {
         evictBindGroups(static_cast<u64>(reinterpret_cast<uintptr_t>(it->second.buffer)));
@@ -664,8 +668,8 @@ void WebGPUDevice::evictBindGroups(u64 id) {
     }
 }
 
-void WebGPUDevice::updateBuffer(BufferHandle buffer, u32 offsetBytes, const void* data, u32 sizeBytes) {
-    auto it = buffers_.find(static_cast<u32>(buffer));
+void WebGPUDevice::backendUpdateBuffer(u32 id, u32 offsetBytes, const void* data, u32 sizeBytes) {
+    auto it = buffers_.find(id);
     if (it == buffers_.end() || !it->second.buffer || !data || sizeBytes == 0) return;
     if (!webgpu::writeFitsInBuffer(offsetBytes, sizeBytes, it->second.size)) {
         ES_LOG_ERROR("WebGPUDevice::updateBuffer: range {}+{} exceeds buffer size {}",
@@ -687,32 +691,20 @@ void WebGPUDevice::updateBuffer(BufferHandle buffer, u32 offsetBytes, const void
     writeBufferPadded(it->second.buffer, offsetBytes, data, sizeBytes);
 }
 
-void WebGPUDevice::resizeBuffer(BufferHandle buffer, u32 sizeBytes, const void* data) {
-    auto it = buffers_.find(static_cast<u32>(buffer));
+void WebGPUDevice::backendResizeBuffer(u32 id, const BufferDesc& desc, const void* data) {
+    auto it = buffers_.find(id);
     if (it == buffers_.end()) return;
 
-    // The RHI contract: the handle stays stable across growth. WebGPU buffers are
-    // fixed-size, so re-create the WGPUBuffer behind the same id. A cached bind
-    // group names the old WGPUBuffer, not the id, and would keep drawing its bytes.
+    // WebGPU buffers are fixed-size, so the store is re-created behind the same id.
+    // A cached bind group names the old WGPUBuffer, not the id, and would keep
+    // drawing its bytes.
     if (it->second.buffer) {
         evictBindGroups(static_cast<u64>(reinterpret_cast<uintptr_t>(it->second.buffer)));
         wgpuBufferRelease(it->second.buffer);
     }
     bind_group_dirty_ = true;
-
-    WGPUBufferDescriptor bd{};
-    bd.usage = toWGPUBufferUsage(it->second.usage);
-    bd.size = webgpu::alignedWriteSize(sizeBytes);
-    it->second.buffer = wgpuDeviceCreateBuffer(device_, &bd);
-    it->second.size = sizeBytes;
-    if (!it->second.buffer) {
-        ES_LOG_ERROR("WebGPUDevice::resizeBuffer: creation failed ({} bytes)", sizeBytes);
-        return;
-    }
-
-    if (data && sizeBytes > 0) {
-        writeBufferPadded(it->second.buffer, 0, data, sizeBytes);
-    }
+    it->second.buffer = makeBuffer(desc.usage, desc.size, data);
+    it->second.size = desc.size;
 }
 
 void WebGPUDevice::setUniformBuffer(u32 slot, BufferHandle buffer) {
@@ -728,25 +720,18 @@ void WebGPUDevice::setUniformBuffer(u32 slot, BufferHandle buffer) {
 // Vertex layouts (descriptors retained; pipelines consume them at build time)
 // =============================================================================
 
-VertexLayoutHandle WebGPUDevice::createVertexLayout(const VertexLayoutDesc& desc) {
-    if (!isDeviceUsable()) return VertexLayoutHandle::Invalid;
-    // Validate every attribute has a WebGPU spelling up front — a mismatch is an
-    // engine bug, not a runtime condition.
+bool WebGPUDevice::backendAcceptsVertexLayout(const VertexLayoutDesc& desc) {
+    // Every attribute needs a WebGPU spelling — a mismatch is an engine bug, not a
+    // runtime condition, so it is refused where the layout is declared.
     for (u32 i = 0; i < desc.attributeCount; ++i) {
         const auto& a = desc.attributes[i];
         if (toWGPUVertexFormat(a.components, a.type, a.normalized) == kInvalidVertexFormat) {
             ES_LOG_ERROR("WebGPUDevice::createVertexLayout: attribute {} ({} x type {}) has no WGPU format",
                          i, a.components, static_cast<u32>(a.type));
-            return VertexLayoutHandle::Invalid;
+            return false;
         }
     }
-    const u32 id = next_id_++;
-    layouts_[id] = desc;
-    return VertexLayoutHandle{id};
-}
-
-void WebGPUDevice::deleteVertexLayout(VertexLayoutHandle layout) {
-    layouts_.erase(static_cast<u32>(layout));
+    return true;
 }
 
 void WebGPUDevice::setVertexBuffer(u32 slot, BufferHandle buffer, u32 offsetBytes) {
@@ -762,16 +747,6 @@ void WebGPUDevice::setIndexBuffer(BufferHandle buffer) {
     bound_index_buffer_ = static_cast<u32>(buffer);
 }
 
-const VertexLayoutDesc* WebGPUDevice::layoutDesc(VertexLayoutHandle handle) const {
-    auto it = layouts_.find(static_cast<u32>(handle));
-    return it != layouts_.end() ? &it->second : nullptr;
-}
-
-const PipelineDesc* WebGPUDevice::pipelineDesc(PipelineHandle handle) const {
-    auto it = pipelines_.find(static_cast<u32>(handle));
-    return it != pipelines_.end() ? &it->second.desc : nullptr;
-}
-
 // =============================================================================
 // Textures
 // =============================================================================
@@ -785,11 +760,10 @@ u32 WebGPUDevice::colorVariantOf(WGPUTextureFormat format) {
     }
 }
 
-TextureHandle WebGPUDevice::createTexture(const TextureDesc& desc, const void* pixels) {
-    if (!isDeviceUsable()) return TextureHandle::Invalid;
+bool WebGPUDevice::makeTexture(const TextureDesc& desc, const void* pixels, TextureRec& out) {
     if (!device_) {
-        ES_LOG_ERROR("WebGPUDevice::createTexture: no device");
-        return TextureHandle::Invalid;
+        ES_LOG_ERROR("WebGPUDevice: no device to create a texture on");
+        return false;
     }
 
     WGPUTextureDescriptor td{};
@@ -808,8 +782,8 @@ TextureHandle WebGPUDevice::createTexture(const TextureDesc& desc, const void* p
 
     WGPUTexture texture = wgpuDeviceCreateTexture(device_, &td);
     if (!texture) {
-        ES_LOG_ERROR("WebGPUDevice::createTexture: creation failed ({}x{})", desc.width, desc.height);
-        return TextureHandle::Invalid;
+        ES_LOG_ERROR("WebGPUDevice: texture creation failed ({}x{})", desc.width, desc.height);
+        return false;
     }
 
     WGPUTextureView view = wgpuTextureCreateView(texture, nullptr);
@@ -832,31 +806,35 @@ TextureHandle WebGPUDevice::createTexture(const TextureDesc& desc, const void* p
         sampleView = wgpuTextureCreateView(texture, &vd);
     }
 
-    const u32 id = next_id_++;
-    textures_[id] = TextureRec{texture, view, sampleView,
-                               desc.width, desc.height, td.format, desc.format,
-                               packSamplerKey(desc.minFilter, desc.magFilter,
-                                              desc.wrapS, desc.wrapT)};
+    out = TextureRec{texture, view, sampleView,
+                     desc.width, desc.height, td.format, desc.format,
+                     packSamplerKey(desc.minFilter, desc.magFilter, desc.wrapS, desc.wrapT)};
 
     if (pixels && !isDepthFormat(td.format)) {
         // desc.flipY, not false: the caller's orientation request has to reach the
-        // upload, which is where the row reversal happens (see updateTexture).
-        updateTexture(TextureHandle{id}, 0, 0, desc.width, desc.height, pixels, desc.flipY);
+        // upload, which is where the row reversal happens (see writeTexture).
+        writeTexture(out, 0, 0, desc.width, desc.height, pixels, desc.flipY);
     }
-    return TextureHandle{id};
+    return true;
 }
 
-TextureHandle WebGPUDevice::createCompressedTexture(const TextureDesc& desc, GfxCompressedFormat format,
-                                                    const void* data, u32 byteLength, u32 mipLevels) {
-    if (!isDeviceUsable()) return TextureHandle::Invalid;
+bool WebGPUDevice::backendCreateTexture(u32 id, const TextureDesc& desc, const void* pixels) {
+    TextureRec rec;
+    if (!makeTexture(desc, pixels, rec)) return false;
+    textures_[id] = rec;
+    return true;
+}
+
+bool WebGPUDevice::backendCreateCompressedTexture(u32 id, const TextureDesc& desc, GfxCompressedFormat format,
+                                                  const void* data, u32 byteLength, u32 mipLevels) {
     if (!device_ || !queue_) {
         ES_LOG_ERROR("WebGPUDevice::createCompressedTexture: no device");
-        return TextureHandle::Invalid;
+        return false;
     }
     const WGPUTextureFormat wgpuFmt = toWGPUCompressedFormat(format);
     if (wgpuFmt == WGPUTextureFormat_Undefined) {
         ES_LOG_ERROR("WebGPUDevice::createCompressedTexture: unmapped format");
-        return TextureHandle::Invalid;
+        return false;
     }
     const u32 levels = mipLevels ? mipLevels : 1;
 
@@ -871,7 +849,7 @@ TextureHandle WebGPUDevice::createCompressedTexture(const TextureDesc& desc, Gfx
     WGPUTexture texture = wgpuDeviceCreateTexture(device_, &td);
     if (!texture) {
         ES_LOG_ERROR("WebGPUDevice::createCompressedTexture: creation failed ({}x{})", desc.width, desc.height);
-        return TextureHandle::Invalid;
+        return false;
     }
 
     // Upload each mip level from the concatenated pyramid. writeTexture counts
@@ -879,7 +857,7 @@ TextureHandle WebGPUDevice::createCompressedTexture(const TextureDesc& desc, Gfx
     const GfxBlockInfo bi = gfxCompressedBlockInfo(format);
     const u8* ptr = static_cast<const u8*>(data);
     const u8* end = ptr + byteLength;
-    for (u32 level = 0; level < levels; ++level) {
+    for (u32 level = 0; ptr && level < levels; ++level) {
         const u32 lw = (desc.width >> level) ? (desc.width >> level) : 1u;
         const u32 lh = (desc.height >> level) ? (desc.height >> level) : 1u;
         const u32 blocksX = (lw + bi.blockWidth - 1) / bi.blockWidth;
@@ -898,7 +876,6 @@ TextureHandle WebGPUDevice::createCompressedTexture(const TextureDesc& desc, Gfx
         ptr += levelBytes;
     }
 
-    const u32 id = next_id_++;
     // A compressed texture is never a depth one, so it samples through the view
     // it already has — the two members alias, as they do for any colour format.
     WGPUTextureView view = wgpuTextureCreateView(texture, nullptr);
@@ -906,54 +883,64 @@ TextureHandle WebGPUDevice::createCompressedTexture(const TextureDesc& desc, Gfx
                                desc.width, desc.height, wgpuFmt, desc.format,
                                packSamplerKey(desc.minFilter, desc.magFilter,
                                               desc.wrapS, desc.wrapT)};
-    return TextureHandle{id};
+    return true;
 }
 
-TextureHandle WebGPUDevice::importExternalTexture(u32 nativeId, const TextureDesc&) {
-    // A "native id" this backend already owns is one of ours — a render target's
-    // colour plane, adopted so a component can name it. On GL the two ids are the
-    // same number by construction; here the lookup is what makes them one.
-    if (textures_.count(nativeId) != 0) return TextureHandle{nativeId};
-    // A genuinely foreign surface (canvas, video frame) arrives as a WGPUTexture
-    // in a later slice, not as an integer.
-    stubOnce("importExternalTexture");
-    return TextureHandle::Invalid;
-}
-
-void WebGPUDevice::deleteTexture(TextureHandle texture) {
-    auto it = textures_.find(static_cast<u32>(texture));
-    if (it == textures_.end()) return;
+void WebGPUDevice::releaseTexture(TextureRec& rec) {
     // The sample view first, and only when it is a view of its own: for a colour
     // texture it aliases `view`, and releasing that twice frees a live object.
-    if (it->second.sampleView && it->second.sampleView != it->second.view) {
-        evictBindGroups(static_cast<u64>(reinterpret_cast<uintptr_t>(it->second.sampleView)));
-        wgpuTextureViewRelease(it->second.sampleView);
+    if (rec.sampleView && rec.sampleView != rec.view) {
+        evictBindGroups(static_cast<u64>(reinterpret_cast<uintptr_t>(rec.sampleView)));
+        wgpuTextureViewRelease(rec.sampleView);
     }
-    if (it->second.view) {
-        evictBindGroups(static_cast<u64>(reinterpret_cast<uintptr_t>(it->second.view)));
-        wgpuTextureViewRelease(it->second.view);
+    if (rec.view) {
+        evictBindGroups(static_cast<u64>(reinterpret_cast<uintptr_t>(rec.view)));
+        wgpuTextureViewRelease(rec.view);
     }
-    if (it->second.texture) wgpuTextureRelease(it->second.texture);
+    if (rec.texture) wgpuTextureRelease(rec.texture);
+    rec = TextureRec{};
+}
+
+void WebGPUDevice::backendDeleteTexture(u32 id) {
+    auto it = textures_.find(id);
+    if (it == textures_.end()) return;
+    releaseTexture(it->second);
     textures_.erase(it);
 }
 
-void WebGPUDevice::updateTexture(TextureHandle texture, i32 x, i32 y, u32 width, u32 height,
-                                 const void* pixels, bool flipY) {
-    auto it = textures_.find(static_cast<u32>(texture));
-    if (it == textures_.end() || !pixels || !queue_) return;
-    if (isDepthFormat(it->second.format)) {
+void WebGPUDevice::backendMoveTexture(u32 into, u32 from) {
+    auto it = textures_.find(from);
+    if (it == textures_.end()) return;
+    textures_[into] = it->second;
+    textures_.erase(from);
+    for (u32 slot = 0; slot < kTextureSlots; ++slot) {
+        if (texture_slots_[slot] == into || texture_slots_[slot] == from) bind_group_dirty_ = true;
+    }
+}
+
+void WebGPUDevice::backendUpdateTexture(u32 id, i32 x, i32 y, u32 width, u32 height,
+                                        const void* pixels, bool flipY) {
+    auto it = textures_.find(id);
+    if (it == textures_.end()) return;
+    writeTexture(it->second, x, y, width, height, pixels, flipY);
+}
+
+void WebGPUDevice::writeTexture(const TextureRec& rec, i32 x, i32 y, u32 width, u32 height,
+                                const void* pixels, bool flipY) {
+    if (!pixels || !queue_ || !rec.texture) return;
+    if (isDepthFormat(rec.format)) {
         ES_LOG_ERROR("WebGPUDevice::updateTexture: depth-stencil textures are attachment-only");
         return;
     }
     WGPUTexelCopyTextureInfo dst{};
-    dst.texture = it->second.texture;
+    dst.texture = rec.texture;
     dst.origin = WGPUOrigin3D{static_cast<u32>(x), static_cast<u32>(y), 0};
 
     // Source rows are what the caller allocated; destination rows are the texel
     // size WebGPU stores. They differ for RGB8, which has no WebGPU format and so
     // lands in an RGBA8 texture — reading dstRow from the source is the over-read.
-    const u32 srcBpp = gfxBytesPerPixel(it->second.srcFormat);
-    const u32 dstBpp = wgpuBytesPerPixel(it->second.srcFormat);
+    const u32 srcBpp = gfxBytesPerPixel(rec.srcFormat);
+    const u32 dstBpp = wgpuBytesPerPixel(rec.srcFormat);
     const usize dstRow = static_cast<usize>(width) * dstBpp;
 
     WGPUTexelCopyBufferLayout layout{};
@@ -977,24 +964,23 @@ void WebGPUDevice::updateTexture(TextureHandle texture, i32 x, i32 y, u32 width,
     wgpuQueueWriteTexture(queue_, &dst, src, dstRow * height, &layout, &extent);
 }
 
-void WebGPUDevice::setTextureParams(TextureHandle texture, TextureFilter minFilter,
-                                    TextureFilter magFilter, TextureWrap wrapS, TextureWrap wrapT) {
+void WebGPUDevice::backendSetTextureParams(u32 id, const TextureDesc& desc) {
     // GL's texture-object sampler state, de-combined: the texture record carries
     // its params key and the bind group pairs it with a cached sampler object.
-    auto it = textures_.find(static_cast<u32>(texture));
+    auto it = textures_.find(id);
     if (it == textures_.end()) return;
-    const u8 key = packSamplerKey(minFilter, magFilter, wrapS, wrapT);
+    const u8 key = packSamplerKey(desc.minFilter, desc.magFilter, desc.wrapS, desc.wrapT);
     if (it->second.samplerKey == key) return;
     it->second.samplerKey = key;
     for (u32 slot = 0; slot < kTextureSlots; ++slot) {
-        if (texture_slots_[slot] == it->first) {
+        if (texture_slots_[slot] == id) {
             bind_group_dirty_ = true;
             break;
         }
     }
 }
 
-void WebGPUDevice::generateMipmaps(TextureHandle) { stubOnce("generateMipmaps"); }
+void WebGPUDevice::backendGenerateMipmaps(u32) { stubOnce("generateMipmaps"); }
 
 void WebGPUDevice::bindTexture(u32 slot, TextureHandle texture) {
     if (slot >= kTextureSlots) return;
@@ -1018,23 +1004,19 @@ bool WebGPUDevice::supportsCompressedFormat(GfxCompressedFormat format) {
 // Programs (WGSL shader modules)
 // =============================================================================
 
-ShaderHandle WebGPUDevice::createProgram(const GfxShaderSource& source,
-                                         const GfxAttribBinding*, u32,
-                                         std::string* outLog, GfxShaderStage* outFailedStage) {
-    if (!isDeviceUsable()) {
-        if (outLog) *outLog = "device lost";
-        return ShaderHandle::Invalid;
-    }
+bool WebGPUDevice::backendCreateProgram(u32 id, const GfxShaderSource& source,
+                                        const GfxAttribBinding*, u32,
+                                        std::string* outLog, GfxShaderStage* outFailedStage) {
     if (source.language != GfxShaderLanguage::WGSL) {
         if (outLog) *outLog = "WebGPUDevice compiles WGSL only";
         if (outFailedStage) *outFailedStage = GfxShaderStage::Vertex;
         ES_LOG_ERROR("WebGPUDevice::createProgram: unsupported shader language");
-        return ShaderHandle::Invalid;
+        return false;
     }
     if (!device_) {
         if (outLog) *outLog = "no WGPUDevice";
         ES_LOG_ERROR("WebGPUDevice::createProgram: no device");
-        return ShaderHandle::Invalid;
+        return false;
     }
 
     // A stage that names `tN`/`sN` without declaring it cannot compile, and WebGPU says
@@ -1063,11 +1045,11 @@ ShaderHandle WebGPUDevice::createProgram(const GfxShaderSource& source,
     };
     if (undeclared(source.vertexSrc, "vertex")) {
         if (outFailedStage) *outFailedStage = GfxShaderStage::Vertex;
-        return ShaderHandle::Invalid;
+        return false;
     }
     if (undeclared(source.fragmentSrc, "fragment")) {
         if (outFailedStage) *outFailedStage = GfxShaderStage::Fragment;
-        return ShaderHandle::Invalid;
+        return false;
     }
 
     auto makeModule = [&](const char* code) -> WGPUShaderModule {
@@ -1100,76 +1082,42 @@ ShaderHandle WebGPUDevice::createProgram(const GfxShaderSource& source,
         if (rec.fragment) wgpuShaderModuleRelease(rec.fragment);
         if (outLog) *outLog = "shader module creation failed";
         if (outFailedStage) *outFailedStage = rec.vertex ? GfxShaderStage::Fragment : GfxShaderStage::Vertex;
-        return ShaderHandle::Invalid;
+        return false;
     }
 
-    const u32 id = next_id_++;
     programs_[id] = rec;
-    return ShaderHandle{id};
+    return true;
 }
 
-void WebGPUDevice::deleteProgram(ShaderHandle program) {
-    auto it = programs_.find(static_cast<u32>(program));
+void WebGPUDevice::backendDeleteProgram(u32 id) {
+    auto it = programs_.find(id);
     if (it == programs_.end()) return;
     if (it->second.vertex) wgpuShaderModuleRelease(it->second.vertex);
     if (it->second.fragment) wgpuShaderModuleRelease(it->second.fragment);
     programs_.erase(it);
 }
 
-void WebGPUDevice::useProgram(ShaderHandle) { /* programs bind via pipelines */ }
-
-// Loose uniforms do not exist on WebGPU: all uniform data rides the UBO bindings
-// (0-4) and samplers ride bind groups. The engine reaches these only for sampler
-// seeding on GLSL-shaped programs, which a WGSL pipeline never has.
-i32 WebGPUDevice::getUniformLocation(ShaderHandle, const char*) { return -1; }
-i32 WebGPUDevice::getAttribLocation(ShaderHandle, const char*) { return -1; }
-void WebGPUDevice::setUniform1i(i32, i32) {}
-void WebGPUDevice::setUniform1f(i32, f32) {}
-void WebGPUDevice::setUniform2f(i32, f32, f32) {}
-void WebGPUDevice::setUniform3f(i32, f32, f32, f32) {}
-void WebGPUDevice::setUniform4f(i32, f32, f32, f32, f32) {}
-void WebGPUDevice::setUniformMat3(i32, const f32*) {}
-void WebGPUDevice::setUniformMat4(i32, const f32*) {}
-std::vector<GfxUniformInfo> WebGPUDevice::getActiveUniforms(ShaderHandle) { return {}; }
-
-u32 WebGPUDevice::getUniformBlockIndex(ShaderHandle, const char*) {
-    // Blocks bind by @group/@binding in WGSL; Shader::compile skips GL-style
-    // block wiring when this reports "absent".
-    return GFX_INVALID_UNIFORM_BLOCK;
-}
-void WebGPUDevice::uniformBlockBinding(ShaderHandle, u32, u32) {}
-
 // =============================================================================
 // Pipelines (descriptors retained; WGPURenderPipeline built lazily per pass
 // depth-stencil shape — WebGPU validates that coupling, GL never had it)
 // =============================================================================
 
-PipelineHandle WebGPUDevice::createPipeline(const PipelineDesc& desc) {
-    if (!isDeviceUsable()) return PipelineHandle::Invalid;
-    // Dedup on the descriptor like GLDevice's pipeline cache.
-    for (const auto& [id, rec] : pipelines_) {
-        if (rec.desc == desc) return static_cast<PipelineHandle>(id);
-    }
-    const u32 id = next_id_++;
-    pipelines_[id] = PipelineRec{desc, {}};
-    return static_cast<PipelineHandle>(id);
-}
-
 WGPURenderPipeline WebGPUDevice::ensurePipeline(u32 id) {
-    auto it = pipelines_.find(id);
-    if (it == pipelines_.end() || !device_) return nullptr;
+    const PipelineDesc* described = pipelineDesc(PipelineHandle{id});
+    if (!described || !device_) return nullptr;
+    PipelineRec& built = pipelines_[id];
     const u32 dsVariant = dsVariantOf(pass_ds_format_);
     const u32 variant = dsVariant * kColorVariantCount + colorVariantOf(pass_color_format_);
-    if (it->second.variants[variant]) return it->second.variants[variant];
+    if (built.variants[variant]) return built.variants[variant];
 
-    const PipelineDesc& desc = it->second.desc;
+    const PipelineDesc& desc = *described;
     auto progIt = programs_.find(static_cast<u32>(desc.program));
-    auto layoutIt = layouts_.find(static_cast<u32>(desc.vertexLayout));
-    if (progIt == programs_.end() || layoutIt == layouts_.end()) {
+    const VertexLayoutDesc* layout = vertexLayoutDesc(desc.vertexLayout);
+    if (progIt == programs_.end() || !layout) {
         ES_LOG_ERROR("WebGPUDevice::ensurePipeline: missing program or layout");
         return nullptr;
     }
-    const VertexLayoutDesc& vl = layoutIt->second;
+    const VertexLayoutDesc& vl = *layout;
 
     // RHI layout (attributes across up to 2 slots) -> per-slot WGPU buffer layouts.
     WGPUVertexAttribute attrs[MAX_VERTEX_ATTRIBUTES] = {};
@@ -1239,16 +1187,15 @@ WGPURenderPipeline WebGPUDevice::ensurePipeline(u32 id) {
                     "pass target has no depth-stencil attachment");
     }
 
-    it->second.variants[variant] = wgpuDeviceCreateRenderPipeline(device_, &pd);
-    if (!it->second.variants[variant]) {
+    built.variants[variant] = wgpuDeviceCreateRenderPipeline(device_, &pd);
+    if (!built.variants[variant]) {
         ES_LOG_ERROR("WebGPUDevice::ensurePipeline: creation failed");
     }
-    return it->second.variants[variant];
+    return built.variants[variant];
 }
 
-void WebGPUDevice::setPipeline(PipelineHandle pipeline) {
-    const u32 id = static_cast<u32>(pipeline);
-    current_pipeline_ = id;
+void WebGPUDevice::backendSetPipeline(u32 id, const PipelineDesc&) {
+    bound_pipeline_ = id;
     if (!pass_) return;
     if (WGPURenderPipeline p = ensurePipeline(id)) {
         wgpuRenderPassEncoderSetPipeline(pass_, p);
@@ -1260,8 +1207,6 @@ void WebGPUDevice::setStencilReference(i32 reference) {
     stencil_ref_ = reference;
     if (pass_) wgpuRenderPassEncoderSetStencilReference(pass_, static_cast<u32>(reference));
 }
-
-void WebGPUDevice::invalidatePipelineCache() {}
 
 WGPUSampler WebGPUDevice::samplerFor(u8 key) {
     auto it = samplers_.find(key);
@@ -1339,11 +1284,10 @@ struct ClearColor { value : vec4f };
         pld.bindGroupLayouts = &clear_bgl_;
         clear_layout_ = wgpuDeviceCreatePipelineLayout(device_, &pld);
 
-        clear_color_ubo_ = createBuffer({GfxBufferUsage::Uniform, 16, true}, nullptr);
-        auto uboIt = buffers_.find(static_cast<u32>(clear_color_ubo_));
+        clear_color_buffer_ = makeBuffer(GfxBufferUsage::Uniform, 16, nullptr);
         WGPUBindGroupEntry entry{};
         entry.binding = 0;
-        entry.buffer = uboIt->second.buffer;
+        entry.buffer = clear_color_buffer_;
         entry.offset = 0;
         entry.size = 16;
         WGPUBindGroupDescriptor bgd{};
@@ -1409,7 +1353,7 @@ void WebGPUDevice::drawInternalClear(bool color, bool depth, bool stencil,
     if (!pipeline || !clear_bind_group_) return;
 
     const f32 black[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-    updateBuffer(clear_color_ubo_, 0, rgba ? rgba : black, 16);
+    writeBufferPadded(clear_color_buffer_, 0, rgba ? rgba : black, 16);
 
     // A region rides its own scissor and restores the full target; without one
     // (mid-pass stencil reset) the currently active scissor applies — the same
@@ -1433,7 +1377,7 @@ void WebGPUDevice::drawInternalClear(bool color, bool depth, bool stencil,
 
     // The triangle clobbered pipeline/bind-group pass state; force the next
     // user draw to re-establish everything.
-    current_pipeline_ = 0;
+    bound_pipeline_ = 0;
     bind_group_dirty_ = true;
 }
 
@@ -1537,23 +1481,23 @@ WGPUPipelineLayout WebGPUDevice::pipelineLayoutFor(u32 group0Mask, u32 group1Mas
 }
 
 void WebGPUDevice::ensureDummies() {
-    if (dummy_ubo_ == BufferHandle::Invalid || buffers_.find(static_cast<u32>(dummy_ubo_)) == buffers_.end()) {
+    if (!dummy_ubo_.buffer) {
         // Sized past the largest engine block (LightConstants, 1184 bytes) so a
         // declared-but-unbound block always satisfies draw-time size validation.
         const std::vector<u8> zeros(2048, 0);
-        dummy_ubo_ = createBuffer({GfxBufferUsage::Uniform, 2048, false}, zeros.data());
+        dummy_ubo_ = BufferRec{makeBuffer(GfxBufferUsage::Uniform, 2048, zeros.data()), 2048,
+                               GfxBufferUsage::Uniform};
     }
-    if (dummy_texture_ == 0 || textures_.find(dummy_texture_) == textures_.end()) {
+    if (!dummy_texture_.texture) {
         const u8 white[4] = {255, 255, 255, 255};
-        TextureDesc td{};
-        dummy_texture_ = static_cast<u32>(createTexture(td, white));
+        makeTexture(TextureDesc{}, white, dummy_texture_);
     }
-    if (dummy_depth_texture_ == 0 || textures_.find(dummy_depth_texture_) == textures_.end()) {
+    if (!dummy_depth_texture_.texture) {
         // Never written, only bound: a depth format takes no upload, and the
         // point is a texture of the right KIND under a declared depth binding.
         TextureDesc td{};
         td.format = GfxPixelFormat::Depth24Stencil8;
-        dummy_depth_texture_ = static_cast<u32>(createTexture(td, nullptr));
+        makeTexture(td, nullptr, dummy_depth_texture_);
     }
 }
 
@@ -1582,12 +1526,12 @@ WGPUBindGroup WebGPUDevice::cachedBindGroup(u32 group, u32 mask, const u64* ids,
 void WebGPUDevice::flushBindGroup() {
     if (!bind_group_dirty_ || !pass_ || !device_) return;
 
-    WGPURenderPipeline p = ensurePipeline(current_pipeline_);
+    WGPURenderPipeline p = ensurePipeline(bound_pipeline_);
     if (!p) return;
 
     const ProgramRec* prog = nullptr;
-    if (auto pipeIt = pipelines_.find(current_pipeline_); pipeIt != pipelines_.end()) {
-        auto progIt = programs_.find(static_cast<u32>(pipeIt->second.desc.program));
+    if (const PipelineDesc* desc = pipelineDesc(PipelineHandle{bound_pipeline_})) {
+        auto progIt = programs_.find(static_cast<u32>(desc->program));
         if (progIt != programs_.end()) prog = &progIt->second;
     }
     if (!prog) return;
@@ -1609,13 +1553,13 @@ void WebGPUDevice::flushBindGroup() {
         for (u32 slot = 0; slot < kUniformSlots; ++slot) {
             if ((prog->group0Mask & (1u << slot)) == 0) continue;
             auto it = buffers_.find(uniform_slots_[slot]);
-            if (it == buffers_.end()) it = buffers_.find(static_cast<u32>(dummy_ubo_));
-            if (it == buffers_.end()) continue;
+            const BufferRec& bound = it != buffers_.end() && it->second.buffer ? it->second : dummy_ubo_;
+            if (!bound.buffer) continue;
             WGPUBindGroupEntry e{};
             e.binding = slot;
-            e.buffer = it->second.buffer;
+            e.buffer = bound.buffer;
             e.offset = 0;
-            e.size = it->second.size;
+            e.size = bound.size;
             entries[count++] = e;
         }
 
@@ -1637,11 +1581,8 @@ void WebGPUDevice::flushBindGroup() {
     // the bound unit's view/sampler or the 1x1 white dummy — so the group
     // always matches the explicit layout, textures bound or not.
     if (prog->group1Mask != 0) {
-        auto dummyIt = textures_.find(dummy_texture_);
-        const TextureRec* dummy = (dummyIt != textures_.end()) ? &dummyIt->second : nullptr;
-        auto depthDummyIt = textures_.find(dummy_depth_texture_);
-        const TextureRec* depthDummy =
-            (depthDummyIt != textures_.end()) ? &depthDummyIt->second : nullptr;
+        const TextureRec* dummy = dummy_texture_.texture ? &dummy_texture_ : nullptr;
+        const TextureRec* depthDummy = dummy_depth_texture_.texture ? &dummy_depth_texture_ : nullptr;
 
         WGPUBindGroupEntry texEntries[kTextureSlots * 2];
         u32 texCount = 0;
@@ -1730,24 +1671,13 @@ void WebGPUDevice::drawElementsInstanced(u32 indexCount, GfxDataType indexType, 
                                      indexByteOffset / indexSize, 0, 0);
 }
 
-FramebufferHandle WebGPUDevice::createFramebuffer(const FramebufferDesc& desc) {
-    if (!isDeviceUsable()) return FramebufferHandle::Default;
-    FramebufferRec rec{};
-    rec.color0 = static_cast<u32>(desc.color0);
-    rec.depthStencil = static_cast<u32>(desc.depthStencil);
-    if (rec.depthStencil != 0 && !textures_.count(rec.depthStencil)) {
+bool WebGPUDevice::backendCreateFramebuffer(u32, const FramebufferDesc& desc) {
+    const u32 depthStencil = static_cast<u32>(desc.depthStencil);
+    if (depthStencil != 0 && !textures_.count(depthStencil)) {
         ES_LOG_ERROR("WebGPUDevice::createFramebuffer: unknown depth-stencil texture");
-        return FramebufferHandle::Default;
+        return false;
     }
-    // Framebuffer ids share the Default==0 namespace with the surface, so they
-    // come from their own counter offset well clear of it.
-    const u32 id = 0x40000000u + next_framebuffer_id_++;
-    framebuffers_[id] = rec;
-    return static_cast<FramebufferHandle>(id);
-}
-
-void WebGPUDevice::deleteFramebuffer(FramebufferHandle framebuffer) {
-    framebuffers_.erase(static_cast<u32>(framebuffer));
+    return true;
 }
 
 void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
@@ -1763,27 +1693,29 @@ void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
     pass_depth_texture_ = 0;
     pass_is_surface_ = desc.target == FramebufferHandle::Default;
     if (desc.target != FramebufferHandle::Default) {
-        auto fbIt = framebuffers_.find(static_cast<u32>(desc.target));
-        if (fbIt == framebuffers_.end()) {
+        const FramebufferDesc* fb = framebufferDesc(desc.target);
+        if (!fb) {
             ES_LOG_ERROR("WebGPUDevice::beginRenderPass: unknown framebuffer");
             return;
         }
-        auto texIt = textures_.find(fbIt->second.color0);
+        const u32 color0 = static_cast<u32>(fb->color0);
+        const u32 depthStencil = static_cast<u32>(fb->depthStencil);
+        auto texIt = textures_.find(color0);
         if (texIt == textures_.end()) {
             ES_LOG_ERROR("WebGPUDevice::beginRenderPass: framebuffer color texture missing");
             return;
         }
         targetView = texIt->second.view;
         pass_color_format_ = texIt->second.format;
-        pass_color_texture_ = fbIt->second.color0;
+        pass_color_texture_ = color0;
         pass_width_ = texIt->second.width;
         pass_height_ = texIt->second.height;
-        if (fbIt->second.depthStencil != 0) {
-            auto dsIt = textures_.find(fbIt->second.depthStencil);
+        if (depthStencil != 0) {
+            auto dsIt = textures_.find(depthStencil);
             if (dsIt != textures_.end()) {
                 dsView = dsIt->second.view;
                 pass_ds_format_ = dsIt->second.format;
-                pass_depth_texture_ = fbIt->second.depthStencil;
+                pass_depth_texture_ = depthStencil;
             }
         }
     } else {
@@ -2014,9 +1946,9 @@ ReadbackHandle WebGPUDevice::requestReadback(FramebufferHandle target, u32 w, u3
         stubOnce("requestReadback(default framebuffer) — use captureNextFrame");
         return ReadbackHandle::Invalid;
     }
-    auto fit = framebuffers_.find(static_cast<u32>(target));
-    if (fit == framebuffers_.end()) return ReadbackHandle::Invalid;
-    auto tit = textures_.find(fit->second.color0);
+    const FramebufferDesc* fb = framebufferDesc(target);
+    if (!fb) return ReadbackHandle::Invalid;
+    auto tit = textures_.find(static_cast<u32>(fb->color0));
     if (tit == textures_.end() || !tit->second.texture) return ReadbackHandle::Invalid;
 
     const u32 id = allocReadback(w, h);
@@ -2151,9 +2083,11 @@ void WebGPUDevice::ensureTimestamps() {
     timestamp_supported_ = timestamp_resolve_ && gpu_time_ring_[0].buf;
 }
 
-u32 WebGPUDevice::createTimerQuery() {
+// One query set serves every timer: timing rides the surface pass, so a query id
+// only has to exist for the engine's GpuTimer to turn on.
+bool WebGPUDevice::backendCreateTimerQuery(u32) {
     ensureTimestamps();
-    return timestamp_supported_ ? 1 : 0;  // non-zero → the engine's GpuTimer enables; 0 → no GPU timing (as before)
+    return timestamp_supported_;
 }
 
 void WebGPUDevice::beginTimerQuery(u32) {}  // timing rides the pass: attached at beginRenderPass, resolved at endRenderPass

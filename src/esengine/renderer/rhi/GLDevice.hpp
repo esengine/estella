@@ -3,7 +3,9 @@
 /**
  * @file    GLDevice.hpp
  * @brief   OpenGL ES / WebGL implementation of GfxDevice
- * @details Implements all GfxDevice virtual methods using OpenGL ES 3.0 calls.
+ * @details Implements the backend primitives with OpenGL ES 3.0 calls. A handle is
+ *          the registry's id; the GL name behind it belongs to one generation of
+ *          the context and lives only in this backend's maps.
  *
  * @author  ESEngine Team
  * @date    2026
@@ -43,40 +45,16 @@ public:
 
     bool pollDeviceLost() override;
 
-protected:
-    void captureDeviceIdentity() override;
-    bool recreateDevice() override;
-    void onDeviceLost() override;
-
-public:
-
     void setViewport(i32 x, i32 y, u32 w, u32 h) override;
     void clearStencil(i32 value) override;
 
     void setScissorTest(bool enabled) override;
     void setScissor(i32 x, i32 y, i32 w, i32 h) override;
 
-    BufferHandle createBuffer(const BufferDesc& desc, const void* initialData) override;
-    void deleteBuffer(BufferHandle buffer) override;
-    void updateBuffer(BufferHandle buffer, u32 offsetBytes, const void* data, u32 sizeBytes) override;
-    void resizeBuffer(BufferHandle buffer, u32 sizeBytes, const void* data) override;
     void setUniformBuffer(u32 slot, BufferHandle buffer) override;
-
-    VertexLayoutHandle createVertexLayout(const VertexLayoutDesc& desc) override;
-    void deleteVertexLayout(VertexLayoutHandle layout) override;
     void setVertexBuffer(u32 slot, BufferHandle buffer, u32 offsetBytes) override;
     void setIndexBuffer(BufferHandle buffer) override;
 
-    TextureHandle createTexture(const TextureDesc& desc, const void* pixels) override;
-    TextureHandle createCompressedTexture(const TextureDesc& desc, GfxCompressedFormat format,
-                                          const void* data, u32 byteLength, u32 mipLevels) override;
-    TextureHandle importExternalTexture(u32 nativeId, const TextureDesc& desc) override;
-    void deleteTexture(TextureHandle texture) override;
-    void updateTexture(TextureHandle texture, i32 x, i32 y, u32 width, u32 height,
-                       const void* pixels, bool flipY) override;
-    void setTextureParams(TextureHandle texture, TextureFilter min, TextureFilter mag,
-                          TextureWrap wrapS, TextureWrap wrapT) override;
-    void generateMipmaps(TextureHandle texture) override;
     void bindTexture(u32 slot, TextureHandle texture) override;
     bool supportsCompressedFormat(GfxCompressedFormat format) override;
     bool supportsFloatTargets() override;
@@ -88,37 +66,13 @@ public:
 
     /// GL reads a framebuffer from the bottom up.
     bool textureOriginTopLeft() const override { return false; }
-    ShaderHandle createProgram(const GfxShaderSource& source,
-                               const GfxAttribBinding* bindings, u32 bindingCount,
-                               std::string* outLog, GfxShaderStage* outFailedStage) override;
-    void deleteProgram(ShaderHandle program) override;
-    void useProgram(ShaderHandle program) override;
-    i32 getUniformLocation(ShaderHandle program, const char* name) override;
-    i32 getAttribLocation(ShaderHandle program, const char* name) override;
-    void setUniform1i(i32 location, i32 value) override;
-    void setUniform1f(i32 location, f32 value) override;
-    void setUniform2f(i32 location, f32 x, f32 y) override;
-    void setUniform3f(i32 location, f32 x, f32 y, f32 z) override;
-    void setUniform4f(i32 location, f32 x, f32 y, f32 z, f32 w) override;
-    void setUniformMat3(i32 location, const f32* data) override;
-    void setUniformMat4(i32 location, const f32* data) override;
 
-    std::vector<GfxUniformInfo> getActiveUniforms(ShaderHandle program) override;
-
-    u32 getUniformBlockIndex(ShaderHandle program, const char* name) override;
-    void uniformBlockBinding(ShaderHandle program, u32 blockIndex, u32 bindingPoint) override;
-
-    PipelineHandle createPipeline(const PipelineDesc& desc) override;
-    void setPipeline(PipelineHandle handle) override;
     void setStencilReference(i32 ref) override;
-    void invalidatePipelineCache() override;
 
     void drawElements(u32 indexCount, GfxDataType indexType, u32 byteOffset) override;
     void drawArrays(u32 first, u32 vertexCount) override;
     void drawElementsInstanced(u32 indexCount, GfxDataType indexType, u32 byteOffset, u32 instanceCount) override;
 
-    FramebufferHandle createFramebuffer(const FramebufferDesc& desc) override;
-    void deleteFramebuffer(FramebufferHandle framebuffer) override;
     void beginRenderPass(const RenderPassDesc& desc) override;
     void endRenderPass() override;
 
@@ -127,7 +81,6 @@ public:
     bool takeReadback(ReadbackHandle handle, void* dest, usize destSize) override;
     void discardReadback(ReadbackHandle handle) override;
 
-    u32 createTimerQuery() override;
     void beginTimerQuery(u32 query) override;
     void endTimerQuery() override;
     bool timerDisjoint() override;
@@ -137,9 +90,64 @@ public:
     u32 getError() override;
     std::string getString(GfxStringName name) override;
     i32 getInt(GfxIntParam name) override;
-    GfxLiveObjects liveObjects() const override;
+
+    /** @brief This generation's GL name behind a texture, for a host uploading into it. */
+    u32 nativeTextureName(TextureHandle texture) const { return nameOf(texture_names_, static_cast<u32>(texture)); }
+
+protected:
+    void captureDeviceIdentity() override;
+    bool recreateDevice() override;
+    void onDeviceLost() override;
+
+    bool backendCreateBuffer(u32 id, const BufferDesc& desc, const void* data) override;
+    void backendDeleteBuffer(u32 id) override;
+    void backendUpdateBuffer(u32 id, u32 offsetBytes, const void* data, u32 sizeBytes) override;
+    void backendResizeBuffer(u32 id, const BufferDesc& desc, const void* data) override;
+
+    bool backendCreateTexture(u32 id, const TextureDesc& desc, const void* pixels) override;
+    bool backendCreateCompressedTexture(u32 id, const TextureDesc& desc, GfxCompressedFormat format,
+                                        const void* data, u32 byteLength, u32 mipLevels) override;
+    bool backendAdoptTexture(u32 id, u32 nativeId, const TextureDesc& desc) override;
+    void backendDeleteTexture(u32 id) override;
+    void backendMoveTexture(u32 into, u32 from) override;
+    void backendUpdateTexture(u32 id, i32 x, i32 y, u32 width, u32 height,
+                              const void* pixels, bool flipY) override;
+    void backendSetTextureParams(u32 id, const TextureDesc& desc) override;
+    void backendGenerateMipmaps(u32 id) override;
+
+    bool backendCreateProgram(u32 id, const GfxShaderSource& source,
+                              const GfxAttribBinding* bindings, u32 bindingCount,
+                              std::string* outLog, GfxShaderStage* outFailedStage) override;
+    void backendDeleteProgram(u32 id) override;
+    void backendUseProgram(u32 id) override;
+    i32 backendUniformLocation(u32 program, const char* name) override;
+    i32 backendAttribLocation(u32 program, const char* name) override;
+    void backendSetUniform(i32 nativeLocation, const GfxUniformValue& value) override;
+    std::vector<GfxUniformInfo> backendActiveUniforms(u32 program) override;
+    u32 backendUniformBlockIndex(u32 program, const char* name) override;
+    void backendUniformBlockBinding(u32 program, u32 nativeBlockIndex, u32 bindingPoint) override;
+
+    void backendDeleteVertexLayout(u32 id) override;
+    void backendSetPipeline(u32 id, const PipelineDesc& desc) override;
+    void backendInvalidatePipelineCache() override;
+
+    bool backendCreateFramebuffer(u32 id, const FramebufferDesc& desc) override;
+    void backendDeleteFramebuffer(u32 id) override;
+
+    bool backendCreateTimerQuery(u32 id) override;
+    u32 backendReadbackCount() const override { return static_cast<u32>(readbacks_.size()); }
 
 private:
+    static u32 nameOf(const std::vector<u32>& names, u32 id) {
+        return id < names.size() ? names[id] : 0u;
+    }
+    static void setName(std::vector<u32>& names, u32 id, u32 name) {
+        if (id >= names.size()) names.resize(static_cast<usize>(id) + 1, 0u);
+        names[id] = name;
+    }
+    /** A multisampled texture is a renderbuffer in WebGL2, in its own GL namespace. */
+    bool isRenderbuffer(u32 textureId) const;
+
     // Clear machinery: backend-internal since RenderPassDesc became the only way
     // to request clears (it carries the values; beginRenderPass applies them).
     void setClearColor(f32 r, f32 g, f32 b, f32 a);
@@ -161,12 +169,9 @@ private:
     void setCullFace(bool front);
     void setDepthBias(i16 bias);
 
-    // Pipeline cache: a handle is (index + 1) into pipelines_; PipelineHandle::Invalid is 0.
-    // WebGL2 has no native pipeline object, so a pipeline is applied as a bundle of GL
-    // state, deduped by comparing handles (same pipeline -> skip the whole state apply).
     void applyStencilMode(GfxStencilMode mode);
 
-    void uploadBufferStore(BufferHandle buffer, u32 offsetBytes, const void* data, u32 sizeBytes, bool respec);
+    void uploadBufferStore(u32 id, u32 offsetBytes, const void* data, u32 sizeBytes, bool respec);
 
     // Drops every "what is currently bound" cache. Those answers are only valid
     // for the context that was asked; after a restore they would suppress the
@@ -182,72 +187,56 @@ private:
     // Binds a texture on the active unit for a create/update/mipmap edit while
     // keeping the sampler-binding cache coherent, so bindTexture() can skip
     // redundant per-draw binds (every gl* call is a WASM→JS FFI crossing).
-    void bindTextureForEdit(u32 id);
+    void bindTextureForEdit(u32 name);
 
     // Detach a texture from every sampler slot it lingers in, keeping the sampler
     // cache coherent. Used by beginRenderPass to break feedback loops: a render
     // target's own attachment must not stay bound to a sampler while it is drawn to.
-    void evictSamplerBinding(u32 textureId);
+    void evictSamplerBinding(u32 name);
 
-    std::vector<PipelineDesc> pipelines_;
-    PipelineHandle current_pipeline_ = PipelineHandle::Invalid;
+    /** GL names by registry id for this generation; 0 = none. */
+    std::vector<u32> buffer_names_;
+    std::vector<u32> texture_names_;
+    std::vector<u32> program_names_;
+    std::vector<u32> framebuffer_names_;
+    std::vector<u32> query_names_;
+    /** Buffer id per uniform binding slot, as the renderer set it. */
+    std::vector<u32> uniform_slots_;
+
+    u32 current_pipeline_id_ = 0;
     GfxStencilMode current_stencil_mode_ = GfxStencilMode::Off;
-    // Redundant-state caches for setPipeline: the program and blend func are only
-    // ever set through useProgram / setBlendMode, so caching the last value lets a
-    // pipeline switch that shares them skip the (FFI-crossing) GL call. Reset in
-    // invalidatePipelineCache. 0xFF is an out-of-range BlendMode sentinel so the
-    // first real set always issues (init sets the GL blend directly, not via here).
-    ShaderHandle current_program_ = ShaderHandle::Invalid;
+    // Redundant-state caches: a pipeline switch sharing the program or blend func
+    // skips the FFI-crossing GL call. 0xFF is an out-of-range BlendMode, so the
+    // first real set always issues.
+    u32 current_program_name_ = 0;
     BlendMode current_blend_ = static_cast<BlendMode>(0xFF);
 
     // Redundant-state caches for the two per-draw hot paths. glActiveTexture is
     // the only site that moves the active unit, so active_texture_unit_ is
-    // authoritative; bound_texture_[unit] mirrors the sampler bindings.
+    // authoritative; bound_texture_[unit] mirrors the sampler bindings by GL name.
     static constexpr u32 kTextureSlots = 16;
     u32 active_texture_unit_ = 0;
     u32 bound_texture_[kTextureSlots] = {};
     i16 current_depth_bias_ = 0;
     int scissor_test_ = -1;  // tri-state: -1 unknown, 0 disabled, 1 enabled
 
-    struct LayoutRecord {
-        VertexLayoutDesc desc;
+    struct VaoCache {
         u32 vao = 0;
-        bool alive = false;
         bool configured = false;
         u32 bakedVbo[MAX_VERTEX_BUFFER_SLOTS] = {};
         u32 bakedOffset[MAX_VERTEX_BUFFER_SLOTS] = {};
         u32 bakedIbo = 0;
     };
-    std::vector<LayoutRecord> layouts_;
-    VertexLayoutHandle current_layout_ = VertexLayoutHandle::Invalid;
+    std::unordered_map<u32, VaoCache> vaos_;
+    u32 current_layout_ = 0;
     u32 pending_vbo_[MAX_VERTEX_BUFFER_SLOTS] = {};
     u32 pending_vbo_offset_[MAX_VERTEX_BUFFER_SLOTS] = {};
     u32 pending_ibo_ = 0;
     u32 bound_vao_ = 0;
 
-    // Per-handle metadata the GL bind-to-edit protocol needs but the interface no
-    // longer carries: buffer target/usage for uploads, texture transfer format for
-    // sub-image updates.
-    struct BufferMeta {
-        GfxBufferUsage usage;
-        bool dynamic;
-    };
-    std::unordered_map<u32, BufferMeta> buffer_meta_;
-    std::unordered_map<u32, GfxPixelFormat> texture_formats_;
-
-    // The textures a framebuffer owns (color + depth/stencil attachment ids),
-    // recorded at createFramebuffer. beginRenderPass consults this to detach the
-    // target's own attachments from any sampler slot before drawing into it — the
-    // GL feedback-loop guard. 0 = no such attachment.
-    struct FramebufferTextures {
-        u32 color = 0;
-        u32 depthStencil = 0;
-    };
-    std::unordered_map<u32, FramebufferTextures> framebuffer_textures_;
-
-    // Where a multisampled framebuffer resolves to, and how big. The blit runs
-    // whenever the target is left, which is the only reason anything above the
-    // RHI can sample a target it drew into multisampled.
+    // Where a multisampled framebuffer resolves to, and how big, by framebuffer id.
+    // The blit runs whenever the target is left, which is the only reason anything
+    // above the RHI can sample a target it drew into multisampled.
     struct ResolvePair {
         u32 destFbo = 0;
         u32 width = 0;
@@ -257,9 +246,9 @@ private:
     std::unordered_map<u32, ResolvePair> framebuffer_resolve_;
     /// Blit a multisampled target into the single-sample one it owns; no-op for
     /// a target that owns none. Called whenever a target is left.
-    void resolveFramebuffer(u32 fbo);
-    /// The target a pass is currently drawing into, so leaving it can resolve it.
-    u32 current_fbo_ = 0;
+    void resolveFramebuffer(u32 framebufferId);
+    /// The framebuffer id a pass is currently drawing into (0 = default).
+    u32 current_framebuffer_ = 0;
     /// 0 = unprobed; otherwise GL_MAX_SAMPLES, floored at 1.
     u32 max_samples_ = 0;
 
@@ -270,11 +259,7 @@ private:
 
     // 0 = unprobed, 1 = timer queries available, 2 = unavailable.
     int timer_query_state_ = 0;
-
-    // Linked programs alive. Unlike buffers and textures, programs have no
-    // per-handle metadata map whose size would answer this, and a program leaked
-    // by shader hot reload is the exact failure the census exists to catch.
-    u32 live_programs_ = 0;
+    bool timer_disjoint_pending_ = false;
 };
 
 }  // namespace esengine

@@ -186,7 +186,7 @@ TEST_CASE("pass load-ops: full-target clear is a real load-op, a scoped clear is
     CHECK(color.a == doctest::Approx(0.5));
 }
 
-TEST_CASE("a lost device issues no more handles") {
+TEST_CASE("a lost device still issues handles, for the recovery to realize") {
     WebGPUDevice device;
     device.init();
 
@@ -199,10 +199,11 @@ TEST_CASE("a lost device issues no more handles") {
     device.notifyDeviceLost(GfxDeviceLostReason::ContextLost, "the host took the context");
 
     CHECK(device.deviceStatus() == GfxDeviceStatus::Lost);
-    // Registering a layout is descriptor-only bookkeeping — it succeeds with no
-    // GPU device at all, as the case below asserts. So this refusal is the loss
-    // guard and nothing else.
-    CHECK(device.createVertexLayout(layout) == VertexLayoutHandle::Invalid);
+    // A handle names a record, not a GPU object: what a lost device is asked for
+    // is built by the recovery, so nothing above has to hold its creation back.
+    const VertexLayoutHandle late = device.createVertexLayout(layout);
+    CHECK(late != VertexLayoutHandle::Invalid);
+    CHECK(device.vertexLayoutDesc(late) != nullptr);
 
     REQUIRE(device.deviceLostInfo() != nullptr);
     const std::string report = gfxFormatDeviceLost(*device.deviceLostInfo());
@@ -219,8 +220,9 @@ TEST_CASE("null-device skeleton: language gate + graceful degradation + bookkeep
     CHECK(!device.supportsShaderLanguage(GfxShaderLanguage::GLSL_ES300));
 
     // GPU-touching creation degrades to Invalid with a log, never UB.
-    CHECK(device.createBuffer({GfxBufferUsage::Vertex, 256, true}, nullptr) == BufferHandle::Invalid);
-    CHECK(device.createTexture({}, nullptr) == TextureHandle::Invalid);
+    CHECK(device.createBuffer({GfxBufferUsage::Vertex, 256, true}, GfxContent::transient(), nullptr)
+          == BufferHandle::Invalid);
+    CHECK(device.createTexture({}, GfxContent::transient(), nullptr) == TextureHandle::Invalid);
 
     // Descriptor-only bookkeeping works without a device: layouts validate their
     // attributes against the WGPU format table and round-trip.
@@ -233,8 +235,8 @@ TEST_CASE("null-device skeleton: language gate + graceful degradation + bookkeep
     batch.attributes[3] = {3, 1, GfxDataType::Float, false, 20, 0};
     auto layout = device.createVertexLayout(batch);
     REQUIRE(layout != VertexLayoutHandle::Invalid);
-    REQUIRE(device.layoutDesc(layout) != nullptr);
-    CHECK(device.layoutDesc(layout)->strides[0] == 24);
+    REQUIRE(device.vertexLayoutDesc(layout) != nullptr);
+    CHECK(device.vertexLayoutDesc(layout)->strides[0] == 24);
 
     VertexLayoutDesc bad{};
     bad.attributeCount = 1;

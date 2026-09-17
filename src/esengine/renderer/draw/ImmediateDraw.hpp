@@ -76,9 +76,6 @@ public:
 
     void init();
 
-    /// Re-creates the pool's buffers and re-reads the batch program id after a
-    /// device loss. The shader itself is rebuilt by the manager, behind its handle.
-    void recreateGpuResources();
     void shutdown();
 
     // =========================================================================

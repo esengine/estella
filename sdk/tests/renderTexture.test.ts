@@ -144,15 +144,15 @@ describe('RenderTexture', () => {
     });
 
     describe('resize with a live resource manager', () => {
-        let registerExternalTexture: ReturnType<typeof vi.fn>;
+        let wrapDeviceTexture: ReturnType<typeof vi.fn>;
         let releaseTexture: ReturnType<typeof vi.fn>;
 
         beforeEach(() => {
             let nextTexture = 700;
-            registerExternalTexture = vi.fn(() => nextTexture++);
+            wrapDeviceTexture = vi.fn(() => nextTexture++);
             releaseTexture = vi.fn();
             initResourceManager({
-                registerExternalTexture,
+                wrapDeviceTexture,
                 releaseTexture,
                 getTextureDimensions: vi.fn(),
             } as unknown as CppResourceManager);
@@ -175,7 +175,7 @@ describe('RenderTexture', () => {
             const resized = RenderTexture.resize(rt, 128, 128);
 
             expect(resized.texture).toBe(701);
-            expect(registerExternalTexture).toHaveBeenCalledTimes(2);
+            expect(wrapDeviceTexture).toHaveBeenCalledTimes(2);
         });
     });
 

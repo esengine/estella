@@ -42,6 +42,23 @@ namespace esengine::resource {
 
 enum class ShaderTargetLanguage : u8;  // ShaderParser.hpp
 
+/**
+ * @brief Who refills a resource's GPU content after a device loss.
+ * @details Numbered for the host boundary, where a texture's creator states it:
+ *          only the creator knows whether it can make the pixels again.
+ */
+enum class ResourceContent : u32 {
+    Transient = 0,  ///< Rewritten by its owner before every use (a video frame).
+    Retained = 1,   ///< The device keeps the bytes (a glyph page).
+    Asset = 2,      ///< The asset layer loads it again from its path.
+    Canvas = 3,     ///< Redrawn from the canvas it mirrors.
+    Video = 4,      ///< Refilled by the next decoded frame.
+    Mesh = 5,       ///< Geometry the asset layer replays (MeshRecovery::SourceReplayable).
+};
+
+/** @brief The device's policy for a content code; unknown codes are Asset, the one that asks. */
+GfxContent toGfxContent(ResourceContent content);
+
 // =============================================================================
 // Resource Manager Statistics
 // =============================================================================
@@ -214,7 +231,7 @@ public:
      * @param spec Texture creation parameters
      * @return Handle to the texture, or invalid handle on failure
      */
-    TextureHandle createTexture(const TextureSpecification& spec);
+    TextureHandle createTexture(ResourceContent content, const TextureSpecification& spec);
 
     /**
      * @brief Creates a texture from pixel data
@@ -224,7 +241,7 @@ public:
      * @param format Pixel format (default RGBA8)
      * @return Handle to the texture, or invalid handle on failure
      */
-    TextureHandle createTexture(u32 width, u32 height, ConstSpan<u8> pixels,
+    TextureHandle createTexture(ResourceContent content, u32 width, u32 height, ConstSpan<u8> pixels,
                                  TextureFormat format, bool flipY = false);
 
     /**
@@ -235,8 +252,9 @@ public:
      * @param mipLevels Mip levels present (1 = base only).
      * @return Handle to the texture, or invalid handle on failure.
      */
-    TextureHandle createCompressedTexture(u32 width, u32 height, GfxCompressedFormat format,
-                                          ConstSpan<u8> data, u32 mipLevels = 1);
+    TextureHandle createCompressedTexture(ResourceContent content, u32 width, u32 height,
+                                          GfxCompressedFormat format, ConstSpan<u8> data,
+                                          u32 mipLevels = 1);
 
     /**
      * @brief Loads a texture from file (with caching)
@@ -283,7 +301,14 @@ public:
      *              billing them as RGBA8 would waste most of the budget.
      * @return Handle to the registered texture
      */
-    TextureHandle registerExternalTexture(u32 glTextureId, u32 width, u32 height, usize bytes = 0);
+    TextureHandle registerExternalTexture(ResourceContent content, u32 glTextureId, u32 width, u32 height,
+                                          usize bytes = 0);
+
+    /**
+     * @brief Names a texture the device holds for another owner (a render target's
+     *        colour plane) by a resource handle, without taking it over.
+     */
+    TextureHandle wrapDeviceTexture(::esengine::TextureHandle texture, u32 width, u32 height);
 
     /**
      * @brief Registers a texture with a path for cache lookup
@@ -297,50 +322,25 @@ public:
     // =========================================================================
 
     /**
-     * @brief Points every texture at @p placeholder, keeping all handles valid.
-     * @details The GPU objects died with the device; the handles did not. They
-     *          are pool indices, and components, materials and fonts all name
-     *          textures by them, so re-uploading behind one is invisible.
-     *          Sampling the placeholder meanwhile renders pale, not garbage.
-     */
-    /**
-     * @brief Re-compiles every shader behind its existing handle.
-     * @details Shaders keep their sources precisely so this is possible: a
-     *          material's shaderRef and a plugin's handle stay valid, where
-     *          creating NEW shaders would invalidate every one of them.
-     * @return How many were rebuilt.
-     */
-    u32 recreateGpuShaders();
-
-    /**
-     * @brief Frees every shader's GPU program, keeping the sources to rebuild.
-     * @details Belongs to the moment of the LOSS, not the rebuild: the ids name
-     *          a context about to stop existing, and a host keeps a wrapper for
-     *          each one until something releases it.
-     * @return How many were released.
-     */
-    u32 releaseLostGpuShaders();
-
-    void invalidateGpuTextures(::esengine::TextureHandle placeholder);
-
-    /**
-     * @brief Re-points an existing handle at a freshly uploaded GPU texture.
-     * @return False if the handle names no live texture.
-     */
-    bool retargetExternalTexture(TextureHandle handle, u32 glTextureId, u32 width, u32 height);
-
-    /**
-     * @brief Moves a freshly loaded texture's GPU object onto an existing handle.
-     * @details A re-upload has to end with ONE record. Getting bytes onto the GPU
-     *          creates a second, and leaving it in the pool deposits an orphan
-     *          under the same path — swept up by the next loss, re-uploadable by
-     *          nobody, so the SECOND loss never finished recovering.
+     * @brief Moves a freshly loaded texture's pixels behind an owed handle.
+     * @details How the asset layer pays: it loads the texture the ordinary way and
+     *          hands the result over, which leaves @p source empty for its release.
      * @return False if either handle names no live texture.
      */
     bool adoptTextureContent(TextureHandle target, TextureHandle source);
 
-    /** @brief Texture handles that were invalidated and not yet re-uploaded. */
-    std::vector<TextureHandle> texturesAwaitingReupload() const;
+    /** @brief Textures the device is waiting for content for, with who refills them. */
+    struct OwedTexture {
+        TextureHandle handle;
+        ResourceContent content = ResourceContent::Asset;
+    };
+    std::vector<OwedTexture> texturesAwaitingReupload() const;
+
+    /**
+     * @brief Gives up on an owed texture's content: it keeps blank storage.
+     * @details For content nothing can bring back; the caller says so in the log.
+     */
+    void forgoTextureContent(TextureHandle handle);
 
     /**
      * @brief Gets the cached path for a texture
@@ -441,14 +441,14 @@ public:
      * @return Handle to the buffer, or invalid handle on failure
      */
     template<typename T>
-    VertexBufferHandle createVertexBuffer(ConstSpan<T> data);
+    VertexBufferHandle createVertexBuffer(GfxContent content, ConstSpan<T> data);
 
     /**
      * @brief Creates a dynamic vertex buffer
      * @param sizeBytes Buffer size in bytes
      * @return Handle to the buffer, or invalid handle on failure
      */
-    VertexBufferHandle createVertexBuffer(u32 sizeBytes);
+    VertexBufferHandle createVertexBuffer(GfxContent content, u32 sizeBytes);
 
     /**
      * @brief Uploads geometry that stays on the GPU, drawn from its own buffers.
@@ -492,42 +492,19 @@ public:
     void releaseMesh(MeshHandle handle);
 
     /**
-     * @brief Ends every mesh's GPU realization, keeping every MeshHandle valid.
-     *
-     * @details The realization died with the device; the handles did not, so it
-     *          is dropped and the identity stands. A SourceReplayable mesh is
-     *          enqueued; a HostOnly one is COUNTED, since silence there reports
-     *          success over content nothing can bring back.
-     *
-     * @return How many meshes are awaiting rematerialization.
-     */
-    u32 invalidateGpuMeshes();
-
-    /**
-     * @brief Meshes whose realization is gone and whose source has not replaced it.
-     * @details A copy, and only ever emptied by a rematerialization that
-     *          SUCCEEDED: a debt drained by the act of reading it is a debt the
-     *          engine forgets the moment its holder fails to pay.
+     * @brief Replayable meshes whose geometry the device is still waiting for.
+     * @details Read off the device's ledger, so the list empties exactly when a
+     *          rematerialization has put the geometry back.
      */
     std::vector<MeshHandle> meshesAwaitingRematerialization() const;
 
-    /** @brief Meshes the last loss ended for good, because no source can replay
-     *         them. Never part of the awaiting list, never silently skipped. */
-    u32 meshesLostNonRecoverable() const { return meshes_lost_non_recoverable_; }
-
-    /** @brief One live mesh's identity told apart from its realization. */
+    /** @brief One live mesh and whether its geometry is on the device. */
     struct MeshRealization {
         u32 handle = 0;
-        u64 generation = 0;  ///< The device generation the realization belongs to.
         bool realized = false;
     };
 
-    /**
-     * @brief Every live mesh, as identity and realization read separately.
-     * @details The seam a recovery criterion needs. From outside, a mesh that
-     *          came back and a mesh that was replaced by a new one look the same
-     *          — both draw — and only these two numbers tell them apart.
-     */
+    /** @brief Every live mesh, for a recovery criterion to read. */
     std::vector<MeshRealization> meshRealizations();
 
     // =========================================================================
@@ -596,14 +573,14 @@ public:
      * @param indices Span of index data
      * @return Handle to the buffer, or invalid handle on failure
      */
-    IndexBufferHandle createIndexBuffer(ConstSpan<u32> indices);
+    IndexBufferHandle createIndexBuffer(GfxContent content, ConstSpan<u32> indices);
 
     /**
      * @brief Creates an index buffer from 16-bit indices
      * @param indices Span of index data
      * @return Handle to the buffer, or invalid handle on failure
      */
-    IndexBufferHandle createIndexBuffer(ConstSpan<u16> indices);
+    IndexBufferHandle createIndexBuffer(GfxContent content, ConstSpan<u16> indices);
 
     /**
      * @brief Gets an index buffer by handle
@@ -709,9 +686,6 @@ private:
     ResourcePool<Environment> environments_;
     ResourcePool<ProbeVolume> probeVolumes_;
     ResourcePool<text::BitmapFont> fonts_;
-    /// Handles whose GPU texture died with the device, still showing the
-    /// placeholder. Empty means the content is whole again.
-    std::vector<TextureHandle> awaitingReupload_;
     /** Builds the buffers and layout one mesh is drawn from, replacing whatever
      *  it had. Shared by the mint and the rebuild so the two cannot describe the
      *  same geometry differently. Leaves the mesh untouched when it fails. */
@@ -721,10 +695,9 @@ private:
                      ConstSpan<f32> inverseBind, const MeshMorphSource& morph);
     /** The deltas as a texture the vertex stage fetches from, or an invalid
      *  handle where they do not fit one — see realizeMesh for what that means. */
-    esengine::TextureHandle createMorphTexture(const MeshMorphSource& morph, u32 vertexCount);
+    esengine::TextureHandle createMorphTexture(GfxContent content, const MeshMorphSource& morph,
+                                               u32 vertexCount);
 
-    std::vector<MeshHandle> awaitingRematerialization_;
-    u32 meshes_lost_non_recoverable_ = 0;
     std::unordered_map<std::string, TextureHandle> guidToTexture_;
     std::unordered_map<TextureHandle::IdType, TextureMetadata> textureMetadata_;
     LoaderRegistry loaderRegistry_;
@@ -738,8 +711,8 @@ private:
 // =============================================================================
 
 template<typename T>
-VertexBufferHandle ResourceManager::createVertexBuffer(ConstSpan<T> data) {
-    auto buffer = VertexBuffer::create(*device_, data);
+VertexBufferHandle ResourceManager::createVertexBuffer(GfxContent content, ConstSpan<T> data) {
+    auto buffer = VertexBuffer::create(*device_, content, data);
     if (!buffer) return VertexBufferHandle();
     return vertexBuffers_.add(std::move(buffer));
 }

@@ -24,7 +24,7 @@ int main() {
         resource::ResourceManager rm;
         rm.init(d);
 
-        const auto handle = rm.registerExternalTexture(7, 4, 4);
+        const auto handle = rm.registerExternalTexture(resource::ResourceContent::Asset, 7, 4, 4);
         CHECK(handle.isValid(), "an external texture registers");
         rm.registerTextureWithPath(handle, "a.png");
 
@@ -47,7 +47,7 @@ int main() {
         resource::ResourceManager rm;
         rm.init(d);
 
-        const auto handle = rm.registerExternalTexture(9, 2, 2);
+        const auto handle = rm.registerExternalTexture(resource::ResourceContent::Asset, 9, 2, 2);
         rm.registerTextureWithPath(handle, "b.png");
         rm.acquireTextureByPath("b.png");
         rm.acquireTextureByPath("b.png");

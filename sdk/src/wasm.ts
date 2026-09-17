@@ -43,16 +43,41 @@ export interface CppRegistry extends GeneratedRegistry {
 // C++ Resource Manager
 // =============================================================================
 
+/**
+ * Who refills a texture after a device loss, stated by whoever creates it —
+ * mirroring the engine's `resource::ResourceContent`.
+ */
+export const TextureContent = {
+    /** Rewritten before every use (a decoded video frame). */
+    Transient: 0,
+    /** The engine keeps the bytes (a glyph page). */
+    Retained: 1,
+    /** The asset layer loads it again from its path. */
+    Asset: 2,
+    /** Redrawn from the canvas it mirrors. */
+    Canvas: 3,
+    /** Refilled by the video it shows. */
+    Video: 4,
+} as const;
+export type TextureContent = typeof TextureContent[keyof typeof TextureContent];
+
+/** A content code's name, for a log that says what could not be refilled. */
+export function textureContentName(content: TextureContent): string {
+    const entry = Object.entries(TextureContent).find(([, code]) => code === content);
+    return entry ? entry[0] : `content ${content}`;
+}
+
 export interface CppResourceManager {
-    createTexture(width: number, height: number, pixels: number, pixelsLen: number, format: number, flipY: boolean): number;
-    createTextureEx(width: number, height: number, pixels: number, pixelsLen: number, format: number, flipY: boolean, filterMode: number, wrapMode: number): number;
+    /** `content` is a {@link TextureContent}: who refills the texture after a device loss. */
+    createTexture(width: number, height: number, pixels: number, pixelsLen: number, format: number, flipY: boolean, content: TextureContent): number;
+    createTextureEx(width: number, height: number, pixels: number, pixelsLen: number, format: number, flipY: boolean, filterMode: number, wrapMode: number, content: TextureContent): number;
     /**
      * Module-free texture upload: take the RGBA bytes directly instead of a wasm
      * heap pointer. Present ONLY on the native ResourceManager (embedded Dawn, no
      * wasm heap to marshal into); the wasm embind object does not implement it, so
      * the upload helpers fall through to the heap path and web stays byte-identical.
      * `filterMode`/`wrapMode` mirror {@link createTextureEx}'s codes (optional). */
-    createTextureFromBytes?(width: number, height: number, pixels: Uint8Array, format: number, flipY: boolean, filterMode?: number, wrapMode?: number): number;
+    createTextureFromBytes?(width: number, height: number, pixels: Uint8Array, format: number, flipY: boolean, content: TextureContent, filterMode?: number, wrapMode?: number): number;
     /** Transcode + upload a KTX2/Basis container to a device-supported compressed
      *  format (or RGBA32). Native only (the basis transcoder lives in the host);
      *  the web KTX2 path is WebGL2 + the wasm transcoder instead. */
@@ -70,53 +95,39 @@ export interface CppResourceManager {
     /** Uploads pre-transcoded blocks (level 0 first) as one compressed texture,
      *  whichever backend is running. Absent on an older wasm build. */
     createCompressedTexture?(width: number, height: number, format: number,
-                             dataPtr: number, dataLen: number, mipLevels: number): number;
+                             dataPtr: number, dataLen: number, mipLevels: number,
+                             content: TextureContent): number;
     /** Module-free {@link updateTextureSubregion} — native byte upload for the
      *  glyph atlas, symmetric with {@link createTextureFromBytes}. */
     updateTextureSubregionFromBytes?(handle: number, x: number, y: number, width: number, height: number, pixels: Uint8Array): void;
     createShader(vertSrc: string, fragSrc: string): number;
-    registerExternalTexture(glTextureId: number, width: number, height: number): number;
+    registerExternalTexture(glTextureId: number, width: number, height: number, content: TextureContent): number;
     /** Like registerExternalTexture, but with the actual GPU byte size for the
      *  eviction budget (compressed textures are 4–8× smaller than the RGBA8
      *  estimate the plain variant books). */
-    registerExternalTextureSized(glTextureId: number, width: number, height: number, bytes: number): number;
+    registerExternalTextureSized(glTextureId: number, width: number, height: number, bytes: number, content: TextureContent): number;
+    /** A resource handle for a device texture another owner keeps (a render target's colour). */
+    wrapDeviceTexture?(textureId: number, width: number, height: number): number;
     /**
-     * Point an EXISTING texture handle at a freshly uploaded GPU object, so a
-     * re-upload after a device loss is invisible to everything holding it.
-     * Optional: absent on an older wasm build.
-     */
-    retargetExternalTexture?(handle: number, glTextureId: number, width: number, height: number): boolean;
-    /**
-     * The textures still parked on the placeholder after a loss, one
-     * `handle|path` per line. A blank path is a texture the asset layer never
-     * loaded — a render target, a glyph atlas — so it is not one to fetch.
-     * Optional: absent on an older wasm build.
+     * The textures the device is waiting for content for, one
+     * `handle|content|path` per line; `content` is the {@link TextureContent}
+     * that refills it. Optional: absent on an older wasm build.
      */
     texturesAwaitingReupload?(): string;
+    /** Give up on an owed texture's content: it keeps blank storage. */
+    forgoTextureContent?(handle: number): void;
     /**
-     * Move a freshly loaded texture's GPU object onto an existing handle, so a
-     * re-upload ends with one pool record instead of leaving the loader's
-     * behind. Optional: absent on an older wasm build.
+     * Move a freshly loaded texture's pixels behind an owed handle; the source
+     * is left empty for its release. Optional: absent on an older wasm build.
      */
     adoptTextureContent?(target: number, source: number): boolean;
     /**
-     * The meshes whose GPU realization died with the device, as comma-separated
-     * handle ids. No path travels with them: the engine never knew one, and the
-     * asset layer holds the provenance. Optional: absent on an older wasm build.
+     * Replayable meshes still owed their geometry, as comma-separated handle
+     * ids. No path travels with them: the asset layer holds the provenance.
+     * Optional: absent on an older wasm build.
      */
     meshesAwaitingRemat?(): string;
-    /**
-     * Meshes the loss ended for good — host-only geometry no source can replay.
-     * Reported rather than skipped, so recovery cannot count them as recovered.
-     * Optional: absent on an older wasm build.
-     */
-    meshesLostNonRecoverable?(): number;
-    /**
-     * Every live mesh as `handle:generation:realized`. Identity and realization
-     * read apart: from outside, a mesh that came back and one that was replaced
-     * by a new handle both simply draw, and only these tell them apart.
-     * Optional: absent on an older wasm build.
-     */
+    /** Every live mesh as `handle:realized`. Optional: absent on an older wasm build. */
     meshRealizations?(): string;
     getTextureGLId(handle: number): number;
     getTextureDimensions(handle: number): { width: number; height: number } | null;
@@ -344,11 +355,6 @@ export interface ESEngineModule {
      * one; the next {@link recoverDevice} adopts it. WebGL2 answers false.
      */
     provideReplacementDevice?(): boolean;
-    /**
-     * End recovery — the engine decides whether it actually ended. Returns how
-     * many textures are still on the placeholder; 0 means the device is Live.
-     */
-    markDeviceRestored?(): number;
     /**
      * UI draw order of an entity (its UIVisual.uiOrder, assigned by the UI
      * render-order pass), so SDF text quads interleave with UI quads. -1 if the

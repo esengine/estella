@@ -27,26 +27,6 @@ void TransientBufferPool::init(u32 initialVertexBytes, u32 initialIndexCount) {
     initialized_ = true;
 }
 
-void TransientBufferPool::recreateGpuResources() {
-    if (!initialized_) return;
-    // Dropped without deleting, then re-set up from the same initial sizes. The
-    // staging vectors are CPU-side and survive; only their write positions reset.
-    for (auto& s : streams_) {
-        s.vbo = BufferHandle::Invalid;
-        s.ebo = BufferHandle::Invalid;
-        s.quad_vbo = BufferHandle::Invalid;
-        s.layout = VertexLayoutHandle::Invalid;
-        s.vbo_capacity = 0;
-        s.ebo_capacity = 0;
-        s.vertex_write_pos = 0;
-        s.index_write_pos = 0;
-        s.texture = TextureHandle::Invalid;
-        s.texture_rows = 0;
-    }
-    initialized_ = false;
-    init(initial_vertex_bytes_, initial_index_count_);
-}
-
 void TransientBufferPool::shutdown() {
     if (!initialized_) return;
 
@@ -117,7 +97,7 @@ void TransientBufferPool::uploadInstanceRows(Stream& s, u32& grows, u32& writes)
         desc.wrapS = TextureWrap::ClampToEdge;
         desc.wrapT = TextureWrap::ClampToEdge;
         desc.mipmaps = false;
-        s.texture = device_.createTexture(desc, s.vertex_staging.data());
+        s.texture = device_.createTexture(desc, GfxContent::transient(), s.vertex_staging.data());
         s.texture_rows = s.texture == TextureHandle::Invalid ? 0 : want;
         ++grows;
         return;
@@ -285,7 +265,8 @@ void TransientBufferPool::setupStream(LayoutId layout) {
         // Per-instance (per-particle) stream: dynamic, streamed each frame.
         s.vertex_staging.resize(initial_vertex_bytes_);
         s.vbo_capacity = initial_vertex_bytes_;
-        s.vbo = device_.createBuffer({GfxBufferUsage::Vertex, s.vbo_capacity, /*dynamic=*/true}, nullptr);
+        s.vbo = device_.createBuffer({GfxBufferUsage::Vertex, s.vbo_capacity, /*dynamic=*/true},
+                                     GfxContent::transient(), nullptr);
 
         // Static unit quad (pos + uv) and its 6 indices, uploaded once. UVs are laid out
         // so the instance shader's a_texCoord*uvScale+uvOffset reproduces the prior
@@ -299,9 +280,11 @@ void TransientBufferPool::setupStream(LayoutId layout) {
         };
         const u32 quadIdx[6] = { 0, 1, 2, 2, 3, 0 };
         s.quad_vbo = device_.createBuffer(
-            {GfxBufferUsage::Vertex, static_cast<u32>(sizeof(quad)), /*dynamic=*/false}, quad);
+            {GfxBufferUsage::Vertex, static_cast<u32>(sizeof(quad)), /*dynamic=*/false},
+            GfxContent::retained(), quad);
         s.ebo = device_.createBuffer(
-            {GfxBufferUsage::Index, static_cast<u32>(sizeof(quadIdx)), /*dynamic=*/false}, quadIdx);
+            {GfxBufferUsage::Index, static_cast<u32>(sizeof(quadIdx)), /*dynamic=*/false},
+            GfxContent::retained(), quadIdx);
 
         // Slot 0: the static quad (per vertex). Slot 1: the instance stream (per instance),
         // rebased per draw in bindInstanceLayout.
@@ -330,9 +313,11 @@ void TransientBufferPool::setupStream(LayoutId layout) {
     s.vbo_capacity = initial_vertex_bytes_;
     s.ebo_capacity = initial_index_count_;
 
-    s.vbo = device_.createBuffer({GfxBufferUsage::Vertex, s.vbo_capacity, /*dynamic=*/true}, nullptr);
+    s.vbo = device_.createBuffer({GfxBufferUsage::Vertex, s.vbo_capacity, /*dynamic=*/true},
+                                 GfxContent::transient(), nullptr);
     s.ebo = device_.createBuffer(
-        {GfxBufferUsage::Index, static_cast<u32>(s.ebo_capacity * sizeof(u32)), /*dynamic=*/true}, nullptr);
+        {GfxBufferUsage::Index, static_cast<u32>(s.ebo_capacity * sizeof(u32)), /*dynamic=*/true},
+        GfxContent::transient(), nullptr);
 
     VertexLayoutDesc desc;
     switch (layout) {

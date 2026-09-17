@@ -6,7 +6,7 @@ import { platformCreateImage } from '../../platform/base';
 import type { PlatformImage } from '../../platform/types';
 import { decodeImageBitmap, readImagePixels } from '../imageDecode';
 import { requireResourceManager } from '../../wasm/resourceManager';
-import type { ESEngineModule } from '../../wasm';
+import { TextureContent, type ESEngineModule } from '../../wasm';
 import { withMalloc } from '../../wasm/wasmScratch';
 import {
     isKtx2, isKtx2Path, loadCompressedTexture, chooseEngineTargetFormat, engineFormatCode,
@@ -146,13 +146,13 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     }
 
     async loadFromPixels(
-        width: number, height: number, pixels: Uint8Array, flipY: boolean,
+        width: number, height: number, pixels: Uint8Array, flipY: boolean, content: TextureContent,
     ): Promise<TextureResult> {
         const rm = requireResourceManager();
         // Native (no wasm heap): upload the bytes directly. Web embind lacks this
         // method, so it takes the heap path below unchanged.
         if (rm.createTextureFromBytes) {
-            const handle = rm.createTextureFromBytes(width, height, pixels, 1, flipY);
+            const handle = rm.createTextureFromBytes(width, height, pixels, 1, flipY, content);
             return { handle, width, height };
         }
         if (!this.module_) {
@@ -161,7 +161,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         const module = this.module_;
         const handle = withMalloc(module, pixels.length, ptr => {
             module.HEAPU8.set(pixels, ptr);
-            return rm.createTexture(width, height, ptr, pixels.length, 1, flipY);
+            return rm.createTexture(width, height, ptr, pixels.length, 1, flipY, content);
         });
         return { handle, width, height };
     }
@@ -215,7 +215,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
             const params: TextureParams = {
                 filterMode: settings?.filter, wrapMode: settings?.wrap, srgb: settings?.srgb,
             };
-            const handle = createTextureFromPixels(this.module_, result, flip, params);
+            const handle = createTextureFromPixels(this.module_, result, TextureContent.Asset, flip, params);
             return { handle, width: result.width, height: result.height };
         }
         const url = ctx.backend.resolveUrl(ctx.catalog.getBuildPath(path));
@@ -288,7 +288,8 @@ export class TextureLoader implements AssetLoader<TextureResult> {
                 const code = engineFormatCode(target, srgb);
                 const handle = withMalloc(module, t.data.length, (ptr) => {
                     module.HEAPU8.set(t.data, ptr);
-                    return rm.createCompressedTexture!(t.width, t.height, code, ptr, t.data.length, 1);
+                    return rm.createCompressedTexture!(t.width, t.height, code, ptr, t.data.length, 1,
+                        TextureContent.Asset);
                 });
                 if (handle) return { handle, width: t.width, height: t.height };
                 // The upload itself failed after a good transcode — the payload
@@ -301,7 +302,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         }
         const rgba = transcoder.transcodeToRgba(bytes);
         if (!rgba) throw new Error(`TextureLoader: KTX2 decode failed for ${path}`);
-        return this.loadFromPixels(rgba.width, rgba.height, rgba.data, false);
+        return this.loadFromPixels(rgba.width, rgba.height, rgba.data, false, TextureContent.Asset);
     }
 
     /**
@@ -414,7 +415,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         glObj.textures[glTextureId] = texture;
 
         const rm = requireResourceManager();
-        const handle = rm.registerExternalTexture(glTextureId, width, height);
+        const handle = rm.registerExternalTexture(glTextureId, width, height, TextureContent.Asset);
         return { handle, width, height };
     }
 
@@ -438,7 +439,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         const format = linearColorSpace() && (settings?.srgb ?? true) ? 2 : 1;
         const handle = withMalloc(module, pixels.length, ptr => {
             module.HEAPU8.set(pixels, ptr);
-            return rm.createTexture(width, height, ptr, pixels.length, format, flip);
+            return rm.createTexture(width, height, ptr, pixels.length, format, flip, TextureContent.Asset);
         });
 
         return { handle, width, height };

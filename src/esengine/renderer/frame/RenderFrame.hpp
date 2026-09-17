@@ -109,10 +109,6 @@ public:
     /** Geometry collected for this camera and drawn after its scene. */
     void setPresentedOverlayDraw(ImmediateDraw* draw) { presented_overlay_draw_ = draw; }
 
-    /// Rebuilds everything this frame owns after a device loss: the transient
-    /// pool, the render targets, the batch program ids and the post-process chain.
-    void recreateGpuResources();
-
     /** @brief The frame's main-pass load-op: which attachments to clear, the color,
      *         and an optional region (w == 0 = full target — per-camera flows clear
      *         only their viewport on the shared default target). */

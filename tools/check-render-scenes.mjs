@@ -48,7 +48,9 @@ for (const s of SCENES) {
   // column that behaves unlike its neighbours on a grid is not a pixel colour.
   // A COUNT is an expectation too, and the one a point probe cannot make: how
   // much of a colour the frame holds does not depend on where a font put it.
+  // A ROUNDTRIP compares every pixel against the frame from before the loss.
   const asserts = s.env.ESTELLA_VERIFY_EXPECT || s.env.ESTELLA_VERIFY_COUNT
+    || s.env.ESTELLA_VERIFY_DEVICE_LOSS === 'roundtrip'
     || s.env.ESTELLA_VERIFY_SEAM
     || s.env.ESTELLA_VERIFY_GRID || s.env.ESTELLA_VERIFY_PREVIEW
     || s.env.ESTELLA_VERIFY_MESH_PREVIEW || s.env.ESTELLA_VERIFY_DEPTH_LAYERS

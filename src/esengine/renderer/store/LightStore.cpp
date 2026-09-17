@@ -16,7 +16,8 @@ void LightStore::uploadAndBind() {
 
     if (ubo_ == BufferHandle::Invalid) {
         ubo_ = device_->createBuffer(
-            {GfxBufferUsage::Uniform, static_cast<u32>(sizeof(LightConstants)), /*dynamic=*/true}, &data_);
+            {GfxBufferUsage::Uniform, static_cast<u32>(sizeof(LightConstants)), /*dynamic=*/true},
+            GfxContent::retained(), &data_);
         dirty_ = false;
     } else if (dirty_) {
         device_->updateBuffer(ubo_, 0, &data_, sizeof(LightConstants));

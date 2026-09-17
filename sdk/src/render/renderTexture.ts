@@ -47,10 +47,10 @@ export const RenderTexture = {
 
         const handle = Renderer.createRenderTarget(options.width, options.height, flags);
         const textureId = Renderer.getTargetTexture(handle);
-        // Same channel video frames use: adopt the device texture into the
-        // resource table so components can reference it by handle.
+        // The target keeps its texture; the resource table only names it, so
+        // components can reference it by handle.
         const texture = textureId !== 0
-            ? getResourceManager()?.registerExternalTexture(textureId, options.width, options.height) ?? 0
+            ? getResourceManager()?.wrapDeviceTexture?.(textureId, options.width, options.height) ?? 0
             : 0;
 
         sizes.set(handle, { width: options.width, height: options.height });

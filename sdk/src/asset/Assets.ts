@@ -13,7 +13,7 @@ import type {
     LocaleResult, FsmResult, BtResult, AnimatorControllerResult, JsonResult,
 } from './AssetLoader';
 import { AsyncCache } from './AsyncCache';
-import type { ESEngineModule } from '../wasm';
+import { TextureContent, textureContentName, type ESEngineModule } from '../wasm';
 import type { CppResourceManager } from '../wasm';
 import { requireResourceManager, getResourceManager, evictTextureDimensions } from '../wasm/resourceManager';
 import type { TextureImportSettings, TextureImportSettingsResolver } from './loaders/TextureLoader';
@@ -57,7 +57,7 @@ import { SceneHandle, type ReleaseCallback } from './SceneHandle';
 import { UUID_REF_PREFIX } from './AssetRegistry';
 import type { AssetRefCounter } from './AssetRefCounter';
 import { log } from '../util/logger';
-import { recoverDevice, finishDeviceRecovery } from '../render/renderer';
+import { recoverDevice, getDeviceStatus, DeviceStatus } from '../render/renderer';
 
 /**
  * One asset generation ending: which ref, what kind of asset it was, and what
@@ -445,40 +445,42 @@ export class Assets {
     }
 
     /**
-     * The textures still on the placeholder, and the path each was registered
-     * under — the engine's list, not a mirror of this cache. A loss sweeps every
-     * texture, so restoring only what this layer remembers reports a whole
-     * device with half the screen white. A blank path is not the asset layer's.
+     * The textures the engine is waiting for content for — its ledger, not a
+     * mirror of this cache — with who refills each and the path it was
+     * registered under. A blank path is not this layer's to fetch.
      */
-    texturesAwaitingReupload(): { handle: number; path: string }[] {
+    texturesAwaitingReupload(): { handle: number; content: TextureContent; path: string }[] {
         const raw = requireResourceManager().texturesAwaitingReupload?.() ?? '';
         if (!raw) return [];
         return raw.split('\n').map((line) => {
-            const cut = line.indexOf('|');
+            const [handle, content, ...path] = line.split('|');
             return {
-                handle: Number(cut < 0 ? line : line.slice(0, cut)),
-                path: cut < 0 ? '' : line.slice(cut + 1),
+                handle: Number(handle),
+                content: Number(content) as TextureContent,
+                path: path.join('|'),
             };
         });
     }
 
     /**
-     * Re-uploads every texture the engine says is still the placeholder.
+     * Refills every owed texture this layer can, and gives up on the rest.
      *
-     * Driven by that list, not by this cache, which only held the subset this
-     * layer loaded — the difference between the two is exactly what never came
-     * back. The bytes arrive under no path of their own and are then moved onto
-     * the handle that has one, so the pool ends with the records it began with.
+     * An asset texture is loaded the ordinary way and moved behind the handle
+     * everything holds. Content nobody here can remake is forgone by name: waiting
+     * for it would keep the device recovering forever.
      */
     async reuploadTexturesAfterDeviceLoss(): Promise<number> {
         const rm = requireResourceManager();
         if (!rm.adoptTextureContent) return 0;
 
         let restored = 0;
-        for (const { handle, path } of this.texturesAwaitingReupload()) {
-            // Not this layer's to restore — a render target, a glyph atlas. Its
-            // own subsystem re-creates it, or it stays on the placeholder.
-            if (!path) continue;
+        for (const { handle, content, path } of this.texturesAwaitingReupload()) {
+            if (content !== TextureContent.Asset || !path) {
+                log.warn('assets', `Device recovery: texture ${handle} (${textureContentName(content)})`
+                    + ' has no provider to refill it; it stays blank');
+                rm.forgoTextureContent?.(handle);
+                continue;
+            }
             const cut = path.lastIndexOf(':');
             const ref = cut < 0 ? path : path.slice(0, cut);
             const flip = cut < 0 || path.slice(cut + 1) === 'f';
@@ -497,31 +499,21 @@ export class Assets {
     }
 
     /**
-     * The meshes the engine says lost their geometry, by handle. No path travels
-     * with them: the engine never knew one, and this layer does — which is the
-     * division the whole recovery rests on. The engine says WHICH identity is
-     * owed; only the asset layer can say what it was made from.
+     * The meshes the engine is waiting for geometry for, by handle. No path
+     * travels with them: the engine never knew one, and this layer does.
      */
     meshesAwaitingRematerialization(): number[] {
         const raw = requireResourceManager().meshesAwaitingRemat?.() ?? '';
         return raw ? raw.split(',').map(Number).filter((h) => h > 0) : [];
     }
 
-    /**
-     * Every live mesh's identity beside the device generation its realization
-     * belongs to. A recovery that minted new handles and one that put geometry
-     * back behind the old ones both end with a scene that draws.
-     */
-    meshRealizations(): { handle: number; generation: number; realized: boolean }[] {
+    /** Every live mesh and whether its geometry is on the device. */
+    meshRealizations(): { handle: number; realized: boolean }[] {
         const raw = requireResourceManager().meshRealizations?.() ?? '';
         if (!raw) return [];
         return raw.split(',').map((row) => {
-            const [handle, generation, realized] = row.split(':');
-            return {
-                handle: Number(handle),
-                generation: Number(generation),
-                realized: realized === '1',
-            };
+            const [handle, realized] = row.split(':');
+            return { handle: Number(handle), realized: realized === '1' };
         });
     }
 
@@ -529,10 +521,10 @@ export class Assets {
      * Replays each owed mesh from its source, into the handle it already has.
      *
      * A missing provenance is a CONTRACT VIOLATION, not a mesh that turns out to
-     * be unrecoverable: the engine only enqueues what a producer declared
+     * be unrecoverable: the engine only owes what a producer declared
      * replayable, so an absent path means this layer lost the record.
      *
-     * @return How many came back. The rest stay owed, so recovery cannot finish.
+     * @return How many came back. The rest stay owed.
      */
     async rematerializeMeshesAfterDeviceLoss(): Promise<number> {
         const loader = this.getLoader<MeshResult>('mesh');
@@ -558,29 +550,21 @@ export class Assets {
     }
 
     /**
-     * The whole recovery, in the order it has to happen: rebuild what the engine
-     * can, put the content back, then declare the device whole. Returns false
-     * while the context is not available yet — a browser restores when it is
-     * ready, so a caller retries rather than giving up.
+     * Pays what the engine owes after rebuilding the device. The rebuild itself
+     * is the engine's, once per loss; this only refills content. Returns whether
+     * the device is whole — false while the context is not back yet, or while
+     * content is still owed, so a caller retries.
      */
     async recoverFromDeviceLoss(): Promise<boolean> {
         if (!recoverDevice()) return false;
         await this.reuploadTexturesAfterDeviceLoss();
         await this.rematerializeMeshesAfterDeviceLoss();
-        const pending = finishDeviceRecovery();
-        if (pending > 0) {
-            log.warn('assets',
-                     `Device recovery: ${pending} texture(s)/mesh(es) have not come back`);
-            return false;
+        const whole = getDeviceStatus() === DeviceStatus.Live;
+        if (!whole) {
+            const owed = this.texturesAwaitingReupload().length + this.meshesAwaitingRematerialization().length;
+            log.warn('assets', `Device recovery: ${owed} texture(s)/mesh(es) have not come back`);
         }
-        // Host-only geometry cannot come back, and a recovery that says nothing
-        // about it reads as one where everything did.
-        const lost = requireResourceManager().meshesLostNonRecoverable?.() ?? 0;
-        if (lost > 0) {
-            log.warn('assets', `Device recovery: ${lost} host-only mesh(es) ended with the`
-                + ' device — no source can replay them');
-        }
-        return true;
+        return whole;
     }
 
     private async loadTextureVariant_(ref: string, flip: boolean): Promise<TextureResult> {
@@ -2561,11 +2545,11 @@ export class Assets {
                 return fetchDecodePixels(self.backend.resolveUrl(self.catalog.getBuildPath(path)));
             },
             async createTextureFromPixels(width, height, pixels, flipY) {
-                return self.textureLoader_.loadFromPixels(width, height, pixels, flipY);
+                return self.textureLoader_.loadFromPixels(width, height, pixels, flipY, TextureContent.Retained);
             },
             async createOwnedTexture(width, height, pixels, flipY) {
                 return self.ownedTextureLease_(
-                    await self.textureLoader_.loadFromPixels(width, height, pixels, flipY),
+                    await self.textureLoader_.loadFromPixels(width, height, pixels, flipY, TextureContent.Retained),
                 );
             },
             getAudio() {

@@ -25,7 +25,7 @@ namespace esengine {
  */
 enum class MeshRecovery : u8 {
     SourceReplayable,  ///< Replayable from an asset the loader can load again.
-    HostOnly,          ///< Built in this process from bytes kept nowhere else.
+    HostOnly,          ///< Built in this process; the device keeps its bytes.
 };
 
 /**
@@ -45,13 +45,9 @@ struct MeshMorphSource {
  * @brief Buffers, the layout that describes them, and the bounds culling reads.
  *
  * @details One record because the three are inseparable: a buffer without its
- *          layout cannot be drawn, and bounds kept elsewhere go stale. Material,
- *          layer and transform belong to the entity, so one mesh serves many.
- *
- *          The handle is a LOGICAL identity: the buffers and the layout realize
- *          it on ONE device generation and a lost device takes all three, while
- *          the handle survives. Where the geometry comes back FROM is the
- *          minting producer's to declare — tools/meshProducers.mjs.
+ *          layout cannot be drawn, and bounds kept elsewhere go stale. Where the
+ *          geometry comes back from after a device loss is the minting producer's
+ *          to declare — tools/meshProducers.mjs.
  */
 class Mesh {
 public:
@@ -69,11 +65,6 @@ public:
      *  Defaulted to the answer that promises nothing, so a mesh reaching the pool
      *  without one is never mistaken for recoverable. */
     MeshRecovery recovery = MeshRecovery::HostOnly;
-
-    /** The device generation the three handles above belong to. A diagnostic:
-     *  it answers whether a mesh was really rebuilt, where a non-zero handle
-     *  only looks like it. */
-    u64 realizationGeneration = 0;
 
     /** Whether the vertices carry normals — decides the per-object record's shape
      *  and which shader variant draws it. */
@@ -108,9 +99,7 @@ public:
         return morphTargetCount > 0 && morphTexture != TextureHandle::Invalid;
     }
 
-    /** Whether a live GPU realization stands behind this identity. False from a
-     *  device loss until the rematerialization that replaces it, which is what
-     *  stops the draw path consuming buffers that died with their device. */
+    /** Whether GPU buffers stand behind this identity. */
     bool hasRealization() const {
         return vertexBuffer != BufferHandle::Invalid
             && indexBuffer != BufferHandle::Invalid

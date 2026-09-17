@@ -13,6 +13,7 @@ set(ESENGINE_SOURCES
     ${ESENGINE_ROOT}/src/esengine/resource/ResourceManager.cpp
     ${ESENGINE_ROOT}/src/esengine/resource/ShaderParser.cpp
     ${ESENGINE_ROOT}/src/esengine/renderer/frame/RenderContext.cpp
+    ${ESENGINE_ROOT}/src/esengine/renderer/rhi/GfxDevice.cpp
     ${ESENGINE_ROOT}/src/esengine/renderer/rhi/Shader.cpp
     ${ESENGINE_ROOT}/src/esengine/renderer/draw/DrawParams.cpp
     ${ESENGINE_ROOT}/src/esengine/renderer/rhi/Buffer.cpp

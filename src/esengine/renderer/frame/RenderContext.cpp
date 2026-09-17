@@ -83,33 +83,13 @@ void RenderContext::shutdown() {
     ES_LOG_INFO("RenderContext shutdown");
 }
 
-void RenderContext::recreateGpuResources() {
-    if (!initialized_) return;
-    // Handles are dropped, not deleted: the objects died with the device, and
-    // asking it to free their ids would look up metadata the backend just wiped.
-    whiteTexture_ = TextureHandle::Invalid;
-    blackTexture_ = TextureHandle::Invalid;
-    flatNormalTexture_ = TextureHandle::Invalid;
-    frameUbo_ = BufferHandle::Invalid;
-    timeUbo_ = BufferHandle::Invalid;
-    drawParamsFallback_ = BufferHandle::Invalid;
-
-    initDefaultTextures();
-    initFrameUbo();
-    // The built-ins are new objects, so the materials falling back to them have
-    // to be told; otherwise every unset texture param samples a dead id.
-    materials_.setBuiltinDefaults(whiteTexture_, blackTexture_, flatNormalTexture_);
-    materials_.recreateGpuResources();
-    lights_.recreateGpuResources();
-}
-
 TextureHandle RenderContext::make1x1Texture(u32 rgba) {
     TextureDesc desc;
     desc.width = 1;
     desc.height = 1;
     desc.minFilter = TextureFilter::Nearest;
     desc.magFilter = TextureFilter::Nearest;
-    return device_.createTexture(desc, &rgba);
+    return device_.createTexture(desc, GfxContent::retained(), &rgba);
 }
 
 void RenderContext::initDefaultTextures() {
@@ -125,7 +105,8 @@ void RenderContext::initDefaultTextures() {
 void RenderContext::initFrameUbo() {
     FrameConstants initial{};
     frameUbo_ = device_.createBuffer(
-        {GfxBufferUsage::Uniform, static_cast<u32>(sizeof(FrameConstants)), /*dynamic=*/true}, &initial);
+        {GfxBufferUsage::Uniform, static_cast<u32>(sizeof(FrameConstants)), /*dynamic=*/true},
+        GfxContent::retained(), &initial);
 
     // The binding slot persists for the context lifetime; only the contents change
     // per frame. Every engine shader's FrameConstants block is linked to this slot
@@ -134,7 +115,8 @@ void RenderContext::initFrameUbo() {
 
     TimeConstants time{};
     timeUbo_ = device_.createBuffer(
-        {GfxBufferUsage::Uniform, static_cast<u32>(sizeof(TimeConstants)), /*dynamic=*/true}, &time);
+        {GfxBufferUsage::Uniform, static_cast<u32>(sizeof(TimeConstants)), /*dynamic=*/true},
+        GfxContent::retained(), &time);
     device_.setUniformBuffer(TIME_CONSTANTS_BINDING, timeUbo_);
 
     // Zeroed fallback for the shared per-draw params slot: a shader whose loose
@@ -144,7 +126,8 @@ void RenderContext::initFrameUbo() {
     // what their loose-uniform ancestors read.
     const std::vector<u8> zeros(DRAW_PARAMS_FALLBACK_SIZE, 0);
     drawParamsFallback_ = device_.createBuffer(
-        {GfxBufferUsage::Uniform, DRAW_PARAMS_FALLBACK_SIZE, /*dynamic=*/false}, zeros.data());
+        {GfxBufferUsage::Uniform, DRAW_PARAMS_FALLBACK_SIZE, /*dynamic=*/false},
+        GfxContent::retained(), zeros.data());
     device_.setUniformBuffer(DRAW_PARAMS_BINDING, drawParamsFallback_);
 
     // A pose, a set of shapes, and the indirect light where a draw stands. A POOL

@@ -124,7 +124,7 @@ bool Framebuffer::initialize() {
     colorDesc.minFilter = filter;
     colorDesc.magFilter = filter;
     colorDesc.samples = samples;
-    colorAttachment_ = device_->createTexture(colorDesc, nullptr);
+    colorAttachment_ = device_->createTexture(colorDesc, GfxContent::transient(), nullptr);
 
     TextureDesc depthDesc;
     depthDesc.width = spec_.width;
@@ -134,7 +134,7 @@ bool Framebuffer::initialize() {
     depthDesc.magFilter = TextureFilter::Nearest;
     if (spec_.depthStencil) {
         depthDesc.samples = samples;
-        depthAttachment_ = device_->createTexture(depthDesc, nullptr);
+        depthAttachment_ = device_->createTexture(depthDesc, GfxContent::transient(), nullptr);
     }
 
     // The single-sample twins the multisampled attachments resolve into. They
@@ -142,10 +142,10 @@ bool Framebuffer::initialize() {
     // and no pass or effect has to know it happened.
     if (samples > 1) {
         colorDesc.samples = 1;
-        resolveColor_ = device_->createTexture(colorDesc, nullptr);
+        resolveColor_ = device_->createTexture(colorDesc, GfxContent::transient(), nullptr);
         if (spec_.depthStencil) {
             depthDesc.samples = 1;
-            resolveDepth_ = device_->createTexture(depthDesc, nullptr);
+            resolveDepth_ = device_->createTexture(depthDesc, GfxContent::transient(), nullptr);
         }
     }
 

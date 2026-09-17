@@ -20,6 +20,8 @@
  *   ESTELLA_VERIFY_GRID      editor-grid on/off pixel-diff assertion (value = spacing)
  *   ESTELLA_VERIFY_GRID_EXPECT  what that diff must be: "frame" (default) or "nothing"
  *   ESTELLA_VERIFY_GRID_RESPACE  respace the drawn grid; the frame must change with it
+ *   ESTELLA_VERIFY_DEVICE_LOSS  1 | auto | roundtrip (lose the device; roundtrip compares the frame)
+ *   ESTELLA_VERIFY_LOSS_GRID  draw the editor grid through a roundtrip (value = spacing)
  *   ESTELLA_VERIFY_DEPTH_LAYERS  bitmask of layers resolved by depth (2.5D)
  *   ESTELLA_VERIFY_RENDER_RESOLUTION  render at the scene's own resolution and
  *                                scale the finished image (1 = design, 2 = integer)
@@ -139,8 +141,12 @@ function finish(result, server) {
   // which is what a single round reports as a pass.
   const cameBack = !dl || ((dl.statusAfterFull === 0 && (dl.awaitingAfterFull?.length ?? 0) === 0)
     && (dl.rounds ?? []).every((r) => r.status === 0 && (r.awaiting?.length ?? 0) === 0));
+  // Recovering exactly while something is owed: a device with nothing left to
+  // refill is whole the moment it is rebuilt, and one that still owes is not.
+  const owedAfterRecover = (dl?.awaitingAfterRecover?.length ?? 0) + (dl?.meshesOwedAfterRecover?.length ?? 0);
   const drivenSteps = !dl || dl.mode === 'auto' || (dl.glLostAfterRestore === false
-    && dl.recovered === true && dl.statusAfterRecover === 2 && dl.fullRecovered === true);
+    && dl.recovered === true && dl.statusAfterRecover === (owedAfterRecover > 0 ? 2 : 0)
+    && dl.fullRecovered === true);
   // Objects the dead context minted that nobody released — visible only across
   // rounds. From the SECOND, so the first recovery's one-off costs are not read
   // as a slope. What the ENGINE owns comes back to the same size, full stop: a
@@ -155,35 +161,30 @@ function finish(result, server) {
     return owned && (last.tables.buffers - first.tables.buffers) <= spans;
   })(rounds[1], rounds[rounds.length - 1], rounds.length - 2);
   // Geometry, which the pixels cannot speak for: a recovery that minted fresh
-  // handles draws the same frame as one that re-realized the old ones. Same
-  // identity set, each realized again, each on a LATER device generation.
+  // handles draws the same frame as one that put the geometry back behind the
+  // old ones. Same identity set, every one realized, nothing still owed.
   const meshIdentityOk = !dl || !dl.meshesBefore?.length || (() => {
     const before = dl.meshesBefore;
     const after = dl.meshesAfterFull ?? [];
     const by = (rows) => new Map(rows.map((m) => [m.handle, m]));
     const [b, a] = [by(before), by(after)];
     if (b.size !== a.size) return false;
-    for (const [handle, was] of b) {
-      const now = a.get(handle);
-      // Same handle, realized again, on a generation the dead one never saw.
-      if (!now || !now.realized || now.generation <= was.generation) return false;
+    for (const handle of b.keys()) {
+      if (!a.get(handle)?.realized) return false;
     }
-    // Nothing may still be owed: a debt outliving recovery is geometry that
-    // never came back, and the device had no business reporting Live.
     if ((dl.meshesOwedAfterFull?.length ?? 0) !== 0) return false;
-    // The middle state has to have happened. Without it, a scene that never lost
-    // its geometry passes this whole check by never having been broken.
+    // Between the rebuild and the replay, what is not realized is exactly what
+    // the engine says it is owed: a mesh missing from the ledger never comes back.
     if (dl.mode !== 'auto') {
-      if (!dl.meshesAfterRecover?.length) return false;
-      if (!dl.meshesAfterRecover.every((m) => !m.realized)) return false;
-      if ((dl.meshesOwedAfterRecover?.length ?? 0) !== before.length) return false;
+      const unrealized = (dl.meshesAfterRecover ?? []).filter((m) => !m.realized).length;
+      if ((dl.meshesAfterRecover?.length ?? 0) !== before.length) return false;
+      if ((dl.meshesOwedAfterRecover?.length ?? 0) !== unrealized) return false;
     }
     return true;
   })();
-  // A rebuild empties the stock program cache, so readiness taken before it is
-  // stale. Without this, a stamp from the dead generation keeps vouching for
-  // programs nothing holds, and the first frame that needs one pays for it.
-  const epochOk = !dl || dl.epochBefore < 0 || dl.epochAfterFull > dl.epochBefore;
+  // Programs come back behind their handles, so readiness taken before a rebuild
+  // is still true. An epoch that moves would re-derive readiness nothing lost.
+  const epochOk = !dl || dl.epochBefore < 0 || dl.epochAfterFull === dl.epochBefore;
   // The two are independent on purpose. A rebuilt device that left readiness
   // untouched, or readiness invalidated on a device that never moved, are both
   // states nothing downstream could reason about.
@@ -209,7 +210,7 @@ function finish(result, server) {
     (result.resize?.ok ?? true) && (result.preview?.ok ?? true) &&
     (result.meshPreview?.ok ?? true) && (result.grid?.ok ?? true) &&
     (result.draws?.ok ?? true) && (result.counters?.ok ?? true) &&
-    deviceLossOk && meshOk && pickOk;
+    (result.roundtrip?.ok ?? true) && deviceLossOk && meshOk && pickOk;
   const why = assetsOk ? '' : `: could not load ${result.missingAssets.join(', ')}`;
   console.log(`\n[verify:render] ${ok ? 'PASS' : 'FAIL'} — ${SCENE} (${BACKEND})${why}`);
   console.log('DRIVE_RESULT ' + JSON.stringify(result));
@@ -618,6 +619,60 @@ app.whenReady().then(async () => {
       const spread = (max[0] - min[0]) + (max[1] - min[1]) + (max[2] - min[2]);
       return { w, h, totalPixels: px.length / 4, nonZeroPixels: nonZero, min, max, spread, rendered: spread > 16 };
     `);
+
+    // ESTELLA_VERIFY_DEVICE_LOSS=roundtrip: frames pass until the device says Live,
+    // and the frame must be the one from before the loss. A second capture before
+    // any loss proves the scene holds still, or the comparison proves nothing.
+    let roundtrip = null;
+    if (process.env.ESTELLA_VERIFY_DEVICE_LOSS === 'roundtrip') {
+      const gridSpacing = Number(process.env.ESTELLA_VERIFY_LOSS_GRID) || 0;
+      if (gridSpacing > 0) {
+        await exec(`window.__estellaHeadless.api.setGrid(true, ${gridSpacing})`);
+        await exec('window.__estellaHeadless.api.step(2, 1 / 60)');
+      }
+      const tolerance = Number(process.env.ESTELLA_VERIFY_LOSS_TOLERANCE) || 0;
+      const diffAgainstReference = `
+        const ref = window.__estellaRoundtripRef;
+        let differing = 0;
+        for (let i = 0; i < px.length; i += 4) {
+          if (Math.abs(ref[i] - px[i]) + Math.abs(ref[i + 1] - px[i + 1]) + Math.abs(ref[i + 2] - px[i + 2]) > 24) differing++;
+        }
+        return differing;
+      `;
+      await readFrame('window.__estellaRoundtripRef = px.slice(); return true;');
+      await exec(`window.__estellaHeadless.api.step(${STEPS}, 1 / 60)`);
+      const still = await readFrame(diffAgainstReference);
+      const rounds = [];
+      for (let r = 0; r < ROUNDS; r++) {
+        const round = await exec(`(async () => {
+          const d = window.__estellaHeadless.device;
+          const api = window.__estellaHeadless.api;
+          if (!d.lose()) return { supported: false };
+          for (let i = 0; i < 30 && d.status() === 0; i++) {
+            await api.step(1, 1 / 60);
+            await new Promise((r2) => setTimeout(r2, 50));
+          }
+          const lost = d.status() !== 0;
+          d.restore();
+          await new Promise((r2) => setTimeout(r2, 200));
+          let frames = 0;
+          for (; frames < 300 && d.status() !== 0; frames++) {
+            await api.step(1, 1 / 60);
+            await new Promise((r2) => setTimeout(r2, 16));
+          }
+          return { supported: true, lost, status: d.status(), frames };
+        })()`);
+        await exec(`window.__estellaHeadless.api.step(${STEPS}, 1 / 60)`);
+        round.differing = await readFrame(diffAgainstReference);
+        rounds.push(round);
+      }
+      roundtrip = {
+        still, tolerance, rounds,
+        ok: still === 0 && rounds.length > 0 && rounds.every((x) => x.supported && x.lost
+          && x.status === 0 && x.differing <= tolerance),
+      };
+    }
+
     const drawCalls = await exec('window.__estellaHeadless.api.getStats().drawCalls');
     // What the frame COST, which no pixel shows: the same geometry drawn N times
     // is one instanced call, and the picture is identical either way. Asserted as
@@ -865,7 +920,7 @@ app.whenReady().then(async () => {
       `);
       if (respaced != null) grid = { ...grid, respacedPixels: respaced, ok: grid.ok && respaced > 300 };
     }
-    finish({ ok: true, entityCount, missingAssets, drawCalls, draws, counters, profile, capture, expect, count, seam, resize, preview, meshPreview, grid, deviceLoss, meshResident, meshAsset, meshMaterial, meshPrefab, setField, animator, pick, cameraTarget }, server);
+    finish({ ok: true, entityCount, missingAssets, drawCalls, draws, counters, profile, capture, expect, count, seam, resize, preview, meshPreview, grid, deviceLoss, roundtrip, meshResident, meshAsset, meshMaterial, meshPrefab, setField, animator, pick, cameraTarget }, server);
   } catch (e) {
     finish({ ok: false, error: String((e && e.stack) || e) }, server);
   }

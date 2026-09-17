@@ -20,9 +20,7 @@ namespace esengine {
 
 class PerDrawBlocks {
 public:
-    /** @brief Claims the pool for blocks of @p blockSize bytes, plus the zero one.
-     *         Also what a device loss runs: old handles are DROPPED, not deleted,
-     *         since freeing an id would read metadata the backend just wiped. */
+    /** @brief Claims the pool for blocks of @p blockSize bytes, plus the zero one. */
     void init(GfxDevice& device, u32 blockSize) {
         device_ = &device;
         blockSize_ = blockSize;
@@ -30,7 +28,7 @@ public:
         used_ = 0;
         const std::vector<u8> zeros(blockSize, 0);
         zero_ = device.createBuffer({GfxBufferUsage::Uniform, blockSize, /*dynamic=*/false},
-                                    zeros.data());
+                                    GfxContent::retained(), zeros.data());
     }
 
     /** @brief Hands every buffer back. Called once per FRAME — see the file note. */
@@ -43,7 +41,8 @@ public:
         if (used_ == pool_.size()) {
             const std::vector<u8> zeros(blockSize_, 0);
             pool_.push_back(device_->createBuffer(
-                {GfxBufferUsage::Uniform, blockSize_, /*dynamic=*/true}, zeros.data()));
+                {GfxBufferUsage::Uniform, blockSize_, /*dynamic=*/true}, GfxContent::transient(),
+                zeros.data()));
         }
         const BufferHandle handle = pool_[used_++];
         if (handle != BufferHandle::Invalid) device_->updateBuffer(handle, 0, bytes, size);

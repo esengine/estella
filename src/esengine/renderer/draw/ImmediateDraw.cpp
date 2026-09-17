@@ -102,18 +102,6 @@ ImmediateDraw::~ImmediateDraw() {
     }
 }
 
-void ImmediateDraw::recreateGpuResources() {
-    if (!initialized_) return;
-    pool_.recreateGpuResources();
-    white_texture_id_ = context_.getWhiteTextureId();
-    // NOT re-created: the manager re-compiled it behind the same handle, so the
-    // only stale thing here is the program id cached from it.
-    batch_shader_ = ShaderHandle::Invalid;
-    if (Shader* shader = resource_manager_.getShader(batch_shader_ref_)) {
-        if (shader->isValid()) batch_shader_ = shader->handle();
-    }
-}
-
 void ImmediateDraw::init() {
     if (initialized_) return;
 

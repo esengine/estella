@@ -70,11 +70,11 @@ export function createNativeResourceManager(
         // path applies — Linear filtering, ClampToEdge wrap (Texture::create's
         // pixel overload) — so a texture with no settings uploads identically.
         createTextureFromBytes: (
-            width, height, pixels, format, flipY, filterMode, wrapMode,
+            width, height, pixels, format, flipY, content, filterMode, wrapMode,
         ): number =>
             hostCall(scope, RESOURCE_BINDINGS.createTexture,
                 [width, height, pixels, pixels.length, format, flipY,
-                 filterMode ?? FILTER_LINEAR, wrapMode ?? WRAP_CLAMP_TO_EDGE]) as number,
+                 filterMode ?? FILTER_LINEAR, wrapMode ?? WRAP_CLAMP_TO_EDGE, content]) as number,
 
         // The host transcodes KTX2 (basis) and uploads the blocks:
         // { id, width, height, format, blockRefused } → { handle, ... }. A host

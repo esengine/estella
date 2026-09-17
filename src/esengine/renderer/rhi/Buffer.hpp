@@ -21,6 +21,7 @@
 
 // Project includes
 #include "../../core/Types.hpp"
+#include "./GfxContent.hpp"
 #include "./GfxEnums.hpp"
 
 // Standard library
@@ -182,21 +183,7 @@ private:
 // =============================================================================
 
 /**
- * @brief GPU buffer for vertex data
- *
- * @details Wraps a GfxDevice vertex buffer object. Supports both static and
- *          dynamic usage. All GPU work is delegated to the device.
- *
- * @code
- * struct Vertex { float x, y, u, v; };
- * std::vector<Vertex> vertices = {...};
- *
- * auto vbo = VertexBuffer::create(device, std::span(vertices));
- * vbo->setLayout({
- *     {ShaderDataType::Float2, "a_position"},
- *     {ShaderDataType::Float2, "a_texCoord"}
- * });
- * @endcode
+ * @brief GPU buffer for vertex data, static or dynamic; all GPU work goes through the device.
  */
 class VertexBuffer {
 public:
@@ -221,24 +208,24 @@ public:
      * @return Unique pointer to the buffer
      */
     template<typename T>
-    static Unique<VertexBuffer> create(GfxDevice& device, std::span<const T> data) {
-        return createRaw(device, data.data(), static_cast<u32>(data.size_bytes()));
+    static Unique<VertexBuffer> create(GfxDevice& device, GfxContent content, std::span<const T> data) {
+        return createRaw(device, content, data.data(), static_cast<u32>(data.size_bytes()));
     }
 
     /**
      * @brief Creates a static buffer from a vector
      */
     template<typename T>
-    static Unique<VertexBuffer> create(GfxDevice& device, const std::vector<T>& data) {
-        return create(device, std::span<const T>(data));
+    static Unique<VertexBuffer> create(GfxDevice& device, GfxContent content, const std::vector<T>& data) {
+        return create(device, content, std::span<const T>(data));
     }
 
     /**
      * @brief Creates a static buffer from a C array
      */
     template<typename T, usize N>
-    static Unique<VertexBuffer> create(GfxDevice& device, const T (&data)[N]) {
-        return create(device, std::span<const T>(data, N));
+    static Unique<VertexBuffer> create(GfxDevice& device, GfxContent content, const T (&data)[N]) {
+        return create(device, content, std::span<const T>(data, N));
     }
 
     /**
@@ -249,7 +236,7 @@ public:
      *
      * @details Use setData() to upload data later.
      */
-    static Unique<VertexBuffer> create(GfxDevice& device, u32 sizeBytes);
+    static Unique<VertexBuffer> create(GfxDevice& device, GfxContent content, u32 sizeBytes);
 
     // =========================================================================
     // Operations
@@ -298,14 +285,6 @@ public:
     /** @brief Gets the device buffer handle */
     BufferHandle handle() const { return handle_; }
 
-    /**
-     * @brief Forgets the GPU buffer, which died with its device.
-     * @details Not a delete: the object is already gone, and asking a dead device
-     *          to free an id it no longer has is at best a no-op. Forgetting it
-     *          is what keeps the destructor from doing exactly that later.
-     */
-    void abandonGpuBuffer() { handle_ = BufferHandle::Invalid; }
-
     // =========================================================================
     // Raw API for internal use only
     // =========================================================================
@@ -317,7 +296,7 @@ public:
      * @param sizeBytes Size of data in bytes
      * @return Unique pointer to the buffer
      */
-    static Unique<VertexBuffer> createRaw(GfxDevice& device, const void* data, u32 sizeBytes);
+    static Unique<VertexBuffer> createRaw(GfxDevice& device, GfxContent content, const void* data, u32 sizeBytes);
 
     /**
      * @brief Updates buffer data from raw pointer (internal use)
@@ -352,7 +331,7 @@ private:
  *
  * @code
  * std::vector<u32> indices = {0, 1, 2, 2, 3, 0};
- * auto ebo = IndexBuffer::create(device, std::span(indices));
+ * auto ebo = IndexBuffer::create(device, GfxContent::retained(), std::span(indices));
  * @endcode
  */
 class IndexBuffer {
@@ -371,34 +350,34 @@ public:
     // =========================================================================
 
     /** @brief Creates an index buffer from a span of 32-bit indices */
-    static Unique<IndexBuffer> create(GfxDevice& device, std::span<const u32> indices) {
-        return create(device, indices.data(), static_cast<u32>(indices.size()));
+    static Unique<IndexBuffer> create(GfxDevice& device, GfxContent content, std::span<const u32> indices) {
+        return create(device, content, indices.data(), static_cast<u32>(indices.size()));
     }
 
     /** @brief Creates an index buffer from a span of 16-bit indices */
-    static Unique<IndexBuffer> create(GfxDevice& device, std::span<const u16> indices) {
-        return create(device, indices.data(), static_cast<u32>(indices.size()));
+    static Unique<IndexBuffer> create(GfxDevice& device, GfxContent content, std::span<const u16> indices) {
+        return create(device, content, indices.data(), static_cast<u32>(indices.size()));
     }
 
     /** @brief Creates an index buffer from a vector of 32-bit indices */
-    static Unique<IndexBuffer> create(GfxDevice& device, const std::vector<u32>& indices) {
-        return create(device, std::span<const u32>(indices));
+    static Unique<IndexBuffer> create(GfxDevice& device, GfxContent content, const std::vector<u32>& indices) {
+        return create(device, content, std::span<const u32>(indices));
     }
 
     /** @brief Creates an index buffer from a vector of 16-bit indices */
-    static Unique<IndexBuffer> create(GfxDevice& device, const std::vector<u16>& indices) {
-        return create(device, std::span<const u16>(indices));
+    static Unique<IndexBuffer> create(GfxDevice& device, GfxContent content, const std::vector<u16>& indices) {
+        return create(device, content, std::span<const u16>(indices));
     }
 
     /** @brief Creates an index buffer with 32-bit indices from pointer */
-    static Unique<IndexBuffer> create(GfxDevice& device, const u32* indices, u32 count);
+    static Unique<IndexBuffer> create(GfxDevice& device, GfxContent content, const u32* indices, u32 count);
 
     /**
      * @brief Creates an index buffer with 16-bit indices from pointer
      * @details Use 16-bit indices for better performance when vertex
      *          count is under 65536.
      */
-    static Unique<IndexBuffer> create(GfxDevice& device, const u16* indices, u32 count);
+    static Unique<IndexBuffer> create(GfxDevice& device, GfxContent content, const u16* indices, u32 count);
 
     // =========================================================================
     // Operations
@@ -409,14 +388,6 @@ public:
 
     /** @brief Gets the device buffer handle */
     BufferHandle handle() const { return handle_; }
-
-    /**
-     * @brief Forgets the GPU buffer, which died with its device.
-     * @details Not a delete: the object is already gone, and asking a dead device
-     *          to free an id it no longer has is at best a no-op. Forgetting it
-     *          is what keeps the destructor from doing exactly that later.
-     */
-    void abandonGpuBuffer() { handle_ = BufferHandle::Invalid; }
 
     /** @brief Returns true if using 16-bit indices */
     bool is16Bit() const { return is16Bit_; }

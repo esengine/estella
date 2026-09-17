@@ -161,7 +161,7 @@ TextureHandle makeCheckerTexture() {
     td.format = GfxPixelFormat::RGBA8;
     td.minFilter = TextureFilter::Nearest;
     td.magFilter = TextureFilter::Nearest;
-    return g_device->createTexture(td, pixels);
+    return g_device->createTexture(td, GfxContent::retained(), pixels);
 }
 
 }  // namespace
@@ -183,7 +183,7 @@ int main() {
 
     // FrameConstants: identity projection (positions are authored in clip space).
     const f32 identity[16] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1};
-    g_ubo = device.createBuffer({GfxBufferUsage::Uniform, sizeof(identity), false}, identity);
+    g_ubo = device.createBuffer({GfxBufferUsage::Uniform, sizeof(identity), false}, GfxContent::retained(), identity);
 
     // --- Shape scene: small circle, top-center (clip y 0.55..0.95).
     const ShapeVertex shapeVerts[4] = {
@@ -193,8 +193,8 @@ int main() {
         {-0.25f, 0.95f, -1,  1, 1, 0, 1, 1, 0, 100, 100, 0},
     };
     const u16 quadIdx[6] = {0, 1, 2, 2, 3, 0};
-    g_shapeVbo = device.createBuffer({GfxBufferUsage::Vertex, sizeof(shapeVerts), false}, shapeVerts);
-    g_ibo6 = device.createBuffer({GfxBufferUsage::Index, sizeof(quadIdx), false}, quadIdx);
+    g_shapeVbo = device.createBuffer({GfxBufferUsage::Vertex, sizeof(shapeVerts), false}, GfxContent::retained(), shapeVerts);
+    g_ibo6 = device.createBuffer({GfxBufferUsage::Index, sizeof(quadIdx), false}, GfxContent::retained(), quadIdx);
 
     // --- Batch scene: left quad samples slot 0 (checker), right quad slot 1 (green).
     const u32 white = 0xFFFFFFFFu;
@@ -205,8 +205,8 @@ int main() {
         { 0.9f,  0.3f, white, 1, 1, 1}, { 0.1f,  0.3f, white, 0, 1, 1},
     };
     const u16 batchIdx[12] = {0, 1, 2, 2, 3, 0, 4, 5, 6, 6, 7, 4};
-    g_batchVbo = device.createBuffer({GfxBufferUsage::Vertex, sizeof(batchVerts), false}, batchVerts);
-    g_ibo12 = device.createBuffer({GfxBufferUsage::Index, sizeof(batchIdx), false}, batchIdx);
+    g_batchVbo = device.createBuffer({GfxBufferUsage::Vertex, sizeof(batchVerts), false}, GfxContent::retained(), batchVerts);
+    g_ibo12 = device.createBuffer({GfxBufferUsage::Index, sizeof(batchIdx), false}, GfxContent::retained(), batchIdx);
 
     // --- Stencil scene (SDF rects, shapeType 2 with radius 0): quad 0 = the
     // mask (top-left), quad 1 = an oversized cyan rect testing INTO the mask,
@@ -230,8 +230,8 @@ int main() {
         stencilVerts[8 + i] = orange[i];
     }
     const u16 stencilIdx[18] = {0, 1, 2, 2, 3, 0, 4, 5, 6, 6, 7, 4, 8, 9, 10, 10, 11, 8};
-    g_stencilVbo = device.createBuffer({GfxBufferUsage::Vertex, sizeof(stencilVerts), false}, stencilVerts);
-    g_ibo18 = device.createBuffer({GfxBufferUsage::Index, sizeof(stencilIdx), false}, stencilIdx);
+    g_stencilVbo = device.createBuffer({GfxBufferUsage::Vertex, sizeof(stencilVerts), false}, GfxContent::retained(), stencilVerts);
+    g_ibo18 = device.createBuffer({GfxBufferUsage::Index, sizeof(stencilIdx), false}, GfxContent::retained(), stencilIdx);
 
     g_texChecker = makeCheckerTexture();
     // The right quad's texture is RENDERED, not uploaded: an offscreen target
@@ -240,12 +240,12 @@ int main() {
     offDesc.width = 4;
     offDesc.height = 4;
     offDesc.format = GfxPixelFormat::RGBA8;
-    g_texOffscreen = device.createTexture(offDesc, nullptr);
+    g_texOffscreen = device.createTexture(offDesc, GfxContent::transient(), nullptr);
     TextureDesc offDepthDesc{};
     offDepthDesc.width = 4;
     offDepthDesc.height = 4;
     offDepthDesc.format = GfxPixelFormat::Depth24Stencil8;
-    g_texOffscreenDepth = device.createTexture(offDepthDesc, nullptr);
+    g_texOffscreenDepth = device.createTexture(offDepthDesc, GfxContent::transient(), nullptr);
     if (g_texChecker == TextureHandle::Invalid || g_texOffscreen == TextureHandle::Invalid ||
         g_texOffscreenDepth == TextureHandle::Invalid) {
         std::printf("BRINGUP_FAIL textures\n");

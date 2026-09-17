@@ -11,7 +11,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { initResourceManager, shutdownResourceManager } from '../src/wasm/resourceManager';
 import { setLinearColorSpace } from '../src/ecs/env';
 import { createCanvasTexture } from '../src/asset/canvasTexture';
-import type { ESEngineModule } from '../src/wasm';
+import { TextureContent, type ESEngineModule } from '../src/wasm';
 import type { App } from '../src/app/app';
 
 const SRGB8_ALPHA8 = 0x8c43;
@@ -79,7 +79,7 @@ describe('createCanvasTexture', () => {
         expect(tex.width).toBe(256);
         expect(tex.height).toBe(128);
         expect(gl.texImage2D).toHaveBeenCalledTimes(1);
-        expect(registerExternalTexture).toHaveBeenCalledWith(7, 256, 128);
+        expect(registerExternalTexture).toHaveBeenCalledWith(7, 256, 128, TextureContent.Canvas);
     });
 
     it('keeps the handle across a re-take — a component is holding it', () => {

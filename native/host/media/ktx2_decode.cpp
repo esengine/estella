@@ -114,8 +114,9 @@ KTX2Result transcodeKTX2(const uint8_t* bytes, size_t n, bool srgb,
 
     const ConstSpan<u8> span(out.data(), out.size());
     const resource::TextureHandle handle = compressed
-        ? rm.createCompressedTexture(w, h, gfxFmt, span, uploaded)
-        : rm.createTexture(w, h, span, srgb ? TextureFormat::SRGB8A8 : TextureFormat::RGBA8, false);
+        ? rm.createCompressedTexture(resource::ResourceContent::Asset, w, h, gfxFmt, span, uploaded)
+        : rm.createTexture(resource::ResourceContent::Asset, w, h, span,
+                           srgb ? TextureFormat::SRGB8A8 : TextureFormat::RGBA8, false);
     if (!handle.isValid()) return fail;
     return KTX2Result{static_cast<int>(handle.id()), static_cast<int>(w), static_cast<int>(h),
                       compressed ? static_cast<int>(gfxFmt) : -1,

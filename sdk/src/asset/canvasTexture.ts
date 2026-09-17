@@ -17,6 +17,7 @@
  * no mipmaps (a chain regenerated every frame is pure waste), clamped wrap
  * (nothing tiles a leaderboard), and `update()`.
  */
+import { TextureContent } from '../wasm';
 import { requireResourceManager } from '../wasm/resourceManager';
 import type { App } from '../app/app';
 import { findWebGL2Context } from './loaders/TextureLoader';
@@ -77,7 +78,7 @@ export function createCanvasTexture(
     const glTextureId = glObj.getNewId(glObj.textures);
     glObj.textures[glTextureId] = texture;
     const rm = requireResourceManager();
-    const handle = rm.registerExternalTexture(glTextureId, size.width, size.height);
+    const handle = rm.registerExternalTexture(glTextureId, size.width, size.height, TextureContent.Canvas);
 
     let alive = true;
     return {

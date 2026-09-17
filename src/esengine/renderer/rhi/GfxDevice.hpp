@@ -23,10 +23,13 @@
 
 #include "../../core/Types.hpp"
 #include "../draw/BlendMode.hpp"
+#include "./GfxContent.hpp"
 #include "./GfxEnums.hpp"
+#include "./GfxResourceRegistry.hpp"
 #include "./PipelineState.hpp"
 
 #include <functional>
+#include <map>
 #include <string>
 #include <utility>
 #include <vector>
@@ -149,36 +152,21 @@ public:
     }
 
     /**
-     * @brief Rebuilds the device and everything it can describe on its own.
-     *
-     * @details A backend rebuilds only what it fully describes: a texture's
-     *          pixels were never its to keep, and shadowing all of VRAM in system
-     *          memory is the alternative. Content returns through the layer that
-     *          loaded it, which ends the resulting Recovering state.
-     *
-     * @return True when the device is usable again.
+     * @brief Rebuilds the device and every object it issued, behind the same handles.
+     * @details Runs once per loss. Retained content is uploaded again and Sourced
+     *          content becomes owed; the device turns Live when nothing is owed.
+     * @return True when the device is usable (Recovering or Live).
      */
-    bool recoverDevice() {
-        if (device_status_ != GfxDeviceStatus::Lost) return isDeviceUsable();
-        device_status_ = GfxDeviceStatus::Recovering;
-        if (!recreateDevice()) {
-            device_status_ = GfxDeviceStatus::Lost;
-            return false;
-        }
-        ++device_generation_;
-        return true;
-    }
+    bool recoverDevice();
+
+    /** @brief Sourced objects that have storage again and are waiting for their contents. */
+    std::vector<GfxOwedContent> owedContent() const { return registry_.owed(); }
 
     /**
-     * @brief The content is back: the device is fully itself again.
-     * @details Called by the layer that re-uploaded what the backend could not.
+     * @brief Gives up on one owed object's contents: it keeps its placeholder.
+     * @details For a provider that no longer exists. Logged by the caller, never silent.
      */
-    void markDeviceRestored() {
-        if (device_status_ != GfxDeviceStatus::Recovering) return;
-        device_status_ = GfxDeviceStatus::Live;
-        device_info_ = GfxDeviceLostInfo{};
-        captureDeviceIdentity();
-    }
+    void forgoContent(const GfxOwedContent& owed);
 
     /**
      * @brief Gives up on the device: no further recovery will be attempted.
@@ -283,22 +271,26 @@ public:
 
     /**
      * @brief Creates a buffer with fixed capacity and optional initial contents.
+     * @param content Who restores the contents after a loss.
      * @param initialData When non-null, `desc.size` bytes uploaded at creation.
      */
-    virtual BufferHandle createBuffer(const BufferDesc& desc, const void* initialData) = 0;
+    BufferHandle createBuffer(const BufferDesc& desc, GfxContent content, const void* initialData);
 
     /** @brief Deletes a buffer */
-    virtual void deleteBuffer(BufferHandle buffer) = 0;
+    void deleteBuffer(BufferHandle buffer);
 
     /** @brief Updates a sub-range of a buffer; must fit within its capacity. */
-    virtual void updateBuffer(BufferHandle buffer, u32 offsetBytes, const void* data, u32 sizeBytes) = 0;
+    void updateBuffer(BufferHandle buffer, u32 offsetBytes, const void* data, u32 sizeBytes);
 
     /**
      * @brief Re-specifies a buffer's store with a new capacity, discarding prior contents.
      * @details The handle stays valid (streaming growth without re-wiring vertex
      *          layouts). `data` may be null to allocate uninitialized storage.
      */
-    virtual void resizeBuffer(BufferHandle buffer, u32 sizeBytes, const void* data) = 0;
+    void resizeBuffer(BufferHandle buffer, u32 sizeBytes, const void* data);
+
+    /** @brief A buffer's description as it stands, or null for a handle that names none. */
+    const BufferDesc* bufferDesc(BufferHandle buffer) const;
 
     /** @brief Binds a buffer to a uniform binding slot (the block index shaders are linked to). */
     virtual void setUniformBuffer(u32 slot, BufferHandle buffer) = 0;
@@ -308,10 +300,13 @@ public:
     // =========================================================================
 
     /** @brief Registers an immutable vertex layout; pipelines reference it by handle. */
-    virtual VertexLayoutHandle createVertexLayout(const VertexLayoutDesc& desc) = 0;
+    VertexLayoutHandle createVertexLayout(const VertexLayoutDesc& desc);
 
     /** @brief Deletes a vertex layout (no pipeline may reference it afterwards) */
-    virtual void deleteVertexLayout(VertexLayoutHandle layout) = 0;
+    void deleteVertexLayout(VertexLayoutHandle layout);
+
+    /** @brief A layout's description, or null for a handle that names none. */
+    const VertexLayoutDesc* vertexLayoutDesc(VertexLayoutHandle layout) const;
 
     /**
      * @brief Binds a vertex buffer to a layout slot for subsequent draws.
@@ -332,7 +327,7 @@ public:
      * @details Storage is allocated either way. `desc.mipmaps` generates mipmaps
      *          after the initial upload.
      */
-    virtual TextureHandle createTexture(const TextureDesc& desc, const void* pixels) = 0;
+    TextureHandle createTexture(const TextureDesc& desc, GfxContent content, const void* pixels);
 
     /**
      * @brief Creates a texture from pre-compressed GPU block data.
@@ -344,32 +339,51 @@ public:
      *             `max(1, width>>i) x max(1, height>>i)`.
      * @param mipLevels Number of mip levels present (1 = base only).
      */
-    virtual TextureHandle createCompressedTexture(const TextureDesc& desc, GfxCompressedFormat format,
-                                                  const void* data, u32 byteLength, u32 mipLevels) = 0;
+    TextureHandle createCompressedTexture(const TextureDesc& desc, GfxContent content,
+                                          GfxCompressedFormat format, const void* data,
+                                          u32 byteLength, u32 mipLevels);
+
+    /** @brief Puts compressed contents back behind an owed texture's handle. */
+    bool restoreCompressedTexture(TextureHandle texture, GfxCompressedFormat format,
+                                  const void* data, u32 byteLength, u32 mipLevels);
 
     /**
-     * @brief Wraps a texture created outside the device (e.g. a JS-side WebGL upload).
-     * @details Registers the metadata updates/binds need; ownership stays external,
-     *          so the wrapper must not delete it.
+     * @brief Adopts a texture a host created with the device's own API (a JS-side WebGL upload).
+     * @details The device owns it from here and, after a loss, recreates storage of
+     *          `desc` behind the same handle for the provider in @p content to refill.
      */
-    virtual TextureHandle importExternalTexture(u32 nativeId, const TextureDesc& desc) = 0;
+    TextureHandle importExternalTexture(u32 nativeId, const TextureDesc& desc, GfxContent content);
+
+    /** @brief Replaces the native texture behind @p texture with one the host created again. */
+    bool restoreTextureFromNative(TextureHandle texture, u32 nativeId);
+
+    /**
+     * @brief Moves @p from's storage and description behind @p into, and ends @p from.
+     * @details How a provider pays an owed texture: it loads the content the way it
+     *          always does, into a texture of its own, and hands that over. @p into
+     *          keeps its handle and content policy; @p from names nothing afterwards.
+     */
+    bool adoptTextureContent(TextureHandle into, TextureHandle from);
 
     /** @brief Deletes a texture */
-    virtual void deleteTexture(TextureHandle texture) = 0;
+    void deleteTexture(TextureHandle texture);
 
     /**
      * @brief Uploads pixels to a sub-rectangle of a texture (transfer format from its desc).
      * @param flipY Vertical flip on upload (WebGL upload state; no-op on native backends).
      */
-    virtual void updateTexture(TextureHandle texture, i32 x, i32 y, u32 width, u32 height,
-                               const void* pixels, bool flipY) = 0;
+    void updateTexture(TextureHandle texture, i32 x, i32 y, u32 width, u32 height,
+                       const void* pixels, bool flipY);
 
     /** @brief Sets texture filtering and wrap parameters */
-    virtual void setTextureParams(TextureHandle texture, TextureFilter min, TextureFilter mag,
-                                  TextureWrap wrapS, TextureWrap wrapT) = 0;
+    void setTextureParams(TextureHandle texture, TextureFilter min, TextureFilter mag,
+                          TextureWrap wrapS, TextureWrap wrapT);
 
     /** @brief Generates mipmaps for a texture */
-    virtual void generateMipmaps(TextureHandle texture) = 0;
+    void generateMipmaps(TextureHandle texture);
+
+    /** @brief A texture's description as it stands, or null for a handle that names none. */
+    const TextureDesc* textureDesc(TextureHandle texture) const;
 
     /** @brief Activates a texture slot and binds a 2D texture */
     virtual void bindTexture(u32 slot, TextureHandle texture) = 0;
@@ -414,9 +428,9 @@ public:
      * @param outFailedStage Optional; receives the stage that rejected the source.
      * @return The linked program handle, or Invalid on failure.
      */
-    virtual ShaderHandle createProgram(const GfxShaderSource& source,
-                                       const GfxAttribBinding* bindings, u32 bindingCount,
-                                       std::string* outLog, GfxShaderStage* outFailedStage) = 0;
+    ShaderHandle createProgram(const GfxShaderSource& source,
+                               const GfxAttribBinding* bindings, u32 bindingCount,
+                               std::string* outLog, GfxShaderStage* outFailedStage);
 
     /** @brief Whether this backend compiles @p language (GL: GLSL ES 300; WebGPU: WGSL). */
     virtual bool supportsShaderLanguage(GfxShaderLanguage language) const = 0;
@@ -432,59 +446,66 @@ public:
     virtual bool textureOriginTopLeft() const = 0;
 
     /** @brief Deletes a shader program */
-    virtual void deleteProgram(ShaderHandle program) = 0;
+    void deleteProgram(ShaderHandle program);
 
     /**
      * @brief Binds a program directly, for setup-time uniform seeding.
      * @details Per-frame rendering binds programs through setPipeline.
      */
-    virtual void useProgram(ShaderHandle program) = 0;
+    void useProgram(ShaderHandle program);
 
-    /** @brief Gets a uniform location by name */
-    virtual i32 getUniformLocation(ShaderHandle program, const char* name) = 0;
+    /**
+     * @brief Gets a uniform location by name, -1 when the linked program has none.
+     * @details The location belongs to the device, not the backend: it stays valid
+     *          across a relink, and the value last set through it is set again.
+     */
+    i32 getUniformLocation(ShaderHandle program, const char* name);
 
     /** @brief Gets a vertex attribute location by name (-1 if not found) */
-    virtual i32 getAttribLocation(ShaderHandle program, const char* name) = 0;
+    i32 getAttribLocation(ShaderHandle program, const char* name);
 
-    /** @brief Sets an integer uniform */
-    virtual void setUniform1i(i32 location, i32 value) = 0;
+    /** @brief Sets an integer uniform of the bound program */
+    void setUniform1i(i32 location, i32 value);
 
     /** @brief Sets a float uniform */
-    virtual void setUniform1f(i32 location, f32 value) = 0;
+    void setUniform1f(i32 location, f32 value);
 
     /** @brief Sets a vec2 uniform */
-    virtual void setUniform2f(i32 location, f32 x, f32 y) = 0;
+    void setUniform2f(i32 location, f32 x, f32 y);
 
     /** @brief Sets a vec3 uniform */
-    virtual void setUniform3f(i32 location, f32 x, f32 y, f32 z) = 0;
+    void setUniform3f(i32 location, f32 x, f32 y, f32 z);
 
     /** @brief Sets a vec4 uniform */
-    virtual void setUniform4f(i32 location, f32 x, f32 y, f32 z, f32 w) = 0;
+    void setUniform4f(i32 location, f32 x, f32 y, f32 z, f32 w);
 
     /** @brief Sets a mat3 uniform */
-    virtual void setUniformMat3(i32 location, const f32* data) = 0;
+    void setUniformMat3(i32 location, const f32* data);
 
     /** @brief Sets a mat4 uniform */
-    virtual void setUniformMat4(i32 location, const f32* data) = 0;
+    void setUniformMat4(i32 location, const f32* data);
 
     /** @brief Enumerates all active uniforms of a linked shader program */
-    virtual std::vector<GfxUniformInfo> getActiveUniforms(ShaderHandle program) = 0;
+    std::vector<GfxUniformInfo> getActiveUniforms(ShaderHandle program);
 
     /** @brief Returns a program's uniform-block index by name, or GFX_INVALID_UNIFORM_BLOCK if absent. */
-    virtual u32 getUniformBlockIndex(ShaderHandle program, const char* name) = 0;
+    u32 getUniformBlockIndex(ShaderHandle program, const char* name);
 
     /** @brief Links a program's uniform block to an indexed binding slot. */
-    virtual void uniformBlockBinding(ShaderHandle program, u32 blockIndex, u32 bindingPoint) = 0;
+    void uniformBlockBinding(ShaderHandle program, u32 blockIndex, u32 bindingPoint);
 
     // =========================================================================
     // Pipeline State (immutable "how to draw"; see PipelineState.hpp)
     // =========================================================================
 
     /** @brief Resolves a pipeline description to a cached handle (creating it on first use). */
-    virtual PipelineHandle createPipeline(const PipelineDesc& desc) = 0;
+    PipelineHandle createPipeline(const PipelineDesc& desc);
+
+    /** @brief A pipeline's description, or null for a handle that names none. */
+    const PipelineDesc* pipelineDesc(PipelineHandle handle) const;
 
     /** @brief Binds a pipeline: applies its program, blend, depth, stencil compare/op and culling. */
-    virtual void setPipeline(PipelineHandle handle) = 0;
+    void setPipeline(PipelineHandle handle);
 
     /** @brief Sets the dynamic stencil reference for the bound pipeline's stencil mode (no-op if Off). */
     virtual void setStencilReference(i32 ref) = 0;
@@ -495,7 +516,7 @@ public:
      *          pipeline left bound by a prior phase — or by a direct-state path like custom
      *          geometry — is not mistaken for the current one.
      */
-    virtual void invalidatePipelineCache() = 0;
+    void invalidatePipelineCache();
 
     // =========================================================================
     // Draw Calls
@@ -519,10 +540,13 @@ public:
      * @return The framebuffer handle, or Default (0) when incomplete — the default
      *         framebuffer can never be created, so 0 unambiguously means failure.
      */
-    virtual FramebufferHandle createFramebuffer(const FramebufferDesc& desc) = 0;
+    FramebufferHandle createFramebuffer(const FramebufferDesc& desc);
 
     /** @brief Deletes a framebuffer (its attachment textures are owned by the caller) */
-    virtual void deleteFramebuffer(FramebufferHandle framebuffer) = 0;
+    void deleteFramebuffer(FramebufferHandle framebuffer);
+
+    /** @brief A framebuffer's description, or null for Default and unknown handles. */
+    const FramebufferDesc* framebufferDesc(FramebufferHandle framebuffer) const;
 
     // =========================================================================
     // Render Pass
@@ -614,7 +638,7 @@ public:
     // =========================================================================
 
     /** @brief Creates a GPU elapsed-time query, or 0 when the backend cannot time GPU work. */
-    virtual u32 createTimerQuery() = 0;
+    u32 createTimerQuery();
 
     /** @brief Starts timing GPU work into a query; one query may be active at a time. */
     virtual void beginTimerQuery(u32 query) = 0;
@@ -647,16 +671,63 @@ public:
     /** @brief Queries a backend integer capability/limit */
     virtual i32 getInt(GfxIntParam name) = 0;
 
-    /**
-     * @brief GPU objects alive right now (see {@link GfxLiveObjects}).
-     * @details Not pure: a backend that cannot answer reports zeros rather than
-     *          forcing every device to carry the bookkeeping. The census treats
-     *          an all-zero result as "this backend does not report", which is a
-     *          different claim than "nothing is allocated" — see censusProbes.ts.
-     */
-    virtual GfxLiveObjects liveObjects() const { return {}; }
+    /** @brief GPU objects alive right now (see {@link GfxLiveObjects}), read off the registry. */
+    GfxLiveObjects liveObjects() const;
 
 protected:
+    // =========================================================================
+    // Backend primitives. `id` is the handle's value; the backend maps it to its
+    // own object for the current generation and nothing else.
+    // =========================================================================
+
+    virtual bool backendCreateBuffer(u32 id, const BufferDesc& desc, const void* data) = 0;
+    virtual void backendDeleteBuffer(u32 id) = 0;
+    virtual void backendUpdateBuffer(u32 id, u32 offsetBytes, const void* data, u32 sizeBytes) = 0;
+    virtual void backendResizeBuffer(u32 id, const BufferDesc& desc, const void* data) = 0;
+
+    virtual bool backendCreateTexture(u32 id, const TextureDesc& desc, const void* pixels) = 0;
+    virtual bool backendCreateCompressedTexture(u32 id, const TextureDesc& desc, GfxCompressedFormat format,
+                                                const void* data, u32 byteLength, u32 mipLevels) = 0;
+    /** @brief Takes over a native texture the host created; false when this backend cannot. */
+    virtual bool backendAdoptTexture(u32 id, u32 nativeId, const TextureDesc& desc) = 0;
+    virtual void backendDeleteTexture(u32 id) = 0;
+    /** @brief Re-keys @p from's native texture under @p into; @p into holds none on entry. */
+    virtual void backendMoveTexture(u32 into, u32 from) = 0;
+    virtual void backendUpdateTexture(u32 id, i32 x, i32 y, u32 width, u32 height,
+                                      const void* pixels, bool flipY) = 0;
+    virtual void backendSetTextureParams(u32 id, const TextureDesc& desc) = 0;
+    virtual void backendGenerateMipmaps(u32 id) = 0;
+
+    virtual bool backendCreateProgram(u32 id, const GfxShaderSource& source,
+                                      const GfxAttribBinding* bindings, u32 bindingCount,
+                                      std::string* outLog, GfxShaderStage* outFailedStage) = 0;
+    virtual void backendDeleteProgram(u32 id) = 0;
+    virtual void backendUseProgram(u32 id) = 0;
+    /** @brief The backend's own location this generation, -1 when absent. */
+    virtual i32 backendUniformLocation(u32 program, const char* name) = 0;
+    virtual i32 backendAttribLocation(u32 program, const char* name) = 0;
+    virtual void backendSetUniform(i32 nativeLocation, const GfxUniformValue& value) = 0;
+    virtual std::vector<GfxUniformInfo> backendActiveUniforms(u32 program) = 0;
+    virtual u32 backendUniformBlockIndex(u32 program, const char* name) = 0;
+    virtual void backendUniformBlockBinding(u32 program, u32 nativeBlockIndex, u32 bindingPoint) = 0;
+
+    /** @brief False for a layout this backend has no way to express. */
+    virtual bool backendAcceptsVertexLayout(const VertexLayoutDesc& desc) { (void)desc; return true; }
+    /** @brief Drops what the backend derived from a layout (a GL VAO); the desc stays here. */
+    virtual void backendDeleteVertexLayout(u32 id) = 0;
+    virtual void backendSetPipeline(u32 id, const PipelineDesc& desc) = 0;
+    virtual void backendInvalidatePipelineCache() = 0;
+
+    virtual bool backendCreateFramebuffer(u32 id, const FramebufferDesc& desc) = 0;
+    virtual void backendDeleteFramebuffer(u32 id) = 0;
+
+    virtual bool backendCreateTimerQuery(u32 id) = 0;
+
+    /** @brief Readbacks in flight, the one live object the registry does not hold. */
+    virtual u32 backendReadbackCount() const = 0;
+
+    /** @brief The pipeline most recently bound, whose program uniforms are set on. */
+    PipelineHandle currentPipeline() const { return current_pipeline_; }
     /// Backends record what they were last handed; see @ref viewport.
     Viewport viewport_;
 
@@ -670,10 +741,10 @@ protected:
     virtual void captureDeviceIdentity() {}
 
     /**
-     * @brief Backend half of {@link recoverDevice}: rebuild the device and the
-     *        resources this backend holds a full description of.
-     * @details Default: this backend cannot rebuild itself, so a loss is final.
-     * @return True when the device is usable again.
+     * @brief Backend half of {@link recoverDevice}: a working device again, with
+     *        every id-to-native map and derived cache emptied.
+     * @details The registry then rebuilds each object through the primitives above.
+     *          Default: this backend cannot rebuild itself, so a loss is final.
      */
     virtual bool recreateDevice() { return false; }
 
@@ -693,18 +764,7 @@ protected:
      * @return True when this call performed the transition.
      */
     bool markDeviceLost(GfxDeviceLostReason reason, std::string message = {},
-                        std::string context = {}) {
-        if (device_status_ != GfxDeviceStatus::Live) return false;
-        device_status_ = GfxDeviceStatus::Lost;
-        device_info_.reason = reason;
-        device_info_.identity = identity_;
-        device_info_.message = std::move(message);
-        device_info_.context = std::move(context);
-        device_info_.frame = device_frame_;
-        onDeviceLost();
-        if (device_lost_handler_) device_lost_handler_(device_info_);
-        return true;
-    }
+                        std::string context = {});
 
     /**
      * @brief Release what only this backend can name, while the dead device is
@@ -716,12 +776,28 @@ protected:
     virtual void onDeviceLost() {}
 
 private:
+    /** @brief Builds every recorded object on the current device, in dependency order. */
+    void realizeRegistry();
+    void realizeProgramState(u32 id, GfxProgramRecord& record);
+    /** @brief Recovering becomes Live once nothing is owed. */
+    void settleRecovery();
+    void payTexture(u32 id, GfxTextureRecord& record);
+    i32 nativeUniformLocation(GfxProgramRecord& record, u32 id, i32 location);
+    void setUniformValue(i32 location, const GfxUniformValue& value);
+
     GfxDeviceStatus device_status_ = GfxDeviceStatus::Live;
     GfxDeviceIdentity identity_;
     GfxDeviceLostInfo device_info_;
     u64 device_frame_ = 0;
     u64 device_generation_ = 0;
     std::function<void(const GfxDeviceLostInfo&)> device_lost_handler_;
+
+    GfxResourceRegistry registry_;
+    u32 owed_count_ = 0;
+    ShaderHandle current_program_ = ShaderHandle::Invalid;
+    PipelineHandle current_pipeline_ = PipelineHandle::Invalid;
+    /// Native uniform locations per program for the current generation; -2 = not asked yet.
+    std::map<u32, std::vector<i32>> native_locations_;
 };
 
 }  // namespace esengine

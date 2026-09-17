@@ -18,11 +18,12 @@ namespace emscripten {
 
 namespace esengine {
 
+/** A texture's `content` is a resource::ResourceContent: who refills it after a device loss. */
 u32 rm_createTexture(resource::ResourceManager& rm, u32 width, u32 height,
-                      uintptr_t pixelsPtr, u32 pixelsLen, i32 format, bool flipY);
+                      uintptr_t pixelsPtr, u32 pixelsLen, i32 format, bool flipY, u32 content);
 u32 rm_createTextureEx(resource::ResourceManager& rm, u32 width, u32 height,
                         uintptr_t pixelsPtr, u32 pixelsLen, i32 format, bool flipY,
-                        i32 filterMode, i32 wrapMode);
+                        i32 filterMode, i32 wrapMode, u32 content);
 u32 rm_createShader(resource::ResourceManager& rm,
                      const std::string& vertSrc, const std::string& fragSrc);
 /** Whether the active backend samples this compressed format. */
@@ -30,34 +31,32 @@ bool rm_supportsCompressedFormat(resource::ResourceManager& rm, i32 format);
 
 /** Uploads pre-transcoded blocks as one compressed texture. */
 u32 rm_createCompressedTexture(resource::ResourceManager& rm, u32 width, u32 height,
-                               i32 format, uintptr_t dataPtr, u32 dataLen, u32 mipLevels);
+                               i32 format, uintptr_t dataPtr, u32 dataLen, u32 mipLevels, u32 content);
 
 u32 rm_registerExternalTexture(resource::ResourceManager& rm, u32 glTextureId,
-                                u32 width, u32 height);
-/** @brief Points an EXISTING texture handle at a freshly uploaded GPU object. */
-bool rm_retargetExternalTexture(resource::ResourceManager& rm, u32 handle,
-                                u32 glTextureId, u32 width, u32 height);
+                                u32 width, u32 height, u32 content);
 
-/** @brief The textures still parked on the placeholder, as `handle|path` lines. */
+/** @brief A resource handle for a device texture another owner keeps (a render target's colour). */
+u32 rm_wrapDeviceTexture(resource::ResourceManager& rm, u32 textureId, u32 width, u32 height);
+
+/** @brief Gives up on an owed texture's content; it keeps blank storage. */
+void rm_forgoTextureContent(resource::ResourceManager& rm, u32 handle);
+
+/** @brief The textures the device is waiting for content for, as `handle|content|path` lines. */
 std::string rm_texturesAwaitingReupload(resource::ResourceManager& rm);
 
-/** @brief Moves a freshly loaded texture's GPU object onto an existing handle. */
+/** @brief Moves a freshly loaded texture's pixels behind an owed handle. */
 bool rm_adoptTextureContent(resource::ResourceManager& rm, u32 target, u32 source);
 
-/** @brief Meshes whose realization is gone, as comma-separated handle ids. No
+/** @brief Replayable meshes still owed their geometry, as comma-separated handle ids. No
  *         path: the engine never knew one, and the asset layer holds it. */
 std::string rm_meshesAwaitingRemat(resource::ResourceManager& rm);
 
-/** @brief Every live mesh as `handle:generation:realized`, so a criterion can
- *         tell a mesh that CAME BACK from one that was replaced. */
+/** @brief Every live mesh as `handle:realized`. */
 std::string rm_meshRealizations(resource::ResourceManager& rm);
 
-/** @brief Meshes the last loss ended for good — host-only geometry no source
- *         can replay. Reported so recovery cannot call them recovered. */
-u32 rm_meshesLostNonRecoverable(resource::ResourceManager& rm);
-
 u32 rm_registerExternalTextureSized(resource::ResourceManager& rm, u32 glTextureId,
-                                     u32 width, u32 height, u32 bytes);
+                                     u32 width, u32 height, u32 bytes, u32 content);
 void rm_releaseTexture(resource::ResourceManager& rm, u32 handleId);
 u32 rm_getTextureRefCount(resource::ResourceManager& rm, u32 handleId);
 void rm_registerTextureWithPath(resource::ResourceManager& rm, u32 handleId, const std::string& path);

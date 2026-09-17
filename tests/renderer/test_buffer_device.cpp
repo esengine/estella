@@ -26,13 +26,13 @@ int main() {
         MockGfxDevice d;
         float verts[] = { 0, 0, 1, 1, 2, 2, 3, 3 };
         {
-            auto vbo = VertexBuffer::createRaw(d, verts, sizeof(verts));
+            auto vbo = VertexBuffer::createRaw(d, GfxContent::retained(), verts, sizeof(verts));
             CHECK(vbo != nullptr, "VertexBuffer::createRaw returns a buffer");
             CHECK(d.createBufferCalls == 1, "createRaw -> device.createBuffer");
             CHECK(d.lastCreateBufferHadData, "createRaw uploads its initial data at creation");
             CHECK(d.lastBufferDesc.usage == GfxBufferUsage::Vertex, "createRaw declares Vertex usage");
             CHECK(d.lastBufferDesc.size == sizeof(verts), "createRaw sizes the buffer to the data");
-            CHECK(vbo->handle() == BufferHandle{200}, "buffer handle is device-assigned");
+            CHECK(vbo->handle() == BufferHandle{1}, "buffer handle is device-assigned");
             vbo->setDataRaw(verts, sizeof(verts));
             CHECK(d.updateBufferCalls == 1, "setDataRaw -> device.updateBuffer");
         }
@@ -43,7 +43,7 @@ int main() {
     {
         MockGfxDevice d;
         u32 idx[] = { 0, 1, 2, 2, 3, 0 };
-        auto ibo = IndexBuffer::create(d, idx, 6);
+        auto ibo = IndexBuffer::create(d, GfxContent::retained(), idx, 6);
         CHECK(ibo != nullptr, "IndexBuffer::create returns a buffer");
         CHECK(d.createBufferCalls == 1 && d.lastCreateBufferHadData, "create -> device.createBuffer with data");
         CHECK(d.lastBufferDesc.usage == GfxBufferUsage::Index, "create declares Index usage");

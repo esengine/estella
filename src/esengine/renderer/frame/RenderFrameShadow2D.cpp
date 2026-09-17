@@ -334,7 +334,7 @@ void RenderFrame::executeShadow2DPass() {
         // lights are moving, and a re-create every frame is a re-create every frame.
         shadow_2d_vbo_bytes_ = std::max(bytes * 2u, 4096u);
         shadow_2d_vbo_ = device_.createBuffer(
-            {GfxBufferUsage::Vertex, shadow_2d_vbo_bytes_, /*dynamic=*/true}, nullptr);
+            {GfxBufferUsage::Vertex, shadow_2d_vbo_bytes_, /*dynamic=*/true}, GfxContent::transient(), nullptr);
         if (shadow_2d_vbo_ == BufferHandle::Invalid) return;
     }
     device_.updateBuffer(shadow_2d_vbo_, 0, shadow_2d_vertices_.data(), bytes);
@@ -521,7 +521,7 @@ void RenderFrame::executeShape2DPass() {
         if (shape_2d_vbo_ != BufferHandle::Invalid) device_.deleteBuffer(shape_2d_vbo_);
         shape_2d_vbo_bytes_ = std::max(bytes * 2u, 1024u);
         shape_2d_vbo_ = device_.createBuffer(
-            {GfxBufferUsage::Vertex, shape_2d_vbo_bytes_, /*dynamic=*/true}, nullptr);
+            {GfxBufferUsage::Vertex, shape_2d_vbo_bytes_, /*dynamic=*/true}, GfxContent::transient(), nullptr);
         if (shape_2d_vbo_ == BufferHandle::Invalid) return;
     }
     device_.updateBuffer(shape_2d_vbo_, 0, shape_2d_vertices_.data(), bytes);

@@ -80,29 +80,29 @@ Texture& Texture::operator=(Texture&& other) noexcept {
     return *this;
 }
 
-Unique<Texture> Texture::create(GfxDevice& device, const TextureSpecification& spec) {
+Unique<Texture> Texture::create(GfxDevice& device, GfxContent content, const TextureSpecification& spec) {
     auto texture = makeUnique<Texture>();
     texture->device_ = &device;
-    if (!texture->initialize(spec, nullptr, false)) {
+    if (!texture->initialize(spec, content, nullptr, false)) {
         return nullptr;
     }
     return texture;
 }
 
-Unique<Texture> Texture::create(GfxDevice& device, u32 width, u32 height, std::span<const u8> pixels,
-                                 TextureFormat format, bool flipY) {
+Unique<Texture> Texture::create(GfxDevice& device, GfxContent content, u32 width, u32 height,
+                                 std::span<const u8> pixels, TextureFormat format, bool flipY) {
     [[maybe_unused]] u32 expectedSize = width * height * bytesPerPixel(format);
     ES_ASSERT(pixels.size() == expectedSize, "Pixel data size mismatch");
-    return createRaw(device, width, height, pixels.data(), format, flipY);
+    return createRaw(device, content, width, height, pixels.data(), format, flipY);
 }
 
-Unique<Texture> Texture::create(GfxDevice& device, u32 width, u32 height, const std::vector<u8>& pixels,
-                                 TextureFormat format, bool flipY) {
-    return create(device, width, height, std::span<const u8>(pixels), format, flipY);
+Unique<Texture> Texture::create(GfxDevice& device, GfxContent content, u32 width, u32 height,
+                                 const std::vector<u8>& pixels, TextureFormat format, bool flipY) {
+    return create(device, content, width, height, std::span<const u8>(pixels), format, flipY);
 }
 
-Unique<Texture> Texture::createRaw(GfxDevice& device, u32 width, u32 height, const void* data,
-                                    TextureFormat format, bool flipY) {
+Unique<Texture> Texture::createRaw(GfxDevice& device, GfxContent content, u32 width, u32 height,
+                                    const void* data, TextureFormat format, bool flipY) {
     TextureSpecification spec;
     spec.width = width;
     spec.height = height;
@@ -113,13 +113,13 @@ Unique<Texture> Texture::createRaw(GfxDevice& device, u32 width, u32 height, con
 
     auto texture = makeUnique<Texture>();
     texture->device_ = &device;
-    if (!texture->initialize(spec, data, flipY)) {
+    if (!texture->initialize(spec, content, data, flipY)) {
         return nullptr;
     }
     return texture;
 }
 
-Unique<Texture> Texture::createCompressed(GfxDevice& device, u32 width, u32 height,
+Unique<Texture> Texture::createCompressed(GfxDevice& device, GfxContent content, u32 width, u32 height,
                                           GfxCompressedFormat format, std::span<const u8> data,
                                           u32 mipLevels) {
     auto texture = makeUnique<Texture>();
@@ -137,7 +137,7 @@ Unique<Texture> Texture::createCompressed(GfxDevice& device, u32 width, u32 heig
     desc.wrapT = TextureWrap::ClampToEdge;
     desc.mipmaps = mipLevels > 1;
 
-    texture->handle_ = device.createCompressedTexture(desc, format, data.data(),
+    texture->handle_ = device.createCompressedTexture(desc, content, format, data.data(),
                                                       static_cast<u32>(data.size()), mipLevels);
     if (texture->handle_ == TextureHandle::Invalid) {
         ES_LOG_ERROR("Texture::createCompressed: failed for {}x{}", width, height);
@@ -146,13 +146,8 @@ Unique<Texture> Texture::createCompressed(GfxDevice& device, u32 width, u32 heig
     return texture;
 }
 
-void Texture::retarget(TextureHandle gpuHandle, bool owns) {
-    handle_ = gpuHandle;
-    owns_ = owns;
-}
-
-Unique<Texture> Texture::createFromExternalId(GfxDevice& device, u32 glTextureId, u32 width, u32 height,
-                                              TextureFormat format) {
+Unique<Texture> Texture::createFromExternalId(GfxDevice& device, GfxContent content, u32 glTextureId,
+                                              u32 width, u32 height, TextureFormat format) {
     TextureDesc desc;
     desc.width = width;
     desc.height = height;
@@ -160,15 +155,37 @@ Unique<Texture> Texture::createFromExternalId(GfxDevice& device, u32 glTextureId
 
     auto texture = makeUnique<Texture>();
     texture->device_ = &device;
-    texture->handle_ = device.importExternalTexture(glTextureId, desc);
+    texture->handle_ = device.importExternalTexture(glTextureId, desc, content);
     texture->width_ = width;
     texture->height_ = height;
     texture->format_ = format;
-    texture->owns_ = false;  // external owner frees the GL id; don't double-free it
     return texture;
 }
 
-bool Texture::initialize(const TextureSpecification& spec, const void* pixels, bool flipY) {
+Unique<Texture> Texture::borrow(GfxDevice& device, TextureHandle handle, u32 width, u32 height) {
+    if (!device.textureDesc(handle)) return nullptr;
+    auto texture = makeUnique<Texture>();
+    texture->device_ = &device;
+    texture->handle_ = handle;
+    texture->width_ = width;
+    texture->height_ = height;
+    texture->format_ = TextureFormat::RGBA8;
+    texture->owns_ = false;
+    return texture;
+}
+
+bool Texture::adoptContent(Texture& from) {
+    if (!device_ || !owns_ || !from.owns_ || !device_->adoptTextureContent(handle_, from.handle_)) {
+        return false;
+    }
+    width_ = from.width_;
+    height_ = from.height_;
+    format_ = from.format_;
+    from.handle_ = TextureHandle::Invalid;
+    return true;
+}
+
+bool Texture::initialize(const TextureSpecification& spec, GfxContent content, const void* pixels, bool flipY) {
     width_ = spec.width;
     height_ = spec.height;
     format_ = spec.format;
@@ -184,7 +201,7 @@ bool Texture::initialize(const TextureSpecification& spec, const void* pixels, b
     desc.mipmaps = spec.generateMips;
     desc.flipY = flipY;
 
-    handle_ = device_->createTexture(desc, pixels);
+    handle_ = device_->createTexture(desc, content, pixels);
     if (handle_ == TextureHandle::Invalid) {
         // Out of memory or a lost context: surface the failure instead of
         // returning a "valid" texture wrapping the null handle (renders as black).

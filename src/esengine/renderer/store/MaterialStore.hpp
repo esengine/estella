@@ -144,8 +144,7 @@ public:
     /// Resolves texture handles at bind time; without one, texture params bind nothing.
     void setResourceManager(resource::ResourceManager* resources) { resources_ = resources; }
 
-    /// The context's current built-in fallbacks. Pushed rather than cached from a
-    /// resolved id, so re-creating them after a device loss reaches the materials too.
+    /// The context's built-in fallbacks.
     void setBuiltinDefaults(TextureHandle white, TextureHandle black, TextureHandle flatNormal) {
         defaultWhite_ = white;
         defaultBlack_ = black;
@@ -156,21 +155,11 @@ public:
     /// so the post-process pipeline's params fall back to the same textures.
     TextureHandle builtinDefault(MaterialDefaultTexture which) const;
 
-    /// Drops every material UBO after a device loss, keeping the records so the
-    /// scene's materialIds stay meaningful. See the definition.
-    void recreateGpuResources();
-
-    /// Re-resolves each material's cached program id from its shader handle, after
-    /// the device rebuilt the programs behind them.
-    void refreshShaderPrograms(resource::ResourceManager& resources);
-
     /**
      * @brief Point each of @p shader's texture params at its unit.
      *
      * @details GLSL ES 300 has no `layout(binding=)`, so a program carries this
-     *          as uniform state — which a relink clears. Public and shared so
-     *          registration and device recovery seed by one rule; they did not,
-     *          and a recovered material sampled every texture from unit 0.
+     *          as uniform state.
      */
     static void seedSamplers(Shader& shader, const resource::ParsedShader& parsed);
 

@@ -29,9 +29,9 @@ static TextureHandle uploadTexture(GfxDevice& d, u32 w, u32 h,
     desc.width = w;
     desc.height = h;
     if (d.supportsCompressedFormat(fmt)) {
-        return d.createCompressedTexture(desc, fmt, compressed, compressedLen, 1);
+        return d.createCompressedTexture(desc, GfxContent::sourced(2, 0), fmt, compressed, compressedLen, 1);
     }
-    return d.createTexture(desc, rgba);
+    return d.createTexture(desc, GfxContent::sourced(2, 0), rgba);
 }
 
 int main() {
@@ -69,7 +69,7 @@ int main() {
         TextureDesc desc;
         desc.width = 32;
         desc.height = 32;
-        d.createCompressedTexture(desc, GfxCompressedFormat::ETC2_RGBA8, blocks.data(), 512, 1);
+        d.createCompressedTexture(desc, GfxContent::sourced(2, 0), GfxCompressedFormat::ETC2_RGBA8, blocks.data(), 512, 1);
         CHECK(d.createCompressedTextureCalls == 1, "ETC2_RGBA8 routes through device");
         CHECK(d.lastCompressedFormat == GfxCompressedFormat::ETC2_RGBA8, "ETC2 format forwarded");
         CHECK(d.lastCompressedByteLength == 512, "ETC2 byte length forwarded");

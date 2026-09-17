@@ -4,21 +4,14 @@
  * @file  meshProducers.mjs — every path that can mint a persistent MeshHandle,
  *        and what each one promises about surviving a device generation.
  *
- * A MeshHandle is a LOGICAL resource identity. The VBO, the EBO and the vertex
- * layout it points at are that identity's realization on one device generation,
- * and a lost device takes all three; recovery replaces them underneath the same
- * handle, so nothing that stored one ever hears about it.
+ * A MeshHandle and the buffers behind it survive a device loss; the device
+ * rebuilds the buffers. What it cannot answer for itself is where the geometry
+ * comes back FROM, and only whoever minted the handle knows — so a producer says,
+ * in advance, here: a source to replay, or bytes the device keeps.
  *
- * Which leaves the only question recovery cannot answer for itself: where does
- * the geometry come back FROM? Only whoever minted the handle knows, so only a
- * producer can say — in advance, here.
- *
- * The distinction this table exists to keep: the ABSENCE of a recorded source is
- * a fact about a handle, never a recovery policy. A production mesh whose
- * provenance went missing is a broken contract and has to be reported as one; it
- * is not, and must never be quietly downgraded into, a mesh that was never
- * recoverable. Only a producer declared `host-only-non-recoverable` below is
- * allowed to have no way back.
+ * The ABSENCE of a recorded source is a fact about a handle, never a recovery
+ * policy: a production mesh whose provenance went missing is a broken contract,
+ * and must never be quietly downgraded into a mesh the device keeps.
  */
 
 /**
@@ -49,11 +42,11 @@ export const CLASSES = {
         means: 'the geometry is replayable from an asset the loader can load again;'
             + ' a handle of this class with no recorded source is a contract violation',
     },
-    'host-only-non-recoverable': {
+    'host-only-retained': {
         owes: 'why',
         policy: 'HostOnly',
         means: 'the geometry exists only in the process that built it, by design;'
-            + ' a device generation ends it, and no source can bring it back',
+            + ' the device keeps its bytes and puts them back after a loss itself',
     },
 };
 
@@ -68,7 +61,7 @@ export const MESH_PRODUCERS = [
     {
         id: 'freezeMeshGeometry',
         file: 'src/esengine/bindings/RendererBindings.cpp',
-        class: 'host-only-non-recoverable',
+        class: 'host-only-retained',
         why: 'it uploads a MeshRenderer\'s INLINE payload — vertices that live in a component,'
             + ' authored by whoever built the entity, with no asset under them — and clears the'
             + ' payload afterwards, so the geometry survives nowhere else. Its only callers are'

@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { initResourceManager, shutdownResourceManager } from '../src/wasm/resourceManager';
+import { TextureContent } from '../src/wasm';
 import {
     isKtx2,
     chooseTargetFormat,
@@ -123,7 +124,7 @@ describe('loadCompressedTexture', () => {
         // internalformat arg = the ASTC extension constant
         expect(gl.compressedTexImage2D.mock.calls[0][2]).toBe(ASTC);
         expect(gl.texImage2D).not.toHaveBeenCalled();
-        expect(registerExternalTexture).toHaveBeenCalledWith(7, 4, 4);
+        expect(registerExternalTexture).toHaveBeenCalledWith(7, 4, 4, TextureContent.Asset);
         expect(r).toEqual({
             handle: 42, width: 4, height: 4,
             decision: {
@@ -209,7 +210,7 @@ describe('GPU byte accounting', () => {
         // 4×4 ASTC block data is 8 bytes here vs a 64-byte RGBA8 estimate.
         loadCompressedTexture(gl as never, makeModule() as never, makeTranscoder(), KTX2_HEADER);
 
-        expect(registerExternalTextureSized).toHaveBeenCalledWith(7, 4, 4, 8);
+        expect(registerExternalTextureSized).toHaveBeenCalledWith(7, 4, 4, 8, TextureContent.Asset);
         expect(registerExternalTexture).not.toHaveBeenCalled();
     });
 
@@ -217,7 +218,7 @@ describe('GPU byte accounting', () => {
         const gl = makeGl();  // no compressed support → RGBA path
         loadCompressedTexture(gl as never, makeModule() as never, makeTranscoder(), KTX2_HEADER);
 
-        expect(registerExternalTexture).toHaveBeenCalledWith(7, 4, 4);
+        expect(registerExternalTexture).toHaveBeenCalledWith(7, 4, 4, TextureContent.Asset);
         expect(registerExternalTextureSized).not.toHaveBeenCalled();
     });
 });

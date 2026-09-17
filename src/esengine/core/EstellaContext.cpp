@@ -114,51 +114,6 @@ bool EstellaContext::init(Unique<GfxDevice> device) {
     return true;
 }
 
-bool EstellaContext::recoverDevice() {
-    auto* device = services_.getService<GfxDevice>();
-    if (!device || !device->recoverDevice()) return false;
-
-    // The order is the substance. Shaders first: every program id cached
-    // downstream is read back from these handles. RenderContext next, because
-    // its white texture is the placeholder the textures get swept onto.
-    auto* resources = services_.getService<resource::ResourceManager>();
-    auto* renderContext = services_.getService<RenderContext>();
-    if (!resources || !renderContext) return false;
-
-    resources->recreateGpuShaders();
-    renderContext->recreateGpuResources();
-    renderContext->materials().refreshShaderPrograms(*resources);
-
-    if (auto* immediateDraw = services_.getService<ImmediateDraw>()) {
-        immediateDraw->recreateGpuResources();
-    }
-    if (auto* renderFrame = services_.getService<RenderFrame>()) {
-        renderFrame->recreateGpuResources();
-    }
-
-    // Last: the placeholder now exists to park them on. Their CONTENT is still
-    // missing, which is why this leaves the device Recovering, not Live.
-    resources->invalidateGpuTextures(renderContext->getWhiteTexture());
-    // Meshes have no placeholder to park on — geometry cannot be stood in for —
-    // so they lose their realization outright and the draw path skips them until
-    // a source replaces it.
-    resources->invalidateGpuMeshes();
-    return true;
-}
-
-u32 EstellaContext::finishDeviceRecovery() {
-    auto* resources = services_.getService<resource::ResourceManager>();
-    // Both debts, not just the textures: a device declared Live with geometry
-    // still missing is a screen with holes in it reporting that it recovered.
-    const u32 pending = resources
-        ? static_cast<u32>(resources->texturesAwaitingReupload().size()
-                           + resources->meshesAwaitingRematerialization().size())
-        : 0;
-    if (pending > 0) return pending;
-    if (auto* device = services_.getService<GfxDevice>()) device->markDeviceRestored();
-    return 0;
-}
-
 void EstellaContext::initSubsystems(Unique<GfxDevice> gfxDevice) {
     // The device arrives first: ResourceManager (the GPU-resource factory) and
     // every other renderer subsystem borrow this single device. Which backend
@@ -168,14 +123,8 @@ void EstellaContext::initSubsystems(Unique<GfxDevice> gfxDevice) {
     // The one place a device loss becomes visible. Logged whether or not
     // anything above the engine is listening: a loss nobody recorded is the
     // black screen with no explanation.
-    gfxDevicePtr->setDeviceLostHandler([this](const GfxDeviceLostInfo& info) {
+    gfxDevicePtr->setDeviceLostHandler([](const GfxDeviceLostInfo& info) {
         ES_LOG_ERROR("{}", gfxFormatDeviceLost(info));
-        // While the dead device is still current: recompile() clears the handles
-        // during the REBUILD, where releasing an id would hand a new context an
-        // old one's object — so a wrapper per program per loss was never freed.
-        if (auto* resources = services_.getService<resource::ResourceManager>()) {
-            resources->releaseLostGpuShaders();
-        }
     });
 
     services_.registerOwned<GfxDevice>(std::move(gfxDevice));
