@@ -41,6 +41,9 @@
  *     --gameplay p[,c]   after settling, print what the third-person character
  *                        IS: where it stands, what the physics step gave it, and
  *                        what its animator was told
+ *     --frame-ms <n>     every rendered frame advances the game's clock by exactly n ms,
+ *                        so what a gesture held for N frames did does not depend on
+ *                        how fast this machine draws
  *     --log <regex>      also print console lines matching this (the engine's own
  *                        warnings say why a subsystem sat out; only `[engine]`
  *                        lines are forwarded otherwise, which means diagnosing
@@ -108,7 +111,19 @@ const MIME = {
 
 /** Serve the export directory. Range requests are not implemented: a build that
  *  needs them (video seek) would read as a broken asset here, not a broken server. */
-function serve(root, safeArea) {
+/** Advances the page's clock once per rendered frame, by `ms`: the loop reads its
+ *  delta off the rAF timestamp, and a slow runner's frame would otherwise hand a
+ *  game a quarter of a second at a time. */
+const clockScript = (ms) => `<script>(() => {
+  let now = performance.now(); let frame = -1;
+  const raf = window.requestAnimationFrame.bind(window);
+  window.requestAnimationFrame = (cb) => raf((real) => {
+    if (real !== frame) { frame = real; now += ${ms}; }
+    cb(now);
+  });
+})();</script>`;
+
+function serve(root, safeArea, frameMs) {
   const server = http.createServer(async (req, res) => {
     try {
       let rel = decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/^\/+/, '');
@@ -119,14 +134,13 @@ function serve(root, safeArea) {
       // Insets have to exist before the first script runs: the engine reads
       // them once when its UI plugins build, and a variable set from the
       // outside after that is a variable nobody ever asks about again.
-      if (safeArea && rel === 'index.html') {
+      if ((safeArea || frameMs) && rel === 'index.html') {
         const [t = 0, r = 0, b = 0, l = 0] = safeArea.split(',').map(Number);
+        const head = (frameMs ? clockScript(frameMs) : '')
+          + (safeArea ? `<style>:root{--sat:${t}px;--sar:${r}px;--sab:${b}px;--sal:${l}px}</style>` : '');
         const html = String(bytes);
-        const injected = html.replace(
-          '<head>',
-          `<head><style>:root{--sat:${t}px;--sar:${r}px;--sab:${b}px;--sal:${l}px}</style>`,
-        );
-        if (injected === html) console.log('  safe-area: no <head> to inject into');
+        const injected = html.replace('<head>', `<head>${head}`);
+        if (injected === html) console.log('  no <head> to inject the safe area or clock into');
         bytes = Buffer.from(injected);
       }
       res.writeHead(200, { 'content-type': MIME[path.extname(abs).toLowerCase()] ?? 'application/octet-stream' })
@@ -170,7 +184,7 @@ const AI = flag('ai', '');
 const RENDER = has('render');
 /** Boot a named scene from the package instead of its entry. */
 const SCENE = flag('scene', '');
-  const server = await serve(DIR, flag('safe-area', ''));
+  const server = await serve(DIR, flag('safe-area', ''), Number(flag('frame-ms', '0')));
   const query = new URLSearchParams();
   if (PROBE || GAMEPLAY || PARTICLES || COMBAT || AI || RENDER || FACTS || STREAMING) query.set('headless', '');
   if (SCENE) query.set('scene', SCENE);

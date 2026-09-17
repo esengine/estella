@@ -182,13 +182,18 @@ jobs:
           # Four launches of a streamed world, which alone has taken twenty minutes.
           - shard: streamed
             criteria: --only streamed-world-comes-and-goes
+          # 29 launches of the third-person package: 15 of its checks took 56 minutes
+          # on a runner, so the whole list needs a window of its own.
+          - shard: third-person
+            criteria: --only a-character-may-only-do-what-the-world-allows,a-streamed-place-is-ready-before-it-is-seen
+            timeout: 150
           - shard: rest
-            criteria: --except flagship-plays-through,golden-packages,performance-ceilings,static-gates,streamed-world-comes-and-goes
+            criteria: --except flagship-plays-through,golden-packages,performance-ceilings,static-gates,streamed-world-comes-and-goes,a-character-may-only-do-what-the-world-allows,a-streamed-place-is-ready-before-it-is-seen
     env:
       ESTELLA_NATIVE_TEMPLATES: ${{ github.workspace }}/.native-templates
       # Empty outside the golden shards, where verify-golden takes the whole tier.
       ESTELLA_GOLDEN_SHARD: ${{ matrix.golden }}
-    timeout-minutes: 60
+    timeout-minutes: ${{ matrix.timeout || 60 }}
 
     steps:
     # verify-legacy reads examples out of RELEASE TAGS (git archive v0.20.0 …),

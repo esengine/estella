@@ -31,6 +31,10 @@ const PROJECT = path.join(ROOT, 'examples', 'third-person-3d');
 const LAUNCHER = path.join(ROOT, 'tools', 'launchers', 'launch-export.mjs');
 
 const W = 960, H = 640;
+/** One rendered frame of game time, whatever the machine: a gesture is held for
+ *  frames, and at a runner's 1.4 s a frame the loop's 0.25 s cap walked the
+ *  character fifteen times further than the gym is long. */
+const FRAME_MS = String(1000 / 60);
 /** Frames of strafe per lane: the character covers moveSpeed/60 a frame. */
 const TO_LANE = { wall: 75, step: 75, highStep: 150 };
 
@@ -69,7 +73,7 @@ function reading(stdout, label) {
  * `undefined` — so it stops here and says what the launcher did print.
  */
 function launch(args, label) {
-    const r = runElectron([LAUNCHER, ...args], { encoding: 'utf8', cwd: ROOT });
+    const r = runElectron([LAUNCHER, '--frame-ms', FRAME_MS, ...args], { encoding: 'utf8', cwd: ROOT });
     if (!reading(r.stdout, label)) {
         console.error(`✗ third-person: a launch printed no ${label} reading, so no game ran to judge`);
         for (const l of `${r.stderr ?? ''}${r.stdout ?? ''}`.trim().split('\n').slice(-12)) {
@@ -548,7 +552,7 @@ const HOME_AGENTS = 1;
     // Crossing publishes a PLACE, not a load: the sentry navigates to the player
     // and the swing the gym criteria drive kills it. It walks the persistent
     // CAUSEWAY — the navmesh bakes once, so a cell's own floor gets none.
-    const seen = excursion({ out: 300, frames: 400, swings: 7 });
+    const seen = excursion({ out: 330, frames: 400, swings: 7 });
     const sentry = seen.ai ?? {};
     const walked = Math.hypot((sentry.position?.x ?? 120) - 120, (sentry.position?.z ?? 1720) - 1720);
     // Two claims, and the damaged one is the STANDING target: whether a swing
