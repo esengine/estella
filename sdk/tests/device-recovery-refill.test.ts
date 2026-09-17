@@ -25,7 +25,7 @@ function owing(rows: Array<[number, number, string]>) {
         releaseTexture: vi.fn(),
     };
     initResourceManager(rm as unknown as CppResourceManager);
-    const assets = new Assets({
+    const assets = Assets.create({
         backend: { resolveUrl: (p: string) => p } as unknown as Backend,
         module: { _malloc: () => 0, _free: () => {} } as unknown as ESEngineModule,
     });

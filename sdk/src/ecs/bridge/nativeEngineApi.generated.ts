@@ -213,6 +213,7 @@ export interface NativeEngineApi {
     rm_releaseBitmapFont?(rm: unknown, handleId: number): void;
     rm_releaseShader?(rm: unknown, handleId: number): void;
     rm_releaseTexture?(rm: unknown, handleId: number): void;
+    rm_setRetainedBudget?(rm: unknown, bytes: number): void;
     rm_setTextureBudget?(rm: unknown, bytes: number): void;
     rm_setTextureMetadata?(rm: unknown, handleId: number, left: number, right: number, top: number, bottom: number): void;
     rm_supportsCompressedFormat?(rm: unknown, format: number): boolean;
@@ -479,6 +480,7 @@ export function createNativeEngineApi(
     bind('rm_releaseBitmapFont', 'es_rm_releaseBitmapFont', true);
     bind('rm_releaseShader', 'es_rm_releaseShader', true);
     bind('rm_releaseTexture', 'es_rm_releaseTexture', true);
+    bind('rm_setRetainedBudget', 'es_rm_setRetainedBudget', true);
     bind('rm_setTextureBudget', 'es_rm_setTextureBudget', true);
     bind('rm_setTextureMetadata', 'es_rm_setTextureMetadata', true);
     bind('rm_supportsCompressedFormat', 'es_rm_supportsCompressedFormat', true);
