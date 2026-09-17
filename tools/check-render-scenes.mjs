@@ -38,17 +38,9 @@ for (const s of SCENES) {
   if (manifest && !existsSync(path.join(FIXTURES, manifest.replace(/^\//, '')))) {
     fail(`"${s.id}" names manifest ${manifest}, which is not under fixtures/`);
   }
-  // An expectation is the whole point: a scene with none passes as long as it
-  // renders anything at all. Allowed, as a sentence — the same bargain the
-  // golden corpus strikes with parityGap. A COUNTER is an expectation too, and
-  // the sharper kind: what a frame cost is the half no pixel can show — as an
-  // exact value where a scene is small enough to enumerate, and as a CEILING
-  // where it is not.
-  // A SEAM is an expectation too, and the kind a point probe cannot state: a
-  // column that behaves unlike its neighbours on a grid is not a pixel colour.
-  // A COUNT is an expectation too, and the one a point probe cannot make: how
-  // much of a colour the frame holds does not depend on where a font put it.
-  // A ROUNDTRIP compares every pixel against the frame from before the loss.
+  // A scene with no expectation passes by rendering anything at all. A probe, a
+  // count, a seam, a counter or a device-loss roundtrip each is one; otherwise
+  // rendersOnly has to say why there is none.
   const asserts = s.env.ESTELLA_VERIFY_EXPECT || s.env.ESTELLA_VERIFY_COUNT
     || s.env.ESTELLA_VERIFY_DEVICE_LOSS === 'roundtrip'
     || s.env.ESTELLA_VERIFY_SEAM
