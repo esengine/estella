@@ -23,6 +23,13 @@ published separately; it ships inside the editor.
   launch. Entries are now stored under a hash of the key on every platform, and a
   refused write is reported once in the log.
 
+- **3D meshes draw on Windows with WebGL2 again.** 0.68.0 broke every mesh there: WebGL2 on
+  Windows runs on Direct3D 11, which reuses one vertex input layout for every shader with
+  the same vertex format, and the mesh shaders named their instance index before their
+  vertex attributes. Whichever mesh shader compiled first decided where every other one
+  read its positions, so meshes collapsed, vanished or covered the view. The engine now
+  names the instance index only after a shader's attributes.
+
 - **An imported model lit by an environment with a reflection draws on Windows.** WebGL2
   on Windows runs on Direct3D 11, where the block holding each object's indirect light
   was compiled into a buffer that needed one more texture slot than a model material

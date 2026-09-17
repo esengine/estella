@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(render): a vertex stage names gl_InstanceID only after its attributes':
+    { note: '3D meshes draw on Windows with WebGL2 again.' },
+
   'fix(render): the probe block stays a constant buffer under ANGLE on D3D11':
     { note: 'An imported model lit by an environment with a reflection draws on Windows.' },
 
