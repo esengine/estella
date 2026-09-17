@@ -31,10 +31,6 @@ const PROJECT = path.join(ROOT, 'examples', 'third-person-3d');
 const LAUNCHER = path.join(ROOT, 'tools', 'launchers', 'launch-export.mjs');
 
 const W = 960, H = 640;
-/** One rendered frame of game time, whatever the machine: a gesture is held for
- *  frames, and at a runner's 1.4 s a frame the loop's 0.25 s cap walked the
- *  character fifteen times further than the gym is long. */
-const FRAME_MS = String(1000 / 60);
 /** Frames of strafe per lane: the character covers moveSpeed/60 a frame. */
 const TO_LANE = { wall: 75, step: 75, highStep: 150 };
 
@@ -73,7 +69,7 @@ function reading(stdout, label) {
  * `undefined` — so it stops here and says what the launcher did print.
  */
 function launch(args, label) {
-    const r = runElectron([LAUNCHER, '--frame-ms', FRAME_MS, ...args], { encoding: 'utf8', cwd: ROOT });
+    const r = runElectron([LAUNCHER, ...args], { encoding: 'utf8', cwd: ROOT });
     if (!reading(r.stdout, label)) {
         console.error(`✗ third-person: a launch printed no ${label} reading, so no game ran to judge`);
         for (const l of `${r.stderr ?? ''}${r.stdout ?? ''}`.trim().split('\n').slice(-12)) {

@@ -41,9 +41,10 @@
  *     --gameplay p[,c]   after settling, print what the third-person character
  *                        IS: where it stands, what the physics step gave it, and
  *                        what its animator was told
- *     --frame-ms <n>     every rendered frame advances the game's clock by exactly n ms,
- *                        so what a gesture held for N frames did does not depend on
- *                        how fast this machine draws
+ *     --frame-ms <n>     every rendered frame advances the game's clock by exactly n ms
+ *                        (default one 60 Hz frame; 0 = the wall clock), so what N
+ *                        frames of a package did does not depend on how fast this
+ *                        machine draws
  *     --log <regex>      also print console lines matching this (the engine's own
  *                        warnings say why a subsystem sat out; only `[engine]`
  *                        lines are forwarded otherwise, which means diagnosing
@@ -184,7 +185,7 @@ const AI = flag('ai', '');
 const RENDER = has('render');
 /** Boot a named scene from the package instead of its entry. */
 const SCENE = flag('scene', '');
-  const server = await serve(DIR, flag('safe-area', ''), Number(flag('frame-ms', '0')));
+  const server = await serve(DIR, flag('safe-area', ''), Number(flag('frame-ms', String(1000 / 60))));
   const query = new URLSearchParams();
   if (PROBE || GAMEPLAY || PARTICLES || COMBAT || AI || RENDER || FACTS || STREAMING) query.set('headless', '');
   if (SCENE) query.set('scene', SCENE);
