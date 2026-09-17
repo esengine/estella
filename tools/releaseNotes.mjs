@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(play): a realm whose frame was not in the page says so':
+    { note: 'A Play that never comes up says how far it got.' },
+
   'fix(play): automation waits for Play as long as the session may take, and says why it failed':
     { note: 'A Play that never comes up says how far it got.' },
 
