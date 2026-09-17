@@ -8,9 +8,10 @@ checkout.
 ## The editor submodule (`desktop/`)
 
 The editor is a **private** repository mounted at `desktop/`, so the workflow
-token cannot read it. Three jobs need it — **Editor authoring checks**,
-**Packages (golden + released)** and the release workflow's **electron-builder**
-job — and they fetch it through `./.github/actions/editor-checkout`, which uses a
+token cannot read it. The jobs that drive an editor need it — **Editor authoring
+checks**, **Golden packages**, **Packages (streamed, compiled, released)** and the
+release workflow's **electron-builder** job — and they fetch it through
+`./.github/actions/editor-checkout`, which uses a
 **read-only deploy key**:
 
 - public half: a deploy key on `esengine/estella-editor` titled `estella CI (read-only)`
@@ -20,7 +21,7 @@ A deploy key rather than a PAT because it is scoped to that one repository and
 cannot write: if it leaks, it reads one private repo and nothing else. It is also
 the only option `gh` can issue end to end — GitHub has no API for minting a PAT.
 
-Without the secret those three jobs **fail at checkout**, deliberately. They
+Without the secret those jobs **fail at checkout**, deliberately. They
 drive an editor; reporting green with no editor present would be a lie about what
 was checked. Every other job runs fine without it — see `--host engine` in
 `tools/verify-render.mjs` and `needs: 'editor'` in `tools/gates.mjs`.
@@ -87,8 +88,10 @@ The Emscripten jobs use [ccache](https://ccache.dev/) to speed up C++ compilatio
 - **Action**: `hendrikmuhs/ccache-action@v1.2.23`
 - **Cache key**: `${{ runner.os }}-emscripten` — shared by `build.yml`'s
   `build-emscripten` job and `release-desktop.yml`'s `engine` job, so every
-  master push keeps the release engine build's cache warm.
-- **Max cache size**: 500MB
+  master push keeps the release engine build's cache warm. The C++ test jobs keep
+  keys of their own (`emscripten-tests`, `emscripten-asan`): two jobs saving one
+  key overwrite each other.
+- **Max cache size**: 2G for the shared key
 
 ### Emscripten-specific Settings
 

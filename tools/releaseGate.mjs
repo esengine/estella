@@ -208,6 +208,12 @@ export const CRITERIA = [
     needs: ['tools/verify-bootlog-crash.mjs', 'native/host/BootLog.cpp'],
   },
   {
+    id: 'streamed-world-comes-and-goes',
+    says: 'in a packaged streamed world a place exists while someone is near it, and leaving takes everything it brought',
+    answeredBy: 'node tools/verify-world-residency.mjs',
+    needs: ['tools/verify-world-residency.mjs', 'examples/world-streaming-3d/project.esproject'],
+  },
+  {
     id: 'old-projects-open',
     says: 'projects released by older versions still open, with nothing dropped',
     answeredBy: 'node tools/verify-legacy.mjs --tier release',

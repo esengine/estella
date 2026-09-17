@@ -36,8 +36,10 @@ env:
     test_frame_lifecycle
 
 jobs:
+  # The engine binaries, and nothing else: every gate below waits on this job, so
+  # a step here that no downstream job reads is a delay on all of them.
   build-emscripten:
-    name: Web (Emscripten) + C++ tests
+    name: Web (Emscripten)
     runs-on: ubuntu-latest
     timeout-minutes: 40
 
@@ -79,21 +81,6 @@ jobs:
         test -f build/wasm/wechat/esengine.wxgame.js && echo "✓ WeChat JS"
         test -f build/wasm/wechat/esengine.wxgame.wasm && echo "✓ WeChat WASM"
 
-    - name: Build C++ test harnesses
-      run: |
-        emcmake cmake -S . -B build/wasm/web-tests -DCMAKE_BUILD_TYPE=Release -DES_BUILD_WEB=ON -DES_BUILD_TESTS=ON -DES_ENABLE_BOX2D=ON
-        # webgpu_engine_bringup is compiled (a link-time smoke) but not run below.
-        cmake --build build/wasm/web-tests -j "$(nproc)" --target $CPP_TESTS webgpu_engine_bringup
-
-    # The root package.json is ESM, so the emscripten-emitted .js must run as .cjs.
-    - name: Run C++ test harnesses
-      run: |
-        for t in $CPP_TESTS; do
-          cp "build/wasm/web-tests/bin/$t.js" "build/wasm/web-tests/bin/$t.cjs"
-          echo "=== $t"
-          node "build/wasm/web-tests/bin/$t.cjs"
-        done
-
     # No --continue-on-error: a side-module compile break must FAIL the gate.
     # It used to be swallowed here, so a physics-module error lived on master
     # for days and only surfaced when a release ran `build -t all` for real.
@@ -116,6 +103,47 @@ jobs:
         name: wasm-wechat
         path: build/wasm/wechat/
         retention-days: 3
+
+  # The C++ harnesses as the release build compiles them, on a runner of their own
+  # so the jobs waiting on the engine binaries are not also waiting on these.
+  cpp-tests:
+    name: C++ tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+    - uses: actions/checkout@v7
+
+    - uses: ./.github/actions/engine-submodules
+    - name: Setup Emscripten
+      uses: mymindstorm/setup-emsdk@v16
+      with:
+        version: 5.0.0
+        actions-cache-folder: .emsdk-ci
+        cache-key: emsdk-5.0.0-${{ runner.os }}-${{ runner.arch }}
+
+    # A key of its own: two jobs saving under one key overwrite each other, and
+    # each run restores the other job's objects and misses on its own.
+    - name: Setup ccache
+      uses: hendrikmuhs/ccache-action@v1.2.23
+      with:
+        key: emscripten-tests
+        max-size: 1G
+
+    - name: Build C++ test harnesses
+      run: |
+        emcmake cmake -S . -B build/wasm/web-tests -DCMAKE_BUILD_TYPE=Release -DES_BUILD_WEB=ON -DES_BUILD_TESTS=ON -DES_ENABLE_BOX2D=ON
+        # webgpu_engine_bringup is compiled (a link-time smoke) but not run below.
+        cmake --build build/wasm/web-tests -j "$(nproc)" --target $CPP_TESTS webgpu_engine_bringup
+
+    # The root package.json is ESM, so the emscripten-emitted .js must run as .cjs.
+    - name: Run C++ test harnesses
+      run: |
+        for t in $CPP_TESTS; do
+          cp "build/wasm/web-tests/bin/$t.js" "build/wasm/web-tests/bin/$t.cjs"
+          echo "=== $t"
+          node "build/wasm/web-tests/bin/$t.cjs"
+        done
 
   # The same harnesses, instrumented. An out-of-bounds read that lands in
   # allocation slack (or in the next allocation) is silent in the plain build and
@@ -656,25 +684,34 @@ jobs:
         xvfb-run -a --server-args="-screen 0 1920x1080x24" node scripts/editor-mcp-e2e.mjs
         xvfb-run -a --server-args="-screen 0 1920x1080x24" node scripts/editor-mcp-editor-e2e.mjs
 
-  verify-packages:
-    name: Packages (golden + released)
+  # The golden corpus, packaged and opened the way a player opens it: every
+  # project exports, boots, draws what its points say, and answers the input it
+  # declares. Exporting was checked and the engine was checked; the package never
+  # was — and "it launched" is not the claim, since a build that boots to its
+  # rotate-to-portrait gate launches fine.
+  #
+  # Not held against the editor's frame here. That comparison opens a whole editor
+  # per project on a software rasteriser: it was most of this job's time and every
+  # one of its retries, and it answers drift between two runtimes rather than a
+  # package that broke. The nightly exit criteria make it, with the streamed world,
+  # the released projects and the compiled-versus-interpreted frames.
+  #
+  # A runner per shard, split by the script by what each project asks for;
+  # `fail-fast: false` so every shard answers.
+  verify-golden:
+    name: Golden packages
     runs-on: ubuntu-latest
     needs: build-emscripten
-    # Sized from measurements now, not from room to find out: golden is 14m37s and
-    # the streamed world 20m, which at 45 killed the job two minutes AFTER residency
-    # had passed 51/51 — and a job killed at its ceiling reports cancelled, not the
-    # green step it was standing on. The four steps after it have still never run.
-    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    timeout-minutes: 30
 
     steps:
     - uses: actions/checkout@v7
-      with:
-        # verify-legacy reads examples out of RELEASE TAGS (git archive v0.20.0
-        # …), which a shallow checkout has none of — the step failed on every run
-        # that ever reached it.
-        fetch-depth: 0
 
-    # The comparison frame is the EDITOR's, so this job needs its checkout.
+    # The package takes the engine the editor host stages.
     - uses: ./.github/actions/editor-checkout
       with:
         ssh-key: ${{ secrets.EDITOR_SSH_KEY }}
@@ -687,71 +724,45 @@ jobs:
     # AOT step — and a promise the build cannot keep fails the export rather
     # than falling back. This job packages, so this job needs the toolchain.
     - name: Setup Emscripten
+      id: toolchain
       uses: mymindstorm/setup-emsdk@v16
       with:
         version: 5.0.0
         actions-cache-folder: .emsdk-ci
         cache-key: emsdk-5.0.0-${{ runner.os }}-${{ runner.arch }}
 
-    # The golden corpus, packaged and opened the way a player opens it, then held
-    # against the editor's own frame of the same game. Exporting was checked and
-    # the engine was checked; the package never was — and "it launched" is not the
-    # claim, since a build that boots to its rotate-to-portrait gate launches fine.
-    # `--jobs`, which this call never passed: the runner has four cores and the
-    # projects were packaged and launched one at a time, so the step grew past the
-    # job's own cap and the whole matrix was killed for a queue, not for work.
-    # The splitter is the script's own and balances by what a project asks for.
-    - name: Launch the golden packages and compare them to the editor (PR tier)
-      run: node tools/verify-golden.mjs --tier pr --jobs 3
-
-    # A parity failure is a claim about two PICTURES, and until now neither left
-    # the runner: "the package is not showing what the editor showed" named two
-    # paths that were deleted with the machine. A pixel gate that can only fail
-    # here has to hand over what it compared, or nobody can tell a real
-    # regression from a frame the software rasteriser had not finished.
-    - name: Keep the frames a parity failure compared
-      if: failure()
-      uses: actions/upload-artifact@v7
-      with:
-        name: golden-parity-frames
-        path: |
-          .golden/*.png
-          .golden/*.log
-        include-hidden-files: true
-        if-no-files-found: warn
-        retention-days: 7
-
-    # Which places EXIST in that package, and what leaves with them. A camera
-    # cannot answer this: a cell that is not drawn and a cell that is not there
-    # look the same, and a body an unload forgot is invisible until someone
-    # walks into it.
-    - name: Drive a streamed world in its package
-      run: node tools/verify-world-residency.mjs
-
-    # The same game packaged twice from one tree, compiled and interpreted, and
-    # the two frames held against each other — the only check that sees what a
-    # compiled system does to a PIXEL.
-    - name: Compare a compiled game's frame to an interpreted one (PR tier)
-      run: node tools/verify-aot-parity.mjs
+    - name: Launch the golden packages (PR tier)
+      run: node tools/verify-golden.mjs --tier pr --no-parity --shard ${{ matrix.shard }}/3
 
     # Does a real exported WEB package DISPATCH to its compiled systems — the
     # claim verify-aot-native makes for the desktop road, which the web road had
     # nobody making. A twin that loads and is never called changes no pixel and
-    # raises no error, so parity below cannot see it either.
+    # raises no error. Work, not reporting: one shard does it for the matrix.
     - name: Check an exported web game runs its systems compiled
+      if: ${{ !cancelled() && matrix.shard == 1 && steps.toolchain.outcome == 'success' }}
       run: pnpm run verify:aot
 
     # And the exact half: one fixture packaged both ways, stepped by a fixed dt
     # rather than by elapsed time, and the two displacements compared. This is
     # the check a twin reading the wrong offset cannot survive.
     - name: Check a cooked build's compiled systems against the interpreter
+      if: ${{ !cancelled() && matrix.shard == 1 && steps.toolchain.outcome == 'success' }}
       run: pnpm run verify:cooked
 
-    # Projects as they were RELEASED, opened by the editor of today. The golden
-    # corpus is re-saved by whoever last touched it, so it can only say that this
-    # version opens its own files; a person's project is not re-saved by anybody.
-    - name: Open released projects (PR tier)
-      run: node tools/verify-legacy.mjs --tier pr
+    # A package whose points missed is a claim about a PICTURE, and the picture
+    # has to leave the runner, or nobody can tell a real regression from a frame
+    # the software rasteriser had not finished.
+    - name: Keep the frames a failure was judged on
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: golden-frames-${{ matrix.shard }}
+        path: |
+          .golden/*.png
+          .golden/*.log
+        include-hidden-files: true
+        if-no-files-found: warn
+        retention-days: 7
 
   # The same scenes on the second backend, on a runner of its own.
   #

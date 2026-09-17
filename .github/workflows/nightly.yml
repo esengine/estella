@@ -166,8 +166,11 @@ jobs:
             criteria: --only performance-ceilings
           - shard: static
             criteria: --only static-gates
+          # Four launches of a streamed world, which alone has taken twenty minutes.
+          - shard: streamed
+            criteria: --only streamed-world-comes-and-goes
           - shard: rest
-            criteria: --except flagship-plays-through,golden-packages,performance-ceilings,static-gates
+            criteria: --except flagship-plays-through,golden-packages,performance-ceilings,static-gates,streamed-world-comes-and-goes
     env:
       ESTELLA_NATIVE_TEMPLATES: ${{ github.workspace }}/.native-templates
     # The longest shard is golden at about a quarter of an hour.
@@ -322,3 +325,45 @@ jobs:
         arch: x86_64
         disable-animations: true
         script: node tools/run-release-gate.mjs --host android
+
+  # A red night that nobody reads is a night that did not run: this workflow was
+  # red five mornings in a row, from three different causes, with nothing saying
+  # so. One issue carries the state — opened or commented on when a scheduled night
+  # is red, and closed when one comes back green.
+  report:
+    name: Say how the night went
+    needs: [build-emscripten, linux-template, linux, macos, android]
+    if: ${{ always() && github.event_name == 'schedule' }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      issues: write
+    steps:
+    - name: Open, update or close the nightly issue
+      env:
+        GH_TOKEN: ${{ github.token }}
+        RESULTS: ${{ join(needs.*.result, ' ') }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: |
+        set -euo pipefail
+        title="Nightly exit criteria are red"
+        open=$(gh issue list -R "$GITHUB_REPOSITORY" --state open --search "\"$title\" in:title" \
+          --json number,title --jq "map(select(.title == \"$title\")) | .[0].number // empty")
+        case " $RESULTS " in
+          *" failure "*|*" cancelled "*)
+            failed=$(gh run view "$GITHUB_RUN_ID" -R "$GITHUB_REPOSITORY" --json jobs \
+              --jq '.jobs[] | select(.conclusion == "failure" or .conclusion == "cancelled") | "- \(.name) — \(.conclusion)"')
+            body=$(printf 'Night of %s (%s): %s\n\n%s\n' "$(date -u +%F)" "${GITHUB_SHA:0:9}" "$RUN_URL" "$failed")
+            if [ -n "$open" ]; then
+              gh issue comment "$open" -R "$GITHUB_REPOSITORY" --body "$body"
+            else
+              gh issue create -R "$GITHUB_REPOSITORY" --title "$title" --body "$body"
+            fi
+            ;;
+          *)
+            if [ -n "$open" ]; then
+              gh issue close "$open" -R "$GITHUB_REPOSITORY" \
+                --comment "Green again on $(date -u +%F) (${GITHUB_SHA:0:9}): $RUN_URL"
+            fi
+            ;;
+        esac
