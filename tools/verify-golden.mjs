@@ -23,7 +23,7 @@ import path from 'node:path';
 import { atTier, projectDir, parityFor, interactFor, audioFor, suspendFor, safeAreaFor, atlasFor, webPixels, launchTimeoutFor, ROOT } from './goldenProjects.mjs';
 import { frameDistance, frameCellMax, readPNG } from './frameCompare.mjs';
 import { retryOnDeadGpu, deadGpuVerdict, launchNeverHappenedVerdict, failureLines } from './lib/deadGpu.mjs';
-import { runElectron } from './lib/electronRun.mjs';
+import { runElectron, ensureElectronBinary } from './lib/electronRun.mjs';
 import { requireCurrentEngine } from './lib/engineBuild.mjs';
 
 const argv = process.argv.slice(2);
@@ -101,6 +101,7 @@ const JOBS = Math.max(1, Number(flag('jobs', '1')) || 1);
 /** How many launches share this runner's rasterizer: a worker's, or one. */
 const SHARE = argv.includes('--worker') ? JOBS : 1;
 if (JOBS > 1 && !argv.includes('--worker') && projects.length > 1) {
+  ensureElectronBinary();
   const weight = (g) => g.targets.filter((t) => OWNED.has(t)).length
     * (1 + [interactFor(g), audioFor(g), safeAreaFor(g), atlasFor(g)].filter(Boolean).length + (suspendFor(g) ? 3 : 0));
   const bins = Array.from({ length: Math.min(JOBS, projects.length) }, () => ({ ids: [], load: 0 }));

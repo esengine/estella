@@ -28,6 +28,36 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(play): a Play that never comes up says how far it got':
+    { note: 'A Play that never comes up says how far it got.' },
+
+  'fix(automation): an editor a program drives ends when the program does':
+    { note: 'An editor an agent started closes when the agent does.' },
+
+  'fix(golden): Electron is fetched once before editors launch side by side':
+    { internal: 'The golden verifier launching its own editors; no creator runs it.' },
+
+  'fix(golden): a retry is handed the attempt that failed':
+    { internal: 'What the golden verifier prints about its own retries.' },
+
+  'fix(golden): a missing frame says what the attempt printed, and blames the GPU only on evidence':
+    { internal: 'What the golden verifier prints about its own retries.' },
+
+  'fix(ci): the parity frames a golden failure keeps are actually uploaded':
+    { internal: 'CI artifacts only.' },
+
+  'fix(golden): lighting-3d\'s points follow the surface shading at its real place':
+    { internal: 'The expected pixels moved to where the surface is; the engine did not change.' },
+
+  'fix(checks): dodge-graph plays paused, so only a step moves the player':
+    { internal: 'An editor check; the editor did not change.' },
+
+  'fix(checks): scatter-scale measures the editor\'s half, out of the eye\'s view':
+    { internal: 'An editor check; the editor did not change.' },
+
+  'fix(checks): camera-frustum captures after the toggle is drawn, not after a sleep':
+    { internal: 'An editor check; the editor did not change.' },
+
   'feat(render): what a shiny thing reflects indoors is the room, not the sky':
     { note: 'What a shiny thing reflects indoors is the room, not the sky.' },
 

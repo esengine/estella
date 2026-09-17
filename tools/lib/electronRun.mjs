@@ -17,7 +17,21 @@
  * A precondition that every caller must remember is a precondition one of them
  * will forget, so it belongs to the tool that needs it.
  */
+import { createRequire } from 'node:module';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { runTool } from './runTool.mjs';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+
+/**
+ * Resolve Electron's binary once, before anything launches it in parallel. A binary
+ * the install left out is downloaded on first launch, and two first launches at
+ * once had one executing the file while the other still wrote it: spawn ETXTBSY.
+ */
+export function ensureElectronBinary() {
+  createRequire(path.join(ROOT, 'package.json'))('electron');
+}
 
 /** xvfb-run's own default is 1280x1024x8, which is smaller than the windows
  *  golden asks for and shallower than a pixel judgement should be read from. */

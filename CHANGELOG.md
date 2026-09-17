@@ -355,6 +355,21 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **An editor an agent started closes when the agent does.** The editor the MCP
+  server launches outlived it: an agent that exited, crashed or was killed left
+  its editor running, and an unattended one with unsaved edits sat at the
+  "save changes?" prompt forever. The editor now watches the process that
+  launched it and quits when that process is gone, and a run nobody attends
+  never asks to save.
+
+- **A Play that never comes up says how far it got.** A game that stayed silent
+  for 90 seconds was always reported as "handed the scene but never reported
+  ready" — including one whose realm never loaded at all, so it was never handed
+  anything. The message now names which of the two happened. The reason also
+  stays on the failed session rather than only in a toast: the realm is torn down
+  the moment its session fails, which cleared the one error anything could read
+  back, so an automated run that waited on Play saw no error and no game.
+
 - **A native build runs a script that holds a NUL character.** The desktop and
   mobile hosts measured the embedded SDK and the project's scripts with
   `strlen`, so the first NUL byte ended them. The script-graph runner carried
