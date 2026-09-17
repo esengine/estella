@@ -355,6 +355,15 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A new prefab, material, animation clip or graph keeps the id it was created
+  with.** Each was written file first and `.meta` second, and the project watcher
+  adopts a file it finds without a `.meta` by minting one of its own. When it looked
+  in between, the new asset was registered under an id nobody had been given — a
+  prefab just created could be missing from the asset list — and when its write
+  landed last, the id the editor had handed back referred to nothing on disk. New
+  assets now land their `.meta` first, through one door that mints it, and adopting
+  a file never replaces a `.meta` that appeared after it looked.
+
 - **Play started while the editor was still preparing it gets a whole game.**
   Opening a project prepares the play realm in the background, and preparing it
   deletes the copy it is about to replace. A Play pressed before that finished

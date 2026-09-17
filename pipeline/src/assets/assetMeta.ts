@@ -67,14 +67,6 @@ export function mintMeta(type: string, importer?: Record<string, unknown>): Reco
   };
 }
 
-/** Write `<absFile>.meta` for @p absFile. Pass `type` to override the
- *  extension-derived one (the create door knows its type explicitly). */
-export async function writeMeta(absFile: string, type: string,
-                                importer?: Record<string, unknown>): Promise<void> {
-  await writeFile(absFile + META_EXT,
-                  JSON.stringify(mintMeta(type, importer), null, 2) + '\n', 'utf8');
-}
-
 /**
  * Adopt an orphan: mint `<absFile>.meta` iff the file has none and it resolves
  * to a known asset type. Returns what happened, so callers can count adoptions /
@@ -85,6 +77,14 @@ export async function adoptOrphan(absFile: string,
   if (existsSync(absFile + META_EXT)) return 'has-meta';
   const type = await metaTypeForFile(absFile);
   if (!type) return 'unknown-type';
-  await writeMeta(absFile, type, importer);
+  // Exclusive: the file's creator may have written its sidecar since the check, and
+  // the uuid it handed out is the one refs point at.
+  try {
+    await writeFile(absFile + META_EXT, JSON.stringify(mintMeta(type, importer), null, 2) + '\n',
+                    { encoding: 'utf8', flag: 'wx' });
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'EEXIST') return 'has-meta';
+    throw err;
+  }
   return 'adopted';
 }
