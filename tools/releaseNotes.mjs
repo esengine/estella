@@ -28,6 +28,12 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(checks): dodge-graph reads the HUD a frame after the loss, and a restart\'s leftovers by identity':
+    { internal: 'An editor check; the editor did not change.' },
+
+  'fix(checks): sprite-frame judges the picture the sprite reaches, not the first still one':
+    { internal: 'An editor check; the editor did not change.' },
+
   'fix(play): a project prepares one play realm at a time':
     { note: 'Play started while the editor was still preparing it gets a whole game.' },
 
