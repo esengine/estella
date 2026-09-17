@@ -28,6 +28,12 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(render): the probe block stays a constant buffer under ANGLE on D3D11':
+    { note: 'An imported model lit by an environment with a reflection draws on Windows.' },
+
+  'fix(render): a uniform changed after its first upload reaches WebGPU draws':
+    { note: 'A material parameter changed after its first frame takes effect on WebGPU.' },
+
   'fix(platform): a hot update on a native build is stored under a name the host accepts':
     { note: 'A hot update on iOS, Android and desktop builds is still there after a restart' },
 

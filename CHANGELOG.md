@@ -23,6 +23,17 @@ published separately; it ships inside the editor.
   launch. Entries are now stored under a hash of the key on every platform, and a
   refused write is reported once in the log.
 
+- **An imported model lit by an environment with a reflection draws on Windows.** WebGL2
+  on Windows runs on Direct3D 11, where the block holding each object's indirect light
+  was compiled into a buffer that needed one more texture slot than a model material
+  leaves free. Chrome's GPU process aborted on the first frame, so the editor viewport
+  and exported web games showed nothing; `lighting-3d` was the first template to hit it.
+
+- **A material parameter changed after its first frame takes effect on WebGPU.** The
+  new value was uploaded but never bound, so the frame kept drawing the first one. The
+  editor grid was where it showed: orbiting a WebGPU viewport moved the scene and left
+  the grid where the view had first looked.
+
 - **A WeChat mini-game is judged against WeChat's real 30MB total.** The size report
   flagged a package over 20MB across its main package and subpackages, a limit WeChat
   no longer has; the 4MB main-package limit is unchanged.
