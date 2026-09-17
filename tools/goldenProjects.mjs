@@ -625,6 +625,9 @@ export const GOLDEN = [
     // All three at once: W walks the blend plane's speed axis, C its stance axis,
     // Space bends the arm onto a target no clip reaches for.
     interact: { keys: ['KeyW', 'KeyC', 'Space'], frames: 90 },
+    // Measured on a runner of its own: 26 of 30 settle frames inside the 30 s
+    // default. Beside two other launches it had been getting three times that.
+    launchTimeoutMs: 180_000,
   },
   {
     id: 'third-person-3d',
