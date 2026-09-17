@@ -17,7 +17,7 @@ import { adoptOrphan } from '../src/assets/assetMeta';
 
 let dir: string;
 beforeEach(async () => { dir = await mkdtemp(path.join(tmpdir(), 'es-adopt-')); });
-afterEach(async () => { await rm(dir, { recursive: true, force: true }); });
+afterEach(async () => { await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); });
 
 describe('adopting an orphan', () => {
   it('leaves a sidecar that appeared after it looked', async () => {
