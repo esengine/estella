@@ -90,6 +90,33 @@ export const CENSUS_FLOOR = '0.60.0';
  * that does not exist, and release notes are a different act. Theirs is ungated.
  */
 export const SHIPPED = {
+  // — 0.68.0 —
+  'Gameplay you can draw.': { certifies: 'script-graph' },
+  'A graph can call another graph.': { certifies: 'script-graph' },
+  'A graph can change the scene.': { certifies: 'script-graph' },
+  'A scene can hold a thousand of something again.':
+    { notCertifiable: 'a draw-call count: a merged run draws the picture separate draws did, so no'
+      + ' package frame can show it; the per-instance irradiance it carries reaches the picture as'
+      + ' light-probe, and the mesh-instancing editor check counts the draws' },
+  'What a shiny thing reflects indoors is the room, not the sky.': { certifies: 'reflection-probe' },
+  'The bake\'s ray tracer walked its own tree wrong.': { certifies: 'lightmap' },
+  'A material-shaded surface shaded itself at z = 0.': { certifies: 'reflection-probe' },
+  'A wall can stop a frame from drawing what is behind it.': { certifies: 'occlusion-culling' },
+  'Decals you can place.': { certifies: 'decal' },
+  'A decal\'s geometry, cut.': { certifies: 'decal' },
+  'A surface can say it goes ON another one.': { certifies: 'decal' },
+  'A scatter brush.':
+    { notCertifiable: 'an editor tool whose product is ordinary entities — a package carries the'
+      + ' copies, never the brush; the scatter-scale editor check opens, walks and saves 8000 of them' },
+  'A mesh has somewhere to put its own vertex attributes.':
+    { notCertifiable: 'where the per-object record is stored: every 3D package draws through it, so'
+      + ' a project certifying it would certify drawing at all; both render verify tiers and'
+      + ' check-mesh-instance-record hold the layout and the free slots' },
+  'Automation can read what a frame cost.':
+    { notCertifiable: 'a probe for automation, not a behaviour a player meets; the frame-cost'
+      + ' readers in the verifiers are its consumers' },
+  'A sound anything authored can start.': { certifies: 'authored-sound' },
+
   // — 0.67.0 —
   'A mesh can be read through the light that was baked into it.': { certifies: 'lightmap' },
   'The bake itself: lights become an atlas.': { certifies: 'lightmap' },
@@ -343,7 +370,7 @@ export const CAPABILITIES = [
   'spine', 'material', 'asset-lifecycle',
   'model-import', 'model-animation', 'model-skinning',
   'physics-3d', 'mesh-shadow', 'environment', 'level-of-detail', 'world-streaming',
-  'lightmap', 'light-probe',
+  'lightmap', 'light-probe', 'reflection-probe', 'decal', 'occlusion-culling',
   'lighting-2d',
   'sprite-sorting', 'sprite-mask', 'ui-widgets', 'velocity-motion',
   'ssao', 'navigation-3d', 'root-motion', 'animation-events', 'shader-readiness',
@@ -356,7 +383,7 @@ export const CAPABILITIES = [
   'hot-update', 'rollback', 'subpackage',
   'networking',
   'persistence', 'save-versioning',
-  'script-graph',
+  'script-graph', 'authored-sound',
   // What a game needs and no sample carried end to end. Each holds a gap below
   // until the phase covering it lands, so the gate prints how much of a game the
   // corpus still cannot certify. See docs/REARCH_CELESTIAL_HEIGHTS.md.
@@ -430,6 +457,13 @@ export const EVIDENCE = {
   // scene carrying one draws light a bake wrote, so a bake that stops writing
   // changes the picture the suite compares.
   lightmap: /\bMeshLightmap\b/,
+  'reflection-probe': /\bReflectionProbe\b/,
+  // The projector a scene places; the cut geometry beside it is what it wrote.
+  decal: /\bDecalProjector\b/,
+  // The component, not the word: 2D light occluders share the name's tail.
+  'occlusion-culling': /"type":\s*"Occluder"/,
+  // The flag authored data raises, not the component: playOnAwake was the only door before.
+  'authored-sound': /"type":\s*"AudioSource"[^}]*"playing"/,
   // The volume, which is where a MOVING thing takes its indirect light from —
   // the half of a bake no atlas can hold.
   'light-probe': /\bLightProbeVolume\b/,
@@ -487,6 +521,7 @@ export const KNOWN_GAPS = {
   // hot-update-demo ships one now, so the package SHAPE is a real project's.
   // What no automated run reaches is the vendor mounting it: only a mini-game
   // host implements the download, and none of the tiers builds for one.
+  'authored-sound': 'AudioSource.playing is what a graph, a behaviour or a wire raises, and audio-demo still starts its loop from code through Res(Audio) — no golden project sounds a clip from authored data yet; audio-source-flag.test.ts holds the contract',
   subpackage: 'hot-update-demo delivers `pack` as a 分包 and its button loads it, but no tier builds that project for a mini-game host — the vendor download itself is verified by hand in devtools',
 };
 
@@ -606,7 +641,7 @@ export const GOLDEN = [
     // Also the only scene that ships its lighting baked: an atlas its surfaces
     // read and a volume its thirteen moving bodies take their indirect light
     // from. Both halves of a bake are in the picture the suite compares.
-    certifies: ['physics-3d', 'lightmap', 'light-probe'],
+    certifies: ['physics-3d', 'lightmap', 'light-probe', 'reflection-probe', 'decal'],
     targets: ['web', 'desktop'],
     tier: 'nightly',
     // The character walks on the key it declares, and the debug overlay it draws
@@ -631,7 +666,7 @@ export const GOLDEN = [
   },
   {
     id: 'third-person-3d',
-    certifies: ['third-person', 'level-of-detail', 'ssao', 'navigation-3d',
+    certifies: ['third-person', 'level-of-detail', 'ssao', 'navigation-3d', 'occlusion-culling',
                 'root-motion', 'animation-events', 'world-streaming', 'shader-readiness',
                 'animation-layers', 'animation-blend'],
     // A packaged frame looks the same whether first sight of the outpost cost a
