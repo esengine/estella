@@ -18,11 +18,11 @@
  */
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { mkdirSync, rmSync, readFileSync, existsSync } from 'node:fs';
+import { mkdirSync, rmSync, readFileSync, existsSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { atTier, projectDir, parityFor, interactFor, audioFor, suspendFor, safeAreaFor, atlasFor, webPixels, launchTimeoutFor, ROOT } from './goldenProjects.mjs';
 import { frameDistance, frameCellMax, readPNG } from './frameCompare.mjs';
-import { retryOnDeadGpu, deadGpuVerdict, launchNeverHappenedVerdict } from './lib/deadGpu.mjs';
+import { retryOnDeadGpu, deadGpuVerdict, launchNeverHappenedVerdict, failureLines } from './lib/deadGpu.mjs';
 import { runElectron } from './lib/electronRun.mjs';
 import { requireCurrentEngine } from './lib/engineBuild.mjs';
 
@@ -159,6 +159,16 @@ function designAspect(id) {
 }
 
 /**
+ * A failed attempt's whole output, beside the frames: CI uploads that directory when a
+ * run fails, and the lines printed inline are a summary of what only this file holds.
+ */
+function keepAttempt(label, n, output) {
+  try {
+    writeFileSync(path.join(WORK, `${label}-attempt${n}.log`), String(output ?? ''));
+  } catch { /* the log is evidence, not a verdict */ }
+}
+
+/**
  * The editor's frame of the running game, through the screenshot hook the UI
  * shots use. The play panel takes the project's aspect first: a portrait game on
  * a landscape surface draws the package's rotate gate against the editor's
@@ -209,17 +219,20 @@ function captureEditorFrame(id, out, timeoutMs) {
       return { ok: false, output: `${output}\nthe capture is not a whole PNG: ${e.message}`, measured: false };
     }
   };
-  const run = retryOnDeadGpu(attempt, (died) => console.log(`↻ ${id} — ${died
-    ? 'the GPU process died before the editor drew'
-    : 'no editor frame after a GPU death'}; capturing again`));
+  let tries = 0;
+  const run = retryOnDeadGpu(attempt, (noVerdict, last) => {
+    keepAttempt(`${id}-editor`, ++tries, last.output);
+    console.log(`↻ ${id} — ${noVerdict ? 'no editor frame' : 'a blank editor frame after an outage'}; capturing again`);
+    for (const l of failureLines(last.output)) console.log(`    ${l}`);
+  });
   if (!run.ok) {
     return {
       ok: false,
       why: run.launchFailed
         ? `${launchNeverHappenedVerdict('the editor\'s frame')} (${run.output.trim().slice(-200)})`
         : run.gpuDied
-          ? `${deadGpuVerdict('the editor\'s frame')} (${run.output.trim().slice(-200)})`
-          : run.output.trim().slice(-300),
+          ? `${deadGpuVerdict('the editor\'s frame')} (${failureLines(run.output).join(' | ')})`
+          : `no frame on any attempt: ${failureLines(run.output).join(' | ')}`,
     };
   }
   return { ok: true, w: run.w, h: run.h };
@@ -288,9 +301,10 @@ function launchPackage(id, target, args) {
         r,
       };
     },
-    (died) => console.log(`↻ ${id} ${target} — ${died
-      ? 'the GPU process died before it drew'
-      : 'a blank frame on the launch after a GPU death'}; launching again`),
+    (noVerdict, last) => {
+      console.log(`↻ ${id} ${target} — ${noVerdict ? 'no verdict from the package' : 'a blank frame after an outage'}; launching again`);
+      for (const l of failureLines(last.output)) console.log(`    ${l}`);
+    },
   );
   // gpuDied travels with the result: without it a runner whose GPU never came up
   // is reported as a game that draws nothing, which is the one confusion this

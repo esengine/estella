@@ -37,6 +37,31 @@ export function gpuNeverCameUp(output) {
 }
 
 /**
+ * Evidence a GPU really failed, strong enough to blame it for a run that never
+ * reached a verdict: the engine could not make what it draws through, or WebGL2
+ * was refused. {@link gpuNeverCameUp} is not: its first line prints on every
+ * launch on the Linux runner, and every failure there read as a dead GPU.
+ */
+export function gpuFailed(output) {
+    return engineCouldNotDraw(output) || /WebGL2 is not available/.test(output);
+}
+
+/** Lines every launch on a GPU-less runner prints, whatever happens next. */
+const NOISE = /Exiting GPU process due to errors during initialization|dbus\/|GPU stall due to ReadPixels|Fontconfig|GL Driver Message/;
+
+/**
+ * The lines of a failed attempt that say what happened, for a log that is read on
+ * a runner nobody can open: its errors, timeouts and signals, noise removed, last
+ * few kept. An attempt that printed none says so rather than printing nothing.
+ */
+export function failureLines(output, max = 8) {
+    const lines = String(output ?? '').split('\n').map((l) => l.trim())
+        .filter((l) => l && !NOISE.test(l)
+            && /error|fail|timed out|timeout|exception|fatal|signal|crash|lost|not available|unreachable|refused/i.test(l));
+    return lines.length ? lines.slice(-max) : ['(the attempt printed no error line)'];
+}
+
+/**
  * Electron never started: no display, a sandbox helper that is not setuid root,
  * a binary that is not there. Not the GPU, and not worth six retries — a nightly
  * spent 24 minutes on eleven projects that never launched, and called it a dead GPU.
@@ -152,13 +177,10 @@ function reachedNoVerdict(last) {
 }
 
 /**
- * Run `attempt` until it succeeds, or fails in a way that is the subject's own.
- * `note(noVerdict)` announces each retry.
- *
- * `attempt()` returns `{ ok, output }` plus, where it can tell: `measured` (did
- * this run reach a verdict? one that did has measured something, and its failure
- * is the subject's however loud the log is) and `drew` (did anything reach the
- * screen? a blank frame right after an outage is that outage still settling).
+ * Run `attempt` ({ ok, output, measured?, drew? }) until it succeeds or fails in a way
+ * that is the subject's own; `note(noVerdict, last)` announces each retry. A verdict
+ * that was measured is never retried, and a run that gives up is `gpuDied` only on
+ * {@link gpuFailed}'s evidence.
  */
 export function retryOnDeadGpu(attempt, note, stepMs = STEP_MS) {
     // A chain that waits for nothing (tests) has no runner to remember across.
@@ -189,5 +211,5 @@ export function retryOnDeadGpu(attempt, note, stepMs = STEP_MS) {
             backoff(i, stepMs);
         }
     }
-    return { ...last, retried: true, gpuDied: true };
+    return { ...last, retried: true, gpuDied: gpuFailed(last.output ?? '') };
 }

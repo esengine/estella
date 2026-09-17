@@ -10,7 +10,7 @@
  */
 import { describe, it, expect } from 'vitest';
 // @ts-expect-error — a .mjs tool module, typed by its own JSDoc
-import { retryOnDeadGpu, gpuNeverCameUp, deadGpuVerdict, engineCouldNotDraw, resultMeasured,
+import { retryOnDeadGpu, gpuNeverCameUp, deadGpuVerdict, engineCouldNotDraw, resultMeasured, failureLines,
     launchNeverHappened, gpuCameUp } from '../lib/deadGpu.mjs';
 
 const DEAD = 'Exiting GPU process due to errors during initialization';
@@ -49,6 +49,21 @@ function runReporting(attempts_: Attempt[]) {
     );
     return { ...result, attempts, notes };
 }
+
+describe('failureLines', () => {
+    it('keeps what happened and drops what every launch prints', () => {
+        const out = `${DEAD}\n[6065:ERROR:dbus/bus.cc:405] Failed to connect to the bus\n`
+            + '[screenshot] waitFor timed out: play realm ready\nok frame 3\nelectron exited with signal SIGTRAP';
+        expect(failureLines(out)).toEqual([
+            '[screenshot] waitFor timed out: play realm ready',
+            'electron exited with signal SIGTRAP',
+        ]);
+    });
+
+    it('says so when an attempt printed no error at all', () => {
+        expect(failureLines(`${DEAD}\nall quiet`)).toEqual(['(the attempt printed no error line)']);
+    });
+});
 
 describe('gpuNeverCameUp', () => {
     it('recognises the three ways a runner says it has no GPU', () => {
@@ -299,9 +314,15 @@ describe('retryOnDeadGpu', () => {
         expect(r.gpuDied).toBeFalsy();
     });
 
-    it('gives up at the cap and says the GPU is why', () => {
+    it('gives up at the cap without blaming the GPU on the line every launch prints', () => {
         const r = run([DEAD]);
         expect(r.ok).toBe(false);
+        expect(r.attempts).toBe(6);
+        expect(r.gpuDied).toBe(false);
+    });
+
+    it('blames the GPU at the cap when the engine says it could not draw', () => {
+        const r = run([`${DEAD}\n[ERROR] GPU device lost: context-lost [backend=WebGL2]\n[ERROR] Texture::initialize: createTexture failed for 70x70`]);
         expect(r.attempts).toBe(6);
         expect(r.gpuDied).toBe(true);
     });
@@ -316,10 +337,10 @@ describe('retryOnDeadGpu', () => {
         expect(r.gpuDied).toBeFalsy();
     });
 
-    it('still retries a dead GPU, which is not a launch that never happened', () => {
+    it('still retries a run with no verdict, which is not a launch that never happened', () => {
         const r = run([DEAD]);
         expect(r.launchFailed).toBeFalsy();
-        expect(r.gpuDied).toBe(true);
+        expect(r.attempts).toBe(6);
     });
 });
 

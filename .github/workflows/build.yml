@@ -714,7 +714,9 @@ jobs:
       uses: actions/upload-artifact@v7
       with:
         name: golden-parity-frames
-        path: .golden/*.png
+        path: |
+          .golden/*.png
+          .golden/*.log
         include-hidden-files: true
         if-no-files-found: warn
         retention-days: 7
