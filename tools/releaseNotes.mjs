@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(gates): third-person runs its package on one frame of game time per frame':
+    { internal: 'A verifier and its launcher; no creator runs them.' },
+
   'fix(render): a mesh with no colour channel draws, as white vertices':
     { note: 'A baked decal draws on devices and under WebGPU.' },
 
