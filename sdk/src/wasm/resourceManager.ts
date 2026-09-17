@@ -85,6 +85,8 @@ export interface ResourceStats {
     textureBudget: number;
     /** Cached refCount==0 textures awaiting revive or eviction. */
     textureEvictableCount: number;
+    /** CPU copies the graphics device keeps so content survives a device loss. */
+    retainedBytes: number;
 }
 
 /**

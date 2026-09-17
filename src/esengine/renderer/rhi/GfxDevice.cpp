@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <utility>
 
 namespace esengine {
 
@@ -120,7 +121,7 @@ void GfxDevice::realizeRegistry() {
         record.realized = backendCreateBuffer(id, record.desc, hasBytes ? record.bytes.data() : nullptr);
         record.owed = record.realized && !hasBytes && record.content.kind() == GfxContentKind::Sourced;
         if (record.owed) ++owed_count_;
-        if (record.content.kind() != GfxContentKind::Retained) record.bytes.clear();
+        if (record.content.kind() != GfxContentKind::Retained) dropBytes(record.bytes);
     }
 
     for (auto& [id, record] : registry_.textures.all()) {
@@ -137,7 +138,7 @@ void GfxDevice::realizeRegistry() {
         }
         record.owed = record.realized && !hasBytes && record.content.kind() == GfxContentKind::Sourced;
         if (record.owed) ++owed_count_;
-        if (record.content.kind() != GfxContentKind::Retained) record.bytes.clear();
+        if (record.content.kind() != GfxContentKind::Retained) dropBytes(record.bytes);
         if (!record.realized) ES_LOG_ERROR("Device recovery: texture {} did not rebuild", id);
     }
 
@@ -198,6 +199,36 @@ void GfxDevice::forgoContent(const GfxOwedContent& owed) {
 }
 
 // =============================================================================
+// Kept bytes
+// =============================================================================
+
+void GfxDevice::keepBytes(std::vector<u8>& slot, std::vector<u8> bytes) {
+    retained_bytes_ -= slot.size();
+    retained_bytes_ += bytes.size();
+    slot = std::move(bytes);
+}
+
+void GfxDevice::dropBytes(std::vector<u8>& slot) {
+    retained_bytes_ -= slot.size();
+    slot = {};
+}
+
+std::vector<u8> GfxDevice::takeBytes(std::vector<u8>& slot) {
+    retained_bytes_ -= slot.size();
+    return std::exchange(slot, {});
+}
+
+void GfxDevice::eraseBuffer(u32 id) {
+    if (auto* record = registry_.buffers.find(id)) dropBytes(record->bytes);
+    registry_.buffers.erase(id);
+}
+
+void GfxDevice::eraseTexture(u32 id) {
+    if (auto* record = registry_.textures.find(id)) dropBytes(record->bytes);
+    registry_.textures.erase(id);
+}
+
+// =============================================================================
 // Buffers
 // =============================================================================
 
@@ -206,13 +237,14 @@ BufferHandle GfxDevice::createBuffer(const BufferDesc& desc, GfxContent content,
     const bool usable = isDeviceUsable();
     GfxBufferRecord record{desc, content};
     if (content.kind() == GfxContentKind::Retained || (!usable && initialData)) {
-        record.bytes.assign(desc.size, 0);
-        if (initialData && desc.size > 0) std::memcpy(record.bytes.data(), initialData, desc.size);
+        std::vector<u8> bytes(desc.size, 0);
+        if (initialData && desc.size > 0) std::memcpy(bytes.data(), initialData, desc.size);
+        keepBytes(record.bytes, std::move(bytes));
     }
     const u32 id = registry_.buffers.insert(std::move(record));
     if (!usable) return BufferHandle{id};
     if (!backendCreateBuffer(id, desc, initialData)) {
-        registry_.buffers.erase(id);
+        eraseBuffer(id);
         return BufferHandle::Invalid;
     }
     registry_.buffers.find(id)->realized = true;
@@ -225,7 +257,7 @@ void GfxDevice::deleteBuffer(BufferHandle buffer) {
     if (!record) return;
     if (record->realized) backendDeleteBuffer(id);
     if (record->owed) --owed_count_;
-    registry_.buffers.erase(id);
+    eraseBuffer(id);
     settleRecovery();
 }
 
@@ -237,7 +269,8 @@ void GfxDevice::updateBuffer(BufferHandle buffer, u32 offsetBytes, const void* d
     if (!record->bytes.empty() && static_cast<usize>(offsetBytes) + sizeBytes <= record->bytes.size()) {
         std::memcpy(record->bytes.data() + offsetBytes, data, sizeBytes);
     } else if (!record->realized && whole) {
-        record->bytes.assign(static_cast<const u8*>(data), static_cast<const u8*>(data) + record->desc.size);
+        const auto* first = static_cast<const u8*>(data);
+        keepBytes(record->bytes, std::vector<u8>(first, first + record->desc.size));
     }
     if (record->realized) backendUpdateBuffer(id, offsetBytes, data, sizeBytes);
     if (record->owed && whole) {
@@ -253,10 +286,11 @@ void GfxDevice::resizeBuffer(BufferHandle buffer, u32 sizeBytes, const void* dat
     if (!record) return;
     record->desc.size = sizeBytes;
     if (record->content.kind() == GfxContentKind::Retained || (!record->realized && data)) {
-        record->bytes.assign(sizeBytes, 0);
-        if (data && sizeBytes > 0) std::memcpy(record->bytes.data(), data, sizeBytes);
+        std::vector<u8> bytes(sizeBytes, 0);
+        if (data && sizeBytes > 0) std::memcpy(bytes.data(), data, sizeBytes);
+        keepBytes(record->bytes, std::move(bytes));
     } else {
-        record->bytes.clear();
+        dropBytes(record->bytes);
     }
     if (record->realized) backendResizeBuffer(id, record->desc, data);
     if (record->owed && data) {
@@ -330,13 +364,13 @@ TextureHandle GfxDevice::createTexture(const TextureDesc& desc, GfxContent conte
     if (content.kind() == GfxContentKind::Retained && (desc.samples > 1 || isDepthFormat(desc.format))) {
         ES_LOG_ERROR("GfxDevice::createTexture: an attachment-only texture cannot keep its contents");
     } else if (content.kind() == GfxContentKind::Retained || (!usable && pixels)) {
-        record.bytes = uploadOrderImage(desc, pixels);
+        keepBytes(record.bytes, uploadOrderImage(desc, pixels));
         record.desc.flipY = false;
     }
     const u32 id = registry_.textures.insert(std::move(record));
     if (!usable) return TextureHandle{id};
     if (!backendCreateTexture(id, desc, pixels)) {
-        registry_.textures.erase(id);
+        eraseTexture(id);
         return TextureHandle::Invalid;
     }
     registry_.textures.find(id)->realized = true;
@@ -353,12 +387,13 @@ TextureHandle GfxDevice::createCompressedTexture(const TextureDesc& desc, GfxCon
     record.compressedFormat = format;
     record.mipLevels = mipLevels ? mipLevels : 1;
     if (data && (content.kind() == GfxContentKind::Retained || !usable)) {
-        record.bytes.assign(static_cast<const u8*>(data), static_cast<const u8*>(data) + byteLength);
+        const auto* first = static_cast<const u8*>(data);
+        keepBytes(record.bytes, std::vector<u8>(first, first + byteLength));
     }
     const u32 id = registry_.textures.insert(std::move(record));
     if (!usable) return TextureHandle{id};
     if (!backendCreateCompressedTexture(id, desc, format, data, byteLength, mipLevels)) {
-        registry_.textures.erase(id);
+        eraseTexture(id);
         return TextureHandle::Invalid;
     }
     registry_.textures.find(id)->realized = true;
@@ -375,7 +410,8 @@ bool GfxDevice::restoreCompressedTexture(TextureHandle texture, GfxCompressedFor
     record->compressedFormat = format;
     record->mipLevels = mipLevels ? mipLevels : 1;
     if (record->content.kind() == GfxContentKind::Retained) {
-        record->bytes.assign(static_cast<const u8*>(data), static_cast<const u8*>(data) + byteLength);
+        const auto* first = static_cast<const u8*>(data);
+        keepBytes(record->bytes, std::vector<u8>(first, first + byteLength));
     }
     record->realized = backendCreateCompressedTexture(id, record->desc, format, data, byteLength, mipLevels);
     if (record->realized) payTexture(id, *record);
@@ -391,7 +427,7 @@ TextureHandle GfxDevice::importExternalTexture(u32 nativeId, const TextureDesc& 
     const u32 id = registry_.textures.insert(GfxTextureRecord{desc, content});
     if (!isDeviceUsable()) return TextureHandle{id};
     if (!backendAdoptTexture(id, nativeId, desc)) {
-        registry_.textures.erase(id);
+        eraseTexture(id);
         return TextureHandle::Invalid;
     }
     registry_.textures.find(id)->realized = true;
@@ -427,14 +463,15 @@ bool GfxDevice::adoptTextureContent(TextureHandle into, TextureHandle from) {
     target->compressedFormat = source->compressedFormat;
     target->mipLevels = source->mipLevels;
     target->realized = true;
+    std::vector<u8> sourceBytes = takeBytes(source->bytes);
     if (target->content.kind() == GfxContentKind::Retained) {
-        target->bytes = std::move(source->bytes);
+        keepBytes(target->bytes, std::move(sourceBytes));
     } else {
-        target->bytes.clear();
+        dropBytes(target->bytes);
     }
     if (source->owed) --owed_count_;
     const bool owed = target->owed;
-    registry_.textures.erase(fromId);
+    eraseTexture(fromId);
     if (owed) {
         target->owed = false;
         --owed_count_;
@@ -449,7 +486,7 @@ void GfxDevice::deleteTexture(TextureHandle texture) {
     if (!record) return;
     if (record->realized) backendDeleteTexture(id);
     if (record->owed) --owed_count_;
-    registry_.textures.erase(id);
+    eraseTexture(id);
     settleRecovery();
 }
 
@@ -466,7 +503,7 @@ void GfxDevice::updateTexture(TextureHandle texture, i32 x, i32 y, u32 width, u3
     } else if (!record->realized && whole) {
         TextureDesc upload = desc;
         upload.flipY = flipY;
-        record->bytes = uploadOrderImage(upload, pixels);
+        keepBytes(record->bytes, uploadOrderImage(upload, pixels));
     }
     if (record->realized) backendUpdateTexture(id, x, y, width, height, pixels, flipY);
     if (whole) payTexture(id, *record);

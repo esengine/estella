@@ -498,6 +498,9 @@ void RenderFrame::flush() {
     // and a pool that stopped giving targets back is visible in no pixel.
     ES_PROFILE_COUNTER("render.targets", target_pool_.count());
     ES_PROFILE_COUNTER("render.targets.bytes", target_pool_.bytes());
+    // Memory on the other side: pixels and buffers the device copies so they
+    // survive a loss, which no GPU figure counts.
+    ES_PROFILE_COUNTER("render.retained.bytes", device_.retainedBytes());
 
     ES_PROFILE_COUNTER("render.culled", stats_.culled);
     // Which question did the culling, and how much was declared to do it with. A

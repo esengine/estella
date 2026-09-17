@@ -14,6 +14,14 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **`getResourceStats()` reports the memory kept to survive a lost GPU.** To bring the
+  picture back after a graphics reset, the engine keeps a CPU copy of some textures and
+  buffers — a cost no GPU figure shows, and a real one on a mini-game's memory budget.
+  `retainedBytes` says how large it is, the resource census tracks it, and each frame
+  reports it as the `render.retained.bytes` counter.
+
 ### Fixed
 
 - **The picture comes back after the GPU is lost.** When the graphics context went away — a

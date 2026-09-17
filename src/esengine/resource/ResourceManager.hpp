@@ -76,6 +76,7 @@ struct ResourceStats {
     usize textureBytes = 0;       ///< Resident texture bytes (RGBA8 estimate) — VRAM usage
     usize textureBudget = 0;      ///< Texture pool resident-byte budget (0 = eviction off)
     usize textureEvictableCount = 0;  ///< Cached refCount==0 textures awaiting revive/evict
+    usize retainedBytes = 0;      ///< CPU copies the device keeps to restore content after a loss
 };
 
 // =============================================================================

@@ -927,6 +927,7 @@ ResourceStats ResourceManager::getStats() const {
     stats_.textureBytes = textures_.residentBytes();
     stats_.textureBudget = textures_.budget();
     stats_.textureEvictableCount = textures_.evictableCount();
+    stats_.retainedBytes = device_ ? device_->retainedBytes() : 0;
     return stats_;
 }
 

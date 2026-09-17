@@ -283,6 +283,44 @@ int main() {
         CHECK(d.liveObjects().textures == 1, "one texture, not two");
     }
 
+    // --- Every byte kept for recovery is counted, and given back ---
+    {
+        MockGfxDevice d;
+        CHECK(d.retainedBytes() == 0, "a new device keeps nothing");
+        const std::vector<u8> bytes(16, 7);
+        const BufferHandle block = d.createBuffer({GfxBufferUsage::Uniform, 16, true},
+                                                  GfxContent::retained(), bytes.data());
+        TextureDesc desc;
+        desc.width = 4;
+        desc.height = 4;
+        const TextureHandle kept = d.createTexture(desc, GfxContent::retained(), nullptr);
+        d.createTexture(desc, GfxContent::sourced(2, 0), nullptr);
+        d.createBuffer({GfxBufferUsage::Vertex, 64, true}, GfxContent::transient(), nullptr);
+        CHECK(d.retainedBytes() == 16 + 64, "retained buffers and textures count, the rest do not");
+
+        d.resizeBuffer(block, 32, nullptr);
+        CHECK(d.retainedBytes() == 32 + 64, "a resized buffer counts at its new size");
+
+        d.notifyDeviceLost(GfxDeviceLostReason::ContextLost, "gone");
+        const std::vector<u8> late(8, 1);
+        d.createBuffer({GfxBufferUsage::Vertex, 8, false}, GfxContent::transient(), late.data());
+        CHECK(d.retainedBytes() == 32 + 64 + 8, "bytes waiting for a lost device are held too");
+        d.recoverDevice();
+        CHECK(d.retainedBytes() == 32 + 64, "and let go once the recovery has uploaded them");
+
+        TextureDesc larger = desc;
+        larger.width = 8;
+        larger.height = 8;
+        const TextureHandle fresh = d.createTexture(larger, GfxContent::retained(), nullptr);
+        CHECK(d.retainedBytes() == 32 + 64 + 256, "a second retained texture adds its pixels");
+        CHECK(d.adoptTextureContent(kept, fresh), "a retained texture adopts retained pixels");
+        CHECK(d.retainedBytes() == 32 + 256, "adopting moves the bytes rather than copying them");
+
+        d.deleteTexture(kept);
+        d.deleteBuffer(block);
+        CHECK(d.retainedBytes() == 0, "deleting gives every byte back");
+    }
+
     // --- A recovery that fails leaves it retryable, not half-open ---
     {
         MockGfxDevice d;

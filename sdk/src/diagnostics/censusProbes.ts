@@ -128,6 +128,7 @@ export function installBuiltinCensusProbes(): void {
                     counter('render.rm.indexBuffers', stats.indexBufferCount, 'bounded'),
                     counter('render.rm.textureBytes', stats.textureBytes, 'bounded', 'bytes'),
                     counter('render.rm.evictable', stats.textureEvictableCount, 'info'),
+                    counter('render.rm.retainedBytes', stats.retainedBytes, 'bounded', 'bytes'),
                 );
             }
 

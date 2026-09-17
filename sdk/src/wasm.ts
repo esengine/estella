@@ -152,6 +152,7 @@ export interface CppResourceManager {
         textureBytes: number;
         textureBudget: number;
         textureEvictableCount: number;
+        retainedBytes: number;
     };
     loadBitmapFont(fntContent: string, textureHandle: number, texWidth: number, texHeight: number): number;
     createLabelAtlasFont(textureHandle: number, texWidth: number, texHeight: number, chars: string, charWidth: number, charHeight: number): number;

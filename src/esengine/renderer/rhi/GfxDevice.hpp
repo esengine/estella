@@ -169,6 +169,13 @@ public:
     void forgoContent(const GfxOwedContent& owed);
 
     /**
+     * @brief CPU bytes the device holds to put content back after a loss.
+     * @details Retained content, plus the initial bytes of objects created while
+     *          lost until the recovery uploads them. A cost the GPU figures never show.
+     */
+    usize retainedBytes() const { return retained_bytes_; }
+
+    /**
      * @brief Gives up on the device: no further recovery will be attempted.
      * @details The clean end of a loss that could not be recovered from. The
      *          report is kept; what changes is that the renderer stops waiting.
@@ -782,6 +789,11 @@ private:
     /** @brief Recovering becomes Live once nothing is owed. */
     void settleRecovery();
     void payTexture(u32 id, GfxTextureRecord& record);
+    void keepBytes(std::vector<u8>& slot, std::vector<u8> bytes);
+    void dropBytes(std::vector<u8>& slot);
+    std::vector<u8> takeBytes(std::vector<u8>& slot);
+    void eraseBuffer(u32 id);
+    void eraseTexture(u32 id);
     i32 nativeUniformLocation(GfxProgramRecord& record, u32 id, i32 location);
     void setUniformValue(i32 location, const GfxUniformValue& value);
 
@@ -794,6 +806,7 @@ private:
 
     GfxResourceRegistry registry_;
     u32 owed_count_ = 0;
+    usize retained_bytes_ = 0;
     ShaderHandle current_program_ = ShaderHandle::Invalid;
     PipelineHandle current_pipeline_ = PipelineHandle::Invalid;
     /// Native uniform locations per program for the current generation; -2 = not asked yet.

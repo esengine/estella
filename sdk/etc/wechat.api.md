@@ -7558,6 +7558,7 @@ textureWidth: number | undefined
 cacheHits: number
 cacheMisses: number
 indexBufferCount: number
+retainedBytes: number
 shaderCount: number
 textureBudget: number
 textureBytes: number

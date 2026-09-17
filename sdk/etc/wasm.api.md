@@ -223,7 +223,7 @@ createTextureFromBytes: ((width: number, height: number, pixels: Uint8Array, for
 createTextureFromKTX2: ((bytes: Uint8Array, srgb: boolean) => { handle: number; width: number; height: number; format?: number; blockRefused?: boolean; } | null) | undefined
 forgoTextureContent: ((handle: number) => void) | undefined
 getBitmapFontRefCount: (handle: number) => number
-getResourceStats: () => { shaderCount: number; textureCount: number; vertexBufferCount: number; indexBufferCount: number; cacheHits: number; cacheMisses: number; textureBytes: number; textureBudget: number; textureEvictableCount: number; }
+getResourceStats: () => { shaderCount: number; textureCount: number; vertexBufferCount: number; indexBufferCount: number; cacheHits: number; cacheMisses: number; textureBytes: number; textureBudget: number; textureEvictableCount: number; retainedBytes: number; }
 getShaderRefCount: (handle: number) => number
 getTextureDimensions: (handle: number) => { width: number; height: number; } | null
 getTextureGLId: (handle: number) => number

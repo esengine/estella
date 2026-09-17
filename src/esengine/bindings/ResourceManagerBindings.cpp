@@ -223,6 +223,7 @@ emscripten::val rm_getResourceStats(resource::ResourceManager& rm) {
     result.set("textureBytes", static_cast<f64>(st.textureBytes));
     result.set("textureBudget", static_cast<f64>(st.textureBudget));
     result.set("textureEvictableCount", static_cast<f64>(st.textureEvictableCount));
+    result.set("retainedBytes", static_cast<f64>(st.retainedBytes));
     return result;
 }
 #endif  // __EMSCRIPTEN__

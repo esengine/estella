@@ -171,7 +171,7 @@ export function createMockModule(): MockModule {
         getResourceStats: () => ({
             shaderCount: 0, textureCount: 0, vertexBufferCount: 0, indexBufferCount: 0,
             cacheHits: 0, cacheMisses: 0,
-            textureBytes: 0, textureBudget: 0, textureEvictableCount: 0,
+            textureBytes: 0, textureBudget: 0, textureEvictableCount: 0, retainedBytes: 0,
         }),
     };
 

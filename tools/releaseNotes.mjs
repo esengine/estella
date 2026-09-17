@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(render): the device counts the memory it keeps to survive a loss':
+    { note: '`getResourceStats()` reports the memory kept to survive a lost GPU.' },
+
   'fix(render): the device rebuilds every object it issued behind the same handle':
     { note: 'The picture comes back after the GPU is lost.' },
 
