@@ -207,7 +207,7 @@ export function retryOnDeadGpu(attempt, note, stepMs = STEP_MS) {
         if (!noVerdict && !aftermath) return { ...last, retried: i > 0 };
 
         if (i < MAX_ATTEMPTS - 1) {
-            note(noVerdict);
+            note(noVerdict, last);
             backoff(i, stepMs);
         }
     }

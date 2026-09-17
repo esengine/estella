@@ -330,6 +330,14 @@ describe('retryOnDeadGpu', () => {
     // golden reports measured:false when a launch fails, which is exactly what a
     // dead GPU looks like — so a nightly with no xvfb retried eleven projects
     // six times each and spent 24 minutes calling it a GPU that died.
+    it('hands each retry the attempt that failed', () => {
+        const seen: string[] = [];
+        let n = 0;
+        retryOnDeadGpu(() => ({ ok: false, measured: false, output: `attempt ${++n}` }),
+            (_noVerdict: boolean, last: { output: string }) => seen.push(last.output), 0);
+        expect(seen).toEqual(['attempt 1', 'attempt 2', 'attempt 3', 'attempt 4', 'attempt 5']);
+    });
+
     it('does not retry a launch that never happened', () => {
         const r = runReporting([{ ok: false, measured: false, output: 'pnpm did not start: ENOENT' }]);
         expect(r.attempts).toBe(1);
