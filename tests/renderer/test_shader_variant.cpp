@@ -6,9 +6,11 @@
 // shader body can #ifdef them), and variantKey is an order-independent cache key.
 
 #include "esengine/resource/ShaderParser.hpp"
+#include "esengine/renderer/rhi/ShaderEmbeds.generated.hpp"
 
 #include <algorithm>
 #include <cstdio>
+#include <sstream>
 #include <string>
 
 static int g_failures = 0;
@@ -484,6 +486,61 @@ static void testHandWrittenFrameBlock() {
           "blanking keeps the line count, so compile-log remapping still lands");
 }
 
+/**
+ * True when no line before the last vertex attribute uses a system value. ANGLE on
+ * D3D11 places SV_InstanceID / SV_VertexID in the input signature where the stage first
+ * names them and caches input layouts without the signature, so one stage naming one
+ * early breaks every program sharing its layout. Textual, so every variant is covered.
+ */
+static bool systemValuesTrailAttributes(const std::string& src) {
+    int line = 0, lastAttribute = -1, firstSystemValue = -1;
+    std::istringstream in(src);
+    for (std::string text; std::getline(in, text); ++line) {
+        const std::size_t lead = text.find_first_not_of(" \t");
+        if (lead == std::string::npos || text[lead] == '#' || text.compare(lead, 2, "//") == 0) continue;
+        const std::string t = text.substr(lead);
+        if (t.rfind("in ", 0) == 0 || (t.rfind("layout", 0) == 0 && t.find(") in ") != std::string::npos)) {
+            lastAttribute = line;
+        }
+        const bool names = t.find("gl_InstanceID") != std::string::npos ||
+                           t.find("gl_VertexID") != std::string::npos ||
+                           t.find("ES_INSTANCE_ID") != std::string::npos;
+        if (names && firstSystemValue < 0) firstSystemValue = line;
+    }
+    return firstSystemValue < 0 || firstSystemValue > lastAttribute;
+}
+
+static void testSystemValuesTrailAttributes() {
+    ParsedShader early = ShaderParser::parse(
+        "#pragma shader \"Early\"\n#pragma version 300 es\n"
+        "#pragma vertex\nint id() { return gl_InstanceID; }\n"
+        "layout(location = 0) in vec3 a_position;\n"
+        "void main() { gl_Position = vec4(a_position, float(id())); }\n#pragma end\n"
+        "#pragma fragment\nout vec4 o;\nvoid main() { o = vec4(1.0); }\n#pragma end\n");
+    CHECK(!systemValuesTrailAttributes(ShaderParser::assembleStage(early, ShaderStage::Vertex)),
+          "a stage naming gl_InstanceID before its attributes is caught");
+
+    ParsedShader mesh = ShaderParser::parse(esengine::ShaderEmbeds::MESH);
+    ParsedShader lit = ShaderParser::parse(FRAG_ONLY_LIT);
+    const std::vector<std::vector<std::string>> variants = {
+        {}, {"MESH_NORMALS", "LIT"}, {"MESH_NORMALS", "LIT", "SKINNED"}, {"SHADOW_DEPTH"},
+        {"MESH_NORMALS", "LIT", "MESH_LIGHTMAP", "ES_RECEIVE_SHADOW", "ES_ENV_MAP"}};
+    bool meshTrails = true;
+    for (const auto& features : variants) {
+        meshTrails = meshTrails && systemValuesTrailAttributes(
+            ShaderParser::assembleStage(mesh, ShaderStage::Vertex, "", features));
+    }
+    CHECK(meshTrails, "mesh.esshader names no system value before its attributes");
+
+    bool canonicalTrails = true;
+    for (const auto& features : std::vector<std::vector<std::string>>{
+             {"MESH"}, {"MESH", "MESH_NORMALS", "SKINNED"}, {"MESH", "MESH_LIGHTMAP"}, {"PARTICLE"}}) {
+        canonicalTrails = canonicalTrails && systemValuesTrailAttributes(
+            ShaderParser::assembleStage(lit, ShaderStage::Vertex, "", features));
+    }
+    CHECK(canonicalTrails, "the canonical material vertex names no system value before its attributes");
+}
+
 int main() {
     ParsedShader p = ShaderParser::parse(SRC);
     CHECK(p.valid, "shader parses");
@@ -505,6 +562,7 @@ int main() {
     testFragmentOnly();
     testHandWrittenFrameBlock();
     testWGSLEmission();
+    testSystemValuesTrailAttributes();
 
     if (g_failures == 0) {
         std::printf("\nALL SHADER-VARIANT TESTS PASSED\n");

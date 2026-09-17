@@ -40,7 +40,7 @@ namespace {
  *          `esInstance*` is the name a stage reaches for; a stage that names one
  *          gets this header, the way a stage that names `tN` gets that unit.
  */
-/** @brief The same record, for a WGSL vertex stage. @see instanceRecordGLSL */
+/** @brief The same record, for a WGSL vertex stage. @see instanceRecordGLSLDecls */
 std::string instanceRecordWGSL() {
     const std::string texels = std::to_string(MESH_INSTANCE_TEXELS);
     const std::string width = std::to_string(MESH_INSTANCE_TEXTURE_WIDTH);
@@ -74,14 +74,31 @@ std::string instanceRecordWGSL() {
             + std::to_string(MESH_INSTANCE_TEXEL_LIGHTMAP) + "); }\n";
 }
 
-std::string instanceRecordGLSL() {
-    const std::string texels = std::to_string(MESH_INSTANCE_TEXELS);
-    const std::string width = std::to_string(MESH_INSTANCE_TEXTURE_WIDTH);
+/**
+ * @brief What a GLSL stage sees of the record before its own source: the block, the
+ *        texture and prototypes, none of which name a system value.
+ * @details The bodies follow the stage (instanceRecordGLSLBodies). ANGLE on D3D11 puts
+ *          SV_InstanceID into the input signature where gl_InstanceID first appears and
+ *          caches input layouts without the signature, so one stage naming it before its
+ *          attributes shifts the attributes of every program drawn with that layout.
+ */
+std::string instanceRecordGLSLDecls() {
     return
         "layout(std140) uniform InstanceConstants {\n"
         "    highp uvec4 u_instanceBase;\n"
         "};\n"
         "uniform highp sampler2D u_instanceData;\n"
+        "highp vec4 esInstanceTexel(int texel);\n"
+        "highp mat4 esInstanceModel();\n"
+        "highp mat3 esInstanceNormalMatrix();\n"
+        "highp vec4 esInstanceTint();\n"
+        "highp vec4 esInstanceLightmapRect();\n";
+}
+
+std::string instanceRecordGLSLBodies() {
+    const std::string texels = std::to_string(MESH_INSTANCE_TEXELS);
+    const std::string width = std::to_string(MESH_INSTANCE_TEXTURE_WIDTH);
+    return
         "highp vec4 esInstanceTexel(int texel) {\n"
         "    int at = (int(u_instanceBase.x) + ES_INSTANCE_ID) * " + texels + " + texel;\n"
         "    return texelFetch(u_instanceData, ivec2(at % " + width + ", at / " + width + "), 0);\n"
@@ -1798,7 +1815,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
         // is how wgslReachedTextureDecls decides the same question: one author for
         // the declaration, rather than a copy in every shader that reads a record.
         if (stageIt->second.find("esInstance") != std::string::npos) {
-            const std::string decl = instanceRecordGLSL();
+            const std::string decl = instanceRecordGLSLDecls();
             assembled << decl;
             headerLines += static_cast<u32>(std::count(decl.begin(), decl.end(), '\n'));
         }
@@ -2365,6 +2382,9 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
     }
 
     assembled << blankUniformBlock(stageIt->second, "FrameConstants");
+    if (stage == ShaderStage::Vertex && stageIt->second.find("esInstance") != std::string::npos) {
+        assembled << instanceRecordGLSLBodies();
+    }
 
     result.source = assembled.str();
     result.headerLineCount = headerLines;
