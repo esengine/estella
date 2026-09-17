@@ -28,6 +28,12 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(play): automation waits for Play as long as the session may take, and says why it failed':
+    { note: 'A Play that never comes up says how far it got.' },
+
+  'fix(checks): captures wait for a viewport that has stopped changing':
+    { internal: 'The editor checks\' capture helper; the editor did not change.' },
+
   'fix(gates): the release-notes ledger reads whole histories, and says so when it cannot':
     { internal: 'A repository gate; no creator runs it.' },
 
