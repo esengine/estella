@@ -28,6 +28,12 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(editor): one ledger says when the editor has caught up, and every capture waits for it':
+    { note: 'An agent\'s picture of the editor shows the edit it made.' },
+
+  'fix(checks): captures wait for an idle editor, and the per-check waits go':
+    { internal: 'The editor checks\' capture helper; the editor did not change.' },
+
   'fix(tests): the flipbook creation test stubs the create door the clip now goes through':
     { internal: 'A test stub; the editor did not change.' },
 

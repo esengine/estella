@@ -355,6 +355,23 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **An agent's picture of the editor shows the edit it made.** `screenshot` and
+  `capture_viewport` captured whatever was on screen the moment they were called:
+  a texture still loading, a bake landing, a scene half adopted, the loading
+  overlay fading out. They now wait until nothing the editor started is still in
+  flight and the engine has drawn since, and `wait_idle` answers the same question
+  on its own — naming what is still busy when it gives up.
+
+- **The navmesh preview catches up with an edit.** An edit made within the preview's
+  rebake window left the old mesh on screen until something else repainted the
+  viewport, and a preview asked for before the scene's meshes had loaded showed
+  nothing until the scene changed again. Both now redraw once the mesh can be baked.
+
+- **Play waits for the asset index when scenes are opened in quick succession.** A
+  second open while the first confirmation scan was still running replaced the wait
+  Play takes with one already finished, so Play could start from an index that had
+  not been checked against the files.
+
 - **A new prefab, material, animation clip or graph keeps the id it was created
   with.** Each was written file first and `.meta` second, and the project watcher
   adopts a file it finds without a `.meta` by minting one of its own. When it looked
