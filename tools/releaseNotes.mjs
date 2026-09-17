@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(checks): camera-frustum takes a capture once two in a row agree on the viewport':
+    { internal: 'An editor check; the editor did not change.' },
+
   'fix(checks): dodge-graph reads the HUD a frame after the loss, and a restart\'s leftovers by identity':
     { internal: 'An editor check; the editor did not change.' },
 
