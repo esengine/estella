@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(tests): the flipbook creation test stubs the create door the clip now goes through':
+    { internal: 'A test stub; the editor did not change.' },
+
   'fix(assets): adopting a file never replaces the sidecar its creator wrote':
     { note: 'A new prefab, material, animation clip or graph keeps the id it was created' },
 
