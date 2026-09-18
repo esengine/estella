@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(theme): a dialog title reads as a title':
+    { note: "A dialog's title now looks like one." },
+
   'feat(export): the engine binary can ship in a 分包 the host loads at startup':
     { note: "The engine can ship outside a WeChat mini-game's main package entirely." },
 

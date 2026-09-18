@@ -14,6 +14,13 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Changed
+
+- **A dialog's title now looks like one.** The editor's type scale stopped at 14px and used
+  it five times in the whole application, while 10px carried most of the text — so a dialog
+  header at 13px read as bold body text rather than as a title. Window titles now have a
+  step of their own, which is what every editor this size gives them.
+
 ### Fixed
 
 - **An asset that fails to load says so.** A reference pointing at nothing already warned,
