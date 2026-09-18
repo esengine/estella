@@ -108,6 +108,34 @@ export interface CookManifestEntry extends AssetEntry {
   };
 }
 
+/**
+ * Why an asset is in the build — the answer to "what is this doing in my package".
+ *
+ * `dependency` is the only one with a `via`: the asset that referenced it. Follow
+ * those and the chain ends at whichever seed let it in, which is what a size
+ * report shows beside a file nobody remembers adding.
+ */
+export type InclusionReason =
+    /** An entry scene itself. */
+    | 'entry'
+    /** Referenced by another included asset (`via`). */
+    | 'dependency'
+    /** In a subpackage or remote group: delivered on demand, so nothing references it. */
+    | 'group'
+    /** In a group the project declared always-include. */
+    | 'always-include'
+    /** A locale table — loaded by code, so reachability would cull it. */
+    | 'locale'
+    /** A data asset (`.json`), named by the code that loads it. */
+    | 'data';
+
+/** How one asset got in: the reason, and for a dependency the asset that named it. */
+export interface Inclusion {
+  reason: InclusionReason;
+  /** The referring asset's logical path, for `dependency`. */
+  via?: string;
+}
+
 /** `assets.manifest.json` as the cook writes it — what the package carries. */
 export interface CookManifest {
   version: string;
@@ -382,6 +410,11 @@ export interface CookResult {
   includedPaths: string[];
   /** uuids present in the project but unreachable — culled from the build. */
   unused: string[];
+  /**
+   * Why each included asset is in the build, by its logical (project-relative)
+   * path. The size report walks `via` back to a seed to say what pulled a file in.
+   */
+  inclusion: Record<string, Inclusion>;
   warnings: string[];
   /**
    * Assets the game REACHES that could not be produced, as `<path>: <why>`. Each
@@ -432,9 +465,13 @@ export async function cookAssets(
   // Seed reachability from the entry scenes (path → uuid)…
   const reachable = new Set<string>();
   const queue: string[] = [];
-  const seed = (uuid: string): void => {
+  // Kept as it is discovered, not derived afterwards: the FIRST way in is the
+  // shortest one, and re-deriving it later would answer a different question.
+  const inclusionByUuid = new Map<string, Inclusion>();
+  const seed = (uuid: string, how: Inclusion): void => {
     if (!reachable.has(uuid)) {
       reachable.add(uuid);
+      inclusionByUuid.set(uuid, how);
       queue.push(uuid);
     }
   };
@@ -444,7 +481,7 @@ export async function cookAssets(
       warnings.push(`entry scene not in asset index: ${scenePath}`);
       continue;
     }
-    seed(entry.uuid);
+    seed(entry.uuid, { reason: 'entry' });
   }
   // Force-include lazy-subpackage assets: they're loaded on demand, so the entry
   // scene never references them — but they (and their deps) must still ship. A
@@ -454,31 +491,32 @@ export async function cookAssets(
     const group = resolveAssetGroup(e.path, groupsConfig);
     // …and every non-local (subpackage / remote-CDN) asset: never scene-
     // referenced, but must be cooked + staged for its group's delivery.
-    if (group.delivery !== 'local') seed(e.uuid);
+    if (group.delivery !== 'local') seed(e.uuid, { reason: 'group' });
     // …and every asset in a group the project declared always-include: what a
     // scene cannot reference because only code names it (a path built at run
     // time, a texture in rich-text markup). Reachability would cull it, and the
     // first anyone would hear of that is a missing image on a device.
-    else if (group.alwaysInclude) seed(e.uuid);
+    else if (group.alwaysInclude) seed(e.uuid, { reason: 'always-include' });
   }
   // Force-include locale string tables: translations load by code / plugin
   // option (a scene never references them — Text carries KEYS, not paths), so
   // reachability would always cull them, and a build missing its languages is
   // strictly wrong. Text is tiny; dead tables cost nothing.
   for (const e of shippable) {
-    if (e.path.toLowerCase().endsWith('.eslocale')) seed(e.uuid);
+    if (e.path.toLowerCase().endsWith('.eslocale')) seed(e.uuid, { reason: 'locale' });
   }
   // …and data assets, for the same reason one step further: a `.json` table is
   // named by the code that loads it, so nothing in the scene graph points at it.
   // Culling it produces the worst failure this pipeline can produce — it works in
   // the editor, which serves the whole project, and 404s only in the build.
   for (const e of shippable) {
-    if (e.type === 'json') seed(e.uuid);
+    if (e.type === 'json') seed(e.uuid, { reason: 'data' });
   }
   // …then take the transitive closure over the dependency graph.
   while (queue.length > 0) {
     const uuid = queue.shift()!;
-    for (const dep of index.deps[uuid] ?? []) seed(dep);
+    const from = byUuid.get(uuid)?.path;
+    for (const dep of index.deps[uuid] ?? []) seed(dep, { reason: 'dependency', via: from });
   }
 
   const absOut = path.isAbsolute(opts.outDir) ? opts.outDir : path.join(root, opts.outDir);
@@ -873,8 +911,16 @@ export async function cookAssets(
     warnings.push(`${defeatedByFormat.length} image(s) ask to be compressed but are not PNG, so they `
       + `ship as they are — ${shown}${defeatedByFormat.length > 3 ? ', …' : ''}`);
   }
+  // Keyed by logical path: that is what a reference names and what a report can
+  // show, while the uuid is an identity nobody reading the report has.
+  const inclusion: Record<string, Inclusion> = {};
+  for (const [uuid, how] of inclusionByUuid) {
+    const logical = byUuid.get(uuid)?.path;
+    if (logical) inclusion[logical] = how;
+  }
   return {
     ok: failed.length === 0,
     outDir: absOut, manifestPath, included: [...reachable], includedPaths, unused, warnings, failed,
+    inclusion,
   };
 }

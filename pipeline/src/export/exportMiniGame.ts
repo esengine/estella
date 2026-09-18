@@ -35,7 +35,7 @@ import {
 import { writeFile, mkdir, cp, readFile, rename, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { cookAssets } from '../assets/cookAssets';
+import { cookAssets, type Inclusion } from '../assets/cookAssets';
 import { buildAddressableManifest } from '../assets/addressableManifest';
 import type { ExportScene } from './exportGame';
 import type { OnExportProgress } from './exportProgress';
@@ -55,6 +55,8 @@ export interface ExportMiniGameResult {
   included: number;
   warnings: string[];
   errors: string[];
+  /** @internal Why each asset is in the build; the size report consumes and drops it. */
+  inclusion?: Record<string, Inclusion>;
 }
 
 interface CookManifest {
@@ -503,5 +505,8 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   warnings.push(...await stageProjectModules(projectModules, wasmOut, profile.id,
     async (code) => (await transform(code, { target: profile.esTarget, loader: 'js' })).code));
 
-  return { ok: errors.length === 0, platform: profile.id, outDir: absOut, included: cook.included.length, warnings, errors };
+  return {
+    ok: errors.length === 0, platform: profile.id, outDir: absOut,
+    included: cook.included.length, warnings, errors, inclusion: cook.inclusion,
+  };
 }

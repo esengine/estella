@@ -16,6 +16,14 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **The build size report says why a file is in your package, and what changed since the
+  last build.** A big texture now names the chain that pulled it in — the scene, prefab or
+  material that references it, or the rule that force-included it (a subpackage group, an
+  always-include folder, a locale table, a data file). Each platform's whole per-file
+  measurement is kept with the project, so the next build of that target reports what is
+  new, gone or resized, and says when a compression or minify setting changed rather than
+  reading it as content that grew.
+
 - **`getResourceStats()` reports the memory kept to survive a lost GPU.** To bring the
   picture back after a graphics reset, the engine keeps a CPU copy of some textures and
   buffers — a cost no GPU figure shows, and a real one on a mini-game's memory budget.

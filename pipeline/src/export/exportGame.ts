@@ -25,7 +25,7 @@ import { runtimeHostEntry } from '../bundle/runtimeHosts';
 import { writeFile, readFile, mkdir, cp, readdir, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { cookAssets, loadAssetGroups, type CookManifest } from '../assets/cookAssets';
+import { cookAssets, loadAssetGroups, type CookManifest, type Inclusion } from '../assets/cookAssets';
 import { cookWorlds, streamedScenes } from '../world/cookWorld';
 import { buildAddressableManifest } from '../assets/addressableManifest';
 import { activeRemoteRoot } from '../../../sdk/src/asset/assetGroups';
@@ -219,6 +219,10 @@ export interface ExportGameResult {
   outDir: string;
   /** Count of assets included (reachable from the entry scene). */
   included: number;
+  /** @internal Why each asset is in the build, by logical path. Consumed by the
+   *  size report and dropped: a project's whole asset graph has no business
+   *  crossing to the editor on every build. */
+  inclusion?: Record<string, Inclusion>;
   warnings: string[];
   errors: string[];
   /** Android: the generated Gradle project, for the editor to reveal. Absent
@@ -508,10 +512,24 @@ async function attachSizeReport(result: ExportGameResult, opts: ExportGameOption
       deliverable,
       packages,
       inlineOf: result.inlineParts ? { file: 'index.html', parts: result.inlineParts } : undefined,
+      inclusion: result.inclusion,
+      // The project, not the build: what this target weighed last time lives with
+      // the project, and the settings ride along so a compression change is not
+      // read as content that grew.
+      history: {
+        projectRoot: opts.root,
+        settings: {
+          contentAddressed: opts.contentAddressed,
+          compressTextures: opts.compressTextures,
+          compressAudio: opts.compressAudio,
+          atlasTextures: opts.atlasTextures,
+          minify: opts.minify,
+        },
+      },
     });
-    return { ...result, size };
+    return { ...result, size, inclusion: undefined };
   } catch {
-    return result;  // measuring is reporting, never a reason to fail a build
+    return { ...result, inclusion: undefined };  // measuring is reporting, never a reason to fail a build
   }
 }
 
@@ -990,6 +1008,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
 
   return {
     ok: errors.length === 0, platform, outDir: absOut, included: cook.included.length,
+    inclusion: cook.inclusion,
     warnings, errors, ...(xcodeProject ? { xcodeProject } : {}), ...(androidProject ? { androidProject } : {}),
     ...(apkFile ? { apkFile } : {}), ...(aabFile ? { aabFile } : {}),
     ...(appBundles.length > 0 ? { appBundles } : {}),

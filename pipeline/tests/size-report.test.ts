@@ -20,7 +20,12 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
   summarizeBuildFiles, bucketIndexFrom, kindOf, measureBuild, collectBuildFiles,
+  logicalIndexFrom, inclusionChain, entriesOf, summarizeEntries,
 } from '../src/export/sizeReport';
+import {
+  compareSizes, readSizeRecord, recordOf, writeSizeRecord, type SizeRecord,
+} from '../src/export/sizeHistory';
+import type { Inclusion } from '../src/assets/cookAssets';
 import { resolveSizeBudgets, evaluateSizeBudget, formatBytes, PROJECT_BUDGET_NOTE } from '../src/project/sizeBudget';
 
 const MB = 1024 * 1024;
@@ -283,5 +288,134 @@ describe('one spelling of a byte size', () => {
     expect(formatBytes(4 * MB)).toBe('4.0 MB');
     expect(formatBytes(40 * MB)).toBe('40 MB');
     expect(formatBytes(3 * 1024 * MB)).toBe('3.0 GB');
+  });
+});
+
+describe('why a file is in the package', () => {
+  /** What the cook answers: one edge per asset, back to whatever let it in. */
+  const INCLUSION: Record<string, Inclusion> = {
+    'scenes/level1.esscene': { reason: 'entry' },
+    'assets/hero.esprefab': { reason: 'dependency', via: 'scenes/level1.esscene' },
+    'assets/hero.png': { reason: 'dependency', via: 'assets/hero.esprefab' },
+    'assets/strings.eslocale': { reason: 'locale' },
+    'subpackages/levels/level2.esscene': { reason: 'group' },
+  };
+
+  it('walks a dependency back to the scene that pulled it in', () => {
+    const why = inclusionChain('assets/hero.png', INCLUSION)!;
+    expect(why.reason).toBe('entry');
+    expect(why.chain).toEqual(['assets/hero.png', 'assets/hero.esprefab', 'scenes/level1.esscene']);
+  });
+
+  it('names the rule for content no scene references', () => {
+    expect(inclusionChain('assets/strings.eslocale', INCLUSION))
+      .toEqual({ reason: 'locale', chain: ['assets/strings.eslocale'] });
+    expect(inclusionChain('subpackages/levels/level2.esscene', INCLUSION))
+      .toEqual({ reason: 'group', chain: ['subpackages/levels/level2.esscene'] });
+  });
+
+  it('stops on a reference cycle instead of walking it forever', () => {
+    const cyclic: Record<string, Inclusion> = {
+      'a.esprefab': { reason: 'dependency', via: 'b.esprefab' },
+      'b.esprefab': { reason: 'dependency', via: 'a.esprefab' },
+    };
+    const why = inclusionChain('a.esprefab', cyclic)!;
+    expect(why.chain).toEqual(['a.esprefab', 'b.esprefab']);
+  });
+
+  it('says nothing about a file the cook never staged', () => {
+    expect(inclusionChain('wasm/esengine.wasm', INCLUSION)).toBeUndefined();
+  });
+
+  it('finds the logical path behind a content-addressed name', () => {
+    const logical = logicalIndexFrom({
+      groups: {
+        main: {
+          assets: {
+            'assets/hero.png': { path: 'assets/9f8e7d6c.png', address: 'assets/hero.png' },
+            '@uuid:1234': { path: 'assets/9f8e7d6c.png', address: 'assets/hero.png' },
+            'scenes/level1.esscene': { path: 'scenes/level1.esscene' },
+          },
+        },
+      },
+    });
+    expect(logical.get('assets/9f8e7d6c.png')).toBe('assets/hero.png');
+    expect(logical.get('scenes/level1.esscene')).toBe('scenes/level1.esscene');
+  });
+
+  it('carries the answer onto the file the report names', () => {
+    const report = summarizeBuildFiles(
+      [{ path: 'assets/9f8e7d6c.png', bytes: 4 * MB }, { path: 'wasm/esengine.wasm', bytes: MB }],
+      {
+        logical: new Map([['assets/9f8e7d6c.png', 'assets/hero.png']]),
+        inclusion: INCLUSION,
+      },
+    );
+    const texture = report.largest.find((e) => e.path === 'assets/9f8e7d6c.png')!;
+    expect(texture.why?.chain).toEqual(['assets/hero.png', 'assets/hero.esprefab', 'scenes/level1.esscene']);
+    expect(report.largest.find((e) => e.path === 'wasm/esengine.wasm')!.why).toBeUndefined();
+  });
+});
+
+describe('this build against the last one', () => {
+  const settings = { compressTextures: true, minify: true };
+  const record = (files: { path: string; bytes: number }[], at: string, s = settings): SizeRecord => {
+    const entries = entriesOf(files);
+    return recordOf(summarizeEntries(entries), 'web', s, entries, at);
+  };
+
+  it('names what is new, gone and resized, biggest change first', () => {
+    const before = record([
+      { path: 'assets/hero.png', bytes: 1 * MB },
+      { path: 'assets/old.png', bytes: 2 * MB },
+      { path: 'wasm/esengine.wasm', bytes: 3 * MB },
+    ], '2026-09-17T00:00:00.000Z');
+    const after = record([
+      { path: 'assets/hero.png', bytes: 5 * MB },
+      { path: 'assets/new.mp3', bytes: 1 * MB },
+      { path: 'wasm/esengine.wasm', bytes: 3 * MB },
+    ], '2026-09-18T00:00:00.000Z');
+
+    const since = compareSizes(before, after);
+    expect(since.at).toBe('2026-09-17T00:00:00.000Z');
+    expect(since.packageDelta).toBe(0 + (5 - 1) * MB - 2 * MB + 1 * MB);
+    expect(since.changes.map((c) => [c.path, c.wasBytes, c.bytes])).toEqual([
+      ['assets/hero.png', 1 * MB, 5 * MB],
+      ['assets/old.png', 2 * MB, 0],
+      ['assets/new.mp3', 0, 1 * MB],
+    ]);
+    // The file nobody touched is not a change, and a report full of them hides
+    // the three that are.
+    expect(since.changes.some((c) => c.path === 'wasm/esengine.wasm')).toBe(false);
+  });
+
+  it('says when the two builds were made with different settings', () => {
+    const before = record([{ path: 'assets/hero.png', bytes: 4 * MB }], '2026-09-17T00:00:00.000Z',
+                          { compressTextures: false, minify: true });
+    const after = record([{ path: 'assets/hero.png', bytes: 1 * MB }], '2026-09-18T00:00:00.000Z');
+    const since = compareSizes(before, after);
+    expect(since.settingsChanged).toEqual(['compressTextures']);
+    expect(since.packageDelta).toBe(-3 * MB);
+  });
+
+  it('is silent about settings when the same ones were used', () => {
+    const before = record([{ path: 'a.png', bytes: MB }], '2026-09-17T00:00:00.000Z');
+    const after = record([{ path: 'a.png', bytes: 2 * MB }], '2026-09-18T00:00:00.000Z');
+    expect(compareSizes(before, after).settingsChanged).toEqual([]);
+  });
+
+  it('compares against the last build of the SAME platform, and leaves a record for the next', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'size-history-'));
+    try {
+      const first = record([{ path: 'a.png', bytes: MB }], '2026-09-17T00:00:00.000Z');
+      expect(await readSizeRecord(root, 'web')).toBeNull();
+      await writeSizeRecord(root, 'web', first);
+      expect((await readSizeRecord(root, 'web'))?.files).toEqual(first.files);
+      // Another platform's history is its own: a WeChat package and a web build
+      // weigh different things and comparing them would be noise.
+      expect(await readSizeRecord(root, 'wechat')).toBeNull();
+    } finally {
+      await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    }
   });
 });

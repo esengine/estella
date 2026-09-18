@@ -30,6 +30,11 @@ import {
   evaluateSizeBudget, resolveSizeBudgets,
   type SizeBudget, type SizeVerdict,
 } from '../project/sizeBudget';
+import type { Inclusion, InclusionReason } from '../assets/cookAssets';
+import {
+  compareSizes, readSizeRecord, recordOf, writeSizeRecord,
+  type SizeComparison, type SizeSettings,
+} from './sizeHistory';
 
 /** Where a file sits in the delivery model — see the file header. */
 export type SizeBucket = 'initial' | 'lazy' | 'remote';
@@ -43,6 +48,16 @@ export type SizeBucket = 'initial' | 'lazy' | 'remote';
  */
 export type SizeKind = 'engine' | 'scripts' | 'texture' | 'audio' | 'video' | 'font' | 'scene' | 'data' | 'other';
 
+/** Why a file is in the build: what let it in, and what it came in through. */
+export interface SizeAttribution {
+  reason: InclusionReason;
+  /**
+   * From the file's own logical path back to the seed that let it in — the
+   * answer to "why is this in my package". One entry when it IS the seed.
+   */
+  chain: string[];
+}
+
 /** One file in the finished build. */
 export interface BuildSizeEntry {
   /** Path relative to the measured root, in POSIX form (the shipped shape). */
@@ -50,6 +65,8 @@ export interface BuildSizeEntry {
   bytes: number;
   bucket: SizeBucket;
   kind: SizeKind;
+  /** Absent for a file the cook did not stage (the engine runtime, the host page). */
+  why?: SizeAttribution;
 }
 
 export interface KindTotal {
@@ -84,6 +101,8 @@ export interface BuildSizeReport {
   /** Every limit in force, judged. Empty when the target declares none and the
    *  project set no budget. */
   verdicts: SizeVerdict[];
+  /** This build against the last one of the same platform; absent for the first. */
+  since?: SizeComparison;
 }
 
 /** How many files the report names individually. Enough to find the offender,
@@ -158,9 +177,76 @@ export function bucketIndexFrom(manifest: unknown): Map<string, SizeBucket> {
 
 const normalizeRel = (p: string): string => p.replace(/\\/g, '/').replace(/^\.?\//, '');
 
+/**
+ * Shipped path → the asset's LOGICAL path, off the same manifest the buckets come
+ * from. Content-addressed staging renames the file, so without this the shipped
+ * name matches nothing a reference (or a developer) knows it by.
+ */
+export function logicalIndexFrom(manifest: unknown): Map<string, string> {
+  const index = new Map<string, string>();
+  const groups = (manifest as { groups?: Record<string, { assets?: Record<string, { path?: string; address?: string }> }> } | null)?.groups;
+  for (const group of Object.values(groups ?? {})) {
+    for (const [key, asset] of Object.entries(group?.assets ?? {})) {
+      if (!asset?.path) continue;
+      const shipped = normalizeRel(asset.path);
+      // `address` is the logical path when staging renamed the file; otherwise the
+      // key IS a logical path (the manifest lists each asset under several aliases,
+      // and a uuid alias is no use to a reader).
+      const logical = asset.address ?? (key.startsWith('@uuid:') ? undefined : key);
+      if (logical && !index.has(shipped)) index.set(shipped, normalizeRel(logical));
+    }
+  }
+  return index;
+}
+
+/**
+ * The chain from a logical path back to the seed that let it in. Stops at the
+ * first repeat: a reference cycle is a graph a project can have, and a report
+ * that hangs on one is worse than a chain that ends early.
+ */
+export function inclusionChain(logical: string, inclusion: Record<string, Inclusion>): SizeAttribution | undefined {
+  const first = inclusion[logical];
+  if (!first) return undefined;
+  const chain = [logical];
+  const seen = new Set([logical]);
+  let step = first;
+  while (step.reason === 'dependency' && step.via && !seen.has(step.via)) {
+    chain.push(step.via);
+    seen.add(step.via);
+    const next = inclusion[step.via];
+    if (!next) break;
+    step = next;
+  }
+  // The REASON is the seed's, not this asset's: "a dependency" says nothing on
+  // its own, and what a reader wants is the scene (or the rule) at the end.
+  return { reason: step.reason, chain };
+}
+
 /** Whether @p rel is one of @p roots or sits inside one of them. */
 const isUnder = (rel: string, roots: readonly string[]): boolean =>
     roots.some((root) => rel === root || rel.startsWith(`${root}/`));
+
+/** What the report counts, per shipped file. Pure — the tests drive it. */
+export function entriesOf(
+  files: readonly { path: string; bytes: number }[],
+  opts: {
+    buckets?: Map<string, SizeBucket>;
+    logical?: Map<string, string>;
+    inclusion?: Record<string, Inclusion>;
+  } = {},
+): BuildSizeEntry[] {
+  const buckets = opts.buckets ?? new Map<string, SizeBucket>();
+  const entries: BuildSizeEntry[] = [];
+  for (const file of files) {
+    const rel = normalizeRel(file.path);
+    if (NOT_SHIPPED.has(rel) || isSourceMap(rel)) continue;
+    const bucket = buckets.get(rel) ?? 'initial';
+    const logical = opts.logical?.get(rel);
+    const why = logical && opts.inclusion ? inclusionChain(logical, opts.inclusion) : undefined;
+    entries.push({ path: rel, bytes: file.bytes, bucket, kind: kindOf(rel), ...(why ? { why } : {}) });
+  }
+  return entries;
+}
 
 /**
  * Turn measured files into the report. Pure — the tests drive it with a list of
@@ -173,19 +259,30 @@ export function summarizeBuildFiles(
     budgets?: readonly SizeBudget[];
     deliverableBytes?: number;
     deliverableName?: string;
+    /** Shipped path → logical path ({@link logicalIndexFrom}). */
+    logical?: Map<string, string>;
+    /** Why each asset is in the build, by logical path (the cook's answer). */
+    inclusion?: Record<string, Inclusion>;
   } = {},
 ): BuildSizeReport {
-  const buckets = opts.buckets ?? new Map<string, SizeBucket>();
-  const entries: BuildSizeEntry[] = [];
+  return summarizeEntries(entriesOf(files, opts), opts);
+}
+
+/** The report over entries already counted — what {@link measureBuild} keeps, so the
+ *  history record and the report are the same measurement. */
+export function summarizeEntries(
+  entries: readonly BuildSizeEntry[],
+  opts: {
+    budgets?: readonly SizeBudget[];
+    deliverableBytes?: number;
+    deliverableName?: string;
+  } = {},
+): BuildSizeReport {
   let initialBytes = 0, lazyBytes = 0, remoteBytes = 0, totalBytes = 0;
   const kinds = new Map<SizeKind, KindTotal>();
 
-  for (const file of files) {
-    const rel = normalizeRel(file.path);
-    if (NOT_SHIPPED.has(rel) || isSourceMap(rel)) continue;
-    const bucket = buckets.get(rel) ?? 'initial';
-    const kind = kindOf(rel);
-    entries.push({ path: rel, bytes: file.bytes, bucket, kind });
+  for (const file of entries) {
+    const { bucket, kind } = file;
     totalBytes += file.bytes;
     if (bucket === 'remote') remoteBytes += file.bytes;
     else {
@@ -303,6 +400,14 @@ export async function measureBuild(opts: {
    * `other`. Supplied by the assembly, which is where the bytes are joined.
    */
   inlineOf?: { file: string; parts: readonly { path: string; bytes: number }[] };
+  /** The cook's `inclusion` map — why each asset is in the build. */
+  inclusion?: Record<string, Inclusion>;
+  /**
+   * Compare against this platform's last build and leave the record for the next.
+   * `projectRoot` is the PROJECT, not the output: the history outlives one build
+   * and a shipped package must not carry it.
+   */
+  history?: { projectRoot: string; settings: SizeSettings };
 }): Promise<BuildSizeReport> {
   const excluded: string[] = [];
   for (const file of opts.packages ?? []) {
@@ -336,8 +441,12 @@ export async function measureBuild(opts: {
     } catch { /* not produced (no template installed) — the limit is then skipped */ }
   }
 
-  return summarizeBuildFiles(files, {
+  const entries = entriesOf(files, {
     buckets: bucketIndexFrom(manifest),
+    logical: logicalIndexFrom(manifest),
+    inclusion: opts.inclusion,
+  });
+  const report = summarizeEntries(entries, {
     budgets: resolveSizeBudgets(opts.platform, {
       profile: opts.profileBudgets,
       projectMaxBytes: opts.projectMaxBytes,
@@ -345,4 +454,14 @@ export async function measureBuild(opts: {
     deliverableBytes,
     deliverableName: opts.deliverable ? path.basename(opts.deliverable) : undefined,
   });
+
+  if (opts.history) {
+    const record = recordOf(report, opts.platform, opts.history.settings, entries);
+    const previous = await readSizeRecord(opts.history.projectRoot, opts.platform);
+    if (previous) report.since = compareSizes(previous, record);
+    // Written after the comparison, so a failed write leaves the last good record
+    // rather than a half-written one this build would then compare against.
+    await writeSizeRecord(opts.history.projectRoot, opts.platform, record);
+  }
+  return report;
 }
