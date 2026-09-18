@@ -245,6 +245,7 @@ export const GATES = [
   { id: 'dirty-source', run: 'node tools/check-dirty-source.mjs', needs: 'editor' },
   { id: 'path-sandbox', run: 'node tools/check-path-sandbox.mjs' },
   { id: 'key-codes', run: 'node tools/check-key-codes.mjs' },
+  { id: 'theme', run: 'node tools/check-theme.mjs', needs: 'editor' },
   { id: 'comment-style', run: 'node tools/check-comment-style.mjs' },
   { id: 'silent-writes', run: 'node tools/mutation-census.mjs --gate' },
   {

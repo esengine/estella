@@ -46,6 +46,12 @@ export const NOTED = {
   'fix(gates): the build adjudicator gate reads both halves of the decision':
     { internal: 'A repository gate reading the editor source; no creator runs it.' },
 
+  'feat(gates): the text ramp is held to 4.5:1 on the surfaces text sits on':
+    { note: "The editor's faintest label colour is readable." },
+
+  "fix(gates): the acknowledged build's cleanup retries, as every recursive delete must":
+    { internal: "An editor check's own temp-directory cleanup; no creator runs it." },
+
   'feat(render): the WebGPU backend draws the scene and the backbuffer multisampled':
     { note: 'Geometry edges are anti-aliased on WebGPU, which is every native build.' },
 

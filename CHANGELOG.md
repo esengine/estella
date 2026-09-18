@@ -16,6 +16,13 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **The editor's faintest label colour is readable.** The colour most labels in the editor
+  are drawn in — file rows, legends, budget captions, hints — sat at 3.26:1 against a panel,
+  below the 4.5:1 that body text needs, so a whole tier of the interface was technically
+  present and practically hard to read. It is now 4.96:1 on a panel body and 4.54:1 on the
+  raised strips, and a gate holds the whole text ramp there, because the visual layer was
+  the one part of this project with no check of its own to drift against.
+
 - **A build the preflight objects to can be packaged anyway.** Pressing Package with a
   blocker standing used to show a list and stop there, on a verdict you never agreed to — a
   dead reference in a scene you are not shipping yet, or an entry scene you are mid-rename
