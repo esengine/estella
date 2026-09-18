@@ -40,6 +40,9 @@ export const NOTED = {
   'fix(export): a Meta playable is judged against the 5MB Meta publishes':
     { note: 'A Meta playable can spend all 5MB Meta allows.' },
 
+  'feat(build): a preflight refusal about the content can be answered':
+    { note: 'A build the preflight objects to can be packaged anyway.' },
+
   'feat(render): the WebGPU backend draws the scene and the backbuffer multisampled':
     { note: 'Geometry edges are anti-aliased on WebGPU, which is every native build.' },
 

@@ -16,6 +16,15 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A build the preflight objects to can be packaged anyway.** Pressing Package with a
+  blocker standing used to show a list and stop there, on a verdict you never agreed to — a
+  dead reference in a scene you are not shipping yet, or an entry scene you are mid-rename
+  on, cost a trip back through the editor before you could get a package at all. Findings
+  about your content now offer "Package anyway", which makes the package exactly as it
+  stands and says so. The one exception is a target this machine cannot build: pressing on
+  there produces no package, only a slower failure, so it still stops. `export_game` takes
+  the same decision as `acknowledgeBlockers`, so an agent has the door the dialog has.
+
 - **Geometry edges are anti-aliased on WebGPU, which is every native build.** MSAA was
   wired on WebGL2 only, so an iOS, Android, desktop or Steam package — all of which run on
   WebGPU — drew hard stairstep edges. The WebGPU backend now renders the scene and the
