@@ -28,6 +28,11 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(build): a limit that is over names the files filling it, and what to do':
+    { note: 'The build size report says why a file is in your package, and what changed since the' },
+  'fix(inspector): a Sprite with no texture is not an unfinished entity':
+    { note: 'A sprite with no texture is no longer reported as unfinished.' },
+
   'feat(build): the size panel says why a file is in the package, and what moved':
     { note: 'The build size report says why a file is in your package, and what changed since the' },
 

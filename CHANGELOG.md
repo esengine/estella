@@ -22,7 +22,8 @@ published separately; it ships inside the editor.
   always-include folder, a locale table, a data file). Each platform's whole per-file
   measurement is kept with the project, so the next build of that target reports what is
   new, gone or resized, and says when a compression or minify setting changed rather than
-  reading it as content that grew.
+  reading it as content that grew. A limit that is over now lists the files filling it, with
+  what can be done about each.
 
 - **`getResourceStats()` reports the memory kept to survive a lost GPU.** To bring the
   picture back after a graphics reset, the engine keeps a CPU copy of some textures and
@@ -33,6 +34,11 @@ published separately; it ships inside the editor.
   config, or `setRetainedBudget()`.
 
 ### Fixed
+
+- **A sprite with no texture is no longer reported as unfinished.** The editor called
+  `Sprite.texture` a required field, so every coloured quad — a health bar, a panel, a
+  placeholder — raised a finding in the Details panel, the diagnostics sweep and the build
+  preflight. Drawing a tinted white texture is what a sprite with no texture is for.
 
 - **The picture comes back after the GPU is lost.** When the graphics context went away — a
   driver reset, Chrome's GPU process crashing on Windows, a laptop switching GPUs — the
