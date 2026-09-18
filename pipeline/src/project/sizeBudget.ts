@@ -79,8 +79,14 @@ export function builtinSizeBudgets(platform: ExportPlatform): readonly SizeBudge
 
 const NO_BUDGETS: readonly SizeBudget[] = [];
 
+/**
+ * WeChat counts PACKED BYTES, not the download: `miniprogram-ci`'s packer sums each
+ * file's raw length (plus its path, which this measurement omits) and gzips only the
+ * finished upload, while the platform ZSTDs the package on the way down. So brotli on
+ * a .wasm buys main-package room and shipping compressible assets does not.
+ */
 const WECHAT_BUDGETS: readonly SizeBudget[] = [
-    { scope: 'initial', maxBytes: 4 * MB, note: "WeChat caps a mini-game's main package at 4MB" },
+    { scope: 'initial', maxBytes: 4 * MB, note: "WeChat caps a mini-game's main package at 4MB of packed bytes" },
     { scope: 'total', maxBytes: 30 * MB, note: 'WeChat caps a mini-game at 30MB across the main package and all subpackages' },
 ];
 
