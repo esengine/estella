@@ -16,7 +16,9 @@ import {
     type BasisTranscoder, type TextureUploadDecision,
 } from '../compressed';
 import { TextureFormatLog, type TextureFormatReport } from '../textureFormatReport';
-import { uploadBoundTextureImage, applyBoundTextureSampling } from '../glTextureUpload';
+import {
+    uploadBoundTextureImage, applyBoundTextureSampling, handOverNewTexture, findWebGL2Context,
+} from '../glTextureUpload';
 import { createTextureFromPixels, type TextureParams } from '../../runtime/runtimeAssets';
 
 /**
@@ -392,30 +394,11 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         width: number, height: number, flip: boolean,
         settings?: TextureImportSettings,
     ): TextureResult {
-        // createTexture returns null on a lost context — don't `!`-assert it
-        // into the calls below.
-        const texture = gl.createTexture();
-        if (!texture) {
-            throw new Error('TextureLoader: gl.createTexture() returned null (GL context lost?)');
-        }
-        try {
-            gl.bindTexture(gl.TEXTURE_2D, texture);
-            uploadBoundTextureImage(gl, img, flip, settings?.srgb);
-            applyBoundTextureSampling(gl, settings);
-        } catch (err) {
-            // Upload threw (e.g. context lost mid-call); release the GL texture
-            // instead of leaking it.
-            gl.deleteTexture(texture);
-            throw err;
-        }
-
         // This path runs only with a live WebGL2 context, which implies a module.
-        const glObj = this.module_!.GL;
-        const glTextureId = glObj.getNewId(glObj.textures);
-        glObj.textures[glTextureId] = texture;
-
-        const rm = requireResourceManager();
-        const handle = rm.registerExternalTexture(glTextureId, width, height, TextureContent.Asset);
+        const handle = handOverNewTexture(this.module_!, gl, (g) => {
+            uploadBoundTextureImage(g, img, flip, settings?.srgb);
+            applyBoundTextureSampling(g, settings);
+        }, { width, height, content: TextureContent.Asset });
         return { handle, width, height };
     }
 
@@ -446,28 +429,3 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     }
 }
 
-/**
- * The engine's WebGL2 context, looked up through emscripten's GL bookkeeping.
- * Duck-typed on `texStorage2D` (a WebGL2-only method): WeChat MiniGames have no
- * `WebGL2RenderingContext` global — an `instanceof` check THREW there and read
- * as "no context", refusing every KTX2 texture — and instanceof lies across
- * realms anyway. Falls back to any registered context when none is current yet
- * (a host registers the context before the renderer's first frame makes it
- * current). Exported for tests.
- */
-export function findWebGL2Context(glObj: ESEngineModule['GL'] | undefined): WebGL2RenderingContext | null {
-    try {
-        const current = glObj?.currentContext?.GLctx;
-        if (isWebGL2(current)) return current;
-        for (const rec of glObj?.contexts ?? []) {
-            if (rec && isWebGL2(rec.GLctx)) return rec.GLctx;
-        }
-    } catch {
-        // fall through — treated as "no WebGL2 context"
-    }
-    return null;
-}
-
-function isWebGL2(ctx: unknown): ctx is WebGL2RenderingContext {
-    return !!ctx && typeof (ctx as WebGL2RenderingContext).texStorage2D === 'function';
-}

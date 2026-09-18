@@ -169,6 +169,14 @@ public:
     void forgoContent(const GfxOwedContent& owed);
 
     /**
+     * @brief Settles one owed object whose provider wrote its contents itself.
+     * @details For content the device cannot upload: a JS-side path that draws a
+     *          canvas or a video frame straight into the native texture behind the
+     *          handle. The provider says so, because the device never saw the write.
+     */
+    void restoreContent(const GfxOwedContent& owed);
+
+    /**
      * @brief CPU bytes the device holds to put content back after a loss.
      * @details Retained content, plus the initial bytes of objects created while
      *          lost until the recovery uploads them. A cost the GPU figures never show.
@@ -689,6 +697,14 @@ public:
 
     /** @brief GPU objects alive right now (see {@link GfxLiveObjects}), read off the registry. */
     GfxLiveObjects liveObjects() const;
+
+    /**
+     * @brief The backend's own name for the object behind `texture`, or 0.
+     * @details For a host that writes the contents itself — a JS video frame or
+     *          canvas going straight into the texture. It is only valid until the
+     *          next device loss, which is why it is asked for at every write.
+     */
+    virtual u32 nativeTextureName(TextureHandle texture) const { (void)texture; return 0; }
 
 protected:
     // =========================================================================

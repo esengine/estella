@@ -202,6 +202,7 @@ export interface NativeEngineApi {
     rm_getBitmapFontRefCount?(rm: unknown, handleId: number): number;
     rm_getShaderRefCount?(rm: unknown, handleId: number): number;
     rm_getTextureGLId?(rm: unknown, handleId: number): number;
+    rm_getTextureNativeId?(rm: unknown, handle: number): number;
     rm_getTextureRefCount?(rm: unknown, handleId: number): number;
     rm_invalidateTexturePath?(rm: unknown, path: string): boolean;
     rm_loadBitmapFont?(rm: unknown, fntContent: string, textureHandle: number, texWidth: number, texHeight: number): number;
@@ -213,6 +214,7 @@ export interface NativeEngineApi {
     rm_releaseBitmapFont?(rm: unknown, handleId: number): void;
     rm_releaseShader?(rm: unknown, handleId: number): void;
     rm_releaseTexture?(rm: unknown, handleId: number): void;
+    rm_restoreTextureContent?(rm: unknown, handle: number): void;
     rm_setRetainedBudget?(rm: unknown, bytes: number): void;
     rm_setTextureBudget?(rm: unknown, bytes: number): void;
     rm_setTextureMetadata?(rm: unknown, handleId: number, left: number, right: number, top: number, bottom: number): void;
@@ -469,6 +471,7 @@ export function createNativeEngineApi(
     bind('rm_getBitmapFontRefCount', 'es_rm_getBitmapFontRefCount', true);
     bind('rm_getShaderRefCount', 'es_rm_getShaderRefCount', true);
     bind('rm_getTextureGLId', 'es_rm_getTextureGLId', true);
+    bind('rm_getTextureNativeId', 'es_rm_getTextureNativeId', true);
     bind('rm_getTextureRefCount', 'es_rm_getTextureRefCount', true);
     bind('rm_invalidateTexturePath', 'es_rm_invalidateTexturePath', true);
     bind('rm_loadBitmapFont', 'es_rm_loadBitmapFont', true);
@@ -480,6 +483,7 @@ export function createNativeEngineApi(
     bind('rm_releaseBitmapFont', 'es_rm_releaseBitmapFont', true);
     bind('rm_releaseShader', 'es_rm_releaseShader', true);
     bind('rm_releaseTexture', 'es_rm_releaseTexture', true);
+    bind('rm_restoreTextureContent', 'es_rm_restoreTextureContent', true);
     bind('rm_setRetainedBudget', 'es_rm_setRetainedBudget', true);
     bind('rm_setTextureBudget', 'es_rm_setTextureBudget', true);
     bind('rm_setTextureMetadata', 'es_rm_setTextureMetadata', true);

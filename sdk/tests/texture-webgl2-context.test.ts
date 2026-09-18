@@ -8,7 +8,7 @@
  * not-yet-current context.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { findWebGL2Context } from '../src/asset/loaders/TextureLoader';
+import { findWebGL2Context } from '../src/asset/glTextureUpload';
 import type { ESEngineModule } from '../src/wasm';
 
 type GLObj = ESEngineModule['GL'];

@@ -2,9 +2,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    glTextureUpload.ts
- * @brief   The one place an image-like source becomes GL texture content in the
- *          engine's conventions: vertical orientation, color-space encoding and
- *          sampler state.
+ * @brief   The bridge between a JS image source and the device's texture: the
+ *          engine's upload conventions (orientation, color-space encoding,
+ *          sampler state), and the only place a GL texture is created here and
+ *          handed to the device.
  *
  * Extracted for the same reason {@link ./glTexParams} was — a second uploader
  * arrived (the open data context's shared canvas, re-uploaded every frame it is
@@ -20,6 +21,8 @@
 import { linearColorSpace } from '../ecs/env';
 import { glWrapMode, type TextureWrap } from './glTexParams';
 import type { PlatformCanvas, PlatformImage } from '../platform/types';
+import { requireResourceManager } from '../wasm/resourceManager';
+import type { ESEngineModule, TextureContent } from '../wasm';
 
 /** Anything WebGL will take directly as texture content. */
 export type GlImageSource = PlatformImage | PlatformCanvas | ImageBitmap;
@@ -76,4 +79,95 @@ export function applyBoundTextureSampling(gl: WebGL2RenderingContext, sampling?:
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, glWrap);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, glWrap);
     if (useMipmaps) gl.generateMipmap(gl.TEXTURE_2D);
+}
+
+// =============================================================================
+// The device's texture
+// =============================================================================
+
+function isWebGL2(ctx: unknown): ctx is WebGL2RenderingContext {
+    return !!ctx && typeof (ctx as WebGL2RenderingContext).texStorage2D === 'function';
+}
+
+/**
+ * The engine's WebGL2 context, looked up through emscripten's GL bookkeeping.
+ * Duck-typed on `texStorage2D`: WeChat MiniGames have no `WebGL2RenderingContext`
+ * global, where an `instanceof` check THREW and read as "no context", refusing
+ * every KTX2 texture. Falls back to any registered context when none is current.
+ */
+export function findWebGL2Context(glObj: ESEngineModule['GL'] | undefined): WebGL2RenderingContext | null {
+    try {
+        const current = glObj?.currentContext?.GLctx;
+        if (isWebGL2(current)) return current;
+        for (const rec of glObj?.contexts ?? []) {
+            if (rec && isWebGL2(rec.GLctx)) return rec.GLctx;
+        }
+    } catch {
+        // fall through — treated as "no WebGL2 context"
+    }
+    return null;
+}
+
+/** What a texture handed to the device is, beyond its pixels. */
+export interface HandOverDesc {
+    width: number;
+    height: number;
+    /** Who refills it after a device loss (see {@link TextureContent}). */
+    content: TextureContent;
+    /** On-GPU bytes for the residency budget, when they are not width*height*4. */
+    gpuBytes?: number;
+}
+
+/**
+ * Create a GL texture, let `write` fill the bound texture, and hand it to the
+ * device; returns the engine handle. The device owns it from here — it deletes the
+ * object with the handle and builds a replacement after a loss, so nothing outside
+ * this file may keep the WebGLTexture.
+ */
+export function handOverNewTexture(
+    module: ESEngineModule,
+    gl: WebGL2RenderingContext,
+    write: (gl: WebGL2RenderingContext) => void,
+    desc: HandOverDesc,
+): number {
+    const texture = gl.createTexture();
+    if (!texture) throw new Error('the GL context gave no texture (is it lost?)');
+    try {
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        write(gl);
+    } catch (err) {
+        gl.deleteTexture(texture);
+        throw err;
+    }
+    const glObj = module.GL;
+    const id = glObj.getNewId(glObj.textures);
+    glObj.textures[id] = texture;
+    const rm = requireResourceManager();
+    return desc.gpuBytes !== undefined && rm.registerExternalTextureSized
+        ? rm.registerExternalTextureSized(id, desc.width, desc.height, desc.gpuBytes, desc.content)
+        : rm.registerExternalTexture(id, desc.width, desc.height, desc.content);
+}
+
+/**
+ * Write into the texture the device has behind `handle` RIGHT NOW.
+ *
+ * After a device loss that is a different native object, so a caller that kept
+ * its own would be uploading into a dead one — which is exactly how a video came
+ * back blank. False when there is no context or the handle has no texture yet.
+ */
+export function writeDeviceTexture(
+    module: ESEngineModule | null | undefined,
+    handle: number,
+    write: (gl: WebGL2RenderingContext) => void,
+): boolean {
+    const gl = findWebGL2Context(module?.GL);
+    if (!gl || !module || !handle) return false;
+    // The backend's own name, asked for at every write: the id a handle resolves
+    // to is a different object after every device loss.
+    const id = requireResourceManager().getTextureNativeId?.(handle) ?? 0;
+    const texture = id ? module.GL.textures[id] : null;
+    if (!texture) return false;
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    write(gl);
+    return true;
 }

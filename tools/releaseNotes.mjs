@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(render): a video and a canvas come back after the GPU is lost':
+    { note: 'The picture comes back after the GPU is lost.' },
+
   'feat(render): the device warns when what it keeps for a loss passes a budget':
     { note: '`getResourceStats()` reports the memory kept to survive a lost GPU.' },
 

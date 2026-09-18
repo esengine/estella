@@ -198,6 +198,16 @@ void GfxDevice::forgoContent(const GfxOwedContent& owed) {
     settleRecovery();
 }
 
+void GfxDevice::restoreContent(const GfxOwedContent& owed) {
+    if (owed.kind == GfxOwedContent::Kind::Texture) {
+        if (auto* record = registry_.textures.find(owed.id); record && record->owed) {
+            payTexture(owed.id, *record);
+        }
+        return;
+    }
+    forgoContent(owed);
+}
+
 // =============================================================================
 // Kept bytes
 // =============================================================================

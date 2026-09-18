@@ -346,6 +346,17 @@ public:
     void forgoTextureContent(TextureHandle handle);
 
     /**
+     * @brief Settles an owed texture whose provider wrote the pixels itself.
+     * @details See GfxDevice::restoreContent — for a JS-side upload straight into
+     *          the native texture, which the device cannot see.
+     */
+    void restoreTextureContent(TextureHandle handle);
+
+    /** @brief The backend's own name for a texture's object, for a host that writes
+     *         its pixels itself; 0 when there is none. See GfxDevice::nativeTextureName. */
+    u32 textureNativeId(TextureHandle handle) const;
+
+    /**
      * @brief Gets the cached path for a texture
      * @param handle The texture handle
      * @return The path used to load the texture, or empty if not found

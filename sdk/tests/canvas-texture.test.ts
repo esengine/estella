@@ -8,7 +8,7 @@
  *        every re-take, because a component is holding it.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { initResourceManager, shutdownResourceManager } from '../src/wasm/resourceManager';
+import { initResourceManager, shutdownResourceManager, textureRefill } from '../src/wasm/resourceManager';
 import { setLinearColorSpace } from '../src/ecs/env';
 import { createCanvasTexture } from '../src/asset/canvasTexture';
 import { TextureContent, type ESEngineModule } from '../src/wasm';
@@ -32,7 +32,7 @@ function makeGl() {
         UNPACK_FLIP_Y_WEBGL, UNPACK_PREMULTIPLY_ALPHA_WEBGL: 0x9241,
         // isWebGL2's duck test.
         texStorage2D: vi.fn(),
-        createTexture: vi.fn(() => ({}) as WebGLTexture),
+        createTexture: vi.fn(() => ({ tag: 'first' }) as unknown as WebGLTexture),
         deleteTexture: vi.fn(),
         bindTexture: vi.fn(),
         texImage2D: vi.fn(),
@@ -62,9 +62,18 @@ function makeSource(width: number, height: number) {
 }
 
 let registerExternalTexture: ReturnType<typeof vi.fn>;
+let releaseTexture: ReturnType<typeof vi.fn>;
+let restoreTextureContent: ReturnType<typeof vi.fn>;
 beforeEach(() => {
     registerExternalTexture = vi.fn(() => 42);
-    initResourceManager({ registerExternalTexture } as never);
+    releaseTexture = vi.fn();
+    restoreTextureContent = vi.fn();
+    // getTextureGLId is how every re-take finds the texture the DEVICE has: the
+    // id it hands back is the one the bridge registered, until a loss replaces it.
+    initResourceManager({
+        registerExternalTexture, releaseTexture, restoreTextureContent,
+        getTextureNativeId: vi.fn(() => 7),
+    } as never);
 });
 afterEach(() => {
     shutdownResourceManager();
@@ -148,18 +157,49 @@ describe('createCanvasTexture', () => {
         expect(createCanvasTexture(undefined, makeSource(8, 8))).toBeNull();
     });
 
-    it('releases the GL texture on destroy, and a re-take afterwards is a no-op', () => {
+    it('gives the texture back to the device on destroy, and a re-take afterwards is a no-op', () => {
         const gl = makeGl();
-        const app = makeApp(gl);
-        const tex = createCanvasTexture(app, makeSource(8, 8))!;
+        const tex = createCanvasTexture(makeApp(gl), makeSource(8, 8))!;
+        const handle = tex.handle;
         tex.destroy();
-        expect(gl.deleteTexture).toHaveBeenCalledTimes(1);
-        const gpu = app.wasmModule!.GL as unknown as { textures: Record<number, unknown> };
-        expect(gpu.textures[7]).toBeUndefined();
+        // The device owns the object since the hand-over, so ending it is one
+        // release — deleting the GL texture here would pull it out from under it.
+        expect(releaseTexture).toHaveBeenCalledWith(handle);
+        expect(gl.deleteTexture).not.toHaveBeenCalled();
+        expect(textureRefill(handle)).toBeUndefined();
         const uploads = gl.texImage2D.mock.calls.length;
         tex.update();
         tex.destroy();
         expect(gl.texImage2D.mock.calls.length).toBe(uploads);
-        expect(gl.deleteTexture).toHaveBeenCalledTimes(1);
+        expect(releaseTexture).toHaveBeenCalledTimes(1);
+    });
+
+    it('takes the canvas again into the texture the device rebuilt, and says the debt is paid', () => {
+        const gl = makeGl();
+        const app = makeApp(gl);
+        const tex = createCanvasTexture(app, makeSource(8, 8))!;
+        const pool = (app.wasmModule!.GL as unknown as { textures: Record<number, WebGLTexture> }).textures;
+        const beforeLoss = pool[7];
+
+        // What a device loss leaves: the same handle, a different native texture.
+        const rebuilt = { tag: 'after-loss' } as unknown as WebGLTexture;
+        pool[7] = rebuilt;
+        expect(textureRefill(tex.handle)!()).toBe(true);
+
+        expect(gl.bindTexture).toHaveBeenLastCalledWith(gl.TEXTURE_2D, rebuilt);
+        expect(gl.bindTexture).not.toHaveBeenLastCalledWith(gl.TEXTURE_2D, beforeLoss);
+        expect(gl.texImage2D).toHaveBeenCalledTimes(2);
+        expect(restoreTextureContent).toHaveBeenCalledWith(tex.handle);
+    });
+
+    it('leaves the content owed when there is no context to take it with', () => {
+        const gl = makeGl();
+        const app = makeApp(gl);
+        const tex = createCanvasTexture(app, makeSource(8, 8))!;
+        const pool = (app.wasmModule!.GL as unknown as { textures: Record<number, WebGLTexture> }).textures;
+        delete pool[7];
+
+        expect(textureRefill(tex.handle)!()).toBe(false);
+        expect(restoreTextureContent).not.toHaveBeenCalled();
     });
 });

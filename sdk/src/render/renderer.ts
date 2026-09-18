@@ -5,7 +5,7 @@ import { CoreApiBridge } from '../wasm/CoreApiBridge';
 import { handleWasmError } from '../wasm/wasmError';
 import { requireResourceManager } from '../wasm/resourceManager';
 import { platformOnContextLost } from '../platform';
-import { findWebGL2Context } from '../asset/loaders/TextureLoader';
+import { findWebGL2Context } from '../asset/glTextureUpload';
 import { decodeFrameCapture, replayToDrawCall as replayToDrawCallImpl, getSnapshotImageData as getSnapshotImpl, type FrameCaptureData } from './frameCapture';
 import { acquireWebGPUDevice } from './webgpuBoot';
 

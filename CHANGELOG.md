@@ -34,7 +34,9 @@ published separately; it ships inside the editor.
   issued behind the same handles, puts back the contents it kept, and reloads the rest from
   their assets, on WebGL2 and WebGPU alike. Text pages are repainted from their glyphs and
   skeleton atlas pages decoded again from their images, so neither keeps a second copy in
-  memory — 4 MiB for every 1024×1024 page.
+  memory — 4 MiB for every 1024×1024 page. A video and an open-data leaderboard come back
+  too: their frames were going into a texture the lost context had already destroyed, so a
+  paused video stayed blank for good.
 
 - **A hot update on iOS, Android and desktop builds is still there after a restart
   without a network.** The native host only stores cache files under plain names, and

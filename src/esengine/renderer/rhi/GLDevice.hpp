@@ -92,7 +92,7 @@ public:
     i32 getInt(GfxIntParam name) override;
 
     /** @brief This generation's GL name behind a texture, for a host uploading into it. */
-    u32 nativeTextureName(TextureHandle texture) const { return nameOf(texture_names_, static_cast<u32>(texture)); }
+    u32 nativeTextureName(TextureHandle texture) const override { return nameOf(texture_names_, static_cast<u32>(texture)); }
 
 protected:
     void captureDeviceIdentity() override;

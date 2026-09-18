@@ -136,6 +136,14 @@ void rm_forgoTextureContent(resource::ResourceManager& rm, u32 handle) {
     rm.forgoTextureContent(resource::TextureHandle(handle));
 }
 
+void rm_restoreTextureContent(resource::ResourceManager& rm, u32 handle) {
+    rm.restoreTextureContent(resource::TextureHandle(handle));
+}
+
+u32 rm_getTextureNativeId(resource::ResourceManager& rm, u32 handle) {
+    return rm.textureNativeId(resource::TextureHandle(handle));
+}
+
 bool rm_adoptTextureContent(resource::ResourceManager& rm, u32 target, u32 source) {
     return rm.adoptTextureContent(resource::TextureHandle(target), resource::TextureHandle(source));
 }

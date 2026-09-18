@@ -746,6 +746,10 @@ export const SCENES = [
   // the ceiling is under one 1024² page, which is 4 MiB kept on a mini-game's heap per page.
   { id: "device-roundtrip-text", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_COUNTERS_MAX: "{\"render.retained.bytes\":65536}", ESTELLA_VERIFY_DEVICE_LOSS: "roundtrip", ESTELLA_VERIFY_LOSS_ROUNDS: "2", ESTELLA_VERIFY_PLAY: "1", ESTELLA_VERIFY_SCENE: "/scenes/ui-screen-text.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/ui-screen-text.textures.json", ESTELLA_VERIFY_W: "640", ESTELLA_VERIFY_H: "360", ESTELLA_VERIFY_STEPS: "6" } },
   { id: "device-roundtrip-dragonbones", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_COUNTERS_MAX: "{\"render.retained.bytes\":65536}", ESTELLA_VERIFY_DEVICE_LOSS: "roundtrip", ESTELLA_VERIFY_LOSS_ROUNDS: "2", ESTELLA_VERIFY_SCENE: "/scenes/dragonbones-still.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/dragonbones-test.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "3" } },
+  // A video that has ENDED, so the only way its frame comes back is the provider:
+  // a playing one would paper over a missing refill with its next frame, and the
+  // clip is one still image, so nothing else can tell the two apart.
+  { id: "device-roundtrip-video", tier: "nightly", webgpu: true, env: { ESTELLA_VERIFY_DEVICE_LOSS: "roundtrip", ESTELLA_VERIFY_LOSS_ROUNDS: "2", ESTELLA_VERIFY_PLAY: "1", ESTELLA_VERIFY_SETTLE_MS: "4000", ESTELLA_VERIFY_SCENE: "/scenes/video-ended.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/video-ended.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2" } },
   { id: "device-roundtrip-post", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_DEVICE_LOSS: "roundtrip", ESTELLA_VERIFY_LOSS_ROUNDS: "2", ESTELLA_VERIFY_PLAY: "1", ESTELLA_VERIFY_SCENE: "/scenes/ui-screen-post.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/ui-screen-post.textures.json", ESTELLA_VERIFY_W: "640", ESTELLA_VERIFY_H: "360", ESTELLA_VERIFY_STEPS: "4" } },
 ];
 

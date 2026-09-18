@@ -342,6 +342,22 @@ void ResourceManager::forgoTextureContent(TextureHandle handle) {
     }
 }
 
+void ResourceManager::restoreTextureContent(TextureHandle handle) {
+    const Texture* texture = textures_.get(handle);
+    if (!device_ || !texture) return;
+    for (const GfxOwedContent& entry : device_->owedContent()) {
+        if (entry.kind == GfxOwedContent::Kind::Texture && entry.id == texture->getId()) {
+            device_->restoreContent(entry);
+            return;
+        }
+    }
+}
+
+u32 ResourceManager::textureNativeId(TextureHandle handle) const {
+    const Texture* texture = textures_.get(handle);
+    return device_ && texture ? device_->nativeTextureName(texture->handle()) : 0;
+}
+
 void ResourceManager::registerTextureWithPath(TextureHandle handle, const std::string& path) {
     if (handle.isValid() && !path.empty()) {
         textures_.setPath(handle, path);

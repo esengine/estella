@@ -481,6 +481,8 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
         .function("wrapDeviceTexture", &esengine::rm_wrapDeviceTexture)
         .function("texturesAwaitingReupload", &esengine::rm_texturesAwaitingReupload)
         .function("forgoTextureContent", &esengine::rm_forgoTextureContent)
+        .function("restoreTextureContent", &esengine::rm_restoreTextureContent)
+        .function("getTextureNativeId", &esengine::rm_getTextureNativeId)
         .function("meshesAwaitingRemat", &esengine::rm_meshesAwaitingRemat)
         .function("meshRealizations", &esengine::rm_meshRealizations)
         .function("adoptTextureContent", &esengine::rm_adoptTextureContent)

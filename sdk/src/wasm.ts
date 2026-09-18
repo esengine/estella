@@ -120,6 +120,8 @@ export interface CppResourceManager {
     texturesAwaitingReupload?(): string;
     /** Give up on an owed texture's content: it keeps blank storage. */
     forgoTextureContent?(handle: number): void;
+    /** Its provider wrote the pixels itself (the JS upload bridge); the debt is paid. */
+    restoreTextureContent?(handle: number): void;
     /**
      * Move a freshly loaded texture's pixels behind an owed handle; the source
      * is left empty for its release. Optional: absent on an older wasm build.
@@ -134,6 +136,9 @@ export interface CppResourceManager {
     /** Every live mesh as `handle:realized`. Optional: absent on an older wasm build. */
     meshRealizations?(): string;
     getTextureGLId(handle: number): number;
+    /** The backend's own name for the texture's object (an emscripten GL texture id),
+     *  valid until the next device loss; 0 where the backend has none. */
+    getTextureNativeId?(handle: number): number;
     getTextureDimensions(handle: number): { width: number; height: number } | null;
     releaseTexture(handle: number): void;
     getTextureRefCount(handle: number): number;

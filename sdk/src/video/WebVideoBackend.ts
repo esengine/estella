@@ -6,8 +6,13 @@
 import { TextureContent, type ESEngineModule } from '../wasm';
 import type { PlatformVideoBackend, VideoStreamHandle, VideoStreamOptions } from './PlatformVideoBackend';
 import { createTextureFromPixels, updateTextureSubregion } from '../runtime/runtimeAssets';
-import { requireResourceManager } from '../wasm/resourceManager';
-import { findWebGL2Context } from '../asset/loaders/TextureLoader';
+import {
+    provideTextureContent, requireResourceManager, withdrawTextureContent,
+} from '../wasm/resourceManager';
+import {
+    findWebGL2Context, handOverNewTexture, writeDeviceTexture, uploadBoundTextureImage,
+    applyBoundTextureSampling,
+} from '../asset/glTextureUpload';
 import { linearColorSpace } from '../ecs/env';
 import { log } from '../util/logger';
 
@@ -22,11 +27,9 @@ class WebVideoStreamHandle implements VideoStreamHandle {
     onError?: (error: unknown) => void;
 
     private readonly video_: HTMLVideoElement;
-    // Zero-copy GL path (WebGL2).
+    // Zero-copy GL path (WebGL2). No WebGLTexture is kept: the device owns the
+    // object and replaces it after a loss (see writeDeviceTexture).
     private gl_: WebGL2RenderingContext | null = null;
-    private glTexture_: WebGLTexture | null = null;
-    private glTexId_ = 0;
-    private glPool_: Record<number, WebGLTexture> | null = null;
     private pathChosen_ = false;
     // CPU fallback path (WebGPU / no GL context).
     private canvas_: HTMLCanvasElement | null = null;
@@ -145,35 +148,46 @@ class WebVideoStreamHandle implements VideoStreamHandle {
         }
     }
 
-    // Zero-copy: texImage2D the frame straight onto the engine's GL context, then
-    // register it as an external texture. UNPACK_FLIP_Y gives the bottom-first
+    // Zero-copy: the frame goes straight into the texture the device holds, which
+    // is a NEW object after every device loss. UNPACK_FLIP_Y gives the bottom-first
     // orientation a Sprite samples upright (matching image uploads).
     private uploadGL_(module: ESEngineModule, gl: WebGL2RenderingContext): void {
-        if (this.glTexture_) {
-            gl.bindTexture(gl.TEXTURE_2D, this.glTexture_);
-            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1);
-            gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, this.video_);
-            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0);
+        if (this.texture_) {
+            writeDeviceTexture(module, this.texture_, (g) => {
+                g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL, 1);
+                g.texSubImage2D(g.TEXTURE_2D, 0, 0, 0, g.RGBA, g.UNSIGNED_BYTE, this.video_);
+                g.pixelStorei(g.UNPACK_FLIP_Y_WEBGL, 0);
+            });
             return;
         }
-        const tex = gl.createTexture();
-        if (!tex) throw new Error('gl.createTexture failed');
-        this.glTexture_ = tex;
-        gl.bindTexture(gl.TEXTURE_2D, tex);
-        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1);
-        const internal = linearColorSpace() ? gl.SRGB8_ALPHA8 : gl.RGBA;
-        gl.texImage2D(gl.TEXTURE_2D, 0, internal, gl.RGBA, gl.UNSIGNED_BYTE, this.video_);
-        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        const pool = module.GL.textures;
-        const id = module.GL.getNewId(pool);
-        pool[id] = tex;
-        this.glTexId_ = id;
-        this.glPool_ = pool;
-        this.texture_ = requireResourceManager().registerExternalTexture(id, this.width_, this.height_, TextureContent.Video);
+        this.texture_ = handOverNewTexture(module, gl, (g) => {
+            uploadBoundTextureImage(g, this.video_, /* flip */ true);
+            applyBoundTextureSampling(g, { filter: 'linear', wrap: 'clamp', mipmaps: false });
+        }, { width: this.width_, height: this.height_, content: TextureContent.Video });
+        provideTextureContent(this.texture_, () => this.refillFrame_(module));
+    }
+
+    /**
+     * Puts the frame on screen back after a device loss. The whole image, not a
+     * sub-rectangle: the device rebuilt its texture from a description that does
+     * not carry the color space this upload chose, so the storage is respecified
+     * here — a paused video would otherwise come back washed out in linear mode.
+     */
+    private refillFrame_(module: ESEngineModule): boolean {
+        if (this.disposed_ || !this.texture_) return false;
+        if (!this.gl_) {
+            // CPU path: the upload goes through the device, which settles its own debt.
+            this.uploadCPU_(module);
+            return true;
+        }
+        if (this.video_.readyState < 2) return false;  // no frame yet; the next pump pays
+        const wrote = writeDeviceTexture(module, this.texture_, (g) => {
+            uploadBoundTextureImage(g, this.video_, /* flip */ true);
+            applyBoundTextureSampling(g, { filter: 'linear', wrap: 'clamp', mipmaps: false });
+        });
+        if (!wrote) return false;
+        requireResourceManager().restoreTextureContent?.(this.texture_);
+        return true;
     }
 
     private uploadCPU_(module: ESEngineModule): void {
@@ -196,6 +210,7 @@ class WebVideoStreamHandle implements VideoStreamHandle {
                 /* flipY */ false,
                 { filterMode: 'linear', wrapMode: 'clamp' },
             );
+            provideTextureContent(this.texture_, () => this.refillFrame_(module));
         } else {
             updateTextureSubregion(module, this.texture_, 0, 0, this.width_, this.height_, pixels);
         }
@@ -235,15 +250,9 @@ class WebVideoStreamHandle implements VideoStreamHandle {
         this.video_.removeAttribute('src');
         try { this.video_.load(); } catch { /* ignore */ }
         if (this.texture_) {
+            withdrawTextureContent(this.texture_);
             requireResourceManager().releaseTexture(this.texture_);
             this.texture_ = 0;
-        }
-        // The engine's external texture is non-owning (owns_=false), so delete the
-        // JS-side GL texture ourselves after dropping the engine ref.
-        if (this.gl_ && this.glTexture_) {
-            this.gl_.deleteTexture(this.glTexture_);
-            if (this.glPool_ && this.glTexId_) delete this.glPool_[this.glTexId_];
-            this.glTexture_ = null;
         }
         this.canvas_ = null;
         this.ctx_ = null;

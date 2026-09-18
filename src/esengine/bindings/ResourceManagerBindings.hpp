@@ -41,6 +41,8 @@ u32 rm_wrapDeviceTexture(resource::ResourceManager& rm, u32 textureId, u32 width
 
 /** @brief Gives up on an owed texture's content; it keeps blank storage. */
 void rm_forgoTextureContent(resource::ResourceManager& rm, u32 handle);
+void rm_restoreTextureContent(resource::ResourceManager& rm, u32 handle);
+u32 rm_getTextureNativeId(resource::ResourceManager& rm, u32 handle);
 
 /** @brief The textures the device is waiting for content for, as `handle|content|path` lines. */
 std::string rm_texturesAwaitingReupload(resource::ResourceManager& rm);

@@ -15,8 +15,7 @@
  * entry backs the non-WebGL2 fallback path instead.
  */
 import { TextureContent, type ESEngineModule } from '../wasm';
-import { requireResourceManager } from '../wasm/resourceManager';
-import { applyBoundTextureSampling } from './glTextureUpload';
+import { applyBoundTextureSampling, handOverNewTexture } from './glTextureUpload';
 
 // =============================================================================
 // Format vocabulary
@@ -228,28 +227,6 @@ function applyParams(gl: WebGL2RenderingContext, opts?: CompressedUploadOptions)
     applyBoundTextureSampling(gl, { filter: opts?.filter, wrap: opts?.wrap, mipmaps: false });
 }
 
-/**
- * Register an uploaded GL texture with the C++ pool. `gpuBytes` is the actual
- * VRAM size for the eviction budget — compressed formats are 4–8× smaller than
- * the pool's RGBA8 estimate, so billing them at the estimate would squat on
- * most of the budget. 0 keeps the estimate (RGBA8 uploads, where it's exact).
- */
-function registerGlTexture(
-    module: ESEngineModule, texture: WebGLTexture,
-    width: number, height: number, gpuBytes = 0,
-): number {
-    const glObj = module.GL;
-    const id = glObj.getNewId(glObj.textures);
-    glObj.textures[id] = texture;
-    const rm = requireResourceManager();
-    // Older wasm builds / minimal mocks lack the sized variant — fall back to
-    // the estimate rather than fail the upload.
-    if (gpuBytes > 0 && typeof rm.registerExternalTextureSized === 'function') {
-        return rm.registerExternalTextureSized(id, width, height, gpuBytes, TextureContent.Asset);
-    }
-    return rm.registerExternalTexture(id, width, height, TextureContent.Asset);
-}
-
 /** Upload pre-transcoded compressed blocks via `gl.compressedTexImage2D`. */
 export function uploadCompressedTexture(
     gl: WebGL2RenderingContext, module: ESEngineModule,
@@ -258,42 +235,28 @@ export function uploadCompressedTexture(
 ): UploadedTexture {
     const internalFormat = glInternalFormat(support, fmt, opts?.srgb ?? false);
     if (internalFormat == null) throw new Error(`compressed upload: no GL internalformat for ${fmt}`);
-    const texture = gl.createTexture();
-    if (!texture) throw new Error('compressed upload: gl.createTexture failed');
-    try {
-        gl.bindTexture(gl.TEXTURE_2D, texture);
-        gl.compressedTexImage2D(gl.TEXTURE_2D, 0, internalFormat, t.width, t.height, 0, t.data);
-        applyParams(gl, opts);
-    } catch (err) {
-        // Release the GL texture if the upload throws — don't leak it.
-        gl.deleteTexture(texture);
-        throw err;
-    }
-    return {
-        handle: registerGlTexture(module, texture, t.width, t.height, t.data.byteLength),
-        width: t.width, height: t.height,
-    };
+    // gpuBytes is the ACTUAL VRAM size for the eviction budget — a compressed
+    // format is 4–8× smaller than the pool's RGBA8 estimate, and billing it at
+    // the estimate would squat on most of the budget.
+    const handle = handOverNewTexture(module, gl, (g) => {
+        g.compressedTexImage2D(g.TEXTURE_2D, 0, internalFormat, t.width, t.height, 0, t.data);
+        applyParams(g, opts);
+    }, { width: t.width, height: t.height, content: TextureContent.Asset, gpuBytes: t.data.byteLength });
+    return { handle, width: t.width, height: t.height };
 }
 
 /** Fallback: upload decoded RGBA8 via `gl.texImage2D`. */
 export function uploadRgbaTexture(
     gl: WebGL2RenderingContext, module: ESEngineModule, r: RgbaResult, opts?: CompressedUploadOptions,
 ): UploadedTexture {
-    const texture = gl.createTexture();
-    if (!texture) throw new Error('rgba upload: gl.createTexture failed');
-    try {
-        gl.bindTexture(gl.TEXTURE_2D, texture);
+    const handle = handOverNewTexture(module, gl, (g) => {
         // Linear pipeline: the decoded pixels are sRGB-encoded color, same as
         // the PNG path — store them in an sRGB format so sampling linearizes.
-        const internalFormat = opts?.srgb ? gl.SRGB8_ALPHA8 : gl.RGBA;
-        gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, r.width, r.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, r.data);
-        applyParams(gl, opts);
-    } catch (err) {
-        // Release the GL texture if the upload throws — don't leak it.
-        gl.deleteTexture(texture);
-        throw err;
-    }
-    return { handle: registerGlTexture(module, texture, r.width, r.height), width: r.width, height: r.height };
+        const internalFormat = opts?.srgb ? g.SRGB8_ALPHA8 : g.RGBA;
+        g.texImage2D(g.TEXTURE_2D, 0, internalFormat, r.width, r.height, 0, g.RGBA, g.UNSIGNED_BYTE, r.data);
+        applyParams(g, opts);
+    }, { width: r.width, height: r.height, content: TextureContent.Asset });
+    return { handle, width: r.width, height: r.height };
 }
 
 // =============================================================================

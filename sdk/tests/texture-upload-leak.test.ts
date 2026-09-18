@@ -32,11 +32,11 @@ function mockGl(opts?: { createReturnsNull?: boolean; throwOnUpload?: boolean })
 }
 
 describe('TextureLoader.createTextureWebGL2', () => {
-    it('throws clearly when gl.createTexture() returns null (no `!` assert)', () => {
+    it('throws clearly when the context gives no texture (no `!` assert)', () => {
         const loader = new TextureLoader({} as any);
         const { gl } = mockGl({ createReturnsNull: true });
         expect(() => (loader as any).createTextureWebGL2(gl, {} as any, 4, 4, true))
-            .toThrow(/createTexture\(\) returned null/);
+            .toThrow(/gave no texture/);
     });
 
     it('releases the GL texture when the upload throws (no leak)', () => {

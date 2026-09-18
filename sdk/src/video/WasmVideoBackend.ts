@@ -24,7 +24,9 @@ import type { SideModule } from '../sideModules/host';
 import type { AudioAPI } from '../audio/Audio';
 import type { AudioHandle } from '../audio/PlatformAudioBackend';
 import { createTextureFromPixels, updateTextureSubregion } from '../runtime/runtimeAssets';
-import { requireResourceManager } from '../wasm/resourceManager';
+import {
+    provideTextureContent, requireResourceManager, withdrawTextureContent,
+} from '../wasm/resourceManager';
 import { getPlatform } from '../platform/base';
 import { log } from '../util/logger';
 
@@ -327,10 +329,23 @@ class WasmVideoStreamHandle implements VideoStreamHandle {
                 /* flipY */ false,
                 { filterMode: 'linear', wrapMode: 'clamp' },
             );
+            // After a device loss the decoder still holds the frame that was on
+            // screen, so it is uploaded again — a paused video comes back too.
+            provideTextureContent(this.texture_, () => this.refillFrame_(module));
             this.onReady?.();
         } else {
             updateTextureSubregion(module, this.texture_, 0, 0, this.width_, this.height_, pixels);
         }
+    }
+
+    /** Uploads the decoder's current frame again; the whole image settles the debt. */
+    private refillFrame_(module: ESEngineModule | null): boolean {
+        const video = this.mod_;
+        if (!video || !this.texture_ || this.disposed_) return false;
+        if (!video._es_video_frame_rgba(this.decoder_, this.framePtr_, this.frameBytes_)) return false;
+        updateTextureSubregion(module, this.texture_, 0, 0, this.width_, this.height_,
+                               video.HEAPU8.subarray(this.framePtr_, this.framePtr_ + this.frameBytes_));
+        return true;
     }
 
     // === transport ==========================================================
@@ -415,6 +430,7 @@ class WasmVideoStreamHandle implements VideoStreamHandle {
             this.framePtr_ = 0;
         }
         if (this.texture_) {
+            withdrawTextureContent(this.texture_);
             requireResourceManager().releaseTexture(this.texture_);
             this.texture_ = 0;
         }
