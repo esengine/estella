@@ -548,3 +548,50 @@ describe('cookAssets — auto-atlas (<name>.atlas folder convention)', () => {
     }
   });
 });
+
+/**
+ * What a shared asset costs: once. A texture both the main scene and a subpackage
+ * scene use is staged in the main package — copying it per subpackage would bill
+ * a player twice for one image, and a size report reading that would be right
+ * about the files and wrong about the game.
+ */
+describe('an asset two groups share', () => {
+  let shared: string;
+  const SHARED_TEX = '33333333-3333-4333-8333-333333333333';
+  const LEVEL2_SCENE = '44444444-4444-4444-8444-444444444444';
+  const MAIN_SCENE = '55555555-5555-4555-8555-555555555555';
+
+  beforeAll(() => {
+    shared = mkdtempSync(path.join(tmpdir(), 'estella-cook-shared-'));
+    const write = (rel: string, type: string, uuid: string, body = ''): void => {
+      const abs = path.join(shared, rel);
+      mkdirSync(path.dirname(abs), { recursive: true });
+      writeFileSync(abs, body);
+      writeFileSync(`${abs}.meta`, JSON.stringify({ uuid, version: '2.0', type, importer: {} }));
+    };
+    write('assets/textures/shared.png', 'texture', SHARED_TEX, 'SHARED');
+    write('assets/scenes/main.esscene', 'scene', MAIN_SCENE, sprite(SHARED_TEX));
+    // The subpackage's own scene uses the same texture, which lives outside it.
+    write('assets/level2/level2.esscene', 'scene', LEVEL2_SCENE, sprite(SHARED_TEX));
+    mkdirSync(path.join(shared, '.esengine'), { recursive: true });
+    writeFileSync(path.join(shared, '.esengine', 'asset-groups.json'),
+      JSON.stringify({ version: '1.0', groups: { level2: { folder: 'assets/level2', mode: 'subpackage' } } }));
+  });
+
+  afterAll(() => rmSync(shared, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
+
+  it('stages it once, in the package that is always there', async () => {
+    const outDir = path.join(shared, '.cook-shared');
+    const res = await cookAssets(shared, { entryScenes: ['assets/scenes/main.esscene'], outDir });
+    expect(res.ok).toBe(true);
+    const manifest = JSON.parse(readFileSync(path.join(outDir, 'assets.manifest.json'), 'utf8')) as AssetManifest;
+    const staged = manifest.entries.filter((e) => e.uuid === SHARED_TEX);
+    expect(staged).toHaveLength(1);
+    // Not under subpackages/: a file inside one is absent until that package is
+    // fetched, and the main scene needs this texture on the first frame.
+    expect(staged[0]!.path.startsWith('subpackages/')).toBe(false);
+    // And the subpackage scene did come along — the group is force-included, so
+    // this is a shared asset rather than one the walk never reached.
+    expect(manifest.entries.some((e) => e.uuid === LEVEL2_SCENE)).toBe(true);
+  });
+});
