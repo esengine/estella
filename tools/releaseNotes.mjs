@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(export): a mini-game package says which subsystem each byte came from':
+    { internal: 'A field on the export result; no panel shows it yet, so nothing a creator sees.' },
+
   'feat(export): a packaged game says it is loading':
     { note: 'A packaged game now says it is loading.' },
 

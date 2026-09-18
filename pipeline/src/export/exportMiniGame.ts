@@ -41,6 +41,7 @@ import { cookAssets, type Inclusion } from '../assets/cookAssets';
 import { buildAddressableManifest } from '../assets/addressableManifest';
 import type { ExportScene } from './exportGame';
 import type { OnExportProgress } from './exportProgress';
+import { breakdownOf, type ModuleBytes } from './bundleBreakdown';
 import { esengineAlias } from '../bundle/esengineResolve';
 import { explainBundleErrors, type BundleMessage } from '../bundle/bundleDiagnostics';
 import { scanSideModuleIds, sideModuleFiles } from '../bundle/sideModuleScan';
@@ -59,6 +60,11 @@ export interface ExportMiniGameResult {
   errors: string[];
   /** @internal Why each asset is in the build; the size report consumes and drops it. */
   inclusion?: Record<string, Inclusion>;
+  /** What each subsystem costs inside `game-bundle.js`, largest first. The bundle
+   *  is the main package's biggest file once the engine binary can move out, and
+   *  a vendor's brotli path does not take `.js`, so this is where the remaining
+   *  room is. */
+  bundleModules?: ModuleBytes[];
 }
 
 interface CookManifest {
@@ -437,6 +443,8 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     `  return ${profile.runtimeInit}({ engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}, firstScene: ${JSON.stringify(sceneName)}${runtimeArgs}${projectDeclarations.length > 0 ? `, sideModules: ${JSON.stringify(projectDeclarations)}` : ''}${aotArg} });\n` +
     `}\n`;
   progress({ phase: 'Bundling game' });
+  /** What each subsystem costs in the bundle — empty if esbuild wrote no metafile. */
+  let bundleModules: ModuleBytes[] = [];
   try {
     const { build } = await loadEsbuild();
     const res = await build({
@@ -453,8 +461,13 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
       outfile: path.join(absOut, 'game-bundle.js'),
       logLevel: 'silent',
       write: true,
+      // Once the engine binary can leave the main package, this bundle is the
+      // largest file in it — and the vendor's brotli path does not take `.js`.
+      // esbuild already knows which subsystem each surviving byte came from.
+      metafile: true,
     });
     errors.push(...explainBundleErrors(res.errors));
+    if (res.metafile) bundleModules = breakdownOf(res.metafile, 'game-bundle.js');
   } catch (err) {
     const e = err as { errors?: BundleMessage[]; message?: string };
     errors.push(...(e.errors ? explainBundleErrors(e.errors) : [String(e.message ?? err)]));
@@ -603,5 +616,6 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   return {
     ok: errors.length === 0, platform: profile.id, outDir: absOut,
     included: cook.included.length, warnings, errors, inclusion: cook.inclusion,
+    bundleModules,
   };
 }
