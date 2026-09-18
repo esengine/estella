@@ -135,6 +135,9 @@ export const GATES = [
   // compiles src/ and vitest strips types. A ratchet, not a demand for zero —
   // except in the net suites, which are held to none.
   { id: 'sdk-test-types', run: 'node tools/check-sdk-test-types.mjs' },
+  // Every mini-game package carries the core runtime, so a subsystem the core
+  // imports is in every package whether the project uses it or not.
+  { id: 'core-carries-options', run: 'node tools/check-core-carries-options.mjs' },
   // Replication applies its inbox in arrival order, so reliable+ordered is a
   // correctness condition. This compiles the claim: a transport that does not
   // make it cannot reach replication.

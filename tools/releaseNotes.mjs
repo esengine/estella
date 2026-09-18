@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  "feat(gates): the core runtime's pull on optional subsystems is a ratchet":
+    { internal: 'A repository gate over the SDK\'s own imports; no creator runs it.' },
+
   'feat(export): a mini-game package says which subsystem each byte came from':
     { internal: 'A field on the export result; no panel shows it yet, so nothing a creator sees.' },
 
