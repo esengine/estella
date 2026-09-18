@@ -101,11 +101,18 @@ const RUNNER = 'desktop/src/project/runBuild.ts';
 const CATALOG = 'desktop/shared/toolCatalog.mjs';
 const store = has(STORE) ? read(STORE) : '';
 
-// 5a. The rule has ONE author, and it decides rather than reports.
-const adjudicator = /async preflightBuild\([\s\S]{0,600}?\n  \}/.exec(store);
+// 5a. The rule has ONE author, and it decides rather than reports. Both halves: a
+//     content blocker refuses UNLESS answered, a missing toolchain refuses
+//     whatever was answered — getting past THAT one packages nothing.
+const adjudicator = /async preflightBuild\([\s\S]{0,800}?\n  \}/.exec(store);
 if (!adjudicator) say(STORE, 'no preflightBuild — the one place a build is adjudicated is gone');
-else if (!/blockers\([^)]*\)\.length === 0/.test(adjudicator[0])) {
-  say(STORE, 'preflightBuild no longer decides on blockers — it is an observation again');
+else {
+  if (!/overridableBlockers\([^)]*\)\.length === 0/.test(adjudicator[0])) {
+    say(STORE, 'preflightBuild no longer decides on blockers — it is an observation again');
+  }
+  if (!/hardBlockers\([^)]*\)\.length[\s\S]{0,80}allowed: false/.test(adjudicator[0])) {
+    say(STORE, 'preflightBuild lets an acknowledgement past a missing toolchain — that packages nothing');
+  }
 }
 
 // 5b. The store's export door REFUSES, before it calls the exporter. Order is
