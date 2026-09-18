@@ -59,6 +59,8 @@ public:
     bool supportsCompressedFormat(GfxCompressedFormat format) override;
     bool supportsFloatTargets() override;
     u32 maxSamples() override;
+    /** A GL blit resolves depth as well as colour. */
+    bool resolvesDepth() const override { return true; }
 
     bool supportsShaderLanguage(GfxShaderLanguage language) const override {
         return language == GfxShaderLanguage::GLSL_ES300;

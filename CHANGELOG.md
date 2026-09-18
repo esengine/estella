@@ -16,6 +16,13 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **Geometry edges are anti-aliased on WebGPU, which is every native build.** MSAA was
+  wired on WebGL2 only, so an iOS, Android, desktop or Steam package — all of which run on
+  WebGPU — drew hard stairstep edges. The WebGPU backend now renders the scene and the
+  backbuffer multisampled (4× by default, `createWebApp({ msaaSamples })` to change or turn
+  off) and resolves both, including the depth buffer WebGPU cannot resolve by itself, so
+  effects that read scene depth keep working.
+
 - **The build size report says why a file is in your package, and what changed since the
   last build.** A big texture now names the chain that pulled it in — the scene, prefab or
   material that references it, or the rule that force-included it (a subpackage group, an

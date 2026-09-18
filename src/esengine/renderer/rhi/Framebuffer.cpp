@@ -143,7 +143,10 @@ bool Framebuffer::initialize() {
     if (samples > 1) {
         colorDesc.samples = 1;
         resolveColor_ = device_->createTexture(colorDesc, GfxContent::transient(), nullptr);
-        if (spec_.depthStencil) {
+        // Depth resolves only where the backend can: WebGPU has no depth resolve,
+        // and a twin nothing ever writes would hand an effect an empty depth
+        // buffer that looks like a working one.
+        if (spec_.depthStencil && device_->resolvesDepth()) {
             depthDesc.samples = 1;
             resolveDepth_ = device_->createTexture(depthDesc, GfxContent::transient(), nullptr);
         }

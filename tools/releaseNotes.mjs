@@ -28,6 +28,12 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(gates): project-health tests a warning with a field that still is one':
+    { internal: "The preflight check's own fixture; it follows the sprite-texture change and no creator runs it." },
+
+  'feat(render): the WebGPU backend draws the scene and the backbuffer multisampled':
+    { note: 'Geometry edges are anti-aliased on WebGPU, which is every native build.' },
+
   'feat(build): a limit that is over names the files filling it, and what to do':
     { note: 'The build size report says why a file is in your package, and what changed since the' },
   'fix(inspector): a Sprite with no texture is not an unfinished entity':

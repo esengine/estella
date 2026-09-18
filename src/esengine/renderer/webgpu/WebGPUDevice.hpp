@@ -57,6 +57,15 @@ public:
         kColorRgba8 = 0, kColorBgra8 = 1, kColorSrgb8 = 2, kColorRgba16f = 3, kColorVariantCount = 4,
     };
 
+    /** @brief Sample count of a pass — a third thing WebGPU validates a pipeline
+     *         against, and the reason a multisampled scene needs its own variant
+     *         of every pipeline that draws into it. One or {@link kMsaaSamples}. */
+    enum SampleVariant : u32 { kSingleSample = 0, kMultiSample = 1, kSampleVariantCount = 2 };
+
+    /** @brief The multisampled count this backend offers. WebGPU guarantees 1 and
+     *         4 for every renderable format; nothing else is portable. */
+    static constexpr u32 kMsaaSamples = 4;
+
     /** @brief Which variant slot a pass's colour format uses. Beside the enum
      *         because the two are one decision: a format that shares a slot with
      *         another is a pipeline handed to a pass that rejects it. */
@@ -112,6 +121,20 @@ public:
     // Float-target rendering is a WebGPU core capability.
     bool supportsFloatTargets() override { return true; }
     u32 maxSamples() override;
+    /** Colour resolves in the pass; depth is resolved by a pass of our own
+     *  ({@link resolveDepthAttachment}), since WebGPU's depth attachment has no
+     *  resolve target. Either way nothing above the RHI knows. */
+    bool resolvesDepth() const override { return true; }
+    /**
+     * @brief How many samples a SURFACE pass draws with — a frame with no post
+     *        chain draws straight to the backbuffer.
+     * @details A WebGL canvas is created antialiased; a WebGPU surface texture
+     *          never is, so the backbuffer gets a multisampled companion that
+     *          resolves into it. The change lands on the next frame.
+     */
+    void setSurfaceSamples(u32 samples) override {
+        surface_samples_ = samples > 1 ? kMsaaSamples : 1;
+    }
 
     bool supportsShaderLanguage(GfxShaderLanguage language) const override {
         return language == GfxShaderLanguage::WGSL;
@@ -329,6 +352,8 @@ private:
         /// land in an RGBA8 texture and `format` alone cannot size the source rows.
         GfxPixelFormat srcFormat = GfxPixelFormat::RGBA8;
         u8 samplerKey = 0;  ///< Packed filter/wrap params (sampler cache key).
+        /// 1, or kMsaaSamples for an attachment drawn into and resolved out of.
+        u32 samples = 1;
     };
     struct ProgramRec {
         WGPUShaderModule vertex = nullptr;
@@ -349,8 +374,9 @@ private:
         u32 group1DepthMask = 0;
     };
     struct PipelineRec {
-        /// Lazily built per pass shape: [ds * kColorVariantCount + color].
-        WGPURenderPipeline variants[static_cast<u32>(kDsVariantCount) * static_cast<u32>(kColorVariantCount)] = {};
+        /// Lazily built per pass shape: [(ds * kColorVariantCount + color) * kSampleVariantCount + samples].
+        WGPURenderPipeline variants[static_cast<u32>(kDsVariantCount) * static_cast<u32>(kColorVariantCount)
+                                    * static_cast<u32>(kSampleVariantCount)] = {};
     };
     struct ReadbackRec {
         WGPUBuffer buffer = nullptr;  ///< CopyDst|MapRead staging buffer.
@@ -482,6 +508,35 @@ private:
     u32 pass_height_ = 0;
     WGPUTextureFormat pass_ds_format_ = WGPUTextureFormat_Undefined;
     WGPUTextureFormat pass_color_format_ = WGPUTextureFormat_RGBA8Unorm;
+    /// Samples of the pass's colour attachment — what its pipelines must declare.
+    u32 pass_samples_ = 1;
+    /// The multisampled depth attachment of the pass being ended, and the
+    /// single-sample texture it owes its contents to. Both 0 unless resolving.
+    u32 pass_depth_msaa_ = 0;
+    u32 pass_depth_resolve_ = 0;
+    /// Samples the backbuffer is drawn with (see setSurfaceSamples).
+    u32 surface_samples_ = 1;
+    /// The multisampled companion the backbuffer resolves out of, and the depth
+    /// beside it. Rebuilt whenever the surface size or sample count changes.
+    WGPUTexture surface_msaa_texture_ = nullptr;
+    WGPUTextureView surface_msaa_view_ = nullptr;
+    u32 surface_msaa_width_ = 0;
+    u32 surface_msaa_height_ = 0;
+    u32 surface_msaa_samples_ = 0;
+    /// Samples the backbuffer's depth companion was built with.
+    u32 surface_depth_samples_ = 1;
+    bool ensureSurfaceMsaa(u32 width, u32 height);
+
+    /** @brief Copies sample 0 of a multisampled depth attachment into its
+     *         single-sample twin, so an effect can sample scene depth on a
+     *         multisampled target. WebGPU has no depth resolve of its own. */
+    void resolveDepthAttachment(u32 msaaDepth, u32 resolveDepth);
+    WGPURenderPipeline ensureDepthResolvePipeline(WGPUTextureFormat format);
+    WGPUShaderModule depth_resolve_vs_ = nullptr;
+    WGPUShaderModule depth_resolve_fs_ = nullptr;
+    WGPUBindGroupLayout depth_resolve_bgl_ = nullptr;
+    WGPUPipelineLayout depth_resolve_layout_ = nullptr;
+    std::unordered_map<u32, WGPURenderPipeline> depth_resolve_pipelines_;
     /// What this pass draws INTO, so flushBindGroup can refuse to also sample it.
     /// 0 = none (the surface, which nothing can hold as a texture anyway).
     u32 pass_color_texture_ = 0;

@@ -74,10 +74,10 @@ WebGPUDevice::~WebGPUDevice() {
     shutdown();
 }
 
-// MSAA is not wired on this backend yet: its targets are all sampleCount 1 and
-// its pipelines multisample.count 1, so a caller must not ask for more — a
-// target that did would resolve out of an attachment that was never multisampled.
-u32 WebGPUDevice::maxSamples() { return 1; }
+// One and four: what WebGPU guarantees for every renderable format. A target
+// asking for more gets four, and its pipelines are built to match the pass they
+// draw into — which WebGPU validates, unlike GL.
+u32 WebGPUDevice::maxSamples() { return kMsaaSamples; }
 
 void WebGPUDevice::init() {
     captureDeviceIdentity();
@@ -228,6 +228,16 @@ void WebGPUDevice::releaseDeviceObjects() {
     clear_pipelines_.clear();
     if (clear_layout_) { wgpuPipelineLayoutRelease(clear_layout_); clear_layout_ = nullptr; }
     if (clear_bgl_) { wgpuBindGroupLayoutRelease(clear_bgl_); clear_bgl_ = nullptr; }
+    // The depth-resolve family, for the same reason: every one of these belongs to
+    // the device that made it, and Dawn refuses one from the generation before.
+    for (auto& [key, pipeline] : depth_resolve_pipelines_) {
+        if (pipeline) wgpuRenderPipelineRelease(pipeline);
+    }
+    depth_resolve_pipelines_.clear();
+    if (depth_resolve_layout_) { wgpuPipelineLayoutRelease(depth_resolve_layout_); depth_resolve_layout_ = nullptr; }
+    if (depth_resolve_bgl_) { wgpuBindGroupLayoutRelease(depth_resolve_bgl_); depth_resolve_bgl_ = nullptr; }
+    if (depth_resolve_vs_) { wgpuShaderModuleRelease(depth_resolve_vs_); depth_resolve_vs_ = nullptr; }
+    if (depth_resolve_fs_) { wgpuShaderModuleRelease(depth_resolve_fs_); depth_resolve_fs_ = nullptr; }
     for (auto& [key, layout] : pipeline_layouts_) {
         if (layout) wgpuPipelineLayoutRelease(layout);
     }
@@ -245,6 +255,10 @@ void WebGPUDevice::releaseDeviceObjects() {
     samplers_.clear();
     if (surface_depth_view_) { wgpuTextureViewRelease(surface_depth_view_); surface_depth_view_ = nullptr; }
     if (surface_depth_texture_) { wgpuTextureRelease(surface_depth_texture_); surface_depth_texture_ = nullptr; }
+    if (surface_msaa_view_) { wgpuTextureViewRelease(surface_msaa_view_); surface_msaa_view_ = nullptr; }
+    if (surface_msaa_texture_) { wgpuTextureRelease(surface_msaa_texture_); surface_msaa_texture_ = nullptr; }
+    surface_msaa_width_ = surface_msaa_height_ = 0;
+    surface_msaa_samples_ = 0;
     if (surface_) { wgpuSurfaceRelease(surface_); surface_ = nullptr; }
     // Sizes are kept: a re-configured surface has to come back the same shape,
     // and the depth companion is rebuilt against them.
@@ -319,6 +333,11 @@ bool WebGPUDevice::configureSurface(const NativeSurface& window, u32 width, u32 
     if (surface_depth_view_) { wgpuTextureViewRelease(surface_depth_view_); surface_depth_view_ = nullptr; }
     if (surface_depth_texture_) { wgpuTextureRelease(surface_depth_texture_); surface_depth_texture_ = nullptr; }
     surface_depth_width_ = surface_depth_height_ = 0;
+    if (surface_msaa_view_) { wgpuTextureViewRelease(surface_msaa_view_); surface_msaa_view_ = nullptr; }
+    if (surface_msaa_texture_) { wgpuTextureRelease(surface_msaa_texture_); surface_msaa_texture_ = nullptr; }
+    surface_msaa_width_ = surface_msaa_height_ = 0;
+    surface_msaa_samples_ = 0;
+
 
     WGPUSurfaceDescriptor sd{};
     switch (window.kind) {
@@ -506,7 +525,8 @@ bool WebGPUDevice::configureSwapchain(u32 width, u32 height) {
  * that is dropped.
  */
 bool WebGPUDevice::ensureSurfaceDepth(u32 width, u32 height) {
-    if (surface_depth_view_ && width == surface_depth_width_ && height == surface_depth_height_) {
+    if (surface_depth_view_ && width == surface_depth_width_ && height == surface_depth_height_
+        && surface_depth_samples_ == surface_samples_) {
         return true;
     }
     if (surface_depth_view_) { wgpuTextureViewRelease(surface_depth_view_); surface_depth_view_ = nullptr; }
@@ -516,15 +536,54 @@ bool WebGPUDevice::ensureSurfaceDepth(u32 width, u32 height) {
     dd.format = WGPUTextureFormat_Depth24PlusStencil8;
     dd.size = WGPUExtent3D{width, height, 1};
     dd.mipLevelCount = 1;
-    dd.sampleCount = 1;
+    // Every attachment of a pass shares its sample count, so the backbuffer's
+    // depth follows the colour it is paired with.
+    dd.sampleCount = surface_samples_;
     dd.usage = WGPUTextureUsage_RenderAttachment;
     surface_depth_texture_ = wgpuDeviceCreateTexture(device_, &dd);
     if (surface_depth_texture_) {
         surface_depth_view_ = wgpuTextureCreateView(surface_depth_texture_, nullptr);
         surface_depth_width_ = width;
         surface_depth_height_ = height;
+        surface_depth_samples_ = surface_samples_;
     }
     return surface_depth_view_ != nullptr;
+}
+
+/**
+ * The backbuffer's multisampled companion: what a surface pass draws into when
+ * the project asks for MSAA, resolving into the surface texture at pass end. A
+ * WebGL canvas is created antialiased; a WebGPU surface texture never is, so
+ * this is where the two backends are made to agree.
+ */
+bool WebGPUDevice::ensureSurfaceMsaa(u32 width, u32 height) {
+    if (surface_samples_ <= 1) {
+        if (surface_msaa_view_) { wgpuTextureViewRelease(surface_msaa_view_); surface_msaa_view_ = nullptr; }
+        if (surface_msaa_texture_) { wgpuTextureRelease(surface_msaa_texture_); surface_msaa_texture_ = nullptr; }
+        surface_msaa_samples_ = 0;
+        return false;
+    }
+    if (surface_msaa_view_ && width == surface_msaa_width_ && height == surface_msaa_height_
+        && surface_samples_ == surface_msaa_samples_) {
+        return true;
+    }
+    if (surface_msaa_view_) { wgpuTextureViewRelease(surface_msaa_view_); surface_msaa_view_ = nullptr; }
+    if (surface_msaa_texture_) { wgpuTextureRelease(surface_msaa_texture_); surface_msaa_texture_ = nullptr; }
+    WGPUTextureDescriptor cd{};
+    cd.dimension = WGPUTextureDimension_2D;
+    cd.format = surface_format_;
+    cd.size = WGPUExtent3D{width, height, 1};
+    cd.mipLevelCount = 1;
+    cd.sampleCount = surface_samples_;
+    cd.usage = WGPUTextureUsage_RenderAttachment;
+    surface_msaa_texture_ = wgpuDeviceCreateTexture(device_, &cd);
+    if (surface_msaa_texture_) {
+        surface_msaa_view_ = wgpuTextureCreateView(surface_msaa_texture_, nullptr);
+        surface_msaa_width_ = width;
+        surface_msaa_height_ = height;
+        surface_msaa_samples_ = surface_samples_;
+    }
+    return surface_msaa_view_ != nullptr;
 }
 
 void WebGPUDevice::resizeBackbuffer(u32 width, u32 height) {
@@ -771,7 +830,7 @@ bool WebGPUDevice::makeTexture(const TextureDesc& desc, const void* pixels, Text
     td.format = toWGPUTextureFormat(desc.format);
     td.size = WGPUExtent3D{desc.width, desc.height, 1};
     td.mipLevelCount = 1;
-    td.sampleCount = 1;
+    td.sampleCount = desc.samples > 1 ? kMsaaSamples : 1;
     // Depth-stencil takes no upload and no readback (writeTexture cannot fill
     // it, CopySrc is refused on depth24plus) but IS sampled: an effect reads the
     // scene's depth. Colour carries CopySrc for the async readback seam.
@@ -779,6 +838,14 @@ bool WebGPUDevice::makeTexture(const TextureDesc& desc, const void* pixels, Text
                    ? (WGPUTextureUsage_TextureBinding | WGPUTextureUsage_RenderAttachment)
                    : (WGPUTextureUsage_TextureBinding | WGPUTextureUsage_CopyDst |
                       WGPUTextureUsage_CopySrc | WGPUTextureUsage_RenderAttachment);
+    // No copies: invalid on a multisampled texture. Depth keeps TextureBinding
+    // because resolveDepthAttachment samples it; colour is read through the
+    // single-sample twin the pass resolves into.
+    if (td.sampleCount > 1) {
+        td.usage = isDepthFormat(td.format)
+                       ? (WGPUTextureUsage_RenderAttachment | WGPUTextureUsage_TextureBinding)
+                       : WGPUTextureUsage_RenderAttachment;
+    }
 
     WGPUTexture texture = wgpuDeviceCreateTexture(device_, &td);
     if (!texture) {
@@ -808,7 +875,8 @@ bool WebGPUDevice::makeTexture(const TextureDesc& desc, const void* pixels, Text
 
     out = TextureRec{texture, view, sampleView,
                      desc.width, desc.height, td.format, desc.format,
-                     packSamplerKey(desc.minFilter, desc.magFilter, desc.wrapS, desc.wrapT)};
+                     packSamplerKey(desc.minFilter, desc.magFilter, desc.wrapS, desc.wrapT),
+                     td.sampleCount};
 
     if (pixels && !isDepthFormat(td.format)) {
         // desc.flipY, not false: the caller's orientation request has to reach the
@@ -1107,7 +1175,8 @@ WGPURenderPipeline WebGPUDevice::ensurePipeline(u32 id) {
     if (!described || !device_) return nullptr;
     PipelineRec& built = pipelines_[id];
     const u32 dsVariant = dsVariantOf(pass_ds_format_);
-    const u32 variant = dsVariant * kColorVariantCount + colorVariantOf(pass_color_format_);
+    const u32 variant = (dsVariant * kColorVariantCount + colorVariantOf(pass_color_format_))
+                        * kSampleVariantCount + (pass_samples_ > 1 ? kMultiSample : kSingleSample);
     if (built.variants[variant]) return built.variants[variant];
 
     const PipelineDesc& desc = *described;
@@ -1175,7 +1244,9 @@ WGPURenderPipeline WebGPUDevice::ensurePipeline(u32 id) {
     pd.primitive.topology = WGPUPrimitiveTopology_TriangleList;
     pd.primitive.frontFace = WGPUFrontFace_CCW;
     pd.primitive.cullMode = toWGPUCullMode(desc.cullEnabled, desc.cullFront);
-    pd.multisample.count = 1;
+    // The pass's count, which WebGPU validates against the attachment: a pipeline
+    // built for one sample cannot draw into a multisampled target at all.
+    pd.multisample.count = pass_samples_;
     pd.multisample.mask = 0xFFFFFFFFu;
     pd.fragment = &fragment;
     WGPUDepthStencilState ds{};
@@ -1232,6 +1303,138 @@ WGPUSampler WebGPUDevice::samplerFor(u8 key) {
 }
 
 // =============================================================================
+// Depth resolve — the half WebGPU does not do: a depth attachment has no
+// resolveTarget, so a fullscreen pass writes sample 0 into the single-sample
+// twin. Stencil does not come along; a shader cannot write it.
+// =============================================================================
+
+WGPURenderPipeline WebGPUDevice::ensureDepthResolvePipeline(WGPUTextureFormat format) {
+    const u32 key = static_cast<u32>(format);
+    auto it = depth_resolve_pipelines_.find(key);
+    if (it != depth_resolve_pipelines_.end()) return it->second;
+    if (!device_) return nullptr;
+
+    static const char* kVS = R"(
+@vertex fn vs_main(@builtin(vertex_index) i : u32) -> @builtin(position) vec4f {
+    var p = array<vec2f, 3>(vec2f(-1.0, -3.0), vec2f(3.0, 1.0), vec2f(-1.0, 1.0));
+    return vec4f(p[i], 0.0, 1.0);
+}
+)";
+    static const char* kFS = R"(
+@group(0) @binding(0) var src : texture_depth_multisampled_2d;
+@fragment fn fs_main(@builtin(position) pos : vec4f) -> @builtin(frag_depth) f32 {
+    return textureLoad(src, vec2i(i32(pos.x), i32(pos.y)), 0);
+}
+)";
+    auto makeModule = [&](const char* code) {
+        WGPUShaderSourceWGSL wgsl{};
+        wgsl.chain.sType = WGPUSType_ShaderSourceWGSL;
+        wgsl.code = sv(code);
+        WGPUShaderModuleDescriptor md{};
+        md.nextInChain = &wgsl.chain;
+        return wgpuDeviceCreateShaderModule(device_, &md);
+    };
+    if (!depth_resolve_vs_) depth_resolve_vs_ = makeModule(kVS);
+    if (!depth_resolve_fs_) depth_resolve_fs_ = makeModule(kFS);
+    if (!depth_resolve_bgl_) {
+        WGPUBindGroupLayoutEntry ble{};
+        ble.binding = 0;
+        ble.visibility = WGPUShaderStage_Fragment;
+        ble.texture.sampleType = WGPUTextureSampleType_Depth;
+        ble.texture.viewDimension = WGPUTextureViewDimension_2D;
+        ble.texture.multisampled = true;
+        WGPUBindGroupLayoutDescriptor bld{};
+        bld.entryCount = 1;
+        bld.entries = &ble;
+        depth_resolve_bgl_ = wgpuDeviceCreateBindGroupLayout(device_, &bld);
+        WGPUPipelineLayoutDescriptor pld{};
+        pld.bindGroupLayoutCount = 1;
+        pld.bindGroupLayouts = &depth_resolve_bgl_;
+        depth_resolve_layout_ = wgpuDeviceCreatePipelineLayout(device_, &pld);
+    }
+
+    WGPURenderPipelineDescriptor pd{};
+    pd.layout = depth_resolve_layout_;
+    pd.vertex.module = depth_resolve_vs_;
+    pd.vertex.entryPoint = sv("vs_main");
+    pd.primitive.topology = WGPUPrimitiveTopology_TriangleList;
+    pd.primitive.frontFace = WGPUFrontFace_CCW;
+    pd.primitive.cullMode = WGPUCullMode_None;
+    pd.multisample.count = 1;
+    pd.multisample.mask = 0xFFFFFFFFu;
+    // No colour target: the pass writes depth and nothing else.
+    WGPUFragmentState fragment{};
+    fragment.module = depth_resolve_fs_;
+    fragment.entryPoint = sv("fs_main");
+    fragment.targetCount = 0;
+    pd.fragment = &fragment;
+    WGPUDepthStencilState ds{};
+    ds.format = format;
+    ds.depthWriteEnabled = WGPUOptionalBool_True;
+    ds.depthCompare = WGPUCompareFunction_Always;
+    WGPUStencilFaceState face{};
+    face.compare = WGPUCompareFunction_Always;
+    face.failOp = WGPUStencilOperation_Keep;
+    face.depthFailOp = WGPUStencilOperation_Keep;
+    face.passOp = WGPUStencilOperation_Keep;
+    ds.stencilFront = face;
+    ds.stencilBack = face;
+    ds.stencilReadMask = 0xFFFFFFFFu;
+    ds.stencilWriteMask = 0u;
+    pd.depthStencil = &ds;
+
+    WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(device_, &pd);
+    if (!pipeline) ES_LOG_ERROR("WebGPUDevice: depth resolve pipeline creation failed");
+    depth_resolve_pipelines_[key] = pipeline;
+    return pipeline;
+}
+
+void WebGPUDevice::resolveDepthAttachment(u32 msaaDepth, u32 resolveDepth) {
+    if (!device_ || !encoder_) return;
+    auto srcIt = textures_.find(msaaDepth);
+    auto dstIt = textures_.find(resolveDepth);
+    if (srcIt == textures_.end() || dstIt == textures_.end()) return;
+    WGPURenderPipeline pipeline = ensureDepthResolvePipeline(dstIt->second.format);
+    if (!pipeline) return;
+
+    // The MULTISAMPLED view, not the depth-only sample view: a multisampled depth
+    // texture is read through `texture_depth_multisampled_2d`, whose view carries
+    // every aspect the texture has.
+    WGPUBindGroupEntry entry{};
+    entry.binding = 0;
+    entry.textureView = srcIt->second.sampleView;
+    WGPUBindGroupDescriptor bgd{};
+    bgd.layout = depth_resolve_bgl_;
+    bgd.entryCount = 1;
+    bgd.entries = &entry;
+    WGPUBindGroup group = wgpuDeviceCreateBindGroup(device_, &bgd);
+    if (!group) return;
+
+    WGPURenderPassDepthStencilAttachment ds{};
+    ds.view = dstIt->second.view;
+    ds.depthLoadOp = WGPULoadOp_Clear;
+    ds.depthStoreOp = WGPUStoreOp_Store;
+    ds.depthClearValue = 1.0f;
+    if (hasStencilPlanes(dstIt->second.format)) {
+        ds.stencilLoadOp = WGPULoadOp_Clear;
+        ds.stencilStoreOp = WGPUStoreOp_Store;
+    }
+    WGPURenderPassDescriptor rp{};
+    rp.colorAttachmentCount = 0;
+    rp.depthStencilAttachment = &ds;
+
+    WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(encoder_, &rp);
+    if (pass) {
+        wgpuRenderPassEncoderSetPipeline(pass, pipeline);
+        wgpuRenderPassEncoderSetBindGroup(pass, 0, group, 0, nullptr);
+        wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
+        wgpuRenderPassEncoderEnd(pass);
+        wgpuRenderPassEncoderRelease(pass);
+    }
+    wgpuBindGroupRelease(group);
+}
+
+// =============================================================================
 // Internal clear family — the two clears WebGPU load-ops cannot spell: a
 // region-scoped pass clear and a mid-pass stencil reset. A fullscreen triangle
 // at z=1 (GL's clear depth) writes exactly the attachments requested: color via
@@ -1240,8 +1443,11 @@ WGPUSampler WebGPUDevice::samplerFor(u8 key) {
 // =============================================================================
 
 WGPURenderPipeline WebGPUDevice::ensureClearPipeline(bool color, bool depth, bool stencil) {
-    const u32 key = colorVariantOf(pass_color_format_) << 5 |
-                    dsVariantOf(pass_ds_format_) << 3 |
+    // The sample count is part of the key for the same reason the formats are:
+    // a clear pipeline is validated against the pass it runs in.
+    const u32 key = colorVariantOf(pass_color_format_) << 6 |
+                    dsVariantOf(pass_ds_format_) << 4 |
+                    (pass_samples_ > 1 ? 8u : 0u) |
                     (color ? 1u : 0u) | (depth ? 2u : 0u) | (stencil ? 4u : 0u);
     auto it = clear_pipelines_.find(key);
     if (it != clear_pipelines_.end()) return it->second;
@@ -1317,7 +1523,7 @@ struct ClearColor { value : vec4f };
     pd.primitive.topology = WGPUPrimitiveTopology_TriangleList;
     pd.primitive.frontFace = WGPUFrontFace_CCW;
     pd.primitive.cullMode = WGPUCullMode_None;
-    pd.multisample.count = 1;
+    pd.multisample.count = pass_samples_;
     pd.multisample.mask = 0xFFFFFFFFu;
     pd.fragment = &fragment;
 
@@ -1686,12 +1892,16 @@ void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
     if (pass_) endRenderPass();  // defensive: a dangling pass would deadlock the queue
 
     WGPUTextureView targetView = nullptr;
+    WGPUTextureView resolveView = nullptr;
     WGPUTextureView dsView = nullptr;
     pass_ds_format_ = WGPUTextureFormat_Undefined;
     pass_color_format_ = surface_format_;
     pass_color_texture_ = 0;
     pass_depth_texture_ = 0;
     pass_is_surface_ = desc.target == FramebufferHandle::Default;
+    pass_samples_ = 1;
+    pass_depth_msaa_ = 0;
+    pass_depth_resolve_ = 0;
     if (desc.target != FramebufferHandle::Default) {
         const FramebufferDesc* fb = framebufferDesc(desc.target);
         if (!fb) {
@@ -1708,14 +1918,37 @@ void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
         targetView = texIt->second.view;
         pass_color_format_ = texIt->second.format;
         pass_color_texture_ = color0;
+        pass_samples_ = texIt->second.samples;
         pass_width_ = texIt->second.width;
         pass_height_ = texIt->second.height;
+        // A multisampled attachment is written, never read: the frame's readback
+        // and everything that samples the scene take the single-sample twin the
+        // pass resolves into, so that is the texture this pass ANSWERS with.
+        if (pass_samples_ > 1) {
+            const u32 resolve = static_cast<u32>(fb->resolveColor0);
+            auto resolveIt = textures_.find(resolve);
+            if (resolveIt == textures_.end()) {
+                ES_LOG_ERROR("WebGPUDevice::beginRenderPass: a multisampled target with no resolve twin");
+                return;
+            }
+            resolveView = resolveIt->second.view;
+            pass_color_texture_ = resolve;
+        }
         if (depthStencil != 0) {
             auto dsIt = textures_.find(depthStencil);
             if (dsIt != textures_.end()) {
                 dsView = dsIt->second.view;
                 pass_ds_format_ = dsIt->second.format;
                 pass_depth_texture_ = depthStencil;
+                // A multisampled depth attachment owes its contents to the twin
+                // whatever samples scene depth will read; the resolve runs once
+                // the pass is closed, on the same encoder.
+                const u32 resolveDepth = static_cast<u32>(fb->resolveDepthStencil);
+                if (dsIt->second.samples > 1 && resolveDepth != 0) {
+                    pass_depth_msaa_ = depthStencil;
+                    pass_depth_resolve_ = resolveDepth;
+                    pass_depth_texture_ = resolveDepth;
+                }
             }
         }
     } else {
@@ -1756,9 +1989,18 @@ void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
                 ensureSurfaceDepth(texW, texH);
             }
         }
-        targetView = frame_view_;
         pass_width_ = surface_width_;
         pass_height_ = surface_height_;
+        // Multisampled: draw into the companion and resolve into the surface
+        // texture the browser presents. Single-sampled: draw into it directly.
+        if (ensureSurfaceMsaa(surface_width_, surface_height_)) {
+            ensureSurfaceDepth(surface_width_, surface_height_);
+            targetView = surface_msaa_view_;
+            resolveView = frame_view_;
+            pass_samples_ = surface_msaa_samples_;
+        } else {
+            targetView = frame_view_;
+        }
         dsView = surface_depth_view_;
         pass_ds_format_ = WGPUTextureFormat_Depth24PlusStencil8;
     }
@@ -1784,6 +2026,7 @@ void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
     const bool scoped = desc.clearW != 0;
     WGPURenderPassColorAttachment color{};
     color.view = targetView;
+    color.resolveTarget = resolveView;
     color.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
     color.loadOp = toWGPULoadOp(desc.clearColor, scoped);
     color.storeOp = WGPUStoreOp_Store;
@@ -1831,6 +2074,14 @@ void WebGPUDevice::endRenderPass() {
     wgpuRenderPassEncoderEnd(pass_);
     wgpuRenderPassEncoderRelease(pass_);
     pass_ = nullptr;
+
+    // Depth, on the same encoder and after the pass that wrote it: colour was
+    // resolved by the pass itself, and this is the half WebGPU leaves to us.
+    if (pass_depth_msaa_ && pass_depth_resolve_) {
+        resolveDepthAttachment(pass_depth_msaa_, pass_depth_resolve_);
+        pass_depth_msaa_ = 0;
+        pass_depth_resolve_ = 0;
+    }
 
     // GPU timing: resolve this pass's begin/end timestamps into the reserved ring
     // slot (recorded on the same encoder, so it runs after the pass on the GPU).

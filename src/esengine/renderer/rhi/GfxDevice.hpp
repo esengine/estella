@@ -438,6 +438,22 @@ public:
      */
     virtual u32 maxSamples() = 0;
 
+    /**
+     * @brief Whether this backend can resolve a multisampled DEPTH attachment.
+     * @details GL blits one; WebGPU has no depth resolve at all, so a pass that
+     *          SAMPLES scene depth cannot run multisampled there. Colour resolves
+     *          on both, which is what MSAA is usually asked for.
+     */
+    virtual bool resolvesDepth() const { return false; }
+
+    /**
+     * @brief Asks for the backbuffer to be drawn with this many samples.
+     * @details Only a backend whose surface is NOT antialiased by the host has
+     *          anything to do here: a WebGL canvas is created antialiased, a
+     *          WebGPU surface texture never is. Ignored where it is free.
+     */
+    virtual void setSurfaceSamples(u32 samples) { (void)samples; }
+
     // =========================================================================
     // Shader Programs
     // =========================================================================

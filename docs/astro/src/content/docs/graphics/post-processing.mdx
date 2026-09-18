@@ -27,6 +27,15 @@ several can stack in one frame at no extra target cost beyond the passes.
 | `outline` | Ink-edge outlines (Sobel edge darkening) | `intensity`, `threshold`, `thickness` |
 | `grayscale` | Desaturate | `intensity` |
 
+### Anti-aliasing before the chain
+
+Geometry edges are smoothed by **MSAA on the scene itself**, not by an effect: 4×
+by default, on WebGL2 and on WebGPU — which is what every native build (iOS,
+Android, desktop, Steam) runs on. `createWebApp({ msaaSamples })` sizes it, and
+`msaaSamples: 1` turns it off where the fill cost matters more than the edges.
+`fxaa` is the cheaper, blurrier alternative for devices where even one sample
+extra is too much.
+
 The uniform names above are the friendly labels; **in code they are `u_`-prefixed**
 (`u_intensity`, `u_exposure`, …). Most effects are identity at their defaults
 (`colorGrade`, `blur`, `chromaticAberration`, `fxaa`, `lensDistortion`, `lutGrade`),

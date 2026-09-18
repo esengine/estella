@@ -233,6 +233,9 @@ u32 PostProcessPipeline::addPass(const std::string& name, resource::ShaderHandle
  */
 void PostProcessPipeline::applySampleRequest() {
     scene_samples_ = std::clamp(requested_samples_, 1u, device_.maxSamples());
+    // A frame with no chain draws straight to the backbuffer, which on a surface
+    // the host does not antialias needs the same answer — one setting, both paths.
+    device_.setSurfaceSamples(scene_samples_);
 }
 
 void PostProcessPipeline::setRequestedSamples(u32 samples) {

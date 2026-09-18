@@ -26,6 +26,13 @@ Estella 通过 ping-pong 帧缓冲运行全屏后处理。加一个 `PostProcess
 | `outline` | 墨线描边(Sobel 边缘压暗) | `intensity`、`threshold`、`thickness` |
 | `grayscale` | 去色 | `intensity` |
 
+### 链路之前的抗锯齿
+
+几何边缘由**场景本身的 MSAA** 抹平,不是某个效果做的:默认 4×,WebGL2 与 WebGPU 都有——
+所有原生包(iOS、Android、桌面、Steam)跑的都是 WebGPU。用
+`createWebApp({ msaaSamples })` 调它的大小,`msaaSamples: 1` 在填充率比边缘更要紧的设备上关掉它。
+`fxaa` 是更便宜也更糊的替代品,留给连多一个采样都吃不下的设备。
+
 上面是友好标签;**在代码里它们带 `u_` 前缀**(`u_intensity`、`u_exposure`……)。多数效果
 在默认值下是恒等(`colorGrade`、`blur`、`chromaticAberration`、`fxaa`、`lensDistortion`、
 `lutGrade`),加进去不调参不改画面。少数一加就可见——`grayscale`(完全去色)、`vignette`、
