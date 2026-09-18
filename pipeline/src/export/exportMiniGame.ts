@@ -33,6 +33,8 @@ import {
   DEFAULT_RUNTIME_CONFIG, packagedRuntimeFields, type RuntimeProjectConfig,
 } from '../project/runtimeConfig';
 import { writeFile, mkdir, cp, readFile, rename, rm } from 'node:fs/promises';
+import { brotliCompress as brotliCompressCb, constants as zlibConstants } from 'node:zlib';
+import { promisify } from 'node:util';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { cookAssets, type Inclusion } from '../assets/cookAssets';
@@ -67,6 +69,8 @@ interface CookManifest {
   }[];
 }
 
+const brotliPack = promisify(brotliCompressCb);
+
 const UUID_PREFIX = '@uuid:';
 
 /** Strip @uuid: asset refs to the bare (lowercased) uuid the resolver keys by.
@@ -80,6 +84,42 @@ function stripUuidRefs(v: unknown): unknown {
     return o;
   }
   return v;
+}
+
+/** What this export stages into `wasm/`, and the engine path the loader is told. */
+interface RuntimeLayout {
+  /** Package-relative path the boot config hands the loader. */
+  readonly enginePath: string;
+  /** Engine artifacts to stage, as the name in `wasmDir` → the name in the package. */
+  readonly files: ReadonlyArray<{ readonly src: string; readonly staged: string; readonly brotli?: true }>;
+}
+
+/**
+ * Decided ONCE, read by the boot config and the copy loop: what lands is what
+ * the loader is told. Only the ENGINE binary compresses — a side module's is
+ * found at `wasm/<file>.wasm` by three hosts that spell that suffix themselves,
+ * so renaming one here would leave all three naming a file that is not there.
+ */
+function planRuntimeLayout(
+  engineGlueFile: string,
+  sideModules: ReadonlyArray<{ file: string }>,
+  brotli: boolean,
+): RuntimeLayout {
+  const engineBinary = engineGlueFile.replace(/\.js$/, '.wasm');
+  const engineStaged = brotli ? `${engineBinary}.br` : engineBinary;
+  return {
+    enginePath: `wasm/${engineStaged}`,
+    files: [
+      { src: engineGlueFile, staged: engineGlueFile },
+      ...(brotli
+        ? [{ src: engineBinary, staged: engineStaged, brotli: true as const }]
+        : [{ src: engineBinary, staged: engineStaged }]),
+      ...sideModules.flatMap((m) => [
+        { src: `${m.file}.js`, staged: `${m.file}.js` },
+        { src: `${m.file}.wasm`, staged: `${m.file}.wasm` },
+      ]),
+    ],
+  };
 }
 
 /**
@@ -190,6 +230,9 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   compressAudio?: boolean;
   /** Pack `<name>.atlas/` folder PNGs into atlas pages at cook time. */
   atlasTextures?: boolean;
+  /** The project's `packaging.compressWasm`; honoured only where the vendor can
+   *  load a `.wasm.br` (profile.wasmBrotli) — policy meeting capability. */
+  compressWasm?: boolean;
   onProgress?: OnExportProgress;
 }): Promise<ExportMiniGameResult> {
   const title = opts.title ?? 'Game';
@@ -308,10 +351,11 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   // 4. game-bundle.js — vendor SDK (esengine aliased) + project scripts + boot(),
   //    one esengine instance so the project's defineComponent/defineSystem run.
   const scriptsAbs = opts.scriptsEntry ? path.join(opts.root, opts.scriptsEntry) : null;
-  // The engine wasm path rides into the boot config: only the exporter knows
-  // which glue it staged (esengine.wxgame vs the web-aligned esengine), and the
-  // runtime must instantiate the staged glue's .wasm twin, not guess a name.
-  const engineWasmPath = `wasm/${engineGlueFile.replace(/\.js$/, '.wasm')}`;
+  // Compressing needs both halves: a vendor whose loader takes `.wasm.br`, and a
+  // project that asked for it. Either alone leaves the binary as built.
+  const brotli = profile.wasmBrotli && (opts.compressWasm ?? false);
+  const runtimeLayout = planRuntimeLayout(engineGlueFile, engineSideModules, brotli);
+  const engineWasmPath = runtimeLayout.enginePath;
   // The packaged slice of the project's settings, GENERATED rather than listed:
   // a setting added to packagedRuntimeFields reaches this boot without anyone
   // having to remember that this template exists. Theme colours are the one that
@@ -478,24 +522,34 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   await mkdir(wasmOut, { recursive: true });
   // Engine artifacts only — the project's own come from `.esengine/modules/`,
   // not from the engine runtime dir, and are staged below.
-  const runtimeFiles = [
-    engineGlueFile,
-    engineGlueFile.replace(/\.js$/, '.wasm'),
-    ...engineSideModules.flatMap((m) => [`${m.file}.js`, `${m.file}.wasm`]),
-  ];
   const { transform } = await loadEsbuild();
-  for (const f of runtimeFiles) {
-    const src = path.join(opts.wasmDir, f);
+  for (const f of runtimeLayout.files) {
+    const src = path.join(opts.wasmDir, f.src);
     if (!existsSync(src)) {
-      errors.push(`${profile.id} runtime file missing: ${f} (in ${opts.wasmDir}) — rebuild with \`node build-tools/cli.js build -t ${profile.wasmBuildHint}\``);
+      errors.push(`${profile.id} runtime file missing: ${f.src} (in ${opts.wasmDir}) — rebuild with \`node build-tools/cli.js build -t ${profile.wasmBuildHint}\``);
       continue;
     }
-    const dest = path.join(wasmOut, f);
-    if (f.endsWith('.js')) {
+    const dest = path.join(wasmOut, f.staged);
+    if (f.src.endsWith('.js')) {
       // Emscripten glue can carry es2020 syntax (`?.`, `??`) that real-device
       // WeChat rejects — down-level it like the game bundle.
       const out = await transform(await readFile(src, 'utf8'), { target: profile.esTarget, loader: 'js' });
       await writeFile(dest, out.code);
+    } else if (f.brotli) {
+      // Quality 11: it runs once per build, and the bytes it saves are spent
+      // against a main-package limit for the life of the package.
+      const raw = await readFile(src);
+      const packed = await brotliPack(raw, {
+        params: {
+          [zlibConstants.BROTLI_PARAM_QUALITY]: zlibConstants.BROTLI_MAX_QUALITY,
+          [zlibConstants.BROTLI_PARAM_SIZE_HINT]: raw.byteLength,
+        },
+      });
+      await writeFile(dest, packed);
+      progress({
+        phase: 'Copying runtime',
+        detail: `${f.staged} ${(raw.byteLength / 1048576).toFixed(2)}MB → ${(packed.byteLength / 1048576).toFixed(2)}MB`,
+      });
     } else {
       await cp(src, dest);
     }

@@ -357,6 +357,9 @@ export interface ExportGameOptions {
   compressAudio?: boolean;
   /** Pack `<name>.atlas/` folder PNGs into atlas pages at cook time. Default off. */
   atlasTextures?: boolean;
+  /** Compress the engine binary to `.wasm.br`, where the target's loader takes
+   *  one. Default off; ignored by targets that cannot load it. */
+  compressWasm?: boolean;
   title?: string;
   platform?: ExportPlatform;
   /** The ad network a playable targets (`packaging.platforms.playable.network`),
@@ -586,6 +589,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       compressTextures: opts.compressTextures,
       compressAudio: opts.compressAudio,
       atlasTextures: opts.atlasTextures,
+      compressWasm: opts.compressWasm,
       onProgress: opts.onProgress,
     });
   }
@@ -612,6 +616,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       compressTextures: opts.compressTextures,
       compressAudio: opts.compressAudio,
       atlasTextures: opts.atlasTextures,
+      compressWasm: opts.compressWasm,
       onProgress: opts.onProgress,
     });
   }

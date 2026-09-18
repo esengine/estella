@@ -511,6 +511,62 @@ describe('exportGame (wechat)', () => {
     const pcfg = JSON.parse(readFileSync(path.join(outMulti, 'project.config.json'), 'utf8'));
     expect(pcfg.packOptions?.include ?? []).not.toContainEqual({ type: 'suffix', value: '.esscene' });
   }, 60_000);
+  // The engine binary is the largest single file in a mini-game package and the
+  // main-package limit is 4MB, so compressing it is worth a build-time cost —
+  // but only where the host can load the result, and only when the project asked.
+  it('compresses the engine binary to .wasm.br, and tells the loader THAT name', async () => {
+    const o = path.join(root, 'dist-wx-br');
+    const res = await exportGame({
+      root,
+      entryScene: 'scenes/main.esscene',
+      hostsDir: 'unused-for-wechat',
+      scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: path.join(root, '_wxwasm'),
+      outDir: o,
+      platform: 'wechat',
+      wechatAppid: 'wxTEST0123456789',
+      compressWasm: true,
+      runtime: runtimeConfigOf({ designResolution: { width: 1280, height: 720 } }),
+    });
+    expect(res.ok).toBe(true);
+
+    // What landed is the compressed one, under the .br name, and the raw twin
+    // is NOT also shipped — two copies would cost more than the compression saves.
+    expect(existsSync(path.join(o, 'wasm', 'esengine.wasm.br'))).toBe(true);
+    expect(existsSync(path.join(o, 'wasm', 'esengine.wasm'))).toBe(false);
+
+    // And the boot config names the file that is actually there. This is the
+    // half that a second derivation of the name would get wrong in silence.
+    const bundle = readFileSync(path.join(o, 'game-bundle.js'), 'utf8');
+    expect(bundle).toContain('wasm/esengine.wasm.br');
+
+    // The glue is untouched: only the binary compresses, and the packer still
+    // has JS it can compile.
+    expect(existsSync(path.join(o, 'wasm', 'esengine.js'))).toBe(true);
+  }, 60_000);
+
+  // Policy without capability changes nothing, and neither does the reverse:
+  // the default export still ships the binary as it was built.
+  it('leaves the binary alone when the project did not ask', async () => {
+    const o = path.join(root, 'dist-wx-nobr');
+    const res = await exportGame({
+      root,
+      entryScene: 'scenes/main.esscene',
+      hostsDir: 'unused-for-wechat',
+      scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: path.join(root, '_wxwasm'),
+      outDir: o,
+      platform: 'wechat',
+      wechatAppid: 'wxTEST0123456789',
+      runtime: runtimeConfigOf({ designResolution: { width: 1280, height: 720 } }),
+    });
+    expect(res.ok).toBe(true);
+    expect(existsSync(path.join(o, 'wasm', 'esengine.wasm'))).toBe(true);
+    expect(existsSync(path.join(o, 'wasm', 'esengine.wasm.br'))).toBe(false);
+    expect(readFileSync(path.join(o, 'game-bundle.js'), 'utf8')).toContain('wasm/esengine.wasm');
+  }, 60_000);
 });
 
 /**

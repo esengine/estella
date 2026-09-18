@@ -14,6 +14,18 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **A WeChat mini-game can ship its engine compressed, freeing a third of the main
+  package.** The engine binary is the largest single file such a package carries — 1.74MB
+  against WeChat's 4MB main-package limit, 43.6% of it spent before any of your content.
+  WeChat's loader accepts a brotli-compressed `.wasm.br` path, so turning on *Compress
+  engine binary* on the WeChat page of Package Project ships 0.35MB instead: 8.7% of the
+  limit, with 1.40MB handed back to the game. The package carries one file, not both, and
+  the host decompresses it on load. Off by default, since it costs about two seconds of
+  build time and only pays where a main-package limit is being fought. Needs WeChat base
+  library 2.14.0.
+
 ## [0.69.0] - 2026-09-18
 
 ### Added

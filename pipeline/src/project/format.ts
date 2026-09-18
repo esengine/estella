@@ -291,6 +291,12 @@ export interface ProjectPackaging {
   compressAudio?: boolean;
   /** @deprecated see {@link assetCompression}. */
   atlasTextures?: boolean;
+  /**
+   * Compress the engine binary to `.wasm.br` where the host can load one — the
+   * POLICY half of `profile.wasmBrotli`, ignored by hosts that cannot. Off by
+   * default: it costs build time, and only pays where a main-package limit is.
+   */
+  compressWasm?: boolean;
   /** Project-relative scene paths NOT shipped as switchable scenes (dev/test
    *  scenes). Everything else under the scenes dir exports; the startup scene
    *  always ships regardless. */

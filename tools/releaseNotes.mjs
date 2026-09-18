@@ -28,6 +28,12 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(export): the engine binary can ship as .wasm.br to a host that takes one':
+    { note: 'A WeChat mini-game can ship its engine compressed, freeing a third of the main' },
+
+  'feat(build): a mini-game can ship its engine binary compressed':
+    { note: 'A WeChat mini-game can ship its engine compressed, freeing a third of the main' },
+
   'fix(gates): project-health tests a warning with a field that still is one':
     { internal: "The preflight check's own fixture; it follows the sprite-texture change and no creator runs it." },
 

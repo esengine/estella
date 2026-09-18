@@ -103,6 +103,13 @@ export interface MiniGameExportProfile {
     readonly nativeSuffixes: ReadonlySet<string>;
     /** Custom extensions the packer denies unless restaged to `<ext>.bin`. */
     readonly binRestageExts: readonly string[];
+    /**
+     * Whether this vendor's loader takes a `.wasm.br` path — a CAPABILITY;
+     * spending the build time is `packaging.compressWasm`. WeChat's
+     * `WXWebAssembly.instantiate` accepts one from base library 2.14.0, a floor
+     * documented rather than probed: the loader cannot be asked.
+     */
+    readonly wasmBrotli: boolean;
     /** Subpackage root prefix (files stage under `<subpackageDir>/<name>/`). */
     readonly subpackageDir: string;
     /**
@@ -168,6 +175,7 @@ export const wechatExportProfile: MiniGameExportProfile = {
     nativeSuffixes: new Set(['.js', '.json']),
     // WeChat's code-package suffix whitelist has no ktx2/esv; restage to *.bin.
     binRestageExts: ['ktx2', 'esv'],
+    wasmBrotli: true,
     subpackageDir: 'subpackages',
     subpackageEntry: 'game.js',
 
