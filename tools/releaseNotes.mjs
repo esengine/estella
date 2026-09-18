@@ -31,6 +31,9 @@ export const NOTED = {
   'fix(gates): project-health tests a warning with a field that still is one':
     { internal: "The preflight check's own fixture; it follows the sprite-texture change and no creator runs it." },
 
+  'fix(gates): the MCP end-to-end tests required-empty with a field that still is one':
+    { internal: "The end-to-end gate's own fixture; it follows the sprite-texture change and no creator runs it." },
+
   'feat(render): the WebGPU backend draws the scene and the backbuffer multisampled':
     { note: 'Geometry edges are anti-aliased on WebGPU, which is every native build.' },
 
