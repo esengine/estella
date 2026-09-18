@@ -138,6 +138,9 @@ export const GATES = [
   // Every mini-game package carries the core runtime, so a subsystem the core
   // imports is in every package whether the project uses it or not.
   { id: 'core-carries-options', run: 'node tools/check-core-carries-options.mjs' },
+  // …and the other half: an entry that forgets to install them ships an app whose
+  // Spine entities silently never animate.
+  { id: 'entries-install-options', run: 'node tools/check-entries-install-options.mjs' },
   // Replication applies its inbox in arrival order, so reliable+ordered is a
   // correctness condition. This compiles the claim: a transport that does not
   // make it cannot reach replication.

@@ -7,8 +7,6 @@
     "sdk/src/runtime/runtimeLoader.ts -> ../spine/SpineManager",
     "sdk/src/runtime/runtimeLoader.ts -> ../spine/SpinePlugin",
     "sdk/src/runtime/runtimeLoader.ts -> ../spine/loadSpineScene",
-    "sdk/src/runtime/runtimeLoader.ts -> ../video/VideoAPI",
-    "sdk/src/runtime/webAppFactory.ts -> ../dragonbones",
-    "sdk/src/runtime/webAppFactory.ts -> ../spine"
+    "sdk/src/runtime/runtimeLoader.ts -> ../video/VideoAPI"
   ]
 }

@@ -38,6 +38,9 @@ markEngineComponentBaseline();
 installNativeModuleRegistry();
 
 export * from './core';
+// Installs Spine + DragonBones on every app this entry builds; a lean entry
+// omits this import and ships without their code.
+import './runtime/optionalPlugins';
 export * from './runtime/webAppFactory';
 
 export { NativePlatformAdapter, installNativePlatform, createHostBridge, assertHostEnvironment, assertNativeHost } from './platform/native';

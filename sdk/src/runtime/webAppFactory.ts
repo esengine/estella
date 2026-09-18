@@ -8,9 +8,11 @@ import { sceneManagerPlugin } from '../scene/scenePlugin';
 import { seedEngineComponents } from '../ecs/component';
 import { uiPlugins } from '../app/uiPlugins';
 import { simulationBasePlugins, webBasePlugins } from '../app/pluginSets';
-import { SpinePlugin } from '../spine';
-import { DragonBonesPlugin } from '../dragonbones';
 import { createFetchSideModuleHost, type SideModuleHost } from '../sideModules';
+// The optional subsystems an ENTRY installs. A mini-game inlines the SDK, so a
+// subsystem reached from here is in every package whether a project uses it or
+// not — 259KB of it, measured. See tools/check-core-carries-options.mjs.
+import { entryPlugins } from './entryPlugins';
 
 
 export interface CreateWebAppOptions extends WebAppOptions {
@@ -28,16 +30,15 @@ export interface CreateWebAppOptions extends WebAppOptions {
 // so the headless and native factories cannot drift from this one).
 const basePlugins = webBasePlugins();
 
+
+
 export function createWebApp(module: ESEngineModule, options?: CreateWebAppOptions): App {
     const sideModules: SideModuleHost | undefined = options?.sideModules
         ?? (options?.wasmBaseUrl ? createFetchSideModuleHost(options.wasmBaseUrl) : undefined);
-    // SpinePlugin builds its per-version SpineManager from app.sideModules in build().
-    const spinePlugin = new SpinePlugin();
-    // DragonBones is beside it and costs nothing to install: it fetches its wasm
-    // only when something asks for the manager, so a project with no DragonBones in
-    // it never touches the side module.
-    const dragonBonesPlugin = new DragonBonesPlugin();
-    const plugins = [...uiPlugins, ...basePlugins, spinePlugin, dragonBonesPlugin, ...(options?.plugins ?? [])];
+    // Spine and DragonBones each fetch their wasm only when asked, so installing
+    // them costs nothing at RUN time. BUILD time is what they cost, which is why
+    // the entry decides and this does not.
+    const plugins = [...uiPlugins, ...basePlugins, ...entryPlugins(), ...(options?.plugins ?? [])];
     return _createWebApp(module, { ...options, sideModules, plugins });
 }
 

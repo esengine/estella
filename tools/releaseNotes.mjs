@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'refactor(sdk): an entry point decides which optional subsystems it ships':
+    { internal: 'The same plugins are installed; only which file names them changed.' },
+
   "feat(gates): the core runtime's pull on optional subsystems is a ratchet":
     { internal: 'A repository gate over the SDK\'s own imports; no creator runs it.' },
 
