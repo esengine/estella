@@ -14,6 +14,8 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.69.0] - 2026-09-18
+
 ### Added
 
 - **The build size chart's video slice stops shouting.** That one series was drawn in a
@@ -13196,7 +13198,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.68.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.69.0...HEAD
+[0.69.0]: https://github.com/esengine/estella/compare/v0.68.0...v0.69.0
 [0.68.0]: https://github.com/esengine/estella/compare/v0.67.0...v0.68.0
 [0.67.0]: https://github.com/esengine/estella/compare/v0.66.0...v0.67.0
 [0.66.0]: https://github.com/esengine/estella/compare/v0.65.0...v0.66.0

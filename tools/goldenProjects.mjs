@@ -90,6 +90,26 @@ export const CENSUS_FLOOR = '0.60.0';
  * that does not exist, and release notes are a different act. Theirs is ungated.
  */
 export const SHIPPED = {
+  // — 0.69.0 —
+  '`getResourceStats()` reports the memory kept to survive a lost GPU.':
+    { notCertifiable: 'a byte count no frame shows; the resource census reads it as'
+      + ' render.rm.retainedBytes and device-roundtrip-text holds it under a 64 KiB ceiling' },
+  'Geometry edges are anti-aliased on WebGPU, which is every native build.':
+    { notCertifiable: 'multisampling is the backend\'s, and a golden pair reads editor-against-package'
+      + ' agreement — two matching HARD edges would pass it; aa-edge and aa-edge-post read the soft'
+      + ' values, and both backends now read the same ones' },
+  'The build size report says why a file is in your package, and what changed since the last build.':
+    { notCertifiable: 'a description of the package written beside it — no byte of it ships;'
+      + ' the cook tests hold the attribution chain and the two-build comparison' },
+  'A build the preflight objects to can be packaged anyway.':
+    { notCertifiable: 'the door a build is started through, not what a build contains; the'
+      + ' project-health editor check refuses a broken project and then answers the refusal' },
+  'The editor\'s faintest label colour is readable.':
+    { notCertifiable: 'the editor\'s own text colour, which no package renders; check-theme holds the'
+      + ' whole --text ramp to 4.5:1 on the surfaces text sits on' },
+  'The build size chart\'s video slice stops shouting.':
+    { notCertifiable: 'a panel colour in the editor reading a build, never a byte in one;'
+      + ' check-theme holds the label ramp quieter than the viewport\'s' },
   // — 0.68.0 —
   'Gameplay you can draw.': { certifies: 'script-graph' },
   'A graph can call another graph.': { certifies: 'script-graph' },
