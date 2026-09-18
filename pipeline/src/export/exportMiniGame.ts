@@ -94,8 +94,12 @@ interface RuntimeLayout {
    *  entry requires them (`./wasm/`) — one author for where they are and where
    *  they are asked for. */
   readonly runtimeDir: string;
-  /** Engine artifacts to stage, as the name in `wasmDir` → the name in the package. */
+  /** Engine artifacts to stage: the name in `wasmDir` → the PACKAGE-RELATIVE path
+   *  it lands at, so a binary that moves into a 分包 is the same list with a
+   *  different path rather than a second staging rule. */
   readonly files: ReadonlyArray<{ readonly src: string; readonly staged: string; readonly brotli?: true }>;
+  /** The 分包 the engine binary went into, for the host config to declare. */
+  readonly subpackage: { readonly name: string; readonly root: string } | null;
 }
 
 /**
@@ -104,24 +108,33 @@ interface RuntimeLayout {
  * found at `wasm/<file>.wasm` by three hosts that spell that suffix themselves,
  * so renaming one here would leave all three naming a file that is not there.
  */
+const ENGINE_SUBPACKAGE = 'engine';
+
 function planRuntimeLayout(
   engineGlueFile: string,
   sideModules: ReadonlyArray<{ file: string }>,
-  brotli: boolean,
+  opts: { brotli: boolean; subpackage: boolean; subpackageDir: string },
 ): RuntimeLayout {
   const engineBinary = engineGlueFile.replace(/\.js$/, '.wasm');
-  const engineStaged = brotli ? `${engineBinary}.br` : engineBinary;
+  const engineName = opts.brotli ? `${engineBinary}.br` : engineBinary;
+  // Only the BINARY moves. The glue is `require`d by the entry, and a 分包's files
+  // are not requirable before the host has loaded it — so it stays beside game.js,
+  // which is where every engine that ships this keeps it.
+  const root = `${opts.subpackageDir}/${ENGINE_SUBPACKAGE}`;
+  const enginePath = opts.subpackage ? `${root}/${engineName}` : `wasm/${engineName}`;
+  const binary = opts.brotli
+    ? { src: engineBinary, staged: enginePath, brotli: true as const }
+    : { src: engineBinary, staged: enginePath };
   return {
-    enginePath: `wasm/${engineStaged}`,
+    enginePath,
     runtimeDir: 'wasm',
+    subpackage: opts.subpackage ? { name: ENGINE_SUBPACKAGE, root } : null,
     files: [
-      { src: engineGlueFile, staged: engineGlueFile },
-      ...(brotli
-        ? [{ src: engineBinary, staged: engineStaged, brotli: true as const }]
-        : [{ src: engineBinary, staged: engineStaged }]),
+      { src: engineGlueFile, staged: `wasm/${engineGlueFile}` },
+      binary,
       ...sideModules.flatMap((m) => [
-        { src: `${m.file}.js`, staged: `${m.file}.js` },
-        { src: `${m.file}.wasm`, staged: `${m.file}.wasm` },
+        { src: `${m.file}.js`, staged: `wasm/${m.file}.js` },
+        { src: `${m.file}.wasm`, staged: `wasm/${m.file}.wasm` },
       ]),
     ],
   };
@@ -238,6 +251,9 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   /** The project's `packaging.compressWasm`; honoured only where the vendor can
    *  load a `.wasm.br` (profile.wasmBrotli) — policy meeting capability. */
   compressWasm?: boolean;
+  /** The project's `packaging.engineSubpackage`: move the engine binary out of
+   *  the main package into a 分包 the host loads at startup. */
+  engineSubpackage?: boolean;
   onProgress?: OnExportProgress;
 }): Promise<ExportMiniGameResult> {
   const title = opts.title ?? 'Game';
@@ -359,7 +375,11 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   // Compressing needs both halves: a vendor whose loader takes `.wasm.br`, and a
   // project that asked for it. Either alone leaves the binary as built.
   const brotli = profile.wasmBrotli && (opts.compressWasm ?? false);
-  const runtimeLayout = planRuntimeLayout(engineGlueFile, engineSideModules, brotli);
+  const runtimeLayout = planRuntimeLayout(engineGlueFile, engineSideModules, {
+    brotli,
+    subpackage: profile.subpackageDir !== '' && (opts.engineSubpackage ?? false),
+    subpackageDir: profile.subpackageDir,
+  });
   const engineWasmPath = runtimeLayout.enginePath;
   // The packaged slice of the project's settings, GENERATED rather than listed:
   // a setting added to packagedRuntimeFields reaches this boot without anyone
@@ -479,13 +499,24 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   }
 
   // 5. Entry + config (vendor-specific emission).
-  const subPackages = subPackagesOf(cookEntries, profile.subpackageDir);
-  warnings.push(...subPackages.strays);
+  const cooked = subPackagesOf(cookEntries, profile.subpackageDir);
+  warnings.push(...cooked.strays);
+  // The engine's 分包, if the binary went into one, joins the cook's lazy groups
+  // here: the root entry each vendor demands and the host config's declaration
+  // are written once, for every subpackage, whatever put it there.
+  const subPackages = {
+    subPackages: runtimeLayout.subpackage
+      ? [...cooked.subPackages, runtimeLayout.subpackage]
+      : cooked.subPackages,
+  };
   // A vendor that wants an entry in every subpackage root refuses the package
   // without one, naming the missing file rather than the rule. These roots hold
   // assets the runtime reads by path, so the entry has nothing to do but exist.
   if (profile.subpackageEntry) {
     for (const sp of subPackages.subPackages) {
+      // A cook group's root exists because its assets landed there; the engine's
+      // is made by the staging below, which has not run yet.
+      await mkdir(path.join(absOut, sp.root), { recursive: true });
       await writeFile(
         path.join(absOut, sp.root, profile.subpackageEntry),
         `// Entry for the "${sp.name}" subpackage, which ${profile.id} requires in every\n`
@@ -495,7 +526,8 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     }
   }
   await writeFile(path.join(absOut, 'game.js'),
-    profile.emitEntry({ sideModules, engineGlueFile, runtimeDir: runtimeLayout.runtimeDir }));
+    profile.emitEntry({ sideModules, engineGlueFile, runtimeDir: runtimeLayout.runtimeDir,
+      engineSubpackage: runtimeLayout.subpackage?.name ?? null }));
   const configFiles = profile.emitConfigFiles({
     title,
     appid: opts.appid ?? '',
@@ -535,7 +567,8 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
       errors.push(`${profile.id} runtime file missing: ${f.src} (in ${opts.wasmDir}) — rebuild with \`node build-tools/cli.js build -t ${profile.wasmBuildHint}\``);
       continue;
     }
-    const dest = path.join(wasmOut, f.staged);
+    const dest = path.join(absOut, f.staged);
+    await mkdir(path.dirname(dest), { recursive: true });
     if (f.src.endsWith('.js')) {
       // Emscripten glue can carry es2020 syntax (`?.`, `??`) that real-device
       // WeChat rejects — down-level it like the game bundle.

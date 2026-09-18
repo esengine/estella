@@ -25,6 +25,14 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **The engine can ship outside a WeChat mini-game's main package entirely.** Compressing
+  it left 0.35MB of the 4MB limit spent before any of your content; *Engine in a subpackage*
+  moves the binary into a 分包 the host loads at startup, and the main package keeps only
+  the 162KB of glue that starts it — 4% of the limit, down from 47.5% with neither setting
+  on. The two stack: compression shrinks what the 分包 downloads. Off by default, because
+  startup then waits on that load, which is a trade worth making when the main package is
+  what you are fighting and not otherwise.
+
 - **A WeChat mini-game can ship its engine compressed, freeing a third of the main
   package.** The engine binary is the largest single file such a package carries — 1.74MB
   against WeChat's 4MB main-package limit, 43.6% of it spent before any of your content.

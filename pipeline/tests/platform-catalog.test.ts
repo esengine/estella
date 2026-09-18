@@ -240,7 +240,7 @@ describe('loadProjectPlatform — the profile handed to exportMiniGame', () => {
     expect(typeof p.emitEntry).toBe('function');
 
     // The default entry is the same CommonJS shape WeChat ships.
-    const entry = p.emitEntry({ sideModules: [{ id: 'physics', file: 'physics' }], engineGlueFile: 'esengine.js', runtimeDir: 'wasm' });
+    const entry = p.emitEntry({ sideModules: [{ id: 'physics', file: 'physics' }], engineGlueFile: 'esengine.js', runtimeDir: 'wasm', engineSubpackage: null });
     expect(entry).toContain("require('./wasm/esengine.js')");
     expect(entry).toContain(`"physics": asFactory(require('./wasm/physics.js'))`);
     expect(entry).toContain("require('./game-bundle.js')");

@@ -567,6 +567,72 @@ describe('exportGame (wechat)', () => {
     expect(existsSync(path.join(o, 'wasm', 'esengine.wasm.br'))).toBe(false);
     expect(readFileSync(path.join(o, 'game-bundle.js'), 'utf8')).toContain('wasm/esengine.wasm');
   }, 60_000);
+  // Moving the binary out of the 4MB main package means four things must agree:
+  // where it lands, what the loader is told, what game.json declares, and that
+  // the entry asks the host for the 分包 before the engine is instantiated.
+  it('moves the engine binary into a 分包 the entry loads before booting', async () => {
+    const o = path.join(root, 'dist-wx-subpkg');
+    const res = await exportGame({
+      root,
+      entryScene: 'scenes/main.esscene',
+      hostsDir: 'unused-for-wechat',
+      scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: path.join(root, '_wxwasm'),
+      outDir: o,
+      platform: 'wechat',
+      wechatAppid: 'wxTEST0123456789',
+      engineSubpackage: true,
+      runtime: runtimeConfigOf({ designResolution: { width: 1280, height: 720 } }),
+    });
+    expect(res.ok).toBe(true);
+
+    // 1. It landed in the 分包, and NOT in the main package's wasm/.
+    expect(existsSync(path.join(o, 'subpackages', 'engine', 'esengine.wasm'))).toBe(true);
+    expect(existsSync(path.join(o, 'wasm', 'esengine.wasm'))).toBe(false);
+    // The glue stays put: the entry `require`s it, and a 分包 is not requirable
+    // until the host has loaded it.
+    expect(existsSync(path.join(o, 'wasm', 'esengine.js'))).toBe(true);
+
+    // 2. The loader is told where it actually is.
+    expect(readFileSync(path.join(o, 'game-bundle.js'), 'utf8'))
+      .toContain('subpackages/engine/esengine.wasm');
+
+    // 3. game.json declares it, or the host refuses the root at load.
+    const cfg = JSON.parse(readFileSync(path.join(o, 'game.json'), 'utf8')) as
+      { subPackages?: Array<{ name: string; root: string }> };
+    expect(cfg.subPackages ?? []).toContainEqual({ name: 'engine', root: 'subpackages/engine' });
+    // WeChat refuses a 分包 root with no game.js.
+    expect(existsSync(path.join(o, 'subpackages', 'engine', 'game.js'))).toBe(true);
+
+    // 4. The entry asks for it BEFORE it boots — the binary is not in the package
+    //    until the host has loaded the 分包.
+    const entry = readFileSync(path.join(o, 'game.js'), 'utf8');
+    expect(entry).toContain('wx.loadSubpackage');
+    expect(entry.indexOf('loadSubpackage')).toBeLessThan(entry.indexOf('bundle.boot'));
+    // And a failure says so rather than leaving a blank canvas.
+    expect(entry).toContain('did not load');
+  }, 60_000);
+
+  it('leaves the engine in the main package when the project did not ask', async () => {
+    const o = path.join(root, 'dist-wx-nosubpkg');
+    const res = await exportGame({
+      root,
+      entryScene: 'scenes/main.esscene',
+      hostsDir: 'unused-for-wechat',
+      scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: path.join(root, '_wxwasm'),
+      outDir: o,
+      platform: 'wechat',
+      wechatAppid: 'wxTEST0123456789',
+      runtime: runtimeConfigOf({ designResolution: { width: 1280, height: 720 } }),
+    });
+    expect(res.ok).toBe(true);
+    expect(existsSync(path.join(o, 'wasm', 'esengine.wasm'))).toBe(true);
+    expect(existsSync(path.join(o, 'subpackages', 'engine'))).toBe(false);
+    expect(readFileSync(path.join(o, 'game.js'), 'utf8')).not.toContain('loadSubpackage');
+  }, 60_000);
 });
 
 /**

@@ -28,6 +28,12 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(export): the engine binary can ship in a 分包 the host loads at startup':
+    { note: "The engine can ship outside a WeChat mini-game's main package entirely." },
+
+  'feat(build): the engine binary can ship in a subpackage':
+    { note: "The engine can ship outside a WeChat mini-game's main package entirely." },
+
   'refactor(export): the entry asks for the runtime where the layout put it':
     { internal: 'One author for a path inside the package; what it answers is unchanged.' },
 
