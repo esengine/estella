@@ -16,6 +16,12 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **The build size chart's video slice stops shouting.** That one series was drawn in a
+  viewport gizmo colour — the bright kind, built to read over a lit 3D scene — because the
+  panel's own label ramp had six members and the chart needed seven. It now has a seventh,
+  pitched with the other six, and a gate holds that ramp quieter than the viewport's from
+  here on.
+
 - **The editor's faintest label colour is readable.** The colour most labels in the editor
   are drawn in — file rows, legends, budget captions, hints — sat at 3.26:1 against a panel,
   below the 4.5:1 that body text needs, so a whole tier of the interface was technically

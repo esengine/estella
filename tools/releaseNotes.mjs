@@ -49,6 +49,12 @@ export const NOTED = {
   'feat(gates): the text ramp is held to 4.5:1 on the surfaces text sits on':
     { note: "The editor's faintest label colour is readable." },
 
+  'feat(gates): check-theme holds the panel ramp quieter than the viewport':
+    { note: "The build size chart's video slice stops shouting." },
+
+  "fix(theme): the size chart's video series is a panel colour, not a viewport one":
+    { note: "The build size chart's video slice stops shouting." },
+
   "fix(gates): the acknowledged build's cleanup retries, as every recursive delete must":
     { internal: "An editor check's own temp-directory cleanup; no creator runs it." },
 
