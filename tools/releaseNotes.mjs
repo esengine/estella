@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(checks): a play realm that never came up says what it did say':
+    { internal: "What an editor check prints when it fails; no creator runs the checks." },
+
   'fix(gates): the exit criteria ask a host only what that host can answer':
     { internal: 'Which CI shard answers which release criterion; no creator runs the list.' },
 
