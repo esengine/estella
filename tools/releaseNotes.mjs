@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'refactor(assets): what a restaged .bin really is, answered in one place':
+    { internal: 'One reader for a packaging spelling; what resolves is unchanged.' },
+
   "fix(export): the shared mini-game entry names no vendor's API":
     { internal: 'Fixes an unreleased commit from this same cycle; the shipped behaviour never had it.' },
 

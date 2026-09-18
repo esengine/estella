@@ -148,9 +148,38 @@ for (const entry of ASSET_TYPE_REGISTRY) {
     }
 }
 
+/**
+ * A host whose packer refuses a custom suffix takes the file under `.bin`
+ * (exportMiniGame's restage). What it IS is still whatever the real suffix says,
+ * so read through that wrapper — but only when a known extension is under it, or
+ * a file genuinely named `foo.bin` would read as one with no extension at all.
+ */
 function extractExtension(extensionOrPath: string): string {
-    const dotIndex = extensionOrPath.lastIndexOf('.');
-    return dotIndex >= 0 ? extensionOrPath.substring(dotIndex + 1).toLowerCase() : extensionOrPath.toLowerCase();
+    const lower = extensionOrPath.toLowerCase();
+    const last = (v: string): string => {
+        const dot = v.lastIndexOf('.');
+        return dot >= 0 ? v.substring(dot + 1) : v;
+    };
+
+    if (lower.endsWith('.bin')) {
+        const under = last(lower.slice(0, -'.bin'.length));
+        if (allExtensions.has(under)) return under;
+    }
+    return last(lower);
+}
+
+/**
+ * A path with the restage `.bin` wrapper removed, when it wraps an extension this
+ * registry knows. Readers that care about a specific format ask this rather than
+ * spelling both paths — one place learns what a restaged file looks like.
+ */
+export function unwrapRestagedPath(path: string): string {
+    const lower = path.toLowerCase();
+    if (!lower.endsWith('.bin')) return lower;
+    const under = lower.slice(0, -'.bin'.length);
+    const dot = under.lastIndexOf('.');
+    const ext = dot >= 0 ? under.substring(dot + 1) : under;
+    return allExtensions.has(ext) ? under : lower;
 }
 
 export function getAssetTypeEntry(extensionOrPath: string): AssetTypeEntry | undefined {

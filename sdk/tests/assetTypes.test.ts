@@ -194,3 +194,24 @@ describe('isCustomExtension', () => {
         expect(isCustomExtension('file.xyz')).toBe(false);
     });
 });
+
+
+describe('a file restaged under .bin is still what its real suffix says', () => {
+    // A packer that refuses custom suffixes takes the file as `<name>.<real>.bin`,
+    // and what it IS is still what the real suffix says.
+    it('reads through the .bin wrapper for any known extension', () => {
+        expect(getAssetTypeEntry('assets/t.ktx2.bin')?.editorType)
+            .toBe(getAssetTypeEntry('assets/t.ktx2')?.editorType);
+        expect(getAssetTypeEntry('assets/clip.esanim.bin')?.editorType)
+            .toBe(getAssetTypeEntry('assets/clip.esanim')?.editorType);
+        expect(getAssetTypeEntry('assets/m.esmaterial.bin')?.editorType)
+            .toBe(getAssetTypeEntry('assets/m.esmaterial')?.editorType);
+    });
+
+    // …but a file that really is named `.bin` keeps reading as one: stripping
+    // unconditionally would leave `foo.bin` looking like a file with no extension.
+    it('leaves a real .bin alone', () => {
+        expect(getAssetTypeEntry('assets/blob.bin')).toBe(getAssetTypeEntry('assets/other.bin'));
+        expect(getAssetTypeEntry('assets/unknown.xyz.bin')).toBeUndefined();
+    });
+});
