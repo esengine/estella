@@ -789,8 +789,8 @@ export const GOLDEN = [
     interactGap: 'needs a listen server up before input means anything',
     // A packaged frame cannot tell a live session from a dead one, so a run
     // settles this instead: check-arena-server serves the project headless over
-    // a real socket and drives two clients through it, under static-gates.
-    runBy: 'node tools/run-gates.mjs --scope local --complete',
+    // a real socket and drives two clients through it, under the built-engine gates.
+    runBy: 'node tools/run-gates.mjs --scope local --where local',
   },
   {
     id: 'video-puzzle',

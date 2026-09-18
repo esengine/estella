@@ -254,11 +254,27 @@ export const CRITERIA = [
   {
     id: 'static-gates',
     says: 'every declared contract still holds (api surface, layers, corpus, host shim…)',
-    // --complete, because `pnpm run verify` answers "the gates that could run
-    // are green" — which on a checkout without the editor was 69 of 80, and
-    // exited 0 all the same.
-    answeredBy: 'node tools/run-gates.mjs --scope local --complete',
+    // --complete, because `pnpm run verify` answers "the gates that could run are
+    // green" — 69 of 80 without an editor checkout, and exit 0 all the same. `ci`,
+    // not `local`: the seven `local` adds want a built engine no runner here has.
+    answeredBy: 'node tools/run-gates.mjs --scope ci --complete',
     needs: ['tools/check-golden.mjs', 'tools/check-minigame-host.mjs'],
+  },
+  {
+    id: 'gates-that-need-a-built-engine',
+    says: 'the gates a built engine answers — C++ harnesses, the engine off emscripten,'
+      + ' both physics modules, the shader twins, the arena server, and a package that boots',
+    host: 'dev',
+    why: 'each reads something a gate should not download — a pinned Dawn checkout and a build'
+      + ' of it, or the engine and side-module wasm; CI covers them in its own C++ and'
+      + ' engine-coupled jobs, and a release captain answers them together with'
+      + ' `pnpm run gate:run --host dev`',
+    // `--where local` rather than their seven ids: gates.mjs already holds which
+    // gates these are, and a criterion that spelled them again would drift from it
+    // the first time an eighth is added.
+    answeredBy: 'node tools/run-gates.mjs --scope local --where local',
+    needs: ['tools/check-cpp-tests.mjs', 'tools/check-native-build.mjs',
+            'tools/check-script-failure.mjs'],
   },
   {
     id: 'flagship-plays-through',

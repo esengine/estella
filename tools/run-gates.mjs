@@ -17,6 +17,7 @@
  *   node tools/run-gates.mjs --scope local
  *   node tools/run-gates.mjs --scope ci
  *   node tools/run-gates.mjs --scope local --suites owed
+ *   node tools/run-gates.mjs --scope local --where local
  *   node tools/run-gates.mjs --scope local --keep-going --matrix out.json
  */
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -134,18 +135,38 @@ const ONLY = (() => {
   const i = argv.indexOf('--only');
   return i >= 0 && argv[i + 1] ? argv[i + 1].split(',').map((x) => x.trim()).filter(Boolean) : null;
 })();
+/**
+ * Narrow to the gates a scope OWNS — the ones that NAMED it — rather than
+ * everything it runs. One release criterion answers for the gates a built engine
+ * requires, and gates.mjs already holds which those are: naming them again in a
+ * criterion would be the second list this file exists to refuse.
+ */
+const WHERE = (() => {
+  const i = argv.indexOf('--where');
+  return i >= 0 && argv[i + 1] ? argv[i + 1] : null;
+})();
+if (WHERE && !SCOPES.includes(WHERE)) {
+  console.error(`run-gates: unknown --where "${WHERE}" (have: ${SCOPES.join(', ')})`);
+  process.exit(2);
+}
 const gates = gatesFor(SCOPE, HAS_EDITOR, { suites: SUITES })
-  .filter((g) => !ONLY || ONLY.includes(g.id));
-if (ONLY) {
+  .filter((g) => (!ONLY || ONLY.includes(g.id)) && (!WHERE || g.where === WHERE));
+/** Either form answers for the gates it selected and for nothing else. */
+const NARROWED = Boolean(ONLY || WHERE);
+if (NARROWED) {
   // "Complete" is a claim about the whole declared list; a narrowed run cannot
   // make it, and letting it try is how 69/69 got read as an answer about 80.
   if (COMPLETE) {
-    console.error('run-gates: --only cannot be --complete — a narrowed run answers for the gates it named.');
+    console.error('run-gates: a narrowed run cannot be --complete — it answers for the gates it selected.');
     process.exit(2);
   }
-  const missing = ONLY.filter((id) => !gates.some((g) => g.id === id));
-  // A typo'd id silently running nothing is a green run that answered nothing —
-  // the exact shape every gate in this repo exists to refuse.
+  // A selection that runs nothing is a green run that answered nothing — the
+  // exact shape every gate in this repo exists to refuse.
+  if (!gates.length) {
+    console.error(`run-gates: ${WHERE ? `--where ${WHERE}` : '--only'} selected no gate this scope runs.`);
+    process.exit(2);
+  }
+  const missing = (ONLY ?? []).filter((id) => !gates.some((g) => g.id === id));
   if (missing.length) {
     console.error(`run-gates: --only named ${missing.length} gate(s) this scope does not run:`
       + ` ${missing.join(', ')}`);
@@ -156,9 +177,9 @@ const skipped = GATES.filter((g) => g.where && g.where !== SCOPE);
 /** Suites this run is not paying for — named, never silently absent. */
 const unpaid = gatesFor(SCOPE, HAS_EDITOR)
   .filter((g) => g.covers?.length && !gates.includes(g));
-/** Everything --only left out, suites included: a narrowed run answers for the
- *  gates it named and nothing else, and must not read as a list that went green. */
-const narrowed = ONLY ? gatesFor(SCOPE, HAS_EDITOR).filter((g) => !gates.includes(g)) : [];
+/** Everything a narrowing left out, suites included: such a run answers for the
+ *  gates it selected and nothing else, and must not read as a list that went green. */
+const narrowed = NARROWED ? gatesFor(SCOPE, HAS_EDITOR).filter((g) => !gates.includes(g)) : [];
 const noEditor = HAS_EDITOR ? [] : GATES.filter((g) => g.needs === 'editor' && (!g.where || g.where === SCOPE));
 console.log(`gates ${SCOPE}: ${gates.length} of ${GATES.length}`);
 if (noEditor.length) {
@@ -196,15 +217,15 @@ function reportSuites() {
     console.log(`  ${changed.length} changed path(s) read for suite ownership`
       + `${SUITES.size ? '' : ' — none of them under a suite\'s `owns`'}`);
   }
-  if (unpaid.length && !ONLY) {
+  if (unpaid.length && !NARROWED) {
     const why = SUITE_MODE === 'owed'
       ? 'nothing changed under what they answer for; CI runs them all'
       : `--suites ${SUITE_MODE}; CI runs them`;
     console.log(`  test suites NOT run: ${unpaid.map((g) => g.id).join(', ')} — ${why}`);
   }
   if (narrowed.length) {
-    console.log(`  --only: ${narrowed.length} gate(s) in this scope were NOT run, so this says`
-      + ' nothing about them');
+    console.log(`  ${WHERE ? `--where ${WHERE}` : '--only'}: ${narrowed.length} gate(s) in this scope`
+      + ' were NOT run, so this says nothing about them');
   }
 }
 
@@ -386,4 +407,14 @@ if (COMPLETE) {
     console.error('  --complete was asked for, so this cannot say the list is green.');
     process.exit(2);
   }
+}
+
+// A narrowed run owes the same for the gates it SELECTED: this printed
+// `0/1 green` and exited 0, the text saying native-build answered nothing while
+// the status said the run was clean.
+if (NARROWED && unanswered.length) {
+  console.error(`\n${unanswered.length} of the ${gates.length} gate(s) selected answered nothing here:`
+    + ` ${unanswered.join(', ')}`);
+  console.error('  a narrowed run answers for the gates it selected, so this cannot say they are green.');
+  process.exit(CANNOT_ANSWER);
 }
