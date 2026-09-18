@@ -14,6 +14,15 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Fixed
+
+- **An asset that fails to load says so.** A reference pointing at nothing already warned,
+  but an asset whose load actually threw was recorded silently: the scene opened with no
+  texture, no environment and no complaint anywhere, which looks exactly like a scene that
+  has none. A report from a 0.69.0 user showed the shape of it — a 3D template open for six
+  minutes with zero textures loaded, zero render targets and not one warning in the whole
+  diagnostic bundle. The failures are now warned once, with what failed and why.
+
 ### Added
 
 - **A WeChat mini-game can ship its engine compressed, freeing a third of the main

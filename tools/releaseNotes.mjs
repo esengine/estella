@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(assets): a load that failed is warned, not only recorded':
+    { note: 'An asset that fails to load says so.' },
+
   'feat(export): the engine binary can ship as .wasm.br to a host that takes one':
     { note: 'A WeChat mini-game can ship its engine compressed, freeing a third of the main' },
 

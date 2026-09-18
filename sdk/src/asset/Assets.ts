@@ -1419,6 +1419,14 @@ export class Assets {
             onProgress?.(++loadedCount, totalCount);
         });
 
+        // `unresolved` refs warn above; a load that THREW only reached `missing`,
+        // which callers may ignore — so a scene drew with no textures and no
+        // complaint, indistinguishable from a scene that has none.
+        const failed = missing.filter((m) => m.reason === 'load-failed');
+        if (failed.length > 0) {
+            log.warn('asset', `${failed.length} asset(s) failed to load`, failed);
+        }
+
         return { textureHandles, materialHandles, fontHandles, meshHandles, environmentHandles,
                  probeVolumeHandles, releaseCallbacks, scope, missing };
     }

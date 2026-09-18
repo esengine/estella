@@ -113,3 +113,34 @@ describe('MissingAssetsError', () => {
         expect(err.message).toMatch(/1 asset/);
     });
 });
+
+
+describe('a load that failed says so', () => {
+    // An `unresolved` ref warns; a load that THREW only reached `missing`, which
+    // the editor's caller ignores — leaving a scene with no textures and no
+    // complaint, indistinguishable from a scene that has none.
+    it('warns when an asset fails to load, not only when a ref is unresolved', async () => {
+        const { Assets } = await import('../src/asset/Assets');
+        const { log } = await import('../src/util/logger');
+        const warn = vi.spyOn(log, 'warn').mockImplementation(() => {});
+        try {
+            const assets = Assets.create({
+                backend: {
+                    resolveUrl: (p: string) => p,
+                    fetchText: async () => { throw new Error('disk went away'); },
+                    fetchBinary: async () => { throw new Error('disk went away'); },
+                } as never,
+                module: { _malloc: () => 0, _free: () => {} } as never,
+            });
+            const res = await assets.preloadSceneAssets(scene('assets/ok.png'));
+
+            const failed = res.missing.filter((m: { reason: string }) => m.reason === 'load-failed');
+            expect(failed.length).toBeGreaterThan(0);
+            const said = warn.mock.calls.some(([scope, msg]) =>
+                scope === 'asset' && String(msg).includes('failed to load'));
+            expect(said, `a failed load was recorded but never logged: ${JSON.stringify(res.missing)}`).toBe(true);
+        } finally {
+            warn.mockRestore();
+        }
+    });
+});
