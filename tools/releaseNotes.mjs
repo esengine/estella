@@ -43,6 +43,9 @@ export const NOTED = {
   'feat(build): a preflight refusal about the content can be answered':
     { note: 'A build the preflight objects to can be packaged anyway.' },
 
+  'fix(gates): the build adjudicator gate reads both halves of the decision':
+    { internal: 'A repository gate reading the editor source; no creator runs it.' },
+
   'feat(render): the WebGPU backend draws the scene and the backbuffer multisampled':
     { note: 'Geometry edges are anti-aliased on WebGPU, which is every native build.' },
 
