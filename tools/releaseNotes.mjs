@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(build): the size panel says why a file is in the package, and what moved':
+    { note: 'The build size report says why a file is in your package, and what changed since the' },
+
   'feat(export): the size report says why a file is in the package, and what moved':
     { note: 'The build size report says why a file is in your package, and what changed since the' },
 
