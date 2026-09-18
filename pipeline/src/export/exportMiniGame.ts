@@ -90,6 +90,10 @@ function stripUuidRefs(v: unknown): unknown {
 interface RuntimeLayout {
   /** Package-relative path the boot config hands the loader. */
   readonly enginePath: string;
+  /** Package-relative directory the runtime artifacts land in, as the generated
+   *  entry requires them (`./wasm/`) — one author for where they are and where
+   *  they are asked for. */
+  readonly runtimeDir: string;
   /** Engine artifacts to stage, as the name in `wasmDir` → the name in the package. */
   readonly files: ReadonlyArray<{ readonly src: string; readonly staged: string; readonly brotli?: true }>;
 }
@@ -109,6 +113,7 @@ function planRuntimeLayout(
   const engineStaged = brotli ? `${engineBinary}.br` : engineBinary;
   return {
     enginePath: `wasm/${engineStaged}`,
+    runtimeDir: 'wasm',
     files: [
       { src: engineGlueFile, staged: engineGlueFile },
       ...(brotli
@@ -489,7 +494,8 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
       );
     }
   }
-  await writeFile(path.join(absOut, 'game.js'), profile.emitEntry({ sideModules, engineGlueFile }));
+  await writeFile(path.join(absOut, 'game.js'),
+    profile.emitEntry({ sideModules, engineGlueFile, runtimeDir: runtimeLayout.runtimeDir }));
   const configFiles = profile.emitConfigFiles({
     title,
     appid: opts.appid ?? '',

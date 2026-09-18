@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'refactor(export): the entry asks for the runtime where the layout put it':
+    { internal: 'One author for a path inside the package; what it answers is unchanged.' },
+
   'fix(assets): a load that failed is warned, not only recorded':
     { note: 'An asset that fails to load says so.' },
 
