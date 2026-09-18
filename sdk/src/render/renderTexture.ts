@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { Renderer, type RenderTargetHandle } from './renderer';
+import { Renderer, deviceGeneration, type RenderTargetHandle } from './renderer';
 import { getResourceManager } from '../wasm/resourceManager';
 
 export interface RenderTextureOptions {
@@ -25,6 +25,8 @@ export interface RenderTextureHandle {
     height: number;
     _depth: boolean;
     _filter: 'nearest' | 'linear';
+    /** The device generation its pixels were drawn on — see {@link RenderTexture.contentLost}. */
+    _generation: number;
 }
 
 /**
@@ -62,6 +64,7 @@ export const RenderTexture = {
             height: options.height,
             _depth: depth,
             _filter: linear ? 'linear' : 'nearest',
+            _generation: deviceGeneration(),
         };
     },
 
@@ -86,5 +89,20 @@ export const RenderTexture = {
 
     getDepthTexture(rt: RenderTextureHandle): number {
         return Renderer.getTargetDepthTexture(rt._handle);
+    },
+
+    /**
+     * Whether the device has been rebuilt since this target was drawn: the storage
+     * is there, zero-filled, and only whoever drew the pixels can put them back.
+     * A target a camera renders every frame never needs asking; one drawn once
+     * (a minimap, a baked mask) does. Pair it with `onDeviceRestored`.
+     */
+    contentLost(rt: RenderTextureHandle): boolean {
+        return rt._generation !== deviceGeneration();
+    },
+
+    /** Says the target has been drawn again, which is what clears {@link contentLost}. */
+    contentDrawn(rt: RenderTextureHandle): void {
+        rt._generation = deviceGeneration();
     },
 };

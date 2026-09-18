@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(render): a game is told the device came back, and which target it drew is blank':
+    { note: 'The picture comes back after the GPU is lost.' },
+
   'fix(render): a video and a canvas come back after the GPU is lost':
     { note: 'The picture comes back after the GPU is lost.' },
 

@@ -4,6 +4,8 @@ import type { Plugin } from './app';
 import { initResourceManager, shutdownResourceManager, setRetainedBudget, setTextureBudget, trimTextureCache } from '../wasm/resourceManager';
 import { platformOnMemoryWarning } from '../platform/base';
 import { RuntimeConfig } from '../defaults';
+import { pollDeviceRestored, resetDeviceRestoredWatch } from '../render/renderer';
+import { Schedule, defineSystem } from '../ecs/system';
 import { initDrawAPI, shutdownDrawAPI } from '../render/draw';
 import { clearDrawCallbacks } from '../render/customDraw';
 import { initMaterialAPI, shutdownMaterialAPI } from '../render/material';
@@ -42,9 +44,15 @@ export const corePlugin: Plugin = {
         // wants the camera being resolved, and an overlay on the picture wants
         // the one that drew it. Two questions, so two resources.
         app.insertResource(PresentedCameraView, presentedCameraView(app));
+        // One integer a frame, in the core rather than in whoever drives the
+        // recovery: a host without the asset layer loses its device too, and a
+        // game learns the picture came back from one place either way.
+        app.addSystemToSchedule(Schedule.First, defineSystem([], pollDeviceRestored,
+                                                            { name: 'DeviceRestoredWatch' }));
     },
 
     cleanup() {
+        resetDeviceRestoredWatch();
         offMemoryWarning?.();
         offMemoryWarning = null;
         clearDrawCallbacks();

@@ -6,6 +6,7 @@ import { handleWasmError } from '../wasm/wasmError';
 import { requireResourceManager } from '../wasm/resourceManager';
 import { platformOnContextLost } from '../platform';
 import { findWebGL2Context } from '../asset/glTextureUpload';
+import { log } from '../util/logger';
 import { decodeFrameCapture, replayToDrawCall as replayToDrawCallImpl, getSnapshotImageData as getSnapshotImpl, type FrameCaptureData } from './frameCapture';
 import { acquireWebGPUDevice } from './webgpuBoot';
 
@@ -357,6 +358,60 @@ export function getContextLossGuardInfo(): { target: string; lostEventsSeen: num
  */
 export function recoverDevice(): boolean {
     return module?.recoverDevice?.() ?? false;
+}
+
+/**
+ * Which generation of the GPU device is current; every rebuild advances it.
+ * 0 where the core cannot answer.
+ */
+export function deviceGeneration(): number {
+    return module?.renderer_deviceGeneration?.() ?? 0;
+}
+
+/** Told that the device came back, with the generation it came back as. */
+export type DeviceRestoredListener = (generation: number) => void;
+
+const deviceRestoredListeners = new Set<DeviceRestoredListener>();
+let seenDeviceGeneration_ = -1;
+
+/**
+ * Called after the device has been rebuilt AND refilled — everything the GPU held
+ * is new storage, so content the game drew itself (a render texture) is blank
+ * until it is drawn again. Returns the unsubscribe.
+ */
+export function onDeviceRestored(listener: DeviceRestoredListener): () => void {
+    deviceRestoredListeners.add(listener);
+    return () => { deviceRestoredListeners.delete(listener); };
+}
+
+/**
+ * @internal The one watcher, ticked once a frame by the core plugin. Reads the
+ * GENERATION, not the status: a loss that is recovered from between two frames
+ * leaves the status back at Live with nothing to notice.
+ */
+export function pollDeviceRestored(): void {
+    const generation = deviceGeneration();
+    if (seenDeviceGeneration_ < 0) {
+        seenDeviceGeneration_ = generation;
+        return;
+    }
+    // Still owed content: the device is drawing placeholders, so a game redrawing
+    // now would be told it is whole while half of it is not there yet.
+    if (generation === seenDeviceGeneration_ || getDeviceStatus() !== DeviceStatus.Live) return;
+    seenDeviceGeneration_ = generation;
+    for (const listener of [...deviceRestoredListeners]) {
+        try {
+            listener(generation);
+        } catch (err) {
+            log.error('render', 'a deviceRestored listener threw', err);
+        }
+    }
+}
+
+/** @internal Test seam: forget the device the watcher has seen. */
+export function resetDeviceRestoredWatch(): void {
+    deviceRestoredListeners.clear();
+    seenDeviceGeneration_ = -1;
 }
 
 /**

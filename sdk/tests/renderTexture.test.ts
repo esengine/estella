@@ -2,7 +2,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
+let generation = 1;
 vi.mock('../src/render/renderer', () => ({
+    deviceGeneration: () => generation,
     Renderer: {
         createRenderTarget: vi.fn().mockReturnValue(1),
         releaseRenderTarget: vi.fn(),
@@ -62,6 +64,7 @@ describe('RenderTexture', () => {
                 height: 512,
                 _depth: true,
                 _filter: 'nearest',
+                _generation: generation,
             });
         });
 
@@ -105,7 +108,7 @@ describe('RenderTexture', () => {
                 return 2;
             });
 
-            const rt = { _handle: 1, textureId: 100, texture: 0, width: 256, height: 256, _depth: true, _filter: 'nearest' as const };
+            const rt = { _handle: 1, textureId: 100, texture: 0, width: 256, height: 256, _depth: true, _filter: 'nearest' as const, _generation: generation };
             RenderTexture.resize(rt, 512, 512);
 
             expect(callOrder).toEqual(['release', 'create']);
@@ -116,7 +119,7 @@ describe('RenderTexture', () => {
             (Renderer.createRenderTarget as ReturnType<typeof vi.fn>).mockReturnValue(5);
             (Renderer.getTargetTexture as ReturnType<typeof vi.fn>).mockReturnValue(500);
 
-            const rt = { _handle: 1, textureId: 100, texture: 0, width: 256, height: 256, _depth: true, _filter: 'nearest' as const };
+            const rt = { _handle: 1, textureId: 100, texture: 0, width: 256, height: 256, _depth: true, _filter: 'nearest' as const, _generation: generation };
             const resized = RenderTexture.resize(rt, 1024, 768);
 
             expect(resized).toEqual({
@@ -127,17 +130,18 @@ describe('RenderTexture', () => {
                 height: 768,
                 _depth: true,
                 _filter: 'nearest',
+                _generation: generation,
             });
         });
 
         it('preserves depth=false and filter=linear through resize', () => {
-            const rt = { _handle: 1, textureId: 100, texture: 0, width: 64, height: 64, _depth: false, _filter: 'linear' as const };
+            const rt = { _handle: 1, textureId: 100, texture: 0, width: 64, height: 64, _depth: false, _filter: 'linear' as const, _generation: generation };
             RenderTexture.resize(rt, 128, 128);
             expect(Renderer.createRenderTarget).toHaveBeenCalledWith(128, 128, 2);
         });
 
         it('preserves depth=true and filter=nearest through resize', () => {
-            const rt = { _handle: 1, textureId: 100, texture: 0, width: 64, height: 64, _depth: true, _filter: 'nearest' as const };
+            const rt = { _handle: 1, textureId: 100, texture: 0, width: 64, height: 64, _depth: true, _filter: 'nearest' as const, _generation: generation };
             RenderTexture.resize(rt, 128, 128);
             expect(Renderer.createRenderTarget).toHaveBeenCalledWith(128, 128, 1);
         });
@@ -182,7 +186,7 @@ describe('RenderTexture', () => {
     describe('begin / end', () => {
         it('calls Renderer.begin with viewProjection and handle', () => {
             const vp = new Float32Array(16);
-            const rt = { _handle: 7, textureId: 100, width: 256, height: 256, _depth: true, _filter: 'nearest' as const };
+            const rt = { _handle: 7, textureId: 100, texture: 0, width: 256, height: 256, _depth: true, _filter: 'nearest' as const, _generation: generation };
             RenderTexture.begin(rt, vp);
             expect(Renderer.begin).toHaveBeenCalledWith(vp, 7);
         });
@@ -194,7 +198,7 @@ describe('RenderTexture', () => {
 
         it('passes arguments in correct order (viewProjection first, handle second)', () => {
             const vp = new Float32Array([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
-            const rt = { _handle: 3, textureId: 100, width: 128, height: 128, _depth: true, _filter: 'nearest' as const };
+            const rt = { _handle: 3, textureId: 100, texture: 0, width: 128, height: 128, _depth: true, _filter: 'nearest' as const, _generation: generation };
             RenderTexture.begin(rt, vp);
 
             const call = (Renderer.begin as ReturnType<typeof vi.fn>).mock.calls[0];
@@ -205,16 +209,41 @@ describe('RenderTexture', () => {
 
     describe('getDepthTexture', () => {
         it('proxies to Renderer.getTargetDepthTexture with correct handle', () => {
-            const rt = { _handle: 9, textureId: 100, width: 256, height: 256, _depth: true, _filter: 'nearest' as const };
+            const rt = { _handle: 9, textureId: 100, texture: 0, width: 256, height: 256, _depth: true, _filter: 'nearest' as const, _generation: generation };
             RenderTexture.getDepthTexture(rt);
             expect(Renderer.getTargetDepthTexture).toHaveBeenCalledWith(9);
         });
 
         it('returns the value from Renderer', () => {
             (Renderer.getTargetDepthTexture as ReturnType<typeof vi.fn>).mockReturnValue(999);
-            const rt = { _handle: 9, textureId: 100, width: 256, height: 256, _depth: true, _filter: 'nearest' as const };
+            const rt = { _handle: 9, textureId: 100, texture: 0, width: 256, height: 256, _depth: true, _filter: 'nearest' as const, _generation: generation };
             const result = RenderTexture.getDepthTexture(rt);
             expect(result).toBe(999);
+        });
+    });
+
+    describe('content after a device loss', () => {
+        it('says its pixels are gone once the device is rebuilt, until they are drawn again', () => {
+            generation = 1;
+            const rt = RenderTexture.create({ width: 32, height: 32 });
+            expect(RenderTexture.contentLost(rt)).toBe(false);
+
+            // What a loss leaves: the storage is back, zero-filled, and only
+            // whoever drew the pixels can put them there.
+            generation = 2;
+            expect(RenderTexture.contentLost(rt)).toBe(true);
+
+            RenderTexture.contentDrawn(rt);
+            expect(RenderTexture.contentLost(rt)).toBe(false);
+
+            generation = 3;
+            expect(RenderTexture.contentLost(rt)).toBe(true);
+        });
+
+        it('a target made after the loss is not born lost', () => {
+            generation = 5;
+            const rt = RenderTexture.create({ width: 8, height: 8 });
+            expect(RenderTexture.contentLost(rt)).toBe(false);
         });
     });
 });

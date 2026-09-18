@@ -237,6 +237,21 @@ const freed = trimTextureCache();      // 立即丢弃所有可逐出纹理
 `RuntimeConfig.retainedBudget`(默认 **16 MB**,构建配置里的 `retainedBudget`,或
 `setRetainedBudget(bytes)`;0 表示从不告警)时会告警一次。
 
+引擎放不回来的是**你的游戏自己画的**内容:渲染纹理是 GPU 存储,设备重建后交还给你的是空的。
+`onDeviceRestored` 告诉你什么时候该重画,`RenderTexture.contentLost` 告诉你哪一张需要重画——
+每帧都被相机渲染的那种从来不需要。
+
+```typescript
+import { onDeviceRestored, RenderTexture } from 'esengine';
+
+const minimap = RenderTexture.create({ width: 256, height: 256 });
+onDeviceRestored(() => {
+  if (!RenderTexture.contentLost(minimap)) return;
+  drawMinimap(minimap);                  // 你自己的绘制
+  RenderTexture.contentDrawn(minimap);   // ……并声明它又有内容了
+});
+```
+
 想逐帧观察这些数字(编辑器内和运行时),见[性能分析](/docs/zh-cn/performance/profiling/)。
 逐纹理的**采样/过滤**参数(像素风 nearest 还是平滑 linear)见
 [精灵指南](/docs/zh-cn/graphics/sprites/)。

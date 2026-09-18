@@ -36,7 +36,9 @@ published separately; it ships inside the editor.
   skeleton atlas pages decoded again from their images, so neither keeps a second copy in
   memory — 4 MiB for every 1024×1024 page. A video and an open-data leaderboard come back
   too: their frames were going into a texture the lost context had already destroyed, so a
-  paused video stayed blank for good.
+  paused video stayed blank for good. What the engine cannot put back — a render texture the
+  game drew itself — is now the game's to redraw: `onDeviceRestored` says when, and
+  `RenderTexture.contentLost` says which target is blank.
 
 - **A hot update on iOS, Android and desktop builds is still there after a restart
   without a network.** The native host only stores cache files under plain names, and

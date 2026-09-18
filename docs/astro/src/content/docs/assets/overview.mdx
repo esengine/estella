@@ -279,6 +279,22 @@ engine's own is about 28 KB. It warns once when the copy grows past
 `RuntimeConfig.retainedBudget` (**16 MB** by default, `retainedBudget` in the
 build config, or `setRetainedBudget(bytes)`; 0 never warns).
 
+What the engine cannot put back is content **your game drew**: a render texture
+is GPU storage, so a rebuilt device hands it back blank. `onDeviceRestored` says
+when to draw it again, and `RenderTexture.contentLost` says which target needs
+it — a target a camera renders every frame never does.
+
+```typescript
+import { onDeviceRestored, RenderTexture } from 'esengine';
+
+const minimap = RenderTexture.create({ width: 256, height: 256 });
+onDeviceRestored(() => {
+  if (!RenderTexture.contentLost(minimap)) return;
+  drawMinimap(minimap);                  // your own draw
+  RenderTexture.contentDrawn(minimap);   // …and say it holds pixels again
+});
+```
+
 For watching these numbers frame-over-frame in the editor and at runtime, see
 [Profiling](/docs/performance/profiling/). Per-texture **sampling/filtering**
 parameters (pixel-art nearest vs. smooth linear) are covered in the

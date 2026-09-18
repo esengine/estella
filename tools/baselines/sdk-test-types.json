@@ -177,9 +177,6 @@
     "TS2339|Property 'isInitialized' does not exist on type 'ResourceDef<PostProcessAPI>'.": 1,
     "TS2339|Property 'resize' does not exist on type 'ResourceDef<PostProcessAPI>'.": 2
   },
-  "tests/renderTexture.test.ts": {
-    "TS2345|Argument of type '{ _handle: number; textureId: number; width: number; height: number; _depth: boolean; _filter: \"nearest\"; }' is not assignable to parameter of type 'RenderTextureHandle'.": 4
-  },
   "tests/runtime-only-serialize.test.ts": {
     "TS2551|Property 'getRegistry' does not exist on type 'MockModule'. Did you mean 'Registry'?": 1
   },

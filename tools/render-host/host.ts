@@ -23,7 +23,7 @@ import {
     getContextLossGuardInfo, decodeImagePixels, captureFramePixels,
     RenderTexture, Camera, Sprite,
     EditorView, EditorGrid, installEditorGrid, editorViewHalfHeight, setEditorViewHalfHeight,
-    ProfileRecorder, AnimatorController, Timeline,
+    ProfileRecorder, AnimatorController, Timeline, onDeviceRestored, Schedule, defineSystem,
 } from 'esengine';
 import type { App, SceneData, SceneEntityData, PrefabData, RenderSurfaceSource } from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
@@ -778,7 +778,12 @@ window.__estellaHeadless = {
      * second camera's texture, so the probe reads a colour that only exists
      * because a camera rendered somewhere other than the screen.
      */
-    renderToTexture: (spec: { camera: number; sprite: number; width: number; height: number }) => {
+    renderToTexture: (spec: {
+        camera: number; sprite: number; width: number; height: number;
+        /** Draw the target ONCE and stop, the way a game bakes a minimap. Only the
+         *  deviceRestored event and RenderTexture.contentLost can bring it back. */
+        once?: boolean;
+    }) => {
         if (!app) return null;
         // By the order the scene lists them: a loaded entity's handle carries a
         // generation, so the ids in a scene file are not the World's.
@@ -794,6 +799,30 @@ window.__estellaHeadless = {
         const sprite = app.world.get(spriteEntity, Sprite) as { texture: number };
         sprite.texture = rt.texture;
         app.world.insert(spriteEntity, Sprite, sprite as never);
+        if (spec.once) {
+            // What a game with baked content does: draw for a couple of frames,
+            // then stop — and draw again when it is told the device came back.
+            let framesLeft = 2;
+            // Turned OFF, not re-pointed: a camera whose target is 0 draws to the
+            // screen, which is not what "stopped baking" means.
+            const bake = (on: boolean): void => {
+                const c = app!.world.get(camEntity, Camera) as { renderTarget: number; isActive: boolean };
+                c.renderTarget = rt._handle;
+                c.isActive = on;
+                app!.world.insert(camEntity, Camera, c as never);
+            };
+            app.addSystemToSchedule(Schedule.Last, defineSystem([], () => {
+                if (framesLeft > 0 && --framesLeft === 0) {
+                    bake(false);
+                    RenderTexture.contentDrawn(rt);
+                }
+            }, { name: 'RenderTargetBakeStop' }));
+            onDeviceRestored(() => {
+                if (!RenderTexture.contentLost(rt)) return;
+                bake(true);
+                framesLeft = 2;
+            });
+        }
         return {
             target: rt._handle,
             texture: rt.texture,

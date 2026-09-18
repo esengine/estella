@@ -750,6 +750,10 @@ export const SCENES = [
   // a playing one would paper over a missing refill with its next frame, and the
   // clip is one still image, so nothing else can tell the two apart.
   { id: "device-roundtrip-video", tier: "nightly", webgpu: true, env: { ESTELLA_VERIFY_DEVICE_LOSS: "roundtrip", ESTELLA_VERIFY_LOSS_ROUNDS: "2", ESTELLA_VERIFY_PLAY: "1", ESTELLA_VERIFY_SETTLE_MS: "4000", ESTELLA_VERIFY_SCENE: "/scenes/video-ended.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/video-ended.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2" } },
+  // Content the GAME drew and nothing redraws: the target is baked once, so only the
+  // deviceRestored event plus contentLost can carry it through a loss (a camera still
+  // rendering into it would heal by itself). The EXPECT is read AFTER both losses.
+  { id: "device-roundtrip-render-target", tier: "pr", env: { ESTELLA_VERIFY_DEVICE_LOSS: "roundtrip", ESTELLA_VERIFY_LOSS_ROUNDS: "2", ESTELLA_VERIFY_SCENE: "/scenes/camera-target.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/camera-target.textures.json", ESTELLA_VERIFY_CAMERA_TARGET: "{\"camera\":0,\"sprite\":3,\"width\":128,\"height\":128,\"once\":true}", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":40}]" } },
   { id: "device-roundtrip-post", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_DEVICE_LOSS: "roundtrip", ESTELLA_VERIFY_LOSS_ROUNDS: "2", ESTELLA_VERIFY_PLAY: "1", ESTELLA_VERIFY_SCENE: "/scenes/ui-screen-post.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/ui-screen-post.textures.json", ESTELLA_VERIFY_W: "640", ESTELLA_VERIFY_H: "360", ESTELLA_VERIFY_STEPS: "4" } },
 ];
 

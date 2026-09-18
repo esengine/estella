@@ -190,6 +190,9 @@ export {
     getDeviceLostReport,
     reportDeviceLost,
     recoverDevice,
+    deviceGeneration,
+    onDeviceRestored,
+    type DeviceRestoredListener,
     getContextLossGuardInfo,
 } from './render/renderer';
 
