@@ -754,6 +754,11 @@ export const SCENES = [
   // deviceRestored event plus contentLost can carry it through a loss (a camera still
   // rendering into it would heal by itself). The EXPECT is read AFTER both losses.
   { id: "device-roundtrip-render-target", tier: "pr", env: { ESTELLA_VERIFY_DEVICE_LOSS: "roundtrip", ESTELLA_VERIFY_LOSS_ROUNDS: "2", ESTELLA_VERIFY_SCENE: "/scenes/camera-target.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/camera-target.textures.json", ESTELLA_VERIFY_CAMERA_TARGET: "{\"camera\":0,\"sprite\":3,\"width\":128,\"height\":128,\"once\":true}", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[255,0,0],\"tol\":40}]" } },
+  // The same roundtrip in the EDITOR host, which is where the 0.68 losses were
+  // actually seen: its viewport draws through the editor's own camera and grid,
+  // and every one of those objects had its own recovery path before RM-063.
+  { id: "device-roundtrip-editor-3d", tier: "pr", host: "editor", env: { ESTELLA_VERIFY_DEVICE_LOSS: "roundtrip", ESTELLA_VERIFY_LOSS_ROUNDS: "2", ESTELLA_VERIFY_SCENE: "/scenes/mesh-lit.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-lit.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "3" } },
+  { id: "device-roundtrip-editor-grid", tier: "pr", host: "editor", env: { ESTELLA_VERIFY_DEVICE_LOSS: "roundtrip", ESTELLA_VERIFY_LOSS_ROUNDS: "2", ESTELLA_VERIFY_LOSS_GRID: "64", ESTELLA_VERIFY_SCENE: "/scenes/sprite-rendering.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/sprite-rendering.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "3" } },
   { id: "device-roundtrip-post", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_DEVICE_LOSS: "roundtrip", ESTELLA_VERIFY_LOSS_ROUNDS: "2", ESTELLA_VERIFY_PLAY: "1", ESTELLA_VERIFY_SCENE: "/scenes/ui-screen-post.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/ui-screen-post.textures.json", ESTELLA_VERIFY_W: "640", ESTELLA_VERIFY_H: "360", ESTELLA_VERIFY_STEPS: "4" } },
 ];
 
