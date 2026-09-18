@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(export): a mini-game package carries only what its packer will upload':
+    { note: 'A WeChat package no longer carries files the upload would refuse.' },
+
   'refactor(assets): what a restaged .bin really is, answered in one place':
     { internal: 'One reader for a packaging spelling; what resolves is unchanged.' },
 

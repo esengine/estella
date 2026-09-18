@@ -11,7 +11,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { runtimeConfigOf } from '../src/project/runtimeConfig';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, readdirSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { exportGame } from '../src/export/exportGame';
@@ -21,6 +21,7 @@ let out: string;
 const TEX = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 const SCN = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb';
 const SUBTEX = 'cccccccc-cccc-cccc-cccc-cccccccccccc';
+const LOC = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
 const meta = (uuid: string, type: string) => JSON.stringify({ uuid, version: '2.0', type, importer: {} });
 
 beforeAll(() => {
@@ -34,6 +35,12 @@ beforeAll(() => {
     JSON.stringify({ version: '1.0', name: 'Main', entities: [{ id: 0, components: [{ type: 'Sprite', data: { texture: `@uuid:${TEX}` } }] }] }),
   );
   writeFileSync(path.join(root, 'scenes', 'main.esscene.meta'), meta(SCN, 'scene'));
+  // An authored format whose suffix is NOT on WeChat's upload whitelist. Without
+  // one here, a gate about that whitelist has nothing to be wrong about — which
+  // is how a package full of them built clean for as long as it did.
+  mkdirSync(path.join(root, 'assets', 'i18n'), { recursive: true });
+  writeFileSync(path.join(root, 'assets', 'i18n', 'en.eslocale'), JSON.stringify({ hello: 'hi' }));
+  writeFileSync(path.join(root, 'assets', 'i18n', 'en.eslocale.meta'), meta(LOC, 'locale'));
   // A lazy-subpackage asset (folder convention): NOT referenced by the entry
   // scene, so it exercises force-include + grouping.
   mkdirSync(path.join(root, 'subpackages', 'level2'), { recursive: true });
@@ -632,6 +639,47 @@ describe('exportGame (wechat)', () => {
     expect(existsSync(path.join(o, 'wasm', 'esengine.wasm'))).toBe(true);
     expect(existsSync(path.join(o, 'subpackages', 'engine'))).toBe(false);
     expect(readFileSync(path.join(o, 'game.js'), 'utf8')).not.toContain('loadSubpackage');
+  }, 60_000);
+  // WeChat publishes the suffixes its packer will UPLOAD. A file outside that
+  // list is readable in devtools and refused at upload — so a package can build
+  // clean, run in the simulator and fail at the one step nobody automates.
+  it('stages nothing the packer would refuse to upload', async () => {
+    const o = path.join(root, 'dist-wx-suffixes');
+    const res = await exportGame({
+      root,
+      entryScene: 'scenes/main.esscene',
+      hostsDir: 'unused-for-wechat',
+      scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: path.join(root, '_wxwasm'),
+      outDir: o,
+      platform: 'wechat',
+      wechatAppid: 'wxTEST0123456789',
+      runtime: runtimeConfigOf({ designResolution: { width: 1280, height: 720 } }),
+    });
+    expect(res.ok).toBe(true);
+
+    // developers.weixin.qq.com/minigame/dev/guide/base-ability/code-package.html
+    const whitelist = new Set(`png jpg jpeg gif svg js json cer obj dae fbx mtl stl 3ds mp3 pvr
+      wav plist ttf fnt gz ccz m4a mp4 bmp atlas swf ani part proto bin sk mipmaps txt zip tt map
+      ogg silk dbbin dbmv etc lmat lm ls lh lani lav lsani ltc aac astc br csv cur dat dds glb
+      gltf ico ktx lmani lml pkm prefab scene wasm xml`.split(/\s+/).filter(Boolean));
+
+    const walk = (dir: string, out: string[] = []): string[] => {
+      for (const e of readdirSync(dir)) {
+        const p = path.join(dir, e);
+        if (statSync(p).isDirectory()) walk(p, out);
+        else out.push(p);
+      }
+      return out;
+    };
+    const refused = walk(o)
+      .map((f) => path.relative(o, f))
+      .filter((f) => {
+        const ext = path.extname(f).slice(1).toLowerCase();
+        return ext !== '' && !whitelist.has(ext);
+      });
+    expect(refused, `these would be refused at upload: ${refused.join(', ')}`).toEqual([]);
   }, 60_000);
 });
 

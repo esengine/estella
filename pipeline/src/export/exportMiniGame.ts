@@ -300,29 +300,30 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   const cook = await cookAssets(opts.root, { entryScenes: scenes.map((s) => s.path), outDir: absOut, contentAddressed: opts.contentAddressed, compressTextures: opts.compressTextures, compressAudio: opts.compressAudio, atlasTextures: opts.atlasTextures, transcodeVideo: true, platform: profile.id });
   warnings.push(...cook.warnings);
 
-  // 1a. Restage for the vendor's code-package suffix whitelist (WeChat has no
-  //     `ktx2`, `esv` or `esscene`; the packer drops such files and fs reads are
-  //     denied regardless of packOptions):
-  //       *.ktx2                → *.ktx2.bin (whitelisted; isKtx2Path accepts both)
-  //       *.esv                 → *.esv.bin (the wasm video backend strips the
-  //                               .bin when deriving the .m4a audio sibling)
-  //       assets/…/<x>.esscene  → scenes/<name>.json, @uuid: refs stripped to the
-  //                               bare uuids the resolver keys by; the manifest
-  //                               entry follows, so scene refs resolve to the file.
+  // 1a. Anything the packer will not upload ships as `<name>.<ext>.bin`. Scenes
+  //     have their own transform below (`<x>.esscene` → `scenes/<name>.json`,
+  //     @uuid: refs stripped to the bare uuids the resolver keys by).
   progress({ phase: 'Transforming scenes' });
-  const binRestageRe = new RegExp(`\\.(${profile.binRestageExts.join('|')})$`);
+  const needsRestage = (p: string): boolean => {
+    if (!profile.packerSuffixes) return false;
+    const ext = path.extname(p).slice(1).toLowerCase();
+    return ext !== '' && !profile.packerSuffixes.has(ext);
+  };
   const flatManifestPath = path.join(absOut, 'assets.manifest.json');
   let cookEntries: CookManifest['entries'] = [];
   const sceneRawByName = new Map<string, unknown>();
   try {
     const flat = JSON.parse(await readFile(flatManifestPath, 'utf8')) as CookManifest;
     for (const e of flat.entries) {
-      if (binRestageRe.test(e.path.toLowerCase())) {
+      // Scenes FIRST: they have a transform of their own below, which leaves a
+      // `.json` the packer takes. Restaging one would ship the authored file
+      // beside the transformed one, under a name nothing reads.
+      const scene = scenes.find((s) => s.path === e.path);
+      if (!scene && needsRestage(e.path)) {
         await rename(path.join(absOut, e.path), path.join(absOut, `${e.path}.bin`));
         e.path = `${e.path}.bin`;
         continue;
       }
-      const scene = scenes.find((s) => s.path === e.path);
       if (scene) {
         const staged = path.join(absOut, e.path);
         const raw = JSON.parse(await readFile(staged, 'utf8'));
@@ -377,7 +378,8 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   const brotli = profile.wasmBrotli && (opts.compressWasm ?? false);
   const runtimeLayout = planRuntimeLayout(engineGlueFile, engineSideModules, {
     brotli,
-    subpackage: profile.subpackageDir !== '' && (opts.engineSubpackage ?? false),
+    // No API global ⇒ nothing to ask for the 分包 with, so it stays in the main package.
+    subpackage: profile.hostGlobal !== null && profile.subpackageDir !== '' && (opts.engineSubpackage ?? false),
     subpackageDir: profile.subpackageDir,
   });
   const engineWasmPath = runtimeLayout.enginePath;

@@ -61,8 +61,9 @@ export interface MiniGameEntryContext {
     /** Package-relative directory those artifacts landed in, decided by the
      *  export's runtime layout. The entry asks for them WHERE THEY ARE. */
     runtimeDir: string;
-    /** The host's API global (`wx` / `tt`), from the profile. */
-    hostGlobal: string;
+    /** The host's API global (`wx` / `tt`), from the profile; null when the
+     *  vendor did not say, in which case nothing is subpackaged. */
+    hostGlobal: string | null;
     /** The 分包 holding the engine binary, when it is in one: the entry has to
      *  ask the host for it before booting, since the file is not in the package
      *  until then. Null when the binary ships in the main package. */
@@ -128,14 +129,19 @@ export interface MiniGameExportProfile {
     readonly sideModuleBuildTargets: Readonly<Record<string, string>>;
     /** Extensions the packer handles natively (no packOptions.include needed). */
     readonly nativeSuffixes: ReadonlySet<string>;
-    /** Custom extensions the packer denies unless restaged to `<ext>.bin`. */
-    readonly binRestageExts: readonly string[];
+    /**
+     * Every extension this host's packer will UPLOAD; anything staged outside it
+     * ships as `<name>.<ext>.bin` (`unwrapRestagedPath` reads through that).
+     * Null ⇒ no published list, so the package is staged exactly as cooked.
+     * A list, not the known failures: an upload rule refuses where nobody looks.
+     */
+    readonly packerSuffixes: ReadonlySet<string> | null;
     /**
      * The global this host exposes its API on: `wx` for WeChat, `tt` for Douyin.
-     * The shared entry needs it to ask for a 分包, and taking it from the profile
-     * is what keeps that entry free of any one vendor's name.
+     * Taking it from the profile keeps the shared entry free of any vendor's
+     * name; null means nothing can be subpackaged, there being nothing to ask.
      */
-    readonly hostGlobal: string;
+    readonly hostGlobal: string | null;
     /**
      * Whether this vendor's loader takes a `.wasm.br` path — a CAPABILITY;
      * spending the build time is `packaging.compressWasm`. WeChat's
@@ -190,6 +196,12 @@ export interface MiniGameExportProfile {
 // WeChat profile
 // =============================================================================
 
+/** WeChat's published code-package suffix whitelist (the "文件类型" table). */
+const WECHAT_PACKER_SUFFIXES: ReadonlySet<string> = new Set(`png jpg jpeg gif svg js json cer obj dae fbx mtl stl 3ds mp3 pvr wav plist ttf fnt gz ccz m4a
+    mp4 bmp atlas swf ani part proto bin sk mipmaps txt zip tt map ogg silk dbbin dbmv etc lmat lm
+    ls lh lani lav lsani ltc aac astc br csv cur dat dds glb gltf ico ktx lmani lml pkm prefab
+    scene wasm xml`.split(/\s+/).filter(Boolean));
+
 export const wechatExportProfile: MiniGameExportProfile = {
     id: 'wechat',
     // The bundle aliases `esengine` → <sdkDir>/index.wechat.js (the wechat SDK build).
@@ -207,8 +219,9 @@ export const wechatExportProfile: MiniGameExportProfile = {
     // Script + config WeChat's packer compiles itself; every OTHER staged custom
     // extension needs a packOptions.include rule (fs reads are otherwise denied).
     nativeSuffixes: new Set(['.js', '.json']),
-    // WeChat's code-package suffix whitelist has no ktx2/esv; restage to *.bin.
-    binRestageExts: ['ktx2', 'esv'],
+    // developers.weixin.qq.com/minigame/dev/guide/base-ability/code-package.html,
+    // "文件类型": only these may be uploaded.
+    packerSuffixes: WECHAT_PACKER_SUFFIXES,
     wasmBrotli: true,
     subpackageDir: 'subpackages',
     subpackageEntry: 'game.js',

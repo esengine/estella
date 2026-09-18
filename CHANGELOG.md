@@ -23,6 +23,15 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A WeChat package no longer carries files the upload would refuse.** WeChat publishes
+  the file types its packer accepts, and an authored format outside that list — a behaviour
+  tree, a locale table, a tileset, a prefab — was staged under its own suffix. Such a
+  package builds clean and runs in devtools, and is rejected at the moment it is uploaded,
+  which is the one step nobody automates. The flagship shipped six such files. They now
+  travel under a name the packer takes, with their real suffix kept in it, and which
+  suffixes those are is derived from the published list rather than from the two that
+  happened to be known.
+
 - **An asset that fails to load says so.** A reference pointing at nothing already warned,
   but an asset whose load actually threw was recorded silently: the scene opened with no
   texture, no environment and no complaint anywhere, which looks exactly like a scene that

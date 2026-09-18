@@ -103,8 +103,17 @@ describe('exportGame (wechat) — every asset resolves to a file the package car
     expect(keys).toContain(MAT);
     expect(keys).toContain(PREFAB);
     const pcfg = JSON.parse(readFileSync(path.join(out, 'project.config.json'), 'utf8'));
-    expect(pcfg.packOptions.include).toContainEqual({ type: 'suffix', value: '.esprefab' });
-    expect(pcfg.packOptions.include).toContainEqual({ type: 'suffix', value: '.esmaterial' });
+    // Every suffix the package actually holds is declared, whatever it turned out
+    // to be: an asset whose own suffix the packer refuses ships restaged as
+    // `.bin`, and THAT is what has to be carried.
+    const held = new Set(Object.values(manifest.groups.main.assets)
+      .map((a) => path.extname(a.path).toLowerCase())
+      .filter((e) => e !== '' && e !== '.js' && e !== '.json'));
+    expect(held.size).toBeGreaterThan(0);
+    for (const ext of held) {
+      expect(pcfg.packOptions.include, `the packer is not told to carry ${ext}`)
+        .toContainEqual({ type: 'suffix', value: ext });
+    }
 
     // Every spelling the game can hold: the uuid a scene carries (the runtime
     // strips the `@uuid:` before the lookup) and the project-relative path code

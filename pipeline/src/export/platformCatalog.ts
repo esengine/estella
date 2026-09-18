@@ -160,7 +160,11 @@ export const MINIGAME_PROFILE_DEFAULTS = {
   wasmBuildHint: 'web',
   sideModuleBuildTargets: {} as Readonly<Record<string, string>>,
   nativeSuffixes: new Set(['.js', '.json']) as ReadonlySet<string>,
-  binRestageExts: [] as readonly string[],
+  // A project's own vendor publishes neither a whitelist nor an API global, so
+  // its package is staged as cooked and its engine stays in the main package.
+  packerSuffixes: null as ReadonlySet<string> | null,
+  hostGlobal: null as string | null,
+  wasmBrotli: false,
   subpackageDir: 'subpackages',
   // Most vendors take a root of assets as a subpackage; the ones that want an
   // entry script in it say so (WeChat: game.js).
