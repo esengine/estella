@@ -14,6 +14,26 @@
  */
 import { SpinePlugin } from '../spine';
 import { DragonBonesPlugin } from '../dragonbones';
+import { loadSpineAssets, applySpineEntities } from '../spine/loadSpineScene';
+import {
+    loadDragonBonesAssets, applyDragonBonesEntities,
+} from '../dragonbones/loadDragonBonesScene';
 import { setEntryPlugins } from './entryPlugins';
+import { setSceneOptionals } from './sceneOptionals';
 
 setEntryPlugins(() => [new SpinePlugin(), new DragonBonesPlugin()]);
+
+// The scene-load half: the loader reaches these only when a scene actually holds
+// a skeleton, so shipping them was always about bytes rather than behaviour.
+setSceneOptionals({
+    spine: {
+        manager: (app) => app.getPlugin(SpinePlugin)?.spineManager ?? null,
+        load: loadSpineAssets,
+        apply: applySpineEntities,
+    },
+    dragonBones: {
+        acquire: async (app) => (await app.getPlugin(DragonBonesPlugin)?.acquire()) ?? null,
+        load: loadDragonBonesAssets,
+        apply: applyDragonBonesEntities,
+    },
+});

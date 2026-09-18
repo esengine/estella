@@ -1,12 +1,7 @@
 {
   "edges": [
-    "sdk/src/runtime/runtimeLoader.ts -> ../dragonbones/DragonBonesPlugin",
-    "sdk/src/runtime/runtimeLoader.ts -> ../dragonbones/loadDragonBonesScene",
     "sdk/src/runtime/runtimeLoader.ts -> ../physics/Physics2DPlugin",
     "sdk/src/runtime/runtimeLoader.ts -> ../physics3d/Physics3DPlugin",
-    "sdk/src/runtime/runtimeLoader.ts -> ../spine/SpineManager",
-    "sdk/src/runtime/runtimeLoader.ts -> ../spine/SpinePlugin",
-    "sdk/src/runtime/runtimeLoader.ts -> ../spine/loadSpineScene",
     "sdk/src/runtime/runtimeLoader.ts -> ../video/VideoAPI"
   ]
 }

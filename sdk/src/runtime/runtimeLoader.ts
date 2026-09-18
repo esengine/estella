@@ -15,13 +15,12 @@ import { switchTheme, resolveThemeTokens, type ThemeOverrides } from '../ui';
 import { discoverSceneAssets } from '../asset/discoverAssets';
 import type { ESEngineModule } from '../wasm';
 import type { SpineWasmModule } from '../spine/SpineModuleLoader';
-import { SpineManager } from '../spine/SpineManager';
+import type { SpineManager } from '../spine/SpineManager';
 import type { PhysicsWasmModule } from '../physics/PhysicsModuleLoader';
 import { Physics2DPlugin, type Physics2DPluginConfig } from '../physics/Physics2DPlugin';
 import type { Physics3DWasmModule } from '../physics3d/Physics3DModule';
 import { Physics3DPlugin } from '../physics3d/Physics3DPlugin';
 import { applyAudioProjectConfig, type AudioProjectConfig } from '../audio/AudioProjectConfig';
-import { SpinePlugin } from '../spine/SpinePlugin';
 import type { App } from '../app/app';
 import { Assets as AssetsClass } from '../asset/Assets';
 import { Assets as AssetsResource } from '../asset/AssetPlugin';
@@ -49,11 +48,11 @@ import { requireResourceManager } from '../wasm/resourceManager';
 import { log } from '../util/logger';
 import type { AotManifest } from '../ecs/aot/AotSystems';
 import { type RuntimeAssetSource, type TextureParams } from './runtimeAssets';
-import { loadSpineAssets, applySpineEntities, type SpineAssetInfo } from '../spine/loadSpineScene';
+import type { SpineAssetInfo } from '../spine/loadSpineScene';
 import type { SceneAssetResult } from '../asset/Assets';
-import { DragonBonesPlugin } from '../dragonbones/DragonBonesPlugin';
 import type { DragonBonesManager } from '../dragonbones/DragonBonesManager';
-import { loadDragonBonesAssets, applyDragonBonesEntities, type DragonBonesAssetInfo } from '../dragonbones/loadDragonBonesScene';
+import { spineSupport, dragonBonesSupport } from './sceneOptionals';
+import type { DragonBonesAssetInfo } from '../dragonbones/loadDragonBonesScene';
 import type { AddressableManifest, ManifestModel } from '../asset/AddressableManifest';
 import type { Catalog } from '../asset/Catalog';
 
@@ -350,7 +349,8 @@ export async function prepareRuntimeScene(
     // app.sideModules host); read it from there so every realm — play / playable /
     // wechat — loads spine assets through one manager. An explicit option still
     // wins for headless/tests.
-    const spineManager = options.spineManager ?? app.getPlugin(SpinePlugin)?.spineManager ?? null;
+    const spine = spineSupport();
+    const spineManager = options.spineManager ?? spine?.manager(app) ?? null;
 
     // Expand prefab instances up front: an exported scene keeps them as a prefab
     // ref + overrides (the cook does not flatten them), and the rest of this
@@ -426,9 +426,9 @@ export async function prepareRuntimeScene(
     // Prepared by the realm, owned by the scene: the receipts join the scope
     // this scene gives back, and a second scene of one spine asset joins its era
     // instead of uploading its pages again.
-    const spineAssetInfo = app.sideModules
-        ? await loadSpineAssets(module, source, spineManager, discovered.spines, transcoderProvider,
-                                { assets: sceneAssets, scope: assetResult.scope })
+    const spineAssetInfo = app.sideModules && spine
+        ? await spine.load(module, source, spineManager, discovered.spines, transcoderProvider,
+                           { assets: sceneAssets, scope: assetResult.scope })
         : new Map<string, SpineAssetInfo>();
 
     // DragonBones, the same two phases. The manager is acquired only when the
@@ -441,11 +441,11 @@ export async function prepareRuntimeScene(
             log.warn('scene', `${discovered.dragonBones.length} DragonBones asset(s) skipped — `
                 + 'this realm has no optional-module host to load the DragonBones runtime from');
         } else {
-            dragonBonesManager = (await app.getPlugin(DragonBonesPlugin)?.acquire()) ?? null;
+            dragonBonesManager = (await dragonBonesSupport()?.acquire(app)) ?? null;
             if (!dragonBonesManager) {
                 log.warn('scene', 'DragonBones assets present but the runtime could not be loaded');
             } else {
-                dragonBonesAssetInfo = await loadDragonBonesAssets(
+                dragonBonesAssetInfo = await dragonBonesSupport()!.load(
                     module, source, discovered.dragonBones, transcoderProvider);
             }
         }
@@ -617,12 +617,13 @@ export async function publishRuntimeScene(
         mark('transform', () => module.transform_update(cppRegistry));
     }
 
-    if (spineManager && cppRegistry) {
-        await timed('spine', () => applySpineEntities({ spineManager, sceneData, entityMap, registry: cppRegistry, assetInfo: spineAssetInfo }));
+    const spine = spineSupport();
+    if (spineManager && cppRegistry && spine) {
+        await timed('spine', () => spine.apply({ spineManager, sceneData, entityMap, registry: cppRegistry, assetInfo: spineAssetInfo }));
     }
 
     if (dragonBonesManager) {
-        mark('dragonbones', () => applyDragonBonesEntities({
+        mark('dragonbones', () => dragonBonesSupport()!.apply({
             manager: dragonBonesManager, sceneData, entityMap, assetInfo: dragonBonesAssetInfo,
         }));
     }

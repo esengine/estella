@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'refactor(sdk): the scene loader asks for Spine and DragonBones, and does not name them':
+    { internal: 'Same subsystems, same behaviour; only which file reaches them changed.' },
+
   'refactor(sdk): an entry point decides which optional subsystems it ships':
     { internal: 'The same plugins are installed; only which file names them changed.' },
 
