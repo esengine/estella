@@ -527,7 +527,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   }
   await writeFile(path.join(absOut, 'game.js'),
     profile.emitEntry({ sideModules, engineGlueFile, runtimeDir: runtimeLayout.runtimeDir,
-      engineSubpackage: runtimeLayout.subpackage?.name ?? null }));
+      engineSubpackage: runtimeLayout.subpackage?.name ?? null, hostGlobal: profile.hostGlobal }));
   const configFiles = profile.emitConfigFiles({
     title,
     appid: opts.appid ?? '',

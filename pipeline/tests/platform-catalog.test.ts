@@ -240,10 +240,24 @@ describe('loadProjectPlatform — the profile handed to exportMiniGame', () => {
     expect(typeof p.emitEntry).toBe('function');
 
     // The default entry is the same CommonJS shape WeChat ships.
-    const entry = p.emitEntry({ sideModules: [{ id: 'physics', file: 'physics' }], engineGlueFile: 'esengine.js', runtimeDir: 'wasm', engineSubpackage: null });
+    const entry = p.emitEntry({ sideModules: [{ id: 'physics', file: 'physics' }], engineGlueFile: 'esengine.js', runtimeDir: 'wasm', engineSubpackage: null, hostGlobal: 'wx' });
     expect(entry).toContain("require('./wasm/esengine.js')");
     expect(entry).toContain(`"physics": asFactory(require('./wasm/physics.js'))`);
     expect(entry).toContain("require('./game-bundle.js')");
+
+    // The shared entry carries no vendor's API name: the host global is a profile
+    // fact, so a 分包 is asked for through whichever object that vendor exposes.
+    const wxEntry = p.emitEntry({
+      sideModules: [], engineGlueFile: 'esengine.js', runtimeDir: 'wasm',
+      engineSubpackage: 'engine', hostGlobal: 'wx',
+    });
+    expect(wxEntry).toContain('wx.loadSubpackage(');
+    const ttEntry = p.emitEntry({
+      sideModules: [], engineGlueFile: 'esengine.js', runtimeDir: 'wasm',
+      engineSubpackage: 'engine', hostGlobal: 'tt',
+    });
+    expect(ttEntry).toContain('tt.loadSubpackage(');
+    expect(ttEntry).not.toContain('wx.');
 
     // And the project's own emitter is what runs for config.
     expect(p.emitConfigFiles({ title: 'T', appid: '', orientation: 'portrait', subPackages: [], includeSuffixes: [], hasOpenData: false, openDataRoot: 'open-data' }))
