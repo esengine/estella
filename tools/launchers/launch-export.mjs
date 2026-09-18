@@ -308,14 +308,25 @@ const SCENE = flag('scene', '');
     console.log(`  render: ${JSON.stringify(seen)}`);
   }
 
+  // A start screen that outlived its boot covers the game with something that
+  // looks like a game still loading, and every other check here still passes:
+  // the canvas painted underneath it, the frame is not flat, nothing errored.
+  const splashLeft = await win.webContents.executeJavaScript(
+    "!!document.getElementById('es-splash')",
+  ).catch(() => false);
+
   const image = await win.webContents.capturePage();
   if (OUT) await writeFile(OUT, image.toPNG());
   stop();
   server.close();
 
   const live = frameIsLive(image);
-  const ok = painted && live && errors.length === 0;
-  console.log(`${ok ? '✓' : '✗'} ${path.basename(DIR)} — painted=${painted} live=${live} errors=${errors.length}`);
+  const ok = painted && live && !splashLeft && errors.length === 0;
+  console.log(`${ok ? '✓' : '✗'} ${path.basename(DIR)} — painted=${painted} live=${live}`
+    + `${splashLeft ? ' start-screen=STILL UP' : ''} errors=${errors.length}`);
+  if (splashLeft) {
+    console.log('    the start screen never faded — boot did not reach ready, or done() never ran');
+  }
   for (const e of errors.slice(0, 5)) console.log(`    ${e}`);
   if (!painted) {
     // How far it got, rather than "it did not start": a package drawing one slow

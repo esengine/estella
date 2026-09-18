@@ -41,6 +41,17 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A packaged game now says it is loading.** Between the page opening and the first frame
+  an export showed its background colour and nothing else — and on a cold start that gap is
+  the whole download of a 1.7MB engine binary, which reads to a player as a page that did
+  not work. Web and desktop packages now open on a start screen carrying the project's name
+  and a bar moving through the eight stages the boot actually has, weighted by what each one
+  costs rather than counted evenly: reading the build, scripts, the asset list, the scene,
+  the engine, the renderer, assets, ready. It fades as the first frame arrives. A start
+  screen still standing after a package settles now fails that package's check, because
+  everything else about it passes — the canvas painted underneath, nothing errored — and
+  what it leaves on screen looks exactly like a game that is still loading.
+
 - **The engine can ship outside a WeChat mini-game's main package entirely.** Compressing
   it left 0.35MB of the 4MB limit spent before any of your content; *Engine in a subpackage*
   moves the binary into a 分包 the host loads at startup, and the main package keeps only

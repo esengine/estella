@@ -25,8 +25,12 @@ import type {
   SceneData, AddressableManifest, PackagedGameConfig, RenderSurfaceSource, WorldManifest,
 } from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
+import { attachSplash } from '../export/splash';
 async function boot(): Promise<void> {
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+  // Null on a page without one, and every call below is then a no-op: a start
+  // screen is something a boot shows, never something a boot depends on.
+  const splash = attachSplash();
   // Render-verification hook: with ?headless the cooked build keeps its drawing
   // buffer + exposes a framebuffer readback, so a driver can prove the SHIPPED
   // runtime actually rendered the cooked scene (the editor host can't — it uses a
@@ -41,6 +45,7 @@ async function boot(): Promise<void> {
   resize();
 
   const cfg = (await (await fetch('./game.config.json')).json()) as PackagedGameConfig;
+  splash?.reach('config');
 
   // The project's own components and systems. The config SAYS whether this build
   // has any, so a load failure is a failure rather than a build that turned out
@@ -60,6 +65,7 @@ async function boot(): Promise<void> {
       );
     }
   }
+  splash?.reach('scripts');
   // Before anything acquires: the project's own modules were staged into wasm/
   // beside the engine's, and this is what makes their ids resolvable.
   registerPackagedSideModules(cfg);
@@ -70,6 +76,7 @@ async function boot(): Promise<void> {
   const index = indexPackagedManifest(
     (await (await fetch('./asset-manifest.json')).json()) as AddressableManifest,
   );
+  splash?.reach('manifest');
   // A named scene from the query boots instead of the entry, so a conformance
   // harness can drive a fixture scene in the real package rather than needing a
   // project of its own. Unknown names are refused rather than silently ignored.
@@ -88,6 +95,7 @@ async function boot(): Promise<void> {
     worlds.push((await (await fetch(`./${world.manifest}`)).json()) as WorldManifest);
   }
 
+  splash?.reach('scene');
   const wasmBase = new URL('./wasm/', import.meta.url).href; // relative → mount-path agnostic
   const { default: createModule } = (await import(/* @vite-ignore */ `${wasmBase}esengine.js`)) as {
     default: (options?: Record<string, unknown>) => Promise<ESEngineModule>;
@@ -107,6 +115,8 @@ async function boot(): Promise<void> {
     printErr: (t: string) => console.error(t),
     ...(gpu.device ? { preinitializedWebGPUDevice: gpu.device } : {}),
   });
+
+  splash?.reach('engine');
 
   let gl: WebGL2RenderingContext | null = null;
   let renderSurface: RenderSurfaceSource;
@@ -136,6 +146,7 @@ async function boot(): Promise<void> {
     getViewportSize: () => ({ width: canvas.width, height: canvas.height }),
     wasmBaseUrl: wasmBase.replace(/\/$/, ''), // SDK appends "/<file>" — no trailing slash
   });
+  splash?.reach('app');
   setEditorMode(false);
   setPlayMode(true);
 
@@ -815,6 +826,11 @@ async function boot(): Promise<void> {
     // Everything the config APPLIES to a live app: physics, the mixer, the theme.
     ...packagedRuntimeInit(cfg),
   });
+  splash?.reach('assets');
+  // Before run(), not after: run() may hand control to the emscripten loop and
+  // never return, and the fade is what the first frames should arrive through.
+  splash?.reach('ready');
+  splash?.done();
   app.run();
 }
 

@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(export): a packaged game says it is loading':
+    { note: 'A packaged game now says it is loading.' },
+
   'fix(checks): a play realm that never came up says what it did say':
     { internal: "What an editor check prints when it fails; no creator runs the checks." },
 

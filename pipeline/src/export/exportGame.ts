@@ -46,6 +46,7 @@ import { resolveEmcc, runEmcc } from '../bundle/emccPath';
 import { findHostCC } from '../../../compiler/src/hostCC';
 import { explainBundleErrors, type BundleMessage } from '../bundle/bundleDiagnostics';
 import { orientationCss, orientationOverlayHtml, orientationLockScript, orientationLockCspHash, type ScreenOrientation } from './orientationHtml';
+import { splashCss, splashHtml } from './splash';
 import { emitIosXcodeProject, type IosProjectSources } from '../../../build-tools/utils/iosProject.js';
 import { emitAndroidGradleProject } from '../../../build-tools/utils/gradleProject.js';
 import { androidTemplateSources } from '../../../build-tools/utils/nativeTemplate.js';
@@ -253,6 +254,10 @@ export interface ExportGameResult {
   size?: BuildSizeReport;
 }
 
+/** The page's ground, and what the start screen fades out over: the same colour on
+ *  both sides, or the fade flashes through to white between them. */
+const PAGE_BACKGROUND = '#0e121b';
+
 /** The web host page. `orientation` pins the canvas to a screen orientation (rotate-
  *  to-fit overlay + best-effort lock) — set for the mobile-facing web target, omitted
  *  for desktop (the Electron shell sizes its own window). */
@@ -274,13 +279,15 @@ function indexHtml(title: string, orientation?: ScreenOrientation): string {
     <script type="importmap">${IMPORT_MAP_JSON}</script>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
-      html, body { width: 100%; height: 100%; overflow: hidden; background: #0e121b; }
+      html, body { width: 100%; height: 100%; overflow: hidden; background: ${PAGE_BACKGROUND}; }
       #canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+      ${splashCss(PAGE_BACKGROUND)}
       ${orientation ? orientationCss(orientation) : ''}
     </style>
   </head>
   <body>
     <canvas id="canvas"></canvas>
+    ${splashHtml(title)}
     ${orientation ? orientationOverlayHtml(orientation) : ''}
     ${orientation ? orientationLockScript(orientation) : ''}
     <script type="module" src="./game.js"></script>
