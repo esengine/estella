@@ -37,6 +37,9 @@ export const NOTED = {
   'fix(gates): a gate that needs a required field asks which one is still required':
     { note: 'A sprite with no texture is no longer reported as unfinished.' },
 
+  'fix(export): a Meta playable is judged against the 5MB Meta publishes':
+    { note: 'A Meta playable can spend all 5MB Meta allows.' },
+
   'feat(render): the WebGPU backend draws the scene and the backbuffer multisampled':
     { note: 'Geometry edges are anti-aliased on WebGPU, which is every native build.' },
 

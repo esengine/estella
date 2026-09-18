@@ -9,6 +9,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { runtimeConfigOf } from '../src/project/runtimeConfig';
+import { BUILTIN_PLAYABLE_PROFILES } from '../src/export/playableAdProfile';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -122,7 +123,7 @@ describe('exportGame (playable)', () => {
     expect(inlinedText(html, '__GAME_BUNDLE__')).toContain('createObjectURL'); // real host bundled
     expect(inlinedText(html, '__GAME_BUNDLE__')).toContain('SpawnMarker');     // project script bundled
     // And it travels deflated. Inlining the source again would satisfy every
-    // assertion above — this is the one that would notice, and the 2MB cap is
+    // assertion above — this is the one that would notice, and the 5MB cap is
     // spent on this span more than on any other.
     const game = inlinedText(html, '__GAME_BUNDLE__');
     expect(html).not.toContain(game.slice(0, 200));
@@ -168,7 +169,7 @@ describe('exportGame (playable)', () => {
 
   // No dev build of a playable exists, so this target minifies unless told not
   // to — the opposite default from every other. Unminified spent 0.31MB of a
-  // 2MB budget on whitespace.
+  // 5MB budget on whitespace.
   it('minifies by default, and still honours an explicit no', async () => {
     const run = async (minify: boolean | undefined, dir: string): Promise<number> => {
       const res = await exportGame({
@@ -278,7 +279,7 @@ describe('exportGame (playable)', () => {
     // reported no limit at all would be the one that surprises you at upload.
     const verdict = res.size?.verdicts.find((v) => v.budget.scope === 'deliverable');
     expect(verdict?.status).toBe('ok');
-    expect(verdict?.budget.maxBytes).toBe(2 * 1024 * 1024);
+    expect(verdict?.budget.maxBytes).toBe(5 * 1024 * 1024);
   }, 60_000);
 
   it('inlines the project camera fit as __GAME_SCREENFIT__ (only when opted in)', async () => {
@@ -486,4 +487,18 @@ export function packagedRuntimeInit(c){return c;}\n`);
       rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   }, 60_000);
+});
+
+describe('playable ad profiles', () => {
+  // The cap enforced and the sentence quoted to the developer are two copies of
+  // one fact, and only the sentence is checkable against the network's docs.
+  // Meta's note said 5MB while it refused at 2MB, and no test read the number.
+  it('every built-in network enforces the number its note quotes', () => {
+    for (const p of BUILTIN_PLAYABLE_PROFILES) {
+      const quoted = /(\d+(?:\.\d+)?)\s*MB/i.exec(p.limitNote);
+      expect(quoted, `${p.id}: limitNote must quote the cap it enforces — "${p.limitNote}"`).not.toBeNull();
+      expect(p.maxBytes, `${p.id} enforces ${p.maxBytes}B, its note says ${quoted?.[1]}MB`)
+        .toBe(Number(quoted?.[1]) * 1024 * 1024);
+    }
+  });
 });

@@ -10,7 +10,7 @@
  *            (keyed by the scene's @uuid: refs — EmbeddedAssetProvider resolves them);
  *          - the playable host + esengine + project scripts esbuilt to ONE IIFE,
  *            deflated like the engine's own payloads and started by a small loader
- *            script — it is the page's largest span, and a 2MB cap is spent on it;
+ *            script — it is the page's largest span, and a 5MB cap is spent on it;
  *          - whatever the chosen ad network's profile injects (playableAdProfile.ts).
  *        Boots the SAME shipping runtime via initPlayableRuntime (play == ship).
  *
@@ -204,7 +204,7 @@ export async function exportPlayable(opts: {
   /**
    * Defaults to ON here, unlike every other target: a playable is uploaded
    * under a hard byte cap and has no dev build, and unminified spent 0.31MB of
-   * a 2MB budget on whitespace. A no-op on what it draws (measured: identical
+   * a 5MB budget on whitespace. A no-op on what it draws (measured: identical
    * to the pixel). An explicit `false` is still honoured.
    */
   minify?: boolean;

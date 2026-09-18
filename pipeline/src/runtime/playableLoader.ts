@@ -4,7 +4,7 @@
  * @file  playableLoader.ts — inflate the game bundle, then run it.
  *
  * The engine's glue and its wasm travel deflated; the game's own bundle is the
- * largest span in the page and travelled as source, which on a 2MB cap is the
+ * largest span in the page and travelled as source, which on a 5MB cap is the
  * difference between fitting and not. It arrives as `__GAME_BUNDLE__` and runs
  * from the same blob script the engine module already needs, so a page that can
  * boot a playable at all can boot this one — no eval, nothing new to allow.

@@ -42,6 +42,14 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A Meta playable can spend all 5MB Meta allows.** The export refused one over 2MB and
+  quoted that figure as Meta's cap. It is not: Meta's specification says "Maximum file size:
+  5MB" for a playable HTML5 file, and 5MB again for a whole ZIP of at most 100 files. The
+  2MB is folklore, repeated across the web and published nowhere, and every Meta playable
+  was built against half the budget it had. The unnamed-network default moves to 5MB with
+  it, that being what every network cited here accepts, and each network's enforced cap is
+  now held to the sentence quoted beside it — the two had drifted apart in silence.
+
 - **A sprite with no texture is no longer reported as unfinished.** The editor called
   `Sprite.texture` a required field, so every coloured quad — a health bar, a panel, a
   placeholder — raised a finding in the Details panel, the diagnostics sweep and the build

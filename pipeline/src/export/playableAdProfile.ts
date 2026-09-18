@@ -65,22 +65,22 @@ export interface PlayableAdProfile {
 export const genericPlayableProfile: PlayableAdProfile = {
     id: 'generic',
     label: 'Generic (single-file HTML5)',
-    maxBytes: 2 * 1024 * 1024,
-    limitNote: "no network selected — using Meta's 2MB index.html cap, the strictest we know of",
+    maxBytes: 5 * 1024 * 1024,
+    limitNote: 'no network selected — 5MB, which is what every network we cite accepts',
 };
 
 /**
- * Meta (Facebook / Instagram) playable ads, single-file format. Meta caps the
- * index.html itself at 2MB (its 5MB figure is the total for a ZIP bundle, which a
- * single-file playable has no way to spend), forbids any HTTP request — hence
- * nothing in `<head>` — and requires the click-through to call its own function.
+ * Meta (Facebook / Instagram) playable ads, single-file format. Meta forbids any
+ * HTTP request — hence nothing in `<head>` — and requires the click-through to
+ * call its own function. 5MB is Meta's own "Maximum file size: 5MB" for a playable
+ * HTML5 file; the widely repeated 2MB appears nowhere in the spec.
  * @see https://www.facebook.com/business/help/412951382532338
  */
 export const metaPlayableProfile: PlayableAdProfile = {
     id: 'meta',
     label: 'Meta (Facebook / Instagram)',
-    maxBytes: 2 * 1024 * 1024,
-    limitNote: "Meta caps a playable's index.html at 2MB",
+    maxBytes: 5 * 1024 * 1024,
+    limitNote: 'Meta caps a playable HTML5 file at 5MB',
     emitBridge: () => 'window.__ESTELLA_PLAYABLE__={cta:function(){'
         + 'if(typeof FbPlayableAd!=="undefined"&&FbPlayableAd.onCTAClick)FbPlayableAd.onCTAClick();'
         + '}};',
