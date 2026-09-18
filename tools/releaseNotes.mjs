@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(gates): spacing off the 4px grid is a ratchet, not a demand for zero':
+    { internal: "A repository gate over the editor's stylesheets; no creator runs it." },
+
   'fix(export): a mini-game package carries only what its packer will upload':
     { note: 'A WeChat package no longer carries files the upload would refuse.' },
 

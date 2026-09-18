@@ -9,12 +9,16 @@
  * panel — under the floor for body text, as the colour of most labels in the
  * editor — and a chart series ran on a 100%-saturated viewport colour.
  *
- * Two claims, both read off the token file: text stays readable on the surfaces
- * it sits on, and a panel label stays quieter than the viewport. Deliberately
- * NOT the off-grid spacings or the hard-coded hexes (counted in RM-092): a gate
- * that reddens on a thousand call sites gets switched off.
+ * Three claims. Two are absolute, read off the token file: text stays readable
+ * on the surfaces it sits on, and a panel label stays quieter than the viewport.
+ * The third is a RATCHET, because spacing is 1450 declarations deep and a gate
+ * that reddens on all of them gets switched off: the off-grid ones are banked,
+ * and the count may fall but never rise.
+ *
+ *   node tools/check-theme.mjs            # check
+ *   node tools/check-theme.mjs --update   # bank the current state
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -100,6 +104,55 @@ for (const { name, hex, sat } of content) {
   }
 }
 
+/**
+ * Spacing that is not on the 4px grid, per file. A count rather than a line, so
+ * inserting a rule does not churn the baseline; per file, so a fix in one place
+ * cannot be spent on a regression in another.
+ */
+const THEME_DIR = path.join(ROOT, 'desktop', 'src', 'theme');
+const BASELINE = path.join(ROOT, 'tools', 'baselines', 'theme-spacing.json');
+const GRID = 4;
+
+const offGridByFile = () => {
+  const out = {};
+  for (const f of readdirSync(THEME_DIR).filter((n) => n.endsWith('.css'))) {
+    const text = readFileSync(path.join(THEME_DIR, f), 'utf8');
+    let n = 0;
+    for (const m of text.matchAll(/(?:gap|padding|margin)[a-z-]*:\s*([^;}]+)/g)) {
+      for (const px of m[1].matchAll(/(\d+)px/g)) {
+        const v = Number(px[1]);
+        if (v !== 0 && v % GRID !== 0) n++;
+      }
+    }
+    if (n > 0) out[f] = n;
+  }
+  return out;
+};
+
+const current = offGridByFile();
+const total = Object.values(current).reduce((a, b) => a + b, 0);
+
+if (process.argv.includes('--update')) {
+  mkdirSync(path.dirname(BASELINE), { recursive: true });
+  const sorted = Object.fromEntries(Object.entries(current).sort(([a], [b]) => a.localeCompare(b)));
+  writeFileSync(BASELINE, `${JSON.stringify(sorted, null, 2)}\n`);
+  console.log(`check-theme: banked ${total} off-grid spacing(s) in ${Object.keys(current).length} file(s).`);
+  process.exit(0);
+}
+
+let banked = {};
+if (!existsSync(BASELINE)) {
+  problems.push(`no spacing baseline at ${BASELINE} — run with --update once to create it`);
+} else {
+  banked = JSON.parse(readFileSync(BASELINE, 'utf8'));
+  for (const [file, n] of Object.entries(current)) {
+    const was = banked[file] ?? 0;
+    if (n > was) {
+      problems.push(`desktop/src/theme/${file}: ${n - was} new spacing value(s) off the ${GRID}px grid (${was} banked, ${n} now)`);
+    }
+  }
+}
+
 if (problems.length > 0) {
   for (const p of problems) console.error(`  ${p}`);
   console.error(`check-theme: ${problems.length} finding(s).`);
@@ -111,5 +164,6 @@ const loudest = content.reduce((a, b) => (a.sat >= b.sat ? a : b));
 console.log(
   `check-theme: ${textTokens.length} text token(s) over ${READING_SURFACES.length} reading surface(s) — `
   + `all >= ${FLOOR}:1, closest is ${worst.name} at ${worst.ratio.toFixed(2)}:1 on ${worst.surface}. `
-  + `${content.length} content label(s) under ${PANEL_CEILING}% saturation, loudest is ${loudest.name} at ${loudest.sat}%.`,
+  + `${content.length} content label(s) under ${PANEL_CEILING}% saturation, loudest is ${loudest.name} at ${loudest.sat}%. `
+  + `${total} off-grid spacing(s) banked across ${Object.keys(banked).length} file(s) — the ratchet holds.`,
 );
