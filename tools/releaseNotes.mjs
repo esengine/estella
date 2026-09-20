@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(gates): the editor counts the controls it rolled by hand':
+    { internal: "A repository ratchet over the editor's own components; no creator runs it." },
+
   'test(sdk): the optional subsystems are asserted against what ships, not what compiles':
     { internal: 'A repository test over the built bundle; no creator runs it.' },
 

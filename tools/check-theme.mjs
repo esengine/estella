@@ -2,21 +2,25 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * @file  Whether the editor's colour ramps hold the contracts they were built on.
+ * @file  Whether the editor's VISUAL layer holds the contracts it was built on —
+ *        colour, spacing, type, icons and which component a control is.
  *
- * Every invariant here has a gate except the visual layer, which is why the
- * visual layer is the one that drifted: `--text-faint` shipped at 3.26:1 on a
- * panel — under the floor for body text, as the colour of most labels in the
- * editor — and a chart series ran on a 100%-saturated viewport colour.
+ * Every invariant in this repository has a gate except the visual layer, which
+ * is why the visual layer is the one that drifted: `--text-faint` shipped at
+ * 3.26:1 on a panel — under the floor for body text, as the colour of most
+ * labels in the editor — and a chart series ran on a 100%-saturated viewport
+ * colour.
  *
- * Two claims are absolute, read off the token file: text stays readable on the
- * surfaces it sits on, and a panel label stays quieter than the viewport.
+ * Three claims are absolute: text stays readable on the surfaces it sits on, a
+ * panel label stays quieter than the viewport, and a token that NAMES a thing
+ * only colours that thing.
  *
- * Four are RATCHETS, because each is hundreds of declarations deep and a gate
+ * Six are RATCHETS, because each is hundreds of declarations deep and a gate
  * that reddens on all of them gets switched off. Banked, may fall, never rise:
  * spacing off the 4px grid; colour literals where a token belongs; raw
- * font-size; and how many distinct icon sizes and stroke widths exist at all —
- * 14 and 16 today, including 1.8 / 1.85 / 1.9, which no one can tell apart.
+ * font-size; how many distinct icon sizes and stroke widths exist at all — 14
+ * and 16 today, including 1.8 / 1.85 / 1.9, which no one can tell apart; and
+ * hand-rolled `<button>` and native `title=` where the editor has a component.
  *
  *   node tools/check-theme.mjs            # check
  *   node tools/check-theme.mjs --update   # bank the current state
@@ -79,7 +83,8 @@ for (const surface of READING_SURFACES) {
  * `--cat-*` labels content on a PANEL; `--gizmo-*` draws over a scene and has to
  * win against it. A seventh chart series took `--gizmo-particle` at 100% for want
  * of a `--cat-` member. Whether a panel borrows one ON PURPOSE (streamed-cell
- * labels do, to match the viewport) is intent — a rule for people, RM-092.
+ * labels do, to match the viewport) is intent, and the identity rule below is
+ * where that intent is written down.
  */
 const saturation = (hex) => {
   const h = hex.replace('#', '');
@@ -256,10 +261,45 @@ const iconScale = () => {
   return { sizes: [...sizes].sort((a, b) => a - b), strokes: [...strokes].sort((a, b) => a - b) };
 };
 
+/**
+ * Controls the editor hand-rolled rather than took from its own components.
+ *
+ * `<Button>` and `<Tooltip>` exist and are outnumbered 336:28 and 311:3. Not a
+ * rule — a raw `<button>` inside a tile cell or a timeline key is right, and a
+ * component that forced every one through it would be worse. A ratchet, so the
+ * next one is a decision someone makes rather than the path of least effort.
+ *
+ * `title=` is counted on DOM elements only. RM-092's figure of 419 counted
+ * `<Modal title=…>` too — 80 of them are a component's prop and not a tooltip
+ * at all.
+ */
+const handRolledByFile = () => {
+  const out = {};
+  const walk = (dir) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) { walk(full); continue; }
+      if (!/\.tsx$/.test(e.name)) continue;
+      const text = readFileSync(full, 'utf8');
+      const rel = path.relative(path.join(ROOT, 'desktop', 'src'), full).replaceAll(path.sep, '/');
+      let n = [...text.matchAll(/<button\b/g)].length;
+      // Attributes may span lines; stopping at the next `<` keeps an unclosed
+      // tag from swallowing the rest of the file.
+      for (const m of text.matchAll(/<([A-Za-z][A-Za-z0-9]*)\b([^<]*?)\/?>/gs)) {
+        if (/^[a-z]/.test(m[1]) && /\btitle=/.test(m[2])) n += 1;
+      }
+      if (n > 0) out[rel] = n;
+    }
+  };
+  walk(path.join(ROOT, 'desktop', 'src'));
+  return out;
+};
+
 const current = offGridByFile();
 const colours = colourLiteralsByFile();
 const fontSizes = rawFontSizeByFile();
 const icons = iconScale();
+const handRolled = handRolledByFile();
 const total = Object.values(current).reduce((a, b) => a + b, 0);
 
 const byName = (o) => Object.fromEntries(Object.entries(o).sort(([a], [b]) => a.localeCompare(b)));
@@ -271,32 +311,39 @@ if (process.argv.includes('--update')) {
     colourLiterals: byName(colours),
     rawFontSize: byName(fontSizes),
     iconScale: icons,
+    handRolled: byName(handRolled),
   };
   writeFileSync(BASELINE, `${JSON.stringify(state, null, 2)}\n`);
   console.log(`check-theme: banked ${total} off-grid spacing(s), `
     + `${Object.values(colours).reduce((a, b) => a + b, 0)} colour literal(s), `
     + `${Object.values(fontSizes).reduce((a, b) => a + b, 0)} raw font-size(s), `
-    + `${icons.sizes.length} icon size(s) and ${icons.strokes.length} stroke width(s).`);
+    + `${icons.sizes.length} icon size(s) and ${icons.strokes.length} stroke width(s), `
+    + `${Object.values(handRolled).reduce((a, b) => a + b, 0)} hand-rolled control(s).`);
   process.exit(0);
 }
 
-let banked = { spacing: {}, colourLiterals: {}, rawFontSize: {}, iconScale: { sizes: [], strokes: [] } };
+let banked = {
+  spacing: {}, colourLiterals: {}, rawFontSize: {},
+  iconScale: { sizes: [], strokes: [] }, handRolled: {},
+};
 if (!existsSync(BASELINE)) {
   problems.push(`no drift baseline at ${BASELINE} — run with --update once to create it`);
 } else {
   banked = JSON.parse(readFileSync(BASELINE, 'utf8'));
   /** Per file, so a fix in one place cannot pay for a regression in another. */
-  const ratchet = (now, was, what) => {
+  const ratchet = (now, was, what, under = 'desktop/src/theme/') => {
     for (const [file, n] of Object.entries(now)) {
       const before = was?.[file] ?? 0;
       if (n > before) {
-        problems.push(`desktop/src/theme/${file}: ${n - before} new ${what} (${before} banked, ${n} now)`);
+        problems.push(`${under}${file}: ${n - before} new ${what} (${before} banked, ${n} now)`);
       }
     }
   };
   ratchet(current, banked.spacing, `spacing value(s) off the ${GRID}px grid`);
   ratchet(colours, banked.colourLiterals, 'colour literal(s) where a token belongs');
   ratchet(fontSizes, banked.rawFontSize, 'raw font-size(s) — use a step of the scale');
+  ratchet(handRolled, banked.handRolled,
+    'hand-rolled <button>/title= — the editor has <Button>/<Tooltip>', 'desktop/src/');
   // Not per file: a new icon size anywhere is one more size the editor has.
   for (const [kind, now] of [['size', icons.sizes], ['stroke width', icons.strokes]]) {
     const was = new Set(kind === 'size' ? banked.iconScale?.sizes ?? [] : banked.iconScale?.strokes ?? []);
@@ -324,5 +371,6 @@ console.log(
   + `Ratchets hold: ${total} off-grid spacing(s), `
   + `${Object.values(colours).reduce((a, b) => a + b, 0)} colour literal(s), `
   + `${Object.values(fontSizes).reduce((a, b) => a + b, 0)} raw font-size(s), `
-  + `${icons.sizes.length} icon size(s) / ${icons.strokes.length} stroke width(s).`,
+  + `${icons.sizes.length} icon size(s) / ${icons.strokes.length} stroke width(s), `
+  + `${Object.values(handRolled).reduce((a, b) => a + b, 0)} hand-rolled control(s).`,
 );
