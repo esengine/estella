@@ -17,20 +17,30 @@ import path from 'node:path';
 export const ESENGINE_EXTERNAL = ['esengine', 'esengine/*'];
 
 /**
+ * The subpaths a game may import, and what each resolves to under the staged
+ * SDK. ONE list: both strategies read it, and so does the import map — a second
+ * hand-written copy is how a specifier the SDK never exported survived in both.
+ * check-import-map.mjs holds it against the package.
+ */
+export const ESENGINE_SUBPATHS: Readonly<Record<string, string>> = {
+  'esengine/spine': 'spine/index.js',
+  'esengine/dragonbones': 'dragonbones/index.js',
+  'esengine/physics': 'physics/index.js',
+  'esengine/physics3d': 'physics3d/index.js',
+  'esengine/douyin': 'douyin/index.js',
+  'esengine/wasm': 'wasm.js',
+};
+
+/**
  * esbuild `alias` resolving `esengine` and its subpath exports to files under
  * `sdkDir`, for INLINED builds (the project root has no esengine to resolve from).
  * `mainEntry` picks the SDK build: 'index.js' (web SDK — web/playable) or
  * 'index.wechat.js' (the WeChat SDK).
  */
 export function esengineAlias(sdkDir: string, mainEntry = 'index.js'): Record<string, string> {
-  return {
-    esengine: path.join(sdkDir, mainEntry),
-    'esengine/spine': path.join(sdkDir, 'spine', 'index.js'),
-    'esengine/dragonbones': path.join(sdkDir, 'dragonbones', 'index.js'),
-    'esengine/physics': path.join(sdkDir, 'physics', 'index.js'),
-    'esengine/physics3d': path.join(sdkDir, 'physics3d', 'index.js'),
-    'esengine/douyin': path.join(sdkDir, 'douyin', 'index.js'),
-    'esengine/wasm': path.join(sdkDir, 'wasm.js'),
-    'esengine/factory': path.join(sdkDir, 'webAppFactory.js'),
-  };
+  const out: Record<string, string> = { esengine: path.join(sdkDir, mainEntry) };
+  for (const [specifier, rel] of Object.entries(ESENGINE_SUBPATHS)) {
+    out[specifier] = path.join(sdkDir, ...rel.split('/'));
+  }
+  return out;
 }

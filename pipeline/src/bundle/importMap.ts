@@ -6,20 +6,22 @@
  *        layout it was previewed on.
  *
  *        Subpath exports are listed file by file: an import map does not append
- *        `/index.js` for a directory. Mirrors the SDK's `exports`.
+ *        `/index.js` for a directory. The list is esengineResolve's, so the two
+ *        strategies cannot name different subpaths.
  */
 import { createHash } from 'node:crypto';
+import { ESENGINE_SUBPATHS } from './esengineResolve';
+
+/** Where the exporter stages the SDK, relative to the page. */
+const STAGED = './sdk/';
 
 export const IMPORT_MAP = {
   imports: {
-    esengine: './sdk/index.js',
-    'esengine/spine': './sdk/spine/index.js',
-    'esengine/dragonbones': './sdk/dragonbones/index.js',
-    'esengine/physics': './sdk/physics/index.js',
-    'esengine/physics3d': './sdk/physics3d/index.js',
-    'esengine/wasm': './sdk/wasm.js',
-    'esengine/factory': './sdk/webAppFactory.js',
-  },
+    esengine: `${STAGED}index.js`,
+    ...Object.fromEntries(
+      Object.entries(ESENGINE_SUBPATHS).map(([specifier, rel]) => [specifier, STAGED + rel]),
+    ),
+  } as Record<string, string>,
 };
 
 export const IMPORT_MAP_JSON = JSON.stringify(IMPORT_MAP);

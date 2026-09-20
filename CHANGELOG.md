@@ -23,6 +23,12 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A page no longer carries a module mapping that resolves to a file it does not have.** The
+  exported page's import map listed `esengine/factory` → `sdk/webAppFactory.js`; the SDK has
+  never published that subpath and `dist/` has never emitted that file, so a game importing it
+  would have failed at load. The map and the bundler's aliases are derived from one list now,
+  and a gate holds that list against what the package actually exports.
+
 - **A build that ships Spine or DragonBones installs one of each again, not two.** Making
   registration a call rather than a module's side effect gave it two callers — the
   `esengine/spine` subpath and an entry's own install — and the plugin list appended both,

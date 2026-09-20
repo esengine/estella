@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(pipeline): the esengine specifiers a game can write are the ones the SDK publishes':
+    { note: 'A page no longer carries a module mapping that resolves to a file it does not have.' },
+
   'fix(sdk): a subsystem installs one plugin, however many callers registered it':
     { note: 'A build that ships Spine or DragonBones installs one of each again, not two.' },
 
