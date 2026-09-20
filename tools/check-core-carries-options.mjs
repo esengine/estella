@@ -8,10 +8,11 @@
  * reaches. So every value import from outside a subsystem into its SOLVER is a
  * subsystem every package carries, whatever the project contains.
  *
- * An earlier version of this watched two files and read zero — while
- * `ai/perception`, `gameplay` and `app` reached the solvers the whole time. It
- * watches the whole of `sdk/src` now, which is the only scope that can answer
- * the question it is asking.
+ * The scope is what makes this true or noise. Watching two files read zero while
+ * `ai/perception` and `gameplay` reached the solvers; watching all of `sdk/src`
+ * counted six edges in native-only modules no mini-game package contains. So it
+ * walks out from the LEANEST mini-game entry: a file that entry cannot reach is
+ * not in the package, whatever it imports.
  *
  * DECLARATIONS vs SOLVER is not a list kept here: a subsystem draws that line
  * itself, in the entry point named below, and anything it does not export is
@@ -73,14 +74,55 @@ const DECLARATIONS = Object.fromEntries(
   Object.entries(SUBSYSTEMS).map(([dir, entry]) => [dir, declarationsOf(dir, entry)]),
 );
 
-/** Every .ts under sdk/src, as paths relative to it. */
-function sources(dir = SRC, out = []) {
-  for (const name of readdirSync(dir)) {
-    const full = path.join(dir, name);
-    if (statSync(full).isDirectory()) { sources(full, out); continue; }
-    if (name.endsWith('.ts') && !name.endsWith('.d.ts')) out.push(path.relative(SRC, full));
+/** The entry a package carries least of: no optional subsystem installed, so
+ *  everything it reaches is something EVERY mini-game package holds. */
+const LEAN_ENTRY = 'index.wechat.lean.ts';
+
+/** Resolve a relative specifier from `fromRel` to a file under sdk/src, or null. */
+function resolveLocal(fromRel, spec) {
+  if (!spec.startsWith('.')) return null;
+  const base = path.join(path.dirname(path.join(SRC, fromRel)), spec);
+  for (const cand of [`${base}.ts`, path.join(base, 'index.ts')]) {
+    if (existsSync(cand) && statSync(cand).isFile()) return path.relative(SRC, cand);
+  }
+  return null;
+}
+
+/**
+ * Every value import or re-export in `rel`, as [specifier, resolvedRelPath|null].
+ *
+ * `export … from` counts: an entry that only re-exports still carries every
+ * module it names. Reading imports alone walked out of the lean entry — which is
+ * one `export * from` — and reported zero edges for the whole SDK.
+ */
+function importsOf(rel) {
+  const src = readFileSync(path.join(SRC, rel), 'utf8');
+  const out = [];
+  for (const m of src.matchAll(/^(?:import|export)\s+(type\s+)?([^;]*?)\s*from\s*'([^']+)'/gim)) {
+    if (m[1]) continue;
+    const named = (m[2] ?? '').match(/\{([^}]*)\}/);
+    // `{ type X }` alone erases; `{ type X, Y }` still pulls Y.
+    if (named && named[1].split(',').every((t) => t.trim() === '' || /^type\s/.test(t.trim()))) continue;
+    out.push([m[3], resolveLocal(rel, m[3])]);
   }
   return out;
+}
+
+/** Files the lean entry reaches, which is what every package carries. */
+function sources() {
+  if (!existsSync(path.join(SRC, LEAN_ENTRY))) {
+    console.error(`check-core-carries-options: ${LEAN_ENTRY} is gone — this no longer`
+      + ' knows what a minimal package contains.');
+    process.exit(1);
+  }
+  const seen = new Set([LEAN_ENTRY]);
+  const queue = [LEAN_ENTRY];
+  while (queue.length > 0) {
+    for (const [, next] of importsOf(queue.pop())) {
+      if (next && !seen.has(next)) { seen.add(next); queue.push(next); }
+    }
+  }
+  return [...seen];
 }
 
 /** The installer's whole job is to reach them, so it is not a finding. It is the
@@ -92,20 +134,14 @@ for (const rel of sources()) {
   if (rel === INSTALLER) continue;
   const owner = rel.split(path.sep)[0];
   // A subsystem reaching its own solver is the subsystem, not the core.
-  const src = readFileSync(path.join(SRC, rel), 'utf8');
-  for (const m of src.matchAll(/^import\s+(type\s+)?([^;]*?)\s*from\s*'([^']+)'/gim)) {
-    if (m[1]) continue;
-    const clause = m[2] ?? '';
-    const named = clause.match(/\{([^}]*)\}/);
-    // `import { type X }` alone erases; `import { type X, Y }` still pulls Y.
-    if (named && named[1].split(',').every((s) => s.trim() === '' || /^type\s/.test(s.trim()))) continue;
+  for (const [spec] of importsOf(rel)) {
     for (const [dir, decls] of Object.entries(DECLARATIONS)) {
-      const hit = new RegExp(`(^|/)${dir}(/([A-Za-z0-9]+))?$`).exec(m[3]);
+      const hit = new RegExp(`(^|/)${dir}(/([A-Za-z0-9]+))?$`).exec(spec);
       if (!hit || owner === dir) continue;
       // The barrel itself is solver: importing it installs the subsystem.
       const module = hit[3];
       if (module && decls.has(module)) continue;
-      edges.push(`${rel.split(path.sep).join('/')} -> ${m[3]}`);
+      edges.push(`${rel.split(path.sep).join('/')} -> ${spec}`);
     }
   }
 }

@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(gates): the optional-subsystem ratchet counts what a package actually holds':
+    { internal: 'A repository gate over the SDK's own imports; no creator runs it.' },
+
   'feat(export): a project can be packaged for Douyin':
     { note: 'A project can be exported as a Douyin (抖音) mini-game.' },
 
