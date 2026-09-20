@@ -41,6 +41,17 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A WeChat mini-game now carries only the optional subsystems its project uses.**
+  The engine binary was never the only thing a package paid for whether it needed it or
+  not: the JavaScript bundle carried Spine, DragonBones, 2D physics, 3D physics and video
+  in every build, because the runtime that starts your game named all of them. It no
+  longer does — the export reads the same scan that already decides which `.wasm` side
+  modules ship, and builds on an SDK entry that installs only those. *hello-world* drops
+  91KB of a 1.4MB bundle; a project that does use Spine keeps Spine and drops what it
+  does not. There is more to win here and it is measured: `SpinePlugin` registers a named
+  resource when its module loads, which a bundler cannot remove, and that alone is 47KB
+  no package can currently shed.
+
 - **A packaged game now says it is loading.** Between the page opening and the first frame
   an export showed its background colour and nothing else — and on a cold start that gap is
   the whole download of a 1.7MB engine binary, which reads to a player as a page that did

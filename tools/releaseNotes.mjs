@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(export): a mini-game carries the optional subsystems its project uses':
+    { note: 'A WeChat mini-game now carries only the optional subsystems its project uses.' },
+
   'refactor(sdk): the core runtime names no optional subsystem at all':
     { internal: 'Same subsystems, same behaviour; a lean build now says when it ships without one.' },
 

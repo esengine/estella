@@ -32,20 +32,25 @@ export { dragPlugin, DragPlugin } from './ui/input/drag';
 export { focusPlugin, FocusPlugin } from './ui/input/focus';
 export { safeAreaPlugin, SafeAreaPlugin } from './ui/layout/safe-area';
 
-export { Physics2DPlugin, Physics2DEvents, Physics2D, loadPhysicsModule } from './physics';
+// Not from the barrel: importing `./physics` INSTALLS it (physics/index.ts), and
+// core is in every package — the install would follow it there and no bundler
+// could drop a subsystem the project never uses.
+export { Physics2DPlugin, Physics2DEvents, Physics2D } from './physics/Physics2DPlugin';
+export { loadPhysicsModule } from './physics/PhysicsModuleLoader';
 // The contact event names, mirrored into the main barrel: an editor palette (or
 // game code) must be able to spell `trigger_enter` without importing the side
 // module, since the wire is authored whether or not physics is loaded.
-export { Physics2DEventType, type Physics2DContactEventData } from './physics';
+export { Physics2DEventType, type Physics2DContactEventData } from './physics/PhysicsEventBridge';
 // Beside the 2D solver's and for its reason: the native host maps every
 // `esengine/*` import onto ONE global, so a symbol the main entry does not carry
 // reaches a game that imports the subpath as `undefined`.
-export { Physics3DPlugin, Physics3DEvents, Physics3D } from './physics3d';
-export { SpinePlugin, SpineEvents, Spine } from './spine';
+export { Physics3DPlugin, Physics3D } from './physics3d/Physics3DPlugin';
+export { Physics3DEvents } from './physics3d/Physics3DModule';
+export { SpinePlugin, SpineEvents, Spine } from './spine/SpinePlugin';
 // DragonBones beside it, and in the barrel for the same reason: the native entry
 // collapses every `esengine*` import onto ONE global, so a game reaching
 // `Res(DragonBones)` through `esengine/dragonbones` finds nothing on a device
 // unless the resource is here too.
-export { DragonBonesPlugin, dragonBonesPlugin, DragonBones } from './dragonbones';
+export { DragonBonesPlugin, dragonBonesPlugin, DragonBones } from './dragonbones/DragonBonesPlugin';
 
 export { PostProcessPlugin, postProcessPlugin } from './postprocess';

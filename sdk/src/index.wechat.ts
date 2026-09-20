@@ -3,44 +3,11 @@
 /**
  * @file    index.wechat.ts
  * @brief   ESEngine SDK - WeChat MiniGame entry point
+ *
+ * The whole entry: everything in index.wechat.base plus every optional
+ * subsystem. `index.wechat.lean` is the same base with none of them, for a
+ * package that imports back only what its project uses.
  */
-
-import { setPlatform } from './platform';
-import { wechatAdapter, initWeChatPlatform } from './platform/wechat';
-import { ensureBuiltinComponentsRegistered, markEngineComponentBaseline } from './ecs/component';
-import { ensureBuiltinAiRegistrations } from './ai/builtins';
-
-initWeChatPlatform();
-setPlatform(wechatAdapter);
-
-// Register every engine component (COMPONENT_META) so scenes never silently drop
-// a component that exists in the engine but lacks a typed const.
-ensureBuiltinComponentsRegistered();
-ensureBuiltinAiRegistrations();
-markEngineComponentBaseline();
-
-export * from './core';
-// Installs Spine + DragonBones on every app this entry builds; a lean entry
-// omits this import and ships without their code.
 import './runtime/optionalPlugins';
-export * from './runtime/webAppFactory';
 
-export {
-    wxReadFile,
-    wxReadTextFile,
-    wxFileExists,
-    wxFileExistsSync,
-    wxWriteFile,
-    wxLoadImage,
-    wxGetImagePixels,
-    wxLoadImagePixels,
-    type ImageLoadResult,
-} from './platform/wechat';
-
-export {
-    initWeChatRuntime,
-    type WeChatRuntimeConfig,
-} from './runtime/wechatRuntime';
-
-// The host as data: spread it to keep everything but the one thing you replace.
-export { wechatProfile } from './platform/wechat';
+export * from './index.wechat.base';

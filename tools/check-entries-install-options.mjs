@@ -23,10 +23,16 @@ const INSTALLER = './runtime/optionalPlugins';
 
 /** Entries that deliberately ship without the optional subsystems, and why. */
 const LEAN = {
-  // (none yet — the export-side lean entry lands with the runtimeLoader half)
+  'index.wechat.lean.ts': 'ships no optional subsystem; a package imports back the'
+    + ' subpaths its own content uses',
+  'index.wechat.base.ts': 'not an entry anyone builds from — the shared half of'
+    + ' index.wechat and index.wechat.lean',
 };
 
-const entries = readdirSync(SRC).filter((f) => /^index(\.[a-z0-9]+)?\.ts$/.test(f));
+// Two dotted segments, not one: `index.wechat.lean.ts` did not match a
+// single-segment pattern, so the very entry this check exists for was the one
+// it never looked at — while still counting it as declared.
+const entries = readdirSync(SRC).filter((f) => /^index(\.[a-z0-9]+)*\.ts$/.test(f));
 if (entries.length === 0) {
   console.error('check-entries-install-options: no sdk/src/index*.ts — the entries moved.');
   process.exit(1);
@@ -48,6 +54,13 @@ if (missing.length > 0) {
   process.exit(1);
 }
 
-const lean = Object.keys(LEAN).length;
+// Counted over the entries that EXIST, so a stale LEAN key cannot inflate it.
+const lean = entries.filter((f) => f in LEAN).length;
+const stale = Object.keys(LEAN).filter((f) => !entries.includes(f));
+if (stale.length > 0) {
+  console.error(`check-entries-install-options: LEAN names ${stale.length} entry(ies) that are`
+    + ` not there: ${stale.join(', ')}`);
+  process.exit(1);
+}
 console.log(`check-entries-install-options: ${entries.length} entry(ies) — ${entries.length - lean}`
   + ` install the optional subsystems${lean > 0 ? `, ${lean} declared lean` : ''}.`);

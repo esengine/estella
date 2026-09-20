@@ -434,7 +434,31 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     await cp(built.modulePath, path.join(absOut, 'aot', 'systems.wasm'));
     aotArg = `, aot: ${JSON.stringify({ module: 'aot/systems.wasm', manifest: built.manifest })}`;
   }
+  // The same answer the scan already gives for wasm side modules, asked of their
+  // JS: the lean SDK entry plus the subpaths that install what this project uses.
+  // Video has no subpath, so a project with video takes the whole entry.
+  const OPTIONAL_SUBPATH: Record<string, string> = {
+    physics: 'esengine/physics',
+    physics3d: 'esengine/physics3d',
+    dragonbones: 'esengine/dragonbones',
+  };
+  const needed = new Set(sideModules.map((m) => m.id));
+  const wantsVideo = needed.has('videodec');
+  // Only when the SDK build actually produced one: a tree without it (an older
+  // dist, a test fixture) must fall back to the whole entry rather than alias
+  // `esengine` to a file that is not there.
+  const leanEntry = profile.sdkLeanEntryFile
+    && existsSync(path.join(opts.sdkDir, profile.sdkLeanEntryFile))
+    ? profile.sdkLeanEntryFile : null;
+  const lean = !!leanEntry && !wantsVideo;
+  const installs = lean
+    ? [...new Set([...needed].map((id) => (id.startsWith('spine:')
+      ? 'esengine/spine'
+      : OPTIONAL_SUBPATH[id] ?? '')).filter(Boolean))].sort()
+    : [];
+
   const entrySrc =
+    installs.map((m) => `import ${JSON.stringify(m)};\n`).join('') +
     `import { ${profile.runtimeInit}${installsPlatform ? ', installMiniGamePlatform' : ''}${themeColors ? ', parseThemeOverrides' : ''} } from 'esengine';\n` +
     (installsPlatform ? `import __platformProfile from ${JSON.stringify(profile.runtimeProfileModule)};\n` : '') +
     (scriptsAbs && existsSync(scriptsAbs) ? `import ${JSON.stringify(scriptsAbs)};\n` : '') +
@@ -455,7 +479,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
       // Real-device WeChat rejects es2020 syntax (`??`, `?.`) even though the
       // devtools accepts it; es2017 down-levels those while keeping async/await.
       target: profile.esTarget,
-      alias: esengineAlias(opts.sdkDir, profile.sdkEntryFile),
+      alias: esengineAlias(opts.sdkDir, lean ? leanEntry! : profile.sdkEntryFile),
       minify: opts.minify ?? false,
       sourcemap: false,
       outfile: path.join(absOut, 'game-bundle.js'),

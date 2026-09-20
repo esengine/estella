@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { defineConfig } from 'rolldown';
 
-const ENTRY_FILES = ['/index.ts', '/index.wechat.ts', '/index.minigame.ts', '/index.node.ts', '/index.native.ts'];
+const ENTRY_FILES = ['/index.ts', '/index.wechat.ts', '/index.wechat.lean.ts', '/index.minigame.ts', '/index.node.ts', '/index.native.ts'];
 const treeshake = {
     moduleSideEffects: (id) => ENTRY_FILES.some(e => id.endsWith(e)),
 };
@@ -52,6 +52,7 @@ export default defineConfig([
         input: {
             'index': 'src/index.ts',
             'index.wechat': 'src/index.wechat.ts',
+            'index.wechat.lean': 'src/index.wechat.lean.ts',
             'index.minigame': 'src/index.minigame.ts',
             'index.native': 'src/index.native.ts',
             'physics/index': 'src/physics/index.ts',

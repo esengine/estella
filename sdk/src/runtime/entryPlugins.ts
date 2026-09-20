@@ -10,14 +10,17 @@
  */
 import type { Plugin } from '../app/app';
 
-let make: () => Plugin[] = () => [];
+// Additive, not a single setter: each optional subsystem installs itself when
+// its subpath is imported, and a setter would mean the last one imported was the
+// only one installed. ESM runs a module once, so a double import adds nothing.
+const makers: Array<() => Plugin> = [];
 
-/** Called once, by `runtime/optionalPlugins`, for its side effect. */
-export function setEntryPlugins(fn: () => Plugin[]): void {
-    make = fn;
+/** Called by an optional subsystem's entry, for its side effect. */
+export function addEntryPlugin(make: () => Plugin): void {
+    makers.push(make);
 }
 
 /** Fresh instances per app: a plugin carries per-app state once built. */
 export function entryPlugins(): Plugin[] {
-    return make();
+    return makers.map((make) => make());
 }

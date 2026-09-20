@@ -113,3 +113,16 @@ export {
     type SlideCast,
     type SlideHit,
 } from './CharacterController2D';
+
+// Importing this subpath INSTALLS 2D physics — see spine/index.ts. No entry
+// plugin: the scene load builds it with the world config the project declared.
+import { setSceneOptionals } from '../runtime/sceneOptionals';
+import { Physics2DPlugin as Physics2DPluginCtor } from './Physics2DPlugin';
+
+setSceneOptionals({
+    physics: {
+        installed: (app) => !!app.getPlugin(Physics2DPluginCtor),
+        install: (app, config, module) =>
+            app.addPlugin(new Physics2DPluginCtor('', config, () => Promise.resolve(module))),
+    },
+});

@@ -115,6 +115,13 @@ export interface MiniGameExportProfile {
     readonly id: MiniGameVendor;
     /** SDK dist entry the bundle aliases `esengine` to (index.wechat.js). */
     readonly sdkEntryFile: string;
+    /**
+     * The same entry with no optional subsystems, when the vendor's SDK build has
+     * one. An export that knows which subsystems its content uses takes this and
+     * imports those back, so the package carries no others. Absent = always the
+     * whole entry.
+     */
+    readonly sdkLeanEntryFile?: string;
     /** Runtime bootstrap fn imported from 'esengine' in the generated boot. */
     readonly runtimeInit: string;
     /** Engine glue filenames to look for in wasmDir, in preference order. */
@@ -206,6 +213,7 @@ export const wechatExportProfile: MiniGameExportProfile = {
     id: 'wechat',
     // The bundle aliases `esengine` → <sdkDir>/index.wechat.js (the wechat SDK build).
     sdkEntryFile: 'index.wechat.js',
+    sdkLeanEntryFile: 'index.wechat.lean.js',
     runtimeInit: 'initWeChatRuntime',
     // Require by the ACTUAL name in the wasm dir: the -t wechat build emits
     // esengine.wxgame.js; a web-aligned build, esengine.js.
