@@ -40,6 +40,35 @@ function preserveViteIgnore() {
     };
 }
 
+// One code-split graph feeds eleven entries, so `dist/shared/` is their union and
+// a packager copying the directory hands a web player the mini-game runtime.
+// Which chunk belongs to which entry is the bundler's to say, so it says it here.
+function emitChunkManifest() {
+    return {
+        name: 'emit-chunk-manifest',
+        generateBundle(_options, bundle) {
+            const chunks = new Map(
+                Object.values(bundle).filter((c) => c.type === 'chunk').map((c) => [c.fileName, c]),
+            );
+            const reach = (entry) => {
+                const seen = new Set();
+                const queue = [entry];
+                while (queue.length > 0) {
+                    const name = queue.pop();
+                    if (seen.has(name) || !chunks.has(name)) continue;
+                    seen.add(name);
+                    queue.push(...chunks.get(name).imports, ...chunks.get(name).dynamicImports);
+                }
+                seen.delete(entry);
+                return [...seen].sort();
+            };
+            const manifest = {};
+            for (const [fileName, chunk] of chunks) if (chunk.isEntry) manifest[fileName] = reach(fileName);
+            this.emitFile({ type: 'asset', fileName: 'chunks.json', source: `${JSON.stringify(manifest, null, 2)}\n` });
+        },
+    };
+}
+
 const minify = { compress: true, mangle: true, codegen: { removeWhitespace: true, legalComments: 'inline' } };
 
 export default defineConfig([
@@ -69,7 +98,7 @@ export default defineConfig([
             chunkFileNames: 'shared/[name].js',
             minify,
         },
-        plugins: [preserveViteIgnore()],
+        plugins: [preserveViteIgnore(), emitChunkManifest()],
         treeshake,
     },
     {

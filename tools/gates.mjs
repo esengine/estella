@@ -259,6 +259,9 @@ export const GATES = [
   // The specifiers a game writes against the SDK, held to what the package
   // publishes: a map entry that resolves to nothing fails at load, not at build.
   { id: 'import-map', run: 'node tools/check-import-map.mjs' },
+  // The exporter ships a web package by the chunk list the SDK build writes, so
+  // a list that disagrees with the emitted imports is a package missing a module.
+  { id: 'sdk-chunk-manifest', run: 'node tools/check-sdk-chunk-manifest.mjs' },
   // A packaging setting the manifest parser does not read is a setting that
   // does nothing, in the editor and on a build server alike.
   { id: 'packaging-settings', run: 'node tools/check-packaging-settings.mjs' },
