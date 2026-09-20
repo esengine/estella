@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(play): a cold start that never says hello now says what its frame did':
+    { note: 'A game that fails to start says what its frame actually did.' },
+
   'refactor(theme): a type scale with one job per step, and steps you can tell apart':
     { note: "The editor's smaller labels are readable — one body size instead of three within 2px." },
 

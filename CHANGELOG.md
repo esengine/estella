@@ -23,6 +23,11 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A game that fails to start says what its frame actually did.** A realm that never reports in left the editor with one sentence and
+  no cause — the case CI hits about every third build. The failure now carries the frame's own
+  navigation, the HTTP status it was served, any load error and its console, with timings: a
+  404 from the staging path reads as `served 404`, and the retries are visible too.
+
 - **The editor's smaller labels are readable — one body size instead of three within 2px.**
   The type scale had eight steps, six of them between 9px and 14px, and three of those
   carried 89% of the text: which one a panel used was whichever its stylesheet had been
