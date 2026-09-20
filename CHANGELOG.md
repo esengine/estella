@@ -33,6 +33,10 @@ published separately; it ships inside the editor.
   and every published entry declares itself side-effectful so a game's own bundler cannot
   repeat it with `esengine/physics3d`.
 
+- **space-shooter's background no longer stretches a 256px starfield over the whole screen.**
+  The texture was drawn to tile — 256×256, wrap mode repeat — and the scene stretched it over a
+  600×1080 box, so every star drew 2.3× wider and 4.2× taller than it was painted. It tiles.
+
 - **Sprite.drawMode is optional, so existing SpriteData code still compiles.** The field shipped required, which breaks any object literal written before
   it existed. Auto is the default; naming it was never meant to be mandatory.
 
