@@ -248,8 +248,8 @@ export const wechatExportProfile: MiniGameExportProfile = {
     // "文件类型": only these may be uploaded.
     packerSuffixes: WECHAT_PACKER_SUFFIXES,
     // developers.weixin.qq.com/minigame/dev/framework/performance/wasm.html:
-    // `WXWebAssembly.instantiate(path)` takes 「.wasm 和 .wasm.br 后缀」 from base
-    // library 2.14.0 — documented rather than probed; the loader cannot be asked.
+    // `WXWebAssembly.instantiate(path)` takes 「.wasm 和 .wasm.br」 from base library
+    // 2.14.0 — and a package whose engine is one, in a subpackage, plays in devtools.
     wasmBrotli: true,
     subpackageDir: 'subpackages',
     subpackageEntry: 'game.js',
