@@ -150,6 +150,12 @@ export function kindOf(rel: string): SizeKind {
     const inner = path.extname(p.slice(0, -'.bin'.length));
     if (inner) ext = inner;
   }
+  // Same shape one layer out: a host whose loader takes `.wasm.br` is shipped the
+  // compressed binary, and it is still whatever it was before compression.
+  if (ext === '.br') {
+    const inner = path.extname(p.slice(0, -'.br'.length));
+    if (inner) ext = inner;
+  }
   return EXT_KIND[ext] ?? 'other';
 }
 
@@ -394,6 +400,14 @@ export async function measureBuild(opts: {
    */
   packages?: readonly string[];
   /**
+   * Project-relative directories whose contents are a SUBPACKAGE — fetched at
+   * startup, and off whatever cap the main package is judged against.
+   *
+   * Named by the export that staged them, for the reason `packages` is: a path
+   * prefix would be a guess about what a vendor happens to call one.
+   */
+  subPackageRoots?: readonly string[];
+  /**
    * A single-file target's file, and what it is made of — each span under the
    * path those bytes would carry loose. The file is replaced by its spans, so
    * it composes like every other target instead of weighing in as one nameless
@@ -441,8 +455,18 @@ export async function measureBuild(opts: {
     } catch { /* not produced (no template installed) — the limit is then skipped */ }
   }
 
+  // The manifest's own answer first; a subpackage root the export named wins
+  // over the default, since nothing in the manifest claims the engine binary.
+  const buckets = bucketIndexFrom(manifest);
+  const roots = (opts.subPackageRoots ?? []).map((r) => `${normalizeRel(r)}/`);
+  if (roots.length > 0) {
+    for (const f of files) {
+      const rel = normalizeRel(f.path);
+      if (roots.some((r) => rel.startsWith(r))) buckets.set(rel, 'lazy');
+    }
+  }
   const entries = entriesOf(files, {
-    buckets: bucketIndexFrom(manifest),
+    buckets,
     logical: logicalIndexFrom(manifest),
     inclusion: opts.inclusion,
   });

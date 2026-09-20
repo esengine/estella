@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(size): a subpackage is off the main package, and a compressed engine is still the engine':
+    { note: "The size report counts a mini-game's main package without its subpackages." },
+
   'fix(project): seven packaging settings a project could declare did nothing':
     { note: "A WeChat package can put its engine binary in a compressed subpackage." },
 

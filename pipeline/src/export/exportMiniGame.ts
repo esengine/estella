@@ -66,6 +66,8 @@ export interface ExportMiniGameResult {
    *  a vendor's brotli path does not take `.js`, so this is where the remaining
    *  room is. */
   bundleModules?: ModuleBytes[];
+  /** Project-relative subpackage roots — what is NOT on the main package's cap. */
+  subPackageRoots?: string[];
 }
 
 interface CookManifest {
@@ -646,5 +648,9 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     ok: errors.length === 0, platform: profile.id, outDir: absOut,
     included: cook.included.length, warnings, errors, inclusion: cook.inclusion,
     bundleModules,
+    // The size report weighs the main package against a cap the subpackages are
+    // NOT on, and it cannot tell a subpackage root from any other directory. The
+    // export that made them names them.
+    subPackageRoots: subPackages.subPackages.map((sp) => sp.root),
   };
 }

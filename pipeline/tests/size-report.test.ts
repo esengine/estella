@@ -100,6 +100,17 @@ describe('composition', () => {
     expect(kindOf('scripts.mjs')).toBe('scripts');
   });
 
+  it('still reads the engine binary once it is compressed and moved to a subpackage', () => {
+    // Both halves of the move matter: the `wasm/` prefix is gone and `.wasm.br`
+    // is not `.wasm`, and either alone files it under "other".
+    expect(kindOf('subpackages/engine/esengine.wxgame.wasm.br')).toBe('engine');
+    expect(kindOf('subpackages/engine/esengine.wxgame.wasm')).toBe('engine');
+    expect(kindOf('wasm/esengine.wxgame.wasm.br')).toBe('engine');
+    // One layer, not a guess: a compressed texture is still a texture.
+    expect(kindOf('assets/9f8a7c.ktx2.br')).toBe('texture');
+    expect(kindOf('notes.br')).toBe('other');
+  });
+
   it('separates scenes from the rest of the JSON', () => {
     expect(kindOf('scenes/level1.json')).toBe('scene');
     expect(kindOf('game.config.json')).toBe('data');

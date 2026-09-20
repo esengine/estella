@@ -239,6 +239,9 @@ export interface ExportGameResult {
    *  size report and dropped: a project's whole asset graph has no business
    *  crossing to the editor on every build. */
   inclusion?: Record<string, Inclusion>;
+  /** @internal Subpackage roots the export staged, for the size report to keep
+   *  off the main package's cap. Consumed here and dropped. */
+  subPackageRoots?: string[];
   warnings: string[];
   errors: string[];
   /** Android: the generated Gradle project, for the editor to reveal. Absent
@@ -539,6 +542,7 @@ async function attachSizeReport(result: ExportGameResult, opts: ExportGameOption
       projectMaxBytes: opts.sizeBudgetBytes,
       deliverable,
       packages,
+      subPackageRoots: result.subPackageRoots,
       inlineOf: result.inlineParts ? { file: 'index.html', parts: result.inlineParts } : undefined,
       inclusion: result.inclusion,
       // The project, not the build: what this target weighed last time lives with

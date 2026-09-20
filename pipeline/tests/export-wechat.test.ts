@@ -166,11 +166,11 @@ describe('exportGame (wechat)', () => {
     expect(total?.budget.maxBytes).toBe(30 * 1024 * 1024);
     expect(initial?.status).toBe('ok');
     expect(res.size?.byKind.find((k) => k.kind === 'engine')?.bytes).toBeGreaterThan(0);
-    // The fixture's subpackage asset (`subpackages/level2/extra.png`, 8 bytes of
-    // "PNG2DATA") is in the package but NOT in the main one — the distinction the
-    // 4MB limit is judged on, measured end-to-end on the real mini-game path.
-    expect(res.size?.lazyBytes).toBe(8);
-    expect(res.size?.packageBytes).toBe(res.size!.initialBytes + 8);
+    // Everything under a subpackage root is off the main package: the asset
+    // (8 bytes) AND the entry `game.js` WeChat demands in every root (169).
+    const lazy = 8 + 169;
+    expect(res.size?.lazyBytes).toBe(lazy);
+    expect(res.size?.packageBytes).toBe(res.size!.initialBytes + lazy);
     expect(initial?.measuredBytes).toBe(res.size?.initialBytes);
   }, 60_000);
 

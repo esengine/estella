@@ -23,6 +23,14 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **The size report counts a mini-game's main package without its subpackages.** Everything on
+  disk that the asset manifest did not claim was counted as "downloaded before anything runs",
+  so a binary moved into a subpackage was still judged against the 4MB it had just been moved
+  off — the setting that moves it looked like it did nothing. The export names its subpackage
+  roots now. On hello-world the main package reads 1.55MB against a 1.91MB total, where it read
+  1.91MB for both. A compressed `.wasm.br` also reads as the engine again rather than as
+  "other", so the biggest file in the package is no longer missing from the chart that finds it.
+
 - **A WeChat package can put its engine binary in a compressed subpackage.** The settings for both — `compressWasm` and `engineSubpackage` — existed, had a
   row in Project Settings and were honoured by the exporter, and the manifest parser read
   neither, so turning them on did nothing anywhere. Five other packaging settings were dropped
