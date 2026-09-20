@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(scale): the frame ceilings are set from both machines, not one':
+    { internal: 'A repository perf budget; no creator runs it.' },
+
   'fix(scale): a wasm budget is denominated in wasm, not in a JS loop':
     { internal: 'A repository perf budget; no creator runs it.' },
 
