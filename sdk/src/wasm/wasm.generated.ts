@@ -216,7 +216,7 @@ export enum SimulationSpace {
 /**
  * The engine's `SpriteDrawMode`, generated from the C++ enum.
  *
- * @beta
+ * @public
  */
 export enum SpriteDrawMode {
     Auto = 0,

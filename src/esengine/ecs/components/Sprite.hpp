@@ -36,7 +36,10 @@ namespace esengine::ecs {
  *          an override cannot invent data — Tiled with no tileSize and NineSlice
  *          with no border both draw the plain quad.
  */
-ES_ENUM(stability=beta)
+/* Public because a public component names it: `Sprite.drawMode` is @public, and a
+   frozen field whose TYPE can still change is a promise with a hole in it. The
+   set may still grow — api-surface counts a union gaining a member as a note. */
+ES_ENUM(stability=public)
 enum class SpriteDrawMode : u8 {
     Auto,
     Simple,

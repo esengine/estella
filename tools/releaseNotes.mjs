@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(api): a public field may not be typed by an unfrozen enum':
+    { internal: 'A tier declaration on a generated enum; the type a creator sees is unchanged.' },
+
   'feat(gates): the editor counts the controls it rolled by hand':
     { internal: "A repository ratchet over the editor's own components; no creator runs it." },
 
