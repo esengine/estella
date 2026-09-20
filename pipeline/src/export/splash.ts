@@ -9,26 +9,13 @@
  * thing that knows which stage it reached. Those are two readers of one list, so
  * the list lives here rather than being spelled once in each.
  *
- * Weights, not stage count: the stages are nowhere near equal — the engine
- * binary and the first app are most of a cold start — and an even bar would sit
- * at 60% for as long as the whole rest of the boot takes.
+ * The stage list is the SDK's: a mini-game shows the same progress through a
+ * host API rather than an overlay, and two copies would disagree about how far
+ * along one boot is.
  */
+import { BOOT_STAGES, BOOT_TOTAL, type BootStage } from '../../../sdk/src/runtime/bootStages';
 
-/** A boot stage, in the order {@link boot} reaches them. */
-export const BOOT_STAGES = [
-  { id: 'config', weight: 4, says: 'Reading the build' },
-  { id: 'scripts', weight: 6, says: 'Loading scripts' },
-  { id: 'manifest', weight: 4, says: 'Reading the asset list' },
-  { id: 'scene', weight: 6, says: 'Loading the scene' },
-  { id: 'engine', weight: 40, says: 'Starting the engine' },
-  { id: 'app', weight: 22, says: 'Preparing the renderer' },
-  { id: 'assets', weight: 13, says: 'Loading assets' },
-  { id: 'ready', weight: 5, says: 'Ready' },
-] as const;
-
-export type BootStage = (typeof BOOT_STAGES)[number]['id'];
-
-const TOTAL = BOOT_STAGES.reduce((n, s) => n + s.weight, 0);
+export { BOOT_STAGES, type BootStage };
 
 /** Ids the page and the runtime agree on; `es-` so a game's own markup cannot collide. */
 const ROOT = 'es-splash';
@@ -98,7 +85,7 @@ export function attachSplash(doc: Document = document): Splash | null {
       if (seen.has(stage)) return;
       seen.add(stage);
       done += BOOT_STAGES.find((s) => s.id === stage)?.weight ?? 0;
-      if (bar) bar.style.width = `${Math.min(100, Math.round((done / TOTAL) * 100))}%`;
+      if (bar) bar.style.width = `${Math.min(100, Math.round((done / BOOT_TOTAL) * 100))}%`;
       const at = BOOT_STAGES.findIndex((s) => s.id === stage);
       const next = BOOT_STAGES[at + 1];
       if (label && next) label.textContent = `${next.says}…`;

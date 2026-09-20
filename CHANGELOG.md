@@ -41,6 +41,15 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A mini-game says how far along its boot is, not just that it is loading.** The web
+  export got a start screen with a real progress bar; a mini-game could not have one,
+  because the display canvas is already the GL surface and nothing can be drawn over it.
+  It now reports through the host's own loading indicator instead — *Starting the
+  engine 54%* — driven by the same eight weighted stages the web overlay uses, from one
+  list, so the two cannot disagree about how far along the same boot is. A host without
+  that API boots exactly as before: an indicator is something a boot shows, never
+  something it can fail on.
+
 - **A project can be exported as a Douyin (抖音) mini-game.** Pick *Douyin* in Package
   Project and the same content that makes a WeChat package makes a Douyin one, judged
   against Douyin's own caps — 4MB for the main package and **20MB in total**, ten less

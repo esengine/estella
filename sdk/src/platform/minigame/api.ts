@@ -228,6 +228,12 @@ export interface MiniGameGlobal {
     offKeyDown?(cb: (res: MiniGameKeyEvent) => void): void;
     offKeyUp?(cb: (res: MiniGameKeyEvent) => void): void;
 
+    // Optional: the host's own loading indicator. WeChat and Douyin both have it,
+    // and it is the only progress surface a mini-game has — the display canvas is
+    // already the GL surface, so a 2D overlay cannot be drawn on it.
+    showLoading?(opts: { title: string; mask?: boolean }): void;
+    hideLoading?(): void;
+
     loadSubpackage?(opts: {
         name: string;
         success?: () => void;

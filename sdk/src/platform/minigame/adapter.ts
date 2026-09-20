@@ -62,6 +62,17 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
         this.name = profile.id;
     }
 
+    /**
+     * The host global, for the few capabilities only a mini-game has — the
+     * loading indicator a boot reports through, which exists because the display
+     * canvas is the GL surface and nothing 2D can be drawn over it.
+     *
+     * @internal Read-only: the adapter stays the one caller of what it abstracts.
+     */
+    get host(): MiniGameGlobal {
+        return this.g_;
+    }
+
     private fs(): MiniGameFileSystemManager {
         if (!this.fs_) this.fs_ = this.g_.getFileSystemManager();
         return this.fs_;

@@ -94,6 +94,7 @@ export {
     Light,
     LightType,
     SpriteMaskInteraction,
+    SpriteDrawMode,
     ShadowCaster2D,
     LightProbeVolume,
     type LightProbeVolumeData,

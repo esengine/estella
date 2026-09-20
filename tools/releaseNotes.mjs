@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  "feat(runtime): a mini-game reports its boot through the host's indicator":
+    { note: 'A mini-game says how far along its boot is, not just that it is loading.' },
+
   'fix(gates): the notes ledger parses again':
     { internal: 'Repairs this very file after a quote broke it; no creator reads it.' },
 

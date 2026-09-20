@@ -15,6 +15,7 @@
  */
 
 import { createWebApp } from './webAppFactory';
+import { bootPercent, bootSays, type BootStage } from './bootStages';
 import type { ESEngineModule } from '../wasm';
 import type { AudioProjectConfig } from '../audio/AudioProjectConfig';
 import { initRuntime } from './runtimeLoader';
@@ -127,6 +128,32 @@ export interface MiniGameRuntimeConfig {
     aot?: { module: string; manifest: AotManifest };
 }
 
+/**
+ * The host's loading indicator, driven by the same stage list the web start
+ * screen reads. It is the only progress surface a mini-game has: the display
+ * canvas is the GL surface, so nothing 2D can be drawn over it. Every call is
+ * optional — an indicator is something a boot SHOWS, never something it fails on.
+ */
+function hostProgress(global: { showLoading?: (o: { title: string; mask?: boolean }) => void; hideLoading?: () => void }) {
+    const done: BootStage[] = [];
+    const say = (): void => {
+        try {
+            global.showLoading?.({ title: `${bootSays(done)} ${bootPercent(done)}%`, mask: true });
+        } catch { /* an indicator must not take the boot down with it */ }
+    };
+    say();
+    return {
+        reach(stage: BootStage): void {
+            if (done.includes(stage)) return;
+            done.push(stage);
+            say();
+        },
+        finish(): void {
+            try { global.hideLoading?.(); } catch { /* as above */ }
+        },
+    };
+}
+
 export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promise<void> {
     // Before the app exists, so a plugin that acquires during build finds them.
     registerPackagedSideModules({ sideModules: config.sideModules });
@@ -139,16 +166,21 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
         );
     }
     const tag = adapter.name;
+    const progress = hostProgress(adapter.host);
+    progress.reach('config');
+    progress.reach('scripts');
 
     // The packaged-realm asset assembly, shared with the native runtime: read the
     // addressable manifest off the device, index it, build the catalog.
     const index = await loadPackagedAssetIndex();
     const { model: manifestModel, catalog } = index;
+    progress.reach('manifest');
 
     // The FIRST canvas of the process is the display surface on every vendor.
     const canvas = adapter.createScreenCanvas();
 
     const module = await instantiateModule(config.engineFactory, config.engineWasmPath, tag, { canvas });
+    progress.reach('engine');
 
     const gl = (canvas.getContext('webgl2') || canvas.getContext('webgl')) as WebGLRenderingContext | null;
     if (!gl) {
@@ -206,6 +238,7 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
     // group loads directly), and it survives scene switches. Setting it on the
     // pre-initRuntime Assets resource was a bug: the runtime instance replaced
     // that resource, so loadGroup lost the manifest after the first scene load.
+    progress.reach('assets');
     await initRuntime({
         app,
         module,
@@ -223,5 +256,8 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
         ...(config.aot ? { aot: config.aot } : {}),
     });
 
+    progress.reach('ready');
+    // Before run(), which may hand control to the engine's loop and not return.
+    progress.finish();
     app.run();
 }
