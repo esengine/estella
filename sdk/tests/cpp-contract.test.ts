@@ -37,7 +37,7 @@ import { BodyType } from '../src/physics/PhysicsComponents';
 import { UIPositionType, AlignSelf } from '../src/ui/core/ui-node';
 import { UIVisualType, FillMethod, FillOrigin } from '../src/ui/core/ui-visual';
 import { MaskMode } from '../src/ui/core/ui-mask';
-import { SpriteMaskInteraction } from '../src/ecs/component';
+import { SpriteMaskInteraction, SpriteDrawMode } from '../src/ecs/component';
 import { ScrollMovement } from '../src/ui/core/ui-scroll';
 import { TilemapOrientation } from '../src/tilemap/tileGeometry';
 import { TextAlign } from '../src/ui/core/text';
@@ -193,6 +193,7 @@ describe('C++ contract: module-published enums ARE their EHT-generated twin', ()
         ['ParticleEasing', ParticleEasing, gen.ParticleEasing],
         ['MaskMode', MaskMode, gen.MaskMode],
         ['SpriteMaskInteraction', SpriteMaskInteraction, gen.SpriteMaskInteraction],
+        ['SpriteDrawMode', SpriteDrawMode, gen.SpriteDrawMode],
         ['ScrollMovement', ScrollMovement, gen.ScrollMovement],
         ['TilemapOrientation', TilemapOrientation, gen.TilemapOrientation],
         ['FlexDirection', FlexDirection, gen.FlexDirection],

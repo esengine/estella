@@ -81,10 +81,7 @@ for (const surface of READING_SURFACES) {
 
 /**
  * `--cat-*` labels content on a PANEL; `--gizmo-*` draws over a scene and has to
- * win against it. A seventh chart series took `--gizmo-particle` at 100% for want
- * of a `--cat-` member. Whether a panel borrows one ON PURPOSE (streamed-cell
- * labels do, to match the viewport) is intent, and the identity rule below is
- * where that intent is written down.
+ * win against it. A deliberate borrowing is the identity rule's business, below.
  */
 const saturation = (hex) => {
   const h = hex.replace('#', '');
@@ -262,16 +259,11 @@ const iconScale = () => {
 };
 
 /**
- * Controls the editor hand-rolled rather than took from its own components.
+ * Controls the editor hand-rolled rather than took from `<Button>`/`<Tooltip>`,
+ * which are outnumbered 336:28 and 311:3.
  *
- * `<Button>` and `<Tooltip>` exist and are outnumbered 336:28 and 311:3. Not a
- * rule — a raw `<button>` inside a tile cell or a timeline key is right, and a
- * component that forced every one through it would be worse. A ratchet, so the
- * next one is a decision someone makes rather than the path of least effort.
- *
- * `title=` is counted on DOM elements only. RM-092's figure of 419 counted
- * `<Modal title=…>` too — 80 of them are a component's prop and not a tooltip
- * at all.
+ * A ratchet, not a rule: a raw `<button>` in a tile cell is right. `title=`
+ * counts on DOM elements only — 80 of RM-092's 419 were `<Modal title=…>`.
  */
 const handRolledByFile = () => {
   const out = {};

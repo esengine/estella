@@ -85,6 +85,10 @@ export const MODULES = {
         disposition: 'forbidden-native-script',
         why: 'the mini-game entry, as above',
     },
+    'esengine/douyin': {
+        disposition: 'forbidden-native-script',
+        why: "Douyin's platform profile — it names a host global (`tt`) that a native build does not have",
+    },
 };
 
 /** The `exports` subpath ("." / "./physics3d") a specifier corresponds to. */

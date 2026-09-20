@@ -139,6 +139,7 @@ export const BLIND = {
     // TypeScript, and a scene writes these as plain numbers.
     percent: AUTHORED_INSTEAD('the code spelling of a unit every authored UINode carries'),
     SpriteMaskInteraction: AUTHORED_INSTEAD("the enum behind Sprite.maskInteraction, which space-shooter's hull bar now sets in its scene"),
+    SpriteDrawMode: AUTHORED_INSTEAD("the enum behind Sprite.drawMode, which space-shooter's starfield now sets in its scene to tile rather than stretch"),
     CommandsInstance: RECEIVED,
     EntityCommands: RECEIVED,
     EventReaderInstance: RECEIVED,

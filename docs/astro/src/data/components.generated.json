@@ -4210,6 +4210,18 @@
           "default": "false"
         },
         {
+          "key": "drawMode",
+          "type": "enum",
+          "default": "Auto",
+          "doc": "Draw mode: Auto infers from tile size and the texture's 9-slice border; the others override it.",
+          "values": [
+            "Auto",
+            "Simple",
+            "Tiled",
+            "NineSlice"
+          ]
+        },
+        {
           "key": "tileSize",
           "type": "Vec2",
           "default": "(0, 0)",

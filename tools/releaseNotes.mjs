@@ -28,6 +28,15 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(examples): the starfield tiles, as its texture was drawn to':
+    { note: "space-shooter's background no longer stretches a 256px starfield over the whole screen." },
+
+  'chore(gates): the reds behind the first one':
+    { internal: 'Generated artifacts and gate bookkeeping; nothing a creator sees changes.' },
+
+  'test(editor): a sprite tiles when its scene says to, and stops when told not to':
+    { internal: 'A repository check over the editor; no creator runs it.' },
+
   "feat(editor): a whole screen's heading is a step of the scale, not a raw 25px":
     { internal: 'One heading moved onto an existing scale; nothing a creator sees changes size.' },
 
