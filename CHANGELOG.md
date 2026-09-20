@@ -33,6 +33,12 @@ published separately; it ships inside the editor.
   and every published entry declares itself side-effectful so a game's own bundler cannot
   repeat it with `esengine/physics3d`.
 
+- **The Inspector's effect stack draws its toggle, its rows and its Add button again.**
+  Ten declarations named six CSS variables this editor does not have — `--accent` where the
+  token is `--acc`, `--bg-inset` where it is `--inset`, and four more. CSS has no
+  unknown-variable error, so each one simply did not draw: a checked toggle with no fill, a
+  row with no background, and an "Add effect" button whose dashed box was never there.
+
 - **space-shooter's background no longer stretches a 256px starfield over the whole screen.**
   The texture was drawn to tile — 256×256, wrap mode repeat — and the scene stretched it over a
   600×1080 box, so every star drew 2.3× wider and 4.2× taller than it was painted. It tiles.

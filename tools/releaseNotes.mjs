@@ -28,6 +28,12 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(editor): six CSS variables that were never defined, so they drew nothing':
+    { note: "The Inspector's effect stack draws its toggle, its rows and its Add button again." },
+
+  'feat(gates): a CSS variable that nothing defines is refused':
+    { internal: "A repository gate over the editor's own stylesheets; no creator runs it." },
+
   'fix(examples): the starfield tiles, as its texture was drawn to':
     { note: "space-shooter's background no longer stretches a 256px starfield over the whole screen." },
 
