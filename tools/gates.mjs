@@ -262,6 +262,9 @@ export const GATES = [
   // A packaging setting the manifest parser does not read is a setting that
   // does nothing, in the editor and on a build server alike.
   { id: 'packaging-settings', run: 'node tools/check-packaging-settings.mjs' },
+  // A vendor claim that is wrong fails at upload or on a device, never at
+  // build: so each one cites the vendor or says what it is assumed from.
+  { id: 'minigame-profile-claims', run: 'node tools/check-minigame-profile-claims.mjs' },
   { id: 'comment-style', run: 'node tools/check-comment-style.mjs' },
   { id: 'silent-writes', run: 'node tools/mutation-census.mjs --gate' },
   {

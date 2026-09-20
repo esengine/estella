@@ -239,6 +239,9 @@ export const wechatExportProfile: MiniGameExportProfile = {
     // developers.weixin.qq.com/minigame/dev/guide/base-ability/code-package.html,
     // "文件类型": only these may be uploaded.
     packerSuffixes: WECHAT_PACKER_SUFFIXES,
+    // developers.weixin.qq.com/minigame/dev/framework/performance/wasm.html:
+    // `WXWebAssembly.instantiate(path)` takes 「.wasm 和 .wasm.br 后缀」 from base
+    // library 2.14.0 — documented rather than probed; the loader cannot be asked.
     wasmBrotli: true,
     subpackageDir: 'subpackages',
     subpackageEntry: 'game.js',
@@ -305,6 +308,9 @@ export const douyinExportProfile: MiniGameExportProfile = {
     wasmBuildHint: 'web',
     hostGlobal: 'tt',
     sideModuleBuildTargets: {},
+    // Assumed to match WeChat, not read from a Douyin doc: script and config are
+    // what a mini-game packer compiles itself everywhere this checkout has looked.
+    // Wrong here means a staged file the runtime cannot read, on a device.
     nativeSuffixes: new Set(['.js', '.json']),
     // No published list this checkout can cite, so nothing is restaged: staging a
     // file under a name the packer does not take is the failure that only shows at
