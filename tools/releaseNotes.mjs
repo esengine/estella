@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  "fix(export): a web package no longer carries another host's SDK":
+    { note: "A web build stops shipping the WeChat SDK entries next to the one its page loads." },
+
   'fix(pipeline): the esengine specifiers a game can write are the ones the SDK publishes':
     { note: 'A page no longer carries a module mapping that resolves to a file it does not have.' },
 

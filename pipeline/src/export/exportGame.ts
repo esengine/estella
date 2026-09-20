@@ -33,7 +33,7 @@ import type { PackagedGameConfig } from 'esengine';
 import {
   DEFAULT_RUNTIME_CONFIG, packagedRuntimeFields, type RuntimeProjectConfig,
 } from '../project/runtimeConfig';
-import { IMPORT_MAP_JSON, IMPORT_MAP_CSP_HASH } from '../bundle/importMap';
+import { IMPORT_MAP, IMPORT_MAP_JSON, IMPORT_MAP_CSP_HASH } from '../bundle/importMap';
 import { exportMiniGame } from './exportMiniGame';
 import { wechatExportProfile, douyinExportProfile } from './miniGameExportProfile';
 import type { MiniGameExportProfile } from './miniGameExportProfile';
@@ -141,13 +141,17 @@ export async function discoverProjectScenes(root: string, entryScene: string, sc
 }
 
 /**
- * Entry bundles in sdk/dist that a BROWSER page can never load: the other
- * platforms' builds. `dist` holds every target's output side by side, and the
- * export used to copy the tree wholesale — so a web package shipped the Node,
- * WeChat, mini-game and native SDKs, each with a multi-megabyte source map, next
- * to the one the import map actually names.
+ * Top-level bundles in sdk/dist a BROWSER page can load, derived from the map
+ * that names them — `dist` holds every target's output side by side.
+ *
+ * Derived, not enumerated: a listed set went stale the first time an entry was
+ * added, and a web package shipped a WeChat SDK.
  */
-const OTHER_PLATFORM_ENTRIES = /^index\.(node|wechat|wechat\.cjs|minigame|native|native\.bundled|bundled)\.js(\.map)?$/;
+const BROWSER_TOP_LEVEL = new Set(
+  Object.values(IMPORT_MAP.imports)
+    .map((t) => t.replace(/^\.\/sdk\//, ''))
+    .filter((t) => !t.includes('/')),
+);
 
 /**
  * Whether a file under sdk/dist belongs in a browser package built with
@@ -163,12 +167,17 @@ const OTHER_PLATFORM_ENTRIES = /^index\.(node|wechat|wechat\.cjs|minigame|native
  * would be exact but silent when it is wrong, and a bundle this drops that
  * something did want is a 404 the moment the page loads, not a subtle bug.
  */
-export function shipsToBrowser(sourceMaps: boolean): (src: string) => boolean {
+export function shipsToBrowser(sourceMaps: boolean, sdkDist?: string): (src: string) => boolean {
   return (src: string) => {
     const base = path.basename(src);
     if (base.endsWith('.d.ts')) return false;
     if (!sourceMaps && base.endsWith('.map')) return false;
-    return !OTHER_PLATFORM_ENTRIES.test(base);
+    // Only the top level: a subpath's `index.js` lives in its own directory, and
+    // `shared/` is chunks rather than entries.
+    if (sdkDist && /\.js(\.map)?$/.test(base) && path.dirname(src) === path.resolve(sdkDist)) {
+      return BROWSER_TOP_LEVEL.has(base.replace(/\.map$/, ''));
+    }
+    return true;
   };
 }
 
@@ -856,7 +865,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     progress({ phase: 'Copying SDK + runtime' });
     if (existsSync(opts.sdkDistDir)) {
       await cp(opts.sdkDistDir, path.join(payloadDir, 'sdk'), {
-        recursive: true, filter: shipsToBrowser(sourceMaps),
+        recursive: true, filter: shipsToBrowser(sourceMaps, opts.sdkDistDir),
       });
       if (!sourceMaps) await dropSourceMapRefs(path.join(payloadDir, 'sdk'));
     } else errors.push(`sdk dist not found: ${opts.sdkDistDir}`);

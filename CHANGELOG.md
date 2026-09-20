@@ -23,6 +23,12 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A web build stops shipping the WeChat SDK entries next to the one its page loads.**
+  `sdk/dist` holds every target's build side by side and the staging step filtered them by an
+  enumerated list of filenames, so an entry added after that list — `index.wechat.lean` — went
+  out in every web package, along with the WeChat open-data script. The kept set is derived
+  from the page's own import map now.
+
 - **A page no longer carries a module mapping that resolves to a file it does not have.** The
   exported page's import map listed `esengine/factory` → `sdk/webAppFactory.js`; the SDK has
   never published that subpath and `dist/` has never emitted that file, so a game importing it
