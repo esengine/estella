@@ -12,6 +12,7 @@
  * Adding a vendor = one profile object, not a fork of the pipeline.
  */
 import { WECHAT_MODULE_BUILD_TARGET } from '../bundle/sideModuleScan';
+import type { RuntimeHost } from '../bundle/runtimeHosts';
 import type { SizeBudget } from '../project/sizeBudget';
 
 /**
@@ -193,6 +194,14 @@ export interface MiniGameExportProfile {
      */
     readonly runtimeProfileModule?: string;
 
+    /**
+     * The same thing for a BUILT-IN vendor, whose profile module ships with the
+     * pipeline rather than living in a project: a name out of RUNTIME_HOSTS,
+     * resolved against the export's hostsDir. Declaring the path directly would
+     * be wrong in a packaged editor, which bundles those sources elsewhere.
+     */
+    readonly runtimeProfileHost?: RuntimeHost;
+
     /** Emit the vendor config files (game.json + project.config.json / project.tt.json). */
     emitConfigFiles(ctx: MiniGameConfigContext): Array<{ file: string; content: string }>;
     /** Emit the MiniGame entry the host runs (game.js). */
@@ -267,6 +276,64 @@ export const wechatExportProfile: MiniGameExportProfile = {
         return [
             { file: 'game.json', content: JSON.stringify(gameCfg, null, 2) + '\n' },
             { file: 'project.config.json', content: JSON.stringify(projectCfg, null, 2) + '\n' },
+        ];
+    },
+
+    emitEntry: defaultMiniGameEntry,
+};
+
+// =============================================================================
+// Douyin profile
+// =============================================================================
+
+/**
+ * Douyin (抖音) as a packaging profile. No SDK entry of its own — it goes through
+ * the door a project vendor uses, `runtimeProfileHost`. A packer whitelist,
+ * `.wasm.br` and a host wasm loader stay off until a device settles them:
+ * claiming one early builds clean and fails at upload or at boot.
+ */
+export const douyinExportProfile: MiniGameExportProfile = {
+    id: 'douyin',
+    sdkEntryFile: 'index.minigame.js',
+    runtimeInit: 'initMiniGameRuntime',
+    runtimeProfileHost: 'douyinPlatformProfile',
+    // No Douyin-specific engine build: the web artifact is what a `tt` host runs.
+    engineGlueCandidates: ['esengine.js'],
+    // Same floor as WeChat until a device says otherwise — down-levelling costs
+    // nothing and a syntax error on a phone costs a release.
+    esTarget: 'es2017',
+    wasmBuildHint: 'web',
+    hostGlobal: 'tt',
+    sideModuleBuildTargets: {},
+    nativeSuffixes: new Set(['.js', '.json']),
+    // No published list this checkout can cite, so nothing is restaged: staging a
+    // file under a name the packer does not take is the failure that only shows at
+    // upload, and inventing the list would be that failure with extra steps.
+    packerSuffixes: null,
+    // Not claimed until a device says it: `.wasm.br` is WeChat's documented path,
+    // and shipping only the compressed file to a host that cannot read it is a
+    // package that builds clean and never boots.
+    wasmBrotli: false,
+    subpackageDir: 'subpackages',
+    subpackageEntry: 'game.js',
+
+    emitConfigFiles(ctx) {
+        const gameCfg: Record<string, unknown> = {
+            deviceOrientation: ctx.orientation,
+            showStatusBar: false,
+        };
+        if (ctx.subPackages.length > 0) {
+            gameCfg.subPackages = ctx.subPackages.map((s) => ({ name: s.name, root: s.root }));
+        }
+        const projectCfg: Record<string, unknown> = {
+            miniprogramRoot: './',
+            projectname: ctx.title,
+            appid: ctx.appid,
+            compileType: 'game',
+        };
+        return [
+            { file: 'game.json', content: JSON.stringify(gameCfg, null, 2) + '\n' },
+            { file: 'project.tt.json', content: JSON.stringify(projectCfg, null, 2) + '\n' },
         ];
     },
 

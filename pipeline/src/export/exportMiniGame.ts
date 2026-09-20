@@ -41,6 +41,7 @@ import { cookAssets, type Inclusion } from '../assets/cookAssets';
 import { buildAddressableManifest } from '../assets/addressableManifest';
 import type { ExportScene } from './exportGame';
 import type { OnExportProgress } from './exportProgress';
+import { runtimeHostEntry } from '../bundle/runtimeHosts';
 import { breakdownOf, type ModuleBytes } from './bundleBreakdown';
 import { esengineAlias } from '../bundle/esengineResolve';
 import { explainBundleErrors, type BundleMessage } from '../bundle/bundleDiagnostics';
@@ -230,6 +231,9 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   sdkDir: string;
   wasmDir: string;
   outDir: string;
+  /** Where the runtime hosts live — sources in dev, a prebuilt tree in a packaged
+   *  editor. A built-in vendor's platform profile is resolved against it. */
+  hostsDir: string;
   title?: string;
   /** MiniGame appid (Project Settings) → project config. */
   appid?: string;
@@ -405,12 +409,13 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
       ? `, uiThemeOverrides: parseThemeOverrides(${JSON.stringify(v)})`
       : `, ${k}: ${JSON.stringify(v)}`))
     .join('');
-  // A vendor whose SDK entry does not install a platform on import (the
-  // family entry, esengine/minigame — it waits until the game names a host)
-  // gets its runtime profile installed here, at the top of boot(). Without
-  // this the package would build fine and then throw on the device, which is
-  // the worst place to learn that the two halves of a vendor were never joined.
-  const installsPlatform = !!profile.runtimeProfileModule;
+  // esengine/minigame installs no platform until a host is named, so boot() names
+  // one: a built-in points at a shipped module, a project vendor at a file beside
+  // its own platform. Unjoined, the package builds and throws on the device.
+  const platformProfileModule = profile.runtimeProfileHost
+    ? runtimeHostEntry(opts.hostsDir, profile.runtimeProfileHost)
+    : profile.runtimeProfileModule;
+  const installsPlatform = !!platformProfileModule;
   // A mini-game does not read game.config.json — its configuration IS this
   // generated call — so the project modules' artifact names ride it here. The
   // factories arrive separately (game.js require()s the glue); this is what tells
@@ -434,9 +439,9 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     await cp(built.modulePath, path.join(absOut, 'aot', 'systems.wasm'));
     aotArg = `, aot: ${JSON.stringify({ module: 'aot/systems.wasm', manifest: built.manifest })}`;
   }
-  // The same answer the scan already gives for wasm side modules, asked of their
-  // JS: the lean SDK entry plus the subpaths that install what this project uses.
-  // Video has no subpath, so a project with video takes the whole entry.
+  // The scan's answer for wasm side modules, asked of their JS: the lean entry
+  // plus the subpaths that install what this project uses. Video has no subpath,
+  // so a project with video takes the whole entry.
   const OPTIONAL_SUBPATH: Record<string, string> = {
     physics: 'esengine/physics',
     physics3d: 'esengine/physics3d',
@@ -460,7 +465,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   const entrySrc =
     installs.map((m) => `import ${JSON.stringify(m)};\n`).join('') +
     `import { ${profile.runtimeInit}${installsPlatform ? ', installMiniGamePlatform' : ''}${themeColors ? ', parseThemeOverrides' : ''} } from 'esengine';\n` +
-    (installsPlatform ? `import __platformProfile from ${JSON.stringify(profile.runtimeProfileModule)};\n` : '') +
+    (installsPlatform ? `import __platformProfile from ${JSON.stringify(platformProfileModule)};\n` : '') +
     (scriptsAbs && existsSync(scriptsAbs) ? `import ${JSON.stringify(scriptsAbs)};\n` : '') +
     `export function boot(engineFactory, sideModuleFactories) {\n` +
     (installsPlatform ? `  installMiniGamePlatform(__platformProfile);\n` : '') +

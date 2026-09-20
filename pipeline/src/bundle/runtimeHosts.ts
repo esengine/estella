@@ -12,7 +12,12 @@
 import path from 'node:path';
 import { ESENGINE_EXTERNAL } from './esengineResolve';
 
-export const RUNTIME_HOSTS = ['gameHost', 'playableHost', 'playableLoader'] as const;
+// `douyinPlatformProfile` is not a host but travels the same way: a built-in
+// vendor's runtime profile is a module the generated entry imports, so the
+// editor has to ship it for the same reason it ships the hosts.
+export const RUNTIME_HOSTS = [
+  'gameHost', 'playableHost', 'playableLoader', 'douyinPlatformProfile',
+] as const;
 
 export type RuntimeHost = (typeof RUNTIME_HOSTS)[number];
 

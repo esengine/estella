@@ -74,8 +74,16 @@ const MB = 1024 * 1024;
  */
 export function builtinSizeBudgets(platform: ExportPlatform): readonly SizeBudget[] {
     if (platform === 'wechat') return WECHAT_BUDGETS;
+    if (platform === 'douyin') return DOUYIN_BUDGETS;
     return NO_BUDGETS;
 }
+
+/** Douyin's caps are lower than WeChat's on the total, which is the one that
+ *  surprises: a package that fits WeChat can still be 10MB over here. */
+const DOUYIN_BUDGETS: readonly SizeBudget[] = [
+    { scope: 'initial', maxBytes: 4 * MB, note: "Douyin caps a mini-game's main package at 4MB" },
+    { scope: 'total', maxBytes: 20 * MB, note: 'Douyin caps a mini-game at 20MB across the main package and all subpackages' },
+];
 
 const NO_BUDGETS: readonly SizeBudget[] = [];
 

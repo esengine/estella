@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(export): a project can be packaged for Douyin':
+    { note: 'A project can be exported as a Douyin (抖音) mini-game.' },
+
   'feat(render): a sprite says how it fills its box, instead of its texture saying':
     { note: 'A sprite can be drawn whole even when its texture carries a 9-slice border.' },
 

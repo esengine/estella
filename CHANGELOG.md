@@ -41,6 +41,16 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A project can be exported as a Douyin (抖音) mini-game.** Pick *Douyin* in Package
+  Project and the same content that makes a WeChat package makes a Douyin one, judged
+  against Douyin's own caps — 4MB for the main package and **20MB in total**, ten less
+  than WeChat allows, which is the number that catches a package out. Three things are
+  deliberately not claimed yet, because this release cannot cite them: the suffix list
+  its packer accepts, `.wasm.br` for the engine binary, and a wasm loader of the host's
+  own. Each is something only a real device settles, and a package that claimed one
+  early would build clean and fail at upload or at boot. Douyin needs no separate engine
+  build — the web artifact is what a `tt` host runs.
+
 - **A sprite can be drawn whole even when its texture carries a 9-slice border.** The
   texture decided, not the entity using it: import a panel image with slice borders and
   every Sprite showing it was 9-sliced, with nothing on the entity able to say otherwise.

@@ -21,11 +21,11 @@
  * Xcode), so a single row could not tell you what to run, whether this machine
  * can run it, or where the package comes out.
  */
-export type BuiltinPlatform = 'web' | 'desktop' | 'wechat' | 'playable' | 'android' | 'ios';
+export type BuiltinPlatform = 'web' | 'desktop' | 'wechat' | 'douyin' | 'playable' | 'android' | 'ios';
 
 /** Built-ins, in the order they are offered. */
 export const BUILTIN_PLATFORMS: readonly BuiltinPlatform[] = [
-    'web', 'desktop', 'wechat', 'playable', 'android', 'ios',
+    'web', 'desktop', 'wechat', 'douyin', 'playable', 'android', 'ios',
 ];
 
 /**
@@ -162,7 +162,7 @@ export type ToolchainPiece = 'xcode' | 'macos' | 'emsdk' | 'hostcc';
  * playable has nowhere to put a module; iOS and Android need a cross-compiler.
  */
 export function compileTargetFor(platform: ExportPlatform): 'wasm' | 'native' | null {
-    if (platform === 'web' || platform === 'wechat') return 'wasm';
+    if (platform === 'web' || platform === 'wechat' || platform === 'douyin') return 'wasm';
     if (platform === 'desktop') return 'native';
     if (platform === 'playable' || platform === 'android' || platform === 'ios') return null;
     // A project platform is a mini-game platform: the playable ones are chosen

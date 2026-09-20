@@ -60,6 +60,7 @@ export default defineConfig([
             'physics3d/index': 'src/physics3d/index.ts',
             'spine/index': 'src/spine/index.ts',
             'dragonbones/index': 'src/dragonbones/index.ts',
+            'douyin/index': 'src/platform/douyin/index.ts',
             'wasm': 'src/wasm.ts',
         },
         output: {

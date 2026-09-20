@@ -52,6 +52,10 @@
     "./physics3d": {
       "import": "./dist/physics3d/index.js",
       "types": "./dist/physics3d/index.d.ts"
+    },
+    "./douyin": {
+      "import": "./dist/douyin/index.js",
+      "types": "./dist/douyin/index.d.ts"
     }
   },
   "files": [

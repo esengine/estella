@@ -29,6 +29,7 @@ export function esengineAlias(sdkDir: string, mainEntry = 'index.js'): Record<st
     'esengine/dragonbones': path.join(sdkDir, 'dragonbones', 'index.js'),
     'esengine/physics': path.join(sdkDir, 'physics', 'index.js'),
     'esengine/physics3d': path.join(sdkDir, 'physics3d', 'index.js'),
+    'esengine/douyin': path.join(sdkDir, 'douyin', 'index.js'),
     'esengine/wasm': path.join(sdkDir, 'wasm.js'),
     'esengine/factory': path.join(sdkDir, 'webAppFactory.js'),
   };

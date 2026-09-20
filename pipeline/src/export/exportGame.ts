@@ -34,9 +34,15 @@ import {
   DEFAULT_RUNTIME_CONFIG, packagedRuntimeFields, type RuntimeProjectConfig,
 } from '../project/runtimeConfig';
 import { IMPORT_MAP_JSON, IMPORT_MAP_CSP_HASH } from '../bundle/importMap';
-import { exportWeChat } from './exportWeChat';
 import { exportMiniGame } from './exportMiniGame';
+import { wechatExportProfile, douyinExportProfile } from './miniGameExportProfile';
 import type { MiniGameExportProfile } from './miniGameExportProfile';
+
+/** The mini-game vendors the editor ships, by platform id. */
+const BUILTIN_MINIGAME_PROFILES: Readonly<Record<string, MiniGameExportProfile>> = {
+  wechat: wechatExportProfile,
+  douyin: douyinExportProfile,
+};
 import { exportPlayable } from './exportPlayable';
 import { genericPlayableProfile, type PlayableAdProfile } from './playableAdProfile';
 import type { OnExportProgress } from './exportProgress';
@@ -588,6 +594,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       sdkDir: opts.sdkDistDir,
       wasmDir: opts.wasmDir,
       outDir: opts.outDir,
+      hostsDir: opts.hostsDir,
       title,
       appid: opts.wechatAppid,
       orientation,
@@ -606,9 +613,12 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   }
 
   // WeChat has no import maps + a different module/asset model → its own pipeline.
-  if (platform === 'wechat') {
-    if (streamed.length > 0) refuseStreamedWorld('the WeChat package');
-    return await exportWeChat({
+  // A table, not a branch per vendor: adding one is a profile object, which is
+  // the promise miniGameExportProfile makes and a `platform === …` chain drops.
+  const builtinMiniGame = BUILTIN_MINIGAME_PROFILES[platform];
+  if (builtinMiniGame) {
+    if (streamed.length > 0) refuseStreamedWorld(`the ${builtinMiniGame.id} package`);
+    return await exportMiniGame(builtinMiniGame, {
       root: opts.root,
       entryScene: opts.entryScene,
       scenes,
@@ -616,6 +626,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       sdkDir: opts.sdkDistDir,
       wasmDir: opts.wasmDir,
       outDir: opts.outDir,
+      hostsDir: opts.hostsDir,
       title,
       appid: opts.wechatAppid,
       orientation,
