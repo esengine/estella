@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(project): seven packaging settings a project could declare did nothing':
+    { note: "A WeChat package can put its engine binary in a compressed subpackage." },
+
   'feat(play): a cold start that never says hello now says what its frame did':
     { note: 'A game that fails to start says what its frame actually did.' },
 

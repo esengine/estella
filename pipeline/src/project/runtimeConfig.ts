@@ -229,6 +229,34 @@ export function cookOptionsOf(manifest: Pick<ProjectManifest, 'packaging'>): Coo
   return { compressTextures: on, compressAudio: on, atlasTextures: on };
 }
 
+/**
+ * The packaging POLICY a headless export must carry, beyond the cook's.
+ *
+ * Third derivation of this shape and the third time for one reason: the Build
+ * dialog reads these settings and the command line did not, so an automated
+ * package silently differed from the one a person makes.
+ */
+export interface PackagingOptions {
+  compressWasm: boolean;
+  engineSubpackage: boolean;
+  excludeScenes: string[];
+  sourcemap: boolean;
+  appIcon: string | undefined;
+}
+
+export function packagingOptionsOf(manifest: Pick<ProjectManifest, 'packaging'>): PackagingOptions {
+  const p = manifest.packaging;
+  return {
+    compressWasm: p?.compressWasm ?? false,
+    engineSubpackage: p?.engineSubpackage ?? false,
+    excludeScenes: p?.excludeScenes ?? [],
+    // A shipping build carries no maps unless the project asked; `config` is the
+    // word the dialog uses for the same choice.
+    sourcemap: p?.sourceMaps ?? (p?.config === 'development'),
+    appIcon: p?.icon,
+  };
+}
+
 /** The effective settings of a project with nothing declared — every default. */
 export const DEFAULT_RUNTIME_CONFIG: RuntimeProjectConfig = runtimeConfigOf({});
 

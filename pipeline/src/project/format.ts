@@ -666,6 +666,16 @@ export function parseManifest(raw: unknown): ProjectManifest {
     if (typeof p.appId === 'string' && p.appId !== '') pkg.appId = p.appId;
     if (typeof p.sourceMaps === 'boolean') pkg.sourceMaps = p.sourceMaps;
     if (typeof p.openFolder === 'boolean') pkg.openFolder = p.openFolder;
+    if (typeof p.compressWasm === 'boolean') pkg.compressWasm = p.compressWasm;
+    if (typeof p.engineSubpackage === 'boolean') pkg.engineSubpackage = p.engineSubpackage;
+    if (p.assetCompression === 'auto' || p.assetCompression === 'skip') pkg.assetCompression = p.assetCompression;
+    // The deprecated trio the `assetCompression` switch replaced. Still read:
+    // a project written before it exists on disk, and dropping them here would
+    // silently turn its choice back on.
+    if (typeof p.compressTextures === 'boolean') pkg.compressTextures = p.compressTextures;
+    if (typeof p.compressAudio === 'boolean') pkg.compressAudio = p.compressAudio;
+    if (typeof p.atlasTextures === 'boolean') pkg.atlasTextures = p.atlasTextures;
+    if (typeof p.icon === 'string' && p.icon !== '') pkg.icon = p.icon;
     // Project-wide orientation. `orientation` is authoritative; a project written by
     // an older editor carried it per-platform (packaging.platforms.{wechat|playable}
     // .orientation) — hoist the first legacy value found (below) as a migration, then

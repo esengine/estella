@@ -259,6 +259,9 @@ export const GATES = [
   // The specifiers a game writes against the SDK, held to what the package
   // publishes: a map entry that resolves to nothing fails at load, not at build.
   { id: 'import-map', run: 'node tools/check-import-map.mjs' },
+  // A packaging setting the manifest parser does not read is a setting that
+  // does nothing, in the editor and on a build server alike.
+  { id: 'packaging-settings', run: 'node tools/check-packaging-settings.mjs' },
   { id: 'comment-style', run: 'node tools/check-comment-style.mjs' },
   { id: 'silent-writes', run: 'node tools/mutation-census.mjs --gate' },
   {

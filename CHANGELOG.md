@@ -23,6 +23,13 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A WeChat package can put its engine binary in a compressed subpackage.** The settings for both — `compressWasm` and `engineSubpackage` — existed, had a
+  row in Project Settings and were honoured by the exporter, and the manifest parser read
+  neither, so turning them on did nothing anywhere. Five other packaging settings were dropped
+  the same way, `assetCompression` among them. On hello-world the engine goes from 1.83MB
+  uncompressed in the main package to 363KB in a subpackage, and the main package from 80% of
+  WeChat's 4MB cap to 37%.
+
 - **A game that fails to start says what its frame actually did.** A realm that never reports in left the editor with one sentence and
   no cause — the case CI hits about every third build. The failure now carries the frame's own
   navigation, the HTTP status it was served, any load error and its console, with timings: a

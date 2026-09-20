@@ -743,7 +743,7 @@ const desktopTemplates = platform !== 'desktop' ? [] : (opts.template
 
 const { mod: fmt, cleanup: cleanupFmt } = await loadPipeline(
   path.join(PIPELINE, 'src', 'project', 'index.ts'), 'projectFormat.mjs');
-const { resolveOrientation, parseManifest, runtimeConfigOf, cookOptionsOf } = fmt;
+const { resolveOrientation, parseManifest, runtimeConfigOf, cookOptionsOf, packagingOptionsOf } = fmt;
 // PARSED, not read by hand: the parser normalizes legacy platform ids and drops
 // values that could not be judged against. A setting read straight off the JSON
 // here is a second answer to what a project means.
@@ -771,6 +771,7 @@ try {
     // claiming to be the package the dialog makes.
     runtime: runtimeConfigOf(manifest),
     ...cookOptionsOf(manifest),
+    ...packagingOptionsOf(manifest),
     androidTemplate: platform === 'android' ? templateDir : null,
     desktopTemplates,
     desktopChannel: opts['steam-appid'] ? 'steam' : undefined,
