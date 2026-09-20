@@ -34,6 +34,6 @@ export type { RuntimeAssetSource } from '../runtime/runtimeAssets';
 // Importing this subpath INSTALLS Spine: the core runtime names no optional
 // subsystem, so this is what puts it back, and a build that never imports it
 // ships none of the code below.
-import { registerSpineSupport } from './support';
+import { registerSpineSupport } from './spineSupport';
 
 registerSpineSupport();

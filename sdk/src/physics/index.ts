@@ -115,6 +115,6 @@ export {
 export { registerCharacterController2DSystem } from './CharacterController2DSystem';
 
 // Importing this subpath INSTALLS 2D physics — see spine/index.ts.
-import { registerPhysics2DSupport } from './support';
+import { registerPhysics2DSupport } from './physicsSupport';
 
 registerPhysics2DSupport();

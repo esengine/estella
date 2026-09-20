@@ -104,6 +104,6 @@ export {
 } from './ColliderShape3D';
 
 // Importing this subpath INSTALLS 3D physics — see spine/index.ts.
-import { registerPhysics3DSupport } from './support';
+import { registerPhysics3DSupport } from './physics3dSupport';
 
 registerPhysics3DSupport();

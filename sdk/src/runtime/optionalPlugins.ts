@@ -15,10 +15,10 @@
  */
 import { VideoPlayer } from '../video/VideoAPI';
 import { setSceneOptionals } from './sceneOptionals';
-import { registerSpineSupport } from '../spine/support';
-import { registerDragonBonesSupport } from '../dragonbones/support';
-import { registerPhysics2DSupport } from '../physics/support';
-import { registerPhysics3DSupport } from '../physics3d/support';
+import { registerSpineSupport } from '../spine/spineSupport';
+import { registerDragonBonesSupport } from '../dragonbones/dragonBonesSupport';
+import { registerPhysics2DSupport } from '../physics/physicsSupport';
+import { registerPhysics3DSupport } from '../physics3d/physics3dSupport';
 
 export function installOptionalPlugins(): void {
     registerSpineSupport();
