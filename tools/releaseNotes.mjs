@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'docs(theme): the alias block says what it is, not what it was for':
+    { internal: "A comment in the editor's token file; nothing a creator sees changes." },
+
   'fix(docs): the plugin manual named two CSS variables the editor does not have':
     { note: 'A plugin styled from the manual gets the editor\'s real colours instead of none.' },
 
