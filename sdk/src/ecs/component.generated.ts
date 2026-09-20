@@ -1718,7 +1718,7 @@ export interface SpriteData {
     lit: boolean;
     flipX: boolean;
     flipY: boolean;
-    drawMode: SpriteDrawMode;
+    drawMode?: SpriteDrawMode;
     tileSize: Vec2;
     tileSpacing: Vec2;
     parallax: Vec2;

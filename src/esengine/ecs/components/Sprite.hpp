@@ -127,7 +127,8 @@ struct Sprite {
 
     /** @brief How this sprite fills its box; Auto infers it from tileSize and the
      *         texture's slice border. */
-    ES_PROPERTY(tooltip="Draw mode: Auto infers from tile size and the texture's 9-slice border; the others override it.")
+    ES_PROPERTY(optional,
+                tooltip="Draw mode: Auto infers from tile size and the texture's 9-slice border; the others override it.")
     SpriteDrawMode drawMode{SpriteDrawMode::Auto};
 
     /** @brief Tile size in world units for tiling mode ({0,0} = no tiling) */

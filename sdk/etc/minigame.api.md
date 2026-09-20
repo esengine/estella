@@ -9056,7 +9056,7 @@ speed: number
 ## SpriteData — interface @public
 ```
 color: Color
-drawMode: SpriteDrawMode
+drawMode: SpriteDrawMode | undefined
 enabled: boolean
 flipX: boolean
 flipY: boolean
