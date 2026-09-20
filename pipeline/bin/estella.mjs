@@ -3,7 +3,7 @@
 //
 // Package a project without the editor. `--help` states the options.
 import path from 'node:path';
-import { existsSync, readFileSync, readdirSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { installedTemplateDir, iosTemplateSources } from '../../build-tools/utils/nativeTemplate.js';
@@ -472,12 +472,33 @@ async function bakeScene(baker, meta, sceneFile, check) {
   return 0;
 }
 
+/** An hour: longer than any run, so this can only be a dir nothing owns. */
+const STALE_MS = 60 * 60 * 1000;
+
+/**
+ * Remove build dirs a previous run could not: `process.on('exit')` covers a
+ * normal end, and Ctrl-C is not one. 277 of them had collected, 219MB of half
+ * the toolchain sitting where every source-scanning gate reads.
+ */
+function sweepStaleBuildDirs(srcDir) {
+  const now = Date.now();
+  for (const name of readdirSync(srcDir)) {
+    if (!name.startsWith('.build-')) continue;
+    const dir = path.join(srcDir, name);
+    try {
+      if (now - statSync(dir).mtimeMs < STALE_MS) continue;
+      rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    } catch { /* a concurrent run may be removing it; either way it is gone. */ }
+  }
+}
+
 async function loadPipeline(entry, outName) {
   const require = createRequire(path.join(PIPELINE, 'package.json'));
   const esbuild = require('esbuild');
   // As deep in the package as the cook is: the Basis encoder is kept external so
   // it finds its own .cjs/.wasm, which means its relative specifier has to
   // resolve from the temp dir the same way it does from the cook.
+  sweepStaleBuildDirs(path.join(PIPELINE, 'src'));
   const dir = mkdtempSync(path.join(PIPELINE, 'src', '.build-'));
   const outfile = path.join(dir, outName);
   await esbuild.build({
@@ -498,11 +519,17 @@ async function loadPipeline(entry, outName) {
         + `const require = __esCreateRequire('${fileUrl(path.join(PIPELINE, 'package.json'))}');\n`,
     },
   });
-  const cleanup = () => rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+  let gone = false;
+  const cleanup = () => {
+    if (gone) return;
+    gone = true;
+    rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+  };
+  // The dir lives inside `pipeline/src`, so one left behind is half the toolchain
+  // sitting where every source-scanning gate reads. A caller's own cleanup is a
+  // path that can be missed — 277 had been — so the exit is what guarantees it.
+  process.on('exit', cleanup);
   try {
-    // Cleaned up on the way out even when the bundle will not load: the temp dir
-    // lives inside `pipeline/src`, so one left behind is a copy of half the
-    // toolchain sitting where every source-scanning gate will read it.
     return { mod: await import(fileUrl(outfile)), cleanup };
   } catch (err) {
     cleanup();
