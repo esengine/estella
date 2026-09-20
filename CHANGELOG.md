@@ -41,6 +41,15 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A sprite can be drawn whole even when its texture carries a 9-slice border.** The
+  texture decided, not the entity using it: import a panel image with slice borders and
+  every Sprite showing it was 9-sliced, with nothing on the entity able to say otherwise.
+  Sprites now have a **Draw Mode** — *Auto* is the old inference (tile size decides
+  tiling, the texture's border decides 9-slice) and stays the default, so nothing you
+  have drawn changes; *Simple*, *Tiled* and *9-Slice* say it outright. An override cannot
+  invent what it needs, so *Tiled* with no tile size and *9-Slice* on a texture with no
+  border both draw the plain quad, which is what the sprite would have drawn anyway.
+
 - **A WeChat mini-game now carries only the optional subsystems its project uses.**
   The engine binary was never the only thing a package paid for whether it needed it or
   not: the JavaScript bundle carried Spine, DragonBones, 2D physics, 3D physics and video

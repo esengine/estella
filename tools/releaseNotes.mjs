@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(render): a sprite says how it fills its box, instead of its texture saying':
+    { note: 'A sprite can be drawn whole even when its texture carries a 9-slice border.' },
+
   'refactor(sdk): 2D physics declares where its declarations end':
     { internal: 'Where the same code lives; behaviour and the public surface are unchanged.' },
 

@@ -487,6 +487,7 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'lit', type: 'bool', offset: 64 },
             { name: 'flipX', type: 'bool', offset: 65 },
             { name: 'flipY', type: 'bool', offset: 66 },
+            { name: 'drawMode', type: 'u8', offset: 67 },
             { name: 'tileSize', type: 'vec2', offset: 68 },
             { name: 'tileSpacing', type: 'vec2', offset: 76 },
             { name: 'parallax', type: 'vec2', offset: 84 },

@@ -1035,6 +1035,27 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
     "color": {
       "tooltip": "Tint multiplied into the texture (white = unchanged).",
     },
+    "drawMode": {
+      "enum": [
+        {
+          "label": "Auto",
+          "value": 0,
+        },
+        {
+          "label": "Simple",
+          "value": 1,
+        },
+        {
+          "label": "Tiled",
+          "value": 2,
+        },
+        {
+          "label": "NineSlice",
+          "value": 3,
+        },
+      ],
+      "tooltip": "Draw mode: Auto infers from tile size and the texture's 9-slice border; the others override it.",
+    },
     "layer": {
       "enumSource": "sortingLayers",
       "step": 1,

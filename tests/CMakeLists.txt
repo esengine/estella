@@ -195,6 +195,13 @@ target_include_directories(test_sprite_mask_range PRIVATE
 )
 add_test(NAME test_sprite_mask_range COMMAND test_sprite_mask_range)
 
+add_executable(test_sprite_draw_mode renderer/test_sprite_draw_mode.cpp)
+target_include_directories(test_sprite_draw_mode PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party/glm
+)
+add_test(NAME test_sprite_draw_mode COMMAND test_sprite_draw_mode)
+
 # The sort key's field layout, asserted on the bits. Header-only, so no engine link.
 add_executable(test_sort_key renderer/test_sort_key.cpp)
 target_include_directories(test_sort_key PRIVATE

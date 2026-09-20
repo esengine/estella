@@ -7,7 +7,7 @@
 import type { AssetFieldType } from '../scene/scene';
 import type { FieldMeta } from './component';
 import type { Color, Entity, Quat, Vec2, Vec3, Vec4 } from '../types';
-import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, ClearFlags, Dimension, EmitterShape, FlexDirection, FlexWrap, ForceFieldType, JustifyContent, LightType, MaskMode, Padding, ParticleEasing, ProjectionType, ScrollMovement, ShapeType, SimulationSpace, SpriteMaskInteraction, SubEmitterTrigger, TextAlign, TilemapOrientation, TilemapStaggerAxis, TilemapStaggerIndex, UIDisplay, UIFillMethod, UIFillOrigin, UIPointerEvents, UIPositionType, UIVisualFit, UIVisualType } from '../wasm/wasm.generated';
+import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, ClearFlags, Dimension, EmitterShape, FlexDirection, FlexWrap, ForceFieldType, JustifyContent, LightType, MaskMode, Padding, ParticleEasing, ProjectionType, ScrollMovement, ShapeType, SimulationSpace, SpriteDrawMode, SpriteMaskInteraction, SubEmitterTrigger, TextAlign, TilemapOrientation, TilemapStaggerAxis, TilemapStaggerIndex, UIDisplay, UIFillMethod, UIFillOrigin, UIPointerEvents, UIPositionType, UIVisualFit, UIVisualType } from '../wasm/wasm.generated';
 
 /**
  * Single-source-of-truth hash of the C++/TS boundary ABI (component
@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, Cl
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '10bb7593c5d041c3';
+export const ABI_LAYOUT_HASH = '101981b3fea145cb';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -975,6 +975,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             lit: false,
             flipX: false,
             flipY: false,
+            drawMode: 0,
             tileSize: { x: 0, y: 0 },
             tileSpacing: { x: 0, y: 0 },
             parallax: { x: 1, y: 1 },
@@ -998,6 +999,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             order: { min: -128, max: 127, step: 1, tooltip: "Draw order inside the sorting layer — higher draws on top. Overrides the layer's Y-sort or depth ordering; leave 0 to keep it." },
             maskInteraction: { enum: [{ label: 'None', value: 0 }, { label: 'VisibleInside', value: 1 }, { label: 'VisibleOutside', value: 2 }], tooltip: "Whether a SpriteMask drawn before this sprite clips it, and which side survives." },
             lit: { tooltip: "Receive 2D lights: Light entities light this sprite (flat normal). A custom material overrides this." },
+            drawMode: { enum: [{ label: 'Auto', value: 0 }, { label: 'Simple', value: 1 }, { label: 'Tiled', value: 2 }, { label: 'NineSlice', value: 3 }], tooltip: "Draw mode: Auto infers from tile size and the texture's 9-slice border; the others override it." },
             tileSize: { advanced: true },
             tileSpacing: { advanced: true },
             parallax: { tooltip: "Parallax scroll factor (1 = with world, <1 = slower, 0 = locked to camera).", advanced: true },
@@ -1716,6 +1718,7 @@ export interface SpriteData {
     lit: boolean;
     flipX: boolean;
     flipY: boolean;
+    drawMode: SpriteDrawMode;
     tileSize: Vec2;
     tileSpacing: Vec2;
     parallax: Vec2;

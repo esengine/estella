@@ -9,6 +9,7 @@
 #include "../../ecs/components/Sprite.hpp"
 #include "../../ecs/components/SpriteMask.hpp"
 #include "../../ecs/components/UINode.hpp"
+#include "../draw/SpriteDrawResolve.hpp"
 
 #include <cmath>
 
@@ -89,7 +90,12 @@ void SpritePlugin::collect(RenderCollectContext& collect_ctx) {
             uvSc.y = -uvSc.y;
         }
 
-        bool hasTiling = sprite.tileSize.x > 0.0f && sprite.tileSize.y > 0.0f;
+        const SpriteDrawChoice draw = resolveSpriteDraw(
+            sprite.drawMode,
+            sprite.tileSize.x > 0.0f && sprite.tileSize.y > 0.0f,
+            useNineSlice);
+        const bool hasTiling = draw.tiled;
+        useNineSlice = draw.nineSlice;
 
         BatchDrawKey key{
             .stage = ctx.current_stage,

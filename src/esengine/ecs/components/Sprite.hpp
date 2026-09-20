@@ -29,6 +29,22 @@ namespace esengine::ecs {
 // =============================================================================
 
 /**
+ * @brief How a Sprite fills its box.
+ *
+ * @details Auto infers it: tileSize decides tiling, the texture's slice border
+ *          decides 9-slice. The other three are the author overriding that, and
+ *          an override cannot invent data — Tiled with no tileSize and NineSlice
+ *          with no border both draw the plain quad.
+ */
+ES_ENUM(stability=beta)
+enum class SpriteDrawMode : u8 {
+    Auto,
+    Simple,
+    Tiled,
+    NineSlice
+};
+
+/**
  * @brief 2D sprite component for rendering
  *
  * @details Contains all data needed to render a 2D sprite including
@@ -108,6 +124,11 @@ struct Sprite {
     /** @brief Flip sprite vertically */
     ES_PROPERTY()
     bool flipY{false};
+
+    /** @brief How this sprite fills its box; Auto infers it from tileSize and the
+     *         texture's slice border. */
+    ES_PROPERTY(tooltip="Draw mode: Auto infers from tile size and the texture's 9-slice border; the others override it.")
+    SpriteDrawMode drawMode{SpriteDrawMode::Auto};
 
     /** @brief Tile size in world units for tiling mode ({0,0} = no tiling) */
     ES_PROPERTY(advanced)

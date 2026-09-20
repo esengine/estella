@@ -224,6 +224,12 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
         .value("World", esengine::ecs::SimulationSpace::World)
         .value("Local", esengine::ecs::SimulationSpace::Local);
 
+    enum_<esengine::ecs::SpriteDrawMode>("SpriteDrawMode")
+        .value("Auto", esengine::ecs::SpriteDrawMode::Auto)
+        .value("Simple", esengine::ecs::SpriteDrawMode::Simple)
+        .value("Tiled", esengine::ecs::SpriteDrawMode::Tiled)
+        .value("NineSlice", esengine::ecs::SpriteDrawMode::NineSlice);
+
     enum_<esengine::ecs::SpriteMaskInteraction>("SpriteMaskInteraction")
         .value("None", esengine::ecs::SpriteMaskInteraction::None)
         .value("VisibleInside", esengine::ecs::SpriteMaskInteraction::VisibleInside)
@@ -1161,6 +1167,7 @@ struct SpriteJS {
     bool lit;
     bool flipX;
     bool flipY;
+    i32 drawMode;
     glm::vec2 tileSize;
     glm::vec2 tileSpacing;
     glm::vec2 parallax;
@@ -1181,6 +1188,7 @@ void spriteApplyJS(esengine::ecs::Sprite& c, const SpriteJS& js) {
     c.lit = js.lit;
     c.flipX = js.flipX;
     c.flipY = js.flipY;
+    c.drawMode = static_cast<SpriteDrawMode>(js.drawMode);
     c.tileSize = js.tileSize;
     c.tileSpacing = js.tileSpacing;
     c.parallax = js.parallax;
@@ -1208,6 +1216,7 @@ SpriteJS spriteToJS(const esengine::ecs::Sprite& c) {
     js.lit = c.lit;
     js.flipX = c.flipX;
     js.flipY = c.flipY;
+    js.drawMode = static_cast<i32>(c.drawMode);
     js.tileSize = c.tileSize;
     js.tileSpacing = c.tileSpacing;
     js.parallax = c.parallax;
@@ -1920,6 +1929,7 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("lit", &SpriteJS::lit)
         .field("flipX", &SpriteJS::flipX)
         .field("flipY", &SpriteJS::flipY)
+        .field("drawMode", &SpriteJS::drawMode)
         .field("tileSize", &SpriteJS::tileSize)
         .field("tileSpacing", &SpriteJS::tileSpacing)
         .field("parallax", &SpriteJS::parallax)
@@ -3492,6 +3502,7 @@ static_assert(offsetof(esengine::ecs::Sprite, maskInteraction) == 60, "ABI offse
 static_assert(offsetof(esengine::ecs::Sprite, lit) == 64, "ABI offset drift: esengine::ecs::Sprite.lit (EHT expected 64)");
 static_assert(offsetof(esengine::ecs::Sprite, flipX) == 65, "ABI offset drift: esengine::ecs::Sprite.flipX (EHT expected 65)");
 static_assert(offsetof(esengine::ecs::Sprite, flipY) == 66, "ABI offset drift: esengine::ecs::Sprite.flipY (EHT expected 66)");
+static_assert(offsetof(esengine::ecs::Sprite, drawMode) == 67, "ABI offset drift: esengine::ecs::Sprite.drawMode (EHT expected 67)");
 static_assert(offsetof(esengine::ecs::Sprite, tileSize) == 68, "ABI offset drift: esengine::ecs::Sprite.tileSize (EHT expected 68)");
 static_assert(offsetof(esengine::ecs::Sprite, tileSpacing) == 76, "ABI offset drift: esengine::ecs::Sprite.tileSpacing (EHT expected 76)");
 static_assert(offsetof(esengine::ecs::Sprite, parallax) == 84, "ABI offset drift: esengine::ecs::Sprite.parallax (EHT expected 84)");
@@ -3591,7 +3602,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "10bb7593c5d041c3";
+static const char* kEsAbiLayoutHash = "101981b3fea145cb";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

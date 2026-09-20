@@ -214,6 +214,18 @@ export enum SimulationSpace {
 }
 
 /**
+ * The engine's `SpriteDrawMode`, generated from the C++ enum.
+ *
+ * @beta
+ */
+export enum SpriteDrawMode {
+    Auto = 0,
+    Simple = 1,
+    Tiled = 2,
+    NineSlice = 3,
+}
+
+/**
  * The engine's `SpriteMaskInteraction`, generated from the C++ enum.
  *
  * @public
@@ -792,6 +804,7 @@ export interface Sprite {
     lit: boolean;
     flipX: boolean;
     flipY: boolean;
+    drawMode: number;
     tileSize: Vec2;
     tileSpacing: Vec2;
     parallax: Vec2;

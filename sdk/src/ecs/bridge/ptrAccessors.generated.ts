@@ -1802,6 +1802,7 @@ export interface SpritePtrData {
     lit: boolean;
     flipX: boolean;
     flipY: boolean;
+    drawMode: number;
     tileSize: Vec2;
     tileSpacing: Vec2;
     parallax: Vec2;
@@ -1825,6 +1826,7 @@ export function fillSprite(
     out.lit = u8[ptr + 64] !== 0;
     out.flipX = u8[ptr + 65] !== 0;
     out.flipY = u8[ptr + 66] !== 0;
+    out.drawMode = u8[ptr + 67];
     const tileSize_ = out.tileSize; tileSize_.x = f32[(ptr + 68) >> 2]; tileSize_.y = f32[((ptr + 68) >> 2) + 1];
     const tileSpacing_ = out.tileSpacing; tileSpacing_.x = f32[(ptr + 76) >> 2]; tileSpacing_.y = f32[((ptr + 76) >> 2) + 1];
     const parallax_ = out.parallax; parallax_.x = f32[(ptr + 84) >> 2]; parallax_.y = f32[((ptr + 84) >> 2) + 1];
@@ -1848,6 +1850,7 @@ export function writeSprite(
     u8[ptr + 64] = data.lit ? 1 : 0;
     u8[ptr + 65] = data.flipX ? 1 : 0;
     u8[ptr + 66] = data.flipY ? 1 : 0;
+    u8[ptr + 67] = data.drawMode;
     f32[(ptr + 68) >> 2] = data.tileSize.x; f32[((ptr + 68) >> 2) + 1] = data.tileSize.y;
     f32[(ptr + 76) >> 2] = data.tileSpacing.x; f32[((ptr + 76) >> 2) + 1] = data.tileSpacing.y;
     f32[(ptr + 84) >> 2] = data.parallax.x; f32[((ptr + 84) >> 2) + 1] = data.parallax.y;
@@ -1869,6 +1872,7 @@ export function createSpriteData(): SpritePtrData {
         lit: false,
         flipX: false,
         flipY: false,
+        drawMode: 0,
         tileSize: { x: 0, y: 0 },
         tileSpacing: { x: 0, y: 0 },
         parallax: { x: 0, y: 0 },
