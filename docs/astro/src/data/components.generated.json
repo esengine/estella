@@ -3652,6 +3652,11 @@
           "key": "applyRight",
           "type": "boolean",
           "default": "true"
+        },
+        {
+          "key": "avoidHostMenu",
+          "type": "boolean",
+          "default": "false"
         }
       ]
     },

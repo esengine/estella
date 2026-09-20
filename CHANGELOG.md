@@ -21,6 +21,15 @@ published separately; it ships inside the editor.
   header at 13px read as bold body text rather than as a title. Window titles now have a
   step of their own, which is what every editor this size gives them.
 
+### Added
+
+- **A UI node can keep clear of WeChat's capsule menu, which the safe area does not cover.**
+  `SafeArea.avoidHostMenu` pushes the top inset past the host's own overlay. Measured on the
+  iPhone 12 the simulator offers, the capsule's bottom edge is 29px *inside* the safe area —
+  so a HUD that respects the safe area still sits under it, which is what the space-shooter
+  example's lives counter did. No engine offers this: every game converts the rect to layout
+  units by hand, which is the arithmetic the safe area already does here.
+
 ### Fixed
 
 - **A WeChat mini-game boots again.** Its package had no platform in it: the SDK entry

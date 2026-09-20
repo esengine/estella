@@ -22,6 +22,12 @@ export interface SafeAreaData {
     applyBottom: boolean;
     applyLeft: boolean;
     applyRight: boolean;
+    /**
+     * Also clear the host's own overlay — WeChat's capsule menu, which sits
+     * INSIDE the safe area: measured on an iPhone 12, its bottom is 29px below
+     * `safeArea.top`, so a node that respects the safe area is still under it.
+     */
+    avoidHostMenu: boolean;
 }
 
 export const SafeArea = defineComponent<SafeAreaData>('SafeArea', {
@@ -29,6 +35,7 @@ export const SafeArea = defineComponent<SafeAreaData>('SafeArea', {
     applyBottom: true,
     applyLeft: true,
     applyRight: true,
+    avoidHostMenu: false,
 });
 
 export interface SafeAreaInsets {
@@ -41,8 +48,22 @@ export interface SafeAreaInsets {
 interface WxGlobal {
     wx?: {
         getSystemInfoSync?(): { safeArea: { top: number; bottom: number; left: number; right: number }; screenWidth: number; screenHeight: number } | undefined;
+        getMenuButtonBoundingClientRect?(): { top: number; bottom: number; left: number; right: number } | undefined;
         onWindowResize?(cb: () => void): void;
     };
+}
+
+/**
+ * How far down the host's own overlay reaches, in the CSS pixels the safe area
+ * is given in — zero where there is none. No engine offers this: every game
+ * converts the rect to layout units by hand, which is the arithmetic the safe
+ * area already goes through here.
+ */
+function hostMenuBottom(): number {
+    if (!isWeChat()) return 0;
+    const g = globalThis as unknown as WxGlobal;
+    const rect = g.wx?.getMenuButtonBoundingClientRect?.();
+    return rect && rect.bottom > 0 ? rect.bottom : 0;
 }
 
 function getWeChatSafeAreaInsets(): SafeAreaInsets {
@@ -105,6 +126,7 @@ export class SafeAreaPlugin implements Plugin {
         // only real after the first layout, and a plugin that built before that
         // would hold zeros for the life of the game.
         let cachedInsets: SafeAreaInsets = { top: 0, bottom: 0, left: 0, right: 0 };
+        let cachedMenuBottom = 0;
         let stale = true;
         let prevScreenH = 0;
         let prevLayoutH = 0;
@@ -135,6 +157,7 @@ export class SafeAreaPlugin implements Plugin {
                 if (stale) {
                     stale = false;
                     cachedInsets = getSafeAreaInsets();
+                    cachedMenuBottom = hostMenuBottom();
                 }
 
                 const dpr = platformDevicePixelRatio();
@@ -146,7 +169,12 @@ export class SafeAreaPlugin implements Plugin {
                     const sa = world.get(entity, SafeArea) as SafeAreaData;
                     const node = world.get(entity, UINode) as UINodeData;
 
-                    const top = sa.applyTop ? cachedInsets.top * insetScale : 0;
+                    // The overlay sits inside the safe area, so this is a floor
+                    // on the top inset rather than something added to it.
+                    const topPx = sa.avoidHostMenu
+                        ? Math.max(cachedInsets.top, cachedMenuBottom)
+                        : cachedInsets.top;
+                    const top = sa.applyTop ? topPx * insetScale : 0;
                     const bottom = sa.applyBottom ? cachedInsets.bottom * insetScale : 0;
                     const left = sa.applyLeft ? cachedInsets.left * insetScale : 0;
                     const right = sa.applyRight ? cachedInsets.right * insetScale : 0;
