@@ -108,6 +108,70 @@ for (const { name, hex, sat } of content) {
 }
 
 /**
+ * An identity token names a thing, not a role: `--ax-x` is the X axis,
+ * `--gizmo-collider` is a collider, `--sel` is the selection. Colouring anything
+ * else with one is a claim about what the colour means, and the claim is false —
+ * which is how a record button came to be X-axis red and a chart series came to
+ * be particle amber. Role tokens (`--acc`, `--warn`, `--text-dim`) are the
+ * opposite and may colour anything in that role.
+ *
+ * A panel may still carry one, but only as a legend: the World panel's residency
+ * chips are the colours the viewport draws those cells in, and any other colour
+ * there would make the legend lie. A gate cannot tell a legend from a theft, so
+ * each place that may hold one is listed with the reason it names the same thing.
+ */
+const isIdentityToken = (name) => /^--(?:sel|sel-hi|sel-soft|gizmo-[a-z-]+|ax-[xyz])$/.test(name);
+
+const NAMES_THE_SAME_THING = [
+  ['.viewport__', 'the scene canvas and the gizmos drawn on it'],
+  ['.vp-', "the viewport's own HUD — axis ball, coordinate readout"],
+  ['.ts-p', 'the tileset collision-polygon editor, a canvas of its own'],
+  ['.ax.', "an Inspector vec field's axis letters: the legend for the gizmo's arms"],
+  ['.world__cell-state', "the World panel's residency legend for what the viewport draws"],
+  ['panels/SequencerCurve.tsx', 'a curve channel IS the axis channel, so it takes the axis colour'],
+];
+
+/** Comments out, offsets kept, so a selector is never read out of one. */
+const uncomment = (t) => t.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '));
+
+/** The selector a declaration sits under: back to its `{`, then to where that rule began. */
+const selectorAt = (text, at) => {
+  const open = text.lastIndexOf('{', at);
+  if (open < 0) return '';
+  const began = Math.max(text.lastIndexOf('}', open), text.lastIndexOf('{', open - 1), -1);
+  return text.slice(began + 1, open).trim().replace(/\s+/g, ' ');
+};
+
+const SRC_DIR = path.join(ROOT, 'desktop', 'src');
+const everyFile = (dir, out = []) => {
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, e.name);
+    if (e.isDirectory()) everyFile(p, out);
+    else if (/\.(css|ts|tsx)$/.test(e.name)) out.push(p);
+  }
+  return out;
+};
+
+let identityUses = 0;
+for (const file of everyFile(SRC_DIR)) {
+  const rel = path.relative(SRC_DIR, file).replaceAll(path.sep, '/');
+  const text = uncomment(readFileSync(file, 'utf8'));
+  for (const m of text.matchAll(/var\(\s*(--[a-z0-9-]+)/g)) {
+    if (!isIdentityToken(m[1])) continue;
+    identityUses += 1;
+    const line = text.slice(0, m.index).split('\n').length;
+    // A script colouring an element has no selector, so its site is the file.
+    const isCss = rel.endsWith('.css');
+    const parts = isCss ? selectorAt(text, m.index).split(',').map((s) => s.trim()).filter(Boolean) : [rel];
+    const strayed = parts.filter((p) => !NAMES_THE_SAME_THING.some(([where]) => p.startsWith(where)));
+    if (parts.length > 0 && strayed.length === 0) continue;
+    const site = parts.length === 0 ? '(no selector)' : strayed.join(', ');
+    problems.push(`desktop/src/${rel}:${line}: ${site} is coloured with ${m[1]}, `
+      + `which names something else — an identity token only colours the thing it names`);
+  }
+}
+
+/**
  * Spacing that is not on the 4px grid, per file. A count rather than a line, so
  * inserting a rule does not churn the baseline; per file, so a fix in one place
  * cannot be spent on a regression in another.
@@ -256,6 +320,7 @@ console.log(
   `check-theme: ${textTokens.length} text token(s) over ${READING_SURFACES.length} reading surface(s) — `
   + `all >= ${FLOOR}:1, closest is ${worst.name} at ${worst.ratio.toFixed(2)}:1 on ${worst.surface}. `
   + `${content.length} content label(s) under ${PANEL_CEILING}% saturation, loudest is ${loudest.name} at ${loudest.sat}%. `
+  + `${identityUses} identity-token use(s), every one on the thing it names. `
   + `Ratchets hold: ${total} off-grid spacing(s), `
   + `${Object.values(colours).reduce((a, b) => a + b, 0)} colour literal(s), `
   + `${Object.values(fontSizes).reduce((a, b) => a + b, 0)} raw font-size(s), `
