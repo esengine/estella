@@ -221,9 +221,11 @@ ctx.commands.register({
 ### Panels
 
 `mount` gets a plain host element and returns its teardown. The editor owns the
-tab, the error boundary and pop-out. Style against the editor's CSS variables
-(`--bg`, `--text`, `--text-dim`, `--accent`, …) and the panel matches the
-surrounding chrome in both light and dark.
+tab, the error boundary and pop-out. Style against the editor's CSS variables —
+`--srf-2` for the panel body, `--text` / `--text-dim` for copy, `--acc` for the
+accent, `--border` for edges, `--fs-sm` for body size — and the panel matches the
+surrounding chrome. Use a variable that exists: CSS has no unknown-variable
+error, so a misspelled one simply does not draw.
 
 ```ts
 ctx.panels.register({
@@ -300,7 +302,7 @@ ctx.overlays.register({
     if (id == null) return;
     const p = ctx.scene.getFieldValue(id, 'Transform', 'position');
     if (!Array.isArray(p)) return;
-    g.circle({ x: p[0], y: p[1] }, 120, { color: 'var(--accent)', dashed: true });
+    g.circle({ x: p[0], y: p[1] }, 120, { color: 'var(--acc)', dashed: true });
   },
 });
 ```

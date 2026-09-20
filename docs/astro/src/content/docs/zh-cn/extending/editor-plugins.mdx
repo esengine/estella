@@ -200,8 +200,10 @@ ctx.commands.register({
 ### 面板
 
 `mount` 拿到一个普通的宿主元素，返回它的拆卸函数。标签页、错误边界和弹出窗口由
-编辑器负责。用编辑器的 CSS 变量（`--bg`、`--text`、`--text-dim`、`--accent` …）
-写样式，面板在明暗两种主题下都与周围的界面一致。
+编辑器负责。用编辑器的 CSS 变量写样式——面板底色 `--srf-2`、正文 `--text` /
+`--text-dim`、强调色 `--acc`、描边 `--border`、正文字号 `--fs-sm`——面板就与周围
+的界面一致。**要用真实存在的变量**：CSS 没有「未知变量」这种错误，名字写错的那条
+声明不会报错，只是什么都不画。
 
 ```ts
 ctx.panels.register({
@@ -276,7 +278,7 @@ ctx.overlays.register({
     if (id == null) return;
     const p = ctx.scene.getFieldValue(id, 'Transform', 'position');
     if (!Array.isArray(p)) return;
-    g.circle({ x: p[0], y: p[1] }, 120, { color: 'var(--accent)', dashed: true });
+    g.circle({ x: p[0], y: p[1] }, 120, { color: 'var(--acc)', dashed: true });
   },
 });
 ```

@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(docs): the plugin manual named two CSS variables the editor does not have':
+    { note: 'A plugin styled from the manual gets the editor\'s real colours instead of none.' },
+
   'fix(editor): six CSS variables that were never defined, so they drew nothing':
     { note: "The Inspector's effect stack draws its toggle, its rows and its Add button again." },
 

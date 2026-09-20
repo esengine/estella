@@ -33,6 +33,12 @@ published separately; it ships inside the editor.
   and every published entry declares itself side-effectful so a game's own bundler cannot
   repeat it with `esengine/physics3d`.
 
+- **A plugin styled from the manual gets the editor's real colours instead of none.** The
+  plugin guide told authors to style against `--bg` and `--accent`; the editor has neither,
+  so a panel written to the manual got no background and its overlay example drew a black
+  circle on a dark viewport. It names the tokens that exist, and a gate refuses the next
+  `var()` — in a stylesheet, a plugin or the docs — whose variable nothing defines.
+
 - **The Inspector's effect stack draws its toggle, its rows and its Add button again.**
   Ten declarations named six CSS variables this editor does not have — `--accent` where the
   token is `--acc`, `--bg-inset` where it is `--inset`, and four more. CSS has no

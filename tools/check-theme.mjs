@@ -13,7 +13,8 @@
  *
  * Three claims are absolute: text stays readable on the surfaces it sits on, a
  * panel label stays quieter than the viewport, and a token that NAMES a thing
- * only colours that thing.
+ * only colours that thing. That a token EXISTS at all is check-css-vars.mjs —
+ * its subject is every reader of the editor's variables, plugins and docs too.
  *
  * Six are RATCHETS, because each is hundreds of declarations deep and a gate
  * that reddens on all of them gets switched off. Banked, may fall, never rise:
@@ -170,39 +171,6 @@ for (const file of everyFile(SRC_DIR)) {
     const site = parts.length === 0 ? '(no selector)' : strayed.join(', ');
     problems.push(`desktop/src/${rel}:${line}: ${site} is coloured with ${m[1]}, `
       + `which names something else — an identity token only colours the thing it names`);
-  }
-}
-
-/**
- * A `var(--x)` with no `--x` anywhere. CSS says nothing and draws nothing, so a
- * filled toggle loses its fill and a dashed border disappears — silently, since
- * there is no such thing as an unknown-variable error.
- *
- * Only a bare `var(--x)`: one with a fallback has an answer either way.
- */
-const declaredAnywhere = (text) => {
-  const out = new Set();
-  // A declaration is a declaration wherever it sits — a single-line rule defines
-  // too, and reading only line starts reported `--ag-tone` as dead.
-  for (const m of text.matchAll(/(?:^|[{;\s])(--[A-Za-z0-9_-]+)\s*:/g)) out.add(m[1]);
-  // A script sets one as a style-object key or through setProperty.
-  for (const m of text.matchAll(/[`"'](--[A-Za-z0-9_-]+)[`"']/g)) out.add(m[1]);
-  return out;
-};
-
-{
-  const files = everyFile(SRC_DIR);
-  const defined = new Set();
-  for (const f of files) for (const n of declaredAnywhere(uncomment(readFileSync(f, 'utf8')))) defined.add(n);
-  for (const file of files) {
-    const rel = path.relative(SRC_DIR, file).replaceAll(path.sep, '/');
-    const text = uncomment(readFileSync(file, 'utf8'));
-    for (const m of text.matchAll(/var\(\s*(--[A-Za-z0-9_-]+)\s*([,)])/g)) {
-      if (m[2] === ',' || defined.has(m[1])) continue;
-      const line = text.slice(0, m.index).split('\n').length;
-      problems.push(`desktop/src/${rel}:${line}: ${m[1]} is used and never defined — `
-        + 'the declaration resolves to nothing and draws nothing');
-    }
   }
 }
 

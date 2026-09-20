@@ -252,6 +252,10 @@ export const GATES = [
   { id: 'path-sandbox', run: 'node tools/check-path-sandbox.mjs' },
   { id: 'key-codes', run: 'node tools/check-key-codes.mjs' },
   { id: 'theme', run: 'node tools/check-theme.mjs', needs: 'editor' },
+  // Its own gate rather than part of `theme`: the readers of the editor's
+  // variables are the editor, the plugins and the docs, and only the first is
+  // check-theme's subject.
+  { id: 'css-vars', run: 'node tools/check-css-vars.mjs', needs: 'editor' },
   { id: 'comment-style', run: 'node tools/check-comment-style.mjs' },
   { id: 'silent-writes', run: 'node tools/mutation-census.mjs --gate' },
   {
