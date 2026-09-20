@@ -9,11 +9,14 @@
  * panel — under the floor for body text, as the colour of most labels in the
  * editor — and a chart series ran on a 100%-saturated viewport colour.
  *
- * Three claims. Two are absolute, read off the token file: text stays readable
- * on the surfaces it sits on, and a panel label stays quieter than the viewport.
- * The third is a RATCHET, because spacing is 1450 declarations deep and a gate
- * that reddens on all of them gets switched off: the off-grid ones are banked,
- * and the count may fall but never rise.
+ * Two claims are absolute, read off the token file: text stays readable on the
+ * surfaces it sits on, and a panel label stays quieter than the viewport.
+ *
+ * Four are RATCHETS, because each is hundreds of declarations deep and a gate
+ * that reddens on all of them gets switched off. Banked, may fall, never rise:
+ * spacing off the 4px grid; colour literals where a token belongs; raw
+ * font-size; and how many distinct icon sizes and stroke widths exist at all —
+ * 14 and 16 today, including 1.8 / 1.85 / 1.9, which no one can tell apart.
  *
  *   node tools/check-theme.mjs            # check
  *   node tools/check-theme.mjs --update   # bank the current state
@@ -110,7 +113,7 @@ for (const { name, hex, sat } of content) {
  * cannot be spent on a regression in another.
  */
 const THEME_DIR = path.join(ROOT, 'desktop', 'src', 'theme');
-const BASELINE = path.join(ROOT, 'tools', 'baselines', 'theme-spacing.json');
+const BASELINE = path.join(ROOT, 'tools', 'baselines', 'theme-drift.json');
 const GRID = 4;
 
 const offGridByFile = () => {
@@ -129,26 +132,114 @@ const offGridByFile = () => {
   return out;
 };
 
+/** Colour written where a token belongs. tokens.css is the one place they are
+ *  DEFINED, so it is the one file exempt. */
+const colourLiteralsByFile = () => {
+  const out = {};
+  for (const f of readdirSync(THEME_DIR).filter((n) => n.endsWith('.css') && n !== 'tokens.css')) {
+    const text = readFileSync(path.join(THEME_DIR, f), 'utf8');
+    const n = (text.match(/#[0-9a-fA-F]{3,8}\b/g)?.length ?? 0)
+      + (text.match(/\brgba?\(/g)?.length ?? 0);
+    if (n > 0) out[f] = n;
+  }
+  return out;
+};
+
+/** A font-size given as a number rather than a step of the type scale. */
+const rawFontSizeByFile = () => {
+  const out = {};
+  for (const f of readdirSync(THEME_DIR).filter((n) => n.endsWith('.css') && n !== 'tokens.css')) {
+    const n = readFileSync(path.join(THEME_DIR, f), 'utf8').match(/font-size:\s*\d/g)?.length ?? 0;
+    if (n > 0) out[f] = n;
+  }
+  return out;
+};
+
+/**
+ * How many distinct sizes and stroke widths the icons use.
+ *
+ * Counted only for names the file itself imported from lucide: `size={44}` on an
+ * asset thumbnail and `strokeWidth={12}` on an SVG hit area are not icons, and
+ * counting them made the first measurement of this wrong.
+ */
+const iconScale = () => {
+  const sizes = new Set();
+  const strokes = new Set();
+  const walk = (dir) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) { walk(full); continue; }
+      if (!/\.tsx?$/.test(e.name)) continue;
+      const text = readFileSync(full, 'utf8');
+      const names = new Set();
+      for (const m of text.matchAll(/import\s*\{([^}]*)\}\s*from\s*'lucide-react'/g)) {
+        for (const raw of m[1].split(',')) {
+          const n = raw.trim().replace(/^type\s+/, '').split(/\s+as\s+/).pop().trim();
+          if (n && /^[A-Z]/.test(n)) names.add(n);
+        }
+      }
+      if (names.size === 0) continue;
+      for (const m of text.matchAll(/<([A-Z][A-Za-z0-9]*)\b([^>]*)>/g)) {
+        if (!names.has(m[1])) continue;
+        const size = /\bsize=\{(\d+(?:\.\d+)?)\}/.exec(m[2]);
+        const stroke = /\bstrokeWidth=\{(\d+(?:\.\d+)?)\}/.exec(m[2]);
+        if (size) sizes.add(size[1]);
+        if (stroke) strokes.add(stroke[1]);
+      }
+    }
+  };
+  walk(path.join(ROOT, 'desktop', 'src'));
+  return { sizes: [...sizes].sort((a, b) => a - b), strokes: [...strokes].sort((a, b) => a - b) };
+};
+
 const current = offGridByFile();
+const colours = colourLiteralsByFile();
+const fontSizes = rawFontSizeByFile();
+const icons = iconScale();
 const total = Object.values(current).reduce((a, b) => a + b, 0);
+
+const byName = (o) => Object.fromEntries(Object.entries(o).sort(([a], [b]) => a.localeCompare(b)));
 
 if (process.argv.includes('--update')) {
   mkdirSync(path.dirname(BASELINE), { recursive: true });
-  const sorted = Object.fromEntries(Object.entries(current).sort(([a], [b]) => a.localeCompare(b)));
-  writeFileSync(BASELINE, `${JSON.stringify(sorted, null, 2)}\n`);
-  console.log(`check-theme: banked ${total} off-grid spacing(s) in ${Object.keys(current).length} file(s).`);
+  const state = {
+    spacing: byName(current),
+    colourLiterals: byName(colours),
+    rawFontSize: byName(fontSizes),
+    iconScale: icons,
+  };
+  writeFileSync(BASELINE, `${JSON.stringify(state, null, 2)}\n`);
+  console.log(`check-theme: banked ${total} off-grid spacing(s), `
+    + `${Object.values(colours).reduce((a, b) => a + b, 0)} colour literal(s), `
+    + `${Object.values(fontSizes).reduce((a, b) => a + b, 0)} raw font-size(s), `
+    + `${icons.sizes.length} icon size(s) and ${icons.strokes.length} stroke width(s).`);
   process.exit(0);
 }
 
-let banked = {};
+let banked = { spacing: {}, colourLiterals: {}, rawFontSize: {}, iconScale: { sizes: [], strokes: [] } };
 if (!existsSync(BASELINE)) {
-  problems.push(`no spacing baseline at ${BASELINE} — run with --update once to create it`);
+  problems.push(`no drift baseline at ${BASELINE} — run with --update once to create it`);
 } else {
   banked = JSON.parse(readFileSync(BASELINE, 'utf8'));
-  for (const [file, n] of Object.entries(current)) {
-    const was = banked[file] ?? 0;
-    if (n > was) {
-      problems.push(`desktop/src/theme/${file}: ${n - was} new spacing value(s) off the ${GRID}px grid (${was} banked, ${n} now)`);
+  /** Per file, so a fix in one place cannot pay for a regression in another. */
+  const ratchet = (now, was, what) => {
+    for (const [file, n] of Object.entries(now)) {
+      const before = was?.[file] ?? 0;
+      if (n > before) {
+        problems.push(`desktop/src/theme/${file}: ${n - before} new ${what} (${before} banked, ${n} now)`);
+      }
+    }
+  };
+  ratchet(current, banked.spacing, `spacing value(s) off the ${GRID}px grid`);
+  ratchet(colours, banked.colourLiterals, 'colour literal(s) where a token belongs');
+  ratchet(fontSizes, banked.rawFontSize, 'raw font-size(s) — use a step of the scale');
+  // Not per file: a new icon size anywhere is one more size the editor has.
+  for (const [kind, now] of [['size', icons.sizes], ['stroke width', icons.strokes]]) {
+    const was = new Set(kind === 'size' ? banked.iconScale?.sizes ?? [] : banked.iconScale?.strokes ?? []);
+    const added = now.filter((v) => !was.has(v));
+    if (added.length > 0) {
+      problems.push(`desktop/src/: icon ${kind} ${added.join(', ')} is new — `
+        + `${was.size} were already in use, and mixing them is what the ramp exists to stop`);
     }
   }
 }
@@ -165,5 +256,8 @@ console.log(
   `check-theme: ${textTokens.length} text token(s) over ${READING_SURFACES.length} reading surface(s) — `
   + `all >= ${FLOOR}:1, closest is ${worst.name} at ${worst.ratio.toFixed(2)}:1 on ${worst.surface}. `
   + `${content.length} content label(s) under ${PANEL_CEILING}% saturation, loudest is ${loudest.name} at ${loudest.sat}%. `
-  + `${total} off-grid spacing(s) banked across ${Object.keys(banked).length} file(s) — the ratchet holds.`,
+  + `Ratchets hold: ${total} off-grid spacing(s), `
+  + `${Object.values(colours).reduce((a, b) => a + b, 0)} colour literal(s), `
+  + `${Object.values(fontSizes).reduce((a, b) => a + b, 0)} raw font-size(s), `
+  + `${icons.sizes.length} icon size(s) / ${icons.strokes.length} stroke width(s).`,
 );

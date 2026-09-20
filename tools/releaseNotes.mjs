@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  "feat(gates): the visual layer's drift is measured, not just its contrast":
+    { internal: "A repository gate over the editor's own stylesheets and icons; no creator runs it." },
+
   "feat(runtime): a mini-game reports its boot through the host's indicator":
     { note: 'A mini-game says how far along its boot is, not just that it is loading.' },
 
