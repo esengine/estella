@@ -108,6 +108,13 @@ describe('exportGame (wechat)', () => {
     expect(bundle).toContain('wasm/esengine.wasm');
     // The project camera fit rides the boot config into initWeChatRuntime.
     expect(bundle).toContain('screenFit');
+    // The platform is INSTALLED by a call the entry makes, not by an SDK module's
+    // top-level statement: when the install sat in a shared chunk that
+    // `sideEffects` did not name, the bundler dropped it and every package threw
+    // "Platform not initialized" on its first frame.
+    const { platformInit } = wechatExportProfile;
+    expect(platformInit, 'the profile must name how the platform is installed').toBeTruthy();
+    expect(bundle).toContain(`${platformInit}()`);
     expect(bundle).toMatch(/"scaleMode":\s*2/);
     // Same generated boot carries the 2.5D opt-in — one packaged slice, so a
     // setting cannot reach one target and not another.
