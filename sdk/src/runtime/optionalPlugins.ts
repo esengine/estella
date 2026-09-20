@@ -19,6 +19,9 @@ import {
     loadDragonBonesAssets, applyDragonBonesEntities,
 } from '../dragonbones/loadDragonBonesScene';
 import { setEntryPlugins } from './entryPlugins';
+import { Physics2DPlugin } from '../physics/Physics2DPlugin';
+import { Physics3DPlugin } from '../physics3d/Physics3DPlugin';
+import { VideoPlayer } from '../video/VideoAPI';
 import { setSceneOptionals } from './sceneOptionals';
 
 setEntryPlugins(() => [new SpinePlugin(), new DragonBonesPlugin()]);
@@ -35,5 +38,22 @@ setSceneOptionals({
         acquire: async (app) => (await app.getPlugin(DragonBonesPlugin)?.acquire()) ?? null,
         load: loadDragonBonesAssets,
         apply: applyDragonBonesEntities,
+    },
+    physics: {
+        installed: (app) => !!app.getPlugin(Physics2DPlugin),
+        install: (app, config, module) =>
+            app.addPlugin(new Physics2DPlugin('', config, () => Promise.resolve(module))),
+    },
+    physics3d: {
+        installed: (app) => !!app.getPlugin(Physics3DPlugin),
+        install: (app, module) =>
+            app.addPlugin(new Physics3DPlugin('', {}, () => Promise.resolve(module))),
+    },
+    video: {
+        setRefResolver: (app, resolve) => {
+            if (!app.hasResource(VideoPlayer)) return false;
+            app.getResource(VideoPlayer).setRefResolver(resolve);
+            return true;
+        },
     },
 });

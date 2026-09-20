@@ -1,7 +1,3 @@
 {
-  "edges": [
-    "sdk/src/runtime/runtimeLoader.ts -> ../physics/Physics2DPlugin",
-    "sdk/src/runtime/runtimeLoader.ts -> ../physics3d/Physics3DPlugin",
-    "sdk/src/runtime/runtimeLoader.ts -> ../video/VideoAPI"
-  ]
+  "edges": []
 }

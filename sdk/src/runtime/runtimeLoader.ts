@@ -17,9 +17,8 @@ import type { ESEngineModule } from '../wasm';
 import type { SpineWasmModule } from '../spine/SpineModuleLoader';
 import type { SpineManager } from '../spine/SpineManager';
 import type { PhysicsWasmModule } from '../physics/PhysicsModuleLoader';
-import { Physics2DPlugin, type Physics2DPluginConfig } from '../physics/Physics2DPlugin';
+import type { Physics2DPluginConfig } from '../physics/Physics2DPlugin';
 import type { Physics3DWasmModule } from '../physics3d/Physics3DModule';
-import { Physics3DPlugin } from '../physics3d/Physics3DPlugin';
 import { applyAudioProjectConfig, type AudioProjectConfig } from '../audio/AudioProjectConfig';
 import type { App } from '../app/app';
 import { Assets as AssetsClass } from '../asset/Assets';
@@ -38,7 +37,6 @@ import { SpriteAnimation } from '../animation/SpriteAnimator';
 import { Audio } from '../audio/Audio';
 import { Achievements } from '../services/achievements';
 import { getPlatform } from '../platform/base';
-import { VideoPlayer } from '../video/VideoAPI';
 import { Localization, matchLocale } from '../i18n/Localization';
 import { LocalizationPlugin } from '../i18n/LocalizationPlugin';
 import { platformLanguage } from '../platform';
@@ -51,7 +49,9 @@ import { type RuntimeAssetSource, type TextureParams } from './runtimeAssets';
 import type { SpineAssetInfo } from '../spine/loadSpineScene';
 import type { SceneAssetResult } from '../asset/Assets';
 import type { DragonBonesManager } from '../dragonbones/DragonBonesManager';
-import { spineSupport, dragonBonesSupport } from './sceneOptionals';
+import {
+    spineSupport, dragonBonesSupport, physicsSupport, physics3dSupport, videoSupport,
+} from './sceneOptionals';
 import type { DragonBonesAssetInfo } from '../dragonbones/loadDragonBonesScene';
 import type { AddressableManifest, ManifestModel } from '../asset/AddressableManifest';
 import type { Catalog } from '../asset/Catalog';
@@ -391,10 +391,10 @@ export async function prepareRuntimeScene(
     // then goes through the realm's backend, because what a video element needs is
     // a URL it can open: identity for http/filesystem realms, the inlined data URL
     // for the single-file playable (where there is no file to fetch at all).
-    if (source.resolveRef && app.hasResource(VideoPlayer)) {
+    if (source.resolveRef) {
         const resolveRef = source.resolveRef;
         const backend = source.backend;
-        app.getResource(VideoPlayer).setRefResolver((ref) => backend.resolveUrl(resolveRef(ref)));
+        videoSupport()?.setRefResolver(app, (ref) => backend.resolveUrl(resolveRef(ref)));
     }
     mergeSceneTextureImportSettings(sceneAssets, sceneData, source.resolveRef ?? ((r) => r));
     // Two full walks of the document before a byte is fetched. Named because
@@ -426,6 +426,10 @@ export async function prepareRuntimeScene(
     // Prepared by the realm, owned by the scene: the receipts join the scope
     // this scene gives back, and a second scene of one spine asset joins its era
     // instead of uploading its pages again.
+    if (discovered.spines.length > 0 && !spine) {
+        log.warn('scene', `${discovered.spines.length} Spine asset(s) skipped — this build ships`
+            + ' without the Spine runtime');
+    }
     const spineAssetInfo = app.sideModules && spine
         ? await spine.load(module, source, spineManager, discovered.spines, transcoderProvider,
                            { assets: sceneAssets, scope: assetResult.scope })
@@ -443,7 +447,9 @@ export async function prepareRuntimeScene(
         } else {
             dragonBonesManager = (await dragonBonesSupport()?.acquire(app)) ?? null;
             if (!dragonBonesManager) {
-                log.warn('scene', 'DragonBones assets present but the runtime could not be loaded');
+                log.warn('scene', dragonBonesSupport()
+                    ? 'DragonBones assets present but the runtime could not be loaded'
+                    : 'DragonBones assets present but this build ships without the runtime');
             } else {
                 dragonBonesAssetInfo = await dragonBonesSupport()!.load(
                     module, source, discovered.dragonBones, transcoderProvider);
@@ -467,7 +473,9 @@ export async function prepareRuntimeScene(
         }
         if (!physicsModule) {
             log.warn('physics', `wanted (declared=${!!physicsEnabled}) but no module loaded — this realm has no side-module host or physics.wasm failed to load`);
-        } else if (!app.getPlugin(Physics2DPlugin)) {
+        } else if (!physicsSupport()) {
+            log.warn('physics', 'wanted, but this build ships without the 2D physics runtime');
+        } else if (!physicsSupport()!.installed(app)) {
             const gravity = physicsConfig?.gravity ?? { ...DEFAULT_GRAVITY };
             const config: Physics2DPluginConfig = {
                 gravity,
@@ -482,8 +490,7 @@ export async function prepareRuntimeScene(
             if (physicsConfig?.collisionLayerMasks) config.collisionLayerMasks = physicsConfig.collisionLayerMasks;
             if (physicsConfig?.enableSleep !== undefined) config.enableSleep = physicsConfig.enableSleep;
             if (physicsConfig?.enableContinuous !== undefined) config.enableContinuous = physicsConfig.enableContinuous;
-            const mod = physicsModule;
-            app.addPlugin(new Physics2DPlugin('', config, () => Promise.resolve(mod)));
+            physicsSupport()!.install(app, config, physicsModule);
             log.info('physics', `installed (gravity ${gravity.x}, ${gravity.y})`);
         }
         });
@@ -494,7 +501,13 @@ export async function prepareRuntimeScene(
     // for the other.
     if (sceneUses3DPhysics(sceneData)) {
         await installOnce(app, 'physics3d', async () => {
-            if (app.getPlugin(Physics3DPlugin)) return;
+            const p3d = physics3dSupport();
+            if (!p3d) {
+                log.warn('physics3d', 'scene has 3D physics components but this build ships'
+                    + ' without the 3D physics runtime');
+                return;
+            }
+            if (p3d.installed(app)) return;
             const module3d = options.physics3dModule
                 ?? (app.sideModules
                     ? (await app.sideModules.acquire('physics3d')) as Physics3DWasmModule | null
@@ -504,8 +517,7 @@ export async function prepareRuntimeScene(
                     + ' this realm has no side-module host or physics3d.wasm failed to load');
                 return;
             }
-            const mod = module3d;
-            app.addPlugin(new Physics3DPlugin('', {}, () => Promise.resolve(mod)));
+            p3d.install(app, module3d);
             log.info('physics3d', 'installed');
         });
     }

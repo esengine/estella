@@ -13,6 +13,10 @@
  */
 import { describe, it, expect } from 'vitest';
 import { loadRuntimeScene } from '../src/runtime/runtimeLoader';
+// The optional subsystems are installed by an ENTRY, and this imports the loader
+// directly — so it says which environment it is testing rather than relying on
+// another test having imported one first.
+import '../src/runtime/optionalPlugins';
 import { Physics3DPlugin } from '../src/physics3d/Physics3DPlugin';
 import { World } from '../src/ecs/world';
 import type { App } from '../src/app/app';

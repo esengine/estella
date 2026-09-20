@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'refactor(sdk): the core runtime names no optional subsystem at all':
+    { internal: 'Same subsystems, same behaviour; a lean build now says when it ships without one.' },
+
   'refactor(sdk): the scene loader asks for Spine and DragonBones, and does not name them':
     { internal: 'Same subsystems, same behaviour; only which file reaches them changed.' },
 

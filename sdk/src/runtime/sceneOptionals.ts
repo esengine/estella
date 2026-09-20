@@ -21,6 +21,9 @@ import type { DragonBonesManager } from '../dragonbones/DragonBonesManager';
 import type {
     loadDragonBonesAssets, applyDragonBonesEntities,
 } from '../dragonbones/loadDragonBonesScene';
+import type { Physics2DPluginConfig } from '../physics/Physics2DPlugin';
+import type { PhysicsWasmModule } from '../physics/PhysicsModuleLoader';
+import type { Physics3DWasmModule } from '../physics3d/Physics3DModule';
 
 /** What a scene load needs from Spine, when the build ships it. */
 export interface SpineSupport {
@@ -37,15 +40,43 @@ export interface DragonBonesSupport {
     apply(...args: Parameters<typeof applyDragonBonesEntities>): ReturnType<typeof applyDragonBonesEntities>;
 }
 
+/** What a scene load needs from 2D physics, when the build ships it. */
+export interface PhysicsSupport {
+    installed(app: App): boolean;
+    install(app: App, config: Physics2DPluginConfig, module: PhysicsWasmModule): void;
+}
+
+/** What a scene load needs from 3D physics, when the build ships it. */
+export interface Physics3DSupport {
+    installed(app: App): boolean;
+    install(app: App, module: Physics3DWasmModule): void;
+}
+
+/** What a scene load needs from video, when the build ships it. */
+export interface VideoSupport {
+    /** False when the realm has no VideoPlayer resource to point at the staged file. */
+    setRefResolver(app: App, resolve: (ref: string) => string): boolean;
+}
+
 let spine: SpineSupport | null = null;
+let physics: PhysicsSupport | null = null;
+let physics3d: Physics3DSupport | null = null;
+let video: VideoSupport | null = null;
 let dragonBones: DragonBonesSupport | null = null;
 
 /** Called once by `runtime/optionalPlugins`, for its side effect. */
-export function setSceneOptionals(
-    support: { spine?: SpineSupport; dragonBones?: DragonBonesSupport },
-): void {
+export function setSceneOptionals(support: {
+    spine?: SpineSupport;
+    dragonBones?: DragonBonesSupport;
+    physics?: PhysicsSupport;
+    physics3d?: Physics3DSupport;
+    video?: VideoSupport;
+}): void {
     if (support.spine) spine = support.spine;
     if (support.dragonBones) dragonBones = support.dragonBones;
+    if (support.physics) physics = support.physics;
+    if (support.physics3d) physics3d = support.physics3d;
+    if (support.video) video = support.video;
 }
 
 /** Null in a build that does not ship Spine — a scene holding one then loads
@@ -54,3 +85,12 @@ export const spineSupport = (): SpineSupport | null => spine;
 
 /** Null in a build that does not ship DragonBones. */
 export const dragonBonesSupport = (): DragonBonesSupport | null => dragonBones;
+
+/** Null in a build that does not ship 2D physics. */
+export const physicsSupport = (): PhysicsSupport | null => physics;
+
+/** Null in a build that does not ship 3D physics. */
+export const physics3dSupport = (): Physics3DSupport | null => physics3d;
+
+/** Null in a build that does not ship video. */
+export const videoSupport = (): VideoSupport | null => video;
