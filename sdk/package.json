@@ -6,10 +6,17 @@
   "description": "Estella SDK - A fast 2D/3D game engine for Web, WeChat MiniGames and native platforms",
   "sideEffects": [
     "./dist/index.js",
+    "./dist/wasm.js",
     "./dist/index.wechat.js",
-    "./dist/index.wechat.cjs.js",
+    "./dist/index.minigame.js",
     "./dist/index.node.js",
-    "./dist/index.native.js"
+    "./dist/index.native.js",
+    "./dist/dragonbones/index.js",
+    "./dist/spine/index.js",
+    "./dist/physics/index.js",
+    "./dist/physics3d/index.js",
+    "./dist/douyin/index.js",
+    "./dist/index.wechat.cjs.js"
   ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

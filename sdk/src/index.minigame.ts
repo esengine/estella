@@ -43,9 +43,11 @@ ensureBuiltinAiRegistrations();
 markEngineComponentBaseline();
 
 export * from './core';
-// Installs Spine + DragonBones on every app this entry builds; a lean entry
-// omits this import and ships without their code.
-import './runtime/optionalPlugins';
+// Installs every optional subsystem on the apps this entry builds; a lean entry
+// does not call it and ships without their code.
+import { installOptionalPlugins } from './runtime/optionalPlugins';
+
+installOptionalPlugins();
 export * from './runtime/webAppFactory';
 
 // The family platform: describe the host as data, install, done.

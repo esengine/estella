@@ -34,16 +34,6 @@ export type { RuntimeAssetSource } from '../runtime/runtimeAssets';
 // Importing this subpath INSTALLS Spine: the core runtime names no optional
 // subsystem, so this is what puts it back, and a build that never imports it
 // ships none of the code below.
-import { addEntryPlugin } from '../runtime/entryPlugins';
-import { setSceneOptionals } from '../runtime/sceneOptionals';
-import { SpinePlugin as SpinePluginCtor } from './SpinePlugin';
-import { loadSpineAssets, applySpineEntities } from './loadSpineScene';
+import { registerSpineSupport } from './support';
 
-addEntryPlugin(() => new SpinePluginCtor());
-setSceneOptionals({
-    spine: {
-        manager: (app) => app.getPlugin(SpinePluginCtor)?.spineManager ?? null,
-        load: loadSpineAssets,
-        apply: applySpineEntities,
-    },
-});
+registerSpineSupport();

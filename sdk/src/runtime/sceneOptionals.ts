@@ -64,7 +64,7 @@ let physics3d: Physics3DSupport | null = null;
 let video: VideoSupport | null = null;
 let dragonBones: DragonBonesSupport | null = null;
 
-/** Called once by `runtime/optionalPlugins`, for its side effect. */
+/** Called by each subsystem's `support.ts`, which an entry or a subpath calls. */
 export function setSceneOptionals(support: {
     spine?: SpineSupport;
     dragonBones?: DragonBonesSupport;

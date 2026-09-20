@@ -104,13 +104,6 @@ export {
 } from './ColliderShape3D';
 
 // Importing this subpath INSTALLS 3D physics — see spine/index.ts.
-import { setSceneOptionals } from '../runtime/sceneOptionals';
-import { Physics3DPlugin as Physics3DPluginCtor } from './Physics3DPlugin';
+import { registerPhysics3DSupport } from './support';
 
-setSceneOptionals({
-    physics3d: {
-        installed: (app) => !!app.getPlugin(Physics3DPluginCtor),
-        install: (app, module) =>
-            app.addPlugin(new Physics3DPluginCtor('', {}, () => Promise.resolve(module))),
-    },
-});
+registerPhysics3DSupport();

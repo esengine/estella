@@ -24,16 +24,6 @@ export type { DragonBonesAssetInfo } from './loadDragonBonesScene';
 export type { RuntimeAssetSource } from '../runtime/runtimeAssets';
 
 // Importing this subpath INSTALLS DragonBones — see spine/index.ts.
-import { addEntryPlugin } from '../runtime/entryPlugins';
-import { setSceneOptionals } from '../runtime/sceneOptionals';
-import { DragonBonesPlugin as DragonBonesPluginCtor } from './DragonBonesPlugin';
-import { loadDragonBonesAssets, applyDragonBonesEntities } from './loadDragonBonesScene';
+import { registerDragonBonesSupport } from './support';
 
-addEntryPlugin(() => new DragonBonesPluginCtor());
-setSceneOptionals({
-    dragonBones: {
-        acquire: async (app) => (await app.getPlugin(DragonBonesPluginCtor)?.acquire()) ?? null,
-        load: loadDragonBonesAssets,
-        apply: applyDragonBonesEntities,
-    },
-});
+registerDragonBonesSupport();

@@ -3,25 +3,36 @@
 /**
  * @file  optionalPlugins.ts — everything optional, for an entry that wants all of it.
  *
- * Each subsystem installs itself when its own subpath is imported, so this file
- * is only the list. An entry importing it ships them all; a lean entry imports
- * the ones its project uses and carries no more — measured on
- * examples/hello-world, that is none of them.
+ * Each subsystem's support is a function, and this calls every one. It used to be
+ * a list of `import '../spine'` lines reached by `import './runtime/optionalPlugins'`,
+ * which reads as "importing this ships them" and is not what a bundler sees: a
+ * bare side-effect import survives only where every layer has been told the file
+ * is impure, and no layer had been. The code shipped and the registrations never
+ * ran — the editor's play realm loaded a scene with 3D physics and no solver.
+ *
+ * An entry calling this ships them all; a lean entry calls the ones its project
+ * uses and carries no more — measured on examples/hello-world, that is none.
  */
-import '../spine';
-import '../dragonbones';
-import '../physics';
-import '../physics3d';
 import { VideoPlayer } from '../video/VideoAPI';
 import { setSceneOptionals } from './sceneOptionals';
+import { registerSpineSupport } from '../spine/support';
+import { registerDragonBonesSupport } from '../dragonbones/support';
+import { registerPhysics2DSupport } from '../physics/support';
+import { registerPhysics3DSupport } from '../physics3d/support';
 
-// Video has no subpath of its own to be installed from, so it installs here.
-setSceneOptionals({
-    video: {
-        setRefResolver: (app, resolve) => {
-            if (!app.hasResource(VideoPlayer)) return false;
-            app.getResource(VideoPlayer).setRefResolver(resolve);
-            return true;
+export function installOptionalPlugins(): void {
+    registerSpineSupport();
+    registerDragonBonesSupport();
+    registerPhysics2DSupport();
+    registerPhysics3DSupport();
+    // Video has no subpath of its own to be installed from, so it registers here.
+    setSceneOptionals({
+        video: {
+            setRefResolver: (app, resolve) => {
+                if (!app.hasResource(VideoPlayer)) return false;
+                app.getResource(VideoPlayer).setRefResolver(resolve);
+                return true;
+            },
         },
-    },
-});
+    });
+}

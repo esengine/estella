@@ -8,6 +8,8 @@
  * subsystem. `index.wechat.lean` is the same base with none of them, for a
  * package that imports back only what its project uses.
  */
-import './runtime/optionalPlugins';
+import { installOptionalPlugins } from './runtime/optionalPlugins';
+
+installOptionalPlugins();
 
 export * from './index.wechat.base';

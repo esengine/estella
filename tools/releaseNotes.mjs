@@ -28,6 +28,25 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(sdk): a subsystem registers by being called, not by being imported':
+    { note: 'A scene with 3D physics, Spine or DragonBones gets its runtime again in'
+      + ' builds where a bundler had been dropping the registration.' },
+
+  'fix(api): a new component field is optional, so a frozen promise holds':
+    { note: 'Sprite.drawMode is optional, so existing code that builds a SpriteData'
+      + ' still compiles.' },
+
+  'feat(gates): a colour that names a thing only colours that thing':
+    { internal: "A repository gate over the editor's own palette; no creator runs it." },
+
+  'fix(editor): a viewport colour names a thing, and four panels borrowed one':
+    { note: 'Record, mute, delete, unsaved and a refused licence each read as what they'
+      + ' are, instead of borrowing the viewport\'s colours.' },
+
+  'feat(editor): the build dialog offers Douyin, because the registry says it exists':
+    { note: 'Douyin is selectable in the build dialog and has its own texture Import'
+      + ' Settings tab.' },
+
   "feat(gates): the visual layer's drift is measured, not just its contrast":
     { internal: "A repository gate over the editor's own stylesheets and icons; no creator runs it." },
 

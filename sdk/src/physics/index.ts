@@ -114,15 +114,7 @@ export {
 } from './CharacterController2D';
 export { registerCharacterController2DSystem } from './CharacterController2DSystem';
 
-// Importing this subpath INSTALLS 2D physics — see spine/index.ts. No entry
-// plugin: the scene load builds it with the world config the project declared.
-import { setSceneOptionals } from '../runtime/sceneOptionals';
-import { Physics2DPlugin as Physics2DPluginCtor } from './Physics2DPlugin';
+// Importing this subpath INSTALLS 2D physics — see spine/index.ts.
+import { registerPhysics2DSupport } from './support';
 
-setSceneOptionals({
-    physics: {
-        installed: (app) => !!app.getPlugin(Physics2DPluginCtor),
-        install: (app, config, module) =>
-            app.addPlugin(new Physics2DPluginCtor('', config, () => Promise.resolve(module))),
-    },
-});
+registerPhysics2DSupport();
