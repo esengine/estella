@@ -32,6 +32,14 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A project whose art weighs less than the transcoder no longer compresses any of it.**
+  Reading a KTX2 costs a package about a megabyte of Basis transcoder, and compressing can
+  never save more than the textures themselves weigh — so a project lighter than that is
+  answered before anything is encoded. The tilemap example was compressing one tileset to
+  save 6KB and carrying 1.09MB to read it back; its WeChat main package went from 4.70MB,
+  over the platform's cap, to 3.63MB. A project that authored a KTX2 itself pays for the
+  transcoder either way, and goes on compressing.
+
 - **A texture that encodes larger than its source now ships as the source.** Compressing to
   KTX2 is a win on detailed art and a loss on flat art — Basis writes about a byte per pixel
   where PNG writes almost nothing, so the space-shooter example's 512px background came out

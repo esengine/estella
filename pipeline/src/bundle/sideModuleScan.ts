@@ -7,6 +7,7 @@
  */
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { statSync } from 'node:fs';
 import {
   SIDE_MODULES, spineModuleId, getEditorType,
   sceneUsesPhysics, sceneUses3DPhysics,
@@ -16,10 +17,13 @@ import {
 export type { SpineVersion };
 export { SIDE_MODULES, spineModuleId };
 
+/** The module that reads a KTX2 — named once, because two things ask about it. */
+const BASIS = 'basis';
+
 /** id → the `build-tools/cli.js build -t <target>` producing its WeChat artifacts. */
 export const WECHAT_MODULE_BUILD_TARGET: Record<string, string> = {
   physics: 'physics-wechat',
-  basis: 'basis-wechat',
+  [BASIS]: 'basis-wechat',
   videodec: 'videodec-wechat',
   dragonbones: 'dragonbones-wechat',
   'spine:2.1': 'spine-wechat',
@@ -139,7 +143,7 @@ export async function scanSideModuleIds(input: SideModuleScanInput): Promise<Set
 
   for (const e of input.cookEntries) {
     const lower = e.path.toLowerCase();
-    if (/\.ktx2(\.bin)?$/.test(lower)) ids.add('basis');
+    if (/\.ktx2(\.bin)?$/.test(lower)) ids.add(BASIS);
     // Script-driven playback references cooked videos no component names.
     if (/\.esv(\.bin)?$/.test(lower)) ids.add('videodec');
     const editorType = getEditorType(e.sourcePath ?? e.path);
@@ -197,4 +201,20 @@ export function sideModuleFiles(
     else unknown.push(id);
   }
   return { files, unknown };
+}
+
+/**
+ * What a package pays to READ a KTX2 here: the transcoder's bytes, or undefined
+ * where the wasm dir has none to weigh. The cook asks whether the art it is
+ * about to encode could ever be worth that much — compressing cannot save more
+ * than the art weighs, and one KTX2 obliges the package to carry this.
+ */
+export function textureDecoderBytes(wasmDir: string): number | undefined {
+  const descriptor = SIDE_MODULES[BASIS as keyof typeof SIDE_MODULES];
+  if (!descriptor) return undefined;
+  try {
+    return statSync(path.join(wasmDir, `${descriptor.file}.wasm`)).size;
+  } catch {
+    return undefined;
+  }
 }

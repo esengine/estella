@@ -67,8 +67,10 @@ import type { SizeBudget } from '../project/sizeBudget';
 import { measureBuild, type BuildSizeReport } from './sizeReport';
 import { loadProjectModules, sideModuleDeclarations, stageProjectModules } from './projectModules';
 import { collectSubsystems, subsystemGapWarnings, targetGaps, type Subsystem } from '../project/targetSupport';
-import { scanSideModuleIds, sideModuleFiles, shipsSideModule } from '../bundle/sideModuleScan';
+import { scanSideModuleIds, sideModuleFiles, shipsSideModule, textureDecoderBytes } from '../bundle/sideModuleScan';
 import { MODULES, NATIVE_MODULE_REGISTRY } from '../../../tools/nativeScriptModules.js';
+
+
 export type { ExportPlatform };
 
 /**
@@ -752,7 +754,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   // for this target before anything is staged — their ids ride game.config.json, so
   // the runtime can acquire them exactly like the engine's own.
   const projectModules = await loadProjectModules(opts.root, platform);
-  const cook = await cookAssets(opts.root, { entryScenes: scenes.map((s) => s.path), outDir: payloadDir, contentAddressed: opts.contentAddressed ?? true, compressTextures: opts.compressTextures, compressAudio: opts.compressAudio, atlasTextures: opts.atlasTextures, transcodeVideo, platform });
+  const cook = await cookAssets(opts.root, { entryScenes: scenes.map((s) => s.path), outDir: payloadDir, contentAddressed: opts.contentAddressed ?? true, compressTextures: opts.compressTextures, compressAudio: opts.compressAudio, atlasTextures: opts.atlasTextures, transcodeVideo, platform, textureDecoderBytes: textureDecoderBytes(opts.wasmDir) });
   warnings.push(...cook.warnings);
   // An asset the game reaches and the cook could not produce is a hole, not a
   // note: the scene still references it and the runtime 404s at boot.

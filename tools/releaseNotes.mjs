@@ -690,6 +690,8 @@ export const NOTED = {
     { internal: 'the wording of a message the export already printed' },
   'fix(details): the Inspector names the new reason a texture ships raw':
     { note: 'A texture that encodes larger than its source now ships as the source.' },
+  'fix(assets): compression that cannot pay for its decoder is skipped':
+    { note: 'A project whose art weighs less than the transcoder no longer compresses any of it.' },
   'fix(assets): a texture ships in whichever form is smaller':
     { note: 'A texture that encodes larger than its source now ships as the source.' },
   'fix(cli): the temp build dir is swept however the run ends':

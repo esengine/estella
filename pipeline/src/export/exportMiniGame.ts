@@ -45,12 +45,14 @@ import { runtimeHostEntry } from '../bundle/runtimeHosts';
 import { breakdownOf, type ModuleBytes } from './bundleBreakdown';
 import { esengineAlias } from '../bundle/esengineResolve';
 import { explainBundleErrors, type BundleMessage } from '../bundle/bundleDiagnostics';
-import { scanSideModuleIds, sideModuleFiles } from '../bundle/sideModuleScan';
+import { scanSideModuleIds, sideModuleFiles, textureDecoderBytes } from '../bundle/sideModuleScan';
 import { OPEN_DATA_DIR } from './miniGameExportProfile';
 import { loadProjectModules, sideModuleDeclarations, stageProjectModules } from './projectModules';
 import { buildCompiledSystems, type BuildMode } from '../bundle/buildCompiledSystems';
 import { resolveEmcc, runEmcc } from '../bundle/emccPath';
 import type { MiniGameExportProfile, MiniGameVendor } from './miniGameExportProfile';
+
+
 
 export interface ExportMiniGameResult {
   ok: boolean;
@@ -309,7 +311,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   progress({ phase: 'Cooking assets' });
   // `platform: profile.id` — the cook reads each texture's per-platform Import
   // Settings under this key, so a vendor must cook against ITS OWN overrides.
-  const cook = await cookAssets(opts.root, { entryScenes: scenes.map((s) => s.path), outDir: absOut, contentAddressed: opts.contentAddressed, compressTextures: opts.compressTextures, compressAudio: opts.compressAudio, atlasTextures: opts.atlasTextures, transcodeVideo: true, platform: profile.id });
+  const cook = await cookAssets(opts.root, { entryScenes: scenes.map((s) => s.path), outDir: absOut, contentAddressed: opts.contentAddressed, compressTextures: opts.compressTextures, compressAudio: opts.compressAudio, atlasTextures: opts.atlasTextures, transcodeVideo: true, platform: profile.id, textureDecoderBytes: textureDecoderBytes(opts.wasmDir) });
   warnings.push(...cook.warnings);
 
   // 1a. Anything the packer will not upload ships as `<name>.<ext>.bin`. Scenes

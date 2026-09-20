@@ -18,6 +18,7 @@
  * This is the reachability + manifest + staging core they all build on.
  */
 import { writeFile, mkdir, readFile } from 'node:fs/promises';
+import { statSync } from 'node:fs';
 import { isInsideRoot } from '../fs/pathSandbox';
 import path from 'node:path';
 import { scanAssetDatabase, type AssetEntry } from './assetDb';
@@ -438,10 +439,15 @@ export async function cookAssets(
     /** Target platform — selects each texture's per-platform Import Settings
      *  override (Default when absent). No effect on audio/video/atlas. */
     platform?: string;
+    /**
+     * What the package would pay to READ a KTX2 — the transcoder's bytes. A
+     * project whose whole art weighs less than that cannot come out ahead by
+     * compressing any of it, and is answered before anything is encoded.
+     */
+    textureDecoderBytes?: number;
   },
 ): Promise<CookResult> {
   const contentAddressed = opts.contentAddressed ?? false;
-  const compressTextures = opts.compressTextures ?? false;
   const atlasTextures = opts.atlasTextures ?? false;
   const compressAudio = opts.compressAudio ?? false;
   const transcodeVideo = opts.transcodeVideo ?? false;
@@ -532,6 +538,26 @@ export async function cookAssets(
   // Atlas pages compress as UASTC (they aggregate many textures — no single
   // per-asset setting applies); standalone textures use `textureEnc` directly so
   // each honors its own format / srgb / opt-out from the importer block.
+
+  // Compressing cannot save more than the art weighs, and one KTX2 obliges the
+  // package to carry the transcoder — so art lighter than it is answered before
+  // the encoder loads. A project that authored a KTX2 pays either way.
+  const textureSources = [...reachable]
+    .map((uuid) => byUuid.get(uuid))
+    .filter((e): e is AssetEntry => e !== undefined && e.type === 'texture');
+  const authoredKtx2 = textureSources.some((e) => e.path.toLowerCase().endsWith('.ktx2'));
+  const artBytes = textureSources.reduce((n, e) => {
+    try { return n + statSync(path.join(root, e.path)).size; } catch { return n; }
+  }, 0);
+  const decoderBytes = opts.textureDecoderBytes;
+  const decoderCanPay = decoderBytes === undefined || authoredKtx2 || artBytes > decoderBytes;
+  const compressTextures = (opts.compressTextures ?? false) && decoderCanPay;
+  if ((opts.compressTextures ?? false) && !decoderCanPay) {
+    const kb = (n: number) => `${Math.round(n / 1024)}KB`;
+    warnings.push(`textures ship raw: compressing every one of them could save at most `
+      + `${kb(artBytes)}, and a package that holds a KTX2 carries a ${kb(decoderBytes!)} transcoder`);
+  }
+
   let encodePng: ((png: Uint8Array) => Promise<Uint8Array>) | null = null;
   let textureEnc: BasisEncoderModule | null = null;
   if (compressTextures) {
