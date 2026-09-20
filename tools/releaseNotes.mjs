@@ -686,6 +686,8 @@ export const NOTED = {
     { note: 'A WeChat mini-game boots again.' },
   'fix(sdk): the lean WeChat entry is an entry, so it declares its side effects':
     { internal: 'a declaration about the package, read by bundlers rather than people' },
+  'fix(cli): an over-budget package says which settings would fit it':
+    { internal: 'the wording of a message the export already printed' },
   'fix(assets): a texture ships in whichever form is smaller':
     { note: 'A texture that encodes larger than its source now ships as the source.' },
   'fix(cli): the temp build dir is swept however the run ends':
