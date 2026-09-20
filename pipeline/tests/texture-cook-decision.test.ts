@@ -9,7 +9,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-  decideTextureCook, cookIntentDefeated, explainTextureCook,
+  decideTextureCook, cookIntentDefeated, explainTextureCook, keepSmaller,
   type TextureCookInputs,
 } from '../src/assets/textureCookDecision';
 
@@ -99,5 +99,35 @@ describe('decideTextureCook', () => {
       decideTextureCook({ ...base, raster: false }),
     ]) said.add(explainTextureCook(d));
     expect(said.size).toBe(6);
+  });
+});
+
+/**
+ * Flat art encodes LARGER: the space-shooter background was 2,515 bytes as a PNG
+ * and 87,792 as UASTC, and the transcoder the package then has to carry is a
+ * megabyte more. The audio path has always kept the smaller of the two.
+ */
+describe('keepSmaller', () => {
+  const compressed = decideTextureCook(base);
+
+  it('keeps the encoding when it is smaller', () => {
+    expect(keepSmaller(compressed, 1000, 4000)).toEqual(compressed);
+  });
+
+  it('throws the encoding away when it is not, and says so', () => {
+    const d = keepSmaller(compressed, 87_792, 2_515);
+    expect(d).toEqual({ requested: 'uastc', selected: 'raw', reason: 'bigger-than-raw' });
+    // Not a defeat: the build chose this, the way it chooses for audio.
+    expect(cookIntentDefeated(d)).toBe(false);
+    expect(explainTextureCook(d)).toMatch(/larger than the image/);
+  });
+
+  it('is a no-op on a decision that was never going to encode', () => {
+    const raw = decideTextureCook({ ...base, compress: false });
+    expect(keepSmaller(raw, 1, 999_999)).toEqual(raw);
+  });
+
+  it('keeps raw on a tie — equal bytes buy nothing and cost a transcoder', () => {
+    expect(keepSmaller(compressed, 4000, 4000).selected).toBe('raw');
   });
 });

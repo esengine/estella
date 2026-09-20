@@ -13,6 +13,7 @@ import { cookAssets } from '../src/assets/cookAssets';
 import type { TextureCookDecision } from '../src/assets/textureCookDecision';
 import { decodePngImage } from '../src/assets/atlasPacker';
 import { contentHashHex } from '../../sdk/src/asset/contentHash';
+import { noisePng } from './fixtures/solidPng.mjs';
 
 interface AssetManifest {
   version: string;
@@ -207,7 +208,8 @@ describe('cookAssets (A4)', () => {
       const SC = '88888888-8888-4888-8888-888888888888';
       // 64x64: a block-compressed texture must be whole 4x4 blocks, so a source
       // that is not (logo.png is 70x70) is shipped raw by design — see below.
-      const png = solidPng(64, 64, [200, 60, 40, 255]);
+      // Noise: a build keeps whichever came out smaller, and PNG wins on flat art.
+      const png = noisePng(64, 64);
       const wa = (rel: string, type: string, uuid: string, body: Buffer | string): void => {
         const abs = path.join(r, rel);
         mkdirSync(path.dirname(abs), { recursive: true });
@@ -326,7 +328,9 @@ describe('cookAssets (A4)', () => {
     try {
       const TEX = '77777777-7777-4777-8777-777777777773';
       const SC = '88888888-8888-4888-8888-888888888883';
-      const png = solidPng(64, 64, [200, 60, 40, 255]);
+      // Noise: the platform override is the subject, so the default side has to
+      // be a texture a build would really compress.
+      const png = noisePng(64, 64);
       const abs = path.join(r, 't/logo.png');
       mkdirSync(path.dirname(abs), { recursive: true });
       writeFileSync(abs, png);

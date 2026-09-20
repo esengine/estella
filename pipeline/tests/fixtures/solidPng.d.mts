@@ -7,3 +7,4 @@ export function solidPng(
   height: number,
   rgba?: readonly [number, number, number, number],
 ): Buffer;
+export function noisePng(width: number, height: number, seed?: number): Buffer;

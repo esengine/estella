@@ -54,7 +54,9 @@ export type TextureCookReason =
   | 'asset-opt-out'
   | 'atlas-page'
   | 'not-block-aligned'
-  | 'not-raster';
+  | 'not-raster'
+  /** Encoded and thrown away: the KTX2 came out larger than the image. */
+  | 'bigger-than-raw';
 
 export interface TextureCookDecision {
   /** The mode this asset asked for, or `none` when it opted out. */
@@ -107,15 +109,28 @@ export function decideTextureCook(input: TextureCookInputs): TextureCookDecision
 }
 
 /**
+ * The payload once the encoder has answered: a KTX2 bigger than the image it
+ * encoded is not a compression, whatever it was asked for. Basis writes about a
+ * byte per pixel and PNG writes almost nothing for flat art — a 512px sky came
+ * out 35x its PNG, and obliged the package to carry a megabyte of transcoder.
+ */
+export function keepSmaller(
+  d: TextureCookDecision, encodedBytes: number, rawBytes: number,
+): TextureCookDecision {
+  if (d.selected === 'raw' || encodedBytes < rawBytes) return d;
+  return { ...d, selected: 'raw', reason: 'bigger-than-raw' };
+}
+
+/**
  * True when the asset asked for an encoding and the build did not give it.
  *
- * Opting out is not a defeat, nor is a build that skips assets on purpose — both
- * are choices. This catches the silent kind: a request that survived every
+ * Opting out, a build that skips assets, and an encoding that came out bigger
+ * are all choices. This catches the silent kind: a request that survived every
  * dialog and lost to the image itself, or to the folder it was dropped in.
  */
 export function cookIntentDefeated(d: TextureCookDecision): boolean {
   if (d.requested === 'none') return false;
-  if (d.reason === 'build-skips-assets') return false;
+  if (d.reason === 'build-skips-assets' || d.reason === 'bigger-than-raw') return false;
   return d.selected !== d.requested;
 }
 
@@ -139,5 +154,7 @@ export function explainTextureCook(
         + 'is not a multiple of 4, which a block-compressed texture must be';
     case 'not-raster':
       return 'shipped raw — only PNG sources are encoded';
+    case 'bigger-than-raw':
+      return 'shipped raw — the KTX2 came out larger than the image';
   }
 }

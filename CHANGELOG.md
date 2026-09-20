@@ -32,6 +32,15 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A texture that encodes larger than its source now ships as the source.** Compressing to
+  KTX2 is a win on detailed art and a loss on flat art — Basis writes about a byte per pixel
+  where PNG writes almost nothing, so the space-shooter example's 512px background came out
+  35× its PNG and its atlas page 9×. The build encodes, compares, and keeps whichever is
+  smaller, the way it has always done for audio. Nothing needing a transcoder also means the
+  package stops carrying one: that example's WeChat main package went from 4.83MB — over the
+  platform's 4MB cap, so it could not be uploaded at all — to 3.29MB, with no project setting
+  changed. The build log says how many textures it left raw and what that saved.
+
 - **A WeChat mini-game boots again.** Its package had no platform in it: the SDK entry
   installed one as a module side effect, and the lean entry added for smaller packages is
   pure re-exports — so the install sat in a shared chunk the bundler was free to drop, and

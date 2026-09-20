@@ -30,7 +30,7 @@ import { readTextureCookSettings } from '../project/importSettings';
 // The branch below IS this function — a cook that re-derived the choice would
 // be a second answer to the question an inspector asks before a build runs.
 import {
-  decideTextureCook, cookIntentDefeated, explainTextureCook,
+  decideTextureCook, cookIntentDefeated, explainTextureCook, keepSmaller,
   type TextureCookDecision,
 } from './textureCookDecision';
 // Single-source content hash (sdk/src/asset/contentHash.ts). Imported as source —
@@ -557,6 +557,8 @@ export async function cookAssets(
   // one fact about the project's source art, and one line per JPEG would bury
   // the per-asset findings that each need their own fix.
   const defeatedByFormat: string[] = [];
+  /** Encoded, measured, thrown away — summarized once rather than per texture. */
+  const grewUnderEncoding: Array<{ path: string; saved: number }> = [];
 
   // ---- Auto-atlas (`<name>.atlas/` folder convention) -----------------------
   // Pack the reachable PNGs of each atlas directory into pages BEFORE the
@@ -592,13 +594,20 @@ export async function cookAssets(
       if (images.length === 0) continue;
       const pages = packAtlas(images);
       for (let n = 0; n < pages.length; n++) {
-        let pageBytes: Uint8Array = encodePagePng(pages[n]);
+        const pagePng: Uint8Array = encodePagePng(pages[n]);
+        let pageBytes: Uint8Array = pagePng;
         let pageExt = '.png';
         let compressedFormats: string[] | undefined;
         if (encodePng) {
-          pageBytes = await encodePng(pageBytes);
-          pageExt = '.ktx2';
-          compressedFormats = COMPRESSED_TARGETS;
+          // Same question the loose textures ask, and the same answer when the
+          // page is flat art: a page nobody compresses also spares the package
+          // the transcoder, which is the larger half of the bill.
+          const encoded = await encodePng(pagePng);
+          if (encoded.byteLength < pagePng.byteLength) {
+            pageBytes = encoded;
+            pageExt = '.ktx2';
+            compressedFormats = COMPRESSED_TARGETS;
+          } else grewUnderEncoding.push({ path: `${dir}.page${n}`, saved: encoded.byteLength - pagePng.byteLength });
         }
         const pageHash = contentHashHex(pageBytes);
         const { name: group, delivery } = resolveAssetGroup(`${dir}/`, groupsConfig);
@@ -716,11 +725,15 @@ export async function cookAssets(
           // when the encoder was loaded — an absent one here is a broken invariant
           // and should say so rather than silently ship raw.
           const enc = textureEnc!;
-          data = rgba
+          const encoded = rgba
             ? await enc.encodeToKtx2({ type: enc.ImageType.RGBA, data: rgba, width: tw, height: th }, { mode: cook.selected, srgb: tex.srgb })
             : await enc.encodeToKtx2({ type: enc.ImageType.PNG, data }, { mode: cook.selected, srgb: tex.srgb });
-          ext = '.ktx2';
-          compressedFormats = COMPRESSED_TARGETS;
+          cook = keepSmaller(cook, encoded.byteLength, data.byteLength);
+          if (cook.selected !== 'raw') {
+            data = encoded;
+            ext = '.ktx2';
+            compressedFormats = COMPRESSED_TARGETS;
+          } else grewUnderEncoding.push({ path: entry.path, saved: encoded.byteLength - data.byteLength });
         }
       }
       // WAV sources re-encode to MP3 (universal decode); other audio formats are
@@ -906,6 +919,12 @@ export async function cookAssets(
 
   const unused = index.entries.filter((e) => !reachable.has(e.uuid)).map((e) => e.uuid);
   const includedPaths = [...reachable].map((uuid) => byUuid.get(uuid)?.path).filter((p): p is string => p !== undefined);
+  if (grewUnderEncoding.length) {
+    const bytes = grewUnderEncoding.reduce((n, g) => n + g.saved, 0);
+    const kb = (n: number) => `${Math.round(n / 1024)}KB`;
+    warnings.push(`${grewUnderEncoding.length} texture(s) ship raw because the KTX2 came out `
+      + `larger — ${kb(bytes)} the package does not carry. Flat art compresses better as PNG.`);
+  }
   if (defeatedByFormat.length) {
     const shown = defeatedByFormat.slice(0, 3).join(', ');
     warnings.push(`${defeatedByFormat.length} image(s) ask to be compressed but are not PNG, so they `

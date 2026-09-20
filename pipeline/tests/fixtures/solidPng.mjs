@@ -52,3 +52,31 @@ export function solidPng(width, height, [r, g, b, a] = [0, 0, 0, 255]) {
   const idat = zlib.deflateSync(raw);
   return Buffer.concat([sig, chunk('IHDR', ihdr), chunk('IDAT', idat), chunk('IEND', Buffer.alloc(0))]);
 }
+
+/**
+ * A `width`×`height` image of deterministic noise. PNG cannot compress it, so
+ * this is content a block encoder actually beats — what a fixture needs to say
+ * "compression happened" now that a build keeps whichever came out smaller.
+ */
+export function noisePng(width, height, seed = 1) {
+  const sig = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 6;
+  const rowLen = width * 4;
+  const raw = Buffer.alloc((rowLen + 1) * height);
+  let s = seed >>> 0;
+  const next = () => { s = (s * 1664525 + 1013904223) >>> 0; return (s >>> 24) & 255; };
+  for (let y = 0; y < height; y++) {
+    const off = y * (rowLen + 1);
+    raw[off] = 0;
+    for (let x = 0; x < width; x++) {
+      const p = off + 1 + x * 4;
+      raw[p] = next(); raw[p + 1] = next(); raw[p + 2] = next(); raw[p + 3] = 255;
+    }
+  }
+  return Buffer.concat([sig, chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)),
+    chunk('IEND', Buffer.alloc(0))]);
+}
