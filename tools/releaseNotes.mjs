@@ -684,6 +684,8 @@ export const NOTED = {
     { note: 'A mini-game export no longer fails on a project whose sprites are atlased.' },
   'fix(wechat): the package installs its platform by calling for it':
     { note: 'A WeChat mini-game boots again.' },
+  'fix(sdk): the lean WeChat entry is an entry, so it declares its side effects':
+    { internal: 'a declaration about the package, read by bundlers rather than people' },
   'feat(ui): a HUD can clear the host\'s own menu, not just the notch':
     { note: 'A UI node can keep clear of WeChat\'s capsule menu, which the safe area does not cover.' },
 };
