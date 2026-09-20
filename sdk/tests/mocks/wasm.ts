@@ -11,6 +11,8 @@ import type { Entity } from '../../src/types';
  */
 export interface MockModule extends ESEngineModule {
     setUINodeHiddenInTree(entity: Entity, hidden: boolean): void;
+    /** The one registry this module answers for — `app.connectCpp` takes it. */
+    getRegistry(): CppRegistry;
 }
 
 export function createMockModule(): MockModule {
