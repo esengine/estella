@@ -23,6 +23,26 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **An optional subsystem is installed again in builds where a bundler had dropped it.**
+  Making the core runtime name no optional
+  subsystem left each one registering itself when its module was imported — and a bare
+  side-effect import is something a bundler may drop unless every layer has been told the
+  file is impure. Neither layer had been, so the code shipped in every package and ran in
+  none of them: a scene full of rigid bodies loaded with no solver, and said so only in a
+  log nobody reads. Registration is a call now, which no tree-shake in any layer may drop,
+  and every published entry declares itself side-effectful so a game's own bundler cannot
+  repeat it with `esengine/physics3d`.
+
+- **Sprite.drawMode is optional, so existing SpriteData code still compiles.** The field shipped required, which breaks any object literal written before
+  it existed. Auto is the default; naming it was never meant to be mandatory.
+
+- **Record, mute, delete and unsaved read as what they are, not as viewport colours.**
+  The editor's viewport palette is chosen so a gizmo
+  survives any backdrop, and its tokens name particular things — the X axis, a collider, the
+  selection. Five panel elements had borrowed one for want of a token of their own, so a
+  sequencer's record button was X-axis red and a muted track was too. Record now has its own
+  colour, the rest use the ones that already existed, and a gate refuses the next borrowing.
+
 - **A WeChat package no longer carries files the upload would refuse.** WeChat publishes
   the file types its packer accepts, and an authored format outside that list — a behaviour
   tree, a locale table, a tileset, a prefab — was staged under its own suffix. Such a
@@ -40,6 +60,11 @@ published separately; it ships inside the editor.
   diagnostic bundle. The failures are now warned once, with what failed and why.
 
 ### Added
+
+- **Douyin is selectable in the build dialog and has its own texture Import Settings tab.**
+  The export existed — the same runtime as WeChat, judged against Douyin's own 20MB cap —
+  but the editor's platform list was written by hand, so nothing offered the target that
+  had shipped. The list is the platform registry's now, in its order.
 
 - **A mini-game says how far along its boot is, not just that it is loading.** The web
   export got a start screen with a real progress bar; a mini-game could not have one,

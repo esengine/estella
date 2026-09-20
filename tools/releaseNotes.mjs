@@ -29,19 +29,16 @@ export const NOTES_FLOOR = 'v0.65.0';
  */
 export const NOTED = {
   'fix(sdk): a subsystem registers by being called, not by being imported':
-    { note: 'A scene with 3D physics, Spine or DragonBones gets its runtime again in'
-      + ' builds where a bundler had been dropping the registration.' },
+    { note: 'An optional subsystem is installed again in builds where a bundler had dropped it.' },
 
   'fix(api): a new component field is optional, so a frozen promise holds':
-    { note: 'Sprite.drawMode is optional, so existing code that builds a SpriteData'
-      + ' still compiles.' },
+    { note: 'Sprite.drawMode is optional, so existing SpriteData code still compiles.' },
 
   'feat(gates): a colour that names a thing only colours that thing':
     { internal: "A repository gate over the editor's own palette; no creator runs it." },
 
   'fix(editor): a viewport colour names a thing, and four panels borrowed one':
-    { note: 'Record, mute, delete, unsaved and a refused licence each read as what they'
-      + ' are, instead of borrowing the viewport\'s colours.' },
+    { note: 'Record, mute, delete and unsaved read as what they are, not as viewport colours.' },
 
   'feat(editor): the build dialog offers Douyin, because the registry says it exists':
     { note: 'Douyin is selectable in the build dialog and has its own texture Import'
