@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'refactor(theme): a type scale with one job per step, and steps you can tell apart':
+    { note: "The editor's smaller labels are readable — one body size instead of three within 2px." },
+
   'refactor(theme): one name per value — three alias vocabularies collapse into one':
     { internal: "Editor token names only; the editor looks pixel-identical and no creator writes them." },
 

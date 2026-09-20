@@ -23,6 +23,13 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **The editor's smaller labels are readable — one body size instead of three within 2px.**
+  The type scale had eight steps, six of them between 9px and 14px, and three of those
+  carried 89% of the text: which one a panel used was whichever its stylesheet had been
+  written with. It has four, each named for its job — micro, detail, body, title — and the
+  11px tier joined the body rather than the metadata one, so the labels that were smallest
+  are the ones that grew.
+
 - **A web build stops shipping the WeChat SDK entries next to the one its page loads.**
   `sdk/dist` holds every target's build side by side and the staging step filtered them by an
   enumerated list of filenames, so an entry added after that list — `index.wechat.lean` — went
