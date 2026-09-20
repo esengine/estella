@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(build): the size panel says which budget each byte is on':
+    { note: "The build's size panel marks which files are in a subpackage." },
+
   'fix(size): a subpackage is off the main package, and a compressed engine is still the engine':
     { note: "The size report counts a mini-game's main package without its subpackages." },
 

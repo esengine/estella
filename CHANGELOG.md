@@ -23,6 +23,12 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **The build's size panel marks which files are in a subpackage.** Now that the engine binary
+  can move into one, a reader could not tell the bytes a 4MB cap is judged on from the bytes it
+  is not: the composition bar is 100% of the whole package and said so nowhere, and a
+  subpackage row looked like a main-package row. The bar names its total and each subpackage
+  row is tagged.
+
 - **The size report counts a mini-game's main package without its subpackages.** Everything on
   disk that the asset manifest did not claim was counted as "downloaded before anything runs",
   so a binary moved into a subpackage was still judged against the 4MB it had just been moved
