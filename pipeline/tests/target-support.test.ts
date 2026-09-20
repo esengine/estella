@@ -19,6 +19,7 @@ import {
   collectSubsystems, subsystemGapWarnings, targetGaps, SUBSYSTEM_CMAKE_FLAG, type Subsystem,
 } from '../src/project/targetSupport';
 import { exportGame } from '../src/export/exportGame';
+import { writeFakeSdkDist } from './fixtures/fakeSdkDist';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..');
@@ -124,8 +125,7 @@ describe('exportGame warns about content the target cannot render', () => {
       ],
     }));
     writeFileSync(path.join(root, 'scenes', 'main.esscene.meta'), meta(SCN, 'scene'));
-    mkdirSync(path.join(root, '_sdk'), { recursive: true });
-    writeFileSync(path.join(root, '_sdk', 'index.js'), 'export const x = 1;');
+    writeFakeSdkDist(path.join(root, '_sdk'));
     mkdirSync(path.join(root, '_wasm'), { recursive: true });
     writeFileSync(path.join(root, '_wasm', 'esengine.js'), 'export default () => {};');
   });

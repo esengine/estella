@@ -23,7 +23,7 @@ import type { BuildOptions, Plugin } from 'esbuild';
 import { loadEsbuild } from '../bundle/esbuildRuntime';
 import { runtimeHostEntry } from '../bundle/runtimeHosts';
 import { writeFile, readFile, mkdir, cp, readdir, rm } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { cookAssets, loadAssetGroups, type CookManifest, type Inclusion } from '../assets/cookAssets';
 import { cookWorlds, streamedScenes } from '../world/cookWorld';
@@ -141,43 +141,58 @@ export async function discoverProjectScenes(root: string, entryScene: string, sc
 }
 
 /**
- * Top-level bundles in sdk/dist a BROWSER page can load, derived from the map
- * that names them — `dist` holds every target's output side by side.
+ * Entry bundles in sdk/dist a BROWSER page can load, derived from the map that
+ * names them — `dist` holds every target's output side by side.
  *
  * Derived, not enumerated: a listed set went stale the first time an entry was
  * added, and a web package shipped a WeChat SDK.
  */
-const BROWSER_TOP_LEVEL = new Set(
-  Object.values(IMPORT_MAP.imports)
-    .map((t) => t.replace(/^\.\/sdk\//, ''))
-    .filter((t) => !t.includes('/')),
-);
+const BROWSER_ENTRIES = Object.values(IMPORT_MAP.imports).map((t) => t.replace(/^\.\/sdk\//, ''));
+
+/** The build's own record of which chunks each entry reaches (sdk/rolldown.config.js). */
+const CHUNK_MANIFEST = 'chunks.json';
+
+/**
+ * The files a browser package needs out of sdk/dist: the entries the import map
+ * names, plus the chunks the SDK build says those entries reach. Eleven entries
+ * share one chunk graph, and a `dist` can still hold an earlier build's output —
+ * a directory copy ships both (412KB of dead chunks the day this was written).
+ */
+function browserPayload(sdkDist: string): Set<string> {
+  const manifest = path.join(sdkDist, CHUNK_MANIFEST);
+  if (!existsSync(manifest)) {
+    // Loud, because the quiet alternative is shipping every target's runtime.
+    throw new Error(`${manifest} not found — rebuild the SDK (pnpm --filter ./sdk build).`);
+  }
+  const reach = JSON.parse(readFileSync(manifest, 'utf8')) as Record<string, readonly string[]>;
+  const want = new Set<string>();
+  for (const entry of BROWSER_ENTRIES) {
+    want.add(entry);
+    for (const chunk of reach[entry] ?? []) want.add(chunk);
+  }
+  return want;
+}
 
 /**
  * Whether a file under sdk/dist belongs in a browser package built with
- * `sourceMaps` on or off — the same answer the export's own bundles get, since
- * the maps a package carries are one decision and not one per producer.
- *
- * Directories always pass — the per-file test decides what lands inside them,
- * and refusing a directory would drop the shared chunks the entry imports.
- * Type declarations go too: nothing at runtime reads a `.d.ts`, and they are a
- * megabyte of a package whose whole point is what the player downloads.
- *
- * Deliberately a name test rather than a walk of the import graph: the graph
- * would be exact but silent when it is wrong, and a bundle this drops that
- * something did want is a 404 the moment the page loads, not a subtle bug.
+ * `sourceMaps` on or off — the maps a package carries are one decision and not
+ * one per producer. Declarations never ship: nothing at runtime reads a `.d.ts`.
  */
 export function shipsToBrowser(sourceMaps: boolean, sdkDist?: string): (src: string) => boolean {
+  const want = sdkDist ? browserPayload(sdkDist) : undefined;
+  const root = sdkDist ? path.resolve(sdkDist) : undefined;
   return (src: string) => {
     const base = path.basename(src);
     if (base.endsWith('.d.ts')) return false;
     if (!sourceMaps && base.endsWith('.map')) return false;
-    // Only the top level: a subpath's `index.js` lives in its own directory, and
-    // `shared/` is chunks rather than entries.
-    if (sdkDist && /\.js(\.map)?$/.test(base) && path.dirname(src) === path.resolve(sdkDist)) {
-      return BROWSER_TOP_LEVEL.has(base.replace(/\.map$/, ''));
-    }
-    return true;
+    if (!want || !root) return true;
+    const rel = path.relative(root, src).split(path.sep).join('/');
+    if (rel === '') return true;
+    // A directory passes when something wanted is inside it; `cp` prunes the
+    // whole tree otherwise.
+    if (statSync(src, { throwIfNoEntry: false })?.isDirectory()) return [...want].some((f) => f.startsWith(`${rel}/`));
+    if (rel === CHUNK_MANIFEST) return false;
+    return want.has(rel.replace(/\.map$/, ''));
   };
 }
 

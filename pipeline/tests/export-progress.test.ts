@@ -11,6 +11,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { exportGame } from '../src/export/exportGame';
 import type { ExportProgress } from '../src/export/exportProgress';
+import { writeFakeSdkDist } from './fixtures/fakeSdkDist';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOSTS = path.join(HERE, '..', '..', 'pipeline', 'src', 'runtime');
@@ -31,8 +32,7 @@ beforeAll(() => {
   writeFileSync(path.join(root, 'scenes', 'main.esscene.meta'), meta(SCN, 'scene'));
   mkdirSync(path.join(root, 'src'), { recursive: true });
   writeFileSync(path.join(root, 'src', 'main.ts'), `import { defineComponent } from 'esengine';\ndefineComponent('M', { n: 1 });\n`);
-  mkdirSync(path.join(root, '_sdk'), { recursive: true });
-  writeFileSync(path.join(root, '_sdk', 'index.js'), 'export const x = 1;');
+  writeFakeSdkDist(path.join(root, '_sdk'));
   mkdirSync(path.join(root, '_wasm'), { recursive: true });
   writeFileSync(path.join(root, '_wasm', 'esengine.js'), 'export default () => {};');
   writeFileSync(path.join(root, '_wasm', 'esengine.wasm'), 'wasmbytes');

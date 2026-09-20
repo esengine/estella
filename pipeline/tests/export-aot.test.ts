@@ -17,6 +17,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { exportGame } from '../src/export/exportGame';
 import { emccPath } from '../../build-tools/utils/emscripten.js';
+import { writeFakeSdkDist } from './fixtures/fakeSdkDist';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOSTS = path.join(HERE, '..', 'src', 'runtime');
@@ -64,8 +65,7 @@ function setup(files: Record<string, string>): { root: string; out: string } {
     mkdirSync(path.dirname(at), { recursive: true });
     writeFileSync(at, body);
   }
-  mkdirSync(path.join(root, '_sdk'), { recursive: true });
-  writeFileSync(path.join(root, '_sdk', 'index.js'), 'export const x = 1;\n');
+  writeFakeSdkDist(path.join(root, '_sdk'));
   mkdirSync(path.join(root, '_wasm'), { recursive: true });
   writeFileSync(path.join(root, '_wasm', 'esengine.js'), 'export default () => {};');
   writeFileSync(path.join(root, '_wasm', 'esengine.wasm'), 'ENGINE');

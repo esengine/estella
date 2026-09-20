@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { exportGame } from '../src/export/exportGame';
+import { writeFakeSdkDist } from './fixtures/fakeSdkDist';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOSTS = path.join(HERE, '..', '..', 'pipeline', 'src', 'runtime');
@@ -24,13 +25,14 @@ function setup(): { root: string; out: string } {
     JSON.stringify({ version: '1.0', name: 'Main', entities: [{ id: 0, components: [] }] }));
   writeFileSync(path.join(root, 'scenes', 'main.esscene.meta'), meta(SCN, 'scene'));
 
-  mkdirSync(path.join(root, '_sdk', 'shared'), { recursive: true });
   // Exactly how the SDK build writes them: the script names its map on the last
   // line, and the map sits beside it.
-  writeFileSync(path.join(root, '_sdk', 'index.js'), 'export const x = 1;\n//# sourceMappingURL=index.js.map\n');
-  writeFileSync(path.join(root, '_sdk', 'index.js.map'), '{"version":3}');
-  writeFileSync(path.join(root, '_sdk', 'shared', 'resource.js'), 'export const r = 1;\n//# sourceMappingURL=resource.js.map');
-  writeFileSync(path.join(root, '_sdk', 'shared', 'resource.js.map'), '{"version":3}');
+  writeFakeSdkDist(path.join(root, '_sdk'), {
+    'index.js': 'export const x = 1;\n//# sourceMappingURL=index.js.map\n',
+    'index.js.map': '{"version":3}',
+    'shared/resource.js': 'export const r = 1;\n//# sourceMappingURL=resource.js.map',
+    'shared/resource.js.map': '{"version":3}',
+  });
 
   mkdirSync(path.join(root, '_wasm'), { recursive: true });
   writeFileSync(path.join(root, '_wasm', 'esengine.js'), 'export default () => {};');

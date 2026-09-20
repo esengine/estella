@@ -20,6 +20,7 @@ import { fileURLToPath } from 'node:url';
 import type { PackagedGameConfig } from 'esengine';
 import { exportGame } from '../src/export/exportGame';
 import { resolveEmcc } from '../src/bundle/emccPath';
+import { writeFakeSdkDist } from './fixtures/fakeSdkDist';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOSTS = path.join(HERE, '..', 'src', 'runtime');
@@ -75,8 +76,7 @@ function project(source: string | null): { root: string; out: string } {
   mkdirSync(path.join(root, 'src'), { recursive: true });
   writeFileSync(path.join(root, 'src', 'main.ts'), source ?? 'export {};\n');
 
-  mkdirSync(path.join(root, '_sdk'), { recursive: true });
-  writeFileSync(path.join(root, '_sdk', 'index.js'), 'export const x = 1;');
+  writeFakeSdkDist(path.join(root, '_sdk'));
   mkdirSync(path.join(root, '_wasm'), { recursive: true });
   writeFileSync(path.join(root, '_wasm', 'esengine.js'), 'export default () => {};');
   writeFileSync(path.join(root, '_wasm', 'esengine.wasm'), 'ENGINE');
