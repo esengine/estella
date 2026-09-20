@@ -4,10 +4,10 @@
  * @file  components.ts — 2D physics as a scene DECLARES it: components, shapes
  *        and the arithmetic over them. No solver.
  *
- * Its own entry point because a chunk is what a bundler can act on: with the
- * declarations and the solver in one chunk, a core that needs `RigidBody2D`
- * takes Box2D with it into every package. Reading a scene needs this half;
- * simulating it needs `esengine/physics`.
+ * Not a build entry: making it one cost 1,794 bytes, because rolldown copies the
+ * shared declarations into a second chunk rather than splitting the first. It is
+ * the AUTHORITY on where the line falls — check-core-carries-options reads this
+ * list to tell a declaration from a solver — and that is worth a file on its own.
  */
 export * from './PhysicsComponents';
 export * from './ColliderShape2D';
