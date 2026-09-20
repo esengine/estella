@@ -25,7 +25,8 @@ export interface SafeAreaData {
     /**
      * Also clear the host's own overlay — WeChat's capsule menu, which sits
      * INSIDE the safe area: measured on an iPhone 12, its bottom is 29px below
-     * `safeArea.top`, so a node that respects the safe area is still under it.
+     * `safeArea.top`. Only for a node the overlay actually reaches: this moves
+     * the whole node down, so a HUD already above the capsule ends up on it.
      */
     avoidHostMenu: boolean;
 }

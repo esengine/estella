@@ -5,8 +5,8 @@
  *
  * The capsule menu sits INSIDE the safe area: measured on the iPhone 12 the
  * simulator offers, `safeArea.top` is 47 and the capsule's bottom is 76, so a
- * node that respects the safe area is still under the capsule for 29 of its 32
- * pixels — which is what the space-shooter example's lives counter did.
+ * node anchored to the top of the safe area is under the capsule for 29 of its
+ * 32 pixels.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { App } from '../src/app/app';

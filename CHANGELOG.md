@@ -25,10 +25,10 @@ published separately; it ships inside the editor.
 
 - **A UI node can keep clear of WeChat's capsule menu, which the safe area does not cover.**
   `SafeArea.avoidHostMenu` pushes the top inset past the host's own overlay. Measured on the
-  iPhone 12 the simulator offers, the capsule's bottom edge is 29px *inside* the safe area —
-  so a HUD that respects the safe area still sits under it, which is what the space-shooter
-  example's lives counter did. No engine offers this: every game converts the rect to layout
-  units by hand, which is the arithmetic the safe area already does here.
+  iPhone 12 the simulator offers, the capsule's bottom edge is 29px *inside* the safe area,
+  so a node anchored to the top of the safe area can still be under it. No engine offers
+  this: every game converts the rect to layout units by hand, which is the arithmetic the
+  safe area already does here.
 
 ### Fixed
 
