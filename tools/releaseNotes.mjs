@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'refactor(theme): one name per value — three alias vocabularies collapse into one':
+    { internal: "Editor token names only; the editor looks pixel-identical and no creator writes them." },
+
   "fix(export): a web package no longer carries another host's SDK":
     { note: "A web build stops shipping the WeChat SDK entries next to the one its page loads." },
 

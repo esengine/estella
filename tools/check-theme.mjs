@@ -111,6 +111,17 @@ for (const { name, hex, sat } of content) {
 }
 
 /**
+ * A token whose whole value is `var(--other)` is a second name for a value that
+ * already has one. Three such vocabularies had grown over this palette, and one
+ * of them put `--border` (the dark groove) beside `--border-line` (the light
+ * hairline) — one word over two roles the real names keep apart.
+ */
+for (const m of css.matchAll(/^\s*(--[a-z0-9-]+)\s*:\s*var\(\s*(--[a-z0-9-]+)\s*\)\s*;/gm)) {
+  problems.push(`${TOKENS}: ${m[1]} is only another name for ${m[2]} — `
+    + 'one value, one name; use the one that holds it');
+}
+
+/**
  * An identity token names a thing, not a role: `--ax-x` is the X axis,
  * `--gizmo-collider` is a collider, `--sel` is the selection. Colouring anything
  * else with one is a claim about what the colour means, and the claim is false —
