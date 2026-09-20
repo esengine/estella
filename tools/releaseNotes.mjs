@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(scale): a wasm budget is denominated in wasm, not in a JS loop':
+    { internal: 'A repository perf budget; no creator runs it.' },
+
   'docs(theme): the alias block says what it is, not what it was for':
     { internal: "A comment in the editor's token file; nothing a creator sees changes." },
 
