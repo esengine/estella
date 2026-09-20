@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(sdk): a subsystem installs one plugin, however many callers registered it':
+    { note: 'A build that ships Spine or DragonBones installs one of each again, not two.' },
+
   'fix(scale): the frame ceilings are set from both machines, not one':
     { internal: 'A repository perf budget; no creator runs it.' },
 

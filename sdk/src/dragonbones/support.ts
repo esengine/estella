@@ -8,7 +8,7 @@ import { DragonBonesPlugin as DragonBonesPluginCtor } from './DragonBonesPlugin'
 import { loadDragonBonesAssets, applyDragonBonesEntities } from './loadDragonBonesScene';
 
 export function registerDragonBonesSupport(): void {
-    addEntryPlugin(() => new DragonBonesPluginCtor());
+    addEntryPlugin('dragonbones', () => new DragonBonesPluginCtor());
     setSceneOptionals({
         dragonBones: {
             acquire: async (app) => (await app.getPlugin(DragonBonesPluginCtor)?.acquire()) ?? null,

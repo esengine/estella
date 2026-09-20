@@ -23,6 +23,12 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A build that ships Spine or DragonBones installs one of each again, not two.** Making
+  registration a call rather than a module's side effect gave it two callers — the
+  `esengine/spine` subpath and an entry's own install — and the plugin list appended both,
+  so the editor built every app with two SpinePlugins and said so once in a log nobody
+  reads. The list is keyed by subsystem now, so a second registration replaces.
+
 - **An optional subsystem is installed again in builds where a bundler had dropped it.**
   Making the core runtime name no optional
   subsystem left each one registering itself when its module was imported — and a bare

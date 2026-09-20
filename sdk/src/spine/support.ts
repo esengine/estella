@@ -19,10 +19,10 @@ import { setSceneOptionals } from '../runtime/sceneOptionals';
 import { SpinePlugin as SpinePluginCtor } from './SpinePlugin';
 import { loadSpineAssets, applySpineEntities } from './loadSpineScene';
 
-/** Idempotent: both the `esengine/spine` subpath and an entry that ships
- *  everything call it, and a host may evaluate the bundle more than once. */
+/** Called by both the `esengine/spine` subpath and an entry that ships
+ *  everything; `addEntryPlugin` keys by subsystem so the second call replaces. */
 export function registerSpineSupport(): void {
-    addEntryPlugin(() => new SpinePluginCtor());
+    addEntryPlugin('spine', () => new SpinePluginCtor());
     setSceneOptionals({
         spine: {
             manager: (app) => app.getPlugin(SpinePluginCtor)?.spineManager ?? null,
