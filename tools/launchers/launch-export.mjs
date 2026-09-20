@@ -309,10 +309,11 @@ const SCENE = flag('scene', '');
   }
 
   // A start screen that outlived its boot covers the game with something that
-  // looks like a game still loading, and every other check here still passes:
-  // the canvas painted underneath it, the frame is not flat, nothing errored.
+  // looks like a game still loading, and every other check here passes. Faded,
+  // not removed: `done()` drops the node 400ms later, long after boot ended.
   const splashLeft = await win.webContents.executeJavaScript(
-    "!!document.getElementById('es-splash')",
+    "(() => { const e = document.getElementById('es-splash');"
+    + " return !!e && !e.classList.contains('es-splash-gone'); })()",
   ).catch(() => false);
 
   const image = await win.webContents.capturePage();

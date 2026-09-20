@@ -23,6 +23,12 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A web build no longer carries the mini-game and native SDKs.** The SDK ships every
+  target's build in one directory, and staging copied all of it — plus whatever an earlier
+  build had left there, since the build never cleaned up after itself. A web package now
+  carries the entry the page loads and the chunks that entry reaches: 412KB less for the
+  space-shooter example, and the same for every web build.
+
 - **The build's size panel marks which files are in a subpackage.** Now that the engine binary
   can move into one, a reader could not tell the bytes a 4MB cap is judged on from the bytes it
   is not: the composition bar is 100% of the whole package and said so nowhere, and a

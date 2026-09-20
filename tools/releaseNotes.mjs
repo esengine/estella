@@ -672,4 +672,8 @@ export const NOTED = {
     { internal: 'the check runner\'s argument parsing' },
   'fix(automation): a capture waits as long as the package it is compared to':
     { internal: 'a verifier\'s timing, not the engine\'s' },
+  'fix(export): a web package ships the chunks its entries reach':
+    { note: 'A web build no longer carries the mini-game and native SDKs.' },
+  'refactor(sdk): four modules named support.ts, one flat chunk namespace':
+    { internal: 'the names inside the SDK build\'s own chunk output' },
 };

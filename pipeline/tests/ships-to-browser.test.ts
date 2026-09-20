@@ -41,7 +41,7 @@ beforeAll(() => {
   writeFileSync(at('chunks.json'), JSON.stringify(manifest));
 });
 
-afterAll(() => rmSync(DIST, { recursive: true, force: true }));
+afterAll(() => rmSync(DIST, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
 describe('what a web export stages from sdk/dist', () => {
   it('keeps exactly the entries the import map names', () => {
@@ -77,6 +77,6 @@ describe('what a web export stages from sdk/dist', () => {
   it('refuses a dist with no manifest rather than falling back to shipping it all', () => {
     const bare = mkdtempSync(path.join(tmpdir(), 'bare-'));
     expect(() => shipsToBrowser(false, bare)).toThrow(/chunks\.json/);
-    rmSync(bare, { recursive: true, force: true });
+    rmSync(bare, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });
 });
