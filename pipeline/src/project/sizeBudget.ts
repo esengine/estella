@@ -78,11 +78,21 @@ export function builtinSizeBudgets(platform: ExportPlatform): readonly SizeBudge
     return NO_BUDGETS;
 }
 
-/** Douyin's caps are lower than WeChat's on the total, which is the one that
- *  surprises: a package that fits WeChat can still be 10MB over here. */
+/**
+ * Douyin's total is lower than WeChat's: a package that fits WeChat can be 10MB
+ * over here. It is the DEFAULT — 「开通虚拟支付后的小游戏不超过30M」, which only
+ * the account knows, so 30MB is `packaging.sizeBudget.douyin`'s to say.
+ * https://developer.open-douyin.com/docs/resource/zh-CN/mini-game/develop/guide/basic-function/subpackages/introduction
+ */
 const DOUYIN_BUDGETS: readonly SizeBudget[] = [
-    { scope: 'initial', maxBytes: 4 * MB, note: "Douyin caps a mini-game's main package at 4MB" },
-    { scope: 'total', maxBytes: 20 * MB, note: 'Douyin caps a mini-game at 20MB across the main package and all subpackages' },
+    { scope: 'initial', maxBytes: 4 * MB, note: "Douyin caps a mini-game's main package at 4MB (单个主包不超过 4MB)" },
+    {
+        scope: 'total',
+        maxBytes: 20 * MB,
+        note: 'Douyin caps a mini-game at 20MB across the main package and all subpackages'
+            + ' — 30MB once the account has enabled in-game purchase, which only that account knows:'
+            + ' set packaging.sizeBudget.douyin to be judged against it',
+    },
 ];
 
 const NO_BUDGETS: readonly SizeBudget[] = [];
