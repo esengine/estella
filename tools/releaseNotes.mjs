@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  "feat(editor): a whole screen's heading is a step of the scale, not a raw 25px":
+    { internal: 'One heading moved onto an existing scale; nothing a creator sees changes size.' },
+
   'fix(api): a public field may not be typed by an unfrozen enum':
     { internal: 'A tier declaration on a generated enum; the type a creator sees is unchanged.' },
 
