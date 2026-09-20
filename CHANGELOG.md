@@ -23,6 +23,12 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A mini-game export no longer fails on a project whose sprites are atlased.** Names that
+  a vendor's packer will not upload are shipped with a `.bin` suffix, and the rename walked
+  the manifest one asset at a time — so the seven sprites packed into one atlas page tried to
+  move the same file seven times, and the export died on the second. Any 2D project with an
+  atlas, which is most of them.
+
 - **The size report says which subsystem each byte of the scripts came from.** A mini-game
   inlines the engine's JavaScript, and the report grouped it by the bundler's own chunks —
   so two thirds of it sat in one row named after one of the four hundred modules inside it.

@@ -324,6 +324,8 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   const flatManifestPath = path.join(absOut, 'assets.manifest.json');
   let cookEntries: CookManifest['entries'] = [];
   const sceneRawByName = new Map<string, unknown>();
+  /** Where a staged file went, so a second entry naming it does not move it again. */
+  const restaged = new Map<string, string>();
   try {
     const flat = JSON.parse(await readFile(flatManifestPath, 'utf8')) as CookManifest;
     for (const e of flat.entries) {
@@ -332,8 +334,15 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
       // beside the transformed one, under a name nothing reads.
       const scene = scenes.find((s) => s.path === e.path);
       if (!scene && needsRestage(e.path)) {
-        await rename(path.join(absOut, e.path), path.join(absOut, `${e.path}.bin`));
-        e.path = `${e.path}.bin`;
+        // Assets share an output freely — every sprite packed into an atlas
+        // names the same page — so the file moves once and the rest follow it.
+        let moved = restaged.get(e.path);
+        if (moved === undefined) {
+          moved = `${e.path}.bin`;
+          await rename(path.join(absOut, e.path), path.join(absOut, moved));
+          restaged.set(e.path, moved);
+        }
+        e.path = moved;
         continue;
       }
       if (scene) {

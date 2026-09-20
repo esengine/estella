@@ -680,4 +680,6 @@ export const NOTED = {
     { note: 'The size report says which subsystem each byte of the scripts came from.' },
   'fix(gates): a start screen that faded is not one that never did':
     { internal: 'a verifier\'s reading of a boot it already watched finish' },
+  'fix(wechat): an atlas page is one file however many sprites name it':
+    { note: 'A mini-game export no longer fails on a project whose sprites are atlased.' },
 };

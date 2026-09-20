@@ -784,3 +784,60 @@ describe('exportGame (wechat) — open data context', () => {
     expect(JSON.parse(readFileSync(path.join(o, 'game.json'), 'utf8'))).not.toHaveProperty('openDataContext');
   }, 60_000);
 });
+
+/**
+ * Assets share a staged file freely: every sprite packed into an atlas names the
+ * same page, and content addressing hands identical bytes one name. The packer
+ * rename walked manifest ENTRIES, so the first moved the file and the rest died
+ * on a path that was no longer there — which is every atlased 2D project.
+ */
+describe('two assets, one staged file', () => {
+  const roots: string[] = [];
+  afterAll(() => {
+    for (const r of roots) rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+  });
+
+  it('renames it once and points both entries at the new name', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'estella-export-shared-'));
+    roots.push(dir);
+    const A = '11111111-1111-1111-1111-111111111111';
+    const B = '22222222-2222-2222-2222-222222222222';
+    // `.eslocale` is not on WeChat's upload whitelist, and identical bytes under
+    // content addressing cook to one file — the shape an atlas page has.
+    mkdirSync(path.join(dir, 'assets', 'i18n'), { recursive: true });
+    for (const [name, uuid] of [['en', A], ['fr', B]] as const) {
+      writeFileSync(path.join(dir, 'assets', 'i18n', `${name}.eslocale`), JSON.stringify({ hello: 'hi' }));
+      writeFileSync(path.join(dir, 'assets', 'i18n', `${name}.eslocale.meta`), meta(uuid, 'locale'));
+    }
+    mkdirSync(path.join(dir, 'scenes'), { recursive: true });
+    writeFileSync(path.join(dir, 'scenes', 'main.esscene'), JSON.stringify({
+      version: '1.0', name: 'Main', entities: [{ id: 0, components: [] }],
+    }));
+    writeFileSync(path.join(dir, 'scenes', 'main.esscene.meta'), meta(SCN, 'scene'));
+    mkdirSync(path.join(dir, '_sdk'), { recursive: true });
+    writeFileSync(path.join(dir, '_sdk', 'index.wechat.js'), 'export function initWeChatRuntime(){return Promise.resolve();}\n');
+    mkdirSync(path.join(dir, '_wxwasm'), { recursive: true });
+    writeFileSync(path.join(dir, '_wxwasm', 'esengine.js'), 'module.exports = () => Promise.resolve({});');
+    writeFileSync(path.join(dir, '_wxwasm', 'esengine.wasm'), 'wasmbytes');
+
+    const outDir = path.join(dir, 'dist-wechat');
+    const res = await exportGame({
+      root: dir, entryScene: 'scenes/main.esscene', hostsDir: 'unused-for-wechat',
+      sdkDistDir: path.join(dir, '_sdk'), wasmDir: path.join(dir, '_wxwasm'),
+      outDir, platform: 'wechat', contentAddressed: true,
+    });
+
+    expect(res.errors.join('\n')).not.toMatch(/ENOENT/);
+    expect(res.ok).toBe(true);
+    const manifest = JSON.parse(readFileSync(path.join(outDir, 'asset-manifest.json'), 'utf8'));
+    const paths = Object.values(manifest.groups as Record<string, { assets: Record<string, { path: string }> }>)
+      .flatMap((g) => Object.values(g.assets).map((a) => a.path))
+      .filter((p) => p.includes('.eslocale'));
+    expect(paths.length).toBe(2);
+    expect(new Set(paths).size).toBe(1);
+    for (const p of paths) {
+      expect(p.endsWith('.bin')).toBe(true);
+      expect(existsSync(path.join(outDir, p))).toBe(true);
+    }
+  }, 60_000);
+});
