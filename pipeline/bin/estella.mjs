@@ -824,10 +824,21 @@ try {
   // blocks a release belongs to the caller. Said in prose on stderr as well as in
   // the exit code, because a CI log that only goes red tells nobody which limit.
   const over = (result.size?.verdicts ?? []).filter((v) => v.status === 'over');
+  const mb = (n) => `${(n / 1024 / 1024).toFixed(2)}MB`;
+  // What the engine weighs, when it is still in the package the limit counts.
+  const engineBytes = (result.subPackageRoots ?? []).length > 0 ? 0
+    : (result.size?.byKind ?? []).find((k) => k.kind === 'engine')?.bytes ?? 0;
   for (const v of over) {
-    const mb = (n) => `${(n / 1024 / 1024).toFixed(2)}MB`;
     console.error(`size budget: ${v.budget.scope} is ${mb(v.measuredBytes)}, over the `
       + `${mb(v.budget.maxBytes)} limit (${v.budget.note}).`);
+    // Naming the limit and stopping there leaves the reader to discover two
+    // settings that exist: five of the corpus's projects, three over this limit,
+    // and every one of them over it by less than the engine weighs.
+    if (v.budget.scope === 'initial' && engineBytes > v.measuredBytes - v.budget.maxBytes) {
+      console.error(`  the engine is ${mb(engineBytes)} of that, in the main package. `
+        + '`packaging.engineSubpackage` moves it into a subpackage the host loads at '
+        + 'startup; `packaging.compressWasm` ships it compressed.');
+    }
   }
   if (over.length > 0 && opts['enforce-budget']) code = 1;
 } finally {
