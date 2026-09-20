@@ -23,6 +23,12 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A WeChat mini-game boots again.** Its package had no platform in it: the SDK entry
+  installed one as a module side effect, and the lean entry added for smaller packages is
+  pure re-exports — so the install sat in a shared chunk the bundler was free to drop, and
+  every WeChat package threw `[ESEngine] Platform not initialized` on the first frame. The
+  generated entry now calls for the platform the way the Douyin one already did.
+
 - **A mini-game export no longer fails on a project whose sprites are atlased.** Names that
   a vendor's packer will not upload are shipped with a `.bin` suffix, and the rename walked
   the manifest one asset at a time — so the seven sprites packed into one atlas page tried to

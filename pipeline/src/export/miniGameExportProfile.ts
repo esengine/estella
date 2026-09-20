@@ -125,6 +125,13 @@ export interface MiniGameExportProfile {
     readonly sdkLeanEntryFile?: string;
     /** Runtime bootstrap fn imported from 'esengine' in the generated boot. */
     readonly runtimeInit: string;
+    /**
+     * An SDK export the generated entry CALLS before `runtimeInit` to install
+     * the platform. A vendor whose SDK entry installs it as a module side
+     * effect has no answer here that survives a bundler: the WeChat package
+     * booted to "Platform not initialized" for exactly that reason.
+     */
+    readonly platformInit?: string;
     /** Engine glue filenames to look for in wasmDir, in preference order. */
     readonly engineGlueCandidates: readonly string[];
     /** esbuild target for the game bundle + glue down-level (real-device syntax floor). */
@@ -224,6 +231,7 @@ export const wechatExportProfile: MiniGameExportProfile = {
     sdkEntryFile: 'index.wechat.js',
     sdkLeanEntryFile: 'index.wechat.lean.js',
     runtimeInit: 'initWeChatRuntime',
+    platformInit: 'initWeChatPlatform',
     // Require by the ACTUAL name in the wasm dir: the -t wechat build emits
     // esengine.wxgame.js; a web-aligned build, esengine.js.
     engineGlueCandidates: ['esengine.wxgame.js', 'esengine.js'],

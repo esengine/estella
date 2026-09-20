@@ -24,6 +24,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { exportGame } from '../src/export/exportGame';
 import { ManifestModel, type AddressableManifest } from '../../sdk/src/asset/AddressableManifest';
+import { miniGameSdkStub } from './fixtures/miniGameSdkStub';
+import { wechatExportProfile } from '../src/export/miniGameExportProfile';
 
 const TEX = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
 const MAT = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
@@ -72,7 +74,7 @@ function scaffold(): { root: string; out: string } {
   mkdirSync(path.join(root, 'src'), { recursive: true });
   writeFileSync(path.join(root, 'src', 'main.ts'), "import { defineComponent } from 'esengine';\ndefineComponent('Marker', { n: 1 });\n");
   mkdirSync(path.join(root, '_sdk'), { recursive: true });
-  writeFileSync(path.join(root, '_sdk', 'index.wechat.js'), 'export function initWeChatRuntime(){return Promise.resolve();}\nexport function defineComponent(){}\n');
+  writeFileSync(path.join(root, '_sdk', 'index.wechat.js'), miniGameSdkStub(wechatExportProfile, ['defineComponent']));
   mkdirSync(path.join(root, '_wxwasm'), { recursive: true });
   writeFileSync(path.join(root, '_wxwasm', 'esengine.js'), 'module.exports = () => Promise.resolve({});');
   writeFileSync(path.join(root, '_wxwasm', 'esengine.wasm'), 'wasmbytes');

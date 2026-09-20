@@ -265,6 +265,10 @@ export const GATES = [
   // A packaging setting the manifest parser does not read is a setting that
   // does nothing, in the editor and on a build server alike.
   { id: 'packaging-settings', run: 'node tools/check-packaging-settings.mjs' },
+  // The generated entry is the only code that runs before the game, so the
+  // platform has to be installed there — not by a module side effect a bundler
+  // is free to drop, which is how every WeChat package stopped booting.
+  { id: 'minigame-platform-install', run: 'node tools/check-minigame-platform-install.mjs' },
   // A vendor claim that is wrong fails at upload or on a device, never at
   // build: so each one cites the vendor or says what it is assumed from.
   { id: 'minigame-profile-claims', run: 'node tools/check-minigame-profile-claims.mjs' },

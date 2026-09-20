@@ -21,6 +21,8 @@ import type { PackagedGameConfig } from 'esengine';
 import { exportGame } from '../src/export/exportGame';
 import { resolveEmcc } from '../src/bundle/emccPath';
 import { writeFakeSdkDist } from './fixtures/fakeSdkDist';
+import { miniGameSdkStub } from './fixtures/miniGameSdkStub';
+import { wechatExportProfile } from '../src/export/miniGameExportProfile';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOSTS = path.join(HERE, '..', 'src', 'runtime');
@@ -57,7 +59,7 @@ function miniGameStubs(root: string): void {
   // The names the fixture project imports: a stub entry missing one fails the
   // bundle, and the bundle is what carries the boot call under test.
   writeFileSync(path.join(root, '_sdk', 'index.wechat.js'),
-    'export function initWeChatRuntime(){return Promise.resolve();}\n'
+    miniGameSdkStub(wechatExportProfile)
     + 'export const defineComponent = () => {};\nexport const defineSystem = () => {};\n'
     + 'export const Query = () => {};\nexport const Mut = () => {};\n');
   writeFileSync(path.join(root, '_wasm', 'esengine.wxgame.js'), 'module.exports = () => Promise.resolve({});');

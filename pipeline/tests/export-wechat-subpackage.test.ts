@@ -15,6 +15,8 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { exportGame } from '../src/export/exportGame';
+import { miniGameSdkStub } from './fixtures/miniGameSdkStub';
+import { wechatExportProfile } from '../src/export/miniGameExportProfile';
 
 let root: string;
 let out: string;
@@ -46,7 +48,7 @@ beforeAll(() => {
   mkdirSync(path.join(root, 'src'), { recursive: true });
   writeFileSync(path.join(root, 'src', 'main.ts'), `import { defineComponent } from 'esengine';\ndefineComponent('SpawnMarker', { rate: 1 });\n`);
   mkdirSync(path.join(root, '_sdk'), { recursive: true });
-  writeFileSync(path.join(root, '_sdk', 'index.wechat.js'), `export function initWeChatRuntime(){return Promise.resolve();}\nexport function defineComponent(){}\n`);
+  writeFileSync(path.join(root, '_sdk', 'index.wechat.js'), miniGameSdkStub(wechatExportProfile, ['defineComponent']));
   mkdirSync(path.join(root, '_wxwasm'), { recursive: true });
   writeFileSync(path.join(root, '_wxwasm', 'esengine.js'), 'module.exports = () => Promise.resolve({});');
   writeFileSync(path.join(root, '_wxwasm', 'esengine.wasm'), 'wasmbytes');
@@ -113,7 +115,7 @@ describe('WeChat 分包 declared through asset-groups.json', () => {
       );
       writeFileSync(path.join(root2, 'scenes', 'main.esscene.meta'), meta(SCN, 'scene'));
       mkdirSync(path.join(root2, '_sdk'), { recursive: true });
-      writeFileSync(path.join(root2, '_sdk', 'index.wechat.js'), 'export function initWeChatRuntime(){return Promise.resolve();}\n');
+      writeFileSync(path.join(root2, '_sdk', 'index.wechat.js'), miniGameSdkStub(wechatExportProfile));
       mkdirSync(path.join(root2, '_wxwasm'), { recursive: true });
       writeFileSync(path.join(root2, '_wxwasm', 'esengine.js'), 'module.exports = () => Promise.resolve({});');
       writeFileSync(path.join(root2, '_wxwasm', 'esengine.wasm'), 'wasmbytes');
@@ -169,7 +171,7 @@ describe('WeChat 分包 declared through asset-groups.json', () => {
         }),
       );
       mkdirSync(path.join(root2, '_sdk'), { recursive: true });
-      writeFileSync(path.join(root2, '_sdk', 'index.wechat.js'), 'export function initWeChatRuntime(){return Promise.resolve();}\n');
+      writeFileSync(path.join(root2, '_sdk', 'index.wechat.js'), miniGameSdkStub(wechatExportProfile));
       mkdirSync(path.join(root2, '_wxwasm'), { recursive: true });
       writeFileSync(path.join(root2, '_wxwasm', 'esengine.js'), 'module.exports = () => Promise.resolve({});');
       writeFileSync(path.join(root2, '_wxwasm', 'esengine.wasm'), 'wasmbytes');

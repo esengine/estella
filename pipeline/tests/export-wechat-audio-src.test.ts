@@ -16,6 +16,8 @@ import { runtimeConfigOf } from '../src/project/runtimeConfig';
 import { ManifestModel } from '../../sdk/src/asset/AddressableManifest';
 import { extractUuid } from '../../sdk/src/asset/AssetRegistry';
 import type { AddressableManifest } from '../../sdk/src/asset/AddressableManifest';
+import { miniGameSdkStub } from './fixtures/miniGameSdkStub';
+import { wechatExportProfile } from '../src/export/miniGameExportProfile';
 
 let root: string;
 let out: string;
@@ -57,7 +59,7 @@ beforeAll(() => {
   );
   writeFileSync(path.join(root, 'scenes', 'main.esscene.meta'), meta(SCN, 'scene'));
   mkdirSync(path.join(root, '_sdk'), { recursive: true });
-  writeFileSync(path.join(root, '_sdk', 'index.wechat.js'), 'export function initWeChatRuntime(){return Promise.resolve();}\n');
+  writeFileSync(path.join(root, '_sdk', 'index.wechat.js'), miniGameSdkStub(wechatExportProfile));
   mkdirSync(path.join(root, '_wxwasm'), { recursive: true });
   writeFileSync(path.join(root, '_wxwasm', 'esengine.js'), 'module.exports = () => Promise.resolve({});');
   writeFileSync(path.join(root, '_wxwasm', 'esengine.wasm'), 'wasmbytes');

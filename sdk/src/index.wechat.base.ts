@@ -41,3 +41,8 @@ export {
 
 // The host as data: spread it to keep everything but the one thing you replace.
 export { wechatProfile } from './platform/wechat';
+
+// A package installs the platform by CALLING this: the call above is a module
+// side effect, and a bundler dropped it — a lean-entry WeChat package booted to
+// "Platform not initialized". Idempotent.
+export { initWeChatPlatform } from './platform/wechat';

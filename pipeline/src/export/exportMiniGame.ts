@@ -475,10 +475,11 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
 
   const entrySrc =
     installs.map((m) => `import ${JSON.stringify(m)};\n`).join('') +
-    `import { ${profile.runtimeInit}${installsPlatform ? ', installMiniGamePlatform' : ''}${themeColors ? ', parseThemeOverrides' : ''} } from 'esengine';\n` +
+    `import { ${profile.runtimeInit}${profile.platformInit ? `, ${profile.platformInit}` : ''}${installsPlatform ? ', installMiniGamePlatform' : ''}${themeColors ? ', parseThemeOverrides' : ''} } from 'esengine';\n` +
     (installsPlatform ? `import __platformProfile from ${JSON.stringify(platformProfileModule)};\n` : '') +
     (scriptsAbs && existsSync(scriptsAbs) ? `import ${JSON.stringify(scriptsAbs)};\n` : '') +
     `export function boot(engineFactory, sideModuleFactories) {\n` +
+    (profile.platformInit ? `  ${profile.platformInit}();\n` : '') +
     (installsPlatform ? `  installMiniGamePlatform(__platformProfile);\n` : '') +
     `  return ${profile.runtimeInit}({ engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}, firstScene: ${JSON.stringify(sceneName)}${runtimeArgs}${projectDeclarations.length > 0 ? `, sideModules: ${JSON.stringify(projectDeclarations)}` : ''}${aotArg} });\n` +
     `}\n`;
