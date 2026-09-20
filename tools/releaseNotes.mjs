@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(gates): the notes ledger parses again':
+    { internal: 'Repairs this very file after a quote broke it; no creator reads it.' },
+
   'perf(sdk): a declaration list is an authority, not a build entry':
     { internal: 'Withdraws an unmeasured build entry from the commit before it; a package is 1,794 bytes lighter than that mistake, and unchanged otherwise.' },
 
