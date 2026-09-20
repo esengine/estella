@@ -8,6 +8,7 @@
     "./dist/index.js",
     "./dist/wasm.js",
     "./dist/index.wechat.js",
+    "./dist/index.wechat.lean.js",
     "./dist/index.minigame.js",
     "./dist/index.node.js",
     "./dist/index.native.js",

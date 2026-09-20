@@ -683,5 +683,5 @@ export const NOTED = {
   'fix(wechat): an atlas page is one file however many sprites name it':
     { note: 'A mini-game export no longer fails on a project whose sprites are atlased.' },
   'fix(wechat): the package installs its platform by calling for it':
-    { note: 'A WeChat mini-game boots again — its packages had been shipping without a platform.' },
+    { note: 'A WeChat mini-game boots again.' },
 };
