@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterAll } from 'vitest';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { breakdownOf, moduleOfInput } from '../src/export/bundleBreakdown';
 
 /**
@@ -70,5 +73,47 @@ describe('breakdownOf', () => {
   it('finds the output by suffix, since the caller cannot predict esbuild spelling', () => {
     expect(breakdownOf(metaWith(REAL_INPUTS), 'game-bundle.js')).not.toHaveLength(0);
     expect(breakdownOf(metaWith(REAL_INPUTS), 'nothing.js')).toHaveLength(0);
+  });
+});
+
+/**
+ * A chunk's name is one of its modules, so `shared/physics.js` reads as
+ * "physics" while holding the whole directory — and once held spine too, under
+ * a name that changed when spine left without a byte of it moving. The map
+ * beside it says what is really in there.
+ */
+describe('reading a chunk through its source map', () => {
+  // Laid out as the real thing, because the map's sources are relative to it:
+  // `<root>/sdk/dist/shared/..` + `../../src/ai` is where the directory names are.
+  const root = mkdtempSync(path.join(tmpdir(), 'dist-'));
+  const dist = path.join(root, 'sdk', 'dist');
+  afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
+
+  // Two mapped spans of ten on one line: `AAAA` is (column 0, source 0), and
+  // `UCAA` steps the column by ten and the source by one. A span runs to the
+  // next mapping, and the last runs to the end of the line.
+  mkdirSync(path.join(dist, 'shared'), { recursive: true });
+  writeFileSync(path.join(dist, 'shared', 'webAppFactory.js'), 'x'.repeat(19));
+  writeFileSync(path.join(dist, 'shared', 'webAppFactory.js.map'), JSON.stringify({
+    version: 3,
+    sources: ['../../src/ai/fsm.ts', '../../src/tilemap/paint.ts'],
+    mappings: 'AAAA,UCAA',
+  }));
+
+  it('names the directories inside the chunk, not the chunk', () => {
+    const rows = breakdownOf(metaWith({ 'sdk/dist/shared/webAppFactory.js': 1000 }), 'game-bundle.js', dist);
+    expect(rows.map((r) => r.module).sort()).toEqual(['ai', 'tilemap']);
+    expect(rows.some((r) => r.module === 'webAppFactory')).toBe(false);
+  });
+
+  it('splits the bytes that survived, not the bytes on disk', () => {
+    const rows = breakdownOf(metaWith({ 'sdk/dist/shared/webAppFactory.js': 1000 }), 'game-bundle.js', dist);
+    expect(rows.reduce((n, r) => n + r.bytes, 0)).toBe(1000);
+    expect(rows.find((r) => r.module === 'ai')?.bytes).toBe(500);
+  });
+
+  it('falls back to the chunk when there is no map to read', () => {
+    const rows = breakdownOf(metaWith({ 'sdk/dist/shared/physics.js': 60 }), 'game-bundle.js', dist);
+    expect(rows[0].module).toBe('physics');
   });
 });

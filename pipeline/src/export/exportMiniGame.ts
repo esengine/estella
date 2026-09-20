@@ -498,7 +498,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
       metafile: true,
     });
     errors.push(...explainBundleErrors(res.errors));
-    if (res.metafile) bundleModules = breakdownOf(res.metafile, 'game-bundle.js');
+    if (res.metafile) bundleModules = breakdownOf(res.metafile, 'game-bundle.js', opts.sdkDir);
   } catch (err) {
     const e = err as { errors?: BundleMessage[]; message?: string };
     errors.push(...(e.errors ? explainBundleErrors(e.errors) : [String(e.message ?? err)]));
