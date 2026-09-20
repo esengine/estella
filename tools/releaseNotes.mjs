@@ -686,6 +686,8 @@ export const NOTED = {
     { note: 'A WeChat mini-game boots again.' },
   'fix(sdk): the lean WeChat entry is an entry, so it declares its side effects':
     { internal: 'a declaration about the package, read by bundlers rather than people' },
+  'fix(cli): the temp build dir is swept however the run ends':
+    { internal: 'a working directory of the repo\'s own tooling' },
   'feat(ui): a HUD can clear the host\'s own menu, not just the notch':
     { note: 'A UI node can keep clear of WeChat\'s capsule menu, which the safe area does not cover.' },
 };
