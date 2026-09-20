@@ -1,3 +1,28 @@
 {
-  "edges": []
+  "edges": [
+    "ai/nav/NavPlugin.ts -> ../../physics3d/Physics3DComponents",
+    "ai/nav/navGeometry.ts -> ../../physics3d/ColliderShape3D",
+    "ai/nav/navGeometry.ts -> ../../physics3d/Physics3DComponents",
+    "ai/perception/PerceptionPlugin.ts -> ../../physics",
+    "ai/perception/PerceptionPlugin.ts -> ../../physics3d/Physics3DPlugin",
+    "app/app.ts -> ../physics/Physics2DRuntime",
+    "app/pluginSets.ts -> ../video",
+    "asset/Assets.ts -> ../spine/prepareSpine",
+    "asset/loaders/SpineAssetLoader.ts -> ../../spine/prepareSpine",
+    "ecs/bridge/nativeRuntime.ts -> ../../dragonbones",
+    "ecs/bridge/nativeRuntime.ts -> ../../spine",
+    "gameplay/GameplayPlugin.ts -> ../physics3d/Physics3DComponents",
+    "gameplay/GameplayPlugin.ts -> ../physics3d/Physics3DPlugin",
+    "gameplay/Hunter.ts -> ../physics3d/Physics3DComponents",
+    "platform/minigame/adapter.ts -> ../../video/WasmVideoBackend",
+    "platform/native/adapter.ts -> ../../video/WasmVideoBackend",
+    "platform/nativeModuleRegistry.ts -> ../dragonbones",
+    "platform/nativeModuleRegistry.ts -> ../physics",
+    "platform/nativeModuleRegistry.ts -> ../physics3d",
+    "platform/nativeModuleRegistry.ts -> ../spine",
+    "platform/web.ts -> ../video/WebVideoBackend",
+    "runtime/packagedRuntime.ts -> ../video/VideoAPI",
+    "runtime/playRealmRuntime.ts -> ../video/VideoAPI",
+    "runtime/playableRuntime.ts -> ../video/VideoAPI"
+  ]
 }

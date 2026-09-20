@@ -22,7 +22,7 @@ import { PhysicsBridge } from './PhysicsBridge';
 import { Physics2DRuntime } from './Physics2DRuntime';
 import { Physics2DAPI, Physics2D } from './Physics2D';
 import { registerPhysics2DSystem } from './PhysicsSystem';
-import { registerCharacterController2DSystem } from './CharacterController2D';
+import { registerCharacterController2DSystem } from './CharacterController2DSystem';
 import { registerPhysics2DEventBridge } from './PhysicsEventBridge';
 import {
     Physics2DEvents,

@@ -106,13 +106,13 @@ export {
 export {
     CharacterController2D,
     moveAndSlide,
-    registerCharacterController2DSystem,
     type CharacterController2DData,
     type MoveAndSlideParams,
     type MoveAndSlideResult,
     type SlideCast,
     type SlideHit,
 } from './CharacterController2D';
+export { registerCharacterController2DSystem } from './CharacterController2DSystem';
 
 // Importing this subpath INSTALLS 2D physics — see spine/index.ts. No entry
 // plugin: the scene load builds it with the world config the project declared.

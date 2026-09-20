@@ -55,6 +55,7 @@ export default defineConfig([
             'index.wechat.lean': 'src/index.wechat.lean.ts',
             'index.minigame': 'src/index.minigame.ts',
             'index.native': 'src/index.native.ts',
+            'physics/components': 'src/physics/components.ts',
             'physics/index': 'src/physics/index.ts',
             'physics3d/index': 'src/physics3d/index.ts',
             'spine/index': 'src/spine/index.ts',

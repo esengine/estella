@@ -18,7 +18,7 @@ import { App } from '../src/app/app';
 import { Schedule, defineSystem, GetWorld } from '../src/ecs/system';
 import { simulationBasePlugins } from '../src/app/pluginSets';
 import { StatsPlugin } from '../src/stats';
-import { registerCharacterController2DSystem } from '../src/physics/CharacterController2D';
+import { registerCharacterController2DSystem } from '../src/physics/CharacterController2DSystem';
 import { setPlatform } from '../src/platform/base';
 import { webAdapter } from '../src/platform/web';
 

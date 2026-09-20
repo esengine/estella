@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'refactor(sdk): 2D physics declares where its declarations end':
+    { internal: 'Where the same code lives; behaviour and the public surface are unchanged.' },
+
   'feat(export): a mini-game carries the optional subsystems its project uses':
     { note: 'A WeChat mini-game now carries only the optional subsystems its project uses.' },
 
