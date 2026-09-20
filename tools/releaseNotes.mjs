@@ -676,4 +676,8 @@ export const NOTED = {
     { note: 'A web build no longer carries the mini-game and native SDKs.' },
   'refactor(sdk): four modules named support.ts, one flat chunk namespace':
     { internal: 'the names inside the SDK build\'s own chunk output' },
+  'fix(size): the bundle report names subsystems, not the chunks they landed in':
+    { note: 'The size report says which subsystem each byte of the scripts came from.' },
+  'fix(gates): a start screen that faded is not one that never did':
+    { internal: 'a verifier\'s reading of a boot it already watched finish' },
 };

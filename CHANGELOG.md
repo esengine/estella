@@ -23,6 +23,11 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **The size report says which subsystem each byte of the scripts came from.** A mini-game
+  inlines the engine's JavaScript, and the report grouped it by the bundler's own chunks —
+  so two thirds of it sat in one row named after one of the four hundred modules inside it.
+  Rows are now subsystems: `ai`, `tilemap`, `physics`, with the number of files each brought.
+
 - **A web build no longer carries the mini-game and native SDKs.** The SDK ships every
   target's build in one directory, and staging copied all of it — plus whatever an earlier
   build had left there, since the build never cleaned up after itself. A web package now
