@@ -7754,6 +7754,7 @@ applyBottom: boolean
 applyLeft: boolean
 applyRight: boolean
 applyTop: boolean
+avoidHostMenu: boolean
 ```
 
 ## SafeAreaPlugin — class @experimental
