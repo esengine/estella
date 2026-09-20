@@ -94,3 +94,25 @@ export const physics3dSupport = (): Physics3DSupport | null => physics3d;
 
 /** Null in a build that does not ship video. */
 export const videoSupport = (): VideoSupport | null => video;
+
+/**
+ * Which optional subsystems this BUILD ships, as the seam itself answers it.
+ *
+ * Exported because the only honest test of that question reads the shipped
+ * bundle rather than the source. Every registration here is reached from an
+ * entry, and an entry is the one thing a bundler is told to keep — but what the
+ * entry reaches was dropped once already, and the SDK's own suite could not see
+ * it: it imports `src`, where the wiring was never in doubt.
+ *
+ * Diagnostic, not a switch. A scene that needs a subsystem this build does not
+ * ship already says so in the log; this is how a report can say it too.
+ */
+export function shippedOptionalSubsystems(): string[] {
+    return [
+        spine && 'spine',
+        dragonBones && 'dragonBones',
+        physics && 'physics',
+        physics3d && 'physics3d',
+        video && 'video',
+    ].filter((s): s is string => typeof s === 'string');
+}

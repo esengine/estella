@@ -28,6 +28,9 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'test(sdk): the optional subsystems are asserted against what ships, not what compiles':
+    { internal: 'A repository test over the built bundle; no creator runs it.' },
+
   'fix(sdk): a subsystem registers by being called, not by being imported':
     { note: 'An optional subsystem is installed again in builds where a bundler had dropped it.' },
 

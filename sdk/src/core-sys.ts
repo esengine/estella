@@ -196,6 +196,13 @@ export {
 // Resource census — how many of X are alive right now
 // =============================================================================
 
+/**
+ * Which optional subsystems this build ships. Diagnostic: a scene needing one
+ * that is absent already warns, and this is how a report can name it. Untagged,
+ * so it is @experimental — a shape nobody has lived with yet promises nothing.
+ */
+export { shippedOptionalSubsystems } from './runtime/sceneOptionals';
+
 /** @beta Pre-1.0: the counter set is expected to grow as probes are added. */
 export {
     takeCensus, registerCensusProbe, censusProbeIds, collectGarbage,
