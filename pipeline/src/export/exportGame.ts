@@ -241,6 +241,9 @@ export interface ExportGameResult {
   /** @internal Subpackage roots the export staged, for the size report to keep
    *  off the main package's cap. Consumed here and dropped. */
   subPackageRoots?: string[];
+  /** @internal Staged path → what it weighed before the export packed it.
+   *  Consumed by the size report and dropped. */
+  packedFrom?: Record<string, number>;
   warnings: string[];
   errors: string[];
   /** Android: the generated Gradle project, for the editor to reveal. Absent
@@ -560,6 +563,7 @@ async function attachSizeReport(result: ExportGameResult, opts: ExportGameOption
       subPackageRoots: result.subPackageRoots,
       inlineOf: result.inlineParts ? { file: 'index.html', parts: result.inlineParts } : undefined,
       inclusion: result.inclusion,
+      packedFrom: result.packedFrom,
       // The project, not the build: what this target weighed last time lives with
       // the project, and the settings ride along so a compression change is not
       // read as content that grew.

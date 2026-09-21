@@ -430,3 +430,40 @@ describe('this build against the last one', () => {
     }
   });
 });
+
+/**
+ * A WeChat limit is judged on PACKED bytes, so every figure the report carries
+ * is the packed one and a reader has no way to see what the packing bought.
+ * The export is the only place both numbers exist.
+ */
+describe('what the export packed', () => {
+    const packed = (over: Partial<Record<string, number>> = {}) => entriesOf(
+        [
+            { path: 'wasm/esengine.wasm.br', bytes: 363617 },
+            { path: 'game-bundle.js', bytes: 1064880 },
+        ],
+        { packedFrom: { 'wasm/esengine.wasm.br': 1828959, ...over } },
+    );
+
+    it('rides the entry it belongs to, and only that one', () => {
+        const e = packed();
+        expect(e.find((x) => x.path === 'wasm/esengine.wasm.br')?.sourceBytes).toBe(1828959);
+        expect(e.find((x) => x.path === 'game-bundle.js')).not.toHaveProperty('sourceBytes');
+    });
+
+    it('is summed into one figure a reader can act on', () => {
+        expect(summarizeEntries(packed()).packing)
+            .toEqual({ fromBytes: 1828959, toBytes: 363617, fileCount: 1 });
+    });
+
+    // `bytes` stays what ships: a budget judged against the pre-packed number
+    // would fail a package that fits.
+    it('never changes what the package is judged to weigh', () => {
+        expect(summarizeEntries(packed()).packageBytes).toBe(363617 + 1064880);
+    });
+
+    it('is absent when the export packed nothing, rather than zero', () => {
+        expect(summarizeEntries(entriesOf([{ path: 'game-bundle.js', bytes: 10 }])).packing)
+            .toBeUndefined();
+    });
+});

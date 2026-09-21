@@ -67,6 +67,9 @@ export interface BuildSizeEntry {
   kind: SizeKind;
   /** Absent for a file the cook did not stage (the engine runtime, the host page). */
   why?: SizeAttribution;
+  /** What it weighed before the export packed it. Only set for a file the export
+   *  compressed itself — `bytes` is always what ships. */
+  sourceBytes?: number;
 }
 
 export interface KindTotal {
@@ -103,6 +106,10 @@ export interface BuildSizeReport {
   verdicts: SizeVerdict[];
   /** This build against the last one of the same platform; absent for the first. */
   since?: SizeComparison;
+  /** What the export's own compression bought, when it compressed anything. A
+   *  limit is judged on packed bytes, so `bytes` everywhere else is the packed
+   *  number and this is the only place the other one appears. */
+  packing?: { fromBytes: number; toBytes: number; fileCount: number };
 }
 
 /** How many files the report names individually. Enough to find the offender,
@@ -239,6 +246,8 @@ export function entriesOf(
     buckets?: Map<string, SizeBucket>;
     logical?: Map<string, string>;
     inclusion?: Record<string, Inclusion>;
+    /** Project-relative staged path → what it weighed before being packed. */
+    packedFrom?: Readonly<Record<string, number>>;
   } = {},
 ): BuildSizeEntry[] {
   const buckets = opts.buckets ?? new Map<string, SizeBucket>();
@@ -249,7 +258,11 @@ export function entriesOf(
     const bucket = buckets.get(rel) ?? 'initial';
     const logical = opts.logical?.get(rel);
     const why = logical && opts.inclusion ? inclusionChain(logical, opts.inclusion) : undefined;
-    entries.push({ path: rel, bytes: file.bytes, bucket, kind: kindOf(rel), ...(why ? { why } : {}) });
+    const from = opts.packedFrom?.[rel];
+    entries.push({
+      path: rel, bytes: file.bytes, bucket, kind: kindOf(rel),
+      ...(why ? { why } : {}), ...(from !== undefined ? { sourceBytes: from } : {}),
+    });
   }
   return entries;
 }
@@ -313,6 +326,16 @@ export function summarizeEntries(
   if (opts.deliverableBytes != null) {
     report.deliverableBytes = opts.deliverableBytes;
     if (opts.deliverableName) report.deliverableName = opts.deliverableName;
+  }
+  // Summed from the entries rather than passed in: a file the export packed and
+  // then did not ship must not be counted as a saving.
+  const packed = entries.filter((e) => e.sourceBytes !== undefined);
+  if (packed.length > 0) {
+    report.packing = {
+      fromBytes: packed.reduce((n, e) => n + (e.sourceBytes ?? 0), 0),
+      toBytes: packed.reduce((n, e) => n + e.bytes, 0),
+      fileCount: packed.length,
+    };
   }
   report.verdicts = judge(report, opts.budgets ?? []);
   return report;
@@ -422,6 +445,12 @@ export async function measureBuild(opts: {
    * and a shipped package must not carry it.
    */
   history?: { projectRoot: string; settings: SizeSettings };
+  /**
+   * Project-relative staged path → what that file weighed before this export
+   * packed it. Only the export knows both numbers, and the report is the only
+   * place anyone looks for them afterwards.
+   */
+  packedFrom?: Readonly<Record<string, number>>;
 }): Promise<BuildSizeReport> {
   const excluded: string[] = [];
   for (const file of opts.packages ?? []) {
@@ -469,6 +498,7 @@ export async function measureBuild(opts: {
     buckets,
     logical: logicalIndexFrom(manifest),
     inclusion: opts.inclusion,
+    packedFrom: opts.packedFrom,
   });
   const report = summarizeEntries(entries, {
     budgets: resolveSizeBudgets(opts.platform, {

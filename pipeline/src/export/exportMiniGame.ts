@@ -72,6 +72,9 @@ export interface ExportMiniGameResult {
   bundleModules?: ModuleBytes[];
   /** Project-relative subpackage roots — what is NOT on the main package's cap. */
   subPackageRoots?: string[];
+  /** Staged path → what that file weighed before this export packed it. A limit
+   *  is judged on packed bytes, so the report has no other way to know. */
+  packedFrom?: Record<string, number>;
 }
 
 interface CookManifest {
@@ -609,6 +612,8 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   //    fails real-device compile ("invalid file: wasm/basis.js … Unexpected token .").
   //    Scoped to wasm/ (exporter-owned); the outDir root also hosts devtools'
   //    project.private.config.json, so we don't wipe the whole tree.
+  /** Filled by the brotli branch below; the report has no other way to know. */
+  const packedFrom: Record<string, number> = {};
   progress({ phase: 'Copying runtime' });
   const wasmOut = path.join(absOut, 'wasm');
   await rm(wasmOut, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
@@ -640,6 +645,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
         },
       });
       await writeFile(dest, packed);
+      packedFrom[f.staged.split(path.sep).join('/')] = raw.byteLength;
       progress({
         phase: 'Copying runtime',
         detail: `${f.staged} ${(raw.byteLength / 1048576).toFixed(2)}MB → ${(packed.byteLength / 1048576).toFixed(2)}MB`,
@@ -661,5 +667,6 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     // NOT on, and it cannot tell a subpackage root from any other directory. The
     // export that made them names them.
     subPackageRoots: subPackages.subPackages.map((sp) => sp.root),
+    ...(Object.keys(packedFrom).length > 0 ? { packedFrom } : {}),
   };
 }
