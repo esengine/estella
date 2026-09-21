@@ -700,6 +700,8 @@ export const NOTED = {
     { internal: "the editor's preview page names the same subpaths it always did" },
   'feat(export): a web package ships the subsystems it uses':
     { note: "A web package ships only the subsystems its project uses." },
+  'fix(sdk): a host entry keeps the platform when the web one loads too':
+    { internal: 'which platform adapter wins inside one Node process; no creator-facing behaviour' },
   'fix(sdk): the headless entry joins the shared chunk graph':
     { note: "A dedicated server built on `esengine/node` replicates again." },
   'refactor(play): the play host installs replication from its subpath':
