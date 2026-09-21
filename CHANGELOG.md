@@ -23,6 +23,13 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **Replication is a subpath: `import { Net, Replicated } from 'esengine/replication'`.** The base plugin set named the replication
+  plugin, so every package carried the wire protocol, the codec, the interest query and the
+  prediction replay — 64KB of a single-player game that nothing in it can reach. A game that
+  opens no session now pays 2.9KB; one that does pays what it did before. The sockets stay
+  on `esengine`: `createSocket`, `GameSocket` and the platform sockets are where they were,
+  because a game may talk to a server over a channel with no replication at all.
+
 - **The AI runtimes are a subpath: `import { NavAgent } from 'esengine/ai'`.** Navigation,
   perception, state machines and behaviour trees were 77KB in every package. What stays on
   `esengine` is the verb vocabulary — `registerAction`, `aiRegistry`, `Blackboard` — because
@@ -53,6 +60,10 @@ published separately; it ships inside the editor.
   safe area already does here.
 
 ### Fixed
+
+- **Two games in one process no longer share an optional subsystem's plugin.** Tilemaps, script graphs and the four
+  AI runtimes each registered their module-level plugin singleton, so a second app installed
+  the first app's instance and the app state it carries.
 
 - **A project whose art weighs less than the transcoder no longer compresses any of it.**
   Reading a KTX2 costs a package about a megabyte of Basis transcoder, and compressing can

@@ -696,6 +696,10 @@ export const NOTED = {
     { internal: 'the order a stack of plugins is assembled in' },
   'docs(manual): the AI, tilemap and script-graph pages import from their subpaths':
     { internal: "a manual page's import line, following the move it documents" },
+  'refactor(net): replication moves to its own subpath':
+    { note: "Replication is a subpath: `import { Net, Replicated } from 'esengine/replication'`." },
+  'fix(app): an optional subsystem\'s plugin is built per app, not shared':
+    { note: "Two games in one process no longer share an optional subsystem's plugin." },
   'refactor(ai): the AI runtimes move to their own subpath':
     { note: "The AI runtimes are a subpath: `import { NavAgent } from 'esengine/ai'`." },
   'refactor(ai): the editor imports the AI runtimes from their subpath':
