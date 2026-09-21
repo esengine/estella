@@ -27,7 +27,6 @@ import { videoPlugin } from '../video';
 import { particlePlugin } from '../particle';
 import { trailPlugin } from '../trail';
 import { meshRendererPlugin } from '../render/meshRenderer';
-import { tilemapPlugin } from '../tilemap';
 import { postProcessPlugin } from '../postprocess';
 import { timelinePlugin } from '../timeline';
 import { gameplayPlugin } from '../gameplay';
@@ -62,7 +61,7 @@ export const simulationBasePlugins = (): Plugin[] => [
 /** What exists to be seen. Every entry drives the engine through `engineApi`. */
 export const presentationBasePlugins = (): Plugin[] => [
     animationPlugin, videoPlugin, particlePlugin, trailPlugin, meshRendererPlugin,
-    tilemapPlugin, postProcessPlugin, timelinePlugin, gameplayPlugin,
+    postProcessPlugin, timelinePlugin, gameplayPlugin,
 ];
 
 /**
@@ -73,7 +72,7 @@ export const presentationBasePlugins = (): Plugin[] => [
 export const webBasePlugins = (): Plugin[] => [
     diagnosticsPlugin,
     timerPlugin, velocityPlugin, lifecyclePlugin, animationPlugin, audioPlugin, videoPlugin,
-    particlePlugin, trailPlugin, meshRendererPlugin, tilemapPlugin, postProcessPlugin, timelinePlugin,
+    particlePlugin, trailPlugin, meshRendererPlugin, postProcessPlugin, timelinePlugin,
     gameplayPlugin,
     perceptionPlugin, fsmPlugin, btPlugin, scriptGraphPlugin, navPlugin, eventBindingPlugin, replicationPlugin,
     servicesPlugin,

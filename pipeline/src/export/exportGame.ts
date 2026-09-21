@@ -66,7 +66,8 @@ import type { DesktopPackaging, SteamPackaging } from '../project/format';
 import type { SizeBudget } from '../project/sizeBudget';
 import { measureBuild, type BuildSizeReport } from './sizeReport';
 import { loadProjectModules, sideModuleDeclarations, stageProjectModules } from './projectModules';
-import { collectSubsystems, subsystemGapWarnings, targetGaps, type Subsystem } from '../project/targetSupport';
+import { subsystemGapWarnings, targetGaps } from '../project/targetSupport';
+import { contentSubsystems } from './contentSubsystems';
 import { scanSideModuleIds, sideModuleFiles, shipsSideModule, textureDecoderBytes } from '../bundle/sideModuleScan';
 import { MODULES, NATIVE_MODULE_REGISTRY } from '../../../tools/nativeScriptModules.js';
 
@@ -227,23 +228,7 @@ async function dropSourceMapRefs(dir: string): Promise<void> {
  */
 async function unsupportedContentWarnings(root: string, includedPaths: string[], platform: ExportPlatform): Promise<string[]> {
   if (targetGaps(platform).length === 0) return [];
-  const usage = new Map<Subsystem, string[]>();
-  for (const rel of includedPaths) {
-    const ext = path.extname(rel).toLowerCase();
-    if (ext !== '.esscene' && ext !== '.esprefab') continue;
-    let doc: unknown;
-    try {
-      doc = JSON.parse(await readFile(path.join(root, rel), 'utf8'));
-    } catch {
-      continue;  // unreadable/!JSON — the cook already staged (and warned about) it
-    }
-    for (const subsystem of collectSubsystems(doc)) {
-      const files = usage.get(subsystem);
-      if (files) files.push(rel);
-      else usage.set(subsystem, [rel]);
-    }
-  }
-  return subsystemGapWarnings(platform, usage);
+  return subsystemGapWarnings(platform, await contentSubsystems(root, includedPaths));
 }
 
 export interface ExportGameResult {

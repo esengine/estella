@@ -51,6 +51,8 @@ import { loadProjectModules, sideModuleDeclarations, stageProjectModules } from 
 import { buildCompiledSystems, type BuildMode } from '../bundle/buildCompiledSystems';
 import { resolveEmcc, runEmcc } from '../bundle/emccPath';
 import type { MiniGameExportProfile, MiniGameVendor } from './miniGameExportProfile';
+import { contentSubsystems } from './contentSubsystems';
+import type { Subsystem } from '../project/targetSupport';
 
 
 
@@ -460,6 +462,13 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     physics3d: 'esengine/physics3d',
     dragonbones: 'esengine/dragonbones',
   };
+  // A subsystem with no wasm of its own leaves no trace in the side-module scan,
+  // so its evidence is the content: a scene holding a Tilemap is what says the
+  // package needs the tilemap subpath.
+  const CONTENT_SUBPATH: Partial<Record<Subsystem, string>> = {
+    tilemap: 'esengine/tilemap',
+  };
+  const usedSubsystems = await contentSubsystems(opts.root, cook.includedPaths);
   const needed = new Set(sideModules.map((m) => m.id));
   const wantsVideo = needed.has('videodec');
   // Only when the SDK build actually produced one: a tree without it (an older
@@ -470,9 +479,10 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     ? profile.sdkLeanEntryFile : null;
   const lean = !!leanEntry && !wantsVideo;
   const installs = lean
-    ? [...new Set([...needed].map((id) => (id.startsWith('spine:')
-      ? 'esengine/spine'
-      : OPTIONAL_SUBPATH[id] ?? '')).filter(Boolean))].sort()
+    ? [...new Set([
+      ...[...needed].map((id) => (id.startsWith('spine:') ? 'esengine/spine' : OPTIONAL_SUBPATH[id] ?? '')),
+      ...[...usedSubsystems.keys()].map((s) => CONTENT_SUBPATH[s] ?? ''),
+    ].filter(Boolean))].sort()
     : [];
 
   const entrySrc =

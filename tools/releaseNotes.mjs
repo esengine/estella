@@ -690,6 +690,10 @@ export const NOTED = {
     { internal: 'the wording of a message the export already printed' },
   'fix(details): the Inspector names the new reason a texture ships raw':
     { note: 'A texture that encodes larger than its source now ships as the source.' },
+  'refactor(tilemap): the tilemap API moves to its own subpath':
+    { note: "Tilemaps are a subpath: `import { Tilemap } from 'esengine/tilemap'`." },
+  'chore: desktop — tilemaps move to their own subpath':
+    { note: "Tilemaps are a subpath: `import { Tilemap } from 'esengine/tilemap'`." },
   'fix(assets): compression that cannot pay for its decoder is skipped':
     { note: 'A project whose art weighs less than the transcoder no longer compresses any of it.' },
   'fix(assets): a texture ships in whichever form is smaller':

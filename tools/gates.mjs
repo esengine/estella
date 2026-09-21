@@ -265,6 +265,9 @@ export const GATES = [
   // A packaging setting the manifest parser does not read is a setting that
   // does nothing, in the editor and on a build server alike.
   { id: 'packaging-settings', run: 'node tools/check-packaging-settings.mjs' },
+  // A subsystem behind a subpath is paid for only by packages that import it,
+  // and one that should have and did not renders half a scene in silence.
+  { id: 'subsystem-install-reach', run: 'node tools/check-subsystem-install-reach.mjs' },
   // The generated entry is the only code that runs before the game, so the
   // platform has to be installed there — not by a module side effect a bundler
   // is free to drop, which is how every WeChat package stopped booting.

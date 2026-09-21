@@ -16,6 +16,11 @@ import { Catalog } from '../src/asset/Catalog';
 import type { Backend } from '../src/asset/Backend';
 import type { LoadContext } from '../src/asset/AssetLoader';
 
+// The tilemap loaders come with the subsystem now, not with the asset
+// registry: a package without tilemaps does not carry a tilemap parser.
+import { registerTilemapSupport } from '../src/tilemap/tilemapSupport';
+registerTilemapSupport();
+
 function createPoolFake() {
     const live = new Set<number>();
     const byPath = new Map<string, number>();

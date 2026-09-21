@@ -11,8 +11,13 @@ import {
     type AgentRuntime,
     type NavWorldView,
 } from '../src/ai/nav/NavPlugin';
-import { navGridFromTiles, navGridFromTilemapLayer } from '../src/ai/nav/navGridFromTilemap';
+import { navGridFromTiles, navGridFromTilemapLayer } from '../src/tilemap/navGridFromTilemap';
 import { initTilemapAPI, shutdownTilemapAPI } from '../src/tilemap/tilemapAPI';
+
+// The tilemap loaders come with the subsystem now, not with the asset
+// registry: a package without tilemaps does not carry a tilemap parser.
+import { registerTilemapSupport } from '../src/tilemap/tilemapSupport';
+registerTilemapSupport();
 
 /** Minimal in-memory world satisfying what stepNavigation calls. */
 class FakeWorld implements NavWorldView {

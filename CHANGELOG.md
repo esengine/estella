@@ -21,6 +21,16 @@ published separately; it ships inside the editor.
   header at 13px read as bold body text rather than as a title. Window titles now have a
   step of their own, which is what every editor this size gives them.
 
+### Changed
+
+- **Tilemaps are a subpath: `import { Tilemap } from 'esengine/tilemap'`.** `esengine`
+  re-exported 105 tilemap names as values, so every package carried the subsystem behind
+  them — 44KB of parser and plugin in a game with no tilemap, plus the two asset loaders
+  the registry constructed whether or not a project had a `.tmj`. A package now pays for
+  tilemaps by importing them, the way it already did for Spine and physics. The names are
+  unchanged and all were `@beta`; the whole entry still installs everything, so anything
+  that imports `esengine` alone behaves as before.
+
 ### Added
 
 - **A UI node can keep clear of WeChat's capsule menu, which the safe area does not cover.**

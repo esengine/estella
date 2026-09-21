@@ -20,6 +20,7 @@ import type { TextureImportSettings, TextureImportSettingsResolver } from './loa
 import type { TextureFormatReport } from './textureFormatReport';
 import { TextureLoader, textureResidencyKey } from './loaders/TextureLoader';
 import { AssetRefLedger, type AssetRefLease } from './AssetRefLedger';
+import { optionalAssetLoaders } from './optionalLoaders';
 import { AssetScope, type AssetLease } from './AssetLease';
 import { EntityAssetScopes } from './entityAssetScopes';
 import { RegistryAssetSlots, type RegistryAssetKind } from './registryAssets';
@@ -36,8 +37,6 @@ import { ProbeVolumeAssetLoader } from './loaders/ProbeVolumeAssetLoader';
 import { FontAssetLoader } from './loaders/FontAssetLoader';
 import { AudioAssetLoader } from './loaders/AudioAssetLoader';
 import { AnimClipAssetLoader } from './loaders/AnimClipAssetLoader';
-import { TilemapAssetLoader } from './loaders/TilemapAssetLoader';
-import { TilesetAssetLoader } from './loaders/TilesetAssetLoader';
 import { TimelineAssetLoader } from './loaders/TimelineAssetLoader';
 import { PrefabAssetLoader } from './loaders/PrefabAssetLoader';
 import { FsmAssetLoader } from './loaders/FsmAssetLoader';
@@ -2243,8 +2242,6 @@ export class Assets {
         // invalidate have no LoadContext), so it shares Assets' lazy accessor.
         this.register(new AudioAssetLoader(() => this.getAudio_()));
         this.register(new AnimClipAssetLoader());
-        this.register(new TilemapAssetLoader());
-        this.register(new TilesetAssetLoader());
         this.register(new TimelineAssetLoader());
         this.register(new PrefabAssetLoader());
         this.register(new FsmAssetLoader());
@@ -2254,6 +2251,10 @@ export class Assets {
         this.register(new ScriptGraphAssetLoader());
         this.register(new LocaleAssetLoader());
         this.register(new JsonAssetLoader());
+        // …and whatever an optional subsystem brought with it. A loader names
+        // its subsystem's parser, so one the core constructs is one every
+        // package carries.
+        for (const loader of optionalAssetLoaders()) this.register(loader);
     }
 
     private textureCacheKey_(path: string, flip: boolean): string {

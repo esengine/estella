@@ -4,16 +4,17 @@
  * @file    navGridFromTilemap.ts
  * @brief   Build a NavGrid from tilemap walkability.
  *
- * The core builder takes a raw `getTile(x,y)` reader so it stays wasm-free and
- * unit-testable; the convenience wrapper reads a live tilemap layer through
- * TilemapAPI. Cells are raw u16 (`tileId | flipBits`), split by the mask the
+ * Lives with tilemap rather than with nav: it READS tilemap data, and nav is in
+ * every package while tilemap is not. The core builder takes a raw `getTile(x,y)`
+ * reader so it stays wasm-free and unit-testable; the wrapper reads a live layer
+ * through TilemapAPI. Cells are raw u16 (`tileId | flipBits`), split by the mask the
  * C++ header owns — a wider one here reads every cell as a different tile.
  */
 
-import type { Entity, Vec2 } from '../../types';
-import { NavGrid } from './NavGrid';
-import { TilemapAPI } from '../../tilemap/tilemapAPI';
-import { TILE_ID_MASK } from '../../tilemap/tileBits';
+import type { Entity, Vec2 } from '../types';
+import { NavGrid } from '../ai/nav/NavGrid';
+import { TilemapAPI } from './tilemapAPI';
+import { TILE_ID_MASK } from './tileBits';
 
 export interface BuildNavGridOptions {
     width: number;

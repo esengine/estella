@@ -18,6 +18,11 @@ import { Catalog } from '../src/asset/Catalog';
 import type { Backend } from '../src/asset/Backend';
 import type { PublishedTilemap, PublishedTileset } from '../src/tilemap/tilesetCache';
 
+// The tilemap loaders come with the subsystem now, not with the asset
+// registry: a package without tilemaps does not carry a tilemap parser.
+import { registerTilemapSupport } from '../src/tilemap/tilemapSupport';
+registerTilemapSupport();
+
 /** The pool, modelled: what is live is what has not been released. */
 function createPoolFake() {
     const live = new Set<number>();

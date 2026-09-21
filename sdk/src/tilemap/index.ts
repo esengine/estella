@@ -61,3 +61,14 @@ export {
     tileCollisionAt, isTileSolid, tileCollisionAtWorld,
     type LayerCollisionTable,
 } from './tileQuery';
+
+export {
+    navGridFromTiles,
+    navGridFromTilemapLayer,
+    type BuildNavGridOptions,
+} from './navGridFromTilemap';
+
+// Importing this subpath INSTALLS tilemaps — see spine/index.ts.
+import { registerTilemapSupport } from './tilemapSupport';
+
+registerTilemapSupport();

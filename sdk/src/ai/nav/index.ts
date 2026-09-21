@@ -10,11 +10,6 @@ export type {
 } from './NavSurface';
 export { NavGrid, type NavGridOptions, type Cell } from './NavGrid';
 export { findPath, pathToWorld, type PathfindOptions } from './pathfind';
-export {
-    navGridFromTiles,
-    navGridFromTilemapLayer,
-    type BuildNavGridOptions,
-} from './navGridFromTilemap';
 export { NavMesh, type NavMeshData, type NavLinkSegment } from './NavMesh';
 export { buildNavMesh, type BuildNavMeshOptions } from './navmesh/build';
 export {
