@@ -251,13 +251,13 @@ describe('loadProjectPlatform — the profile handed to exportMiniGame', () => {
       sideModules: [], engineGlueFile: 'esengine.js', runtimeDir: 'wasm',
       engineSubpackage: 'engine', hostGlobal: 'wx',
     });
-    expect(wxEntry).toContain('wx.loadSubpackage(');
+    expect(wxEntry).toContain('= wx;');
     const ttEntry = p.emitEntry({
       sideModules: [], engineGlueFile: 'esengine.js', runtimeDir: 'wasm',
       engineSubpackage: 'engine', hostGlobal: 'tt',
     });
-    expect(ttEntry).toContain('tt.loadSubpackage(');
-    expect(ttEntry).not.toContain('wx.');
+    expect(ttEntry).toContain('= tt;');
+    expect(ttEntry).not.toContain('wx');
 
     // And the project's own emitter is what runs for config.
     expect(p.emitConfigFiles({ title: 'T', appid: '', orientation: 'portrait', subPackages: [], includeSuffixes: [], hasOpenData: false, openDataRoot: 'open-data' }))

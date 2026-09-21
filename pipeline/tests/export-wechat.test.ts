@@ -624,10 +624,22 @@ describe('exportGame (wechat)', () => {
     // 4. The entry asks for it BEFORE it boots — the binary is not in the package
     //    until the host has loaded the 分包.
     const entry = readFileSync(path.join(o, 'game.js'), 'utf8');
-    expect(entry).toContain('wx.loadSubpackage');
+    // The vendor's own host, bound once: `tt` answers the same shape and the
+    // entry is generated from the profile, not written per vendor.
+    expect(entry).toContain('= wx;');
+    expect(entry).toContain('loadSubpackage');
     expect(entry.indexOf('loadSubpackage')).toBeLessThan(entry.indexOf('bundle.boot'));
     // And a failure says so rather than leaving a blank canvas.
     expect(entry).toContain('did not load');
+
+    // 5. The player is told something is happening. This fetch runs BEFORE the
+    //    bundle is parsed, so the runtime's own indicator cannot cover it, and
+    //    it is the one part of a cold start with real byte progress.
+    expect(entry.indexOf('showLoading')).toBeLessThan(entry.indexOf('loadSubpackage'));
+    expect(entry).toContain('onProgressUpdate');
+    // A failed fetch takes the notice down with it, rather than leaving the
+    // host spinning over a game that will never start.
+    expect(entry.slice(entry.indexOf('fail('))).toContain('hideLoading');
   }, 60_000);
 
   it('leaves the engine in the main package when the project did not ask', async () => {
