@@ -698,6 +698,10 @@ export const NOTED = {
     { internal: "a manual page's import line, following the move it documents" },
   'refactor(play): the play realm asks for the whole import map by name':
     { internal: "the editor's preview page names the same subpaths it always did" },
+  'fix(douyin): the config file, the appid and a payment slot':
+    { note: "A Douyin package carries Douyin's config file and Douyin's appid." },
+  'fix(douyin): a Douyin package carries a Douyin appid':
+    { note: "A Douyin package carries Douyin's config file and Douyin's appid." },
   'feat(size): the report says what the export\'s own packing bought':
     { note: "The build size report says what compressing the engine binary actually saved." },
   'fix(play): the realm trace keeps the evidence for the failure it explains':

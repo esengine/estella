@@ -71,6 +71,17 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A Douyin package carries Douyin's config file and Douyin's appid.** It emitted `project.tt.json`, a name nothing
+  published uses — Douyin's own CLI and its Godot adaptation doc both name
+  `project.config.json`. And it was handed the WeChat appid whatever it was building, so
+  the console answered "不存在此 AppID"; Douyin has its own setting now.
+
+- **A mini-game vendor whose purchase call is not WeChat's can supply its own.** The family's payment is
+  WeChat's `requestMidasPayment` with WeChat's rules, so purchase reported itself
+  unavailable on a host that does sell things, and a vendor profile had no way to correct
+  it. Douyin still reports unavailable — there is no published source here for its call —
+  but the slot that will hold the answer exists.
+
 - **The build size report says what compressing the engine binary actually saved.** A mini-game limit is judged on packed
   bytes, so every figure in the report was the packed one and the number that says whether
   `compressWasm` was worth turning on appeared nowhere. Each file the export packed now
