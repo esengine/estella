@@ -23,6 +23,11 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **Script graphs are a subpath: `import { … } from 'esengine/logic'`.** Same reason as
+  tilemaps below: 65 names re-exported as values put the graph compiler and its node
+  library in every package, 23KB in a game with no graph, plus the asset loader the
+  registry constructed whether or not a project had an `.esgraph`.
+
 - **Tilemaps are a subpath: `import { Tilemap } from 'esengine/tilemap'`.** `esengine`
   re-exported 105 tilemap names as values, so every package carried the subsystem behind
   them — 44KB of parser and plugin in a game with no tilemap, plus the two asset loaders

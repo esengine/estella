@@ -15,6 +15,7 @@
     "./dist/dragonbones/index.js",
     "./dist/spine/index.js",
     "./dist/tilemap/index.js",
+    "./dist/logic/index.js",
     "./dist/physics/index.js",
     "./dist/physics3d/index.js",
     "./dist/douyin/index.js",
@@ -57,6 +58,10 @@
     "./tilemap": {
       "import": "./dist/tilemap/index.js",
       "types": "./dist/tilemap/index.d.ts"
+    },
+    "./logic": {
+      "import": "./dist/logic/index.js",
+      "types": "./dist/logic/index.d.ts"
     },
     "./physics": {
       "import": "./dist/physics/index.js",

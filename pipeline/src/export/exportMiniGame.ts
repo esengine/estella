@@ -468,6 +468,10 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   const CONTENT_SUBPATH: Partial<Record<Subsystem, string>> = {
     tilemap: 'esengine/tilemap',
   };
+  /** …and the ones a document names by asset rather than by component. */
+  const ASSET_SUBPATH: Readonly<Record<string, string>> = {
+    '.esgraph': 'esengine/logic',
+  };
   const usedSubsystems = await contentSubsystems(opts.root, cook.includedPaths);
   const needed = new Set(sideModules.map((m) => m.id));
   const wantsVideo = needed.has('videodec');
@@ -482,6 +486,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     ? [...new Set([
       ...[...needed].map((id) => (id.startsWith('spine:') ? 'esengine/spine' : OPTIONAL_SUBPATH[id] ?? '')),
       ...[...usedSubsystems.keys()].map((s) => CONTENT_SUBPATH[s] ?? ''),
+      ...cook.includedPaths.map((p) => ASSET_SUBPATH[path.extname(p).toLowerCase()] ?? ''),
     ].filter(Boolean))].sort()
     : [];
 

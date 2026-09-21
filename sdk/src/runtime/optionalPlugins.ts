@@ -20,6 +20,7 @@ import { registerDragonBonesSupport } from '../dragonbones/dragonBonesSupport';
 import { registerPhysics2DSupport } from '../physics/physicsSupport';
 import { registerPhysics3DSupport } from '../physics3d/physics3dSupport';
 import { registerTilemapSupport } from '../tilemap/tilemapSupport';
+import { registerScriptGraphSupport } from '../logic/logicSupport';
 
 export function installOptionalPlugins(): void {
     registerSpineSupport();
@@ -27,6 +28,7 @@ export function installOptionalPlugins(): void {
     registerPhysics2DSupport();
     registerPhysics3DSupport();
     registerTilemapSupport();
+    registerScriptGraphSupport();
     // Video has no subpath of its own to be installed from, so it registers here.
     setSceneOptionals({
         video: {

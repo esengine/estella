@@ -43,7 +43,6 @@ import { FsmAssetLoader } from './loaders/FsmAssetLoader';
 import { AnimatorControllerAssetLoader } from './loaders/AnimatorControllerAssetLoader';
 import { AvatarAssetLoader } from './loaders/AvatarAssetLoader';
 import { BtAssetLoader } from './loaders/BtAssetLoader';
-import { ScriptGraphAssetLoader } from './loaders/ScriptGraphAssetLoader';
 import { preparePrefab, type PreparedPrefab } from '../prefab/preparedPrefab';
 import { LocaleAssetLoader } from './loaders/LocaleAssetLoader';
 import { JsonAssetLoader } from './loaders/JsonAssetLoader';
@@ -2248,7 +2247,6 @@ export class Assets {
         this.register(new AnimatorControllerAssetLoader());
         this.register(new AvatarAssetLoader());
         this.register(new BtAssetLoader());
-        this.register(new ScriptGraphAssetLoader());
         this.register(new LocaleAssetLoader());
         this.register(new JsonAssetLoader());
         // …and whatever an optional subsystem brought with it. A loader names

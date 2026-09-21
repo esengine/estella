@@ -100,3 +100,8 @@ export {
     renameScriptGraphPort,
     retypeScriptGraphPort,
 } from './graphOps';
+
+// Importing this subpath INSTALLS script graphs — see spine/index.ts.
+import { registerScriptGraphSupport } from './logicSupport';
+
+registerScriptGraphSupport();

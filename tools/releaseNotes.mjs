@@ -690,6 +690,10 @@ export const NOTED = {
     { internal: 'the wording of a message the export already printed' },
   'fix(details): the Inspector names the new reason a texture ships raw':
     { note: 'A texture that encodes larger than its source now ships as the source.' },
+  'refactor(logic): the script-graph API moves to its own subpath':
+    { note: "Script graphs are a subpath: `import { … } from 'esengine/logic'`." },
+  'refactor(logic): the editor imports script graphs from their subpath':
+    { note: "Script graphs are a subpath: `import { … } from 'esengine/logic'`." },
   'refactor(tilemap): the editor imports tilemaps from the subpath that owns them':
     { note: "Tilemaps are a subpath: `import { Tilemap } from 'esengine/tilemap'`." },
   'refactor(tilemap): the tilemap API moves to its own subpath':
