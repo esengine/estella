@@ -66,6 +66,7 @@ import { compileTargetFor, isNativePlatform, desktopTemplateFor, type DesktopOs,
 import type { DesktopPackaging, SteamPackaging } from '../project/format';
 import type { SizeBudget } from '../project/sizeBudget';
 import { measureBuild, type BuildSizeReport } from './sizeReport';
+import { sizeSettingsOf } from './sizeHistory';
 import { loadProjectModules, sideModuleDeclarations, stageProjectModules } from './projectModules';
 import { subsystemGapWarnings, targetGaps } from '../project/targetSupport';
 import { contentSubsystems } from './contentSubsystems';
@@ -564,13 +565,7 @@ async function attachSizeReport(result: ExportGameResult, opts: ExportGameOption
       // read as content that grew.
       history: {
         projectRoot: opts.root,
-        settings: {
-          contentAddressed: opts.contentAddressed,
-          compressTextures: opts.compressTextures,
-          compressAudio: opts.compressAudio,
-          atlasTextures: opts.atlasTextures,
-          minify: opts.minify,
-        },
+        settings: sizeSettingsOf(opts),
       },
     });
     return { ...result, size, inclusion: undefined };

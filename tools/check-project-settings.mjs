@@ -250,6 +250,13 @@ const CONSUMPTION = {
     /** …and one of them must SAY it has none. Absence of a lie is not a truth: the
      *  row looks like every other one, so silence still reads as "this works". */
     disclaimedBy: 'set.project.spine.version.desc',
+    /**
+     * The readers that are not the settings UI. The built-in agent's tool
+     * description promised "the build bundles that runtime", which matches no
+     * BUILD_PROMISE pattern — enumerating the ways to lie does not work. So the
+     * rule is the row's: wherever it is described, it says what it does not do.
+     */
+    describedIn: ['desktop/shared/toolCatalog.mjs'],
   },
 };
 /** An absolute promise about what a build produces. Not the word "ships": the
@@ -293,6 +300,26 @@ for (const [field, decl] of Object.entries(CONSUMPTION)) {
   if (dk && (at < 0 || !DISCLAIMS.test(messages.slice(at, at + 700)))) {
     problems.push(`${field} is ${decl.kind} and "${dk}" never says so — a row that reads like`
       + ' every other one is read as one that takes effect like every other one.');
+  }
+  for (const rel of decl.describedIn ?? []) {
+    if (!existsSync(path.join(ROOT, rel))) {
+      problems.push(`${field}: ${rel} is declared to describe it and is not there`);
+      continue;
+    }
+    const text = read(rel);
+    let from = text.indexOf(field);
+    if (from < 0) {
+      problems.push(`${field}: ${rel} is declared to describe it and never names it`);
+      continue;
+    }
+    while (from >= 0) {
+      if (!DISCLAIMS.test(text.slice(from, from + 400))) {
+        const line = text.slice(0, from).split('\n').length;
+        problems.push(`${field} is ${decl.kind}, and ${rel}:${line} describes it without saying so`
+          + ' — a reader told what a setting is and not told it does nothing assumes it does something.');
+      }
+      from = text.indexOf(field, from + 1);
+    }
   }
 }
 

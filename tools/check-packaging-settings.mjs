@@ -59,4 +59,59 @@ if (dropped.length > 0) {
   process.exit(1);
 }
 
-console.log(`check-packaging-settings: ${declared.length} packaging setting(s), each one read back.`);
+// ---------------------------------------------------------------------------
+// …and the other end: a setting that survives the load can still be missing
+// from the MEASUREMENT record, where the symptom is a build-over-build
+// comparison that blames content for a packing change. Three did.
+// ---------------------------------------------------------------------------
+
+const HISTORY = 'pipeline/src/export/sizeHistory.ts';
+const history = readFileSync(path.join(ROOT, HISTORY), 'utf8');
+
+const roleBlock = /PACKAGING_SIZE_ROLE[^=]*=\s*\{([\s\S]*?)\n\};/.exec(history);
+if (!roleBlock) {
+  console.error(`check-packaging-settings: no PACKAGING_SIZE_ROLE in ${HISTORY} — the table moved.`);
+  process.exit(1);
+}
+const roles = new Map(
+  [...roleBlock[1].matchAll(/^\s{4}([a-zA-Z][A-Za-z0-9]*):\s*'([^']+)'/gm)].map(([, f, r]) => [f, r]),
+);
+
+const settingsBlock = /interface SizeSettings\s*\{([\s\S]*?)\n\}/.exec(history);
+if (!settingsBlock) {
+  console.error(`check-packaging-settings: no SizeSettings in ${HISTORY} — the record moved.`);
+  process.exit(1);
+}
+const recorded = new Set(
+  [...settingsBlock[1].matchAll(/^\s{2}([a-zA-Z][A-Za-z0-9]*)\??:/gm)].map(([, f]) => f),
+);
+
+const problems = [];
+for (const f of declared) {
+  const role = roles.get(f);
+  if (!role) {
+    problems.push(`  ${HISTORY}: packaging.${f} has no role — say which SizeSettings key records it, `
+      + "or 'content' (it ships different files) or 'inert' (it cannot move a byte)");
+    continue;
+  }
+  if (role !== 'content' && role !== 'inert' && !recorded.has(role)) {
+    problems.push(`  ${HISTORY}: packaging.${f} says it is recorded as "${role}", `
+      + 'which SizeSettings does not declare');
+  }
+}
+for (const f of roles.keys()) {
+  if (!declared.includes(f)) {
+    problems.push(`  ${HISTORY}: PACKAGING_SIZE_ROLE names "${f}", which ProjectPackaging no longer declares`);
+  }
+}
+
+if (problems.length > 0) {
+  for (const line of problems) console.error(line);
+  console.error(`check-packaging-settings: ${problems.length} setting(s) whose effect on a measurement `
+    + 'is undeclared — a comparison against the last build would blame the wrong thing.');
+  process.exit(1);
+}
+
+const levers = [...roles.values()].filter((r) => r !== 'content' && r !== 'inert').length;
+console.log(`check-packaging-settings: ${declared.length} packaging setting(s), each one read back `
+  + `and each one's effect on a measurement declared (${levers} recorded with it).`);

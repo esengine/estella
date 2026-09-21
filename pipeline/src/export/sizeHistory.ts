@@ -19,13 +19,60 @@ import path from 'node:path';
 import type { BuildSizeEntry, BuildSizeReport } from './sizeReport';
 import type { ExportPlatform } from '../project/platforms';
 
-/** Build options that change what a package weighs, recorded with the measurement. */
+/**
+ * Build options that change what a package weighs WITHOUT changing what is in
+ * it. A setting that ships different content belongs in the file diff, where a
+ * developer can see which files moved; one that ships the same content packed
+ * differently belongs here, or the next build reads it as a regression.
+ */
 export interface SizeSettings {
   contentAddressed?: boolean;
   compressTextures?: boolean;
   compressAudio?: boolean;
   atlasTextures?: boolean;
   minify?: boolean;
+  sourcemap?: boolean;
+  compressWasm?: boolean;
+  engineSubpackage?: boolean;
+}
+
+/**
+ * What each packaging setting does to a measurement: the {@link SizeSettings}
+ * key recording it, `content` (the file diff is the honest answer), or `inert`.
+ * Exhaustive over `ProjectPackaging` — three levers were recorded nowhere, so
+ * flipping `compressWasm` moved 1.4MB and the report blamed content.
+ */
+export const PACKAGING_SIZE_ROLE: Readonly<Record<string, keyof SizeSettings | 'content' | 'inert'>> = {
+    platform: 'inert',
+    config: 'minify',
+    sourceMaps: 'sourcemap',
+    openFolder: 'inert',
+    orientation: 'inert',
+    assetCompression: 'compressTextures',
+    compressTextures: 'compressTextures',
+    compressAudio: 'compressAudio',
+    atlasTextures: 'atlasTextures',
+
+    compressWasm: 'compressWasm',
+    engineSubpackage: 'engineSubpackage',
+    excludeScenes: 'content',
+    outDir: 'inert',
+    sizeBudget: 'inert',
+    appId: 'inert',
+    icon: 'content',
+    achievements: 'inert',
+    platforms: 'content',
+};
+
+/** The settings this build ran with, out of everything the export was given. */
+export function sizeSettingsOf(opts: SizeSettings): SizeSettings {
+    const keys: (keyof SizeSettings)[] = [
+        'contentAddressed', 'compressTextures', 'compressAudio', 'atlasTextures',
+        'minify', 'sourcemap', 'compressWasm', 'engineSubpackage',
+    ];
+    const out: SizeSettings = {};
+    for (const k of keys) if (opts[k] !== undefined) out[k] = opts[k];
+    return out;
 }
 
 /** One build's measurement, as the history file stores it. */
