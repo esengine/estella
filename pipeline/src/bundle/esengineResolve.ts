@@ -27,6 +27,7 @@ export const ESENGINE_SUBPATHS: Readonly<Record<string, string>> = {
   'esengine/tilemap': 'tilemap/index.js',
   'esengine/logic': 'logic/index.js',
   'esengine/ai': 'ai/index.js',
+  'esengine/replication': 'net/replication/index.js',
   'esengine/dragonbones': 'dragonbones/index.js',
   'esengine/physics': 'physics/index.js',
   'esengine/physics3d': 'physics3d/index.js',

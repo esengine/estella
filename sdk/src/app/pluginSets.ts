@@ -34,7 +34,6 @@ import { timerPlugin } from '../ecs/timer';
 import { velocityPlugin } from '../velocity';
 import { lifecyclePlugin } from '../ecs/lifecycle';
 import { eventBindingPlugin } from '../eventBinding';
-import { replicationPlugin } from '../net/replication';
 import { servicesPlugin } from '../services';
 import { diagnosticsPlugin } from '../diagnostics';
 
@@ -52,7 +51,7 @@ import { diagnosticsPlugin } from '../diagnostics';
 export const simulationBasePlugins = (): Plugin[] => [
     diagnosticsPlugin,
     timerPlugin, velocityPlugin, lifecyclePlugin, audioPlugin,
-    eventBindingPlugin, replicationPlugin,
+    eventBindingPlugin,
     servicesPlugin,
 ];
 
@@ -97,6 +96,6 @@ export const webBasePlugins = (): Plugin[] => [
     timerPlugin, velocityPlugin, lifecyclePlugin, animationPlugin, audioPlugin, videoPlugin,
     particlePlugin, trailPlugin, meshRendererPlugin, postProcessPlugin, timelinePlugin,
     gameplayPlugin,
-    eventBindingPlugin, replicationPlugin,
+    eventBindingPlugin,
     servicesPlugin,
 ];

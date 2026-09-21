@@ -89,29 +89,19 @@ export { ScreenInfo, ScreenOrientation, type ScreenInfoEvents } from './screen';
 // Network
 // =============================================================================
 
-export {
-    GameSocket, MiniGameSocket, WeChatSocket, createSocket, NetChannel,
-    MemoryTransport, createMemoryTransportPair,
-    MessagePortTransport, type MessagePortLike,
-    type GameSocketOptions, type SocketReadyState, type NetTransport,
-    type ReliableOrderedTransport,
-    type NetChannelOptions, type MessageHandler, type RequestHandler,
-    type BinaryHandler, type PlatformSocket, type PlatformSocketEvents,
-    type PlatformSocketOptions, type PlatformSocketReadyState,
-} from './net';
+// The sockets a platform adapter builds. The channel over one, and everything
+// replication does with it, is `esengine/replication`: it chunks with the
+// protocol, so a barrel that names it puts the protocol in every package.
+export { GameSocket, type GameSocketOptions, type SocketReadyState } from './net/GameSocket';
+export { MiniGameSocket } from './net/MiniGameSocket';
+export { WeChatSocket } from './net/WeChatSocket';
+export { createSocket } from './net/createSocket';
+export type { NetTransport, ReliableOrderedTransport } from './net/NetChannel';
+export type {
+    PlatformSocket, PlatformSocketEvents,
+    PlatformSocketOptions, PlatformSocketReadyState,
+} from './platform/types';
 
-export {
-    replicationPlugin, ReplicationPlugin, Net, NetSession,
-    Replicated, NetGhost, ReplicationServer, ReplicationClient,
-    REPLICATION_PROTOCOL_VERSION, REPLICATION_CHANNEL,
-    radiusInterest, radiusInterestProvider,
-    registerReplicationArchetype,
-    type NetRoleKind, type ReplicatedData,
-    type InterestPolicy, type InterestView, type RadiusInterestOptions,
-    type InterestProvider, type PreparedInterest, type InterestPoint,
-    type InterestProviderPrepareView, type InterestProviderQueryView,
-    type PredictionOptions, type PredictionSmoothing, type ReplicationArchetype,
-} from './net/replication';
 
 // =============================================================================
 // Platform (base functions only)

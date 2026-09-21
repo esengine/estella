@@ -67,6 +67,7 @@ export const MODULES = {
     'esengine/tilemap': { disposition: 'native-subpath' },
     'esengine/logic': { disposition: 'native-subpath' },
     'esengine/ai': { disposition: 'native-subpath' },
+    'esengine/replication': { disposition: 'native-subpath' },
 
     'esengine/native': {
         disposition: 'forbidden-native-script',

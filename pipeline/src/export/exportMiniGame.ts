@@ -468,6 +468,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   const CONTENT_SUBPATH: Partial<Record<Subsystem, string>> = {
     tilemap: 'esengine/tilemap',
     ai: 'esengine/ai',
+    replication: 'esengine/replication',
   };
   /** …and the ones a document names by asset rather than by component. */
   const ASSET_SUBPATH: Readonly<Record<string, string>> = {

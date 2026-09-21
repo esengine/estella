@@ -26,9 +26,9 @@ import { App } from '../src/app/app';
 import { clearUserComponents, defineComponent, Name, Transform, Sprite } from '../src/ecs/component';
 import { MemoryTransport } from '../src/net/MemoryTransport';
 import {
-    replicationPlugin, Net, Replicated,
-    registerReplicationArchetype, clearReplicationArchetypes, radiusInterest,
+    replicationPlugin, Net, Replicated, registerReplicationArchetype, radiusInterest,
 } from '../src/net/replication';
+import { clearReplicationArchetypes } from '../src/net/replication/archetype';
 import type { Entity } from '../src/types';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
 import { loadWasmModule, HAS_WASM } from './helpers/loadWasm';

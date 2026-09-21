@@ -26,7 +26,7 @@
 import { NATIVE_PLATFORMS, type ExportPlatform } from './platforms';
 
 /** An engine subsystem a build target may lack. */
-export type Subsystem = 'text' | 'tilemap' | 'particles' | 'postprocess' | 'physics' | 'spine' | 'video' | 'ai';
+export type Subsystem = 'text' | 'tilemap' | 'particles' | 'postprocess' | 'physics' | 'spine' | 'video' | 'ai' | 'replication';
 
 /**
  * The authored vocabulary that puts a subsystem in use: a scene or prefab
@@ -50,6 +50,7 @@ export const SUBSYSTEM_COMPONENTS: Readonly<Record<Subsystem, readonly string[]>
         'NavAgent', 'NavArea', 'NavLink', 'NavObstacle', 'NavVolume',
         'Perceiver', 'Perception', 'StateMachineAgent', 'BehaviorTreeAgent',
     ],
+    replication: ['Replicated', 'NetGhost'],
 };
 
 /** Human name, for a message someone packaging a game has to act on. */
@@ -62,6 +63,7 @@ export const SUBSYSTEM_LABEL: Readonly<Record<Subsystem, string>> = {
     spine: 'Spine animation',
     video: 'Video',
     ai: 'Gameplay AI',
+    replication: 'Replication',
 };
 
 /**

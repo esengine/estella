@@ -17,6 +17,7 @@
     "./dist/tilemap/index.js",
     "./dist/logic/index.js",
     "./dist/ai/index.js",
+    "./dist/net/replication/index.js",
     "./dist/physics/index.js",
     "./dist/physics3d/index.js",
     "./dist/douyin/index.js",
@@ -67,6 +68,10 @@
     "./ai": {
       "import": "./dist/ai/index.js",
       "types": "./dist/ai/index.d.ts"
+    },
+    "./replication": {
+      "import": "./dist/net/replication/index.js",
+      "types": "./dist/net/replication/index.d.ts"
     },
     "./physics": {
       "import": "./dist/physics/index.js",

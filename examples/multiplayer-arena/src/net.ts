@@ -1,9 +1,11 @@
 import {
     defineSystem, Res, GetWorld,
-    Time, Input, Net, Replicated, Transform, Sprite,
-    registerReplicationArchetype,
+    Time, Input, Transform, Sprite,
     type World, type Entity, type InputState,
 } from 'esengine';
+// Replication is a subpath: a package that imports it carries the protocol,
+// and one that does not carries none of it.
+import { Net, Replicated, registerReplicationArchetype } from 'esengine/replication';
 import { Pawn } from './components';
 
 // Arena bounds the movement rule clamps pawns to (matches the scene's walls).

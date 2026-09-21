@@ -46,9 +46,7 @@ export {
     type RadiusInterestOptions,
     type InterestPoint,
 } from './interest';
-export {
-    registerReplicationArchetype, clearReplicationArchetypes, type ReplicationArchetype,
-} from './archetype';
+export { registerReplicationArchetype, type ReplicationArchetype } from './archetype';
 export { NetIds } from './NetIds';
 export { ReplicationServer } from './server';
 export {
@@ -66,3 +64,17 @@ export {
     Net,
     type NetRoleKind,
 } from './ReplicationPlugin';
+
+// Importing this subpath INSTALLS replication — see spine/index.ts.
+import { registerReplicationSupport } from './replicationSupport';
+
+registerReplicationSupport();
+
+// The channel and the transports a game drives replication over: they chunk
+// with the protocol, so this is where a package pays for them.
+export {
+    NetChannel,
+    type NetChannelOptions, type MessageHandler, type RequestHandler, type BinaryHandler,
+} from '../NetChannel';
+export { MemoryTransport, createMemoryTransportPair } from '../MemoryTransport';
+export { MessagePortTransport, type MessagePortLike } from '../MessagePortTransport';

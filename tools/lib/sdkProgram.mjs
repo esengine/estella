@@ -61,6 +61,7 @@ export const ENTRIES = {
     'tilemap': 'src/tilemap/index.ts',
     'logic': 'src/logic/index.ts',
     'ai': 'src/ai/index.ts',
+    'replication': 'src/net/replication/index.ts',
     'wasm': 'src/wasm.ts',
     'wechat': 'src/index.wechat.ts',
     'minigame': 'src/index.minigame.ts',
