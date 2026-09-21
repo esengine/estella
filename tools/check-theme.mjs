@@ -299,8 +299,35 @@ const handRolledByFile = () => {
   return out;
 };
 
+/**
+ * Colour written into CODE rather than read from a token. The ratchet above
+ * guards `theme/`, which is where tokens are DEFINED; this guards everywhere
+ * else, which is where a literal means the palette was bypassed. Generated
+ * files are exempt — their colours come from whatever generated them.
+ */
+const colourLiteralInCodeByFile = () => {
+  const out = {};
+  const walk = (dir) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        if (e.name !== 'theme') walk(full);
+        continue;
+      }
+      if (!/\.tsx?$/.test(e.name) || e.name.includes('.generated.')) continue;
+      const text = readFileSync(full, 'utf8');
+      const n = (text.match(/#[0-9a-fA-F]{3,8}\b/g)?.length ?? 0)
+        + (text.match(/\brgba?\(/g)?.length ?? 0);
+      if (n > 0) out[path.relative(path.join(ROOT, 'desktop', 'src'), full).replaceAll(path.sep, '/')] = n;
+    }
+  };
+  walk(path.join(ROOT, 'desktop', 'src'));
+  return out;
+};
+
 const current = offGridByFile();
 const colours = colourLiteralsByFile();
+const colourCode = colourLiteralInCodeByFile();
 const fontSizes = rawFontSizeByFile();
 const icons = iconScale();
 const handRolled = handRolledByFile();
@@ -313,13 +340,15 @@ if (process.argv.includes('--update')) {
   const state = {
     spacing: byName(current),
     colourLiterals: byName(colours),
+    colourLiteralsInCode: byName(colourCode),
     rawFontSize: byName(fontSizes),
     iconScale: icons,
     handRolled: byName(handRolled),
   };
   writeFileSync(BASELINE, `${JSON.stringify(state, null, 2)}\n`);
   console.log(`check-theme: banked ${total} off-grid spacing(s), `
-    + `${Object.values(colours).reduce((a, b) => a + b, 0)} colour literal(s), `
+    + `${Object.values(colours).reduce((a, b) => a + b, 0)} colour literal(s) in theme, `
+    + `${Object.values(colourCode).reduce((a, b) => a + b, 0)} in code, `
     + `${Object.values(fontSizes).reduce((a, b) => a + b, 0)} raw font-size(s), `
     + `${icons.sizes.length} icon size(s) and ${icons.strokes.length} stroke width(s), `
     + `${Object.values(handRolled).reduce((a, b) => a + b, 0)} hand-rolled control(s).`);
@@ -327,7 +356,7 @@ if (process.argv.includes('--update')) {
 }
 
 let banked = {
-  spacing: {}, colourLiterals: {}, rawFontSize: {},
+  spacing: {}, colourLiterals: {}, colourLiteralsInCode: {}, rawFontSize: {},
   iconScale: { sizes: [], strokes: [] }, handRolled: {},
 };
 if (!existsSync(BASELINE)) {
@@ -345,6 +374,8 @@ if (!existsSync(BASELINE)) {
   };
   ratchet(current, banked.spacing, `spacing value(s) off the ${GRID}px grid`);
   ratchet(colours, banked.colourLiterals, 'colour literal(s) where a token belongs');
+  ratchet(colourCode, banked.colourLiteralsInCode,
+    'colour literal(s) in code — read the token, do not restate it', 'desktop/src/');
   ratchet(fontSizes, banked.rawFontSize, 'raw font-size(s) — use a step of the scale');
   ratchet(handRolled, banked.handRolled,
     'hand-rolled <button>/title= — the editor has <Button>/<Tooltip>', 'desktop/src/');
@@ -373,7 +404,8 @@ console.log(
   + `${content.length} content label(s) under ${PANEL_CEILING}% saturation, loudest is ${loudest.name} at ${loudest.sat}%. `
   + `${identityUses} identity-token use(s), every one on the thing it names. `
   + `Ratchets hold: ${total} off-grid spacing(s), `
-  + `${Object.values(colours).reduce((a, b) => a + b, 0)} colour literal(s), `
+  + `${Object.values(colours).reduce((a, b) => a + b, 0)} colour literal(s) in theme `
+  + `and ${Object.values(colourCode).reduce((a, b) => a + b, 0)} in code, `
   + `${Object.values(fontSizes).reduce((a, b) => a + b, 0)} raw font-size(s), `
   + `${icons.sizes.length} icon size(s) / ${icons.strokes.length} stroke width(s), `
   + `${Object.values(handRolled).reduce((a, b) => a + b, 0)} hand-rolled control(s).`,
