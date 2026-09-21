@@ -23,6 +23,7 @@ import { registerTilemapSupport } from '../tilemap/tilemapSupport';
 import { registerScriptGraphSupport } from '../logic/logicSupport';
 import { registerAiSupport } from '../ai/aiSupport';
 import { registerReplicationSupport } from '../net/replication/replicationSupport';
+import { registerGameplaySupport } from '../gameplay/gameplaySupport';
 
 export function installOptionalPlugins(): void {
     registerSpineSupport();
@@ -33,6 +34,7 @@ export function installOptionalPlugins(): void {
     registerScriptGraphSupport();
     registerAiSupport();
     registerReplicationSupport();
+    registerGameplaySupport();
     // Video has no subpath of its own to be installed from, so it registers here.
     setSceneOptionals({
         video: {

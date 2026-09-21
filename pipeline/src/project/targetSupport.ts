@@ -26,7 +26,7 @@
 import { NATIVE_PLATFORMS, type ExportPlatform } from './platforms';
 
 /** An engine subsystem a build target may lack. */
-export type Subsystem = 'text' | 'tilemap' | 'particles' | 'postprocess' | 'physics' | 'spine' | 'video' | 'ai' | 'replication';
+export type Subsystem = 'text' | 'tilemap' | 'particles' | 'postprocess' | 'physics' | 'spine' | 'video' | 'ai' | 'replication' | 'gameplay';
 
 /**
  * The authored vocabulary that puts a subsystem in use: a scene or prefab
@@ -51,6 +51,9 @@ export const SUBSYSTEM_COMPONENTS: Readonly<Record<Subsystem, readonly string[]>
         'Perceiver', 'Perception', 'StateMachineAgent', 'BehaviorTreeAgent',
     ],
     replication: ['Replicated', 'NetGhost'],
+    gameplay: [
+        'ThirdPersonController', 'ThirdPersonCamera', 'Health', 'MeleeAttack', 'Hunter', 'Playthrough',
+    ],
 };
 
 /** Human name, for a message someone packaging a game has to act on. */
@@ -64,6 +67,7 @@ export const SUBSYSTEM_LABEL: Readonly<Record<Subsystem, string>> = {
     video: 'Video',
     ai: 'Gameplay AI',
     replication: 'Replication',
+    gameplay: 'Gameplay (character, combat)',
 };
 
 /**
@@ -82,6 +86,7 @@ export const SUBSYSTEM_INSTALL: Readonly<Record<Subsystem, string>> = {
     video: 'whole-entry',
     ai: 'esengine/ai',
     replication: 'esengine/replication',
+    gameplay: 'esengine/gameplay',
 };
 
 /**

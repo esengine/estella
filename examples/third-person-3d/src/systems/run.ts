@@ -1,8 +1,5 @@
-import {
-    defineSystem, Res, ResMut, Query, Mut,
-    Input, Time, Transform, ThirdPersonController,
-    type InputState, type TimeData,
-} from 'esengine';
+import { defineSystem, Res, ResMut, Query, Mut, Input, Time, Transform, type InputState, type TimeData } from 'esengine';
+import { ThirdPersonController } from 'esengine/gameplay';
 import { Runner, Checkpoint } from '../components';
 import { Run, SPRINT_SPEED, WALK_SPEED, type RunData } from '../resources';
 

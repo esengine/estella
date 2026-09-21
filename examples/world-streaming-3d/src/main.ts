@@ -1,11 +1,10 @@
 // The gestures a criterion needs and residency must not provide: switching a
 // source off, moving one along a boundary, aiming a blow at an entity that is
 // gone. Residency itself is declared, and nothing below loads or unloads.
-import {
-    addSystemToSchedule, Schedule, defineSystem, GetWorld, Res, EventWriter, Time,
-    Input, Damage, Transform, WorldStreamingSource, ParticleEmitter,
-} from 'esengine';
-import type { World, InputState, TimeData, EventWriterInstance, DamagePayload } from 'esengine';
+import { addSystemToSchedule, Schedule, defineSystem, GetWorld, Res, EventWriter, Time, Input, Transform, WorldStreamingSource, ParticleEmitter } from 'esengine';
+import { Damage } from 'esengine/gameplay';
+import type { World, InputState, TimeData, EventWriterInstance } from 'esengine';
+import type { DamagePayload } from 'esengine/gameplay';
 
 /** Flip a named source on or off. The only thing that changes is who is asking. */
 function toggleSource(world: World, name: string): void {

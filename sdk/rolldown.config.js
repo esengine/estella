@@ -99,6 +99,7 @@ export default defineConfig([
             'logic/index': 'src/logic/index.ts',
             'ai/index': 'src/ai/index.ts',
             'net/replication/index': 'src/net/replication/index.ts',
+            'gameplay/index': 'src/gameplay/index.ts',
             'dragonbones/index': 'src/dragonbones/index.ts',
             'douyin/index': 'src/platform/douyin/index.ts',
             'wasm': 'src/wasm.ts',

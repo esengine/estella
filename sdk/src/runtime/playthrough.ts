@@ -16,6 +16,9 @@
  *          resources and guess which field means "won" — the game states it, in
  *          its own words, and that statement is the contract. Read-only from
  *          outside: this is how a run is OBSERVED, never how it is driven.
+ *
+ *          Core, not `gameplay`: the host's observation seam reads it from every
+ *          packaged game, and it depends on nothing the gameplay runtime has.
  */
 import { defineResource } from '../ecs/resource';
 

@@ -68,6 +68,7 @@ export const MODULES = {
     'esengine/logic': { disposition: 'native-subpath' },
     'esengine/ai': { disposition: 'native-subpath' },
     'esengine/replication': { disposition: 'native-subpath' },
+    'esengine/gameplay': { disposition: 'native-subpath' },
 
     'esengine/native': {
         disposition: 'forbidden-native-script',

@@ -1,10 +1,8 @@
 // Movement is declared, not scripted — ThirdPersonController, ThirdPersonCamera
 // and Hunter are components the scene carries. What a game DOES own is what an
 // animation and a blow MEAN: dust under a footstep, sparks where a sword lands.
-import {
-    addSystemToSchedule, Schedule, defineSystem, EventReader, GetWorld, Res,
-    AnimatorEvent, Damage, Transform, Particle, resolveChildEntity,
-} from 'esengine';
+import { addSystemToSchedule, Schedule, defineSystem, EventReader, GetWorld, Res, AnimatorEvent, Transform, Particle, resolveChildEntity } from 'esengine';
+import { Damage } from 'esengine/gameplay';
 
 /**
  * Dust on a footstep. The animator says WHEN a foot lands — a moment the walk

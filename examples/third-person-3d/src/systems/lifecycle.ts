@@ -1,9 +1,5 @@
-import {
-    defineSystem, Res, ResMut, Query, Mut, GetWorld,
-    Time, Transform, MeshRenderer, CharacterController3D, Health,
-    Damage, restoreToFull, EventWriter,
-    type World, type Entity, type TimeData, type HealthData,
-} from 'esengine';
+import { defineSystem, Res, ResMut, Query, Mut, GetWorld, Time, Transform, MeshRenderer, CharacterController3D, EventWriter, type World, type Entity, type TimeData } from 'esengine';
+import { Health, Damage, restoreToFull, type HealthData } from 'esengine/gameplay';
 import { Physics3D, type Physics3DQueries } from 'esengine/physics3d';
 import { Runner, Core, Gate, Checkpoint } from '../components';
 import { Run, SPAWN, VOID_Y, MAX_HEALTH, type RunData } from '../resources';

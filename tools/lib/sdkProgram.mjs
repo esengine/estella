@@ -62,6 +62,7 @@ export const ENTRIES = {
     'logic': 'src/logic/index.ts',
     'ai': 'src/ai/index.ts',
     'replication': 'src/net/replication/index.ts',
+    'gameplay': 'src/gameplay/index.ts',
     'wasm': 'src/wasm.ts',
     'wechat': 'src/index.wechat.ts',
     'minigame': 'src/index.minigame.ts',

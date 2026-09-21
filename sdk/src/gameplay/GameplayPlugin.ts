@@ -32,7 +32,7 @@ import { huntTargets } from './Hunter';
 import { q } from '../math/quat';
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
-import { Playthrough } from './Playthrough';
+import { Playthrough } from '../runtime/playthrough';
 import {
     ThirdPersonController, type ThirdPersonControllerData,
     desiredDirection, approachVelocity, facingYaw, turnToward, rootMotionVelocity,

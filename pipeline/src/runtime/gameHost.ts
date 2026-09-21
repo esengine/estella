@@ -16,8 +16,8 @@ import {
   indexPackagedManifest, createPackagedAssetSource, applyAssetRefResolvers, initRuntime,
   HttpBackend, fetchDecodePixels, registerPackagedSideModules,
   packagedAppOptions, packagedRuntimeInit, Transform, SceneManager, UINode,
-  acquireWebGPUDevice, ThirdPersonCamera, CharacterController3D, AnimatorController,
-  Animator, TPC_SPEED, TPC_GROUNDED, Particle, MeleeAttack, Health,
+  acquireWebGPUDevice, CharacterController3D, AnimatorController,
+  Animator, TPC_SPEED, TPC_GROUNDED, Particle,
   AnimatorRootMotion, Playthrough, Name,
   worldResidencyReport, PostProcess, Renderer, Audio, Camera,
   getComponentRegistry,
@@ -38,6 +38,13 @@ function optionalDef(name: string): never | null {
 function countOfIn(app: { world: { getEntitiesWithComponents(c: never[]): readonly unknown[] } }, name: string): number {
   const def = optionalDef(name);
   return def === null ? 0 : app.world.getEntitiesWithComponents([def]).length;
+}
+
+/** Entities carrying a component the package may not ship at all. */
+function optionalEntities(app: { world: { getEntitiesWithComponents(c: never[]): readonly number[] } },
+                          name: string): readonly number[] {
+  const def = optionalDef(name);
+  return def === null ? [] : app.world.getEntitiesWithComponents([def]);
 }
 
 function optionalRead(app: { world: { has(e: number, c: never): boolean; get(e: number, c: never): unknown } },
@@ -366,9 +373,8 @@ async function boot(): Promise<void> {
         for (const e of app.world.getEntitiesWithComponents([Name])) {
           const n = app.world.get(e, Name).value;
           if (named.length < limit) named.push(n);
-          if (app.world.has(e, Health) && alive.length < limit) {
-            alive.push({ name: n, hp: app.world.get(e, Health).current });
-          }
+          const hp = optionalRead(app, e, 'Health');
+          if (hp !== null && alive.length < limit) alive.push({ name: n, hp: hp.current as never });
         }
         return { entities: app.world.getAllEntities().length, named, alive };
       },
@@ -435,8 +441,8 @@ async function boot(): Promise<void> {
             ? { x: root.deltaPosition.x / root.deltaTime, z: root.deltaPosition.z / root.deltaTime }
             : null,
           position: p ? { x: p.x, y: p.y, z: p.z ?? 0 } : null,
-          attackId: app.world.has(enemy, MeleeAttack) ? app.world.get(enemy, MeleeAttack).attackId : 0,
-          health: app.world.has(enemy, Health) ? app.world.get(enemy, Health).current : 0,
+          attackId: optionalRead(app, enemy, 'MeleeAttack')?.attackId ?? 0,
+          health: optionalRead(app, enemy, 'Health')?.current ?? 0,
         };
       },
       /**
@@ -452,15 +458,13 @@ async function boot(): Promise<void> {
         const targets: Record<string, { health: number; max: number }> = {};
         for (const name of targetNames) {
           const entity = app.world.findEntityByName(name);
-          if (entity === null || !app.world.has(entity, Health)) continue;
-          const health = app.world.get(entity, Health);
-          targets[name] = { health: health.current, max: health.max };
+          const health = entity === null ? null : optionalRead(app, entity, 'Health');
+          if (health === null) continue;
+          targets[name] = { health: health.current as never, max: health.max as never };
         }
         const attacker = app.world.findEntityByName(attackerName);
-        if (attacker === null || !app.world.has(attacker, MeleeAttack)) {
-          return { attack: null, targets };
-        }
-        const melee = app.world.get(attacker, MeleeAttack);
+        const melee = attacker === null ? null : optionalRead(app, attacker, 'MeleeAttack');
+        if (attacker === null || melee === null) return { attack: null, targets };
         return {
           attack: {
             id: melee.attackId,
@@ -538,7 +542,7 @@ async function boot(): Promise<void> {
         let camera = null;
         let cameraDistance = null;
         const eye = cameraName ? app.world.findEntityByName(cameraName)
-          : (app.world.getEntitiesWithComponents([ThirdPersonCamera])[0] ?? null);
+          : (optionalEntities(app, 'ThirdPersonCamera')[0] ?? null);
         if (eye !== null && eye !== undefined && app.world.has(eye, Transform)) {
           const ct = app.world.get(eye, Transform);
           const cp = ct.worldPosition ?? ct.position;

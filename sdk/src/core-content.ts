@@ -767,60 +767,27 @@ export type {
 
 
 // =============================================================================
-// Gameplay (third-person character + camera)
+// Gameplay — the NAMES authored content reaches it by; the runtime is
+// `esengine/gameplay`. From their own module rather than from './gameplay',
+// which would put the components and the solver back.
 // =============================================================================
 
 export {
-    GameplayPlugin,
-    gameplayPlugin,
-    ThirdPersonController,
-    ThirdPersonCamera,
     TPC_SPEED,
     TPC_GROUNDED,
+    TPC_JUMP,
     TPC_DODGE,
     TPC_ATTACK,
-    desiredDirection,
-    approachVelocity,
-    facingYaw,
-    shortestAngleDelta,
-    turnToward,
-    yawQuaternion,
-    yawOfQuaternion,
-    cameraGroundBasis,
-    orbitOffset,
-    dampFactor,
-    clampPitch,
-    rootMotionVelocity,
-    WORLD_BASIS,
     DODGE_KEY,
     ATTACK_KEY,
-    Hunter,
-    decideHunterState,
-    huntTargets,
-    type HunterData,
-    type HunterState,
-    type HunterSituation,
-    Health,
-    Damage,
-    applyDamage,
-    restoreToFull,
-    MeleeAttack,
-    MeleeAttacks,
-    resolveMeleeHits,
     COMBAT_ATTACK_START,
     COMBAT_HIT,
     COMBAT_ATTACK_END,
-    type HealthData,
-    type DamagePayload,
-    type MeleeAttackData,
-    type MeleeOverlapQuery,
-    type ThirdPersonControllerData,
-    type ThirdPersonCameraData,
-    type MoveBasis,
-    Playthrough,
-    type PlaythroughData,
-    type PlaythroughValue,
-} from './gameplay';
+} from './gameplay/vocabulary';
+
+/** What a game says about its own run, for the observation seam a packaged game
+ *  already has. Core rather than `esengine/gameplay`: every host reads it. */
+export { Playthrough, type PlaythroughData, type PlaythroughValue } from './runtime/playthrough';
 
 // =============================================================================
 // Timeline (Sequencer)

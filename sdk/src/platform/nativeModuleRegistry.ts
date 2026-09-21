@@ -27,6 +27,7 @@ import * as TilemapModule from '../tilemap';
 import * as ScriptGraphModule from '../logic';
 import * as AiModule from '../ai';
 import * as ReplicationModule from '../net/replication';
+import * as GameplayModule from '../gameplay';
 
 /** Must equal NATIVE_MODULE_REGISTRY in tools/nativeScriptModules.mjs, which is
  *  what the exporter emits and what check-native-script-modules reads. */
@@ -45,6 +46,7 @@ export const NATIVE_MODULE_NAMESPACES: Readonly<Record<string, unknown>> = {
     'esengine/logic': ScriptGraphModule,
     'esengine/ai': AiModule,
     'esengine/replication': ReplicationModule,
+    'esengine/gameplay': GameplayModule,
 };
 
 /**

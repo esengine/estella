@@ -19,6 +19,7 @@
     "./dist/logic/index.js",
     "./dist/ai/index.js",
     "./dist/net/replication/index.js",
+    "./dist/gameplay/index.js",
     "./dist/physics/index.js",
     "./dist/physics3d/index.js",
     "./dist/douyin/index.js",
@@ -73,6 +74,10 @@
     "./replication": {
       "import": "./dist/net/replication/index.js",
       "types": "./dist/net/replication/index.d.ts"
+    },
+    "./gameplay": {
+      "import": "./dist/gameplay/index.js",
+      "types": "./dist/gameplay/index.d.ts"
     },
     "./physics": {
       "import": "./dist/physics/index.js",

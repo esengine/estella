@@ -1,7 +1,5 @@
-import {
-    defineSystem, Res, ResMut, Query, Mut,
-    Text, UIVisual, Health, Playthrough, type PlaythroughData,
-} from 'esengine';
+import { defineSystem, Res, ResMut, Query, Mut, Text, UIVisual, Playthrough, type PlaythroughData } from 'esengine';
+import { Health } from 'esengine/gameplay';
 import { Runner, Gate, HealthMeter, ObjectiveText, PromptText, OverlayText } from '../components';
 import { Run, MAX_HEALTH, CORES_NEEDED, type RunData } from '../resources';
 

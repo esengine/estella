@@ -1,8 +1,5 @@
-import {
-    defineSystem, Res, ResMut, Query, Mut, EventWriter,
-    Time, Transform, MeshRenderer, Damage,
-    type TimeData, type Entity,
-} from 'esengine';
+import { defineSystem, Res, ResMut, Query, Mut, EventWriter, Time, Transform, MeshRenderer, type TimeData, type Entity } from 'esengine';
+import { Damage } from 'esengine/gameplay';
 import { Runner, Hazard, Core, Gate, Reachable } from '../components';
 import { Run, CORES_NEEDED, type RunData } from '../resources';
 

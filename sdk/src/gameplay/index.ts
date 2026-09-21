@@ -68,8 +68,8 @@ export {
     updateCameras,
 } from './GameplayPlugin';
 
-export {
-    Playthrough,
-    type PlaythroughData,
-    type PlaythroughValue,
-} from './Playthrough';
+
+// Importing this subpath INSTALLS the gameplay runtime — see spine/index.ts.
+import { registerGameplaySupport } from './gameplaySupport';
+
+registerGameplaySupport();

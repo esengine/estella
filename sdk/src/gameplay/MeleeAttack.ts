@@ -28,13 +28,8 @@ import type { Overlap3DHit } from '../physics3d/Physics3DQueries';
 import type { AnimatorEventPayload } from '../animation/animatorEvent';
 import { Health, type DamagePayload, type HealthData } from './Health';
 
-/**
- * The events a clip declares that this reads. Names rather than times: a state
- * that re-times its swing re-times the hit, and nothing else has to be told.
- */
-export const COMBAT_ATTACK_START = 'attack-start';
-export const COMBAT_HIT = 'hit';
-export const COMBAT_ATTACK_END = 'attack-end';
+import { COMBAT_ATTACK_START, COMBAT_HIT, COMBAT_ATTACK_END } from './vocabulary';
+export { COMBAT_ATTACK_START, COMBAT_HIT, COMBAT_ATTACK_END } from './vocabulary';
 
 /** The fields of the `MeleeAttack` component. @experimental */
 export interface MeleeAttackData {
