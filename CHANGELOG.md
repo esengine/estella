@@ -79,6 +79,11 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A mini-game that fetches its engine from a 分包 shows the download's progress.** The host fetches it before the game
+  bundle is parsed, so the runtime's own loading indicator could not say anything yet and
+  the player watched a still screen for the length of a 1.8MB download. It is also the one
+  part of a cold start with real byte progress rather than a weighted guess.
+
 - **A Douyin package carries Douyin's config file and Douyin's appid.** It emitted `project.tt.json`, a name nothing
   published uses — Douyin's own CLI and its Godot adaptation doc both name
   `project.config.json`. And it was handed the WeChat appid whatever it was building, so

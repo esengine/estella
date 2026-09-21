@@ -698,6 +698,8 @@ export const NOTED = {
     { internal: "a manual page's import line, following the move it documents" },
   'refactor(play): the play realm asks for the whole import map by name':
     { internal: "the editor's preview page names the same subpaths it always did" },
+  'feat(minigame): the engine subpackage fetch says how far along it is':
+    { note: "A mini-game that fetches its engine from a 分包 shows the download's progress." },
   'fix(theme): the colour-literal rule guards the code, not only the theme':
     { internal: "an editor gate's scope; no creator-facing behaviour" },
   'refactor(gameplay): the gameplay runtime moves to its own subpath':
