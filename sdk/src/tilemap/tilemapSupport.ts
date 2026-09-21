@@ -10,12 +10,12 @@
  */
 import { addEntryPlugin } from '../runtime/entryPlugins';
 import { addAssetLoader } from '../asset/optionalLoaders';
-import { tilemapPlugin } from './tilemapPlugin';
+import { TilemapPlugin } from './tilemapPlugin';
 import { TilemapAssetLoader } from '../asset/loaders/TilemapAssetLoader';
 import { TilesetAssetLoader } from '../asset/loaders/TilesetAssetLoader';
 
 export function registerTilemapSupport(): void {
-  addEntryPlugin('tilemap', () => tilemapPlugin);
+  addEntryPlugin('tilemap', () => new TilemapPlugin());
   addAssetLoader('tilemap', () => new TilemapAssetLoader() as never);
   addAssetLoader('tileset', () => new TilesetAssetLoader() as never);
 }

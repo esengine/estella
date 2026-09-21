@@ -13,18 +13,18 @@ import { addAssetLoader } from '../asset/optionalLoaders';
 // From each plugin's own module, not from './index': the barrel calls this at
 // the end of its own evaluation, and a support module that reads the barrel back
 // is a cycle whose bindings are not ready when the call lands.
-import { navPlugin } from './nav/NavPlugin';
-import { fsmPlugin } from './fsm/FsmPlugin';
-import { btPlugin } from './bt/BtPlugin';
-import { perceptionPlugin } from './perception/PerceptionPlugin';
+import { NavPlugin } from './nav/NavPlugin';
+import { FsmPlugin } from './fsm/FsmPlugin';
+import { BtPlugin } from './bt/BtPlugin';
+import { PerceptionPlugin } from './perception/PerceptionPlugin';
 import { FsmAssetLoader } from '../asset/loaders/FsmAssetLoader';
 import { BtAssetLoader } from '../asset/loaders/BtAssetLoader';
 
 export function registerAiSupport(): void {
-  addEntryPlugin('ai:nav', () => navPlugin);
-  addEntryPlugin('ai:fsm', () => fsmPlugin);
-  addEntryPlugin('ai:bt', () => btPlugin);
-  addEntryPlugin('ai:perception', () => perceptionPlugin);
+  addEntryPlugin('ai:nav', () => new NavPlugin());
+  addEntryPlugin('ai:fsm', () => new FsmPlugin());
+  addEntryPlugin('ai:bt', () => new BtPlugin());
+  addEntryPlugin('ai:perception', () => new PerceptionPlugin());
   addAssetLoader('fsm', () => new FsmAssetLoader() as never);
   addAssetLoader('bt', () => new BtAssetLoader() as never);
 }

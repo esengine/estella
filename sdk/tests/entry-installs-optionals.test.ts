@@ -31,8 +31,14 @@ describe('an SDK entry installs the optional subsystems', () => {
         expect(names).toContain('DragonBonesPlugin');
     });
 
+    // Every one, not the first one: asking only entryPlugins()[0] proved the
+    // property for whichever subsystem registers earliest, and four later ones
+    // registered module-level singletons under it without turning this red.
     it('builds a fresh plugin instance per app, since a plugin carries app state', async () => {
         const { entryPlugins } = await import('../src/runtime/entryPlugins');
-        expect(entryPlugins()[0]).not.toBe(entryPlugins()[0]);
+        const a = entryPlugins();
+        const b = entryPlugins();
+        const shared = a.filter((p, i) => p === b[i]).map((p) => p.constructor.name);
+        expect(shared).toEqual([]);
     });
 });

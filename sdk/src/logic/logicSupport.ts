@@ -9,10 +9,10 @@
  */
 import { addEntryPlugin } from '../runtime/entryPlugins';
 import { addAssetLoader } from '../asset/optionalLoaders';
-import { scriptGraphPlugin } from './ScriptGraphPlugin';
+import { ScriptGraphPlugin } from './ScriptGraphPlugin';
 import { ScriptGraphAssetLoader } from '../asset/loaders/ScriptGraphAssetLoader';
 
 export function registerScriptGraphSupport(): void {
-  addEntryPlugin('logic', () => scriptGraphPlugin);
+  addEntryPlugin('logic', () => new ScriptGraphPlugin());
   addAssetLoader('scriptGraph', () => new ScriptGraphAssetLoader() as never);
 }
