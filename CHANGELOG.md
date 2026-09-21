@@ -33,6 +33,14 @@ published separately; it ships inside the editor.
   install it. A project using a subsystem no subpath installs (video today) takes the whole
   entry as before. Measured on the UI-game template: 1,305KB → 1,090KB, 57 files → 32.
 
+- **The gameplay runtime is a subpath: `import { Health } from 'esengine/gameplay'`.** The third-person controller, the
+  camera, health, melee and the hunter were in every package: 10,567 bytes of a WeChat
+  build with no character in it. What stays on `esengine` is the vocabulary — the animator
+  parameter names, the input keys, the combat event names — because an AnimatorController
+  asset names the parameters and an event binding names the events, and neither needs a
+  solver. `Playthrough` moves the other way, onto `esengine`: it is the fact a game
+  publishes about its own run, read by the observation seam every packaged game carries.
+
 - **Replication is a subpath: `import { Net, Replicated } from 'esengine/replication'`.** The base plugin set named the replication
   plugin, so every package carried the wire protocol, the codec, the interest query and the
   prediction replay — 64KB of a single-player game that nothing in it can reach. A game that

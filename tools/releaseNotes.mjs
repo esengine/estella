@@ -698,6 +698,10 @@ export const NOTED = {
     { internal: "a manual page's import line, following the move it documents" },
   'refactor(play): the play realm asks for the whole import map by name':
     { internal: "the editor's preview page names the same subpaths it always did" },
+  'refactor(gameplay): the gameplay runtime moves to its own subpath':
+    { note: "The gameplay runtime is a subpath: `import { Health } from 'esengine/gameplay'`." },
+  'refactor(gameplay): the viewport imports MeleeAttack from its subpath':
+    { note: "The gameplay runtime is a subpath: `import { Health } from 'esengine/gameplay'`." },
   'fix(douyin): the config file, the appid and a payment slot':
     { note: "A Douyin package carries Douyin's config file and Douyin's appid." },
   'fix(douyin): a Douyin package carries a Douyin appid':
