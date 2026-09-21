@@ -148,10 +148,8 @@ const rot = quat(Math.cos(angle / 2), 0, 0, Math.sin(angle / 2));
 完整示例——炮塔跟踪光标:
 
 ```typescript
-import {
-  defineSystem, defineTag, Query, Mut, Res,
-  Transform, CameraView, quat, quaternionToAngle2D, normalizeAngle,
-} from 'esengine';
+import { defineSystem, defineTag, Query, Mut, Res, Transform, CameraView, quat, quaternionToAngle2D } from 'esengine';
+import { normalizeAngle } from 'esengine/ai';
 
 const Turret = defineTag('Turret');
 

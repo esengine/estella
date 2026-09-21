@@ -95,7 +95,8 @@ Tiled 文件导入,无需额外设置。
 用*文件 → 导出为 → JSON*):
 
 ```typescript
-import { defineSystem, Commands, Tilemap } from 'esengine';
+import { defineSystem, Commands } from 'esengine';
+import { Tilemap } from 'esengine/tilemap';
 
 const loadLevel = defineSystem([Commands()], (cmds) => {
   cmds.spawn().insert(Tilemap, { source: 'assets/maps/level.tmj' });
@@ -136,7 +137,8 @@ const loadLevel = defineSystem([Commands()], (cmds) => {
 生成一个实体,初始化一个图层,然后填充它:
 
 ```typescript
-import { defineSystem, Commands, Res, Transform, Tilemaps } from 'esengine';
+import { defineSystem, Commands, Res, Transform } from 'esengine';
+import { Tilemaps } from 'esengine/tilemap';
 
 const build = defineSystem([Commands(), Res(Tilemaps)], (cmds, tilemap) => {
   const layer = cmds.spawn().insert(Transform, { position: { x: 0, y: 0, z: 0 } }).id();
@@ -307,7 +309,8 @@ Tiled 还是 Estella 编辑器。
 尺寸、`type`(Tiled 的 class)、`shape` 和自定义 `properties`:
 
 ```typescript
-import { defineSystem, Res, Assets, tilemapSource } from 'esengine';
+import { defineSystem, Res, Assets } from 'esengine';
+import { tilemapSource } from 'esengine/tilemap';
 
 const readSpawns = defineSystem([Res(Assets)], (assets) => {
   const src = tilemapSource(assets, 'assets/maps/level.tmj');

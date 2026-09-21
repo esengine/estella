@@ -11,7 +11,7 @@ description: "运行 .esbt 图:选择、序列、装饰器与叶子,以及一次
 结果;叶子是你注册的动作和条件。加一个 `BehaviorTreeAgent`:
 
 ```typescript
-import { BehaviorTreeAgent } from 'esengine';
+import { BehaviorTreeAgent } from 'esengine/ai';
 
 cmds.spawn()
   .insert(NavAgent, {})
@@ -27,7 +27,7 @@ cmds.spawn()
 在编辑器里可视化编排这棵树,或用 `registerBt` 用代码构建:
 
 ```typescript
-import { registerBt } from 'esengine';
+import { registerBt } from 'esengine/ai';
 
 registerBt('guard', {
   root: {

@@ -48,7 +48,8 @@ both the FSM and the BT resolve those names against the same registry — so one
 of leaves serves both paradigms.
 
 ```typescript
-import { registerAction, registerCondition, Status, Perception, setNavDestination } from 'esengine';
+import { registerAction, registerCondition } from 'esengine';
+import { Status, Perception, setNavDestination } from 'esengine/ai';
 
 registerCondition('seesPlayer', (ctx) =>
   ctx.has(Perception) && ctx.get(Perception).visible);
@@ -244,10 +245,8 @@ hunts a player with two enemies that share the same senses and leaves — one dr
 a state machine, the other by a behavior tree:
 
 ```typescript
-import {
-  defineSystem, Res, Nav, NavGrid,
-  registerAction, registerCondition, setNavDestination, Perception,
-} from 'esengine';
+import { defineSystem, Res, registerAction, registerCondition } from 'esengine';
+import { Nav, NavGrid, setNavDestination, Perception } from 'esengine/ai';
 
 // Shared leaves — the same names serve BOTH the .esfsm and the .esbt.
 registerCondition('seesPlayer', (ctx) => ctx.has(Perception) && ctx.get(Perception).visible);

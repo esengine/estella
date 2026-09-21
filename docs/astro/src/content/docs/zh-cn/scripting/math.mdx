@@ -77,7 +77,8 @@ scalar.deg2rad(90);              // degrees -> radians
 角度 ↔ 四元数的往返:
 
 ```typescript
-import { quat, quaternionToAngle2D, normalizeAngle } from 'esengine';
+import { quat, quaternionToAngle2D } from 'esengine';
+import { normalizeAngle } from 'esengine/ai';
 
 // Angle -> quaternion. NOTE: the factory takes w FIRST — quat(w, x, y, z).
 const a = Math.PI / 3;

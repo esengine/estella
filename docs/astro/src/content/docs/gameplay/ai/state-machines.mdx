@@ -12,7 +12,7 @@ one state is active; each tick, its outgoing transitions are checked in order an
 first enabled one is taken. Attach a `StateMachineAgent` and point it at a graph:
 
 ```typescript
-import { StateMachineAgent } from 'esengine';
+import { StateMachineAgent } from 'esengine/ai';
 
 cmds.spawn()
   .insert(NavAgent, {})
@@ -31,7 +31,7 @@ The recommended path is to **author the graph in the editor** as an `.esfsm` ass
 registered action/condition names by string. You can also build a machine in code:
 
 ```typescript
-import { registerFsm } from 'esengine';
+import { registerFsm } from 'esengine/ai';
 
 registerFsm('guard', {
   initial: 'Patrol',

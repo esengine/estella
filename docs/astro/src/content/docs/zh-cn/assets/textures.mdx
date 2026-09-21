@@ -75,7 +75,8 @@ const showArt = defineSystem([Query(Mut(Sprite)), Res(Assets)], async (q, assets
 `TextureResult`。要量这种纹理，直接按句柄问资源管理器：
 
 ```typescript
-import { defineSystem, Query, Sprite, getTextureDimensions } from 'esengine';
+import { defineSystem, Query, Sprite } from 'esengine';
+import { getTextureDimensions } from 'esengine/tilemap';
 
 const measurePlaced = defineSystem([Query(Sprite)], (q) => {
   for (const [entity, sprite] of q) {

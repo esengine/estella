@@ -19,7 +19,8 @@ import { Aside } from '@astrojs/starlight/components';
 ### 构建网格
 
 ```typescript
-import { defineSystem, Res, Nav, NavGrid } from 'esengine';
+import { defineSystem, Res } from 'esengine';
+import { Nav, NavGrid } from 'esengine/ai';
 
 export const setupNav = defineSystem([Res(Nav)], (nav) => {
   nav.setSurface(new NavGrid({
@@ -201,7 +202,7 @@ app.getResource(NavDebugDraw).enabled = true;
 你只管设目标。
 
 ```typescript
-import { NavAgent, setNavDestination, stopNavAgent } from 'esengine';
+import { NavAgent, setNavDestination, stopNavAgent } from 'esengine/ai';
 
 cmds.spawn()
   .insert(Transform, { position: { x: 0, y: 0, z: 0 } })

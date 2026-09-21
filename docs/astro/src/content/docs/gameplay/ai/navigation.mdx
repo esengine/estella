@@ -20,7 +20,8 @@ questions of either, so nothing in a game has to know which one it was handed.
 ### Building a grid
 
 ```typescript
-import { defineSystem, Res, Nav, NavGrid } from 'esengine';
+import { defineSystem, Res } from 'esengine';
+import { Nav, NavGrid } from 'esengine/ai';
 
 export const setupNav = defineSystem([Res(Nav)], (nav) => {
   nav.setSurface(new NavGrid({
@@ -237,7 +238,7 @@ Attach a `NavAgent`, then point it at a destination. The built-in nav plugin pla
 the path and steps the agent along it each frame — you just set the goal.
 
 ```typescript
-import { NavAgent, setNavDestination, stopNavAgent } from 'esengine';
+import { NavAgent, setNavDestination, stopNavAgent } from 'esengine/ai';
 
 cmds.spawn()
   .insert(Transform, { position: { x: 0, y: 0, z: 0 } })

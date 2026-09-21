@@ -108,7 +108,8 @@ The `Tilemap` component loads a `.tmj` map (Tiled's JSON format — in Tiled, us
 *File → Export As → JSON*) via its one field:
 
 ```typescript
-import { defineSystem, Commands, Tilemap } from 'esengine';
+import { defineSystem, Commands } from 'esengine';
+import { Tilemap } from 'esengine/tilemap';
 
 const loadLevel = defineSystem([Commands()], (cmds) => {
   cmds.spawn().insert(Tilemap, { source: 'assets/maps/level.tmj' });
@@ -150,7 +151,8 @@ Plus the [orientation fields](#map-orientations) above — `orientation`,
 Spawn an entity, initialise a layer, then fill it:
 
 ```typescript
-import { defineSystem, Commands, Res, Transform, Tilemaps } from 'esengine';
+import { defineSystem, Commands, Res, Transform } from 'esengine';
+import { Tilemaps } from 'esengine/tilemap';
 
 const build = defineSystem([Commands(), Res(Tilemaps)], (cmds, tilemap) => {
   const layer = cmds.spawn().insert(Transform, { position: { x: 0, y: 0, z: 0 } }).id();
@@ -355,7 +357,8 @@ The raw group data is still available by the map's source path with `tilemapSour
 and custom `properties`:
 
 ```typescript
-import { defineSystem, Res, Assets, tilemapSource } from 'esengine';
+import { defineSystem, Res, Assets } from 'esengine';
+import { tilemapSource } from 'esengine/tilemap';
 
 const readSpawns = defineSystem([Res(Assets)], (assets) => {
   const src = tilemapSource(assets, 'assets/maps/level.tmj');

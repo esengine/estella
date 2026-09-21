@@ -15,7 +15,7 @@ description: "组件层之下的原语——手动寻路、感知内幕,以及�
 或者当一张网格不够用时,因为 `Nav` 资源只持有一张网格:
 
 ```typescript
-import { NavGrid, findPath, pathToWorld } from 'esengine';
+import { NavGrid, findPath, pathToWorld } from 'esengine/ai';
 
 const grid = new NavGrid({ width: 32, height: 24, cellSize: 32 });
 
@@ -44,7 +44,7 @@ if (path) {
 底下的核心,后者只是接上了 `TilemapAPI.getTile`:
 
 ```typescript
-import { navGridFromTiles } from 'esengine';
+import { navGridFromTiles } from 'esengine/tilemap';
 
 const grid = navGridFromTiles((x, y) => level.tiles[y][x], {
   width: 32, height: 24, cellSize: 32,
@@ -75,7 +75,8 @@ const grid = navGridFromTiles((x, y) => level.tiles[y][x], {
   `Perception` 组件。
 
 ```typescript
-import { senseTarget, quaternionToAngle2D, Transform, registerCondition } from 'esengine';
+import { quaternionToAngle2D, Transform, registerCondition } from 'esengine';
+import { senseTarget } from 'esengine/ai';
 
 // A one-off sight check against a POINT — no PerceptionTarget needed.
 registerCondition('seesShrine', (ctx) => {
@@ -106,7 +107,7 @@ AI 层没有对物理的硬依赖。
 加上它们**。只有当你从一个裸的 `new App()` 构建应用时,才需要显式加:
 
 ```typescript
-import { perceptionPlugin, fsmPlugin, btPlugin, navPlugin } from 'esengine';
+import { perceptionPlugin, fsmPlugin, btPlugin, navPlugin } from 'esengine/ai';
 
 app.addPlugin(perceptionPlugin);
 app.addPlugin(fsmPlugin);

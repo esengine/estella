@@ -82,7 +82,8 @@ loader resolved it, and your code never saw a `TextureResult`. To measure that o
 ask the resource manager for the handle's dimensions:
 
 ```typescript
-import { defineSystem, Query, Sprite, getTextureDimensions } from 'esengine';
+import { defineSystem, Query, Sprite } from 'esengine';
+import { getTextureDimensions } from 'esengine/tilemap';
 
 const measurePlaced = defineSystem([Query(Sprite)], (q) => {
   for (const [entity, sprite] of q) {

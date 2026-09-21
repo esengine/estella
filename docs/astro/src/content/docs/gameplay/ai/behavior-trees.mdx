@@ -12,7 +12,7 @@ nodes control flow; decorators transform one child's result; leaves are your
 registered actions and conditions. Attach a `BehaviorTreeAgent`:
 
 ```typescript
-import { BehaviorTreeAgent } from 'esengine';
+import { BehaviorTreeAgent } from 'esengine/ai';
 
 cmds.spawn()
   .insert(NavAgent, {})
@@ -28,7 +28,7 @@ cmds.spawn()
 Author the tree visually in the editor, or build it in code with `registerBt`:
 
 ```typescript
-import { registerBt } from 'esengine';
+import { registerBt } from 'esengine/ai';
 
 registerBt('guard', {
   root: {

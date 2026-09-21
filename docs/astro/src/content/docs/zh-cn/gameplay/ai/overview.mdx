@@ -40,7 +40,8 @@ Estella 的 AI 层把一个实体变成会**感知**、会**决策**、会**移�
 你按名字注册一次,FSM 和 BT 都会对同一份注册表按名字解析——于是一套叶子同时服务两种范式。
 
 ```typescript
-import { registerAction, registerCondition, Status, Perception, setNavDestination } from 'esengine';
+import { registerAction, registerCondition } from 'esengine';
+import { Status, Perception, setNavDestination } from 'esengine/ai';
 
 registerCondition('seesPlayer', (ctx) =>
   ctx.has(Perception) && ctx.get(Perception).visible);
@@ -215,10 +216,8 @@ enemy.add(Health, { current: 50, max: 50 });
 用两个敌人猎杀玩家,它们共享同一套感官和叶子——一个由状态机驱动,另一个由行为树驱动:
 
 ```typescript
-import {
-  defineSystem, Res, Nav, NavGrid,
-  registerAction, registerCondition, setNavDestination, Perception,
-} from 'esengine';
+import { defineSystem, Res, registerAction, registerCondition } from 'esengine';
+import { Nav, NavGrid, setNavDestination, Perception } from 'esengine/ai';
 
 // 共享叶子——同一批名字同时服务 .esfsm 和 .esbt。
 registerCondition('seesPlayer', (ctx) => ctx.has(Perception) && ctx.get(Perception).visible);

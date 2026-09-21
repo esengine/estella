@@ -11,7 +11,7 @@ description: "运行 .esfsm 图:带 enter/update/exit 钩子的状态、带守�
 它的出边按顺序被检查,第一条满足条件的被采用。加一个 `StateMachineAgent` 并指向一个图:
 
 ```typescript
-import { StateMachineAgent } from 'esengine';
+import { StateMachineAgent } from 'esengine/ai';
 
 cmds.spawn()
   .insert(NavAgent, {})
@@ -29,7 +29,7 @@ cmds.spawn()
 状态用字符串引用你注册的动作/条件名。你也可以用代码构建一台机器:
 
 ```typescript
-import { registerFsm } from 'esengine';
+import { registerFsm } from 'esengine/ai';
 
 registerFsm('guard', {
   initial: 'Patrol',

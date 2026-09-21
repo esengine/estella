@@ -79,7 +79,8 @@ Also: `clamp`, `inverseLerp`, `rad2deg`, `approximately`, `mod`, `sign`.
 handful of exports cover the angle ↔ quaternion round trip:
 
 ```typescript
-import { quat, quaternionToAngle2D, normalizeAngle } from 'esengine';
+import { quat, quaternionToAngle2D } from 'esengine';
+import { normalizeAngle } from 'esengine/ai';
 
 // Angle -> quaternion. NOTE: the factory takes w FIRST — quat(w, x, y, z).
 const a = Math.PI / 3;

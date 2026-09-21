@@ -163,10 +163,8 @@ To read the angle back, `2 * atan2(z, w)`:
 A complete example — turrets tracking the cursor:
 
 ```typescript
-import {
-  defineSystem, defineTag, Query, Mut, Res,
-  Transform, CameraView, quat, quaternionToAngle2D, normalizeAngle,
-} from 'esengine';
+import { defineSystem, defineTag, Query, Mut, Res, Transform, CameraView, quat, quaternionToAngle2D } from 'esengine';
+import { normalizeAngle } from 'esengine/ai';
 
 const Turret = defineTag('Turret');
 

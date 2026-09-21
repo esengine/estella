@@ -18,7 +18,7 @@ for turn-based ranges — or when one grid isn't enough, since the `Nav` resourc
 holds a single grid:
 
 ```typescript
-import { NavGrid, findPath, pathToWorld } from 'esengine';
+import { NavGrid, findPath, pathToWorld } from 'esengine/ai';
 
 const grid = new NavGrid({ width: 32, height: 24, cellSize: 32 });
 
@@ -48,7 +48,7 @@ waypoints with `pathToWorld`.
 core under `navGridFromTilemapLayer`, which just plugs in `TilemapAPI.getTile`:
 
 ```typescript
-import { navGridFromTiles } from 'esengine';
+import { navGridFromTiles } from 'esengine/tilemap';
 
 const grid = navGridFromTiles((x, y) => level.tiles[y][x], {
   width: 32, height: 24, cellSize: 32,
@@ -81,7 +81,8 @@ targets), or unit tests against a fake world:
   the nearest visible one, and write the `Perception` component.
 
 ```typescript
-import { senseTarget, quaternionToAngle2D, Transform, registerCondition } from 'esengine';
+import { quaternionToAngle2D, Transform, registerCondition } from 'esengine';
+import { senseTarget } from 'esengine/ai';
 
 // A one-off sight check against a POINT — no PerceptionTarget needed.
 registerCondition('seesShrine', (ctx) => {
@@ -114,7 +115,7 @@ so the **editor and the `esengine` web runtime add them for you**. Only when you
 an app from a bare `new App()` do you add them explicitly:
 
 ```typescript
-import { perceptionPlugin, fsmPlugin, btPlugin, navPlugin } from 'esengine';
+import { perceptionPlugin, fsmPlugin, btPlugin, navPlugin } from 'esengine/ai';
 
 app.addPlugin(perceptionPlugin);
 app.addPlugin(fsmPlugin);
