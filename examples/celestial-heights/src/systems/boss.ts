@@ -1,8 +1,5 @@
-import {
-    defineSystem, Query, Mut, Res, GetWorld,
-    Transform, CharacterController2D, Prefabs, Time, Perception,
-    NavAgent, setNavDestination, stopNavAgent,
-} from 'esengine';
+import { defineSystem, Query, Mut, Res, GetWorld, Transform, CharacterController2D, Prefabs, Time } from 'esengine';
+import { Perception, NavAgent, setNavDestination, stopNavAgent } from 'esengine/ai';
 import type { Entity } from 'esengine';
 import { Boss, Charge, Facing, Vitality, Summoner } from '../components';
 

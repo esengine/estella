@@ -1,7 +1,5 @@
-import {
-    defineSystem, Query, Mut, Res, Time, Input, Transform,
-    StateMachineAgent, AiFsm,
-} from 'esengine';
+import { defineSystem, Query, Mut, Res, Time, Input, Transform } from 'esengine';
+import { StateMachineAgent, AiFsm } from 'esengine/ai';
 import { HeroControl } from '../components';
 
 // The whole cutscene runs in DATA: the director's FSM (assets/ai/director.esfsm)

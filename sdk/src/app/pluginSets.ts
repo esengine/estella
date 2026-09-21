@@ -33,7 +33,6 @@ import { gameplayPlugin } from '../gameplay';
 import { timerPlugin } from '../ecs/timer';
 import { velocityPlugin } from '../velocity';
 import { lifecyclePlugin } from '../ecs/lifecycle';
-import { navPlugin, fsmPlugin, btPlugin, perceptionPlugin } from '../ai';
 import { eventBindingPlugin } from '../eventBinding';
 import { replicationPlugin } from '../net/replication';
 import { servicesPlugin } from '../services';
@@ -53,7 +52,7 @@ import { diagnosticsPlugin } from '../diagnostics';
 export const simulationBasePlugins = (): Plugin[] => [
     diagnosticsPlugin,
     timerPlugin, velocityPlugin, lifecyclePlugin, audioPlugin,
-    perceptionPlugin, fsmPlugin, btPlugin, navPlugin, eventBindingPlugin, replicationPlugin,
+    eventBindingPlugin, replicationPlugin,
     servicesPlugin,
 ];
 
@@ -73,6 +72,6 @@ export const webBasePlugins = (): Plugin[] => [
     timerPlugin, velocityPlugin, lifecyclePlugin, animationPlugin, audioPlugin, videoPlugin,
     particlePlugin, trailPlugin, meshRendererPlugin, postProcessPlugin, timelinePlugin,
     gameplayPlugin,
-    perceptionPlugin, fsmPlugin, btPlugin, navPlugin, eventBindingPlugin, replicationPlugin,
+    eventBindingPlugin, replicationPlugin,
     servicesPlugin,
 ];

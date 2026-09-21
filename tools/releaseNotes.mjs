@@ -690,6 +690,10 @@ export const NOTED = {
     { internal: 'the wording of a message the export already printed' },
   'fix(details): the Inspector names the new reason a texture ships raw':
     { note: 'A texture that encodes larger than its source now ships as the source.' },
+  'refactor(ai): the AI runtimes move to their own subpath':
+    { note: "The AI runtimes are a subpath: `import { NavAgent } from 'esengine/ai'`." },
+  'refactor(ai): the editor imports the AI runtimes from their subpath':
+    { note: "The AI runtimes are a subpath: `import { NavAgent } from 'esengine/ai'`." },
   'refactor(logic): the script-graph API moves to its own subpath':
     { note: "Script graphs are a subpath: `import { … } from 'esengine/logic'`." },
   'refactor(logic): the editor imports script graphs from their subpath':

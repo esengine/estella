@@ -15,12 +15,37 @@ import {
   createWebApp, setEditorMode, setPlayMode, Assets,
   indexPackagedManifest, createPackagedAssetSource, applyAssetRefResolvers, initRuntime,
   HttpBackend, fetchDecodePixels, registerPackagedSideModules,
-  packagedAppOptions, packagedRuntimeInit, Transform, SceneManager, Nav, UINode,
+  packagedAppOptions, packagedRuntimeInit, Transform, SceneManager, UINode,
   acquireWebGPUDevice, ThirdPersonCamera, CharacterController3D, AnimatorController,
   Animator, TPC_SPEED, TPC_GROUNDED, Particle, MeleeAttack, Health,
-  Hunter, NavAgent, Perception, AnimatorRootMotion, Playthrough, Name,
+  AnimatorRootMotion, Playthrough, Name,
   worldResidencyReport, PostProcess, Renderer, Audio, Camera,
+  getComponentRegistry,
 } from 'esengine';
+
+/**
+ * A component this host only READS, by the name the registry knows it by.
+ * Importing it would put its subsystem in every package the host is in, which
+ * is all of them — and this is a probe the verifier calls, not something the
+ * game needs to run.
+ */
+/** The registry's entry for a name, or null where the subsystem is not shipped. */
+function optionalDef(name: string): never | null {
+  return (getComponentRegistry().get(name) as never | undefined) ?? null;
+}
+
+/** How many entities carry a component the package may not ship at all. */
+function countOfIn(app: { world: { getEntitiesWithComponents(c: never[]): readonly unknown[] } }, name: string): number {
+  const def = optionalDef(name);
+  return def === null ? 0 : app.world.getEntitiesWithComponents([def]).length;
+}
+
+function optionalRead(app: { world: { has(e: number, c: never): boolean; get(e: number, c: never): unknown } },
+                      entity: number, name: string): Record<string, never> | null {
+  const def = optionalDef(name);
+  if (def === null || !app.world.has(entity, def)) return null;
+  return app.world.get(entity, def) as Record<string, never>;
+}
 import type {
   SceneData, AddressableManifest, PackagedGameConfig, RenderSurfaceSource, WorldManifest,
 } from 'esengine';
@@ -374,15 +399,15 @@ async function boot(): Promise<void> {
           attackId: 0, health: 0,
         };
         const enemy = app.world.findEntityByName(enemyName);
-        if (enemy === null || !app.world.has(enemy, Hunter)) return blank;
+        const hunter = enemy === null ? null : optionalRead(app, enemy, 'Hunter');
+        if (enemy === null || hunter === null) return blank;
         // The composed placement is stale until something asks: a reading taken
         // between frames would otherwise report where the enemy was, beside a
         // distance computed from where it is.
         app.world.ensureTransformsComposed();
 
-        const hunter = app.world.get(enemy, Hunter);
-        const sight = app.world.has(enemy, Perception) ? app.world.get(enemy, Perception) : null;
-        const agent = app.world.has(enemy, NavAgent) ? app.world.get(enemy, NavAgent) : null;
+        const sight = optionalRead(app, enemy, 'Perception');
+        const agent = optionalRead(app, enemy, 'NavAgent');
         const body = app.world.has(enemy, CharacterController3D)
           ? app.world.get(enemy, CharacterController3D) : null;
         const root = app.world.has(enemy, AnimatorRootMotion)
@@ -560,7 +585,8 @@ async function boot(): Promise<void> {
        * game means the route stays right when the level is re-authored.
        */
       pathBetween(fromName: string, toName: string): Array<{ x: number; y: number }> | null {
-        if (!app.hasResource(Nav)) return null;
+        const nav = optionalDef('Nav');
+        if (nav === null || !app.hasResource(nav)) return null;
         const ends = [fromName, toName].map((name) => {
           const entity = app.world.findEntityByName(name);
           if (entity === null || !app.world.has(entity, Transform)) return null;
@@ -568,7 +594,8 @@ async function boot(): Promise<void> {
           return { x: p.x, y: p.y };
         });
         if (!ends[0] || !ends[1]) return null;
-        return app.getResource(Nav).findWorldPath(ends[0], ends[1]);
+        return (app.getResource(nav) as { findWorldPath(a: { x: number; y: number }, b: { x: number; y: number }): Array<{ x: number; y: number }> | null })
+          .findWorldPath(ends[0], ends[1]);
       },
       /**
        * What the last frame's renderer counted — the work a picture cannot show.
@@ -719,8 +746,8 @@ async function boot(): Promise<void> {
           // Rows physics still keeps for entities the world no longer has. A
           // teardown that forgot one shows up here and nowhere else.
           stalePhysics,
-          navAgents: app.world.getEntitiesWithComponents([NavAgent]).length,
-          hunters: app.world.getEntitiesWithComponents([Hunter]).length,
+          navAgents: countOfIn(app, 'NavAgent'),
+          hunters: countOfIn(app, 'Hunter'),
           entities: app.world.entityCount(),
         };
       },

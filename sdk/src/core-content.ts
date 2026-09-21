@@ -745,159 +745,16 @@ export type {
 // AI — Navigation (a grid for cells, a polygon mesh for geometry)
 // =============================================================================
 
-export {
-    NavGrid,
-    NavMesh,
-    buildNavMesh,
-    collectNavGeometry,
-    navGeometryReady,
-    findPath,
-    pathToWorld,
-    Navigation,
-    Nav,
-    NavAgent,
-    NavVolume,
-    NavObstacle,
-    NavLink,
-    NavArea,
-    collectNavObstacles,
-    collectNavLinks,
-    navLinkDigest,
-    collectNavAreas,
-    navAreaDigest,
-    applyAreasToGrid,
-    navObstacleDigest,
-    applyObstaclesToGrid,
-    setNavDestination,
-    stopNavAgent,
-    NavPlugin,
-    navPlugin,
-    NavDebugDraw,
-    type NavSurface,
-    type NavSurfaceSink,
-    type NavQueryOptions,
-    type NavPoint,
-    type NavGridOptions,
-    type NavMeshData,
-    type BuildNavMeshOptions,
-    type NavGeometry,
-    type CollectNavGeometryOptions,
-    type Cell,
-    type PathfindOptions,
-    type NavAgentData,
-    type NavVolumeData,
-    type NavObstacleData,
-    type NavLinkData,
-    type NavAreaData,
-    type NavAreaBox,
-    type NavLinkSegment,
-    type NavObstacleBox,
-    type NavDebugDrawConfig,
-} from './ai';
 
 // =============================================================================
 // AI — State machines (pure-TS interpreter, .esfsm data + named registry)
 // =============================================================================
 
-export {
-    Blackboard,
-    evalGuard,
-    evalGuards,
-    AiRegistry,
-    compileFsm,
-    createFsmRunState,
-    stepFsm,
-    aiRegistry,
-    registerAction,
-    registerCondition,
-    registerValue,
-    // The declared-parameter surface: an action says what it takes, and the
-    // projection to/from the canonical `arg` string keeps old data running.
-    invokeAction,
-    parseActionArg,
-    formatActionArg,
-    type AiParamDef,
-    type AiParamValue,
-    type AiParams,
-    type AiActionSpec,
-    type AiActionInput,
-    type AiOutputDef,
-    type AiOutputs,
-    type AiValueSpec,
-    StateMachineAgent,
-    registerFsm,
-    getFsm,
-    clearFsmStore,
-    FsmPlugin,
-    fsmPlugin,
-    StateMachines,
-    AiFsm,
-    agentBlackboard,
-    fsmEdges,
-    emptyFsm,
-    addState,
-    removeState,
-    moveState,
-    renameState,
-    setStateHook,
-    actionRefName,
-    actionRefArg,
-    actionRefParams,
-    type FsmActionRef,
-    setInitial,
-    addTransition,
-    removeTransition,
-    updateTransition,
-    type FsmEdge,
-    type CompareOp,
-    type BlackboardGuard,
-    type FsmTransition,
-    type FsmState,
-    type FsmDefinition,
-    type CompiledFsm,
-    type FsmRunState,
-    type AiAction,
-    type AiCondition,
-    type AiContext,
-    type StateMachineAgentData,
-} from './ai';
 
 // =============================================================================
 // AI — Behavior trees (pure-TS interpreter, .esbt data + shared registry)
 // =============================================================================
 
-export {
-    Status,
-    tickBt,
-    createBtRunState,
-    BehaviorTreeAgent,
-    registerBt,
-    getBt,
-    clearBtStore,
-    BtPlugin,
-    btPlugin,
-    BehaviorTrees,
-    AiBt,
-    agentBtBlackboard,
-    emptyBt,
-    ensureBtIds,
-    btNodes,
-    btEdges,
-    maxChildren,
-    canHaveChildren,
-    addBtChild,
-    addBtOrphan,
-    removeBtNode,
-    moveBtNode,
-    setBtNodeField,
-    reparentBtNode,
-    type BtEdge,
-    type BtNodeType,
-    type BtNode,
-    type BtDefinition,
-    type BtRunState,
-    type BehaviorTreeAgentData,
-} from './ai';
 
 // =============================================================================
 // Script graph — the `.esgraph` authoring form: events, an exec wire, data wires
@@ -908,21 +765,6 @@ export {
 // AI — Perception (sight/FOV sensing into a Perception component)
 // =============================================================================
 
-export {
-    senseTarget,
-    facingFromRotation,
-    normalizeAngle,
-    Perceiver,
-    Perception,
-    PerceptionTarget,
-    PerceptionPlugin,
-    perceptionPlugin,
-    stepPerception,
-    makeLosCheck,
-    type SenseResult,
-    type PerceiverData,
-    type PerceptionData,
-} from './ai';
 
 // =============================================================================
 // Gameplay (third-person character + camera)
@@ -1008,3 +850,42 @@ export {
     type TimelineAsset, type Track, type PropertyTrack, type PropertyChannel, type Keyframe,
     type SpriteAnimTrack, type AudioTrack, type ActivationTrack, type SpineTrack, type AnimFramesTrack,
 } from './timeline';
+
+// =============================================================================
+// Gameplay AI — the VERB VOCABULARY only; the runtimes are `esengine/ai`. From
+// their own modules rather than from './ai', which would put those back.
+// =============================================================================
+
+export {
+    aiRegistry,
+    registerAction,
+    registerCondition,
+    registerValue,
+    noInput,
+    type AiContext,
+} from './ai/fsm/AiContext';
+
+export {
+    AiRegistry,
+    invokeAction,
+    type AiAction,
+    type AiCondition,
+    parseActionArg,
+    formatActionArg,
+    type AiParamDef,
+    type AiParamValue,
+    type AiParams,
+    type AiActionSpec,
+    type AiActionInput,
+    type AiOutputDef,
+    type AiOutputs,
+    type AiValueSpec,
+} from './ai/fsm/registry';
+
+export {
+    Blackboard,
+    evalGuard,
+    evalGuards,
+} from './ai/fsm/Blackboard';
+
+export type { CompareOp, BlackboardGuard } from './ai/fsm/types';

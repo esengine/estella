@@ -1,8 +1,5 @@
-import {
-    defineSystem, Query, Mut,
-    registerAction, registerCondition, setNavDestination,
-    Perception, Status,
-} from 'esengine';
+import { defineSystem, Query, Mut, registerAction, registerCondition } from 'esengine';
+import { setNavDestination, Perception, Status } from 'esengine/ai';
 import { Facing, Swing } from '../components';
 
 // Leaves for assets/ai/wisp.esbt. The tree is authored as data and resolves

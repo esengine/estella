@@ -1,7 +1,5 @@
-import {
-    defineSystem, Res,
-    registerAction, registerCondition, setNavDestination, Nav, NavGrid, Perception,
-} from 'esengine';
+import { defineSystem, Res, registerAction, registerCondition } from 'esengine';
+import { setNavDestination, Nav, NavGrid, Perception } from 'esengine/ai';
 
 // Leaf actions/conditions shared by BOTH brains — the state machine
 // (assets/ai/enemy.esfsm) and the behavior tree (assets/ai/enemy.esbt) resolve

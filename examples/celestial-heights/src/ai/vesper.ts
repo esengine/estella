@@ -1,4 +1,5 @@
-import { registerAction, registerCondition, Perception, Status } from 'esengine';
+import { registerAction, registerCondition } from 'esengine';
+import { Perception, Status } from 'esengine/ai';
 import { Boss, Charge, Summoner } from '../components';
 
 // Leaves for assets/ai/vesper.esbt. Vesper reuses the wisps' vocabulary for

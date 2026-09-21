@@ -1,7 +1,5 @@
-import {
-    defineSystem, Query, Mut, GetWorld, Transform, Marker, NavAgent, Perception,
-    setNavDestination, stopNavAgent,
-} from 'esengine';
+import { defineSystem, Query, Mut, GetWorld, Transform, Marker } from 'esengine';
+import { NavAgent, Perception, setNavDestination, stopNavAgent } from 'esengine/ai';
 import type { Vec3 } from 'esengine';
 
 /**

@@ -17,10 +17,16 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { App } from '../src/app/app';
 import { Schedule, defineSystem, GetWorld } from '../src/ecs/system';
 import { simulationBasePlugins } from '../src/app/pluginSets';
+import { entryPlugins } from '../src/runtime/entryPlugins';
 import { StatsPlugin } from '../src/stats';
 import { registerCharacterController2DSystem } from '../src/physics/CharacterController2DSystem';
 import { setPlatform } from '../src/platform/base';
 import { webAdapter } from '../src/platform/web';
+
+// Gameplay AI comes with its subsystem now, not with the core: a package
+// without agents carries no navigation, no FSM and no behaviour trees.
+import { registerAiSupport } from '../src/ai/aiSupport';
+registerAiSupport();
 
 const SCHEDULES = Object.entries(Schedule).filter(([, v]) => typeof v === 'number') as [string, Schedule][];
 
@@ -32,6 +38,9 @@ const SCHEDULES = Object.entries(Schedule).filter(([, v]) => typeof v === 'numbe
 const build = (): App => {
     const app = App.new();
     for (const plugin of simulationBasePlugins()) app.addPlugin(plugin);
+    // The AI runtimes are an entry's to install now, and the subject here is the
+    // whole engine stack — the base set alone is no longer all of it.
+    for (const plugin of entryPlugins()) app.addPlugin(plugin);
     app.addPlugin(new StatsPlugin({ overlay: false }));
     registerCharacterController2DSystem(app);
     return app;

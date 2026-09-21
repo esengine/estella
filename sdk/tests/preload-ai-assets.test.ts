@@ -22,6 +22,11 @@ import { defineComponent } from '../src/ecs/component';
 import { getFsm, clearFsmStore } from '../src/ai/fsm/StateMachineAgent';
 import { getBt, clearBtStore } from '../src/ai/bt/BehaviorTreeAgent';
 
+// Gameplay AI comes with its subsystem now, not with the core: a package
+// without agents carries no navigation, no FSM and no behaviour trees.
+import { registerAiSupport } from '../src/ai/aiSupport';
+registerAiSupport();
+
 // The FSM/BT loaders don't touch the ResourceManager, but the shared LoadContext
 // materializes it eagerly — stub it so the load path runs headless.
 vi.mock('../src/wasm/resourceManager', () => ({

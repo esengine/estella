@@ -29,6 +29,11 @@ import { clearBtStore } from '../src/ai/bt/BehaviorTreeAgent';
 import { ensureBuiltinAiRegistrations } from '../src/ai/builtins';
 import type { Backend } from '../src/asset/Backend';
 
+// Gameplay AI comes with its subsystem now, not with the core: a package
+// without agents carries no navigation, no FSM and no behaviour trees.
+import { registerAiSupport } from '../src/ai/aiSupport';
+registerAiSupport();
+
 vi.mock('../src/wasm/resourceManager', () => ({
     requireResourceManager: () => ({}),
     getResourceManager: () => null,

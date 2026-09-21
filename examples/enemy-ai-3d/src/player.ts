@@ -1,7 +1,5 @@
-import {
-    defineSystem, Query, Mut, Res, ResMut, Input, Time, Transform, Camera,
-    CharacterController3D, NavAgent, NavDebugDraw, Physics3DDebugDraw, NavObstacle,
-} from 'esengine';
+import { defineSystem, Query, Mut, Res, ResMut, Input, Time, Transform, Camera, CharacterController3D, Physics3DDebugDraw } from 'esengine';
+import { NavAgent, NavDebugDraw, NavObstacle } from 'esengine/ai';
 
 const WALK_SPEED = 340;
 

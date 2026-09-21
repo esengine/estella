@@ -1,12 +1,9 @@
-import {
-    defineSystem, Query, Mut, Res, Commands, GetWorld,
-    Transform, Camera, FollowTarget, RuntimeOnly, Text, Sprite, Prefabs,
-    Nav, SceneManager, transitionTo,
-} from 'esengine';
+import { defineSystem, Query, Mut, Res, Commands, GetWorld, Transform, Camera, FollowTarget, RuntimeOnly, Text, Sprite, Prefabs, SceneManager, transitionTo } from 'esengine';
+import { Nav } from 'esengine/ai';
 // Tilemaps are a subpath: a package that imports it carries the subsystem, and
 // one that does not carries none of it.
 import { TilemapLayer, navGridFromTilemapLayer } from 'esengine/tilemap';
-import { NavGrid } from 'esengine';
+import { NavGrid } from 'esengine/ai';
 import { Area, AreaLabel, Player, Gate, NavGridBuilt, Spawner, Spawned } from '../components';
 import { session } from '../state';
 

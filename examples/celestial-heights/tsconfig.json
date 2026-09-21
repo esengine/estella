@@ -13,6 +13,7 @@
     "paths": {
       "esengine": ["./.esengine/sdk/index.d.ts"],
       "esengine/wasm": ["./.esengine/sdk/wasm.d.ts"],
+      "esengine/ai": ["./.esengine/sdk/ai/index.d.ts"],
       "esengine/tilemap": ["./.esengine/sdk/tilemap/index.d.ts"]
     }
   },

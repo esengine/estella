@@ -20,6 +20,7 @@ export default [
             'spine/index': 'src/spine/index.ts',
             'tilemap/index': 'src/tilemap/index.ts',
             'logic/index': 'src/logic/index.ts',
+            'ai/index': 'src/ai/index.ts',
             'dragonbones/index': 'src/dragonbones/index.ts',
             'wasm': 'src/wasm.ts',
         },

@@ -1,10 +1,5 @@
 {
   "edges": [
-    "ai/nav/NavPlugin.ts -> ../../physics3d/Physics3DComponents",
-    "ai/nav/navGeometry.ts -> ../../physics3d/ColliderShape3D",
-    "ai/nav/navGeometry.ts -> ../../physics3d/Physics3DComponents",
-    "ai/perception/PerceptionPlugin.ts -> ../../physics",
-    "ai/perception/PerceptionPlugin.ts -> ../../physics3d/Physics3DPlugin",
     "app/app.ts -> ../physics/Physics2DRuntime",
     "app/pluginSets.ts -> ../video",
     "asset/Assets.ts -> ../spine/prepareSpine",

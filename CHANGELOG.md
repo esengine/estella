@@ -23,6 +23,13 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **The AI runtimes are a subpath: `import { NavAgent } from 'esengine/ai'`.** Navigation,
+  perception, state machines and behaviour trees were 77KB in every package. What stays on
+  `esengine` is the verb vocabulary — `registerAction`, `aiRegistry`, `Blackboard` — because
+  an authored event binding and a UI controller register actions with no runtime behind
+  them, and the UI-game template does exactly that. A game with no agents now carries 14KB
+  of registry instead of 91KB of runtime.
+
 - **Script graphs are a subpath: `import { … } from 'esengine/logic'`.** Same reason as
   tilemaps below: 65 names re-exported as values put the graph compiler and its node
   library in every package, 23KB in a game with no graph, plus the asset loader the

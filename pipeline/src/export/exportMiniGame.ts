@@ -467,10 +467,13 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   // package needs the tilemap subpath.
   const CONTENT_SUBPATH: Partial<Record<Subsystem, string>> = {
     tilemap: 'esengine/tilemap',
+    ai: 'esengine/ai',
   };
   /** …and the ones a document names by asset rather than by component. */
   const ASSET_SUBPATH: Readonly<Record<string, string>> = {
     '.esgraph': 'esengine/logic',
+    '.esfsm': 'esengine/ai',
+    '.esbt': 'esengine/ai',
   };
   const usedSubsystems = await contentSubsystems(opts.root, cook.includedPaths);
   const needed = new Set(sideModules.map((m) => m.id));
