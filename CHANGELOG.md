@@ -71,6 +71,19 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **The build size report says what compressing the engine binary actually saved.** A mini-game limit is judged on packed
+  bytes, so every figure in the report was the packed one and the number that says whether
+  `compressWasm` was worth turning on appeared nowhere. Each file the export packed now
+  carries what it weighed before, and the panel sums them — on the UI-game template's
+  WeChat package, 1,828,959 → 363,617 bytes.
+
+- **When the play realm never comes up, the editor says more about why.** The trace behind that message used to drop
+  every aborted load as teardown noise; an abort is also what a second navigation over an
+  in-flight one leaves behind, which is the likeliest reason a realm is served twice and
+  then says nothing. Console lines now name the file that logged them, so the editor's own
+  warnings are no longer read as the game's, and the offsets carry the clock time they
+  start from.
+
 - **The build size report no longer blames content for a packaging change.** A build is compared against the last one of the same
   target, and the settings ride along so that packing the same content differently is not
   read as content that grew. Three settings that do exactly that — source maps, the

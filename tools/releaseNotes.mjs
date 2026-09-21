@@ -698,6 +698,10 @@ export const NOTED = {
     { internal: "a manual page's import line, following the move it documents" },
   'refactor(play): the play realm asks for the whole import map by name':
     { internal: "the editor's preview page names the same subpaths it always did" },
+  'feat(size): the report says what the export\'s own packing bought':
+    { note: "The build size report says what compressing the engine binary actually saved." },
+  'fix(play): the realm trace keeps the evidence for the failure it explains':
+    { note: "When the play realm never comes up, the editor says more about why." },
   'fix(export): a build comparison blames the setting that moved, not the content':
     { note: "The build size report no longer blames content for a packaging change." },
   'fix(agent): the tool catalog stops promising spineVersion decides a build':
