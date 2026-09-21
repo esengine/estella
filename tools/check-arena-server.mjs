@@ -95,6 +95,7 @@ writeFileSync(tsconfig, JSON.stringify({
     paths: {
       esengine: [posix(path.join(ROOT, 'sdk', 'dist', 'index.d.ts'))],
       'esengine/node': [posix(path.join(ROOT, 'sdk', 'dist', 'index.node.d.ts'))],
+      'esengine/replication': [posix(path.join(ROOT, 'sdk', 'dist', 'net', 'replication', 'index.d.ts'))],
       ws: [posix(path.join(SDK_TYPES, 'ws', 'index.d.ts'))],
     },
   },
@@ -120,7 +121,8 @@ if (built.status !== 0) fail('the server bundle failed to build.', built.stderr 
 const probeSource = `
 // 'esengine' rather than a path: the alias below points it at the same headless
 // SDK the server bundle uses, so probe and project share one module instance.
-export { loadEsengineModule, createHeadlessApp, flushPendingRegistrations, GameSocket, Net, Input, Replicated, Transform } from 'esengine';
+export { loadEsengineModule, createHeadlessApp, flushPendingRegistrations, GameSocket, Input, Transform } from 'esengine';
+export { Net, Replicated } from 'esengine/replication';
 import ${JSON.stringify(posix(path.join(PROJECT, 'src', 'main.ts')))};
 `;
 writeFileSync(path.join(work, 'probe.entry.ts'), probeSource);
@@ -138,7 +140,10 @@ await build({
   // The project's `import ... from 'esengine'` resolves to the same headless SDK
   // the server bundle uses — one build on both ends, which is what the
   // handshake's ABI/schema check insists on.
-  alias: { esengine: SDK, 'esengine/node': SDK },
+  alias: {
+    esengine: SDK, 'esengine/node': SDK,
+    'esengine/replication': path.join(path.dirname(SDK), 'net', 'replication', 'index.js'),
+  },
 });
 
 const probe = await import(pathToFileURL(probeOut).href);

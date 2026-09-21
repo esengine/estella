@@ -16,28 +16,8 @@ import { pathToFileURL } from 'node:url';
 import { readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 
-export { sdkIdentity } from '../replication-dirty/workload.mjs';
+export { loadSdk, sdkIdentity } from '../lib/sdkBuild.mjs';
 
-function newestSource(dir) {
-    let newest = 0;
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-        if (entry.name === 'node_modules' || entry.name === 'dist') continue;
-        const full = path.join(dir, entry.name);
-        newest = Math.max(newest, entry.isDirectory() ? newestSource(full)
-            : entry.name.endsWith('.ts') && !entry.name.endsWith('.generated.ts')
-                ? statSync(full).mtimeMs : 0);
-    }
-    return newest;
-}
-
-export async function loadSdk(root) {
-    const entry = path.join(root, 'sdk', 'dist', 'index.node.js');
-    if (newestSource(path.join(root, 'sdk', 'src')) > statSync(entry).mtimeMs) {
-        throw new Error('sdk/dist is older than sdk/src — this run would measure the previous'
-            + ' commit. Build it with `pnpm --filter ./sdk build`.');
-    }
-    return import(pathToFileURL(entry).href);
-}
 
 /** The engine module, so `Transform` is the real builtin the default reads. */
 export async function connectEngine(sdk, app, root) {

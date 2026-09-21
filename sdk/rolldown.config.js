@@ -74,12 +74,16 @@ const minify = { compress: true, mangle: true, codegen: { removeWhitespace: true
 export default defineConfig([
     {
         // ONE code-split graph for every ESM entry a bundler can combine:
-        // `esengine` (web or wechat) and the `esengine/*` subpaths must resolve
-        // into the SAME shared chunks, or a game bundle that imports both gets
+        // `esengine` (web, wechat or node) and the `esengine/*` subpaths must
+        // resolve into the SAME shared chunks, or a bundle that imports both gets
         // two copies of the core — and identity-keyed resources (Res(Spine))
         // split-brain: the runtime inserts into one copy, systems read the other.
+        // The dedicated-server example proved it: `esengine/node` built on its own
+        // registered the replication plugin in a registry `esengine/replication`
+        // could not see, and the authority came up with no Net resource.
         input: {
             'index': 'src/index.ts',
+            'index.node': 'src/index.node.ts',
             'index.wechat': 'src/index.wechat.ts',
             'index.wechat.lean': 'src/index.wechat.lean.ts',
             'index.minigame': 'src/index.minigame.ts',
@@ -95,6 +99,9 @@ export default defineConfig([
             'douyin/index': 'src/platform/douyin/index.ts',
             'wasm': 'src/wasm.ts',
         },
+        // Only the node entry reaches these; a browser entry that did would fail
+        // to bundle, which is the point.
+        external: (id) => id.startsWith('node:'),
         output: {
             dir: 'dist',
             format: 'esm',
@@ -124,13 +131,6 @@ export default defineConfig([
         // The native (embedded-Dawn) analog of index.wechat.cjs.js.
         input: 'src/index.native.ts',
         output: { file: 'dist/index.native.bundled.js', format: 'iife', name: 'ESEngine', sourcemap: false, minify },
-        plugins: [preserveViteIgnore()],
-        treeshake,
-    },
-    {
-        input: 'src/index.node.ts',
-        output: { file: 'dist/index.node.js', format: 'esm', sourcemap: true, minify },
-        external: (id) => id.startsWith('node:'),
         plugins: [preserveViteIgnore()],
         treeshake,
     },

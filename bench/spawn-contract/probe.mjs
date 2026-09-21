@@ -24,6 +24,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const PROJECT = path.join(ROOT, 'examples', 'multiplayer-arena');
 const SDK = path.join(ROOT, 'sdk', 'dist', 'index.node.js');
+const REPLICATION = path.join(ROOT, 'sdk', 'dist', 'net', 'replication', 'index.js');
 const WASM = process.env.ESENGINE_WASM_DIR ?? path.join(ROOT, 'build', 'wasm', 'web');
 const posix = (p) => p.split(path.sep).join('/');
 const work = mkdtempSync(path.join(tmpdir(), 'estella-spawn-'));
@@ -36,6 +37,7 @@ const work = mkdtempSync(path.join(tmpdir(), 'estella-spawn-'));
  */
 writeFileSync(path.join(work, 'entry.ts'), `
 export * from 'esengine';
+export * from 'esengine/replication';
 import ${JSON.stringify(posix(path.join(PROJECT, 'src', 'main.ts')))};
 `);
 const out = path.join(work, 'bundle.mjs');
@@ -43,7 +45,11 @@ const { build } = await import('esbuild');
 await build({
     entryPoints: [path.join(work, 'entry.ts')],
     outfile: out, bundle: true, format: 'esm', platform: 'node', target: 'node20',
-    logLevel: 'silent', alias: { esengine: SDK, 'esengine/node': SDK },
+    logLevel: 'silent',
+    // One core on both ends: the headless entry and the replication subpath share
+    // the SDK's chunk graph, and two copies would make the handshake reject the
+    // server's own client.
+    alias: { esengine: SDK, 'esengine/node': SDK, 'esengine/replication': REPLICATION },
 });
 const sdk = await import(pathToFileURL(out).href);
 

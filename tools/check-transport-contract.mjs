@@ -30,6 +30,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TSC = path.join(ROOT, 'sdk', 'node_modules', 'typescript', 'bin', 'tsc');
 const DTS = path.join(ROOT, 'sdk', 'dist', 'index.d.ts');
+const REPL_DTS = path.join(ROOT, 'sdk', 'dist', 'net', 'replication', 'index.d.ts');
 const posix = (p) => p.split(path.sep).join('/');
 
 const work = mkdtempSync(path.join(tmpdir(), 'estella-transport-'));
@@ -42,6 +43,7 @@ function fail(message, detail) {
 }
 
 if (!existsSync(DTS)) fail(`no SDK declarations at ${DTS} — build the SDK first.`);
+if (!existsSync(REPL_DTS)) fail(`no replication declarations at ${REPL_DTS} — build the SDK first.`);
 
 /** Type-check one fixture on its own; returns tsc's combined output. */
 function check(name, source) {
@@ -55,7 +57,7 @@ function check(name, source) {
       target: 'ES2022', module: 'ESNext', moduleResolution: 'bundler',
       strict: true, skipLibCheck: true, noEmit: true, types: [],
       lib: ['ES2022', 'DOM'],
-      baseUrl: '.', paths: { esengine: [posix(DTS)] },
+      baseUrl: '.', paths: { esengine: [posix(DTS)], 'esengine/replication': [posix(REPL_DTS)] },
     },
     include: [posix(file)],
   }));
@@ -66,10 +68,10 @@ function check(name, source) {
 // ---------------------------------------------------------------------------
 
 const ACCEPT = `
+import { GameSocket, createSocket, type ReliableOrderedTransport } from 'esengine';
 import {
-  MemoryTransport, GameSocket, createSocket,
-  type ReliableOrderedTransport, type ReplicationServer, type NetSession,
-} from 'esengine';
+  MemoryTransport, type ReplicationServer, type NetSession,
+} from 'esengine/replication';
 
 declare const server: ReplicationServer;
 declare const session: NetSession;
@@ -95,7 +97,8 @@ void session.connect(mine);
 /** One fixture per door: tsc reports a line, not a method, so guarding both
  *  has to be two compilations or the second one is unproven. */
 const REJECT = (call) => `
-import { type NetTransport, type ReplicationServer, type NetSession } from 'esengine';
+import type { NetTransport } from 'esengine';
+import type { ReplicationServer, NetSession } from 'esengine/replication';
 
 declare const server: ReplicationServer;
 declare const session: NetSession;

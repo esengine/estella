@@ -23,8 +23,11 @@
 import { WebSocketServer, type WebSocket } from 'ws';
 import {
     loadEsengineModule, createHeadlessApp, runHeadless,
-    flushPendingRegistrations, Net, type ReliableOrderedTransport,
+    flushPendingRegistrations, type ReliableOrderedTransport,
 } from 'esengine/node';
+// Replication is a subpath on every entry, the headless one included: importing
+// it is what installs the authority this process exists to run.
+import { Net } from 'esengine/replication';
 import { arena } from '../src/net';
 // Side-effect import: `src/main.ts` registers the arena's systems at module
 // scope, exactly as it does in the browser. The server runs the project's real

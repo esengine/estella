@@ -84,7 +84,12 @@ await build({
       + 'const require = __estellaCreateRequire(import.meta.url);',
   },
   // One SDK instance, whichever specifier reached it.
-  alias: { esengine: sdkEntry, 'esengine/node': sdkEntry },
+  alias: {
+    esengine: sdkEntry, 'esengine/node': sdkEntry,
+    // The same shared chunks as the entry beside it — one core, or the
+    // handshake compares two copies of the schema.
+    'esengine/replication': path.join(sdkDir, 'net', 'replication', 'index.js'),
+  },
   // `ws` is a real dependency of the server (and only of the server): resolve it
   // from the server's own install first, then from the engine checkout.
   nodePaths: [
