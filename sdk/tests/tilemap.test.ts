@@ -5,9 +5,9 @@ import {
     Tilemap,
     TilemapLayer,
     TilemapAPI,
-    initTilemapAPI,
-    shutdownTilemapAPI,
 } from '../src/tilemap';
+// Not on the subpath: binding the API to an engine is the plugin's, not a game's.
+import { initTilemapAPI, shutdownTilemapAPI } from '../src/tilemap/tilemapAPI';
 import type { LoadedTilemapSource } from '../src/tilemap/tilesetCache';
 import {
     loadTiledMap, parseTmjJson, parseTmjWithExternals, resolveRelativePath, loadTiledCollisionObjects,

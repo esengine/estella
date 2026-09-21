@@ -690,6 +690,10 @@ export const NOTED = {
     { internal: 'the wording of a message the export already printed' },
   'fix(details): the Inspector names the new reason a texture ships raw':
     { note: 'A texture that encodes larger than its source now ships as the source.' },
+  'fix(app): build order is declared, not the shape of an array':
+    { internal: 'the order a stack of plugins is assembled in' },
+  'docs(manual): the AI, tilemap and script-graph pages import from their subpaths':
+    { internal: "a manual page's import line, following the move it documents" },
   'refactor(ai): the AI runtimes move to their own subpath':
     { note: "The AI runtimes are a subpath: `import { NavAgent } from 'esengine/ai'`." },
   'refactor(ai): the editor imports the AI runtimes from their subpath':

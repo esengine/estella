@@ -63,6 +63,31 @@ export const presentationBasePlugins = (): Plugin[] => [
 ];
 
 /**
+ * The order the stack is built in, by plugin name. Build order decides resource
+ * insertion and per-schedule system order, and a plugin may arrive from a base
+ * set or from `entryPlugins()` — so the order is declared, not positional.
+ */
+export const PLUGIN_BUILD_ORDER: readonly string[] = [
+    'Diagnostics', 'timer', 'velocity', 'lifecycle', 'animation', 'audio', 'video',
+    'particle', 'trail', 'meshRenderer', 'tilemap', 'postProcess', 'timeline',
+    'gameplay',
+    'perception', 'fsm', 'bt', 'scriptGraph', 'nav', 'eventBinding', 'replication',
+    'services',
+];
+
+/**
+ * `plugins`, in {@link PLUGIN_BUILD_ORDER}. A name the order does not mention
+ * keeps its place relative to the others, after everything it does.
+ */
+export function inBuildOrder(plugins: readonly Plugin[]): Plugin[] {
+    const rank = (p: Plugin): number => {
+        const i = p.name === undefined ? -1 : PLUGIN_BUILD_ORDER.indexOf(p.name);
+        return i < 0 ? PLUGIN_BUILD_ORDER.length : i;
+    };
+    return plugins.map((p, i) => ({ p, i })).sort((a, b) => rank(a.p) - rank(b.p) || a.i - b.i).map(({ p }) => p);
+}
+
+/**
  * The full stack, in the order the web factory has always built it (build order
  * decides resource insertion and per-schedule system order, so it is preserved
  * exactly rather than derived by concatenation).

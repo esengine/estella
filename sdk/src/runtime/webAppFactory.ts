@@ -7,7 +7,7 @@ import { prefabsPlugin } from '../prefab/prefabServer';
 import { sceneManagerPlugin } from '../scene/scenePlugin';
 import { seedEngineComponents } from '../ecs/component';
 import { uiPlugins } from '../app/uiPlugins';
-import { simulationBasePlugins, webBasePlugins } from '../app/pluginSets';
+import { simulationBasePlugins, webBasePlugins, inBuildOrder } from '../app/pluginSets';
 import { createFetchSideModuleHost, type SideModuleHost } from '../sideModules';
 // The optional subsystems an ENTRY installs. A mini-game inlines the SDK, so a
 // subsystem reached from here is in every package whether a project uses it or
@@ -38,7 +38,10 @@ export function createWebApp(module: ESEngineModule, options?: CreateWebAppOptio
     // Spine and DragonBones each fetch their wasm only when asked, so installing
     // them costs nothing at RUN time. BUILD time is what they cost, which is why
     // the entry decides and this does not.
-    const plugins = [...uiPlugins, ...basePlugins, ...entryPlugins(), ...(options?.plugins ?? [])];
+
+    // Ordered, not concatenated: where a plugin came from is not where it goes.
+    const plugins = [...uiPlugins, ...inBuildOrder([...basePlugins, ...entryPlugins()]),
+        ...(options?.plugins ?? [])];
     return _createWebApp(module, { ...options, sideModules, plugins });
 }
 
@@ -75,7 +78,9 @@ export function createHeadlessApp(module: ESEngineModule, options?: HeadlessAppO
     app.addPlugin(assetPlugin);
     app.addPlugin(prefabsPlugin);
     app.addPlugin(sceneManagerPlugin);
-    app.addPlugins(headlessBasePlugins());
+    // A server steps what the client steps: the optional subsystems an entry
+    // installed run here too.
+    app.addPlugins(inBuildOrder([...headlessBasePlugins(), ...entryPlugins()]));
     if (options?.plugins) app.addPlugins(options.plugins);
     return app;
 }
