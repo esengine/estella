@@ -64,6 +64,9 @@ export const MODULES = {
     'esengine/physics3d': { disposition: 'native-subpath' },
     'esengine/spine': { disposition: 'native-subpath' },
     'esengine/dragonbones': { disposition: 'native-subpath' },
+    'esengine/tilemap': { disposition: 'native-subpath' },
+    'esengine/logic': { disposition: 'native-subpath' },
+    'esengine/ai': { disposition: 'native-subpath' },
 
     'esengine/native': {
         disposition: 'forbidden-native-script',

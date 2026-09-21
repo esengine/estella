@@ -14,6 +14,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { App } from '../src/app/app';
+import { MODULES } from '../../tools/nativeScriptModules.js';
 import { defineResource } from '../src/ecs/resource';
 import { Physics3D, Physics3DPlugin } from '../src/physics3d/Physics3DPlugin';
 import { Physics2D } from '../src/physics/Physics2DPlugin';
@@ -28,9 +29,13 @@ const imported = (specifier: string): Record<string, unknown> =>
 
 describe('native subpath modules resolve to this graph', () => {
     it('publishes a namespace for every subpath a project may import', () => {
-        expect(Object.keys(NATIVE_MODULE_NAMESPACES).sort()).toEqual([
-            'esengine/dragonbones', 'esengine/physics', 'esengine/physics3d', 'esengine/spine',
-        ]);
+        // From the dispositions rather than a list kept here: a subpath added to
+        // one and not the other resolves to nothing on a device, and a hand-kept
+        // copy is the thing that goes stale.
+        const owed = Object.entries(MODULES)
+            .filter(([, m]) => m.disposition === 'native-subpath')
+            .map(([specifier]) => specifier).sort();
+        expect(Object.keys(NATIVE_MODULE_NAMESPACES).sort()).toEqual(owed);
     });
 
     it('carries the exports the core namespace does not', () => {

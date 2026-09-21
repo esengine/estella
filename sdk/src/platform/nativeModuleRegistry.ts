@@ -23,6 +23,9 @@ import * as Physics2DModule from '../physics';
 import * as Physics3DModule from '../physics3d';
 import * as SpineModule from '../spine';
 import * as DragonBonesModule from '../dragonbones';
+import * as TilemapModule from '../tilemap';
+import * as ScriptGraphModule from '../logic';
+import * as AiModule from '../ai';
 
 /** Must equal NATIVE_MODULE_REGISTRY in tools/nativeScriptModules.mjs, which is
  *  what the exporter emits and what check-native-script-modules reads. */
@@ -37,6 +40,9 @@ export const NATIVE_MODULE_NAMESPACES: Readonly<Record<string, unknown>> = {
     'esengine/physics3d': Physics3DModule,
     'esengine/spine': SpineModule,
     'esengine/dragonbones': DragonBonesModule,
+    'esengine/tilemap': TilemapModule,
+    'esengine/logic': ScriptGraphModule,
+    'esengine/ai': AiModule,
 };
 
 /**

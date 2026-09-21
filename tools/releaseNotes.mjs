@@ -690,6 +690,8 @@ export const NOTED = {
     { internal: 'the wording of a message the export already printed' },
   'fix(details): the Inspector names the new reason a texture ships raw':
     { note: 'A texture that encodes larger than its source now ships as the source.' },
+  'fix(native): a packaged game script gets the three new subpaths':
+    { internal: 'what a native host publishes to the scripts it runs' },
   'fix(app): build order is declared, not the shape of an array':
     { internal: 'the order a stack of plugins is assembled in' },
   'docs(manual): the AI, tilemap and script-graph pages import from their subpaths':
