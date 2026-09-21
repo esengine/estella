@@ -67,7 +67,7 @@ describe('a web package built on a lean entry', () => {
             expect(page).toContain('"esengine/tilemap":"./sdk/tilemap/index.js"');
             // The half a page cannot show: something has to IMPORT it.
             expect(game).toContain('import "esengine/tilemap"');
-        } finally { rmSync(f.root, { recursive: true, force: true }); }
+        } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
     });
 
     it('carries the subpath it installs and leaves the rest behind', async () => {
@@ -81,7 +81,7 @@ describe('a web package built on a lean entry', () => {
             expect(existsSync(path.join(sdk, 'ai', 'index.js'))).toBe(false);
             expect(existsSync(path.join(sdk, 'net', 'replication', 'index.js'))).toBe(false);
             expect(existsSync(path.join(sdk, 'index.js'))).toBe(false);
-        } finally { rmSync(f.root, { recursive: true, force: true }); }
+        } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
     });
 
     it('installs nothing when the content needs nothing optional', async () => {
@@ -92,7 +92,7 @@ describe('a web package built on a lean entry', () => {
             expect(page).toContain('"esengine":"./sdk/index.lean.js"');
             expect(page).not.toContain('esengine/tilemap');
             expect(readFileSync(path.join(f.out, 'game.js'), 'utf8')).not.toContain('import "esengine/');
-        } finally { rmSync(f.root, { recursive: true, force: true }); }
+        } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
     });
 
     // Video is installed by no subpath, so the project takes the whole entry —
@@ -106,7 +106,7 @@ describe('a web package built on a lean entry', () => {
             expect(page).toContain('"esengine":"./sdk/index.js"');
             expect(page).toContain('"esengine/ai"');
             expect(existsSync(path.join(f.out, 'sdk', 'index.js'))).toBe(true);
-        } finally { rmSync(f.root, { recursive: true, force: true }); }
+        } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
     });
 
     // A dist from before the split has no lean entry; pointing `esengine` at a
@@ -114,12 +114,12 @@ describe('a web package built on a lean entry', () => {
     it('takes the whole entry when the SDK build produced no lean one', async () => {
         const f = setup(['Tilemap']);
         try {
-            rmSync(path.join(f.root, '_sdk'), { recursive: true, force: true });
+            rmSync(path.join(f.root, '_sdk'), { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
             writeFakeSdkDist(path.join(f.root, '_sdk'),
                 Object.fromEntries(Object.entries(SDK_FILES).filter(([k]) => k !== 'index.lean.js')));
             await run(f);
             const page = readFileSync(path.join(f.out, 'index.html'), 'utf8');
             expect(page).toContain('"esengine":"./sdk/index.js"');
-        } finally { rmSync(f.root, { recursive: true, force: true }); }
+        } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
     });
 });
