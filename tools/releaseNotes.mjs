@@ -698,6 +698,10 @@ export const NOTED = {
     { internal: "a manual page's import line, following the move it documents" },
   'refactor(play): the play realm asks for the whole import map by name':
     { internal: "the editor's preview page names the same subpaths it always did" },
+  'fix(export): a build comparison blames the setting that moved, not the content':
+    { note: "The build size report no longer blames content for a packaging change." },
+  'fix(agent): the tool catalog stops promising spineVersion decides a build':
+    { note: "The built-in agent is no longer told that the Spine runtime setting decides what a build ships." },
   'feat(export): a web package ships the subsystems it uses':
     { note: "A web package ships only the subsystems its project uses." },
   'fix(sdk): a host entry keeps the platform when the web one loads too':

@@ -71,6 +71,18 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **The build size report no longer blames content for a packaging change.** A build is compared against the last one of the same
+  target, and the settings ride along so that packing the same content differently is not
+  read as content that grew. Three settings that do exactly that — source maps, the
+  engine's Brotli, the engine 分包 — were never recorded: turning on `compressWasm` takes
+  the UI-game template's WeChat package from 3,132,164 to 1,666,825 bytes, and the report
+  attributed 1.4MB of that to content nobody wrote.
+
+- **The built-in agent is no longer told that the Spine runtime setting decides what a build ships.** `set_project_settings` described
+  `spineVersion` as deciding which runtime the build bundles. It decides nothing: a build
+  detects each skeleton's own version. The Project Settings row already said so; the agent
+  was the one reader still being told otherwise.
+
 - **A dedicated server built on `esengine/node` replicates again.** `esengine/node` was built outside the SDK's shared
   chunk graph, so a process importing it and `esengine/replication` got two copies of the
   core: the subpath registered the replication plugin in one registry and the headless app
