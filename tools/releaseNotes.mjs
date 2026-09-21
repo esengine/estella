@@ -696,6 +696,10 @@ export const NOTED = {
     { internal: 'the order a stack of plugins is assembled in' },
   'docs(manual): the AI, tilemap and script-graph pages import from their subpaths':
     { internal: "a manual page's import line, following the move it documents" },
+  'refactor(play): the play realm asks for the whole import map by name':
+    { internal: "the editor's preview page names the same subpaths it always did" },
+  'feat(export): a web package ships the subsystems it uses':
+    { note: "A web package ships only the subsystems its project uses." },
   'fix(sdk): the headless entry joins the shared chunk graph':
     { note: "A dedicated server built on `esengine/node` replicates again." },
   'refactor(play): the play host installs replication from its subpath':

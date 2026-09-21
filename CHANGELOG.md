@@ -23,6 +23,16 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **A web package ships only the subsystems its project uses.** Every web package staged all eleven engine
+  subpaths and loaded the entry that installs every optional subsystem, so a UI-only game
+  carried Spine, both physics runtimes, tilemaps, script graphs, gameplay AI and
+  replication — 215KB of JavaScript nothing in it could reach. The page's import map is now
+  built for the project: it names the subpaths the content, the cooked assets, the wasm
+  scan and the game's own scripts reach, the package carries those and no others, and the
+  game host imports them — staging a subpath only makes it resolvable, and something has to
+  install it. A project using a subsystem no subpath installs (video today) takes the whole
+  entry as before. Measured on the UI-game template: 1,305KB → 1,090KB, 57 files → 32.
+
 - **Replication is a subpath: `import { Net, Replicated } from 'esengine/replication'`.** The base plugin set named the replication
   plugin, so every package carried the wire protocol, the codec, the interest query and the
   prediction replay — 64KB of a single-player game that nothing in it can reach. A game that
