@@ -3,34 +3,15 @@
 /**
  * @file    index.ts
  * @brief   ESEngine SDK - Web entry point (auto-initializes Web platform)
+ *
+ * The whole entry: everything in index.base plus every optional subsystem.
+ * `index.lean` is the same base with none of them, for a package that imports
+ * back only what its project uses.
  */
-
-import { setPlatform, webAdapter } from './platform';
-import { ensureBuiltinComponentsRegistered, markEngineComponentBaseline } from './ecs/component';
-import { ensureBuiltinAiRegistrations } from './ai/builtins';
-setPlatform(webAdapter);
-
-// Register every engine component (COMPONENT_META) up front so a scene can never
-// silently drop a component that exists in the engine but lacks a typed const.
-ensureBuiltinComponentsRegistered();
-// Same for the built-in AI action/condition names, so editor palettes see them
-// even in an SDK instance that never builds the FSM/BT plugins.
-ensureBuiltinAiRegistrations();
-// All engine `defineComponent`s have run by now (their modules are dependencies of
-// this entry, evaluated before this statement); snapshot them so a project hot
-// reload can't wipe them (see seedEngineComponents).
-markEngineComponentBaseline();
-
-export * from './core';
-// Installs every optional subsystem on the apps this entry builds; a lean entry
-// does not call it and ships without their code.
 import { installOptionalPlugins } from './runtime/optionalPlugins';
+import { installWebEntry } from './runtime/webEntry';
 
 installOptionalPlugins();
-export * from './runtime/webAppFactory';
+installWebEntry();
 
-// ABI layout hash of the component schema this SDK bundle was generated from.
-// Exposed so an embedding host (e.g. the editor) can compare it against the
-// wasm build it loads — see desktop EngineGuard. The authoritative, fatal
-// layout check still happens inside the runtime bridge handshake.
-export { ABI_LAYOUT_HASH } from './ecs/component.generated';
+export * from './index.base';

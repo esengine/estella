@@ -67,6 +67,24 @@ export const SUBSYSTEM_LABEL: Readonly<Record<Subsystem, string>> = {
 };
 
 /**
+ * What a package on a LEAN entry does to get this subsystem back: import the
+ * named specifier, nothing (`base`), or take the whole entry (`whole-entry` —
+ * no subpath installs it yet). Beside the components that put each subsystem in
+ * use, so adding one cannot leave the packaging question unanswered.
+ */
+export const SUBSYSTEM_INSTALL: Readonly<Record<Subsystem, string>> = {
+    text: 'base',
+    particles: 'base',
+    postprocess: 'base',
+    tilemap: 'esengine/tilemap',
+    physics: 'esengine/physics',
+    spine: 'esengine/spine',
+    video: 'whole-entry',
+    ai: 'esengine/ai',
+    replication: 'esengine/replication',
+};
+
+/**
  * The cmake option whose absence drops a subsystem from a build of the engine
  * core (see `cmake/ESEngineSources.cmake`). The others ship as separate modules
  * and have no flag, so they are absent here.

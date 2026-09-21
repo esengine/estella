@@ -33,7 +33,8 @@ import type { PackagedGameConfig } from 'esengine';
 import {
   DEFAULT_RUNTIME_CONFIG, packagedRuntimeFields, type RuntimeProjectConfig,
 } from '../project/runtimeConfig';
-import { IMPORT_MAP, IMPORT_MAP_JSON, IMPORT_MAP_CSP_HASH } from '../bundle/importMap';
+import { engineImportMap, FULL_IMPORT_MAP, LEAN_ENTRY_FILE, FULL_ENTRY_FILE, type EngineImportMap } from '../bundle/importMap';
+import { engineInstalls, type EngineInstallPlan } from '../bundle/engineInstalls';
 import { exportMiniGame } from './exportMiniGame';
 import { wechatExportProfile, douyinExportProfile } from './miniGameExportProfile';
 import type { MiniGameExportProfile } from './miniGameExportProfile';
@@ -46,7 +47,7 @@ const BUILTIN_MINIGAME_PROFILES: Readonly<Record<string, MiniGameExportProfile>>
 import { exportPlayable } from './exportPlayable';
 import { genericPlayableProfile, type PlayableAdProfile } from './playableAdProfile';
 import type { OnExportProgress } from './exportProgress';
-import { ESENGINE_EXTERNAL } from '../bundle/esengineResolve';
+import { ESENGINE_EXTERNAL, ESENGINE_SUBPATHS } from '../bundle/esengineResolve';
 import { buildCompiledSystems, type BuildMode } from '../bundle/buildCompiledSystems';
 import { resolveEmcc, runEmcc } from '../bundle/emccPath';
 import { findHostCC } from '../../../compiler/src/hostCC';
@@ -143,25 +144,16 @@ export async function discoverProjectScenes(root: string, entryScene: string, sc
   return scenes;
 }
 
-/**
- * Entry bundles in sdk/dist a BROWSER page can load, derived from the map that
- * names them — `dist` holds every target's output side by side.
- *
- * Derived, not enumerated: a listed set went stale the first time an entry was
- * added, and a web package shipped a WeChat SDK.
- */
-const BROWSER_ENTRIES = Object.values(IMPORT_MAP.imports).map((t) => t.replace(/^\.\/sdk\//, ''));
-
 /** The build's own record of which chunks each entry reaches (sdk/rolldown.config.js). */
 const CHUNK_MANIFEST = 'chunks.json';
 
 /**
- * The files a browser package needs out of sdk/dist: the entries the import map
- * names, plus the chunks the SDK build says those entries reach. Eleven entries
- * share one chunk graph, and a `dist` can still hold an earlier build's output —
- * a directory copy ships both (412KB of dead chunks the day this was written).
+ * The files a browser package needs out of sdk/dist: the entries ITS import map
+ * names, plus the chunks the SDK build says those reach. Derived from the map,
+ * never enumerated: a listed set went stale the first time an entry was added,
+ * and a web package shipped a WeChat SDK's chunks.
  */
-function browserPayload(sdkDist: string): Set<string> {
+function browserPayload(sdkDist: string, entries: readonly string[]): Set<string> {
   const manifest = path.join(sdkDist, CHUNK_MANIFEST);
   if (!existsSync(manifest)) {
     // Loud, because the quiet alternative is shipping every target's runtime.
@@ -169,7 +161,7 @@ function browserPayload(sdkDist: string): Set<string> {
   }
   const reach = JSON.parse(readFileSync(manifest, 'utf8')) as Record<string, readonly string[]>;
   const want = new Set<string>();
-  for (const entry of BROWSER_ENTRIES) {
+  for (const entry of entries) {
     want.add(entry);
     for (const chunk of reach[entry] ?? []) want.add(chunk);
   }
@@ -181,8 +173,12 @@ function browserPayload(sdkDist: string): Set<string> {
  * `sourceMaps` on or off — the maps a package carries are one decision and not
  * one per producer. Declarations never ship: nothing at runtime reads a `.d.ts`.
  */
-export function shipsToBrowser(sourceMaps: boolean, sdkDist?: string): (src: string) => boolean {
-  const want = sdkDist ? browserPayload(sdkDist) : undefined;
+export function shipsToBrowser(
+  sourceMaps: boolean,
+  sdkDist?: string,
+  entries: readonly string[] = FULL_IMPORT_MAP.entries,
+): (src: string) => boolean {
+  const want = sdkDist ? browserPayload(sdkDist, entries) : undefined;
   const root = sdkDist ? path.resolve(sdkDist) : undefined;
   return (src: string) => {
     const base = path.basename(src);
@@ -274,6 +270,22 @@ export interface ExportGameResult {
   size?: BuildSizeReport;
 }
 
+/**
+ * The bare `esengine/*` specifiers a bundle left for the import map to resolve.
+ * The game host and a project's own scripts may each reach a subsystem no scene
+ * mentions — a game that opens a socket in code, or builds a tilemap by hand.
+ */
+function externalEngineImports(metafile: { outputs: Record<string, { imports?: { path: string; external?: boolean }[] }> } | undefined): string[] {
+  if (!metafile) return [];
+  const found = new Set<string>();
+  for (const out of Object.values(metafile.outputs)) {
+    for (const imp of out.imports ?? []) {
+      if (imp.external && imp.path.startsWith('esengine/')) found.add(imp.path);
+    }
+  }
+  return [...found];
+}
+
 /** The page's ground, and what the start screen fades out over: the same colour on
  *  both sides, or the fade flashes through to white between them. */
 const PAGE_BACKGROUND = '#0e121b';
@@ -281,9 +293,9 @@ const PAGE_BACKGROUND = '#0e121b';
 /** The web host page. `orientation` pins the canvas to a screen orientation (rotate-
  *  to-fit overlay + best-effort lock) — set for the mobile-facing web target, omitted
  *  for desktop (the Electron shell sizes its own window). */
-function indexHtml(title: string, orientation?: ScreenOrientation): string {
+function indexHtml(title: string, map: EngineImportMap, orientation?: ScreenOrientation): string {
   // Every inline script on this page needs its hash listed, or the browser blocks it.
-  const inlineScripts = [IMPORT_MAP_CSP_HASH, ...(orientation ? [orientationLockCspHash(orientation)] : [])]
+  const inlineScripts = [map.cspHash, ...(orientation ? [orientationLockCspHash(orientation)] : [])]
     .map((h) => `'${h}'`)
     .join(' ');
   return `<!doctype html>
@@ -296,7 +308,7 @@ function indexHtml(title: string, orientation?: ScreenOrientation): string {
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
     <title>${title}</title>
-    <script type="importmap">${IMPORT_MAP_JSON}</script>
+    <script type="importmap">${map.json}</script>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
       html, body { width: 100%; height: 100%; overflow: hidden; background: ${PAGE_BACKGROUND}; }
@@ -724,6 +736,9 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     sourcemap: sourceMaps,
     write: true,
     logLevel: 'silent',
+    // A package installs the subpaths its own scripts import, and esbuild
+    // already knows which bare specifiers it left external.
+    metafile: true,
   };
 
   // 1. Cook reachable assets + manifest, from EVERY shippable scene as a root
@@ -761,6 +776,8 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
 
   /** What the host must import, or null when this build has no project code. */
   let scriptsFile: string | null = null;
+  /** The `esengine/*` specifiers the bundles above left for the import map. */
+  const scriptImports = new Set<string>();
 
   // Also emit the AddressableManifest (v2.0) beside the flat one — the SAME
   // model every target now shares, so `loadGroup` / remote-group / hot-update
@@ -788,19 +805,22 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     ? { ...(remoteRoot ? { remoteRoot } : {}), ...(persistUpdateKey ? { persistUpdateKey } : {}) }
     : undefined;
 
+  // What wasm this project's content pulls in — evidence for the plan below, and
+  // the filter the runtime tree is copied through further down.
+  const sideModuleIds = !nativeContent && existsSync(opts.wasmDir)
+    ? await scanSideModuleIds({
+      root: opts.root, includedPaths: cook.includedPaths, cookEntries,
+      stagedDir: payloadDir, physicsEnabled: runtime.physicsEnabled,
+    })
+    : [];
+  /** The subpaths this package installs, and whether a lean entry can carry it.
+   *  Set on the browser path once the project's own imports are known. */
+  let plan: EngineInstallPlan = { lean: false, subpaths: [] };
   try {
-    // 2. Game host — esengine EXTERNAL (resolved by the index.html import map),
-    //    so the shipped game shares one SDK with the project bundle and runs
-    //    custom systems (same shape as the play realm).
     const { build } = await loadEsbuild();
-    if (!nativeContent) {
-      progress({ phase: 'Bundling game host' });
-      const host = await build({ ...common, entryPoints: [runtimeHostEntry(opts.hostsDir, 'gameHost')], outfile: path.join(payloadDir, 'game.js') });
-      errors.push(...explainBundleErrors(host.errors));
-    }
-    // 3. Project bundle (defineComponent/defineSystem). ESM + esengine external on
-    //    the web (the import map resolves it); on native an IIFE the host evals,
-    //    where `esengine` is the globalThis.ESEngine the host installed.
+    // 2. Project bundle (defineComponent/defineSystem). ESM with `esengine`
+    //    external on the web; on native an IIFE the host evals. Before the host,
+    //    because what it imports is evidence for the plan below.
     const scriptsAbs = opts.scriptsEntry ? path.join(opts.root, opts.scriptsEntry) : null;
     if (scriptsAbs && existsSync(scriptsAbs)) {
       scriptsFile = nativeContent ? 'scripts.js' : 'scripts.mjs';
@@ -812,6 +832,35 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
         })
         : await build({ ...common, entryPoints: [scriptsAbs], outfile: path.join(payloadDir, 'scripts.mjs') });
       errors.push(...explainBundleErrors(proj.errors));
+      for (const spec of externalEngineImports(proj.metafile)) scriptImports.add(spec);
+    }
+    // 3. Game host — esengine EXTERNAL (resolved by the index.html import map),
+    //    so the shipped game shares one SDK with the project bundle and runs
+    //    custom systems (same shape as the play realm).
+    if (!nativeContent) {
+      plan = engineInstalls({
+        subsystems: (await contentSubsystems(opts.root, cook.includedPaths)).keys(),
+        assetPaths: cook.includedPaths,
+        sideModuleIds,
+        scriptImports,
+      });
+      progress({ phase: 'Bundling game host' });
+      // An entry that IMPORTS what this package installs, then the host. Staging
+      // a subpath only lets the page resolve it; a subsystem is installed by
+      // something importing it, and on a lean entry nothing else does.
+      const hostEntry = runtimeHostEntry(opts.hostsDir, 'gameHost');
+      const host = await build({
+        ...common,
+        stdin: {
+          contents: plan.subpaths.map((m) => `import ${JSON.stringify(m)};\n`).join('')
+            + `import ${JSON.stringify(hostEntry)};\n`,
+          resolveDir: path.dirname(hostEntry),
+          loader: 'js',
+          sourcefile: 'game-entry.js',
+        },
+        outfile: path.join(payloadDir, 'game.js'),
+      });
+      errors.push(...explainBundleErrors(host.errors));
     }
 
   } catch (err) {
@@ -863,24 +912,28 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     }
   }
 
-  // 4. SDK (import-map target) + wasm runtime. The import map and the game
-  //    host reference both unconditionally — a missing tree is not a degraded
-  //    export but a package that cannot boot, so it fails the export.
-  //    Filtered, because sdk/dist holds every platform's build side by side.
+  // 4. SDK (import-map target) + wasm runtime. A missing tree fails the export
+  //    rather than degrading it. What ships is derived from THIS package's
+  //    import map: a game with no tilemap ships no tilemap.
+  let engineMap = FULL_IMPORT_MAP;
   if (!nativeContent) {
+    // Only when the SDK build actually produced one: a tree without it (an older
+    // dist, a test fixture) falls back to the whole entry rather than pointing
+    // `esengine` at a file that is not there.
+    const hasLean = existsSync(path.join(opts.sdkDistDir, LEAN_ENTRY_FILE));
+    engineMap = plan.lean && hasLean
+      ? engineImportMap(LEAN_ENTRY_FILE, plan.subpaths)
+      : engineImportMap(FULL_ENTRY_FILE, Object.keys(ESENGINE_SUBPATHS));
+
     progress({ phase: 'Copying SDK + runtime' });
     if (existsSync(opts.sdkDistDir)) {
       await cp(opts.sdkDistDir, path.join(payloadDir, 'sdk'), {
-        recursive: true, filter: shipsToBrowser(sourceMaps, opts.sdkDistDir),
+        recursive: true, filter: shipsToBrowser(sourceMaps, opts.sdkDistDir, engineMap.entries),
       });
       if (!sourceMaps) await dropSourceMapRefs(path.join(payloadDir, 'sdk'));
     } else errors.push(`sdk dist not found: ${opts.sdkDistDir}`);
     if (existsSync(opts.wasmDir)) {
-      const ids = await scanSideModuleIds({
-        root: opts.root, includedPaths: cook.includedPaths, cookEntries,
-        stagedDir: payloadDir, physicsEnabled: runtime.physicsEnabled,
-      });
-      const { files, unknown } = sideModuleFiles(ids);
+      const { files, unknown } = sideModuleFiles(sideModuleIds);
       for (const id of unknown) errors.push(`internal: no artifact mapping for side module "${id}"`);
       for (const { id, file } of files) {
         if (!existsSync(path.join(opts.wasmDir, `${file}.js`))) {
@@ -904,7 +957,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   //    reports work nothing did.
   if (!nativeContent) {
     progress({ phase: 'Writing host page' });
-    await writeFile(path.join(payloadDir, 'index.html'), indexHtml(title, platform === 'web' ? orientation : undefined));
+    await writeFile(path.join(payloadDir, 'index.html'), indexHtml(title, engineMap, platform === 'web' ? orientation : undefined));
   }
   // Typed against the SDK's contract, so a field the runtimes read can never be
   // spelled differently here — the two sides share one declaration.

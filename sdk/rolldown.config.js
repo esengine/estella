@@ -2,7 +2,10 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { defineConfig } from 'rolldown';
 
-const ENTRY_FILES = ['/index.ts', '/index.wechat.ts', '/index.wechat.lean.ts', '/index.minigame.ts', '/index.node.ts', '/index.native.ts'];
+// An entry's body runs; every other module is pure and its top-level statements
+// may be dropped. So an entry's prologue is a CALL it makes, never a statement
+// in a module it shares — see runtime/webEntry.ts.
+const ENTRY_FILES = ['/index.ts', '/index.lean.ts', '/index.wechat.ts', '/index.wechat.lean.ts', '/index.minigame.ts', '/index.node.ts', '/index.native.ts'];
 const treeshake = {
     moduleSideEffects: (id) => ENTRY_FILES.some(e => id.endsWith(e)),
 };
@@ -84,6 +87,7 @@ export default defineConfig([
         input: {
             'index': 'src/index.ts',
             'index.node': 'src/index.node.ts',
+            'index.lean': 'src/index.lean.ts',
             'index.wechat': 'src/index.wechat.ts',
             'index.wechat.lean': 'src/index.wechat.lean.ts',
             'index.minigame': 'src/index.minigame.ts',

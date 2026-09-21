@@ -7,7 +7,7 @@
  *
  *          EXTERNAL (web / desktop) — esengine stays external, resolved at runtime
  *            by the page import map. The runtime side of this map lives in
- *            buildPlayRealm.IMPORT_MAP; keep the subpath set there in sync.
+ *            the export's import map; both read the table below.
  *          ALIASED + INLINED (wechat / playable) — no import map, so the bundle
  *            inlines the SDK; esbuild `alias` points esengine (+ subpaths) at dist.
  */

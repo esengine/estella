@@ -344,6 +344,25 @@ That split is read from the same manifest the runtime loads, so what the report 
 and what the game does cannot disagree. Moving a level behind a subpackage genuinely
 removes it from the main package, and the report shows it the moment you do.
 
+### What the engine costs
+
+A package carries the engine subsystems its project uses, and not the others. What
+counts as "uses" is evidence the export already has: a component in a scene or prefab,
+an asset extension (`.esgraph`, `.esfsm`, `.esbt`), the wasm a side-module scan finds,
+and any `esengine/*` your own scripts import.
+
+So a game with no tilemap ships no tilemap parser, and one that never opens a session
+ships no replication protocol. If you reach a subsystem from code that the content does
+not mention — building a tilemap by hand, opening a socket — import its subpath and the
+export follows you:
+
+```ts
+import { Tilemap } from 'esengine/tilemap';
+```
+
+One subsystem has no subpath yet: a project using **Video** takes the whole engine, with
+every optional subsystem in it. Nothing else changes — the API is identical either way.
+
 ### Limits
 
 Where a platform publishes a limit, the build is judged against it and the meter says

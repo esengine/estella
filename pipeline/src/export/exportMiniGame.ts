@@ -52,7 +52,7 @@ import { buildCompiledSystems, type BuildMode } from '../bundle/buildCompiledSys
 import { resolveEmcc, runEmcc } from '../bundle/emccPath';
 import type { MiniGameExportProfile, MiniGameVendor } from './miniGameExportProfile';
 import { contentSubsystems } from './contentSubsystems';
-import type { Subsystem } from '../project/targetSupport';
+import { engineInstalls } from '../bundle/engineInstalls';
 
 
 
@@ -454,45 +454,23 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     await cp(built.modulePath, path.join(absOut, 'aot', 'systems.wasm'));
     aotArg = `, aot: ${JSON.stringify({ module: 'aot/systems.wasm', manifest: built.manifest })}`;
   }
-  // The scan's answer for wasm side modules, asked of their JS: the lean entry
-  // plus the subpaths that install what this project uses. Video has no subpath,
-  // so a project with video takes the whole entry.
-  const OPTIONAL_SUBPATH: Record<string, string> = {
-    physics: 'esengine/physics',
-    physics3d: 'esengine/physics3d',
-    dragonbones: 'esengine/dragonbones',
-  };
-  // A subsystem with no wasm of its own leaves no trace in the side-module scan,
-  // so its evidence is the content: a scene holding a Tilemap is what says the
-  // package needs the tilemap subpath.
-  const CONTENT_SUBPATH: Partial<Record<Subsystem, string>> = {
-    tilemap: 'esengine/tilemap',
-    ai: 'esengine/ai',
-    replication: 'esengine/replication',
-  };
-  /** …and the ones a document names by asset rather than by component. */
-  const ASSET_SUBPATH: Readonly<Record<string, string>> = {
-    '.esgraph': 'esengine/logic',
-    '.esfsm': 'esengine/ai',
-    '.esbt': 'esengine/ai',
-  };
+  // What this project installs on a lean entry — the same answer the web export
+  // gets, from the same evidence, so a subsystem cannot be installed on one
+  // target and silently missing on the other.
   const usedSubsystems = await contentSubsystems(opts.root, cook.includedPaths);
-  const needed = new Set(sideModules.map((m) => m.id));
-  const wantsVideo = needed.has('videodec');
+  const plan = engineInstalls({
+    subsystems: usedSubsystems.keys(),
+    assetPaths: cook.includedPaths,
+    sideModuleIds: sideModules.map((m) => m.id),
+  });
   // Only when the SDK build actually produced one: a tree without it (an older
   // dist, a test fixture) must fall back to the whole entry rather than alias
   // `esengine` to a file that is not there.
   const leanEntry = profile.sdkLeanEntryFile
     && existsSync(path.join(opts.sdkDir, profile.sdkLeanEntryFile))
     ? profile.sdkLeanEntryFile : null;
-  const lean = !!leanEntry && !wantsVideo;
-  const installs = lean
-    ? [...new Set([
-      ...[...needed].map((id) => (id.startsWith('spine:') ? 'esengine/spine' : OPTIONAL_SUBPATH[id] ?? '')),
-      ...[...usedSubsystems.keys()].map((s) => CONTENT_SUBPATH[s] ?? ''),
-      ...cook.includedPaths.map((p) => ASSET_SUBPATH[path.extname(p).toLowerCase()] ?? ''),
-    ].filter(Boolean))].sort()
-    : [];
+  const lean = !!leanEntry && plan.lean;
+  const installs = lean ? plan.subpaths : [];
 
   const entrySrc =
     installs.map((m) => `import ${JSON.stringify(m)};\n`).join('') +

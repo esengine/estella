@@ -141,6 +141,9 @@ export const GATES = [
   // …and the other half: an entry that forgets to install them ships an app whose
   // Spine entities silently never animate.
   { id: 'entries-install-options', run: 'node tools/check-entries-install-options.mjs' },
+  // And the half no text probe can see: `sideEffects` lists FILES, so a prologue
+  // the bundler puts in an unlisted chunk is dropped while still sitting in dist.
+  { id: 'entry-boots', run: 'node tools/check-entry-boots.mjs' },
   // Replication applies its inbox in arrival order, so reliable+ordered is a
   // correctness condition. This compiles the claim: a transport that does not
   // make it cannot reach replication.

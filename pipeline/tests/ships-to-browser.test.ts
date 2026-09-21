@@ -14,10 +14,10 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { shipsToBrowser } from '../src/export/exportGame';
-import { IMPORT_MAP } from '../src/bundle/importMap';
+import { FULL_IMPORT_MAP } from '../src/bundle/importMap';
 
 /** The shape of a real dist, small enough to read: entries, chunks, a manifest. */
-const ENTRIES = Object.values(IMPORT_MAP.imports).map((t) => t.replace('./sdk/', ''));
+const ENTRIES = FULL_IMPORT_MAP.entries;
 const OTHER_HOSTS = [
   'index.node.js', 'index.wechat.js', 'index.wechat.cjs.js', 'index.wechat.lean.js',
   'index.minigame.js', 'index.native.js', 'index.native.bundled.js', 'index.bundled.js',
