@@ -8,13 +8,18 @@
  * this in a module the entries share and it lands in a chunk nobody whitelisted,
  * where tree-shaking drops it. The editor booted to "Platform not initialized".
  */
-import { setPlatform, webAdapter } from '../platform';
+import { setPlatform, webAdapter, isPlatformInitialized } from '../platform';
 import { ensureBuiltinComponentsRegistered, markEngineComponentBaseline } from '../ecs/component';
 import { ensureBuiltinAiRegistrations } from '../ai/builtins';
 
-/** Idempotent: an entry that re-exports another still calls it exactly once. */
+/**
+ * Idempotent, and deferential about the platform: a host-specific entry
+ * (`esengine/node`) claims one outright, and one process can hold both — the
+ * build pipeline reads a project through modules a browser also runs. Whichever
+ * order they load in, the host that declared itself keeps the platform.
+ */
 export function installWebEntry(): void {
-    setPlatform(webAdapter);
+    if (!isPlatformInitialized()) setPlatform(webAdapter);
     // Every engine component (COMPONENT_META) up front, so a scene can never
     // silently drop one that exists in the engine but lacks a typed const.
     ensureBuiltinComponentsRegistered();

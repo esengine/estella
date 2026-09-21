@@ -77,5 +77,26 @@ for (const entry of ENTRIES) {
     results.push(`${entry.specifier} → ${got}`);
 }
 
+// One process can hold two entries: a node tool reaches `esengine` through
+// modules a browser also runs. They share one core, so the host that declared
+// itself must keep the platform whichever order they arrive in.
+for (const [first, second] of [['esengine', 'esengine/node'], ['esengine/node', 'esengine']]) {
+    const src = path.join(work, `order-${first.replace(/\W+/g, '-')}.mjs`);
+    const out = `${src}.bundle.mjs`;
+    writeFileSync(src, `import ${JSON.stringify(first)};\n`
+        + `import { getPlatformType } from ${JSON.stringify(second)};\n`
+        + `console.log(getPlatformType());\n`);
+    await build({ entryPoints: [src], outfile: out, bundle: true, format: 'esm', platform: 'node', logLevel: 'silent' });
+    const run = spawnSync(process.execPath, [out], { encoding: 'utf8' });
+    const got = (run.stdout ?? '').trim();
+    if (got !== 'node') {
+        fail(`loading ${first} then ${second} left the platform as ${got || '(nothing)'}, not node.`
+            + '\n\nA host entry claims the platform outright; the web entry installs one only when'
+            + ' nobody has (runtime/webEntry.ts). A node process that ends up on the web adapter'
+            + ' reads files over fetch and throws on localStorage.');
+    }
+    results.push(`${first}+${second} → ${got}`);
+}
+
 rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
-console.log(`check-entry-boots: ${results.length} entry(ies) bundled and run — ${results.join(', ')}.`);
+console.log(`check-entry-boots: ${results.length} case(s) bundled and run — ${results.join(', ')}.`);
