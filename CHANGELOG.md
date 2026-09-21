@@ -61,6 +61,11 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A dedicated server built on `esengine/node` replicates again.** `esengine/node` was built outside the SDK's shared
+  chunk graph, so a process importing it and `esengine/replication` got two copies of the
+  core: the subpath registered the replication plugin in one registry and the headless app
+  read the other, and the authority came up with no `Net` resource.
+
 - **Two games in one process no longer share an optional subsystem's plugin.** Tilemaps, script graphs and the four
   AI runtimes each registered their module-level plugin singleton, so a second app installed
   the first app's instance and the app state it carries.

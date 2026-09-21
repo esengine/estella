@@ -696,6 +696,8 @@ export const NOTED = {
     { internal: 'the order a stack of plugins is assembled in' },
   'docs(manual): the AI, tilemap and script-graph pages import from their subpaths':
     { internal: "a manual page's import line, following the move it documents" },
+  'fix(sdk): the headless entry joins the shared chunk graph':
+    { note: "A dedicated server built on `esengine/node` replicates again." },
   'refactor(play): the play host installs replication from its subpath':
     { note: "Replication is a subpath: `import { Net, Replicated } from 'esengine/replication'`." },
   'refactor(net): replication moves to its own subpath':
