@@ -79,7 +79,7 @@ describe('the source a cooked mini-game hands its audio player', () => {
       outDir: out,
       title: 'Audio',
       platform: 'wechat',
-      wechatAppid: 'wxTEST0123456789',
+      miniGameAppid: 'wxTEST0123456789',
       orientation: 'landscape',
       compressAudio: true,
       runtime: runtimeConfigOf({ designResolution: { width: 1280, height: 720 } }),

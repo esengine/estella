@@ -14,6 +14,13 @@
  * its own the way WeChat's WXWebAssembly does. If it does not, this profile
  * gains an `instantiateWasm` exactly as WeChat's has one. RM-032's acceptance is
  * a real device for that reason.
+ *
+ * NOT CLAIMED: `pay`. The family's payment is WeChat's `requestMidasPayment`
+ * with WeChat's rules, and Douyin's call is its own. There is no source in this
+ * checkout for its name or its fields, and a payment path invented from a guess
+ * charges a player through a call that does not exist. So purchase reports
+ * itself unavailable here — the profile now has the slot to fill once a vendor
+ * doc or a device answers.
  */
 import type { MiniGameGlobal, MiniGameProfile } from '../minigame';
 

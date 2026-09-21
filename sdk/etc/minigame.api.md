@@ -5227,6 +5227,7 @@ global: MiniGameGlobal
 hostLabel: string
 id: MiniGameVendor
 instantiateWasm: ((pathOrBuffer: string | ArrayBuffer, imports: WebAssembly.Imports) => Promise<WasmInstantiateResult>) | undefined
+pay: { can(): boolean; request(request: PlatformPaymentRequest): Promise<void>; } | undefined
 ```
 
 ## MiniGameRequestOptions — interface @experimental

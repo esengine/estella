@@ -98,7 +98,7 @@ const config = (out: string): PackagedGameConfig =>
 
 const runWeChat = (f: { root: string; out: string }) => exportGame({
   root: f.root, entryScene: 'scenes/main.esscene', hostsDir: 'unused-for-wechat',
-  scriptsEntry: 'src/main.ts', platform: 'wechat', wechatAppid: 'wxTEST0123456789',
+  scriptsEntry: 'src/main.ts', platform: 'wechat', miniGameAppid: 'wxTEST0123456789',
   sdkDistDir: path.join(f.root, '_sdk'), wasmDir: path.join(f.root, '_wasm'),
   outDir: f.out,
 });

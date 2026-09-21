@@ -74,7 +74,7 @@ describe('exportGame (wechat)', () => {
       outDir: out,
       title: 'My Game',
       platform: 'wechat',
-      wechatAppid: 'wxTEST0123456789',
+      miniGameAppid: 'wxTEST0123456789',
       orientation: 'landscape',
       runtime: runtimeConfigOf({
         designResolution: { width: 1280, height: 720 },
@@ -541,7 +541,7 @@ describe('exportGame (wechat)', () => {
       wasmDir: path.join(root, '_wxwasm'),
       outDir: o,
       platform: 'wechat',
-      wechatAppid: 'wxTEST0123456789',
+      miniGameAppid: 'wxTEST0123456789',
       compressWasm: true,
       runtime: runtimeConfigOf({ designResolution: { width: 1280, height: 720 } }),
     });
@@ -575,7 +575,7 @@ describe('exportGame (wechat)', () => {
       wasmDir: path.join(root, '_wxwasm'),
       outDir: o,
       platform: 'wechat',
-      wechatAppid: 'wxTEST0123456789',
+      miniGameAppid: 'wxTEST0123456789',
       runtime: runtimeConfigOf({ designResolution: { width: 1280, height: 720 } }),
     });
     expect(res.ok).toBe(true);
@@ -597,7 +597,7 @@ describe('exportGame (wechat)', () => {
       wasmDir: path.join(root, '_wxwasm'),
       outDir: o,
       platform: 'wechat',
-      wechatAppid: 'wxTEST0123456789',
+      miniGameAppid: 'wxTEST0123456789',
       engineSubpackage: true,
       runtime: runtimeConfigOf({ designResolution: { width: 1280, height: 720 } }),
     });
@@ -641,7 +641,7 @@ describe('exportGame (wechat)', () => {
       wasmDir: path.join(root, '_wxwasm'),
       outDir: o,
       platform: 'wechat',
-      wechatAppid: 'wxTEST0123456789',
+      miniGameAppid: 'wxTEST0123456789',
       runtime: runtimeConfigOf({ designResolution: { width: 1280, height: 720 } }),
     });
     expect(res.ok).toBe(true);
@@ -663,7 +663,7 @@ describe('exportGame (wechat)', () => {
       wasmDir: path.join(root, '_wxwasm'),
       outDir: o,
       platform: 'wechat',
-      wechatAppid: 'wxTEST0123456789',
+      miniGameAppid: 'wxTEST0123456789',
       runtime: runtimeConfigOf({ designResolution: { width: 1280, height: 720 } }),
     });
     expect(res.ok).toBe(true);

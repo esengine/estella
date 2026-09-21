@@ -18,7 +18,9 @@
 
 import type { PlatformAudioBackend } from '../../audio/PlatformAudioBackend';
 import type { PlatformVideoBackend, VideoBackendContext } from '../../video/PlatformVideoBackend';
-import type { PlatformSocket, PlatformSocketOptions, WasmInstantiateResult } from '../types';
+import type {
+    PlatformPaymentRequest, PlatformSocket, PlatformSocketOptions, WasmInstantiateResult,
+} from '../types';
 
 // =============================================================================
 // Normalized host primitives
@@ -356,4 +358,16 @@ export interface MiniGameProfile {
     createVideoBackend?(ctx: VideoBackendContext): PlatformVideoBackend;
     /** Omit for the family socket over `global.connectSocket()`. */
     createSocket?(options: PlatformSocketOptions): PlatformSocket;
+
+    /**
+     * Buying in-game currency, when the vendor's call is not WeChat's
+     * `requestMidasPayment`. That one carries WeChat's own rules (Android only,
+     * Midas field names), and applying them everywhere makes the engine say
+     * "this host sells nothing" about a host that sells things.
+     */
+    pay?: {
+        /** Asked before a game offers a purchase at all. */
+        can(): boolean;
+        request(request: PlatformPaymentRequest): Promise<void>;
+    };
 }

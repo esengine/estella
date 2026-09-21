@@ -187,7 +187,12 @@ export type RenderResolutionMode = 'surface' | 'design' | 'integer';
 /** Per-platform packaging config (the platform-specific Project Settings pages).
  *  Orientation is NOT here — it is one project-wide {@link ProjectPackaging.orientation}
  *  consumed by every target (a landscape build is landscape everywhere). */
-export interface WeChatPackaging { appid?: string; }
+/** What a mini-game vendor needs and nothing else can supply: the id the game
+ *  was registered under on THAT vendor's console. One shape, because every
+ *  vendor asks the same question and a package built for one is rejected by the
+ *  other. */
+export interface MiniGamePackaging { appid?: string; }
+export type WeChatPackaging = MiniGamePackaging;
 export interface DesktopPackaging {
   appId?: string;
   productName?: string;
@@ -352,7 +357,8 @@ export interface ProjectPackaging {
   /** Per-platform packaging config: each target's slice of the app identity, plus
    *  whatever only it has (a WeChat appid, an Android versionCode). */
   platforms?: {
-    wechat?: WeChatPackaging;
+    wechat?: MiniGamePackaging;
+    douyin?: MiniGamePackaging;
     desktop?: DesktopPackaging;
     android?: AndroidPackaging;
     ios?: IosPackaging;
@@ -728,6 +734,10 @@ export function parseManifest(raw: unknown): ProjectManifest {
         // Legacy per-platform orientation → the project-wide field (WeChat first).
         if (!orientation && (wx.orientation === 'portrait' || wx.orientation === 'landscape')) orientation = wx.orientation;
         if (Object.keys(w).length > 0) platforms.wechat = w;
+      }
+      const tt = pl.douyin as Record<string, unknown> | undefined;
+      if (tt && typeof tt === 'object' && typeof tt.appid === 'string') {
+        platforms.douyin = { appid: tt.appid };
       }
       const dt = pl.desktop as Record<string, unknown> | undefined;
       if (dt && typeof dt === 'object') {

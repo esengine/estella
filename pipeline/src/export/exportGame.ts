@@ -414,8 +414,13 @@ export interface ExportGameOptions {
 
   /** Desktop product/display name (Project Settings); default the project title. */
   desktopProductName?: string;
-  /** WeChat appid (Project Settings → Packaging → WeChat). */
-  wechatAppid?: string;
+  /**
+   * The id the game is registered under on THIS export's mini-game vendor
+   * console (Project Settings → Packaging). One option, not one per vendor: a
+   * WeChat appid in a Douyin package is refused at upload, and naming it
+   * `wechatAppid` is how the Douyin export came to send one.
+   */
+  miniGameAppid?: string;
   /** Reverse-DNS application id for a native target (format.ts resolveAppId).
    *  Written into app.config.json, where the packagers read it. */
   appId?: string;
@@ -622,7 +627,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       outDir: opts.outDir,
       hostsDir: opts.hostsDir,
       title,
-      appid: opts.wechatAppid,
+      appid: opts.miniGameAppid,
       orientation,
       runtime,
       minify: opts.minify,
@@ -654,7 +659,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       outDir: opts.outDir,
       hostsDir: opts.hostsDir,
       title,
-      appid: opts.wechatAppid,
+      appid: opts.miniGameAppid,
       orientation,
       runtime,
       minify: opts.minify,

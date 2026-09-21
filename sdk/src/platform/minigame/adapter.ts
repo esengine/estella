@@ -213,6 +213,7 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
      * built, against the host's sandbox.
      */
     canPay(): boolean {
+        if (this.profile_.pay) return this.profile_.pay.can();
         if (!this.g_.requestMidasPayment) return false;
         const where = this.g_.getSystemInfoSync().platform;
         // Unknown means a host that did not say. Treated as allowed: refusing
@@ -225,6 +226,7 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
      *  failed" without a code cannot be told apart from the player changing
      *  their mind, and those need different UI. */
     requestPayment(request: PlatformPaymentRequest): Promise<void> {
+        if (this.profile_.pay) return this.profile_.pay.request(request);
         const pay = this.g_.requestMidasPayment;
         if (!pay) return Promise.reject(new Error('this host sells nothing'));
         return new Promise<void>((resolve, reject) => {

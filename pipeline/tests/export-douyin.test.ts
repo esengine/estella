@@ -64,17 +64,24 @@ describe('exportGame (douyin)', () => {
       platform: 'douyin',
       orientation: 'landscape',
       runtime: runtimeConfigOf({ designResolution: { width: 1280, height: 720 } }),
+      miniGameAppid: 'tt0123456789abcdef',
     });
 
     expect(res.ok, res.errors.join('\n')).toBe(true);
     expect(res.platform).toBe('douyin');
 
-    expect(existsSync(path.join(out, 'project.tt.json'))).toBe(true);
-    expect(existsSync(path.join(out, 'project.config.json'))).toBe(false);
-    const cfg = JSON.parse(readFileSync(path.join(out, 'project.tt.json'), 'utf8'));
+    // The vendor's contract, not this exporter's habit: Douyin's own CLI and its
+    // Godot adaptation doc both name `project.config.json`, and nothing
+    // published names `project.tt.json`.
+    expect(existsSync(path.join(out, 'project.config.json'))).toBe(true);
+    expect(existsSync(path.join(out, 'project.tt.json'))).toBe(false);
+    const cfg = JSON.parse(readFileSync(path.join(out, 'project.config.json'), 'utf8'));
     expect(cfg.compileType).toBe('game');
     expect(cfg.miniprogramRoot).toBe('./');
     expect(JSON.parse(readFileSync(path.join(out, 'game.json'), 'utf8')).deviceOrientation).toBe('landscape');
+    // This vendor's id, not the other one's: a WeChat appid in a Douyin package
+    // is refused at upload with "不存在此 AppID".
+    expect(cfg.appid).toBe('tt0123456789abcdef');
   }, 180_000);
 
   it('boots through the vendor-neutral entry and names its host', () => {

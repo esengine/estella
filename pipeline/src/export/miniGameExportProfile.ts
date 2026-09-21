@@ -209,7 +209,7 @@ export interface MiniGameExportProfile {
      */
     readonly runtimeProfileHost?: RuntimeHost;
 
-    /** Emit the vendor config files (game.json + project.config.json / project.tt.json). */
+    /** Emit the vendor config files (game.json + project.config.json). */
     emitConfigFiles(ctx: MiniGameConfigContext): Array<{ file: string; content: string }>;
     /** Emit the MiniGame entry the host runs (game.js). */
     emitEntry(ctx: MiniGameEntryContext): string;
@@ -345,9 +345,12 @@ export const douyinExportProfile: MiniGameExportProfile = {
             appid: ctx.appid,
             compileType: 'game',
         };
+        // `project.config.json`, the same name WeChat uses: the vendor's own CLI
+        // (tt-minigame-ide-cli) and its Godot adaptation doc both name that file,
+        // and nothing published names `project.tt.json`.
         return [
             { file: 'game.json', content: JSON.stringify(gameCfg, null, 2) + '\n' },
-            { file: 'project.tt.json', content: JSON.stringify(projectCfg, null, 2) + '\n' },
+            { file: 'project.config.json', content: JSON.stringify(projectCfg, null, 2) + '\n' },
         ];
     },
 
