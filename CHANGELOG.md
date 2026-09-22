@@ -16,6 +16,8 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **The loading bar moves while the engine downloads.** It advanced only when a boot stage finished, and starting the engine is 40 of the 100 — so on a phone's connection a player watched it sit at 20% for 10.4 seconds of a 17.5-second start. The engine binary is now counted as it arrives (and still compiled while it downloads, which is the part that would have been easy to lose): 40 steps instead of one, and the longest the bar stands still drops from 16.7s to 6.0s. A portal's own loading screen sees the same movement through `esengine:bootprogress`, which now marks a step as `partial` while its stage is still running.
+
 - **The build dialog says which engine services a target can provide.** `Ads`, sign-in, share and in-game purchase all answer at runtime, by asking the host — the right answer for a game, and no answer at all for someone choosing a target, because there is no host yet. Each target now carries a line beside its size caps: WeChat's four are its own published API, and Douyin sells nothing, which is worth hearing before a store page is written rather than when the purchase call rejects on a device. A `?` is a real verdict, not a shrug — it is what the engine wires with the host having the last word, and hovering quotes the source.
 
 - **The build says what the start screen's logo costs the page.** Inlined, the logo IS `index.html`, so a size report files it as page rather than as art — a start screen could quietly take a share of a main-package limit with nothing naming it. The export now states both numbers: the image on disk, and what it weighs in the page after base64.
