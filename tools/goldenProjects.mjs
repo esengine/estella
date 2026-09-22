@@ -90,6 +90,37 @@ export const CENSUS_FLOOR = '0.60.0';
  * that does not exist, and release notes are a different act. Theirs is ungated.
  */
 export const SHIPPED = {
+  // — 0.70.0 —
+  'A project can be exported as a Douyin (抖音) mini-game.': { certifies: 'minigame-vendor' },
+  'A sprite can be drawn whole even when its texture carries a 9-slice border.':
+    { certifies: 'sprite-draw-mode' },
+  'The start screen is yours: a logo, a background and a minimum display time.':
+    { notCertifiable: 'the page AROUND the game — no golden project configures one, and'
+      + ' launch-export already refuses any web package whose start screen never faded' },
+  'A packaged game now says it is loading.':
+    { notCertifiable: 'as above: the page around the game, held by the launcher rather than'
+      + ' by a frame the game drew' },
+  'The build dialog states a platform\'s size caps before you package.':
+    { notCertifiable: 'a number the dialog reads out of sizeBudget.ts before a package exists;'
+      + ' nothing of it ships' },
+  'Douyin is selectable in the build dialog and has its own texture Import Settings tab.':
+    { notCertifiable: 'editor rows; what they produce is the Douyin package, which'
+      + ' input-actions packages and boots at the release tier' },
+  'A mini-game says how far along its boot is, not just that it is loading.':
+    { notCertifiable: 'the HOST\'s indicator, which is the vendor\'s own overlay and never a'
+      + ' frame of the game; the stand-in host records the last stage for the launcher' },
+  'A UI node can keep clear of WeChat\'s capsule menu, which the safe area does not cover.':
+    { notCertifiable: 'it moves a node only on a host that draws a capsule, and the stand-in'
+      + ' host the mini-game pairs run in draws none' },
+  'A WeChat mini-game now carries only the optional subsystems its project uses.':
+    { notCertifiable: 'a byte count no frame shows — a package that dropped a subsystem its'
+      + ' content uses fails the wechat pairs\' pixel parity, which is where it is caught' },
+  'The engine can ship outside a WeChat mini-game\'s main package entirely.':
+    { notCertifiable: 'where a file sits in the package, not what it draws; no tier builds a'
+      + ' project with the engine in a 分包 — it boots in the stand-in host by hand' },
+  'A WeChat mini-game can ship its engine compressed, freeing a third of the main package.':
+    { notCertifiable: 'as above — bytes, not pixels; the compressed package boots in the'
+      + ' stand-in host and export-wechat holds the naming both halves agree on' },
   // — 0.69.0 —
   '`getResourceStats()` reports the memory kept to survive a lost GPU.':
     { notCertifiable: 'a byte count no frame shows; the resource census reads it as'
@@ -399,7 +430,7 @@ export const CAPABILITIES = [
   'tilemap', 'tile-collision',
   'touch', 'safe-area', 'pause-resume',
   'texture-atlas',
-  'single-file', 'startup-size',
+  'single-file', 'startup-size', 'minigame-vendor', 'sprite-draw-mode',
   'hot-update', 'rollback', 'subpackage',
   'networking',
   'persistence', 'save-versioning',
@@ -514,6 +545,10 @@ export const EVIDENCE = {
   'texture-atlas': null,
   'single-file': null,
   'startup-size': null,
+  // A package's, not a source's: the claim is that a second vendor's package
+  // boots, which only the launched package can show.
+  'minigame-vendor': null,
+  'sprite-draw-mode': /\bdrawMode\b/,
   'hot-update': /\b(checkForUpdate|applyUpdate)\b/,
   rollback: /\b(applyUpdate|rollback)\b/,
   networking: /\b(Net|Replicated|NetId)\b/,
@@ -583,7 +618,7 @@ export const GOLDEN = [
     // Its hull bar is a sprite cut by another sprite, drawn at an order it states
     // rather than at the one its position would give it — so the draw order and the
     // mask are both something a packaged game here actually does.
-    certifies: ['ecs', 'texture-atlas', 'sprite-sorting', 'sprite-mask', 'velocity-motion'],
+    certifies: ['ecs', 'texture-atlas', 'sprite-sorting', 'sprite-mask', 'velocity-motion', 'sprite-draw-mode'],
     targets: ['web', 'desktop', 'android'],
     tier: 'pr',
     interact: { keys: ['ArrowLeft'], frames: 40 },
@@ -845,7 +880,7 @@ export const GOLDEN = [
   },
   {
     id: 'input-actions',
-    certifies: ['input'],
+    certifies: ['input', 'minigame-vendor'],
     // Two vendors from one project: the export is a profile over one family, and
     // only a second vendor's real boot shows what the family got wrong. They take
     // the same engine build, so the second costs no extra wasm build.

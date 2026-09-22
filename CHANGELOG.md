@@ -14,40 +14,106 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.70.0] - 2026-09-22
+
 ### Added
-
-- **The build's size bar stopped borrowing Play's green.** Within budget was drawn in the transport's running-green, which reads as a state the build is in rather than as a measurement — and a green bar invites "fine, keep going" where the honest message is that there is nothing to report yet. It is now the panel's own neutral, and goes amber then red, which is the whole vocabulary it needs. The two progress bars in that panel were also 6px and 8px side by side; they are one shape now.
-
-- **A Play session that times out now says whether it ever started.** The realm announces itself when its page runs, before a line of the engine is read — previously its only signal was the host module's last statement, so a machine still parsing the SDK and a frame that never ran gave the same ninety seconds of silence, and both were reported as the editor being broken. The two now read differently, and only one of them is the machine's.
-
-- **When a 分包 will not come down, the package says which one and why.** The generated entry logged the vendor's error object, which reaches a device's console as `[object Object]` — the one place you get to look. It is stringified now, and the headless launcher can be told to refuse a named 分包 (`--fail-subpackage`) so the path a bad network takes is something a build can be run against rather than waited for.
-
-- **A package whose engine ships in a 分包 now starts.** Its generated entry called the host's loading indicator on its first line without checking the host has one — and that call is optional in the API — so on a host that does not implement it the game died before reaching `loadSubpackage`. Every indicator call in a generated entry is guarded now; a progress message must never be what takes a boot down.
-
-- **A group that failed to load says so instead of handing back an empty bundle.** `Assets.loadGroup` settled every asset and returned whatever survived, so a subpackage that downloaded but staged nothing — or a CDN answering 404 — read exactly like a group that was always empty. It now names the assets that failed, the way a scene preload already did.
-
-- **A mini-game's side modules compress too, not just its engine.** Brotli was applied to the engine binary alone, so a package that transcodes KTX2 textures still carried Basis at its full 1.1MB — 27% of WeChat's 4MB main-package cap on its own. They compress on the same switch now, and the loader is told which suffix the build staged instead of spelling `.wasm` itself. Measured on the platformer template: its WeChat package was 108% of the cap and is now 51.5%, with the side modules accounting for 902KB of that.
-
-- **A mini-game says it is starting before it parses the game.** The host's loading indicator only appeared once `initMiniGameRuntime` ran, which is after the entry has required a megabyte of bundle — the longest silent stretch of a cold start. The generated entry now raises it on its first line.
 
 - **The start screen is yours: a logo, a background and a minimum display time.** The exported page has shown real boot progress for a while, but always as the game's name on the engine's own dark ground. A project can now put its logo there — inlined into the page, because an image fetched over the network arrives in the same window the engine does, with nothing left to cover — pick the colour behind it, and hold the screen for a minimum time, so a boot that finishes in 120ms stops flashing a bar that appears and vanishes. The page also emits `esengine:bootprogress` and `esengine:firstframe`, which a portal's own loading screen can listen for before the game's bundle has run.
 
 - **The build dialog states a platform's size caps before you package.** They were reported only after a package existed, in the size panel, so the ceiling a build had to fit under was visible only once it was too late to plan around — and the difference matters: a package that fits WeChat's 30MB is 10MB over Douyin's 20MB. Each target's caps now sit under its description, and hovering them gives the platform's own wording rather than our paraphrase. A platform a project defines itself states the caps it declared.
 
-### Fixed
+- **A UI node can keep clear of WeChat's capsule menu, which the safe area does not cover.**
+  `SafeArea.avoidHostMenu` pushes the top inset past the host's own overlay. Measured on the
+  iPhone 12 the simulator offers, the capsule's bottom edge is 29px *inside* the safe area,
+  so a node anchored to the top of the safe area can still be under it. No engine offers
+  this: every game converts the rect to layout units by hand, which is the arithmetic the
+  safe area already does here.
 
-- **The Engine Modules page no longer calls a module unused that the build then carries.** It read only the components a scene names, while the build also reads the extensions of the assets that ship and the imports your scripts write — so a behaviour tree an agent is handed at runtime, which leaves no component behind, showed as "not used by this project" in a package that had it. The page now reads the same asset table the build installs from, and says what it can see rather than what will ship.
+- **Douyin is selectable in the build dialog and has its own texture Import Settings tab.**
+  The export existed — the same runtime as WeChat, judged against Douyin's own 20MB cap —
+  but the editor's platform list was written by hand, so nothing offered the target that
+  had shipped. The list is the platform registry's now, in its order.
 
-- **A Douyin package could not start.** It shipped the browser engine artifact, which is an ES module, and a mini-game host loads its JavaScript with `require` — so `game.js` threw `SyntaxError: Unexpected token 'export'` on its first line and the package never reached a frame. Every mini-game host takes the same engine build, and now every mini-game target asks for it: the two built-in vendors, and a platform a project defines itself, which had the same browser default. The export also refuses an ES module engine by reading the file rather than trusting its name, since the name was the thing that was wrong.
+- **A mini-game says how far along its boot is, not just that it is loading.** The web
+  export got a start screen with a real progress bar; a mini-game could not have one,
+  because the display canvas is already the GL surface and nothing can be drawn over it.
+  It now reports through the host's own loading indicator instead — *Starting the
+  engine 54%* — driven by the same eight weighted stages the web overlay uses, from one
+  list, so the two cannot disagree about how far along the same boot is. A host without
+  that API boots exactly as before: an indicator is something a boot shows, never
+  something it can fail on.
+
+- **A project can be exported as a Douyin (抖音) mini-game.** Pick *Douyin* in Package
+  Project and the same content that makes a WeChat package makes a Douyin one, judged
+  against Douyin's own caps — 4MB for the main package and **20MB in total**, ten less
+  than WeChat allows, which is the number that catches a package out. Three things are
+  deliberately not claimed yet, because this release cannot cite them: the suffix list
+  its packer accepts, `.wasm.br` for the engine binary, and a wasm loader of the host's
+  own. Each is something only a real device settles, and a package that claimed one
+  early would build clean and fail at upload or at boot. Douyin needs no separate engine
+  build — the web artifact is what a `tt` host runs.
+
+- **A sprite can be drawn whole even when its texture carries a 9-slice border.** The
+  texture decided, not the entity using it: import a panel image with slice borders and
+  every Sprite showing it was 9-sliced, with nothing on the entity able to say otherwise.
+  Sprites now have a **Draw Mode** — *Auto* is the old inference (tile size decides
+  tiling, the texture's border decides 9-slice) and stays the default, so nothing you
+  have drawn changes; *Simple*, *Tiled* and *9-Slice* say it outright. An override cannot
+  invent what it needs, so *Tiled* with no tile size and *9-Slice* on a texture with no
+  border both draw the plain quad, which is what the sprite would have drawn anyway.
+
+- **A WeChat mini-game now carries only the optional subsystems its project uses.**
+  The engine binary was never the only thing a package paid for whether it needed it or
+  not: the JavaScript bundle carried Spine, DragonBones, 2D physics, 3D physics and video
+  in every build, because the runtime that starts your game named all of them. It no
+  longer does — the export reads the same scan that already decides which `.wasm` side
+  modules ship, and builds on an SDK entry that installs only those. *hello-world* drops
+  91KB of a 1.4MB bundle; a project that does use Spine keeps Spine and drops what it
+  does not. There is more to win here and it is measured: `SpinePlugin` registers a named
+  resource when its module loads, which a bundler cannot remove, and that alone is 47KB
+  no package can currently shed.
+
+- **A packaged game now says it is loading.** Between the page opening and the first frame
+  an export showed its background colour and nothing else — and on a cold start that gap is
+  the whole download of a 1.7MB engine binary, which reads to a player as a page that did
+  not work. Web and desktop packages now open on a start screen carrying the project's name
+  and a bar moving through the eight stages the boot actually has, weighted by what each one
+  costs rather than counted evenly: reading the build, scripts, the asset list, the scene,
+  the engine, the renderer, assets, ready. It fades as the first frame arrives. A start
+  screen still standing after a package settles now fails that package's check, because
+  everything else about it passes — the canvas painted underneath, nothing errored — and
+  what it leaves on screen looks exactly like a game that is still loading.
+
+- **The engine can ship outside a WeChat mini-game's main package entirely.** Compressing
+  it left 0.35MB of the 4MB limit spent before any of your content; *Engine in a subpackage*
+  moves the binary into a 分包 the host loads at startup, and the main package keeps only
+  the 162KB of glue that starts it — 4% of the limit, down from 47.5% with neither setting
+  on. The two stack: compression shrinks what the 分包 downloads. Off by default, because
+  startup then waits on that load, which is a trade worth making when the main package is
+  what you are fighting and not otherwise.
+
+- **A WeChat mini-game can ship its engine compressed, freeing a third of the main
+  package.** The engine binary is the largest single file such a package carries — 1.74MB
+  against WeChat's 4MB main-package limit, 43.6% of it spent before any of your content.
+  WeChat's loader accepts a brotli-compressed `.wasm.br` path, so turning on *Compress
+  engine binary* on the WeChat page of Package Project ships 0.35MB instead: 8.7% of the
+  limit, with 1.40MB handed back to the game. The package carries one file, not both, and
+  the host decompresses it on load. Off by default, since it costs about two seconds of
+  build time and only pays where a main-package limit is being fought. Needs WeChat base
+  library 2.14.0.
 
 ### Changed
+
+- **A mini-game says it is starting before it parses the game.** The host's loading indicator only appeared once `initMiniGameRuntime` ran, which is after the entry has required a megabyte of bundle — the longest silent stretch of a cold start. The generated entry now raises it on its first line.
+
+- **A mini-game's side modules compress too, not just its engine.** Brotli was applied to the engine binary alone, so a package that transcodes KTX2 textures still carried Basis at its full 1.1MB — 27% of WeChat's 4MB main-package cap on its own. They compress on the same switch now, and the loader is told which suffix the build staged instead of spelling `.wasm` itself. Measured on the platformer template: its WeChat package was 108% of the cap and is now 51.5%, with the side modules accounting for 902KB of that.
+
+- **The build's size bar stopped borrowing Play's green.** Within budget was drawn in the transport's running-green, which reads as a state the build is in rather than as a measurement — and a green bar invites "fine, keep going" where the honest message is that there is nothing to report yet. It is now the panel's own neutral, and goes amber then red, which is the whole vocabulary it needs. The two progress bars in that panel were also 6px and 8px side by side; they are one shape now.
 
 - **A dialog's title now looks like one.** The editor's type scale stopped at 14px and used
   it five times in the whole application, while 10px carried most of the text — so a dialog
   header at 13px read as bold body text rather than as a title. Window titles now have a
   step of their own, which is what every editor this size gives them.
-
-### Changed
 
 - **A web package ships only the subsystems its project uses.** Every web package staged all eleven engine
   subpaths and loaded the entry that installs every optional subsystem, so a UI-only game
@@ -128,16 +194,19 @@ published separately; it ships inside the editor.
   unchanged and all were `@beta`; the whole entry still installs everything, so anything
   that imports `esengine` alone behaves as before.
 
-### Added
-
-- **A UI node can keep clear of WeChat's capsule menu, which the safe area does not cover.**
-  `SafeArea.avoidHostMenu` pushes the top inset past the host's own overlay. Measured on the
-  iPhone 12 the simulator offers, the capsule's bottom edge is 29px *inside* the safe area,
-  so a node anchored to the top of the safe area can still be under it. No engine offers
-  this: every game converts the rect to layout units by hand, which is the arithmetic the
-  safe area already does here.
-
 ### Fixed
+
+- **A group that failed to load says so instead of handing back an empty bundle.** `Assets.loadGroup` settled every asset and returned whatever survived, so a subpackage that downloaded but staged nothing — or a CDN answering 404 — read exactly like a group that was always empty. It now names the assets that failed, the way a scene preload already did.
+
+- **A package whose engine ships in a 分包 now starts.** Its generated entry called the host's loading indicator on its first line without checking the host has one — and that call is optional in the API — so on a host that does not implement it the game died before reaching `loadSubpackage`. Every indicator call in a generated entry is guarded now; a progress message must never be what takes a boot down.
+
+- **When a 分包 will not come down, the package says which one and why.** The generated entry logged the vendor's error object, which reaches a device's console as `[object Object]` — the one place you get to look. It is stringified now, and the headless launcher can be told to refuse a named 分包 (`--fail-subpackage`) so the path a bad network takes is something a build can be run against rather than waited for.
+
+- **A Play session that times out now says whether it ever started.** The realm announces itself when its page runs, before a line of the engine is read — previously its only signal was the host module's last statement, so a machine still parsing the SDK and a frame that never ran gave the same ninety seconds of silence, and both were reported as the editor being broken. The two now read differently, and only one of them is the machine's.
+
+- **The Engine Modules page no longer calls a module unused that the build then carries.** It read only the components a scene names, while the build also reads the extensions of the assets that ship and the imports your scripts write — so a behaviour tree an agent is handed at runtime, which leaves no component behind, showed as "not used by this project" in a package that had it. The page now reads the same asset table the build installs from, and says what it can see rather than what will ship.
+
+- **A Douyin package could not start.** It shipped the browser engine artifact, which is an ES module, and a mini-game host loads its JavaScript with `require` — so `game.js` threw `SyntaxError: Unexpected token 'export'` on its first line and the package never reached a frame. Every mini-game host takes the same engine build, and now every mini-game target asks for it: the two built-in vendors, and a platform a project defines itself, which had the same browser default. The export also refuses an ES module engine by reading the file rather than trusting its name, since the name was the thing that was wrong.
 
 - **A mini-game that fetches its engine from a 分包 shows the download's progress.** The host fetches it before the game
   bundle is parsed, so the runtime's own loading indicator could not say anything yet and
@@ -331,81 +400,6 @@ published separately; it ships inside the editor.
   has none. A report from a 0.69.0 user showed the shape of it — a 3D template open for six
   minutes with zero textures loaded, zero render targets and not one warning in the whole
   diagnostic bundle. The failures are now warned once, with what failed and why.
-
-### Added
-
-- **Douyin is selectable in the build dialog and has its own texture Import Settings tab.**
-  The export existed — the same runtime as WeChat, judged against Douyin's own 20MB cap —
-  but the editor's platform list was written by hand, so nothing offered the target that
-  had shipped. The list is the platform registry's now, in its order.
-
-- **A mini-game says how far along its boot is, not just that it is loading.** The web
-  export got a start screen with a real progress bar; a mini-game could not have one,
-  because the display canvas is already the GL surface and nothing can be drawn over it.
-  It now reports through the host's own loading indicator instead — *Starting the
-  engine 54%* — driven by the same eight weighted stages the web overlay uses, from one
-  list, so the two cannot disagree about how far along the same boot is. A host without
-  that API boots exactly as before: an indicator is something a boot shows, never
-  something it can fail on.
-
-- **A project can be exported as a Douyin (抖音) mini-game.** Pick *Douyin* in Package
-  Project and the same content that makes a WeChat package makes a Douyin one, judged
-  against Douyin's own caps — 4MB for the main package and **20MB in total**, ten less
-  than WeChat allows, which is the number that catches a package out. Three things are
-  deliberately not claimed yet, because this release cannot cite them: the suffix list
-  its packer accepts, `.wasm.br` for the engine binary, and a wasm loader of the host's
-  own. Each is something only a real device settles, and a package that claimed one
-  early would build clean and fail at upload or at boot. Douyin needs no separate engine
-  build — the web artifact is what a `tt` host runs.
-
-- **A sprite can be drawn whole even when its texture carries a 9-slice border.** The
-  texture decided, not the entity using it: import a panel image with slice borders and
-  every Sprite showing it was 9-sliced, with nothing on the entity able to say otherwise.
-  Sprites now have a **Draw Mode** — *Auto* is the old inference (tile size decides
-  tiling, the texture's border decides 9-slice) and stays the default, so nothing you
-  have drawn changes; *Simple*, *Tiled* and *9-Slice* say it outright. An override cannot
-  invent what it needs, so *Tiled* with no tile size and *9-Slice* on a texture with no
-  border both draw the plain quad, which is what the sprite would have drawn anyway.
-
-- **A WeChat mini-game now carries only the optional subsystems its project uses.**
-  The engine binary was never the only thing a package paid for whether it needed it or
-  not: the JavaScript bundle carried Spine, DragonBones, 2D physics, 3D physics and video
-  in every build, because the runtime that starts your game named all of them. It no
-  longer does — the export reads the same scan that already decides which `.wasm` side
-  modules ship, and builds on an SDK entry that installs only those. *hello-world* drops
-  91KB of a 1.4MB bundle; a project that does use Spine keeps Spine and drops what it
-  does not. There is more to win here and it is measured: `SpinePlugin` registers a named
-  resource when its module loads, which a bundler cannot remove, and that alone is 47KB
-  no package can currently shed.
-
-- **A packaged game now says it is loading.** Between the page opening and the first frame
-  an export showed its background colour and nothing else — and on a cold start that gap is
-  the whole download of a 1.7MB engine binary, which reads to a player as a page that did
-  not work. Web and desktop packages now open on a start screen carrying the project's name
-  and a bar moving through the eight stages the boot actually has, weighted by what each one
-  costs rather than counted evenly: reading the build, scripts, the asset list, the scene,
-  the engine, the renderer, assets, ready. It fades as the first frame arrives. A start
-  screen still standing after a package settles now fails that package's check, because
-  everything else about it passes — the canvas painted underneath, nothing errored — and
-  what it leaves on screen looks exactly like a game that is still loading.
-
-- **The engine can ship outside a WeChat mini-game's main package entirely.** Compressing
-  it left 0.35MB of the 4MB limit spent before any of your content; *Engine in a subpackage*
-  moves the binary into a 分包 the host loads at startup, and the main package keeps only
-  the 162KB of glue that starts it — 4% of the limit, down from 47.5% with neither setting
-  on. The two stack: compression shrinks what the 分包 downloads. Off by default, because
-  startup then waits on that load, which is a trade worth making when the main package is
-  what you are fighting and not otherwise.
-
-- **A WeChat mini-game can ship its engine compressed, freeing a third of the main
-  package.** The engine binary is the largest single file such a package carries — 1.74MB
-  against WeChat's 4MB main-package limit, 43.6% of it spent before any of your content.
-  WeChat's loader accepts a brotli-compressed `.wasm.br` path, so turning on *Compress
-  engine binary* on the WeChat page of Package Project ships 0.35MB instead: 8.7% of the
-  limit, with 1.40MB handed back to the game. The package carries one file, not both, and
-  the host decompresses it on load. Off by default, since it costs about two seconds of
-  build time and only pays where a main-package limit is being fought. Needs WeChat base
-  library 2.14.0.
 
 ## [0.69.0] - 2026-09-18
 
@@ -13591,7 +13585,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.69.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.70.0...HEAD
+[0.70.0]: https://github.com/esengine/estella/compare/v0.69.0...v0.70.0
 [0.69.0]: https://github.com/esengine/estella/compare/v0.68.0...v0.69.0
 [0.68.0]: https://github.com/esengine/estella/compare/v0.67.0...v0.68.0
 [0.67.0]: https://github.com/esengine/estella/compare/v0.66.0...v0.67.0
