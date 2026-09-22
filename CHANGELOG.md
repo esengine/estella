@@ -24,6 +24,8 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A game started paused is handed the scene already held.** Asking the editor to start a game paused — what the built-in agent and the automation surface do to read a world that is standing still — waited for the game to report ready and paused it then, so it ran for however long that round trip took. On the physics playground the cart had already driven 6px up its ramp in three runs out of four, and in the fourth it had not moved at all: the state you read was never quite the state your scene authored. The pause now travels with the scene, and the world holds at its authored positions every time.
+
 - **Pressing Play while the editor is still warming up no longer loses the engine.** The editor brings the play realm's engine up in the background so the first Play is quick. "Is the engine up" is false for the whole of that bring-up, so a Play that landed inside it was treated as a cold start and reloaded the page that was doing the work — and the replacement then waited on a load the abandoned one still held. It waits for the warm-up it is about to use instead. This is likeliest on a loaded machine, where the warm-up takes longer than it takes you to click.
 
 - **The on-device crash check runs on whatever Android you have.** It built its test handler for arm64 no matter what was attached, so an emulator — the only Android most machines can offer — was pushed a binary it cannot execute and the check failed for a reason that had nothing to do with the crash handler. It asks the device which ABI it runs now, which is why a release criterion that read "needs a phone plugged in" is answered here: the record came back with its phase and a backtrace.

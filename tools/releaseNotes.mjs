@@ -708,6 +708,14 @@ export const NOTED = {
     { note: 'Pressing Play while the editor is still warming up no longer loses the engine.' },
   'fix(gates): the service-support check runs where its subject compiles':
     { internal: 'Moves a repository check between suites; the dialog it guards is unchanged.' },
+  'feat(gates): a mini-game package is asked what it does when a 分包 is refused':
+    { internal: 'A repository gate over the corpus; the package it judges is unchanged.' },
+  'fix(play): a realm asked for a still world is handed one, not stopped later':
+    { note: 'A game started paused is handed the scene already held.' },
+  'fix(build): the service row uses the editor\'s own tooltip and spacing':
+    { internal: 'The row from the commit before it, drawn with the editor\'s own tooltip and grid; nothing it says changes.' },
+  'chore(gates): bank three reaches the gameplay subpath move removed':
+    { internal: 'A repository ratchet baseline; no source changed.' },
   'feat(export): what each packaging target can do, before a build exists':
     { note: 'The build dialog says which engine services a target can provide.' },
   'feat(build): the dialog says which engine services a target can provide':
