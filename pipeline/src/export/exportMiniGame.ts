@@ -29,6 +29,7 @@
  *        own path. Pure Node (esbuild + fs) — IPC wiring is in main.ts.
  */
 import { loadEsbuild } from '../bundle/esbuildRuntime';
+import type { ProjectFeatures } from '../project/format';
 import {
   DEFAULT_RUNTIME_CONFIG, packagedRuntimeFields, type RuntimeProjectConfig,
 } from '../project/runtimeConfig';
@@ -52,7 +53,7 @@ import { buildCompiledSystems, type BuildMode } from '../bundle/buildCompiledSys
 import { resolveEmcc, runEmcc } from '../bundle/emccPath';
 import type { MiniGameExportProfile, MiniGameVendor } from './miniGameExportProfile';
 import { contentSubsystems } from './contentSubsystems';
-import { engineInstalls } from '../bundle/engineInstalls';
+import { engineInstalls, moduleChoices } from '../bundle/engineInstalls';
 
 
 
@@ -273,6 +274,8 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   /** The project's `packaging.engineSubpackage`: move the engine binary out of
    *  the main package into a 分包 the host loads at startup. */
   engineSubpackage?: boolean;
+  /** What the project says about its engine modules; see ProjectFeatures.modules. */
+  features?: ProjectFeatures;
   onProgress?: OnExportProgress;
 }): Promise<ExportMiniGameResult> {
   const title = opts.title ?? 'Game';
@@ -465,7 +468,14 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     subsystems: usedSubsystems.keys(),
     assetPaths: cook.includedPaths,
     sideModuleIds: sideModules.map((m) => m.id),
+    choices: moduleChoices(opts.features),
   });
+  // A package missing half a scene, with nothing saying which half, is worse than
+  // one that refuses to be made.
+  for (const r of plan.refused) {
+    errors.push(`${r.specifier} is excluded in Project Settings, and this build uses it — `
+      + `${r.evidence}. Set it to Auto or Include, or take it out of the content.`);
+  }
   // Only when the SDK build actually produced one: a tree without it (an older
   // dist, a test fixture) must fall back to the whole entry rather than alias
   // `esengine` to a file that is not there.

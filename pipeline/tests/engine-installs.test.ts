@@ -9,14 +9,14 @@
  * fine — it was never installed.
  */
 import { describe, it, expect } from 'vitest';
-import { engineInstalls } from '../src/bundle/engineInstalls';
+import { engineInstalls, moduleChoices } from '../src/bundle/engineInstalls';
 import { ESENGINE_SUBPATHS } from '../src/bundle/esengineResolve';
 import { SUBSYSTEM_INSTALL, type Subsystem } from '../src/project/targetSupport';
 
 describe('the engine modules a package installs', () => {
     it('takes a subsystem from the components its content authored', () => {
         expect(engineInstalls({ subsystems: ['tilemap', 'ai'] }))
-            .toEqual({ lean: true, subpaths: ['esengine/ai', 'esengine/tilemap'] });
+            .toEqual({ lean: true, subpaths: ['esengine/ai', 'esengine/tilemap'], refused: [] });
     });
 
     it('takes one a document names by asset rather than by component', () => {
@@ -41,7 +41,7 @@ describe('the engine modules a package installs', () => {
 
     it('asks for nothing when everything in use is in the base entry', () => {
         expect(engineInstalls({ subsystems: ['text', 'particles', 'postprocess'] }))
-            .toEqual({ lean: true, subpaths: [] });
+            .toEqual({ lean: true, subpaths: [], refused: [] });
     });
 
     // Video has no subpath to install it, so a project with video cannot be lean
@@ -93,5 +93,75 @@ describe('every subpath the SDK publishes', () => {
             .filter(([, install]) => !(install in ESENGINE_SUBPATHS))
             .map(([subsystem]) => subsystem);
         expect(unpublished).toEqual([]);
+    });
+});
+
+/**
+ * What a project SAYS, against what the build detects. Detection is right about
+ * almost everything, so these two exist for what it cannot see: a module only a
+ * script reaches, and a module a build must not carry whatever the content says.
+ */
+describe('a project that overrides what the build detected', () => {
+    it('installs one nothing detected, which is what `include` is for', () => {
+        const plan = engineInstalls({ choices: { 'esengine/physics': 'include' } });
+        expect(plan.subpaths).toEqual(['esengine/physics']);
+        expect(plan.refused).toEqual([]);
+    });
+
+    it('ignores an `include` for a module the SDK does not publish', () => {
+        expect(engineInstalls({ choices: { 'esengine/nope': 'include' } }).subpaths).toEqual([]);
+    });
+
+    it('leaves out one it excluded that nothing uses', () => {
+        expect(engineInstalls({
+            subsystems: ['tilemap'], choices: { 'esengine/ai': 'exclude' },
+        })).toMatchObject({ subpaths: ['esengine/tilemap'], refused: [] });
+    });
+
+    // The half that matters: a package missing the subsystem its own scene needs
+    // boots, draws, and is simply wrong — so the export has to refuse instead.
+    it('refuses one it excluded that the content uses, naming what said so', () => {
+        const plan = engineInstalls({
+            subsystems: ['tilemap'], choices: { 'esengine/tilemap': 'exclude' },
+        });
+        expect(plan.subpaths).toEqual([]);
+        expect(plan.refused).toEqual([
+            { specifier: 'esengine/tilemap', evidence: 'a tilemap component in the content' },
+        ]);
+    });
+
+    it('names the asset that argues with an exclusion, not the module', () => {
+        expect(engineInstalls({
+            assetPaths: ['assets/logic/Door.esgraph'], choices: { 'esengine/logic': 'exclude' },
+        }).refused[0]).toEqual({ specifier: 'esengine/logic', evidence: 'assets/logic/Door.esgraph' });
+    });
+
+    it('names the script that argues with one', () => {
+        expect(engineInstalls({
+            scriptImports: ['esengine/replication'], choices: { 'esengine/replication': 'exclude' },
+        }).refused[0].evidence).toContain('a project script imports');
+    });
+});
+
+describe('what a project said, read off its manifest', () => {
+    it('is empty when it said nothing', () => {
+        expect(moduleChoices(undefined)).toEqual({});
+        expect(moduleChoices({})).toEqual({});
+    });
+
+    // physics.enabled was this for one module, and older projects still carry it.
+    it('reads the older physics.enabled as an include', () => {
+        expect(moduleChoices({ physics: { enabled: true } }))
+            .toEqual({ 'esengine/physics': 'include' });
+    });
+
+    it('lets the module a project last edited win over the older field', () => {
+        expect(moduleChoices({
+            physics: { enabled: true }, modules: { 'esengine/physics': 'exclude' },
+        })).toEqual({ 'esengine/physics': 'exclude' });
+    });
+
+    it('says nothing for physics.enabled false — off is the default, not a refusal', () => {
+        expect(moduleChoices({ physics: { enabled: false } })).toEqual({});
     });
 });

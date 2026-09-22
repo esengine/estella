@@ -16,6 +16,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { exportGame } from '../src/export/exportGame';
 import { writeFakeSdkDist } from './fixtures/fakeSdkDist';
+import type { ModuleChoice } from '../src/project/format';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOSTS = path.join(HERE, '..', 'src', 'runtime');
@@ -120,6 +121,55 @@ describe('a web package built on a lean entry', () => {
             await run(f);
             const page = readFileSync(path.join(f.out, 'index.html'), 'utf8');
             expect(page).toContain('"esengine":"./sdk/index.js"');
+        } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
+    });
+});
+
+/**
+ * A module a project refused, against content that uses it.
+ *
+ * The package this would otherwise make boots and draws and is missing the
+ * subsystem its own scene needs, with nothing saying which one — so the export
+ * refuses to make it, and names what argued.
+ */
+describe('a web package whose project excluded a module', () => {
+    /** The export takes what the project said as an option, the way it takes every
+     *  other project-derived setting; `packagingOptionsOf` is what derives it. */
+    const withChoice = (components: string[], modules: Record<string, ModuleChoice>) => ({
+        ...setup(components), features: { modules },
+    });
+    const runWith = (f: ReturnType<typeof withChoice>) => exportGame({
+        root: f.root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS,
+        sdkDistDir: path.join(f.root, '_sdk'), wasmDir: path.join(f.root, '_wasm'),
+        outDir: f.out, features: f.features,
+    });
+
+    it('fails, naming the module and what said the project uses it', async () => {
+        const f = withChoice(['Tilemap'], { 'esengine/tilemap': 'exclude' });
+        try {
+            const res = await runWith(f);
+            expect(res.ok).toBe(false);
+            expect(res.errors.join('\n')).toContain('esengine/tilemap is excluded');
+            expect(res.errors.join('\n')).toContain('a tilemap component in the content');
+        } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
+    });
+
+    it('builds when the excluded module is one the content does not use', async () => {
+        const f = withChoice(['Tilemap'], { 'esengine/ai': 'exclude' });
+        try {
+            const res = await runWith(f);
+            expect(res.errors).toEqual([]);
+            expect(readFileSync(path.join(f.out, 'game.js'), 'utf8')).toContain('import "esengine/tilemap"');
+        } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
+    });
+
+    // What `include` is for: a module only a script reaches, which no scan sees.
+    it('installs one the project forced in although nothing detected it', async () => {
+        const f = withChoice(['Transform'], { 'esengine/replication': 'include' });
+        try {
+            await runWith(f);
+            expect(readFileSync(path.join(f.out, 'game.js'), 'utf8'))
+                .toContain('import "esengine/replication"');
         } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
     });
 });

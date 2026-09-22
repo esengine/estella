@@ -106,8 +106,23 @@ export interface ProjectScripts {
  * that spawns RigidBodies from a script at runtime). Absence ⇒ off; physics also
  * auto-installs when a scene actually uses physics components.
  */
+/**
+ * What a project says about one engine module, against what the build detects.
+ * `auto` is almost always right; the other two are for what detection cannot
+ * see — a module reached only from code, and one a build must not carry.
+ */
+export type ModuleChoice = 'auto' | 'include' | 'exclude';
+
 export interface ProjectFeatures {
+  /**
+   * Per-module override, keyed by the `esengine/` subpath that installs it — the
+   * same names the export stages. `include` is the older `physics.enabled`
+   * generalised; `exclude` refuses one, and an export whose content uses it
+   * anyway fails rather than shipping half a scene.
+   */
+  modules?: Record<string, ModuleChoice>;
   physics?: {
+    /** @deprecated `modules.physics = 'include'` — kept so older projects load. */
     enabled?: boolean;
     gravity?: { x: number; y: number };
     /** Names for the 16 Box2D collision-filter layers (the inspector's layer masks). */
@@ -573,6 +588,15 @@ export function parseManifest(raw: unknown): ProjectManifest {
   if (o.features && typeof o.features === 'object') {
     const f = o.features as Record<string, unknown>;
     const features: ProjectFeatures = {};
+    if (f.modules && typeof f.modules === 'object') {
+      const modules: Record<string, ModuleChoice> = {};
+      for (const [id, v] of Object.entries(f.modules as Record<string, unknown>)) {
+        // `auto` is the default, so recording it would be a second way to spell
+        // "nothing here" that every reader would then have to handle.
+        if (v === 'include' || v === 'exclude') modules[id] = v;
+      }
+      if (Object.keys(modules).length > 0) features.modules = modules;
+    }
     if (f.physics && typeof f.physics === 'object') {
       const p = f.physics as Record<string, unknown>;
       const physics: NonNullable<ProjectFeatures['physics']> = {};

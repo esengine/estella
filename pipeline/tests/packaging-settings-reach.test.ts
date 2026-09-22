@@ -40,3 +40,39 @@ describe('a packaging setting a project declares', () => {
         expect(packagingOptionsOf(m).excludeScenes).toEqual(['assets/scenes/dev.esscene']);
     });
 });
+
+/**
+ * What a project says about its engine modules rides with the packaging options
+ * because every caller already spreads those. A second place to remember is a
+ * place one caller forgets — which is how `compressWasm` reached the dialog and
+ * nothing else.
+ */
+describe('the modules a project declares', () => {
+    it('survives the parser', () => {
+        const m = parseManifest({
+            formatVersion: '1', name: 'p',
+            features: { modules: { 'esengine/tilemap': 'exclude', 'esengine/ai': 'include' } },
+        });
+        expect(m.features?.modules)
+            .toEqual({ 'esengine/tilemap': 'exclude', 'esengine/ai': 'include' });
+    });
+
+    it('drops `auto`, which is what saying nothing already means', () => {
+        const m = parseManifest({
+            formatVersion: '1', name: 'p', features: { modules: { 'esengine/ai': 'auto' } },
+        });
+        expect(m.features?.modules).toBeUndefined();
+    });
+
+    it('reaches the export options every caller spreads', () => {
+        const m = parseManifest({
+            formatVersion: '1', name: 'p', features: { modules: { 'esengine/ai': 'exclude' } },
+        });
+        expect(packagingOptionsOf(m).features?.modules).toEqual({ 'esengine/ai': 'exclude' });
+    });
+
+    it('carries an older project\'s physics.enabled through as well', () => {
+        const m = parseManifest({ formatVersion: '1', name: 'p', features: { physics: { enabled: true } } });
+        expect(packagingOptionsOf(m).features?.physics?.enabled).toBe(true);
+    });
+});

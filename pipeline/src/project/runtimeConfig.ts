@@ -27,7 +27,7 @@
  * or is not listed there as a declared, reasoned gap.
  */
 import type { AudioProjectConfig, PackagedGameConfig, Physics2DPluginConfig } from 'esengine';
-import { resolveScreenFit, SORTING_LAYER_COUNT, type ProjectManifest } from './format';
+import { resolveScreenFit, SORTING_LAYER_COUNT, type ProjectFeatures, type ProjectManifest } from './format';
 
 /** The project's camera fit as a runtime takes it (`scaleMode < 0` ⇒ off). */
 export interface RuntimeScreenFit {
@@ -237,6 +237,8 @@ export function cookOptionsOf(manifest: Pick<ProjectManifest, 'packaging'>): Coo
  * package silently differed from the one a person makes.
  */
 export interface PackagingOptions {
+  /** What the project says about its engine modules; see ProjectFeatures.modules. */
+  features: ProjectFeatures | undefined;
   compressWasm: boolean;
   engineSubpackage: boolean;
   excludeScenes: string[];
@@ -244,9 +246,13 @@ export interface PackagingOptions {
   appIcon: string | undefined;
 }
 
-export function packagingOptionsOf(manifest: Pick<ProjectManifest, 'packaging'>): PackagingOptions {
+export function packagingOptionsOf(manifest: Pick<ProjectManifest, 'packaging' | 'features'>): PackagingOptions {
   const p = manifest.packaging;
   return {
+    // What the project says about its engine modules rides with the packaging
+    // options because every caller already spreads those — a second place to
+    // remember is a place one caller forgets.
+    features: manifest.features,
     compressWasm: p?.compressWasm ?? false,
     engineSubpackage: p?.engineSubpackage ?? false,
     excludeScenes: p?.excludeScenes ?? [],

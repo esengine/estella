@@ -34,7 +34,7 @@ import {
   DEFAULT_RUNTIME_CONFIG, packagedRuntimeFields, type RuntimeProjectConfig,
 } from '../project/runtimeConfig';
 import { engineImportMap, FULL_IMPORT_MAP, LEAN_ENTRY_FILE, FULL_ENTRY_FILE, type EngineImportMap } from '../bundle/importMap';
-import { engineInstalls, type EngineInstallPlan } from '../bundle/engineInstalls';
+import { engineInstalls, moduleChoices, type EngineInstallPlan } from '../bundle/engineInstalls';
 import { exportMiniGame } from './exportMiniGame';
 import { wechatExportProfile, douyinExportProfile } from './miniGameExportProfile';
 import type { MiniGameExportProfile } from './miniGameExportProfile';
@@ -63,7 +63,7 @@ import { assembleDesktopApp } from '../../../build-tools/utils/desktopApp.js';
 import { emitSteamBuild, defaultDepotId } from '../../../build-tools/utils/steamChannel.js';
 import { debugSigningKey, type SigningKey } from '../../../build-tools/utils/androidKeystore.js';
 import { compileTargetFor, isNativePlatform, desktopTemplateFor, type DesktopOs, type ExportPlatform } from '../project/platforms';
-import type { DesktopPackaging, SteamPackaging } from '../project/format';
+import type { DesktopPackaging, ProjectFeatures, SteamPackaging } from '../project/format';
 import type { SizeBudget } from '../project/sizeBudget';
 import { measureBuild, type BuildSizeReport } from './sizeReport';
 import { sizeSettingsOf } from './sizeHistory';
@@ -412,6 +412,9 @@ export interface ExportGameOptions {
    *  resolved by the caller since a project can define its own. Absent ⇒ generic. */
   playableAdProfile?: PlayableAdProfile;
 
+  /** What the project says about its engine modules (`ProjectFeatures.modules`).
+   *  Absent ⇒ every module is `auto`, which is what detection alone gives. */
+  features?: ProjectFeatures;
   /** Desktop product/display name (Project Settings); default the project title. */
   desktopProductName?: string;
   /**
@@ -628,6 +631,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       hostsDir: opts.hostsDir,
       title,
       appid: opts.miniGameAppid,
+      features: opts.features,
       orientation,
       runtime,
       minify: opts.minify,
@@ -660,6 +664,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       hostsDir: opts.hostsDir,
       title,
       appid: opts.miniGameAppid,
+      features: opts.features,
       orientation,
       runtime,
       minify: opts.minify,
@@ -819,7 +824,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     : [];
   /** The subpaths this package installs, and whether a lean entry can carry it.
    *  Set on the browser path once the project's own imports are known. */
-  let plan: EngineInstallPlan = { lean: false, subpaths: [] };
+  let plan: EngineInstallPlan = { lean: false, subpaths: [], refused: [] };
   try {
     const { build } = await loadEsbuild();
     // 2. Project bundle (defineComponent/defineSystem). ESM with `esengine`
@@ -847,7 +852,14 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
         assetPaths: cook.includedPaths,
         sideModuleIds,
         scriptImports,
+        choices: moduleChoices(opts.features),
       });
+      // A package missing half a scene, with nothing saying which half, is worse
+      // than one that refuses to be made.
+      for (const r of plan.refused) {
+        errors.push(`${r.specifier} is excluded in Project Settings, and this build uses it — `
+          + `${r.evidence}. Set it to Auto or Include, or take it out of the content.`);
+      }
       progress({ phase: 'Bundling game host' });
       // An entry that IMPORTS what this package installs, then the host. Staging
       // a subpath only lets the page resolve it; a subsystem is installed by
