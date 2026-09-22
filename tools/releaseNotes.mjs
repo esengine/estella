@@ -732,6 +732,10 @@ export const NOTED = {
     { internal: 'The two graph editors read their port colours from the theme; all eight resolve to the hex they replaced, so nothing drawn changes.' },
   "feat(gates): a file whose colours are not the palette's says so":
     { internal: "A repository ratchet over the editor's own source; no creator runs it." },
+  'refactor(theme): twelve font sizes that were a scale step, written as a number':
+    { internal: 'The editor reads its own type scale where it had restated it; every size resolves to the px it replaced.' },
+  'chore(gates): bank the type-scale convergence':
+    { internal: 'A repository ratchet baseline; no source changed.' },
   'feat(export): what each packaging target can do, before a build exists':
     { note: 'The build dialog says which engine services a target can provide.' },
   'feat(build): the dialog says which engine services a target can provide':
