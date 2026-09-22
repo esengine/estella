@@ -29,7 +29,7 @@
  *        own path. Pure Node (esbuild + fs) — IPC wiring is in main.ts.
  */
 import { loadEsbuild } from '../bundle/esbuildRuntime';
-import type { ProjectFeatures } from '../project/format';
+import type { ProjectFeatures, ProjectPackaging } from '../project/format';
 import {
   DEFAULT_RUNTIME_CONFIG, packagedRuntimeFields, type RuntimeProjectConfig,
 } from '../project/runtimeConfig';
@@ -276,6 +276,8 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   engineSubpackage?: boolean;
   /** What the project says about its engine modules; see ProjectFeatures.modules. */
   features?: ProjectFeatures;
+  /** Per-target overrides laid over those. */
+  modulesByPlatform?: ProjectPackaging['modulesByPlatform'];
   onProgress?: OnExportProgress;
 }): Promise<ExportMiniGameResult> {
   const title = opts.title ?? 'Game';
@@ -468,7 +470,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     subsystems: usedSubsystems.keys(),
     assetPaths: cook.includedPaths,
     sideModuleIds: sideModules.map((m) => m.id),
-    choices: moduleChoices(opts.features),
+    choices: moduleChoices(opts.features, opts.modulesByPlatform?.[profile.id]),
   });
   // A package missing half a scene, with nothing saying which half, is worse than
   // one that refuses to be made.

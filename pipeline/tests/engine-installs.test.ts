@@ -189,3 +189,35 @@ describe('every module a project can refuse', () => {
         expect(ENGINE_MODULES.filter((m) => !byComponent.has(m))).toEqual([]);
     });
 });
+
+/**
+ * One target's limits are not another's. A playable ad has a size cap a web
+ * build does not, so refusing 3D physics there must not refuse it everywhere —
+ * and forcing a module in for one target must not force it into the rest.
+ */
+describe('a project that answers differently per target', () => {
+    const project = { modules: { 'esengine/physics3d': 'include' } } as const;
+
+    it('uses the project-wide answer when the target said nothing', () => {
+        expect(moduleChoices(project)).toEqual({ 'esengine/physics3d': 'include' });
+    });
+
+    it('lets a target overrule the project for itself', () => {
+        expect(moduleChoices(project, { 'esengine/physics3d': 'exclude' }))
+            .toEqual({ 'esengine/physics3d': 'exclude' });
+    });
+
+    it('leaves the modules that target did not mention alone', () => {
+        expect(moduleChoices(
+            { modules: { 'esengine/ai': 'exclude', 'esengine/physics3d': 'include' } },
+            { 'esengine/physics3d': 'exclude' },
+        )).toEqual({ 'esengine/ai': 'exclude', 'esengine/physics3d': 'exclude' });
+    });
+
+    it('refuses on the target that excluded it and builds on the one that did not', () => {
+        const used = { subsystems: ['physics3d'] } as const;
+        expect(engineInstalls({ ...used, choices: moduleChoices(project) }).refused).toEqual([]);
+        expect(engineInstalls({ ...used, choices: moduleChoices(project, { 'esengine/physics3d': 'exclude' }) })
+            .refused.map((r) => r.specifier)).toEqual(['esengine/physics3d']);
+    });
+});

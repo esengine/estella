@@ -76,3 +76,31 @@ describe('the modules a project declares', () => {
         expect(packagingOptionsOf(m).features?.physics?.enabled).toBe(true);
     });
 });
+
+describe('the per-target module overrides', () => {
+    it('survive the parser, keyed by target', () => {
+        const m = parseManifest({
+            formatVersion: '1', name: 'p',
+            packaging: { modulesByPlatform: { playable: { 'esengine/physics3d': 'exclude' } } },
+        });
+        expect(m.packaging?.modulesByPlatform?.playable)
+            .toEqual({ 'esengine/physics3d': 'exclude' });
+    });
+
+    it('drop `auto`, as the project-wide ones do', () => {
+        const m = parseManifest({
+            formatVersion: '1', name: 'p',
+            packaging: { modulesByPlatform: { playable: { 'esengine/ai': 'auto' } } },
+        });
+        expect(m.packaging?.modulesByPlatform).toBeUndefined();
+    });
+
+    it('reach the export options every caller spreads', () => {
+        const m = parseManifest({
+            formatVersion: '1', name: 'p',
+            packaging: { modulesByPlatform: { wechat: { 'esengine/spine': 'exclude' } } },
+        });
+        expect(packagingOptionsOf(m).modulesByPlatform?.wechat)
+            .toEqual({ 'esengine/spine': 'exclude' });
+    });
+});

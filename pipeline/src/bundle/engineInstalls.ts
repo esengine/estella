@@ -41,14 +41,19 @@ const SIDE_MODULE_SUBPATH: Readonly<Record<string, string>> = {
  * module is installed from, and absorbing the older `features.physics.enabled`,
  * which was this for one module: a way to name what only a script reaches.
  */
-export function moduleChoices(features: ProjectFeatures | undefined): Readonly<Record<string, ModuleChoice>> {
+export function moduleChoices(
+    features: ProjectFeatures | undefined,
+    /** Per-target overrides, laid over the project's own — one target's limits
+     *  are not another's. Omit for the project-wide answer. */
+    perPlatform?: Readonly<Record<string, ModuleChoice>>,
+): Readonly<Record<string, ModuleChoice>> {
     const out: Record<string, ModuleChoice> = { ...(features?.modules ?? {}) };
     // The old field, and only where the new one is silent: a project that says
     // both means the one it was last edited with.
     if (features?.physics?.enabled && out['esengine/physics'] === undefined) {
         out['esengine/physics'] = 'include';
     }
-    return out;
+    return { ...out, ...(perPlatform ?? {}) };
 }
 
 /** A module the project refused that its own content uses. */

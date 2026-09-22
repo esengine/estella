@@ -341,6 +341,12 @@ export interface ProjectPackaging {
    */
   sizeBudget?: Partial<Record<ExportPlatform, number>>;
   /**
+   * Per-target module overrides, laid over `features.modules`. One target's
+   * limits are not another's — a playable ad has a size cap a web build does
+   * not, and refusing 3D physics there should not refuse it everywhere.
+   */
+  modulesByPlatform?: Partial<Record<ExportPlatform, Record<string, ModuleChoice>>>;
+  /**
    * The application identifier (reverse-DNS) every installable target needs: the
    * Android manifest package, the iOS bundle id, the Electron appId. One project
    * ships as one application, so it is declared once here; a target that genuinely
@@ -738,6 +744,18 @@ export function parseManifest(raw: unknown): ProjectManifest {
         if (typeof v === 'number' && Number.isFinite(v) && v > 0) budgets[normalizePlatform(k)] = v;
       }
       if (Object.keys(budgets).length > 0) pkg.sizeBudget = budgets;
+    }
+    if (p.modulesByPlatform && typeof p.modulesByPlatform === 'object') {
+      const byPlatform: NonNullable<ProjectPackaging['modulesByPlatform']> = {};
+      for (const [platform, v] of Object.entries(p.modulesByPlatform as Record<string, unknown>)) {
+        if (!v || typeof v !== 'object') continue;
+        const modules: Record<string, ModuleChoice> = {};
+        for (const [id, choice] of Object.entries(v as Record<string, unknown>)) {
+          if (choice === 'include' || choice === 'exclude') modules[id] = choice;
+        }
+        if (Object.keys(modules).length > 0) byPlatform[normalizePlatform(platform)] = modules;
+      }
+      if (Object.keys(byPlatform).length > 0) pkg.modulesByPlatform = byPlatform;
     }
     // Deduplicated and trimmed: a store keys achievements by this string, so a
     // stray blank or a repeat is a row that can never match one.

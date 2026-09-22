@@ -56,6 +56,7 @@ export const PACKAGING_SIZE_ROLE: Readonly<Record<string, keyof SizeSettings | '
     compressWasm: 'compressWasm',
     engineSubpackage: 'engineSubpackage',
     excludeScenes: 'content',
+    modulesByPlatform: 'content',
     outDir: 'inert',
     sizeBudget: 'inert',
     appId: 'inert',

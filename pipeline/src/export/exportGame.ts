@@ -63,7 +63,7 @@ import { assembleDesktopApp } from '../../../build-tools/utils/desktopApp.js';
 import { emitSteamBuild, defaultDepotId } from '../../../build-tools/utils/steamChannel.js';
 import { debugSigningKey, type SigningKey } from '../../../build-tools/utils/androidKeystore.js';
 import { compileTargetFor, isNativePlatform, desktopTemplateFor, type DesktopOs, type ExportPlatform } from '../project/platforms';
-import type { DesktopPackaging, ProjectFeatures, SteamPackaging } from '../project/format';
+import type { DesktopPackaging, ProjectFeatures, ProjectPackaging, SteamPackaging } from '../project/format';
 import type { SizeBudget } from '../project/sizeBudget';
 import { measureBuild, type BuildSizeReport } from './sizeReport';
 import { sizeSettingsOf } from './sizeHistory';
@@ -415,6 +415,8 @@ export interface ExportGameOptions {
   /** What the project says about its engine modules (`ProjectFeatures.modules`).
    *  Absent ⇒ every module is `auto`, which is what detection alone gives. */
   features?: ProjectFeatures;
+  /** Per-target overrides laid over those; one target's limits are not another's. */
+  modulesByPlatform?: ProjectPackaging['modulesByPlatform'];
   /** Desktop product/display name (Project Settings); default the project title. */
   desktopProductName?: string;
   /**
@@ -632,6 +634,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       title,
       appid: opts.miniGameAppid,
       features: opts.features,
+      modulesByPlatform: opts.modulesByPlatform,
       orientation,
       runtime,
       minify: opts.minify,
@@ -665,6 +668,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       title,
       appid: opts.miniGameAppid,
       features: opts.features,
+      modulesByPlatform: opts.modulesByPlatform,
       orientation,
       runtime,
       minify: opts.minify,
@@ -852,7 +856,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
         assetPaths: cook.includedPaths,
         sideModuleIds,
         scriptImports,
-        choices: moduleChoices(opts.features),
+        choices: moduleChoices(opts.features, opts.modulesByPlatform?.[platform]),
       });
       // A package missing half a scene, with nothing saying which half, is worse
       // than one that refuses to be made.
