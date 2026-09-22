@@ -246,6 +246,8 @@ export interface PackagingOptions {
   excludeScenes: string[];
   sourcemap: boolean;
   appIcon: string | undefined;
+  /** How the page's start screen should look; see SplashPackaging. */
+  splash: ProjectPackaging['splash'];
 }
 
 export function packagingOptionsOf(manifest: Pick<ProjectManifest, 'packaging' | 'features'>): PackagingOptions {
@@ -263,6 +265,7 @@ export function packagingOptionsOf(manifest: Pick<ProjectManifest, 'packaging' |
     // word the dialog uses for the same choice.
     sourcemap: p?.sourceMaps ?? (p?.config === 'development'),
     appIcon: p?.icon,
+    splash: p?.splash,
   };
 }
 

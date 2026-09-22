@@ -309,12 +309,19 @@ const SCENE = flag('scene', '');
   }
 
   // A start screen that outlived its boot covers the game with something that
-  // looks like a game still loading, and every other check here passes. Faded,
-  // not removed: `done()` drops the node 400ms later, long after boot ended.
-  const splashLeft = await win.webContents.executeJavaScript(
-    "(() => { const e = document.getElementById('es-splash');"
-    + " return !!e && !e.classList.contains('es-splash-gone'); })()",
-  ).catch(() => false);
+  // looks like a game still loading, and every other check here passes. The
+  // deadline is the PAGE's (`data-min-ms`), not a fixed wait of ours.
+  const splashLeft = await (async () => {
+    const still = () => win.webContents.executeJavaScript(
+      "(() => { const e = document.getElementById('es-splash');"
+      + " return e && !e.classList.contains('es-splash-gone')"
+      + " ? Number(e.getAttribute('data-min-ms') || 0) : -1; })()",
+    ).catch(() => -1);
+    const hold = await still();
+    if (hold <= 0) return hold === 0;
+    await new Promise((r) => setTimeout(r, hold + 200));
+    return (await still()) >= 0;
+  })();
 
   const image = await win.webContents.capturePage();
   if (OUT) await writeFile(OUT, image.toPNG());

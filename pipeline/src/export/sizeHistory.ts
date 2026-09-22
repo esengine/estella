@@ -62,6 +62,8 @@ export const PACKAGING_SIZE_ROLE: Readonly<Record<string, keyof SizeSettings | '
     appId: 'inert',
     icon: 'content',
     achievements: 'inert',
+    // A logo is inlined into the page, so choosing one changes what ships.
+    splash: 'content',
     platforms: 'content',
 };
 

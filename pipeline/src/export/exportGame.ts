@@ -53,7 +53,7 @@ import { resolveEmcc, runEmcc } from '../bundle/emccPath';
 import { findHostCC } from '../../../compiler/src/hostCC';
 import { explainBundleErrors, type BundleMessage } from '../bundle/bundleDiagnostics';
 import { orientationCss, orientationOverlayHtml, orientationLockScript, orientationLockCspHash, type ScreenOrientation } from './orientationHtml';
-import { splashCss, splashHtml } from './splash';
+import { PAGE_BACKGROUND, splashCss, splashHtml, type SplashLook } from './splash';
 import { emitIosXcodeProject, type IosProjectSources } from '../../../build-tools/utils/iosProject.js';
 import { emitAndroidGradleProject } from '../../../build-tools/utils/gradleProject.js';
 import { androidTemplateSources } from '../../../build-tools/utils/nativeTemplate.js';
@@ -290,14 +290,12 @@ function externalEngineImports(metafile: { outputs: Record<string, { imports?: {
   return [...found];
 }
 
-/** The page's ground, and what the start screen fades out over: the same colour on
- *  both sides, or the fade flashes through to white between them. */
-const PAGE_BACKGROUND = '#0e121b';
-
 /** The web host page. `orientation` pins the canvas to a screen orientation (rotate-
  *  to-fit overlay + best-effort lock) — set for the mobile-facing web target, omitted
  *  for desktop (the Electron shell sizes its own window). */
-function indexHtml(title: string, map: EngineImportMap, orientation?: ScreenOrientation): string {
+function indexHtml(
+  title: string, map: EngineImportMap, look: SplashLook, orientation?: ScreenOrientation,
+): string {
   // Every inline script on this page needs its hash listed, or the browser blocks it.
   const inlineScripts = [map.cspHash, ...(orientation ? [orientationLockCspHash(orientation)] : [])]
     .map((h) => `'${h}'`)
@@ -317,19 +315,52 @@ function indexHtml(title: string, map: EngineImportMap, orientation?: ScreenOrie
       * { margin: 0; padding: 0; box-sizing: border-box; }
       html, body { width: 100%; height: 100%; overflow: hidden; background: ${PAGE_BACKGROUND}; }
       #canvas { display: block; width: 100%; height: 100%; touch-action: none; }
-      ${splashCss(PAGE_BACKGROUND)}
+      ${splashCss(look.background ?? PAGE_BACKGROUND)}
       ${orientation ? orientationCss(orientation) : ''}
     </style>
   </head>
   <body>
     <canvas id="canvas"></canvas>
-    ${splashHtml(title)}
+    ${splashHtml(title, look)}
     ${orientation ? orientationOverlayHtml(orientation) : ''}
     ${orientation ? orientationLockScript(orientation) : ''}
     <script type="module" src="./game.js"></script>
   </body>
 </html>
 `;
+}
+
+/** Image types a start screen can inline, by extension. A format the page cannot
+ *  decode is a broken image over the whole first screen, so the list is closed. */
+const SPLASH_MIME: Readonly<Record<string, string>> = {
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp', '.svg': 'image/svg+xml', '.gif': 'image/gif',
+};
+
+/**
+ * The start screen the page will carry, with the logo INLINED.
+ *
+ * Inlined rather than staged: an image that needs its own request arrives in the
+ * same window the engine does, so a logo meant to cover the wait would appear
+ * only once there was nothing left to cover.
+ */
+async function splashLook(
+  root: string, splash: ProjectPackaging['splash'], warnings: string[],
+): Promise<SplashLook> {
+  const look: SplashLook = { minMs: splash?.minMs, background: splash?.background };
+  if (!splash?.logo) return look;
+  const file = path.join(root, splash.logo);
+  const mime = SPLASH_MIME[path.extname(splash.logo).toLowerCase()];
+  if (!mime) {
+    warnings.push(`The splash logo ${splash.logo} is not an image the page can inline — shown as the game's title instead.`);
+    return look;
+  }
+  if (!existsSync(file)) {
+    warnings.push(`The splash logo ${splash.logo} does not exist — shown as the game's title instead.`);
+    return look;
+  }
+  look.logo = `data:${mime};base64,${(await readFile(file)).toString('base64')}`;
+  return look;
 }
 
 /** A filesystem-safe slug for the app id / package name. */
@@ -507,6 +538,8 @@ export interface ExportGameOptions {
   /** `packaging.sizeBudget[platform]` — the project's own package-size ceiling in
    *  bytes, replacing whatever limit the target declares. See sizeBudget.ts. */
   sizeBudgetBytes?: number;
+  /** How the page's start screen should look; see SplashPackaging. */
+  splash?: ProjectPackaging['splash'];
 }
 
 /**
@@ -982,7 +1015,11 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   //    reports work nothing did.
   if (!nativeContent) {
     progress({ phase: 'Writing host page' });
-    await writeFile(path.join(payloadDir, 'index.html'), indexHtml(title, engineMap, platform === 'web' ? orientation : undefined));
+    const look = await splashLook(opts.root, opts.splash, warnings);
+    await writeFile(
+      path.join(payloadDir, 'index.html'),
+      indexHtml(title, engineMap, look, platform === 'web' ? orientation : undefined),
+    );
   }
   // Typed against the SDK's contract, so a field the runtimes read can never be
   // spelled differently here — the two sides share one declaration.

@@ -17,10 +17,28 @@ import { BOOT_STAGES, BOOT_TOTAL, type BootStage } from '../../../sdk/src/runtim
 
 export { BOOT_STAGES, type BootStage };
 
+/**
+ * The page's ground, and what the start screen fades out over. One colour for
+ * both, or the fade flashes through to white between them — which is why the
+ * page and this file cannot each name their own.
+ */
+export const PAGE_BACKGROUND = '#0e121b';
+
 /** Ids the page and the runtime agree on; `es-` so a game's own markup cannot collide. */
 const ROOT = 'es-splash';
 const BAR = 'es-splash-bar';
 const LABEL = 'es-splash-label';
+
+/** What the project said the start screen should look like. */
+export interface SplashLook {
+  /** The logo as a data: URI — inlined by the export, since an image fetched
+   *  after the engine has nothing left to cover. */
+  logo?: string;
+  /** Shortest time on screen, in ms. */
+  minMs?: number;
+  /** CSS colour behind it; the page's own when the project said nothing. */
+  background?: string;
+}
 
 /**
  * The start screen's CSS. `background` matches the page so the fade lands on the
@@ -28,7 +46,8 @@ const LABEL = 'es-splash-label';
  */
 export function splashCss(background: string): string {
   return (
-    `#${ROOT}{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;`
+    `#${ROOT} .es-splash-logo{max-width:min(220px,46vw);max-height:30vh;object-fit:contain;}`
+    + `#${ROOT}{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;`
     + `align-items:center;justify-content:center;gap:18px;background:${background};`
     + "color:#c7d0e0;font:500 14px/1.5 system-ui,-apple-system,'Segoe UI',sans-serif;"
     + 'transition:opacity .35s ease;padding:24px;text-align:center;}'
@@ -46,11 +65,18 @@ export function splashCss(background: string): string {
   );
 }
 
-/** The start screen's markup — no script of its own, so the page adds no CSP hash. */
-export function splashHtml(title: string): string {
+/** The start screen's markup — no script of its own, so the page adds no CSP hash.
+ *  `minMs` rides on a data attribute for the same reason. */
+export function splashHtml(title: string, look: SplashLook = {}): string {
   const safe = title.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] as string));
-  return `<div id="${ROOT}" role="status" aria-live="polite">`
-    + `<div class="es-splash-title">${safe}</div>`
+  const hold = look.minMs ? ` data-min-ms="${Math.round(look.minMs)}"` : '';
+  // A game with a logo shows the logo; the title is then the alt text rather
+  // than a second heading saying the same thing.
+  const mark = look.logo
+    ? `<img class="es-splash-logo" src="${look.logo}" alt="${safe}">`
+    : `<div class="es-splash-title">${safe}</div>`;
+  return `<div id="${ROOT}" role="status" aria-live="polite"${hold}>`
+    + mark
     + `<div class="es-splash-track"><div id="${BAR}"></div></div>`
     + `<div id="${LABEL}">${BOOT_STAGES[0].says}…</div>`
     + '</div>';
@@ -65,19 +91,38 @@ export interface Splash {
 }
 
 /**
- * Drive the page's start screen, or nothing when the page has none.
- *
- * A host that predates this (or a playable, which is sized by an SDK container
- * and has no room for one) simply has no element, and boot proceeds untouched —
- * the start screen must never be a thing a boot can fail on.
+ * The events a page outside the bundle listens for — a portal SDK's own loading
+ * screen. DOM events, not a global: a listener must be added BEFORE the bundle
+ * runs, and the page carries no script of ours to define one on. `progress` is
+ * 0..1 and never goes backwards.
  */
-export function attachSplash(doc: Document = document): Splash | null {
+export const BOOT_PROGRESS_EVENT = 'esengine:bootprogress';
+export const FIRST_FRAME_EVENT = 'esengine:firstframe';
+
+/**
+ * Drive the page's start screen and announce the boot.
+ *
+ * Always returns: a playable is sized by an SDK container and carries no start
+ * screen, but a portal around it still wants the events. A boot must never be a
+ * thing the start screen can fail.
+ */
+export function attachSplash(doc: Document = document): Splash {
   const root = doc.getElementById(ROOT);
-  if (!root) return null;
-  const bar = doc.getElementById(BAR);
-  const label = doc.getElementById(LABEL);
+  const bar = root && doc.getElementById(BAR);
+  const label = root && doc.getElementById(LABEL);
+  const showUntil = Date.now() + Number(root?.getAttribute('data-min-ms') ?? 0);
   let done = 0;
+  let finished = false;
   const seen = new Set<BootStage>();
+  const announce = (type: string, detail: unknown): void => {
+    const view = doc.defaultView;
+    if (view) view.dispatchEvent(new view.CustomEvent(type, { detail }));
+  };
+  const fade = (): void => {
+    if (!root?.isConnected) return;
+    root.classList.add('es-splash-gone');
+    setTimeout(() => root.remove(), 400);
+  };
   return {
     reach(stage) {
       // Idempotent by stage, not additive: a retried leg must not push the bar
@@ -85,16 +130,23 @@ export function attachSplash(doc: Document = document): Splash | null {
       if (seen.has(stage)) return;
       seen.add(stage);
       done += BOOT_STAGES.find((s) => s.id === stage)?.weight ?? 0;
-      if (bar) bar.style.width = `${Math.min(100, Math.round((done / BOOT_TOTAL) * 100))}%`;
+      const progress = Math.min(1, done / BOOT_TOTAL);
+      if (bar) bar.style.width = `${Math.round(progress * 100)}%`;
       const at = BOOT_STAGES.findIndex((s) => s.id === stage);
       const next = BOOT_STAGES[at + 1];
       if (label && next) label.textContent = `${next.says}…`;
+      announce(BOOT_PROGRESS_EVENT, { stage, progress });
     },
     done() {
-      if (!root.isConnected) return;
+      if (finished) return;
+      finished = true;
       if (bar) bar.style.width = '100%';
-      root.classList.add('es-splash-gone');
-      setTimeout(() => root.remove(), 400);
+      announce(FIRST_FRAME_EVENT, {});
+      // A boot that finished in 120ms would otherwise flash a bar that appears
+      // and vanishes, which reads as a glitch rather than as loading.
+      const wait = showUntil - Date.now();
+      if (wait > 0) setTimeout(fade, wait);
+      else fade();
     },
   };
 }

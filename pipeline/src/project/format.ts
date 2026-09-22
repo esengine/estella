@@ -375,6 +375,8 @@ export interface ProjectPackaging {
    * a store would accept and silently drop.
    */
   achievements?: string[];
+  /** The start screen the page shows before the engine has arrived. */
+  splash?: SplashPackaging;
   /** Per-platform packaging config: each target's slice of the app identity, plus
    *  whatever only it has (a WeChat appid, an Android versionCode). */
   platforms?: {
@@ -385,6 +387,27 @@ export interface ProjectPackaging {
     ios?: IosPackaging;
     playable?: PlayablePackaging;
   };
+}
+
+/**
+ * What the exported page shows while the engine is still arriving.
+ *
+ * The screen itself is not optional — a blank page during a 1.7MB download is
+ * the failure this exists to prevent — so these only say what it LOOKS like.
+ */
+export interface SplashPackaging {
+    /** Project-relative image, inlined into the page so it needs no request of
+     *  its own: a logo that arrives after the engine has nothing left to cover. */
+    logo?: string;
+    /** CSS colour behind it. Absent ⇒ the page's own background, so the fade
+     *  lands on the colour the canvas clears to instead of flashing white. */
+    background?: string;
+    /**
+     * Shortest time the screen stays up, in ms. A boot that finishes in 120ms
+     * otherwise shows a bar that appears and vanishes, which reads as a glitch
+     * rather than as loading. 0 ⇒ fade the moment the first frame is ready.
+     */
+    minMs?: number;
 }
 
 /** Committed project identity + config (`project.esproject`). */
@@ -765,6 +788,19 @@ export function parseManifest(raw: unknown): ProjectManifest {
         .map((id) => id.trim())
         .filter(Boolean))];
       if (ids.length > 0) pkg.achievements = ids;
+    }
+    if (p.splash && typeof p.splash === 'object') {
+      const sp = p.splash as Record<string, unknown>;
+      const splash: SplashPackaging = {};
+      if (typeof sp.logo === 'string' && sp.logo.trim()) splash.logo = sp.logo.trim();
+      if (typeof sp.background === 'string' && sp.background.trim()) splash.background = sp.background.trim();
+      // A negative hold is not a hold, and a very long one is a game nobody
+      // reaches; both are dropped rather than clamped, so the page keeps its own
+      // default instead of obeying a number that was never meant.
+      if (typeof sp.minMs === 'number' && sp.minMs >= 0 && sp.minMs <= 10_000) {
+        splash.minMs = Math.round(sp.minMs);
+      }
+      if (Object.keys(splash).length > 0) pkg.splash = splash;
     }
     if (p.platforms && typeof p.platforms === 'object') {
       const pl = p.platforms as Record<string, unknown>;
