@@ -4,6 +4,8 @@
 // Removing Spine support left all 560 test files green, and the failure is
 // silent: the scene loads and Spine entities simply never animate.
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { spineSupport, dragonBonesSupport } from '../src/runtime/sceneOptionals';
 import '../src/index';
 
@@ -40,5 +42,29 @@ describe('an SDK entry installs the optional subsystems', () => {
         const b = entryPlugins();
         const shared = a.filter((p, i) => p === b[i]).map((p) => p.constructor.name);
         expect(shared).toEqual([]);
+    });
+});
+
+/**
+ * …and every App an entry builds gets them, not just the web one. A factory that
+ * reads no registry ships a device without whatever is only in it — and these
+ * tests would not notice, because they only ask what was REGISTERED.
+ */
+describe('the App factories consume that registry', () => {
+    const factory = (file: string): string =>
+        readFileSync(path.resolve(__dirname, '..', 'src', file), 'utf8');
+
+    it('is read by the native factory as well as the web one', () => {
+        for (const f of ['runtime/webAppFactory.ts', 'ecs/bridge/nativeRuntime.ts']) {
+            expect(factory(f), `${f} builds an App without entryPlugins()`).toContain('entryPlugins()');
+        }
+    });
+
+    // Naming one by hand is how the registry stopped being the only answer.
+    it('leaves no optional subsystem named by hand in the native factory', () => {
+        const src = factory('ecs/bridge/nativeRuntime.ts');
+        const named = ['SpinePlugin', 'DragonBonesPlugin', 'NavPlugin', 'TilemapPlugin', 'NetPlugin']
+            .filter((n) => new RegExp(`new ${n}\\(`).test(src));
+        expect(named, 'these reach an App through entryPlugins now').toEqual([]);
     });
 });

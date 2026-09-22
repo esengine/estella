@@ -16,7 +16,8 @@ import { inputPlugin } from '../../input/input';
 import { prefabsPlugin } from '../../prefab/prefabServer';
 import { sceneManagerPlugin } from '../../scene/scenePlugin';
 import { headlessBasePlugins } from '../../runtime/webAppFactory';
-import { presentationBasePlugins } from '../../app/pluginSets';
+import { presentationBasePlugins, inBuildOrder } from '../../app/pluginSets';
+import { entryPlugins } from '../../runtime/entryPlugins';
 import { ensureBuiltinComponentsRegistered } from '../component';
 import { installNativePlatform, type NativeBridge } from '../../platform/native';
 import { createNativeRegistry } from './nativeRegistry';
@@ -43,8 +44,6 @@ import { ScreenLayout } from '../../ui/core/screen-layout';
 import { ScreenOverlay, defaultScreenOverlay } from '../../ui/core/screen-overlay';
 import { DEFAULT_UI_CAMERA_INFO } from '../../app/corePlugin';
 import { uiPlugin } from '../../ui/ui-plugin';
-import { SpinePlugin } from '../../spine';
-import { DragonBonesPlugin } from '../../dragonbones';
 import { setNativeTextSubmit } from '../../ui/text/submit';
 import { initResourceManager } from '../../wasm/resourceManager';
 import { Assets as AssetsClass } from '../../asset/Assets';
@@ -153,14 +152,10 @@ export function createNativeApp(
     // reached the core as `app.wasmModule`. They go through `engineApi(app)` now, and
     // each one reports a core that compiles its subsystem out.
     installNativeCoreApis(app);
-    app.addPlugins(presentationBasePlugins());
-    // Spine, like on the web, is a fresh plugin instance per App (it holds a
-    // SpineManager keyed to this app's core) and builds its runtime backends from
-    // `app.sideModules` — which on a device is the runtime compiled into the binary.
-    app.addPlugin(new SpinePlugin());
-    // Same shape for DragonBones — its runtime is linked into the host binary
-    // (estella_dragonbones), which is what `app.sideModules` hands back here.
-    app.addPlugin(new DragonBonesPlugin());
+    // Ordered with the base set, exactly as the web factory does it: every
+    // optional subsystem reaches an App through `entryPlugins`, and a factory
+    // that names a couple of them by hand ships a device the rest never reach.
+    app.addPlugins(inBuildOrder([...presentationBasePlugins(), ...entryPlugins()]));
     return app;
 }
 
