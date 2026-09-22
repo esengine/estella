@@ -72,13 +72,11 @@
     "tools/tileMath.ts": 6
   },
   "rawFontSize": {
-    "app.css": 8,
-    "controllers.css": 2,
+    "app.css": 7,
     "controls.css": 1,
-    "events.css": 1,
     "launcher.css": 1,
-    "profiler.css": 6,
-    "sequencer.css": 4,
+    "profiler.css": 1,
+    "sequencer.css": 1,
     "tileset.css": 1,
     "viewport.css": 1
   },
