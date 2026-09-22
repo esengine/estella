@@ -672,6 +672,17 @@ describe('exportGame (wechat)', () => {
     // A failed fetch takes the notice down with it, rather than leaving the
     // host spinning over a game that will never start.
     expect(entry.slice(entry.indexOf('fail('))).toContain('hideLoading');
+
+    // 6. …and the notice is never what kills the boot. MiniGameGlobal declares
+    //    showLoading OPTIONAL, and this is the entry's FIRST line: an unguarded
+    //    call is a package that dies for the sake of a progress message.
+    for (const call of ['showLoading', 'hideLoading']) {
+      for (const at of [...entry.matchAll(new RegExp(`\\.${call}\\(`, 'g'))].map((m) => m.index!)) {
+        const before = entry.slice(Math.max(0, at - 90), at);
+        expect(before, `${call}() at ${at} is called without checking the host has it`)
+          .toMatch(new RegExp(`${call}\\s*&&`));
+      }
+    }
   }, 60_000);
 
   it('leaves the engine in the main package when the project did not ask', async () => {

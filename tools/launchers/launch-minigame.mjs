@@ -166,6 +166,14 @@ async function main() {
   console.log(`${ok ? '✓' : '✗'} ${path.basename(DIR)} (mini-game) — painted=${painted} live=${live} errors=${errors.length}`);
   for (const e of errors.slice(0, 5)) console.log(`    ${e}`);
   if (painted && !live) console.log('    one flat colour — it started and drew nothing');
+  if (!ok) {
+    // What the boot last announced through the host indicator. A package stuck
+    // fetching its engine 分包 and one stuck on its first scene look identical
+    // from outside, and only one of them sends you to the right place.
+    const stage = await win.webContents.executeJavaScript('globalThis.__estellaLoading ?? null')
+      .catch(() => null);
+    if (stage) console.log(`    the boot was still saying: ${stage}`);
+  }
   app.exit(ok ? 0 : 1);
 }
 

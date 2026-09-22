@@ -82,6 +82,10 @@ export const HOST_PAGE = (entry) => `<!doctype html>
   };
 
   const noop = () => {};
+  /** What the boot last said it was doing. On the window rather than a closure
+   *  because the launcher reads it when a package never reaches a frame — the
+   *  stage it was stuck on is the whole diagnosis. */
+  globalThis.__estellaLoading = null;
   const wx = {
     createCanvas: makeCanvas,
     createImage: () => new Image(),
@@ -133,6 +137,11 @@ export const HOST_PAGE = (entry) => `<!doctype html>
     setStorageSync: (k, v) => localStorage.setItem(k, JSON.stringify(v)),
     removeStorageSync: (k) => localStorage.removeItem(k),
     getStorageInfoSync: () => ({ keys: Object.keys(localStorage), currentSize: 0, limitSize: 10240 }),
+    // The boot's only progress surface. Stubbed rather than left absent: an
+    // absent optional makes an unguarded caller look fine here and die on a
+    // device, which is the direction a stand-in must never get wrong.
+    showLoading: (o) => { globalThis.__estellaLoading = o && o.title; },
+    hideLoading: () => { globalThis.__estellaLoading = null; },
     setPreferredFramesPerSecond: noop,
     triggerGC: noop,
     exitMiniProgram: noop,
@@ -215,7 +224,7 @@ export const SHIM_MEMBERS = [
   'offTouchStart', 'offTouchMove', 'offTouchEnd',
   'onTouchCancel', 'offTouchCancel',
   'onKeyDown', 'onKeyUp', 'offKeyDown', 'offKeyUp',
-  'loadSubpackage', 'onMemoryWarning', 'offMemoryWarning',
+  'loadSubpackage', 'showLoading', 'hideLoading', 'onMemoryWarning', 'offMemoryWarning',
   'onError', 'offError', 'onUnhandledRejection', 'offUnhandledRejection',
   'onShow', 'onHide',
   'getStorageSync', 'setStorageSync', 'removeStorageSync', 'getStorageInfoSync',
