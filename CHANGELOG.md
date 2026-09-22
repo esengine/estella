@@ -16,6 +16,8 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **The build's size bar stopped borrowing Play's green.** Within budget was drawn in the transport's running-green, which reads as a state the build is in rather than as a measurement — and a green bar invites "fine, keep going" where the honest message is that there is nothing to report yet. It is now the panel's own neutral, and goes amber then red, which is the whole vocabulary it needs. The two progress bars in that panel were also 6px and 8px side by side; they are one shape now.
+
 - **A Play session that times out now says whether it ever started.** The realm announces itself when its page runs, before a line of the engine is read — previously its only signal was the host module's last statement, so a machine still parsing the SDK and a frame that never ran gave the same ninety seconds of silence, and both were reported as the editor being broken. The two now read differently, and only one of them is the machine's.
 
 - **When a 分包 will not come down, the package says which one and why.** The generated entry logged the vendor's error object, which reaches a device's console as `[object Object]` — the one place you get to look. It is stringified now, and the headless launcher can be told to refuse a named 分包 (`--fail-subpackage`) so the path a bad network takes is something a build can be run against rather than waited for.

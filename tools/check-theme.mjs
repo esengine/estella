@@ -192,7 +192,17 @@ for (const file of everyFile(SRC_DIR)) {
  */
 const THEME_DIR = path.join(ROOT, 'desktop', 'src', 'theme');
 const BASELINE = path.join(ROOT, 'tools', 'baselines', 'theme-drift.json');
-const GRID = 4;
+
+/**
+ * The spacing grid, read off the token that declares it rather than repeated
+ * here: `--u` had no other reader, so the theme's own statement of its grid and
+ * the rule that enforces it could have disagreed with nothing to notice.
+ */
+const GRID = (() => {
+  const px = /--u:\s*(\d+)px/.exec(readFileSync(path.join(THEME_DIR, 'tokens.css'), 'utf8'))?.[1];
+  if (!px) throw new Error('desktop/src/theme/tokens.css declares no --u: the spacing grid has no author');
+  return Number(px);
+})();
 
 const offGridByFile = () => {
   const out = {};

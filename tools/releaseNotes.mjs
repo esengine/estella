@@ -700,6 +700,10 @@ export const NOTED = {
     { internal: "the editor's preview page names the same subpaths it always did" },
   'fix(settings): the module page reads the same asset table the build installs from':
     { note: 'The Engine Modules page no longer calls a module unused that the build then carries.' },
+  'fix(theme): the size bar reads as a measurement, not as a running state':
+    { note: "The build's size bar stopped borrowing Play's green." },
+  'refactor(theme): the spacing grid has one author, the token that declares it':
+    { internal: 'the gate repeated the 4px grid the theme already declared; no visible change' },
   'fix(play): a realm says its page ran before it reads the engine':
     { note: 'A Play session that times out now says whether it ever started.' },
   'fix(export): a 分包 that did not load says which one and why':
