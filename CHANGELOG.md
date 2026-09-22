@@ -14,6 +14,10 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Pressing Play could kill the session it was starting.** The editor hands the scene to the realm from two doors — directly on a warm re-Play, and on the realm's greeting when it cold-boots — and `start()` claims the scene before it waits on the script rebuild. A greeting that arrived inside that wait went through both doors, and the realm read the second hand-over as a re-Play: it quit the App the first was still booting on, which surfaced a few steps later as a null read and a session that never reached a frame. The scene is handed over once per start now.
+
 ## [0.70.0] - 2026-09-22
 
 ### Added

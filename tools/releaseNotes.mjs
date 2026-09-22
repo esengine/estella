@@ -700,6 +700,8 @@ export const NOTED = {
     { internal: "the editor's preview page names the same subpaths it always did" },
   'fix(settings): the module page reads the same asset table the build installs from':
     { note: 'The Engine Modules page no longer calls a module unused that the build then carries.' },
+  'fix(play): the scene is handed to the realm once per start, not once per door':
+    { note: 'Pressing Play could kill the session it was starting.' },
   'fix(theme): the size bar reads as a measurement, not as a running state':
     { note: "The build's size bar stopped borrowing Play's green." },
   'refactor(theme): the spacing grid has one author, the token that declares it':
