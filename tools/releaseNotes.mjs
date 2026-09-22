@@ -702,6 +702,8 @@ export const NOTED = {
     { note: 'The Engine Modules page no longer calls a module unused that the build then carries.' },
   'fix(runtime): a packaged host looks a resource up in the registry that holds it':
     { note: 'A packaged game answers "how do I get there?" again.' },
+  'fix(play): a realm ignores a hand-over that lands during its own boot':
+    { note: 'Pressing Play could kill the session it was starting.' },
   'fix(play): the scene is handed to the realm once per start, not once per door':
     { note: 'Pressing Play could kill the session it was starting.' },
   'fix(theme): the size bar reads as a measurement, not as a running state':
