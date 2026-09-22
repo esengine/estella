@@ -86,6 +86,10 @@ export function splashHtml(title: string, look: SplashLook = {}): string {
 export interface Splash {
   /** Mark a stage finished and advance the bar by that stage's weight. */
   reach(stage: BootStage): void;
+  /** How far through a stage that has NOT finished — `0..1` of its own weight.
+   *  `engine` alone is 40 of the 100, so a bar that only moves on completion
+   *  stands still for most of a cold start. */
+  within(stage: BootStage, fraction: number): void;
   /** Fade out and remove. Safe to call twice. */
   done(): void;
 }
@@ -94,7 +98,7 @@ export interface Splash {
  * The events a page outside the bundle listens for — a portal SDK's own loading
  * screen. DOM events, not a global: a listener must be added BEFORE the bundle
  * runs, and the page carries no script of ours to define one on. `progress` is
- * 0..1 and never goes backwards.
+ * 0..1 and never goes backwards; `partial` marks a stage still running.
  */
 export const BOOT_PROGRESS_EVENT = 'esengine:bootprogress';
 export const FIRST_FRAME_EVENT = 'esengine:firstframe';
@@ -112,6 +116,8 @@ export function attachSplash(doc: Document = document): Splash {
   const label = root && doc.getElementById(LABEL);
   const showUntil = Date.now() + Number(root?.getAttribute('data-min-ms') ?? 0);
   let done = 0;
+  /** What the bar is showing, so a partial step never pulls it back. */
+  let shown = 0;
   let finished = false;
   const seen = new Set<BootStage>();
   const announce = (type: string, detail: unknown): void => {
@@ -123,7 +129,26 @@ export function attachSplash(doc: Document = document): Splash {
     root.classList.add('es-splash-gone');
     setTimeout(() => root.remove(), 400);
   };
+  /** Never backwards. Answers whether the bar actually moved a whole percent,
+   *  which is the only movement worth telling a portal's own screen about. */
+  const show = (progress: number): boolean => {
+    if (progress <= shown) return false;
+    const was = Math.round(shown * 100);
+    shown = progress;
+    const now = Math.round(progress * 100);
+    if (bar) bar.style.width = `${now}%`;
+    return now > was;
+  };
   return {
+    within(stage, fraction) {
+      if (seen.has(stage)) return;
+      const weight = BOOT_STAGES.find((s) => s.id === stage)?.weight ?? 0;
+      const partial = Math.max(0, Math.min(1, fraction)) * weight;
+      const progress = Math.min(1, (done + partial) / BOOT_TOTAL);
+      // `partial` marks a stage still running, so a listener can tell "40% of
+      // the way through fetching the engine" from "the engine is up".
+      if (show(progress)) announce(BOOT_PROGRESS_EVENT, { stage, progress, partial: true });
+    },
     reach(stage) {
       // Idempotent by stage, not additive: a retried leg must not push the bar
       // past what it has actually finished.
@@ -131,7 +156,7 @@ export function attachSplash(doc: Document = document): Splash {
       seen.add(stage);
       done += BOOT_STAGES.find((s) => s.id === stage)?.weight ?? 0;
       const progress = Math.min(1, done / BOOT_TOTAL);
-      if (bar) bar.style.width = `${Math.round(progress * 100)}%`;
+      show(progress);
       const at = BOOT_STAGES.findIndex((s) => s.id === stage);
       const next = BOOT_STAGES[at + 1];
       if (label && next) label.textContent = `${next.says}…`;
@@ -140,7 +165,7 @@ export function attachSplash(doc: Document = document): Splash {
     done() {
       if (finished) return;
       finished = true;
-      if (bar) bar.style.width = '100%';
+      show(1);
       announce(FIRST_FRAME_EVENT, {});
       // A boot that finished in 120ms would otherwise flash a bar that appears
       // and vanishes, which reads as a glitch rather than as loading.

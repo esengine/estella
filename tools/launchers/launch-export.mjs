@@ -118,6 +118,7 @@ const BOOT_RECORDER = `(() => {
     ms: Math.round(performance.now()),
     stage: e.detail && e.detail.stage,
     progress: e.detail && e.detail.progress,
+    partial: !!(e.detail && e.detail.partial),
   }));
   addEventListener('esengine:firstframe', () => { firstFrame = Math.round(performance.now()); });
   window.__estellaBoot = () => {
@@ -174,8 +175,13 @@ function serve(root, safeArea, frameMs) {
         if (injected === html) console.log('  no <head> to inject the safe area or clock into');
         bytes = Buffer.from(injected);
       }
-      res.writeHead(200, { 'content-type': MIME[path.extname(abs).toLowerCase()] ?? 'application/octet-stream' })
-        .end(bytes);
+      // Content-Length, which node omits unless told (it chunks instead): every
+      // real server sends it, and a loader that reports download progress has
+      // nothing to divide by without it.
+      res.writeHead(200, {
+        'content-type': MIME[path.extname(abs).toLowerCase()] ?? 'application/octet-stream',
+        'content-length': bytes.length,
+      }).end(bytes);
     } catch {
       res.writeHead(404).end();
     }
@@ -336,7 +342,13 @@ const SCENE = flag('scene', '');
     // than one that stops, and only the sequence can say which happened.
     const steps = (seen?.marks ?? []).map((m) => m.progress);
     const backwards = steps.findIndex((p, i) => i > 0 && p < steps[i - 1]);
-    console.log(`  boot: ${JSON.stringify({ ...seen, monotonic: backwards < 0 })}`);
+    // The longest the bar stood still while the player was looking at it —
+    // measured from the screen appearing to the frame arriving, so a stage that
+    // reports nothing for its whole length is counted rather than averaged away.
+    const at = [seen?.firstScreenMs, ...(seen?.marks ?? []).map((m) => m.ms), seen?.firstFrameMs]
+      .filter((n) => typeof n === 'number');
+    const stillMs = at.reduce((worst, n, i) => (i > 0 ? Math.max(worst, n - at[i - 1]) : worst), 0);
+    console.log(`  boot: ${JSON.stringify({ ...seen, monotonic: backwards < 0, stillMs })}`);
     if (backwards >= 0) errors.push(`the boot bar went backwards at step ${backwards}`);
   }
 

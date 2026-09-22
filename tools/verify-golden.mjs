@@ -454,16 +454,21 @@ for (const { id, target } of pairs) {
     let boot = null;
     try { boot = found ? JSON.parse(found[1]) : null; } catch { boot = null; }
     const at = boot?.firstScreenMs ?? null;
-    const ok = typeof at === 'number' && at <= firstScreen.maxMs && boot?.monotonic === true;
+    const still = boot?.stillMs ?? Infinity;
+    const ok = typeof at === 'number' && at <= firstScreen.maxMs && boot?.monotonic === true
+      && still <= firstScreen.maxStillMs;
     results.push({
       id, target, stage: 'first-screen', ok,
       why: ok ? '' : at === null
         ? 'the page reported no first paint at all — nothing was on screen to time'
-        : `the start screen appeared at ${at}ms over ${firstScreen.link}`
-          + ` (limit ${firstScreen.maxMs}ms)${boot?.monotonic === false ? ', and its progress went backwards' : ''}`,
+        : at > firstScreen.maxMs
+          ? `the start screen appeared at ${at}ms over ${firstScreen.link} (limit ${firstScreen.maxMs}ms)`
+          : boot?.monotonic === false ? 'the start screen\'s progress went backwards'
+            : `the bar stood still for ${still}ms (limit ${firstScreen.maxStillMs}ms) — a stage is`
+              + ' reporting nothing for its whole length',
     });
     console.log(`${ok ? '✓' : '✗'} ${id} ${target} — start screen at ${at ?? 'never'}ms over ${firstScreen.link}`
-      + `, first frame at ${boot?.firstFrameMs ?? 'never'}ms`);
+      + `, first frame at ${boot?.firstFrameMs ?? 'never'}ms, still at most ${still}ms`);
   }
 
   // The 分包 the host REFUSES. The ordinary launch above already proved the happy

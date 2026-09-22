@@ -57,7 +57,52 @@ import type {
   SceneData, AddressableManifest, PackagedGameConfig, RenderSurfaceSource, WorldManifest,
 } from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
-import { attachSplash } from '../export/splash';
+import { attachSplash, type Splash } from '../export/splash';
+
+/**
+ * Fetch the engine binary through a stream we can count, and hand the SAME
+ * stream to the compiler — emscripten fetches it itself otherwise and nothing
+ * sees the bytes. Re-wrapping the body keeps `instantiateStreaming`: reading it
+ * to an ArrayBuffer first would buy the bar at the cost of what it measures.
+ */
+function engineInstantiator(url: string, splash: Splash | null) {
+  return (imports: WebAssembly.Imports,
+    ok: (inst: WebAssembly.Instance, mod: WebAssembly.Module) => void): Record<string, never> => {
+    void (async () => {
+      const res = await fetch(url);
+      const total = Number(res.headers.get('content-length') ?? 0);
+      // No length or no stream ⇒ the honest answer is the stage weight alone.
+      const source = total > 0 && res.body ? new Response(counted(res.body, total, splash), {
+        headers: { 'content-type': 'application/wasm' },
+      }) : res;
+      const { instance, module } = await WebAssembly.instantiateStreaming(source, imports);
+      ok(instance, module);
+    })();
+    return {};
+  };
+}
+
+/** The same bytes, announced as they pass. */
+function counted(body: ReadableStream<Uint8Array>, total: number, splash: Splash | null): ReadableStream<Uint8Array> {
+  const reader = body.getReader();
+  let got = 0;
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      const { done, value } = await reader.read();
+      if (done) {
+        controller.close();
+        return;
+      }
+      got += value.byteLength;
+      splash?.within('engine', got / total);
+      controller.enqueue(value);
+    },
+    cancel(reason) {
+      void reader.cancel(reason);
+    },
+  });
+}
+
 async function boot(): Promise<void> {
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
   // Null on a page without one, and every call below is then a no-op: a start
@@ -143,6 +188,7 @@ async function boot(): Promise<void> {
   const module = await createModule({
     canvas,
     locateFile: (p: string) => `${wasmBase}${p}`,
+    instantiateWasm: engineInstantiator(`${wasmBase}esengine.wasm`, splash),
     print: (t: string) => console.log(t),
     printErr: (t: string) => console.error(t),
     ...(gpu.device ? { preinitializedWebGPUDevice: gpu.device } : {}),

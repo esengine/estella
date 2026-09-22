@@ -893,9 +893,10 @@ export const GOLDEN = [
     // limit. Naming it here lets the host REFUSE it too: on a bad network the
     // game cannot start, and all it can still do is say which package failed.
     subpackage: { name: 'engine' },
-    // A first screen is a question about a NETWORK — on this machine the whole
-    // boot beats the splash's own fade. Judged over a declared link instead.
-    firstScreen: { link: 'slow-4g', maxMs: 300 },
+    // A first screen is a question about a NETWORK: on this machine the whole
+    // boot beats the splash's fade. `maxStillMs` is the longest the bar may
+    // stand still — 8s leaves room for the bundle's own download.
+    firstScreen: { link: 'slow-4g', maxMs: 300, maxStillMs: 8000 },
   },
   {
     id: 'sprite-animation',
