@@ -16,6 +16,8 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **When a 分包 will not come down, the package says which one and why.** The generated entry logged the vendor's error object, which reaches a device's console as `[object Object]` — the one place you get to look. It is stringified now, and the headless launcher can be told to refuse a named 分包 (`--fail-subpackage`) so the path a bad network takes is something a build can be run against rather than waited for.
+
 - **A package whose engine ships in a 分包 now starts.** Its generated entry called the host's loading indicator on its first line without checking the host has one — and that call is optional in the API — so on a host that does not implement it the game died before reaching `loadSubpackage`. Every indicator call in a generated entry is guarded now; a progress message must never be what takes a boot down.
 
 - **A group that failed to load says so instead of handing back an empty bundle.** `Assets.loadGroup` settled every asset and returned whatever survived, so a subpackage that downloaded but staged nothing — or a CDN answering 404 — read exactly like a group that was always empty. It now names the assets that failed, the way a scene preload already did.

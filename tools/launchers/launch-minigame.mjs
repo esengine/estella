@@ -16,6 +16,7 @@
  *     --settle <n>       frames to let run before capturing (default 30)
  *     --timeout <ms>     how long to wait for the first frame (default 30000)
  *     --input <json>     drive it, same spec as launch-export
+ *     --fail-subpackage <name>  the host refuses that 分包, to see what it does
  */
 import { app, BrowserWindow } from 'electron';
 import http from 'node:http';
@@ -53,6 +54,8 @@ const H = Number(flag('h', '360'));
 const SETTLE = Number(flag('settle', '30'));
 const TIMEOUT = Number(flag('timeout', '30000'));
 const INPUT = flag('input', '');
+/** Make the host refuse this 分包, to see what the package does about it. */
+const FAIL_SUBPACKAGE = flag('fail-subpackage', '');
 
 const MIME = {
   '.js': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm',
@@ -118,7 +121,7 @@ async function main() {
   }
   JSON.parse(readFileSync(manifest, 'utf8')); // a manifest the vendor cannot parse is a dead package
 
-  const server = await serve(DIR, HOST_PAGE(entry));
+  const server = await serve(DIR, HOST_PAGE(entry, FAIL_SUBPACKAGE || null));
   const base = `http://127.0.0.1:${server.address().port}/`;
 
   const win = new BrowserWindow({
@@ -128,8 +131,12 @@ async function main() {
 
   const errors = [];
   const stop = onRendererConsole(win.webContents, (msg) => {
-    if (/\[minigame\] boot failed|uncaught|is not a function|no such file/i.test(msg)) errors.push(msg.slice(0, 400));
-    if (msg.startsWith('[minigame]') || msg.startsWith('[engine]')) console.log(`  ${msg}`);
+    // `[estella]` is the PACKAGE's own voice — the generated entry says why a 分包
+    // did not come down, which is the diagnosis a silent black frame is missing.
+    if (/\[minigame\] boot failed|\[estella\]|uncaught|is not a function|no such file/i.test(msg)) {
+      errors.push(msg.slice(0, 400));
+    }
+    if (/^\[(minigame|engine|estella)\]/.test(msg)) console.log(`  ${msg}`);
   });
   win.webContents.on('render-process-gone', (_e, d) => errors.push(`render process gone: ${d.reason}`));
 

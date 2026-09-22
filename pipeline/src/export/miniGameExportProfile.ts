@@ -134,7 +134,10 @@ ${boot.split('\n').map((l) => (l ? `    ${l}` : l)).join('\n')}
   },
   fail(err) {
     try { __g.hideLoading && __g.hideLoading(); } catch (e) {}
-    console.error('[estella] the engine subpackage ${ctx.engineSubpackage} did not load — the game cannot start', err);
+    // Stringified: a vendor hands back an object, and a console line reading
+    // "[object Object]" is the one place a device gives you to look.
+    var __why = ''; try { __why = JSON.stringify(err); } catch (e) { __why = String(err); }
+    console.error('[estella] the engine subpackage ${ctx.engineSubpackage} did not load — the game cannot start: ' + __why);
   },
 });
 // Optional on the host: a version without it leaves the 0% notice up, which is

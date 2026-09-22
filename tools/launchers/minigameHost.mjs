@@ -18,8 +18,14 @@
  * fails when the contract grows a member the shim has not got.
  */
 
-/** The page source; `BASE` is substituted with the served root. */
-export const HOST_PAGE = (entry) => `<!doctype html>
+/**
+ * The page source; `BASE` is substituted with the served root.
+ *
+ * `failSubpackage` makes `loadSubpackage` REFUSE that root: a 分包 that will not
+ * come down is a failure a game has to survive, and a stand-in that always
+ * succeeds proves only the happy half.
+ */
+export const HOST_PAGE = (entry, failSubpackage = null) => `<!doctype html>
 <html><head><meta charset="utf-8"><style>
   html,body{margin:0;height:100%;background:#000;overflow:hidden}
   canvas{display:block}
@@ -130,7 +136,14 @@ export const HOST_PAGE = (entry) => `<!doctype html>
     onUnhandledRejection: noop, offUnhandledRejection: noop,
     onShow: noop, onHide: noop, offShow: noop, offHide: noop,
     onWindowResize: noop, offWindowResize: noop,
-    loadSubpackage: (o) => { o.success && o.success(); o.complete && o.complete(); },
+    loadSubpackage: (o) => {
+      if (o && o.name === ${JSON.stringify(failSubpackage)}) {
+        o.fail && o.fail({ errMsg: 'loadSubpackage:fail (injected)' });
+        o.complete && o.complete();
+        return;
+      }
+      o.success && o.success(); o.complete && o.complete();
+    },
     // Storage is real (localStorage), not a stub: a game that saves on boot and
     // reads it back would otherwise take the silent path and look fine.
     getStorageSync: (k) => { const v = localStorage.getItem(k); return v === null ? '' : JSON.parse(v); },
