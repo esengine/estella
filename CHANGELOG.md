@@ -14,6 +14,10 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **You can tell the editor which models your account has seen take an image.** A vendor that documents nothing leaves its models at "nobody has said", and no picture is sent to one of those — which used to mean waiting for us to ship a build. Settings › AI Agents now has a box per provider for the model names you have confirmed yourself.
+
 ### Fixed
 
 - **Nothing claims a model cannot see when nobody has said so.** Attaching a picture to a model whose sight is unconfirmed said "this endpoint does not accept images", and the turn itself told the agent it "cannot carry images" — both of which read as the vendor having answered. They now say what is true of the turn: no image is being sent. The attachment notice keeps the two apart, because a vendor saying no is a reason to pick another model and nobody having said is a reason to go and find out.
