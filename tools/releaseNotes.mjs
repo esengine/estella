@@ -698,6 +698,8 @@ export const NOTED = {
     { internal: "a manual page's import line, following the move it documents" },
   'refactor(play): the play realm asks for the whole import map by name':
     { internal: "the editor's preview page names the same subpaths it always did" },
+  'feat(project): a build target can answer differently about a module':
+    { note: "A build target can include or exclude an engine module without changing the project's answer." },
   'feat(settings): each engine module says what this project does with it':
     { note: "The Engine Modules page says which of your documents put each module in use." },
   'feat(details): a component whose module the project refused cannot be added':

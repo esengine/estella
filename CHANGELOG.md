@@ -33,6 +33,11 @@ published separately; it ships inside the editor.
   install it. A project using a subsystem no subpath installs (video today) takes the whole
   entry as before. Measured on the UI-game template: 1,305KB → 1,090KB, 57 files → 32.
 
+- **A build target can include or exclude an engine module without changing the project's answer.** A playable ad has a
+  size cap a web build does not, so refusing 3D physics there should not refuse it
+  everywhere. `packaging.modulesByPlatform` lays a target's answer over the project's,
+  keyed by target the way the output directory and the size budget already are.
+
 - **The Engine Modules page says which of your documents put each module in use.** The switch alone left "will this
   ship?" to be answered by exporting. What the row shows is the export's own walk, so the
   page and the build cannot disagree — and "not used by this project" is kept apart from
