@@ -9,7 +9,7 @@
  * fine — it was never installed.
  */
 import { describe, it, expect } from 'vitest';
-import { engineInstalls, moduleChoices } from '../src/bundle/engineInstalls';
+import { engineInstalls, forcedSideModules, moduleChoices } from '../src/bundle/engineInstalls';
 import { ENGINE_MODULES, ESENGINE_SUBPATHS } from '../src/bundle/engineSubpaths';
 import { SUBSYSTEM_COMPONENTS, SUBSYSTEM_INSTALL, type Subsystem } from '../src/project/targetSupport';
 
@@ -219,5 +219,36 @@ describe('a project that answers differently per target', () => {
         expect(engineInstalls({ ...used, choices: moduleChoices(project) }).refused).toEqual([]);
         expect(engineInstalls({ ...used, choices: moduleChoices(project, { 'esengine/physics3d': 'exclude' }) })
             .refused.map((r) => r.specifier)).toEqual(['esengine/physics3d']);
+    });
+});
+
+/**
+ * A module only a script reaches leaves no trace for the WASM scan either, so
+ * `include` has to name it there too — otherwise a project that spawns bodies
+ * from code ships the solver's JS and no binary to run.
+ */
+describe('a side module the project forced in', () => {
+    it('is named for the wasm scan, not only for the JS', () => {
+        expect(forcedSideModules(moduleChoices({ modules: { 'esengine/physics': 'include' } })))
+            .toEqual(['physics']);
+    });
+
+    it('comes through the older physics.enabled by the same path', () => {
+        expect(forcedSideModules(moduleChoices({ physics: { enabled: true } })))
+            .toEqual(['physics']);
+    });
+
+    it('covers every module that has a binary of its own', () => {
+        const all = { modules: {
+            'esengine/physics': 'include', 'esengine/physics3d': 'include',
+            'esengine/dragonbones': 'include',
+        } } as const;
+        expect([...forcedSideModules(moduleChoices(all))].sort())
+            .toEqual(['dragonbones', 'physics', 'physics3d']);
+    });
+
+    it('names nothing for a module with no binary, or for one merely detected', () => {
+        expect(forcedSideModules(moduleChoices({ modules: { 'esengine/tilemap': 'include' } }))).toEqual([]);
+        expect(forcedSideModules(moduleChoices({ modules: { 'esengine/physics': 'exclude' } }))).toEqual([]);
     });
 });

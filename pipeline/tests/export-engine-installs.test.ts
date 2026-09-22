@@ -17,6 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { exportGame } from '../src/export/exportGame';
 import { writeFakeSdkDist } from './fixtures/fakeSdkDist';
 import type { ModuleChoice } from '../src/project/format';
+import { moduleOfComponent } from '../src/project/targetSupport';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOSTS = path.join(HERE, '..', 'src', 'runtime');
@@ -170,6 +171,42 @@ describe('a web package whose project excluded a module', () => {
             await runWith(f);
             expect(readFileSync(path.join(f.out, 'game.js'), 'utf8'))
                 .toContain('import "esengine/replication"');
+        } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
+    });
+});
+
+/**
+ * The page shows the components its documents carry; the build has more evidence
+ * than that. So the two are not equal — but everything the page calls used has
+ * to be installed, or a creator is told a module ships and it does not.
+ */
+describe('what the page says and what the build installs', () => {
+    const pageWouldSay = (components: string[]): string[] => {
+        const used = new Set<string>();
+        for (const name of components) {
+            const module = moduleOfComponent(name);
+            if (module !== null) used.add(module);
+        }
+        return [...used].sort();
+    };
+
+    it('agree for content that uses several modules', async () => {
+        const f = setup(['Tilemap', 'NavAgent', 'Health']);
+        try {
+            await run(f);
+            const page = pageWouldSay(['Tilemap', 'NavAgent', 'Health']);
+            expect(page).toEqual(['esengine/ai', 'esengine/gameplay', 'esengine/tilemap']);
+            const game = readFileSync(path.join(f.out, 'game.js'), 'utf8');
+            for (const module of page) expect(game).toContain(`import ${JSON.stringify(module)}`);
+        } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
+    });
+
+    it('agree that nothing optional is used, for content that uses none', async () => {
+        const f = setup(['Transform', 'Sprite']);
+        try {
+            await run(f);
+            expect(pageWouldSay(['Transform', 'Sprite'])).toEqual([]);
+            expect(readFileSync(path.join(f.out, 'game.js'), 'utf8')).not.toContain('import "esengine/');
         } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
     });
 });

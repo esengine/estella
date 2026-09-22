@@ -35,6 +35,8 @@ import type { ScreenOrientation } from './orientationHtml';
 import { genericPlayableProfile, playableAdInjection, type PlayableAdProfile } from './playableAdProfile';
 import { makeZip } from '../../../build-tools/utils/zip.js';
 import { scanSideModuleIds, sideModuleFiles } from '../bundle/sideModuleScan';
+import { forcedSideModules, moduleChoices } from '../bundle/engineInstalls';
+import type { ProjectFeatures, ProjectPackaging } from '../project/format';
 
 export interface ExportPlayableResult {
   ok: boolean;
@@ -150,10 +152,10 @@ async function collectSideModules(
   cookDir: string,
   wasmDir: string,
   errors: string[],
-  physicsEnabled: boolean,
+  forced: readonly string[],
 ): Promise<Record<string, { glue: PackedBytes; wasm: PackedBytes }>> {
   const ids = await scanSideModuleIds({
-    root, includedPaths, cookEntries: manifestEntries, stagedDir: cookDir, physicsEnabled,
+    root, includedPaths, cookEntries: manifestEntries, stagedDir: cookDir, forced,
   });
   const { files, unknown } = sideModuleFiles(ids);
   for (const id of unknown) errors.push(`internal: no artifact mapping for side module "${id}"`);
@@ -208,6 +210,10 @@ export async function exportPlayable(opts: {
    * to the pixel). An explicit `false` is still honoured.
    */
   minify?: boolean;
+  /** What the project says about its engine modules; see ProjectFeatures.modules. */
+  features?: ProjectFeatures;
+  /** Per-target overrides laid over those. */
+  modulesByPlatform?: ProjectPackaging['modulesByPlatform'];
   /** The project's runtime settings, derived once by `runtimeConfigOf`; the page
    *  carries the packaged slice of them as one global the host reads. */
   runtime?: RuntimeProjectConfig;
@@ -344,7 +350,7 @@ export async function exportPlayable(opts: {
   progress({ phase: 'Embedding modules' });
   const sideModules = await collectSideModules(
     opts.root, cook.includedPaths, manifestEntries, cookDir, opts.wasmDir, errors,
-    opts.runtime?.physicsEnabled ?? false,
+    forcedSideModules(moduleChoices(opts.features, opts.modulesByPlatform?.playable)),
   );
 
   // 6. Assemble the single HTML, then drop the temp cook dir.

@@ -48,8 +48,12 @@ export interface SideModuleScanInput {
   cookEntries: readonly CookEntryLike[];
   /** Absolute dir `cookEntries[].path` resolve against. */
   stagedDir: string;
-  /** Project Settings → Physics enabled. */
-  physicsEnabled: boolean;
+  /**
+   * Module ids the project forced in (`features.modules` → `include`), from
+   * `forcedSideModules`. A module only a script reaches leaves no trace for this
+   * scan either, so the project's word is the evidence.
+   */
+  forced?: readonly string[];
 }
 
 const VERSION_PREFIXES: ReadonlyArray<readonly [string, SpineVersion]> = [
@@ -136,7 +140,8 @@ export async function scanSideModuleIds(input: SideModuleScanInput): Promise<Set
   // The project's own declaration counts as a use: a game that spawns bodies from
   // script has none in any document, and shipping the flag without the binary
   // fails at the first spawn instead of at build time.
-  if (input.physicsEnabled || docs.some((d) => sceneUsesPhysics(d as never))) ids.add('physics');
+  for (const id of input.forced ?? []) ids.add(id as SideModuleId);
+  if (docs.some((d) => sceneUsesPhysics(d as never))) ids.add('physics');
   // Never implied by the 2D flag — that declares the solver 2D scenes use, and
   // this is a different module.
   if (docs.some((d) => sceneUses3DPhysics(d as never))) ids.add('physics3d');

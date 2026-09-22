@@ -34,7 +34,7 @@ import {
   DEFAULT_RUNTIME_CONFIG, packagedRuntimeFields, type RuntimeProjectConfig,
 } from '../project/runtimeConfig';
 import { engineImportMap, FULL_IMPORT_MAP, LEAN_ENTRY_FILE, FULL_ENTRY_FILE, type EngineImportMap } from '../bundle/importMap';
-import { engineInstalls, moduleChoices, type EngineInstallPlan } from '../bundle/engineInstalls';
+import { engineInstalls, forcedSideModules, moduleChoices, type EngineInstallPlan } from '../bundle/engineInstalls';
 import { exportMiniGame } from './exportMiniGame';
 import { wechatExportProfile, douyinExportProfile } from './miniGameExportProfile';
 import type { MiniGameExportProfile } from './miniGameExportProfile';
@@ -698,6 +698,8 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       title,
       orientation,
       minify: opts.minify,
+      features: opts.features,
+      modulesByPlatform: opts.modulesByPlatform,
       runtime,
       adProfile: opts.playableAdProfile,
       onProgress: opts.onProgress,
@@ -823,7 +825,10 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   const sideModuleIds = !nativeContent && existsSync(opts.wasmDir)
     ? await scanSideModuleIds({
       root: opts.root, includedPaths: cook.includedPaths, cookEntries,
-      stagedDir: payloadDir, physicsEnabled: runtime.physicsEnabled,
+      stagedDir: payloadDir,
+      // One path for old and new: moduleChoices reads `physics.enabled` as an
+      // include, so the legacy flag arrives here as the choice it always meant.
+      forced: forcedSideModules(moduleChoices(opts.features, opts.modulesByPlatform?.[platform])),
     })
     : [];
   /** The subpaths this package installs, and whether a lean entry can carry it.

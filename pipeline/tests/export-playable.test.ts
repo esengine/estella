@@ -371,6 +371,9 @@ export function packagedRuntimeInit(c){return c;}\n`);
       const res = await exportGame({
         root: r, entryScene: 'scenes/main.esscene', hostsDir: HOSTS,
         sdkDistDir: path.join(r, '_sdk'), wasmDir: path.join(r, '_wasm'), outDir: o, platform: 'playable',
+        // The project's declaration, which is what the build reads; `runtime` is
+        // the packaged game's copy of the same manifest, not a second authority.
+        features: { physics: { enabled: true, gravity: { x: 0, y: -20 } } },
         runtime: runtimeConfigOf({ features: { physics: { enabled: true, gravity: { x: 0, y: -20 } } } }),
       });
       expect(res.ok).toBe(true);

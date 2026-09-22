@@ -48,10 +48,14 @@ function setup(scene: unknown, extra?: (root: string) => void): Fixture {
   return { root, out: path.join(root, 'dist') };
 }
 
-const run = (f: Fixture, runtime?: Parameters<typeof exportGame>[0]['runtime']) => exportGame({
+const run = (
+  f: Fixture,
+  runtime?: Parameters<typeof exportGame>[0]['runtime'],
+  features?: Parameters<typeof exportGame>[0]['features'],
+) => exportGame({
   root: f.root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS,
   sdkDistDir: path.join(f.root, '_sdk'), wasmDir: path.join(f.root, '_wasm'),
-  outDir: f.out, ...(runtime ? { runtime } : {}),
+  outDir: f.out, ...(runtime ? { runtime } : {}), ...(features ? { features } : {}),
 });
 
 /** The module artifact base names the package actually carries. */
@@ -86,7 +90,10 @@ describe('web package side modules', () => {
   it('carries the 2D solver a project declares but no scene uses', async () => {
     const f = setup({ version: '1.0', name: 'Main', entities: entities({ type: 'Sprite', data: {} }) });
     try {
-      await run(f, runtimeConfigOf({ features: { physics: { enabled: true } } }));
+      // The project's declaration, which is what the build reads: `runtime` is
+      // the packaged game's copy of the same manifest, not a second authority.
+      const features = { physics: { enabled: true } };
+      await run(f, runtimeConfigOf({ features }), features);
       expect(shipped(f.out)).toEqual(['physics']);
     } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
   }, 60_000);

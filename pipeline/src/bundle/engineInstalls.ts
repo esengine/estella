@@ -37,6 +37,21 @@ const SIDE_MODULE_SUBPATH: Readonly<Record<string, string>> = {
 };
 
 /**
+ * Side-module ids a project FORCED in, from the same table the evidence reads.
+ *
+ * A module reached only from a script leaves no trace for the wasm scan either,
+ * so `include` has to reach it: shipping the JS without the binary fails at the
+ * first spawn rather than at build time.
+ */
+export function forcedSideModules(
+    choices: Readonly<Record<string, ModuleChoice>>,
+): readonly string[] {
+    return Object.entries(SIDE_MODULE_SUBPATH)
+        .filter(([, subpath]) => choices[subpath] === 'include')
+        .map(([id]) => id);
+}
+
+/**
  * What a project SAYS, against what the build detects. Keyed by the subpath the
  * module is installed from, and absorbing the older `features.physics.enabled`,
  * which was this for one module: a way to name what only a script reaches.
