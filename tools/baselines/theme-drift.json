@@ -66,7 +66,7 @@
     "panels/Details.tsx": 1,
     "panels/inspector/controls.tsx": 1,
     "panels/MaterialGraphEditor.tsx": 4,
-    "panels/ProfilerPanel.tsx": 12,
+    "panels/ProfilerPanel.tsx": 1,
     "panels/ScriptGraphEditor.tsx": 6,
     "panels/SpinePreviewPane.tsx": 4,
     "panels/Viewport.tsx": 2,

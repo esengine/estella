@@ -726,6 +726,8 @@ export const NOTED = {
     { internal: "A repository gate over the editor's own palette; no creator runs it." },
   'fix(agent): a refused picture is told apart from a refused request':
     { note: 'An agent told its screenshot was too big hears that, not "the request was refused".' },
+  'refactor(profiler): a token has one author, not a copy beside every read':
+    { internal: "The profiler's canvas reads the same tokens it always did; the duplicated fallbacks are gone and nothing it draws changes." },
   'feat(export): what each packaging target can do, before a build exists':
     { note: 'The build dialog says which engine services a target can provide.' },
   'feat(build): the dialog says which engine services a target can provide':
