@@ -700,6 +700,8 @@ export const NOTED = {
     { internal: "the editor's preview page names the same subpaths it always did" },
   'fix(settings): the module page reads the same asset table the build installs from':
     { note: 'The Engine Modules page no longer calls a module unused that the build then carries.' },
+  'fix(play): a realm says its page ran before it reads the engine':
+    { note: 'A Play session that times out now says whether it ever started.' },
   'fix(export): a 分包 that did not load says which one and why':
     { note: 'When a 分包 will not come down, the package says which one and why.' },
   'fix(export): a progress notice is never what takes a mini-game boot down':

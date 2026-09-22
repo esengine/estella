@@ -16,6 +16,8 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A Play session that times out now says whether it ever started.** The realm announces itself when its page runs, before a line of the engine is read — previously its only signal was the host module's last statement, so a machine still parsing the SDK and a frame that never ran gave the same ninety seconds of silence, and both were reported as the editor being broken. The two now read differently, and only one of them is the machine's.
+
 - **When a 分包 will not come down, the package says which one and why.** The generated entry logged the vendor's error object, which reaches a device's console as `[object Object]` — the one place you get to look. It is stringified now, and the headless launcher can be told to refuse a named 分包 (`--fail-subpackage`) so the path a bad network takes is something a build can be run against rather than waited for.
 
 - **A package whose engine ships in a 分包 now starts.** Its generated entry called the host's loading indicator on its first line without checking the host has one — and that call is optional in the API — so on a host that does not implement it the game died before reaching `loadSubpackage`. Every indicator call in a generated entry is guarded now; a progress message must never be what takes a boot down.
