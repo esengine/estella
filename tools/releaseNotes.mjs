@@ -698,6 +698,8 @@ export const NOTED = {
     { internal: "a manual page's import line, following the move it documents" },
   'refactor(play): the play realm asks for the whole import map by name':
     { internal: "the editor's preview page names the same subpaths it always did" },
+  'feat(build): a target states its size caps before you package':
+    { note: "The build dialog states a platform's size caps before you package." },
   'fix(export): a mini-game takes the engine build a mini-game host can load':
     { note: 'A Douyin package could not start.' },
   'fix(export): every mini-game target gets the mini-game engine runtime':

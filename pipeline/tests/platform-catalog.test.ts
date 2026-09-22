@@ -332,6 +332,20 @@ describe('loadProjectPlatform — the profile handed to exportMiniGame', () => {
     expect(acme!.ready).toBe(true);
   });
 
+  // A cap nobody can see until the package exists is a cap nobody builds
+  // against, so the row carries the vendor's own — the built-ins' come from
+  // sizeBudget.ts, which the dialog reads directly.
+  it('carries the caps a project vendor declared, so the dialog can state them', async () => {
+    writePlatform('acme.mjs', `export default {
+      id: 'acme', label: 'A', emitConfigFiles: () => [],
+      sizeBudgets: [{ scope: 'initial', maxBytes: 3145728, note: 'ACME caps the main package at 3MB' }],
+    };`);
+    const acme = (await platforms(root)).find((r) => r.id === 'acme');
+    expect(acme?.sizeBudgets).toEqual([
+      { scope: 'initial', maxBytes: 3145728, note: 'ACME caps the main package at 3MB' },
+    ]);
+  });
+
   it('is null for a built-in id, so the built-in pipeline keeps it', async () => {
     expect(await loadProjectPlatform(root, 'wechat', dirs())).toBeNull();
     expect(await loadProjectPlatform(root, 'nope', dirs())).toBeNull();

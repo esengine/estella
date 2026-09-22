@@ -31,6 +31,7 @@ import {
   type PlayableAdProfile,
 } from './playableAdProfile';
 import { BUILTIN_PLATFORMS, DESKTOP_OSES, compileTargetFor, desktopTemplateFor, type PlatformPrereq } from '../project/platforms';
+import type { SizeBudget } from '../project/sizeBudget';
 import { promisesCompilation } from '../bundle/buildCompiledSystems';
 import { resolveNativeTemplate } from './nativeTemplates';
 import { templateId } from '../../../build-tools/utils/nativeTemplate.js';
@@ -70,6 +71,10 @@ export interface PlatformStatus {
    *  imported. The row appears so the user can see it exists and go approve it,
    *  rather than wondering why the target never showed up. */
   needsTrust?: boolean;
+  /** Project platforms only — the caps this vendor declared, so the build dialog
+   *  can state them before a package exists. A built-in target's are the
+   *  platform's rule and live in sizeBudget.ts, which the renderer reads. */
+  sizeBudgets?: readonly SizeBudget[];
 }
 
 // =============================================================================
@@ -692,6 +697,7 @@ export async function listPlatforms(
       label: mod.label,
       blurb: mod.blurb,
       defaultOut: mod.defaultOut ?? `dist-${mod.id}`,
+      sizeBudgets: mod.sizeBudgets,
       prereq: ready
         ? undefined
         // No command: the editor does not know how this project builds its own

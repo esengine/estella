@@ -14,6 +14,10 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **The build dialog states a platform's size caps before you package.** They were reported only after a package existed, in the size panel, so the ceiling a build had to fit under was visible only once it was too late to plan around — and the difference matters: a package that fits WeChat's 30MB is 10MB over Douyin's 20MB. Each target's caps now sit under its description, and hovering them gives the platform's own wording rather than our paraphrase. A platform a project defines itself states the caps it declared.
+
 ### Fixed
 
 - **A Douyin package could not start.** It shipped the browser engine artifact, which is an ES module, and a mini-game host loads its JavaScript with `require` — so `game.js` threw `SyntaxError: Unexpected token 'export'` on its first line and the package never reached a frame. Every mini-game host takes the same engine build, and now every mini-game target asks for it: the two built-in vendors, and a platform a project defines itself, which had the same browser default. The export also refuses an ES module engine by reading the file rather than trusting its name, since the name was the thing that was wrong.
