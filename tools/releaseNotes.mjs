@@ -728,6 +728,10 @@ export const NOTED = {
     { note: 'An agent told its screenshot was too big hears that, not "the request was refused".' },
   'refactor(profiler): a token has one author, not a copy beside every read':
     { internal: "The profiler's canvas reads the same tokens it always did; the duplicated fallbacks are gone and nothing it draws changes." },
+  "refactor(theme): a graph port's colour is a token, in one family for both graphs":
+    { internal: 'The two graph editors read their port colours from the theme; all eight resolve to the hex they replaced, so nothing drawn changes.' },
+  "feat(gates): a file whose colours are not the palette's says so":
+    { internal: "A repository ratchet over the editor's own source; no creator runs it." },
   'feat(export): what each packaging target can do, before a build exists':
     { note: 'The build dialog says which engine services a target can provide.' },
   'feat(build): the dialog says which engine services a target can provide':
