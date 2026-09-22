@@ -117,15 +117,20 @@ interface RuntimeLayout {
   readonly files: ReadonlyArray<{ readonly src: string; readonly staged: string; readonly brotli?: true }>;
   /** The 分包 the engine binary went into, for the host config to declare. */
   readonly subpackage: { readonly name: string; readonly root: string } | null;
+  /** Suffix the side-module binaries landed under, for the boot config. */
+  readonly sideModuleSuffix: string;
 }
 
 /**
  * Decided ONCE, read by the boot config and the copy loop: what lands is what
- * the loader is told. Only the ENGINE binary compresses — a side module's is
- * found at `wasm/<file>.wasm` by three hosts that spell that suffix themselves,
- * so renaming one here would leave all three naming a file that is not there.
+ * the loader is told. The side modules compress with the engine — the mini-game
+ * transport is TOLD the suffix (`sideModuleSuffix`) rather than spelling it.
  */
 const ENGINE_SUBPACKAGE = 'engine';
+
+/** What a compressed binary is called. The vendor's loader takes this path
+ *  verbatim, so the package carries one binary per module, not two. */
+const BROTLI_SUFFIX = '.wasm.br';
 
 function planRuntimeLayout(
   engineGlueFile: string,
@@ -142,16 +147,21 @@ function planRuntimeLayout(
   const binary = opts.brotli
     ? { src: engineBinary, staged: enginePath, brotli: true as const }
     : { src: engineBinary, staged: enginePath };
+  const sideModuleSuffix = opts.brotli ? BROTLI_SUFFIX : '.wasm';
   return {
     enginePath,
     runtimeDir: 'wasm',
     subpackage: opts.subpackage ? { name: ENGINE_SUBPACKAGE, root } : null,
+    sideModuleSuffix,
     files: [
       { src: engineGlueFile, staged: `wasm/${engineGlueFile}` },
       binary,
       ...sideModules.flatMap((m) => [
         { src: `${m.file}.js`, staged: `wasm/${m.file}.js` },
-        { src: `${m.file}.wasm`, staged: `wasm/${m.file}.wasm` },
+        // The glue stays raw: a vendor's brotli path takes wasm, not `.js`.
+        opts.brotli
+          ? { src: `${m.file}.wasm`, staged: `wasm/${m.file}${sideModuleSuffix}`, brotli: true as const }
+          : { src: `${m.file}.wasm`, staged: `wasm/${m.file}.wasm` },
       ]),
     ],
   };
@@ -505,7 +515,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     `export function boot(engineFactory, sideModuleFactories) {\n` +
     (profile.platformInit ? `  ${profile.platformInit}();\n` : '') +
     (installsPlatform ? `  installMiniGamePlatform(__platformProfile);\n` : '') +
-    `  return ${profile.runtimeInit}({ engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}, firstScene: ${JSON.stringify(sceneName)}${runtimeArgs}${projectDeclarations.length > 0 ? `, sideModules: ${JSON.stringify(projectDeclarations)}` : ''}${aotArg} });\n` +
+    `  return ${profile.runtimeInit}({ engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}${runtimeLayout.sideModuleSuffix === '.wasm' ? '' : `, sideModuleSuffix: ${JSON.stringify(runtimeLayout.sideModuleSuffix)}`}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}, firstScene: ${JSON.stringify(sceneName)}${runtimeArgs}${projectDeclarations.length > 0 ? `, sideModules: ${JSON.stringify(projectDeclarations)}` : ''}${aotArg} });\n` +
     `}\n`;
   progress({ phase: 'Bundling game' });
   /** What each subsystem costs in the bundle — empty if esbuild wrote no metafile. */

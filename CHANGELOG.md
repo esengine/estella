@@ -16,6 +16,8 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A mini-game's side modules compress too, not just its engine.** Brotli was applied to the engine binary alone, so a package that transcodes KTX2 textures still carried Basis at its full 1.1MB — 27% of WeChat's 4MB main-package cap on its own. They compress on the same switch now, and the loader is told which suffix the build staged instead of spelling `.wasm` itself. Measured on the platformer template: its WeChat package was 108% of the cap and is now 51.5%, with the side modules accounting for 902KB of that.
+
 - **A mini-game says it is starting before it parses the game.** The host's loading indicator only appeared once `initMiniGameRuntime` ran, which is after the entry has required a megabyte of bundle — the longest silent stretch of a cold start. The generated entry now raises it on its first line.
 
 - **The start screen is yours: a logo, a background and a minimum display time.** The exported page has shown real boot progress for a while, but always as the game's name on the engine's own dark ground. A project can now put its logo there — inlined into the page, because an image fetched over the network arrives in the same window the engine does, with nothing left to cover — pick the colour behind it, and hold the screen for a minimum time, so a boot that finishes in 120ms stops flashing a bar that appears and vanishes. The page also emits `esengine:bootprogress` and `esengine:firstframe`, which a portal's own loading screen can listen for before the game's bundle has run.

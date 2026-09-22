@@ -562,6 +562,38 @@ describe('exportGame (wechat)', () => {
     expect(existsSync(path.join(o, 'wasm', 'esengine.js'))).toBe(true);
   }, 60_000);
 
+  // The side modules are the other half of the main package: basis alone is
+  // 1.1MB raw, 27% of the 4MB cap. They compress on the same switch, and the
+  // loader is TOLD the suffix rather than spelling `.wasm` itself.
+  it('compresses a side module too, and declares the suffix the loader must use', async () => {
+    const wxDir = path.join(root, '_wxwasm-spine');
+    const o = path.join(root, 'dist-wx-br-side');
+    const res = await exportGame({
+      root,
+      entryScene: 'scenes-spine/spine.esscene',
+      hostsDir: 'unused-for-wechat',
+      scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: wxDir,
+      outDir: o,
+      platform: 'wechat',
+      compressWasm: true,
+      runtime: runtimeConfigOf({ designResolution: { width: 1280, height: 720 } }),
+    });
+    expect(res.ok, res.errors.join('\n')).toBe(true);
+
+    expect(existsSync(path.join(o, 'wasm', 'spine42.wasm.br'))).toBe(true);
+    expect(existsSync(path.join(o, 'wasm', 'spine42.wasm'))).toBe(false);
+    // The glue stays raw — a vendor's brotli path takes wasm, not `.js` — and
+    // the entry still requires it by that name.
+    expect(existsSync(path.join(o, 'wasm', 'spine42.js'))).toBe(true);
+    expect(readFileSync(path.join(o, 'game.js'), 'utf8')).toContain("require('./wasm/spine42.js')");
+
+    // The half a second derivation would get wrong in silence: nothing in the
+    // runtime knows the suffix unless the package says so.
+    expect(readFileSync(path.join(o, 'game-bundle.js'), 'utf8')).toContain('sideModuleSuffix');
+  }, 60_000);
+
   // Policy without capability changes nothing, and neither does the reverse:
   // the default export still ships the binary as it was built.
   it('leaves the binary alone when the project did not ask', async () => {

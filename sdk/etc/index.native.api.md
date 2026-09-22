@@ -10500,7 +10500,7 @@ Plugin
 
 ## createWeChatSideModuleHost — function @experimental
 ```
-(factories: MiniGameSideModuleFactories): SideModuleHost
+(factories: MiniGameSideModuleFactories, binarySuffix?: string): SideModuleHost
 ```
 
 ## createWebApp — function @experimental

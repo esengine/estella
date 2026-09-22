@@ -110,6 +110,13 @@ export interface MiniGameRuntimeConfig {
      *  self-gate off these via {@link createMiniGameSideModuleHost}. */
     sideModuleFactories?: MiniGameSideModuleFactories;
     /**
+     * Suffix the export staged those binaries under — `.wasm.br` where the
+     * vendor's loader takes one and the project asked for it. Declared rather
+     * than guessed: the package carries ONE binary per module, and a loader that
+     * spelled the suffix itself would name a file the package does not have.
+     */
+    sideModuleSuffix?: string;
+    /**
      * Project-supplied modules (`.esengine/modules/<id>/`) the export staged, so
      * their ids resolve to an artifact name.
      *
@@ -206,7 +213,7 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
         }),
         // Physics + spine self-gate off these factories (require()'d in game.js).
         sideModules: config.sideModuleFactories
-            ? createMiniGameSideModuleHost(config.sideModuleFactories)
+            ? createMiniGameSideModuleHost(config.sideModuleFactories, config.sideModuleSuffix)
             : undefined,
     });
 

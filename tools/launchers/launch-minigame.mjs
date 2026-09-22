@@ -71,8 +71,15 @@ function serve(root, page) {
       }
       const abs = path.join(root, rel);
       if (!abs.startsWith(root)) { res.writeHead(403).end(); return; }
-      res.writeHead(200, { 'content-type': MIME[path.extname(abs).toLowerCase()] ?? 'application/octet-stream' })
-        .end(await readFile(abs));
+      // The vendor's loader takes a `.wasm.br` path and decompresses inside
+      // itself; nothing in a page can (Chromium's DecompressionStream has no
+      // brotli), so the transport does — the stand-in host sees raw wasm either way.
+      const brotli = abs.endsWith('.br');
+      const ext = path.extname(brotli ? abs.slice(0, -3) : abs).toLowerCase();
+      res.writeHead(200, {
+        'content-type': MIME[ext] ?? 'application/octet-stream',
+        ...(brotli ? { 'content-encoding': 'br' } : {}),
+      }).end(await readFile(abs));
     } catch {
       res.writeHead(404).end();
     }

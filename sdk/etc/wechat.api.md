@@ -9282,6 +9282,7 @@ runtimeConfig: RuntimeBuildConfig | undefined
 sceneNames: string[]
 screenFit: { designWidth: number; designHeight: number; scaleMode: number; matchWidthOrHeight: number; } | undefined
 sideModuleFactories: Partial<Record<SideModuleId, EmscriptenFactory>> | undefined
+sideModuleSuffix: string | undefined
 sideModules: { id: string; file: string; globalName?: string; }[] | undefined
 uiTheme: "dark" | "light" | undefined
 uiThemeOverrides: ThemeOverrides | undefined
@@ -10290,7 +10291,7 @@ Plugin
 
 ## createWeChatSideModuleHost — function @experimental
 ```
-(factories: MiniGameSideModuleFactories): SideModuleHost
+(factories: MiniGameSideModuleFactories, binarySuffix?: string): SideModuleHost
 ```
 
 ## createWebApp — function @experimental

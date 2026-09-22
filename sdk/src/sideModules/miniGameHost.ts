@@ -17,13 +17,20 @@ import type { SideModuleId } from './registry';
 /** id → the emscripten factory `require('./wasm/<file>.js')` returned. */
 export type MiniGameSideModuleFactories = Partial<Record<SideModuleId, EmscriptenFactory>>;
 
-export function createMiniGameSideModuleHost(factories: MiniGameSideModuleFactories): SideModuleHost {
+/**
+ * `binarySuffix` is what the EXPORT staged, not what this guesses: a host whose
+ * loader takes `.wasm.br` gets a package with only the compressed binary in it,
+ * and a loader that appended `.wasm` itself would name a file that is not there.
+ */
+export function createMiniGameSideModuleHost(
+    factories: MiniGameSideModuleFactories, binarySuffix = '.wasm',
+): SideModuleHost {
     return createSideModuleHost(async (descriptor, id) => {
         const factory = factories[id];
         if (!factory) throw new Error(`side module "${id}" (${descriptor.file}) has no mini-game factory`);
         // The exporter stages every runtime artifact under wasm/ — same registry,
         // same layout, so the binary sits beside the glue game.js require()'d.
-        return instantiateViaPlatform(factory, `wasm/${descriptor.file}.wasm`);
+        return instantiateViaPlatform(factory, `wasm/${descriptor.file}${binarySuffix}`);
     });
 }
 
