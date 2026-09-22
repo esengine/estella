@@ -312,6 +312,17 @@ const handRolledByFile = () => {
 };
 
 /**
+ * Files whose colours are NOT the palette's to hold, each with the reason —
+ * without this the ratchet's target of zero is unreachable, and a target nobody
+ * can reach is not one anybody aims at.
+ */
+const NOT_THE_PALETTE = {
+  'components/LoadingScreen.tsx':
+    'the Estella mark itself (see favicon.svg). Its blue and --star came from the same place,'
+    + ' but a logo that moves when the accent moves is not a logo',
+};
+
+/**
  * Colour written into CODE rather than read from a token. The ratchet above
  * guards `theme/`, which is where tokens are DEFINED; this guards everywhere
  * else, which is where a literal means the palette was bypassed. Generated
@@ -327,10 +338,12 @@ const colourLiteralInCodeByFile = () => {
         continue;
       }
       if (!/\.tsx?$/.test(e.name) || e.name.includes('.generated.')) continue;
+      const rel = path.relative(path.join(ROOT, 'desktop', 'src'), full).replaceAll(path.sep, '/');
+      if (rel in NOT_THE_PALETTE) continue;
       const text = readFileSync(full, 'utf8');
       const n = (text.match(/#[0-9a-fA-F]{3,8}\b/g)?.length ?? 0)
         + (text.match(/\brgba?\(/g)?.length ?? 0);
-      if (n > 0) out[path.relative(path.join(ROOT, 'desktop', 'src'), full).replaceAll(path.sep, '/')] = n;
+      if (n > 0) out[rel] = n;
     }
   };
   walk(path.join(ROOT, 'desktop', 'src'));
@@ -417,7 +430,8 @@ console.log(
   + `${identityUses} identity-token use(s), every one on the thing it names. `
   + `Ratchets hold: ${total} off-grid spacing(s), `
   + `${Object.values(colours).reduce((a, b) => a + b, 0)} colour literal(s) in theme `
-  + `and ${Object.values(colourCode).reduce((a, b) => a + b, 0)} in code, `
+  + `and ${Object.values(colourCode).reduce((a, b) => a + b, 0)} in code `
+  + `(${Object.keys(NOT_THE_PALETTE).length} file(s) declared not the palette's), `
   + `${Object.values(fontSizes).reduce((a, b) => a + b, 0)} raw font-size(s), `
   + `${icons.sizes.length} icon size(s) / ${icons.strokes.length} stroke width(s), `
   + `${Object.values(handRolled).reduce((a, b) => a + b, 0)} hand-rolled control(s).`,

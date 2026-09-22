@@ -55,7 +55,6 @@
   "colourLiteralsInCode": {
     "components/AudioWavePreview.tsx": 2,
     "components/ColorControl.tsx": 3,
-    "components/LoadingScreen.tsx": 6,
     "components/PerfOverlay.tsx": 1,
     "components/SettingsRow.tsx": 3,
     "diagnostics/redact.ts": 2,
@@ -65,9 +64,7 @@
     "panels/ContentBrowser.tsx": 3,
     "panels/Details.tsx": 1,
     "panels/inspector/controls.tsx": 1,
-    "panels/MaterialGraphEditor.tsx": 4,
     "panels/ProfilerPanel.tsx": 1,
-    "panels/ScriptGraphEditor.tsx": 6,
     "panels/SpinePreviewPane.tsx": 4,
     "panels/Viewport.tsx": 2,
     "settings/editorSettings.ts": 10,
