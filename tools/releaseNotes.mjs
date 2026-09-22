@@ -698,6 +698,10 @@ export const NOTED = {
     { internal: "a manual page's import line, following the move it documents" },
   'refactor(play): the play realm asks for the whole import map by name':
     { internal: "the editor's preview page names the same subpaths it always did" },
+  'feat(details): a component whose module the project refused cannot be added':
+    { note: "A component whose module Project Settings excludes is greyed out in Add Component, not hidden." },
+  'fix(project): every module a project can refuse is one a build can detect':
+    { note: "Excluding 3D physics, DragonBones or script graphs is now enforced like every other module." },
   'feat(project): a project can force an engine module in, or refuse one':
     { note: "Project Settings has an Engine Modules page: force a module into the build, or refuse one." },
   'feat(settings): an Engine Modules page, one row per module':
