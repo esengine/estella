@@ -12,6 +12,7 @@
  *            inlines the SDK; esbuild `alias` points esengine (+ subpaths) at dist.
  */
 import path from 'node:path';
+import { ESENGINE_SUBPATHS } from './engineSubpaths';
 
 /** esengine left external (web / desktop import-map builds). */
 export const ESENGINE_EXTERNAL = ['esengine', 'esengine/*'];
@@ -22,19 +23,8 @@ export const ESENGINE_EXTERNAL = ['esengine', 'esengine/*'];
  * hand-written copy is how a specifier the SDK never exported survived in both.
  * check-import-map.mjs holds it against the package.
  */
-export const ESENGINE_SUBPATHS: Readonly<Record<string, string>> = {
-  'esengine/spine': 'spine/index.js',
-  'esengine/tilemap': 'tilemap/index.js',
-  'esengine/logic': 'logic/index.js',
-  'esengine/ai': 'ai/index.js',
-  'esengine/replication': 'net/replication/index.js',
-  'esengine/gameplay': 'gameplay/index.js',
-  'esengine/dragonbones': 'dragonbones/index.js',
-  'esengine/physics': 'physics/index.js',
-  'esengine/physics3d': 'physics3d/index.js',
-  'esengine/douyin': 'douyin/index.js',
-  'esengine/wasm': 'wasm.js',
-};
+// One author, in a module the editor's renderer can also read.
+export { ESENGINE_SUBPATHS, ENGINE_MODULES } from './engineSubpaths';
 
 /**
  * esbuild `alias` resolving `esengine` and its subpath exports to files under

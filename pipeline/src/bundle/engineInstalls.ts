@@ -18,7 +18,7 @@
  */
 import { SUBSYSTEM_INSTALL, type Subsystem } from '../project/targetSupport';
 import type { ModuleChoice, ProjectFeatures } from '../project/format';
-import { ESENGINE_SUBPATHS } from './esengineResolve';
+import { ESENGINE_SUBPATHS } from './engineSubpaths';
 
 /** A subsystem a document names by ASSET rather than by component: nothing in a
  *  scene says "script graph", the `.esgraph` it references does. */

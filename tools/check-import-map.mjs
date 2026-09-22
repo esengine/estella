@@ -20,7 +20,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const RESOLVE = 'pipeline/src/bundle/esengineResolve.ts';
+const RESOLVE = 'pipeline/src/bundle/engineSubpaths.ts';
 
 const src = readFileSync(path.join(ROOT, RESOLVE), 'utf8');
 const block = /export const ESENGINE_SUBPATHS[^{]*\{([\s\S]*?)\n\};/.exec(src);
