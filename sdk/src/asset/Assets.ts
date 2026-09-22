@@ -273,6 +273,16 @@ export interface MissingAsset {
     error?: string;
 }
 
+/**
+ * Say what failed, wherever it failed. Two loading doors reached this same dead
+ * end — a caller holding an empty result it cannot tell from an empty group —
+ * so the sentence is written once rather than at each of them.
+ */
+function warnFailedLoads(failed: readonly MissingAsset[], where?: string): void {
+    if (failed.length === 0) return;
+    log.warn('asset', `${where ? `${where}: ` : ''}${failed.length} asset(s) failed to load`, failed);
+}
+
 export interface SceneAssetResult {
     textureHandles: Map<string, number>;
     materialHandles: Map<string, number>;
@@ -886,14 +896,20 @@ export class Assets {
 
         let loadedCount = 0;
         const promises: Promise<void>[] = [];
-        const track = (p: Promise<void>): Promise<void> =>
+        // A subpackage that downloads but stages nothing reads exactly like a
+        // group that was always empty, so the failures are named, not counted.
+        const failed: MissingAsset[] = [];
+        const track = (p: Promise<void>, ref: string, type: string): Promise<void> =>
             p.then(() => { onProgress?.(++loadedCount, totalCount); })
-             .catch(() => { onProgress?.(++loadedCount, totalCount); });
+             .catch((e: unknown) => {
+                 failed.push({ ref, type, reason: 'load-failed', error: String(e) });
+                 onProgress?.(++loadedCount, totalCount);
+             });
 
         for (const asset of model.assetsInGroup(groupName)) {
             const path = this.manifestAssetUrl_(asset.path, mode === 'remote');
             const task = this.groupLoadTask_(path, asset.type, bundle);
-            if (task) promises.push(track(task));
+            if (task) promises.push(track(task, path, asset.type));
         }
 
         const totalCount = promises.length;
@@ -901,6 +917,7 @@ export class Assets {
         loadedCount = 0;
 
         await Promise.allSettled(promises);
+        warnFailedLoads(failed, `loadGroup('${groupName}')`);
         return bundle;
     }
 
@@ -1418,10 +1435,7 @@ export class Assets {
         // `unresolved` refs warn above; a load that THREW only reached `missing`,
         // which callers may ignore — so a scene drew with no textures and no
         // complaint, indistinguishable from a scene that has none.
-        const failed = missing.filter((m) => m.reason === 'load-failed');
-        if (failed.length > 0) {
-            log.warn('asset', `${failed.length} asset(s) failed to load`, failed);
-        }
+        warnFailedLoads(missing.filter((m) => m.reason === 'load-failed'));
 
         return { textureHandles, materialHandles, fontHandles, meshHandles, environmentHandles,
                  probeVolumeHandles, releaseCallbacks, scope, missing };

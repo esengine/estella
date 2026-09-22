@@ -700,6 +700,10 @@ export const NOTED = {
     { internal: "the editor's preview page names the same subpaths it always did" },
   'fix(settings): the module page reads the same asset table the build installs from':
     { note: 'The Engine Modules page no longer calls a module unused that the build then carries.' },
+  'fix(assets): a group load names what failed instead of returning an empty bundle':
+    { note: 'A group that failed to load says so instead of handing back an empty bundle.' },
+  'docs(settings): the wasm compression switch names what it now compresses':
+    { internal: 'the switch now compresses the side modules too, which its own label did not say' },
   'feat(export): a mini-game compresses its side modules, not just its engine':
     { note: "A mini-game's side modules compress too, not just its engine." },
   'feat(export): a mini-game entry raises the host indicator on its first line':

@@ -16,6 +16,8 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A group that failed to load says so instead of handing back an empty bundle.** `Assets.loadGroup` settled every asset and returned whatever survived, so a subpackage that downloaded but staged nothing — or a CDN answering 404 — read exactly like a group that was always empty. It now names the assets that failed, the way a scene preload already did.
+
 - **A mini-game's side modules compress too, not just its engine.** Brotli was applied to the engine binary alone, so a package that transcodes KTX2 textures still carried Basis at its full 1.1MB — 27% of WeChat's 4MB main-package cap on its own. They compress on the same switch now, and the loader is told which suffix the build staged instead of spelling `.wasm` itself. Measured on the platformer template: its WeChat package was 108% of the cap and is now 51.5%, with the side modules accounting for 902KB of that.
 
 - **A mini-game says it is starting before it parses the game.** The host's loading indicator only appeared once `initMiniGameRuntime` ran, which is after the entry has required a megabyte of bundle — the longest silent stretch of a cold start. The generated entry now raises it on its first line.

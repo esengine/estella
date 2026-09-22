@@ -6,6 +6,7 @@ import { Catalog, type CatalogData } from '../src/asset/Catalog';
 import type { AddressableManifest } from '../src/asset/AddressableManifest';
 import type { Backend } from '../src/asset/Backend';
 import * as platform from '../src/platform';
+import { log } from '../src/util/logger';
 
 const mockModule = {
     _malloc: vi.fn(() => 0),
@@ -200,6 +201,41 @@ describe('Assets.loadGroup', () => {
         vi.spyOn(assets, 'acquireTexture').mockResolvedValue({ key: 'texture:x', generation: 1, value: { handle: 1, width: 1, height: 1 }, release: () => {} } as any);
         await assets.loadGroup('extra'); // createManifest: 'extra' is bundleMode 'lazy'
         expect(sub).toHaveBeenCalledWith('extra');
+    });
+
+    /**
+     * A 分包 that downloads but stages nothing, a CDN that 404s every file: the
+     * group loads, the bundle is empty, and a caller cannot tell that from a
+     * group that was always empty. It has to say so.
+     */
+    it('says which assets failed instead of handing back a silently empty bundle', async () => {
+        const warn = vi.spyOn(log, 'warn').mockImplementation(() => {});
+        const assets = createAssets();
+        assets.setManifest(createManifest());
+        vi.spyOn(assets, 'acquireTexture').mockRejectedValue(new Error('404'));
+
+        const bundle = await assets.loadGroup('main');
+        expect(bundle.textures.size).toBe(0);
+
+        const said = warn.mock.calls.find((c) => String(c[1]).includes('failed to load'));
+        expect(said, 'loadGroup returned an empty bundle without saying why').toBeDefined();
+        // Named, not counted: "2 assets failed" sends nobody anywhere.
+        expect(String(said![1])).toContain("loadGroup('main')");
+        expect((said![2] as Array<{ ref: string }>).map((f) => f.ref).sort())
+            .toEqual(['tex1.png', 'tex2.png']);
+        warn.mockRestore();
+    });
+
+    it('stays quiet when every asset in the group loaded', async () => {
+        const warn = vi.spyOn(log, 'warn').mockImplementation(() => {});
+        const assets = createAssets();
+        assets.setManifest(createManifest());
+        vi.spyOn(assets, 'acquireTexture').mockResolvedValue({
+            key: 'texture:x', generation: 1, value: { handle: 1, width: 1, height: 1 }, release: () => {},
+        } as any);
+        await assets.loadGroup('main');
+        expect(warn.mock.calls.filter((c) => String(c[1]).includes('failed to load'))).toEqual([]);
+        warn.mockRestore();
     });
 
     it('does not download a subpackage for a local (main-package) group', async () => {
