@@ -16,6 +16,8 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **The build dialog says which engine services a target can provide.** `Ads`, sign-in, share and in-game purchase all answer at runtime, by asking the host — the right answer for a game, and no answer at all for someone choosing a target, because there is no host yet. Each target now carries a line beside its size caps: WeChat's four are its own published API, and Douyin sells nothing, which is worth hearing before a store page is written rather than when the purchase call rejects on a device. A `?` is a real verdict, not a shrug — it is what the engine wires with the host having the last word, and hovering quotes the source.
+
 - **The build says what the start screen's logo costs the page.** Inlined, the logo IS `index.html`, so a size report files it as page rather than as art — a start screen could quietly take a share of a main-package limit with nothing naming it. The export now states both numbers: the image on disk, and what it weighs in the page after base64.
 
 - **You can tell the editor which models your account has seen take an image.** A vendor that documents nothing leaves its models at "nobody has said", and no picture is sent to one of those — which used to mean waiting for us to ship a build. Settings › AI Agents now has a box per provider for the model names you have confirmed yourself.
