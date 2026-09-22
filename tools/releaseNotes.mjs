@@ -700,6 +700,8 @@ export const NOTED = {
     { internal: "the editor's preview page names the same subpaths it always did" },
   'fix(settings): the module page reads the same asset table the build installs from':
     { note: 'The Engine Modules page no longer calls a module unused that the build then carries.' },
+  'feat(export): the build says what the start screen\'s logo costs the page':
+    { note: "The build says what the start screen's logo costs the page." },
   'feat(agent): a person can record which models their account has seen take an image':
     { note: 'You can tell the editor which models your account has seen take an image.' },
   'fix(agent): nothing claims a model cannot see when nobody has said so':

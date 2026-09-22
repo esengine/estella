@@ -77,12 +77,24 @@ describe('the exported page’s start screen', () => {
 
   it('carries the logo IN the page, not as a request that races the engine', async () => {
     const { html, warnings } = await page({ logo: 'assets/logo.png' });
-    expect(warnings.join('\n')).not.toContain('logo');
+    // Nothing REFUSED it. What it costs the page is said separately, below.
+    expect(warnings.join('\n')).not.toMatch(/does not exist|not an image/);
     expect(html).toContain('class="es-splash-logo"');
     expect(html).toContain(`src="data:image/png;base64,${PNG.toString('base64')}"`);
     // The path itself must not survive into the page: a start screen that
     // fetches its own logo is the failure this inlining exists to prevent.
     expect(html).not.toContain('assets/logo.png');
+  }, 180_000);
+
+  // Inlined, the logo is page bytes: a size report files it under the html and a
+  // start screen can take a share of a main-package limit with nothing saying so.
+  it('says what the logo costs the page, since the page hides it', async () => {
+    const { warnings } = await page({ logo: 'assets/logo.png' });
+    const said = warnings.find((w) => w.includes('assets/logo.png'));
+    expect(said, 'the inlined logo cost nothing was told about').toBeDefined();
+    expect(said).toContain(`${PNG.length} bytes`);
+    // …and the base64 tax, which is the part a file listing cannot show.
+    expect(said).toMatch(/\b\d+ in the page/);
   }, 180_000);
 
   it('says so and ships anyway when the logo is not there', async () => {

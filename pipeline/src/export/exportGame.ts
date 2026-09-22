@@ -359,7 +359,13 @@ async function splashLook(
     warnings.push(`The splash logo ${splash.logo} does not exist — shown as the game's title instead.`);
     return look;
   }
-  look.logo = `data:${mime};base64,${(await readFile(file)).toString('base64')}`;
+  const bytes = await readFile(file);
+  look.logo = `data:${mime};base64,${bytes.toString('base64')}`;
+  // Said out loud because the page swallows it: inlined, the logo IS index.html,
+  // so a size report files it as page rather than art. Base64 is the cost —
+  // a third more than the file on disk.
+  warnings.push(`The start screen's logo ${splash.logo} is inlined into the page:`
+    + ` ${bytes.length} bytes of image, ${look.logo.length} in the page.`);
   return look;
 }
 
