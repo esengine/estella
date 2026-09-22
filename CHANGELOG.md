@@ -16,6 +16,8 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **Nothing claims a model cannot see when nobody has said so.** Attaching a picture to a model whose sight is unconfirmed said "this endpoint does not accept images", and the turn itself told the agent it "cannot carry images" — both of which read as the vendor having answered. They now say what is true of the turn: no image is being sent. The attachment notice keeps the two apart, because a vendor saying no is a reason to pick another model and nobody having said is a reason to go and find out.
+
 - **A model that can see is no longer told it cannot.** Whether a screenshot could reach the agent was one answer per provider, and DeepSeek publishes a Flash that takes images beside a Pro its vision guide does not name — so the one boolean was wrong about one of them, and wrong the quiet way: the model that can see was told to read `screenshot`'s coarse text grid instead of looking at the picture. It is resolved per model now, in three states, because "the vendor says no" and "nobody has said" are different answers and only the second is worth going to find out about. `deepseek-flash` is the recommended name and the retired `deepseek-v4-flash` still resolves, since the vendor still serves it.
 
 - **A packaged game answers "how do I get there?" again.** The host's `pathBetween` — what a driven playthrough and the automation ask for a route — looked `Nav` up in the registry of COMPONENTS when the AI runtimes moved to their own subpath. `Nav` is a resource and has never been in that one, so the lookup answered nothing rather than throwing, every route came back as no route, and a game that walks fine by hand could not be driven anywhere. It asks the resource door now.

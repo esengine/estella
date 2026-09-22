@@ -700,6 +700,8 @@ export const NOTED = {
     { internal: "the editor's preview page names the same subpaths it always did" },
   'fix(settings): the module page reads the same asset table the build installs from':
     { note: 'The Engine Modules page no longer calls a module unused that the build then carries.' },
+  'fix(agent): nothing claims a model cannot see when nobody has said so':
+    { note: 'Nothing claims a model cannot see when nobody has said so.' },
   'fix(agent): what a model can see is resolved per model, in three states':
     { note: 'A model that can see is no longer told it cannot.' },
   'fix(runtime): a packaged host looks a resource up in the registry that holds it':
