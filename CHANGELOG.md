@@ -33,6 +33,12 @@ published separately; it ships inside the editor.
   install it. A project using a subsystem no subpath installs (video today) takes the whole
   entry as before. Measured on the UI-game template: 1,305KB → 1,090KB, 57 files → 32.
 
+- **The Engine Modules page says which of your documents put each module in use.** The switch alone left "will this
+  ship?" to be answered by exporting. What the row shows is the export's own walk, so the
+  page and the build cannot disagree — and "not used by this project" is kept apart from
+  "nobody has looked yet", because printing the first when it means the second tells a
+  project it can safely exclude something.
+
 - **A component whose module Project Settings excludes is greyed out in Add Component, not hidden.** The export
   refuses a build whose content uses an excluded module, which is the last possible moment
   to find out; the editor knows the same thing when the menu opens. Greyed rather than
