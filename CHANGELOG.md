@@ -16,6 +16,8 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A packaged game answers "how do I get there?" again.** The host's `pathBetween` — what a driven playthrough and the automation ask for a route — looked `Nav` up in the registry of COMPONENTS when the AI runtimes moved to their own subpath. `Nav` is a resource and has never been in that one, so the lookup answered nothing rather than throwing, every route came back as no route, and a game that walks fine by hand could not be driven anywhere. It asks the resource door now.
+
 - **Pressing Play could kill the session it was starting.** The editor hands the scene to the realm from two doors — directly on a warm re-Play, and on the realm's greeting when it cold-boots — and `start()` claims the scene before it waits on the script rebuild. A greeting that arrived inside that wait went through both doors, and the realm read the second hand-over as a re-Play: it quit the App the first was still booting on, which surfaced a few steps later as a null read and a session that never reached a frame. The scene is handed over once per start now.
 
 ## [0.70.0] - 2026-09-22

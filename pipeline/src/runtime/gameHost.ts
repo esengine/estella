@@ -589,8 +589,12 @@ async function boot(): Promise<void> {
        * game means the route stays right when the level is re-authored.
        */
       pathBetween(fromName: string, toName: string): Array<{ x: number; y: number }> | null {
-        const nav = optionalDef('Nav');
-        if (nav === null || !app.hasResource(nav)) return null;
+        // Through the App's own by-name door: `Nav` is a RESOURCE, and the
+        // component registry optionalDef reads has never held one — asked there
+        // it answered null, and every path this host was asked for was no path.
+        const nav = app.getResourceByName('Nav') as
+          { findWorldPath(a: { x: number; y: number }, b: { x: number; y: number }): Array<{ x: number; y: number }> | null } | undefined;
+        if (!nav) return null;
         const ends = [fromName, toName].map((name) => {
           const entity = app.world.findEntityByName(name);
           if (entity === null || !app.world.has(entity, Transform)) return null;
@@ -598,8 +602,7 @@ async function boot(): Promise<void> {
           return { x: p.x, y: p.y };
         });
         if (!ends[0] || !ends[1]) return null;
-        return (app.getResource(nav) as { findWorldPath(a: { x: number; y: number }, b: { x: number; y: number }): Array<{ x: number; y: number }> | null })
-          .findWorldPath(ends[0], ends[1]);
+        return nav.findWorldPath(ends[0], ends[1]);
       },
       /**
        * What the last frame's renderer counted — the work a picture cannot show.
