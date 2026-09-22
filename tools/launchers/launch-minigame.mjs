@@ -54,7 +54,13 @@ const H = Number(flag('h', '360'));
 const SETTLE = Number(flag('settle', '30'));
 const TIMEOUT = Number(flag('timeout', '30000'));
 const INPUT = flag('input', '');
-/** Make the host refuse this 分包, to see what the package does about it. */
+/**
+ * Make the host refuse this 分包 — and with it, ask a different question.
+ *
+ * The package is not supposed to start. A 分包 that will not come down is a
+ * failure a shipped game meets on a bad network, and all it can still do is SAY
+ * so, which is what the verdict flips to: silence is the failure here.
+ */
 const FAIL_SUBPACKAGE = flag('fail-subpackage', '');
 
 const MIME = {
@@ -169,10 +175,16 @@ async function main() {
   server.close();
 
   const live = frameIsLive(image);
-  const ok = painted && live && errors.length === 0;
-  console.log(`${ok ? '✓' : '✗'} ${path.basename(DIR)} (mini-game) — painted=${painted} live=${live} errors=${errors.length}`);
+  const said = errors.find((e) => e.includes(`subpackage ${FAIL_SUBPACKAGE} did not load`));
+  const ok = FAIL_SUBPACKAGE
+    ? said !== undefined
+    : painted && live && errors.length === 0;
+  console.log(`${ok ? '✓' : '✗'} ${path.basename(DIR)} (mini-game) — `
+    + (FAIL_SUBPACKAGE
+      ? `${FAIL_SUBPACKAGE} refused: the package ${said ? 'said why' : 'said nothing'}`
+      : `painted=${painted} live=${live} errors=${errors.length}`));
   for (const e of errors.slice(0, 5)) console.log(`    ${e}`);
-  if (painted && !live) console.log('    one flat colour — it started and drew nothing');
+  if (!FAIL_SUBPACKAGE && painted && !live) console.log('    one flat colour — it started and drew nothing');
   if (!ok) {
     // What the boot last announced through the host indicator. A package stuck
     // fetching its engine 分包 and one stuck on its first scene look identical

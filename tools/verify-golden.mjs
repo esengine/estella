@@ -25,7 +25,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { mkdirSync, rmSync, readFileSync, existsSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { atTier, sharesOf, projectDir, parityFor, interactFor, audioFor, suspendFor, safeAreaFor, atlasFor, webPixels, launchTimeoutFor, ROOT } from './goldenProjects.mjs';
+import { atTier, sharesOf, projectDir, parityFor, interactFor, audioFor, suspendFor, safeAreaFor, atlasFor, subpackageFor, webPixels, launchTimeoutFor, ROOT } from './goldenProjects.mjs';
 import { frameDistance, frameCellMax, readPNG } from './frameCompare.mjs';
 import { retryOnDeadGpu, deadGpuVerdict, launchNeverHappenedVerdict, failureLines } from './lib/deadGpu.mjs';
 import { runElectron, ensureElectronBinary } from './lib/electronRun.mjs';
@@ -436,6 +436,26 @@ for (const { id, target } of pairs) {
         : `${audio.bar} stayed at ${height} (floor ${audio.floor}); nothing reached the output`,
     });
     console.log(`${ok ? '✓' : '✗'} ${id} ${target} — audio: ${audio.bar} at ${height ?? 'nothing'} (silent floor ${audio.floor})`);
+  }
+
+  // The 分包 the host REFUSES. The ordinary launch above already proved the happy
+  // half (this package's engine rides a 分包, so it booted through one); what has
+  // never run is the half a player on a bad network gets.
+  const subpackage = MINIGAME.has(target) ? subpackageFor(golden) : null;
+  if (subpackage) {
+    const refused = launchPackage(id, target, [
+      '--dir', out,
+      ...(timeoutMs ? ['--timeout', String(timeoutMs)] : []),
+      '--fail-subpackage', subpackage.name,
+    ]);
+    const ok = refused.status === 0;
+    results.push({
+      id, target, stage: 'subpackage-refused', ok,
+      why: ok ? '' : `the package said nothing when ${subpackage.name} was refused`
+        + ' — a black frame is all a player would get',
+    });
+    console.log(`${ok ? '✓' : '✗'} ${id} ${target} — ${subpackage.name} refused:`
+      + ` the package ${ok ? 'said why' : 'said nothing'}`);
   }
 
   const tolerance = COMPARABLE.has(target) && !NO_PARITY ? parityFor(golden) : null;

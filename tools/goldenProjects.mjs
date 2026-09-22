@@ -116,8 +116,7 @@ export const SHIPPED = {
     { notCertifiable: 'a byte count no frame shows — a package that dropped a subsystem its'
       + ' content uses fails the wechat pairs\' pixel parity, which is where it is caught' },
   'The engine can ship outside a WeChat mini-game\'s main package entirely.':
-    { notCertifiable: 'where a file sits in the package, not what it draws; no tier builds a'
-      + ' project with the engine in a 分包 — it boots in the stand-in host by hand' },
+    { certifies: 'subpackage' },
   'A WeChat mini-game can ship its engine compressed, freeing a third of the main package.':
     { notCertifiable: 'as above — bytes, not pixels; the compressed package boots in the'
       + ' stand-in host and export-wechat holds the naming both halves agree on' },
@@ -548,6 +547,10 @@ export const EVIDENCE = {
   // A package's, not a source's: the claim is that a second vendor's package
   // boots, which only the launched package can show.
   'minigame-vendor': null,
+  // Where the engine binary SITS in the package, which no source mentions: the
+  // `subpackage` block on input-actions is the claim, and the pair of launches
+  // it drives (mounted, then refused) is what backs it.
+  subpackage: null,
   'sprite-draw-mode': /\bdrawMode\b/,
   'hot-update': /\b(checkForUpdate|applyUpdate)\b/,
   rollback: /\b(applyUpdate|rollback)\b/,
@@ -577,7 +580,6 @@ export const KNOWN_GAPS = {
   // What no automated run reaches is the vendor mounting it: only a mini-game
   // host implements the download, and none of the tiers builds for one.
   'authored-sound': 'AudioSource.playing is what a graph, a behaviour or a wire raises, and audio-demo still starts its loop from code through Res(Audio) — no golden project sounds a clip from authored data yet; audio-source-flag.test.ts holds the contract',
-  subpackage: 'hot-update-demo delivers `pack` as a 分包 and its button loads it, but no tier builds that project for a mini-game host — the vendor download itself is verified by hand in devtools',
 };
 
 /**
@@ -880,13 +882,17 @@ export const GOLDEN = [
   },
   {
     id: 'input-actions',
-    certifies: ['input', 'minigame-vendor'],
+    certifies: ['input', 'minigame-vendor', 'subpackage'],
     // Two vendors from one project: the export is a profile over one family, and
     // only a second vendor's real boot shows what the family got wrong. They take
     // the same engine build, so the second costs no extra wasm build.
     targets: ['web', 'desktop', 'wechat', 'douyin'],
     tier: 'release',
     interact: { keys: ['KeyD'], frames: 40 },
+    // Its engine binary rides a 分包 — the only way under the 4MB main-package
+    // limit. Naming it here lets the host REFUSE it too: on a bad network the
+    // game cannot start, and all it can still do is say which package failed.
+    subpackage: { name: 'engine' },
   },
   {
     id: 'sprite-animation',
@@ -997,6 +1003,11 @@ export function parityFor(g) {
 /** The audio claim, or null. See the `audio` block on audio-demo. */
 export function audioFor(g) {
   return g.audio ?? null;
+}
+
+/** The 分包 a mini-game package rides, or null. See input-actions. */
+export function subpackageFor(g) {
+  return g.subpackage ?? null;
 }
 
 export function interactFor(g) {
