@@ -716,6 +716,8 @@ export const NOTED = {
     { internal: 'The row from the commit before it, drawn with the editor\'s own tooltip and grid; nothing it says changes.' },
   'chore(gates): bank three reaches the gameplay subpath move removed':
     { internal: 'A repository ratchet baseline; no source changed.' },
+  'feat(gates): the start screen is judged over a link a phone actually has':
+    { internal: 'A repository gate over the corpus; the package it measures is unchanged.' },
   'feat(export): what each packaging target can do, before a build exists':
     { note: 'The build dialog says which engine services a target can provide.' },
   'feat(build): the dialog says which engine services a target can provide':
