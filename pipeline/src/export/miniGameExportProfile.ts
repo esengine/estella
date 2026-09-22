@@ -53,6 +53,25 @@ export interface MiniGameConfigContext {
  */
 export const OPEN_DATA_DIR = 'open-data';
 
+/**
+ * The engine build EVERY mini-game host takes, and the `build -t` that makes it:
+ * these runtimes load JS through `require`, and the browser artifact is an ES
+ * module. The filename says WeChat only because WeChat came first — the glue
+ * names no vendor API, so `wx` and `tt` run the same bytes.
+ */
+export const MINIGAME_ENGINE_GLUE: readonly string[] = ['esengine.wxgame.js', 'esengine.js'];
+export const MINIGAME_ENGINE_BUILD = 'wechat';
+
+/**
+ * Whether this glue is the ES module build, which no mini-game host can load.
+ *
+ * Read off the artifact, not the filename — the filename is what was wrong.
+ * Emscripten emits `export default` in an ESM build and never in a CommonJS one.
+ */
+export function isEsModule(glue: string): boolean {
+    return /\bexport\s+default\b/.test(glue);
+}
+
 /** Vendor-neutral facts the pipeline computes, handed to the entry emitter. */
 export interface MiniGameEntryContext {
     /** Optional modules the shipped scenes need (physics/spine/basis/videodec). */
@@ -242,13 +261,11 @@ export const wechatExportProfile: MiniGameExportProfile = {
     sdkLeanEntryFile: 'index.wechat.lean.js',
     runtimeInit: 'initWeChatRuntime',
     platformInit: 'initWeChatPlatform',
-    // Require by the ACTUAL name in the wasm dir: the -t wechat build emits
-    // esengine.wxgame.js; a web-aligned build, esengine.js.
-    engineGlueCandidates: ['esengine.wxgame.js', 'esengine.js'],
+    engineGlueCandidates: MINIGAME_ENGINE_GLUE,
     // Real-device WeChat rejects es2020 syntax (`??`, `?.`) even though devtools
     // accepts it; es2017 down-levels those while keeping async/await.
     esTarget: 'es2017',
-    wasmBuildHint: 'wechat',
+    wasmBuildHint: MINIGAME_ENGINE_BUILD,
     hostGlobal: 'wx',
     sideModuleBuildTargets: WECHAT_MODULE_BUILD_TARGET,
     // Script + config WeChat's packer compiles itself; every OTHER staged custom
@@ -318,12 +335,13 @@ export const douyinExportProfile: MiniGameExportProfile = {
     sdkEntryFile: 'index.minigame.js',
     runtimeInit: 'initMiniGameRuntime',
     runtimeProfileHost: 'douyinPlatformProfile',
-    // No Douyin-specific engine build: the web artifact is what a `tt` host runs.
-    engineGlueCandidates: ['esengine.js'],
+    // No Douyin-specific engine build — and no web one either: the mini-game
+    // build is the family's, see MINIGAME_ENGINE_GLUE.
+    engineGlueCandidates: MINIGAME_ENGINE_GLUE,
     // Same floor as WeChat until a device says otherwise — down-levelling costs
     // nothing and a syntax error on a phone costs a release.
     esTarget: 'es2017',
-    wasmBuildHint: 'web',
+    wasmBuildHint: MINIGAME_ENGINE_BUILD,
     hostGlobal: 'tt',
     sideModuleBuildTargets: {},
     // Assumed to match WeChat, not read from a Douyin doc: script and config are

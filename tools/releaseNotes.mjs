@@ -698,6 +698,10 @@ export const NOTED = {
     { internal: "a manual page's import line, following the move it documents" },
   'refactor(play): the play realm asks for the whole import map by name':
     { internal: "the editor's preview page names the same subpaths it always did" },
+  'fix(export): a mini-game takes the engine build a mini-game host can load':
+    { note: 'A Douyin package could not start.' },
+  'fix(export): every mini-game target gets the mini-game engine runtime':
+    { note: 'A Douyin package could not start.' },
   'fix(export): a module the project forced in brings its binary too':
     { note: "Forcing a module in now ships its wasm binary too, not just its JavaScript." },
   'feat(project): a build target can answer differently about a module':

@@ -18,6 +18,7 @@ import {
   GOLDEN, CAPABILITIES, KNOWN_GAPS, EVIDENCE, TIERS, TARGETS,
   SHIPPED, CENSUS_FLOOR, shippedGround, EVIDENCE_FORMATS, NOT_EVIDENCE_FORMATS,
   atTier, uncoveredCapabilities, nonGoldenExamples, projectDir, parityFor, interactFor,
+  ROOT,
 } from './goldenProjects.mjs';
 import { CRITERIA } from './releaseGate.mjs';
 
@@ -76,6 +77,22 @@ const SCHEDULED = CRITERIA.map((c) => c.answeredBy ?? '').join('\n');
 
 // 1. Every golden id is a project that exists and declares a scene to open.
 const seen = new Set();
+// The engine's own list of targets, so a platform it gained cannot be one no
+// golden project is allowed to name — which is how Douyin shipped as a built-in
+// target while this file would have rejected a project that certified it.
+{
+  const src = readFileSync(path.join(ROOT, 'pipeline', 'src', 'project', 'platforms.ts'), 'utf8');
+  const block = /BUILTIN_PLATFORMS: readonly BuiltinPlatform\[\] = \[([\s\S]*?)\];/.exec(src);
+  if (!block) fail('no BUILTIN_PLATFORMS in pipeline/src/project/platforms.ts — the list moved');
+  else {
+    const engine = [...block[1].matchAll(/'([a-z0-9]+)'/g)].map(([, p]) => p);
+    const missing = engine.filter((p) => !TARGETS.includes(p));
+    if (missing.length) {
+      fail(`the engine builds ${missing.join(', ')}, which no golden project may name — add to TARGETS`);
+    }
+  }
+}
+
 for (const g of GOLDEN) {
   if (seen.has(g.id)) fail(`"${g.id}" is listed twice`);
   seen.add(g.id);

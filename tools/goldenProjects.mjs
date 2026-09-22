@@ -26,7 +26,7 @@ const EXAMPLES = path.join(ROOT, 'examples');
 export const TIERS = ['pr', 'nightly', 'release'];
 
 /** Export targets a golden project can be asked to package + launch for. */
-export const TARGETS = ['web', 'playable', 'desktop', 'wechat', 'android', 'ios'];
+export const TARGETS = ['web', 'playable', 'desktop', 'wechat', 'douyin', 'android', 'ios'];
 
 /**
  * How far a packaged frame may sit from the editor's frame of the same game.
@@ -846,7 +846,10 @@ export const GOLDEN = [
   {
     id: 'input-actions',
     certifies: ['input'],
-    targets: ['web', 'desktop', 'wechat'],
+    // Two vendors from one project: the export is a profile over one family, and
+    // only a second vendor's real boot shows what the family got wrong. They take
+    // the same engine build, so the second costs no extra wasm build.
+    targets: ['web', 'desktop', 'wechat', 'douyin'],
     tier: 'release',
     interact: { keys: ['KeyD'], frames: 40 },
   },

@@ -44,9 +44,10 @@ const WORK = flag('work', path.join(ROOT, '.golden'));
 const NO_PARITY = argv.includes('--no-parity');
 /** Targets this runner owns; the rest belong to the native/desktop verifiers.
  *  A mini-game needs its vendor's globals, so it goes through its own launcher. */
-const OWNED = new Set(['web', 'playable', 'wechat']);
+const OWNED = new Set(['web', 'playable', 'wechat', 'douyin']);
+const MINIGAME = new Set(['wechat', 'douyin']);
 const LAUNCHER = (target) => path.join(ROOT, 'tools', 'launchers',
-  target === 'wechat' ? 'launch-minigame.mjs' : 'launch-export.mjs');
+  MINIGAME.has(target) ? 'launch-minigame.mjs' : 'launch-export.mjs');
 /** Targets whose surface this runner can size to the editor's, which is what
  *  makes a frame comparable at all. Measured on one project: web 0.0009,
  *  playable 0.0027, wechat 0.0027 — the packaging wrapper is not what differs. */

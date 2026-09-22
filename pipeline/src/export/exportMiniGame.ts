@@ -47,7 +47,7 @@ import { breakdownOf, type ModuleBytes } from './bundleBreakdown';
 import { esengineAlias } from '../bundle/esengineResolve';
 import { explainBundleErrors, type BundleMessage } from '../bundle/bundleDiagnostics';
 import { scanSideModuleIds, sideModuleFiles, textureDecoderBytes } from '../bundle/sideModuleScan';
-import { OPEN_DATA_DIR } from './miniGameExportProfile';
+import { OPEN_DATA_DIR, isEsModule } from './miniGameExportProfile';
 import { loadProjectModules, sideModuleDeclarations, stageProjectModules } from './projectModules';
 import { buildCompiledSystems, type BuildMode } from '../bundle/buildCompiledSystems';
 import { resolveEmcc, runEmcc } from '../bundle/emccPath';
@@ -288,8 +288,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
 
   // 0. The generated entry unconditionally requires the engine glue, so a
   //    missing vendor runtime cannot produce a runnable package — fail before
-  //    cooking. Require by its ACTUAL name in the wasm dir (the -t wechat
-  //    build emits esengine.wxgame.js; a web-aligned build, esengine.js).
+  //    cooking. By its ACTUAL name in the wasm dir; see MINIGAME_ENGINE_GLUE.
   const engineGlueFile = profile.engineGlueCandidates
     .find((f) => existsSync(path.join(opts.wasmDir, f)));
   if (!engineGlueFile) {
@@ -302,6 +301,17 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
       (moduleTargets.length > 0
         ? ` (optional modules build separately: ${moduleTargets.map((t) => `-t ${t}`).join(' / ')})`
         : ''),
+    );
+    return { ok: false, platform: profile.id, outDir: absOut, included: 0, warnings, errors };
+  }
+
+  // ...and it has to be a build this host can load. The browser artifact throws
+  // `Unexpected token 'export'` at the entry's first line: a package that exports
+  // clean, installs, and never reaches a frame.
+  if (isEsModule(await readFile(path.join(opts.wasmDir, engineGlueFile), 'utf8'))) {
+    errors.push(
+      `${path.join(opts.wasmDir, engineGlueFile)} is an ES module, and a ${profile.id} package requires its engine — `
+      + `build the mini-game engine with \`node build-tools/cli.js build -t ${profile.wasmBuildHint}\``,
     );
     return { ok: false, platform: profile.id, outDir: absOut, included: 0, warnings, errors };
   }

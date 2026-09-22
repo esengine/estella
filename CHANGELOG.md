@@ -14,6 +14,10 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A Douyin package could not start.** It shipped the browser engine artifact, which is an ES module, and a mini-game host loads its JavaScript with `require` — so `game.js` threw `SyntaxError: Unexpected token 'export'` on its first line and the package never reached a frame. Every mini-game host takes the same engine build, and now every mini-game target asks for it: the two built-in vendors, and a platform a project defines itself, which had the same browser default. The export also refuses an ES module engine by reading the file rather than trusting its name, since the name was the thing that was wrong.
+
 ### Changed
 
 - **A dialog's title now looks like one.** The editor's type scale stopped at 14px and used

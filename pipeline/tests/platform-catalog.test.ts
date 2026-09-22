@@ -27,7 +27,7 @@ let wxDir: string;
  *  against it exactly, so the tests own both ends of that comparison. */
 const VERSION = '9.9.9';
 
-const dirs = () => ({ web: webDir, wechat: wxDir });
+const dirs = () => ({ web: webDir, minigame: wxDir });
 
 /** The catalog with the machine facts this file owns. A machine with NEITHER
  *  compiler is deliberate: a project that marks nothing `@compiled` must be
@@ -91,6 +91,16 @@ describe('listPlatforms — built-in readiness is probed', () => {
     expect((await platforms(root)).find((r) => r.id === 'wechat')?.ready).toBe(true);
   });
 
+  it('answers for every mini-game vendor from the one engine build they share', async () => {
+    // One build, one probe: a vendor with no probe of its own reports ready and
+    // then exports a package with an engine it cannot load.
+    expect((await platforms(root)).find((r) => r.id === 'douyin')?.ready).toBe(false);
+    writeFileSync(path.join(wxDir, 'esengine.wxgame.js'), '//');
+    const rows = await platforms(root);
+    expect(rows.find((r) => r.id === 'douyin')?.ready).toBe(true);
+    expect(rows.find((r) => r.id === 'wechat')?.ready).toBe(true);
+  });
+
   it('reports paths with forward slashes, whatever the platform separator', async () => {
     const wx = (await platforms(root)).find((r) => r.id === 'wechat');
     expect((wx?.prereq as { dir?: string } | undefined)?.dir).not.toContain('\\');
@@ -103,7 +113,7 @@ describe('listPlatforms — platforms the project defines', () => {
       id: 'acme', label: 'ACME Play', blurb: 'ACME package.', defaultOut: 'dist-acme',
       emitConfigFiles: () => [{ file: 'game.json', content: '{}' }],
     };`);
-    writeFileSync(path.join(webDir, 'esengine.js'), '//');
+    writeFileSync(path.join(wxDir, 'esengine.wxgame.js'), '//');
 
     const rows = await platforms(root);
     const acme = rows.find((r) => r.id === 'acme');
@@ -111,7 +121,7 @@ describe('listPlatforms — platforms the project defines', () => {
     expect(acme!.source).toBe('project');
     expect(acme!.label).toBe('ACME Play');
     expect(acme!.defaultOut).toBe('dist-acme');
-    // No wasmDir of its own → the editor's web runtime, which exists here.
+    // No wasmDir of its own → the mini-game runtime, which exists here.
     expect(acme!.ready).toBe(true);
   });
 
@@ -184,7 +194,7 @@ describe('createProjectPlatform — scaffolding', () => {
     expect(runtime).toContain('instantiateWasm');
 
     // What was scaffolded is immediately a real platform.
-    writeFileSync(path.join(webDir, 'esengine.js'), '//');
+    writeFileSync(path.join(wxDir, 'esengine.wxgame.js'), '//');
     const rows = await platforms(root);
     const acme = rows.find((r) => r.id === 'acme-play');
     expect(acme?.source).toBe('project');
@@ -234,7 +244,9 @@ describe('loadProjectPlatform — the profile handed to exportMiniGame', () => {
     // Defaulted — a standard mini-game host needs none of these spelled out.
     expect(p.sdkEntryFile).toBe('index.minigame.js');
     expect(p.runtimeInit).toBe('initMiniGameRuntime');
-    expect(p.engineGlueCandidates).toEqual(['esengine.js']);
+    // The engine build every mini-game host takes, under either of its names —
+    // NOT the browser artifact, which a `require` cannot even parse.
+    expect(p.engineGlueCandidates).toEqual(['esengine.wxgame.js', 'esengine.js']);
     expect(p.esTarget).toBe('es2017');
     expect(p.subpackageDir).toBe('subpackages');
     expect(typeof p.emitEntry).toBe('function');
@@ -264,12 +276,15 @@ describe('loadProjectPlatform — the profile handed to exportMiniGame', () => {
       .toEqual([{ file: 'game.json', content: '{"t":"T"}' }]);
   });
 
-  it('resolves wasmDir against the project root, defaulting to the web runtime', async () => {
+  // A project's own vendor is a mini-game host like the built-in ones, so saying
+  // nothing gets it their engine build — the browser one is an ES module its
+  // package cannot require at all.
+  it('resolves wasmDir against the project root, defaulting to the mini-game runtime', async () => {
     writePlatform('a.mjs', `export default { id: 'a', label: 'A', wasmDir: 'rt/a', emitConfigFiles: () => [] };`);
     writePlatform('b.mjs', `export default { id: 'b', label: 'B', emitConfigFiles: () => [] };`);
 
     expect((await loadProjectPlatform(root, 'a', dirs()))!.wasmDir).toBe(path.join(root, 'rt', 'a'));
-    expect((await loadProjectPlatform(root, 'b', dirs()))!.wasmDir).toBe(webDir);
+    expect((await loadProjectPlatform(root, 'b', dirs()))!.wasmDir).toBe(wxDir);
     expect((await loadProjectPlatform(root, 'b', dirs()))!.defaultOut).toBe('dist-b');
   });
 
@@ -311,7 +326,7 @@ describe('loadProjectPlatform — the profile handed to exportMiniGame', () => {
     writePlatform('acme.mjs', `export default {
       id: 'acme', label: 'A', runtimeProfile: 'src/rt', emitConfigFiles: () => [],
     };`);
-    writeFileSync(path.join(webDir, 'esengine.js'), '//');
+    writeFileSync(path.join(wxDir, 'esengine.wxgame.js'), '//');
     const acme = (await platforms(root)).find((r) => r.id === 'acme');
     expect(acme!.error).toBeUndefined();
     expect(acme!.ready).toBe(true);

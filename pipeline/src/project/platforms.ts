@@ -57,6 +57,20 @@ export function isNativePlatform(platform: ExportPlatform): platform is NativePl
 }
 
 /**
+ * The targets that ship as a mini-game: a CommonJS package plus a vendor global.
+ *
+ * They share an engine build the way the native targets share a runtime. A
+ * project's own vendor is one of these without appearing here, so that build
+ * lives in the family's export defaults rather than behind this list.
+ */
+export const MINIGAME_PLATFORMS = ['wechat', 'douyin'] as const;
+export type MiniGamePlatform = (typeof MINIGAME_PLATFORMS)[number];
+
+export function isMiniGamePlatform(platform: ExportPlatform): platform is MiniGamePlatform {
+    return (MINIGAME_PLATFORMS as readonly string[]).includes(platform);
+}
+
+/**
  * The desktop OSes one `desktop` target is assembled for — per-OS where the
  * platform id is not, because the binaries are.
  *

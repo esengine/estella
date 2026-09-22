@@ -565,11 +565,11 @@ function projectSettings(projectDir) {
 /**
  * The engine runtime for this target. The build tree is preferred over the copy
  * synced into the editor's public/, so a machine that built the engine and never
- * built the editor can still package. WeChat's is a different build (WXWebAssembly
- * glue) — handing it the web one produces a package that cannot boot on a device.
+ * built the editor can still package. A mini-game takes a different build of the
+ * same engine — handing it the web one is a syntax error at the first `require`.
  */
 function engineRuntimeDir(platform) {
-  const dirs = platform === 'wechat'
+  const dirs = fmt.isMiniGamePlatform(platform)
     ? [path.join(REPO, 'build', 'wasm', 'wechat'), path.join(REPO, 'desktop', 'public', 'wasm-wechat')]
     : [path.join(REPO, 'build', 'wasm', 'web'), path.join(REPO, 'desktop', 'public', 'wasm')];
   return firstExisting(dirs) ?? dirs[dirs.length - 1];

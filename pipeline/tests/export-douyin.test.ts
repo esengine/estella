@@ -4,8 +4,9 @@
  * @file  Douyin MiniGame export — that a second vendor needed no second pipeline.
  *        Asserts the four things that are Douyin's and not WeChat's: the config
  *        file it writes, the host it names, the entry that installs a platform
- *        rather than assuming one, and the caps it is judged against.
- *        (Boot correctness is a device's to answer — see RM-032.)
+ *        rather than assuming one, and the caps it is judged against — plus the
+ *        one thing it shares with WeChat and got wrong: which engine build a
+ *        mini-game host can load at all.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { runtimeConfigOf } from '../src/project/runtimeConfig';
@@ -41,10 +42,11 @@ beforeAll(() => {
   mkdirSync(path.join(root, '_sdk', 'douyin'), { recursive: true });
   writeFileSync(path.join(root, '_sdk', 'douyin', 'index.js'),
     'export const douyinProfile = { id: "douyin", hostLabel: "\\u6296\\u97f3" };\n');
-  // The web engine artifact: Douyin has no build of its own.
+  // The MINI-GAME engine artifact, under the name that build emits: Douyin has
+  // no build of its own and cannot take the browser one, which is an ES module.
   mkdirSync(path.join(root, '_wasm'), { recursive: true });
-  writeFileSync(path.join(root, '_wasm', 'esengine.js'), 'module.exports = () => Promise.resolve({});');
-  writeFileSync(path.join(root, '_wasm', 'esengine.wasm'), 'wasmbytes');
+  writeFileSync(path.join(root, '_wasm', 'esengine.wxgame.js'), 'module.exports = () => Promise.resolve({});');
+  writeFileSync(path.join(root, '_wasm', 'esengine.wxgame.wasm'), 'wasmbytes');
 
   out = path.join(root, 'dist-douyin');
 }, 60_000);
@@ -93,6 +95,39 @@ describe('exportGame (douyin)', () => {
     expect(bundle).toContain('installMiniGamePlatform');
     expect(bundle).toContain('douyin');
   });
+
+  it('requires the mini-game engine build, which is the one a `tt` host can load', () => {
+    // Douyin shipped the browser artifact for its first two versions: the package
+    // built clean, installed, and died on `require` with `Unexpected token
+    // 'export'` before the first frame. The entry names what it got.
+    expect(readFileSync(path.join(out, 'game.js'), 'utf8'))
+      .toContain("require('./wasm/esengine.wxgame.js')");
+  });
+
+  it('refuses to package an ES module engine rather than shipping a dead one', async () => {
+    const esmRoot = path.join(root, '_esm-wasm');
+    mkdirSync(esmRoot, { recursive: true });
+    // The browser artifact, by the shape that makes it one — under the name a
+    // hand-assembled vendor dir tends to use, so only the CONTENT can catch it.
+    writeFileSync(path.join(esmRoot, 'esengine.js'), 'const M = () => {};\nexport default M;\n');
+    writeFileSync(path.join(esmRoot, 'esengine.wasm'), 'wasmbytes');
+    const res = await exportGame({
+      root,
+      entryScene: 'scenes/main.esscene',
+      hostsDir: path.resolve(__dirname, '../src/runtime'),
+      sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: esmRoot,
+      outDir: path.join(root, 'dist-douyin-esm'),
+      title: 'My Game',
+      platform: 'douyin',
+      orientation: 'landscape',
+      runtime: runtimeConfigOf({ designResolution: { width: 1280, height: 720 } }),
+    });
+    expect(res.ok).toBe(false);
+    expect(res.errors.join('\n')).toContain('is an ES module');
+    // And it says what to run, since the fix is a build and not a setting.
+    expect(res.errors.join('\n')).toContain('build -t wechat');
+  }, 180_000);
 
   it('is judged against Douyin\'s caps, which are not WeChat\'s', () => {
     const budgets = builtinSizeBudgets('douyin');

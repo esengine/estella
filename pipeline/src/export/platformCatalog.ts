@@ -34,7 +34,7 @@ import { BUILTIN_PLATFORMS, DESKTOP_OSES, compileTargetFor, desktopTemplateFor, 
 import { promisesCompilation } from '../bundle/buildCompiledSystems';
 import { resolveNativeTemplate } from './nativeTemplates';
 import { templateId } from '../../../build-tools/utils/nativeTemplate.js';
-import type { MiniGameExportProfile, MiniGameConfigContext } from './miniGameExportProfile';
+import { MINIGAME_ENGINE_BUILD, MINIGAME_ENGINE_GLUE, type MiniGameExportProfile, type MiniGameConfigContext } from './miniGameExportProfile';
 
 /** Where a project keeps its own platform profiles. */
 export const PROJECT_PLATFORM_DIR = path.join('.esengine', 'platforms');
@@ -43,8 +43,10 @@ export const PROJECT_PLATFORM_DIR = path.join('.esengine', 'platforms');
 export interface PlatformRuntimeDirs {
   /** Web/playable engine runtime (esengine.js + esengine.wasm). */
   web: string;
-  /** WeChat engine runtime (esengine.wxgame.js + .wasm). */
-  wechat: string;
+  /** The mini-game engine runtime every vendor takes — see MINIGAME_ENGINE_GLUE.
+   *  The directory is what makes a package's engine CommonJS; the filename in it
+   *  is only a name, and a project's own vendor dir may use either. */
+  minigame: string;
 }
 
 /** What the renderer needs to draw one platform row. Serializable by construction. */
@@ -112,9 +114,13 @@ function builtinReadiness(
         : { ready: false, prereq: { kind: 'runtime-missing', dir: posix(dirs.web), looked: ['esengine.js'], command: 'node build-tools/cli.js build -t web' } };
 
     case 'wechat':
-      return has(dirs.wechat, 'esengine.wxgame.js') || has(dirs.wechat, 'esengine.js')
+    case 'douyin':
+      // One probe for the family: they run the same engine build, so a machine
+      // ready for one is ready for the other — and answering otherwise offers a
+      // build command that produces a file the target already has.
+      return MINIGAME_ENGINE_GLUE.some((g) => has(dirs.minigame, g))
         ? { ready: true }
-        : { ready: false, prereq: { kind: 'runtime-missing', dir: posix(dirs.wechat), looked: ['esengine.wxgame.js'], command: 'node build-tools/cli.js build -t wechat' } };
+        : { ready: false, prereq: { kind: 'runtime-missing', dir: posix(dirs.minigame), looked: [...MINIGAME_ENGINE_GLUE], command: `node build-tools/cli.js build -t ${MINIGAME_ENGINE_BUILD}` } };
 
     case 'android':
       // The runtime template is the whole prerequisite: the APK is assembled and
@@ -148,16 +154,16 @@ function builtinReadiness(
 
 /**
  * Everything a mini-game export profile needs when the project did not say.
- * Defaults describe a STANDARD host: the vendor-neutral SDK entry, the standard
- * `WebAssembly` engine glue, and the generic entry above. A project platform
- * that matches those supplies only `id`, `label` and `emitConfigFiles`.
+ * Defaults describe a STANDARD host: the vendor-neutral SDK entry, the engine
+ * build every mini-game host takes, and the generic entry above. A project
+ * platform that matches those supplies only `id`, `label` and `emitConfigFiles`.
  */
 export const MINIGAME_PROFILE_DEFAULTS = {
   sdkEntryFile: 'index.minigame.js',
   runtimeInit: 'initMiniGameRuntime',
-  engineGlueCandidates: ['esengine.js'] as readonly string[],
+  engineGlueCandidates: MINIGAME_ENGINE_GLUE,
   esTarget: 'es2017' as const,
-  wasmBuildHint: 'web',
+  wasmBuildHint: MINIGAME_ENGINE_BUILD,
   sideModuleBuildTargets: {} as Readonly<Record<string, string>>,
   nativeSuffixes: new Set(['.js', '.json']) as ReadonlySet<string>,
   // A project's own vendor publishes neither a whitelist nor an API global, so
@@ -190,7 +196,7 @@ export interface ProjectPlatformModule extends Partial<MiniGameExportProfile>, P
   blurb?: string;
   defaultOut?: string;
   /** Engine runtime dir for this platform, relative to the project root.
-   *  Absent → the editor's web runtime. */
+   *  Absent → the mini-game runtime the editor ships. */
   wasmDir?: string;
   /**
    * Project-relative module whose default export is the RUNTIME
@@ -522,7 +528,7 @@ export async function loadProjectPlatform(root: string, id: string, dirs: Platfo
     const profile = { ...MINIGAME_PROFILE_DEFAULTS, ...mod, runtimeProfileModule } as MiniGameExportProfile;
     const wasmDir = mod.wasmDir
       ? (path.isAbsolute(mod.wasmDir) ? mod.wasmDir : path.join(root, mod.wasmDir))
-      : dirs.web;
+      : dirs.minigame;
     return { profile, wasmDir, defaultOut: mod.defaultOut ?? `dist-${id}` };
   }
   return null;
@@ -661,7 +667,7 @@ export async function listPlatforms(
     if (mod.kind === 'playable') continue;
     const wasmDir = mod.wasmDir
       ? (path.isAbsolute(mod.wasmDir) ? mod.wasmDir : path.join(root, mod.wasmDir))
-      : dirs.web;
+      : dirs.minigame;
     // A runtime half that points nowhere is caught here rather than on a device:
     // the export would bundle fine and then fail to resolve the import.
     if (mod.runtimeProfile) {

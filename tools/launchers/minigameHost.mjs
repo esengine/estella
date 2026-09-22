@@ -155,6 +155,11 @@ export const HOST_PAGE = (entry) => `<!doctype html>
   };
 
   globalThis.wx = wx;
+  // The same object under Douyin's name: it answers the same shape for
+  // everything the engine uses, and its profile supplies no wasm override. What
+  // this page cannot answer for either vendor is the real base library.
+  globalThis.tt = wx;
+  globalThis.TTWebAssembly = globalThis.WXWebAssembly;
   globalThis.GameGlobal = globalThis;
   globalThis.canvas = screenCanvas;
 
