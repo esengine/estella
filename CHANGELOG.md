@@ -38,10 +38,10 @@ published separately; it ships inside the editor.
   to find out; the editor knows the same thing when the menu opens. Greyed rather than
   hidden, because a component that vanished reads as one the engine does not have.
 
-- **Excluding 3D physics, DragonBones or script graphs is now enforced like every other
-  module.** The refusal is enforced by detecting the components that put a module in use,
-  and those three had no such list — so excluding one passed silently and shipped the
-  package the refusal exists to prevent.
+- **Excluding 3D physics, DragonBones or script graphs is now enforced like every other module.**
+  The refusal works by detecting the components that put a module in use, and those three
+  had no such list — so excluding one passed silently and shipped the package the refusal
+  exists to prevent.
 
 - **Project Settings has an Engine Modules page: force a module into the build, or refuse one.** A build works out which
   subsystems a package needs from what the content uses, which is right for almost
