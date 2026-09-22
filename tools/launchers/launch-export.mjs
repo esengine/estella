@@ -58,6 +58,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { onRendererConsole } from '../lib/rendererConsole.mjs';
 import { inputScript } from './inputScript.mjs';
+import { networkProfile } from './networkProfiles.mjs';
 
 // Headless / GPU-less (CI) WebGL2 falls back to SwiftShader; harmless with a GPU.
 // Without it Chromium refuses the context outright and the package boots to
@@ -99,7 +100,36 @@ const SETTLE = Number(flag('settle', '30'));
 const INPUT = flag('input', '');
 const TIMEOUT = Number(flag('timeout', '30000'));
 const LOG = flag('log', '');
+/** Emulate a link before loading, so the start screen is asked a real question. */
+const THROTTLE = flag('throttle', '');
+/** Report when the first screen appeared and how its progress moved. */
+const BOOT = has('boot');
 const logRe = LOG ? new RegExp(LOG, 'i') : null;
+
+/**
+ * Installed ahead of the page's own scripts, in the page's world: the start
+ * screen announces its boot on `window`, and a listener attached after the load
+ * has already missed the stages that made the wait worth showing.
+ */
+const BOOT_RECORDER = `(() => {
+  const marks = [];
+  let firstFrame = null;
+  addEventListener('esengine:bootprogress', (e) => marks.push({
+    ms: Math.round(performance.now()),
+    stage: e.detail && e.detail.stage,
+    progress: e.detail && e.detail.progress,
+  }));
+  addEventListener('esengine:firstframe', () => { firstFrame = Math.round(performance.now()); });
+  window.__estellaBoot = () => {
+    const paint = performance.getEntriesByType('paint')
+      .find((p) => p.name === 'first-contentful-paint');
+    return {
+      firstScreenMs: paint ? Math.round(paint.startTime) : null,
+      firstFrameMs: firstFrame,
+      marks,
+    };
+  };
+})();`;
 
 const MIME = {
   '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
@@ -213,7 +243,51 @@ const SCENE = flag('scene', '');
   });
   win.webContents.on('render-process-gone', (_e, d) => errors.push(`render process gone: ${d.reason}`));
 
+  // Before the load, and through Chrome's own emulation rather than a hand-rolled
+  // server: the numbers are the vendor's, and a recorder installed here runs in
+  // the page's own world ahead of every script the page carries.
+  if (THROTTLE || BOOT) {
+    // A window that has never navigated answers no CDP command — `Page.enable`
+    // simply never resolves. One blank document is enough to make it a page.
+    await win.loadURL('about:blank');
+    win.webContents.debugger.attach('1.3');
+    await win.webContents.debugger.sendCommand('Page.enable');
+    if (THROTTLE) {
+      const link = networkProfile(THROTTLE);
+      await win.webContents.debugger.sendCommand('Network.enable');
+      await win.webContents.debugger.sendCommand('Network.emulateNetworkConditions', {
+        offline: false,
+        latency: link.latency,
+        downloadThroughput: link.downloadThroughput,
+        uploadThroughput: link.uploadThroughput,
+      });
+      console.log(`  link: ${THROTTLE} — ${link.note}`);
+    }
+    if (BOOT) {
+      await win.webContents.debugger.sendCommand('Page.addScriptToEvaluateOnNewDocument', {
+        source: BOOT_RECORDER,
+      });
+    }
+  }
+
   await win.loadURL(base);
+
+  // A boot measurement waits for the boot, not for a canvas with a size: the
+  // splash covers a canvas that exists from the first byte of HTML, so the frame
+  // gate below is satisfied long before the game has anything to draw.
+  if (BOOT) {
+    await win.webContents.executeJavaScript(`
+      new Promise((resolve) => {
+        const deadline = Date.now() + ${TIMEOUT};
+        const tick = () => {
+          if (window.__estellaBoot?.().firstFrameMs != null) return resolve(true);
+          if (Date.now() > deadline) return resolve(false);
+          setTimeout(tick, 100);
+        };
+        tick();
+      })
+    `).catch((e) => { errors.push(String(e)); return false; });
+  }
 
   // Wait for a real frame rather than a wall-clock guess: the engine paints when
   // its wasm and assets are in, which is exactly the part a package can get wrong.
@@ -253,6 +327,17 @@ const SCENE = flag('scene', '');
       `window.__estellaCooked?.probe(${JSON.stringify(names)}) ?? null`,
     ).catch((e) => ({ error: String(e) }));
     console.log(`  probe: ${JSON.stringify(seen)}`);
+  }
+
+  if (BOOT) {
+    const seen = await win.webContents.executeJavaScript('window.__estellaBoot?.() ?? null')
+      .catch((e) => ({ error: String(e) }));
+    // Monotonic is the claim, not "reached 100%": a bar that goes back is worse
+    // than one that stops, and only the sequence can say which happened.
+    const steps = (seen?.marks ?? []).map((m) => m.progress);
+    const backwards = steps.findIndex((p, i) => i > 0 && p < steps[i - 1]);
+    console.log(`  boot: ${JSON.stringify({ ...seen, monotonic: backwards < 0 })}`);
+    if (backwards >= 0) errors.push(`the boot bar went backwards at step ${backwards}`);
   }
 
   if (STREAMING) {

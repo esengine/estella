@@ -893,6 +893,9 @@ export const GOLDEN = [
     // limit. Naming it here lets the host REFUSE it too: on a bad network the
     // game cannot start, and all it can still do is say which package failed.
     subpackage: { name: 'engine' },
+    // A first screen is a question about a NETWORK — on this machine the whole
+    // boot beats the splash's own fade. Judged over a declared link instead.
+    firstScreen: { link: 'slow-4g', maxMs: 300 },
   },
   {
     id: 'sprite-animation',
@@ -1003,6 +1006,11 @@ export function parityFor(g) {
 /** The audio claim, or null. See the `audio` block on audio-demo. */
 export function audioFor(g) {
   return g.audio ?? null;
+}
+
+/** The start-screen claim, or null. See input-actions. */
+export function firstScreenFor(g) {
+  return g.firstScreen ?? null;
 }
 
 /** The 分包 a mini-game package rides, or null. See input-actions. */

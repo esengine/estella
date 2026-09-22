@@ -25,7 +25,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { mkdirSync, rmSync, readFileSync, existsSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { atTier, sharesOf, projectDir, parityFor, interactFor, audioFor, suspendFor, safeAreaFor, atlasFor, subpackageFor, webPixels, launchTimeoutFor, ROOT } from './goldenProjects.mjs';
+import { atTier, sharesOf, projectDir, parityFor, interactFor, audioFor, suspendFor, safeAreaFor, atlasFor, subpackageFor, firstScreenFor, webPixels, launchTimeoutFor, ROOT } from './goldenProjects.mjs';
 import { frameDistance, frameCellMax, readPNG } from './frameCompare.mjs';
 import { retryOnDeadGpu, deadGpuVerdict, launchNeverHappenedVerdict, failureLines } from './lib/deadGpu.mjs';
 import { runElectron, ensureElectronBinary } from './lib/electronRun.mjs';
@@ -54,6 +54,10 @@ const LAUNCHER = (target) => path.join(ROOT, 'tools', 'launchers',
 const COMPARABLE = OWNED;
 
 const DESKTOP = path.join(ROOT, 'desktop');
+
+/** A throttled boot is the whole package over a phone's link — minutes, not the
+ *  30s an unthrottled launch gets. */
+const FIRST_SCREEN_TIMEOUT_MS = 180_000;
 
 /**
  * Where the engine binary a target packages comes from, and which build variant
@@ -436,6 +440,30 @@ for (const { id, target } of pairs) {
         : `${audio.bar} stayed at ${height} (floor ${audio.floor}); nothing reached the output`,
     });
     console.log(`${ok ? '✓' : '✗'} ${id} ${target} — audio: ${audio.bar} at ${height ?? 'nothing'} (silent floor ${audio.floor})`);
+  }
+
+  // When the start screen appears, over a link a phone actually has. A machine
+  // with a fast one cannot ask this: the whole boot lands inside the fade.
+  const firstScreen = target === 'web' ? firstScreenFor(golden) : null;
+  if (firstScreen) {
+    const run = launchPackage(id, target, [
+      '--dir', out, '--boot', '--throttle', firstScreen.link,
+      '--timeout', String(FIRST_SCREEN_TIMEOUT_MS), '--settle', '10',
+    ]);
+    const found = /boot: (\{.*\})/.exec(run.stdout || '');
+    let boot = null;
+    try { boot = found ? JSON.parse(found[1]) : null; } catch { boot = null; }
+    const at = boot?.firstScreenMs ?? null;
+    const ok = typeof at === 'number' && at <= firstScreen.maxMs && boot?.monotonic === true;
+    results.push({
+      id, target, stage: 'first-screen', ok,
+      why: ok ? '' : at === null
+        ? 'the page reported no first paint at all — nothing was on screen to time'
+        : `the start screen appeared at ${at}ms over ${firstScreen.link}`
+          + ` (limit ${firstScreen.maxMs}ms)${boot?.monotonic === false ? ', and its progress went backwards' : ''}`,
+    });
+    console.log(`${ok ? '✓' : '✗'} ${id} ${target} — start screen at ${at ?? 'never'}ms over ${firstScreen.link}`
+      + `, first frame at ${boot?.firstFrameMs ?? 'never'}ms`);
   }
 
   // The 分包 the host REFUSES. The ordinary launch above already proved the happy
