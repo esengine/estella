@@ -720,6 +720,10 @@ export const NOTED = {
     { internal: 'A repository gate over the corpus; the package it measures is unchanged.' },
   'feat(runtime): the bar moves while the engine downloads, not only when it lands':
     { note: 'The loading bar moves while the engine downloads.' },
+  'refactor(theme): the asset tints are tokens, under the same contract as --cat-*':
+    { internal: "The content browser's colours move into the theme file; measured identical, so nothing a creator sees changes." },
+  'feat(gates): the asset ramp answers to the panel\'s saturation ceiling':
+    { internal: "A repository gate over the editor's own palette; no creator runs it." },
   'feat(export): what each packaging target can do, before a build exists':
     { note: 'The build dialog says which engine services a target can provide.' },
   'feat(build): the dialog says which engine services a target can provide':
