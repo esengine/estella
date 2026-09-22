@@ -129,6 +129,18 @@ describe('exportGame (douyin)', () => {
     expect(res.errors.join('\n')).toContain('build -t wechat');
   }, 180_000);
 
+  it('says it is starting BEFORE it parses a megabyte of game code', () => {
+    // The runtime's own indicator cannot cover this wait: it only appears once
+    // the bundle it is waiting for has been required.
+    const entry = readFileSync(path.join(out, 'game.js'), 'utf8');
+    const notice = entry.indexOf('showLoading');
+    const bundle = entry.indexOf("require('./game-bundle.js')");
+    expect(notice).toBeGreaterThan(-1);
+    expect(notice).toBeLessThan(bundle);
+    // …and it must not be the thing that takes a boot down.
+    expect(entry).toContain('try {');
+  });
+
   it('is judged against Douyin\'s caps, which are not WeChat\'s', () => {
     const budgets = builtinSizeBudgets('douyin');
     const total = budgets.find((b) => b.scope === 'total');

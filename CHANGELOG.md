@@ -16,6 +16,8 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **A mini-game says it is starting before it parses the game.** The host's loading indicator only appeared once `initMiniGameRuntime` ran, which is after the entry has required a megabyte of bundle — the longest silent stretch of a cold start. The generated entry now raises it on its first line.
+
 - **The start screen is yours: a logo, a background and a minimum display time.** The exported page has shown real boot progress for a while, but always as the game's name on the engine's own dark ground. A project can now put its logo there — inlined into the page, because an image fetched over the network arrives in the same window the engine does, with nothing left to cover — pick the colour behind it, and hold the screen for a minimum time, so a boot that finishes in 120ms stops flashing a bar that appears and vanishes. The page also emits `esengine:bootprogress` and `esengine:firstframe`, which a portal's own loading screen can listen for before the game's bundle has run.
 
 - **The build dialog states a platform's size caps before you package.** They were reported only after a package existed, in the size panel, so the ceiling a build had to fit under was visible only once it was too late to plan around — and the difference matters: a package that fits WeChat's 30MB is 10MB over Douyin's 20MB. Each target's caps now sit under its description, and hovering them gives the platform's own wording rather than our paraphrase. A platform a project defines itself states the caps it declared.

@@ -700,6 +700,8 @@ export const NOTED = {
     { internal: "the editor's preview page names the same subpaths it always did" },
   'fix(settings): the module page reads the same asset table the build installs from':
     { note: 'The Engine Modules page no longer calls a module unused that the build then carries.' },
+  'feat(export): a mini-game entry raises the host indicator on its first line':
+    { note: 'A mini-game says it is starting before it parses the game.' },
   "feat(export): the start screen carries the project's logo, colour and hold":
     { note: 'The start screen is yours: a logo, a background and a minimum display time.' },
   'feat(build): a target states its size caps before you package':
