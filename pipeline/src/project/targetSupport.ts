@@ -26,7 +26,9 @@
 import { NATIVE_PLATFORMS, type ExportPlatform } from './platforms';
 
 /** An engine subsystem a build target may lack. */
-export type Subsystem = 'text' | 'tilemap' | 'particles' | 'postprocess' | 'physics' | 'spine' | 'video' | 'ai' | 'replication' | 'gameplay';
+export type Subsystem =
+    | 'text' | 'tilemap' | 'particles' | 'postprocess' | 'physics' | 'physics3d'
+    | 'spine' | 'dragonbones' | 'video' | 'ai' | 'logic' | 'replication' | 'gameplay';
 
 /**
  * The authored vocabulary that puts a subsystem in use: a scene or prefab
@@ -44,7 +46,14 @@ export const SUBSYSTEM_COMPONENTS: Readonly<Record<Subsystem, readonly string[]>
         'PolygonCollider2D', 'ChainCollider2D', 'OneWayPlatform2D', 'CharacterController2D',
         'HingeJoint2D', 'DistanceJoint2D', 'SliderJoint2D', 'FixedJoint2D', 'WheelJoint2D', 'MotorJoint2D',
     ],
+    physics3d: [
+        'RigidBody3D', 'BoxCollider3D', 'SphereCollider3D', 'CapsuleCollider3D',
+        'MeshCollider3D', 'ConvexCollider3D', 'CharacterController3D',
+        'HingeJoint3D', 'DistanceJoint3D', 'SliderJoint3D', 'FixedJoint3D', 'PointJoint3D',
+    ],
     spine: ['SpineAnimation'],
+    dragonbones: ['DragonBonesAnimation'],
+    logic: ['ScriptGraphAgent'],
     video: ['Video'],
     ai: [
         'NavAgent', 'NavArea', 'NavLink', 'NavObstacle', 'NavVolume',
@@ -63,7 +72,10 @@ export const SUBSYSTEM_LABEL: Readonly<Record<Subsystem, string>> = {
     particles: 'Particles',
     postprocess: 'Post-processing',
     physics: 'Physics (Box2D)',
+    physics3d: 'Physics (3D)',
     spine: 'Spine animation',
+    dragonbones: 'DragonBones animation',
+    logic: 'Script graphs',
     video: 'Video',
     ai: 'Gameplay AI',
     replication: 'Replication',
@@ -82,7 +94,10 @@ export const SUBSYSTEM_INSTALL: Readonly<Record<Subsystem, string>> = {
     postprocess: 'base',
     tilemap: 'esengine/tilemap',
     physics: 'esengine/physics',
+    physics3d: 'esengine/physics3d',
     spine: 'esengine/spine',
+    dragonbones: 'esengine/dragonbones',
+    logic: 'esengine/logic',
     video: 'whole-entry',
     ai: 'esengine/ai',
     replication: 'esengine/replication',
@@ -131,6 +146,18 @@ const COMPONENT_SUBSYSTEM: ReadonlyMap<string, Subsystem> = new Map(
     (Object.entries(SUBSYSTEM_COMPONENTS) as [Subsystem, readonly string[]][])
         .flatMap(([subsystem, names]) => names.map((name) => [name, subsystem] as const)),
 );
+
+/**
+ * The `esengine/` module a component belongs to, or null for one the base engine
+ * always carries. What the Add Component menu asks before offering a component a
+ * project has refused — the same table the export refuses a build by.
+ */
+export function moduleOfComponent(name: string): string | null {
+    const subsystem = COMPONENT_SUBSYSTEM.get(name);
+    if (subsystem === undefined) return null;
+    const install = SUBSYSTEM_INSTALL[subsystem];
+    return install === 'base' || install === 'whole-entry' ? null : install;
+}
 
 /**
  * Collect the subsystems a scene / prefab document puts in use. Pure, and shape-

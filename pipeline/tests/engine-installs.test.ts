@@ -10,8 +10,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import { engineInstalls, moduleChoices } from '../src/bundle/engineInstalls';
-import { ESENGINE_SUBPATHS } from '../src/bundle/esengineResolve';
-import { SUBSYSTEM_INSTALL, type Subsystem } from '../src/project/targetSupport';
+import { ENGINE_MODULES, ESENGINE_SUBPATHS } from '../src/bundle/engineSubpaths';
+import { SUBSYSTEM_COMPONENTS, SUBSYSTEM_INSTALL, type Subsystem } from '../src/project/targetSupport';
 
 describe('the engine modules a package installs', () => {
     it('takes a subsystem from the components its content authored', () => {
@@ -163,5 +163,29 @@ describe('what a project said, read off its manifest', () => {
 
     it('says nothing for physics.enabled false — off is the default, not a refusal', () => {
         expect(moduleChoices({ physics: { enabled: false } })).toEqual({});
+    });
+});
+
+/**
+ * A module a project can refuse has to be one the build can SEE being used.
+ *
+ * The refusal is enforced by detection, so a module with no authored vocabulary
+ * would be excluded silently and ship a package missing it — the outcome the
+ * refusal exists to prevent. Three modules were in that state.
+ */
+describe('every module a project can refuse', () => {
+    it('has authored vocabulary the build can detect it by', () => {
+        const byComponent = new Set(
+            (Object.entries(SUBSYSTEM_INSTALL) as [Subsystem, string][])
+                .filter(([s, install]) => install.startsWith('esengine/')
+                    && SUBSYSTEM_COMPONENTS[s].length > 0)
+                .map(([, install]) => install),
+        );
+        // Detection also reads asset extensions, which is how a script graph is
+        // found; asked through engineInstalls so this cannot read a stale copy.
+        for (const ext of ['.esgraph', '.esfsm', '.esbt']) {
+            for (const s of engineInstalls({ assetPaths: [`x${ext}`] }).subpaths) byComponent.add(s);
+        }
+        expect(ENGINE_MODULES.filter((m) => !byComponent.has(m))).toEqual([]);
     });
 });
