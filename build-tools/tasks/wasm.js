@@ -23,6 +23,17 @@ function testProbeFlags() {
     return [`-DES_ENABLE_TEST_PROBES=${process.env.ESTELLA_TEST_PROBES === '1' ? 'ON' : 'OFF'}`];
 }
 
+/**
+ * Extra `-D` flags for one build, from `ESTELLA_CMAKE_FLAGS`.
+ *
+ * Measuring what a subsystem costs in the core means building without it, and
+ * every switch for that is already a CMake option — what was missing was a way
+ * to reach one. Space-separated, as on a cmake line.
+ */
+function extraCmakeFlags() {
+    return (process.env.ESTELLA_CMAKE_FLAGS ?? '').split(/\s+/).filter(Boolean);
+}
+
 async function computeWasmHash(target, targetConfig, debug) {
     const rootDir = config.paths.root;
     const srcDir = path.join(rootDir, 'src/esengine');
@@ -149,6 +160,7 @@ async function executeWasmBuild(target, targetConfig, { debug, clean, buildDir, 
         'cmake',
         ...targetConfig.cmakeFlags,
         ...testProbeFlags(),
+        ...extraCmakeFlags(),
         `-DCMAKE_BUILD_TYPE=${buildType}`,
     ];
 

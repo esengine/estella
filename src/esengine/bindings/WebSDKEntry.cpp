@@ -50,7 +50,9 @@
 #include "../renderer/draw/CustomGeometry.hpp"
 #include "../resource/ResourceManager.hpp"
 #include "../resource/ShaderParser.hpp"
+#ifdef ES_ENABLE_BITMAP_TEXT
 #include "../text/SdfGenerator.hpp"
+#endif
 #include "../ecs/TransformSystem.hpp"
 #include "../core/World.hpp"
 #include "../ecs/components/Velocity.hpp"
@@ -349,9 +351,10 @@ void notifyDeviceLost(u32 reason, const std::string& message) {
     }
 }
 
-// Runtime glyph atlas: convert a Canvas2D-rasterized alpha
-// bitmap to a signed distance field. Both buffers are caller-allocated in WASM
-// linear memory (TS passes HEAPU8 pointers); `alpha` and `out` are width*height.
+// Runtime glyph atlas: a Canvas2D-rasterized alpha bitmap to a signed distance
+// field. Both buffers are caller-allocated in WASM linear memory and are
+// width*height. Under the text flag, because the generator it calls is.
+#ifdef ES_ENABLE_BITMAP_TEXT
 void web_sdfFromAlpha(uintptr_t alphaPtr, uintptr_t outPtr, u32 width, u32 height, f32 spread) {
     const u64 pixels = static_cast<u64>(width) * height;
     const u8* alpha = boundarySpan<u8>(alphaPtr, pixels, "sdfFromAlpha.alpha");
@@ -359,6 +362,7 @@ void web_sdfFromAlpha(uintptr_t alphaPtr, uintptr_t outPtr, u32 width, u32 heigh
     if (!alpha || !out) return;
     text::sdfFromAlpha(alpha, out, width, height, spread);
 }
+#endif
 
 // =============================================================================
 // Pointer-based Component Access
@@ -462,7 +466,9 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("initRendererWebGPU", &esengine::initRendererWebGPU);
     emscripten::function("shutdownRenderer", &esengine::shutdownRenderer);
     emscripten::function("getResourceManager", &esengine::getResourceManager, emscripten::allow_raw_pointers());
+#ifdef ES_ENABLE_BITMAP_TEXT
     emscripten::function("sdfFromAlpha", &esengine::web_sdfFromAlpha);
+#endif
     emscripten::function("deviceStatus", &esengine::deviceStatus);
     emscripten::function("deviceLostReport", &esengine::deviceLostReport);
     emscripten::function("deviceIdentity", &esengine::deviceIdentity);

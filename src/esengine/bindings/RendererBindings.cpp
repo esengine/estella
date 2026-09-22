@@ -30,9 +30,10 @@
 #include "../ecs/components/Light.hpp"
 #include "../ecs/components/Hierarchy.hpp"
 #include "../core/Log.hpp"
+// Core, not particles: the seed binding below is unconditional.
+#include "../core/RandomSource.hpp"
 #ifdef ES_ENABLE_PARTICLES
 #include "../particle/ParticleSystem.hpp"
-#include "../core/RandomSource.hpp"
 #endif
 #include "../trail/TrailSystem.hpp"
 #include "../ui/UISystem.hpp"

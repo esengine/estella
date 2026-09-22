@@ -25,10 +25,13 @@
 #endif
 #include "../renderer/plugins/ShapePlugin.hpp"
 #include "../renderer/plugins/MeshPlugin.hpp"
+// The engine's one random stream, registered unconditionally below: a core type
+// that reached this file only through a particle header, so turning particles
+// off stopped the CORE from compiling.
+#include "RandomSource.hpp"
 #ifdef ES_ENABLE_PARTICLES
 #include "../renderer/plugins/ParticlePlugin.hpp"
 #include "../particle/ParticleSystem.hpp"
-#include "RandomSource.hpp"
 #endif
 #include "../renderer/plugins/TrailPlugin.hpp"
 #include "../trail/TrailSystem.hpp"
