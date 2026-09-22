@@ -33,6 +33,14 @@ published separately; it ships inside the editor.
   install it. A project using a subsystem no subpath installs (video today) takes the whole
   entry as before. Measured on the UI-game template: 1,305KB → 1,090KB, 57 files → 32.
 
+- **Project Settings has an Engine Modules page: force a module into the build, or refuse one.** A build works out which
+  subsystems a package needs from what the content uses, which is right for almost
+  everything — but not for a module only a script reaches, and not when a build must not
+  carry one at all. `physics.enabled` was that answer for exactly one module; every module
+  has it now. Refusing one is enforced: an export whose content uses an excluded module
+  fails and names the scene, asset or script that argued, rather than shipping a package
+  quietly missing the subsystem its own scene needs.
+
 - **The gameplay runtime is a subpath: `import { Health } from 'esengine/gameplay'`.** The third-person controller, the
   camera, health, melee and the hunter were in every package: 10,567 bytes of a WeChat
   build with no character in it. What stays on `esengine` is the vocabulary — the animator

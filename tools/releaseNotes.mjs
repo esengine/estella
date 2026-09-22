@@ -698,6 +698,12 @@ export const NOTED = {
     { internal: "a manual page's import line, following the move it documents" },
   'refactor(play): the play realm asks for the whole import map by name':
     { internal: "the editor's preview page names the same subpaths it always did" },
+  'feat(project): a project can force an engine module in, or refuse one':
+    { note: "Project Settings has an Engine Modules page: force a module into the build, or refuse one." },
+  'feat(settings): an Engine Modules page, one row per module':
+    { note: "Project Settings has an Engine Modules page: force a module into the build, or refuse one." },
+  'refactor(bundle): the published subpaths move to a module the renderer can read':
+    { internal: "where one table lives; the list it holds is unchanged" },
   'fix(engine): two of the four subsystem switches did not build with them off':
     { internal: "CMake options no shipped build changes; every release has all four ON" },
   'fix(editor-checks): a realm that never came up is unanswered, not a verdict':
