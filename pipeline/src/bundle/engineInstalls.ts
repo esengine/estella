@@ -113,6 +113,17 @@ function extensionOf(p: string): string {
 }
 
 /**
+ * The module this asset's extension installs, or null.
+ *
+ * Exported for the settings page, which attributes the same evidence to the same
+ * files: a page that kept its own copy of this table would go on calling a
+ * module unused after the build started carrying it.
+ */
+export function moduleForAsset(path: string): string | null {
+    return ASSET_SUBPATH[extensionOf(path)] ?? null;
+}
+
+/**
  * The engine modules this package installs. `lean` is false when something in
  * use has no subpath to install it (video today): that project takes the whole
  * entry, which carries everything, so the subpath list stops mattering.

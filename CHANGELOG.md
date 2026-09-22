@@ -20,6 +20,8 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **The Engine Modules page no longer calls a module unused that the build then carries.** It read only the components a scene names, while the build also reads the extensions of the assets that ship and the imports your scripts write — so a behaviour tree an agent is handed at runtime, which leaves no component behind, showed as "not used by this project" in a package that had it. The page now reads the same asset table the build installs from, and says what it can see rather than what will ship.
+
 - **A Douyin package could not start.** It shipped the browser engine artifact, which is an ES module, and a mini-game host loads its JavaScript with `require` — so `game.js` threw `SyntaxError: Unexpected token 'export'` on its first line and the package never reached a frame. Every mini-game host takes the same engine build, and now every mini-game target asks for it: the two built-in vendors, and a platform a project defines itself, which had the same browser default. The export also refuses an ES module engine by reading the file rather than trusting its name, since the name was the thing that was wrong.
 
 ### Changed

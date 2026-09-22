@@ -9,7 +9,7 @@
  * fine — it was never installed.
  */
 import { describe, it, expect } from 'vitest';
-import { engineInstalls, forcedSideModules, moduleChoices } from '../src/bundle/engineInstalls';
+import { engineInstalls, forcedSideModules, moduleChoices, moduleForAsset } from '../src/bundle/engineInstalls';
 import { ENGINE_MODULES, ESENGINE_SUBPATHS } from '../src/bundle/engineSubpaths';
 import { SUBSYSTEM_COMPONENTS, SUBSYSTEM_INSTALL, type Subsystem } from '../src/project/targetSupport';
 
@@ -140,6 +140,21 @@ describe('a project that overrides what the build detected', () => {
         expect(engineInstalls({
             scriptImports: ['esengine/replication'], choices: { 'esengine/replication': 'exclude' },
         }).refused[0].evidence).toContain('a project script imports');
+    });
+});
+
+/**
+ * The settings page answers "does this ship?" before a build exists, so it reads
+ * the same tables the build does. It once read only the component one, and said
+ * "not used" about a module the package carried.
+ */
+describe('the asset evidence the settings page attributes', () => {
+    it('installs exactly what the build installs, for anything it is asked about', () => {
+        for (const path of ['a/Door.esgraph', 'b.esfsm', 'c.esbt', 'hero.png', 'README', 'x.ESGRAPH']) {
+            const table = moduleForAsset(path);
+            expect(engineInstalls({ assetPaths: [path] }).subpaths)
+                .toEqual(table ? [table] : []);
+        }
     });
 });
 

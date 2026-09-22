@@ -698,6 +698,8 @@ export const NOTED = {
     { internal: "a manual page's import line, following the move it documents" },
   'refactor(play): the play realm asks for the whole import map by name':
     { internal: "the editor's preview page names the same subpaths it always did" },
+  'fix(settings): the module page reads the same asset table the build installs from':
+    { note: 'The Engine Modules page no longer calls a module unused that the build then carries.' },
   'feat(build): a target states its size caps before you package':
     { note: "The build dialog states a platform's size caps before you package." },
   'fix(export): a mini-game takes the engine build a mini-game host can load':
