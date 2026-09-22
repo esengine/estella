@@ -698,6 +698,8 @@ export const NOTED = {
     { internal: "a manual page's import line, following the move it documents" },
   'refactor(play): the play realm asks for the whole import map by name':
     { internal: "the editor's preview page names the same subpaths it always did" },
+  'fix(engine): two of the four subsystem switches did not build with them off':
+    { internal: "CMake options no shipped build changes; every release has all four ON" },
   'fix(editor-checks): a realm that never came up is unanswered, not a verdict':
     { internal: "how CI classifies its own bad minute; no creator-facing behaviour" },
   'feat(minigame): the engine subpackage fetch says how far along it is':
