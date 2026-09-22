@@ -698,6 +698,8 @@ export const NOTED = {
     { internal: "a manual page's import line, following the move it documents" },
   'refactor(play): the play realm asks for the whole import map by name':
     { internal: "the editor's preview page names the same subpaths it always did" },
+  'fix(export): a module the project forced in brings its binary too':
+    { note: "Forcing a module in now ships its wasm binary too, not just its JavaScript." },
   'feat(project): a build target can answer differently about a module':
     { note: "A build target can include or exclude an engine module without changing the project's answer." },
   'feat(settings): each engine module says what this project does with it':

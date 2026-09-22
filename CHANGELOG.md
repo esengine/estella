@@ -33,6 +33,11 @@ published separately; it ships inside the editor.
   install it. A project using a subsystem no subpath installs (video today) takes the whole
   entry as before. Measured on the UI-game template: 1,305KB → 1,090KB, 57 files → 32.
 
+- **Forcing a module in now ships its wasm binary too, not just its JavaScript.** A project that spawns bodies from a
+  script — the case Include exists for — got the solver's JavaScript staged and no wasm to
+  run it. The wasm scan was reading the older `physics.enabled` directly, so only that flag
+  reached it and only for that one module.
+
 - **A build target can include or exclude an engine module without changing the project's answer.** A playable ad has a
   size cap a web build does not, so refusing 3D physics there should not refuse it
   everywhere. `packaging.modulesByPlatform` lays a target's answer over the project's,
