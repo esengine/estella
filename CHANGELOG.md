@@ -24,6 +24,8 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **Pressing Play while the editor is still warming up no longer loses the engine.** The editor brings the play realm's engine up in the background so the first Play is quick. "Is the engine up" is false for the whole of that bring-up, so a Play that landed inside it was treated as a cold start and reloaded the page that was doing the work — and the replacement then waited on a load the abandoned one still held. It waits for the warm-up it is about to use instead. This is likeliest on a loaded machine, where the warm-up takes longer than it takes you to click.
+
 - **The on-device crash check runs on whatever Android you have.** It built its test handler for arm64 no matter what was attached, so an emulator — the only Android most machines can offer — was pushed a binary it cannot execute and the check failed for a reason that had nothing to do with the crash handler. It asks the device which ABI it runs now, which is why a release criterion that read "needs a phone plugged in" is answered here: the record came back with its phase and a backtrace.
 
 - **A packaged native game gets the subsystems its project uses.** Every optional subsystem reaches an App through one registry, and the native factory read none of it — it named Spine and DragonBones by hand and stopped there. So a game on a phone ran with no navigation, no tilemaps and no replication while the same game worked on the web: `enemy-ai` threw on a null nav surface, `celestial-heights` refused its own tilemap data, and `multiplayer-arena` threw on a null net role. Found by booting all 52 examples on an emulator.

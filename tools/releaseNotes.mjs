@@ -704,6 +704,8 @@ export const NOTED = {
     { note: "The build says what the start screen's logo costs the page." },
   'feat(agent): a person can record which models their account has seen take an image':
     { note: 'You can tell the editor which models your account has seen take an image.' },
+  'fix(play): a Play that lands inside the prewarm waits for it':
+    { note: 'Pressing Play while the editor is still warming up no longer loses the engine.' },
   'feat(export): what each packaging target can do, before a build exists':
     { note: 'The build dialog says which engine services a target can provide.' },
   'feat(build): the dialog says which engine services a target can provide':
