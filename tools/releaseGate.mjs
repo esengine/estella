@@ -200,7 +200,7 @@ export const CRITERIA = [
   {
     id: 'a-crash-leaves-something-the-player-can-send',
     host: 'device',
-    why: '--require-device reads `adb devices` on the machine it runs on, and the Device Farm path uploads a bundle rather than attaching one — so no runner here can answer it; a release captain with a phone plugged in and `pnpm run gate:run --host device` can',
+    why: '--require-device reads `adb devices` on the machine it runs on, and the Device Farm path uploads a bundle rather than attaching one — so no runner here can answer it. An EMULATOR answers it too, measured: the handler builds for whatever ABI the device reports, faults, and the record comes back with its phase and a backtrace',
     says: 'the boot record survives a crash on a real device, with the phase and a backtrace',
     // `--require-device` on purpose: without it the tool skips where there is no
     // phone, which is right on a laptop and is a false pass under a release.

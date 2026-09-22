@@ -423,3 +423,34 @@ describe('the platforms templates are published for', () => {
     }
   });
 });
+
+/**
+ * The crash-record check builds for the device it found.
+ *
+ * It named one ABI, so an x86_64 emulator — the only Android most machines can
+ * offer — was pushed a binary it cannot execute, and a release criterion that
+ * an emulator CAN answer read as "needs a phone plugged in".
+ */
+describe('the on-device crash record check', () => {
+  const src = readFileSync(path.resolve(__dirname, '../../tools/verify-bootlog-crash.mjs'), 'utf8');
+
+  it('has an NDK driver for every ABI an Android device reports', () => {
+    // The TRIPLE, not the ABI name: `x86_64` also appears in the host-platform
+    // ternary, so looking for the key matched a line that compiles nothing.
+    const triples = {
+      'arm64-v8a': 'aarch64-linux-android',
+      'armeabi-v7a': 'armv7a-linux-androideabi',
+      x86_64: 'x86_64-linux-android',
+      x86: 'i686-linux-android',
+    };
+    const missing = Object.entries(triples)
+      .filter(([, triple]) => !src.includes(`'${triple}'`))
+      .map(([abi]) => abi);
+    expect(missing, 'a device reporting one of these gets no compiler').toEqual([]);
+  });
+
+  it('asks the device rather than assuming a phone', () => {
+    expect(src).toContain('ro.product.cpu.abi');
+    expect(src, 'the driver is still pinned to one ABI').not.toMatch(/aarch64-linux-android33-clang/);
+  });
+});

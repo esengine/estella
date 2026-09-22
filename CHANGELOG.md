@@ -22,6 +22,8 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **The on-device crash check runs on whatever Android you have.** It built its test handler for arm64 no matter what was attached, so an emulator — the only Android most machines can offer — was pushed a binary it cannot execute and the check failed for a reason that had nothing to do with the crash handler. It asks the device which ABI it runs now, which is why a release criterion that read "needs a phone plugged in" is answered here: the record came back with its phase and a backtrace.
+
 - **A packaged native game gets the subsystems its project uses.** Every optional subsystem reaches an App through one registry, and the native factory read none of it — it named Spine and DragonBones by hand and stopped there. So a game on a phone ran with no navigation, no tilemaps and no replication while the same game worked on the web: `enemy-ai` threw on a null nav surface, `celestial-heights` refused its own tilemap data, and `multiplayer-arena` threw on a null net role. Found by booting all 52 examples on an emulator.
 
 - **Nothing claims a model cannot see when nobody has said so.** Attaching a picture to a model whose sight is unconfirmed said "this endpoint does not accept images", and the turn itself told the agent it "cannot carry images" — both of which read as the vendor having answered. They now say what is true of the turn: no image is being sent. The attachment notice keeps the two apart, because a vendor saying no is a reason to pick another model and nobody having said is a reason to go and find out.

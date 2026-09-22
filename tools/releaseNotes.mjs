@@ -704,6 +704,8 @@ export const NOTED = {
     { note: "The build says what the start screen's logo costs the page." },
   'feat(agent): a person can record which models their account has seen take an image':
     { note: 'You can tell the editor which models your account has seen take an image.' },
+  'fix(gates): the on-device crash check builds for the ABI the device reports':
+    { note: 'The on-device crash check runs on whatever Android you have.' },
   'fix(native): every App factory installs the optional subsystems from the registry':
     { note: 'A packaged native game gets the subsystems its project uses.' },
   'fix(agent): nothing claims a model cannot see when nobody has said so':

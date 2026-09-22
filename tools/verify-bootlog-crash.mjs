@@ -1,17 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-//
-// Prove the boot record survives a crash, on a device.
-//
-// The record exists so that a game that dies on someone else's phone leaves
-// something they can send. That claim is only worth making if the handler has
-// been watched doing it: this builds the real BootLog.cpp for arm64 with the
-// NDK, pushes it, faults on purpose, and reads the file back.
-//
-//   node tools/verify-bootlog-crash.mjs           (needs an adb device + NDK)
-//
-// Skips with a message when there is no device or no NDK, so it can be run
-// anywhere without pretending to have checked something it did not.
+/**
+ * @file  The boot record survives a crash, watched doing it on a device.
+ *
+ * Builds the real BootLog.cpp with the NDK for the ABI the device reports,
+ * pushes it, faults on purpose, and reads the file back. Skips (not passes)
+ * without a device or an NDK: `node tools/verify-bootlog-crash.mjs`.
+ */
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync } from 'node:fs';
@@ -33,7 +28,27 @@ function adbPath() {
     return existsSync(inSdk) ? inSdk : exe;
 }
 
-function ndkClang() {
+/** The NDK driver for what the DEVICE runs. An x86_64 emulator — the only
+ *  Android most machines can offer — cannot execute an arm64 binary, and would
+ *  fail for a reason that has nothing to do with the handler. */
+const NDK_TRIPLE = {
+    'arm64-v8a': 'aarch64-linux-android',
+    'armeabi-v7a': 'armv7a-linux-androideabi',
+    x86_64: 'x86_64-linux-android',
+    x86: 'i686-linux-android',
+};
+
+function deviceAbi(adb) {
+    try {
+        return execFileSync(adb, ['shell', 'getprop', 'ro.product.cpu.abi'], { encoding: 'utf8' }).trim();
+    } catch {
+        return '';
+    }
+}
+
+function ndkClang(abi) {
+    const triple = NDK_TRIPLE[abi];
+    if (!triple) return null;
     const ndkRoot = process.env.ANDROID_NDK_HOME
         || (() => {
             const dir = path.join(sdkRoot(), 'ndk');
@@ -45,7 +60,7 @@ function ndkClang() {
     const host = process.platform === 'win32' ? 'windows-x86_64'
         : process.platform === 'darwin' ? 'darwin-x86_64' : 'linux-x86_64';
     const exe = process.platform === 'win32' ? '.cmd' : '';
-    const clang = path.join(ndkRoot, 'toolchains', 'llvm', 'prebuilt', host, 'bin', `aarch64-linux-android33-clang++${exe}`);
+    const clang = path.join(ndkRoot, 'toolchains', 'llvm', 'prebuilt', host, 'bin', `${triple}33-clang++${exe}`);
     return existsSync(clang) ? clang : null;
 }
 
@@ -77,13 +92,14 @@ function unavailable(why) {
 }
 
 const adb = adbPath();
-const clang = ndkClang();
-if (!clang) unavailable('no Android NDK found');
 if (!device(adb)) unavailable('no adb device attached');
+const abi = deviceAbi(adb);
+const clang = ndkClang(abi);
+if (!clang) unavailable(abi ? `no Android NDK for ${abi}` : 'no Android NDK found');
 
 mkdirSync(OUT, { recursive: true });
 const bin = path.join(OUT, 'bootlog_crash_test');
-console.log('building the record + handler for arm64…');
+console.log(`building the record + handler for ${abi}…`);
 // `shell: true` because the NDK's Windows driver is a .cmd, which node refuses
 // to spawn directly (EINVAL) — the same reason every Windows toolchain wrapper
 // has to be invoked through a shell.
