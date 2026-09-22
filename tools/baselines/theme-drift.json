@@ -70,7 +70,6 @@
     "panels/ScriptGraphEditor.tsx": 6,
     "panels/SpinePreviewPane.tsx": 4,
     "panels/Viewport.tsx": 2,
-    "project/assetTypes.ts": 33,
     "settings/editorSettings.ts": 10,
     "tileset/TilesetCommands.ts": 8,
     "tools/tileMath.ts": 6

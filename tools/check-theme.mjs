@@ -100,10 +100,12 @@ const saturation = (hex) => {
  */
 const PANEL_CEILING = 80;
 
-const content = [...css.matchAll(/^\s*(--cat-[a-z-]+):\s*(#[0-9a-fA-F]{6})\b/gm)]
+// `--asset-*` labels content in the same place and by the same rule — a content
+// browser icon and a component header bar sit on the same panel.
+const content = [...css.matchAll(/^\s*(--(?:cat|asset)-[a-z-]+):\s*(#[0-9a-fA-F]{6})\b/gm)]
   .map(([, name, hex]) => ({ name, hex, sat: saturation(hex) }));
 
-if (content.length === 0) problems.push(`${TOKENS}: no --cat-* tokens found — the content ramp cannot be read`);
+if (content.length === 0) problems.push(`${TOKENS}: no --cat-*/--asset-* tokens found — the content ramp cannot be read`);
 for (const { name, hex, sat } of content) {
   if (sat >= PANEL_CEILING) {
     problems.push(`${TOKENS}: ${name} (${hex}) is ${sat}% saturated — a panel label stays under ${PANEL_CEILING}%, that is viewport brightness`);
