@@ -519,6 +519,84 @@ const droppedAttributes = () => {
   return out;
 };
 for (const finding of droppedAttributes()) problems.push(finding);
+
+/**
+ * Icon-only buttons the editor keeps hand-rolled, by class, each with the reason
+ * it is not an IconButton. Everything else icon-only is one: the square ghost or
+ * outlined glyph button is a component, and a third copy of it is drift.
+ */
+const ICON_BUTTONS_KEPT = {
+  'play-side': 'a segment of the Play split button: accent fill, joined to its neighbours',
+  'winctl__btn': "the window's own minimise / maximise / close, drawn to the platform's convention",
+  'tab-popout': "dock tab chrome, styled with the dock's tabs",
+  'tab-x': "dock tab chrome, styled with the dock's tabs",
+  'dv-collapse': "dock group chrome, styled with the dock's tabs",
+  'ag-send': "the composer's send: the drawer's accent-filled primary action",
+  'awp-play': "an audio preview's play: the accent-outlined primary control",
+  'transport__play': "the transport's play: the accent-outlined primary control",
+  'ts-zone': 'a cell of the tile being edited; the cell is the content, not an icon',
+  'ts-oneway-dir': 'a direction cell of a one-way platform picker; the cell is the content',
+  'ts-wquad': "a corner of a Wang tile; its fill is the corner's colour",
+  'frame-pick__cell': 'a frame of the sheet being picked; the frame is the content',
+  'ts-wswatch': 'a colour swatch; its fill is the colour it offers',
+  'fx-on': "an effect's on / off box: a checkbox in a list row",
+  'mini-toggle': 'one half of a two-state toggle pair that reads as one control',
+  'seq-row__btn': "a track's mute / lock: on is the warning colour, not IconButton's accent fill",
+  'seq-btn': "the sequencer toolbar's toggles: on is accent text, not IconButton's accent fill",
+  'prop-gear': 'binds a property to a controller; recording shows in --rec',
+  'prop-reset': 'resets a changed property, in the modified colour, only when there is a change',
+  'tp-layer-vis': "a layer's visibility toggle in the layer row",
+  'tp-layer-lock': "a layer's lock toggle in the layer row",
+  'ts-terrain': 'a terrain in the picker, bordered when it is the active one',
+  'tp-tsx': "the close segment of a tileset tab",
+  'ctrl-chip-x': "a chip's remove, in the chip's own colour, shown on hover",
+  'proj-card__remove': 'a remove badge placed over a project card',
+  'proj-row__remove': 'a remove badge placed over a project row',
+  'ag-att-x': 'a remove badge placed over an attachment thumbnail',
+  'lc-field__browse': "the browse end of a path field, part of the field's well",
+  'build__scene-start': 'marks the start scene; its state is its fill',
+  'ovbtn': "a viewport overlay menu trigger; the rest of its family carry text",
+};
+
+/** The first class a tag names, however the className is written. */
+const firstClass = (tag) => {
+  const m = /\bclassName=(?:"([^"]*)"|\{\s*[`'"]([^`'"$]*))/.exec(tag);
+  return (m?.[1] ?? m?.[2] ?? '').trim().split(/\s+/)[0] || null;
+};
+
+/** Nothing but icons (and a choice between icons) between the tags, or nothing at all. */
+const iconOnly = (inner) => {
+  let rest = inner;
+  for (let i = rest.search(/<[A-Z]/); i >= 0; i = rest.search(/<[A-Z]/)) {
+    const tag = openingTag(rest, i);
+    if (!tag.endsWith('/>')) return false;
+    rest = rest.slice(0, i) + rest.slice(i + tag.length);
+  }
+  rest = rest.replace(/\{[^{}]*(?:\?\s*:\s*|&&\s*)\}/g, '').trim();
+  return !/[{<]/.test(rest) && !/[\p{L}\p{N}]/u.test(rest);
+};
+
+const seenKept = new Set();
+for (const file of everyFile(SRC_DIR)) {
+  if (!file.endsWith('.tsx')) continue;
+  const rel = path.relative(SRC_DIR, file).replaceAll(path.sep, '/');
+  if (PRIMITIVES.has(rel)) continue;
+  const text = readFileSync(file, 'utf8');
+  for (const m of text.matchAll(/<button\b/g)) {
+    const tag = openingTag(text, m.index);
+    if (ITEM_ROLE.test(tag)) continue;
+    const inner = tag.endsWith('/>') ? '' : text.slice(m.index + tag.length, text.indexOf('</button>', m.index));
+    if (!iconOnly(inner)) continue;
+    const cls = firstClass(tag);
+    if (cls && cls in ICON_BUTTONS_KEPT) { seenKept.add(cls); continue; }
+    const line = text.slice(0, m.index).split('\n').length;
+    problems.push(`desktop/src/${rel}:${line}: an icon-only <button${cls ? ` class="${cls}"` : ''}> — `
+      + 'use <IconButton>, or name the class in ICON_BUTTONS_KEPT with why it is not one');
+  }
+}
+for (const cls of Object.keys(ICON_BUTTONS_KEPT)) {
+  if (!seenKept.has(cls)) problems.push(`tools/check-theme.mjs: ICON_BUTTONS_KEPT names "${cls}", which no icon-only button carries any more`);
+}
 for (const site of nativeTitles()) {
   problems.push(`${site}: title= is the operating system's tooltip — use data-tip, `
     + 'and aria-label where it was the control\'s only name');
