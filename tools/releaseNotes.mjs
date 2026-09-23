@@ -740,6 +740,10 @@ export const NOTED = {
     { internal: 'Two icon stroke widths that render within 1.7% of each other become one; a whole-frame diff moves 131 pixels of 1.29M.' },
   'chore(gates): bank the stroke-width collapse':
     { internal: 'A repository ratchet baseline; no source changed.' },
+  'feat(ui): the editor draws its own tips':
+    { note: "The editor's tooltips are its own." },
+  'feat(gates): a tip is data-tip, never the operating system\'s title':
+    { internal: 'A repository gate and its baseline; no source changed.' },
   'refactor(plugins): the panel\'s buttons are Button':
     { internal: 'The same markup through the shared component; nothing renders differently.' },
   'chore(gates): bank the Plugins panel buttons':
