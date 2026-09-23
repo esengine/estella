@@ -740,6 +740,10 @@ export const NOTED = {
     { internal: 'Two icon stroke widths that render within 1.7% of each other become one; a whole-frame diff moves 131 pixels of 1.29M.' },
   'chore(gates): bank the stroke-width collapse':
     { internal: 'A repository ratchet baseline; no source changed.' },
+  'refactor(ui): the node-graph editors\' buttons are IconButton and Button':
+    { internal: 'Editor chrome: node-graph toolbar and side buttons take the shared components; no behaviour changes.' },
+  'chore(gates): bank the node-graph button migration':
+    { internal: 'A repository ratchet baseline; no source changed.' },
   'feat(ui): the editor draws its own tips':
     { note: "The editor's tooltips are its own." },
   'feat(gates): a tip is data-tip, never the operating system\'s title':
