@@ -740,6 +740,10 @@ export const NOTED = {
     { internal: 'Two icon stroke widths that render within 1.7% of each other become one; a whole-frame diff moves 131 pixels of 1.29M.' },
   'chore(gates): bank the stroke-width collapse':
     { internal: 'A repository ratchet baseline; no source changed.' },
+  'refactor(plugins): the panel\'s buttons are Button':
+    { internal: 'The same markup through the shared component; nothing renders differently.' },
+  'chore(gates): bank the Plugins panel buttons':
+    { internal: 'A repository ratchet baseline; no source changed.' },
   'refactor(theme): colours that name one thing stop colouring others':
     { internal: 'Editor chrome colours: Outliner folders match the content browser, a lock is amber; no behaviour changes.' },
   'feat(gates): each identity colour says what it names and where that is drawn':
