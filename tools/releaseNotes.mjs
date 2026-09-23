@@ -744,6 +744,12 @@ export const NOTED = {
     { internal: 'Editor chrome: node-graph toolbar and side buttons take the shared components; no behaviour changes.' },
   'chore(gates): bank the node-graph button migration':
     { internal: 'A repository ratchet baseline; no source changed.' },
+  'refactor(content): the back / forward / up buttons are IconButton':
+    { internal: 'Editor chrome: three content-browser buttons take the shared component; 2px larger.' },
+  'fix(theme): colours named from a vocabulary the editor does not have':
+    { internal: 'Hover and border colours move from stray literals onto the palette; no behaviour changes.' },
+  'fix(gates): in the editor, a var() whose name nothing defines is a finding even with a fallback':
+    { internal: 'A repository gate; no source changed.' },
   'fix(a11y): pickers are listboxes and the Sequencer\'s views are tabs':
     { internal: 'Accessibility roles only; nothing renders or behaves differently for a mouse or keyboard user.' },
   'chore(gates): bank the picker and tab roles':
