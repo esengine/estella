@@ -740,6 +740,10 @@ export const NOTED = {
     { internal: 'Two icon stroke widths that render within 1.7% of each other become one; a whole-frame diff moves 131 pixels of 1.29M.' },
   'chore(gates): bank the stroke-width collapse':
     { internal: 'A repository ratchet baseline; no source changed.' },
+  'refactor(theme): 11-25px odd spacings step down to the grid':
+    { internal: 'One-pixel tightening of editor chrome; measured on screen, no row height changes.' },
+  'chore(gates): bank the larger odd spacing steps':
+    { internal: 'A repository ratchet baseline; no source changed.' },
   'refactor(theme): a 3px spacing is 2px':
     { internal: 'One-pixel tightening of editor chrome; measured on screen, no row height changes.' },
   'chore(gates): bank the 3px spacing step':
