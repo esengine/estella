@@ -972,6 +972,12 @@ export const NOTED = {
     { note: 'Sharing, in-game purchase, the friends leaderboard and the recorder can be used at all.' },
   'feat(editor): a project resolves and type-checks the official packages the editor ships':
     { note: 'Sharing, in-game purchase, the friends leaderboard and the recorder can be used at all.' },
+  'feat(examples): record a run and share the clip':
+    { note: 'The `record-share` example.' },
+  'feat(editor): a project carries the official packages for tsc and an outside editor':
+    { note: '`tsc` and an outside editor type-check the official packages too.' },
+  'feat(tooling): the examples type-check the official packages the way a project does':
+    { note: '`tsc` and an outside editor type-check the official packages too.' },
   'fix(agent): the history toggle presses grey again, not the accent':
     { note: "The agent drawer's History button shows it is open with a grey press again, not the accent colour 0.71 gave it." },
 };

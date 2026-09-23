@@ -17,6 +17,7 @@ for your own game.
 | **event-system** | ECS | Decoupled gameplay with typed events — collect, score, react. |
 | **scene-flow** | Basics | Runtime scene flow — menu → level 1 → level 2 through `SceneManager` fade transitions, over a persistent shell scene. |
 | **save-load** | Basics | Versioned persistence — `SaveManager` save/load with a live v1→v2 migration, plus raw `Storage` preferences. |
+| **record-share** | Platform | Record a run, mark highlights, share the clip with the mini-game recorder — the share button hides where the host cannot share. |
 | **timers-demo** | Basics | `TimerManager` delays, intervals and handles — pause/resume/cancel/reset plus `timeScale`, replacing hand-rolled `time.delta` accumulators. |
 | **sprite-rendering** | Rendering | Draw sprites with rotation, tint and flipping. A SortingGroup shows a subtree taking over its members' layers. |
 | **sprite-animation** | Animation | Frame animation via `.esanim` clips with an idle/walk switcher. |

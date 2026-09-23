@@ -1,0 +1,13 @@
+{
+  "formatVersion": "1",
+  "name": "Record & Share",
+  "description": "Record a run, keep its best moments, and share the clip — the mini-game recorder, with a share button that hides where the host cannot share.",
+  "tag": "Platform",
+  "version": "0.1.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 800,
+    "height": 600
+  },
+  "spineVersion": "none"
+}
