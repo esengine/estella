@@ -136,8 +136,6 @@ for (const m of css.matchAll(/^\s*(--[a-z0-9-]+)\s*:\s*var\(\s*(--[a-z0-9-]+)\s*
  * there would make the legend lie. A gate cannot tell a legend from a theft, so
  * each place that may hold one is listed with the reason it names the same thing.
  */
-const isIdentityToken = (name) => /^--(?:sel|sel-hi|sel-soft|gizmo-[a-z-]+|ax-[xyz])$/.test(name);
-
 const NAMES_THE_SAME_THING = [
   ['.viewport__', 'the scene canvas and the gizmos drawn on it'],
   ['.vp-', "the viewport's own HUD — axis ball, coordinate readout"],
@@ -146,6 +144,47 @@ const NAMES_THE_SAME_THING = [
   ['.world__cell-state', "the World panel's residency legend for what the viewport draws"],
   ['panels/SequencerCurve.tsx', 'a curve channel IS the axis channel, so it takes the axis colour'],
 ];
+
+/**
+ * Every identity family with the thing it names and the places that thing is
+ * drawn. A chrome colour that turns out to name one thing belongs here: that is
+ * what "the chrome has one colour" means once it is true.
+ */
+const IDENTITIES = [
+  {
+    token: /^--(?:sel|sel-hi|sel-soft|gizmo-[a-z-]+|ax-[xyz])$/,
+    names: "the viewport's selection, gizmos and axes",
+    places: NAMES_THE_SAME_THING,
+  },
+  {
+    token: /^--nebula(?:-soft)?$/,
+    names: 'the built-in agent',
+    places: [
+      ['.ag-', 'the agent drawer'],
+      ['.md-', "the agent's rendered replies"],
+      ['.row.agent-', 'Outliner rows the agent touched'],
+      ['.act-agent', "the agent's activity-bar button"],
+      ['.viewport__agentpeek', 'what the agent is pointing at in the viewport'],
+      ['@keyframes ag-', "the agent's own animations"],
+    ],
+  },
+  {
+    token: /^--info-warm(?:-soft|-line)?$/,
+    names: 'a prefab',
+    places: [
+      ['.row.prefab', 'Outliner rows that are prefab instances'],
+      ['.prefab-mode-bar', 'the bar that says a prefab is open for editing'],
+      ['.menubar-title .prefab-crumb-tag', 'the title crumb of an open prefab'],
+      ['.shell--prefab', 'the workspace frame while a prefab is open'],
+    ],
+  },
+  {
+    token: /^--vram$/,
+    names: "the profiler's GPU series",
+    places: [['panels/ProfilerPanel.tsx', 'the chart that draws that series']],
+  },
+];
+const identityOf = (name) => IDENTITIES.find((family) => family.token.test(name));
 
 /** Comments out, offsets kept, so a selector is never read out of one. */
 const uncomment = (t) => t.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '));
@@ -156,6 +195,13 @@ const selectorAt = (text, at) => {
   if (open < 0) return '';
   const began = Math.max(text.lastIndexOf('}', open), text.lastIndexOf('{', open - 1), -1);
   return text.slice(began + 1, open).trim().replace(/\s+/g, ' ');
+};
+
+/** A keyframe stop's selector is `0%`, which says nothing; its animation's name does. */
+const siteAt = (text, at) => {
+  const selector = selectorAt(text, at);
+  if (!/^(?:from|to|\d+%)/.test(selector)) return selector;
+  return selectorAt(text, text.lastIndexOf('{', text.lastIndexOf('{', at) - 1));
 };
 
 const SRC_DIR = path.join(ROOT, 'desktop', 'src');
@@ -173,17 +219,18 @@ for (const file of everyFile(SRC_DIR)) {
   const rel = path.relative(SRC_DIR, file).replaceAll(path.sep, '/');
   const text = uncomment(readFileSync(file, 'utf8'));
   for (const m of text.matchAll(/var\(\s*(--[a-z0-9-]+)/g)) {
-    if (!isIdentityToken(m[1])) continue;
+    const family = identityOf(m[1]);
+    if (!family) continue;
     identityUses += 1;
     const line = text.slice(0, m.index).split('\n').length;
     // A script colouring an element has no selector, so its site is the file.
     const isCss = rel.endsWith('.css');
-    const parts = isCss ? selectorAt(text, m.index).split(',').map((s) => s.trim()).filter(Boolean) : [rel];
-    const strayed = parts.filter((p) => !NAMES_THE_SAME_THING.some(([where]) => p.startsWith(where)));
+    const parts = isCss ? siteAt(text, m.index).split(',').map((s) => s.trim()).filter(Boolean) : [rel];
+    const strayed = parts.filter((p) => !family.places.some(([where]) => p.startsWith(where)));
     if (parts.length > 0 && strayed.length === 0) continue;
     const site = parts.length === 0 ? '(no selector)' : strayed.join(', ');
-    problems.push(`desktop/src/${rel}:${line}: ${site} is coloured with ${m[1]}, `
-      + `which names something else — an identity token only colours the thing it names`);
+    problems.push(`desktop/src/${rel}:${line}: ${site} is coloured with ${m[1]}, which names `
+      + `${family.names} — an identity token only colours the thing it names`);
   }
 }
 
