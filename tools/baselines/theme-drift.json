@@ -151,7 +151,7 @@
     "panels/MaterialGraphEditor.tsx": 4,
     "panels/Outliner.tsx": 2,
     "panels/OutputLog.tsx": 4,
-    "panels/PluginsPanel.tsx": 16,
+    "panels/PluginsPanel.tsx": 2,
     "panels/ProfilerPanel.tsx": 17,
     "panels/ScatterPanel.tsx": 1,
     "panels/ScriptGraphEditor.tsx": 14,
