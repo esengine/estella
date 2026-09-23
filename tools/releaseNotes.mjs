@@ -760,6 +760,8 @@ export const NOTED = {
     { internal: 'A token nothing reads, and the gate rule derived from it; no pixel moves.' },
   'chore(gates): bank the 2px spacing grid':
     { internal: 'A repository ratchet baseline; no source changed.' },
+  'feat(agent): a screenshot says whether it was sent, withheld, or taken':
+    { note: "Every screenshot in the agent's transcript says where it went." },
   'fix(agent): a screenshot weighs what the model is billed for it':
     { note: 'Looking at its work no longer makes the agent forget the conversation.' },
   'refactor(theme): the last type sizes between two steps take one':
