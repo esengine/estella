@@ -90,6 +90,24 @@ export const CENSUS_FLOOR = '0.60.0';
  * that does not exist, and release notes are a different act. Theirs is ungated.
  */
 export const SHIPPED = {
+  // — 0.71.0 —
+  'Settings can find out whether a model reads pictures, instead of asking you to know.':
+    { notCertifiable: 'an editor settings row and one request to the model vendor; no game frame is'
+      + ' involved, and tests/vision-probe.test.ts holds the picture and the reading of the answer' },
+  'The agent can take an overview and a close-up instead of one full-size picture.':
+    { notCertifiable: "the editor agent's capture tools; the capture-framing editor check holds both"
+      + ' implementations against a real window' },
+  'Every screenshot in the agent\'s transcript says where it went.':
+    { notCertifiable: "a line in the editor's agent transcript; nothing of it ships" },
+  'The build dialog says which engine services a target can provide.':
+    { notCertifiable: 'a line the dialog reads from serviceSupport.ts before a package exists; nothing'
+      + ' of it ships, and service-support.test.ts holds each verdict to its source' },
+  'The build says what the start screen\'s logo costs the page.':
+    { notCertifiable: 'a byte count in the export report, not a frame; the page around the game is'
+      + ' held by launch-export' },
+  'You can tell the editor which models your account has seen take an image.':
+    { notCertifiable: 'an editor setting that decides whether the agent sends a screenshot; no game'
+      + ' behaviour reads it' },
   // — 0.70.0 —
   'A project can be exported as a Douyin (抖音) mini-game.': { certifies: 'minigame-vendor' },
   'A sprite can be drawn whole even when its texture carries a 9-slice border.':

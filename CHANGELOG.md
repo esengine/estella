@@ -14,19 +14,15 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.71.0] - 2026-09-23
+
 ### Added
 
 - **Settings can find out whether a model reads pictures, instead of asking you to know.** A model its vendor has not documented is sent no screenshot until you list it as one that takes images — which asked you for something only a request can answer. That list's row now has a button: it sends the model one small picture (a coloured square in a corner, both chosen at random) and asks what it shows. The row then says whether the model read it right, answered wrong, said it cannot see, or had the picture refused by the endpoint, with the model, the address and the time; a model that reads it right is added to the list for you. It is one billed request with no project data in it, sent only when you click.
 
 - **The agent can take an overview and a close-up instead of one full-size picture.** A capture always came back whole and at full resolution — on a Retina display a 2960×1840 window, which the model's endpoint shrinks to its own limit anyway — so the agent paid for pixels it could not use and had no way to ask for the part it needed to read. `capture_viewport` and `screenshot` now take `maxEdge`, which scales the whole picture down (the layout at a fraction of the cost), and `region`, which returns part of it at full resolution; the tools tell the agent to look at the overview first. MCP clients get the same two arguments.
 
-- **The editor's tooltips are its own.** Every hover hint in the editor was the operating system's: it ignored the editor's theme and zoom, took its own time to appear, and from a popped-out panel was placed against the main window. All 320 are now drawn by the editor — the same card the content browser's asset tips use, under the control, after the same delay, at once when the control is reached by keyboard, and gone the moment you press it. Icon-only buttons keep the name a screen reader announces, which that hint used to supply.
-
 - **Every screenshot in the agent's transcript says where it went.** The transcript showed each frame the agent captured, which read as each frame the model saw — including the ones held back from an endpoint that takes no images, and the ones not resent because nothing had changed. A line under each frame now gives its size and what it costs in tokens, then whether it went out with the next request, was held back and why, or was taken by the endpoint once that request came back. Taken means the endpoint accepted it, not that the model read it right.
-
-- **An agent told its screenshot was too big hears that, not "the request was refused".** Every refusal read the same, so a turn that failed because the picture was too large for the endpoint was indistinguishable from one that failed on a bad tool argument — and it burned its retries on bytes that would be refused again. Too-large now says to capture a smaller region, and a refusal the endpoint itself blamed on an image says so and quotes it.
-
-- **The loading bar moves while the engine downloads.** It advanced only when a boot stage finished, and starting the engine is 40 of the 100 — so on a phone's connection a player watched it sit at 20% for 10.4 seconds of a 17.5-second start. The engine binary is now counted as it arrives (and still compiled while it downloads, which is the part that would have been easy to lose): 40 steps instead of one, and the longest the bar stands still drops from 16.7s to 6.0s. A portal's own loading screen sees the same movement through `esengine:bootprogress`, which now marks a step as `partial` while its stage is still running.
 
 - **The build dialog says which engine services a target can provide.** `Ads`, sign-in, share and in-game purchase all answer at runtime, by asking the host — the right answer for a game, and no answer at all for someone choosing a target, because there is no host yet. Each target now carries a line beside its size caps: WeChat's four are its own published API, and Douyin sells nothing, which is worth hearing before a store page is written rather than when the purchase call rejects on a device. A `?` is a real verdict, not a shrug — it is what the engine wires with the host having the last word, and hovering quotes the source.
 
@@ -34,11 +30,19 @@ published separately; it ships inside the editor.
 
 - **You can tell the editor which models your account has seen take an image.** A vendor that documents nothing leaves its models at "nobody has said", and no picture is sent to one of those — which used to mean waiting for us to ship a build. Settings › AI Agents now has a box per provider for the model names you have confirmed yourself.
 
+### Changed
+
+- **The editor's tooltips are its own.** Every hover hint in the editor was the operating system's: it ignored the editor's theme and zoom, took its own time to appear, and from a popped-out panel was placed against the main window. All 320 are now drawn by the editor — the same card the content browser's asset tips use, under the control, after the same delay, at once when the control is reached by keyboard, and gone the moment you press it. Icon-only buttons keep the name a screen reader announces, which that hint used to supply.
+
+- **An agent told its screenshot was too big hears that, not "the request was refused".** Every refusal read the same, so a turn that failed because the picture was too large for the endpoint was indistinguishable from one that failed on a bad tool argument — and it burned its retries on bytes that would be refused again. Too-large now says to capture a smaller region, and a refusal the endpoint itself blamed on an image says so and quotes it.
+
+- **The loading bar moves while the engine downloads.** It advanced only when a boot stage finished, and starting the engine is 40 of the 100 — so on a phone's connection a player watched it sit at 20% for 10.4 seconds of a 17.5-second start. The engine binary is now counted as it arrives (and still compiled while it downloads, which is the part that would have been easy to lose): 40 steps instead of one, and the longest the bar stands still drops from 16.7s to 6.0s. A portal's own loading screen sees the same movement through `esengine:bootprogress`, which now marks a step as `partial` while its stage is still running.
+
+- **The Inspector's light and LOD explanations are readable.** Why a light was left out of a frame, or why an LOD held its level, was set at 11px — a size the editor's type scale does not have — and in Chinese the denser characters blurred at it. They now use the Inspector's body size and stay quieter than the values above them by colour, not by being smaller. The last few sizes that sat between two steps now sit on one: the profiler's headline numbers step up to the title size, and the start-up task list and a toast's repeat count step down.
+
 ### Fixed
 
 - **Looking at its work no longer makes the agent forget the conversation.** The context gauge counted a screenshot by the length of its encoded bytes — a viewport capture as some 36,000 tokens, where the model is billed 522 for it — so two window screenshots were enough to fold a conversation's earlier runs out of the model's memory. A picture now weighs what it costs. A turn that keeps looking also stays inside the endpoint's limit on pictures per request: past 20, the oldest leave the model's view and both the model and the transcript are told. A screenshot identical to the one before it is sent as that fact, not as the same picture again.
-
-- **The Inspector's light and LOD explanations are readable.** Why a light was left out of a frame, or why an LOD held its level, was set at 11px — a size the editor's type scale does not have — and in Chinese the denser characters blurred at it. They now use the Inspector's body size and stay quieter than the values above them by colour, not by being smaller. The last few sizes that sat between two steps now sit on one: the profiler's headline numbers step up to the title size, and the start-up task list and a toast's repeat count step down.
 
 - **A game started paused is handed the scene already held.** Asking the editor to start a game paused — what the built-in agent and the automation surface do to read a world that is standing still — waited for the game to report ready and paused it then, so it ran for however long that round trip took. On the physics playground the cart had already driven 6px up its ramp in three runs out of four, and in the fourth it had not moved at all: the state you read was never quite the state your scene authored. The pause now travels with the scene, and the world holds at its authored positions every time.
 
@@ -13627,7 +13631,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.70.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.71.0...HEAD
+[0.71.0]: https://github.com/esengine/estella/compare/v0.70.0...v0.71.0
 [0.70.0]: https://github.com/esengine/estella/compare/v0.69.0...v0.70.0
 [0.69.0]: https://github.com/esengine/estella/compare/v0.68.0...v0.69.0
 [0.68.0]: https://github.com/esengine/estella/compare/v0.67.0...v0.68.0
