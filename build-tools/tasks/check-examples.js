@@ -48,6 +48,7 @@ function setupTypeLinks(exampleDir, rootDir) {
     const esengineDir = path.join(exampleDir, '.esengine');
     const sdkLink = path.join(esengineDir, 'sdk');
     const editorLink = path.join(esengineDir, 'editor');
+    const packagesLink = path.join(esengineDir, 'packages');
 
     mkdirSync(esengineDir, { recursive: true });
 
@@ -58,6 +59,11 @@ function setupTypeLinks(exampleDir, rootDir) {
     // re-stages it on the next open.
     rmSync(sdkLink, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     symlinkSync(sdkDist, sdkLink, LINK_TYPE);
+
+    // What the editor mirrors on open: the official packages, which a project's
+    // tsconfig maps as `estella-plugin-*` → ./.esengine/packages/*.
+    rmSync(packagesLink, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    symlinkSync(path.join(rootDir, 'plugins'), packagesLink, LINK_TYPE);
 
     if (existsSync(editorDist)) {
         rmSync(editorLink, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
@@ -72,8 +78,10 @@ function isSymlinkOrExists(p) {
 function cleanTypeLinks(exampleDir) {
     const sdkLink = path.join(exampleDir, '.esengine', 'sdk');
     const editorLink = path.join(exampleDir, '.esengine', 'editor');
+    const packagesLink = path.join(exampleDir, '.esengine', 'packages');
 
     try { if (isSymlinkOrExists(sdkLink)) unlinkSync(sdkLink); } catch {}
+    try { if (isSymlinkOrExists(packagesLink)) unlinkSync(packagesLink); } catch {}
     try { if (isSymlinkOrExists(editorLink)) unlinkSync(editorLink); } catch {}
 }
 

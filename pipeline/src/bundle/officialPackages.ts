@@ -15,15 +15,23 @@ import type { Plugin } from 'esbuild';
 
 const OFFICIAL = /^(estella-plugin-[^/]+)(\/.+)?$/;
 
-/** A package name → its export subpath ('.', './open-data') → absolute entry file. */
-export type OfficialPackages = ReadonlyMap<string, ReadonlyMap<string, string>>;
+export interface OfficialPackage {
+  /** The package's directory under the shipped `plugins/`. */
+  readonly dir: string;
+  /** Export subpath ('.', './open-data') → absolute entry file. Empty for an
+   *  editor-only plugin, which a game has nothing to import from. */
+  readonly exports: ReadonlyMap<string, string>;
+}
+
+/** Package name → package. */
+export type OfficialPackages = ReadonlyMap<string, OfficialPackage>;
 
 const cache = new Map<string, OfficialPackages>();
 
 export function readOfficialPackages(packagesDir: string): OfficialPackages {
   const hit = cache.get(packagesDir);
   if (hit) return hit;
-  const out = new Map<string, Map<string, string>>();
+  const out = new Map<string, OfficialPackage>();
   const entries = existsSync(packagesDir) ? readdirSync(packagesDir, { withFileTypes: true }) : [];
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
@@ -38,7 +46,7 @@ export function readOfficialPackages(packagesDir: string): OfficialPackages {
       : pkg.exports ?? (pkg.main ? { '.': pkg.main } : {});
     const subpaths = new Map<string, string>();
     for (const [sub, rel] of Object.entries(exportsMap)) subpaths.set(sub, path.join(dir, rel));
-    out.set(pkg.name, subpaths);
+    out.set(pkg.name, { dir, exports: subpaths });
   }
   cache.set(packagesDir, out);
   return out;
@@ -61,7 +69,7 @@ export function officialPackagesPlugin(packagesDir: string): Plugin {
 
         const [, name, rest] = OFFICIAL.exec(args.path)!;
         const packages = readOfficialPackages(packagesDir);
-        const subpaths = packages.get(name);
+        const subpaths = packages.get(name)?.exports;
         if (!subpaths) {
           return { errors: [{ text: `"${name}" is not one of the packages the editor ships (${[...packages.keys()].join(', ') || 'none found'}), and the project has not installed it` }] };
         }
