@@ -744,6 +744,10 @@ export const NOTED = {
     { internal: 'Editor chrome: node-graph toolbar and side buttons take the shared components; no behaviour changes.' },
   'chore(gates): bank the node-graph button migration':
     { internal: 'A repository ratchet baseline; no source changed.' },
+  'refactor(inspector): effect-order, gradient-stop and component-options buttons are IconButton':
+    { internal: 'Editor chrome: Inspector buttons take the shared component at the same sizes; no behaviour changes.' },
+  'chore(gates): bank the inspector button migration':
+    { internal: 'A repository ratchet baseline; no source changed.' },
   'refactor(ui): a row\'s remove button is one IconButton':
     { internal: 'Editor chrome: nine remove buttons take one look and one hover colour; no behaviour changes.' },
   'chore(gates): bank the remove-button migration':
