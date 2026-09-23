@@ -14,6 +14,10 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **A game can record a run and share the clip.** `Recorder` in `estella-plugin-minigame-services` starts, pauses, resumes and stops the host's screen recorder, and `highlight(before, after)` keeps the moment that just happened; `share()` then publishes the highlights, or the whole recording without any. WeChat keeps the video and shares it through its own call (at most 60 s of highlights); Douyin hands over a temp file and cuts the highlights on its side. `available` and `canShare` are separate answers, so a record button and a share button can each hide where the host lacks one. Every call resolves when the host says the thing happened, and a host that never answers is reported after 5 s rather than awaited forever. In the editor's play mode the recording is real — the canvas as WebM — and `canShare` is false there.
+
 ### Fixed
 
 - The agent drawer's History button shows it is open with a grey press again, not the accent colour 0.71 gave it.

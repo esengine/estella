@@ -63,6 +63,7 @@ export {
     platformCanShare,
     platformShare,
     platformOnShareRequest,
+    platformScreenRecorder,
     platformCanSignIn,
     platformCanPay,
     platformRequestPayment,

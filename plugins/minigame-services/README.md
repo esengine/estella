@@ -1,8 +1,8 @@
 # estella-plugin-minigame-services
 
-The mini-game host's **share sheet**, **in-game purchase** and **friends
-leaderboard**, as Estella services. All three used to ship inside the engine;
-they live here because most games open none of them, and because a service is
+The mini-game host's **share sheet**, **in-game purchase**, **friends
+leaderboard** and **screen recorder**, as Estella services. The first three
+used to ship inside the engine; they live here because most games open none of them, and because a service is
 exactly the shape a plugin should be.
 
 ```bash
@@ -11,7 +11,7 @@ npm install estella-plugin-minigame-services
 
 ```ts title="src/main.ts"
 import { addPlugin } from 'esengine';
-import { miniGameServicesPlugin, Share, Payment, Leaderboard } from 'estella-plugin-minigame-services';
+import { miniGameServicesPlugin, Share, Payment, Leaderboard, Recorder } from 'estella-plugin-minigame-services';
 
 addPlugin(miniGameServicesPlugin);
 ```
@@ -84,6 +84,25 @@ runs **that same file** against an offscreen canvas and invented friends. So the
 board you look at while building the panel is the one that ships, and nothing
 here needs a rehearsal mode of its own.
 
+## Recorder
+
+```ts
+const recorder = app.getResource(Recorder);
+
+if (recorder.available) await recorder.start();   // at the start of a run
+recorder.highlight(3, 2);                          // keep 3s before, 2s after
+await recorder.stop();                             // at the end
+
+// From the player's tap — both hosts refuse a share nobody asked for.
+if (recorder.canShare) await recorder.share({ title: 'Look at this run' });
+```
+
+With highlights the shared clip is the highlights; without, the whole
+recording. WeChat keeps the video and shares it itself (at most 60s of
+highlights), Douyin hands over a temp file and cuts the highlights on its side,
+and a browser — the editor's play mode — records a WebM preview it cannot
+share, so `canShare` is `false` there.
+
 ## Built on the public API
 
 Only `esengine`'s public surface: `defineResource`, the `Plugin` interface,
@@ -91,7 +110,7 @@ Only `esengine`'s public surface: `defineResource`, the `Plugin` interface,
 `platformCanShare`, `platformOnShareRequest`, `platformCanPay`,
 `platformRequestPayment`, `platformCanOpenData`, `platformOpenDataPostMessage`,
 `platformOpenDataCanvas`, `platformSetCloudKeyValues`, `platformCreateCanvas`,
-`platformDevicePixelRatio`). Declare `esengine` a **peer** dependency if you
+`platformDevicePixelRatio`, `platformScreenRecorder`). Declare `esengine` a **peer** dependency if you
 write one of these — a copy vendored inside the package would be a second engine
 whose resources nothing can read.
 

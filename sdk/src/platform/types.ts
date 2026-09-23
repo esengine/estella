@@ -594,6 +594,10 @@ export interface PlatformAdapter {
      *  host asks at share time, so the provider can answer with live state. */
     onShareRequest?(provide: () => PlatformShareOptions): void;
 
+    /** The host's screen recorder, or null where this particular host has none.
+     *  Absent on platforms that cannot record at all (native, playable). */
+    screenRecorder?(): PlatformScreenRecorder | null;
+
     /** Send a message into the open data context — the second JS runtime that
      *  is the only place friend data can be read. ONE WAY by nature: no host
      *  offers a channel back, so this returns nothing and nothing awaits it. */
@@ -696,6 +700,50 @@ export interface PlatformShareOptions {
     title?: string;
     imageUrl?: string;
     query?: string;
+}
+
+/** A finished recording. What it carries depends on who keeps the video: WeChat
+ *  keeps it to itself and shares it on the game's behalf, Douyin hands over a
+ *  temp file, a browser hands over the encoded bytes. */
+export interface PlatformRecording {
+    readonly durationMs: number;
+    /** The host's temp file for the video (Douyin). */
+    readonly path?: string;
+    /** The encoded video (web) — a debug preview, not something a host can share. */
+    readonly blob?: Blob;
+    /** Highlight ranges in ms from the start of the recording, merged and in order. */
+    readonly highlights: readonly (readonly [number, number])[];
+}
+
+/** What a shared clip says when it is opened. `query` rides the launch options
+ *  of whoever opens it, as a share card's does. */
+export interface PlatformRecordingShareOptions {
+    title?: string;
+    desc?: string;
+    query?: string;
+}
+
+/**
+ * The host's game-screen recorder, one per host (both vendors hand out a
+ * singleton). Every call resolves when the host says the thing happened, not
+ * when it was asked: otherwise a refused start shows "recording" over nothing.
+ */
+export interface PlatformScreenRecorder {
+    /** The recording length the host accepts, in seconds. */
+    readonly limits: { readonly minSeconds: number; readonly maxSeconds: number };
+    /** Whether a finished recording can be shared from here at all. */
+    readonly canShare: boolean;
+    /** `onFailure` hears a failure after the start was accepted — the recording
+     *  is gone when it is called. */
+    start(maxSeconds: number, onFailure: (error: Error) => void): Promise<void>;
+    pause(): Promise<void>;
+    resume(): Promise<void>;
+    stop(): Promise<PlatformRecording>;
+    abort(): Promise<void>;
+    /** Keep `beforeSeconds` before now and `afterSeconds` after it for sharing. */
+    highlight(beforeSeconds: number, afterSeconds: number): void;
+    /** Both hosts refuse unless this runs inside the player's tap. */
+    share(recording: PlatformRecording, options: PlatformRecordingShareOptions): Promise<void>;
 }
 
 // =============================================================================

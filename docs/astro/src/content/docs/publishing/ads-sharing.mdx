@@ -111,6 +111,54 @@ whether the player actually shared, so there is nothing to await. Off-platform
 (web, native, the editor) `Share.available` is `false` and `share()` returns
 `false` — hide the button rather than promise a sheet that cannot open.
 
+## Recording a clip
+
+A short clip of a run is how a mini-game spreads on Douyin, and WeChat can
+share one too. `Recorder` ships in the same package as `Share`:
+
+```typescript
+import { Recorder } from 'estella-plugin-minigame-services';
+
+// When the run starts (recorder is Res(Recorder)):
+if (recorder.available) await recorder.start();
+
+// When something worth keeping just happened — a kill, a near miss:
+recorder.highlight(3, 2);   // keep 3s before now and 2s after
+
+// When the run ends:
+await recorder.stop();
+
+// In the "share my run" button's tap handler — both hosts refuse a share
+// the player did not tap for:
+if (recorder.canShare) await recorder.share({ title: 'Look at this run' });
+```
+
+With highlights, the shared clip is the highlights, in order; without, it is
+the whole recording. Every call resolves when the host says the thing
+happened, and rejects with the host's own reason (and `code`, where it gave
+one). A recording the host ends with an error is heard through
+`recorder.onFailure(...)`, and `state` is back to `'idle'`.
+
+| | WeChat | Douyin | Editor / web |
+|---|---|---|---|
+| Length (`maxSeconds`) | 5 – 7200 s | 4 – 300 s | any |
+| What `stop()` gives | the duration; WeChat keeps the video | a temp file (`path`) | a WebM preview (`blob`) |
+| Shared clip | at most 60 s of highlights, at least 2 s | the highlights, merged | cannot share |
+
+`maxSeconds` defaults to 300 and is kept inside the host's range. Only the
+game canvas is recorded — an ad or a host dialog on top of it is not.
+
+<Aside type="caution">
+Douyin's developer tools do not record: "开发者工具不支持录屏调试，请在真机上调试录屏相关功能".
+WeChat shares a recording from WeChat 8.0.28 on Android and 8.0.30 on iOS;
+where the host has no share call, `canShare` is `false`.
+</Aside>
+
+In the editor's play mode the recording is real: `stop()` hands back the
+canvas as WebM, so a record button can be built and tried at your desk.
+`canShare` is `false` there, so the share button hides itself exactly as it
+would on a host that cannot share.
+
 ## Friends leaderboard
 
 A mini-game leaderboard is not a list you fetch. The player's friends can be

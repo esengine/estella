@@ -966,6 +966,8 @@ export const NOTED = {
     { internal: 'a working directory of the repo\'s own tooling' },
   'feat(ui): a HUD can clear the host\'s own menu, not just the notch':
     { note: 'A UI node can keep clear of WeChat\'s capsule menu, which the safe area does not cover.' },
+  'feat(services): a game can record a run and share the clip':
+    { note: 'A game can record a run and share the clip.' },
   'fix(agent): the history toggle presses grey again, not the accent':
     { note: "The agent drawer's History button shows it is open with a grey press again, not the accent colour 0.71 gave it." },
 };

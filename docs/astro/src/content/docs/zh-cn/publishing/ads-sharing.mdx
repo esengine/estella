@@ -101,6 +101,48 @@ share.share({ title: '来加入我的游戏' }); // 或一次性卡片
 所以没有可等待的结果。平台之外(web、原生、编辑器)`Share.available` 为 false 且
 `share()` 返回 false——把按钮藏起来,而不是承诺一张打不开的分享面板。
 
+## 录屏
+
+录一段对局来分享，是小游戏在抖音上传播的主要方式，微信也能分享对局回放。`Recorder`
+和 `Share` 在同一个包里：
+
+```typescript
+import { Recorder } from 'estella-plugin-minigame-services';
+
+// 一局开始时(recorder 来自 Res(Recorder)):
+if (recorder.available) await recorder.start();
+
+// 刚发生了值得留下的事——击杀、险些翻车:
+recorder.highlight(3, 2);   // 保留此刻之前 3 秒、之后 2 秒
+
+// 一局结束时:
+await recorder.stop();
+
+// 在「分享这一局」按钮的点击回调里——两家宿主都拒绝不是玩家点出来的分享:
+if (recorder.canShare) await recorder.share({ title: '看我这一局' });
+```
+
+标过精彩片段时，分享出去的是这些片段(按顺序)；没标过就是整段录像。每个调用都在宿主
+确认之后才 resolve，失败时带着宿主自己的原因(有错误码时也带上 `code`)。录制中途被宿主
+报错终止的，通过 `recorder.onFailure(...)` 通知，`state` 回到 `'idle'`。
+
+| | 微信 | 抖音 | 编辑器 / web |
+|---|---|---|---|
+| 时长(`maxSeconds`) | 5 – 7200 秒 | 4 – 300 秒 | 不限 |
+| `stop()` 给出 | 时长；视频由微信保管 | 临时文件(`path`) | WebM 预览(`blob`) |
+| 分享的片段 | 精彩片段最多 60 秒、至少 2 秒 | 精彩片段合并 | 不能分享 |
+
+`maxSeconds` 默认 300，并被收进宿主接受的范围。只录游戏画布——盖在上面的广告和宿主
+弹窗不会被录进去。
+
+<Aside type="caution">
+抖音开发者工具不录屏:「开发者工具不支持录屏调试，请在真机上调试录屏相关功能」。
+微信从安卓 8.0.28、iOS 8.0.30 起支持分享对局回放；宿主没有分享接口时 `canShare` 为 `false`。
+</Aside>
+
+编辑器 Play 里的录屏是真的：`stop()` 把画布录成 WebM 交回来，录屏按钮在自己桌面上就能
+做和试。那里 `canShare` 为 `false`，分享按钮会像在不能分享的宿主上一样自己藏起来。
+
 ## 好友排行榜
 
 小游戏的排行榜不是一个「拉回来的列表」。玩家的好友数据**只能在开放数据域里读**

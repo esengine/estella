@@ -114,6 +114,7 @@ export {
     platformShare,
     platformCanShare,
     platformOnShareRequest,
+    platformScreenRecorder,
     platformCanPay,
     platformRequestPayment,
     // The open data domain: the runtime holding the player's friends, the canvas
@@ -126,7 +127,10 @@ export {
     platformCreateCanvas,
     platformDevicePixelRatio,
 } from './platform';
-export type { PlatformShareOptions, PlatformPaymentRequest } from './platform/types';
+export type {
+    PlatformShareOptions, PlatformPaymentRequest,
+    PlatformScreenRecorder, PlatformRecording, PlatformRecordingShareOptions,
+} from './platform/types';
 
 export {
     getPlatform,

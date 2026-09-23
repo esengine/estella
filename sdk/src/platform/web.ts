@@ -18,6 +18,7 @@ import type {
     PlatformSocket,
     PlatformSocketOptions,
     PlatformTextEditor,
+    PlatformScreenRecorder,
 } from './types';
 import { createWebTextEditor } from './webTextEditor';
 import { WebAudioBackend } from '../audio/WebAudioBackend';
@@ -26,6 +27,7 @@ import { WebVideoBackend } from '../video/WebVideoBackend';
 import type { PlatformVideoBackend } from '../video/PlatformVideoBackend';
 import { GameSocket } from '../net/GameSocket';
 import { createPrimaryPointer } from './primaryPointer';
+import { createWebRecorder } from './webRecorder';
 
 const WHEEL_LINE_HEIGHT = 16;
 
@@ -36,6 +38,13 @@ const WHEEL_LINE_HEIGHT = 16;
 class WebPlatformAdapter implements PlatformAdapter {
     readonly name = 'web' as const;
     private inputCleanup_: (() => void) | null = null;
+    private recorder_: PlatformScreenRecorder | null | undefined;
+
+    /** Resolved on first ask: the canvas exists by the time a game records. */
+    screenRecorder(): PlatformScreenRecorder | null {
+        if (this.recorder_ === undefined) this.recorder_ = createWebRecorder();
+        return this.recorder_;
+    }
 
     hasTouch(): boolean {
         return typeof navigator !== 'undefined'

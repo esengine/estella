@@ -335,6 +335,13 @@ export function platformOnShareRequest(provide: () => import('./types').Platform
     return true;
 }
 
+/** The host's screen recorder, or null where there is none — which a game reads
+ *  to hide its record button rather than to show one that fails. */
+export function platformScreenRecorder(): import('./types').PlatformScreenRecorder | null {
+    if (!isPlatformInitialized()) return null;
+    return getPlatform().screenRecorder?.() ?? null;
+}
+
 /** Whether this platform can sign a player in at all — what a menu reads to
  *  hide its sign-in button honestly (web, native and the editor cannot). */
 export function platformCanSignIn(): boolean {

@@ -28,6 +28,7 @@ import type {
     PlatformInterstitialAd,
     PlatformShareOptions,
     PlatformPaymentRequest,
+    PlatformScreenRecorder,
 } from '../types';
 import type { PlatformAudioBackend } from '../../audio/PlatformAudioBackend';
 import type { PlatformVideoBackend, VideoBackendContext } from '../../video/PlatformVideoBackend';
@@ -43,6 +44,7 @@ import { mgFetch } from './fetch';
 import { MiniGameAudioBackend } from '../../audio/MiniGameAudioBackend';
 import { MiniGameSocket } from '../../net/MiniGameSocket';
 import { WasmVideoBackend } from '../../video/WasmVideoBackend';
+import { createMiniGameRecorder } from './recorder';
 
 export class MiniGamePlatformAdapter implements PlatformAdapter {
     readonly name: PlatformAdapter['name'];
@@ -55,6 +57,7 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
     private inputCleanup_: (() => void) | null = null;
     private openDataCtx_: MiniGameOpenDataContext | null = null;
     private openDataResolved_ = false;
+    private recorder_: PlatformScreenRecorder | null | undefined;
 
     constructor(profile: MiniGameProfile) {
         this.profile_ = profile;
@@ -195,6 +198,12 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
     /** Register the passive-share card provider (the host's own share menu). */
     onShareRequest(provide: () => PlatformShareOptions): void {
         this.g_.onShareAppMessage?.call(this.g_, provide);
+    }
+
+    /** The host hands out one recorder, so this does too. */
+    screenRecorder(): PlatformScreenRecorder | null {
+        if (this.recorder_ === undefined) this.recorder_ = createMiniGameRecorder(this.g_);
+        return this.recorder_;
     }
 
     /** This one class serves every vendor, so it defines `login` regardless —

@@ -155,6 +155,44 @@ export interface MiniGameInterstitialAd {
     offClose(cb: () => void): void;
 }
 
+/** WeChat's GameRecorder. Control calls return promises; outcomes arrive as
+ *  events — `stop` carries `{ duration }` in ms and no file, because WeChat
+ *  keeps the video. */
+export interface MiniGameWxRecorder {
+    start(opts: { duration?: number }): void;
+    pause(): Promise<unknown>;
+    resume(): Promise<unknown>;
+    stop(): Promise<unknown>;
+    abort(): Promise<unknown>;
+    isFrameSupported?(): boolean;
+    on(event: 'start' | 'stop' | 'pause' | 'resume' | 'abort' | 'error', cb: (res?: unknown) => void): void;
+    off(event: 'start' | 'stop' | 'pause' | 'resume' | 'abort' | 'error', cb: (res?: unknown) => void): void;
+}
+
+/** Douyin's GameRecorderManager. Calls are synchronous; each outcome has its own
+ *  listener, and `onStop` hands over the temp file. */
+export interface MiniGameTtRecorder {
+    start(opts: { duration?: number }): void;
+    pause(): void;
+    resume(): void;
+    stop(): void;
+    recordClip(opts: {
+        timeRange: [number, number];
+        success?: (res: { index: number }) => void;
+        fail?: (err: { errMsg?: string }) => void;
+    }): void;
+    clipVideo(opts: {
+        path: string;
+        success?: (res: { videoPath: string }) => void;
+        fail?: (err: { errMsg?: string }) => void;
+    }): void;
+    onStart(cb: () => void): void;
+    onPause(cb: () => void): void;
+    onResume(cb: () => void): void;
+    onStop(cb: (res: { videoPath: string }) => void): void;
+    onError(cb: (res: { errMsg?: string }) => void): void;
+}
+
 /** The share card a host shows for an active or passive share. */
 export interface MiniGameShareOptions {
     title?: string;
@@ -265,10 +303,30 @@ export interface MiniGameGlobal {
      *  (or a game may not have configured): the adapter probes at use time. */
     createRewardedVideoAd?(opts: { adUnitId: string }): MiniGameRewardedVideoAd;
     createInterstitialAd?(opts: { adUnitId: string }): MiniGameInterstitialAd;
-    shareAppMessage?(opts: MiniGameShareOptions): void;
+    shareAppMessage?(opts: MiniGameShareOptions & {
+        channel?: 'video';
+        desc?: string;
+        extra?: { videoPath: string };
+        success?: () => void;
+        fail?: (err: { errMsg?: string }) => void;
+    }): void;
     /** Passive share: what the card says when the player shares from the host's
      *  own menu. The host calls `cb` at share time, not at registration. */
     onShareAppMessage?(cb: () => MiniGameShareOptions): void;
+
+    /** WeChat's recorder (base 2.8.0), a singleton. Kuaishou copies the shape. */
+    getGameRecorder?(): MiniGameWxRecorder;
+    /** Shares WeChat's last recording; must run inside a tap (base 2.26.1). */
+    operateGameRecorderVideo?(opts: {
+        title?: string;
+        desc?: string;
+        query?: string;
+        timeRange?: number[][];
+        success?: () => void;
+        fail?: (err: { errMsg?: string; errCode?: number }) => void;
+    }): void;
+    /** Douyin's recorder (base 1.6.1), a singleton. */
+    getGameRecorderManager?(): MiniGameTtRecorder;
 
     /** Begin a sign-in. The result is a one-time code the game's own server
      *  exchanges — see the note on `PlatformAdapter.login`. */
