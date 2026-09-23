@@ -15,7 +15,11 @@
  * `--accent` and `--bg`, neither of which exists, so a plugin written to the
  * manual drew a black circle on a dark viewport.
  *
- * A `var()` WITH a fallback is not counted: it has an answer either way.
+ * A `var()` WITH a fallback is not counted in a plugin or the docs, which may run
+ * against an editor older than the name. In the editor it is: every name the
+ * editor has is defined in the editor, so a fallback there is always what draws
+ * — `--danger` never existed, and three delete buttons drew two different
+ * literals instead of `--error`.
  *
  *   node tools/check-css-vars.mjs
  */
@@ -74,10 +78,12 @@ for (const { dir, ext } of USES) {
     const text = uncomment(readFileSync(file, 'utf8'));
     for (const m of text.matchAll(/var\(\s*(--[A-Za-z0-9_-]+)\s*([,)])/g)) {
       uses += 1;
-      if (m[2] === ',' || defined.has(m[1])) continue;
+      if (defined.has(m[1])) continue;
+      const fallback = m[2] === ',';
+      if (fallback && !rel.startsWith('desktop/src/')) continue;
       const line = text.slice(0, m.index).split('\n').length;
       problems.push(`${rel}:${line}: ${m[1]} is used and nothing defines it — `
-        + 'the declaration resolves to nothing and draws nothing');
+        + (fallback ? 'only its fallback ever draws, a value off the palette' : 'the declaration resolves to nothing and draws nothing'));
     }
   }
 }
