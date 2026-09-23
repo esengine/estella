@@ -461,6 +461,39 @@ const colourCode = colourLiteralInCodeByFile();
 const fontSizes = rawFontSizeByFile();
 const icons = iconScale();
 const handRolled = handRolledByFile();
+/**
+ * `<Button>` and `<IconButton>` forward only the props they declare, and
+ * TypeScript does not check a hyphenated JSX name, so an `aria-*` or `data-*`
+ * written on one is dropped without a word — a disclosure that never says it is
+ * open. Their own props (`expanded`, `popup`, `ariaLabel`, `title`) carry these.
+ */
+/** The opening tag at `at`, read to its own `>`: an attribute's `() => x` does not end it. */
+const openingTag = (text, at) => {
+  let depth = 0;
+  for (let i = at + 1; i < text.length; i++) {
+    const c = text[i];
+    if (c === '{') depth += 1;
+    else if (c === '}') depth -= 1;
+    else if (c === '>' && depth === 0) return text.slice(at, i + 1);
+  }
+  return text.slice(at);
+};
+
+const droppedAttributes = () => {
+  const out = [];
+  for (const file of everyFile(SRC_DIR)) {
+    if (!file.endsWith('.tsx')) continue;
+    const text = readFileSync(file, 'utf8');
+    for (const m of text.matchAll(/<(Button|IconButton)\b/g)) {
+      const names = [...openingTag(text, m.index).matchAll(/(?<![\w-])((?:aria|data)-[a-z-]+)=/g)].map((a) => a[1]);
+      if (names.length === 0) continue;
+      const line = text.slice(0, m.index).split('\n').length;
+      out.push(`desktop/src/${path.relative(SRC_DIR, file).replaceAll(path.sep, '/')}:${line}: <${m[1]}> drops ${names.join(', ')} — use its own prop`);
+    }
+  }
+  return out;
+};
+for (const finding of droppedAttributes()) problems.push(finding);
 for (const site of nativeTitles()) {
   problems.push(`${site}: title= is the operating system's tooltip — use data-tip, `
     + 'and aria-label where it was the control\'s only name');
