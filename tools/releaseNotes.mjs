@@ -744,6 +744,10 @@ export const NOTED = {
     { internal: 'Editor chrome: node-graph toolbar and side buttons take the shared components; no behaviour changes.' },
   'chore(gates): bank the node-graph button migration':
     { internal: 'A repository ratchet baseline; no source changed.' },
+  'refactor(theme): the play colour means the game is running, and nothing else':
+    { internal: 'Editor colours: success states take --ok and the Y axis its own colour; no behaviour changes.' },
+  'feat(gates): the play overlay may draw the axis colours':
+    { internal: 'A repository gate; no source changed.' },
   'refactor(inspector): effect-order, gradient-stop and component-options buttons are IconButton':
     { internal: 'Editor chrome: Inspector buttons take the shared component at the same sizes; no behaviour changes.' },
   'chore(gates): bank the inspector button migration':
