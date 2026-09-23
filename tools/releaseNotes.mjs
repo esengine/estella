@@ -744,6 +744,10 @@ export const NOTED = {
     { internal: 'Editor chrome: node-graph toolbar and side buttons take the shared components; no behaviour changes.' },
   'chore(gates): bank the node-graph button migration':
     { internal: 'A repository ratchet baseline; no source changed.' },
+  'refactor(ui): the agent drawer\'s, code block\'s and asset field\'s icon buttons are IconButton':
+    { internal: 'Editor chrome: icon buttons take the shared component; the agent history toggle shows open in the accent fill.' },
+  'feat(gates): an icon-only button is an IconButton, or says why not':
+    { internal: 'A repository gate and its baseline; no source changed.' },
   'refactor(theme): every colour the editor draws comes from the palette':
     { internal: 'Editor colours move onto tokens; on the default layout no pixel moves by more than 24.' },
   'feat(gates): colour literals are counted as colours, and bank zero':
