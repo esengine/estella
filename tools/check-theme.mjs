@@ -18,7 +18,7 @@
  *
  * Six are RATCHETS, because each is hundreds of declarations deep and a gate
  * that reddens on all of them gets switched off. Banked, may fall, never rise:
- * spacing off the 4px grid; colour literals where a token belongs; raw
+ * spacing off the grid `--u` declares; colour literals where a token belongs; raw
  * font-size; how many distinct icon sizes and stroke widths exist at all — 14
  * and 16 today, including 1.8 / 1.85 / 1.9, which no one can tell apart; and
  * hand-rolled `<button>` and native `title=` where the editor has a component.
@@ -188,7 +188,7 @@ for (const file of everyFile(SRC_DIR)) {
 }
 
 /**
- * Spacing that is not on the 4px grid, per file. A count rather than a line, so
+ * Spacing that is not on the grid, per file. A count rather than a line, so
  * inserting a rule does not churn the baseline; per file, so a fix in one place
  * cannot be spent on a regression in another.
  */
