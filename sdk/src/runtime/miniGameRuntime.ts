@@ -189,14 +189,19 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
     const module = await instantiateModule(config.engineFactory, config.engineWasmPath, tag, { canvas });
     progress.reach('engine');
 
-    const gl = (canvas.getContext('webgl2') || canvas.getContext('webgl')) as WebGLRenderingContext | null;
+    const gl = canvas.getContext('webgl2') as WebGLRenderingContext | null;
     if (!gl) {
-        log.error(tag, 'Failed to create WebGL context');
+        // The renderer is GLSL ES 3.0 throughout, so a WebGL1 context would boot
+        // to shader failures and a black screen; this says why instead.
+        const offersWebGL1 = canvas.getContext('webgl') !== null;
+        log.error(tag, offersWebGL1
+            ? 'This host offers only WebGL1, and the engine renders on WebGL2 — the game cannot start here'
+            : 'Failed to create a WebGL2 context');
         return;
     }
 
     const glHandle = module.GL.registerContext(gl, {
-        majorVersion: String(gl.getParameter(gl.VERSION)).indexOf('WebGL 2') === 0 ? 2 : 1,
+        majorVersion: 2,
         minorVersion: 0,
         enableExtensionsByDefault: true,
     });
