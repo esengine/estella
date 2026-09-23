@@ -740,6 +740,10 @@ export const NOTED = {
     { internal: 'Two icon stroke widths that render within 1.7% of each other become one; a whole-frame diff moves 131 pixels of 1.29M.' },
   'chore(gates): bank the stroke-width collapse':
     { internal: 'A repository ratchet baseline; no source changed.' },
+  'refactor(icons): 15 and 17px icons are 16px, 19px are 18px':
+    { internal: 'Editor icons move one pixel onto sizes that render crisper at 2x.' },
+  'chore(gates): bank the 16px and 18px icon collapse':
+    { internal: 'A repository ratchet baseline; no source changed.' },
   'refactor(icons): 11px and 13px icons are 12px':
     { internal: 'Editor icons move one pixel onto the size that renders crisp at 2x.' },
   'chore(gates): bank the 12px icon collapse':
