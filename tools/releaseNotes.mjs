@@ -740,6 +740,10 @@ export const NOTED = {
     { internal: 'Two icon stroke widths that render within 1.7% of each other become one; a whole-frame diff moves 131 pixels of 1.29M.' },
   'chore(gates): bank the stroke-width collapse':
     { internal: 'A repository ratchet baseline; no source changed.' },
+  'refactor(theme): 7px and 9px spacings are 6px and 8px':
+    { internal: 'One-pixel tightening of editor chrome; measured on screen, no row height changes.' },
+  'chore(gates): bank the 7px and 9px spacing steps':
+    { internal: 'A repository ratchet baseline; no source changed.' },
   'refactor(theme): a 5px spacing is 4px':
     { internal: 'One-pixel tightening of editor chrome; measured on screen, no row height changes.' },
   'fix(gates): a fractional offset is not a spacing step':
