@@ -384,6 +384,15 @@ const nativeTitles = () => {
   return out;
 };
 
+/** The shared controls themselves: the one `<button>` each renders is the component. */
+const PRIMITIVES = new Set([
+  'components/Button.tsx', 'components/IconButton.tsx', 'components/Menu.tsx',
+  'components/Select.tsx', 'components/Segmented.tsx',
+]);
+
+/** A button that declares itself an item of a list, tab strip or menu is not an action button. */
+const ITEM_ROLE = /\brole=(?:"|\{?['"`])(?:option|tab|menuitem|menuitemcheckbox|menuitemradio|radio)\b/;
+
 /**
  * Buttons the editor hand-rolled rather than took from `<Button>`/`<IconButton>`.
  * A ratchet, not a rule: a raw `<button>` in a tile cell is right.
@@ -397,7 +406,8 @@ const handRolledByFile = () => {
       if (!/\.tsx$/.test(e.name)) continue;
       const text = readFileSync(full, 'utf8');
       const rel = path.relative(path.join(ROOT, 'desktop', 'src'), full).replaceAll(path.sep, '/');
-      const n = [...text.matchAll(/<button\b/g)].length;
+      if (PRIMITIVES.has(rel)) continue;
+      const n = [...text.matchAll(/<button\b([^<]*?)\/?>/gs)].filter((m) => !ITEM_ROLE.test(m[1])).length;
       if (n > 0) out[rel] = n;
     }
   };
