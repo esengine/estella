@@ -273,12 +273,24 @@ const offGridByFile = () => {
 
 /** Colour written where a token belongs. tokens.css is the one place they are
  *  DEFINED, so it is the one file exempt. */
+/**
+ * Colours that are what a control SHOWS rather than a choice from the palette,
+ * by file then selector, each with the reason. `rgba(var(--x), a)` reads a token
+ * and is not counted; neither is a colour inside a comment.
+ */
+const THEME_NOT_THE_PALETTE = {
+  'inspector.css': { '.cp-hue': 'the hue slider draws the spectrum itself' },
+};
+
 const colourLiteralsByFile = () => {
   const out = {};
   for (const f of readdirSync(THEME_DIR).filter((n) => n.endsWith('.css') && n !== 'tokens.css')) {
-    const text = readFileSync(path.join(THEME_DIR, f), 'utf8');
-    const n = (text.match(/#[0-9a-fA-F]{3,8}\b/g)?.length ?? 0)
-      + (text.match(/\brgba?\(/g)?.length ?? 0);
+    const text = uncomment(readFileSync(path.join(THEME_DIR, f), 'utf8'));
+    const exempt = THEME_NOT_THE_PALETTE[f] ?? {};
+    let n = 0;
+    for (const m of text.matchAll(/#[0-9a-fA-F]{3,8}\b|\brgba?\((?!\s*var\()/g)) {
+      if (!(selectorAt(text, m.index) in exempt)) n += 1;
+    }
     if (n > 0) out[f] = n;
   }
   return out;
@@ -422,6 +434,14 @@ const handRolledByFile = () => {
  * can reach is not one anybody aims at.
  */
 const NOT_THE_PALETTE = {
+  'settings/editorSettings.ts':
+    "the accent setting's default and the swatches it offers are values a person picks from; "
+    + 'tests/theme-tokens.test.ts holds the default to --star',
+  'tileset/TilesetCommands.ts': "default colours written into a new Wang set's data, which the tileset then owns",
+  'tools/tileMath.ts': "default colours written into a new terrain's data, which the tileset then owns",
+  'components/SettingsRow.tsx': "'#00000000' is a colour input's empty value, not a colour anything is drawn in",
+  'panels/ProfilerPanel.tsx':
+    'NO_TOKEN is off the palette on purpose: a var() that names nothing paints a grey someone notices',
   'components/LoadingScreen.tsx':
     'the Estella mark itself (see favicon.svg). Its blue and --star came from the same place,'
     + ' but a logo that moves when the accent moves is not a logo',
@@ -445,9 +465,14 @@ const colourLiteralInCodeByFile = () => {
       if (!/\.tsx?$/.test(e.name) || e.name.includes('.generated.')) continue;
       const rel = path.relative(path.join(ROOT, 'desktop', 'src'), full).replaceAll(path.sep, '/');
       if (rel in NOT_THE_PALETTE) continue;
-      const text = readFileSync(full, 'utf8');
+      // Comments out (an issue number is not a colour), then `rgb(var(…))` and
+      // `rgb(${…})` left alone: the first reads a token, the second writes a value
+      // that came from data.
+      const text = readFileSync(full, 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/(^|[^:'"`\w])\/\/.*$/gm, '$1');
       const n = (text.match(/#[0-9a-fA-F]{3,8}\b/g)?.length ?? 0)
-        + (text.match(/\brgba?\(/g)?.length ?? 0);
+        + (text.match(/\brgba?\((?!\s*var\()(?!\$\{)/g)?.length ?? 0);
       if (n > 0) out[rel] = n;
     }
   };
