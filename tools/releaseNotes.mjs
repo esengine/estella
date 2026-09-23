@@ -744,6 +744,10 @@ export const NOTED = {
     { internal: 'Editor chrome: node-graph toolbar and side buttons take the shared components; no behaviour changes.' },
   'chore(gates): bank the node-graph button migration':
     { internal: 'A repository ratchet baseline; no source changed.' },
+  'refactor(log): the category filter is a ContextMenu':
+    { internal: 'The Output Log filter moves onto the shared menu; it gains keyboard navigation and item roles, same entries.' },
+  'chore(gates): bank the log category menu':
+    { internal: 'A repository ratchet baseline; no source changed.' },
   'feat(ui): the editor draws its own tips':
     { note: "The editor's tooltips are its own." },
   'feat(gates): a tip is data-tip, never the operating system\'s title':
