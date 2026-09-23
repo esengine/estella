@@ -71,15 +71,7 @@
     "tileset/TilesetCommands.ts": 8,
     "tools/tileMath.ts": 6
   },
-  "rawFontSize": {
-    "app.css": 7,
-    "controls.css": 1,
-    "launcher.css": 1,
-    "profiler.css": 1,
-    "sequencer.css": 1,
-    "tileset.css": 1,
-    "viewport.css": 1
-  },
+  "rawFontSize": {},
   "iconScale": {
     "sizes": [
       "8",

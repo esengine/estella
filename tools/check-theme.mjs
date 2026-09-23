@@ -235,11 +235,45 @@ const colourLiteralsByFile = () => {
   return out;
 };
 
+/**
+ * Glyphs that are drawn as ICONS, each with the reason. Their size is set by the
+ * shape they sit in, not by the reading ramp, so a step of the type scale would
+ * be a wrong answer rather than a tidier one. Keyed by file, then selector.
+ */
+const NOT_TYPE = {
+  'launcher.css': {
+    '.proj-card__glyph': 'a project\'s initial standing in for its thumbnail, sized to the card',
+  },
+  'viewport.css': {
+    '.vp-axes .va-end text': 'an axis letter inside its 84px gizmo knob, sized to the circle',
+  },
+  'tileset.css': {
+    '.ts-acell.has-anim::after': 'the ▶ badge in a tile cell\'s corner, sized to the cell',
+  },
+  'controls.css': {
+    '.dirty-dot': 'the ● unsaved marker, relative so it follows whatever title it sits in',
+  },
+};
+
 /** A font-size given as a number rather than a step of the type scale. */
 const rawFontSizeByFile = () => {
   const out = {};
   for (const f of readdirSync(THEME_DIR).filter((n) => n.endsWith('.css') && n !== 'tokens.css')) {
-    const n = readFileSync(path.join(THEME_DIR, f), 'utf8').match(/font-size:\s*\d/g)?.length ?? 0;
+    const text = uncomment(readFileSync(path.join(THEME_DIR, f), 'utf8'));
+    const exempt = NOT_TYPE[f] ?? {};
+    const seen = new Set();
+    let n = 0;
+    for (const m of text.matchAll(/font-size:\s*\d/g)) {
+      const selector = selectorAt(text, m.index);
+      if (selector in exempt) seen.add(selector);
+      else n += 1;
+    }
+    for (const selector of Object.keys(exempt)) {
+      if (!seen.has(selector)) {
+        problems.push(`desktop/src/theme/${f}: ${selector} is declared an icon glyph but sets no raw `
+          + 'font-size any more — drop it from NOT_TYPE');
+      }
+    }
     if (n > 0) out[f] = n;
   }
   return out;
@@ -432,7 +466,8 @@ console.log(
   + `${Object.values(colours).reduce((a, b) => a + b, 0)} colour literal(s) in theme `
   + `and ${Object.values(colourCode).reduce((a, b) => a + b, 0)} in code `
   + `(${Object.keys(NOT_THE_PALETTE).length} file(s) declared not the palette's), `
-  + `${Object.values(fontSizes).reduce((a, b) => a + b, 0)} raw font-size(s), `
+  + `${Object.values(fontSizes).reduce((a, b) => a + b, 0)} raw font-size(s) `
+  + `(${Object.values(NOT_TYPE).reduce((a, o) => a + Object.keys(o).length, 0)} declared icon glyph(s)), `
   + `${icons.sizes.length} icon size(s) / ${icons.strokes.length} stroke width(s), `
   + `${Object.values(handRolled).reduce((a, b) => a + b, 0)} hand-rolled control(s).`,
 );
