@@ -212,7 +212,9 @@ const offGridByFile = () => {
     const text = readFileSync(path.join(THEME_DIR, f), 'utf8');
     let n = 0;
     for (const m of text.matchAll(/(?:gap|padding|margin)[a-z-]*:\s*([^;}]+)/g)) {
-      for (const px of m[1].matchAll(/(\d+)px/g)) {
+      // A fractional value is centring arithmetic (-4.5px on a 9px dot), not a
+      // spacing step, and read as `5px` it was counted as one.
+      for (const px of m[1].matchAll(/(?<![\d.])(\d+)px/g)) {
         const v = Number(px[1]);
         if (v !== 0 && v % GRID !== 0) n++;
       }
