@@ -5135,6 +5135,7 @@ hostLabel: string
 id: MiniGameVendor
 instantiateWasm: ((pathOrBuffer: string | ArrayBuffer, imports: WebAssembly.Imports) => Promise<WasmInstantiateResult>) | undefined
 pay: { can(): boolean; request(request: PlatformPaymentRequest): Promise<void>; } | undefined
+recordingLimits: { readonly minSeconds: number; readonly maxSeconds: number; } | undefined
 ```
 
 ## MiniGameRequestOptions — interface @experimental
@@ -5226,7 +5227,7 @@ changedTouches: MiniGameTouch[]
 
 ## MiniGameVendor — type @experimental
 ```
-'wechat' | 'douyin' | (string & {})
+'wechat' | 'douyin' | 'kuaishou' | (string & {})
 ```
 
 ## MissingAssetCallback — type @experimental

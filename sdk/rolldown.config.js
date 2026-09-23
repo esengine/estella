@@ -102,6 +102,7 @@ export default defineConfig([
             'gameplay/index': 'src/gameplay/index.ts',
             'dragonbones/index': 'src/dragonbones/index.ts',
             'douyin/index': 'src/platform/douyin/index.ts',
+            'kuaishou/index': 'src/platform/kuaishou/index.ts',
             'wasm': 'src/wasm.ts',
         },
         // Only the node entry reaches these; a browser entry that did would fail

@@ -978,6 +978,12 @@ export const NOTED = {
     { note: '`tsc` and an outside editor type-check the official packages too.' },
   'feat(tooling): the examples type-check the official packages the way a project does':
     { note: '`tsc` and an outside editor type-check the official packages too.' },
+  'feat(export): a project can be packaged for Kuaishou':
+    { note: 'A project can be packaged for Kuaishou (快手).' },
+  'feat(editor): Kuaishou is a build target':
+    { note: 'A project can be packaged for Kuaishou (快手).' },
+  'fix(runtime): a mini-game host with only WebGL1 is told the game cannot start':
+    { note: 'A mini-game host that offers only WebGL1 is told the game cannot start there' },
   'fix(agent): the history toggle presses grey again, not the accent':
     { note: "The agent drawer's History button shows it is open with a grey press again, not the accent colour 0.71 gave it." },
 };

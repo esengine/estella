@@ -22,7 +22,7 @@ import type { SizeBudget } from '../project/sizeBudget';
  * ship can still be exported by handing {@link exportMiniGame} a profile.
  * Mirrors the SDK's `MiniGameVendor` (sdk/src/platform/minigame/api.ts).
  */
-export type MiniGameVendor = 'wechat' | 'douyin' | (string & {});
+export type MiniGameVendor = 'wechat' | 'douyin' | 'kuaishou' | (string & {});
 
 /** Vendor-neutral facts the pipeline computes, handed to the config emitter. */
 export interface MiniGameConfigContext {
@@ -390,6 +390,50 @@ export const douyinExportProfile: MiniGameExportProfile = {
             { file: 'game.json', content: JSON.stringify(gameCfg, null, 2) + '\n' },
             { file: 'project.config.json', content: JSON.stringify(projectCfg, null, 2) + '\n' },
         ];
+    },
+
+    emitEntry: defaultMiniGameEntry,
+};
+
+// =============================================================================
+// Kuaishou profile
+// =============================================================================
+
+/**
+ * Kuaishou (快手), from open.kuaishou.com/miniGameDocs: `game.js` + `game.json`
+ * and nothing else (the appid is entered in the developer tool), and `game.json`
+ * spells `subpackages` lower-case. The host has no open data context.
+ */
+export const kuaishouExportProfile: MiniGameExportProfile = {
+    id: 'kuaishou',
+    sdkEntryFile: 'index.minigame.js',
+    runtimeInit: 'initMiniGameRuntime',
+    runtimeProfileHost: 'kuaishouPlatformProfile',
+    engineGlueCandidates: MINIGAME_ENGINE_GLUE,
+    // WeChat's floor, unconfirmed here: down-levelling costs nothing and a syntax
+    // error on a phone costs a release.
+    esTarget: 'es2017',
+    wasmBuildHint: MINIGAME_ENGINE_BUILD,
+    hostGlobal: 'ks',
+    sideModuleBuildTargets: {},
+    // Assumed to match WeChat and Douyin, not read from a Kuaishou doc; a wrong
+    // guess is a staged file the runtime cannot read, on a device.
+    nativeSuffixes: new Set(['.js', '.json']),
+    // No published upload whitelist, so nothing is restaged — see Douyin's note.
+    packerSuffixes: null,
+    // The docs show `.wasm.br` only as the Unity converter's output; not claimed
+    // for an engine that loads its own binary.
+    wasmBrotli: false,
+    subpackageDir: 'subpackages',
+    // 「ks.loadSubpackage … 会自动 require 分包目录下的 game.js」
+    subpackageEntry: 'game.js',
+
+    emitConfigFiles(ctx) {
+        const gameCfg: Record<string, unknown> = { deviceOrientation: ctx.orientation };
+        if (ctx.subPackages.length > 0) {
+            gameCfg.subpackages = ctx.subPackages.map((s) => ({ name: s.name, root: s.root }));
+        }
+        return [{ file: 'game.json', content: JSON.stringify(gameCfg, null, 2) + '\n' }];
     },
 
     emitEntry: defaultMiniGameEntry,

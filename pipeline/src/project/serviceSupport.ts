@@ -146,6 +146,35 @@ const DOUYIN_SERVICES: readonly ServiceStatus[] = [
     { service: 'achievements', support: 'no', note: ACHIEVEMENTS_LOCAL_ONLY },
 ];
 
+/** From open.kuaishou.com/miniGameDocs; nothing here has run on a device yet. */
+const KUAISHOU_SERVICES: readonly ServiceStatus[] = [
+    {
+        service: 'ads',
+        support: 'unknown',
+        note: 'The engine forwards to ks.createRewardedVideoAd / ks.createInterstitialAd, which Kuaishou documents'
+            + ' (onClose carries isEnded, as WeChat\'s does); unverified on a device.',
+    },
+    {
+        service: 'share',
+        support: 'unknown',
+        note: 'ks.shareAppMessage is documented as an active share only, keyed by a templateId from the console;'
+            + ' there is no passive share menu to answer, so setShareCard reaches nothing here.',
+    },
+    {
+        service: 'signIn',
+        support: 'unknown',
+        note: 'The engine forwards to ks.login, which yields a code your server exchanges; unverified on a device.',
+    },
+    {
+        service: 'purchase',
+        support: 'no',
+        note: 'Kuaishou sells through ks.requestGamePayment, whose order is signed by the game\'s server'
+            + ' (sign, goods_name, third_party_trade_no) and needs an ISBN to enable — a shape the engine\'s'
+            + ' purchase request does not carry, so the profile leaves the slot empty.',
+    },
+    { service: 'achievements', support: 'no', note: ACHIEVEMENTS_LOCAL_ONLY },
+];
+
 const DESKTOP_SERVICES: readonly ServiceStatus[] = noHostServices().map((s) => (
     s.service === 'achievements'
         ? {
@@ -167,6 +196,7 @@ const DESKTOP_SERVICES: readonly ServiceStatus[] = noHostServices().map((s) => (
 export function builtinServiceSupport(platform: ExportPlatform): readonly ServiceStatus[] {
     if (platform === 'wechat') return WECHAT_SERVICES;
     if (platform === 'douyin') return DOUYIN_SERVICES;
+    if (platform === 'kuaishou') return KUAISHOU_SERVICES;
     if (platform === 'desktop') return DESKTOP_SERVICES;
     if (platform === 'web' || platform === 'playable' || platform === 'android' || platform === 'ios') {
         return noHostServices();

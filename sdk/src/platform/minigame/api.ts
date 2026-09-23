@@ -165,6 +165,8 @@ export interface MiniGameWxRecorder {
     stop(): Promise<unknown>;
     abort(): Promise<unknown>;
     isFrameSupported?(): boolean;
+    /** Kuaishou's share for the last recording; the callback gets an error only on failure. */
+    publishVideo?(opts: { query?: string; callback?: (error?: unknown) => void }): void;
     on(event: 'start' | 'stop' | 'pause' | 'resume' | 'abort' | 'error', cb: (res?: unknown) => void): void;
     off(event: 'start' | 'stop' | 'pause' | 'resume' | 'abort' | 'error', cb: (res?: unknown) => void): void;
 }
@@ -383,7 +385,7 @@ export interface MiniGameGlobal {
  * never heard of and get the whole family for it. Nothing in the SDK branches on
  * this value — it is identity (adapter name, diagnostics, logs), not behavior.
  */
-export type MiniGameVendor = 'wechat' | 'douyin' | (string & {});
+export type MiniGameVendor = 'wechat' | 'douyin' | 'kuaishou' | (string & {});
 
 /**
  * A vendor described as DATA — three facts and, at most, one method.
@@ -428,4 +430,8 @@ export interface MiniGameProfile {
         can(): boolean;
         request(request: PlatformPaymentRequest): Promise<void>;
     };
+
+    /** The recording length this vendor accepts, when its recorder's shape is
+     *  another vendor's but its limits are not. */
+    recordingLimits?: { readonly minSeconds: number; readonly maxSeconds: number };
 }

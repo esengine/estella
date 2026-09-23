@@ -11,7 +11,8 @@
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { createMiniGameRecorder, createTtRecorder, createWxRecorder, wxTimeRange } from '../src/platform/minigame/recorder';
-import type { MiniGameGlobal } from '../src/platform/minigame/api';
+import type { MiniGameGlobal, MiniGameProfile } from '../src/platform/minigame/api';
+import { MiniGamePlatformAdapter } from '../src/platform/minigame/adapter';
 
 type Listener = (res?: unknown) => void;
 
@@ -149,6 +150,43 @@ describe('WeChat', () => {
 
     it('says it cannot share where the host has no share call', () => {
         expect(createWxRecorder(fakeWx({ share: false }).g)!.canShare).toBe(false);
+    });
+});
+
+describe('Kuaishou, which is WeChat-shaped and publishes its own way', () => {
+    const ksHost = (fail?: unknown) => {
+        const host = fakeWx({ share: false });
+        const published: unknown[] = [];
+        const rec = (host.g as unknown as { getGameRecorder(): Record<string, unknown> }).getGameRecorder();
+        rec.publishVideo = (o: { query?: string; callback?: (e?: unknown) => void }) => {
+            published.push(o.query);
+            o.callback?.(fail);
+        };
+        return { ...host, published };
+    };
+
+    it('shares through publishVideo, carrying the query', async () => {
+        const host = ksHost();
+        const r = createWxRecorder(host.g)!;
+        expect(r.canShare).toBe(true);
+        await r.share({ durationMs: 8000, highlights: [[0, 3000]] }, { query: 'from=clip', title: 'ignored here' });
+        expect(host.published).toEqual(['from=clip']);
+    });
+
+    it('carries the host refusal', async () => {
+        const r = createWxRecorder(ksHost({ errMsg: 'publishVideo:fail too short' }).g)!;
+        await expect(r.share({ durationMs: 1000, highlights: [] }, {})).rejects.toThrow('too short');
+    });
+
+    it('asks for a length inside the limits the profile declares', async () => {
+        const host = ksHost();
+        const adapter = new MiniGamePlatformAdapter({
+            id: 'kuaishou', hostLabel: '快手', global: host.g, recordingLimits: { minSeconds: 3, maxSeconds: 300 },
+        } as MiniGameProfile);
+        const r = adapter.screenRecorder()!;
+        expect(r.limits).toEqual({ minSeconds: 3, maxSeconds: 300 });
+        await r.start(1, () => {});
+        expect(host.calls.start).toEqual([{ duration: 3 }]);
     });
 });
 

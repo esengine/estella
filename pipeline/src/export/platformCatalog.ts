@@ -120,6 +120,7 @@ function builtinReadiness(
 
     case 'wechat':
     case 'douyin':
+    case 'kuaishou':
       // One probe for the family: they run the same engine build, so a machine
       // ready for one is ready for the other — and answering otherwise offers a
       // build command that produces a file the target already has.

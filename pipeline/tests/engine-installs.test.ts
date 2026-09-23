@@ -10,7 +10,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { engineInstalls, forcedSideModules, moduleChoices, moduleForAsset } from '../src/bundle/engineInstalls';
-import { ENGINE_MODULES, ESENGINE_SUBPATHS } from '../src/bundle/engineSubpaths';
+import { ENGINE_MODULES, ESENGINE_SUBPATHS, NOT_A_MODULE } from '../src/bundle/engineSubpaths';
 import { SUBSYSTEM_COMPONENTS, SUBSYSTEM_INSTALL, type Subsystem } from '../src/project/targetSupport';
 
 describe('the engine modules a package installs', () => {
@@ -67,7 +67,7 @@ describe('the engine modules a package installs', () => {
 describe('every subpath the SDK publishes', () => {
     /** Not subsystems: the engine module every target loads, and a platform
      *  adapter an entry picks rather than content asking for it. */
-    const NOT_A_SUBSYSTEM = new Set(['esengine/wasm', 'esengine/douyin']);
+    const NOT_A_SUBSYSTEM = NOT_A_MODULE;
 
     it('is named by something a project can be evidence of', () => {
         const installable = new Set<string>();

@@ -23,6 +23,7 @@
     "./dist/physics/index.js",
     "./dist/physics3d/index.js",
     "./dist/douyin/index.js",
+    "./dist/kuaishou/index.js",
     "./dist/index.wechat.cjs.js"
   ],
   "main": "./dist/index.js",
@@ -90,6 +91,10 @@
     "./douyin": {
       "import": "./dist/douyin/index.js",
       "types": "./dist/douyin/index.d.ts"
+    },
+    "./kuaishou": {
+      "import": "./dist/kuaishou/index.js",
+      "types": "./dist/kuaishou/index.d.ts"
     }
   },
   "files": [

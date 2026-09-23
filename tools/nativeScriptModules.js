@@ -94,6 +94,10 @@ export const MODULES = {
         disposition: 'forbidden-native-script',
         why: "Douyin's platform profile — it names a host global (`tt`) that a native build does not have",
     },
+    'esengine/kuaishou': {
+        disposition: 'forbidden-native-script',
+        why: "Kuaishou's platform profile — it names a host global (`ks`) that a native build does not have",
+    },
 };
 
 /** The `exports` subpath ("." / "./physics3d") a specifier corresponds to. */

@@ -202,7 +202,9 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
 
     /** The host hands out one recorder, so this does too. */
     screenRecorder(): PlatformScreenRecorder | null {
-        if (this.recorder_ === undefined) this.recorder_ = createMiniGameRecorder(this.g_);
+        if (this.recorder_ === undefined) {
+            this.recorder_ = createMiniGameRecorder(this.g_, this.profile_.recordingLimits);
+        }
         return this.recorder_;
     }
 

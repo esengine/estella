@@ -135,7 +135,11 @@ class Session {
     }
 }
 
-export function createWxRecorder(g: MiniGameGlobal, now?: () => number): PlatformScreenRecorder | null {
+export function createWxRecorder(
+    g: MiniGameGlobal,
+    now?: () => number,
+    limits: PlatformScreenRecorder['limits'] = { minSeconds: 5, maxSeconds: 7200 },
+): PlatformScreenRecorder | null {
     const rec: MiniGameWxRecorder | undefined = g.getGameRecorder?.call(g);
     if (!rec) return null;
     if (rec.isFrameSupported && !rec.isFrameSupported.call(rec)) return null;
@@ -145,11 +149,12 @@ export function createWxRecorder(g: MiniGameGlobal, now?: () => number): Platfor
         rec.on(event, (res) => gate.fire(event, res));
     }
     rec.on('error', (res) => gate.fail(toError(res)));
-    const limits = { minSeconds: 5, maxSeconds: 7200 };
 
     return {
         limits,
-        get canShare() { return typeof g.operateGameRecorderVideo === 'function'; },
+        get canShare() {
+            return typeof g.operateGameRecorderVideo === 'function' || typeof rec.publishVideo === 'function';
+        },
         async start(maxSeconds, onFailure) {
             session.begin(onFailure);
             await gate.wait('start', () => rec.start({ duration: clampSeconds(maxSeconds, limits) }));
@@ -178,7 +183,7 @@ export function createWxRecorder(g: MiniGameGlobal, now?: () => number): Platfor
         },
         share(recording, options) {
             const operate = g.operateGameRecorderVideo;
-            if (!operate) return Promise.reject(new Error('this host cannot share a recording'));
+            if (!operate) return publish(rec, options);
             const timeRange = wxTimeRange(recording.highlights);
             if (timeRange && spanOf(timeRange) < WX_SHARE_MIN_MS) {
                 return Promise.reject(new Error(
@@ -194,6 +199,22 @@ export function createWxRecorder(g: MiniGameGlobal, now?: () => number): Platfor
             });
         },
     };
+}
+
+/**
+ * Kuaishou's share: the host publishes the last recording whole. It takes no
+ * ranges, so highlights cannot narrow what is shared here — the recording
+ * keeps them, and the host ignores them.
+ */
+function publish(rec: MiniGameWxRecorder, options: PlatformRecordingShareOptions): Promise<void> {
+    const publishVideo = rec.publishVideo;
+    if (!publishVideo) return Promise.reject(new Error('this host cannot share a recording'));
+    return new Promise<void>((resolve, reject) => {
+        publishVideo.call(rec, {
+            ...(options.query !== undefined ? { query: options.query } : {}),
+            callback: (error) => (error ? reject(toError(error)) : resolve()),
+        });
+    });
 }
 
 function spanOf(ranges: readonly (readonly number[])[]): number {
@@ -312,8 +333,11 @@ export function createTtRecorder(g: MiniGameGlobal, now?: () => number): Platfor
 
 /** Whichever recorder this host has. Chosen by what the global offers, not by
  *  vendor id: a vendor copying WeChat's shape gets WeChat's recorder. */
-export function createMiniGameRecorder(g: MiniGameGlobal): PlatformScreenRecorder | null {
+export function createMiniGameRecorder(
+    g: MiniGameGlobal,
+    limits?: PlatformScreenRecorder['limits'],
+): PlatformScreenRecorder | null {
     if (g.getGameRecorderManager) return createTtRecorder(g);
-    if (g.getGameRecorder) return createWxRecorder(g);
+    if (g.getGameRecorder) return createWxRecorder(g, undefined, limits);
     return null;
 }

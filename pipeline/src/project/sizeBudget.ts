@@ -75,6 +75,7 @@ const MB = 1024 * 1024;
 export function builtinSizeBudgets(platform: ExportPlatform): readonly SizeBudget[] {
     if (platform === 'wechat') return WECHAT_BUDGETS;
     if (platform === 'douyin') return DOUYIN_BUDGETS;
+    if (platform === 'kuaishou') return KUAISHOU_BUDGETS;
     return NO_BUDGETS;
 }
 
@@ -93,6 +94,15 @@ const DOUYIN_BUDGETS: readonly SizeBudget[] = [
             + ' — 30MB once the account has enabled in-game purchase, which only that account knows:'
             + ' set packaging.sizeBudget.douyin to be judged against it',
     },
+];
+
+/**
+ * 「代码包总大小不能超过 30M，单个分包不限制大小，主包不超过 6M。」
+ * https://open.kuaishou.com/miniGameDocs/gameDev/framework/code-package.html
+ */
+const KUAISHOU_BUDGETS: readonly SizeBudget[] = [
+    { scope: 'initial', maxBytes: 6 * MB, note: "Kuaishou caps a mini-game's main package at 6MB (主包不超过 6M)" },
+    { scope: 'total', maxBytes: 30 * MB, note: 'Kuaishou caps a mini-game at 30MB across the main package and all subpackages' },
 ];
 
 const NO_BUDGETS: readonly SizeBudget[] = [];

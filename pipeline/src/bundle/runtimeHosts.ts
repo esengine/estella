@@ -16,7 +16,7 @@ import { ESENGINE_EXTERNAL } from './esengineResolve';
 // vendor's runtime profile is a module the generated entry imports, so the
 // editor has to ship it for the same reason it ships the hosts.
 export const RUNTIME_HOSTS = [
-  'gameHost', 'playableHost', 'playableLoader', 'douyinPlatformProfile',
+  'gameHost', 'playableHost', 'playableLoader', 'douyinPlatformProfile', 'kuaishouPlatformProfile',
 ] as const;
 
 export type RuntimeHost = (typeof RUNTIME_HOSTS)[number];
