@@ -744,6 +744,8 @@ export const NOTED = {
     { internal: 'Editor chrome: node-graph toolbar and side buttons take the shared components; no behaviour changes.' },
   'chore(gates): bank the node-graph button migration':
     { internal: 'A repository ratchet baseline; no source changed.' },
+  'feat(gates): an item or a shared control\'s own button is not hand-rolled':
+    { internal: 'A repository gate and its baseline; no source changed.' },
   'refactor(sequencer): its keyframe and add-track menus are ContextMenus':
     { internal: 'Two Sequencer popovers move onto the shared menu; same entries, gains keyboard navigation and roles.' },
   'chore(gates): bank the Sequencer menus':
