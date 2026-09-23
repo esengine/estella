@@ -16,6 +16,8 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **Every screenshot in the agent's transcript says where it went.** The transcript showed each frame the agent captured, which read as each frame the model saw — including the ones held back from an endpoint that takes no images, and the ones not resent because nothing had changed. A line under each frame now gives its size and what it costs in tokens, then whether it went out with the next request, was held back and why, or was taken by the endpoint once that request came back. Taken means the endpoint accepted it, not that the model read it right.
+
 - **An agent told its screenshot was too big hears that, not "the request was refused".** Every refusal read the same, so a turn that failed because the picture was too large for the endpoint was indistinguishable from one that failed on a bad tool argument — and it burned its retries on bytes that would be refused again. Too-large now says to capture a smaller region, and a refusal the endpoint itself blamed on an image says so and quotes it.
 
 - **The loading bar moves while the engine downloads.** It advanced only when a boot stage finished, and starting the engine is 40 of the 100 — so on a phone's connection a player watched it sit at 20% for 10.4 seconds of a 17.5-second start. The engine binary is now counted as it arrives (and still compiled while it downloads, which is the part that would have been easy to lose): 40 steps instead of one, and the longest the bar stands still drops from 16.7s to 6.0s. A portal's own loading screen sees the same movement through `esengine:bootprogress`, which now marks a step as `partial` while its stage is still running.
