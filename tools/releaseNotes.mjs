@@ -744,6 +744,8 @@ export const NOTED = {
     { internal: 'Editor chrome: node-graph toolbar and side buttons take the shared components; no behaviour changes.' },
   'chore(gates): bank the node-graph button migration':
     { internal: 'A repository ratchet baseline; no source changed.' },
+  'feat(agent): a capture can be the overview or the close-up':
+    { note: 'The agent can take an overview and a close-up instead of one full-size picture.' },
   'fix(ui): an IconButton\'s icon is centred':
     { internal: 'Editor chrome: small icon buttons move their icon 1-3px to centre; no behaviour changes.' },
   'refactor(ui): the event, tileset, flipbook, localisation, tilemap and controller icon buttons are IconButton':
