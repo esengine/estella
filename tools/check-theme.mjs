@@ -138,6 +138,7 @@ for (const m of css.matchAll(/^\s*(--[a-z0-9-]+)\s*:\s*var\(\s*(--[a-z0-9-]+)\s*
 const NAMES_THE_SAME_THING = [
   ['.viewport__', 'the scene canvas and the gizmos drawn on it'],
   ['.vp-', "the viewport's own HUD — axis ball, coordinate readout"],
+  ['.play-ov', "the play-mode inspection overlay's gizmo arms, drawn over the running game"],
   ['.ts-p', 'the tileset collision-polygon editor, a canvas of its own'],
   ['.ax.', "an Inspector vec field's axis letters: the legend for the gizmo's arms"],
   ['.world__cell-state', "the World panel's residency legend for what the viewport draws"],
