@@ -14,6 +14,10 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Fixed
+
+- The agent drawer's History button shows it is open with a grey press again, not the accent colour 0.71 gave it.
+
 ## [0.71.0] - 2026-09-23
 
 ### Added
