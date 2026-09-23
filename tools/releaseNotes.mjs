@@ -740,6 +740,10 @@ export const NOTED = {
     { internal: 'Two icon stroke widths that render within 1.7% of each other become one; a whole-frame diff moves 131 pixels of 1.29M.' },
   'chore(gates): bank the stroke-width collapse':
     { internal: 'A repository ratchet baseline; no source changed.' },
+  'refactor(theme): colours that name one thing stop colouring others':
+    { internal: 'Editor chrome colours: Outliner folders match the content browser, a lock is amber; no behaviour changes.' },
+  'feat(gates): each identity colour says what it names and where that is drawn':
+    { internal: 'A repository gate; no source changed.' },
   'refactor(icons): 15 and 17px icons are 16px, 19px are 18px':
     { internal: 'Editor icons move one pixel onto sizes that render crisper at 2x.' },
   'chore(gates): bank the 16px and 18px icon collapse':
