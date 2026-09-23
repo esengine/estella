@@ -141,7 +141,7 @@
     "panels/inspector/controls.tsx": 26,
     "panels/LightingPanel.tsx": 2,
     "panels/Outliner.tsx": 1,
-    "panels/OutputLog.tsx": 4,
+    "panels/OutputLog.tsx": 1,
     "panels/PluginsPanel.tsx": 1,
     "panels/ProfilerPanel.tsx": 9,
     "panels/ScatterPanel.tsx": 1,
