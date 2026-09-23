@@ -740,6 +740,10 @@ export const NOTED = {
     { internal: 'Two icon stroke widths that render within 1.7% of each other become one; a whole-frame diff moves 131 pixels of 1.29M.' },
   'chore(gates): bank the stroke-width collapse':
     { internal: 'A repository ratchet baseline; no source changed.' },
+  'refactor(theme): the last type sizes between two steps take one':
+    { note: "The Inspector's light and LOD explanations are readable." },
+  'feat(gates): a glyph drawn as an icon says so, and raw font-size banks zero':
+    { note: "The Inspector's light and LOD explanations are readable." },
   'fix(checks): the wheel check asks whether it turned, not where it stopped':
     { internal: 'A repository check over the editor; the wheel joint it judges is unchanged.' },
   'feat(export): what each packaging target can do, before a build exists':
