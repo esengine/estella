@@ -744,6 +744,12 @@ export const NOTED = {
     { internal: 'Editor chrome: node-graph toolbar and side buttons take the shared components; no behaviour changes.' },
   'chore(gates): bank the node-graph button migration':
     { internal: 'A repository ratchet baseline; no source changed.' },
+  'fix(ui): an IconButton\'s icon is centred':
+    { internal: 'Editor chrome: small icon buttons move their icon 1-3px to centre; no behaviour changes.' },
+  'refactor(ui): the event, tileset, flipbook, localisation, tilemap and controller icon buttons are IconButton':
+    { internal: 'Editor chrome: panel buttons take the shared component; no behaviour changes.' },
+  'feat(gates): an aria-* or data-* written on Button / IconButton is a finding':
+    { internal: 'A repository gate and its baseline; no source changed.' },
   'refactor(ui): nine more icon buttons are IconButton':
     { internal: 'Editor chrome: nine buttons take the shared component; no behaviour changes.' },
   'chore(gates): bank the nine-button migration':
