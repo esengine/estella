@@ -736,6 +736,10 @@ export const NOTED = {
     { internal: 'The editor reads its own type scale where it had restated it; every size resolves to the px it replaced.' },
   'chore(gates): bank the type-scale convergence':
     { internal: 'A repository ratchet baseline; no source changed.' },
+  'refactor(icons): two names for one stroke weight become one':
+    { internal: 'Two icon stroke widths that render within 1.7% of each other become one; a whole-frame diff moves 131 pixels of 1.29M.' },
+  'chore(gates): bank the stroke-width collapse':
+    { internal: 'A repository ratchet baseline; no source changed.' },
   'feat(export): what each packaging target can do, before a build exists':
     { note: 'The build dialog says which engine services a target can provide.' },
   'feat(build): the dialog says which engine services a target can provide':
