@@ -30,6 +30,7 @@ import path from 'node:path';
 import { cookAssets } from '../assets/cookAssets';
 import type { OnExportProgress } from './exportProgress';
 import { esengineAlias } from '../bundle/esengineResolve';
+import { officialPackagesPlugin } from '../bundle/officialPackages';
 import { explainBundleErrors, type BundleMessage } from '../bundle/bundleDiagnostics';
 import type { ScreenOrientation } from './orientationHtml';
 import { genericPlayableProfile, playableAdInjection, type PlayableAdProfile } from './playableAdProfile';
@@ -192,6 +193,9 @@ export async function exportPlayable(opts: {
   entryScene: string;
   scriptsEntry?: string;
   hostsDir: string;
+  /** The official `estella-plugin-*` packages the editor ships (`plugins/`);
+   *  a project's scripts resolve them from here. */
+  packagesDir: string;
   /** Web SDK dist dir — `esengine` is INLINED for playable (no import map), so the
    *  bundle aliases it here (the project root has no esengine to resolve). */
   sdkDir: string;
@@ -301,6 +305,7 @@ export async function exportPlayable(opts: {
       // esengine is INLINED (single-file, no import map) → resolve it from the SDK
       // dist; the project root has no esengine installed.
       alias: esengineAlias(opts.sdkDir),
+      plugins: [officialPackagesPlugin(opts.packagesDir)],
       minify: opts.minify ?? true,
       write: false,
       outfile: 'game-bundle.js',

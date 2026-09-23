@@ -45,6 +45,7 @@ import type { OnExportProgress } from './exportProgress';
 import { runtimeHostEntry } from '../bundle/runtimeHosts';
 import { breakdownOf, type ModuleBytes } from './bundleBreakdown';
 import { esengineAlias } from '../bundle/esengineResolve';
+import { officialPackagesPlugin } from '../bundle/officialPackages';
 import { explainBundleErrors, type BundleMessage } from '../bundle/bundleDiagnostics';
 import { scanSideModuleIds, sideModuleFiles, textureDecoderBytes } from '../bundle/sideModuleScan';
 import { OPEN_DATA_DIR, isEsModule } from './miniGameExportProfile';
@@ -254,6 +255,9 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   /** Where the runtime hosts live — sources in dev, a prebuilt tree in a packaged
    *  editor. A built-in vendor's platform profile is resolved against it. */
   hostsDir: string;
+  /** The official `estella-plugin-*` packages the editor ships (`plugins/`);
+   *  a project's scripts resolve them from here. */
+  packagesDir: string;
   title?: string;
   /** MiniGame appid (Project Settings) → project config. */
   appid?: string;
@@ -531,6 +535,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
       // devtools accepts it; es2017 down-levels those while keeping async/await.
       target: profile.esTarget,
       alias: esengineAlias(opts.sdkDir, lean ? leanEntry! : profile.sdkEntryFile),
+      plugins: [officialPackagesPlugin(opts.packagesDir)],
       minify: opts.minify ?? false,
       sourcemap: false,
       outfile: path.join(absOut, 'game-bundle.js'),
@@ -575,6 +580,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
         // Same syntax floor as the game bundle: the host compiles EVERY .js in
         // the package, this one included.
         target: profile.esTarget,
+        plugins: [officialPackagesPlugin(opts.packagesDir)],
         minify: opts.minify ?? false,
         sourcemap: false,
         outfile: path.join(absOut, OPEN_DATA_DIR, 'index.js'),

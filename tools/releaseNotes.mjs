@@ -968,6 +968,10 @@ export const NOTED = {
     { note: 'A UI node can keep clear of WeChat\'s capsule menu, which the safe area does not cover.' },
   'feat(services): a game can record a run and share the clip':
     { note: 'A game can record a run and share the clip.' },
+  'feat(pipeline): every bundle of a project\'s scripts resolves the official packages':
+    { note: 'Sharing, in-game purchase, the friends leaderboard and the recorder can be used at all.' },
+  'feat(editor): a project resolves and type-checks the official packages the editor ships':
+    { note: 'Sharing, in-game purchase, the friends leaderboard and the recorder can be used at all.' },
   'fix(agent): the history toggle presses grey again, not the accent':
     { note: "The agent drawer's History button shows it is open with a grey press again, not the accent colour 0.71 gave it." },
 };

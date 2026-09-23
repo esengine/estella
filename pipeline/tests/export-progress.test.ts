@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { exportGame } from '../src/export/exportGame';
 import type { ExportProgress } from '../src/export/exportProgress';
 import { writeFakeSdkDist } from './fixtures/fakeSdkDist';
+import { OFFICIAL_PACKAGES } from './officialPackagesDir';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOSTS = path.join(HERE, '..', '..', 'pipeline', 'src', 'runtime');
@@ -46,7 +47,7 @@ describe('export progress', () => {
     const res = await exportGame({
       root,
       entryScene: 'scenes/main.esscene',
-      hostsDir: HOSTS,
+      hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES,
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: path.join(root, '_wasm'),
@@ -71,7 +72,7 @@ describe('export progress', () => {
     const res = await exportGame({
       root,
       entryScene: 'scenes/main.esscene',
-      hostsDir: HOSTS,
+      hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES,
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: path.join(root, '_wasm'),

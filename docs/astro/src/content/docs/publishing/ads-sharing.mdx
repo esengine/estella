@@ -69,11 +69,9 @@ installed provider. Use it to hide the "watch ad" button honestly:
 ## Sharing
 
 Sharing and [in-game purchase](#in-game-purchase) ship as a package rather than
-inside the engine — most games open neither:
-
-```bash
-npm install estella-plugin-minigame-services
-```
+inside the engine — most games open neither. The editor carries it, so there is
+nothing to install: import it, in play and in every export. (A copy the project
+installs into its own `node_modules` takes precedence over the editor's.)
 
 ```typescript title="src/main.ts"
 import { addPlugin } from 'esengine';
@@ -167,12 +165,9 @@ host starts beside your game, with no engine, no WebGL and no wasm in it — and
 there is no channel back from that runtime to yours. So the board is drawn
 *over there* and arrives here as pixels.
 
-It ships as a package rather than in the engine, because a game that never opens
-one should not carry a renderer for it:
-
-```bash
-npm install estella-plugin-minigame-services
-```
+It ships in the same package as sharing (which the editor carries — nothing to
+install), rather than in the engine, because a game that never opens one should
+not carry a renderer for it.
 
 The API says the host's constraint out loud rather than hiding it:
 

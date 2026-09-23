@@ -11,6 +11,7 @@ import { mkdirSync, writeFileSync, copyFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { exportGame } from '../src/export/exportGame';
+import { OFFICIAL_PACKAGES } from './officialPackagesDir';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const OUT = path.resolve(HERE, '..', '.cooked-verify');
@@ -124,7 +125,7 @@ describe.skipIf(!process.env.ESTELLA_COOK_FIXTURE)('cooked-verify fixture', () =
     const res = await exportGame({
       root: SRC,
       entryScene: 'scenes/main.esscene',
-      hostsDir: path.resolve(HERE, '..', '..', 'pipeline', 'src', 'runtime'),
+      hostsDir: path.resolve(HERE, '..', '..', 'pipeline', 'src', 'runtime'), packagesDir: OFFICIAL_PACKAGES,
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.resolve(HERE, '..', '..', 'sdk', 'dist'),
       wasmDir: path.resolve(HERE, '..', '..', 'build', 'wasm', 'web'),
@@ -139,7 +140,7 @@ describe.skipIf(!process.env.ESTELLA_COOK_FIXTURE)('cooked-verify fixture', () =
     const interp = await exportGame({
       root: SRC,
       entryScene: 'scenes/main.esscene',
-      hostsDir: path.resolve(HERE, '..', '..', 'pipeline', 'src', 'runtime'),
+      hostsDir: path.resolve(HERE, '..', '..', 'pipeline', 'src', 'runtime'), packagesDir: OFFICIAL_PACKAGES,
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.resolve(HERE, '..', '..', 'sdk', 'dist'),
       wasmDir: path.resolve(HERE, '..', '..', 'build', 'wasm', 'web'),

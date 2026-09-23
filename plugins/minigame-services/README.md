@@ -5,9 +5,9 @@ leaderboard** and **screen recorder**, as Estella services. The first three
 used to ship inside the engine; they live here because most games open none of them, and because a service is
 exactly the shape a plugin should be.
 
-```bash
-npm install estella-plugin-minigame-services
-```
+**Ships with the Estella editor** — import it; play and every export resolve it
+to the editor's copy. A copy the project installs into its own `node_modules`
+takes precedence.
 
 ```ts title="src/main.ts"
 import { addPlugin } from 'esengine';

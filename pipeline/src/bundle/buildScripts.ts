@@ -17,6 +17,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { loadEsbuild } from './esbuildRuntime';
 import { explainBundleErrors, type BundleMessage } from './bundleDiagnostics';
+import { officialPackagesPlugin } from './officialPackages';
 
 /** esengine and any subpath import are left for the realm's import map to resolve. */
 const EXTERNAL = ['esengine', 'esengine/*'];
@@ -41,9 +42,9 @@ export interface BuildScriptsResult {
  */
 export async function buildProjectScripts(
   root: string,
-  opts?: { entry?: string },
+  opts: { entry?: string; packagesDir: string },
 ): Promise<BuildScriptsResult> {
-  const entryPath = path.join(root, opts?.entry ?? DEFAULT_ENTRY);
+  const entryPath = path.join(root, opts.entry ?? DEFAULT_ENTRY);
   if (!existsSync(entryPath)) {
     return { ok: false, outputPath: null, errors: [`script entry not found: ${entryPath}`], warnings: [] };
   }
@@ -57,6 +58,7 @@ export async function buildProjectScripts(
       platform: 'browser',
       target: 'es2020',
       external: EXTERNAL,
+      plugins: [officialPackagesPlugin(opts.packagesDir)],
       outfile: outputPath,
       sourcemap: true,
       write: true,

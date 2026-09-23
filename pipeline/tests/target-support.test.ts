@@ -20,6 +20,7 @@ import {
 } from '../src/project/targetSupport';
 import { exportGame } from '../src/export/exportGame';
 import { writeFakeSdkDist } from './fixtures/fakeSdkDist';
+import { OFFICIAL_PACKAGES } from './officialPackagesDir';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..');
@@ -133,7 +134,7 @@ describe('exportGame warns about content the target cannot render', () => {
   afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
   const run = (platform: 'android' | 'web', outDir: string) => exportGame({
-    root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS,
+    root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES,
     sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'),
     outDir, platform, title: 'Game',
   });

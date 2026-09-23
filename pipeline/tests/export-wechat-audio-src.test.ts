@@ -18,6 +18,7 @@ import { extractUuid } from '../../sdk/src/asset/AssetRegistry';
 import type { AddressableManifest } from '../../sdk/src/asset/AddressableManifest';
 import { miniGameSdkStub } from './fixtures/miniGameSdkStub';
 import { wechatExportProfile } from '../src/export/miniGameExportProfile';
+import { OFFICIAL_PACKAGES } from './officialPackagesDir';
 
 let root: string;
 let out: string;
@@ -73,7 +74,7 @@ describe('the source a cooked mini-game hands its audio player', () => {
     const res = await exportGame({
       root,
       entryScene: 'scenes/main.esscene',
-      hostsDir: 'unused-for-wechat',
+      hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: path.join(root, '_wxwasm'),
       outDir: out,

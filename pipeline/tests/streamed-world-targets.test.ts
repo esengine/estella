@@ -11,6 +11,7 @@ import { describe, it, expect } from 'vitest';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { OFFICIAL_PACKAGES } from './officialPackagesDir';
 
 const SIZE = 1000;
 
@@ -38,7 +39,7 @@ describe('targets that cannot ship a cut world', () => {
                 entryScene: 'assets/scenes/main.esscene',
                 outDir: path.join(project, 'out'),
                 platform: 'playable',
-                hostsDir: path.join(project, 'hosts'),
+                hostsDir: path.join(project, 'hosts'), packagesDir: OFFICIAL_PACKAGES,
                 // Never reached: the refusal happens before anything is staged.
                 sdkDistDir: path.join(project, 'sdk'),
                 wasmDir: path.join(project, 'wasm'),

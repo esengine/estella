@@ -14,6 +14,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { exportGame } from '../src/export/exportGame';
 import { writeFakeSdkDist } from './fixtures/fakeSdkDist';
+import { OFFICIAL_PACKAGES } from './officialPackagesDir';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOSTS = path.join(HERE, '..', '..', 'pipeline', 'src', 'runtime');
@@ -50,7 +51,7 @@ afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retr
 describe('exportGame (native app content)', () => {
   it('ships content only — cooked assets, manifests, scene, config', async () => {
     const res = await exportGame({
-      root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS, scriptsEntry: 'src/main.ts',
+      root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES, scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'), outDir: out,
       platform: 'android', title: 'NativeGame',
     });

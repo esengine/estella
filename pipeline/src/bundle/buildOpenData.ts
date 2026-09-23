@@ -14,6 +14,7 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { loadEsbuild } from './esbuildRuntime';
+import { officialPackagesPlugin } from './officialPackages';
 import { explainBundleErrors, type BundleMessage } from './bundleDiagnostics';
 
 /** Same directory name the exporter reads, and the same entry candidates. */
@@ -36,7 +37,7 @@ export interface BuildOpenDataResult {
  * A project with no context directory is `ok` with a null path — most games have
  * none, and that is not a failure. Never throws.
  */
-export async function buildOpenDataContext(root: string): Promise<BuildOpenDataResult> {
+export async function buildOpenDataContext(root: string, opts: { packagesDir: string }): Promise<BuildOpenDataResult> {
   const entry = ENTRIES
     .map((f) => path.join(root, OPEN_DATA_DIR, f))
     .find((f) => existsSync(f));
@@ -54,6 +55,7 @@ export async function buildOpenDataContext(root: string): Promise<BuildOpenDataR
       format: 'iife',
       platform: 'browser',
       target: 'es2020',
+      plugins: [officialPackagesPlugin(opts.packagesDir)],
       outfile: outputPath,
       sourcemap: false,
       write: true,

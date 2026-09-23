@@ -787,6 +787,7 @@ try {
     entryScene,
     scriptsEntry,
     hostsDir: path.join(PIPELINE, 'src', 'runtime'),
+    packagesDir: path.join(REPO, 'plugins'),
     sdkDistDir: path.join(REPO, 'sdk', 'dist'),
     wasmDir: opts.wasm ? path.resolve(opts.wasm) : engineRuntimeDir(platform),
     outDir,

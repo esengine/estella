@@ -12,6 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { exportGame } from '../src/export/exportGame';
 import { runtimeConfigOf } from '../src/project/runtimeConfig';
 import { writeFakeSdkDist } from './fixtures/fakeSdkDist';
+import { OFFICIAL_PACKAGES } from './officialPackagesDir';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOSTS = path.join(HERE, '..', '..', 'pipeline', 'src', 'runtime');
@@ -53,7 +54,7 @@ const run = (
   runtime?: Parameters<typeof exportGame>[0]['runtime'],
   features?: Parameters<typeof exportGame>[0]['features'],
 ) => exportGame({
-  root: f.root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS,
+  root: f.root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES,
   sdkDistDir: path.join(f.root, '_sdk'), wasmDir: path.join(f.root, '_wasm'),
   outDir: f.out, ...(runtime ? { runtime } : {}), ...(features ? { features } : {}),
 });

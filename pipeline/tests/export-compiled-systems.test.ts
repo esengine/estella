@@ -23,6 +23,7 @@ import { resolveEmcc } from '../src/bundle/emccPath';
 import { writeFakeSdkDist } from './fixtures/fakeSdkDist';
 import { miniGameSdkStub } from './fixtures/miniGameSdkStub';
 import { wechatExportProfile } from '../src/export/miniGameExportProfile';
+import { OFFICIAL_PACKAGES } from './officialPackagesDir';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOSTS = path.join(HERE, '..', 'src', 'runtime');
@@ -87,7 +88,7 @@ function project(source: string | null): { root: string; out: string } {
 }
 
 const run = (f: { root: string; out: string }) => exportGame({
-  root: f.root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS,
+  root: f.root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES,
   scriptsEntry: 'src/main.ts',
   sdkDistDir: path.join(f.root, '_sdk'), wasmDir: path.join(f.root, '_wasm'),
   outDir: f.out,
@@ -97,7 +98,7 @@ const config = (out: string): PackagedGameConfig =>
   JSON.parse(readFileSync(path.join(out, 'game.config.json'), 'utf8')) as PackagedGameConfig;
 
 const runWeChat = (f: { root: string; out: string }) => exportGame({
-  root: f.root, entryScene: 'scenes/main.esscene', hostsDir: 'unused-for-wechat',
+  root: f.root, entryScene: 'scenes/main.esscene', hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
   scriptsEntry: 'src/main.ts', platform: 'wechat', miniGameAppid: 'wxTEST0123456789',
   sdkDistDir: path.join(f.root, '_sdk'), wasmDir: path.join(f.root, '_wasm'),
   outDir: f.out,

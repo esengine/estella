@@ -15,6 +15,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { exportGame } from '../src/export/exportGame';
 import { writeFakeSdkDist } from './fixtures/fakeSdkDist';
+import { OFFICIAL_PACKAGES } from './officialPackagesDir';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOSTS = path.join(HERE, '..', '..', 'pipeline', 'src', 'runtime');
@@ -63,7 +64,7 @@ function fakeTemplate(os: 'macos' | 'windows'): string {
 const desktopExport = (outDir: string) => ({
   root,
   entryScene: 'scenes/main.esscene',
-  hostsDir: HOSTS,
+  hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES,
   scriptsEntry: 'src/main.ts',
   sdkDistDir: path.join(root, '_sdk'),
   wasmDir: path.join(root, '_wasm'),
@@ -77,7 +78,7 @@ describe('exportGame (desktop)', () => {
     const res = await exportGame({
       root,
       entryScene: 'scenes/main.esscene',
-      hostsDir: HOSTS,
+      hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES,
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: path.join(root, '_wasm'),
@@ -188,7 +189,7 @@ describe('exportGame (desktop)', () => {
     const res = await exportGame({
       root,
       entryScene: 'scenes/main.esscene',
-      hostsDir: HOSTS,
+      hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES,
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: path.join(root, '_wasm'),

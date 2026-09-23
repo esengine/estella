@@ -15,6 +15,7 @@ import { exportGame } from '../src/export/exportGame';
 import { runtimeConfigOf } from '../src/project/runtimeConfig';
 import type { ProjectPackaging } from '../src/project/format';
 import { writeFakeSdkDist } from './fixtures/fakeSdkDist';
+import { OFFICIAL_PACKAGES } from './officialPackagesDir';
 
 let root: string;
 const TEX = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
@@ -54,7 +55,7 @@ async function page(splash?: ProjectPackaging['splash']): Promise<{ html: string
   const res = await exportGame({
     root,
     entryScene: 'scenes/main.esscene',
-    hostsDir: path.resolve(__dirname, '../src/runtime'),
+    hostsDir: path.resolve(__dirname, '../src/runtime'), packagesDir: OFFICIAL_PACKAGES,
     sdkDistDir: path.join(root, '_sdk'),
     wasmDir: path.join(root, '_wasm'),
     outDir,

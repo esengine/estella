@@ -3,12 +3,9 @@
 Import [LDtk](https://ldtk.io) levels into Estella as Tiled maps, which the engine
 loads natively.
 
-```bash
-npm install estella-plugin-ldtk
-```
-
-The editor lists it in **Window ▸ Plugins**, where it needs your approval before
-it runs — like any plugin, and again after an update.
+**Ships with the Estella editor**, listed in **Window ▸ Plugins**. Arriving with
+the app is what trusts it; a copy a project installs itself asks for approval
+like any other plugin, and again after an update.
 
 ## What it does
 

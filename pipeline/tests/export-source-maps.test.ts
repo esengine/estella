@@ -11,6 +11,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { exportGame } from '../src/export/exportGame';
 import { writeFakeSdkDist } from './fixtures/fakeSdkDist';
+import { OFFICIAL_PACKAGES } from './officialPackagesDir';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOSTS = path.join(HERE, '..', '..', 'pipeline', 'src', 'runtime');
@@ -41,7 +42,7 @@ function setup(): { root: string; out: string } {
 }
 
 const run = (f: { root: string; out: string }, sourcemap?: boolean) => exportGame({
-  root: f.root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS,
+  root: f.root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES,
   sdkDistDir: path.join(f.root, '_sdk'), wasmDir: path.join(f.root, '_wasm'),
   outDir: f.out, ...(sourcemap === undefined ? {} : { sourcemap }),
 });

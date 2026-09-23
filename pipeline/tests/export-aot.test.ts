@@ -16,6 +16,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { exportGame } from '../src/export/exportGame';
+import { OFFICIAL_PACKAGES } from './officialPackagesDir';
 import { emccPath } from '../../build-tools/utils/emscripten.js';
 import { writeFakeSdkDist } from './fixtures/fakeSdkDist';
 
@@ -73,7 +74,7 @@ function setup(files: Record<string, string>): { root: string; out: string } {
 }
 
 const run = (f: { root: string; out: string }) => exportGame({
-  root: f.root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS,
+  root: f.root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES,
   scriptsEntry: 'src/main.ts',
   sdkDistDir: path.join(f.root, '_sdk'), wasmDir: path.join(f.root, '_wasm'),
   outDir: f.out,

@@ -15,6 +15,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { exportGame } from '../src/export/exportGame';
 import { builtinSizeBudgets } from '../src/project/sizeBudget';
+import { OFFICIAL_PACKAGES } from './officialPackagesDir';
 
 let root: string;
 let out: string;
@@ -58,7 +59,7 @@ describe('exportGame (douyin)', () => {
     const res = await exportGame({
       root,
       entryScene: 'scenes/main.esscene',
-      hostsDir: path.resolve(__dirname, '../src/runtime'),
+      hostsDir: path.resolve(__dirname, '../src/runtime'), packagesDir: OFFICIAL_PACKAGES,
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: path.join(root, '_wasm'),
       outDir: out,
@@ -114,7 +115,7 @@ describe('exportGame (douyin)', () => {
     const res = await exportGame({
       root,
       entryScene: 'scenes/main.esscene',
-      hostsDir: path.resolve(__dirname, '../src/runtime'),
+      hostsDir: path.resolve(__dirname, '../src/runtime'), packagesDir: OFFICIAL_PACKAGES,
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: esmRoot,
       outDir: path.join(root, 'dist-douyin-esm'),

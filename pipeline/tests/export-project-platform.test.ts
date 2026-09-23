@@ -17,6 +17,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { exportGame } from '../src/export/exportGame';
 import { loadProjectPlatform } from '../src/export/platformCatalog';
+import { OFFICIAL_PACKAGES } from './officialPackagesDir';
 
 const TEX = '11111111-1111-4111-8111-111111111111';
 const SCN = '22222222-2222-4222-8222-222222222222';
@@ -91,7 +92,7 @@ describe('exportGame — a platform the project defines', () => {
     const res = await exportGame({
       root,
       entryScene: 'scenes/main.esscene',
-      hostsDir: 'unused',
+      hostsDir: 'unused', packagesDir: OFFICIAL_PACKAGES,
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: platform!.wasmDir,
       outDir: out,
@@ -140,7 +141,7 @@ describe('exportGame — a platform the project defines', () => {
     const res = await exportGame({
       root,
       entryScene: 'scenes/main.esscene',
-      hostsDir: 'unused',
+      hostsDir: 'unused', packagesDir: OFFICIAL_PACKAGES,
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: path.join(root, '_wasm'),
       outDir: outBare,

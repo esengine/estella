@@ -61,11 +61,9 @@ const reviveSystem = defineSystem([Res(Ads), GetWorld()], (ads, world) => {
 
 ## 分享
 
-分享和[内购](#内购)以包的形式发布，不在引擎里——大多数游戏两个都不会打开：
-
-```bash
-npm install estella-plugin-minigame-services
-```
+分享和[内购](#内购)以包的形式发布，不在引擎里——大多数游戏两个都不会打开。这个包由
+编辑器自带，不用安装：直接 import，Play 和所有导出都能解析到。(项目自己装进
+`node_modules` 的副本优先于编辑器自带的。)
 
 ```typescript title="src/main.ts"
 import { addPlugin } from 'esengine';
@@ -150,12 +148,8 @@ if (recorder.canShare) await recorder.share({ title: '看我这一局' });
 WebGL、也没有 wasm——而且它没有回到你这边的通道。所以榜是**在那边画的**，到你
 这边时已经是像素。
 
-它以**包**的形式发布而不是待在引擎里：一个从不开排行榜的游戏，不该背着一份榜的
-渲染器。
-
-```bash
-npm install estella-plugin-minigame-services
-```
+它和分享在同一个包里(编辑器自带，不用安装)，而不是待在引擎里：一个从不开排行榜的
+游戏，不该背着一份榜的渲染器。
 
 API 把宿主的这条约束直说，而不是遮掩：
 

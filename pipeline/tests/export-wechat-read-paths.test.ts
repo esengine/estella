@@ -26,6 +26,7 @@ import { exportGame } from '../src/export/exportGame';
 import { ManifestModel, type AddressableManifest } from '../../sdk/src/asset/AddressableManifest';
 import { miniGameSdkStub } from './fixtures/miniGameSdkStub';
 import { wechatExportProfile } from '../src/export/miniGameExportProfile';
+import { OFFICIAL_PACKAGES } from './officialPackagesDir';
 
 const TEX = 'dddddddd-dddd-dddd-dddd-dddddddddddd';
 const MAT = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
@@ -87,7 +88,7 @@ describe('exportGame (wechat) — every asset resolves to a file the package car
     const res = await exportGame({
       root,
       entryScene: 'scenes/main.esscene',
-      hostsDir: 'unused-for-wechat',
+      hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: path.join(root, '_wxwasm'),

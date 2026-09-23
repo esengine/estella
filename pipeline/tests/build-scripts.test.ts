@@ -11,6 +11,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, existsSync
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { buildProjectScripts } from '../src/bundle/buildScripts';
+import { OFFICIAL_PACKAGES } from './officialPackagesDir';
 
 let root: string;
 
@@ -38,7 +39,7 @@ afterAll(() => {
 
 describe('buildProjectScripts (E8-1)', () => {
     it('bundles src/main.ts with esengine external and local modules inlined', async () => {
-        const res = await buildProjectScripts(root);
+        const res = await buildProjectScripts(root, { packagesDir: OFFICIAL_PACKAGES });
         expect(res.ok).toBe(true);
         expect(res.errors).toEqual([]);
         expect(res.outputPath).toBe(path.join(root, '.esengine/cache/scripts.mjs'));
@@ -80,7 +81,7 @@ describe('buildProjectScripts (E8-1)', () => {
                 `import { DemoService } from 'estella-plugin-demo';\nvoid DemoService;\n`,
             );
 
-            const res = await buildProjectScripts(proj);
+            const res = await buildProjectScripts(proj, { packagesDir: OFFICIAL_PACKAGES });
             expect(res.errors).toEqual([]);
             expect(res.ok).toBe(true);
             const out = readFileSync(res.outputPath!, 'utf8');
@@ -94,7 +95,7 @@ describe('buildProjectScripts (E8-1)', () => {
     it('reports a clean failure when the entry is missing', async () => {
         const empty = mkdtempSync(path.join(tmpdir(), 'estella-empty-'));
         try {
-            const res = await buildProjectScripts(empty);
+            const res = await buildProjectScripts(empty, { packagesDir: OFFICIAL_PACKAGES });
             expect(res.ok).toBe(false);
             expect(res.outputPath).toBeNull();
             expect(res.errors.join(' ')).toMatch(/entry not found/);

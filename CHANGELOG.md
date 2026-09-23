@@ -20,6 +20,7 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **Sharing, in-game purchase, the friends leaderboard and the recorder can be used at all.** They live in `estella-plugin-minigame-services`, which every doc page said to `npm install` — and it is on no registry, so the command failed and a project that imported it failed to build, in play and in every export. The editor already carried the package; now every bundle of a project's scripts resolves `estella-plugin-*` to that copy (play, web, desktop, native, WeChat, Douyin, playable, the open data context and component extraction), and the editor's script checking and the built-in agent see its types. A copy the project installs into its own `node_modules` still takes precedence, and an unknown `estella-plugin-*` names the ones that do ship.
 - The agent drawer's History button shows it is open with a grey press again, not the accent colour 0.71 gave it.
 
 ## [0.71.0] - 2026-09-23

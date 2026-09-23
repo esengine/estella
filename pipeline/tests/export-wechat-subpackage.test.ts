@@ -17,6 +17,7 @@ import path from 'node:path';
 import { exportGame } from '../src/export/exportGame';
 import { miniGameSdkStub } from './fixtures/miniGameSdkStub';
 import { wechatExportProfile } from '../src/export/miniGameExportProfile';
+import { OFFICIAL_PACKAGES } from './officialPackagesDir';
 
 let root: string;
 let out: string;
@@ -62,7 +63,7 @@ describe('WeChat 分包 declared through asset-groups.json', () => {
     const res = await exportGame({
       root,
       entryScene: 'scenes/main.esscene',
-      hostsDir: 'unused-for-wechat',
+      hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
       scriptsEntry: 'src/main.ts',
       sdkDistDir: path.join(root, '_sdk'),
       wasmDir: path.join(root, '_wxwasm'),
@@ -124,7 +125,7 @@ describe('WeChat 分包 declared through asset-groups.json', () => {
       const res = await exportGame({
         root: root2,
         entryScene: 'scenes/main.esscene',
-        hostsDir: 'unused-for-wechat',
+        hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
         sdkDistDir: path.join(root2, '_sdk'),
         wasmDir: path.join(root2, '_wxwasm'),
         outDir: out2,
@@ -180,7 +181,7 @@ describe('WeChat 分包 declared through asset-groups.json', () => {
       const res = await exportGame({
         root: root2,
         entryScene: 'scenes/main.esscene',
-        hostsDir: 'unused-for-wechat',
+        hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
         sdkDistDir: path.join(root2, '_sdk'),
         wasmDir: path.join(root2, '_wxwasm'),
         outDir: out2,

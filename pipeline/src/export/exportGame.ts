@@ -48,6 +48,7 @@ import { exportPlayable } from './exportPlayable';
 import { genericPlayableProfile, type PlayableAdProfile } from './playableAdProfile';
 import type { OnExportProgress } from './exportProgress';
 import { ESENGINE_EXTERNAL, ESENGINE_SUBPATHS } from '../bundle/esengineResolve';
+import { officialPackagesPlugin } from '../bundle/officialPackages';
 import { buildCompiledSystems, type BuildMode } from '../bundle/buildCompiledSystems';
 import { resolveEmcc, runEmcc } from '../bundle/emccPath';
 import { findHostCC } from '../../../compiler/src/hostCC';
@@ -418,6 +419,9 @@ export interface ExportGameOptions {
   /** Where every runtime host is (runtimeHosts.ts): `pipeline/src/runtime`, or the
    *  tree an editor prebuilt from it, since a packaged app ships no sources. */
   hostsDir: string;
+  /** The official `estella-plugin-*` packages the editor ships (`plugins/`);
+   *  a project's scripts resolve them from here. */
+  packagesDir: string;
   /** Project-relative startup entry (e.g. src/main.ts) → bundled to scripts.mjs. */
   scriptsEntry?: string;
   sdkDistDir: string;
@@ -670,6 +674,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       wasmDir: opts.wasmDir,
       outDir: opts.outDir,
       hostsDir: opts.hostsDir,
+      packagesDir: opts.packagesDir,
       title,
       appid: opts.miniGameAppid,
       features: opts.features,
@@ -704,6 +709,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       wasmDir: opts.wasmDir,
       outDir: opts.outDir,
       hostsDir: opts.hostsDir,
+      packagesDir: opts.packagesDir,
       title,
       appid: opts.miniGameAppid,
       features: opts.features,
@@ -731,6 +737,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       entryScene: opts.entryScene,
       scriptsEntry: opts.scriptsEntry,
       hostsDir: opts.hostsDir,
+      packagesDir: opts.packagesDir,
       sdkDir: opts.sdkDistDir,
       wasmDir: opts.wasmDir,
       outDir: opts.outDir,
@@ -786,6 +793,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     platform: 'browser',
     target: 'es2020',
     external: ESENGINE_EXTERNAL,
+    plugins: [officialPackagesPlugin(opts.packagesDir)],
     minify: opts.minify ?? false,
     sourcemap: sourceMaps,
     write: true,
@@ -884,7 +892,8 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       progress({ phase: 'Bundling project scripts' });
       const proj = nativeContent
         ? await build({
-          ...common, format: 'iife', external: [], plugins: [esengineGlobalPlugin()],
+          ...common, format: 'iife', external: [],
+          plugins: [esengineGlobalPlugin(), officialPackagesPlugin(opts.packagesDir)],
           entryPoints: [scriptsAbs], outfile: path.join(payloadDir, 'scripts.js'),
         })
         : await build({ ...common, entryPoints: [scriptsAbs], outfile: path.join(payloadDir, 'scripts.mjs') });

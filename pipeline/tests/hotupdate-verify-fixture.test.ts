@@ -15,6 +15,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { exportGame } from '../src/export/exportGame';
 import { solidPng } from './fixtures/solidPng.mjs';
+import { OFFICIAL_PACKAGES } from './officialPackagesDir';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const EXAMPLE = path.resolve(HERE, '..', '..', 'examples', 'hot-update-demo');
@@ -26,7 +27,7 @@ const REDSRC = path.join(ROOT, 'red-src');
 const opts = (root: string, outDir: string) => ({
   root,
   entryScene: 'assets/scenes/main.esscene',
-  hostsDir: path.resolve(HERE, '..', '..', 'pipeline', 'src', 'runtime'),
+  hostsDir: path.resolve(HERE, '..', '..', 'pipeline', 'src', 'runtime'), packagesDir: OFFICIAL_PACKAGES,
   scriptsEntry: 'src/main.ts',
   sdkDistDir: path.resolve(HERE, '..', '..', 'sdk', 'dist'),
   wasmDir: path.resolve(HERE, '..', '..', 'build', 'wasm', 'web'),

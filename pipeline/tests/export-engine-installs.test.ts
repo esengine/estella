@@ -18,6 +18,7 @@ import { exportGame } from '../src/export/exportGame';
 import { writeFakeSdkDist } from './fixtures/fakeSdkDist';
 import type { ModuleChoice } from '../src/project/format';
 import { moduleOfComponent } from '../src/project/targetSupport';
+import { OFFICIAL_PACKAGES } from './officialPackagesDir';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOSTS = path.join(HERE, '..', 'src', 'runtime');
@@ -52,7 +53,7 @@ function setup(components: string[]): { root: string; out: string } {
 }
 
 const run = (f: { root: string; out: string }) => exportGame({
-    root: f.root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS,
+    root: f.root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES,
     sdkDistDir: path.join(f.root, '_sdk'), wasmDir: path.join(f.root, '_wasm'),
     outDir: f.out,
 });
@@ -140,7 +141,7 @@ describe('a web package whose project excluded a module', () => {
         ...setup(components), features: { modules },
     });
     const runWith = (f: ReturnType<typeof withChoice>) => exportGame({
-        root: f.root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS,
+        root: f.root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES,
         sdkDistDir: path.join(f.root, '_sdk'), wasmDir: path.join(f.root, '_wasm'),
         outDir: f.out, features: f.features,
     });
