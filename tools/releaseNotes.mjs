@@ -744,6 +744,8 @@ export const NOTED = {
     { internal: 'Editor chrome: node-graph toolbar and side buttons take the shared components; no behaviour changes.' },
   'chore(gates): bank the node-graph button migration':
     { internal: 'A repository ratchet baseline; no source changed.' },
+  'feat(agent): Settings can ask an endpoint whether a model reads pictures':
+    { note: 'Settings can find out whether a model reads pictures, instead of asking you to know.' },
   'feat(agent): a capture can be the overview or the close-up':
     { note: 'The agent can take an overview and a close-up instead of one full-size picture.' },
   'fix(ui): an IconButton\'s icon is centred':
