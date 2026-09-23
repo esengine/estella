@@ -11,17 +11,16 @@
  * labels in the editor — and a chart series ran on a 100%-saturated viewport
  * colour.
  *
- * Three claims are absolute: text stays readable on the surfaces it sits on, a
- * panel label stays quieter than the viewport, and a token that NAMES a thing
- * only colours that thing. That a token EXISTS at all is check-css-vars.mjs —
+ * Four claims are absolute: text stays readable on the surfaces it sits on, a
+ * panel label stays quieter than the viewport, a token that NAMES a thing only
+ * colours that thing, and a tip is the editor's rather than the OS's `title=`. That a token EXISTS at all is check-css-vars.mjs —
  * its subject is every reader of the editor's variables, plugins and docs too.
  *
  * Six are RATCHETS, because each is hundreds of declarations deep and a gate
  * that reddens on all of them gets switched off. Banked, may fall, never rise:
  * spacing off the grid `--u` declares; colour literals where a token belongs; raw
- * font-size; how many distinct icon sizes and stroke widths exist at all — 14
- * and 16 today, including 1.8 / 1.85 / 1.9, which no one can tell apart; and
- * hand-rolled `<button>` and native `title=` where the editor has a component.
+ * font-size; how many distinct icon sizes and stroke widths exist at all; and
+ * hand-rolled `<button>` where the editor has a component.
  *
  *   node tools/check-theme.mjs            # check
  *   node tools/check-theme.mjs --update   # bank the current state
@@ -366,11 +365,28 @@ const iconScale = () => {
 };
 
 /**
- * Controls the editor hand-rolled rather than took from `<Button>`/`<Tooltip>`,
- * which are outnumbered 336:28 and 311:3.
- *
- * A ratchet, not a rule: a raw `<button>` in a tile cell is right. `title=`
- * counts on DOM elements only — 80 of RM-092's 419 were `<Modal title=…>`.
+ * A DOM element's `title=` is the operating system's tooltip: unthemed, unzoomed,
+ * and drawn in the wrong window from a popout. The editor's is `data-tip`
+ * (TipLayer), plus an `aria-label` where the tip was the control's only name.
+ * An iframe's title is its accessible name, not a tip.
+ */
+const nativeTitles = () => {
+  const out = [];
+  for (const file of everyFile(SRC_DIR)) {
+    if (!file.endsWith('.tsx')) continue;
+    const text = readFileSync(file, 'utf8');
+    for (const m of text.matchAll(/<([a-z][a-z0-9]*)\b([^<]*?)\/?>/gs)) {
+      if (m[1] === 'iframe' || !/(?<![\w-])title=/.test(m[2])) continue;
+      const line = text.slice(0, m.index).split('\n').length;
+      out.push(`desktop/src/${path.relative(SRC_DIR, file).replaceAll(path.sep, '/')}:${line}`);
+    }
+  }
+  return out;
+};
+
+/**
+ * Buttons the editor hand-rolled rather than took from `<Button>`/`<IconButton>`.
+ * A ratchet, not a rule: a raw `<button>` in a tile cell is right.
  */
 const handRolledByFile = () => {
   const out = {};
@@ -381,12 +397,7 @@ const handRolledByFile = () => {
       if (!/\.tsx$/.test(e.name)) continue;
       const text = readFileSync(full, 'utf8');
       const rel = path.relative(path.join(ROOT, 'desktop', 'src'), full).replaceAll(path.sep, '/');
-      let n = [...text.matchAll(/<button\b/g)].length;
-      // Attributes may span lines; stopping at the next `<` keeps an unclosed
-      // tag from swallowing the rest of the file.
-      for (const m of text.matchAll(/<([A-Za-z][A-Za-z0-9]*)\b([^<]*?)\/?>/gs)) {
-        if (/^[a-z]/.test(m[1]) && /\btitle=/.test(m[2])) n += 1;
-      }
+      const n = [...text.matchAll(/<button\b/g)].length;
       if (n > 0) out[rel] = n;
     }
   };
@@ -439,6 +450,10 @@ const colourCode = colourLiteralInCodeByFile();
 const fontSizes = rawFontSizeByFile();
 const icons = iconScale();
 const handRolled = handRolledByFile();
+for (const site of nativeTitles()) {
+  problems.push(`${site}: title= is the operating system's tooltip — use data-tip, `
+    + 'and aria-label where it was the control\'s only name');
+}
 const total = Object.values(current).reduce((a, b) => a + b, 0);
 
 const byName = (o) => Object.fromEntries(Object.entries(o).sort(([a], [b]) => a.localeCompare(b)));
@@ -486,7 +501,7 @@ if (!existsSync(BASELINE)) {
     'colour literal(s) in code — read the token, do not restate it', 'desktop/src/');
   ratchet(fontSizes, banked.rawFontSize, 'raw font-size(s) — use a step of the scale');
   ratchet(handRolled, banked.handRolled,
-    'hand-rolled <button>/title= — the editor has <Button>/<Tooltip>', 'desktop/src/');
+    'hand-rolled <button> — the editor has <Button>/<IconButton>', 'desktop/src/');
   // Not per file: a new icon size anywhere is one more size the editor has.
   for (const [kind, now] of [['size', icons.sizes], ['stroke width', icons.strokes]]) {
     const was = new Set(kind === 'size' ? banked.iconScale?.sizes ?? [] : banked.iconScale?.strokes ?? []);

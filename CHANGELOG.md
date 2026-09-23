@@ -16,6 +16,8 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **The editor's tooltips are its own.** Every hover hint in the editor was the operating system's: it ignored the editor's theme and zoom, took its own time to appear, and from a popped-out panel was placed against the main window. All 320 are now drawn by the editor — the same card the content browser's asset tips use, under the control, after the same delay, at once when the control is reached by keyboard, and gone the moment you press it. Icon-only buttons keep the name a screen reader announces, which that hint used to supply.
+
 - **Every screenshot in the agent's transcript says where it went.** The transcript showed each frame the agent captured, which read as each frame the model saw — including the ones held back from an endpoint that takes no images, and the ones not resent because nothing had changed. A line under each frame now gives its size and what it costs in tokens, then whether it went out with the next request, was held back and why, or was taken by the endpoint once that request came back. Taken means the endpoint accepted it, not that the model read it right.
 
 - **An agent told its screenshot was too big hears that, not "the request was refused".** Every refusal read the same, so a turn that failed because the picture was too large for the endpoint was indistinguishable from one that failed on a bad tool argument — and it burned its retries on bytes that would be refused again. Too-large now says to capture a smaller region, and a refusal the endpoint itself blamed on an image says so and quotes it.
