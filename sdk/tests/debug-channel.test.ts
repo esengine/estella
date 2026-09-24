@@ -5,7 +5,7 @@
  *        printed meanwhile reaches the editor, and a question asked meanwhile is
  *        answered once the game starts rather than refused.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { setPlatform } from '../src/platform/base';
 import type { PlatformAdapter, PlatformSocket, PlatformSocketEvents } from '../src/platform/types';
 import { startDebugChannel, attachDebugChannel, fitWithin } from '../src/runtime/debugChannel';
@@ -59,6 +59,28 @@ describe('the debug channel', () => {
         attachDebugChannel(app);
         await flush();
         expect(s.sent.find((m) => (m as { reqId?: number }).reqId === 7)).toEqual({ t: 'reply', reqId: 7, data: { paused: true, fps: 0 } });
+    });
+});
+
+describe('a device in the background', () => {
+    it('refuses a capture at once instead of waiting for a frame it will not draw', async () => {
+        // The channel is one per process; this device needs its own.
+        vi.resetModules();
+        const base = await import('../src/platform/base');
+        const channel = await import('../src/runtime/debugChannel');
+        const { Lifecycle } = await import('../src/ecs/lifecycle');
+        const s = fakeSocket();
+        base.setPlatform({ name: 'web', now: () => performance.now(), createSocket: () => s.socket } as unknown as PlatformAdapter);
+        channel.startDebugChannel({ url: 'ws://editor:1/?token=t', project: 'Demo' });
+        s.open();
+        channel.attachDebugChannel({
+            hasResource: (r: unknown) => r === Lifecycle,
+            getResource: () => ({ visible: false }),
+            onFrameEnd: () => () => {},
+        } as unknown as App);
+        s.receive({ t: 'query', reqId: 9, kind: 'frameCapture' });
+        await flush();
+        expect(s.sent.find((m) => (m as { reqId?: number }).reqId === 9)).toMatchObject({ error: expect.stringMatching(/background/) });
     });
 });
 

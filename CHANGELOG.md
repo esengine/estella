@@ -22,6 +22,7 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- Capturing a development build whose tab is in the background says so at once, instead of waiting 30 seconds for a frame the browser will not draw.
 - A web game opened in a background tab starts paused and reports itself hidden until it is shown; before, it counted as visible.
 - The hot-update demo no longer says the remote manifest matches when it could not reach one; offline it says it keeps the local content.
 - On vivo's quick game the loading notice comes down once the game starts; it could stay over the running game.

@@ -1098,4 +1098,6 @@ export const NOTED = {
     { note: 'The hot-update demo no longer says the remote manifest matches when it could not reach one; offline it says it keeps the local content.' },
   'fix(lifecycle): a page opened in a background tab knows it is in the background':
     { note: 'A web game opened in a background tab starts paused and reports itself hidden until it is shown; before, it counted as visible.' },
+  'fix(debug): a device in the background refuses a capture at once':
+    { note: 'Capturing a development build whose tab is in the background says so at once, instead of waiting 30 seconds for a frame the browser will not draw.' },
 };

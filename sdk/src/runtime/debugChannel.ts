@@ -17,6 +17,7 @@ import type { NextFrame } from '../render/frameCapture';
 import { captureFrameReport, replayFrameDraw, type FrameReplayImage } from '../render/frameDebugReport';
 import { log } from '../util/logger';
 import { Assets } from '../asset/AssetPlugin';
+import { Lifecycle } from '../ecs/lifecycle';
 import { frameStatsReport } from './frameStats';
 import { worldSnapshot } from './worldSnapshot';
 import { forwardConsole, type ConsoleLevel } from './consoleForward';
@@ -162,6 +163,11 @@ export function startDebugChannel(config: DebugChannelConfig): void {
             }
             const game = app!;
             const frame = nextFrame!;
+            // A background tab gets no frames, so it would sit on this until the editor gave up.
+            const drawsFrames = !game.hasResource(Lifecycle) || game.getResource(Lifecycle).visible;
+            if ((q.kind === 'frameCapture' || q.kind === 'frameReplay') && !drawsFrames) {
+                throw new Error('the game is in the background, where it draws no frames: bring it to the front');
+            }
             if (q.kind === 'frameCapture') {
                 reply({ t: 'reply', reqId: q.reqId, data: await captureFrameReport(game, frame) });
                 return;
