@@ -48,7 +48,10 @@ const exportPackage = (out, extra) => spawnSync(process.execPath, [
   '--platform', PLATFORM, '--out', out, ...extra,
 ], { encoding: 'utf8', cwd: ROOT });
 
-const server = await createDebugChannelServer({ WebSocketServer, host: '127.0.0.1' });
+const lines = [];
+const server = await createDebugChannelServer({
+  WebSocketServer, host: '127.0.0.1', onLog: (_id, level, line) => lines.push({ level, line }),
+});
 let child = null;
 try {
   const refused = await new Promise((resolve) => {
@@ -115,6 +118,24 @@ try {
     if (image.pixels[i + 3] > 0 && (image.pixels[i] | image.pixels[i + 1] | image.pixels[i + 2]) > 8) lit++;
   }
   check(lit > 0, `the replayed pass has drawn pixels (${lit})`);
+
+  const now = server.targets().find((t) => t.id === target.id);
+  check(now?.project === 'Input Actions' && typeof now?.revision === 'string',
+    `the build said which project and content it is (${now?.project}, ${now?.revision})`);
+  check(lines.some((l) => /EstellaContext initialized/.test(l.line)),
+    `what the device printed before it connected reached the editor (${lines.length} line(s))`);
+
+  await server.query(target.id, 'stats');
+  await new Promise((r) => setTimeout(r, 500));
+  const stats = await server.query(target.id, 'stats');
+  check(stats?.entities > 0 && Object.keys(stats?.phases ?? {}).length > 0 && stats?.wasmBytes > 0,
+    `the device reported its frame: ${stats?.entities} entities, ${Object.keys(stats?.phases ?? {}).length} phase(s), ${stats?.wasmBytes} wasm bytes`);
+
+  const paused = await server.query(target.id, 'control', { paused: true, fps: 30 });
+  const stepped = await server.query(target.id, 'control', { step: 2 });
+  const resumed = await server.query(target.id, 'control', { paused: false, fps: 0 });
+  check(paused.paused && paused.fps === 30 && stepped.paused && !resumed.paused && resumed.fps === 0,
+    `the device paused, stepped while paused, capped and resumed (${JSON.stringify([paused, stepped, resumed])})`);
 } catch (e) {
   problems.push(e.message);
   console.error(`✗ ${e.message}`);

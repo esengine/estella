@@ -15,6 +15,7 @@
  *          before the async boot settles).
  */
 
+import { startDebugChannel } from './debugChannel';
 import type { App } from '../app/app';
 import { initRuntime } from './runtimeLoader';
 import { createNativeApp } from '../ecs/bridge/nativeRuntime';
@@ -52,6 +53,7 @@ export async function initNativeGame(options: NativeGameOptions): Promise<Native
     const config = JSON.parse(
         await platformReadTextFile(options.configPath ?? 'game.config.json'),
     ) as PackagedGameConfig;
+    if (config.debugChannel) startDebugChannel(config.debugChannel);
 
     const index = await loadPackagedAssetIndex();
     const source = createPackagedAssetSource(index);

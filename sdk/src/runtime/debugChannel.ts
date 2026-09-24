@@ -16,6 +16,9 @@ import type { PlatformSocket } from '../platform/types';
 import type { NextFrame } from '../render/frameCapture';
 import { captureFrameReport, replayFrameDraw } from '../render/frameDebugReport';
 import { log } from '../util/logger';
+import { Assets } from '../asset/AssetPlugin';
+import { frameStatsReport } from './frameStats';
+import { forwardConsole, type ConsoleLevel } from './consoleForward';
 
 export const DEBUG_CHANNEL_PROTOCOL = 1;
 
@@ -23,11 +26,25 @@ export const DEBUG_CHANNEL_PROTOCOL = 1;
 export interface DebugChannelConfig {
     /** `ws://<editor host>:<port>/?token=<token>` */
     url: string;
+    /** The project the build was made from, so the editor can tell a build of
+     *  another project from one of the project it has open. */
+    project?: string;
+}
+
+/** What `control` changes; each field absent leaves that setting alone. */
+export interface DebugControl {
+    paused?: boolean;
+    /** Advance this many frames — a paused game included. */
+    step?: number;
+    /** A cap on the frame rate; 0 lifts it. */
+    fps?: number;
 }
 
 export type DebugChannelQuery =
     | { t: 'query'; reqId: number; kind: 'frameCapture' }
-    | { t: 'query'; reqId: number; kind: 'frameReplay'; drawIndex: number };
+    | { t: 'query'; reqId: number; kind: 'frameReplay'; drawIndex: number }
+    | { t: 'query'; reqId: number; kind: 'stats' }
+    | ({ t: 'query'; reqId: number; kind: 'control' } & DebugControl);
 
 /**
  * What a device sends. A replay's pixels follow their `reply` as the very next
@@ -35,11 +52,14 @@ export type DebugChannelQuery =
  * would add a third to every byte of it.
  */
 export type DebugChannelMessage =
-    | { t: 'hello'; v: number; platform: string; title: string }
+    | { t: 'hello'; v: number; platform: string; title: string; project: string | null; revision: string | null }
     | { t: 'reply'; reqId: number; data: unknown; pixels?: boolean }
-    | { t: 'reply'; reqId: number; error: string };
+    | { t: 'reply'; reqId: number; error: string }
+    | { t: 'log'; level: ConsoleLevel; line: string };
 
 const RECONNECT_MS = 3000;
+/** Lines kept while no editor listens; the oldest go first, and how many is said. */
+const LOG_BACKLOG = 200;
 
 /** Resolves once @p app has finished a frame and the task that drew it has run. */
 function appFrame(app: App): NextFrame {
@@ -51,37 +71,93 @@ function appFrame(app: App): NextFrame {
     });
 }
 
+let active: { attach(app: App): void } | null = null;
+
 /**
- * Keep a channel to the editor open for as long as @p app runs, dialling again
- * when it drops — the editor restarts far more often than a debug session ends.
- * Returns the disposer.
+ * Dial the editor and forward everything printed from now on — called as soon as
+ * a host has read its config, so an engine that fails to boot is still heard.
+ * Redials when the connection drops: the editor restarts far more often than a
+ * debug session ends. Once per page; later calls keep the first channel.
  */
-export function openDebugChannel(app: App, config: DebugChannelConfig, title = ''): () => void {
+export function startDebugChannel(config: DebugChannelConfig): void {
+    if (active) return;
     const platform = getPlatform();
     if (!platform.createSocket) {
         log.warn('debug', `this platform has no socket, so the editor cannot reach this build (${platform.name})`);
-        return () => {};
+        return;
     }
-    const nextFrame = appFrame(app);
+    let app: App | null = null;
+    let nextFrame: NextFrame | null = null;
     let socket: PlatformSocket | null = null;
     let retry: ReturnType<typeof setTimeout> | null = null;
-    let closed = false;
+    let statsOn = false;
+    let frameSum = 0, frames = 0, worstMs = 0;
 
-    const answer = async (s: PlatformSocket, q: DebugChannelQuery): Promise<void> => {
-        const reply = (m: DebugChannelMessage): void => s.send(JSON.stringify(m));
+    const backlog: Array<{ level: ConsoleLevel; line: string }> = [];
+    let dropped = 0;
+    const send = (m: DebugChannelMessage): void => {
+        if (socket?.readyState === 'open') socket.send(JSON.stringify(m));
+    };
+    forwardConsole((level, line) => {
+        if (socket?.readyState === 'open') {
+            send({ t: 'log', level, line });
+            return;
+        }
+        if (backlog.length >= LOG_BACKLOG) { backlog.shift(); dropped++; }
+        backlog.push({ level, line });
+    });
+    const flushBacklog = (): void => {
+        if (dropped > 0) send({ t: 'log', level: 'warn', line: `[debug] ${dropped} earlier line(s) are not shown: the editor was not listening yet` });
+        for (const e of backlog) send({ t: 'log', ...e });
+        backlog.length = 0;
+        dropped = 0;
+    };
+    const hello = (): void => {
+        const assets = app?.hasResource(Assets) ? app.getResource(Assets) : null;
+        send({
+            t: 'hello', v: DEBUG_CHANNEL_PROTOCOL, platform: platform.name, title: '',
+            project: config.project ?? null, revision: assets?.getManifest()?.revision() ?? null,
+        });
+    };
+
+    const answer = async (q: DebugChannelQuery): Promise<void> => {
+        const reply = (m: DebugChannelMessage): void => send(m);
         try {
+            if (!app || !nextFrame) throw new Error('the game has not started yet');
+            const game = app;
             if (q.kind === 'frameCapture') {
-                reply({ t: 'reply', reqId: q.reqId, data: await captureFrameReport(app, nextFrame) });
+                reply({ t: 'reply', reqId: q.reqId, data: await captureFrameReport(game, nextFrame) });
                 return;
             }
-            const image = await replayFrameDraw(app, q.drawIndex, nextFrame);
+            if (q.kind === 'stats') {
+                // Timings cost a little every frame, so they start when first asked for.
+                if (!statsOn) {
+                    game.enableStats();
+                    game.onFrameEnd((dt) => { frameSum += dt; frames++; worstMs = Math.max(worstMs, dt); });
+                    statsOn = true;
+                }
+                // The device's own frame time since the last ask: the editor's clock
+                // runs on another machine and says nothing about this one.
+                const span = { frames, frameMs: frames > 0 ? frameSum / frames : 0, worstMs };
+                frameSum = 0; frames = 0; worstMs = 0;
+                reply({ t: 'reply', reqId: q.reqId, data: { ...frameStatsReport(game), ...span } });
+                return;
+            }
+            if (q.kind === 'control') {
+                if (q.fps !== undefined) game.setTargetFrameRate(q.fps);
+                if (q.paused !== undefined) game.setPaused(q.paused);
+                if (q.step && q.step > 0) await game.stepFrames(q.step);
+                reply({ t: 'reply', reqId: q.reqId, data: { paused: game.isPaused(), fps: Math.round(game.getTargetFrameRate()) } });
+                return;
+            }
+            const image = await replayFrameDraw(game, q.drawIndex, nextFrame);
             if (!image) {
                 reply({ t: 'reply', reqId: q.reqId, data: null });
                 return;
             }
             const { pixels, ...rest } = image;
             reply({ t: 'reply', reqId: q.reqId, data: rest, pixels: true });
-            s.send(pixels.buffer.byteLength === pixels.byteLength
+            socket?.send(pixels.buffer.byteLength === pixels.byteLength
                 ? pixels.buffer as ArrayBuffer
                 : pixels.slice().buffer as ArrayBuffer);
         } catch (e) {
@@ -91,33 +167,38 @@ export function openDebugChannel(app: App, config: DebugChannelConfig, title = '
 
     const dial = (): void => {
         retry = null;
-        if (closed) return;
         const s = platform.createSocket!({ url: config.url });
         socket = s;
         s.on('open', () => {
-            const hello: DebugChannelMessage = { t: 'hello', v: DEBUG_CHANNEL_PROTOCOL, platform: platform.name, title };
-            s.send(JSON.stringify(hello));
-            log.info('debug', 'connected to the editor');
+            hello();
+            flushBacklog();
         });
         s.on('message', (data) => {
             if (typeof data !== 'string') return;
             let q: DebugChannelQuery;
             try { q = JSON.parse(data) as DebugChannelQuery; } catch { return; }
-            if (q.t === 'query') void answer(s, q);
+            if (q.t === 'query') void answer(q);
         });
         s.on('close', () => {
             if (socket === s) socket = null;
-            if (!closed && retry === null) retry = setTimeout(dial, RECONNECT_MS);
+            if (retry === null) retry = setTimeout(dial, RECONNECT_MS);
         });
         s.on('error', () => { /* a close follows, and it redials */ });
         s.connect();
     };
 
     dial();
-    return () => {
-        closed = true;
-        if (retry !== null) clearTimeout(retry);
-        socket?.close();
-        socket = null;
+    active = {
+        attach(game) {
+            app = game;
+            nextFrame = appFrame(game);
+            hello();
+        },
     };
+}
+
+/** Hand the running game to the channel {@link startDebugChannel} opened, so the
+ *  editor can capture, profile and control it. */
+export function attachDebugChannel(app: App): void {
+    active?.attach(app);
 }

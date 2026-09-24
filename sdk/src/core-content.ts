@@ -447,8 +447,10 @@ export {
     type PackagedGameConfig,
 } from './runtime/packagedRuntime';
 export {
+    startDebugChannel,
     DEBUG_CHANNEL_PROTOCOL,
     type DebugChannelConfig,
+    type DebugControl,
     type DebugChannelMessage,
     type DebugChannelQuery,
 } from './runtime/debugChannel';

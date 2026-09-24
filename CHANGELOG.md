@@ -16,10 +16,12 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- A development build connected to the editor shows its log in the Output Log (from before the editor connected, too), can be profiled in the Profiler on its own frame clock, and can be paused, stepped and frame-capped from there; the log says which project and content version connected.
 - The Frame Debugger can capture and replay a frame of a development build running outside the editor — a browser or a mini-game host, on this machine or another on the network: export with the Development configuration and "Frame debugger connection", then pick the device in the panel. Native apps cannot connect yet.
 
 ### Fixed
 
+- A frame-rate cap now holds: `setTargetFrameRate(30)` on a 60 Hz display runs at 30, not 24.
 - A hot update reports how far it got — verified, applied, stored for the next launch, cached for offline — instead of one `ok`; two updates at once no longer both commit or lose the newer one; and an update stored by an older build no longer covers a newer one the player installed.
 - A hot update on a mini-game is stored for the next launch and its assets are cached on the device, so the updated game starts offline; before, a mini-game went back to what shipped.
 - A Douyin recording the host ends on its own keeps its video, and an interruption is not counted as recorded time.

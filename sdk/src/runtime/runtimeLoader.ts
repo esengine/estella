@@ -44,7 +44,7 @@ import { flushPendingRegistrations } from '../app/app';
 import { installHotUpdateRebind } from '../hotUpdateRebind';
 import { requireResourceManager } from '../wasm/resourceManager';
 import { log } from '../util/logger';
-import { openDebugChannel, type DebugChannelConfig } from './debugChannel';
+import { startDebugChannel, attachDebugChannel, type DebugChannelConfig } from './debugChannel';
 import type { AotManifest } from '../ecs/aot/AotSystems';
 import { type RuntimeAssetSource, type TextureParams } from './runtimeAssets';
 import type { SpineAssetInfo } from '../spine/loadSpineScene';
@@ -816,7 +816,7 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
         log.info('runtime', `AOT: ${installed} compiled system(s) installed`);
     }
 
-    if (config.debugChannel) openDebugChannel(app, config.debugChannel);
+    if (config.debugChannel) startDebugChannel(config.debugChannel);
 
     // Install the per-App runtime Assets up front (scene loads reuse it) and
     // hand it the manifest so on-demand loadGroup works from the first frame.
@@ -828,6 +828,8 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
     // A persisted update (from a prior applyUpdate) supersedes the shipped manifest
     // + root, so a returning player boots straight onto the already-updated content.
     if (config.persistUpdateKey) assets.restorePersistedUpdate(config.persistUpdateKey);
+    // Once the content it runs is known, so the editor is told which revision it is.
+    attachDebugChannel(app);
     // Built-in rebinder: on a hot update, swap the changed texture into live
     // sprites/meshes automatically — a scene @uuid ref updates with no game code.
     installHotUpdateRebind(app, assets);

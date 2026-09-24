@@ -11,11 +11,12 @@ import type { DebugChannelConfig } from 'esengine';
  * that dials an editor must never reach a player.
  */
 export function packagedDebugChannel(
-  opts: { debugChannel?: DebugChannelConfig | null; minify?: boolean },
+  opts: { debugChannel?: DebugChannelConfig | null; minify?: boolean; title?: string },
 ): DebugChannelConfig | undefined {
   if (!opts.debugChannel) return undefined;
   if (opts.minify) {
     throw new Error('a shipping build never carries a debug channel — export the Development config to debug on a device');
   }
-  return { url: opts.debugChannel.url };
+  const project = opts.debugChannel.project ?? opts.title;
+  return { url: opts.debugChannel.url, ...(project ? { project } : {}) };
 }

@@ -1064,4 +1064,10 @@ export const NOTED = {
     { note: 'A hot update reports how far it got — verified, applied, stored for the next launch, cached for offline — instead of one `ok`; two updates at once no longer both commit or lose the newer one; and an update stored by an older build no longer covers a newer one the player installed.' },
   'fix(minigame): a hot update reaches a mini-game, and survives its next launch offline':
     { note: 'A hot update on a mini-game is stored for the next launch and its assets are cached on the device, so the updated game starts offline; before, a mini-game went back to what shipped.' },
+  'feat(debug): a development build\'s log, frame stats and controls reach the editor':
+    { note: 'A development build connected to the editor shows its log in the Output Log (from before the editor connected, too), can be profiled in the Profiler on its own frame clock, and can be paused, stepped and frame-capped from there; the log says which project and content version connected.' },
+  'feat(profiler): a development build\'s frames, log and clock, read and driven from the editor':
+    { note: 'A development build connected to the editor shows its log in the Output Log (from before the editor connected, too), can be profiled in the Profiler on its own frame clock, and can be paused, stepped and frame-capped from there; the log says which project and content version connected.' },
+  'fix(app): a frame-rate cap keeps a cadence, so 30 on a 60 Hz display is 30':
+    { note: 'A frame-rate cap now holds: `setTargetFrameRate(30)` on a 60 Hz display runs at 30, not 24.' },
 };

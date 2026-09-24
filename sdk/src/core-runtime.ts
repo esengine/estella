@@ -506,6 +506,8 @@ export {
     type WebAppOptions,
     type RenderSurfaceSource,
 } from './app/app';
+export { frameStatsReport, type FrameStatsReport } from './runtime/frameStats';
+export { forwardConsole, type ConsoleLevel } from './runtime/consoleForward';
 
 // =============================================================================
 // Subsystem observability

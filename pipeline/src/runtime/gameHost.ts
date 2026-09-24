@@ -21,6 +21,7 @@ import {
   AnimatorRootMotion, Playthrough, Name,
   worldResidencyReport, PostProcess, Renderer, Audio, Camera,
   getComponentRegistry,
+  startDebugChannel,
 } from 'esengine';
 
 /**
@@ -123,6 +124,8 @@ async function boot(): Promise<void> {
 
   const cfg = (await (await fetch('./game.config.json')).json()) as PackagedGameConfig;
   splash?.reach('config');
+  // Before the engine boots, so a boot that fails is still heard by the editor.
+  if (cfg.debugChannel) startDebugChannel(cfg.debugChannel);
 
   // The project's own components and systems. The config SAYS whether this build
   // has any, so a load failure is a failure rather than a build that turned out

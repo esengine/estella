@@ -31,7 +31,7 @@ import { createMiniGameSideModuleHost, type MiniGameSideModuleFactories } from '
 import type { Physics2DPluginConfig } from '../physics/PhysicsTypes';
 import type { SceneData } from '../scene/scene';
 import type { AotManifest } from '../ecs/aot/AotSystems';
-import type { DebugChannelConfig } from './debugChannel';
+import { startDebugChannel, type DebugChannelConfig } from './debugChannel';
 import type { PackagedGameConfig } from './packagedRuntime';
 import { log } from '../util/logger';
 import { Schedule, defineSystem } from '../ecs/system';
@@ -197,6 +197,8 @@ function hostProgress(global: { showLoading?: (o: { title: string; mask?: boolea
 }
 
 export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promise<void> {
+    // Before the engine boots, so a boot that fails is still heard by the editor.
+    if (config.debugChannel) startDebugChannel(config.debugChannel);
     // Before the app exists, so a plugin that acquires during build finds them.
     registerPackagedSideModules({ sideModules: config.sideModules });
     // The family adapter owns the host global; boot refuses to guess at one.
