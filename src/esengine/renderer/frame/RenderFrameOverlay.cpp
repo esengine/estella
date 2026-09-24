@@ -101,6 +101,7 @@ void RenderFrame::endScreenOverlay(RenderTargetManager::Handle target) {
         pool_.upload();
     }
     accumulateStats(draw_list_);
+    tallyPass(draw_list_);
 
     FramebufferHandle fbo = FramebufferHandle::Default;
     if (target != RenderTargetManager::INVALID_HANDLE) {

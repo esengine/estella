@@ -291,6 +291,11 @@ void RenderFrame::beginFrame() {
     // them, so a buffer reused between two of them is read by both.
     context_.beginPerDrawBlocks();
     frame_capture_.beginFrame();
+
+    // The frame's tally, over every camera and the overlay.
+    stats_ = Stats{};
+    frame_merged_ = 0;
+    std::fill(std::begin(frame_breaks_), std::end(frame_breaks_), 0u);
 }
 
 void RenderFrame::applySceneDepthNeed() {
@@ -324,8 +329,6 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
     current_stage_ = RenderStage::Transparent;
     in_frame_ = true;
     frame_capture_.beginPass(CapturePass::Scene);
-
-    stats_ = Stats{};
 
     pool_.beginFrame();
     draw_list_.clear();
@@ -497,6 +500,37 @@ void RenderFrame::flush() {
     // What the frame's render targets cost. The atlas and every chain
     // intermediate come out of one pool, so one number answers for all of them —
     // and a pool that stopped giving targets back is visible in no pixel.
+    tallyPass(draw_list_);
+}
+
+void RenderFrame::endFrame() {
+    frame_capture_.endFrame();
+    device_.endFrame();
+    publishFrameCounters();
+    // Once per frame and not per camera: a commit at each camera's end kept only
+    // the last camera's scopes and counters.
+    FrameProfiler::get().commit();
+}
+
+// What one real pass's merge decided, added to the frame's tally. A preview
+// surface finalizes a list too, and is not part of the frame.
+void RenderFrame::tallyPass(const DrawList& list) {
+    frame_merged_ += list.mergedAwayCount();
+    for (u32 r = 1; r < static_cast<u32>(BatchBreak::Count); ++r) {
+        frame_breaks_[r] += list.breakCount(static_cast<BatchBreak>(r));
+    }
+}
+
+void RenderFrame::publishFrameCounters() {
+    if (!FrameProfiler::get().enabled()) return;
+    ES_PROFILE_COUNTER("batch.draws", stats_.draw_calls);
+    ES_PROFILE_COUNTER("batch.merged", frame_merged_);
+    // Emitted per reason and only where it happened, so a clean frame publishes
+    // nothing rather than a wall of zeroes for a caller to read past.
+    for (u32 r = 1; r < static_cast<u32>(BatchBreak::Count); ++r) {
+        if (frame_breaks_[r] == 0) continue;
+        FrameProfiler::get().counter(batchBreakCounter(static_cast<BatchBreak>(r)), frame_breaks_[r]);
+    }
     ES_PROFILE_COUNTER("render.targets", target_pool_.count());
     ES_PROFILE_COUNTER("render.targets.bytes", target_pool_.bytes());
     // Memory on the other side: pixels and buffers the device copies so they
@@ -527,11 +561,6 @@ void RenderFrame::flush() {
 #ifdef ES_ENABLE_PARTICLES
     ES_PROFILE_COUNTER("render.particles", stats_.particles);
 #endif
-}
-
-void RenderFrame::endFrame() {
-    frame_capture_.endFrame();
-    device_.endFrame();
 }
 
 void RenderFrame::end() {
@@ -621,8 +650,6 @@ void RenderFrame::end() {
     in_frame_ = false;
     flushed_ = false;
 
-    // Render is the frame's last C++ work: earlier scopes are already accumulated.
-    FrameProfiler::get().commit();
 }
 
 void RenderFrame::replayToDrawCall(i32 drawIndex) {

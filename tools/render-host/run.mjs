@@ -717,7 +717,7 @@ app.whenReady().then(async () => {
       const sameReasons = JSON.stringify(counted) === JSON.stringify(reported);
       frameDebug = {
         ...got, counted, sameReasons,
-        ok: Boolean(got) && got.draws > 0 && got.matches && sameReasons && got.last > 0 && got.differ > 0,
+        ok: Boolean(got) && got.draws > 0 && got.matches && sameReasons && got.last > 0 && (got.differ === null || got.differ > 0),
       };
     }
     // Optional color/orientation assertion: ESTELLA_VERIFY_EXPECT is a JSON array of

@@ -84,6 +84,8 @@ void DrawList::finalize(TransientBufferPool& pool) {
     u32 count = static_cast<u32>(commands_.size());
     if (count == 0) {
         merged_draw_calls_ = 0;
+        merged_away_ = 0;
+        std::fill(std::begin(breaks_), std::end(breaks_), 0u);
         return;
     }
 
@@ -187,17 +189,8 @@ void DrawList::finalize(TransientBufferPool& pool) {
     commands_.resize(writeIdx);
     merged_draw_calls_ = writeIdx;
 
-    // What the frame's draw-call count is made of. Emitted per reason and only
-    // where it happened, so a clean frame publishes nothing rather than a wall
-    // of zeroes for a caller to read past.
-    if (FrameProfiler::get().enabled()) {
-        ES_PROFILE_COUNTER("batch.draws", merged_draw_calls_);
-        ES_PROFILE_COUNTER("batch.merged", count - merged_draw_calls_);
-        for (u32 r = 1; r < static_cast<u32>(BatchBreak::Count); ++r) {
-            if (breaks[r] == 0) continue;
-            FrameProfiler::get().counter(batchBreakCounter(static_cast<BatchBreak>(r)), breaks[r]);
-        }
-    }
+    merged_away_ = count - merged_draw_calls_;
+    std::copy(std::begin(breaks), std::end(breaks), std::begin(breaks_));
 }
 
 std::span<const Entity> DrawList::runEntities(u32 index) const {

@@ -984,6 +984,8 @@ export const NOTED = {
     { note: 'A frame can be captured draw call by draw call, and replayed up to any one of them.' },
   'feat(editor): the Frame Debugger panel lists a frame\'s draws, why each started, and replays up to one':
     { note: 'A frame can be captured draw call by draw call, and replayed up to any one of them.' },
+  'fix(render): the profiler and the draw-call count cover every camera of the frame':
+    { note: 'With more than one camera, the profiler and the draw-call count cover the whole frame.' },
   'fix(play): a Play pressed while the engine warms up starts the game once, not again ten seconds later':
     { note: 'A game started right after the project opened no longer restarts itself about ten seconds in.' },
   'fix(play): the game starts once when Play is pressed during the warm-up':

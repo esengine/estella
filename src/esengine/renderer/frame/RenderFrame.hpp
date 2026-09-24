@@ -509,6 +509,10 @@ private:
     i32 replay_draw_ = -1;
     bool snapshot_matches_ = false;
     void runPendingReplay(const glm::mat4& projection, u32 w, u32 h);
+    void tallyPass(const DrawList& list);
+    void publishFrameCounters();
+    u32 frame_merged_ = 0;
+    u32 frame_breaks_[static_cast<u32>(BatchBreak::Count)] = {};
     u32 snapshot_w_ = 0;
     u32 snapshot_h_ = 0;
     PreviewSurface preview_;

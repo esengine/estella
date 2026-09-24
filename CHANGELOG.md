@@ -33,6 +33,7 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **With more than one camera, the profiler and the draw-call count cover the whole frame.** Each camera reset the frame's tally and closed the profiler's frame, so a split screen, or a scene with a UI camera, reported only the last camera's draw calls, triangles, merge counts and C++ timings, and the batch-break reasons of the others were lost. The frame now counts every camera and the screen overlay, once, and an asset preview rendered in between counts toward none of them.
 - **A game started right after the project opened no longer restarts itself about ten seconds in.** Pressing Play while the editor was still warming the game's engine up handed the scene over twice: once when the engine greeted the editor, and again when the warm-up's ten-second wait ran out — so the game restarted, and everything that had happened in it was gone. It now starts once, as soon as the engine is up.
 - A mini-game whose host's WebGL2 context also offers `OES_vertex_array_object` renders instead of hanging: the WebGL1 extensions WebGL2 made core are withheld from a WebGL2 context, as the spec says, so Emscripten no longer swaps in the host's broken extension path (vivo's).
 - `estella export` writes a mini-game's appid and project version as the build dialog does — a headless Bilibili package came out with an empty `appId`.

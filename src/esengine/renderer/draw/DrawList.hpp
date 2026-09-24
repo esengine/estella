@@ -70,6 +70,10 @@ public:
 
     u32 commandCount() const { return static_cast<u32>(commands_.size()); }
     u32 mergedDrawCallCount() const { return merged_draw_calls_; }
+    /** How many of the last finalize's draws started for @p reason. */
+    u32 breakCount(BatchBreak reason) const { return breaks_[static_cast<u32>(reason)]; }
+    /** How many submitted commands the last finalize folded into another. */
+    u32 mergedAwayCount() const { return merged_away_; }
     /** The entities merged draw @p index was made from, in draw order. */
     std::span<const Entity> runEntities(u32 index) const;
 
@@ -211,6 +215,8 @@ private:
     /// @see reserveMask2DSlots
     u32 mask_2d_slots_ = 0;
     u32 merged_draw_calls_ = 0;
+    u32 merged_away_ = 0;
+    u32 breaks_[static_cast<u32>(BatchBreak::Count)] = {};
     /// Members of a SortingGroup, by entity id — empty in the common frame.
     std::unordered_map<u32, GroupIdentity> group_identities_;
     u32 ysort_mask_ = 0;

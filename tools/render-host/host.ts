@@ -433,7 +433,7 @@ const api = {
      */
     async frameDebug(): Promise<{
         draws: number; passes: number; breaks: Record<string, number>;
-        first: number; last: number; differ: number; matches: boolean;
+        first: number; last: number; differ: number | null; matches: boolean;
     } | null> {
         if (!module) return null;
         const next = async () => { await api.step(1, 1 / 60); };
@@ -449,10 +449,12 @@ const api = {
         const b = await replayDraw(module, pass[pass.length - 1].index, next);
         if (!a || !b) return null;
         const painted = (px: Uint8ClampedArray) => { let n = 0; for (let i = 3; i < px.length; i += 4) if (px[i] > 0) n++; return n; };
-        let differ = 0;
+        let changed = 0;
         for (let i = 0; i < a.image.data.length; i += 4) {
-            if (Math.abs(a.image.data[i] - b.image.data[i]) + Math.abs(a.image.data[i + 3] - b.image.data[i + 3]) > 16) differ++;
+            if (Math.abs(a.image.data[i] - b.image.data[i]) + Math.abs(a.image.data[i + 3] - b.image.data[i + 3]) > 16) changed++;
         }
+        // A pass of one draw has no earlier draw to differ from.
+        const differ = pass.length > 1 ? changed : null;
         return {
             draws: cap.drawCalls.length, passes: cap.passCount, breaks,
             first: painted(a.image.data), last: painted(b.image.data), differ,
