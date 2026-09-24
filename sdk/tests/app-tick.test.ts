@@ -247,6 +247,38 @@ describe('App.stepFrames()', () => {
         }
     });
 
+    it('keeps running on a host whose requestAnimationFrame refuses an async handler', async () => {
+        // vivo's quick-game runtime: "requestAnimationFrame handler is not a function"
+        // for anything whose tag is not [object Function] — and an async function's is not.
+        const realRaf = globalThis.requestAnimationFrame;
+        let pending: ((ts: number) => void) | null = null;
+        globalThis.requestAnimationFrame = ((fn: FrameRequestCallback) => {
+            if (Object.prototype.toString.call(fn) !== '[object Function]') return 0;
+            pending = fn as unknown as (ts: number) => void;
+            return 1;
+        }) as unknown as typeof globalThis.requestAnimationFrame;
+        setPlatform({ now: () => 1000 } as unknown as PlatformAdapter);
+        const app = App.new();
+        let frames = 0;
+        app.addSystemToSchedule(Schedule.Update, defineSystem([], () => { frames++; }, { name: 'CountFrames' }));
+        const settle = async (): Promise<void> => { for (let i = 0; i < 30; i++) await Promise.resolve(); };
+        try {
+            await app.run();
+            await settle();
+            for (let i = 1; i <= 5; i++) {
+                const fire = pending as ((ts: number) => void) | null;
+                if (!fire) break;
+                pending = null;
+                fire(1000 + i * 16.7);
+                await settle();
+            }
+            expect(frames).toBeGreaterThanOrEqual(6);
+        } finally {
+            app.quit();
+            globalThis.requestAnimationFrame = realRaf;
+        }
+    });
+
     it('defaults to one frame', async () => {
         const app = App.new();
         await app.stepFrames();

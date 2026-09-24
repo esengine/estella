@@ -1044,7 +1044,7 @@ export class App {
                 // Resumed on the next animation frame, not by starting one here:
                 // a frame begun inside this call's own microtask drain swallows
                 // the input edge a caller injects the moment it returns.
-                if (typeof requestAnimationFrame === 'function') requestAnimationFrame(this.mainLoop);
+                if (typeof requestAnimationFrame === 'function') requestAnimationFrame(this.onAnimationFrame_);
                 else void this.mainLoop();
             }
         }
@@ -1066,6 +1066,11 @@ export class App {
     /**
      * @param rafTime The host's animation-frame timestamp, when it passes one.
      */
+    /** What every requestAnimationFrame is handed: a plain function, because a host
+     *  may refuse an async one — vivo's quick game warned "handler is not a function"
+     *  and every game stood on its first frame. */
+    private readonly onAnimationFrame_ = (rafTime?: number): Promise<void> => this.mainLoop(rafTime);
+
     private mainLoop = async (rafTime?: number): Promise<void> => {
         if (!this.running_) {
             return;
@@ -1081,7 +1086,7 @@ export class App {
         // loses to jitter half the time and waits a third (30 fps on 60 Hz ran at 24).
         if (this.targetFrameInterval_ > 0) {
             if (currentTime < this.nextCapFrameAt_ - CAP_JITTER_MS) {
-                requestAnimationFrame(this.mainLoop);
+                requestAnimationFrame(this.onAnimationFrame_);
                 return;
             }
             // More than a frame behind (a stall, a hidden page): the cadence restarts here.
@@ -1101,7 +1106,7 @@ export class App {
         await this.flushStartupSystems_();
         await this.runFrame_(delta);
 
-        requestAnimationFrame(this.mainLoop);
+        requestAnimationFrame(this.onAnimationFrame_);
     };
 
     quit(options?: { keepRenderer?: boolean }): void {
