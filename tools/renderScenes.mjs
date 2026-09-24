@@ -159,9 +159,11 @@ export const SCENES = [
     // x, so the shadow lands 100 along +x and x 75..175 is floor the light cannot see.
     // The blocker itself stays lit — shadowing one's own caster is the classic bug.
   { id: "mesh-shadow", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-shadow.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.708,\"y\":0.5,\"rgb\":[0,0,0],\"tol\":20},{\"x\":0.167,\"y\":0.5,\"rgb\":[228,228,228],\"tol\":20},{\"x\":0.5,\"y\":0.5,\"rgb\":[228,228,228],\"tol\":20}]" } },
-  // The same shadow turned 30 degrees, so its edges cross the map's texel grid; a
-  // filter that draws that grid into them strays by a quarter pixel, this one by 0.05.
+  // The same shadow turned 30 degrees with a hard source, so its edges cross the map's
+  // texel grid; a filter that draws that grid into them strays by a quarter pixel.
   { id: "mesh-shadow-tilt", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-shadow-tilt.esscene", ESTELLA_VERIFY_W: "512", ESTELLA_VERIFY_H: "512", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EDGE: "{\"box\":[0.6,0.36,0.9,0.52],\"lit\":228,\"dark\":0,\"maxJag\":0.12}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.167,\"y\":0.5,\"rgb\":[228,228,228],\"tol\":20}]" } },
+  // The same with the light's default source, the sun's 0.53°: a penumbra, as clean.
+  { id: "mesh-shadow-tilt-sun", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-shadow-tilt-sun.esscene", ESTELLA_VERIFY_W: "512", ESTELLA_VERIFY_H: "512", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EDGE: "{\"box\":[0.6,0.36,0.9,0.52],\"lit\":228,\"dark\":0,\"maxJag\":0.12}", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.167,\"y\":0.5,\"rgb\":[228,228,228],\"tol\":20}]" } },
 
     // The same scene with a MATERIAL on the occluder, over three frames because a
     // stale sampler unit needs a previous frame. Red at the centre says the material

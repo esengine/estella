@@ -29,6 +29,7 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **A Directional light's source is the sun's size by default, so its shadows have a penumbra.** `sourceAngle` defaulted to 0 — a source with no size, whose shadow edge is a knife-cut however far it falls. It is now 0.53°, the real sun's: a shadow close to its caster stays crisp and one cast far softens, as it does outdoors. A light that sets 0 keeps its hard edge.
 - **A paused game is no longer covered or dimmed.** The PAUSED label sat over the middle of the game and the frame was darkened, which hid exactly what a pause is for looking at. The frame's ring turns amber instead; the toolbar and the status bar say paused.
 
 ### Fixed

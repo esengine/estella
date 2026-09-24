@@ -1,6 +1,6 @@
 {
   "version": 4,
-  "name": "MeshShadowTilt",
+  "name": "MeshShadowTiltSun",
   "entities": [
     {
       "id": 0,
@@ -146,8 +146,7 @@
               "x": 0.5,
               "y": 0
             },
-            "meshShadows": true,
-            "sourceAngle": 0
+            "meshShadows": true
           }
         }
       ]

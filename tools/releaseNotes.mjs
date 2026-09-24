@@ -988,6 +988,8 @@ export const NOTED = {
     { note: 'A frame can be captured draw call by draw call, and replayed up to any one of them.' },
   'feat(render): a frame capture lists every texture a draw bound':
     { note: 'A frame can be captured draw call by draw call, and replayed up to any one of them.' },
+  'feat(render): a directional light\'s source is the sun\'s size by default':
+    { note: 'A Directional light\'s source is the sun\'s size by default, so its shadows have a penumbra.' },
   'fix(render): a hard shadow\'s edge is filtered, not stepped along the shadow map\'s grid':
     { note: 'A hard shadow\'s edge is a clean line, not a row of stair-steps.' },
   'feat(render): the sky is drawn from the panorama it was imported from':
