@@ -397,7 +397,7 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
           1,
         ],
       },
-      "tooltip": "Angular size of a Directional light's source; 0 = hard edge (sun ~0.53).",
+      "tooltip": "Angular size of a Directional light's source (the sun is 0.53); 0 = hard edge.",
       "unit": "°",
     },
     "type": {
