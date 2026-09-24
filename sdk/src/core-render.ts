@@ -244,9 +244,14 @@ export {
 
 export {
     BatchBreak,
+    CapturePass,
     RenderType,
+    captureFrame,
+    replayDraw,
     type DrawCallInfo,
     type FrameCaptureData,
+    type NextFrame,
+    type ReplaySnapshot,
 } from './render/frameCapture';
 
 // =============================================================================

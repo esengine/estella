@@ -91,7 +91,7 @@ claude mcp add estella --env ESTELLA_MCP_ALLOW_WRITES=1 -- \
 
 | 领域 | 工具（节选） |
 | --- | --- |
-| 观察 | `get_scene_tree`、`get_inspector`、`get_stats`、`get_diagnostics`、`capture_viewport`（PNG）、`screenshot`（整窗截图，含 Play 画面）、`world_component`（活 World 探针） |
+| 观察 | `get_scene_tree`、`get_inspector`、`get_stats`、`get_diagnostics`、`capture_viewport`（PNG）、`screenshot`（整窗截图，含 Play 画面）、`world_component`（活 World 探针）、`capture_frame` / `frame_draws` / `replay_draw`（帧调试器：每个 draw call、断批原因、画了哪些实体） |
 | 编辑场景 | `apply_scene_ops`（批量搭建）、`create_entity`（配合 `list_entity_templates` 的创建目录）、`set_field`、`set_entity_xy`、`set_parent`、`duplicate_entity`、`undo` / `redo` |
 | 项目与资产 | `create_project` / `open_project`、`open_scene`、`open_asset`（把任意资产在它自己的编辑器里打开）、`get_document`、`save_scene`、`create_scene_file`、`create_asset`、`import_assets`、`list_assets`、`get_import_settings` / `set_import_settings` |
 | 预制体 | `create_prefab_from_entity`、`edit_prefab` / `exit_prefab_mode`（Prefab Mode）、`apply_prefab`、`revert_prefab`、`unpack_prefab`、`create_prefab_variant` |

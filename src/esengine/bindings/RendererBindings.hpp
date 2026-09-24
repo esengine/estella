@@ -242,10 +242,11 @@ u32 renderer_getCapturedFrameSize();
 uintptr_t renderer_getCapturedFrameData();
 uintptr_t renderer_getCapturedEntities();
 u32 renderer_getCapturedEntityCount();
-u32 renderer_getCapturedCameraCount();
+u32 renderer_getCapturedPassCount();
 bool renderer_hasCapturedData();
 
 void renderer_replayToDrawCall(i32 drawCallIndex);
+bool renderer_snapshotMatchesCapture();
 i32 renderer_pollSnapshotReadback();
 uintptr_t renderer_getSnapshotPtr();
 u32 renderer_getSnapshotSize();

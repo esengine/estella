@@ -93,6 +93,7 @@ void RenderFrame::endScreenOverlay(RenderTargetManager::Handle target) {
     // Nothing to draw is not the same as nothing to do elsewhere, but here it is:
     // a pass that would write no pixel is one the graph would run anyway.
     if (draw_list_.commandCount() == 0) return;
+    frame_capture_.beginPass(CapturePass::Overlay);
 
     {
         ES_PROFILE_SCOPE("render.overlay.finalize");
@@ -130,6 +131,7 @@ void RenderFrame::endScreenOverlay(RenderTargetManager::Handle target) {
 
     device_.endRenderPass();
     device_.invalidatePipelineCache();
+    runPendingReplay(overlay_projection_, overlay_vp_w_, overlay_vp_h_);
 }
 
 }  // namespace esengine

@@ -290,6 +290,7 @@ void RenderFrame::beginFrame() {
     // a frame reaches the device as several passes with one submission behind
     // them, so a buffer reused between two of them is read by both.
     context_.beginPerDrawBlocks();
+    frame_capture_.beginFrame();
 }
 
 void RenderFrame::applySceneDepthNeed() {
@@ -322,7 +323,7 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
     current_target_ = target;
     current_stage_ = RenderStage::Transparent;
     in_frame_ = true;
-    frame_capture_.beginCapture();
+    frame_capture_.beginPass(CapturePass::Scene);
 
     stats_ = Stats{};
 
@@ -529,6 +530,7 @@ void RenderFrame::flush() {
 }
 
 void RenderFrame::endFrame() {
+    frame_capture_.endFrame();
     device_.endFrame();
 }
 
@@ -614,8 +616,8 @@ void RenderFrame::end() {
     // not ride into the next one (the swapchain recycles it at task end). On
     // GL this is just the default-framebuffer rebind.
     device_.endRenderPass();
+    runPendingReplay(view_projection_, scene_viewport_.w, scene_viewport_.h);
 
-    frame_capture_.endCapture();
     in_frame_ = false;
     flushed_ = false;
 
@@ -623,49 +625,66 @@ void RenderFrame::end() {
     FrameProfiler::get().commit();
 }
 
-void RenderFrame::replayToDrawCall(i32 stopAtDrawCall) {
-    if (draw_list_.commandCount() == 0 || stopAtDrawCall < 0) return;
-
-    if (replay_rt_ == 0) {
-        replay_rt_ = target_manager_.create(width_, height_, false, false);
-    } else {
-        auto* rt = target_manager_.get(replay_rt_);
-        if (rt && (rt->getWidth() != width_ || rt->getHeight() != height_)) {
-            rt->resize(width_, height_);
-        }
+void RenderFrame::replayToDrawCall(i32 drawIndex) {
+    if (drawIndex < 0 || static_cast<u32>(drawIndex) >= frame_capture_.getRecordCount()) return;
+    const DrawCallRecord* records = frame_capture_.getRecords();
+    const u32 pass = records[drawIndex].pass;
+    i32 local = 0;
+    for (i32 i = 0; i < drawIndex; ++i) {
+        if (records[i].pass == pass) ++local;
     }
+    replay_pass_ = static_cast<i32>(pass);
+    replay_draw_ = local;
+    if (snapshot_readback_ != ReadbackHandle::Invalid) device_.discardReadback(snapshot_readback_);
+    snapshot_readback_ = ReadbackHandle::Invalid;
+    snapshot_pixels_.clear();
+}
 
+void RenderFrame::runPendingReplay(const glm::mat4& projection, u32 w, u32 h) {
+    if (replay_draw_ < 0 || frame_capture_.currentPass() != replay_pass_) return;
+    const i32 stopAt = replay_draw_;
+    replay_pass_ = -1;
+    replay_draw_ = -1;
+    if (w == 0 || h == 0) {
+        w = width_;
+        h = height_;
+    }
+    snapshot_matches_ = draw_list_.mergedDrawCallCount()
+                        == frame_capture_.recordsInPass(frame_capture_.currentPass());
+
+    // With depth and stencil: a replayed 3D draw tests against the draws before
+    // it, and a UI mask writes the stencil the draws after it read.
+    if (replay_rt_ == 0) {
+        replay_rt_ = target_manager_.create(w, h, /*depth=*/true, /*linearFilter=*/false);
+    } else if (auto* existing = target_manager_.get(replay_rt_);
+               existing && (existing->getWidth() != w || existing->getHeight() != h)) {
+        existing->resize(w, h);
+    }
     auto* rt = target_manager_.get(replay_rt_);
     if (!rt) return;
 
     RenderPassDesc replayPass{rt->getFramebuffer(), /*clearColor=*/true};
-    replayPass.clearColorValue[3] = 0.0f;  // transparent black
+    replayPass.clearDepth = true;
+    replayPass.clearStencil = true;
+    replayPass.clearColorValue[3] = 0.0f;
     device_.beginRenderPass(replayPass);
-    device_.setViewport(0, 0, width_, height_);
+    device_.setViewport(0, 0, w, h);
 
-    frame_capture_.setReplayMode(stopAtDrawCall + 1);
-
-    context_.updateCameraConstants(view_projection_);
+    frame_capture_.setReplayMode(stopAt + 1);
+    context_.updateCameraConstants(projection);
     context_.lights().uploadAndBind();
     draw_list_.execute(device_, pool_, context_.materials(), context_.getWhiteTextureId(),
                        &frame_capture_, context_.perDrawBlocks());
-
-    // Leave scissor disabled for whatever renders next; invalidate so the next
-    // setPipeline re-applies its full state (stencil included).
-    device_.setScissorTest(false);
-    device_.invalidatePipelineCache();
-
     frame_capture_.clearReplayMode();
 
-    rt->unbind();
+    device_.setScissorTest(false);
+    device_.invalidatePipelineCache();
+    device_.endRenderPass();
 
-    // Async readback seam: the pass is closed first (WebGPU records the copy
-    // outside a pass); pollSnapshotReadback() lands the pixels.
-    if (snapshot_readback_ != ReadbackHandle::Invalid) device_.discardReadback(snapshot_readback_);
-    snapshot_w_ = width_;
-    snapshot_h_ = height_;
+    snapshot_w_ = w;
+    snapshot_h_ = h;
     snapshot_pixels_.clear();
-    snapshot_readback_ = device_.requestReadback(rt->getFramebuffer(), width_, height_);
+    snapshot_readback_ = device_.requestReadback(rt->getFramebuffer(), w, h);
 }
 
 void RenderFrame::renderToTarget(ecs::Registry& registry, const glm::mat4& viewProjection, u32 w, u32 h) {
@@ -702,7 +721,6 @@ void RenderFrame::renderSurface(ecs::Registry& registry, const glm::mat4& viewPr
     pool_.beginFrame();
     draw_list_.clear();
     clip_state_.clear();
-    frame_capture_.beginCapture();
 
     collectAll(registry);
 
@@ -721,8 +739,7 @@ void RenderFrame::renderSurface(ecs::Registry& registry, const glm::mat4& viewPr
     context_.updateCameraConstants(viewProjection);
     context_.lights().uploadAndBind();
     draw_list_.execute(device_, pool_, context_.materials(), context_.getWhiteTextureId(),
-                       &frame_capture_, context_.perDrawBlocks());
-    frame_capture_.endCapture();
+                       nullptr, context_.perDrawBlocks());
 
     rt->unbind();
     device_.invalidatePipelineCache();
@@ -736,6 +753,7 @@ void RenderFrame::renderSurface(ecs::Registry& registry, const glm::mat4& viewPr
 }
 
 i32 RenderFrame::pollSnapshotReadback() {
+    if (replay_draw_ >= 0) return 0;
     return pollReadback(snapshot_readback_, snapshot_pixels_, snapshot_w_, snapshot_h_);
 }
 

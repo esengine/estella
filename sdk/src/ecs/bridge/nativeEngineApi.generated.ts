@@ -134,9 +134,9 @@ export interface NativeEngineApi {
     renderer_endScreenOverlay?(targetHandle: number): void;
     renderer_entityVisibleToCamera?(registry: unknown, entity: number, layer: number, minX: number, minY: number, maxX: number, maxY: number, outVisiblePtr: number): void;
     renderer_flush?(): void;
-    renderer_getCapturedCameraCount?(): number;
     renderer_getCapturedEntityCount?(): number;
     renderer_getCapturedFrameSize?(): number;
+    renderer_getCapturedPassCount?(): number;
     renderer_getCulled?(): number;
     renderer_getDrawCalls?(): number;
     renderer_getGpuTimeMs?(): number;
@@ -184,6 +184,7 @@ export interface NativeEngineApi {
     renderer_setViewport?(x: number, y: number, w: number, h: number): void;
     renderer_setYSortLayers?(mask: number): void;
     renderer_shadowStatus?(entity: number, outPtr: number): number;
+    renderer_snapshotMatchesCapture?(): boolean;
     renderer_submitAll?(registry: unknown, vpX: number, vpY: number, vpW: number, vpH: number): void;
     renderer_submitScreenOverlay?(registry: unknown): void;
     renderer_submitSkeletalBatchByEntity?(registry: unknown, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, entity: number, skelScale: number, flipX: boolean, flipY: boolean, layer: number, depth: number, materialId: number): void;
@@ -403,9 +404,9 @@ export function createNativeEngineApi(
     bind('renderer_endScreenOverlay', 'es_renderer_endScreenOverlay', false);
     bind('renderer_entityVisibleToCamera', 'es_renderer_entityVisibleToCamera', true);
     bind('renderer_flush', 'es_renderer_flush', false);
-    bind('renderer_getCapturedCameraCount', 'es_renderer_getCapturedCameraCount', false);
     bind('renderer_getCapturedEntityCount', 'es_renderer_getCapturedEntityCount', false);
     bind('renderer_getCapturedFrameSize', 'es_renderer_getCapturedFrameSize', false);
+    bind('renderer_getCapturedPassCount', 'es_renderer_getCapturedPassCount', false);
     bind('renderer_getCulled', 'es_renderer_getCulled', false);
     bind('renderer_getDrawCalls', 'es_renderer_getDrawCalls', false);
     bind('renderer_getGpuTimeMs', 'es_renderer_getGpuTimeMs', false);
@@ -453,6 +454,7 @@ export function createNativeEngineApi(
     bind('renderer_setViewport', 'es_renderer_setViewport', false);
     bind('renderer_setYSortLayers', 'es_renderer_setYSortLayers', false);
     bind('renderer_shadowStatus', 'es_renderer_shadowStatus', false);
+    bind('renderer_snapshotMatchesCapture', 'es_renderer_snapshotMatchesCapture', false);
     bind('renderer_submitAll', 'es_renderer_submitAll', true);
     bind('renderer_submitScreenOverlay', 'es_renderer_submitScreenOverlay', true);
     bind('renderer_submitSkeletalBatchByEntity', 'es_renderer_submitSkeletalBatchByEntity', true);

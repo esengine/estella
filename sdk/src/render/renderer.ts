@@ -7,7 +7,7 @@ import { requireResourceManager } from '../wasm/resourceManager';
 import { platformOnContextLost } from '../platform';
 import { findWebGL2Context } from '../asset/glTextureUpload';
 import { log } from '../util/logger';
-import { decodeFrameCapture, replayToDrawCall as replayToDrawCallImpl, getSnapshotImageData as getSnapshotImpl, type FrameCaptureData } from './frameCapture';
+import { decodeFrameCapture, replayToDrawCall as replayToDrawCallImpl, getSnapshotImageData as getSnapshotImpl, snapshotMatchesCapture as snapshotMatchesImpl, type FrameCaptureData } from './frameCapture';
 import { acquireWebGPUDevice } from './webgpuBoot';
 
 export enum RenderStage {
@@ -734,5 +734,9 @@ export const Renderer = {
     getSnapshotImageData(): Promise<ImageData | null> {
         if (!module) return Promise.resolve(null);
         return getSnapshotImpl(module);
+    },
+
+    snapshotMatchesCapture(): boolean {
+        return module ? snapshotMatchesImpl(module) : false;
     },
 };

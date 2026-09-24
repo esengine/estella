@@ -2,85 +2,66 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #include "./FrameCapture.hpp"
 
+#include <algorithm>
+
 namespace esengine {
 
-void FrameCapture::reset() {
+void FrameCapture::beginFrame() {
+    pass_ = -1;
+    if (!capture_next_) return;
+    capture_next_ = false;
     records_.clear();
     entities_.clear();
-    pending_entities_.clear();
-    camera_index_ = 0;
-    camera_count_ = 0;
+    pass_count_ = 0;
     has_data_ = false;
+    capturing_ = true;
 }
 
-void FrameCapture::beginCapture() {
-    if (capture_next_) {
-        reset();
-        capturing_ = true;
-        capture_next_ = false;
-    }
+void FrameCapture::endFrame() {
+    if (!capturing_) return;
+    capturing_ = false;
+    has_data_ = !records_.empty();
+    pass_count_ = static_cast<u32>(pass_ + 1);
 }
 
-void FrameCapture::endCapture() {
-    if (capturing_) {
-        capturing_ = false;
-        has_data_ = !records_.empty();
-        camera_count_ = camera_index_ + 1;
-    }
+void FrameCapture::beginPass(CapturePass kind) {
+    ++pass_;
+    pass_kind_ = kind;
 }
 
-void FrameCapture::recordDrawCall(RenderStage stage, RenderType type, BlendMode blend_mode,
-                                   u32 texture_id, u32 material_id, u32 shader_id,
-                                   u32 vertex_count, u32 triangle_count, i32 layer,
-                                   BatchBreak reason, const ScissorRect& scissor,
-                                   bool scissor_enabled, bool stencil_write, bool stencil_test,
-                                   i32 stencil_ref, u8 texture_slot_usage) {
-    if (replay_mode_) {
-        replay_counter_++;
-        return;
-    }
-
+void FrameCapture::record(const DrawCommand& cmd, std::span<const Entity> entities) {
     if (!capturing_) return;
 
-    flushPendingEntities();
-
-    DrawCallRecord record;
-    record.index = static_cast<u32>(records_.size());
-    record.camera_index = camera_index_;
-    record.stage = stage;
-    record.type = type;
-    record.blend_mode = blend_mode;
-    record.texture_id = texture_id;
-    record.material_id = material_id;
-    record.shader_id = shader_id;
-    record.vertex_count = vertex_count;
-    record.triangle_count = triangle_count;
-    record.layer = layer;
-    record.break_reason = reason;
-    record.scissor = scissor;
-    record.scissor_enabled = scissor_enabled;
-    record.stencil_write = stencil_write;
-    record.stencil_test = stencil_test;
-    record.stencil_ref = stencil_ref;
-    record.texture_slot_usage = texture_slot_usage;
-
-    records_.push_back(record);
+    DrawCallRecord r;
+    r.index = static_cast<u32>(records_.size());
+    r.pass = static_cast<u32>(std::max(pass_, 0));
+    r.pass_kind = pass_kind_;
+    r.stage = cmd.stage;
+    r.type = cmd.type;
+    r.blend_mode = cmd.blend_mode;
+    r.texture_id = cmd.texture_count > 0 ? cmd.texture_ids[0] : 0;
+    r.material_id = cmd.material_id;
+    r.shader_id = cmd.shader_id;
+    r.index_count = cmd.index_count;
+    r.instance_count = cmd.instance_count;
+    r.triangle_count = cmd.index_count / 3 * std::max(cmd.instance_count, 1u);
+    r.layer = cmd.layer;
+    r.break_reason = cmd.break_reason;
+    r.scissor = cmd.scissor;
+    r.scissor_enabled = (cmd.state_flags & CMD_STATE_SCISSOR) != 0;
+    r.stencil_write = (cmd.state_flags & CMD_STATE_STENCIL_WRITE) != 0;
+    r.stencil_test = (cmd.state_flags & CMD_STATE_STENCIL_TEST) != 0;
+    r.stencil_ref = cmd.stencil_ref;
+    r.texture_slot_usage = cmd.texture_count;
+    r.entity_offset = static_cast<u32>(entities_.size());
+    r.entity_count = static_cast<u32>(entities.size());
+    entities_.insert(entities_.end(), entities.begin(), entities.end());
+    records_.push_back(r);
 }
 
-void FrameCapture::addPendingEntity(Entity entity) {
-    if (!capturing_) return;
-    pending_entities_.push_back(entity);
-}
-
-void FrameCapture::flushPendingEntities() {
-    if (!capturing_ || records_.empty()) return;
-
-    auto& last = records_.back();
-    last.entity_offset = static_cast<u32>(entities_.size());
-    last.entity_count = static_cast<u32>(pending_entities_.size());
-
-    entities_.insert(entities_.end(), pending_entities_.begin(), pending_entities_.end());
-    pending_entities_.clear();
+u32 FrameCapture::recordsInPass(i32 pass) const {
+    return static_cast<u32>(std::count_if(records_.begin(), records_.end(),
+        [pass](const DrawCallRecord& r) { return static_cast<i32>(r.pass) == pass; }));
 }
 
 void FrameCapture::setReplayMode(i32 limit) {

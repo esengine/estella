@@ -64,5 +64,7 @@ export function readPNG(buf) {
       const i = y * stride + x * bpp;
       return [out[i], out[i + 1], out[i + 2]];
     },
+    /** 255 for a picture with no alpha channel. */
+    alpha: (x, y) => (bpp === 4 ? out[y * stride + x * bpp + 3] : 255),
   };
 }

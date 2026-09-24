@@ -1180,7 +1180,7 @@ void registry_batchSyncPhysicsTransforms(ecs::Registry& registry, uintptr_t buff
 
 void renderer_captureNextFrame() {
     if (g_renderFrame) {
-        g_renderFrame->frameCapture().setCaptureNextFrame(true);
+        g_renderFrame->frameCapture().requestCapture();
     }
 }
 
@@ -1204,9 +1204,9 @@ u32 renderer_getCapturedEntityCount() {
     return g_renderFrame->frameCapture().getEntityCount();
 }
 
-u32 renderer_getCapturedCameraCount() {
+u32 renderer_getCapturedPassCount() {
     if (!g_renderFrame) return 0;
-    return g_renderFrame->frameCapture().getCameraCount();
+    return g_renderFrame->frameCapture().getPassCount();
 }
 
 bool renderer_hasCapturedData() {
@@ -1221,6 +1221,10 @@ void renderer_replayToDrawCall(i32 drawCallIndex) {
 
 // Lands the snapshot's async readback: 0 = pending (poll again after yielding
 // to the event loop), 1 = getSnapshot* serve the pixels, 2 = none/failed.
+bool renderer_snapshotMatchesCapture() {
+    return g_renderFrame && g_renderFrame->snapshotMatchesCapture();
+}
+
 i32 renderer_pollSnapshotReadback() {
     return g_renderFrame ? g_renderFrame->pollSnapshotReadback() : 2;
 }

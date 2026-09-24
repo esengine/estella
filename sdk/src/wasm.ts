@@ -668,10 +668,13 @@ export interface ESEngineModule {
     renderer_getCapturedFrameData(): number;
     renderer_getCapturedEntities(): number;
     renderer_getCapturedEntityCount(): number;
-    renderer_getCapturedCameraCount(): number;
+    renderer_getCapturedPassCount(): number;
     renderer_hasCapturedData(): boolean;
 
+    /** Replays on a later frame, after the pass that drew the call; the snapshot
+     *  poll reports pending until then. */
     renderer_replayToDrawCall(drawCallIndex: number): void;
+    renderer_snapshotMatchesCapture(): boolean;
     /** Lands the snapshot's async readback: 0 = pending (yield, poll again),
      *  1 = getSnapshot* serve the pixels, 2 = none/failed. GL reports 1 on the
      *  first poll; WebGPU resolves on a later event-loop turn. */

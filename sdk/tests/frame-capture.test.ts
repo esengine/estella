@@ -7,7 +7,7 @@
  *          mutation or reuse of the WASM-backed source buffer.
  */
 import { describe, expect, it } from 'vitest';
-import { decodeFrameCapture, getSnapshotImageData, RenderType, BatchBreak } from '../src/render/frameCapture';
+import { decodeFrameCapture, getSnapshotImageData, RenderType, BatchBreak, CapturePass } from '../src/render/frameCapture';
 import type { ESEngineModule } from '../src/wasm';
 
 // Minimal ImageData shim for headless test runs. Mirrors the parts of the
@@ -36,7 +36,7 @@ function buildModule(opts: {
     pollStatus?: number;
 }): { module: ESEngineModule; heap: Uint8Array; dataPtr: number; entitiesPtr: number; snapshotPtr: number } {
     const { width, height, drawCallCount = 0, entities = [], pollStatus = 1 } = opts;
-    const RECORD_SIZE = 76;
+    const RECORD_SIZE = 80;
     const snapshotSize = width * height * 4;
     const entitiesSize = entities.length * 4;
     const drawCallsSize = drawCallCount * RECORD_SIZE;
@@ -70,7 +70,7 @@ function buildModule(opts: {
         renderer_getCapturedFrameData: () => dataPtr,
         renderer_getCapturedEntities: () => entitiesPtr,
         renderer_getCapturedEntityCount: () => entities.length,
-        renderer_getCapturedCameraCount: () => 1,
+        renderer_getCapturedPassCount: () => 1,
         renderer_pollSnapshotReadback: () => pollStatus,
         renderer_getSnapshotSize: () => snapshotSize,
         renderer_getSnapshotWidth: () => width,
@@ -161,6 +161,22 @@ describe('decodeFrameCapture', () => {
 
         // Captured entities remain unchanged (primitive numbers were copied).
         expect(capture.drawCalls[0].entities).toEqual([101, 202, 303]);
+    });
+
+    it('reads the pass, the counts and the instance count where the engine writes them', () => {
+        const { module, heap, dataPtr } = buildModule({ width: 1, height: 1, drawCallCount: 1 });
+        const view = new DataView(heap.buffer, dataPtr, 80);
+        view.setUint32(4, 2, true);
+        view.setUint8(11, CapturePass.Overlay);
+        view.setUint32(16, 7, true);
+        view.setUint32(24, 36, true);
+        view.setUint32(28, 1200, true);
+        view.setUint8(44, BatchBreak.Material);
+        view.setUint32(76, 100, true);
+        expect(decodeFrameCapture(module)!.drawCalls[0]).toMatchObject({
+            pass: 2, passKind: CapturePass.Overlay, materialId: 7, indexCount: 36,
+            triangleCount: 1200, breakReason: BatchBreak.Material, instanceCount: 100,
+        });
     });
 
     it('surfaces enum values with the typed names (smoke)', () => {

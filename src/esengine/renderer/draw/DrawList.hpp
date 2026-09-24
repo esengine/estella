@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <unordered_map>
+#include <span>
 #include <vector>
 
 namespace esengine {
@@ -69,6 +70,8 @@ public:
 
     u32 commandCount() const { return static_cast<u32>(commands_.size()); }
     u32 mergedDrawCallCount() const { return merged_draw_calls_; }
+    /** The entities merged draw @p index was made from, in draw order. */
+    std::span<const Entity> runEntities(u32 index) const;
 
 
     const DrawCommand* commands() const { return commands_.data(); }
@@ -193,6 +196,10 @@ private:
     /// them: the merge is where an instance's probe is still known, and the
     /// texture is packed from this afterwards.
     std::vector<u32> probe_slots_;
+    /// Every merged draw's source entities, one contiguous run per draw
+    /// starting at run_first_[draw]: a run only ever grows at the list's end.
+    std::vector<Entity> run_entities_;
+    std::vector<u32> run_first_;
     /// One draw's run of coefficients, rebuilt per draw — reused so a frame of
     /// merged draws does not allocate per draw.
     std::vector<glm::vec4> probe_run_;

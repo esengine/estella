@@ -50,6 +50,8 @@ void DrawList::clear() {
     morph_shapes_.clear();
     probes_.clear();
     probe_slots_.clear();
+    run_entities_.clear();
+    run_first_.clear();
     merged_draw_calls_ = 0;
     depth_required_ = false;
 }
@@ -107,6 +109,8 @@ void DrawList::finalize(TransientBufferPool& pool) {
     commands_.swap(sorted_scratch_);
 
     merged_draw_calls_ = 0;
+    run_entities_.clear();
+    run_first_.clear();
     u32 writeIdx = 0;
     u32 breaks[static_cast<u32>(BatchBreak::Count)] = {};
 
@@ -167,6 +171,7 @@ void DrawList::finalize(TransientBufferPool& pool) {
             if (writeIdx != i) {
                 commands_[writeIdx] = commands_[i];
             }
+            run_first_.push_back(static_cast<u32>(run_entities_.size()));
             if (commands_[writeIdx].instance_count != 0) {
                 commands_[writeIdx].probe_base = static_cast<u32>(probe_slots_.size());
                 probe_slots_.push_back(commands_[writeIdx].probe_index);
@@ -177,6 +182,7 @@ void DrawList::finalize(TransientBufferPool& pool) {
             // so it needs no rewrite (this is the common single-texture case).
             ++writeIdx;
         }
+        if (commands_[i].entity != INVALID_ENTITY) run_entities_.push_back(commands_[i].entity);
     }
     commands_.resize(writeIdx);
     merged_draw_calls_ = writeIdx;
@@ -192,6 +198,14 @@ void DrawList::finalize(TransientBufferPool& pool) {
             FrameProfiler::get().counter(batchBreakCounter(static_cast<BatchBreak>(r)), breaks[r]);
         }
     }
+}
+
+std::span<const Entity> DrawList::runEntities(u32 index) const {
+    if (index >= run_first_.size()) return {};
+    const u32 first = run_first_[index];
+    const u32 end = index + 1 < run_first_.size() ? run_first_[index + 1]
+                                                  : static_cast<u32>(run_entities_.size());
+    return {run_entities_.data() + first, end - first};
 }
 
 void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
@@ -345,25 +359,12 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
                 static_cast<u32>(static_cast<uintptr_t>(cmd.index_offset) * sizeof(u32)));
         }
 
-        if (capture && capture->isCapturing()) {
-            capture->recordDrawCall(
-                cmd.stage,
-                cmd.type, cmd.blend_mode,
-                cmd.texture_count > 0 ? cmd.texture_ids[0] : 0,
-                0, cmd.shader_id,
-                0, cmd.index_count / 3,
-                cmd.layer,
-                cmd.break_reason,
-                cmd.scissor,
-                (cmd.state_flags & CMD_STATE_SCISSOR) != 0,
-                (cmd.state_flags & CMD_STATE_STENCIL_WRITE) != 0,
-                (cmd.state_flags & CMD_STATE_STENCIL_TEST) != 0,
-                cmd.stencil_ref,
-                cmd.texture_count);
-        }
-
-        if (capture && capture->isReplaying() && capture->shouldStop()) {
-            break;
+        if (capture) {
+            if (capture->isReplaying()) {
+                if (capture->stepReplay()) break;
+            } else if (capture->isCapturing()) {
+                capture->record(cmd, runEntities(i));
+            }
         }
     }
 }

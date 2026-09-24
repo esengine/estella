@@ -768,9 +768,10 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_getCapturedFrameData", &esengine::renderer_getCapturedFrameData);
     emscripten::function("renderer_getCapturedEntities", &esengine::renderer_getCapturedEntities);
     emscripten::function("renderer_getCapturedEntityCount", &esengine::renderer_getCapturedEntityCount);
-    emscripten::function("renderer_getCapturedCameraCount", &esengine::renderer_getCapturedCameraCount);
+    emscripten::function("renderer_getCapturedPassCount", &esengine::renderer_getCapturedPassCount);
     emscripten::function("renderer_hasCapturedData", &esengine::renderer_hasCapturedData);
     emscripten::function("renderer_replayToDrawCall", &esengine::renderer_replayToDrawCall);
+    emscripten::function("renderer_snapshotMatchesCapture", &esengine::renderer_snapshotMatchesCapture);
     emscripten::function("renderer_pollSnapshotReadback", &esengine::renderer_pollSnapshotReadback);
     emscripten::function("renderer_getSnapshotPtr", &esengine::renderer_getSnapshotPtr);
     emscripten::function("renderer_getSnapshotSize", &esengine::renderer_getSnapshotSize);

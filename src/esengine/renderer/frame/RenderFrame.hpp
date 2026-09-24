@@ -342,7 +342,15 @@ public:
     void setColorSpace(bool linear);
     bool linearColor() const { return linear_color_; }
 
-    void replayToDrawCall(i32 stopAtDrawCall);
+    /**
+     * Asks for the captured frame's draws up to @p drawIndex. The replay runs on a
+     * later frame, right after the pass that drew it, so it draws from that pass's
+     * own list; the snapshot poll reports pending until then.
+     */
+    void replayToDrawCall(i32 drawIndex);
+    /** Whether the replayed pass made as many draws as the captured one. False means
+     *  the scene changed since the capture and the snapshot shows the later frame. */
+    bool snapshotMatchesCapture() const { return snapshot_matches_; }
     const u8* getSnapshotPixels() const { return snapshot_pixels_.data(); }
     u32 getSnapshotSize() const { return static_cast<u32>(snapshot_pixels_.size()); }
     u32 getSnapshotWidth() const { return snapshot_w_; }
@@ -497,6 +505,10 @@ private:
     std::vector<u8> snapshot_pixels_;
     RenderTargetManager::Handle replay_rt_ = 0;
     ReadbackHandle snapshot_readback_ = ReadbackHandle::Invalid;
+    i32 replay_pass_ = -1;
+    i32 replay_draw_ = -1;
+    bool snapshot_matches_ = false;
+    void runPendingReplay(const glm::mat4& projection, u32 w, u32 h);
     u32 snapshot_w_ = 0;
     u32 snapshot_h_ = 0;
     PreviewSurface preview_;
