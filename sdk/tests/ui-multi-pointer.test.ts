@@ -131,4 +131,14 @@ describe('the pointer set a frame of input makes', () => {
         expect(pointers).toHaveLength(1);
         expect(pointers[0]).toMatchObject({ id: 3, x: 70, y: 90, down: false, released: true, hovers: false });
     });
+
+    it('clicks with a tap that landed and lifted inside one frame', () => {
+        // A 10 fps quick-game emulator dropped every quick tap: the finger was gone by the frame.
+        const input = new InputState();
+        input.touches.set(0, { id: 0, x: 10, y: 5 });
+        input.touchesStarted.set(0, { id: 0, x: 10, y: 5 });
+        input.endTouch(0);
+        const events = new UiPointerBook().step(uiPointersOf(input), screen, () => true);
+        expect(kinds(events, BUTTON_A)).toEqual(['press', 'release', 'click']);
+    });
 });

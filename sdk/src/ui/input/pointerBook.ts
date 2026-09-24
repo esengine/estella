@@ -43,10 +43,10 @@ export interface UiPointerEvent {
 export const MOUSE_POINTER = -1;
 
 /**
- * This frame's pointers. A touch host synthesizes mouse button 0 from the FIRST
- * finger, so while any finger is on the glass the fingers ARE the pointers —
- * counting both presses every control twice. A finger that lifted this frame is
- * still a pointer, carrying where it lifted: that is where its release lands.
+ * This frame's pointers: the fingers while any is on the glass (a touch host also
+ * synthesizes button 0 from the first, which would press every control twice),
+ * else the mouse. A finger that lifted this frame stays, where it lifted — and one
+ * that also landed this frame was pressed too, or a quick tap on a slow frame is lost.
  */
 export function uiPointersOf(input: InputState): UiPointerSample[] {
     const pointers: UiPointerSample[] = [];
@@ -59,7 +59,8 @@ export function uiPointersOf(input: InputState): UiPointerSample[] {
         }
         for (const t of input.touchesEnded.values()) {
             pointers.push({
-                id: t.id, x: t.x, y: t.y, down: false, pressed: false, released: true, hovers: false,
+                id: t.id, x: t.x, y: t.y, down: false,
+                pressed: input.touchesStarted.has(t.id), released: true, hovers: false,
             });
         }
         return pointers;

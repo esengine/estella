@@ -22,6 +22,7 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- A quick tap on a slow frame still clicks a button: a finger that landed and lifted between two frames was seen only lifting, so the button never saw a press.
 - A tap on vivo's quick game lands where the finger is: the host reports touches in physical pixels, and every tap landed off the screen.
 - Games on vivo's quick game run past their first frame: the frame loop now hands requestAnimationFrame a handler the runtime accepts.
 - The debug channel works on vivo's quick game: logs arrive in batches, and a replay is sent at the size the Frame Debugger shows instead of the whole screen.

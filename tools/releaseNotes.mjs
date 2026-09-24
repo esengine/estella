@@ -1090,4 +1090,6 @@ export const NOTED = {
     { note: 'The debug channel works on vivo\'s quick game: logs arrive in batches, and a replay is sent at the size the Frame Debugger shows instead of the whole screen.' },
   'fix(minigame): a tap on vivo\'s quick game lands where the finger is':
     { note: 'A tap on vivo\'s quick game lands where the finger is: the host reports touches in physical pixels, and every tap landed off the screen.' },
+  'fix(ui): a quick tap on a slow frame still clicks':
+    { note: 'A quick tap on a slow frame still clicks a button: a finger that landed and lifted between two frames was seen only lifting, so the button never saw a press.' },
 };
