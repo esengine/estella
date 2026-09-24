@@ -22,6 +22,7 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- The hot-update demo no longer says the remote manifest matches when it could not reach one; offline it says it keeps the local content.
 - On vivo's quick game the loading notice comes down once the game starts; it could stay over the running game.
 - A quick tap on a slow frame still clicks a button: a finger that landed and lifted between two frames was seen only lifting, so the button never saw a press.
 - A tap on vivo's quick game lands where the finger is: the host reports touches in physical pixels, and every tap landed off the screen.

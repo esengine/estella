@@ -1094,4 +1094,6 @@ export const NOTED = {
     { note: 'A quick tap on a slow frame still clicks a button: a finger that landed and lifted between two frames was seen only lifting, so the button never saw a press.' },
   'fix(minigame): the loading notice comes down on vivo\'s quick game':
     { note: 'On vivo\'s quick game the loading notice comes down once the game starts; it could stay over the running game.' },
+  'fix(examples): the hot-update demo says when it could not reach the update endpoint':
+    { note: 'The hot-update demo no longer says the remote manifest matches when it could not reach one; offline it says it keeps the local content.' },
 };

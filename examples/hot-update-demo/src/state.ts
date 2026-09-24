@@ -32,6 +32,8 @@ export interface DemoState {
     loaded: number;
     total: number;
     plan: PlanInfo | null;
+    /** The last check reached no manifest, so "up to date" means "nothing newer seen". */
+    checkUnreached: boolean;
     packBound: boolean[];
 
     // Scene-authored widget entities, resolved once by the build system.
@@ -61,6 +63,7 @@ export const state: DemoState = {
     loaded: 0,
     total: 0,
     plan: null,
+    checkUnreached: false,
     packBound: [],
 
     statusEntity: NONE,

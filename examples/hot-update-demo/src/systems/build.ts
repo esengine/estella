@@ -55,6 +55,7 @@ export const buildSystem = defineSystem(
             state.message = '正在检查更新…';
             state.progress = 0;
             state.plan = null;
+            state.checkUnreached = false;
             const ep = hotUpdateEndpoint();
             try {
                 const plan = await assets.checkForUpdate({ manifestUrl: ep.manifestUrl, remoteRoot: ep.remoteRoot });
@@ -76,6 +77,7 @@ export const buildSystem = defineSystem(
                 // configured, where updates/ was never bundled): honestly up to date.
                 state.phase = 'up-to-date';
                 state.message = '已是最新版本';
+                state.checkUnreached = true;
             }
         }
 

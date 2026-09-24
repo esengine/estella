@@ -68,7 +68,7 @@ function planLine(): string {
         case 'downloaded':
             return `已装载 ${state.packBound.filter(Boolean).length}/${state.packBound.length} 个资源`;
         case 'up-to-date':
-            return '远程清单与本地内容一致';
+            return state.checkUnreached ? '未连上更新地址，继续使用本地内容' : '远程清单与本地内容一致';
         default:
             return '点击「检查更新」比对远程内容，或「下载资源包」按需拉取';
     }
