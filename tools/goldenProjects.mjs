@@ -763,7 +763,7 @@ export const GOLDEN = [
     webPixels: [
       { what: 'the hero stands where its override puts it', x: 0.372, y: 0.406, rgb: [166, 81, 17], tol: 28 },
       { what: 'the knight\'s helmet is at the top of it', x: 0.610, y: 0.228, rgb: [123, 129, 123], tol: 24 },
-      { what: 'its belt at the middle', x: 0.616, y: 0.638, rgb: [139, 85, 63], tol: 24 },
+      { what: 'its armour at the side', x: 0.659, y: 0.571, rgb: [59, 61, 59], tol: 24 },
       { what: 'its boots on the ground', x: 0.573, y: 0.758, rgb: [61, 64, 61], tol: 24 },
     ],
   },
