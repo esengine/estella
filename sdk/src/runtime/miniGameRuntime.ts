@@ -176,11 +176,24 @@ export interface MiniGameRuntimeConfig {
  * canvas is the GL surface, so nothing 2D can be drawn over it. Every call is
  * optional — an indicator is something a boot SHOWS, never something it fails on.
  */
-function hostProgress(global: { showLoading?: (o: { title: string; mask?: boolean }) => void; hideLoading?: () => void }) {
+export function hostProgress(global: {
+    showLoading?: (o: { title: string; mask?: boolean; complete?: () => void }) => void;
+    hideLoading?: () => void;
+}) {
     const done: BootStage[] = [];
+    let unsettled = 0;
+    let hideWhenSettled = false;
+    const hide = (): void => {
+        try { global.hideLoading?.(); } catch { /* as above */ }
+    };
     const say = (): void => {
         try {
-            global.showLoading?.({ title: `${bootSays(done)} ${bootPercent(done)}%`, mask: true });
+            unsettled++;
+            global.showLoading?.({
+                title: `${bootSays(done)} ${bootPercent(done)}%`,
+                mask: true,
+                complete: () => { if (--unsettled === 0 && hideWhenSettled) hide(); },
+            });
         } catch { /* an indicator must not take the boot down with it */ }
     };
     say();
@@ -190,8 +203,13 @@ function hostProgress(global: { showLoading?: (o: { title: string; mask?: boolea
             done.push(stage);
             say();
         },
+        /** vivo runs these calls asynchronously and out of order: a hide issued
+         *  right after a show landed first, leaving the show up for good. So the
+         *  hide goes once every show has landed, and once now for a host that
+         *  never reports one landing. */
         finish(): void {
-            try { global.hideLoading?.(); } catch { /* as above */ }
+            hideWhenSettled = true;
+            hide();
         },
     };
 }

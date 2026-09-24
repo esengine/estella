@@ -1092,4 +1092,6 @@ export const NOTED = {
     { note: 'A tap on vivo\'s quick game lands where the finger is: the host reports touches in physical pixels, and every tap landed off the screen.' },
   'fix(ui): a quick tap on a slow frame still clicks':
     { note: 'A quick tap on a slow frame still clicks a button: a finger that landed and lifted between two frames was seen only lifting, so the button never saw a press.' },
+  'fix(minigame): the loading notice comes down on vivo\'s quick game':
+    { note: 'On vivo\'s quick game the loading notice comes down once the game starts; it could stay over the running game.' },
 };
