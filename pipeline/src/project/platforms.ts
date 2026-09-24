@@ -21,11 +21,11 @@
  * Xcode), so a single row could not tell you what to run, whether this machine
  * can run it, or where the package comes out.
  */
-export type BuiltinPlatform = 'web' | 'desktop' | 'wechat' | 'douyin' | 'kuaishou' | 'playable' | 'android' | 'ios';
+export type BuiltinPlatform = 'web' | 'desktop' | 'wechat' | 'douyin' | 'kuaishou' | 'bilibili' | 'playable' | 'android' | 'ios';
 
 /** Built-ins, in the order they are offered. */
 export const BUILTIN_PLATFORMS: readonly BuiltinPlatform[] = [
-    'web', 'desktop', 'wechat', 'douyin', 'kuaishou', 'playable', 'android', 'ios',
+    'web', 'desktop', 'wechat', 'douyin', 'kuaishou', 'bilibili', 'playable', 'android', 'ios',
 ];
 
 /**
@@ -63,7 +63,7 @@ export function isNativePlatform(platform: ExportPlatform): platform is NativePl
  * project's own vendor is one of these without appearing here, so that build
  * lives in the family's export defaults rather than behind this list.
  */
-export const MINIGAME_PLATFORMS = ['wechat', 'douyin', 'kuaishou'] as const;
+export const MINIGAME_PLATFORMS = ['wechat', 'douyin', 'kuaishou', 'bilibili'] as const;
 export type MiniGamePlatform = (typeof MINIGAME_PLATFORMS)[number];
 
 export function isMiniGamePlatform(platform: ExportPlatform): platform is MiniGamePlatform {

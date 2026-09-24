@@ -22,12 +22,14 @@ import type { SizeBudget } from '../project/sizeBudget';
  * ship can still be exported by handing {@link exportMiniGame} a profile.
  * Mirrors the SDK's `MiniGameVendor` (sdk/src/platform/minigame/api.ts).
  */
-export type MiniGameVendor = 'wechat' | 'douyin' | 'kuaishou' | (string & {});
+export type MiniGameVendor = 'wechat' | 'douyin' | 'kuaishou' | 'bilibili' | (string & {});
 
 /** Vendor-neutral facts the pipeline computes, handed to the config emitter. */
 export interface MiniGameConfigContext {
     title: string;
     appid: string;
+    /** The project's version, for a host whose config asks for one. */
+    version: string;
     orientation: 'portrait' | 'landscape';
     /** Lazy groups present in the cook, as vendor subpackage roots. */
     subPackages: ReadonlyArray<{ name: string; root: string }>;
@@ -174,7 +176,7 @@ export interface MiniGameExportProfile {
     /** Engine glue filenames to look for in wasmDir, in preference order. */
     readonly engineGlueCandidates: readonly string[];
     /** esbuild target for the game bundle + glue down-level (real-device syntax floor). */
-    readonly esTarget: 'es2017' | 'es2019' | 'es2020';
+    readonly esTarget: 'es2016' | 'es2017' | 'es2019' | 'es2020';
     /** Build-target name woven into "runtime not found" errors (`build -t <hint>`). */
     readonly wasmBuildHint: string;
     /** side-module id → the `build -t <target>` that produces it for THIS vendor.
@@ -430,6 +432,66 @@ export const kuaishouExportProfile: MiniGameExportProfile = {
 
     emitConfigFiles(ctx) {
         const gameCfg: Record<string, unknown> = { deviceOrientation: ctx.orientation };
+        if (ctx.subPackages.length > 0) {
+            gameCfg.subpackages = ctx.subPackages.map((s) => ({ name: s.name, root: s.root }));
+        }
+        return [{ file: 'game.json', content: JSON.stringify(gameCfg, null, 2) + '\n' }];
+    },
+
+    emitEntry: defaultMiniGameEntry,
+};
+
+// =============================================================================
+// Bilibili profile
+// =============================================================================
+
+/** The upload whitelist, from the page's own `whiteList` array
+ *  (miniapp.bilibili.com/small-game-doc/framework/structure). */
+const BILIBILI_PACKER_SUFFIXES: ReadonlySet<string> = new Set(`png jpg jpeg gif svg js json cer obj dae fbx mtl stl 3ds mp3 pvr wav plist ttf fnt gz ccz m4a
+    mp4 bmp atlas swf ani part proto bin sk mipmaps txt zip ogg silk dbbin dbmv etc lmat lm ls lh
+    lani lav lsani ltc csv scene prefab lml lmani ktx dds xml wasm exml xtt fui webp`.split(/\s+/).filter(Boolean));
+
+/**
+ * Bilibili (B 站), from miniapp.bilibili.com/small-game-doc: `game.json` carries the
+ * appid and version and spells `subpackages` lower-case. WebGL2 exists only in
+ * high-performance mode (「仅在高性能模式下，支持运行 WebGL2.0 小游戏」), so all
+ * four switches are always on — the engine renders on nothing less.
+ */
+export const bilibiliExportProfile: MiniGameExportProfile = {
+    id: 'bilibili',
+    sdkEntryFile: 'index.minigame.js',
+    runtimeInit: 'initMiniGameRuntime',
+    runtimeProfileHost: 'bilibiliPlatformProfile',
+    engineGlueCandidates: MINIGAME_ENGINE_GLUE,
+    // 「如果开发使用了 ES7 语法，特别是 async/await 的写法，必须在 game.js 开头引入
+    // [regenerator]」: async/await is lowered to generators rather than trusted.
+    esTarget: 'es2016',
+    wasmBuildHint: MINIGAME_ENGINE_BUILD,
+    hostGlobal: 'bl',
+    sideModuleBuildTargets: {},
+    // 「*.json、game.json 会经过编译」 — and `require` takes no .json at all.
+    nativeSuffixes: new Set(['.js', '.json']),
+    // miniapp.bilibili.com/small-game-doc/framework/structure, 「只有后缀名在白名单内的文件可以被上传」.
+    packerSuffixes: BILIBILI_PACKER_SUFFIXES,
+    // 「平台暂不支持Wasm Brotli压缩」 (the Cocos build note).
+    wasmBrotli: false,
+    subpackageDir: 'subpackages',
+    // WeChat's rule, assumed here: the docs name loadSubpackage but not what a
+    // root must hold, and a root without game.js is refused on WeChat.
+    subpackageEntry: 'game.js',
+
+    emitConfigFiles(ctx) {
+        const gameCfg: Record<string, unknown> = {
+            version: ctx.version,
+            appId: ctx.appid,
+            deviceOrientation: ctx.orientation,
+            showStatusBar: false,
+            iOSHighPerformance: true,
+            'iOSHighPerformance+': true,
+            androidHighPerformance: true,
+            'androidHighPerformance+': true,
+        };
+        if (ctx.hasOpenData) gameCfg.openDataContext = ctx.openDataRoot;
         if (ctx.subPackages.length > 0) {
             gameCfg.subpackages = ctx.subPackages.map((s) => ({ name: s.name, root: s.root }));
         }

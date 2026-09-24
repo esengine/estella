@@ -382,6 +382,7 @@ export interface ProjectPackaging {
   platforms?: {
     wechat?: MiniGamePackaging;
     douyin?: MiniGamePackaging;
+    bilibili?: MiniGamePackaging;
     desktop?: DesktopPackaging;
     android?: AndroidPackaging;
     ios?: IosPackaging;
@@ -813,9 +814,9 @@ export function parseManifest(raw: unknown): ProjectManifest {
         if (!orientation && (wx.orientation === 'portrait' || wx.orientation === 'landscape')) orientation = wx.orientation;
         if (Object.keys(w).length > 0) platforms.wechat = w;
       }
-      const tt = pl.douyin as Record<string, unknown> | undefined;
-      if (tt && typeof tt === 'object' && typeof tt.appid === 'string') {
-        platforms.douyin = { appid: tt.appid };
+      for (const vendor of ['douyin', 'bilibili'] as const) {
+        const v = pl[vendor] as Record<string, unknown> | undefined;
+        if (v && typeof v === 'object' && typeof v.appid === 'string') platforms[vendor] = { appid: v.appid };
       }
       const dt = pl.desktop as Record<string, unknown> | undefined;
       if (dt && typeof dt === 'object') {

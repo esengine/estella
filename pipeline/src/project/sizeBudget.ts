@@ -45,7 +45,9 @@ export type BudgetScope =
     | 'total'
     /** The single file that gets uploaded: an ad network's index.html or archive,
      *  a store's .apk. */
-    | 'deliverable';
+    | 'deliverable'
+    /** The largest one subpackage, for a host that caps each on its own. */
+    | 'eachSubpackage';
 
 /** One limit a target imposes. */
 export interface SizeBudget {
@@ -76,6 +78,7 @@ export function builtinSizeBudgets(platform: ExportPlatform): readonly SizeBudge
     if (platform === 'wechat') return WECHAT_BUDGETS;
     if (platform === 'douyin') return DOUYIN_BUDGETS;
     if (platform === 'kuaishou') return KUAISHOU_BUDGETS;
+    if (platform === 'bilibili') return BILIBILI_BUDGETS;
     return NO_BUDGETS;
 }
 
@@ -103,6 +106,16 @@ const DOUYIN_BUDGETS: readonly SizeBudget[] = [
 const KUAISHOU_BUDGETS: readonly SizeBudget[] = [
     { scope: 'initial', maxBytes: 6 * MB, note: "Kuaishou caps a mini-game's main package at 6MB (主包不超过 6M)" },
     { scope: 'total', maxBytes: 30 * MB, note: 'Kuaishou caps a mini-game at 30MB across the main package and all subpackages' },
+];
+
+/**
+ * 「单个分包/主包大小不能超过 4M」「整个小游戏所有分包大小不超过 30M」
+ * https://miniapp.bilibili.com/small-game-doc/ability/subpackage
+ */
+const BILIBILI_BUDGETS: readonly SizeBudget[] = [
+    { scope: 'initial', maxBytes: 4 * MB, note: "Bilibili caps a mini-game's main package at 4MB (单个分包/主包大小不能超过 4M)" },
+    { scope: 'eachSubpackage', maxBytes: 4 * MB, note: 'Bilibili caps every subpackage at 4MB as well (单个分包/主包大小不能超过 4M)' },
+    { scope: 'total', maxBytes: 30 * MB, note: 'Bilibili caps a mini-game at 30MB across the main package and all subpackages' },
 ];
 
 const NO_BUDGETS: readonly SizeBudget[] = [];

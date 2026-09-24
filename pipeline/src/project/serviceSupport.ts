@@ -175,6 +175,34 @@ const KUAISHOU_SERVICES: readonly ServiceStatus[] = [
     { service: 'achievements', support: 'no', note: ACHIEVEMENTS_LOCAL_ONLY },
 ];
 
+/** From miniapp.bilibili.com/small-game-doc; nothing here has run on a device yet. */
+const BILIBILI_SERVICES: readonly ServiceStatus[] = [
+    {
+        service: 'ads',
+        support: 'unknown',
+        note: 'bl.createRewardedVideoAd is documented (onClose carries isEnded); no interstitial is —'
+            + ' 「当前支持激励视频广告」 — so showInterstitial has no unit to show. Unverified on a device.',
+    },
+    {
+        service: 'share',
+        support: 'unknown',
+        note: 'bl.shareAppMessage and the passive bl.onShareAppMessage are documented; imageUrl must be on'
+            + ' Bilibili\'s own image server (「暂不支持非 bilibili 图片服务器资源地址」). Unverified on a device.',
+    },
+    {
+        service: 'signIn',
+        support: 'unknown',
+        note: 'bl.login yields a code your server exchanges at Bilibili\'s jscode2session; unverified on a device.',
+    },
+    {
+        service: 'purchase',
+        support: 'no',
+        note: 'Bilibili sells through bl.requestRecharge, which takes an order your server creates —'
+            + ' a shape the engine\'s purchase request does not carry, so the profile leaves the slot empty.',
+    },
+    { service: 'achievements', support: 'no', note: ACHIEVEMENTS_LOCAL_ONLY },
+];
+
 const DESKTOP_SERVICES: readonly ServiceStatus[] = noHostServices().map((s) => (
     s.service === 'achievements'
         ? {
@@ -197,6 +225,7 @@ export function builtinServiceSupport(platform: ExportPlatform): readonly Servic
     if (platform === 'wechat') return WECHAT_SERVICES;
     if (platform === 'douyin') return DOUYIN_SERVICES;
     if (platform === 'kuaishou') return KUAISHOU_SERVICES;
+    if (platform === 'bilibili') return BILIBILI_SERVICES;
     if (platform === 'desktop') return DESKTOP_SERVICES;
     if (platform === 'web' || platform === 'playable' || platform === 'android' || platform === 'ios') {
         return noHostServices();

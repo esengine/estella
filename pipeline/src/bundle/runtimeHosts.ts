@@ -17,6 +17,7 @@ import { ESENGINE_EXTERNAL } from './esengineResolve';
 // editor has to ship it for the same reason it ships the hosts.
 export const RUNTIME_HOSTS = [
   'gameHost', 'playableHost', 'playableLoader', 'douyinPlatformProfile', 'kuaishouPlatformProfile',
+  'bilibiliPlatformProfile',
 ] as const;
 
 export type RuntimeHost = (typeof RUNTIME_HOSTS)[number];

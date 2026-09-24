@@ -98,6 +98,10 @@ export const MODULES = {
         disposition: 'forbidden-native-script',
         why: "Kuaishou's platform profile — it names a host global (`ks`) that a native build does not have",
     },
+    'esengine/bilibili': {
+        disposition: 'forbidden-native-script',
+        why: "Bilibili's platform profile — it names a host global (`bl`) that a native build does not have",
+    },
 };
 
 /** The `exports` subpath ("." / "./physics3d") a specifier corresponds to. */

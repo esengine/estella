@@ -18,6 +18,7 @@ export default [
             'physics3d/index': 'src/physics3d/index.ts',
             'douyin/index': 'src/platform/douyin/index.ts',
             'kuaishou/index': 'src/platform/kuaishou/index.ts',
+            'bilibili/index': 'src/platform/bilibili/index.ts',
             'spine/index': 'src/spine/index.ts',
             'tilemap/index': 'src/tilemap/index.ts',
             'logic/index': 'src/logic/index.ts',

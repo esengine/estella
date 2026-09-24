@@ -36,7 +36,7 @@ import {
 import { engineImportMap, FULL_IMPORT_MAP, LEAN_ENTRY_FILE, FULL_ENTRY_FILE, type EngineImportMap } from '../bundle/importMap';
 import { engineInstalls, forcedSideModules, moduleChoices, type EngineInstallPlan } from '../bundle/engineInstalls';
 import { exportMiniGame } from './exportMiniGame';
-import { wechatExportProfile, douyinExportProfile, kuaishouExportProfile } from './miniGameExportProfile';
+import { wechatExportProfile, douyinExportProfile, kuaishouExportProfile, bilibiliExportProfile } from './miniGameExportProfile';
 import type { MiniGameExportProfile } from './miniGameExportProfile';
 
 /** The mini-game vendors the editor ships, by platform id. */
@@ -44,6 +44,7 @@ const BUILTIN_MINIGAME_PROFILES: Readonly<Record<string, MiniGameExportProfile>>
   wechat: wechatExportProfile,
   douyin: douyinExportProfile,
   kuaishou: kuaishouExportProfile,
+  bilibili: bilibiliExportProfile,
 };
 import { exportPlayable } from './exportPlayable';
 import { genericPlayableProfile, type PlayableAdProfile } from './playableAdProfile';
@@ -678,6 +679,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       packagesDir: opts.packagesDir,
       title,
       appid: opts.miniGameAppid,
+      appVersion: opts.appVersion,
       features: opts.features,
       modulesByPlatform: opts.modulesByPlatform,
       orientation,
@@ -713,6 +715,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       packagesDir: opts.packagesDir,
       title,
       appid: opts.miniGameAppid,
+      appVersion: opts.appVersion,
       features: opts.features,
       modulesByPlatform: opts.modulesByPlatform,
       orientation,

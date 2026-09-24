@@ -467,3 +467,28 @@ describe('what the export packed', () => {
             .toBeUndefined();
     });
 });
+
+describe('a cap on each subpackage', () => {
+  const entry = (path: string, bytes: number, bucket: 'initial' | 'lazy') => ({ path, bytes, bucket, kind: 'other' as const });
+
+  it('is judged on the heaviest one, not their sum', () => {
+    const budget = { scope: 'eachSubpackage' as const, maxBytes: 4 * MB, note: 'each subpackage' };
+    const report = summarizeEntries([
+      entry('game-bundle.js', 1 * MB, 'initial'),
+      entry('subpackages/a/one.bin', 3 * MB, 'lazy'),
+      entry('subpackages/a/two.bin', 2 * MB, 'lazy'),
+      entry('subpackages/b/three.bin', 3 * MB, 'lazy'),
+    ], { budgets: [budget] });
+    expect(report.largestSubpackage).toEqual({ root: 'subpackages/a', bytes: 5 * MB });
+    expect(report.verdicts).toHaveLength(1);
+    expect(report.verdicts[0]).toMatchObject({ measuredBytes: 5 * MB, status: 'over' });
+  });
+
+  it('says nothing about a build with no subpackages', () => {
+    const report = summarizeEntries([entry('game-bundle.js', 9 * MB, 'initial')], {
+      budgets: [{ scope: 'eachSubpackage', maxBytes: 4 * MB, note: 'each subpackage' }],
+    });
+    expect(report.largestSubpackage).toBeUndefined();
+    expect(report.verdicts).toEqual([]);
+  });
+});

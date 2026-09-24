@@ -26,7 +26,7 @@ const EXAMPLES = path.join(ROOT, 'examples');
 export const TIERS = ['pr', 'nightly', 'release'];
 
 /** Export targets a golden project can be asked to package + launch for. */
-export const TARGETS = ['web', 'playable', 'desktop', 'wechat', 'douyin', 'kuaishou', 'android', 'ios'];
+export const TARGETS = ['web', 'playable', 'desktop', 'wechat', 'douyin', 'kuaishou', 'bilibili', 'android', 'ios'];
 
 /**
  * How far a packaged frame may sit from the editor's frame of the same game.

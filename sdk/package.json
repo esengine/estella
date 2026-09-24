@@ -24,6 +24,7 @@
     "./dist/physics3d/index.js",
     "./dist/douyin/index.js",
     "./dist/kuaishou/index.js",
+    "./dist/bilibili/index.js",
     "./dist/index.wechat.cjs.js"
   ],
   "main": "./dist/index.js",
@@ -95,6 +96,10 @@
     "./kuaishou": {
       "import": "./dist/kuaishou/index.js",
       "types": "./dist/kuaishou/index.d.ts"
+    },
+    "./bilibili": {
+      "import": "./dist/bilibili/index.js",
+      "types": "./dist/bilibili/index.d.ts"
     }
   },
   "files": [

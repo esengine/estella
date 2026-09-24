@@ -984,6 +984,12 @@ export const NOTED = {
     { note: 'A project can be packaged for Kuaishou (快手).' },
   'fix(runtime): a mini-game host with only WebGL1 is told the game cannot start':
     { note: 'A mini-game host that offers only WebGL1 is told the game cannot start there' },
+  'feat(export): a project can be packaged for Bilibili':
+    { note: 'A project can be packaged for Bilibili (B 站).' },
+  'feat(editor): Bilibili is a build target, and a cap can be per subpackage':
+    { note: 'A project can be packaged for Bilibili (B 站).' },
+  'feat(runtime): a mini-game host that asks to hear the first frame is told':
+    { note: 'A mini-game host that asks to hear when the first screen has rendered is told' },
   'fix(agent): the history toggle presses grey again, not the accent':
     { note: "The agent drawer's History button shows it is open with a grey press again, not the accent colour 0.71 gave it." },
 };

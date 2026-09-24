@@ -74,7 +74,7 @@ describe('exportGame (kuaishou)', () => {
 
   it('declares subpackages under the key Kuaishou reads', () => {
     const [cfg] = kuaishouExportProfile.emitConfigFiles({
-      title: 't', appid: '', orientation: 'landscape',
+      title: 't', appid: '', version: '1.0.0', orientation: 'landscape',
       subPackages: [{ name: 'level2', root: 'subpackages/level2/' }],
       includeSuffixes: [], hasOpenData: false, openDataRoot: 'open-data',
     });

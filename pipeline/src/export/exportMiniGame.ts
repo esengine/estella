@@ -261,6 +261,8 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   title?: string;
   /** MiniGame appid (Project Settings) → project config. */
   appid?: string;
+  /** The project's version (ProjectManifest.version), for a host config that asks. */
+  appVersion?: string;
   /** Screen orientation (Project Settings) → game.json. */
   orientation?: 'portrait' | 'landscape';
   /** The project's runtime settings, derived once by `runtimeConfigOf`; the
@@ -627,6 +629,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   const configFiles = profile.emitConfigFiles({
     title,
     appid: opts.appid ?? '',
+    version: opts.appVersion ?? '1.0.0',
     orientation: opts.orientation ?? 'portrait',
     subPackages: subPackages.subPackages,
     includeSuffixes: packIncludeSuffixes(cookEntries, profile.nativeSuffixes),

@@ -96,6 +96,8 @@ export interface BuildSizeReport {
   deliverableBytes?: number;
   /** That file's name, so the UI can say what was weighed. */
   deliverableName?: string;
+  /** The heaviest subpackage (`subpackages/<name>`), when the build has any. */
+  largestSubpackage?: { root: string; bytes: number };
   /** Largest first, capped at {@link LARGEST_FILES}. */
   largest: BuildSizeEntry[];
   /** Package composition (initial + lazy), largest kind first. Excludes remote:
@@ -316,6 +318,12 @@ export function summarizeEntries(
   }
 
   const packageBytes = initialBytes + lazyBytes;
+  const bySubpackage = new Map<string, number>();
+  for (const file of entries) {
+    if (file.bucket !== 'lazy') continue;
+    const root = file.path.split('/').slice(0, 2).join('/');
+    bySubpackage.set(root, (bySubpackage.get(root) ?? 0) + file.bytes);
+  }
   const report: BuildSizeReport = {
     initialBytes, lazyBytes, remoteBytes, packageBytes, totalBytes,
     fileCount: entries.length,
@@ -323,6 +331,9 @@ export function summarizeEntries(
     byKind: [...kinds.values()].sort((a, b) => b.bytes - a.bytes),
     verdicts: [],
   };
+  for (const [root, bytes] of bySubpackage) {
+    if (!report.largestSubpackage || bytes > report.largestSubpackage.bytes) report.largestSubpackage = { root, bytes };
+  }
   if (opts.deliverableBytes != null) {
     report.deliverableBytes = opts.deliverableBytes;
     if (opts.deliverableName) report.deliverableName = opts.deliverableName;
@@ -354,7 +365,8 @@ function judge(report: BuildSizeReport, budgets: readonly SizeBudget[]): SizeVer
   for (const budget of budgets) {
     const measured = budget.scope === 'initial' ? report.initialBytes
       : budget.scope === 'total' ? report.packageBytes
-        : report.deliverableBytes;
+        : budget.scope === 'eachSubpackage' ? report.largestSubpackage?.bytes
+          : report.deliverableBytes;
     if (measured == null) continue;
     verdicts.push(evaluateSizeBudget(measured, budget));
   }
