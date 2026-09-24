@@ -1052,4 +1052,6 @@ export const NOTED = {
     { note: 'A project can be packaged as a Huawei quick game (华为快游戏).' },
   'fix(agent): the history toggle presses grey again, not the accent':
     { note: "The agent drawer's History button shows it is open with a grey press again, not the accent colour 0.71 gave it." },
+  'fix(bench): a locked screen is a question this machine cannot take':
+    { internal: 'a release criterion\'s own measuring conditions; the engine is unchanged' },
 };

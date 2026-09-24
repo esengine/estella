@@ -135,6 +135,14 @@ if (!template || !existsSync(template)) {
     console.log(`  build one with: node build-tools/cli.js native --target ${os}`);
     process.exit(2);
 }
+// A locked screen throttles drawables to a floor of ~8 ms whatever the frame holds,
+// and the compiled run still read 53% busy under it — past MIN_BUSY, so the wait
+// was reported as a system reaching the interpreter.
+if (os === 'macos' && /<key>CGSSessionScreenIsLocked<\/key>\s*<true\/>/.test(
+    spawnSync('ioreg', ['-n', 'Root', '-d1', '-a'], { encoding: 'utf8' }).stdout ?? '')) {
+    console.log('aot native bench: the screen is locked, so every frame waits on the compositor — did NOT run.');
+    process.exit(2);
+}
 
 // ---------------------------------------------------------------- the project
 
