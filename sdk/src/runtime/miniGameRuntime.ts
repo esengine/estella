@@ -54,6 +54,20 @@ function createWasmInstantiator(wasmPath: string, tag: string, onError?: (e: unk
     };
 }
 
+/**
+ * WebGL1 extensions WebGL2 made core. Emscripten asks for each unconditionally and
+ * swaps the context's own methods for any that answers; vivo's WebGL2 context
+ * answers OES_vertex_array_object and then hangs the first createVertexArray.
+ * Withheld, as the spec already says a WebGL2 context must.
+ */
+const CORE_IN_WEBGL2 = new Set(['OES_vertex_array_object', 'ANGLE_instanced_arrays', 'WEBGL_draw_buffers']);
+
+export function hideCoreExtensions(gl: WebGLRenderingContext): void {
+    const getExtension = gl.getExtension.bind(gl);
+    (gl as { getExtension: (name: string) => unknown }).getExtension =
+        (name: string) => (CORE_IN_WEBGL2.has(name) ? null : getExtension(name));
+}
+
 /** A mini-game console prints a thrown object as `[object Object]`, so the one
  *  line a device gives you says nothing unless it is made into text here. */
 function describeError(e: unknown): string {
@@ -215,6 +229,7 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
         return;
     }
 
+    hideCoreExtensions(gl);
     const glHandle = module.GL.registerContext(gl, {
         majorVersion: 2,
         minorVersion: 0,
