@@ -1060,4 +1060,8 @@ export const NOTED = {
     { note: 'The Frame Debugger can capture and replay a frame of a development build running outside the editor — a browser or a mini-game host, on this machine or another on the network: export with the Development configuration and "Frame debugger connection", then pick the device in the panel. Native apps cannot connect yet.' },
   'feat(frame-debugger): capture a frame from a development build running elsewhere':
     { note: 'The Frame Debugger can capture and replay a frame of a development build running outside the editor — a browser or a mini-game host, on this machine or another on the network: export with the Development configuration and "Frame debugger connection", then pick the device in the panel. Native apps cannot connect yet.' },
+  'fix(hot-update): an update says which stages it reached, and the next launch starts on a whole version':
+    { note: 'A hot update reports how far it got — verified, applied, stored for the next launch, cached for offline — instead of one `ok`; two updates at once no longer both commit or lose the newer one; and an update stored by an older build no longer covers a newer one the player installed.' },
+  'fix(minigame): a hot update reaches a mini-game, and survives its next launch offline':
+    { note: 'A hot update on a mini-game is stored for the next launch and its assets are cached on the device, so the updated game starts offline; before, a mini-game went back to what shipped.' },
 };

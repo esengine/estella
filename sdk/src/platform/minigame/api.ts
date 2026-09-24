@@ -249,6 +249,8 @@ export interface MiniGameSocketTask {
  * time, so a vendor missing one degrades gracefully rather than throwing.
  */
 export interface MiniGameGlobal {
+    /** The writable directory a game may keep files in (`wx.env.USER_DATA_PATH`). */
+    env?: { USER_DATA_PATH?: string };
     createCanvas(): MiniGameCanvas;
     createImage(): MiniGameImage;
     getFileSystemManager(): MiniGameFileSystemManager;

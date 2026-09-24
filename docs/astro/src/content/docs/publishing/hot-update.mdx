@@ -244,6 +244,7 @@ The hot-update surface lives on the `Assets` resource (`Res(Assets)`):
 | `checkForUpdate(options)` | `Promise<UpdatePlan>` | Fetch a candidate manifest, diff it against the active one, and stage it. Downloads no assets. |
 | `applyUpdate(onProgress?)` | `Promise<ApplyUpdateResult>` | Apply the staged update **atomically**: download + verify every changed asset, then swap the manifest, rebind live handles, and persist. `onProgress(loaded, total)` reports download progress. |
 | `restorePersistedUpdate(key)` | `boolean` | At boot, restore the manifest a prior `applyUpdate` persisted under `key`. The runtime calls this for you when `persistUpdateKey` is set. |
+| `updateStatus()` | `UpdateStatus` | `{ revision, persistedRevision, staged, applying }` — for a diagnostics screen. |
 | `setRemoteRoot(url?)` | `void` | Point remote-group resolution at a CDN root (`undefined` clears it → same-origin). The runtime sets this from the build's `remoteRoot`. |
 | `remoteRoot` | `string \| undefined` | The active CDN root (getter). |
 | `onInvalidate(listener)` | `() => void` | Subscribe to invalidations. The listener receives `{ ref, type, oldValue }` (for custom rebinding); returns an unsubscribe function. |
@@ -275,6 +276,23 @@ The hot-update surface lives on the `Assets` resource (`Res(Assets)`):
 | `ok` | `boolean` | True only when every changed asset downloaded + verified and the manifest was swapped. |
 | `updated` | `number` | How many assets were applied (`0` on failure). |
 | `failed` | `AssetDownloadFailure[]` | Why it rolled back — each `{ path, reason: 'fetch' \| 'integrity' }`. |
+| `stages` | `UpdateStages` | How far it got — see below. `ok` alone does not say whether the next launch keeps the update. |
+| `revision` | `string \| null` | The revision this session runs on afterwards. |
+| `uncached` | `string[]` | Changed assets the disk cache refused, by url — what the next launch fetches again. |
+| `reason` | `'nothing-staged'` *(optional)* | Nothing was attempted: no update is staged (none was checked, or another `applyUpdate` already took it). |
+
+**`UpdateStages`** — each is its own answer:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `verified` | `boolean` | Every changed asset downloaded and matched its content hash. |
+| `applied` | `boolean` | This session runs on the new manifest, and its assets have settled on it. |
+| `persisted` | `boolean \| null` | The next launch starts on it: stored and read back. `false` when storage refused (a full quota); `null` with no persistence key. |
+| `cached` | `boolean \| null` | Every changed remote asset is in the disk cache, so the next launch reads it without the network. `null` where the platform keeps no cache (web). |
+
+`updateStatus()` answers the same questions at any time: the revision running now,
+the one the next launch starts on, what is staged and what it would download, and
+whether an apply is in progress.
 
 ## On-demand groups (DLC)
 
@@ -327,17 +345,24 @@ half-applied update is impossible.
 When `persistUpdateKey` is set (the export does this automatically), `applyUpdate`
 saves the applied manifest to platform storage. At the next boot the runtime calls
 `restorePersistedUpdate(key)` and the player starts **directly on the updated
-content — even with no network**. On native and mini-game targets the verified
-bytes are also written to a content-addressed **disk cache**, so updated assets
-load offline without re-hitting the CDN.
+content**. On targets with a disk cache the verified bytes are also written to it,
+so updated assets load **without the network**; `stages.cached` says whether they
+all made it.
+
+A stored update belongs to the package it was applied to. When the player installs
+a newer build (a new web deploy, an app-store update), the stored update is older
+than what shipped, so it is dropped and the game starts on the new package.
+
+Applies run one at a time. An update found while another is downloading stays
+staged, and applying it downloads only what the first one did not already bring.
 
 ## Platform support
 
 | Target | Manifest + diff | CDN fetch | Persist | Disk cache |
 | --- | --- | --- | --- | --- |
-| **Web** | ✅ | ✅ (CORS/CSP apply) | `localStorage` | browser HTTP cache |
+| **Web** | ✅ | ✅ (CORS/CSP apply) | `localStorage` | — (the next launch refetches from the CDN) |
 | **Desktop** | ✅ | ✅ | ✅ | ✅ (content-addressed) |
-| **WeChat MiniGame** | ✅ | ✅ | ✅ | ✅ |
+| **Mini-games** (WeChat, Douyin, …) | ✅ | ✅ | ✅ | ✅ (the host's user data directory) |
 | **Native (iOS / Android)** | ✅ | ✅ | ✅ | ✅ |
 
 The manifest diff is pure and platform-agnostic; only the fetch, storage, and

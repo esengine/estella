@@ -25,12 +25,12 @@ import { runtimeHostEntry } from '../bundle/runtimeHosts';
 import { writeFile, readFile, mkdir, cp, readdir, rm } from 'node:fs/promises';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { cookAssets, loadAssetGroups, type CookManifest, type Inclusion } from '../assets/cookAssets';
+import { cookAssets, type CookManifest, type Inclusion } from '../assets/cookAssets';
 import { cookWorlds, streamedScenes } from '../world/cookWorld';
 import { buildAddressableManifest } from '../assets/addressableManifest';
-import { activeRemoteRoot } from '../../../sdk/src/asset/assetGroups';
 import type { DebugChannelConfig, PackagedGameConfig } from 'esengine';
 import { packagedDebugChannel } from './debugChannel';
+import { packagedHotUpdate } from './hotUpdateConfig';
 import {
   DEFAULT_RUNTIME_CONFIG, packagedRuntimeFields, type RuntimeProjectConfig,
 } from '../project/runtimeConfig';
@@ -709,6 +709,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       runtime,
       minify: opts.minify,
       debugChannel: opts.debugChannel,
+      hotUpdate: opts.hotUpdate,
       emcc: opts.emcc,
       aotMode: opts.aotMode,
       contentAddressed: opts.contentAddressed,
@@ -749,6 +750,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       runtime,
       minify: opts.minify,
       debugChannel: opts.debugChannel,
+      hotUpdate: opts.hotUpdate,
       emcc: opts.emcc,
       aotMode: opts.aotMode,
       contentAddressed: opts.contentAddressed,
@@ -899,15 +901,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   // asset model in the package — the mini-game export has always done this.
   await rm(path.join(payloadDir, 'assets.manifest.json'), { force: true });
 
-  // Hot-update delivery baked into game.config.json: the active build profile's
-  // CDN root (an explicit opts.hotUpdate override wins), plus a persistence key so
-  // a returning player boots on already-updated content. Only emitted when a CDN
-  // root is configured — a project with no remote groups ships nothing extra.
-  const remoteRoot = opts.hotUpdate?.remoteRoot ?? activeRemoteRoot(await loadAssetGroups(opts.root));
-  const persistUpdateKey = opts.hotUpdate?.persistUpdateKey ?? (remoteRoot ? 'esengine:hotupdate' : undefined);
-  const hotUpdate = remoteRoot || persistUpdateKey
-    ? { ...(remoteRoot ? { remoteRoot } : {}), ...(persistUpdateKey ? { persistUpdateKey } : {}) }
-    : undefined;
+  const hotUpdate = await packagedHotUpdate(opts.root, opts.hotUpdate);
 
   // What wasm this project's content pulls in — evidence for the plan below, and
   // the filter the runtime tree is copied through further down.

@@ -256,6 +256,28 @@ describe('exportGame (wechat)', () => {
     rmSync(path.join(root, '.esengine'), { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   }, 60_000);
 
+  it('carries the same hot-update delivery the web road does into the boot call', async () => {
+    const outWx = path.join(root, 'dist-wechat-hotupdate');
+    const res = await exportGame({
+      root,
+      entryScene: 'scenes/main.esscene',
+      hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
+      scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'),
+      wasmDir: path.join(root, '_wxwasm'),
+      outDir: outWx,
+      platform: 'wechat',
+      hotUpdate: { remoteRoot: 'https://cdn.example/v3', persistUpdateKey: 'game:updates' },
+    });
+    expect(res.ok).toBe(true);
+    // Without it a mini-game neither resolved remote groups against its CDN nor
+    // started on an update it had applied: the next launch was the shipped build.
+    const bundle = readFileSync(path.join(outWx, 'game-bundle.js'), 'utf8');
+    const declaration = bundle.match(/hotUpdate:\s*\{[^}]*\}/)?.[0] ?? '(no hotUpdate in the boot call)';
+    expect(declaration).toContain('https://cdn.example/v3');
+    expect(declaration).toContain('game:updates');
+  }, 60_000);
+
   it('refuses to substitute a web build for a mini-game one', async () => {
     // Serving the web glue would produce a package that builds clean and dies on
     // a device — the failure this whole per-platform layout exists to prevent.

@@ -38,7 +38,8 @@ import type {
     MiniGameOpenDataContext,
 } from './api';
 import { createPrimaryPointer } from '../primaryPointer';
-import { mgReadFileSync, mgReadTextFileSync, mgFileExistsSync } from './fs';
+import { mgReadFile, mgReadFileSync, mgReadTextFileSync, mgFileExistsSync } from './fs';
+import { cacheEntryName } from '../cacheEntryName';
 import { mgLoadImagePixels } from './image';
 import { mgFetch } from './fetch';
 import { MiniGameAudioBackend } from '../../audio/MiniGameAudioBackend';
@@ -95,6 +96,28 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
 
     async fileExists(path: string): Promise<boolean> {
         return mgFileExistsSync(this.fs(), path);
+    }
+
+    /** Hot update's content cache, flat under the host's user data directory and
+     *  named as on every other platform. */
+    async readCacheFile(key: string): Promise<ArrayBuffer | null> {
+        const dir = this.g_.env?.USER_DATA_PATH;
+        if (!dir) return null;
+        try {
+            return await mgReadFile(this.fs(), `${dir}/${cacheEntryName(key)}`, this.profile_.hostLabel);
+        } catch {
+            return null;
+        }
+    }
+
+    writeCacheFile(key: string, bytes: ArrayBuffer): Promise<void> {
+        const dir = this.g_.env?.USER_DATA_PATH;
+        if (!dir) return Promise.reject(new Error(`${this.profile_.hostLabel} names no user data directory`));
+        return new Promise((resolve, reject) => this.fs().writeFile({
+            filePath: `${dir}/${cacheEntryName(key)}`, data: bytes,
+            success: () => resolve(),
+            fail: (err) => reject(new Error(err.errMsg)),
+        }));
     }
 
     async loadImagePixels(path: string): Promise<ImageLoadResult> {

@@ -32,6 +32,7 @@ import type { Physics2DPluginConfig } from '../physics/PhysicsTypes';
 import type { SceneData } from '../scene/scene';
 import type { AotManifest } from '../ecs/aot/AotSystems';
 import type { DebugChannelConfig } from './debugChannel';
+import type { PackagedGameConfig } from './packagedRuntime';
 import { log } from '../util/logger';
 import { Schedule, defineSystem } from '../ecs/system';
 import type { App } from '../app/app';
@@ -164,6 +165,9 @@ export interface MiniGameRuntimeConfig {
      */
     aot?: { module: string; manifest: AotManifest };
     debugChannel?: DebugChannelConfig;
+    /** The CDN root remote groups resolve against, and the key an applied update
+     *  is stored under — the same field every packaged runtime reads. */
+    hotUpdate?: PackagedGameConfig['hotUpdate'];
 }
 
 /**
@@ -299,6 +303,8 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
         aspectRatio: canvas.width / canvas.height,
         ...(config.aot ? { aot: config.aot } : {}),
         ...(config.debugChannel ? { debugChannel: config.debugChannel } : {}),
+        remoteRoot: config.hotUpdate?.remoteRoot,
+        persistUpdateKey: config.hotUpdate?.persistUpdateKey,
     });
 
     progress.reach('ready');
