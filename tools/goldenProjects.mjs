@@ -738,6 +738,15 @@ export const GOLDEN = [
     // Measured on a runner of its own: 26 of 30 settle frames inside the 30 s
     // default. Beside two other launches it had been getting three times that.
     launchTimeoutMs: 180_000,
+    // The hero left of centre only through its instance's override, the knight
+    // upright only through the retarget: without it the hero's clips lay the
+    // knight on its back, helmet and boots nowhere near these points.
+    webPixels: [
+      { what: 'the hero stands where its override puts it', x: 0.372, y: 0.406, rgb: [166, 81, 17], tol: 28 },
+      { what: 'the knight\'s helmet is at the top of it', x: 0.610, y: 0.228, rgb: [123, 129, 123], tol: 24 },
+      { what: 'its belt at the middle', x: 0.616, y: 0.638, rgb: [139, 85, 63], tol: 24 },
+      { what: 'its boots on the ground', x: 0.573, y: 0.758, rgb: [61, 64, 61], tol: 24 },
+    ],
   },
   {
     id: 'third-person-3d',

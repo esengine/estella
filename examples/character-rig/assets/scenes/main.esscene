@@ -14,8 +14,8 @@
      "data": {
       "position": {
        "x": 0,
-       "y": 95,
-       "z": 330
+       "y": 105,
+       "z": 450
       }
      }
     },
@@ -76,7 +76,7 @@
    "prefab": "assets/models/hero.esprefab",
    "overrides": [
     {
-     "prefabEntityId": "n54",
+     "prefabEntityId": "n24",
      "type": "property",
      "componentType": "Transform",
      "propertyName": "position",
@@ -87,7 +87,7 @@
      }
     },
     {
-     "prefabEntityId": "n54",
+     "prefabEntityId": "n24",
      "type": "component_added",
      "componentType": "Animator",
      "componentData": {

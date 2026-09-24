@@ -988,6 +988,12 @@ export const NOTED = {
     { note: 'A frame can be captured draw call by draw call, and replayed up to any one of them.' },
   'feat(render): a frame capture lists every texture a draw bound':
     { note: 'A frame can be captured draw call by draw call, and replayed up to any one of them.' },
+  'fix(animation): a controller loads the avatar its clips were authored on, and retargets through each rig\'s space':
+    { note: 'Retargeting works: one character\'s clips play on another\'s skeleton.' },
+  'fix(prefab): an override that names no entity of its prefab is reported':
+    { note: 'A prefab instance\'s override that names no entity of its prefab is reported.' },
+  'fix(examples): the character-rig hero and knight stand where the scene puts them':
+    { note: 'The `character-rig` example shows what it is for.' },
   'feat(render): a directional light\'s source is the sun\'s size by default':
     { note: 'A Directional light\'s source is the sun\'s size by default, so its shadows have a penumbra.' },
   'fix(render): a hard shadow\'s edge is filtered, not stepped along the shadow map\'s grid':
