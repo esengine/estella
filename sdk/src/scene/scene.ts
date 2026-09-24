@@ -325,7 +325,13 @@ export async function expandScenePrefabs(
             log.warn('scene', `Prefab instance "${entry.prefab}" has an unresolved nested prefab; instance skipped (${e})`);
             continue;
         }
-        const { entities } = expandEntry(prefab, entry, allocateId, (ref) => cache.get(ref) ?? null);
+        const { entities, unresolved } = expandEntry(prefab, entry, allocateId, (ref) => cache.get(ref) ?? null);
+        if (unresolved.length > 0) {
+            const targets = [...new Set(unresolved.map((o) => o.prefabEntityId))].join(', ');
+            log.warn('scene', `Prefab instance "${entry.prefab}" (entity ${entry.id}) overrides `
+                + `${unresolved.length} thing(s) on ${targets}, which the prefab has no entity for; `
+                + 'those overrides change nothing');
+        }
         for (const pe of entities) out.push(toSceneEntityData(pe));
     }
     return { ...scene, entities: out };

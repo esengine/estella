@@ -144,4 +144,7 @@ export interface FlattenContext {
 export interface FlattenResult {
     entities: ProcessedEntity[];
     rootId: number;
+    /** Overrides whose target is no entity of the prefab — by the address they
+     *  name, which a caller reports: applied nowhere, they change nothing. */
+    unresolved: PrefabOverride[];
 }

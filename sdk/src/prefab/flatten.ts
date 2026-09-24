@@ -52,6 +52,8 @@ export function flattenPrefab(
 
     const result: ProcessedEntity[] = [];
     const overrideBuckets = bucketOverridesByEntity(overrides);
+    const unresolved: PrefabOverride[] = [];
+    const slotPrefixes: string[] = [];
 
     for (const pe of prefab.entities) {
         if (pe.nestedPrefab) {
@@ -78,6 +80,7 @@ export function flattenPrefab(
             // slot's authored overrides. This is what makes an instance override
             // on a nested entity survive the collapse→expand round trip.
             const slotPrefix = pe.prefabEntityId + PREFAB_ADDRESS_SEP;
+            slotPrefixes.push(slotPrefix);
             const routed = overrides
                 .filter(o => o.prefabEntityId.startsWith(slotPrefix))
                 .map(o => ({ ...o, prefabEntityId: o.prefabEntityId.slice(slotPrefix.length) }));
@@ -104,6 +107,9 @@ export function flattenPrefab(
             // string used for diff/override/tag addressing is composed.
             for (const ne of nested.entities) {
                 ne.prefabEntityId = joinAddress(pe.prefabEntityId, ne.prefabEntityId);
+            }
+            for (const o of nested.unresolved) {
+                unresolved.push({ ...o, prefabEntityId: joinAddress(pe.prefabEntityId, o.prefabEntityId) });
             }
 
             idMapping.set(pe.prefabEntityId, nested.rootId);
@@ -146,6 +152,12 @@ export function flattenPrefab(
         result.push(entity);
     }
 
+    for (const o of overrides) {
+        if (idMapping.has(o.prefabEntityId)) continue;
+        if (slotPrefixes.some((p) => o.prefabEntityId.startsWith(p))) continue;
+        unresolved.push(o);
+    }
+
     const rootId = idMapping.get(prefab.rootEntityId);
     if (rootId === undefined) {
         throw new Error(
@@ -179,7 +191,7 @@ export function flattenPrefab(
         }
     }
 
-    return { entities: result, rootId };
+    return { entities: result, rootId, unresolved };
 }
 
 /**

@@ -92,8 +92,8 @@ export function expandInstance(
     delta: PrefabInstanceDelta,
     allocateId: () => number,
     loadPrefab: SyncPrefabResolver = NO_NESTED,
-): { entities: ProcessedEntity[]; rootId: number } {
-    const { entities, rootId } = flattenPrefab(prefab, delta.overrides, {
+): { entities: ProcessedEntity[]; rootId: number; unresolved: PrefabOverride[] } {
+    const { entities, rootId, unresolved } = flattenPrefab(prefab, delta.overrides, {
         allocateId,
         loadPrefab,
     });
@@ -138,7 +138,7 @@ export function expandInstance(
     // added entity resolves and any still-unresolved target falls back to root.
     applyParentOverrides(all, delta.overrides, rootId, true);
     rebuildChildren(all);
-    return { entities: all, rootId };
+    return { entities: all, rootId, unresolved };
 }
 
 /**
@@ -290,8 +290,8 @@ export function expandEntry(
     entry: PrefabInstanceEntry,
     allocateId: () => number,
     loadPrefab: SyncPrefabResolver = NO_NESTED,
-): { entities: ProcessedEntity[]; rootId: number } {
-    const { entities, rootId } = expandInstance(prefab, entry, allocateId, loadPrefab);
+): { entities: ProcessedEntity[]; rootId: number; unresolved: PrefabOverride[] } {
+    const { entities, rootId, unresolved } = expandInstance(prefab, entry, allocateId, loadPrefab);
     // Pin the root to the persisted scene id (external refs target it); internal
     // entities keep their fresh ids. Remap the root id + any parent pointing at it.
     for (const e of entities) {
@@ -301,7 +301,7 @@ export function expandEntry(
     const root = entities.find((e) => e.id === entry.id);
     if (root) root.parent = entry.parent; // attach under the scene parent
     rebuildChildren(entities);
-    return { entities, rootId: entry.id };
+    return { entities, rootId: entry.id, unresolved };
 }
 
 /**
