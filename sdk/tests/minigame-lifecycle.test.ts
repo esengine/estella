@@ -4,9 +4,8 @@
  * @file  Lifecycle on a mini-game host that is not WeChat.
  *
  * Every mini-game runs with a `document` stub (wxgame-pre.js) that has no
- * addEventListener. The plugin used to branch on the vendor name, so any other
- * vendor fell through to the web path and threw at boot — which is how a vivo
- * quick game first died on an emulator. The host's own onShow/onHide drive it.
+ * addEventListener, so the web path must never be taken from one; the host's
+ * own onShow/onHide drive it, whichever vendor it is.
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import { App } from '../src/app/app';

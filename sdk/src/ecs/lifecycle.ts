@@ -181,11 +181,9 @@ function setupWebLifecycle_(manager: LifecycleManager, app: AppLike): () => void
 // =============================================================================
 
 /**
- * No DOM visibility event: the host pushes foreground/background through the
- * platform adapter (a mini-game's onShow/onHide, the native bridge). On native
- * the audio device is suspended by the host directly on background — correct
- * even while the JS tick is paused — so this only drives the game tick and the
- * lifecycle events.
+ * The host pushes foreground/background through the adapter (a mini-game's
+ * onShow/onHide, the native bridge). Native suspends audio itself on background,
+ * so this only drives the game tick and the lifecycle events.
  */
 function setupHostLifecycle_(manager: LifecycleManager, app: AppLike): () => void {
     let pausedByLifecycle = false;

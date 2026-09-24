@@ -5015,9 +5015,11 @@ hideLoading: (() => void) | undefined
 loadSubpackage: ((opts: { name: string; success?: () => void; fail?: (err: unknown) => void; complete?: () => void; }) => void) | undefined
 login: ((opts: { success?: (res: { code: string; }) => void; fail?: (err: unknown) => void; timeout?: number; }) => void) | undefined
 offError: ((cb: (error: string | { message?: string; stack?: string; }) => void) => void) | undefined
+offHide: ((cb: () => void) => void) | undefined
 offKeyDown: ((cb: (res: MiniGameKeyEvent) => void) => void) | undefined
 offKeyUp: ((cb: (res: MiniGameKeyEvent) => void) => void) | undefined
 offMemoryWarning: ((cb: () => void) => void) | undefined
+offShow: ((cb: () => void) => void) | undefined
 offTouchCancel: ((cb: (res: MiniGameTouchEvent) => void) => void) | undefined
 offTouchEnd: (cb: (res: MiniGameTouchEvent) => void) => void
 offTouchMove: (cb: (res: MiniGameTouchEvent) => void) => void
@@ -5107,6 +5109,8 @@ loadSubpackage: (name: string) => Promise<void>
 login: () => Promise<string>
 name: PlatformName
 now: () => number
+onAppHide: (callback: () => void) => () => void
+onAppShow: (callback: () => void) => () => void
 onMemoryWarning: (callback: () => void) => () => void
 onShareRequest: (provide: () => PlatformShareOptions) => void
 onUnhandledError: (callback: (error: unknown) => void) => () => void
