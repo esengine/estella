@@ -3,7 +3,7 @@
 /**
  * @file  What the quick-game hosts needed that no other vendor did, each found
  *        by running a package on vivo's engine: a window measured in physical
- *        pixels, WebAssembly behind a switch, and a WebGL2 context that offers
+ *        pixels (touches too), WebAssembly behind a switch, and a WebGL2 context that offers
  *        an extension WebGL2 does not have.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
@@ -26,6 +26,25 @@ describe('the quick-game hosts', () => {
       new MiniGamePlatformAdapter({ id: 'x', hostLabel: 'x', global: host(), ...over } as MiniGameProfile).createScreenCanvas();
     expect(screen({ windowInPhysicalPixels: true })).toMatchObject({ width: 2340, height: 1080 });
     expect(screen({})).toMatchObject({ width: 6435, height: 2970 });
+  });
+
+  it('take a touch measured in physical pixels as the logical position every pointer reader scales', () => {
+    let touchStart: ((res: unknown) => void) | undefined;
+    const downs: number[][] = [];
+    const adapter = new MiniGamePlatformAdapter({
+      id: 'x', hostLabel: 'x', windowInPhysicalPixels: true,
+      global: {
+        getSystemInfoSync: () => ({ windowWidth: 2340, windowHeight: 1080, pixelRatio: 2.75 }),
+        onTouchStart: (cb: (res: unknown) => void) => { touchStart = cb; },
+        onTouchMove: () => {}, onTouchEnd: () => {},
+      } as unknown as MiniGameGlobal,
+    } as MiniGameProfile);
+    adapter.bindInputEvents({
+      onKeyDown: () => {}, onKeyUp: () => {}, onPointerMove: () => {}, onPointerUp: () => {}, onWheel: () => {},
+      onPointerDown: (_b, x, y) => downs.push([x, y]),
+    });
+    touchStart!({ touches: [], changedTouches: [{ identifier: 0, clientX: 2200, clientY: 990 }] });
+    expect(downs).toEqual([[800, 360]]);
   });
 
   it('turn WebAssembly on before the engine is instantiated', async () => {

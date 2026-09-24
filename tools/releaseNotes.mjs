@@ -1088,4 +1088,6 @@ export const NOTED = {
     { note: 'The debug channel works on vivo\'s quick game: logs arrive in batches, and a replay is sent at the size the Frame Debugger shows instead of the whole screen.' },
   'fix(frame-debugger): a device\'s replay is asked for at the size the panel shows':
     { note: 'The debug channel works on vivo\'s quick game: logs arrive in batches, and a replay is sent at the size the Frame Debugger shows instead of the whole screen.' },
+  'fix(minigame): a tap on vivo\'s quick game lands where the finger is':
+    { note: 'A tap on vivo\'s quick game lands where the finger is: the host reports touches in physical pixels, and every tap landed off the screen.' },
 };

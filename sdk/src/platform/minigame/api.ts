@@ -438,9 +438,10 @@ export interface MiniGameProfile {
         request(request: PlatformPaymentRequest): Promise<void>;
     };
 
-    /** The host reports `windowWidth`/`windowHeight` in physical pixels rather
-     *  than WeChat's logical ones (vivo: 2340 wide beside a pixelRatio of 2.75), so
-     *  multiplying by pixelRatio again would size the screen past the GPU's limit. */
+    /** The host reports `windowWidth`/`windowHeight` and touch positions in physical
+     *  pixels rather than WeChat's logical ones (vivo: 2340 wide beside a pixelRatio
+     *  of 2.75), so multiplying by pixelRatio again would size the screen past the
+     *  GPU's limit and put every tap off it. */
     windowInPhysicalPixels?: boolean;
 
     /** The recording length this vendor accepts, when its recorder's shape is

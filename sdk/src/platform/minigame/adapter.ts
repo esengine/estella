@@ -476,12 +476,16 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
         }
 
         const pointer = createPrimaryPointer(callbacks);
+        // A pointer is read in logical pixels and scaled by pixelRatio to reach the
+        // canvas; a host that reports touches in physical pixels would land every
+        // tap pixelRatio times too far out, past the edge of the screen.
+        const toLogical = this.profile_.windowInPhysicalPixels ? 1 / this.devicePixelRatio() : 1;
 
         const onTouchStart = (res: MiniGameTouchEvent) => {
-            for (const touch of res.changedTouches) pointer.start(touch.identifier, touch.clientX, touch.clientY);
+            for (const touch of res.changedTouches) pointer.start(touch.identifier, touch.clientX * toLogical, touch.clientY * toLogical);
         };
         const onTouchMove = (res: MiniGameTouchEvent) => {
-            for (const touch of res.changedTouches) pointer.move(touch.identifier, touch.clientX, touch.clientY);
+            for (const touch of res.changedTouches) pointer.move(touch.identifier, touch.clientX * toLogical, touch.clientY * toLogical);
         };
         const onTouchEnd = (res: MiniGameTouchEvent) => {
             for (const touch of res.changedTouches) pointer.end(touch.identifier);

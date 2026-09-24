@@ -22,6 +22,7 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- A tap on vivo's quick game lands where the finger is: the host reports touches in physical pixels, and every tap landed off the screen.
 - Games on vivo's quick game run past their first frame: the frame loop now hands requestAnimationFrame a handler the runtime accepts.
 - The debug channel works on vivo's quick game: logs arrive in batches, and a replay is sent at the size the Frame Debugger shows instead of the whole screen.
 - A native build loads a remote group's textures from the CDN — they never loaded before — and after a hot update, from its disk cache when offline.
