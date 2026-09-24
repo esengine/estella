@@ -33,6 +33,7 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A game started right after the project opened no longer restarts itself about ten seconds in.** Pressing Play while the editor was still warming the game's engine up handed the scene over twice: once when the engine greeted the editor, and again when the warm-up's ten-second wait ran out — so the game restarted, and everything that had happened in it was gone. It now starts once, as soon as the engine is up.
 - A mini-game whose host's WebGL2 context also offers `OES_vertex_array_object` renders instead of hanging: the WebGL1 extensions WebGL2 made core are withheld from a WebGL2 context, as the spec says, so Emscripten no longer swaps in the host's broken extension path (vivo's).
 - `estella export` writes a mini-game's appid and project version as the build dialog does — a headless Bilibili package came out with an empty `appId`.
 - A mini-game on any host but WeChat no longer throws at boot. The lifecycle plugin knew one vendor by name and sent every other one down the web path, where the `document` stub every mini-game carries has no `addEventListener`; foreground/background now come from the host's own `onShow`/`onHide` for the whole family, as they already did for the native shell.
