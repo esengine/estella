@@ -193,6 +193,9 @@ export interface MiniGameTtRecorder {
     onResume(cb: () => void): void;
     onStop(cb: (res: { videoPath: string }) => void): void;
     onError(cb: (res: { errMsg?: string }) => void): void;
+    /** Base library 1.6.1+. */
+    onInterruptionBegin?(cb: () => void): void;
+    onInterruptionEnd?(cb: () => void): void;
 }
 
 /** The share card a host shows for an active or passive share. */

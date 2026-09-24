@@ -14,6 +14,10 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Fixed
+
+- A Douyin recording the host ends on its own keeps its video, and an interruption is not counted as recorded time.
+
 ## [0.72.0] - 2026-09-24
 
 ### Added

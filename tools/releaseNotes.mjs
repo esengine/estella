@@ -1054,4 +1054,6 @@ export const NOTED = {
     { note: "The agent drawer's History button shows it is open with a grey press again, not the accent colour 0.71 gave it." },
   'fix(bench): a locked screen is a question this machine cannot take':
     { internal: 'a release criterion\'s own measuring conditions; the engine is unchanged' },
+  'fix(recorder): a Douyin recording the host ends on its own keeps its video':
+    { note: 'A Douyin recording the host ends on its own keeps its video, and an interruption is not counted as recorded time.' },
 };

@@ -45,12 +45,12 @@ function fakeWx(options: { frame?: boolean; share?: boolean; answer?: boolean } 
 function fakeTt() {
     const on: Record<string, Listener> = {};
     const clock = { t: 0 };
-    const calls = { start: [] as unknown[], clip: [] as unknown[], cut: [] as unknown[], share: [] as unknown[] };
+    const calls = { start: [] as unknown[], clip: [] as unknown[], cut: [] as unknown[], share: [] as unknown[], stop: 0 };
     const rec = {
         start(o: unknown) { calls.start.push(o); queueMicrotask(() => on.start?.()); },
         pause() { queueMicrotask(() => on.pause?.()); },
         resume() { queueMicrotask(() => on.resume?.()); },
-        stop() { queueMicrotask(() => on.stop?.({ videoPath: 'ttfile://tmp/run.mp4' })); },
+        stop() { calls.stop++; queueMicrotask(() => on.stop?.({ videoPath: 'ttfile://tmp/run.mp4' })); },
         recordClip(o: unknown) { calls.clip.push(o); },
         clipVideo(o: { path: string; success?: (r: { videoPath: string }) => void }) {
             calls.cut.push(o);
@@ -61,6 +61,8 @@ function fakeTt() {
         onResume: (cb: Listener) => { on.resume = cb; },
         onStop: (cb: Listener) => { on.stop = cb; },
         onError: (cb: Listener) => { on.error = cb; },
+        onInterruptionBegin: (cb: Listener) => { on.interruptionBegin = cb; },
+        onInterruptionEnd: (cb: Listener) => { on.interruptionEnd = cb; },
     };
     const g = {
         getGameRecorderManager: () => rec,
@@ -236,6 +238,32 @@ describe('Douyin', () => {
         await r.share(await r.stop(), {});
         expect(host.calls.cut).toEqual([]);
         expect(host.calls.share[0]).toMatchObject({ extra: { videoPath: 'ttfile://tmp/run.mp4' } });
+    });
+
+    it('keeps the video of a stop the host made on its own, and stops with it', async () => {
+        const host = fakeTt();
+        const r = createTtRecorder(host.g)!;
+        await r.start(60, () => {});
+        host.on.stop({ videoPath: 'ttfile://tmp/interrupted.mp4' });
+        expect((await r.stop()).path).toBe('ttfile://tmp/interrupted.mp4');
+        expect(host.calls.stop).toBe(0);
+    });
+
+    it('does not count an interruption as recorded time, nor end the game\'s own pause', async () => {
+        const host = fakeTt();
+        const r = createTtRecorder(host.g, () => host.clock.t)!;
+        await r.start(60, () => {});
+        host.clock.t = 1000;
+        host.on.interruptionBegin();
+        host.clock.t = 5000;
+        host.on.interruptionEnd();
+        host.clock.t = 6000;
+        await r.pause();
+        host.on.interruptionBegin();
+        host.clock.t = 9000;
+        host.on.interruptionEnd();
+        host.clock.t = 12000;
+        expect((await r.stop()).durationMs).toBe(2000);
     });
 
     it('carries the host refusal to the share', async () => {

@@ -65,12 +65,14 @@ class HostGate {
         });
     }
 
-    fire(event: string, payload?: unknown): void {
+    /** False when no call was waiting for @p event — the host acted on its own. */
+    fire(event: string, payload?: unknown): boolean {
         const w = this.waiting_;
-        if (!w || w.event !== event) return;
+        if (!w || w.event !== event) return false;
         clearTimeout(w.timer);
         this.waiting_ = null;
         w.resolve(payload);
+        return true;
     }
 
     fail(error: Error): void {
@@ -249,11 +251,35 @@ export function createTtRecorder(g: MiniGameGlobal, now?: () => number): Platfor
     if (!rec) return null;
     const session = new Session(now);
     const gate = new HostGate((e) => session.stray(e));
+    // A stop nobody asked for still carries the only copy of the video path;
+    // the next stop() answers with it instead of stopping a stopped recorder.
+    let hostStopped: { videoPath?: string } | null = null;
+    // Kept apart from the game's own pause, which an interruption's end must not undo.
+    let pausedByGame = false;
+    let interrupted = false;
     rec.onStart(() => gate.fire('start'));
     rec.onPause(() => gate.fire('pause'));
     rec.onResume(() => gate.fire('resume'));
-    rec.onStop((res) => gate.fire('stop', res));
+    rec.onStop((res) => {
+        if (!gate.fire('stop', res) && session.active) hostStopped = res ?? {};
+    });
     rec.onError((res) => gate.fail(toError(res)));
+    rec.onInterruptionBegin?.(() => {
+        if (!session.active || interrupted) return;
+        interrupted = true;
+        session.clock.pause();
+    });
+    rec.onInterruptionEnd?.(() => {
+        if (!interrupted) return;
+        interrupted = false;
+        if (!pausedByGame) session.clock.resume();
+    });
+    const hostStop = async (): Promise<{ videoPath?: string } | undefined> => {
+        const done = hostStopped;
+        hostStopped = null;
+        if (done) return done;
+        return await gate.wait('stop', () => rec.stop()) as { videoPath?: string } | undefined;
+    };
     // `start` must be longer than 3s; the host counts whole seconds.
     const limits = { minSeconds: 4, maxSeconds: 300 };
     // `clipVideo` cuts a recording once; a second share reuses the first cut.
@@ -282,20 +308,25 @@ export function createTtRecorder(g: MiniGameGlobal, now?: () => number): Platfor
         get canShare() { return typeof g.shareAppMessage === 'function'; },
         async start(maxSeconds, onFailure) {
             session.begin(onFailure);
+            hostStopped = null;
+            pausedByGame = false;
+            interrupted = false;
             await gate.wait('start', () => rec.start({ duration: clampSeconds(maxSeconds, limits) }));
             session.started();
             clipsThisRecording = 0;
         },
         async pause() {
             await gate.wait('pause', () => rec.pause());
+            pausedByGame = true;
             session.clock.pause();
         },
         async resume() {
             await gate.wait('resume', () => rec.resume());
-            session.clock.resume();
+            pausedByGame = false;
+            if (!interrupted) session.clock.resume();
         },
         async stop() {
-            const res = await gate.wait('stop', () => rec.stop()) as { videoPath?: string } | undefined;
+            const res = await hostStop();
             const durationMs = session.clock.elapsedMs();
             session.end();
             const recording = { durationMs, path: res?.videoPath, highlights: session.clock.highlights(durationMs) };
@@ -304,7 +335,7 @@ export function createTtRecorder(g: MiniGameGlobal, now?: () => number): Platfor
         },
         // Douyin has no abort: stopping and dropping the file is the same outcome.
         async abort() {
-            await gate.wait('stop', () => rec.stop());
+            await hostStop();
             session.end();
         },
         highlight(before, after) {
