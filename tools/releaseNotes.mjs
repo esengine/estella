@@ -978,6 +978,10 @@ export const NOTED = {
     { note: '`tsc` and an outside editor type-check the official packages too.' },
   'feat(tooling): the examples type-check the official packages the way a project does':
     { note: '`tsc` and an outside editor type-check the official packages too.' },
+  'feat(project): opening a project gives its tsconfig the official-packages mapping':
+    { note: '`tsc` and an outside editor type-check the official packages too.' },
+  'feat(project): every template and example maps estella-plugin-* to the mirrored packages':
+    { note: '`tsc` and an outside editor type-check the official packages too.' },
   'feat(export): a project can be packaged for Kuaishou':
     { note: 'A project can be packaged for Kuaishou (快手).' },
   'feat(editor): Kuaishou is a build target':
