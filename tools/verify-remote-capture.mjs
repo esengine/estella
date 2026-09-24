@@ -125,11 +125,24 @@ try {
   check(lines.some((l) => /EstellaContext initialized/.test(l.line)),
     `what the device printed before it connected reached the editor (${lines.length} line(s))`);
 
+  // The first ask turns timings on; they exist once the device has run a frame since,
+  // which a software-rendered runner can take a second or more to do.
   await server.query(target.id, 'stats');
-  await new Promise((r) => setTimeout(r, 500));
-  const stats = await server.query(target.id, 'stats');
+  let stats = null;
+  for (const until = Date.now() + 10_000; Date.now() < until;) {
+    await new Promise((r) => setTimeout(r, 250));
+    stats = await server.query(target.id, 'stats');
+    if (Object.keys(stats?.phases ?? {}).length > 0) break;
+  }
   check(stats?.entities > 0 && Object.keys(stats?.phases ?? {}).length > 0 && stats?.wasmBytes > 0,
     `the device reported its frame: ${stats?.entities} entities, ${Object.keys(stats?.phases ?? {}).length} phase(s), ${stats?.wasmBytes} wasm bytes`);
+
+  const tree = (await server.query(target.id, 'snapshot', { selectedId: null, withTree: true }))?.tree;
+  const ship = tree?.entities.find((e) => e.name === 'Ship');
+  const one = ship ? (await server.query(target.id, 'snapshot', { selectedId: ship.id, withTree: false }))?.selected : null;
+  const transform = one?.components.find((c) => c.type === 'Transform');
+  check(!!ship && typeof transform?.data?.position?.x === 'number',
+    `the device's world came back: ${tree?.entities.length ?? 0} entities, Ship's Transform ${JSON.stringify(transform?.data?.position)}`);
 
   const paused = await server.query(target.id, 'control', { paused: true, fps: 30 });
   const stepped = await server.query(target.id, 'control', { step: 2 });

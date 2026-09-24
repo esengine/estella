@@ -1070,4 +1070,8 @@ export const NOTED = {
     { note: 'A development build connected to the editor shows its log in the Output Log (from before the editor connected, too), can be profiled in the Profiler on its own frame clock, and can be paused, stepped and frame-capped from there; the log says which project and content version connected.' },
   'fix(app): a frame-rate cap keeps a cadence, so 30 on a 60 Hz display is 30':
     { note: 'A frame-rate cap now holds: `setTargetFrameRate(30)` on a 60 Hz display runs at 30, not 24.' },
+  'feat(debug): a device answers with its world, and a question asked while it boots waits':
+    { note: 'In the Outliner, a connected development build\'s world can be shown instead of this editor\'s (read-only, with live values in Details).' },
+  'feat(outliner): a connected build\'s world, shown read-only beside this editor\'s':
+    { note: 'In the Outliner, a connected development build\'s world can be shown instead of this editor\'s (read-only, with live values in Details).' },
 };

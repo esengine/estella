@@ -18,6 +18,7 @@ import { captureFrameReport, replayFrameDraw } from '../render/frameDebugReport'
 import { log } from '../util/logger';
 import { Assets } from '../asset/AssetPlugin';
 import { frameStatsReport } from './frameStats';
+import { worldSnapshot } from './worldSnapshot';
 import { forwardConsole, type ConsoleLevel } from './consoleForward';
 
 export const DEBUG_CHANNEL_PROTOCOL = 1;
@@ -44,6 +45,7 @@ export type DebugChannelQuery =
     | { t: 'query'; reqId: number; kind: 'frameCapture' }
     | { t: 'query'; reqId: number; kind: 'frameReplay'; drawIndex: number }
     | { t: 'query'; reqId: number; kind: 'stats' }
+    | { t: 'query'; reqId: number; kind: 'snapshot'; selectedId: number | null; withTree: boolean }
     | ({ t: 'query'; reqId: number; kind: 'control' } & DebugControl);
 
 /**
@@ -58,6 +60,7 @@ export type DebugChannelMessage =
     | { t: 'log'; level: ConsoleLevel; line: string };
 
 const RECONNECT_MS = 3000;
+const START_WAIT_MS = 20_000;
 /** Lines kept while no editor listens; the oldest go first, and how many is said. */
 const LOG_BACKLOG = 200;
 
@@ -88,6 +91,9 @@ export function startDebugChannel(config: DebugChannelConfig): void {
     }
     let app: App | null = null;
     let nextFrame: NextFrame | null = null;
+    // An editor may ask while the engine is still booting; the answer waits for the game.
+    let started: () => void = () => {};
+    const gameStarted = new Promise<void>((resolve) => { started = resolve; });
     let socket: PlatformSocket | null = null;
     let retry: ReturnType<typeof setTimeout> | null = null;
     let statsOn = false;
@@ -123,10 +129,15 @@ export function startDebugChannel(config: DebugChannelConfig): void {
     const answer = async (q: DebugChannelQuery): Promise<void> => {
         const reply = (m: DebugChannelMessage): void => send(m);
         try {
-            if (!app || !nextFrame) throw new Error('the game has not started yet');
-            const game = app;
+            if (!app) {
+                const late = new Promise<never>((_, reject) => setTimeout(
+                    () => reject(new Error(`the game did not start within ${START_WAIT_MS / 1000}s`)), START_WAIT_MS));
+                await Promise.race([gameStarted, late]);
+            }
+            const game = app!;
+            const frame = nextFrame!;
             if (q.kind === 'frameCapture') {
-                reply({ t: 'reply', reqId: q.reqId, data: await captureFrameReport(game, nextFrame) });
+                reply({ t: 'reply', reqId: q.reqId, data: await captureFrameReport(game, frame) });
                 return;
             }
             if (q.kind === 'stats') {
@@ -143,6 +154,10 @@ export function startDebugChannel(config: DebugChannelConfig): void {
                 reply({ t: 'reply', reqId: q.reqId, data: { ...frameStatsReport(game), ...span } });
                 return;
             }
+            if (q.kind === 'snapshot') {
+                reply({ t: 'reply', reqId: q.reqId, data: worldSnapshot(game, q.selectedId, q.withTree) });
+                return;
+            }
             if (q.kind === 'control') {
                 if (q.fps !== undefined) game.setTargetFrameRate(q.fps);
                 if (q.paused !== undefined) game.setPaused(q.paused);
@@ -150,7 +165,7 @@ export function startDebugChannel(config: DebugChannelConfig): void {
                 reply({ t: 'reply', reqId: q.reqId, data: { paused: game.isPaused(), fps: Math.round(game.getTargetFrameRate()) } });
                 return;
             }
-            const image = await replayFrameDraw(game, q.drawIndex, nextFrame);
+            const image = await replayFrameDraw(game, q.drawIndex, frame);
             if (!image) {
                 reply({ t: 'reply', reqId: q.reqId, data: null });
                 return;
@@ -193,6 +208,7 @@ export function startDebugChannel(config: DebugChannelConfig): void {
             app = game;
             nextFrame = appFrame(game);
             hello();
+            started();
         },
     };
 }

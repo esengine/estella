@@ -3,10 +3,10 @@
   "counts": {
     "public": 115,
     "beta": 103,
-    "experimental": 2119,
+    "experimental": 2126,
     "deprecated": 3
   },
-  "total": 2337,
+  "total": 2344,
   "subsystems": [
     {
       "id": "ecs",

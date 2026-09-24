@@ -447,6 +447,15 @@ export {
     type PackagedGameConfig,
 } from './runtime/packagedRuntime';
 export {
+    worldSnapshot,
+    inspectableTypes,
+    translateAssetHandles,
+    type WorldSnapshot,
+    type WorldSnapshotOptions,
+    type SnapshotEntity,
+    type SnapshotComponent,
+} from './runtime/worldSnapshot';
+export {
     startDebugChannel,
     DEBUG_CHANNEL_PROTOCOL,
     type DebugChannelConfig,
