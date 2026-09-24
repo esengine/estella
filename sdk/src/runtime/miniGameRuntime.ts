@@ -32,6 +32,8 @@ import type { Physics2DPluginConfig } from '../physics/PhysicsTypes';
 import type { SceneData } from '../scene/scene';
 import type { AotManifest } from '../ecs/aot/AotSystems';
 import { log } from '../util/logger';
+import { Schedule, defineSystem } from '../ecs/system';
+import type { App } from '../app/app';
 
 // =============================================================================
 // Emscripten WASM Instantiation
@@ -271,5 +273,21 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
     progress.reach('ready');
     // Before run(), which may hand control to the engine's loop and not return.
     progress.finish();
+    reportFirstFrame(app, adapter.host as { launchSuccess?: () => void });
     app.run();
+}
+
+/**
+ * Tell the host the first screen has rendered, where it asks to be told:
+ * Bilibili reviews a game by it (「需要在游戏首页成功渲染时调用」`bl.launchSuccess`).
+ * At the end of the first frame, once; a host without the call is skipped.
+ */
+export function reportFirstFrame(app: Pick<App, 'addSystemToSchedule'>, host: { launchSuccess?: () => void }): void {
+    if (typeof host.launchSuccess !== 'function') return;
+    let told = false;
+    app.addSystemToSchedule(Schedule.Last, defineSystem([], () => {
+        if (told) return;
+        told = true;
+        try { host.launchSuccess!(); } catch (e) { log.warn('runtime', `launchSuccess threw: ${String(e)}`); }
+    }, { name: 'ReportFirstFrame' }));
 }
