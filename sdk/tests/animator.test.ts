@@ -468,4 +468,24 @@ describe('AnimatorController runtime load-by-path', () => {
         const def = era.published as { layers: { states: { motion: { clip: string } }[] }[] };
         expect(def.layers[0]!.states[0]!.motion.clip).toBe('assets/upper.estimeline');
     });
+
+    it('acquires the avatar its clips were authored on, which no component names', async () => {
+        // Without it the clip side of a retarget is never loaded, and a rig that
+        // names its own avatar plays the clips' raw values: the character-rig
+        // knight lay on its back for as long as it existed.
+        const withAvatar = {
+            version: 2, parameters: [], initialState: 'Hold', avatar: 'hero.esavatar',
+            states: [{ name: 'Hold', transitions: [], motion: { kind: 'timeline', clip: 'idle.estimeline' } }],
+        };
+        const acquired: Array<[string, string]> = [];
+        const ctx = {
+            catalog: { getBuildPath: (p: string) => p },
+            loadText: async () => JSON.stringify(withAvatar),
+            acquireAsset: async (type: string, ref: string) => { acquired.push([type, ref]); },
+        } as unknown as LoadContext;
+
+        const era = await new AnimatorControllerAssetLoader().registry.prepare('assets/models/loco.esanimator', ctx);
+        expect(acquired).toContainEqual(['avatar', 'assets/models/hero.esavatar']);
+        expect((era.published as { avatar: string }).avatar).toBe('assets/models/hero.esavatar');
+    });
 });

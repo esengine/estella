@@ -43,6 +43,16 @@ export interface AnimatorAvatar {
      */
     rest?: Record<string, Quat>;
     /**
+     * Each joint's PARENT at rest, as a rotation in the rig's own space — what a
+     * joint's local values are expressed in. Two rigs whose skeletons stand on
+     * different axes (one Z-up under a turned root, one Y-up) read one clip the
+     * same way only through this. Absent is the identity.
+     */
+    space?: Record<string, Quat>;
+    /** Each joint's local position at rest: a clip that moves a joint (the hips)
+     *  moves it FROM here, so another rig needs its own. */
+    restPosition?: Record<string, Vec3>;
+    /**
      * Root to the joint furthest from it, at rest — the ONE measure every avatar
      * uses, since two measured differently give a ratio that means nothing. What
      * it buys is displacement: a step authored on a smaller rig slides on a
@@ -52,6 +62,7 @@ export interface AnimatorAvatar {
 }
 
 interface Quat { w: number; x: number; y: number; z: number }
+interface Vec3 { x: number; y: number; z: number }
 
 /** Finding a joint on a rig, whichever way a clip spelled it. */
 export type JointResolver = (root: Entity, path: string) => Entity | null;
@@ -93,8 +104,12 @@ export function parseAvatar(raw: unknown): AnimatorAvatar {
         throw new Error('Avatar "scale" must be a positive number');
     }
     const rest = obj['rest'] === undefined ? undefined : readRest(obj['rest']);
+    const space = obj['space'] === undefined ? undefined : readRest(obj['space']);
+    const restPosition = obj['restPosition'] === undefined ? undefined : readPositions(obj['restPosition']);
     const avatar: AnimatorAvatar = { joints: out };
     if (rest) avatar.rest = rest;
+    if (space) avatar.space = space;
+    if (restPosition) avatar.restPosition = restPosition;
     if (scale !== undefined) avatar.scale = scale as number;
     return avatar;
 }
@@ -130,6 +145,22 @@ function readRest(raw: unknown): Record<string, Quat> {
     return out;
 }
 
+/** Rest positions, one per joint; a joint listed without all three is refused. */
+function readPositions(raw: unknown): Record<string, Vec3> {
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+        throw new Error('Avatar "restPosition" must be an object of joint positions');
+    }
+    const out: Record<string, Vec3> = {};
+    for (const [name, value] of Object.entries(raw as Record<string, unknown>)) {
+        const v = value as Partial<Vec3> | null;
+        if (!v || ['x', 'y', 'z'].some((k) => typeof v[k as 'x'] !== 'number')) {
+            throw new Error(`Avatar rest position for "${name}" must be a vector`);
+        }
+        out[name] = { x: v.x!, y: v.y!, z: v.z! };
+    }
+    return out;
+}
+
 /** A blank avatar, which translates nothing and resolves every path as itself. */
 export function emptyAvatar(): AnimatorAvatar & { version: number } {
     return { version: AVATAR_FORMAT_VERSION, joints: {} };
@@ -148,20 +179,21 @@ export function avatarResolver(
 }
 
 /**
- * Re-state `pose` as this rig would stand it: a clip says where a joint IS and
- * MEANS the offset from its rest, so another bind pose needs
- * `targetRest · sourceRest⁻¹`. Once on the stack's answer — composing commutes
- * with a left multiplication — and before the constraints, which read positions.
+ * Re-state `pose` as this rig would stand it: a clip means a joint's turn off its
+ * rest in rig space, `D = Sₚ·stated·(Sₚ·rest)⁻¹`, which the target stands on its own
+ * rest as `Tₚ⁻¹·D·Tₚ·targetRest` (Sₚ, Tₚ each rig's parent space). A moved joint
+ * moves by the same rig-space displacement, scaled by the rigs' sizes.
  */
 export function rebasePose(
     pose: Pose, root: Entity, source: AnimatorAvatar, target: AnimatorAvatar,
     resolveJoint: JointResolver, world: PoseWorld,
 ): void {
-    const from = source.rest;
-    const to = target.rest;
-    if (!from || !to) return;
-    for (const [joint, sourceRest] of Object.entries(from)) {
-        const targetRest = to[joint];
+    const rests = source.rest;
+    const targetRests = target.rest;
+    if (!rests || !targetRests) return;
+    const ratio = travelRatio(source, target);
+    for (const [joint, sourceRest] of Object.entries(rests)) {
+        const targetRest = targetRests[joint];
         if (!targetRest) continue;
         const entity = resolveJoint(root, joint);
         if (entity === null) continue;
@@ -169,8 +201,22 @@ export function rebasePose(
         if (!track || !track.touched.has('rotation')) continue;
         const stated = track.data.rotation as QuatLike | undefined;
         if (!stated) continue;
-        const offset = q.mul(q.conjugate(sourceRest), stated);
-        const rebased = q.normalize(q.mul(targetRest, offset));
+        const sp = source.space?.[joint] ?? IDENTITY;
+        const tp = target.space?.[joint] ?? IDENTITY;
+        const turn = q.mul(q.mul(sp, stated), q.conjugate(q.mul(sp, sourceRest)));
+        const rebased = q.normalize(q.mul(q.mul(q.conjugate(tp), q.mul(turn, tp)), targetRest));
         track.data.rotation = { w: rebased.w, x: rebased.x, y: rebased.y, z: rebased.z };
+
+        const from = source.restPosition?.[joint];
+        const onto = target.restPosition?.[joint];
+        const moved = track.touched.has('position') ? track.data.position as Vec3 | undefined : undefined;
+        if (from && onto && moved) {
+            const away = q.rotate(q.conjugate(tp), q.rotate(sp, {
+                x: moved.x - from.x, y: moved.y - from.y, z: moved.z - from.z,
+            }));
+            track.data.position = { x: onto.x + away.x * ratio, y: onto.y + away.y * ratio, z: onto.z + away.z * ratio };
+        }
     }
 }
+
+const IDENTITY: Quat = { w: 1, x: 0, y: 0, z: 0 };

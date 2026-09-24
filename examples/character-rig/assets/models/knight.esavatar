@@ -116,5 +116,185 @@
       "z": 2.2509516472979385e-9
     }
   },
+  "space": {
+    "root/DEF-hips": {
+      "w": 1,
+      "x": 0,
+      "y": 1.1920927533992653e-7,
+      "z": 0
+    },
+    "root/DEF-hips/DEF-spine.001": {
+      "w": 1.0000000000000142,
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "root/DEF-hips/DEF-spine.001/DEF-spine.002/DEF-spine.003": {
+      "w": 1.0000000000000142,
+      "x": 0,
+      "y": 7.105427357601103e-15,
+      "z": 0
+    },
+    "root/DEF-hips/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-neck/DEF-head": {
+      "w": 1.0000000000000142,
+      "x": 0,
+      "y": 7.105427357601103e-15,
+      "z": 0
+    },
+    "root/DEF-hips/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-shoulder.L/DEF-upper_arm.L": {
+      "w": 1.0000000000000142,
+      "x": 0,
+      "y": 7.105427357601103e-15,
+      "z": 0
+    },
+    "root/DEF-hips/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-shoulder.L/DEF-upper_arm.L/DEF-forearm.L": {
+      "w": 0.514121890068065,
+      "x": -0.5141214728355515,
+      "y": -0.48546779155731523,
+      "z": -0.48546776175499284
+    },
+    "root/DEF-hips/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-shoulder.L/DEF-upper_arm.L/DEF-forearm.L/DEF-hand.L": {
+      "w": 0.5000029446825832,
+      "x": -0.5000025849018902,
+      "y": -0.49999744566173104,
+      "z": -0.49999736636722913
+    },
+    "root/DEF-hips/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-shoulder.R/DEF-upper_arm.R": {
+      "w": 1.0000000000000142,
+      "x": 0,
+      "y": 7.105427357601103e-15,
+      "z": 0
+    },
+    "root/DEF-hips/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-shoulder.R/DEF-upper_arm.R/DEF-forearm.R": {
+      "w": 0.5141219496727029,
+      "x": -0.5141214132308999,
+      "y": 0.4854677319526778,
+      "z": 0.48546776175500017
+    },
+    "root/DEF-hips/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-shoulder.R/DEF-upper_arm.R/DEF-forearm.R/DEF-hand.R": {
+      "w": 0.5000030042627621,
+      "x": -0.5000025270292873,
+      "y": 0.49999738437397245,
+      "z": 0.49999736807482303
+    },
+    "root/DEF-hips/DEF-thigh.L": {
+      "w": 1.0000000000000142,
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "root/DEF-hips/DEF-thigh.L/DEF-shin.L": {
+      "w": 0.01737319119274641,
+      "x": 0.9998490810394429,
+      "y": -7.132756252303909e-8,
+      "z": -1.2042738362083753e-8
+    },
+    "root/DEF-hips/DEF-thigh.L/DEF-shin.L/DEF-foot.L": {
+      "w": -0.08893421171598895,
+      "x": 0.9960376124897008,
+      "y": 2.7482138202625033e-9,
+      "z": 6.296305041347065e-8
+    },
+    "root/DEF-hips/DEF-thigh.R": {
+      "w": 1.0000000000000142,
+      "x": 0,
+      "y": 0,
+      "z": 0
+    },
+    "root/DEF-hips/DEF-thigh.R/DEF-shin.R": {
+      "w": 0.01737319119274641,
+      "x": 0.9998490810394429,
+      "y": 7.426564252455243e-8,
+      "z": -3.17262731641681e-8
+    },
+    "root/DEF-hips/DEF-thigh.R/DEF-shin.R/DEF-foot.R": {
+      "w": -0.08893421171598552,
+      "x": 0.996037612489698,
+      "y": -4.4761265056627565e-9,
+      "z": -1.0679653814181822e-7
+    }
+  },
+  "restPosition": {
+    "root/DEF-hips": {
+      "x": 0,
+      "y": 0.4056634306907654,
+      "z": 0
+    },
+    "root/DEF-hips/DEF-spine.001": {
+      "x": 0,
+      "y": 0.19197750091552734,
+      "z": 0
+    },
+    "root/DEF-hips/DEF-spine.001/DEF-spine.002/DEF-spine.003": {
+      "x": 0,
+      "y": 0.37498795986175537,
+      "z": 0
+    },
+    "root/DEF-hips/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-neck/DEF-head": {
+      "x": 0,
+      "y": 0.26879656314849854,
+      "z": 0
+    },
+    "root/DEF-hips/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-shoulder.L/DEF-upper_arm.L": {
+      "x": 0.21200737357139587,
+      "y": 0.13413214683532715,
+      "z": 8.40246201505579e-8
+    },
+    "root/DEF-hips/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-shoulder.L/DEF-upper_arm.L/DEF-forearm.L": {
+      "x": -3.219664979070558e-9,
+      "y": 0.24189729988574982,
+      "z": -1.1940561250867177e-7
+    },
+    "root/DEF-hips/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-shoulder.L/DEF-upper_arm.L/DEF-forearm.L/DEF-hand.L": {
+      "x": 9.08162434143378e-13,
+      "y": 0.07382583618164062,
+      "z": 2.220446049250313e-16
+    },
+    "root/DEF-hips/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-shoulder.R/DEF-upper_arm.R": {
+      "x": -0.21200737357139587,
+      "y": 0.13413214683532715,
+      "z": 8.40246201505579e-8
+    },
+    "root/DEF-hips/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-shoulder.R/DEF-upper_arm.R/DEF-forearm.R": {
+      "x": -7.121856576697283e-11,
+      "y": 0.2418973296880722,
+      "z": -1.1940561250867177e-7
+    },
+    "root/DEF-hips/DEF-spine.001/DEF-spine.002/DEF-spine.003/DEF-shoulder.R/DEF-upper_arm.R/DEF-forearm.R/DEF-hand.R": {
+      "x": 1.3322676295501878e-15,
+      "y": 0.07382583618164062,
+      "z": 2.220446049250313e-16
+    },
+    "root/DEF-hips/DEF-thigh.L": {
+      "x": 0.17094506323337555,
+      "y": 0.11358726024627686,
+      "z": 1.392327231286572e-8
+    },
+    "root/DEF-hips/DEF-thigh.L/DEF-shin.L": {
+      "x": 3.5798182196344897e-9,
+      "y": 0.22707749903202057,
+      "z": -6.1398597317463555e-9
+    },
+    "root/DEF-hips/DEF-thigh.L/DEF-shin.L/DEF-foot.L": {
+      "x": 1.8322229844436322e-10,
+      "y": 0.14943702518939972,
+      "z": 9.665366285105392e-10
+    },
+    "root/DEF-hips/DEF-thigh.R": {
+      "x": -0.17094506323337555,
+      "y": 0.11358726024627686,
+      "z": 1.392327231286572e-8
+    },
+    "root/DEF-hips/DEF-thigh.R/DEF-shin.R": {
+      "x": -3.5798182196344897e-9,
+      "y": 0.22707749903202057,
+      "z": -6.1398597317463555e-9
+    },
+    "root/DEF-hips/DEF-thigh.R/DEF-shin.R/DEF-foot.R": {
+      "x": -1.832210216878849e-10,
+      "y": 0.14943702518939972,
+      "z": 9.665415134918476e-10
+    }
+  },
   "scale": 1.3714490056392945
 }

@@ -29,6 +29,8 @@
  * corners need. Run it again to re-cut; the sources are not in the repo.
  *
  *   node tools/make-rig-corpus.mjs --src <dir with the downloaded packs>
+ *   node tools/make-rig-corpus.mjs --avatars-only   (re-measure the avatars off the
+ *                                                     prefabs already in the corpus)
  */
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -451,8 +453,9 @@ function subset(json, bins, { dropNode, dropPrimitive = () => false, keepAnimati
 }
 
 const args = process.argv.slice(2);
+const avatarsOnly = args.includes('--avatars-only');
 const srcDir = args[args.indexOf('--src') + 1];
-if (!srcDir || srcDir.startsWith('--')) {
+if (!avatarsOnly && (!srcDir || srcDir.startsWith('--'))) {
     console.error('usage: node tools/make-rig-corpus.mjs --src <dir>\n\n'
         + 'The dir holds the two CC0 packs named in this file\'s header:\n'
         + '  AnimationLibrary_Godot_Standard.gltf + .bin   (Quaternius, hero)\n'
@@ -460,6 +463,9 @@ if (!srcDir || srcDir.startsWith('--')) {
     process.exit(2);
 }
 
+if (!avatarsOnly) cutAndImport();
+
+function cutAndImport() {
 mkdirSync(OUT, { recursive: true });
 
 const hero = readSource(srcDir, 'AnimationLibrary_Godot_Standard.gltf');
@@ -498,6 +504,7 @@ for (const stem of ['hero', 'knight']) {
         path.join(OUT, `${stem}.gltf`), '--scale', String(IMPORT_SCALE),
         '--project', path.dirname(path.dirname(OUT)),
     ], { stdio: 'inherit' });
+}
 }
 
 // =============================================================================
@@ -570,7 +577,7 @@ function readRig(prefabFile) {
             return { x: origin.x + turned.x, y: origin.y + turned.y, z: origin.z + turned.z };
         })();
         const path = prefix === null ? '' : (prefix ? `${prefix}/${e.name}` : e.name);
-        if (prefix !== null) joints.set(e.name, { path, rest: local.r, at });
+        if (prefix !== null) joints.set(e.name, { path, rest: local.r, at, space: rotation, position: local.p });
         const spin = prefix === null ? IDENTITY : quatMul(rotation, local.r);
         for (const child of e.children) walk(child, path, at, spin);
     };
@@ -596,29 +603,39 @@ function rigSize(joints) {
     return far;
 }
 
-function writeAvatar(file, { joints, rest, scale }) {
-    writeFileSync(file, `${JSON.stringify({ version: 1, joints, rest, scale }, null, 2)}\n`);
+function writeAvatar(file, { joints, rest, space, restPosition, scale }) {
+    writeFileSync(file, `${JSON.stringify({ version: 1, joints, rest, space, restPosition, scale }, null, 2)}\n`);
 }
 
 const heroRig = readRig(path.join(OUT, 'hero.esprefab'));
 const knightRig = readRig(path.join(OUT, 'knight.esprefab'));
 if (heroRig.size > 1 && knightRig.size > 1) {
     const heroRest = {};
+    const heroSpace = {};
+    const heroPosition = {};
     const knightJoints = {};
     const knightRest = {};
+    const knightSpace = {};
+    const knightPosition = {};
     for (const [heroName, knightName] of Object.entries(JOINT_NAMES)) {
         const mine = heroRig.get(heroName);
         const theirs = knightRig.get(knightName);
         if (!mine) throw new Error(`hero rig has no joint named ${heroName}`);
         if (!theirs) throw new Error(`knight rig has no joint named ${knightName}`);
         heroRest[mine.path] = mine.rest;
+        heroSpace[mine.path] = mine.space;
+        heroPosition[mine.path] = mine.position;
         knightJoints[mine.path] = theirs.path;
         knightRest[mine.path] = theirs.rest;
+        // The two skeletons stand on different axes (the hero Z-up under a turned
+        // root, the knight Y-up), so a joint's parent space is part of its rest.
+        knightSpace[mine.path] = theirs.space;
+        knightPosition[mine.path] = theirs.position;
     }
     writeAvatar(path.join(OUT, 'hero.esavatar'),
-                { joints: {}, rest: heroRest, scale: rigSize(heroRig) });
+                { joints: {}, rest: heroRest, space: heroSpace, restPosition: heroPosition, scale: rigSize(heroRig) });
     writeAvatar(path.join(OUT, 'knight.esavatar'),
-                { joints: knightJoints, rest: knightRest, scale: rigSize(knightRig) });
+                { joints: knightJoints, rest: knightRest, space: knightSpace, restPosition: knightPosition, scale: rigSize(knightRig) });
     console.log(`avatars      ${Object.keys(JOINT_NAMES).length} joints mapped, `
         + `hero ${rigSize(heroRig).toFixed(2)} tall vs knight ${rigSize(knightRig).toFixed(2)}`);
 } else {

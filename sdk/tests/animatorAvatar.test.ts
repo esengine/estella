@@ -320,6 +320,79 @@ describe('one clip over rigs bound differently', () => {
         expect(turnedZ(world, 2)).toBeCloseTo(Math.SQRT1_2, 4);
     });
 
+    /**
+     * Rigs on different axes, as the character-rig hero (Z-up under a root turned
+     * −90° about X) and knight (Y-up): turning the source's hips 30° about the
+     * vertical and lifting them 0.1 has to do both about the target's vertical.
+     */
+    it('carries a turn and a lift through each rig’s own space', () => {
+        const axis = (x: number, y: number, z: number, deg: number) => {
+            const h = (deg * Math.PI) / 360, s = Math.sin(h);
+            return { w: Math.cos(h), x: x * s, y: y * s, z: z * s };
+        };
+        const mul = (a: any, b: any) => ({
+            w: a.w * b.w - a.x * b.x - a.y * b.y - a.z * b.z,
+            x: a.w * b.x + a.x * b.w + a.y * b.z - a.z * b.y,
+            y: a.w * b.y - a.x * b.z + a.y * b.w + a.z * b.x,
+            z: a.w * b.z + a.x * b.y - a.y * b.x + a.z * b.w,
+        });
+        const inv = (a: any) => ({ w: a.w, x: -a.x, y: -a.y, z: -a.z });
+        const upright = axis(1, 0, 0, -90);
+        const heroHips = axis(1, 0, 0, 104);
+        const vertical30 = axis(0, 1, 0, 30);
+        // What the clip must say for the source's hips to end up turned about the
+        // rig's vertical: its local value, through its parent's space.
+        const stated = mul(mul(inv(upright), vertical30), mul(upright, heroHips));
+
+        const world = makeWorld();
+        rig(world, 1, 2, 'Hips');
+        const key = (value: number) => ([{ time: 0, value, inTangent: 0, outTangent: 0, interpolation: InterpType.Linear }]);
+        const timeline = new TimelineAPI();
+        timeline.registerAsset('wave.estimeline', {
+            version: '1.2', type: 'timeline', duration: 10, wrapMode: WrapMode.Loop,
+            tracks: [{
+                type: TrackType.Property, component: 'Transform', childPath: 'Hips', name: 't',
+                channels: [
+                    ...(['w', 'x', 'y', 'z'] as const).map((c) => ({ property: `rotation.${c}`, keyframes: key(stated[c]) })),
+                    { property: 'position.x', keyframes: key(0) },
+                    { property: 'position.y', keyframes: key(0.05) },
+                    // Z is the source's up: its hips rest 0.9 high and the clip lifts them 0.1.
+                    { property: 'position.z', keyframes: key(1.0) },
+                ],
+            }],
+        } as TimelineAsset);
+        const avatars: Record<string, AnimatorAvatar> = {
+            'assets/clips.esavatar': parseAvatar({
+                joints: {}, rest: { Hips: heroHips }, space: { Hips: upright },
+                restPosition: { Hips: { x: 0, y: 0.05, z: 0.9 } }, scale: 2,
+            }),
+            'assets/rig.esavatar': parseAvatar({
+                joints: {}, rest: { Hips: identityQ }, space: { Hips: identityQ },
+                restPosition: { Hips: { x: 0, y: 0.4, z: 0 } }, scale: 1,
+            }),
+        };
+        const ctrl = new AnimatorControllerAPI();
+        ctrl.registerMotionDriver(TIMELINE_MOTION, createTimelineMotionDriver(timeline));
+        ctrl.useAssetAvatars((ref) => avatars[ref]);
+        ctrl.registerController('rig', {
+            version: 2, parameters: [], initialState: 'Wave', avatar: 'assets/clips.esavatar',
+            states: [{ name: 'Wave', transitions: [], motion: { kind: TIMELINE_MOTION, clip: 'wave.estimeline', loop: true } }],
+        } as AnimatorControllerDef);
+        attach(world, 1, 'assets/rig.esavatar');
+        ctrl.update(world, 0.016);
+
+        const t = world.get(2, Transform) as { rotation: any; position: any };
+        const sign = Math.sign(t.rotation.w) || 1;
+        expect(t.rotation.w * sign).toBeCloseTo(vertical30.w, 4);
+        expect(t.rotation.y * sign).toBeCloseTo(vertical30.y, 4);
+        expect(t.rotation.x).toBeCloseTo(0, 4);
+        expect(t.rotation.z).toBeCloseTo(0, 4);
+        // Lifted along ITS up, by half as much: it is half the source's size.
+        expect(t.position.x).toBeCloseTo(0, 4);
+        expect(t.position.y).toBeCloseTo(0.4 + 0.05, 4);
+        expect(t.position.z).toBeCloseTo(0, 4);
+    });
+
     it('refuses a rest pose that is not a rotation', () => {
         expect(() => parseAvatar({ joints: {}, rest: { Arm: { w: 1, x: 0, y: 0 } } }))
             .toThrow(/quaternion/);

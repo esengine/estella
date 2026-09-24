@@ -67,10 +67,10 @@ export class AnimatorControllerAssetLoader implements AssetLoader<AnimatorContro
 }
 
 /**
- * Load what the graph's motions play, resolving each ref IN PLACE. Discovery
- * walks components, and a clip named inside a controller is not one; resolving
- * is what makes the driver's lookup hit, since a motion asks for its clip by the
- * name it carries and that has to be the name it was registered under.
+ * Load what the graph's motions play and the avatar its clips were authored on,
+ * resolving each ref IN PLACE: discovery walks components, which a controller's
+ * refs are not, and each is looked up by the name it carries. Without the avatar
+ * no retarget ever runs.
  */
 async function acquireMotionAssets(
     def: AnimatorControllerDef, path: string, ctx: LoadContext,
@@ -82,6 +82,10 @@ async function acquireMotionAssets(
         if (!type || !motion.clip) continue;
         motion.clip = resolveDocumentRef(path, motion.clip);
         wanted.set(motion.clip, type);
+    }
+    if (def.avatar) {
+        def.avatar = resolveDocumentRef(path, def.avatar);
+        wanted.set(def.avatar, 'avatar');
     }
     // Leases are recorded against the scope loading this controller, which is
     // what releases them when the scene that wanted it goes.

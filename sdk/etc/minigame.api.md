@@ -424,7 +424,9 @@ ComponentDef<AnimatorData>
 ```
 joints: Record<string, string>
 rest: Record<string, Quat> | undefined
+restPosition: Record<string, Vec3> | undefined
 scale: number | undefined
+space: Record<string, Quat> | undefined
 ```
 
 ## AnimatorBlend1D — interface @experimental
@@ -3562,6 +3564,7 @@ visited: Set<string> | undefined
 ```
 entities: ProcessedEntity[]
 rootId: number
+unresolved: PrefabOverride[]
 ```
 
 ## FlexContainer — const @experimental
@@ -10929,12 +10932,12 @@ EventBindingPlugin
 
 ## expandEntry — function @experimental
 ```
-(prefab: PrefabData, entry: PrefabInstanceEntry, allocateId: () => number, loadPrefab?: SyncPrefabResolver): { entities: ProcessedEntity[]; rootId: number; }
+(prefab: PrefabData, entry: PrefabInstanceEntry, allocateId: () => number, loadPrefab?: SyncPrefabResolver): { entities: ProcessedEntity[]; rootId: number; unresolved: PrefabOverride[]; }
 ```
 
 ## expandInstance — function @experimental
 ```
-(prefab: PrefabData, delta: PrefabInstanceDelta, allocateId: () => number, loadPrefab?: SyncPrefabResolver): { entities: ProcessedEntity[]; rootId: number; }
+(prefab: PrefabData, delta: PrefabInstanceDelta, allocateId: () => number, loadPrefab?: SyncPrefabResolver): { entities: ProcessedEntity[]; rootId: number; unresolved: PrefabOverride[]; }
 ```
 
 ## extendPlatform — function @experimental
