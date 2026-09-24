@@ -21,20 +21,10 @@ export const PACK_TILES: readonly string[] = [
 ];
 
 /**
- * Where "Check for update" looks for a candidate manifest. A shipped build (or a
- * host) can point this at a real CDN by setting `window.__estellaHotUpdate` before
- * the game boots.
- *
- * The default is a **checked-in local update channel** — `updates/v2-manifest.json`
- * plus `updates/art-v2.png`, a full manifest that mirrors the running one with the
- * `cdn` texture bumped to a red "v2". It lives OUTSIDE `assets/`, so:
- *   - in editor Play the whole project root is served over `estella://`, so the
- *     manifest resolves → checkForUpdate finds one changed asset → you can download
- *     and apply a genuine content swap, live, without a CDN;
- *   - a cooked/shipped build never bundles `updates/`, so the same URL 404s and the
- *     console honestly reports "已是最新版本" (a real deployment would point
- *     `__estellaHotUpdate` at its CDN instead).
- * One config, correct in both realms — no realm sniffing.
+ * Where "Check for update" looks: `window.__estellaHotUpdate` (a real CDN), else the
+ * checked-in `updates/` channel, which editor Play serves from the project root. A
+ * cooked build carries those files as data but not at that URL, so it reports
+ * "已是最新版本" — see the README.
  */
 export interface HotUpdateEndpoint {
     manifestUrl: string;
