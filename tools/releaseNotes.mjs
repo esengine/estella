@@ -990,6 +990,12 @@ export const NOTED = {
     { note: 'A project can be packaged for Bilibili (B 站).' },
   'feat(runtime): a mini-game host that asks to hear the first frame is told':
     { note: 'A mini-game host that asks to hear when the first screen has rendered is told' },
+  'fix(runtime): a mini-game host other than WeChat keeps its lifecycle':
+    { note: 'A mini-game on any host but WeChat no longer throws at boot.' },
+  'fix(export): a mini-game that fails to start says why':
+    { note: 'A mini-game that fails to start says why.' },
+  'fix(cli): a project platform exports headless, and an unknown id is refused':
+    { note: '`estella export --platform <id>` packages a platform the project defines' },
   'fix(agent): the history toggle presses grey again, not the accent':
     { note: "The agent drawer's History button shows it is open with a grey press again, not the accent colour 0.71 gave it." },
 };

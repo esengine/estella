@@ -155,4 +155,13 @@ describe('exportGame — a platform the project defines', () => {
     expect(bundle).not.toContain('installMiniGamePlatform');
     expect(bundle).toContain('initMiniGameRuntime');
   }, 60_000);
+
+  it('refuses an id that is neither built in nor handed a profile, rather than packaging it as web', async () => {
+    await expect(exportGame({
+      root, entryScene: 'scenes/main.esscene',
+      hostsDir: path.resolve(__dirname, '../src/runtime'), packagesDir: OFFICIAL_PACKAGES,
+      sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'),
+      outDir: path.join(root, 'dist-typo'), platform: 'acme-plya',
+    })).rejects.toThrow('"acme-plya" is not a platform this export knows');
+  });
 });

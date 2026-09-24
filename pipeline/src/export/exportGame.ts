@@ -65,7 +65,7 @@ import { assembleAab, aabFileName } from '../../../build-tools/utils/aab.js';
 import { assembleDesktopApp } from '../../../build-tools/utils/desktopApp.js';
 import { emitSteamBuild, defaultDepotId } from '../../../build-tools/utils/steamChannel.js';
 import { debugSigningKey, type SigningKey } from '../../../build-tools/utils/androidKeystore.js';
-import { compileTargetFor, isNativePlatform, desktopTemplateFor, type DesktopOs, type ExportPlatform } from '../project/platforms';
+import { BUILTIN_PLATFORMS, compileTargetFor, isNativePlatform, desktopTemplateFor, type DesktopOs, type ExportPlatform } from '../project/platforms';
 import type { DesktopPackaging, ProjectFeatures, ProjectPackaging, SteamPackaging } from '../project/format';
 import type { SizeBudget } from '../project/sizeBudget';
 import { measureBuild, type BuildSizeReport } from './sizeReport';
@@ -754,6 +754,16 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       adProfile: opts.playableAdProfile,
       onProgress: opts.onProgress,
     });
+  }
+
+  // Everything past here is the web / desktop / native pipeline. An id that is
+  // none of those and brought no profile is a typo or an unloaded project
+  // platform, and packaging it as a web game would hand back the wrong package.
+  if (!(BUILTIN_PLATFORMS as readonly string[]).includes(platform)) {
+    throw new Error(
+      `"${platform}" is not a platform this export knows: the built-ins are ${BUILTIN_PLATFORMS.join(', ')},`
+      + ' and a project platform arrives with its profile (loadProjectPlatform).',
+    );
   }
 
   // path.resolve, not isAbsolute-or-join: on Windows `/Users/me/out` IS absolute

@@ -18,7 +18,8 @@ const USAGE = `usage: node pipeline/bin/estella.mjs export <projectDir> [options
        node pipeline/bin/estella.mjs import-hdr <file.hdr> [outDir] [--face-size <n>]
        node pipeline/bin/estella.mjs bake-scene <scene.esscene> [--check]
 
-  --platform <id>     web | desktop | wechat | playable | android | ios (default web)
+  --platform <id>     a built-in (web, desktop, wechat, douyin, kuaishou, bilibili, playable, android, ios)
+                      or a platform the project defines in .esengine/platforms/ (default web)
   --out <dir>         output dir (default <projectDir>/dist-<platform>)
   --wasm <dir>        engine runtime to ship (default: the build tree, else the editor's copy)
   --scene <path>      entry scene, project-relative (default: the project's own)
@@ -780,6 +781,25 @@ const sizeBudgetBytes = manifest.packaging?.sizeBudget?.[platform];
 const { mod: exporter, cleanup: cleanupExport } = await loadPipeline(
   path.join(PIPELINE, 'src', 'export', 'exportGame.ts'), 'exportGame.mjs');
 
+// A platform the project defines in .esengine/platforms/, loaded the way the
+// build dialog loads it, so a headless package is the one the dialog makes.
+let projectPlatform = null;
+if (!fmt.BUILTIN_PLATFORMS.includes(platform)) {
+  const { mod: catalog, cleanup: cleanupCatalog } = await loadPipeline(
+    path.join(PIPELINE, 'src', 'export', 'platformCatalog.ts'), 'platformCatalog.mjs');
+  try {
+    projectPlatform = await catalog.loadProjectPlatform(opts.projectDir, platform,
+      { web: engineRuntimeDir('web'), minigame: engineRuntimeDir('wechat') });
+  } finally {
+    cleanupCatalog();
+  }
+  if (!projectPlatform) {
+    console.error(`Unknown platform "${platform}": not a built-in (${fmt.BUILTIN_PLATFORMS.join(', ')}),`
+      + ` and ${opts.projectDir} defines none by that id in .esengine/platforms/.`);
+    process.exit(2);
+  }
+}
+
 let code = 1;
 try {
   const result = await exporter.exportGame({
@@ -789,7 +809,8 @@ try {
     hostsDir: path.join(PIPELINE, 'src', 'runtime'),
     packagesDir: path.join(REPO, 'plugins'),
     sdkDistDir: path.join(REPO, 'sdk', 'dist'),
-    wasmDir: opts.wasm ? path.resolve(opts.wasm) : engineRuntimeDir(platform),
+    wasmDir: opts.wasm ? path.resolve(opts.wasm) : projectPlatform?.wasmDir ?? engineRuntimeDir(platform),
+    miniGameProfile: projectPlatform?.profile,
     outDir,
     platform,
     title: opts.title ?? project.name ?? path.basename(opts.projectDir),
