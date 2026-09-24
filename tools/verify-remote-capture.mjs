@@ -122,6 +122,10 @@ try {
   const now = server.targets().find((t) => t.id === target.id);
   check(now?.project === 'Input Actions' && typeof now?.revision === 'string',
     `the build said which project and content it is (${now?.project}, ${now?.revision})`);
+  // Lines travel in batches, behind whatever answer is on the socket.
+  for (const until = Date.now() + 5000; Date.now() < until && !lines.some((l) => /EstellaContext initialized/.test(l.line));) {
+    await new Promise((r) => setTimeout(r, 100));
+  }
   check(lines.some((l) => /EstellaContext initialized/.test(l.line)),
     `what the device printed before it connected reached the editor (${lines.length} line(s))`);
 

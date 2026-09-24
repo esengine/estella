@@ -22,6 +22,8 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- Games on vivo's quick game run past their first frame: the frame loop now hands requestAnimationFrame a handler the runtime accepts.
+- The debug channel works on vivo's quick game: logs arrive in batches, and a replay is sent at the size the Frame Debugger shows instead of the whole screen.
 - A native build loads a remote group's textures from the CDN — they never loaded before — and after a hot update, from its disk cache when offline.
 - A WeChat development build connects to the editor from WeChat DevTools (the domain check is turned off for that build only), and frame replays come back from a mini-game.
 - Hot update works on mini-games: the update is fetched from the CDN, verified, applied and cached, and after a restart without a network the game starts on it with its updated art.

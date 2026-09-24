@@ -2721,15 +2721,15 @@ url: string
 ## DebugChannelMessage — type @experimental
 ```
 | { t: 'hello'; v: number; platform: string; title: string; project: string | null; revision: string | null }
-    | { t: 'reply'; reqId: number; data: unknown; pixels?: boolean }
+    | { t: 'reply'; reqId: number; data: unknown; pixels?: number }
     | { t: 'reply'; reqId: number; error: string }
-    | { t: 'log'; level: ConsoleLevel; line: string }
+    | { t: 'logs'; entries: Array<{ level: ConsoleLevel; line: string }> }
 ```
 
 ## DebugChannelQuery — type @experimental
 ```
 | { t: 'query'; reqId: number; kind: 'frameCapture' }
-    | { t: 'query'; reqId: number; kind: 'frameReplay'; drawIndex: number }
+    | { t: 'query'; reqId: number; kind: 'frameReplay'; drawIndex: number; maxSide?: number }
     | { t: 'query'; reqId: number; kind: 'stats' }
     | { t: 'query'; reqId: number; kind: 'snapshot'; selectedId: number | null; withTree: boolean }
     | ({ t: 'query'; reqId: number; kind: 'control' } & DebugControl)

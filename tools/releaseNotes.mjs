@@ -1082,4 +1082,10 @@ export const NOTED = {
     { note: 'Hot update works on mini-games: the update is fetched from the CDN, verified, applied and cached, and after a restart without a network the game starts on it with its updated art.' },
   'fix(native): a CDN texture loads on a native build, and from the cache when offline':
     { note: 'A native build loads a remote group\'s textures from the CDN — they never loaded before — and after a hot update, from its disk cache when offline.' },
+  'fix(app): the frame loop runs on vivo\'s quick game, not just its first frame':
+    { note: 'Games on vivo\'s quick game run past their first frame: the frame loop now hands requestAnimationFrame a handler the runtime accepts.' },
+  'fix(debug): the debug channel holds up on a slow host with a noisy console':
+    { note: 'The debug channel works on vivo\'s quick game: logs arrive in batches, and a replay is sent at the size the Frame Debugger shows instead of the whole screen.' },
+  'fix(frame-debugger): a device\'s replay is asked for at the size the panel shows':
+    { note: 'The debug channel works on vivo\'s quick game: logs arrive in batches, and a replay is sent at the size the Frame Debugger shows instead of the whole screen.' },
 };

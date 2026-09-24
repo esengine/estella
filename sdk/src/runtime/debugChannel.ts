@@ -14,7 +14,7 @@ import type { App } from '../app/app';
 import { getPlatform, platformNow } from '../platform/base';
 import type { PlatformSocket } from '../platform/types';
 import type { NextFrame } from '../render/frameCapture';
-import { captureFrameReport, replayFrameDraw } from '../render/frameDebugReport';
+import { captureFrameReport, replayFrameDraw, type FrameReplayImage } from '../render/frameDebugReport';
 import { log } from '../util/logger';
 import { Assets } from '../asset/AssetPlugin';
 import { frameStatsReport } from './frameStats';
@@ -43,26 +43,45 @@ export interface DebugControl {
 
 export type DebugChannelQuery =
     | { t: 'query'; reqId: number; kind: 'frameCapture' }
-    | { t: 'query'; reqId: number; kind: 'frameReplay'; drawIndex: number }
+    | { t: 'query'; reqId: number; kind: 'frameReplay'; drawIndex: number; maxSide?: number }
     | { t: 'query'; reqId: number; kind: 'stats' }
     | { t: 'query'; reqId: number; kind: 'snapshot'; selectedId: number | null; withTree: boolean }
     | ({ t: 'query'; reqId: number; kind: 'control' } & DebugControl);
 
 /**
- * What a device sends. A replay's pixels follow their `reply` as the very next
- * frame, binary, rather than inside it: a 1080p pass is 8MB of RGBA, and text
- * would add a third to every byte of it.
+ * What a device sends. A replay's pixels follow their `reply` as binary frames,
+ * `pixels` of them: text would add a third to every byte, and a mini-game host's
+ * socket drops a frame the size of a whole screen. Lines go in batches, since a
+ * host that traces its own every call prints thousands a second.
  */
 export type DebugChannelMessage =
     | { t: 'hello'; v: number; platform: string; title: string; project: string | null; revision: string | null }
-    | { t: 'reply'; reqId: number; data: unknown; pixels?: boolean }
+    | { t: 'reply'; reqId: number; data: unknown; pixels?: number }
     | { t: 'reply'; reqId: number; error: string }
-    | { t: 'log'; level: ConsoleLevel; line: string };
+    | { t: 'logs'; entries: Array<{ level: ConsoleLevel; line: string }> };
 
 const RECONNECT_MS = 3000;
 const START_WAIT_MS = 20_000;
-/** Lines kept while no editor listens; the oldest go first, and how many is said. */
-const LOG_BACKLOG = 200;
+/** Lines held for the editor; past this the oldest go first, and how many is said. */
+const LOG_BACKLOG = 500;
+const LOG_FLUSH_MS = 100;
+const PIXEL_CHUNK = 256 * 1024;
+
+/** @p image scaled (nearest) so its longer side is at most @p maxSide; the full
+ *  size rides along so a reader can say what it is looking at. */
+export function fitWithin(image: FrameReplayImage, maxSide?: number): FrameReplayImage & { fullWidth: number; fullHeight: number } {
+    const { width: w, height: h } = image;
+    const scale = maxSide && maxSide > 0 ? Math.min(1, maxSide / Math.max(w, h)) : 1;
+    if (scale === 1) return { ...image, fullWidth: w, fullHeight: h };
+    const sw = Math.max(1, Math.round(w * scale)), sh = Math.max(1, Math.round(h * scale));
+    const src = new Uint32Array(image.pixels.buffer, image.pixels.byteOffset, w * h);
+    const out = new Uint32Array(sw * sh);
+    for (let y = 0; y < sh; y++) {
+        const row = Math.min(h - 1, Math.floor(y / scale)) * w;
+        for (let x = 0; x < sw; x++) out[y * sw + x] = src[row + Math.min(w - 1, Math.floor(x / scale))];
+    }
+    return { ...image, width: sw, height: sh, pixels: new Uint8ClampedArray(out.buffer), fullWidth: w, fullHeight: h };
+}
 
 /** Resolves once @p app has finished a frame and the task that drew it has run. */
 function appFrame(app: App): NextFrame {
@@ -108,23 +127,23 @@ export function startDebugChannel(config: DebugChannelConfig): void {
 
     const backlog: Array<{ level: ConsoleLevel; line: string }> = [];
     let dropped = 0;
+    let flushTimer: ReturnType<typeof setTimeout> | null = null;
     const send = (m: DebugChannelMessage): void => {
         if (socket?.readyState === 'open') socket.send(JSON.stringify(m));
     };
+    const flushBacklog = (): void => {
+        flushTimer = null;
+        if (socket?.readyState !== 'open' || (backlog.length === 0 && dropped === 0)) return;
+        const entries = backlog.splice(0, backlog.length);
+        if (dropped > 0) entries.unshift({ level: 'warn', line: `[debug] ${dropped} line(s) are not shown: more were printed than the channel holds` });
+        dropped = 0;
+        send({ t: 'logs', entries });
+    };
     forwardConsole((level, line) => timed(() => {
-        if (socket?.readyState === 'open') {
-            send({ t: 'log', level, line });
-            return;
-        }
         if (backlog.length >= LOG_BACKLOG) { backlog.shift(); dropped++; }
         backlog.push({ level, line });
+        if (flushTimer === null && socket?.readyState === 'open') flushTimer = setTimeout(flushBacklog, LOG_FLUSH_MS);
     }));
-    const flushBacklog = (): void => {
-        if (dropped > 0) send({ t: 'log', level: 'warn', line: `[debug] ${dropped} earlier line(s) are not shown: the editor was not listening yet` });
-        for (const e of backlog) send({ t: 'log', ...e });
-        backlog.length = 0;
-        dropped = 0;
-    };
     const hello = (): void => {
         const assets = app?.hasResource(Assets) ? app.getResource(Assets) : null;
         send({
@@ -173,16 +192,21 @@ export function startDebugChannel(config: DebugChannelConfig): void {
                 reply({ t: 'reply', reqId: q.reqId, data: { paused: game.isPaused(), fps: Math.round(game.getTargetFrameRate()) } });
                 return;
             }
-            const image = await replayFrameDraw(game, q.drawIndex, frame);
-            if (!image) {
+            const full = await replayFrameDraw(game, q.drawIndex, frame);
+            if (!full) {
                 reply({ t: 'reply', reqId: q.reqId, data: null });
                 return;
             }
+            // A mini-game's socket moved a full-screen replay at ~180KB/s (55 s);
+            // the editor asks for what it will show.
+            const image = timed(() => fitWithin(full, q.maxSide));
             const { pixels, ...rest } = image;
-            reply({ t: 'reply', reqId: q.reqId, data: rest, pixels: true });
-            socket?.send(pixels.buffer.byteLength === pixels.byteLength
-                ? pixels.buffer as ArrayBuffer
-                : pixels.slice().buffer as ArrayBuffer);
+            const chunks = Math.max(1, Math.ceil(pixels.byteLength / PIXEL_CHUNK));
+            reply({ t: 'reply', reqId: q.reqId, data: rest, pixels: chunks });
+            for (let i = 0; i < chunks; i++) {
+                const part = pixels.subarray(i * PIXEL_CHUNK, Math.min(pixels.byteLength, (i + 1) * PIXEL_CHUNK));
+                socket?.send(part.slice().buffer as ArrayBuffer);
+            }
         } catch (e) {
             reply({ t: 'reply', reqId: q.reqId, error: e instanceof Error ? e.message : String(e) });
         }
@@ -216,6 +240,7 @@ export function startDebugChannel(config: DebugChannelConfig): void {
             app = game;
             nextFrame = appFrame(game);
             hello();
+            flushBacklog();
             started();
         },
     };
