@@ -22,6 +22,7 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- A native build loads a remote group's textures from the CDN — they never loaded before — and after a hot update, from its disk cache when offline.
 - A WeChat development build connects to the editor from WeChat DevTools (the domain check is turned off for that build only), and frame replays come back from a mini-game.
 - Hot update works on mini-games: the update is fetched from the CDN, verified, applied and cached, and after a restart without a network the game starts on it with its updated art.
 - A frame-rate cap now holds: `setTargetFrameRate(30)` on a 60 Hz display runs at 30, not 24.

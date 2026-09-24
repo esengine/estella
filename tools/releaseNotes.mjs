@@ -1080,4 +1080,6 @@ export const NOTED = {
     { note: 'A WeChat development build connects to the editor from WeChat DevTools (the domain check is turned off for that build only), and frame replays come back from a mini-game.' },
   'fix(hot-update): a mini-game fetches its update from the CDN, and shows it offline':
     { note: 'Hot update works on mini-games: the update is fetched from the CDN, verified, applied and cached, and after a restart without a network the game starts on it with its updated art.' },
+  'fix(native): a CDN texture loads on a native build, and from the cache when offline':
+    { note: 'A native build loads a remote group\'s textures from the CDN — they never loaded before — and after a hot update, from its disk cache when offline.' },
 };

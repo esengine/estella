@@ -5290,7 +5290,7 @@ es_audioVoiceState: ((voiceId: number) => { playing: boolean; currentTime: numbe
 es_devicePixelRatio: (() => number) | undefined
 es_fetch: ((request: { url: string; method?: string; headers?: Record<string, string>; body?: string | ArrayBuffer; responseType?: string; }, callback: (result: { ok: boolean; status: number; statusText: string; headers: Record<string, string>; arrayBuffer?: ArrayBuffer; text?: string; error?: string; }) => void) => void) | undefined
 es_getStorageItem: ((key: string) => string | null) | undefined
-es_loadImagePixels: (path: string) => { width: number; height: number; pixels: ArrayBuffer; } | null
+es_loadImagePixels: (pathOrBytes: string | ArrayBuffer) => { width: number; height: number; pixels: ArrayBuffer; } | null
 es_pollGamepads: (() => { index: number; connected: boolean; buttons: number[]; axes: number[]; }[]) | undefined
 es_rasterizeGlyph: ((request: PlatformGlyphRequest) => { pixels: ArrayBuffer; width: number; height: number; advance: number; bearingX: number; bearingY: number; } | null) | undefined
 es_readAsset: (path: string) => ArrayBuffer | null

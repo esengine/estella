@@ -8,6 +8,7 @@
  */
 import { describe, it, expect, vi } from 'vitest';
 import { createHostBridge, assertHostEnvironment, assertNativeHost } from '../src/platform/native';
+import { cacheEntryName } from '../src/platform/cacheEntryName';
 import { REGISTRY_BINDINGS, RESOURCE_BINDINGS, PLATFORM_BINDINGS } from '../src/ecs/bridge/nativeBindings';
 
 /** The globals a real host installs (console, timers, clock, decoder). */
@@ -283,5 +284,44 @@ describe('assertNativeHost', () => {
         const scope = fullHost();
         delete scope.TextDecoder;
         expect(() => assertNativeHost(scope)).toThrow(/TextDecoder/);
+    });
+});
+
+describe('a CDN image on a native build', () => {
+    // The host decodes packaged paths only: a remote group's texture never loaded,
+    // online or off, until the script brought the host the bytes.
+    const decoded = { width: 1, height: 1, pixels: new ArrayBuffer(4) };
+    const url = 'https://cdn.example/remote/art.png';
+
+    it('is decoded from the hot-update cache when it is there', async () => {
+        const cached = new Uint8Array([9]).buffer;
+        const load = vi.fn(() => decoded);
+        const fetch = vi.fn();
+        const bridge = createHostBridge(hostScope({
+            es_loadImagePixels: load, es_fetch: fetch,
+            es_readCacheFile: (key: string) => (key === cacheEntryName(url) ? cached : null),
+            es_writeCacheFile: () => true,
+        }));
+        await bridge.loadImagePixels(url);
+        expect(load).toHaveBeenCalledWith(cached);
+        expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it('is fetched as bytes and decoded when it is not', async () => {
+        const bytes = new Uint8Array([1, 2]).buffer;
+        const load = vi.fn(() => decoded);
+        const fetch = vi.fn((req: { responseType?: string }, done: (r: unknown) => void) =>
+            done({ ok: true, status: 200, statusText: 'OK', headers: {}, arrayBuffer: bytes, responseType: req.responseType }));
+        const bridge = createHostBridge(hostScope({ es_loadImagePixels: load, es_fetch: fetch, es_readCacheFile: () => null }));
+        await bridge.loadImagePixels(url);
+        expect(fetch.mock.calls[0][0]).toMatchObject({ url, responseType: 'arraybuffer' });
+        expect(load).toHaveBeenCalledWith(bytes);
+    });
+
+    it('a packaged path still goes to the host as a path', async () => {
+        const load = vi.fn(() => decoded);
+        const bridge = createHostBridge(hostScope({ es_loadImagePixels: load }));
+        await bridge.loadImagePixels('assets/hero.png');
+        expect(load).toHaveBeenCalledWith('assets/hero.png');
     });
 });

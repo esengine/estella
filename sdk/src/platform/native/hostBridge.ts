@@ -36,7 +36,8 @@ export interface NativeHostBindings {
     /** A packaged file's bytes, or null when it is not in the package. */
     es_readAsset(path: string): ArrayBuffer | null;
     /** Decode a packaged image to top-first RGBA, or null on failure. */
-    es_loadImagePixels(path: string): { width: number; height: number; pixels: ArrayBuffer } | null;
+    /** A packaged path, or bytes already fetched (a CDN image, a cached one). */
+    es_loadImagePixels(pathOrBytes: string | ArrayBuffer): { width: number; height: number; pixels: ArrayBuffer } | null;
     /** Rasterize one glyph through the OS font stack — what a 2D canvas does on
      *  the web. Optional, all-or-nothing with the rest of {@link TEXT_BINDINGS}:
      *  a host that has not bound its font stack draws no text. */
@@ -189,15 +190,22 @@ export function createHostBridge(
         },
         fileExists: (path) => Promise.resolve(bindings.es_readAsset(path) != null),
         fetch: (url, options) => hostFetch(bindings, url, options),
-        loadImagePixels: (path) => {
-            const decoded = bindings.es_loadImagePixels(path);
-            return decoded
-                ? Promise.resolve({
-                    width: decoded.width,
-                    height: decoded.height,
-                    pixels: new Uint8Array(decoded.pixels),
-                })
-                : Promise.reject(new Error(`image decode failed: ${path}`));
+        loadImagePixels: async (path) => {
+            // The host decodes packaged paths; a CDN image is bytes the script brings,
+            // from the hot-update cache when it is there, else from the network.
+            let source: string | ArrayBuffer = path;
+            if (/^https?:\/\//i.test(path)) {
+                const cached = bindings.es_readCacheFile ? bindings.es_readCacheFile(cacheEntryName(path)) : null;
+                if (cached) source = cached;
+                else {
+                    const got = await hostFetch(bindings, path, { responseType: 'arraybuffer' });
+                    if (!got.ok || !got.arrayBuffer) throw new Error(`image fetch failed: ${path} (${got.status})`);
+                    source = got.arrayBuffer;
+                }
+            }
+            const decoded = bindings.es_loadImagePixels(source);
+            if (!decoded) throw new Error(`image decode failed: ${path}`);
+            return { width: decoded.width, height: decoded.height, pixels: new Uint8Array(decoded.pixels) };
         },
         ...(bindings.es_rasterizeGlyph ? { rasterizeGlyph: (request) => hostGlyph(bindings, request) } : {}),
         ...storage,

@@ -41,13 +41,21 @@ JSValue js_readAsset(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
     return JS_NewArrayBufferCopy(ctx, bytes.data(), bytes.size());
 }
 
-// es_loadImagePixels(path) -> { width, height, pixels: ArrayBuffer(RGBA) } | null.
-// Decodes a packaged image asset to top-first RGBA via stb_image.
+// es_loadImagePixels(path | ArrayBuffer) -> { width, height, pixels: ArrayBuffer(RGBA) } | null.
+// Decodes a packaged image asset — or bytes the script fetched or read from the
+// cache, which is how a CDN image arrives — to top-first RGBA via stb_image.
 JSValue js_loadImagePixels(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
-    const char* path = JS_ToCString(ctx, argv[0]);
-    if (!path) return JS_NULL;
-    std::vector<u8> file = readAsset(host(), path);
-    JS_FreeCString(ctx, path);
+    std::vector<u8> file;
+    size_t size = 0;
+    if (uint8_t* raw = JS_GetArrayBuffer(ctx, &size, argv[0])) {
+        file.assign(raw, raw + size);
+    } else {
+        JS_FreeValue(ctx, JS_GetException(ctx));   // not an ArrayBuffer: a path
+        const char* path = JS_ToCString(ctx, argv[0]);
+        if (!path) return JS_NULL;
+        file = readAsset(host(), path);
+        JS_FreeCString(ctx, path);
+    }
     if (file.empty()) return JS_NULL;
     int w = 0, h = 0, ch = 0;
     stbi_uc* px = stbi_load_from_memory(file.data(), (int)file.size(), &w, &h, &ch, 4);
