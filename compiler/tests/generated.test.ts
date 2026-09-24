@@ -38,8 +38,13 @@ const result = lowerProgram([
 
 function artifact(path: string, want: string): void {
     if (WRITE) {
-        mkdirSync(dirname(path), { recursive: true });
-        writeFileSync(path, want);
+        // Only when it differs: a rewrite of the same bytes moves the mtime every
+        // freshness check reads, and the engine built a minute ago reads as stale.
+        const same = existsSync(path) && readFileSync(path, 'utf8').replace(/\r\n/g, '\n') === want;
+        if (!same) {
+            mkdirSync(dirname(path), { recursive: true });
+            writeFileSync(path, want);
+        }
         return;
     }
     const rel = path.slice(ROOT.length + 1);
