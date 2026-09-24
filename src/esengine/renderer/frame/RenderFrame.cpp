@@ -1840,9 +1840,9 @@ void RenderFrame::executeShadowPass(ecs::Registry& registry) {
 }
 
 /**
- * The background an environment is, as a quad on the far plane. Not a plugin and
- * not an entity: a sky belongs to no transform and is culled by nothing. Its
- * corners are the far plane's, unprojected, so a fragment's direction is the one
+ * The background an environment is, as a quad covering the screen. Not a plugin
+ * and not an entity: a sky belongs to no transform and is culled by nothing. Its
+ * corners are unprojected screen corners, so a fragment's direction is the one
  * from the eye through it — which viewDirection() already answers.
  */
 void RenderFrame::collectSky(RenderCollectContext& ctx) {
@@ -1862,13 +1862,14 @@ void RenderFrame::collectSky(RenderCollectContext& ctx) {
     }
     if (sky_program_ == 0) return;
 
-    // The far plane's four corners in world space. Clip z = 1 is that plane under
-    // both backends' shared projection, and w divides out whichever it is.
+    // The rays through the screen's corners, at a depth inside both backends'
+    // ranges: a quad at clip z = 1 rounds past the far plane at some view angles and
+    // is clipped whole. The depth does not change which rays are drawn.
     const glm::mat4 invVP = glm::inverse(ctx.frame_context.view_projection);
     glm::vec3 corners[4];
     const glm::vec2 ndc[4] = {{-1.0f, -1.0f}, {1.0f, -1.0f}, {1.0f, 1.0f}, {-1.0f, 1.0f}};
     for (u32 i = 0; i < 4; ++i) {
-        const glm::vec4 p = invVP * glm::vec4(ndc[i], 1.0f, 1.0f);
+        const glm::vec4 p = invVP * glm::vec4(ndc[i], 0.5f, 1.0f);
         corners[i] = glm::vec3(p) / p.w;
     }
 

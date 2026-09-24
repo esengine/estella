@@ -6,7 +6,7 @@
 // sky behind it are the same baked panorama; without this only one of them was
 // ever visible, and a scene lit by a sky sat in front of a flat clear colour.
 //
-// Geometry is a quad on the far plane, so the vertex stage needs no matrix of its
+// Geometry is a quad over the whole screen, so the vertex stage needs no matrix of its
 // own — the fragment's direction is the one from the eye through it, which is
 // what viewDirection() already answers (negated: it points AT the viewer).
 

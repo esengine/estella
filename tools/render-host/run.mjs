@@ -33,6 +33,7 @@
  *   ESTELLA_VERIFY_COUNTERS  engine counters the drawn frame must report (JSON)
  *   ESTELLA_VERIFY_COUNTERS_MAX  counters the frame must stay UNDER — a budget (JSON)
  *   ESTELLA_VERIFY_FRAME_DEBUG  capture the frame and replay it (the frame debugger)
+ *   ESTELLA_VERIFY_UNIFORM   the frame is one colour on purpose; ESTELLA_VERIFY_COUNT says which
  *   ESTELLA_VERIFY_SCALE     copy the scene's content onto a grid (JSON), for a cost gate
  *   ESTELLA_VERIFY_OUTPUT_TRANSFORM  the frame's output curve ("aces")
  *   ESTELLA_VERIFY_PROFILE   record N further frames and report the TS/C++ cost split
@@ -202,7 +203,10 @@ function finish(result, server) {
   // A hit test answering the wrong entity (or nothing) is the box being wrong,
   // which no pixel in the frame can show.
   const pickOk = !result.pick || result.pick.hit === result.pick.want;
-  const renderedOk = result.capture?.rendered ?? false;
+  // A frame of one colour reads as a bare clear. Where one colour IS the answer, a
+  // count of that colour is what proves something drew it.
+  const uniformByDesign = Boolean(process.env.ESTELLA_VERIFY_UNIFORM) && result.count?.ok === true;
+  const renderedOk = (result.capture?.rendered ?? false) || uniformByDesign;
   // A scene that could not load an asset it names draws a frame nobody declared, so
   // its pixels answer a different question — say which asset instead.
   const assetsOk = (result.missingAssets?.length ?? 0) === 0;

@@ -988,6 +988,8 @@ export const NOTED = {
     { note: 'A frame can be captured draw call by draw call, and replayed up to any one of them.' },
   'feat(render): a frame capture lists every texture a draw bound':
     { note: 'A frame can be captured draw call by draw call, and replayed up to any one of them.' },
+  'fix(render): a drawn sky fills the frame from every angle':
+    { note: 'A drawn sky no longer vanishes, or half-vanishes, as the view turns.' },
   'fix(render): the profiler and the draw-call count cover every camera of the frame':
     { note: 'With more than one camera, the profiler and the draw-call count cover the whole frame.' },
   'fix(play): a Play pressed while the engine warms up starts the game once, not again ten seconds later':
