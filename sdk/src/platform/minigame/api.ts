@@ -296,6 +296,8 @@ export interface MiniGameGlobal {
 
     onShow?(cb: () => void): void;
     onHide?(cb: () => void): void;
+    offShow?(cb: () => void): void;
+    offHide?(cb: () => void): void;
     /** The window changed size — a rotation, a foldable, split screen. Carries
      *  the new size, which is authoritative: a `getSystemInfoSync` beside it can
      *  still answer with the old one. */

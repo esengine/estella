@@ -195,6 +195,18 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
         this.g_.shareAppMessage?.call(this.g_, options);
     }
 
+    /** The host's foreground signal. A host without `offShow` cannot unsubscribe,
+     *  and the returned function then does nothing. */
+    onAppShow(callback: () => void): () => void {
+        this.g_.onShow?.call(this.g_, callback);
+        return () => { this.g_.offShow?.call(this.g_, callback); };
+    }
+
+    onAppHide(callback: () => void): () => void {
+        this.g_.onHide?.call(this.g_, callback);
+        return () => { this.g_.offHide?.call(this.g_, callback); };
+    }
+
     /** Register the passive-share card provider (the host's own share menu). */
     onShareRequest(provide: () => PlatformShareOptions): void {
         this.g_.onShareAppMessage?.call(this.g_, provide);

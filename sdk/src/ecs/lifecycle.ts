@@ -7,7 +7,7 @@
 
 import { defineResource } from './resource';
 import type { App, Plugin } from '../app/app';
-import { getPlatformType, platformOnAppShow, platformOnAppHide } from '../platform';
+import { getPlatformType, isMiniGame, platformOnAppShow, platformOnAppHide } from '../platform';
 import { log } from '../util/logger';
 
 // =============================================================================
@@ -110,11 +110,13 @@ export class LifecyclePlugin implements Plugin {
 
         const platformType = getPlatformType();
 
-        if (platformType === 'wechat') {
-            this.cleanupFn_ = setupWeChatLifecycle_(manager, app);
-        } else if (platformType === 'native') {
-            this.cleanupFn_ = setupNativeLifecycle_(manager, app);
-        } else if (typeof document !== 'undefined' && typeof window !== 'undefined') {
+        // A mini-game host and the native shell both push foreground/background
+        // through the adapter. Every mini-game runs with a `document` stub that has
+        // no addEventListener, so the web branch must not be reached from one.
+        if (platformType === 'native' || isMiniGame()) {
+            this.cleanupFn_ = setupHostLifecycle_(manager, app);
+        } else if (typeof document !== 'undefined' && typeof document.addEventListener === 'function'
+            && typeof window !== 'undefined') {
             this.cleanupFn_ = setupWebLifecycle_(manager, app);
         }
         // Headless hosts (node server, workers) keep the Lifecycle resource and
@@ -175,56 +177,17 @@ function setupWebLifecycle_(manager: LifecycleManager, app: AppLike): () => void
 }
 
 // =============================================================================
-// WeChat Platform
-// =============================================================================
-
-function setupWeChatLifecycle_(manager: LifecycleManager, app: AppLike): (() => void) | null {
-    let pausedByLifecycle = false;
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const wx = (globalThis as any).wx;
-    if (!wx) return null;
-
-    const onShow = (): void => {
-        manager.setVisible_(true);
-        if (pausedByLifecycle) {
-            app.setPaused(false);
-            pausedByLifecycle = false;
-            manager.emit_('resume');
-        }
-    };
-
-    const onHide = (): void => {
-        manager.setVisible_(false);
-        if (manager.autoPause && !app.isPaused()) {
-            app.setPaused(true);
-            pausedByLifecycle = true;
-            manager.emit_('pause');
-        }
-    };
-
-    wx.onShow(onShow);
-    wx.onHide(onHide);
-
-    return (): void => {
-        wx.offShow?.(onShow);
-        wx.offHide?.(onHide);
-        manager.removeAllListeners();
-    };
-}
-
-// =============================================================================
-// Native Platform (embedded Dawn + JS engine)
+// Hosts that push foreground/background (mini-game vendors, the native shell)
 // =============================================================================
 
 /**
- * Native has no DOM visibility event; the shell pushes foreground/background
- * through the platform adapter (onAppShow/onAppHide, backed by the bridge). Same
- * auto-pause contract as WeChat. The audio device is suspended by the host
- * directly on background — correct even while the JS tick is paused — so this
- * only drives the game tick and the lifecycle events.
+ * No DOM visibility event: the host pushes foreground/background through the
+ * platform adapter (a mini-game's onShow/onHide, the native bridge). On native
+ * the audio device is suspended by the host directly on background — correct
+ * even while the JS tick is paused — so this only drives the game tick and the
+ * lifecycle events.
  */
-function setupNativeLifecycle_(manager: LifecycleManager, app: AppLike): () => void {
+function setupHostLifecycle_(manager: LifecycleManager, app: AppLike): () => void {
     let pausedByLifecycle = false;
 
     const offShow = platformOnAppShow(() => {
