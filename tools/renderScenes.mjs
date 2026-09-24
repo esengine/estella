@@ -75,6 +75,8 @@ export const SCENES = [
   // horizon is. A plane turned to meet the eye lights the frame evenly and passes
   // the coverage check, so "grazing" is what tells the two apart.
   { id: "editor-grid-grazing", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-instanced.esscene", ESTELLA_VERIFY_GRID: "64", ESTELLA_VERIFY_GRID_EXPECT: "grazing", ESTELLA_VERIFY_PERSPECTIVE: "1", ESTELLA_VERIFY_ORBIT: "0,4", ESTELLA_VERIFY_STEPS: "3" } },
+  { id: "frame-debugger-2d", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/sprite-rendering.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/sprite-rendering.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_FRAME_DEBUG: "1" } },
+  { id: "frame-debugger-3d", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/ssao.esscene", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_FRAME_DEBUG: "1" } },
   { id: "mesh-renderer", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-renderer.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-renderer.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.30,\"y\":0.556,\"rgb\":[255,0,0],\"tol\":40},{\"x\":0.70,\"y\":0.556,\"rgb\":[0,255,0],\"tol\":40},{\"x\":0.30,\"y\":0.40,\"rgb\":[255,0,0],\"tol\":40}]" } },
   // One mask, both its sides, and a sprite that never asked. A mask that does nothing
   // paints the frame red; a side that inverted swaps green and red. The blue bar states

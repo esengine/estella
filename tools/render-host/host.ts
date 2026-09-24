@@ -20,7 +20,7 @@ import {
     createWebApp, setEditorMode, setPlayMode, Assets, acquireWebGPUDevice,
     loadSceneData, Renderer, instantiatePrefab, writeFieldPath, Transform, Name,
     getComponent, DeviceStatus, getDeviceStatus, getDeviceLostReport, recoverDevice,
-    getContextLossGuardInfo, decodeImagePixels, captureFramePixels,
+    getContextLossGuardInfo, decodeImagePixels, captureFramePixels, captureFrame, replayDraw, BatchBreak,
     RenderTexture, Camera, Sprite,
     EditorView, EditorGrid, installEditorGrid, editorViewHalfHeight, setEditorViewHalfHeight,
     ProfileRecorder, AnimatorController, Timeline, onDeviceRestored, Schedule, defineSystem,
@@ -423,6 +423,40 @@ const api = {
         return {
             entities: app?.world.entityCount() ?? 0,
             drawCalls: (module as unknown as { renderer_getDrawCalls?(): number } | null)?.renderer_getDrawCalls?.() ?? 0,
+        };
+    },
+
+    /**
+     * The frame debugger's own claims, on this backend: a capture's reasons, and
+     * how many pixels a replay through the first and through the last draw of a
+     * pass paint. Painted is counted by alpha, which the replay clears to zero.
+     */
+    async frameDebug(): Promise<{
+        draws: number; passes: number; breaks: Record<string, number>;
+        first: number; last: number; differ: number; matches: boolean;
+    } | null> {
+        if (!module) return null;
+        const next = async () => { await api.step(1, 1 / 60); };
+        const cap = await captureFrame(module, next);
+        if (!cap) return null;
+        const breaks: Record<string, number> = {};
+        for (const d of cap.drawCalls) {
+            const name = BatchBreak[d.breakReason];
+            breaks[name] = (breaks[name] ?? 0) + 1;
+        }
+        const pass = cap.drawCalls.filter((d) => d.pass === cap.drawCalls[0].pass);
+        const a = await replayDraw(module, pass[0].index, next);
+        const b = await replayDraw(module, pass[pass.length - 1].index, next);
+        if (!a || !b) return null;
+        const painted = (px: Uint8ClampedArray) => { let n = 0; for (let i = 3; i < px.length; i += 4) if (px[i] > 0) n++; return n; };
+        let differ = 0;
+        for (let i = 0; i < a.image.data.length; i += 4) {
+            if (Math.abs(a.image.data[i] - b.image.data[i]) + Math.abs(a.image.data[i + 3] - b.image.data[i + 3]) > 16) differ++;
+        }
+        return {
+            draws: cap.drawCalls.length, passes: cap.passCount, breaks,
+            first: painted(a.image.data), last: painted(b.image.data), differ,
+            matches: a.matchesCapture && b.matchesCapture,
         };
     },
 

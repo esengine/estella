@@ -46,7 +46,7 @@ for (const s of SCENES) {
     || s.env.ESTELLA_VERIFY_SEAM
     || s.env.ESTELLA_VERIFY_GRID || s.env.ESTELLA_VERIFY_PREVIEW
     || s.env.ESTELLA_VERIFY_MESH_PREVIEW || s.env.ESTELLA_VERIFY_DEPTH_LAYERS
-    || s.env.ESTELLA_VERIFY_COUNTERS || s.env.ESTELLA_VERIFY_COUNTERS_MAX
+    || s.env.ESTELLA_VERIFY_COUNTERS || s.env.ESTELLA_VERIFY_COUNTERS_MAX || s.env.ESTELLA_VERIFY_FRAME_DEBUG
     || s.env.ESTELLA_VERIFY_DRAW_CALLS
     || s.env.ESTELLA_VERIFY_YSORT || s.id === 'sprite-default';
   if (!asserts && !s.rendersOnly) {

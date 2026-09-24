@@ -32,6 +32,7 @@
  *   ESTELLA_VERIFY_ORBIT     turn the editor eye before capture ("yaw,pitch" degrees)
  *   ESTELLA_VERIFY_COUNTERS  engine counters the drawn frame must report (JSON)
  *   ESTELLA_VERIFY_COUNTERS_MAX  counters the frame must stay UNDER — a budget (JSON)
+ *   ESTELLA_VERIFY_FRAME_DEBUG  capture the frame and replay it (the frame debugger)
  *   ESTELLA_VERIFY_SCALE     copy the scene's content onto a grid (JSON), for a cost gate
  *   ESTELLA_VERIFY_OUTPUT_TRANSFORM  the frame's output curve ("aces")
  *   ESTELLA_VERIFY_PROFILE   record N further frames and report the TS/C++ cost split
@@ -209,7 +210,7 @@ function finish(result, server) {
     (result.seam?.ok ?? true) &&
     (result.resize?.ok ?? true) && (result.preview?.ok ?? true) &&
     (result.meshPreview?.ok ?? true) && (result.grid?.ok ?? true) &&
-    (result.draws?.ok ?? true) && (result.counters?.ok ?? true) &&
+    (result.draws?.ok ?? true) && (result.counters?.ok ?? true) && (result.frameDebug?.ok ?? true) &&
     (result.roundtrip?.ok ?? true) && deviceLossOk && meshOk && pickOk;
   const why = assetsOk ? '' : `: could not load ${result.missingAssets.join(', ')}`;
   console.log(`\n[verify:render] ${ok ? 'PASS' : 'FAIL'} — ${SCENE} (${BACKEND})${why}`);
@@ -269,7 +270,7 @@ app.whenReady().then(async () => {
     }
     // The engine's per-frame counters are only recorded while profiling is on, and
     // it goes on BEFORE the steps: what is read afterwards is the last frame's.
-    if (process.env.ESTELLA_VERIFY_COUNTERS || process.env.ESTELLA_VERIFY_COUNTERS_MAX) {
+    if (process.env.ESTELLA_VERIFY_COUNTERS || process.env.ESTELLA_VERIFY_COUNTERS_MAX || process.env.ESTELLA_VERIFY_FRAME_DEBUG) {
       await exec('window.__estellaHeadless.api.setCpuProfiling(true)');
     }
     // Project render config stand-in: ESTELLA_VERIFY_YSORT = layer bitmask
@@ -702,6 +703,23 @@ app.whenReady().then(async () => {
       ];
       counters = { points, ok: points.every((p) => p.ok) };
     }
+    // The frame debugger on this backend: its reasons are the merge's own counters
+    // for the frame, and a replay through the last draw of a pass shows more than
+    // one through the first.
+    let frameDebug = null;
+    if (process.env.ESTELLA_VERIFY_FRAME_DEBUG) {
+      const got = await exec('window.__estellaHeadless.api.frameDebug()');
+      const raw = await exec('window.__estellaHeadless.api.getCounters()');
+      const lower = (entries) => Object.fromEntries(entries.map(([k, v]) => [k.toLowerCase(), v]).sort());
+      const counted = lower(Object.entries(raw ?? {}).filter(([k]) => k.startsWith('batch.break.'))
+        .map(([k, v]) => [k.slice('batch.break.'.length), v]));
+      const reported = lower(Object.entries(got?.breaks ?? {}).filter(([k]) => k !== 'None'));
+      const sameReasons = JSON.stringify(counted) === JSON.stringify(reported);
+      frameDebug = {
+        ...got, counted, sameReasons,
+        ok: Boolean(got) && got.draws > 0 && got.matches && sameReasons && got.last > 0 && got.differ > 0,
+      };
+    }
     // Optional color/orientation assertion: ESTELLA_VERIFY_EXPECT is a JSON array of
     // { x, y, rgb:[r,g,b], tol? } where x,y are normalized [0,1] from the TOP-LEFT.
     // This is the guard the all-textures-upside-down upload bug would have tripped
@@ -920,7 +938,7 @@ app.whenReady().then(async () => {
       `);
       if (respaced != null) grid = { ...grid, respacedPixels: respaced, ok: grid.ok && respaced > 300 };
     }
-    finish({ ok: true, entityCount, missingAssets, drawCalls, draws, counters, profile, capture, expect, count, seam, resize, preview, meshPreview, grid, deviceLoss, roundtrip, meshResident, meshAsset, meshMaterial, meshPrefab, setField, animator, pick, cameraTarget }, server);
+    finish({ ok: true, entityCount, missingAssets, drawCalls, draws, counters, frameDebug, profile, capture, expect, count, seam, resize, preview, meshPreview, grid, deviceLoss, roundtrip, meshResident, meshAsset, meshMaterial, meshPrefab, setField, animator, pick, cameraTarget }, server);
   } catch (e) {
     finish({ ok: false, error: String((e && e.stack) || e) }, server);
   }
