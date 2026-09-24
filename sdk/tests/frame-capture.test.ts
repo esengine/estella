@@ -36,7 +36,7 @@ function buildModule(opts: {
     pollStatus?: number;
 }): { module: ESEngineModule; heap: Uint8Array; dataPtr: number; entitiesPtr: number; snapshotPtr: number } {
     const { width, height, drawCallCount = 0, entities = [], pollStatus = 1 } = opts;
-    const RECORD_SIZE = 80;
+    const RECORD_SIZE = 84;
     const snapshotSize = width * height * 4;
     const entitiesSize = entities.length * 4;
     const drawCallsSize = drawCallCount * RECORD_SIZE;
@@ -71,6 +71,8 @@ function buildModule(opts: {
         renderer_getCapturedEntities: () => entitiesPtr,
         renderer_getCapturedEntityCount: () => entities.length,
         renderer_getCapturedPassCount: () => 1,
+        renderer_getCapturedTextures: () => 0,
+        renderer_getCapturedTextureCount: () => 0,
         renderer_pollSnapshotReadback: () => pollStatus,
         renderer_getSnapshotSize: () => snapshotSize,
         renderer_getSnapshotWidth: () => width,
@@ -165,7 +167,7 @@ describe('decodeFrameCapture', () => {
 
     it('reads the pass, the counts and the instance count where the engine writes them', () => {
         const { module, heap, dataPtr } = buildModule({ width: 1, height: 1, drawCallCount: 1 });
-        const view = new DataView(heap.buffer, dataPtr, 80);
+        const view = new DataView(heap.buffer, dataPtr, 84);
         view.setUint32(4, 2, true);
         view.setUint8(11, CapturePass.Overlay);
         view.setUint32(16, 7, true);

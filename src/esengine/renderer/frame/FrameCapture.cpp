@@ -12,6 +12,7 @@ void FrameCapture::beginFrame() {
     capture_next_ = false;
     records_.clear();
     entities_.clear();
+    textures_.clear();
     pass_count_ = 0;
     has_data_ = false;
     capturing_ = true;
@@ -53,6 +54,8 @@ void FrameCapture::record(const DrawCommand& cmd, std::span<const Entity> entiti
     r.stencil_test = (cmd.state_flags & CMD_STATE_STENCIL_TEST) != 0;
     r.stencil_ref = cmd.stencil_ref;
     r.texture_slot_usage = cmd.texture_count;
+    r.texture_offset = static_cast<u32>(textures_.size());
+    textures_.insert(textures_.end(), cmd.texture_ids, cmd.texture_ids + cmd.texture_count);
     r.entity_offset = static_cast<u32>(entities_.size());
     r.entity_count = static_cast<u32>(entities.size());
     entities_.insert(entities_.end(), entities.begin(), entities.end());

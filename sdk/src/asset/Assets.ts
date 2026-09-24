@@ -676,6 +676,22 @@ export class Assets {
         return this.handleToPath_.get(`${kind}:${handle}`) ?? null;
     }
 
+    /**
+     * The load path of a texture by the id the renderer bound it with — a frame
+     * capture's `textureId` — rather than by asset handle. Null for a texture no
+     * asset of this realm loaded: the white fill, a render target, a glyph atlas.
+     */
+    pathForRenderedTexture(renderId: number): string | null {
+        const rm = getResourceManager();
+        if (!rm || renderId === 0) return null;
+        for (const [key, path] of this.handleToPath_) {
+            if (key.startsWith('texture:') && rm.getTextureGLId(Number(key.slice('texture:'.length))) === renderId) {
+                return path;
+            }
+        }
+        return null;
+    }
+
     /** Record a handle→path pair for {@link pathForHandle} (dropped on invalidate/releaseAll). */
     private recordHandlePath_(kind: string, handle: number, path: string): void {
         if (handle !== 0) this.handleToPath_.set(`${kind}:${handle}`, path);

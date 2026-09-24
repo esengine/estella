@@ -90,6 +90,8 @@ export interface DrawCallInfo {
     stencilTest: boolean;
     stencilRef: number;
     textureSlotUsage: number;
+    /** Every texture the draw bound, slot 0 first; `textureId` is the first. */
+    textures: number[];
     /** The entities the draw was made from, in draw order; an item with no entity
      *  (a glyph run, a gizmo) is not listed. */
     entities: number[];
@@ -101,7 +103,7 @@ export interface FrameCaptureData {
 }
 
 /** sizeof(DrawCallRecord) in FrameCapture.hpp, which asserts the offsets read here. */
-const RECORD_SIZE_BYTES = 80;
+const RECORD_SIZE_BYTES = 84;
 
 export function decodeFrameCapture(module: ESEngineModule): FrameCaptureData | null {
     if (!module.renderer_hasCapturedData()) return null;
@@ -117,6 +119,8 @@ export function decodeFrameCapture(module: ESEngineModule): FrameCaptureData | n
     const heap = module.HEAPU8;
     const view = new DataView(heap.buffer, dataPtr, count * RECORD_SIZE_BYTES);
     const entityHeap = new Uint32Array(heap.buffer, entitiesPtr, entityCount);
+    const textureCount = module.renderer_getCapturedTextureCount();
+    const textureHeap = new Uint32Array(heap.buffer, module.renderer_getCapturedTextures(), textureCount);
 
     const drawCalls: DrawCallInfo[] = [];
     for (let i = 0; i < count; i++) {
@@ -127,6 +131,10 @@ export function decodeFrameCapture(module: ESEngineModule): FrameCaptureData | n
         for (let e = 0; e < listed && entityOffset + e < entityCount; e++) {
             entities.push(entityHeap[entityOffset + e]);
         }
+        const slots = view.getUint8(off + 72);
+        const textureOffset = view.getUint32(off + 80, true);
+        const textures: number[] = [];
+        for (let t = 0; t < slots && textureOffset + t < textureCount; t++) textures.push(textureHeap[textureOffset + t]);
         drawCalls.push({
             index: view.getUint32(off, true),
             pass: view.getUint32(off + 4, true),
@@ -149,7 +157,8 @@ export function decodeFrameCapture(module: ESEngineModule): FrameCaptureData | n
             stencilWrite: view.getUint8(off + 65) !== 0,
             stencilTest: view.getUint8(off + 66) !== 0,
             stencilRef: view.getInt32(off + 68, true),
-            textureSlotUsage: view.getUint8(off + 72),
+            textureSlotUsage: slots,
+            textures,
             instanceCount: view.getUint32(off + 76, true),
             entities,
         });

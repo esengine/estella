@@ -242,6 +242,8 @@ u32 renderer_getCapturedFrameSize();
 uintptr_t renderer_getCapturedFrameData();
 uintptr_t renderer_getCapturedEntities();
 u32 renderer_getCapturedEntityCount();
+uintptr_t renderer_getCapturedTextures();
+u32 renderer_getCapturedTextureCount();
 u32 renderer_getCapturedPassCount();
 bool renderer_hasCapturedData();
 

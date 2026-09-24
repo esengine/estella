@@ -1005,6 +1005,7 @@ meshRealizations: () => { handle: number; realized: boolean; }[]
 meshesAwaitingRematerialization: () => number[]
 onInvalidate: (listener: InvalidateListener) => () => void
 pathForHandle: (kind: string, handle: number) => string | null
+pathForRenderedTexture: (renderId: number) => string | null
 preload: (refs: ReadonlyArray<string>, onProgress?: (loaded: number, total: number) => void, options?: { readonly maxConcurrent?: number; }) => Promise<{ failed: MissingAsset[]; }>
 preloadSceneAssets: (sceneData: SceneData, onProgress?: (loaded: number, total: number) => void, options?: { readonly maxConcurrent?: number; readonly skipSpine?: boolean; }) => Promise<SceneAssetResult>
 recoverFromDeviceLoss: () => Promise<boolean>
@@ -3065,6 +3066,7 @@ stencilTest: boolean
 stencilWrite: boolean
 textureId: number
 textureSlotUsage: number
+textures: number[]
 triangleCount: number
 type: RenderType
 ```

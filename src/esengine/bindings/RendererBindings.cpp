@@ -1204,6 +1204,16 @@ u32 renderer_getCapturedEntityCount() {
     return g_renderFrame->frameCapture().getEntityCount();
 }
 
+uintptr_t renderer_getCapturedTextures() {
+    if (!g_renderFrame) return 0;
+    return reinterpret_cast<uintptr_t>(g_renderFrame->frameCapture().getTextures());
+}
+
+u32 renderer_getCapturedTextureCount() {
+    if (!g_renderFrame) return 0;
+    return g_renderFrame->frameCapture().getTextureCount();
+}
+
 u32 renderer_getCapturedPassCount() {
     if (!g_renderFrame) return 0;
     return g_renderFrame->frameCapture().getPassCount();

@@ -768,6 +768,8 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_getCapturedFrameData", &esengine::renderer_getCapturedFrameData);
     emscripten::function("renderer_getCapturedEntities", &esengine::renderer_getCapturedEntities);
     emscripten::function("renderer_getCapturedEntityCount", &esengine::renderer_getCapturedEntityCount);
+    emscripten::function("renderer_getCapturedTextures", &esengine::renderer_getCapturedTextures);
+    emscripten::function("renderer_getCapturedTextureCount", &esengine::renderer_getCapturedTextureCount);
     emscripten::function("renderer_getCapturedPassCount", &esengine::renderer_getCapturedPassCount);
     emscripten::function("renderer_hasCapturedData", &esengine::renderer_hasCapturedData);
     emscripten::function("renderer_replayToDrawCall", &esengine::renderer_replayToDrawCall);

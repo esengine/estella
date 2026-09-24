@@ -137,6 +137,7 @@ export interface NativeEngineApi {
     renderer_getCapturedEntityCount?(): number;
     renderer_getCapturedFrameSize?(): number;
     renderer_getCapturedPassCount?(): number;
+    renderer_getCapturedTextureCount?(): number;
     renderer_getCulled?(): number;
     renderer_getDrawCalls?(): number;
     renderer_getGpuTimeMs?(): number;
@@ -407,6 +408,7 @@ export function createNativeEngineApi(
     bind('renderer_getCapturedEntityCount', 'es_renderer_getCapturedEntityCount', false);
     bind('renderer_getCapturedFrameSize', 'es_renderer_getCapturedFrameSize', false);
     bind('renderer_getCapturedPassCount', 'es_renderer_getCapturedPassCount', false);
+    bind('renderer_getCapturedTextureCount', 'es_renderer_getCapturedTextureCount', false);
     bind('renderer_getCulled', 'es_renderer_getCulled', false);
     bind('renderer_getDrawCalls', 'es_renderer_getDrawCalls', false);
     bind('renderer_getGpuTimeMs', 'es_renderer_getGpuTimeMs', false);

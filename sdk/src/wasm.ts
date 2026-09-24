@@ -668,6 +668,8 @@ export interface ESEngineModule {
     renderer_getCapturedFrameData(): number;
     renderer_getCapturedEntities(): number;
     renderer_getCapturedEntityCount(): number;
+    renderer_getCapturedTextures(): number;
+    renderer_getCapturedTextureCount(): number;
     renderer_getCapturedPassCount(): number;
     renderer_hasCapturedData(): boolean;
 

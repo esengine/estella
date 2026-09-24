@@ -47,12 +47,16 @@ struct DrawCallRecord {
     i32 stencil_ref = -1;
     u8 texture_slot_usage = 0;
     u32 instance_count = 0;
+    /// Where this draw's bound textures start in the capture's texture list;
+    /// texture_slot_usage of them.
+    u32 texture_offset = 0;
 };
 
 // The TS decoder (sdk/src/render/frameCapture.ts) reads these offsets.
-static_assert(sizeof(DrawCallRecord) == 80, "DrawCallRecord size must match TS decoder");
+static_assert(sizeof(DrawCallRecord) == 84, "DrawCallRecord size must match TS decoder");
 static_assert(offsetof(DrawCallRecord, pass_kind) == 11, "DrawCallRecord layout must match TS decoder");
 static_assert(offsetof(DrawCallRecord, instance_count) == 76, "DrawCallRecord layout must match TS decoder");
+static_assert(offsetof(DrawCallRecord, texture_offset) == 80, "DrawCallRecord layout must match TS decoder");
 
 /**
  * A capture spans beginFrame to endFrame, so every camera and the overlay land in
@@ -82,6 +86,8 @@ public:
     const DrawCallRecord* getRecords() const { return records_.data(); }
     const Entity* getEntities() const { return entities_.data(); }
     u32 getEntityCount() const { return static_cast<u32>(entities_.size()); }
+    const u32* getTextures() const { return textures_.data(); }
+    u32 getTextureCount() const { return static_cast<u32>(textures_.size()); }
     u32 getPassCount() const { return pass_count_; }
     /** How many draws the captured frame's pass @p pass made. */
     u32 recordsInPass(i32 pass) const;
@@ -95,6 +101,7 @@ public:
 private:
     std::vector<DrawCallRecord> records_;
     std::vector<Entity> entities_;
+    std::vector<u32> textures_;
     i32 pass_ = -1;
     CapturePass pass_kind_ = CapturePass::Scene;
     u32 pass_count_ = 0;
