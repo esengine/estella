@@ -34,6 +34,7 @@
  *   ESTELLA_VERIFY_COUNTERS_MAX  counters the frame must stay UNDER — a budget (JSON)
  *   ESTELLA_VERIFY_FRAME_DEBUG  capture the frame and replay it (the frame debugger)
  *   ESTELLA_VERIFY_UNIFORM   the frame is one colour on purpose; ESTELLA_VERIFY_COUNT says which
+ *   ESTELLA_VERIFY_EDGE      how straight a straight edge is drawn (JSON: box, lit, dark, maxJag)
  *   ESTELLA_VERIFY_SCALE     copy the scene's content onto a grid (JSON), for a cost gate
  *   ESTELLA_VERIFY_OUTPUT_TRANSFORM  the frame's output curve ("aces")
  *   ESTELLA_VERIFY_PROFILE   record N further frames and report the TS/C++ cost split
@@ -214,7 +215,7 @@ function finish(result, server) {
     (result.seam?.ok ?? true) &&
     (result.resize?.ok ?? true) && (result.preview?.ok ?? true) &&
     (result.meshPreview?.ok ?? true) && (result.grid?.ok ?? true) &&
-    (result.draws?.ok ?? true) && (result.counters?.ok ?? true) && (result.frameDebug?.ok ?? true) &&
+    (result.draws?.ok ?? true) && (result.counters?.ok ?? true) && (result.frameDebug?.ok ?? true) && (result.edge?.ok ?? true) &&
     (result.roundtrip?.ok ?? true) && deviceLossOk && meshOk && pickOk;
   const why = assetsOk ? '' : `: could not load ${result.missingAssets.join(', ')}`;
   console.log(`\n[verify:render] ${ok ? 'PASS' : 'FAIL'} — ${SCENE} (${BACKEND})${why}`);
@@ -744,6 +745,36 @@ app.whenReady().then(async () => {
         return { points: out, ok: out.every((o) => o.ok) };
       `);
     }
+    // ESTELLA_VERIFY_EDGE = { box (0..1, top-left), lit, dark, maxJag }: how far each
+    // row's crossing of a straight edge, found from the right to sub-pixel, strays from
+    // a line through its neighbours — a sampling grid drawn into the edge shows as that.
+    let edge = null;
+    if (process.env.ESTELLA_VERIFY_EDGE) {
+      edge = await readFrame(`
+        const e = ${JSON.stringify(JSON.parse(process.env.ESTELLA_VERIFY_EDGE))};
+        const lum = (x, y) => { const i = (((h - 1) - y) * w + x) * 4; return (px[i] + px[i + 1] + px[i + 2]) / 3; };
+        const mid = (e.lit + e.dark) / 2;
+        const [x0, y0, x1, y1] = [e.box[0] * w, e.box[1] * h, e.box[2] * w, e.box[3] * h].map(Math.round);
+        const pos = [];
+        for (let y = y0; y < y1; y++) {
+          for (let x = x1 - 1; x > x0; x--) {
+            const a = lum(x, y), b = lum(x - 1, y);
+            if (a >= mid && b < mid) { pos.push([y, x - (a - mid) / (a - b)]); break; }
+          }
+        }
+        const res = [];
+        for (let k = 4; k < pos.length - 4; k++) {
+          const win = pos.slice(k - 4, k + 5);
+          const my = win.reduce((s, p) => s + p[0], 0) / win.length;
+          const mx = win.reduce((s, p) => s + p[1], 0) / win.length;
+          const sxy = win.reduce((s, p) => s + (p[0] - my) * (p[1] - mx), 0);
+          const syy = win.reduce((s, p) => s + (p[0] - my) ** 2, 0);
+          res.push(Math.abs(pos[k][1] - (mx + (sxy / syy) * (pos[k][0] - my))));
+        }
+        const jag = res.length ? res.reduce((s, v) => s + v, 0) / res.length : Infinity;
+        return { rows: pos.length, jag, maxJag: e.maxJag, ok: pos.length >= (y1 - y0) * 0.8 && jag <= e.maxJag };
+      `);
+    }
     // ESTELLA_VERIFY_COUNT is a JSON array of { rgb:[r,g,b], tol?, atLeast?, atMost? }:
     // HOW MANY pixels of the frame are that colour, rather than which ones — a
     // point probe cannot ask that without also naming where a font put them.
@@ -942,7 +973,7 @@ app.whenReady().then(async () => {
       `);
       if (respaced != null) grid = { ...grid, respacedPixels: respaced, ok: grid.ok && respaced > 300 };
     }
-    finish({ ok: true, entityCount, missingAssets, drawCalls, draws, counters, frameDebug, profile, capture, expect, count, seam, resize, preview, meshPreview, grid, deviceLoss, roundtrip, meshResident, meshAsset, meshMaterial, meshPrefab, setField, animator, pick, cameraTarget }, server);
+    finish({ ok: true, entityCount, missingAssets, drawCalls, draws, counters, frameDebug, edge, profile, capture, expect, count, seam, resize, preview, meshPreview, grid, deviceLoss, roundtrip, meshResident, meshAsset, meshMaterial, meshPrefab, setField, animator, pick, cameraTarget }, server);
   } catch (e) {
     finish({ ok: false, error: String((e && e.stack) || e) }, server);
   }

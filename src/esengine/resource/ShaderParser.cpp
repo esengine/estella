@@ -1143,16 +1143,23 @@ fn shadowFactor3D(worldPos : vec3f, N : vec3f, L : vec3f, source : vec2f,
         // the tangent of the angle it subtends where its w is 1 everywhere.
         let hasEye = length(vec3f(m[0].w, m[1].w, m[2].w)) > 0.5;
         let src = select(source.y, source.x, hasEye);
-        // A source with no size throws one edge, and four taps are its whole cost.
+        // A source with no size throws one edge: a tent over the 3x3 texels around the
+        // point, weighted by where it falls among them. Equal weights step at every
+        // texel and the map's grid shows along the edge; a 2x2 still stair-steps it.
         if (src <= 0.0) {
+            let texelUv = lc.u_shadowParams.y;
+            let f = at0 / texelUv - 1.0;
+            let c = (floor(f) + 0.5) * texelUv;
+            let t = fract(f);
+            let wx = array<f32, 3>((1.0 - t.x) * 0.5, 0.5, t.x * 0.5);
+            let wy = array<f32, 3>((1.0 - t.y) * 0.5, 0.5, t.y * 0.5);
             var lit = 0.0;
-            for (var y = 0; y < 2; y++) {
-                for (var x = 0; x < 2; x++) {
-                    let o = (vec2f(f32(x), f32(y)) - 0.5) * lc.u_shadowParams.y;
-                    lit += shadowTap(at0 + o, lo, hi, here);
+            for (var y = 0; y < 3; y++) {
+                for (var x = 0; x < 3; x++) {
+                    lit += wx[x] * wy[y] * shadowTap(c + vec2f(f32(x), f32(y)) * texelUv, lo, hi, here);
                 }
             }
-            return lit * 0.25;
+            return lit;
         }
         // What blocks this fragment, over the whole disc an edge can reach across — and
         // against a depth that forgives that reach, since a tap r texels away lands r
@@ -1961,16 +1968,24 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // the tangent of the angle it subtends where its w is 1 everywhere.
             "        bool hasEye = length(vec3(m[0][3], m[1][3], m[2][3])) > 0.5;\n"
             "        highp float src = hasEye ? source.x : source.y;\n"
-            // A source with no size throws one edge, and four taps are its whole cost.
+            // A source with no size throws one edge: a tent over the 3x3 texels around the
+            // point, weighted by where it falls among them. Equal weights step at every
+            // texel and the map's grid shows along the edge; a 2x2 still stair-steps it.
             "        if (src <= 0.0) {\n"
+            "            highp float texelUv = u_shadowParams.y;\n"
+            "            highp vec2 f = at0 / texelUv - 1.0;\n"
+            "            highp vec2 c = (floor(f) + 0.5) * texelUv;\n"
+            "            highp vec2 t = fract(f);\n"
+            "            highp vec3 wx = vec3((1.0 - t.x) * 0.5, 0.5, t.x * 0.5);\n"
+            "            highp vec3 wy = vec3((1.0 - t.y) * 0.5, 0.5, t.y * 0.5);\n"
             "            highp float lit = 0.0;\n"
-            "            for (int y = 0; y < 2; ++y) {\n"
-            "                for (int x = 0; x < 2; ++x) {\n"
-            "                    highp vec2 o = (vec2(float(x), float(y)) - 0.5) * u_shadowParams.y;\n"
-            "                    lit += shadowTap(at0 + o, lo, hi, here);\n"
+            "            for (int y = 0; y < 3; ++y) {\n"
+            "                for (int x = 0; x < 3; ++x) {\n"
+            "                    lit += wx[x] * wy[y] * shadowTap(c + vec2(float(x), float(y)) * texelUv,\n"
+            "                                                     lo, hi, here);\n"
             "                }\n"
             "            }\n"
-            "            return lit * 0.25;\n"
+            "            return lit;\n"
             "        }\n"
             // What blocks this fragment, over the whole disc an edge can reach across —
             // against a depth that forgives that reach, since a tap r texels out lands r
