@@ -668,6 +668,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     // build must not leave the config pointing at a directory with no index.js.
     hasOpenData: !!openDataEntry && errors.length === 0,
     openDataRoot: OPEN_DATA_DIR,
+    debugChannel: !!debugChannel,
   });
   for (const { file, content } of configFiles) {
     await writeFile(path.join(absOut, file), content);

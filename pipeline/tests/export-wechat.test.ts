@@ -278,6 +278,23 @@ describe('exportGame (wechat)', () => {
     expect(declaration).toContain('game:updates');
   }, 60_000);
 
+  it('a development build that dials the editor turns off DevTools\' domain check, and only that build', async () => {
+    const cfg = async (debugChannel?: { url: string }) => {
+      const out = path.join(root, debugChannel ? 'dist-wechat-dbg' : 'dist-wechat-nodbg');
+      const res = await exportGame({
+        root, entryScene: 'scenes/main.esscene',
+        hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES, scriptsEntry: 'src/main.ts',
+        sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wxwasm'), outDir: out,
+        platform: 'wechat', ...(debugChannel ? { debugChannel } : {}),
+      });
+      expect(res.ok).toBe(true);
+      return JSON.parse(readFileSync(path.join(out, 'project.config.json'), 'utf8')).setting;
+    };
+    // Measured in DevTools: without it the socket is refused, "url not in domain list".
+    expect((await cfg({ url: 'ws://192.168.1.5:37420/?token=t' })).urlCheck).toBe(false);
+    expect((await cfg()).urlCheck).toBeUndefined();
+  }, 60_000);
+
   it('refuses to substitute a web build for a mini-game one', async () => {
     // Serving the web glue would produce a package that builds clean and dies on
     // a device — the failure this whole per-platform layout exists to prevent.

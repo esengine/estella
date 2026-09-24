@@ -210,7 +210,10 @@ export async function getSnapshotImageData(module: ESEngineModule): Promise<Imag
         flipped.set(pixels.subarray(srcOff, srcOff + rowBytes), dstOff);
     }
 
-    return new ImageData(flipped, w, h);
+    // A mini-game host has no ImageData; the fields every reader uses are the same.
+    return typeof ImageData === 'function'
+        ? new ImageData(flipped, w, h)
+        : { width: w, height: h, data: flipped, colorSpace: 'srgb' } as ImageData;
 }
 
 /** A frame renders before this resolves: a live loop's next animation frame, or a driver's step. */

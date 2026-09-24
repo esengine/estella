@@ -52,6 +52,9 @@ export interface MiniGameConfigContext {
      *  from a constant so a project-authored profile emits the same name the
      *  pipeline actually wrote to. */
     openDataRoot: string;
+    /** A development build that dials the editor: the host has to let a socket reach
+     *  an address no domain list names. */
+    debugChannel?: boolean;
 }
 
 /**
@@ -345,7 +348,12 @@ export const wechatExportProfile: MiniGameExportProfile = {
             appid: ctx.appid, // set in Project Settings → Packaging → WeChat (else fill in devtools)
             // bigPackageSizeSupport: devtools preview of a >4MB main package (upload
             // still enforces the limit — move heavy content to subpackages/ to ship).
-            setting: { es6: false, minified: false, bigPackageSizeSupport: true },
+            setting: {
+                es6: false, minified: false, bigPackageSizeSupport: true,
+                // DevTools refuses a socket to an unlisted address ("url not in domain
+                // list"), and the editor is one: a LAN IP no console can register.
+                ...(ctx.debugChannel ? { urlCheck: false } : {}),
+            },
             compileType: 'game',
             ...(ctx.includeSuffixes.length > 0
                 ? { packOptions: { include: ctx.includeSuffixes.map((value) => ({ type: 'suffix', value })) } }
