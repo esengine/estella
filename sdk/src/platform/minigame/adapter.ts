@@ -121,7 +121,16 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
     }
 
     async loadImagePixels(path: string): Promise<ImageLoadResult> {
-        return mgLoadImagePixels(this.g_, path);
+        return mgLoadImagePixels(this.g_, this.cachedFileOf_(path) ?? path);
+    }
+
+    /** Where hot update stored @p url's bytes, when it did: an image drawn from the
+     *  CDN url instead goes blank the first launch without a network. */
+    private cachedFileOf_(url: string): string | null {
+        const dir = this.g_.env?.USER_DATA_PATH;
+        if (!dir || !/^https?:\/\//i.test(url)) return null;
+        const file = `${dir}/${cacheEntryName(url)}`;
+        return mgFileExistsSync(this.fs(), file) ? file : null;
     }
 
     async instantiateWasm(

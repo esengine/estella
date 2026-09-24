@@ -9,7 +9,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { rm } from 'node:fs/promises';
-import { HttpBackend } from '../src/asset/Backend';
+import { HttpBackend, FileSystemBackend } from '../src/asset/Backend';
 import { setPlatform, platformReadCacheFile, platformWriteCacheFile } from '../src/platform/base';
 import type { PlatformAdapter, PlatformResponse } from '../src/platform/types';
 import { nodeAdapter } from '../src/platform/node';
@@ -69,6 +69,41 @@ describe('HttpBackend content cache (offline hot-update store)', () => {
 
         expect(new Uint8Array(got)).toEqual(new Uint8Array([7]));
         expect(readCacheFile).not.toHaveBeenCalled(); // local path bypasses the cache
+    });
+});
+
+describe('a packaged realm (mini-game, native) reaches a CDN url over the network', () => {
+    // Its own files are read from the package; a hot update's manifest and assets
+    // live on a CDN, and reading those as package paths found nothing.
+    it('fetches a manifest from the CDN as text', async () => {
+        const fetch = vi.fn(async () => ({ ok: true, status: 200, text: async () => '{"version":"2.0"}' }));
+        const readTextFile = vi.fn(async () => { throw new Error('not in the package'); });
+        setPlatform(mockPlatform({ fetch: fetch as never, readTextFile }));
+        expect(await new FileSystemBackend().fetchText('https://cdn/asset-manifest.json')).toBe('{"version":"2.0"}');
+        expect(readTextFile).not.toHaveBeenCalled();
+    });
+
+    it('serves an updated asset from the cache first, as the web does', async () => {
+        const cached = new Uint8Array([7, 7]).buffer;
+        const fetch = vi.fn();
+        setPlatform(mockPlatform({ fetch: fetch as never, readCacheFile: async () => cached }));
+        expect(await new FileSystemBackend().fetchBinary('https://cdn/assets/abcd.png')).toBe(cached);
+        expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it('asks for bytes, so a host that answers text by default hands over the image itself', async () => {
+        const fetch = vi.fn(async () => okResponse(new ArrayBuffer(4)));
+        setPlatform(mockPlatform({ fetch: fetch as never, readCacheFile: async () => null }));
+        await new FileSystemBackend().fetchBinary('https://cdn/assets/abcd.png');
+        expect(fetch).toHaveBeenCalledWith('https://cdn/assets/abcd.png', expect.objectContaining({ responseType: 'arraybuffer' }));
+    });
+
+    it('still reads its own files from the package', async () => {
+        const readFile = vi.fn(async () => new ArrayBuffer(3));
+        const fetch = vi.fn();
+        setPlatform(mockPlatform({ fetch: fetch as never, readFile }));
+        expect((await new FileSystemBackend().fetchBinary('assets/hero.png')).byteLength).toBe(3);
+        expect(fetch).not.toHaveBeenCalled();
     });
 });
 

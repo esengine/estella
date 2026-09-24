@@ -1076,4 +1076,8 @@ export const NOTED = {
     { note: 'In the Outliner, a connected development build\'s world can be shown instead of this editor\'s (read-only, with live values in Details).' },
   'feat(debug): the debug channel reports what it costs the game it watches':
     { internal: 'a number the channel reports for its own budget check; the profiler does not show it yet' },
+  'fix(minigame): a WeChat development build reaches the editor, and its replays come back':
+    { note: 'A WeChat development build connects to the editor from WeChat DevTools (the domain check is turned off for that build only), and frame replays come back from a mini-game.' },
+  'fix(hot-update): a mini-game fetches its update from the CDN, and shows it offline':
+    { note: 'Hot update works on mini-games: the update is fetched from the CDN, verified, applied and cached, and after a restart without a network the game starts on it with its updated art.' },
 };

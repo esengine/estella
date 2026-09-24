@@ -2,6 +2,33 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { platformFetch, platformReadFile, platformReadTextFile, platformReadCacheFile } from '../platform';
 
+function isRemoteUrl(url: string): boolean {
+    return /^https?:\/\//i.test(url);
+}
+
+/**
+ * Content cache first: hot update wrote its verified, content-addressed (immutable)
+ * assets to the platform's disk store keyed by this url, so they load offline and
+ * skip the CDN. Only remote urls are ever written, so anything else just fetches.
+ */
+async function fetchUrlBinary(url: string, path: string): Promise<ArrayBuffer> {
+    if (isRemoteUrl(url)) {
+        const cached = await platformReadCacheFile(url);
+        if (cached) return cached;
+    }
+    // A mini-game's request answers text unless told otherwise, and bytes re-encoded
+    // from text are not the image: every hot-updated asset failed its hash there.
+    const response = await platformFetch(url, { responseType: 'arraybuffer' });
+    if (!response.ok) throw new Error(`Failed to fetch '${path}': ${response.status} ${response.statusText}`);
+    return response.arrayBuffer();
+}
+
+async function fetchUrlText(url: string, path: string): Promise<string> {
+    const response = await platformFetch(url);
+    if (!response.ok) throw new Error(`Failed to fetch '${path}': ${response.status} ${response.statusText}`);
+    return response.text();
+}
+
 export interface Backend {
     fetchBinary(path: string): Promise<ArrayBuffer>;
     fetchText(path: string): Promise<string>;
@@ -21,30 +48,11 @@ export class HttpBackend implements Backend {
     }
 
     async fetchBinary(path: string): Promise<ArrayBuffer> {
-        const url = this.resolveUrl(path);
-        // Content cache: hot-update wrote its verified, content-addressed (immutable)
-        // assets to the platform's disk store keyed by this url; serve them first so
-        // updated assets load offline and skip the CDN roundtrip. Only remote (http(s))
-        // urls are cache-eligible — local / same-origin paths are already local, and
-        // nothing else is ever written, so a miss just falls through to a normal fetch.
-        if (/^https?:\/\//i.test(url)) {
-            const cached = await platformReadCacheFile(url);
-            if (cached) return cached;
-        }
-        const response = await platformFetch(url);
-        if (!response.ok) {
-            throw new Error(`Failed to fetch '${path}': ${response.status} ${response.statusText}`);
-        }
-        return response.arrayBuffer();
+        return fetchUrlBinary(this.resolveUrl(path), path);
     }
 
     async fetchText(path: string): Promise<string> {
-        const url = this.resolveUrl(path);
-        const response = await platformFetch(url);
-        if (!response.ok) {
-            throw new Error(`Failed to fetch '${path}': ${response.status} ${response.statusText}`);
-        }
-        return response.text();
+        return fetchUrlText(this.resolveUrl(path), path);
     }
 
     resolveUrl(path: string): string {
@@ -66,12 +74,13 @@ export class HttpBackend implements Backend {
  * the path IS the file location.
  */
 export class FileSystemBackend implements Backend {
+    // Its own files are in the package; a hot update's manifest and assets are on a CDN.
     async fetchBinary(path: string): Promise<ArrayBuffer> {
-        return platformReadFile(path);
+        return isRemoteUrl(path) ? fetchUrlBinary(path, path) : platformReadFile(path);
     }
 
     async fetchText(path: string): Promise<string> {
-        return platformReadTextFile(path);
+        return isRemoteUrl(path) ? fetchUrlText(path, path) : platformReadTextFile(path);
     }
 
     resolveUrl(path: string): string {

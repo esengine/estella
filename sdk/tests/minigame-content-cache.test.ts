@@ -63,4 +63,29 @@ describe('a mini-game content cache', () => {
         expect(await platformWriteCacheFile(URL, new ArrayBuffer(4))).toBe('failed');
         expect(await platformReadCacheFile(URL)).toBeNull();
     });
+
+    it('draws a cached image from the disk, not the CDN, so an updated texture shows offline', async () => {
+        const files = host({ dir: 'wxfile://usr' });
+        await platformWriteCacheFile(URL, new Uint8Array([1]).buffer);
+        const sources: string[] = [];
+        const adapter = new MiniGamePlatformAdapter({
+            id: 'wechat', hostLabel: 'Test',
+            global: {
+                getSystemInfoSync: () => ({ pixelRatio: 1, screenWidth: 1, screenHeight: 1, platform: 'devtools', language: 'zh_CN' }),
+                getFileSystemManager: () => ({
+                    accessSync: (p: string) => { if (!files.has(p)) throw new Error('no such file'); },
+                    readFile: () => {}, writeFile: () => {},
+                }),
+                env: { USER_DATA_PATH: 'wxfile://usr' },
+                createImage: () => {
+                    const img: Record<string, unknown> = {};
+                    Object.defineProperty(img, 'src', { set: (v: string) => { sources.push(v); (img.onerror as (e: unknown) => void)?.({}); } });
+                    return img;
+                },
+            } as unknown as MiniGameGlobal,
+        } as MiniGameProfile);
+        await adapter.loadImagePixels(URL).catch(() => {});
+        await adapter.loadImagePixels('https://cdn.example/v2/never-cached.png').catch(() => {});
+        expect(sources).toEqual([`wxfile://usr/${cacheEntryName(URL)}`, 'https://cdn.example/v2/never-cached.png']);
+    });
 });
