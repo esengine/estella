@@ -44,7 +44,7 @@ function createWasmInstantiator(wasmPath: string, tag: string, onError?: (e: unk
         platformInstantiateWasm(wasmPath, imports).then((result) => {
             successCallback(result.instance, result.module);
         }).catch((e) => {
-            log.error(tag, 'WASM instantiation failed', e);
+            log.error(tag, `WASM instantiation failed: ${describeError(e)}`);
             // emscripten's instantiateWasm has no failure channel: on a failed
             // async instantiation successCallback is never called and the factory
             // promise hangs forever. Surface the error so the caller can reject.
@@ -52,6 +52,19 @@ function createWasmInstantiator(wasmPath: string, tag: string, onError?: (e: unk
         });
         return {};
     };
+}
+
+/** A mini-game console prints a thrown object as `[object Object]`, so the one
+ *  line a device gives you says nothing unless it is made into text here. */
+function describeError(e: unknown): string {
+    if (e instanceof Error) return `${e.name}: ${e.message}`;
+    if (e && typeof e === 'object') {
+        const o = e as { message?: unknown; errMsg?: unknown };
+        if (typeof o.message === 'string') return o.message;
+        if (typeof o.errMsg === 'string') return o.errMsg;
+        try { return JSON.stringify(e); } catch { /* fall through */ }
+    }
+    return String(e);
 }
 
 // Wraps an emscripten module factory so an async instantiateWasm failure rejects

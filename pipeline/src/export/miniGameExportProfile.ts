@@ -108,7 +108,11 @@ const sideModuleFactories = {
 ${requires}
 };
 const bundle = require('./game-bundle.js');
-bundle.boot(engineFactory, sideModuleFactories);`;
+// A boot that fails rejects; a host without onUnhandledRejection drops that
+// silently, which leaves a device on the loading screen with nothing in the log.
+Promise.resolve(bundle.boot(engineFactory, sideModuleFactories)).catch(function (e) {
+  console.error('[estella] the game did not start: ' + ((e && (e.stack || e.message)) || e));
+});`;
     if (!ctx.engineSubpackage) {
         // Before the bundle is REQUIRED: the runtime's own indicator cannot
         // cover a wait that ends when the runtime arrives. Guarded, like every
