@@ -14,7 +14,7 @@ import { describe, it, expect } from 'vitest';
 import {
   decodeRadianceHdr, projectIrradianceSH, evalIrradianceSH, samplePanorama,
   octEncode, octDecode, encodeRgbm, decodeRgbm, atlasLayout, prefilterOctahedral,
-  importEnvironment, mipCountFor, ENV_MAX_RANGE,
+  importEnvironment, mipCountFor, ENV_MAX_RANGE, encodeSkyPanorama,
   type Panorama,
 } from '../src/assets/environmentImport';
 
@@ -255,6 +255,31 @@ describe('importEnvironment', () => {
     const up = evalIrradianceSH(result.document.irradiance, 0, 1, 0)[0];
     const down = evalIrradianceSH(result.document.irradiance, 0, -1, 0)[0];
     expect(up).toBeGreaterThan(down + 1);
+  });
+});
+
+describe('the sky texture', () => {
+  it('is the panorama itself, row 0 up, beside the atlas', () => {
+    const hdr = flatHdr(32, 16, (_x, y) => (y < 8 ? [2, 2, 2] : [0, 0, 0]));
+    const result = importEnvironment(hdr, 'studio', { faceSize: 32, mipCount: 3 });
+    expect(result.sky?.name).toBe('studio_sky.png');
+    const sky = encodeSkyPanorama(decodeRadianceHdr(hdr));
+    expect([sky.width, sky.height]).toEqual([32, 16]);
+    const at = (x: number, y: number) => decodeRgbm(...(Array.from(sky.rgba.subarray((y * 32 + x) * 4, (y * 32 + x) * 4 + 4)) as [number, number, number, number]), ENV_MAX_RANGE)[0];
+    expect(at(5, 2)).toBeCloseTo(2, 1);
+    expect(at(5, 13)).toBeCloseTo(0, 2);
+  });
+
+  it('comes down by a whole factor, averaging, where the panorama is wider than asked', () => {
+    const env = panorama(8, 4, (x) => [x % 2 === 0 ? 4 : 0, 0, 0]);
+    const sky = encodeSkyPanorama(env, 4);
+    expect([sky.width, sky.height]).toEqual([4, 2]);
+    expect(decodeRgbm(sky.rgba[0]!, sky.rgba[1]!, sky.rgba[2]!, sky.rgba[3]!, ENV_MAX_RANGE)[0]).toBeCloseTo(2, 1);
+  });
+
+  it('is not written when the import asks for none', () => {
+    const hdr = flatHdr(32, 16, () => [1, 1, 1]);
+    expect(importEnvironment(hdr, 'studio', { faceSize: 32, mipCount: 3, skyWidth: 0 }).sky).toBeNull();
   });
 });
 

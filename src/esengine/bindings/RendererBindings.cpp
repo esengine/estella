@@ -424,6 +424,15 @@ u32 environment_create(uintptr_t shPtr, u32 specularHandle, f32 faceSize, u32 mi
                                  faceSize, mipCount, maxRange, columns).id();
 }
 
+/** @brief Gives an environment the panorama its sky is drawn from. */
+void environment_setSky(u32 environmentHandle, u32 skyHandle) {
+    auto* rm = ctx().tryGet<resource::ResourceManager>();
+    if (!rm) return;
+    if (Environment* environment = rm->getEnvironment(resource::EnvironmentHandle(environmentHandle))) {
+        environment->sky = resource::TextureHandle(skyHandle);
+    }
+}
+
 /** @brief Releases an environment. Its atlas is an ordinary texture and outlives it. */
 void environment_release(u32 environmentHandle) {
     if (auto* rm = ctx().tryGet<resource::ResourceManager>()) {

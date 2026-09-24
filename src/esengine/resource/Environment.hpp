@@ -28,6 +28,10 @@ public:
 
     resource::TextureHandle specular;
 
+    /** @brief The panorama the sky is drawn from: equirectangular, row 0 up, RGBM
+     *  under maxRange. Invalid draws the sky from the atlas' mip 0 instead. */
+    resource::TextureHandle sky;
+
     /** Edge length of mip 0's octahedral face, in texels. */
     f32 faceSize = 0.0f;
     u32 mipCount = 0;

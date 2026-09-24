@@ -879,8 +879,10 @@ private:
     /// Whether that environment is also the background this frame.
     bool draw_sky_ = false;
     /// The far-plane quad's program, compiled on first use.
-    u32 sky_program_ = 0;
-    bool sky_compiled_ = false;
+    u32 sky_texture_id_ = 0;
+    /// The atlas variant, then the panorama one; each compiled when first drawn.
+    u32 sky_programs_[2] = {};
+    bool sky_compiled_[2] = {};
     /// Emits the background quad when an environment asked to be seen behind the scene.
     void collectSky(RenderCollectContext& ctx);
 

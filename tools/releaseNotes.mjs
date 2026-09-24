@@ -988,6 +988,10 @@ export const NOTED = {
     { note: 'A frame can be captured draw call by draw call, and replayed up to any one of them.' },
   'feat(render): a frame capture lists every texture a draw bound':
     { note: 'A frame can be captured draw call by draw call, and replayed up to any one of them.' },
+  'feat(render): the sky is drawn from the panorama it was imported from':
+    { note: 'A drawn sky is the panorama you imported, not a blur of it.' },
+  'feat(editor): importing a panorama writes the sky it is drawn from':
+    { note: 'A drawn sky is the panorama you imported, not a blur of it.' },
   'fix(render): a drawn sky fills the frame from every angle':
     { note: 'A drawn sky no longer vanishes, or half-vanishes, as the view turns.' },
   'fix(render): the profiler and the draw-call count cover every camera of the frame':

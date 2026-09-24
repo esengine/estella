@@ -526,6 +526,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("mesh_rematerializeFromChannels", &esengine::mesh_rematerializeFromChannels);
     emscripten::function("mesh_release", &esengine::mesh_release);
     emscripten::function("environment_create", &esengine::environment_create);
+    emscripten::function("environment_setSky", &esengine::environment_setSky);
     emscripten::function("environment_release", &esengine::environment_release);
     emscripten::function("probe_volume_create", &esengine::probe_volume_create);
     emscripten::function("probe_volume_release", &esengine::probe_volume_release);

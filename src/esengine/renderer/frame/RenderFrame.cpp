@@ -1223,6 +1223,7 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
     lights.clear();
     shadow_casters_.clear();
     environment_texture_id_ = 0;
+    sky_texture_id_ = 0;
     draw_sky_ = false;
 
     // Gather non-ambient lights, then (if over the UBO's cap) keep the most intense — the
@@ -1385,9 +1386,13 @@ bool RenderFrame::collectEnvironment(const ecs::Light& light, const glm::vec3& s
         return false;
     }
     environment_texture_id_ = textureId;
-    // Only a reflection can be looked at directly: the nine coefficients are the
-    // sky averaged over every direction, which as a background is one flat colour.
-    draw_sky_ = light.drawEnvironment && textureId != 0;
+    sky_texture_id_ = 0;
+    if (environment->sky.isValid()) {
+        if (Texture* sky = resource_manager_.getTexture(environment->sky)) sky_texture_id_ = sky->getId();
+    }
+    // Only an image can be looked at directly: the nine coefficients are the sky
+    // averaged over every direction, which as a background is one flat colour.
+    draw_sky_ = light.drawEnvironment && (textureId != 0 || sky_texture_id_ != 0);
     return true;
 }
 
@@ -1846,21 +1851,35 @@ void RenderFrame::executeShadowPass(ecs::Registry& registry) {
  * from the eye through it — which viewDirection() already answers.
  */
 void RenderFrame::collectSky(RenderCollectContext& ctx) {
-    if (!draw_sky_ || environment_texture_id_ == 0) return;
-    if (!sky_compiled_) {
-        sky_compiled_ = true;
+    if (!draw_sky_) return;
+    // The panorama where the environment carries one; the atlas' mip 0 is a
+    // reflection's resolution, too coarse to look at, and only the fallback.
+    const bool panorama = sky_texture_id_ != 0;
+    if (!panorama && environment_texture_id_ == 0) return;
+    u32& program = sky_programs_[panorama ? 1 : 0];
+    bool& compiled = sky_compiled_[panorama ? 1 : 0];
+    if (!compiled) {
+        compiled = true;
         auto parsed = resource::ShaderParser::parse(ShaderEmbeds::SKY);
         const auto target = resource_manager_.preferredShaderTarget();
-        const std::vector<std::string> features{"ES_ENV_MAP"};
+        std::vector<std::string> features{"ES_ENV_MAP"};
+        if (panorama) features.push_back("ES_SKY_PANORAMA");
         resource::ShaderHandle handle = resource_manager_.createShaderWithBindings(
             resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Vertex, "",
                                                   features, target),
             resource::ShaderParser::assembleStage(parsed, resource::ShaderStage::Fragment, "",
                                                   features, target),
             {}, resource_manager_.preferredShaderLanguage());
-        if (auto* shader = resource_manager_.getShader(handle)) sky_program_ = shader->getProgramId();
+        if (auto* shader = resource_manager_.getShader(handle)) {
+            program = shader->getProgramId();
+            if (panorama && shader->language() == GfxShaderLanguage::GLSL_ES300) {
+                shader->bind();
+                shader->setUniform("u_texture", 0);
+                shader->unbind();
+            }
+        }
     }
-    if (sky_program_ == 0) return;
+    if (program == 0) return;
 
     // The rays through the screen's corners, at a depth inside both backends'
     // ranges: a quad at clip z = 1 rounds past the far plane at some view angles and
@@ -1876,12 +1895,12 @@ void RenderFrame::collectSky(RenderCollectContext& ctx) {
     BatchDrawKey key{};
     key.stage = RenderStage::Background;
     key.layer = std::numeric_limits<i32>::min();
-    key.shaderId = sky_program_;
+    key.shaderId = program;
     key.blend = BlendMode::None;
     key.layoutId = LayoutId::Sky;
-    // Slot 0 is filled with white and never sampled: the atlas rides the unit the
-    // shaders pin it to, and the fill is what the slot walk below it expects.
-    key.textureId = ctx.frame_context.white_texture_id;
+    // Slot 0 is the panorama, or a white fill the atlas variant never samples: the
+    // atlas rides the unit the shaders pin it to either way.
+    key.textureId = panorama ? sky_texture_id_ : ctx.frame_context.white_texture_id;
     key.envTextureId = environment_texture_id_;
     key.type = RenderType::Mesh;
     // Neither tested nor written: the sky is behind everything by being first, and

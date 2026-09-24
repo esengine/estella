@@ -99,6 +99,7 @@ void mesh_release(u32 meshHandle);
  *         which holds `columns` pyramids side by side). */
 u32 environment_create(uintptr_t shPtr, u32 specularHandle, f32 faceSize, u32 mipCount,
                        f32 maxRange, u32 columns);
+void environment_setSky(u32 environmentHandle, u32 skyHandle);
 
 /** @brief Releases an environment; its atlas is an ordinary texture and outlives it. */
 void environment_release(u32 environmentHandle);

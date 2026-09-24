@@ -717,11 +717,15 @@ if (opts.command === 'import-hdr') {
 
     const atlasFile = path.join(dir, result.atlasName);
     writeFileSync(atlasFile, result.atlasBytes);
-    // An RGBM encoding of radiance, not a picture: sRGB would linearize what is
-    // already linear, and a block compressor would quantize the shared multiplier
-    // along with the colour it scales.
-    await meta.adoptOrphan(atlasFile, { sRGB: false, compress: false, wrapMode: 'clamp' });
+    await meta.adoptOrphan(atlasFile, { ...importer.ENV_IMAGE_SETTINGS });
     report(atlasFile, `${result.document.mipCount} prefiltered mips`);
+    if (result.sky) {
+      const skyFile = path.join(dir, result.sky.name);
+      writeFileSync(skyFile, result.sky.bytes);
+      await meta.adoptOrphan(skyFile, { ...importer.ENV_IMAGE_SETTINGS });
+      result.document.sky = result.sky.name;
+      report(skyFile, 'the sky, at the panorama\'s resolution');
+    }
 
     // Beside the document, the way an imported material names its images.
     result.document.specular = result.atlasName;

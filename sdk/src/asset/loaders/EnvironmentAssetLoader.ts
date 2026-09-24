@@ -19,6 +19,8 @@ interface EnvironmentAssetData {
     /** Octahedral pyramids standing side by side in that atlas. A scene BAKE
      *  writes several — column 0 the sky, the rest a reflection probe each. */
     columns?: number;
+    /** The panorama the sky is drawn from, a sibling of the document. */
+    sky?: string;
 }
 
 /** A baked environment, named by the handle a Light references. */
@@ -78,6 +80,18 @@ export class EnvironmentAssetLoader implements AssetLoader<EnvironmentResult> {
 
         if (!handle) {
             throw new Error(`the engine rejected the environment in ${path}`);
+        }
+
+        // Missing, the sky falls back to the atlas: coarser, never absent.
+        if (data.sky && m.environment_setSky) {
+            const resolved = resolveDocumentRef(path, data.sky);
+            try {
+                // flipY false for the atlas' reason: row 0 is up, and the shader
+                // reads rows by index.
+                m.environment_setSky(handle, (await ctx.acquireTexture(resolved, false)).value.handle);
+            } catch (e) {
+                log.warn('asset', `${path}: no sky panorama at '${resolved}'`, e);
+            }
         }
         return { handle };
     }

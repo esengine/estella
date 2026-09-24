@@ -1067,10 +1067,38 @@ precision highp float;
 in highp vec3 v_worldPos;
 out vec4 fragColor;
 
+#ifdef ES_SKY_PANORAMA
+uniform sampler2D u_texture;
+
+
+
+highp vec3 skyTexel(in ivec2 p, in ivec2 size) {
+    ivec2 q = ivec2(((p.x % size.x) + size.x) % size.x, clamp(p.y, 0, size.y - 1));
+    highp vec4 t = texelFetch(u_texture, q, 0);
+    return t.rgb * t.rgb * (t.a * t.a * u_envParams.y);
+}
+
+
+highp vec3 skyPanorama(in highp vec3 d) {
+    ivec2 size = textureSize(u_texture, 0);
+    highp float u = 0.5 + atan(d.x, d.z) / 6.28318530718;
+    highp float v = acos(clamp(d.y, -1.0, 1.0)) / 3.14159265359;
+    highp vec2 f = vec2(u * float(size.x), v * float(size.y)) - 0.5;
+    ivec2 i = ivec2(floor(f));
+    highp vec2 t = f - floor(f);
+    return mix(mix(skyTexel(i, size), skyTexel(i + ivec2(1, 0), size), t.x),
+               mix(skyTexel(i + ivec2(0, 1), size), skyTexel(i + ivec2(1, 1), size), t.x), t.y);
+}
+#endif
+
 void main() {
+#ifdef ES_SKY_PANORAMA
+    fragColor = vec4(skyPanorama(envDirection(-viewDirection(v_worldPos))), 1.0);
+#else
 
 
     fragColor = vec4(envSampleMip(-viewDirection(v_worldPos), 0.0), 1.0);
+#endif
 }
 #pragma end
 
@@ -1112,8 +1140,31 @@ struct VSOut {
     @location(0) v_worldPos : vec3f,
 };
 
+#ifdef ES_SKY_PANORAMA
+fn skyTexel(p : vec2i, size : vec2i) -> vec3f {
+    let q = vec2i(((p.x % size.x) + size.x) % size.x, clamp(p.y, 0, size.y - 1));
+    let t = textureLoad(t0, q, 0);
+    return t.rgb * t.rgb * (t.a * t.a * lc.u_envParams.y);
+}
+
+fn skyPanorama(d : vec3f) -> vec3f {
+    let size = vec2i(textureDimensions(t0, 0));
+    let u = 0.5 + atan2(d.x, d.z) / 6.28318530718;
+    let v = acos(clamp(d.y, -1.0, 1.0)) / 3.14159265359;
+    let f = vec2f(u * f32(size.x), v * f32(size.y)) - 0.5;
+    let i = vec2i(floor(f));
+    let t = f - floor(f);
+    return mix(mix(skyTexel(i, size), skyTexel(i + vec2i(1, 0), size), t.x),
+               mix(skyTexel(i + vec2i(0, 1), size), skyTexel(i + vec2i(1, 1), size), t.x), t.y);
+}
+#endif
+
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+#ifdef ES_SKY_PANORAMA
+    return vec4f(skyPanorama(envDirection(-viewDirection(v.v_worldPos))), 1.0);
+#else
     return vec4f(envSampleMip(-viewDirection(v.v_worldPos), 0.0), 1.0);
+#endif
 }
 #pragma end
 )esshader";

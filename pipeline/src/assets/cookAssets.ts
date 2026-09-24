@@ -17,6 +17,7 @@
  * native), texture atlasing, and the full web-build (html + runtime + scripts).
  * This is the reachability + manifest + staging core they all build on.
  */
+import { ENV_IMAGE_FIELDS } from './environmentFormat';
 import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import { statSync } from 'node:fs';
 import { isInsideRoot } from '../fs/pathSandbox';
@@ -329,9 +330,9 @@ function rewriteAnimatorRefs(
 }
 
 /**
- * A baked environment names its reflection atlas as a SIBLING file, which staging
- * moves out from under it — the runtime then asks for `assets/sky_env.png` and gets
- * a 404, and the frame silently loses every reflection the game was lit for.
+ * A baked environment names its images as SIBLING files, which staging moves out
+ * from under it — the runtime then asks for `assets/sky_env.png` and gets a 404,
+ * and the frame silently loses every reflection, or the sky, the game was made with.
  */
 function rewriteEnvironmentRefs(
   bytes: Uint8Array,
@@ -339,7 +340,9 @@ function rewriteEnvironmentRefs(
   byPath: Map<string, AssetEntry>,
 ): Uint8Array {
   const json = JSON.parse(Buffer.from(bytes).toString('utf8')) as Record<string, unknown>;
-  if (typeof json.specular === 'string') json.specular = logicalRef(json.specular, envPath, byPath);
+  for (const field of ENV_IMAGE_FIELDS) {
+    if (typeof json[field] === 'string') json[field] = logicalRef(json[field], envPath, byPath);
+  }
   return new TextEncoder().encode(JSON.stringify(json, null, 2) + '\n');
 }
 

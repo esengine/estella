@@ -99,7 +99,8 @@
             },
             "intensity": 0.55,
             "enabled": true,
-            "environment": "assets/env/sky.esenv"
+            "environment": "assets/env/sky.esenv",
+            "drawEnvironment": true
           }
         }
       ]

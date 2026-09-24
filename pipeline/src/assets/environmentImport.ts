@@ -41,9 +41,13 @@ export interface EnvironmentAssetData {
      *  a sky. A scene BAKE writes several, column 0 the sky and the rest a
      *  reflection probe each. */
     columns?: number;
+    /** The panorama itself, for drawing the sky: equirectangular, row 0 up, RGBM
+     *  under the same `maxRange`. Absent draws the sky from the atlas' mip 0. */
+    sky?: string;
 }
 
 export const ENVIRONMENT_FORMAT_VERSION = 1;
+export { ENV_IMAGE_FIELDS } from './environmentFormat';
 
 /** Mip 0's face size, and how many mips follow it. Five mips put roughness on a
  *  0.25 grid, which is finer than the prefilter's own error at the rough end. */
@@ -58,6 +62,15 @@ export const ENV_MIN_FACE = 8;
 export function mipCountFor(faceSize: number, want = ENV_MIP_COUNT): number {
     return Math.max(1, Math.min(want, Math.floor(Math.log2(faceSize / ENV_MIN_FACE)) + 1));
 }
+/** The widest sky texture an import writes by default. The sky is looked at
+ *  directly, so it keeps the source's resolution up to here. */
+export const ENV_SKY_MAX_WIDTH = 2048;
+
+/** The `.meta` settings every image an environment import writes carries: RGBM
+ *  radiance, not a picture — sRGB would linearize what is already linear, and a
+ *  block compressor would quantize the shared multiplier with the colour. */
+export const ENV_IMAGE_SETTINGS = { sRGB: false, compress: false, wrapMode: 'clamp' } as const;
+
 /** Radiance above this clips. Sky detail lives well below it; a sun disc does not,
  *  and is meant to survive as a bright blob rather than as its true thousands. */
 export const ENV_MAX_RANGE = 8;
@@ -398,11 +411,43 @@ export function prefilterOctahedral(env: Panorama, faceSize = ENV_FACE_SIZE,
     return { width, height, rgba };
 }
 
+/**
+ * The panorama as the sky texture, at most `maxWidth` wide: box-filtered down by
+ * a whole factor where it is wider, so each texel is an average of whole source
+ * texels rather than a point sample that skips some.
+ */
+export function encodeSkyPanorama(env: Panorama, maxWidth = ENV_SKY_MAX_WIDTH,
+                                  maxRange = ENV_MAX_RANGE): {
+    width: number; height: number; rgba: Uint8Array;
+} {
+    const factor = Math.max(1, Math.ceil(env.width / Math.max(1, maxWidth)));
+    const width = Math.max(1, Math.floor(env.width / factor));
+    const height = Math.max(1, Math.floor(env.height / factor));
+    const rgba = new Uint8Array(width * height * 4);
+    const area = factor * factor;
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            let r = 0, g = 0, b = 0;
+            for (let sy = 0; sy < factor; sy++) {
+                for (let sx = 0; sx < factor; sx++) {
+                    const o = ((y * factor + sy) * env.width + (x * factor + sx)) * 3;
+                    r += env.rgb[o]!; g += env.rgb[o + 1]!; b += env.rgb[o + 2]!;
+                }
+            }
+            encodeRgbm(r / area, g / area, b / area, maxRange, rgba, (y * width + x) * 4);
+        }
+    }
+    return { width, height, rgba };
+}
+
 /** Everything a `.hdr` becomes, less the reference the caller has to resolve. */
 export interface ImportedEnvironment {
     /** `<stem>_env.png` — the octahedral atlas. */
     atlasName: string;
     atlasBytes: Uint8Array;
+    /** `<stem>_sky.png` — the panorama the sky is drawn from; null when the import
+     *  was asked for none (`skyWidth: 0`). */
+    sky: { name: string; bytes: Uint8Array } | null;
     /** The `.esenv` document, with `specular` still empty. */
     document: EnvironmentAssetData;
     /** What the source says that this import had to reinterpret. */
@@ -413,9 +458,10 @@ export interface ImportedEnvironment {
  * Turn a Radiance panorama into the assets a scene can reference.
  *
  * @param faceSize Mip 0's face size; smaller is faster and is what tests use.
+ * @param skyWidth The sky texture's widest edge; 0 writes none.
  */
 export function importEnvironment(bytes: Uint8Array, stem: string,
-                                  options: { faceSize?: number; mipCount?: number } = {}):
+                                  options: { faceSize?: number; mipCount?: number; skyWidth?: number } = {}):
                                   ImportedEnvironment {
     const faceSize = options.faceSize ?? ENV_FACE_SIZE;
     const mipCount = mipCountFor(faceSize, options.mipCount ?? ENV_MIP_COUNT);
@@ -429,9 +475,12 @@ export function importEnvironment(bytes: Uint8Array, stem: string,
     }
     const irradiance = projectIrradianceSH(panorama);
     const atlas = prefilterOctahedral(panorama, faceSize, mipCount, ENV_MAX_RANGE);
+    const skyWidth = options.skyWidth ?? ENV_SKY_MAX_WIDTH;
+    const sky = skyWidth > 0 ? encodeSkyPanorama(panorama, skyWidth, ENV_MAX_RANGE) : null;
     return {
         atlasName: `${stem}_env.png`,
         atlasBytes: encodeRgbaPng(atlas.width, atlas.height, atlas.rgba),
+        sky: sky ? { name: `${stem}_sky.png`, bytes: encodeRgbaPng(sky.width, sky.height, sky.rgba) } : null,
         warnings,
         document: {
             version: ENVIRONMENT_FORMAT_VERSION,

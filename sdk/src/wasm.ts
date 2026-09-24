@@ -339,6 +339,7 @@ export interface ESEngineModule {
                         mipCount: number, maxRange: number, columns: number): number;
     /** Release an environment; its atlas is an ordinary texture and outlives it. */
     environment_release?(environmentHandle: number): void;
+    environment_setSky?(environmentHandle: number, skyHandle: number): void;
     /**
      * Register a grid of baked irradiance: `resX*resY*resZ*27` floats, nine RGB
      * coefficients per probe with x varying fastest. The same nine an environment

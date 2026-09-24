@@ -53,6 +53,7 @@ export interface NativeEngineApi {
     engine_setRandomSeed?(seed: number): void;
     environment_create?(shPtr: number, specularHandle: number, faceSize: number, mipCount: number, maxRange: number, columns: number): number;
     environment_release?(environmentHandle: number): void;
+    environment_setSky?(environmentHandle: number, skyHandle: number): void;
     geometry_create?(): number;
     geometry_init?(handle: number, verticesPtr: number, vertexCount: number, layoutPtr: number, layoutCount: number, dynamic: boolean): void;
     geometry_isValid?(handle: number): boolean;
@@ -324,6 +325,7 @@ export function createNativeEngineApi(
     bind('engine_setRandomSeed', 'es_engine_setRandomSeed', false);
     bind('environment_create', 'es_environment_create', false);
     bind('environment_release', 'es_environment_release', false);
+    bind('environment_setSky', 'es_environment_setSky', false);
     bind('geometry_create', 'es_geometry_create', false);
     bind('geometry_init', 'es_geometry_init', false);
     bind('geometry_isValid', 'es_geometry_isValid', false);

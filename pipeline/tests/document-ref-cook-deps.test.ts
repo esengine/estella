@@ -23,6 +23,7 @@ let root: string;
 
 const SPECULAR = '11111111-1111-4111-8111-111111111111';
 const ESENV = '22222222-2222-4222-8222-222222222222';
+const SKY = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const CLIP = '33333333-3333-4333-8333-333333333333';
 const CONTROLLER = '44444444-4444-4444-8444-444444444444';
 const LAYER_CLIP = '88888888-8888-4888-8888-888888888888';
@@ -41,7 +42,7 @@ function writeAsset(rel: string, type: string, uuid: string, body: string | Uint
 // The importer writes the atlas as a SIBLING file name, resolved against the
 // document — not as a project path.
 const esenv = JSON.stringify({
-  version: 1, irradiance: new Array(27).fill(0), specular: 'sky_env.png',
+  version: 1, irradiance: new Array(27).fill(0), specular: 'sky_env.png', sky: 'sky_sky.png',
   faceSize: 8, mipCount: 1, maxRange: 8,
 });
 
@@ -104,6 +105,7 @@ const scene = JSON.stringify({
 beforeAll(() => {
   root = mkdtempSync(path.join(tmpdir(), 'estella-docrefs-'));
   writeAsset('assets/env/sky_env.png', 'texture', SPECULAR, 'PNG');
+  writeAsset('assets/env/sky_sky.png', 'texture', SKY, 'PNG');
   writeAsset('assets/env/sky.esenv', 'environment', ESENV, esenv);
   writeAsset('assets/anim/frame0.png', 'texture', FRAME, 'PNG');
   writeAsset('assets/anim/idle.esanim', 'animclip', CLIP, clip);
@@ -161,9 +163,12 @@ describe('assets named only inside another document are cooked', () => {
       entries: Array<{ uuid: string; path: string; sourcePath: string }>;
     };
     const env = manifest.entries.find((e) => e.uuid === ESENV)!;
-    const staged = JSON.parse(readFileSync(path.join(res.outDir, env.path), 'utf8')) as { specular: string };
+    const staged = JSON.parse(readFileSync(path.join(res.outDir, env.path), 'utf8')) as { specular: string; sky: string };
     expect(staged.specular).toBe('assets/env/sky_env.png');
     expect(manifest.entries.some((e) => e.sourcePath === staged.specular)).toBe(true);
+    // The sky it draws is the same kind of sibling, and lost the same way.
+    expect(staged.sky).toBe('assets/env/sky_sky.png');
+    expect(manifest.entries.some((e) => e.sourcePath === staged.sky)).toBe(true);
 
     // The bitmap font says the same thing in text rather than JSON.
     const font = manifest.entries.find((e) => e.uuid === FNT)!;
