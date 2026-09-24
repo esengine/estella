@@ -77,6 +77,21 @@ handled automatically:
   `packOptions.include` rules in `project.config.json` for every staged custom
   extension (`.skel`, `.atlas`, `.bin`, …) so DevTools packs and serves them.
 
+## The engine binary
+
+The engine's `.wasm` is the largest single file a mini-game ships. Two options
+on the WeChat page of **Package Project** keep it out of the 4 MB main package:
+
+- **Compress wasm binaries** ships the engine and every side module as
+  `.wasm.br`, roughly a third of the size; WeChat decompresses them on load.
+  This needs **base library 2.14.0** or later. The package carries only the
+  compressed file and nothing checks the version at run time, so set the
+  minimum base library of your mini-game in the WeChat console to 2.14.0 when
+  you turn this on.
+- **Engine in a subpackage** moves the binary into a 分包 that loads at
+  startup. It no longer counts against the main package; startup waits for
+  that download, with the loading bar showing its progress.
+
 ## Subpackages (分包)
 
 Lazy asset groups become WeChat **subPackages** in `game.json`. At runtime,
