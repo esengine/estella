@@ -213,6 +213,40 @@ describe('App.stepFrames()', () => {
         }
     });
 
+    it.each([30, 48])('a %i fps cap on a 60 Hz display runs at the cap, whatever the jitter', async (cap) => {
+        const realRaf = globalThis.requestAnimationFrame;
+        let pending: ((ts: number) => void) | null = null;
+        globalThis.requestAnimationFrame = ((fn: FrameRequestCallback) => {
+            pending = fn as unknown as (ts: number) => void;
+            return 1;
+        }) as unknown as typeof globalThis.requestAnimationFrame;
+        setPlatform({ now: () => 1000 } as unknown as PlatformAdapter);
+        const app = App.new();
+        let frames = 0;
+        app.addSystemToSchedule(Schedule.Update, defineSystem([], () => { frames++; }, { name: 'CountFrames' }));
+        const settle = async (): Promise<void> => { for (let i = 0; i < 30; i++) await Promise.resolve(); };
+        try {
+            app.setTargetFrameRate(cap);
+            await app.run();
+            await settle();
+            frames = 0;
+            // A 60 Hz display: vsyncs every 16.67 ms, each a fraction of a ms off.
+            const VSYNC = 1000 / 60;
+            for (let i = 1; i <= 120; i++) {
+                const fire = pending!;
+                pending = null;
+                await fire(1000 + i * VSYNC + (i % 2 ? -0.3 : 0.3));
+                await settle();
+            }
+            // Two seconds of vsyncs: never faster than the cap, and not a frame short of it.
+            expect(frames).toBeGreaterThanOrEqual(cap * 2 - 1);
+            expect(frames).toBeLessThanOrEqual(cap * 2 + 1);
+        } finally {
+            app.quit();
+            globalThis.requestAnimationFrame = realRaf;
+        }
+    });
+
     it('defaults to one frame', async () => {
         const app = App.new();
         await app.stepFrames();

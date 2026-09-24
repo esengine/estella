@@ -129,6 +129,9 @@ function describeSchedule(value: unknown): string {
 // App
 // =============================================================================
 
+
+/** How early a capped frame may land and still count as on time: vsync jitter. */
+const CAP_JITTER_MS = 1;
 export class App {
     private readonly world_: World;
     private readonly resources_: ResourceStorage;
@@ -157,6 +160,7 @@ export class App {
     // always runs (the check is after a step), so the sim always advances.
     private fixedStepBudgetMs_ = 8;
     private targetFrameInterval_ = 0;
+    private nextCapFrameAt_ = 0;
 
     private module_: ESEngineModule | null = null;
     private pipeline_: RenderPipeline | null = null;
@@ -738,6 +742,7 @@ export class App {
 
     setTargetFrameRate(fps: number): void {
         this.targetFrameInterval_ = fps > 0 ? 1000 / fps : 0;
+        this.nextCapFrameAt_ = 0;
     }
 
     getTargetFrameRate(): number {
@@ -1072,9 +1077,17 @@ export class App {
         const currentTime = typeof rafTime === 'number' && rafTime > 0 ? rafTime : platformNow();
         const deltaMs = currentTime - this.lastTime_;
 
-        if (this.targetFrameInterval_ > 0 && deltaMs < this.targetFrameInterval_) {
-            requestAnimationFrame(this.mainLoop);
-            return;
+        // A cadence, not a minimum gap: a cap of two vsyncs measured frame to frame
+        // loses to jitter half the time and waits a third (30 fps on 60 Hz ran at 24).
+        if (this.targetFrameInterval_ > 0) {
+            if (currentTime < this.nextCapFrameAt_ - CAP_JITTER_MS) {
+                requestAnimationFrame(this.mainLoop);
+                return;
+            }
+            // More than a frame behind (a stall, a hidden page): the cadence restarts here.
+            this.nextCapFrameAt_ = currentTime - this.nextCapFrameAt_ > this.targetFrameInterval_
+                ? currentTime + this.targetFrameInterval_
+                : this.nextCapFrameAt_ + this.targetFrameInterval_;
         }
 
         this.lastTime_ = currentTime;
