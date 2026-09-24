@@ -14,6 +14,8 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.72.0] - 2026-09-24
+
 ### Added
 
 - **A frame can be captured draw call by draw call, and replayed up to any one of them.** The Frame Debugger panel (Window menu, or from the Profiler) captures the viewport or the running game and lists every draw by pass, with a chip per reason that filters to it; a scrubber steps through the draws, and the selected one shows its batch cause in words, what it drew — its material and every texture it bound, by the asset behind them — the entities it was made from — click one to select it — and the pass as it stood after it. `capture_frame` (MCP and the built-in agent) takes the next whole frame of the viewport or the running game — every camera's pass and the screen overlay — and names, for each draw, why it could not join the one before it (material, shader, a different mesh, the instancing cap, …), what it drew and the entities it was made from. `frame_draws` pages a large frame; `replay_draw` shows the pass as it stood after that draw, and refuses when the scene has changed since the capture rather than showing a later frame under the capture's numbering. The SDK's `captureFrame` / `replayDraw` are the same capture. The engine's capture used to keep no entities, report every material as none, see only the first camera, and could be taken by an asset preview instead of the frame.
@@ -13668,7 +13670,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.71.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.72.0...HEAD
+[0.72.0]: https://github.com/esengine/estella/compare/v0.71.0...v0.72.0
 [0.71.0]: https://github.com/esengine/estella/compare/v0.70.0...v0.71.0
 [0.70.0]: https://github.com/esengine/estella/compare/v0.69.0...v0.70.0
 [0.69.0]: https://github.com/esengine/estella/compare/v0.68.0...v0.69.0

@@ -90,6 +90,25 @@ export const CENSUS_FLOOR = '0.60.0';
  * that does not exist, and release notes are a different act. Theirs is ungated.
  */
 export const SHIPPED = {
+  // — 0.72.0 —
+  'A frame can be captured draw call by draw call, and replayed up to any one of them.':
+    { notCertifiable: 'an editor panel and three agent tools over a frame the game already draws; the frame-debugger editor check and the frame-debugger-2d/3d/split render scenes hold it on both backends' },
+  'A project can be packaged as a Huawei quick game (华为快游戏).':
+    { notCertifiable: 'a package only its vendor\'s host boots, and the golden runner mounts WeChat and Douyin alone; pipeline/tests/export-huawei.test.ts holds the package it writes, byte for byte signed as Huawei\'s own tool signs it (rpk.test.ts)' },
+  'A project can be packaged for Alipay (支付宝小游戏).':
+    { notCertifiable: 'a package only its vendor\'s host boots, and the golden runner mounts WeChat and Douyin alone; pipeline/tests/export-alipay.test.ts holds the package it writes' },
+  'A project can be packaged as a quick game — one signed `.rpk` for vivo, OPPO, Xiaomi and Honor (快游戏联盟).':
+    { notCertifiable: 'a package only its vendor\'s host boots, and the golden runner mounts WeChat and Douyin alone; pipeline/tests/export-quickgame.test.ts holds the package it writes, and it was booted by hand in vivo\'s own engine on an emulator' },
+  'A project can be packaged for Bilibili (B 站).':
+    { notCertifiable: 'a package only its vendor\'s host boots, and the golden runner mounts WeChat and Douyin alone; pipeline/tests/export-bilibili.test.ts holds the package it writes' },
+  'A project can be packaged for Kuaishou (快手).':
+    { notCertifiable: 'a package only its vendor\'s host boots, and the golden runner mounts WeChat and Douyin alone; pipeline/tests/export-kuaishou.test.ts holds the package it writes' },
+  'The `record-share` example.':
+    { notCertifiable: 'a sample of the recorder, which records only where a host does (a mini-game vendor) and the editor\'s play mode; check-examples builds and type-checks it' },
+  '`tsc` and an outside editor type-check the official packages too.':
+    { notCertifiable: 'files a project carries for tools outside the engine; no game frame reads them, and check-examples type-checks every example through the same mapping' },
+  'A game can record a run and share the clip.':
+    { notCertifiable: 'the host\'s screen recorder, which only a mini-game vendor has and the golden runner does not mount; minigame-recorder, web-recorder and profile-recorder tests hold each host\'s side' },
   // — 0.71.0 —
   'Settings can find out whether a model reads pictures, instead of asking you to know.':
     { notCertifiable: 'an editor settings row and one request to the model vendor; no game frame is'
