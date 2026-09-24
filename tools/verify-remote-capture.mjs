@@ -137,6 +137,14 @@ try {
   check(stats?.entities > 0 && Object.keys(stats?.phases ?? {}).length > 0 && stats?.wasmBytes > 0,
     `the device reported its frame: ${stats?.entities} entities, ${Object.keys(stats?.phases ?? {}).length} phase(s), ${stats?.wasmBytes} wasm bytes`);
 
+  // What the channel costs the game it watches, over a window of frames, by its own clock.
+  await server.query(target.id, 'stats');
+  await new Promise((r) => setTimeout(r, 2000));
+  const cost = await server.query(target.id, 'stats');
+  const perFrame = cost?.frames > 0 ? cost.agentMs / cost.frames : NaN;
+  check(typeof cost?.agentMs === 'number' && cost.frames > 0 && perFrame <= 0.5,
+    `the debug channel cost the device ${cost?.agentMs?.toFixed(3)} ms over ${cost?.frames} frame(s) — ${perFrame.toFixed(4)} ms a frame (budget 0.5)`);
+
   const tree = (await server.query(target.id, 'snapshot', { selectedId: null, withTree: true }))?.tree;
   const ship = tree?.entities.find((e) => e.name === 'Ship');
   const one = ship ? (await server.query(target.id, 'snapshot', { selectedId: ship.id, withTree: false }))?.selected : null;

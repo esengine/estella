@@ -33,7 +33,7 @@ const flush = () => new Promise((r) => setTimeout(r, 0));
 describe('the debug channel', () => {
     it('forwards what was printed before the editor listened, then answers a question asked before the game started', async () => {
         const s = fakeSocket();
-        setPlatform({ name: 'web', createSocket: () => s.socket } as unknown as PlatformAdapter);
+        setPlatform({ name: 'web', now: () => performance.now(), createSocket: () => s.socket } as unknown as PlatformAdapter);
         startDebugChannel({ url: 'ws://editor:1/?token=t', project: 'Demo' });
         console.log('booting the engine');
 

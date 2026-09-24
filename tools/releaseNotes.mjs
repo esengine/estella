@@ -1074,4 +1074,6 @@ export const NOTED = {
     { note: 'In the Outliner, a connected development build\'s world can be shown instead of this editor\'s (read-only, with live values in Details).' },
   'feat(outliner): a connected build\'s world, shown read-only beside this editor\'s':
     { note: 'In the Outliner, a connected development build\'s world can be shown instead of this editor\'s (read-only, with live values in Details).' },
+  'feat(debug): the debug channel reports what it costs the game it watches':
+    { internal: 'a number the channel reports for its own budget check; the profiler does not show it yet' },
 };

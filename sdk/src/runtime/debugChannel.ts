@@ -11,7 +11,7 @@
  * token in its URL before a single frame crosses.
  */
 import type { App } from '../app/app';
-import { getPlatform } from '../platform/base';
+import { getPlatform, platformNow } from '../platform/base';
 import type { PlatformSocket } from '../platform/types';
 import type { NextFrame } from '../render/frameCapture';
 import { captureFrameReport, replayFrameDraw } from '../render/frameDebugReport';
@@ -98,20 +98,27 @@ export function startDebugChannel(config: DebugChannelConfig): void {
     let retry: ReturnType<typeof setTimeout> | null = null;
     let statsOn = false;
     let frameSum = 0, frames = 0, worstMs = 0;
+    // What this channel itself costs the game, so a development build's numbers can
+    // be read net of it: the console forwarding and the answers it builds in-frame.
+    let agentMs = 0;
+    const timed = <T>(work: () => T): T => {
+        const t0 = platformNow();
+        try { return work(); } finally { agentMs += platformNow() - t0; }
+    };
 
     const backlog: Array<{ level: ConsoleLevel; line: string }> = [];
     let dropped = 0;
     const send = (m: DebugChannelMessage): void => {
         if (socket?.readyState === 'open') socket.send(JSON.stringify(m));
     };
-    forwardConsole((level, line) => {
+    forwardConsole((level, line) => timed(() => {
         if (socket?.readyState === 'open') {
             send({ t: 'log', level, line });
             return;
         }
         if (backlog.length >= LOG_BACKLOG) { backlog.shift(); dropped++; }
         backlog.push({ level, line });
-    });
+    }));
     const flushBacklog = (): void => {
         if (dropped > 0) send({ t: 'log', level: 'warn', line: `[debug] ${dropped} earlier line(s) are not shown: the editor was not listening yet` });
         for (const e of backlog) send({ t: 'log', ...e });
@@ -149,13 +156,14 @@ export function startDebugChannel(config: DebugChannelConfig): void {
                 }
                 // The device's own frame time since the last ask: the editor's clock
                 // runs on another machine and says nothing about this one.
-                const span = { frames, frameMs: frames > 0 ? frameSum / frames : 0, worstMs };
-                frameSum = 0; frames = 0; worstMs = 0;
-                reply({ t: 'reply', reqId: q.reqId, data: { ...frameStatsReport(game), ...span } });
+                const report = timed(() => frameStatsReport(game));
+                const span = { frames, frameMs: frames > 0 ? frameSum / frames : 0, worstMs, agentMs };
+                frameSum = 0; frames = 0; worstMs = 0; agentMs = 0;
+                reply({ t: 'reply', reqId: q.reqId, data: { ...report, ...span } });
                 return;
             }
             if (q.kind === 'snapshot') {
-                reply({ t: 'reply', reqId: q.reqId, data: worldSnapshot(game, q.selectedId, q.withTree) });
+                reply({ t: 'reply', reqId: q.reqId, data: timed(() => worldSnapshot(game, q.selectedId, q.withTree)) });
                 return;
             }
             if (q.kind === 'control') {
