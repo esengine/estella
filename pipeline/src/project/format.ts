@@ -392,6 +392,7 @@ export interface ProjectPackaging {
     douyin?: MiniGamePackaging;
     bilibili?: MiniGamePackaging;
     quickgame?: QuickGamePackaging;
+    huawei?: QuickGamePackaging;
     desktop?: DesktopPackaging;
     android?: AndroidPackaging;
     ios?: IosPackaging;
@@ -827,16 +828,18 @@ export function parseManifest(raw: unknown): ProjectManifest {
         const v = pl[vendor] as Record<string, unknown> | undefined;
         if (v && typeof v === 'object' && typeof v.appid === 'string') platforms[vendor] = { appid: v.appid };
       }
-      const qg = pl.quickgame as Record<string, unknown> | undefined;
-      if (qg && typeof qg === 'object') {
-        const q: QuickGamePackaging = {};
-        if (typeof qg.appid === 'string') q.appid = qg.appid;
-        if (typeof qg.versionCode === 'number' && Number.isInteger(qg.versionCode) && qg.versionCode > 0) q.versionCode = qg.versionCode;
-        const key = qg.releaseKey as Record<string, unknown> | undefined;
-        if (key && typeof key.privateKey === 'string' && typeof key.certificate === 'string') {
-          q.releaseKey = { privateKey: key.privateKey, certificate: key.certificate };
+      for (const vendor of ['quickgame', 'huawei'] as const) {
+        const v = pl[vendor] as Record<string, unknown> | undefined;
+        if (v && typeof v === 'object') {
+          const q: QuickGamePackaging = {};
+          if (typeof v.appid === 'string') q.appid = v.appid;
+          if (typeof v.versionCode === 'number' && Number.isInteger(v.versionCode) && v.versionCode > 0) q.versionCode = v.versionCode;
+          const key = v.releaseKey as Record<string, unknown> | undefined;
+          if (key && typeof key.privateKey === 'string' && typeof key.certificate === 'string') {
+            q.releaseKey = { privateKey: key.privateKey, certificate: key.certificate };
+          }
+          if (Object.keys(q).length > 0) platforms[vendor] = q;
         }
-        if (Object.keys(q).length > 0) platforms.quickgame = q;
       }
       const dt = pl.desktop as Record<string, unknown> | undefined;
       if (dt && typeof dt === 'object') {

@@ -830,9 +830,9 @@ try {
     // the version a host config states, and a quick game's ordinal and key.
     miniGameAppid: manifest.packaging?.platforms?.[platform]?.appid,
     appVersion: manifest.version,
-    miniGameVersionCode: manifest.packaging?.platforms?.quickgame?.versionCode,
-    miniGameReleaseKey: platform === 'quickgame'
-      ? (await rpkMod.readReleaseKey(opts.projectDir, manifest.packaging?.platforms?.quickgame?.releaseKey)) ?? undefined
+    miniGameVersionCode: manifest.packaging?.platforms?.[platform]?.versionCode,
+    miniGameReleaseKey: platform === 'quickgame' || platform === 'huawei'
+      ? (await rpkMod.readReleaseKey(opts.projectDir, manifest.packaging?.platforms?.[platform]?.releaseKey)) ?? undefined
       : undefined,
     androidTemplate: platform === 'android' ? templateDir : null,
     desktopTemplates,

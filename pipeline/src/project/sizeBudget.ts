@@ -81,6 +81,7 @@ export function builtinSizeBudgets(platform: ExportPlatform): readonly SizeBudge
     if (platform === 'bilibili') return BILIBILI_BUDGETS;
     if (platform === 'quickgame') return QUICKGAME_BUDGETS;
     if (platform === 'alipay') return ALIPAY_BUDGETS;
+    if (platform === 'huawei') return HUAWEI_BUDGETS;
     return NO_BUDGETS;
 }
 
@@ -137,6 +138,15 @@ const QUICKGAME_BUDGETS: readonly SizeBudget[] = [
 const ALIPAY_BUDGETS: readonly SizeBudget[] = [
     { scope: 'initial', maxBytes: 4 * MB, note: "Alipay caps a mini-game's main package at 4MB (主包不超过 4 M)" },
     { scope: 'total', maxBytes: 20 * MB, note: 'Alipay caps a mini-game at 20MB across the main package and all subpackages' },
+];
+
+/**
+ * 「主包体大小 不超过4MB」, and 「确保打出的正式包不超 20MB 。若正式包超过20MB，将无法在
+ * AGC控制台提交上架」 (developer.huawei.com, quickApp-Guides).
+ */
+const HUAWEI_BUDGETS: readonly SizeBudget[] = [
+    { scope: 'initial', maxBytes: 4 * MB, note: "Huawei caps a quick game's main package at 4MB (主包体大小 不超过4MB)" },
+    { scope: 'total', maxBytes: 20 * MB, note: 'AppGallery Connect refuses a Huawei quick game over 20MB (正式包不超 20MB)' },
 ];
 
 const NO_BUDGETS: readonly SizeBudget[] = [];

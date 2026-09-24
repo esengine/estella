@@ -1006,6 +1006,10 @@ export const NOTED = {
     { note: 'A project can be packaged for Alipay (支付宝小游戏).' },
   'feat(editor): Alipay is a build target':
     { note: 'A project can be packaged for Alipay (支付宝小游戏).' },
+  'feat(export): a project can be packaged as a Huawei quick game':
+    { note: 'A project can be packaged as a Huawei quick game (华为快游戏).' },
+  'feat(editor): the Huawei quick game is a build target':
+    { note: 'A project can be packaged as a Huawei quick game (华为快游戏).' },
   'fix(agent): the history toggle presses grey again, not the accent':
     { note: "The agent drawer's History button shows it is open with a grey press again, not the accent colour 0.71 gave it." },
 };

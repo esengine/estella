@@ -18,6 +18,7 @@ import { ESENGINE_EXTERNAL } from './esengineResolve';
 export const RUNTIME_HOSTS = [
   'gameHost', 'playableHost', 'playableLoader', 'douyinPlatformProfile', 'kuaishouPlatformProfile',
   'bilibiliPlatformProfile', 'quickgamePlatformProfile', 'alipayPlatformProfile',
+  'huaweiPlatformProfile',
 ] as const;
 
 export type RuntimeHost = (typeof RUNTIME_HOSTS)[number];

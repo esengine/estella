@@ -21,6 +21,7 @@ export default [
             'bilibili/index': 'src/platform/bilibili/index.ts',
             'quickgame/index': 'src/platform/quickgame/index.ts',
             'alipay/index': 'src/platform/alipay/index.ts',
+            'huawei/index': 'src/platform/huawei/index.ts',
             'spine/index': 'src/spine/index.ts',
             'tilemap/index': 'src/tilemap/index.ts',
             'logic/index': 'src/logic/index.ts',

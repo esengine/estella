@@ -261,6 +261,35 @@ const ALIPAY_SERVICES: readonly ServiceStatus[] = [
     { service: 'achievements', support: 'no', note: ACHIEVEMENTS_LOCAL_ONLY },
 ];
 
+/** From developer.huawei.com (quickApp-References); nothing here has run on a device. */
+const HUAWEI_SERVICES: readonly ServiceStatus[] = [
+    {
+        service: 'ads',
+        support: 'unknown',
+        note: 'qg.createRewardedVideoAd is documented (onClose carries isEnded) and needs HMS Core 4.0.0.300 on the'
+            + ' phone; unverified on a device.',
+    },
+    {
+        service: 'share',
+        support: 'no',
+        note: 'Huawei shares through qg.systemShare / qg.serviceShare rather than shareAppMessage, so the engine\'s'
+            + ' share sheet reports itself unavailable here.',
+    },
+    {
+        service: 'signIn',
+        support: 'no',
+        note: 'Huawei signs in through qg.gameLoginWithReal (with real-name checks) over HMS Core, not login — a shape'
+            + ' the engine does not map yet.',
+    },
+    {
+        service: 'purchase',
+        support: 'no',
+        note: 'Huawei sells through qg.createPurchaseIntent (IAP over HMS Core), a shape the engine\'s purchase'
+            + ' request does not carry.',
+    },
+    { service: 'achievements', support: 'no', note: ACHIEVEMENTS_LOCAL_ONLY },
+];
+
 const DESKTOP_SERVICES: readonly ServiceStatus[] = noHostServices().map((s) => (
     s.service === 'achievements'
         ? {
@@ -286,6 +315,7 @@ export function builtinServiceSupport(platform: ExportPlatform): readonly Servic
     if (platform === 'bilibili') return BILIBILI_SERVICES;
     if (platform === 'quickgame') return QUICKGAME_SERVICES;
     if (platform === 'alipay') return ALIPAY_SERVICES;
+    if (platform === 'huawei') return HUAWEI_SERVICES;
     if (platform === 'desktop') return DESKTOP_SERVICES;
     if (platform === 'web' || platform === 'playable' || platform === 'android' || platform === 'ios') {
         return noHostServices();

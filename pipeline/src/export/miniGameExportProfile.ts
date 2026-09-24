@@ -27,7 +27,7 @@ import path from 'node:path';
  * ship can still be exported by handing {@link exportMiniGame} a profile.
  * Mirrors the SDK's `MiniGameVendor` (sdk/src/platform/minigame/api.ts).
  */
-export type MiniGameVendor = 'wechat' | 'douyin' | 'kuaishou' | 'bilibili' | 'quickgame' | 'alipay' | (string & {});
+export type MiniGameVendor = 'wechat' | 'douyin' | 'kuaishou' | 'bilibili' | 'quickgame' | 'alipay' | 'huawei' | (string & {});
 
 /** Vendor-neutral facts the pipeline computes, handed to the config emitter. */
 export interface MiniGameConfigContext {
@@ -598,27 +598,33 @@ export const quickgameExportProfile: MiniGameExportProfile = {
         ];
     },
 
-    emitEntry(ctx) {
-        return defaultMiniGameEntry(ctx, '__load').replace("'use strict';\n", `'use strict';\n${COMMONJS_SHIM}`);
-    },
-
-    async pack(ctx) {
-        const warnings: string[] = [];
-        const key = ctx.releaseKey ?? RPK_DEBUG_KEY;
-        if (!ctx.releaseKey) {
-            warnings.push('Signed with the public debug key, which a device debugger installs and a store refuses —'
-                + ' set a release key in Project Settings → Packaging → Quick game to publish.');
-        }
-        const file = `${ctx.appid}.rpk`;
-        const entries = [];
-        for (const name of await listFiles(ctx.outDir)) {
-            if (name.endsWith('.rpk')) continue;
-            entries.push({ name, data: await readFile(path.join(ctx.outDir, name)) });
-        }
-        await writeFile(path.join(ctx.outDir, file), packRpk(entries, QUICKGAME_ICON, key));
-        return { file: path.join(ctx.outDir, file), warnings };
-    },
+    emitEntry: globalEvalEntry,
+    pack: (ctx) => packSignedRpk(ctx, 'Quick game'),
 };
+
+/** The family entry for a host whose `require` gives a file no CommonJS wrapper. */
+function globalEvalEntry(ctx: MiniGameEntryContext): string {
+    return defaultMiniGameEntry(ctx, '__load').replace("'use strict';\n", `'use strict';\n${COMMONJS_SHIM}`);
+}
+
+/** The finished directory as `<package>.rpk`, signed with the project's key or,
+ *  with a warning naming where to set one, the public debug key. */
+async function packSignedRpk(ctx: MiniGamePackContext, settingsPage: string): Promise<{ file: string; warnings: string[] }> {
+    const warnings: string[] = [];
+    const key = ctx.releaseKey ?? RPK_DEBUG_KEY;
+    if (!ctx.releaseKey) {
+        warnings.push('Signed with the public debug key, which a device debugger installs and a store refuses —'
+            + ` set a release key in Project Settings → Packaging → ${settingsPage} to publish.`);
+    }
+    const file = path.join(ctx.outDir, `${ctx.appid}.rpk`);
+    const entries = [];
+    for (const name of await listFiles(ctx.outDir)) {
+        if (name.endsWith('.rpk')) continue;
+        entries.push({ name, data: await readFile(path.join(ctx.outDir, name)) });
+    }
+    await writeFile(file, packRpk(entries, QUICKGAME_ICON, key));
+    return { file, warnings };
+}
 
 // =============================================================================
 // Alipay profile
@@ -671,6 +677,69 @@ export const alipayExportProfile: MiniGameExportProfile = {
     },
 
     emitEntry: defaultMiniGameEntry,
+};
+
+// =============================================================================
+// Huawei quick-game profile
+// =============================================================================
+
+/**
+ * Huawei (developer.huawei.com, quickApp-Guides): the same signed `.rpk` as the
+ * alliance — Huawei's signtool writes the same block — with Huawei's manifest
+ * (`appType: "fastgame"`, orientation under `display`). Subpackages are
+ * separate unsigned `<name>.rpk` files in Huawei's tool, not yet written here.
+ */
+export const huaweiExportProfile: MiniGameExportProfile = {
+    id: 'huawei',
+    sdkEntryFile: 'index.minigame.js',
+    runtimeInit: 'initMiniGameRuntime',
+    runtimeProfileHost: 'huaweiPlatformProfile',
+    engineGlueCandidates: MINIGAME_ENGINE_GLUE,
+    // WeChat's floor, unconfirmed here: down-levelling costs nothing and a syntax
+    // error on a phone costs a release.
+    esTarget: 'es2017',
+    wasmBuildHint: 'quickgame',
+    hostGlobal: 'qg',
+    sideModuleBuildTargets: {},
+    // Assumed to match the other vendors, not read from a Huawei doc; a wrong
+    // guess is a staged file the runtime cannot read.
+    nativeSuffixes: new Set(['.js', '.json']),
+    // No upload whitelist is published for the rpk; nothing is restaged.
+    packerSuffixes: null,
+    // `.br` needs minPlatformVersion 1126 and Huawei's own tool to write it.
+    wasmBrotli: false,
+    subpackageDir: 'subpackages',
+    // 「分包入口文件只能命名为 game.js」.
+    subpackageEntry: 'game.js',
+
+    emitConfigFiles(ctx) {
+        if (!ctx.appid) {
+            throw new Error('the Huawei quick game has no package name — set it in Project Settings → Packaging → Huawei quick game');
+        }
+        if (ctx.subPackages.length > 0) {
+            throw new Error('Huawei packs each subpackage as its own .rpk, which this export does not write yet —'
+                + ' ship the lazy groups in the main package, or as remote content');
+        }
+        const manifest = {
+            package: ctx.appid,
+            name: ctx.title,
+            appType: 'fastgame',
+            icon: `/${QUICKGAME_ICON}`,
+            versionName: ctx.version,
+            versionCode: ctx.versionCode,
+            // 「设定值建议不小于 1103」.
+            minPlatformVersion: 1103,
+            config: { logLevel: 'log' },
+            display: { orientation: ctx.orientation, fullScreen: true },
+        };
+        return [
+            { file: 'manifest.json', content: JSON.stringify(manifest, null, 2) + '\n' },
+            { file: QUICKGAME_ICON, content: ctx.icon ?? QUICKGAME_DEFAULT_ICON },
+        ];
+    },
+
+    emitEntry: globalEvalEntry,
+    pack: (ctx) => packSignedRpk(ctx, 'Huawei quick game'),
 };
 
 async function listFiles(root: string, prefix = ''): Promise<string[]> {

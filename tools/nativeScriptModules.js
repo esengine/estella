@@ -110,6 +110,10 @@ export const MODULES = {
         disposition: 'forbidden-native-script',
         why: "Alipay's platform profile — it names a host global (`my`) that a native build does not have",
     },
+    'esengine/huawei': {
+        disposition: 'forbidden-native-script',
+        why: "Huawei's quick-game profile — it names a host global (`qg`) that a native build does not have",
+    },
 };
 
 /** The `exports` subpath ("." / "./physics3d") a specifier corresponds to. */

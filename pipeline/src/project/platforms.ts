@@ -21,11 +21,11 @@
  * Xcode), so a single row could not tell you what to run, whether this machine
  * can run it, or where the package comes out.
  */
-export type BuiltinPlatform = 'web' | 'desktop' | 'wechat' | 'douyin' | 'kuaishou' | 'bilibili' | 'quickgame' | 'alipay' | 'playable' | 'android' | 'ios';
+export type BuiltinPlatform = 'web' | 'desktop' | 'wechat' | 'douyin' | 'kuaishou' | 'bilibili' | 'quickgame' | 'alipay' | 'huawei' | 'playable' | 'android' | 'ios';
 
 /** Built-ins, in the order they are offered. */
 export const BUILTIN_PLATFORMS: readonly BuiltinPlatform[] = [
-    'web', 'desktop', 'wechat', 'douyin', 'kuaishou', 'bilibili', 'quickgame', 'alipay', 'playable', 'android', 'ios',
+    'web', 'desktop', 'wechat', 'douyin', 'kuaishou', 'bilibili', 'quickgame', 'alipay', 'huawei', 'playable', 'android', 'ios',
 ];
 
 /**
@@ -63,17 +63,17 @@ export function isNativePlatform(platform: ExportPlatform): platform is NativePl
  * project's own vendor is one of these without appearing here, so that build
  * lives in the family's export defaults rather than behind this list.
  */
-export const MINIGAME_PLATFORMS = ['wechat', 'douyin', 'kuaishou', 'bilibili', 'quickgame', 'alipay'] as const;
+export const MINIGAME_PLATFORMS = ['wechat', 'douyin', 'kuaishou', 'bilibili', 'quickgame', 'alipay', 'huawei'] as const;
 export type MiniGamePlatform = (typeof MINIGAME_PLATFORMS)[number];
 
 /**
  * Which engine build a web-runtime target packages: the browser one, the
  * CommonJS mini-game one, or that one again without wasm SIMD and BigInt i64 —
- * for the quick-game hosts, whose V8 (8.3) refuses both, and for Alipay, whose
- * MYWebAssembly publishes no feature level to rely on.
+ * for the quick-game hosts, whose V8 (8.3) refuses both, and for Alipay and
+ * Huawei, which publish no wasm feature level to rely on.
  */
 export function engineBuildFor(platform: ExportPlatform): 'web' | 'minigame' | 'quickgame' {
-    if (platform === 'quickgame' || platform === 'alipay') return 'quickgame';
+    if (platform === 'quickgame' || platform === 'alipay' || platform === 'huawei') return 'quickgame';
     return isMiniGamePlatform(platform) ? 'minigame' : 'web';
 }
 

@@ -387,7 +387,7 @@ export interface MiniGameGlobal {
  * never heard of and get the whole family for it. Nothing in the SDK branches on
  * this value — it is identity (adapter name, diagnostics, logs), not behavior.
  */
-export type MiniGameVendor = 'wechat' | 'douyin' | 'kuaishou' | 'bilibili' | 'quickgame' | 'alipay' | (string & {});
+export type MiniGameVendor = 'wechat' | 'douyin' | 'kuaishou' | 'bilibili' | 'quickgame' | 'alipay' | 'huawei' | (string & {});
 
 /**
  * A vendor described as DATA — three facts and, at most, one method.

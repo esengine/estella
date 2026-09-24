@@ -5232,7 +5232,7 @@ changedTouches: MiniGameTouch[]
 
 ## MiniGameVendor — type @experimental
 ```
-'wechat' | 'douyin' | 'kuaishou' | 'bilibili' | 'quickgame' | 'alipay' | (string & {})
+'wechat' | 'douyin' | 'kuaishou' | 'bilibili' | 'quickgame' | 'alipay' | 'huawei' | (string & {})
 ```
 
 ## MissingAssetCallback — type @experimental

@@ -27,6 +27,7 @@
     "./dist/bilibili/index.js",
     "./dist/quickgame/index.js",
     "./dist/alipay/index.js",
+    "./dist/huawei/index.js",
     "./dist/index.wechat.cjs.js"
   ],
   "main": "./dist/index.js",
@@ -110,6 +111,10 @@
     "./alipay": {
       "import": "./dist/alipay/index.js",
       "types": "./dist/alipay/index.d.ts"
+    },
+    "./huawei": {
+      "import": "./dist/huawei/index.js",
+      "types": "./dist/huawei/index.d.ts"
     }
   },
   "files": [

@@ -106,6 +106,7 @@ export default defineConfig([
             'bilibili/index': 'src/platform/bilibili/index.ts',
             'quickgame/index': 'src/platform/quickgame/index.ts',
             'alipay/index': 'src/platform/alipay/index.ts',
+            'huawei/index': 'src/platform/huawei/index.ts',
             'wasm': 'src/wasm.ts',
         },
         // Only the node entry reaches these; a browser entry that did would fail
