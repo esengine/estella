@@ -1002,6 +1002,10 @@ export const NOTED = {
     { note: 'A project can be packaged as a quick game' },
   'fix(runtime): a WebGL2 context does not offer the WebGL1 extensions it made core':
     { note: 'A mini-game whose host\'s WebGL2 context also offers `OES_vertex_array_object` renders instead of hanging' },
+  'feat(export): a project can be packaged for Alipay':
+    { note: 'A project can be packaged for Alipay (支付宝小游戏).' },
+  'feat(editor): Alipay is a build target':
+    { note: 'A project can be packaged for Alipay (支付宝小游戏).' },
   'fix(agent): the history toggle presses grey again, not the accent':
     { note: "The agent drawer's History button shows it is open with a grey press again, not the accent colour 0.71 gave it." },
 };

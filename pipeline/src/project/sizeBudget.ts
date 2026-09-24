@@ -80,6 +80,7 @@ export function builtinSizeBudgets(platform: ExportPlatform): readonly SizeBudge
     if (platform === 'kuaishou') return KUAISHOU_BUDGETS;
     if (platform === 'bilibili') return BILIBILI_BUDGETS;
     if (platform === 'quickgame') return QUICKGAME_BUDGETS;
+    if (platform === 'alipay') return ALIPAY_BUDGETS;
     return NO_BUDGETS;
 }
 
@@ -127,6 +128,15 @@ const BILIBILI_BUDGETS: readonly SizeBudget[] = [
 const QUICKGAME_BUDGETS: readonly SizeBudget[] = [
     { scope: 'initial', maxBytes: 4 * MB, note: 'vivo and OPPO cap a quick game\'s main package at 4MB' },
     { scope: 'total', maxBytes: 20 * MB, note: 'vivo caps a quick game at 20MB — a 4MB main package and 16MB of subpackages' },
+];
+
+/**
+ * 「整个小游戏所有主包+分包大小不超过 20 M／主包不超过 4 M」
+ * https://opendocs.alipay.com/mini-game/08uo7z
+ */
+const ALIPAY_BUDGETS: readonly SizeBudget[] = [
+    { scope: 'initial', maxBytes: 4 * MB, note: "Alipay caps a mini-game's main package at 4MB (主包不超过 4 M)" },
+    { scope: 'total', maxBytes: 20 * MB, note: 'Alipay caps a mini-game at 20MB across the main package and all subpackages' },
 ];
 
 const NO_BUDGETS: readonly SizeBudget[] = [];

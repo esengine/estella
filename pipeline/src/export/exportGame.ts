@@ -36,7 +36,7 @@ import {
 import { engineImportMap, FULL_IMPORT_MAP, LEAN_ENTRY_FILE, FULL_ENTRY_FILE, type EngineImportMap } from '../bundle/importMap';
 import { engineInstalls, forcedSideModules, moduleChoices, type EngineInstallPlan } from '../bundle/engineInstalls';
 import { exportMiniGame } from './exportMiniGame';
-import { wechatExportProfile, douyinExportProfile, kuaishouExportProfile, bilibiliExportProfile, quickgameExportProfile } from './miniGameExportProfile';
+import { wechatExportProfile, douyinExportProfile, kuaishouExportProfile, bilibiliExportProfile, quickgameExportProfile, alipayExportProfile } from './miniGameExportProfile';
 import type { MiniGameExportProfile } from './miniGameExportProfile';
 
 /** The mini-game vendors the editor ships, by platform id. */
@@ -46,6 +46,7 @@ const BUILTIN_MINIGAME_PROFILES: Readonly<Record<string, MiniGameExportProfile>>
   kuaishou: kuaishouExportProfile,
   bilibili: bilibiliExportProfile,
   quickgame: quickgameExportProfile,
+  alipay: alipayExportProfile,
 };
 import { exportPlayable } from './exportPlayable';
 import { genericPlayableProfile, type PlayableAdProfile } from './playableAdProfile';

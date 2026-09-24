@@ -232,6 +232,35 @@ const QUICKGAME_SERVICES: readonly ServiceStatus[] = [
     { service: 'achievements', support: 'no', note: ACHIEVEMENTS_LOCAL_ONLY },
 ];
 
+/** From opendocs.alipay.com/mini-game; nothing here has run on a device yet. */
+const ALIPAY_SERVICES: readonly ServiceStatus[] = [
+    {
+        service: 'ads',
+        support: 'unknown',
+        note: 'The engine forwards to my.createRewardedAd / my.createInterstitialAd (onClose carries isEnded);'
+            + ' unverified on a device.',
+    },
+    {
+        service: 'share',
+        support: 'unknown',
+        note: 'The engine sets the card on my.onShareAppMessage and opens my.showSharePanel, as Alipay documents;'
+            + ' unverified on a device.',
+    },
+    {
+        service: 'signIn',
+        support: 'unknown',
+        note: 'The engine forwards to my.getAuthCode (auth_base) and hands over its authCode for your server to'
+            + ' exchange; unverified on a device.',
+    },
+    {
+        service: 'purchase',
+        support: 'no',
+        note: 'my.requestGamePayment sells on Android and Harmony only (「需要对 ios 用户屏蔽内购功能」), keyed by a'
+            + ' customId the engine\'s purchase request does not carry — so the profile leaves the slot empty.',
+    },
+    { service: 'achievements', support: 'no', note: ACHIEVEMENTS_LOCAL_ONLY },
+];
+
 const DESKTOP_SERVICES: readonly ServiceStatus[] = noHostServices().map((s) => (
     s.service === 'achievements'
         ? {
@@ -256,6 +285,7 @@ export function builtinServiceSupport(platform: ExportPlatform): readonly Servic
     if (platform === 'kuaishou') return KUAISHOU_SERVICES;
     if (platform === 'bilibili') return BILIBILI_SERVICES;
     if (platform === 'quickgame') return QUICKGAME_SERVICES;
+    if (platform === 'alipay') return ALIPAY_SERVICES;
     if (platform === 'desktop') return DESKTOP_SERVICES;
     if (platform === 'web' || platform === 'playable' || platform === 'android' || platform === 'ios') {
         return noHostServices();

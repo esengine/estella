@@ -132,6 +132,7 @@ function builtinReadiness(
         : { ready: false, prereq: { kind: 'runtime-missing', dir: posix(dirs.minigame), looked: [...MINIGAME_ENGINE_GLUE], command: `node build-tools/cli.js build -t ${MINIGAME_ENGINE_BUILD}` } };
 
     case 'quickgame':
+    case 'alipay':
       return MINIGAME_ENGINE_GLUE.some((g) => has(dirs.quickgame, g))
         ? { ready: true }
         : { ready: false, prereq: { kind: 'runtime-missing', dir: posix(dirs.quickgame), looked: [...MINIGAME_ENGINE_GLUE], command: 'node build-tools/cli.js build -t quickgame' } };

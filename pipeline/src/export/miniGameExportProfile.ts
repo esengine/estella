@@ -27,7 +27,7 @@ import path from 'node:path';
  * ship can still be exported by handing {@link exportMiniGame} a profile.
  * Mirrors the SDK's `MiniGameVendor` (sdk/src/platform/minigame/api.ts).
  */
-export type MiniGameVendor = 'wechat' | 'douyin' | 'kuaishou' | 'bilibili' | 'quickgame' | (string & {});
+export type MiniGameVendor = 'wechat' | 'douyin' | 'kuaishou' | 'bilibili' | 'quickgame' | 'alipay' | (string & {});
 
 /** Vendor-neutral facts the pipeline computes, handed to the config emitter. */
 export interface MiniGameConfigContext {
@@ -618,6 +618,59 @@ export const quickgameExportProfile: MiniGameExportProfile = {
         await writeFile(path.join(ctx.outDir, file), packRpk(entries, QUICKGAME_ICON, key));
         return { file: path.join(ctx.outDir, file), warnings };
     },
+};
+
+// =============================================================================
+// Alipay profile
+// =============================================================================
+
+/**
+ * Alipay (支付宝), from opendocs.alipay.com/mini-game: `subpackages` lower-case,
+ * the appid passed to the tools (`minidev -a`) rather than packaged, and the
+ * review build's own transpile and minify — on by default — turned off in
+ * `project.config.json`, since this bundle is already down-levelled.
+ */
+export const alipayExportProfile: MiniGameExportProfile = {
+    id: 'alipay',
+    sdkEntryFile: 'index.minigame.js',
+    runtimeInit: 'initMiniGameRuntime',
+    runtimeProfileHost: 'alipayPlatformProfile',
+    engineGlueCandidates: MINIGAME_ENGINE_GLUE,
+    // WeChat's floor, unconfirmed here: down-levelling costs nothing and a syntax
+    // error on a phone costs a release.
+    esTarget: 'es2017',
+    wasmBuildHint: 'quickgame',
+    hostGlobal: 'my',
+    sideModuleBuildTargets: {},
+    // Assumed to match the other vendors, not read from an Alipay doc; a wrong
+    // guess is a staged file the runtime cannot read.
+    nativeSuffixes: new Set(['.js', '.json']),
+    // No upload whitelist is published; nothing is restaged.
+    packerSuffixes: null,
+    // MYWebAssembly documents a `.wasm` path only.
+    wasmBrotli: false,
+    subpackageDir: 'subpackages',
+    // 「目录根目录下的 game.js 会作为入口文件」.
+    subpackageEntry: 'game.js',
+
+    emitConfigFiles(ctx) {
+        const gameCfg: Record<string, unknown> = {
+            deviceOrientation: ctx.orientation,
+            showStatusBar: false,
+            // MYWebAssembly runs on iOS only in high-performance mode; 10.8.6+ goes on
+            // to 高性能+ by default, and this keeps an older client off 普通模式.
+            iOSHighPerformance: true,
+        };
+        if (ctx.subPackages.length > 0) {
+            gameCfg.subpackages = ctx.subPackages.map((s) => ({ name: s.name, root: s.root }));
+        }
+        return [
+            { file: 'game.json', content: JSON.stringify(gameCfg, null, 2) + '\n' },
+            { file: 'project.config.json', content: JSON.stringify({ setting: { transpile: false, minify: false } }, null, 2) + '\n' },
+        ];
+    },
+
+    emitEntry: defaultMiniGameEntry,
 };
 
 async function listFiles(root: string, prefix = ''): Promise<string[]> {

@@ -26,6 +26,7 @@
     "./dist/kuaishou/index.js",
     "./dist/bilibili/index.js",
     "./dist/quickgame/index.js",
+    "./dist/alipay/index.js",
     "./dist/index.wechat.cjs.js"
   ],
   "main": "./dist/index.js",
@@ -105,6 +106,10 @@
     "./quickgame": {
       "import": "./dist/quickgame/index.js",
       "types": "./dist/quickgame/index.d.ts"
+    },
+    "./alipay": {
+      "import": "./dist/alipay/index.js",
+      "types": "./dist/alipay/index.d.ts"
     }
   },
   "files": [

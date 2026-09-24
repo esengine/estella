@@ -20,6 +20,7 @@ export default [
             'kuaishou/index': 'src/platform/kuaishou/index.ts',
             'bilibili/index': 'src/platform/bilibili/index.ts',
             'quickgame/index': 'src/platform/quickgame/index.ts',
+            'alipay/index': 'src/platform/alipay/index.ts',
             'spine/index': 'src/spine/index.ts',
             'tilemap/index': 'src/tilemap/index.ts',
             'logic/index': 'src/logic/index.ts',
