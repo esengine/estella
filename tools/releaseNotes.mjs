@@ -982,6 +982,10 @@ export const NOTED = {
     { note: 'A frame can be captured draw call by draw call, and replayed up to any one of them.' },
   'feat(editor): capture a frame draw by draw and replay it, in the viewport and the running game':
     { note: 'A frame can be captured draw call by draw call, and replayed up to any one of them.' },
+  'feat(editor): the Frame Debugger panel lists a frame\'s draws, why each started, and replays up to one':
+    { note: 'A frame can be captured draw call by draw call, and replayed up to any one of them.' },
+  'feat(editor): the Frame Debugger panel ships with the editor':
+    { note: 'A frame can be captured draw call by draw call, and replayed up to any one of them.' },
   'fix(viewport): a paused game is not covered or dimmed; the ring says paused':
     { note: 'A paused game is no longer covered or dimmed.' },
   'feat(project): opening a project gives its tsconfig the official-packages mapping':
