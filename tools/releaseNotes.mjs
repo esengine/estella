@@ -1096,4 +1096,6 @@ export const NOTED = {
     { note: 'On vivo\'s quick game the loading notice comes down once the game starts; it could stay over the running game.' },
   'fix(examples): the hot-update demo says when it could not reach the update endpoint':
     { note: 'The hot-update demo no longer says the remote manifest matches when it could not reach one; offline it says it keeps the local content.' },
+  'fix(lifecycle): a page opened in a background tab knows it is in the background':
+    { note: 'A web game opened in a background tab starts paused and reports itself hidden until it is shown; before, it counted as visible.' },
 };

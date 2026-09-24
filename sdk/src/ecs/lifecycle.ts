@@ -167,6 +167,9 @@ function setupWebLifecycle_(manager: LifecycleManager, app: AppLike): () => void
     document.addEventListener('visibilitychange', onVisibilityChange);
     window.addEventListener('focus', onFocus);
     window.addEventListener('blur', onBlur);
+    // No event reports the state a page is born in: one opened in a background tab
+    // would otherwise count as visible until it had been shown and hidden again.
+    if (document.hidden) onVisibilityChange();
 
     return (): void => {
         document.removeEventListener('visibilitychange', onVisibilityChange);
