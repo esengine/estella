@@ -978,6 +978,12 @@ export const NOTED = {
     { note: '`tsc` and an outside editor type-check the official packages too.' },
   'feat(tooling): the examples type-check the official packages the way a project does':
     { note: '`tsc` and an outside editor type-check the official packages too.' },
+  'feat(render): a frame capture spans every pass, names each draw\'s entities, and replays after the pass that drew it':
+    { note: 'A frame can be captured draw call by draw call, and replayed up to any one of them.' },
+  'feat(editor): capture a frame draw by draw and replay it, in the viewport and the running game':
+    { note: 'A frame can be captured draw call by draw call, and replayed up to any one of them.' },
+  'fix(viewport): a paused game is not covered or dimmed; the ring says paused':
+    { note: 'A paused game is no longer covered or dimmed.' },
   'feat(project): opening a project gives its tsconfig the official-packages mapping':
     { note: '`tsc` and an outside editor type-check the official packages too.' },
   'feat(project): every template and example maps estella-plugin-* to the mirrored packages':
