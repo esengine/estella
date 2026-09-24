@@ -44,6 +44,7 @@ import { flushPendingRegistrations } from '../app/app';
 import { installHotUpdateRebind } from '../hotUpdateRebind';
 import { requireResourceManager } from '../wasm/resourceManager';
 import { log } from '../util/logger';
+import { openDebugChannel, type DebugChannelConfig } from './debugChannel';
 import type { AotManifest } from '../ecs/aot/AotSystems';
 import { type RuntimeAssetSource, type TextureParams } from './runtimeAssets';
 import type { SpineAssetInfo } from '../spine/loadSpineScene';
@@ -799,6 +800,7 @@ export interface RuntimeInitConfig {
      * exists yet to be left behind in the wrong memory.
      */
     aot?: { module: string | BufferSource; manifest: AotManifest };
+    debugChannel?: DebugChannelConfig;
 }
 
 export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
@@ -813,6 +815,8 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
         const installed = await app.installCompiledSystems(config.aot.module, config.aot.manifest);
         log.info('runtime', `AOT: ${installed} compiled system(s) installed`);
     }
+
+    if (config.debugChannel) openDebugChannel(app, config.debugChannel);
 
     // Install the per-App runtime Assets up front (scene loads reuse it) and
     // hand it the manifest so on-demand loadGroup works from the first frame.

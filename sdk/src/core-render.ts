@@ -253,6 +253,14 @@ export {
     type NextFrame,
     type ReplaySnapshot,
 } from './render/frameCapture';
+export {
+    captureFrameReport,
+    frameDebugReport,
+    replayFrameDraw,
+    type FrameAssetNames,
+    type FrameDebugReport,
+    type FrameReplayImage,
+} from './render/frameDebugReport';
 
 // =============================================================================
 // RenderTexture API

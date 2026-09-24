@@ -1056,4 +1056,8 @@ export const NOTED = {
     { internal: 'a release criterion\'s own measuring conditions; the engine is unchanged' },
   'fix(recorder): a Douyin recording the host ends on its own keeps its video':
     { note: 'A Douyin recording the host ends on its own keeps its video, and an interruption is not counted as recorded time.' },
+  'feat(frame-debugger): a development build can be captured from the editor over the network':
+    { note: 'The Frame Debugger can capture and replay a frame of a development build running outside the editor — a browser or a mini-game host, on this machine or another on the network: export with the Development configuration and "Frame debugger connection", then pick the device in the panel. Native apps cannot connect yet.' },
+  'feat(frame-debugger): capture a frame from a development build running elsewhere':
+    { note: 'The Frame Debugger can capture and replay a frame of a development build running outside the editor — a browser or a mini-game host, on this machine or another on the network: export with the Development configuration and "Frame debugger connection", then pick the device in the panel. Native apps cannot connect yet.' },
 };

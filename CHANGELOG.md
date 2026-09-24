@@ -14,6 +14,10 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- The Frame Debugger can capture and replay a frame of a development build running outside the editor — a browser or a mini-game host, on this machine or another on the network: export with the Development configuration and "Frame debugger connection", then pick the device in the panel. Native apps cannot connect yet.
+
 ### Fixed
 
 - A Douyin recording the host ends on its own keeps its video, and an interruption is not counted as recorded time.

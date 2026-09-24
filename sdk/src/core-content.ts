@@ -443,6 +443,12 @@ export {
     type PackagedAssetSourceOptions,
     type PackagedGameConfig,
 } from './runtime/packagedRuntime';
+export {
+    DEBUG_CHANNEL_PROTOCOL,
+    type DebugChannelConfig,
+    type DebugChannelMessage,
+    type DebugChannelQuery,
+} from './runtime/debugChannel';
 
 // =============================================================================
 // Preview

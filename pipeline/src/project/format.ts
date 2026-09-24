@@ -297,6 +297,8 @@ export interface ProjectPackaging {
   platform?: ExportPlatform;
   config?: 'development' | 'shipping';
   sourceMaps?: boolean;
+  /** A development build dials the editor so the frame debugger can capture it. */
+  frameDebugger?: boolean;
   openFolder?: boolean;
   /** Screen orientation for EVERY export target (WeChat game.json deviceOrientation,
    *  the web/playable rotate-to-fit hint, the desktop window's aspect). Absent ⇒
@@ -735,6 +737,7 @@ export function parseManifest(raw: unknown): ProjectManifest {
     if (p.config === 'development' || p.config === 'shipping') pkg.config = p.config;
     if (typeof p.appId === 'string' && p.appId !== '') pkg.appId = p.appId;
     if (typeof p.sourceMaps === 'boolean') pkg.sourceMaps = p.sourceMaps;
+    if (typeof p.frameDebugger === 'boolean') pkg.frameDebugger = p.frameDebugger;
     if (typeof p.openFolder === 'boolean') pkg.openFolder = p.openFolder;
     if (typeof p.compressWasm === 'boolean') pkg.compressWasm = p.compressWasm;
     if (typeof p.engineSubpackage === 'boolean') pkg.engineSubpackage = p.engineSubpackage;

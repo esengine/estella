@@ -757,6 +757,12 @@ jobs:
       if: ${{ !cancelled() && matrix.shard == 1 && steps.toolchain.outcome == 'success' }}
       run: pnpm run verify:cooked
 
+    # A development build dials the editor, and the frame debugger captures and
+    # replays its frame over that socket — the web road and a mini-game's.
+    - name: Check a development build can be frame-debugged from the editor
+      if: ${{ !cancelled() && matrix.shard == 1 }}
+      run: pnpm run verify:remote-capture
+
     # A package whose points missed is a claim about a PICTURE, and the picture
     # has to leave the runner, or nobody can tell a real regression from a frame
     # the software rasteriser had not finished.

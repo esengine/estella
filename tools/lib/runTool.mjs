@@ -3,7 +3,7 @@
 /**
  * @file  runTool.mjs — spawn a workspace CLI (pnpm, npx, xvfb-run) on every OS.
  */
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 
 /** Windows installs pnpm and npx as `.cmd` shims. Node refuses to spawn either
  *  directly (ENOENT for the bare name, EINVAL for the suffix), so they have to
@@ -38,4 +38,12 @@ export function runTool(cmd, args, options = {}) {
   }
   const why = `${cmd} did not start: ${r.error.code ?? r.error.message}`;
   return { ...r, status: r.status ?? 127, stderr: `${r.stderr ?? ''}${why}\n` };
+}
+
+/** {@link runTool} without waiting, for a caller that must keep answering the
+ *  process while it runs. */
+export function spawnTool(cmd, args, options = {}) {
+  return VIA_SHELL
+    ? spawn([cmd, ...args].map(quote).join(' '), { ...options, shell: true })
+    : spawn(cmd, args, options);
 }

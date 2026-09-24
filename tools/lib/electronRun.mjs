@@ -20,7 +20,7 @@
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runTool } from './runTool.mjs';
+import { runTool, spawnTool } from './runTool.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -62,13 +62,25 @@ export const NEEDS_XVFB = process.platform === 'linux'
  * nested package has its own. `env` merges over what this adds, never replacing.
  */
 export function runElectron(args, { via = 'pnpm', env, ...options } = {}) {
+  const [cmd, argv, opts] = electronCommand(args, { via, env, ...options });
+  return runTool(cmd, argv, opts);
+}
+
+/** {@link runElectron} without waiting: for a caller that must keep answering
+ *  the process while it runs. */
+export function spawnElectron(args, { via = 'pnpm', env, ...options } = {}) {
+  const [cmd, argv, opts] = electronCommand(args, { via, env, ...options });
+  return spawnTool(cmd, argv, opts);
+}
+
+function electronCommand(args, { via, env, ...options }) {
   ensureElectronBinary();
   const electron = via === 'npx' ? ['npx', 'electron'] : ['pnpm', 'exec', 'electron'];
   const [cmd, ...rest] = NEEDS_XVFB
     ? ['xvfb-run', '-a', '--server-args', SCREEN, ...electron]
     : electron;
-  return runTool(cmd, [...rest, ...args], {
+  return [cmd, [...rest, ...args], {
     ...options,
     env: { ...process.env, ELECTRON_DISABLE_SANDBOX: '1', ...env },
-  });
+  }];
 }

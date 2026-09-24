@@ -28,6 +28,8 @@
  *        have no import maps and a different module/asset model, so this is its
  *        own path. Pure Node (esbuild + fs) — IPC wiring is in main.ts.
  */
+import type { DebugChannelConfig } from 'esengine';
+import { packagedDebugChannel } from './debugChannel';
 import { loadEsbuild } from '../bundle/esbuildRuntime';
 import type { ProjectFeatures, ProjectPackaging } from '../project/format';
 import {
@@ -288,6 +290,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
    *  generated boot passes the packaged slice of them to the vendor runtime. */
   runtime?: RuntimeProjectConfig;
   minify?: boolean;
+  debugChannel?: DebugChannelConfig | null;
   /**
    * Where emcc is, for the systems a project marked `@compiled`
    * (docs/REARCH_AOT.md). Absent ⇒ found from the environment; a project that
@@ -477,6 +480,8 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
       ? `, uiThemeOverrides: parseThemeOverrides(${JSON.stringify(v)})`
       : `, ${k}: ${JSON.stringify(v)}`))
     .join('');
+  const debugChannel = packagedDebugChannel(opts);
+  const debugArg = debugChannel ? `, debugChannel: ${JSON.stringify(debugChannel)}` : '';
   // esengine/minigame installs no platform until a host is named, so boot() names
   // one: a built-in points at a shipped module, a project vendor at a file beside
   // its own platform. Unjoined, the package builds and throws on the device.
@@ -540,7 +545,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     `export function boot(engineFactory, sideModuleFactories) {\n` +
     (profile.platformInit ? `  ${profile.platformInit}();\n` : '') +
     (installsPlatform ? `  installMiniGamePlatform(__platformProfile);\n` : '') +
-    `  return ${profile.runtimeInit}({ engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}${runtimeLayout.sideModuleSuffix === '.wasm' ? '' : `, sideModuleSuffix: ${JSON.stringify(runtimeLayout.sideModuleSuffix)}`}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}, firstScene: ${JSON.stringify(sceneName)}${runtimeArgs}${projectDeclarations.length > 0 ? `, sideModules: ${JSON.stringify(projectDeclarations)}` : ''}${aotArg} });\n` +
+    `  return ${profile.runtimeInit}({ engineFactory, engineWasmPath: ${JSON.stringify(engineWasmPath)}${runtimeLayout.sideModuleSuffix === '.wasm' ? '' : `, sideModuleSuffix: ${JSON.stringify(runtimeLayout.sideModuleSuffix)}`}, sideModuleFactories, sceneNames: ${JSON.stringify(scenes.map((s) => s.name))}, firstScene: ${JSON.stringify(sceneName)}${runtimeArgs}${projectDeclarations.length > 0 ? `, sideModules: ${JSON.stringify(projectDeclarations)}` : ''}${aotArg}${debugArg} });\n` +
     `}\n`;
   progress({ phase: 'Bundling game' });
   /** What each subsystem costs in the bundle — empty if esbuild wrote no metafile. */

@@ -96,6 +96,9 @@ importers:
       wasm-media-encoders:
         specifier: ^0.7.0
         version: 0.7.0
+      ws:
+        specifier: ^8.21.0
+        version: 8.21.0
       zustand:
         specifier: ^5.0.14
         version: 5.0.14(@types/react@19.2.17)(react@19.2.7)
@@ -124,6 +127,9 @@ importers:
       '@types/react-dom':
         specifier: ^19.2.0
         version: 19.2.3(@types/react@19.2.17)
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
       '@vitejs/plugin-react':
         specifier: ^6.0.2
         version: 6.0.2(vite@8.0.16(@types/node@25.9.3)(esbuild@0.27.7)(jiti@2.7.0)(terser@5.46.0))

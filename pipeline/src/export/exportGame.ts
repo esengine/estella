@@ -29,7 +29,8 @@ import { cookAssets, loadAssetGroups, type CookManifest, type Inclusion } from '
 import { cookWorlds, streamedScenes } from '../world/cookWorld';
 import { buildAddressableManifest } from '../assets/addressableManifest';
 import { activeRemoteRoot } from '../../../sdk/src/asset/assetGroups';
-import type { PackagedGameConfig } from 'esengine';
+import type { DebugChannelConfig, PackagedGameConfig } from 'esengine';
+import { packagedDebugChannel } from './debugChannel';
 import {
   DEFAULT_RUNTIME_CONFIG, packagedRuntimeFields, type RuntimeProjectConfig,
 } from '../project/runtimeConfig';
@@ -304,7 +305,11 @@ function externalEngineImports(metafile: { outputs: Record<string, { imports?: {
  *  for desktop (the Electron shell sizes its own window). */
 function indexHtml(
   title: string, map: EngineImportMap, look: SplashLook, orientation?: ScreenOrientation,
+  debugChannel?: DebugChannelConfig,
 ): string {
+  // The editor a development build dials is the one address beyond 'self' the
+  // page may connect to; a build without a channel lists none.
+  const connect = debugChannel ? ` ${new URL(debugChannel.url).origin}` : '';
   // Every inline script on this page needs its hash listed, or the browser blocks it.
   const inlineScripts = [map.cspHash, ...(orientation ? [orientationLockCspHash(orientation)] : [])]
     .map((h) => `'${h}'`)
@@ -315,7 +320,7 @@ function indexHtml(
     <meta charset="UTF-8" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' 'unsafe-eval' blob: ${inlineScripts}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' data: blob:; worker-src 'self' blob:;"
+      content="default-src 'self'; script-src 'self' 'unsafe-eval' blob: ${inlineScripts}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' data: blob:${connect}; worker-src 'self' blob:;"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
     <title>${title}</title>
@@ -517,6 +522,9 @@ export interface ExportGameOptions {
   /** Shipping config: minify the bundles, no sourcemap. Default off (dev). */
   minify?: boolean;
   sourcemap?: boolean;
+  /** Where the editor listens for this development build; with `minify`, the
+   *  export fails (see `packagedDebugChannel`). */
+  debugChannel?: DebugChannelConfig | null;
   /**
    * The project's runtime settings, derived ONCE from the manifest
    * (`runtimeConfigOf`) rather than re-listed per target. Every packaged build
@@ -655,6 +663,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   // to take them as loose fields and each one had to remember the same list.
   const runtime = opts.runtime ?? DEFAULT_RUNTIME_CONFIG;
   const progress = opts.onProgress ?? (() => {});
+  const debugChannel = packagedDebugChannel(opts);
   const scenes = await discoverProjectScenes(opts.root, opts.entryScene, opts.scenesDir, opts.excludeScenes);
 
   // Cutting a world is part of the common cook below, which the three pipelines
@@ -699,6 +708,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       orientation,
       runtime,
       minify: opts.minify,
+      debugChannel: opts.debugChannel,
       emcc: opts.emcc,
       aotMode: opts.aotMode,
       contentAddressed: opts.contentAddressed,
@@ -738,6 +748,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       orientation,
       runtime,
       minify: opts.minify,
+      debugChannel: opts.debugChannel,
       emcc: opts.emcc,
       aotMode: opts.aotMode,
       contentAddressed: opts.contentAddressed,
@@ -1064,7 +1075,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     const look = await splashLook(opts.root, opts.splash, warnings);
     await writeFile(
       path.join(payloadDir, 'index.html'),
-      indexHtml(title, engineMap, look, platform === 'web' ? orientation : undefined),
+      indexHtml(title, engineMap, look, platform === 'web' ? orientation : undefined, debugChannel),
     );
   }
   // Typed against the SDK's contract, so a field the runtimes read can never be
@@ -1078,6 +1089,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       ? { sideModules: sideModuleDeclarations(projectModules, platform) } : {}),
     ...(aot ? { aot } : {}),
     ...(world.worlds.length > 0 ? { worlds: world.worlds } : {}),
+    ...(debugChannel ? { debugChannel } : {}),
   };
   await writeFile(path.join(payloadDir, 'game.config.json'), JSON.stringify(gameConfig, null, 2) + '\n');
 

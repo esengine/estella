@@ -30,6 +30,9 @@ const USAGE = `usage: node pipeline/bin/estella.mjs export <projectDir> [options
   --json <file>       also write the result here, for a caller that reads it back
   --enforce-budget    fail (exit 1) when the package is over a size limit
   --minify            minify the bundled scripts, as a shipping build does
+  --debug-channel <url>  a development build dials this editor address
+                      (ws://host:port/?token=…) so its frames can be captured;
+                      refused together with --minify
   --no-aot            package without compiling the systems marked @compiled, so
                       the same project runs both ways and the frames are compared
   --steam-sdk <dir>   desktop: a Steamworks SDK whose redistributable ships in the app
@@ -847,6 +850,7 @@ try {
     iosSources: platform === 'ios' && templateDir ? iosTemplateSources(templateDir) : null,
     androidOutput: opts.output === 'project' ? 'project' : undefined,
     minify: opts.minify,
+    ...(opts['debug-channel'] ? { debugChannel: { url: opts['debug-channel'] } } : {}),
     // `dev` is what the AOT step calls "do not compile" — the editor's preview
     // mode, reused here so there is one word for it (docs/REARCH_AOT.md §9).
     ...(opts['no-aot'] ? { aotMode: 'dev' } : {}),

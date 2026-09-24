@@ -46,6 +46,7 @@ export const PACKAGING_SIZE_ROLE: Readonly<Record<string, keyof SizeSettings | '
     platform: 'inert',
     config: 'minify',
     sourceMaps: 'sourcemap',
+    frameDebugger: 'content',
     openFolder: 'inert',
     orientation: 'inert',
     assetCompression: 'compressTextures',

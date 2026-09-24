@@ -31,6 +31,7 @@ import { createMiniGameSideModuleHost, type MiniGameSideModuleFactories } from '
 import type { Physics2DPluginConfig } from '../physics/PhysicsTypes';
 import type { SceneData } from '../scene/scene';
 import type { AotManifest } from '../ecs/aot/AotSystems';
+import type { DebugChannelConfig } from './debugChannel';
 import { log } from '../util/logger';
 import { Schedule, defineSystem } from '../ecs/system';
 import type { App } from '../app/app';
@@ -162,6 +163,7 @@ export interface MiniGameRuntimeConfig {
      * a package file and nothing else, which is also why the seam instantiates.
      */
     aot?: { module: string; manifest: AotManifest };
+    debugChannel?: DebugChannelConfig;
 }
 
 /**
@@ -296,6 +298,7 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
         audioConfig: config.audioConfig,
         aspectRatio: canvas.width / canvas.height,
         ...(config.aot ? { aot: config.aot } : {}),
+        ...(config.debugChannel ? { debugChannel: config.debugChannel } : {}),
     });
 
     progress.reach('ready');

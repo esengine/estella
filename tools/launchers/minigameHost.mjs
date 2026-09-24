@@ -111,19 +111,29 @@ export const HOST_PAGE = (entry, failSubpackage = null) => `<!doctype html>
         o.success && o.success({ data, statusCode: r.status });
       }).catch((e) => o.fail && o.fail({ errMsg: String(e) })).finally(() => o.complete && o.complete());
     },
-    // Audio and sockets are stubs on purpose: a launch smoke asks whether the
-    // package starts and draws, and a silent stub cannot fake either answer.
+    // Audio is a stub on purpose: a launch smoke asks whether the package starts
+    // and draws, and a silent stub cannot fake either answer.
     createInnerAudioContext: () => ({
       play: noop, pause: noop, stop: noop, destroy: noop, seek: noop,
       onPlay: noop, onPause: noop, onStop: noop, onEnded: noop, onError: noop, onCanplay: noop,
       offPlay: noop, offPause: noop, offStop: noop, offEnded: noop, offError: noop, offCanplay: noop,
       src: '', loop: false, volume: 1, autoplay: false, currentTime: 0, duration: 0, paused: true,
     }),
-    connectSocket: () => ({
-      send: noop, close: noop,
-      onOpen: noop, onClose: noop, onError: noop, onMessage: noop,
-      offOpen: noop, offClose: noop, offError: noop, offMessage: noop,
-    }),
+    // A real socket, in the SocketTask shape: a development build dials the
+    // editor through it, and a stub would pass that check without a byte moving.
+    connectSocket: (o) => {
+      const ws = new WebSocket(o.url, o.protocols);
+      ws.binaryType = 'arraybuffer';
+      return {
+        send: (m) => { ws.send(m.data); m.success && m.success(); },
+        close: (m = {}) => ws.close(m.code, m.reason),
+        onOpen: (cb) => ws.addEventListener('open', () => cb({})),
+        onClose: (cb) => ws.addEventListener('close', (e) => cb({ code: e.code, reason: e.reason })),
+        onError: (cb) => ws.addEventListener('error', () => cb({ errMsg: 'connectSocket:fail' })),
+        onMessage: (cb) => ws.addEventListener('message', (e) => cb({ data: e.data })),
+        offOpen: noop, offClose: noop, offError: noop, offMessage: noop,
+      };
+    },
     onTouchStart: noop, onTouchMove: noop, onTouchEnd: noop,
     offTouchStart: noop, offTouchMove: noop, offTouchEnd: noop,
     onTouchCancel: noop, offTouchCancel: noop,

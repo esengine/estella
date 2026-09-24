@@ -12,6 +12,7 @@
  *          the bytes arrive, so the same code serves both realms.
  */
 
+import type { DebugChannelConfig } from './debugChannel';
 import { extractUuid } from '../asset/AssetRegistry';
 import { platformReadTextFile, platformLoadImagePixels } from '../platform';
 import { ManifestModel, type AddressableManifest } from '../asset/AddressableManifest';
@@ -111,6 +112,9 @@ export interface PackagedGameConfig {
      * runtime reads presence and needs no mode flag.
      */
     aot?: { module: string; manifest: AotManifest };
+    /** Where the editor that made this development build listens for it. Never
+     *  written by a shipping export. */
+    debugChannel?: DebugChannelConfig;
 }
 
 /** The packaged realm's resolved asset index — manifest, catalog, resolution. */
@@ -200,7 +204,7 @@ export function packagedAppOptions(
 export function packagedRuntimeInit(
     config: Pick<PackagedGameConfig,
         'physicsEnabled' | 'physicsConfig' | 'audioConfig' | 'uiTheme' | 'uiThemeColors'
-        | 'achievements' | 'steamAppId' | 'screenFit' | 'aot'>,
+        | 'achievements' | 'steamAppId' | 'screenFit' | 'aot' | 'debugChannel'>,
 ): {
     physicsEnabled?: boolean;
     physicsConfig?: Physics2DPluginConfig;
@@ -211,6 +215,7 @@ export function packagedRuntimeInit(
     steamAppId?: number;
     screenFit?: PackagedGameConfig['screenFit'];
     aot?: PackagedGameConfig['aot'];
+    debugChannel?: DebugChannelConfig;
 } {
     return {
         physicsEnabled: config.physicsEnabled,
@@ -227,6 +232,7 @@ export function packagedRuntimeInit(
         // is a host the next one never reaches, and this one reached none of the
         // native road until it was asked for by hand.
         aot: config.aot,
+        debugChannel: config.debugChannel,
     };
 }
 
