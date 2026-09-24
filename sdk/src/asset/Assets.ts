@@ -5,7 +5,7 @@ import { Catalog, type AtlasFrameInfo } from './Catalog';
 import { ManifestModel, normalizeBundleMode, type AddressableManifest, type AddressableAssetType } from './AddressableManifest';
 import { diffManifests, type UpdatePlan, type AssetChange } from './hotUpdate';
 import { contentHashHex } from './contentHash';
-import { platformLoadSubpackage, platformGetStorageItem, platformSetStorageItem, platformWriteCacheFile } from '../platform';
+import { platformLoadSubpackage, platformGetStorageItem, platformSetStorageItem, platformRemoveStorageItem, platformWriteCacheFile } from '../platform';
 import type {
     AssetLoader, LoadContext, TextureResult, SpineResult,
     MaterialResult, FontResult, AudioResult, AnimClipResult,
@@ -93,6 +93,22 @@ export interface AssetDownloadFailure {
     reason: 'fetch' | 'integrity';
 }
 
+/**
+ * How far an update got. Each is its own answer: an update can be running in this
+ * session and still be gone on the next launch, which a single `ok` cannot say.
+ */
+export interface UpdateStages {
+    /** Every changed asset downloaded and matched its content hash. */
+    verified: boolean;
+    /** This session runs on the new manifest, and its asset graph has settled on it. */
+    applied: boolean;
+    /** The next launch starts on it: stored, and read back. Null without a persistence key. */
+    persisted: boolean | null;
+    /** Every changed remote asset is in the disk cache, so the next launch reads them
+     *  without the network. Null where the platform keeps no cache. */
+    cached: boolean | null;
+}
+
 /** Outcome of {@link Assets.applyUpdate} — atomic: `ok` only when every changed
  *  asset downloaded + verified and the manifest was swapped. On failure nothing
  *  is applied (`updated: 0`) and `failed` lists why (rollback). */
@@ -100,11 +116,28 @@ export interface ApplyUpdateResult {
     ok: boolean;
     updated: number;
     failed: AssetDownloadFailure[];
+    stages: UpdateStages;
+    /** The revision this session runs on afterwards. */
+    revision: string | null;
+    /** The changed assets the cache refused, by url: what the next launch fetches again. */
+    uncached: string[];
+    /** Why nothing was attempted: no update staged (none checked, or another apply took it). */
+    reason?: 'nothing-staged';
+}
+
+/** What {@link Assets.updateStatus} reports. */
+export interface UpdateStatus {
+    /** The revision this session runs on. */
+    revision: string | null;
+    /** The revision the next launch starts on, when an update was persisted. */
+    persistedRevision: string | null;
+    /** The update {@link Assets.checkForUpdate} staged, and what applying it downloads. */
+    staged: { revision: string | null; assets: number; bytes: number } | null;
+    applying: boolean;
 }
 
 /** The manifest + root staged by checkForUpdate, awaiting applyUpdate. */
 interface PendingUpdate {
-    plan: UpdatePlan;
     model: ManifestModel;
     manifestJson: AddressableManifest;
     remoteRoot: string | null;
@@ -350,11 +383,17 @@ export class Assets {
     private manifestModel_: ManifestModel | null = null;
     /** CDN root that `remote`-group assets resolve against; see {@link setRemoteRoot}. */
     private remoteRoot_?: string;
+    /** Applies run one after another: two at once would each commit, and one that
+     *  finishes after a newer check would clear the newer candidate. */
+    private applyChain_: Promise<unknown> = Promise.resolve();
+    private applying_ = 0;
     /** The update staged by {@link checkForUpdate}, consumed by {@link applyUpdate}. */
     private pendingUpdate_: PendingUpdate | null = null;
     /** Storage key {@link applyUpdate} persists the active manifest under; set by
      *  {@link restorePersistedUpdate}. Null → persistence off. */
     private persistKey_: string | null = null;
+    /** The revision this package shipped, read when persistence is armed at boot. */
+    private shippedRevision_: string | null = null;
     private getAudio_: () => import('../audio/Audio').AudioAPI | null;
     private getSpriteAnimation_: () => import('../animation/SpriteAnimator').SpriteAnimationAPI | null;
     private getLocalization_: () => import('../i18n/Localization').LocalizationAPI | null;
@@ -1010,7 +1049,7 @@ export class Assets {
         const model = ManifestModel.fromJson(json);
         const plan = diffManifests(this.manifestModel_, model);
         const remoteRoot = options.remoteRoot ?? this.remoteRoot_ ?? null;
-        this.pendingUpdate_ = { plan, model, manifestJson: json, remoteRoot };
+        this.pendingUpdate_ = { model, manifestJson: json, remoteRoot };
         return plan;
     }
 
@@ -1025,24 +1064,43 @@ export class Assets {
      * and the failures are returned. No-op with nothing staged.
      */
     async applyUpdate(onProgress?: (loaded: number, total: number) => void): Promise<ApplyUpdateResult> {
+        this.applying_++;
+        const run = this.applyChain_.then(() => this.applyStaged_(onProgress));
+        this.applyChain_ = run.catch(() => {});
+        try {
+            return await run;
+        } finally {
+            this.applying_--;
+        }
+    }
+
+    private async applyStaged_(onProgress?: (loaded: number, total: number) => void): Promise<ApplyUpdateResult> {
         const pending = this.pendingUpdate_;
+        const revision = (): string | null => this.manifestModel_?.revision() ?? null;
+        const none: UpdateStages = { verified: false, applied: false, persisted: false, cached: false };
         if (!pending) {
             log.warn('asset', 'applyUpdate() called with no pending update — call checkForUpdate first');
             onProgress?.(0, 0);
-            return { ok: false, updated: 0, failed: [] };
+            return { ok: false, updated: 0, failed: [], stages: none, revision: revision(), uncached: [], reason: 'nothing-staged' };
         }
-        const changed = pending.plan.changedAssets;
+        // Against what runs NOW, not what ran when it was checked: an apply that
+        // finished in between moved the base, and its assets need no second download.
+        const changed = diffManifests(this.manifestModel_, pending.model).changedAssets;
         const root = pending.remoteRoot ?? undefined;
 
         // Phase 1 — download + verify EVERY changed asset WITHOUT touching the
         // active manifest. Content-addressed, so these are brand-new urls (nothing
         // is overwritten); any failure here leaves the old manifest active = rollback.
         const failed: AssetDownloadFailure[] = [];
+        const uncached: string[] = [];
+        let cacheable = false;
         let done = 0;
         onProgress?.(0, changed.length);
         const tasks = changed.map((c) => async (): Promise<void> => {
-            const reason = await this.fetchAndVerify_(c, pending.model, root);
-            if (reason) failed.push({ path: c.path, reason });
+            const got = await this.fetchAndVerify_(c, pending.model, root);
+            if (got.failure) failed.push({ path: c.path, reason: got.failure });
+            if (got.cache !== 'unsupported' && got.cache !== undefined) cacheable = true;
+            if (got.cache === 'failed') uncached.push(got.url);
         });
         await runWithConcurrency(tasks, DEFAULT_PRELOAD_CONCURRENCY, () => {
             onProgress?.(++done, changed.length);
@@ -1050,7 +1108,7 @@ export class Assets {
 
         if (failed.length > 0) {
             log.warn('asset', `applyUpdate: ${failed.length}/${changed.length} asset(s) failed — update rolled back (manifest unchanged)`);
-            return { ok: false, updated: 0, failed };
+            return { ok: false, updated: 0, failed, stages: none, revision: revision(), uncached: [] };
         }
 
         // Phase 2 — commit atomically. Capture the texture handle bound to each
@@ -1067,6 +1125,8 @@ export class Assets {
         }
         if (pending.remoteRoot != null) this.setRemoteRoot(pending.remoteRoot);
         this.setManifest(pending.model);
+        // A newer check staged while this one downloaded stays staged.
+        if (this.pendingUpdate_ === pending) this.pendingUpdate_ = null;
         // The manifest record already says what kind each changed asset is; the
         // notification carries it rather than collapsing to "maybe a texture".
         // Changing content and rebinding nothing had no words: every holder keeps
@@ -1092,9 +1152,31 @@ export class Assets {
         // not when the manifest was swapped. Bindings converge on a frame, which
         // an app that is not ticking would never reach from here.
         await this.assetGraphSettled();
-        this.persistActiveManifest_(pending.manifestJson);
-        this.pendingUpdate_ = null;
-        return { ok: true, updated: changed.length, failed: [] };
+        const persisted = this.persistActiveManifest_(pending.manifestJson);
+        if (persisted !== true) {
+            log.warn('asset', persisted === false
+                ? 'applyUpdate: the update runs now, but was not stored — the next launch starts on the previous version'
+                : 'applyUpdate: no persistence key (restorePersistedUpdate was never called), so the next launch starts on what shipped');
+        }
+        return {
+            ok: true, updated: changed.length, failed: [], revision: revision(), uncached,
+            stages: { verified: true, applied: true, persisted, cached: cacheable ? uncached.length === 0 : null },
+        };
+    }
+
+    /** Which revision runs, which one the next launch starts on, and what is staged. */
+    updateStatus(): UpdateStatus {
+        const pending = this.pendingUpdate_;
+        const changed = pending ? diffManifests(this.manifestModel_, pending.model).changedAssets : [];
+        return {
+            revision: this.manifestModel_?.revision() ?? null,
+            persistedRevision: this.persistedRevision_(),
+            staged: pending ? {
+                revision: pending.model.revision(), assets: changed.length,
+                bytes: changed.reduce((n, c) => n + c.size, 0),
+            } : null,
+            applying: this.applying_ > 0,
+        };
     }
 
     /** Download one changed asset's bytes from its delivery source (remote → CDN
@@ -1103,24 +1185,22 @@ export class Assets {
      *  root — phase 1 runs before the swap. */
     private async fetchAndVerify_(
         c: AssetChange, model: ManifestModel, root: string | undefined,
-    ): Promise<AssetDownloadFailure['reason'] | null> {
+    ): Promise<{ url: string; failure?: AssetDownloadFailure['reason']; cache?: 'stored' | 'failed' | 'unsupported' }> {
         const group = model.group(c.group);
         const remote = group != null && normalizeBundleMode(group.bundleMode) === 'remote';
         const path = this.manifestAssetUrl_(c.path, remote, root);
+        const url = this.backend.resolveUrl(path);
         try {
-            const url = this.backend.resolveUrl(path);
             const buf = await this.backend.fetchBinary(url);
             if (c.contentHash && contentHashHex(new Uint8Array(buf)) !== c.contentHash) {
-                return 'integrity';
+                return { url, failure: 'integrity' };
             }
-            // Persist the verified, content-addressed bytes to the disk cache (keyed by
-            // the immutable CDN url) so they load offline on the next boot and skip the
-            // CDN. Best-effort (no-op on platforms without a cache, e.g. web); a failed
-            // write never fails the update.
-            if (remote) await platformWriteCacheFile(url, buf);
-            return null;
+            // Verified, content-addressed bytes go to the disk cache keyed by the
+            // immutable CDN url, so the next launch reads them offline. A refused
+            // write does not fail the update; it is reported as not cached.
+            return { url, cache: remote ? await platformWriteCacheFile(url, buf) : undefined };
         } catch {
-            return 'fetch';
+            return { url, failure: 'fetch' };
         }
     }
 
@@ -1133,10 +1213,19 @@ export class Assets {
      */
     restorePersistedUpdate(key: string): boolean {
         this.persistKey_ = key;
+        // What this package shipped: an update stored against any other package is
+        // older than what the player now has installed.
+        this.shippedRevision_ = this.manifestModel_?.revision() ?? null;
         const raw = platformGetStorageItem(key);
         if (!raw) return false;
         try {
-            const parsed = JSON.parse(raw) as { manifest: AddressableManifest; remoteRoot?: string | null };
+            const parsed = JSON.parse(raw) as { manifest: AddressableManifest; remoteRoot?: string | null; base?: string | null };
+            if (parsed.base === undefined || parsed.base !== this.shippedRevision_) {
+                log.info('asset', `a stored update (${parsed.manifest?.revision ?? '?'}) was made for another package `
+                    + `(${parsed.base ?? 'unknown'}, this one ships ${this.shippedRevision_ ?? 'none'}) — starting on what shipped`);
+                platformRemoveStorageItem(key);
+                return false;
+            }
             if (parsed.remoteRoot) this.setRemoteRoot(parsed.remoteRoot);
             this.setManifest(parsed.manifest);
             return true;
@@ -1146,15 +1235,27 @@ export class Assets {
         }
     }
 
-    private persistActiveManifest_(json: AddressableManifest): void {
-        if (!this.persistKey_) return;
+    /** True once stored and read back; a store can drop a write without throwing.
+     *  Null with no persistence key. */
+    private persistActiveManifest_(json: AddressableManifest): boolean | null {
+        if (!this.persistKey_) return null;
+        const value = JSON.stringify({ manifest: json, remoteRoot: this.remoteRoot_ ?? null, base: this.shippedRevision_ });
         try {
-            platformSetStorageItem(
-                this.persistKey_,
-                JSON.stringify({ manifest: json, remoteRoot: this.remoteRoot_ ?? null }),
-            );
+            platformSetStorageItem(this.persistKey_, value);
+            return platformGetStorageItem(this.persistKey_) === value;
         } catch (e) {
             log.warn('asset', 'failed to persist updated manifest', e);
+            return false;
+        }
+    }
+
+    private persistedRevision_(): string | null {
+        const raw = this.persistKey_ ? platformGetStorageItem(this.persistKey_) : null;
+        if (!raw) return null;
+        try {
+            return (JSON.parse(raw) as { manifest?: AddressableManifest }).manifest?.revision ?? null;
+        } catch {
+            return null;
         }
     }
 

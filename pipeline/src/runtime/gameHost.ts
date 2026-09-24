@@ -854,12 +854,16 @@ async function boot(): Promise<void> {
       /** Drive a hot update against a served (CDN) manifest: fetch + diff + apply.
        *  Rebinding the visuals is the game's job (via Assets.onInvalidate); a
        *  driver settles frames after this before re-capturing. */
-      async applyRemoteUpdate(manifestUrl: string, remoteRoot?: string): Promise<{ changed: number; applied: boolean; failed: number }> {
+      async applyRemoteUpdate(manifestUrl: string, remoteRoot?: string) {
         const assets = app.getResource(Assets);
         const plan = await assets.checkForUpdate({ manifestUrl, remoteRoot });
         const result = await assets.applyUpdate();
-        return { changed: plan.changedAssets.length, applied: result.ok, failed: result.failed.length };
+        return {
+          changed: plan.changedAssets.length, applied: result.ok, failed: result.failed.length,
+          stages: result.stages, revision: result.revision,
+        };
       },
+      updateStatus: () => app.getResource(Assets).updateStatus(),
     };
     // Each behind its OWN export. They are different ABIs now: readying a
     // prepared cell ships, and deriving the same from live entities is the

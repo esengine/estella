@@ -34,6 +34,8 @@ const opts = (root: string, outDir: string) => ({
   outDir,
   title: 'Hot Update Demo',
   contentAddressed: true,
+  // A game that updates stores what it applied; the verifier relaunches to see it.
+  hotUpdate: { persistUpdateKey: 'esengine:hotupdate:verify' },
 });
 
 describe.skipIf(!process.env.ESTELLA_HOTUPDATE_FIXTURE)('hot-update verify fixture', () => {

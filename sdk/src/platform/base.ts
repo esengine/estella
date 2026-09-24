@@ -214,20 +214,22 @@ export async function platformReadCacheFile(key: string): Promise<ArrayBuffer | 
     }
 }
 
-/** Persist a content-addressed asset to the cache. No-op when the platform has no
- *  cache (web) or is uninitialized (tests). A failed write never fails the update,
- *  but it is said once: silence is how the native host refused every write unseen. */
-export async function platformWriteCacheFile(key: string, bytes: ArrayBuffer): Promise<void> {
-    if (!isPlatformInitialized()) return;
+/** Persist a content-addressed asset to the cache: `stored`, `failed` (said once in
+ *  the log as well), or `unsupported` where the platform keeps no cache (web) or is
+ *  uninitialized (tests). A caller decides what a failed write means for it. */
+export async function platformWriteCacheFile(key: string, bytes: ArrayBuffer): Promise<'stored' | 'failed' | 'unsupported'> {
+    if (!isPlatformInitialized()) return 'unsupported';
     const p = getPlatform();
-    if (!p.writeCacheFile) return;
+    if (!p.writeCacheFile) return 'unsupported';
     try {
         await p.writeCacheFile(key, bytes);
+        return 'stored';
     } catch (err) {
         if (!cacheWriteFailureReported) {
             cacheWriteFailureReported = true;
             log.warn('asset', `cache write failed, so updated assets will need the network next launch: ${String(err)}`);
         }
+        return 'failed';
     }
 }
 
@@ -287,6 +289,11 @@ export function platformGetStorageItem(key: string): string | null {
 export function platformSetStorageItem(key: string, value: string): void {
     if (!isPlatformInitialized()) return;
     getPlatform().setStorageItem(key, value);
+}
+
+export function platformRemoveStorageItem(key: string): void {
+    if (!isPlatformInitialized()) return;
+    getPlatform().removeStorageItem(key);
 }
 
 /** Whether this platform can mint ad units at all, without minting one (a

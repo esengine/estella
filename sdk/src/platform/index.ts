@@ -55,6 +55,7 @@ export {
     platformOnAppHide,
     platformGetStorageItem,
     platformSetStorageItem,
+    platformRemoveStorageItem,
     platformDevicePixelRatio,
     platformLanguage,
     platformCanCreateAds,

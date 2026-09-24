@@ -38,7 +38,8 @@ vi.mock('../src/platform', () => {
         platformLoadSubpackage: vi.fn(() => Promise.resolve()),
         platformGetStorageItem: (k: string) => store.get(k) ?? null,
         platformSetStorageItem: (k: string, v: string) => { store.set(k, v); },
-        platformWriteCacheFile: vi.fn((k: string, b: ArrayBuffer) => { cache.set(k, b); return Promise.resolve(); }),
+        platformRemoveStorageItem: (k: string) => { store.delete(k); },
+        platformWriteCacheFile: vi.fn((k: string, b: ArrayBuffer) => { cache.set(k, b); return Promise.resolve('stored'); }),
         __store: store,
         __cache: cache,
     };
@@ -279,7 +280,8 @@ describe('Assets.checkForUpdate / applyUpdate', () => {
         const progress: [number, number][] = [];
         const result = await assets.applyUpdate((loaded, total) => progress.push([loaded, total]));
 
-        expect(result).toEqual({ ok: true, updated: 1, failed: [] });
+        expect(result).toMatchObject({ ok: true, updated: 1, failed: [], revision: 'rev-2' });
+        expect(result.stages).toEqual({ verified: true, applied: true, persisted: null, cached: true });
         // Manifest + root are now the update's.
         expect(assets.getManifest()?.revision()).toBe('rev-2');
         expect(assets.remoteRoot).toBe('https://cdn/v2');
@@ -396,6 +398,7 @@ describe('Assets.restorePersistedUpdate', () => {
 
         // A returning player boots a fresh Assets straight onto the updated manifest.
         const second = createAssets(backendServing());
+        second.setManifest(cdnManifest('aaaa', 'rev-1'));
         const restored = second.restorePersistedUpdate('hotupdate:demo');
         expect(restored).toBe(true);
         expect(second.getManifest()?.revision()).toBe('rev-2');

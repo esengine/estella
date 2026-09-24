@@ -154,10 +154,24 @@ app.whenReady().then(async () => {
       });
     }
 
-    const ok = isGreen(before) && isRed(after) && changed >= 1 && refused.every((r) => r.ok);
+    // The stages a browser can honestly claim: stored in localStorage and read
+    // back, and no disk cache to have put anything in.
+    const stagesOk = good?.stages?.verified === true && good.stages.applied === true
+      && good.stages.persisted === true && good.stages.cached === null;
+    // A relaunch starts on the update, not on what shipped: the whole point of
+    // persisting it. The refused updates in between must not have displaced it.
+    await win.loadURL(`${base}/index.html?headless=1`);
+    let back = false;
+    for (let i = 0; i < 150 && !back; i++) { back = await exec('!!window.__estellaCooked').catch(() => false); if (!back) await sleep(100); }
+    await sleep(1800);
+    const relaunched = { pixel: await exec(center), status: await exec('window.__estellaCooked.updateStatus()') };
+    const relaunchOk = isRed(relaunched.pixel) && relaunched.status?.revision === good?.revision
+      && relaunched.status?.persistedRevision === good?.revision;
+
+    const ok = isGreen(before) && isRed(after) && changed >= 1 && refused.every((r) => r.ok) && stagesOk && relaunchOk;
 
     console.log(`\n[verify:render:hotupdate] ${ok ? 'PASS' : 'FAIL'}`);
-    console.log('DRIVE_RESULT ' + JSON.stringify({ before, after, changed, good, greenBefore: isGreen(before), redAfter: isRed(after), refused, diag: diag.slice(0, 8) }));
+    console.log('DRIVE_RESULT ' + JSON.stringify({ before, after, changed, good, greenBefore: isGreen(before), redAfter: isRed(after), refused, stagesOk, relaunched, relaunchOk, diag: diag.slice(0, 8) }));
     failed = !ok;
   } catch (e) {
     console.log('\n[verify:render:hotupdate] FAIL — ' + (e?.message ?? e));

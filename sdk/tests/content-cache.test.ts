@@ -114,9 +114,9 @@ describe('node adapter disk cache (real filesystem)', () => {
 });
 
 describe('cache wrappers degrade on a platform with no cache (web)', () => {
-    it('read returns null and write no-ops when the adapter omits the methods', async () => {
+    it('read returns null and write says unsupported when the adapter omits the methods', async () => {
         setPlatform(mockPlatform({})); // no readCacheFile / writeCacheFile
         expect(await platformReadCacheFile('k')).toBeNull();
-        await expect(platformWriteCacheFile('k', new ArrayBuffer(2))).resolves.toBeUndefined();
+        await expect(platformWriteCacheFile('k', new ArrayBuffer(2))).resolves.toBe('unsupported');
     });
 });

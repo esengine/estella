@@ -105,6 +105,9 @@ export {
     textureFormatOf,
     type TextureFormatReport,
     type TextureFormatRecord,
+    type ApplyUpdateResult,
+    type UpdateStages,
+    type UpdateStatus,
 } from './asset';
 
 /** When the live bindings that READ the asset graph have caught up with it —
