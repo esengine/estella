@@ -48,6 +48,8 @@ export interface PlatformRuntimeDirs {
    *  The directory is what makes a package's engine CommonJS; the filename in it
    *  is only a name, and a project's own vendor dir may use either. */
   minigame: string;
+  /** The mini-game engine without SIMD and BigInt i64, for the quick-game hosts. */
+  quickgame: string;
 }
 
 /** What the renderer needs to draw one platform row. Serializable by construction. */
@@ -128,6 +130,11 @@ function builtinReadiness(
       return MINIGAME_ENGINE_GLUE.some((g) => has(dirs.minigame, g))
         ? { ready: true }
         : { ready: false, prereq: { kind: 'runtime-missing', dir: posix(dirs.minigame), looked: [...MINIGAME_ENGINE_GLUE], command: `node build-tools/cli.js build -t ${MINIGAME_ENGINE_BUILD}` } };
+
+    case 'quickgame':
+      return MINIGAME_ENGINE_GLUE.some((g) => has(dirs.quickgame, g))
+        ? { ready: true }
+        : { ready: false, prereq: { kind: 'runtime-missing', dir: posix(dirs.quickgame), looked: [...MINIGAME_ENGINE_GLUE], command: 'node build-tools/cli.js build -t quickgame' } };
 
     case 'android':
       // The runtime template is the whole prerequisite: the APK is assembled and

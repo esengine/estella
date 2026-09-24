@@ -203,6 +203,35 @@ const BILIBILI_SERVICES: readonly ServiceStatus[] = [
     { service: 'achievements', support: 'no', note: ACHIEVEMENTS_LOCAL_ONLY },
 ];
 
+/** From vivo's and OPPO's docs; a game has run on vivo's engine in an emulator,
+ *  and nothing here has been exercised on a device. */
+const QUICKGAME_SERVICES: readonly ServiceStatus[] = [
+    {
+        service: 'ads',
+        support: 'unknown',
+        note: 'qg.createRewardedVideoAd / qg.createInterstitialAd are documented by vivo and OPPO (onClose carries'
+            + ' isEnded); a phone that is not the vendor\'s only gets preview ads. Unverified on a device.',
+    },
+    {
+        service: 'share',
+        support: 'no',
+        note: 'The hosts share through their own qg.share rather than shareAppMessage, so the engine\'s share sheet'
+            + ' reports itself unavailable here.',
+    },
+    {
+        service: 'signIn',
+        support: 'unknown',
+        note: 'The engine forwards to qg.login; what it yields differs between vendors. Unverified on a device.',
+    },
+    {
+        service: 'purchase',
+        support: 'no',
+        note: 'Each vendor sells through its own qg.pay with a server-signed order — a shape the engine\'s purchase'
+            + ' request does not carry, so the profile leaves the slot empty.',
+    },
+    { service: 'achievements', support: 'no', note: ACHIEVEMENTS_LOCAL_ONLY },
+];
+
 const DESKTOP_SERVICES: readonly ServiceStatus[] = noHostServices().map((s) => (
     s.service === 'achievements'
         ? {
@@ -226,6 +255,7 @@ export function builtinServiceSupport(platform: ExportPlatform): readonly Servic
     if (platform === 'douyin') return DOUYIN_SERVICES;
     if (platform === 'kuaishou') return KUAISHOU_SERVICES;
     if (platform === 'bilibili') return BILIBILI_SERVICES;
+    if (platform === 'quickgame') return QUICKGAME_SERVICES;
     if (platform === 'desktop') return DESKTOP_SERVICES;
     if (platform === 'web' || platform === 'playable' || platform === 'android' || platform === 'ios') {
         return noHostServices();

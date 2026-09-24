@@ -36,7 +36,7 @@ import {
 import { engineImportMap, FULL_IMPORT_MAP, LEAN_ENTRY_FILE, FULL_ENTRY_FILE, type EngineImportMap } from '../bundle/importMap';
 import { engineInstalls, forcedSideModules, moduleChoices, type EngineInstallPlan } from '../bundle/engineInstalls';
 import { exportMiniGame } from './exportMiniGame';
-import { wechatExportProfile, douyinExportProfile, kuaishouExportProfile, bilibiliExportProfile } from './miniGameExportProfile';
+import { wechatExportProfile, douyinExportProfile, kuaishouExportProfile, bilibiliExportProfile, quickgameExportProfile } from './miniGameExportProfile';
 import type { MiniGameExportProfile } from './miniGameExportProfile';
 
 /** The mini-game vendors the editor ships, by platform id. */
@@ -45,12 +45,14 @@ const BUILTIN_MINIGAME_PROFILES: Readonly<Record<string, MiniGameExportProfile>>
   douyin: douyinExportProfile,
   kuaishou: kuaishouExportProfile,
   bilibili: bilibiliExportProfile,
+  quickgame: quickgameExportProfile,
 };
 import { exportPlayable } from './exportPlayable';
 import { genericPlayableProfile, type PlayableAdProfile } from './playableAdProfile';
 import type { OnExportProgress } from './exportProgress';
 import { ESENGINE_EXTERNAL, ESENGINE_SUBPATHS } from '../bundle/esengineResolve';
 import { officialPackagesPlugin } from '../bundle/officialPackages';
+import type { RpkSigningKey } from './rpk';
 import { buildCompiledSystems, type BuildMode } from '../bundle/buildCompiledSystems';
 import { resolveEmcc, runEmcc } from '../bundle/emccPath';
 import { findHostCC } from '../../../compiler/src/hostCC';
@@ -270,6 +272,8 @@ export interface ExportGameResult {
   /** Playable, zip-delivery networks: the archive written beside the HTML — the file
    *  the network takes an upload of. */
   zipFile?: string;
+  /** A mini-game vendor's single-file package (a quick game's signed `.rpk`). */
+  packageFile?: string;
   /** Playable: what the single file is made of. See ExportPlayableResult. */
   inlineParts?: { path: string; bytes: number }[];
   /** What the package weighs, and how it fared against the limits in force.
@@ -469,6 +473,11 @@ export interface ExportGameOptions {
    * `wechatAppid` is how the Douyin export came to send one.
    */
   miniGameAppid?: string;
+  /** The build ordinal a mini-game host compares packages by. Absent ⇒ 1. */
+  miniGameVersionCode?: number;
+  /** The project's key for a mini-game vendor that takes a signed file (a quick
+   *  game's `.rpk`). Absent ⇒ signed with the public debug key. */
+  miniGameReleaseKey?: RpkSigningKey;
   /** Reverse-DNS application id for a native target (format.ts resolveAppId).
    *  Written into app.config.json, where the packagers read it. */
   appId?: string;
@@ -596,7 +605,7 @@ async function attachSizeReport(result: ExportGameResult, opts: ExportGameOption
   // applies to. The playable ships its single file as index.html unless a zip
   // was written for a zip-delivery network.
   const desktopApps = result.appBundles ?? [];
-  const packages = [result.apkFile, result.aabFile, result.zipFile, ...desktopApps.map((a) => a.dir)]
+  const packages = [result.apkFile, result.aabFile, result.zipFile, result.packageFile, ...desktopApps.map((a) => a.dir)]
     .filter((p): p is string => !!p);
   // Desktop makes one package per OS; the limit is judged on the one this machine
   // could run, falling back to the first, because a per-OS budget would be a
@@ -605,7 +614,7 @@ async function attachSizeReport(result: ExportGameResult, opts: ExportGameOption
     ?? desktopApps[0];
   const deliverable = result.platform === 'playable'
     ? result.zipFile ?? path.join(result.outDir, 'index.html')
-    : result.apkFile ?? result.aabFile ?? desktopApp?.dir;
+    : result.packageFile ?? result.apkFile ?? result.aabFile ?? desktopApp?.dir;
   try {
     const size = await measureBuild({
       root: result.outDir,
@@ -680,6 +689,9 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       title,
       appid: opts.miniGameAppid,
       appVersion: opts.appVersion,
+      versionCode: opts.miniGameVersionCode,
+      appIcon: opts.appIcon,
+      releaseKey: opts.miniGameReleaseKey,
       features: opts.features,
       modulesByPlatform: opts.modulesByPlatform,
       orientation,
@@ -716,6 +728,9 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       title,
       appid: opts.miniGameAppid,
       appVersion: opts.appVersion,
+      versionCode: opts.miniGameVersionCode,
+      appIcon: opts.appIcon,
+      releaseKey: opts.miniGameReleaseKey,
       features: opts.features,
       modulesByPlatform: opts.modulesByPlatform,
       orientation,

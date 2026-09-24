@@ -14,6 +14,11 @@
 import { WECHAT_MODULE_BUILD_TARGET } from '../bundle/sideModuleScan';
 import type { RuntimeHost } from '../bundle/runtimeHosts';
 import type { SizeBudget } from '../project/sizeBudget';
+import { packRpk, type RpkSigningKey } from './rpk';
+import { RPK_DEBUG_KEY } from './rpkDebugKey';
+import { QUICKGAME_DEFAULT_ICON } from './quickgameDefaultIcon';
+import { readdir, readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 
 /**
  * A mini-game vendor's id. Open on purpose: the value is identity — the cook's
@@ -22,7 +27,7 @@ import type { SizeBudget } from '../project/sizeBudget';
  * ship can still be exported by handing {@link exportMiniGame} a profile.
  * Mirrors the SDK's `MiniGameVendor` (sdk/src/platform/minigame/api.ts).
  */
-export type MiniGameVendor = 'wechat' | 'douyin' | 'kuaishou' | 'bilibili' | (string & {});
+export type MiniGameVendor = 'wechat' | 'douyin' | 'kuaishou' | 'bilibili' | 'quickgame' | (string & {});
 
 /** Vendor-neutral facts the pipeline computes, handed to the config emitter. */
 export interface MiniGameConfigContext {
@@ -30,6 +35,10 @@ export interface MiniGameConfigContext {
     appid: string;
     /** The project's version, for a host whose config asks for one. */
     version: string;
+    /** The build ordinal a host compares to tell a newer package from an older one. */
+    versionCode: number;
+    /** The project's app icon (packaging.icon), or null when it has none. */
+    icon: Uint8Array | null;
     orientation: 'portrait' | 'landscape';
     /** Lazy groups present in the cook, as vendor subpackage roots. */
     subPackages: ReadonlyArray<{ name: string; root: string }>;
@@ -74,6 +83,16 @@ export function isEsModule(glue: string): boolean {
     return /\bexport\s+default\b/.test(glue);
 }
 
+/** What a vendor that ships a single file is handed to make it. */
+export interface MiniGamePackContext {
+    /** The finished package directory. */
+    outDir: string;
+    /** The vendor's id for the game (for a quick game, its package name). */
+    appid: string;
+    /** The project's own signing key; absent ⇒ the build is signed for debugging. */
+    releaseKey?: RpkSigningKey;
+}
+
 /** Vendor-neutral facts the pipeline computes, handed to the entry emitter. */
 export interface MiniGameEntryContext {
     /** Optional modules the shipped scenes need (physics/spine/basis/videodec). */
@@ -98,16 +117,16 @@ export interface MiniGameEntryContext {
  * loads JS the same way — so this is the family default, and a profile only
  * overrides it for an unusual loader.
  */
-export function defaultMiniGameEntry(ctx: MiniGameEntryContext): string {
+export function defaultMiniGameEntry(ctx: MiniGameEntryContext, load = 'require'): string {
     const requires = ctx.sideModules
-        .map((m) => `  ${JSON.stringify(m.id)}: asFactory(require('./${ctx.runtimeDir}/${m.file}.js')),`)
+        .map((m) => `  ${JSON.stringify(m.id)}: asFactory(${load}('./${ctx.runtimeDir}/${m.file}.js')),`)
         .join('\n');
     const boot = `const asFactory = (m) => (typeof m === 'function' ? m : (m && m.default) || m);
-const engineFactory = asFactory(require('./${ctx.runtimeDir}/${ctx.engineGlueFile}'));
+const engineFactory = asFactory(${load}('./${ctx.runtimeDir}/${ctx.engineGlueFile}'));
 const sideModuleFactories = {
 ${requires}
 };
-const bundle = require('./game-bundle.js');
+const bundle = ${load}('./game-bundle.js');
 // A boot that fails rejects; a host without onUnhandledRejection drops that
 // silently, which leaves a device on the loading screen with nothing in the log.
 Promise.resolve(bundle.boot(engineFactory, sideModuleFactories)).catch(function (e) {
@@ -255,7 +274,13 @@ export interface MiniGameExportProfile {
     readonly runtimeProfileHost?: RuntimeHost;
 
     /** Emit the vendor config files (game.json + project.config.json). */
-    emitConfigFiles(ctx: MiniGameConfigContext): Array<{ file: string; content: string }>;
+    emitConfigFiles(ctx: MiniGameConfigContext): Array<{ file: string; content: string | Uint8Array }>;
+    /**
+     * Turn the finished directory into the one file the vendor takes, when it
+     * takes a file (a quick game's signed `.rpk`). Absent ⇒ the directory is the
+     * package, as a WeChat project is.
+     */
+    pack?(ctx: MiniGamePackContext): Promise<{ file: string; warnings: string[] }>;
     /** Emit the MiniGame entry the host runs (game.js). */
     emitEntry(ctx: MiniGameEntryContext): string;
 }
@@ -504,3 +529,103 @@ export const bilibiliExportProfile: MiniGameExportProfile = {
 
     emitEntry: defaultMiniGameEntry,
 };
+
+// =============================================================================
+// Quick-game profile (快游戏联盟: vivo / OPPO / Xiaomi / Honor)
+// =============================================================================
+
+const QUICKGAME_ICON = 'icon.png';
+
+/** The host evaluates a required file at global scope with no CommonJS wrapper
+ *  (a package that relied on one died on `module is not defined`), so each load
+ *  gets a fresh module/exports on the global and hands back module.exports. */
+const COMMONJS_SHIM = 'var __load = function (p) { var m = { exports: {} }; globalThis.module = m; '
+    + 'globalThis.exports = m.exports; require(p); return m.exports; };\n';
+
+/**
+ * The alliance's unified package (gamedoc.quickapp.cn, 1300): `manifest.json` +
+ * `game.js` + an icon, signed into `<package>.rpk`. The name must end in
+ * `.minigame` and `allianceVersion: 1300` marks it as the alliance's. It runs on
+ * the `quickgame` engine build.
+ */
+export const quickgameExportProfile: MiniGameExportProfile = {
+    id: 'quickgame',
+    sdkEntryFile: 'index.minigame.js',
+    runtimeInit: 'initMiniGameRuntime',
+    runtimeProfileHost: 'quickgamePlatformProfile',
+    engineGlueCandidates: MINIGAME_ENGINE_GLUE,
+    // WeChat's floor; the host's V8 is 8.3, which takes es2017.
+    esTarget: 'es2017',
+    wasmBuildHint: 'quickgame',
+    hostGlobal: 'qg',
+    sideModuleBuildTargets: {},
+    // Assumed to match the other vendors, not read from a quick-game doc; a wrong
+    // guess is a staged file the runtime cannot read.
+    nativeSuffixes: new Set(['.js', '.json']),
+    // No upload whitelist is published for the rpk; nothing is restaged.
+    packerSuffixes: null,
+    // No doc names a `.wasm.br` loader for this host.
+    wasmBrotli: false,
+    subpackageDir: 'subpackages',
+    // 「主包和分包都可以是main.js 或 game.js」.
+    subpackageEntry: 'game.js',
+
+    emitConfigFiles(ctx) {
+        if (!ctx.appid.endsWith('.minigame')) {
+            throw new Error(`the quick-game package name is "${ctx.appid}", and the host takes only one that ends in `
+                + '".minigame" — set it in Project Settings → Packaging → Quick game');
+        }
+        const manifest: Record<string, unknown> = {
+            package: ctx.appid,
+            name: ctx.title,
+            icon: `/${QUICKGAME_ICON}`,
+            versionName: ctx.version,
+            versionCode: ctx.versionCode,
+            // 「1160(此字段是取各家兼容最低版本支持)」; vivo's 1203 engine took it.
+            minPlatformVersion: 1160,
+            allianceVersion: 1300,
+            type: 'game',
+            orientation: ctx.orientation,
+            deviceOrientation: ctx.orientation,
+            config: { logLevel: 'log' },
+        };
+        if (ctx.subPackages.length > 0) {
+            manifest.subpackages = ctx.subPackages.map((s) => ({ name: s.name, root: s.root }));
+        }
+        return [
+            { file: 'manifest.json', content: JSON.stringify(manifest, null, 2) + '\n' },
+            { file: QUICKGAME_ICON, content: ctx.icon ?? QUICKGAME_DEFAULT_ICON },
+        ];
+    },
+
+    emitEntry(ctx) {
+        return defaultMiniGameEntry(ctx, '__load').replace("'use strict';\n", `'use strict';\n${COMMONJS_SHIM}`);
+    },
+
+    async pack(ctx) {
+        const warnings: string[] = [];
+        const key = ctx.releaseKey ?? RPK_DEBUG_KEY;
+        if (!ctx.releaseKey) {
+            warnings.push('Signed with the public debug key, which a device debugger installs and a store refuses —'
+                + ' set a release key in Project Settings → Packaging → Quick game to publish.');
+        }
+        const file = `${ctx.appid}.rpk`;
+        const entries = [];
+        for (const name of await listFiles(ctx.outDir)) {
+            if (name.endsWith('.rpk')) continue;
+            entries.push({ name, data: await readFile(path.join(ctx.outDir, name)) });
+        }
+        await writeFile(path.join(ctx.outDir, file), packRpk(entries, QUICKGAME_ICON, key));
+        return { file: path.join(ctx.outDir, file), warnings };
+    },
+};
+
+async function listFiles(root: string, prefix = ''): Promise<string[]> {
+    const out: string[] = [];
+    for (const e of await readdir(path.join(root, prefix), { withFileTypes: true })) {
+        const rel = prefix ? `${prefix}/${e.name}` : e.name;
+        if (e.isDirectory()) out.push(...await listFiles(root, rel));
+        else if (e.isFile()) out.push(rel);
+    }
+    return out;
+}

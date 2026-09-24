@@ -1,0 +1,60 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file  The key every debug quick-game package is signed with.
+ *
+ * Public on purpose, like the vendor CLI's own debug key: a debug package only
+ * has to install on a developer's device (vivo's debugger took this one). A
+ * release package is signed with the project's own key, which a vendor binds to
+ * the package name for good.
+ */
+import type { RpkSigningKey } from './rpk';
+
+export const RPK_DEBUG_KEY: RpkSigningKey = {
+  privateKeyPem: `-----BEGIN PRIVATE KEY-----
+MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCqhmdBjHcu38Ly
+bQZlW7ZVaco0Q9uwyXBpq+ZiEQIJC6TWpNx2p850nW34r2yVeW14cw1SJKUXgNym
+ztoZaRsNX3Zv8lercLYRqI5chSPIR9uglCLEosb7wgXBqUiXd1XBFpTJ3G7OhkHk
+0HSbi+UEQeeR4AohS4mre2FdloVQGH8V29NK5pV19cQazxudM+g6/bmJ8MYgrdgN
+oSotCXE2WuquziTBcpMQMwdHAXhfPJ3AJz44mMSoylTMHP3GgmbG5+eUJZORIK5+
+3ZQ5YLOnFyzmb5Qo23egNM6AMQ12i/csvyVbX39pSxeQFeyIAgzjglWqOQ0Wbw1Z
+3qbx64vBAgMBAAECggEAZSjCTHJlqZr4bRQcPTjA276cQ5EV3LRDSYy+aOKqEG+l
+4+d9Ga7GnQtfV63JforAVDn8ZwRyI5VAUHxZicV+VNqSyio7s+pzN9qESYJ6DbAD
+LCl0zq252VPqUk54T9JtPtSEg5OO8FlY8cJvym6c93+ZPkJoAARtsRrKUdifUTme
+5wJJ2U5VaWFAz5W52gQ2YY6x21E6tpsQLJnIvAItJP9QHjRsuGz+S2d5XmK+/L/Q
+kccr2na54MvJThsyQEyiDMrPe8ypCJ1Np+7J3D3ajAyoFW/s13n6z/D5VqxiTyQn
+39JEkUkx5LnRaNm3W2YrpBxoutcMb+ywWLsQA8992QKBgQDZEqA0UhHBCzhbLr3T
+mkDr06+H0bVSx2uMbQ4zACuAQUnfq1+4h3mZkZvrQTSSAxJpgDPuF9o2z3zwIpBp
+QUOYf1xw6H08TaEmZIzzOAfuTePLglmHVmt5Ov53idQOF00bBPgox6Rniu8wWSZk
+jHQGHkFMhYP/vsRXX53gwwt9awKBgQDJGt03kYrkWpOfQOoXxhEMkFxNcPBpP7LZ
+YoiGzVfh3t+Ey0X/8Skre6DxIX6w3oYDMkukgbTzi813CMl1vzYSeXN+UWTAATOA
+vwIxfj9Ly6Xmko+WskkaQyhYac7d7MYn3c3Hi/0hSQUW76RsulESVNb2vM1XXHq7
+oYw+OsiagwKBgBT2iIQk/NPwunOL0wcxWV2s5sGuDd29pnQ8P+fK92h+ZZz1Ftxi
+MOsUtcMFXAdRxqBrohg3M3qhlQY3wEx54gZDHnFE8ns1X/+uLDJ80b9AxGPt5al9
+PgnKGbL/m3v04hxe4XxGs2jQcQLxSRTiv32rxFCYgEPdb2aktEF1dJGbAoGATFY7
+NLW1gDr1oFT2xzFzFU7TCr5dM8ZvMF9brbfSrTV5qSG0H5Q+aXgTPpTVT3QYcKwt
+1HM76dreklmuh1iewOKDOabR1KRgFXXr8jeW9UGHZv+pK63fW+20KeN4F/uhuE5U
+p3N3EaRzHyK2SmNrFMdJlf1TAN9k40ZOQuzzatsCgYAXJe6TZWewJWO0rGIgifAF
+Fhs9WVuQ6v+s1JlvY0N6TbJJYQ2OZhLwQ0dmvILRJ3D5pCMDmuWppPYV/CmABbw2
+S/v6otCgsO2RahDtKndRg55WKF+ABiaR4OQi/I96YVFungMRm5eFnPZCBDvopw8D
+JhnOmSqZRkZ3I9OQfRJDNg==
+-----END PRIVATE KEY-----`,
+  certificatePem: `-----BEGIN CERTIFICATE-----
+MIIC9DCCAdwCCQDLSbTyIbhwzjANBgkqhkiG9w0BAQsFADA7MQswCQYDVQQGEwJD
+TjEQMA4GA1UECgwHRXN0ZWxsYTEaMBgGA1UEAwwRRXN0ZWxsYSBSUEsgRGVidWcw
+IBcNMjYwOTI0MDIwMjU4WhgPMjEyNjA4MzEwMjAyNThaMDsxCzAJBgNVBAYTAkNO
+MRAwDgYDVQQKDAdFc3RlbGxhMRowGAYDVQQDDBFFc3RlbGxhIFJQSyBEZWJ1ZzCC
+ASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAKqGZ0GMdy7fwvJtBmVbtlVp
+yjRD27DJcGmr5mIRAgkLpNak3HanznSdbfivbJV5bXhzDVIkpReA3KbO2hlpGw1f
+dm/yV6twthGojlyFI8hH26CUIsSixvvCBcGpSJd3VcEWlMncbs6GQeTQdJuL5QRB
+55HgCiFLiat7YV2WhVAYfxXb00rmlXX1xBrPG50z6Dr9uYnwxiCt2A2hKi0JcTZa
+6q7OJMFykxAzB0cBeF88ncAnPjiYxKjKVMwc/caCZsbn55Qlk5Egrn7dlDlgs6cX
+LOZvlCjbd6A0zoAxDXaL9yy/JVtff2lLF5AV7IgCDOOCVao5DRZvDVnepvHri8EC
+AwEAATANBgkqhkiG9w0BAQsFAAOCAQEAqALoIWQTCT3UAlXcJCP+49coatG0rAMI
+ah86oU2loKcseUNiamhSSnQKO4JqQmRrUABT66HwDiMJIioMYOAriiktc4Vhy9lr
+/EkRUdMdMw9Mh8mTBnBSSIONdocXRb/i4bJYqhicBXeBwwaj/52+vrT1tCeRCNct
+RfHxISUfO4jJ2dLMnu22B1jhHr1FqLYTVLyDQW62nHYC2IeUe4IyCfxTN/ufnjuL
+0gIPdO6B1wtzeNaAhokRtqRrnsRIilFBdgQew8tiZLOS+9JAPBDI7HfqKCUxQhhL
+qfYLB+2KE/ex5e7mod4qGfuLlngaIiDdy0yLNukmgs41lV0G2R4+OA==
+-----END CERTIFICATE-----`,
+};

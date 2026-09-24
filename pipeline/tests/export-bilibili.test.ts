@@ -83,11 +83,11 @@ describe('exportGame (bilibili)', () => {
 
   it('declares subpackages under the key Bilibili reads, and an open data context when there is one', () => {
     const [cfg] = bilibiliExportProfile.emitConfigFiles({
-      title: 't', appid: 'biligame1', version: '1.0.0', orientation: 'portrait',
+      title: 't', appid: 'biligame1', version: '1.0.0', versionCode: 1, icon: null, orientation: 'portrait',
       subPackages: [{ name: 'level2', root: 'subpackages/level2/' }],
       includeSuffixes: [], hasOpenData: true, openDataRoot: 'open-data',
     });
-    const json = JSON.parse(cfg.content);
+    const json = JSON.parse(String(cfg.content));
     expect(json.subpackages).toEqual([{ name: 'level2', root: 'subpackages/level2/' }]);
     expect(json.openDataContext).toBe('open-data');
   });

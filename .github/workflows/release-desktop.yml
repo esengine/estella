@@ -115,6 +115,7 @@ jobs:
           path: |
             desktop/public/wasm
             desktop/public/wasm-wechat
+            desktop/public/wasm-quickgame
           retention-days: 3
 
   # The native app's compiled half — the engine, Dawn, QuickJS, the linked-in

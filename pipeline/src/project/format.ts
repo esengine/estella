@@ -208,6 +208,14 @@ export type RenderResolutionMode = 'surface' | 'design' | 'integer';
  *  other. */
 export interface MiniGamePackaging { appid?: string; }
 export type WeChatPackaging = MiniGamePackaging;
+/** A quick game ships a signed `.rpk`: `appid` is its package name (ending in
+ *  `.minigame`), and the release key is what a vendor binds that name to. */
+export interface QuickGamePackaging extends MiniGamePackaging {
+  /** The build ordinal a host compares packages by; it must grow with each upload. */
+  versionCode?: number;
+  /** Project-relative PEM files. Absent ⇒ signed with the public debug key. */
+  releaseKey?: { privateKey: string; certificate: string };
+}
 export interface DesktopPackaging {
   appId?: string;
   productName?: string;
@@ -383,6 +391,7 @@ export interface ProjectPackaging {
     wechat?: MiniGamePackaging;
     douyin?: MiniGamePackaging;
     bilibili?: MiniGamePackaging;
+    quickgame?: QuickGamePackaging;
     desktop?: DesktopPackaging;
     android?: AndroidPackaging;
     ios?: IosPackaging;
@@ -817,6 +826,17 @@ export function parseManifest(raw: unknown): ProjectManifest {
       for (const vendor of ['douyin', 'bilibili'] as const) {
         const v = pl[vendor] as Record<string, unknown> | undefined;
         if (v && typeof v === 'object' && typeof v.appid === 'string') platforms[vendor] = { appid: v.appid };
+      }
+      const qg = pl.quickgame as Record<string, unknown> | undefined;
+      if (qg && typeof qg === 'object') {
+        const q: QuickGamePackaging = {};
+        if (typeof qg.appid === 'string') q.appid = qg.appid;
+        if (typeof qg.versionCode === 'number' && Number.isInteger(qg.versionCode) && qg.versionCode > 0) q.versionCode = qg.versionCode;
+        const key = qg.releaseKey as Record<string, unknown> | undefined;
+        if (key && typeof key.privateKey === 'string' && typeof key.certificate === 'string') {
+          q.releaseKey = { privateKey: key.privateKey, certificate: key.certificate };
+        }
+        if (Object.keys(q).length > 0) platforms.quickgame = q;
       }
       const dt = pl.desktop as Record<string, unknown> | undefined;
       if (dt && typeof dt === 'object') {

@@ -86,7 +86,7 @@ afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retr
 
 describe('exportGame — a platform the project defines', () => {
   it('packages through the mini-game pipeline and joins the vendor\'s two halves', async () => {
-    const platform = await loadProjectPlatform(root, 'acme-play', { web: path.join(root, '_wasm'), minigame: path.join(root, '_wasm') });
+    const platform = await loadProjectPlatform(root, 'acme-play', { web: path.join(root, '_wasm'), minigame: path.join(root, '_wasm'), quickgame: path.join(root, '_wasm') });
     expect(platform).not.toBeNull();
 
     const res = await exportGame({
@@ -134,7 +134,7 @@ describe('exportGame — a platform the project defines', () => {
   it('omits the install when the project installs its own platform', async () => {
     // Same vendor, minus the runtimeProfile link: the game is then responsible
     // for calling installMiniGamePlatform itself, so the entry must not guess.
-    const bare = { ...(await loadProjectPlatform(root, 'acme-play', { web: path.join(root, '_wasm'), minigame: path.join(root, '_wasm') }))!.profile };
+    const bare = { ...(await loadProjectPlatform(root, 'acme-play', { web: path.join(root, '_wasm'), minigame: path.join(root, '_wasm'), quickgame: path.join(root, '_wasm') }))!.profile };
     delete (bare as { runtimeProfileModule?: string }).runtimeProfileModule;
 
     const outBare = path.join(root, 'dist-bare');

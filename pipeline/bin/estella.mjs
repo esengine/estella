@@ -570,9 +570,12 @@ function projectSettings(projectDir) {
  * same engine — handing it the web one is a syntax error at the first `require`.
  */
 function engineRuntimeDir(platform) {
-  const dirs = fmt.isMiniGamePlatform(platform)
-    ? [path.join(REPO, 'build', 'wasm', 'wechat'), path.join(REPO, 'desktop', 'public', 'wasm-wechat')]
-    : [path.join(REPO, 'build', 'wasm', 'web'), path.join(REPO, 'desktop', 'public', 'wasm')];
+  const build = fmt.engineBuildFor(platform);
+  const dirs = build === 'quickgame'
+    ? [path.join(REPO, 'build', 'wasm', 'quickgame'), path.join(REPO, 'desktop', 'public', 'wasm-quickgame')]
+    : build === 'minigame'
+      ? [path.join(REPO, 'build', 'wasm', 'wechat'), path.join(REPO, 'desktop', 'public', 'wasm-wechat')]
+      : [path.join(REPO, 'build', 'wasm', 'web'), path.join(REPO, 'desktop', 'public', 'wasm')];
   return firstExisting(dirs) ?? dirs[dirs.length - 1];
 }
 
@@ -780,6 +783,8 @@ const sizeBudgetBytes = manifest.packaging?.sizeBudget?.[platform];
 
 const { mod: exporter, cleanup: cleanupExport } = await loadPipeline(
   path.join(PIPELINE, 'src', 'export', 'exportGame.ts'), 'exportGame.mjs');
+const { mod: rpkMod, cleanup: cleanupRpk } = await loadPipeline(
+  path.join(PIPELINE, 'src', 'export', 'rpk.ts'), 'rpk.mjs');
 
 // A platform the project defines in .esengine/platforms/, loaded the way the
 // build dialog loads it, so a headless package is the one the dialog makes.
@@ -789,7 +794,7 @@ if (!fmt.BUILTIN_PLATFORMS.includes(platform)) {
     path.join(PIPELINE, 'src', 'export', 'platformCatalog.ts'), 'platformCatalog.mjs');
   try {
     projectPlatform = await catalog.loadProjectPlatform(opts.projectDir, platform,
-      { web: engineRuntimeDir('web'), minigame: engineRuntimeDir('wechat') });
+      { web: engineRuntimeDir('web'), minigame: engineRuntimeDir('wechat'), quickgame: engineRuntimeDir('quickgame') });
   } finally {
     cleanupCatalog();
   }
@@ -821,6 +826,14 @@ try {
     runtime: runtimeConfigOf(manifest),
     ...cookOptionsOf(manifest),
     ...packagingOptionsOf(manifest),
+    // What the dialog passes from the same settings: the vendor's id for the game,
+    // the version a host config states, and a quick game's ordinal and key.
+    miniGameAppid: manifest.packaging?.platforms?.[platform]?.appid,
+    appVersion: manifest.version,
+    miniGameVersionCode: manifest.packaging?.platforms?.quickgame?.versionCode,
+    miniGameReleaseKey: platform === 'quickgame'
+      ? (await rpkMod.readReleaseKey(opts.projectDir, manifest.packaging?.platforms?.quickgame?.releaseKey)) ?? undefined
+      : undefined,
     androidTemplate: platform === 'android' ? templateDir : null,
     desktopTemplates,
     desktopChannel: opts['steam-appid'] ? 'steam' : undefined,
@@ -867,6 +880,7 @@ try {
   // Before the exit, not after: process.exit() in the try block would skip this
   // and leave the bundle dirs behind.
   cleanupExport();
+  cleanupRpk();
   cleanupFmt();
 }
 process.exit(code);

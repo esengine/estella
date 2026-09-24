@@ -22,6 +22,7 @@ export const ESENGINE_SUBPATHS: Readonly<Record<string, string>> = {
   'esengine/douyin': 'douyin/index.js',
   'esengine/kuaishou': 'kuaishou/index.js',
   'esengine/bilibili': 'bilibili/index.js',
+  'esengine/quickgame': 'quickgame/index.js',
   'esengine/wasm': 'wasm.js',
 };
 
@@ -30,7 +31,7 @@ export const ESENGINE_SUBPATHS: Readonly<Record<string, string>> = {
  * loads, and a platform adapter an entry chooses rather than content asking for
  * it. Named here so the pickable set is derived rather than written twice.
  */
-export const NOT_A_MODULE: ReadonlySet<string> = new Set(['esengine/wasm', 'esengine/douyin', 'esengine/kuaishou', 'esengine/bilibili']);
+export const NOT_A_MODULE: ReadonlySet<string> = new Set(['esengine/wasm', 'esengine/douyin', 'esengine/kuaishou', 'esengine/bilibili', 'esengine/quickgame']);
 
 /** The modules a project can force in or refuse, as `features.modules` keys it. */
 export const ENGINE_MODULES: readonly string[] =

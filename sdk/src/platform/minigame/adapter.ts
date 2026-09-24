@@ -417,7 +417,7 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
         canvas: MiniGameCanvas,
         size: { windowWidth?: number; windowHeight?: number },
     ): void {
-        const dpr = this.g_.getSystemInfoSync().pixelRatio ?? 1;
+        const dpr = this.profile_.windowInPhysicalPixels ? 1 : (this.g_.getSystemInfoSync().pixelRatio ?? 1);
         if (size.windowWidth) canvas.width = size.windowWidth * dpr;
         if (size.windowHeight) canvas.height = size.windowHeight * dpr;
     }

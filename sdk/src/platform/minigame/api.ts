@@ -387,7 +387,7 @@ export interface MiniGameGlobal {
  * never heard of and get the whole family for it. Nothing in the SDK branches on
  * this value — it is identity (adapter name, diagnostics, logs), not behavior.
  */
-export type MiniGameVendor = 'wechat' | 'douyin' | 'kuaishou' | 'bilibili' | (string & {});
+export type MiniGameVendor = 'wechat' | 'douyin' | 'kuaishou' | 'bilibili' | 'quickgame' | (string & {});
 
 /**
  * A vendor described as DATA — three facts and, at most, one method.
@@ -432,6 +432,11 @@ export interface MiniGameProfile {
         can(): boolean;
         request(request: PlatformPaymentRequest): Promise<void>;
     };
+
+    /** The host reports `windowWidth`/`windowHeight` in physical pixels rather
+     *  than WeChat's logical ones (vivo: 2340 wide beside a pixelRatio of 2.75), so
+     *  multiplying by pixelRatio again would size the screen past the GPU's limit. */
+    windowInPhysicalPixels?: boolean;
 
     /** The recording length this vendor accepts, when its recorder's shape is
      *  another vendor's but its limits are not. */

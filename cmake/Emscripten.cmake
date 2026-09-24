@@ -26,6 +26,9 @@ set(ES_EMSCRIPTEN_COMPILE_FLAGS
 # already ships SIMD to web AND wechat, so this is on by default with a compat
 # fallback (`-DES_MAIN_DISABLE_SIMD=ON`) mirroring BOX2D_DISABLE_SIMD.
 option(ES_MAIN_DISABLE_SIMD "Disable wasm SIMD for the main module (compat fallback)" OFF)
+# Hosts on V8 older than 8.5 reject an i64 in a wasm↔JS signature ("wasm function
+# signature contains illegal type"); OFF legalizes i64 into i32 pairs instead.
+option(ES_WASM_BIGINT "Pass i64 across the wasm↔JS boundary as BigInt" ON)
 if(NOT ES_MAIN_DISABLE_SIMD)
     list(APPEND ES_EMSCRIPTEN_COMPILE_FLAGS -msimd128 -msse2)
 endif()
@@ -266,7 +269,11 @@ function(es_apply_wxgame_sdk_settings TARGET_NAME)
     if(ES_BUILD_WXGAME)
         target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS} -flto -fno-exceptions)
 
-        string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_WXGAME_SDK_FLAGS}")
+        set(_WXGAME_LINK ${ES_EMSCRIPTEN_WXGAME_SDK_FLAGS})
+        if(NOT ES_WASM_BIGINT)
+            list(APPEND _WXGAME_LINK -sWASM_BIGINT=0)
+        endif()
+        string(REPLACE ";" " " LINK_FLAGS_STR "${_WXGAME_LINK}")
         set_target_properties(${TARGET_NAME} PROPERTIES
             SUFFIX ".js"
             LINK_FLAGS "${LINK_FLAGS_STR}"

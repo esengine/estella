@@ -288,7 +288,7 @@ describe('downloading a template from a release', () => {
 });
 
 describe('the iOS row reports what is missing', () => {
-  const dirs = () => ({ web: path.join(scratch, 'web'), minigame: path.join(scratch, 'wx') });
+  const dirs = () => ({ web: path.join(scratch, 'web'), minigame: path.join(scratch, 'wx'), quickgame: path.join(scratch, 'qg') });
   const iosRow = async () => (await listPlatforms(null, dirs(), VERSION, NO_TOOLCHAINS)).find((r) => r.id === 'ios')!;
 
   it('asks for the runtime template before anything about Xcode', async () => {

@@ -74,11 +74,11 @@ describe('exportGame (kuaishou)', () => {
 
   it('declares subpackages under the key Kuaishou reads', () => {
     const [cfg] = kuaishouExportProfile.emitConfigFiles({
-      title: 't', appid: '', version: '1.0.0', orientation: 'landscape',
+      title: 't', appid: '', version: '1.0.0', versionCode: 1, icon: null, orientation: 'landscape',
       subPackages: [{ name: 'level2', root: 'subpackages/level2/' }],
       includeSuffixes: [], hasOpenData: false, openDataRoot: 'open-data',
     });
-    const json = JSON.parse(cfg.content);
+    const json = JSON.parse(String(cfg.content));
     expect(json.subpackages).toEqual([{ name: 'level2', root: 'subpackages/level2/' }]);
     expect(json).not.toHaveProperty('subPackages');
   });

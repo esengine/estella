@@ -102,6 +102,10 @@ export const MODULES = {
         disposition: 'forbidden-native-script',
         why: "Bilibili's platform profile — it names a host global (`bl`) that a native build does not have",
     },
+    'esengine/quickgame': {
+        disposition: 'forbidden-native-script',
+        why: "the quick-game platform profile — it names a host global (`qg`) that a native build does not have",
+    },
 };
 
 /** The `exports` subpath ("." / "./physics3d") a specifier corresponds to. */

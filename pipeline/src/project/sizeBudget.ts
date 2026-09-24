@@ -79,6 +79,7 @@ export function builtinSizeBudgets(platform: ExportPlatform): readonly SizeBudge
     if (platform === 'douyin') return DOUYIN_BUDGETS;
     if (platform === 'kuaishou') return KUAISHOU_BUDGETS;
     if (platform === 'bilibili') return BILIBILI_BUDGETS;
+    if (platform === 'quickgame') return QUICKGAME_BUDGETS;
     return NO_BUDGETS;
 }
 
@@ -116,6 +117,16 @@ const BILIBILI_BUDGETS: readonly SizeBudget[] = [
     { scope: 'initial', maxBytes: 4 * MB, note: "Bilibili caps a mini-game's main package at 4MB (单个分包/主包大小不能超过 4M)" },
     { scope: 'eachSubpackage', maxBytes: 4 * MB, note: 'Bilibili caps every subpackage at 4MB as well (单个分包/主包大小不能超过 4M)' },
     { scope: 'total', maxBytes: 30 * MB, note: 'Bilibili caps a mini-game at 30MB across the main package and all subpackages' },
+];
+
+/**
+ * The tightest of the alliance's members, since one .rpk goes to all of them:
+ * vivo 「主包<4MB + 所有分包<16MB」(minigame.vivo.com.cn/documents/#/lesson/base/start),
+ * OPPO 「主包 ≤ 4M｜所有分包之和 ≤ 26M」.
+ */
+const QUICKGAME_BUDGETS: readonly SizeBudget[] = [
+    { scope: 'initial', maxBytes: 4 * MB, note: 'vivo and OPPO cap a quick game\'s main package at 4MB' },
+    { scope: 'total', maxBytes: 20 * MB, note: 'vivo caps a quick game at 20MB — a 4MB main package and 16MB of subpackages' },
 ];
 
 const NO_BUDGETS: readonly SizeBudget[] = [];

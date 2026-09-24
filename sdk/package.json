@@ -25,6 +25,7 @@
     "./dist/douyin/index.js",
     "./dist/kuaishou/index.js",
     "./dist/bilibili/index.js",
+    "./dist/quickgame/index.js",
     "./dist/index.wechat.cjs.js"
   ],
   "main": "./dist/index.js",
@@ -100,6 +101,10 @@
     "./bilibili": {
       "import": "./dist/bilibili/index.js",
       "types": "./dist/bilibili/index.d.ts"
+    },
+    "./quickgame": {
+      "import": "./dist/quickgame/index.js",
+      "types": "./dist/quickgame/index.d.ts"
     }
   },
   "files": [

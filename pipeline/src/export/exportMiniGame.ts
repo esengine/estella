@@ -49,6 +49,7 @@ import { officialPackagesPlugin } from '../bundle/officialPackages';
 import { explainBundleErrors, type BundleMessage } from '../bundle/bundleDiagnostics';
 import { scanSideModuleIds, sideModuleFiles, textureDecoderBytes } from '../bundle/sideModuleScan';
 import { OPEN_DATA_DIR, isEsModule } from './miniGameExportProfile';
+import type { RpkSigningKey } from './rpk';
 import { loadProjectModules, sideModuleDeclarations, stageProjectModules } from './projectModules';
 import { buildCompiledSystems, type BuildMode } from '../bundle/buildCompiledSystems';
 import { resolveEmcc, runEmcc } from '../bundle/emccPath';
@@ -57,6 +58,16 @@ import { contentSubsystems } from './contentSubsystems';
 import { engineInstalls, forcedSideModules, moduleChoices } from '../bundle/engineInstalls';
 
 
+
+/** The icon's bytes, or null. A path that no longer exists is a warning: the
+ *  package is still correct, it just carries the vendor profile's default. */
+async function readAppIcon(root: string, rel: string | undefined, warnings: string[]): Promise<Uint8Array | null> {
+  if (!rel) return null;
+  const file = path.join(root, rel);
+  if (existsSync(file)) return new Uint8Array(await readFile(file));
+  warnings.push(`The app icon ${rel} does not exist — packaged with the default.`);
+  return null;
+}
 
 export interface ExportMiniGameResult {
   ok: boolean;
@@ -74,6 +85,8 @@ export interface ExportMiniGameResult {
   bundleModules?: ModuleBytes[];
   /** Project-relative subpackage roots — what is NOT on the main package's cap. */
   subPackageRoots?: string[];
+  /** The single file the vendor takes, when it takes one (a quick game's `.rpk`). */
+  packageFile?: string;
   /** Staged path → what that file weighed before this export packed it. A limit
    *  is judged on packed bytes, so the report has no other way to know. */
   packedFrom?: Record<string, number>;
@@ -263,6 +276,12 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   appid?: string;
   /** The project's version (ProjectManifest.version), for a host config that asks. */
   appVersion?: string;
+  /** The build ordinal, for a host that compares packages by it. Absent ⇒ 1. */
+  versionCode?: number;
+  /** The app icon, project-relative (packaging.icon). */
+  appIcon?: string;
+  /** The project's signing key, for a vendor that takes a signed file. */
+  releaseKey?: RpkSigningKey;
   /** Screen orientation (Project Settings) → game.json. */
   orientation?: 'portrait' | 'landscape';
   /** The project's runtime settings, derived once by `runtimeConfigOf`; the
@@ -630,6 +649,8 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     title,
     appid: opts.appid ?? '',
     version: opts.appVersion ?? '1.0.0',
+    versionCode: opts.versionCode ?? 1,
+    icon: await readAppIcon(opts.root, opts.appIcon, warnings),
     orientation: opts.orientation ?? 'portrait',
     subPackages: subPackages.subPackages,
     includeSuffixes: packIncludeSuffixes(cookEntries, profile.nativeSuffixes),
@@ -700,8 +721,17 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   warnings.push(...await stageProjectModules(projectModules, wasmOut, profile.id,
     async (code) => (await transform(code, { target: profile.esTarget, loader: 'js' })).code));
 
+  // Last, over the finished directory: a signed package covers every byte in it.
+  let packageFile: string | undefined;
+  if (profile.pack && errors.length === 0) {
+    const packed = await profile.pack({ outDir: absOut, appid: opts.appid ?? '', releaseKey: opts.releaseKey });
+    packageFile = packed.file;
+    warnings.push(...packed.warnings);
+  }
+
   return {
     ok: errors.length === 0, platform: profile.id, outDir: absOut,
+    ...(packageFile ? { packageFile } : {}),
     included: cook.included.length, warnings, errors, inclusion: cook.inclusion,
     bundleModules,
     // The size report weighs the main package against a cap the subpackages are
