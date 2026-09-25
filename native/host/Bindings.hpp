@@ -72,6 +72,7 @@ void registerTextEditorBindings(HostState& h, JSValue global);
 /** Run the JS callbacks for HTTP replies that arrived since the last frame. JS
  *  thread only; {@link deliverFetch} queued them from the completion thread. */
 void drainFetches(HostState& h);
+void drainSockets(HostState& h);
 
 /** Push what the editing surface did since the last frame into JS. JS thread
  *  only; the deliverTextEditor* calls queued it from the platform's UI thread. */

@@ -226,6 +226,10 @@ export interface NativeBridge {
      *  Null backend. See {@link NativeAudioBridge}. */
     audio?: NativeAudioBridge;
 
+    /** `ws://` sockets, on a host that carries the client. Absent → `createSocket`
+     *  is unavailable, as it is on a host with no network. */
+    socket?: NativeSocketBridge;
+
     /** The OS text-editing surface (soft keyboard + IME), when the host has wired
      *  one. Absent → fields render but cannot be typed into, exactly as a host
      *  with no audio device stays silent. See {@link NativeTextEditorBridge}. */
@@ -259,4 +263,19 @@ export interface NativeBridge {
      *  records it; nothing recovers from it yet. Returns an unsubscribe. Optional —
      *  a shell that has not wired it simply never fires. */
     onContextLost?(callback: () => void): () => void;
+}
+
+/** One event from the host's socket client; `close` is always the last. */
+export interface NativeSocketEvent {
+    type: 'open' | 'message' | 'error' | 'close';
+    data?: string | ArrayBuffer;
+    code?: number;
+    reason?: string;
+}
+
+export interface NativeSocketBridge {
+    open(url: string, onEvent: (event: NativeSocketEvent) => void): {
+        send(data: string | ArrayBuffer): boolean;
+        close(code?: number, reason?: string): void;
+    };
 }

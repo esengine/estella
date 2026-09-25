@@ -326,6 +326,7 @@ if(ESTELLA_QUICKJS_DIR)
         # a phone's keyboard IS one, so there is nothing here for it to be.
         $<$<BOOL:${ESTELLA_DESKTOP}>:host/media/text_edit.cpp>
         host/bindings/NetBindings.cpp
+        host/net/WsClient.cpp
         host/bindings/TextEditorBindings.cpp
         host/bindings/AotBindings.cpp
         # The name table a compiled system is dispatched through — generated
@@ -393,7 +394,7 @@ if(ESTELLA_QUICKJS_DIR)
             # onecore for CompareObjectHandles, which Dawn's D3D shared fences call:
             # it lives in kernelbase, kernel32 does not re-export it, and the SDK
             # ships no kernelbase.lib — onecore is the umbrella that has it.
-            target_link_libraries(estella_js_host d3d12 dxgi dxguid dwrite winhttp onecore)
+            target_link_libraries(estella_js_host d3d12 dxgi dxguid dwrite winhttp onecore ws2_32)
         elseif(ESTELLA_LINUX)
             # fontconfig for the font match; libcurl for the fetch, because Linux
             # is the one desktop with no OS-provided HTTP stack and no trust store

@@ -68,6 +68,7 @@ struct HostState {
     int64_t nextTimerId = 1;
     std::unordered_map<int, JSValue> fetchCallbacks;   ///< in-flight es_fetch id -> JS callback
     int nextFetchId = 1;
+    std::unordered_map<int, JSValue> wsCallbacks;      ///< open es_wsOpen id -> JS event callback
 
     AudioEngine audio;              ///< native sound (miniaudio); silent if no device
     std::string cacheDir;           ///< reclaimable — SDK bytecode cache + hot-update content

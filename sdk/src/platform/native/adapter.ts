@@ -27,7 +27,10 @@ import type {
     PlatformGlyph,
     PlatformGlyphRequest,
     PlatformTextEditor,
+    PlatformSocket,
+    PlatformSocketOptions,
 } from '../types';
+import { NativeSocket } from './socket';
 import type { PlatformAudioBackend } from '../../audio/PlatformAudioBackend';
 import type { PlatformVideoBackend, VideoBackendContext } from '../../video/PlatformVideoBackend';
 import { WasmVideoBackend } from '../../video/WasmVideoBackend';
@@ -275,7 +278,11 @@ export class NativePlatformAdapter implements PlatformAdapter {
         return () => { live = false; };
     }
 
-    // createSocket / loadSubpackage are optional and deferred to the shell.
+    createSocket(options: PlatformSocketOptions): PlatformSocket {
+        const socket = this.bridge_.socket;
+        if (!socket) throw new Error('this native host carries no socket client');
+        return new NativeSocket(options.url, socket);
+    }
 }
 
 /** Install a {@link NativePlatformAdapter} built from the host `bridge` as the

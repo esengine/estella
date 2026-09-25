@@ -1126,4 +1126,8 @@ export const NOTED = {
     { note: 'Profiling a connected development build, the Profiler shows which content revision it runs, the one its next launch starts on, and a hot update it has found but not applied; `device_update_status` answers the same for an agent.' },
   'feat(profiler): a connected build says which content it runs and what update waits':
     { note: 'Profiling a connected development build, the Profiler shows which content revision it runs, the one its next launch starts on, and a hot update it has found but not applied; `device_update_status` answers the same for an agent.' },
+  'feat(native): a native build can connect to the editor over the debug channel':
+    { note: 'A desktop (native) development build connects to the editor like a web or mini-game one — log, profiler, the world, content status, pause and step; its renderer cannot capture frames yet and says so. The native host gained a `ws://` client for it.' },
+  'feat(build): a desktop development build can dial the editor':
+    { note: 'A desktop (native) development build connects to the editor like a web or mini-game one — log, profiler, the world, content status, pause and step; its renderer cannot capture frames yet and says so. The native host gained a `ws://` client for it.' },
 };

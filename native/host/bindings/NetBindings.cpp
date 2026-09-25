@@ -19,6 +19,7 @@
  *            Licensed under the Apache License, Version 2.0.
  */
 #include "Bindings.hpp"
+#include "../net/WsClient.hpp"
 
 #include <mutex>
 #include <queue>
@@ -35,6 +36,10 @@ namespace {
 // function the glue calls) is safe before boot and after teardown alike.
 std::mutex g_fetchMutex;
 std::queue<FetchResult> g_fetchQueue;
+
+// Socket events arrive on each connection's own thread, and cross the same way.
+std::mutex g_wsMutex;
+std::queue<WsEvent> g_wsQueue;
 
 std::string fetchStrProp(JSContext* ctx, JSValueConst obj, const char* key, const char* dflt) {
     JSValue v = JS_GetPropertyStr(ctx, obj, key);
@@ -126,7 +131,84 @@ JSValue makeFetchResult(HostState& h, const FetchResult& r) {
     return o;
 }
 
+// es_wsOpen(url, onEvent) -> id: onEvent({ type: 'open' | 'message' | 'error' | 'close',
+// data?: string | ArrayBuffer, code?, reason? }). 'close' is always the last event.
+JSValue js_wsOpen(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+    if (argc < 2 || !JS_IsFunction(ctx, argv[1])) return JS_ThrowTypeError(ctx, "es_wsOpen(url, onEvent)");
+    const char* url = JS_ToCString(ctx, argv[0]);
+    if (!url) return JS_EXCEPTION;
+    const std::string u = url;
+    JS_FreeCString(ctx, url);
+    const int id = wsOpen(u, [](WsEvent e) {
+        std::lock_guard<std::mutex> lk(g_wsMutex);
+        g_wsQueue.push(std::move(e));
+    });
+    host().wsCallbacks[id] = JS_DupValue(ctx, argv[1]);
+    return JS_NewInt32(ctx, id);
+}
+
+JSValue js_wsSend(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+    int32_t id = 0;
+    if (argc < 2 || JS_ToInt32(ctx, &id, argv[0])) return JS_FALSE;
+    if (JS_IsString(argv[1])) {
+        size_t len = 0;
+        const char* s = JS_ToCStringLen(ctx, &len, argv[1]);
+        if (!s) return JS_EXCEPTION;
+        const bool ok = wsSend(id, reinterpret_cast<const uint8_t*>(s), len, true);
+        JS_FreeCString(ctx, s);
+        return JS_NewBool(ctx, ok);
+    }
+    std::vector<uint8_t> bytes;
+    readByteSource(ctx, argv[1], bytes);
+    return JS_NewBool(ctx, wsSend(id, bytes.data(), bytes.size(), false));
+}
+
+JSValue js_wsClose(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+    int32_t id = 0, code = 1000;
+    if (argc < 1 || JS_ToInt32(ctx, &id, argv[0])) return JS_UNDEFINED;
+    if (argc > 1 && !JS_IsUndefined(argv[1])) JS_ToInt32(ctx, &code, argv[1]);
+    std::string reason;
+    if (argc > 2 && JS_IsString(argv[2])) {
+        if (const char* r = JS_ToCString(ctx, argv[2])) { reason = r; JS_FreeCString(ctx, r); }
+    }
+    wsClose(id, code, reason);
+    return JS_UNDEFINED;
+}
+
 }  // namespace
+
+void drainSockets(HostState& h) {
+    std::queue<WsEvent> events;
+    { std::lock_guard<std::mutex> lk(g_wsMutex); events.swap(g_wsQueue); }
+    if (events.empty()) return;
+    jsEntry(h);
+    while (!events.empty()) {
+        WsEvent e = std::move(events.front());
+        events.pop();
+        auto it = h.wsCallbacks.find(e.id);
+        if (it == h.wsCallbacks.end()) continue;
+        JSValue o = JS_NewObject(h.js);
+        const char* type = e.kind == WsEvent::Kind::Open ? "open"
+            : e.kind == WsEvent::Kind::Error ? "error"
+            : e.kind == WsEvent::Kind::Close ? "close" : "message";
+        JS_SetPropertyStr(h.js, o, "type", JS_NewString(h.js, type));
+        if (e.kind == WsEvent::Kind::Text) {
+            JS_SetPropertyStr(h.js, o, "data",
+                JS_NewStringLen(h.js, reinterpret_cast<const char*>(e.data.data()), e.data.size()));
+        } else if (e.kind == WsEvent::Kind::Binary) {
+            JS_SetPropertyStr(h.js, o, "data", JS_NewArrayBufferCopy(h.js, e.data.data(), e.data.size()));
+        }
+        if (e.kind == WsEvent::Kind::Close) JS_SetPropertyStr(h.js, o, "code", JS_NewInt32(h.js, e.code));
+        if (!e.reason.empty()) JS_SetPropertyStr(h.js, o, "reason", JS_NewString(h.js, e.reason.c_str()));
+        JSValue cb = it->second;
+        if (e.kind == WsEvent::Kind::Close) h.wsCallbacks.erase(it);
+        JSValue ret = JS_Call(h.js, cb, JS_UNDEFINED, 1, &o);
+        if (JS_IsException(ret)) logJsError(h.js, "es_wsOpen event");
+        JS_FreeValue(h.js, ret);
+        JS_FreeValue(h.js, o);
+        if (e.kind == WsEvent::Kind::Close) JS_FreeValue(h.js, cb);
+    }
+}
 
 void drainFetches(HostState& h) {
     jsEntry(h);
@@ -150,6 +232,9 @@ void drainFetches(HostState& h) {
 
 void registerNetBindings(HostState& h, JSValue global) {
     bindGlobal(h, global, "es_fetch", js_fetch, 2);
+    bindGlobal(h, global, "es_wsOpen", js_wsOpen, 2);
+    bindGlobal(h, global, "es_wsSend", js_wsSend, 2);
+    bindGlobal(h, global, "es_wsClose", js_wsClose, 3);
 }
 
 // Thread-safe: the platform's HTTP completion (any thread) queues its reply here;

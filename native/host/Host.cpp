@@ -367,6 +367,7 @@ void frame() {
     // Run the callbacks for any HTTP replies that landed since last frame, then
     // let their .then() continuations run.
     drainFetches(h);
+    drainSockets(h);
     drainTextEditor(h);
     pumpJs(h);
 

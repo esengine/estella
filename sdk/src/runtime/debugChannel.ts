@@ -133,8 +133,13 @@ export function startDebugChannel(config: DebugChannelConfig): void {
             if ((q.kind === 'frameCapture' || q.kind === 'frameReplay') && !drawsFrames) {
                 throw new Error('the game is in the background, where it draws no frames: bring it to the front');
             }
+            if ((q.kind === 'frameCapture' || q.kind === 'frameReplay') && !game.wasmModule) {
+                throw new Error('this build cannot capture frames: a native host has no frame capture yet');
+            }
             if (q.kind === 'frameCapture') {
-                reply({ t: 'reply', reqId: q.reqId, data: await captureFrameReport(game, frame) });
+                const report = await captureFrameReport(game, frame);
+                if (!report) throw new Error('no frame arrived to capture — is the game running frames?');
+                reply({ t: 'reply', reqId: q.reqId, data: report });
                 return;
             }
             if (q.kind === 'stats') {

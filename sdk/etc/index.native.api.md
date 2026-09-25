@@ -5237,6 +5237,7 @@ registerInput: (listener: NativeInputListener) => () => void
 removeStorageItem: (key: string) => void
 setStorageItem: (key: string, value: string) => void
 setWindowSize: ((width: number, height: number) => void) | undefined
+socket: NativeSocketBridge | undefined
 steam: NativeSteamBridge | undefined
 storageKeys: () => string[]
 textEditor: NativeTextEditorBridge | undefined
@@ -5316,6 +5317,9 @@ es_textEditor_focus: ((value: string, selectionStart: number, selectionEnd: numb
 es_textEditor_write: ((value: string, selectionStart: number, selectionEnd: number) => void) | undefined
 es_writeCacheFile: ((key: string, bytes: ArrayBuffer | Uint8Array | string) => boolean) | undefined
 es_writeDataFile: ((key: string, bytes: ArrayBuffer | Uint8Array | string) => boolean) | undefined
+es_wsClose: ((id: number, code?: number, reason?: string) => void) | undefined
+es_wsOpen: ((url: string, onEvent: (event: NativeSocketEvent) => void) => number) | undefined
+es_wsSend: ((id: number, data: string | ArrayBuffer) => boolean) | undefined
 ```
 
 ## NativeInputListener — interface @beta
@@ -5346,6 +5350,7 @@ clearStorage: (prefix: string) => void
 createAudioBackend: (() => PlatformAudioBackend) | undefined
 createCanvas: (_width: number, _height: number) => PlatformCanvas
 createImage: () => PlatformImage
+createSocket: (options: PlatformSocketOptions) => PlatformSocket
 createTextEditor: () => PlatformTextEditor | null
 createVideoBackend: (ctx: VideoBackendContext) => PlatformVideoBackend
 devicePixelRatio: () => number

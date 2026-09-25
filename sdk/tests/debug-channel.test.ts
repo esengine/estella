@@ -64,6 +64,22 @@ describe('the debug channel', () => {
     });
 });
 
+describe('a build whose renderer cannot capture', () => {
+    it('says so, rather than answering with nothing', async () => {
+        vi.resetModules();
+        const base = await import('../src/platform/base');
+        const channel = await import('../src/runtime/debugChannel');
+        const s = fakeSocket();
+        base.setPlatform({ name: 'native', now: () => performance.now(), createSocket: () => s.socket } as unknown as PlatformAdapter);
+        channel.startDebugChannel({ url: 'ws://editor:1/?token=t', project: 'Demo' });
+        s.open();
+        channel.attachDebugChannel({ hasResource: () => false, onFrameEnd: () => () => {}, wasmModule: null } as unknown as App);
+        s.receive({ t: 'query', reqId: 12, kind: 'frameCapture' });
+        await flush();
+        expect(s.sent.find((m) => (m as { reqId?: number }).reqId === 12)).toMatchObject({ error: expect.stringMatching(/native host/) });
+    });
+});
+
 describe('a device asked about its content', () => {
     it('answers with the revision it runs and what update is staged', async () => {
         vi.resetModules();

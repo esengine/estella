@@ -15,7 +15,7 @@
 import { log } from '../../util/logger';
 import type {
     NativeAudioBridge, NativeBridge, NativeFetchResult, NativeInputListener,
-    NativeTextEditorBridge, NativeTextEditorPush,
+    NativeTextEditorBridge, NativeTextEditorPush, NativeSocketEvent,
 } from './bridge';
 import type { PlatformGlyph, PlatformGlyphRequest, PlatformRequestOptions } from '../types';
 import { assertHostEnvironment } from './hostEnvironment';
@@ -106,6 +106,11 @@ export interface NativeHostBindings {
         }) => void,
     ): void;
 
+    /** The host's `ws://` client: events arrive on the JS thread, `close` last. */
+    es_wsOpen?(url: string, onEvent: (event: NativeSocketEvent) => void): number;
+    es_wsSend?(id: number, data: string | ArrayBuffer): boolean;
+    es_wsClose?(id: number, code?: number, reason?: string): void;
+
     /** The native audio engine, all-or-nothing (see {@link AUDIO_BINDINGS}). A
      *  host without a sound device binds none and stays silent. */
     // The OS text-editing surface (soft keyboard + IME). Optional as a group:
@@ -190,6 +195,17 @@ export function createHostBridge(
         },
         fileExists: (path) => Promise.resolve(bindings.es_readAsset(path) != null),
         fetch: (url, options) => hostFetch(bindings, url, options),
+        ...(bindings.es_wsOpen && bindings.es_wsSend && bindings.es_wsClose ? {
+            socket: {
+                open: (url, onEvent) => {
+                    const id = bindings.es_wsOpen!(url, onEvent);
+                    return {
+                        send: (data) => bindings.es_wsSend!(id, data),
+                        close: (code, reason) => bindings.es_wsClose!(id, code, reason),
+                    };
+                },
+            },
+        } : {}),
         loadImagePixels: async (path) => {
             // The host decodes packaged paths; a CDN image is bytes the script brings,
             // from the hot-update cache when it is there, else from the network.
