@@ -84,6 +84,15 @@ import { MODULES, NATIVE_MODULE_REGISTRY } from '../../../tools/nativeScriptModu
 
 export type { ExportPlatform };
 
+/** What to say about a CDN a shipping Android build cannot reach: Android refuses
+ *  plain http from an app that has not asked for it, and only a development
+ *  build asks. */
+export function cleartextWarning(platform: string, shipping: boolean, remoteRoot?: string): string | null {
+  if (platform !== 'android' || !shipping || !remoteRoot?.startsWith('http://')) return null;
+  return `The CDN ${remoteRoot} is plain http://, which Android refuses in a shipping build: `
+    + 'remote assets and hot updates will not load. Serve it over https.';
+}
+
 /**
  * `app.config.json` — what the native packagers need to build an *application*
  * around the content, as opposed to what the runtime needs to play it.
@@ -96,6 +105,9 @@ export type { ExportPlatform };
 export interface NativeAppConfig {
   /** Reverse-DNS: the Android manifest package / the iOS bundle identifier. */
   id: string;
+  /** Plain `http://` is allowed (Android's usesCleartextTraffic): a development
+   *  build reaches a LAN server, and a shipping one is held to https. */
+  allowHttp?: boolean;
   /** The name under the launcher icon. */
   name: string;
   /** Version as a store displays it (`versionName` / `CFBundleShortVersionString`). */
@@ -1109,8 +1121,11 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       version: opts.appVersion ?? '1.0',
       versionCode: opts.androidVersionCode ?? 1,
       orientation,
+      allowHttp: !opts.minify,
     };
     await writeFile(path.join(payloadDir, 'app.config.json'), JSON.stringify(appConfig, null, 2) + '\n');
+    const http = cleartextWarning(platform, !!opts.minify, hotUpdate?.remoteRoot);
+    if (http) warnings.push(http);
 
     // One icon for both targets, read once. A path that no longer exists is a
     // warning rather than a failed export: the package is still correct, it just

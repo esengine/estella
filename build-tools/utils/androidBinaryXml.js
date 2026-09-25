@@ -39,6 +39,7 @@ export const ANDROID_ATTR_IDS = {
     targetSdkVersion: 0x01010270,
     required: 0x0101028e,
     extractNativeLibs: 0x010104ea,
+    usesCleartextTraffic: 0x010104ec,
     version: 0x01010519,
 };
 

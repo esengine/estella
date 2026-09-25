@@ -42,6 +42,27 @@ using esengine::WebGPUDevice;
 
 namespace {
 
+/** Clear the pending Java exception and say what it was: a bare "no response"
+ *  hid that Android refused cleartext HTTP to a LAN CDN. */
+std::string takeJavaException(JNIEnv* env) {
+    jthrowable ex = env->ExceptionOccurred();
+    env->ExceptionClear();
+    if (!ex) return "unknown error";
+    jclass cls = env->GetObjectClass(ex);
+    auto text = static_cast<jstring>(env->CallObjectMethod(ex, env->GetMethodID(cls, "toString", "()Ljava/lang/String;")));
+    std::string out = "unknown error";
+    if (!env->ExceptionCheck() && text) {
+        const char* s = env->GetStringUTFChars(text, nullptr);
+        out = s ? s : out;
+        if (s) env->ReleaseStringUTFChars(text, s);
+    }
+    env->ExceptionClear();
+    if (text) env->DeleteLocalRef(text);
+    env->DeleteLocalRef(cls);
+    env->DeleteLocalRef(ex);
+    return out;
+}
+
 // Read a java.io.InputStream fully into `out`, reusing one byte[] buffer.
 void jniReadStream(JNIEnv* env, jobject stream, std::vector<u8>& out) {
     if (!stream) return;
@@ -110,7 +131,7 @@ void performHttp(JNIEnv* env, const eshost::FetchRequest& req, eshost::FetchResu
     }
 
     jint code = env->CallIntMethod(conn, env->GetMethodID(httpCls, "getResponseCode", "()I"));
-    if (env->ExceptionCheck()) { env->ExceptionClear(); r.error = "no response"; env->DeleteLocalRef(httpCls); env->DeleteLocalRef(conn); return; }
+    if (env->ExceptionCheck()) { r.error = takeJavaException(env); env->DeleteLocalRef(httpCls); env->DeleteLocalRef(conn); return; }
     r.status = static_cast<int>(code);
     r.ok = code >= 200 && code < 300;
 

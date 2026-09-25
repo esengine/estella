@@ -60,6 +60,7 @@ export function assembleAab(options) {
             VERSION_CODE: app.versionCode,
             SCREEN_ORIENTATION: androidScreenOrientation(app.orientation),
             HAS_CODE: hasDex ? 'true' : 'false',
+            USES_CLEARTEXT: app.allowHttp ? 'true' : 'false',
         }), resources.references);
 
     // Every architecture: Play splits the bundle per device, which is what the

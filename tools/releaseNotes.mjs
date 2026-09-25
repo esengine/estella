@@ -1130,4 +1130,6 @@ export const NOTED = {
     { note: 'A desktop (native) development build connects to the editor like a web or mini-game one — log, profiler, the world, content status, pause and step; its renderer cannot capture frames yet and says so. The native host gained a `ws://` client for it.' },
   'feat(build): a desktop development build can dial the editor':
     { note: 'A desktop (native) development build connects to the editor like a web or mini-game one — log, profiler, the world, content status, pause and step; its renderer cannot capture frames yet and says so. The native host gained a `ws://` client for it.' },
+  'fix(android): a native Android app can reach the network':
+    { note: 'A native Android app can reach the network: its manifest never asked for it, so a remote group\'s assets, hot updates and the debug channel all failed on Android. A development build also allows plain http (a LAN CDN); a shipping build is held to https, and the export warns when its CDN is http.' },
 };

@@ -37,9 +37,16 @@
           android:versionCode="@VERSION_CODE@"
           android:versionName="@VERSION_NAME@">
     <uses-sdk android:minSdkVersion="29" android:targetSdkVersion="33" />
+    <!-- Without it every socket the app opens is refused: a remote group's assets,
+         a hot update and the debug channel all go over the network. A normal
+         permission, granted at install without asking. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-feature android:name="android.hardware.vulkan.version" android:version="0x400003" android:required="true" />
+    <!-- usesCleartextTraffic: a development build talks to a LAN server over plain
+         http; a shipping build is held to https, as Android 9+ holds every app. -->
     <application android:label="@APP_NAME@" android:icon="@mipmap/ic_launcher"
-                 android:hasCode="@HAS_CODE@" android:extractNativeLibs="false">
+                 android:hasCode="@HAS_CODE@" android:extractNativeLibs="false"
+                 android:usesCleartextTraffic="@USES_CLEARTEXT@">
         <!-- A game's window, stated before any code runs: no title, no status bar.
              The host asks for the rest (navigation bar, display cutout) once it
              has the UI thread — see onWindowFocusChanged in platform/android.cpp. -->
