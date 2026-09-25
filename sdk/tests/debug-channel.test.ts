@@ -64,6 +64,28 @@ describe('the debug channel', () => {
     });
 });
 
+describe('a device asked about its content', () => {
+    it('answers with the revision it runs and what update is staged', async () => {
+        vi.resetModules();
+        const base = await import('../src/platform/base');
+        const channel = await import('../src/runtime/debugChannel');
+        const { Assets } = await import('../src/asset/AssetPlugin');
+        const s = fakeSocket();
+        base.setPlatform({ name: 'web', now: () => performance.now(), createSocket: () => s.socket } as unknown as PlatformAdapter);
+        channel.startDebugChannel({ url: 'ws://editor:1/?token=t', project: 'Demo' });
+        s.open();
+        const status = { revision: 'bfdfdde', persistedRevision: null, staged: { revision: '2c4bd22', assets: 1, bytes: 208 }, applying: false };
+        channel.attachDebugChannel({
+            hasResource: (r: unknown) => r === Assets,
+            getResource: () => ({ updateStatus: () => status, getManifest: () => null }),
+            onFrameEnd: () => () => {},
+        } as unknown as App);
+        s.receive({ t: 'query', reqId: 11, kind: 'updateStatus' });
+        await flush();
+        expect(s.sent.find((m) => (m as { reqId?: number }).reqId === 11)).toEqual({ t: 'reply', reqId: 11, data: status });
+    });
+});
+
 describe('a device in the background', () => {
     it('refuses a capture at once instead of waiting for a frame it will not draw', async () => {
         // The channel is one per process; this device needs its own.

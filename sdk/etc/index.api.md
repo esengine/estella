@@ -2737,6 +2737,7 @@ url: string
 | { t: 'query'; reqId: number; kind: 'frameCapture' }
     | { t: 'query'; reqId: number; kind: 'frameReplay'; drawIndex: number; maxSide?: number }
     | { t: 'query'; reqId: number; kind: 'stats' }
+    | { t: 'query'; reqId: number; kind: 'updateStatus' }
     | { t: 'query'; reqId: number; kind: 'snapshot'; selectedId: number | null; withTree: boolean }
     | ({ t: 'query'; reqId: number; kind: 'control' } & DebugControl)
 ```

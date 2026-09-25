@@ -1122,4 +1122,8 @@ export const NOTED = {
     { note: 'The build\'s size report shows the start screen on its own line — the markup and any logo inlined into index.html, which is on screen before anything else loads.' },
   'feat(build): the size panel names what the start screen weighs':
     { note: 'The build\'s size report shows the start screen on its own line — the markup and any logo inlined into index.html, which is on screen before anything else loads.' },
+  'feat(debug): a connected build reports its hot-update status to the editor':
+    { note: 'Profiling a connected development build, the Profiler shows which content revision it runs, the one its next launch starts on, and a hot update it has found but not applied; `device_update_status` answers the same for an agent.' },
+  'feat(profiler): a connected build says which content it runs and what update waits':
+    { note: 'Profiling a connected development build, the Profiler shows which content revision it runs, the one its next launch starts on, and a hot update it has found but not applied; `device_update_status` answers the same for an agent.' },
 };

@@ -152,6 +152,10 @@ export function startDebugChannel(config: DebugChannelConfig): void {
                 reply({ t: 'reply', reqId: q.reqId, data: { ...report, ...span } });
                 return;
             }
+            if (q.kind === 'updateStatus') {
+                reply({ t: 'reply', reqId: q.reqId, data: game.hasResource(Assets) ? game.getResource(Assets).updateStatus() : null });
+                return;
+            }
             if (q.kind === 'snapshot') {
                 reply({ t: 'reply', reqId: q.reqId, data: timed(() => worldSnapshot(game, q.selectedId, q.withTree)) });
                 return;
