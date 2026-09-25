@@ -50,7 +50,7 @@ beforeAll(() => {
 afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
 /** Export for web and hand back the page plus whatever the build said about it. */
-async function page(splash?: ProjectPackaging['splash']): Promise<{ html: string; warnings: string[] }> {
+async function page(splash?: ProjectPackaging['splash']): Promise<{ html: string; warnings: string[]; splashBytes?: number }> {
   const outDir = path.join(root, `dist-${Math.random().toString(36).slice(2)}`);
   const res = await exportGame({
     root,
@@ -65,10 +65,18 @@ async function page(splash?: ProjectPackaging['splash']): Promise<{ html: string
     splash,
   });
   expect(res.ok, res.errors.join('\n')).toBe(true);
-  return { html: readFileSync(path.join(outDir, 'index.html'), 'utf8'), warnings: res.warnings };
+  return { html: readFileSync(path.join(outDir, 'index.html'), 'utf8'), warnings: res.warnings, splashBytes: res.size?.splashBytes };
 }
 
 describe('the exported page’s start screen', () => {
+  it('has its own line in the size report, logo included', async () => {
+    const plain = await page();
+    const withLogo = await page({ logo: 'assets/logo.png' });
+    expect(plain.splashBytes).toBeGreaterThan(0);
+    expect(plain.html.length).toBeGreaterThan(plain.splashBytes!);
+    expect(withLogo.splashBytes! - plain.splashBytes!).toBeGreaterThanOrEqual(Math.floor(PNG.length * 4 / 3));
+  }, 180_000);
+
   it('is there with nothing configured, showing the game’s name', async () => {
     const { html } = await page();
     expect(html).toContain('id="es-splash"');

@@ -112,6 +112,9 @@ export interface BuildSizeReport {
    *  limit is judged on packed bytes, so `bytes` everywhere else is the packed
    *  number and this is the only place the other one appears. */
   packing?: { fromBytes: number; toBytes: number; fileCount: number };
+  /** The start screen inside the host page, which is on screen before anything
+   *  else loads. Absent for a target whose host draws its own. */
+  splashBytes?: number;
 }
 
 /** How many files the report names individually. Enough to find the offender,
@@ -463,6 +466,7 @@ export async function measureBuild(opts: {
    * place anyone looks for them afterwards.
    */
   packedFrom?: Readonly<Record<string, number>>;
+  splashBytes?: number;
 }): Promise<BuildSizeReport> {
   const excluded: string[] = [];
   for (const file of opts.packages ?? []) {
@@ -520,6 +524,7 @@ export async function measureBuild(opts: {
     deliverableBytes,
     deliverableName: opts.deliverable ? path.basename(opts.deliverable) : undefined,
   });
+  if (opts.splashBytes !== undefined) report.splashBytes = opts.splashBytes;
 
   if (opts.history) {
     const record = recordOf(report, opts.platform, opts.history.settings, entries);

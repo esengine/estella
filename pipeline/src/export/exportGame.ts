@@ -279,6 +279,8 @@ export interface ExportGameResult {
   packageFile?: string;
   /** Playable: what the single file is made of. See ExportPlayableResult. */
   inlineParts?: { path: string; bytes: number }[];
+  /** The start screen written into the host page, logo included. */
+  splashBytes?: number;
   /** What the package weighs, and how it fared against the limits in force.
    *  Absent when the export failed, or when measuring itself did. */
   size?: BuildSizeReport;
@@ -636,6 +638,7 @@ async function attachSizeReport(result: ExportGameResult, opts: ExportGameOption
       packages,
       subPackageRoots: result.subPackageRoots,
       inlineOf: result.inlineParts ? { file: 'index.html', parts: result.inlineParts } : undefined,
+      splashBytes: result.splashBytes,
       inclusion: result.inclusion,
       packedFrom: result.packedFrom,
       // The project, not the build: what this target weighed last time lives with
@@ -1065,9 +1068,11 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   // 5. Host page + entry-scene config. Only where a BROWSER boots the game: a
   //    native target has no page, and saying it wrote one is a progress line that
   //    reports work nothing did.
+  let splashBytes: number | undefined;
   if (!nativeContent) {
     progress({ phase: 'Writing host page' });
     const look = await splashLook(opts.root, opts.splash, warnings);
+    splashBytes = Buffer.byteLength(splashCss(look.background ?? PAGE_BACKGROUND) + splashHtml(title, look));
     await writeFile(
       path.join(payloadDir, 'index.html'),
       indexHtml(title, engineMap, look, platform === 'web' ? orientation : undefined, debugChannel),
@@ -1224,5 +1229,6 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     ...(apkFile ? { apkFile } : {}), ...(aabFile ? { aabFile } : {}),
     ...(appBundles.length > 0 ? { appBundles } : {}),
     ...(steamChecklist ? { steamChecklist } : {}),
+    ...(splashBytes !== undefined ? { splashBytes } : {}),
   };
 }

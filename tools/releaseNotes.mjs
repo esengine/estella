@@ -1118,4 +1118,8 @@ export const NOTED = {
     { note: '`createButton({ userGesture: true })` runs its click inside the host\'s own release event: on a WeChat phone, sharing a recording from a button was refused ("require user interaction (only in touchend event)"), because a click ran on the frame after the tap.' },
   'fix(minigame): the pixel ratio is read once, not on every frame':
     { note: 'A mini-game reads the host\'s pixel ratio once and again after a resize, instead of calling getSystemInfoSync several times a frame (on vivo, a synchronous call across its bridge each time).' },
+  'feat(export): the size report says what the start screen weighs':
+    { note: 'The build\'s size report shows the start screen on its own line — the markup and any logo inlined into index.html, which is on screen before anything else loads.' },
+  'feat(build): the size panel names what the start screen weighs':
+    { note: 'The build\'s size report shows the start screen on its own line — the markup and any logo inlined into index.html, which is on screen before anything else loads.' },
 };
