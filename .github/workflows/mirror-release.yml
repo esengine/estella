@@ -214,6 +214,23 @@ jobs:
           done
           echo "updater feed OK — ${#channels[@]} channel file(s), $checked payload url(s) reachable"
 
+          # The unversioned aliases answer 200 whether or not this release's copy
+          # landed — v0.73.0's exe copy exited 0 and wrote nothing, and the site
+          # kept serving v0.72.0's installer. So each alias must be THIS file:
+          # its size and the name it downloads as, read past the CDN's cache.
+          aliases=0
+          while IFS=$'\t' read -r url name size; do
+            head=$(curl -sS -I "$url?release=$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" | tr -d '\r')
+            got_size=$(printf '%s\n' "$head" | awk -F': *' 'tolower($1) == "content-length" { v = $2 } END { print v }')
+            got_name=$(printf '%s\n' "$head" | awk 'tolower($0) ~ /^content-disposition:/ && match($0, /filename="[^"]+"/) { v = substr($0, RSTART + 10, RLENGTH - 11) } END { print v }')
+            if [ "$got_size" != "$size" ] || [ "$got_name" != "$name" ]; then
+              echo "::error::$url serves \"${got_name:-?}\" (${got_size:-?} bytes), not this release's \"$name\" ($size bytes)"
+              exit 1
+            fi
+            aliases=$((aliases + 1))
+          done < <(jq -r '.downloads[] | [.url, .name, (.size | tostring)] | @tsv' latest.json)
+          echo "download aliases OK — $aliases serve this release's installer"
+
       # The website reads latest.json from a different origin than the bucket, so
       # without this its version and size labels are blocked — the download links
       # themselves are plain navigations and never were. Re-applied every run
