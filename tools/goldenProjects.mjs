@@ -90,6 +90,27 @@ export const CENSUS_FLOOR = '0.60.0';
  * that does not exist, and release notes are a different act. Theirs is ungated.
  */
 export const SHIPPED = {
+  // — 0.73.0 —
+  'A connected native build\'s frame can be captured and replayed':
+    { notCertifiable: 'a development tool over a frame the game already draws; sdk/tests/frame-capture-copy.test.ts holds the native read path, and it was run on the macOS host and in the Android emulator' },
+  'A native development build names its device to the editor':
+    { notCertifiable: 'how the editor labels a connected build, not something a game does; sdk/tests/native-host-bridge.test.ts holds it' },
+  'A native development build connects to the editor':
+    { notCertifiable: 'a development build\'s line to the editor, which no shipping game carries; sdk/tests/native-socket.test.ts holds the socket, and it was run on the macOS host and in the Android emulator' },
+  'The Profiler shows which content revision a connected build runs':
+    { notCertifiable: 'an editor readout of a device\'s hot-update state; the remote-frame-debugger editor check and verify-remote-capture (web and WeChat) hold it' },
+  'The build\'s size report shows the start screen on its own line':
+    { notCertifiable: 'a line in the build report, not game behaviour; pipeline/tests/export-splash.test.ts holds it' },
+  'Connected development builds are named by the device they run on':
+    { notCertifiable: 'how the editor labels a connected build; the remote-frame-debugger editor check and verify-remote-capture (web and WeChat) hold it' },
+  'The Profiler shows what the debug channel costs a connected build':
+    { notCertifiable: 'an editor readout of the channel\'s own cost; the remote-frame-debugger editor check and verify-remote-capture (web and WeChat) hold it' },
+  'The Outliner can show a connected development build\'s world':
+    { notCertifiable: 'an editor view of a device\'s world, read-only; the remote-frame-debugger editor check and verify-remote-capture (web and WeChat) hold it' },
+  'A development build connected to the editor can be watched and driven from it':
+    { notCertifiable: 'development tooling around a build no shipping game is; the remote-frame-debugger editor check and verify-remote-capture (web and WeChat) hold it' },
+  'The Frame Debugger can capture and replay a frame of a development build running outside the editor':
+    { notCertifiable: 'development tooling over a frame the game already draws; the remote-frame-debugger editor check and verify-remote-capture (web and WeChat) hold it' },
   // — 0.72.0 —
   'A frame can be captured draw call by draw call, and replayed up to any one of them.':
     { notCertifiable: 'an editor panel and three agent tools over a frame the game already draws; the frame-debugger editor check and the frame-debugger-2d/3d/split render scenes hold it on both backends' },

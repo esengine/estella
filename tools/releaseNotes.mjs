@@ -1057,23 +1057,23 @@ export const NOTED = {
   'fix(recorder): a Douyin recording the host ends on its own keeps its video':
     { note: 'A Douyin recording the host ends on its own keeps its video, and an interruption is not counted as recorded time.' },
   'feat(frame-debugger): a development build can be captured from the editor over the network':
-    { note: 'The Frame Debugger can capture and replay a frame of a development build running outside the editor — a browser or a mini-game host, on this machine or another on the network: export with the Development configuration and "Frame debugger connection", then pick the device in the panel. Native apps cannot connect yet.' },
+    { note: 'The Frame Debugger can capture and replay a frame of a development build running outside the editor.' },
   'feat(frame-debugger): capture a frame from a development build running elsewhere':
-    { note: 'The Frame Debugger can capture and replay a frame of a development build running outside the editor — a browser or a mini-game host, on this machine or another on the network: export with the Development configuration and "Frame debugger connection", then pick the device in the panel. Native apps cannot connect yet.' },
+    { note: 'The Frame Debugger can capture and replay a frame of a development build running outside the editor.' },
   'fix(hot-update): an update says which stages it reached, and the next launch starts on a whole version':
     { note: 'A hot update reports how far it got — verified, applied, stored for the next launch, cached for offline — instead of one `ok`; two updates at once no longer both commit or lose the newer one; and an update stored by an older build no longer covers a newer one the player installed.' },
   'fix(minigame): a hot update reaches a mini-game, and survives its next launch offline':
     { note: 'A hot update on a mini-game is stored for the next launch and its assets are cached on the device, so the updated game starts offline; before, a mini-game went back to what shipped.' },
   'feat(debug): a development build\'s log, frame stats and controls reach the editor':
-    { note: 'A development build connected to the editor shows its log in the Output Log (from before the editor connected, too), can be profiled in the Profiler on its own frame clock, and can be paused, stepped and frame-capped from there; the log says which project and content version connected.' },
+    { note: 'A development build connected to the editor can be watched and driven from it.' },
   'feat(profiler): a development build\'s frames, log and clock, read and driven from the editor':
-    { note: 'A development build connected to the editor shows its log in the Output Log (from before the editor connected, too), can be profiled in the Profiler on its own frame clock, and can be paused, stepped and frame-capped from there; the log says which project and content version connected.' },
+    { note: 'A development build connected to the editor can be watched and driven from it.' },
   'fix(app): a frame-rate cap keeps a cadence, so 30 on a 60 Hz display is 30':
     { note: 'A frame-rate cap now holds: `setTargetFrameRate(30)` on a 60 Hz display runs at 30, not 24.' },
   'feat(debug): a device answers with its world, and a question asked while it boots waits':
-    { note: 'In the Outliner, a connected development build\'s world can be shown instead of this editor\'s (read-only, with live values in Details).' },
+    { note: 'The Outliner can show a connected development build\'s world.' },
   'feat(outliner): a connected build\'s world, shown read-only beside this editor\'s':
-    { note: 'In the Outliner, a connected development build\'s world can be shown instead of this editor\'s (read-only, with live values in Details).' },
+    { note: 'The Outliner can show a connected development build\'s world.' },
   'feat(debug): the debug channel reports what it costs the game it watches':
     { internal: 'a number the channel reports for its own budget check; the profiler does not show it yet' },
   'fix(minigame): a WeChat development build reaches the editor, and its replays come back':
@@ -1101,13 +1101,13 @@ export const NOTED = {
   'fix(debug): a device in the background refuses a capture at once':
     { note: 'Capturing a development build whose tab is in the background says so at once, instead of waiting 30 seconds for a frame the browser will not draw.' },
   'feat(profiler): the Profiler shows what a connected device spends on its debug channel':
-    { note: 'Profiling a connected development build, the Profiler\'s Frame section shows what its debug channel costs the device per frame (and `profile_frames` reports it as `channelMs`).' },
+    { note: 'The Profiler shows what the debug channel costs a connected build per frame.' },
   'feat(profiler): a device\'s frame shows what its debug channel costs':
-    { note: 'Profiling a connected development build, the Profiler\'s Frame section shows what its debug channel costs the device per frame (and `profile_frames` reports it as `channelMs`).' },
+    { note: 'The Profiler shows what the debug channel costs a connected build per frame.' },
   'feat(debug): a connected build says what device it runs on':
-    { note: 'Connected development builds are named by the device they run on — `web (Chrome · Android)`, a phone\'s model on a mini-game — and numbered when two read alike, in the Profiler, Outliner, Frame Debugger and `device_targets`.' },
+    { note: 'Connected development builds are named by the device they run on.' },
   'feat(debug): connected builds are named by the device they run on':
-    { note: 'Connected development builds are named by the device they run on — `web (Chrome · Android)`, a phone\'s model on a mini-game — and numbered when two read alike, in the Profiler, Outliner, Frame Debugger and `device_targets`.' },
+    { note: 'Connected development builds are named by the device they run on.' },
   'fix(debug): a shipping package no longer carries the debug channel':
     { note: 'A shipping package no longer carries the development debug channel\'s code (13 KB on a WeChat package): only a development export that names an editor imports it, as `esengine/debug-channel`.' },
   'fix(net): a mini-game socket whose dial is refused on a phone redials':
@@ -1119,21 +1119,21 @@ export const NOTED = {
   'fix(minigame): the pixel ratio is read once, not on every frame':
     { note: 'A mini-game reads the host\'s pixel ratio once and again after a resize, instead of calling getSystemInfoSync several times a frame (on vivo, a synchronous call across its bridge each time).' },
   'feat(export): the size report says what the start screen weighs':
-    { note: 'The build\'s size report shows the start screen on its own line — the markup and any logo inlined into index.html, which is on screen before anything else loads.' },
+    { note: 'The build\'s size report shows the start screen on its own line.' },
   'feat(build): the size panel names what the start screen weighs':
-    { note: 'The build\'s size report shows the start screen on its own line — the markup and any logo inlined into index.html, which is on screen before anything else loads.' },
+    { note: 'The build\'s size report shows the start screen on its own line.' },
   'feat(debug): a connected build reports its hot-update status to the editor':
-    { note: 'Profiling a connected development build, the Profiler shows which content revision it runs, the one its next launch starts on, and a hot update it has found but not applied; `device_update_status` answers the same for an agent.' },
+    { note: 'The Profiler shows which content revision a connected build runs.' },
   'feat(profiler): a connected build says which content it runs and what update waits':
-    { note: 'Profiling a connected development build, the Profiler shows which content revision it runs, the one its next launch starts on, and a hot update it has found but not applied; `device_update_status` answers the same for an agent.' },
+    { note: 'The Profiler shows which content revision a connected build runs.' },
   'feat(native): a native build can connect to the editor over the debug channel':
-    { note: 'A desktop (native) development build connects to the editor like a web or mini-game one — log, profiler, the world, content status, pause and step; its renderer cannot capture frames yet and says so. The native host gained a `ws://` client for it.' },
+    { note: 'A native development build connects to the editor.' },
   'feat(build): a desktop development build can dial the editor':
-    { note: 'A desktop (native) development build connects to the editor like a web or mini-game one — log, profiler, the world, content status, pause and step; its renderer cannot capture frames yet and says so. The native host gained a `ws://` client for it.' },
+    { note: 'A native development build connects to the editor.' },
   'fix(android): a native Android app can reach the network':
     { note: 'A native Android app can reach the network: its manifest never asked for it, so a remote group\'s assets, hot updates and the debug channel all failed on Android. A development build also allows plain http (a LAN CDN); a shipping build is held to https, and the export warns when its CDN is http.' },
   'feat(native): a native build names its device when it connects':
-    { note: 'A native development build names its device to the editor — `macOS · Mac16,10`, `Android · Pixel 8` — as web and mini-game builds already did.' },
+    { note: 'A native development build names its device to the editor.' },
   'feat(build): an Android development build can dial the editor':
     { note: 'A native Android app can reach the network: its manifest never asked for it, so a remote group\'s assets, hot updates and the debug channel all failed on Android. A development build also allows plain http (a LAN CDN); a shipping build is held to https, and the export warns when its CDN is http.' },
   'test(android): a Studio project\'s manifest has every placeholder filled':
@@ -1141,5 +1141,5 @@ export const NOTED = {
   'fix(android): every Android package fills its manifest from one list':
     { note: 'A native Android app can reach the network: its manifest never asked for it, so a remote group\'s assets, hot updates and the debug channel all failed on Android. A development build also allows plain http (a LAN CDN); a shipping build is held to https, and the export warns when its CDN is http.' },
   'feat(native): a native build\'s frame can be captured and replayed':
-    { note: 'The Frame Debugger captures and replays the frame of a connected native build (desktop and Android) as it does a web or mini-game one.' },
+    { note: 'A connected native build\'s frame can be captured and replayed.' },
 };

@@ -14,18 +14,20 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.73.0] - 2026-09-25
+
 ### Added
 
-- The Frame Debugger captures and replays the frame of a connected native build (desktop and Android) as it does a web or mini-game one.
-- A native development build names its device to the editor — `macOS · Mac16,10`, `Android · Pixel 8` — as web and mini-game builds already did.
-- A desktop (native) development build connects to the editor like a web or mini-game one — log, profiler, the world, content status, pause and step; its renderer cannot capture frames yet and says so. The native host gained a `ws://` client for it.
-- Profiling a connected development build, the Profiler shows which content revision it runs, the one its next launch starts on, and a hot update it has found but not applied; `device_update_status` answers the same for an agent.
-- The build's size report shows the start screen on its own line — the markup and any logo inlined into index.html, which is on screen before anything else loads.
-- Connected development builds are named by the device they run on — `web (Chrome · Android)`, a phone's model on a mini-game — and numbered when two read alike, in the Profiler, Outliner, Frame Debugger and `device_targets`.
-- Profiling a connected development build, the Profiler's Frame section shows what its debug channel costs the device per frame (and `profile_frames` reports it as `channelMs`).
-- In the Outliner, a connected development build's world can be shown instead of this editor's (read-only, with live values in Details).
-- A development build connected to the editor shows its log in the Output Log (from before the editor connected, too), can be profiled in the Profiler on its own frame clock, and can be paused, stepped and frame-capped from there; the log says which project and content version connected.
-- The Frame Debugger can capture and replay a frame of a development build running outside the editor — a browser or a mini-game host, on this machine or another on the network: export with the Development configuration and "Frame debugger connection", then pick the device in the panel. Native apps cannot connect yet.
+- **A connected native build's frame can be captured and replayed.** The Frame Debugger does it for desktop and Android builds as it does for a web or mini-game one.
+- **A native development build names its device to the editor.** `macOS · Mac16,10`, `Android · Pixel 8` — as web and mini-game builds already did.
+- **A native development build connects to the editor.** Desktop and Android, like a web or mini-game one — log, profiler, the world, content status, pause and step. The native host gained a `ws://` client for it.
+- **The Profiler shows which content revision a connected build runs.** Also the one its next launch starts on, and a hot update it has found but not applied; `device_update_status` answers the same for an agent.
+- **The build's size report shows the start screen on its own line.** The markup and any logo inlined into index.html, which is on screen before anything else loads.
+- **Connected development builds are named by the device they run on.** `web (Chrome · Android)`, a phone's model on a mini-game — numbered when two read alike, in the Profiler, Outliner, Frame Debugger and `device_targets`.
+- **The Profiler shows what the debug channel costs a connected build per frame.** In its Frame section; `profile_frames` reports it as `channelMs`.
+- **The Outliner can show a connected development build's world.** Instead of this editor's — read-only, with live values in Details.
+- **A development build connected to the editor can be watched and driven from it.** Its log shows in the Output Log (from before the editor connected, too); it can be profiled in the Profiler on its own frame clock and paused, stepped and frame-capped from there; the log says which project and content version connected.
+- **The Frame Debugger can capture and replay a frame of a development build running outside the editor.** A browser or a mini-game host, on this machine or another on the network: export with the Development configuration and "Frame debugger connection", then pick the device in the panel.
 
 ### Fixed
 
@@ -13707,7 +13709,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.72.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.73.0...HEAD
+[0.73.0]: https://github.com/esengine/estella/compare/v0.72.0...v0.73.0
 [0.72.0]: https://github.com/esengine/estella/compare/v0.71.0...v0.72.0
 [0.71.0]: https://github.com/esengine/estella/compare/v0.70.0...v0.71.0
 [0.70.0]: https://github.com/esengine/estella/compare/v0.69.0...v0.70.0
