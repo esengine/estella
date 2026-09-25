@@ -13,7 +13,7 @@
 import { cp, mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { fillTemplate, androidScreenOrientation } from './nativeApp.js';
+import { fillTemplate, androidManifestValues } from './nativeApp.js';
 
 /** Android Gradle Plugin the emitted project asks for. */
 const AGP_VERSION = '8.7.3';
@@ -44,15 +44,8 @@ function projectName(appName) {
  * @returns {{xml: string, minSdk: number, targetSdk: number}}
  */
 export function gradleManifest(templateXml, app) {
-    const filled = fillTemplate(templateXml, {
-        APP_ID: app.id,
-        APP_NAME: app.name,
-        VERSION_NAME: app.version,
-        VERSION_CODE: app.versionCode,
-        SCREEN_ORIENTATION: androidScreenOrientation(app.orientation),
-        // A project compiles the Java shim from source, so there is always code.
-        HAS_CODE: 'true',
-    });
+    // A project compiles the Java shim from source, so there is always code.
+    const filled = fillTemplate(templateXml, androidManifestValues(app, { hasCode: true }));
 
     const minSdk = Number(/android:minSdkVersion="(\d+)"/.exec(filled)?.[1] ?? 29);
     const targetSdk = Number(/android:targetSdkVersion="(\d+)"/.exec(filled)?.[1] ?? 33);

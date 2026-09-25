@@ -73,6 +73,23 @@ export function iosInterfaceOrientations(orientation) {
         : ['UIInterfaceOrientationLandscapeLeft', 'UIInterfaceOrientationLandscapeRight'];
 }
 
+/**
+ * The values `AndroidManifest.xml.in` is filled with, for every packager that
+ * writes one (the APK, the App Bundle, the Android Studio project). One list, so
+ * a placeholder added to the template cannot reach one package and not another.
+ */
+export function androidManifestValues(app, { hasCode }) {
+    return {
+        APP_ID: app.id,
+        APP_NAME: app.name,
+        VERSION_NAME: app.version,
+        VERSION_CODE: app.versionCode,
+        SCREEN_ORIENTATION: androidScreenOrientation(app.orientation),
+        HAS_CODE: hasCode ? 'true' : 'false',
+        USES_CLEARTEXT: app.allowHttp ? 'true' : 'false',
+    };
+}
+
 /** Substitute `@NAME@` placeholders in a committed template. */
 export function fillTemplate(text, values) {
     return text.replace(/@([A-Z_]+)@/g, (match, key) => (key in values ? String(values[key]) : match));

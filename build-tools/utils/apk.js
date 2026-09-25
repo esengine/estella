@@ -22,7 +22,7 @@ import { makeZip, zipLayout } from './zip.js';
 import { compileManifest } from './androidBinaryXml.js';
 import { appResources } from './androidResources.js';
 import { DEFAULT_ICON, templateAbis } from './nativeTemplate.js';
-import { fillTemplate, androidScreenOrientation } from './nativeApp.js';
+import { fillTemplate, androidManifestValues } from './nativeApp.js';
 
 /** The boundary a mapped `.so` must start on — a 16 KiB page, which every
  *  smaller page size also divides. */
@@ -149,13 +149,7 @@ export function assembleApk(options) {
 
     const manifest = compileManifest(fillTemplate(
         readFileSync(path.join(templateDir, 'AndroidManifest.xml.in'), 'utf8'), {
-            APP_ID: app.id,
-            APP_NAME: app.name,
-            VERSION_NAME: app.version,
-            VERSION_CODE: app.versionCode,
-            SCREEN_ORIENTATION: androidScreenOrientation(app.orientation),
-            HAS_CODE: hasDex ? 'true' : 'false',
-            USES_CLEARTEXT: app.allowHttp ? 'true' : 'false',
+            ...androidManifestValues(app, { hasCode: hasDex }),
         }), resources.references);
 
     // Every architecture the template carries, so one package installs on a phone

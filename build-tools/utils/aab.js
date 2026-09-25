@@ -25,7 +25,7 @@ import { compileProtoManifest } from './androidProtoXml.js';
 import { appResources } from './androidResources.js';
 import { DEFAULT_ICON, templateAbis } from './nativeTemplate.js';
 import { jarSignatureFiles } from './jarSign.js';
-import { fillTemplate, androidScreenOrientation } from './nativeApp.js';
+import { fillTemplate, androidManifestValues } from './nativeApp.js';
 
 /**
  * BundleConfig.pb — `bundletool { version = 2 }`, `compression { uncompressed_glob = 1 }`.
@@ -54,13 +54,7 @@ export function assembleAab(options) {
 
     const manifest = compileProtoManifest(fillTemplate(
         readFileSync(path.join(templateDir, 'AndroidManifest.xml.in'), 'utf8'), {
-            APP_ID: app.id,
-            APP_NAME: app.name,
-            VERSION_NAME: app.version,
-            VERSION_CODE: app.versionCode,
-            SCREEN_ORIENTATION: androidScreenOrientation(app.orientation),
-            HAS_CODE: hasDex ? 'true' : 'false',
-            USES_CLEARTEXT: app.allowHttp ? 'true' : 'false',
+            ...androidManifestValues(app, { hasCode: hasDex }),
         }), resources.references);
 
     // Every architecture: Play splits the bundle per device, which is what the
