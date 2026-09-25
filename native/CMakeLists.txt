@@ -326,6 +326,7 @@ if(ESTELLA_QUICKJS_DIR)
         # a phone's keyboard IS one, so there is nothing here for it to be.
         $<$<BOOL:${ESTELLA_DESKTOP}>:host/media/text_edit.cpp>
         host/bindings/NetBindings.cpp
+        host/bindings/DeviceBindings.cpp
         host/net/WsClient.cpp
         host/bindings/TextEditorBindings.cpp
         host/bindings/AotBindings.cpp

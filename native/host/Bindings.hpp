@@ -58,6 +58,7 @@ void registerSteamBindings(HostState& h, JSValue global);
 
 /** es_fetch over the platform's native networking. */
 void registerNetBindings(HostState& h, JSValue global);
+void registerDeviceBindings(HostState& h, JSValue global);
 
 /** es_aot_* — the compiled systems a shipped build loads, and the naming a
  *  host does for them. Absent on the web, where the module shares the engine's

@@ -325,3 +325,24 @@ describe('a CDN image on a native build', () => {
         expect(load).toHaveBeenCalledWith('assets/hero.png');
     });
 });
+
+describe('the host bridge names its device and carries its socket client', () => {
+    it('passes both through when the host binds them', () => {
+        const opened: string[] = [];
+        const bridge = createHostBridge(hostScope({
+            es_deviceName: () => 'Android · Pixel 8',
+            es_wsOpen: (url: string) => { opened.push(url); return 7; },
+            es_wsSend: () => true,
+            es_wsClose: () => {},
+        }) as never);
+        expect(bridge.deviceName?.()).toBe('Android · Pixel 8');
+        bridge.socket!.open('ws://editor:1/', () => {});
+        expect(opened).toEqual(['ws://editor:1/']);
+    });
+
+    it('leaves both out on a host that binds neither', () => {
+        const bridge = createHostBridge(hostScope() as never);
+        expect(bridge.deviceName).toBeUndefined();
+        expect(bridge.socket).toBeUndefined();
+    });
+});

@@ -278,6 +278,10 @@ export class NativePlatformAdapter implements PlatformAdapter {
         return () => { live = false; };
     }
 
+    deviceName(): string {
+        return this.bridge_.deviceName?.() ?? '';
+    }
+
     createSocket(options: PlatformSocketOptions): PlatformSocket {
         const socket = this.bridge_.socket;
         if (!socket) throw new Error('this native host carries no socket client');

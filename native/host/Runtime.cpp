@@ -425,6 +425,7 @@ void initRuntime(HostState& h) {
     registerAotBindings(h, global);
 #endif
     registerNetBindings(h, global);
+    registerDeviceBindings(h, global);
     registerTextEditorBindings(h, global);
 
     // The generated halves: per-component accessors, then the engine's binding

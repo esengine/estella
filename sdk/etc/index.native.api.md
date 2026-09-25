@@ -5217,6 +5217,7 @@ value: string
 ## NativeBridge — interface @beta
 ```
 audio: NativeAudioBridge | undefined
+deviceName: (() => string) | undefined
 devicePixelRatio: () => number
 fetch: (url: string, options?: PlatformRequestOptions) => Promise<NativeFetchResult>
 fileExists: (path: string) => Promise<boolean>
@@ -5290,6 +5291,7 @@ es_audioStop: ((voiceId: number) => void) | undefined
 es_audioSuspendAll: (() => void) | undefined
 es_audioUnload: ((bufferId: number) => void) | undefined
 es_audioVoiceState: ((voiceId: number) => { playing: boolean; currentTime: number; } | null) | undefined
+es_deviceName: (() => string) | undefined
 es_devicePixelRatio: (() => number) | undefined
 es_fetch: ((request: { url: string; method?: string; headers?: Record<string, string>; body?: string | ArrayBuffer; responseType?: string; }, callback: (result: { ok: boolean; status: number; statusText: string; headers: Record<string, string>; arrayBuffer?: ArrayBuffer; text?: string; error?: string; }) => void) => void) | undefined
 es_getStorageItem: ((key: string) => string | null) | undefined
@@ -5353,6 +5355,7 @@ createImage: () => PlatformImage
 createSocket: (options: PlatformSocketOptions) => PlatformSocket
 createTextEditor: () => PlatformTextEditor | null
 createVideoBackend: (ctx: VideoBackendContext) => PlatformVideoBackend
+deviceName: () => string
 devicePixelRatio: () => number
 fetch: (url: string, options?: PlatformRequestOptions) => Promise<PlatformResponse>
 fileExists: (path: string) => Promise<boolean>
