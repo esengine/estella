@@ -24,6 +24,7 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- On a WeChat phone, a socket whose connection is refused now reports that it closed, so a development build keeps redialing the editor (and a game's socket reconnects) instead of giving up after the first refusal.
 - A shipping package no longer carries the development debug channel's code (13 KB on a WeChat package): only a development export that names an editor imports it, as `esengine/debug-channel`.
 - Capturing a development build whose tab is in the background says so at once, instead of waiting 30 seconds for a frame the browser will not draw.
 - A web game opened in a background tab starts paused and reports itself hidden until it is shown; before, it counted as visible.

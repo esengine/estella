@@ -1110,4 +1110,6 @@ export const NOTED = {
     { note: 'Connected development builds are named by the device they run on — `web (Chrome · Android)`, a phone\'s model on a mini-game — and numbered when two read alike, in the Profiler, Outliner, Frame Debugger and `device_targets`.' },
   'fix(debug): a shipping package no longer carries the debug channel':
     { note: 'A shipping package no longer carries the development debug channel\'s code (13 KB on a WeChat package): only a development export that names an editor imports it, as `esengine/debug-channel`.' },
+  'fix(net): a mini-game socket whose dial is refused on a phone redials':
+    { note: 'On a WeChat phone, a socket whose connection is refused now reports that it closed, so a development build keeps redialing the editor (and a game\'s socket reconnects) instead of giving up after the first refusal.' },
 };

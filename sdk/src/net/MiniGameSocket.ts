@@ -69,14 +69,23 @@ export class MiniGameSocket implements PlatformSocket {
             this.events_.emit('message', res.data);
         });
 
-        task.onClose((res: { code: number; reason: string }) => {
+        let ended = false;
+        const end = (code: number, reason: string): void => {
+            if (ended) return;
+            ended = true;
             this.readyState = 'closed';
-            this.task_ = null;
-            this.events_.emit('close', res.code, res.reason);
-        });
+            if (this.task_ === task) this.task_ = null;
+            this.events_.emit('close', code, reason);
+        };
+
+        task.onClose((res: { code: number; reason: string }) => end(res.code, res.reason));
 
         task.onError((err: unknown) => {
+            const failedToOpen = this.readyState === 'connecting';
             this.events_.emit('error', err);
+            // A WeChat phone ends a refused dial with an error and no close, and a
+            // caller that redials on close would wait for it forever.
+            if (failedToOpen) end(1006, (err as { errMsg?: string } | null)?.errMsg ?? 'connect failed');
         });
     }
 
