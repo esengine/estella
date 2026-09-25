@@ -79,6 +79,7 @@ export interface MiniGameSystemInfo {
      *  cosmetic: in-game purchase is permitted on some of these and forbidden
      *  on others, so a capability has to read it. */
     platform?: string;
+    model?: string;
 }
 
 export interface MiniGameTouch {

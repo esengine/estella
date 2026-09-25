@@ -16,6 +16,7 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- Connected development builds are named by the device they run on — `web (Chrome · Android)`, a phone's model on a mini-game — and numbered when two read alike, in the Profiler, Outliner, Frame Debugger and `device_targets`.
 - Profiling a connected development build, the Profiler's Frame section shows what its debug channel costs the device per frame (and `profile_frames` reports it as `channelMs`).
 - In the Outliner, a connected development build's world can be shown instead of this editor's (read-only, with live values in Details).
 - A development build connected to the editor shows its log in the Output Log (from before the editor connected, too), can be profiled in the Profiler on its own frame clock, and can be paused, stepped and frame-capped from there; the log says which project and content version connected.

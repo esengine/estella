@@ -5200,6 +5200,7 @@ createRewardedAd: (adUnitId: string) => PlatformRewardedAd | null
 createScreenCanvas: () => MiniGameCanvas
 createSocket: (options: PlatformSocketOptions) => PlatformSocket
 createVideoBackend: (ctx: VideoBackendContext) => PlatformVideoBackend
+deviceName: () => string
 devicePixelRatio: () => number
 family: "minigame"
 fetch: (url: string, options?: PlatformRequestOptions) => Promise<PlatformResponse>
@@ -5319,6 +5320,7 @@ keys: string[]
 ## MiniGameSystemInfo — interface @experimental
 ```
 language: string | undefined
+model: string | undefined
 pixelRatio: number | undefined
 platform: string | undefined
 windowHeight: number | undefined
@@ -6002,6 +6004,7 @@ createRewardedAd: ((adUnitId: string) => PlatformRewardedAd | null) | undefined
 createSocket: ((options: PlatformSocketOptions) => PlatformSocket) | undefined
 createTextEditor: (() => PlatformTextEditor | null) | undefined
 createVideoBackend: ((ctx: VideoBackendContext) => PlatformVideoBackend) | undefined
+deviceName: (() => string) | undefined
 devicePixelRatio: () => number
 family: "minigame" | undefined
 fetch: (url: string, options?: PlatformRequestOptions) => Promise<PlatformResponse>

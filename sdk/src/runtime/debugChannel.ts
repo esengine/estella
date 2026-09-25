@@ -148,7 +148,7 @@ export function startDebugChannel(config: DebugChannelConfig): void {
     const hello = (): void => {
         const assets = app?.hasResource(Assets) ? app.getResource(Assets) : null;
         send({
-            t: 'hello', v: DEBUG_CHANNEL_PROTOCOL, platform: platform.name, title: '',
+            t: 'hello', v: DEBUG_CHANNEL_PROTOCOL, platform: platform.name, title: platform.deviceName?.() ?? '',
             project: config.project ?? null, revision: assets?.getManifest()?.revision() ?? null,
         });
     };

@@ -5922,6 +5922,7 @@ createRewardedAd: ((adUnitId: string) => PlatformRewardedAd | null) | undefined
 createSocket: ((options: PlatformSocketOptions) => PlatformSocket) | undefined
 createTextEditor: (() => PlatformTextEditor | null) | undefined
 createVideoBackend: ((ctx: VideoBackendContext) => PlatformVideoBackend) | undefined
+deviceName: (() => string) | undefined
 devicePixelRatio: () => number
 family: "minigame" | undefined
 fetch: (url: string, options?: PlatformRequestOptions) => Promise<PlatformResponse>

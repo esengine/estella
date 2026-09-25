@@ -1104,4 +1104,8 @@ export const NOTED = {
     { note: 'Profiling a connected development build, the Profiler\'s Frame section shows what its debug channel costs the device per frame (and `profile_frames` reports it as `channelMs`).' },
   'feat(profiler): a device\'s frame shows what its debug channel costs':
     { note: 'Profiling a connected development build, the Profiler\'s Frame section shows what its debug channel costs the device per frame (and `profile_frames` reports it as `channelMs`).' },
+  'feat(debug): a connected build says what device it runs on':
+    { note: 'Connected development builds are named by the device they run on — `web (Chrome · Android)`, a phone\'s model on a mini-game — and numbered when two read alike, in the Profiler, Outliner, Frame Debugger and `device_targets`.' },
+  'feat(debug): connected builds are named by the device they run on':
+    { note: 'Connected development builds are named by the device they run on — `web (Chrome · Android)`, a phone\'s model on a mini-game — and numbered when two read alike, in the Profiler, Outliner, Frame Debugger and `device_targets`.' },
 };

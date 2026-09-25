@@ -570,6 +570,15 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
         }
     }
 
+    deviceName(): string {
+        try {
+            // WeChat appends the hardware id, as in 'iPhone 13<iPhone14,5>'.
+            return (this.g_.getSystemInfoSync?.()?.model ?? '').replace(/<.*>$/, '').trim();
+        } catch {
+            return '';
+        }
+    }
+
     language(): string {
         try {
             // Hosts report 'zh_CN'-style tags; platformLanguage() normalizes underscores.

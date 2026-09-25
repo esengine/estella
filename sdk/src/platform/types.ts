@@ -577,6 +577,9 @@ export interface PlatformAdapter {
      *  'zh_CN'-style tags — `platformLanguage()` normalizes underscores.
      *  Optional; web falls through to navigator.language. */
     language?(): string;
+    /** What a person would call this device when picking it from a list: a
+     *  phone's model, or a browser and its system. Optional. */
+    deviceName?(): string;
 
     /** One rewarded ad unit. Mini-game hosts implement it over their
      *  RewardedVideoAd; platforms without an ad system (web, native until a

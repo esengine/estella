@@ -33,7 +33,9 @@ const flush = () => new Promise((r) => setTimeout(r, 0));
 describe('the debug channel', () => {
     it('forwards what was printed before the editor listened, then answers a question asked before the game started', async () => {
         const s = fakeSocket();
-        setPlatform({ name: 'web', now: () => performance.now(), createSocket: () => s.socket } as unknown as PlatformAdapter);
+        setPlatform({
+            name: 'web', now: () => performance.now(), createSocket: () => s.socket, deviceName: () => 'Chrome · Android',
+        } as unknown as PlatformAdapter);
         startDebugChannel({ url: 'ws://editor:1/?token=t', project: 'Demo' });
         console.log('booting the engine');
 
@@ -41,7 +43,7 @@ describe('the debug channel', () => {
         const logged = s.sent.filter((m) => (m as { t: string }).t === 'logs')
             .flatMap((m) => (m as { entries: Array<{ line: string }> }).entries.map((e) => e.line));
         expect(logged).toContain('booting the engine');
-        expect(s.sent[0]).toMatchObject({ t: 'hello', project: 'Demo', revision: null });
+        expect(s.sent[0]).toMatchObject({ t: 'hello', title: 'Chrome · Android', project: 'Demo', revision: null });
 
         s.receive({ t: 'query', reqId: 7, kind: 'control', paused: true });
         await flush();

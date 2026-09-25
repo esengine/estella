@@ -318,6 +318,10 @@ class WebPlatformAdapter implements PlatformAdapter {
         return typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
     }
 
+    deviceName(): string {
+        return typeof navigator !== 'undefined' ? browserDeviceName(navigator.userAgent) : '';
+    }
+
     /**
      * Both ways an error reaches the browser with nobody holding it.
      *
@@ -380,3 +384,20 @@ class WebPlatformAdapter implements PlatformAdapter {
 // =============================================================================
 
 export const webAdapter = new WebPlatformAdapter();
+
+/** A browser and the system it runs on, from its user agent. Chrome on Android
+ *  no longer names the phone's model there, so this is as close as a page gets. */
+export function browserDeviceName(ua: string): string {
+    const system = /Android/.test(ua) ? 'Android'
+        : /iPhone/.test(ua) ? 'iPhone'
+        : /iPad/.test(ua) ? 'iPad'
+        : /Mac OS X/.test(ua) ? 'Mac'
+        : /Windows/.test(ua) ? 'Windows'
+        : /Linux/.test(ua) ? 'Linux' : '';
+    const browser = /Electron\//.test(ua) ? 'Electron'
+        : /Edg\//.test(ua) ? 'Edge'
+        : /Firefox\//.test(ua) ? 'Firefox'
+        : /Chrome\//.test(ua) ? 'Chrome'
+        : /Safari\//.test(ua) ? 'Safari' : '';
+    return [browser, system].filter(Boolean).join(' · ');
+}
