@@ -92,6 +92,8 @@ export interface EngineInstallEvidence {
     scriptImports?: Iterable<string>;
     /** What the project said, from {@link moduleChoices}. */
     choices?: Readonly<Record<string, ModuleChoice>>;
+    /** A development build that names an editor to connect to. */
+    debugChannel?: boolean;
 }
 
 /** What a package installs, and whether a lean entry can carry it. */
@@ -157,6 +159,8 @@ export function engineInstalls(evidence: EngineInstallEvidence): EngineInstallPl
         // and only the ones the SDK publishes are ours to stage.
         if (specifier in ESENGINE_SUBPATHS) saw(specifier, `a project script imports "${specifier}"`);
     }
+
+    if (evidence.debugChannel) saw('esengine/debug-channel', 'a development build that names an editor');
 
     const choices = evidence.choices ?? {};
     const refused: ExcludedInUse[] = [];

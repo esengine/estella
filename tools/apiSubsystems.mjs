@@ -26,6 +26,7 @@
  * subsystem cannot be mistaken for adding plumbing.
  */
 export const INFRASTRUCTURE = {
+    'debug-channel': 'a development build\'s line back to the editor — tooling, never in a shipped game',
     diagnostics: 'the engine reporting on itself — a census and a stats overlay, read by tooling',
     document: 'document-model diagnostics shared with the editor, not part of a game',
     platform: 'the PlatformAdapter implementations; a game meets these through the subsystems above',

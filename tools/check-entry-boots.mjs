@@ -17,7 +17,7 @@
  *   node tools/check-entry-boots.mjs
  */
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -96,6 +96,38 @@ for (const [first, second] of [['esengine', 'esengine/node'], ['esengine/node', 
             + ' reads files over fetch and throws on localStorage.');
     }
     results.push(`${first}+${second} → ${got}`);
+}
+
+// The debug channel reaches a package only through its subpath, which a
+// development export imports: a lean shipping bundle must neither carry it nor
+// find it, and one that imports the subpath must have it installed.
+const NO_CHANNEL = 'packaged without esengine/debug-channel';
+for (const c of [
+    { name: 'lean', imports: [], installed: false },
+    { name: 'lean+channel', imports: ['esengine/debug-channel'], installed: true },
+    { name: 'full', imports: [], entry: 'esengine', installed: true },
+]) {
+    const src = path.join(work, `channel-${c.name.replace(/\W+/g, '-')}.mjs`);
+    const out = `${src}.bundle.mjs`;
+    const entry = c.entry ?? 'esengine/lean';
+    writeFileSync(src, c.imports.map((m) => `import ${JSON.stringify(m)};\n`).join('')
+        + `import { startDebugChannel } from ${JSON.stringify(entry)};\n`
+        + `startDebugChannel({ url: 'ws://127.0.0.1:9/?token=t' });\n`
+        + `setTimeout(() => process.exit(0), 50);\n`);
+    await build({
+        entryPoints: [src], outfile: out, bundle: true, format: 'esm', platform: 'node', logLevel: 'silent',
+        alias: { 'esengine/lean': path.join(SDK, 'dist/index.lean.js') },
+    });
+    const run = spawnSync(process.execPath, [out], { encoding: 'utf8' });
+    const said = `${run.stdout ?? ''}${run.stderr ?? ''}`;
+    const carried = readFileSync(out, 'utf8').includes('draws no frames');
+    if (c.installed === said.includes(NO_CHANNEL) || c.installed !== carried) {
+        fail(`${c.name}: the debug channel ${c.installed ? 'should be installed' : 'should be absent'}, `
+            + `but the bundle ${carried ? 'carries' : 'lacks'} it and starting it ${said.includes(NO_CHANNEL) ? 'found none' : 'found one'}.`
+            + '\n\nThe subpath installs it with a call (debug-channel/index.ts); the full entries call the'
+            + ' same registration; the lean entries must not.');
+    }
+    results.push(`${c.name} channel → ${c.installed ? 'installed' : 'absent'}`);
 }
 
 rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });

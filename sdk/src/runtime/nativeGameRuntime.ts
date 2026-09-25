@@ -15,7 +15,7 @@
  *          before the async boot settles).
  */
 
-import { startDebugChannel } from './debugChannel';
+import { startDebugChannel } from './debugChannelHook';
 import type { App } from '../app/app';
 import { initRuntime } from './runtimeLoader';
 import { createNativeApp } from '../ecs/bridge/nativeRuntime';

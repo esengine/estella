@@ -24,6 +24,7 @@ import { registerScriptGraphSupport } from '../logic/logicSupport';
 import { registerAiSupport } from '../ai/aiSupport';
 import { registerReplicationSupport } from '../net/replication/replicationSupport';
 import { registerGameplaySupport } from '../gameplay/gameplaySupport';
+import { registerDebugChannelSupport } from '../debug-channel/debugChannelSupport';
 
 export function installOptionalPlugins(): void {
     registerSpineSupport();
@@ -35,6 +36,7 @@ export function installOptionalPlugins(): void {
     registerAiSupport();
     registerReplicationSupport();
     registerGameplaySupport();
+    registerDebugChannelSupport();
     // Video has no subpath of its own to be installed from, so it registers here.
     setSceneOptionals({
         video: {

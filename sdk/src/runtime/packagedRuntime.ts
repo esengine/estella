@@ -12,7 +12,7 @@
  *          the bytes arrive, so the same code serves both realms.
  */
 
-import type { DebugChannelConfig } from './debugChannel';
+import type { DebugChannelConfig } from './debugChannelProtocol';
 import { extractUuid } from '../asset/AssetRegistry';
 import { platformReadTextFile, platformLoadImagePixels } from '../platform';
 import { ManifestModel, type AddressableManifest } from '../asset/AddressableManifest';

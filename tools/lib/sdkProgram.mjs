@@ -60,6 +60,7 @@ export const ENTRIES = {
     'dragonbones': 'src/dragonbones/index.ts',
     'tilemap': 'src/tilemap/index.ts',
     'logic': 'src/logic/index.ts',
+    'debug-channel': 'src/debug-channel/index.ts',
     'ai': 'src/ai/index.ts',
     'replication': 'src/net/replication/index.ts',
     'gameplay': 'src/gameplay/index.ts',

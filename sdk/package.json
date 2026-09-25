@@ -17,6 +17,7 @@
     "./dist/spine/index.js",
     "./dist/tilemap/index.js",
     "./dist/logic/index.js",
+    "./dist/debug-channel/index.js",
     "./dist/ai/index.js",
     "./dist/net/replication/index.js",
     "./dist/gameplay/index.js",
@@ -71,6 +72,10 @@
     "./logic": {
       "import": "./dist/logic/index.js",
       "types": "./dist/logic/index.d.ts"
+    },
+    "./debug-channel": {
+      "import": "./dist/debug-channel/index.js",
+      "types": "./dist/debug-channel/index.d.ts"
     },
     "./ai": {
       "import": "./dist/ai/index.js",

@@ -13,6 +13,7 @@ export const ESENGINE_SUBPATHS: Readonly<Record<string, string>> = {
   'esengine/spine': 'spine/index.js',
   'esengine/tilemap': 'tilemap/index.js',
   'esengine/logic': 'logic/index.js',
+  'esengine/debug-channel': 'debug-channel/index.js',
   'esengine/ai': 'ai/index.js',
   'esengine/replication': 'net/replication/index.js',
   'esengine/gameplay': 'gameplay/index.js',
@@ -30,10 +31,10 @@ export const ESENGINE_SUBPATHS: Readonly<Record<string, string>> = {
 
 /**
  * Subpaths that are not modules a project picks: the engine binary every target
- * loads, and a platform adapter an entry chooses rather than content asking for
- * it. Named here so the pickable set is derived rather than written twice.
+ * loads, a platform adapter an entry chooses rather than content asking for it,
+ * and the debug channel a development export adds. Named here so the pickable set is derived rather than written twice.
  */
-export const NOT_A_MODULE: ReadonlySet<string> = new Set(['esengine/wasm', 'esengine/douyin', 'esengine/kuaishou', 'esengine/bilibili', 'esengine/quickgame', 'esengine/alipay', 'esengine/huawei']);
+export const NOT_A_MODULE: ReadonlySet<string> = new Set(['esengine/wasm', 'esengine/debug-channel', 'esengine/douyin', 'esengine/kuaishou', 'esengine/bilibili', 'esengine/quickgame', 'esengine/alipay', 'esengine/huawei']);
 
 /** The modules a project can force in or refuse, as `features.modules` keys it. */
 export const ENGINE_MODULES: readonly string[] =

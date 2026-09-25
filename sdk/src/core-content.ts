@@ -455,14 +455,14 @@ export {
     type SnapshotEntity,
     type SnapshotComponent,
 } from './runtime/worldSnapshot';
+export { startDebugChannel } from './runtime/debugChannelHook';
 export {
-    startDebugChannel,
     DEBUG_CHANNEL_PROTOCOL,
     type DebugChannelConfig,
     type DebugControl,
     type DebugChannelMessage,
     type DebugChannelQuery,
-} from './runtime/debugChannel';
+} from './runtime/debugChannelProtocol';
 
 // =============================================================================
 // Preview

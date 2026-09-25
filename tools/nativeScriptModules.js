@@ -74,6 +74,10 @@ export const MODULES = {
         disposition: 'forbidden-native-script',
         why: 'the SDK entry the host itself evaluated — a game script importing it is asking for a second copy of the thing already running',
     },
+    'esengine/debug-channel': {
+        disposition: 'forbidden-native-script',
+        why: 'a development export adds it to a web or mini-game package; a native host has no socket for it, and a game script has no reason to import it',
+    },
     'esengine/wasm': {
         disposition: 'forbidden-native-script',
         why: 'the emscripten module surface; a native build embeds Dawn and QuickJS and has no such module',

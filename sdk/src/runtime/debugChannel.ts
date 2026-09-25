@@ -4,6 +4,7 @@
  * @file    debugChannel.ts
  * @brief   A development build's line back to the editor that exported it, over
  *          which the editor's frame debugger captures the device's frames.
+ *          Carried only by a package that imports `esengine/debug-channel`.
  *
  * Only a build whose config carries `debugChannel` opens one, and only a
  * development export writes that field. The device dials out: a phone or a
@@ -21,45 +22,9 @@ import { Lifecycle } from '../ecs/lifecycle';
 import { frameStatsReport } from './frameStats';
 import { worldSnapshot } from './worldSnapshot';
 import { forwardConsole, type ConsoleLevel } from './consoleForward';
-
-export const DEBUG_CHANNEL_PROTOCOL = 1;
-
-/** The editor's address as a development export writes it into the config. */
-export interface DebugChannelConfig {
-    /** `ws://<editor host>:<port>/?token=<token>` */
-    url: string;
-    /** The project the build was made from, so the editor can tell a build of
-     *  another project from one of the project it has open. */
-    project?: string;
-}
-
-/** What `control` changes; each field absent leaves that setting alone. */
-export interface DebugControl {
-    paused?: boolean;
-    /** Advance this many frames — a paused game included. */
-    step?: number;
-    /** A cap on the frame rate; 0 lifts it. */
-    fps?: number;
-}
-
-export type DebugChannelQuery =
-    | { t: 'query'; reqId: number; kind: 'frameCapture' }
-    | { t: 'query'; reqId: number; kind: 'frameReplay'; drawIndex: number; maxSide?: number }
-    | { t: 'query'; reqId: number; kind: 'stats' }
-    | { t: 'query'; reqId: number; kind: 'snapshot'; selectedId: number | null; withTree: boolean }
-    | ({ t: 'query'; reqId: number; kind: 'control' } & DebugControl);
-
-/**
- * What a device sends. A replay's pixels follow their `reply` as binary frames,
- * `pixels` of them: text would add a third to every byte, and a mini-game host's
- * socket drops a frame the size of a whole screen. Lines go in batches, since a
- * host that traces its own every call prints thousands a second.
- */
-export type DebugChannelMessage =
-    | { t: 'hello'; v: number; platform: string; title: string; project: string | null; revision: string | null }
-    | { t: 'reply'; reqId: number; data: unknown; pixels?: number }
-    | { t: 'reply'; reqId: number; error: string }
-    | { t: 'logs'; entries: Array<{ level: ConsoleLevel; line: string }> };
+import {
+    DEBUG_CHANNEL_PROTOCOL, type DebugChannelConfig, type DebugChannelMessage, type DebugChannelQuery,
+} from './debugChannelProtocol';
 
 const RECONNECT_MS = 3000;
 const START_WAIT_MS = 20_000;

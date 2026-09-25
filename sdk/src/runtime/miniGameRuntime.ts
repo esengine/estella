@@ -31,7 +31,8 @@ import { createMiniGameSideModuleHost, type MiniGameSideModuleFactories } from '
 import type { Physics2DPluginConfig } from '../physics/PhysicsTypes';
 import type { SceneData } from '../scene/scene';
 import type { AotManifest } from '../ecs/aot/AotSystems';
-import { startDebugChannel, type DebugChannelConfig } from './debugChannel';
+import { startDebugChannel } from './debugChannelHook';
+import type { DebugChannelConfig } from './debugChannelProtocol';
 import type { PackagedGameConfig } from './packagedRuntime';
 import { log } from '../util/logger';
 import { Schedule, defineSystem } from '../ecs/system';

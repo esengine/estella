@@ -946,6 +946,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
         sideModuleIds,
         scriptImports,
         choices: moduleChoices(opts.features, opts.modulesByPlatform?.[platform]),
+        debugChannel: !!debugChannel,
       });
       // A package missing half a scene, with nothing saying which half, is worse
       // than one that refuses to be made.

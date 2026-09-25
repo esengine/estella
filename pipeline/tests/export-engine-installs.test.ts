@@ -32,6 +32,7 @@ const SDK_FILES = {
     'tilemap/index.js': 'export const tilemap = 1;\n',
     'ai/index.js': 'export const ai = 1;\n',
     'net/replication/index.js': 'export const repl = 1;\n',
+    'debug-channel/index.js': 'export const channel = 1;\n',
     'shared/core.js': 'export const core = 1;\n',
 };
 
@@ -134,6 +135,35 @@ describe('a web package built on a lean entry', () => {
  * subsystem its own scene needs, with nothing saying which one — so the export
  * refuses to make it, and names what argued.
  */
+describe('the debug channel', () => {
+    it('is installed in a development build that names an editor, and nowhere else', async () => {
+        const f = setup(['Transform', 'Sprite']);
+        const dev = { ...f, out: path.join(f.root, 'dev') };
+        try {
+            await run(f);
+            const res = await exportGame({
+                root: f.root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES,
+                sdkDistDir: path.join(f.root, '_sdk'), wasmDir: path.join(f.root, '_wasm'),
+                outDir: dev.out, debugChannel: { url: 'ws://192.168.1.2:37420/?token=t' },
+            });
+            expect(res.errors).toEqual([]);
+            const shipped = (out: string) => ({
+                page: readFileSync(path.join(out, 'index.html'), 'utf8'),
+                game: readFileSync(path.join(out, 'game.js'), 'utf8'),
+                staged: existsSync(path.join(out, 'sdk', 'debug-channel', 'index.js')),
+            });
+            const withChannel = shipped(dev.out);
+            expect(withChannel.page).toContain('"esengine/debug-channel":"./sdk/debug-channel/index.js"');
+            expect(withChannel.game).toContain('import "esengine/debug-channel"');
+            expect(withChannel.staged).toBe(true);
+            const without = shipped(f.out);
+            expect(without.page).not.toContain('debug-channel');
+            expect(without.game).not.toContain('debug-channel');
+            expect(without.staged).toBe(false);
+        } finally { rmSync(f.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); }
+    });
+});
+
 describe('a web package whose project excluded a module', () => {
     /** The export takes what the project said as an option, the way it takes every
      *  other project-derived setting; `packagingOptionsOf` is what derives it. */

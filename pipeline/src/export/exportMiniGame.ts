@@ -526,6 +526,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
     assetPaths: cook.includedPaths,
     sideModuleIds: sideModules.map((m) => m.id),
     choices: moduleChoices(opts.features, opts.modulesByPlatform?.[profile.id]),
+    debugChannel: !!debugChannel,
   });
   // A package missing half a scene, with nothing saying which half, is worse than
   // one that refuses to be made.

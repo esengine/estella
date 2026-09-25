@@ -1108,4 +1108,6 @@ export const NOTED = {
     { note: 'Connected development builds are named by the device they run on — `web (Chrome · Android)`, a phone\'s model on a mini-game — and numbered when two read alike, in the Profiler, Outliner, Frame Debugger and `device_targets`.' },
   'feat(debug): connected builds are named by the device they run on':
     { note: 'Connected development builds are named by the device they run on — `web (Chrome · Android)`, a phone\'s model on a mini-game — and numbered when two read alike, in the Profiler, Outliner, Frame Debugger and `device_targets`.' },
+  'fix(debug): a shipping package no longer carries the debug channel':
+    { note: 'A shipping package no longer carries the development debug channel\'s code (13 KB on a WeChat package): only a development export that names an editor imports it, as `esengine/debug-channel`.' },
 };

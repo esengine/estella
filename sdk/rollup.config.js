@@ -25,6 +25,7 @@ export default [
             'spine/index': 'src/spine/index.ts',
             'tilemap/index': 'src/tilemap/index.ts',
             'logic/index': 'src/logic/index.ts',
+            'debug-channel/index': 'src/debug-channel/index.ts',
             'ai/index': 'src/ai/index.ts',
             'net/replication/index': 'src/net/replication/index.ts',
             'gameplay/index': 'src/gameplay/index.ts',
