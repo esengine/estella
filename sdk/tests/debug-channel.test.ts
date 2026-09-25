@@ -76,7 +76,7 @@ describe('a build whose renderer cannot capture', () => {
         channel.attachDebugChannel({ hasResource: () => false, onFrameEnd: () => () => {}, wasmModule: null } as unknown as App);
         s.receive({ t: 'query', reqId: 12, kind: 'frameCapture' });
         await flush();
-        expect(s.sent.find((m) => (m as { reqId?: number }).reqId === 12)).toMatchObject({ error: expect.stringMatching(/native host/) });
+        expect(s.sent.find((m) => (m as { reqId?: number }).reqId === 12)).toMatchObject({ error: expect.stringMatching(/no frame capture/) });
     });
 });
 

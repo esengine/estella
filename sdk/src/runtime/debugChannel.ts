@@ -15,7 +15,7 @@ import type { App } from '../app/app';
 import { getPlatform, platformNow } from '../platform/base';
 import type { PlatformSocket } from '../platform/types';
 import type { NextFrame } from '../render/frameCapture';
-import { captureFrameReport, replayFrameDraw, type FrameReplayImage } from '../render/frameDebugReport';
+import { captureFrameReport, captureEngineOf, replayFrameDraw, type FrameReplayImage } from '../render/frameDebugReport';
 import { log } from '../util/logger';
 import { Assets } from '../asset/AssetPlugin';
 import { Lifecycle } from '../ecs/lifecycle';
@@ -133,8 +133,8 @@ export function startDebugChannel(config: DebugChannelConfig): void {
             if ((q.kind === 'frameCapture' || q.kind === 'frameReplay') && !drawsFrames) {
                 throw new Error('the game is in the background, where it draws no frames: bring it to the front');
             }
-            if ((q.kind === 'frameCapture' || q.kind === 'frameReplay') && !game.wasmModule) {
-                throw new Error('this build cannot capture frames: a native host has no frame capture yet');
+            if ((q.kind === 'frameCapture' || q.kind === 'frameReplay') && !captureEngineOf(game)) {
+                throw new Error('this build cannot capture frames: its host has no frame capture');
             }
             if (q.kind === 'frameCapture') {
                 const report = await captureFrameReport(game, frame);

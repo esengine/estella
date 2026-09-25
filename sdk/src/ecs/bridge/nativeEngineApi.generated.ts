@@ -125,6 +125,10 @@ export interface NativeEngineApi {
     renderer_beginScreenOverlay?(projectionPtr: number, vpX: number, vpY: number, vpW: number, vpH: number): void;
     renderer_captureFrame?(w: number, h: number): number;
     renderer_captureNextFrame?(): void;
+    renderer_copyCapturedEntities?(dest: number, destSize: number): boolean;
+    renderer_copyCapturedRecords?(dest: number, destSize: number): boolean;
+    renderer_copyCapturedTextures?(dest: number, destSize: number): boolean;
+    renderer_copySnapshot?(dest: number, destSize: number): boolean;
     renderer_createSkeletalPreview?(w: number, h: number): number;
     renderer_createTarget?(width: number, height: number, flags: number): number;
     renderer_destroySkeletalPreview?(preview: number): void;
@@ -397,6 +401,10 @@ export function createNativeEngineApi(
     bind('renderer_beginScreenOverlay', 'es_renderer_beginScreenOverlay', false);
     bind('renderer_captureFrame', 'es_renderer_captureFrame', false);
     bind('renderer_captureNextFrame', 'es_renderer_captureNextFrame', false);
+    bind('renderer_copyCapturedEntities', 'es_renderer_copyCapturedEntities', false);
+    bind('renderer_copyCapturedRecords', 'es_renderer_copyCapturedRecords', false);
+    bind('renderer_copyCapturedTextures', 'es_renderer_copyCapturedTextures', false);
+    bind('renderer_copySnapshot', 'es_renderer_copySnapshot', false);
     bind('renderer_createSkeletalPreview', 'es_renderer_createSkeletalPreview', false);
     bind('renderer_createTarget', 'es_renderer_createTarget', false);
     bind('renderer_destroySkeletalPreview', 'es_renderer_destroySkeletalPreview', false);

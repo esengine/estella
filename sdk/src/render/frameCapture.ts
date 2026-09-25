@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import type { ESEngineModule } from '../wasm';
 import { awaitReadback, READBACK_READY } from './readback';
 
 /**
@@ -105,22 +104,84 @@ export interface FrameCaptureData {
 /** sizeof(DrawCallRecord) in FrameCapture.hpp, which asserts the offsets read here. */
 const RECORD_SIZE_BYTES = 84;
 
-export function decodeFrameCapture(module: ESEngineModule): FrameCaptureData | null {
+/**
+ * What capture asks of the engine: the wasm module, which hands out addresses in
+ * its heap, or a native host's surface, which copies into a buffer allocated in
+ * its heap arena — its script cannot read engine memory directly.
+ */
+export interface CaptureEngine {
+    HEAPU8: Uint8Array;
+    _malloc?(bytes: number): number;
+    _free?(offset: number): void;
+    renderer_captureNextFrame(): void;
+    renderer_hasCapturedData(): boolean;
+    renderer_getCapturedFrameSize(): number;
+    renderer_getCapturedEntityCount(): number;
+    renderer_getCapturedTextureCount(): number;
+    renderer_getCapturedPassCount(): number;
+    renderer_getCapturedFrameData?(): number;
+    renderer_getCapturedEntities?(): number;
+    renderer_getCapturedTextures?(): number;
+    renderer_copyCapturedRecords?(dest: number, destSize: number): boolean;
+    renderer_copyCapturedEntities?(dest: number, destSize: number): boolean;
+    renderer_copyCapturedTextures?(dest: number, destSize: number): boolean;
+    renderer_replayToDrawCall(drawCallIndex: number): void;
+    renderer_snapshotMatchesCapture(): boolean;
+    renderer_pollSnapshotReadback(): number;
+    renderer_getSnapshotPtr?(): number;
+    renderer_getSnapshotSize(): number;
+    renderer_getSnapshotWidth(): number;
+    renderer_getSnapshotHeight(): number;
+    renderer_copySnapshot?(dest: number, destSize: number): boolean;
+}
+
+/** @p bytes of engine data as a JS-owned copy: read at its address where the
+ *  engine gives one, else copied through a scratch buffer in the heap. */
+function readOut(
+    engine: CaptureEngine, bytes: number,
+    address: (() => number) | undefined,
+    copy: ((dest: number, destSize: number) => boolean) | undefined,
+): Uint8Array | null {
+    if (bytes === 0) return new Uint8Array(0);
+    if (address) {
+        const at = address();
+        return at ? engine.HEAPU8.slice(at, at + bytes) : null;
+    }
+    if (!copy || !engine._malloc || !engine._free) return null;
+    const scratch = engine._malloc(bytes);
+    if (!scratch) return null;
+    try {
+        return copy(scratch, bytes) ? engine.HEAPU8.slice(scratch, scratch + bytes) : null;
+    } finally {
+        engine._free(scratch);
+    }
+}
+
+export function decodeFrameCapture(module: CaptureEngine): FrameCaptureData | null {
     if (!module.renderer_hasCapturedData()) return null;
 
     const count = module.renderer_getCapturedFrameSize();
     if (count === 0) return null;
 
-    const dataPtr = module.renderer_getCapturedFrameData();
-    const entitiesPtr = module.renderer_getCapturedEntities();
     const entityCount = module.renderer_getCapturedEntityCount();
     const passCount = module.renderer_getCapturedPassCount();
-
-    const heap = module.HEAPU8;
-    const view = new DataView(heap.buffer, dataPtr, count * RECORD_SIZE_BYTES);
-    const entityHeap = new Uint32Array(heap.buffer, entitiesPtr, entityCount);
     const textureCount = module.renderer_getCapturedTextureCount();
-    const textureHeap = new Uint32Array(heap.buffer, module.renderer_getCapturedTextures(), textureCount);
+
+    const m = module;
+    const records = readOut(m, count * RECORD_SIZE_BYTES,
+        m.renderer_getCapturedFrameData && (() => m.renderer_getCapturedFrameData!()),
+        m.renderer_copyCapturedRecords && ((d, n) => m.renderer_copyCapturedRecords!(d, n)));
+    const entityBytes = readOut(m, entityCount * 4,
+        m.renderer_getCapturedEntities && (() => m.renderer_getCapturedEntities!()),
+        m.renderer_copyCapturedEntities && ((d, n) => m.renderer_copyCapturedEntities!(d, n)));
+    const textureBytes = readOut(m, textureCount * 4,
+        m.renderer_getCapturedTextures && (() => m.renderer_getCapturedTextures!()),
+        m.renderer_copyCapturedTextures && ((d, n) => m.renderer_copyCapturedTextures!(d, n)));
+    if (!records || !entityBytes || !textureBytes) return null;
+
+    const view = new DataView(records.buffer);
+    const entityHeap = new Uint32Array(entityBytes.buffer);
+    const textureHeap = new Uint32Array(textureBytes.buffer);
 
     const drawCalls: DrawCallInfo[] = [];
     for (let i = 0; i < count; i++) {
@@ -172,13 +233,13 @@ export function decodeFrameCapture(module: ESEngineModule): FrameCaptureData | n
  * them on a later frame, right after the pass that drew them, so frames have to
  * keep rendering until {@link getSnapshotImageData} resolves.
  */
-export function replayToDrawCall(module: ESEngineModule, drawCallIndex: number): void {
+export function replayToDrawCall(module: CaptureEngine, drawCallIndex: number): void {
     module.renderer_replayToDrawCall(drawCallIndex);
 }
 
 /** Whether the replayed pass made as many draws as the capture did; false means
  *  the scene changed since, and the snapshot shows the later frame. */
-export function snapshotMatchesCapture(module: ESEngineModule): boolean {
+export function snapshotMatchesCapture(module: CaptureEngine): boolean {
     return module.renderer_snapshotMatchesCapture();
 }
 
@@ -187,7 +248,7 @@ export function snapshotMatchesCapture(module: ESEngineModule): boolean {
  * seam: immediate on GL, a later event-loop turn on WebGPU). Null when no
  * snapshot is in flight or the readback failed.
  */
-export async function getSnapshotImageData(module: ESEngineModule): Promise<ImageData | null> {
+export async function getSnapshotImageData(module: CaptureEngine): Promise<ImageData | null> {
     if (await awaitReadback(() => module.renderer_pollSnapshotReadback()) !== READBACK_READY) {
         return null;
     }
@@ -198,9 +259,12 @@ export async function getSnapshotImageData(module: ESEngineModule): Promise<Imag
     const h = module.renderer_getSnapshotHeight();
     if (w === 0 || h === 0) return null;
 
-    const ptr = module.renderer_getSnapshotPtr();
-    const heap = module.HEAPU8;
-    const pixels = new Uint8ClampedArray(heap.buffer, ptr, size);
+    const m = module;
+    const bytes = readOut(m, size,
+        m.renderer_getSnapshotPtr && (() => m.renderer_getSnapshotPtr!()),
+        m.renderer_copySnapshot && ((d, n) => m.renderer_copySnapshot!(d, n)));
+    if (!bytes) return null;
+    const pixels = new Uint8ClampedArray(bytes.buffer);
 
     const flipped = new Uint8ClampedArray(size);
     const rowBytes = w * 4;
@@ -224,7 +288,7 @@ export type NextFrame = () => Promise<void>;
  * rendered and none of them drew anything.
  */
 export async function captureFrame(
-    module: ESEngineModule, nextFrame: NextFrame, maxFrames = 8,
+    module: CaptureEngine, nextFrame: NextFrame, maxFrames = 8,
 ): Promise<FrameCaptureData | null> {
     module.renderer_captureNextFrame();
     for (let i = 0; i < maxFrames; i++) {
@@ -243,7 +307,7 @@ export interface ReplaySnapshot {
 
 /** The captured frame's pass, drawn up to and including draw @p drawCallIndex. */
 export async function replayDraw(
-    module: ESEngineModule, drawCallIndex: number, nextFrame: NextFrame, maxFrames = 8,
+    module: CaptureEngine, drawCallIndex: number, nextFrame: NextFrame, maxFrames = 8,
 ): Promise<ReplaySnapshot | null> {
     if (drawCallIndex < 0 || drawCallIndex >= module.renderer_getCapturedFrameSize()) return null;
     module.renderer_replayToDrawCall(drawCallIndex);

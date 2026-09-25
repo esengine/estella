@@ -42,13 +42,14 @@ function buildModule(opts: {
     const drawCallsSize = drawCallCount * RECORD_SIZE;
 
     // Layout: [snapshot | entities | drawCalls]
-    const totalSize = snapshotSize + entitiesSize + drawCallsSize + 16;
+    const totalSize = 16 + snapshotSize + entitiesSize + drawCallsSize + 16;
     const buffer = new ArrayBuffer(totalSize);
     const heap = new Uint8Array(buffer);
 
-    const snapshotPtr = 0;
-    const entitiesPtr = snapshotSize;
-    const dataPtr = snapshotSize + entitiesSize;
+    // Nothing at address 0: the engine answers 0 for "no data", as wasm never allocates there.
+    const snapshotPtr = 16;
+    const entitiesPtr = snapshotPtr + snapshotSize;
+    const dataPtr = entitiesPtr + entitiesSize;
 
     // Fill snapshot with a recognizable pattern: each pixel is (i % 256).
     for (let i = 0; i < snapshotSize; i++) {

@@ -16,6 +16,7 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- The Frame Debugger captures and replays the frame of a connected native build (desktop and Android) as it does a web or mini-game one.
 - A native development build names its device to the editor — `macOS · Mac16,10`, `Android · Pixel 8` — as web and mini-game builds already did.
 - A desktop (native) development build connects to the editor like a web or mini-game one — log, profiler, the world, content status, pause and step; its renderer cannot capture frames yet and says so. The native host gained a `ws://` client for it.
 - Profiling a connected development build, the Profiler shows which content revision it runs, the one its next launch starts on, and a hot update it has found but not applied; `device_update_status` answers the same for an agent.

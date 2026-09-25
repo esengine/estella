@@ -1140,4 +1140,6 @@ export const NOTED = {
     { internal: 'A test of the generated Android Studio project; nothing a creator sees changes.' },
   'fix(android): every Android package fills its manifest from one list':
     { note: 'A native Android app can reach the network: its manifest never asked for it, so a remote group\'s assets, hot updates and the debug channel all failed on Android. A development build also allows plain http (a LAN CDN); a shipping build is held to https, and the export warns when its CDN is http.' },
+  'feat(native): a native build\'s frame can be captured and replayed':
+    { note: 'The Frame Debugger captures and replays the frame of a connected native build (desktop and Android) as it does a web or mini-game one.' },
 };

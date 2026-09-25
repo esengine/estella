@@ -10145,7 +10145,7 @@ MotionDriver<AnimatorBlend2DMotion>
 
 ## captureFrame — function @experimental
 ```
-(module: ESEngineModule, nextFrame: NextFrame, maxFrames?: number): Promise<FrameCaptureData | null>
+(module: CaptureEngine, nextFrame: NextFrame, maxFrames?: number): Promise<FrameCaptureData | null>
 ```
 
 ## captureFramePixels — function @beta
@@ -12000,7 +12000,7 @@ PrefabsPlugin
 
 ## replayDraw — function @experimental
 ```
-(module: ESEngineModule, drawCallIndex: number, nextFrame: NextFrame, maxFrames?: number): Promise<ReplaySnapshot | null>
+(module: CaptureEngine, drawCallIndex: number, nextFrame: NextFrame, maxFrames?: number): Promise<ReplaySnapshot | null>
 ```
 
 ## replayFrameDraw — function @experimental

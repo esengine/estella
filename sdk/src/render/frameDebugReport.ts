@@ -12,7 +12,8 @@
 import type { App } from '../app/app';
 import { Assets } from '../asset/AssetPlugin';
 import { Name } from '../ecs/component';
-import { captureFrame, replayDraw, type DrawCallInfo, type FrameCaptureData, type NextFrame } from './frameCapture';
+import { captureFrame, replayDraw, type CaptureEngine, type DrawCallInfo, type FrameCaptureData, type NextFrame } from './frameCapture';
+import { engineApi } from '../ecs/bridge/engineApi';
 
 export interface FrameDebugReport {
     passCount: number;
@@ -71,7 +72,7 @@ export function frameDebugReport(
 export async function captureFrameReport(
     app: App, nextFrame: NextFrame, pathOf: (path: string) => string | null = (p) => p,
 ): Promise<FrameDebugReport | null> {
-    const m = app.wasmModule;
+    const m = captureEngineOf(app);
     if (!m) return null;
     const cap = await captureFrame(m, nextFrame);
     if (!cap) return null;
@@ -85,9 +86,16 @@ export async function captureFrameReport(
         });
 }
 
+/** The engine surface capture runs on — the wasm module, or a native host's — or
+ *  null on a host without one. */
+export function captureEngineOf(app: App): CaptureEngine | null {
+    const e = engineApi(app) as Partial<CaptureEngine> | null;
+    return e && typeof e.renderer_captureNextFrame === 'function' && e.HEAPU8 ? e as CaptureEngine : null;
+}
+
 /** The last capture's pass in @p app, drawn up to and including @p drawIndex. */
 export async function replayFrameDraw(app: App, drawIndex: number, nextFrame: NextFrame): Promise<FrameReplayImage | null> {
-    const m = app.wasmModule;
+    const m = captureEngineOf(app);
     const snap = m ? await replayDraw(m, drawIndex, nextFrame) : null;
     return snap && {
         width: snap.image.width, height: snap.image.height,

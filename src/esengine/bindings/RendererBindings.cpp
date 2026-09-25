@@ -1248,6 +1248,37 @@ i32 renderer_pollSnapshotReadback() {
     return g_renderFrame ? g_renderFrame->pollSnapshotReadback() : 2;
 }
 
+namespace {
+bool copyOut(const void* src, usize bytes, uintptr_t dest, u32 destSize) {
+    if (!src || !dest || bytes == 0 || destSize < bytes) return false;
+    std::memcpy(reinterpret_cast<void*>(dest), src, bytes);
+    return true;
+}
+}  // namespace
+
+bool renderer_copyCapturedRecords(uintptr_t dest, u32 destSize) {
+    if (!g_renderFrame) return false;
+    const auto& c = g_renderFrame->frameCapture();
+    return copyOut(c.getRecords(), usize(c.getRecordCount()) * sizeof(DrawCallRecord), dest, destSize);
+}
+
+bool renderer_copyCapturedEntities(uintptr_t dest, u32 destSize) {
+    if (!g_renderFrame) return false;
+    const auto& c = g_renderFrame->frameCapture();
+    return copyOut(c.getEntities(), usize(c.getEntityCount()) * sizeof(Entity), dest, destSize);
+}
+
+bool renderer_copyCapturedTextures(uintptr_t dest, u32 destSize) {
+    if (!g_renderFrame) return false;
+    const auto& c = g_renderFrame->frameCapture();
+    return copyOut(c.getTextures(), usize(c.getTextureCount()) * sizeof(u32), dest, destSize);
+}
+
+bool renderer_copySnapshot(uintptr_t dest, u32 destSize) {
+    if (!g_renderFrame) return false;
+    return copyOut(g_renderFrame->getSnapshotPixels(), g_renderFrame->getSnapshotSize(), dest, destSize);
+}
+
 uintptr_t renderer_getSnapshotPtr() {
     if (!g_renderFrame) return 0;
     return reinterpret_cast<uintptr_t>(g_renderFrame->getSnapshotPixels());

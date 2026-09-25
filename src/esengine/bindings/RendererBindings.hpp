@@ -256,6 +256,14 @@ u32 renderer_getSnapshotSize();
 u32 renderer_getSnapshotWidth();
 u32 renderer_getSnapshotHeight();
 
+/** The captured frame and the replay snapshot copied into the caller's buffer,
+ *  for a host whose script cannot read engine memory (native). False when there
+ *  is nothing to copy or @p destSize is too small for it. */
+bool renderer_copyCapturedRecords(uintptr_t dest, u32 destSize);
+bool renderer_copyCapturedEntities(uintptr_t dest, u32 destSize);
+bool renderer_copyCapturedTextures(uintptr_t dest, u32 destSize);
+bool renderer_copySnapshot(uintptr_t dest, u32 destSize);
+
 // A skeletal preview is owned by whoever created it: every call names the
 // handle, so two of them cannot reach each other and there is no "current" one.
 u32 renderer_createSkeletalPreview(i32 w, i32 h);
