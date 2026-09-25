@@ -56,6 +56,7 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
     private readonly g_: MiniGameGlobal;
     private fs_: MiniGameFileSystemManager | null = null;
     private inputCleanup_: (() => void) | null = null;
+    private pixelRatio_: number | null = null;
     private openDataCtx_: MiniGameOpenDataContext | null = null;
     private openDataResolved_ = false;
     private recorder_: PlatformScreenRecorder | null | undefined;
@@ -449,7 +450,8 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
         canvas: MiniGameCanvas,
         size: { windowWidth?: number; windowHeight?: number },
     ): void {
-        const dpr = this.profile_.windowInPhysicalPixels ? 1 : (this.g_.getSystemInfoSync().pixelRatio ?? 1);
+        this.pixelRatio_ = null;
+        const dpr = this.profile_.windowInPhysicalPixels ? 1 : this.devicePixelRatio();
         if (size.windowWidth) canvas.width = size.windowWidth * dpr;
         if (size.windowHeight) canvas.height = size.windowHeight * dpr;
     }
@@ -562,12 +564,16 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
         }
     }
 
+    /** Read once and again after a resize: the UI, the cameras and text ask every
+     *  frame, and on vivo each read is a synchronous call across its bridge. */
     devicePixelRatio(): number {
+        if (this.pixelRatio_ !== null) return this.pixelRatio_;
         try {
-            return this.g_.getSystemInfoSync?.()?.pixelRatio ?? 1;
+            this.pixelRatio_ = this.g_.getSystemInfoSync?.()?.pixelRatio ?? 1;
         } catch {
-            return 1;
+            this.pixelRatio_ = 1;
         }
+        return this.pixelRatio_;
     }
 
     deviceName(): string {

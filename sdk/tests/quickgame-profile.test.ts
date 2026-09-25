@@ -47,6 +47,28 @@ describe('the quick-game hosts', () => {
     expect(downs).toEqual([[800, 360]]);
   });
 
+  it('ask the host for the pixel ratio once, and again after the window changes', () => {
+    let reads = 0;
+    let ratio = 2.75;
+    let onResize: ((res: { windowWidth: number; windowHeight: number }) => void) | undefined;
+    const adapter = new MiniGamePlatformAdapter({
+      id: 'x', hostLabel: 'x', windowInPhysicalPixels: true,
+      global: {
+        createCanvas: () => ({ width: 0, height: 0 }),
+        getSystemInfoSync: () => { reads++; return { windowWidth: 2340, windowHeight: 1080, pixelRatio: ratio }; },
+        onWindowResize: (cb: typeof onResize) => { onResize = cb; },
+      } as unknown as MiniGameGlobal,
+    } as MiniGameProfile);
+    adapter.createScreenCanvas();
+    const before = reads;
+    for (let i = 0; i < 60; i++) adapter.devicePixelRatio();
+    expect(reads - before).toBeLessThanOrEqual(1);
+    expect(adapter.devicePixelRatio()).toBe(2.75);
+    ratio = 3;
+    onResize!({ windowWidth: 1080, windowHeight: 2340 });
+    expect(adapter.devicePixelRatio()).toBe(3);
+  });
+
   it('turn WebAssembly on before the engine is instantiated', async () => {
     const order: string[] = [];
     (globalThis as { qg?: unknown }).qg = {
