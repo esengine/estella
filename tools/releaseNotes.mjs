@@ -1100,4 +1100,8 @@ export const NOTED = {
     { note: 'A web game opened in a background tab starts paused and reports itself hidden until it is shown; before, it counted as visible.' },
   'fix(debug): a device in the background refuses a capture at once':
     { note: 'Capturing a development build whose tab is in the background says so at once, instead of waiting 30 seconds for a frame the browser will not draw.' },
+  'feat(profiler): the Profiler shows what a connected device spends on its debug channel':
+    { note: 'Profiling a connected development build, the Profiler\'s Frame section shows what its debug channel costs the device per frame (and `profile_frames` reports it as `channelMs`).' },
+  'feat(profiler): a device\'s frame shows what its debug channel costs':
+    { note: 'Profiling a connected development build, the Profiler\'s Frame section shows what its debug channel costs the device per frame (and `profile_frames` reports it as `channelMs`).' },
 };
