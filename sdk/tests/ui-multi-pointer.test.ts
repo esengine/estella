@@ -100,6 +100,17 @@ describe('two fingers, two buttons', () => {
     });
 });
 
+describe('a release inside the host event', () => {
+    it('clicks the control its pointer holds while still over it, and nothing else', () => {
+        const book = new UiPointerBook();
+        book.step([finger(0, 10, { pressed: true })], screen, () => true);
+        expect(book.releasing(0, BUTTON_A)).toBe(BUTTON_A);
+        expect(book.releasing(0, BUTTON_B)).toBeNull();
+        expect(book.releasing(0, null)).toBeNull();
+        expect(book.releasing(1, BUTTON_A)).toBeNull();
+    });
+});
+
 describe('the pointer set a frame of input makes', () => {
     it('is the mouse when nothing is touching the glass', () => {
         const input = new InputState();

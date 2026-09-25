@@ -19,6 +19,7 @@ import { markThemed } from '../theme/theme-style';
 
 import { spawnUIEntity, type UINodeInit, type UIVisualInit, type TextInit } from '../core/compose';
 import { makeWidgetInteractable } from '../input/interactable';
+import { onGestureClick, takeGestureFired } from '../input/gestureClick';
 
 export type { ButtonStateVisual };
 
@@ -49,6 +50,10 @@ export interface ButtonOptions {
     /** Tab order within the focus ring. Default 0 (document order). */
     tabIndex?: number;
     onClick?: (entity: Entity) => void;
+    /** Run `onClick` inside the host's own release event rather than on the next
+     *  frame, for a call a host accepts only from a player's gesture (sharing a
+     *  recording on WeChat). */
+    userGesture?: boolean;
 }
 
 export interface ButtonHandle {
@@ -132,9 +137,12 @@ export function createButton(opts: ButtonOptions): ButtonHandle {
     }
 
     let offClick: (() => void) | undefined;
+    let offGesture: (() => void) | undefined;
     if (opts.onClick) {
         const handler = opts.onClick;
+        if (opts.userGesture) offGesture = onGestureClick(world, entity, () => handler(entity));
         offClick = events.on(entity, UIEventType.Click, () => {
+            if (opts.userGesture && takeGestureFired(world, entity)) return;
             const interactable = world.get(entity, Interactable) as InteractableData;
             if (interactable.enabled) handler(entity);
         });
@@ -152,6 +160,7 @@ export function createButton(opts: ButtonOptions): ButtonHandle {
         },
         dispose: () => {
             offClick?.();
+            offGesture?.();
             if (world.valid(entity)) world.despawn(entity);
         },
     };

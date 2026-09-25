@@ -1712,6 +1712,7 @@ parent: number | undefined
 states: Record<string, ButtonStateVisual> | undefined
 tabIndex: number | undefined
 text: string | TextInit | undefined
+userGesture: boolean | undefined
 world: World
 ```
 

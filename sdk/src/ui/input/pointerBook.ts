@@ -94,6 +94,13 @@ export class UiPointerBook {
         return this.pressedBy_.get(pointer) ?? null;
     }
 
+    /** The control a release now would click: the one this pointer holds, if it
+     *  is still @p under it. */
+    releasing(pointer: number, under: Entity | null): Entity | null {
+        const held = this.pressedByPointer(pointer);
+        return held !== null && held === under ? held : null;
+    }
+
     /**
      * Fold this frame's pointers in and answer what happened, in the order it
      * happened. `hit` is the entity under a pointer (null for none) and `alive`

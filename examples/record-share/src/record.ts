@@ -28,13 +28,14 @@ export const recordUiSystem = defineSystem(
         ui.built = true;
 
         const c = themeColors();
-        const button = (label: string, onClick: () => void): Entity => {
+        const button = (label: string, onClick: () => void, userGesture = false): Entity => {
             const { entity } = createButton({
                 world, events, parent: row,
                 node: { width: px(150), height: px(44) },
                 states: { normal: { color: c.primary }, hover: { color: c.primary }, pressed: { color: c.primary } },
                 text: { content: label, color: c.onPrimary, fontSize: 16 },
                 onClick,
+                userGesture,
             });
             world.insert(entity, Name, { value: `${label}Button` });
             return entity;
@@ -50,12 +51,13 @@ export const recordUiSystem = defineSystem(
                 .then((r) => { ui.message = `recorded ${(r.durationMs / 1000).toFixed(1)}s, ${r.highlights.length} highlight(s)`; })
                 .catch((e: Error) => { ui.message = e.message; });
         });
-        // A share has to come from the player's tap — both hosts refuse any other.
+        // A share has to come from the player's tap — both hosts refuse any other,
+        // and WeChat only from inside the touch event itself.
         ui.share = button('Share', () => {
             recorder.share({ title: 'Look at this run' })
                 .then(() => { ui.message = 'shared'; })
                 .catch((e: Error) => { ui.message = e.message; });
-        });
+        }, true);
         recorder.onFailure((e) => { ui.message = `recording stopped: ${e.message}`; });
     },
     { name: 'RecordUiSystem' },

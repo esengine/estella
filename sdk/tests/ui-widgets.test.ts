@@ -28,6 +28,7 @@ import {
     type UIGearData,
 } from '../src/ui';
 import type { Entity } from '../src/types';
+import { fireGestureClick } from '../src/ui/input/gestureClick';
 import type { World } from '../src/ecs/world';
 
 // Minimal mock world — only the surface widgets + helpers touch.
@@ -203,6 +204,22 @@ describe('createButton', () => {
 
         events.emit(btn, UIEventType.Click);
         expect(onClick).toHaveBeenCalledWith(btn);
+    });
+
+    it('runs a user-gesture click inside the release, and not again on the frame after', () => {
+        const onClick = vi.fn();
+        const { entity: btn } = createButton({
+            world: world as unknown as World, events, userGesture: true,
+            states: { normal: {}, hover: {}, pressed: {} }, onClick,
+        });
+        expect(fireGestureClick(world as unknown as World, btn)).toBe(true);
+        expect(onClick).toHaveBeenCalledTimes(1);
+        events.emit(btn, UIEventType.Click);
+        expect(onClick).toHaveBeenCalledTimes(1);
+        // A click no release reached — a key, or a tap too quick for a frame to
+        // see it pressed — still runs, on the frame.
+        events.emit(btn, UIEventType.Click);
+        expect(onClick).toHaveBeenCalledTimes(2);
     });
 
     it('swallows clicks while disabled', () => {

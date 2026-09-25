@@ -24,7 +24,9 @@ import { ensureComponent, walkParentChain } from '../util/helpers';
 import type { CppRegistry } from '../../wasm';
 import { engineApi } from '../../ecs/bridge/engineApi';
 import { UILayoutGeneration } from '../layout/ui-layout-generation';
-import { UiPointerBook, uiPointersOf, type UiPointerSample } from './pointerBook';
+import { UiPointerBook, uiPointersOf, MOUSE_POINTER, type UiPointerSample } from './pointerBook';
+import { fireGestureClick } from './gestureClick';
+import { inputRouter } from '../../input/inputRouter';
 import { SystemLabel, PluginName } from '../../ecs/systemLabels';
 import type { UILayoutGenerationData } from '../layout/ui-layout-generation';
 
@@ -68,6 +70,19 @@ export class UIInteractionPlugin implements Plugin {
         /** Where each pointer last hit, so a settled pointer skips the raycast. */
         const lastHit = new Map<number, { x: number; y: number; entity: Entity | null }>();
         let lastLayoutGen = -1;
+
+        // During the host's release event, from what the last frame saw: the
+        // control this pointer pressed, if it is still the one under it.
+        const releaseInGesture = (pointer: number): void => {
+            const held = book.releasing(pointer, lastHit.get(pointer)?.entity ?? null);
+            if (held === null || !world.valid(held)) return;
+            if (world.has(held, Interactable) && !(world.get(held, Interactable) as InteractableData).enabled) return;
+            fireGestureClick(world, held);
+        };
+        inputRouter.setUIHandler({
+            onTouchEnd: (id) => { releaseInGesture(id); },
+            onPointerUp: (button) => { if (button === 0) releaseInGesture(MOUSE_POINTER); },
+        });
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [Res(Input), Res(UICameraInfo), Res(ScreenOverlay), Res(UILayoutGeneration)],
