@@ -141,7 +141,11 @@ describe('WeChat 分包 declared through asset-groups.json', () => {
       expect(gjson.subPackages).toBeUndefined();
       // Nor a warning: nothing about this project is a 分包 that went wrong.
       expect(res.warnings.filter((w) => w.includes('分包'))).toEqual([]);
-      expect(existsSync(path.join(out2, 'assets', 'level2', 'extra.png'))).toBe(true);
+      const shipped = JSON.parse(readFileSync(path.join(out2, 'asset-manifest.json'), 'utf8'));
+      const extra = Object.values(shipped.groups as Record<string, { assets: Record<string, { path: string }> }>)
+        .flatMap((g) => Object.values(g.assets)).find((a) => a.path.endsWith('.png'))!;
+      expect(extra.path.startsWith('subpackages/')).toBe(false);
+      expect(existsSync(path.join(out2, extra.path))).toBe(true);
     } finally {
       rmSync(root2, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }

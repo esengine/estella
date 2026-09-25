@@ -88,9 +88,9 @@ describe('the source a cooked mini-game hands its audio player', () => {
     expect(res.ok).toBe(true);
 
     // The cook renamed it, so the authored name is not what ships.
-    const staged = readdirSync(path.join(out, 'assets', 'audio'));
-    expect(staged).toContain('tap.mp3');
-    expect(staged).not.toContain('tap.wav');
+    const staged = readdirSync(path.join(out, 'assets'), { recursive: true }).map(String);
+    expect(staged.some((f) => f.endsWith('.mp3'))).toBe(true);
+    expect(staged.some((f) => f.endsWith('.wav'))).toBe(false);
 
     // The runtime's OWN resolver, over the manifest the export wrote: this is
     // the channel `Audio.preload` asks, and a miss here is silence on device.
@@ -100,10 +100,10 @@ describe('the source a cooked mini-game hands its audio player', () => {
     );
     const resolve = (ref: string): string => manifest.resolvePath(extractUuid(ref) ?? ref);
     const src = resolve('assets/audio/tap.wav');
-    expect(src).toBe('assets/audio/tap.mp3');
+    expect(src).toMatch(/^assets\/[0-9a-f]{16}\.mp3$/);
     expect(existsSync(path.join(out, src))).toBe(true);
 
     // And by uuid, which is how the scene names it.
-    expect(resolve(`@uuid:${CLIP}`)).toBe('assets/audio/tap.mp3');
+    expect(resolve(`@uuid:${CLIP}`)).toBe(src);
   }, 120_000);
 });

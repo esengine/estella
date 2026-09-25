@@ -302,7 +302,9 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   emcc?: string | null;
   /** Whether this export compiles `@compiled` systems; see exportGame. */
   aotMode?: BuildMode;
-  /** Emit content-addressed asset filenames (<hash><ext>) for dedup + immutable caching. */
+  /** Content-addressed asset filenames (<hash><ext>), on unless turned off: a remote
+   *  asset whose content changed must have a new URL, or a hot update and the CDN
+   *  serve the old bytes under it. */
   contentAddressed?: boolean;
   /** Encode raster textures to GPU-compressed KTX2 at cook time. */
   compressTextures?: boolean;
@@ -372,7 +374,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   progress({ phase: 'Cooking assets' });
   // `platform: profile.id` — the cook reads each texture's per-platform Import
   // Settings under this key, so a vendor must cook against ITS OWN overrides.
-  const cook = await cookAssets(opts.root, { entryScenes: scenes.map((s) => s.path), outDir: absOut, contentAddressed: opts.contentAddressed, compressTextures: opts.compressTextures, compressAudio: opts.compressAudio, atlasTextures: opts.atlasTextures, transcodeVideo: true, platform: profile.id, textureDecoderBytes: textureDecoderBytes(opts.wasmDir) });
+  const cook = await cookAssets(opts.root, { entryScenes: scenes.map((s) => s.path), outDir: absOut, contentAddressed: opts.contentAddressed ?? true, compressTextures: opts.compressTextures, compressAudio: opts.compressAudio, atlasTextures: opts.atlasTextures, transcodeVideo: true, platform: profile.id, textureDecoderBytes: textureDecoderBytes(opts.wasmDir) });
   warnings.push(...cook.warnings);
 
   // 1a. Anything the packer will not upload ships as `<name>.<ext>.bin`. Scenes

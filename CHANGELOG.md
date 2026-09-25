@@ -24,6 +24,7 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- Mini-game exports name assets by their content, as web exports already did: a hot update to a remote texture now shows on a phone (it kept the old picture under the same URL), and a CDN can hold two versions without v1 players getting v2 files.
 - On a WeChat phone, a socket whose connection is refused now reports that it closed, so a development build keeps redialing the editor (and a game's socket reconnects) instead of giving up after the first refusal.
 - A shipping package no longer carries the development debug channel's code (13 KB on a WeChat package): only a development export that names an editor imports it, as `esengine/debug-channel`.
 - Capturing a development build whose tab is in the background says so at once, instead of waiting 30 seconds for a frame the browser will not draw.

@@ -90,7 +90,7 @@ describe('exportGame (wechat)', () => {
     expect(existsSync(path.join(out, 'assets.manifest.json'))).toBe(false);
     const manifest = JSON.parse(readFileSync(path.join(out, 'asset-manifest.json'), 'utf8'));
     expect(manifest.version).toBe('2.0');
-    expect(manifest.groups.main.assets[TEX].path).toBe('assets/hero.png');
+    expect(manifest.groups.main.assets[TEX].path).toMatch(/^assets\/[0-9a-f]{16}\.png$/);
     expect(manifest.groups.main.assets[TEX].type).toBe('texture');
 
     // Scene at scenes/<name>.json with @uuid: stripped to the bare uuid.
@@ -135,9 +135,9 @@ describe('exportGame (wechat)', () => {
     // WeChat subPackage, with its file staged under the subpackage root.
     expect(manifest.groups.level2.bundleMode).toBe('lazy');
     expect(manifest.groups.main.bundleMode).toBe('local');
-    expect(manifest.groups.level2.assets[SUBTEX].path).toBe('subpackages/level2/extra.png');
+    expect(manifest.groups.level2.assets[SUBTEX].path).toMatch(/^subpackages\/level2\/assets\/[0-9a-f]{16}\.png$/);
     expect(gjson.subPackages).toContainEqual({ name: 'level2', root: 'subpackages/level2' });
-    expect(existsSync(path.join(out, 'subpackages', 'level2', 'extra.png'))).toBe(true);
+    expect(existsSync(path.join(out, manifest.groups.level2.assets[SUBTEX].path))).toBe(true);
   }, 60_000);
 
   it('requires the glue by its actual -t wechat name; unneeded side modules stay out (4MB budget)', async () => {
@@ -436,11 +436,11 @@ describe('exportGame (wechat)', () => {
     // WeChat's code-package suffix whitelist has no `ktx2` — the container is
     // re-staged as .ktx2.bin (whitelisted), and the manifest tracks the rename
     // while the logical identity stays on the source path.
-    expect(existsSync(path.join(outKtx, 'assets', 'pre.ktx2.bin'))).toBe(true);
-    expect(existsSync(path.join(outKtx, 'assets', 'pre.ktx2'))).toBe(false);
     const manifest = JSON.parse(readFileSync(path.join(outKtx, 'asset-manifest.json'), 'utf8'));
     const ktxAsset = manifest.groups.main.assets['ffffffff-ffff-ffff-ffff-ffffffffffff'];
-    expect(ktxAsset.path).toBe('assets/pre.ktx2.bin');
+    expect(ktxAsset.path).toMatch(/^assets\/[0-9a-f]{16}\.ktx2\.bin$/);
+    expect(existsSync(path.join(outKtx, ktxAsset.path))).toBe(true);
+    expect(readdirSync(path.join(outKtx, 'assets')).some((f) => f.endsWith('.ktx2'))).toBe(false);
     const pcfg = JSON.parse(readFileSync(path.join(outKtx, 'project.config.json'), 'utf8'));
     expect(pcfg.packOptions.include).toContainEqual({ type: 'suffix', value: '.bin' });
     expect(pcfg.packOptions.include).not.toContainEqual({ type: 'suffix', value: '.ktx2' });
@@ -557,7 +557,7 @@ describe('exportGame (wechat)', () => {
     expect(manifest.groups.main.assets[LV2SCN].path).toBe('scenes/level2.json');
     // The second scene is a cook root: its assets ship even though the entry
     // scene never references them.
-    expect(manifest.groups.main.assets[LV2TEX].path).toBe('assets/lv2.png');
+    expect(manifest.groups.main.assets[LV2TEX].path).toMatch(/^assets\/[0-9a-f]{16}\.png$/);
     // Boot registers every scene, booting into the entry.
     const bundle = readFileSync(path.join(outMulti, 'game-bundle.js'), 'utf8');
     expect(bundle).toContain('"main"');
