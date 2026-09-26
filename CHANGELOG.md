@@ -20,6 +20,7 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- Opening a project no longer holds the editor behind "Preparing play realm…" for about ten seconds: the play realm's warm-up was being cut off and the editor waited out its deadline. A project now opens in under a second, and the first Play is still warm.
 - An export from the Build dialog and one from `estella export` now read the project the same way. The dialog's builds keep the engine modules a project includes or excludes, which they ignored; the command line's carry the project's app id (a native package was always `com.estella.game`, so two games replaced each other on a phone), its script entry and scenes folder, its desktop channel and Steam app, and a playable's ad network.
 - Android's "Android Studio project" and "App Bundle (.aab)" settings take effect: the project file never read them back, so every Android export wrote an APK and nothing else.
 - A native development build's Profiler shows its draw calls, triangles, sprites and VRAM, and what the debug channel costs it: all read 0 on a native build.
