@@ -35,6 +35,18 @@ const PIXEL_CHUNK = 256 * 1024;
 
 /** @p image scaled (nearest) so its longer side is at most @p maxSide; the full
  *  size rides along so a reader can say what it is looking at. */
+/** The smallest step this platform's clock takes, sampled over about a millisecond. */
+function clockResolutionMs(): number {
+    let step = Infinity;
+    let prev = platformNow();
+    const end = prev + 1;
+    for (let now = prev; now < end && step > 0.001; now = platformNow()) {
+        if (now > prev) step = Math.min(step, now - prev);
+        prev = now;
+    }
+    return Number.isFinite(step) ? step : 1;
+}
+
 export function fitWithin(image: FrameReplayImage, maxSide?: number): FrameReplayImage & { fullWidth: number; fullHeight: number } {
     const { width: w, height: h } = image;
     const scale = maxSide && maxSide > 0 ? Math.min(1, maxSide / Math.max(w, h)) : 1;
@@ -86,6 +98,10 @@ export function startDebugChannel(config: DebugChannelConfig): void {
     // What this channel itself costs the game, so a development build's numbers can
     // be read net of it: the console forwarding and the answers it builds in-frame.
     let agentMs = 0;
+    // A span shorter than the clock's step reads 0: a browser that is not
+    // cross-origin isolated steps performance.now() by 0.1 ms, where the channel's
+    // own work is tens of microseconds. Reported so a 0 is read as "below this".
+    let clockMs = 0;
     const timed = <T>(work: () => T): T => {
         const t0 = platformNow();
         try { return work(); } finally { agentMs += platformNow() - t0; }
@@ -145,6 +161,7 @@ export function startDebugChannel(config: DebugChannelConfig): void {
             if (q.kind === 'stats') {
                 // Timings cost a little every frame, so they start when first asked for.
                 if (!statsOn) {
+                    clockMs = clockResolutionMs();
                     game.enableStats();
                     game.onFrameEnd((dt) => { frameSum += dt; frames++; worstMs = Math.max(worstMs, dt); });
                     statsOn = true;
@@ -152,7 +169,7 @@ export function startDebugChannel(config: DebugChannelConfig): void {
                 // The device's own frame time since the last ask: the editor's clock
                 // runs on another machine and says nothing about this one.
                 const report = timed(() => frameStatsReport(game));
-                const span = { frames, frameMs: frames > 0 ? frameSum / frames : 0, worstMs, agentMs };
+                const span = { frames, frameMs: frames > 0 ? frameSum / frames : 0, worstMs, agentMs, clockMs };
                 frameSum = 0; frames = 0; worstMs = 0; agentMs = 0;
                 reply({ t: 'reply', reqId: q.reqId, data: { ...report, ...span } });
                 return;

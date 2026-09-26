@@ -1166,4 +1166,8 @@ export const NOTED = {
     { note: '**Android release signing.** A Shipping APK (and App Bundle) is signed with the release key the project names under Project Settings → Android → Signing — two PEM paths, the passphrase kept in this machine\'s keychain (the command line reads `ESTELLA_ANDROID_KEY_PASSPHRASE`); Development builds keep the development key. A Shipping build without one says it will be refused by Google Play.' },
   'fix(export): an Android release key may be named under the home directory':
     { note: '**Android release signing.** A Shipping APK (and App Bundle) is signed with the release key the project names under Project Settings → Android → Signing — two PEM paths, the passphrase kept in this machine\'s keychain (the command line reads `ESTELLA_ANDROID_KEY_PASSPHRASE`); Development builds keep the development key. A Shipping build without one says it will be refused by Google Play.' },
+  'fix(debug): a device reports the step of its clock with what the channel costs it':
+    { note: 'The Profiler no longer reports a connected build\'s debug-channel cost as 0 ms when the device\'s clock is too coarse to measure it — a browser that is not cross-origin isolated steps by 0.1 ms. The device reports its clock\'s step, the row reads "< 0.100 ms", and `profile_frames` returns it as `channelClockMs`.' },
+  'fix(profiler): a channel cost below the device clock reads as below it, not as 0':
+    { note: 'The Profiler no longer reports a connected build\'s debug-channel cost as 0 ms when the device\'s clock is too coarse to measure it — a browser that is not cross-origin isolated steps by 0.1 ms. The device reports its clock\'s step, the row reads "< 0.100 ms", and `profile_frames` returns it as `channelClockMs`.' },
 };

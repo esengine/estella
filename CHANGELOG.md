@@ -21,6 +21,7 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- The Profiler no longer reports a connected build's debug-channel cost as 0 ms when the device's clock is too coarse to measure it — a browser that is not cross-origin isolated steps by 0.1 ms. The device reports its clock's step, the row reads "< 0.100 ms", and `profile_frames` returns it as `channelClockMs`.
 - An export warns when a signing key the project names (a quick game's or Android's) sits inside the project and is committed to its repository, or is not ignored and would be committed next.
 - Opening a project no longer holds the editor behind "Preparing play realm…" for about ten seconds: the play realm's warm-up was being cut off and the editor waited out its deadline. A project now opens in under a second, and the first Play is still warm.
 - An export from the Build dialog and one from `estella export` now read the project the same way. The dialog's builds keep the engine modules a project includes or excludes, which they ignored; the command line's carry the project's app id (a native package was always `com.estella.game`, so two games replaced each other on a phone), its script entry and scenes folder, its desktop channel and Steam app, and a playable's ad network.
