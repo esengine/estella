@@ -130,11 +130,17 @@ app.whenReady().then(async () => {
     // pixel is green either way, and which of the two it is is the diagnosis.
     good = upd ?? null;
     changed = upd && typeof upd.changed === 'number' ? upd.changed : 0;
-    await sleep(1800);
-    after = await exec(center);
 
     const isGreen = ([r, g, b]) => g >= 130 && r <= 110 && b <= 120;
     const isRed = ([r, g, b]) => r >= 150 && g <= 100 && b <= 100;
+    // Polled, not slept: the swap lands on a frame, and a hidden window on a slow
+    // host draws few of them — a fixed 1.8 s read green on Windows while the
+    // swap was still coming, and red a moment later.
+    const swapStart = Date.now();
+    for (after = await exec(center); !isRed(after) && Date.now() - swapStart < 10_000; after = await exec(center)) {
+      await sleep(100);
+    }
+    const swapMs = Date.now() - swapStart;
 
     // A broken update must leave the player exactly where they were. Both of
     // these are SEEN as an update (changed >= 1) and point at the green art, so
@@ -171,7 +177,7 @@ app.whenReady().then(async () => {
     const ok = isGreen(before) && isRed(after) && changed >= 1 && refused.every((r) => r.ok) && stagesOk && relaunchOk;
 
     console.log(`\n[verify:render:hotupdate] ${ok ? 'PASS' : 'FAIL'}`);
-    console.log('DRIVE_RESULT ' + JSON.stringify({ before, after, changed, good, greenBefore: isGreen(before), redAfter: isRed(after), refused, stagesOk, relaunched, relaunchOk, diag: diag.slice(0, 8) }));
+    console.log('DRIVE_RESULT ' + JSON.stringify({ before, after, swapMs, changed, good, greenBefore: isGreen(before), redAfter: isRed(after), refused, stagesOk, relaunched, relaunchOk, diag: diag.slice(0, 8) }));
     failed = !ok;
   } catch (e) {
     console.log('\n[verify:render:hotupdate] FAIL — ' + (e?.message ?? e));
