@@ -275,6 +275,13 @@ export interface AndroidPackaging {
    * output for the one that is not being used.
    */
   appBundle?: boolean;
+  /**
+   * The release identity a shipping build is signed with: two PEM paths, relative
+   * to the project or absolute. Keep the files out of the project's repository;
+   * a passphrase never lives here (the editor's keychain, or
+   * ESTELLA_ANDROID_KEY_PASSPHRASE for the command line).
+   */
+  releaseKey?: { privateKey: string; certificate: string };
 }
 /** iOS's slice: the bundle identifier Xcode signs against. */
 export interface IosPackaging { appId?: string; }
@@ -906,6 +913,10 @@ export function parseManifest(raw: unknown): ProjectManifest {
         }
         if (an.output === 'package' || an.output === 'project') a.output = an.output;
         if (typeof an.appBundle === 'boolean') a.appBundle = an.appBundle;
+        const key = an.releaseKey as Record<string, unknown> | undefined;
+        if (key && typeof key.privateKey === 'string' && typeof key.certificate === 'string') {
+          a.releaseKey = { privateKey: key.privateKey, certificate: key.certificate };
+        }
         if (Object.keys(a).length > 0) platforms.android = a;
       }
       const io = pl.ios as Record<string, unknown> | undefined;

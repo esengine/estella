@@ -22,6 +22,9 @@ const USAGE = `usage: node pipeline/bin/estella.mjs export <projectDir> [options
                       or a platform the project defines in .esengine/platforms/ (default web)
   --profile <name>    one of the project's export profiles (packaging.profiles): its
                       target, development or shipping, and the settings it overrides
+                      A shipping Android build is signed with the project's release
+                      key (platforms.android.releaseKey); its passphrase comes from
+                      ESTELLA_ANDROID_KEY_PASSPHRASE
   --out <dir>         output dir (default <projectDir>/dist-<platform>)
   --wasm <dir>        engine runtime to ship (default: the build tree, else the editor's copy)
   --scene <path>      entry scene, project-relative (default: the project's own)
@@ -815,7 +818,8 @@ if (!fmt.BUILTIN_PLATFORMS.includes(platform)) {
 let code = 1;
 try {
   const result = await exporter.exportGame({
-    ...await projectOpts.projectExportOptions(opts.projectDir, manifest, platform, opts.profile),
+    ...await projectOpts.projectExportOptions(opts.projectDir, manifest, platform, opts.profile,
+      { androidKeyPassphrase: process.env.ESTELLA_ANDROID_KEY_PASSPHRASE }),
     entryScene,
     ...(opts.scripts ? { scriptsEntry: opts.scripts } : {}),
     ...(opts.title ? { title: opts.title } : {}),

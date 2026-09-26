@@ -16,10 +16,12 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- **Android release signing.** A Shipping APK (and App Bundle) is signed with the release key the project names under Project Settings → Android → Signing — two PEM paths, the passphrase kept in this machine's keychain (the command line reads `ESTELLA_ANDROID_KEY_PASSPHRASE`); Development builds keep the development key. A Shipping build without one says it will be refused by Google Play.
 - **Export profiles.** A project can name several exports of one target in `packaging.profiles` — a test and a production WeChat build, each with its own AppID, CDN root and development or shipping configuration, writing only what differs from the project's settings. The Build dialog creates, edits and deletes them per target, marking each setting a profile overrides with a reset that hands it back to the project; `estella export --profile <name>` and the agent's `export_game` build the same one, and the size history records which profile a build used.
 
 ### Fixed
 
+- An export warns when a signing key the project names (a quick game's or Android's) sits inside the project and is committed to its repository, or is not ignored and would be committed next.
 - Opening a project no longer holds the editor behind "Preparing play realm…" for about ten seconds: the play realm's warm-up was being cut off and the editor waited out its deadline. A project now opens in under a second, and the first Play is still warm.
 - An export from the Build dialog and one from `estella export` now read the project the same way. The dialog's builds keep the engine modules a project includes or excludes, which they ignored; the command line's carry the project's app id (a native package was always `com.estella.game`, so two games replaced each other on a phone), its script entry and scenes folder, its desktop channel and Steam app, and a playable's ad network.
 - Android's "Android Studio project" and "App Bundle (.aab)" settings take effect: the project file never read them back, so every Android export wrote an APK and nothing else.

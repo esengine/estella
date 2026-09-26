@@ -162,3 +162,38 @@ describe('an export profile', () => {
         await expect(projectExportOptions(root, withProfiles, 'douyin', 'test')).rejects.toThrow(/is for wechat, not douyin/);
     });
 });
+
+describe('an Android release key', () => {
+    it('is read only when a shipping build asks for it, from paths the project names', async () => {
+        const keys = mkdtempSync(path.join(tmpdir(), 'android-release-'));
+        const was = process.env.ESTELLA_ANDROID_KEYS;
+        process.env.ESTELLA_ANDROID_KEYS = keys;
+        try {
+            const { debugSigningKey } = await import('../../build-tools/utils/androidKeystore.js');
+            debugSigningKey();
+            const m = parseManifest({
+                formatVersion: '1', name: 'p',
+                packaging: { platforms: { android: { releaseKey: {
+                    privateKey: path.join(keys, 'debug.key.pem'), certificate: path.join(keys, 'debug.cert.pem'),
+                } } } },
+            });
+            const o = await projectExportOptions(root, m, 'android');
+            expect(typeof o.androidKey).toBe('function');
+            const key = (o.androidKey as () => { certificate: Buffer })();
+            expect(key.certificate.length).toBeGreaterThan(0);
+            expect((await projectExportOptions(root, m, 'web')).androidKey).toBeUndefined();
+        } finally {
+            if (was === undefined) delete process.env.ESTELLA_ANDROID_KEYS; else process.env.ESTELLA_ANDROID_KEYS = was;
+            rmSync(keys, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+        }
+    });
+
+    it('that cannot be read says so when it is needed, and not before', async () => {
+        const m = parseManifest({
+            formatVersion: '1', name: 'p',
+            packaging: { platforms: { android: { releaseKey: { privateKey: 'nope.pem', certificate: 'nope.cert.pem' } } } },
+        });
+        const o = await projectExportOptions(root, m, 'android');
+        expect(() => (o.androidKey as () => unknown)()).toThrow(/Android release key could not be read \(nope\.pem/);
+    });
+});

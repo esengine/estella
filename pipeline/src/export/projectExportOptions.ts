@@ -13,6 +13,7 @@
 import path from 'node:path';
 import type { ExportGameOptions } from './exportGame';
 import { readReleaseKey } from './rpk';
+import { signingKeyFromPem, type SigningKey } from '../../../build-tools/utils/androidKeystore.js';
 import { loadPlayableProfile } from './platformCatalog';
 import {
   EXPORT_PROFILE_FIELDS, resolveAppId, resolveLayout, resolveOrientation, resolveScripts,
@@ -58,8 +59,13 @@ export function withExportProfile(manifest: ProjectManifest, name: string): Proj
   };
 }
 
+/** What a project may not hold, handed in by whoever keeps it on this machine. */
+export interface ExportSecrets {
+  androidKeyPassphrase?: string;
+}
+
 export async function projectExportOptions(
-  root: string, source: ProjectManifest, platform: ExportPlatform, profileName?: string,
+  root: string, source: ProjectManifest, platform: ExportPlatform, profileName?: string, secrets: ExportSecrets = {},
 ): Promise<ProjectExportOptions> {
   const profile = profileName ? source.packaging?.profiles?.[profileName] : undefined;
   const manifest = profileName ? withExportProfile(source, profileName) : source;
@@ -95,6 +101,9 @@ export async function projectExportOptions(
     androidVersionCode: plat?.android?.versionCode,
     androidAppBundle: plat?.android?.appBundle,
     androidOutput: plat?.android?.output,
+    ...(platform === 'android' && plat?.android?.releaseKey
+      ? { androidKey: () => androidReleaseKey(root, plat.android!.releaseKey!, secrets.androidKeyPassphrase) }
+      : {}),
     desktopProductName: plat?.desktop?.productName,
     desktopChannel: plat?.desktop?.channel,
     steam: plat?.desktop?.steam,
@@ -102,10 +111,28 @@ export async function projectExportOptions(
       ? { playableAdProfile: (await loadPlayableProfile(root, plat?.playable?.network)) ?? undefined }
       : {}),
     sizeBudgetBytes: packaging?.sizeBudget?.[platform],
+    secretFiles: [quickGame?.releaseKey, platform === 'android' ? plat?.android?.releaseKey : undefined]
+      .flatMap((k) => (k ? [k.privateKey, k.certificate] : [])).filter((f) => f !== ''),
     ...(profile ? {
       profile: profileName,
       ...(profile.config ? { minify: profile.config === 'shipping' } : {}),
       ...(profile.remoteRoot !== undefined ? { hotUpdate: { remoteRoot: profile.remoteRoot } } : {}),
     } : {}),
   };
+}
+
+/** A named key that cannot be read is an error, not a quiet fall back to the
+ *  development key: that package would be refused at upload. */
+function androidReleaseKey(
+  root: string, paths: { privateKey: string; certificate: string }, passphrase: string | undefined,
+): SigningKey {
+  try {
+    return signingKeyFromPem({
+      key: path.resolve(root, paths.privateKey),
+      cert: path.resolve(root, paths.certificate),
+      ...(passphrase ? { passphrase } : {}),
+    });
+  } catch (e) {
+    throw new Error(`the Android release key could not be read (${paths.privateKey}, ${paths.certificate}): ${(e as Error).message}`);
+  }
 }

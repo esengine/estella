@@ -24,6 +24,8 @@ import { loadEsbuild } from '../bundle/esbuildRuntime';
 import { runtimeHostEntry } from '../bundle/runtimeHosts';
 import { writeFile, readFile, mkdir, cp, readdir, rm } from 'node:fs/promises';
 import { existsSync, readFileSync, statSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { isInsideRoot } from '../fs/pathSandbox';
 import path from 'node:path';
 import { cookAssets, type CookManifest, type Inclusion } from '../assets/cookAssets';
 import { cookWorlds, streamedScenes } from '../world/cookWorld';
@@ -555,6 +557,8 @@ export interface ExportGameOptions {
   hotUpdate?: { remoteRoot?: string; persistUpdateKey?: string };
   /** The export profile this build was made with, recorded in its size history. */
   profile?: string;
+  /** Signing key files the project names, checked against its repository. */
+  secretFiles?: readonly string[];
   /** iOS: where the prebuilt engine + app shell live, so the export can wrap
    *  itself in an Xcode project. Omitted (or null) exports content only. */
   iosSources?: IosProjectSources | null;
@@ -579,9 +583,11 @@ export interface ExportGameOptions {
    * and the only route for a game that has to add an SDK of its own.
    */
   androidOutput?: 'package' | 'project';
-  /** Android: the identity to sign with. Omitted uses the development key, which
-   *  installs on a device and is refused by every store. */
-  androidKey?: SigningKey;
+  /** Android: the release identity a shipping build (`minify`) is signed with.
+   *  A development build, or a shipping one without it, uses the development key,
+   *  which installs on a device and is refused by every store. Read only when a
+   *  shipping build needs it, so a development build asks for no passphrase. */
+  androidKey?: SigningKey | (() => SigningKey);
   /** The app's launcher icon (project-relative). Omitted ⇒ the template's default. */
   appIcon?: string;
   /** `packaging.sizeBudget[platform]` — the project's own package-size ceiling in
@@ -598,7 +604,31 @@ export interface ExportGameOptions {
  * defines for itself would have none. See sizeReport.ts for what is counted.
  */
 export async function exportGame(opts: ExportGameOptions): Promise<ExportGameResult> {
-  return attachSizeReport(await produceExport(opts), opts);
+  const result = await attachSizeReport(await produceExport(opts), opts);
+  const exposed = committableSecrets(opts.root, opts.secretFiles ?? []);
+  return exposed.length > 0 ? { ...result, warnings: [...result.warnings, ...exposed] } : result;
+}
+
+/**
+ * Signing keys a commit of the project would publish: inside it, and either
+ * tracked or not ignored. A project that is not a git checkout says nothing,
+ * since there is no repository to leak into.
+ */
+export function committableSecrets(root: string, files: readonly string[]): string[] {
+  const git = (...args: string[]) => spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+  if (files.length === 0 || git('rev-parse', '--is-inside-work-tree').stdout.trim() !== 'true') return [];
+  const out: string[] = [];
+  for (const file of files) {
+    const abs = path.resolve(root, file);
+    if (!isInsideRoot(root, abs) || !existsSync(abs)) continue;
+    const rel = path.relative(root, abs).split(path.sep).join('/');
+    if (git('ls-files', '--error-unmatch', '--', rel).status === 0) {
+      out.push(`The signing key ${rel} is committed to the project's repository: anyone with the repository can sign as you. Move it out of the project and remove it from git history.`);
+    } else if (git('check-ignore', '-q', '--', rel).status !== 0) {
+      out.push(`The signing key ${rel} is in the project and not ignored, so the next commit of everything would publish it. Move it out of the project, or add it to .gitignore.`);
+    }
+  }
+  return out;
 }
 
 /**
@@ -1230,7 +1260,13 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
           absOut, appConfig, androidTemplateSources(template), icon);
       } else {
         progress({ phase: 'Assembling the APK' });
-        const key = opts.androidKey ?? debugSigningKey();
+        const release = opts.minify && opts.androidKey
+          ? (typeof opts.androidKey === 'function' ? opts.androidKey() : opts.androidKey) : null;
+        const key = release ?? debugSigningKey();
+        if (opts.minify && !opts.androidKey) {
+          warnings.push('This shipping APK is signed with the development key, which Google Play refuses: '
+            + 'set a release key under Project Settings → Android → Signing.');
+        }
         const assembly = { templateDir: template, contentDir: absOut, app: appConfig, key, icon };
         apkFile = path.join(absOut, apkFileName(appConfig.id));
         await writeFile(apkFile, assembleApk(assembly));
