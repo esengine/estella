@@ -19,6 +19,10 @@ published separately; it ships inside the editor.
 - **Android release signing.** A Shipping APK (and App Bundle) is signed with the release key the project names under Project Settings → Android → Signing — two PEM paths, the passphrase kept in this machine's keychain (the command line reads `ESTELLA_ANDROID_KEY_PASSPHRASE`); Development builds keep the development key. A Shipping build without one says it will be refused by Google Play.
 - **Export profiles.** A project can name several exports of one target in `packaging.profiles` — a test and a production WeChat build, each with its own AppID, CDN root and development or shipping configuration, writing only what differs from the project's settings. The Build dialog creates, edits and deletes them per target, marking each setting a profile overrides with a reset that hands it back to the project; `estella export --profile <name>` and the agent's `export_game` build the same one, and the size history records which profile a build used.
 
+### Changed
+
+- The CDN root remote asset groups and hot updates use is a packaging setting of the project (`packaging.remoteRoot`, the Package dialog's CDN root field), and export profiles override it — a production profile carries the real CDN while the project stays same-origin. `.esengine/asset-groups.json`'s `activeProfile` / `profiles` are still read for a project that sets no root of its own; hot-update-demo and the hot-update docs use the new shape.
+
 ### Fixed
 
 - The Profiler no longer reports a connected build's debug-channel cost as 0 ms when the device's clock is too coarse to measure it — a browser that is not cross-origin isolated steps by 0.1 ms. The device reports its clock's step, the row reads "< 0.100 ms", and `profile_frames` returns it as `channelClockMs`.

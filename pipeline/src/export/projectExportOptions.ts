@@ -112,12 +112,14 @@ export async function projectExportOptions(
       ? { playableAdProfile: (await loadPlayableProfile(root, plat?.playable?.network)) ?? undefined }
       : {}),
     sizeBudgetBytes: packaging?.sizeBudget?.[platform],
+    // Unset leaves the hot-update config to fall back to asset-groups.json's
+    // active profile, where projects kept their CDN root before this setting.
+    ...(packaging?.remoteRoot !== undefined ? { hotUpdate: { remoteRoot: packaging.remoteRoot } } : {}),
     secretFiles: [quickGame?.releaseKey, platform === 'android' ? plat?.android?.releaseKey : undefined]
       .flatMap((k) => (k ? [k.privateKey, k.certificate] : [])).filter((f) => f !== ''),
     ...(profile ? {
       profile: profileName,
       ...(profile.config ? { minify: profile.config === 'shipping' } : {}),
-      ...(profile.remoteRoot !== undefined ? { hotUpdate: { remoteRoot: profile.remoteRoot } } : {}),
     } : {}),
   };
 }

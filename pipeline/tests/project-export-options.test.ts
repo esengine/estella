@@ -206,3 +206,24 @@ describe('an Android release key', () => {
         expect(() => (o.androidKey as () => unknown)()).toThrow(/Android release key could not be read \(nope\.pem/);
     });
 });
+
+describe('the CDN root', () => {
+    const cdn = (packaging: Record<string, unknown>) => parseManifest({ formatVersion: '1', name: 'p', packaging });
+
+    it('is the project\'s, trimmed of a trailing slash, and a profile\'s where it sets one', async () => {
+        const m = cdn({
+            remoteRoot: 'https://cdn.example.com/game/',
+            profiles: { local: { platform: 'web', remoteRoot: 'http://192.168.1.5:8080' } },
+        });
+        expect((await projectExportOptions(root, m, 'web')).hotUpdate).toEqual({ remoteRoot: 'https://cdn.example.com/game' });
+        expect((await projectExportOptions(root, m, 'web', 'local')).hotUpdate).toEqual({ remoteRoot: 'http://192.168.1.5:8080' });
+    });
+
+    it('may be set empty, which serves remote groups from the game\'s own origin', async () => {
+        expect((await projectExportOptions(root, cdn({ remoteRoot: '' }), 'web')).hotUpdate).toEqual({ remoteRoot: '' });
+    });
+
+    it('left unset, leaves the older asset-groups profile to answer', async () => {
+        expect((await projectExportOptions(root, cdn({}), 'web')).hotUpdate).toBeUndefined();
+    });
+});

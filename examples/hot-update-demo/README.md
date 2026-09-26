@@ -87,17 +87,29 @@ manifest.* Nothing is ever overwritten, so a cache can never go stale, and
 The delivery config is `.esengine/asset-groups.json`, and the two groups take
 the two modes their flows need: `cdn` is **remote** because a hot update has to
 replace it after the game shipped, and `pack` is a **subpackage** because it
-ships inside the package and is only fetched when asked for. Build profiles
-(`dev` / `prod`) carry the CDN root per environment:
+ships inside the package and is only fetched when asked for:
 
 ```json
 {
   "groups": {
     "cdn":  { "folder": "assets/cdn",  "mode": "remote" },
     "pack": { "folder": "assets/pack", "mode": "subpackage" }
-  },
-  "activeProfile": "dev",
-  "profiles": { "dev": { "remoteRoot": "" }, "prod": { "remoteRoot": "https://cdn.example.com/hot-update-demo" } }
+  }
+}
+```
+
+The CDN root is a packaging setting in `project.esproject`: empty (same-origin)
+for the project, and the real CDN in the two production export profiles,
+`prod-web` and `prod-android` — build one with `estella export --profile prod-web`
+or by picking it in the Package dialog:
+
+```json
+"packaging": {
+  "remoteRoot": "",
+  "profiles": {
+    "prod-web": { "platform": "web", "config": "shipping", "remoteRoot": "https://cdn.example.com/hot-update-demo" },
+    "prod-android": { "platform": "android", "config": "shipping", "remoteRoot": "https://cdn.example.com/hot-update-demo" }
+  }
 }
 ```
 

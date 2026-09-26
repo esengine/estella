@@ -9,14 +9,5 @@
       "folder": "assets/pack",
       "mode": "subpackage"
     }
-  },
-  "activeProfile": "dev",
-  "profiles": {
-    "dev": {
-      "remoteRoot": ""
-    },
-    "prod": {
-      "remoteRoot": "https://cdn.example.com/hot-update-demo"
-    }
   }
 }

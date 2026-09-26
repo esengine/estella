@@ -64,11 +64,24 @@ Estella 的热更新是**内容寻址**、**原子**（要么全成、要么回�
 
 ### 设置 CDN 根地址
 
-远端组资产需要一个**根 URL** 来拉取——你的 CDN。它是一个**构建 profile** 设置，因此 `dev` 与 `prod` 可以指向不同的 CDN，导出时会把活动 profile 的根地址烘进发布的游戏里。在**打包项目**对话框（**文件 → 构建…**）的**高级**里设置：
+远端组资产需要一个**根 URL** 来拉取——你的 CDN。它是项目的打包设置（`project.esproject` 里的 `packaging.remoteRoot`），**导出配置档**可以覆盖它，于是测试构建和正式构建可以指向不同的 CDN。导出时会把最终确定的根地址烘进发布的游戏里。在**打包项目**对话框（**文件 → 构建…**）的**高级**里设置：
 
 ![打包对话框的「高级」分组——CDN 地址、源码映射与完成后打开输出文件夹](@/assets/guides/zh/hot-update-build-cdn.png)
 
-***CDN 地址** 字段会把活动 profile 的 `remoteRoot` 写入 `asset-groups.json`。留空则远端资产从游戏同源加载（例如本地测试时）。*
+***CDN 地址** 字段写的是项目的 `remoteRoot`；选中了配置档时，写的是该配置档的。留空则远端资产从游戏同源加载（例如本地测试时）。*
+
+```json
+{
+  "packaging": {
+    "remoteRoot": "",
+    "profiles": {
+      "prod-web": { "platform": "web", "config": "shipping", "remoteRoot": "https://cdn.example.com/my-game" }
+    }
+  }
+}
+```
+
+`estella export --profile prod-web`（或在对话框里选中 **prod-web**）用正式的根地址构建，其余构建用项目自己的。
 
 ### `.esengine/asset-groups.json`
 
@@ -83,11 +96,6 @@ Estella 的热更新是**内容寻址**、**原子**（要么全成、要么回�
   "atlases": {
     "ui": { "folder": "assets/art/ui" }
   },
-  "activeProfile": "dev",
-  "profiles": {
-    "dev":  { "remoteRoot": "" },
-    "prod": { "remoteRoot": "https://cdn.example.com/my-game" }
-  }
 }
 ```
 
@@ -100,12 +108,11 @@ Estella 的热更新是**内容寻址**、**原子**（要么全成、要么回�
 | `atlases.<name>.folder` | `string` | 项目相对文件夹；其下每张纹理都打进这张图集。最长匹配前缀胜出。 |
 | `groups.<name>.mode` | `'local' \| 'subpackage' \| 'remote'` | 交付模式。 |
 | `groups.<name>.alwaysInclude` | `boolean` | 即使构建里没有任何东西*可达*到它，也照样发布这个组——用于只有你的代码点名的资产（url、路径、富文本标记）。默认关闭。见[资源](/docs/zh-cn/assets/overview/#只有代码点名的资产)。 |
-| `activeProfile` | `string` | 构建使用哪个 profile（`profiles` 的键）。 |
-| `profiles.<name>.remoteRoot` | `string` | 该 profile 的远端组资产的 CDN 根地址。留空 ⇒ 同源。 |
+| `activeProfile`、`profiles` | — | **旧项目**。在 `packaging.remoteRoot` 出现之前，CDN 根地址存在这里：仍会读取，但仅限项目自己没设根地址时。 |
 
 ## 构建产出了什么
 
-每次 Web / 桌面导出都会在游戏旁写出一份 **`asset-manifest.json`**（可寻址清单）——那正是客户端做热更新 diff 的依据。当活动 profile 设有 CDN 根地址时，导出还会把一段 `hotUpdate` 烘进 `game.config.json`：
+每次 Web / 桌面导出都会在游戏旁写出一份 **`asset-manifest.json`**（可寻址清单）——那正是客户端做热更新 diff 的依据。当这次构建有 CDN 根地址时，导出还会把一段 `hotUpdate` 烘进 `game.config.json`：
 
 ```json
 {
@@ -274,7 +281,7 @@ assets.releaseGroup('world2');
 - **给检查加锁**，藏在启动时的一次性开关或「检查更新」按钮后；不要每帧调用 `checkForUpdate`。
 - **展示体积。** `checkForUpdate` 在你提交前就给出 `totalBytes` 与文件数——在移动数据网络下大下载前提示玩家。
 - **处理 `ok: false`。** 失败的更新会干净回滚；稍后重试，而不是假定成功。
-- **善用 profile。** 让 `dev` 指向测试桶（或留空走同源）、`prod` 指向真正的 CDN，这样构建就会自动发布正确的根地址。
+- **善用导出配置档。** 项目自己的根地址指向测试桶（或留空走同源），给正式配置档配上真正的 CDN，这样每次构建都会带上正确的根地址。
 - **用清单 URL 做版本。** 灰度发布 / A-B 通道无非是不同的 `manifestUrl`——给不同客户端发同一 CDN 上不同的清单。
 
 ## 参见

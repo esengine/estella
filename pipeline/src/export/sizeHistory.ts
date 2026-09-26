@@ -70,6 +70,7 @@ export const PACKAGING_SIZE_ROLE: Readonly<Record<string, keyof SizeSettings | '
     platforms: 'content',
     profiles: 'profile',
     profile: 'profile',
+    remoteRoot: 'inert',
 };
 
 /** The settings this build ran with, out of everything the export was given. */

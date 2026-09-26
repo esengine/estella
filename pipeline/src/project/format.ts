@@ -413,11 +413,15 @@ export interface ProjectPackaging {
   /** The profile the Build dialog last packaged with; empty when it used the
    *  project's own settings. */
   profile?: string;
+  /** The CDN root remote asset groups and hot updates are served from; empty
+   *  means same-origin. Replaces `.esengine/asset-groups.json`'s active profile,
+   *  still read for a project that has not set this. */
+  remoteRoot?: string;
 }
 
 /** The packaging settings a profile may set; the rest are the project's. */
 export const EXPORT_PROFILE_FIELDS = [
-  'config', 'sourceMaps', 'assetCompression', 'compressWasm', 'engineSubpackage', 'excludeScenes',
+  'config', 'sourceMaps', 'assetCompression', 'compressWasm', 'engineSubpackage', 'excludeScenes', 'remoteRoot',
 ] as const satisfies readonly (keyof ProjectPackaging)[];
 
 /**
@@ -429,8 +433,6 @@ export interface ExportProfile extends Pick<ProjectPackaging, typeof EXPORT_PROF
   platform: ExportPlatform;
   /** Only the profile's own target's slice is kept. */
   platforms?: ProjectPackaging['platforms'];
-  /** The CDN root remote asset groups and hot updates are served from. */
-  remoteRoot?: string;
 }
 
 /**
@@ -942,6 +944,7 @@ export function parseManifest(raw: unknown): ProjectManifest {
     const profiles = parseExportProfiles(p.profiles);
     if (profiles) pkg.profiles = profiles;
     if (typeof p.profile === 'string' && p.profile !== '') pkg.profile = p.profile;
+    if (typeof p.remoteRoot === 'string') pkg.remoteRoot = p.remoteRoot.trim().replace(/\/+$/, '');
     if (Object.keys(pkg).length > 0) manifest.packaging = pkg;
   }
   return manifest;
@@ -964,7 +967,6 @@ function parseExportProfiles(raw: unknown): Record<string, ExportProfile> | unde
     }
     const slice = (parsed.platforms as Record<string, unknown> | undefined)?.[parsed.platform];
     if (slice) profile.platforms = { [parsed.platform]: slice } as ProjectPackaging['platforms'];
-    if (typeof fields.remoteRoot === 'string') profile.remoteRoot = fields.remoteRoot;
     profiles[name] = profile;
   }
   return Object.keys(profiles).length > 0 ? profiles : undefined;

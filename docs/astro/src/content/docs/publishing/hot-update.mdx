@@ -88,14 +88,30 @@ fallback when a project has no `asset-groups.json`.)
 
 ### Set the CDN root
 
-Remote-group assets need a **root URL** to fetch from — your CDN. It's a **build
-profile** setting, so `dev` and `prod` can point at different CDNs, and the
-export bakes the active profile's root into the shipped game. Set it in the
-**Package Project** dialog (**File → Build…**), under **Advanced**:
+Remote-group assets need a **root URL** to fetch from — your CDN. It is a
+packaging setting of the project (`packaging.remoteRoot` in `project.esproject`),
+and an **export profile** can override it, so a test build and a production build
+point at different CDNs. The export bakes the root it resolves into the shipped
+game. Set it in the **Package Project** dialog (**File → Build…**), under
+**Advanced**:
 
 ![The Package dialog's Advanced group — the CDN root field, source maps, and open-output-folder](@/assets/guides/en/hot-update-build-cdn.png)
 
-*The **CDN root** field writes the active profile's `remoteRoot` to `asset-groups.json`. Leave it empty to load remote assets same-origin (e.g. for local testing).*
+*The **CDN root** field writes the project's `remoteRoot`, or the picked profile's when one is picked. Leave it empty to load remote assets same-origin (e.g. for local testing).*
+
+```json
+{
+  "packaging": {
+    "remoteRoot": "",
+    "profiles": {
+      "prod-web": { "platform": "web", "config": "shipping", "remoteRoot": "https://cdn.example.com/my-game" }
+    }
+  }
+}
+```
+
+`estella export --profile prod-web` (or picking **prod-web** in the dialog) builds
+with the production root; any other build uses the project's.
 
 ### `.esengine/asset-groups.json`
 
@@ -112,11 +128,6 @@ never disagree about where an asset ships):
   "atlases": {
     "ui": { "folder": "assets/art/ui" }
   },
-  "activeProfile": "dev",
-  "profiles": {
-    "dev":  { "remoteRoot": "" },
-    "prod": { "remoteRoot": "https://cdn.example.com/my-game" }
-  }
 }
 ```
 
@@ -129,14 +140,13 @@ never disagree about where an asset ships):
 | `atlases` | `Record<name, {folder}>` | Folders whose textures pack into one atlas page. A **separate axis** from `groups`: which assets travel together and which share a texture page are different decisions, so an atlas may span two delivery groups and a group may hold two atlases. Absent ⇒ the `<name>.atlas/` folder convention still applies. |
 | `atlases.<name>.folder` | `string` | Project-relative folder; every texture under it packs into this atlas. Longest matching prefix wins. |
 | `groups.<name>.alwaysInclude` | `boolean` | Ship the group even when nothing in the build *reaches* it — for assets only your code names (a url, a path, rich-text markup). Off by default. See [Assets](/docs/assets/overview/#shipping-what-only-code-names). |
-| `activeProfile` | `string` | Which profile the build uses (key into `profiles`). |
-| `profiles.<name>.remoteRoot` | `string` | CDN root that this profile's remote-group assets are served from. Empty ⇒ same-origin. |
+| `activeProfile`, `profiles` | — | **Older projects.** Where the CDN root was kept before `packaging.remoteRoot`: still read, and only while the project sets no root of its own. |
 
 ## What the build ships
 
 Every Web / Desktop export always writes an **`asset-manifest.json`** (the
 addressable manifest) next to the game — that's what a client diffs against for a
-hot update. When the active profile has a CDN root, the export also bakes a
+hot update. When the build has a CDN root, the export also bakes a
 `hotUpdate` block into `game.config.json`:
 
 ```json
@@ -378,8 +388,9 @@ disk-cache primitives differ per platform, and the runtime picks the right one.
   before you commit — prompt the player before a large download on mobile data.
 - **Handle `ok: false`.** A failed update rolls back cleanly; retry later rather
   than assuming success.
-- **Use profiles.** Point `dev` at a test bucket (or empty for same-origin) and
-  `prod` at your real CDN, so a build ships the right root automatically.
+- **Use export profiles.** Leave the project's root on a test bucket (or empty for
+  same-origin) and give a production profile your real CDN, so each build ships
+  the right root.
 - **Version by manifest URL.** A staged rollout / A-B channel is just a different
   `manifestUrl` — hand different clients different manifests off the same CDN.
 
