@@ -11,6 +11,7 @@
  * only what the person chose for this build on top.
  */
 import path from 'node:path';
+import { homedir } from 'node:os';
 import type { ExportGameOptions } from './exportGame';
 import { readReleaseKey } from './rpk';
 import { signingKeyFromPem, type SigningKey } from '../../../build-tools/utils/androidKeystore.js';
@@ -128,11 +129,17 @@ function androidReleaseKey(
 ): SigningKey {
   try {
     return signingKeyFromPem({
-      key: path.resolve(root, paths.privateKey),
-      cert: path.resolve(root, paths.certificate),
+      key: keyPath(root, paths.privateKey),
+      cert: keyPath(root, paths.certificate),
       ...(passphrase ? { passphrase } : {}),
     });
   } catch (e) {
     throw new Error(`the Android release key could not be read (${paths.privateKey}, ${paths.certificate}): ${(e as Error).message}`);
   }
+}
+
+/** A key path as the settings page invites it: relative to the project, absolute,
+ *  or under the home directory (`~/…`). */
+function keyPath(root: string, file: string): string {
+  return /^~[/\\]/.test(file) ? path.join(homedir(), file.slice(2)) : path.resolve(root, file);
 }

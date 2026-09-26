@@ -6,7 +6,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { tmpdir, homedir } from 'node:os';
 import path from 'node:path';
 import { parseManifest } from '../src/project/format';
 import { projectExportOptions } from '../src/export/projectExportOptions';
@@ -186,6 +186,15 @@ describe('an Android release key', () => {
             if (was === undefined) delete process.env.ESTELLA_ANDROID_KEYS; else process.env.ESTELLA_ANDROID_KEYS = was;
             rmSync(keys, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
         }
+    });
+
+    it('may live under the home directory, written with ~', async () => {
+        const m = parseManifest({
+            formatVersion: '1', name: 'p',
+            packaging: { platforms: { android: { releaseKey: { privateKey: '~/no-such-estella-key.pem', certificate: '~/c.pem' } } } },
+        });
+        const o = await projectExportOptions(root, m, 'android');
+        expect(() => (o.androidKey as () => unknown)()).toThrow(new RegExp(homedir().replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')));
     });
 
     it('that cannot be read says so when it is needed, and not before', async () => {
