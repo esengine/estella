@@ -400,6 +400,27 @@ export interface ProjectPackaging {
     ios?: IosPackaging;
     playable?: PlayablePackaging;
   };
+  /** Named exports of one target each (a test and a production WeChat build),
+   *  picked in the Build dialog or with `estella export --profile <name>`. */
+  profiles?: Record<string, ExportProfile>;
+}
+
+/** The packaging settings a profile may set; the rest are the project's. */
+export const EXPORT_PROFILE_FIELDS = [
+  'config', 'sourceMaps', 'assetCompression', 'compressWasm', 'engineSubpackage', 'excludeScenes',
+] as const satisfies readonly (keyof ProjectPackaging)[];
+
+/**
+ * One named export of one target. Written in the shape of `packaging` itself, so
+ * a profile reads as the settings it changes and nothing else; a setting it leaves
+ * out is the project's.
+ */
+export interface ExportProfile extends Pick<ProjectPackaging, typeof EXPORT_PROFILE_FIELDS[number]> {
+  platform: ExportPlatform;
+  /** Only the profile's own target's slice is kept. */
+  platforms?: ProjectPackaging['platforms'];
+  /** The CDN root remote asset groups and hot updates are served from. */
+  remoteRoot?: string;
 }
 
 /**
@@ -904,9 +925,34 @@ export function parseManifest(raw: unknown): ProjectManifest {
       if (Object.keys(platforms).length > 0) pkg.platforms = platforms;
     }
     if (orientation) pkg.orientation = orientation;
+    const profiles = parseExportProfiles(p.profiles);
+    if (profiles) pkg.profiles = profiles;
     if (Object.keys(pkg).length > 0) manifest.packaging = pkg;
   }
   return manifest;
+}
+
+/** Profiles are read by the packaging parser itself, then cut to what a profile
+ *  may set: one parser, so a profile field cannot be read differently from the
+ *  project setting it overrides. A profile with no target is dropped. */
+function parseExportProfiles(raw: unknown): Record<string, ExportProfile> | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const profiles: Record<string, ExportProfile> = {};
+  for (const [name, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (name === '' || !value || typeof value !== 'object') continue;
+    const { profiles: _nested, ...fields } = value as Record<string, unknown>;
+    const parsed = parseManifest({ name: 'profile', packaging: fields }).packaging;
+    if (!parsed?.platform) continue;
+    const profile: ExportProfile = { platform: parsed.platform };
+    for (const key of EXPORT_PROFILE_FIELDS) {
+      if (parsed[key] !== undefined) (profile as unknown as Record<string, unknown>)[key] = parsed[key];
+    }
+    const slice = (parsed.platforms as Record<string, unknown> | undefined)?.[parsed.platform];
+    if (slice) profile.platforms = { [parsed.platform]: slice } as ProjectPackaging['platforms'];
+    if (typeof fields.remoteRoot === 'string') profile.remoteRoot = fields.remoteRoot;
+    profiles[name] = profile;
+  }
+  return Object.keys(profiles).length > 0 ? profiles : undefined;
 }
 
 /** Effective layout = defaults overlaid with the manifest's overrides. */

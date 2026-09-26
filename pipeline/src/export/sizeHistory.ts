@@ -34,6 +34,8 @@ export interface SizeSettings {
   sourcemap?: boolean;
   compressWasm?: boolean;
   engineSubpackage?: boolean;
+  /** The export profile the build was made with, if any. */
+  profile?: string;
 }
 
 /**
@@ -66,17 +68,18 @@ export const PACKAGING_SIZE_ROLE: Readonly<Record<string, keyof SizeSettings | '
     // A logo is inlined into the page, so choosing one changes what ships.
     splash: 'content',
     platforms: 'content',
+    profiles: 'profile',
 };
 
 /** The settings this build ran with, out of everything the export was given. */
 export function sizeSettingsOf(opts: SizeSettings): SizeSettings {
     const keys: (keyof SizeSettings)[] = [
         'contentAddressed', 'compressTextures', 'compressAudio', 'atlasTextures',
-        'minify', 'sourcemap', 'compressWasm', 'engineSubpackage',
+        'minify', 'sourcemap', 'compressWasm', 'engineSubpackage', 'profile',
     ];
-    const out: SizeSettings = {};
+    const out: Record<string, unknown> = {};
     for (const k of keys) if (opts[k] !== undefined) out[k] = opts[k];
-    return out;
+    return out as SizeSettings;
 }
 
 /** One build's measurement, as the history file stores it. */

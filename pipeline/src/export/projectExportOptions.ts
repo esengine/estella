@@ -15,8 +15,8 @@ import type { ExportGameOptions } from './exportGame';
 import { readReleaseKey } from './rpk';
 import { loadPlayableProfile } from './platformCatalog';
 import {
-  resolveAppId, resolveLayout, resolveOrientation, resolveScripts,
-  type ExportPlatform, type ProjectManifest,
+  EXPORT_PROFILE_FIELDS, resolveAppId, resolveLayout, resolveOrientation, resolveScripts,
+  type ExportPlatform, type ProjectManifest, type ProjectPackaging,
 } from '../project/format';
 import { BUILTIN_PLATFORMS, isMiniGamePlatform } from '../project/platforms';
 import { cookOptionsOf, packagingOptionsOf, runtimeConfigOf } from '../project/runtimeConfig';
@@ -30,9 +30,42 @@ const NATIVE_IDENTITY: Partial<Record<ExportPlatform, 'android' | 'ios' | 'deskt
   android: 'android', ios: 'ios', desktop: 'desktop',
 };
 
+/**
+ * The project as one of its export profiles describes it: the profile's settings
+ * laid over the project's, its target's slice merged field by field so a profile
+ * that names only a test appid keeps the project's version code.
+ */
+export function withExportProfile(manifest: ProjectManifest, name: string): ProjectManifest {
+  const profiles = manifest.packaging?.profiles ?? {};
+  const profile = profiles[name];
+  if (!profile) {
+    const known = Object.keys(profiles);
+    throw new Error(`no export profile "${name}" — ${known.length ? `this project has ${known.join(', ')}` : 'this project defines none'}`);
+  }
+  const packaging = manifest.packaging ?? {};
+  const target = profile.platform as keyof NonNullable<ProjectPackaging['platforms']>;
+  const slice = { ...packaging.platforms?.[target], ...profile.platforms?.[target] };
+  const overrides = Object.fromEntries(EXPORT_PROFILE_FIELDS
+    .filter((key) => profile[key] !== undefined).map((key) => [key, profile[key]]));
+  return {
+    ...manifest,
+    packaging: {
+      ...packaging,
+      ...overrides,
+      platform: profile.platform,
+      platforms: { ...packaging.platforms, ...(Object.keys(slice).length > 0 ? { [target]: slice } : {}) },
+    },
+  };
+}
+
 export async function projectExportOptions(
-  root: string, manifest: ProjectManifest, platform: ExportPlatform,
+  root: string, source: ProjectManifest, platform: ExportPlatform, profileName?: string,
 ): Promise<ProjectExportOptions> {
+  const profile = profileName ? source.packaging?.profiles?.[profileName] : undefined;
+  const manifest = profileName ? withExportProfile(source, profileName) : source;
+  if (profile && profile.platform !== platform) {
+    throw new Error(`export profile "${profileName}" is for ${profile.platform}, not ${platform}`);
+  }
   const packaging = manifest.packaging;
   const plat = packaging?.platforms;
   const vendor = (plat as Record<string, { appid?: string } | undefined> | undefined)?.[platform];
@@ -69,5 +102,10 @@ export async function projectExportOptions(
       ? { playableAdProfile: (await loadPlayableProfile(root, plat?.playable?.network)) ?? undefined }
       : {}),
     sizeBudgetBytes: packaging?.sizeBudget?.[platform],
+    ...(profile ? {
+      profile: profileName,
+      ...(profile.config ? { minify: profile.config === 'shipping' } : {}),
+      ...(profile.remoteRoot !== undefined ? { hotUpdate: { remoteRoot: profile.remoteRoot } } : {}),
+    } : {}),
   };
 }

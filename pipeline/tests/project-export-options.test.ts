@@ -93,3 +93,65 @@ describe('the export a project describes', () => {
         expect((await projectExportOptions(root, manifest, 'playable')).playableAdProfile?.id).toBe('meta');
     });
 });
+
+describe('an export profile', () => {
+    const withProfiles = parseManifest({
+        formatVersion: '1',
+        name: 'Star Hopper',
+        defaultScene: 'levels/start.esscene',
+        packaging: {
+            sourceMaps: false,
+            platforms: { wechat: { appid: 'wx-prod' }, quickgame: { appid: 'qg', versionCode: 7 } },
+            profiles: {
+                test: {
+                    platform: 'wechat', config: 'development', sourceMaps: true,
+                    remoteRoot: 'http://192.168.1.5:8080/cdn',
+                    platforms: { wechat: { appid: 'wx-test' }, android: { versionCode: 99 } },
+                },
+                prod: { platform: 'wechat', config: 'shipping', remoteRoot: 'https://cdn.example.com/hop' },
+                vivo: { platform: 'quickgame', platforms: { quickgame: { appid: 'qg-test' } } },
+                broken: { config: 'shipping' },
+            },
+        },
+    });
+
+    it('keeps only what a profile may set, and only its own target\'s slice', () => {
+        expect(withProfiles.packaging?.profiles?.test).toEqual({
+            platform: 'wechat', config: 'development', sourceMaps: true,
+            remoteRoot: 'http://192.168.1.5:8080/cdn',
+            platforms: { wechat: { appid: 'wx-test' } },
+        });
+    });
+
+    it('is dropped when it names no target', () => {
+        expect(withProfiles.packaging?.profiles?.broken).toBeUndefined();
+    });
+
+    it('lays its settings over the project\'s', async () => {
+        const o = await projectExportOptions(root, withProfiles, 'wechat', 'test');
+        expect(o).toMatchObject({
+            miniGameAppid: 'wx-test', sourcemap: true, minify: false, profile: 'test',
+            hotUpdate: { remoteRoot: 'http://192.168.1.5:8080/cdn' },
+        });
+        expect(await projectExportOptions(root, withProfiles, 'wechat', 'prod'))
+            .toMatchObject({ miniGameAppid: 'wx-prod', minify: true, sourcemap: false, hotUpdate: { remoteRoot: 'https://cdn.example.com/hop' } });
+    });
+
+    it('keeps the project\'s fields in its target\'s slice that it does not name', async () => {
+        const o = await projectExportOptions(root, withProfiles, 'quickgame', 'vivo');
+        expect(o).toMatchObject({ miniGameAppid: 'qg-test', miniGameVersionCode: 7 });
+        expect(o.minify).toBeUndefined();
+    });
+
+    it('leaves an export without a profile as the project describes it', async () => {
+        const o = await projectExportOptions(root, withProfiles, 'wechat');
+        expect(o).toMatchObject({ miniGameAppid: 'wx-prod', sourcemap: false });
+        expect(o.profile).toBeUndefined();
+        expect(o.hotUpdate).toBeUndefined();
+    });
+
+    it('refuses a name the project does not define, and a profile for another target', async () => {
+        await expect(projectExportOptions(root, withProfiles, 'wechat', 'staging')).rejects.toThrow(/this project has test, prod, vivo/);
+        await expect(projectExportOptions(root, withProfiles, 'douyin', 'test')).rejects.toThrow(/is for wechat, not douyin/);
+    });
+});

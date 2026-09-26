@@ -20,16 +20,18 @@ const USAGE = `usage: node pipeline/bin/estella.mjs export <projectDir> [options
 
   --platform <id>     a built-in (web, desktop, wechat, douyin, kuaishou, bilibili, playable, android, ios)
                       or a platform the project defines in .esengine/platforms/ (default web)
+  --profile <name>    one of the project's export profiles (packaging.profiles): its
+                      target, development or shipping, and the settings it overrides
   --out <dir>         output dir (default <projectDir>/dist-<platform>)
   --wasm <dir>        engine runtime to ship (default: the build tree, else the editor's copy)
   --scene <path>      entry scene, project-relative (default: the project's own)
   --title <name>      app title (default: the project's name)
-  --scripts <path>    scripts entry, project-relative (default src/main.ts if present)
+  --scripts <path>    scripts entry, project-relative (default: the project's scripts.main)
   --template <dir>    android/ios/desktop: the runtime template to wrap, else the installed one
   --output project    android: emit a Gradle project instead of an apk
   --json <file>       also write the result here, for a caller that reads it back
   --enforce-budget    fail (exit 1) when the package is over a size limit
-  --minify            minify the bundled scripts, as a shipping build does
+  --minify            minify the bundled scripts, as a shipping build (or profile) does
   --debug-channel <url>  a development build dials this editor address
                       (ws://host:port/?token=…) so its frames can be captured;
                       refused together with --minify
@@ -93,7 +95,7 @@ function parseArgs(argv) {
     console.error(USAGE);
     process.exit(2);
   }
-  const opts = { projectDir: path.resolve(projectDir), platform: 'web' };
+  const opts = { projectDir: path.resolve(projectDir) };
   for (let i = 0; i < rest.length;) {
     const key = rest[i]?.replace(/^--/, '');
     if (!key) break;
@@ -744,7 +746,9 @@ if (opts.command === 'import-hdr') {
 }
 
 const project = projectSettings(opts.projectDir);
-const platform = opts.platform;
+// A profile names its target, so `--profile` alone is enough; the parser that
+// applies it refuses one that disagrees with an explicit --platform.
+const platform = opts.platform ?? project.packaging?.profiles?.[opts.profile]?.platform ?? 'web';
 
 const entryScene = opts.scene ?? project.defaultScene ?? (
   firstExisting([
@@ -811,7 +815,7 @@ if (!fmt.BUILTIN_PLATFORMS.includes(platform)) {
 let code = 1;
 try {
   const result = await exporter.exportGame({
-    ...await projectOpts.projectExportOptions(opts.projectDir, manifest, platform),
+    ...await projectOpts.projectExportOptions(opts.projectDir, manifest, platform, opts.profile),
     entryScene,
     ...(opts.scripts ? { scriptsEntry: opts.scripts } : {}),
     ...(opts.title ? { title: opts.title } : {}),
@@ -833,7 +837,7 @@ try {
     } : {}),
     iosSources: platform === 'ios' && templateDir ? iosTemplateSources(templateDir) : null,
     ...(opts.output === 'project' ? { androidOutput: 'project' } : {}),
-    minify: opts.minify,
+    ...(opts.minify ? { minify: true } : {}),
     ...(opts['debug-channel'] ? { debugChannel: { url: opts['debug-channel'] } } : {}),
     // `dev` is what the AOT step calls "do not compile" — the editor's preview
     // mode, reused here so there is one word for it (docs/REARCH_AOT.md §9).

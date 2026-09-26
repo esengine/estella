@@ -553,6 +553,8 @@ export interface ExportGameOptions {
    *  assets resolve against + the storage key an applied update persists under.
    *  The addressable `asset-manifest.json` this export always emits enables it. */
   hotUpdate?: { remoteRoot?: string; persistUpdateKey?: string };
+  /** The export profile this build was made with, recorded in its size history. */
+  profile?: string;
   /** iOS: where the prebuilt engine + app shell live, so the export can wrap
    *  itself in an Xcode project. Omitted (or null) exports content only. */
   iosSources?: IosProjectSources | null;
