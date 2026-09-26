@@ -8,7 +8,8 @@
  * same window the engine does, with nothing left to cover.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { exportGame } from '../src/export/exportGame';
@@ -50,7 +51,7 @@ beforeAll(() => {
 afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
 /** Export for web and hand back the page plus whatever the build said about it. */
-async function page(splash?: ProjectPackaging['splash']): Promise<{ html: string; warnings: string[]; splashBytes?: number }> {
+async function page(splash?: ProjectPackaging['splash']): Promise<{ html: string; warnings: string[]; splashBytes?: number; outDir: string }> {
   const outDir = path.join(root, `dist-${Math.random().toString(36).slice(2)}`);
   const res = await exportGame({
     root,
@@ -65,7 +66,7 @@ async function page(splash?: ProjectPackaging['splash']): Promise<{ html: string
     splash,
   });
   expect(res.ok, res.errors.join('\n')).toBe(true);
-  return { html: readFileSync(path.join(outDir, 'index.html'), 'utf8'), warnings: res.warnings, splashBytes: res.size?.splashBytes };
+  return { html: readFileSync(path.join(outDir, 'index.html'), 'utf8'), warnings: res.warnings, splashBytes: res.size?.splashBytes, outDir };
 }
 
 describe('the exported page’s start screen', () => {
@@ -75,6 +76,17 @@ describe('the exported page’s start screen', () => {
     expect(plain.splashBytes).toBeGreaterThan(0);
     expect(plain.html.length).toBeGreaterThan(plain.splashBytes!);
     expect(withLogo.splashBytes! - plain.splashBytes!).toBeGreaterThanOrEqual(Math.floor(PNG.length * 4 / 3));
+  }, 180_000);
+
+  it('counts the code it loads before the boot can report, and may run the script that measures it', async () => {
+    const { html, outDir } = await page();
+    const bytes = Number(/data-code-bytes="(\d+)"/.exec(html)?.[1]);
+    const entry = JSON.parse(/<script type="importmap">([^<]*)<\/script>/.exec(html)![1]).imports.esengine as string;
+    expect(bytes).toBe(statSync(path.join(outDir, 'game.js')).size + statSync(path.join(outDir, entry)).size);
+    const script = /<script>(\(function\(\)\{var r=document\.getElementById\('es-splash'\)[\s\S]*?)<\/script>/.exec(html)?.[1];
+    expect(script).toBeDefined();
+    const hash = createHash('sha256').update(script!).digest('base64');
+    expect(html).toContain(`'sha256-${hash}'`);
   }, 180_000);
 
   it('is there with nothing configured, showing the game’s name', async () => {

@@ -1178,4 +1178,6 @@ export const NOTED = {
     { note: 'On a host that compresses the engine binary (most CDNs and static hosts), the web boot bar no longer runs to the end of the engine download a third of the way through and stands there for the rest of it: the page divided decompressed bytes by the compressed Content-Length. The export now records the binary\'s own size (`engineBytes` in `game.config.json`) and the bar measures against that.' },
   'fix(settings): the start screen\'s logo says it is for web exports':
     { note: 'Project Settings says the start screen\'s logo is for web exports; a mini-game shows its host\'s own start screen and loading text.' },
+  'feat(export): the start screen shows the game\'s code downloading':
+    { note: 'The web start screen moves while the game\'s own code downloads, before any of it can run: the page counts each script it finishes against the code the export measured, so on a Slow 4G link the bar no longer stands at its first step for 2.5 s (the longest it stands still is now about 0.6 s). A portal\'s own loading screen hears the same progress.' },
 };

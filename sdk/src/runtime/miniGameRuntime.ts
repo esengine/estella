@@ -230,6 +230,7 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
     }
     const tag = adapter.name;
     const progress = hostProgress(adapter.host);
+    progress.reach('code');
     progress.reach('config');
     progress.reach('scripts');
 

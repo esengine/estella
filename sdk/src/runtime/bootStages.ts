@@ -15,6 +15,9 @@
 
 /** A boot stage, in the order a host reaches them. */
 export const BOOT_STAGES = [
+    // The game's own code, which a web page downloads before anything in it can
+    // report; the page measures it by bytes, a mini-game already holds it.
+    { id: 'code', weight: 24, says: 'Downloading the game' },
     { id: 'config', weight: 4, says: 'Reading the build' },
     { id: 'scripts', weight: 6, says: 'Loading scripts' },
     { id: 'manifest', weight: 4, says: 'Reading the asset list' },

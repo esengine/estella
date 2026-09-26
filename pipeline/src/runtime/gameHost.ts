@@ -105,6 +105,7 @@ async function boot(): Promise<void> {
   resize();
 
   const cfg = (await (await fetch('./game.config.json')).json()) as PackagedGameConfig;
+  splash?.reach('code');
   splash?.reach('config');
   // Before the engine boots, so a boot that fails is still heard by the editor.
   if (cfg.debugChannel) startDebugChannel(cfg.debugChannel);

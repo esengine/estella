@@ -16,6 +16,7 @@ published separately; it ships inside the editor.
 
 ### Added
 
+- The web start screen moves while the game's own code downloads, before any of it can run: the page counts each script it finishes against the code the export measured, so on a Slow 4G link the bar no longer stands at its first step for 2.5 s (the longest it stands still is now about 0.6 s). A portal's own loading screen hears the same progress.
 - **Android release signing.** A Shipping APK (and App Bundle) is signed with the release key the project names under Project Settings → Android → Signing — two PEM paths, the passphrase kept in this machine's keychain (the command line reads `ESTELLA_ANDROID_KEY_PASSPHRASE`); Development builds keep the development key. A Shipping build without one says it will be refused by Google Play.
 - **Export profiles.** A project can name several exports of one target in `packaging.profiles` — a test and a production WeChat build, each with its own AppID, CDN root and development or shipping configuration, writing only what differs from the project's settings. The Build dialog creates, edits and deletes them per target, marking each setting a profile overrides with a reset that hands it back to the project; `estella export --profile <name>` and the agent's `export_game` build the same one, and the size history records which profile a build used.
 

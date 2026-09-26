@@ -32,7 +32,7 @@ describe('the boot a package reports', () => {
 
     it('says what it is about to do, not what it just did', () => {
         expect(bootSays([])).toBe(BOOT_STAGES[0].says);
-        expect(bootSays(['config'])).toBe(BOOT_STAGES[1].says);
+        expect(bootSays([ids[0]])).toBe(BOOT_STAGES[1].says);
     });
 
     it('says the last stage once everything is done, rather than nothing', () => {
