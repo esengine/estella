@@ -757,9 +757,6 @@ if (!entryScene) {
   process.exit(2);
 }
 
-const scriptsEntry = opts.scripts ?? (existsSync(path.join(opts.projectDir, 'src', 'main.ts'))
-  ? 'src/main.ts' : undefined);
-
 const outDir = path.resolve(opts.out ?? path.join(opts.projectDir, `dist-${platform}`));
 
 // The editor's package.json is the version of the whole product, and the runtime
@@ -781,17 +778,16 @@ const desktopTemplates = platform !== 'desktop' ? [] : (opts.template
 
 const { mod: fmt, cleanup: cleanupFmt } = await loadPipeline(
   path.join(PIPELINE, 'src', 'project', 'index.ts'), 'projectFormat.mjs');
-const { resolveOrientation, parseManifest, runtimeConfigOf, cookOptionsOf, packagingOptionsOf } = fmt;
+const { parseManifest } = fmt;
 // PARSED, not read by hand: the parser normalizes legacy platform ids and drops
 // values that could not be judged against. A setting read straight off the JSON
 // here is a second answer to what a project means.
 const manifest = parseManifest(project);
-const sizeBudgetBytes = manifest.packaging?.sizeBudget?.[platform];
 
 const { mod: exporter, cleanup: cleanupExport } = await loadPipeline(
   path.join(PIPELINE, 'src', 'export', 'exportGame.ts'), 'exportGame.mjs');
-const { mod: rpkMod, cleanup: cleanupRpk } = await loadPipeline(
-  path.join(PIPELINE, 'src', 'export', 'rpk.ts'), 'rpk.mjs');
+const { mod: projectOpts, cleanup: cleanupProjectOpts } = await loadPipeline(
+  path.join(PIPELINE, 'src', 'export', 'projectExportOptions.ts'), 'projectExportOptions.mjs');
 
 // A platform the project defines in .esengine/platforms/, loaded the way the
 // build dialog loads it, so a headless package is the one the dialog makes.
@@ -815,46 +811,33 @@ if (!fmt.BUILTIN_PLATFORMS.includes(platform)) {
 let code = 1;
 try {
   const result = await exporter.exportGame({
-    root: opts.projectDir,
+    ...await projectOpts.projectExportOptions(opts.projectDir, manifest, platform),
     entryScene,
-    scriptsEntry,
+    ...(opts.scripts ? { scriptsEntry: opts.scripts } : {}),
+    ...(opts.title ? { title: opts.title } : {}),
     hostsDir: path.join(PIPELINE, 'src', 'runtime'),
     packagesDir: path.join(REPO, 'plugins'),
     sdkDistDir: path.join(REPO, 'sdk', 'dist'),
     wasmDir: opts.wasm ? path.resolve(opts.wasm) : projectPlatform?.wasmDir ?? engineRuntimeDir(platform),
     miniGameProfile: projectPlatform?.profile,
     outDir,
-    platform,
-    title: opts.title ?? project.name ?? path.basename(opts.projectDir),
-    orientation: resolveOrientation(project),
-    // The project's OWN settings, through the same derivation the editor uses:
-    // without it a headless package ships every setting at its default while
-    // claiming to be the package the dialog makes.
-    runtime: runtimeConfigOf(manifest),
-    ...cookOptionsOf(manifest),
-    ...packagingOptionsOf(manifest),
-    // What the dialog passes from the same settings: the vendor's id for the game,
-    // the version a host config states, and a quick game's ordinal and key.
-    miniGameAppid: manifest.packaging?.platforms?.[platform]?.appid,
-    appVersion: manifest.version,
-    miniGameVersionCode: manifest.packaging?.platforms?.[platform]?.versionCode,
-    miniGameReleaseKey: platform === 'quickgame' || platform === 'huawei'
-      ? (await rpkMod.readReleaseKey(opts.projectDir, manifest.packaging?.platforms?.[platform]?.releaseKey)) ?? undefined
-      : undefined,
     androidTemplate: platform === 'android' ? templateDir : null,
     desktopTemplates,
-    desktopChannel: opts['steam-appid'] ? 'steam' : undefined,
-    steam: (opts['steam-appid'] || opts['steam-sdk'])
-      ? { appId: Number(opts['steam-appid']) || undefined, sdkPath: opts['steam-sdk'] }
-      : undefined,
+    ...(opts['steam-appid'] ? { desktopChannel: 'steam' } : {}),
+    ...((opts['steam-appid'] || opts['steam-sdk']) ? {
+      steam: {
+        ...manifest.packaging?.platforms?.desktop?.steam,
+        ...(opts['steam-appid'] ? { appId: Number(opts['steam-appid']) } : {}),
+        ...(opts['steam-sdk'] ? { sdkPath: opts['steam-sdk'] } : {}),
+      },
+    } : {}),
     iosSources: platform === 'ios' && templateDir ? iosTemplateSources(templateDir) : null,
-    androidOutput: opts.output === 'project' ? 'project' : undefined,
+    ...(opts.output === 'project' ? { androidOutput: 'project' } : {}),
     minify: opts.minify,
     ...(opts['debug-channel'] ? { debugChannel: { url: opts['debug-channel'] } } : {}),
     // `dev` is what the AOT step calls "do not compile" — the editor's preview
     // mode, reused here so there is one word for it (docs/REARCH_AOT.md §9).
     ...(opts['no-aot'] ? { aotMode: 'dev' } : {}),
-    sizeBudgetBytes,
   });
   const report = { ...result, outDir };
   console.log(JSON.stringify(report, null, 2));
@@ -888,7 +871,7 @@ try {
   // Before the exit, not after: process.exit() in the try block would skip this
   // and leave the bundle dirs behind.
   cleanupExport();
-  cleanupRpk();
+  cleanupProjectOpts();
   cleanupFmt();
 }
 process.exit(code);

@@ -266,6 +266,8 @@ export interface ExportGameResult {
   packedFrom?: Record<string, number>;
   warnings: string[];
   errors: string[];
+  /** A native target's bundle id, as the installed app is known to the OS. */
+  appId?: string;
   /** Android: the generated Gradle project, for the editor to reveal. Absent
    *  unless the export asked for a project (and a template was installed). */
   androidProject?: string;
@@ -835,6 +837,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   const errors: string[] = [];
   /** iOS: set once the project is written around the content (see below). */
   let xcodeProject: string | undefined;
+  let appId: string | undefined;
   let androidProject: string | undefined;
   let apkFile: string | undefined;
   let aabFile: string | undefined;
@@ -1124,6 +1127,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       allowHttp: !opts.minify,
     };
     await writeFile(path.join(payloadDir, 'app.config.json'), JSON.stringify(appConfig, null, 2) + '\n');
+    appId = appConfig.id;
     const http = cleartextWarning(platform, !!opts.minify, hotUpdate?.remoteRoot);
     if (http) warnings.push(http);
 
@@ -1240,7 +1244,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   return {
     ok: errors.length === 0, platform, outDir: absOut, included: cook.included.length,
     inclusion: cook.inclusion,
-    warnings, errors, ...(xcodeProject ? { xcodeProject } : {}), ...(androidProject ? { androidProject } : {}),
+    warnings, errors, ...(appId ? { appId } : {}), ...(xcodeProject ? { xcodeProject } : {}), ...(androidProject ? { androidProject } : {}),
     ...(apkFile ? { apkFile } : {}), ...(aabFile ? { aabFile } : {}),
     ...(appBundles.length > 0 ? { appBundles } : {}),
     ...(steamChecklist ? { steamChecklist } : {}),

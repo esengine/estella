@@ -132,6 +132,7 @@ jobs:
               exit 1
             fi
             cp "$APK" "apks/$name.apk"
+            node -e "process.stdout.write(require('./build/pkg/$name.json').appId)" > "apks/$name.appid"
             echo "::endgroup::"
           done
           ls -la apks
@@ -139,5 +140,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: compat-apks
-          path: apks/*.apk
+          path: |
+            apks/*.apk
+            apks/*.appid
           retention-days: 3

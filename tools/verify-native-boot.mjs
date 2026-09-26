@@ -20,7 +20,7 @@
  * `bootPhase`/`bootReady` write to the file only (BootLog.cpp), so grepping
  * logcat for "ready" finds nothing and calls a dead app healthy.
  *
- *   node tools/verify-native-boot.mjs --platform ios --app <bundle.app>
+ *   node tools/verify-native-boot.mjs --platform ios --app <bundle.app> [--app-id <bundle id>]
  *   node tools/verify-native-boot.mjs --platform android --examples all
  *   node tools/verify-native-boot.mjs --platform android --examples all --shard 1/3
  *
@@ -50,7 +50,10 @@ import { GOLDEN, launchTimeoutFor } from './goldenProjects.mjs';
 import { worthAnotherLaunch, exitCodeFor, unjudgedReason } from './lib/smokeRetry.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const APP_ID = 'com.estella.game';
+/** A prebuilt app's bundle id, unless `--app-id` names another; a packaged
+ *  example's is whatever its export reports. */
+const DEFAULT_APP_ID = 'com.estella.game';
+let APP_ID = DEFAULT_APP_ID;
 const LOG_NAME = 'estella-boot.log';
 const READY = 'ready in';
 /** Captures per app. See the comment at the capture site for why >1 and why
@@ -191,7 +194,7 @@ function cpuTicks(adb, pid) {
 function androidDriver(opts) {
     const adb = process.env.ANDROID_HOME
         ? path.join(process.env.ANDROID_HOME, 'platform-tools', 'adb') : 'adb';
-    const logFile = `/sdcard/Android/data/${APP_ID}/files/${LOG_NAME}`;
+    const logFile = () => `/sdcard/Android/data/${APP_ID}/files/${LOG_NAME}`;
     let lastReadError = '';
 
     return {
@@ -239,7 +242,7 @@ function androidDriver(opts) {
             trySh(adb, ['uninstall', APP_ID]);
             sh(adb, ['install', '-r', '-t', apk]);
             // A record left by an earlier app would answer for this one.
-            trySh(adb, ['shell', 'rm', '-f', logFile]);
+            trySh(adb, ['shell', 'rm', '-f', logFile()]);
             trySh(adb, ['logcat', '-c']);
         },
         // `-W` makes this wait for the launch to finish and print what it cost, so
@@ -313,7 +316,7 @@ function androidDriver(opts) {
             trySh(adb, ['shell', 'cmd', 'uimode', 'night', night ? 'yes' : 'no']);
         },
         readLog() {
-            const got = trySh(adb, ['shell', 'cat', logFile]);
+            const got = trySh(adb, ['shell', 'cat', logFile()]);
             // Why it failed, kept for the diagnostics. "No such file" (the app never
             // got that far) and "Permission denied" (it did, and this cannot see it)
             // are opposite conclusions that both arrive here as an empty string, and
@@ -441,7 +444,7 @@ function androidDriver(opts) {
                 // First, because an unreadable record is a different failure from an
                 // unwritten one and the report cannot tell them apart on its own.
                 ['reading the boot record', lastReadError
-                    ? `${lastReadError}\n${trySh(adb, ['shell', 'ls', '-l', path.posix.dirname(logFile)]).stdout ?? ''}`
+                    ? `${lastReadError}\n${trySh(adb, ['shell', 'ls', '-l', path.posix.dirname(logFile())]).stdout ?? ''}`
                     : ''],
                 ['logcat (EstellaSDK)', trySh(adb, ['logcat', '-d', '-s', 'EstellaSDK:*']).stdout],
                 ['logcat (crashes)', trySh(adb, ['logcat', '-d', '-b', 'crash']).stdout],
@@ -747,7 +750,7 @@ function packageExample(driver, name, opts) {
     if (!existsSync(report)) throw new Error('the export wrote no result');
     const exported = JSON.parse(readFileSync(report, 'utf8'));
     if (!exported.ok) throw new Error(`export failed: ${(exported.errors ?? []).join('; ') || 'no reason given'}`);
-    return { app: driver.build(exported), work };
+    return { app: driver.build(exported), work, appId: exported.appId ?? DEFAULT_APP_ID };
 }
 
 // =============================================================================
@@ -808,6 +811,7 @@ if (!opts.examples) {
         console.error(`✗ no ${driver.name} app to verify (pass --${driver.artifactFlag} <path>)`);
         process.exit(2);
     }
+    APP_ID = opts.appId ?? DEFAULT_APP_ID;
     const r = await verifyApp(driver, artifact, opts.label, opts);
     console.log(`boot record: ${r.ready ? r.readyLine : 'never reached "ready in"'}`);
     console.log(`frame:       ${r.size}${opts.frameJudge === false ? '' : `, ${r.colors} distinct colors (need ${opts.minColors})`}`);
@@ -857,7 +861,8 @@ const results = [];
 for (const name of examples) {
     let r;
     try {
-        const { app, work } = packageExample(driver, name, opts);
+        const { app, work, appId } = packageExample(driver, name, opts);
+        APP_ID = appId;
         r = await verifyApp(driver, app, name, opts, !FRAME_NOT_JUDGED[name]);
         if (worthAnotherLaunch(r)) {
             const first = r;

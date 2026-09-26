@@ -44,7 +44,7 @@ for apk in "${APKS[@]}"; do
     # --no-frame-judge: the frame is for a human to look at. The gate is install +
     # `ready` + no recorded error.
     node "$ROOT/tools/verify-native-boot.mjs" \
-        --platform android --apk "$apk" \
+        --platform android --apk "$apk" --app-id "$(cat "${apk%.apk}.appid")" \
         --label "$label" --no-frame-judge \
         --out "$OUT" \
         --metrics-out "${OUT}/${label}.json" || rc=$?

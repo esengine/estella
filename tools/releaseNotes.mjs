@@ -1146,4 +1146,8 @@ export const NOTED = {
     { note: 'A native development build\'s Profiler shows its draw calls, triangles, sprites and VRAM, and what the debug channel costs it: all read 0 on a native build.' },
   'fix(android): the Gradle project and App Bundle settings reach the export':
     { note: 'Android\'s "Android Studio project" and "App Bundle (.aab)" settings take effect: the project file never read them back, so every Android export wrote an APK and nothing else.' },
+  'fix(export): the Build dialog\'s export reads the project the way the command line does':
+    { note: 'An export from the Build dialog and one from `estella export` now read the project the same way. The dialog\'s builds keep the engine modules a project includes or excludes, which they ignored; the command line\'s carry the project\'s app id (a native package was always `com.estella.game`, so two games replaced each other on a phone), its script entry and scenes folder, its desktop channel and Steam app, and a playable\'s ad network.' },
+  'fix(export): the editor and the command line export a project from one reading of it':
+    { note: 'An export from the Build dialog and one from `estella export` now read the project the same way. The dialog\'s builds keep the engine modules a project includes or excludes, which they ignored; the command line\'s carry the project\'s app id (a native package was always `com.estella.game`, so two games replaced each other on a phone), its script entry and scenes folder, its desktop channel and Steam app, and a playable\'s ad network.' },
 };
