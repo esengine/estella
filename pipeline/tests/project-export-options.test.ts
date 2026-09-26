@@ -19,7 +19,7 @@ beforeAll(() => {
     writeFileSync(path.join(root, 'sign', 'key.pem'), 'KEY');
     writeFileSync(path.join(root, 'sign', 'cert.pem'), 'CERT');
 });
-afterAll(() => rmSync(root, { recursive: true, force: true }));
+afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
 const manifest = parseManifest({
     formatVersion: '1',
