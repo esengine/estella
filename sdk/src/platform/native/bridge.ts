@@ -217,7 +217,8 @@ export interface NativeBridge {
     steam?: NativeSteamBridge;
 
     devicePixelRatio(): number;
-    /** High-resolution clock. Optional — falls back to `Date.now()`. */
+    /** High-resolution clock. Optional — falls back to the host's `performance.now()`,
+     *  then `Date.now()`, whose whole milliseconds read sub-millisecond spans as 0. */
     now?(): number;
     /** Host UI language ('zh-CN', 'en-US', …). Optional — falls back to 'en'. */
     language?(): string;

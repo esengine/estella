@@ -1142,4 +1142,6 @@ export const NOTED = {
     { note: 'A native Android app can reach the network: its manifest never asked for it, so a remote group\'s assets, hot updates and the debug channel all failed on Android. A development build also allows plain http (a LAN CDN); a shipping build is held to https, and the export warns when its CDN is http.' },
   'feat(native): a native build\'s frame can be captured and replayed':
     { note: 'A connected native build\'s frame can be captured and replayed.' },
+  'fix(native): a native build reports its draws, and what the debug channel costs it':
+    { note: 'A native development build\'s Profiler shows its draw calls, triangles, sprites and VRAM, and what the debug channel costs it: all read 0 on a native build.' },
 };

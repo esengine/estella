@@ -6,6 +6,7 @@
  *          them — the same answer from its Play realm and from a device.
  */
 import type { App, FrameCosts } from '../app/app';
+import { engineApi } from '../ecs/bridge/engineApi';
 
 export interface FrameStatsReport {
     phases: Record<string, number>;
@@ -30,7 +31,7 @@ function jsonMap(json: string | undefined): Record<string, number> {
 }
 
 export function frameStatsReport(app: App): FrameStatsReport {
-    const m = app.wasmModule;
+    const m = engineApi(app);
     return {
         phases: Object.fromEntries(app.getPhaseTimings() ?? []),
         costs: app.getFrameCosts(),
@@ -42,7 +43,7 @@ export function frameStatsReport(app: App): FrameStatsReport {
         cppScopes: jsonMap(m?.engine_getCpuScopes?.()),
         cppCounters: jsonMap(m?.engine_getCounters?.()),
         gpuScopes: jsonMap(m?.engine_getGpuScopes?.()),
-        wasmBytes: m?.HEAPU8?.byteLength ?? 0,
+        wasmBytes: app.wasmModule?.HEAPU8?.byteLength ?? 0,
         vramBytes: m?.renderer_getTextureBytes?.() ?? 0,
     };
 }

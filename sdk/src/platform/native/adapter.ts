@@ -133,7 +133,7 @@ export class NativePlatformAdapter implements PlatformAdapter {
     }
 
     now(): number {
-        return this.bridge_.now?.() ?? Date.now();
+        return this.bridge_.now?.() ?? (typeof performance !== 'undefined' ? performance.now() : Date.now());
     }
 
     devicePixelRatio(): number {

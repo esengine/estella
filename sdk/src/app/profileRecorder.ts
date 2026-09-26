@@ -5,6 +5,7 @@
  */
 import type { App, Plugin } from './app';
 import { Renderer } from '../render/renderer';
+import { engineApi } from '../ecs/bridge/engineApi';
 import {
     PROFILE_CAPTURE_VERSION,
     type CaptureSource,
@@ -82,7 +83,7 @@ export class ProfileRecorder {
         this.frames_.length = 0;
         this.seq_ = 0;
         this.app_.enableStats();
-        this.app_.wasmModule?.engine_setCpuProfiling?.(true);
+        engineApi(this.app_)?.engine_setCpuProfiling?.(true);
         this.recording_ = true;
         this.detach_ = this.app_.onFrameEnd((dtMs) => this.capture_(dtMs));
     }
@@ -93,7 +94,7 @@ export class ProfileRecorder {
         this.recording_ = false;
         this.detach_?.();
         this.detach_ = null;
-        this.app_.wasmModule?.engine_setCpuProfiling?.(false);
+        engineApi(this.app_)?.engine_setCpuProfiling?.(false);
     }
 
     /** Throw away what has been recorded, keeping the recorder running. */
@@ -118,7 +119,7 @@ export class ProfileRecorder {
     private capture_(dtMs: number): void {
         const costs = this.app_.getFrameCosts();
         if (!costs) return;
-        const m = this.app_.wasmModule;
+        const m = engineApi(this.app_);
         const render = Renderer.getStats();
         const frame: CapturedFrame = {
             id: this.seq_++,
@@ -132,7 +133,7 @@ export class ProfileRecorder {
             triangles: render.triangles,
             entities: this.app_.getEntityCount(),
             memory: {
-                wasmBytes: m?.HEAPU8?.byteLength ?? 0,
+                wasmBytes: this.app_.wasmModule?.HEAPU8?.byteLength ?? 0,
                 jsHeapBytes: jsHeapBytes(),
                 vramBytes: m?.renderer_getTextureBytes?.() ?? 0,
             },

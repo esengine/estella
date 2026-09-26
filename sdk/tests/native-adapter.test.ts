@@ -135,6 +135,13 @@ describe('NativePlatformAdapter (mock bridge)', () => {
         expect(platformLanguage()).toBe('zh-CN');
     });
 
+    it('without a host clock, times sub-millisecond spans instead of reading them as 0', () => {
+        const { now: _, ...clockless } = env.bridge;
+        const bare = installNativePlatform(clockless);
+        vi.spyOn(performance, 'now').mockReturnValueOnce(100.25).mockReturnValueOnce(100.5);
+        expect(bare.now() - bare.now()).toBe(-0.25);
+    });
+
     it('dispatches pushed native input, synthesizing the primary pointer', () => {
         const cb = makeInputCallbacks();
         adapter.bindInputEvents(cb);
