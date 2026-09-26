@@ -129,13 +129,21 @@ else {
   if (!/reason: 'preflight-blocked'/.test(door[0])) {
     say(STORE, 'a refused build is not distinguishable from a failed one — it owes reason: preflight-blocked');
   }
-  // What a project's assets cook as is the PROJECT's, so the shared door has to
-  // derive it. Left to each caller, an agent's build shipped a raw PNG and no
-  // basis transcoder where the dialog's shipped a KTX2 and one — same project.
-  if (!/cookOptionsOf\(/.test(door[0])) {
-    say(STORE, 'exportGame does not derive the cook options from the project — a caller that'
-      + ' says nothing gets `undefined`, which is not what the project asked for');
-  }
+}
+
+// 5b'. Every door's export starts from the one reading of the project: left to
+//      each caller, an agent's build shipped a raw PNG where the dialog's shipped
+//      a KTX2 — same project.
+const MAIN = 'desktop/electron/main.ts';
+const OPTIONS = 'pipeline/src/export/projectExportOptions.ts';
+const handler = has(MAIN) ? /'project:exportGame',[\s\S]*?\n\);/.exec(read(MAIN)) : null;
+if (!handler) say(MAIN, 'no project:exportGame handler to check');
+else if (!/\.\.\.base,/.test(handler[0]) || !/projectExportOptions\(/.test(handler[0])) {
+  say(MAIN, 'the export handler does not start from projectExportOptions — a caller that says'
+    + ' nothing gets `undefined`, which is not what the project asked for');
+}
+if (!has(OPTIONS) || !/\.\.\.cookOptionsOf\(manifest\)/.test(read(OPTIONS))) {
+  say(OPTIONS, 'projectExportOptions does not derive the cook options from the project');
 }
 
 // 5c. No door reaches around the store to the bridge: a tool naming the exporter

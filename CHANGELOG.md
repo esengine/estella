@@ -16,7 +16,7 @@ published separately; it ships inside the editor.
 
 ### Added
 
-- **Export profiles.** A project can name several exports of one target in `packaging.profiles` — a test and a production WeChat build, each with its own AppID, CDN root and development or shipping configuration, writing only what differs from the project's settings. `estella export --profile <name>` builds one, and the size history records which profile a build used.
+- **Export profiles.** A project can name several exports of one target in `packaging.profiles` — a test and a production WeChat build, each with its own AppID, CDN root and development or shipping configuration, writing only what differs from the project's settings. The Build dialog picks one per target and shows what it sets, locked; `estella export --profile <name>` and the agent's `export_game` build the same one, and the size history records which profile a build used.
 
 ### Fixed
 

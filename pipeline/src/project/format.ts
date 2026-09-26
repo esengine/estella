@@ -403,6 +403,9 @@ export interface ProjectPackaging {
   /** Named exports of one target each (a test and a production WeChat build),
    *  picked in the Build dialog or with `estella export --profile <name>`. */
   profiles?: Record<string, ExportProfile>;
+  /** The profile the Build dialog last packaged with; empty when it used the
+   *  project's own settings. */
+  profile?: string;
 }
 
 /** The packaging settings a profile may set; the rest are the project's. */
@@ -927,6 +930,7 @@ export function parseManifest(raw: unknown): ProjectManifest {
     if (orientation) pkg.orientation = orientation;
     const profiles = parseExportProfiles(p.profiles);
     if (profiles) pkg.profiles = profiles;
+    if (typeof p.profile === 'string' && p.profile !== '') pkg.profile = p.profile;
     if (Object.keys(pkg).length > 0) manifest.packaging = pkg;
   }
   return manifest;

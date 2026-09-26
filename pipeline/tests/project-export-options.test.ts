@@ -52,6 +52,13 @@ describe('the export a project describes', () => {
         });
     });
 
+    it('cooks assets the way the project asked when the caller says nothing', async () => {
+        const skip = parseManifest({ formatVersion: '1', name: 'p', packaging: { assetCompression: 'skip' } });
+        expect(await projectExportOptions(root, skip, 'web'))
+            .toMatchObject({ compressTextures: false, compressAudio: false, atlasTextures: false });
+        expect((await projectExportOptions(root, manifest, 'web')).compressTextures).toBe(true);
+    });
+
     it('carries the engine modules the project chose, per target', async () => {
         const o = await projectExportOptions(root, manifest, 'wechat');
         expect(o.features?.modules).toEqual({ 'esengine/tilemap': 'exclude' });

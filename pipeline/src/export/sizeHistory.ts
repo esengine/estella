@@ -69,6 +69,7 @@ export const PACKAGING_SIZE_ROLE: Readonly<Record<string, keyof SizeSettings | '
     splash: 'content',
     platforms: 'content',
     profiles: 'profile',
+    profile: 'profile',
 };
 
 /** The settings this build ran with, out of everything the export was given. */
