@@ -38,9 +38,6 @@ export interface SplashLook {
   minMs?: number;
   /** CSS colour behind it; the page's own when the project said nothing. */
   background?: string;
-  /** Bytes of code the page loads before the game's boot can report, which the
-   *  page's own script measures (see {@link splashCodeScript}). */
-  codeBytes?: number;
 }
 
 /**
@@ -68,12 +65,11 @@ export function splashCss(background: string): string {
   );
 }
 
-/** The start screen's markup. `minMs` and `codeBytes` ride on data attributes,
- *  read by the scripts that drive it. */
+/** The start screen's markup — no script of its own, so the page adds no CSP hash.
+ *  `minMs` rides on a data attribute for the same reason. */
 export function splashHtml(title: string, look: SplashLook = {}): string {
   const safe = title.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c] as string));
-  const hold = (look.minMs ? ` data-min-ms="${Math.round(look.minMs)}"` : '')
-    + (look.codeBytes ? ` data-code-bytes="${Math.round(look.codeBytes)}"` : '');
+  const hold = look.minMs ? ` data-min-ms="${Math.round(look.minMs)}"` : '';
   // A game with a logo shows the logo; the title is then the alt text rather
   // than a second heading saying the same thing.
   const mark = look.logo
@@ -84,30 +80,6 @@ export function splashHtml(title: string, look: SplashLook = {}): string {
     + `<div class="es-splash-track"><div id="${BAR}"></div></div>`
     + `<div id="${LABEL}">${BOOT_STAGES[0].says}…</div>`
     + '</div>';
-}
-
-const CODE_SHARE = (BOOT_STAGES.find((s) => s.id === 'code')?.weight ?? 0) / BOOT_TOTAL;
-
-/**
- * Moves the bar, and tells a portal, while the game's code downloads and none of
- * it can run: each finished script adds its bytes to the total the export counted.
- * A file counts once whole; a cross-origin host without Timing-Allow-Origin
- * reports no size, and then the bar stays.
- */
-export function splashCodeJs(): string {
-  return `(function(){var r=document.getElementById('${ROOT}'),b=document.getElementById('${BAR}');`
-    + `var t=+(r&&r.getAttribute('data-code-bytes'))||0;if(!b||!t||!window.PerformanceObserver)return;`
-    + `var got=0,seen={};function take(l){l.getEntries().forEach(function(e){`
-    + `if(seen[e.name]||!/\\.m?js(\\?|$)/.test(e.name))return;seen[e.name]=1;got+=e.decodedBodySize||0;`
-    + `var f=Math.min(1,got/t);window.__esBootCode=f;if(window.__esBootTaken)return;`
-    + `b.style.width=Math.round(f*${CODE_SHARE}*100)+'%';`
-    + `dispatchEvent(new CustomEvent('${BOOT_PROGRESS_EVENT}',{detail:{stage:'code',progress:f*${CODE_SHARE},partial:true}}));});}`
-    + `try{new PerformanceObserver(take).observe({type:'resource',buffered:true});}catch(e){}})();`;
-}
-
-/** The inline script that measures the code download; see {@link splashCodeJs}. */
-export function splashCodeScript(): string {
-  return `<script>${splashCodeJs()}</script>`;
 }
 
 /** What {@link attachSplash} hands the boot sequence. */
@@ -144,12 +116,8 @@ export function attachSplash(doc: Document = document): Splash {
   const label = root && doc.getElementById(LABEL);
   const showUntil = Date.now() + Number(root?.getAttribute('data-min-ms') ?? 0);
   let done = 0;
-  // The page's own script has been moving the bar while this code downloaded;
-  // from here on the boot reports, and the bar carries on from where it is.
-  const view = doc.defaultView as (Window & { __esBootCode?: number; __esBootTaken?: boolean }) | null;
-  if (view) view.__esBootTaken = true;
   /** What the bar is showing, so a partial step never pulls it back. */
-  let shown = (view?.__esBootCode ?? 0) * CODE_SHARE;
+  let shown = 0;
   let finished = false;
   const seen = new Set<BootStage>();
   const announce = (type: string, detail: unknown): void => {

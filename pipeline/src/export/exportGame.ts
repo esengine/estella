@@ -63,9 +63,7 @@ import { resolveEmcc, runEmcc } from '../bundle/emccPath';
 import { findHostCC } from '../../../compiler/src/hostCC';
 import { explainBundleErrors, type BundleMessage } from '../bundle/bundleDiagnostics';
 import { orientationCss, orientationOverlayHtml, orientationLockScript, orientationLockCspHash, type ScreenOrientation } from './orientationHtml';
-import { PAGE_BACKGROUND, splashCss, splashHtml, splashCodeJs, splashCodeScript, type SplashLook } from './splash';
-import { bootCodeBytes } from './bootCode';
-import { createHash } from 'node:crypto';
+import { PAGE_BACKGROUND, splashCss, splashHtml, type SplashLook } from './splash';
 import { emitIosXcodeProject, type IosProjectSources } from '../../../build-tools/utils/iosProject.js';
 import { emitAndroidGradleProject } from '../../../build-tools/utils/gradleProject.js';
 import { androidTemplateSources } from '../../../build-tools/utils/nativeTemplate.js';
@@ -331,8 +329,7 @@ function indexHtml(
   // page may connect to; a build without a channel lists none.
   const connect = debugChannel ? ` ${new URL(debugChannel.url).origin}` : '';
   // Every inline script on this page needs its hash listed, or the browser blocks it.
-  const codeHash = `sha256-${createHash('sha256').update(splashCodeJs()).digest('base64')}`;
-  const inlineScripts = [map.cspHash, codeHash, ...(orientation ? [orientationLockCspHash(orientation)] : [])]
+  const inlineScripts = [map.cspHash, ...(orientation ? [orientationLockCspHash(orientation)] : [])]
     .map((h) => `'${h}'`)
     .join(' ');
   return `<!doctype html>
@@ -357,7 +354,6 @@ function indexHtml(
   <body>
     <canvas id="canvas"></canvas>
     ${splashHtml(title, look)}
-    ${splashCodeScript()}
     ${orientation ? orientationOverlayHtml(orientation) : ''}
     ${orientation ? orientationLockScript(orientation) : ''}
     <script type="module" src="./game.js"></script>
@@ -1122,11 +1118,8 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   let splashBytes: number | undefined;
   if (!nativeContent) {
     progress({ phase: 'Writing host page' });
-    const look = {
-      ...await splashLook(opts.root, opts.splash, warnings),
-      codeBytes: bootCodeBytes(payloadDir, 'game.js', JSON.parse(engineMap.json).imports ?? {}),
-    };
-    splashBytes = Buffer.byteLength(splashCss(look.background ?? PAGE_BACKGROUND) + splashHtml(title, look) + splashCodeScript());
+    const look = await splashLook(opts.root, opts.splash, warnings);
+    splashBytes = Buffer.byteLength(splashCss(look.background ?? PAGE_BACKGROUND) + splashHtml(title, look));
     await writeFile(
       path.join(payloadDir, 'index.html'),
       indexHtml(title, engineMap, look, platform === 'web' ? orientation : undefined, debugChannel),
