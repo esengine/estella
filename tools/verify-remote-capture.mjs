@@ -146,8 +146,11 @@ try {
   await new Promise((r) => setTimeout(r, 2000));
   const cost = await server.query(target.id, 'stats');
   const perFrame = cost?.frames > 0 ? cost.agentMs / cost.frames : NaN;
-  check(typeof cost?.agentMs === 'number' && cost.frames > 0 && perFrame <= 0.5,
-    `the debug channel cost the device ${cost?.agentMs?.toFixed(3)} ms over ${cost?.frames} frame(s) — ${perFrame.toFixed(4)} ms a frame (budget 0.5)`);
+  // A runner that draws a frame or two a second, on a clock that steps by 1 ms,
+  // reads one step over one frame as 1 ms a frame: that is the clock, not a cost.
+  const belowClock = typeof cost?.clockMs === 'number' && cost.agentMs <= cost.clockMs;
+  check(typeof cost?.agentMs === 'number' && cost.frames > 0 && (perFrame <= 0.5 || belowClock),
+    `the debug channel cost the device ${cost?.agentMs?.toFixed(3)} ms over ${cost?.frames} frame(s) — ${perFrame.toFixed(4)} ms a frame (budget 0.5; clock step ${cost?.clockMs})`);
 
   const tree = (await server.query(target.id, 'snapshot', { selectedId: null, withTree: true }))?.tree;
   const ship = tree?.entities.find((e) => e.name === 'Ship');
