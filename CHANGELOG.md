@@ -16,6 +16,7 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- Android's "Android Studio project" and "App Bundle (.aab)" settings take effect: the project file never read them back, so every Android export wrote an APK and nothing else.
 - A native development build's Profiler shows its draw calls, triangles, sprites and VRAM, and what the debug channel costs it: all read 0 on a native build.
 
 ## [0.73.0] - 2026-09-25

@@ -880,6 +880,8 @@ export function parseManifest(raw: unknown): ProjectManifest {
         if (typeof an.versionCode === 'number' && Number.isInteger(an.versionCode) && an.versionCode > 0) {
           a.versionCode = an.versionCode;
         }
+        if (an.output === 'package' || an.output === 'project') a.output = an.output;
+        if (typeof an.appBundle === 'boolean') a.appBundle = an.appBundle;
         if (Object.keys(a).length > 0) platforms.android = a;
       }
       const io = pl.ios as Record<string, unknown> | undefined;

@@ -69,6 +69,13 @@ describe('parseManifest — packaging', () => {
       .toBeUndefined();
   });
 
+  it('keeps what an Android export produces', () => {
+    const m = parseManifest({ name: 'X', packaging: { platforms: { android: { output: 'project', appBundle: true } } } });
+    expect(m.packaging?.platforms?.android).toEqual({ output: 'project', appBundle: true });
+    const bad = parseManifest({ name: 'X', packaging: { platforms: { android: { output: 'zip', appBundle: 'yes' } } } });
+    expect(bad.packaging?.platforms?.android).toBeUndefined();
+  });
+
   it('parses excludeScenes, dropping non-string / empty entries', () => {
     const m = parseManifest({
       name: 'X',

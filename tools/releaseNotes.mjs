@@ -1144,4 +1144,6 @@ export const NOTED = {
     { note: 'A connected native build\'s frame can be captured and replayed.' },
   'fix(native): a native build reports its draws, and what the debug channel costs it':
     { note: 'A native development build\'s Profiler shows its draw calls, triangles, sprites and VRAM, and what the debug channel costs it: all read 0 on a native build.' },
+  'fix(android): the Gradle project and App Bundle settings reach the export':
+    { note: 'Android\'s "Android Studio project" and "App Bundle (.aab)" settings take effect: the project file never read them back, so every Android export wrote an APK and nothing else.' },
 };
