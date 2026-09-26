@@ -53,6 +53,7 @@
 import { app, BrowserWindow } from 'electron';
 import http from 'node:http';
 import { readFile, writeFile } from 'node:fs/promises';
+import { gzipSync } from 'node:zlib';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -155,7 +156,7 @@ const clockScript = (ms) => `<script>(() => {
   });
 })();</script>`;
 
-function serve(root, safeArea, frameMs) {
+function serve(root, safeArea, frameMs, compress) {
   const server = http.createServer(async (req, res) => {
     try {
       let rel = decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/^\/+/, '');
@@ -175,12 +176,20 @@ function serve(root, safeArea, frameMs) {
         if (injected === html) console.log('  no <head> to inject the safe area or clock into');
         bytes = Buffer.from(injected);
       }
+      // A modelled network is also a modelled host, and hosts compress: served
+      // raw, the link carries three times what a player downloads, and a
+      // compressed Content-Length (which a download bar must survive) never occurs.
+      const type = MIME[path.extname(abs).toLowerCase()] ?? 'application/octet-stream';
+      const encode = compress && /gzip/.test(String(req.headers['accept-encoding'] ?? ''))
+        && /javascript|json|wasm|html|css/.test(type);
+      if (encode) bytes = gzipSync(bytes);
       // Content-Length, which node omits unless told (it chunks instead): every
       // real server sends it, and a loader that reports download progress has
       // nothing to divide by without it.
       res.writeHead(200, {
-        'content-type': MIME[path.extname(abs).toLowerCase()] ?? 'application/octet-stream',
+        'content-type': type,
         'content-length': bytes.length,
+        ...(encode ? { 'content-encoding': 'gzip' } : {}),
       }).end(bytes);
     } catch {
       res.writeHead(404).end();
@@ -221,7 +230,7 @@ const AI = flag('ai', '');
 const RENDER = has('render');
 /** Boot a named scene from the package instead of its entry. */
 const SCENE = flag('scene', '');
-  const server = await serve(DIR, flag('safe-area', ''), Number(flag('frame-ms', String(1000 / 60))));
+  const server = await serve(DIR, flag('safe-area', ''), Number(flag('frame-ms', String(1000 / 60))), !!THROTTLE);
   const query = new URLSearchParams();
   if (PROBE || GAMEPLAY || PARTICLES || COMBAT || AI || RENDER || FACTS || STREAMING) query.set('headless', '');
   if (SCENE) query.set('scene', SCENE);

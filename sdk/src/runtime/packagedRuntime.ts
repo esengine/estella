@@ -81,6 +81,12 @@ export interface PackagedGameConfig {
      *  what makes the runtime try to bring a Steam client up at all. */
     steamAppId?: number;
     /**
+     * The engine binary's size as it arrives in the page, decompressed. A host
+     * that compresses states a Content-Length for fewer bytes than a download
+     * counts, so the boot bar measures against this instead.
+     */
+    engineBytes?: number;
+    /**
      * Install physics even when the shipped scene shows no bodies — a project
      * that spawns them from script (Project Settings → Physics → Enabled).
      * Absent ⇒ physics installs only when a scene actually uses it.

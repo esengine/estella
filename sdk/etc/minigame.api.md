@@ -5584,6 +5584,7 @@ audioConfig: AudioProjectConfig | undefined
 colorSpace: "gamma" | "linear" | undefined
 debugChannel: DebugChannelConfig | undefined
 depthLayers: number | undefined
+engineBytes: number | undefined
 entryScene: string
 hotUpdate: { remoteRoot?: string; persistUpdateKey?: string; } | undefined
 msaaSamples: number | undefined

@@ -1137,6 +1137,8 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     ...(aot ? { aot } : {}),
     ...(world.worlds.length > 0 ? { worlds: world.worlds } : {}),
     ...(debugChannel ? { debugChannel } : {}),
+    ...(existsSync(path.join(payloadDir, 'wasm', 'esengine.wasm'))
+      ? { engineBytes: statSync(path.join(payloadDir, 'wasm', 'esengine.wasm')).size } : {}),
   };
   await writeFile(path.join(payloadDir, 'game.config.json'), JSON.stringify(gameConfig, null, 2) + '\n');
 

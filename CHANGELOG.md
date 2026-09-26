@@ -25,6 +25,8 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- On a host that compresses the engine binary (most CDNs and static hosts), the web boot bar no longer runs to the end of the engine download a third of the way through and stands there for the rest of it: the page divided decompressed bytes by the compressed Content-Length. The export now records the binary's own size (`engineBytes` in `game.config.json`) and the bar measures against that.
+- Project Settings says the start screen's logo is for web exports; a mini-game shows its host's own start screen and loading text.
 - The Profiler no longer reports a connected build's debug-channel cost as 0 ms when the device's clock is too coarse to measure it — a browser that is not cross-origin isolated steps by 0.1 ms. The device reports its clock's step, the row reads "< 0.100 ms", and `profile_frames` returns it as `channelClockMs`.
 - An export warns when a signing key the project names (a quick game's or Android's) sits inside the project and is committed to its repository, or is not ignored and would be committed next.
 - Opening a project no longer holds the editor behind "Preparing play realm…" for about ten seconds: the play realm's warm-up was being cut off and the editor waited out its deadline. A project now opens in under a second, and the first Play is still warm.

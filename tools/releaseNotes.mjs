@@ -1174,4 +1174,8 @@ export const NOTED = {
     { note: 'The CDN root remote asset groups and hot updates use is a packaging setting of the project (`packaging.remoteRoot`, the Package dialog\'s CDN root field), and export profiles override it — a production profile carries the real CDN while the project stays same-origin. `.esengine/asset-groups.json`\'s `activeProfile` / `profiles` are still read for a project that sets no root of its own; hot-update-demo and the hot-update docs use the new shape.' },
   'feat(build): the CDN root field writes the project\'s setting':
     { note: 'The CDN root remote asset groups and hot updates use is a packaging setting of the project (`packaging.remoteRoot`, the Package dialog\'s CDN root field), and export profiles override it — a production profile carries the real CDN while the project stays same-origin. `.esengine/asset-groups.json`\'s `activeProfile` / `profiles` are still read for a project that sets no root of its own; hot-update-demo and the hot-update docs use the new shape.' },
+  'fix(export): a compressing host no longer runs the boot bar to the end of the engine download early':
+    { note: 'On a host that compresses the engine binary (most CDNs and static hosts), the web boot bar no longer runs to the end of the engine download a third of the way through and stands there for the rest of it: the page divided decompressed bytes by the compressed Content-Length. The export now records the binary\'s own size (`engineBytes` in `game.config.json`) and the bar measures against that.' },
+  'fix(settings): the start screen\'s logo says it is for web exports':
+    { note: 'Project Settings says the start screen\'s logo is for web exports; a mini-game shows its host\'s own start screen and loading text.' },
 };
