@@ -183,3 +183,6 @@ pipeline/src/.build-*/
 
 # emsdk 4.0.10 for the WeChat EmscriptenGLX engine only (build-tools/toolchain/glx.js)
 tools/emsdk-glx/
+
+# Published corpora the checks fetch at a pinned revision (tools/corpora.mjs) — never commit
+.cache/
