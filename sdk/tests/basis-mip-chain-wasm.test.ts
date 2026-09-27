@@ -5,31 +5,24 @@
  *
  * The cook's encoder writes a mip chain into every texture. This encodes with
  * that encoder and transcodes with the built side module, so neither half is a
- * stand-in. Requires build/wasm/web/basis.wasm.
+ * stand-in.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
-import { existsSync, readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { createRequire } from 'node:module';
 import path from 'node:path';
 import { transcoderFromModule, type BasisWasmModule } from '../src/asset/basisTranscoder';
+import { hasSideModule, loadSideModule } from './helpers/loadWasm';
 import { CompressedTextureFormat, type BasisTranscoder } from '../src/asset/compressed';
 import { readKtx2Layout, halveRgba, spliceMipChain } from '../../pipeline/src/assets/ktx2Mips';
 
 const ROOT = path.resolve(__dirname, '../..');
-const MODULE = path.join(ROOT, 'build/wasm/web/basis.js');
 const SIDE = 64;
 
-describe.skipIf(!existsSync(MODULE))('a KTX2 mip chain through the built transcoder', () => {
+describe.skipIf(!hasSideModule('basis'))('a KTX2 mip chain through the built transcoder', () => {
     let transcoder: BasisTranscoder;
     let ktx2: Uint8Array;
 
     beforeAll(async () => {
-        // The glue is CommonJS inside a package that reads `.js` as ESM.
-        const cjs = path.join(mkdtempSync(path.join(tmpdir(), 'basis-')), 'basis.cjs');
-        writeFileSync(cjs, readFileSync(MODULE));
-        const factory = createRequire(__filename)(cjs) as (o: object) => Promise<BasisWasmModule>;
-        transcoder = transcoderFromModule(await factory({ locateFile: (f: string) => path.join(path.dirname(MODULE), f) }));
+        transcoder = transcoderFromModule(await loadSideModule<BasisWasmModule>('basis'));
         const encoder = await import(path.join(ROOT, 'build-tools/basis/encoder.mjs'));
         const rgba = new Uint8Array(SIDE * SIDE * 4).map((_, i) => (i * 37) & 0xff);
         ktx2 = await encoder.encodeToKtx2(
@@ -38,15 +31,15 @@ describe.skipIf(!existsSync(MODULE))('a KTX2 mip chain through the built transco
 
     const sides = [64, 32, 16, 8, 4, 2, 1];
 
-    it('comes back with every level, each half the one before', () => {
-        const t = transcoder.transcode(ktx2, CompressedTextureFormat.ASTC_4x4)!;
+    it('comes back with every level, each half the one before', async () => {
+        const t = (await transcoder.transcode(ktx2, CompressedTextureFormat.ASTC_4x4))!;
         expect(t.levels?.map((l) => l.width)).toEqual(sides);
         // ASTC 4x4: one 16-byte block per 4x4, and a level smaller than a block still takes one.
         expect(t.levels?.map((l) => l.data.byteLength)).toEqual(sides.map((s) => Math.ceil(s / 4) ** 2 * 16));
     });
 
-    it('decodes every level to RGBA as well', () => {
-        const r = transcoder.transcodeToRgba(ktx2)!;
+    it('decodes every level to RGBA as well', async () => {
+        const r = (await transcoder.transcodeToRgba(ktx2))!;
         expect(r.levels?.map((l) => l.data.byteLength)).toEqual(sides.map((s) => s * s * 4));
     });
 
@@ -60,7 +53,7 @@ describe.skipIf(!existsSync(MODULE))('a KTX2 mip chain through the built transco
         const half = halveRgba(decoded.pixels, decoded.width, decoded.height, readKtx2Layout(authored)!.srgb);
         const below = await encoder.encodeToKtx2({ type: encoder.ImageType.RGBA, data: half.rgba, width: half.width, height: half.height },
             { mode: 'uastc', mipmaps: true, yFlip: false, uastcLevel: 0, supercompress: true });
-        const t = transcoder.transcode(spliceMipChain(authored, below), CompressedTextureFormat.ASTC_4x4)!;
+        const t = (await transcoder.transcode(spliceMipChain(authored, below), CompressedTextureFormat.ASTC_4x4))!;
         expect(t.levels?.map((l) => l.width)).toEqual(sides);
     });
 });

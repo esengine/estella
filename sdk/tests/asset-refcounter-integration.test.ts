@@ -60,6 +60,8 @@ function emptyResult(): SceneAssetResult {
         releaseCallbacks: [],
         scope: new AssetScope(),
         missing: [],
+        timings: {},
+        wallMs: 0,
     };
 }
 

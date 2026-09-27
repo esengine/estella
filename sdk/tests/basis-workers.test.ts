@@ -7,13 +7,11 @@
  * a stand-in that does what a browser does to it: `importScripts` of the real
  * basis glue, the real wasm, and structured-cloned messages both ways. What a
  * browser adds — a separate thread — is exercised by the Bistro boot on the box.
- * Requires build/wasm/web/basis.{js,wasm}.
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { existsSync, readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
-import { createRequire } from 'node:module';
-import { tmpdir } from 'node:os';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { WASM_DIR, hasSideModule, loadSideModule } from './helpers/loadWasm';
 import { basisTranscoderFor, createWorkerBasisTranscoder } from '../src/asset/basisWorkers';
 import { transcoderFromModule, type BasisWasmModule } from '../src/asset/basisTranscoder';
 import { CompressedTextureFormat, type TranscodeResult } from '../src/asset/compressed';
@@ -21,8 +19,6 @@ import type { SideModuleHost, SideModuleSource } from '../src/sideModules/host';
 import { log } from '../src/util/logger';
 
 const ROOT = path.resolve(__dirname, '../..');
-const GLUE = path.join(ROOT, 'build/wasm/web/basis.js');
-const WASM = path.join(ROOT, 'build/wasm/web/basis.wasm');
 
 const blobs = new Map<string, string>();
 const saved = { Worker: globalThis.Worker, createObjectURL: URL.createObjectURL, revokeObjectURL: URL.revokeObjectURL };
@@ -82,17 +78,16 @@ afterAll(() => {
     URL.revokeObjectURL = saved.revokeObjectURL;
 });
 
-describe.skipIf(!existsSync(GLUE) || !existsSync(WASM))('KTX2 transcoding on workers', () => {
+describe.skipIf(!hasSideModule('basis'))('KTX2 transcoding on workers', () => {
     let source: SideModuleSource;
     let main: ReturnType<typeof transcoderFromModule>;
     let ktx2: Uint8Array;
 
     beforeAll(async () => {
-        source = { glueText: readFileSync(GLUE, 'utf8'), globalName: 'ESBasisModule', wasmBytes: readFileSync(WASM).buffer.slice(0) as ArrayBuffer };
-        const cjs = path.join(mkdtempSync(path.join(tmpdir(), 'basis-')), 'basis.cjs');
-        writeFileSync(cjs, source.glueText);
-        const factory = createRequire(__filename)(cjs) as (o: object) => Promise<BasisWasmModule>;
-        main = transcoderFromModule(await factory({ locateFile: (f: string) => path.join(path.dirname(WASM), f) }));
+        const wasm = readFileSync(path.join(WASM_DIR, 'basis.wasm'));
+        source = { glueText: readFileSync(path.join(WASM_DIR, 'basis.js'), 'utf8'), globalName: 'ESBasisModule',
+                   wasmBytes: wasm.buffer.slice(wasm.byteOffset, wasm.byteOffset + wasm.byteLength) as ArrayBuffer };
+        main = transcoderFromModule(await loadSideModule<BasisWasmModule>('basis'));
         const encoder = await import(path.join(ROOT, 'build-tools/basis/encoder.mjs'));
         const rgba = new Uint8Array(64 * 64 * 4).map((_, i) => (i * 29) & 0xff);
         ktx2 = await encoder.encodeToKtx2({ type: encoder.ImageType.RGBA, data: rgba, width: 64, height: 64 }, { mode: 'uastc', mipmaps: true });
