@@ -12,4 +12,8 @@
  * A scene that needs one nobody imported loads without it and says so, rather
  * than failing: what a lean build IS, is a build that ships less.
  */
+import { installWeChatEntry } from './runtime/wechatEntry';
+
+installWeChatEntry();
+
 export * from './index.wechat.base';

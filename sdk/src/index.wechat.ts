@@ -9,7 +9,9 @@
  * package that imports back only what its project uses.
  */
 import { installOptionalPlugins } from './runtime/optionalPlugins';
+import { installWeChatEntry } from './runtime/wechatEntry';
 
+installWeChatEntry();
 installOptionalPlugins();
 
 export * from './index.wechat.base';

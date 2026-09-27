@@ -1198,4 +1198,18 @@ export const NOTED = {
     { note: 'A connected development build can be asked for the whole frame it composited — every camera and the UI over them — as the player sees it: `device_screenshot` returns it as a PNG, read back by the device\'s own engine. The frame debugger\'s replay shows one pass of a captured frame.' },
   'feat(agent): device_screenshot shows what a connected build shows its player':
     { note: 'A connected development build can be asked for the whole frame it composited — every camera and the UI over them — as the player sees it: `device_screenshot` returns it as a PNG, read back by the device\'s own engine. The frame debugger\'s replay shows one pass of a captured frame.' },
+  'fix(wechat): a WeChat package registers the engine components and AI names again':
+    { note: 'A WeChat package registers every engine component and the built-in AI names again. The WeChat entries lost their start-up calls to the bundler, so a scene using a component with no typed definition — a rigged model\'s MeshSkin among them — loaded without it ("Unknown component type") and its character was never skinned.' },
+  'fix(ecs): a list field reads back as an array on every read path':
+    { note: 'Reading a component whose field is a list of entities — a node\'s Children, a skin\'s joints — returns an array from every read path and frees the engine\'s copy. `world.tryGet` and query iteration handed back the engine\'s vector: an animated rig leaked one per joint per frame, and on the WeChat EmscriptenGLX engine, whose vectors cannot be iterated, the animator threw every frame.' },
+  'fix(import): import-model registers the images a model names on disk':
+    { note: '`estella import-model` registers the images a model references on disk, so an export ships them. It wrote the materials and prefab that name them and left the images themselves unregistered, and a package built from the command line carried none of its textures.' },
+  'feat(render): KTX2 textures under zstd supercompression decode on web and mini-games':
+    { note: 'Web and mini-game packages decode KTX2 textures under Zstandard supercompression, as the native host already did. UASTC textures made outside Estella usually are, and every one failed to decode; the transcoder module grows by about 21KB compressed, in packages that carry KTX2.' },
+  'refactor(build): the GLX engine adds its exports to the WeChat lists':
+    { internal: 'The WeChat GLX engine exports the same functions as before; its link flags now extend the WeChat lists instead of restating them.' },
+  'fix(export): the size report reads a Windows path as it reads any other':
+    { note: 'The package size report on Windows attributes the SDK\'s bytes to the directories they come from again: every module read as "project", since the source map\'s paths were spelled with backslashes.' },
+  'test(launch): the launchers print every warning and error, and count a logged error':
+    { internal: 'Repository launchers; no creator runs them.' },
 };

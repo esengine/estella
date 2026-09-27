@@ -25,11 +25,20 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SDK = path.join(ROOT, 'sdk');
 
+/** Enough of `wx` for a WeChat entry's prologue to run in node. */
+const WX_STUB = "globalThis.wx = new Proxy({}, { get: (t, k) => k === 'env' ? {} : (() => ({})) });";
+
 /** Each entry a consumer can resolve, and the platform it must have installed. */
 const ENTRIES = [
     { specifier: 'esengine', platform: 'web' },
     { specifier: 'esengine/lean', file: 'dist/index.lean.js', platform: 'web' },
+    { specifier: 'esengine/wechat', file: 'dist/index.wechat.js', platform: 'wechat', banner: WX_STUB },
+    { specifier: 'esengine/wechat-lean', file: 'dist/index.wechat.lean.js', platform: 'wechat', banner: WX_STUB },
 ];
+
+/** An engine component with no typed const: only the entry's prologue registers
+ *  it, so a scene that uses it is where a lost prologue shows. */
+const UNTYPED_BUILTIN = 'MeshSkin';
 
 const work = mkdtempSync(path.join(tmpdir(), 'estella-entry-boots-'));
 const fail = (message, detail) => {
@@ -52,8 +61,8 @@ for (const entry of ENTRIES) {
     const name = entry.specifier.replace(/\W+/g, '-');
     const src = path.join(work, `${name}.mjs`);
     const out = path.join(work, `${name}.bundle.mjs`);
-    writeFileSync(src, `import { getPlatformType } from ${JSON.stringify(entry.specifier)};\n`
-        + `console.log(getPlatformType());\n`);
+    writeFileSync(src, `import { getPlatformType, getComponent } from ${JSON.stringify(entry.specifier)};\n`
+        + `console.log(JSON.stringify({ platform: getPlatformType(), untyped: !!getComponent(${JSON.stringify(UNTYPED_BUILTIN)}) }));\n`);
     try {
         await build({
             entryPoints: [src], outfile: out, bundle: true, format: 'esm',
@@ -61,20 +70,27 @@ for (const entry of ENTRIES) {
             // A subpath the package does not publish still has to be reachable
             // by the file it is: this asks what the BUILD produced.
             ...(entry.file ? { alias: { [entry.specifier]: path.join(SDK, entry.file) } } : {}),
+            ...(entry.banner ? { banner: { js: entry.banner } } : {}),
         });
     } catch (err) {
         fail(`${entry.specifier} did not bundle.`, err?.message ?? err);
     }
     const run = spawnSync(process.execPath, [out], { encoding: 'utf8' });
-    const got = (run.stdout ?? '').trim();
     if (run.status !== 0) fail(`${entry.specifier} threw on import.`, run.stderr);
-    if (got !== entry.platform) {
-        fail(`${entry.specifier} installed no platform after bundling — got ${got || '(nothing)'},`
-            + ` expected ${entry.platform}.\n\nIts prologue is a statement in a module the bundler`
-            + ' put in an unlisted chunk. Make it a call the entry makes (runtime/webEntry.ts),'
-            + ' or list that file in sdk/package.json "sideEffects".');
+    let got = null;
+    try { got = JSON.parse((run.stdout ?? '').trim().split('\n').at(-1)); } catch { /* reported below */ }
+    const prologueLost = '\n\nIts prologue is a statement in a module the bundler put in an unlisted chunk.'
+        + ' Make it a call the entry makes (runtime/webEntry.ts, runtime/wechatEntry.ts),'
+        + ' or list that file in sdk/package.json "sideEffects".';
+    if (got?.platform !== entry.platform) {
+        fail(`${entry.specifier} installed no platform after bundling — got ${got?.platform || '(nothing)'},`
+            + ` expected ${entry.platform}.${prologueLost}`);
     }
-    results.push(`${entry.specifier} → ${got}`);
+    if (!got.untyped) {
+        fail(`${entry.specifier} never registered ${UNTYPED_BUILTIN} after bundling, so a scene using it`
+            + ` loads without it ("Unknown component type").${prologueLost}`);
+    }
+    results.push(`${entry.specifier} → ${got.platform}`);
 }
 
 // One process can hold two entries: a node tool reaches `esengine` through
