@@ -172,7 +172,7 @@ const encode = (text) => new TextEncoder().encode(text);
  * an image beside the FBX (and `specular` as its specular map). Its node sits at
  * (1,2,3) to tell geometry from placement; uvs follow FBX, (0,0) bottom left.
  */
-export function texturedTriangle({ specular } = {}) {
+export function texturedTriangle({ specular, materialName = 'Red' } = {}) {
   const objects = [
     geometry(1000, 'tri', {
       vertices: [0, 0, 0, 2, 0, 0, 0, 2, 0],
@@ -182,7 +182,7 @@ export function texturedTriangle({ specular } = {}) {
       materials: [0],
     }),
     model(2000, 'Tri', 'Mesh', { translation: [1, 2, 3] }),
-    material(3000, 'Red', { diffuse: [1, 0, 0], emissive: [0, 0.5, 0] }),
+    material(3000, materialName, { diffuse: [1, 0, 0], emissive: [0, 0.5, 0] }),
     texture(4000, 'Brick', 'textures/brick.png'),
     ...(specular ? [texture(4001, 'Spec', specular)] : []),
   ].join('');

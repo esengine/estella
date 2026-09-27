@@ -71,6 +71,20 @@ describe('preparing a model\'s images', () => {
         expect(result.warnings).toEqual(['Spec.dds is one colour (0, 188, 0, 255) across 8x8 — a material constant would say the same']);
     });
 
+    it('reads an FBX base colour\'s alpha as a cutout, a see-through surface, or nothing', () => {
+        const run = (alpha: (i: number) => number, alphaFromBaseColor = true) => {
+            const result = model({ baseColorTexture: { file: 'leaf.png', external: true } });
+            prepareModelImages(result, () => png(i => [90, 120, 40, alpha(i)]), { alphaFromBaseColor });
+            const m = result.meshes[0]!.material!;
+            return { cutoff: m.alphaCutoff, opaque: m.opaque };
+        };
+        expect(run(i => (i % 4 === 0 ? 0 : 255))).toEqual({ cutoff: 0.5, opaque: true });
+        expect(run(() => 128)).toEqual({ cutoff: undefined, opaque: false });
+        expect(run(() => 255)).toEqual({ cutoff: undefined, opaque: true });
+        // A glTF says its alpha mode itself; an OPAQUE one ignores the channel.
+        expect(run(i => (i % 4 === 0 ? 0 : 255), false)).toEqual({ cutoff: undefined, opaque: true });
+    });
+
     it('skips a DDS it cannot read rather than referencing a file nothing loads', () => {
         const result = model({ normalTexture: { file: 'gone.dds', external: true } }, ['gone.dds']);
         prepareModelImages(result, () => null);

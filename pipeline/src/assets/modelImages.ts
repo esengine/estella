@@ -23,6 +23,26 @@ interface Pixels { width: number; height: number; rgba: Uint8Array }
 /** Above this many texels a single colour is worth saying: the file costs what a constant would not. */
 const CONSTANT_NOTICE_TEXELS = 16;
 
+/** A share of see-through texels below this is compression noise, not an alpha channel. */
+const ALPHA_USED_SHARE = 0.005;
+
+/**
+ * What a base colour's alpha says the surface is. Mostly clear where it is not
+ * solid is a cutout (a leaf card); mostly in between is a see-through surface
+ * (glass). Clear below 16, solid from 240.
+ */
+function alphaUse(p: Pixels): 'opaque' | 'cutout' | 'blend' {
+    let clear = 0, partial = 0;
+    for (let i = 3; i < p.rgba.length; i += 4) {
+        const a = p.rgba[i]!;
+        if (a < 16) clear++;
+        else if (a < 240) partial++;
+    }
+    const texels = p.width * p.height;
+    if ((clear + partial) / texels < ALPHA_USED_SHARE) return 'opaque';
+    return clear >= partial ? 'cutout' : 'blend';
+}
+
 const isDdsName = (file: string): boolean => /\.dds$/i.test(file);
 const baseName = (file: string): string => file.split(/[\\/]/).pop() ?? file;
 
@@ -56,7 +76,8 @@ function redIsZero(p: Pixels): boolean {
  * @param read Resolves an external uri the way the reader's own buffers were.
  */
 export function prepareModelImages(result: ModelImportResult,
-                                   read?: (uri: string) => Uint8Array | null): void {
+                                   read?: (uri: string) => Uint8Array | null,
+                                   options: { alphaFromBaseColor?: boolean } = {}): void {
     const embedded = new Map(result.textures.map(t => [t.name, t]));
     // Per source file: its pixels and the ref it becomes, or null once it has failed.
     const seen = new Map<string, { pixels: Pixels | null; ref: ImportedImageRef | null }>();
@@ -107,6 +128,13 @@ export function prepareModelImages(result: ModelImportResult,
             // The sampler settings ride the reference, not the file.
             material[slot] = ref.settings ? { ...converted, settings: ref.settings } : converted;
             if (!pixels) continue;
+            // A format with no alpha mode (FBX) leaves the base colour's alpha to say it.
+            if (slot === 'baseColorTexture' && options.alphaFromBaseColor
+                && material.opaque && material.alphaCutoff === undefined) {
+                const use = alphaUse(pixels);
+                if (use === 'cutout') material.alphaCutoff = 0.5;
+                if (use === 'blend') material.opaque = false;
+            }
             if (slot === 'occlusionTexture' && redIsZero(pixels)) {
                 // Occlusion 0 is "no ambient light reaches here": taken literally, the
                 // surface goes black. A map that says it everywhere is a packing mistake.

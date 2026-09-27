@@ -4,7 +4,7 @@
 
 /** A red-tinted triangle under a moved node, sampling an image beside the file;
  *  `specular` adds a second image as its specular map. */
-export declare function texturedTriangle(options?: { specular?: string }): Uint8Array;
+export declare function texturedTriangle(options?: { specular?: string; materialName?: string }): Uint8Array;
 
 /** Two bones and a quad bound to them, the upper bone turning 90° about Z. */
 export declare function skinnedBar(): Uint8Array;

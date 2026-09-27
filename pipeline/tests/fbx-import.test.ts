@@ -127,6 +127,13 @@ describe('fbx materials', () => {
     expect([orm.metallic, orm.roughness, orm.occlusionStrength]).toEqual([1, 1, 1]);
   });
 
+  it('draws both sides of a material its name calls .DoubleSided', async () => {
+    const plain = (await importFbxMeshes(texturedTriangle(), 'tri', 'tri.fbx')).meshes[0]!.material!;
+    const named = (await importFbxMeshes(texturedTriangle({ materialName: 'Leaves.DoubleSided' }), 'tri', 'tri.fbx'))
+      .meshes[0]!.material!;
+    expect([plain.cullBackfaces, named.cullBackfaces]).toEqual([true, false]);
+  });
+
   it('writes an .esmaterial for what a MeshRenderer cannot say', async () => {
     const { meshes } = await importFbxMeshes(texturedTriangle(), 'tri', 'tri.fbx');
     const products = materialProducts(meshes, 'tri');

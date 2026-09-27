@@ -47,7 +47,8 @@ export interface ModelSourceOptions {
 export async function readModelSource(bytes: Uint8Array, stem: string,
                                       options: ModelSourceOptions = {}): Promise<ModelImportResult> {
     let result: ModelImportResult;
-    if (extensionOf(options.filename ?? '') === '.fbx') {
+    const fbx = extensionOf(options.filename ?? '') === '.fbx';
+    if (fbx) {
         const { importFbxMeshes } = await import('./fbxImport');
         result = await importFbxMeshes(bytes, stem, options.filename, options.specularMap);
     } else {
@@ -55,6 +56,6 @@ export async function readModelSource(bytes: Uint8Array, stem: string,
         result = await importGltfMeshes(bytes, stem, options.externalBuffers);
     }
     const { prepareModelImages } = await import('./modelImages');
-    prepareModelImages(result, options.externalBuffers);
+    prepareModelImages(result, options.externalBuffers, { alphaFromBaseColor: fbx });
     return result;
 }

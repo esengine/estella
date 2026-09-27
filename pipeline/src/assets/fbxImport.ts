@@ -354,7 +354,8 @@ function readMaterial(ctx: TextureContext, source: FbxMaterial, index: number): 
         // FBX has no alpha mode: a material is transparent when it says it is
         // less than fully opaque, and opaque otherwise.
         opaque: opacity >= 1,
-        cullBackfaces: !source.twoSided,
+        // Lumberyard-era exports (Bistro) say double-sided in the material's name.
+        cullBackfaces: !source.twoSided && !/\.DoubleSided$/.test(source.name),
         ...(baseTexture ? { baseColorTexture: baseTexture } : {}),
         ...(normalTexture ? { normalTexture } : {}),
         ...(emits ? { emissive } : {}),
