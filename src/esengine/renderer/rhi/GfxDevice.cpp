@@ -534,7 +534,10 @@ void GfxDevice::updateTexture(TextureHandle texture, i32 x, i32 y, u32 width, u3
         keepBytes(record->bytes, uploadOrderImage(upload, pixels));
     }
     if (record->realized) backendUpdateTexture(id, x, y, width, height, pixels, flipY);
+    // An owed texture's chain is rebuilt when it is paid.
+    const bool rebuildChain = record->realized && desc.mipmaps && !record->owed;
     if (whole) payTexture(id, *record);
+    if (rebuildChain) backendGenerateMipmaps(id);
 }
 
 void GfxDevice::setTextureParams(TextureHandle texture, TextureFilter min, TextureFilter mag,

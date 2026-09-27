@@ -19,6 +19,10 @@ published separately; it ships inside the editor.
 - **A cutout's edge is antialiased.** With multisampling on (the default), a material with an alpha cutoff turns its alpha into multisample coverage along the cut instead of testing it, so leaves, grass and fences stop stair-stepping at their edges. A shader opts in with `#pragma coverage <param>`, which the built-in Model shader declares for `u_alphaCutoff`; a material without a cutoff, and a blended one, draw as before. A project in gamma space with no post-processing has no multisampled target, and there the cut stays hard.
 - **Project Health names the textures a material reads as data while they are still decoded as colour.** In a linear project, a normal map or packed roughness marked sRGB is bent on the way in; models imported before 0.74 left every one of them that way. The report lists them in one finding and its Fix turns sRGB off on all of them. Which texture params hold numbers is the shader's to say: `#pragma param … texture … texel(data)`, which the built-in Model and Lit shaders now declare. The same report names settings in `project.esproject` that nothing reads.
 
+### Fixed
+
+- A shipped game's textures are sampled through mip levels. An image the engine uploads itself — in a web export, a mini-game and the editor's Play — got no mip chain on WebGL2, so a texture drawn smaller than itself took one texel per pixel: in ORCA Bistro the trees turned to noise and the shutters to broken bright lines, while the editor's viewport, which uploads through its own path, looked right. The chain is now built from the pixels and rebuilt whenever they change, as that path does. WebGPU does not build one yet.
+
 ## [0.74.0] - 2026-09-27
 
 ### Added

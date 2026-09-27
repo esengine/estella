@@ -58,6 +58,11 @@ export interface TextureImportSettings {
 
 export type TextureImportSettingsResolver = (ref: string) => TextureImportSettings | undefined;
 
+/** An asset's settings for the engine's pixel upload: mipmapped unless it says not, as the WebGL upload is. */
+function pixelParams(settings: TextureImportSettings | undefined): TextureParams {
+    return { filterMode: settings?.filter, wrapMode: settings?.wrap, srgb: settings?.srgb, mipmaps: settings?.mipmaps ?? true };
+}
+
 /**
  * Canonical residency key for a texture: the resolved load path plus the
  * flip-orientation flag (flipped and raw uploads are genuinely different GPU
@@ -214,10 +219,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         // runtimeLoader.loadTextures used — instead of a URL-based <img>.
         if (this.pixelDecoder_) {
             const result = await this.pixelDecoder_(path, flip);
-            const params: TextureParams = {
-                filterMode: settings?.filter, wrapMode: settings?.wrap, srgb: settings?.srgb,
-            };
-            const handle = createTextureFromPixels(this.module_, result, TextureContent.Asset, flip, params);
+            const handle = createTextureFromPixels(this.module_, result, TextureContent.Asset, flip, pixelParams(settings));
             return { handle, width: result.width, height: result.height };
         }
         const url = ctx.backend.resolveUrl(ctx.catalog.getBuildPath(path));
@@ -419,17 +421,9 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         if (!this.module_) {
             throw new Error('TextureLoader: 2D-canvas fallback needs a wasm module (native uses the pixel-decode path)');
         }
-        const module = this.module_;
         const { pixels } = readImagePixels(img);
-
-        const rm = requireResourceManager();
-        // Format 2 = sRGB color under the linear pipeline (see rm_createTexture).
-        const format = samplesAsSrgb(settings?.srgb) ? 2 : 1;
-        const handle = withMalloc(module, pixels.length, ptr => {
-            module.HEAPU8.set(pixels, ptr);
-            return rm.createTexture(width, height, ptr, pixels.length, format, flip, TextureContent.Asset);
-        });
-
+        const handle = createTextureFromPixels(this.module_, { width, height, pixels }, TextureContent.Asset, flip,
+            pixelParams(settings));
         return { handle, width, height };
     }
 }

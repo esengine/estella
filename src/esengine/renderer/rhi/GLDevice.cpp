@@ -102,6 +102,12 @@ GLenum toGLFilter(TextureFilter filter) {
     }
 }
 
+/** A texture with a chain samples through it; GL ignores the chain otherwise. */
+GLenum toGLMinFilter(const TextureDesc& desc) {
+    if (!desc.mipmaps) return toGLFilter(desc.minFilter);
+    return desc.minFilter == TextureFilter::Nearest ? GL_NEAREST_MIPMAP_NEAREST : GL_LINEAR_MIPMAP_LINEAR;
+}
+
 GLenum toGLWrap(TextureWrap wrap) {
     switch (wrap) {
     case TextureWrap::Repeat:         return GL_REPEAT;
@@ -1091,7 +1097,7 @@ bool GLDevice::backendCreateTexture(u32 id, const TextureDesc& desc, const void*
                  0, gl.format, gl.type, pixels);
     if (pixels && desc.flipY) glPixelStorei(GL_UNPACK_FLIP_Y_WEBGL, GL_FALSE);
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, toGLFilter(desc.minFilter));
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, toGLMinFilter(desc));
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, toGLFilter(desc.magFilter));
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, toGLWrap(desc.wrapS));
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, toGLWrap(desc.wrapT));
@@ -1177,7 +1183,7 @@ void GLDevice::backendUpdateTexture(u32 id, i32 x, i32 y, u32 width, u32 height,
 
 void GLDevice::backendSetTextureParams(u32 id, const TextureDesc& desc) {
     bindTextureForEdit(nameOf(texture_names_, id));
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, toGLFilter(desc.minFilter));
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, toGLMinFilter(desc));
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, toGLFilter(desc.magFilter));
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, toGLWrap(desc.wrapS));
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, toGLWrap(desc.wrapT));
@@ -1186,6 +1192,9 @@ void GLDevice::backendSetTextureParams(u32 id, const TextureDesc& desc) {
 void GLDevice::backendGenerateMipmaps(u32 id) {
     bindTextureForEdit(nameOf(texture_names_, id));
     glGenerateMipmap(GL_TEXTURE_2D);
+    if (const TextureDesc* desc = textureDesc(TextureHandle{id})) {
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, toGLMinFilter(*desc));
+    }
 }
 
 // =============================================================================

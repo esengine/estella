@@ -59,9 +59,11 @@ u32 rm_createTextureEx(resource::ResourceManager& rm, u32 width, u32 height,
     spec.width = width;
     spec.height = height;
     spec.format = texFormat;
-    spec.generateMips = false;
-
-    spec.minFilter = (filterMode == 0) ? TextureFilter::Nearest : TextureFilter::Linear;
+    // Bit 0 of the filter code picks linear over nearest; bit 1 asks for a mip
+    // chain, which the device rebuilds whenever the pixels change.
+    const bool coded = filterMode >= 0;
+    spec.generateMips = coded && (filterMode & 2) != 0;
+    spec.minFilter = (coded && (filterMode & 1) == 0) ? TextureFilter::Nearest : TextureFilter::Linear;
     spec.magFilter = spec.minFilter;
 
     switch (wrapMode) {

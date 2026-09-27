@@ -74,6 +74,7 @@ export function textureContentName(content: TextureContent): string {
 export interface CppResourceManager {
     /** `content` is a {@link TextureContent}: who refills the texture after a device loss. */
     createTexture(width: number, height: number, pixels: number, pixelsLen: number, format: number, flipY: boolean, content: TextureContent): number;
+    /** `filterMode`: bit 0 is linear over nearest, bit 1 a mip chain (see `textureFilterCode`). */
     createTextureEx(width: number, height: number, pixels: number, pixelsLen: number, format: number, flipY: boolean, filterMode: number, wrapMode: number, content: TextureContent): number;
     /**
      * Module-free texture upload: take the RGBA bytes directly instead of a wasm

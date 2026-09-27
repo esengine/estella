@@ -43,6 +43,9 @@ const msaaSamples = Number(params.get('msaa')) || undefined;
 const seedParam = params.get('seed');
 const randomSeed = seedParam !== null && Number.isFinite(Number(seedParam)) ? Number(seedParam) : undefined;
 const depthLayers = Number(params.get('depthLayers')) || undefined;
+// `runtime`: images decode to pixels and upload through the engine, as a shipped
+// game and Play do, instead of through this page's WebGL context.
+const runtimeTextures = params.get('textures') === 'runtime';
 // The project's render-resolution policy (RenderResolution). Passed with the fit
 // OFF, so the camera keeps its authored orthoSize and the frame differs by the
 // policy alone — which is what a gate about the policy has to isolate.
@@ -144,6 +147,13 @@ async function boot(): Promise<void> {
         wasmBaseUrl: '/wasm',
     });
     app.enableStats();
+    if (runtimeTextures) {
+        app.getResource(Assets).getTextureLoader().setPixelDecoder(async (path) => {
+            const res = await fetch(path);
+            if (!res.ok) throw new Error(`texture ${res.status}: ${path}`);
+            return decodeImagePixels(await res.blob());
+        });
+    }
 
     // The fixtures are AUTHORING scenes and were captured in authoring mode, where
     // gameplay systems stay frozen so a capture is the same frame every time.

@@ -74,9 +74,18 @@ export interface TextureParams {
     wrapMode?: string;
     /** sRGB-encoded color image (default true); see TextureImportSettings.srgb. */
     srgb?: boolean;
+    /** A mip chain, rebuilt whenever the pixels change. */
+    mipmaps?: boolean;
 }
 
 const FILTER_MODE_MAP: Record<string, number> = { 'nearest': 0, 'linear': 1 };
+/** Set on a filter code to ask `rm_createTextureEx` for a mip chain. */
+const FILTER_MIPMAPPED = 2;
+
+/** The `rm_createTextureEx` filter code: nearest or linear, and whether it has mips. */
+export function textureFilterCode(params: TextureParams): number {
+    return (FILTER_MODE_MAP[params.filterMode ?? 'linear'] ?? 1) | (params.mipmaps ? FILTER_MIPMAPPED : 0);
+}
 const WRAP_MODE_MAP: Record<string, number> = { 'repeat': 0, 'clamp': 1, 'mirror': 2 };
 
 /** Upload decoded RGBA pixels as a GL texture; returns the engine texture handle.
@@ -146,7 +155,7 @@ export function createTextureFromPixels(
     // The wasm embind object has no createTextureFromBytes, so web falls through
     // to the heap path below unchanged.
     if (rm.createTextureFromBytes) {
-        const filter = params?.filterMode ? FILTER_MODE_MAP[params.filterMode] ?? 1 : undefined;
+        const filter = params ? textureFilterCode(params) : undefined;
         const wrap = params?.wrapMode ? WRAP_MODE_MAP[params.wrapMode] ?? 1 : undefined;
         return rm.createTextureFromBytes(result.width, result.height, result.pixels, format, flipY, content, filter, wrap);
     }
@@ -156,8 +165,8 @@ export function createTextureFromPixels(
     return withMalloc(module, result.pixels.length, ptr => {
         module.HEAPU8.set(result.pixels, ptr);
 
-        if (params && (params.filterMode || params.wrapMode) && rm.createTextureEx) {
-            const filter = FILTER_MODE_MAP[params.filterMode ?? 'linear'] ?? 1;
+        if (params && (params.filterMode || params.wrapMode || params.mipmaps) && rm.createTextureEx) {
+            const filter = textureFilterCode(params);
             const wrap = WRAP_MODE_MAP[params.wrapMode ?? 'clamp'] ?? 1;
             return rm.createTextureEx(result.width, result.height, ptr, result.pixels.length, format, flipY, filter, wrap, content);
         }

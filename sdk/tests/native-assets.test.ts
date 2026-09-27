@@ -127,11 +127,11 @@ describe('native Assets.loadTexture', () => {
         expect(tex.height).toBe(2);
 
         // The bytes reached the engine entry point: 4×2 RGBA, format 1 (gamma),
-        // flip=true, and — with no import settings on this texture — the defaults
-        // the plain rm_createTexture path applies (Linear filter, ClampToEdge wrap).
+        // flip=true, and — with no import settings on this texture — Linear with a
+        // mip chain (code 1|2), as the WebGL upload gives an asset, and ClampToEdge.
         expect(createSpy).toHaveBeenCalledTimes(1);
         const [w, h, pixels, pixelsLen, format, flip, filter, wrap] = createSpy.mock.calls[0];
-        expect([w, h, format, flip, filter, wrap]).toEqual([4, 2, 1, true, 1, 1]);
+        expect([w, h, format, flip, filter, wrap]).toEqual([4, 2, 1, true, 3, 1]);
         expect((pixels as Uint8Array).length).toBe(4 * 2 * 4);
         expect(pixelsLen).toBe(4 * 2 * 4);
 

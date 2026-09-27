@@ -73,6 +73,24 @@ int main() {
         CHECK(d.updateTextureCalls == before + 1, "setDataRaw uploads when size is sufficient");
     }
 
+    // --- a mipmapped texture's chain follows its pixels; a plain one has none ---
+    {
+        MockGfxDevice d;
+        TextureSpecification spec;
+        spec.width = 4; spec.height = 4; spec.format = TextureFormat::RGBA8; spec.generateMips = true;
+        auto mipped = Texture::create(d, GfxContent::transient(), spec);
+        std::vector<u8> pixels(64, 0xAB);
+        mipped->setDataRaw(pixels.data(), static_cast<u32>(pixels.size()));
+        CHECK(d.generateMipmapsCalls == 1, "filling a mipmapped texture builds its chain");
+        mipped->setDataRaw(pixels.data(), static_cast<u32>(pixels.size()));
+        CHECK(d.generateMipmapsCalls == 2, "new pixels rebuild the chain, or distant samples show the old image");
+
+        spec.generateMips = false;
+        auto plain = Texture::create(d, GfxContent::transient(), spec);
+        plain->setDataRaw(pixels.data(), static_cast<u32>(pixels.size()));
+        CHECK(d.generateMipmapsCalls == 2, "a texture without mips is never given a chain");
+    }
+
     // --- create() fails (returns null) when the device can't allocate a texture ---
     // createTexture returns Invalid on OOM / lost context; initialize() must surface
     // that instead of returning a "valid" texture wrapping the null handle.
