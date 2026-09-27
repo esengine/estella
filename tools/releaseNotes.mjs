@@ -1250,6 +1250,10 @@ export const NOTED = {
     { note: 'A project file\'s settings that nothing reads are named instead of dropped' },
   'feat(project): opening a project names the settings its file carries that nothing reads':
     { note: 'A project file\'s settings that nothing reads are named instead of dropped' },
+  'feat(health): a shader declares which textures it reads as data':
+    { note: 'Project Health names the textures a material reads as data while they are still decoded as colour' },
+  'feat(health): the preflight names data maps decoded as colour, and fixes them':
+    { note: 'Project Health names the textures a material reads as data while they are still decoded as colour' },
   'fix(eht): the generator writes LF on every platform':
     { internal: 'The engine header tool is a repository generator; on Windows it rewrote every generated file with CRLF, which only a contributor there ever saw.' },
 };

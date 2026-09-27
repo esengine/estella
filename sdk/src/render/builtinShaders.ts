@@ -79,7 +79,7 @@ const SPRITE_LIT = `#pragma shader "Sprite Lit"
 #pragma version 300 es
 #pragma domain Lit
 #pragma param u_tint color default(1,1,1,1)
-#pragma param u_normalMap texture default(flatnormal)
+#pragma param u_normalMap texture default(flatnormal) texel(data)
 
 #pragma fragment
 precision mediump float;
@@ -334,15 +334,15 @@ const MODEL = `#pragma shader "Model"
 #pragma version 300 es
 #pragma domain Lit
 #pragma param u_tint color default(1,1,1,1)
-#pragma param u_normalMap texture default(flatnormal)
+#pragma param u_normalMap texture default(flatnormal) texel(data)
 #pragma param u_emissive color default(0,0,0,1)
 #pragma param u_emissiveMap texture default(white)
-#pragma param u_occlusionMap texture default(white)
+#pragma param u_occlusionMap texture default(white) texel(data)
 #pragma param u_occlusionStrength float default(1) range(0,1) ui(slider)
 #pragma param u_alphaCutoff float default(0) range(0,1) ui(slider)
 #pragma param u_metallic float default(0) range(0,1) ui(slider)
 #pragma param u_roughness float default(1) range(0,1) ui(slider)
-#pragma param u_metallicRoughnessMap texture default(white)
+#pragma param u_metallicRoughnessMap texture default(white) texel(data)
 
 #pragma fragment
 precision mediump float;

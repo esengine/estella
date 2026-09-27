@@ -7413,6 +7413,7 @@ defaultTexture: string | undefined
 displayName: string
 name: string
 range: { min: number; max: number; } | undefined
+texel: "data" | undefined
 type: ShaderParamType
 ui: string | undefined
 ```

@@ -17,7 +17,7 @@
  *          otherwise drop without a word.
  *
  *          Grammar (matches ShaderParser):
- *            #pragma param <name> <type> [default(csv)] [range(min,max)] [ui(hint)]
+ *            #pragma param <name> <type> [default(csv)] [range(min,max)] [ui(hint)] [texel(data)]
  *            #pragma domain <Unlit|Lit|PostProcess|UI>
  */
 
@@ -36,6 +36,11 @@ export interface ShaderParam {
     range?: { min: number; max: number };
     /** Optional UI hint from `ui(...)`, e.g. "slider". */
     ui?: string;
+    /**
+     * `texel(data)`: a texture whose texels this shader reads as numbers (a normal,
+     * packed roughness), which sRGB decode would bend. Absent means colour.
+     */
+    texel?: 'data';
 }
 
 export interface ShaderReflection {
@@ -97,6 +102,8 @@ function parseParam(arg: string): ShaderParam | null {
 
     const ui = clause(arg, 'ui');
     if (ui !== undefined) param.ui = ui;
+
+    if (type === 'texture' && clause(arg, 'texel') === 'data') param.texel = 'data';
 
     return param;
 }

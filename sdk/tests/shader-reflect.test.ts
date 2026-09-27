@@ -115,3 +115,22 @@ describe('the built-in templates take their defaults from their own source', () 
     expect(builtinShaderTemplate('sprite-lit')!.defaults).toEqual({ u_tint: { r: 1, g: 1, b: 1, a: 1 } });
   });
 });
+
+describe('which texture params a shader reads as numbers', () => {
+    it('is what `texel(data)` says, and only on a texture', () => {
+        const { params } = reflectEsshader([
+            '#pragma param u_n texture default(flatnormal) texel(data)',
+            '#pragma param u_c texture default(white)',
+            '#pragma param u_k float default(1) texel(data)',
+        ].join('\n'));
+        expect(params.map((p) => [p.name, p.texel])).toEqual([['u_n', 'data'], ['u_c', undefined], ['u_k', undefined]]);
+    });
+
+    it('marks the model template\'s normal, occlusion and packed maps, and not its colour ones', () => {
+        const data = reflectEsshader(builtinShaderTemplate('model')!.source).params
+            .filter((p) => p.type === 'texture').map((p) => [p.name, p.texel ?? 'colour']);
+        expect(Object.fromEntries(data)).toEqual({
+            u_normalMap: 'data', u_emissiveMap: 'colour', u_occlusionMap: 'data', u_metallicRoughnessMap: 'data',
+        });
+    });
+});

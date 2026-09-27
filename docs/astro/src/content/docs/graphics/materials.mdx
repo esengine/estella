@@ -121,7 +121,7 @@ The sprite's texture is `u_textures[0]` (declare `uniform sampler2D u_textures[8
 | `float` / `int` | `float` / `int` | `number` | Scalar knob; `range(min,max)` + `ui(slider)` for the inspector. |
 | `vec2` / `vec3` / `vec4` | same | `[x, y, …]` | Vector knob. |
 | `color` | `vec4` | `[r, g, b, a]` | RGBA, 0..1; color picker in the inspector. |
-| `texture` | `sampler2D` | texture handle | `default(white \| black \| flatnormal)` fallback when unset. |
+| `texture` | `sampler2D` | texture handle | `default(white \| black \| flatnormal)` fallback when unset. Add `texel(data)` when the shader reads the texels as numbers (a normal map, packed roughness): Project Health then flags a texture bound there that is still marked sRGB, which the linear pipeline would decode as colour. |
 
 Params live in an engine-generated std140 block, initialized from their `default(…)`
 values — a material that never sets a param still draws correctly.

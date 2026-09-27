@@ -106,7 +106,7 @@ std140 uniform 块,于是 CPU 能按名字设置、并安全地送到 GPU。一�
 | `float` / `int` | `float` / `int` | `number` | 标量旋钮;`range(min,max)` + `ui(slider)` 控制检视器。 |
 | `vec2` / `vec3` / `vec4` | 同名 | `[x, y, …]` | 向量旋钮。 |
 | `color` | `vec4` | `[r, g, b, a]` | RGBA,0..1;检视器里是取色器。 |
-| `texture` | `sampler2D` | 纹理句柄 | `default(white \| black \| flatnormal)` 未设置时的回退。 |
+| `texture` | `sampler2D` | 纹理句柄 | `default(white \| black \| flatnormal)` 未设置时的回退。着色器把贴图当数值读(法线贴图、打包的粗糙度)时加 `texel(data)`:项目健康检查会指出绑在这里却仍标为 sRGB 的贴图,线性管线会把它当颜色解码。 |
 
 参数存在引擎生成的 std140 块里,并从 `default(…)` 初始化——材质从未设置某参数也能正确绘制。
 

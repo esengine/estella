@@ -14,6 +14,10 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **Project Health names the textures a material reads as data while they are still decoded as colour.** In a linear project, a normal map or packed roughness marked sRGB is bent on the way in; models imported before 0.74 left every one of them that way. The report lists them in one finding and its Fix turns sRGB off on all of them. Which texture params hold numbers is the shader's to say: `#pragma param … texture … texel(data)`, which the built-in Model and Lit shaders now declare. The same report names settings in `project.esproject` that nothing reads.
+
 ## [0.74.0] - 2026-09-27
 
 ### Added
