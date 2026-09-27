@@ -34,6 +34,7 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- Normal maps stored in two channels light correctly. The shader rebuilds Z from X and Y instead of reading blue, so a BC5 map, or one a converter wrote with blue at 0 — every normal map of Bistro's glTF conversion — no longer points its surface's normals inward, which left normal-mapped surfaces unlit by their sun.
 - Compressed (KTX2) textures on web and mini-games are sampled with their mip chain. The cook has always written one into every texture it compresses, and only level 0 reached the GPU: a compressed texture shimmered as it shrank into the distance, and the rest of its bytes shipped for nothing. A texture decoded to RGBA on a device with no compressed format gets its chain generated.
 - The package size report on Windows attributes the SDK's bytes to the directories they come from again: every module read as "project", since the source map's paths were spelled with backslashes.
 - A WeChat package registers every engine component and the built-in AI names again. The WeChat entries lost their start-up calls to the bundler, so a scene using a component with no typed definition — a rigged model's MeshSkin among them — loaded without it ("Unknown component type") and its character was never skinned.

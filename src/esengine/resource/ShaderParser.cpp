@@ -1201,7 +1201,8 @@ fn shadowFactor3D(worldPos : vec3f, N : vec3f, L : vec3f, source : vec2f,
 #endif
 }
 fn sampleNormal(map : texture_2d<f32>, samp : sampler, uv : vec2f) -> vec3f {
-    return normalize(textureSampleLevel(map, samp, uv, 0.0).xyz * 2.0 - 1.0);
+    let xy = textureSampleLevel(map, samp, uv, 0.0).xy * 2.0 - 1.0;
+    return vec3f(xy, sqrt(max(0.0, 1.0 - dot(xy, xy))));
 }
 fn perturbNormal(N : vec3f, worldPos : vec3f, uv : vec2f, tangentNormal : vec3f) -> vec3f {
     let dp1 = dpdx(worldPos);
@@ -2029,11 +2030,12 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    return 1.0;\n"
             "#endif\n"
             "}\n"
-            // Engine-owned normal-map convention (RGB[0,1] -> normal[-1,1], normalized), so every
-            // Lit shader unpacks tangent-space normals the same way. 2D applies it screen-space
-            // (no per-sprite tangent frame); a flat surface uses vec3(0,0,1).
+            // The one normal-map unpack: X and Y from RG, Z rebuilt to unit length, so a
+            // two-channel map (BC5, or B left at 0) lights like the three-channel one. 2D
+            // applies it screen-space; a flat surface uses vec3(0,0,1).
             "highp vec3 sampleNormal(in highp sampler2D map, in highp vec2 uv) {\n"
-            "    return normalize(texture(map, uv).xyz * 2.0 - 1.0);\n"
+            "    highp vec2 xy = texture(map, uv).xy * 2.0 - 1.0;\n"
+            "    return vec3(xy, sqrt(max(0.0, 1.0 - dot(xy, xy))));\n"
             "}\n"
             // Tangent frame from screen-space derivatives, so a tangent-space normal
             // lands in world space without the geometry carrying a tangent channel —
