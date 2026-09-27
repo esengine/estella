@@ -274,6 +274,14 @@ of its bytes — immutable URLs, automatic dedupe). **Advanced** holds the CDN r
 for [hot update](/docs/publishing/hot-update/), source maps, and whether to open the
 output folder when the build finishes.
 
+**Asset packs** (Web): a browser holds six connections to a site, so a scene of
+thousands of small assets loads at the pace of its requests. The Web export packs
+its small local assets — meshes, materials, KTX2 textures, timelines, animation
+assets — into a few `packs/*.pack` files that load in one request each; the manifest
+says where every asset sits. A scene of 1,500 meshes went from 15 s to 7 s to its
+first frame. An export with [hot update](/docs/publishing/hot-update/) configured
+keeps one file per asset, since an update downloads assets one by one.
+
 <Aside type="caution" title="Assets only your code names are culled">
   The cook ships what it can **reach** from the scenes in the build. Anything named
   only in code — a texture in rich-text markup, a clip played by url, a prefab

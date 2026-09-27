@@ -29,6 +29,7 @@ interface FlatManifest {
     compressedFormats?: string[];
     importer?: Record<string, unknown>;
     atlas?: { page: number; frame: { x: number; y: number; width: number; height: number }; pageWidth: number; pageHeight: number };
+    pack?: { file: string; offset: number; size: number };
   }[];
 }
 
@@ -62,6 +63,7 @@ export async function buildAddressableManifest(absOut: string): Promise<string> 
     compressedFormats?: string[];
     textureImport?: ParsedTextureImportSettings;
     spineImport?: SpineManifestContract;
+    pack?: { file: string; offset: number; size: number };
     metadata?: { atlasPage?: number; atlasFrame?: { x: number; y: number; width: number; height: number }; atlasPageWidth?: number; atlasPageHeight?: number };
   };
   type Group = { bundleMode: string; labels: string[]; assets: Record<string, Entry> };
@@ -104,6 +106,7 @@ export async function buildAddressableManifest(absOut: string): Promise<string> 
     // The logical source path rides as the asset's address: path-style refs
     // resolve through it. Only meaningful when staging renamed the file.
     if (e.sourcePath && e.sourcePath !== e.path) entry.address = e.sourcePath;
+    if (e.pack) entry.pack = e.pack;
     if (e.atlas) {
       entry.metadata = {
         atlasPage: e.atlas.page, atlasFrame: e.atlas.frame,

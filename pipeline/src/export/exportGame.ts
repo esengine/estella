@@ -30,6 +30,7 @@ import path from 'node:path';
 import { cookAssets, type CookManifest, type Inclusion } from '../assets/cookAssets';
 import { cookWorlds, streamedScenes } from '../world/cookWorld';
 import { buildAddressableManifest } from '../assets/addressableManifest';
+import { packAssets } from '../assets/assetPacks';
 import type { DebugChannelConfig, PackagedGameConfig } from 'esengine';
 import { packagedDebugChannel } from './debugChannel';
 import { packagedHotUpdate } from './hotUpdateConfig';
@@ -559,6 +560,8 @@ export interface ExportGameOptions {
   profile?: string;
   /** WeChat: ship the EmscriptenGLX engine (`packaging.platforms.wechat.emscriptenGLX`). */
   miniGameGlx?: boolean;
+  /** Web: pack small local assets into a few files (default on; see assetPacks). */
+  packAssets?: boolean;
   /** Signing key files the project names, checked against its repository. */
   secretFiles?: readonly string[];
   /** iOS: where the prebuilt engine + app shell live, so the export can wrap
@@ -943,6 +946,15 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   // model every target now shares, so `loadGroup` / remote-group / hot-update
   // work on web + desktop too (not just mini-games). Additive: the eager boot
   // still reads the flat manifest; this powers on-demand + hot-update delivery.
+  const hotUpdate = await packagedHotUpdate(opts.root, opts.hotUpdate);
+  // A web build pays a request per asset. An updatable one keeps its files: an
+  // update downloads assets one by one (Assets.applyUpdate refuses packed ones).
+  if (platform === 'web' && !hotUpdate && opts.packAssets !== false) {
+    const packed = await packAssets(payloadDir);
+    if (packed.assets > 0) {
+      progress({ phase: 'Packing assets', detail: `${packed.assets} in ${packed.packs} pack(s)` });
+    }
+  }
   await writeFile(path.join(payloadDir, 'asset-manifest.json'), await buildAddressableManifest(payloadDir));
   // A scene that declared itself streamed is cut here, once its assets are staged
   // and its references are in the form the runtime resolves. The entry scene it
@@ -954,8 +966,6 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   // derived from it, and every runtime now reads only that. Dropping it keeps one
   // asset model in the package — the mini-game export has always done this.
   await rm(path.join(payloadDir, 'assets.manifest.json'), { force: true });
-
-  const hotUpdate = await packagedHotUpdate(opts.root, opts.hotUpdate);
 
   // What wasm this project's content pulls in — evidence for the plan below, and
   // the filter the runtime tree is copied through further down.
