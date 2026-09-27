@@ -44,6 +44,7 @@ import { isBuiltinAssetRef, resolveRelativePath, resolveDocumentRef } from '../.
 // realm (sdk/src/asset/assetGroups.ts) so cook and editor never disagree.
 import { resolveAssetGroup, resolveAtlas, type AssetGroupsConfig } from '../../../sdk/src/asset/assetGroups';
 import type { BundleMode } from '../../../sdk/src/asset/AddressableManifest';
+import { cookCached, encoderIdentity } from './cookCache';
 
 const MANIFEST = 'assets.manifest.json';
 
@@ -211,10 +212,16 @@ interface BasisEncoderModule {
   encodePngToKtx2(png: Uint8Array, opts?: { mode?: string; srgb?: boolean }): Promise<Uint8Array>;
   encodeToKtx2(
     source: { type: string; data: Uint8Array; width?: number; height?: number },
-    opts?: { mode?: string; srgb?: boolean },
+    opts?: {
+      mode?: string; srgb?: boolean; mipmaps?: boolean; yFlip?: boolean;
+      supercompress?: boolean; uastcLevel?: number;
+    },
   ): Promise<Uint8Array>;
+  transcodeKtx2ToRgba(ktx2: Uint8Array): Promise<{ width: number; height: number; pixels: Uint8Array }>;
   ImageType: { PNG: string; JPG: string; RGBA: string };
+  ENCODER_WASM: string;
 }
+
 
 /** Replace a path's extension (e.g. .png → .ktx2); appends if it had none. */
 function swapExt(p: string, ext: string): string {
@@ -563,9 +570,11 @@ export async function cookAssets(
 
   let encodePng: ((png: Uint8Array) => Promise<Uint8Array>) | null = null;
   let textureEnc: BasisEncoderModule | null = null;
+  let encoderId = '';
   if (compressTextures) {
     textureEnc = await import('../../../build-tools/basis/encoder.mjs') as unknown as BasisEncoderModule;
     encodePng = (png) => textureEnc!.encodePngToKtx2(png, { mode: 'uastc' });
+    encoderId = encoderIdentity(textureEnc.ENCODER_WASM);
   }
   // WAV → MP3 (LAME wasm) rides the same lazy pattern; per-asset importer
   // settings can opt a clip out (seamless loops) or pick a bitrate.
@@ -754,9 +763,14 @@ export async function cookAssets(
           // when the encoder was loaded — an absent one here is a broken invariant
           // and should say so rather than silently ship raw.
           const enc = textureEnc!;
-          const encoded = rgba
-            ? await enc.encodeToKtx2({ type: enc.ImageType.RGBA, data: rgba, width: tw, height: th }, { mode: cook.selected, srgb: tex.srgb })
-            : await enc.encodeToKtx2({ type: enc.ImageType.PNG, data }, { mode: cook.selected, srgb: tex.srgb });
+          const mode = cook.selected;
+          const source = data;
+          const encoded = (await cookCached(root,
+            [source, JSON.stringify({ mode, srgb: tex.srgb, maxSize: tex.maxSize, scaled: rgba ? [tw, th] : null }), encoderId],
+            () => (rgba
+              ? enc.encodeToKtx2({ type: enc.ImageType.RGBA, data: rgba, width: tw, height: th }, { mode, srgb: tex.srgb })
+              : enc.encodeToKtx2({ type: enc.ImageType.PNG, data: source }, { mode, srgb: tex.srgb })),
+          )).bytes;
           cook = keepSmaller(cook, encoded.byteLength, data.byteLength);
           if (cook.selected !== 'raw') {
             data = encoded;

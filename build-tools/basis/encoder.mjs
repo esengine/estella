@@ -13,6 +13,9 @@ import path from 'node:path';
 const require = createRequire(import.meta.url);
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 
+/** The encoder binary; what an encode cache keys "which encoder" by. */
+export const ENCODER_WASM = path.join(DIR, 'basis_encoder.wasm');
+
 /** The wasm module is heavy to instantiate (~MBs); load + init it once. */
 let modulePromise = null;
 function loadModule() {
@@ -35,23 +38,15 @@ function pngDimensions(png) {
 export const ImageType = { PNG: 'png', JPG: 'jpg', RGBA: 'rgba' };
 
 /**
- * Encode a source image to a KTX2 container.
- *   source: { type: ImageType, data: Uint8Array, width?, height? }
- *           width/height are read from the PNG header when omitted; required for RGBA.
- *   opts:   { mode: 'uastc'|'etc1s', mipmaps, srgb, perceptual, quality, normalMap, yFlip }
- * Returns the KTX2 bytes (Uint8Array).
- *
- * yFlip defaults ON because the engine samples bottom-up memory: every
- * uncompressed upload is row-flipped at load (GL UNPACK_FLIP_Y, and the WebGPU
- * device's CPU flip that emulates it), but compressed blocks cannot be — a 4x4
- * block has no valid row order to swap at upload. So the orientation must be
- * baked here, before encoding, or the texture renders vertically mirrored on
- * every backend.
+ * Encode a source image to KTX2 bytes; `source` and `opts` are typed in encoder.d.mts.
+ * yFlip defaults on: uncompressed uploads are row-flipped at load, compressed
+ * blocks cannot be, so the orientation is baked in here or the texture mirrors.
  */
 export async function encodeToKtx2(source, opts = {}) {
   const {
     mode = 'uastc', mipmaps = true, srgb = true,
-    perceptual = true, quality = 128, normalMap = false, yFlip = true,
+    perceptual = true, quality = 128, normalMap = false, yFlip = true, supercompress = false,
+    uastcLevel,
   } = opts;
   const m = await loadModule();
 
@@ -72,13 +67,14 @@ export async function encodeToKtx2(source, opts = {}) {
   const enc = new m.BasisEncoder();
   try {
     enc.setCreateKTX2File(true);
-    enc.setKTX2UASTCSupercompression(false); // runtime transcoder is zstd=0
+    enc.setKTX2UASTCSupercompression(supercompress);
     enc.setKTX2AndBasisSRGBTransferFunc(srgb);
     if (!enc.setSliceSourceImage(0, source.data, width, height, imgType)) {
       throw new Error('encodeToKtx2: setSliceSourceImage failed (corrupt/unsupported source)');
     }
     if (mode === 'uastc') {
       enc.setUASTC(true);
+      if (uastcLevel !== undefined) enc.setPackUASTCFlags(uastcLevel);
     } else {
       enc.setUASTC(false);
       enc.setQualityLevel(quality);

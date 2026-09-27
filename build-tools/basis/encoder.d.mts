@@ -25,7 +25,13 @@ export interface EncodeOptions {
   /** Flip rows before encoding (default true — the engine samples bottom-up
    *  memory, and compressed blocks cannot be flipped at upload). */
   yFlip?: boolean;
+  /** zstd over UASTC levels (default false; the runtime reads either). */
+  supercompress?: boolean;
+  /** UASTC effort, 0 (fastest) … 4 (slowest); the encoder's default when absent. */
+  uastcLevel?: number;
 }
+
+export const ENCODER_WASM: string;
 
 export interface RgbaResult {
   width: number;

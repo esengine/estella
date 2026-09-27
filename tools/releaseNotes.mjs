@@ -1213,5 +1213,9 @@ export const NOTED = {
   'test(launch): the launchers print every warning and error, and count a logged error':
     { internal: 'Repository launchers; no creator runs them.' },
   'fix(render): a compressed texture is sampled with the mip chain it carries':
-    { note: 'Compressed (KTX2) textures on web and mini-games are sampled with their mip chain. The cook has always written one into every texture it compresses, and only level 0 reached the GPU: a compressed texture shimmered as it shrank into the distance, and the rest of its bytes shipped for nothing. A texture whose import settings turn mipmaps off keeps level 0 alone, and one decoded to RGBA on a device with no compressed format gets its chain generated.' },
+    { note: 'Compressed (KTX2) textures on web and mini-games are sampled with their mip chain. The cook has always written one into every texture it compresses, and only level 0 reached the GPU: a compressed texture shimmered as it shrank into the distance, and the rest of its bytes shipped for nothing. A texture decoded to RGBA on a device with no compressed format gets its chain generated.' },
+  'feat(export): an authored single-level KTX2 ships with a mip chain':
+    { note: 'A KTX2 texture made outside Estella with a single level ships with a mip chain: the cook encodes the levels below it and keeps the file\'s own level 0 byte for byte, so it no longer shimmers into the distance. Bistro\'s 2048² textures each took about 0.3 s; the package grows by the chain\'s third.' },
+  'perf(export): the cook reads back a texture encode it already did':
+    { note: 'Exporting again is fast when the art has not changed: the cook keeps what it encoded under `.esengine/cache/cook/`, keyed by the source, the settings and the encoder. Re-exporting Bistro took 24 s against 131 s the first time.' },
 };
