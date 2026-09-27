@@ -16,6 +16,12 @@ from .generators import (
 )
 
 
+def _write_lf(path, text):
+    # Bytes, not text mode: text mode writes CRLF on Windows, and every
+    # generated file then differs from the committed LF one.
+    path.write_bytes(text.encode('utf-8'))
+
+
 def _emit_native_functions(args) -> int:
     """Emit the opt-in QuickJS wrappers for the engine's binding entry points —
     the same declarations embind registers, so the two cannot drift."""
@@ -40,7 +46,7 @@ def _emit_native_functions(args) -> int:
         content = gen.generate()
         args.native_functions_output.parent.mkdir(parents=True, exist_ok=True)
         print(f"Generating: {args.native_functions_output}")
-        args.native_functions_output.write_text(content, encoding='utf-8')
+        _write_lf(args.native_functions_output, content)
         print(f"  {len(gen.emitted)} entry point(s) bound")
     # The TS half: the same entry points as the object the SDK's plugins call, so
     # a plugin reaches whichever core is present without knowing which. Committed
@@ -48,7 +54,7 @@ def _emit_native_functions(args) -> int:
     if args.native_functions_ts is not None:
         args.native_functions_ts.parent.mkdir(parents=True, exist_ok=True)
         print(f"Generating: {args.native_functions_ts}")
-        args.native_functions_ts.write_text(gen.generate_ts(), encoding='utf-8')
+        _write_lf(args.native_functions_ts, gen.generate_ts())
     # Never a silent cap: what the wrappers cannot marshal is what still needs a
     # hand-written binding, so say it every run.
     for skip in gen.skipped:
@@ -67,7 +73,7 @@ def _emit_native(components, enums, args) -> None:
     native_gen = NativeBindingsGenerator(
         components, enums, shim_header=args.native_shim, only=only,
     )
-    args.native_output.write_text(native_gen.generate(), encoding='utf-8')
+    _write_lf(args.native_output, native_gen.generate())
 
 
 def main() -> int:
@@ -215,7 +221,7 @@ def main() -> int:
     editor_api_path = args.output / 'EditorAPI.generated.cpp'
     print(f"Generating: {editor_api_path}")
     editor_gen = EditorAPIGenerator(cpp_parser.components, cpp_parser.enums)
-    editor_api_path.write_text(editor_gen.generate(), encoding='utf-8')
+    _write_lf(editor_api_path, editor_gen.generate())
 
     # ── C++ Embind Bindings ──
     embind_path = args.output / 'WebBindings.generated.cpp'
@@ -225,7 +231,7 @@ def main() -> int:
         layout_asserts=ptr_gen.generate_layout_asserts(),
         abi_hash=abi_hash,
     )
-    embind_path.write_text(embind_gen.generate(), encoding='utf-8')
+    _write_lf(embind_path, embind_gen.generate())
 
     # ── Component resolvers for compiled systems ──
     # Committed like the two above: a host that dispatches a compiled system
@@ -236,7 +242,7 @@ def main() -> int:
     for name, text in (('AotComponents.generated.hpp', aot_gen.generate_header()),
                        ('AotComponents.generated.cpp', aot_gen.generate_source())):
         print(f"Generating: {aot_dir / name}")
-        (aot_dir / name).write_text(text, encoding='utf-8')
+        _write_lf(aot_dir / name, text)
 
     # ── Native QuickJS Bindings (opt-in) ──
     if args.native_output is not None:
@@ -259,7 +265,7 @@ def main() -> int:
         out = ts_src_dir / rel
         out.parent.mkdir(parents=True, exist_ok=True)
         print(f"Generating: {out}")
-        out.write_text(content, encoding='utf-8')
+        _write_lf(out, content)
 
     # ── TypeScript Definitions ──
     ts_gen = TypeScriptGenerator(cpp_parser.components, cpp_parser.enums)
