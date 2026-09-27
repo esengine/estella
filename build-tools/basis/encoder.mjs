@@ -1,16 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * PNG/JPG/RGBA → KTX2 (Basis Universal) encoder for the build-time asset cook.
- * Wraps the vendored, prebuilt Basis encoder wasm
- * (basis_encoder.cjs + basis_encoder.wasm — built from third_party/basis_universal,
- * see README.md) behind a small Promise API. Build-time only: the *runtime*
- * transcoder is a separate side module (sdk/src/asset/basisTranscoder.ts).
- *
- * UASTC is emitted WITHOUT KTX2 zstd supercompression, because the engine's
- * runtime transcoder is built BASISD_SUPPORT_KTX2_ZSTD=0 (CMakeLists.txt); a
- * zstd-supercompressed UASTC KTX2 would fail to transcode at runtime. ETC1S needs
- * no supercompression. Both transcode at runtime to ASTC/ETC2/BC (compressed.ts).
+ * PNG/JPG/RGBA → KTX2 (Basis Universal) encoder for the build-time asset cook,
+ * over the vendored encoder wasm (see README.md). The runtime transcoder is a
+ * separate side module (sdk/src/asset/basisTranscoder.ts), and reads zstd
+ * supercompression whether or not this emits it.
  */
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';

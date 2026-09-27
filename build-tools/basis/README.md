@@ -38,7 +38,7 @@ and re-vendor when bumping the `basis_universal` submodule.
 
 ## Compatibility note
 
-UASTC KTX2 is emitted **without zstd supercompression** because the runtime
-transcoder is built `BASISD_SUPPORT_KTX2_ZSTD=0` (`CMakeLists.txt`). Keep these in
-sync: enabling zstd here without enabling it there would make assets fail to
-transcode on-device.
+UASTC KTX2 is emitted **without zstd supercompression**. Every runtime
+transcoder reads zstd (`BASISD_SUPPORT_KTX2_ZSTD=1` in `CMakeLists.txt`, and the
+native host's), so an authored zstd KTX2 decodes; whether the cook should emit it
+is a package-size decision, not a compatibility one.

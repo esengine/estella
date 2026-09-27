@@ -389,15 +389,17 @@ if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
         add_executable(basis_module
             src/esengine/bindings/modules/basis/BasisModuleEntry.cpp
             third_party/basis_universal/transcoder/basisu_transcoder.cpp
+            third_party/basis_universal/zstd/zstddeclib.c
         )
         target_include_directories(basis_module PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/third_party/basis_universal/transcoder
         )
-        # ETC1S works without zstd; disabling it avoids the zstd dependency. UASTC
-        # assets must then be encoded without zstd supercompression.
+        # zstd too, as the native host builds it: a UASTC KTX2 made elsewhere is
+        # usually zstd-supercompressed, and without it every one fails to decode.
+        # It costs this module ~21KB brotli, paid only by a package carrying KTX2.
         target_compile_definitions(basis_module PRIVATE
             BASISD_SUPPORT_KTX2=1
-            BASISD_SUPPORT_KTX2_ZSTD=0
+            BASISD_SUPPORT_KTX2_ZSTD=1
         )
         es_apply_basis_module_settings(basis_module)
         set_target_properties(basis_module PROPERTIES
