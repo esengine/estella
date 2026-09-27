@@ -207,7 +207,15 @@ export type RenderResolutionMode = 'surface' | 'design' | 'integer';
  *  vendor asks the same question and a package built for one is rejected by the
  *  other. */
 export interface MiniGamePackaging { appid?: string; }
-export type WeChatPackaging = MiniGamePackaging;
+export interface WeChatPackaging extends MiniGamePackaging {
+  /**
+   * Render through WeChat's EmscriptenGLX: the engine's GL calls run inside the
+   * wasm and reach the host in batches. The package ships the GLX engine (about
+   * 310 KB more); a host without GLX (base library < 3.8.12, or iOS outside
+   * 高性能+) renders through WebGL2 as before.
+   */
+  emscriptenGLX?: boolean;
+}
 /** A quick game ships a signed `.rpk`: `appid` is its package name (ending in
  *  `.minigame`), and the release key is what a vendor binds that name to. */
 export interface QuickGamePackaging extends MiniGamePackaging {
@@ -397,7 +405,7 @@ export interface ProjectPackaging {
   /** Per-platform packaging config: each target's slice of the app identity, plus
    *  whatever only it has (a WeChat appid, an Android versionCode). */
   platforms?: {
-    wechat?: MiniGamePackaging;
+    wechat?: WeChatPackaging;
     douyin?: MiniGamePackaging;
     bilibili?: MiniGamePackaging;
     quickgame?: QuickGamePackaging;
@@ -856,6 +864,7 @@ export function parseManifest(raw: unknown): ProjectManifest {
       if (wx && typeof wx === 'object') {
         const w: WeChatPackaging = {};
         if (typeof wx.appid === 'string') w.appid = wx.appid;
+        if (typeof wx.emscriptenGLX === 'boolean') w.emscriptenGLX = wx.emscriptenGLX;
         // Legacy per-platform orientation → the project-wide field (WeChat first).
         if (!orientation && (wx.orientation === 'portrait' || wx.orientation === 'landscape')) orientation = wx.orientation;
         if (Object.keys(w).length > 0) platforms.wechat = w;

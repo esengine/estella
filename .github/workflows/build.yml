@@ -68,6 +68,16 @@ jobs:
         key: ${{ runner.os }}-emscripten
         max-size: 2G
 
+    # `-t all` builds the WeChat GLX engine with WeChat's library and emsdk 4.0.10
+    # (build-tools/toolchain/glx.js); both are pinned, so they are fetched once.
+    - name: Cache the GLX toolchain
+      uses: actions/cache@v4
+      with:
+        path: |
+          tools/emsdk-glx
+          build/glx
+        key: glx-emsdk-4.0.10-lib-0.1.11-${{ runner.os }}-${{ runner.arch }}
+
     - name: Build Web target
       run: node build-tools/cli.js build -t web --no-sync
 
@@ -102,6 +112,13 @@ jobs:
       with:
         name: wasm-wechat
         path: build/wasm/wechat/
+        retention-days: 3
+
+    - name: Upload wechat GLX wasm artifact
+      uses: actions/upload-artifact@v7
+      with:
+        name: wasm-wechat-glx
+        path: build/wasm/wechat-glx/
         retention-days: 3
 
   # The C++ harnesses as the release build compiles them, on a runner of their own
@@ -756,6 +773,12 @@ jobs:
     - name: Check a cooked build's compiled systems against the interpreter
       if: ${{ !cancelled() && matrix.shard == 1 && steps.toolchain.outcome == 'success' }}
       run: pnpm run verify:cooked
+
+    # Most hosts a GLX package reaches offer no GLX context; there it must draw
+    # through WebGL2 like any other. The stand-in host is one of them.
+    - name: Check a WeChat package built with EmscriptenGLX draws without it
+      if: ${{ !cancelled() && matrix.shard == 2 }}
+      run: pnpm run verify:glx
 
     # A development build dials the editor, and the frame debugger captures and
     # replays its frame over that socket — the web road and a mini-game's.

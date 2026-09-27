@@ -105,6 +105,16 @@ jobs:
           key: ${{ runner.os }}-emscripten
           max-size: 2G
 
+      # `-t all` builds the WeChat GLX engine with WeChat's library and emsdk 4.0.10
+      # (build-tools/toolchain/glx.js); both are pinned, so they are fetched once.
+      - name: Cache the GLX toolchain
+        uses: actions/cache@v4
+        with:
+          path: |
+            tools/emsdk-glx
+            build/glx
+          key: glx-emsdk-4.0.10-lib-0.1.11-${{ runner.os }}-${{ runner.arch }}
+
       - name: Build engine and sync to desktop
         run: node build-tools/cli.js build -t all
 
@@ -115,6 +125,7 @@ jobs:
           path: |
             desktop/public/wasm
             desktop/public/wasm-wechat
+            desktop/public/wasm-wechat-glx
             desktop/public/wasm-quickgame
           retention-days: 3
 

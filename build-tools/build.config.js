@@ -17,6 +17,7 @@ export default {
     optimization: {
         web: { cmakeOpt: '-O2', wasmOpt: '-O2' },
         wechat: { cmakeOpt: '-O2', wasmOpt: '-O2' },
+        'wechat-glx': { cmakeOpt: '-O2', wasmOpt: '-O2' },
         quickgame: { cmakeOpt: '-O2', wasmOpt: '-O2' },
     },
 
@@ -40,6 +41,20 @@ export default {
             outputs: {
                 'sdk/esengine.wxgame.js': 'wasm/wechat/esengine.wxgame.js',
                 'sdk/esengine.wxgame.wasm': 'wasm/wechat/esengine.wxgame.wasm',
+            },
+        },
+        // The WeChat engine with EmscriptenGLX linked in, for a project that turns it
+        // on: WeChat publishes the library for emsdk 4.0.10, so this one target
+        // builds with that emsdk (build-tools/toolchain/glx.js).
+        'wechat-glx': {
+            buildDir: 'build/cmake/wxgame-glx',
+            cmakeFlags: ['-DES_BUILD_WXGAME=ON', '-DES_BUILD_TESTS=OFF'],
+            targets: ['esengine_wxgame'],
+            emsdk: '4.0.10',
+            glx: true,
+            outputs: {
+                'sdk/esengine.wxgame.js': 'wasm/wechat-glx/esengine.wxgame.js',
+                'sdk/esengine.wxgame.wasm': 'wasm/wechat-glx/esengine.wxgame.wasm',
             },
         },
         // The mini-game engine for vivo's quick-game V8 (8.3), which refuses both a
@@ -246,6 +261,7 @@ export default {
             // wasm-wechat first) — web-aligned filenames (physics.js, spine42.js, …)
             // would otherwise overwrite the web modules in desktop/public/wasm.
             'build/wasm/wechat': 'desktop/public/wasm-wechat',
+            'build/wasm/wechat-glx': 'desktop/public/wasm-wechat-glx',
             'build/wasm/quickgame': 'desktop/public/wasm-quickgame',
         },
         sdk: {

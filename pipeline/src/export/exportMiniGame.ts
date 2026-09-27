@@ -267,6 +267,9 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   scriptsEntry?: string;
   sdkDir: string;
   wasmDir: string;
+  /** WeChat: ship the engine built with EmscriptenGLX, from the `-glx` runtime
+   *  beside `wasmDir`; the side modules still come from `wasmDir`. */
+  engineGlx?: boolean;
   outDir: string;
   /** Where the runtime hosts live — sources in dev, a prebuilt tree in a packaged
    *  editor. A built-in vendor's platform profile is resolved against it. */
@@ -332,8 +335,20 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   // 0. The generated entry unconditionally requires the engine glue, so a
   //    missing vendor runtime cannot produce a runnable package — fail before
   //    cooking. By its ACTUAL name in the wasm dir; see MINIGAME_ENGINE_GLUE.
+  const glxDir = `${opts.wasmDir.replace(/[\\/]+$/, '')}-glx`;
+  const glx = opts.engineGlx === true && profile.id === 'wechat';
+  if (glx && !profile.engineGlueCandidates.some((f) => existsSync(path.join(glxDir, f)))) {
+    errors.push(`this project renders through EmscriptenGLX, and there is no GLX engine in ${glxDir} — `
+      + 'build it with `node build-tools/cli.js build -t wechat-glx`, or turn EmscriptenGLX off in Project Settings → WeChat');
+    return { ok: false, platform: profile.id, outDir: absOut, included: 0, warnings, errors };
+  }
+  /** The engine's own files come from the GLX runtime when the project asked for it. */
+  const runtimeFile = (name: string): string => {
+    const fromGlx = path.join(glxDir, name);
+    return glx && existsSync(fromGlx) ? fromGlx : path.join(opts.wasmDir, name);
+  };
   const engineGlueFile = profile.engineGlueCandidates
-    .find((f) => existsSync(path.join(opts.wasmDir, f)));
+    .find((f) => existsSync(runtimeFile(f)));
   if (!engineGlueFile) {
     // The optional-module targets come off the profile, so the guidance names
     // THIS vendor's builds rather than a hardcoded WeChat pair.
@@ -351,9 +366,9 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   // ...and it has to be a build this host can load. The browser artifact throws
   // `Unexpected token 'export'` at the entry's first line: a package that exports
   // clean, installs, and never reaches a frame.
-  if (isEsModule(await readFile(path.join(opts.wasmDir, engineGlueFile), 'utf8'))) {
+  if (isEsModule(await readFile(runtimeFile(engineGlueFile), 'utf8'))) {
     errors.push(
-      `${path.join(opts.wasmDir, engineGlueFile)} is an ES module, and a ${profile.id} package requires its engine — `
+      `${runtimeFile(engineGlueFile)} is an ES module, and a ${profile.id} package requires its engine — `
       + `build the mini-game engine with \`node build-tools/cli.js build -t ${profile.wasmBuildHint}\``,
     );
     return { ok: false, platform: profile.id, outDir: absOut, included: 0, warnings, errors };
@@ -698,7 +713,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   // not from the engine runtime dir, and are staged below.
   const { transform } = await loadEsbuild();
   for (const f of runtimeLayout.files) {
-    const src = path.join(opts.wasmDir, f.src);
+    const src = runtimeFile(f.src);
     if (!existsSync(src)) {
       errors.push(`${profile.id} runtime file missing: ${f.src} (in ${opts.wasmDir}) — rebuild with \`node build-tools/cli.js build -t ${profile.wasmBuildHint}\``);
       continue;

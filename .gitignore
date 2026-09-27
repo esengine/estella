@@ -180,3 +180,6 @@ native/ios/app.generated.yml
 pipeline/src/.build-*/
 .aot-verify/
 .walkthrough/
+
+# emsdk 4.0.10 for the WeChat EmscriptenGLX engine only (build-tools/toolchain/glx.js)
+tools/emsdk-glx/

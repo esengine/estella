@@ -557,6 +557,8 @@ export interface ExportGameOptions {
   hotUpdate?: { remoteRoot?: string; persistUpdateKey?: string };
   /** The export profile this build was made with, recorded in its size history. */
   profile?: string;
+  /** WeChat: ship the EmscriptenGLX engine (`packaging.platforms.wechat.emscriptenGLX`). */
+  miniGameGlx?: boolean;
   /** Signing key files the project names, checked against its repository. */
   secretFiles?: readonly string[];
   /** iOS: where the prebuilt engine + app shell live, so the export can wrap
@@ -743,6 +745,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       scriptsEntry: opts.scriptsEntry,
       sdkDir: opts.sdkDistDir,
       wasmDir: opts.wasmDir,
+      engineGlx: opts.miniGameGlx,
       outDir: opts.outDir,
       hostsDir: opts.hostsDir,
       packagesDir: opts.packagesDir,
@@ -784,6 +787,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       scriptsEntry: opts.scriptsEntry,
       sdkDir: opts.sdkDistDir,
       wasmDir: opts.wasmDir,
+      engineGlx: opts.miniGameGlx,
       outDir: opts.outDir,
       hostsDir: opts.hostsDir,
       packagesDir: opts.packagesDir,

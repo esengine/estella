@@ -66,6 +66,23 @@ node build-tools/cli.js build -t videodec-wechat  # 视频（MPEG-1 wasm 解码�
   暂存的自定义扩展名（`.skel`、`.atlas`、`.bin` 等）生成 `packOptions.include`
   规则，让开发者工具打包并读取它们。
 
+## EmscriptenGLX
+
+微信的 EmscriptenGLX 让引擎的 GL 调用在 wasm 内执行、批量交给宿主，而不必每一次都跨到
+JavaScript。在约一千次 draw call 的场景里，它在 Android 手机上让渲染耗时少了约 12%。
+
+在 **打包项目** 的微信页打开 **通过 EmscriptenGLX 渲染**，并构建一次它需要的引擎：
+
+```bash
+node build-tools/cli.js build -t wechat-glx
+```
+
+构建会下载固定版本的微信库并校验哈希，并使用 emsdk 4.0.10（首次安装到 `tools/emsdk-glx`）——
+那个库只为这个版本发布。wasm 多约 310 KB。
+
+它在基础库 3.8.12 及以上的 Android、以及开启高性能+模式的 iOS 上生效。其他宿主（包括开发者工具）
+照旧走 WebGL2；日志里的 `rendering through …` 一行会说明设备用的是哪一条。
+
 ## 分包（subpackages）
 
 惰性资源分组会成为 `game.json` 里的微信 **subPackages**。运行时，

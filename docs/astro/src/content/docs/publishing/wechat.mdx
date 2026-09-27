@@ -92,6 +92,28 @@ on the WeChat page of **Package Project** keep it out of the 4 MB main package:
   startup. It no longer counts against the main package; startup waits for
   that download, with the loading bar showing its progress.
 
+## EmscriptenGLX
+
+WeChat's EmscriptenGLX runs the engine's GL calls inside the wasm and hands them
+to the host in batches, instead of crossing into JavaScript for each one. In a
+scene of about a thousand draw calls it cut render time by about 12% on an
+Android phone.
+
+Turn on **Render through EmscriptenGLX** on the WeChat page of **Package
+Project**, and build the engine it needs once:
+
+```bash
+node build-tools/cli.js build -t wechat-glx
+```
+
+The build downloads WeChat's library at a pinned version and checks its hash,
+and uses emsdk 4.0.10 (installed into `tools/emsdk-glx` the first time) — the
+version that library is published for. It adds about 310 KB of wasm.
+
+It takes effect on Android with base library 3.8.12 or later, and on iOS in
+高性能+ mode. Any other host, including DevTools, renders through WebGL2 as
+before; the log's `rendering through …` line says which one a device used.
+
 ## Subpackages (分包)
 
 Lazy asset groups become WeChat **subPackages** in `game.json`. At runtime,

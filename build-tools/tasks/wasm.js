@@ -8,6 +8,7 @@ import * as logger from '../utils/logger.js';
 import { runCommand, getCpuCount } from '../utils/emscripten.js';
 import { hashFiles, hashDirectory, HashCache } from '../utils/hash.js';
 import { generateShaderEmbeds } from './shader-embeds.js';
+import { GLX_EMSDK, glxEmsdkEnv, glxLibrary } from '../toolchain/glx.js';
 
 /**
  * The one flag a probe build adds, and it adds ONLY this one.
@@ -156,9 +157,14 @@ async function executeWasmBuild(target, targetConfig, { debug, clean, buildDir, 
 
     const buildType = debug ? 'Debug' : 'Release';
     const optConfig = config.optimization[target];
+    // A target pinned to another emsdk builds in that emsdk's environment, and
+    // only its own children see it.
+    const env = targetConfig.emsdk === GLX_EMSDK ? glxEmsdkEnv((m) => logger.info(m)) : undefined;
+    const glxFlags = targetConfig.glx ? [`-DES_WXGAME_GLX_LIB=${await glxLibrary()}`] : [];
     const cmakeArgs = [
         'cmake',
         ...targetConfig.cmakeFlags,
+        ...glxFlags,
         ...testProbeFlags(),
         ...extraCmakeFlags(),
         `-DCMAKE_BUILD_TYPE=${buildType}`,
@@ -182,7 +188,7 @@ async function executeWasmBuild(target, targetConfig, { debug, clean, buildDir, 
     cmakeArgs.push(rootDir);
 
     logger.debug(`CMake configure: emcmake ${cmakeArgs.join(' ')}`);
-    await runCommand('emcmake', cmakeArgs, { cwd: buildDir });
+    await runCommand('emcmake', cmakeArgs, { cwd: buildDir, env });
 
     const cpuCount = getCpuCount();
     const buildArgs = ['--build', '.', '-j', String(cpuCount)];
@@ -192,14 +198,14 @@ async function executeWasmBuild(target, targetConfig, { debug, clean, buildDir, 
     }
 
     logger.debug(`CMake build: cmake ${buildArgs.join(' ')}`);
-    await runCommand('cmake', buildArgs, { cwd: buildDir });
+    await runCommand('cmake', buildArgs, { cwd: buildDir, env });
 
     const wasmOptLevel = config.optimization[target]?.wasmOpt || '-O2';
-    await optimizeWasmFiles(buildDir, targetConfig.outputs, wasmOptLevel);
+    await optimizeWasmFiles(buildDir, targetConfig.outputs, wasmOptLevel, env);
     await copyOutputs(buildDir, outputDir, targetConfig.outputs);
 }
 
-async function optimizeWasmFiles(buildDir, outputs, optLevel = '-O2') {
+async function optimizeWasmFiles(buildDir, outputs, optLevel = '-O2', env = undefined) {
     const wasmFiles = Object.keys(outputs).filter(src => src.endsWith('.wasm'));
     if (wasmFiles.length === 0) return;
 
@@ -210,7 +216,7 @@ async function optimizeWasmFiles(buildDir, outputs, optLevel = '-O2') {
 
         try {
             const before = (await stat(wasmPath)).size;
-            await runCommand('wasm-opt', [optLevel, '--enable-bulk-memory', '--enable-nontrapping-float-to-int', '--enable-simd', '-o', wasmPath, wasmPath], { silent: true });
+            await runCommand('wasm-opt', [optLevel, '--enable-bulk-memory', '--enable-nontrapping-float-to-int', '--enable-simd', '-o', wasmPath, wasmPath], { silent: true, env });
             const after = (await stat(wasmPath)).size;
             const reduction = ((1 - after / before) * 100).toFixed(1);
             logger.debug(`wasm-opt ${optLevel}: ${src} ${(before / 1024).toFixed(0)}KB → ${(after / 1024).toFixed(0)}KB (-${reduction}%)`);

@@ -215,6 +215,19 @@ export function hostProgress(global: {
     };
 }
 
+/** What a GLX context carries (WeChat's "EmscriptenGLX 原生引擎接入"). */
+export interface GlxContext { isWebGL2: boolean; platform: number; ctxid: number }
+export type GlxModule = { ccall(name: string, ret: string | null, args: string[], values: unknown[]): unknown; wxContextGlobal?: GlxContext };
+
+/** Starts the linked GLX in the order WeChat's guide gives: told whether the host
+ *  gave a GLX context at all, then, when it did, its buffers and GL state. */
+export function startGlx(module: GlxModule, glx: GlxContext | undefined): void {
+    module.ccall('glxInit', null, ['bool'], [!!glx]);
+    if (!glx || module.wxContextGlobal !== undefined) return;
+    module.wxContextGlobal = { ...glx };
+    module.ccall('glxInitBufferDataAndGlState', null, ['number', 'number'], [glx.isWebGL2 ? 2 : 1, glx.platform]);
+}
+
 export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promise<void> {
     // Before the engine boots, so a boot that fails is still heard by the editor.
     if (config.debugChannel) startDebugChannel(config.debugChannel);
@@ -245,7 +258,13 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
     const module = await instantiateModule(config.engineFactory, config.engineWasmPath, tag, { canvas });
     progress.reach('engine');
 
-    const gl = canvas.getContext('webgl2') as WebGLRenderingContext | null;
+    // EmscriptenGLX runs the engine's GL calls inside the wasm and hands them to
+    // the host in batches. Asked for only when the engine was linked with it and
+    // the host offers it; anything else is the ordinary WebGL2 context.
+    const glxLinked = typeof (module as { _glxInit?: unknown })._glxInit === 'function';
+    const hostEnv = (adapter.host as { env?: { isSupportEmscriptenGLX?: boolean } }).env;
+    const wantGlx = glxLinked && hostEnv?.isSupportEmscriptenGLX === true;
+    const gl = canvas.getContext(wantGlx ? 'wxwebgl2' : 'webgl2') as WebGLRenderingContext | null;
     if (!gl) {
         // The renderer is GLSL ES 3.0 throughout, so a WebGL1 context would boot
         // to shader failures and a black screen; this says why instead.
@@ -256,12 +275,17 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
         return;
     }
 
+    const glx = (gl as { emscriptenGLX?: GlxContext }).emscriptenGLX;
+    if (glxLinked) startGlx(module as unknown as GlxModule, glx);
+    log.info(tag, glx ? 'rendering through EmscriptenGLX' : `rendering through WebGL2${glxLinked ? ' (this host offers no EmscriptenGLX)' : ''}`);
+
     hideCoreExtensions(gl);
     const glHandle = module.GL.registerContext(gl, {
         majorVersion: 2,
         minorVersion: 0,
         enableExtensionsByDefault: true,
     });
+    if (glx) (module as unknown as GlxModule).ccall('glxUpdateContextId', 'number', ['number'], [glx.ctxid]);
 
     const app = createWebApp(module, {
         renderSurface: { kind: 'gl-context', handle: glHandle },

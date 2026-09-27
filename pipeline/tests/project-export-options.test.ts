@@ -52,6 +52,13 @@ describe('the export a project describes', () => {
         });
     });
 
+    it('ships the EmscriptenGLX engine to WeChat only, and only when the project asked', async () => {
+        const glx = parseManifest({ formatVersion: '1', name: 'p', packaging: { platforms: { wechat: { emscriptenGLX: true } } } });
+        expect((await projectExportOptions(root, glx, 'wechat')).miniGameGlx).toBe(true);
+        expect((await projectExportOptions(root, glx, 'douyin')).miniGameGlx).toBeUndefined();
+        expect((await projectExportOptions(root, manifest, 'wechat')).miniGameGlx).toBeUndefined();
+    });
+
     it('cooks assets the way the project asked when the caller says nothing', async () => {
         const skip = parseManifest({ formatVersion: '1', name: 'p', packaging: { assetCompression: 'skip' } });
         expect(await projectExportOptions(root, skip, 'web'))

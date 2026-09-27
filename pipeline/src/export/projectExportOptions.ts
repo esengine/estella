@@ -99,6 +99,7 @@ export async function projectExportOptions(
       miniGameVersionCode: quickGame.versionCode,
       miniGameReleaseKey: (await readReleaseKey(root, quickGame.releaseKey)) ?? undefined,
     } : {}),
+    ...(platform === 'wechat' && plat?.wechat?.emscriptenGLX ? { miniGameGlx: true } : {}),
     androidVersionCode: plat?.android?.versionCode,
     androidAppBundle: plat?.android?.appBundle,
     androidOutput: plat?.android?.output,

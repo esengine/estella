@@ -42,6 +42,7 @@ option(ES_ENABLE_BITMAP_TEXT "Enable Bitmap text rendering" ON)
 option(ES_ENABLE_WEBGPU "Enable the WebGPU render backend (emdawnwebgpu port)" OFF)
 option(ES_ENABLE_BASIS "Build the Basis Universal KTX2 transcoder module" OFF)
 option(ES_BUILD_MAIN_MODULE "Build as MAIN_MODULE for dynamic linking" OFF)
+set(ES_WXGAME_GLX_LIB "" CACHE FILEPATH "WeChat EmscriptenGLX static library to link into the mini-game engine (empty: none)")
 option(ES_BUILD_SIDE_MODULE "Build side modules for dynamic linking" OFF)
 # The physics standalone module ships in two JS-glue flavours from the same wasm:
 # the default require()-style module (WeChat host) and an ES6 variant imported like

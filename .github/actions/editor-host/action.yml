@@ -21,6 +21,12 @@ runs:
         name: wasm-wechat
         path: build/wasm/wechat/
 
+    - name: Download wechat GLX wasm artifact
+      uses: actions/download-artifact@v8
+      with:
+        name: wasm-wechat-glx
+        path: build/wasm/wechat-glx/
+
     - name: Build SDK
       shell: bash
       run: pnpm --filter ./sdk build
@@ -28,9 +34,10 @@ runs:
     - name: Stage wasm for the editor host
       shell: bash
       run: |
-        mkdir -p desktop/public/wasm desktop/public/wasm-wechat
+        mkdir -p desktop/public/wasm desktop/public/wasm-wechat desktop/public/wasm-wechat-glx
         cp build/wasm/web/* desktop/public/wasm/
         cp build/wasm/wechat/* desktop/public/wasm-wechat/
+        cp build/wasm/wechat-glx/* desktop/public/wasm-wechat-glx/
 
     - name: Build editor renderer bundle
       shell: bash

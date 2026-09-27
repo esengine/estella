@@ -142,7 +142,8 @@ async function main() {
     if (/\[minigame\] boot failed|\[estella\]|uncaught|is not a function|no such file/i.test(msg)) {
       errors.push(msg.slice(0, 400));
     }
-    if (/^\[(minigame|engine|estella)\]/.test(msg)) console.log(`  ${msg}`);
+    // The engine names the GL path it took; a check about EmscriptenGLX reads it.
+    if (/^\[(minigame|engine|estella)\]|rendering through /.test(msg)) console.log(`  ${msg}`);
   });
   win.webContents.on('render-process-gone', (_e, d) => errors.push(`render process gone: ${d.reason}`));
 

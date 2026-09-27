@@ -655,6 +655,38 @@ describe('exportGame (wechat)', () => {
     expect(existsSync(path.join(o, 'wasm', 'esengine.wasm.br'))).toBe(false);
     expect(readFileSync(path.join(o, 'game-bundle.js'), 'utf8')).toContain('wasm/esengine.wasm');
   }, 60_000);
+  // The GLX engine is a separate build beside the plain one; a project that asks
+  // for it must ship THAT binary, and one that has not built it must hear how.
+  it('ships the EmscriptenGLX engine from the -glx runtime when the project asks for it', async () => {
+    const base = path.join(root, '_wxwasm-g');
+    for (const [dir, bytes] of [[base, 'plainbytes'], [`${base}-glx`, 'glxbytes']] as const) {
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(path.join(dir, 'esengine.js'), 'module.exports = () => Promise.resolve({});');
+      writeFileSync(path.join(dir, 'esengine.wasm'), bytes);
+    }
+    const o = path.join(root, 'dist-wx-glx');
+    const exportWith = (wasmDir: string) => exportGame({
+      root,
+      entryScene: 'scenes/main.esscene',
+      hostsDir: 'unused-for-wechat', packagesDir: OFFICIAL_PACKAGES,
+      scriptsEntry: 'src/main.ts',
+      sdkDistDir: path.join(root, '_sdk'),
+      wasmDir,
+      outDir: o,
+      platform: 'wechat',
+      miniGameAppid: 'wxTEST0123456789',
+      miniGameGlx: true,
+      runtime: runtimeConfigOf({ designResolution: { width: 1280, height: 720 } }),
+    });
+    const res = await exportWith(base);
+    expect(res.ok).toBe(true);
+    expect(readFileSync(path.join(o, 'wasm', 'esengine.wasm'), 'utf8')).toBe('glxbytes');
+
+    const missing = await exportWith(path.join(root, '_wxwasm'));
+    expect(missing.ok).toBe(false);
+    expect(missing.errors.join('\n')).toContain('build -t wechat-glx');
+  }, 60_000);
+
   // Moving the binary out of the 4MB main package means four things must agree:
   // where it lands, what the loader is told, what game.json declares, and that
   // the entry asks the host for the 分包 before the engine is instantiated.
