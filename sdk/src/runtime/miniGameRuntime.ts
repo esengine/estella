@@ -288,7 +288,7 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
     if (glx) (module as unknown as GlxModule).ccall('glxUpdateContextId', 'number', ['number'], [glx.ctxid]);
 
     const app = createWebApp(module, {
-        renderSurface: { kind: 'gl-context', handle: glHandle },
+        renderSurface: { kind: 'gl-context', handle: glHandle, glx: glx !== undefined },
         ySortLayers: config.ySortLayers,
         depthLayers: config.depthLayers,
         colorSpace: config.colorSpace,

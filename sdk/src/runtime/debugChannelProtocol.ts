@@ -42,7 +42,11 @@ export type DebugChannelQuery =
  * host that traces its own every call prints thousands a second.
  */
 export type DebugChannelMessage =
-    | { t: 'hello'; v: number; platform: string; title: string; project: string | null; revision: string | null }
+    | {
+        t: 'hello'; v: number; platform: string; title: string; project: string | null; revision: string | null;
+        /** The graphics API the game draws through; null until the game has started. */
+        graphics: string | null;
+    }
     | { t: 'reply'; reqId: number; data: unknown; pixels?: number }
     | { t: 'reply'; reqId: number; error: string }
     | { t: 'logs'; entries: Array<{ level: ConsoleLevel; line: string }> };

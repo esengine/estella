@@ -11,7 +11,7 @@
  * mini-game host cannot be reached, and the editor authenticates the dial by the
  * token in its URL before a single frame crosses.
  */
-import type { App } from '../app/app';
+import { graphicsPathOf, type App } from '../app/app';
 import { getPlatform, platformNow } from '../platform/base';
 import type { PlatformSocket } from '../platform/types';
 import type { NextFrame } from '../render/frameCapture';
@@ -131,6 +131,7 @@ export function startDebugChannel(config: DebugChannelConfig): void {
         send({
             t: 'hello', v: DEBUG_CHANNEL_PROTOCOL, platform: platform.name, title: platform.deviceName?.() ?? '',
             project: config.project ?? null, revision: assets?.getManifest()?.revision() ?? null,
+            graphics: app ? graphicsPathOf(app) : null,
         });
     };
 

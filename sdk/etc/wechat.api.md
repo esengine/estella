@@ -2721,7 +2721,11 @@ url: string
 
 ## DebugChannelMessage — type @experimental
 ```
-| { t: 'hello'; v: number; platform: string; title: string; project: string | null; revision: string | null }
+| {
+        t: 'hello'; v: number; platform: string; title: string; project: string | null; revision: string | null;
+        /** The graphics API the game draws through; null until the game has started. */
+        graphics: string | null;
+    }
     | { t: 'reply'; reqId: number; data: unknown; pixels?: number }
     | { t: 'reply'; reqId: number; error: string }
     | { t: 'logs'; entries: Array<{ level: ConsoleLevel; line: string }> }
@@ -6621,7 +6625,13 @@ triangles: number
 
 ## RenderSurfaceSource — type @experimental
 ```
-| { readonly kind: 'gl-context'; readonly handle: number }
+| {
+        readonly kind: 'gl-context';
+        readonly handle: number;
+        /** The context is WeChat's EmscriptenGLX one, whose GL calls the linked
+         *  library issues natively rather than through the JS glue. */
+        readonly glx?: boolean;
+    }
     | {
         readonly kind: 'webgpu';
         readonly canvasSelector?: string;

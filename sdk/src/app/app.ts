@@ -1614,7 +1614,13 @@ export class App {
  * and must not reach the '#canvas' fallback.
  */
 export type RenderSurfaceSource =
-    | { readonly kind: 'gl-context'; readonly handle: number }
+    | {
+        readonly kind: 'gl-context';
+        readonly handle: number;
+        /** The context is WeChat's EmscriptenGLX one, whose GL calls the linked
+         *  library issues natively rather than through the JS glue. */
+        readonly glx?: boolean;
+    }
     | {
         readonly kind: 'webgpu';
         readonly canvasSelector?: string;
@@ -1686,6 +1692,23 @@ export interface WebAppOptions {
     screenFit?: ScreenScalingData;
 }
 
+/** The graphics API a web app's renderer draws through, as a connected device reports it. */
+export type GraphicsPath = 'WebGPU' | 'WebGL2' | 'EmscriptenGLX';
+const graphicsPaths = new WeakMap<App, GraphicsPath>();
+
+/** Null for an app whose module resolved its own surface. */
+export function graphicsPathOf(app: App): GraphicsPath | null {
+    return graphicsPaths.get(app) ?? null;
+}
+
+export function graphicsPathFor(surface: RenderSurfaceSource): GraphicsPath | null {
+    switch (surface.kind) {
+        case 'webgpu': return 'WebGPU';
+        case 'gl-context': return surface.glx ? 'EmscriptenGLX' : 'WebGL2';
+        case 'default': return null;
+    }
+}
+
 export function createWebApp(module: ESEngineModule, options?: WebAppOptions): App {
     // Restore any engine components a prior project hot-reload's clearUserComponents
     // wiped, so the scene about to load can still resolve them (no-op before the SDK
@@ -1729,6 +1752,8 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
             module.initRenderer();
             break;
     }
+    const graphics = graphicsPathFor(surface);
+    if (graphics) graphicsPaths.set(app, graphics);
     // Always applied (not only when set): the renderer outlives the App on realm
     // reloads, so a fresh App must reset a prior session's y-sort state too.
     module.renderer_setYSortLayers?.((options?.ySortLayers ?? 0) >>> 0);
