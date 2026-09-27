@@ -634,13 +634,28 @@ if (opts.command === 'import-model' || opts.command === 'import-gltf') {
       console.log(`${path.relative(process.cwd(), file)}: ${what}`);
     // Settings the source asked for, by product name; only ever the FIRST mint.
     const settings = new Map();
+    const externalImages = new Set();
     for (const mesh of meshes) {
       for (const image of [mesh.material?.baseColorTexture, mesh.material?.normalTexture,
-                           mesh.material?.emissiveTexture, mesh.material?.occlusionTexture]) {
-        if (image?.settings) settings.set(image.file, image.settings);
+                           mesh.material?.emissiveTexture, mesh.material?.occlusionTexture,
+                           mesh.material?.metallicRoughnessTexture]) {
+        if (!image) continue;
+        if (image.settings) settings.set(image.external ? path.resolve(sourceDir, image.file) : image.file, image.settings);
+        if (image.external) externalImages.add(path.resolve(sourceDir, image.file));
       }
     }
-    const adopt = (file) => meta.adoptOrphan(file, settings.get(path.basename(file)));
+    const adopt = (file) => meta.adoptOrphan(file, settings.get(file) ?? settings.get(path.basename(file)));
+
+    // An image the source names on disk is referenced where it lies, so it has to
+    // be an asset too: an export resolves refs through the registry, and a file
+    // with no sidecar is one it does not ship.
+    for (const file of externalImages) {
+      if (!existsSync(file)) {
+        console.warn(`  ! ${path.relative(process.cwd(), file)} is referenced by the model and does not exist`);
+        continue;
+      }
+      if ((await adopt(file)) === 'adopted') report(file, 'registered');
+    }
 
     for (const mesh of meshes) {
       const outFile = path.join(dir, `${mesh.name}.esmesh`);
