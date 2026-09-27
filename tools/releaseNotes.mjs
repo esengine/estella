@@ -1224,4 +1224,4 @@ export const NOTED = {
     { note: 'KTX2 textures on the web and in the editor transcode on worker threads instead of the main thread, one to four of them by the machine\'s cores. Bistro\'s assets loaded in 14 s instead of 24 s on a Windows machine, and the page stays responsive while they do. A realm with no workers (a mini-game host) transcodes on the main thread as before, and so does one whose workers fail, which says so once.' },
   'fix(asset): a preload times itself without a platform':
     { internal: 'The per-type preload timings landed one commit earlier and never shipped; they read the platform clock, which a realm without a platform (the SDK tests) does not have.' },
-}};
+};
