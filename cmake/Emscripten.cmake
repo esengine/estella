@@ -445,7 +445,7 @@ set(ES_EMSCRIPTEN_BASIS_MODULE_FLAGS
     -sDYNAMIC_EXECUTION=0
     -sFILESYSTEM=0
     "-sEXPORT_NAME='ESBasisModule'"
-    "-sEXPORTED_FUNCTIONS=['_es_basis_init','_es_basis_open','_es_basis_get_width','_es_basis_get_height','_es_basis_transcoded_size','_es_basis_transcode','_es_basis_close','_malloc','_free']"
+    "-sEXPORTED_FUNCTIONS=['_es_basis_init','_es_basis_open','_es_basis_get_width','_es_basis_get_height','_es_basis_transcoded_size','_es_basis_transcode','_es_basis_level_count','_es_basis_level_width','_es_basis_level_height','_es_basis_level_size','_es_basis_transcode_level','_es_basis_close','_malloc','_free']"
     "-sEXPORTED_RUNTIME_METHODS=['cwrap','HEAPU8','HEAPU32']"
     -O3
     -flto

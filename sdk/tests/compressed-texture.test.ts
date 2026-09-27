@@ -36,6 +36,8 @@ function makeGl(support: { astc?: boolean; etc?: boolean; s3tc?: boolean; s3tcSr
         TEXTURE_2D: 0x0de1, RGBA: 0x1908, UNSIGNED_BYTE: 0x1401, SRGB8_ALPHA8,
         NEAREST: 0x2600, LINEAR: 0x2601, CLAMP_TO_EDGE: 0x812f, MIRRORED_REPEAT: 0x8370, REPEAT: 0x2901,
         TEXTURE_MIN_FILTER: 0x2801, TEXTURE_MAG_FILTER: 0x2800, TEXTURE_WRAP_S: 0x2802, TEXTURE_WRAP_T: 0x2803,
+        LINEAR_MIPMAP_LINEAR: 0x2703, NEAREST_MIPMAP_NEAREST: 0x2700, TEXTURE_MAX_LEVEL: 0x813d,
+        generateMipmap: vi.fn(),
         getExtension: vi.fn((n: string) => exts[n] ?? null),
         createTexture: vi.fn(() => ({}) as WebGLTexture),
         bindTexture: vi.fn(),
@@ -184,6 +186,50 @@ describe('loadCompressedTexture', () => {
         loadCompressedTexture(gl as never, makeModule() as never, makeTranscoder(), KTX2_HEADER, { srgb: true });
         expect(gl.texImage2D).toHaveBeenCalledTimes(1);
         expect(gl.texImage2D.mock.calls[0][2]).toBe(SRGB8_ALPHA8);
+    });
+});
+
+describe('mip levels', () => {
+    const minFilter = (gl: ReturnType<typeof makeGl>) =>
+        gl.texParameteri.mock.calls.find((c) => c[1] === gl.TEXTURE_MIN_FILTER)?.[2];
+    const maxLevel = (gl: ReturnType<typeof makeGl>) =>
+        gl.texParameteri.mock.calls.find((c) => c[1] === gl.TEXTURE_MAX_LEVEL)?.[2];
+    const chain = [8, 4, 2].map((w) => ({ width: w, height: w, data: new Uint8Array(w) }));
+
+    // Every KTX2 the cook writes carries a chain; a level left behind is a texture
+    // that shimmers in the distance and bytes shipped for nothing.
+    it('uploads every level a compressed file carries and samples them as a chain', () => {
+        const gl = makeGl({ astc: true });
+        loadCompressedTexture(gl as never, makeModule() as never,
+            makeTranscoder({ transcode: vi.fn(() => ({ ...chain[0], levels: chain })) }), KTX2_HEADER);
+        expect(gl.compressedTexImage2D.mock.calls.map((c) => [c[1], c[3]])).toEqual([[0, 8], [1, 4], [2, 2]]);
+        expect(minFilter(gl)).toBe(gl.LINEAR_MIPMAP_LINEAR);
+        expect(maxLevel(gl)).toBe(2);
+        expect(gl.generateMipmap).not.toHaveBeenCalled();
+    });
+
+    it('keeps level 0 alone when the import setting turns mipmaps off', () => {
+        const gl = makeGl({ astc: true });
+        loadCompressedTexture(gl as never, makeModule() as never,
+            makeTranscoder({ transcode: vi.fn(() => ({ ...chain[0], levels: chain })) }), KTX2_HEADER, { mipmaps: false });
+        expect(gl.compressedTexImage2D).toHaveBeenCalledTimes(1);
+        expect(minFilter(gl)).toBe(gl.LINEAR);
+        expect(gl.generateMipmap).not.toHaveBeenCalled();
+    });
+
+    it('samples a single compressed level without mips, since none can be generated', () => {
+        const gl = makeGl({ astc: true });
+        loadCompressedTexture(gl as never, makeModule() as never, makeTranscoder(), KTX2_HEADER);
+        expect(minFilter(gl)).toBe(gl.LINEAR);
+        expect(maxLevel(gl)).toBeUndefined();
+        expect(gl.generateMipmap).not.toHaveBeenCalled();
+    });
+
+    it('generates a chain for a single level decoded to RGBA', () => {
+        const gl = makeGl();
+        loadCompressedTexture(gl as never, makeModule() as never, makeTranscoder(), KTX2_HEADER);
+        expect(minFilter(gl)).toBe(gl.LINEAR_MIPMAP_LINEAR);
+        expect(gl.generateMipmap).toHaveBeenCalledTimes(1);
     });
 });
 

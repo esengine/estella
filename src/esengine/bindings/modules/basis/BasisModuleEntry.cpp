@@ -34,7 +34,7 @@ basist::transcoder_texture_format mapFormat(int target) {
 
 bool isUncompressed(int target) { return target == 3; }
 
-// Blocks (compressed) or pixels (uncompressed) in level 0.
+// Blocks (compressed) or pixels (uncompressed) in one level.
 uint32_t levelUnits(const basist::ktx2_image_level_info& info, int target) {
     return isUncompressed(target) ? (info.m_orig_width * info.m_orig_height)
                                   : (info.m_num_blocks_x * info.m_num_blocks_y);
@@ -66,23 +66,42 @@ int es_basis_open(const uint8_t* pData, uint32_t dataSize) {
 uint32_t es_basis_get_width() { return g_open ? g_transcoder.get_width() : 0u; }
 uint32_t es_basis_get_height() { return g_open ? g_transcoder.get_height() : 0u; }
 
-/** Bytes required to transcode level 0 to `target`, or 0 on error. */
-uint32_t es_basis_transcoded_size(int target) {
+/** Mip levels the open container carries (1 for a texture without a chain). */
+uint32_t es_basis_level_count() { return g_open ? g_transcoder.get_levels() : 0u; }
+
+uint32_t es_basis_level_width(uint32_t level) {
+    basist::ktx2_image_level_info info;
+    return g_open && g_transcoder.get_image_level_info(info, level, 0, 0) ? info.m_orig_width : 0u;
+}
+
+uint32_t es_basis_level_height(uint32_t level) {
+    basist::ktx2_image_level_info info;
+    return g_open && g_transcoder.get_image_level_info(info, level, 0, 0) ? info.m_orig_height : 0u;
+}
+
+/** Bytes required to transcode `level` to `target`, or 0 on error. */
+uint32_t es_basis_level_size(int target, uint32_t level) {
     if (!g_open) return 0u;
     basist::ktx2_image_level_info info;
-    if (!g_transcoder.get_image_level_info(info, 0, 0, 0)) return 0u;
+    if (!g_transcoder.get_image_level_info(info, level, 0, 0)) return 0u;
     return levelUnits(info, target) * basist::basis_get_bytes_per_block_or_pixel(mapFormat(target));
 }
 
-/** Transcode level 0 into `pOut` (>= es_basis_transcoded_size). Returns 1 on success. */
-int es_basis_transcode(int target, uint8_t* pOut, uint32_t outSize) {
+/** Transcode `level` into `pOut` (>= es_basis_level_size). Returns 1 on success. */
+int es_basis_transcode_level(int target, uint32_t level, uint8_t* pOut, uint32_t outSize) {
     if (!g_open || !pOut) return 0;
     basist::ktx2_image_level_info info;
-    if (!g_transcoder.get_image_level_info(info, 0, 0, 0)) return 0;
+    if (!g_transcoder.get_image_level_info(info, level, 0, 0)) return 0;
     const basist::transcoder_texture_format fmt = mapFormat(target);
     const uint32_t units = levelUnits(info, target);
     if (outSize < units * basist::basis_get_bytes_per_block_or_pixel(fmt)) return 0;
-    return g_transcoder.transcode_image_level(0, 0, 0, pOut, units, fmt) ? 1 : 0;
+    return g_transcoder.transcode_image_level(level, 0, 0, pOut, units, fmt) ? 1 : 0;
+}
+
+uint32_t es_basis_transcoded_size(int target) { return es_basis_level_size(target, 0); }
+
+int es_basis_transcode(int target, uint8_t* pOut, uint32_t outSize) {
+    return es_basis_transcode_level(target, 0, pOut, outSize);
 }
 
 /** Release the open container. Safe to call when none is open. */

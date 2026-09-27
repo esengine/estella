@@ -32,6 +32,9 @@ export interface TextureSampling {
     readonly filter?: 'linear' | 'nearest';
     readonly wrap?: TextureWrap;
     readonly mipmaps?: boolean;
+    /** Levels already uploaded: more than one samples them as a mip chain and
+     *  generates none — a compressed texture cannot generate one. */
+    readonly levels?: number;
 }
 
 /**
@@ -69,7 +72,8 @@ export function uploadBoundTextureImage(
  */
 export function applyBoundTextureSampling(gl: WebGL2RenderingContext, sampling?: TextureSampling): void {
     const filter = sampling?.filter ?? 'linear';
-    const useMipmaps = sampling?.mipmaps ?? true;
+    const uploaded = sampling?.levels ?? 1;
+    const useMipmaps = uploaded > 1 || (sampling?.mipmaps ?? true);
     const glMinFilter = filter === 'nearest'
         ? (useMipmaps ? gl.NEAREST_MIPMAP_NEAREST : gl.NEAREST)
         : (useMipmaps ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR);
@@ -78,7 +82,9 @@ export function applyBoundTextureSampling(gl: WebGL2RenderingContext, sampling?:
     const glWrap = glWrapMode(gl, sampling?.wrap);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, glWrap);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, glWrap);
-    if (useMipmaps) gl.generateMipmap(gl.TEXTURE_2D);
+    // A chain that stops before 1x1 is complete only when told where it ends.
+    if (uploaded > 1) gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAX_LEVEL, uploaded - 1);
+    else if (useMipmaps) gl.generateMipmap(gl.TEXTURE_2D);
 }
 
 // =============================================================================

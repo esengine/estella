@@ -55,18 +55,28 @@ export function isKtx2Path(path: string): boolean {
 // Transcoder seam
 // =============================================================================
 
+export interface TranscodedLevel {
+    readonly width: number;
+    readonly height: number;
+    readonly data: Uint8Array;
+}
+
 export interface TranscodeResult {
     readonly width: number;
     readonly height: number;
-    /** GPU-ready compressed block data for the requested format. */
+    /** GPU-ready compressed block data for the requested format, level 0. */
     readonly data: Uint8Array;
+    /** Every mip level the file carries, level 0 first; absent means level 0 only. */
+    readonly levels?: readonly TranscodedLevel[];
 }
 
 export interface RgbaResult {
     readonly width: number;
     readonly height: number;
-    /** width*height*4 RGBA8 bytes. */
+    /** width*height*4 RGBA8 bytes, level 0. */
     readonly data: Uint8Array;
+    /** Every mip level the file carries, level 0 first; absent means level 0 only. */
+    readonly levels?: readonly TranscodedLevel[];
 }
 
 /**
@@ -211,6 +221,8 @@ export interface CompressedUploadOptions {
     readonly wrap?: 'repeat' | 'clamp' | 'mirror';
     /** Linear pipeline: store sRGB-encoded so the sampler linearizes in hardware. */
     readonly srgb?: boolean;
+    /** The import setting: false keeps level 0 alone, however many the file carries. */
+    readonly mipmaps?: boolean;
 }
 
 export interface UploadedTexture {
@@ -219,11 +231,20 @@ export interface UploadedTexture {
     readonly height: number;
 }
 
-function applyParams(gl: WebGL2RenderingContext, opts?: CompressedUploadOptions): void {
-    // Single-level textures: never select a mipmap min-filter (would be
-    // incomplete) and never generate a chain — which is exactly what the shared
-    // sampler state does when told there are no mipmaps.
-    applyBoundTextureSampling(gl, { filter: opts?.filter, wrap: opts?.wrap, mipmaps: false });
+/**
+ * A texture's sampling from the levels it was given: a chain the file carried is
+ * sampled as one, and a single compressed level samples without mips — a mip
+ * filter over one level would make it incomplete, and no compressed format can
+ * generate the rest. Only uncompressed pixels may have a chain generated.
+ */
+function applyParams(gl: WebGL2RenderingContext, levels: number, generate: boolean, opts?: CompressedUploadOptions): void {
+    applyBoundTextureSampling(gl, { filter: opts?.filter, wrap: opts?.wrap, mipmaps: generate, levels });
+}
+
+function levelsOf(r: TranscodeResult | RgbaResult, opts?: CompressedUploadOptions): readonly TranscodedLevel[] {
+    const base = { width: r.width, height: r.height, data: r.data };
+    if (opts?.mipmaps === false) return [base];
+    return r.levels && r.levels.length > 0 ? r.levels : [base];
 }
 
 /** Upload pre-transcoded compressed blocks via `gl.compressedTexImage2D`. */
@@ -237,10 +258,14 @@ export function uploadCompressedTexture(
     // gpuBytes is the ACTUAL VRAM size for the eviction budget — a compressed
     // format is 4–8× smaller than the pool's RGBA8 estimate, and billing it at
     // the estimate would squat on most of the budget.
+    const levels = levelsOf(t, opts);
     const handle = handOverNewTexture(module, gl, (g) => {
-        g.compressedTexImage2D(g.TEXTURE_2D, 0, internalFormat, t.width, t.height, 0, t.data);
-        applyParams(g, opts);
-    }, { width: t.width, height: t.height, content: TextureContent.Asset, gpuBytes: t.data.byteLength });
+        levels.forEach((l, i) => g.compressedTexImage2D(g.TEXTURE_2D, i, internalFormat, l.width, l.height, 0, l.data));
+        applyParams(g, levels.length, false, opts);
+    }, {
+        width: t.width, height: t.height, content: TextureContent.Asset,
+        gpuBytes: levels.reduce((n, l) => n + l.data.byteLength, 0),
+    });
     return { handle, width: t.width, height: t.height };
 }
 
@@ -252,8 +277,9 @@ export function uploadRgbaTexture(
         // Linear pipeline: the decoded pixels are sRGB-encoded color, same as
         // the PNG path — store them in an sRGB format so sampling linearizes.
         const internalFormat = opts?.srgb ? g.SRGB8_ALPHA8 : g.RGBA;
-        g.texImage2D(g.TEXTURE_2D, 0, internalFormat, r.width, r.height, 0, g.RGBA, g.UNSIGNED_BYTE, r.data);
-        applyParams(g, opts);
+        const levels = levelsOf(r, opts);
+        levels.forEach((l, i) => g.texImage2D(g.TEXTURE_2D, i, internalFormat, l.width, l.height, 0, g.RGBA, g.UNSIGNED_BYTE, l.data));
+        applyParams(g, levels.length, levels.length === 1 && opts?.mipmaps !== false, opts);
     }, { width: r.width, height: r.height, content: TextureContent.Asset });
     return { handle, width: r.width, height: r.height };
 }

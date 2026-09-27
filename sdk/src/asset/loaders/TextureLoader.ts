@@ -288,9 +288,17 @@ export class TextureLoader implements AssetLoader<TextureResult> {
             this.lastDecision_ = compressedUploadDecision(target, t !== null);
             if (target && t) {
                 const code = engineFormatCode(target, srgb);
-                const handle = withMalloc(module, t.data.length, (ptr) => {
-                    module.HEAPU8.set(t.data, ptr);
-                    return rm.createCompressedTexture!(t.width, t.height, code, ptr, t.data.length, 1,
+                // Level 0 first, packed, as the device unpacks them; a WebGPU copy
+                // refuses a level that is not whole blocks, so the chain stops there.
+                const all = t.levels ?? [t];
+                let count = 1;
+                while (count < all.length && all[count].width % 4 === 0 && all[count].height % 4 === 0) count++;
+                const levels = all.slice(0, count);
+                const size = levels.reduce((n, l) => n + l.data.length, 0);
+                const handle = withMalloc(module, size, (ptr) => {
+                    let at = ptr;
+                    for (const l of levels) { module.HEAPU8.set(l.data, at); at += l.data.length; }
+                    return rm.createCompressedTexture!(t.width, t.height, code, ptr, size, levels.length,
                         TextureContent.Asset);
                 });
                 if (handle) return { handle, width: t.width, height: t.height };

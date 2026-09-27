@@ -29,6 +29,7 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- Compressed (KTX2) textures on web and mini-games are sampled with their mip chain. The cook has always written one into every texture it compresses, and only level 0 reached the GPU: a compressed texture shimmered as it shrank into the distance, and the rest of its bytes shipped for nothing. A texture whose import settings turn mipmaps off keeps level 0 alone, and one decoded to RGBA on a device with no compressed format gets its chain generated.
 - The package size report on Windows attributes the SDK's bytes to the directories they come from again: every module read as "project", since the source map's paths were spelled with backslashes.
 - A WeChat package registers every engine component and the built-in AI names again. The WeChat entries lost their start-up calls to the bundler, so a scene using a component with no typed definition — a rigged model's MeshSkin among them — loaded without it ("Unknown component type") and its character was never skinned.
 - Reading a component whose field is a list of entities — a node's Children, a skin's joints — returns an array from every read path and frees the engine's copy. `world.tryGet` and query iteration handed back the engine's vector: an animated rig leaked one per joint per frame, and on the WeChat EmscriptenGLX engine, whose vectors cannot be iterated, the animator threw every frame.

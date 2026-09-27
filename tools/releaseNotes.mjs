@@ -1212,4 +1212,6 @@ export const NOTED = {
     { note: 'The package size report on Windows attributes the SDK\'s bytes to the directories they come from again: every module read as "project", since the source map\'s paths were spelled with backslashes.' },
   'test(launch): the launchers print every warning and error, and count a logged error':
     { internal: 'Repository launchers; no creator runs them.' },
+  'fix(render): a compressed texture is sampled with the mip chain it carries':
+    { note: 'Compressed (KTX2) textures on web and mini-games are sampled with their mip chain. The cook has always written one into every texture it compresses, and only level 0 reached the GPU: a compressed texture shimmered as it shrank into the distance, and the rest of its bytes shipped for nothing. A texture whose import settings turn mipmaps off keeps level 0 alone, and one decoded to RGBA on a device with no compressed format gets its chain generated.' },
 };
