@@ -14,7 +14,7 @@
  */
 import {
   createWebApp, setEditorMode, setPlayMode, initPlayableRuntime, createEmbeddedSideModuleHost,
-  packagedAppOptions, packagedRuntimeInit,
+  packagedAppOptions, packagedRuntimeInit, glContextAttributes,
 } from 'esengine';
 import type { SceneData, EmbeddedSideModuleRegistry, EmbeddedSideModuleEntry } from 'esengine';
 import type { ESEngineModule as EngineModule } from 'esengine/wasm';
@@ -113,14 +113,7 @@ async function boot(): Promise<void> {
   // preserved, so a working playable captures as pure black — which reads as
   // "renders nothing" and is the failure this flag exists to stop faking.
   const headless = new URLSearchParams(location.search).has('headless');
-  const gl = canvas.getContext('webgl2', {
-    alpha: false,
-    antialias: true,
-    depth: true,
-    stencil: true,
-    premultipliedAlpha: false,
-    preserveDrawingBuffer: headless,
-  }) as WebGL2RenderingContext | null;
+  const gl = canvas.getContext('webgl2', glContextAttributes(headless)) as WebGL2RenderingContext | null;
   if (!gl) throw new Error('WebGL2 is not available.');
   const glHandle = module.GL.registerContext(gl, { majorVersion: 2, minorVersion: 0, enableExtensionsByDefault: true });
 

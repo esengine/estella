@@ -21,7 +21,7 @@ import {
   AnimatorRootMotion, Playthrough, Name,
   worldResidencyReport, PostProcess, Renderer, Audio, Camera,
   getComponentRegistry,
-  startDebugChannel,
+  startDebugChannel, glContextAttributes,
 } from 'esengine';
 
 /**
@@ -187,14 +187,7 @@ async function boot(): Promise<void> {
     canvas.id ||= 'canvas';
     renderSurface = { kind: 'webgpu', canvasSelector: `#${canvas.id}` };
   } else {
-    gl = canvas.getContext('webgl2', {
-      alpha: false,
-      antialias: true,
-      depth: true,
-      stencil: true,
-      premultipliedAlpha: false,
-      preserveDrawingBuffer: headless,
-    }) as WebGL2RenderingContext | null;
+    gl = canvas.getContext('webgl2', glContextAttributes(headless)) as WebGL2RenderingContext | null;
     if (!gl) throw new Error('WebGL2 is not available.');
     renderSurface = {
       kind: 'gl-context',

@@ -25,7 +25,7 @@ import { getPlatform, platformReadTextFile, platformInstantiateWasm } from '../p
 import { MiniGamePlatformAdapter } from '../platform/minigame';
 import {
     loadPackagedAssetIndex, createPackagedAssetSource, applyAssetRefResolvers,
-    registerPackagedSideModules,
+    registerPackagedSideModules, glContextAttributes,
 } from './packagedRuntime';
 import { createMiniGameSideModuleHost, type MiniGameSideModuleFactories } from '../sideModules';
 import type { Physics2DPluginConfig } from '../physics/PhysicsTypes';
@@ -264,7 +264,7 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
     const glxLinked = typeof (module as { _glxInit?: unknown })._glxInit === 'function';
     const hostEnv = (adapter.host as { env?: { isSupportEmscriptenGLX?: boolean } }).env;
     const wantGlx = glxLinked && hostEnv?.isSupportEmscriptenGLX === true;
-    const gl = canvas.getContext(wantGlx ? 'wxwebgl2' : 'webgl2') as WebGLRenderingContext | null;
+    const gl = canvas.getContext(wantGlx ? 'wxwebgl2' : 'webgl2', glContextAttributes()) as WebGLRenderingContext | null;
     if (!gl) {
         // The renderer is GLSL ES 3.0 throughout, so a WebGL1 context would boot
         // to shader failures and a black screen; this says why instead.

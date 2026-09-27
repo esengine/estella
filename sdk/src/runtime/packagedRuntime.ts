@@ -177,6 +177,22 @@ export function registerPackagedSideModules(config: Pick<PackagedGameConfig, 'si
  * ignore it. One projection, so a field added to the config reaches every realm
  * that spreads it.
  */
+/**
+ * The attributes every host creates the engine's WebGL2 context with. WebGL
+ * gives no stencil buffer unless asked, and sprite masks draw through one.
+ * `preserveDrawingBuffer` is for a harness that reads a composited frame back.
+ */
+export function glContextAttributes(preserveDrawingBuffer = false): WebGLContextAttributes {
+    return {
+        alpha: false,
+        antialias: true,
+        depth: true,
+        stencil: true,
+        premultipliedAlpha: false,
+        preserveDrawingBuffer,
+    };
+}
+
 export function packagedAppOptions(
     config: Pick<PackagedGameConfig,
         'ySortLayers' | 'depthLayers' | 'colorSpace' | 'outputTransform' | 'screenFit'

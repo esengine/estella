@@ -442,6 +442,7 @@ export {
     registerPackagedSideModules,
     packagedAppOptions,
     packagedRuntimeInit,
+    glContextAttributes,
     type PackagedAssetIndex,
     type PackagedAssetSourceOptions,
     type PackagedGameConfig,
