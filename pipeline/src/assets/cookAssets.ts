@@ -44,6 +44,7 @@ import { isBuiltinAssetRef, resolveRelativePath, resolveDocumentRef } from '../.
 // realm (sdk/src/asset/assetGroups.ts) so cook and editor never disagree.
 import { resolveAssetGroup, resolveAtlas, type AssetGroupsConfig } from '../../../sdk/src/asset/assetGroups';
 import type { BundleMode } from '../../../sdk/src/asset/AddressableManifest';
+import { readKtx2Layout, wantsMipChain, halveRgba, spliceMipChain } from './ktx2Mips';
 import { cookCached, encoderIdentity } from './cookCache';
 
 const MANIFEST = 'assets.manifest.json';
@@ -222,6 +223,7 @@ interface BasisEncoderModule {
   ENCODER_WASM: string;
 }
 
+const KTX2_SCHEME_ZSTD = 2;
 
 /** Replace a path's extension (e.g. .png → .ktx2); appends if it had none. */
 function swapExt(p: string, ext: string): string {
@@ -724,6 +726,28 @@ export async function cookAssets(
       let ext = path.extname(entry.path);
       let compressedFormats: string[] | undefined;
       let cook: TextureCookDecision | undefined;
+      // An authored single-level UASTC KTX2 gets the chain a compressed texture
+      // cannot generate on the device, under its own untouched level 0.
+      const layout = textureEnc && entry.type === 'texture' && ext.toLowerCase() === '.ktx2' ? readKtx2Layout(data) : null;
+      if (textureEnc && wantsMipChain(layout)) {
+        const enc = textureEnc;
+        const source = data;
+        try {
+          data = (await cookCached(root, [source, 'ktx2-mip-chain:1', encoderId], async () => {
+            const decoded = await enc.transcodeKtx2ToRgba(source);
+            const half = halveRgba(decoded.pixels, decoded.width, decoded.height, layout.srgb);
+            const below = await enc.encodeToKtx2(
+              { type: enc.ImageType.RGBA, data: half.rgba, width: half.width, height: half.height },
+              {
+                mode: 'uastc', srgb: layout.srgb, mipmaps: true, yFlip: false, uastcLevel: 0,
+                supercompress: layout.scheme === KTX2_SCHEME_ZSTD,
+              });
+            return spliceMipChain(source, below);
+          })).bytes;
+        } catch (err) {
+          warnings.push(`${entry.path}: ships its single level without mips — ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
       // Every image takes the decision, not only the ones an encoder accepts: a
       // JPEG whose Compress row reads ON leaves no other trace. Hash + name below
       // reflect the ENCODED bytes, so this composes with content-addressing.

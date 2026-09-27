@@ -14,6 +14,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { transcoderFromModule, type BasisWasmModule } from '../src/asset/basisTranscoder';
 import { CompressedTextureFormat, type BasisTranscoder } from '../src/asset/compressed';
+import { readKtx2Layout, halveRgba, spliceMipChain } from '../../pipeline/src/assets/ktx2Mips';
 
 const ROOT = path.resolve(__dirname, '../..');
 const MODULE = path.join(ROOT, 'build/wasm/web/basis.js');
@@ -47,5 +48,19 @@ describe.skipIf(!existsSync(MODULE))('a KTX2 mip chain through the built transco
     it('decodes every level to RGBA as well', () => {
         const r = transcoder.transcodeToRgba(ktx2)!;
         expect(r.levels?.map((l) => l.data.byteLength)).toEqual(sides.map((s) => s * s * 4));
+    });
+
+    // What the cook makes of an authored single-level KTX2 (pipeline ktx2Mips).
+    it('decodes every level of a chain spliced under an authored level 0', async () => {
+        const encoder = await import(path.join(ROOT, 'build-tools/basis/encoder.mjs'));
+        const rgba = new Uint8Array(SIDE * SIDE * 4).map((_, i) => (i * 11) & 0xff);
+        const authored = await encoder.encodeToKtx2(
+            { type: encoder.ImageType.RGBA, data: rgba, width: SIDE, height: SIDE }, { mode: 'uastc', mipmaps: false, supercompress: true });
+        const decoded = await encoder.transcodeKtx2ToRgba(authored);
+        const half = halveRgba(decoded.pixels, decoded.width, decoded.height, readKtx2Layout(authored)!.srgb);
+        const below = await encoder.encodeToKtx2({ type: encoder.ImageType.RGBA, data: half.rgba, width: half.width, height: half.height },
+            { mode: 'uastc', mipmaps: true, yFlip: false, uastcLevel: 0, supercompress: true });
+        const t = transcoder.transcode(spliceMipChain(authored, below), CompressedTextureFormat.ASTC_4x4)!;
+        expect(t.levels?.map((l) => l.width)).toEqual(sides);
     });
 });

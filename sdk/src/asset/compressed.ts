@@ -221,7 +221,7 @@ export interface CompressedUploadOptions {
     readonly wrap?: 'repeat' | 'clamp' | 'mirror';
     /** Linear pipeline: store sRGB-encoded so the sampler linearizes in hardware. */
     readonly srgb?: boolean;
-    /** The import setting: false keeps level 0 alone, however many the file carries. */
+    /** False keeps level 0 alone, however many levels the file carries. */
     readonly mipmaps?: boolean;
 }
 
