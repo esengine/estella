@@ -55,6 +55,9 @@ struct PipelineDesc {
     /// buffer's resolution — the only way to say which of two COPLANAR surfaces
     /// wins. Drives both the constant and the slope-scaled term.
     i16 depthBias = 0;
+    /// Output alpha becomes multisample coverage (a cutout's feathered edge). Only
+    /// meaningful on an opaque draw into a multisampled target; ignored elsewhere.
+    bool alphaToCoverage = false;
 
     bool operator==(const PipelineDesc&) const = default;
 };

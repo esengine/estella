@@ -88,6 +88,7 @@ One file holds every stage plus its metadata, separated by pragmas:
 | `#pragma param …` | A reflected material parameter (table below). |
 | `#pragma switch NAME [default(on)]` | Material-facing static permutation toggle (a `#define`). |
 | `#pragma feature NAME` | Engine-chosen compile-time variant keyword. |
+| `#pragma coverage PARAM` | While the float param `PARAM` is above zero, the shader's output alpha is coverage — a cutout's alpha sharpened to about a texel around the cutoff. An opaque draw into a multisampled target then turns it into multisample coverage, so the cutout's edge is antialiased instead of stair-stepped. The built-in Model shader declares `u_alphaCutoff`. |
 | `#pragma vertex` / `#pragma fragment` … `#pragma end` | Stage bodies. **The vertex block is optional for 2D domains** — the engine injects the canonical stage. |
 | `#include "path"` | Textual include (resolved by the host). |
 

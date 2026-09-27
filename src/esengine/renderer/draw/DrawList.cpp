@@ -240,6 +240,7 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
         desc.cullEnabled = cmd.cull != 0;
         desc.cullFront = cmd.cull == 2;
         desc.depthBias = cmd.depth_bias;
+        desc.alphaToCoverage = !desc.blendEnabled && materials.alphaIsCoverage(cmd.material_id);
 
         if (lastHandle == PipelineHandle::Invalid || !(desc == lastDesc)) {
             lastHandle = device.createPipeline(desc);

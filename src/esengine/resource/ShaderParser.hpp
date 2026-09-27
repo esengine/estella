@@ -148,6 +148,10 @@ struct ParsedShader {
     std::vector<ShaderSwitch> switches;                       ///< Material-controlled #pragma switch toggles (name + default)
     std::vector<ShaderProperty> properties;                   ///< Exposed material params (#pragma param / properties block)
     std::string domain = "Unlit";                           ///< #pragma domain (Unlit/Lit/PostProcess/UI)
+    /// `#pragma coverage <param>`: while that float param is above zero, the shader's
+    /// output alpha is coverage (a cutout sharpened to one texel), so an opaque draw
+    /// may turn it into multisample coverage instead of a hard edge.
+    std::string coverageParam;
     /// std140 byte size of the generated MaterialConstants block (16-aligned), 0 if no
     /// non-texture params. The render path sizes the per-material UBO to this.
     u32 materialBlockSize = 0;

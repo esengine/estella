@@ -1254,6 +1254,8 @@ export const NOTED = {
     { note: 'Project Health names the textures a material reads as data while they are still decoded as colour' },
   'feat(health): the preflight names data maps decoded as colour, and fixes them':
     { note: 'Project Health names the textures a material reads as data while they are still decoded as colour' },
+  'feat(render): a cutout\'s edge is antialiased':
+    { note: 'A cutout\'s edge is antialiased' },
   'fix(eht): the generator writes LF on every platform':
     { internal: 'The engine header tool is a repository generator; on Windows it rewrote every generated file with CRLF, which only a contributor there ever saw.' },
 };

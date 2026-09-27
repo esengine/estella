@@ -73,6 +73,7 @@ std140 uniform 块,于是 CPU 能按名字设置、并安全地送到 GPU。一�
 | `#pragma domain <D>` | `Unlit`(默认)、`Lit`、`PostProcess`、`UI`。`Lit` 注入光照 uniform + helper。旧拼写 `Unlit2D` / `Lit2D` 仍按这两个域加载。 |
 | `#pragma param …` | 反射的材质参数(见下表)。 |
 | `#pragma switch NAME [default(on)]` | 材质可控的静态排列开关(一个 `#define`)。 |
+| `#pragma coverage PARAM` | 浮点参数 `PARAM` 大于零时,着色器输出的 alpha 就是覆盖率——镂空的 alpha 在阈值附近锐化到约一个纹素宽。不透明物体画进多重采样目标时,它会转成多重采样覆盖率,镂空边缘就有抗锯齿而不是台阶。内置 Model 着色器声明了 `u_alphaCutoff`。 |
 | `#pragma feature NAME` | 引擎选择的编译期变体关键字。 |
 | `#pragma vertex` / `#pragma fragment` … `#pragma end` | Stage 代码体。**2D 域的顶点段可省略**——引擎注入规范顶点段。 |
 | `#include "path"` | 文本 include(由宿主解析)。 |

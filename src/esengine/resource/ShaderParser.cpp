@@ -665,6 +665,11 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
             continue;
         }
 
+        if (directive == "coverage") {
+            result.coverageParam = argument;
+            continue;
+        }
+
         if (directive == "domain") {
             if (!argument.empty()) result.domain = normalizeDomain(argument);
             continue;

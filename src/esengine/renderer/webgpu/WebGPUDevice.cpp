@@ -1248,6 +1248,8 @@ WGPURenderPipeline WebGPUDevice::ensurePipeline(u32 id) {
     // built for one sample cannot draw into a multisampled target at all.
     pd.multisample.count = pass_samples_;
     pd.multisample.mask = 0xFFFFFFFFu;
+    // WebGPU refuses coverage from alpha on a single-sampled pipeline.
+    pd.multisample.alphaToCoverageEnabled = desc.alphaToCoverage && pass_samples_ > 1;
     pd.fragment = &fragment;
     WGPUDepthStencilState ds{};
     if (dsVariant != kDsNone) {

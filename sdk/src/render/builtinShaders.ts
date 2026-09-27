@@ -340,6 +340,7 @@ const MODEL = `#pragma shader "Model"
 #pragma param u_occlusionMap texture default(white) texel(data)
 #pragma param u_occlusionStrength float default(1) range(0,1) ui(slider)
 #pragma param u_alphaCutoff float default(0) range(0,1) ui(slider)
+#pragma coverage u_alphaCutoff
 #pragma param u_metallic float default(0) range(0,1) ui(slider)
 #pragma param u_roughness float default(1) range(0,1) ui(slider)
 #pragma param u_metallicRoughnessMap texture default(white) texel(data)
@@ -365,7 +366,14 @@ out vec4 fragColor;
 // Metal-roughness packing is glTF's: roughness in green, metal in blue.
 void main() {
     vec4 base = texture(u_textures[0], v_texCoord) * v_color * u_tint;
-    if (base.a < u_alphaCutoff) discard;
+    // A cutout's alpha becomes coverage: sharpened to about a texel around the
+    // cutoff, so alpha-to-coverage feathers the edge instead of stair-stepping it.
+    float alpha = base.a;
+    if (u_alphaCutoff > 0.0) {
+        alpha = (base.a - u_alphaCutoff) / max(fwidth(base.a), 1e-4) + 0.5;
+        if (alpha <= 0.0) discard;
+        alpha = min(alpha, 1.0);
+    }
 #ifdef MESH_NORMALS
     highp vec3 N = perturbNormal(normalize(v_worldNormal), v_worldXYZ, v_texCoord,
                                  sampleNormal(u_normalMap, v_texCoord));
@@ -386,7 +394,7 @@ void main() {
     // specular 1: a glTF material reflects unless KHR_materials_specular says less.
     vec3 lit = applyLightingPBR(base.rgb, N, P, viewDirection(P),
                                 u_metallic * mr.b, u_roughness * mr.g, 1.0, ao);
-    fragColor = vec4(lit + u_emissive.rgb * texture(u_emissiveMap, v_texCoord).rgb, base.a);
+    fragColor = vec4(lit + u_emissive.rgb * texture(u_emissiveMap, v_texCoord).rgb, alpha);
 }
 #pragma end
 
@@ -397,7 +405,14 @@ void main() {
     // draw read instance 0's indirect light — one probe volume for the lot.
     g_probeSlot = v.v_probeSlot;
     let base = textureSampleLevel(t0, s0, v.v_texCoord, 0.0) * v.v_color * mc.u_tint;
-    if (base.a < mc.u_alphaCutoff) { discard; }
+    // Before any discard: a derivative needs every fragment of its quad.
+    let edge = max(fwidth(base.a), 1e-4);
+    var alpha = base.a;
+    if (mc.u_alphaCutoff > 0.0) {
+        alpha = (base.a - mc.u_alphaCutoff) / edge + 0.5;
+        if (alpha <= 0.0) { discard; }
+        alpha = min(alpha, 1.0);
+    }
 #ifdef MESH_NORMALS
     var N = perturbNormal(normalize(v.v_worldNormal), v.v_worldXYZ, v.v_texCoord,
                           sampleNormal(u_normalMap, u_normalMap_s, v.v_texCoord));
@@ -418,7 +433,7 @@ void main() {
                                mc.u_metallic * mr.b, mc.u_roughness * mr.g, 1.0, ao);
     let emit = mc.u_emissive.rgb
              * textureSampleLevel(u_emissiveMap, u_emissiveMap_s, v.v_texCoord, 0.0).rgb;
-    return vec4f(lit + emit, base.a);
+    return vec4f(lit + emit, alpha);
 }
 #pragma end
 `;

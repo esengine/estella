@@ -701,6 +701,13 @@ export const SCENES = [
   // effect composites over its own input, and one handed the untouched scene
   // instead drops every effect before it — the quads kept their colour.
   { id: "post-chain-order", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/post-chain-order.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-depth.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.42,\"y\":0.5,\"rgb\":[150,150,150],\"tol\":20},{\"x\":0.58,\"y\":0.5,\"rgb\":[76,76,76],\"tol\":20}]" } },
+  // The same asset's 0.75 cutout, the camera rolled so its cut runs nearly upright: with
+  // multisampling on, coverage from alpha makes the texel before the cut a blend in a
+  // share of rows (0.35 WebGL2, 0.26 WebGPU) that an alpha test does not (0.14, 0.07).
+  { id: "corpus-cutout-edge", tier: "pr", webgpu: true, corpora: ["khronos-alpha-blend-mode-test"], env: { ESTELLA_VERIFY_PREFAB: "/corpora/khronos-alpha-blend-mode-test/imported/AlphaBlendModeTest.esprefab", ESTELLA_VERIFY_SCENE: "/scenes/corpus-cutout-edge.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/corpus-alpha-modes.textures.json", ESTELLA_VERIFY_COLORSPACE: "linear", ESTELLA_VERIFY_MSAA: "4", ESTELLA_VERIFY_W: "640", ESTELLA_VERIFY_H: "640", ESTELLA_VERIFY_STEPS: "8", ESTELLA_VERIFY_CUTOUT_EDGE: "{\"box\":[0.5813,0.4219,0.6641,0.6875],\"lit\":180,\"run\":4,\"partial\":[115,180],\"minShare\":0.2}" } },
+  // Khronos's AlphaBlendModeTest (tools/corpora.mjs): the opaque box ignores its alpha, and
+  // each cutout box is cut exactly at its own threshold — wall above the mark, stripes below.
+  { id: "corpus-alpha-modes", tier: "pr", webgpu: true, corpora: ["khronos-alpha-blend-mode-test"], env: { ESTELLA_VERIFY_PREFAB: "/corpora/khronos-alpha-blend-mode-test/imported/AlphaBlendModeTest.esprefab", ESTELLA_VERIFY_SCENE: "/scenes/corpus-alpha-modes.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/corpus-alpha-modes.textures.json", ESTELLA_VERIFY_W: "960", ESTELLA_VERIFY_H: "540", ESTELLA_VERIFY_STEPS: "8", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.2344,\"y\":0.3185,\"rgb\":[255,255,107],\"tol\":40},{\"x\":0.5135,\"y\":0.3167,\"rgb\":[255,255,255],\"tol\":40},{\"x\":0.5125,\"y\":0.4444,\"rgb\":[255,255,108],\"tol\":40},{\"x\":0.651,\"y\":0.3704,\"rgb\":[255,255,255],\"tol\":40},{\"x\":0.651,\"y\":0.487,\"rgb\":[255,255,108],\"tol\":40},{\"x\":0.7896,\"y\":0.4444,\"rgb\":[255,255,255],\"tol\":40},{\"x\":0.7875,\"y\":0.5185,\"rgb\":[107,255,255],\"tol\":40}]" } },
   // The channels only a material can carry, one quad each, through the products a
   // real import wrote. Ambient light only: the black quad's lit half can only be
   // emission, the white quad's right half is occluded away, the cutout discards.

@@ -377,6 +377,7 @@ void GLDevice::resetStateCache() {
     bound_vao_ = 0;
     scissor_test_ = -1;
     current_depth_bias_ = 0;
+    alpha_to_coverage_ = -1;
     current_framebuffer_ = 0;
     timer_query_state_ = 0;
 }
@@ -943,6 +944,11 @@ void GLDevice::backendSetPipeline(u32 id, const PipelineDesc& desc) {
     if (desc.cullEnabled) setCullFace(desc.cullFront);
     setDepthBias(desc.depthBias);
     applyStencilMode(desc.stencil);
+    if (static_cast<i8>(desc.alphaToCoverage) != alpha_to_coverage_) {
+        if (desc.alphaToCoverage) glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+        else glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+        alpha_to_coverage_ = static_cast<i8>(desc.alphaToCoverage);
+    }
 
     current_pipeline_id_ = id;
     current_stencil_mode_ = desc.stencil;

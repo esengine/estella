@@ -220,6 +220,7 @@ private:
     u32 active_texture_unit_ = 0;
     u32 bound_texture_[kTextureSlots] = {};
     i16 current_depth_bias_ = 0;
+    i8 alpha_to_coverage_ = -1;  ///< -1: unknown, so the next pipeline sets it.
     int scissor_test_ = -1;  // tri-state: -1 unknown, 0 disabled, 1 enabled
 
     struct VaoCache {

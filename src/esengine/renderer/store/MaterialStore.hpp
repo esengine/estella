@@ -88,6 +88,9 @@ struct MaterialTextureBinding {
 /** @brief A shader's layout: std140 block (scalar/vector params) + texture sampler slots. */
 struct MaterialUniformLayout {
     u32 blockSize = 0;
+    /// The param whose value above zero makes output alpha coverage (see
+    /// ParsedShader::coverageParam); empty when the shader declares none.
+    std::string coverageParam;
     std::vector<MaterialParamSlot> params;
     std::vector<MaterialTextureSlot> textures;
 
@@ -258,6 +261,19 @@ public:
         if (materialId == 0) return nullptr;
         auto it = materials_.find(materialId);
         return it != materials_.end() ? &it->second : nullptr;
+    }
+
+    /// Whether @p materialId's output alpha is coverage now: its shader names a
+    /// coverage param and this material holds it above zero.
+    bool alphaIsCoverage(u32 materialId) const {
+        const MaterialRecord* m = find(materialId);
+        const MaterialUniformLayout* layout = m ? layoutFor(m->shaderRef) : nullptr;
+        if (!layout || layout->coverageParam.empty()) return false;
+        const MaterialParamSlot* slot = layout->find(layout->coverageParam);
+        if (!slot || slot->offset + sizeof(f32) > m->uboBytes.size()) return false;
+        f32 value = 0.0f;
+        std::memcpy(&value, m->uboBytes.data() + slot->offset, sizeof(f32));
+        return value > 0.0f;
     }
 
     /// The registered #pragma-param layout for a shader program, or nullptr.
