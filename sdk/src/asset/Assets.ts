@@ -5,7 +5,7 @@ import { Catalog, type AtlasFrameInfo } from './Catalog';
 import { ManifestModel, normalizeBundleMode, type AddressableManifest, type AddressableAssetType } from './AddressableManifest';
 import { diffManifests, type UpdatePlan, type AssetChange } from './hotUpdate';
 import { contentHashHex } from './contentHash';
-import { platformLoadSubpackage, platformGetStorageItem, platformSetStorageItem, platformRemoveStorageItem, platformWriteCacheFile } from '../platform';
+import { platformLoadSubpackage, platformGetStorageItem, platformSetStorageItem, platformRemoveStorageItem, platformWriteCacheFile, platformNow } from '../platform';
 import type {
     AssetLoader, LoadContext, TextureResult, SpineResult,
     MaterialResult, FontResult, AudioResult, AnimClipResult,
@@ -331,6 +331,11 @@ export interface SceneAssetResult {
      */
     scope: AssetScope;
     missing: MissingAsset[];
+    /** Per asset type: how many loaded, the sum of their load times and the
+     *  slowest one, in ms. Loads overlap, so the sums exceed the wall time. */
+    timings: Record<string, { count: number; ms: number; slowestMs: number }>;
+    /** Wall time of the whole preload, in ms. */
+    wallMs: number;
 }
 
 export type AssetRefResolver = (ref: string) => string | null;
@@ -1467,6 +1472,17 @@ export class Assets {
          * SUCCEEDED — a failed load owns nothing, so there is nothing for the
          * scene to give back and nothing to guess about at unload.
          */
+        const timings: SceneAssetResult['timings'] = {};
+        const timedLoad = <R>(label: string, load: () => Promise<R>): Promise<R> => {
+            const began = platformNow();
+            return load().finally(() => {
+                const ms = platformNow() - began;
+                const t = timings[label] ??= { count: 0, ms: 0, slowestMs: 0 };
+                t.count++;
+                t.ms += ms;
+                t.slowestMs = Math.max(t.slowestMs, ms);
+            });
+        };
         const pushAcquire = <T>(
             paths: Set<string>,
             acquire: (p: string) => Promise<AssetLease<T>>,
@@ -1475,7 +1491,7 @@ export class Assets {
         ): void => {
             for (const path of paths) {
                 tasks.push(() =>
-                    acquire(path).then(lease => {
+                    timedLoad(label, () => acquire(path)).then(lease => {
                         scope.add(lease);
                         releaseCallbacks.push(() => lease.release());
                         if (handles) {
@@ -1545,9 +1561,16 @@ export class Assets {
         onProgress?.(0, totalCount);
 
         const maxConcurrent = Math.max(1, options?.maxConcurrent ?? DEFAULT_PRELOAD_CONCURRENCY);
+        const began = platformNow();
         await runWithConcurrency(tasks, maxConcurrent, () => {
             onProgress?.(++loadedCount, totalCount);
         });
+        const wallMs = platformNow() - began;
+        if (totalCount > 0) {
+            const parts = Object.entries(timings).sort((a, b) => b[1].ms - a[1].ms)
+                .map(([k, t]) => `${k} ${t.count} (${Math.round(t.ms)}ms, slowest ${Math.round(t.slowestMs)}ms)`);
+            log.info('asset', `preloaded ${totalCount} asset(s) in ${Math.round(wallMs)}ms, ${maxConcurrent} at a time: ${parts.join(', ')}`);
+        }
 
         // `unresolved` refs warn above; a load that THREW only reached `missing`,
         // which callers may ignore — so a scene drew with no textures and no
@@ -1555,7 +1578,7 @@ export class Assets {
         warnFailedLoads(missing.filter((m) => m.reason === 'load-failed'));
 
         return { textureHandles, materialHandles, fontHandles, meshHandles, environmentHandles,
-                 probeVolumeHandles, releaseCallbacks, scope, missing };
+                 probeVolumeHandles, releaseCallbacks, scope, missing, timings, wallMs };
     }
 
     resolveSceneAssetPaths(sceneData: SceneData, result: SceneAssetResult): void {

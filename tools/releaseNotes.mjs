@@ -1218,4 +1218,6 @@ export const NOTED = {
     { note: 'A KTX2 texture made outside Estella with a single level ships with a mip chain: the cook encodes the levels below it and keeps the file\'s own level 0 byte for byte, so it no longer shimmers into the distance. Bistro\'s 2048² textures each took about 0.3 s; the package grows by the chain\'s third.' },
   'perf(export): the cook reads back a texture encode it already did':
     { note: 'Exporting again is fast when the art has not changed: the cook keeps what it encoded under `.esengine/cache/cook/`, keyed by the source, the settings and the encoder. Re-exporting Bistro took 24 s against 131 s the first time.' },
+  'feat(asset): a scene preload reports what each asset type cost':
+    { note: 'A scene\'s preload logs what each asset type cost it — how many, their summed load time and the slowest one — and `preloadSceneAssets` returns the same as `timings` and `wallMs`. Bistro on a Windows machine: 132 materials 54 s, 107 textures 47 s and 1505 meshes 45 s of load time over 24 s of wall time.' },
 };
