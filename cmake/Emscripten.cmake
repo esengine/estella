@@ -276,12 +276,14 @@ function(es_apply_wxgame_sdk_settings TARGET_NAME)
         # WeChat's EmscriptenGLX: its gl* run inside the wasm and hand commands to
         # the host, falling back to emscripten_gl* where the host has no GLX. The
         # runtime starts it (miniGameRuntime) when the entry points are exported.
+        # Added to the WeChat lists rather than restating them, so the two builds
+        # cannot drift apart.
         if(ES_WXGAME_GLX_LIB)
-            list(FILTER _WXGAME_LINK EXCLUDE REGEX "^-sEXPORTED_(FUNCTIONS|RUNTIME_METHODS)=")
-            list(APPEND _WXGAME_LINK
-                "${ES_WXGAME_GLX_LIB}"
-                "-sEXPORTED_FUNCTIONS=['_malloc','_free','_glxInit','_glxInitBufferDataAndGlState','_glxUpdateContextId']"
-                "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','HEAPF32','HEAPU8','HEAPU32','GL','FS','wasmMemory','stringToUTF8','lengthBytesUTF8']")
+            list(TRANSFORM _WXGAME_LINK REPLACE "'\\]$" "','_glxInit','_glxInitBufferDataAndGlState','_glxUpdateContextId']"
+                REGEX "^-sEXPORTED_FUNCTIONS=")
+            list(TRANSFORM _WXGAME_LINK REPLACE "'\\]$" "','stringToUTF8','lengthBytesUTF8']"
+                REGEX "^-sEXPORTED_RUNTIME_METHODS=")
+            list(APPEND _WXGAME_LINK "${ES_WXGAME_GLX_LIB}")
         endif()
         string(REPLACE ";" " " LINK_FLAGS_STR "${_WXGAME_LINK}")
         set_target_properties(${TARGET_NAME} PROPERTIES
