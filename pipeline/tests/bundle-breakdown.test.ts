@@ -32,6 +32,11 @@ const metaWith = (inputs: Record<string, number>) => ({
 });
 
 describe('moduleOfInput', () => {
+  it('reads a Windows path as it reads any other', () => {
+    expect(moduleOfInput('D:\\dev\\game\\sdk\\src\\ai\\fsm.ts')).toBe('ai');
+    expect(moduleOfInput('C:\\p\\node_modules\\yoga\\index.js')).toBe('dep:yoga');
+  });
+
   it('names an SDK chunk by the chunk, which is the unit a bundler can drop', () => {
     expect(moduleOfInput('sdk/dist/shared/spine.js')).toBe('spine');
     expect(moduleOfInput('sdk/dist/index.wechat.js')).toBe('index.wechat');

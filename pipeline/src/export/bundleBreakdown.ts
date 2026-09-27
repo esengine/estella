@@ -37,7 +37,9 @@ export interface BundleMetafile {
  * Which module a path belongs to — an original source, or a built chunk when
  * there is no map to read it through.
  */
-export function moduleOfInput(input: string): string {
+export function moduleOfInput(spelled: string): string {
+  // A source map's sources are resolved with `path`, which spells them with `\` on Windows.
+  const input = spelled.replace(/\\/g, '/');
   const chunk = /(?:^|\/)sdk\/dist\/(?:shared\/)?([^/]+)\.[cm]?js$/.exec(input);
   if (chunk) return chunk[1];
   const src = /(?:^|\/)sdk\/src\/([^/]+)\/.+$/.exec(input);
