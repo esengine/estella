@@ -5,7 +5,7 @@ import { Catalog, type AtlasFrameInfo } from './Catalog';
 import { ManifestModel, normalizeBundleMode, type AddressableManifest, type AddressableAssetType } from './AddressableManifest';
 import { diffManifests, type UpdatePlan, type AssetChange } from './hotUpdate';
 import { contentHashHex } from './contentHash';
-import { platformLoadSubpackage, platformGetStorageItem, platformSetStorageItem, platformRemoveStorageItem, platformWriteCacheFile, platformNow } from '../platform';
+import { platformLoadSubpackage, platformGetStorageItem, platformSetStorageItem, platformRemoveStorageItem, platformWriteCacheFile } from '../platform';
 import type {
     AssetLoader, LoadContext, TextureResult, SpineResult,
     MaterialResult, FontResult, AudioResult, AnimClipResult,
@@ -150,6 +150,10 @@ interface PendingUpdate {
  * saturate the network, CPU image decoders, and WASM memory.
  */
 const DEFAULT_PRELOAD_CONCURRENCY = 6;
+
+/** A preload's timings are a report, so they need no platform: a realm without
+ *  one (a test, a tool) still loads. */
+const preloadClock = (): number => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
 /**
  * Run an array of lazy task thunks with at most `maxConcurrent` in
@@ -1474,9 +1478,9 @@ export class Assets {
          */
         const timings: SceneAssetResult['timings'] = {};
         const timedLoad = <R>(label: string, load: () => Promise<R>): Promise<R> => {
-            const began = platformNow();
+            const began = preloadClock();
             return load().finally(() => {
-                const ms = platformNow() - began;
+                const ms = preloadClock() - began;
                 const t = timings[label] ??= { count: 0, ms: 0, slowestMs: 0 };
                 t.count++;
                 t.ms += ms;
@@ -1561,11 +1565,11 @@ export class Assets {
         onProgress?.(0, totalCount);
 
         const maxConcurrent = Math.max(1, options?.maxConcurrent ?? DEFAULT_PRELOAD_CONCURRENCY);
-        const began = platformNow();
+        const began = preloadClock();
         await runWithConcurrency(tasks, maxConcurrent, () => {
             onProgress?.(++loadedCount, totalCount);
         });
-        const wallMs = platformNow() - began;
+        const wallMs = preloadClock() - began;
         if (totalCount > 0) {
             const parts = Object.entries(timings).sort((a, b) => b[1].ms - a[1].ms)
                 .map(([k, t]) => `${k} ${t.count} (${Math.round(t.ms)}ms, slowest ${Math.round(t.slowestMs)}ms)`);
