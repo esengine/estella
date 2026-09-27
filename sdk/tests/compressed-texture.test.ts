@@ -69,17 +69,17 @@ beforeEach(() => {
 afterEach(() => shutdownResourceManager());
 
 describe('KTX2 detection', () => {
-    it('matches the 12-byte identifier', () => {
+    it('matches the 12-byte identifier', async () => {
         expect(isKtx2(KTX2_HEADER)).toBe(true);
     });
-    it('rejects non-KTX2 / short buffers', () => {
+    it('rejects non-KTX2 / short buffers', async () => {
         expect(isKtx2(new Uint8Array([0x89, 0x50, 0x4e, 0x47]))).toBe(false);
         expect(isKtx2(new Uint8Array(4))).toBe(false);
     });
 });
 
 describe('format capability selection', () => {
-    it('prefers ASTC > ETC2 > S3TC', () => {
+    it('prefers ASTC > ETC2 > S3TC', async () => {
         expect(chooseTargetFormat(detectCompressedTextureSupport(makeGl({ astc: true, etc: true, s3tc: true }) as never)))
             .toBe(CompressedTextureFormat.ASTC_4x4);
         expect(chooseTargetFormat(detectCompressedTextureSupport(makeGl({ etc: true, s3tc: true }) as never)))
@@ -87,23 +87,23 @@ describe('format capability selection', () => {
         expect(chooseTargetFormat(detectCompressedTextureSupport(makeGl({ s3tc: true }) as never)))
             .toBe(CompressedTextureFormat.S3TC_DXT5);
     });
-    it('returns null when no compressed extension is available', () => {
+    it('returns null when no compressed extension is available', async () => {
         expect(chooseTargetFormat(detectCompressedTextureSupport(makeGl() as never))).toBeNull();
     });
-    it('maps each format to its enabling extension constant', () => {
+    it('maps each format to its enabling extension constant', async () => {
         const s = detectCompressedTextureSupport(makeGl({ astc: true, etc: true, s3tc: true }) as never);
         expect(glInternalFormat(s, CompressedTextureFormat.ASTC_4x4)).toBe(ASTC);
         expect(glInternalFormat(s, CompressedTextureFormat.ETC2_RGBA8)).toBe(ETC2);
         expect(glInternalFormat(s, CompressedTextureFormat.S3TC_DXT5)).toBe(DXT5);
     });
-    it('srgb maps to the sRGB variant constants (linear pipeline)', () => {
+    it('srgb maps to the sRGB variant constants (linear pipeline)', async () => {
         const s = detectCompressedTextureSupport(
             makeGl({ astc: true, etc: true, s3tc: true, s3tcSrgb: true }) as never);
         expect(glInternalFormat(s, CompressedTextureFormat.ASTC_4x4, true)).toBe(ASTC_SRGB);
         expect(glInternalFormat(s, CompressedTextureFormat.ETC2_RGBA8, true)).toBe(ETC2_SRGB);
         expect(glInternalFormat(s, CompressedTextureFormat.S3TC_DXT5, true)).toBe(DXT5_SRGB);
     });
-    it('srgb S3TC requires the separate s3tc_srgb extension', () => {
+    it('srgb S3TC requires the separate s3tc_srgb extension', async () => {
         // Base s3tc alone cannot upload sRGB DXT blocks: no target, no internalformat.
         const s = detectCompressedTextureSupport(makeGl({ s3tc: true }) as never);
         expect(chooseTargetFormat(s, true)).toBeNull();
@@ -114,11 +114,11 @@ describe('format capability selection', () => {
 });
 
 describe('loadCompressedTexture', () => {
-    it('uploads compressed when the device supports a format', () => {
+    it('uploads compressed when the device supports a format', async () => {
         const gl = makeGl({ astc: true });
         const mod = makeModule();
         const transcoder = makeTranscoder();
-        const r = loadCompressedTexture(gl as never, mod as never, transcoder, KTX2_HEADER);
+        const r = await loadCompressedTexture(gl as never, mod as never, transcoder, KTX2_HEADER);
 
         expect(transcoder.transcode).toHaveBeenCalledWith(KTX2_HEADER, CompressedTextureFormat.ASTC_4x4);
         expect(transcoder.transcodeToRgba).not.toHaveBeenCalled();
@@ -136,10 +136,10 @@ describe('loadCompressedTexture', () => {
         });
     });
 
-    it('falls back to RGBA8 when no compressed format is supported', () => {
+    it('falls back to RGBA8 when no compressed format is supported', async () => {
         const gl = makeGl();  // no extensions
         const transcoder = makeTranscoder();
-        const r = loadCompressedTexture(gl as never, makeModule() as never, transcoder, KTX2_HEADER);
+        const r = await loadCompressedTexture(gl as never, makeModule() as never, transcoder, KTX2_HEADER);
 
         expect(transcoder.transcode).not.toHaveBeenCalled();
         expect(transcoder.transcodeToRgba).toHaveBeenCalledOnce();
@@ -153,10 +153,10 @@ describe('loadCompressedTexture', () => {
         });
     });
 
-    it('falls back to RGBA8 when the compressed transcode fails', () => {
+    it('falls back to RGBA8 when the compressed transcode fails', async () => {
         const gl = makeGl({ etc: true });
         const transcoder = makeTranscoder({ transcode: vi.fn(() => null) });
-        const r = loadCompressedTexture(gl as never, makeModule() as never, transcoder, KTX2_HEADER);
+        const r = await loadCompressedTexture(gl as never, makeModule() as never, transcoder, KTX2_HEADER);
 
         expect(transcoder.transcode).toHaveBeenCalledOnce();
         expect(transcoder.transcodeToRgba).toHaveBeenCalledOnce();
@@ -169,21 +169,21 @@ describe('loadCompressedTexture', () => {
         });
     });
 
-    it('throws when both compressed and RGBA decode fail', () => {
+    it('throws when both compressed and RGBA decode fail', async () => {
         const gl = makeGl({ astc: true });
         const transcoder = makeTranscoder({ transcode: vi.fn(() => null), transcodeToRgba: vi.fn(() => null) });
-        expect(() => loadCompressedTexture(gl as never, makeModule() as never, transcoder, KTX2_HEADER)).toThrow(/failed to decode/i);
+        await expect(loadCompressedTexture(gl as never, makeModule() as never, transcoder, KTX2_HEADER)).rejects.toThrow(/failed to decode/i);
     });
 
-    it('srgb uploads the sRGB internalformat of the chosen format', () => {
+    it('srgb uploads the sRGB internalformat of the chosen format', async () => {
         const gl = makeGl({ astc: true });
-        loadCompressedTexture(gl as never, makeModule() as never, makeTranscoder(), KTX2_HEADER, { srgb: true });
+        await loadCompressedTexture(gl as never, makeModule() as never, makeTranscoder(), KTX2_HEADER, { srgb: true });
         expect(gl.compressedTexImage2D.mock.calls[0][2]).toBe(ASTC_SRGB);
     });
 
-    it('srgb RGBA fallback stores SRGB8_ALPHA8', () => {
+    it('srgb RGBA fallback stores SRGB8_ALPHA8', async () => {
         const gl = makeGl();  // no compressed support → RGBA path
-        loadCompressedTexture(gl as never, makeModule() as never, makeTranscoder(), KTX2_HEADER, { srgb: true });
+        await loadCompressedTexture(gl as never, makeModule() as never, makeTranscoder(), KTX2_HEADER, { srgb: true });
         expect(gl.texImage2D).toHaveBeenCalledTimes(1);
         expect(gl.texImage2D.mock.calls[0][2]).toBe(SRGB8_ALPHA8);
     });
@@ -198,9 +198,9 @@ describe('mip levels', () => {
 
     // Every KTX2 the cook writes carries a chain; a level left behind is a texture
     // that shimmers in the distance and bytes shipped for nothing.
-    it('uploads every level a compressed file carries and samples them as a chain', () => {
+    it('uploads every level a compressed file carries and samples them as a chain', async () => {
         const gl = makeGl({ astc: true });
-        loadCompressedTexture(gl as never, makeModule() as never,
+        await loadCompressedTexture(gl as never, makeModule() as never,
             makeTranscoder({ transcode: vi.fn(() => ({ ...chain[0], levels: chain })) }), KTX2_HEADER);
         expect(gl.compressedTexImage2D.mock.calls.map((c) => [c[1], c[3]])).toEqual([[0, 8], [1, 4], [2, 2]]);
         expect(minFilter(gl)).toBe(gl.LINEAR_MIPMAP_LINEAR);
@@ -208,33 +208,33 @@ describe('mip levels', () => {
         expect(gl.generateMipmap).not.toHaveBeenCalled();
     });
 
-    it('keeps level 0 alone when the import setting turns mipmaps off', () => {
+    it('keeps level 0 alone when the import setting turns mipmaps off', async () => {
         const gl = makeGl({ astc: true });
-        loadCompressedTexture(gl as never, makeModule() as never,
+        await loadCompressedTexture(gl as never, makeModule() as never,
             makeTranscoder({ transcode: vi.fn(() => ({ ...chain[0], levels: chain })) }), KTX2_HEADER, { mipmaps: false });
         expect(gl.compressedTexImage2D).toHaveBeenCalledTimes(1);
         expect(minFilter(gl)).toBe(gl.LINEAR);
         expect(gl.generateMipmap).not.toHaveBeenCalled();
     });
 
-    it('samples a single compressed level without mips, since none can be generated', () => {
+    it('samples a single compressed level without mips, since none can be generated', async () => {
         const gl = makeGl({ astc: true });
-        loadCompressedTexture(gl as never, makeModule() as never, makeTranscoder(), KTX2_HEADER);
+        await loadCompressedTexture(gl as never, makeModule() as never, makeTranscoder(), KTX2_HEADER);
         expect(minFilter(gl)).toBe(gl.LINEAR);
         expect(maxLevel(gl)).toBeUndefined();
         expect(gl.generateMipmap).not.toHaveBeenCalled();
     });
 
-    it('generates a chain for a single level decoded to RGBA', () => {
+    it('generates a chain for a single level decoded to RGBA', async () => {
         const gl = makeGl();
-        loadCompressedTexture(gl as never, makeModule() as never, makeTranscoder(), KTX2_HEADER);
+        await loadCompressedTexture(gl as never, makeModule() as never, makeTranscoder(), KTX2_HEADER);
         expect(minFilter(gl)).toBe(gl.LINEAR_MIPMAP_LINEAR);
         expect(gl.generateMipmap).toHaveBeenCalledTimes(1);
     });
 });
 
 describe('uploadCompressedTexture', () => {
-    it('throws if the chosen format has no enabling extension', () => {
+    it('throws if the chosen format has no enabling extension', async () => {
         const gl = makeGl();  // ASTC not enabled
         const support = detectCompressedTextureSupport(gl as never);
         expect(() =>
@@ -251,18 +251,18 @@ describe('GPU byte accounting', () => {
         initResourceManager({ registerExternalTexture, registerExternalTextureSized } as never);
     });
 
-    it('books compressed uploads at their real block size, not the RGBA8 estimate', () => {
+    it('books compressed uploads at their real block size, not the RGBA8 estimate', async () => {
         const gl = makeGl({ astc: true });
         // 4×4 ASTC block data is 8 bytes here vs a 64-byte RGBA8 estimate.
-        loadCompressedTexture(gl as never, makeModule() as never, makeTranscoder(), KTX2_HEADER);
+        await loadCompressedTexture(gl as never, makeModule() as never, makeTranscoder(), KTX2_HEADER);
 
         expect(registerExternalTextureSized).toHaveBeenCalledWith(7, 4, 4, 8, TextureContent.Asset);
         expect(registerExternalTexture).not.toHaveBeenCalled();
     });
 
-    it('books the RGBA8 fallback at the estimate (which is exact for RGBA8)', () => {
+    it('books the RGBA8 fallback at the estimate (which is exact for RGBA8)', async () => {
         const gl = makeGl();  // no compressed support → RGBA path
-        loadCompressedTexture(gl as never, makeModule() as never, makeTranscoder(), KTX2_HEADER);
+        await loadCompressedTexture(gl as never, makeModule() as never, makeTranscoder(), KTX2_HEADER);
 
         expect(registerExternalTexture).toHaveBeenCalledWith(7, 4, 4, TextureContent.Asset);
         expect(registerExternalTextureSized).not.toHaveBeenCalled();

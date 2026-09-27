@@ -7488,6 +7488,7 @@ globalName: string | undefined
 ## SideModuleHost — interface @experimental
 ```
 acquire: (id: SideModuleId) => Promise<SideModule | null>
+source: ((id: SideModuleId) => Promise<SideModuleSource | null>) | undefined
 ```
 
 ## SideModuleId — type @experimental

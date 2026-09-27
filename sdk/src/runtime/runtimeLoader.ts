@@ -23,7 +23,7 @@ import { applyAudioProjectConfig, type AudioProjectConfig } from '../audio/Audio
 import type { App } from '../app/app';
 import { Assets as AssetsClass } from '../asset/Assets';
 import { Assets as AssetsResource } from '../asset/AssetPlugin';
-import { transcoderFromModule, type BasisWasmModule } from '../asset/basisTranscoder';
+import { basisTranscoderFor } from '../asset/basisWorkers';
 import type { BasisTranscoder } from '../asset/compressed';
 import type { TextureImportSettings } from '../asset/loaders/TextureLoader';
 import { SceneManager, type SceneConfig } from '../scene/sceneManager';
@@ -118,12 +118,7 @@ function ensureRuntimeAssets(
     loader.setPixelDecoder((path, flip) => source.decodePixels(path, flip));
     // KTX2 transcoder, self-gated off app.sideModules — identical wiring to
     // AssetPlugin.build so eager + on-demand loads transcode the same way.
-    loader.setTranscoderProvider(async () => {
-        const host = app.sideModules;
-        if (!host) return null;
-        const mod = await host.acquire('basis');
-        return mod ? transcoderFromModule(mod as unknown as BasisWasmModule) : null;
-    });
+    loader.setTranscoderProvider(() => basisTranscoderFor(app.sideModules));
 
     // Two suppliers, one resolver, in precedence order:
     //   - the REALM's asset source describes the ASSET (the editor's database, a
@@ -418,12 +413,7 @@ export async function prepareRuntimeScene(
         log.warn('scene', `${discovered.spines.length} spine asset(s) skipped — `
             + 'this realm has no optional-module host to load a Spine runtime from');
     }
-    const transcoderProvider = async (): Promise<BasisTranscoder | null> => {
-        const host = app.sideModules;
-        if (!host) return null;
-        const mod = await host.acquire('basis');
-        return mod ? transcoderFromModule(mod as unknown as BasisWasmModule) : null;
-    };
+    const transcoderProvider = (): Promise<BasisTranscoder | null> => basisTranscoderFor(app.sideModules);
     const subsystemsBegan = onPhase ? performance.now() : 0;
     // Prepared by the realm, owned by the scene: the receipts join the scope
     // this scene gives back, and a second scene of one spine asset joins its era

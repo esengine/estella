@@ -21,6 +21,16 @@ export type SideModule = Record<string, unknown>;
 export interface SideModuleHost {
     /** Instantiate `id` for this realm (cached); null if unavailable or it failed. */
     acquire(id: SideModuleId): Promise<SideModule | null>;
+    /** The glue and binary `id` is instantiated from, for a worker to instantiate
+     *  its own copy; absent where the realm has none to hand over. */
+    source?(id: SideModuleId): Promise<SideModuleSource | null>;
+}
+
+export interface SideModuleSource {
+    readonly glueText: string;
+    /** The global the glue defines its factory as. */
+    readonly globalName: string;
+    readonly wasmBytes: ArrayBuffer;
 }
 
 /** A realm's transport: turn a descriptor into an instantiated module. */

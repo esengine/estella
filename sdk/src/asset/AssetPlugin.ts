@@ -6,7 +6,7 @@ import { Schedule, defineSystem } from '../ecs/system';
 import { DeviceStatus, getDeviceStatus } from '../render/renderer';
 import { Assets as AssetsClass } from './Assets';
 import { HttpBackend } from './Backend';
-import { transcoderFromModule, type BasisWasmModule } from './basisTranscoder';
+import { basisTranscoderFor } from './basisWorkers';
 import { AssetRefCounter } from './AssetRefCounter';
 import { Audio, type AudioAPI } from '../audio/Audio';
 import { SpriteAnimation, type SpriteAnimationAPI } from '../animation/SpriteAnimator';
@@ -62,12 +62,7 @@ export class AssetPlugin implements Plugin {
         // physics/spine acquire their modules — only when a compressed texture is
         // actually loaded. The closure defers to app.sideModules,
         // which the realm sets before any asset load.
-        assets.getTextureLoader().setTranscoderProvider(async () => {
-            const host = app.sideModules;
-            if (!host) return null;
-            const mod = await host.acquire('basis');
-            return mod ? transcoderFromModule(mod as unknown as BasisWasmModule) : null;
-        });
+        assets.getTextureLoader().setTranscoderProvider(() => basisTranscoderFor(app.sideModules));
 
         // Install the ref counter so resolveSceneAssetPaths records who
         // uses what, and wire it to world despawns so entries don't

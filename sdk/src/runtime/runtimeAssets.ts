@@ -127,7 +127,7 @@ async function uploadAtlasPage(
     }
     const transcoder = await transcoderProvider?.();
     if (!transcoder) throw new Error('KTX2 atlas page but no Basis transcoder in this realm');
-    const rgba = transcoder.transcodeToRgba(bytes);
+    const rgba = await transcoder.transcodeToRgba(bytes);
     if (!rgba) throw new Error(`KTX2 transcode failed: ${staged}`);
     const decoded = { width: rgba.width, height: rgba.height, pixels: rgba.data };
     return { handle: createTextureFromPixels(module, decoded, TextureContent.AtlasPage, false), ...decoded };

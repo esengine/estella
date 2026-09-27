@@ -1220,4 +1220,8 @@ export const NOTED = {
     { note: 'Exporting again is fast when the art has not changed: the cook keeps what it encoded under `.esengine/cache/cook/`, keyed by the source, the settings and the encoder. Re-exporting Bistro took 24 s against 131 s the first time.' },
   'feat(asset): a scene preload reports what each asset type cost':
     { note: 'A scene\'s preload logs what each asset type cost it — how many, their summed load time and the slowest one — and `preloadSceneAssets` returns the same as `timings` and `wallMs`. Bistro on a Windows machine: 132 materials 54 s, 107 textures 47 s and 1505 meshes 45 s of load time over 24 s of wall time.' },
-};
+  'perf(asset): KTX2 textures transcode on worker threads':
+    { note: 'KTX2 textures on the web and in the editor transcode on worker threads instead of the main thread, one to four of them by the machine\'s cores. Bistro\'s assets loaded in 14 s instead of 24 s on a Windows machine, and the page stays responsive while they do. A realm with no workers (a mini-game host) transcodes on the main thread as before, and so does one whose workers fail, which says so once.' },
+  'fix(asset): a preload times itself without a platform':
+    { internal: 'The per-type preload timings landed one commit earlier and never shipped; they read the platform clock, which a realm without a platform (the SDK tests) does not have.' },
+}};

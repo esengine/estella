@@ -85,10 +85,11 @@ export interface RgbaResult {
  * decision logic stays unit-testable without it.
  */
 export interface BasisTranscoder {
-    /** Transcode to a device-supported compressed format, or null if it cannot. */
-    transcode(ktx2: Uint8Array, target: CompressedTextureFormat): TranscodeResult | null;
+    /** Transcode to a device-supported compressed format, or null if it cannot.
+     *  A worker-backed transcoder answers with a promise. */
+    transcode(ktx2: Uint8Array, target: CompressedTextureFormat): TranscodeResult | null | Promise<TranscodeResult | null>;
     /** Decode to uncompressed RGBA8 — the universal fallback. */
-    transcodeToRgba(ktx2: Uint8Array): RgbaResult | null;
+    transcodeToRgba(ktx2: Uint8Array): RgbaResult | null | Promise<RgbaResult | null>;
 }
 
 // =============================================================================
@@ -378,18 +379,18 @@ export interface LoadedCompressedTexture extends UploadedTexture {
  * format, fall back to RGBA8 when none is available or the compressed transcode
  * fails. Throws only if even the RGBA decode fails (a corrupt/unsupported file).
  */
-export function loadCompressedTexture(
+export async function loadCompressedTexture(
     gl: WebGL2RenderingContext, module: ESEngineModule,
     transcoder: BasisTranscoder, bytes: Uint8Array, opts?: CompressedUploadOptions,
-): LoadedCompressedTexture {
+): Promise<LoadedCompressedTexture> {
     const support = detectCompressedTextureSupport(gl);
     const target = chooseTargetFormat(support, opts?.srgb ?? false);
-    const t = target !== null ? transcoder.transcode(bytes, target) : null;
+    const t = target !== null ? await transcoder.transcode(bytes, target) : null;
     const decision = compressedUploadDecision(target, t !== null);
     if (target !== null && t) {
         return { ...uploadCompressedTexture(gl, module, support, target, t, opts), decision };
     }
-    const rgba = transcoder.transcodeToRgba(bytes);
+    const rgba = await transcoder.transcodeToRgba(bytes);
     if (!rgba) throw new Error('BasisTranscoder failed to decode KTX2 (compressed and RGBA paths both failed)');
     return { ...uploadRgbaTexture(gl, module, rgba, opts), decision };
 }

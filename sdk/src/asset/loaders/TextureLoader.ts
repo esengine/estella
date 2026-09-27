@@ -264,7 +264,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         // sRGB variant of whatever compressed format the device supports.
         // A WebGL2 context implies a wasm module (native has neither, and threw
         // above on the missing gl); the KTX2 path is web-only.
-        const r = loadCompressedTexture(gl, this.module_!, transcoder, bytes,
+        const r = await loadCompressedTexture(gl, this.module_!, transcoder, bytes,
             { ...settings, srgb: linearColorSpace() });
         this.lastDecision_ = r.decision;
         return { handle: r.handle, width: r.width, height: r.height };
@@ -284,7 +284,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         if (module && rm.supportsCompressedFormat && rm.createCompressedTexture) {
             const supports = rm.supportsCompressedFormat.bind(rm);
             const target = chooseEngineTargetFormat((code) => supports(code), srgb);
-            const t = target ? transcoder.transcode(bytes, target) : null;
+            const t = target ? await transcoder.transcode(bytes, target) : null;
             this.lastDecision_ = compressedUploadDecision(target, t !== null);
             if (target && t) {
                 const code = engineFormatCode(target, srgb);
@@ -310,7 +310,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         } else {
             this.lastDecision_ = compressedUploadDecision(null, false);
         }
-        const rgba = transcoder.transcodeToRgba(bytes);
+        const rgba = await transcoder.transcodeToRgba(bytes);
         if (!rgba) throw new Error(`TextureLoader: KTX2 decode failed for ${path}`);
         return this.loadFromPixels(rgba.width, rgba.height, rgba.data, false, TextureContent.Asset);
     }
