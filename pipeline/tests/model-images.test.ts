@@ -85,6 +85,22 @@ describe('preparing a model\'s images', () => {
         expect(run(i => (i % 4 === 0 ? 0 : 255), false)).toEqual({ cutoff: undefined, opaque: true });
     });
 
+    it('marks the maps that hold numbers as not sRGB, and leaves colour alone', () => {
+        const result = model({
+            baseColorTexture: { file: 'base.jpg', external: true },
+            emissiveTexture: { file: 'glow.jpg', external: true },
+            normalTexture: { file: 'n.jpg', external: true, settings: { wrapMode: 'clamp' } },
+            metallicRoughnessTexture: { file: 'mr.jpg', external: true },
+            occlusionTexture: { file: 'ao.jpg', external: true },
+        });
+        prepareModelImages(result, () => null);
+        const m = result.meshes[0]!.material!;
+        expect([m.baseColorTexture?.settings, m.emissiveTexture?.settings]).toEqual([undefined, undefined]);
+        expect(m.normalTexture?.settings).toEqual({ wrapMode: 'clamp', sRGB: false });
+        expect([m.metallicRoughnessTexture?.settings, m.occlusionTexture?.settings])
+            .toEqual([{ sRGB: false }, { sRGB: false }]);
+    });
+
     it('skips a DDS it cannot read rather than referencing a file nothing loads', () => {
         const result = model({ normalTexture: { file: 'gone.dds', external: true } }, ['gone.dds']);
         prepareModelImages(result, () => null);

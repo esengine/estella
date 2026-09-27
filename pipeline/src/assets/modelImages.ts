@@ -18,6 +18,9 @@ type ImageSlot = 'baseColorTexture' | 'normalTexture' | 'emissiveTexture'
 const SLOTS: ImageSlot[] = ['baseColorTexture', 'normalTexture', 'emissiveTexture',
     'occlusionTexture', 'metallicRoughnessTexture'];
 
+/** Slots whose texels are numbers, not colour: sampled through sRGB decode they bend. */
+const DATA_SLOTS = new Set<ImageSlot>(['normalTexture', 'occlusionTexture', 'metallicRoughnessTexture']);
+
 interface Pixels { width: number; height: number; rgba: Uint8Array }
 
 /** Above this many texels a single colour is worth saying: the file costs what a constant would not. */
@@ -126,7 +129,8 @@ export function prepareModelImages(result: ModelImportResult,
                 continue;
             }
             // The sampler settings ride the reference, not the file.
-            material[slot] = ref.settings ? { ...converted, settings: ref.settings } : converted;
+            const settings = DATA_SLOTS.has(slot) ? { ...ref.settings, sRGB: false } : ref.settings;
+            material[slot] = settings ? { ...converted, settings } : converted;
             if (!pixels) continue;
             // A format with no alpha mode (FBX) leaves the base colour's alpha to say it.
             if (slot === 'baseColorTexture' && options.alphaFromBaseColor

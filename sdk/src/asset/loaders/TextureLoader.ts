@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { AssetLoader, LoadContext, TextureResult } from '../AssetLoader';
-import { linearColorSpace } from '../../ecs/env';
+import { linearColorSpace, samplesAsSrgb } from '../../ecs/env';
 import { platformCreateImage } from '../../platform/base';
 import type { PlatformImage } from '../../platform/types';
 import { decodeImageBitmap, readImagePixels } from '../imageDecode';
@@ -238,10 +238,10 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         if (!isKtx2(bytes)) throw new Error(`TextureLoader: ${path} is not a KTX2 file`);
         // Native (embedded Dawn): the ResourceManager transcodes the KTX2 with the
         // host's basis library and uploads the compressed blocks — no WebGL2, no
-        // wasm transcoder. sRGB follows the color pipeline, like the web path below.
+        // wasm transcoder. sRGB follows the texture's settings, as on every path.
         const rm = requireResourceManager();
         if (rm.createTextureFromKTX2) {
-            const r = rm.createTextureFromKTX2(bytes, linearColorSpace());
+            const r = rm.createTextureFromKTX2(bytes, samplesAsSrgb(settings?.srgb));
             if (!r) throw new Error(`TextureLoader: KTX2 transcode failed for ${path}`);
             // A host that reports no format says nothing rather than claiming
             // success: -1 with no block refusal reads as "this device offered
@@ -258,14 +258,12 @@ export class TextureLoader implements AssetLoader<TextureResult> {
             // No GL context (the WebGPU backend): ask the ENGINE which format it
             // samples and upload through it. Sampler state is what the GL path
             // below still has and this one does not — here it takes the defaults.
-            return this.loadCompressedViaEngine(path, transcoder, bytes);
+            return this.loadCompressedViaEngine(path, transcoder, bytes, samplesAsSrgb(settings?.srgb));
         }
-        // KTX2 payloads are color, like the PNG path: linear mode wants the
-        // sRGB variant of whatever compressed format the device supports.
         // A WebGL2 context implies a wasm module (native has neither, and threw
         // above on the missing gl); the KTX2 path is web-only.
         const r = await loadCompressedTexture(gl, this.module_!, transcoder, bytes,
-            { ...settings, srgb: linearColorSpace() });
+            { ...settings, srgb: samplesAsSrgb(settings?.srgb) });
         this.lastDecision_ = r.decision;
         return { handle: r.handle, width: r.width, height: r.height };
     }
@@ -276,11 +274,10 @@ export class TextureLoader implements AssetLoader<TextureResult> {
      * transcode to it fails — the same bargain the GL path makes.
      */
     private async loadCompressedViaEngine(
-        path: string, transcoder: BasisTranscoder, bytes: Uint8Array,
+        path: string, transcoder: BasisTranscoder, bytes: Uint8Array, srgb: boolean,
     ): Promise<TextureResult> {
         const rm = requireResourceManager();
         const module = this.module_;
-        const srgb = linearColorSpace();
         if (module && rm.supportsCompressedFormat && rm.createCompressedTexture) {
             const supports = rm.supportsCompressedFormat.bind(rm);
             const target = chooseEngineTargetFormat((code) => supports(code), srgb);
@@ -427,7 +424,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
 
         const rm = requireResourceManager();
         // Format 2 = sRGB color under the linear pipeline (see rm_createTexture).
-        const format = linearColorSpace() && (settings?.srgb ?? true) ? 2 : 1;
+        const format = samplesAsSrgb(settings?.srgb) ? 2 : 1;
         const handle = withMalloc(module, pixels.length, ptr => {
             module.HEAPU8.set(pixels, ptr);
             return rm.createTexture(width, height, ptr, pixels.length, format, flip, TextureContent.Asset);

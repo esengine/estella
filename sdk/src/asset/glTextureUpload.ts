@@ -18,7 +18,7 @@
  * Everything here acts on the CURRENTLY BOUND `TEXTURE_2D`, which is what lets
  * one function serve both a first upload and a re-upload into a live texture.
  */
-import { linearColorSpace } from '../ecs/env';
+import { samplesAsSrgb } from '../ecs/env';
 import { glWrapMode, type TextureWrap } from './glTexParams';
 import type { PlatformCanvas, PlatformImage } from '../platform/types';
 import { requireResourceManager } from '../wasm/resourceManager';
@@ -59,7 +59,7 @@ export function uploadBoundTextureImage(
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
     // Linear pipeline: color textures store sRGB-encoded — the sampler
     // linearizes in hardware. Data textures (normal maps) opt out.
-    const internalFormat = linearColorSpace() && (srgb ?? true) ? gl.SRGB8_ALPHA8 : gl.RGBA;
+    const internalFormat = samplesAsSrgb(srgb) ? gl.SRGB8_ALPHA8 : gl.RGBA;
     gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, gl.RGBA, gl.UNSIGNED_BYTE, source as TexImageSource);
     // Left where every other upload expects it, not where this one wanted it.
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0);

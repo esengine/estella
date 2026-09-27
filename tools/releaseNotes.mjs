@@ -1242,6 +1242,10 @@ export const NOTED = {
     { note: 'A post-process effect placed before bloom or SSAO takes effect' },
   'feat(import): an FBX material takes its alpha from its base colour, and .DoubleSided draws both sides':
     { note: 'An FBX material takes its alpha from its base colour image' },
+  'fix(texture): data maps are sampled as data under the linear pipeline':
+    { note: 'Normal, roughness/metalness and occlusion maps are sampled as data' },
+  'fix(import): a model\'s data maps reach their .meta as not sRGB':
+    { note: 'Normal, roughness/metalness and occlusion maps are sampled as data' },
   'fix(eht): the generator writes LF on every platform':
     { internal: 'The engine header tool is a repository generator; on Windows it rewrote every generated file with CRLF, which only a contributor there ever saw.' },
 };

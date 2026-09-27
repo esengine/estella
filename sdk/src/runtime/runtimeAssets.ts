@@ -7,10 +7,9 @@
  *          builder runtime loader and the spine scene loader (and any editor that
  *          drives the same load path). Kept in its own module so neither the
  *          runtime loader nor the spine loader has to import the other.
-import { linearColorSpace } from '../ecs/env';
  */
 import { TextureContent, type ESEngineModule } from '../wasm';
-import { linearColorSpace } from '../ecs/env';
+import { samplesAsSrgb } from '../ecs/env';
 import type { Backend } from '../asset/Backend';
 import type { ParsedTextureImportSettings } from '../asset/textureImportSettings';
 import { provideTextureContent, requireResourceManager } from '../wasm/resourceManager';
@@ -121,7 +120,7 @@ async function uploadAtlasPage(
     const bytes = new Uint8Array(await fetchBinary(staged));
     const rm = requireResourceManager();
     if (rm.createTextureFromKTX2) {
-        const r = rm.createTextureFromKTX2(bytes, linearColorSpace());
+        const r = rm.createTextureFromKTX2(bytes, samplesAsSrgb());
         if (!r) throw new Error(`KTX2 transcode failed: ${staged}`);
         return r;
     }
@@ -142,7 +141,7 @@ export function createTextureFromPixels(
 ): number {
     const rm = requireResourceManager();
     // Format code 2 = sRGB-encoded color (linear pipeline); 1 = plain RGBA8.
-    const format = linearColorSpace() && (params?.srgb ?? true) ? 2 : 1;
+    const format = samplesAsSrgb(params?.srgb) ? 2 : 1;
     // Native path: no wasm heap — the ResourceManager uploads the bytes itself.
     // The wasm embind object has no createTextureFromBytes, so web falls through
     // to the heap path below unchanged.

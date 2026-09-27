@@ -80,3 +80,12 @@ export function setLinearColorSpace(linear: boolean): void {
 export function linearColorSpace(): boolean {
     return linearColor;
 }
+
+/**
+ * Whether a texture is sampled through sRGB decode: colour is, under the linear
+ * pipeline, unless its import settings say it holds data (a normal map, packed
+ * roughness), which decoded as colour would bend every value below one.
+ */
+export function samplesAsSrgb(srgb?: boolean): boolean {
+    return linearColor && (srgb ?? true);
+}

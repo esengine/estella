@@ -41,7 +41,7 @@ export interface ImportedImageRef {
     external: boolean;
     /** Import settings the source's sampler asks for, in the engine's own words.
      *  Absent where the source names no sampler (its defaults are the engine's). */
-    settings?: { filterMode?: 'nearest' | 'linear'; wrapMode?: 'repeat' | 'clamp' | 'mirror' };
+    settings?: { filterMode?: 'nearest' | 'linear'; wrapMode?: 'repeat' | 'clamp' | 'mirror'; sRGB?: boolean };
 }
 
 /**
