@@ -1194,4 +1194,8 @@ export const NOTED = {
     { note: 'Sprite masks work in WeChat and other mini-game packages: the game\'s WebGL context was created without a stencil buffer, so every mask drew as if it were not there (space-shooter\'s hull bar read as empty). The web, playable and mini-game hosts now create the context with the same attributes.' },
   'test(golden): space-shooter is certified on WeChat by the pixels it claims':
     { internal: 'A repository golden check; no creator runs it.' },
+  'feat(debug): a connected build answers with the whole frame it composited':
+    { note: 'A connected development build can be asked for the whole frame it composited — every camera and the UI over them — as the player sees it: `device_screenshot` returns it as a PNG, read back by the device\'s own engine. The frame debugger\'s replay shows one pass of a captured frame.' },
+  'feat(agent): device_screenshot shows what a connected build shows its player':
+    { note: 'A connected development build can be asked for the whole frame it composited — every camera and the UI over them — as the player sees it: `device_screenshot` returns it as a PNG, read back by the device\'s own engine. The frame debugger\'s replay shows one pass of a captured frame.' },
 };

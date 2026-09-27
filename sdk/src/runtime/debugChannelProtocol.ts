@@ -30,6 +30,8 @@ export interface DebugControl {
 export type DebugChannelQuery =
     | { t: 'query'; reqId: number; kind: 'frameCapture' }
     | { t: 'query'; reqId: number; kind: 'frameReplay'; drawIndex: number; maxSide?: number }
+    /** The whole composited frame, as the engine drew it. */
+    | { t: 'query'; reqId: number; kind: 'screen'; maxSide?: number }
     | { t: 'query'; reqId: number; kind: 'stats' }
     | { t: 'query'; reqId: number; kind: 'updateStatus' }
     | { t: 'query'; reqId: number; kind: 'snapshot'; selectedId: number | null; withTree: boolean }

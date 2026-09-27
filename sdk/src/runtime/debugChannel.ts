@@ -11,11 +11,12 @@
  * mini-game host cannot be reached, and the editor authenticates the dial by the
  * token in its URL before a single frame crosses.
  */
-import { graphicsPathOf, type App } from '../app/app';
+import { graphicsPathOf, surfaceSizeOf, type App } from '../app/app';
 import { getPlatform, platformNow } from '../platform/base';
 import type { PlatformSocket } from '../platform/types';
 import type { NextFrame } from '../render/frameCapture';
 import { captureFrameReport, captureEngineOf, replayFrameDraw, type FrameReplayImage } from '../render/frameDebugReport';
+import { captureFramePixels } from '../render/framePixels';
 import { log } from '../util/logger';
 import { Assets } from '../asset/AssetPlugin';
 import { Lifecycle } from '../ecs/lifecycle';
@@ -59,6 +60,14 @@ export function fitWithin(image: FrameReplayImage, maxSide?: number): FrameRepla
         for (let x = 0; x < sw; x++) out[y * sw + x] = src[row + Math.min(w - 1, Math.floor(x / scale))];
     }
     return { ...image, width: sw, height: sh, pixels: new Uint8ClampedArray(out.buffer), fullWidth: w, fullHeight: h };
+}
+
+/** The engine reads its frame back bottom row first; an image is sent top row first. */
+function topDown(rgba: Uint8Array, width: number, height: number): Uint8ClampedArray {
+    const out = new Uint8ClampedArray(rgba.length);
+    const row = width * 4;
+    for (let y = 0; y < height; y++) out.set(rgba.subarray((height - 1 - y) * row, (height - y) * row), y * row);
+    return out;
 }
 
 /** Resolves once @p app has finished a frame and the task that drew it has run. */
@@ -137,6 +146,18 @@ export function startDebugChannel(config: DebugChannelConfig): void {
 
     const answer = async (q: DebugChannelQuery): Promise<void> => {
         const reply = (m: DebugChannelMessage): void => send(m);
+        // A mini-game's socket moved a full-screen image at ~180KB/s (55 s), and
+        // drops a frame that size outright: scaled to what the editor will show,
+        // then sent in chunks behind the reply.
+        const replyImage = (reqId: number, full: FrameReplayImage, maxSide?: number): void => {
+            const { pixels, ...rest } = timed(() => fitWithin(full, maxSide));
+            const chunks = Math.max(1, Math.ceil(pixels.byteLength / PIXEL_CHUNK));
+            reply({ t: 'reply', reqId, data: rest, pixels: chunks });
+            for (let i = 0; i < chunks; i++) {
+                const part = pixels.subarray(i * PIXEL_CHUNK, Math.min(pixels.byteLength, (i + 1) * PIXEL_CHUNK));
+                socket?.send(part.slice().buffer as ArrayBuffer);
+            }
+        };
         try {
             if (!app) {
                 const late = new Promise<never>((_, reject) => setTimeout(
@@ -147,7 +168,7 @@ export function startDebugChannel(config: DebugChannelConfig): void {
             const frame = nextFrame!;
             // A background tab gets no frames, so it would sit on this until the editor gave up.
             const drawsFrames = !game.hasResource(Lifecycle) || game.getResource(Lifecycle).visible;
-            if ((q.kind === 'frameCapture' || q.kind === 'frameReplay') && !drawsFrames) {
+            if ((q.kind === 'frameCapture' || q.kind === 'frameReplay' || q.kind === 'screen') && !drawsFrames) {
                 throw new Error('the game is in the background, where it draws no frames: bring it to the front');
             }
             if ((q.kind === 'frameCapture' || q.kind === 'frameReplay') && !captureEngineOf(game)) {
@@ -183,6 +204,22 @@ export function startDebugChannel(config: DebugChannelConfig): void {
                 reply({ t: 'reply', reqId: q.reqId, data: timed(() => worldSnapshot(game, q.selectedId, q.withTree)) });
                 return;
             }
+            if (q.kind === 'screen') {
+                const size = surfaceSizeOf(game);
+                if (!size || !game.wasmModule) throw new Error('this build cannot read its frame back: its host did not say what size it draws at');
+                // Asked for inside a frame, before it is handed to the page: GL reads
+                // the default framebuffer on the spot, and once presented it is cleared.
+                const module = game.wasmModule;
+                const shot = await new Promise<Awaited<ReturnType<typeof captureFramePixels>>>((resolve, reject) => {
+                    const off = game.onFrameEnd(() => {
+                        off();
+                        captureFramePixels(module, size.width, size.height, () => frame()).then(resolve, reject);
+                    });
+                });
+                if (!shot) throw new Error('the engine did not return its frame — this build cannot read its own pixels');
+                replyImage(q.reqId, { width: shot.width, height: shot.height, pixels: topDown(shot.rgba, shot.width, shot.height), matchesCapture: true }, q.maxSide);
+                return;
+            }
             if (q.kind === 'control') {
                 if (q.fps !== undefined) game.setTargetFrameRate(q.fps);
                 if (q.paused !== undefined) game.setPaused(q.paused);
@@ -195,16 +232,7 @@ export function startDebugChannel(config: DebugChannelConfig): void {
                 reply({ t: 'reply', reqId: q.reqId, data: null });
                 return;
             }
-            // A mini-game's socket moved a full-screen replay at ~180KB/s (55 s);
-            // the editor asks for what it will show.
-            const image = timed(() => fitWithin(full, q.maxSide));
-            const { pixels, ...rest } = image;
-            const chunks = Math.max(1, Math.ceil(pixels.byteLength / PIXEL_CHUNK));
-            reply({ t: 'reply', reqId: q.reqId, data: rest, pixels: chunks });
-            for (let i = 0; i < chunks; i++) {
-                const part = pixels.subarray(i * PIXEL_CHUNK, Math.min(pixels.byteLength, (i + 1) * PIXEL_CHUNK));
-                socket?.send(part.slice().buffer as ArrayBuffer);
-            }
+            replyImage(q.reqId, full, q.maxSide);
         } catch (e) {
             reply({ t: 'reply', reqId: q.reqId, error: e instanceof Error ? e.message : String(e) });
         }

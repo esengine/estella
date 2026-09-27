@@ -119,6 +119,19 @@ try {
   }
   check(lit > 0, `the replayed pass has drawn pixels (${lit})`);
 
+  // A replay is one pass on a transparent background; what the player sees is
+  // every pass composited, opaque everywhere.
+  const screen = await server.query(target.id, 'screen', { maxSide: 400 });
+  let clear = 0;
+  const colours = new Set();
+  for (let i = 0; screen && i < screen.pixels.length; i += 4) {
+    if (screen.pixels[i + 3] < 255) clear++;
+    colours.add((screen.pixels[i] << 16) | (screen.pixels[i + 1] << 8) | screen.pixels[i + 2]);
+  }
+  check(!!screen && screen.width > 0 && screen.pixels.byteLength === screen.width * screen.height * 4 && clear === 0,
+    `the screen came back whole and opaque: ${screen?.width}x${screen?.height}, ${clear} see-through pixel(s)`);
+  check(colours.size > 1, `the screen shows more than one colour (${colours.size}: ${[...colours].slice(0, 3).map((c) => c.toString(16)).join(",")})`);
+
   const now = server.targets().find((t) => t.id === target.id);
   check(now?.project === 'Input Actions' && typeof now?.revision === 'string',
     `the build said which project and content it is (${now?.project}, ${now?.revision})`);
