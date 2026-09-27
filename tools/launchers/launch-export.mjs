@@ -250,11 +250,15 @@ const SCENE = flag('scene', '');
   // Every line, not just the angry ones: when a package never draws, what it got
   // through before stopping is the whole diagnosis, and none of it says "error".
   const recent = [];
-  const stop = onRendererConsole(win.webContents, (msg) => {
+  const stop = onRendererConsole(win.webContents, (msg, level) => {
     recent.push(msg.slice(0, 200));
     if (recent.length > 12) recent.shift();
-    if (/error|uncaught|failed/i.test(msg)) errors.push(msg.slice(0, 300));
-    if (msg.startsWith('[engine]') || logRe?.test(msg)) console.log(`  ${msg}`);
+    if (level === 'error' || /error|uncaught|failed/i.test(msg)) errors.push(msg.slice(0, 300));
+    // Every warning and error is printed: a verdict reads only the frame, and
+    // what the game complained about on the way there is the rest of the story.
+    if (level === 'warning' || level === 'error' || msg.startsWith('[engine]') || logRe?.test(msg)) {
+      console.log(`  ${msg.slice(0, 400)}`);
+    }
   });
   win.webContents.on('render-process-gone', (_e, d) => errors.push(`render process gone: ${d.reason}`));
 

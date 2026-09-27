@@ -136,14 +136,16 @@ async function main() {
   });
 
   const errors = [];
-  const stop = onRendererConsole(win.webContents, (msg) => {
-    // `[estella]` is the PACKAGE's own voice — the generated entry says why a 分包
-    // did not come down, which is the diagnosis a silent black frame is missing.
-    if (/\[minigame\] boot failed|\[estella\]|uncaught|is not a function|no such file/i.test(msg)) {
+  const stop = onRendererConsole(win.webContents, (msg, level) => {
+    // `[estella]` is the package's own voice (why a 分包 did not come down). Any
+    // logged error counts too: a system that throws every frame still paints.
+    if (level === 'error' || /\[minigame\] boot failed|\[estella\]|uncaught|is not a function|no such file/i.test(msg)) {
       errors.push(msg.slice(0, 400));
     }
     // The engine names the GL path it took; a check about EmscriptenGLX reads it.
-    if (/^\[(minigame|engine|estella)\]|rendering through /.test(msg)) console.log(`  ${msg}`);
+    if (level === 'warning' || level === 'error' || /^\[(minigame|engine|estella)\]|rendering through /.test(msg)) {
+      console.log(`  ${msg.slice(0, 400)}`);
+    }
   });
   win.webContents.on('render-process-gone', (_e, d) => errors.push(`render process gone: ${d.reason}`));
 
