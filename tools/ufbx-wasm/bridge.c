@@ -23,7 +23,7 @@
 #include <math.h>
 
 #define ES_FBX_MAGIC 0x42465345u /* "ESFB" little-endian */
-#define ES_FBX_BLOB_VERSION 1u
+#define ES_FBX_BLOB_VERSION 2u
 
 /** Weights per vertex the engine's skinning reads; the rest are dropped. */
 #define ES_FBX_MAX_WEIGHTS 4
@@ -563,6 +563,74 @@ static int node_draws(const ufbx_node *node) {
     return node->mesh && node->mesh->num_faces > 0;
 }
 
+/**
+ * A node's light, or nothing for a kind the engine has no light for. Area and
+ * volume lights are named, not dropped in silence.
+ */
+static void json_light(es_writer *w, const ufbx_scene *scene, const ufbx_light *light) {
+    const char *type = light->type == UFBX_LIGHT_POINT ? "\"point\""
+        : light->type == UFBX_LIGHT_DIRECTIONAL ? "\"directional\""
+        : light->type == UFBX_LIGHT_SPOT ? "\"spot\"" : NULL;
+    if (!type) {
+        warnf(w, "light \"%s\": an area or volume light is not imported", light->name.data);
+        return;
+    }
+    es_buf_text(&w->json, ",");
+    json_key(&w->json, "light");
+    es_buf_text(&w->json, "{");
+    json_key(&w->json, "type");
+    es_buf_text(&w->json, type);
+    es_buf_text(&w->json, ",");
+    json_key(&w->json, "color");
+    json_vec3(&w->json, light->color);
+    es_buf_text(&w->json, ",");
+    json_key(&w->json, "intensity");
+    json_number(&w->json, light->intensity);
+    // FBX states a reach only as far attenuation, in the file's units.
+    if (ufbx_find_bool(&light->props, "EnableFarAttenuation", false)) {
+        es_buf_text(&w->json, ",");
+        json_key(&w->json, "range");
+        json_number(&w->json, ufbx_find_real(&light->props, "FarAttenuationEnd", 0.0f)
+                    * scene->metadata.geometry_scale);
+    }
+    if (light->type == UFBX_LIGHT_SPOT) {
+        es_buf_text(&w->json, ",");
+        json_key(&w->json, "innerAngle");
+        json_number(&w->json, light->inner_angle);
+        es_buf_text(&w->json, ",");
+        json_key(&w->json, "outerAngle");
+        json_number(&w->json, light->outer_angle);
+    }
+    es_buf_text(&w->json, "}");
+}
+
+static void json_camera(es_writer *w, const ufbx_camera *camera) {
+    const int perspective = camera->projection_mode == UFBX_PROJECTION_MODE_PERSPECTIVE;
+    es_buf_text(&w->json, ",");
+    json_key(&w->json, "camera");
+    es_buf_text(&w->json, "{");
+    json_key(&w->json, "projection");
+    es_buf_text(&w->json, perspective ? "\"perspective\"" : "\"orthographic\"");
+    es_buf_text(&w->json, ",");
+    if (perspective) {
+        json_key(&w->json, "yfov");
+        json_number(&w->json, camera->field_of_view_deg.y);
+    } else {
+        json_key(&w->json, "halfHeight");
+        json_number(&w->json, camera->orthographic_size.y * 0.5f);
+    }
+    es_buf_text(&w->json, ",");
+    json_key(&w->json, "near");
+    json_number(&w->json, camera->near_plane);
+    es_buf_text(&w->json, ",");
+    json_key(&w->json, "far");
+    json_number(&w->json, camera->far_plane);
+    es_buf_text(&w->json, ",");
+    json_key(&w->json, "aspect");
+    json_number(&w->json, camera->aspect_ratio);
+    es_buf_text(&w->json, "}");
+}
+
 static void write_nodes(es_writer *w, const ufbx_scene *scene) {
     json_key(&w->json, "nodes");
     es_buf_text(&w->json, "[");
@@ -598,6 +666,8 @@ static void write_nodes(es_writer *w, const ufbx_scene *scene) {
         json_key(&w->json, "helper");
         es_buf_text(&w->json, node->is_geometry_transform_helper || node->is_scale_helper
                     ? "true" : "false");
+        if (node->light) json_light(w, scene, node->light);
+        if (node->camera) json_camera(w, node->camera);
         es_buf_text(&w->json, "}");
     }
     es_buf_text(&w->json, "],");
@@ -969,12 +1039,6 @@ static void write_animations(es_writer *w, const ufbx_scene *scene) {
 
 /** What the file holds that this import has no place for. */
 static void report_unimported(es_writer *w, const ufbx_scene *scene) {
-    if (scene->lights.count > 0) {
-        warnf(w, "%zu light(s) are not imported", scene->lights.count);
-    }
-    if (scene->cameras.count > 0) {
-        warnf(w, "%zu camera(s) are not imported", scene->cameras.count);
-    }
     for (size_t i = 0; i < scene->metadata.warnings.count; i++) {
         const ufbx_warning *warning = &scene->metadata.warnings.data[i];
         if (warning->count > 1) {
@@ -1004,6 +1068,10 @@ int es_fbx_load(const unsigned char *data, size_t size, const char *filename) {
     opts.target_axes = ufbx_axes_right_handed_y_up;
     opts.target_unit_meters = 1.0f;
     opts.space_conversion = UFBX_SPACE_CONVERSION_MODIFY_GEOMETRY;
+    // FBX cameras look along +X and lights shine along -Y; the engine's, like
+    // glTF's, both face -Z. ufbx turns each such node so they do.
+    opts.target_camera_axes = ufbx_axes_right_handed_y_up;
+    opts.target_light_axes = ufbx_axes_right_handed_y_up;
     // FBX lets geometry sit at an offset from its node with no node to hold it.
     // Helper nodes turn that into hierarchy the prefab can express; modifying
     // the geometry instead would be wrong for anything instanced.

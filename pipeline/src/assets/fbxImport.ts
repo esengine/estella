@@ -19,6 +19,7 @@ import {
     nodeChildPaths, nodeNameFor, samplerKeyframes, timelineDocument,
     type AnimatedNode, type ImportedAnimation, type ImportedImageRef, type ImportedMaterial,
     type ImportedMesh, type ImportedNode, type ImportedTexture, type ModelImportResult,
+    type ImportedLight, type ImportedCamera,
     type SpecularMapReading,
 } from './modelImport';
 
@@ -68,6 +69,9 @@ interface FbxNode {
     mesh: number;
     /** ufbx invented this node to hold a geometry transform or an inherit mode. */
     helper: boolean;
+    /** Already turned by ufbx to face -Z, as the engine's do. */
+    light?: ImportedLight;
+    camera?: ImportedCamera;
 }
 
 interface FbxMeshPart {
@@ -131,7 +135,7 @@ interface FbxScene {
 }
 
 const BLOB_MAGIC = 0x42465345;
-const BLOB_VERSION = 1;
+const BLOB_VERSION = 2;
 
 /**
  * Runs the FBX through ufbx and splits the blob into its two halves. The wasm
@@ -398,6 +402,8 @@ function buildNodes(scene: FbxScene, meshIndexOf: Map<string, number[]>): Import
             scale: node.scale,
             meshes: node.mesh >= 0 ? meshIndexOf.get(`${node.mesh}`) ?? [] : [],
             children: (childrenOf.get(index) ?? []).map(build),
+            ...(node.light ? { light: node.light } : {}),
+            ...(node.camera ? { camera: node.camera } : {}),
         };
     };
 

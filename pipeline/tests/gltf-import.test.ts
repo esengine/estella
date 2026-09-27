@@ -1074,3 +1074,46 @@ describe('glTF morph targets', () => {
     expect(meshes[0]!.data.morph).toBeUndefined();
   });
 });
+
+describe('lights and cameras', () => {
+  it('KHR_lights_punctual and cameras land on their nodes, and on the prefab', async () => {
+    const doc = {
+      nodes: [
+        { name: 'Sun', extensions: { KHR_lights_punctual: { light: 0 } } },
+        { name: 'Lamp', translation: [0, 2, 0], extensions: { KHR_lights_punctual: { light: 1 } } },
+        { name: 'Eye', camera: 0 },
+        { name: 'Plan', camera: 1 },
+      ],
+      scenes: [{ nodes: [0, 1, 2, 3] }],
+      extensionsUsed: ['KHR_lights_punctual'],
+      extensions: { KHR_lights_punctual: { lights: [
+        { type: 'directional', color: [1, 0.9, 0.8], intensity: 3 },
+        { type: 'spot', intensity: 20, range: 12, spot: { innerConeAngle: Math.PI / 8, outerConeAngle: Math.PI / 4 } },
+      ] } },
+      cameras: [
+        { type: 'perspective', perspective: { yfov: Math.PI / 3, znear: 0.05, zfar: 200, aspectRatio: 1.5 } },
+        { type: 'orthographic', orthographic: { xmag: 4, ymag: 3, znear: 0.1, zfar: 50 } },
+      ],
+    };
+    const { meshes, nodes } = await importGltfMeshes(gltf(doc), 'model');
+    const byName = (n: string) => nodes.find((x) => x.name === n)!;
+    expect(byName('Sun').light).toEqual({ type: 'directional', color: [1, 0.9, 0.8], intensity: 3 });
+    const lamp = byName('Lamp').light!;
+    expect(lamp.range).toBe(12);
+    // Half angles in radians become full angles in degrees.
+    expect(lamp.innerAngle).toBeCloseTo(45);
+    expect(lamp.outerAngle).toBeCloseTo(90);
+    expect(byName('Eye').camera).toMatchObject({ projection: 'perspective', near: 0.05, far: 200, aspect: 1.5 });
+    expect(byName('Eye').camera!.yfov).toBeCloseTo(60);
+    expect(byName('Plan').camera).toEqual({ projection: 'orthographic', halfHeight: 3, near: 0.1, far: 50 });
+
+    const prefab = assembleModelPrefab('model', meshes, { nodes });
+    const comp = (name: string, type: string) =>
+      prefab.entities.find((e) => e.name === name)!.components.find((c) => c.type === type)?.data;
+    expect(comp('Sun', 'Light')).toEqual({ type: 1, color: { r: 1, g: 0.9, b: 0.8, a: 1 }, intensity: 3 });
+    expect(comp('Lamp', 'Light')).toMatchObject({ type: 3, intensity: 20, radius: 12 });
+    // A model's camera never takes over the scene it is dropped into.
+    expect(comp('Eye', 'Camera')).toMatchObject({ projectionType: 0, nearPlane: 0.05, farPlane: 200, isActive: false });
+    expect(comp('Plan', 'Camera')).toMatchObject({ projectionType: 1, orthoSize: 3 });
+  });
+});

@@ -333,3 +333,37 @@ function cluster(id, bone, indexes, weights, transform, transformLink) {
 ${array('Indexes', indexes, 2)}${array('Weights', weights, 2)}${array('Transform', transform, 2)}${array('TransformLink', transformLink, 2)}\t}
 `;
 }
+
+/**
+ * An unrotated spot light 5 up and an unrotated camera 10 back, as FBX lays them
+ * out: the light shines down its -Y, the camera looks down its +X.
+ */
+export function litAndFramed() {
+  return encode(`${header('estella fixture')}Objects:  {
+\tNodeAttribute: 20, "NodeAttribute::Spot", "Light" {
+\t\tProperties70:  {
+\t\t\tP: "LightType", "enum", "", "",2
+\t\t\tP: "Color", "Color", "", "A",1,0.5,0.25
+\t\t\tP: "Intensity", "Number", "", "A",200
+\t\t\tP: "InnerAngle", "Number", "", "A",20
+\t\t\tP: "OuterAngle", "Number", "", "A",40
+\t\t\tP: "EnableFarAttenuation", "bool", "", "",1
+\t\t\tP: "FarAttenuationEnd", "Number", "", "A",8
+\t\t}
+\t\tTypeFlags: "Light"
+\t\tGeometryVersion: 124
+\t}
+\tNodeAttribute: 30, "NodeAttribute::Eye", "Camera" {
+\t\tProperties70:  {
+\t\t\tP: "FieldOfView", "FieldOfView", "", "A",40
+\t\t\tP: "NearPlane", "double", "Number", "",0.5
+\t\t\tP: "FarPlane", "double", "Number", "",500
+\t\t}
+\t\tTypeFlags: "Camera"
+\t\tGeometryVersion: 124
+\t}
+${model(21, 'Spot', 'Light', { translation: [0, 5, 0] })}${model(31, 'Eye', 'Camera', { translation: [0, 0, 10] })}}
+Connections:  {
+${connect(20, 21)}${connect(21, 0)}${connect(30, 31)}${connect(31, 0)}}
+`);
+}

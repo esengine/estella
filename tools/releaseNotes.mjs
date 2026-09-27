@@ -1256,6 +1256,8 @@ export const NOTED = {
     { note: 'Project Health names the textures a material reads as data while they are still decoded as colour' },
   'feat(render): a cutout\'s edge is antialiased':
     { note: 'A cutout\'s edge is antialiased' },
+  'feat(import): a model brings its lights and cameras':
+    { note: 'Importing a model brings its lights and cameras' },
   'feat(assets): a cutout\'s mips keep its coverage':
     { note: 'A cutout\'s mip levels keep its coverage' },
   'feat(import): images several materials share get every setting they ask for':

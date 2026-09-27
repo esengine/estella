@@ -23,6 +23,7 @@ Everything that has one right answer is decided in C, once:
 | Skinning | four strongest weights per vertex, renormalized; `geometry_to_bone` is the bind pose |
 | Animation | `ufbx_bake_anim` — FBX rotates in Euler angles around pivots a Transform has no field for |
 | Materials | ufbx's own PBR mapping, so Phong, Maya, 3ds Max and Blender materials all arrive as one set of maps |
+| Lights / cameras | `target_light_axes` / `target_camera_axes`: each node is turned so it faces -Z, as the engine's (and glTF's) do |
 
 ## Rebuild
 

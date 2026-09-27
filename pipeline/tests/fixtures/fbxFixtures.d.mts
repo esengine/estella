@@ -12,3 +12,7 @@ export declare function skinnedBar(): Uint8Array;
 /** A quad with two blend shapes — one slides its top edge, one lifts it — the
  *  first left at 40% by the file. */
 export declare function morphedQuad(): Uint8Array;
+
+/** An unrotated spot light 5 up and an unrotated camera 10 back, in FBX's own
+ *  orientation: the light shines down its -Y, the camera looks down its +X. */
+export declare function litAndFramed(): Uint8Array;

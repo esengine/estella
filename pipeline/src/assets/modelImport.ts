@@ -112,6 +112,36 @@ export interface ImportedNode {
     /** Indices into @ref ModelImportResult.meshes; one node can draw several primitives. */
     meshes: number[];
     children: ImportedNode[];
+    /** A light the node carries, shining along its local -Z. */
+    light?: ImportedLight;
+    /** A camera the node carries, looking along its local -Z with +Y up. */
+    camera?: ImportedCamera;
+}
+
+/**
+ * A light as a source states it. Intensity is carried over as it is, the way
+ * Godot's glTF import does: the engine's is a multiplier with no photometric unit.
+ */
+export interface ImportedLight {
+    type: 'point' | 'directional' | 'spot';
+    color: [number, number, number];
+    intensity: number;
+    /** Where it stops reaching, in metres; absent is unbounded. */
+    range?: number;
+    /** Full cone angles in degrees. */
+    innerAngle?: number;
+    outerAngle?: number;
+}
+
+export interface ImportedCamera {
+    projection: 'perspective' | 'orthographic';
+    /** Vertical field of view in degrees. */
+    yfov?: number;
+    /** Half the visible height, for an orthographic camera. */
+    halfHeight?: number;
+    near: number;
+    far?: number;
+    aspect?: number;
 }
 
 /** One of the source's animations as the `.estimeline` document it will be written to. */
@@ -543,6 +573,35 @@ function transformComponent(trs?: Trs, scale?: number): ComponentData {
     } };
 }
 
+/** An unbounded light's reach, as Godot clamps one: far enough to be no reach at all. */
+const UNBOUNDED_LIGHT_RANGE = 4096;
+const LIGHT_TYPE = { point: 0, directional: 1, spot: 3 } as const;
+
+function lightComponent(light: ImportedLight): ComponentData {
+    const [r, g, b] = light.color;
+    return { type: 'Light', data: {
+        type: LIGHT_TYPE[light.type],
+        color: { r, g, b, a: 1 },
+        intensity: light.intensity,
+        ...(light.type === 'directional' ? {} : { radius: light.range ?? UNBOUNDED_LIGHT_RANGE }),
+        ...(light.type === 'spot' ? { innerAngle: light.innerAngle ?? 0, outerAngle: light.outerAngle ?? 90 } : {}),
+    } };
+}
+
+/** Never active: a model's camera must not take over the scene it is placed in. */
+function cameraComponent(camera: ImportedCamera): ComponentData {
+    return { type: 'Camera', data: {
+        projectionType: camera.projection === 'perspective' ? 0 : 1,
+        ...(camera.yfov !== undefined && camera.yfov > 0 ? { fov: camera.yfov } : {}),
+        ...(camera.halfHeight !== undefined ? { orthoSize: camera.halfHeight } : {}),
+        // A plane the file leaves at 0 is one it did not state.
+        ...(camera.near > 0 ? { nearPlane: camera.near } : {}),
+        ...(camera.far !== undefined && camera.far > camera.near ? { farPlane: camera.far } : {}),
+        ...(camera.aspect ? { aspectRatio: camera.aspect } : {}),
+        isActive: false,
+    } };
+}
+
 function entity(id: string, name: string, parent: string | null,
                 components: ComponentData[]): PrefabEntityData {
     return { prefabEntityId: id, name, parent, children: [], visible: true, components };
@@ -568,8 +627,11 @@ export function assembleModelPrefab(name: string, meshes: ImportedMesh[],
         const own = drawn.length === 1 && drawn[0]
             ? [meshComponent(drawn[0], name, refs), ...skinComponent(drawn[0]),
                ...morphComponent(drawn[0])] : [];
-        const self = entity(id, node.name, parent,
-                            [transformComponent(node, rootScale), ...own]);
+        const self = entity(id, node.name, parent, [
+            transformComponent(node, rootScale), ...own,
+            ...(node.light ? [lightComponent(node.light)] : []),
+            ...(node.camera ? [cameraComponent(node.camera)] : []),
+        ]);
         entities.push(self);
         if (own.length === 0) {
             drawn.forEach((mesh, i) => {

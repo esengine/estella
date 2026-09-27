@@ -13,7 +13,7 @@ import { importFbxMeshes, dropInvisibleColors } from '../src/assets/fbxImport';
 import { assembleModelPrefab, materialProducts,
          type ImportedMesh, type ImportedNode } from '../src/assets/modelImport';
 import { MeshChannel } from 'esengine';
-import { texturedTriangle, skinnedBar, morphedQuad } from './fixtures/fbxFixtures.mjs';
+import { texturedTriangle, skinnedBar, morphedQuad, litAndFramed } from './fixtures/fbxFixtures.mjs';
 
 /** One channel's floats for vertex `index`, read back out of the packed buffer. */
 function attribute(mesh: ImportedMesh, semantic: number, index: number, comps: number): number[] {
@@ -327,5 +327,30 @@ describe('fbx blend shapes', () => {
       .flatMap((e) => e.components)
       .find((c) => c.type === 'MeshMorph');
     expect(morph?.data).toEqual({ weights: [0.4, 0] });
+  });
+});
+
+describe('lights and cameras', () => {
+  /** Where a node's -Z points in the world, from its (x, y, z, w) rotation. */
+  const forward = ([x, y, z, w]: [number, number, number, number]) => [
+    -(2 * (x * z + w * y)), -(2 * (y * z - w * x)), -(1 - 2 * (x * x + y * y)),
+  ];
+
+  it('arrive on their nodes, turned to face -Z the way the engine\'s do', async () => {
+    const { nodes, warnings } = await importFbxMeshes(litAndFramed(), 'scene');
+    const byName = (n: string) => nodes.find((x) => x.name === n)!;
+    expect(warnings.join('\n')).not.toMatch(/light|camera/);
+
+    const spot = byName('Spot');
+    expect(spot.light).toMatchObject({ type: 'spot', color: [1, 0.5, 0.25], innerAngle: 20, outerAngle: 40 });
+    // ufbx reads Intensity at a hundredth, the scale DCC tools show it at.
+    expect(spot.light!.intensity).toBeCloseTo(2);
+    expect(spot.light!.range).toBeCloseTo(8);
+    forward(spot.rotation).forEach((v, i) => expect(v).toBeCloseTo([0, -1, 0][i]!));
+
+    const eye = byName('Eye');
+    expect(eye.camera).toMatchObject({ projection: 'perspective', near: 0.5, far: 500 });
+    expect(eye.camera!.yfov).toBeGreaterThan(1);
+    forward(eye.rotation).forEach((v, i) => expect(v).toBeCloseTo([1, 0, 0][i]!));
   });
 });

@@ -19,6 +19,7 @@ import {
     nodeChildPaths, nodeNameFor, samplerKeyframes, timelineDocument,
     type AnimatedNode, type ImportedAnimation, type ImportedImageRef, type ImportedMaterial,
     type ImportedMesh, type ImportedNode, type ImportedTexture, type ModelImportResult,
+    type ImportedLight, type ImportedCamera,
     type OutKeyframe, type Trs,
 } from './modelImport';
 
@@ -56,6 +57,45 @@ interface GltfSparse {
     count: number;
     indices: { bufferView: number; byteOffset?: number; componentType: number };
     values: { bufferView: number; byteOffset?: number };
+}
+
+interface GltfLight {
+    type: string; color?: number[]; intensity?: number; range?: number;
+    spot?: { innerConeAngle?: number; outerConeAngle?: number };
+}
+
+const DEG = 180 / Math.PI;
+
+/** KHR_lights_punctual's light; its cone angles are half angles in radians. */
+function readLight(light: GltfLight | undefined, warnings: string[], label: string): ImportedLight | undefined {
+    if (!light) return undefined;
+    if (light.type !== 'point' && light.type !== 'directional' && light.type !== 'spot') {
+        warnings.push(`${label}: a "${light.type}" light is not imported`);
+        return undefined;
+    }
+    const [r = 1, g = 1, b = 1] = light.color ?? [];
+    return {
+        type: light.type, color: [r, g, b], intensity: light.intensity ?? 1,
+        ...(light.range !== undefined ? { range: light.range } : {}),
+        ...(light.type === 'spot' ? {
+            innerAngle: 2 * (light.spot?.innerConeAngle ?? 0) * DEG,
+            outerAngle: 2 * (light.spot?.outerConeAngle ?? Math.PI / 4) * DEG,
+        } : {}),
+    };
+}
+
+function readCamera(camera: NonNullable<GltfJson['cameras']>[number] | undefined): ImportedCamera | undefined {
+    if (camera?.type === 'perspective' && camera.perspective) {
+        const p = camera.perspective;
+        return { projection: 'perspective', yfov: p.yfov * DEG, near: p.znear,
+                 ...(p.zfar !== undefined ? { far: p.zfar } : {}),
+                 ...(p.aspectRatio ? { aspect: p.aspectRatio } : {}) };
+    }
+    if (camera?.type === 'orthographic' && camera.orthographic) {
+        const o = camera.orthographic;
+        return { projection: 'orthographic', halfHeight: o.ymag, near: o.znear, far: o.zfar };
+    }
+    return undefined;
 }
 
 interface GltfJson {
@@ -110,7 +150,15 @@ interface GltfJson {
         matrix?: number[]; translation?: number[]; rotation?: number[]; scale?: number[];
         /** Overrides the mesh's own starting weights for this instance of it. */
         weights?: number[];
+        camera?: number;
+        extensions?: { KHR_lights_punctual?: { light?: number } };
     }[];
+    cameras?: {
+        type: string;
+        perspective?: { yfov: number; znear: number; zfar?: number; aspectRatio?: number };
+        orthographic?: { xmag: number; ymag: number; znear: number; zfar: number };
+    }[];
+    extensions?: { KHR_lights_punctual?: { lights?: GltfLight[] } };
     skins?: { name?: string; joints: number[]; inverseBindMatrices?: number; skeleton?: number }[];
     animations?: {
         name?: string;
@@ -639,7 +687,13 @@ function readNodes(json: GltfJson, meshIndexOf: Map<string, number>,
         }
         const children = (node.children ?? []).map(build).filter((n): n is ImportedNode => n !== null);
         visiting.delete(index);
-        return { index, name: node.name ?? `node_${index}`, ...nodeTrs(node), meshes, children };
+        const name = node.name ?? `node_${index}`;
+        const lightIndex = node.extensions?.KHR_lights_punctual?.light;
+        const light = lightIndex === undefined ? undefined
+            : readLight(json.extensions?.KHR_lights_punctual?.lights?.[lightIndex], warnings, name);
+        const camera = node.camera === undefined ? undefined : readCamera(json.cameras?.[node.camera]);
+        return { index, name, ...nodeTrs(node), meshes, children,
+                 ...(light ? { light } : {}), ...(camera ? { camera } : {}) };
     };
 
     const built = roots.map(build).filter((n): n is ImportedNode => n !== null);
