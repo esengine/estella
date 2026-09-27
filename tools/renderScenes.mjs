@@ -692,6 +692,11 @@ export const SCENES = [
   // store it), lit from the front. Rebuilding Z from X and Y turns both halves toward
   // the light; unpacking B as Z points them into the surface and both go black.
   { id: "mesh-normalmap-xy", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PREFAB: "/scenes/normalmap-xy.esprefab", ESTELLA_VERIFY_SCENE: "/scenes/mesh-normalmap-xy.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-normalmap-xy.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.375,\"y\":0.5,\"rgb\":[241,241,241],\"tol\":30},{\"x\":0.625,\"y\":0.5,\"rgb\":[241,241,241],\"tol\":30}]" } },
+  // A double-sided quad turned away from the camera, lit from the camera's side:
+  // its back is what is seen and what the light reaches, so it must be lit. Once
+  // through a material (the path an imported model takes) and once without one.
+  { id: "mesh-backface-material", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PREFAB: "/scenes/backface-quad.esprefab", ESTELLA_VERIFY_SCENE: "/scenes/mesh-backface.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-backface.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[255,255,255],\"tol\":40}]" } },
+  { id: "mesh-backface-plain", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PREFAB: "/scenes/backface-quad-plain.esprefab", ESTELLA_VERIFY_SCENE: "/scenes/mesh-backface.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-backface.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[255,255,255],\"tol\":40}]" } },
   // The channels only a material can carry, one quad each, through the products a
   // real import wrote. Ambient light only: the black quad's lit half can only be
   // emission, the white quad's right half is occluded away, the cutout discards.

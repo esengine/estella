@@ -574,6 +574,8 @@ void main() {
     N = perturbNormal(N, v_worldPos, v_texCoord, sampleNormal(u_normalMap, v_texCoord));
 #endif
 
+    if (!gl_FrontFacing) N = -N;
+
 
 
 
@@ -767,7 +769,7 @@ struct VSOut {
     @location(6) @interpolate(flat) v_probeSlot : f32,
 };
 
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+@fragment fn fs_main(v : VSOut, @builtin(front_facing) front : bool) -> @location(0) vec4f {
 
 
     g_probeSlot = v.v_probeSlot;
@@ -787,6 +789,7 @@ struct VSOut {
 #ifdef NORMAL_MAP
     N = perturbNormal(N, v.v_worldPos, v.v_texCoord, sampleNormal(t1, s1, v.v_texCoord));
 #endif
+    if (!front) { N = -N; }
 
 
 

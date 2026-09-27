@@ -104,6 +104,8 @@ void main() {
 #ifdef MESH_NORMALS
     highp vec3 N = perturbNormal(normalize(v_worldNormal), v_worldXYZ, v_texCoord,
                                  sampleNormal(u_normalMap, v_texCoord));
+    // A double-sided surface is lit from the side it is seen from (glTF's rule).
+    if (!gl_FrontFacing) N = -N;
 #else
     vec3 N = sampleNormal(u_normalMap, v_texCoord);
 #endif
@@ -112,11 +114,12 @@ void main() {
 #pragma end
 
 #pragma fragment wgsl
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+@fragment fn fs_main(v : VSOut, @builtin(front_facing) front : bool) -> @location(0) vec4f {
     let base = textureSampleLevel(t0, s0, v.v_texCoord, 0.0) * v.v_color * mc.u_tint;
 #ifdef MESH_NORMALS
-    let N = perturbNormal(normalize(v.v_worldNormal), v.v_worldXYZ, v.v_texCoord,
+    var N = perturbNormal(normalize(v.v_worldNormal), v.v_worldXYZ, v.v_texCoord,
                           sampleNormal(u_normalMap, u_normalMap_s, v.v_texCoord));
+    if (!front) { N = -N; }
 #else
     let N = sampleNormal(u_normalMap, u_normalMap_s, v.v_texCoord);
 #endif
@@ -366,6 +369,8 @@ void main() {
 #ifdef MESH_NORMALS
     highp vec3 N = perturbNormal(normalize(v_worldNormal), v_worldXYZ, v_texCoord,
                                  sampleNormal(u_normalMap, v_texCoord));
+    // A double-sided surface is lit from the side it is seen from (glTF's rule).
+    if (!gl_FrontFacing) N = -N;
 #else
     vec3 N = sampleNormal(u_normalMap, v_texCoord);
 #endif
@@ -386,7 +391,7 @@ void main() {
 #pragma end
 
 #pragma fragment wgsl
-@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+@fragment fn fs_main(v : VSOut, @builtin(front_facing) front : bool) -> @location(0) vec4f {
     // WGSL has no module varying: the entry point hands the injected header the
     // run its GLSL twin reads straight off one. Without this every material-shaded
     // draw read instance 0's indirect light — one probe volume for the lot.
@@ -394,8 +399,9 @@ void main() {
     let base = textureSampleLevel(t0, s0, v.v_texCoord, 0.0) * v.v_color * mc.u_tint;
     if (base.a < mc.u_alphaCutoff) { discard; }
 #ifdef MESH_NORMALS
-    let N = perturbNormal(normalize(v.v_worldNormal), v.v_worldXYZ, v.v_texCoord,
+    var N = perturbNormal(normalize(v.v_worldNormal), v.v_worldXYZ, v.v_texCoord,
                           sampleNormal(u_normalMap, u_normalMap_s, v.v_texCoord));
+    if (!front) { N = -N; }
 #else
     let N = sampleNormal(u_normalMap, u_normalMap_s, v.v_texCoord);
 #endif

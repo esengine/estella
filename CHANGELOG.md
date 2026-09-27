@@ -38,6 +38,7 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- A double-sided mesh is lit on the side the camera sees. Its back faces took the front's normal, so a leaf, a flag or an awning turned away from the light went black on the side the light actually reached; the normal now flips for a back face, as glTF specifies, in the engine's mesh shader and in the material shaders an imported model uses.
 - Normal maps stored in two channels light correctly. The shader rebuilds Z from X and Y instead of reading blue, so a BC5 map, or one a converter wrote with blue at 0 — every normal map of Bistro's glTF conversion — no longer points its surface's normals inward, which left normal-mapped surfaces unlit by their sun.
 - Compressed (KTX2) textures on web and mini-games are sampled with their mip chain. The cook has always written one into every texture it compresses, and only level 0 reached the GPU: a compressed texture shimmered as it shrank into the distance, and the rest of its bytes shipped for nothing. A texture decoded to RGBA on a device with no compressed format gets its chain generated.
 - The package size report on Windows attributes the SDK's bytes to the directories they come from again: every module read as "project", since the source map's paths were spelled with backslashes.
