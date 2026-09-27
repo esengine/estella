@@ -485,8 +485,8 @@ void PostProcessPipeline::renderPass(PostProcessPass& pass, const rg::PassContex
             }
         }
         // Scene depth, bound whether or not this pass reads it: the WGSL twin
-    // declares the unit either way, and the scene is already every pass's
-    // declared read, so its depth lives exactly as long as it does.
+    // declares the unit either way. runChain keeps the scene alive through
+    // every pass for it.
 
     // A target with no depth binds nothing, and an effect over a scene that
     // wrote none then finds no edge — the right answer for a flat one.
@@ -598,6 +598,10 @@ void PostProcessPipeline::runChain(std::vector<PostProcessPass>& passes, rg::Res
         // (bloom's and SSAO's last link) lays its result over — not the untouched
         // scene, which would discard every effect earlier in the chain.
         node.reads = {input, effectInput};
+        // Every pass samples the scene's depth, so the scene target has to outlive
+        // the last pass that reads its colour: returned to the pool any earlier,
+        // an SSAO behind a colour grade found no depth and occluded nothing.
+        if (scene_needs_depth_) node.dependencies = {scene};
         // The last pass feeds the blit, which copies into the output rect at the
         // chain's size — so it draws full-size whatever fraction it asked for.
         rg::TargetDesc writeDesc = (i == lastEnabled) ? blitDesc : desc;

@@ -1262,6 +1262,8 @@ export const NOTED = {
     { note: 'A cutout\'s mip levels keep its coverage' },
   'feat(import): images several materials share get every setting they ask for':
     { note: 'A cutout\'s mip levels keep its coverage' },
+  'fix(render): ambient occlusion works behind another effect':
+    { note: 'Ambient occlusion works behind another post-process effect' },
   'fix(render): a shipped game\'s textures are mipmapped':
     { note: 'A shipped game\'s textures are sampled through mip levels' },
   'fix(eht): the generator writes LF on every platform':
