@@ -3,7 +3,7 @@
 /**
  * @file  WeChat MiniGame export — structure / contract alignment. Asserts the
  *        output matches what initWeChatRuntime consumes: AddressableManifest
- *        (asset-manifest.json), @uuid:-stripped scenes/<name>.json, the single
+ *        (asset-manifest.json), scenes/<name>.json, the single
  *        CJS game-bundle (esengine aliased so project scripts share one instance),
  *        the game.js entry, the wasm copy, and game.json/project.config.json.
  *        (Runtime correctness is validated by the user in WeChat devtools — no
@@ -93,9 +93,10 @@ describe('exportGame (wechat)', () => {
     expect(manifest.groups.main.assets[TEX].path).toMatch(/^assets\/[0-9a-f]{16}\.png$/);
     expect(manifest.groups.main.assets[TEX].type).toBe('texture');
 
-    // Scene at scenes/<name>.json with @uuid: stripped to the bare uuid.
+    // Scene at scenes/<name>.json, its refs as authored — the web package's form.
+    // Stripping them to bare uuids lost every atlas frame, which is keyed `@uuid:`.
     const scene = JSON.parse(readFileSync(path.join(out, 'scenes', 'main.json'), 'utf8'));
-    expect(scene.entities[0].components[0].data.texture).toBe(TEX); // no @uuid: prefix
+    expect(scene.entities[0].components[0].data.texture).toBe(`@uuid:${TEX}`);
 
     // One CJS bundle (SDK aliased + project scripts) exposing boot(), + the entry.
     const bundle = readFileSync(path.join(out, 'game-bundle.js'), 'utf8');

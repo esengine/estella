@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+import { extractUuid, UUID_REF_PREFIX } from './AssetRegistry';
+
 export interface AtlasFrameInfo {
     atlas: string;
     frame: { x: number; y: number; w: number; h: number };
@@ -96,7 +98,10 @@ export class Catalog {
     }
 
     getAtlasFrame(path: string): AtlasFrameInfo | null {
-        const entry = this.entries_.get(path);
+        // A frame is keyed by its `@uuid:` spelling; a scene or clip may name the
+        // same asset by its bare uuid, in either case.
+        const uuid = extractUuid(path);
+        const entry = this.entries_.get(uuid ? `${UUID_REF_PREFIX}${uuid}` : path);
         if (!entry?.atlas || !entry.frame || !entry.uv) return null;
         return {
             atlas: entry.atlas,

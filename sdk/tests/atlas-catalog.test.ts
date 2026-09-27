@@ -37,4 +37,22 @@ describe('atlasCatalogFields', () => {
         expect(frame.uvOffset).toEqual([0, 0.5]);
         expect(frame.uvScale).toEqual([0.5, 0.5]);
     });
+
+    // A mini-game scene named its sprites by bare uuid, and every packed sprite
+    // drew as the whole atlas page.
+    it('serves a frame to any spelling of its uuid', () => {
+        const uuid = '92f1ab5f-28f4-4b95-bb82-7182fdb33494';
+        const fields = atlasCatalogFields(
+            { frame: { x: 0, y: 0, width: 4, height: 4 }, pageWidth: 8, pageHeight: 8 },
+            'page.png',
+        );
+        const catalog = Catalog.fromJson({
+            version: 1,
+            entries: { [`@uuid:${uuid}`]: { type: 'texture', buildPath: 'page.png', ...fields } },
+        });
+        for (const ref of [`@uuid:${uuid}`, uuid, uuid.toUpperCase(), `@uuid:${uuid.toUpperCase()}`]) {
+            expect(catalog.getAtlasFrame(ref)?.uvScale, ref).toEqual([0.5, 0.5]);
+        }
+        expect(catalog.getAtlasFrame('page.png')).toBeNull();
+    });
 });

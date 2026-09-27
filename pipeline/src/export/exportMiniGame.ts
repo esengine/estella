@@ -10,8 +10,7 @@
  *
  *          asset-manifest.json  AddressableManifest (groups.<g>.assets[uuid] = {path,…});
  *                               the resolver keys by uuid → path.
- *          scenes/<name>.json   the entry scene with @uuid: refs STRIPPED to bare
- *                               uuids (the resolver looks up bare uuids, not @uuid:).
+ *          scenes/<name>.json   the entry scene, refs as authored (`@uuid:` like the web package).
  *          game-bundle.js       esbuild CJS of [the vendor SDK (esengine aliased) +
  *                               project scripts + a boot()] — one esengine instance
  *                               so custom components/systems run.
@@ -105,20 +104,6 @@ interface CookManifest {
 
 const brotliPack = promisify(brotliCompressCb);
 
-const UUID_PREFIX = '@uuid:';
-
-/** Strip @uuid: asset refs to the bare (lowercased) uuid the resolver keys by.
- *  Deep, value-only — any string starting with @uuid: is a ref. */
-function stripUuidRefs(v: unknown): unknown {
-  if (typeof v === 'string') return v.startsWith(UUID_PREFIX) ? v.slice(UUID_PREFIX.length).toLowerCase() : v;
-  if (Array.isArray(v)) return v.map(stripUuidRefs);
-  if (v && typeof v === 'object') {
-    const o: Record<string, unknown> = {};
-    for (const k of Object.keys(v as Record<string, unknown>)) o[k] = stripUuidRefs((v as Record<string, unknown>)[k]);
-    return o;
-  }
-  return v;
-}
 
 /** What this export stages into `wasm/`, and the engine path the loader is told. */
 interface RuntimeLayout {
@@ -393,8 +378,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   warnings.push(...cook.warnings);
 
   // 1a. Anything the packer will not upload ships as `<name>.<ext>.bin`. Scenes
-  //     have their own transform below (`<x>.esscene` → `scenes/<name>.json`,
-  //     @uuid: refs stripped to the bare uuids the resolver keys by).
+  //     have their own transform below (`<x>.esscene` → `scenes/<name>.json`).
   progress({ phase: 'Transforming scenes' });
   const needsRestage = (p: string): boolean => {
     if (!profile.packerSuffixes) return false;
@@ -431,7 +415,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
         sceneRawByName.set(scene.name, raw);
         const outPath = `scenes/${scene.name}.json`;
         await mkdir(path.dirname(path.join(absOut, outPath)), { recursive: true });
-        await writeFile(path.join(absOut, outPath), JSON.stringify(stripUuidRefs(raw)) + '\n');
+        await writeFile(path.join(absOut, outPath), JSON.stringify(raw) + '\n');
         await rm(staged, { force: true });
         e.path = outPath;
       }
