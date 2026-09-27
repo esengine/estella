@@ -90,6 +90,43 @@ export const CENSUS_FLOOR = '0.60.0';
  * that does not exist, and release notes are a different act. Theirs is ungated.
  */
 export const SHIPPED = {
+  // — 0.74.0 —
+  'Android release signing':
+    { notCertifiable: 'how a Shipping APK is signed, which no game behaviour shows; pipeline/tests/project-export-options.test.ts and the editor\'s android-apk / android-aab tests hold it' },
+  'EmscriptenGLX on WeChat':
+    { notCertifiable: 'an opt-in build of the WeChat engine that draws the same frame; sdk/tests/minigame-glx.test.ts and pipeline/tests/export-wechat.test.ts hold it, and verify:glx checks the fallback' },
+  'A connected development build says which graphics API it draws through':
+    { notCertifiable: 'an editor readout of a development build; sdk/tests/debug-channel-graphics.test.ts holds it' },
+  'A connected development build can be asked for the whole frame it composited':
+    { notCertifiable: 'an agent tool over a development build, run on a WeChat phone and in the browser; no automated check holds it yet' },
+  'Web and mini-game packages decode Zstandard-supercompressed KTX2':
+    { notCertifiable: 'no golden project ships a KTX2 made outside Estella; sdk/tests/basis-mip-chain-wasm.test.ts decodes a supercompressed chain through the built transcoder' },
+  'A single-level KTX2 made outside Estella ships with a mip chain':
+    { notCertifiable: 'no golden project ships a KTX2 made outside Estella; pipeline/tests/ktx2-mips.test.ts and sdk/tests/basis-mip-chain-wasm.test.ts hold the splice and the upload' },
+  'Exporting compresses textures on every core':
+    { notCertifiable: 'how fast an export runs, with byte-identical output; pipeline/tests/cook-assets.test.ts encodes through the pool' },
+  'Exporting again is fast when the art has not changed':
+    { notCertifiable: 'how fast an export runs, not what it ships; pipeline/tests/ktx2-mips.test.ts holds the cache' },
+  'A scene\'s preload says what each asset type cost it':
+    { notCertifiable: 'a log line and a returned field, read on Bistro; no automated check holds the field yet' },
+  'KTX2 textures transcode on worker threads':
+    { notCertifiable: 'the same textures, decoded off the main thread; sdk/tests/basis-workers.test.ts holds the worker script and its fallback' },
+  'Web exports pack their small assets into a few files':
+    { notCertifiable: 'how a web package lays out its files; every web golden package boots through its packs, and pipeline/tests/asset-packs.test.ts and sdk/tests/packed-backend.test.ts hold them' },
+  'Importing a model converts its DDS textures to PNG':
+    { notCertifiable: 'an import step, not game behaviour; pipeline/tests/dds-decode.test.ts and pipeline/tests/model-images.test.ts hold it' },
+  'An FBX model\'s specular map can be read as packed ORM':
+    { notCertifiable: 'an import setting; pipeline/tests/fbx-import.test.ts holds it' },
+  'An FBX material takes its alpha from its base colour image':
+    { notCertifiable: 'an import step; pipeline/tests/model-images.test.ts and pipeline/tests/fbx-import.test.ts hold it' },
+  'A project file\'s settings that nothing reads are named instead of dropped':
+    { notCertifiable: 'an editor and export warning; pipeline/tests/manifest-ignored-keys.test.ts holds it over every shipped project' },
+  'A model import says when a map\'s pixels contradict its slot':
+    { notCertifiable: 'an import warning; pipeline/tests/model-images.test.ts holds it' },
+  'An export warns about a signing key committed with the project':
+    { notCertifiable: 'an export warning; pipeline/tests/committable-secrets.test.ts holds it' },
+  'Export profiles':
+    { notCertifiable: 'which settings an export uses, not what a game does; pipeline/tests/project-export-options.test.ts and the editor\'s export-profile-store test hold it' },
   // — 0.73.0 —
   'A connected native build\'s frame can be captured and replayed':
     { notCertifiable: 'a development tool over a frame the game already draws; sdk/tests/frame-capture-copy.test.ts holds the native read path, and it was run on the macOS host and in the Android emulator' },

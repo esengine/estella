@@ -14,6 +14,8 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.74.0] - 2026-09-27
+
 ### Added
 
 - **Android release signing.** A Shipping APK (and App Bundle) is signed with the release key the project names under Project Settings → Android → Signing — two PEM paths, the passphrase kept in this machine's keychain (the command line reads `ESTELLA_ANDROID_KEY_PASSPHRASE`); Development builds keep the development key. A Shipping build without one says it will be refused by Google Play.
@@ -13755,7 +13757,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.73.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.74.0...HEAD
+[0.74.0]: https://github.com/esengine/estella/compare/v0.73.0...v0.74.0
 [0.73.0]: https://github.com/esengine/estella/compare/v0.72.0...v0.73.0
 [0.72.0]: https://github.com/esengine/estella/compare/v0.71.0...v0.72.0
 [0.71.0]: https://github.com/esengine/estella/compare/v0.70.0...v0.71.0
