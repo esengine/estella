@@ -1185,9 +1185,9 @@ export const NOTED = {
   'feat(settings): WeChat\'s EmscriptenGLX is a project setting':
     { note: '**EmscriptenGLX on WeChat.** A WeChat project can ship the engine linked with WeChat\'s EmscriptenGLX (Project Settings → WeChat → Render through EmscriptenGLX, off by default), which issues the engine\'s GL calls natively instead of through JavaScript: a draw-heavy scene spent about 12% less time rendering on an Android phone. It adds about 310KB of wasm and needs base library 3.8.12 on Android, or iOS in 高性能+ mode; any other host renders through WebGL2 as before, and the log says which. The engine is built once with `node build-tools/cli.js build -t wechat-glx`, which fetches WeChat\'s library at a pinned version and hash, and emsdk 4.0.10 beside the main one; an export that asks for it without it says so.' },
   'feat(debug): a connected build says which graphics API it draws through':
-    { note: 'A connected development build says which graphics API it draws through — WebGL2, EmscriptenGLX or WebGPU — once its game has started: the Profiler shows it beside the device\'s controls, the Output Log notes it, and `device_targets` returns it as `graphics`. A WeChat build set to EmscriptenGLX reports WebGL2 on a host that does not offer it.' },
+    { note: 'A connected development build says which graphics API it draws through' },
   'feat(profiler): the Profiler shows which graphics API a device draws through':
-    { note: 'A connected development build says which graphics API it draws through — WebGL2, EmscriptenGLX or WebGPU — once its game has started: the Profiler shows it beside the device\'s controls, the Output Log notes it, and `device_targets` returns it as `graphics`. A WeChat build set to EmscriptenGLX reports WebGL2 on a host that does not offer it.' },
+    { note: 'A connected development build says which graphics API it draws through' },
   'fix(export): a mini-game package draws each atlas sprite as its own frame':
     { note: 'A WeChat or other mini-game package draws each sprite from a packed atlas as its own frame again, not as the whole atlas page shrunk into the sprite. The package\'s scenes now keep their `@uuid:` references as the web package does, and a reference by bare uuid finds its atlas frame too.' },
   'fix(minigame): sprite masks draw in a mini-game package':
@@ -1195,9 +1195,9 @@ export const NOTED = {
   'test(golden): space-shooter is certified on WeChat by the pixels it claims':
     { internal: 'A repository golden check; no creator runs it.' },
   'feat(debug): a connected build answers with the whole frame it composited':
-    { note: 'A connected development build can be asked for the whole frame it composited — every camera and the UI over them — as the player sees it: `device_screenshot` returns it as a PNG, read back by the device\'s own engine. The frame debugger\'s replay shows one pass of a captured frame.' },
+    { note: 'A connected development build can be asked for the whole frame it composited' },
   'feat(agent): device_screenshot shows what a connected build shows its player':
-    { note: 'A connected development build can be asked for the whole frame it composited — every camera and the UI over them — as the player sees it: `device_screenshot` returns it as a PNG, read back by the device\'s own engine. The frame debugger\'s replay shows one pass of a captured frame.' },
+    { note: 'A connected development build can be asked for the whole frame it composited' },
   'fix(wechat): a WeChat package registers the engine components and AI names again':
     { note: 'A WeChat package registers every engine component and the built-in AI names again. The WeChat entries lost their start-up calls to the bundler, so a scene using a component with no typed definition — a rigged model\'s MeshSkin among them — loaded without it ("Unknown component type") and its character was never skinned.' },
   'fix(ecs): a list field reads back as an array on every read path':
@@ -1205,7 +1205,7 @@ export const NOTED = {
   'fix(import): import-model registers the images a model names on disk':
     { note: '`estella import-model` registers the images a model references on disk, so an export ships them. It wrote the materials and prefab that name them and left the images themselves unregistered, and a package built from the command line carried none of its textures.' },
   'feat(render): KTX2 textures under zstd supercompression decode on web and mini-games':
-    { note: 'Web and mini-game packages decode KTX2 textures under Zstandard supercompression, as the native host already did. UASTC textures made outside Estella usually are, and every one failed to decode; the transcoder module grows by about 21KB compressed, in packages that carry KTX2.' },
+    { note: 'Web and mini-game packages decode Zstandard-supercompressed KTX2' },
   'refactor(build): the GLX engine adds its exports to the WeChat lists':
     { internal: 'The WeChat GLX engine exports the same functions as before; its link flags now extend the WeChat lists instead of restating them.' },
   'fix(export): the size report reads a Windows path as it reads any other':
@@ -1215,25 +1215,25 @@ export const NOTED = {
   'fix(render): a compressed texture is sampled with the mip chain it carries':
     { note: 'Compressed (KTX2) textures on web and mini-games are sampled with their mip chain. The cook has always written one into every texture it compresses, and only level 0 reached the GPU: a compressed texture shimmered as it shrank into the distance, and the rest of its bytes shipped for nothing. A texture decoded to RGBA on a device with no compressed format gets its chain generated.' },
   'feat(export): an authored single-level KTX2 ships with a mip chain':
-    { note: 'A KTX2 texture made outside Estella with a single level ships with a mip chain: the cook encodes the levels below it and keeps the file\'s own level 0 byte for byte, so it no longer shimmers into the distance. Bistro\'s 2048² textures each took about 0.3 s; the package grows by the chain\'s third.' },
+    { note: 'A single-level KTX2 made outside Estella ships with a mip chain' },
   'perf(export): the cook reads back a texture encode it already did':
-    { note: 'Exporting again is fast when the art has not changed: the cook keeps what it encoded under `.esengine/cache/cook/`, keyed by the source, the settings and the encoder. Re-exporting Bistro took 24 s against 131 s the first time.' },
+    { note: 'Exporting again is fast when the art has not changed' },
   'feat(asset): a scene preload reports what each asset type cost':
-    { note: 'A scene\'s preload logs what each asset type cost it — how many, their summed load time and the slowest one — and `preloadSceneAssets` returns the same as `timings` and `wallMs`. Bistro on a Windows machine: 132 materials 54 s, 107 textures 47 s and 1505 meshes 45 s of load time over 24 s of wall time.' },
+    { note: 'A scene\'s preload says what each asset type cost it' },
   'perf(asset): KTX2 textures transcode on worker threads':
-    { note: 'KTX2 textures on the web and in the editor transcode on worker threads instead of the main thread, one to four of them by the machine\'s cores. Bistro\'s assets loaded in 14 s instead of 24 s on a Windows machine, and the page stays responsive while they do. A realm with no workers (a mini-game host) transcodes on the main thread as before, and so does one whose workers fail, which says so once.' },
+    { note: 'KTX2 textures transcode on worker threads' },
   'fix(asset): a preload times itself without a platform':
     { internal: 'The per-type preload timings landed one commit earlier and never shipped; they read the platform clock, which a realm without a platform (the SDK tests) does not have.' },
   'feat(asset): the runtime reads an asset out of the pack its export put it in':
-    { note: 'Web exports pack their small local assets — meshes, materials, KTX2 textures, timelines and animation assets — into a few `packs/*.pack` files, one request each, and the runtime reads each asset out of its pack. A browser holds six connections to a site, so a scene of thousands of small files loaded at the pace of its requests: Bistro\'s 1505 meshes took 43 s of load time for 0.2 s of upload. Its first frame on a Windows machine went from 15.2 s to 7.3 s, pixel for pixel the same. An export with hot update configured keeps one file per asset, since an update downloads assets one by one; an update that meets a packed asset refuses it by name.' },
+    { note: 'Web exports pack their small assets into a few files' },
   'feat(export): a web export packs its small local assets into a few files':
-    { note: 'Web exports pack their small local assets — meshes, materials, KTX2 textures, timelines and animation assets — into a few `packs/*.pack` files, one request each, and the runtime reads each asset out of its pack. A browser holds six connections to a site, so a scene of thousands of small files loaded at the pace of its requests: Bistro\'s 1505 meshes took 43 s of load time for 0.2 s of upload. Its first frame on a Windows machine went from 15.2 s to 7.3 s, pixel for pixel the same. An export with hot update configured keeps one file per asset, since an update downloads assets one by one; an update that meets a packed asset refuses it by name.' },
+    { note: 'Web exports pack their small assets into a few files' },
   'fix(render): a two-channel normal map lights its surface':
     { note: 'Normal maps stored in two channels light correctly. The shader rebuilds Z from X and Y instead of reading blue, so a BC5 map, or one a converter wrote with blue at 0 — every normal map of Bistro\'s glTF conversion — no longer points its surface\'s normals inward, which left normal-mapped surfaces unlit by their sun.' },
   'feat(import): a model brings its DDS maps as PNG and reads a packed specular map':
     { note: 'Importing a model converts its DDS textures to PNG' },
   'feat(import): a model\'s specular map is read as its import settings say':
-    { note: 'An FBX model\'s specular map can be read as packed occlusion' },
+    { note: 'An FBX model\'s specular map can be read as packed ORM' },
   'feat(cook): textures encode on every core':
     { note: 'Exporting compresses textures on every core' },
   'fix(render): a double-sided mesh is lit on the side the camera sees':
