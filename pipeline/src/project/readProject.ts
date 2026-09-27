@@ -14,6 +14,7 @@ import {
   WORKSPACE_DIR,
   WORKSPACE_FILE,
   parseManifest,
+  ignoredManifestKeys,
   type ProjectManifest,
   type OpenedProject,
   type WorkspaceState,
@@ -30,18 +31,24 @@ export async function readTextInRoot(abs: string): Promise<string> {
   return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
 }
 
-/** Require + parse a project's `project.esproject` manifest (no workspace load). */
-export async function readManifest(root: string): Promise<ProjectManifest> {
+async function readManifestJson(root: string): Promise<unknown> {
   const manifestPath = path.join(root, PROJECT_MANIFEST_FILE);
   if (!existsSync(manifestPath)) {
     throw new Error(`not an Estella project (missing ${PROJECT_MANIFEST_FILE}): ${root}`);
   }
-  return parseManifest(JSON.parse(await readTextInRoot(manifestPath)));
+  return JSON.parse(await readTextInRoot(manifestPath));
+}
+
+/** Require + parse a project's `project.esproject` manifest (no workspace load). */
+export async function readManifest(root: string): Promise<ProjectManifest> {
+  return parseManifest(await readManifestJson(root));
 }
 
 /** Open a project: require + parse `project.esproject`, load workspace if present. */
 export async function openProject(root: string): Promise<OpenedProject> {
-  const manifest = await readManifest(root);
+  const raw = await readManifestJson(root);
+  const manifest = parseManifest(raw);
+  const ignoredKeys = ignoredManifestKeys(raw);
 
   let workspace: WorkspaceState = {};
   const wsPath = path.join(root, WORKSPACE_DIR, WORKSPACE_FILE);
@@ -52,5 +59,5 @@ export async function openProject(root: string): Promise<OpenedProject> {
       // A corrupt workspace file is non-fatal — start clean.
     }
   }
-  return { root, manifest, workspace };
+  return { root, manifest, workspace, ...(ignoredKeys.length > 0 ? { ignoredKeys } : {}) };
 }

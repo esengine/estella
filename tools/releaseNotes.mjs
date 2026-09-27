@@ -1246,6 +1246,10 @@ export const NOTED = {
     { note: 'Normal, roughness/metalness and occlusion maps are sampled as data' },
   'fix(import): a model\'s data maps reach their .meta as not sRGB':
     { note: 'Normal, roughness/metalness and occlusion maps are sampled as data' },
+  'feat(project): a project file\'s settings that nothing reads are named':
+    { note: 'A project file\'s settings that nothing reads are named instead of dropped' },
+  'feat(project): opening a project names the settings its file carries that nothing reads':
+    { note: 'A project file\'s settings that nothing reads are named instead of dropped' },
   'fix(eht): the generator writes LF on every platform':
     { internal: 'The engine header tool is a repository generator; on Windows it rewrote every generated file with CRLF, which only a contributor there ever saw.' },
 };

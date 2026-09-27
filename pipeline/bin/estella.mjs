@@ -823,11 +823,16 @@ const desktopTemplates = platform !== 'desktop' ? [] : (opts.template
 
 const { mod: fmt, cleanup: cleanupFmt } = await loadPipeline(
   path.join(PIPELINE, 'src', 'project', 'index.ts'), 'projectFormat.mjs');
-const { parseManifest } = fmt;
+const { parseManifest, ignoredManifestKeys } = fmt;
 // PARSED, not read by hand: the parser normalizes legacy platform ids and drops
 // values that could not be judged against. A setting read straight off the JSON
 // here is a second answer to what a project means.
 const manifest = parseManifest(project);
+for (const { key, under } of ignoredManifestKeys(project)) {
+  console.warn(under
+    ? `  ! project.esproject: "${key}" belongs under "${under}" — ignored where it is`
+    : `  ! project.esproject: "${key}" is not a project setting — ignored`);
+}
 
 const { mod: exporter, cleanup: cleanupExport } = await loadPipeline(
   path.join(PIPELINE, 'src', 'export', 'exportGame.ts'), 'exportGame.mjs');

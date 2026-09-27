@@ -577,6 +577,39 @@ export interface OpenedProject {
    *  the renderer must say so LOUDLY: a silently skipped mirror is exactly how
    *  "cannot find module 'esengine'" shipped without a trace (issue #49). */
   stagingError?: string;
+  /** Keys of `project.esproject` this format never reads (see {@link ignoredManifestKeys}). */
+  ignoredKeys?: IgnoredManifestKey[];
+}
+
+/** A key of a project file that nothing reads; `under` names the block it belongs in. */
+export interface IgnoredManifestKey {
+  key: string;
+  under?: 'features';
+}
+
+/** Records every key `parse` asks of the proxied object. */
+function keysRead(target: object, parse: (o: object) => void): Set<string> {
+  const read = new Set<string>();
+  const note = (k: string | symbol): void => { if (typeof k === 'string') read.add(k); };
+  parse(new Proxy(target, {
+    get: (t, k, r) => { note(k); return Reflect.get(t, k, r); },
+    has: (t, k) => { note(k); return Reflect.has(t, k); },
+  }));
+  return read;
+}
+
+/**
+ * Top-level keys of a project file that {@link parseManifest} never reads, which
+ * would otherwise drop a misplaced or misspelt setting silently. Taken from the
+ * parser's own reads, so a newly added setting can never be reported.
+ */
+export function ignoredManifestKeys(raw: unknown): IgnoredManifestKey[] {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return [];
+  const top = keysRead(raw, (o) => parseManifest(o));
+  const featureKeys = keysRead({}, (f) => parseManifest({ name: 'probe', features: f }));
+  return Object.keys(raw)
+    .filter((key) => !top.has(key))
+    .map((key) => (featureKeys.has(key) ? { key, under: 'features' as const } : { key }));
 }
 
 /** A directory entry from a sandboxed readdir. */
