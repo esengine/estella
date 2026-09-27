@@ -773,9 +773,7 @@ export function serializeScene(world: World, sceneName = 'scene'): SceneData {
         }
     }
 
-    // Derive children from the parent map so we don't have to decode the
-    // Children component (whose `entities` field is a wasm VectorEntity on
-    // the CPP backend and would leak if iterated without cleanup).
+    // Derived from the parent map already built above: one pass, no second read per entity.
     const childrenOf = new Map<number, number[]>();
     for (const [child, parent] of parentOf) {
         let arr = childrenOf.get(parent);

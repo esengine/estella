@@ -9,7 +9,7 @@ import { Entity, entityGeneration, entityIndex, makeEntity, INVALID_ENTITY } fro
 import { AnyComponentDef, ComponentDef, ComponentData, BuiltinComponentDef, isBuiltinComponent, getComponentRegistry, getUserComponents, getComponent, Disabled, Name, Parent, Children, type ParentData, type ChildrenData } from './component';
 import type { CppRegistry, ESEngineModule } from '../wasm';
 import { handleWasmError } from '../wasm/wasmError';
-import { BuiltinBridge, convertFromWasm, convertForWasm, type BridgeConnectOptions,
+import { BuiltinBridge, builtinFromWasm, numberListFieldsOf, convertForWasm, type BridgeConnectOptions,
          type BuiltinMethods, type CompositionDelta } from './bridge/BuiltinBridge';
 import { ScriptStorage } from './ScriptStorage';
 import type { PoolMemory, ScriptPool } from './ScriptPool';
@@ -833,10 +833,7 @@ export class World {
             try {
                 const methods = this.builtin_.getBuiltinMethods(component._cppName);
                 if (!bset && !methods.has(entity)) return null;
-                return convertFromWasm(
-                    methods.get(entity) as Record<string, unknown>,
-                    component.colorKeys,
-                ) as ComponentData<C>;
+                return builtinFromWasm(methods.get(entity), component) as ComponentData<C>;
             } catch (e) {
                 handleWasmError(e, `tryGet(${component._name}, entity=${entity})`);
                 return null;
@@ -949,11 +946,10 @@ export class World {
             }
 
             const methods = this.builtin_.getBuiltinMethods(component._cppName);
-            const colorKeys = component.colorKeys;
-            if (colorKeys.length === 0) {
-                return (e) => methods.get(e);
-            }
-            return (e) => convertFromWasm(methods.get(e) as Record<string, unknown>, colorKeys);
+            const plain = component.colorKeys.length === 0 && component.entityFields.length === 0
+                && numberListFieldsOf(component._cppName).length === 0;
+            if (plain) return (e) => methods.get(e);
+            return (e) => builtinFromWasm(methods.get(e), component);
         }
         const storage = this.scripts_.getStorageById(component._id);
         if (!storage) return null;

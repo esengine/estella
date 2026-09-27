@@ -122,13 +122,6 @@ export function materializeNumberVectors(
 }
 
 /**
- * Snapshot a component's list fields back into JS arrays, freeing the embind
- * vectors they came back as.
- *
- * Read here and not left to the caller: an embind vector is a heap object that
- * leaks unless freed, and an array is what everything above this already speaks.
- */
-/**
  * Which of a builtin's fields hold a list of numbers. Read off the generated
  * metadata rather than carried on the component definition: that definition is
  * a public type, and how a field crosses THIS boundary is not part of it.
@@ -137,7 +130,12 @@ export function numberListFieldsOf(cppName: string): readonly string[] {
     return (COMPONENT_META[cppName]?.numberListFields ?? []) as readonly string[];
 }
 
-export function snapshotNumberVectors(
+/**
+ * A component's list fields — numbers or entities — as JS arrays, the embind
+ * vectors freed; a non-vector field is left as it is. Here and not at the caller:
+ * a vector leaks unless freed, and only some emsdk versions make it iterable.
+ */
+export function snapshotVectors(
     obj: Record<string, unknown>, fields: readonly string[],
 ): Record<string, unknown> {
     for (const key of fields) {
@@ -149,6 +147,16 @@ export function snapshotNumberVectors(
         vec.delete();
     }
     return obj;
+}
+
+/** A builtin as embind hands it back, made into what the rest of the SDK reads:
+ *  its lists as arrays (the vectors freed) and its colours converted. */
+export function builtinFromWasm(raw: unknown, component: BuiltinComponentDef<any>): unknown {
+    return convertFromWasm(
+        snapshotVectors(raw as Record<string, unknown>,
+                        [...numberListFieldsOf(component._cppName), ...component.entityFields]),
+        component.colorKeys,
+    );
 }
 
 // =============================================================================
@@ -867,12 +875,7 @@ export class BuiltinBridge {
             throw new Error('C++ Registry not connected');
         }
         try {
-            const raw = this.getBuiltinMethods(component._cppName).get(entity);
-            return convertFromWasm(
-                snapshotNumberVectors(raw as Record<string, unknown>,
-                                      numberListFieldsOf(component._cppName)),
-                component.colorKeys,
-            ) as T;
+            return builtinFromWasm(this.getBuiltinMethods(component._cppName).get(entity), component) as T;
         } catch (e) {
             handleWasmError(e, `getBuiltin(${component._name}, entity=${entity})`);
             return { ...component._default } as T;
