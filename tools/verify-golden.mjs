@@ -25,7 +25,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { mkdirSync, rmSync, readFileSync, existsSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { atTier, sharesOf, projectDir, parityFor, interactFor, audioFor, suspendFor, safeAreaFor, atlasFor, subpackageFor, firstScreenFor, webPixels, launchTimeoutFor, ROOT } from './goldenProjects.mjs';
+import { atTier, sharesOf, projectDir, parityFor, interactFor, audioFor, suspendFor, safeAreaFor, atlasFor, subpackageFor, firstScreenFor, packagePixels, launchTimeoutFor, ROOT } from './goldenProjects.mjs';
 import { frameDistance, frameCellMax, readPNG } from './frameCompare.mjs';
 import { retryOnDeadGpu, deadGpuVerdict, launchNeverHappenedVerdict, failureLines } from './lib/deadGpu.mjs';
 import { runElectron, ensureElectronBinary } from './lib/electronRun.mjs';
@@ -530,7 +530,7 @@ for (const { id, target } of pairs) {
   // What the PACKAGE drew, before comparing it to anything. Parity is an A/B, so
   // a capability the package lost and the editor never had passes it; the launch
   // check passes any frame that is not one flat colour.
-  const wanted = target === 'web' ? webPixels(golden) : null;
+  const wanted = COMPARABLE.has(target) ? packagePixels(golden) : null;
   if (wanted) {
     const missed = probePackagePixels(packagePng, wanted);
     if (missed.length > 0) {

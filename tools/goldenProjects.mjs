@@ -679,7 +679,16 @@ export const GOLDEN = [
     // rather than at the one its position would give it — so the draw order and the
     // mask are both something a packaged game here actually does.
     certifies: ['ecs', 'texture-atlas', 'sprite-sorting', 'sprite-mask', 'velocity-motion', 'sprite-draw-mode'],
-    targets: ['web', 'desktop', 'android'],
+    // WeChat too: its package drew every packed sprite as the whole page and every
+    // mask as absent while the web one was right, and no target here could see it.
+    targets: ['web', 'wechat', 'desktop', 'android'],
+    // Parity averages the frame, and a ship drawn as its whole atlas page or a
+    // bar whose mask was ignored is one percent of it: a WeChat package did both
+    // at 0.014, inside the limit. These read the two things themselves.
+    packagePixels: [
+      { what: 'the ship samples its own frame of the atlas', x: 0.5, y: 0.885, rgb: [66, 177, 243], tol: 30 },
+      { what: 'the hull bar shows its fill through the mask', x: 0.40, y: 0.9625, rgb: [95, 239, 145], tol: 30 },
+    ],
     tier: 'pr',
     interact: { keys: ['ArrowLeft'], frames: 40 },
     // Its small sprites live in a `<name>.atlas/` folder, so the cook packs them
@@ -700,7 +709,7 @@ export const GOLDEN = [
     interactGap: 'a placed model has nothing to drive; the import chain is what this certifies',
     // Both colours of the model's own texture: an import that lost the texture, or
     // the model, leaves the clear colour here.
-    webPixels: [
+    packagePixels: [
       { what: 'the model draws its texture', x: 0.19, y: 0.385, rgb: [212, 156, 75], tol: 24 },
       { what: 'and the texture\'s second colour', x: 0.40, y: 0.385, rgb: [58, 46, 40], tol: 24 },
     ],
@@ -724,7 +733,7 @@ export const GOLDEN = [
     // The pose is HELD rather than played, so a point means one thing rather than
     // one moment. Measured on the package; each was checked by breaking the
     // feature it is about and watching it, and only it, go.
-    webPixels: [
+    packagePixels: [
       // Only the joints put the mesh here — with the skin gone it draws nowhere.
       { what: 'the skin places the mesh', x: 0.245, y: 0.31, rgb: [255, 255, 255], tol: 22 },
       { what: 'the mesh casts onto the panel', x: 0.515, y: 0.55, rgb: [64, 61, 61], tol: 22 },
@@ -745,7 +754,7 @@ export const GOLDEN = [
     // The launcher moves no pointer, so the torch rests where the scene puts it.
     // Two cells one distance from it, past a block and in the open, differ only by
     // the shadow pass — whether it survives a package, not what a shadow looks like.
-    webPixels: [
+    packagePixels: [
       { what: 'the torch lights the floor', x: 0.55, y: 0.42, rgb: [172, 165, 147], tol: 30 },
       { what: 'the open side is lit at that distance', x: 0.65, y: 0.42, rgb: [63, 61, 56], tol: 24 },
       { what: 'the block shadows its far side', x: 0.35, y: 0.42, rgb: [13, 14, 14], tol: 24 },
@@ -781,7 +790,7 @@ export const GOLDEN = [
     // The hero left of centre only through its instance's override, the knight
     // upright only through the retarget: without it the hero's clips lay the
     // knight on its back, helmet and boots nowhere near these points.
-    webPixels: [
+    packagePixels: [
       { what: 'the hero stands where its override puts it', x: 0.372, y: 0.406, rgb: [166, 81, 17], tol: 28 },
       { what: 'the knight\'s helmet is at the top of it', x: 0.610, y: 0.228, rgb: [123, 129, 123], tol: 24 },
       { what: 'its armour at the side', x: 0.659, y: 0.571, rgb: [59, 61, 59], tol: 24 },
@@ -838,7 +847,7 @@ export const GOLDEN = [
     // key caused it. The keyboard is covered by platformer and input-actions.
     interactGap: 'an autonomous enemy moves as much as the input does; the A/B cannot attribute it',
     // Away from the patrol: the ground and the water are layers of their own.
-    webPixels: [
+    packagePixels: [
       { what: 'the ground layer draws', x: 0.84, y: 0.93, rgb: [198, 124, 89], tol: 24 },
       { what: 'the water layer draws', x: 0.43, y: 0.83, rgb: [54, 192, 245], tol: 24 },
     ],
@@ -1157,13 +1166,12 @@ export function desktopPixels(g, host) {
 }
 
 /**
- * Points a packaged WEB frame must contain, or null. Parity only says the package
- * and the editor agree — a feature the PACKAGE lost that the editor never had
- * either passes it, and a launch check passes anything that is not one flat
- * colour. `x`/`y` are fractions of the surface, `y` from the top.
+ * Points a packaged frame must contain on every target sized to the editor's, or
+ * null. Parity is an average: a feature both lost, or one sprite drawn wrong in a
+ * frame of many, passes it. `x`/`y` are fractions of the surface, `y` from the top.
  */
-export function webPixels(g) {
-  return g?.webPixels ?? null;
+export function packagePixels(g) {
+  return g?.packagePixels ?? null;
 }
 
 /**

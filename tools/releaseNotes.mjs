@@ -1188,4 +1188,10 @@ export const NOTED = {
     { note: 'A connected development build says which graphics API it draws through — WebGL2, EmscriptenGLX or WebGPU — once its game has started: the Profiler shows it beside the device\'s controls, the Output Log notes it, and `device_targets` returns it as `graphics`. A WeChat build set to EmscriptenGLX reports WebGL2 on a host that does not offer it.' },
   'feat(profiler): the Profiler shows which graphics API a device draws through':
     { note: 'A connected development build says which graphics API it draws through — WebGL2, EmscriptenGLX or WebGPU — once its game has started: the Profiler shows it beside the device\'s controls, the Output Log notes it, and `device_targets` returns it as `graphics`. A WeChat build set to EmscriptenGLX reports WebGL2 on a host that does not offer it.' },
+  'fix(export): a mini-game package draws each atlas sprite as its own frame':
+    { note: 'A WeChat or other mini-game package draws each sprite from a packed atlas as its own frame again, not as the whole atlas page shrunk into the sprite. The package\'s scenes now keep their `@uuid:` references as the web package does, and a reference by bare uuid finds its atlas frame too.' },
+  'fix(minigame): sprite masks draw in a mini-game package':
+    { note: 'Sprite masks work in WeChat and other mini-game packages: the game\'s WebGL context was created without a stencil buffer, so every mask drew as if it were not there (space-shooter\'s hull bar read as empty). The web, playable and mini-game hosts now create the context with the same attributes.' },
+  'test(golden): space-shooter is certified on WeChat by the pixels it claims':
+    { internal: 'A repository golden check; no creator runs it.' },
 };

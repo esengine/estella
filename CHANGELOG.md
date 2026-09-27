@@ -27,6 +27,8 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- A WeChat or other mini-game package draws each sprite from a packed atlas as its own frame again, not as the whole atlas page shrunk into the sprite. The package's scenes now keep their `@uuid:` references as the web package does, and a reference by bare uuid finds its atlas frame too.
+- Sprite masks work in WeChat and other mini-game packages: the game's WebGL context was created without a stencil buffer, so every mask drew as if it were not there (space-shooter's hull bar read as empty). The web, playable and mini-game hosts now create the context with the same attributes.
 - On a host that compresses the engine binary (most CDNs and static hosts), the web boot bar no longer runs to the end of the engine download a third of the way through and stands there for the rest of it: the page divided decompressed bytes by the compressed Content-Length. The export now records the binary's own size (`engineBytes` in `game.config.json`) and the bar measures against that.
 - Project Settings says the start screen's logo is for web exports; a mini-game shows its host's own start screen and loading text.
 - The Profiler no longer reports a connected build's debug-channel cost as 0 ms when the device's clock is too coarse to measure it — a browser that is not cross-origin isolated steps by 0.1 ms. The device reports its clock's step, the row reads "< 0.100 ms", and `profile_frames` returns it as `channelClockMs`.
