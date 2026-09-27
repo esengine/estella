@@ -155,6 +155,11 @@ export function prepareModelImages(result: ModelImportResult,
                     + ` ${pixels.width}x${pixels.height} — a material constant would say the same`);
             }
         }
+        // A cutout's mips keep its coverage at the cutoff it tests, or it thins with distance.
+        const base = material.baseColorTexture;
+        if (base && material.alphaCutoff !== undefined && material.alphaCutoff > 0) {
+            material.baseColorTexture = { ...base, settings: { ...base.settings, mipCoverage: material.alphaCutoff } };
+        }
     }
 
     const converted = new Set([...seen.entries()].filter(([k]) => k.startsWith('x:') && isDdsName(k.slice(2)))

@@ -110,14 +110,14 @@ export function decideTextureCook(input: TextureCookInputs): TextureCookDecision
 
 /**
  * The payload once the encoder has answered: a KTX2 bigger than the image it
- * encoded is not a compression, whatever it was asked for. Basis writes about a
- * byte per pixel and PNG writes almost nothing for flat art — a 512px sky came
- * out 35x its PNG, and obliged the package to carry a megabyte of transcoder.
+ * encoded is not a compression (a 512px sky came out 35x its PNG) — unless it
+ * carries what the image cannot: a cutout's coverage-kept mips, which a chain
+ * built on the device loses, so the leaves thin out with distance.
  */
 export function keepSmaller(
-  d: TextureCookDecision, encodedBytes: number, rawBytes: number,
+  d: TextureCookDecision, encodedBytes: number, rawBytes: number, carriesMips = false,
 ): TextureCookDecision {
-  if (d.selected === 'raw' || encodedBytes < rawBytes) return d;
+  if (d.selected === 'raw' || carriesMips || encodedBytes < rawBytes) return d;
   return { ...d, selected: 'raw', reason: 'bigger-than-raw' };
 }
 

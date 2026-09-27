@@ -41,7 +41,9 @@ export interface ImportedImageRef {
     external: boolean;
     /** Import settings the source's sampler asks for, in the engine's own words.
      *  Absent where the source names no sampler (its defaults are the engine's). */
-    settings?: { filterMode?: 'nearest' | 'linear'; wrapMode?: 'repeat' | 'clamp' | 'mirror'; sRGB?: boolean };
+    settings?: {
+        filterMode?: 'nearest' | 'linear'; wrapMode?: 'repeat' | 'clamp' | 'mirror'; sRGB?: boolean; mipCoverage?: number;
+    };
 }
 
 /**
@@ -400,6 +402,27 @@ function materialName(stem: string, material: ImportedMaterial): string {
  * draw's own — a model told to occlude itself would start blending the moment
  * it gained a material.
  */
+/**
+ * Every image the materials reference, with the import settings its references ask
+ * for, merged: two materials sharing a texture (a cutout's leaves and a blended
+ * wing on one atlas) each add their keys, the first to name a key keeping it.
+ * Keyed by the ref's `file` as the reader spelled it.
+ */
+export function importedImageSettings(meshes: ImportedMesh[]):
+    Map<string, { external: boolean; settings: NonNullable<ImportedImageRef['settings']> }> {
+    const out = new Map<string, { external: boolean; settings: NonNullable<ImportedImageRef['settings']> }>();
+    for (const mesh of meshes) {
+        const m = mesh.material;
+        for (const image of [m?.baseColorTexture, m?.normalTexture, m?.emissiveTexture,
+            m?.occlusionTexture, m?.metallicRoughnessTexture]) {
+            if (!image) continue;
+            const seen = out.get(image.file);
+            out.set(image.file, { external: image.external, settings: { ...image.settings, ...seen?.settings } });
+        }
+    }
+    return out;
+}
+
 export function materialProducts(meshes: ImportedMesh[], stem: string,
                                  refs: ProductRefs = {}): ImportedMaterialAsset[] {
     const out: ImportedMaterialAsset[] = [];

@@ -11,7 +11,9 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { readKtx2Layout, wantsMipChain, halveRgba, spliceMipChain } from '../src/assets/ktx2Mips';
+import {
+    readKtx2Layout, wantsMipChain, halveRgba, spliceMipChain, joinMipLevels, alphaCoverage, preserveAlphaCoverage,
+} from '../src/assets/ktx2Mips';
 import { cookCached } from '../src/assets/cookCache';
 import { cookAssets } from '../src/assets/cookAssets';
 
@@ -103,4 +105,34 @@ describe('cooking an authored single-level KTX2', () => {
         expect(readKtx2Layout(shipped)!.levels).toHaveLength(7);
         expect(readdirSync(path.join(r, '.esengine', 'cache', 'cook'))).toHaveLength(1);
     }, 60_000);
+});
+
+describe('a cutout\'s mips keep its coverage', () => {
+    // Leaves: one texel in four solid, the rest clear.
+    const leaves = (side: number) => {
+        const rgba = new Uint8Array(side * side * 4);
+        for (let i = 0; i < side * side; i++) {
+            rgba.set([60, 140, 40, (i % 2 === 0 && Math.floor(i / side) % 2 === 0) ? 255 : 0], i * 4);
+        }
+        return rgba;
+    };
+
+    it('thins under averaging, and comes back to the full image\'s share once rescaled', () => {
+        const full = leaves(16);
+        const target = alphaCoverage(full, 0.5);
+        const half = halveRgba(full, 16, 16, false);
+        expect(target).toBe(0.25);
+        expect(alphaCoverage(half.rgba, 0.5)).toBe(0);
+        preserveAlphaCoverage(half.rgba, 0.5, target);
+        expect(alphaCoverage(half.rgba, 0.5)).toBeGreaterThanOrEqual(0.25);
+    });
+
+    it('joins single levels into one chain, and refuses a level of the wrong size', async () => {
+        const at = async (side: number) => enc.encodeToKtx2({ type: enc.ImageType.RGBA, data: leaves(side), width: side, height: side },
+            { mode: 'uastc', mipmaps: false });
+        const chainParts = [await at(8), await at(4), await at(2)];
+        const chain = readKtx2Layout(joinMipLevels(chainParts))!;
+        expect([chain.width, chain.height, chain.levels.length]).toEqual([8, 8, 3]);
+        expect(() => joinMipLevels([chainParts[0]!, chainParts[2]!])).toThrow(/not the level under/);
+    });
 });

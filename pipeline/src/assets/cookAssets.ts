@@ -44,7 +44,9 @@ import { isBuiltinAssetRef, resolveRelativePath, resolveDocumentRef } from '../.
 // realm (sdk/src/asset/assetGroups.ts) so cook and editor never disagree.
 import { resolveAssetGroup, resolveAtlas, type AssetGroupsConfig } from '../../../sdk/src/asset/assetGroups';
 import type { BundleMode } from '../../../sdk/src/asset/AddressableManifest';
-import { readKtx2Layout, wantsMipChain, halveRgba, spliceMipChain } from './ktx2Mips';
+import {
+  readKtx2Layout, wantsMipChain, halveRgba, spliceMipChain, joinMipLevels, alphaCoverage, preserveAlphaCoverage,
+} from './ktx2Mips';
 import { cookCached, encoderIdentity } from './cookCache';
 
 const MANIFEST = 'assets.manifest.json';
@@ -248,6 +250,27 @@ async function mapInOrder<T, R>(items: T[], limit: number, fn: (item: T) => Prom
 }
 
 const KTX2_SCHEME_ZSTD = 2;
+
+/**
+ * A cutout's UASTC chain, each level halved here from the one above with its alpha
+ * rescaled to the full image's coverage at @p cutoff — plain averaging thins a
+ * sparse cutout, such as a railing, until nothing of it passes the cut.
+ */
+async function encodeCoverageChain(enc: BasisEncoderModule, img: { rgba: Uint8Array; width: number; height: number },
+                                   srgb: boolean, cutoff: number): Promise<Uint8Array> {
+  const coverage = alphaCoverage(img.rgba, cutoff);
+  const parts: Uint8Array[] = [];
+  let level = img;
+  for (;;) {
+    parts.push(await enc.encodeToKtx2({ type: enc.ImageType.RGBA, data: level.rgba, width: level.width, height: level.height },
+      { mode: 'uastc', srgb, mipmaps: false }));
+    if (level.width === 1 && level.height === 1) break;
+    const half = halveRgba(level.rgba, level.width, level.height, srgb);
+    preserveAlphaCoverage(half.rgba, cutoff, coverage);
+    level = half;
+  }
+  return joinMipLevels(parts);
+}
 
 /** Replace a path's extension (e.g. .png → .ktx2); appends if it had none. */
 function swapExt(p: string, ext: string): string {
@@ -817,13 +840,18 @@ export async function cookAssets(
           const enc = textureEnc!;
           const mode = cook.selected;
           const source = data;
+          const coverage = mode === 'uastc' ? tex.mipCoverage : 0;
           const encoded = (await cookCached(root,
-            [source, JSON.stringify({ mode, srgb: tex.srgb, maxSize: tex.maxSize, scaled: rgba ? [tw, th] : null }), encoderId],
-            () => (rgba
-              ? enc.encodeToKtx2({ type: enc.ImageType.RGBA, data: rgba, width: tw, height: th }, { mode, srgb: tex.srgb })
-              : enc.encodeToKtx2({ type: enc.ImageType.PNG, data: source }, { mode, srgb: tex.srgb })),
+            [source, JSON.stringify({ mode, srgb: tex.srgb, maxSize: tex.maxSize, scaled: rgba ? [tw, th] : null,
+              ...(coverage ? { mipCoverage: coverage } : {}) }), encoderId],
+            () => (coverage
+              ? encodeCoverageChain(enc, rgba ? { rgba, width: tw, height: th } : decodePngImage(entry.path, source),
+                tex.srgb, coverage)
+              : rgba
+                ? enc.encodeToKtx2({ type: enc.ImageType.RGBA, data: rgba, width: tw, height: th }, { mode, srgb: tex.srgb })
+                : enc.encodeToKtx2({ type: enc.ImageType.PNG, data: source }, { mode, srgb: tex.srgb })),
           )).bytes;
-          cook = keepSmaller(cook, encoded.byteLength, data.byteLength);
+          cook = keepSmaller(cook, encoded.byteLength, data.byteLength, coverage > 0);
           if (cook.selected !== 'raw') {
             data = encoded;
             ext = '.ktx2';

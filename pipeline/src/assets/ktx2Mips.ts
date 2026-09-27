@@ -83,6 +83,29 @@ function toSrgbByte(linear: number): number {
     return Math.max(0, Math.min(255, Math.round(c * 255)));
 }
 
+/** The share of texels whose alpha reaches @p cutoff (0..1 against 0..255 bytes). */
+export function alphaCoverage(rgba: Uint8Array, cutoff: number, scale = 1): number {
+    const threshold = cutoff * 255;
+    let above = 0;
+    for (let i = 3; i < rgba.length; i += 4) if (Math.min(255, rgba[i]! * scale) >= threshold) above++;
+    return above / (rgba.length / 4);
+}
+
+/**
+ * Scale @p rgba's alpha in place so the share of texels at or above @p cutoff is
+ * @p coverage — what a mip level of a cutout needs, or averaging thins it level by
+ * level until distant foliage has no leaves. The scale is found by bisection.
+ */
+export function preserveAlphaCoverage(rgba: Uint8Array, cutoff: number, coverage: number): void {
+    let lo = 0, hi = 4;
+    for (let i = 0; i < 20; i++) {
+        const mid = (lo + hi) / 2;
+        if (alphaCoverage(rgba, cutoff, mid) < coverage) lo = mid; else hi = mid;
+    }
+    const scale = hi;
+    for (let i = 3; i < rgba.length; i += 4) rgba[i] = Math.min(255, Math.round(rgba[i]! * scale));
+}
+
 /**
  * The next level down: each pixel the mean of the (up to) four above it. Colour
  * stored as sRGB is averaged as light, not as its encoding, or every level comes
@@ -117,24 +140,35 @@ export function halveRgba(rgba: Uint8Array, width: number, height: number, srgb:
  */
 export function spliceMipChain(base: Uint8Array, below: Uint8Array): Uint8Array {
     const top = readKtx2Layout(base);
-    const rest = readKtx2Layout(below);
-    if (!top || !rest) throw new Error('spliceMipChain: not a KTX2');
+    if (!top) throw new Error('spliceMipChain: not a KTX2');
     if (top.levels.length !== 1) throw new Error(`spliceMipChain: base has ${top.levels.length} levels, not 1`);
-    if (top.scheme !== rest.scheme) {
-        throw new Error(`spliceMipChain: supercompression differs (${top.scheme} over ${rest.scheme})`);
-    }
-    if (top.colorModel !== KHR_DF_MODEL_UASTC || rest.colorModel !== KHR_DF_MODEL_UASTC) {
-        throw new Error('spliceMipChain: both must be UASTC');
-    }
-    if (top.sgdLength || rest.sgdLength) throw new Error('spliceMipChain: global data cannot be spliced');
-    if (rest.width !== Math.max(1, top.width >> 1) || rest.height !== Math.max(1, top.height >> 1)) {
-        throw new Error(`spliceMipChain: ${rest.width}x${rest.height} is not the level under ${top.width}x${top.height}`);
-    }
+    return joinMipLevels([base, below]);
+}
 
-    const sources = [
-        { bytes: base, level: top.levels[0] },
-        ...rest.levels.map((level) => ({ bytes: below, level })),
-    ];
+/**
+ * One UASTC KTX2 of every level the parts hold, in order: each part's first level
+ * must be half the size of the previous part's last. The first part's header and
+ * descriptors are the result's.
+ */
+export function joinMipLevels(parts: Uint8Array[]): Uint8Array {
+    const layouts = parts.map((p) => readKtx2Layout(p));
+    if (layouts.some((l) => !l)) throw new Error('joinMipLevels: not a KTX2');
+    const top = layouts[0]!;
+    const base = parts[0]!;
+    const sources: Array<{ bytes: Uint8Array; level: Ktx2Level }> = [];
+    let expect: [number, number] | null = null;
+    layouts.forEach((layout, i) => {
+        const l = layout!;
+        if (l.scheme !== top.scheme) throw new Error(`joinMipLevels: supercompression differs (${top.scheme} and ${l.scheme})`);
+        if (l.colorModel !== KHR_DF_MODEL_UASTC) throw new Error('joinMipLevels: every part must be UASTC');
+        if (l.sgdLength) throw new Error('joinMipLevels: global data cannot be joined');
+        if (expect && (l.width !== expect[0] || l.height !== expect[1])) {
+            throw new Error(`joinMipLevels: ${l.width}x${l.height} is not the level under ${expect[0] * 2}x${expect[1] * 2}`);
+        }
+        l.levels.forEach((level) => sources.push({ bytes: parts[i]!, level }));
+        const w = Math.max(1, l.width >> (l.levels.length - 1)), h = Math.max(1, l.height >> (l.levels.length - 1));
+        expect = [Math.max(1, w >> 1), Math.max(1, h >> 1)];
+    });
     const count = sources.length;
     const align = top.scheme === SCHEME_NONE ? UASTC_BLOCK_BYTES : 1;
     const round = (n: number) => Math.ceil(n / align) * align;

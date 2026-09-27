@@ -1256,6 +1256,10 @@ export const NOTED = {
     { note: 'Project Health names the textures a material reads as data while they are still decoded as colour' },
   'feat(render): a cutout\'s edge is antialiased':
     { note: 'A cutout\'s edge is antialiased' },
+  'feat(assets): a cutout\'s mips keep its coverage':
+    { note: 'A cutout\'s mip levels keep its coverage' },
+  'feat(import): images several materials share get every setting they ask for':
+    { note: 'A cutout\'s mip levels keep its coverage' },
   'fix(render): a shipped game\'s textures are mipmapped':
     { note: 'A shipped game\'s textures are sampled through mip levels' },
   'fix(eht): the generator writes LF on every platform':

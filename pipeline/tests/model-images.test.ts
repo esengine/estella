@@ -76,13 +76,14 @@ describe('preparing a model\'s images', () => {
             const result = model({ baseColorTexture: { file: 'leaf.png', external: true } });
             prepareModelImages(result, () => png(i => [90, 120, 40, alpha(i)]), { alphaFromBaseColor });
             const m = result.meshes[0]!.material!;
-            return { cutoff: m.alphaCutoff, opaque: m.opaque };
+            return { cutoff: m.alphaCutoff, opaque: m.opaque, mipCoverage: m.baseColorTexture?.settings?.mipCoverage };
         };
-        expect(run(i => (i % 4 === 0 ? 0 : 255))).toEqual({ cutoff: 0.5, opaque: true });
-        expect(run(() => 128)).toEqual({ cutoff: undefined, opaque: false });
-        expect(run(() => 255)).toEqual({ cutoff: undefined, opaque: true });
+        // A cutout's mips are told the cutoff, so distance does not thin it.
+        expect(run(i => (i % 4 === 0 ? 0 : 255))).toEqual({ cutoff: 0.5, opaque: true, mipCoverage: 0.5 });
+        expect(run(() => 128)).toEqual({ cutoff: undefined, opaque: false, mipCoverage: undefined });
+        expect(run(() => 255)).toEqual({ cutoff: undefined, opaque: true, mipCoverage: undefined });
         // A glTF says its alpha mode itself; an OPAQUE one ignores the channel.
-        expect(run(i => (i % 4 === 0 ? 0 : 255), false)).toEqual({ cutoff: undefined, opaque: true });
+        expect(run(i => (i % 4 === 0 ? 0 : 255), false)).toEqual({ cutoff: undefined, opaque: true, mipCoverage: undefined });
     });
 
     it('marks the maps that hold numbers as not sRGB, and leaves colour alone', () => {

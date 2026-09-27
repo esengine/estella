@@ -127,6 +127,10 @@ describe('keepSmaller', () => {
     expect(keepSmaller(raw, 1, 999_999)).toEqual(raw);
   });
 
+  it('keeps a bigger encoding that carries a cutout\'s coverage-kept mips', () => {
+    expect(keepSmaller(compressed, 87_792, 2_515, true)).toEqual(compressed);
+  });
+
   it('keeps raw on a tie — equal bytes buy nothing and cost a transcoder', () => {
     expect(keepSmaller(compressed, 4000, 4000).selected).toBe('raw');
   });

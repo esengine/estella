@@ -658,14 +658,9 @@ if (opts.command === 'import-model' || opts.command === 'import-gltf') {
     // Settings the source asked for, by product name; only ever the FIRST mint.
     const settings = new Map();
     const externalImages = new Set();
-    for (const mesh of meshes) {
-      for (const image of [mesh.material?.baseColorTexture, mesh.material?.normalTexture,
-                           mesh.material?.emissiveTexture, mesh.material?.occlusionTexture,
-                           mesh.material?.metallicRoughnessTexture]) {
-        if (!image) continue;
-        if (image.settings) settings.set(image.external ? path.resolve(sourceDir, image.file) : image.file, image.settings);
-        if (image.external) externalImages.add(path.resolve(sourceDir, image.file));
-      }
+    for (const [file, { external, settings: asked }] of importer.importedImageSettings(meshes)) {
+      settings.set(external ? path.resolve(sourceDir, file) : file, asked);
+      if (external) externalImages.add(path.resolve(sourceDir, file));
     }
     const adopt = (file) => meta.adoptOrphan(file, settings.get(file) ?? settings.get(path.basename(file)));
 

@@ -82,6 +82,13 @@ const TEXTURE: ImporterFieldSpec[] = [
     tooltip: 'The image stores sRGB-encoded color (albedo/UI). Disable for authored-linear '
       + 'data like normal maps and masks — only meaningful when the project renders in linear color.',
   },
+  {
+    key: 'mipCoverage', label: 'Mip Coverage Cutoff', type: 'number', default: 0, min: 0, max: 1, step: 0.01,
+    category: 'Texture', advanced: true,
+    tooltip: 'For a cutout (leaves, grass, fences): the alpha cutoff its material tests. Each mip '
+      + 'level keeps the share of texels above it that the full image has, so the cutout does '
+      + 'not thin out with distance. 0 = off. Applies to UASTC-compressed textures.',
+  },
   { key: 'sliceBorder.left', label: 'Border Left', type: 'number', default: 0, min: 0, category: '9-Slice', advanced: true },
   { key: 'sliceBorder.right', label: 'Border Right', type: 'number', default: 0, min: 0, category: '9-Slice', advanced: true },
   { key: 'sliceBorder.top', label: 'Border Top', type: 'number', default: 0, min: 0, category: '9-Slice', advanced: true },
@@ -274,9 +281,10 @@ export interface TexturePlatformOverride {
  *  `importer.overrides[platform]` wins per field; an unset field inherits the
  *  default. Defaults match a fresh `.meta`. */
 export function readTextureCookSettings(importer: Record<string, unknown> | undefined, platform?: string): {
-  compress: boolean; format: 'uastc' | 'etc1s'; maxSize: number; srgb: boolean;
+  compress: boolean; format: 'uastc' | 'etc1s'; maxSize: number; srgb: boolean; mipCoverage: number;
 } {
   const compress = importer?.compress;
+  const mipCoverage = importer?.mipCoverage;
   const format = importer?.compressFormat;
   const maxSize = importer?.maxSize;
   const srgb = importer?.sRGB;
@@ -285,6 +293,7 @@ export function readTextureCookSettings(importer: Record<string, unknown> | unde
     format: (format === 'etc1s' ? 'etc1s' : 'uastc') as 'uastc' | 'etc1s',
     maxSize: typeof maxSize === 'number' && maxSize > 0 ? maxSize : 2048,
     srgb: typeof srgb === 'boolean' ? srgb : true,
+    mipCoverage: typeof mipCoverage === 'number' && mipCoverage > 0 && mipCoverage < 1 ? mipCoverage : 0,
   };
   const overrides = importer?.overrides as Record<string, TexturePlatformOverride> | undefined;
   const ov = platform ? overrides?.[platform] : undefined;
