@@ -119,6 +119,14 @@ export interface ImportedAnimation {
     document: Record<string, unknown>;
 }
 
+/**
+ * What a source's specular map means. `color` is what the name says — a tint on the
+ * highlight, which the engine's metal/rough model has no slot for. `orm` is the
+ * packing Falcor-era scenes (Bistro, Sun Temple) store there: occlusion in red,
+ * roughness in green, metalness in blue.
+ */
+export type SpecularMapReading = 'color' | 'orm';
+
 /** What a reader hands over: one file's worth of model, in the engine's terms. */
 export interface ModelImportResult {
     meshes: ImportedMesh[];

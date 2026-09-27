@@ -1230,6 +1230,10 @@ export const NOTED = {
     { note: 'Web exports pack their small local assets — meshes, materials, KTX2 textures, timelines and animation assets — into a few `packs/*.pack` files, one request each, and the runtime reads each asset out of its pack. A browser holds six connections to a site, so a scene of thousands of small files loaded at the pace of its requests: Bistro\'s 1505 meshes took 43 s of load time for 0.2 s of upload. Its first frame on a Windows machine went from 15.2 s to 7.3 s, pixel for pixel the same. An export with hot update configured keeps one file per asset, since an update downloads assets one by one; an update that meets a packed asset refuses it by name.' },
   'fix(render): a two-channel normal map lights its surface':
     { note: 'Normal maps stored in two channels light correctly. The shader rebuilds Z from X and Y instead of reading blue, so a BC5 map, or one a converter wrote with blue at 0 — every normal map of Bistro\'s glTF conversion — no longer points its surface\'s normals inward, which left normal-mapped surfaces unlit by their sun.' },
+  'feat(import): a model brings its DDS maps as PNG and reads a packed specular map':
+    { note: 'Importing a model converts its DDS textures to PNG' },
+  'feat(import): a model\'s specular map is read as its import settings say':
+    { note: 'An FBX model\'s specular map can be read as packed occlusion' },
   'fix(eht): the generator writes LF on every platform':
     { internal: 'The engine header tool is a repository generator; on Windows it rewrote every generated file with CRLF, which only a contributor there ever saw.' },
 };

@@ -15,6 +15,7 @@ const REPO = path.join(PIPELINE, '..');
 const USAGE = `usage: node pipeline/bin/estella.mjs export <projectDir> [options]
        node pipeline/bin/estella.mjs import-model <file.gltf|file.glb|file.fbx> [outDir]
                                      [--project <dir>] [--scale <n>]
+                                     [--specular-map color|orm]
        node pipeline/bin/estella.mjs import-hdr <file.hdr> [outDir] [--face-size <n>]
        node pipeline/bin/estella.mjs bake-scene <scene.esscene> [--check]
 
@@ -55,6 +56,9 @@ holds many primitives, so it is a source that PRODUCES assets rather than one th
 engine loads — the products are what a scene references. Asset refs are
 project-relative, so the project is found above the source unless --project says
 otherwise; --scale sizes the model, whose metres are world units otherwise.
+--specular-map orm reads an FBX's specular map as packed occlusion/roughness/
+metalness (Falcor-era scenes such as Bistro); the source's own \`.meta\` setting
+is used when the flag is absent. DDS images are converted to PNG on the way in.
 
 import-hdr bakes an equirectangular panorama into the two things a renderer asks
 an environment for: nine irradiance coefficients (in the \`.esenv\`) and one
@@ -86,12 +90,14 @@ function parseArgs(argv) {
     const flag = rest.indexOf('--project');
     const scale = rest.indexOf('--scale');
     const faceSize = rest.indexOf('--face-size');
+    const specular = rest.indexOf('--specular-map');
     const out = rest[0] && !rest[0].startsWith('--') ? path.resolve(rest[0]) : null;
     return {
       command, out, source: path.resolve(projectDir),
       project: flag >= 0 && rest[flag + 1] ? path.resolve(rest[flag + 1]) : null,
       scale: scale >= 0 ? Number(rest[scale + 1]) || 1 : 1,
       faceSize: faceSize >= 0 ? Number(rest[faceSize + 1]) || undefined : undefined,
+      specularMap: specular >= 0 ? rest[specular + 1] : undefined,
     };
   }
   if (command !== 'export' || !projectDir) {
@@ -549,6 +555,22 @@ async function loadPipeline(entry, outName) {
 const PROJECT_FILES = ['project.esproject', 'project.esproj', 'project.json'];
 
 /** The project directory a path sits in, walking up; null when it is outside one. */
+/** The flag, else the source's own `.meta` import setting, else the plain reading. */
+function specularMapFor(opts) {
+  if (opts.specularMap) {
+    if (opts.specularMap !== 'color' && opts.specularMap !== 'orm') {
+      console.error(`--specular-map must be color or orm, not "${opts.specularMap}"`);
+      process.exit(2);
+    }
+    return opts.specularMap;
+  }
+  try {
+    return JSON.parse(readFileSync(`${opts.source}.meta`, 'utf8')).importer?.specularMap === 'orm' ? 'orm' : 'color';
+  } catch {
+    return 'color';
+  }
+}
+
 function findProjectRoot(from) {
   for (let dir = from, prev = ''; dir !== prev; prev = dir, dir = path.dirname(dir)) {
     if (PROJECT_FILES.some((name) => existsSync(path.join(dir, name)))) return dir;
@@ -623,6 +645,7 @@ if (opts.command === 'import-model' || opts.command === 'import-gltf') {
           const abs = path.join(sourceDir, uri);
           return existsSync(abs) ? new Uint8Array(readFileSync(abs)) : null;
         },
+        specularMap: specularMapFor(opts),
       },
     );
     for (const w of warnings) console.warn(`  ! ${w}`);

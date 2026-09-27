@@ -19,6 +19,7 @@ import {
     nodeChildPaths, nodeNameFor, samplerKeyframes, timelineDocument,
     type AnimatedNode, type ImportedAnimation, type ImportedImageRef, type ImportedMaterial,
     type ImportedMesh, type ImportedNode, type ImportedTexture, type ModelImportResult,
+    type SpecularMapReading,
 } from './modelImport';
 
 /** A `[byteOffset, byteLength]` pair addressing the blob's payload. */
@@ -53,6 +54,7 @@ interface FbxMaterial {
     opacity: FbxMaterialMap | null;
     normalMap: FbxMaterialMap | null;
     occlusion: FbxMaterialMap | null;
+    specularColor: FbxMaterialMap | null;
 }
 
 interface FbxNode {
@@ -182,11 +184,13 @@ function imageExtension(bytes: Uint8Array): string | null {
     if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8) return '.jpg';
     if (bytes.length >= 12 && bytes[8] === 0x57 && bytes[9] === 0x45
         && bytes[10] === 0x42 && bytes[11] === 0x50) return '.webp';
+    if (bytes.length >= 4 && bytes[0] === 0x44 && bytes[1] === 0x44 && bytes[2] === 0x53) return '.dds';
     return null;
 }
 
 interface TextureContext {
     scene: FbxScene;
+    specularMap: SpecularMapReading;
     payload: Uint8Array;
     stem: string;
     textures: ImportedTexture[];
@@ -242,7 +246,7 @@ function resolveTexture(ctx: TextureContext, ref: FbxTextureRef,
         const ext = imageExtension(bytes) ?? extensionOf(file.filename);
         if (!ext) {
             ctx.warnings.push(`${label}: the embedded image "${file.filename}" is not a PNG,`
-                + ' JPEG or WebP — skipped');
+                + ' JPEG, WebP or DDS — skipped');
             return null;
         }
         const name = `${ctx.stem}_${ref.file}${ext}`;
@@ -262,7 +266,7 @@ function resolveTexture(ctx: TextureContext, ref: FbxTextureRef,
 
 /** The extension an image path carries, when the engine can load it. */
 function extensionOf(path: string): string | null {
-    const match = /\.(png|jpg|jpeg|webp|ktx2)$/i.exec(path);
+    const match = /\.(png|jpg|jpeg|webp|ktx2|dds)$/i.exec(path);
     if (!match) return null;
     const ext = match[0].toLowerCase();
     return ext === '.jpeg' ? '.jpg' : ext;
@@ -313,6 +317,10 @@ function readMaterial(ctx: TextureContext, source: FbxMaterial, index: number): 
         ? 1 - scalar(source.glossiness, 0)
         : scalar(source.roughness, 1);
 
+    // A specular map read as ORM (the Falcor/Lumberyard packing) IS glTF's layout
+    // with occlusion in red, so it binds to both slots and the factors step aside.
+    const orm = ctx.specularMap === 'orm' && source.specularColor?.texture
+        ? readTexture(ctx, source.specularColor.texture, label) : null;
     const metalMap = source.metalness?.texture ?? null;
     const roughMap = source.roughness?.texture ?? null;
     // The engine samples ONE map packed glTF's way (roughness in green, metal in
@@ -320,7 +328,8 @@ function readMaterial(ctx: TextureContext, source: FbxMaterial, index: number): 
     // single image to bind when they do, so the import says so.
     const packed = metalMap && roughMap && metalMap.file === roughMap.file
         ? readTexture(ctx, metalMap, label) : null;
-    if (!packed && (metalMap || roughMap)) {
+    const metallicRoughnessTexture = orm ?? packed;
+    if (!metallicRoughnessTexture && (metalMap || roughMap)) {
         ctx.warnings.push(`${label}: its separate metalness/roughness maps are not imported —`
             + ' the engine samples one image packed as glTF does (roughness in green, metal in'
             + ` blue); the constants ${metallic.toFixed(2)}/${roughness.toFixed(2)} are used instead`);
@@ -333,7 +342,7 @@ function readMaterial(ctx: TextureContext, source: FbxMaterial, index: number): 
 
     const baseTexture = texture(source.baseColor);
     const normalTexture = texture(source.normalMap);
-    const occlusionTexture = texture(source.occlusion);
+    const occlusionTexture = orm ?? texture(source.occlusion);
     // An emissive map multiplied by black emits nothing, and binding it would be
     // a sampler read per pixel for a result that is always zero.
     const emissiveTexture = emits ? texture(source.emissionColor) : null;
@@ -351,9 +360,9 @@ function readMaterial(ctx: TextureContext, source: FbxMaterial, index: number): 
         ...(emits ? { emissive } : {}),
         ...(emissiveTexture ? { emissiveTexture } : {}),
         ...(occlusionTexture ? { occlusionTexture, occlusionStrength: 1 } : {}),
-        metallic,
-        roughness,
-        ...(packed ? { metallicRoughnessTexture: packed } : {}),
+        metallic: orm ? 1 : metallic,
+        roughness: orm ? 1 : roughness,
+        ...(metallicRoughnessTexture ? { metallicRoughnessTexture } : {}),
     };
 }
 
@@ -614,14 +623,14 @@ function buildAnimations(scene: FbxScene, payload: Uint8Array, nodes: ImportedNo
  * @param filename What the source is called, so a texture path stored relative
  *        to it resolves the way the file meant it to.
  */
-export async function importFbxMeshes(bytes: Uint8Array, stem: string,
-                                      filename = ''): Promise<ModelImportResult> {
+export async function importFbxMeshes(bytes: Uint8Array, stem: string, filename = '',
+                                      specularMap: SpecularMapReading = 'color'): Promise<ModelImportResult> {
     const { scene, payload } = await readScene(bytes, filename);
     const warnings = [...scene.warnings];
     const textures: ImportedTexture[] = [];
     const externalFiles: string[] = [];
     const ctx: TextureContext = {
-        scene, payload, stem, textures, externalFiles, warnings, cache: new Map(),
+        scene, specularMap, payload, stem, textures, externalFiles, warnings, cache: new Map(),
     };
 
     const materialCache = new Map<number, ImportedMaterial>();

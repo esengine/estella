@@ -821,6 +821,8 @@ static void write_materials(es_writer *w, const ufbx_scene *scene) {
         json_material_map(w, "normalMap", &mat->pbr.normal_map, 3);
         es_buf_text(&w->json, ",");
         json_material_map(w, "occlusion", &mat->pbr.ambient_occlusion, 1);
+        es_buf_text(&w->json, ",");
+        json_material_map(w, "specularColor", &mat->pbr.specular_color, 3);
         es_buf_text(&w->json, "}");
     }
     es_buf_text(&w->json, "],");

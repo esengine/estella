@@ -114,6 +114,19 @@ describe('fbx materials', () => {
     expect(externalFiles).toEqual(['textures/brick.png']);
   });
 
+  it('leaves a specular map alone unless the model says it is packed ORM', async () => {
+    const source = texturedTriangle({ specular: 'textures/spec.png' });
+    const plain = (await importFbxMeshes(source, 'tri', 'tri.fbx')).meshes[0]!.material!;
+    expect(plain.metallicRoughnessTexture).toBeUndefined();
+    expect(plain.occlusionTexture).toBeUndefined();
+
+    const orm = (await importFbxMeshes(source, 'tri', 'tri.fbx', 'orm')).meshes[0]!.material!;
+    expect(orm.metallicRoughnessTexture).toMatchObject({ file: 'textures/spec.png', external: true });
+    expect(orm.occlusionTexture).toMatchObject({ file: 'textures/spec.png', external: true });
+    // The map carries the values; the factors multiply them and must not scale them down.
+    expect([orm.metallic, orm.roughness, orm.occlusionStrength]).toEqual([1, 1, 1]);
+  });
+
   it('writes an .esmaterial for what a MeshRenderer cannot say', async () => {
     const { meshes } = await importFbxMeshes(texturedTriangle(), 'tri', 'tri.fbx');
     const products = materialProducts(meshes, 'tri');

@@ -169,11 +169,10 @@ const encode = (text) => new TextEncoder().encode(text);
 
 /**
  * A right triangle at the origin, drawn with a red Phong material that samples
- * an image beside the FBX. The node carrying it is moved to (1,2,3), so a test
- * can tell geometry from placement; the uvs are the unit corners in FBX's own
- * convention, where (0,0) is the image's BOTTOM left.
+ * an image beside the FBX (and `specular` as its specular map). Its node sits at
+ * (1,2,3) to tell geometry from placement; uvs follow FBX, (0,0) bottom left.
  */
-export function texturedTriangle() {
+export function texturedTriangle({ specular } = {}) {
   const objects = [
     geometry(1000, 'tri', {
       vertices: [0, 0, 0, 2, 0, 0, 0, 2, 0],
@@ -185,12 +184,14 @@ export function texturedTriangle() {
     model(2000, 'Tri', 'Mesh', { translation: [1, 2, 3] }),
     material(3000, 'Red', { diffuse: [1, 0, 0], emissive: [0, 0.5, 0] }),
     texture(4000, 'Brick', 'textures/brick.png'),
+    ...(specular ? [texture(4001, 'Spec', specular)] : []),
   ].join('');
   const connections = [
     connect(2000, 0),
     connect(1000, 2000),
     connect(3000, 2000),
     connectProp(4000, 3000, 'DiffuseColor'),
+    ...(specular ? [connectProp(4001, 3000, 'SpecularColor')] : []),
   ].join('');
   return encode(`${header('estella fbxFixtures')}Objects:  {\n${objects}}\nConnections:  {\n${connections}}\n`);
 }

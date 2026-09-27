@@ -180,6 +180,15 @@ const MODEL: ImporterFieldSpec[] = [
       + 'because it splits vertices and most models are never baked; skinned meshes never get '
       + 'one, and a model that already carries the channel keeps its own.',
   },
+  {
+    key: 'specularMap', label: 'Specular Map', type: 'enum', default: 'color',
+    category: 'Import', advanced: true,
+    options: [{ label: 'Specular Color', value: 'color' }, { label: 'Packed ORM', value: 'orm' }],
+    tooltip: 'What the source\u0027s specular map holds. Most files mean a highlight tint, which '
+      + 'the engine\u0027s metal/rough shading has no slot for. Scenes authored for Falcor '
+      + '(Bistro, Sun Temple) pack occlusion, roughness and metalness there instead; '
+      + 'Packed ORM binds it as those three. FBX only.',
+  },
 ];
 
 const PANORAMA: ImporterFieldSpec[] = [

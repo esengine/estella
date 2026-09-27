@@ -6,7 +6,7 @@
  * Both import doors (the editor's and the CLI's) go through here, so adding a
  * format is adding a reader rather than a branch in every caller.
  */
-import type { ModelImportResult } from './modelImport';
+import type { ModelImportResult, SpecularMapReading } from './modelImport';
 
 /** Source formats a project can import. The engine loads none of them. */
 export const MODEL_EXTENSIONS = ['.gltf', '.glb', '.fbx'];
@@ -31,8 +31,11 @@ export function modelStem(file: string): string {
 export interface ModelSourceOptions {
     /** What the source is called — how a reader resolves the paths inside it. */
     filename?: string;
-    /** Resolver for a glTF's `buffers[].uri` that are not data URIs. */
+    /** Resolver for the files a source points out to: a glTF's non-data `buffers[].uri`,
+     *  and any DDS image, which is read to be converted. */
     externalBuffers?: (uri: string) => Uint8Array | null;
+    /** The model's `specularMap` import setting; FBX is the format that carries one. */
+    specularMap?: SpecularMapReading;
 }
 
 /**
@@ -43,10 +46,15 @@ export interface ModelSourceOptions {
  */
 export async function readModelSource(bytes: Uint8Array, stem: string,
                                       options: ModelSourceOptions = {}): Promise<ModelImportResult> {
+    let result: ModelImportResult;
     if (extensionOf(options.filename ?? '') === '.fbx') {
         const { importFbxMeshes } = await import('./fbxImport');
-        return importFbxMeshes(bytes, stem, options.filename);
+        result = await importFbxMeshes(bytes, stem, options.filename, options.specularMap);
+    } else {
+        const { importGltfMeshes } = await import('./gltfImport');
+        result = await importGltfMeshes(bytes, stem, options.externalBuffers);
     }
-    const { importGltfMeshes } = await import('./gltfImport');
-    return importGltfMeshes(bytes, stem, options.externalBuffers);
+    const { prepareModelImages } = await import('./modelImages');
+    prepareModelImages(result, options.externalBuffers);
+    return result;
 }
