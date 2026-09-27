@@ -95,7 +95,8 @@ describe('Assets', () => {
 
     it('creates instance with catalog', () => {
         expect(assets.catalog).toBeDefined();
-        expect(assets.backend).toBe(backend);
+        // Wrapped to read packed assets; everything else goes to the given backend.
+        expect(assets.backend.resolveUrl('a/b.png')).toBe(backend.resolveUrl('a/b.png'));
     });
 
     it('creates instance with empty catalog', () => {

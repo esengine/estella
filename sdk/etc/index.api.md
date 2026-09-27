@@ -134,6 +134,7 @@ compressedFormats: string[] | undefined
 contentHash: string | undefined
 labels: string[]
 metadata: { atlas?: string; atlasPage?: number; atlasFrame?: { x: number; y: number; width: number; height: number; }; atlasPageWidth?: number; atlasPageHeight?: number; } | undefined
+pack: AssetPackRef | undefined
 path: string
 size: number
 spineImport: SpineManifestContract | undefined
@@ -4827,6 +4828,8 @@ findAsset: (pathOrAddress: string) => AddressableManifestAsset | null
 group: (name: string) => AddressableManifestGroup | null
 groupNames: () => string[]
 groupsByMode: (mode: BundleMode) => string[]
+packMembers: () => Map<string, Set<string>>
+packOf: (path: string) => AssetPackRef | null
 remoteAssetIdentity: (ref: string) => string | null
 remoteAssetPath: (ref: string) => string | null
 resolvePath: (ref: string) => string

@@ -39,6 +39,12 @@ export interface AddressableManifestAsset {
      * after a skeleton was re-pointed at another atlas.
      */
     spineImport?: SpineManifestContract;
+    /**
+     * Present when the export packed this asset with others into one file, which
+     * a network build fetches once instead of one request per asset: `path` then
+     * names no file of its own, and its bytes are `size` at `offset` in `file`.
+     */
+    pack?: AssetPackRef;
     metadata?: {
         atlas?: string;
         atlasPage?: number;
@@ -47,6 +53,14 @@ export interface AddressableManifestAsset {
         atlasPageWidth?: number;
         atlasPageHeight?: number;
     };
+}
+
+/** Where a packed asset's bytes sit (see {@link AddressableManifestAsset.pack}). */
+export interface AssetPackRef {
+    /** The pack, as a path beside the manifest. */
+    file: string;
+    offset: number;
+    size: number;
 }
 
 export interface AddressableManifestGroup {
@@ -135,6 +149,33 @@ export class ManifestModel {
 
     static fromJson(manifest: AddressableManifest): ManifestModel {
         return new ManifestModel(manifest);
+    }
+
+    private packs_: Map<string, AssetPackRef> | null = null;
+
+    /** The pack holding the asset at build `path`, or null when it has a file of its own. */
+    packOf(path: string): AssetPackRef | null {
+        if (!this.packs_) {
+            this.packs_ = new Map();
+            for (const g of Object.values(this.manifest.groups)) {
+                for (const a of Object.values(g.assets)) if (a.pack) this.packs_.set(a.path, a.pack);
+            }
+        }
+        return this.packs_.get(path) ?? null;
+    }
+
+    /** The build paths each pack holds, by pack file. */
+    packMembers(): Map<string, Set<string>> {
+        const members = new Map<string, Set<string>>();
+        for (const g of Object.values(this.manifest.groups)) {
+            for (const a of Object.values(g.assets)) {
+                if (!a.pack) continue;
+                let set = members.get(a.pack.file);
+                if (!set) members.set(a.pack.file, set = new Set());
+                set.add(a.path);
+            }
+        }
+        return members;
     }
 
     static empty(): ManifestModel {

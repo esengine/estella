@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { Backend } from './Backend';
+import { packedBackend } from './packedBackend';
 import { Catalog, type AtlasFrameInfo } from './Catalog';
 import { ManifestModel, normalizeBundleMode, type AddressableManifest, type AddressableAssetType } from './AddressableManifest';
 import { diffManifests, type UpdatePlan, type AssetChange } from './hotUpdate';
@@ -90,7 +91,8 @@ export interface CheckForUpdateOptions {
  *  failed) or `integrity` (bytes' content hash ≠ the manifest's). */
 export interface AssetDownloadFailure {
     path: string;
-    reason: 'fetch' | 'integrity';
+    /** `packed`: the update's manifest packs the asset, and an update downloads assets one by one. */
+    reason: 'fetch' | 'integrity' | 'packed';
 }
 
 /**
@@ -456,7 +458,7 @@ export class Assets {
     private handleToPath_ = new Map<string, string>();
 
     private constructor(options: AssetsOptions) {
-        this.backend = options.backend;
+        this.backend = options.backend && packedBackend(options.backend, () => this.manifestModel_);
         this.catalog = options.catalog ?? Catalog.empty();
         this.module_ = options.module;
         this.getAudio_ = options.getAudio ?? (() => null);
@@ -1197,6 +1199,10 @@ export class Assets {
     ): Promise<{ url: string; failure?: AssetDownloadFailure['reason']; cache?: 'stored' | 'failed' | 'unsupported' }> {
         const group = model.group(c.group);
         const remote = group != null && normalizeBundleMode(group.bundleMode) === 'remote';
+        // An export with hot update configured does not pack; a manifest that does
+        // was built for a package that is not updated, and is refused rather than
+        // fetched as files that do not exist.
+        if (model.packOf(c.path)) return { url: c.path, failure: 'packed' };
         const path = this.manifestAssetUrl_(c.path, remote, root);
         const url = this.backend.resolveUrl(path);
         try {
