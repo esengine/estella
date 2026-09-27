@@ -1,0 +1,153 @@
+{
+  "version": 4,
+  "name": "PostChainOrder",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 300
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 300,
+            "isActive": true,
+            "priority": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Flat",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "color": {
+              "r": 1,
+              "g": 0,
+              "b": 0,
+              "a": 1
+            },
+            "layer": 0,
+            "enabled": true,
+            "opaque": true,
+            "mesh": "/scenes/textured-quad.esmesh"
+          }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Turned",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            },
+            "rotation": {
+              "w": 0.8660254,
+              "x": 0,
+              "y": 0.5,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "color": {
+              "r": 0,
+              "g": 1,
+              "b": 0,
+              "a": 1
+            },
+            "layer": 0,
+            "enabled": true,
+            "opaque": true,
+            "mesh": "/scenes/textured-quad.esmesh"
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Volume",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "PostProcessVolume",
+          "data": {
+            "isGlobal": true,
+            "priority": 0,
+            "weight": 1,
+            "effects": [
+              {
+                "type": "grayscale",
+                "enabled": true,
+                "uniforms": {
+                  "u_intensity": 1
+                }
+              },
+              {
+                "type": "bloom",
+                "enabled": true,
+                "uniforms": {
+                  "u_threshold": 2,
+                  "u_intensity": 0.1,
+                  "u_radius": 1
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

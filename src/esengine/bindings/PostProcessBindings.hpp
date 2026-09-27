@@ -37,6 +37,8 @@ i32 postprocess_hdrFormat(uintptr_t outPtr);
 std::string postprocess_hdrFormatNames();
 /** Draw a pass at a fraction of the chain size; the next pass upsamples it. */
 void postprocess_setPassScale(const std::string& passName, f32 scale);
+/** A later pass of a multi-pass effect: it composites over that effect's input. */
+void postprocess_setPassContinuesEffect(const std::string& passName);
 void postprocess_setUniformFloat(const std::string& passName,
                                   const std::string& uniform, f32 value);
 void postprocess_setPassTexture(const std::string& passName,

@@ -107,6 +107,7 @@ export interface NativeEngineApi {
     postprocess_setMsaaSamples?(samples: number): void;
     postprocess_setOutputTransform?(transform: number): void;
     postprocess_setOutputViewport?(x: number, y: number, w: number, h: number): void;
+    postprocess_setPassContinuesEffect?(passName: string): void;
     postprocess_setPassScale?(passName: string, scale: number): void;
     postprocess_setPassTexture?(passName: string, uniform: string, textureHandle: number): void;
     postprocess_setPresentRequired?(required: boolean): void;
@@ -383,6 +384,7 @@ export function createNativeEngineApi(
     bind('postprocess_setMsaaSamples', 'es_postprocess_setMsaaSamples', false);
     bind('postprocess_setOutputTransform', 'es_postprocess_setOutputTransform', false);
     bind('postprocess_setOutputViewport', 'es_postprocess_setOutputViewport', false);
+    bind('postprocess_setPassContinuesEffect', 'es_postprocess_setPassContinuesEffect', false);
     bind('postprocess_setPassScale', 'es_postprocess_setPassScale', false);
     bind('postprocess_setPassTexture', 'es_postprocess_setPassTexture', false);
     bind('postprocess_setPresentRequired', 'es_postprocess_setPresentRequired', false);

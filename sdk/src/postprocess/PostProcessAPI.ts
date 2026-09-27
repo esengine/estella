@@ -17,6 +17,7 @@ type PostProcessCore = Required<Pick<NonNullable<EngineApi>,
     'postprocess_init' | 'postprocess_shutdown' | 'postprocess_resize'
     | 'postprocess_isInitialized' | 'postprocess_begin' | 'postprocess_end'
     | 'postprocess_clearPasses' | 'postprocess_addPass' | 'postprocess_setPassScale'
+    | 'postprocess_setPassContinuesEffect'
     | 'postprocess_setPassTexture'
     | 'postprocess_setUniformFloat' | 'postprocess_setUniformVec4'
     | 'postprocess_setBypass' | 'postprocess_setOutputTransform' | 'postprocess_setMsaaSamples'
@@ -118,6 +119,7 @@ export function syncStackToWasm(stack: PostProcessStack, force = false): void {
             // Only when it is not 1: every pass that predates fractional sizing
             // means full size, and saying so is the same answer.
             if (pass.scale !== 1) m.postprocess_setPassScale(pass.name, pass.scale);
+            if (pass.continuesEffect) m.postprocess_setPassContinuesEffect(pass.name);
         } catch (e) {
             handleWasmError(e, `PostProcess._applyForCamera:addPass("${pass.name}")`);
             continue;

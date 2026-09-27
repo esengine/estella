@@ -580,6 +580,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("postprocess_resize", &esengine::postprocess_resize);
     emscripten::function("postprocess_addPass", &esengine::postprocess_addPass);
     emscripten::function("postprocess_setPassScale", &esengine::postprocess_setPassScale);
+    emscripten::function("postprocess_setPassContinuesEffect", &esengine::postprocess_setPassContinuesEffect);
     emscripten::function("postprocess_setMsaaSamples", &esengine::postprocess_setMsaaSamples);
     emscripten::function("postprocess_effectiveMsaaSamples", &esengine::postprocess_effectiveMsaaSamples);
     emscripten::function("postprocess_maxMsaaSamples", &esengine::postprocess_maxMsaaSamples);

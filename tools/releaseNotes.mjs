@@ -1238,6 +1238,8 @@ export const NOTED = {
     { note: 'Exporting compresses textures on every core' },
   'fix(render): a double-sided mesh is lit on the side the camera sees':
     { note: 'A double-sided mesh is lit on the side the camera sees' },
+  'fix(postprocess): an effect before bloom or SSAO takes effect':
+    { note: 'A post-process effect placed before bloom or SSAO takes effect' },
   'fix(eht): the generator writes LF on every platform':
     { internal: 'The engine header tool is a repository generator; on Windows it rewrote every generated file with CRLF, which only a contributor there ever saw.' },
 };

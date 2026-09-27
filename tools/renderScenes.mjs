@@ -697,6 +697,10 @@ export const SCENES = [
   // through a material (the path an imported model takes) and once without one.
   { id: "mesh-backface-material", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PREFAB: "/scenes/backface-quad.esprefab", ESTELLA_VERIFY_SCENE: "/scenes/mesh-backface.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-backface.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[255,255,255],\"tol\":40}]" } },
   { id: "mesh-backface-plain", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PREFAB: "/scenes/backface-quad-plain.esprefab", ESTELLA_VERIFY_SCENE: "/scenes/mesh-backface.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-backface.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.5,\"y\":0.5,\"rgb\":[255,255,255],\"tol\":40}]" } },
+  // Grayscale, then bloom: the red and green quads must come out grey. A multi-pass
+  // effect composites over its own input, and one handed the untouched scene
+  // instead drops every effect before it — the quads kept their colour.
+  { id: "post-chain-order", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/post-chain-order.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/mesh-depth.textures.json", ESTELLA_VERIFY_W: "256", ESTELLA_VERIFY_H: "256", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.42,\"y\":0.5,\"rgb\":[150,150,150],\"tol\":20},{\"x\":0.58,\"y\":0.5,\"rgb\":[76,76,76],\"tol\":20}]" } },
   // The channels only a material can carry, one quad each, through the products a
   // real import wrote. Ambient light only: the black quad's lit half can only be
   // emission, the white quad's right half is occluded away, the cutout discards.

@@ -251,6 +251,10 @@ void PostProcessPipeline::setPassScale(const std::string& passName, f32 scale) {
     }
 }
 
+void PostProcessPipeline::setPassContinuesEffect(const std::string& passName) {
+    if (auto* pass = findPass(passName)) pass->continuesEffect = true;
+}
+
 void PostProcessPipeline::releasePassResources(PostProcessPass& pass) {
     if (pass.paramUbo != BufferHandle::Invalid) {
         device_.deleteBuffer(pass.paramUbo);
@@ -583,15 +587,17 @@ void PostProcessPipeline::runChain(std::vector<PostProcessPass>& passes, rg::Res
     }
 
     rg::ResourceId input = scene;
+    rg::ResourceId effectInput = scene;
     for (usize i = 0; i < passes.size(); ++i) {
         auto& pass = passes[i];
         if (!pass.enabled) continue;
+        if (!pass.continuesEffect) effectInput = input;
         rg::PassDesc node;
         node.name = pass.name;
-        // The scene rides along as a second read for every pass because a
-        // composite (bloom's last link) needs the un-blurred image, and the
-        // shaders address it as unit 1 — the declaration IS that wiring.
-        node.reads = {input, scene};
+        // Unit 1 is the image the pass's effect started from, which a composite
+        // (bloom's and SSAO's last link) lays its result over — not the untouched
+        // scene, which would discard every effect earlier in the chain.
+        node.reads = {input, effectInput};
         // The last pass feeds the blit, which copies into the output rect at the
         // chain's size — so it draws full-size whatever fraction it asked for.
         rg::TargetDesc writeDesc = (i == lastEnabled) ? blitDesc : desc;

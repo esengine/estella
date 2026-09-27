@@ -67,6 +67,11 @@ struct PostProcessPass {
     /// the CANVAS, so a fractional pass must read its extent off its texture.
     f32 scale = 1.0f;
 
+    /// Set on every pass of a multi-pass effect after its first: unit 1 then
+    /// reads the input that effect started from, not this pass's own input. False
+    /// starts an effect, so a single-pass effect sees the chain as it reached it.
+    bool continuesEffect = false;
+
     /// #pragma-param shaders: the pass's packed MaterialConstants payload +
     /// its UBO (binding 1) — the same reflected block a material would use.
     /// Rebuilt from float/vec4Uniforms over the layout defaults when dirty.
@@ -140,6 +145,8 @@ public:
     u32 requestedSamples() const { return requested_samples_; }
     /// Draw @p passName at @p scale of the chain size (clamped to (0, 1]).
     void setPassScale(const std::string& passName, f32 scale);
+    /// Mark @p passName as a later pass of the effect the pass before it began.
+    void setPassContinuesEffect(const std::string& passName);
 
 
 

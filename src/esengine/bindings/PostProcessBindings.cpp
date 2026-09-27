@@ -104,6 +104,12 @@ void postprocess_setPassScale(const std::string& passName, f32 scale) {
     }
 }
 
+void postprocess_setPassContinuesEffect(const std::string& passName) {
+    if (g_postProcessPipeline) {
+        g_postProcessPipeline->setPassContinuesEffect(passName);
+    }
+}
+
 void postprocess_setUniformFloat(const std::string& passName,
                                   const std::string& uniform, f32 value) {
     if (g_postProcessPipeline) {

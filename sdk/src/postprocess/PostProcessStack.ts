@@ -17,6 +17,9 @@ export interface PassConfig {
      * enough to compute small and read back big (SSAO's occlusion term).
      */
     scale: number;
+    /** A later pass of a multi-pass effect: its composite reads the input the
+     *  effect started from rather than the pass before it. */
+    continuesEffect: boolean;
 }
 
 /**
@@ -59,7 +62,7 @@ export class PostProcessStack {
         state.stacks.set(this.id, this);
     }
 
-    addPass(name: string, shader: ShaderHandle, scale = 1): this {
+    addPass(name: string, shader: ShaderHandle, scale = 1, continuesEffect = false): this {
         this.passes_.push({
             name,
             shader,
@@ -68,6 +71,7 @@ export class PostProcessStack {
             vec4Uniforms: new Map(),
             textureUniforms: new Map(),
             scale,
+            continuesEffect,
         });
         this.dirty_ = true;
         return this;

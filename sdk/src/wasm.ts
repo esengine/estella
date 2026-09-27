@@ -500,6 +500,7 @@ export interface ESEngineModule {
     postprocess_resize(width: number, height: number): void;
     postprocess_addPass(name: string, shaderHandle: number): number;
     postprocess_setPassScale(name: string, scale: number): void;
+    postprocess_setPassContinuesEffect(name: string): void;
     postprocess_setMsaaSamples(samples: number): void;
     postprocess_effectiveMsaaSamples?(): number;
     postprocess_maxMsaaSamples?(): number;
