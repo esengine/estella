@@ -196,6 +196,14 @@ function runScene(scene) {
   };
 }
 
+// Published assets a scene draws (tools/corpora.mjs), fetched and imported before
+// any scene runs: a download inside a scene's watchdog would be timed as rendering.
+const corporaNeeded = [...new Set(selected.flatMap((s) => s.corpora ?? []))];
+if (corporaNeeded.length) {
+  const { importedCorpus } = await import('./corpora.mjs');
+  for (const id of corporaNeeded) await importedCorpus(id);
+}
+
 const failed = [];
 const unmeasured = [];
 const startedAt = Date.now();

@@ -35,8 +35,10 @@
  *   ESTELLA_VERIFY_FRAME_DEBUG  capture the frame and replay it (the frame debugger)
  *   ESTELLA_VERIFY_UNIFORM   the frame is one colour on purpose; ESTELLA_VERIFY_COUNT says which
  *   ESTELLA_VERIFY_EDGE      how straight a straight edge is drawn (JSON: box, lit, dark, maxJag)
+ *   ESTELLA_VERIFY_CUTOUT_EDGE  how often a cutout's edge pixel is a blend (JSON: box, lit, run, partial, minShare)
  *   ESTELLA_VERIFY_SCALE     copy the scene's content onto a grid (JSON), for a cost gate
  *   ESTELLA_VERIFY_OUTPUT_TRANSFORM  the frame's output curve ("aces")
+ *   ESTELLA_VERIFY_MSAA      multisample count the scene asks for (the app's default otherwise)
  *   ESTELLA_VERIFY_PROFILE   record N further frames and report the TS/C++ cost split
  *   ESTELLA_VERIFY_TIMEOUT_MS  how long this run may take before it reports one
  */
@@ -88,6 +90,7 @@ const COLORSPACE = process.env.ESTELLA_VERIFY_COLORSPACE === 'linear' ? 'linear'
 // ESTELLA_VERIFY_OUTPUT_TRANSFORM=aces boots the project output transform, which
 // is a curve on the way out and engages the capture on its own.
 const OUTPUT_TRANSFORM = process.env.ESTELLA_VERIFY_OUTPUT_TRANSFORM === 'aces' ? 'aces' : '';
+const MSAA = process.env.ESTELLA_VERIFY_MSAA ?? '';
 // A scene whose emitters roll dice has no constant to assert until the run is
 // seeded; the engine seeds itself from the clock when nobody says otherwise.
 const SEED = process.env.ESTELLA_VERIFY_SEED ?? '';
@@ -215,7 +218,7 @@ function finish(result, server) {
     (result.seam?.ok ?? true) &&
     (result.resize?.ok ?? true) && (result.preview?.ok ?? true) &&
     (result.meshPreview?.ok ?? true) && (result.grid?.ok ?? true) &&
-    (result.draws?.ok ?? true) && (result.counters?.ok ?? true) && (result.frameDebug?.ok ?? true) && (result.edge?.ok ?? true) &&
+    (result.draws?.ok ?? true) && (result.counters?.ok ?? true) && (result.frameDebug?.ok ?? true) && (result.edge?.ok ?? true) && (result.cutoutEdge?.ok ?? true) &&
     (result.roundtrip?.ok ?? true) && deviceLossOk && meshOk && pickOk;
   const why = assetsOk ? '' : `: could not load ${result.missingAssets.join(', ')}`;
   console.log(`\n[verify:render] ${ok ? 'PASS' : 'FAIL'} — ${SCENE} (${BACKEND})${why}`);
@@ -235,7 +238,7 @@ app.whenReady().then(async () => {
   let server;
   try {
     server = await serveHost(DIST);
-    const url = `http://127.0.0.1:${server.address().port}/${PAGE}?w=${W}&h=${H}&backend=${BACKEND}${COLORSPACE ? `&colorSpace=${COLORSPACE}` : ''}${OUTPUT_TRANSFORM ? `&outputTransform=${OUTPUT_TRANSFORM}` : ''}${DEPTH_LAYERS ? `&depthLayers=${DEPTH_LAYERS}` : ''}${RENDER_RESOLUTION ? `&renderResolution=${RENDER_RESOLUTION}` : ''}${SEED ? `&seed=${SEED}` : ''}`;
+    const url = `http://127.0.0.1:${server.address().port}/${PAGE}?w=${W}&h=${H}&backend=${BACKEND}${COLORSPACE ? `&colorSpace=${COLORSPACE}` : ''}${OUTPUT_TRANSFORM ? `&outputTransform=${OUTPUT_TRANSFORM}` : ''}${MSAA ? `&msaa=${MSAA}` : ''}${DEPTH_LAYERS ? `&depthLayers=${DEPTH_LAYERS}` : ''}${RENDER_RESOLUTION ? `&renderResolution=${RENDER_RESOLUTION}` : ''}${SEED ? `&seed=${SEED}` : ''}`;
 
     // useContentSize: the capture rectangle must be the page area, not the
     // outer frame (the same trap the parity runner documents).
@@ -775,6 +778,31 @@ app.whenReady().then(async () => {
         return { rows: pos.length, jag, maxJag: e.maxJag, ok: pos.length >= (y1 - y0) * 0.8 && jag <= e.maxJag };
       `);
     }
+    // ESTELLA_VERIFY_CUTOUT_EDGE = { box, lit, run, partial, minShare }: the share of rows
+    // whose texel before a cutout's edge is a blend, which coverage from alpha makes and
+    // an alpha test does not. The edge is the first `run` texels whose weakest channel is lit.
+    let cutoutEdge = null;
+    if (process.env.ESTELLA_VERIFY_CUTOUT_EDGE) {
+      cutoutEdge = await readFrame(`
+        const e = ${JSON.stringify(JSON.parse(process.env.ESTELLA_VERIFY_CUTOUT_EDGE))};
+        const weakest = (x, y) => { const i = (((h - 1) - y) * w + x) * 4; return Math.min(px[i], px[i + 1], px[i + 2]); };
+        const [x0, y0, x1, y1] = [e.box[0] * w, e.box[1] * h, e.box[2] * w, e.box[3] * h].map(Math.round);
+        let rows = 0, blended = 0;
+        for (let y = y0; y < y1; y++) {
+          for (let x = x0 + 1; x < x1 - e.run; x++) {
+            let lit = weakest(x - 1, y) < e.lit;
+            for (let k = 0; lit && k < e.run; k++) lit = weakest(x + k, y) >= e.lit;
+            if (!lit) continue;
+            rows++;
+            const v = weakest(x - 1, y);
+            if (v > e.partial[0] && v < e.partial[1]) blended++;
+            break;
+          }
+        }
+        const share = rows ? blended / rows : 0;
+        return { rows, blended, share, minShare: e.minShare, ok: rows >= (y1 - y0) * 0.8 && share >= e.minShare };
+      `);
+    }
     // ESTELLA_VERIFY_COUNT is a JSON array of { rgb:[r,g,b], tol?, atLeast?, atMost? }:
     // HOW MANY pixels of the frame are that colour, rather than which ones — a
     // point probe cannot ask that without also naming where a font put them.
@@ -973,7 +1001,7 @@ app.whenReady().then(async () => {
       `);
       if (respaced != null) grid = { ...grid, respacedPixels: respaced, ok: grid.ok && respaced > 300 };
     }
-    finish({ ok: true, entityCount, missingAssets, drawCalls, draws, counters, frameDebug, edge, profile, capture, expect, count, seam, resize, preview, meshPreview, grid, deviceLoss, roundtrip, meshResident, meshAsset, meshMaterial, meshPrefab, setField, animator, pick, cameraTarget }, server);
+    finish({ ok: true, entityCount, missingAssets, drawCalls, draws, counters, frameDebug, edge, cutoutEdge, profile, capture, expect, count, seam, resize, preview, meshPreview, grid, deviceLoss, roundtrip, meshResident, meshAsset, meshMaterial, meshPrefab, setField, animator, pick, cameraTarget }, server);
   } catch (e) {
     finish({ ok: false, error: String((e && e.stack) || e) }, server);
   }

@@ -10,13 +10,17 @@
  * fails loudly instead of quietly testing something else.
  *
  *   node tools/corpora.mjs fetch [id …]     fetch (all by default) into the cache
+ *   node tools/corpora.mjs import [id …]    …and import its models with this checkout's importer
  *   node tools/corpora.mjs list
  *
- * Cache: `.cache/corpora/<id>/` at the repository root, or `ESTELLA_CORPORA_DIR`.
+ * Cache: `<cache>/corpora/<id>/`, where `<cache>` is `.cache` at the repository root
+ * or `ESTELLA_CACHE_DIR`. `<cache>` is the project root imports resolve against, so
+ * every product is addressed `corpora/<id>/…` — the path the render host serves.
  */
 import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -25,11 +29,27 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const KHRONOS_SAMPLES = 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/7d4ba189827916452eeadc82d4b712dbc6280a6f';
 
 export const CORPORA = {
+  'khronos-alpha-blend-mode-test': {
+    what: 'Khronos glTF sample: one box per alpha mode — opaque, blend, and cutouts at 0.25, the default 0.5 and 0.75',
+    license: 'CC-BY-4.0 (© 2017 Analytical Graphics, Inc.; Khronos glTF-Sample-Assets)',
+    source: 'https://github.com/KhronosGroup/glTF-Sample-Assets/tree/7d4ba189827916452eeadc82d4b712dbc6280a6f/Models/AlphaBlendModeTest',
+    base: `${KHRONOS_SAMPLES}/Models/AlphaBlendModeTest/glTF`,
+    models: ['AlphaBlendModeTest.gltf'],
+    files: {
+      'AlphaBlendModeTest.gltf': '49e06672900df95593040d35bbc7a2ee5921ae8d46edc44b64ccf2df65e64849',
+      'AlphaBlendModeTest.bin': 'bb89ab8d9ac0cfbc168e5d552e3ec2fe1285fd01bacb65c863d838b3db025c85',
+      'AlphaBlendLabels.png': '19c705f7e207384ca1ab01e0665601c051ca33c5848c03ce4fffad625b416b53',
+      'MatBed_baseColor.jpg': '71571cce0d86c7c5ed4ac73d852ec34e72e7234a2f905f2758e118519c950bcf',
+      'MatBed_normal.jpg': 'd8891a9c08e375507ac8f1fb260577bda5e90506e79db92ebbfb5caa9216be49',
+      'MatBed_occlusionRoughnessMetallic.jpg': 'e1472454ad6be574c3a418985f06a8ba36877108a94f61590f01e118804379b4',
+    },
+  },
   'khronos-water-bottle': {
     what: 'Khronos glTF sample: a PBR bottle with base colour, normal, packed occlusion/roughness/metal and emissive maps',
     license: 'CC0-1.0',
     source: 'https://github.com/KhronosGroup/glTF-Sample-Assets/tree/7d4ba189827916452eeadc82d4b712dbc6280a6f/Models/WaterBottle',
     base: `${KHRONOS_SAMPLES}/Models/WaterBottle/glTF`,
+    models: ['WaterBottle.gltf'],
     files: {
       'WaterBottle.gltf': '0596f4e61dc781439d254fdfb5e3462daf1762c18715e3e3ac13001aa8f3f547',
       'WaterBottle.bin': 'e4921f2d0c0a03cf65286bd195f3688d4f99d7b6a58f25935e70d516d744156e',
@@ -43,10 +63,46 @@ export const CORPORA = {
 
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 
+/** The root imports resolve against; corpora live in its `corpora/`. */
+export function corporaRoot() {
+  return process.env.ESTELLA_CACHE_DIR || path.join(ROOT, '.cache');
+}
+
 /** Where a corpus lives once fetched. */
 export function corpusDir(id) {
-  const base = process.env.ESTELLA_CORPORA_DIR || path.join(ROOT, '.cache', 'corpora');
-  return path.join(base, id);
+  return path.join(corporaRoot(), 'corpora', id);
+}
+
+/** What an import depends on besides the source: the importer's own code. */
+async function importerStamp(entry) {
+  const h = createHash('sha256');
+  for (const hash of Object.values(entry.files)) h.update(hash);
+  for (const f of ['gltfImport', 'fbxImport', 'modelImport', 'modelImages', 'readModelSource']) {
+    h.update(await readFile(path.join(ROOT, 'pipeline', 'src', 'assets', `${f}.ts`)));
+  }
+  return h.digest('hex');
+}
+
+/**
+ * The corpus fetched and its models imported into `imported/` beside the sources,
+ * redone whenever the sources or the importer change — a product this checkout's
+ * importer did not write would test someone else's.
+ */
+export async function importedCorpus(id) {
+  const dir = await corpus(id);
+  const entry = CORPORA[id];
+  const out = path.join(dir, 'imported');
+  const stampFile = path.join(out, '.stamp');
+  const stamp = await importerStamp(entry);
+  if (existsSync(stampFile) && (await readFile(stampFile, 'utf8')) === stamp) return out;
+  await rm(out, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+  await mkdir(out, { recursive: true });
+  for (const model of entry.models ?? []) {
+    execFileSync(process.execPath, [path.join(ROOT, 'pipeline', 'bin', 'estella.mjs'), 'import-model',
+      path.join(dir, model), out, '--project', corporaRoot()], { stdio: 'inherit' });
+  }
+  await writeFile(stampFile, stamp);
+  return out;
 }
 
 async function fetchVerified(url, want) {
@@ -88,8 +144,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     for (const [id, e] of Object.entries(CORPORA)) console.log(`${id}  ${e.license}  ${e.what}\n  ${e.source}`);
   } else if (cmd === 'fetch') {
     for (const id of ids.length ? ids : Object.keys(CORPORA)) console.log(`${id}: ${await corpus(id)}`);
+  } else if (cmd === 'import') {
+    for (const id of ids.length ? ids : Object.keys(CORPORA)) console.log(`${id}: ${await importedCorpus(id)}`);
   } else {
-    console.error('usage: node tools/corpora.mjs fetch [id …] | list');
+    console.error('usage: node tools/corpora.mjs fetch [id …] | import [id …] | list');
     process.exit(2);
   }
 }

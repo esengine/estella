@@ -20,6 +20,8 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const FIXTURES = path.join(ROOT, 'fixtures');
+/** Published assets tools/corpora.mjs fetched and imported, addressed `/corpora/<id>/…`. */
+const CORPORA_ROOT = process.env.ESTELLA_CACHE_DIR || path.join(ROOT, '.cache');
 
 const MIME = {
     '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript',
@@ -47,7 +49,8 @@ async function readUnder(root, rel) {
 export function serveHost(dist) {
     const server = http.createServer(async (req, res) => {
         const rel = decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/^\/+/, '') || 'index.html';
-        const bytes = (await readUnder(dist, rel)) ?? (await readUnder(FIXTURES, rel));
+        const bytes = (await readUnder(dist, rel)) ?? (await readUnder(FIXTURES, rel))
+            ?? (rel.startsWith('corpora/') ? await readUnder(CORPORA_ROOT, rel) : null);
         if (!bytes) return void res.writeHead(404).end('not found');
         res.writeHead(200, { 'content-type': MIME[path.extname(rel).toLowerCase()] ?? 'application/octet-stream' });
         res.end(bytes);
