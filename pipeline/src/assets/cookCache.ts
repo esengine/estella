@@ -29,6 +29,9 @@ export function encoderIdentity(encoderFile: string): string {
  * The bytes `produce` makes for these inputs, from the cache when an earlier
  * cook made them. A cache that cannot be written is only slower, never wrong.
  */
+/** Concurrent cooks in one process can produce the same key; each writes its own temp file. */
+let tmpSerial = 0;
+
 export async function cookCached(
     root: string, inputs: ReadonlyArray<Uint8Array | string>, produce: () => Promise<Uint8Array>,
 ): Promise<{ bytes: Uint8Array; hit: boolean }> {
@@ -42,7 +45,7 @@ export async function cookCached(
     const bytes = await produce();
     try {
         await mkdir(path.dirname(file), { recursive: true });
-        const tmp = `${file}.${process.pid}.tmp`;
+        const tmp = `${file}.${process.pid}.${tmpSerial++}.tmp`;
         await writeFile(tmp, bytes);
         await rename(tmp, file);
     } catch { /* a read-only project cooks every time */ }

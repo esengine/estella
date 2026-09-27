@@ -221,6 +221,30 @@ interface BasisEncoderModule {
   transcodeKtx2ToRgba(ktx2: Uint8Array): Promise<{ width: number; height: number; pixels: Uint8Array }>;
   ImageType: { PNG: string; JPG: string; RGBA: string };
   ENCODER_WASM: string;
+  ENCODER_PARALLELISM: number;
+}
+
+/** What cooking one asset reports, held apart so concurrent cooks merge in order. */
+interface CookSink {
+  warnings: string[];
+  failed: string[];
+  defeatedByFormat: string[];
+  grewUnderEncoding: Array<{ path: string; saved: number }>;
+  manifestEntries: CookManifestEntry[];
+}
+
+/** `fn` over `items` with at most `limit` running, results in the items' order. */
+async function mapInOrder<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const lane = async (): Promise<void> => {
+    while (next < items.length) {
+      const i = next++;
+      results[i] = await fn(items[i]!);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, lane));
+  return results;
 }
 
 const KTX2_SCHEME_ZSTD = 2;
@@ -674,9 +698,13 @@ export async function cookAssets(
     }
   }
 
-  for (const uuid of reachable) {
+  // Each asset cooks on its own, and the encoder runs ENCODER_PARALLELISM images
+  // at once, so that many are kept in flight. What each reports is merged back in
+  // `reachable` order, which keeps the manifest and the warnings a serial cook's.
+  const cookOne = async (uuid: string, { warnings, failed, defeatedByFormat, grewUnderEncoding,
+                                         manifestEntries }: CookSink): Promise<void> => {
     const entry = byUuid.get(uuid);
-    if (!entry) continue;
+    if (!entry) return;
     // Atlas-packed frame: the page is already staged; this entry just records
     // where the frame lives (page path + rect). Its physical identity IS the
     // page's (hash/size of the bytes actually served for this ref).
@@ -712,7 +740,7 @@ export async function cookAssets(
           pageHeight: framePlan.pageHeight,
         },
       });
-      continue;
+      return;
     }
     try {
       // Videos headed for transcode skip the eager read: ffmpeg streams the
@@ -911,9 +939,9 @@ export async function cookAssets(
       }
       const dst = path.join(absOut, outRel);
       if (!staged.has(outRel)) {
+        staged.add(outRel);
         await mkdir(path.dirname(dst), { recursive: true });
         await writeFile(dst, data);
-        staged.add(outRel);
       }
       manifestEntries.push({
         uuid: entry.uuid,
@@ -940,8 +968,8 @@ export async function cookAssets(
         const audioHash = contentHashHex(videoAudio);
         const audioOutRel = useCA ? `${caBase}/${audioHash}.m4a` : `${outRel}.m4a`;
         if (!staged.has(audioOutRel)) {
-          await writeFile(path.join(absOut, audioOutRel), videoAudio);
           staged.add(audioOutRel);
+          await writeFile(path.join(absOut, audioOutRel), videoAudio);
         }
         manifestEntries.push({
           uuid: `${entry.uuid}-audio`,
@@ -959,6 +987,18 @@ export async function cookAssets(
       warnings.push(`copy failed ${entry.path}: ${why}`);
       failed.push(`${entry.path}: ${why}`);
     }
+  };
+  const sinks = await mapInOrder([...reachable], textureEnc?.ENCODER_PARALLELISM ?? 1, async (uuid) => {
+    const sink: CookSink = { warnings: [], failed: [], defeatedByFormat: [], grewUnderEncoding: [], manifestEntries: [] };
+    await cookOne(uuid, sink);
+    return sink;
+  });
+  for (const sink of sinks) {
+    warnings.push(...sink.warnings);
+    failed.push(...sink.failed);
+    defeatedByFormat.push(...sink.defeatedByFormat);
+    grewUnderEncoding.push(...sink.grewUnderEncoding);
+    manifestEntries.push(...sink.manifestEntries);
   }
   manifestEntries.sort((a, b) => a.path.localeCompare(b.path));
 

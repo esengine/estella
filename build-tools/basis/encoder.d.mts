@@ -32,6 +32,8 @@ export interface EncodeOptions {
 }
 
 export const ENCODER_WASM: string;
+/** How many calls the encoder runs at once (its worker pool's width). */
+export const ENCODER_PARALLELISM: number;
 
 export interface RgbaResult {
   width: number;

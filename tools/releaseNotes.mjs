@@ -1234,6 +1234,8 @@ export const NOTED = {
     { note: 'Importing a model converts its DDS textures to PNG' },
   'feat(import): a model\'s specular map is read as its import settings say':
     { note: 'An FBX model\'s specular map can be read as packed occlusion' },
+  'feat(cook): textures encode on every core':
+    { note: 'Exporting compresses textures on every core' },
   'fix(eht): the generator writes LF on every platform':
     { internal: 'The engine header tool is a repository generator; on Windows it rewrote every generated file with CRLF, which only a contributor there ever saw.' },
 };
