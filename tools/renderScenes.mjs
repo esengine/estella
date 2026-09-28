@@ -709,6 +709,10 @@ export const SCENES = [
   // multisampling on, coverage from alpha makes the texel before the cut a blend in a
   // share of rows (0.35 WebGL2, 0.26 WebGPU) that an alpha test does not (0.14, 0.07).
   { id: "corpus-cutout-edge", tier: "pr", webgpu: true, corpora: ["khronos-alpha-blend-mode-test"], env: { ESTELLA_VERIFY_PREFAB: "/corpora/khronos-alpha-blend-mode-test/imported/AlphaBlendModeTest.esprefab", ESTELLA_VERIFY_SCENE: "/scenes/corpus-cutout-edge.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/corpus-alpha-modes.textures.json", ESTELLA_VERIFY_COLORSPACE: "linear", ESTELLA_VERIFY_MSAA: "4", ESTELLA_VERIFY_W: "640", ESTELLA_VERIFY_H: "640", ESTELLA_VERIFY_STEPS: "8", ESTELLA_VERIFY_CUTOUT_EDGE: "{\"box\":[0.5813,0.4219,0.6641,0.6875],\"lit\":180,\"run\":4,\"partial\":[115,180],\"minShare\":0.2}" } },
+  // The same cut in gamma with no effect: no chain, so the frame draws straight into
+  // the surface, which is multisampled too (0.27 WebGL2, 0.26 WebGPU; 0.12 on WebGPU
+  // asking for one sample). A WebGL2 canvas is antialiased whatever the engine asks.
+  { id: "corpus-cutout-edge-gamma", tier: "pr", webgpu: true, corpora: ["khronos-alpha-blend-mode-test"], env: { ESTELLA_VERIFY_PREFAB: "/corpora/khronos-alpha-blend-mode-test/imported/AlphaBlendModeTest.esprefab", ESTELLA_VERIFY_SCENE: "/scenes/corpus-cutout-edge.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/corpus-alpha-modes.textures.json", ESTELLA_VERIFY_MSAA: "4", ESTELLA_VERIFY_W: "640", ESTELLA_VERIFY_H: "640", ESTELLA_VERIFY_STEPS: "8", ESTELLA_VERIFY_CUTOUT_EDGE: "{\"box\":[0.5813,0.4219,0.6641,0.6875],\"lit\":180,\"run\":4,\"partial\":[115,180],\"minShare\":0.2}" } },
   // The same asset forty metres off, its textures uploaded as a shipped game's are:
   // with a mip chain the stripes average to a flat tint (ripple 7.8), sampling the top
   // level they shimmer (17.5); 7.9 on WebGPU, 13.7 before it built a chain.
