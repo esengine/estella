@@ -238,7 +238,8 @@ export function rasterizeLumels(surfaces: readonly BakeSurface[],
                     if (w0 < 0 || w1 < 0 || w2 < 0) continue;
                     const at = y * size + x;
                     claimed++;
-                    if (seen.has(at)) { taken++; continue; }
+                    // A centre on an edge the triangles share is one texel, not a second layer.
+                    if (seen.has(at)) { if (w0 > 1e-6 && w1 > 1e-6 && w2 > 1e-6) taken++; continue; }
                     seen.add(at);
                     for (let k = 0; k < 3; k++) {
                         position.push(w0 * wp[k] + w1 * wp[3 + k] + w2 * wp[6 + k]);

@@ -256,6 +256,34 @@ describe('a baked lightmap', () => {
     });
 });
 
+/** A quad whose lightmap UVs fill their square corner to corner, split on the diagonal. */
+function tile(): MeshData {
+    const flat = floor(1);
+    const stride = 32;
+    const vertices = new Uint8Array(4 * stride);
+    const src = new DataView(flat.vertices.buffer);
+    const view = new DataView(vertices.buffer);
+    const uv = [[0, 0], [1, 0], [1, 1], [0, 1]];
+    for (let i = 0; i < 4; i++) {
+        for (let k = 0; k < 6; k++) view.setFloat32(i * stride + k * 4, src.getFloat32(i * 24 + k * 4, true), true);
+        view.setFloat32(i * stride + 24, uv[i][0], true);
+        view.setFloat32(i * stride + 28, uv[i][1], true);
+    }
+    return {
+        ...flat, vertices, vertexStride: stride,
+        channels: [...flat.channels,
+            { semantic: MeshChannel.TexCoord1, components: 2, type: MeshChannelType.Float32, offset: 24 }],
+    };
+}
+
+describe('what a bake reports about a layout', () => {
+    it('does not count texels on an edge two triangles share as laid twice', () => {
+        // Three texels across: the diagonal runs through three of the nine centres.
+        const result = bakeLightmap([{ mesh: tile(), transform: IDENTITY }], [], { ...LIT, texelsPerUnit: 1.5 });
+        expect(result.shared[0]).toBe(0);
+    });
+});
+
 describe('the indirect half of a bake', () => {
     it('lets the sky in only where it can see the sky', () => {
         // A roof half a unit over the middle of an open floor, and no lamp: what

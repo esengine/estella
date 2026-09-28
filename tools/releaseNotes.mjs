@@ -1278,6 +1278,8 @@ export const NOTED = {
     { note: 'The editor stays responsive while it bakes' },
   'feat(bake): baked light is a lit surface\'s indirect light':
     { note: 'Baked light is a lit surface\'s indirect light' },
+  'fix(bake): texels on an edge two triangles share are not an overlap':
+    { note: 'A model whose second UV set cannot be baked into' },
   'fix(eht): the generator writes LF on every platform':
     { internal: 'The engine header tool is a repository generator; on Windows it rewrote every generated file with CRLF, which only a contributor there ever saw.' },
 };
