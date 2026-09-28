@@ -12,6 +12,7 @@
 
 import type { Bvh } from './bvh';
 import { rayRadiance, type HitLookup } from './solve';
+import type { SkyRadiance } from './reflection';
 import { shBasis, convolveCosine } from './sh';
 
 /** Where one grid of probes sits, and how many. */
@@ -59,11 +60,11 @@ export function probeAt(min: number, max: number, i: number, n: number): number 
  *
  * `atlas` is the solved light field indexed by texel — what a surface gives off,
  * before its own albedo. A ray that hits geometry with no place in the atlas
- * returns black rather than the ambient: something is there, and it is unlit.
+ * returns black rather than the sky: something is there, and it is unlit.
  */
 export function solveProbes(grid: ProbeGrid, bvh: Bvh, lookup: HitLookup,
                             atlas: Float32Array, atlasSize: number, samples: number,
-                            ambient: readonly [number, number, number]): Float32Array {
+                            sky: SkyRadiance): Float32Array {
     const [nx, ny, nz] = grid.resolution;
     const count = Math.max(0, nx) * Math.max(0, ny) * Math.max(0, nz);
     const out = new Float32Array(count * 27);
@@ -85,8 +86,8 @@ export function solveProbes(grid: ProbeGrid, bvh: Bvh, lookup: HitLookup,
                 for (let s = 0; s < samples; s++) {
                     const dx = dirs[s * 3]!, dy = dirs[s * 3 + 1]!, dz = dirs[s * 3 + 2]!;
                     if (!rayRadiance(bvh, lookup, atlas, atlasSize, px, py, pz, dx, dy, dz,
-                                     seen)) {
-                        seen[0] = ambient[0]; seen[1] = ambient[1]; seen[2] = ambient[2];
+                                     seen, 0, at * samples + s)) {
+                        sky(dx, dy, dz, seen, 0);
                     }
                     const r = seen[0]!, g = seen[1]!, b = seen[2]!;
                     shBasis(dx, dy, dz, basis);

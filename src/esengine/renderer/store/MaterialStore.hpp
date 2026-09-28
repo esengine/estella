@@ -173,14 +173,12 @@ public:
         if (shader.isValid()) sources_[shader.id()] = { std::move(source), std::move(features) };
     }
 
-    /// The program that draws @p materialId on GPU-RESIDENT geometry, compiled on
-    /// first use and cached. @p withNormals selects the variant for geometry that
-    /// carries them, @p skinned the one posed by bones instead of a per-object
-    /// matrix. 0 when the material's source was never kept or the variant fails —
-    /// the caller then falls back rather than drawing it wrong.
+    /// The program that draws @p materialId on resident geometry of this shape, compiled
+    /// once and cached; 0 when the source was never kept or the variant fails, so the
+    /// caller falls back rather than drawing it wrong.
     u32 meshProgram(u32 materialId, resource::ResourceManager& resources,
                     bool withNormals = false, bool skinned = false,
-                    bool envMapped = false) const;
+                    bool envMapped = false, bool lightmapped = false) const;
 
     /// The program that draws @p materialId on PARTICLE geometry — the instanced
     /// quad an emitter streams. Same source, same author's fragment, a different

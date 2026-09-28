@@ -7,7 +7,12 @@
  * result worth reading rather than a flat wash.
  */
 import { describe, it, expect } from 'vitest';
-import { unwrapLightmapUV, bakeLightmap, type BakeSurface, type BakeLight } from '../src/lightmap';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import {
+    unwrapLightmapUV, bakeLightmap, decodeLightmap, flatSky, LIGHTMAP_RANGE,
+    type BakeSurface, type BakeLight,
+} from '../src/lightmap';
 import { MeshChannel, MeshChannelType, type MeshData } from '../src/asset/meshFormat';
 
 const IDENTITY = Float32Array.from([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]);
@@ -87,8 +92,8 @@ function brightnessAt(result: ReturnType<typeof bakeLightmap>, surface: number,
     const [su, sv, ou, ov] = result.scaleOffset[surface];
     const x = Math.floor((ou + u * su) * result.size);
     const y = Math.floor((ov + v * sv) * result.size);
-    const at = (y * result.size + x) * 4;
-    return (result.pixels[at] + result.pixels[at + 1] + result.pixels[at + 2]) / 3;
+    const [r, g, b] = decodeLightmap(result.pixels, y * result.size + x);
+    return (r + g + b) / 3;
 }
 
 /**
@@ -156,7 +161,7 @@ describe('a baked lightmap', () => {
             const x = -18 + 36 * ((i + 0.5) / 20);
             const uv = uvAtWorld(ground, x, 0, 0);
             expect(uv).not.toBeNull();
-            if (brightnessAt(result, 0, uv![0], uv![1]) > 20) brightSpots++;
+            if (brightnessAt(result, 0, uv![0], uv![1]) > 0.08) brightSpots++;
         }
         expect(brightSpots).toBe(20);
     });
@@ -173,7 +178,7 @@ describe('a baked lightmap', () => {
         // front is in shadow and the floor behind is not.
         const lightSide = sampleFloor(result, ground, -4);
         const shadowed = sampleFloor(result, ground, 4);
-        expect(lightSide).toBeGreaterThan(20);
+        expect(lightSide).toBeGreaterThan(0.08);
         expect(shadowed).toBeLessThan(lightSide / 3);
     });
 
@@ -215,8 +220,8 @@ describe('a baked lightmap', () => {
         const [rr, rg] = under([1, 0.1, 0.1]);
         const [wr, wg] = under([1, 1, 1]);
         expect(rr).toBeGreaterThan(0);
-        expect(rr / Math.max(rg, 1)).toBeGreaterThan(3);
-        expect(wr / Math.max(wg, 1)).toBeLessThan(1.2);
+        expect(rr / Math.max(rg, 1e-3)).toBeGreaterThan(3);
+        expect(wr / Math.max(wg, 1e-3)).toBeLessThan(1.2);
     });
 
     it('gives each object its own patch of the atlas', () => {
@@ -251,6 +256,114 @@ describe('a baked lightmap', () => {
     });
 });
 
+describe('the indirect half of a bake', () => {
+    it('lets the sky in only where it can see the sky', () => {
+        // A roof half a unit over the middle of an open floor, and no lamp: what
+        // the floor gets is the sky, and under the roof most of it is hidden.
+        const ground = baked(floor(8));
+        const roof = baked(ceiling(1));
+        const result = bakeLightmap(
+            [{ mesh: ground, transform: IDENTITY }, { mesh: roof, transform: translated(0, 0.5, 0) }],
+            [], { ...LIT, samples: 256, ambient: [1, 1, 1] },
+        );
+        const open = sampleFloor(result, ground, 7);
+        const covered = sampleFloor(result, ground, 0);
+        expect(open).toBeGreaterThan(0.9);
+        expect(covered).toBeLessThan(open * 0.5);
+    });
+
+    it('reads the sky by direction', () => {
+        // Bright only straight up: a floor facing it is lit and a wall facing
+        // sideways gets half its hemisphere's worth at most.
+        const ground = baked(floor(8));
+        const up = flatSky([0, 0, 0]);
+        const zenith = (dx: number, dy: number, dz: number, out: Float32Array, at: number): void => {
+            up(dx, dy, dz, out, at);
+            const v = dy > 0 ? 2 : 0;
+            out[at] = v; out[at + 1] = v; out[at + 2] = v;
+        };
+        const result = bakeLightmap([{ mesh: ground, transform: IDENTITY }], [],
+                                    { ...LIT, samples: 64, sky: zenith });
+        expect(sampleFloor(result, ground, 0)).toBeCloseTo(2, 1);
+    });
+
+    it('leaves the lamps out of a surface the frame lights itself, and still bounces them', () => {
+        const ground = baked(floor(8));
+        const panel = baked(ceiling(2));
+        const lamp: BakeLight[] = [
+            { kind: 'point', position: [0, 6, 0], color: [1, 1, 1], intensity: 8, radius: 40 },
+        ];
+        const bake = (realtimeDirect: boolean) => bakeLightmap([
+            { mesh: ground, transform: IDENTITY, albedo: [1, 1, 1], realtimeDirect },
+            { mesh: panel, transform: translated(0, 3, 0), albedo: [1, 1, 1] },
+        ], lamp, { ...LIT, bounces: 1, samples: 64 });
+        const whole = bake(false);
+        const indirect = bake(true);
+        // The floor's own patch drops the lamp it faces; what it sends up does not.
+        expect(sampleFloor(whole, ground, 6)).toBeGreaterThan(0.1);
+        expect(sampleFloor(indirect, ground, 6)).toBeLessThan(sampleFloor(whole, ground, 6) * 0.2);
+        expect(brightestOf(indirect, 1)).toBeCloseTo(brightestOf(whole, 1), 5);
+        expect(brightestOf(indirect, 1)).toBeGreaterThan(0);
+    });
+
+    it('keeps light brighter than one', () => {
+        const ground = baked(floor(4));
+        const result = bakeLightmap([{ mesh: ground, transform: IDENTITY }],
+            [{ kind: 'directional', direction: [0, -1, 0], color: [1, 1, 1], intensity: 7 }], LIT);
+        expect(sampleFloor(result, ground, 0)).toBeCloseTo(7, 1);
+    });
+
+    it('is decoded by the shader with the range it was encoded with', () => {
+        const src = readFileSync(path.resolve(__dirname, '../../src/esengine/resource/ShaderParser.cpp'), 'utf8');
+        const ranges = [...src.matchAll(/return c \* c \* ([\d.]+);/g)].map((m) => Number(m[1]));
+        expect(ranges).toHaveLength(2);
+        for (const r of ranges) expect(r).toBe(LIGHTMAP_RANGE);
+    });
+});
+
+describe('what a bake lets through', () => {
+    it('lets a cutout pass the share of the sky it does not cover', () => {
+        const ground = baked(floor(8));
+        const roof = baked(ceiling(1));
+        const under = (coverage: number): number => sampleFloor(bakeLightmap(
+            [{ mesh: ground, transform: IDENTITY }, { mesh: roof, transform: translated(0, 0.5, 0), coverage }],
+            [], { ...LIT, samples: 256, ambient: [1, 1, 1] }), ground, 0);
+        const solid = under(1), half = under(0.5), none = under(0);
+        expect(none).toBeGreaterThan(0.9);
+        expect(solid).toBeLessThan(none * 0.5);
+        expect(half).toBeGreaterThan(solid + (none - solid) * 0.35);
+        expect(half).toBeLessThan(solid + (none - solid) * 0.65);
+    });
+
+    it('passes the back of a layer lying a hair above a surface', () => {
+        // A second floor two centimetres over the first, facing up as a decal or a
+        // wet sheen does: finer than a lumel, so the floor under it keeps its sky.
+        // A roof half a unit up (above) still hides it — that is resolvable.
+        const ground = baked(floor(8));
+        const layer = baked(floor(8));
+        const result = bakeLightmap(
+            [{ mesh: ground, transform: IDENTITY }, { mesh: layer, transform: translated(0, 0.02, 0) }],
+            [], { ...LIT, samples: 64, ambient: [1, 1, 1] });
+        expect(sampleFloor(result, ground, 0)).toBeGreaterThan(0.9);
+    });
+
+    it('reads the back of a two-sided surface as lit', () => {
+        // A lit panel over the floor, facing the lamp: the floor under it sees only
+        // the panel's back, which a one-sided panel does not give off light from.
+        const ground = baked(floor(8));
+        const panel = baked(floor(2));
+        const lamp: BakeLight[] = [
+            { kind: 'point', position: [0, 6, 0], color: [1, 1, 1], intensity: 8, radius: 40 },
+        ];
+        const under = (twoSided: boolean): number => sampleFloor(bakeLightmap([
+            { mesh: ground, transform: IDENTITY, albedo: [1, 1, 1] },
+            { mesh: panel, transform: translated(0, 3, 0), albedo: [1, 1, 1], twoSided },
+        ], lamp, { ...LIT, bounces: 1, samples: 64 }), ground, 0);
+        expect(under(false)).toBeLessThan(0.01);
+        expect(under(true)).toBeGreaterThan(0.05);
+    });
+});
+
 /** Brightest texel in one surface's patch of the atlas. */
 function brightestOf(result: ReturnType<typeof bakeLightmap>, surface: number): number {
     const [su, sv, ou, ov] = result.scaleOffset[surface];
@@ -259,8 +372,8 @@ function brightestOf(result: ReturnType<typeof bakeLightmap>, surface: number): 
     const y0 = Math.floor(ov * result.size), y1 = Math.ceil((ov + sv) * result.size);
     for (let y = y0; y < y1; y++) {
         for (let x = x0; x < x1; x++) {
-            const at = (y * result.size + x) * 4;
-            best = Math.max(best, (result.pixels[at] + result.pixels[at + 1] + result.pixels[at + 2]) / 3);
+            const [r, g, b] = decodeLightmap(result.pixels, y * result.size + x);
+            best = Math.max(best, (r + g + b) / 3);
         }
     }
     return best;
@@ -276,11 +389,11 @@ function brightestChannels(result: ReturnType<typeof bakeLightmap>,
     const y0 = Math.floor(ov * result.size), y1 = Math.ceil((ov + sv) * result.size);
     for (let y = y0; y < y1; y++) {
         for (let x = x0; x < x1; x++) {
-            const at = (y * result.size + x) * 4;
-            const sum = result.pixels[at] + result.pixels[at + 1] + result.pixels[at + 2];
+            const rgb = decodeLightmap(result.pixels, y * result.size + x);
+            const sum = rgb[0] + rgb[1] + rgb[2];
             if (sum > best) {
                 best = sum;
-                out = [result.pixels[at], result.pixels[at + 1], result.pixels[at + 2]];
+                out = rgb;
             }
         }
     }
@@ -293,3 +406,31 @@ function sampleFloor(result: ReturnType<typeof bakeLightmap>, mesh: MeshData, z:
     if (!uv) throw new Error(`no floor triangle at z=${z}`);
     return brightnessAt(result, 0, uv[0], uv[1]);
 }
+
+/** The same mesh with its lightmap UVs squeezed into a corner of their square. */
+function squeezed(mesh: MeshData, by: number): MeshData {
+    const uv1 = mesh.channels.find((c) => c.semantic === MeshChannel.TexCoord1)!;
+    const vertices = mesh.vertices.slice();
+    const view = new DataView(vertices.buffer);
+    for (let i = 0; i < mesh.vertexCount; i++) {
+        for (let k = 0; k < 2; k++) {
+            const at = i * mesh.vertexStride + uv1.offset + k * 4;
+            view.setFloat32(at, view.getFloat32(at, true) * by, true);
+        }
+    }
+    return { ...mesh, vertices };
+}
+
+describe('a bake that does not fit', () => {
+    it('names the surfaces taking the most room, and says a sparse lightmap UV set is why', () => {
+        const surfaces: BakeSurface[] = [
+            { mesh: squeezed(baked(floor(10)), 0.1), transform: IDENTITY, label: 'Road' },
+            { mesh: baked(floor(10)), transform: translated(30, 0, 0), label: 'Square' },
+        ];
+        expect(() => bakeLightmap(surfaces, [], { atlasSize: 256, texelsPerUnit: 2 }))
+            .toThrow(/The largest: Road \(256x256, its lightmap UVs cover \d\.\d%\).*Generate Lightmap UVs/);
+        // Without the squeeze the same two fit.
+        expect(() => bakeLightmap([{ ...surfaces[0]!, mesh: baked(floor(10)) }, surfaces[1]!], [],
+                                  { atlasSize: 256, texelsPerUnit: 2, bounces: 0 })).not.toThrow();
+    });
+});

@@ -374,7 +374,10 @@ in highp vec3 v_worldNormal;
 in highp vec3 v_worldXYZ;
 #endif
 
-uniform sampler2D u_textures[8];
+// One, not the batch stream's eight: a sampler array counts whole against the
+// sixteen units a stage may use, and this stage also takes four maps, four the
+// engine injects and a bake.
+uniform sampler2D u_textures[1];
 
 out vec4 fragColor;
 
@@ -425,6 +428,9 @@ void main() {
     // run its GLSL twin reads straight off one. Without this every material-shaded
     // draw read instance 0's indirect light — one probe volume for the lot.
     g_probeSlot = v.v_probeSlot;
+#ifdef MESH_LIGHTMAP
+    g_lightmap = v.v_lightmap;
+#endif
     let base = textureSampleGrad(t0, s0, v.v_texCoord, duvx, duvy) * v.v_color * mc.u_tint;
     // Before any discard: a derivative needs every fragment of its quad.
     let edge = max(fwidth(base.a), 1e-4);

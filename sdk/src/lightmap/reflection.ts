@@ -56,7 +56,7 @@ export function captureReflection(at: readonly [number, number, number],
             const dz = sinTheta * Math.cos(phi);
             const to = (y * width + x) * 3;
             if (!rayRadiance(bvh, lookup, atlas, atlasSize, at[0], at[1], at[2], dx, dy, dz,
-                             rgb, to)) {
+                             rgb, to, to)) {
                 sky(dx, dy, dz, rgb, to);
             }
         }

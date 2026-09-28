@@ -1270,6 +1270,14 @@ export const NOTED = {
     { note: 'Ambient occlusion works behind another post-process effect' },
   'fix(render): a shipped game\'s textures are mipmapped':
     { note: 'A shipped game\'s textures are sampled through mip levels' },
+  'fix(render): a shipped game samples data textures as data':
+    { note: 'A shipped game samples normal maps and roughness maps as data' },
+  'fix(render): normal maps stay on up close':
+    { note: 'Normal maps stay on up close' },
+  'feat(bake): the editor bakes a lit surface\'s indirect light off the main thread':
+    { note: 'The editor stays responsive while it bakes' },
+  'feat(bake): baked light is a lit surface\'s indirect light':
+    { note: 'Baked light is a lit surface\'s indirect light' },
   'fix(eht): the generator writes LF on every platform':
     { internal: 'The engine header tool is a repository generator; on Windows it rewrote every generated file with CRLF, which only a contributor there ever saw.' },
 };

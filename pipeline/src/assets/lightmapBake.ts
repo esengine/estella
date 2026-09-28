@@ -14,7 +14,7 @@ import { bakeLightmap, decodeMesh, unwrapLightmapUV, builtinMeshTemplate, MeshCh
          type MeshData, type BakeSurface, type BakeLight, type BakeOptions,
          type CapturedPanorama, type ProbeGrid } from 'esengine';
 import { encodeRgbaPng } from './png';
-import { bakeSceneReflections, bakeSky, type BakeEnvironment,
+import { bakeSceneReflections, bakeSky, irradianceSky, type BakeEnvironment,
          type ReflectionBakeResult } from './reflectionBake';
 
 // What a collector needs to describe a surface, re-exported so the CLI reaches
@@ -48,6 +48,14 @@ export interface SceneBakeSurface {
      *  takes a probe volume's light instead of an atlas patch, because a bake
      *  writes light into a place and this one will not be there. Absent = yes. */
     holdsStill?: boolean;
+    /** True where the renderer is `lit`: the frame adds the lamps to it, so its
+     *  patch holds only the indirect light. */
+    realtimeDirect?: boolean;
+    /** The renderer draws both faces (`cullBackfaces` off). */
+    twoSided?: boolean;
+    /** Absolute path of the `.esmaterial` it draws with, whose alpha cutoff says
+     *  how much of it a ray finds there. */
+    material?: string;
 }
 
 /** One box of probes to solve, as the editor's world describes it. */
@@ -155,18 +163,48 @@ function toLinear(v: number): number {
     return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
 }
 
-/** A texture's mean colour in linear light, or null when it cannot be read. */
-function averageOf(file: string): [number, number, number] | null {
+/** A texture as a bake reads it: its mean colour in linear light, and the share
+ *  of it a cutout keeps. */
+interface TextureStats {
+    mean: [number, number, number];
+    coverage: number;
+}
+
+/**
+ * The texels past `cutoff` (all of them without one), averaged — the holes of a
+ * cutout are not a colour the surface has — and how many of them there are.
+ */
+function statsOf(file: string, cutoff: number): TextureStats | null {
     const png = PNG.sync.read(readFileSync(file));
-    let r = 0, g = 0, b = 0;
+    let r = 0, g = 0, b = 0, kept = 0;
     const pixels = png.width * png.height;
     if (pixels === 0) return null;
+    const floor = cutoff > 0 ? cutoff * 255 : -1;
     for (let i = 0; i < pixels; i++) {
+        if (png.data[i * 4 + 3] < floor) continue;
         r += toLinear(png.data[i * 4]);
         g += toLinear(png.data[i * 4 + 1]);
         b += toLinear(png.data[i * 4 + 2]);
+        kept++;
     }
-    return [r / pixels, g / pixels, b / pixels];
+    if (kept === 0) return { mean: [0, 0, 0], coverage: 0 };
+    return { mean: [r / kept, g / kept, b / kept], coverage: kept / pixels };
+}
+
+/** The alpha cutoff a material document states, or 0. */
+function cutoffOf(materialFile: string | undefined, cache: Map<string, number>): number {
+    if (!materialFile) return 0;
+    if (!cache.has(materialFile)) {
+        let cutoff = 0;
+        try {
+            const doc = JSON.parse(readFileSync(materialFile, 'utf8')) as
+                { properties?: { u_alphaCutoff?: unknown } };
+            const v = doc.properties?.u_alphaCutoff;
+            if (typeof v === 'number' && v > 0) cutoff = v;
+        } catch { /* a material this cannot read cuts nothing */ }
+        cache.set(materialFile, cutoff);
+    }
+    return cache.get(materialFile)!;
 }
 
 /**
@@ -176,28 +214,30 @@ function averageOf(file: string): [number, number, number] | null {
  * bounce that used only one would drop the colour whenever the other held it.
  * A surface with neither reflects a neutral grey, which is a guess, so it says so.
  */
-function albedoOf(s: SceneBakeSurface, cache: Map<string, [number, number, number] | null>,
-                  warnings: string[]): [number, number, number] | undefined {
+function albedoOf(s: SceneBakeSurface, cutoff: number, cache: Map<string, TextureStats | null>,
+                  warnings: string[]): { albedo?: [number, number, number]; coverage: number } {
     const factor = s.baseColor;
     if (!s.baseColorTexture) {
         if (!factor) {
             warnings.push(`${s.label}: no base colour, so light bounces off it as neutral grey`);
         }
-        return factor;
+        return { albedo: factor, coverage: 1 };
     }
-    if (!cache.has(s.baseColorTexture)) {
+    const key = `${s.baseColorTexture}|${cutoff}`;
+    if (!cache.has(key)) {
         try {
-            cache.set(s.baseColorTexture, averageOf(s.baseColorTexture));
+            cache.set(key, statsOf(s.baseColorTexture, cutoff));
         } catch {
-            cache.set(s.baseColorTexture, null);
+            cache.set(key, null);
             warnings.push(`${s.label}: its base colour texture could not be read, so light`
                 + ' bounces off it by its colour factor alone');
         }
     }
-    const mean = cache.get(s.baseColorTexture) ?? null;
-    if (!mean) return factor;
+    const stats = cache.get(key) ?? null;
+    if (!stats) return { albedo: factor, coverage: 1 };
     const f = factor ?? [1, 1, 1];
-    return [mean[0] * f[0], mean[1] * f[1], mean[2] * f[2]];
+    return { albedo: [stats.mean[0] * f[0], stats.mean[1] * f[1], stats.mean[2] * f[2]],
+             coverage: cutoff > 0 ? stats.coverage : 1 };
 }
 
 /**
@@ -214,7 +254,8 @@ export function bakeSceneLightmap(input: SceneBakeInput): SceneBakeResult {
     let moving = 0;
     // One decode per texture however many objects share it: a bake reads these
     // once and a scene reuses the same few across most of its surfaces.
-    const averages = new Map<string, [number, number, number] | null>();
+    const averages = new Map<string, TextureStats | null>();
+    const cutoffs = new Map<string, number>();
     // Stock geometry is rebuilt from code every run, so its lightmap UVs are
     // DERIVED here rather than being an asset: unwrapping an imported mesh
     // rewrites a file the scene already references, and this rewrites nothing.
@@ -244,7 +285,9 @@ export function bakeSceneLightmap(input: SceneBakeInput): SceneBakeResult {
             continue;
         }
         slot.push(i);
-        surfaces.push({ mesh, transform: s.transform, albedo: albedoOf(s, averages, warnings) });
+        const { albedo, coverage } = albedoOf(s, cutoffOf(s.material, cutoffs), averages, warnings);
+        surfaces.push({ mesh, transform: s.transform, albedo, coverage, label: s.label,
+                        realtimeDirect: s.realtimeDirect, twoSided: s.twoSided });
     }
 
     // The volumes, turned from what an author asked for into the grids a solve
@@ -283,6 +326,7 @@ export function bakeSceneLightmap(input: SceneBakeInput): SceneBakeResult {
     const reflectionOptions = {
         reflectionProbes: reflectionProbes.map((p) => p.center),
         reflectionSky: bakeSky(input.environment, ambient),
+        sky: irradianceSky(input.environment, ambient),
     };
     const packReflections = (panoramas: CapturedPanorama[]): ReflectionBakeResult | null => {
         if (reflectionProbes.length === 0) return null;
@@ -314,6 +358,14 @@ export function bakeSceneLightmap(input: SceneBakeInput): SceneBakeResult {
 
     const result = bakeLightmap(surfaces, input.lights,
                                 { ...input.options, probeGrids: grids, ...reflectionOptions });
+    result.shared.forEach((share, k) => {
+        if (share > 0.25) {
+            warnings.push(`${surfaces[k]!.label ?? `surface ${k}`}: its lightmap UVs lay`
+                + ` ${Math.round(share * 100)}% of its texels over one another, so those parts share`
+                + ' one texel\'s light — turn on Generate Lightmap UVs in its model\'s import settings'
+                + ' and reimport');
+        }
+    });
     const scaleOffset: Array<[number, number, number, number] | null> =
         input.surfaces.map(() => null);
     slot.forEach((at, k) => { scaleOffset[at] = result.scaleOffset[k]; });

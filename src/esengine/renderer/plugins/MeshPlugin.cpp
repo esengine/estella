@@ -416,9 +416,10 @@ RenderPrewarmResult MeshPlugin::prewarmFacts(RenderFrameContext& ctx,
         if (facts[i].materialId != 0 && ctx.materials) {
             ++out.materialAsks;
             out.addMaterialKey(RenderPrewarmResult::materialKey(
-                facts[i].materialId, facts[i].hasNormals, facts[i].skinned, envMapped));
+                facts[i].materialId, facts[i].hasNormals, facts[i].skinned, envMapped,
+                facts[i].lightmapped));
             ctx.materials->meshProgram(facts[i].materialId, ctx.resources, facts[i].hasNormals,
-                                       facts[i].skinned, envMapped);
+                                       facts[i].skinned, envMapped, facts[i].lightmapped);
         }
     }
     if (ctx.materials) {
@@ -742,7 +743,8 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 if (key.materialId != 0 && ctx.materials) {
                     materialProgram = ctx.materials->meshProgram(key.materialId, ctx.resources,
                                                                  resident->hasNormals, skinned,
-                                                                 key.envTextureId != 0);
+                                                                 key.envTextureId != 0,
+                                                                 resident->hasLightmapUV);
                     if (materialProgram == 0) {
                         if (!warned_material_) {
                             warned_material_ = true;

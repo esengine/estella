@@ -35,15 +35,18 @@ void MaterialStore::clear() {
 }
 
 u32 MaterialStore::meshProgram(u32 materialId, resource::ResourceManager& resources,
-                               bool withNormals, bool skinned, bool envMapped) const {
+                               bool withNormals, bool skinned, bool envMapped,
+                               bool lightmapped) const {
     // Keyed by shader AND vertex shape: a layout may not declare an attribute its
     // shader ignores, so geometry with normals — or posed by bones — needs its own.
     const u64 shape = (withNormals ? (1ull << 32) : 0ull)
                     | (skinned ? (1ull << 33) : 0ull)
-                    | (envMapped ? (1ull << 34) : 0ull);
+                    | (envMapped ? (1ull << 34) : 0ull)
+                    | (lightmapped ? (1ull << 36) : 0ull);
     std::vector<std::string> features{ "MESH" };
     if (withNormals) features.push_back("MESH_NORMALS");
     if (skinned) features.push_back("SKINNED");
+    if (lightmapped) features.push_back("MESH_LIGHTMAP");
     // Resident geometry carries the frame's shadow map on its own slot 2 and the
     // reflection on slot 3; the batch variant of the same material must not, which
     // is why these ride the mesh path.

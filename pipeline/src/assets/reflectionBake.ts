@@ -13,7 +13,7 @@
  *          carries which column an object reflects as a number per instance, and
  *          a hundred shiny things in a room still merge into one draw.
  */
-import { type CapturedPanorama, flatSky, type SkyRadiance } from 'esengine';
+import { type CapturedPanorama, flatSky, evalIrradianceSH, SH_COSINE_BAND, type SkyRadiance } from 'esengine';
 import { atlasLayout, decodeRgbm, mipCountFor, octEncode, prefilterOctahedral,
          type EnvironmentAssetData } from './environmentImport';
 import { encodeRgbaPng } from './png';
@@ -25,6 +25,8 @@ export interface BakeEnvironment {
     document: EnvironmentAssetData;
     /** The atlas PNG it names. */
     atlasPng: Uint8Array;
+    /** The ambient light's `environmentRotation`, in degrees about +Y. */
+    rotation?: number;
 }
 
 export interface ReflectionBakeInput {
@@ -82,6 +84,26 @@ export function environmentSky(environment: BakeEnvironment): SkyRadiance | null
         const [r, g, b] = decodeRgbm(image.rgba[p]!, image.rgba[p + 1]!, image.rgba[p + 2]!,
                                      image.rgba[p + 3]!, maxRange);
         out[at] = r; out[at + 1] = g; out[at + 2] = b;
+    };
+}
+
+/**
+ * The sky a lumel or a probe gathers: radiance whose cosine-weighted mean over an
+ * open hemisphere is the environment's irradiance as the frame reads it. Not the
+ * reflection atlas, which clips the HDR sun that is most of a sunny sky.
+ */
+export function irradianceSky(environment: BakeEnvironment | null | undefined,
+                              ambient: readonly [number, number, number]): SkyRadiance {
+    const sh = environment?.document.irradiance;
+    if (!environment || !Array.isArray(sh) || sh.length < 27) return flatSky(ambient);
+    const radiance = Float32Array.from(sh.slice(0, 27), (v, i) => v / SH_COSINE_BAND[Math.floor(i / 3)]!);
+    const yaw = -((environment.rotation ?? 0) * Math.PI) / 180;
+    const c = Math.cos(yaw), s = Math.sin(yaw);
+    return (dx, dy, dz, out, at) => {
+        const [r, g, b] = evalIrradianceSH(radiance, c * dx + s * dz, dy, -s * dx + c * dz);
+        out[at] = Math.max(0, r) * ambient[0];
+        out[at + 1] = Math.max(0, g) * ambient[1];
+        out[at + 2] = Math.max(0, b) * ambient[2];
     };
 }
 

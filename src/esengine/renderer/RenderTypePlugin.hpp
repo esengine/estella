@@ -166,8 +166,9 @@ struct RenderPrewarmResult {
     std::vector<u64> materialKeys;
 
     /** @brief What a material program is asked for, as one comparable value. */
-    static u64 materialKey(u32 materialId, bool normals, bool skinned, bool envMapped) {
-        return (static_cast<u64>(materialId) << 3) | (normals ? 4u : 0u)
+    static u64 materialKey(u32 materialId, bool normals, bool skinned, bool envMapped,
+                           bool lightmapped) {
+        return (static_cast<u64>(materialId) << 4) | (lightmapped ? 8u : 0u) | (normals ? 4u : 0u)
              | (skinned ? 2u : 0u) | (envMapped ? 1u : 0u);
     }
 

@@ -11,10 +11,11 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { encodeMesh, unwrapLightmapUV, MeshChannel, MeshChannelType,
+import { encodeMesh, unwrapLightmapUV, decodeLightmap, MeshChannel, MeshChannelType,
          type MeshData, type BakeLight } from 'esengine';
 import { bakeSceneLightmap, type SceneBakeSurface } from '../src/assets/lightmapBake';
 import { encodeRgbaPng } from '../src/assets/png';
+import { decodeRgbaPng } from '../src/assets/tilesetExtrude';
 
 let dir = '';
 
@@ -57,6 +58,25 @@ beforeAll(async () => {
     const half = new Uint8Array(4 * 4 * 4).fill(255);
     for (let i = 8; i < 16; i++) { half[i * 4] = 0; half[i * 4 + 1] = 0; half[i * 4 + 2] = 0; }
     await writeFile(path.join(dir, 'half.png'), encodeRgbaPng(4, 4, half));
+    // Half of it there and half a hole, as a leaf card is.
+    const holes = new Uint8Array(4 * 4 * 4).fill(255);
+    for (let i = 8; i < 16; i++) holes[i * 4 + 3] = 0;
+    await writeFile(path.join(dir, 'holes.png'), encodeRgbaPng(4, 4, holes));
+    await writeFile(path.join(dir, 'roof.esmesh'), encodeMesh(unwrapLightmapUV(floor(1)).mesh));
+    // The same quad twice over, the second copy laid on the first's lightmap UVs.
+    const one = unwrapLightmapUV(floor(2)).mesh;
+    const doubled = new Uint8Array(one.vertices.length * 2);
+    doubled.set(one.vertices, 0);
+    doubled.set(one.vertices, one.vertices.length);
+    const dv = new DataView(doubled.buffer);
+    const pos = one.channels.find((c) => c.semantic === MeshChannel.Position)!;
+    for (let i = one.vertexCount; i < one.vertexCount * 2; i++) {
+        dv.setFloat32(i * one.vertexStride + pos.offset, dv.getFloat32(i * one.vertexStride + pos.offset, true) + 10, true);
+    }
+    await writeFile(path.join(dir, 'stacked.esmesh'), encodeMesh({ ...one, vertices: doubled, vertexCount: one.vertexCount * 2,
+        indices: Uint32Array.from([...one.indices, ...Array.from(one.indices, (v) => v + one.vertexCount)]) }));
+    await writeFile(path.join(dir, 'cutout.esmaterial'), JSON.stringify(
+        { version: '1.0', type: 'material', shader: 'builtin:model', properties: { u_alphaCutoff: 0.5 } }));
 });
 
 afterAll(async () => {
@@ -169,6 +189,46 @@ describe('baking a scene', () => {
             options: SMALL,
         });
         expect(result.warnings.join(' ')).toContain('neutral grey');
+    });
+
+    it('lets the sky through a cutout by the share of it that is a hole', () => {
+        // The floor's patch as a whole, under a roof that is solid, half holes, or
+        // gone: a leaf card is the second, and baked as the first it walls in
+        // everything under it.
+        const under = (roof: Partial<SceneBakeSurface> | null): number => {
+            const result = bakeSceneLightmap({
+                surfaces: [surface('unwrapped.esmesh', 'Floor'),
+                           ...(roof ? [{ ...surface('roof.esmesh', 'Roof'),
+                                         transform: [...IDENTITY.slice(0, 12), 0, 0.5, 0, 1],
+                                         baseColorTexture: path.join(dir, 'holes.png'), ...roof }] : [])],
+                lights: [], options: { ...SMALL, samples: 128, ambient: [1, 1, 1] },
+            });
+            const image = decodeRgbaPng(result.atlasBytes);
+            const [su, sv, ou, ov] = result.scaleOffset[0]!;
+            let sum = 0;
+            for (let y = Math.floor(ov * image.width); y < Math.ceil((ov + sv) * image.width); y++) {
+                for (let x = Math.floor(ou * image.width); x < Math.ceil((ou + su) * image.width); x++) {
+                    sum += decodeLightmap(image.rgba, y * image.width + x)[0];
+                }
+            }
+            return sum;
+        };
+        const solid = under({});
+        const cut = under({ material: path.join(dir, 'cutout.esmaterial') });
+        const open = under(null);
+        expect(solid).toBeLessThan(open * 0.95);
+        expect(cut).toBeGreaterThan(solid + (open - solid) * 0.3);
+        expect(cut).toBeLessThan(solid + (open - solid) * 0.7);
+    });
+
+    it('names a surface whose lightmap UVs lie on themselves', () => {
+        const result = bakeSceneLightmap({
+            surfaces: [surface('unwrapped.esmesh', 'Floor'), surface('stacked.esmesh', 'Curb', 20)],
+            lights: LAMP, options: SMALL,
+        });
+        expect(result.warnings.filter((w) => w.includes('over one another'))).toEqual([
+            expect.stringMatching(/^Curb: its lightmap UVs lay \d+% of its texels over one another/),
+        ]);
     });
 
     it('writes a PNG the editor can adopt as an asset', () => {

@@ -39,7 +39,7 @@ const parser = readFileSync(path.join(ROOT, PARSER), 'utf8');
  * shader rather than a face both backends present, and pulling those in would
  * ask a vertex entry point to have a GLSL twin.
  */
-const HEADERS = ['kColorHelpers', 'kFrameHeader', 'kTimeHeader', 'kLitHeader'];
+const HEADERS = ['kColorHelpers', 'kFrameHeader', 'kTimeHeader', 'kLitHeader', 'kLightmapHeader'];
 
 /**
  * One header's text as the shader receives it: raw strings taken whole,

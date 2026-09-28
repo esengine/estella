@@ -14,10 +14,16 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **Baked light is a lit surface's indirect light.** A lit renderer — every imported model's is — reads its patch of the atlas in place of the environment's diffuse light and a probe volume's, and keeps its lamps, shadows and reflections live. The bake holds the sky as it reaches each point past whatever stands in the way, plus what the surfaces around give off, over as many bounces as asked: under ORCA Bistro's awnings and in its side streets the sky is now mostly hidden, where before every point got all of it. Before, a model's material never read the atlas at all, and a mesh drawn without one added it on top of the sky and the lamps and was lit twice. The sky a bake gathers is the environment's own irradiance, turned and tinted as the frame reads it, so an open floor bakes to exactly what the frame would light it with. An atlas holds light up to eight times a flat ambient of one, where eight plain bits stopped at one. A cutout lets the share of rays that meets its holes through, both faces of a two-sided surface give off light, and a layer lying closer above a surface than half a lumel — a decal, a wet sheen — no longer walls it off from the sky. A scene baked before reads as stale: its atlas is in the old encoding and must be baked again.
+- **A model whose second UV set cannot be baked into gets a lightmap UV in its place.** One that covers under 5% of its square pays for the empty rest — ORCA Bistro's road, 3533 m² in 0.5% of it, asked for more atlas than the rest of the town together — and one that lies on itself gives every copy the same texel's light: Bistro's curbs share one strip eighty layers deep, and a building's facades a hundred. Import unwraps either instead and says why; `import-model --lightmap-uv` turns generation on from the command line. A bake names a surface whose UVs overlap, and one that does not fit names the three surfaces taking the most room and how much of their square their UVs cover.
+
 ### Fixed
 
 - **A shipped game samples normal maps and roughness maps as data.** The engine's own upload — a web export, a mini-game, a native build, the editor's Play — made every image an sRGB colour texture in a linear project whatever its import settings said, so every normal map was bent (a flat one by about fifty degrees) and every packed occlusion, roughness and metal map gamma-darkened, while the editor's viewport, which uploads through its own path, looked right. ORCA Bistro's Vespa came out as dark chrome in an exported game and blue in the editor. Khronos's NormalTangentTest now draws each normal-mapped bump as its geometric twin does.
 - Normal maps stay on up close. The tangent frame taken from screen derivatives was refused below a fixed size, which shrinks with the fourth power of distance and scale, so in a metre-scale scene a surface a few metres from the camera silently lost its normal map.
+- The editor stays responsive while it bakes. The solve ran on the main process, so a bake of minutes left the window and the automation surface unanswered until it finished; it runs on a worker thread now.
 
 ## [0.75.0] - 2026-09-27
 

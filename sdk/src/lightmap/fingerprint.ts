@@ -27,6 +27,12 @@ export interface BakeInputs {
         texture?: string;
         /** False where the simulation moves it. */
         holdsStill?: boolean;
+        /** True where the frame adds the lamps to it, leaving the bake its indirect half. */
+        realtimeDirect?: boolean;
+        /** Drawn with both faces. */
+        twoSided?: boolean;
+        /** The material's project path, whose cutoff says how much of it stops a ray. */
+        material?: string;
     }>;
     lights: readonly BakeLight[];
     volumes: ReadonlyArray<{
@@ -67,7 +73,8 @@ export function bakeFingerprint(inputs: BakeInputs): string {
     const lines: string[] = [];
     for (const s of inputs.surfaces) {
         lines.push(`s|${s.mesh}|${nums(s.transform)}|${nums(s.albedo)}|${s.texture ?? ''}`
-            + `|${s.holdsStill === false ? 0 : 1}`);
+            + `|${s.holdsStill === false ? 0 : 1}${s.realtimeDirect ? '|d' : ''}`
+            + `${s.twoSided ? '|2' : ''}${s.material ? `|m${s.material}` : ''}`);
     }
     for (const l of inputs.lights) {
         lines.push(`l|${l.kind}|${nums(l.position)}|${nums(l.direction)}|${nums(l.color)}`

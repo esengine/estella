@@ -15,7 +15,7 @@ const REPO = path.join(PIPELINE, '..');
 const USAGE = `usage: node pipeline/bin/estella.mjs export <projectDir> [options]
        node pipeline/bin/estella.mjs import-model <file.gltf|file.glb|file.fbx> [outDir]
                                      [--project <dir>] [--scale <n>]
-                                     [--specular-map color|orm]
+                                     [--specular-map color|orm] [--lightmap-uv]
        node pipeline/bin/estella.mjs import-hdr <file.hdr> [outDir] [--face-size <n>]
        node pipeline/bin/estella.mjs bake-scene <scene.esscene> [--check]
 
@@ -59,6 +59,8 @@ otherwise; --scale sizes the model, whose metres are world units otherwise.
 --specular-map orm reads an FBX's specular map as packed occlusion/roughness/
 metalness (Falcor-era scenes such as Bistro); the source's own \`.meta\` setting
 is used when the flag is absent. DDS images are converted to PNG on the way in.
+--lightmap-uv gives every mesh a lightmap UV set (Generate Lightmap UVs in the
+editor), unwrapping one where the source's second set is too sparse to bake into.
 
 import-hdr bakes an equirectangular panorama into the two things a renderer asks
 an environment for: nine irradiance coefficients (in the \`.esenv\`) and one
@@ -91,6 +93,7 @@ function parseArgs(argv) {
     const scale = rest.indexOf('--scale');
     const faceSize = rest.indexOf('--face-size');
     const specular = rest.indexOf('--specular-map');
+    const lightmapUV = rest.includes('--lightmap-uv');
     const out = rest[0] && !rest[0].startsWith('--') ? path.resolve(rest[0]) : null;
     return {
       command, out, source: path.resolve(projectDir),
@@ -98,6 +101,7 @@ function parseArgs(argv) {
       scale: scale >= 0 ? Number(rest[scale + 1]) || 1 : 1,
       faceSize: faceSize >= 0 ? Number(rest[faceSize + 1]) || undefined : undefined,
       specularMap: specular >= 0 ? rest[specular + 1] : undefined,
+      lightmapUV,
     };
   }
   if (command !== 'export' || !projectDir) {
@@ -274,6 +278,8 @@ async function bakeScene(baker, meta, sceneFile, check) {
         const body = bakeComponent(entity, 'RigidBody3D');
         const textureRef = typeof mesh.data?.texture === 'string' ? mesh.data.texture : '';
         const textureFile = resolveRef(textureRef);
+        const materialRef = typeof mesh.data?.material === 'string' ? mesh.data.material : '';
+        const materialFile = resolveRef(materialRef);
         const transform = bakeTransformOf(baker, entity);
         const holdsStill = baker.bakeHoldsStill({
           characterController: !!bakeComponent(entity, 'CharacterController3D'),
@@ -283,10 +289,15 @@ async function bakeScene(baker, meta, sceneFile, check) {
         surfaces.push({
           entity: entity.id, label: entity.name ?? String(entity.id),
           meshFile: file, builtinRef: builtin, transform,
-          baseColor: albedo, holdsStill,
+          baseColor: albedo, holdsStill, realtimeDirect: mesh.data?.lit === true,
+          twoSided: mesh.data?.cullBackfaces === false,
+          material: materialFile && existsSync(materialFile) ? materialFile : undefined,
           baseColorTexture: textureFile && existsSync(textureFile) ? textureFile : undefined,
         });
-        fingerprintSurfaces.push({ mesh: ref, transform, albedo, texture: textureRef, holdsStill });
+        fingerprintSurfaces.push({ mesh: ref, transform, albedo, texture: textureRef, holdsStill,
+                                   realtimeDirect: mesh.data?.lit === true,
+                                   twoSided: mesh.data?.cullBackfaces === false,
+                                   material: materialRef || undefined });
       }
     }
     const reflection = bakeComponent(entity, 'ReflectionProbe');
@@ -299,6 +310,7 @@ async function bakeScene(baker, meta, sceneFile, check) {
       if (!environment && typeof light.data?.environment === 'string'
           && light.data.environment !== '') {
         environment = readEnvironment(light.data.environment);
+        if (environment) environment.rotation = light.data.environmentRotation ?? 0;
       }
       const p = bakeVec(tf.position, BAKE_ZERO);
       const made = baker.bakeLightOf(light.data, [p.x, p.y, p.z],
@@ -571,6 +583,16 @@ function specularMapFor(opts) {
   }
 }
 
+/** The flag, else the source's own `.meta` import setting — the editor's door reads the same one. */
+function lightmapUVFor(opts) {
+  if (opts.lightmapUV) return true;
+  try {
+    return JSON.parse(readFileSync(`${opts.source}.meta`, 'utf8')).importer?.lightmapUV === true;
+  } catch {
+    return false;
+  }
+}
+
 function findProjectRoot(from) {
   for (let dir = from, prev = ''; dir !== prev; prev = dir, dir = path.dirname(dir)) {
     if (PROJECT_FILES.some((name) => existsSync(path.join(dir, name)))) return dir;
@@ -648,6 +670,7 @@ if (opts.command === 'import-model' || opts.command === 'import-gltf') {
         specularMap: specularMapFor(opts),
       },
     );
+    if (lightmapUVFor(opts)) warnings.push(...importer.applyLightmapUV(meshes));
     for (const w of warnings) console.warn(`  ! ${w}`);
     if (!root && meshes.length > 0) {
       console.warn('  ! no project found above the source — refs are bare file names'

@@ -20,6 +20,16 @@ export interface BakeSurface {
     /** What fraction of each channel the surface reflects. Drives the bounce;
      *  a surface that reflects nothing still receives light. */
     albedo?: readonly [number, number, number];
+    /** What to call it when a bake has something to say about it. */
+    label?: string;
+    /** True when its draw adds the lamps itself (a lit renderer): its patch then
+     *  holds only what arrives indirectly, or the lamps would land twice. */
+    realtimeDirect?: boolean;
+    /** Drawn with both faces: a ray arriving at its back finds it lit, not black. */
+    twoSided?: boolean;
+    /** Share of its area that is there — for a cutout, the texels past its cutoff.
+     *  Rays pass the rest, so foliage shades what is under it without walling it in. */
+    coverage?: number;
 }
 
 /** Texels of one object's patch, and where in the atlas it sits. */
@@ -44,6 +54,8 @@ export interface LumelField {
     texel: Int32Array;
     /** Which surface each lumel belongs to. */
     surface: Int32Array;
+    /** Per surface: the share of its triangles' texels another of its own already held. */
+    shared: Float32Array;
 }
 
 const chan = (m: MeshData, s: number): MeshChannelDesc | undefined =>
@@ -100,6 +112,37 @@ function areasOf(surface: BakeSurface): { world: number; uv: number } {
 }
 
 /**
+ * Below this share of its unit square, a lightmap UV set is too sparse to bake
+ * into: a patch holds the whole square, so ORCA Bistro's road, 3533 m² in 0.5%
+ * of it, asked for more atlas than the rest of the town together.
+ */
+export const SPARSE_LIGHTMAP_UV = 0.05;
+
+/**
+ * Above this many layers of a lightmap UV set lying on itself, parts of the mesh
+ * would share texels and so share light: a curb laid over its own UVs eighty
+ * times over took whatever its first triangle saw, underside included.
+ */
+export const OVERLAPPING_LIGHTMAP_UV = 1.1;
+
+/**
+ * The patch each surface asks for, and how much of its lightmap UV square its
+ * triangles cover: a patch holds the whole square, so a sparse layout pays for
+ * the empty rest.
+ */
+export function atlasDemand(surfaces: readonly BakeSurface[], size: number,
+                            texelsPerUnit: number): { side: number; uvCoverage: number }[] {
+    return surfaces.map((s) => {
+        const { world, uv } = areasOf(s);
+        if (world <= 0 || uv <= 0) return { side: 1, uvCoverage: uv };
+        // The unwrap kept one ratio inside the mesh; this is what that ratio is,
+        // and it says how many texels a patch needs to hit the density asked for.
+        const side = texelsPerUnit / Math.sqrt(uv / world);
+        return { side: Math.max(2, Math.min(size, Math.ceil(side))), uvCoverage: uv };
+    });
+}
+
+/**
  * Gives every surface a patch of an `size`-by-`size` atlas at `texelsPerUnit`.
  *
  * Returns null when they do not fit — the caller's signal to ask for a bigger
@@ -108,14 +151,7 @@ function areasOf(surface: BakeSurface): { world: number; uv: number } {
  */
 export function layoutAtlas(surfaces: readonly BakeSurface[], size: number,
                             texelsPerUnit: number): SurfacePatch[] | null {
-    const sides = surfaces.map((s) => {
-        const { world, uv } = areasOf(s);
-        if (world <= 0 || uv <= 0) return 1;
-        // The unwrap kept one ratio inside the mesh; this is what that ratio is,
-        // and it says how many texels a patch needs to hit the density asked for.
-        const side = texelsPerUnit / Math.sqrt(uv / world);
-        return Math.max(2, Math.min(size, Math.ceil(side)));
-    });
+    const sides = atlasDemand(surfaces, size, texelsPerUnit).map((d) => d.side);
     const placed = packSkyline(sides.map((s) => [s, s] as const), size);
     if (!placed) return null;
     return sides.map((side, i) => ({
@@ -141,6 +177,7 @@ export function rasterizeLumels(surfaces: readonly BakeSurface[],
     const texel: number[] = [];
     const owner: number[] = [];
     const seen = new Set<number>();
+    const shared = new Float32Array(surfaces.length);
 
     const p = new Float32Array(9);
     const n = new Float32Array(9);
@@ -154,6 +191,7 @@ export function rasterizeLumels(surfaces: readonly BakeSurface[],
         const read = reader(surface.mesh);
         const idx = surface.mesh.indices;
         const hasNormals = chan(surface.mesh, MeshChannel.Normal) !== undefined;
+        let claimed = 0, taken = 0;
         for (let i = 0; i + 2 < idx.length; i += 3) {
             let ok = true;
             for (let k = 0; k < 3 && ok; k++) {
@@ -199,7 +237,8 @@ export function rasterizeLumels(surfaces: readonly BakeSurface[],
                     const w2 = 1 - w0 - w1;
                     if (w0 < 0 || w1 < 0 || w2 < 0) continue;
                     const at = y * size + x;
-                    if (seen.has(at)) continue;
+                    claimed++;
+                    if (seen.has(at)) { taken++; continue; }
                     seen.add(at);
                     for (let k = 0; k < 3; k++) {
                         position.push(w0 * wp[k] + w1 * wp[3 + k] + w2 * wp[6 + k]);
@@ -215,6 +254,7 @@ export function rasterizeLumels(surfaces: readonly BakeSurface[],
                 }
             }
         }
+        shared[s] = claimed > 0 ? taken / claimed : 0;
     }
 
     return {
@@ -223,5 +263,6 @@ export function rasterizeLumels(surfaces: readonly BakeSurface[],
         normal: Float32Array.from(normal),
         texel: Int32Array.from(texel),
         surface: Int32Array.from(owner),
+        shared,
     };
 }

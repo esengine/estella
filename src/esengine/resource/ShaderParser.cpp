@@ -1057,6 +1057,8 @@ struct ProbeConstants { u_probeIrradiance : array<vec4f, 1000>, u_probeTail : ve
 // varying, so the entry point hands it over — the GLSL twin reads the varying
 // straight, which is the one place the two stages differ in shape.
 var<private> g_probeSlot : f32 = 0.0;
+// The GLSL twin's v_lightmap, handed over by the entry point like the slot above.
+var<private> g_lightmap : vec3f = vec3f(0.0);
 fn packDepth(d : f32) -> vec3f {
     let enc = fract(d * vec3f(1.0, 255.0, 65025.0));
     return enc - enc.yzz * vec3f(1.0 / 255.0, 1.0 / 255.0, 0.0);
@@ -1317,7 +1319,16 @@ fn envIrradiance(Nw : vec3f) -> vec3f {
 // The GLSL twin's indirectIrradiance: a volume replaces the environment, because a
 // surface has one indirect term and a volume already holds every light and bounce
 // that reached the point.
+#ifdef MESH_LIGHTMAP
+fn bakedIrradiance() -> vec3f {
+    let c = textureSampleLevel(t5, s5, g_lightmap.xy, 0.0).rgb;
+    return c * c * 8.0;
+}
+#endif
 fn indirectIrradiance(N : vec3f) -> vec3f {
+#ifdef MESH_LIGHTMAP
+    if (g_lightmap.z > 0.5) { return bakedIrradiance(); }
+#endif
     let base = clamp(i32(g_probeSlot), 0, 99) * 10;
     if (pc.u_probeIrradiance[base].w > 0.5) {
         var sh : array<vec4f, 9>;
@@ -2172,7 +2183,12 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // or a draw carrying no run at all — is the environment, which is what every
             // surface reflected before there were probes.
             "highp float reflectionColumn() { return u_probeIrradiance[probeRun() + 9].x; }\n"
+            // A bake outranks a volume for the same reason a volume outranks the sky:
+            // it holds every light and bounce that reached this very point.
             "highp vec3 indirectIrradiance(in highp vec3 N) {\n"
+            "#ifdef MESH_LIGHTMAP\n"
+            "    if (v_lightmap.z > 0.5) return bakedIrradiance();\n"
+            "#endif\n"
             "    highp int base = probeRun();\n"
             "    if (u_probeIrradiance[base].w > 0.5) {\n"
             "        highp vec4 sh[9];\n"
@@ -2401,6 +2417,23 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "highp vec3 applyLighting2D(highp vec3 albedo, highp vec3 N, highp vec2 worldPos) {\n"
             "    return applyLighting2DAO(albedo, N, worldPos, 1.0);\n"
             "}\n";
+        // Emitted only for a variant that has the feature, not behind an #ifdef:
+        // a varying declared in dead text still reads as one to a tool that
+        // pairs the stages by name, and this one has no vertex output without it.
+        if (std::find(features.begin(), features.end(), "MESH_LIGHTMAP") != features.end()) {
+            // The bake's atlas and where this fragment sits in it; z says whether this
+            // object has a patch at all. Square-law over LIGHTMAP_RANGE, which the
+            // baker encodes with.
+            static const char* kLightmapHeader =
+                "in highp vec3 v_lightmap;\n"
+                "uniform highp sampler2D u_lightmap;\n"
+                "highp vec3 bakedIrradiance() {\n"
+                "    highp vec3 c = textureLod(u_lightmap, v_lightmap.xy, 0.0).rgb;\n"
+                "    return c * c * 8.0;\n"
+                "}\n";
+            assembled << kLightmapHeader;
+            headerLines += countNewlines(kLightmapHeader);
+        }
         assembled << kLitHeader;
         headerLines += countNewlines(kLitHeader);
     }

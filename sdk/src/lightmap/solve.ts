@@ -2,9 +2,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    solve.ts
- * @brief   How much light reaches each texel — direct, then what bounced.
+ * @brief   How much light reaches each texel — direct, then what arrives indirectly.
  *
- * The bounce reads the atlas the pass before it wrote, so a second round costs
+ * The gather reads the atlas the pass before it wrote, so a second round costs
  * what the first did and carries light one surface further. That is the whole
  * reason a bake is worth having: it is the term a real-time renderer here has
  * no way to compute at all.
@@ -12,6 +12,7 @@
 
 import type { Bvh } from './bvh';
 import type { LumelField } from './atlas';
+import type { SkyRadiance } from './reflection';
 
 /** A light as a bake sees one: no shadow maps, no cap on how many. */
 export interface BakeLight {
@@ -42,14 +43,70 @@ export interface HitLookup {
     /** Which way each triangle FACES, three floats each. A surface gives off
      *  light on one side; a ray arriving at the other finds an unlit back. */
     triNormal: Float32Array;
+    /** Per surface: 1 where both faces are drawn, so both give off light. */
+    twoSided: Uint8Array;
+    /** Per surface: the share of rays it stops. Below one only for a cutout. */
+    coverage: Float32Array;
+    /** Whether any surface lets rays through, which costs a nearest-hit walk. */
+    cutouts: boolean;
+    /** How far a surface's back may sit and still be passed: half a lumel. A layer
+     *  that close above a surface (a decal, a wet sheen, a duplicate) is finer than
+     *  the atlas can say anything about, and stopping at its back walls the surface
+     *  under it off from the sky. */
+    backReach: number;
 }
 
 /** Whether a ray travelling `d` arrived at triangle `tri`'s lit side. */
 export function facesRay(lookup: HitLookup, tri: number,
                          dx: number, dy: number, dz: number): boolean {
+    if (lookup.twoSided[lookup.triSurface[tri]]) return true;
     const at = tri * 3;
     return lookup.triNormal[at] * dx + lookup.triNormal[at + 1] * dy
          + lookup.triNormal[at + 2] * dz < 0;
+}
+
+/** A well-mixed 32-bit hash, so which rays a cutout lets by is fixed per input. */
+function mix32(x: number): number {
+    x = Math.imul(x ^ (x >>> 16), 0x7feb352d);
+    x = Math.imul(x ^ (x >>> 15), 0x846ca68b);
+    return (x ^ (x >>> 16)) >>> 0;
+}
+
+/**
+ * The first triangle along a ray that stops it, or -1; `bvh.hitU/hitV` describe
+ * it. A cutout stops a ray with the probability of its coverage, decided by a
+ * hash of `seed` and not by chance: a bake that answers differently twice cannot
+ * be told from one that answers wrongly once.
+ */
+export function firstHit(bvh: Bvh, lookup: HitLookup,
+                         ox: number, oy: number, oz: number,
+                         dx: number, dy: number, dz: number,
+                         far: number, epsilon: number, seed: number, backReach = 0): number {
+    let travelled = 0;
+    for (let step = 0; step < 16; step++) {
+        // Past a cutout the walk starts ON it, so it must look beyond its own plane.
+        const tri = bvh.hit(ox, oy, oz, dx, dy, dz, far - travelled,
+                            step === 0 ? epsilon : Math.max(epsilon, SHADOW_EPSILON));
+        if (tri < 0) return -1;
+        const near = travelled + bvh.hitDistance < backReach && !facesRay(lookup, tri, dx, dy, dz);
+        const keep = lookup.coverage[lookup.triSurface[tri]];
+        if (!near && (keep >= 1 || mix32(seed ^ Math.imul(step + 1, 0x9e3779b9)) / 4294967296 < keep)) {
+            return tri;
+        }
+        const t = bvh.hitDistance;
+        ox += dx * t; oy += dy * t; oz += dz * t;
+        travelled += t;
+    }
+    return -1;
+}
+
+/** Whether anything stops the segment, honouring cutouts the way {@link firstHit} does. */
+function blocked(bvh: Bvh, lookup: HitLookup, ox: number, oy: number, oz: number,
+                 dx: number, dy: number, dz: number, far: number, seed: number): boolean {
+    if (!lookup.cutouts && !(lookup.backReach > 0)) {
+        return bvh.occluded(ox, oy, oz, dx, dy, dz, far, SHADOW_EPSILON);
+    }
+    return firstHit(bvh, lookup, ox, oy, oz, dx, dy, dz, far, SHADOW_EPSILON, seed, lookup.backReach) >= 0;
 }
 
 export const SHADOW_EPSILON = 1e-3;
@@ -91,17 +148,18 @@ function frame(nx: number, ny: number, nz: number, out: Float32Array): void {
  * What every light delivers straight to each lumel, with nothing between.
  *
  * Writes irradiance, not colour: the surface's own albedo is applied where the
- * bake is read, so one atlas serves a mesh whose texture changes.
+ * bake is read, so one atlas serves a mesh whose texture changes. The sky is not
+ * here: it reaches a lumel past whatever stands in the way, so it is gathered.
  */
-export function solveDirect(lumels: LumelField, bvh: Bvh, lights: readonly BakeLight[],
-                            ambient: readonly [number, number, number],
-                            out: Float32Array): void {
+export function solveDirect(lumels: LumelField, bvh: Bvh, lookup: HitLookup,
+                            lights: readonly BakeLight[], out: Float32Array): void {
     out.fill(0);
     for (let i = 0; i < lumels.count; i++) {
         const px = lumels.position[i * 3], py = lumels.position[i * 3 + 1], pz = lumels.position[i * 3 + 2];
         const nx = lumels.normal[i * 3], ny = lumels.normal[i * 3 + 1], nz = lumels.normal[i * 3 + 2];
-        let r = ambient[0], g = ambient[1], b = ambient[2];
-        for (const light of lights) {
+        let r = 0, g = 0, b = 0;
+        for (let li = 0; li < lights.length; li++) {
+            const light = lights[li];
             let lx: number, ly: number, lz: number, distance: number, falloff = 1;
             if (light.kind === 'directional') {
                 const d = light.direction ?? [0, 0, -1];
@@ -133,8 +191,8 @@ export function solveDirect(lumels: LumelField, bvh: Bvh, lights: readonly BakeL
             const lambert = nx * lx + ny * ly + nz * lz;
             if (lambert <= 0) continue;
             const far = distance === Infinity ? 1e7 : distance - SHADOW_EPSILON;
-            if (bvh.occluded(px + nx * SHADOW_EPSILON, py + ny * SHADOW_EPSILON, pz + nz * SHADOW_EPSILON,
-                             lx, ly, lz, far, SHADOW_EPSILON)) continue;
+            if (blocked(bvh, lookup, px + nx * SHADOW_EPSILON, py + ny * SHADOW_EPSILON,
+                        pz + nz * SHADOW_EPSILON, lx, ly, lz, far, Math.imul(i, 31) ^ li)) continue;
             const w = lambert * falloff * light.intensity;
             r += light.color[0] * w; g += light.color[1] * w; b += light.color[2] * w;
         }
@@ -143,17 +201,16 @@ export function solveDirect(lumels: LumelField, bvh: Bvh, lights: readonly BakeL
 }
 
 /**
- * One bounce: every lumel gathers what the surfaces it can see are giving off.
- *
- * `previous` is the atlas as the pass before left it, indexed by texel — which
- * is why a ray has to be turned back into a texel to be worth anything, and what
- * {@link HitLookup} is for.
+ * What reaches each lumel indirectly: the sky where a ray escapes, what the surface
+ * it meets gives off where one does not. `atlas` is that off each texel, before its
+ * albedo, as the pass before left it. Overwrites `out`.
  */
-export function solveBounce(lumels: LumelField, bvh: Bvh, lookup: HitLookup,
-                            previous: Float32Array, atlasSize: number, samples: number,
-                            accumulate: Float32Array): void {
+export function solveGather(lumels: LumelField, bvh: Bvh, lookup: HitLookup,
+                            atlas: Float32Array, atlasSize: number, samples: number,
+                            sky: SkyRadiance, out: Float32Array): void {
     const dirs = hemisphere(samples);
     const basis = new Float32Array(6);
+    const seen = new Float32Array(3);
     const far = 1e7;
     for (let i = 0; i < lumels.count; i++) {
         const px = lumels.position[i * 3], py = lumels.position[i * 3 + 1], pz = lumels.position[i * 3 + 2];
@@ -165,21 +222,27 @@ export function solveBounce(lumels: LumelField, bvh: Bvh, lookup: HitLookup,
             const dx = basis[0] * a + basis[3] * c + nx * d;
             const dy = basis[1] * a + basis[4] * c + ny * d;
             const dz = basis[2] * a + basis[5] * c + nz * d;
-            const tri = bvh.hit(px + nx * SHADOW_EPSILON, py + ny * SHADOW_EPSILON, pz + nz * SHADOW_EPSILON,
-                                dx, dy, dz, far, SHADOW_EPSILON);
-            if (tri < 0 || !facesRay(lookup, tri, dx, dy, dz)) continue;
+            const tri = firstHit(bvh, lookup, px + nx * SHADOW_EPSILON, py + ny * SHADOW_EPSILON,
+                                 pz + nz * SHADOW_EPSILON, dx, dy, dz, far, SHADOW_EPSILON,
+                                 Math.imul(i, samples) + s, lookup.backReach);
+            if (tri < 0) {
+                sky(dx, dy, dz, seen, 0);
+                r += seen[0]; g += seen[1]; b += seen[2];
+                continue;
+            }
+            if (!facesRay(lookup, tri, dx, dy, dz)) continue;
             const texel = texelOf(lookup, tri, bvh.hitU, bvh.hitV, atlasSize);
             if (texel < 0) continue;
             const surface = lookup.triSurface[tri];
-            r += previous[texel * 3] * lookup.albedo[surface * 3];
-            g += previous[texel * 3 + 1] * lookup.albedo[surface * 3 + 1];
-            b += previous[texel * 3 + 2] * lookup.albedo[surface * 3 + 2];
+            r += atlas[texel * 3] * lookup.albedo[surface * 3];
+            g += atlas[texel * 3 + 1] * lookup.albedo[surface * 3 + 1];
+            b += atlas[texel * 3 + 2] * lookup.albedo[surface * 3 + 2];
         }
         // Cosine-weighted sampling already carries the projected-area term, so
         // the estimator is the plain mean of what came back.
-        accumulate[i * 3] += r / samples;
-        accumulate[i * 3 + 1] += g / samples;
-        accumulate[i * 3 + 2] += b / samples;
+        out[i * 3] = r / samples;
+        out[i * 3 + 1] = g / samples;
+        out[i * 3 + 2] = b / samples;
     }
 }
 
@@ -194,8 +257,8 @@ export function solveBounce(lumels: LumelField, bvh: Bvh, lookup: HitLookup,
 export function rayRadiance(bvh: Bvh, lookup: HitLookup, atlas: Float32Array, atlasSize: number,
                             fromX: number, fromY: number, fromZ: number,
                             dx: number, dy: number, dz: number,
-                            out: Float32Array, at = 0): boolean {
-    const tri = bvh.hit(fromX, fromY, fromZ, dx, dy, dz, 1e7, 0);
+                            out: Float32Array, at = 0, seed = 0): boolean {
+    const tri = firstHit(bvh, lookup, fromX, fromY, fromZ, dx, dy, dz, 1e7, 0, seed);
     if (tri < 0) return false;
     // Geometry with no place in the atlas is black rather than sky: something is
     // there, and it is unlit.

@@ -535,9 +535,6 @@ precision mediump float;
 
 in vec2 v_texCoord;
 in vec4 v_color;
-#ifdef MESH_LIGHTMAP
-in highp vec3 v_lightmap;
-#endif
 #ifdef LIT
 in highp vec3 v_worldNormal;
 in highp vec3 v_worldPos;
@@ -549,9 +546,6 @@ in highp vec4 v_shadowClip;
 uniform sampler2D u_texture;
 #ifdef NORMAL_MAP
 uniform sampler2D u_normalMap;
-#endif
-#ifdef MESH_LIGHTMAP
-uniform sampler2D u_lightmap;
 #endif
 
 out vec4 fragColor;
@@ -565,9 +559,6 @@ void main() {
                                      0.0, 1.0)), 1.0);
 #else
     vec4 base = texture(u_texture, v_texCoord) * v_color;
-#ifdef MESH_LIGHTMAP
-    vec3 baked = texture(u_lightmap, v_lightmap.xy).rgb;
-#endif
 #ifdef LIT
     highp vec3 N = normalize(v_worldNormal);
 #ifdef NORMAL_MAP
@@ -579,21 +570,17 @@ void main() {
 
 
 
+
+
     vec3 shaded = applyLightingPBR(base.rgb, N, v_worldPos, viewDirection(v_worldPos),
                                    0.0, 1.0, 1.0, 1.0);
-#ifdef MESH_LIGHTMAP
-
-
-
-    shaded += base.rgb * baked * v_lightmap.z;
-#endif
     fragColor = vec4(shaded, base.a);
 #else
 #ifdef MESH_LIGHTMAP
 
 
 
-    fragColor = vec4(base.rgb * mix(vec3(1.0), baked, v_lightmap.z), base.a);
+    fragColor = vec4(base.rgb * mix(vec3(1.0), bakedIrradiance(), v_lightmap.z), base.a);
 #else
     fragColor = base;
 #endif
@@ -773,6 +760,9 @@ struct VSOut {
 
 
     g_probeSlot = v.v_probeSlot;
+#ifdef MESH_LIGHTMAP
+    g_lightmap = v.v_lightmap;
+#endif
 #ifdef SHADOW_DEPTH
 
 
@@ -781,9 +771,6 @@ struct VSOut {
                                  0.0, 1.0)), 1.0);
 #else
     let base = textureSampleLevel(t0, s0, v.v_texCoord, 0.0) * v.v_color;
-#ifdef MESH_LIGHTMAP
-    let baked = textureSampleLevel(t5, s5, v.v_lightmap.xy, 0.0).rgb;
-#endif
 #ifdef LIT
     var N = normalize(v.v_worldNormal);
 #ifdef NORMAL_MAP
@@ -794,17 +781,13 @@ struct VSOut {
 
 
 
-    var shaded = applyLightingPBR(base.rgb, N, v.v_worldPos, viewDirection(v.v_worldPos),
+    let shaded = applyLightingPBR(base.rgb, N, v.v_worldPos, viewDirection(v.v_worldPos),
                                   0.0, 1.0, 1.0, 1.0);
-#ifdef MESH_LIGHTMAP
-
-    shaded = shaded + base.rgb * baked * v.v_lightmap.z;
-#endif
     return vec4f(shaded, base.a);
 #else
 #ifdef MESH_LIGHTMAP
 
-    return vec4f(base.rgb * mix(vec3f(1.0), baked, vec3f(v.v_lightmap.z)), base.a);
+    return vec4f(base.rgb * mix(vec3f(1.0), bakedIrradiance(), vec3f(v.v_lightmap.z)), base.a);
 #else
     return base;
 #endif

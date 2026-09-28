@@ -125,9 +125,17 @@ export const SCENES = [
   // the wrong channel turns the halves and swaps two of these four points.
   { id: "lightmap-unlit", tier: "pr", webgpu: true, env: { "ESTELLA_VERIFY_SCENE": "/scenes/lightmap-unlit.esscene", "ESTELLA_VERIFY_MANIFEST": "/scenes/lightmap-unlit.textures.json", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "2", "ESTELLA_VERIFY_EXPECT": "[{\"x\":0.3,\"y\":0.25,\"rgb\":[0,0,255],\"tol\":30},{\"x\":0.7,\"y\":0.25,\"rgb\":[0,0,255],\"tol\":30},{\"x\":0.3,\"y\":0.75,\"rgb\":[255,0,0],\"tol\":30},{\"x\":0.7,\"y\":0.75,\"rgb\":[255,0,0],\"tol\":30}]" } },
   // A baked object and an unbaked one in ONE lit frame. Cyan and yellow halves
-  // say the green sun SURVIVED, so the bake adds rather than replaces; the plain
+  // say the green sun SURVIVED, so the bake joins the lamps rather than replacing them; the plain
   // green quad says an unbaked one is not brightened by an unbound unit's white.
   { id: "lightmap-mixed", tier: "pr", webgpu: true, env: { "ESTELLA_VERIFY_SCENE": "/scenes/lightmap-mixed.esscene", "ESTELLA_VERIFY_MANIFEST": "/scenes/lightmap-mixed.textures.json", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "2", "ESTELLA_VERIFY_EXPECT": "[{\"x\":0.25,\"y\":0.4,\"rgb\":[0,255,255],\"tol\":40},{\"x\":0.25,\"y\":0.6,\"rgb\":[255,255,0],\"tol\":40},{\"x\":0.75,\"y\":0.4,\"rgb\":[0,255,0],\"tol\":40},{\"x\":0.75,\"y\":0.6,\"rgb\":[0,255,0],\"tol\":40}]" } },
+  // The same frame under a white sky. A bake is the surface's WHOLE indirect term,
+  // so it replaces the sky rather than joining it: the baked halves stay cyan and
+  // yellow, where a bake added on top would wash them white like the unbaked quad.
+  { id: "lightmap-sky", tier: "pr", webgpu: true, env: { "ESTELLA_VERIFY_SCENE": "/scenes/lightmap-sky.esscene", "ESTELLA_VERIFY_MANIFEST": "/scenes/lightmap-sky.textures.json", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "2", "ESTELLA_VERIFY_EXPECT": "[{\"x\":0.25,\"y\":0.4,\"rgb\":[0,255,255],\"tol\":40},{\"x\":0.25,\"y\":0.6,\"rgb\":[255,255,0],\"tol\":40},{\"x\":0.75,\"y\":0.4,\"rgb\":[255,255,255],\"tol\":40},{\"x\":0.75,\"y\":0.6,\"rgb\":[255,255,255],\"tol\":40}]" } },
+  // The bake through an imported model's material under an environment: it replaces the
+  // environment's diffuse half. The quad carries a normal and the material a tint, so a
+  // program that fails to link (seventeen samplers with the batch stream's eight) shows.
+  { id: "lightmap-model", tier: "pr", webgpu: true, env: { "ESTELLA_VERIFY_MESH_MATERIAL": "/scenes/lightmap-model/rough.esmaterial", "ESTELLA_VERIFY_SCENE": "/scenes/lightmap-model.esscene", "ESTELLA_VERIFY_MANIFEST": "/scenes/lightmap-model.textures.json", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "2", "ESTELLA_VERIFY_EXPECT": "[{\"x\":0.25,\"y\":0.4,\"rgb\":[0,255,255],\"tol\":20},{\"x\":0.25,\"y\":0.6,\"rgb\":[128,255,0],\"tol\":20},{\"x\":0.75,\"y\":0.4,\"rgb\":[29,255,61],\"tol\":20},{\"x\":0.75,\"y\":0.6,\"rgb\":[29,255,61],\"tol\":20}]" } },
   // Why the rectangle rides the per-object record: ONE mesh and ONE atlas, and
   // the two objects drawn from them read different halves of it. A rectangle
   // that belonged to the mesh would paint these two the same colour.

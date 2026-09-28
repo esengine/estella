@@ -11,8 +11,10 @@
 
 import { MeshChannel, MeshChannelType, type MeshData, type MeshChannelDesc } from '../asset/meshFormat';
 import { Bvh, type TriangleSoup } from './bvh';
-import { layoutAtlas, rasterizeLumels, type BakeSurface, type SurfacePatch } from './atlas';
-import { solveDirect, solveBounce, type BakeLight, type HitLookup } from './solve';
+import {
+    layoutAtlas, rasterizeLumels, atlasDemand, SPARSE_LIGHTMAP_UV, type BakeSurface, type SurfacePatch,
+} from './atlas';
+import { solveDirect, solveGather, type BakeLight, type HitLookup } from './solve';
 import { solveProbes, type ProbeGrid } from './probes';
 import { captureReflection, flatSky, type CapturedPanorama, type SkyRadiance }
     from './reflection';
@@ -30,8 +32,12 @@ export interface BakeOptions {
     bounces?: number;
     /** Rays each lumel gathers per bounce. */
     samples?: number;
-    /** Light every surface receives from no direction in particular. */
+    /** The sky's radiance where no {@link sky} is given: the same from every
+     *  direction, and still only reaching what can see it. */
     ambient?: readonly [number, number, number];
+    /** What a lumel or a probe receives along a ray that escapes the scene — the
+     *  environment as the frame lights by it, tint and turn included. */
+    sky?: SkyRadiance;
     /** Texels the solved edges are smeared outwards, so a bilinear tap near a
      *  chart's border does not read the empty atlas beside it. */
     dilate?: number;
@@ -55,13 +61,16 @@ export interface BakeOptions {
 }
 
 export interface BakeResult {
-    /** RGBA8, `atlasSize * atlasSize * 4` — what a `.png` is written from. */
+    /** `atlasSize * atlasSize * 4` bytes a `.png` is written from; see
+     *  {@link encodeLightmap}. */
     pixels: Uint8Array;
     size: number;
     /** What each surface's `MeshLightmap.scaleOffset` must be set to, in order. */
     scaleOffset: Array<[number, number, number, number]>;
     /** Texels the surfaces actually cover, out of the atlas. */
     lumels: number;
+    /** Per surface: the share of its texels its own lightmap UVs laid twice. */
+    shared: Float32Array;
     /** Nine RGB coefficients per probe, one array per requested grid, in grid
      *  order with x varying fastest — what a `.esprobes` carries. */
     probes: Float32Array[];
@@ -90,7 +99,7 @@ const chan = (m: MeshData, s: number): MeshChannelDesc | undefined =>
 
 /** Every surface's triangles in world space, plus what a ray hit has to know. */
 function collect(surfaces: readonly BakeSurface[], patches: readonly SurfacePatch[],
-                 size: number): { soup: TriangleSoup; lookup: HitLookup } {
+                 size: number, texelsPerUnit: number): { soup: TriangleSoup; lookup: HitLookup } {
     let total = 0;
     for (const s of surfaces) total += Math.floor(s.mesh.indices.length / 3);
     const positions = new Float32Array(total * 9);
@@ -99,6 +108,8 @@ function collect(surfaces: readonly BakeSurface[], patches: readonly SurfacePatc
     const patch = new Float32Array(surfaces.length * 4);
     const albedo = new Float32Array(surfaces.length * 3);
     const triNormal = new Float32Array(total * 3);
+    const twoSided = new Uint8Array(surfaces.length);
+    const coverage = new Float32Array(surfaces.length);
 
     let at = 0;
     for (let s = 0; s < surfaces.length; s++) {
@@ -106,6 +117,8 @@ function collect(surfaces: readonly BakeSurface[], patches: readonly SurfacePatc
         const m = surfaces[s].transform;
         const a = surfaces[s].albedo ?? [0.5, 0.5, 0.5];
         albedo.set(a, s * 3);
+        twoSided[s] = surfaces[s].twoSided ? 1 : 0;
+        coverage[s] = Math.min(1, Math.max(0, surfaces[s].coverage ?? 1));
         patch[s * 4] = patches[s].x;
         patch[s * 4 + 1] = patches[s].y;
         patch[s * 4 + 2] = patches[s].side;
@@ -163,7 +176,10 @@ function collect(surfaces: readonly BakeSurface[], patches: readonly SurfacePatc
         triNormal[at + 1] = e1[2] * e2[0] - e1[0] * e2[2];
         triNormal[at + 2] = e1[0] * e2[1] - e1[1] * e2[0];
     }
-    return { soup: { positions, count: total }, lookup: { triUV, triSurface, patch, albedo, triNormal } };
+    return { soup: { positions, count: total },
+             lookup: { triUV, triSurface, patch, albedo, triNormal, twoSided, coverage,
+                       cutouts: coverage.some((c) => c < 1),
+                       backReach: texelsPerUnit > 0 ? 0.5 / texelsPerUnit : 0 } };
 }
 
 /** Smears solved texels outwards so a bilinear tap near an edge reads light
@@ -196,6 +212,53 @@ function dilate(radiance: Float32Array, solved: Uint8Array, size: number, rounds
 }
 
 /**
+ * The most an atlas texel holds, in units of a flat ambient of one. Stored as the
+ * square root of its fraction, alpha opaque: eight plain bits stop at one, and a
+ * scale in alpha does not survive a premultiplying decoder. `bakedIrradiance` reads it.
+ */
+export const LIGHTMAP_RANGE = 8;
+
+/** Irradiance to atlas bytes: `sqrt(v / LIGHTMAP_RANGE)` per channel, alpha 255. */
+export function encodeLightmap(rgb: Float32Array, count: number): Uint8Array {
+    const out = new Uint8Array(count * 4);
+    for (let i = 0; i < count; i++) {
+        for (let k = 0; k < 3; k++) {
+            const v = Math.min(1, Math.max(0, rgb[i * 3 + k] / LIGHTMAP_RANGE));
+            out[i * 4 + k] = Math.round(Math.sqrt(v) * 255);
+        }
+        out[i * 4 + 3] = 255;
+    }
+    return out;
+}
+
+/** What {@link encodeLightmap} wrote at texel `i`. */
+export function decodeLightmap(pixels: ArrayLike<number>, i: number): [number, number, number] {
+    const d = (b: number): number => (b / 255) * (b / 255) * LIGHTMAP_RANGE;
+    return [d(pixels[i * 4]), d(pixels[i * 4 + 1]), d(pixels[i * 4 + 2])];
+}
+
+/**
+ * Why the surfaces do not fit, naming the ones that take the most room: a
+ * second UV set that leaves most of its square empty cannot be fixed by a
+ * bigger atlas, only by unwrapping the mesh.
+ */
+function refusal(surfaces: readonly BakeSurface[], size: number, texelsPerUnit: number): string {
+    const demand = atlasDemand(surfaces, size, texelsPerUnit)
+        .map((d, i) => ({ ...d, name: surfaces[i]?.label ?? `surface ${i}` }))
+        .sort((a, b) => b.side - a.side)
+        .slice(0, 3);
+    const named = demand.map((d) => `${d.name} (${d.side}x${d.side}, its lightmap UVs cover`
+        + ` ${(d.uvCoverage * 100).toFixed(1)}%)`).join(', ');
+    const sparse = demand.some((d) => d.uvCoverage < SPARSE_LIGHTMAP_UV)
+        ? '; one whose lightmap UVs cover little of their square wastes the rest, which'
+          + ' Generate Lightmap UVs on its model unwraps away'
+        : '';
+    return `bakeLightmap: ${surfaces.length} surface(s) do not fit a ${size}px atlas at`
+        + ` ${texelsPerUnit} texels per unit — raise the atlas or lower the density.`
+        + ` The largest: ${named}${sparse}`;
+}
+
+/**
  * Bakes `lights` into an atlas the surfaces can be read through.
  *
  * Throws when the surfaces do not fit: a bake that quietly shrank someone would
@@ -207,74 +270,67 @@ export function bakeLightmap(surfaces: readonly BakeSurface[], lights: readonly 
     const opts = { ...BAKE_DEFAULTS, ...options };
     const size = opts.atlasSize;
     const patches = layoutAtlas(surfaces, size, opts.texelsPerUnit);
-    if (!patches) {
-        throw new Error(`bakeLightmap: ${surfaces.length} surface(s) do not fit a ${size}px atlas at`
-            + ` ${opts.texelsPerUnit} texels per unit — raise the atlas or lower the density`);
-    }
+    if (!patches) throw new Error(refusal(surfaces, size, opts.texelsPerUnit));
     const lumels = rasterizeLumels(surfaces, patches, size);
-    const { soup, lookup } = collect(surfaces, patches, size);
+    const { soup, lookup } = collect(surfaces, patches, size, opts.texelsPerUnit);
     const bvh = new Bvh(soup);
 
     const direct = new Float32Array(lumels.count * 3);
-    solveDirect(lumels, bvh, lights, opts.ambient, direct);
+    solveDirect(lumels, bvh, lookup, lights, direct);
 
-    // The atlas as each pass leaves it, so the next reads what the last wrote —
-    // which is what carries light one more surface along.
-    const radiance = new Float32Array(size * size * 3);
-    const solved = new Uint8Array(size * size);
-    const total = new Float32Array(lumels.count * 3);
-    total.set(direct);
-    let emitted = direct;
-    for (let bounce = 0; bounce < opts.bounces; bounce++) {
-        radiance.fill(0);
-        for (let i = 0; i < lumels.count; i++) {
-            const at = lumels.texel[i] * 3;
-            radiance[at] = emitted[i * 3];
-            radiance[at + 1] = emitted[i * 3 + 1];
-            radiance[at + 2] = emitted[i * 3 + 2];
+    // Each pass gathers against what every texel gave off after the pass before,
+    // so pass n carries light n surfaces along. With no bounce the surfaces give
+    // off nothing and the pass is the sky alone, still shadowed by them.
+    const sky = options.sky ?? flatSky(opts.ambient);
+    const outgoing = new Float32Array(size * size * 3);
+    const indirect = new Float32Array(lumels.count * 3);
+    for (let pass = 0; pass < Math.max(1, opts.bounces); pass++) {
+        if (opts.bounces > 0) {
+            for (let i = 0; i < lumels.count; i++) {
+                const at = lumels.texel[i] * 3;
+                for (let k = 0; k < 3; k++) outgoing[at + k] = direct[i * 3 + k] + indirect[i * 3 + k];
+            }
         }
-        const gathered = new Float32Array(lumels.count * 3);
-        solveBounce(lumels, bvh, lookup, radiance, size, opts.samples, gathered);
-        for (let i = 0; i < gathered.length; i++) total[i] += gathered[i];
-        emitted = gathered;
+        solveGather(lumels, bvh, lookup, outgoing, size, opts.samples, sky, indirect);
     }
 
-    radiance.fill(0);
-    solved.fill(0);
+    // Two fields: what each texel gives off, which probes and captures read, and
+    // what its surface is to add — less the lamps where the draw adds them itself.
+    const radiance = new Float32Array(size * size * 3);
+    const stored = new Float32Array(size * size * 3);
+    const solved = new Uint8Array(size * size);
     for (let i = 0; i < lumels.count; i++) {
         const at = lumels.texel[i] * 3;
-        radiance[at] = total[i * 3];
-        radiance[at + 1] = total[i * 3 + 1];
-        radiance[at + 2] = total[i * 3 + 2];
+        const lampsLive = surfaces[lumels.surface[i]]?.realtimeDirect === true;
+        for (let k = 0; k < 3; k++) {
+            radiance[at + k] = direct[i * 3 + k] + indirect[i * 3 + k];
+            stored[at + k] = (lampsLive ? 0 : direct[i * 3 + k]) + indirect[i * 3 + k];
+        }
         solved[lumels.texel[i]] = 1;
     }
+    const solvedStored = solved.slice();
     dilate(radiance, solved, size, opts.dilate);
+    dilate(stored, solvedStored, size, opts.dilate);
+    const pixels = encodeLightmap(stored, size * size);
 
-    const pixels = new Uint8Array(size * size * 4);
-    for (let i = 0; i < size * size; i++) {
-        for (let k = 0; k < 3; k++) {
-            pixels[i * 4 + k] = Math.max(0, Math.min(255, Math.round(radiance[i * 3 + k] * 255)));
-        }
-        pixels[i * 4 + 3] = 255;
-    }
-
-    // The probes read the atlas as a bounce does — after it holds everything the
+    // The probes read the atlas as a gather does — after it holds everything the
     // surfaces ended up giving off, and before it is quantised to eight bits.
     const probes = opts.probeGrids.map((grid) =>
-        solveProbes(grid, bvh, lookup, radiance, size, opts.probeSamples, opts.ambient));
+        solveProbes(grid, bvh, lookup, radiance, size, opts.probeSamples, sky));
 
     // Captured from the same field, after the same bounces: a reflection of a
     // wall and the light that wall casts are then the same number.
     const width = Math.max(8, opts.reflectionWidth);
-    const sky = options.reflectionSky ?? flatSky(opts.ambient);
+    const captured = options.reflectionSky ?? flatSky(opts.ambient);
     const reflections = opts.reflectionProbes.map((at) =>
-        captureReflection(at, bvh, lookup, radiance, size, width, Math.max(4, width >> 1), sky));
+        captureReflection(at, bvh, lookup, radiance, size, width, Math.max(4, width >> 1), captured));
 
     return {
         pixels,
         size,
         scaleOffset: patches.map((p) => p.scaleOffset),
         lumels: lumels.count,
+        shared: lumels.shared,
         probes,
         reflections,
     };

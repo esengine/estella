@@ -16,6 +16,7 @@ import {
     type MeshData, type MaterialAssetData, type PrefabData, type PrefabEntityData,
     type PrefabComponentData as ComponentData,
 } from 'esengine';
+import { SPARSE_LIGHTMAP_UV, OVERLAPPING_LIGHTMAP_UV } from '../../../sdk/src/lightmap/atlas';
 
 /** One primitive's worth of geometry, named for the file it will be written to. */
 export interface ImportedMesh {
@@ -326,11 +327,51 @@ export function animationProductName(stem: string, name: string): string {
 
 /* -- Products ----------------------------------------------------------- */
 
+/** Cells per side of the grid a lightmap UV set is judged on. */
+const LAYOUT_GRID = 256;
+
+/**
+ * How a mesh's TexCoord1 triangles sit in their square: the share of it they
+ * cover, and how many layers deep they lie on themselves (1 = none overlap).
+ * Counted on one grid for both, so a sliver that misses every cell centre
+ * weighs on neither. Zero coverage without the channel.
+ */
+export function lightmapUVLayout(data: ImportedMesh['data']): { coverage: number; overlap: number } {
+    const channel = data.channels.find((c) => c.semantic === MeshChannel.TexCoord1);
+    if (!channel) return { coverage: 0, overlap: 1 };
+    const view = new DataView(data.vertices.buffer, data.vertices.byteOffset, data.vertices.byteLength);
+    const G = LAYOUT_GRID;
+    const u = (v: number) => view.getFloat32(v * data.vertexStride + channel.offset, true) * G;
+    const w = (v: number) => view.getFloat32(v * data.vertexStride + channel.offset + 4, true) * G;
+    const cells = new Uint8Array(G * G);
+    let hits = 0, covered = 0;
+    const idx = data.indices;
+    for (let i = 0; i + 2 < idx.length; i += 3) {
+        const x = [u(idx[i]!), u(idx[i + 1]!), u(idx[i + 2]!)];
+        const y = [w(idx[i]!), w(idx[i + 1]!), w(idx[i + 2]!)];
+        const area = (x[1]! - x[0]!) * (y[2]! - y[0]!) - (x[2]! - x[0]!) * (y[1]! - y[0]!);
+        if (Math.abs(area) < 1e-12) continue;
+        const x0 = Math.max(0, Math.floor(Math.min(...x))), x1 = Math.min(G - 1, Math.ceil(Math.max(...x)));
+        const y0 = Math.max(0, Math.floor(Math.min(...y))), y1 = Math.min(G - 1, Math.ceil(Math.max(...y)));
+        for (let cy = y0; cy <= y1; cy++) {
+            for (let cx = x0; cx <= x1; cx++) {
+                const px = cx + 0.5, py = cy + 0.5;
+                const w0 = ((x[1]! - px) * (y[2]! - py) - (x[2]! - px) * (y[1]! - py)) / area;
+                const w1 = ((x[2]! - px) * (y[0]! - py) - (x[0]! - px) * (y[2]! - py)) / area;
+                if (w0 < 0 || w1 < 0 || w0 + w1 > 1) continue;
+                hits++;
+                if (cells[cy * G + cx] === 0) { cells[cy * G + cx] = 1; covered++; }
+            }
+        }
+    }
+    return { coverage: covered / (G * G), overlap: covered > 0 ? hits / covered : 1 };
+}
+
 /**
  * Gives every mesh a bake can be read on a lightmap UV set, and says who it
  * skipped. Mutates in place: the caller holds the products it is about to write.
  * Skinned is skipped because bones move it and a bake cannot follow; one that
- * already carries the channel keeps a layout its art may be painted against.
+ * already carries a usable layout keeps it, since its art may be painted against it.
  */
 export function applyLightmapUV(meshes: ImportedMesh[]): string[] {
     const warnings: string[] = [];
@@ -341,8 +382,17 @@ export function applyLightmapUV(meshes: ImportedMesh[]): string[] {
             continue;
         }
         if (mesh.data.channels.some((c) => c.semantic === MeshChannel.TexCoord1)) {
-            warnings.push(`${mesh.name}: already carries a second UV set, which is kept`);
-            continue;
+            const { coverage, overlap } = lightmapUVLayout(mesh.data);
+            if (overlap > OVERLAPPING_LIGHTMAP_UV) {
+                warnings.push(`${mesh.name}: its second UV set lies ${overlap.toFixed(1)} layers deep on`
+                    + ' itself, so parts of it would share light — a lightmap UV is unwrapped in its place');
+            } else if (coverage < SPARSE_LIGHTMAP_UV) {
+                warnings.push(`${mesh.name}: its second UV set covers ${(coverage * 100).toFixed(1)}% of its`
+                    + ' square, too little to bake into — a lightmap UV is unwrapped in its place');
+            } else {
+                warnings.push(`${mesh.name}: already carries a second UV set, which is kept`);
+                continue;
+            }
         }
         try {
             const { mesh: unwrapped, charts, coverage } = unwrapLightmapUV(mesh.data);
