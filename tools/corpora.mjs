@@ -44,6 +44,20 @@ export const CORPORA = {
       'MatBed_occlusionRoughnessMetallic.jpg': 'e1472454ad6be574c3a418985f06a8ba36877108a94f61590f01e118804379b4',
     },
   },
+  'khronos-normal-tangent-test': {
+    what: 'Khronos glTF sample: normal-mapped bumps beside the same bumps built as geometry, in every UV orientation, with no tangents supplied',
+    license: 'CC-BY-4.0 (© 2017 Analytical Graphics, Inc.; Khronos glTF-Sample-Assets)',
+    source: 'https://github.com/KhronosGroup/glTF-Sample-Assets/tree/7d4ba189827916452eeadc82d4b712dbc6280a6f/Models/NormalTangentTest',
+    base: `${KHRONOS_SAMPLES}/Models/NormalTangentTest/glTF`,
+    models: ['NormalTangentTest.gltf'],
+    files: {
+      'NormalTangentTest.gltf': 'ef2b152063304ebb0314646d3d1610cdc680e131d2cbfef10972dc6120d4dd18',
+      'NormalTangentTest0.bin': '2d0fc6d43cb11b61a746bc80218b5e9e6c60dcc40f86d4a3f4fdbf11909cd990',
+      'NormalTangentTest_BaseColor.png': '4182902c6dc833b48c0325568c2c5bd3e2d5fc04e27a8dc1917ced2818e1fac1',
+      'NormalTangentTest_OcclusionRoughnessMetallic.png': '3fff511720bea1fd8590ddb7b62090700e812e39ca71dd3200493093ad704399',
+      'NormalTangentTest_Normal.png': '9cebea6c513ddfb1f5f5c761c08bca1468d2283a3cd9772bba3a57e484862ead',
+    },
+  },
   'khronos-water-bottle': {
     what: 'Khronos glTF sample: a PBR bottle with base colour, normal, packed occlusion/roughness/metal and emissive maps',
     license: 'CC0-1.0',

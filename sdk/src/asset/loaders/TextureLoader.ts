@@ -156,10 +156,12 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         width: number, height: number, pixels: Uint8Array, flipY: boolean, content: TextureContent,
     ): Promise<TextureResult> {
         const rm = requireResourceManager();
+        // A collage of colour images, so colour: the engine takes the code as said.
+        const format = samplesAsSrgb(true) ? 2 : 1;
         // Native (no wasm heap): upload the bytes directly. Web embind lacks this
         // method, so it takes the heap path below unchanged.
         if (rm.createTextureFromBytes) {
-            const handle = rm.createTextureFromBytes(width, height, pixels, 1, flipY, content);
+            const handle = rm.createTextureFromBytes(width, height, pixels, format, flipY, content);
             return { handle, width, height };
         }
         if (!this.module_) {
@@ -168,7 +170,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         const module = this.module_;
         const handle = withMalloc(module, pixels.length, ptr => {
             module.HEAPU8.set(pixels, ptr);
-            return rm.createTexture(width, height, ptr, pixels.length, 1, flipY, content);
+            return rm.createTexture(width, height, ptr, pixels.length, format, flipY, content);
         });
         return { handle, width, height };
     }

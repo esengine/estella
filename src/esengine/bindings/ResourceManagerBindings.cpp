@@ -3,7 +3,6 @@
 
 #include "ResourceManagerBindings.hpp"
 #include "BoundarySpan.hpp"
-#include "../resource/ShaderParser.hpp"
 #include "../resource/TextureMetadata.hpp"
 #include "../text/BitmapFont.hpp"
 #include "../core/Types.hpp"
@@ -23,15 +22,14 @@ namespace esengine {
 namespace {
 
 /**
- * Pixel uploads crossing the JS boundary are color images (decoded PNGs, spine
- * atlases, glyph atlases, tileset collages) — the same "all image textures are
- * color" contract the SDK's raw-GL upload path applies. Linear mode stores them
- * sRGB-encoded so the sampler linearizes in hardware, on both backends.
+ * The caller decides: 2 is sRGB-encoded colour, which it only asks for in a
+ * linear pipeline, and 1 is plain bytes. Promoting 1 as well gamma-decoded every
+ * normal map and roughness map a shipped game uploaded, while the editor's own
+ * upload honoured the asset's setting and looked right.
  */
 TextureFormat boundaryTextureFormat(i32 format) {
     if (format == 0) return TextureFormat::RGB8;
-    if (resource::ShaderParser::linearColorSpace()) return TextureFormat::SRGB8A8;
-    return TextureFormat::RGBA8;
+    return format == 2 ? TextureFormat::SRGB8A8 : TextureFormat::RGBA8;
 }
 
 }  // namespace

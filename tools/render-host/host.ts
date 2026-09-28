@@ -24,6 +24,7 @@ import {
     RenderTexture, Camera, Sprite,
     EditorView, EditorGrid, installEditorGrid, editorViewHalfHeight, setEditorViewHalfHeight,
     ProfileRecorder, AnimatorController, Timeline, onDeviceRestored, Schedule, defineSystem,
+    textureImportSettingsFrom,
 } from 'esengine';
 import type { App, SceneData, SceneEntityData, PrefabData, RenderSurfaceSource } from 'esengine';
 import type { ESEngineModule } from 'esengine/wasm';
@@ -278,6 +279,7 @@ async function loadScene(
         assets.setAssetRefResolver((ref: string) =>
             ref.startsWith(UUID_PREFIX) ? (uuidToUrl.get(ref.slice(UUID_PREFIX.length)) ?? null) : ref,
         );
+        assets.setTextureImportSettingsResolver(importSettingsFromMeta(uuidToUrl));
         const result = await assets.preloadSceneAssets(raw);
         missing = result.missing.map((m) => m.ref);
         resolved = JSON.parse(JSON.stringify(raw)) as SceneData; // resolveSceneAssetPaths mutates
@@ -309,6 +311,33 @@ async function loadScene(
 interface SceneLoadReport {
     entities: number;
     missing: string[];
+}
+
+/**
+ * A texture's import settings, read from the `.meta` beside it as the editor and an
+ * export read them; without it every texture loaded as sRGB colour. Synchronous
+ * because the loader asks synchronously, and this is a test host.
+ */
+function importSettingsFromMeta(uuidToUrl: Map<string, string>) {
+    const cache = new Map<string, ReturnType<typeof textureImportSettingsFrom>>();
+    return (ref: string) => {
+        const url = ref.startsWith(UUID_PREFIX) ? uuidToUrl.get(ref.slice(UUID_PREFIX.length)) : ref;
+        if (!url) return undefined;
+        if (!cache.has(url)) {
+            let settings: ReturnType<typeof textureImportSettingsFrom>;
+            try {
+                const xhr = new XMLHttpRequest();
+                xhr.open('GET', `${url}.meta`, false);
+                xhr.send();
+                if (xhr.status === 200) {
+                    settings = textureImportSettingsFrom(
+                        (JSON.parse(xhr.responseText) as { importer?: Record<string, unknown> }).importer);
+                }
+            } catch { /* no meta: the loader's defaults */ }
+            cache.set(url, settings);
+        }
+        return cache.get(url);
+    };
 }
 
 async function fetchManifest(manifestUrl?: string): Promise<Map<string, string>> {

@@ -36,6 +36,7 @@
  *   ESTELLA_VERIFY_UNIFORM   the frame is one colour on purpose; ESTELLA_VERIFY_COUNT says which
  *   ESTELLA_VERIFY_EDGE      how straight a straight edge is drawn (JSON: box, lit, dark, maxJag)
  *   ESTELLA_VERIFY_CUTOUT_EDGE  how often a cutout's edge pixel is a blend (JSON: box, lit, run, partial, minShare)
+ *   ESTELLA_VERIFY_TWINS     pairs of points that must match (JSON: pairs [[x1,y1,x2,y2]], tol)
  *   ESTELLA_VERIFY_MINIFIED  how much a far-off texture shimmers pixel to pixel (JSON: box, maxRipple, minMean)
  *   ESTELLA_VERIFY_SCALE     copy the scene's content onto a grid (JSON), for a cost gate
  *   ESTELLA_VERIFY_OUTPUT_TRANSFORM  the frame's output curve ("aces")
@@ -217,7 +218,7 @@ function finish(result, server) {
   // A scene that could not load an asset it names draws a frame nobody declared, so
   // its pixels answer a different question — say which asset instead.
   const assetsOk = (result.missingAssets?.length ?? 0) === 0;
-  const ok = result.ok && renderedOk && assetsOk && (result.expect?.ok ?? true) && (result.count?.ok ?? true) &&
+  const ok = result.ok && renderedOk && assetsOk && (result.expect?.ok ?? true) && (result.twins?.ok ?? true) && (result.count?.ok ?? true) &&
     (result.seam?.ok ?? true) &&
     (result.resize?.ok ?? true) && (result.preview?.ok ?? true) &&
     (result.meshPreview?.ok ?? true) && (result.grid?.ok ?? true) &&
@@ -751,6 +752,25 @@ app.whenReady().then(async () => {
         return { points: out, ok: out.every((o) => o.ok) };
       `);
     }
+    // ESTELLA_VERIFY_TWINS = { pairs: [[x1, y1, x2, y2], ...], tol }: points that must match —
+    // one surface drawn two ways, as a conformance model pairs a normal-mapped bump with the
+    // same bump built as geometry. Pins only that the two agree, not the lighting.
+    let twins = null;
+    if (process.env.ESTELLA_VERIFY_TWINS) {
+      twins = await readFrame(`
+        const t = ${JSON.stringify(JSON.parse(process.env.ESTELLA_VERIFY_TWINS))};
+        const at = (x, y) => {
+          const i = (((h - 1) - Math.round(y * (h - 1))) * w + Math.round(x * (w - 1))) * 4;
+          return [px[i], px[i + 1], px[i + 2]];
+        };
+        const pairs = t.pairs.map(([x1, y1, x2, y2]) => {
+          const a = at(x1, y1), b = at(x2, y2);
+          return { a, b, d: Math.max(...a.map((v, k) => Math.abs(v - b[k]))) };
+        });
+        const worst = Math.max(...pairs.map((p) => p.d));
+        return { pairs, worst, tol: t.tol, ok: worst <= t.tol };
+      `);
+    }
     // ESTELLA_VERIFY_EDGE = { box (0..1, top-left), lit, dark, maxJag }: how far each
     // row's crossing of a straight edge, found from the right to sub-pixel, strays from
     // a line through its neighbours — a sampling grid drawn into the edge shows as that.
@@ -1026,7 +1046,7 @@ app.whenReady().then(async () => {
       `);
       if (respaced != null) grid = { ...grid, respacedPixels: respaced, ok: grid.ok && respaced > 300 };
     }
-    finish({ ok: true, entityCount, missingAssets, drawCalls, draws, counters, frameDebug, edge, cutoutEdge, minified, profile, capture, expect, count, seam, resize, preview, meshPreview, grid, deviceLoss, roundtrip, meshResident, meshAsset, meshMaterial, meshPrefab, setField, animator, pick, cameraTarget }, server);
+    finish({ ok: true, entityCount, missingAssets, drawCalls, draws, counters, frameDebug, edge, cutoutEdge, minified, profile, capture, expect, twins, count, seam, resize, preview, meshPreview, grid, deviceLoss, roundtrip, meshResident, meshAsset, meshMaterial, meshPrefab, setField, animator, pick, cameraTarget }, server);
   } catch (e) {
     finish({ ok: false, error: String((e && e.stack) || e) }, server);
   }

@@ -14,6 +14,10 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A shipped game samples normal maps and roughness maps as data.** The engine's own upload — a web export, a mini-game, a native build, the editor's Play — made every image an sRGB colour texture in a linear project whatever its import settings said, so every normal map was bent (a flat one by about fifty degrees) and every packed occlusion, roughness and metal map gamma-darkened, while the editor's viewport, which uploads through its own path, looked right. ORCA Bistro's Vespa came out as dark chrome in an exported game and blue in the editor. Khronos's NormalTangentTest now draws each normal-mapped bump as its geometric twin does.
+
 ## [0.75.0] - 2026-09-27
 
 ### Added
