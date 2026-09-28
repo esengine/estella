@@ -1211,6 +1211,12 @@ fn sampleNormal(map : texture_2d<f32>, samp : sampler, uv : vec2f) -> vec3f {
     let xy = textureSampleLevel(map, samp, uv, 0.0).xy * 2.0 - 1.0;
     return vec3f(xy, sqrt(max(0.0, 1.0 - dot(xy, xy))));
 }
+// Through the mip chain, with gradients the caller took before any branch.
+fn sampleNormalGrad(map : texture_2d<f32>, samp : sampler, uv : vec2f,
+                    ddx : vec2f, ddy : vec2f) -> vec3f {
+    let xy = textureSampleGrad(map, samp, uv, ddx, ddy).xy * 2.0 - 1.0;
+    return vec3f(xy, sqrt(max(0.0, 1.0 - dot(xy, xy))));
+}
 fn perturbNormal(N : vec3f, worldPos : vec3f, uv : vec2f, tangentNormal : vec3f) -> vec3f {
     let dp1 = dpdx(worldPos);
     // Negated: this backend's framebuffer y runs the other way, so dpdy answers
@@ -2042,6 +2048,11 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // applies it screen-space; a flat surface uses vec3(0,0,1).
             "highp vec3 sampleNormal(in highp sampler2D map, in highp vec2 uv) {\n"
             "    highp vec2 xy = texture(map, uv).xy * 2.0 - 1.0;\n"
+            "    return vec3(xy, sqrt(max(0.0, 1.0 - dot(xy, xy))));\n"
+            "}\n"
+            "highp vec3 sampleNormalGrad(in highp sampler2D map, in highp vec2 uv,\n"
+            "                            in highp vec2 ddx, in highp vec2 ddy) {\n"
+            "    highp vec2 xy = textureGrad(map, uv, ddx, ddy).xy * 2.0 - 1.0;\n"
             "    return vec3(xy, sqrt(max(0.0, 1.0 - dot(xy, xy))));\n"
             "}\n"
             // Tangent frame from screen-space derivatives, so a tangent-space normal

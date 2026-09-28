@@ -354,6 +354,9 @@ private:
         u8 samplerKey = 0;  ///< Packed filter/wrap params (sampler cache key).
         /// 1, or kMsaaSamples for an attachment drawn into and resolved out of.
         u32 samples = 1;
+        /// 1, or the whole chain for a texture that declared mipmaps. `view` is
+        /// then level 0 alone (an attachment is one level) and `sampleView` all.
+        u32 mipLevels = 1;
     };
     struct ProgramRec {
         WGPUShaderModule vertex = nullptr;
@@ -532,6 +535,15 @@ private:
      *         multisampled target. WebGPU has no depth resolve of its own. */
     void resolveDepthAttachment(u32 msaaDepth, u32 resolveDepth);
     WGPURenderPipeline ensureDepthResolvePipeline(WGPUTextureFormat format);
+    /** @brief Fills every level below 0 from the one above, a linear sample at each
+     *         texel's centre — a box average of the four under it. */
+    void buildMipChain(const TextureRec& rec);
+    WGPURenderPipeline ensureMipPipeline(WGPUTextureFormat format);
+    WGPUShaderModule mip_module_ = nullptr;
+    WGPUBindGroupLayout mip_bgl_ = nullptr;
+    WGPUPipelineLayout mip_layout_ = nullptr;
+    WGPUSampler mip_sampler_ = nullptr;
+    std::unordered_map<u32, WGPURenderPipeline> mip_pipelines_;
     WGPUShaderModule depth_resolve_vs_ = nullptr;
     WGPUShaderModule depth_resolve_fs_ = nullptr;
     WGPUBindGroupLayout depth_resolve_bgl_ = nullptr;

@@ -96,6 +96,7 @@ const ALIASES = {
  */
 const SIGNATURE_GAPS = {
     sampleNormal: 'WGSL takes the texture and its sampler apart; GLSL has one combined type',
+    sampleNormalGrad: 'WGSL takes the texture and its sampler apart; GLSL has one combined type',
 };
 
 /** A field name as the comparison sees it: the `u_` a shader adds is not part of it. */

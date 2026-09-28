@@ -70,7 +70,10 @@ void main() {
 
 #pragma fragment wgsl
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    return textureSampleLevel(t0, s0, v.v_texCoord, 0.0) * v.v_color * mc.u_tint;
+    // Taken before any branch: a derivative needs every fragment of its quad.
+    let duvx = dpdx(v.v_texCoord);
+    let duvy = dpdy(v.v_texCoord);
+    return textureSampleGrad(t0, s0, v.v_texCoord, duvx, duvy) * v.v_color * mc.u_tint;
 }
 #pragma end
 `;
@@ -115,13 +118,16 @@ void main() {
 
 #pragma fragment wgsl
 @fragment fn fs_main(v : VSOut, @builtin(front_facing) front : bool) -> @location(0) vec4f {
-    let base = textureSampleLevel(t0, s0, v.v_texCoord, 0.0) * v.v_color * mc.u_tint;
+    // Taken before any branch: a derivative needs every fragment of its quad.
+    let duvx = dpdx(v.v_texCoord);
+    let duvy = dpdy(v.v_texCoord);
+    let base = textureSampleGrad(t0, s0, v.v_texCoord, duvx, duvy) * v.v_color * mc.u_tint;
 #ifdef MESH_NORMALS
     var N = perturbNormal(normalize(v.v_worldNormal), v.v_worldXYZ, v.v_texCoord,
-                          sampleNormal(u_normalMap, u_normalMap_s, v.v_texCoord));
+                          sampleNormalGrad(u_normalMap, u_normalMap_s, v.v_texCoord, duvx, duvy));
     if (!front) { N = -N; }
 #else
-    let N = sampleNormal(u_normalMap, u_normalMap_s, v.v_texCoord);
+    let N = sampleNormalGrad(u_normalMap, u_normalMap_s, v.v_texCoord, duvx, duvy);
 #endif
     return vec4f(applyLighting2D(base.rgb, N, v.v_worldPos), base.a);
 }
@@ -153,7 +159,10 @@ void main() {
 
 #pragma fragment wgsl
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let base = textureSampleLevel(t0, s0, v.v_texCoord, 0.0) * v.v_color;
+    // Taken before any branch: a derivative needs every fragment of its quad.
+    let duvx = dpdx(v.v_texCoord);
+    let duvy = dpdy(v.v_texCoord);
+    let base = textureSampleGrad(t0, s0, v.v_texCoord, duvx, duvy) * v.v_color;
     return vec4f(mix(base.rgb, mc.u_flashColor.rgb, mc.u_flash), base.a);
 }
 #pragma end
@@ -193,17 +202,20 @@ void main() {
 
 #pragma fragment wgsl
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let base = textureSampleLevel(t0, s0, v.v_texCoord, 0.0) * v.v_color;
+    // Taken before any branch: a derivative needs every fragment of its quad.
+    let duvx = dpdx(v.v_texCoord);
+    let duvy = dpdy(v.v_texCoord);
+    let base = textureSampleGrad(t0, s0, v.v_texCoord, duvx, duvy) * v.v_color;
     let texel = mc.u_outlineWidth / vec2f(textureDimensions(t0, 0));
     var edge = 0.0;
-    edge = max(edge, textureSampleLevel(t0, s0, v.v_texCoord + vec2f( texel.x, 0.0), 0.0).a);
-    edge = max(edge, textureSampleLevel(t0, s0, v.v_texCoord + vec2f(-texel.x, 0.0), 0.0).a);
-    edge = max(edge, textureSampleLevel(t0, s0, v.v_texCoord + vec2f(0.0,  texel.y), 0.0).a);
-    edge = max(edge, textureSampleLevel(t0, s0, v.v_texCoord + vec2f(0.0, -texel.y), 0.0).a);
-    edge = max(edge, textureSampleLevel(t0, s0, v.v_texCoord + vec2f( texel.x,  texel.y), 0.0).a);
-    edge = max(edge, textureSampleLevel(t0, s0, v.v_texCoord + vec2f( texel.x, -texel.y), 0.0).a);
-    edge = max(edge, textureSampleLevel(t0, s0, v.v_texCoord + vec2f(-texel.x,  texel.y), 0.0).a);
-    edge = max(edge, textureSampleLevel(t0, s0, v.v_texCoord + vec2f(-texel.x, -texel.y), 0.0).a);
+    edge = max(edge, textureSampleGrad(t0, s0, v.v_texCoord + vec2f( texel.x, 0.0), duvx, duvy).a);
+    edge = max(edge, textureSampleGrad(t0, s0, v.v_texCoord + vec2f(-texel.x, 0.0), duvx, duvy).a);
+    edge = max(edge, textureSampleGrad(t0, s0, v.v_texCoord + vec2f(0.0,  texel.y), duvx, duvy).a);
+    edge = max(edge, textureSampleGrad(t0, s0, v.v_texCoord + vec2f(0.0, -texel.y), duvx, duvy).a);
+    edge = max(edge, textureSampleGrad(t0, s0, v.v_texCoord + vec2f( texel.x,  texel.y), duvx, duvy).a);
+    edge = max(edge, textureSampleGrad(t0, s0, v.v_texCoord + vec2f( texel.x, -texel.y), duvx, duvy).a);
+    edge = max(edge, textureSampleGrad(t0, s0, v.v_texCoord + vec2f(-texel.x,  texel.y), duvx, duvy).a);
+    edge = max(edge, textureSampleGrad(t0, s0, v.v_texCoord + vec2f(-texel.x, -texel.y), duvx, duvy).a);
     return mix(vec4f(mc.u_outlineColor.rgb, edge * mc.u_outlineColor.a), base, base.a);
 }
 #pragma end
@@ -258,7 +270,10 @@ fn noise2d(p : vec2f) -> f32 {
 }
 
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let base = textureSampleLevel(t0, s0, v.v_texCoord, 0.0) * v.v_color;
+    // Taken before any branch: a derivative needs every fragment of its quad.
+    let duvx = dpdx(v.v_texCoord);
+    let duvy = dpdy(v.v_texCoord);
+    let base = textureSampleGrad(t0, s0, v.v_texCoord, duvx, duvy) * v.v_color;
     let n = noise2d(v.v_texCoord * mc.u_noiseScale);
     let cut = mc.u_progress * (1.0 + mc.u_edgeWidth);
     if (n < cut - mc.u_edgeWidth) { discard; }
@@ -321,8 +336,11 @@ void main() {
 
 #pragma fragment wgsl
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    // Taken before any branch: a derivative needs every fragment of its quad.
+    let duvx = dpdx(v.v_texCoord);
+    let duvy = dpdy(v.v_texCoord);
     let uv = fract(v.v_texCoord + tc.u_time.x * mc.u_scrollSpeed);
-    return textureSampleLevel(t0, s0, uv, 0.0) * v.v_color;
+    return textureSampleGrad(t0, s0, uv, duvx, duvy) * v.v_color;
 }
 #pragma end
 `;
@@ -400,11 +418,14 @@ void main() {
 
 #pragma fragment wgsl
 @fragment fn fs_main(v : VSOut, @builtin(front_facing) front : bool) -> @location(0) vec4f {
+    // Taken before any branch: a derivative needs every fragment of its quad.
+    let duvx = dpdx(v.v_texCoord);
+    let duvy = dpdy(v.v_texCoord);
     // WGSL has no module varying: the entry point hands the injected header the
     // run its GLSL twin reads straight off one. Without this every material-shaded
     // draw read instance 0's indirect light — one probe volume for the lot.
     g_probeSlot = v.v_probeSlot;
-    let base = textureSampleLevel(t0, s0, v.v_texCoord, 0.0) * v.v_color * mc.u_tint;
+    let base = textureSampleGrad(t0, s0, v.v_texCoord, duvx, duvy) * v.v_color * mc.u_tint;
     // Before any discard: a derivative needs every fragment of its quad.
     let edge = max(fwidth(base.a), 1e-4);
     var alpha = base.a;
@@ -415,15 +436,14 @@ void main() {
     }
 #ifdef MESH_NORMALS
     var N = perturbNormal(normalize(v.v_worldNormal), v.v_worldXYZ, v.v_texCoord,
-                          sampleNormal(u_normalMap, u_normalMap_s, v.v_texCoord));
+                          sampleNormalGrad(u_normalMap, u_normalMap_s, v.v_texCoord, duvx, duvy));
     if (!front) { N = -N; }
 #else
-    let N = sampleNormal(u_normalMap, u_normalMap_s, v.v_texCoord);
+    let N = sampleNormalGrad(u_normalMap, u_normalMap_s, v.v_texCoord, duvx, duvy);
 #endif
-    let occl = textureSampleLevel(u_occlusionMap, u_occlusionMap_s, v.v_texCoord, 0.0).r;
+    let occl = textureSampleGrad(u_occlusionMap, u_occlusionMap_s, v.v_texCoord, duvx, duvy).r;
     let ao = mix(1.0, occl, mc.u_occlusionStrength);
-    let mr = textureSampleLevel(u_metallicRoughnessMap, u_metallicRoughnessMap_s,
-                                v.v_texCoord, 0.0).rgb;
+    let mr = textureSampleGrad(u_metallicRoughnessMap, u_metallicRoughnessMap_s, v.v_texCoord, duvx, duvy).rgb;
 #ifdef MESH_NORMALS
     let P = v.v_worldXYZ;
 #else
@@ -432,7 +452,7 @@ void main() {
     let lit = applyLightingPBR(base.rgb, N, P, viewDirection(P),
                                mc.u_metallic * mr.b, mc.u_roughness * mr.g, 1.0, ao);
     let emit = mc.u_emissive.rgb
-             * textureSampleLevel(u_emissiveMap, u_emissiveMap_s, v.v_texCoord, 0.0).rgb;
+             * textureSampleGrad(u_emissiveMap, u_emissiveMap_s, v.v_texCoord, duvx, duvy).rgb;
     return vec4f(lit + emit, alpha);
 }
 #pragma end

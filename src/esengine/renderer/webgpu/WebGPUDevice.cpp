@@ -238,6 +238,14 @@ void WebGPUDevice::releaseDeviceObjects() {
     if (depth_resolve_bgl_) { wgpuBindGroupLayoutRelease(depth_resolve_bgl_); depth_resolve_bgl_ = nullptr; }
     if (depth_resolve_vs_) { wgpuShaderModuleRelease(depth_resolve_vs_); depth_resolve_vs_ = nullptr; }
     if (depth_resolve_fs_) { wgpuShaderModuleRelease(depth_resolve_fs_); depth_resolve_fs_ = nullptr; }
+    for (auto& [key, pipeline] : mip_pipelines_) {
+        if (pipeline) wgpuRenderPipelineRelease(pipeline);
+    }
+    mip_pipelines_.clear();
+    if (mip_layout_) { wgpuPipelineLayoutRelease(mip_layout_); mip_layout_ = nullptr; }
+    if (mip_bgl_) { wgpuBindGroupLayoutRelease(mip_bgl_); mip_bgl_ = nullptr; }
+    if (mip_module_) { wgpuShaderModuleRelease(mip_module_); mip_module_ = nullptr; }
+    if (mip_sampler_) { wgpuSamplerRelease(mip_sampler_); mip_sampler_ = nullptr; }
     for (auto& [key, layout] : pipeline_layouts_) {
         if (layout) wgpuPipelineLayoutRelease(layout);
     }
@@ -829,8 +837,11 @@ bool WebGPUDevice::makeTexture(const TextureDesc& desc, const void* pixels, Text
     td.dimension = WGPUTextureDimension_2D;
     td.format = toWGPUTextureFormat(desc.format);
     td.size = WGPUExtent3D{desc.width, desc.height, 1};
-    td.mipLevelCount = 1;
     td.sampleCount = desc.samples > 1 ? kMsaaSamples : 1;
+    td.mipLevelCount = 1;
+    if (desc.mipmaps && td.sampleCount == 1 && !isDepthFormat(td.format)) {
+        for (u32 side = std::max(desc.width, desc.height); side > 1; side >>= 1) ++td.mipLevelCount;
+    }
     // Depth-stencil takes no upload and no readback (writeTexture cannot fill
     // it, CopySrc is refused on depth24plus) but IS sampled: an effect reads the
     // scene's depth. Colour carries CopySrc for the async readback seam.
@@ -853,7 +864,18 @@ bool WebGPUDevice::makeTexture(const TextureDesc& desc, const void* pixels, Text
         return false;
     }
 
-    WGPUTextureView view = wgpuTextureCreateView(texture, nullptr);
+    WGPUTextureView view = nullptr;
+    if (td.mipLevelCount > 1) {
+        WGPUTextureViewDescriptor vd{};
+        vd.format = td.format;
+        vd.dimension = WGPUTextureViewDimension_2D;
+        vd.mipLevelCount = 1;
+        vd.arrayLayerCount = 1;
+        vd.aspect = WGPUTextureAspect_All;
+        view = wgpuTextureCreateView(texture, &vd);
+    } else {
+        view = wgpuTextureCreateView(texture, nullptr);
+    }
     // A depth-stencil texture has two aspects and a sample may name only one, so
     // the view a binding uses is depth-only. Every other format samples through
     // the view it already has — the two members alias, and cleanup knows it.
@@ -871,17 +893,20 @@ bool WebGPUDevice::makeTexture(const TextureDesc& desc, const void* pixels, Text
         vd.arrayLayerCount = 1;
         vd.aspect = WGPUTextureAspect_DepthOnly;
         sampleView = wgpuTextureCreateView(texture, &vd);
+    } else if (td.mipLevelCount > 1) {
+        sampleView = wgpuTextureCreateView(texture, nullptr);
     }
 
     out = TextureRec{texture, view, sampleView,
                      desc.width, desc.height, td.format, desc.format,
                      packSamplerKey(desc.minFilter, desc.magFilter, desc.wrapS, desc.wrapT),
-                     td.sampleCount};
+                     td.sampleCount, td.mipLevelCount};
 
     if (pixels && !isDepthFormat(td.format)) {
         // desc.flipY, not false: the caller's orientation request has to reach the
         // upload, which is where the row reversal happens (see writeTexture).
         writeTexture(out, 0, 0, desc.width, desc.height, pixels, desc.flipY);
+        if (out.mipLevels > 1) buildMipChain(out);
     }
     return true;
 }
@@ -1048,7 +1073,10 @@ void WebGPUDevice::backendSetTextureParams(u32 id, const TextureDesc& desc) {
     }
 }
 
-void WebGPUDevice::backendGenerateMipmaps(u32) { stubOnce("generateMipmaps"); }
+void WebGPUDevice::backendGenerateMipmaps(u32 id) {
+    auto it = textures_.find(id);
+    if (it != textures_.end() && it->second.mipLevels > 1) buildMipChain(it->second);
+}
 
 void WebGPUDevice::bindTexture(u32 slot, TextureHandle texture) {
     if (slot >= kTextureSlots) return;
@@ -1389,6 +1417,152 @@ WGPURenderPipeline WebGPUDevice::ensureDepthResolvePipeline(WGPUTextureFormat fo
     if (!pipeline) ES_LOG_ERROR("WebGPUDevice: depth resolve pipeline creation failed");
     depth_resolve_pipelines_[key] = pipeline;
     return pipeline;
+}
+
+WGPURenderPipeline WebGPUDevice::ensureMipPipeline(WGPUTextureFormat format) {
+    const u32 key = static_cast<u32>(format);
+    auto it = mip_pipelines_.find(key);
+    if (it != mip_pipelines_.end()) return it->second;
+    if (!device_) return nullptr;
+
+    // The triangle's uv runs down the target as its rows do, so a level keeps the
+    // orientation of the one it is made from.
+    static const char* kWGSL = R"(
+struct VSOut { @builtin(position) pos : vec4f, @location(0) uv : vec2f };
+@vertex fn vs_main(@builtin(vertex_index) i : u32) -> VSOut {
+    var p = array<vec2f, 3>(vec2f(-1.0, 1.0), vec2f(3.0, 1.0), vec2f(-1.0, -3.0));
+    var out : VSOut;
+    out.pos = vec4f(p[i], 0.0, 1.0);
+    out.uv = vec2f(p[i].x * 0.5 + 0.5, 0.5 - p[i].y * 0.5);
+    return out;
+}
+@group(0) @binding(0) var src : texture_2d<f32>;
+@group(0) @binding(1) var smp : sampler;
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    return textureSampleLevel(src, smp, v.uv, 0.0);
+}
+)";
+    if (!mip_module_) {
+        WGPUShaderSourceWGSL wgsl{};
+        wgsl.chain.sType = WGPUSType_ShaderSourceWGSL;
+        wgsl.code = sv(kWGSL);
+        WGPUShaderModuleDescriptor md{};
+        md.nextInChain = &wgsl.chain;
+        mip_module_ = wgpuDeviceCreateShaderModule(device_, &md);
+    }
+    if (!mip_bgl_) {
+        WGPUBindGroupLayoutEntry entries[2]{};
+        entries[0].binding = 0;
+        entries[0].visibility = WGPUShaderStage_Fragment;
+        entries[0].texture.sampleType = WGPUTextureSampleType_Float;
+        entries[0].texture.viewDimension = WGPUTextureViewDimension_2D;
+        entries[1].binding = 1;
+        entries[1].visibility = WGPUShaderStage_Fragment;
+        entries[1].sampler.type = WGPUSamplerBindingType_Filtering;
+        WGPUBindGroupLayoutDescriptor bld{};
+        bld.entryCount = 2;
+        bld.entries = entries;
+        mip_bgl_ = wgpuDeviceCreateBindGroupLayout(device_, &bld);
+        WGPUPipelineLayoutDescriptor pld{};
+        pld.bindGroupLayoutCount = 1;
+        pld.bindGroupLayouts = &mip_bgl_;
+        mip_layout_ = wgpuDeviceCreatePipelineLayout(device_, &pld);
+        WGPUSamplerDescriptor sd{};
+        sd.minFilter = WGPUFilterMode_Linear;
+        sd.magFilter = WGPUFilterMode_Linear;
+        sd.mipmapFilter = WGPUMipmapFilterMode_Nearest;
+        sd.addressModeU = WGPUAddressMode_ClampToEdge;
+        sd.addressModeV = WGPUAddressMode_ClampToEdge;
+        sd.addressModeW = WGPUAddressMode_ClampToEdge;
+        sd.lodMaxClamp = 32.0f;
+        sd.maxAnisotropy = 1;
+        mip_sampler_ = wgpuDeviceCreateSampler(device_, &sd);
+    }
+
+    WGPURenderPipelineDescriptor pd{};
+    pd.layout = mip_layout_;
+    pd.vertex.module = mip_module_;
+    pd.vertex.entryPoint = sv("vs_main");
+    pd.primitive.topology = WGPUPrimitiveTopology_TriangleList;
+    pd.primitive.frontFace = WGPUFrontFace_CCW;
+    pd.primitive.cullMode = WGPUCullMode_None;
+    pd.multisample.count = 1;
+    pd.multisample.mask = 0xFFFFFFFFu;
+    WGPUColorTargetState target{};
+    target.format = format;
+    target.writeMask = WGPUColorWriteMask_All;
+    WGPUFragmentState fragment{};
+    fragment.module = mip_module_;
+    fragment.entryPoint = sv("fs_main");
+    fragment.targetCount = 1;
+    fragment.targets = &target;
+    pd.fragment = &fragment;
+
+    WGPURenderPipeline pipeline = wgpuDeviceCreateRenderPipeline(device_, &pd);
+    if (!pipeline) ES_LOG_ERROR("WebGPUDevice: mip pipeline creation failed");
+    mip_pipelines_[key] = pipeline;
+    return pipeline;
+}
+
+void WebGPUDevice::buildMipChain(const TextureRec& rec) {
+    if (!device_ || !queue_ || rec.mipLevels < 2) return;
+    WGPURenderPipeline pipeline = ensureMipPipeline(rec.format);
+    if (!pipeline) return;
+
+    // Its own encoder, submitted at once: an upload can land in the middle of a
+    // frame, and the frame's encoder may have a pass open.
+    WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(device_, nullptr);
+    if (!encoder) return;
+    std::vector<WGPUTextureView> views;
+    std::vector<WGPUBindGroup> groups;
+    for (u32 level = 0; level < rec.mipLevels; ++level) {
+        WGPUTextureViewDescriptor vd{};
+        vd.format = rec.format;
+        vd.dimension = WGPUTextureViewDimension_2D;
+        vd.baseMipLevel = level;
+        vd.mipLevelCount = 1;
+        vd.arrayLayerCount = 1;
+        vd.aspect = WGPUTextureAspect_All;
+        views.push_back(wgpuTextureCreateView(rec.texture, &vd));
+    }
+    for (u32 level = 1; level < rec.mipLevels; ++level) {
+        WGPUBindGroupEntry entries[2]{};
+        entries[0].binding = 0;
+        entries[0].textureView = views[level - 1];
+        entries[1].binding = 1;
+        entries[1].sampler = mip_sampler_;
+        WGPUBindGroupDescriptor bgd{};
+        bgd.layout = mip_bgl_;
+        bgd.entryCount = 2;
+        bgd.entries = entries;
+        WGPUBindGroup group = wgpuDeviceCreateBindGroup(device_, &bgd);
+        if (!group) break;
+        groups.push_back(group);
+
+        WGPURenderPassColorAttachment color{};
+        color.view = views[level];
+        color.depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
+        color.loadOp = WGPULoadOp_Clear;
+        color.storeOp = WGPUStoreOp_Store;
+        WGPURenderPassDescriptor rp{};
+        rp.colorAttachmentCount = 1;
+        rp.colorAttachments = &color;
+        WGPURenderPassEncoder pass = wgpuCommandEncoderBeginRenderPass(encoder, &rp);
+        if (!pass) break;
+        wgpuRenderPassEncoderSetPipeline(pass, pipeline);
+        wgpuRenderPassEncoderSetBindGroup(pass, 0, group, 0, nullptr);
+        wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
+        wgpuRenderPassEncoderEnd(pass);
+        wgpuRenderPassEncoderRelease(pass);
+    }
+    WGPUCommandBuffer commands = wgpuCommandEncoderFinish(encoder, nullptr);
+    if (commands) {
+        wgpuQueueSubmit(queue_, 1, &commands);
+        wgpuCommandBufferRelease(commands);
+    }
+    wgpuCommandEncoderRelease(encoder);
+    for (WGPUBindGroup group : groups) wgpuBindGroupRelease(group);
+    for (WGPUTextureView view : views) wgpuTextureViewRelease(view);
 }
 
 void WebGPUDevice::resolveDepthAttachment(u32 msaaDepth, u32 resolveDepth) {

@@ -1262,6 +1262,8 @@ export const NOTED = {
     { note: 'A cutout\'s mip levels keep its coverage' },
   'feat(import): images several materials share get every setting they ask for':
     { note: 'A cutout\'s mip levels keep its coverage' },
+  'fix(render): textures are mipmapped on WebGPU':
+    { note: 'Textures are sampled through mip levels on WebGPU' },
   'fix(render): WebGPU post-processing keeps the picture the right way up':
     { note: 'WebGPU post-processing keeps the picture the right way up' },
   'fix(render): ambient occlusion works behind another effect':
