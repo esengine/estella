@@ -23,6 +23,7 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- WebGPU post-processing keeps the picture the right way up. Every fullscreen pass sampled its input upside down, so a frame came out inverted whenever its chain had an odd number of them — a linear project with no post-process effect, for one — and an effect that reads depth, such as SSAO or distance fog, laid its result over the colour mirrored.
 - Ambient occlusion works behind another post-process effect. The scene's image went back to the pool after the last pass that read its colour, taking its depth with it, so an SSAO placed after a colour grade — as ORCA Bistro's volume has it — found no depth and occluded nothing, at any radius or intensity. The scene now lives until the chain's last pass.
 - A shipped game's textures are sampled through mip levels. An image the engine uploads itself — in a web export, a mini-game and the editor's Play — got no mip chain on WebGL2, so a texture drawn smaller than itself took one texel per pixel: in ORCA Bistro the trees turned to noise and the shutters to broken bright lines, while the editor's viewport, which uploads through its own path, looked right. The chain is now built from the pixels and rebuilt whenever they change, as that path does. WebGPU does not build one yet.
 

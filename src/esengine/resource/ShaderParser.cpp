@@ -372,7 +372,9 @@ std::string wgslPPVSOut() {
         "};\n";
 }
 
-// WGSL twin of canonicalPPVertexStage.
+// WGSL twin of canonicalPPVertexStage. The uv comes out in this device's texture
+// space, row 0 at the top: the screen's y-up uv would sample a target this device
+// stored top-down upside down, and every fullscreen pass would turn the image over.
 std::string canonicalPPVertexStageWGSL() {
     std::string src = wgslPPVSOut();
     src +=
@@ -385,7 +387,7 @@ std::string canonicalPPVertexStageWGSL() {
         "@vertex fn vs_main(v : VSIn) -> VSOut {\n"
         "    var out : VSOut;\n"
         "    out.pos = vec4f(v.a_position, 0.0, 1.0);\n"
-        "    out.v_texCoord = v.a_texCoord;\n"
+        "    out.v_texCoord = vec2f(v.a_texCoord.x, 1.0 - v.a_texCoord.y);\n"
         "    return out;\n"
         "}\n";
     return src;
@@ -938,9 +940,9 @@ const char* kFrameHeaderWGSL =
     "    if (frame.camera.w > 0.5) { return normalize(frame.camera.xyz - worldPos); }\n"
     "    return frame.camera.xyz;\n"
     "}\n"
-    // The z line is the twin's whole difference: this device clips z to [0, 1].
+    // A fullscreen pass's uv runs down the screen here, and this device clips z to [0, 1].
     "fn worldFromDepth(uv : vec2f, depth : f32) -> vec3f {\n"
-    "    let clip = vec4f(uv * 2.0 - 1.0, depth, 1.0);\n"
+    "    let clip = vec4f(uv.x * 2.0 - 1.0, 1.0 - uv.y * 2.0, depth, 1.0);\n"
     "    let world = frame.inverseViewProjection * clip;\n"
     "    return world.xyz / world.w;\n"
     "}\n";

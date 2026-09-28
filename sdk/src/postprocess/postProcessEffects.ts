@@ -21,9 +21,8 @@ import { Material } from '../render/material';
  * definition each: a fix that reached only the first of three copies compiled
  * fine and drew a black screen.
  */
-const SSAO_GLSL = `/// A SCREEN texel: +y up, origin bottom-left, and the same number on both
-/// backends. Its inverse round-trips through a uv, which is backend-independent
-/// because one vertex stage serves both.
+const SSAO_GLSL = `/// A texel of the pass's uv, which runs in the device's own row order: up the
+/// screen here, down it on WebGPU. Its inverse round-trips through that uv.
 ivec2 screenTexel(vec2 uv, ivec2 size) {
     return clamp(ivec2(uv * vec2(size)), ivec2(0), size - ivec2(1));
 }
@@ -56,11 +55,10 @@ const SSAO_WGSL = `fn screenTexel(uv : vec2f, size : vec2i) -> vec2i {
 fn uvOfTexel(t : vec2i, size : vec2i) -> vec2f {
     return (vec2f(t) + 0.5) / vec2f(size);
 }
-// The one place the row order matters: row 0 is the TOP here and the BOTTOM on
-// GL, so a screen texel is the mirrored row.
+// A fullscreen pass's uv already runs down the rows here, so a texel is its row.
 fn depthAt(t : vec2i, size : vec2i) -> f32 {
     let q = clamp(t, vec2i(0), size - vec2i(1));
-    return textureLoad(t7, vec2i(q.x, size.y - 1 - q.y), 0);
+    return textureLoad(t7, q, 0);
 }
 fn worldAt(t : vec2i, size : vec2i) -> vec3f {
     let q = clamp(t, vec2i(0), size - vec2i(1));
@@ -896,7 +894,7 @@ void main() {
      * SSAO, pass 1 of 4: the occlusion term, at half resolution. No G-buffer —
      * scene depth and the injected `worldFromDepth` are the whole input, and
      * positions come back in WORLD space, so the radius is a world length.
-     * Coordinates are SCREEN texels (+y up); only `depthAt` knows the row order.
+     * Coordinates are the pass uv's texels, which run in each device's own row order.
      */
     createSsaoAo(): ShaderHandle {
         const source = `#pragma shader "PP SSAO"
