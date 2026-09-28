@@ -433,7 +433,7 @@ const SCENE = flag('scene', '');
     return (await still()) >= 0;
   })();
 
-  const image = await win.webContents.capturePage();
+  const image = await captureFrame(win);
   if (OUT) await writeFile(OUT, image.toPNG());
   stop();
   server.close();
@@ -466,3 +466,19 @@ app.whenReady().then(main).catch((e) => {
   console.error('✗ launch-export failed:', e);
   app.exit(2);
 });
+
+/**
+ * The page as the compositor last drew it. A compositor busy with a heavy first
+ * load can fail the copy (UnknownVizError) while the game runs fine, so ask again.
+ */
+async function captureFrame(win, attempts = 3) {
+  for (let i = 1; ; i++) {
+    try {
+      return await win.webContents.capturePage();
+    } catch (e) {
+      if (i >= attempts) throw e;
+      console.warn(`  capture failed (${e?.message ?? e}); asking again after a frame`);
+      await new Promise((r) => setTimeout(r, 500));
+    }
+  }
+}
