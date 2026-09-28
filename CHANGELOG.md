@@ -14,6 +14,8 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.75.0] - 2026-09-27
+
 ### Added
 
 - **A cutout's edge is antialiased.** With multisampling on (the default), a material with an alpha cutoff turns its alpha into multisample coverage along the cut instead of testing it, so leaves, grass and fences stop stair-stepping at their edges. A shader opts in with `#pragma coverage <param>`, which the built-in Model shader declares for `u_alphaCutoff`; a material without a cutoff, and a blended one, draw as before. It holds in gamma projects with no post-processing too, which draw straight into the multisampled surface.
@@ -13771,7 +13773,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.74.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.75.0...HEAD
+[0.75.0]: https://github.com/esengine/estella/compare/v0.74.0...v0.75.0
 [0.74.0]: https://github.com/esengine/estella/compare/v0.73.0...v0.74.0
 [0.73.0]: https://github.com/esengine/estella/compare/v0.72.0...v0.73.0
 [0.72.0]: https://github.com/esengine/estella/compare/v0.71.0...v0.72.0

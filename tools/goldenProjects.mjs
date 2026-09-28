@@ -90,6 +90,15 @@ export const CENSUS_FLOOR = '0.60.0';
  * that does not exist, and release notes are a different act. Theirs is ungated.
  */
 export const SHIPPED = {
+  // — 0.75.0 —
+  "A cutout's edge is antialiased":
+    { notCertifiable: 'no golden project draws an alpha-cutout material; the corpus-cutout-edge and corpus-cutout-edge-gamma render gates hold it on both backends, on Khronos\'s AlphaBlendModeTest' },
+  'Project Health names the textures a material reads as data while they are still decoded as colour':
+    { notCertifiable: 'an editor preflight finding, which no game behaviour shows; pipeline/tests/data-texture-audit.test.ts and the data-textures editor check on Khronos\'s WaterBottle hold it' },
+  'Importing a model brings its lights and cameras':
+    { notCertifiable: 'an import, which no golden project re-runs; pipeline/tests/gltf-import.test.ts and pipeline/tests/fbx-import.test.ts hold it, the FBX one red without the axis options' },
+  "A cutout's mip levels keep its coverage":
+    { notCertifiable: 'a texture cook setting no golden project sets; pipeline/tests/ktx2-mips.test.ts, texture-cook-decision.test.ts and imported-image-settings.test.ts hold it' },
   // — 0.74.0 —
   'Android release signing':
     { notCertifiable: 'how a Shipping APK is signed, which no game behaviour shows; pipeline/tests/project-export-options.test.ts and the editor\'s android-apk / android-aab tests hold it' },
