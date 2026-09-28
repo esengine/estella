@@ -1229,8 +1229,9 @@ fn perturbNormal(N : vec3f, worldPos : vec3f, uv : vec2f, tangentNormal : vec3f)
     let dp1perp = cross(N, dp1);
     let T = dp2perp * duv1.x + dp1perp * duv2.x;
     let B = dp2perp * duv1.y + dp1perp * duv2.y;
-    let m = max(max(dot(T, T), dot(B, B)), 1e-12);
-    if (m <= 1e-11) { return N; }
+    let m = max(dot(T, T), dot(B, B));
+    let scale = max(dot(dp1, dp1), dot(dp2, dp2)) * max(dot(duv1, duv1), dot(duv2, duv2));
+    if (!(m > scale * 1e-6)) { return N; }
     let invmax = inverseSqrt(m);
     return normalize(mat3x3f(T * invmax, B * invmax, N) * tangentNormal);
 }
@@ -2068,8 +2069,11 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    highp vec3 dp1perp = cross(N, dp1);\n"
             "    highp vec3 T = dp2perp * duv1.x + dp1perp * duv2.x;\n"
             "    highp vec3 B = dp2perp * duv1.y + dp1perp * duv2.y;\n"
+            // Degenerate against the surface's own scale: m falls with the fourth power
+            // of distance, so a fixed floor turned normal maps off up close.
             "    highp float m = max(dot(T, T), dot(B, B));\n"
-            "    if (m <= 1e-11) return N;\n"
+            "    highp float scale = max(dot(dp1, dp1), dot(dp2, dp2)) * max(dot(duv1, duv1), dot(duv2, duv2));\n"
+            "    if (!(m > scale * 1e-6)) return N;\n"
             "    highp float invmax = inversesqrt(m);\n"
             "    return normalize(mat3(T * invmax, B * invmax, N) * tangentNormal);\n"
             "}\n"

@@ -1,0 +1,43 @@
+{
+  "version": "2",
+  "name": "normalmap-quad-tiny",
+  "rootEntityId": "n0",
+  "entities": [
+    {
+      "prefabEntityId": "n0",
+      "name": "Quad",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "scale": {
+              "x": 0.0001,
+              "y": 0.0001,
+              "z": 0.0001
+            }
+          }
+        },
+        {
+          "type": "MeshRenderer",
+          "data": {
+            "mesh": "scenes/normalmap-quad.esmesh",
+            "lit": true,
+            "material": "scenes/normalmap-quad_m0.esmaterial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "opaque": true,
+            "cullBackfaces": true,
+            "enabled": true
+          }
+        }
+      ]
+    }
+  ]
+}
