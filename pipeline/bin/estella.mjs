@@ -483,6 +483,7 @@ async function bakeScene(baker, meta, sceneFile, check) {
   }
 
   writeFileSync(atlasFile, result.atlasBytes);
+  await baker.claimLightmapImage(atlasFile, result.size);
   for (const g of grids.values()) writeFileSync(path.join(sceneDir, g.name), g.text);
   if (reflectionText) {
     writeFileSync(reflectionFile, result.reflection.atlasBytes);

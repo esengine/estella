@@ -9,11 +9,14 @@
  * the world the transforms come from, and this holds the meshes they name.
  */
 import { readFileSync } from 'node:fs';
+import { readFile, writeFile } from 'node:fs/promises';
 import { PNG } from 'pngjs';
 import { bakeLightmapSteps, bakeRunner, lightmapImage, decodeMesh, unwrapLightmapUV, builtinMeshTemplate, MeshChannel,
          type MeshData, type BakeSurface, type BakeLight, type BakeOptions,
          type BakeStep, type CapturedPanorama, type ProbeGrid } from 'esengine';
 import { encodeRgbaPng } from './png';
+import { adoptOrphan } from './assetMeta';
+import { META_EXT } from './contentPolicy';
 
 export { BakeKernelExecutor } from './lightmapKernel';
 import { bakeSceneReflections, bakeSky, irradianceSky, type BakeEnvironment,
@@ -156,6 +159,24 @@ function builtinGeometry(ref: string, cache: Map<string, MeshData | null>): Mesh
         cache.set(ref, template ? unwrapLightmapUV(template.build()).mesh : null);
     }
     return cache.get(ref) ?? null;
+}
+
+/**
+ * The import settings a bake owns on its atlas, reapplied every bake (uuid kept):
+ * irradiance, so neither sRGB nor block-compressed; clamped, so a chart's edge
+ * cannot wrap; and never downscaled — that bleeds each patch into its neighbours'.
+ */
+export async function claimLightmapImage(absFile: string, size: number): Promise<void> {
+    const owned = { sRGB: false, compress: false, wrapMode: 'clamp' };
+    if (await adoptOrphan(absFile, { ...owned, maxSize: Math.max(2048, size) }) !== 'has-meta') return;
+    const metaFile = absFile + META_EXT;
+    const meta = JSON.parse(await readFile(metaFile, 'utf8')) as { importer?: Record<string, unknown> };
+    const importer = meta.importer ?? {};
+    const cap = typeof importer.maxSize === 'number' ? importer.maxSize : 2048;
+    const next = { ...importer, ...owned, maxSize: Math.max(cap, size) };
+    if (JSON.stringify(next) === JSON.stringify(importer)) return;
+    meta.importer = next;
+    await writeFile(metaFile, JSON.stringify(meta, null, 2) + '\n');
 }
 
 /** sRGB to linear per byte value. A texture stores what a screen shows, and an

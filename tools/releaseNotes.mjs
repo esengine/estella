@@ -1292,6 +1292,10 @@ export const NOTED = {
     { note: 'A bake uses every core, in C++' },
   'fix(bake): a baked atlas is read the way up it was baked':
     { note: 'Baked light lands where it was baked' },
+  'fix(bake): a baked atlas ships at the size it was baked':
+    { note: 'A baked atlas ships at the size it was baked' },
+  'fix(bake): the editor\'s atlas takes the import settings a bake owns':
+    { note: 'A baked atlas ships at the size it was baked' },
   'fix(bake): a coloured light bakes the colour it lights with':
     { note: 'A coloured light bakes the colour it lights with' },
   'fix(bake): the collector reads the colour space from the engine host':

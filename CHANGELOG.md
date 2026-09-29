@@ -22,6 +22,8 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A baked atlas ships at the size it was baked.** Its import settings took the texture default of a 2048 cap, so a 4096 bake was halved on export and each object's light ran into its neighbours'. A bake now owns the atlas's import settings — linear, uncompressed, clamped, and never capped below the atlas — and puts them back on every bake, keeping the file's id.
+
 - **Baked light lands where it was baked.** The atlas file was written with its first texel row on top, and the engine uploads a picture bottom-up, so every surface read its light from the mirror-image place in the atlas — mostly empty, so a lit surface in shadow went near black and showed only its reflection of the sky. ORCA Bistro's awnings in the shade came out grey and its hedges blue-black; now they are red and green. A bake now writes its file bottom-up, and a gate draws an atlas that differs only by row the way a shipped game loads it. Rebake a scene to pick it up.
 
 - **A shipped game samples normal maps and roughness maps as data.** The engine's own upload — a web export, a mini-game, a native build, the editor's Play — made every image an sRGB colour texture in a linear project whatever its import settings said, so every normal map was bent (a flat one by about fifty degrees) and every packed occlusion, roughness and metal map gamma-darkened, while the editor's viewport, which uploads through its own path, looked right. ORCA Bistro's Vespa came out as dark chrome in an exported game and blue in the editor. Khronos's NormalTangentTest now draws each normal-mapped bump as its geometric twin does.

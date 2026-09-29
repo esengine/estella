@@ -8,12 +8,12 @@
  * (an import setting, then a reimport) is one only the author can apply.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { encodeMesh, unwrapLightmapUV, decodeLightmap, MeshChannel, MeshChannelType,
          type MeshData, type BakeLight } from 'esengine';
-import { bakeSceneLightmap, type SceneBakeSurface } from '../src/assets/lightmapBake';
+import { bakeSceneLightmap, claimLightmapImage, type SceneBakeSurface } from '../src/assets/lightmapBake';
 import { encodeRgbaPng } from '../src/assets/png';
 import { decodeRgbaPng } from '../src/assets/tilesetExtrude';
 
@@ -238,5 +238,26 @@ describe('baking a scene', () => {
         expect(Array.from(result.atlasBytes.subarray(0, 8)))
             .toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
         expect(result.size).toBe(128);
+    });
+});
+
+describe('the atlas file a bake writes', () => {
+    it('is imported as irradiance at full size, on its first bake and every one after', async () => {
+        const png = path.join(dir, 'claimed_lightmap.png');
+        await writeFile(png, encodeRgbaPng(1, 1, new Uint8Array([0, 0, 0, 255])));
+        const meta = async () => JSON.parse(await readFile(`${png}.meta`, 'utf8'));
+
+        await claimLightmapImage(png, 1024);
+        const first = await meta();
+        expect(first.importer).toMatchObject({ sRGB: false, compress: false, wrapMode: 'clamp', maxSize: 2048 });
+
+        await writeFile(`${png}.meta`, JSON.stringify({ ...first, importer: { ...first.importer, sRGB: true, maxSize: 1024 } }));
+        await claimLightmapImage(png, 4096);
+        const grown = await meta();
+        expect(grown.uuid).toBe(first.uuid);
+        expect(grown.importer).toMatchObject({ sRGB: false, maxSize: 4096 });
+
+        await claimLightmapImage(png, 1024);
+        expect((await meta()).importer.maxSize).toBe(4096);
     });
 });
