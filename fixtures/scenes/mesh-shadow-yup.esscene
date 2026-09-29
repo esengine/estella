@@ -1,0 +1,172 @@
+{
+ "version": 4,
+ "name": "MeshShadowYUp",
+ "entities": [
+  {
+   "id": 0,
+   "name": "Camera",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -150.0,
+       "y": 260.0,
+       "z": 260.0
+      },
+      "rotation": {
+       "w": 0.8963317066047576,
+       "x": -0.316678121858697,
+       "y": -0.2926043897956301,
+       "z": -0.1033784791113607
+      }
+     }
+    },
+    {
+     "type": "Camera",
+     "data": {
+      "projectionType": 0,
+      "fov": 45.0,
+      "nearPlane": 10,
+      "farPlane": 3000,
+      "isActive": true,
+      "priority": 0
+     }
+    }
+   ]
+  },
+  {
+   "id": 1,
+   "name": "Ground",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      },
+      "rotation": {
+       "w": 0.7071067811865476,
+       "x": -0.7071067811865476,
+       "y": 0,
+       "z": 0
+      },
+      "scale": {
+       "x": 800,
+       "y": 800,
+       "z": 1
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "/scenes/shadow-quad.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "lit": true,
+      "opaque": true,
+      "enabled": true,
+      "cullBackfaces": false
+     }
+    }
+   ]
+  },
+  {
+   "id": 2,
+   "name": "Board",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 100,
+       "z": 0
+      },
+      "rotation": {
+       "w": 0.7071067811865476,
+       "x": 0,
+       "y": -0.7071067811865476,
+       "z": 0
+      },
+      "scale": {
+       "x": 40,
+       "y": 200,
+       "z": 1
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "/scenes/shadow-quad.esmesh",
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "lit": true,
+      "opaque": true,
+      "enabled": true,
+      "cullBackfaces": false
+     }
+    }
+   ]
+  },
+  {
+   "id": 3,
+   "name": "Sun",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 0,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 1,
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "intensity": 1,
+      "direction": {
+       "x": -0.3244428422615251,
+       "y": -0.8111071056538127
+      },
+      "directionZ": 0.4866642633922876,
+      "meshShadows": true
+     }
+    }
+   ]
+  }
+ ]
+}
