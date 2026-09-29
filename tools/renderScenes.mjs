@@ -124,6 +124,9 @@ export const SCENES = [
   // right and the quad's second UV set is the transpose of its first, so reading
   // the wrong channel turns the halves and swaps two of these four points.
   { id: "lightmap-unlit", tier: "pr", webgpu: true, env: { "ESTELLA_VERIFY_SCENE": "/scenes/lightmap-unlit.esscene", "ESTELLA_VERIFY_MANIFEST": "/scenes/lightmap-unlit.textures.json", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "2", "ESTELLA_VERIFY_EXPECT": "[{\"x\":0.3,\"y\":0.25,\"rgb\":[0,0,255],\"tol\":30},{\"x\":0.7,\"y\":0.25,\"rgb\":[0,0,255],\"tol\":30},{\"x\":0.3,\"y\":0.75,\"rgb\":[255,0,0],\"tol\":30},{\"x\":0.7,\"y\":0.75,\"rgb\":[255,0,0],\"tol\":30}]" } },
+  // The atlas differs only by row, and is uploaded as a shipped game uploads a
+  // picture: a baker and a loader that disagree on which row is v = 0 swap its halves.
+  { id: "lightmap-rows", tier: "pr", webgpu: true, env: { "ESTELLA_VERIFY_SCENE": "/scenes/lightmap-rows.esscene", "ESTELLA_VERIFY_MANIFEST": "/scenes/lightmap-rows.textures.json", "ESTELLA_VERIFY_TEXTURES": "runtime", "ESTELLA_VERIFY_W": "256", "ESTELLA_VERIFY_H": "256", "ESTELLA_VERIFY_STEPS": "2", "ESTELLA_VERIFY_EXPECT": "[{\"x\":0.3,\"y\":0.25,\"rgb\":[255,0,0],\"tol\":30},{\"x\":0.3,\"y\":0.75,\"rgb\":[255,0,0],\"tol\":30},{\"x\":0.7,\"y\":0.25,\"rgb\":[0,0,255],\"tol\":30},{\"x\":0.7,\"y\":0.75,\"rgb\":[0,0,255],\"tol\":30}]" } },
   // A baked object and an unbaked one in ONE lit frame. Cyan and yellow halves
   // say the green sun SURVIVED, so the bake joins the lamps rather than replacing them; the plain
   // green quad says an unbaked one is not brightened by an unbound unit's white.

@@ -208,7 +208,7 @@ describe('baking a scene', () => {
             let sum = 0;
             for (let y = Math.floor(ov * image.width); y < Math.ceil((ov + sv) * image.width); y++) {
                 for (let x = Math.floor(ou * image.width); x < Math.ceil((ou + su) * image.width); x++) {
-                    sum += decodeLightmap(image.rgba, y * image.width + x)[0];
+                    sum += decodeLightmap(image.rgba, (image.width - 1 - y) * image.width + x)[0];
                 }
             }
             return sum;

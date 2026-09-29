@@ -10,7 +10,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { PNG } from 'pngjs';
-import { bakeLightmapSteps, bakeRunner, decodeMesh, unwrapLightmapUV, builtinMeshTemplate, MeshChannel,
+import { bakeLightmapSteps, bakeRunner, lightmapImage, decodeMesh, unwrapLightmapUV, builtinMeshTemplate, MeshChannel,
          type MeshData, type BakeSurface, type BakeLight, type BakeOptions,
          type BakeStep, type CapturedPanorama, type ProbeGrid } from 'esengine';
 import { encodeRgbaPng } from './png';
@@ -424,7 +424,7 @@ function* sceneBakeSteps(input: SceneBakeInput, averages = new Map<string, Textu
     gridSlot.forEach((at, k) => { probes[at] = asDocument(grids[k], result.probes[k]); });
 
     return {
-        atlasBytes: encodeRgbaPng(result.size, result.size, result.pixels),
+        atlasBytes: encodeRgbaPng(result.size, result.size, lightmapImage(result.pixels, result.size)),
         scaleOffset,
         lumels: result.lumels,
         size: result.size,

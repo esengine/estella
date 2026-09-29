@@ -156,7 +156,7 @@ export {
     bakeLightmap, type BakeOptions, type BakeResult, type BakeSurface, type BakeLight,
     type ProbeGrid, bakeHoldsStill, type BakeMobility, BAKE_DEFAULTS,
     captureReflection, flatSky, type CapturedPanorama, type SkyRadiance,
-    LIGHTMAP_RANGE, encodeLightmap, decodeLightmap,
+    LIGHTMAP_RANGE, encodeLightmap, decodeLightmap, lightmapImage,
     bakeLightmapSteps, bakeRunner, type BakeScene, type BakeJob, type BakeStep,
     skyRadiance, type SkySpec,
 } from './lightmap';

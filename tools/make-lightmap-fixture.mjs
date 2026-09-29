@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
- * Regenerate the baked-light fixture: a quad with TWO UV sets (and a copy carrying a
- * normal) and a four-texel atlas, red half then blue half. The second UV set is the
- * TRANSPOSE of the first, so a bake read through the wrong channel turns ninety degrees.
+ * Regenerate the baked-light fixtures: a quad whose UV1 is its UV0 TRANSPOSED (and a
+ * copy with a normal), a red|blue four-texel atlas, and one differing only by ROW,
+ * written by `lightmapImage` as a bake is, so a loader reading v = 0 wrong mirrors it.
  *
  *   node tools/make-lightmap-fixture.mjs
  */
@@ -11,12 +11,14 @@ import { writeFileSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { encodeMesh, packChannels, encodeLightmap, MeshChannel, MeshChannelType } from '../sdk/dist/index.node.js';
+import { encodeMesh, packChannels, encodeLightmap, lightmapImage, MeshChannel, MeshChannelType }
+  from '../sdk/dist/index.node.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MESH = path.join(ROOT, 'fixtures', 'scenes', 'lightmap-quad.esmesh');
 const MESH_LIT = path.join(ROOT, 'fixtures', 'scenes', 'lightmap-quad-lit.esmesh');
 const ATLAS = path.join(ROOT, 'fixtures', 'scenes', 'lightmap-atlas.png');
+const ROWS = path.join(ROOT, 'fixtures', 'scenes', 'lightmap-rows.png');
 
 /** Wide enough that every gate point lands well inside the quad. */
 const HALF = 80;
@@ -86,20 +88,33 @@ const chunk = (type, body) => {
   return Buffer.concat([head, typed, tail]);
 };
 
-const ihdr = Buffer.alloc(13);
-ihdr.writeUInt32BE(TEXELS.length, 0);
-ihdr.writeUInt32BE(1, 4);
-ihdr[8] = 8;    // bit depth
-ihdr[9] = 6;    // RGBA
-const raw = Buffer.concat([
-  Buffer.from([0]),  // filter: none
-  Buffer.from(encoded),
-]);
-writeFileSync(ATLAS, Buffer.concat([
-  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-  chunk('IHDR', ihdr),
-  chunk('IDAT', deflateSync(raw)),
-  chunk('IEND', Buffer.alloc(0)),
-]));
+/** An RGBA8 PNG of `width` x `height`, rows top first. */
+function writePng(file, width, height, rgba) {
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8;    // bit depth
+  ihdr[9] = 6;    // RGBA
+  const rows = [];
+  for (let y = 0; y < height; y++) {
+    rows.push(Buffer.from([0]), Buffer.from(rgba.subarray(y * width * 4, (y + 1) * width * 4)));
+  }
+  writeFileSync(file, Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', ihdr),
+    chunk('IDAT', deflateSync(Buffer.concat(rows))),
+    chunk('IEND', Buffer.alloc(0)),
+  ]));
+}
+writePng(ATLAS, TEXELS.length, 1, encoded);
 
-console.log(`wrote ${path.relative(ROOT, MESH)}, ${path.relative(ROOT, MESH_LIT)} and ${path.relative(ROOT, ATLAS)}`);
+/** Texel rows 0-1 (v below one half) red, rows 2-3 blue. Square, as a bake's
+ *  atlas is, and repeated across so the rows are the only thing that differs. */
+const SIDE = 4;
+const rowsTexels = new Float32Array(SIDE * SIDE * 3);
+for (let y = 0; y < SIDE; y++) {
+  for (let x = 0; x < SIDE; x++) rowsTexels.set(y < SIDE / 2 ? [1, 0, 0] : [0, 0, 1], (y * SIDE + x) * 3);
+}
+writePng(ROWS, SIDE, SIDE, lightmapImage(encodeLightmap(rowsTexels, SIDE * SIDE), SIDE));
+
+console.log(`wrote ${path.relative(ROOT, MESH)}, ${path.relative(ROOT, MESH_LIT)}, ${path.relative(ROOT, ATLAS)} and ${path.relative(ROOT, ROWS)}`);

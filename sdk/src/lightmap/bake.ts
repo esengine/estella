@@ -234,6 +234,18 @@ export function encodeLightmap(rgb: Float32Array, count: number): Uint8Array {
     return out;
 }
 
+/**
+ * The atlas as an image file holds it: texel row `y` (second UV `v` = y / size) in
+ * image row `size - 1 - y`. The engine uploads a picture bottom-up, so a UV of 0
+ * reads the image's LAST row; written top-down, every lookup lands on its mirror.
+ */
+export function lightmapImage(pixels: Uint8Array, size: number): Uint8Array {
+    const out = new Uint8Array(pixels.length);
+    const row = size * 4;
+    for (let y = 0; y < size; y++) out.set(pixels.subarray(y * row, (y + 1) * row), (size - 1 - y) * row);
+    return out;
+}
+
 /** What {@link encodeLightmap} wrote at texel `i`. */
 export function decodeLightmap(pixels: ArrayLike<number>, i: number): [number, number, number] {
     const d = (b: number): number => (b / 255) * (b / 255) * LIGHTMAP_RANGE;
