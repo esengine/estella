@@ -218,6 +218,12 @@ async function bakeScene(baker, meta, sceneFile, check) {
   // Where an asset ref resolves to. Not relative to the SCENE: a ref is what the
   // project's asset browser shows, and the editor resolves it against the root.
   const projectRoot = bakeProjectRoot(sceneFile);
+  // The frame lights with the colour linearized in a linear project; so must the bake.
+  let linearColor = false;
+  try {
+    const manifest = JSON.parse(readFileSync(path.join(projectRoot, 'project.esproject'), 'utf8'));
+    linearColor = manifest.features?.rendering?.colorSpace === 'linear';
+  } catch { /* no project: the gamma pipeline, as the runtime defaults to */ }
   const byUuid = bakeAssetIndex(projectRoot);
   const resolveRef = (ref) => {
     if (typeof ref !== 'string' || ref === '') return '';
@@ -314,7 +320,7 @@ async function bakeScene(baker, meta, sceneFile, check) {
       }
       const p = bakeVec(tf.position, BAKE_ZERO);
       const made = baker.bakeLightOf(light.data, [p.x, p.y, p.z],
-                                     bakeVec(tf.rotation, BAKE_IDENTITY_Q));
+                                     bakeVec(tf.rotation, BAKE_IDENTITY_Q), linearColor);
       if (made?.lamp) lights.push(made.lamp);
       else if (made?.ambient) {
         ambient[0] += made.ambient[0];

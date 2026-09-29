@@ -45,7 +45,8 @@ export function bakeLightForward(q: { x: number; y: number; z: number; w: number
  */
 export function bakeLightOf(authored: AuthoredLight | undefined,
                             position: readonly [number, number, number],
-                            rotation: { x: number; y: number; z: number; w: number }):
+                            rotation: { x: number; y: number; z: number; w: number },
+                            linearColor = false):
     BakeLightContribution | null {
     const meta = COMPONENT_META['Light'];
     const v = { ...(meta?.defaults as AuthoredLight | undefined),
@@ -54,7 +55,12 @@ export function bakeLightOf(authored: AuthoredLight | undefined,
     const intensity = v.intensity ?? 1;
     if (v.enabled === false || !(intensity > 0)) return null;
 
-    const rgb: [number, number, number] = [v.color?.r ?? 1, v.color?.g ?? 1, v.color?.b ?? 1];
+    // A linear project lights with the colour linearized, as the frame does; a
+    // bake that took it as written would tint its light apart from the frame's.
+    const channel = (c: number): number => (!linearColor ? c
+        : c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+    const rgb: [number, number, number] = [channel(v.color?.r ?? 1), channel(v.color?.g ?? 1),
+                                           channel(v.color?.b ?? 1)];
     if ((v.type ?? 0) === LightType.Ambient) {
         return { ambient: [rgb[0] * intensity, rgb[1] * intensity, rgb[2] * intensity] };
     }

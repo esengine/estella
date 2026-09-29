@@ -1278,6 +1278,10 @@ export const NOTED = {
     { note: 'The editor stays responsive while it bakes' },
   'feat(bake): baked light is a lit surface\'s indirect light':
     { note: 'Baked light is a lit surface\'s indirect light' },
+  'fix(bake): a coloured light bakes the colour it lights with':
+    { note: 'A coloured light bakes the colour it lights with' },
+  'fix(bake): the collector bakes lights in the project\'s colour space':
+    { note: 'A coloured light bakes the colour it lights with' },
   'fix(bake): texels on an edge two triangles share are not an overlap':
     { note: 'A model whose second UV set cannot be baked into' },
   'fix(eht): the generator writes LF on every platform':

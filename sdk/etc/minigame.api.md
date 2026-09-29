@@ -10330,7 +10330,7 @@ AudioPlugin
 
 ## bakeLightOf — function @experimental
 ```
-(authored: AuthoredLight | undefined, position: readonly [number, number, number], rotation: { x: number; y: number; z: number; w: number; }): BakeLightContribution | null
+(authored: AuthoredLight | undefined, position: readonly [number, number, number], rotation: { x: number; y: number; z: number; w: number; }, linearColor?: boolean): BakeLightContribution | null
 ```
 
 ## bakeLightmap — function @experimental
