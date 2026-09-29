@@ -339,10 +339,20 @@ async function bakeScene(baker, meta, sceneFile, check) {
     reflections: reflectionProbes.map((p) => p.center),
     ambient, options,
   });
-  const result = baker.bakeSceneLightmap({
-    surfaces, lights, probeVolumes: volumes, reflectionProbes, environment,
-    options: { ...options, ambient },
-  });
+  // Each pass split across every core but one: a lumel is solved on its own.
+  const worker = await bundlePipeline(path.join(PIPELINE, 'src', 'assets', 'lightmapWorker.ts'),
+                                      'lightmapWorker.mjs');
+  const pool = new baker.BakePool(worker.outfile);
+  let result;
+  try {
+    result = await baker.bakeSceneLightmapParallel({
+      surfaces, lights, probeVolumes: volumes, reflectionProbes, environment,
+      options: { ...options, ambient },
+    }, pool);
+  } finally {
+    await pool.close();
+    worker.cleanup();
+  }
   for (const w of result.warnings) console.warn(`  ! ${w}`);
 
   const stem = path.basename(sceneFile).replace(/\.esscene$/i, '');
@@ -526,6 +536,17 @@ function sweepStaleBuildDirs(srcDir) {
 }
 
 async function loadPipeline(entry, outName) {
+  const { outfile, cleanup } = await bundlePipeline(entry, outName);
+  try {
+    return { mod: await import(fileUrl(outfile)), cleanup };
+  } catch (err) {
+    cleanup();
+    throw err;
+  }
+}
+
+/** A pipeline module bundled to a runnable file, for a worker thread to start from. */
+async function bundlePipeline(entry, outName) {
   const require = createRequire(path.join(PIPELINE, 'package.json'));
   const esbuild = require('esbuild');
   // As deep in the package as the cook is: the Basis encoder is kept external so
@@ -562,12 +583,7 @@ async function loadPipeline(entry, outName) {
   // sitting where every source-scanning gate reads. A caller's own cleanup is a
   // path that can be missed — 277 had been — so the exit is what guarantees it.
   process.on('exit', cleanup);
-  try {
-    return { mod: await import(fileUrl(outfile)), cleanup };
-  } catch (err) {
-    cleanup();
-    throw err;
-  }
+  return { outfile, cleanup };
 }
 
 const PROJECT_FILES = ['project.esproject', 'project.esproj', 'project.json'];

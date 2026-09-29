@@ -13,7 +13,7 @@
  *          carries which column an object reflects as a number per instance, and
  *          a hundred shiny things in a room still merge into one draw.
  */
-import { type CapturedPanorama, flatSky, evalIrradianceSH, SH_COSINE_BAND, type SkyRadiance } from 'esengine';
+import { type CapturedPanorama, flatSky, type SkyRadiance, type SkySpec } from 'esengine';
 import { atlasLayout, decodeRgbm, mipCountFor, octEncode, prefilterOctahedral,
          type EnvironmentAssetData } from './environmentImport';
 import { encodeRgbaPng } from './png';
@@ -88,23 +88,15 @@ export function environmentSky(environment: BakeEnvironment): SkyRadiance | null
 }
 
 /**
- * The sky a lumel or a probe gathers: radiance whose cosine-weighted mean over an
- * open hemisphere is the environment's irradiance as the frame reads it. Not the
- * reflection atlas, which clips the HDR sun that is most of a sunny sky.
+ * The sky a lumel or a probe gathers: the environment's irradiance as the frame
+ * reads it, turned and tinted the same way. Not the reflection atlas, which clips
+ * the HDR sun that is most of a sunny sky.
  */
 export function irradianceSky(environment: BakeEnvironment | null | undefined,
-                              ambient: readonly [number, number, number]): SkyRadiance {
+                              ambient: readonly [number, number, number]): SkySpec {
     const sh = environment?.document.irradiance;
-    if (!environment || !Array.isArray(sh) || sh.length < 27) return flatSky(ambient);
-    const radiance = Float32Array.from(sh.slice(0, 27), (v, i) => v / SH_COSINE_BAND[Math.floor(i / 3)]!);
-    const yaw = -((environment.rotation ?? 0) * Math.PI) / 180;
-    const c = Math.cos(yaw), s = Math.sin(yaw);
-    return (dx, dy, dz, out, at) => {
-        const [r, g, b] = evalIrradianceSH(radiance, c * dx + s * dz, dy, -s * dx + c * dz);
-        out[at] = Math.max(0, r) * ambient[0];
-        out[at + 1] = Math.max(0, g) * ambient[1];
-        out[at + 2] = Math.max(0, b) * ambient[2];
-    };
+    if (!environment || !Array.isArray(sh) || sh.length < 27) return { kind: 'flat', rgb: ambient };
+    return { kind: 'sh', irradiance: sh.slice(0, 27), yaw: -((environment.rotation ?? 0) * Math.PI) / 180, tint: ambient };
 }
 
 /** The sky a capture should use: the environment's own where there is one. */

@@ -152,9 +152,9 @@ function frame(nx: number, ny: number, nz: number, out: Float32Array): void {
  * here: it reaches a lumel past whatever stands in the way, so it is gathered.
  */
 export function solveDirect(lumels: LumelField, bvh: Bvh, lookup: HitLookup,
-                            lights: readonly BakeLight[], out: Float32Array): void {
-    out.fill(0);
-    for (let i = 0; i < lumels.count; i++) {
+                            lights: readonly BakeLight[], out: Float32Array,
+                            from = 0, to = lumels.count): void {
+    for (let i = from; i < to; i++) {
         const px = lumels.position[i * 3], py = lumels.position[i * 3 + 1], pz = lumels.position[i * 3 + 2];
         const nx = lumels.normal[i * 3], ny = lumels.normal[i * 3 + 1], nz = lumels.normal[i * 3 + 2];
         let r = 0, g = 0, b = 0;
@@ -207,12 +207,12 @@ export function solveDirect(lumels: LumelField, bvh: Bvh, lookup: HitLookup,
  */
 export function solveGather(lumels: LumelField, bvh: Bvh, lookup: HitLookup,
                             atlas: Float32Array, atlasSize: number, samples: number,
-                            sky: SkyRadiance, out: Float32Array): void {
+                            sky: SkyRadiance, out: Float32Array, from = 0, to = lumels.count): void {
     const dirs = hemisphere(samples);
     const basis = new Float32Array(6);
     const seen = new Float32Array(3);
     const far = 1e7;
-    for (let i = 0; i < lumels.count; i++) {
+    for (let i = from; i < to; i++) {
         const px = lumels.position[i * 3], py = lumels.position[i * 3 + 1], pz = lumels.position[i * 3 + 2];
         const nx = lumels.normal[i * 3], ny = lumels.normal[i * 3 + 1], nz = lumels.normal[i * 3 + 2];
         frame(nx, ny, nz, basis);

@@ -1278,6 +1278,10 @@ export const NOTED = {
     { note: 'The editor stays responsive while it bakes' },
   'feat(bake): baked light is a lit surface\'s indirect light':
     { note: 'Baked light is a lit surface\'s indirect light' },
+  'perf(bake): a bake uses every core':
+    { note: 'A bake uses every core' },
+  'perf(bake): the editor bakes on every core':
+    { note: 'A bake uses every core' },
   'fix(bake): a coloured light bakes the colour it lights with':
     { note: 'A coloured light bakes the colour it lights with' },
   'fix(bake): the collector reads the colour space from the engine host':

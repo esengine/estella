@@ -15,6 +15,10 @@ import {
     layoutAtlas, rasterizeLumels, atlasDemand, SPARSE_LIGHTMAP_UV, type BakeSurface, type SurfacePatch,
 } from './atlas';
 import { solveDirect, solveGather, type BakeLight, type HitLookup } from './solve';
+import { plainAlloc, adopt, type BakeAlloc } from './alloc';
+import { skyRadiance, type SkySpec } from './sky';
+import type { LumelField } from './atlas';
+import type { BvhParts } from './bvh';
 import { solveProbes, type ProbeGrid } from './probes';
 import { captureReflection, flatSky, type CapturedPanorama, type SkyRadiance }
     from './reflection';
@@ -36,8 +40,9 @@ export interface BakeOptions {
      *  direction, and still only reaching what can see it. */
     ambient?: readonly [number, number, number];
     /** What a lumel or a probe receives along a ray that escapes the scene — the
-     *  environment as the frame lights by it, tint and turn included. */
-    sky?: SkyRadiance;
+     *  environment as the frame lights by it, tint and turn included. A bake split
+     *  across threads needs it as data. */
+    sky?: SkySpec | SkyRadiance;
     /** Texels the solved edges are smeared outwards, so a bilinear tap near a
      *  chart's border does not read the empty atlas beside it. */
     dilate?: number;
@@ -99,17 +104,18 @@ const chan = (m: MeshData, s: number): MeshChannelDesc | undefined =>
 
 /** Every surface's triangles in world space, plus what a ray hit has to know. */
 function collect(surfaces: readonly BakeSurface[], patches: readonly SurfacePatch[],
-                 size: number, texelsPerUnit: number): { soup: TriangleSoup; lookup: HitLookup } {
+                 size: number, texelsPerUnit: number,
+                 alloc: BakeAlloc): { soup: TriangleSoup; lookup: HitLookup } {
     let total = 0;
     for (const s of surfaces) total += Math.floor(s.mesh.indices.length / 3);
-    const positions = new Float32Array(total * 9);
-    const triUV = new Float32Array(total * 6);
-    const triSurface = new Int32Array(total);
-    const patch = new Float32Array(surfaces.length * 4);
-    const albedo = new Float32Array(surfaces.length * 3);
-    const triNormal = new Float32Array(total * 3);
-    const twoSided = new Uint8Array(surfaces.length);
-    const coverage = new Float32Array(surfaces.length);
+    const positions = alloc.f32(total * 9);
+    const triUV = alloc.f32(total * 6);
+    const triSurface = alloc.i32(total);
+    const patch = alloc.f32(surfaces.length * 4);
+    const albedo = alloc.f32(surfaces.length * 3);
+    const triNormal = alloc.f32(total * 3);
+    const twoSided = alloc.u8(surfaces.length);
+    const coverage = alloc.f32(surfaces.length);
 
     let at = 0;
     for (let s = 0; s < surfaces.length; s++) {
@@ -258,32 +264,75 @@ function refusal(surfaces: readonly BakeSurface[], size: number, texelsPerUnit: 
         + ` The largest: ${named}${sparse}`;
 }
 
+/** Everything a solve step reads, as arrays another thread can be handed. */
+export interface BakeScene {
+    lumels: LumelField;
+    bvh: BvhParts;
+    lookup: HitLookup;
+    lights: readonly BakeLight[];
+    sky: SkySpec | SkyRadiance;
+    atlasSize: number;
+    samples: number;
+}
+
+/** One pass over every lumel. Each writes only its own lumels' entries of `out`,
+ *  so any split of the range gives the same result. */
+export type BakeJob =
+    | { kind: 'direct'; out: Float32Array }
+    | { kind: 'gather'; atlas: Float32Array; out: Float32Array };
+
+export interface BakeStep {
+    scene: BakeScene;
+    job: BakeJob;
+}
+
+/** Runs jobs against one scene over any range of its lumels; one per thread. */
+export function bakeRunner(scene: BakeScene): (job: BakeJob, from: number, to: number) => void {
+    const bvh = new Bvh(scene.bvh);
+    const sky = typeof scene.sky === 'function' ? scene.sky : skyRadiance(scene.sky);
+    return (job, from, to) => {
+        if (job.kind === 'direct') solveDirect(scene.lumels, bvh, scene.lookup, scene.lights, job.out, from, to);
+        else solveGather(scene.lumels, bvh, scene.lookup, job.atlas, scene.atlasSize, scene.samples, sky, job.out, from, to);
+    };
+}
+
 /**
- * Bakes `lights` into an atlas the surfaces can be read through.
- *
- * Throws when the surfaces do not fit: a bake that quietly shrank someone would
- * light one wall at a different resolution from the next, and the caller is the
- * one who can decide between a bigger atlas and a coarser density.
+ * A bake as its passes, in order: the driver runs each yielded job over every
+ * lumel, on one thread or many, before asking for the next; `alloc` decides where
+ * a job's arrays live. Throws when the surfaces do not fit rather than shrinking
+ * one, which would light it at a different resolution from its neighbours.
  */
-export function bakeLightmap(surfaces: readonly BakeSurface[], lights: readonly BakeLight[],
-                             options: BakeOptions = {}): BakeResult {
+export function* bakeLightmapSteps(surfaces: readonly BakeSurface[], lights: readonly BakeLight[],
+                                   options: BakeOptions = {},
+                                   alloc: BakeAlloc = plainAlloc): Generator<BakeStep, BakeResult, void> {
     const opts = { ...BAKE_DEFAULTS, ...options };
     const size = opts.atlasSize;
     const patches = layoutAtlas(surfaces, size, opts.texelsPerUnit);
     if (!patches) throw new Error(refusal(surfaces, size, opts.texelsPerUnit));
-    const lumels = rasterizeLumels(surfaces, patches, size);
-    const { soup, lookup } = collect(surfaces, patches, size, opts.texelsPerUnit);
-    const bvh = new Bvh(soup);
+    const raster = rasterizeLumels(surfaces, patches, size);
+    const lumels: LumelField = {
+        count: raster.count,
+        position: adopt(raster.position, alloc),
+        normal: adopt(raster.normal, alloc),
+        texel: adopt(raster.texel, alloc),
+        surface: adopt(raster.surface, alloc),
+        shared: raster.shared,
+    };
+    const { soup, lookup } = collect(surfaces, patches, size, opts.texelsPerUnit, alloc);
+    const bvh = new Bvh(soup, alloc);
+    const skyOf = options.sky ?? { kind: 'flat', rgb: opts.ambient };
+    const scene: BakeScene = { lumels, bvh: bvh.parts(), lookup, lights, sky: skyOf,
+                               atlasSize: size, samples: opts.samples };
+    const sky = typeof skyOf === 'function' ? skyOf : skyRadiance(skyOf);
 
-    const direct = new Float32Array(lumels.count * 3);
-    solveDirect(lumels, bvh, lookup, lights, direct);
+    const direct = alloc.f32(lumels.count * 3);
+    yield { scene, job: { kind: 'direct', out: direct } };
 
     // Each pass gathers against what every texel gave off after the pass before,
     // so pass n carries light n surfaces along. With no bounce the surfaces give
     // off nothing and the pass is the sky alone, still shadowed by them.
-    const sky = options.sky ?? flatSky(opts.ambient);
-    const outgoing = new Float32Array(size * size * 3);
-    const indirect = new Float32Array(lumels.count * 3);
+    const outgoing = alloc.f32(size * size * 3);
+    const indirect = alloc.f32(lumels.count * 3);
     for (let pass = 0; pass < Math.max(1, opts.bounces); pass++) {
         if (opts.bounces > 0) {
             for (let i = 0; i < lumels.count; i++) {
@@ -291,7 +340,7 @@ export function bakeLightmap(surfaces: readonly BakeSurface[], lights: readonly 
                 for (let k = 0; k < 3; k++) outgoing[at + k] = direct[i * 3 + k] + indirect[i * 3 + k];
             }
         }
-        solveGather(lumels, bvh, lookup, outgoing, size, opts.samples, sky, indirect);
+        yield { scene, job: { kind: 'gather', atlas: outgoing, out: indirect } };
     }
 
     // Two fields: what each texel gives off, which probes and captures read, and
@@ -334,4 +383,17 @@ export function bakeLightmap(surfaces: readonly BakeSurface[], lights: readonly 
         probes,
         reflections,
     };
+}
+
+/** {@link bakeLightmapSteps} driven on this thread. */
+export function bakeLightmap(surfaces: readonly BakeSurface[], lights: readonly BakeLight[],
+                             options: BakeOptions = {}): BakeResult {
+    const steps = bakeLightmapSteps(surfaces, lights, options);
+    let runner: ReturnType<typeof bakeRunner> | null = null;
+    for (;;) {
+        const next = steps.next();
+        if (next.done) return next.value;
+        runner ??= bakeRunner(next.value.scene);
+        runner(next.value.job, 0, next.value.scene.lumels.count);
+    }
 }

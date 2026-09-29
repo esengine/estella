@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 export { unwrapLightmapUV, type UnwrapOptions, type UnwrapResult } from './unwrap';
-export { bakeLightmap, LIGHTMAP_RANGE, encodeLightmap, decodeLightmap, type BakeOptions, type BakeResult } from './bake';
+export { bakeLightmap, bakeLightmapSteps, bakeRunner, LIGHTMAP_RANGE, encodeLightmap, decodeLightmap,
+         type BakeOptions, type BakeResult, type BakeScene, type BakeJob, type BakeStep } from './bake';
+export { skyRadiance, type SkySpec } from './sky';
+export type { BakeAlloc } from './alloc';
 export type { BakeSurface } from './atlas';
 export type { BakeLight } from './solve';
 export { solveProbes, probeAt, type ProbeGrid } from './probes';
