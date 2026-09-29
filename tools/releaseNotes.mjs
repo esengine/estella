@@ -1280,6 +1280,8 @@ export const NOTED = {
     { note: 'Baked light is a lit surface\'s indirect light' },
   'fix(bake): a coloured light bakes the colour it lights with':
     { note: 'A coloured light bakes the colour it lights with' },
+  'fix(bake): the collector reads the colour space from the engine host':
+    { internal: 'Moves where an unreleased change reads a value from; it only mattered to tests that could not load.' },
   'fix(bake): the collector bakes lights in the project\'s colour space':
     { note: 'A coloured light bakes the colour it lights with' },
   'fix(bake): texels on an edge two triangles share are not an overlap':
