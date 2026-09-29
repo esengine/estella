@@ -158,12 +158,12 @@ function builtinGeometry(ref: string, cache: Map<string, MeshData | null>): Mesh
     return cache.get(ref) ?? null;
 }
 
-/** sRGB to linear, one channel. A texture stores what a screen shows, and an
+/** sRGB to linear per byte value. A texture stores what a screen shows, and an
  *  average taken before this is decoded is brighter than the surface is. */
-function toLinear(v: number): number {
+const TO_LINEAR = Float64Array.from({ length: 256 }, (_, v) => {
     const c = v / 255;
     return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-}
+});
 
 /** A texture as a bake reads it: its mean colour in linear light, and the share
  *  of it a cutout keeps. */
@@ -182,11 +182,12 @@ function statsOf(file: string, cutoff: number): TextureStats | null {
     const pixels = png.width * png.height;
     if (pixels === 0) return null;
     const floor = cutoff > 0 ? cutoff * 255 : -1;
+    const data = png.data;
     for (let i = 0; i < pixels; i++) {
-        if (png.data[i * 4 + 3] < floor) continue;
-        r += toLinear(png.data[i * 4]);
-        g += toLinear(png.data[i * 4 + 1]);
-        b += toLinear(png.data[i * 4 + 2]);
+        if (data[i * 4 + 3] < floor) continue;
+        r += TO_LINEAR[data[i * 4]];
+        g += TO_LINEAR[data[i * 4 + 1]];
+        b += TO_LINEAR[data[i * 4 + 2]];
         kept++;
     }
     if (kept === 0) return { mean: [0, 0, 0], coverage: 0 };
