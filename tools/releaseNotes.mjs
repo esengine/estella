@@ -1296,6 +1296,8 @@ export const NOTED = {
     { note: 'A baked atlas ships at the size it was baked' },
   'fix(bake): the editor\'s atlas takes the import settings a bake owns':
     { note: 'A baked atlas ships at the size it was baked' },
+  'fix(environment): a panorama is read as it was shot, not mirrored':
+    { note: 'An environment is no longer mirrored' },
   'fix(bake): a coloured light bakes the colour it lights with':
     { note: 'A coloured light bakes the colour it lights with' },
   'fix(bake): the collector reads the colour space from the engine host':

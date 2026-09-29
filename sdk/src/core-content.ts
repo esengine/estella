@@ -192,7 +192,7 @@ export {
  * @experimental Pre-1.0: exported for the importers that write coefficients.
  */
 export {
-    shBasis, convolveCosine, evalIrradianceSH, SH_BASIS_SCALE, SH_COSINE_BAND,
+    shBasis, convolveCosine, evalIrradianceSH, SH_BASIS_SCALE, SH_COSINE_BAND, panoramaDirection, panoramaUV,
 } from './lightmap';
 /**
  * Stock geometry a `builtin:<id>` mesh ref names. Public because the editor's

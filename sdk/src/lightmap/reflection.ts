@@ -12,6 +12,7 @@
  *          disagree about what a wall gives off.
  */
 
+import { panoramaDirection } from './panorama';
 import type { Bvh } from './bvh';
 import { rayRadiance, type HitLookup } from './solve';
 
@@ -47,13 +48,8 @@ export function captureReflection(at: readonly [number, number, number],
                                   sky: SkyRadiance): CapturedPanorama {
     const rgb = new Float32Array(width * height * 3);
     for (let y = 0; y < height; y++) {
-        const theta = ((y + 0.5) / height) * Math.PI;
-        const sinTheta = Math.sin(theta);
-        const dy = Math.cos(theta);
         for (let x = 0; x < width; x++) {
-            const phi = ((x + 0.5) / width - 0.5) * 2 * Math.PI;
-            const dx = sinTheta * Math.sin(phi);
-            const dz = sinTheta * Math.cos(phi);
+            const [dx, dy, dz] = panoramaDirection((x + 0.5) / width, (y + 0.5) / height);
             const to = (y * width + x) * 3;
             if (!rayRadiance(bvh, lookup, atlas, atlasSize, at[0], at[1], at[2], dx, dy, dz,
                              rgb, to, to)) {

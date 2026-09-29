@@ -1065,9 +1065,10 @@ highp vec3 skyTexel(in ivec2 p, in ivec2 size) {
 }
 
 
+
 highp vec3 skyPanorama(in highp vec3 d) {
     ivec2 size = textureSize(u_texture, 0);
-    highp float u = 0.5 + atan(d.x, d.z) / 6.28318530718;
+    highp float u = 0.5 - atan(d.x, d.z) / 6.28318530718;
     highp float v = acos(clamp(d.y, -1.0, 1.0)) / 3.14159265359;
     highp vec2 f = vec2(u * float(size.x), v * float(size.y)) - 0.5;
     ivec2 i = ivec2(floor(f));
@@ -1135,7 +1136,7 @@ fn skyTexel(p : vec2i, size : vec2i) -> vec3f {
 
 fn skyPanorama(d : vec3f) -> vec3f {
     let size = vec2i(textureDimensions(t0, 0));
-    let u = 0.5 + atan2(d.x, d.z) / 6.28318530718;
+    let u = 0.5 - atan2(d.x, d.z) / 6.28318530718;
     let v = acos(clamp(d.y, -1.0, 1.0)) / 3.14159265359;
     let f = vec2f(u * f32(size.x), v * f32(size.y)) - 0.5;
     let i = vec2i(floor(f));

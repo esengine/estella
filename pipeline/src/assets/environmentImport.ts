@@ -11,7 +11,7 @@
  *        at all — and the specular half one ordinary RGBA8 image, so nothing
  *        downstream learns a cube map or a float format.
  */
-import { shBasis, convolveCosine, evalIrradianceSH } from 'esengine';
+import { shBasis, convolveCosine, evalIrradianceSH, panoramaDirection, panoramaUV } from 'esengine';
 import { encodeRgbaPng } from './png';
 
 /** A panorama in linear light: equirectangular, row 0 = up (+Y). */
@@ -175,12 +175,10 @@ function readScanline(bytes: Uint8Array, at: number, width: number, out: Uint8Ar
 // Directions
 // =============================================================================
 
-/** Bilinear lookup of the panorama along `d` (normalized). The image's centre
- *  column is +Z — the direction a head-on camera reflects — and row 0 is +Y. */
+/** Bilinear lookup of the panorama along `d` (normalized), by `panoramaUV`. */
 export function samplePanorama(env: Panorama, dx: number, dy: number, dz: number,
                                out: Float32Array): void {
-    const u = 0.5 + Math.atan2(dx, dz) / (2 * Math.PI);
-    const v = Math.acos(Math.max(-1, Math.min(1, dy))) / Math.PI;
+    const [u, v] = panoramaUV(dx, dy, dz);
     const fx = u * env.width - 0.5;
     const fy = v * env.height - 0.5;
     const x0 = Math.floor(fx), y0 = Math.floor(fy);
@@ -250,12 +248,10 @@ export function projectIrradianceSH(env: Panorama): Float32Array {
     const dTheta = Math.PI / env.height;
     for (let y = 0; y < env.height; y++) {
         const theta = (y + 0.5) * dTheta;
-        const sinTheta = Math.sin(theta);
-        const cosTheta = Math.cos(theta);
-        const solidAngle = sinTheta * dTheta * dPhi;
+        const solidAngle = Math.sin(theta) * dTheta * dPhi;
         for (let x = 0; x < env.width; x++) {
-            const phi = ((x + 0.5) / env.width - 0.5) * 2 * Math.PI;
-            shBasis(sinTheta * Math.sin(phi), cosTheta, sinTheta * Math.cos(phi), basis);
+            const [dx, dy, dz] = panoramaDirection((x + 0.5) / env.width, (y + 0.5) / env.height);
+            shBasis(dx, dy, dz, basis);
             const o = (y * env.width + x) * 3;
             for (let i = 0; i < 9; i++) {
                 const weighted = basis[i]! * solidAngle;

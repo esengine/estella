@@ -16,3 +16,4 @@ export { bakeLightOf, bakeLightForward, type AuthoredLight, type BakeLightContri
     from './lights';
 export { BAKE_DEFAULTS } from './bake';
 export { shBasis, convolveCosine, evalIrradianceSH, SH_BASIS_SCALE, SH_COSINE_BAND } from './sh';
+export { panoramaDirection, panoramaUV } from './panorama';
