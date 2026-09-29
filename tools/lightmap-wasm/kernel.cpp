@@ -3,7 +3,8 @@
 /**
  * @file    kernel.cpp
  * @brief   The lightmap solve's ray casting, in C++ on every core: an SAH-built
- *          BVH and the two per-lumel passes, direct and gather.
+ *          BVH and the two per-lumel passes, direct and gather — plus the texture
+ *          averages a bounce's albedo is taken from.
  *
  * The rules are sdk/src/lightmap/solve.ts's, term for term — the sample set,
  * the cutout hash, the back-face reach, the sky — computed in double precision
@@ -17,6 +18,11 @@
 #include <cstdint>
 #include <thread>
 #include <vector>
+
+#define STB_IMAGE_IMPLEMENTATION
+#define STBI_ONLY_PNG
+#define STBI_NO_STDIO
+#include "stb_image.h"
 
 namespace {
 
@@ -355,9 +361,9 @@ struct Sky {
 
 /** Runs `body(i)` for every i in [0, count) on `threads` threads, in chunks. */
 template <typename F>
-void parallelFor(int count, int threads, F body) {
+void parallelFor(int count, int threads, int minChunk, F body) {
     std::atomic<int> next{0};
-    const int chunk = std::max(64, count / std::max(1, threads * 32));
+    const int chunk = std::max(minChunk, count / std::max(1, threads * 32));
     auto work = [&]() {
         for (;;) {
             const int from = next.fetch_add(chunk);
@@ -408,7 +414,7 @@ void lm_scene(const float* pos, int triCount, const float* triUV, const int* tri
 void lm_direct(const float* position, const float* normal, int count,
                const double* lights, int lightCount, float* out, int threads) {
     const Scene& s = g_scene;
-    parallelFor(count, threads, [&](int i) {
+    parallelFor(count, threads, 64, [&](int i) {
         const double px = position[i * 3], py = position[i * 3 + 1], pz = position[i * 3 + 2];
         const double nx = normal[i * 3], ny = normal[i * 3 + 1], nz = normal[i * 3 + 2];
         double r = 0, g = 0, b = 0;
@@ -466,7 +472,7 @@ void lm_gather(const float* position, const float* normal, int count,
     skyOf.c = std::cos(sky[4]); skyOf.s = std::sin(sky[4]);
     for (int k = 0; k < 27; ++k) skyOf.radiance[k] = sky[8 + k];
     const std::vector<float> dirs = hemisphere(samples);
-    parallelFor(count, threads, [&](int i) {
+    parallelFor(count, threads, 64, [&](int i) {
         const double px = position[i * 3], py = position[i * 3 + 1], pz = position[i * 3 + 2];
         const double nx = normal[i * 3], ny = normal[i * 3 + 1], nz = normal[i * 3 + 2];
         float basis[6];
@@ -497,6 +503,45 @@ void lm_gather(const float* position, const float* normal, int count,
         out[i * 3] = static_cast<float>(r / samples);
         out[i * 3 + 1] = static_cast<float>(g / samples);
         out[i * 3 + 2] = static_cast<float>(b / samples);
+    });
+}
+
+/**
+ * lightmapBake.ts's statsOf for each PNG, summed in its order, through the
+ * caller's `toLinear` table so the conversion has one author. `files` is
+ * (pointer, size) pairs; `out` is five doubles per file: 1 solved, 2 empty, or
+ * 0 left to the caller (not an 8-bit PNG); then mean rgb and coverage.
+ */
+void lm_texture_stats(const uint32_t* files, const double* cutoffs, int count, const double* toLinear,
+                      double* out, int threads) {
+    parallelFor(count, threads, 1, [&](int f) {
+        double* o = out + f * 5;
+        o[0] = 0;
+        const auto* bytes = reinterpret_cast<const stbi_uc*>(static_cast<uintptr_t>(files[f * 2]));
+        const int size = static_cast<int>(files[f * 2 + 1]);
+        if (stbi_is_16_bit_from_memory(bytes, size)) return;
+        int w = 0, h = 0, n = 0;
+        stbi_uc* data = stbi_load_from_memory(bytes, size, &w, &h, &n, 4);
+        if (!data) return;
+        const size_t pixels = static_cast<size_t>(w) * h;
+        const double floor = cutoffs[f] > 0 ? cutoffs[f] * 255 : -1;
+        double r = 0, g = 0, b = 0;
+        size_t kept = 0;
+        for (size_t i = 0; i < pixels; ++i) {
+            if (data[i * 4 + 3] < floor) continue;
+            r += toLinear[data[i * 4]];
+            g += toLinear[data[i * 4 + 1]];
+            b += toLinear[data[i * 4 + 2]];
+            ++kept;
+        }
+        stbi_image_free(data);
+        o[0] = pixels == 0 ? 2 : 1;
+        if (kept > 0) {
+            o[1] = r / kept; o[2] = g / kept; o[3] = b / kept;
+            o[4] = static_cast<double>(kept) / pixels;
+        } else {
+            o[1] = o[2] = o[3] = o[4] = 0;
+        }
     });
 }
 

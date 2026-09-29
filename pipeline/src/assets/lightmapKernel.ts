@@ -9,10 +9,12 @@
 
 import { SH_COSINE_BAND, type BakeLight, type BakeScene, type BakeStep } from 'esengine';
 import type { BakeKernel } from '../../../build-tools/lightmap/kernel.mjs';
-import type { BakeExecutor } from './lightmapBake';
+import { readFile } from 'node:fs/promises';
+import type { BakeExecutor, TextureStats } from './lightmapBake';
 
 const LIGHT_DOUBLES = 16;
 const SKY_DOUBLES = 36;
+const TEXTURE_BATCH = 16;
 const LIGHT_KIND = { directional: 0, point: 1, spot: 2 } as const;
 
 export function packLights(lights: readonly BakeLight[]): Float64Array<ArrayBuffer> {
@@ -77,6 +79,30 @@ export class BakeKernelExecutor implements BakeExecutor {
         const out = job.out.subarray(0, scene.lumels.count * 3);
         if (job.kind === 'direct') this.kernel.direct(this.lights, scene.lights.length, out);
         else this.kernel.gather(job.atlas, scene.atlasSize, scene.samples, this.sky, out);
+    }
+
+    async textureStats(files: readonly string[], cutoffs: readonly number[], toLinear: Float64Array):
+        Promise<Array<TextureStats | null | undefined>> {
+        const out: Array<TextureStats | null | undefined> = [];
+        // Read and decoded a batch at a time: a town's textures are gigabytes decoded.
+        for (let from = 0; from < files.length; from += TEXTURE_BATCH) {
+            const names = files.slice(from, from + TEXTURE_BATCH);
+            const bytes = await Promise.all(names.map((f) => readFile(f).then((b) => new Uint8Array(b), () => null)));
+            const readable = bytes.flatMap((b, i) => (b ? [i] : []));
+            const stats = this.kernel.textureStats(readable.map((i) => bytes[i]!),
+                                                   readable.map((i) => cutoffs[from + i]!), toLinear);
+            const solved: Array<TextureStats | null | undefined> = names.map(() => undefined);
+            readable.forEach((i, k) => {
+                const at = k * 5;
+                if (stats[at] === 1) {
+                    solved[i] = { mean: [stats[at + 1]!, stats[at + 2]!, stats[at + 3]!], coverage: stats[at + 4]! };
+                } else if (stats[at] === 2) {
+                    solved[i] = null;
+                }
+            });
+            out.push(...solved);
+        }
+        return out;
     }
 
     async close(): Promise<void> {

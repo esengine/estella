@@ -18,10 +18,11 @@ const OUT = path.join(ROOT, 'build-tools', 'lightmap', 'lightmap-kernel.mjs');
 
 await ensureEmscriptenEnv();
 
-const EXPORTS = ['_lm_scene', '_lm_direct', '_lm_gather', '_malloc', '_free'];
+const EXPORTS = ['_lm_scene', '_lm_direct', '_lm_gather', '_lm_texture_stats', '_malloc', '_free'];
 
 execFileSync('em++', [
   path.join(ROOT, 'tools', 'lightmap-wasm', 'kernel.cpp'),
+  '-I', path.join(ROOT, 'third_party', 'stb'),
   '-O3', '-std=c++17', '-msimd128', '-pthread',
   '-sMODULARIZE=1', '-sEXPORT_ES6=1', '-sENVIRONMENT=node,worker',
   '-sALLOW_MEMORY_GROWTH=1', '-sMAXIMUM_MEMORY=4GB',
@@ -30,7 +31,7 @@ execFileSync('em++', [
   '-sPTHREAD_POOL_SIZE=((typeof navigator!=="undefined"&&navigator.hardwareConcurrency)||8)',
   '-sSTACK_SIZE=1048576',
   `-sEXPORTED_FUNCTIONS=${EXPORTS.join(',')}`,
-  '-sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAPF32,HEAP32',
+  '-sEXPORTED_RUNTIME_METHODS=wasmMemory',
   '-o', OUT,
 ], { stdio: 'inherit', shell: process.platform === 'win32' });
 

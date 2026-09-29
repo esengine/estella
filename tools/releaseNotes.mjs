@@ -1288,6 +1288,8 @@ export const NOTED = {
     { note: 'A bake uses every core, in C++' },
   'perf(bake): a texture\'s average reads sRGB through a table':
     { note: 'A bake uses every core, in C++' },
+  'perf(bake): the kernel averages a bake\'s textures on every core':
+    { note: 'A bake uses every core, in C++' },
   'fix(bake): a coloured light bakes the colour it lights with':
     { note: 'A coloured light bakes the colour it lights with' },
   'fix(bake): the collector reads the colour space from the engine host':

@@ -24,10 +24,16 @@ class BakeKernel {
     this.threads = (typeof navigator !== 'undefined' && navigator.hardwareConcurrency) || 8;
   }
 
+  /** The heap as it is now: a thread's allocation can grow it, and the module's
+   *  own views on this thread are not renewed when it does. */
+  heap() {
+    return this.m.wasmMemory.buffer;
+  }
+
   put(array) {
     const at = this.m._malloc(Math.max(4, array.byteLength));
     if (!at) throw new Error('lightmap kernel: out of memory');
-    new Uint8Array(this.m.HEAPU8.buffer, at, array.byteLength)
+    new Uint8Array(this.heap(), at, array.byteLength)
       .set(new Uint8Array(array.buffer, array.byteOffset, array.byteLength));
     return at;
   }
@@ -54,7 +60,7 @@ class BakeKernel {
     const at = this.m._malloc(Math.max(4, out.byteLength));
     try {
       write(at);
-      out.set(new Float32Array(this.m.HEAPU8.buffer, at, out.length));
+      out.set(new Float32Array(this.heap(), at, out.length));
     } finally {
       this.m._free(at);
     }
@@ -74,4 +80,20 @@ class BakeKernel {
         this.threads), out);
     } finally { this.m._free(ap); this.m._free(sp); }
   }
+
+  /** Each PNG's texture stats (see lm_texture_stats), decoded side by side. */
+  textureStats(files, cutoffs, toLinear) {
+    const lut = this.put(toLinear);
+    const held = files.map((f) => this.put(f));
+    const pairs = this.put(Uint32Array.from(files.flatMap((f, i) => [held[i], f.byteLength])));
+    const cut = this.put(Float64Array.from(cutoffs));
+    const at = this.m._malloc(Math.max(8, files.length * 40));
+    try {
+      this.m._lm_texture_stats(pairs, cut, files.length, lut, at, Math.max(1, Math.min(this.threads, files.length)));
+      return new Float64Array(this.heap(), at, files.length * 5).slice();
+    } finally {
+      for (const p of [lut, ...held, pairs, cut, at]) this.m._free(p);
+    }
+  }
 }
+

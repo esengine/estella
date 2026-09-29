@@ -160,14 +160,14 @@ function builtinGeometry(ref: string, cache: Map<string, MeshData | null>): Mesh
 
 /** sRGB to linear per byte value. A texture stores what a screen shows, and an
  *  average taken before this is decoded is brighter than the surface is. */
-const TO_LINEAR = Float64Array.from({ length: 256 }, (_, v) => {
+export const TO_LINEAR = Float64Array.from({ length: 256 }, (_, v) => {
     const c = v / 255;
     return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
 });
 
 /** A texture as a bake reads it: its mean colour in linear light, and the share
  *  of it a cutout keeps. */
-interface TextureStats {
+export interface TextureStats {
     mean: [number, number, number];
     coverage: number;
 }
@@ -176,7 +176,7 @@ interface TextureStats {
  * The texels past `cutoff` (all of them without one), averaged — the holes of a
  * cutout are not a colour the surface has — and how many of them there are.
  */
-function statsOf(file: string, cutoff: number): TextureStats | null {
+export function statsOf(file: string, cutoff: number): TextureStats | null {
     const png = PNG.sync.read(readFileSync(file));
     let r = 0, g = 0, b = 0, kept = 0;
     const pixels = png.width * png.height;
@@ -193,6 +193,8 @@ function statsOf(file: string, cutoff: number): TextureStats | null {
     if (kept === 0) return { mean: [0, 0, 0], coverage: 0 };
     return { mean: [r / kept, g / kept, b / kept], coverage: kept / pixels };
 }
+
+const statsKey = (file: string, cutoff: number): string => `${file}|${cutoff}`;
 
 /** The alpha cutoff a material document states, or 0. */
 function cutoffOf(materialFile: string | undefined, cache: Map<string, number>): number {
@@ -226,7 +228,7 @@ function albedoOf(s: SceneBakeSurface, cutoff: number, cache: Map<string, Textur
         }
         return { albedo: factor, coverage: 1 };
     }
-    const key = `${s.baseColorTexture}|${cutoff}`;
+    const key = statsKey(s.baseColorTexture, cutoff);
     if (!cache.has(key)) {
         try {
             cache.set(key, statsOf(s.baseColorTexture, cutoff));
@@ -264,12 +266,30 @@ export function bakeSceneLightmap(input: SceneBakeInput): SceneBakeResult {
 /** What runs each pass of {@link bakeSceneLightmapParallel} over every lumel. */
 export interface BakeExecutor {
     run(step: BakeStep): Promise<void>;
+    /** {@link statsOf} for many textures at once, through `toLinear`; `undefined`
+     *  leaves a file to statsOf, which says why it could not be read. */
+    textureStats?(files: readonly string[], cutoffs: readonly number[], toLinear: Float64Array):
+        Promise<Array<TextureStats | null | undefined>>;
 }
 
 /** {@link bakeSceneLightmap} with each pass run by `executor` across its threads. */
 export async function bakeSceneLightmapParallel(input: SceneBakeInput,
                                                 executor: BakeExecutor): Promise<SceneBakeResult> {
-    const steps = sceneBakeSteps(input);
+    const averages = new Map<string, TextureStats | null>();
+    const cutoffs = new Map<string, number>();
+    if (executor.textureStats) {
+        const wanted = new Map<string, { file: string; cutoff: number }>();
+        for (const s of input.surfaces) {
+            if (!s.baseColorTexture || s.holdsStill === false) continue;
+            const cutoff = cutoffOf(s.material, cutoffs);
+            wanted.set(statsKey(s.baseColorTexture, cutoff), { file: s.baseColorTexture, cutoff });
+        }
+        const list = [...wanted];
+        const got = await executor.textureStats(list.map(([, w]) => w.file), list.map(([, w]) => w.cutoff),
+                                                TO_LINEAR);
+        list.forEach(([key], k) => { if (got[k] !== undefined) averages.set(key, got[k]!); });
+    }
+    const steps = sceneBakeSteps(input, averages, cutoffs);
     for (;;) {
         const next = steps.next();
         if (next.done) return next.value;
@@ -277,15 +297,17 @@ export async function bakeSceneLightmapParallel(input: SceneBakeInput,
     }
 }
 
-function* sceneBakeSteps(input: SceneBakeInput): Generator<BakeStep, SceneBakeResult, void> {
+/**
+ * @param averages One decode per texture however many objects share it: a bake
+ *        reads these once and a scene reuses the same few across most of its
+ *        surfaces. A driver may fill it ahead.
+ */
+function* sceneBakeSteps(input: SceneBakeInput, averages = new Map<string, TextureStats | null>(),
+                         cutoffs = new Map<string, number>()): Generator<BakeStep, SceneBakeResult, void> {
     const warnings: string[] = [];
     const surfaces: BakeSurface[] = [];
     const slot: number[] = [];
     let moving = 0;
-    // One decode per texture however many objects share it: a bake reads these
-    // once and a scene reuses the same few across most of its surfaces.
-    const averages = new Map<string, TextureStats | null>();
-    const cutoffs = new Map<string, number>();
     // Stock geometry is rebuilt from code every run, so its lightmap UVs are
     // DERIVED here rather than being an asset: unwrapping an imported mesh
     // rewrites a file the scene already references, and this rewrites nothing.

@@ -11,7 +11,9 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { encodeMesh, unwrapLightmapUV, decodeLightmap, MeshChannel, MeshChannelType,
          type MeshData, type BakeLight } from 'esengine';
-import { bakeSceneLightmap, bakeSceneLightmapParallel, type SceneBakeInput } from '../src/assets/lightmapBake';
+import { bakeSceneLightmap, bakeSceneLightmapParallel, statsOf, TO_LINEAR, type SceneBakeInput }
+    from '../src/assets/lightmapBake';
+import { PNG } from 'pngjs';
 import { BakeKernelExecutor } from '../src/assets/lightmapKernel';
 import { encodeRgbaPng } from '../src/assets/png';
 import { decodeRgbaPng } from '../src/assets/tilesetExtrude';
@@ -104,6 +106,33 @@ function worstTexel(pngA: Uint8Array, pngB: Uint8Array): { worst: number; differ
 }
 
 describe('the C++ bake kernel', () => {
+    it('averages a texture as the TypeScript does, bit for bit', async () => {
+        const w = 37, h = 23;
+        const rgba = new Uint8Array(w * h * 4);
+        for (let i = 0; i < rgba.length; i++) rgba[i] = (i * 2654435761 >>> 7) & 255;
+        const files: string[] = [];
+        const kinds: Array<[number, number]> = [[6, 8], [2, 8], [0, 8], [4, 8], [6, 16]];
+        for (const [colorType, bitDepth] of kinds) {
+            const png = new PNG({ width: w, height: h });
+            Buffer.from(rgba).copy(png.data);
+            const file = path.join(dir, `tex-${colorType}-${bitDepth}.png`);
+            await writeFile(file, PNG.sync.write(png, { colorType, bitDepth, inputHasAlpha: true } as never));
+            files.push(file);
+        }
+        const notPng = path.join(dir, 'not.png');
+        await writeFile(notPng, 'not a png');
+        files.push(notPng);
+        for (const cutoff of [0, 0.5, 128 / 255]) {
+            const got = await kernel.textureStats(files, files.map(() => cutoff), TO_LINEAR);
+            files.forEach((file, i) => {
+                if (kinds[i]?.[1] === 16 || file === notPng) {
+                    expect(got[i]).toBeUndefined();
+                    return;
+                }
+                expect(got[i]).toEqual(statsOf(file, cutoff));
+            });
+        }
+    });
     for (const sky of [false, true]) {
         it(`bakes what the TypeScript solve bakes (${sky ? 'SH' : 'flat'} sky)`, async () => {
             const ts = bakeSceneLightmap(scene(sky));
@@ -128,4 +157,5 @@ describe('the C++ bake kernel', () => {
             saved.threads = threads;
         }
     });
+
 });
