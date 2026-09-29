@@ -339,19 +339,15 @@ async function bakeScene(baker, meta, sceneFile, check) {
     reflections: reflectionProbes.map((p) => p.center),
     ambient, options,
   });
-  // Each pass split across every core but one: a lumel is solved on its own.
-  const worker = await bundlePipeline(path.join(PIPELINE, 'src', 'assets', 'lightmapWorker.ts'),
-                                      'lightmapWorker.mjs');
-  const pool = new baker.BakePool(worker.outfile);
+  const kernel = await baker.BakeKernelExecutor.load();
   let result;
   try {
     result = await baker.bakeSceneLightmapParallel({
       surfaces, lights, probeVolumes: volumes, reflectionProbes, environment,
       options: { ...options, ambient },
-    }, pool);
+    }, kernel);
   } finally {
-    await pool.close();
-    worker.cleanup();
+    await kernel.close();
   }
   for (const w of result.warnings) console.warn(`  ! ${w}`);
 
@@ -566,7 +562,8 @@ async function bundlePipeline(entry, outName) {
     // load, which an ESM bundle has none of: inlined, the bundle dies before it
     // exports anything.
     external: ['esbuild', 'electron', 'sharp', 'draco3dgltf', 'typescript',
-      '../../../build-tools/basis/encoder.mjs', '../../../build-tools/ufbx/reader.mjs'],
+      '../../../build-tools/basis/encoder.mjs', '../../../build-tools/ufbx/reader.mjs',
+      '../../../build-tools/lightmap/kernel.mjs'],
     logLevel: 'error',
     banner: {
       js: "import { createRequire as __esCreateRequire } from 'node:module';\n"

@@ -10,22 +10,10 @@
  * cost of the pass.
  */
 
-import { plainAlloc, type BakeAlloc } from './alloc';
-
 /** Triangles as `9 * count` floats: three world-space corners each. */
 export interface TriangleSoup {
     positions: Float32Array;
     count: number;
-}
-
-/** A built tree as plain arrays, which another thread can walk without rebuilding. */
-export interface BvhParts {
-    tris: TriangleSoup;
-    bounds: Float32Array;
-    node: Int32Array;
-    order: Int32Array;
-    used: number;
-    depth: number;
 }
 
 const LEAF_TRIS = 4;
@@ -48,31 +36,16 @@ export class Bvh {
      *  fixed stack drops the deepest ones without a word. */
     private readonly stack: Int32Array;
 
-    constructor(tris: TriangleSoup | BvhParts, alloc: BakeAlloc = plainAlloc) {
-        if ('bounds' in tris) {
-            this.tris = tris.tris;
-            this.order = tris.order;
-            this.bounds = tris.bounds;
-            this.node = tris.node;
-            this.used = tris.used;
-            this.depth = tris.depth;
-        } else {
-            this.tris = tris;
-            this.order = alloc.i32(tris.count);
-            for (let i = 0; i < tris.count; i++) this.order[i] = i;
-            const maxNodes = Math.max(1, tris.count * 2);
-            this.bounds = alloc.f32(maxNodes * 6);
-            this.node = alloc.i32(maxNodes * 2);
-            this.used = 1;
-            this.build(0, 0, tris.count, 0);
-        }
+    constructor(tris: TriangleSoup) {
+        this.tris = tris;
+        this.order = new Int32Array(tris.count);
+        for (let i = 0; i < tris.count; i++) this.order[i] = i;
+        const maxNodes = Math.max(1, tris.count * 2);
+        this.bounds = new Float32Array(maxNodes * 6);
+        this.node = new Int32Array(maxNodes * 2);
+        this.used = 1;
+        this.build(0, 0, tris.count, 0);
         this.stack = new Int32Array(this.depth + 2);
-    }
-
-    /** The tree as arrays, to walk from another thread with `new Bvh(parts)`. */
-    parts(): BvhParts {
-        return { tris: this.tris, bounds: this.bounds, node: this.node, order: this.order,
-                 used: this.used, depth: this.depth };
     }
 
     private centroid(tri: number, axis: number): number {
@@ -195,6 +168,9 @@ export class Bvh {
                 const t = this.intersect(tri, ox, oy, oz, dx, dy, dz, epsilon, bestT);
                 if (t < 0) continue;
                 if (anyHit) { this.hitDistance = t; return tri; }
+                // A tie goes to the lower index, so the answer is the geometry's and
+                // not the order a tree happens to visit coincident triangles in.
+                if (t === bestT && (best < 0 || tri > best)) continue;
                 bestT = t; best = tri;
                 this.hitU = this.lastU; this.hitV = this.lastV;
             }
@@ -225,7 +201,7 @@ export class Bvh {
         const v = f * (dx * qx + dy * qy + dz * qz);
         if (v < 0 || u + v > 1) return -1;
         const t = f * (e2x * qx + e2y * qy + e2z * qz);
-        if (t <= epsilon || t >= far) return -1;
+        if (t <= epsilon || t > far) return -1;
         this.lastU = u; this.lastV = v;
         return t;
     }

@@ -1279,9 +1279,13 @@ export const NOTED = {
   'feat(bake): baked light is a lit surface\'s indirect light':
     { note: 'Baked light is a lit surface\'s indirect light' },
   'perf(bake): a bake uses every core':
-    { note: 'A bake uses every core' },
+    { note: 'A bake uses every core, in C++' },
   'perf(bake): the editor bakes on every core':
-    { note: 'A bake uses every core' },
+    { note: 'A bake uses every core, in C++' },
+  'perf(bake): the rays of a bake run in a C++ kernel on every core':
+    { note: 'A bake uses every core, in C++' },
+  'perf(bake): the editor bakes through the C++ kernel':
+    { note: 'A bake uses every core, in C++' },
   'fix(bake): a coloured light bakes the colour it lights with':
     { note: 'A coloured light bakes the colour it lights with' },
   'fix(bake): the collector reads the colour space from the engine host':

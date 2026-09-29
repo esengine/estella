@@ -15,10 +15,8 @@ import {
     layoutAtlas, rasterizeLumels, atlasDemand, SPARSE_LIGHTMAP_UV, type BakeSurface, type SurfacePatch,
 } from './atlas';
 import { solveDirect, solveGather, type BakeLight, type HitLookup } from './solve';
-import { plainAlloc, adopt, type BakeAlloc } from './alloc';
 import { skyRadiance, type SkySpec } from './sky';
 import type { LumelField } from './atlas';
-import type { BvhParts } from './bvh';
 import { solveProbes, type ProbeGrid } from './probes';
 import { captureReflection, flatSky, type CapturedPanorama, type SkyRadiance }
     from './reflection';
@@ -104,18 +102,17 @@ const chan = (m: MeshData, s: number): MeshChannelDesc | undefined =>
 
 /** Every surface's triangles in world space, plus what a ray hit has to know. */
 function collect(surfaces: readonly BakeSurface[], patches: readonly SurfacePatch[],
-                 size: number, texelsPerUnit: number,
-                 alloc: BakeAlloc): { soup: TriangleSoup; lookup: HitLookup } {
+                 size: number, texelsPerUnit: number): { soup: TriangleSoup; lookup: HitLookup } {
     let total = 0;
     for (const s of surfaces) total += Math.floor(s.mesh.indices.length / 3);
-    const positions = alloc.f32(total * 9);
-    const triUV = alloc.f32(total * 6);
-    const triSurface = alloc.i32(total);
-    const patch = alloc.f32(surfaces.length * 4);
-    const albedo = alloc.f32(surfaces.length * 3);
-    const triNormal = alloc.f32(total * 3);
-    const twoSided = alloc.u8(surfaces.length);
-    const coverage = alloc.f32(surfaces.length);
+    const positions = new Float32Array(total * 9);
+    const triUV = new Float32Array(total * 6);
+    const triSurface = new Int32Array(total);
+    const patch = new Float32Array(surfaces.length * 4);
+    const albedo = new Float32Array(surfaces.length * 3);
+    const triNormal = new Float32Array(total * 3);
+    const twoSided = new Uint8Array(surfaces.length);
+    const coverage = new Float32Array(surfaces.length);
 
     let at = 0;
     for (let s = 0; s < surfaces.length; s++) {
@@ -267,7 +264,7 @@ function refusal(surfaces: readonly BakeSurface[], size: number, texelsPerUnit: 
 /** Everything a solve step reads, as arrays another thread can be handed. */
 export interface BakeScene {
     lumels: LumelField;
-    bvh: BvhParts;
+    tris: TriangleSoup;
     lookup: HitLookup;
     lights: readonly BakeLight[];
     sky: SkySpec | SkyRadiance;
@@ -288,7 +285,7 @@ export interface BakeStep {
 
 /** Runs jobs against one scene over any range of its lumels; one per thread. */
 export function bakeRunner(scene: BakeScene): (job: BakeJob, from: number, to: number) => void {
-    const bvh = new Bvh(scene.bvh);
+    const bvh = new Bvh(scene.tris);
     const sky = typeof scene.sky === 'function' ? scene.sky : skyRadiance(scene.sky);
     return (job, from, to) => {
         if (job.kind === 'direct') solveDirect(scene.lumels, bvh, scene.lookup, scene.lights, job.out, from, to);
@@ -298,41 +295,30 @@ export function bakeRunner(scene: BakeScene): (job: BakeJob, from: number, to: n
 
 /**
  * A bake as its passes, in order: the driver runs each yielded job over every
- * lumel, on one thread or many, before asking for the next; `alloc` decides where
- * a job's arrays live. Throws when the surfaces do not fit rather than shrinking
+ * lumel, on one thread or many, before asking for the next. Throws when the surfaces do not fit rather than shrinking
  * one, which would light it at a different resolution from its neighbours.
  */
 export function* bakeLightmapSteps(surfaces: readonly BakeSurface[], lights: readonly BakeLight[],
-                                   options: BakeOptions = {},
-                                   alloc: BakeAlloc = plainAlloc): Generator<BakeStep, BakeResult, void> {
+                                   options: BakeOptions = {}): Generator<BakeStep, BakeResult, void> {
     const opts = { ...BAKE_DEFAULTS, ...options };
     const size = opts.atlasSize;
     const patches = layoutAtlas(surfaces, size, opts.texelsPerUnit);
     if (!patches) throw new Error(refusal(surfaces, size, opts.texelsPerUnit));
-    const raster = rasterizeLumels(surfaces, patches, size);
-    const lumels: LumelField = {
-        count: raster.count,
-        position: adopt(raster.position, alloc),
-        normal: adopt(raster.normal, alloc),
-        texel: adopt(raster.texel, alloc),
-        surface: adopt(raster.surface, alloc),
-        shared: raster.shared,
-    };
-    const { soup, lookup } = collect(surfaces, patches, size, opts.texelsPerUnit, alloc);
-    const bvh = new Bvh(soup, alloc);
+    const lumels = rasterizeLumels(surfaces, patches, size);
+    const { soup, lookup } = collect(surfaces, patches, size, opts.texelsPerUnit);
     const skyOf = options.sky ?? { kind: 'flat', rgb: opts.ambient };
-    const scene: BakeScene = { lumels, bvh: bvh.parts(), lookup, lights, sky: skyOf,
+    const scene: BakeScene = { lumels, tris: soup, lookup, lights, sky: skyOf,
                                atlasSize: size, samples: opts.samples };
     const sky = typeof skyOf === 'function' ? skyOf : skyRadiance(skyOf);
 
-    const direct = alloc.f32(lumels.count * 3);
+    const direct = new Float32Array(lumels.count * 3);
     yield { scene, job: { kind: 'direct', out: direct } };
 
     // Each pass gathers against what every texel gave off after the pass before,
     // so pass n carries light n surfaces along. With no bounce the surfaces give
     // off nothing and the pass is the sky alone, still shadowed by them.
-    const outgoing = alloc.f32(size * size * 3);
-    const indirect = alloc.f32(lumels.count * 3);
+    const outgoing = new Float32Array(size * size * 3);
+    const indirect = new Float32Array(lumels.count * 3);
     for (let pass = 0; pass < Math.max(1, opts.bounces); pass++) {
         if (opts.bounces > 0) {
             for (let i = 0; i < lumels.count; i++) {
@@ -364,15 +350,17 @@ export function* bakeLightmapSteps(surfaces: readonly BakeSurface[], lights: rea
 
     // The probes read the atlas as a gather does — after it holds everything the
     // surfaces ended up giving off, and before it is quantised to eight bits.
+    let built: Bvh | null = null;
+    const bvh = (): Bvh => (built ??= new Bvh(soup));
     const probes = opts.probeGrids.map((grid) =>
-        solveProbes(grid, bvh, lookup, radiance, size, opts.probeSamples, sky));
+        solveProbes(grid, bvh(), lookup, radiance, size, opts.probeSamples, sky));
 
     // Captured from the same field, after the same bounces: a reflection of a
     // wall and the light that wall casts are then the same number.
     const width = Math.max(8, opts.reflectionWidth);
     const captured = options.reflectionSky ?? flatSky(opts.ambient);
     const reflections = opts.reflectionProbes.map((at) =>
-        captureReflection(at, bvh, lookup, radiance, size, width, Math.max(4, width >> 1), captured));
+        captureReflection(at, bvh(), lookup, radiance, size, width, Math.max(4, width >> 1), captured));
 
     return {
         pixels,

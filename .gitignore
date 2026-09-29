@@ -88,6 +88,8 @@ pipeline/.hotupdate-verify/
 # emsdk and no FBX SDK. Source: tools/ufbx-wasm (third_party/ufbx);
 # provenance: build-tools/ufbx/README.md.
 !build-tools/ufbx/ufbx-load.wasm
+# The lightmap bake kernel: a bake needs no emsdk. Source: tools/lightmap-wasm.
+!build-tools/lightmap/lightmap-kernel.wasm
 
 # emsdk discovery cache (per-machine path written by build-tools auto-discovery)
 .emsdk-path

@@ -11,11 +11,11 @@
 import { readFileSync } from 'node:fs';
 import { PNG } from 'pngjs';
 import { bakeLightmapSteps, bakeRunner, decodeMesh, unwrapLightmapUV, builtinMeshTemplate, MeshChannel,
-         type MeshData, type BakeSurface, type BakeLight, type BakeOptions, type BakeAlloc,
+         type MeshData, type BakeSurface, type BakeLight, type BakeOptions,
          type BakeStep, type CapturedPanorama, type ProbeGrid } from 'esengine';
 import { encodeRgbaPng } from './png';
 
-export { BakePool } from './lightmapPool';
+export { BakeKernelExecutor } from './lightmapKernel';
 import { bakeSceneReflections, bakeSky, irradianceSky, type BakeEnvironment,
          type ReflectionBakeResult } from './reflectionBake';
 
@@ -260,17 +260,15 @@ export function bakeSceneLightmap(input: SceneBakeInput): SceneBakeResult {
     }
 }
 
-/** How {@link bakeSceneLightmapParallel} hands a pass to its threads. */
+/** What runs each pass of {@link bakeSceneLightmapParallel} over every lumel. */
 export interface BakeExecutor {
-    /** Where the arrays a pass touches must live for its threads to see them. */
-    alloc: BakeAlloc;
     run(step: BakeStep): Promise<void>;
 }
 
-/** {@link bakeSceneLightmap} with each pass split across `executor`'s threads. */
+/** {@link bakeSceneLightmap} with each pass run by `executor` across its threads. */
 export async function bakeSceneLightmapParallel(input: SceneBakeInput,
                                                 executor: BakeExecutor): Promise<SceneBakeResult> {
-    const steps = sceneBakeSteps(input, executor.alloc);
+    const steps = sceneBakeSteps(input);
     for (;;) {
         const next = steps.next();
         if (next.done) return next.value;
@@ -278,8 +276,7 @@ export async function bakeSceneLightmapParallel(input: SceneBakeInput,
     }
 }
 
-function* sceneBakeSteps(input: SceneBakeInput,
-                         alloc?: BakeAlloc): Generator<BakeStep, SceneBakeResult, void> {
+function* sceneBakeSteps(input: SceneBakeInput): Generator<BakeStep, SceneBakeResult, void> {
     const warnings: string[] = [];
     const surfaces: BakeSurface[] = [];
     const slot: number[] = [];
@@ -377,7 +374,7 @@ function* sceneBakeSteps(input: SceneBakeInput,
         // The volumes are still solved: a scene whose only light is ambient has
         // nothing to bake into an atlas and still has somewhere to stand.
         const empty = yield* bakeLightmapSteps([], input.lights,
-                                               { ...input.options, probeGrids: grids, ...reflectionOptions }, alloc);
+                                               { ...input.options, probeGrids: grids, ...reflectionOptions });
         gridSlot.forEach((at, k) => { probes[at] = asDocument(grids[k], empty.probes[k]); });
         return {
             atlasBytes: encodeRgbaPng(1, 1, new Uint8Array([0, 0, 0, 255])),
@@ -389,7 +386,7 @@ function* sceneBakeSteps(input: SceneBakeInput,
     }
 
     const result = yield* bakeLightmapSteps(surfaces, input.lights,
-                                            { ...input.options, probeGrids: grids, ...reflectionOptions }, alloc);
+                                            { ...input.options, probeGrids: grids, ...reflectionOptions });
     result.shared.forEach((share, k) => {
         if (share > 0.25) {
             warnings.push(`${surfaces[k]!.label ?? `surface ${k}`}: its lightmap UVs lay`
