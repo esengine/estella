@@ -1326,6 +1326,10 @@ export const NOTED = {
     { note: 'A model whose second UV set cannot be baked into' },
   'perf(renderer): a draw\'s uniform blocks are ranges of shared pages, uploaded once per pass':
     { note: 'A scene of thousands of meshes draws its first frame in seconds' },
+  'perf(editor): a texture unchanged since the last open is answered from its cache file':
+    { note: 'A large project opens in minutes, not half an hour' },
+  'refactor(assets): the texture cook reports the cache file it used':
+    { note: 'A large project opens in minutes, not half an hour' },
   'fix(eht): the generator writes LF on every platform':
     { internal: 'The engine header tool is a repository generator; on Windows it rewrote every generated file with CRLF, which only a contributor there ever saw.' },
 };

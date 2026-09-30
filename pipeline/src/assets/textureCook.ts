@@ -15,7 +15,7 @@ import {
   type TextureCookDecision,
 } from './textureCookDecision';
 import { halveRgba, joinMipLevels, alphaCoverage, preserveAlphaCoverage } from './ktx2Mips';
-import { cookCached, cookCacheHit, encoderIdentity } from './cookCache';
+import { cookCachedAt, cookCacheFile, cookCacheHitAt, encoderIdentity } from './cookCache';
 
 /** Targets the KTX2 the cook emits can transcode to at runtime (UASTC + ETC1S). */
 export const COMPRESSED_TARGETS = ['astc-4x4', 'etc2-rgba8', 's3tc-dxt5'];
@@ -125,6 +125,8 @@ export interface TextureCookOutput {
   defeatedByFormat: boolean;
   /** `cachedOnly`, and the encode this texture asks for has not been run. */
   pending?: boolean;
+  /** The cook-cache file the compressed output is kept in. */
+  cacheFile?: string;
 }
 
 /**
@@ -168,7 +170,6 @@ export async function cookTexture(input: TextureCookInput): Promise<TextureCookO
     if (cook.reason === 'not-raster') defeatedByFormat = true;
     else warnings.push(`${path}: ${explainTextureCook(cook, size)}`);
   }
-  let compressedFormats: string[] | undefined;
   // A texture that ships as an image ships the shrunk one.
   if (cook.selected === 'raw' && rgba) data = encodeRgbaPng(tw, th, rgba);
   if (cook.selected !== 'raw') {
@@ -187,11 +188,11 @@ export async function cookTexture(input: TextureCookInput): Promise<TextureCookO
       : rgba
         ? enc.encodeToKtx2({ type: enc.ImageType.RGBA, data: rgba, width: tw, height: th }, { mode, srgb: tex.srgb })
         : enc.encodeToKtx2({ type: enc.ImageType.PNG, data: source }, { mode, srgb: tex.srgb }));
-    const encoded = input.cachedOnly ? await cookCacheHit(root, key) : (await cookCached(root, key, produce)).bytes;
+    const file = cookCacheFile(root, key);
+    const encoded = input.cachedOnly ? await cookCacheHitAt(file) : (await cookCachedAt(file, produce)).bytes;
     if (!encoded) return { data, ext, cook, warnings, defeatedByFormat, pending: true };
-    data = encoded;
-    ext = '.ktx2';
-    compressedFormats = COMPRESSED_TARGETS;
+    return { data: encoded, ext: '.ktx2', cook, compressedFormats: COMPRESSED_TARGETS, warnings, defeatedByFormat,
+      cacheFile: file };
   }
-  return { data, ext, cook, compressedFormats, warnings, defeatedByFormat };
+  return { data, ext, cook, warnings, defeatedByFormat };
 }

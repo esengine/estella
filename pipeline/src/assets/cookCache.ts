@@ -25,14 +25,11 @@ export function encoderIdentity(encoderFile: string): string {
     }
 }
 
-/**
- * The bytes `produce` makes for these inputs, from the cache when an earlier
- * cook made them. A cache that cannot be written is only slower, never wrong.
- */
 /** Concurrent cooks in one process can produce the same key; each writes its own temp file. */
 let tmpSerial = 0;
 
-function cacheFile(root: string, inputs: ReadonlyArray<Uint8Array | string>): string {
+/** Where the cache keeps what these inputs cook to — whether or not it holds it yet. */
+export function cookCacheFile(root: string, inputs: ReadonlyArray<Uint8Array | string>): string {
     const h = createHash('sha256');
     for (const part of inputs) {
         h.update(typeof part === 'string' ? `s${part.length}:${part}` : `b${part.byteLength}:`);
@@ -41,17 +38,20 @@ function cacheFile(root: string, inputs: ReadonlyArray<Uint8Array | string>): st
     return path.join(root, CACHE_DIR, `${h.digest('hex')}.bin`);
 }
 
-/** What an earlier cook made for these inputs, or null — never produces. */
-export async function cookCacheHit(root: string, inputs: ReadonlyArray<Uint8Array | string>): Promise<Uint8Array | null> {
-    const file = cacheFile(root, inputs);
-    return existsSync(file) ? new Uint8Array(await readFile(file)) : null;
+/** What an earlier cook left at @p file, or null — never produces. */
+export async function cookCacheHitAt(file: string): Promise<Uint8Array | null> {
+    return existsSync(file) ? await readFile(file) : null;
 }
 
-export async function cookCached(
-    root: string, inputs: ReadonlyArray<Uint8Array | string>, produce: () => Promise<Uint8Array>,
+/**
+ * The bytes `produce` makes for the inputs @p file was named by, from the cache
+ * when an earlier cook made them. A cache that cannot be written is only slower,
+ * never wrong.
+ */
+export async function cookCachedAt(
+    file: string, produce: () => Promise<Uint8Array>,
 ): Promise<{ bytes: Uint8Array; hit: boolean }> {
-    const file = cacheFile(root, inputs);
-    if (existsSync(file)) return { bytes: new Uint8Array(await readFile(file)), hit: true };
+    if (existsSync(file)) return { bytes: await readFile(file), hit: true };
     const bytes = await produce();
     try {
         await mkdir(path.dirname(file), { recursive: true });
@@ -60,4 +60,10 @@ export async function cookCached(
         await rename(tmp, file);
     } catch { /* a read-only project cooks every time */ }
     return { bytes, hit: false };
+}
+
+export function cookCached(
+    root: string, inputs: ReadonlyArray<Uint8Array | string>, produce: () => Promise<Uint8Array>,
+): Promise<{ bytes: Uint8Array; hit: boolean }> {
+    return cookCachedAt(cookCacheFile(root, inputs), produce);
 }
