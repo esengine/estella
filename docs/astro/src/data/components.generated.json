@@ -2098,6 +2098,12 @@
           "advanced": true
         },
         {
+          "key": "followEnvironmentSun",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Take direction and strength from the environment's sun, and light the sky without it."
+        },
+        {
           "key": "environment",
           "type": "Asset<environment>",
           "default": "none",
