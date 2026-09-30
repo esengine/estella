@@ -1308,6 +1308,8 @@ export const NOTED = {
     { note: 'A large project opens in minutes, not half an hour' },
   'refactor(assets): one texture cook for a build and the editor':
     { note: 'A large project opens in minutes, not half an hour' },
+  'fix(gates): texture-format reads the cook where the texture decision now lives':
+    { internal: 'a static gate reading moved source; nothing a creator runs changes' },
   'fix(bake): a coloured light bakes the colour it lights with':
     { note: 'A coloured light bakes the colour it lights with' },
   'fix(bake): the collector reads the colour space from the engine host':

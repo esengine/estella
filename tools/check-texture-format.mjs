@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DECIDE = 'pipeline/src/assets/textureCookDecision.ts';
 const COOK = 'pipeline/src/assets/cookAssets.ts';
+const TEXTURE_COOK = 'pipeline/src/assets/textureCook.ts';
 const COMPRESSED = 'sdk/src/asset/compressed.ts';
 const LOADER = 'sdk/src/asset/loaders/TextureLoader.ts';
 const NATIVE = 'native/host/media/ktx2_decode.cpp';
@@ -35,7 +36,9 @@ const problems = [];
 
 // ---------------------------------------------------------------- cook (build)
 const decide = read(DECIDE);
-const cook = read(COOK);
+// One texture's decision and encode live in textureCook (shared with the editor);
+// the manifest that records it is written by cookAssets. The build is both.
+const cook = `${read(COOK)}\n${read(TEXTURE_COOK)}`;
 
 // The reasons are the product. Collapsing two into one is the failure this whole
 // record exists to prevent, so the vocabulary is read from the source and every
@@ -47,15 +50,15 @@ if (COOK_REASONS.length < 6) {
 }
 
 if (!/decideTextureCook\(\{/.test(cook)) {
-  problems.push(`${COOK} no longer calls decideTextureCook — a cook that works the choice out again`
+  problems.push(`${TEXTURE_COOK} no longer calls decideTextureCook — a cook that works the choice out again`
     + ' is a second answer to the question the Inspector asks before a build runs');
 }
 if (/%\s*4\s*===\s*0/.test(cook)) {
-  problems.push(`${COOK} tests block alignment itself — that rule belongs to the decision, and a`
+  problems.push(`the cook (${COOK}, ${TEXTURE_COOK}) tests block alignment itself — that rule belongs to the decision, and a`
     + ' second copy of it is what makes a prediction agree with the build until it does not');
 }
 if (!/cook\.selected !== 'raw'/.test(cook)) {
-  problems.push(`${COOK} does not gate the encode on the recorded decision — an encode condition`
+  problems.push(`${TEXTURE_COOK} does not gate the encode on the recorded decision — an encode condition`
     + ' beside the record is how the two come to disagree about what shipped');
 }
 if (!/cook: frameCook/.test(cook) || !/\.\.\.\(cook \? \{ cook \} : \{\}\)/.test(cook)) {
@@ -63,7 +66,7 @@ if (!/cook: frameCook/.test(cook) || !/\.\.\.\(cook \? \{ cook \} : \{\}\)/.test
     + ' says a payload can transcode and can never say why one is absent');
 }
 if (!/cookIntentDefeated/.test(cook)) {
-  problems.push(`${COOK} warns about nothing: a request that survived every dialog and lost to the`
+  problems.push(`the cook (${COOK}, ${TEXTURE_COOK}) warns about nothing: a request that survived every dialog and lost to the`
     + ' image or to the folder it sits in is exactly the silent case');
 }
 
