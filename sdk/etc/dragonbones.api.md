@@ -138,6 +138,7 @@ update: (instanceId: number, dt: number) => void
 ## RuntimeAssetSource — interface @experimental
 ```
 backend: Backend
+compressedTexture: ((path: string) => Promise<Uint8Array | "pending" | null>) | undefined
 decodePixels: (path: string, flip: boolean) => Promise<{ width: number; height: number; pixels: Uint8Array; }>
 listAssetPaths: (() => string[]) | undefined
 resolveAddress: ((ref: string) => string | null) | undefined

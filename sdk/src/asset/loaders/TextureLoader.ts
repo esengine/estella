@@ -34,6 +34,17 @@ export type TexturePixelDecoder = (
 ) => Promise<{ width: number; height: number; pixels: Uint8Array }>;
 
 /**
+ * Where a host keeps its textures GPU-compressed: the KTX2 for `path`, `'pending'`
+ * while it is being made, or null for one that is not. A pending texture is drawn
+ * from a preview no larger than {@link TEXTURE_PREVIEW_EDGE}, so art still being
+ * compressed is not held in video memory in full.
+ */
+export type TextureCompressedSource = (path: string) => Promise<Uint8Array | 'pending' | null>;
+
+/** The longest edge a texture waiting for its compressed form is drawn at. */
+export const TEXTURE_PREVIEW_EDGE = 1024;
+
+/**
  * Texture import-time settings. Applied when the GL texture is first uploaded,
  * because WebGL sampler state lives on the texture object — the only way to
  * change filter/wrap after the fact is to hold the GL texture id and call
@@ -140,6 +151,10 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     setPixelDecoder(decoder: TexturePixelDecoder | null): void { this.pixelDecoder_ = decoder; }
     get pixelDecoder(): TexturePixelDecoder | null { return this.pixelDecoder_; }
 
+    /** Compressed-texture source (see {@link TextureCompressedSource}). */
+    private compressedSource_: TextureCompressedSource | null = null;
+    setCompressedSource(source: TextureCompressedSource | null): void { this.compressedSource_ = source; }
+
     async load(path: string, ctx: LoadContext): Promise<TextureResult> {
         const settings = this.pendingSettings_;
         this.pendingSettings_ = undefined;
@@ -214,7 +229,14 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     ): Promise<TextureResult> {
         this.lastDecision_ = RAW_PAYLOAD_UPLOAD;
         if (isKtx2Path(path)) {
-            return this.loadCompressed(path, ctx, settings);
+            const buf = await ctx.backend.fetchBinary(ctx.catalog.getBuildPath(path));
+            return this.uploadKtx2_(path, new Uint8Array(buf), settings);
+        }
+        let preview = false;
+        if (this.compressedSource_) {
+            const compressed = await this.compressedSource_(path);
+            if (compressed instanceof Uint8Array) return this.uploadKtx2_(path, compressed, settings);
+            preview = compressed === 'pending';
         }
         // A platform pixel decoder (runtime scene loader) pre-decodes to RGBA and
         // uploads through the shared createTexture path — the same code the old
@@ -225,20 +247,18 @@ export class TextureLoader implements AssetLoader<TextureResult> {
             return { handle, width: result.width, height: result.height };
         }
         const url = ctx.backend.resolveUrl(ctx.catalog.getBuildPath(path));
-        const img = await this.loadImage(url, flip);
+        const img = await this.loadImage(url, flip, preview ? TEXTURE_PREVIEW_EDGE : 0);
         return this.createTextureFromImage(img, flip, settings);
     }
 
     /**
-     * Load a KTX2 (Basis) compressed texture: fetch the container, transcode to a
-     * device-supported GPU format (or RGBA8 fallback), and upload. KTX2 carries its
-     * own orientation, so the `flip` flag does not apply.
+     * Upload a KTX2 (Basis) compressed texture: transcode to a device-supported GPU
+     * format (or RGBA8 fallback), and upload. KTX2 carries its own orientation, so
+     * the `flip` flag does not apply.
      */
-    private async loadCompressed(
-        path: string, ctx: LoadContext, settings?: TextureImportSettings,
+    private async uploadKtx2_(
+        path: string, bytes: Uint8Array, settings?: TextureImportSettings,
     ): Promise<TextureResult> {
-        const buf = await ctx.backend.fetchBinary(ctx.catalog.getBuildPath(path));
-        const bytes = new Uint8Array(buf);
         if (!isKtx2(bytes)) throw new Error(`TextureLoader: ${path} is not a KTX2 file`);
         // Native (embedded Dawn): the ResourceManager transcodes the KTX2 with the
         // host's basis library and uploads the compressed blocks — no WebGL2, no
@@ -324,14 +344,27 @@ export class TextureLoader implements AssetLoader<TextureResult> {
      * on it uploads every texture upside-down. The raw `<img>` fallback keeps the
      * flag (it works for element/pixel sources) — see {@link createTextureFromImage}.
      */
-    private loadImage(src: string, flip: boolean): Promise<PlatformImage | ImageBitmap> {
+    private loadImage(src: string, flip: boolean, maxEdge = 0): Promise<PlatformImage | ImageBitmap> {
         return new Promise((resolve, reject) => {
             const img = platformCreateImage();
             img.crossOrigin = 'anonymous';
             img.onload = async () => {
                 if (typeof createImageBitmap !== 'undefined') {
                     try {
-                        resolve(await decodeImageBitmap(img, flip));
+                        const bitmap = await decodeImageBitmap(img, flip);
+                        const longest = Math.max(bitmap.width, bitmap.height);
+                        if (maxEdge > 0 && longest > maxEdge) {
+                            const k = maxEdge / longest;
+                            const smaller = await createImageBitmap(bitmap, {
+                                resizeWidth: Math.max(1, Math.round(bitmap.width * k)),
+                                resizeHeight: Math.max(1, Math.round(bitmap.height * k)),
+                                resizeQuality: 'high',
+                            });
+                            bitmap.close();
+                            resolve(smaller);
+                            return;
+                        }
+                        resolve(bitmap);
                         return;
                     } catch {
                         // fallback

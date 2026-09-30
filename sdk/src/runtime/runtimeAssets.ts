@@ -43,6 +43,12 @@ export interface RuntimeAssetSource {
      */
     resolveAddress?(ref: string): string | null;
     /**
+     * A texture as its host keeps it GPU-compressed (TextureLoader's
+     * `TextureCompressedSource`). The editor's play realm supplies it, so the
+     * running game holds the art compressed as the edit viewport does.
+     */
+    compressedTexture?(path: string): Promise<Uint8Array | 'pending' | null>;
+    /**
      * Every asset path this realm ships (logical, extension-bearing). Powers
      * content-driven discovery of assets NO scene references — locale string
      * tables (`.eslocale`), which Text binds by KEY, not path. Optional: a

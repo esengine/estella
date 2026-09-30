@@ -4582,6 +4582,7 @@ spacing: number
 ## LightStatus — interface @experimental
 ```
 accepted: boolean
+environmentSunAim: [number, number, number] | null
 limit: number
 refusal: "none" | "capacity" | "no-environment-sun"
 refusedCount: number
@@ -6194,6 +6195,7 @@ assetPathMap: Record<string, string> | undefined
 audioConfig: AudioProjectConfig | undefined
 canvas: HTMLCanvasElement
 catalogData: CatalogData | null | undefined
+compressedTexture: ((path: string) => Promise<Uint8Array | "pending" | null>) | undefined
 enableStats: boolean | undefined
 entrySceneName: string | undefined
 extraScenes: { name: string; data?: SceneData; path?: string; }[] | undefined
@@ -7091,6 +7093,7 @@ rotation: Quat
 ## RuntimeAssetSource — interface @experimental
 ```
 backend: Backend
+compressedTexture: ((path: string) => Promise<Uint8Array | "pending" | null>) | undefined
 decodePixels: (path: string, flip: boolean) => Promise<{ width: number; height: number; pixels: Uint8Array; }>
 listAssetPaths: (() => string[]) | undefined
 resolveAddress: ((ref: string) => string | null) | undefined

@@ -116,6 +116,7 @@ function ensureRuntimeAssets(
 
     const loader = assets.getTextureLoader();
     loader.setPixelDecoder((path, flip) => source.decodePixels(path, flip));
+    if (source.compressedTexture) loader.setCompressedSource((path) => source.compressedTexture!(path));
     // KTX2 transcoder, self-gated off app.sideModules — identical wiring to
     // AssetPlugin.build so eager + on-demand loads transcode the same way.
     loader.setTranscoderProvider(() => basisTranscoderFor(app.sideModules));

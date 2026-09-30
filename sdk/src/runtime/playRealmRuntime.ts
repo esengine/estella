@@ -40,6 +40,8 @@ export interface PlayRealmRuntimeConfig {
     canvas: HTMLCanvasElement;
     /** The current scene as RAW (`@uuid:`) SceneData — handles are realm-local. */
     sceneData: SceneData;
+    /** Where the host keeps this realm's textures compressed (RuntimeAssetSource). */
+    compressedTexture?: RuntimeAssetSource['compressedTexture'];
     /** Additional switchable scenes beyond the entry (SceneManager targets).
      *  `path` entries load lazily through the runtime Assets on first switch. */
     extraScenes?: Array<{ name: string; data?: SceneData; path?: string }>;
@@ -161,10 +163,12 @@ function createPlayRealmSource(
     assetBaseUrl?: string,
     pathMap?: Record<string, string>,
     addressable?: AddressableManifest | null,
+    compressedTexture?: RuntimeAssetSource['compressedTexture'],
 ): RuntimeAssetSource {
     const backend = new HttpBackend({ baseUrl: '' });
     return {
         backend,
+        ...(compressedTexture ? { compressedTexture } : {}),
         decodePixels: (path) => fetchDecodePixels(backend.resolveUrl(path)),
         resolveRef: (ref) => resolvePlayAssetRef(ref, manifest, assetBaseUrl, pathMap),
         // Cooked builds: logical paths (the pathMap keys). Editor play: the
@@ -218,7 +222,8 @@ export async function cutPlayWorld(
  */
 export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Promise<void> {
     const { app, module, canvas, sceneData, assetManifest, assetBaseUrl } = config;
-    const source = createPlayRealmSource(assetManifest, assetBaseUrl, config.assetPathMap, config.manifest);
+    const source = createPlayRealmSource(assetManifest, assetBaseUrl, config.assetPathMap, config.manifest,
+                                         config.compressedTexture);
     applyAssetRefResolvers(app, (ref) => resolvePlayAssetRef(ref, assetManifest, assetBaseUrl, config.assetPathMap));
     const entryName = config.entrySceneName ?? '__play';
     const cut = await cutPlayWorld(

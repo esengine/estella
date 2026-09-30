@@ -1304,6 +1304,10 @@ export const NOTED = {
     { note: 'A directional light can be the environment\'s sun' },
   'fix(bake-scene): a scene of prefab instances is refused, not crashed on':
     { note: '`bake-scene` refuses a scene made of prefab instances instead of crashing on it' },
+  'fix(editor): the viewport draws textures compressed, as a build ships them':
+    { note: 'A large project opens in minutes, not half an hour' },
+  'refactor(assets): one texture cook for a build and the editor':
+    { note: 'A large project opens in minutes, not half an hour' },
   'fix(bake): a coloured light bakes the colour it lights with':
     { note: 'A coloured light bakes the colour it lights with' },
   'fix(bake): the collector reads the colour space from the engine host':
