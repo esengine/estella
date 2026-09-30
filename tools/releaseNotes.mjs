@@ -1324,6 +1324,8 @@ export const NOTED = {
     { note: 'A coloured light bakes the colour it lights with' },
   'fix(bake): texels on an edge two triangles share are not an overlap':
     { note: 'A model whose second UV set cannot be baked into' },
+  'perf(renderer): a draw\'s uniform blocks are ranges of shared pages, uploaded once per pass':
+    { note: 'A scene of thousands of meshes draws its first frame in seconds' },
   'fix(eht): the generator writes LF on every platform':
     { internal: 'The engine header tool is a repository generator; on Windows it rewrote every generated file with CRLF, which only a contributor there ever saw.' },
 };
