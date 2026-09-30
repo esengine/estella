@@ -14,7 +14,7 @@ import { describe, it, expect } from 'vitest';
 import {
   decodeRadianceHdr, projectIrradianceSH, evalIrradianceSH, samplePanorama,
   octEncode, octDecode, encodeRgbm, decodeRgbm, atlasLayout, prefilterOctahedral,
-  importEnvironment, mipCountFor, ENV_MAX_RANGE, encodeSkyPanorama,
+  importEnvironment, mipCountFor, ENV_MAX_RANGE, encodeSkyPanorama, separateSun,
   type Panorama,
 } from '../src/assets/environmentImport';
 
@@ -295,3 +295,42 @@ describe('panorama sampling', () => {
     expect(out[0]).toBeCloseTo(3.5, 1);
   });
 });
+
+describe('the sun an import separates from its sky', () => {
+  const W = 128, H = 64;
+  // One texel of sun above a dim sky, sized to give irradiance/pi of 1 facing it.
+  const sunAt = [43, 12] as const;
+  const sa = Math.sin((sunAt[1] + 0.5) * Math.PI / H) * (Math.PI / H) * (2 * Math.PI / W);
+  const sky = (x: number, y: number): [number, number, number] =>
+    x === sunAt[0] && y === sunAt[1] ? [Math.PI / sa, 0.5 * Math.PI / sa, 0.25 * Math.PI / sa]
+      : y < H / 2 ? [0.15, 0.15, 0.15] : [0.02, 0.02, 0.02];
+
+  it('finds it where it is, as bright as it is, and leaves the sky without it', () => {
+    const doc = importEnvironment(flatHdr(W, H, sky), 'sunny', { faceSize: 8, skyWidth: 0 }).document;
+    const sun = doc.sun!;
+    const phi = ((sunAt[0] + 0.5) / W - 0.5) * 2 * Math.PI, theta = (sunAt[1] + 0.5) / H * Math.PI;
+    const toward = [-Math.sin(theta) * Math.sin(phi), Math.cos(theta), Math.sin(theta) * Math.cos(phi)];
+    toward.forEach((c, i) => expect(sun.direction[i]).toBeCloseTo(c, 4));
+    // RGBE keeps eight bits of mantissa, so the texel comes back within a percent.
+    [1, 0.5, 0.25].forEach((c, i) => expect(sun.color[i]! / c).toBeCloseTo(1, 1));
+    // Up-facing, the sky alone is its radiance: what is left once the sun is out.
+    expect(sun.skyIrradiance[0]).toBeLessThan(doc.irradiance[0]! * 0.5);
+    const noSun = importEnvironment(flatHdr(W, H, (_x, y) => (y < H / 2 ? [0.15, 0.15, 0.15] : [0.02, 0.02, 0.02])),
+      'overcast', { faceSize: 8, skyWidth: 0 }).document;
+    for (let i = 0; i < 27; i++) expect(sun.skyIrradiance[i]).toBeCloseTo(noSun.irradiance[i]!, 2);
+  });
+
+  it('is not found in a sky with no compact source', () => {
+    const overcast = importEnvironment(flatHdr(W, H, (_x, y) => (y < H / 2 ? [1, 1, 1] : [0.1, 0.1, 0.1])),
+      'overcast', { faceSize: 8, skyWidth: 0 });
+    expect(overcast.document.sun).toBeUndefined();
+    // A bright WINDOW is a patch of sky: too wide for one direction to stand in for it.
+    const window = { rgb: new Float32Array(W * H * 3), width: W, height: H };
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const v = x > 40 && x < 80 && y > 10 && y < 30 ? 50 : 0.1;
+      window.rgb.set([v, v, v], (y * W + x) * 3);
+    }
+    expect(separateSun(window)).toBeNull();
+  });
+});
+

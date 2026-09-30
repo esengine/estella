@@ -22,6 +22,7 @@ export interface AuthoredLight {
     radius?: number;
     innerAngle?: number;
     outerAngle?: number;
+    followEnvironmentSun?: boolean;
     enabled?: boolean;
 }
 
@@ -78,6 +79,7 @@ export function bakeLightOf(authored: AuthoredLight | undefined,
             radius: kind === 'directional' ? undefined : (v.radius ?? 200),
             innerCos: cos(v.innerAngle ?? 30),
             outerCos: cos(v.outerAngle ?? 45),
+            ...(kind === 'directional' && v.followEnvironmentSun ? { followsEnvironmentSun: true } : {}),
         },
     };
 }

@@ -612,10 +612,10 @@ private:
     void collectReflections(ecs::Registry& registry);
 
     /// Makes this ambient light the frame's environment, when it names one that is
-    /// loaded. `scale` is the light's colour times its intensity, folded into the
-    /// coefficients — an environment is what the light casts, not a second source.
+    /// loaded; `scale` (colour times intensity) is folded into the coefficients.
+    /// @p withoutSun lights with the sky alone, where a light casts its sun.
     /// @return false when it names none, leaving the caller to add a flat term.
-    bool collectEnvironment(const ecs::Light& light, const glm::vec3& scale);
+    bool collectEnvironment(const ecs::Light& light, const glm::vec3& scale, bool withoutSun);
     /**
      * @brief Decides what the shadow pass will draw, without drawing any of it.
      *

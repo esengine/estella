@@ -44,6 +44,19 @@ public:
      *           reflection probe each — so one bound texture serves them all. */
     u32 columns = 1;
 
+    /** @brief The sun the importer found in the panorama: the one compact source
+     *  a directional light can stand in for. The irradiance above still carries
+     *  it, so a scene without such a light is lit as the photograph was; one with
+     *  a light following it takes @ref skyIrradiance instead, or the sun counts twice. */
+    bool hasSun = false;
+    /** Toward the sun, in the panorama's own frame (before any environment rotation). */
+    glm::vec3 sunDirection{0.0f, 1.0f, 0.0f};
+    /** The sun's irradiance over pi per channel — what a surface facing it adds to
+     *  albedo, the unit the coefficients are in and a light's colour times intensity is. */
+    glm::vec3 sunColor{0.0f};
+    /** The same nine coefficients with the sun's texels replaced by the sky around it. */
+    std::array<glm::vec3, 9> skyIrradiance{};
+
     bool hasSpecular() const { return specular.isValid() && mipCount > 0 && faceSize > 0.0f; }
 };
 

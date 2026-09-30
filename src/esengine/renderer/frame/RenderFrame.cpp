@@ -1218,13 +1218,52 @@ void RenderFrame::collectReflections(ecs::Registry& registry) {
         boxes, highest);
 }
 
+/// A direction in an environment's own frame, in the world's: the inverse of the
+/// shaders' envDirection, which turns a world direction by -yaw about +Y.
+static glm::vec3 environmentToWorld(const glm::vec3& d, f32 yawDegrees) {
+    const f32 a = glm::radians(yawDegrees);
+    const f32 c = std::cos(a), s = std::sin(a);
+    return {c * d.x + s * d.z, d.y, -s * d.x + c * d.z};
+}
+
 void RenderFrame::collectLights(ecs::Registry& registry) {
     LightStore& lights = context_.lights();
     lights.clear();
     shadow_casters_.clear();
+    light_cap_.clear();
     environment_texture_id_ = 0;
     sky_texture_id_ = 0;
     draw_sky_ = false;
+
+    // The frame's environment is decided before any light is: a directional light
+    // following its sun needs it, and whether one does decides which irradiance
+    // the environment lights with — so the answer cannot depend on registry order.
+    auto view = registry.view<ecs::Light>();
+    Entity skyLight{};
+    const Environment* sky = nullptr;
+    glm::vec3 skyScale(0.0f);
+    f32 skyYaw = 0.0f;
+    bool sunFollowed = false;
+    for (auto entity : view) {
+        const auto& light = view.get(entity);
+        if (!light.enabled || light.intensity <= 0.0f) continue;
+        const auto type = static_cast<ecs::LightType>(light.type);
+        if (type == ecs::LightType::Directional && light.followEnvironmentSun) sunFollowed = true;
+        if (sky || type != ecs::LightType::Ambient || !light.environment.isValid()) continue;
+        if (const Environment* environment = resource_manager_.getEnvironment(light.environment)) {
+            sky = environment;
+            skyLight = entity;
+            const glm::vec3 rgb = linear_color_ ? srgbToLinearCpu(glm::vec3{light.color})
+                                                : glm::vec3{light.color};
+            skyScale = rgb * light.intensity;
+            skyYaw = light.environmentRotation;
+        }
+    }
+    const bool sunCast = sunFollowed && sky && sky->hasSun;
+    if (sunCast) {
+        light_cap_.environmentSun = true;
+        light_cap_.environmentSunAim = -environmentToWorld(sky->sunDirection, skyYaw);
+    }
 
     // Gather non-ambient lights, then (if over the UBO's cap) keep the most intense — the
     // brightest contribute most, and an explicit importance cull beats silently dropping
@@ -1236,7 +1275,6 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
     // A light's Transform need is type-dependent. Ambient is a flat scene-wide term and
     // reads none of it; Directional takes only the rotation, so it works without one and
     // aims into the screen; Point/Spot need a position and are skipped without one.
-    auto view = registry.view<ecs::Light>();
     for (auto entity : view) {
         const auto& light = view.get(entity);
         if (!light.enabled || light.intensity <= 0.0f) continue;
@@ -1250,8 +1288,16 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
             // An environment REPLACES this light's flat term rather than adding to
             // it: its coefficients already carry the same colour, and summing both
             // would light the scene twice from one source.
-            if (collectEnvironment(light, rgb * light.intensity)) continue;
+            if (collectEnvironment(light, rgb * light.intensity,
+                                   sunCast && entity == skyLight)) continue;
             lights.addAmbient(rgb * light.intensity);
+            continue;
+        }
+
+        const bool followsSun = type == ecs::LightType::Directional && light.followEnvironmentSun;
+        if (followsSun && !sunCast) {
+            light_cap_.refused.push_back({entity, static_cast<u8>(type), light.intensity,
+                                          LightRefusal::NoEnvironmentSun});
             continue;
         }
 
@@ -1259,7 +1305,9 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
         bool castsMeshShadow = false;
         ShadowCaster caster;
         caster.light = entity;
-        gpu.color = glm::vec4(rgb, light.intensity);
+        // The sun is the environment's, so the ambient light's colour and intensity
+        // scale it as they scale the rest of the panorama; this light's own scale on top.
+        gpu.color = glm::vec4(followsSun ? sky->sunColor * skyScale * rgb : rgb, light.intensity);
         // shadow.x = penumbra softness (all types); shadow.y = directional march distance (only the
         // directional branch of shadowFactor2D reads it; 0 keeps directional shadows off).
         gpu.shadow = glm::vec4(std::max(light.shadowSoftness, 0.0f),
@@ -1274,7 +1322,8 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
             // z=1 flags directional (no attenuation) in the shader; w carries the aim's third
             // component, which only a directional light has a use for — point and spot spend
             // that slot on their falloff radius.
-            const glm::vec3 aim = lightForward(registry.tryGet<ecs::Transform>(entity));
+            const glm::vec3 aim = followsSun ? light_cap_.environmentSunAim
+                                             : lightForward(registry.tryGet<ecs::Transform>(entity));
             gpu.posDir = glm::vec4(aim.x, aim.y, 1.0f, aim.z);
             // A source infinitely far away has no half-extent a map can divide by a
             // distance, so what it carries is the angle it subtends — as its tangent,
@@ -1329,9 +1378,8 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
         collected.push_back({gpu, castsMeshShadow, caster});
     }
 
-    light_cap_.clear();
     light_cap_.limit = MAX_LIGHTS;
-    light_cap_.requested = static_cast<u32>(collected.size());
+    light_cap_.requested = static_cast<u32>(collected.size() + light_cap_.refused.size());
     if (collected.size() > MAX_LIGHTS) {
         std::partial_sort(collected.begin(), collected.begin() + MAX_LIGHTS, collected.end(),
                           [](const CollectedLight& a, const CollectedLight& b) {
@@ -1367,7 +1415,8 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
     collectShape2D(registry);
 }
 
-bool RenderFrame::collectEnvironment(const ecs::Light& light, const glm::vec3& scale) {
+bool RenderFrame::collectEnvironment(const ecs::Light& light, const glm::vec3& scale,
+                                     bool withoutSun) {
     if (!light.environment.isValid()) return false;
     const Environment* environment = resource_manager_.getEnvironment(light.environment);
     if (!environment) return false;
@@ -1381,7 +1430,8 @@ bool RenderFrame::collectEnvironment(const ecs::Light& light, const glm::vec3& s
     const glm::vec4 params{textureId != 0 ? 1.0f : 0.0f, environment->maxRange,
                            static_cast<f32>(environment->mipCount) - 1.0f,
                            environment->faceSize};
-    if (!context_.lights().setEnvironment(environment->irradiance.data(), params, scale,
+    const auto& irradiance = withoutSun ? environment->skyIrradiance : environment->irradiance;
+    if (!context_.lights().setEnvironment(irradiance.data(), params, scale,
                                          glm::radians(light.environmentRotation))) {
         return false;
     }

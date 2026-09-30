@@ -44,6 +44,21 @@ export interface EnvironmentAssetData {
     /** The panorama itself, for drawing the sky: equirectangular, row 0 up, RGBM
      *  under the same `maxRange`. Absent draws the sky from the atlas' mip 0. */
     sky?: string;
+    /** The sun, when the panorama has one: what a directional light following the
+     *  environment casts. Absent for a sky with no compact source bright enough. */
+    sun?: EnvironmentSun;
+}
+
+/** A panorama's sun, separated from its sky. */
+export interface EnvironmentSun {
+    /** Toward the sun, in the panorama's frame, unit length. */
+    direction: [number, number, number];
+    /** Its irradiance over π per channel: the unit `irradiance` is in, and what a
+     *  light's colour times intensity is. */
+    color: [number, number, number];
+    /** `irradiance` with the sun's texels filled from the sky around them — what
+     *  the environment lights with while a light casts the sun. */
+    skyIrradiance: number[];
 }
 
 export const ENVIRONMENT_FORMAT_VERSION = 1;
@@ -436,6 +451,111 @@ export function encodeSkyPanorama(env: Panorama, maxWidth = ENV_SKY_MAX_WIDTH,
     return { width, height, rgba };
 }
 
+/** Past this solid angle a bright region is a patch of sky, not a sun: the real
+ *  disc is 7e-5 sr, and this leaves room for the halo a photograph gives it. */
+const SUN_MAX_SOLID_ANGLE = 0.005;
+/** A texel belongs to the sun above this fraction of the brightest one... */
+const SUN_EDGE_OF_PEAK = 0.002;
+/** ...and above this many times the panorama's median, so a flat sky has none. */
+const SUN_OVER_MEDIAN = 20;
+/** The least share of the panorama's light a sun must carry to be worth a light. */
+const SUN_MIN_SHARE = 0.05;
+
+/**
+ * Find the panorama's sun and take it out of the sky, or null when it has none.
+ *
+ * The region around the brightest texel, bright against both peak and sky: too
+ * wide is a lit patch of sky, too faint a highlight. Its irradiance is summed, not
+ * fitted, so the light replacing it gives what the texels gave.
+ */
+export function separateSun(env: Panorama): EnvironmentSun | null {
+    const { width: W, height: H, rgb } = env;
+    const n = W * H;
+    const lum = new Float32Array(n);
+    let peak = 0, at = -1;
+    for (let i = 0; i < n; i++) {
+        const l = 0.2126 * rgb[i * 3]! + 0.7152 * rgb[i * 3 + 1]! + 0.0722 * rgb[i * 3 + 2]!;
+        lum[i] = l;
+        if (l > peak) { peak = l; at = i; }
+    }
+    if (!(peak > 0)) return null;
+    const median = Float32Array.from(lum).sort()[n >> 1]!;
+    const edge = Math.max(peak * SUN_EDGE_OF_PEAK, median * SUN_OVER_MEDIAN);
+    if (!(peak > edge)) return null;
+
+    const dTheta = Math.PI / H, dPhi = (2 * Math.PI) / W;
+    const solidAngle = (y: number): number => Math.sin((y + 0.5) * dTheta) * dTheta * dPhi;
+    let total = 0;
+    for (let y = 0; y < H; y++) {
+        const sa = solidAngle(y);
+        for (let x = 0; x < W; x++) total += lum[y * W + x]! * sa;
+    }
+
+    const inSun = new Uint8Array(n);
+    const region: number[] = [];
+    const stack = [at];
+    inSun[at] = 1;
+    let omega = 0;
+    while (stack.length > 0) {
+        const i = stack.pop()!;
+        region.push(i);
+        const x = i % W, y = (i - x) / W;
+        omega += solidAngle(y);
+        if (omega > SUN_MAX_SOLID_ANGLE) return null;
+        for (let dy = -1; dy <= 1; dy++) {
+            const ny = y + dy;
+            if (ny < 0 || ny >= H) continue;
+            for (let dx = -1; dx <= 1; dx++) {
+                const j = ny * W + ((x + dx + W) % W);
+                if (!inSun[j] && lum[j]! > edge) { inSun[j] = 1; stack.push(j); }
+            }
+        }
+    }
+
+    const energy = [0, 0, 0];
+    const toward = [0, 0, 0];
+    let power = 0;
+    for (const i of region) {
+        const x = i % W, y = (i - x) / W;
+        const sa = solidAngle(y);
+        for (let c = 0; c < 3; c++) energy[c]! += rgb[i * 3 + c]! * sa;
+        const d = panoramaDirection((x + 0.5) / W, (y + 0.5) / H);
+        const w = lum[i]! * sa;
+        power += w;
+        for (let c = 0; c < 3; c++) toward[c]! += d[c]! * w;
+    }
+    if (power < total * SUN_MIN_SHARE) return null;
+    const length = Math.hypot(toward[0]!, toward[1]!, toward[2]!);
+    if (!(length > 0)) return null;
+
+    // The hole is filled with the sky that rims it, so the coefficients keep the
+    // brightness around the sun and lose only the sun.
+    const ring = [0, 0, 0];
+    let rim = 0;
+    for (const i of region) {
+        const x = i % W, y = (i - x) / W;
+        for (let dy = -1; dy <= 1; dy++) {
+            const ny = y + dy;
+            if (ny < 0 || ny >= H) continue;
+            for (let dx = -1; dx <= 1; dx++) {
+                const j = ny * W + ((x + dx + W) % W);
+                if (inSun[j]) continue;
+                for (let c = 0; c < 3; c++) ring[c]! += rgb[j * 3 + c]!;
+                rim++;
+            }
+        }
+    }
+    const sky = Float32Array.from(rgb);
+    for (const i of region) {
+        for (let c = 0; c < 3; c++) sky[i * 3 + c] = rim > 0 ? ring[c]! / rim : 0;
+    }
+    return {
+        direction: [toward[0]! / length, toward[1]! / length, toward[2]! / length],
+        color: [energy[0]! / Math.PI, energy[1]! / Math.PI, energy[2]! / Math.PI],
+        skyIrradiance: Array.from(projectIrradianceSH({ width: W, height: H, rgb: sky })),
+    };
+}
+
 /** Everything a `.hdr` becomes, less the reference the caller has to resolve. */
 export interface ImportedEnvironment {
     /** `<stem>_env.png` — the octahedral atlas. */
@@ -470,6 +590,7 @@ export function importEnvironment(bytes: Uint8Array, stem: string,
             + ' equirectangular projection is; it was wrapped as if it were');
     }
     const irradiance = projectIrradianceSH(panorama);
+    const sun = separateSun(panorama);
     const atlas = prefilterOctahedral(panorama, faceSize, mipCount, ENV_MAX_RANGE);
     const skyWidth = options.skyWidth ?? ENV_SKY_MAX_WIDTH;
     const sky = skyWidth > 0 ? encodeSkyPanorama(panorama, skyWidth, ENV_MAX_RANGE) : null;
@@ -485,6 +606,7 @@ export function importEnvironment(bytes: Uint8Array, stem: string,
             faceSize,
             mipCount,
             maxRange: ENV_MAX_RANGE,
+            ...(sun ? { sun } : {}),
         },
     };
 }

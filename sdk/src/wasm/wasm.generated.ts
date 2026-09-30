@@ -577,6 +577,7 @@ export interface Light {
     shadowDistance: number;
     meshShadows: boolean;
     shadowExtent: number;
+    followEnvironmentSun: boolean;
     environment: number;
     environmentRotation: number;
     drawEnvironment: boolean;

@@ -319,6 +319,39 @@ export async function bakeSceneLightmapParallel(input: SceneBakeInput,
 }
 
 /**
+ * A light following the environment's sun given that sun — turned with the
+ * environment, scaled by the ambient light as the panorama is — and the sky without
+ * it, as the frame does. A follower with no sun is left out, and said to be.
+ */
+export function resolveEnvironmentSun(lights: readonly BakeLight[],
+                                      environment: BakeEnvironment | null | undefined,
+                                      ambient: readonly [number, number, number],
+                                      warnings: string[]):
+    { lights: BakeLight[]; environment: BakeEnvironment | null | undefined } {
+    if (!lights.some((l) => l.followsEnvironmentSun)) return { lights: [...lights], environment };
+    const sun = environment?.document.sun;
+    if (!environment || !sun) {
+        warnings.push('a light follows the environment\'s sun, and '
+            + (environment ? 'the environment has none' : 'the scene has no environment')
+            + ' — it is left out of the bake');
+        return { lights: lights.filter((l) => !l.followsEnvironmentSun), environment };
+    }
+    const a = ((environment.rotation ?? 0) * Math.PI) / 180;
+    const c = Math.cos(a), s = Math.sin(a);
+    const [x, y, z] = sun.direction;
+    const toward: [number, number, number] = [c * x + s * z, y, -s * x + c * z];
+    return {
+        lights: lights.map((l) => (!l.followsEnvironmentSun ? l : {
+            ...l,
+            direction: [-toward[0], -toward[1], -toward[2]] as const,
+            color: [sun.color[0] * ambient[0] * l.color[0], sun.color[1] * ambient[1] * l.color[1],
+                    sun.color[2] * ambient[2] * l.color[2]] as const,
+        })),
+        environment: { ...environment, document: { ...environment.document, irradiance: sun.skyIrradiance } },
+    };
+}
+
+/**
  * @param averages One decode per texture however many objects share it: a bake
  *        reads these once and a scene reuses the same few across most of its
  *        surfaces. A driver may fill it ahead.
@@ -326,6 +359,8 @@ export async function bakeSceneLightmapParallel(input: SceneBakeInput,
 function* sceneBakeSteps(input: SceneBakeInput, averages = new Map<string, TextureStats | null>(),
                          cutoffs = new Map<string, number>()): Generator<BakeStep, SceneBakeResult, void> {
     const warnings: string[] = [];
+    const { lights, environment } = resolveEnvironmentSun(input.lights, input.environment,
+                                                          input.options?.ambient ?? [0, 0, 0], warnings);
     const surfaces: BakeSurface[] = [];
     const slot: number[] = [];
     let moving = 0;
@@ -398,12 +433,12 @@ function* sceneBakeSteps(input: SceneBakeInput, averages = new Map<string, Textu
     const reflectionProbes = input.reflectionProbes ?? [];
     const reflectionOptions = {
         reflectionProbes: reflectionProbes.map((p) => p.center),
-        reflectionSky: bakeSky(input.environment, ambient),
-        sky: irradianceSky(input.environment, ambient),
+        reflectionSky: bakeSky(environment, ambient),
+        sky: irradianceSky(environment, ambient),
     };
     const packReflections = (panoramas: CapturedPanorama[]): ReflectionBakeResult | null => {
         if (reflectionProbes.length === 0) return null;
-        const packed = bakeSceneReflections({ panoramas, environment: input.environment, ambient });
+        const packed = bakeSceneReflections({ panoramas, environment: environment, ambient });
         for (const w of packed.warnings) warnings.push(w);
         return packed;
     };
@@ -417,7 +452,7 @@ function* sceneBakeSteps(input: SceneBakeInput, averages = new Map<string, Textu
         warnings.push('nothing in this scene can receive baked light');
         // The volumes are still solved: a scene whose only light is ambient has
         // nothing to bake into an atlas and still has somewhere to stand.
-        const empty = yield* bakeLightmapSteps([], input.lights,
+        const empty = yield* bakeLightmapSteps([], lights,
                                                { ...input.options, probeGrids: grids, ...reflectionOptions });
         gridSlot.forEach((at, k) => { probes[at] = asDocument(grids[k], empty.probes[k]); });
         return {
@@ -429,7 +464,7 @@ function* sceneBakeSteps(input: SceneBakeInput, averages = new Map<string, Textu
         };
     }
 
-    const result = yield* bakeLightmapSteps(surfaces, input.lights,
+    const result = yield* bakeLightmapSteps(surfaces, lights,
                                             { ...input.options, probeGrids: grids, ...reflectionOptions });
     result.shared.forEach((share, k) => {
         if (share > 0.25) {

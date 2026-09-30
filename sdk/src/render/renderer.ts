@@ -9,6 +9,7 @@ import { findWebGL2Context } from '../asset/glTextureUpload';
 import { log } from '../util/logger';
 import { decodeFrameCapture, replayToDrawCall as replayToDrawCallImpl, getSnapshotImageData as getSnapshotImpl, snapshotMatchesCapture as snapshotMatchesImpl, type FrameCaptureData } from './frameCapture';
 import { acquireWebGPUDevice } from './webgpuBoot';
+import { ATLAS_REFUSAL, LIGHT_REFUSAL } from './refusals';
 
 export enum RenderStage {
     Background = 0,
@@ -96,7 +97,7 @@ export interface ShadowStatus {
      * `atlas-full` is fixed by a bigger atlas, and `tile-budget` is the shader's
      * array bound, which no size changes.
      */
-    refusal: 'none' | 'tile-budget' | 'tile-too-large' | 'atlas-full';
+    refusal: (typeof ATLAS_REFUSAL)[number];
     /** Casters the frame denied outright, for a reader that wants the total. */
     deniedCasters: number;
     /** Casters that kept fewer tiles than they asked for. */
@@ -114,13 +115,16 @@ export interface ShadowStatus {
 export interface LightStatus {
     accepted: boolean;
     /** Why not, when `accepted` is false; `none` otherwise. */
-    refusal: 'none' | 'capacity';
+    refusal: (typeof LIGHT_REFUSAL)[number];
     /** The shader's array bound — what `accepted` lights can never exceed. */
     limit: number;
     /** Lights that asked this frame. */
     requested: number;
     /** How many the frame turned away, for a reader that wants the total. */
     refusedCount: number;
+    /** Where the environment's sun shone this frame, when a light followed it —
+     *  the aim such a light takes instead of its Transform's. */
+    environmentSunAim: [number, number, number] | null;
 }
 
 /**
@@ -154,7 +158,6 @@ let lodInspectPtr: number = 0;
  *  through. One buffer: neither answer outlives the call that asks. */
 let lightStatusPtr: number = 0;
 /** AtlasRefusal, in the order ShadowAtlas.hpp declares it. */
-const ATLAS_REFUSAL: ShadowStatus['refusal'][] = ['none', 'tile-budget', 'tile-too-large', 'atlas-full'];
 let backend: RendererBackend | null = null;
 
 /** The wasm backend: every call marshals through the module's heap, exactly as
@@ -263,11 +266,12 @@ function wasmBackend(m: ESEngineModule): RendererBackend {
         lightStatus: (entity) => {
             if (!m.renderer_lightStatus || !lightStatusPtr) return null;
             if (!m.renderer_lightStatus(entity >>> 0, lightStatusPtr)) return null;
-            const f = m.HEAPF32.subarray(lightStatusPtr >> 2, (lightStatusPtr >> 2) + 5);
+            const f = m.HEAPF32.subarray(lightStatusPtr >> 2, (lightStatusPtr >> 2) + 9);
             return {
                 accepted: f[0] === 1,
-                refusal: f[1] === 1 ? 'capacity' : 'none',
+                refusal: LIGHT_REFUSAL[f[1]!] ?? 'none',
                 limit: f[2]!, requested: f[3]!, refusedCount: f[4]!,
+                environmentSunAim: f[5] === 1 ? [f[6]!, f[7]!, f[8]!] : null,
             };
         },
         getStats: () => ({
@@ -499,7 +503,7 @@ export function initRendererAPI(wasmModule: ESEngineModule): void {
     installContextLossGuard(module);
     viewProjectionPtr = module._malloc(16 * 4);
     lodInspectPtr = module._malloc(4 * 4);
-    lightStatusPtr = module._malloc(5 * 4);
+    lightStatusPtr = module._malloc(9 * 4);
     backend = wasmBackend(module);
 }
 

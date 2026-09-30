@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, Cl
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '101981b3fea145cb';
+export const ABI_LAYOUT_HASH = '73d45f32834f0b85';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -475,6 +475,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             shadowDistance: 0,
             meshShadows: false,
             shadowExtent: 0,
+            followEnvironmentSun: false,
             environment: 0,
             environmentRotation: 0,
             drawEnvironment: false,
@@ -501,6 +502,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             shadowDistance: { min: 0, tooltip: "Directional shadow distance; 0 = no directional shadow.", advanced: true, shownWhen: { field: "type", values: [1] } },
             meshShadows: { tooltip: "Cast a shadow map over 3D meshes (Directional, Spot, Point).", shownWhen: { field: "type", values: [0, 1, 3] } },
             shadowExtent: { min: 0, tooltip: "Shadow map coverage radius; 0 = fit the view.", advanced: true, shownWhen: { field: "type", values: [1] } },
+            followEnvironmentSun: { tooltip: "Take direction and strength from the environment's sun, and light the sky without it.", shownWhen: { field: "type", values: [1] } },
             environment: { tooltip: "Baked environment (.esenv) this Ambient light casts.", shownWhen: { field: "type", values: [2] } },
             environmentRotation: { unit: "deg", tooltip: "Turn the environment about the up axis, in degrees.", shownWhen: { field: "type", values: [2] } },
             drawEnvironment: { tooltip: "Draw this environment as the sky behind the scene.", shownWhen: { field: "type", values: [2] } },
@@ -1449,6 +1451,7 @@ export interface LightData {
     shadowDistance: number;
     meshShadows: boolean;
     shadowExtent: number;
+    followEnvironmentSun: boolean;
     environment: number;
     environmentRotation: number;
     drawEnvironment: boolean;

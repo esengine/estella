@@ -1298,6 +1298,12 @@ export const NOTED = {
     { note: 'A baked atlas ships at the size it was baked' },
   'fix(environment): a panorama is read as it was shot, not mirrored':
     { note: 'An environment is no longer mirrored' },
+  'feat(environment): a directional light can be the environment\'s sun':
+    { note: 'A directional light can be the environment\'s sun' },
+  'feat(editor): a light following the environment\'s sun is drawn along it':
+    { note: 'A directional light can be the environment\'s sun' },
+  'fix(bake-scene): a scene of prefab instances is refused, not crashed on':
+    { note: '`bake-scene` refuses a scene made of prefab instances instead of crashing on it' },
   'fix(bake): a coloured light bakes the colour it lights with':
     { note: 'A coloured light bakes the colour it lights with' },
   'fix(bake): the collector reads the colour space from the engine host':

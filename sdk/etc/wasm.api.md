@@ -306,6 +306,7 @@ engine_setRandomSeed: ((seed: number) => void) | undefined
 environment_create: ((shPtr: number, specularHandle: number, faceSize: number, mipCount: number, maxRange: number, columns: number) => number) | undefined
 environment_release: ((environmentHandle: number) => void) | undefined
 environment_setSky: ((environmentHandle: number, skyHandle: number) => void) | undefined
+environment_setSun: ((environmentHandle: number, skyShPtr: number, dx: number, dy: number, dz: number, r: number, g: number, b: number) => void) | undefined
 es_getMallocBytes: (() => number) | undefined
 esshader_cookInfo: (source: string, featuresCsv: string) => { valid: boolean; error?: string; name: string; domain: string; hasWgslVertex: boolean; hasWgslFragment: boolean; hasSwitches: boolean; vertGlsl: string; fragGlsl: string; textures: Array<{ name: string; unit: number; }>; }
 geometry_create: () => number

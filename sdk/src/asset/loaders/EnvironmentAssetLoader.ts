@@ -21,6 +21,15 @@ interface EnvironmentAssetData {
     columns?: number;
     /** The panorama the sky is drawn from, a sibling of the document. */
     sky?: string;
+    /** The sun the importer separated from the sky, for a Light to follow. */
+    sun?: {
+        /** Toward the sun, in the panorama's frame. */
+        direction: number[];
+        /** Its irradiance over pi. */
+        color: number[];
+        /** The nine coefficients without it. */
+        skyIrradiance: number[];
+    };
 }
 
 /** A baked environment, named by the handle a Light references. */
@@ -80,6 +89,20 @@ export class EnvironmentAssetLoader implements AssetLoader<EnvironmentResult> {
 
         if (!handle) {
             throw new Error(`the engine rejected the environment in ${path}`);
+        }
+
+        const sun = data.sun;
+        if (sun && m.environment_setSun) {
+            if (sun.skyIrradiance?.length === 27 && sun.direction?.length === 3 && sun.color?.length === 3) {
+                withScratch(m, (alloc) => {
+                    const shPtr = alloc(27 * 4);
+                    m.HEAPF32.set(Float32Array.from(sun.skyIrradiance), shPtr >> 2);
+                    m.environment_setSun!(handle, shPtr, sun.direction[0]!, sun.direction[1]!,
+                                          sun.direction[2]!, sun.color[0]!, sun.color[1]!, sun.color[2]!);
+                });
+            } else {
+                log.warn('asset', `${path}: a sun needs a direction, a colour and nine sky coefficients`);
+            }
         }
 
         // Missing, the sky falls back to the atlas: coarser, never absent.

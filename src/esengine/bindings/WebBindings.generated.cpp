@@ -600,6 +600,7 @@ struct LightJS {
     f32 shadowDistance;
     bool meshShadows;
     f32 shadowExtent;
+    bool followEnvironmentSun;
     u32 environment;
     f32 environmentRotation;
     bool drawEnvironment;
@@ -623,6 +624,7 @@ void lightApplyJS(esengine::ecs::Light& c, const LightJS& js) {
     c.shadowDistance = js.shadowDistance;
     c.meshShadows = js.meshShadows;
     c.shadowExtent = js.shadowExtent;
+    c.followEnvironmentSun = js.followEnvironmentSun;
     c.environment = resource::EnvironmentHandle(js.environment);
     c.environmentRotation = js.environmentRotation;
     c.drawEnvironment = js.drawEnvironment;
@@ -653,6 +655,7 @@ LightJS lightToJS(const esengine::ecs::Light& c) {
     js.shadowDistance = c.shadowDistance;
     js.meshShadows = c.meshShadows;
     js.shadowExtent = c.shadowExtent;
+    js.followEnvironmentSun = c.followEnvironmentSun;
     js.environment = c.environment.id();
     js.environmentRotation = c.environmentRotation;
     js.drawEnvironment = c.drawEnvironment;
@@ -1722,6 +1725,7 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("shadowDistance", &LightJS::shadowDistance)
         .field("meshShadows", &LightJS::meshShadows)
         .field("shadowExtent", &LightJS::shadowExtent)
+        .field("followEnvironmentSun", &LightJS::followEnvironmentSun)
         .field("environment", &LightJS::environment)
         .field("environmentRotation", &LightJS::environmentRotation)
         .field("drawEnvironment", &LightJS::drawEnvironment)
@@ -3343,10 +3347,11 @@ static_assert(offsetof(esengine::ecs::Light, sourceAngle) == 64, "ABI offset dri
 static_assert(offsetof(esengine::ecs::Light, shadowDistance) == 68, "ABI offset drift: esengine::ecs::Light.shadowDistance (EHT expected 68)");
 static_assert(offsetof(esengine::ecs::Light, meshShadows) == 72, "ABI offset drift: esengine::ecs::Light.meshShadows (EHT expected 72)");
 static_assert(offsetof(esengine::ecs::Light, shadowExtent) == 76, "ABI offset drift: esengine::ecs::Light.shadowExtent (EHT expected 76)");
-static_assert(offsetof(esengine::ecs::Light, environment) == 80, "ABI offset drift: esengine::ecs::Light.environment (EHT expected 80)");
-static_assert(offsetof(esengine::ecs::Light, environmentRotation) == 84, "ABI offset drift: esengine::ecs::Light.environmentRotation (EHT expected 84)");
-static_assert(offsetof(esengine::ecs::Light, drawEnvironment) == 88, "ABI offset drift: esengine::ecs::Light.drawEnvironment (EHT expected 88)");
-static_assert(offsetof(esengine::ecs::Light, enabled) == 89, "ABI offset drift: esengine::ecs::Light.enabled (EHT expected 89)");
+static_assert(offsetof(esengine::ecs::Light, followEnvironmentSun) == 80, "ABI offset drift: esengine::ecs::Light.followEnvironmentSun (EHT expected 80)");
+static_assert(offsetof(esengine::ecs::Light, environment) == 84, "ABI offset drift: esengine::ecs::Light.environment (EHT expected 84)");
+static_assert(offsetof(esengine::ecs::Light, environmentRotation) == 88, "ABI offset drift: esengine::ecs::Light.environmentRotation (EHT expected 88)");
+static_assert(offsetof(esengine::ecs::Light, drawEnvironment) == 92, "ABI offset drift: esengine::ecs::Light.drawEnvironment (EHT expected 92)");
+static_assert(offsetof(esengine::ecs::Light, enabled) == 93, "ABI offset drift: esengine::ecs::Light.enabled (EHT expected 93)");
 static_assert(offsetof(esengine::ecs::LightProbeVolume, probes) == 0, "ABI offset drift: esengine::ecs::LightProbeVolume.probes (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::LightProbeVolume, halfExtents) == 4, "ABI offset drift: esengine::ecs::LightProbeVolume.halfExtents (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::LightProbeVolume, spacing) == 16, "ABI offset drift: esengine::ecs::LightProbeVolume.spacing (EHT expected 16)");
@@ -3602,7 +3607,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "101981b3fea145cb";
+static const char* kEsAbiLayoutHash = "73d45f32834f0b85";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

@@ -159,6 +159,15 @@ struct Light {
                 tooltip="Shadow map coverage radius; 0 = fit the view.")
     f32 shadowExtent{0.0f};
 
+    /** @brief Be the sun of the frame's environment. The direction and strength come
+     *         from the panorama, turned with it; @ref color and @ref intensity scale
+     *         what it gives and the Transform's aim is not read. The environment then
+     *         lights with its sky alone, since the sun is this light's to cast. A
+     *         panorama without a sun leaves the light out of the frame, and says so. */
+    ES_PROPERTY(shown_when=type:Directional,
+                tooltip="Take direction and strength from the environment's sun, and light the sky without it.")
+    bool followEnvironmentSun{false};
+
     /** @brief What this Ambient light IS, when it is more than one colour: a baked
      *         panorama's irradiance and reflection. Without one the light stays the
      *         flat term it has always been — the same lighting, at order zero.

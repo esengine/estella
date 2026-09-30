@@ -15,6 +15,7 @@
 #pragma once
 
 #include "../../core/Types.hpp"
+#include "../../math/Math.hpp"
 
 #include <vector>
 
@@ -25,13 +26,16 @@ enum class LightRefusal : u8 {
     None = 0,
     /// More lights in view than the shader's arrays hold; the dimmest gave way.
     Capacity,
+    /// Follows the environment's sun, and the frame's environment has none.
+    NoEnvironmentSun,
 };
 
 /** @brief The refusal as a word, for a log line and for a reader. */
 inline const char* lightRefusalName(LightRefusal why) {
     switch (why) {
-        case LightRefusal::Capacity: return "light capacity";
-        case LightRefusal::None:     break;
+        case LightRefusal::Capacity:         return "light capacity";
+        case LightRefusal::NoEnvironmentSun: return "no environment sun";
+        case LightRefusal::None:             break;
     }
     return "none";
 }
@@ -60,11 +64,18 @@ struct LightCapReport {
     /// question this answers is "why is this one dark", and a list of everything
     /// that worked is a list nobody reads.
     std::vector<LightGrant> refused;
+    /// Whether a light cast the environment's sun this frame, and along what: the
+    /// aim such a light takes is the panorama's and not its Transform's, and an
+    /// editor drawing it from the Transform would point the wrong way.
+    bool environmentSun = false;
+    glm::vec3 environmentSunAim{0.0f};
 
     void clear() {
         requested = 0;
         accepted = 0;
         refused.clear();
+        environmentSun = false;
+        environmentSunAim = glm::vec3(0.0f);
     }
 
     /** @brief What `entity` was told, or None when it was not refused. */

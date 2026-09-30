@@ -433,6 +433,31 @@ void environment_setSky(u32 environmentHandle, u32 skyHandle) {
     }
 }
 
+/**
+ * @brief Gives an environment the sun its importer separated from the sky.
+ * @param skyShPtr 27 floats — the irradiance with the sun taken out.
+ * @param dx,dy,dz Toward the sun, in the panorama's frame.
+ * @param r,g,b The sun's irradiance over pi.
+ */
+void environment_setSun(u32 environmentHandle, uintptr_t skyShPtr, f32 dx, f32 dy, f32 dz,
+                        f32 r, f32 g, f32 b) {
+    auto* rm = ctx().tryGet<resource::ResourceManager>();
+    if (!rm) return;
+    const f32* sh = boundarySpan<f32>(skyShPtr, 27, "environment_setSun.skyIrradiance");
+    if (!sh) return;
+    Environment* environment = rm->getEnvironment(resource::EnvironmentHandle(environmentHandle));
+    if (!environment) return;
+    const glm::vec3 toward(dx, dy, dz);
+    const f32 length = glm::length(toward);
+    if (!(length > 0.0f)) return;
+    for (usize i = 0; i < 9; ++i) {
+        environment->skyIrradiance[i] = glm::vec3(sh[i * 3], sh[i * 3 + 1], sh[i * 3 + 2]);
+    }
+    environment->sunDirection = toward / length;
+    environment->sunColor = glm::max(glm::vec3(r, g, b), glm::vec3(0.0f));
+    environment->hasSun = true;
+}
+
 /** @brief Releases an environment. Its atlas is an ordinary texture and outlives it. */
 void environment_release(u32 environmentHandle) {
     if (auto* rm = ctx().tryGet<resource::ResourceManager>()) {
@@ -1028,9 +1053,9 @@ void renderer_setLodPreview(u32 view, u32 entity, i32 level) {
 }
 
 i32 renderer_lightStatus(u32 entity, uintptr_t outPtr) {
-    auto* out = boundarySpanMut<f32>(outPtr, 5, "renderer_lightStatus.out");
+    auto* out = boundarySpanMut<f32>(outPtr, 9, "renderer_lightStatus.out");
     if (!out) return 0;
-    for (u32 i = 0; i < 5; ++i) out[i] = 0.0f;
+    for (u32 i = 0; i < 9; ++i) out[i] = 0.0f;
     if (!g_renderFrame) return 0;
     const LightCapReport& cap = g_renderFrame->lightCap();
     if (cap.limit == 0) return 0;  // no frame has decided anything yet
@@ -1040,6 +1065,10 @@ i32 renderer_lightStatus(u32 entity, uintptr_t outPtr) {
     out[2] = static_cast<f32>(cap.limit);
     out[3] = static_cast<f32>(cap.requested);
     out[4] = static_cast<f32>(cap.refused.size());
+    out[5] = cap.environmentSun ? 1.0f : 0.0f;
+    out[6] = cap.environmentSunAim.x;
+    out[7] = cap.environmentSunAim.y;
+    out[8] = cap.environmentSunAim.z;
     return 1;
 }
 

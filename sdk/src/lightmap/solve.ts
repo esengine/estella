@@ -28,6 +28,9 @@ export interface BakeLight {
     /** Cosines of the half angles a spot falls off between. */
     innerCos?: number;
     outerCos?: number;
+    /** Directional only: this light is the environment's sun. The bake takes its
+     *  direction and colour from there, and the sky without it. */
+    followsEnvironmentSun?: boolean;
 }
 
 /** Where a ray that hit triangle `t` lands in the atlas, and what it reflects. */

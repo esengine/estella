@@ -100,6 +100,10 @@ void mesh_release(u32 meshHandle);
 u32 environment_create(uintptr_t shPtr, u32 specularHandle, f32 faceSize, u32 mipCount,
                        f32 maxRange, u32 columns);
 void environment_setSky(u32 environmentHandle, u32 skyHandle);
+/** @brief Gives an environment its separated sun: the sky's irradiance without it
+ *         (27 floats), the direction toward it and its irradiance over pi. */
+void environment_setSun(u32 environmentHandle, uintptr_t skyShPtr, f32 dx, f32 dy, f32 dz,
+                        f32 r, f32 g, f32 b);
 
 /** @brief Releases an environment; its atlas is an ordinary texture and outlives it. */
 void environment_release(u32 environmentHandle);
@@ -207,12 +211,12 @@ i32 renderer_lodInspect(u32 view, u32 entity, uintptr_t outPtr);
 void renderer_setLodPreview(u32 view, u32 entity, i32 level);
 
 /**
- * @brief What the light cap did to @p entity last frame, into five floats at
- *        @p outPtr: accepted, refusal, limit, requested, refusedCount.
+ * @brief What the light cap did to @p entity last frame, into nine floats at
+ *        @p outPtr: accepted, refusal, limit, requested, refusedCount, then whether
+ *        a light cast the environment's sun and the aim it took.
  *
- * @details One call answers both "why is this light dark" and "how many went
- *          dark". Returns 0 before any frame has collected lights, which is not
- *          a frame that refused none.
+ * @details Returns 0 before any frame has collected lights, which is not a frame
+ *          that refused none.
  */
 i32 renderer_lightStatus(u32 entity, uintptr_t outPtr);
 

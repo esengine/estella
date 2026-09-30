@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { encodeMesh, unwrapLightmapUV, decodeLightmap, MeshChannel, MeshChannelType,
          type MeshData, type BakeLight } from 'esengine';
-import { bakeSceneLightmap, claimLightmapImage, type SceneBakeSurface } from '../src/assets/lightmapBake';
+import { bakeSceneLightmap, claimLightmapImage, resolveEnvironmentSun, type SceneBakeSurface } from '../src/assets/lightmapBake';
 import { encodeRgbaPng } from '../src/assets/png';
 import { decodeRgbaPng } from '../src/assets/tilesetExtrude';
 
@@ -261,3 +261,40 @@ describe('the atlas file a bake writes', () => {
         expect((await meta()).importer.maxSize).toBe(4096);
     });
 });
+
+describe('a light following the environment\'s sun, in a bake', () => {
+    const sky = Array.from({ length: 27 }, (_, i) => i / 10);
+    const withoutSun = Array.from({ length: 27 }, (_, i) => i / 100);
+    const environment = {
+        document: { version: 1, irradiance: sky, specular: '', faceSize: 8, mipCount: 1, maxRange: 8,
+                    sun: { direction: [0.6, 0.8, 0] as [number, number, number], color: [2, 1, 0.5] as [number, number, number],
+                           skyIrradiance: withoutSun } },
+        atlasPng: new Uint8Array(), rotation: 90,
+    };
+    const follower = { kind: 'directional' as const, direction: [0, 0, -1] as const, color: [1, 1, 1] as const,
+                       intensity: 3, followsEnvironmentSun: true };
+    const lamp = { kind: 'point' as const, position: [0, 0, 0] as const, color: [1, 1, 1] as const, intensity: 1 };
+
+    it('casts the sun as the frame does, and bakes the sky without it', () => {
+        const warnings: string[] = [];
+        const out = resolveEnvironmentSun([follower, lamp], environment, [0.5, 0.5, 0.5], warnings);
+        // Turned 90 degrees about +Y the sun stands toward -Z; the light travels away from it.
+        const [x, y, z] = out.lights[0]!.direction!;
+        expect([x, y, z].map((v) => Math.round(v * 1e6) / 1e6)).toEqual([-0, -0.8, 0.6]);
+        expect(out.lights[0]!.color).toEqual([1, 0.5, 0.25]);
+        expect(out.lights[0]!.intensity).toBe(3);
+        expect(out.lights[1]).toEqual(lamp);
+        expect(out.environment!.document.irradiance).toBe(withoutSun);
+        expect(warnings).toEqual([]);
+    });
+
+    it('leaves a follower out, and says so, where the environment has no sun', () => {
+        const warnings: string[] = [];
+        const noSun = { ...environment, document: { ...environment.document, sun: undefined } };
+        const out = resolveEnvironmentSun([follower, lamp], noSun, [1, 1, 1], warnings);
+        expect(out.lights).toEqual([lamp]);
+        expect(out.environment!.document.irradiance).toBe(sky);
+        expect(warnings[0]).toMatch(/environment has none/);
+    });
+});
+

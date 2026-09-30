@@ -242,6 +242,10 @@ export const SCENES = [
   // Y up, as a 3D scene is: ground in XZ, a board standing on it, a sun coming DOWN
   // with a depth component. Every gate above aims its sun in the view plane.
   { id: "mesh-shadow-yup", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/mesh-shadow-yup.esscene", ESTELLA_VERIFY_W: "512", ESTELLA_VERIFY_H: "512", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.396,\"y\":0.713,\"rgb\":[0,0,0],\"tol\":25},{\"x\":0.549,\"y\":0.891,\"rgb\":[210,210,210],\"tol\":25},{\"x\":0.598,\"y\":0.414,\"rgb\":[210,210,210],\"tol\":25}]" } },
+  // A light FOLLOWING the environment's sun: its Transform aims level with the ground,
+  // so only the panorama's sun, turned with it, throws the board's shadow — and inside
+  // that shadow is the sky alone, without the sun the environment gave away.
+  { id: "environment-sun", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_SCENE: "/scenes/environment-sun.esscene", ESTELLA_VERIFY_W: "512", ESTELLA_VERIFY_H: "512", ESTELLA_VERIFY_STEPS: "2", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.402,\"y\":0.709,\"rgb\":[39,39,39],\"tol\":12},{\"x\":0.556,\"y\":0.884,\"rgb\":[249,249,249],\"tol\":16},{\"x\":0.598,\"y\":0.414,\"rgb\":[249,249,249],\"tol\":16}]" } },
   // A lamp 120 units ABOVE a panel, a height only real geometry measures against.
   // Hand-derived, 255·NdotL·atten: 224 under it and 101 at world +200, where the
   // plane's convention reads 255 and 200.

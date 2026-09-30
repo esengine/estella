@@ -5,7 +5,7 @@ Symbols: 115 public · 91 beta · 1526 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"101981b3fea145cb"
+"73d45f32834f0b85"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -1324,6 +1324,7 @@ type: "audio"
 ```
 color: { r?: number; g?: number; b?: number; } | undefined
 enabled: boolean | undefined
+followEnvironmentSun: boolean | undefined
 innerAngle: number | undefined
 intensity: number | undefined
 outerAngle: number | undefined
@@ -1404,6 +1405,7 @@ volumes: readonly { center: readonly [number, number, number]; halfExtents: read
 ```
 color: readonly [number, number, number]
 direction: readonly [number, number, number] | undefined
+followsEnvironmentSun: boolean | undefined
 innerCos: number | undefined
 intensity: number
 kind: "directional" | "point" | "spot"
@@ -4541,6 +4543,7 @@ enabled: boolean
 environment: number
 environmentRotation: number
 falloff: number
+followEnvironmentSun: boolean
 innerAngle: number
 innerRadius: number
 intensity: number
@@ -4572,7 +4575,7 @@ spacing: number
 ```
 accepted: boolean
 limit: number
-refusal: "none" | "capacity"
+refusal: "none" | "capacity" | "no-environment-sun"
 refusedCount: number
 requested: number
 ```

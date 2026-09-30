@@ -814,6 +814,7 @@ export interface LightPtrData {
     shadowDistance: number;
     meshShadows: boolean;
     shadowExtent: number;
+    followEnvironmentSun: boolean;
     environment: number;
     environmentRotation: number;
     drawEnvironment: boolean;
@@ -840,10 +841,11 @@ export function fillLight(
     out.shadowDistance = f32[(ptr + 68) >> 2];
     out.meshShadows = u8[ptr + 72] !== 0;
     out.shadowExtent = f32[(ptr + 76) >> 2];
-    out.environment = u32[(ptr + 80) >> 2];
-    out.environmentRotation = f32[(ptr + 84) >> 2];
-    out.drawEnvironment = u8[ptr + 88] !== 0;
-    out.enabled = u8[ptr + 89] !== 0;
+    out.followEnvironmentSun = u8[ptr + 80] !== 0;
+    out.environment = u32[(ptr + 84) >> 2];
+    out.environmentRotation = f32[(ptr + 88) >> 2];
+    out.drawEnvironment = u8[ptr + 92] !== 0;
+    out.enabled = u8[ptr + 93] !== 0;
 }
 
 export function writeLight(
@@ -866,10 +868,11 @@ export function writeLight(
     f32[(ptr + 68) >> 2] = data.shadowDistance;
     u8[ptr + 72] = data.meshShadows ? 1 : 0;
     f32[(ptr + 76) >> 2] = data.shadowExtent;
-    u32[(ptr + 80) >> 2] = data.environment;
-    f32[(ptr + 84) >> 2] = data.environmentRotation;
-    u8[ptr + 88] = data.drawEnvironment ? 1 : 0;
-    u8[ptr + 89] = data.enabled ? 1 : 0;
+    u8[ptr + 80] = data.followEnvironmentSun ? 1 : 0;
+    u32[(ptr + 84) >> 2] = data.environment;
+    f32[(ptr + 88) >> 2] = data.environmentRotation;
+    u8[ptr + 92] = data.drawEnvironment ? 1 : 0;
+    u8[ptr + 93] = data.enabled ? 1 : 0;
 }
 
 export function createLightData(): LightPtrData {
@@ -890,6 +893,7 @@ export function createLightData(): LightPtrData {
         shadowDistance: 0,
         meshShadows: false,
         shadowExtent: 0,
+        followEnvironmentSun: false,
         environment: 0,
         environmentRotation: 0,
         drawEnvironment: false,

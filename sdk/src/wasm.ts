@@ -342,6 +342,13 @@ export interface ESEngineModule {
     environment_release?(environmentHandle: number): void;
     environment_setSky?(environmentHandle: number, skyHandle: number): void;
     /**
+     * Give an environment the sun its importer separated from the sky: 27 floats of
+     * irradiance without it, the direction toward it (panorama frame) and its
+     * irradiance over pi — what a Light following it casts.
+     */
+    environment_setSun?(environmentHandle: number, skyShPtr: number, dx: number, dy: number,
+                        dz: number, r: number, g: number, b: number): void;
+    /**
      * Register a grid of baked irradiance: `resX*resY*resZ*27` floats, nine RGB
      * coefficients per probe with x varying fastest. The same nine an environment
      * carries, at points instead of once — which is what lights a thing that moves.

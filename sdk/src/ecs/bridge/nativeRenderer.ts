@@ -20,6 +20,7 @@ import type { CppRegistry } from '../../wasm';
 import type { RendererBackend, RenderStats } from '../../render/renderer';
 import { RENDERER_BINDINGS, RENDERER_OPTIONAL_BINDINGS, RENDERER_STATS_BINDINGS } from './nativeBindings';
 import { createNativeHeap, type NativeHeap } from './nativeHeap';
+import { ATLAS_REFUSAL, LIGHT_REFUSAL } from '../../render/refusals';
 
 /** Invoke a host-provided global by name; throws if the host did not bind it
  *  (these are the frame contract — a missing one is a broken host, not a
@@ -66,7 +67,7 @@ export function createNativeRendererBackend(
         if (lodScratch) return lodScratch;
         const heap = createNativeHeap(scope);
         if (!heap) return null;
-        lodScratch = { heap, ptr: heap._malloc(5 * 4) };
+        lodScratch = { heap, ptr: heap._malloc(9 * 4) };
         return lodScratch;
     };
     return {
@@ -156,7 +157,7 @@ export function createNativeRendererBackend(
             if (!(fn as (e: number, p: number) => number)(entity >>> 0, heap.ptr)) return null;
             const f = heap.heap.HEAPF32;
             const i = heap.ptr >> 2;
-            const refusal = (['none', 'tile-budget', 'tile-too-large', 'atlas-full'] as const)[f[i + 2]!];
+            const refusal = ATLAS_REFUSAL[f[i + 2]!];
             return {
                 requested: f[i]!, granted: f[i + 1]!, refusal: refusal ?? 'none',
                 deniedCasters: f[i + 3]!, reducedCasters: f[i + 4]!,
@@ -171,8 +172,9 @@ export function createNativeRendererBackend(
             const i = heap.ptr >> 2;
             return {
                 accepted: f[i] === 1,
-                refusal: f[i + 1] === 1 ? 'capacity' : 'none',
+                refusal: LIGHT_REFUSAL[f[i + 1]!] ?? 'none',
                 limit: f[i + 2]!, requested: f[i + 3]!, refusedCount: f[i + 4]!,
+                environmentSunAim: f[i + 5] === 1 ? [f[i + 6]!, f[i + 7]!, f[i + 8]!] : null,
             };
         },
         setLodPreview: (view, entity, level): void => {

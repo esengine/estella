@@ -278,6 +278,15 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       },
       "tooltip": "Falloff shape: 1 = linear, higher pools near the light, lower reaches further.",
     },
+    "followEnvironmentSun": {
+      "shownWhen": {
+        "field": "type",
+        "values": [
+          1,
+        ],
+      },
+      "tooltip": "Take direction and strength from the environment's sun, and light the sky without it.",
+    },
     "innerAngle": {
       "advanced": true,
       "max": 180,
