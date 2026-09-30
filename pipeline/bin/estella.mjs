@@ -462,6 +462,13 @@ async function bakeScene(baker, meta, sceneFile, check) {
   if (check) {
     const staleAtlas = !existsSync(atlasFile)
       || Buffer.compare(readFileSync(atlasFile), Buffer.from(result.atlasBytes)) !== 0;
+    // The atlas's import settings are the bake's too: an atlas decoded as sRGB, or
+    // block-compressed, draws other light than the one that was baked.
+    let staleSettings = false;
+    if (existsSync(`${atlasFile}.meta`)) {
+      const importer = JSON.parse(readFileSync(`${atlasFile}.meta`, 'utf8')).importer ?? {};
+      staleSettings = JSON.stringify(baker.claimedLightmapImporter(importer, result.size)) !== JSON.stringify(importer);
+    }
     const staleScene = readFileSync(sceneFile, 'utf8') !== document;
     const staleGrids = [...grids.values()].some((g) => {
       const file = path.join(sceneDir, g.name);
@@ -473,8 +480,8 @@ async function bakeScene(baker, meta, sceneFile, check) {
                         Buffer.from(result.reflection.atlasBytes)) !== 0
       || !existsSync(reflectionDocFile)
       || readFileSync(reflectionDocFile, 'utf8') !== reflectionText);
-    if (staleAtlas || staleScene || staleGrids || staleReflections) {
-      const what = [staleAtlas && 'the atlas', staleScene && 'the scene',
+    if (staleAtlas || staleSettings || staleScene || staleGrids || staleReflections) {
+      const what = [staleAtlas && 'the atlas', staleSettings && "the atlas's import settings", staleScene && 'the scene',
                     staleGrids && 'a probe grid',
                     staleReflections && 'the reflections'].filter(Boolean).join(' and ');
       console.error(`bake-scene: ${rel} is not what a bake of it produces (${what} differ).`);
@@ -497,7 +504,7 @@ async function bakeScene(baker, meta, sceneFile, check) {
     // An RGBM encoding of radiance, the three settings an HDR import gives its own
     // atlas. Adopted here because this bake IS this file's importer, and a default
     // meta would linearize the multiplier and then compress it.
-    await meta.adoptOrphan(reflectionFile, { sRGB: false, compress: false, wrapMode: 'clamp' });
+    await meta.adoptOrphan(reflectionFile, { sRGB: false, compress: 'off', wrapMode: 'clamp' });
     await meta.adoptOrphan(reflectionDocFile);
   }
   writeFileSync(sceneFile, document);

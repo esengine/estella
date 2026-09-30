@@ -161,19 +161,24 @@ function builtinGeometry(ref: string, cache: Map<string, MeshData | null>): Mesh
     return cache.get(ref) ?? null;
 }
 
+/** @p importer with the settings a bake owns on an atlas of @p size applied — what
+ *  claimLightmapImage writes, and what `bake-scene --check` holds a `.meta` to. */
+export function claimedLightmapImporter(importer: Record<string, unknown>, size: number): Record<string, unknown> {
+    const cap = typeof importer.maxSize === 'number' ? importer.maxSize : 2048;
+    return { ...importer, sRGB: false, compress: 'off', wrapMode: 'clamp', maxSize: Math.max(cap, size) };
+}
+
 /**
  * The import settings a bake owns on its atlas, reapplied every bake (uuid kept):
  * irradiance, so neither sRGB nor block-compressed; clamped, so a chart's edge
  * cannot wrap; and never downscaled — that bleeds each patch into its neighbours'.
  */
 export async function claimLightmapImage(absFile: string, size: number): Promise<void> {
-    const owned = { sRGB: false, compress: false, wrapMode: 'clamp' };
-    if (await adoptOrphan(absFile, { ...owned, maxSize: Math.max(2048, size) }) !== 'has-meta') return;
+    if (await adoptOrphan(absFile, claimedLightmapImporter({}, size)) !== 'has-meta') return;
     const metaFile = absFile + META_EXT;
     const meta = JSON.parse(await readFile(metaFile, 'utf8')) as { importer?: Record<string, unknown> };
     const importer = meta.importer ?? {};
-    const cap = typeof importer.maxSize === 'number' ? importer.maxSize : 2048;
-    const next = { ...importer, ...owned, maxSize: Math.max(cap, size) };
+    const next = claimedLightmapImporter(importer, size);
     if (JSON.stringify(next) === JSON.stringify(importer)) return;
     meta.importer = next;
     await writeFile(metaFile, JSON.stringify(meta, null, 2) + '\n');

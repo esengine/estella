@@ -84,7 +84,7 @@ export const ENV_SKY_MAX_WIDTH = 2048;
 /** The `.meta` settings every image an environment import writes carries: RGBM
  *  radiance, not a picture — sRGB would linearize what is already linear, and a
  *  block compressor would quantize the shared multiplier with the colour. */
-export const ENV_IMAGE_SETTINGS = { sRGB: false, compress: false, wrapMode: 'clamp' } as const;
+export const ENV_IMAGE_SETTINGS = { sRGB: false, compress: 'off', wrapMode: 'clamp' } as const;
 
 /** Radiance above this clips. Sky detail lives well below it; a sun disc does not,
  *  and is meant to survive as a bright blob rather than as its true thousands. */

@@ -249,7 +249,7 @@ describe('the atlas file a bake writes', () => {
 
         await claimLightmapImage(png, 1024);
         const first = await meta();
-        expect(first.importer).toMatchObject({ sRGB: false, compress: false, wrapMode: 'clamp', maxSize: 2048 });
+        expect(first.importer).toMatchObject({ sRGB: false, compress: 'off', wrapMode: 'clamp', maxSize: 2048 });
 
         await writeFile(`${png}.meta`, JSON.stringify({ ...first, importer: { ...first.importer, sRGB: true, maxSize: 1024 } }));
         await claimLightmapImage(png, 4096);

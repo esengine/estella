@@ -5,13 +5,15 @@
   "importer": {
     "maxSize": 2048,
     "filterMode": "linear",
-    "wrapMode": "repeat",
+    "wrapMode": "clamp",
     "premultiplyAlpha": false,
     "sliceBorder": {
       "left": 0,
       "right": 0,
       "top": 0,
       "bottom": 0
-    }
+    },
+    "sRGB": false,
+    "compress": "off"
   }
 }
