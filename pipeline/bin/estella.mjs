@@ -203,6 +203,12 @@ async function bakeScene(baker, meta, sceneFile, check) {
       + ' transforms only the editor resolves — bake it there instead.');
     return 1;
   }
+  const instances = (scene.entities ?? []).filter((e) => typeof e.prefab === 'string');
+  if (instances.length > 0) {
+    console.error(`bake-scene: ${rel} has ${instances.length} prefab instance(s), whose contents`
+      + ' only the editor expands — bake it there instead.');
+    return 1;
+  }
 
   // The scene's own knobs, where it states them. Absent leaves the bake at its
   // defaults, which is what every scene got before the component existed.
