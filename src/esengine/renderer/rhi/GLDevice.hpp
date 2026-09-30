@@ -51,7 +51,6 @@ public:
     void setScissorTest(bool enabled) override;
     void setScissor(i32 x, i32 y, i32 w, i32 h) override;
 
-    void setUniformBuffer(u32 slot, BufferHandle buffer) override;
     void setVertexBuffer(u32 slot, BufferHandle buffer, u32 offsetBytes) override;
     void setIndexBuffer(BufferHandle buffer) override;
 
@@ -105,6 +104,7 @@ protected:
     void backendDeleteBuffer(u32 id) override;
     void backendUpdateBuffer(u32 id, u32 offsetBytes, const void* data, u32 sizeBytes) override;
     void backendResizeBuffer(u32 id, const BufferDesc& desc, const void* data) override;
+    void backendSetUniformBuffer(u32 slot, BufferHandle buffer, u32 offsetBytes, u32 sizeBytes) override;
 
     bool backendCreateTexture(u32 id, const TextureDesc& desc, const void* pixels) override;
     bool backendCreateCompressedTexture(u32 id, const TextureDesc& desc, GfxCompressedFormat format,
@@ -204,6 +204,10 @@ private:
     std::vector<u32> query_names_;
     /** Buffer id per uniform binding slot, as the renderer set it. */
     std::vector<u32> uniform_slots_;
+    /** The range of that buffer each slot reads; a size of 0 is the whole buffer. */
+    struct UniformRange { u32 offset = 0; u32 size = 0; };
+    std::vector<UniformRange> uniform_ranges_;
+    void bindUniformSlot(u32 slot, u32 name);
 
     u32 current_pipeline_id_ = 0;
     GfxStencilMode current_stencil_mode_ = GfxStencilMode::Off;

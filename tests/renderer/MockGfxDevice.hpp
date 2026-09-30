@@ -99,6 +99,8 @@ struct MockGfxDevice final : GfxDevice {
     i32 lastUniform1iLoc = -999, lastUniform1iVal = 0;
     u32 lastUniformBufferSlot = 0xFFFFFFFFu;
     BufferHandle lastUniformBuffer = BufferHandle::Invalid;
+    u32 lastUniformOffset = 0;
+    u32 lastUniformSize = 0;
     std::vector<u8> lastUpdateData;
     BufferDesc lastBufferDesc{};
     bool lastCreateBufferHadData = false;
@@ -133,10 +135,12 @@ struct MockGfxDevice final : GfxDevice {
      *  path a caller's "leaves it as it found it" promise is only true along. */
     bool createBufferSucceeds = true;
 
-    void setUniformBuffer(u32 slot, BufferHandle buffer) override {
+    void backendSetUniformBuffer(u32 slot, BufferHandle buffer, u32 offsetBytes, u32 sizeBytes) override {
         ++setUniformBufferCalls;
         lastUniformBufferSlot = slot;
         lastUniformBuffer = buffer;
+        lastUniformOffset = offsetBytes;
+        lastUniformSize = sizeBytes;
     }
     void setVertexBuffer(u32, BufferHandle buffer, u32) override { ++setVertexBufferCalls; lastVbo = buffer; }
     void setIndexBuffer(BufferHandle buffer) override { ++setIndexBufferCalls; lastIbo = buffer; }

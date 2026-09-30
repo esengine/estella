@@ -112,7 +112,6 @@ public:
     void setScissorTest(bool enabled) override;
     void setScissor(i32 x, i32 y, i32 w, i32 h) override;
 
-    void setUniformBuffer(u32 slot, BufferHandle buffer) override;
     void setVertexBuffer(u32 slot, BufferHandle buffer, u32 offsetBytes) override;
     void setIndexBuffer(BufferHandle buffer) override;
 
@@ -177,6 +176,7 @@ protected:
     void backendDeleteBuffer(u32 id) override;
     void backendUpdateBuffer(u32 id, u32 offsetBytes, const void* data, u32 sizeBytes) override;
     void backendResizeBuffer(u32 id, const BufferDesc& desc, const void* data) override;
+    void backendSetUniformBuffer(u32 slot, BufferHandle buffer, u32 offsetBytes, u32 sizeBytes) override;
 
     bool backendCreateTexture(u32 id, const TextureDesc& desc, const void* pixels) override;
     bool backendCreateCompressedTexture(u32 id, const TextureDesc& desc, GfxCompressedFormat format,
@@ -568,6 +568,8 @@ private:
     /// WebGL2 grants 12 blocks a stage, so nine is inside both.
     static constexpr u32 kUniformSlots = 9;
     u32 uniform_slots_[kUniformSlots] = {};  ///< BufferHandle id per UBO binding slot.
+    u32 uniform_offsets_[kUniformSlots] = {};
+    u32 uniform_sizes_[kUniformSlots] = {};  ///< 0 = the whole buffer.
     /// Engine units 0..7 (batch multi-texture) + material-param units 8..15
     /// (== webgpu::kGroup1TextureUnits, static_asserted in the .cpp).
     static constexpr u32 kTextureSlots = 16;

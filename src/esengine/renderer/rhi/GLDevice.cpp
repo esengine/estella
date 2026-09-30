@@ -800,7 +800,7 @@ bool GLDevice::backendCreateBuffer(u32 id, const BufferDesc& desc, const void* d
     uploadBufferStore(id, 0, data, desc.size, /*respec=*/true);
     // A slot keeps naming the buffer across a rebuild; the context it was bound in does not.
     for (usize slot = 0; slot < uniform_slots_.size(); ++slot) {
-        if (uniform_slots_[slot] == id) glBindBufferBase(GL_UNIFORM_BUFFER, static_cast<GLuint>(slot), name);
+        if (uniform_slots_[slot] == id) bindUniformSlot(static_cast<u32>(slot), name);
     }
     return true;
 }
@@ -820,9 +820,20 @@ void GLDevice::backendResizeBuffer(u32 id, const BufferDesc& desc, const void* d
     uploadBufferStore(id, 0, data, desc.size, /*respec=*/true);
 }
 
-void GLDevice::setUniformBuffer(u32 slot, BufferHandle buffer) {
+void GLDevice::backendSetUniformBuffer(u32 slot, BufferHandle buffer, u32 offsetBytes, u32 sizeBytes) {
     setName(uniform_slots_, slot, static_cast<u32>(buffer));
-    glBindBufferBase(GL_UNIFORM_BUFFER, slot, nameOf(buffer_names_, static_cast<u32>(buffer)));
+    if (slot >= uniform_ranges_.size()) uniform_ranges_.resize(static_cast<usize>(slot) + 1);
+    uniform_ranges_[slot] = {offsetBytes, sizeBytes};
+    bindUniformSlot(slot, nameOf(buffer_names_, static_cast<u32>(buffer)));
+}
+
+void GLDevice::bindUniformSlot(u32 slot, u32 name) {
+    const UniformRange range = slot < uniform_ranges_.size() ? uniform_ranges_[slot] : UniformRange{};
+    if (name && range.size) {
+        glBindBufferRange(GL_UNIFORM_BUFFER, slot, name, range.offset, range.size);
+    } else {
+        glBindBufferBase(GL_UNIFORM_BUFFER, slot, name);
+    }
 }
 
 // =============================================================================

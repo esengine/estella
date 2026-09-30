@@ -141,9 +141,9 @@ void RenderContext::initFrameUbo() {
     instanceBlocks_.init(device_, static_cast<u32>(sizeof(InstanceConstants)));
     // What a draw with no shapes and no volume reads. A pose has no zero: geometry
     // without one is drawn by a shader that does not declare the block.
-    device_.setUniformBuffer(MORPH_CONSTANTS_BINDING, morphBlocks_.zero());
-    device_.setUniformBuffer(PROBE_CONSTANTS_BINDING, probeBlocks_.zero());
-    device_.setUniformBuffer(INSTANCE_CONSTANTS_BINDING, instanceBlocks_.zero());
+    morphBlocks_.bindZero(MORPH_CONSTANTS_BINDING);
+    probeBlocks_.bindZero(PROBE_CONSTANTS_BINDING);
+    instanceBlocks_.bindZero(INSTANCE_CONSTANTS_BINDING);
 
     ES_LOG_DEBUG("FrameConstants UBO created (handle: {})", static_cast<u32>(frameUbo_));
 }

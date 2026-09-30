@@ -774,11 +774,14 @@ void WebGPUDevice::backendResizeBuffer(u32 id, const BufferDesc& desc, const voi
     it->second.size = desc.size;
 }
 
-void WebGPUDevice::setUniformBuffer(u32 slot, BufferHandle buffer) {
+void WebGPUDevice::backendSetUniformBuffer(u32 slot, BufferHandle buffer, u32 offsetBytes, u32 sizeBytes) {
     if (slot >= kUniformSlots) return;
     const u32 id = static_cast<u32>(buffer);
-    if (uniform_slots_[slot] != id) {
+    if (uniform_slots_[slot] != id || uniform_offsets_[slot] != offsetBytes ||
+        uniform_sizes_[slot] != sizeBytes) {
         uniform_slots_[slot] = id;
+        uniform_offsets_[slot] = offsetBytes;
+        uniform_sizes_[slot] = sizeBytes;
         bind_group_dirty_ = true;
     }
 }
@@ -1935,13 +1938,14 @@ void WebGPUDevice::flushBindGroup() {
         for (u32 slot = 0; slot < kUniformSlots; ++slot) {
             if ((prog->group0Mask & (1u << slot)) == 0) continue;
             auto it = buffers_.find(uniform_slots_[slot]);
-            const BufferRec& bound = it != buffers_.end() && it->second.buffer ? it->second : dummy_ubo_;
+            const bool armed = it != buffers_.end() && it->second.buffer;
+            const BufferRec& bound = armed ? it->second : dummy_ubo_;
             if (!bound.buffer) continue;
             WGPUBindGroupEntry e{};
             e.binding = slot;
             e.buffer = bound.buffer;
-            e.offset = 0;
-            e.size = bound.size;
+            e.offset = armed ? uniform_offsets_[slot] : 0;
+            e.size = armed && uniform_sizes_[slot] ? uniform_sizes_[slot] : bound.size;
             entries[count++] = e;
         }
 
@@ -1949,10 +1953,14 @@ void WebGPUDevice::flushBindGroup() {
         bgd.layout = groupLayoutFor(0, prog->group0Mask);
         bgd.entryCount = count;
         bgd.entries = entries;
-        u64 ids[kUniformSlots];
-        for (u32 i = 0; i < count; ++i)
-            ids[i] = static_cast<u64>(reinterpret_cast<uintptr_t>(entries[i].buffer));
-        bind_group_ = cachedBindGroup(0, prog->group0Mask, ids, count, bgd);
+        // An offset is keyed with its top bit set, so it never equals the buffer
+        // pointer evictBindGroups looks for.
+        u64 ids[kUniformSlots * 2];
+        for (u32 i = 0; i < count; ++i) {
+            ids[i * 2] = static_cast<u64>(reinterpret_cast<uintptr_t>(entries[i].buffer));
+            ids[i * 2 + 1] = (u64{1} << 63) | (entries[i].offset << 20) | entries[i].size;
+        }
+        bind_group_ = cachedBindGroup(0, prog->group0Mask, ids, count * 2, bgd);
         if (bind_group_) wgpuRenderPassEncoderSetBindGroup(pass_, 0, bind_group_, 0, nullptr);
     }
 

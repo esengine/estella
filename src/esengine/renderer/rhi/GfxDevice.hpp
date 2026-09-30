@@ -43,6 +43,9 @@ namespace esengine {
 /** @brief Sentinel returned by getUniformBlockIndex when a program has no such block (GL_INVALID_INDEX). */
 static constexpr u32 GFX_INVALID_UNIFORM_BLOCK = 0xFFFFFFFFu;
 
+/** @brief What a uniform binding's offset must be a multiple of: the largest either API may ask. */
+static constexpr u32 GFX_UNIFORM_OFFSET_ALIGNMENT = 256;
+
 /**
  * @brief GPU objects the device has created and not yet destroyed.
  *
@@ -316,8 +319,14 @@ public:
     /** @brief A buffer's description as it stands, or null for a handle that names none. */
     const BufferDesc* bufferDesc(BufferHandle buffer) const;
 
-    /** @brief Binds a buffer to a uniform binding slot (the block index shaders are linked to). */
-    virtual void setUniformBuffer(u32 slot, BufferHandle buffer) = 0;
+    /**
+     * @brief Binds a buffer to a uniform binding slot (the block index shaders are linked to).
+     * @details @p sizeBytes of it from @p offsetBytes, a multiple of
+     *          GFX_UNIFORM_OFFSET_ALIGNMENT; a size of 0 is the whole buffer.
+     */
+    void setUniformBuffer(u32 slot, BufferHandle buffer, u32 offsetBytes = 0, u32 sizeBytes = 0) {
+        backendSetUniformBuffer(slot, buffer, offsetBytes, sizeBytes);
+    }
 
     // =========================================================================
     // Vertex Input (layout in the pipeline, buffers bound per draw)
@@ -732,6 +741,7 @@ protected:
     virtual void backendDeleteBuffer(u32 id) = 0;
     virtual void backendUpdateBuffer(u32 id, u32 offsetBytes, const void* data, u32 sizeBytes) = 0;
     virtual void backendResizeBuffer(u32 id, const BufferDesc& desc, const void* data) = 0;
+    virtual void backendSetUniformBuffer(u32 slot, BufferHandle buffer, u32 offsetBytes, u32 sizeBytes) = 0;
 
     virtual bool backendCreateTexture(u32 id, const TextureDesc& desc, const void* pixels) = 0;
     virtual bool backendCreateCompressedTexture(u32 id, const TextureDesc& desc, GfxCompressedFormat format,

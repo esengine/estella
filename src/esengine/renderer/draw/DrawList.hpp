@@ -207,6 +207,12 @@ private:
     /// One draw's run of coefficients, rebuilt per draw — reused so a frame of
     /// merged draws does not allocate per draw.
     std::vector<glm::vec4> probe_run_;
+    /// Each merged draw's per-draw blocks, staged for the pass before it draws.
+    struct StagedBlocks {
+        PerDrawBlocks::Range skin, morph, probe, instance;
+    };
+    std::vector<StagedBlocks> staged_;
+    void stageBlocks(const PerDrawBlockSet& blocks);
     std::vector<SortEntry> sort_entries_;
     std::vector<DrawCommand> sorted_scratch_;  // reused across frames to avoid a
                                                // per-frame heap alloc in finalize()

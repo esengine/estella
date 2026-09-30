@@ -201,6 +201,60 @@ std::span<const Entity> DrawList::runEntities(u32 index) const {
     return {run_entities_.data() + first, end - first};
 }
 
+void DrawList::stageBlocks(const PerDrawBlockSet& blocks) {
+    staged_.assign(merged_draw_calls_, StagedBlocks{});
+    for (u32 i = 0; i < merged_draw_calls_; ++i) {
+        const auto& cmd = commands_[i];
+        StagedBlocks& staged = staged_[i];
+
+        // The pose, for a draw that has one — in a range of this draw's own. A
+        // block shared between two draws of one pass is read by both with what
+        // the last wrote, which is a room of characters in one pose.
+        if (cmd.skin_count > 0 && blocks.skin) {
+            staged.skin = blocks.skin->stage(skin_matrices_.data() + cmd.skin_offset,
+                                             cmd.skin_count * static_cast<u32>(sizeof(glm::mat4)));
+        }
+
+        // The shapes, the same way — and a draw with none binds the zeroed block
+        // rather than erasing the last one's, so "unshaped" is an object instead
+        // of an erasure someone has to remember to perform.
+        if (blocks.morph && cmd.morph_index > 0) {
+            staged.morph = blocks.morph->stage(&morph_shapes_[cmd.morph_index - 1], sizeof(MorphConstants));
+        }
+
+        // WHERE this draw's instances read their irradiance, not what it is: the
+        // coefficients are in the frame's texture, one run per instance, so a
+        // merged draw holding objects in many places still says one thing here.
+        if (blocks.probe) {
+            // Every instance of this run, in the order it draws them, capped at
+            // what the block holds — a longer run carries no irradiance at all,
+            // so its tail reads zeroes and takes the environment.
+            const u32 runs = std::min(cmd.instance_count > 0 ? cmd.instance_count : 1u,
+                                      PROBE_MAX_INSTANCES);
+            probe_run_.assign(static_cast<size_t>(runs) * PROBE_TEXELS, glm::vec4(0.0f));
+            for (u32 n = 0; n < runs; ++n) {
+                const size_t at = static_cast<size_t>(cmd.probe_base) + n;
+                const u32 index = at < probe_slots_.size() ? probe_slots_[at] : 0u;
+                if (index == 0) continue;
+                std::memcpy(&probe_run_[static_cast<size_t>(n) * PROBE_TEXELS],
+                            &probes_[index - 1], sizeof(ProbeConstants));
+            }
+            staged.probe = blocks.probe->stage(
+                probe_run_.data(), static_cast<u32>(probe_run_.size() * sizeof(glm::vec4)));
+        }
+
+        // gl_InstanceID restarts at zero every draw while the frame's records are
+        // one continuous run, so a draw has to say where its own run begins in them.
+        if (blocks.instance && cmd.hasPersistentGeometry()) {
+            const InstanceConstants at{cmd.vertex_byte_offset / MESH_INSTANCE_STRIDE, {}};
+            staged.instance = blocks.instance->stage(&at, sizeof(at));
+        }
+    }
+    for (PerDrawBlocks* pool : {blocks.skin, blocks.morph, blocks.probe, blocks.instance}) {
+        if (pool) pool->upload();
+    }
+}
+
 void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
                        MaterialStore& materials, u32 white_texture_id,
                        FrameCapture* capture, const PerDrawBlockSet& blocks) {
@@ -213,8 +267,11 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
         device.bindTexture(MESH_INSTANCE_TEXTURE_UNIT, buffers.instanceTexture());
     }
 
+    stageBlocks(blocks);
+
     for (u32 i = 0; i < merged_draw_calls_; ++i) {
         const auto& cmd = commands_[i];
+        const StagedBlocks& staged = staged_[i];
 
         const GfxStencilMode stencil = stencilModeOf(cmd.state_flags);
 
@@ -254,48 +311,14 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
             materials.bindForDraw(cmd.material_id);
         }
 
-        // The pose, for a draw that has one — in a buffer of this draw's own. A
-        // block shared between two draws of one pass is read by both with what
-        // the last wrote, which is a room of characters in one pose.
         if (cmd.skin_count > 0 && blocks.skin) {
-            device.setUniformBuffer(
-                SKIN_CONSTANTS_BINDING,
-                blocks.skin->write(skin_matrices_.data() + cmd.skin_offset,
-                                   cmd.skin_count * static_cast<u32>(sizeof(glm::mat4))));
+            blocks.skin->bind(SKIN_CONSTANTS_BINDING, staged.skin);
         }
-
-        // The shapes, the same way — and a draw with none binds the zeroed block
-        // rather than erasing the last one's, so "unshaped" is an object instead
-        // of an erasure someone has to remember to perform.
         if (blocks.morph) {
-            device.setUniformBuffer(MORPH_CONSTANTS_BINDING,
-                                    cmd.morph_index > 0
-                                        ? blocks.morph->write(&morph_shapes_[cmd.morph_index - 1],
-                                                              sizeof(MorphConstants))
-                                        : blocks.morph->zero());
+            blocks.morph->bind(MORPH_CONSTANTS_BINDING, staged.morph);
         }
-
-        // WHERE this draw's instances read their irradiance, not what it is: the
-        // coefficients are in the frame's texture, one run per instance, so a
-        // merged draw holding objects in many places still says one thing here.
         if (blocks.probe) {
-            // Every instance of this run, in the order it draws them, capped at
-            // what the block holds — a longer run carries no irradiance at all,
-            // so its tail reads zeroes and takes the environment.
-            const u32 runs = std::min(cmd.instance_count > 0 ? cmd.instance_count : 1u,
-                                      PROBE_MAX_INSTANCES);
-            probe_run_.assign(static_cast<size_t>(runs) * PROBE_TEXELS, glm::vec4(0.0f));
-            for (u32 n = 0; n < runs; ++n) {
-                const size_t at = static_cast<size_t>(cmd.probe_base) + n;
-                const u32 index = at < probe_slots_.size() ? probe_slots_[at] : 0u;
-                if (index == 0) continue;
-                std::memcpy(&probe_run_[static_cast<size_t>(n) * PROBE_TEXELS],
-                            &probes_[index - 1], sizeof(ProbeConstants));
-            }
-            device.setUniformBuffer(
-                PROBE_CONSTANTS_BINDING,
-                blocks.probe->write(probe_run_.data(),
-                                    static_cast<u32>(probe_run_.size() * sizeof(glm::vec4))));
+            blocks.probe->bind(PROBE_CONSTANTS_BINDING, staged.probe);
         }
 
         // Dynamic per-draw state (sorted+merged draws already group these coarsely).
@@ -326,13 +349,8 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
         }
 
         if (cmd.hasPersistentGeometry()) {
-            // gl_InstanceID restarts at zero every draw while the frame's
-            // records are one continuous run, so a draw has to say where its own
-            // run begins in them.
             if (blocks.instance) {
-                const InstanceConstants at{cmd.vertex_byte_offset / MESH_INSTANCE_STRIDE, {}};
-                device.setUniformBuffer(INSTANCE_CONSTANTS_BINDING,
-                                        blocks.instance->write(&at, sizeof(at)));
+                blocks.instance->bind(INSTANCE_CONSTANTS_BINDING, staged.instance);
             }
             device.setVertexBuffer(0, cmd.vertex_buffer, 0);
             device.setIndexBuffer(cmd.index_buffer);

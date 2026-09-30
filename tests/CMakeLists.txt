@@ -187,6 +187,18 @@ target_include_directories(test_draw_params PRIVATE
 )
 add_test(NAME test_draw_params COMMAND test_draw_params)
 
+# Per-draw uniform ranges: a frame of thousands of draws is a few pages, not a buffer each.
+add_executable(test_per_draw_blocks
+    renderer/test_per_draw_blocks.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/renderer/rhi/GfxDevice.cpp
+    ${CMAKE_SOURCE_DIR}/src/esengine/core/Log.cpp
+)
+target_include_directories(test_per_draw_blocks PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party/glm
+)
+add_test(NAME test_per_draw_blocks COMMAND test_per_draw_blocks)
+
 # Which SpriteMask cuts a sprite — the reach rule, apart from a frame. Header-only.
 add_executable(test_sprite_mask_range renderer/test_sprite_mask_range.cpp)
 target_include_directories(test_sprite_mask_range PRIVATE
