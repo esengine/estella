@@ -32,15 +32,25 @@ export function encoderIdentity(encoderFile: string): string {
 /** Concurrent cooks in one process can produce the same key; each writes its own temp file. */
 let tmpSerial = 0;
 
-export async function cookCached(
-    root: string, inputs: ReadonlyArray<Uint8Array | string>, produce: () => Promise<Uint8Array>,
-): Promise<{ bytes: Uint8Array; hit: boolean }> {
+function cacheFile(root: string, inputs: ReadonlyArray<Uint8Array | string>): string {
     const h = createHash('sha256');
     for (const part of inputs) {
         h.update(typeof part === 'string' ? `s${part.length}:${part}` : `b${part.byteLength}:`);
         if (typeof part !== 'string') h.update(part);
     }
-    const file = path.join(root, CACHE_DIR, `${h.digest('hex')}.bin`);
+    return path.join(root, CACHE_DIR, `${h.digest('hex')}.bin`);
+}
+
+/** What an earlier cook made for these inputs, or null — never produces. */
+export async function cookCacheHit(root: string, inputs: ReadonlyArray<Uint8Array | string>): Promise<Uint8Array | null> {
+    const file = cacheFile(root, inputs);
+    return existsSync(file) ? new Uint8Array(await readFile(file)) : null;
+}
+
+export async function cookCached(
+    root: string, inputs: ReadonlyArray<Uint8Array | string>, produce: () => Promise<Uint8Array>,
+): Promise<{ bytes: Uint8Array; hit: boolean }> {
+    const file = cacheFile(root, inputs);
     if (existsSync(file)) return { bytes: new Uint8Array(await readFile(file)), hit: true };
     const bytes = await produce();
     try {

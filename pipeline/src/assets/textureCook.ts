@@ -1,0 +1,205 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file    textureCook.ts
+ * @brief   What one texture becomes when it is compressed — for a build and the editor alike.
+ *
+ * @details The build and the editor ask for the same bytes: the editor shows a
+ *          texture as the game will draw it, and both read and write the same
+ *          cook cache, so whichever compresses a texture first pays for it once.
+ */
+import { readTextureCookSettings } from '../project/importSettings';
+import { decodePngImage, encodeRgbaPng, downscaleRgba } from './atlasPacker';
+import {
+  decideTextureCook, cookIntentDefeated, explainTextureCook, keepSmaller,
+  type TextureCookDecision,
+} from './textureCookDecision';
+import { halveRgba, joinMipLevels, alphaCoverage, preserveAlphaCoverage } from './ktx2Mips';
+import { cookCached, cookCacheHit, encoderIdentity } from './cookCache';
+
+/** Targets the KTX2 the cook emits can transcode to at runtime (UASTC + ETC1S). */
+export const COMPRESSED_TARGETS = ['astc-4x4', 'etc2-rgba8', 's3tc-dxt5'];
+
+/** The slice of the vendored Basis encoder (build-tools/basis/encoder.mjs, a JS
+ *  module) the cook uses. Typed locally so the per-texture format/srgb path stays
+ *  type-checked without a hand-written `.d.ts`. */
+export interface BasisEncoderModule {
+  encodePngToKtx2(png: Uint8Array, opts?: { mode?: string; srgb?: boolean }): Promise<Uint8Array>;
+  encodeToKtx2(
+    source: { type: string; data: Uint8Array; width?: number; height?: number },
+    opts?: {
+      mode?: string; srgb?: boolean; mipmaps?: boolean; yFlip?: boolean;
+      supercompress?: boolean; uastcLevel?: number;
+    },
+  ): Promise<Uint8Array>;
+  transcodeKtx2ToRgba(ktx2: Uint8Array): Promise<{ width: number; height: number; pixels: Uint8Array }>;
+  ImageType: { PNG: string; JPG: string; RGBA: string };
+  ENCODER_WASM: string;
+  ENCODER_PARALLELISM: number;
+}
+
+/**
+ * A cutout's UASTC chain, each level halved here from the one above with its alpha
+ * rescaled to the full image's coverage at @p cutoff — plain averaging thins a
+ * sparse cutout, such as a railing, until nothing of it passes the cut.
+ */
+async function encodeCoverageChain(enc: BasisEncoderModule, img: { rgba: Uint8Array; width: number; height: number },
+                                   srgb: boolean, cutoff: number): Promise<Uint8Array> {
+  const coverage = alphaCoverage(img.rgba, cutoff);
+  const parts: Uint8Array[] = [];
+  let level = img;
+  for (;;) {
+    parts.push(await enc.encodeToKtx2({ type: enc.ImageType.RGBA, data: level.rgba, width: level.width, height: level.height },
+      { mode: 'uastc', srgb, mipmaps: false }));
+    if (level.width === 1 && level.height === 1) break;
+    const half = halveRgba(level.rgba, level.width, level.height, srgb);
+    preserveAlphaCoverage(half.rgba, cutoff, coverage);
+    level = half;
+  }
+  return joinMipLevels(parts);
+}
+
+/** A loaded encoder and the identity its outputs are cached under. */
+export interface TextureEncoder {
+  module: BasisEncoderModule;
+  id: string;
+}
+
+let encoder: Promise<TextureEncoder> | null = null;
+
+/** The vendored Basis encoder, loaded once. By dynamic import, so the Electron-main
+ *  bundle keeps it external rather than inlining a module that resolves its wasm
+ *  via import.meta.url. */
+export function loadTextureEncoder(): Promise<TextureEncoder> {
+  encoder ??= (import('../../../build-tools/basis/encoder.mjs') as Promise<unknown>).then((m) => {
+    const module = m as BasisEncoderModule;
+    return { module, id: encoderIdentity(module.ENCODER_WASM) };
+  });
+  return encoder;
+}
+
+/** PNG width/height from the IHDR (big-endian u32 at byte offsets 16 / 20) —
+ *  a header peek, so the `maxSize` cap can skip decoding textures already in range. */
+export function pngDimensions(png: Uint8Array): { width: number; height: number } {
+  const dv = new DataView(png.buffer, png.byteOffset, png.byteLength);
+  return { width: dv.getUint32(16), height: dv.getUint32(20) };
+}
+
+function safePngDimensions(png: Uint8Array): { width: number; height: number } | null {
+  try {
+    return pngDimensions(png);
+  } catch {
+    return null;
+  }
+}
+
+export interface TextureCookInput {
+  root: string;
+  /** Project-relative path, for messages. */
+  path: string;
+  /** The source file's bytes. */
+  data: Uint8Array;
+  /** The source's extension, with its dot. */
+  ext: string;
+  importer?: Record<string, unknown>;
+  platform?: string;
+  /** Null when this cook compresses nothing — the decision is still taken. */
+  encoder: TextureEncoder | null;
+  compressTextures: boolean;
+  atlasTextures: boolean;
+  /** Answer only from the cook cache: an encode it would have to run is left
+   *  undone, and the output says `pending` instead. */
+  cachedOnly?: boolean;
+  /** Keep the KTX2 even where the source file is smaller. A package weighs its
+   *  download; a viewport holding a project's art weighs its video memory, where
+   *  a block-compressed texture is a quarter of the decoded one whatever the file
+   *  size. The encode, and the cache entry, are the same either way. */
+  keepCompressed?: boolean;
+}
+
+export interface TextureCookOutput {
+  data: Uint8Array;
+  ext: string;
+  cook: TextureCookDecision;
+  /** GPU formats the output transcodes to, when it is compressed. */
+  compressedFormats?: string[];
+  warnings: string[];
+  /** Asked to compress, and its source format is one the encoder does not take. */
+  defeatedByFormat: boolean;
+  /** Encoded and thrown away as larger than the source: by how many bytes. */
+  grew?: number;
+  /** `cachedOnly`, and the encode this texture asks for has not been run. */
+  pending?: boolean;
+}
+
+/**
+ * One texture as a build ships it: capped at its `maxSize`, then compressed to
+ * KTX2 where its settings and the build ask for it and the result is smaller.
+ * Encodes go through the cook cache under the source bytes, the settings that
+ * shape the output and the encoder's identity.
+ */
+export async function cookTexture(input: TextureCookInput): Promise<TextureCookOutput> {
+  const { root, path, platform } = input;
+  let { data, ext } = input;
+  const warnings: string[] = [];
+  const tex = readTextureCookSettings(input.importer, platform);
+  const raster = ext.toLowerCase() === '.png';
+  const textureEnc = input.encoder?.module ?? null;
+  // maxSize downscale first — it applies even when a texture opts OUT of
+  // compression (a huge UI sprite can ship as a smaller raw PNG), and the
+  // ENCODED size is what block alignment is judged on.
+  let rgba: Uint8Array | null = null;
+  let tw = 0, th = 0;
+  if (textureEnc && raster) {
+    try {
+      const dims = pngDimensions(data);
+      if (tex.maxSize < Math.max(dims.width, dims.height)) {
+        const scaled = downscaleRgba(decodePngImage(path, data), tex.maxSize);
+        rgba = scaled.rgba; tw = scaled.width; th = scaled.height;
+        if (!tex.compress) data = encodeRgbaPng(tw, th, rgba); // ship the shrunk PNG
+      }
+    } catch (err) {
+      warnings.push(`${path}: texture resize skipped — ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  const size = raster ? (rgba ? { width: tw, height: th } : safePngDimensions(data)) : null;
+  let cook = decideTextureCook({
+    compressTextures: input.compressTextures, atlasTextures: input.atlasTextures, inAtlas: false, raster,
+    compress: tex.compress, format: tex.format, size,
+  });
+  let defeatedByFormat = false;
+  if (cookIntentDefeated(cook)) {
+    // A source format the encoder does not take is a property of the whole
+    // project's art, not of one asset — the caller summarizes it once.
+    if (cook.reason === 'not-raster') defeatedByFormat = true;
+    else warnings.push(`${path}: ${explainTextureCook(cook, size)}`);
+  }
+  let compressedFormats: string[] | undefined;
+  let grew: number | undefined;
+  if (cook.selected !== 'raw') {
+    // Only a build that encodes can select an encoding, and that is exactly
+    // when the encoder was loaded — an absent one here is a broken invariant
+    // and should say so rather than silently ship raw.
+    const enc = textureEnc!;
+    const mode = cook.selected;
+    const source = data;
+    const coverage = mode === 'uastc' ? tex.mipCoverage : 0;
+    const key = [source, JSON.stringify({ mode, srgb: tex.srgb, maxSize: tex.maxSize, scaled: rgba ? [tw, th] : null,
+      ...(coverage ? { mipCoverage: coverage } : {}) }), input.encoder!.id];
+    const produce = (): Promise<Uint8Array> => (coverage
+      ? encodeCoverageChain(enc, rgba ? { rgba, width: tw, height: th } : decodePngImage(path, source),
+        tex.srgb, coverage)
+      : rgba
+        ? enc.encodeToKtx2({ type: enc.ImageType.RGBA, data: rgba, width: tw, height: th }, { mode, srgb: tex.srgb })
+        : enc.encodeToKtx2({ type: enc.ImageType.PNG, data: source }, { mode, srgb: tex.srgb }));
+    const encoded = input.cachedOnly ? await cookCacheHit(root, key) : (await cookCached(root, key, produce)).bytes;
+    if (!encoded) return { data, ext, cook, warnings, defeatedByFormat, pending: true };
+    if (!input.keepCompressed) cook = keepSmaller(cook, encoded.byteLength, data.byteLength, coverage > 0);
+    if (cook.selected !== 'raw') {
+      data = encoded;
+      ext = '.ktx2';
+      compressedFormats = COMPRESSED_TARGETS;
+    } else grew = encoded.byteLength - data.byteLength;
+  }
+  return { data, ext, cook, compressedFormats, warnings, defeatedByFormat, grew };
+}

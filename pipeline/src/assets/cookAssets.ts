@@ -23,7 +23,7 @@ import { statSync } from 'node:fs';
 import { isInsideRoot } from '../fs/pathSandbox';
 import path from 'node:path';
 import { scanAssetDatabase, type AssetEntry } from './assetDb';
-import { packAtlas, decodePngImage, encodePagePng, encodeRgbaPng, downscaleRgba, type AtlasInputImage } from './atlasPacker';
+import { packAtlas, decodePngImage, encodePagePng, type AtlasInputImage } from './atlasPacker';
 // Per-asset texture cook settings (compress opt-out / format / size cap), read
 // from the `.meta` `importer` block — the same registry the inspector edits, so a
 // texture's ship-time compression is authored per asset, not one global switch.
@@ -32,7 +32,7 @@ import { readTextureCookSettings } from '../project/importSettings';
 // The branch below IS this function — a cook that re-derived the choice would
 // be a second answer to the question an inspector asks before a build runs.
 import {
-  decideTextureCook, cookIntentDefeated, explainTextureCook, keepSmaller,
+  decideTextureCook, cookIntentDefeated, explainTextureCook,
   type TextureCookDecision,
 } from './textureCookDecision';
 // Single-source content hash (sdk/src/asset/contentHash.ts). Imported as source —
@@ -45,9 +45,10 @@ import { isBuiltinAssetRef, resolveRelativePath, resolveDocumentRef } from '../.
 import { resolveAssetGroup, resolveAtlas, type AssetGroupsConfig } from '../../../sdk/src/asset/assetGroups';
 import type { BundleMode } from '../../../sdk/src/asset/AddressableManifest';
 import {
-  readKtx2Layout, wantsMipChain, halveRgba, spliceMipChain, joinMipLevels, alphaCoverage, preserveAlphaCoverage,
+  readKtx2Layout, wantsMipChain, halveRgba, spliceMipChain,
 } from './ktx2Mips';
-import { cookCached, encoderIdentity } from './cookCache';
+import { cookCached } from './cookCache';
+import { cookTexture, loadTextureEncoder, COMPRESSED_TARGETS, type BasisEncoderModule } from './textureCook';
 
 const MANIFEST = 'assets.manifest.json';
 
@@ -190,41 +191,6 @@ function underGroupRoot(rel: string, name: string, delivery: GroupDelivery): str
   return `${root}/${rel}`;
 }
 
-/** Targets the KTX2 the cook emits can transcode to at runtime (UASTC + ETC1S). */
-const COMPRESSED_TARGETS = ['astc-4x4', 'etc2-rgba8', 's3tc-dxt5'];
-
-/** PNG width/height from the IHDR (big-endian u32 at byte offsets 16 / 20) —
- *  a header peek, so the `maxSize` cap can skip decoding textures already in range. */
-function safePngDimensions(png: Uint8Array): { width: number; height: number } | null {
-  try {
-    return pngDimensions(png);
-  } catch {
-    return null;
-  }
-}
-
-function pngDimensions(png: Uint8Array): { width: number; height: number } {
-  const dv = new DataView(png.buffer, png.byteOffset, png.byteLength);
-  return { width: dv.getUint32(16), height: dv.getUint32(20) };
-}
-
-/** The slice of the vendored Basis encoder (build-tools/basis/encoder.mjs, a JS
- *  module) the cook uses. Typed locally so the per-texture format/srgb path stays
- *  type-checked without a hand-written `.d.ts`. */
-interface BasisEncoderModule {
-  encodePngToKtx2(png: Uint8Array, opts?: { mode?: string; srgb?: boolean }): Promise<Uint8Array>;
-  encodeToKtx2(
-    source: { type: string; data: Uint8Array; width?: number; height?: number },
-    opts?: {
-      mode?: string; srgb?: boolean; mipmaps?: boolean; yFlip?: boolean;
-      supercompress?: boolean; uastcLevel?: number;
-    },
-  ): Promise<Uint8Array>;
-  transcodeKtx2ToRgba(ktx2: Uint8Array): Promise<{ width: number; height: number; pixels: Uint8Array }>;
-  ImageType: { PNG: string; JPG: string; RGBA: string };
-  ENCODER_WASM: string;
-  ENCODER_PARALLELISM: number;
-}
 
 /** What cooking one asset reports, held apart so concurrent cooks merge in order. */
 interface CookSink {
@@ -250,27 +216,6 @@ async function mapInOrder<T, R>(items: T[], limit: number, fn: (item: T) => Prom
 }
 
 const KTX2_SCHEME_ZSTD = 2;
-
-/**
- * A cutout's UASTC chain, each level halved here from the one above with its alpha
- * rescaled to the full image's coverage at @p cutoff — plain averaging thins a
- * sparse cutout, such as a railing, until nothing of it passes the cut.
- */
-async function encodeCoverageChain(enc: BasisEncoderModule, img: { rgba: Uint8Array; width: number; height: number },
-                                   srgb: boolean, cutoff: number): Promise<Uint8Array> {
-  const coverage = alphaCoverage(img.rgba, cutoff);
-  const parts: Uint8Array[] = [];
-  let level = img;
-  for (;;) {
-    parts.push(await enc.encodeToKtx2({ type: enc.ImageType.RGBA, data: level.rgba, width: level.width, height: level.height },
-      { mode: 'uastc', srgb, mipmaps: false }));
-    if (level.width === 1 && level.height === 1) break;
-    const half = halveRgba(level.rgba, level.width, level.height, srgb);
-    preserveAlphaCoverage(half.rgba, cutoff, coverage);
-    level = half;
-  }
-  return joinMipLevels(parts);
-}
 
 /** Replace a path's extension (e.g. .png → .ktx2); appends if it had none. */
 function swapExt(p: string, ext: string): string {
@@ -621,9 +566,8 @@ export async function cookAssets(
   let textureEnc: BasisEncoderModule | null = null;
   let encoderId = '';
   if (compressTextures) {
-    textureEnc = await import('../../../build-tools/basis/encoder.mjs') as unknown as BasisEncoderModule;
+    ({ module: textureEnc, id: encoderId } = await loadTextureEncoder());
     encodePng = (png) => textureEnc!.encodePngToKtx2(png, { mode: 'uastc' });
-    encoderId = encoderIdentity(textureEnc.ENCODER_WASM);
   }
   // WAV → MP3 (LAME wasm) rides the same lazy pattern; per-asset importer
   // settings can opt a clip out (seamless loops) or pick a bitrate.
@@ -803,61 +747,15 @@ export async function cookAssets(
       // JPEG whose Compress row reads ON leaves no other trace. Hash + name below
       // reflect the ENCODED bytes, so this composes with content-addressing.
       if (entry.type !== 'scene' && getAssetTypeEntry(entry.path)?.contentType === 'image') {
-        const tex = readTextureCookSettings(entry.importer, platform);
-        const raster = ext.toLowerCase() === '.png';
-        // maxSize downscale first — it applies even when a texture opts OUT of
-        // compression (a huge UI sprite can ship as a smaller raw PNG), and the
-        // ENCODED size is what block alignment is judged on.
-        let rgba: Uint8Array | null = null;
-        let tw = 0, th = 0;
-        if (textureEnc && raster) {
-          try {
-            const dims = pngDimensions(data);
-            if (tex.maxSize < Math.max(dims.width, dims.height)) {
-              const scaled = downscaleRgba(decodePngImage(entry.path, data), tex.maxSize);
-              rgba = scaled.rgba; tw = scaled.width; th = scaled.height;
-              if (!tex.compress) data = encodeRgbaPng(tw, th, rgba); // ship the shrunk PNG
-            }
-          } catch (err) {
-            warnings.push(`${entry.path}: texture resize skipped — ${err instanceof Error ? err.message : String(err)}`);
-          }
-        }
-        const size = raster ? (rgba ? { width: tw, height: th } : safePngDimensions(data)) : null;
-        cook = decideTextureCook({
-          compressTextures, atlasTextures, inAtlas: false, raster,
-          compress: tex.compress, format: tex.format, size,
+        const t = await cookTexture({
+          root, path: entry.path, data, ext, importer: entry.importer, platform,
+          encoder: textureEnc ? { module: textureEnc, id: encoderId } : null,
+          compressTextures, atlasTextures,
         });
-        if (cookIntentDefeated(cook)) {
-          // A source format the encoder does not take is a property of the whole
-          // project's art, not of one asset — it is summarized once, below.
-          if (cook.reason === 'not-raster') defeatedByFormat.push(entry.path);
-          else warnings.push(`${entry.path}: ${explainTextureCook(cook, size)}`);
-        }
-        if (cook.selected !== 'raw') {
-          // Only a build that encodes can select an encoding, and that is exactly
-          // when the encoder was loaded — an absent one here is a broken invariant
-          // and should say so rather than silently ship raw.
-          const enc = textureEnc!;
-          const mode = cook.selected;
-          const source = data;
-          const coverage = mode === 'uastc' ? tex.mipCoverage : 0;
-          const encoded = (await cookCached(root,
-            [source, JSON.stringify({ mode, srgb: tex.srgb, maxSize: tex.maxSize, scaled: rgba ? [tw, th] : null,
-              ...(coverage ? { mipCoverage: coverage } : {}) }), encoderId],
-            () => (coverage
-              ? encodeCoverageChain(enc, rgba ? { rgba, width: tw, height: th } : decodePngImage(entry.path, source),
-                tex.srgb, coverage)
-              : rgba
-                ? enc.encodeToKtx2({ type: enc.ImageType.RGBA, data: rgba, width: tw, height: th }, { mode, srgb: tex.srgb })
-                : enc.encodeToKtx2({ type: enc.ImageType.PNG, data: source }, { mode, srgb: tex.srgb })),
-          )).bytes;
-          cook = keepSmaller(cook, encoded.byteLength, data.byteLength, coverage > 0);
-          if (cook.selected !== 'raw') {
-            data = encoded;
-            ext = '.ktx2';
-            compressedFormats = COMPRESSED_TARGETS;
-          } else grewUnderEncoding.push({ path: entry.path, saved: encoded.byteLength - data.byteLength });
-        }
+        data = t.data; ext = t.ext; cook = t.cook; compressedFormats = t.compressedFormats;
+        warnings.push(...t.warnings);
+        if (t.defeatedByFormat) defeatedByFormat.push(entry.path);
+        if (t.grew !== undefined) grewUnderEncoding.push({ path: entry.path, saved: t.grew });
       }
       // WAV sources re-encode to MP3 (universal decode); other audio formats are
       // already compressed and pass through. Hash + name reflect the ENCODED bytes.
