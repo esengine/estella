@@ -108,8 +108,8 @@ GPU 对象，所以分开缓存。除非你在喂一条本来就要求自下而�
 | 设置 | 默认 | 作用 |
 |---|---|---|
 | **Max Size** | `2048` | cook 时的降采样上限（2 的幂）。最长边超过它的源图会被 box 滤波缩下来；更小的源图原样保留。 |
-| **Compress** | `true` | cook 时压成 KTX2(Basis Universal)。它在显存里保持压缩、按设备转码。想要锐利 UI 和平滑渐变就**关掉**。 |
-| **Compress Format** | `uastc` | `uastc` —— 质量高、体积大。`etc1s` —— 小得多、质量低(适合照片类/低频美术)。仅在 Compress 开启时使用。 |
+| **Compression** | `Auto` | **GPU compressed**(GPU 压缩)发布 KTX2(Basis Universal),在显存里保持压缩——约为解码后的四分之一——并按设备转码。**Original image**(原图)按原文件发布:画质无损,平涂美术下载体积小得多,但在 GPU 上是完整解码的大小。**Auto**(自动)对网格用到的贴图(直接引用或经由材质)用 GPU 压缩,对精灵和 UI 用原图。构建严格按这一项执行,不会因为哪个文件更小就擅自替换。 |
+| **Compress Format** | `uastc` | `uastc` —— 质量高、体积大。`etc1s` —— 小得多、质量低(适合照片类/低频美术)。仅在贴图使用 GPU 压缩时生效。 |
 | **Filter** | `linear` | 采样过滤。`nearest` 保持像素锐利；`linear` 平滑。 |
 | **Wrap** | `repeat` | `[0,1]` 之外的 UV 如何寻址：`repeat`、`clamp`、`mirror`。 |
 | **Premultiply Alpha** | `false` | 导入时把 RGB 乘上 alpha。 |
@@ -117,7 +117,7 @@ GPU 对象，所以分开缓存。除非你在喂一条本来就要求自下而�
 | **9-Slice Border** | `0,0,0,0` | 左/右/上/下边框，单位是**纹理像素**：图片的角在哪里结束。在这里授权一次，每个设成 Sliced 的 `UIVisual` 都继承。 |
 
 <Aside type="tip">
-  **像素画**：Filter 设 `nearest`，Compress **关掉**。线性过滤会把你画的像素糊掉，
+  **像素画**：Filter 设 `nearest`，Compression 设为 **Original image**(原图;自动模式下精灵本来就是原图)。线性过滤会把你画的像素糊掉，
   而块压缩的瑕疵恰恰出现在硬色边上。
 </Aside>
 
@@ -132,7 +132,7 @@ GPU 对象，所以分开缓存。除非你在喂一条本来就要求自下而�
 
 ### 按平台覆盖
 
-Max Size、Compress、Compress Format 可以**按平台覆盖**——就是导入设置里 Default 旁边那排页签。
+Max Size、Compression、Compress Format 可以**按平台覆盖**——就是导入设置里 Default 旁边那排页签。
 这就是「编码一次、按 GPU 转码」的管线：同一个源文件，桌面端发 2048 的 UASTC，微信发 1024 的
 ETC1S。见[烘焙与压缩](/docs/zh-cn/assets/overview/#烘焙压缩与内容寻址)。
 

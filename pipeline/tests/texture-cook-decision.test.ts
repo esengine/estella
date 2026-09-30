@@ -9,7 +9,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-  decideTextureCook, cookIntentDefeated, explainTextureCook, keepSmaller,
+  decideTextureCook, cookIntentDefeated, explainTextureCook, textureAsksCompression,
   type TextureCookInputs,
 } from '../src/assets/textureCookDecision';
 
@@ -18,7 +18,8 @@ const base: TextureCookInputs = {
   atlasTextures: true,
   inAtlas: false,
   raster: true,
-  compress: true,
+  compress: 'on',
+  drawnIn3D: false,
   format: 'uastc',
   size: { width: 64, height: 64 },
 };
@@ -46,7 +47,7 @@ describe('decideTextureCook', () => {
   });
 
   it('opting out is not a defeat: nothing was requested', () => {
-    const d = decideTextureCook({ ...base, compress: false });
+    const d = decideTextureCook({ ...base, compress: 'off' });
     expect(d).toEqual({ requested: 'none', selected: 'raw', reason: 'asset-opt-out' });
     expect(cookIntentDefeated(d)).toBe(false);
   });
@@ -63,23 +64,52 @@ describe('decideTextureCook', () => {
     expect(cookIntentDefeated(d)).toBe(true);
   });
 
+  describe('Compression: Auto', () => {
+    it('compresses what a mesh draws, where video memory is the cost', () => {
+      expect(decideTextureCook({ ...base, compress: 'auto', drawnIn3D: true })).toEqual({
+        requested: 'uastc', selected: 'uastc', reason: 'compressed',
+      });
+    });
+
+    it('ships a sprite or UI image as its file, and it is not a defeat — nothing asked', () => {
+      const d = decideTextureCook({ ...base, compress: 'auto', drawnIn3D: false });
+      expect(d).toEqual({ requested: 'none', selected: 'raw', reason: 'auto-2d' });
+      expect(cookIntentDefeated(d)).toBe(false);
+      expect(explainTextureCook(d)).toMatch(/Auto and no mesh draws/);
+    });
+
+    it('never overrules an explicit choice, whatever draws the texture', () => {
+      expect(decideTextureCook({ ...base, compress: 'on', drawnIn3D: false }).selected).toBe('uastc');
+      expect(decideTextureCook({ ...base, compress: 'off', drawnIn3D: true }).reason).toBe('asset-opt-out');
+      expect(textureAsksCompression('on', false)).toBe(true);
+      expect(textureAsksCompression('off', true)).toBe(false);
+      expect(textureAsksCompression('auto', true)).toBe(true);
+      expect(textureAsksCompression('auto', false)).toBe(false);
+    });
+  });
+
   describe('atlas frames', () => {
     it('take the page\'s encoding, not their own', () => {
-      const d = decideTextureCook({ ...base, inAtlas: true, format: 'etc1s' });
+      const d = decideTextureCook({ ...base, inAtlas: true, atlasPageCompressed: true, format: 'etc1s' });
       expect(d).toEqual({ requested: 'etc1s', selected: 'uastc', reason: 'atlas-page' });
       // The row still reads ETC1S and never applied — the case this record exists for.
       expect(cookIntentDefeated(d)).toBe(true);
     });
 
     it('agree with a frame that asked for what the page does anyway', () => {
-      const d = decideTextureCook({ ...base, inAtlas: true });
+      const d = decideTextureCook({ ...base, inAtlas: true, atlasPageCompressed: true });
       expect(d).toEqual({ requested: 'uastc', selected: 'uastc', reason: 'atlas-page' });
       expect(cookIntentDefeated(d)).toBe(false);
     });
 
     it('ship raw when the build does not encode, and say the page is why', () => {
-      const d = decideTextureCook({ ...base, inAtlas: true, compressTextures: false });
+      const d = decideTextureCook({ ...base, inAtlas: true, atlasPageCompressed: true, compressTextures: false });
       expect(d).toEqual({ requested: 'uastc', selected: 'raw', reason: 'atlas-page' });
+    });
+
+    it('ship raw with a page no frame asked to compress', () => {
+      const d = decideTextureCook({ ...base, inAtlas: true, compress: 'auto', atlasPageCompressed: false });
+      expect(d).toEqual({ requested: 'none', selected: 'raw', reason: 'atlas-page' });
     });
 
     it('are only atlas frames when the build packs atlases', () => {
@@ -93,45 +123,12 @@ describe('decideTextureCook', () => {
     for (const d of [
       decideTextureCook(base),
       decideTextureCook({ ...base, compressTextures: false, atlasTextures: false }),
-      decideTextureCook({ ...base, compress: false }),
+      decideTextureCook({ ...base, compress: 'off' }),
       decideTextureCook({ ...base, inAtlas: true }),
       decideTextureCook({ ...base, size: { width: 70, height: 70 } }),
       decideTextureCook({ ...base, raster: false }),
+      decideTextureCook({ ...base, compress: 'auto' }),
     ]) said.add(explainTextureCook(d));
-    expect(said.size).toBe(6);
-  });
-});
-
-/**
- * Flat art encodes LARGER: the space-shooter background was 2,515 bytes as a PNG
- * and 87,792 as UASTC, and the transcoder the package then has to carry is a
- * megabyte more. The audio path has always kept the smaller of the two.
- */
-describe('keepSmaller', () => {
-  const compressed = decideTextureCook(base);
-
-  it('keeps the encoding when it is smaller', () => {
-    expect(keepSmaller(compressed, 1000, 4000)).toEqual(compressed);
-  });
-
-  it('throws the encoding away when it is not, and says so', () => {
-    const d = keepSmaller(compressed, 87_792, 2_515);
-    expect(d).toEqual({ requested: 'uastc', selected: 'raw', reason: 'bigger-than-raw' });
-    // Not a defeat: the build chose this, the way it chooses for audio.
-    expect(cookIntentDefeated(d)).toBe(false);
-    expect(explainTextureCook(d)).toMatch(/larger than the image/);
-  });
-
-  it('is a no-op on a decision that was never going to encode', () => {
-    const raw = decideTextureCook({ ...base, compress: false });
-    expect(keepSmaller(raw, 1, 999_999)).toEqual(raw);
-  });
-
-  it('keeps a bigger encoding that carries a cutout\'s coverage-kept mips', () => {
-    expect(keepSmaller(compressed, 87_792, 2_515, true)).toEqual(compressed);
-  });
-
-  it('keeps raw on a tie — equal bytes buy nothing and cost a transcoder', () => {
-    expect(keepSmaller(compressed, 4000, 4000).selected).toBe('raw');
+    expect(said.size).toBe(7);
   });
 });

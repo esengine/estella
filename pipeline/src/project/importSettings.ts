@@ -44,6 +44,10 @@ export interface ImporterFieldSpec {
   options?: ImporterEnumOption[];
   /** For `type: 'select'`. */
   selectOptions?: string[];
+  /** What a stored value means today, for a field whose vocabulary has changed —
+   *  applied wherever the block is read, so a `.meta` written before the change
+   *  shows, and cooks, as what it now stands for. */
+  read?: (stored: unknown) => ImporterValue;
 }
 
 const powerOfTwo = [256, 512, 1024, 2048, 4096, 8192];
@@ -56,10 +60,18 @@ const TEXTURE: ImporterFieldSpec[] = [
       + 'its longest side is box-filtered down; smaller sources are untouched.',
   },
   {
-    key: 'compress', label: 'Compress', type: 'bool', default: true, category: 'Texture',
-    tooltip: 'GPU-compress this texture to KTX2 (Basis Universal) at cook — it stays '
-      + 'compressed in VRAM and transcodes per device. Turn OFF to ship the raw image '
-      + '(crisp UI, smooth gradients). Only applies when the build compresses assets.',
+    key: 'compress', label: 'Compression', type: 'enum', default: 'auto', category: 'Texture',
+    options: [
+      { label: 'Auto (by use)', value: 'auto' },
+      { label: 'GPU compressed', value: 'on' },
+      { label: 'Original image', value: 'off' },
+    ],
+    read: textureCompression,
+    tooltip: 'GPU compressed ships a KTX2 that stays compressed in video memory — about a '
+      + 'quarter of the decoded image — and transcodes per device. Original image ships the '
+      + 'file as it is: exact, and for flat art far smaller to download, but decoded in full '
+      + 'on the GPU. Auto is GPU compressed for a texture a mesh draws and the original for '
+      + 'sprites and UI. Only applies when the build compresses assets.',
   },
   {
     key: 'compressFormat', label: 'Compress Format', type: 'select', default: 'uastc',
@@ -272,7 +284,8 @@ export const sharesImporterSchema = (a: string, b: string): boolean =>
 export interface TexturePlatformOverride {
   enabled?: boolean;
   maxSize?: number;
-  compress?: boolean;
+  /** A TextureCompression, or the boolean an older `.meta` holds. */
+  compress?: TextureCompression | boolean;
   compressFormat?: 'uastc' | 'etc1s';
 }
 
@@ -280,8 +293,21 @@ export interface TexturePlatformOverride {
  *  texture decides its own KTX2 format, opt-out and size cap. An ENABLED
  *  `importer.overrides[platform]` wins per field; an unset field inherits the
  *  default. Defaults match a fresh `.meta`. */
+/** What a texture's Compression asks for. */
+export type TextureCompression = 'auto' | 'on' | 'off';
+
+/**
+ * A stored Compression value as it reads today. It was a boolean, written true
+ * into every fresh `.meta` whatever the texture was — so true means Auto, the
+ * default it was standing for, and false the Original image someone turned it to.
+ */
+export function textureCompression(stored: unknown): TextureCompression {
+  if (stored === 'on' || stored === 'off' || stored === 'auto') return stored;
+  return stored === false ? 'off' : 'auto';
+}
+
 export function readTextureCookSettings(importer: Record<string, unknown> | undefined, platform?: string): {
-  compress: boolean; format: 'uastc' | 'etc1s'; maxSize: number; srgb: boolean; mipCoverage: number;
+  compress: TextureCompression; format: 'uastc' | 'etc1s'; maxSize: number; srgb: boolean; mipCoverage: number;
 } {
   const compress = importer?.compress;
   const mipCoverage = importer?.mipCoverage;
@@ -289,7 +315,7 @@ export function readTextureCookSettings(importer: Record<string, unknown> | unde
   const maxSize = importer?.maxSize;
   const srgb = importer?.sRGB;
   const resolved = {
-    compress: typeof compress === 'boolean' ? compress : true,
+    compress: textureCompression(compress),
     format: (format === 'etc1s' ? 'etc1s' : 'uastc') as 'uastc' | 'etc1s',
     maxSize: typeof maxSize === 'number' && maxSize > 0 ? maxSize : 2048,
     srgb: typeof srgb === 'boolean' ? srgb : true,
@@ -298,7 +324,7 @@ export function readTextureCookSettings(importer: Record<string, unknown> | unde
   const overrides = importer?.overrides as Record<string, TexturePlatformOverride> | undefined;
   const ov = platform ? overrides?.[platform] : undefined;
   if (ov?.enabled) {
-    if (typeof ov.compress === 'boolean') resolved.compress = ov.compress;
+    if (ov.compress !== undefined) resolved.compress = textureCompression(ov.compress);
     if (ov.compressFormat === 'etc1s' || ov.compressFormat === 'uastc') resolved.format = ov.compressFormat;
     if (typeof ov.maxSize === 'number' && ov.maxSize > 0) resolved.maxSize = ov.maxSize;
   }

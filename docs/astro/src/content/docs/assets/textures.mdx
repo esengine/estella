@@ -118,8 +118,8 @@ Browser — every sprite that uses the texture inherits them.
 | Setting | Default | What it does |
 |---|---|---|
 | **Max Size** | `2048` | Downscale cap applied at cook (a power of two). A source larger than this on its longest side is box-filtered down; a smaller source is untouched. |
-| **Compress** | `true` | GPU-compress to KTX2 (Basis Universal) at cook. It stays compressed in VRAM and transcodes per device. Turn **off** for crisp UI and smooth gradients. |
-| **Compress Format** | `uastc` | `uastc` — high quality, larger. `etc1s` — much smaller, lower quality (good for photographic art). Only used when Compress is on. |
+| **Compression** | `Auto` | **GPU compressed** ships a KTX2 (Basis Universal) that stays compressed in video memory — about a quarter of the decoded image — and transcodes per device. **Original image** ships the file as it is: exact, and for flat art far smaller to download, but decoded in full on the GPU. **Auto** is GPU compressed for a texture a mesh draws (directly or through its material) and the original image for sprites and UI. A build does what this row says; it never swaps one for the other because a file came out smaller. |
+| **Compress Format** | `uastc` | `uastc` — high quality, larger. `etc1s` — much smaller, lower quality (good for photographic art). Only used when the texture is GPU compressed. |
 | **Filter** | `linear` | Sampling filter. `nearest` keeps pixel art crisp; `linear` smooths. |
 | **Wrap** | `repeat` | How UVs outside `[0,1]` are addressed: `repeat`, `clamp`, `mirror`. |
 | **Premultiply Alpha** | `false` | Multiply RGB by alpha at import. |
@@ -127,7 +127,8 @@ Browser — every sprite that uses the texture inherits them.
 | **9-Slice Border** | `0,0,0,0` | Left/right/top/bottom border in **texture pixels**: where the image's corners end. Authored once here, inherited by every `UIVisual` set to Sliced. |
 
 <Aside type="tip">
-  **Pixel art**: set Filter to `nearest` and turn Compress **off**. Linear filtering
+  **Pixel art**: set Filter to `nearest` and Compression to **Original image** (Auto already
+  ships a sprite that way). Linear filtering
   blurs the pixels you drew, and block compression puts artefacts exactly where hard
   colour edges are.
 </Aside>
@@ -147,7 +148,7 @@ is no honest picture of forty.
 
 ### Per-platform overrides
 
-Max Size, Compress and Compress Format can be overridden **per platform** — the tabs
+Max Size, Compression and Compress Format can be overridden **per platform** — the tabs
 beside Default in Import Settings. This is the "encode once, transcode per GPU"
 pipeline: ship the desktop build a 2048 UASTC texture and the WeChat build a 1024
 ETC1S one from the same source file. See

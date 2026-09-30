@@ -151,7 +151,8 @@ way it can:
 - **Compress textures** — encode PNGs to GPU-ready **KTX2** (Basis Universal),
   which the runtime transcodes to the best format the device supports (ASTC → ETC2
   → S3TC, falling back to RGBA8), mip chain included. Per-asset **Import Settings**
-  decide this, with a tab per platform (below), so a texture can be compressed
+  decide this — **Auto** compresses what a mesh draws and ships sprites and UI as
+  their file — with a tab per platform (below), so a texture can be compressed
   harder for a phone than for the web; the Package dialog's **Compression** switch
   only chooses whether to honor those settings or skip them all.
 - **Content-address** — name each shipped file by a hash of its bytes, so URLs

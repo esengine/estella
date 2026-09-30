@@ -201,7 +201,7 @@ describe('cookAssets (A4)', () => {
     }
   });
 
-  it('compresses raster textures to KTX2 (compressTextures) + records compressedFormats', async () => {
+  it('on Auto, compresses what a mesh draws to KTX2 + records compressedFormats, and ships a sprite\'s image', async () => {
     const r = mkdtempSync(path.join(tmpdir(), 'estella-cook-ktx2-'));
     try {
       const TEX = '77777777-7777-4777-8777-777777777777';
@@ -216,10 +216,13 @@ describe('cookAssets (A4)', () => {
         writeFileSync(abs, body);
         writeFileSync(`${abs}.meta`, JSON.stringify({ uuid, version: '2.0', type, importer: {} }));
       };
+      const SPRITE = '77777777-7777-4777-8777-777777777779';
       wa('t/logo.png', 'texture', TEX, png);
+      wa('t/sprite.png', 'texture', SPRITE, png);
       wa('s/main.esscene', 'scene', SC, JSON.stringify({
         version: '1.0', name: 's', entities: [
-          { id: 1, name: 'E', parent: null, children: [], components: [{ type: 'Sprite', data: { texture: `@uuid:${TEX}` } }] },
+          { id: 1, name: 'E', parent: null, children: [], components: [{ type: 'MeshRenderer', data: { mesh: 'builtin:cube', texture: `@uuid:${TEX}` } }] },
+          { id: 2, name: 'S', parent: null, children: [], components: [{ type: 'Sprite', data: { texture: `@uuid:${SPRITE}` } }] },
         ],
       }));
       const res = await cookAssets(r, { entryScenes: ['s/main.esscene'], outDir: 'out', compressTextures: true });
@@ -232,6 +235,11 @@ describe('cookAssets (A4)', () => {
       const bytes = readFileSync(path.join(res.outDir, tex.path));
       const magic = [0xab, 0x4b, 0x54, 0x58, 0x20, 0x32, 0x30, 0xbb, 0x0d, 0x0a, 0x1a, 0x0a];
       expect(magic.every((b, i) => bytes[i] === b)).toBe(true);
+
+      // The same image on a sprite, also on Auto: shipped as its file, and said why.
+      const sprite = m.entries.find((e) => e.uuid === SPRITE)!;
+      expect(sprite.path).toMatch(/\.png$/);
+      expect((sprite as { cook?: { reason?: string } }).cook?.reason).toBe('auto-2d');
     } finally {
       rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
@@ -302,7 +310,7 @@ describe('cookAssets (A4)', () => {
       const abs = path.join(r, 't/odd.png');
       mkdirSync(path.dirname(abs), { recursive: true });
       writeFileSync(abs, solidPng(70, 70, [10, 200, 40, 255]));
-      writeFileSync(`${abs}.meta`, JSON.stringify({ uuid: TEX, version: '2.0', type: 'texture', importer: {} }));
+      writeFileSync(`${abs}.meta`, JSON.stringify({ uuid: TEX, version: '2.0', type: 'texture', importer: { compress: 'on' } }));
       const sc = path.join(r, 's/main.esscene');
       mkdirSync(path.dirname(sc), { recursive: true });
       writeFileSync(sc, JSON.stringify({ version: '1.0', name: 's', entities: [{ id: 1, name: 'E', parent: null, children: [], components: [{ type: 'Sprite', data: { texture: `@uuid:${TEX}` } }] }] }));
@@ -337,7 +345,7 @@ describe('cookAssets (A4)', () => {
       // Default: compress (KTX2). WeChat override: ship a small raw PNG instead.
       writeFileSync(`${abs}.meta`, JSON.stringify({
         uuid: TEX, version: '2.0', type: 'texture',
-        importer: { compress: true, overrides: { wechat: { enabled: true, compress: false, maxSize: 64 } } },
+        importer: { compress: 'on', overrides: { wechat: { enabled: true, compress: 'off', maxSize: 64 } } },
       }));
       const sc = path.join(r, 's/main.esscene');
       mkdirSync(path.dirname(sc), { recursive: true });

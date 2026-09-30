@@ -15,6 +15,7 @@
  *        The cook calls this rather than re-deriving it, so what a build did and
  *        what an inspector predicts are one function with one branch order.
  */
+import type { TextureCompression } from '../project/importSettings';
 
 /**
  * What a source image becomes under the import's `maxSize` — the size every
@@ -52,14 +53,15 @@ export type TextureCookReason =
   | 'compressed'
   | 'build-skips-assets'
   | 'asset-opt-out'
+  /** Compression is Auto and nothing draws the texture on a mesh: a sprite or UI
+   *  image, which ships as its original file. */
+  | 'auto-2d'
   | 'atlas-page'
   | 'not-block-aligned'
-  | 'not-raster'
-  /** Encoded and thrown away: the KTX2 came out larger than the image. */
-  | 'bigger-than-raw';
+  | 'not-raster';
 
 export interface TextureCookDecision {
-  /** The mode this asset asked for, or `none` when it opted out. */
+  /** The mode this asset asked for, or `none` when it did not ask to be compressed. */
   readonly requested: TextureCookFormat | 'none';
   readonly selected: CookedTexturePayload;
   readonly reason: TextureCookReason;
@@ -72,10 +74,16 @@ export interface TextureCookInputs {
   readonly atlasTextures: boolean;
   /** This image is a frame of one of those atlases. */
   readonly inAtlas: boolean;
+  /** For a frame: whether its page ships compressed — a page is compressed when a
+   *  frame on it asks to be, since the page is the one payload they all share. */
+  readonly atlasPageCompressed?: boolean;
   /** A source the KTX2 encoder takes — PNG. JPEG/WebP/SVG pass through as-is. */
   readonly raster: boolean;
-  /** The asset's own Compress row. */
-  readonly compress: boolean;
+  /** The asset's own Compression row. */
+  readonly compress: TextureCompression;
+  /** A mesh draws this texture, directly or through its material — what Auto
+   *  resolves by (textureUsage.ts). */
+  readonly drawnIn3D: boolean;
   readonly format: TextureCookFormat;
   /**
    * The dimensions that would be ENCODED — after any Max Size downscale, not the
@@ -94,43 +102,41 @@ function wholeBlocks(size: TextureCookInputs['size']): boolean {
 
 /** The payload a build ships for one texture, and the one reason it is that. */
 export function decideTextureCook(input: TextureCookInputs): TextureCookDecision {
-  const requested = input.compress ? input.format : 'none';
+  const requested = textureAsksCompression(input.compress, input.drawnIn3D) ? input.format : 'none';
   // An atlas frame has no payload of its own: the PAGE ships, and a page
-  // aggregates images whose settings disagree, so it is always UASTC. Recorded
-  // rather than assumed — a frame that asked for ETC1S got the page's answer.
+  // aggregates images whose settings disagree, so it is always UASTC when it is
+  // encoded. Recorded rather than assumed — a frame got the page's answer.
   if (input.atlasTextures && input.inAtlas) {
-    return { requested, selected: input.compressTextures ? 'uastc' : 'raw', reason: 'atlas-page' };
+    const encoded = input.compressTextures && input.atlasPageCompressed === true;
+    return { requested, selected: encoded ? 'uastc' : 'raw', reason: 'atlas-page' };
   }
   if (!input.compressTextures) return { requested, selected: 'raw', reason: 'build-skips-assets' };
   if (!input.raster) return { requested, selected: 'raw', reason: 'not-raster' };
-  if (!input.compress) return { requested, selected: 'raw', reason: 'asset-opt-out' };
+  if (input.compress === 'off') return { requested, selected: 'raw', reason: 'asset-opt-out' };
+  if (requested === 'none') return { requested, selected: 'raw', reason: 'auto-2d' };
   if (!wholeBlocks(input.size)) return { requested, selected: 'raw', reason: 'not-block-aligned' };
   return { requested, selected: input.format, reason: 'compressed' };
 }
 
 /**
- * The payload once the encoder has answered: a KTX2 bigger than the image it
- * encoded is not a compression (a 512px sky came out 35x its PNG) — unless it
- * carries what the image cannot: a cutout's coverage-kept mips, which a chain
- * built on the device loses, so the leaves thin out with distance.
+ * Whether a texture's Compression asks for a KTX2: On does, Off does not, and Auto
+ * does for a texture a mesh draws — where video memory is the cost — and not for
+ * sprites and UI, where a flat PNG is often a tenth of the KTX2 to download.
  */
-export function keepSmaller(
-  d: TextureCookDecision, encodedBytes: number, rawBytes: number, carriesMips = false,
-): TextureCookDecision {
-  if (d.selected === 'raw' || carriesMips || encodedBytes < rawBytes) return d;
-  return { ...d, selected: 'raw', reason: 'bigger-than-raw' };
+export function textureAsksCompression(compress: TextureCompression, drawnIn3D: boolean): boolean {
+  return compress === 'on' || (compress === 'auto' && drawnIn3D);
 }
 
 /**
  * True when the asset asked for an encoding and the build did not give it.
  *
- * Opting out, a build that skips assets, and an encoding that came out bigger
- * are all choices. This catches the silent kind: a request that survived every
- * dialog and lost to the image itself, or to the folder it was dropped in.
+ * Opting out and a build that skips assets are choices. This catches the silent
+ * kind: a request that survived every dialog and lost to the image itself, or to
+ * the folder it was dropped in.
  */
 export function cookIntentDefeated(d: TextureCookDecision): boolean {
   if (d.requested === 'none') return false;
-  if (d.reason === 'build-skips-assets' || d.reason === 'bigger-than-raw') return false;
+  if (d.reason === 'build-skips-assets') return false;
   return d.selected !== d.requested;
 }
 
@@ -144,7 +150,9 @@ export function explainTextureCook(
     case 'build-skips-assets':
       return 'shipped raw — this build skips asset optimization';
     case 'asset-opt-out':
-      return 'shipped raw — Compress is off on this asset';
+      return 'shipped raw — Compression is set to Original image on this asset';
+    case 'auto-2d':
+      return 'shipped raw — Compression is Auto and no mesh draws this texture';
     case 'atlas-page':
       return d.selected === 'raw'
         ? 'packed into an atlas page, which this build ships raw'
@@ -154,7 +162,5 @@ export function explainTextureCook(
         + 'is not a multiple of 4, which a block-compressed texture must be';
     case 'not-raster':
       return 'shipped raw — only PNG sources are encoded';
-    case 'bigger-than-raw':
-      return 'shipped raw — the KTX2 came out larger than the image';
   }
 }

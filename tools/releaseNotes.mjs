@@ -1310,6 +1310,12 @@ export const NOTED = {
     { note: 'A large project opens in minutes, not half an hour' },
   'fix(gates): texture-format reads the cook where the texture decision now lives':
     { internal: 'a static gate reading moved source; nothing a creator runs changes' },
+  'fix(bake): an atlas\'s import settings are the bake\'s, and --check holds them':
+    { note: 'physics-3d\'s lightmap is read as the light it is' },
+  'feat(assets): a texture\'s Compression is Auto, GPU compressed or Original image':
+    { note: 'A texture\'s Compression is Auto, GPU compressed or Original image, and a build does what it says' },
+  'feat(editor): a texture\'s Compression is Auto, GPU compressed or Original image':
+    { note: 'A texture\'s Compression is Auto, GPU compressed or Original image, and a build does what it says' },
   'fix(bake): a coloured light bakes the colour it lights with':
     { note: 'A coloured light bakes the colour it lights with' },
   'fix(bake): the collector reads the colour space from the engine host':

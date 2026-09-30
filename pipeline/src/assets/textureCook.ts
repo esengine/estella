@@ -11,7 +11,7 @@
 import { readTextureCookSettings } from '../project/importSettings';
 import { decodePngImage, encodeRgbaPng, downscaleRgba } from './atlasPacker';
 import {
-  decideTextureCook, cookIntentDefeated, explainTextureCook, keepSmaller,
+  decideTextureCook, cookIntentDefeated, explainTextureCook,
   type TextureCookDecision,
 } from './textureCookDecision';
 import { halveRgba, joinMipLevels, alphaCoverage, preserveAlphaCoverage } from './ktx2Mips';
@@ -107,14 +107,11 @@ export interface TextureCookInput {
   encoder: TextureEncoder | null;
   compressTextures: boolean;
   atlasTextures: boolean;
+  /** A mesh draws this texture (texturesDrawnIn3D) — what Auto compression resolves by. */
+  drawnIn3D: boolean;
   /** Answer only from the cook cache: an encode it would have to run is left
    *  undone, and the output says `pending` instead. */
   cachedOnly?: boolean;
-  /** Keep the KTX2 even where the source file is smaller. A package weighs its
-   *  download; a viewport holding a project's art weighs its video memory, where
-   *  a block-compressed texture is a quarter of the decoded one whatever the file
-   *  size. The encode, and the cache entry, are the same either way. */
-  keepCompressed?: boolean;
 }
 
 export interface TextureCookOutput {
@@ -126,15 +123,13 @@ export interface TextureCookOutput {
   warnings: string[];
   /** Asked to compress, and its source format is one the encoder does not take. */
   defeatedByFormat: boolean;
-  /** Encoded and thrown away as larger than the source: by how many bytes. */
-  grew?: number;
   /** `cachedOnly`, and the encode this texture asks for has not been run. */
   pending?: boolean;
 }
 
 /**
  * One texture as a build ships it: capped at its `maxSize`, then compressed to
- * KTX2 where its settings and the build ask for it and the result is smaller.
+ * KTX2 where its Compression and the build ask for it.
  * Encodes go through the cook cache under the source bytes, the settings that
  * shape the output and the encoder's identity.
  */
@@ -156,16 +151,15 @@ export async function cookTexture(input: TextureCookInput): Promise<TextureCookO
       if (tex.maxSize < Math.max(dims.width, dims.height)) {
         const scaled = downscaleRgba(decodePngImage(path, data), tex.maxSize);
         rgba = scaled.rgba; tw = scaled.width; th = scaled.height;
-        if (!tex.compress) data = encodeRgbaPng(tw, th, rgba); // ship the shrunk PNG
       }
     } catch (err) {
       warnings.push(`${path}: texture resize skipped — ${err instanceof Error ? err.message : String(err)}`);
     }
   }
   const size = raster ? (rgba ? { width: tw, height: th } : safePngDimensions(data)) : null;
-  let cook = decideTextureCook({
+  const cook = decideTextureCook({
     compressTextures: input.compressTextures, atlasTextures: input.atlasTextures, inAtlas: false, raster,
-    compress: tex.compress, format: tex.format, size,
+    compress: tex.compress, drawnIn3D: input.drawnIn3D, format: tex.format, size,
   });
   let defeatedByFormat = false;
   if (cookIntentDefeated(cook)) {
@@ -175,7 +169,8 @@ export async function cookTexture(input: TextureCookInput): Promise<TextureCookO
     else warnings.push(`${path}: ${explainTextureCook(cook, size)}`);
   }
   let compressedFormats: string[] | undefined;
-  let grew: number | undefined;
+  // A texture that ships as an image ships the shrunk one.
+  if (cook.selected === 'raw' && rgba) data = encodeRgbaPng(tw, th, rgba);
   if (cook.selected !== 'raw') {
     // Only a build that encodes can select an encoding, and that is exactly
     // when the encoder was loaded — an absent one here is a broken invariant
@@ -194,12 +189,9 @@ export async function cookTexture(input: TextureCookInput): Promise<TextureCookO
         : enc.encodeToKtx2({ type: enc.ImageType.PNG, data: source }, { mode, srgb: tex.srgb }));
     const encoded = input.cachedOnly ? await cookCacheHit(root, key) : (await cookCached(root, key, produce)).bytes;
     if (!encoded) return { data, ext, cook, warnings, defeatedByFormat, pending: true };
-    if (!input.keepCompressed) cook = keepSmaller(cook, encoded.byteLength, data.byteLength, coverage > 0);
-    if (cook.selected !== 'raw') {
-      data = encoded;
-      ext = '.ktx2';
-      compressedFormats = COMPRESSED_TARGETS;
-    } else grew = encoded.byteLength - data.byteLength;
+    data = encoded;
+    ext = '.ktx2';
+    compressedFormats = COMPRESSED_TARGETS;
   }
-  return { data, ext, cook, compressedFormats, warnings, defeatedByFormat, grew };
+  return { data, ext, cook, compressedFormats, warnings, defeatedByFormat };
 }

@@ -18,7 +18,7 @@
  * This is the reachability + manifest + staging core they all build on.
  */
 import { ENV_IMAGE_FIELDS } from './environmentFormat';
-import { writeFile, mkdir, readFile } from 'node:fs/promises';
+import { writeFile, mkdir, readFile, open } from 'node:fs/promises';
 import { statSync } from 'node:fs';
 import { isInsideRoot } from '../fs/pathSandbox';
 import path from 'node:path';
@@ -32,7 +32,7 @@ import { readTextureCookSettings } from '../project/importSettings';
 // The branch below IS this function — a cook that re-derived the choice would
 // be a second answer to the question an inspector asks before a build runs.
 import {
-  decideTextureCook, cookIntentDefeated, explainTextureCook,
+  decideTextureCook, cookIntentDefeated, explainTextureCook, textureAsksCompression,
   type TextureCookDecision,
 } from './textureCookDecision';
 // Single-source content hash (sdk/src/asset/contentHash.ts). Imported as source —
@@ -48,7 +48,8 @@ import {
   readKtx2Layout, wantsMipChain, halveRgba, spliceMipChain,
 } from './ktx2Mips';
 import { cookCached } from './cookCache';
-import { cookTexture, loadTextureEncoder, COMPRESSED_TARGETS, type BasisEncoderModule } from './textureCook';
+import { cookTexture, loadTextureEncoder, pngDimensions, COMPRESSED_TARGETS, type BasisEncoderModule } from './textureCook';
+import { meshTextureRoles } from './textureUsage';
 
 const MANIFEST = 'assets.manifest.json';
 
@@ -197,8 +198,22 @@ interface CookSink {
   warnings: string[];
   failed: string[];
   defeatedByFormat: string[];
-  grewUnderEncoding: Array<{ path: string; saved: number }>;
   manifestEntries: CookManifestEntry[];
+}
+
+/** A PNG's width and height from its IHDR, reading only the header; null for anything else. */
+async function pngHeaderSize(file: string): Promise<{ width: number; height: number } | null> {
+  let handle;
+  try {
+    handle = await open(file, 'r');
+    const header = new Uint8Array(24);
+    await handle.read(header, 0, 24, 0);
+    return header[1] === 0x50 && header[2] === 0x4e ? pngDimensions(header) : null;
+  } catch {
+    return null;
+  } finally {
+    await handle?.close();
+  }
 }
 
 /** `fn` over `items` with at most `limit` running, results in the items' order. */
@@ -588,8 +603,11 @@ export async function cookAssets(
   // one fact about the project's source art, and one line per JPEG would bury
   // the per-asset findings that each need their own fix.
   const defeatedByFormat: string[] = [];
-  /** Encoded, measured, thrown away — summarized once rather than per texture. */
-  const grewUnderEncoding: Array<{ path: string; saved: number }> = [];
+  // What Auto compression resolves by: whether a mesh anywhere in the project draws it.
+  const roles = await meshTextureRoles(root, shippable);
+  const drawnIn3D = new Set(roles.keys());
+  const pageCompressedBy = (frame: AssetEntry): boolean =>
+    textureAsksCompression(readTextureCookSettings(frame.importer, platform).compress, drawnIn3D.has(frame.uuid));
 
   // ---- Auto-atlas (`<name>.atlas/` folder convention) -----------------------
   // Pack the reachable PNGs of each atlas directory into pages BEFORE the
@@ -629,16 +647,13 @@ export async function cookAssets(
         let pageBytes: Uint8Array = pagePng;
         let pageExt = '.png';
         let compressedFormats: string[] | undefined;
-        if (encodePng) {
-          // Same question the loose textures ask, and the same answer when the
-          // page is flat art: a page nobody compresses also spares the package
-          // the transcoder, which is the larger half of the bill.
-          const encoded = await encodePng(pagePng);
-          if (encoded.byteLength < pagePng.byteLength) {
-            pageBytes = encoded;
-            pageExt = '.ktx2';
-            compressedFormats = COMPRESSED_TARGETS;
-          } else grewUnderEncoding.push({ path: `${dir}.page${n}`, saved: encoded.byteLength - pagePng.byteLength });
+        // One payload for every frame on the page, so it is compressed when a
+        // frame on it asks to be; a page of sprites on Auto ships as a PNG.
+        const pageFrames = pages[n].placements.map((p) => byPath.get(p.key)).filter((e): e is AssetEntry => !!e);
+        if (encodePng && pageFrames.some((e) => pageCompressedBy(e))) {
+          pageBytes = await encodePng(pagePng);
+          pageExt = '.ktx2';
+          compressedFormats = COMPRESSED_TARGETS;
         }
         const pageHash = contentHashHex(pageBytes);
         const { name: group, delivery } = resolveAssetGroup(`${dir}/`, groupsConfig);
@@ -668,7 +683,7 @@ export async function cookAssets(
   // Each asset cooks on its own, and the encoder runs ENCODER_PARALLELISM images
   // at once, so that many are kept in flight. What each reports is merged back in
   // `reachable` order, which keeps the manifest and the warnings a serial cook's.
-  const cookOne = async (uuid: string, { warnings, failed, defeatedByFormat, grewUnderEncoding,
+  const cookOne = async (uuid: string, { warnings, failed, defeatedByFormat,
                                          manifestEntries }: CookSink): Promise<void> => {
     const entry = byUuid.get(uuid);
     if (!entry) return;
@@ -683,7 +698,8 @@ export async function cookAssets(
       const frameTex = readTextureCookSettings(entry.importer, platform);
       const frameCook = decideTextureCook({
         compressTextures, atlasTextures, inAtlas: true, raster: true,
-        compress: frameTex.compress, format: frameTex.format, size: null,
+        atlasPageCompressed: framePlan.compressedFormats !== undefined,
+        compress: frameTex.compress, drawnIn3D: drawnIn3D.has(entry.uuid), format: frameTex.format, size: null,
       });
       if (cookIntentDefeated(frameCook)) {
         warnings.push(`${entry.path}: ${explainTextureCook(frameCook)}`);
@@ -750,12 +766,11 @@ export async function cookAssets(
         const t = await cookTexture({
           root, path: entry.path, data, ext, importer: entry.importer, platform,
           encoder: textureEnc ? { module: textureEnc, id: encoderId } : null,
-          compressTextures, atlasTextures,
+          compressTextures, atlasTextures, drawnIn3D: drawnIn3D.has(entry.uuid),
         });
         data = t.data; ext = t.ext; cook = t.cook; compressedFormats = t.compressedFormats;
         warnings.push(...t.warnings);
         if (t.defeatedByFormat) defeatedByFormat.push(entry.path);
-        if (t.grew !== undefined) grewUnderEncoding.push({ path: entry.path, saved: t.grew });
       }
       // WAV sources re-encode to MP3 (universal decode); other audio formats are
       // already compressed and pass through. Hash + name reflect the ENCODED bytes.
@@ -915,7 +930,7 @@ export async function cookAssets(
     }
   };
   const sinks = await mapInOrder([...reachable], textureEnc?.ENCODER_PARALLELISM ?? 1, async (uuid) => {
-    const sink: CookSink = { warnings: [], failed: [], defeatedByFormat: [], grewUnderEncoding: [], manifestEntries: [] };
+    const sink: CookSink = { warnings: [], failed: [], defeatedByFormat: [], manifestEntries: [] };
     await cookOne(uuid, sink);
     return sink;
   });
@@ -923,7 +938,6 @@ export async function cookAssets(
     warnings.push(...sink.warnings);
     failed.push(...sink.failed);
     defeatedByFormat.push(...sink.defeatedByFormat);
-    grewUnderEncoding.push(...sink.grewUnderEncoding);
     manifestEntries.push(...sink.manifestEntries);
   }
   manifestEntries.sort((a, b) => a.path.localeCompare(b.path));
@@ -952,11 +966,21 @@ export async function cookAssets(
 
   const unused = index.entries.filter((e) => !reachable.has(e.uuid)).map((e) => e.uuid);
   const includedPaths = [...reachable].map((uuid) => byUuid.get(uuid)?.path).filter((p): p is string => p !== undefined);
-  if (grewUnderEncoding.length) {
-    const bytes = grewUnderEncoding.reduce((n, g) => n + g.saved, 0);
-    const kb = (n: number) => `${Math.round(n / 1024)}KB`;
-    warnings.push(`${grewUnderEncoding.length} texture(s) ship raw because the KTX2 came out `
-      + `larger — ${kb(bytes)} the package does not carry. Flat art compresses better as PNG.`);
+  // Said, not overridden: the author chose the file, and this is what it costs. A
+  // lightmap is left out — the bake keeps it exact on purpose.
+  const drawnRaw = compressTextures ? [...reachable].map((uuid) => byUuid.get(uuid)!)
+    .filter((e) => e.type === 'texture' && roles.get(e.uuid)?.has('surface') && !atlasPlan.has(e.path)
+      && readTextureCookSettings(e.importer, platform).compress === 'off') : [];
+  if (drawnRaw.length) {
+    let decoded = 0;
+    for (const e of drawnRaw) {
+      const size = await pngHeaderSize(path.join(root, e.path));
+      if (size) decoded += size.width * size.height * 4 * 4 / 3;
+    }
+    warnings.push(`${drawnRaw.length} texture(s) a mesh draws ship as their original image (Compression: `
+      + `Original image) — ${Math.round(decoded / 2 ** 20)} MiB of video memory decoded, where GPU `
+      + `compressed would take about a quarter of it: ${drawnRaw.slice(0, 5).map((e) => e.path).join(', ')}`
+      + `${drawnRaw.length > 5 ? ', …' : ''}`);
   }
   if (defeatedByFormat.length) {
     const shown = defeatedByFormat.slice(0, 3).join(', ');
