@@ -88,6 +88,7 @@ public:
 
     u32 aliveCount(Entity entity) const;
     u32 totalAliveParticles() const;
+    void setParticleLimit(u32 limit) { particle_limit_ = limit; }
 
     void forEachParticle(Entity entity, const std::function<void(const Particle&)>& fn) const;
 
@@ -144,6 +145,7 @@ private:
     std::unordered_map<Entity, SizeLut> sizeLuts_;
     std::unordered_map<Entity, SizeLut> speedLuts_;
     std::mt19937 rng_;
+    u32 particle_limit_ = 0xffffffffu;
     std::vector<u32> dead_particle_indices_;
     // Active scene force fields, rebuilt each update() and applied to world-space
     // particles during integration.

@@ -1,0 +1,11 @@
+{
+  "formatVersion": "1",
+  "name": "Probe Update Research",
+  "description": "Experimental SH updates: one fresh probe solve per frame in a small proxy scene.",
+  "tag": "3D",
+  "version": "0.1.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": { "width": 960, "height": 640 },
+  "spineVersion": "none",
+  "features": { "rendering": { "backend": "webgpu" } }
+}

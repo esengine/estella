@@ -31,6 +31,7 @@ import { createTextureFromPixels, type TextureParams } from '../../runtime/runti
 export type TexturePixelDecoder = (
     path: string,
     flip: boolean,
+    maxEdge?: number,
 ) => Promise<{ width: number; height: number; pixels: Uint8Array }>;
 
 /**
@@ -242,7 +243,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         // uploads through the shared createTexture path — the same code the old
         // runtimeLoader.loadTextures used — instead of a URL-based <img>.
         if (this.pixelDecoder_) {
-            const result = await this.pixelDecoder_(path, flip);
+            const result = await this.pixelDecoder_(path, flip, preview ? TEXTURE_PREVIEW_EDGE : 0);
             const handle = createTextureFromPixels(this.module_, result, TextureContent.Asset, flip, pixelParams(settings));
             return { handle, width: result.width, height: result.height };
         }

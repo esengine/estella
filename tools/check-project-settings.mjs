@@ -93,6 +93,10 @@ const DECLARED_GAPS = {
     editor: 'the device preview reads it through projectSeams, not by applying it '
       + 'to the edit camera (the editor view is a free zoom by design)',
   },
+  quality: {
+    editor: 'the edit viewport stays at authored quality; Play previews the selected '
+      + 'device tier and dynamic resolution through the same packaged app options',
+  },
   uiThemeColors: {
     editor: 'applied together with uiTheme (one applyWidgetTheme call takes both)',
   },
@@ -114,6 +118,7 @@ const PARSE_KEY = {
   renderBackend: 'r.backend',
   screenFit: 'r.cameraScaleMode',
   msaaSamples: 'r.msaa',
+  quality: 'r.quality',
 };
 
 /**
@@ -134,6 +139,7 @@ const AUTHORING = {
   colorSpace: { ui: 'project.rendering.colorSpace' },
   outputTransform: { ui: 'project.rendering.outputTransform' },
   msaaSamples: { ui: 'project.rendering.msaa' },
+  quality: { ui: 'project.rendering.quality' },
   renderBackend: { ui: 'project.rendering.backend' },
   screenFit: { ui: 'project.display.cameraFit' },
 };

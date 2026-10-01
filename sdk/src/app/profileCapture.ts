@@ -3,6 +3,7 @@
 /**
  * @file    profileCapture.ts — recorded frames as a portable document.
  */
+import type { QualityReport } from '../render/quality';
 import {
     buildFrameProfile,
     meanFrameProfile,
@@ -31,6 +32,7 @@ export interface CaptureSource {
  * and no reader can drift from what the panel shows.
  */
 export interface CapturedFrame {
+    quality?: QualityReport;
     id: number;
     dtMs: number;
     systems: SystemCost[];

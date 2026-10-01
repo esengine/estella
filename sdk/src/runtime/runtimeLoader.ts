@@ -17,7 +17,7 @@ import type { ESEngineModule } from '../wasm';
 import type { SpineWasmModule } from '../spine/SpineModuleLoader';
 import type { SpineManager } from '../spine/SpineManager';
 import type { PhysicsWasmModule } from '../physics/PhysicsModuleLoader';
-import type { Physics2DPluginConfig } from '../physics/Physics2DPlugin';
+import type { Physics2DPluginConfig } from '../physics/PhysicsTypes';
 import type { Physics3DWasmModule } from '../physics3d/Physics3DModule';
 import { applyAudioProjectConfig, type AudioProjectConfig } from '../audio/AudioProjectConfig';
 import type { App } from '../app/app';
@@ -115,7 +115,7 @@ function ensureRuntimeAssets(
     if (source.resolveRef) assets.setAssetRefResolver(source.resolveRef);
 
     const loader = assets.getTextureLoader();
-    loader.setPixelDecoder((path, flip) => source.decodePixels(path, flip));
+    loader.setPixelDecoder((path, flip, maxEdge) => source.decodePixels(path, flip, maxEdge));
     if (source.compressedTexture) loader.setCompressedSource((path) => source.compressedTexture!(path));
     // KTX2 transcoder, self-gated off app.sideModules — identical wiring to
     // AssetPlugin.build so eager + on-demand loads transcode the same way.

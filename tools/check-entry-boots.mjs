@@ -53,7 +53,7 @@ if (!existsSync(path.join(SDK, 'dist', 'index.js'))) {
 }
 
 mkdirSync(path.join(work, 'node_modules'), { recursive: true });
-symlinkSync(SDK, path.join(work, 'node_modules', 'esengine'), 'dir');
+symlinkSync(SDK, path.join(work, 'node_modules', 'esengine'), process.platform === 'win32' ? 'junction' : 'dir');
 
 const { build } = await import('esbuild');
 const results = [];

@@ -1545,6 +1545,24 @@ static glm::vec3 cubeFace(u32 index) {
     return dir;
 }
 
+void RenderFrame::setShadowBudget(u32 atlasSize, u32 cellSize, u32 cascades) {
+    const auto powerOfTwo = [](u32 n) { return n > 0 && (n & (n - 1)) == 0; };
+    if (!powerOfTwo(atlasSize) || atlasSize < 512 || atlasSize > 4096
+        || !powerOfTwo(cellSize) || cellSize < 128 || cellSize > atlasSize / 2) {
+        ES_LOG_WARN("invalid shadow quality budget: atlas {}, cell {}", atlasSize, cellSize);
+        return;
+    }
+    shadow_cascades_ = std::clamp(cascades, 1u, MAX_SHADOW_CASCADES);
+    if (shadow_atlas_size_ == atlasSize && shadow_cell_size_ == cellSize) return;
+    shadow_atlas_size_ = atlasSize;
+    shadow_cell_size_ = cellSize;
+    shadow_atlas_ = ShadowAtlas(atlasSize, cellSize);
+}
+
+void RenderFrame::setShadowDistance(f32 distance) {
+    shadow_distance_ = std::isfinite(distance) ? std::max(distance, 0.0f) : 0.0f;
+}
+
 void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
     shadow_texture_id_ = 0;
     shadow_resource_ = rg::kNoResource;
@@ -1576,6 +1594,14 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
         // behind the far plane is a camera nothing can be seen through.
         nearDist = std::max(nearDist, 1e-3f);
         farDist = std::max(farDist, nearDist * 1.001f);
+        if (shadow_distance_ > 0.0f && shadow_distance_ < farDist) {
+            const f32 limitedFar = std::max(shadow_distance_, nearDist * 1.001f);
+            const f32 fraction = (limitedFar - nearDist) / (farDist - nearDist);
+            for (u32 i = 0; i < 4; ++i) {
+                corners[i + 4] = corners[i] + (corners[i + 4] - corners[i]) * fraction;
+            }
+            farDist = limitedFar;
+        }
     }
 
     // Who gets what. A light that stands somewhere claims first, because a sun taking the
@@ -1587,8 +1613,8 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
     };
     std::vector<TilePlan> plan(shadow_casters_.size());
     shadow_plan_.clear();
-    shadow_plan_.atlasSize = kShadowAtlasSize;
-    shadow_plan_.cellSize = kShadowCellSize;
+    shadow_plan_.atlasSize = shadow_atlas_size_;
+    shadow_plan_.cellSize = shadow_cell_size_;
     for (usize i = 0; i < shadow_casters_.size(); ++i) {
         const ShadowCaster& caster = shadow_casters_[i];
         if (caster.shape == ShadowShape::Box) continue;
@@ -1603,7 +1629,7 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
         if (caster.shape != ShadowShape::Box) continue;
         // A fixed reach is the author saying what the map covers; splitting it would
         // hand the rest of the atlas to slices they never asked for.
-        const u32 want = (perspective && caster.extent <= 0.0f) ? MAX_SHADOW_CASCADES : 1;
+        const u32 want = (perspective && caster.extent <= 0.0f) ? shadow_cascades_ : 1;
         i32 at = -1;
         const ShadowGrant grant = claimTiles(shadow_atlas_, caster.light, want,
                                              kShadowCascadeCells, at);
@@ -1653,7 +1679,7 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
                 const glm::mat4 lightRotInv = glm::inverse(lightRot);
                 glm::vec3 centre(0.0f);
                 f32 radius = 1.0f;
-                if (mine.count == 1) {
+                if (!perspective || caster.extent > 0.0f) {
                     // What the map covers: the 3D geometry, unless the light asked for a
                     // fixed reach. A radius, so coverage does not change as the light turns.
                     const CameraView view = computeCameraView(view_projection_);
@@ -1758,8 +1784,8 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
     // the id has to exist NOW rather than when the pass runs — the atlas travels
     // into the sort key of every draw that receives it, and the scene collects next.
     rg::TargetDesc desc;
-    desc.width = kShadowAtlasSize;
-    desc.height = kShadowAtlasSize;
+    desc.width = shadow_atlas_size_;
+    desc.height = shadow_atlas_size_;
     desc.depthStencil = true;
     desc.linearFilter = false;
     shadow_resource_ = graph_.createExternalTarget(desc);
@@ -1771,7 +1797,7 @@ void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
     shadow_texture_id_ = static_cast<u32>(graph_.textureOf(shadow_resource_));
     context_.lights().setShadowTiles(
         matrices, tiles, shadow_atlas_.tileCount(),
-        glm::vec4(1.0f, 1.0f / static_cast<f32>(kShadowAtlasSize), 0.0f, 0.0f));
+        glm::vec4(1.0f, 1.0f / static_cast<f32>(shadow_atlas_size_), 0.0f, 0.0f));
     // Which of them each light reads. Without it a fragment would test against
     // every map in the atlas, including ones rendered from where it cannot see.
     for (usize i = 0; i < shadow_casters_.size(); ++i) {

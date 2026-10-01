@@ -18,7 +18,10 @@
  * into workspace.json.
  */
 
-import { parseAudioProjectConfig, THEME_COLOR_ROLES, type AudioProjectConfig } from 'esengine';
+import {
+  parseAudioProjectConfig, parseQualityConfig, THEME_COLOR_ROLES,
+  type AudioProjectConfig, type QualityConfig,
+} from 'esengine';
 import { normalizePlatform, type ExportPlatform } from './platforms';
 
 export const PROJECT_FORMAT_VERSION = '1';
@@ -159,6 +162,7 @@ export interface ProjectFeatures {
      *  what a browser gives its own drawing buffer. Clamped by what the device
      *  supports. A low-end target turns this down; nothing else should. */
     msaa?: 1 | 2 | 4 | 8;
+    quality?: QualityConfig;
     /** GPU backend a shipped build asks for. 'webgpu' takes it where the machine
      *  serves one and falls back to WebGL2 where it does not, so a project can
      *  opt in without giving up the browsers that have neither. Absent ⇒ WebGL2,
@@ -761,6 +765,10 @@ export function parseManifest(raw: unknown): ProjectManifest {
       if (r.outputTransform === 'aces') rendering.outputTransform = 'aces';
       // Only a NON-default count persists; 4 is absence, like the fields above.
       if (r.msaa === 1 || r.msaa === 2 || r.msaa === 8) rendering.msaa = r.msaa;
+      if (r.quality) {
+        const quality = parseQualityConfig(r.quality);
+        rendering.quality = quality;
+      }
       // Same shape: only the opt-in persists, WebGL2 is absence.
       if (r.backend === 'webgpu') rendering.backend = 'webgpu';
       // Camera fit — 'none' (off) is the default, expressed by absence.

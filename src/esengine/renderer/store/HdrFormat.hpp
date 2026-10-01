@@ -50,6 +50,7 @@ inline const char* pixelFormatName(GfxPixelFormat format) {
         case GfxPixelFormat::RGBA8:            return "RGBA8";
         case GfxPixelFormat::SRGB8_ALPHA8:     return "SRGB8_ALPHA8";
         case GfxPixelFormat::RGBA16F:          return "RGBA16F";
+        case GfxPixelFormat::RGBA32F:          return "RGBA32F";
         case GfxPixelFormat::DepthComponent24: return "DepthComponent24";
         case GfxPixelFormat::Depth24Stencil8:  return "Depth24Stencil8";
     }

@@ -28,7 +28,7 @@ import { HttpBackend } from '../asset/Backend';
 import { Catalog, type CatalogData } from '../asset/Catalog';
 import { ManifestModel, type AddressableManifest } from '../asset/AddressableManifest';
 import type { SceneData } from '../scene/scene';
-import type { Physics2DPluginConfig } from '../physics/Physics2DPlugin';
+import type { Physics2DPluginConfig } from '../physics/PhysicsTypes';
 import type { AudioProjectConfig } from '../audio/AudioProjectConfig';
 import { fetchDecodePixels } from '../asset/imageDecode';
 import { applyAssetRefResolvers } from './packagedRuntime';
@@ -169,7 +169,7 @@ function createPlayRealmSource(
     return {
         backend,
         ...(compressedTexture ? { compressedTexture } : {}),
-        decodePixels: (path) => fetchDecodePixels(backend.resolveUrl(path)),
+        decodePixels: (path, _flip, maxEdge) => fetchDecodePixels(backend.resolveUrl(path), maxEdge),
         resolveRef: (ref) => resolvePlayAssetRef(ref, manifest, assetBaseUrl, pathMap),
         // Cooked builds: logical paths (the pathMap keys). Editor play: the
         // manifest's resolved URLs — both keep the real extension, which is all
