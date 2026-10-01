@@ -14,6 +14,10 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A project that moves keeps answering its textures from its own cache.** The editor remembered where each compressed texture was kept as an absolute path, so a project copied elsewhere went on serving textures from the old folder, and from none once that was deleted. It is kept relative to the project now; a record written by 0.76.0 is still read.
+
 ## [0.76.0] - 2026-10-01
 
 ### Changed

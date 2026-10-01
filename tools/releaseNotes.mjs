@@ -1330,6 +1330,8 @@ export const NOTED = {
     { note: 'A large project opens in minutes, not half an hour' },
   'refactor(assets): the texture cook reports the cache file it used':
     { note: 'A large project opens in minutes, not half an hour' },
+  'fix(editor): a texture\'s remembered cache entry is relative to the project':
+    { note: 'A project that moves keeps answering its textures from its own cache' },
   'fix(eht): the generator writes LF on every platform':
     { internal: 'The engine header tool is a repository generator; on Windows it rewrote every generated file with CRLF, which only a contributor there ever saw.' },
 };
