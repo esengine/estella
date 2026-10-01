@@ -90,6 +90,13 @@ export const CENSUS_FLOOR = '0.60.0';
  * that does not exist, and release notes are a different act. Theirs is ungated.
  */
 export const SHIPPED = {
+  // — 0.76.0 —
+  "A directional light can be the environment's sun":
+    { notCertifiable: 'no golden project lights from an HDRI with a sun in it; pipeline/tests/environment-import.test.ts holds the sun found on import and the environment-sun editor check the light that follows it' },
+  "Baked light is a lit surface's indirect light":
+    { certifies: 'lightmap' },
+  'A model whose second UV set cannot be baked into gets a lightmap UV in its place':
+    { notCertifiable: 'an import, which no golden project re-runs; pipeline/tests/lightmap-uv.test.ts holds the unwrap and when it is chosen' },
   // — 0.75.0 —
   "A cutout's edge is antialiased":
     { notCertifiable: 'no golden project draws an alpha-cutout material; the corpus-cutout-edge and corpus-cutout-edge-gamma render gates hold it on both backends, on Khronos\'s AlphaBlendModeTest' },
