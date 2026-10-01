@@ -54,10 +54,10 @@ export interface DecodedPixels {
  * consumer chooses the final convention via `createTextureFromPixels(flipY)` —
  * v=1=top for general textures, v=0=top for spine / bitmap fonts.
  */
-export async function decodeImagePixels(src: ImageBitmapSource): Promise<DecodedPixels> {
+export async function decodeImagePixels(src: ImageBitmapSource, maxEdge = 0): Promise<DecodedPixels> {
     const bitmap = await decodeImageBitmap(src, false);
     try {
-        return readImagePixels(bitmap);
+        return readImagePixels(bitmap, maxEdge);
     } finally {
         bitmap.close?.();
     }
@@ -70,14 +70,16 @@ export async function decodeImagePixels(src: ImageBitmapSource): Promise<Decoded
  * they stand: dividing them by alpha again drives every half-transparent texel
  * toward white, and an RGBM texel — whose alpha IS its brightness — to grey.
  */
-export function readImagePixels(image: PlatformImage | ImageBitmap): DecodedPixels {
-    const { width, height } = image;
+export function readImagePixels(image: PlatformImage | ImageBitmap, maxEdge = 0): DecodedPixels {
+    const scale = maxEdge > 0 ? Math.min(1, maxEdge / Math.max(image.width, image.height)) : 1;
+    const width = Math.max(1, Math.round(image.width * scale));
+    const height = Math.max(1, Math.round(image.height * scale));
     const canvas = platformCreateCanvas(width, height);
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) throw new Error('imageDecode: 2D context unavailable for pixel decode');
-    ctx.drawImage(image, 0, 0);
+    ctx.drawImage(image, 0, 0, width, height);
     const data = ctx.getImageData(0, 0, width, height);
     return { width, height, pixels: new Uint8Array(data.data.buffer) };
 }
@@ -88,8 +90,8 @@ export function readImagePixels(image: PlatformImage | ImageBitmap): DecodedPixe
  * `<img>` taints the canvas on custom schemes; fetch→blob sidesteps it). Uses the
  * global `fetch` — these callers all run in a browser/electron context.
  */
-export async function fetchDecodePixels(url: string): Promise<DecodedPixels> {
+export async function fetchDecodePixels(url: string, maxEdge = 0): Promise<DecodedPixels> {
     const res = await fetch(url);
     if (!res.ok) throw new Error(`image fetch failed (${res.status}): ${url}`);
-    return decodeImagePixels(await res.blob());
+    return decodeImagePixels(await res.blob(), maxEdge);
 }

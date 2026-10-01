@@ -38,6 +38,7 @@
  *     --render           after settling, print the renderer counters of the last
  *                        frame — draws, culls and LOD levels, which no pixel shows
  *     --facts            after settling, print what the GAME says about its run
+ *     --render-facts     print the shipping renderer's backend and capabilities
  *     --gameplay p[,c]   after settling, print what the third-person character
  *                        IS: where it stands, what the physics step gave it, and
  *                        what its animator was told
@@ -221,6 +222,7 @@ async function main() {
   }
   const PROBE = flag('probe', '');
 const FACTS = has('facts');
+const RENDER_FACTS = has('render-facts');
 /** What residency did — which cells exist, and what the subsystems still hold. */
 const STREAMING = has('streaming');
 const GAMEPLAY = flag('gameplay', '');
@@ -232,7 +234,7 @@ const RENDER = has('render');
 const SCENE = flag('scene', '');
   const server = await serve(DIR, flag('safe-area', ''), Number(flag('frame-ms', String(1000 / 60))), !!THROTTLE);
   const query = new URLSearchParams();
-  if (PROBE || GAMEPLAY || PARTICLES || COMBAT || AI || RENDER || FACTS || STREAMING) query.set('headless', '');
+  if (PROBE || GAMEPLAY || PARTICLES || COMBAT || AI || RENDER || FACTS || RENDER_FACTS || STREAMING) query.set('headless', '');
   if (SCENE) query.set('scene', SCENE);
   const search = query.toString() ? `?${query.toString().replace(/=$/, '').replace(/=&/g, '&')}` : '';
   const base = `http://127.0.0.1:${server.address().port}/${search}`;
@@ -339,6 +341,12 @@ const SCENE = flag('scene', '');
       'window.__estellaCooked?.facts() ?? null',
     ).catch((e) => ({ error: String(e) }));
     console.log(`  facts: ${JSON.stringify(seen)}`);
+  }
+  if (RENDER_FACTS) {
+    const seen = await win.webContents.executeJavaScript(
+      'window.__estellaCooked?.renderFacts() ?? null',
+    ).catch((e) => ({ error: String(e) }));
+    console.log(`  render facts: ${JSON.stringify(seen)}`);
   }
   if (PROBE) {
     const names = PROBE.split(',').map((n) => n.trim()).filter(Boolean);

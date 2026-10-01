@@ -123,6 +123,22 @@ describe('a lightmap UV set', () => {
         expect(max).toBe(1);
     });
 
+    it('keeps coincident layers separate across welded non-manifold edges', () => {
+        const source = cube();
+        source.indices = Uint32Array.from([...source.indices, ...source.indices]);
+        const { mesh } = unwrapLightmapUV(source);
+        expect(mesh.indices.length).toBe(source.indices.length);
+        expect(coverage(mesh, 128).max).toBe(1);
+    });
+
+    it('keeps duplicate triangles separate when their shared edges have the same winding', () => {
+        const source = cube();
+        source.indices = Uint32Array.from([0, 1, 2, 0, 1, 2]);
+        const { mesh } = unwrapLightmapUV(source);
+        expect(mesh.indices.length).toBe(6);
+        expect(coverage(mesh, 128).max).toBe(1);
+    });
+
     it('stays inside the unit square', () => {
         const { mesh } = unwrapLightmapUV(cube());
         for (let v = 0; v < mesh.vertexCount; v++) {

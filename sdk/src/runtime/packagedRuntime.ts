@@ -12,6 +12,7 @@
  *          the bytes arrive, so the same code serves both realms.
  */
 
+import type { QualityConfig } from '../render/quality';
 import type { DebugChannelConfig } from './debugChannelProtocol';
 import { extractUuid } from '../asset/AssetRegistry';
 import { platformReadTextFile, platformLoadImagePixels } from '../platform';
@@ -64,6 +65,7 @@ export interface PackagedGameConfig {
     /** Scene-target multisampling the project asked for; absent ⇒ 4. Clamped by
      *  the device, which answers capability and never policy. */
     msaaSamples?: number;
+    quality?: QualityConfig;
     /** GPU backend the build asks for; absent ⇒ WebGL2. A request for
      *  'webgpu' falls back where the machine cannot serve one. */
     renderBackend?: 'webgl2' | 'webgpu';
@@ -196,13 +198,14 @@ export function glContextAttributes(preserveDrawingBuffer = false): WebGLContext
 export function packagedAppOptions(
     config: Pick<PackagedGameConfig,
         'ySortLayers' | 'depthLayers' | 'colorSpace' | 'outputTransform' | 'screenFit'
-        | 'msaaSamples'>,
+        | 'msaaSamples' | 'quality'>,
 ): {
     ySortLayers?: number;
     depthLayers?: number;
     colorSpace?: 'gamma' | 'linear';
     outputTransform?: 'none' | 'aces';
     msaaSamples?: number;
+    quality?: QualityConfig;
     /** GPU backend the build asks for; absent ⇒ WebGL2. A request for
      *  'webgpu' falls back where the machine cannot serve one. */
     renderBackend?: 'webgl2' | 'webgpu';
@@ -214,6 +217,7 @@ export function packagedAppOptions(
         colorSpace: config.colorSpace,
         outputTransform: config.outputTransform,
         msaaSamples: config.msaaSamples,
+        quality: config.quality,
         screenFit: config.screenFit,
     };
 }

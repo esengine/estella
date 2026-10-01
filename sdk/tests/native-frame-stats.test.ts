@@ -32,6 +32,15 @@ function nativeEngine() {
 afterEach(() => setNativeEngineApi(null));
 
 describe('frame stats on a device with no wasm module', () => {
+    it('reports the completed app frame rather than a polling host clock', async () => {
+        const app = App.new();
+        expect(frameStatsReport(app).seq).toBeUndefined();
+        await app.tick(0.05);
+        expect(frameStatsReport(app)).toMatchObject({ seq: 1, frameMs: 50 });
+        await app.tick(0.1);
+        expect(frameStatsReport(app)).toMatchObject({ seq: 2, frameMs: 100 });
+        app.quit();
+    });
     it('reads the counters from the native engine', () => {
         setNativeEngineApi(nativeEngine());
         const report = frameStatsReport(App.new());

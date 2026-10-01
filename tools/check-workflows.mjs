@@ -164,7 +164,7 @@ function hiddenUploads(lines) {
 const hiddenUploadViolations = [];
 
 for (const file of readdirSync(WORKFLOWS).filter((f) => /\.ya?ml$/.test(f))) {
-    const lines = readFileSync(path.join(WORKFLOWS, file), 'utf8').split('\n');
+    const lines = readFileSync(path.join(WORKFLOWS, file), 'utf8').split(/\r?\n/);
     for (const v of hiddenUploads(lines)) hiddenUploadViolations.push({ file, ...v });
     const found = jobs(lines);
     const jobsAt = lines.findIndex((l) => /^jobs:\s*$/.test(l));

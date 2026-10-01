@@ -105,6 +105,8 @@ public:
     void init(u32 width, u32 height);
     void shutdown();
     void resize(u32 width, u32 height);
+    void setShadowBudget(u32 atlasSize, u32 cellSize, u32 cascades);
+    void setShadowDistance(f32 distance);
 
     /** Geometry collected for this camera and drawn after its scene. */
     void setPresentedOverlayDraw(ImmediateDraw* draw) { presented_overlay_draw_ = draw; }
@@ -870,6 +872,10 @@ private:
     /// Who owns which square of the atlas. Rebuilt every frame: a tile means
     /// nothing once the depths in it belong to a frame that is gone.
     ShadowAtlas shadow_atlas_{kShadowAtlasSize, kShadowCellSize};
+    u32 shadow_atlas_size_ = kShadowAtlasSize;
+    u32 shadow_cell_size_ = kShadowCellSize;
+    u32 shadow_cascades_ = MAX_SHADOW_CASCADES;
+    f32 shadow_distance_ = 0.0f;
     ShadowPlanReport shadow_plan_;
     LightCapReport light_cap_;
     /// The map's colour texture, handed to every mesh that receives it. 0 = none this frame.

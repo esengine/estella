@@ -585,6 +585,19 @@ export class MiniGamePlatformAdapter implements PlatformAdapter {
         }
     }
 
+    deviceQualityInfo(): { model?: string; memoryGB?: number } {
+        try {
+            const info = this.g_.getDeviceInfo?.() ?? this.g_.getSystemInfoSync?.();
+            const memory = Number(info?.memorySize);
+            return {
+                model: info?.model?.replace(/<.*>$/, '').trim(),
+                ...(Number.isFinite(memory) && memory > 0 ? { memoryGB: memory / 1024 } : {}),
+            };
+        } catch {
+            return {};
+        }
+    }
+
     language(): string {
         try {
             // Hosts report 'zh_CN'-style tags; platformLanguage() normalizes underscores.

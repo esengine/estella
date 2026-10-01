@@ -11,7 +11,7 @@
 import { readTextureCookSettings } from '../project/importSettings';
 import { decodePngImage, encodeRgbaPng, downscaleRgba } from './atlasPacker';
 import {
-  decideTextureCook, cookIntentDefeated, explainTextureCook,
+  decideTextureCook, cookIntentDefeated, explainTextureCook, downscaledSize,
   type TextureCookDecision,
 } from './textureCookDecision';
 import { halveRgba, joinMipLevels, alphaCoverage, preserveAlphaCoverage } from './ktx2Mips';
@@ -145,20 +145,11 @@ export async function cookTexture(input: TextureCookInput): Promise<TextureCookO
   // maxSize downscale first — it applies even when a texture opts OUT of
   // compression (a huge UI sprite can ship as a smaller raw PNG), and the
   // ENCODED size is what block alignment is judged on.
-  let rgba: Uint8Array | null = null;
-  let tw = 0, th = 0;
-  if (textureEnc && raster) {
-    try {
-      const dims = pngDimensions(data);
-      if (tex.maxSize < Math.max(dims.width, dims.height)) {
-        const scaled = downscaleRgba(decodePngImage(path, data), tex.maxSize);
-        rgba = scaled.rgba; tw = scaled.width; th = scaled.height;
-      }
-    } catch (err) {
-      warnings.push(`${path}: texture resize skipped — ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
-  const size = raster ? (rgba ? { width: tw, height: th } : safePngDimensions(data)) : null;
+  const sourceSize = raster ? safePngDimensions(data) : null;
+  const scaled = !!(textureEnc && sourceSize && tex.maxSize > 0 &&
+    tex.maxSize < Math.max(sourceSize.width, sourceSize.height));
+  const size = scaled ? downscaledSize(sourceSize!.width, sourceSize!.height, tex.maxSize) : sourceSize;
+  const scaledImage = () => downscaleRgba(decodePngImage(path, data), tex.maxSize);
   const cook = decideTextureCook({
     compressTextures: input.compressTextures, atlasTextures: input.atlasTextures, inAtlas: false, raster,
     compress: tex.compress, drawnIn3D: input.drawnIn3D, format: tex.format, size,
@@ -171,7 +162,10 @@ export async function cookTexture(input: TextureCookInput): Promise<TextureCookO
     else warnings.push(`${path}: ${explainTextureCook(cook, size)}`);
   }
   // A texture that ships as an image ships the shrunk one.
-  if (cook.selected === 'raw' && rgba) data = encodeRgbaPng(tw, th, rgba);
+  if (cook.selected === 'raw' && scaled) {
+    const image = scaledImage();
+    data = encodeRgbaPng(image.width, image.height, image.rgba);
+  }
   if (cook.selected !== 'raw') {
     // Only a build that encodes can select an encoding, and that is exactly
     // when the encoder was loaded — an absent one here is a broken invariant
@@ -180,14 +174,16 @@ export async function cookTexture(input: TextureCookInput): Promise<TextureCookO
     const mode = cook.selected;
     const source = data;
     const coverage = mode === 'uastc' ? tex.mipCoverage : 0;
-    const key = [source, JSON.stringify({ mode, srgb: tex.srgb, maxSize: tex.maxSize, scaled: rgba ? [tw, th] : null,
+    const key = [source, JSON.stringify({ mode, srgb: tex.srgb, maxSize: tex.maxSize, scaled: scaled ? [size!.width, size!.height] : null,
       ...(coverage ? { mipCoverage: coverage } : {}) }), input.encoder!.id];
-    const produce = (): Promise<Uint8Array> => (coverage
-      ? encodeCoverageChain(enc, rgba ? { rgba, width: tw, height: th } : decodePngImage(path, source),
-        tex.srgb, coverage)
-      : rgba
-        ? enc.encodeToKtx2({ type: enc.ImageType.RGBA, data: rgba, width: tw, height: th }, { mode, srgb: tex.srgb })
-        : enc.encodeToKtx2({ type: enc.ImageType.PNG, data: source }, { mode, srgb: tex.srgb }));
+    const produce = (): Promise<Uint8Array> => {
+      const image = scaled ? scaledImage() : null;
+      return coverage
+        ? encodeCoverageChain(enc, image ?? decodePngImage(path, source), tex.srgb, coverage)
+        : image
+          ? enc.encodeToKtx2({ type: enc.ImageType.RGBA, data: image.rgba, width: image.width, height: image.height }, { mode, srgb: tex.srgb })
+          : enc.encodeToKtx2({ type: enc.ImageType.PNG, data: source }, { mode, srgb: tex.srgb });
+    };
     const file = cookCacheFile(root, key);
     const encoded = input.cachedOnly ? await cookCacheHitAt(file) : (await cookCachedAt(file, produce)).bytes;
     if (!encoded) return { data, ext, cook, warnings, defeatedByFormat, pending: true };

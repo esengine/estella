@@ -338,7 +338,7 @@ jobs:
           cp "${FRAMES[@]}" "shots/$DEST/"
           git -C shots add -A
           git -C shots commit -q -m "ci: android compat frames for ${DEST}"
-          git -C shots push -q origin "$BRANCH"
+          git -C shots -c core.hooksPath=/dev/null push -q origin "$BRANCH"
           echo "base=https://github.com/${{ github.repository }}/raw/$BRANCH/$DEST" >> "$GITHUB_OUTPUT"
 
       # continue-on-error because a non-zero exit here IS the verdict — it means

@@ -1012,8 +1012,19 @@ void renderer_setYSortLayers(u32 mask) {
 
 // The 2.5D opt-in, per sorting layer. Same shape as setYSortLayers because it is
 // the same kind of declaration: how a layer resolves the draws inside it.
+void renderer_setQualityBudgets(u32 atlasSize, u32 cellSize, u32 cascades, u32 particleLimit) {
+    if (g_renderFrame) g_renderFrame->setShadowBudget(atlasSize, cellSize, cascades);
+#ifdef ES_ENABLE_PARTICLES
+    if (g_particleSystem) g_particleSystem->setParticleLimit(particleLimit);
+#endif
+}
+
 void renderer_setDepthLayers(u32 mask) {
     if (auto* frame = g_renderFrame) frame->setDepthLayers(mask);
+}
+
+void renderer_setShadowDistance(f32 distance) {
+    if (g_renderFrame) g_renderFrame->setShadowDistance(distance);
 }
 
 // Which layers the NEXT collect draws. Set per camera, before renderer_submitAll.

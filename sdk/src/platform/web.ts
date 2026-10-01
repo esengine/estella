@@ -322,6 +322,12 @@ class WebPlatformAdapter implements PlatformAdapter {
         return typeof navigator !== 'undefined' ? browserDeviceName(navigator.userAgent) : '';
     }
 
+    deviceQualityInfo(): { memoryGB?: number; cores?: number } {
+        if (typeof navigator === 'undefined') return {};
+        return { memoryGB: (navigator as Navigator & { deviceMemory?: number }).deviceMemory,
+            cores: navigator.hardwareConcurrency };
+    }
+
     /**
      * Both ways an error reaches the browser with nobody holding it.
      *

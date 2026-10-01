@@ -1,0 +1,22 @@
+{
+  "formatVersion": "1",
+  "name": "Device Quality",
+  "version": "0.1.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 960,
+    "height": 640
+  },
+  "features": {
+    "rendering": {
+      "backend": "webgpu",
+      "colorSpace": "linear",
+      "outputTransform": "aces",
+      "quality": {
+        "mode": "auto",
+        "targetFps": 60,
+        "dynamicResolution": true
+      }
+    }
+  }
+}

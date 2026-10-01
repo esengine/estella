@@ -263,6 +263,10 @@ void ParticleSystem::emitInto(const ecs::ParticleEmitter& emitter, EmitterState&
                        emitter.subEmitterTrigger ==
                            static_cast<i32>(ecs::SubEmitterTrigger::Birth);
 
+    if (particle_limit_ != 0xffffffffu) {
+        const u32 alive = totalAliveParticles();
+        count = std::min(count, alive < particle_limit_ ? particle_limit_ - alive : 0u);
+    }
     for (u32 i = 0; i < count; ++i) {
         Particle* p = state.pool.allocate();
         if (!p) {
