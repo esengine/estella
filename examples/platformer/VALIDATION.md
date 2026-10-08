@@ -25,14 +25,30 @@ texture's shared 8-pixel border change.
 
 Windowless regression: editor Rect drag 11 and texture-border geometry 19 tests;
 SDK import settings 13, generated field metadata 1, scene format/loading/
-validation 84; pixel-predicate tests 4. No local desktop/Electron verifier ran.
+validation 84; pixel-predicate tests 4. Two existing post-process test fixtures
+were brought up to date with quality filtering and initialization state; their
+31 rendering/present tests also pass (163 local tests in total). All 63 example
+projects pass type checking. No local desktop/Electron verifier ran.
 
 ## Second backend
 
 The built-in browser reports **no WebGPU adapter**. That is unavailable coverage,
-not a pass. The same full-corner predicate is registered as the PR-tier
-`sprite-nine-slice` scene on WebGL2 and WebGPU, so a CI machine with an adapter
-can run it. The roadmap must retain pending acceptance until this passes.
+not a local pass. The same full-corner predicate is registered as the PR-tier
+`sprite-nine-slice` scene on WebGL2 and WebGPU. Both passed in
+[branch CI](https://github.com/esengine/estella/actions/runs/37783264188):
+WebGL2 in 1.0s and WebGPU in 7.9s. These are whole verifier durations, not frame
+times. The complete renderer jobs passed on both backends. The run predates
+the post-process mock repair; engine code, fixture and pixel predicate are identical.
+
+The full build was not green: the old post-process mocks caused 14 SDK failures,
+and editor camera-preview CPU budgets / selected-only 3D gizmo checks also
+failed on master before this increment. These are distinct from the passing
+render jobs. Six stale API snapshots were synchronized to unblock static checks.
+
+The exported test copy temporarily gave the canvas `tabindex=0` so the browser
+locator could focus it for Space/ArrowRight. The engine and game code were
+unchanged; jump and movement rendered without console errors. The attribute
+was removed afterward so the retained package has the original export markup.
 
 ## Reproduce without desktop windows
 

@@ -74,8 +74,7 @@ button.onclick = async () => {
     } catch (error) { checks.push({ name: 'Probe error', pass: false, detail: error.stack }); }
     const report = { backend, userAgent: navigator.userAgent, checks, passed: checks.filter(c => c.pass).length, failed: checks.filter(c => !c.pass).length };
     result.textContent = JSON.stringify(report, null, 2);
-    summary.textContent = `${backend}: ${report.passed} passed, ${report.failed} failed`;
+    summary.textContent = `${backend}: ${report.passed} passed, ${report.failed} failed. Reload to repeat.`;
     const saved = await fetch('/report', { method: 'POST', body: JSON.stringify(report) });
     if (!saved.ok) result.textContent += '\nReport could not be saved';
-    button.disabled = false;
 };
