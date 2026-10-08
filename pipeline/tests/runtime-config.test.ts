@@ -15,6 +15,14 @@ import {
 } from '../src/project/runtimeConfig';
 
 describe('runtimeConfigOf', () => {
+  it('carries the same normalized quality policy into exported builds', () => {
+    const rc = runtimeConfigOf({ features: { rendering: {
+      quality: { mode: 'low', dynamicResolution: true, targetFps: 30 },
+    } } });
+    expect(packagedRuntimeFields(rc).quality).toEqual(rc.quality);
+    expect(rc.quality.targetFps).toBe(30);
+    expect(packagedRuntimeFields(runtimeConfigOf({}))).not.toHaveProperty('quality');
+  });
   it('answers with the engine defaults for a project that declares nothing', () => {
     const rc = runtimeConfigOf({});
     expect(rc.ySortLayers).toBe(0);

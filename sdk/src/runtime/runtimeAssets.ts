@@ -31,7 +31,7 @@ import { withMalloc } from '../wasm/wasmScratch';
  */
 export interface RuntimeAssetSource {
     backend: Backend;
-    decodePixels(path: string, flip: boolean): Promise<{ width: number; height: number; pixels: Uint8Array }>;
+    decodePixels(path: string, flip: boolean, maxEdge?: number): Promise<{ width: number; height: number; pixels: Uint8Array }>;
     resolveRef?(ref: string): string;
     /**
      * The LOGICAL source path a ref was authored at (e.g. `assets/spine/hero.atlas`),

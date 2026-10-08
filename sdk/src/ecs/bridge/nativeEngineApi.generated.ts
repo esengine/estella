@@ -186,6 +186,8 @@ export interface NativeEngineApi {
     renderer_setDepthLayers?(mask: number): void;
     renderer_setEntityDrawOrder?(registry: unknown, entitiesPtr: number, count: number): void;
     renderer_setLodPreview?(view: number, entity: number, level: number): void;
+    renderer_setQualityBudgets?(atlasSize: number, cellSize: number, cascades: number, particleLimit: number): void;
+    renderer_setShadowDistance?(distance: number): void;
     renderer_setStage?(stage: number): void;
     renderer_setTextureParams?(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void;
     renderer_setViewId?(view: number): void;
@@ -464,6 +466,8 @@ export function createNativeEngineApi(
     bind('renderer_setDepthLayers', 'es_renderer_setDepthLayers', false);
     bind('renderer_setEntityDrawOrder', 'es_renderer_setEntityDrawOrder', true);
     bind('renderer_setLodPreview', 'es_renderer_setLodPreview', false);
+    bind('renderer_setQualityBudgets', 'es_renderer_setQualityBudgets', false);
+    bind('renderer_setShadowDistance', 'es_renderer_setShadowDistance', false);
     bind('renderer_setStage', 'es_renderer_setStage', false);
     bind('renderer_setTextureParams', 'es_renderer_setTextureParams', false);
     bind('renderer_setViewId', 'es_renderer_setViewId', false);

@@ -7,8 +7,12 @@
  */
 import type { App, FrameCosts } from '../app/app';
 import { engineApi } from '../ecs/bridge/engineApi';
+import { Quality } from '../render/qualityRuntime';
+import type { QualityReport } from '../render/quality';
 
 export interface FrameStatsReport {
+    seq?: number;
+    frameMs?: number;
     phases: Record<string, number>;
     /** Per-system and per-scope cost with the domain/system attribution the
      *  profile tree is folded from. Null while the app has stats off. */
@@ -23,6 +27,7 @@ export interface FrameStatsReport {
     gpuScopes: Record<string, number>;
     wasmBytes: number;
     vramBytes: number;
+    quality?: QualityReport;
 }
 
 function jsonMap(json: string | undefined): Record<string, number> {
@@ -33,6 +38,7 @@ function jsonMap(json: string | undefined): Record<string, number> {
 export function frameStatsReport(app: App): FrameStatsReport {
     const m = engineApi(app);
     return {
+        ...app.getFrameTiming(),
         phases: Object.fromEntries(app.getPhaseTimings() ?? []),
         costs: app.getFrameCosts(),
         drawCalls: m?.renderer_getDrawCalls?.() ?? 0,
@@ -45,5 +51,6 @@ export function frameStatsReport(app: App): FrameStatsReport {
         gpuScopes: jsonMap(m?.engine_getGpuScopes?.()),
         wasmBytes: app.wasmModule?.HEAPU8?.byteLength ?? 0,
         vramBytes: m?.renderer_getTextureBytes?.() ?? 0,
+        quality: app.hasResource(Quality) ? app.getResource(Quality)?.report() : undefined,
     };
 }

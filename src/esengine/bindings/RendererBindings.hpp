@@ -24,6 +24,8 @@ namespace ecs {
 
 void renderer_init(u32 width, u32 height);
 void renderer_resize(u32 width, u32 height);
+void renderer_setQualityBudgets(u32 atlasSize, u32 cellSize, u32 cascades, u32 particleLimit);
+void renderer_setShadowDistance(f32 distance);
 void renderer_beginFrame(f32 elapsedSec);
 void renderer_begin(uintptr_t matrixPtr, u32 targetHandle, i32 clearFlags,
                     f32 r, f32 g, f32 b, f32 a,

@@ -119,6 +119,7 @@ describe('what the channel costs a device', () => {
             onFrameEnd: () => () => {},
             getPhaseTimings: () => [],
             getFrameCosts: () => null,
+            getFrameTiming: () => null,
             wasmModule: null,
             world: { getAllEntities: () => [] },
         } as unknown as App);

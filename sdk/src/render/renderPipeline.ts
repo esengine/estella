@@ -19,6 +19,7 @@ import {
 } from './customDraw';
 import { log } from '../util/logger';
 import { planPresent, RenderResolution } from '../camera/presentPlan';
+import type { QualityController } from './quality';
 
 export interface Viewport {
     x: number;
@@ -63,12 +64,27 @@ export interface CameraRenderParams {
 }
 
 export class RenderPipeline {
+    private renderingEnabled_ = true;
     private lastWidth_ = 0;
     private lastHeight_ = 0;
     private activeScenes_: Set<string> | null = null;
     private preFlushCallbacks_: ((registry: { _cpp: CppRegistry }) => void)[] = [];
     private screenOverlayCallbacks_: ((registry: { _cpp: CppRegistry }) => void)[] = [];
     private postProcess_: PostProcessAPI | null = null;
+    private quality_: QualityController | null = null;
+    private applyQuality_: (() => void) | null = null;
+    private warnedMissingPresent_ = false;
+
+    /** @experimental */
+    get renderingEnabled(): boolean { return this.renderingEnabled_; }
+
+    /** @experimental */
+    setRenderingEnabled(enabled: boolean): void { this.renderingEnabled_ = enabled; }
+
+    setQuality(quality: QualityController, apply?: () => void): void {
+        this.quality_ = quality;
+        this.applyQuality_ = apply ?? null;
+    }
 
     setActiveScenes(scenes: Set<string> | null): void {
         this.activeScenes_ = scenes;
@@ -109,6 +125,10 @@ export class RenderPipeline {
     }
 
     beginFrame(elapsedSec = 0): void {
+        this.applyQuality_?.();
+        this.quality_?.setLimitation('fixed-render-resolution', false);
+        this.quality_?.setLimitation('resolution-present-unavailable', false);
+        this.postProcess_?.setQualityFilter(this.quality_?.enabled ? this.quality_.profile : null);
         Renderer.beginFrame(elapsedSec);
     }
 
@@ -208,9 +228,29 @@ export class RenderPipeline {
         // Where the scene is drawn and where it lands are two rects. A sprite that
         // scales itself can only clamp at its own texture's edge, so every boundary
         // breaks; scaling one whole image has no interior boundary to break.
-        const plan = planPresent(
+        let plan = planPresent(
             params.renderPolicy ?? RenderResolution.Surface,
             params.worldHeight ?? 0, vp.w, vp.h);
+        const quality = this.quality_;
+        const scale = quality?.renderScale ?? 1;
+        const fixedResolution = (params.renderPolicy ?? RenderResolution.Surface)
+            !== RenderResolution.Surface;
+        const scaling = scale < 1 && !fixedResolution && !params.renderTarget;
+        if (scale < 1 && fixedResolution) quality?.setLimitation('fixed-render-resolution', true);
+        if (scaling && !this.postProcess_) {
+            quality?.setLimitation('resolution-present-unavailable', true);
+        }
+        if (scaling && this.postProcess_) {
+            plan = { ...plan, renderWidth: Math.max(1, Math.round(vp.w * scale)),
+                renderHeight: Math.max(1, Math.round(vp.h * scale)), oneToOne: false };
+        }
+        if (!plan.oneToOne && !this.postProcess_) {
+            if (!this.warnedMissingPresent_) {
+                log.warn('render', 'Resolution policy needs post-processing; using surface resolution');
+                this.warnedMissingPresent_ = true;
+            }
+            plan = planPresent(RenderResolution.Surface, 0, vp.w, vp.h);
+        }
         const scene: Viewport = plan.oneToOne
             ? vp
             : { x: 0, y: 0, w: plan.renderWidth, h: plan.renderHeight };
@@ -219,6 +259,7 @@ export class RenderPipeline {
             : { x: vp.x + plan.x, y: vp.y + plan.y, w: plan.width, h: plan.height };
 
         const pp = this.postProcess_;
+        pp?.setQualityFilter(quality?.enabled ? quality.profile : null);
         const hasStack = pp !== null && cameraEntity !== undefined && pp.getStack(cameraEntity) !== null;
         // A scaling present needs the chain even with no effects on it: the blit
         // that ends the chain IS the present, and nothing else can draw one.
@@ -230,11 +271,15 @@ export class RenderPipeline {
             // disengaged — so the policy would go quietly missing.
             if (!pp!.isInitialized()) pp!.init(1, 1);
             if (hasStack) pp!._applyForCamera(cameraEntity!);
-            pp!.resize(scene.w, scene.h);
-            pp!.setOutputViewport(present.x, present.y, present.w, present.h);
+        }
+        if (pp?.isInitialized()) {
+            pp.resize(scene.w, scene.h);
+            pp.setOutputViewport(present.x, present.y, present.w, present.h);
             // A letterbox at 1x is the same size as its chain and merely offset, so
             // the engine cannot read the need for it off the rects.
-            pp!.setPresentRequired(!plan.oneToOne);
+            pp.setPresentRequired(!plan.oneToOne);
+        }
+        if (hasPostProcess) {
             pp!.begin();
         }
 

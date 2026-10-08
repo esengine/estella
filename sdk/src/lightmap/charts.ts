@@ -108,8 +108,15 @@ export function buildCharts(positions: Float32Array, tris: Tri[], rep: Int32Arra
         const out: number[] = [];
         const push = (u: number, v: number): void => {
             const lo = Math.min(rep[u], rep[v]), hi = Math.max(rep[u], rep[v]);
-            for (const other of edges.get(lo * 67108864 + hi) ?? []) {
-                if (other !== t) out.push(other);
+            if (lo === hi) return;
+            const shared = edges.get(lo * 67108864 + hi);
+            if (shared?.length !== 2) return;
+            for (const other of shared) {
+                if (other === t) continue;
+                const next = tris[other];
+                if ((rep[next.a] === rep[v] && rep[next.b] === rep[u])
+                    || (rep[next.b] === rep[v] && rep[next.c] === rep[u])
+                    || (rep[next.c] === rep[v] && rep[next.a] === rep[u])) out.push(other);
             }
         };
         push(tri.a, tri.b); push(tri.b, tri.c); push(tri.c, tri.a);

@@ -6,6 +6,7 @@
  */
 
 import type { AchievementProvider } from '../services/achievements';
+import type { DeviceQualityInfo } from '../render/quality';
 
 // =============================================================================
 // Response Types
@@ -260,6 +261,7 @@ export type PlatformCanvasPaint = string | object;
 export interface PlatformCanvas2DContext {
     // Image decode.
     drawImage(image: PlatformImageSource, dx: number, dy: number): void;
+    drawImage(image: PlatformImageSource, dx: number, dy: number, dw: number, dh: number): void;
     getImageData(sx: number, sy: number, sw: number, sh: number): PlatformImageData;
     clearRect(x: number, y: number, w: number, h: number): void;
     // Glyph rasterization (ui/text/glyph-rasterizer.ts).
@@ -365,6 +367,7 @@ export type PlatformName = 'web' | 'wechat' | 'douyin' | 'node' | 'native' | (st
 export type PlatformFamily = 'minigame';
 
 export interface PlatformAdapter {
+    deviceQualityInfo?(): DeviceQualityInfo;
     readonly name: PlatformName;
 
     /**

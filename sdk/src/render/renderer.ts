@@ -327,8 +327,8 @@ export interface DeviceIdentity {
  * who it was — but it could only be read off a loss report, so a healthy session
  * could not say which GPU it had. Null before a device exists.
  */
-export function getDeviceIdentity(): DeviceIdentity | null {
-    const raw = module?.deviceIdentity?.() ?? '';
+export function getDeviceIdentity(source: ESEngineModule | null = module): DeviceIdentity | null {
+    const raw = source?.deviceIdentity?.() ?? '';
     if (!raw) return null;
     const [backend = '', vendor = '', renderer = '', version = ''] = raw.split('|');
     return { backend, vendor, renderer, version };

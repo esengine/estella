@@ -6,6 +6,8 @@
  */
 
 import { World } from '../ecs/world';
+import { installQuality } from '../render/qualityRuntime';
+import type { QualityConfig } from '../render/quality';
 import { Schedule, SystemDef, SystemRunner, SystemSet, mergeOrderingEdges, rescopeSystem, type RunCondition } from '../ecs/system';
 import { builtinResource, declaredResource, ResourceStorage, Time, TimeData, type ResourceDef } from '../ecs/resource';
 import { Speculation, SpeculationInstance } from '../ecs/speculation';
@@ -149,6 +151,10 @@ export class App {
     private readonly setMembership_ = new Map<string, string[]>();
 
     private running_ = false;
+    private loopVersion_ = 0;
+    private queuedFrame_: number | null = null;
+    private frameInFlight_: Promise<void> | null = null;
+    private frameTiming_: { seq: number; frameMs: number } | null = null;
     private lastTime_ = 0;
     private fixedTimestep_ = 1 / 60;
     private fixedAccumulator_ = 0;
@@ -773,6 +779,11 @@ export class App {
         return this.phaseTimings_;
     }
 
+    /** @experimental Completed frame interval before simulation speed or delta clamping. */
+    getFrameTiming(): Readonly<{ seq: number; frameMs: number }> | null {
+        return this.frameTiming_;
+    }
+
     /**
      * Sub-frame CPU scopes recorded this frame via {@link measureFrameScope} —
      * the finer breakdown within a single system, keyed by scope name. Null when
@@ -1030,21 +1041,22 @@ export class App {
     async stepFrames(frames = 1, dt = 1 / 60): Promise<void> {
         const wasRunning = this.running_;
         const wasPaused = this.user_paused_;
-        // The in-flight rAF callback returns without rescheduling, so nothing else
-        // ticks the world while this runs.
+        this.invalidateLoop_();
+        const version = this.loopVersion_;
         this.running_ = false;
-        this.user_paused_ = false;
         try {
+            await this.frameInFlight_;
+            this.user_paused_ = false;
             for (let i = 0; i < frames; i++) await this.tick(dt);
         } finally {
             this.user_paused_ = wasPaused;
-            if (wasRunning) {
+            if (wasRunning && version === this.loopVersion_) {
                 this.lastTime_ = platformNow();
                 this.running_ = true;
                 // Resumed on the next animation frame, not by starting one here:
                 // a frame begun inside this call's own microtask drain swallows
                 // the input edge a caller injects the moment it returns.
-                if (typeof requestAnimationFrame === 'function') requestAnimationFrame(this.onAnimationFrame_);
+                if (typeof requestAnimationFrame === 'function') this.queueLoopFrame_();
                 else void this.mainLoop();
             }
         }
@@ -1063,16 +1075,26 @@ export class App {
         this.mainLoop();
     }
 
-    /**
-     * @param rafTime The host's animation-frame timestamp, when it passes one.
-     */
-    /** What every requestAnimationFrame is handed: a plain function, because a host
-     *  may refuse an async one — vivo's quick game warned "handler is not a function"
-     *  and every game stood on its first frame. */
-    private readonly onAnimationFrame_ = (rafTime?: number): Promise<void> => this.mainLoop(rafTime);
+    private invalidateLoop_(): void {
+        this.loopVersion_++;
+        if (this.queuedFrame_ !== null && typeof cancelAnimationFrame === 'function') {
+            cancelAnimationFrame(this.queuedFrame_);
+        }
+        this.queuedFrame_ = null;
+    }
 
-    private mainLoop = async (rafTime?: number): Promise<void> => {
-        if (!this.running_) {
+    private queueLoopFrame_(): void {
+        if (typeof requestAnimationFrame !== 'function') return;
+        const version = this.loopVersion_;
+        this.queuedFrame_ = requestAnimationFrame((time) => {
+            if (version !== this.loopVersion_) return;
+            this.queuedFrame_ = null;
+            return this.mainLoop(time, version);
+        });
+    }
+
+    private mainLoop = async (rafTime?: number, version = this.loopVersion_): Promise<void> => {
+        if (!this.running_ || version !== this.loopVersion_) {
             return;
         }
 
@@ -1086,7 +1108,7 @@ export class App {
         // loses to jitter half the time and waits a third (30 fps on 60 Hz ran at 24).
         if (this.targetFrameInterval_ > 0) {
             if (currentTime < this.nextCapFrameAt_ - CAP_JITTER_MS) {
-                requestAnimationFrame(this.onAnimationFrame_);
+                this.queueLoopFrame_();
                 return;
             }
             // More than a frame behind (a stall, a hidden page): the cadence restarts here.
@@ -1104,12 +1126,17 @@ export class App {
         const delta = rawDelta * this.play_speed_;
 
         await this.flushStartupSystems_();
-        await this.runFrame_(delta);
+        if (!this.running_ || version !== this.loopVersion_) return;
+        const frame = this.runFrame_(delta, Math.max(0, deltaMs));
+        this.frameInFlight_ = frame;
+        try { await frame; }
+        finally { if (this.frameInFlight_ === frame) this.frameInFlight_ = null; }
 
-        requestAnimationFrame(this.onAnimationFrame_);
+        if (this.running_ && version === this.loopVersion_) this.queueLoopFrame_();
     };
 
     quit(options?: { keepRenderer?: boolean }): void {
+        this.invalidateLoop_();
         this.running_ = false;
 
         for (let i = this.installed_plugins_.length - 1; i >= 0; i--) {
@@ -1204,7 +1231,7 @@ export class App {
         this.finishPlugins_();
     }
 
-    private async runFrame_(delta: number): Promise<void> {
+    private async runFrame_(delta: number, frameMs = delta * 1000): Promise<void> {
         this.runner_?.clearTimings();
         this.phaseTimings_?.clear();
         this.frameScopes_?.clear();
@@ -1269,8 +1296,9 @@ export class App {
             }
         }
 
+        this.frameTiming_ = { seq: (this.frameTiming_?.seq ?? 0) + 1, frameMs };
         for (const observe of this.frameObservers_) {
-            try { observe(delta * 1000); } catch (e) {
+            try { observe(frameMs); } catch (e) {
                 log.error('app', 'Frame observer error', e);
             }
         }
@@ -1676,6 +1704,7 @@ export interface WebAppOptions {
      * device clamps it, so this is what the project WANTS, not what it gets.
      */
     msaaSamples?: number;
+    quality?: QualityConfig;
     /**
      * Seed the engine's randomness so this run reproduces — a replay, a bug
      * report, a pixel assertion. Absent, every run differs, which is what a
@@ -1798,6 +1827,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
         app.insertResource(ScreenScaling, { ...options.screenFit });
     }
 
+    if (options?.quality) installQuality(app, options.quality, options.msaaSamples ?? 4);
     return app;
 }
 

@@ -76,6 +76,29 @@ describe('render order: transforms resolve before cameras are read', () => {
     });
     afterEach(() => { setRendererBackend(null); });
 
+    it('keeps updates alive without drawing a covered surface and resumes rendering', async () => {
+        const { app, module } = bootMockApp();
+        const registry = module.getRegistry() as unknown as Record<string, unknown> & CppRegistry;
+        registry.getCameraEntities = () => [];
+        registry.getCanvasEntities = () => [];
+        const pipeline = new RenderPipeline();
+        app.setPipeline(pipeline);
+        setRendererBackend(fakeBackend(registry, []));
+        app.addPlugin(cameraPlugin(() => ({ width: 800, height: 600 })));
+        let updates = 0;
+        app.addSystem(defineSystem([], () => { updates++; }, { name: 'LiveUpdate' }));
+        pipeline.setRenderingEnabled(false);
+        await app.tick(1 / 60);
+        expect(updates).toBe(1);
+        expect(beginFrames).toBe(0);
+        expect(calls).not.toContain('submitAll');
+        pipeline.setRenderingEnabled(true);
+        await app.tick(1 / 60);
+        expect(updates).toBe(2);
+        expect(beginFrames).toBe(1);
+        expect(calls).toContain('submitAll');
+    });
+
     it('a camera moved in Update is looked through at THIS frame’s position', async () => {
         const { app, module } = bootMockApp();
         const registry = module.getRegistry() as unknown as Record<string, unknown> & CppRegistry;

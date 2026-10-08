@@ -80,6 +80,7 @@ export interface MiniGameSystemInfo {
      *  on others, so a capability has to read it. */
     platform?: string;
     model?: string;
+    memorySize?: number | string;
 }
 
 export interface MiniGameTouch {
@@ -259,6 +260,7 @@ export interface MiniGameGlobal {
     createInnerAudioContext(): MiniGameInnerAudioContext;
     connectSocket(opts: { url: string; protocols?: string[] }): MiniGameSocketTask;
     getSystemInfoSync(): MiniGameSystemInfo;
+    getDeviceInfo?(): MiniGameSystemInfo;
 
     onTouchStart(cb: (res: MiniGameTouchEvent) => void): void;
     onTouchMove(cb: (res: MiniGameTouchEvent) => void): void;

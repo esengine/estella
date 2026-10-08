@@ -128,6 +128,69 @@ describe('App.tick()', () => {
 });
 
 describe('App.stepFrames()', () => {
+    it('waits for an in-flight frame and resumes only one loop', async () => {
+        const realRaf = globalThis.requestAnimationFrame;
+        const realCancel = globalThis.cancelAnimationFrame;
+        const pending = new Map<number, FrameRequestCallback>();
+        let nextId = 0;
+        globalThis.requestAnimationFrame = callback => { pending.set(++nextId, callback); return nextId; };
+        globalThis.cancelAnimationFrame = id => { pending.delete(id); };
+        setPlatform({ now: () => 1000 } as unknown as PlatformAdapter);
+        let release!: () => void;
+        const blocked = new Promise<void>(resolve => { release = resolve; });
+        const app = App.new();
+        let frames = 0;
+        app.addSystem(defineSystem([], async () => { if (++frames === 1) await blocked; }, { name: 'AsyncFrame' }));
+        const settle = async () => { for (let i = 0; i < 50; i++) await Promise.resolve(); };
+        try {
+            await app.run(); await settle();
+            const stepping = app.stepFrames(2);
+            await settle();
+            expect(frames).toBe(1);
+            release(); await stepping; await settle();
+            expect(frames).toBe(3);
+            expect(pending.size).toBe(1);
+        } finally {
+            release(); app.quit();
+            globalThis.requestAnimationFrame = realRaf;
+            globalThis.cancelAnimationFrame = realCancel;
+        }
+    });
+    it('replaces the pending loop when stepping and ignores a stale callback', async () => {
+        const realRaf = globalThis.requestAnimationFrame;
+        const realCancel = globalThis.cancelAnimationFrame;
+        const pending = new Map<number, FrameRequestCallback>();
+        let nextId = 0;
+        globalThis.requestAnimationFrame = callback => { pending.set(++nextId, callback); return nextId; };
+        globalThis.cancelAnimationFrame = id => { pending.delete(id); };
+        setPlatform({ now: () => 1000 } as unknown as PlatformAdapter);
+        const app = App.new();
+        let frames = 0;
+        app.addSystem(defineSystem([], () => { frames++; }, { name: 'CountLoopFrames' }));
+        const settle = async () => { for (let i = 0; i < 50; i++) await Promise.resolve(); };
+        try {
+            await app.run(); await settle();
+            expect(pending.size).toBe(1);
+            const stale = [...pending.values()][0];
+            for (let i = 0; i < 5; i++) await app.stepFrames(2);
+            expect(pending.size).toBe(1);
+            const before = frames;
+            await stale(1016.67); await settle();
+            expect(frames).toBe(before);
+            expect(pending.size).toBe(1);
+            const [id, callback] = [...pending.entries()][0];
+            pending.delete(id);
+            await callback(1033.33); await settle();
+            expect(frames).toBe(before + 1);
+            expect(pending.size).toBe(1);
+            app.quit();
+            expect(pending.size).toBe(0);
+        } finally {
+            app.quit();
+            globalThis.requestAnimationFrame = realRaf;
+            globalThis.cancelAnimationFrame = realCancel;
+        }
+    });
     // The rAF loop is wall-clock and the browser throttles it in a background tab
     // to about a frame a second, so "wait and look again" cannot observe a game.
     // This is the door that advances one on purpose; before it existed the only
@@ -193,6 +256,7 @@ describe('App.stepFrames()', () => {
             await app.run();     // seeds the clock and runs one frame off platformNow()
             await settle();
             deltasMs.length = 0;
+            app.setPlaySpeed(2);
 
             const VSYNC = 1000 / 60;
             const startDelay = [0.2, 4.1, 0.9, 6.3, 1.7, 3.0];
@@ -206,7 +270,8 @@ describe('App.stepFrames()', () => {
             }
 
             expect(deltasMs).toHaveLength(startDelay.length);
-            for (const d of deltasMs) expect(d).toBeCloseTo(VSYNC, 6);
+            for (const d of deltasMs) expect(d).toBeCloseTo(VSYNC * 2, 6);
+            expect(app.getFrameTiming()?.frameMs).toBeCloseTo(VSYNC, 6);
         } finally {
             app.quit();
             globalThis.requestAnimationFrame = realRaf;

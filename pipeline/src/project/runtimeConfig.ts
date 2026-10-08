@@ -26,7 +26,10 @@
  * fails the build when a field in this shape is not carried by every consumer —
  * or is not listed there as a declared, reasoned gap.
  */
-import type { AudioProjectConfig, PackagedGameConfig, Physics2DPluginConfig } from 'esengine';
+import { parseQualityConfig } from 'esengine';
+import type {
+  AudioProjectConfig, PackagedGameConfig, Physics2DPluginConfig, QualityConfig,
+} from 'esengine';
 import { resolveScreenFit, SORTING_LAYER_COUNT, type ProjectFeatures, type ProjectManifest, type ProjectPackaging } from './format';
 
 /** The project's camera fit as a runtime takes it (`scaleMode < 0` ⇒ off). */
@@ -74,6 +77,7 @@ export interface RuntimeProjectConfig {
   /** Scene-target multisampling the project asks for; 4 is the default. The
    *  device clamps it — this is the policy half, never the capability. */
   msaaSamples: number;
+  quality: QualityConfig;
   /** GPU backend the build asks for; 'webgl2' is the default. Boot-fixed, and a
    *  request for 'webgpu' still falls back where the machine has none. */
   renderBackend: 'webgl2' | 'webgpu';
@@ -156,6 +160,7 @@ export function runtimeConfigOf(
     colorSpace: f?.rendering?.colorSpace === 'linear' ? 'linear' : 'gamma',
     outputTransform: f?.rendering?.outputTransform === 'aces' ? 'aces' : 'none',
     msaaSamples: msaaOf(f?.rendering?.msaa),
+    quality: parseQualityConfig(f?.rendering?.quality),
     renderBackend: f?.rendering?.backend === 'webgpu' ? 'webgpu' : 'webgl2',
     screenFit: resolveScreenFit(manifest),
   };
@@ -165,7 +170,7 @@ export function runtimeConfigOf(
 export type PackagedRuntimeFields = Pick<
   PackagedGameConfig,
   'ySortLayers' | 'depthLayers' | 'colorSpace' | 'outputTransform' | 'renderBackend' | 'screenFit'
-  | 'msaaSamples'
+  | 'msaaSamples' | 'quality'
   | 'uiTheme' | 'uiThemeColors'
   | 'physicsEnabled' | 'physicsConfig' | 'audioConfig' | 'achievements' | 'steamAppId'
 >;
@@ -186,6 +191,7 @@ export function packagedRuntimeFields(rc: RuntimeProjectConfig): PackagedRuntime
     ...(rc.colorSpace === 'linear' ? { colorSpace: rc.colorSpace } : {}),
     ...(rc.outputTransform === 'aces' ? { outputTransform: rc.outputTransform } : {}),
     ...(rc.msaaSamples !== 4 ? { msaaSamples: rc.msaaSamples } : {}),
+    ...(rc.quality.mode !== 'off' ? { quality: rc.quality } : {}),
     ...(rc.renderBackend === 'webgpu' ? { renderBackend: rc.renderBackend } : {}),
     // ALWAYS, even with the fit off (`scaleMode < 0`): it carries the design
     // resolution, which is what a desktop window opens at. One representation, or

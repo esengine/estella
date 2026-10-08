@@ -139,7 +139,7 @@ update: (instanceId: number, dt: number) => void
 ```
 backend: Backend
 compressedTexture: ((path: string) => Promise<Uint8Array | "pending" | null>) | undefined
-decodePixels: (path: string, flip: boolean) => Promise<{ width: number; height: number; pixels: Uint8Array; }>
+decodePixels: (path: string, flip: boolean, maxEdge?: number) => Promise<{ width: number; height: number; pixels: Uint8Array; }>
 listAssetPaths: (() => string[]) | undefined
 resolveAddress: ((ref: string) => string | null) | undefined
 resolveRef: ((ref: string) => string) | undefined

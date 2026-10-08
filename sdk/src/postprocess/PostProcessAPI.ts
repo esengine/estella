@@ -7,6 +7,7 @@ import { defineResource } from '../ecs/resource';
 import { handleWasmError } from '../wasm/wasmError';
 import { WasmBridge } from '../wasm/WasmBridge';
 import { PostProcessStack, PostProcessState } from './PostProcessStack';
+import type { QualityProfile } from '../render/quality';
 
 /**
  * The post-process entry points as a core that HAS them answers them. Named, not
@@ -100,7 +101,8 @@ function getModule(): PostProcessCore {
  * camera (see {@link PostProcessAPI._resetAfterCamera}), so "not dirty" says the
  * stack is unchanged, NOT that the engine still holds it.
  */
-export function syncStackToWasm(stack: PostProcessStack, force = false): void {
+export function syncStackToWasm(stack: PostProcessStack, force = false,
+    allow: (name: string) => boolean = () => true): void {
     if (!force && !stack.isDirty) return;
 
     const m = getModule();
@@ -113,7 +115,7 @@ export function syncStackToWasm(stack: PostProcessStack, force = false): void {
     }
 
     for (const pass of stack.passes) {
-        if (!pass.enabled) continue;
+        if (!pass.enabled || !allow(pass.name)) continue;
         try {
             m.postprocess_addPass(pass.name, pass.shader);
             // Only when it is not 1: every pass that predates fractional sizing
@@ -194,6 +196,18 @@ export class PostProcessAPI {
      * pushed last frame and never edited must still be pushed again this frame.
      */
     private engineStack_: PostProcessStack | null = null;
+    private qualityFilter_: Readonly<QualityProfile> | null = null;
+
+    setQualityFilter(profile: Readonly<QualityProfile> | null): void {
+        if (this.qualityFilter_ === profile) return;
+        this.qualityFilter_ = profile;
+        this.engineStack_ = null;
+    }
+
+    private allowQualityPass_ = (name: string): boolean => {
+        const q = this.qualityFilter_;
+        return q === null || (q.postProcess && (q.ssao || !name.toLowerCase().startsWith('ssao')));
+    };
 
     // -- per-App state (stacks / bindings / screen stack) --------------------
 
@@ -402,7 +416,7 @@ export class PostProcessAPI {
         }
 
         this.setBypass(false);
-        syncStackToWasm(stack, /*force=*/this.engineStack_ !== stack);
+        syncStackToWasm(stack, this.engineStack_ !== stack, this.allowQualityPass_);
         this.engineStack_ = stack;
     }
 
@@ -445,7 +459,7 @@ export class PostProcessAPI {
         }
 
         for (const pass of stack.passes) {
-            if (!pass.enabled) continue;
+            if (!pass.enabled || !this.allowQualityPass_(pass.name)) continue;
             try {
                 m.postprocess_addScreenPass(pass.name, pass.shader);
             } catch (e) {

@@ -793,6 +793,7 @@ export function cameraPlugin(
                 _name: 'RenderSystem',
                 _params: [],
                 _fn: () => {
+                    if (!pipeline.renderingEnabled) return;
                     const { width, height } = viewport();
                     if (width === 0 || height === 0) return;
                     const canvasEntity = canvasEntityOf(module, cppRegistry);
