@@ -930,3 +930,44 @@ export function cameraPlugin(
         },
     };
 }
+
+/** Draw a camera's current world without stepping gameplay or changing authored cameras.
+ * Hosts may read this frame and redraw their editor eye in the same browser task. */
+export function renderCameraFrame(app: App, width: number, height: number, entity?: number): boolean {
+    const pipeline = app.pipeline;
+    const registry = app.world.getCppRegistry();
+    const module = app.wasmModule;
+    if (!pipeline || !registry || width <= 0 || height <= 0) return false;
+    const elapsed = pipeline.frameElapsed;
+    Renderer.resize(width, height);
+    pipeline.beginFrame(elapsed);
+    try {
+        Renderer.updateTransforms({ _cpp: registry });
+        const cameras = entity === undefined
+            ? resolveCameras(app, module, registry, width, height, app.world, undefined, [], elapsed, false)
+            : collectCameras(module, registry, width, height, app.world).filter(c => c.entity === entity);
+        if (!cameras.length) return false;
+        const canvasEntity = canvasEntityOf(module, registry);
+        const clearColor = canvasEntity >= 0 ? registry.getCanvas(canvasEntity).backgroundColor : undefined;
+        const policy = app.hasResource(ScreenScaling) ? app.getResource(ScreenScaling).renderPolicy : undefined;
+        syncUICameraInfo(app, module, registry, width, height, cameras);
+        if (entity !== undefined) {
+            Renderer.setViewport(0, 0, width, height);
+            Renderer.begin(IDENTITY, 0, 3, clearColor, { x: 0, y: 0, w: width, h: height });
+            Renderer.end();
+        }
+        pipeline.beginScreenCapture();
+        for (const cam of cameras) {
+            const rect = viewportPixels(cam.viewportRect, width, height);
+            pipeline.renderCamera({ registry: { _cpp: registry }, viewProjection: cam.viewProjection,
+                viewportPixels: rect, clearFlags: cam.clearFlags, elapsed, cameraEntity: cam.entity,
+                clearColor, cullingMask: cam.cullingMask, worldHeight: 2 * cam.halfH, renderPolicy: policy });
+        }
+        pipeline.endScreenCapture();
+        Renderer.setViewport(0, 0, width, height);
+        if (app.hasResource(ScreenOverlay)) pipeline.renderScreenOverlay({ _cpp: registry }, app.getResource(ScreenOverlay));
+    } finally {
+        pipeline.endFrame();
+    }
+    return true;
+}

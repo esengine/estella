@@ -64,6 +64,8 @@ export interface CameraRenderParams {
 }
 
 export class RenderPipeline {
+    private frameElapsed_ = 0;
+    get frameElapsed(): number { return this.frameElapsed_; }
     private renderingEnabled_ = true;
     private lastWidth_ = 0;
     private lastHeight_ = 0;
@@ -125,6 +127,7 @@ export class RenderPipeline {
     }
 
     beginFrame(elapsedSec = 0): void {
+        this.frameElapsed_ = elapsedSec;
         this.applyQuality_?.();
         this.quality_?.setLimitation('fixed-render-resolution', false);
         this.quality_?.setLimitation('resolution-present-unavailable', false);
