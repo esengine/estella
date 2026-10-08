@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 // Serve the engine pixel probe in an ordinary browser. Does not launch Electron.
-// First: pnpm render-host. Then open the printed WebGL2 and WebGPU URLs.
 import { createServer } from 'node:http';
 import { readFile, stat, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
