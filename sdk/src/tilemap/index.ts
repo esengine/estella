@@ -46,8 +46,8 @@ export {
 } from './tilesetResolve';
 export {
     TB_N, TB_E, TB_S, TB_W, TB_NE, TB_SE, TB_SW, TB_NW, TERRAIN_NEIGHBORS,
-    normalizeCornerMask, canonicalMask, buildTerrainIndices, resolveAutotile,
-    packCorners, buildWangIndices, resolveWang,
+    normalizeCornerMask, canonicalMask, buildTerrainIndices, resolveAutotile, resolveAutotileMatch,
+    packCorners, buildWangIndices, resolveWang, resolveWangMatch,
     type TerrainIndex, type TerrainIndices, type WangIndex, type WangIndices,
 } from './autotile';
 export {
