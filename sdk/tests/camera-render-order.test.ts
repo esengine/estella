@@ -14,7 +14,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { bootMockApp } from './helpers/mockApp';
 import { setPlatform } from '../src/platform/base';
 import type { PlatformAdapter } from '../src/platform/types';
-import { cameraPlugin } from '../src/camera/CameraPlugin';
+import { cameraPlugin, renderCameraFrame } from '../src/camera/CameraPlugin';
 import { RenderPipeline } from '../src/render/renderPipeline';
 import { setRendererBackend, type RendererBackend } from '../src/render/renderer';
 import { defineSystem, Schedule } from '../src/ecs/system';
@@ -75,6 +75,33 @@ describe('render order: transforms resolve before cameras are read', () => {
         setPlatform({ now: () => 0, devicePixelRatio: () => 1 } as unknown as PlatformAdapter);
     });
     afterEach(() => { setRendererBackend(null); });
+
+    it('previews an inactive camera at its latest placement without running Update', async () => {
+        const { app, module } = bootMockApp();
+        const registry = module.getRegistry() as unknown as Record<string, unknown> & CppRegistry;
+        const cam = app.world.spawn('camera') as Entity;
+        app.world.insert(cam, Transform, { position: { x: 0, y: 0, z: 0 } });
+        app.world.insert(cam, Camera, { isActive: true, projectionType: ProjectionType.Orthographic, orthoSize: 180 });
+        registry.getCameraEntities = () => [cam];
+        registry.getCanvasEntities = () => [];
+        app.setPipeline(new RenderPipeline());
+        setRendererBackend(fakeBackend(registry, [cam]));
+        app.addPlugin(cameraPlugin(() => ({ width: 320, height: 180 })));
+        let updates = 0;
+        app.addSystem(defineSystem([], () => { updates++; }, { name: 'PreviewUpdate' }));
+        await app.tick(1 / 60);
+        app.world.insert(cam, Transform, { position: { x: 100, y: 0, z: 0 } });
+        app.world.insert(cam, Camera, { isActive: false, projectionType: ProjectionType.Orthographic, orthoSize: 180 });
+        calls.length = 0;
+        expect(renderCameraFrame(app, 320, 180, cam)).toBe(true);
+        expect(calls.indexOf('beginFrame')).toBeLessThan(calls.indexOf('updateTransforms'));
+        expect(ndcX(lastViewProjection!, 100, 0)).toBeCloseTo(0, 5);
+        expect(updates).toBe(1);
+        expect(app.world.get(cam, Camera).isActive).toBe(false);
+        expect(calls.at(-1)).toBe('endFrame');
+        expect(renderCameraFrame(app, 320, 180, 9999)).toBe(false);
+        expect(calls.at(-1)).toBe('endFrame');
+    });
 
     it('keeps updates alive without drawing a covered surface and resumes rendering', async () => {
         const { app, module } = bootMockApp();
