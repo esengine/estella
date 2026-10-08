@@ -540,6 +540,13 @@ export function isTransientProjectPath(rel: string): boolean {
 
 /** Editor-local, transient state (`.esengine/workspace.json`; gitignored). */
 export interface WorkspaceState {
+  /** Project-local editor display preferences; never included in game exports. */
+  viewportGizmos?: {
+    show: boolean;
+    selectedOnly: boolean;
+    iconSize: number;
+    types: Record<string, { icons?: boolean; gizmos?: boolean }>;
+  };
   lastOpenedScene?: string;
   /** The dock arrangement, as dockview serializes it. */
   panelLayout?: unknown;
