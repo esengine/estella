@@ -150,7 +150,8 @@
               "b": 0.3,
               "a": 1
             },
-            "texture": "@uuid:0258e55e-9aa0-47eb-8092-7386e03f97c7"
+            "texture": "@uuid:0258e55e-9aa0-47eb-8092-7386e03f97c7",
+            "drawMode": 3
           }
         },
         {
@@ -203,7 +204,8 @@
               "b": 0.3,
               "a": 1
             },
-            "texture": "@uuid:0258e55e-9aa0-47eb-8092-7386e03f97c7"
+            "texture": "@uuid:0258e55e-9aa0-47eb-8092-7386e03f97c7",
+            "drawMode": 3
           }
         },
         {
@@ -256,7 +258,8 @@
               "b": 0.3,
               "a": 1
             },
-            "texture": "@uuid:0258e55e-9aa0-47eb-8092-7386e03f97c7"
+            "texture": "@uuid:0258e55e-9aa0-47eb-8092-7386e03f97c7",
+            "drawMode": 3
           }
         },
         {
@@ -309,7 +312,8 @@
               "b": 0.3,
               "a": 1
             },
-            "texture": "@uuid:0258e55e-9aa0-47eb-8092-7386e03f97c7"
+            "texture": "@uuid:0258e55e-9aa0-47eb-8092-7386e03f97c7",
+            "drawMode": 3
           }
         },
         {

@@ -25,10 +25,12 @@ import { RenderResolution } from '../src/camera/presentPlan';
 
 /** Only the four calls this change touches; everything else a no-op. */
 function fakePostProcess(hasStack: boolean) {
+    let initialized = false;
     return {
+        setQualityFilter: vi.fn(),
         getStack: vi.fn().mockReturnValue(hasStack ? {} : null),
-        isInitialized: vi.fn().mockReturnValue(false),
-        init: vi.fn(),
+        isInitialized: vi.fn(() => initialized),
+        init: vi.fn(() => { initialized = true; return true; }),
         resize: vi.fn(),
         setOutputViewport: vi.fn(),
         setPresentRequired: vi.fn(),

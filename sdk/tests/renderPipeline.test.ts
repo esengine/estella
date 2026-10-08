@@ -30,6 +30,7 @@ vi.mock('../src/postprocess', () => ({
         getStack: vi.fn().mockReturnValue(null),
         resize: vi.fn(),
         setBypass: vi.fn(),
+        setQualityFilter: vi.fn(),
         setOutputViewport: vi.fn(),
         setPresentRequired: vi.fn(),
         _applyForCamera: vi.fn(),
@@ -71,9 +72,10 @@ vi.mock('../src/render/customDraw', () => ({
 
 import { RenderPipeline } from '../src/render/renderPipeline';
 import { Renderer } from '../src/render/renderer';
-import { PostProcess } from '../src/postprocess';
+import { PostProcess, type PostProcessAPI } from '../src/postprocess';
 import { Draw, endPresentedDraw } from '../src/render/draw';
 import { unregisterDrawCallback } from '../src/render/customDraw';
+const postProcessFixture = PostProcess as unknown as PostProcessAPI;
 
 describe('RenderPipeline', () => {
     let pipeline: RenderPipeline;
@@ -82,10 +84,16 @@ describe('RenderPipeline', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        vi.mocked(postProcessFixture.getStack).mockReturnValue(null);
+        vi.mocked(postProcessFixture.isInitialized).mockReturnValue(false);
+        vi.mocked(postProcessFixture.init).mockImplementation(() => {
+            vi.mocked(postProcessFixture.isInitialized).mockReturnValue(true);
+            return true;
+        });
         mockCallbacks.clear();
         pipeline = new RenderPipeline();
         // PostProcess is now injected (no longer a global the pipeline reaches for).
-        pipeline.setPostProcess(PostProcess as any);
+        pipeline.setPostProcess(postProcessFixture);
         registry = { _cpp: {} as any };
         viewProjection = new Float32Array(16);
     });

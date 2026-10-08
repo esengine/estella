@@ -1,0 +1,177 @@
+{
+  "version": 4,
+  "name": "Sprite nine-slice fivefold stretch",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 10
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 64,
+            "isActive": true
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 1,
+      "name": "NineSlice 1",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -96,
+              "y": 24,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "texture": "@uuid:d657c898-17e7-44d9-9f37-e82b13e0107b",
+            "size": {
+              "x": 32,
+              "y": 32
+            },
+            "drawMode": 3
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 2,
+      "name": "NineSlice 2",
+      "parent": null,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 40,
+              "y": 24,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Sprite",
+          "data": {
+            "texture": "@uuid:d657c898-17e7-44d9-9f37-e82b13e0107b",
+            "size": {
+              "x": 160,
+              "y": 32
+            },
+            "drawMode": 3
+          }
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 3,
+      "name": "Canvas",
+      "parent": null,
+      "children": [
+        4
+      ],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Canvas",
+          "data": {
+            "designResolution": {
+              "x": 320,
+              "y": 128
+            },
+            "scaleMode": 2
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {}
+        }
+      ],
+      "visible": true
+    },
+    {
+      "id": 4,
+      "name": "Shared UI nine-slice",
+      "parent": 3,
+      "children": [],
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "insetLeft": {
+              "value": 120,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 80,
+              "unit": 0
+            },
+            "width": {
+              "value": 160,
+              "unit": 0
+            },
+            "height": {
+              "value": 32,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 3,
+            "texture": "@uuid:d657c898-17e7-44d9-9f37-e82b13e0107b",
+            "enabled": true
+          }
+        }
+      ],
+      "visible": true
+    }
+  ]
+}

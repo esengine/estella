@@ -47,7 +47,7 @@ for (const s of SCENES) {
     || s.env.ESTELLA_VERIFY_GRID || s.env.ESTELLA_VERIFY_PREVIEW
     || s.env.ESTELLA_VERIFY_MESH_PREVIEW || s.env.ESTELLA_VERIFY_DEPTH_LAYERS
     || s.env.ESTELLA_VERIFY_COUNTERS || s.env.ESTELLA_VERIFY_COUNTERS_MAX || s.env.ESTELLA_VERIFY_FRAME_DEBUG || s.env.ESTELLA_VERIFY_EDGE || s.env.ESTELLA_VERIFY_CUTOUT_EDGE || s.env.ESTELLA_VERIFY_MINIFIED || s.env.ESTELLA_VERIFY_TWINS
-    || s.env.ESTELLA_VERIFY_DRAW_CALLS
+    || s.env.ESTELLA_VERIFY_DRAW_CALLS || s.env.ESTELLA_VERIFY_NINE_SLICE
     || s.env.ESTELLA_VERIFY_YSORT || s.id === 'sprite-default';
   if (!asserts && !s.rendersOnly) {
     fail(`"${s.id}" asserts nothing — give it an ESTELLA_VERIFY_EXPECT, or say in rendersOnly why it has none`);
