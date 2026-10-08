@@ -1,0 +1,75 @@
+{
+  "version": "1",
+  "texture": "@uuid:3d040002-0000-4000-8000-000000000002",
+  "tileWidth": 16,
+  "tileHeight": 16,
+  "columns": 8,
+  "tileCount": 8,
+  "terrains": [
+    {
+      "name": "Grass edges",
+      "mode": "edge",
+      "color": "#65b96e"
+    },
+    {
+      "name": "Rock corners",
+      "mode": "corner",
+      "color": "#969fb2"
+    },
+    {
+      "name": "Wang blend",
+      "mode": "wang",
+      "colors": [
+        {
+          "name": "Grass",
+          "color": "#65b96e"
+        },
+        {
+          "name": "Sand",
+          "color": "#d9b577"
+        }
+      ]
+    }
+  ],
+  "tiles": {
+    "1": {
+      "terrain": {
+        "set": 0,
+        "mask": 0
+      }
+    },
+    "3": {
+      "collision": {
+        "type": "box"
+      }
+    },
+    "5": {
+      "terrain": {
+        "set": 1,
+        "mask": 0
+      }
+    },
+    "7": {
+      "terrain": {
+        "set": 2,
+        "corners": [
+          1,
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    "8": {
+      "terrain": {
+        "set": 2,
+        "corners": [
+          2,
+          2,
+          2,
+          2
+        ]
+      }
+    }
+  }
+}

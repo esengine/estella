@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "stamps": [
+    {
+      "name": "Border",
+      "stamp": {
+        "w": 2,
+        "h": 2,
+        "cells": [
+          3,
+          3,
+          3,
+          1
+        ]
+      }
+    }
+  ]
+}

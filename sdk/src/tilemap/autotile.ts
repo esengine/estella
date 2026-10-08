@@ -106,13 +106,18 @@ function popcount(n: number): number {
  * `neighbors` is indexed by {@link TERRAIN_NEIGHBORS} order. Returns 0 if the set is empty.
  */
 export function resolveAutotile(index: TerrainIndex, neighbors: readonly boolean[]): number {
+    return resolveAutotileMatch(index, neighbors).tileId;
+}
+
+/** Keep the requested combination visible to authoring diagnostics, including fallback. */
+export function resolveAutotileMatch(index: TerrainIndex, neighbors: readonly boolean[]): { tileId: number; exact: boolean; mask: number } {
     let mask = 0;
     for (let i = 0; i < TERRAIN_NEIGHBORS.length; i++) {
         if (neighbors[i]) mask |= TERRAIN_NEIGHBORS[i].bit;
     }
     mask = canonicalMask(index.mode, mask);
     const exact = index.byMask.get(mask);
-    if (exact !== undefined) return exact;
+    if (exact !== undefined) return { tileId: exact, exact: true, mask };
     let best = 0;
     let bestDist = Infinity;
     for (const [m, id] of index.byMask) {
@@ -122,7 +127,7 @@ export function resolveAutotile(index: TerrainIndex, neighbors: readonly boolean
             best = id;
         }
     }
-    return best;
+    return { tileId: best, exact: false, mask };
 }
 
 // ── Corner (Wang) terrain ────────────────────────────────────────────────────
@@ -181,14 +186,18 @@ function cornerDist(a: number, b: number): number {
  * set still paints. Returns 0 if the set is empty.
  */
 export function resolveWang(index: WangIndex, corners: readonly number[]): number {
+    return resolveWangMatch(index, corners).tileId;
+}
+
+export function resolveWangMatch(index: WangIndex, corners: readonly number[]): { tileId: number; exact: boolean; key: number } {
     const key = packCorners(corners[0] ?? 0, corners[1] ?? 0, corners[2] ?? 0, corners[3] ?? 0);
     const exact = index.byKey.get(key);
-    if (exact !== undefined) return exact;
+    if (exact !== undefined) return { tileId: exact, exact: true, key };
     let best = 0;
     let bestDist = Infinity;
     for (const [k, id] of index.byKey) {
         const d = cornerDist(k, key);
         if (d < bestDist) { bestDist = d; best = id; }
     }
-    return best;
+    return { tileId: best, exact: false, key };
 }

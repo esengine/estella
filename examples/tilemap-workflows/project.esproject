@@ -1,0 +1,13 @@
+{
+  "formatVersion": "1",
+  "name": "Tilemap Workflows",
+  "description": "2D tile replacement, terrain diagnostics, project stamp assets and chunk undo.",
+  "tag": "2D",
+  "version": "0.1.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 1024,
+    "height": 640
+  },
+  "spineVersion": "none"
+}
