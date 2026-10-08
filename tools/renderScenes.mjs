@@ -56,6 +56,14 @@ export function sceneWatchdogMs(backend, host) {
  * verbatim — an empty one is the default sprite scene.
  */
 export const SCENES = [
+  // Full 8x8 corner blocks: native Sprite, 5x-wide Sprite, and shared UI geometry.
+  { id: 'sprite-nine-slice', tier: 'pr', webgpu: true, env: {
+      ESTELLA_VERIFY_SCENE: '/scenes/sprite-nine-slice.esscene',
+      ESTELLA_VERIFY_MANIFEST: '/scenes/sprite-nine-slice.textures.json',
+      ESTELLA_VERIFY_W: '320', ESTELLA_VERIFY_H: '128', ESTELLA_VERIFY_STEPS: '3',
+      ESTELLA_VERIFY_TEXTURES: 'runtime', ESTELLA_VERIFY_FRAME_DEBUG: '1',
+      ESTELLA_VERIFY_NINE_SLICE: '[[48,24,32,32],[120,24,160,32],[120,80,160,32]]',
+  } },
   { id: "sprite-default", tier: "pr", webgpu: true, env: {  } },
   // What the BATCHER achieved, which no pixel can show: nineteen sprites over two
   // textures reach the GPU as three draws. Every break is accounted for to its

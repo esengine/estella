@@ -53,6 +53,7 @@ import { fileURLToPath } from 'node:url';
 import { onRendererConsole } from '../lib/rendererConsole.mjs';
 import { serveHost } from '../lib/staticServer.mjs';
 import { checkSeam } from '../lib/seamProbe.mjs';
+import { checkNineSliceCorners } from '../lib/nineSliceProbe.mjs';
 
 // SwiftShader rasterizes on the CPU; run the whole electron tree below normal
 // priority (child processes inherit the class) so a verify never starves the
@@ -219,7 +220,7 @@ function finish(result, server) {
   // its pixels answer a different question — say which asset instead.
   const assetsOk = (result.missingAssets?.length ?? 0) === 0;
   const ok = result.ok && renderedOk && assetsOk && (result.expect?.ok ?? true) && (result.twins?.ok ?? true) && (result.count?.ok ?? true) &&
-    (result.seam?.ok ?? true) &&
+    (result.seam?.ok ?? true) && (result.nineSlice?.ok ?? true) &&
     (result.resize?.ok ?? true) && (result.preview?.ok ?? true) &&
     (result.meshPreview?.ok ?? true) && (result.grid?.ok ?? true) &&
     (result.draws?.ok ?? true) && (result.counters?.ok ?? true) && (result.frameDebug?.ok ?? true) && (result.edge?.ok ?? true) && (result.cutoutEdge?.ok ?? true) && (result.minified?.ok ?? true) &&
@@ -755,6 +756,11 @@ app.whenReady().then(async () => {
     // ESTELLA_VERIFY_TWINS = { pairs: [[x1, y1, x2, y2], ...], tol }: points that must match —
     // one surface drawn two ways, as a conformance model pairs a normal-mapped bump with the
     // same bump built as geometry. Pins only that the two agree, not the lighting.
+    let nineSlice = null;
+    if (process.env.ESTELLA_VERIFY_NINE_SLICE) {
+      const rects = JSON.parse(process.env.ESTELLA_VERIFY_NINE_SLICE);
+      nineSlice = await readFrame(`return (${checkNineSliceCorners.toString()})(px, w, h, ${JSON.stringify(rects)});`);
+    }
     let twins = null;
     if (process.env.ESTELLA_VERIFY_TWINS) {
       twins = await readFrame(`
@@ -1046,7 +1052,7 @@ app.whenReady().then(async () => {
       `);
       if (respaced != null) grid = { ...grid, respacedPixels: respaced, ok: grid.ok && respaced > 300 };
     }
-    finish({ ok: true, entityCount, missingAssets, drawCalls, draws, counters, frameDebug, edge, cutoutEdge, minified, profile, capture, expect, twins, count, seam, resize, preview, meshPreview, grid, deviceLoss, roundtrip, meshResident, meshAsset, meshMaterial, meshPrefab, setField, animator, pick, cameraTarget }, server);
+    finish({ ok: true, entityCount, missingAssets, drawCalls, draws, counters, frameDebug, edge, cutoutEdge, minified, profile, capture, expect, twins, nineSlice, count, seam, resize, preview, meshPreview, grid, deviceLoss, roundtrip, meshResident, meshAsset, meshMaterial, meshPrefab, setField, animator, pick, cameraTarget }, server);
   } catch (e) {
     finish({ ok: false, error: String((e && e.stack) || e) }, server);
   }
