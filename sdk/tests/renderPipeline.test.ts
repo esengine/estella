@@ -30,6 +30,7 @@ vi.mock('../src/postprocess', () => ({
         getStack: vi.fn().mockReturnValue(null),
         resize: vi.fn(),
         setBypass: vi.fn(),
+        setQualityFilter: vi.fn(),
         setOutputViewport: vi.fn(),
         setPresentRequired: vi.fn(),
         _applyForCamera: vi.fn(),
@@ -82,6 +83,12 @@ describe('RenderPipeline', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        vi.mocked(PostProcess.getStack).mockReturnValue(null);
+        vi.mocked(PostProcess.isInitialized).mockReturnValue(false);
+        vi.mocked(PostProcess.init).mockImplementation(() => {
+            vi.mocked(PostProcess.isInitialized).mockReturnValue(true);
+            return true;
+        });
         mockCallbacks.clear();
         pipeline = new RenderPipeline();
         // PostProcess is now injected (no longer a global the pipeline reaches for).
