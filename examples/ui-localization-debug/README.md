@@ -101,3 +101,8 @@ marks the runtime button as a UIDialog; the Focus view should mark Inside and
 Partial outside the dialog and clear their old game focus. Tab then Enter
 confirms the dialog. D disables the current focus; E restores those controls;
 R removes the test dialog. These keys run normal project systems in Play.
+
+
+While the test dialog is open, H hides its parent container and V restores it.
+The Focus view should free the visible page controls while the dialog is
+hierarchically hidden, then restrict traversal again when its parent returns.

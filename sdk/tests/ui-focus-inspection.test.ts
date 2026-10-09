@@ -67,3 +67,33 @@ describe('focus inspection shares runtime traversal', () => {
         expect(inspectFocusTraversal(harness.app.world).visibilityResolved).toBe(false);
     });
 });
+
+
+it('does not trap visible controls behind a dialog hidden by an ancestor', () => {
+    const world = harness.app.world;
+    const outside = control(0), dialog = control(1);
+    const host = world.spawn();
+    world.insert(host, UINode, { display: UIDisplay.None });
+    world.insert(dialog, Parent, { entity: host });
+    world.insert(dialog, UIDialog);
+    world.insert(dialog, UINode, { display: UIDisplay.Flex });
+    let hidden = true;
+    harness.module.getUINodeHiddenInTree = (_registry: unknown, entity: Entity) => hidden && entity === dialog;
+    expect(inspectFocusTraversal(world).entries.map(e => e.skipped)).toEqual([null, 'hidden']);
+    hidden = false;
+    expect(inspectFocusTraversal(world).entries.map(e => e.skipped)).toEqual(['outside-dialog', null]);
+    world.despawn(dialog);
+    expect(inspectFocusTraversal(world).entries.find(e => e.entity === outside)?.skipped).toBeNull();
+});
+
+it('keeps a visible modal active when a second modal is hierarchically hidden', () => {
+    const world = harness.app.world;
+    const background = control(0), visible = control(1), hidden = control(2);
+    for (const entity of [visible, hidden]) {
+        world.insert(entity, UIDialog);
+        world.insert(entity, UINode, { display: UIDisplay.Flex });
+    }
+    harness.module.getUINodeHiddenInTree = (_registry: unknown, entity: Entity) => entity === hidden;
+    expect(inspectFocusTraversal(world).entries.map(e => [e.entity, e.skipped]))
+        .toEqual([[background, 'outside-dialog'], [visible, null], [hidden, 'hidden']]);
+});
