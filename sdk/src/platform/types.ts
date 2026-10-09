@@ -48,7 +48,8 @@ export interface WasmInstantiateResult {
 // =============================================================================
 
 export interface InputEventCallbacks {
-    onKeyDown(code: string): void;
+    /** Return true to cancel the host default (e.g. browser Tab traversal). */
+    onKeyDown(code: string): boolean | void;
     onKeyUp(code: string): void;
     onPointerMove(x: number, y: number): void;
     onPointerDown(button: number, x: number, y: number): void;

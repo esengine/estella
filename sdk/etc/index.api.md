@@ -3749,6 +3749,7 @@ static prototype: FocusManagerState
 ## FocusPlugin — class @experimental
 ```
 build: (app: App) => void
+cleanup: (app?: App) => void
 dependencies: "uiInteraction"[]
 name: "focus"
 static new (): FocusPlugin

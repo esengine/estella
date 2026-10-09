@@ -11,11 +11,13 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { flushPendingRegistrations } from '../src/app/app';
 import type { App } from '../src/app/app';
-import { Input, InputState } from '../src/input/input';
+import { Input, InputState, inputEventCallbacks } from '../src/input/input';
 import { UIEvents, UIEventQueue } from '../src/ui/core/events';
 import { Focusable, FocusManager } from '../src/ui/input/focusable';
 import { Interactable, UIInteraction } from '../src/ui/input/interactable';
 import { focusPlugin } from '../src/ui/input/focus';
+import { setEditorMode } from '../src/ecs/env';
+import { TextInput } from '../src/ui/text/text-input';
 import { bootMockApp } from './helpers/mockApp';
 import type { Entity } from '../src/types';
 
@@ -181,4 +183,86 @@ describe('focus visibility', () => {
     expect(focused()).toBeNull();
     expect(visible()).toBe(false);
   });
+});
+
+
+describe('FocusPlugin browser default policy', () => {
+  it.each(['ShiftLeft', 'ShiftRight'])('reverses using the real DOM %s code', async (code) => {
+    const a = addFocusable(0);
+    const b = addFocusable(1);
+    const input = app.getResource(Input);
+    input.keysDown.add(code);
+    await tab();
+    expect(focused()).toBe(b);
+    await tab();
+    expect(focused()).toBe(a);
+  });
+
+  it('claims Tab only with eligible controls and releases the policy on cleanup', () => {
+    const callbacks = inputEventCallbacks(app.getResource(Input));
+    expect(callbacks.onKeyDown('Tab')).toBe(false);
+    addFocusable(0, false);
+    expect(callbacks.onKeyDown('Tab')).toBe(false);
+    addFocusable(1);
+    expect(callbacks.onKeyDown('Tab')).toBe(true);
+    expect(app.getResource(Input).keysPressed.has('Tab')).toBe(true);
+    app.setPaused(true);
+    expect(callbacks.onKeyDown('Tab')).toBe(false);
+    app.setPaused(false);
+    focusPlugin.cleanup(app);
+    expect(callbacks.onKeyDown('Tab')).toBe(false);
+  });
+
+  it('claims activation only for a valid eligible focus', async () => {
+    const callbacks = inputEventCallbacks(app.getResource(Input));
+    const entity = addFocusable(0);
+    expect(callbacks.onKeyDown('Enter')).toBe(false);
+    await tab();
+    expect(callbacks.onKeyDown('Enter')).toBe(true);
+    expect(callbacks.onKeyDown('Space')).toBe(true);
+    app.world.despawn(entity);
+    expect(callbacks.onKeyDown('Enter')).toBe(false);
+  });
+});
+
+
+it('retains Shift at the Tab edge when the whole chord ends before a frame', async () => {
+  addFocusable(0);
+  const last = addFocusable(1);
+  const input = app.getResource(Input);
+  input.noteKeyDown('ShiftLeft');
+  input.noteKeyDown('Tab');
+  input.noteKeyUp('Tab');
+  input.noteKeyUp('ShiftLeft');
+  await app.tick(1 / 60);
+  expect(focused()).toBe(last);
+});
+
+
+it('does not claim keys in edit mode or activation for a text field', async () => {
+  const entity = addFocusable(0);
+  const callbacks = inputEventCallbacks(app.getResource(Input));
+  setEditorMode(true);
+  expect(callbacks.onKeyDown('Tab')).toBe(false);
+  setEditorMode(false);
+  await tab();
+  app.world.insert(entity, TextInput, {});
+  expect(callbacks.onKeyDown('Enter')).toBe(false);
+  expect(callbacks.onKeyDown('Space')).toBe(false);
+  expect(callbacks.onKeyDown('Tab')).toBe(true);
+});
+
+it('does not reuse a released Shift for the next frame Tab', async () => {
+  const first = addFocusable(0);
+  addFocusable(1);
+  const input = app.getResource(Input);
+  input.noteKeyDown('ShiftRight');
+  input.noteKeyDown('Tab');
+  input.noteKeyUp('Tab');
+  input.noteKeyUp('ShiftRight');
+  await app.tick(1 / 60);
+  input.clearFrameState();
+  input.noteKeyDown('Tab');
+  await app.tick(1 / 60);
+  expect(focused()).toBe(first);
 });

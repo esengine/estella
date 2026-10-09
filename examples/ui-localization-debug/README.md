@@ -86,3 +86,11 @@ components, and a second activation deletes it. Start Play, open Focus, click
 Inside, press Tab and then Enter to exercise real keyboard activation and
 auto-updating traversal. Continuous Tab may move browser focus out of the
 game iframe; this remains an input follow-up, not a passed keyboard gate.
+
+
+Web keyboard verification uses `node tools/ui-events-play-browser.mjs` and
+`http://127.0.0.1:5195/__events-play` with the built production Play host and SDK.
+Use Focus, click Inside, then cycle Tab and Shift+Tab; Enter/Space trigger its
+actual project handler. Check both the live FocusManager row and browser focus.
+Host buttons/forms retain browser navigation. Keep device IME/accessibility
+acceptance separate from these Web input and DOM guard checks.
