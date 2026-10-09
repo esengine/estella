@@ -17,6 +17,8 @@ import { Focusable, FocusManager } from '../src/ui/input/focusable';
 import { Interactable, UIInteraction } from '../src/ui/input/interactable';
 import { focusPlugin } from '../src/ui/input/focus';
 import { setEditorMode } from '../src/ecs/env';
+import { UIDialog } from '../src/ui/behavior/dialog';
+import { UINode } from '../src/ui/core/ui-node';
 import { TextInput } from '../src/ui/text/text-input';
 import { bootMockApp } from './helpers/mockApp';
 import type { Entity } from '../src/types';
@@ -265,4 +267,78 @@ it('does not reuse a released Shift for the next frame Tab', async () => {
   input.noteKeyDown('Tab');
   await app.tick(1 / 60);
   expect(focused()).toBe(first);
+});
+
+
+describe('dynamic focus eligibility', () => {
+  it('blurs a newly disabled focused control and cannot activate it', async () => {
+    const entity = addFocusable(0);
+    await tab();
+    const events = app.getResource(UIEvents);
+    let clicks = 0, blurs = 0;
+    events.on(entity, 'click', () => clicks++);
+    events.on(entity, 'blur', () => blurs++);
+    app.world.insert(entity, Interactable, { enabled: false });
+    app.getResource(Input).keysPressed.add('Enter');
+    await app.tick(1 / 60);
+    expect(focused()).toBe(null);
+    expect(isFocused(entity)).toBe(false);
+    expect(blurs).toBe(1);
+    expect(clicks).toBe(0);
+  });
+
+  it('opening a dialog clears background focus before keyboard activation', async () => {
+    const background = addFocusable(0);
+    await tab();
+    const dialog = app.world.spawn();
+    app.world.insert(dialog, UINode, {});
+    app.world.insert(dialog, UIDialog, {});
+    const confirm = addFocusable(1);
+    app.world.setParent(confirm, dialog);
+    const events = app.getResource(UIEvents);
+    let clicks = 0;
+    events.on(background, 'click', () => clicks++);
+    app.getResource(Input).keysPressed.add('Space');
+    await app.tick(1 / 60);
+    expect(focused()).toBe(null);
+    expect(isFocused(background)).toBe(false);
+    expect(clicks).toBe(0);
+    app.getResource(Input).clearFrameState();
+    await tab();
+    expect(focused()).toBe(confirm);
+  });
+
+  it('cannot move pointer focus to a background entity outside a dialog', async () => {
+    const background = addFocusable(0);
+    const dialog = app.world.spawn();
+    app.world.insert(dialog, UINode, {});
+    app.world.insert(dialog, UIDialog, {});
+    app.world.insert(background, UIInteraction, { justPressed: true });
+    await app.tick(1 / 60);
+    expect(focused()).toBe(null);
+  });
+
+  it('clears focus when the Focusable component is removed', async () => {
+    const entity = addFocusable(0);
+    await tab();
+    app.world.remove(entity, Focusable);
+    await app.tick(1 / 60);
+    expect(focused()).toBe(null);
+    expect(app.getResource(FocusManager).focusVisible).toBe(false);
+  });
+});
+
+
+it('rechecks eligibility after a synchronous focus handler opens a dialog', async () => {
+  const background = addFocusable(0);
+  const dialog = app.world.spawn();
+  app.world.insert(dialog, UINode, {});
+  let clicks = 0;
+  app.getResource(UIEvents).on(background, 'focus', () => app.world.insert(dialog, UIDialog, {}));
+  app.getResource(UIEvents).on(background, 'click', () => clicks++);
+  app.world.insert(background, UIInteraction, { justPressed: true });
+  app.getResource(Input).keysPressed.add('Enter');
+  await app.tick(1 / 60);
+  expect(focused()).toBe(null);
+  expect(clicks).toBe(0);
 });

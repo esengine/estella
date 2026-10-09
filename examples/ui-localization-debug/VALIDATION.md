@@ -232,3 +232,29 @@ snapshot; live-game-only dialogs and scripts need runtime acceptance separately.
 - No Electron/native runner launched. Desktop custom-scheme, device keyboard,
   real IME/assistive technology, shaping and performance acceptance remain
   open. RM-009 remains In Progress.
+
+
+## Dynamic dialog and focus eligibility — 2026-10-09
+
+- Engine #78 merged after the current-head Android API 29–36, packaging and
+  report checks all passed. Emulator boot coverage is separate from device
+  keyboard/IME acceptance.
+- FocusSystem now clears focus and its visibility when an entity becomes
+  disabled, hidden, outside an open dialog, invalid or loses Focusable. Pointer
+  focus uses the same live eligibility rule. Enter/Space rechecks after
+  synchronous focus handlers so opening a modal cannot activate the old
+  background control in the same frame.
+- Built-in browser using the production Play host and real game key input:
+  Inside creates Runtime button; M adds an actual UIDialog to that entity.
+  Focus shows 1 eligible/2 outside-dialog entries and no current focus. Enter
+  leaves background Text at Clicks 1 and the dialog present. Tab focuses the
+  dialog button; Enter confirms and removes UIDialog, restoring 3 entries.
+  D disables the focused button: 2 eligible/1 disabled and no focus. E restores
+  it; Shift+Tab can focus it again. No injected event queue or world mutation
+  from browser evaluation was used.
+- 37 targeted SDK tests pass, including stale disabled/removed-component focus,
+  modal background activation, pointer focus eligibility and a synchronous
+  focus-handler modal change. SDK build and 16 API/built declaration checks pass.
+- No Electron/native runner launched. Multiple/nested modal arbitration,
+  real devices, IME/assistive technology, desktop custom-scheme, complex text
+  shaping and layout-cache performance remain open. RM-009 is In Progress.

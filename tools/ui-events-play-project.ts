@@ -1,15 +1,36 @@
 // SPDX-License-Identifier: Apache-2.0
 // Disposable browser game script: reactions are driven by real UI clicks.
-import { addSystemToSchedule, defineSystem, Schedule, Res, GetWorld, UIEvents, Text, UINode, Transform, UIVisual, Interactable, Focusable, px, type Entity, type UIEventQueue, type World } from 'esengine';
-const installed = new WeakSet<World>();
-addSystemToSchedule(Schedule.Update, defineSystem([Res(UIEvents), GetWorld()], (events: UIEventQueue, world: World) => {
-  if (installed.has(world)) return;
+import { addSystemToSchedule, defineSystem, Schedule, Res, GetWorld, UIEvents, Text, UINode, Transform, UIVisual, Interactable, Focusable, px, Input, FocusManager, UIDialog, type InputState, type FocusManagerState, type Entity, type UIEventQueue, type World } from 'esengine';
+const installed = new WeakMap<World, () => void>();
+addSystemToSchedule(Schedule.Update, defineSystem([Res(UIEvents), GetWorld(), Res(Input), Res(FocusManager)], (events: UIEventQueue, world: World, input: InputState, focus: FocusManagerState) => {
+  const update = installed.get(world);
+  if (update) { update(); return; }
   const inside = world.findEntityByName('Inside');
   if (inside === null) return;
-  installed.add(world);
   const partial = world.findEntityByName('Partial')!;
   const inner = world.findEntityByName('InnerMask')!;
   let count = 0, dynamic: Entity | null = null;
+  const restore = new Set<Entity>();
+  installed.set(world, () => {
+    if (input.isKeyPressed('KeyM') && dynamic !== null && world.valid(dynamic)) {
+      world.insert(dynamic, UIDialog, { closeOnEscape: false, closeOnBackdrop: false });
+      world.insert(dynamic, Text, { ...world.get(dynamic, Text), content: 'Dialog confirm' });
+    }
+    if (input.isKeyPressed('KeyR') && dynamic !== null && world.valid(dynamic)) {
+      world.remove(dynamic, UIDialog);
+      world.insert(dynamic, Text, { ...world.get(dynamic, Text), content: 'Runtime button' });
+    }
+    if (input.isKeyPressed('KeyD') && focus.focusedEntity !== null) {
+      const entity = focus.focusedEntity;
+      world.insert(entity, Interactable, { ...world.get(entity, Interactable), enabled: false });
+      restore.add(entity);
+    }
+    if (input.isKeyPressed('KeyE')) {
+      for (const entity of restore) if (world.valid(entity))
+        world.insert(entity, Interactable, { ...world.get(entity, Interactable), enabled: true });
+      restore.clear();
+    }
+  });
   events.on(inside, 'click', () => {
     count++;
     world.insert(inside, Text, { ...world.get(inside, Text), content: `Clicks ${count}` });
@@ -24,6 +45,12 @@ addSystemToSchedule(Schedule.Update, defineSystem([Res(UIEvents), GetWorld()], (
       world.insert(dynamic, Interactable, { enabled: true, raycastTarget: true, blockRaycast: true });
       world.insert(dynamic, Focusable, { tabIndex: 2 });
       world.setParent(dynamic, inner);
+      const button = dynamic;
+      events.on(button, 'click', () => {
+        if (!world.valid(button) || !world.has(button, UIDialog)) return;
+        world.remove(button, UIDialog);
+        world.insert(button, Text, { ...world.get(button, Text), content: 'Dialog confirmed' });
+      });
     }
   });
   events.on(inner, 'click', event => {
