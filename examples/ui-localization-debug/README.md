@@ -52,3 +52,23 @@ a displayed path can be incomplete. It excludes payloads, never drains the
 game queue and detaches on stop or session teardown. No records alone are
 not a fault verdict. Ordinary Web fixture dispatch checks do not establish
 actual game pointer delivery or device acceptance.
+
+
+To verify actual Play pointer delivery in an ordinary browser, build the SDK
+and editor host artifacts, then run `node tools/ui-events-play-browser.mjs`
+from the repository root and open http://127.0.0.1:5195/__events-play. This
+stages the official Play page/host, SDK and WASM through buildPlayRealm. A
+test-server-only URL substitution maps the native project URL to localhost;
+the production protocol, picking, project script and Events panel run intact.
+
+Start Play, record, and click Inside: its text counter increments and width
+alternates 120/160; its click reaches InnerMask, OuterMask and Canvas. Click
+Partial in its visible region: InnerMask stops propagation and prevents the
+default. These fixture ancestors intentionally have Interactable enabled
+with raycastTarget/blockRaycast false. Ordinary layout parents are skipped
+by UI bubbling; blockRaycast can end the walk without stopPropagation.
+
+Stop recording and click again: game reactions continue, history stays fixed.
+Toggle the panel off and read the diagnostic snapshot to verify recording is
+false. Stop/Start Play rebuilds the world; recording defaults off with no old
+history. This covers browser Play, not desktop custom-scheme or device QA.
