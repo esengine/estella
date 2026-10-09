@@ -363,7 +363,7 @@ export {
     type UICameraData,
 } from './core/ui-camera-info';
 
-export { screenToUiWorld, uiWorldToScreen, uiHitTestWorld, uiPickWorld, uiPickAllWorld } from './util/ui-pick';
+export { screenToUiWorld, uiWorldToScreen, screenToUiLayout, uiLayoutToScreen, isScreenEntity, uiHitTestWorld, uiPickWorld, uiPickAllWorld } from './util/ui-pick';
 export type { PickableWorld } from './util/ui-pick';
 
 export {
@@ -520,3 +520,5 @@ export {
 export { ShelfPacker, type Packer, type PackPos } from '../util/shelfPack';
 export { sdfFromAlpha } from './text/sdf';
 export { submitTextBatch, TEXT_VERTEX_FLOATS } from './text/submit';
+
+export { ScreenOverlay, type ScreenOverlayData } from './core/screen-overlay';
