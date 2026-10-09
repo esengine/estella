@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import '../desktop/src/main';
-import { captureUITextRows, captureUIFocusRows } from '../desktop/src/panels/UITextDebugPanel';
+import { captureUITextRows, captureUIFocusRows, captureUILayoutRows } from '../desktop/src/panels/UITextDebugPanel';
 import { EngineHost } from '../desktop/src/engine/EngineHost';
 import { SceneModel } from '../desktop/src/engine/SceneModel';
 import { useEditorStore } from '../desktop/src/store/editorStore';
@@ -42,6 +42,12 @@ const focusRows = captureUIFocusRows();
 check(focusRows.visibilityResolved, 'Focus inspection uses host hierarchical visibility');
 check(focusRows.entries.filter(e => e.order !== null).map(e => e.name).join(',') === 'LocaleButton,PseudoButton,WidthButton', 'Focus inspection reports the three authored buttons in runtime order');
 check(JSON.stringify(SceneModel.serialize()) === before, 'Focus snapshot leaves authored scene unchanged');
+const layoutRows = captureUILayoutRows();
+check(layoutRows.length === 13, 'Layout inspector captures Canvas and all 12 UI children');
+check(layoutRows.every(row => row.bounds !== null && row.width > 0 && row.height > 0), 'Layout inspector reports resolved world boundaries');
+check(layoutRows.filter(row => row.gate === 'candidate').map(row => row.name).join(',') === 'LocaleButton,PseudoButton,WidthButton', 'Only the three buttons are input candidates');
+check(layoutRows.filter(row => row.gate === 'no-interactable').length === 10, 'Decorative boxes are not advertised as input targets');
+check(JSON.stringify(SceneModel.serialize()) === before, 'Layout/input snapshot does not change authored data');
 status.textContent += `RESULT ${passed} passed, ${failed} failed · ${EngineHost.activeBackend}`;
 const dismiss = document.createElement('button');
 dismiss.textContent = 'Dismiss verification report';

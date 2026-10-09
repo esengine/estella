@@ -24,5 +24,15 @@ control, capture again, then Select to find it in Details. The host must expose
 resolved visibility, otherwise a warning is shown. This does not verify actual
 keyboard delivery, screen readers or IME on a target device.
 
-This is a partial RM-009 delivery. Hit regions, platform shaping,
+Layout and input shows resolved local dimensions and world axis-aligned bounds
+for all UINodes. It reports disabled/hidden controls, ancestor pointer-events
+passthrough, raycast-target configuration and parent masks. Expand a row for
+bounds, then Select to locate its existing viewport handles. Scene edits make
+the snapshot stale and disable selection until capture again.
+
+An input candidate is a configuration result, not a successful pointer hit.
+World bounds do not account for clipping or occlusion; parent masks need review.
+Inspection does not raycast, change hover/focus, or add persistent gizmos.
+
+This is a partial RM-009 delivery. Actual pointer hits, platform shaping,
 real IME/device acceptance and layout cache performance remain separate work.
