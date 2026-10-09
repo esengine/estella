@@ -150,3 +150,30 @@ snapshot; live-game-only dialogs and scripts need runtime acceptance separately.
   declaration checks pass. No local Electron/native runner was launched.
 - Actual Play pointer dispatch, devices, IME/accessibility, shaping and
   performance acceptance remain open. RM-009 remains In Progress.
+
+
+## Actual Play pointer dispatch — 2026-10-09
+
+- Engine #75 and editor #12 merged after successful current-head checks:
+  Android API 29–36/report and editor Typecheck + tests all passed.
+- Added a separate browser fixture staging the production host via
+  buildPlayRealm, using its SDK/WASM/import-map page and real project scripts.
+  Only the native project URL/staging IPC are adapted to local HTTP.
+- Built-in browser actual coordinate clicks: Inside records press/release/click
+  and dispatches to Inside → InnerMask → OuterMask → Canvas. The project handler
+  increments Text to Clicks 1 and changes UINode width 120→160; reading the
+  selected runtime entity confirms these values. No synthetic queue emit is
+  used for these pointer checks.
+- Partial's click reaches InnerMask, where the real handler stops propagation
+  and prevents default. No OuterMask/Canvas click step is displayed for that
+  event. Filtering by click retains the matching recorded paths.
+- Stop recording: another click changes Text to Clicks 2 and width to 120,
+  while history stays at 25 rows. Panel unmount: the runtime query reports
+  recording=false. Warm Stop/Start: recording=false, rows=0; clicks and
+  propagation work again in the rebuilt world.
+- Clarified Interactable ancestor and blockRaycast semantics in the Events
+  panel. A filter with no matches now has its own empty state. 13 targeted
+  panel/recorder/i18n tests, typecheck and production build pass.
+- No Electron/native runner launched. This fixture does not establish desktop
+  custom-scheme, device, IME/accessibility, shaping or performance acceptance.
+  RM-009 remains In Progress.
