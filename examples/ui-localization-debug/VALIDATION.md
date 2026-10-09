@@ -323,3 +323,25 @@ snapshot; live-game-only dialogs and scripts need runtime acceptance separately.
   No Electron/native runner launched. Character entry does not establish a
   real IME candidate-window session. Device IME/accessibility, modal stacking,
   desktop custom-scheme, text shaping and cache performance remain open.
+
+## Recording across debugger tabs — 2026-10-09
+
+- Switching away from Events previously unmounted the observer and silently
+  stopped recording. Keep the opt-in recorder mounted across Elements, Text
+  and Focus views. Hidden controls are absent from the accessibility tree;
+  closing the panel or stopping Play still stops observation. Reopening reads
+  existing trace history without restarting recording.
+- Seven editor event/focus tests and typecheck pass. The panel regression uses
+  the real EntityEventQueue and UIEventTrace: filter preservation, dispatch
+  while on Elements/Focus, no queue consumption, close cleanup and historical
+  records on reopen without accepting events emitted while closed.
+- Built-in browser, production Play host/SDK/WASM and complete debugger panel:
+  record with filter click, click Inside while on Elements and Focus, return
+  to Events. Recording stays active, filter stays click, and 24 actual dispatch
+  records include both clicks and ancestor bubbling. Closing the panel reports
+  recording=false, rows=24; another real click does not increase this count.
+  Reopening Events restores 24 records with recording stopped. Stop Play
+  disables recording. Screenshot: local ui-recording-tabs.jpg evidence.
+- No Electron/native runner launched. This improves the UI debugging workflow;
+  device IME/accessibility, modal stacking, shaping and cache performance remain
+  separate acceptance items. RM-009 remains In Progress.

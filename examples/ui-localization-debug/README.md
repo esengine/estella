@@ -120,3 +120,10 @@ disposable scene uses SceneCommands to add TextInput to Inside and UIDialog
 to OuterMask. After the verification report, open Window → UI Debugger.
 Elements exposes these components; edit Value in Details and check that
 TextInput.value updates here. Reading the inspector never writes scene data.
+
+The Play browser fixture now mounts the complete UI Debugger. Start recording
+in Events, enter a filter, then switch to Elements or Focus and operate the
+game. Returning to Events keeps recording, the filter and dispatch history.
+Toggle panel closes the debugger and stops observation; opening it again
+restores recorded history without automatically recording. Stop Play also
+ends observation.
