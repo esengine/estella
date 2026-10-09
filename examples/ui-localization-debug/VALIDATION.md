@@ -277,6 +277,27 @@ snapshot; live-game-only dialogs and scripts need runtime acceptance separately.
   runner launched. Modal stacking order, real devices, IME/accessibility,
   desktop custom-scheme, text shaping and cache performance remain open.
 
+## Authored input and dialog inspection — 2026-10-09
+
+- Engine #81 merged after its packaging, Android API 29–36 and PR report
+  checks passed. Emulator checks do not establish device input acceptance.
+- UI Debugger Elements previously omitted TextInput and UIDialog in the
+  editor world. It now shows their actual component fields, including value,
+  readOnly, focused, cursorPos and closeOnEscape/closeOnBackdrop. Runtime
+  selection continues to use the existing live component snapshot.
+- The ordinary browser fixture authors these components through SceneCommands
+  and checks their real editor-world values. All 35 checks pass with WebGL2,
+  including detached inspection and unchanged scene data after reading/picking.
+  Three editor regression tests and typecheck pass.
+- Built-in browser panel interaction: select Inside, expand TextInput, edit
+  Value in Details to updated 中文; Elements synchronizes to the same value.
+  Select OuterMask and expand UIDialog: closeOnEscape=false and
+  closeOnBackdrop=true match the authored fields.
+- The browser fixture has unrelated existing limitations: desktop MCP is not
+  available and the optional DragonBones module is not staged. No native
+  runner was launched. Device IME/accessibility and the remaining RM-009
+  acceptance items are still open.
+
 
 ## Quick click focus and actual text entry — 2026-10-09
 
