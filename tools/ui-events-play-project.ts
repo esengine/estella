@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Disposable browser game script: reactions are driven by real UI clicks.
-import { addSystemToSchedule, defineSystem, Schedule, Res, GetWorld, UIEvents, Text, UINode, Transform, UIVisual, Interactable, Focusable, px, Input, FocusManager, UIDialog, UIDisplay, type InputState, type FocusManagerState, type Entity, type UIEventQueue, type World } from 'esengine';
+import { addSystemToSchedule, defineSystem, Schedule, Res, GetWorld, UIEvents, Text, UINode, Transform, UIVisual, Interactable, Focusable, px, Input, FocusManager, UIDialog, UIDisplay, createTextInput, Name, TextInput, type TextInputHandle, type InputState, type FocusManagerState, type Entity, type UIEventQueue, type World } from 'esengine';
 const installed = new WeakMap<World, () => void>();
 addSystemToSchedule(Schedule.Update, defineSystem([Res(UIEvents), GetWorld(), Res(Input), Res(FocusManager)], (events: UIEventQueue, world: World, input: InputState, focus: FocusManagerState) => {
   const update = installed.get(world);
@@ -10,8 +10,23 @@ addSystemToSchedule(Schedule.Update, defineSystem([Res(UIEvents), GetWorld(), Re
   const partial = world.findEntityByName('Partial')!;
   const inner = world.findEntityByName('InnerMask')!;
   let count = 0, dynamic: Entity | null = null, dialogHost: Entity | null = null;
+  let textField: TextInputHandle | null = null;
   const restore = new Set<Entity>();
   installed.set(world, () => {
+    // Fixture shortcuts must not react to letters typed into an engine field.
+    if (focus.focusedEntity !== null && world.has(focus.focusedEntity, TextInput)) return;
+    if (input.isKeyPressed('KeyT')) {
+      if (textField) { textField.dispose(); textField = null; }
+      else {
+        textField = createTextInput({ world, events, parent: world.findEntityByName('Canvas')!,
+          node: { position: 1, width: px(260), height: px(34), insetLeft: px(40), insetTop: px(420) },
+          placeholder: 'Type English / 中文', fontFamily: 'Arial', fontSize: 18, tabIndex: 3,
+          onChange: value => world.insert(inside, Text, { ...world.get(inside, Text), content: `Input ${value}` }),
+          onSubmit: value => world.insert(inside, Text, { ...world.get(inside, Text), content: `Submit ${value}` }),
+        });
+        world.insert(textField.entity, Name, { value: 'Runtime input' });
+      }
+    }
     if (input.isKeyPressed('KeyM') && dynamic !== null && world.valid(dynamic)) {
       world.insert(dynamic, UIDialog, { closeOnEscape: false, closeOnBackdrop: false });
       world.insert(dynamic, Text, { ...world.get(dynamic, Text), content: 'Dialog confirm' });

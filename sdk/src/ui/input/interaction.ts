@@ -163,9 +163,14 @@ export class UIInteractionPlugin implements Plugin {
                             break;
                         case 'press':
                             ensureComponent(world, event.entity, UIInteraction);
+                            // A complete click may arrive between frames. Preserve its
+                            // edge even when the final held-state is already false.
+                            world.insert(event.entity, UIInteraction, { ...world.get(event.entity, UIInteraction), justPressed: true });
                             emitWithBubbling(world, events, event.entity, UIEventType.Press);
                             break;
                         case 'release':
+                            if (world.has(event.entity, UIInteraction))
+                                world.insert(event.entity, UIInteraction, { ...world.get(event.entity, UIInteraction), justReleased: true });
                             emitWithBubbling(world, events, event.entity, UIEventType.Release);
                             break;
                         case 'click':
