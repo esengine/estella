@@ -75,7 +75,7 @@ export {
     SafeArea,
     type TextData,
     type UIMaskData,
-    type MaskMode,
+    MaskMode,
     type ScreenRect,
     type InteractableData,
     type UIInteractionData,

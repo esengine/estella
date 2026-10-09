@@ -88,3 +88,29 @@ snapshot; live-game-only dialogs and scripts need runtime acceptance separately.
 - The card remains In Progress. Actual clipped/occluded pointer delivery,
   platform shaping, IME/accessibility/devices and performance remain open.
   No local Electron/native test runner was launched.
+
+## Ancestor mask inspection increment — 2026-10-08
+
+The inspector shows the ancestor mask chain, mode and bounds. Unrotated 2D
+scissor rectangles estimate contained/partial/fully-clipped geometry; stencil,
+rotation, unavailable bounds and malformed hierarchy explicitly require review.
+These are world-rectangle estimates, not actual hit or visibility verdicts.
+Projection, pixel rounding, stencil alpha, occlusion and pointer delivery remain
+runtime acceptance work. The public SDK now exports MaskMode at runtime as well
+as in declarations, avoiding an undefined enum for inspector consumers.
+
+- SDK build and all 16 source/declaration API checks pass.
+- Editor: 26 layout/i18n/menu checks pass with a single thread worker. An initial
+  fork-worker run exited unexpectedly; the bounded thread run completed cleanly.
+  Tests cover nested intersection, contained/partial/full clipping, disabled
+  masks, rotated/stencil/unresolved masks and unchanged inspection data.
+- Browser verification includes a dedicated nested-mask scene. The fixture
+  removes its first disposable scene through SceneCommands before loading the
+  second; inspection itself does not alter either authored snapshot.
+- Built-in WebGL2: 27/27 checks pass. Manual widening of InnerMask from 200 to
+  280 makes the snapshot stale; refresh changes Partial to contained and Outside
+  to partial. Undo restores the original geometry; no manual edit was saved.
+- Editor typecheck/production build and CSS-variable checks pass. The theme
+  gate retains the existing 18 findings; browser startup still reports missing
+  desktop MCP bridge and optional DragonBones, as in the prior increment.
+- No local desktop/native runner was launched. RM-009 remains In Progress.

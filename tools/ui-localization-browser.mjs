@@ -17,6 +17,9 @@ const server = await createServer({ configFile: false, root: path.join(root, 'de
       if (req.url === '/__localization-scene.json') {
         res.setHeader('Content-Type', 'application/json');
         res.end(fs.readFileSync(path.join(root, 'examples/ui-localization-debug/assets/scenes/main.esscene')));
+      } else if (req.url === '/__mask-scene.json') {
+        res.setHeader('Content-Type', 'application/json');
+        res.end(fs.readFileSync(path.join(root, 'tools/ui-mask-inspection.esscene')));
       } else if (req.url === '/__localization') {
         const entry = `/@fs/${path.join(root, 'tools/ui-localization-browser.tsx').replaceAll('\\', '/')}`;
         const html = `<html><head><title>UI localization Web verification</title></head><body><div id="root"></div><script type="module" src="${entry}"></script></body></html>`;

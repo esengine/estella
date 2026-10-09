@@ -3,8 +3,9 @@ import '../desktop/src/main';
 import { captureUITextRows, captureUIFocusRows, captureUILayoutRows } from '../desktop/src/panels/UITextDebugPanel';
 import { EngineHost } from '../desktop/src/engine/EngineHost';
 import { SceneModel } from '../desktop/src/engine/SceneModel';
+import { SceneCommands } from '../desktop/src/engine/SceneCommands';
 import { useEditorStore } from '../desktop/src/store/editorStore';
-import { inspectTextLayout, pseudoLocalize } from 'esengine';
+import { inspectTextLayout, pseudoLocalize, MaskMode } from 'esengine';
 
 const status = document.createElement('pre');
 status.style.cssText = 'position:fixed;left:20px;bottom:20px;z-index:1001;max-width:600px;background:#19191d;color:white;padding:12px';
@@ -48,6 +49,22 @@ check(layoutRows.every(row => row.bounds !== null && row.width > 0 && row.height
 check(layoutRows.filter(row => row.gate === 'candidate').map(row => row.name).join(',') === 'LocaleButton,PseudoButton,WidthButton', 'Only the three buttons are input candidates');
 check(layoutRows.filter(row => row.gate === 'no-interactable').length === 10, 'Decorative boxes are not advertised as input targets');
 check(JSON.stringify(SceneModel.serialize()) === before, 'Layout/input snapshot does not change authored data');
+check(MaskMode.Scissor === 0 && MaskMode.Stencil === 1, 'MaskMode is exported as a runtime enum');
+// The fixture replaces its disposable scene through the normal authoring door.
+SceneCommands.deleteEntities(SceneModel.serialize().entities.filter(entity => entity.parent === null).map(entity => entity.id) as never);
+await EngineHost.loadScene('/__mask-scene.json');
+EngineHost.syncEditorViewToScene();
+for (let i = 0; i < 12; i++) await new Promise(requestAnimationFrame);
+const maskBefore = JSON.stringify(SceneModel.serialize());
+const maskedRows = captureUILayoutRows();
+check(maskedRows.length === 6, 'Mask scene resolves Canvas, two masks and three buttons');
+check(maskedRows.find(row => row.name === 'Inside')?.clip === 'inside', 'Contained button is inside rectangular masks');
+check(maskedRows.find(row => row.name === 'Partial')?.clip === 'partial', 'Overflowing button is partially clipped');
+check(maskedRows.find(row => row.name === 'Outside')?.clip === 'outside', 'Outside button is fully clipped');
+check(maskedRows.find(row => row.name === 'Partial')?.masks.map(mask => mask.name).join(',') === 'InnerMask,OuterMask', 'Nested ancestor mask chain is resolved');
+const partial = maskedRows.find(row => row.name === 'Partial');
+check(!!partial?.clippedBounds && Math.abs(partial.clippedBounds.right - partial.clippedBounds.left - 60) < .01, 'Partial button retains 60 world units inside the mask');
+check(JSON.stringify(SceneModel.serialize()) === maskBefore, 'Mask inspection preserves scene data');
 status.textContent += `RESULT ${passed} passed, ${failed} failed · ${EngineHost.activeBackend}`;
 const dismiss = document.createElement('button');
 dismiss.textContent = 'Dismiss verification report';

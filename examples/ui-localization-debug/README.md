@@ -34,5 +34,13 @@ An input candidate is a configuration result, not a successful pointer hit.
 World bounds do not account for clipping or occlusion; parent masks need review.
 Inspection does not raycast, change hover/focus, or add persistent gizmos.
 
+Masked rows also show their ancestor mask chain (nearest first), mask mode and
+bounds. Unrotated 2D scissor rectangles report estimated containment, partial
+clipping or full clipping, plus the remaining world bounds. Stencil, rotated,
+unresolved and invalid-hierarchy cases require review. This estimate excludes
+camera projection, screen pixel rounding, stencil alpha and actual pointer
+delivery. The browser verification fixture finishes with a dedicated nested
+mask scene containing Inside / Partial / Outside controls.
+
 This is a partial RM-009 delivery. Actual pointer hits, platform shaping,
 real IME/device acceptance and layout cache performance remain separate work.

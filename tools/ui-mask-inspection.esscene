@@ -1,0 +1,365 @@
+{
+  "version": 4,
+  "name": "UI mask inspection",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "z": 10,
+              "y": 0
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 300,
+            "isActive": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Canvas",
+      "parent": null,
+      "children": [
+        2
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "Canvas",
+          "data": {
+            "designResolution": {
+              "x": 800,
+              "y": 600
+            },
+            "scaleMode": 2
+          }
+        },
+        {
+          "data": {},
+          "type": "UINode"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "OuterMask",
+      "parent": 1,
+      "children": [
+        3
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 340,
+              "unit": 0
+            },
+            "height": {
+              "value": 260,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 40,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 80,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIMask",
+          "data": {
+            "enabled": true,
+            "mode": 0
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0.1,
+              "g": 0.13,
+              "b": 0.18,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "InnerMask",
+      "parent": 2,
+      "children": [
+        4,
+        5,
+        6
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 200,
+              "unit": 0
+            },
+            "height": {
+              "value": 180,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 20,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 20,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIMask",
+          "data": {
+            "enabled": true,
+            "mode": 0
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0.18,
+              "g": 0.22,
+              "b": 0.28,
+              "a": 1
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Inside",
+      "parent": 3,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 120,
+              "unit": 0
+            },
+            "height": {
+              "value": 32,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 20,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 20,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0.15,
+              "g": 0.45,
+              "b": 0.7,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Inside",
+            "fontFamily": "Arial",
+            "fontSize": 18
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "enabled": true,
+            "raycastTarget": true,
+            "blockRaycast": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Partial",
+      "parent": 3,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 120,
+              "unit": 0
+            },
+            "height": {
+              "value": 32,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 140,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 70,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0.15,
+              "g": 0.45,
+              "b": 0.7,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Partial",
+            "fontFamily": "Arial",
+            "fontSize": 18
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "enabled": true,
+            "raycastTarget": true,
+            "blockRaycast": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Outside",
+      "parent": 3,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 120,
+              "unit": 0
+            },
+            "height": {
+              "value": 32,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 230,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 120,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "visualType": 1,
+            "color": {
+              "r": 0.15,
+              "g": 0.45,
+              "b": 0.7,
+              "a": 1
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Outside",
+            "fontFamily": "Arial",
+            "fontSize": 18
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "enabled": true,
+            "raycastTarget": true,
+            "blockRaycast": true
+          }
+        }
+      ]
+    }
+  ]
+}
