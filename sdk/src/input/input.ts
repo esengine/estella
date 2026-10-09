@@ -3,6 +3,7 @@
 import { defineResource } from '../ecs/resource';
 import { defineSystem, Schedule } from '../ecs/system';
 import type { App, Plugin } from '../app/app';
+import { claimsKeyDefault, recordTabModifiers, clearTabModifiers } from './keyDefaultPolicy';
 import { getPlatform, platformUnbindInputEvents } from '../platform';
 import type { GamepadSnapshot, InputEventCallbacks } from '../platform/types';
 import { inputRouter } from './inputRouter';
@@ -145,6 +146,7 @@ export class InputState {
     /** Record a key-down. The pressed edge only fires on the transition, so a
      *  browser's auto-repeat keydown for a held key doesn't re-trigger it. */
     noteKeyDown(code: string): void {
+        recordTabModifiers(this, code);
         if (!this.keysDown.has(code)) {
             this.keysPressed.add(code);
             this.keysPressedFixed.add(code);
@@ -344,6 +346,7 @@ export class InputState {
 
     clearFrameState(): void {
         this.keysPressed.clear();
+        clearTabModifiers(this);
         this.keysReleased.clear();
         this.mouseButtonsPressed.clear();
         this.mouseButtonsReleased.clear();
@@ -397,8 +400,9 @@ export const Input = defineResource<InputState>(new InputState(), 'Input');
 export function inputEventCallbacks(state: InputState): InputEventCallbacks {
     return {
         onKeyDown(code) {
-            if (inputRouter.dispatchKeyDown(code)) return;
+            if (inputRouter.dispatchKeyDown(code)) return true;
             state.noteKeyDown(code);
+            return claimsKeyDefault(state, code);
         },
         onKeyUp(code) {
             if (inputRouter.dispatchKeyUp(code)) return;

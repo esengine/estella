@@ -204,3 +204,31 @@ snapshot; live-game-only dialogs and scripts need runtime acceptance separately.
   read-only policy/manager capture, request coalescing and late-response
   rejection. Typecheck, production build and CSS-variable gate pass.
 - No local Electron/native test runner launched. RM-009 remains In Progress.
+
+
+## Web keyboard handoff — 2026-10-09
+
+- Engine #77 and editor #14 are merged. Editor Typecheck + tests passed at
+  their current head; the tool/docs/gitlink-only engine increment did not
+  trigger Android CI. This does not establish device acceptance.
+- Web key callbacks can explicitly claim the host default. FocusPlugin claims
+  Tab only with eligible controls, and Enter/Space only with eligible game
+  focus outside TextInput. Paused/edit mode do not claim these defaults.
+  Ordinary host form/button/link/contenteditable controls and browser shortcut
+  chords keep their DOM behavior. Input-router consumption also claims defaults.
+- The parked engine textarea has tabIndex=-1. Composition confirmation/cancel
+  keys do not activate gameplay or submit/cancel the text editor mid-composition.
+  This guard is covered by DOM tests; real device IME acceptance remains open.
+- ShiftLeft/ShiftRight are recognized. Tab captures Shift at its keydown edge
+  so releasing the complete chord before the next frame still reverses order.
+  Blur/unbind releases held keys; cleared frame state cannot retain old Shift.
+- Built-in browser, production Play host/SDK/WASM, actual key input: Tab cycles
+  Inside → Partial → Runtime button → Inside; Shift+Tab reverses through the
+  three entries. Browser focus stays in the game iframe. Enter on Inside
+  removes the dynamic control (3→2); Space recreates it (2→3). Clicking the
+  host Focus button then Tab moves to the host Elements button normally.
+- 89 targeted SDK tests and editor typecheck pass; SDK build, 16 API surface
+  and built-declaration checks, and stability inventory checks pass.
+- No Electron/native runner launched. Desktop custom-scheme, device keyboard,
+  real IME/assistive technology, shaping and performance acceptance remain
+  open. RM-009 remains In Progress.

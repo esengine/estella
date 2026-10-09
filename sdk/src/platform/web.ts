@@ -181,8 +181,26 @@ class WebPlatformAdapter implements PlatformAdapter {
 
         const el = (target as HTMLElement) ?? document.querySelector('canvas') ?? document.body;
 
-        const onKeyDown = (e: Event) => callbacks.onKeyDown((e as KeyboardEvent).code);
-        const onKeyUp = (e: Event) => callbacks.onKeyUp((e as KeyboardEvent).code);
+        const heldKeys = new Set<string>();
+        const onKeyDown = (e: Event) => {
+            const key = e as KeyboardEvent;
+            const target = key.target instanceof HTMLElement ? key.target : null;
+            // Host forms keep typing/Tab; the engine's own hidden editor still routes Tab.
+            if (target?.closest('input, textarea, select, button, a[href], [contenteditable]')
+                && target.dataset.estellaTextEditor !== 'true') return;
+            if (key.isComposing || key.keyCode === 229) return;
+            if ((key.ctrlKey || key.metaKey || key.altKey) && ['Tab', 'Enter', 'Space'].includes(key.code)) return;
+            heldKeys.add(key.code);
+            if (callbacks.onKeyDown(key.code) === true) key.preventDefault();
+        };
+        const onKeyUp = (e: Event) => {
+            const code = (e as KeyboardEvent).code;
+            if (heldKeys.delete(code)) callbacks.onKeyUp(code);
+        };
+        const onBlur = () => {
+            for (const code of heldKeys) callbacks.onKeyUp(code);
+            heldKeys.clear();
+        };
         const onMouseMove = (e: Event) => {
             const me = e as MouseEvent;
             callbacks.onPointerMove(me.offsetX, me.offsetY);
@@ -241,6 +259,7 @@ class WebPlatformAdapter implements PlatformAdapter {
             callbacks.onWheel(dx, dy);
         };
 
+        window.addEventListener('blur', onBlur);
         document.addEventListener('keydown', onKeyDown);
         document.addEventListener('keyup', onKeyUp);
         el.addEventListener('mousemove', onMouseMove);
@@ -253,6 +272,8 @@ class WebPlatformAdapter implements PlatformAdapter {
         el.addEventListener('wheel', onWheel);
 
         this.inputCleanup_ = () => {
+            window.removeEventListener('blur', onBlur);
+            onBlur();
             document.removeEventListener('keydown', onKeyDown);
             document.removeEventListener('keyup', onKeyUp);
             el.removeEventListener('mousemove', onMouseMove);

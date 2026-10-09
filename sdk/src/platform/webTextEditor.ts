@@ -34,6 +34,8 @@ function createHiddenTextarea(): HTMLTextAreaElement | null {
     textarea.style.pointerEvents = 'none';
     textarea.style.border = '0';
     textarea.style.padding = '0';
+    textarea.tabIndex = -1;
+    textarea.dataset.estellaTextEditor = 'true';
     textarea.autocomplete = 'off';
     textarea.setAttribute('autocorrect', 'off');
     textarea.setAttribute('autocapitalize', 'off');
@@ -68,6 +70,7 @@ export function createWebTextEditor(): PlatformTextEditor | null {
         emit({ kind: 'change' });
     };
     const onKeyDown = (e: KeyboardEvent): void => {
+        if (composing || e.isComposing || e.keyCode === 229) return;
         if (e.key === 'Escape') {
             emit({ kind: 'cancel' });
             return;

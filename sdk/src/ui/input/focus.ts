@@ -14,6 +14,7 @@ import type { InteractableData } from './interactable';
 import { UIInteraction } from './interactable';
 import type { UIInteractionData } from './interactable';
 import { TextInput } from '../text/text-input';
+import { setKeyDefaultPolicy, tabWasShifted } from '../../input/keyDefaultPolicy';
 import { inspectFocusTraversal } from './focus-inspection';
 import { playModeOnly } from '../../ecs/env';
 import { UIEvents, UIEventQueue, UIEventType } from '../core/events';
@@ -25,6 +26,14 @@ export class FocusPlugin implements Plugin {
     name = PluginName.Focus;
     dependencies = [PluginName.UIInteraction];
 
+    private readonly keyDefaults_ = new WeakMap<App, () => void>();
+
+    cleanup(app?: App): void {
+        if (!app) return;
+        this.keyDefaults_.get(app)?.();
+        this.keyDefaults_.delete(app);
+    }
+
     build(app: App): void {
         registerComponent('Focusable', Focusable);
 
@@ -33,6 +42,17 @@ export class FocusPlugin implements Plugin {
         const registry = engine ? (world.getCppRegistry() as CppRegistry) : undefined;
         const focusManager = new FocusManagerState();
         app.insertResource(FocusManager, focusManager);
+        this.keyDefaults_.get(app)?.();
+        this.keyDefaults_.set(app, setKeyDefaultPolicy(app.getResource(Input), code => {
+            if (!playModeOnly() || app.isPaused()) return false;
+            if (code !== 'Tab' && code !== 'Enter' && code !== 'Space') return false;
+            const entries = inspectFocusTraversal(world).entries;
+            if (code === 'Tab') return entries.some(entry => entry.skipped === null);
+            const focused = focusManager.focusedEntity;
+            return focused !== null && world.valid(focused) && !world.has(focused, TextInput)
+                && entries.some(entry => entry.entity === focused && entry.skipped === null);
+        }));
+
 
         // display:none removes an entity from rendering + hit-testing; the Tab
         // ring must skip it too or focus lands on invisible controls.
@@ -92,7 +112,7 @@ export class FocusPlugin implements Plugin {
                         ? sorted.findIndex(e => e === focusManager.focusedEntity)
                         : -1;
 
-                    const reverse = input.isKeyDown('Shift');
+                    const reverse = tabWasShifted(input);
                     let nextIdx: number;
                     if (currentIdx === -1) {
                         nextIdx = reverse ? sorted.length - 1 : 0;
