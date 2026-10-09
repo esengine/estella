@@ -58,6 +58,14 @@ SceneCommands.deleteEntities(SceneModel.serialize().entities.filter(entity => en
 await EngineHost.loadScene('/__mask-scene.json');
 EngineHost.syncEditorViewToScene();
 for (let i = 0; i < 12; i++) await new Promise(requestAnimationFrame);
+const widgetScene = SceneModel.serialize();
+const inputSource = widgetScene.entities.find(entity => entity.name === 'Inside')!.id;
+const dialogSource = widgetScene.entities.find(entity => entity.name === 'OuterMask')!.id;
+SceneCommands.addComponent(inputSource, 'TextInput');
+SceneCommands.setFieldValue(inputSource, 'TextInput', 'value', '中文 draft');
+SceneCommands.setFieldValue(inputSource, 'TextInput', 'readOnly', true);
+SceneCommands.addComponent(dialogSource, 'UIDialog');
+SceneCommands.setFieldValue(dialogSource, 'UIDialog', 'closeOnEscape', false);
 const maskBefore = JSON.stringify(SceneModel.serialize());
 const maskedRows = captureUILayoutRows();
 check(maskedRows.length === 6, 'Mask scene resolves Canvas, two masks and three buttons');
@@ -68,6 +76,16 @@ const inside = maskedRows.find(row => row.name === 'Inside')!;
 const detail = readUIElement(EngineHost.world!, inside.entity);
 check(detail?.width === 120 && detail.height === 32, 'Selected UI detail reads actual computed layout');
 check(detail?.components.some(component => component.type === 'Interactable' && component.data.raycastTarget === true), 'Debugger reads actual input component values without verdicts');
+const inputDetail = detail?.components.find(component => component.type === 'TextInput');
+check(inputDetail?.data.value === '中文 draft' && inputDetail.data.readOnly === true,
+  'Debugger exposes authored TextInput value and readOnly state');
+const dialogRuntime = SceneModel.runtimeFor(dialogSource)!;
+const dialogDetail = readUIElement(EngineHost.world!, dialogRuntime as never)?.components.find(component => component.type === 'UIDialog');
+check(dialogDetail?.data.closeOnEscape === false && dialogDetail.data.closeOnBackdrop === true,
+  'Debugger exposes authored UIDialog dismissal settings');
+if (inputDetail) inputDetail.data.value = 'snapshot only';
+check(readUIElement(EngineHost.world!, inside.entity)?.components.find(component => component.type === 'TextInput')?.data.value === '中文 draft',
+  'Detached widget inspection cannot change the editor world');
 const screenRect = ViewportController.getEntityScreenRect(inside.entity)!;
 const canvasRect = EngineHost.canvas!.getBoundingClientRect();
 const point = { x: canvasRect.left + screenRect.x + screenRect.w / 2, y: canvasRect.top + screenRect.y + screenRect.h / 2 };

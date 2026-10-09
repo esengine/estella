@@ -113,3 +113,10 @@ mixed English/Chinese text, then Enter submits. While recording, Events shows
 actual change/submit; select its event node and Read runtime snapshot to check
 TextInput.value. Fixture keys do not run while editing. This validates character
 entry and focus handoff, not an OS IME candidate-window session.
+
+For authored widget inspection, run `node tools/ui-localization-browser.mjs`
+and open `http://127.0.0.1:5194/__localization` in the built-in browser. The
+disposable scene uses SceneCommands to add TextInput to Inside and UIDialog
+to OuterMask. After the verification report, open Window → UI Debugger.
+Elements exposes these components; edit Value in Details and check that
+TextInput.value updates here. Reading the inspector never writes scene data.
