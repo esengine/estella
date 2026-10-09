@@ -66,3 +66,25 @@ snapshot; live-game-only dialogs and scripts need runtime acceptance separately.
   and one disabled entry, undo, and observe stale state again. No edit was saved.
 - No local native test runner was launched. The card remains In Progress;
   layout boundaries, pointer hit diagnostics and device acceptance remain open.
+
+## Layout and input configuration increment — 2026-10-08
+
+- UI Inspector adds Layout and input with local dimensions, world axis-aligned
+  bounds, configuration gates and parent-mask review. It never invokes the
+  stateful pointer raycast. Bounds are not clipped screen-space hit regions.
+- Editor: typecheck, production build and 23 layout/i18n/menu checks pass.
+  CSS-variable gate passes; theme gate retains the same 18 existing findings.
+  Layout tests cover scaled geometry,
+  parent masks, ancestor pointer passthrough, disabled and hidden controls,
+  unavailable visibility, hierarchy cycles and unresolved sizes.
+- Built-in WebGL2 fixture: 19/19 checks pass, including 13 resolved UI boxes,
+  three input candidates, ten decorative boxes and unchanged authored data.
+- Manual Web checks: expand LocaleButton, Select to locate the authored entity,
+  change Pointer Events to None, observe stale snapshot and disabled selection,
+  capture again and observe pointer passthrough, then undo and capture again.
+  No verification edit was saved.
+- Browser startup reports missing desktop MCP bridge and optional DragonBones
+  module; these targeted checks do not establish an error-free application.
+- The card remains In Progress. Actual clipped/occluded pointer delivery,
+  platform shaping, IME/accessibility/devices and performance remain open.
+  No local Electron/native test runner was launched.
