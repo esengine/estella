@@ -9,8 +9,6 @@ import type { InputState } from '../../input/input';
 import type { Entity } from '../../types';
 import { Focusable, FocusManager, FocusManagerState } from './focusable';
 import type { FocusableData } from './focusable';
-import { Interactable } from './interactable';
-import type { InteractableData } from './interactable';
 import { UIInteraction } from './interactable';
 import type { UIInteractionData } from './interactable';
 import { TextInput } from '../text/text-input';
@@ -19,8 +17,6 @@ import { inspectFocusTraversal } from './focus-inspection';
 import { playModeOnly } from '../../ecs/env';
 import { UIEvents, UIEventQueue, UIEventType } from '../core/events';
 import { PluginName } from '../../ecs/systemLabels';
-import type { CppRegistry } from '../../wasm';
-import { engineApi } from '../../ecs/bridge/engineApi';
 
 export class FocusPlugin implements Plugin {
     name = PluginName.Focus;
@@ -38,8 +34,6 @@ export class FocusPlugin implements Plugin {
         registerComponent('Focusable', Focusable);
 
         const world = app.world;
-        const engine = engineApi(app);
-        const registry = engine ? (world.getCppRegistry() as CppRegistry) : undefined;
         const focusManager = new FocusManagerState();
         app.insertResource(FocusManager, focusManager);
         this.keyDefaults_.get(app)?.();
@@ -53,24 +47,16 @@ export class FocusPlugin implements Plugin {
                 && entries.some(entry => entry.entity === focused && entry.skipped === null);
         }));
 
-
-        // display:none removes an entity from rendering + hit-testing; the Tab
-        // ring must skip it too or focus lands on invisible controls.
-        const hiddenInTree = (e: Entity): boolean =>
-            !!(engine?.getUINodeHiddenInTree && registry
-                && engine.getUINodeHiddenInTree(registry, e));
-
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(Input), Res(UIEvents)],
             (input: InputState, events: UIEventQueue) => {
-                if (focusManager.focusedEntity !== null && !world.valid(focusManager.focusedEntity)) {
-                    focusManager.focusedEntity = null;
-                } else if (focusManager.focusedEntity !== null && hiddenInTree(focusManager.focusedEntity)) {
-                    // A focused control hidden out from under us (e.g. a dialog closed
-                    // by its own Confirm button) must lose focus, or a later Enter/Space
-                    // would re-fire Click on the now-invisible control.
-                    clearFocus();
-                }
+                // Live eligibility also governs stale focus and pointer focus, so
+                // opening a dialog cannot leave activation on a background control.
+                const eligible = inspectFocusTraversal(world).entries
+                    .filter(entry => entry.skipped === null).map(entry => entry.entity);
+                const eligibleSet = new Set(eligible);
+                if (focusManager.focusedEntity !== null
+                    && !eligibleSet.has(focusManager.focusedEntity)) clearFocus();
 
                 const focusableEntities = world.getEntitiesWithComponents([Focusable]);
 
@@ -78,7 +64,7 @@ export class FocusPlugin implements Plugin {
                 for (const entity of focusableEntities) {
                     if (!world.has(entity, UIInteraction)) continue;
                     const interaction = world.get(entity, UIInteraction) as UIInteractionData;
-                    if (interaction.justPressed) {
+                    if (interaction.justPressed && eligibleSet.has(entity)) {
                         pressedFocusable = true;
                         // Focus, but NOT visibly: a pointer press moves focus so
                         // Enter/Space act on what you clicked, while the control
@@ -99,13 +85,17 @@ export class FocusPlugin implements Plugin {
                 const focused = focusManager.focusedEntity;
                 if (focused !== null && world.valid(focused) && !world.has(focused, TextInput)
                     && (input.isKeyPressed('Enter') || input.isKeyPressed('Space'))) {
-                    const enabled = !world.has(focused, Interactable)
-                        || (world.get(focused, Interactable) as InteractableData).enabled;
-                    if (enabled) events.emit(focused, UIEventType.Click);
+                    // Focus/blur handlers can change dialog or enabled state synchronously.
+                    if (inspectFocusTraversal(world).entries.some(entry => entry.entity === focused && entry.skipped === null)) {
+                        events.emit(focused, UIEventType.Click);
+                    } else {
+                        clearFocus();
+                    }
                 }
 
                 if (input.isKeyPressed('Tab')) {
-                    const sorted = getSortedFocusables();
+                    const sorted = inspectFocusTraversal(world).entries
+                        .filter(entry => entry.skipped === null).map(entry => entry.entity);
                     if (sorted.length === 0) return;
 
                     const currentIdx = focusManager.focusedEntity !== null
@@ -125,11 +115,6 @@ export class FocusPlugin implements Plugin {
                     // Tab is the case the highlight exists for — nothing else says
                     // where you are.
                     setFocus(sorted[nextIdx], true);
-                }
-
-                function getSortedFocusables(): Entity[] {
-                    return inspectFocusTraversal(world).entries
-                        .filter(entry => entry.skipped === null).map(entry => entry.entity);
                 }
 
                 function setFocus(entity: Entity, visible: boolean): void {
