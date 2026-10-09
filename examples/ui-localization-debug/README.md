@@ -72,3 +72,17 @@ Stop recording and click again: game reactions continue, history stays fixed.
 Toggle the panel off and read the diagnostic snapshot to verify recording is
 false. Stop/Start Play rebuilds the world; recording defaults off with no old
 history. This covers browser Play, not desktop custom-scheme or device QA.
+
+
+Focus now samples the current world's actual Tab policy every 250 ms. During
+Play it reads FocusManager focus and visibility state through the realm; in
+Edit it shows authored traversal policy. Selecting a row only inspects the
+entity. Game focus differs from DOM/browser focus; the panel does not assert
+keyboard delivery success. Connected-device focus queries remain unavailable.
+
+In the browser Play fixture, Inside also toggles a runtime-generated button.
+Focus lists it with Tab index 2, Elements shows its actual hierarchy and
+components, and a second activation deletes it. Start Play, open Focus, click
+Inside, press Tab and then Enter to exercise real keyboard activation and
+auto-updating traversal. Continuous Tab may move browser focus out of the
+game iframe; this remains an input follow-up, not a passed keyboard gate.
