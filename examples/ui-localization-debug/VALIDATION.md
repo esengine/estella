@@ -258,3 +258,21 @@ snapshot; live-game-only dialogs and scripts need runtime acceptance separately.
 - No Electron/native runner launched. Multiple/nested modal arbitration,
   real devices, IME/assistive technology, desktop custom-scheme, complex text
   shaping and layout-cache performance remain open. RM-009 is In Progress.
+
+
+## Hidden dialog ancestor — 2026-10-09
+
+- Active-dialog filtering now uses the same resolved hierarchical visibility
+  as control traversal. A dialog whose own display is Flex but whose ancestor
+  is hidden cannot exclude the visible page controls from the Tab ring.
+  If host visibility is unavailable, the inspection still reports that limit.
+- Built-in browser, production Play host and actual game keys: click Inside,
+  M opens the real UIDialog, Tab focuses Runtime button. H hides its parent:
+  2 page controls become navigable, the dialog entry is hierarchically hidden,
+  and old focus clears. Tab focuses Inside. V shows the parent again: page
+  entries become outside-dialog, focus clears, and Tab returns to the dialog.
+- 39 targeted SDK tests, SDK build and 16 API/built declaration checks pass.
+  Tests cover ancestor-hidden modal restoration/despawn and one visible modal
+  remaining active alongside another hidden modal. No local Electron/native
+  runner launched. Modal stacking order, real devices, IME/accessibility,
+  desktop custom-scheme, text shaping and cache performance remain open.

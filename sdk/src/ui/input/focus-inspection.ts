@@ -32,7 +32,8 @@ export function inspectFocusTraversal(world: FocusInspectionWorld): FocusTravers
     const registry = world.getCppRegistry();
     const visibilityResolved = !!(registry && engine?.getUINodeHiddenInTree);
     const roots = new Set(world.getEntitiesWithComponents([UIDialog])
-        .filter(entity => isDialogOpen(world, entity)));
+        .filter(entity => isDialogOpen(world, entity)
+            && (!visibilityResolved || !engine!.getUINodeHiddenInTree!(registry!, entity))));
     const entries: FocusTraversalEntry[] = [];
     for (const entity of world.getEntitiesWithComponents([Focusable])) {
         if (!world.valid(entity)) continue;
