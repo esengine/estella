@@ -14,8 +14,7 @@ import type { InteractableData } from './interactable';
 import { UIInteraction } from './interactable';
 import type { UIInteractionData } from './interactable';
 import { TextInput } from '../text/text-input';
-import { UIDialog, isDialogOpen } from '../behavior/dialog';
-import { walkParentChain } from '../util/helpers';
+import { inspectFocusTraversal } from './focus-inspection';
 import { playModeOnly } from '../../ecs/env';
 import { UIEvents, UIEventQueue, UIEventType } from '../core/events';
 import { PluginName } from '../../ecs/systemLabels';
@@ -40,26 +39,6 @@ export class FocusPlugin implements Plugin {
         const hiddenInTree = (e: Entity): boolean =>
             !!(engine?.getUINodeHiddenInTree && registry
                 && engine.getUINodeHiddenInTree(registry, e));
-
-        // An open modal traps the Tab ring: only focusables inside an open
-        // UIDialog subtree participate while one is up (the scrim already
-        // blocks pointer focus outside).
-        const openDialogRoots = (): Entity[] =>
-            world.getEntitiesWithComponents([UIDialog]).filter((e) => isDialogOpen(world, e));
-        const insideAny = (entity: Entity, roots: Entity[]): boolean => {
-            if (roots.length === 0) return true;
-            const set = new Set(roots.map((r) => r as number));
-            if (set.has(entity as number)) return true;
-            let inside = false;
-            walkParentChain(world, entity, (ancestor) => {
-                if (set.has(ancestor as number)) {
-                    inside = true;
-                    return true;
-                }
-                return false;
-            });
-            return inside;
-        };
 
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(Input), Res(UIEvents)],
@@ -129,21 +108,8 @@ export class FocusPlugin implements Plugin {
                 }
 
                 function getSortedFocusables(): Entity[] {
-                    const trapRoots = openDialogRoots();
-                    const entries: { entity: Entity; tabIndex: number }[] = [];
-                    for (const entity of focusableEntities) {
-                        if (!world.valid(entity)) continue;
-                        if (world.has(entity, Interactable)) {
-                            const interactable = world.get(entity, Interactable) as InteractableData;
-                            if (!interactable.enabled) continue;
-                        }
-                        if (hiddenInTree(entity)) continue;
-                        if (!insideAny(entity, trapRoots)) continue;
-                        const f = world.get(entity, Focusable) as FocusableData;
-                        entries.push({ entity, tabIndex: f.tabIndex });
-                    }
-                    entries.sort((a, b) => a.tabIndex - b.tabIndex);
-                    return entries.map(e => e.entity);
+                    return inspectFocusTraversal(world).entries
+                        .filter(entry => entry.skipped === null).map(entry => entry.entity);
                 }
 
                 function setFocus(entity: Entity, visible: boolean): void {

@@ -384,6 +384,8 @@ export { TextInputPlugin, textInputPlugin } from './text/text-input-plugin';
 
 export { DragPlugin, dragPlugin } from './input/drag';
 
+export { inspectFocusTraversal, type FocusTraversalInspection, type FocusInspectionWorld, type FocusTraversalEntry, type FocusSkipReason } from './input/focus-inspection';
+
 export { FocusPlugin, focusPlugin } from './input/focus';
 
 export {
