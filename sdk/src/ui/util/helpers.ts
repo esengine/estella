@@ -77,7 +77,7 @@ export function getUINodeHeight(entity: Entity): number {
 
 
 export function walkParentChain(
-    world: World, entity: Entity,
+    world: Pick<World, 'has' | 'get' | 'valid'>, entity: Entity,
     callback: (ancestor: Entity) => boolean,
 ): void {
     let current = entity;

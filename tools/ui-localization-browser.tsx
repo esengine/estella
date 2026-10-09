@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 import '../desktop/src/main';
-import { captureUITextRows } from '../desktop/src/panels/UITextDebugPanel';
+import { captureUITextRows, captureUIFocusRows } from '../desktop/src/panels/UITextDebugPanel';
 import { EngineHost } from '../desktop/src/engine/EngineHost';
 import { SceneModel } from '../desktop/src/engine/SceneModel';
 import { useEditorStore } from '../desktop/src/store/editorStore';
@@ -38,6 +38,10 @@ for (const name of ['Arabic — shaping unverified', 'Thai — shaping unverifie
 const wrapped = rows.find(row => row.name === 'Wrapped paragraph')!;
 check(inspectTextLayout(wrapped.text.content, { ...options, width: wrapped.width, height: wrapped.height, wordWrap: true }).verticalOverflow, 'Wrapped paragraph detects vertical truncation');
 check(JSON.stringify(SceneModel.serialize()) === before, 'Inspection / pseudolocalization leave authored scene unchanged');
+const focusRows = captureUIFocusRows();
+check(focusRows.visibilityResolved, 'Focus inspection uses host hierarchical visibility');
+check(focusRows.entries.filter(e => e.order !== null).map(e => e.name).join(',') === 'LocaleButton,PseudoButton,WidthButton', 'Focus inspection reports the three authored buttons in runtime order');
+check(JSON.stringify(SceneModel.serialize()) === before, 'Focus snapshot leaves authored scene unchanged');
 status.textContent += `RESULT ${passed} passed, ${failed} failed · ${EngineHost.activeBackend}`;
 const dismiss = document.createElement('button');
 dismiss.textContent = 'Dismiss verification report';

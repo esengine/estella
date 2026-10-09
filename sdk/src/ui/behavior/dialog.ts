@@ -34,7 +34,7 @@ export const UIDialog = defineComponent<UIDialogData>('UIDialog', {
 });
 
 /** True when the dialog root's subtree is displayed. */
-export function isDialogOpen(world: World, root: Entity): boolean {
+export function isDialogOpen(world: Pick<World, 'has' | 'get'>, root: Entity): boolean {
     if (!world.has(root, UINode)) return false;
     return (world.get(root, UINode) as UINodeData).display !== UIDisplay.None;
 }

@@ -1,6 +1,6 @@
 # UI localization debug
 
-Open this project and use Window → UI Text Inspector. Wait for layout and
+Open this project and use Window → UI Inspector → Text. Wait for layout and
 capture again. Original / Accents + 35% / Accents + 100% inspect a snapshot
 without editing or saving scene content. Select jumps to the authored entity.
 Box and text sizes are local display pixels, before Clip / Ellipsis truncation.
@@ -17,5 +17,12 @@ fit verdict. Custom font assets, rich text and unresolved boxes are also marked
 for review. Bounds cover glyph advances and line height, not stroke, shadow or
 ink overhang. Host fonts can differ; inspect the exported game on each target.
 
-This is RM-009 stage one. Focus paths, hit regions, platform shaping,
+Focus order shows the editor snapshot of the runtime Tab policy: ascending
+indices, stable ECS query order on ties, disabled/hidden controls skipped and
+open dialog subtrees restricting traversal. It does not move focus; edit a
+control, capture again, then Select to find it in Details. The host must expose
+resolved visibility, otherwise a warning is shown. This does not verify actual
+keyboard delivery, screen readers or IME on a target device.
+
+This is a partial RM-009 delivery. Hit regions, platform shaping,
 real IME/device acceptance and layout cache performance remain separate work.

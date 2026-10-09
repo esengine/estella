@@ -24,7 +24,7 @@ remains In Progress; this is not complex-script or device acceptance.
 ## Limits and observations
 
 Arabic joining/bidi, Thai shaping, rich-text metrics, custom-font metrics,
-real IME, minigame/native devices, focus paths, hit regions and performance
+real IME, minigame/native devices, actual device focus delivery, hit regions and performance
 acceptance are not covered. Host fallback fonts require visual review; this
 inspector measures advances/line height, not ink, stroke or shadow extents.
 
@@ -46,3 +46,23 @@ Electron or native test window.
 
 Export with `node pipeline/bin/estella.mjs export examples/ui-localization-debug
 --out <output-directory>`; serve that directory with a normal HTTP server.
+
+## Focus inspection increment — 2026-10-08
+
+The runtime Tab path and SDK `inspectFocusTraversal` share the same read-only
+policy. The editor UI Inspector has Text and Focus order views. Inspection
+never moves focus or emits focus/click events. This is the editor realm's
+snapshot; live-game-only dialogs and scripts need runtime acceptance separately.
+
+- SDK: 14 focus tests pass, including four new inspection checks. Runtime
+  forward/reverse Tab navigation agrees with inspection, disabled controls are
+  reported, host hierarchical visibility is respected, and closing a dialog
+  restores controls outside its subtree. Missing host visibility is disclosed.
+- Editor: 26 existing i18n/menu/controller checks, typecheck and Vite build pass.
+- Built-in WebGL2 fixture: 14/14 checks pass, including host visibility, the
+  sample's three buttons in order, and unchanged authored scene data.
+- Manual Web checks: select LocaleButton, disable Interactable in Details,
+  observe stale snapshot/disabled selection, refresh to two navigable controls
+  and one disabled entry, undo, and observe stale state again. No edit was saved.
+- No local native test runner was launched. The card remains In Progress;
+  layout boundaries, pointer hit diagnostics and device acceptance remain open.
