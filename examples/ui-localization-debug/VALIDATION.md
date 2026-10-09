@@ -109,3 +109,20 @@ snapshot; live-game-only dialogs and scripts need runtime acceptance separately.
   picking is covered by async host integration tests; actual play acceptance and
   event tracing remain open. Startup MCP/optional DragonBones messages remain.
 - No local Electron/native test runner was launched. RM-009 remains In Progress.
+
+## Gizmo interaction — 2026-10-09
+
+- Selected-only applies to camera/light/marker/particle/auxiliary icons as well
+  as geometry. Non-rendering camera/light/marker/audio/probe/empty entities lose
+  their icon pick boxes when hidden. Existing sprite/mesh and other 2D renderer
+  selection paths remain available. Icon pick size follows the display setting.
+- UI resize handles appear only with the Rect tool and an editable single UI
+  selection. Hidden handles use display:none, including before the first paint,
+  so opacity cannot leave invisible pointer targets. UI Debugger picking hides
+  the handles and invalidates overlay visibility when armed/cancelled.
+- 76 gizmo geometry/display/picking/i18n tests, typecheck and production build
+  pass. CSS-variable gate passes. Built-in WebGL2 fixture remains 27/27.
+- Manual Web checks: selected Inside hides the unselected camera icon; Move and
+  Select show no UI resize handles; Rect shows them; switching back hides them.
+  Clicking adjacent Partial selects it. Show all restores the camera icon and
+  selected-only hides it again. No local Electron/native runner was launched.
