@@ -10,6 +10,7 @@
  */
 
 import { defineResource } from '../ecs/resource';
+import { pseudoLocalize, type PseudoLocalizationOptions } from './pseudo-localization';
 
 export type PluralCategory = 'zero' | 'one' | 'two' | 'few' | 'many' | 'other';
 
@@ -59,6 +60,7 @@ export class LocalizationAPI {
     private readonly selectors = new Map<string, PluralSelector>();
     private locale_: string;
     private fallback_: string;
+    private pseudo_: PseudoLocalizationOptions | null = null;
 
     constructor(locale = 'en', fallback = 'en') {
         this.locale_ = locale;
@@ -77,6 +79,11 @@ export class LocalizationAPI {
 
     setFallbackLocale(locale: string): void { this.fallback_ = locale; }
     get fallbackLocale(): string { return this.fallback_; }
+
+    /** Opt-in length stress preview. Pass null to restore ordinary translation. */
+    setPseudoLocalization(options: PseudoLocalizationOptions | null): void {
+        this.pseudo_ = options ? { ...options } : null;
+    }
 
     /** Override the plural rule for a locale (e.g. languages with few/many). */
     setPluralSelector(locale: string, selector: PluralSelector): void {
@@ -101,10 +108,14 @@ export class LocalizationAPI {
     t(key: string, params?: TParams): string {
         const entry = this.lookup_(key);
         if (entry === undefined) return key;
-        if (typeof entry === 'string') return interpolate(entry, params);
+        if (typeof entry === 'string') return this.translate_(entry, params);
         const count = typeof params?.count === 'number' ? params.count : 0;
         const selector = this.selectors.get(this.locale_) ?? defaultPluralSelector;
-        return interpolate(selectPluralForm(entry, count, selector), params);
+        return this.translate_(selectPluralForm(entry, count, selector), params);
+    }
+
+    private translate_(template: string, params?: TParams): string {
+        return interpolate(this.pseudo_ ? pseudoLocalize(template, this.pseudo_) : template, params);
     }
 
     private lookup_(key: string): LocaleEntry | undefined {

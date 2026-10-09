@@ -27,3 +27,5 @@ export {
     localizationPlugin,
     type LocalizationOptions,
 } from './LocalizationPlugin';
+
+export { pseudoLocalize, type PseudoLocalizationOptions } from './pseudo-localization';

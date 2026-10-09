@@ -14,6 +14,15 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- UI text inspection and pseudolocalization previews. The editor can inspect
+  computed text boxes, show overflow before clipping or ellipsis, and select
+  the authored entity. Runtime localization can opt into accent and length
+  stress without changing catalogs or parameters. Complex scripts, rich text
+  and custom fonts are marked for visual review. The multilingual sample
+  documents the scope and remaining platform checks.
+
 ### Fixed
 
 - **A project that moves keeps answering its textures from its own cache.** The editor remembered where each compressed texture was kept as an absolute path, so a project copied elsewhere went on serving textures from the old folder, and from none once that was deleted. It is kept relative to the project now; a record written by 0.76.0 is still read.
