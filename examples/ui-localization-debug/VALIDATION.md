@@ -126,3 +126,27 @@ snapshot; live-game-only dialogs and scripts need runtime acceptance separately.
   Select show no UI resize handles; Rect shows them; switching back hides them.
   Clicking adjacent Partial selects it. Show all restores the camera icon and
   selected-only hides it again. No local Electron/native runner was launched.
+
+
+## UI Debugger event observation — 2026-10-09
+
+- Engine #74 and editor #11 merged after successful current-head checks.
+  Engine Android API 29–36 checks passed; editor Typecheck + tests passed.
+- SDK observer reports immutable post-handler dispatch facts without payload
+  or event mutation methods. It does not register a game listener or consume
+  pending events. Root and actual bubble dispatches share an identity.
+- SDK: 4 observer tests plus 18 existing UI event tests pass. Editor: 26
+  recorder/panel/picking/i18n/menu tests pass, including stop/clear, queue
+  replacement, bounded retention, payload exclusion and runtime selection.
+- Built-in WebGL2 fixture: 32/32 passes. Five new checks use the real SDK
+  queue and handlers for propagation/default prevention. They do not simulate
+  actual pointer hit-testing or establish running-game delivery acceptance.
+- Manual browser check: Events tab is disabled outside Play and explains its
+  empty state without a fault verdict. Theme styling matches the panel.
+- Recording defaults off, stores at most 200 dispatch rows, polls at 250 ms
+  with requests coalesced and releases on stop/unmount/session teardown.
+  History truncation is explicit. Filtering retains matching event paths.
+- Typecheck, production build, CSS-variable gate, SDK build and 16 built API
+  declaration checks pass. No local Electron/native runner was launched.
+- Actual Play pointer dispatch, devices, IME/accessibility, shaping and
+  performance acceptance remain open. RM-009 remains In Progress.

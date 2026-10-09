@@ -37,5 +37,18 @@ not proof of actual game event delivery. Only one hovered editor element gets
 an extra outline. No clipping estimates or automatic input-success verdicts
 are presented. Text and Focus order remain auxiliary snapshot views.
 
-This is a partial RM-009 delivery. Actual event tracing, platform shaping,
+This is a partial RM-009 delivery. Actual running-game event acceptance, platform shaping,
 IME/device acceptance and layout cache performance remain separate work.
+
+
+Events is an opt-in recorder of the entity event channel used by UI, including
+custom event types. Start recording during Play, operate the game, then stop
+to inspect the recorded target and actual dispatch nodes. Each node records
+propagation/default flags after its handlers. Filter retains all recorded
+steps of matching events; selecting a node opens its runtime details.
+
+The recorder keeps at most 200 dispatch rows and reports discarded rows, so
+a displayed path can be incomplete. It excludes payloads, never drains the
+game queue and detaches on stop or session teardown. No records alone are
+not a fault verdict. Ordinary Web fixture dispatch checks do not establish
+actual game pointer delivery or device acceptance.
