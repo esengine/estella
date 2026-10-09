@@ -276,3 +276,29 @@ snapshot; live-game-only dialogs and scripts need runtime acceptance separately.
   remaining active alongside another hidden modal. No local Electron/native
   runner launched. Modal stacking order, real devices, IME/accessibility,
   desktop custom-scheme, text shaping and cache performance remain open.
+
+
+## Quick click focus and actual text entry — 2026-10-09
+
+- Engine #80 merged after current-head Android API 29–36, packaging and report
+  checks all passed. This is emulator boot evidence, not device input acceptance.
+- Actual Web input exposed a quick-click bug: press/release/click events were
+  emitted, but a press and release both arriving before a frame left
+  UIInteraction.justPressed/justReleased false. FocusSystem could miss a real
+  click on a text field. Preserve the projected edges until the next frame,
+  even when the final held pressed state is false.
+- A regression using the real interaction plugin, pointer book and FocusPlugin
+  fails before the fix, then passes: actual press/release/click order, both edge
+  flags, pointer focus without keyboard highlight, and next-frame edge reset.
+  The host hit result is mocked in this test; real Web hit testing is below.
+- Production Play host/SDK/WASM in the built-in browser: T adds createTextInput.
+  Clicking it now focuses Runtime input. Native m/d/e and inserted Chinese text
+  produce mde 中文 without triggering fixture hotkeys. Ctrl+A replacement to
+  hello 中文 and Enter run actual change/submit handlers; Events records these
+  and selecting its spawned-world row reads TextInput.value=hello 中文,
+  cursorPos=8, focused=false after submit. Tab/Shift+Tab leave and return to the
+  native editing surface correctly. Fixture shortcuts are ignored while editing.
+- 88 targeted SDK tests, SDK build and 16 API/built declaration checks pass.
+  No Electron/native runner launched. Character entry does not establish a
+  real IME candidate-window session. Device IME/accessibility, modal stacking,
+  desktop custom-scheme, text shaping and cache performance remain open.

@@ -106,3 +106,10 @@ R removes the test dialog. These keys run normal project systems in Play.
 While the test dialog is open, H hides its parent container and V restores it.
 The Focus view should free the visible page controls while the dialog is
 hierarchically hidden, then restrict traversal again when its parent returns.
+
+
+T adds/removes a real createTextInput field. Click it or use Tab/Shift+Tab, enter
+mixed English/Chinese text, then Enter submits. While recording, Events shows
+actual change/submit; select its event node and Read runtime snapshot to check
+TextInput.value. Fixture keys do not run while editing. This validates character
+entry and focus handoff, not an OS IME candidate-window session.
