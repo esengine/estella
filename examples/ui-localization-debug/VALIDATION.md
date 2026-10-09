@@ -177,3 +177,30 @@ snapshot; live-game-only dialogs and scripts need runtime acceptance separately.
 - No Electron/native runner launched. This fixture does not establish desktop
   custom-scheme, device, IME/accessibility, shaping or performance acceptance.
   RM-009 remains In Progress.
+
+
+## Live focus and dynamic UI — 2026-10-09
+
+- Engine #76 / editor #13 merged after editor Typecheck + tests passed at the
+  fixed current head. Android workflow did not trigger for the verification
+  tool/docs/gitlink-only engine change; no new Android evidence is claimed.
+- Focus view now reads actual runtime FocusManager and inspectFocusTraversal
+  facts, polling only while mounted with one request in flight. Edit-world
+  traversal is live too. Failed/late replies clear or cannot replace data from
+  a different session; missing manager is shown as unavailable, not no focus.
+- Real browser Play click spawns Runtime button (Focusable tabIndex=2): Focus
+  grows from 2 to 3 entries; Elements shows Canvas/OuterMask/InnerMask/Runtime
+  button and actual 150x32 UINode/component values. Selecting it uses a
+  spawned-world reference. Deleting the selected node removes its row and
+  old component details.
+- Native browser Tab input changes FocusManager to Inside with focusVisible;
+  Enter activates its project handler and deletes the dynamic node. Focus
+  list automatically returns to 2 entries. These are actual key events.
+- Found follow-up: repeated Tab can move DOM/browser focus out of the iframe.
+  Game-manager focus and browser focus are different states. Complete keyboard
+  traversal, desktop custom-scheme, devices, IME/accessibility, shaping and
+  performance remain open; no success verdict is inferred from a focus record.
+- 14 targeted panel/helper/event/i18n tests pass, including dynamic updates,
+  read-only policy/manager capture, request coalescing and late-response
+  rejection. Typecheck, production build and CSS-variable gate pass.
+- No local Electron/native test runner launched. RM-009 remains In Progress.

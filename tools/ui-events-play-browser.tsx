@@ -6,7 +6,10 @@ import '../desktop/src/theme/tokens.css';
 import '../desktop/src/theme/global.css';
 import '../desktop/src/theme/controls.css';
 import '../desktop/src/theme/uiTextDebug.css';
+import { PlayInspect } from '../desktop/src/engine/PlayInspect';
 import { PlayRealm } from '../desktop/src/engine/PlayRealm';
+import { UIDebuggerFocus } from '../desktop/src/panels/UIDebuggerFocus';
+import { UIDebuggerElements } from '../desktop/src/panels/UIDebuggerElements';
 import { UIDebuggerEvents } from '../desktop/src/panels/UIDebuggerEvents';
 import { useSelection } from '../desktop/src/store/selectionStore';
 // Only staging uses an adapter; the realm protocol and actual game are unchanged.
@@ -17,6 +20,7 @@ import { useSelection } from '../desktop/src/store/selectionStore';
 const scene = await (await fetch('/__events-scene.json')).json();
 // Decorative ancestors deliberately accept bubbling, without becoming pointer targets.
 for (const entity of scene.entities) {
+  if (['Inside', 'Partial'].includes(entity.name)) entity.components.push({ type: 'Focusable', data: { tabIndex: entity.name === 'Inside' ? 0 : 1 } });
   if (['InnerMask', 'OuterMask', 'Canvas'].includes(entity.name))
     entity.components.push({ type: 'Interactable', data: { enabled: true, raycastTarget: false, blockRaycast: false } });
 }
@@ -26,7 +30,8 @@ function Fixture() {
   const attach = useCallback((element: HTMLDivElement | null) => { if(element) PlayRealm.attach(element); }, []);
   const [state, setState] = useState('Ready to start');
   const [mounted, setMounted] = useState(true);
-  const start = async () => { setState('Starting'); try { await PlayRealm.start({ sceneData: scene, assetManifest: {}, physicsEnabled: false }); setState('Play ready'); } catch(error) { setState(String(error)); } };
+  const [view, setView] = useState('events');
+  const start = async () => { setState('Starting'); try { await PlayRealm.start({ sceneData: scene, assetManifest: {}, physicsEnabled: false }); PlayInspect.start(); setState('Play ready'); } catch(error) { setState(String(error)); } };
   const inspect = async () => {
     const ref = useSelection.getState().selectedRef;
     const data = await PlayRealm.snapshot(ref && 'live' in ref ? ref.live : null);
@@ -35,11 +40,11 @@ function Fixture() {
   };
   return <main style={{ padding: 16, height: '100vh', display: 'flex', flexDirection: 'column', gap: 12 }}>
     <h2>UI Events · production Play realm browser verification</h2>
-    <div><button onClick={() => void start()}>Start Play</button> <button onClick={() => PlayRealm.stop()}>Stop Play</button> <button onClick={() => setMounted(value => !value)}>Toggle panel</button> <button onClick={() => void inspect()}>Read runtime snapshot</button></div>
+    <div><button onClick={() => void start()}>Start Play</button> <button onClick={() => { PlayInspect.stop(); PlayRealm.stop(); }}>Stop Play</button> <button onClick={() => setMounted(value => !value)}>Toggle panel</button> <button onClick={() => void inspect()}>Read runtime snapshot</button> <button onClick={() => setView('events')}>Events</button> <button onClick={() => setView('focus')}>Focus</button> <button onClick={() => setView('elements')}>Elements</button></div>
     <p role="status">{realm.playing ? 'Playing' : 'Stopped'} · {realm.ready ? 'Ready' : 'Not ready'} · {realm.error ?? ''}</p>
     <div style={{ display: 'flex', gap: 16, flex: 1, minHeight: 0 }}>
       <div style={{ width: 800, height: 600, flexShrink: 0 }} ref={attach} />
-      <section style={{ flex: 1, minWidth: 300, display: 'flex', flexDirection: 'column', overflow: 'auto' }}>{mounted && <UIDebuggerEvents />}</section>
+      <section style={{ flex: 1, minWidth: 300, display: 'flex', flexDirection: 'column', overflow: 'auto' }}>{mounted && (view === 'events' ? <UIDebuggerEvents /> : view === 'focus' ? <UIDebuggerFocus /> : <UIDebuggerElements />)}</section>
     </div>
     <output style={{maxHeight: 90, overflow: 'auto', fontSize: 11}}>{state}</output>
     <output aria-label="Selected runtime nodes">{JSON.stringify(selected)}</output>
