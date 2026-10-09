@@ -54,6 +54,8 @@ export {
     // authored data both need the canonical type strings.
     UIEventType,
     UICameraInfo,
+    ScreenOverlay, type ScreenOverlayData,
+    screenToUiLayout, uiLayoutToScreen, isScreenEntity,
     screenToUiWorld,
     uiWorldToScreen,
     uiHitTestWorld,
@@ -75,7 +77,7 @@ export {
     SafeArea,
     type TextData,
     type UIMaskData,
-    type MaskMode,
+    MaskMode,
     type ScreenRect,
     type InteractableData,
     type UIInteractionData,
