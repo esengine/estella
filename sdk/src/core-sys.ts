@@ -39,6 +39,8 @@ export {
 export {
     Localization,
     LocalizationAPI,
+    pseudoLocalize,
+    type PseudoLocalizationOptions,
     LocalizationPlugin,
     localizationPlugin,
     interpolate,

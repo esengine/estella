@@ -328,6 +328,7 @@ export { BUILTIN_UI_PREFABS, BUILTIN_UI_WIDGET_NAMES } from './widgets/prefabs/g
 export { TextPlugin, textPlugin, resolveTextRenderMode, glyphContentScale } from './text/plugin';
 export { InlineImagePlugin, inlineImagePlugin } from './text/inline-image-plugin';
 export { measureText, type MeasureTextOptions, type TextMetrics } from './text/measure-text';
+export { inspectTextLayout, type TextInspection, type TextInspectionOptions } from './text/inspect-text';
 
 // UI Math Utilities
 export {

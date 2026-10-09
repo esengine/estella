@@ -1,0 +1,751 @@
+{
+  "version": 4,
+  "name": "Localization Debug",
+  "entities": [
+    {
+      "id": 0,
+      "name": "Camera",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": 0,
+              "z": 10,
+              "y": 0
+            }
+          }
+        },
+        {
+          "type": "Camera",
+          "data": {
+            "projectionType": 1,
+            "orthoSize": 300,
+            "isActive": true
+          }
+        }
+      ]
+    },
+    {
+      "id": 1,
+      "name": "Canvas",
+      "parent": null,
+      "children": [
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13
+      ],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "Canvas",
+          "data": {
+            "designResolution": {
+              "x": 800,
+              "y": 600
+            },
+            "scaleMode": 2
+          }
+        },
+        {
+          "data": {},
+          "type": "UINode"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Title",
+      "parent": 1,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 600,
+              "unit": 0
+            },
+            "height": {
+              "value": 36,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 40,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 20,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "UI localization / overflow laboratory",
+            "fontSize": 20,
+            "fontFamily": "Arial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "wordWrap": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "English",
+      "parent": 1,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 220,
+              "unit": 0
+            },
+            "height": {
+              "value": 32,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 40,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 100,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Continue to the next chapter",
+            "fontSize": 20,
+            "fontFamily": "Arial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "i18nKey": "continue",
+            "overflow": 2,
+            "wordWrap": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Chinese",
+      "parent": 1,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 600,
+              "unit": 0
+            },
+            "height": {
+              "value": 36,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 40,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 150,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "继续前往下一章节",
+            "fontSize": 20,
+            "fontFamily": "Arial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "wordWrap": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Japanese",
+      "parent": 1,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 600,
+              "unit": 0
+            },
+            "height": {
+              "value": 36,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 40,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 190,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "次のチャプターに進む",
+            "fontSize": 20,
+            "fontFamily": "Arial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "wordWrap": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Korean",
+      "parent": 1,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 600,
+              "unit": 0
+            },
+            "height": {
+              "value": 36,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 40,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 230,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "다음 장으로 계속하기",
+            "fontSize": 20,
+            "fontFamily": "Arial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "wordWrap": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Arabic — shaping unverified",
+      "parent": 1,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 600,
+              "unit": 0
+            },
+            "height": {
+              "value": 36,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 40,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 270,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "العربية — Chapter 2",
+            "fontSize": 20,
+            "fontFamily": "Arial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "wordWrap": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "Thai — shaping unverified",
+      "parent": 1,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 600,
+              "unit": 0
+            },
+            "height": {
+              "value": 36,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 40,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 310,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "ไปยังบทถัดไป Chapter 2",
+            "fontSize": 20,
+            "fontFamily": "Arial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "wordWrap": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "name": "Wrapped paragraph",
+      "parent": 1,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 220,
+              "unit": 0
+            },
+            "height": {
+              "value": 24,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 40,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 350,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "A long sentence should wrap and overflow this short text box.",
+            "fontSize": 20,
+            "fontFamily": "Arial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "wordWrap": true,
+            "overflow": 1
+          }
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "name": "Preview status",
+      "parent": 1,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 680,
+              "unit": 0
+            },
+            "height": {
+              "value": 36,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 40,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 440,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Preview: off · Locale: en",
+            "fontSize": 20,
+            "fontFamily": "Arial",
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "wordWrap": false
+          }
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "name": "LocaleButton",
+      "parent": 1,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 190,
+              "unit": 0
+            },
+            "height": {
+              "value": 42,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 40,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 500,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "color": {
+              "r": 0.12,
+              "g": 0.28,
+              "b": 0.44,
+              "a": 1
+            },
+            "visualType": 1
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "raycastTarget": true,
+            "blockRaycast": true,
+            "enabled": true
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Switch locale",
+            "fontSize": 18,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "wordWrap": false
+          }
+        },
+        {
+          "data": {
+            "tabIndex": 0
+          },
+          "type": "Focusable"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "name": "PseudoButton",
+      "parent": 1,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 190,
+              "unit": 0
+            },
+            "height": {
+              "value": 42,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 250,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 500,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "color": {
+              "r": 0.12,
+              "g": 0.28,
+              "b": 0.44,
+              "a": 1
+            },
+            "visualType": 1
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "raycastTarget": true,
+            "blockRaycast": true,
+            "enabled": true
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Stress text",
+            "fontSize": 18,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "wordWrap": false
+          }
+        },
+        {
+          "data": {
+            "tabIndex": 0
+          },
+          "type": "Focusable"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "name": "WidthButton",
+      "parent": 1,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {}
+        },
+        {
+          "type": "UINode",
+          "data": {
+            "position": 1,
+            "width": {
+              "value": 190,
+              "unit": 0
+            },
+            "height": {
+              "value": 42,
+              "unit": 0
+            },
+            "insetLeft": {
+              "value": 460,
+              "unit": 0
+            },
+            "insetTop": {
+              "value": 500,
+              "unit": 0
+            }
+          }
+        },
+        {
+          "type": "UIVisual",
+          "data": {
+            "color": {
+              "r": 0.12,
+              "g": 0.28,
+              "b": 0.44,
+              "a": 1
+            },
+            "visualType": 1
+          }
+        },
+        {
+          "type": "Interactable",
+          "data": {
+            "raycastTarget": true,
+            "blockRaycast": true,
+            "enabled": true
+          }
+        },
+        {
+          "type": "Text",
+          "data": {
+            "content": "Resize box",
+            "fontSize": 18,
+            "color": {
+              "r": 1,
+              "g": 1,
+              "b": 1,
+              "a": 1
+            },
+            "wordWrap": false
+          }
+        },
+        {
+          "data": {
+            "tabIndex": 0
+          },
+          "type": "Focusable"
+        }
+      ]
+    }
+  ]
+}
