@@ -383,6 +383,7 @@ export {
     EntityEvents,
     type EntityEvent,
     type EntityEventHandler,
+    type EntityEventObservation,
 } from './ecs/entityEvents';
 
 // Authored event → action wiring (the data form of `events.on(e, 'click', …)`).

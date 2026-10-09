@@ -43,6 +43,16 @@ export interface EntityEvent<TData = unknown> {
     preventDefault(): void;
 }
 
+/** Immutable dispatch facts for debugger observers; no payload or mutation methods. */
+export interface EntityEventObservation {
+    readonly eventId: number;
+    readonly type: string;
+    readonly target: Entity;
+    readonly currentTarget: Entity;
+    readonly propagationStopped: boolean;
+    readonly defaultPrevented: boolean;
+}
+
 export type EntityEventHandler<TData = unknown> = (event: EntityEvent<TData>) => void;
 export type Unsubscribe = () => void;
 
@@ -122,6 +132,17 @@ export class EntityEventQueue {
     private readonly typeCounts_ = new Map<string, number>();
     private pending_: EntityEvent[] = [];
     private readonly activeKeys_ = new Set<string>();
+
+    private readonly observers_ = new Set<(event: EntityEventObservation) => void>();
+    private readonly eventIds_ = new WeakMap<EntityEvent, number>();
+    private nextEventId_ = 0;
+
+    /** Observe actual dispatch after handlers, without subscribing as a game listener.
+     * Observers cannot stop propagation, prevent defaults or change the payload. */
+    observe(handler: (event: EntityEventObservation) => void): Unsubscribe {
+        this.observers_.add(handler);
+        return () => { this.observers_.delete(handler); };
+    }
 
     /**
      * Subscribe to an entity-specific event.
@@ -229,6 +250,7 @@ export class EntityEventQueue {
         data?: TData,
     ): EntityEvent<TData> {
         const event = new EmittedEvent<TData>(type, entity, entity, data as TData);
+        if (this.observers_.size) this.eventIds_.set(event, ++this.nextEventId_);
         this.pending_.push(event);
         this.dispatch_(entity, event);
         return event;
@@ -247,6 +269,11 @@ export class EntityEventQueue {
 
         const bubbled = new BubbledEvent(
             rootEvent.type, rootEvent.target, ancestor, rootEvent.data, rootEvent);
+        if (this.observers_.size) {
+            const id = this.eventIds_.get(rootEvent) ?? ++this.nextEventId_;
+            this.eventIds_.set(rootEvent, id);
+            this.eventIds_.set(bubbled, id);
+        }
         this.pending_.push(bubbled);
         this.dispatch_(ancestor, bubbled);
         return bubbled;
@@ -273,6 +300,7 @@ export class EntityEventQueue {
         this.globalHandlers_.clear();
         this.pending_ = [];
         this.activeKeys_.clear();
+        this.observers_.clear();
     }
 
     private dispatch_(entity: Entity, event: EntityEvent): void {
@@ -318,6 +346,16 @@ export class EntityEventQueue {
             }
         } finally {
             this.activeKeys_.delete(key);
+            if (this.observers_.size) {
+                const eventId = this.eventIds_.get(event) ?? ++this.nextEventId_;
+                this.eventIds_.set(event, eventId);
+                const observation = Object.freeze({ eventId, type: event.type, target: event.target,
+                    currentTarget: event.currentTarget, propagationStopped: event.propagationStopped,
+                    defaultPrevented: event.defaultPrevented });
+                for (const observer of [...this.observers_]) {
+                    try { observer(observation); } catch (err) { log.error('ui', 'Entity event observer error', err); }
+                }
+            }
         }
     }
 }
