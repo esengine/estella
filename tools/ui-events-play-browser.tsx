@@ -5,6 +5,7 @@ import { useCallback, useState, useSyncExternalStore } from 'react';
 import '../desktop/src/theme/tokens.css';
 import '../desktop/src/theme/global.css';
 import '../desktop/src/theme/controls.css';
+import '../desktop/src/theme/app.css';
 import '../desktop/src/theme/uiTextDebug.css';
 import { PlayInspect } from '../desktop/src/engine/PlayInspect';
 import { PlayRealm } from '../desktop/src/engine/PlayRealm';

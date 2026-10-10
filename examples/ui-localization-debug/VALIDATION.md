@@ -397,3 +397,14 @@ snapshot; live-game-only dialogs and scripts need runtime acceptance separately.
   Elements → Inside → Text shows content A and fontFamily B|Arial.
 - No local Electron/native runner launched. This proves cache correctness;
   cache/reflow performance, shaping and device acceptance remain open.
+
+## UI hierarchy alignment — 2026-10-09
+
+- The Play browser fixture now loads the production app.css button recipe;
+  previous screenshots missed its flex layout and did not represent button
+  alignment in the editor. Keep this shared stylesheet in browser validation.
+- UI Debugger tree labels stay on one line with ellipsis; icons retain 14px
+  width. In the narrow browser pane, all eight real rows have 26px height and
+  16px depth steps, including Runtime dialog host and its Runtime button child.
+- Selecting the truncated Runtime dialog host shows its full name/path and
+  real component values. Editor typecheck passes. No desktop runner launched.
