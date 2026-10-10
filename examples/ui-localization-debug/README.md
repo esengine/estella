@@ -137,3 +137,7 @@ R closes the fixture's dialogs. Independent modal stacking is not covered here.
 Click Inside, then press O repeatedly to cycle Clip → Ellipsis → Visible on
 the same long text. The layout must change without changing the text or box.
 Visible may still be clipped by the fixture's actual ancestor mask.
+
+Press K twice while the game has focus to change Inside from `A|B` / `Arial`
+to `A` / `B|Arial`. Text and font family change together; the canvas must show
+only `A` after the second press. Elements → Inside → Text exposes both values.

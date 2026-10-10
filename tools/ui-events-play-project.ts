@@ -15,6 +15,12 @@ addSystemToSchedule(Schedule.Update, defineSystem([Res(UIEvents), GetWorld(), Re
   installed.set(world, () => {
     // Fixture shortcuts must not react to letters typed into an engine field.
     if (focus.focusedEntity !== null && world.has(focus.focusedEntity, TextInput)) return;
+    if (input.isKeyPressed('KeyK')) {
+      const text = world.get(inside, Text);
+      const first = text.content !== 'A|B';
+      world.insert(inside, Text, { ...text, content: first ? 'A|B' : 'A',
+        fontFamily: first ? 'Arial' : 'B|Arial' });
+    }
     if (input.isKeyPressed('KeyO')) {
       const text = world.get(inside, Text);
       world.insert(inside, Text, { ...text, content: 'Overflow mode changes cached text',
