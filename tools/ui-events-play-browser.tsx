@@ -38,7 +38,7 @@ function Fixture() {
   return <main style={{ padding: 16, height: '100vh', display: 'flex', flexDirection: 'column', gap: 12 }}>
     <h2>UI Events · production Play realm browser verification</h2>
     <div><button onClick={() => void start()}>Start Play</button> <button onClick={() => { PlayInspect.stop(); PlayRealm.stop(); }}>Stop Play</button> <button onClick={() => setMounted(value => !value)}>Toggle panel</button> <button onClick={() => void inspect()}>Read runtime snapshot</button></div>
-    <small>Game keys: M opens a dialog; N opens a nested confirmation; R closes dialogs; D disables current focus; E restores controls; H hides the dialog parent; V shows it; T toggles a text input (outside text editing).</small>
+    <small>Game keys: M opens a dialog; N opens a nested confirmation; R closes dialogs; D disables current focus; E restores controls; H hides the dialog parent; V shows it; O cycles text overflow; K changes text/font cache keys; T toggles a text input (outside text editing).</small>
     <p role="status">{realm.playing ? 'Playing' : 'Stopped'} · {realm.ready ? 'Ready' : 'Not ready'} · {realm.error ?? ''}</p>
     <div style={{ display: 'flex', gap: 16, flex: 1, minHeight: 0 }}>
       <div style={{ width: 800, height: 600, flexShrink: 0 }} ref={attach} />

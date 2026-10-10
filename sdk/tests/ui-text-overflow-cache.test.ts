@@ -40,3 +40,30 @@ it('rebuilds only changed overflow geometry while other static text keeps its ca
         expect(reads).not.toHaveBeenCalled();
     }
 });
+
+it('invalidates cached geometry when text and font names contain field delimiters', () => {
+    const atlas = new GlyphAtlas({ renderSize: 48, spread: 0, rasterize: () => ({
+        pixels: new Uint8Array(10 * 12 * 4), width: 10, height: 12,
+        advance: 11, bearingX: 1, bearingY: 10,
+    }) }, { createPage: () => 1000, uploadSubRegion: () => {} }, { pageSize: 1024, padding: 1, sdf: false });
+    const renderer = Object.assign(Object.create(SdfTextRenderer.prototype), {
+        atlas, sdf: false, module: null, cache_: new Map(),
+    }) as SdfTextRenderer;
+    const transform = new Float32Array(16);
+    const submit = vi.mocked(submitTextBatch);
+    const first: DrawTextParams = { text: 'A|B', fontFamily: 'Arial', fontSizePx: 48, color: [1, 1, 1, 1] };
+    renderer.drawText(first, transform, 1, 0, 0);
+    const next = { ...first, text: 'A', fontFamily: 'B|Arial' };
+    submit.mockClear();
+    renderer.drawText(next, transform, 1, 0, 0);
+    const expected: Float32Array[] = [];
+    drawTextWith(atlas, vertices => expected.push(vertices), next);
+    expect(submit.mock.calls.map(call => Array.from(call[1])))
+        .toEqual(expected.map(vertices => Array.from(vertices)));
+    const updated = submit.mock.calls[0][1];
+    submit.mockClear();
+    const reads = vi.spyOn(atlas, 'getGlyph');
+    renderer.drawText(next, transform, 1, 0, 0);
+    expect(submit.mock.calls[0][1]).toBe(updated);
+    expect(reads).not.toHaveBeenCalled();
+});

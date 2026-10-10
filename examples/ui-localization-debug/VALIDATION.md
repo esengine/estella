@@ -382,3 +382,18 @@ snapshot; live-game-only dialogs and scripts need runtime acceptance separately.
 - This is cache correctness evidence, not a performance benchmark. Same-device
   cache/reflow timings, complex shaping and device acceptance remain open.
   No local Electron/native runner launched; RM-009 remains In Progress.
+
+## Text cache key collision — 2026-10-09
+
+- Pipe-joining unescaped text and font family produced the same key for
+  `A|B` / `Arial` and `A` / `B|Arial`, allowing stale geometry after both changed.
+  Serialize the parameter tuple with JSON escaping to preserve field boundaries.
+- The real renderer regression fails before the fix (three cached glyphs instead
+  of the new single glyph), then passes. An unchanged subsequent draw keeps the
+  same batch without glyph reads. 36 renderer/cache tests, SDK build and all
+  16 source/built API checks pass.
+- Built-in browser production Play/SDK/WASM: K twice changes the same entity
+  between those pairs; the canvas shows only A after the second press, and
+  Elements → Inside → Text shows content A and fontFamily B|Arial.
+- No local Electron/native runner launched. This proves cache correctness;
+  cache/reflow performance, shaping and device acceptance remain open.

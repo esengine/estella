@@ -340,7 +340,7 @@ export function signatureOf(p: DrawTextParams): string {
         ? `${p.shadow.color.join(',')}:${p.shadow.dx}:${p.shadow.dy}:${p.shadow.blur ?? 0}`
         : '';
     const outline = p.outline ? `${p.outline.color.join(',')}:${p.outline.width}` : '';
-    return [
+    return JSON.stringify([
         p.text, p.fontFamily, p.fontSizePx, p.style ?? 0,
         p.richText ? 1 : 0, p.align ?? 0, p.verticalAlign ?? 0,
         p.lineHeight ?? 0, p.letterSpacing ?? 0,
@@ -348,5 +348,5 @@ export function signatureOf(p: DrawTextParams): string {
         p.overflow ?? TextOverflow.Visible,
         p.originX ?? 0, p.originY ?? 0,
         p.color.join(','), shadow, outline,
-    ].join('|');
+    ]);
 }
