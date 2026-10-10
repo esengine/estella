@@ -16,7 +16,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
-      - uses: ./.github/actions/editor-host
+      - name: Install the virtual display dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libasound2t64 libgtk-3-0t64 libgbm1
       - name: Download the measured engine
         env:
           GH_TOKEN: ${{ github.token }}
