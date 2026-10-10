@@ -9,7 +9,7 @@ addSystemToSchedule(Schedule.Update, defineSystem([Res(UIEvents), GetWorld(), Re
   if (inside === null) return;
   const partial = world.findEntityByName('Partial')!;
   const inner = world.findEntityByName('InnerMask')!;
-  let count = 0, dynamic: Entity | null = null, dialogHost: Entity | null = null;
+  let count = 0, dynamic: Entity | null = null, dialogHost: Entity | null = null, nested: Entity | null = null;
   let textField: TextInputHandle | null = null;
   const restore = new Set<Entity>();
   installed.set(world, () => {
@@ -31,8 +31,31 @@ addSystemToSchedule(Schedule.Update, defineSystem([Res(UIEvents), GetWorld(), Re
       world.insert(dynamic, UIDialog, { closeOnEscape: false, closeOnBackdrop: false });
       world.insert(dynamic, Text, { ...world.get(dynamic, Text), content: 'Dialog confirm' });
     }
+    if (input.isKeyPressed('KeyN') && dynamic !== null && dialogHost !== null && world.valid(dynamic)) {
+      // Real hierarchy: an outer modal contains a page button and a nested modal.
+      world.remove(dynamic, UIDialog);
+      world.insert(dialogHost, UIDialog, { closeOnEscape: false, closeOnBackdrop: false });
+      if (nested === null) {
+        nested = world.spawn('Nested confirm');
+        world.insert(nested, Transform, {});
+        world.insert(nested, UINode, { position: 1, width: px(150), height: px(32), insetLeft: px(20), insetTop: px(75) });
+        world.insert(nested, UIVisual, { visualType: 1, color: { r: 0.55, g: 0.3, b: 0.15, a: 1 } });
+        world.insert(nested, Text, { content: 'Nested confirm', fontFamily: 'Arial', fontSize: 16 });
+        world.insert(nested, Interactable, { enabled: true, raycastTarget: true, blockRaycast: true });
+        world.insert(nested, Focusable, { tabIndex: 4 });
+        world.insert(nested, UIDialog, { closeOnEscape: false, closeOnBackdrop: false });
+        world.setParent(nested, dialogHost);
+        events.on(nested, 'click', () => {
+          if (nested !== null) world.despawn(nested);
+          nested = null;
+        });
+      }
+    }
     if (input.isKeyPressed('KeyR') && dynamic !== null && world.valid(dynamic)) {
       world.remove(dynamic, UIDialog);
+      if (dialogHost !== null) world.remove(dialogHost, UIDialog);
+      if (nested !== null) world.despawn(nested);
+      nested = null;
       world.insert(dynamic, Text, { ...world.get(dynamic, Text), content: 'Runtime button' });
     }
     if (dialogHost !== null && world.valid(dialogHost)) {
@@ -54,7 +77,7 @@ addSystemToSchedule(Schedule.Update, defineSystem([Res(UIEvents), GetWorld(), Re
     count++;
     world.insert(inside, Text, { ...world.get(inside, Text), content: `Clicks ${count}` });
     world.insert(inside, UINode, { ...world.get(inside, UINode), width: px(count % 2 ? 160 : 120) });
-    if (dynamic !== null) { world.despawn(dynamic); dynamic = null; if (dialogHost !== null) world.despawn(dialogHost); dialogHost = null; }
+    if (dynamic !== null) { if (nested !== null) world.despawn(nested); nested = null; world.despawn(dynamic); dynamic = null; if (dialogHost !== null) world.despawn(dialogHost); dialogHost = null; }
     else {
       dialogHost = world.spawn('Runtime dialog host');
       world.insert(dialogHost, Transform, {});

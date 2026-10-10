@@ -34,6 +34,14 @@ export function inspectFocusTraversal(world: FocusInspectionWorld): FocusTravers
     const roots = new Set(world.getEntitiesWithComponents([UIDialog])
         .filter(entity => isDialogOpen(world, entity)
             && (!visibilityResolved || !engine!.getUINodeHiddenInTree!(registry!, entity))));
+    // A nested modal excludes its parent dialog's other controls. Independent
+    // dialog branches retain the existing union policy; no stacking order is inferred.
+    for (const root of [...roots]) {
+        walkParentChain(world, root, ancestor => {
+            roots.delete(ancestor);
+            return false;
+        });
+    }
     const entries: FocusTraversalEntry[] = [];
     for (const entity of world.getEntitiesWithComponents([Focusable])) {
         if (!world.valid(entity)) continue;

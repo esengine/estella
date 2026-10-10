@@ -127,3 +127,9 @@ game. Returning to Events keeps recording, the filter and dispatch history.
 Toggle panel closes the debugger and stops observation; opening it again
 restores recorded history without automatically recording. Stop Play also
 ends observation.
+
+For nested modal focus, click Inside to create Runtime button, then press N.
+An outer UIDialog contains Runtime button and Nested confirm (another UIDialog).
+Only Nested confirm should remain in the Tab ring. Tab and Shift+Tab stay there;
+Enter dismisses it, and Tab returns to Runtime button in the outer modal.
+R closes the fixture's dialogs. Independent modal stacking is not covered here.
