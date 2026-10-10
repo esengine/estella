@@ -345,6 +345,7 @@ export function signatureOf(p: DrawTextParams): string {
         p.richText ? 1 : 0, p.align ?? 0, p.verticalAlign ?? 0,
         p.lineHeight ?? 0, p.letterSpacing ?? 0,
         p.maxWidth ?? 0, p.boxWidth ?? 0, p.boxHeight ?? 0,
+        p.overflow ?? TextOverflow.Visible,
         p.originX ?? 0, p.originY ?? 0,
         p.color.join(','), shadow, outline,
     ].join('|');

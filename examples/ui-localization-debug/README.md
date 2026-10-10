@@ -133,3 +133,7 @@ An outer UIDialog contains Runtime button and Nested confirm (another UIDialog).
 Only Nested confirm should remain in the Tab ring. Tab and Shift+Tab stay there;
 Enter dismisses it, and Tab returns to Runtime button in the outer modal.
 R closes the fixture's dialogs. Independent modal stacking is not covered here.
+
+Click Inside, then press O repeatedly to cycle Clip → Ellipsis → Visible on
+the same long text. The layout must change without changing the text or box.
+Visible may still be clipped by the fixture's actual ancestor mask.

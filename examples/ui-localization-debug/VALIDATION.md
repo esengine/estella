@@ -364,3 +364,21 @@ snapshot; live-game-only dialogs and scripts need runtime acceptance separately.
 - No local Electron/native runner launched. Device IME/accessibility,
   independent modal stacking, custom-scheme, shaping and cache performance
   remain open. RM-009 and RM-008 are still the two unfinished 0.94.0 cards.
+
+## Text overflow cache correctness — 2026-10-09
+
+- The cached renderer signature omitted overflow. Changing only Visible,
+  Clip or Ellipsis could reuse the old geometry indefinitely. Include overflow
+  in the signature, with omitted overflow equivalent to the Visible default.
+- The real renderer cache regression fails before the fix: cached Visible
+  geometry differs from fresh Clip layout. After the fix, all three modes
+  match fresh geometry; a second static entity retains the same batch and
+  performs no new glyph layout reads. 35 renderer/cache tests pass, along with
+  SDK build and 16 source/built API checks.
+- Built-in browser production Play/SDK/WASM: click Inside, then O changes
+  only the overflow mode after installing the same long text. Clip truncates
+  without an ellipsis, Ellipsis adds it, Visible extends beyond the label box
+  until the real ancestor mask clips it. No injected game state or event queue.
+- This is cache correctness evidence, not a performance benchmark. Same-device
+  cache/reflow timings, complex shaping and device acceptance remain open.
+  No local Electron/native runner launched; RM-009 remains In Progress.

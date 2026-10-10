@@ -232,6 +232,7 @@ describe('text cache signature completeness', () => {
         ['maxWidth', { maxWidth: 200 }],
         ['boxWidth', { boxWidth: 400 }],
         ['boxHeight', { boxHeight: 100 }],
+        ['overflow', { overflow: 2 }],
         ['originX', { originX: 5 }],
         ['originY', { originY: 5 }],
         ['color', { color: [1, 0, 0, 1] }],
