@@ -430,3 +430,29 @@ snapshot; live-game-only dialogs and scripts need runtime acceptance separately.
   complex shaping and target devices remain unmeasured. Warm-up/JIT/background
   load affect results; do not convert these ratios into a game FPS claim.
   RM-009 remains In Progress. No local Electron/native runner launched.
+
+## Actual WASM layout measurement and test lifetime — 2026-10-09
+
+- A browser-only fixture loads the existing editor engine WASM (SHA-256 in the
+  raw report). One Canvas, twenty flex rows, four hundred controls: all 421
+  nodes' local positions and dimensions agree for 0/1/10/100% updates and both
+  changed width states. Changed widths are checked explicitly to reject no-ops.
+- Ten paired batches of twenty layout calls alternate normal manual dirty
+  signals and forced property refresh. Both retain Yoga nodes; this is not a
+  fresh-node rebuild or historical before/after benchmark. Timing includes
+  UINode writes and uiLayout_update, excluding App scheduling, Transform, text,
+  rendering and GPU. Browser-generated layout-cpu-web-2026-10-09.json preserves
+  every sample and the loaded WASM build hash.
+- Median batch-average update milliseconds, forced → normal: static
+  0.060 → 0.015; 1% changes 0.125 → 0.125; 10% 0.505 → 0.495;
+  100% 4.290 → 4.390. Dirty layouts show no extra benefit against a forced
+  property refresh, since both perform that work. P95 describes batch averages.
+- Running the existing integration suite exposed three async not.toThrow
+  assertions that did not await tick before deleting the registry; they logged
+  deleted-Registry errors while reporting success. Await the actual tick Promise,
+  verify root dimensions after one/sixty ticks, and fail on logged system errors
+  (App can catch them without rejecting tick). Seventeen real-WASM integration
+  and incremental-versus-fresh-registry tests now pass without system errors.
+- No runtime optimization is claimed. End-to-end frame timing, changed-subtree
+  scope optimization, shaping and device acceptance remain open; RM-009 remains
+  In Progress. No local Electron/native runner launched.

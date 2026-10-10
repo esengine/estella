@@ -8,7 +8,8 @@
  * Requires pre-built WASM at build/wasm/web/esengine.wasm.
  * Run `node build-tools/cli.js build -t web` first if missing.
  */
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
+import { log } from '../src/util/logger';
 import { App } from '../src/app/app';
 import { UINode, type UINodeData } from '../src/ui/core/ui-node';
 import { FlexContainer, type FlexContainerData } from '../src/ui/layout/flex';
@@ -92,6 +93,14 @@ function makeSprite(w = 100, h = 100) {
 describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => {
     let module: ESEngineModule;
 
+    beforeEach(() => { vi.spyOn(log, 'error'); });
+    afterEach(() => {
+        // App reports system errors rather than rejecting tick; they must fail
+        // this integration suite even when a Promise resolves successfully.
+        try { expect(log.error).not.toHaveBeenCalled(); }
+        finally { vi.restoreAllMocks(); }
+    });
+
     beforeAll(async () => {
         module = await loadWasmModule();
     });
@@ -158,7 +167,9 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
 
         setCanvasRect(app, -400, -300, 400, 300);
 
-        await expect(async () => await app.tick(1 / 60)).not.toThrow();
+        await expect(app.tick(1 / 60)).resolves.toBeUndefined();
+        expect(nodeW(registry, root)).toBeCloseTo(800, 3);
+        expect(nodeH(registry, root)).toBeCloseTo(600, 3);
 
         disposeApp(app, registry);
     });
@@ -267,8 +278,10 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
         setCanvasRect(app, -400, -300, 400, 300);
 
         for (let i = 0; i < 60; i++) {
-            await expect(async () => await app.tick(1 / 60)).not.toThrow();
+            await expect(app.tick(1 / 60)).resolves.toBeUndefined();
         }
+        expect(nodeW(registry, root)).toBeCloseTo(800, 3);
+        expect(nodeH(registry, root)).toBeCloseTo(600, 3);
 
         disposeApp(app, registry);
     });
@@ -285,7 +298,7 @@ describe.skipIf(!HAS_WASM)('UI Layout via App.tick() (WASM integration)', () => 
         const cam = app.getResource(UICameraInfo);
         cam.valid = false;
 
-        await expect(async () => await app.tick(1 / 60)).not.toThrow();
+        await expect(app.tick(1 / 60)).resolves.toBeUndefined();
 
         expect(nodeW(registry, root)).toBe(0);
 

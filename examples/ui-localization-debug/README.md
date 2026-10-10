@@ -153,3 +153,14 @@ exact submitted geometry outside timing and exposes raw paired samples and
 environment metadata. Statistics describe ten batch-average frame times, not
 individual-frame P95. A representative run is saved in
 `cache-cpu-web-2026-10-09.json`; timings vary with JIT and background load.
+
+For the real Yoga/WASM layout comparison, run `node tools/ui-layout-cpu-benchmark.mjs`
+and open `http://127.0.0.1:5197/__layout-cpu-benchmark`. It serves the existing
+editor WASM build and records its SHA-256. The fixture has one Canvas, twenty
+Flex rows and four hundred controls. It compares a correct manual dirty signal
+with forced property refresh; both retain Yoga nodes. Timings include component
+writes and one layout call, excluding App scheduling, Transform pass, text and
+GPU. Four update ratios and both width states compare all 421 nodes' local
+positions and computed dimensions. Raw paired data is in
+`layout-cpu-web-2026-10-09.json`. This does not benchmark a fresh Yoga rebuild;
+the incremental-layout SDK regression separately compares against fresh registries.
