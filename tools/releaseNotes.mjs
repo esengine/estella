@@ -28,6 +28,10 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(audio): stop all tracked voices during device disposal':
+    { note: 'Stopping editor Play stops game audio.' },
+  'fix(editor): release game audio on warm Play stop':
+    { note: 'Stopping editor Play stops game audio.' },
   'perf(i18n): cache bounded plain translations with invalidation':
     { note: 'Unchanged plain translations use a bounded cache.' },
   'fix(editor): stabilize camera previews and hidden authoring checks':

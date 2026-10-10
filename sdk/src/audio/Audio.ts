@@ -718,6 +718,11 @@ export class AudioAPI {
             this.bgmHandle_.stop();
             this.bgmHandle_ = null;
         }
+        // Scripted effects and AudioSource voices also belong to this device.
+        // Closing a Web Audio context alone leaves their handles marked playing,
+        // and a different backend may require explicit stops before disposal.
+        for (const voice of this.softVoices_) voice.handle.stop();
+        this.softVoices_ = [];
         for (const entry of this.bufferCache_.values()) {
             this.backend_?.unloadBuffer(entry.handle);
         }
