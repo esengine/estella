@@ -22,6 +22,8 @@ export interface TextInputOptions {
 
     value?: string;
     placeholder?: string;
+    /** Catalog key for the empty-field hint; requires a Localization resource. */
+    placeholderI18nKey?: string;
     fontFamily?: string;
     /** Default: the theme's label size. */
     fontSize?: number;
@@ -76,6 +78,7 @@ export function createTextInput(opts: TextInputOptions): TextInputHandle {
     world.insert(entity, TextInput, {
         value: opts.value ?? '',
         placeholder: opts.placeholder ?? '',
+        placeholderI18nKey: opts.placeholderI18nKey ?? '',
         placeholderColor: opts.placeholderColor ?? { ...c.text, a: c.text.a * 0.5 },
         fontFamily: opts.fontFamily ?? '',
         fontSize: opts.fontSize ?? themeType().label,

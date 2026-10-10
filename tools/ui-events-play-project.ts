@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // Disposable browser game script: reactions are driven by real UI clicks.
 import { addSystemToSchedule, defineSystem, Schedule, Res, GetWorld, UIEvents, Text, UINode, Transform, UIVisual, Interactable, Focusable, px, Input, FocusManager, UIDialog, UIDisplay, createTextInput, Name, TextInput, type TextInputHandle, type InputState, type FocusManagerState, type Entity, type UIEventQueue, type World } from 'esengine';
-import { LocalizationAPI, type TextData } from 'esengine';
+import { Localization, type LocalizationAPI, type TextData } from 'esengine';
 import { applyTextLocalization } from '../sdk/src/ui/text/localize';
 const installed = new WeakMap<World, () => void>();
-addSystemToSchedule(Schedule.Update, defineSystem([Res(UIEvents), GetWorld(), Res(Input), Res(FocusManager)], (events: UIEventQueue, world: World, input: InputState, focus: FocusManagerState) => {
+addSystemToSchedule(Schedule.Update, defineSystem([Res(UIEvents), GetWorld(), Res(Input), Res(FocusManager), Res(Localization)], (events: UIEventQueue, world: World, input: InputState, focus: FocusManagerState, locale: LocalizationAPI) => {
   const update = installed.get(world);
   if (update) { update(); return; }
   const inside = world.findEntityByName('Inside');
@@ -14,9 +14,8 @@ addSystemToSchedule(Schedule.Update, defineSystem([Res(UIEvents), GetWorld(), Re
   let count = 0, dynamic: Entity | null = null, dialogHost: Entity | null = null, nested: Entity | null = null;
   let textField: TextInputHandle | null = null;
   const restore = new Set<Entity>();
-  const locale = new LocalizationAPI();
-  locale.addCatalog('en', { caption: 'Settings' });
-  locale.addCatalog('zh', { caption: '设置' });
+  locale.addCatalog('en', { caption: 'Settings', hint: 'Your name' });
+  locale.addCatalog('zh', { caption: '设置', hint: '请输入姓名' });
   let localized = false, preview = false;
   const boundText = { getEntitiesWithComponents: () => [inside],
     get: (entity: Entity) => world.get(entity, Text),
@@ -33,7 +32,7 @@ addSystemToSchedule(Schedule.Update, defineSystem([Res(UIEvents), GetWorld(), Re
     if (input.isKeyPressed('KeyP') && localized) {
       preview = !preview; locale.setPseudoLocalization(preview ? { expansion: 1 } : null);
     }
-    if (input.isKeyPressed('KeyU') && localized) locale.addCatalog(locale.locale, { caption: 'Updated 更新' });
+    if (input.isKeyPressed('KeyU') && localized) locale.addCatalog(locale.locale, { caption: 'Updated 更新', hint: 'Updated hint 更新提示' });
     if (input.isKeyPressed('KeyK')) {
       const text = world.get(inside, Text);
       const first = text.content !== 'A|B';
@@ -50,7 +49,7 @@ addSystemToSchedule(Schedule.Update, defineSystem([Res(UIEvents), GetWorld(), Re
       else {
         textField = createTextInput({ world, events, parent: world.findEntityByName('Canvas')!,
           node: { position: 1, width: px(260), height: px(34), insetLeft: px(40), insetTop: px(420) },
-          placeholder: 'Type English / 中文', fontFamily: 'Arial', fontSize: 18, tabIndex: 3,
+          placeholder: 'Type English / 中文', placeholderI18nKey: 'hint', fontFamily: 'Arial', fontSize: 18, tabIndex: 3,
           onChange: value => world.insert(inside, Text, { ...world.get(inside, Text), content: `Input ${value}` }),
           onSubmit: value => world.insert(inside, Text, { ...world.get(inside, Text), content: `Submit ${value}` }),
         });

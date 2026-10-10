@@ -169,3 +169,25 @@ In the Play fixture, L enables caption binding and switches English/Chinese;
 P toggles length-stress preview and U replaces the active catalog entry.
 These shortcuts exercise the actual localization binding helper and rendered
 Text on Inside, including warmed-cache invalidation. Reopen Play to reset them.
+
+
+TextInput and createTextInput now accept optional `placeholderI18nKey`. With a
+Localization resource, an empty field resolves this key every frame through
+`t`; locale, catalog and preview updates apply immediately. A missing entry
+shows its key, matching Text binding; an intentionally empty translation stays
+empty. Without a resource or with an empty key, the literal placeholder is used.
+The authored placeholder, value and native editing state are not rewritten.
+Scene-authored placeholder bindings trigger runtime localization/table loading,
+including scenes with no localized Text. Dynamically created fields need the
+app's LocalizationPlugin already installed.
+
+The Play fixture includes a scene-authored Localized input. Its binding causes
+the production loader to install Localization; the fixture script supplies the
+English/Chinese catalogs. Start Play shows Your name, L shows 请输入姓名, P
+expands the hint and U replaces it with Updated hint 更新提示. Turn P off to
+read the updated hint. Click the field and type hello; click an empty game area
+and press L again: the caption switches language while hello remains. T-created
+inputs bind the same hint key. Shortcuts intentionally do not run while editing.
+This verifies the built SDK TextInput plugin in the actual Web/WASM Play host;
+it does not certify a device IME session or focus preservation during an
+application-triggered locale switch inside an active IME composition.
