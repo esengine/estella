@@ -242,14 +242,15 @@ export function sceneUses3DPhysics(sceneData: SceneData): boolean {
     return false;
 }
 
-/** True if any Text binds its content to a localization key — the scene needs
+/** True if any Text or TextInput hint binds to a localization key — the scene needs
  *  the Localization resource + the project's `.eslocale` tables to render as
  *  authored (an unbound key would show as the raw key string). */
 export function sceneUsesI18n(sceneData: SceneData): boolean {
     for (const entity of sceneData.entities ?? []) {
         for (const comp of entity.components ?? []) {
-            if (comp.type !== 'Text') continue;
-            const key = (comp.data as { i18nKey?: unknown } | undefined)?.i18nKey;
+            const data = comp.data as { i18nKey?: unknown; placeholderI18nKey?: unknown } | undefined;
+            const key = comp.type === 'Text' ? data?.i18nKey
+                : comp.type === 'TextInput' ? data?.placeholderI18nKey : undefined;
             if (typeof key === 'string' && key.length > 0) return true;
         }
     }
@@ -527,7 +528,7 @@ export async function prepareRuntimeScene(
         if (autoInstalled) app.addPlugin(new LocalizationPlugin());
         const tables = (source.listAssetPaths?.() ?? []).filter((p) => p.toLowerCase().endsWith('.eslocale'));
         if (tables.length === 0) {
-            log.warn('i18n', 'scene binds Text.i18nKey but this realm lists no .eslocale tables — keys will render raw');
+            log.warn('i18n', 'scene binds a localization key but this realm lists no .eslocale tables — keys will render raw');
         } else {
             await Promise.all(tables.map((p) => sceneAssets.loadLocaleTable(p).catch((e: unknown) => {
                 log.error('i18n', `locale table ${p} failed to load: ${e instanceof Error ? e.message : String(e)}`);

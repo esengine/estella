@@ -36,6 +36,7 @@ import { platformCreateTextEditor, platformDevicePixelRatio } from '../../platfo
 import { CURSOR_BLINK_INTERVAL, TEXT_INPUT_LINE_HEIGHT_RATIO } from '../util/constants';
 import { SystemLabel, PluginName } from '../../ecs/systemLabels';
 import { log } from '../../util/logger';
+import { Localization } from '../../i18n/Localization';
 
 /** Masking bullet for password fields. */
 const PASSWORD_CHAR = '●';
@@ -420,7 +421,8 @@ export class TextInputPlugin implements Plugin {
                         world.update(entity, TextInput, (d) => { d.cursorPos = sel.caret; });
                     }
 
-                    const disp = textFieldDisplay(val, ti.password, ti.placeholder, PASSWORD_CHAR);
+                    const disp = textFieldDisplay(val, ti.password, ti.placeholder, PASSWORD_CHAR,
+                        ti.placeholderI18nKey, app.hasResource(Localization) ? app.getResource(Localization) : undefined);
                     const atlas = ensureMeasure().atlas;
                     const family = resolveTextFamily(ti.font, ti.fontFamily);
                     const mw = (s: string): number => measureWidth(s, atlas, family, ti.fontSize, 0);

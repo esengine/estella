@@ -15,6 +15,8 @@ import {
     splitLines, caretLineCol, lineSelections, imeAnchorCss,
 } from '../src/ui/text/text-input-view';
 
+import { LocalizationAPI } from '../src/i18n/Localization';
+
 const BULLET = '●';
 
 describe('textFieldDisplay', () => {
@@ -213,5 +215,41 @@ describe('alignOffset', () => {
     it('survives a degenerate box', () => {
         expect(alignOffset(1, 0, 40)).toBe(0);
         expect(alignOffset(2, -10, 40)).toBe(0);
+    });
+});
+
+
+describe('localized placeholders', () => {
+    it('tracks locale, catalog and preview changes without rewriting authored data', () => {
+        const locale = new LocalizationAPI();
+        locale.addCatalog('en', { hint: 'Your name' });
+        locale.addCatalog('zh', { hint: '姓名' });
+        const field = { value: '', placeholder: 'Literal hint', focused: true, cursorPos: 0 };
+        const before = { ...field };
+        const display = () => textFieldDisplay(field.value, false, field.placeholder, BULLET, 'hint', locale);
+        expect(display()).toEqual({ text: 'Your name', isPlaceholder: true });
+        locale.setLocale('zh');
+        expect(display().text).toBe('姓名');
+        locale.addCatalog('zh', { hint: '请输入姓名' });
+        expect(display().text).toBe('请输入姓名');
+        locale.setPseudoLocalization({ expansion: 1 });
+        expect(display().text).toBe(locale.t('hint'));
+        expect(display().text).not.toBe('请输入姓名');
+        locale.setPseudoLocalization(null);
+        expect(display().text).toBe('请输入姓名');
+        expect(field).toEqual(before);
+    });
+    it('preserves literal hints without a resource/key and the normal missing-key contract', () => {
+        const locale = new LocalizationAPI();
+        locale.addCatalog('en', { hint: '' });
+        expect(textFieldDisplay('', false, 'Literal', BULLET, 'hint').text).toBe('Literal');
+        expect(textFieldDisplay('', false, 'Literal', BULLET, '', locale).text).toBe('Literal');
+        expect(textFieldDisplay('', false, 'Literal', BULLET, 'missing', locale).text).toBe('missing');
+        expect(textFieldDisplay('', false, 'Literal', BULLET, 'hint', locale).text).toBe('');
+    });
+    it('does not resolve hints over typed values or masked passwords', () => {
+        const locale = { t: () => { throw new Error('Nonempty values must not translate'); } };
+        expect(textFieldDisplay('hello 中文', false, 'Literal', BULLET, 'hint', locale)).toEqual({ text: 'hello 中文', isPlaceholder: false });
+        expect(textFieldDisplay('secret', true, 'Literal', BULLET, 'hint', locale)).toEqual({ text: BULLET.repeat(6), isPlaceholder: false });
     });
 });
