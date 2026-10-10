@@ -408,3 +408,25 @@ snapshot; live-game-only dialogs and scripts need runtime acceptance separately.
   16px depth steps, including Runtime dialog host and its Runtime button child.
 - Selecting the truncated Runtime dialog host shows its full name/path and
   real component values. Editor typecheck passes. No desktop runner launched.
+
+## Paired CPU cache measurement — 2026-10-09
+
+- Added a browser-only, reproducible measurement page using the real SDK
+  CanvasGlyphRasterizer, GlyphAtlas, SdfTextRenderer and submission interface.
+  An in-memory atlas store and submission sink deliberately exclude GPU/WASM.
+  This is a cache-on versus cache-cleared comparison, not a historical code
+  before/after comparison or a newly shipped runtime optimization.
+- Both paths use 200 identical bilingual labels, prewarmed glyphs and text
+  variants; ten paired batches of ten frames alternate execution order.
+  Exactly 0/2/20/200 labels change each frame. Exact vertex/index/entity geometry
+  comparison passes for all four cases, outside the timed section.
+- Built-in Chrome 155 on Windows, devicePixelRatio 1.25: median batch-average
+  frame milliseconds, rebuilt → cached: static 4.290 → 0.070; 1% changes
+  3.990 → 0.110; 10% 3.690 → 0.480; 100% 4.010 → 4.060.
+  All-changing text offers no measured cache benefit. Raw samples and execution
+  metadata are in cache-cpu-web-2026-10-09.json. P95 refers to batch averages;
+  it does not describe individual frame tail latency. No speed threshold.
+- GPU/WASM submission, Yoga reflow, end-to-end frame timing, SDF rasterization,
+  complex shaping and target devices remain unmeasured. Warm-up/JIT/background
+  load affect results; do not convert these ratios into a game FPS claim.
+  RM-009 remains In Progress. No local Electron/native runner launched.
