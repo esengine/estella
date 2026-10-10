@@ -1856,6 +1856,7 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
             "data": {
               "value": "",
               "placeholder": "Text…",
+              "placeholderI18nKey": "",
               "placeholderColor": {
                 "r": 0.92,
                 "g": 0.92,
