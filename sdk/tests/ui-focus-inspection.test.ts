@@ -97,3 +97,49 @@ it('keeps a visible modal active when a second modal is hierarchically hidden', 
     expect(inspectFocusTraversal(world).entries.map(e => [e.entity, e.skipped]))
         .toEqual([[background, 'outside-dialog'], [visible, null], [hidden, 'hidden']]);
 });
+
+it('restricts nested dialogs to the innermost visible subtree and restores the parent when closed', async () => {
+    const { app, module } = harness;
+    const world = app.world;
+    app.insertResource(Input, new InputState());
+    app.insertResource(UIEvents, new UIEventQueue());
+    focusPlugin.build(app);
+    flushPendingRegistrations(app);
+    const page = control(0), outer = control(1), nested = control(2), confirm = control(3);
+    world.insert(nested, Parent, { entity: outer });
+    world.insert(confirm, Parent, { entity: nested });
+    for (const root of [outer, nested]) {
+        world.insert(root, UIDialog);
+        world.insert(root, UINode, { display: UIDisplay.Flex });
+    }
+    let nestedHidden = false;
+    module.getUINodeHiddenInTree = (_registry: unknown, entity: Entity) => nestedHidden && [nested, confirm].includes(entity);
+    expect(inspectFocusTraversal(world).entries.map(e => e.skipped)).toEqual(['outside-dialog', 'outside-dialog', null, null]);
+    const input = app.getResource(Input);
+    input.keysPressed.add('Tab');
+    await app.tick(1 / 60);
+    expect(app.getResource(FocusManager).focusedEntity).toBe(nested);
+    input.keysPressed.clear();
+    nestedHidden = true;
+    await app.tick(1 / 60);
+    expect(app.getResource(FocusManager).focusedEntity).toBeNull();
+    expect(inspectFocusTraversal(world).entries.map(e => e.skipped)).toEqual(['outside-dialog', null, 'hidden', 'hidden']);
+    nestedHidden = false;
+    world.update(nested, UINode, node => { node.display = UIDisplay.None; });
+    expect(inspectFocusTraversal(world).entries.find(e => e.entity === outer)?.skipped).toBeNull();
+    world.remove(nested, UIDialog);
+    world.update(nested, UINode, node => { node.display = UIDisplay.Flex; });
+    expect(inspectFocusTraversal(world).entries.find(e => e.entity === outer)?.skipped).toBeNull();
+    expect(inspectFocusTraversal(world).entries.find(e => e.entity === page)?.skipped).toBe('outside-dialog');
+});
+
+it('retains independent dialog branches when one branch contains a nested dialog', () => {
+    const world = harness.app.world;
+    const outer = control(0), nested = control(1), sibling = control(2);
+    world.insert(nested, Parent, { entity: outer });
+    for (const root of [outer, nested, sibling]) {
+        world.insert(root, UIDialog);
+        world.insert(root, UINode, { display: UIDisplay.Flex });
+    }
+    expect(inspectFocusTraversal(world).entries.map(e => e.skipped)).toEqual(['outside-dialog', null, null]);
+});

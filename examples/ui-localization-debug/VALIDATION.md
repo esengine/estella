@@ -345,3 +345,22 @@ snapshot; live-game-only dialogs and scripts need runtime acceptance separately.
 - No Electron/native runner launched. This improves the UI debugging workflow;
   device IME/accessibility, modal stacking, shaping and cache performance remain
   separate acceptance items. RM-009 remains In Progress.
+
+## Nested modal focus — 2026-10-09
+
+- An open nested UIDialog now excludes its ancestor modal's other controls
+  from the focus ring. Hidden/closed nested dialogs restore the ancestor's
+  scope. Independent dialog branches retain the previous union policy;
+  sibling stacking order remains unresolved.
+- The new regression fails before the change: the outer dialog remains
+  eligible. After the fix, 31 targeted focus/quick-click tests pass, including
+  stale focus clearing, hidden/closed/removed nested dialog components, and
+  independent visible branches. SDK build and 16 source/built API checks pass.
+- Built-in browser, production Play host/SDK/WASM: click Inside, press N to
+  create the actual outer/nested UIDialog hierarchy. Focus shows one navigable
+  control and three outside-dialog controls (including Runtime button).
+  Tab/Shift+Tab focus Nested confirm. Enter despawns it; Tab returns to
+  Runtime button, while the two page controls stay outside the outer dialog.
+- No local Electron/native runner launched. Device IME/accessibility,
+  independent modal stacking, custom-scheme, shaping and cache performance
+  remain open. RM-009 and RM-008 are still the two unfinished 0.94.0 cards.
