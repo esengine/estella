@@ -14,7 +14,13 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.77.0] - 2026-10-10
+
 ### Added
+
+- **Text input hints can follow the game's language.** `TextInput` and `createTextInput` accept `placeholderI18nKey`. An empty field resolves the key through Localization and responds to locale, catalog and preview changes; typed values and authored literal placeholders remain intact. Placeholder-only scenes also load localization tables.
+
+- **The UI Debugger follows the live game.** Pick a UI element in Play and inspect its hierarchy, layout bounds, input settings, text input and dialog state. Mask diagnostics show ancestor masks and rectangular clipping. Focus inspection follows runtime controls and Tab traversal. Event recording observes actual entity dispatch, shows propagation paths, and keeps recording when switching debugger tabs.
 
 - UI text inspection and pseudolocalization previews. The editor can inspect
   computed text boxes, show overflow before clipping or ellipsis, and select
@@ -23,9 +29,31 @@ published separately; it ships inside the editor.
   and custom fonts are marked for visual review. The multilingual sample
   documents the scope and remaining platform checks.
 
+- **A selected camera has a preview without advancing gameplay.** The preview uses the authored camera, restores the editor view afterwards, and can be pinned or closed. Refreshes run at most once per second and slow down when recurring render/readback work is expensive; initial shader and target setup do not set the ongoing refresh budget.
+
+- **Tilemap edits can be reviewed before applying them.** Preview replacements over a selection or layer, inspect terrain-rule mismatches, and keep reusable stamps with the project. The `tilemap-workflows` example demonstrates the workflow. The platformer example also demonstrates stretchable nine-slice sprites.
+
+- **Device quality profiles can be previewed in the editor.** An opt-in policy selects low, medium or high settings from device information and project rules. Profiles control render scale, MSAA, shadows, particles and post-processing, with optional dynamic resolution. The default remains off; projects keep their authored quality until they opt in.
+
+### Changed
+
+- **Unchanged plain translations use a bounded cache.** Up to 256 parameter-free string translations are reused per Localization instance. Locale, fallback, catalog and preview changes invalidate the cache. Parameterized, plural and missing-key messages remain live.
+
+- **Gizmo controls keep a 2D scene easier to edit.** Detailed geometry defaults to selected entities, inactive handles no longer intercept ordinary scene interaction, and visibility and icon size are saved per project. The menu separates common controls from advanced types. New preview, tilemap and debugger controls use the editor's shared button and theme styles; text entities put content and layout first in the Inspector.
+
+- **Device reports can inspect prebuilt native apps.** Android frame reports no longer require hooks in a project's source, and native boot verification can run a supplied application without a packaging template.
+
+- **Full-editor MCP checks can run without showing windows.** `editor-mcp.mjs --editor --hidden` keeps the real authoring and Play surface available without a desktop window. Local authoring checks use this mode by default; CI uses its virtual desktop for OS-focus acceptance.
+
 ### Fixed
 
+- **Keyboard and pointer focus stay with eligible UI controls.** Web Tab traversal stays inside the game, nested modal dialogs constrain focus to the innermost modal, and hierarchically hidden dialogs no longer capture it. Hiding or disabling the focused control clears stale focus. A quick pointer press and release between frames still sets focus.
+
+- **Text cache entries respect overflow and parameter boundaries.** Changing clipping or ellipsis invalidates cached layout, and escaped localization parameters no longer collide with another parameter combination.
+
 - **A project that moves keeps answering its textures from its own cache.** The editor remembered where each compressed texture was kept as an absolute path, so a project copied elsewhere went on serving textures from the old folder, and from none once that was deleted. It is kept relative to the project now; a record written by 0.76.0 is still read.
+
+- **Release checks compare the content that ships.** Windows CRLF checkouts no longer appear to have stale generated bindings or baked scenes. Native-template verification compares the SDK hash embedded in bytecode instead of copy timestamps. First-screen timing presents the page before measuring browser paint, and gizmo checks explicitly choose the visibility they inspect. The tilemap workflow scene now ships in the current scene format.
 
 ## [0.76.0] - 2026-10-01
 
@@ -13822,7 +13850,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.76.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.77.0...HEAD
+[0.77.0]: https://github.com/esengine/estella/compare/v0.76.0...v0.77.0
 [0.76.0]: https://github.com/esengine/estella/compare/v0.75.0...v0.76.0
 [0.75.0]: https://github.com/esengine/estella/compare/v0.74.0...v0.75.0
 [0.74.0]: https://github.com/esengine/estella/compare/v0.73.0...v0.74.0

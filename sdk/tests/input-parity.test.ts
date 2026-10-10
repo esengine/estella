@@ -24,7 +24,7 @@ function recorder(): { callbacks: InputEventCallbacks; trace: Trace } {
     return {
         trace,
         callbacks: {
-            onKeyDown: (code) => trace.push(`keyDown ${code}`),
+            onKeyDown: (code) => { trace.push(`keyDown ${code}`); },
             onKeyUp: (code) => trace.push(`keyUp ${code}`),
             onPointerMove: (x, y) => trace.push(`pointerMove ${x},${y}`),
             onPointerDown: (b, x, y) => trace.push(`pointerDown ${b} ${x},${y}`),

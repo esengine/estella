@@ -90,6 +90,17 @@ export const CENSUS_FLOOR = '0.60.0';
  * that does not exist, and release notes are a different act. Theirs is ungated.
  */
 export const SHIPPED = {
+  // — 0.77.0 —
+  "Text input hints can follow the game's language":
+    { notCertifiable: 'no golden project authors a localized placeholder yet; sdk/tests/ui-text-input-view.test.ts holds placeholder localization and invalidation' },
+  'The UI Debugger follows the live game':
+    { notCertifiable: 'an editor inspection tool, not packaged game behaviour; desktop/tests/ui-debugger-data.test.ts and ui-debugger-events.test.tsx hold the runtime data and event recording' },
+  'A selected camera has a preview without advancing gameplay':
+    { notCertifiable: 'an editor surface; the camera-preview editor check holds Play pixel parity and recurring capture budget' },
+  'Tilemap edits can be reviewed before applying them':
+    { notCertifiable: 'an editor review surface, not packaged game behaviour; editor authoring checks hold tilemap operations before export' },
+  'Device quality profiles can be previewed in the editor':
+    { notCertifiable: 'an editor preview setting; the device-quality editor check and sdk/tests/quality-runtime.test.ts hold profile switching' },
   // — 0.76.0 —
   "A directional light can be the environment's sun":
     { notCertifiable: 'no golden project lights from an HDRI with a sun in it; pipeline/tests/environment-import.test.ts holds the sun found on import and the environment-sun editor check the light that follows it' },

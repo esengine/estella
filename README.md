@@ -125,6 +125,8 @@ Full documentation: [estellaengine.com/docs](https://estellaengine.com/docs)
 
 We welcome contributions! Please read the [Contributing Guide](CONTRIBUTING.md) before submitting a Pull Request.
 
+Maintainers: see the [release procedure](RELEASING.md) for candidate builds, acceptance evidence and publishing.
+
 ## License
 
 This repository — the engine runtime, the SDK, the asset pipeline, the CLI, the
