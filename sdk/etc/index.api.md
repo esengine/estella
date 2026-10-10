@@ -8523,6 +8523,7 @@ padding: number
 password: boolean
 placeholder: string
 placeholderColor: Color
+placeholderI18nKey: string | undefined
 readOnly: boolean
 renderMode: TextRenderMode
 textAlign: TextAlign
@@ -8555,6 +8556,7 @@ parent: number | undefined
 password: boolean | undefined
 placeholder: string | undefined
 placeholderColor: Color | undefined
+placeholderI18nKey: string | undefined
 readOnly: boolean | undefined
 renderMode: TextRenderMode | undefined
 tabIndex: number | undefined

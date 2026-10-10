@@ -91,6 +91,13 @@ describe('sceneUsesI18n', () => {
         entities: [{ id: 1, name: 'E', parent: null, children: [], components }],
     } as unknown as SceneData);
 
+    it('detects placeholder-only scenes and rejects unrelated or malformed bindings', () => {
+        expect(sceneUsesI18n(scene([{ type: 'TextInput', data: { placeholderI18nKey: 'hint' } }]))).toBe(true);
+        for (const data of [undefined, {}, { placeholderI18nKey: '' }, { placeholderI18nKey: 42 }, { i18nKey: 'hint' }])
+            expect(sceneUsesI18n(scene([{ type: 'TextInput', data }]))).toBe(false);
+        expect(sceneUsesI18n(scene([{ type: 'Sprite', data: { placeholderI18nKey: 'hint' } }]))).toBe(false);
+    });
+
     it('true only for a Text with a non-empty i18nKey', () => {
         expect(sceneUsesI18n(scene([{ type: 'Text', data: { i18nKey: 'menu.play' } }]))).toBe(true);
         expect(sceneUsesI18n(scene([{ type: 'Text', data: { i18nKey: '' } }]))).toBe(false);
