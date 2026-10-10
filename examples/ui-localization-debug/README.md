@@ -141,3 +141,15 @@ Visible may still be clipped by the fixture's actual ancestor mask.
 Press K twice while the game has focus to change Inside from `A|B` / `Arial`
 to `A` / `B|Arial`. Text and font family change together; the canvas must show
 only `A` after the second press. Elements → Inside → Text exposes both values.
+
+For a repeatable CPU cache comparison, run `node tools/ui-text-cache-benchmark.mjs`,
+open `http://127.0.0.1:5196/__text-cache-benchmark` in the built-in browser and
+press Run comparison. The same 200 bilingual labels run with the real SDK
+renderer cache retained or cleared each frame, at 0/1/10/100% update rates.
+The warmed Canvas bitmap atlas uses an in-memory page store and submission sink.
+This isolates CPU geometry/cache work; GPU uploads, WASM copies, Yoga reflow,
+complex shaping and full game-frame acceptance are excluded. The page checks
+exact submitted geometry outside timing and exposes raw paired samples and
+environment metadata. Statistics describe ten batch-average frame times, not
+individual-frame P95. A representative run is saved in
+`cache-cpu-web-2026-10-09.json`; timings vary with JIT and background load.
