@@ -12,6 +12,8 @@
  *          IME preedit, and native shift/Ctrl-A selection all land there).
  */
 
+import type { LocalizationAPI } from '../../i18n/Localization';
+
 export interface TextFieldDisplay {
     /** The glyph string to render: the value, the placeholder when empty, or a
      *  run of bullets when the field is a password. */
@@ -27,8 +29,13 @@ export function textFieldDisplay(
     password: boolean,
     placeholder: string,
     bullet: string,
+    placeholderI18nKey?: string,
+    localization?: Pick<LocalizationAPI, 't'>,
 ): TextFieldDisplay {
-    if (value.length === 0) return { text: placeholder, isPlaceholder: true };
+    if (value.length === 0) return {
+        text: placeholderI18nKey && localization ? localization.t(placeholderI18nKey) : placeholder,
+        isPlaceholder: true,
+    };
     return { text: password ? bullet.repeat(value.length) : value, isPlaceholder: false };
 }
 

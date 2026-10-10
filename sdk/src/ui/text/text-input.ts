@@ -7,6 +7,8 @@ import { TextAlign, TextRenderMode } from '../core/text';
 export interface TextInputData {
     value: string;
     placeholder: string;
+    /** Optional catalog key for the displayed hint. Does not change the value or authored placeholder. */
+    placeholderI18nKey?: string;
     placeholderColor: Color;
     /** A font asset the game SHIPS. When set it wins over {@link fontFamily},
      *  exactly as `Text.font` does — a field on a skinned panel is drawn in the
@@ -35,6 +37,7 @@ export interface TextInputData {
 export const TextInput = defineComponent<TextInputData>('TextInput', {
     value: '',
     placeholder: '',
+    placeholderI18nKey: '',
     placeholderColor: { r: 0.6, g: 0.6, b: 0.6, a: 1 },
     font: 0,
     fontFamily: '',
@@ -53,6 +56,7 @@ export const TextInput = defineComponent<TextInputData>('TextInput', {
 }, {
     assetFields: [{ field: 'font', type: 'font' }],
     fields: {
+        placeholderI18nKey: { label: 'Placeholder I18n Key', enumSource: 'localeKeys', tooltip: 'Translate the empty-field hint through the Localization resource. Leave empty for a literal placeholder.' },
         font: { label: 'Font', tooltip: 'A font file this project ships (.ttf / .otf). Overrides Font Family when set; leave empty to use a font the host already has.' },
         fontFamily: { tooltip: 'A font the HOST already has (system or page-loaded). Ignored when Font is set.' },
         textAlign: {

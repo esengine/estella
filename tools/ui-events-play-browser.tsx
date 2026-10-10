@@ -23,6 +23,15 @@ for (const entity of scene.entities) {
   if (['InnerMask', 'OuterMask', 'Canvas'].includes(entity.name))
     entity.components.push({ type: 'Interactable', data: { enabled: true, raycastTarget: false, blockRaycast: false } });
 }
+// A scene-authored binding exercises runtime self-installation before scripts run.
+scene.entities.push({ id: 100, name: 'Localized input', parent: 1, children: [], visible: true, components: [
+  { type: 'Transform', data: {} },
+  { type: 'UINode', data: { position: 1, width: { unit: 0, value: 320 }, height: { unit: 0, value: 34 }, insetLeft: { unit: 0, value: 40 }, insetTop: { unit: 0, value: 350 } } },
+  { type: 'TextInput', data: { placeholder: 'Authored hint', placeholderI18nKey: 'hint', fontFamily: 'Arial', fontSize: 18 } },
+  { type: 'Interactable', data: { enabled: true, raycastTarget: true, blockRaycast: true } },
+  { type: 'Focusable', data: { tabIndex: 4 } },
+] });
+scene.entities.find((entity: any) => entity.id === 1).children.push(100);
 function Fixture() {
   const realm = useSyncExternalStore(PlayRealm.subscribe, PlayRealm.getSnapshot);
   const selected = useSelection(state => state.selectedRef);
@@ -39,7 +48,7 @@ function Fixture() {
   return <main style={{ padding: 16, height: '100vh', display: 'flex', flexDirection: 'column', gap: 12 }}>
     <h2>UI Events · production Play realm browser verification</h2>
     <div><button onClick={() => void start()}>Start Play</button> <button onClick={() => { PlayInspect.stop(); PlayRealm.stop(); }}>Stop Play</button> <button onClick={() => setMounted(value => !value)}>Toggle panel</button> <button onClick={() => void inspect()}>Read runtime snapshot</button></div>
-    <small>Game keys: M opens a dialog; N opens a nested confirmation; R closes dialogs; D disables current focus; E restores controls; H hides the dialog parent; V shows it; O cycles text overflow; K changes text/font cache keys; T toggles a text input (outside text editing).</small>
+    <small>Game keys: M opens a dialog; N opens a nested confirmation; R closes dialogs; D disables current focus; E restores controls; H hides the dialog parent; V shows it; O cycles text overflow; K changes text/font cache keys; T toggles a text input; L switches language; P toggles expanded preview; U updates the active catalog (outside text editing).</small>
     <p role="status">{realm.playing ? 'Playing' : 'Stopped'} · {realm.ready ? 'Ready' : 'Not ready'} · {realm.error ?? ''}</p>
     <div style={{ display: 'flex', gap: 16, flex: 1, minHeight: 0 }}>
       <div style={{ width: 800, height: 600, flexShrink: 0 }} ref={attach} />
@@ -50,4 +59,3 @@ function Fixture() {
   </main>;
 }
 createRoot(document.getElementById('root')!).render(<Fixture />);
-
