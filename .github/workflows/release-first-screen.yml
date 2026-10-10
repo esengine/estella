@@ -1,0 +1,45 @@
+name: Release first screen
+on:
+  workflow_dispatch:
+    inputs:
+      artifact-run:
+        description: Run containing the web WASM artifact to measure
+        type: string
+        required: true
+permissions:
+  contents: read
+  actions: read
+jobs:
+  first-screen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - uses: ./.github/actions/editor-host
+      - name: Download the measured engine
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_RUN: ${{ inputs.artifact-run }}
+        run: gh run download "$ARTIFACT_RUN" --repo esengine/estella --name wasm-web --dir build/wasm/web
+      - name: Build SDK and export the first-screen subject
+        run: |
+          pnpm --filter ./sdk build
+          node pipeline/bin/estella.mjs export examples/input-actions --platform web --out out/first-screen
+      - name: Measure the presented start screen
+        run: |
+          node --input-type=module <<'JS'
+          import { runElectron } from './tools/lib/electronRun.mjs';
+          import { GOLDEN, firstScreenFor } from './tools/goldenProjects.mjs';
+          const g = GOLDEN.find(g => g.id === 'input-actions');
+          const claim = firstScreenFor(g);
+          const r = runElectron(['tools/launchers/launch-export.mjs', '--dir', 'out/first-screen',
+            '--boot', '--throttle', claim.link, '--timeout', '120000', '--settle', '10'],
+            { encoding: 'utf8', timeout: 150000 });
+          process.stdout.write(r.stdout || '');
+          process.stderr.write(r.stderr || '');
+          const match = /boot: (\{.*\})/.exec(r.stdout || '');
+          const boot = match ? JSON.parse(match[1]) : null;
+          if (r.status !== 0 || boot?.firstScreenMs == null || boot.firstScreenMs > claim.maxMs
+              || !boot.monotonic || boot.stillMs > claim.maxStillMs) process.exit(1);
+          JS

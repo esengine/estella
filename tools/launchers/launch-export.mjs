@@ -128,6 +128,11 @@ const BOOT_RECORDER = `(() => {
       .find((p) => p.name === 'first-contentful-paint');
     return {
       firstScreenMs: paint ? Math.round(paint.startTime) : null,
+      navigation: (() => {
+        const n = performance.getEntriesByType('navigation')[0];
+        return n ? { responseStart: n.responseStart, responseEnd: n.responseEnd,
+          domInteractive: n.domInteractive, domContentLoaded: n.domContentLoadedEventEnd } : null;
+      })(),
       firstFrameMs: firstFrame,
       marks,
     };
@@ -271,6 +276,12 @@ const SCENE = flag('scene', '');
     // A window that has never navigated answers no CDP command — `Page.enable`
     // simply never resolves. One blank document is enough to make it a page.
     await win.loadURL('about:blank');
+    if (BOOT) {
+      // Players navigate in an already-presented browser. Settle the virtual
+      // desktop compositor before navigation timing starts, not during it.
+      win.showInactive();
+      await win.webContents.capturePage();
+    }
     win.webContents.debugger.attach('1.3');
     await win.webContents.debugger.sendCommand('Page.enable');
     if (THROTTLE) {
@@ -294,7 +305,6 @@ const SCENE = flag('scene', '');
   // Paint Timing excludes a page hidden before its first contentful paint.
   // A boot measurement must present the page before navigation; background
   // throttling alone only keeps its JavaScript running. Do not steal focus.
-  if (BOOT) win.showInactive();
   await win.loadURL(base);
 
   // A boot measurement waits for the boot, not for a canvas with a size: the
