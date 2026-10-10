@@ -275,11 +275,14 @@ const SCENE = flag('scene', '');
   if (THROTTLE || BOOT) {
     // A window that has never navigated answers no CDP command — `Page.enable`
     // simply never resolves. One blank document is enough to make it a page.
-    await win.loadURL('about:blank');
+    if (BOOT) win.showInactive();
+    await win.loadURL(BOOT
+      ? 'data:text/html,<body style="font:14px system-ui;background:%230e121b;color:white">Estella</body>'
+      : 'about:blank');
     if (BOOT) {
       // Players navigate in an already-presented browser. Settle the virtual
       // desktop compositor before navigation timing starts, not during it.
-      win.showInactive();
+      await win.webContents.executeJavaScript('new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))');
       await win.webContents.capturePage();
     }
     win.webContents.debugger.attach('1.3');
