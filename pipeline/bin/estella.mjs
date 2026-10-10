@@ -469,17 +469,18 @@ async function bakeScene(baker, meta, sceneFile, check) {
       const importer = JSON.parse(readFileSync(`${atlasFile}.meta`, 'utf8')).importer ?? {};
       staleSettings = JSON.stringify(baker.claimedLightmapImporter(importer, result.size)) !== JSON.stringify(importer);
     }
-    const staleScene = readFileSync(sceneFile, 'utf8') !== document;
+    const readText = (file) => readFileSync(file, 'utf8').replace(/\r\n/g, '\n');
+    const staleScene = readText(sceneFile) !== document;
     const staleGrids = [...grids.values()].some((g) => {
       const file = path.join(sceneDir, g.name);
-      return !existsSync(file) || readFileSync(file, 'utf8') !== g.text;
+      return !existsSync(file) || readText(file) !== g.text;
     });
     const staleReflections = reflectionText != null && (
       !existsSync(reflectionFile)
       || Buffer.compare(readFileSync(reflectionFile),
                         Buffer.from(result.reflection.atlasBytes)) !== 0
       || !existsSync(reflectionDocFile)
-      || readFileSync(reflectionDocFile, 'utf8') !== reflectionText);
+      || readText(reflectionDocFile) !== reflectionText);
     if (staleAtlas || staleSettings || staleScene || staleGrids || staleReflections) {
       const what = [staleAtlas && 'the atlas', staleSettings && "the atlas's import settings", staleScene && 'the scene',
                     staleGrids && 'a probe grid',

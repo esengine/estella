@@ -30,7 +30,7 @@ const CORPUS = ['examples', 'templates', 'sdk/src', 'tools/fixtures'];
 /** Which fields carry an asset, read from the declaration rather than listed
  *  here: a list would be a second author, and it is the one that goes stale. */
 function assetFieldsByComponent() {
-  const gen = readFileSync(path.join(ROOT, 'sdk/src/ecs/component.generated.ts'), 'utf8');
+  const gen = readFileSync(path.join(ROOT, 'sdk/src/ecs/component.generated.ts'), 'utf8').replace(/\r\n/g, '\n');
   const entry = /^ {4}([A-Za-z0-9_]+): \{$/gm;
   const marks = [];
   let m;

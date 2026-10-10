@@ -28,6 +28,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { installedTemplateDir } from '../build-tools/utils/nativeTemplate.js';
 import { desktopExecutableIn } from '../build-tools/utils/desktopApp.js';
+import { bytecodeMatchesBundle } from './lib/nativeBytecode.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PROJECT = path.join(ROOT, 'fixtures', 'aot-conformance');
@@ -73,11 +74,12 @@ function newestSource(dir) {
 // run was started to find. Exactly that happened while sabotaging markChanged_.
 const bytecode = path.join(template, 'esengine.native.qjsbc');
 const bundle = path.join(ROOT, 'sdk', 'dist', 'index.native.bundled.js');
-const stale = !existsSync(bytecode) || !existsSync(bundle) ? null
+const stale = !existsSync(bytecode) || !existsSync(bundle)
+  ? { why: 'SDK bundle or template bytecode is missing', fix: `pnpm --filter ./sdk build && node build-tools/cli.js native --target ${os}` }
   : newestSource(path.join(ROOT, 'sdk', 'src')) > statSync(bundle).mtimeMs
     ? { why: 'sdk/dist is older than sdk/src', fix: 'pnpm --filter ./sdk build' }
-    : statSync(bundle).mtimeMs > statSync(bytecode).mtimeMs
-      ? { why: `the ${os} template embeds an older SDK than sdk/dist`,
+    : !bytecodeMatchesBundle(readFileSync(bytecode), readFileSync(bundle))
+      ? { why: `the ${os} template embeds a different SDK from sdk/dist`,
         fix: `node build-tools/cli.js native --target ${os}` }
       : null;
 if (stale) {

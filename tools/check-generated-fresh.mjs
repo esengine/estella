@@ -84,7 +84,8 @@ for (const file of emitted) {
     const rel = path.join(root[1], path.relative(root[0], file));
     const committed = path.join(ROOT, rel);
     if (!existsSync(committed)) { stale.push([rel, 'not committed at all']); continue; }
-    if (readFileSync(committed).equals(readFileSync(file))) continue;
+    // Git may check text out as CRLF; EHT always writes LF.
+    if (readFileSync(committed, 'utf8').replace(/\r\n/g, '\n') === readFileSync(file, 'utf8').replace(/\r\n/g, '\n')) continue;
     stale.push([rel, 'differs from what the generator produces now']);
 }
 rmSync(out, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });

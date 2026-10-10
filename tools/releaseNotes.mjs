@@ -28,6 +28,12 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'perf(i18n): cache bounded plain translations with invalidation':
+    { note: 'Unchanged plain translations use a bounded cache.' },
+  'fix(editor): stabilize camera previews and hidden authoring checks':
+    { note: 'A selected camera has a preview without advancing gameplay.' },
+  'fix(release): prepare v0.77.0 candidate and portable validation':
+    { note: 'Release checks compare the content that ships.' },
   'feat(build): the size panel says which budget each byte is on':
     { note: "The build's size panel marks which files are in a subpackage." },
 
@@ -1334,4 +1340,74 @@ export const NOTED = {
     { note: 'A project that moves keeps answering its textures from its own cache' },
   'fix(eht): the generator writes LF on every platform':
     { internal: 'The engine header tool is a repository generator; on Windows it rewrote every generated file with CRLF, which only a contributor there ever saw.' },
+
+  // v0.77.0: audited engine and editor changes.
+  "fix(tools): load production hierarchy button styles (#87)":
+    {"internal":"Loads shipped styles in a repository measurement harness; no production behavior changes."},
+  "fix(ui): escape text cache parameter boundaries (#86)":
+    {"note":"Text cache entries respect overflow and parameter boundaries."},
+  "fix(ui): invalidate text cache when overflow changes (#85)":
+    {"note":"Text cache entries respect overflow and parameter boundaries."},
+  "fix(ui): restrict nested dialog focus to inner modal (#84)":
+    {"note":"Keyboard and pointer focus stay with eligible UI controls."},
+  "fix(ui): retain quick-click edges for pointer focus (#81)":
+    {"note":"Keyboard and pointer focus stay with eligible UI controls."},
+  "fix(ui): exclude hierarchically hidden dialogs from focus scope (#80)":
+    {"note":"Keyboard and pointer focus stay with eligible UI controls."},
+  "fix(ui): clear focus when live navigation eligibility changes (#79)":
+    {"note":"Keyboard and pointer focus stay with eligible UI controls."},
+  "fix(ui): keep Web keyboard traversal in the game (#78)":
+    {"note":"Keyboard and pointer focus stay with eligible UI controls."},
+  "feat(events): expose immutable dispatch observations for UI debugger (#75)":
+    {"note":"The UI Debugger follows the live game."},
+  "fix: integrate less intrusive 2D gizmo interaction":
+    {"note":"Gizmo controls keep a 2D scene easier to edit."},
+  "feat: publish screen UI projection helpers for debugger picking":
+    {"note":"The UI Debugger follows the live game."},
+  "feat(ui): export mask mode and verify nested mask inspection":
+    {"note":"The UI Debugger follows the live game."},
+  "feat(ui): verify layout and input inspection in Web fixture (#73)":
+    {"note":"The UI Debugger follows the live game."},
+  "feat(ui): add pseudolocalization and text layout diagnostics":
+    {"note":"UI text inspection and pseudolocalization previews."},
+  "feat: render camera previews without advancing gameplay":
+    {"note":"A selected camera has a preview without advancing gameplay."},
+  "fix(editor): integrate selected-only gizmos and 2D priorities":
+    {"note":"Gizmo controls keep a 2D scene easier to edit."},
+  "fix: publish Android frame reports without source hooks":
+    {"note":"Device reports can inspect prebuilt native apps."},
+  "fix: verify prebuilt native apps without packaging templates":
+    {"note":"Device reports can inspect prebuilt native apps."},
+  "feat: add device quality policy and lighting validation":
+    {"note":"Device quality profiles can be previewed in the editor."},
+  "fix(editor): align UI debugger hierarchy rows (#17)":
+    {"note":"The UI Debugger follows the live game."},
+  "fix(editor): preserve event recording across debugger tabs (#16)":
+    {"note":"The UI Debugger follows the live game."},
+  "fix(editor): inspect text input and dialog components (#15)":
+    {"note":"The UI Debugger follows the live game."},
+  "feat(editor): inspect live runtime focus and Tab traversal (#14)":
+    {"note":"The UI Debugger follows the live game."},
+  "fix(editor): clarify event paths and filtered empty state (#13)":
+    {"note":"The UI Debugger follows the live game."},
+  "feat(editor): record actual entity event dispatch in UI debugger (#12)":
+    {"note":"The UI Debugger follows the live game."},
+  "fix: reduce gizmo clutter and inactive handle interception":
+    {"note":"Gizmo controls keep a 2D scene easier to edit."},
+  "feat: add UI debugger element picking and live inspection":
+    {"note":"The UI Debugger follows the live game."},
+  "feat(ui): diagnose ancestor masks and rectangular clipping":
+    {"note":"The UI Debugger follows the live game."},
+  "feat(ui): inspect layout bounds and input configuration (#10)":
+    {"note":"The UI Debugger follows the live game."},
+  "feat(ui): add localization preview and text overflow inspector":
+    {"note":"UI text inspection and pseudolocalization previews."},
+  "feat: add selected camera preview and editor acceptance checks":
+    {"note":"A selected camera has a preview without advancing gameplay."},
+  "fix(viewport): show detailed gizmos for selected entities":
+    {"note":"Gizmo controls keep a 2D scene easier to edit."},
+  "fix: test paired engine changes in editor CI":
+    {"internal":"Chooses the matching engine branch in editor CI; changes only contributor verification."},
+  "feat: preview device quality and stabilize lighting workflows":
+    {"note":"Device quality profiles can be previewed in the editor."},
 };

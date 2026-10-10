@@ -291,6 +291,10 @@ const SCENE = flag('scene', '');
     }
   }
 
+  // Paint Timing excludes a page hidden before its first contentful paint.
+  // A boot measurement must present the page before navigation; background
+  // throttling alone only keeps its JavaScript running. Do not steal focus.
+  if (BOOT) win.showInactive();
   await win.loadURL(base);
 
   // A boot measurement waits for the boot, not for a canvas with a size: the
