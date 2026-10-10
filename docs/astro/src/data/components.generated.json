@@ -4584,6 +4584,12 @@
           "default": "empty"
         },
         {
+          "key": "placeholderI18nKey",
+          "type": "enum (localeKeys)",
+          "default": "empty",
+          "doc": "Translate the empty-field hint through the Localization resource. Leave empty for a literal placeholder."
+        },
+        {
           "key": "placeholderColor",
           "type": "Color",
           "default": "#999999"
