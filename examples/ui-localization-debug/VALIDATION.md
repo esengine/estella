@@ -456,3 +456,20 @@ snapshot; live-game-only dialogs and scripts need runtime acceptance separately.
 - No runtime optimization is claimed. End-to-end frame timing, changed-subtree
   scope optimization, shaping and device acceptance remain open; RM-009 remains
   In Progress. No local Electron/native runner launched.
+
+## Plain translation cache — 2026-10-09
+
+- Cache up to 256 parameter-free plain-string translations per LocalizationAPI.
+  Language/fallback/catalog/preview edits clear the cache. Parameterized and
+  plural messages stay uncached, preserving live parameters, externally changed
+  plural forms and stateful selector behavior. Missing keys are not cached.
+- Before caching, unchanged pseudo-localized UI labels repeatedly expand the
+  same text every frame. Regression confirms 100 subsequent reads perform no
+  additional expansion; invalidation, bounded eviction, parameter and plural
+  behavior are covered. Twenty-five localization tests, SDK build and sixteen
+  source/built API checks pass. No historical timing or FPS improvement claimed.
+- Built-in browser Play host/SDK/WASM, actual Text binding helper: L switches
+  Inside to 设置, then Settings; P shows expanded preview; U replaces the entry
+  while preview is active; P restores Updated 更新. No stale translated label.
+- This does not complete shaping, whole-frame performance or target-device
+  acceptance. RM-009 stays In Progress. No Electron/native runner launched.

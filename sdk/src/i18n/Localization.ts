@@ -61,6 +61,7 @@ export class LocalizationAPI {
     private locale_: string;
     private fallback_: string;
     private pseudo_: PseudoLocalizationOptions | null = null;
+    private readonly plainCache_ = new Map<string, string>();
 
     constructor(locale = 'en', fallback = 'en') {
         this.locale_ = locale;
@@ -69,19 +70,21 @@ export class LocalizationAPI {
 
     /** Merge `entries` into a locale's catalog (later calls override keys). */
     addCatalog(locale: string, entries: LocaleCatalog): void {
+        this.plainCache_.clear();
         let m = this.catalogs.get(locale);
         if (!m) { m = new Map(); this.catalogs.set(locale, m); }
         for (const k of Object.keys(entries)) m.set(k, entries[k]);
     }
 
-    setLocale(locale: string): void { this.locale_ = locale; }
+    setLocale(locale: string): void { this.locale_ = locale; this.plainCache_.clear(); }
     get locale(): string { return this.locale_; }
 
-    setFallbackLocale(locale: string): void { this.fallback_ = locale; }
+    setFallbackLocale(locale: string): void { this.fallback_ = locale; this.plainCache_.clear(); }
     get fallbackLocale(): string { return this.fallback_; }
 
     /** Opt-in length stress preview. Pass null to restore ordinary translation. */
     setPseudoLocalization(options: PseudoLocalizationOptions | null): void {
+        this.plainCache_.clear();
         this.pseudo_ = options ? { ...options } : null;
     }
 
@@ -106,9 +109,21 @@ export class LocalizationAPI {
      * (a visible, greppable fallback) rather than throwing.
      */
     t(key: string, params?: TParams): string {
+        if (params === undefined) {
+            const cached = this.plainCache_.get(key);
+            if (cached !== undefined) return cached;
+        }
         const entry = this.lookup_(key);
         if (entry === undefined) return key;
-        if (typeof entry === 'string') return this.translate_(entry, params);
+        if (typeof entry === 'string') {
+            const translated = this.translate_(entry, params);
+            if (params === undefined) {
+                // Bound memory for projects that generate translation keys.
+                if (this.plainCache_.size >= 256) this.plainCache_.delete(this.plainCache_.keys().next().value!);
+                this.plainCache_.set(key, translated);
+            }
+            return translated;
+        }
         const count = typeof params?.count === 'number' ? params.count : 0;
         const selector = this.selectors.get(this.locale_) ?? defaultPluralSelector;
         return this.translate_(selectPluralForm(entry, count, selector), params);

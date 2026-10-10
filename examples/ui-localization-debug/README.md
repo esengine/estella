@@ -164,3 +164,8 @@ GPU. Four update ratios and both width states compare all 421 nodes' local
 positions and computed dimensions. Raw paired data is in
 `layout-cpu-web-2026-10-09.json`. This does not benchmark a fresh Yoga rebuild;
 the incremental-layout SDK regression separately compares against fresh registries.
+
+In the Play fixture, L enables caption binding and switches English/Chinese;
+P toggles length-stress preview and U replaces the active catalog entry.
+These shortcuts exercise the actual localization binding helper and rendered
+Text on Inside, including warmed-cache invalidation. Reopen Play to reset them.

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Disposable browser game script: reactions are driven by real UI clicks.
 import { addSystemToSchedule, defineSystem, Schedule, Res, GetWorld, UIEvents, Text, UINode, Transform, UIVisual, Interactable, Focusable, px, Input, FocusManager, UIDialog, UIDisplay, createTextInput, Name, TextInput, type TextInputHandle, type InputState, type FocusManagerState, type Entity, type UIEventQueue, type World } from 'esengine';
+import { LocalizationAPI, type TextData } from 'esengine';
+import { applyTextLocalization } from '../sdk/src/ui/text/localize';
 const installed = new WeakMap<World, () => void>();
 addSystemToSchedule(Schedule.Update, defineSystem([Res(UIEvents), GetWorld(), Res(Input), Res(FocusManager)], (events: UIEventQueue, world: World, input: InputState, focus: FocusManagerState) => {
   const update = installed.get(world);
@@ -12,9 +14,26 @@ addSystemToSchedule(Schedule.Update, defineSystem([Res(UIEvents), GetWorld(), Re
   let count = 0, dynamic: Entity | null = null, dialogHost: Entity | null = null, nested: Entity | null = null;
   let textField: TextInputHandle | null = null;
   const restore = new Set<Entity>();
+  const locale = new LocalizationAPI();
+  locale.addCatalog('en', { caption: 'Settings' });
+  locale.addCatalog('zh', { caption: '设置' });
+  let localized = false, preview = false;
+  const boundText = { getEntitiesWithComponents: () => [inside],
+    get: (entity: Entity) => world.get(entity, Text),
+    insert: (entity: Entity, _component: unknown, data: unknown) => world.insert(entity, Text, data as TextData) };
   installed.set(world, () => {
+    if (localized) applyTextLocalization(boundText, locale);
     // Fixture shortcuts must not react to letters typed into an engine field.
     if (focus.focusedEntity !== null && world.has(focus.focusedEntity, TextInput)) return;
+    if (input.isKeyPressed('KeyL')) {
+      localized = true;
+      world.insert(inside, Text, { ...world.get(inside, Text), i18nKey: 'caption' });
+      locale.setLocale(locale.locale === 'en' ? 'zh' : 'en');
+    }
+    if (input.isKeyPressed('KeyP') && localized) {
+      preview = !preview; locale.setPseudoLocalization(preview ? { expansion: 1 } : null);
+    }
+    if (input.isKeyPressed('KeyU') && localized) locale.addCatalog(locale.locale, { caption: 'Updated 更新' });
     if (input.isKeyPressed('KeyK')) {
       const text = world.get(inside, Text);
       const first = text.content !== 'A|B';
