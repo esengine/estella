@@ -295,6 +295,19 @@ describe('AudioAPI', () => {
     });
 
     describe('dispose', () => {
+        it('stops scripted and looping source voices before disposing the device', async () => {
+            await audio.preload('tone.wav');
+            const effect = createMockHandle(), source = createMockHandle();
+            const stopped: string[] = [];
+            effect.stop = vi.fn(() => { stopped.push('effect'); });
+            source.stop = vi.fn(() => { stopped.push('source'); });
+            backend.dispose = vi.fn(() => { stopped.push('device'); });
+            vi.mocked(backend.play).mockReturnValueOnce(effect).mockReturnValueOnce(source);
+            audio.playSFX('tone.wav');
+            audio.playBuffer(audio.getBufferHandle('tone.wav')!, { loop: true });
+            audio.dispose();
+            expect(stopped).toEqual(['effect', 'source', 'device']);
+        });
         it('should stop BGM and dispose backend', async () => {
             await audio.preload('bgm.mp3');
             const mockHandle = createMockHandle();

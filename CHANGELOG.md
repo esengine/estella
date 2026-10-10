@@ -14,6 +14,10 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Stopping editor Play stops game audio.** Single-player Stop now releases the game App and its plugins while keeping the engine renderer warm for re-Play. BGM and scripted/source voices are stopped, pending audio loads cannot resume playback, and a Stop during startup cancels the realm. This applies to both the editor UI and MCP (`set_play: stopped`).
+
 ## [0.77.0] - 2026-10-10
 
 ### Added
