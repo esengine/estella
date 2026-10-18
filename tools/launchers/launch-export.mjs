@@ -105,6 +105,8 @@ const LOG = flag('log', '');
 const THROTTLE = flag('throttle', '');
 /** Report when the first screen appeared and how its progress moved. */
 const BOOT = has('boot');
+/** Time this many frames once the game is up, and report their intervals. */
+const MEASURE_FRAMES = Number(flag('measure-frames', '0'));
 const logRe = LOG ? new RegExp(LOG, 'i') : null;
 
 /**
@@ -432,6 +434,27 @@ const SCENE = flag('scene', '');
     await new Promise((r) => setTimeout(r, hold + 200));
     return (await still()) >= 0;
   })();
+
+  // rAF intervals of the running game. The display paces them, so a frame
+  // cheaper than its refresh reads as the refresh; only slower ones are exact.
+  if (painted && MEASURE_FRAMES > 0) {
+    const ms = await win.webContents.executeJavaScript(`
+      new Promise((resolve) => {
+        const out = [];
+        let last = performance.now();
+        const tick = (t) => {
+          out.push(t - last);
+          last = t;
+          if (out.length > ${MEASURE_FRAMES}) return resolve(out.slice(1));
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      })
+    `).catch(() => []);
+    const sorted = [...ms].sort((a, b) => a - b);
+    const at = (q) => sorted.length ? sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))] : NaN;
+    console.log(`  frames: ${sorted.length} p50=${at(0.5).toFixed(2)}ms p90=${at(0.9).toFixed(2)}ms max=${at(1).toFixed(2)}ms`);
+  }
 
   const image = await captureFrame(win);
   if (OUT) await writeFile(OUT, image.toPNG());
