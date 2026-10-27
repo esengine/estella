@@ -76,7 +76,7 @@ u32 MaterialStore::meshProgram(u32 materialId, resource::ResourceManager& resour
     if (gbuffer) {
         const MaterialRecord* rec = find(materialId);
         const auto src = rec && rec->shaderRef.isValid() ? sources_.find(rec->shaderRef.id()) : sources_.end();
-        gbuffer = src != sources_.end() && src->second.source.find("ES_GBUFFER") != std::string::npos;
+        gbuffer = src != sources_.end() && src->second.mentionsGbuffer;
     }
     // Keyed by shader AND vertex shape: a layout may not declare an attribute its
     // shader ignores, so geometry with normals — or posed by bones — needs its own.
@@ -87,6 +87,18 @@ u32 MaterialStore::meshProgram(u32 materialId, resource::ResourceManager& resour
                     | (gbuffer ? (1ull << 38) : 0ull)
                     | (tangents && withNormals ? (1ull << 39) : 0ull)
                     | (tipPass ? (1ull << 40) : 0ull);
+    // A program already made for this shader and vertex shape is the answer, and almost every draw of a frame asks for one: it is looked up before
+    // the feature list is built, since building it (nine strings and the vector that holds them) was most of what a cached answer cost.
+    if (const MaterialRecord* rec = find(materialId); rec && rec->shaderRef.isValid()) {
+        if (const auto bucket = mesh_programs_.find(rec->shaderRef.id()); bucket != mesh_programs_.end()) {
+            if (const auto hit = bucket->second.find(shape); hit != bucket->second.end()) {
+                const Shader* shader = resources.getShader(hit->second);
+                const u32 cached = shader ? shader->getProgramId() : 0;
+                if (gbuffer && cached != 0) gbuffer_programs_.insert(cached);
+                return cached;
+            }
+        }
+    }
     std::vector<std::string> features{ "MESH" };
     if (withNormals) features.push_back("MESH_NORMALS");
     if (skinned) features.push_back("SKINNED");

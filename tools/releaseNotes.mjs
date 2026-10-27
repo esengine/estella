@@ -3020,4 +3020,6 @@ export const NOTED = {
     {"note":"A blank mini-game package no longer carries terrain and water."},
   "perf(ecs): one stable sort for every component type, 239KB off the engine wasm":
     {"note":"The engine's wasm is 239KB smaller, with no change to what it does."},
+  "perf(render): a mesh draw finds its cached program without searching shader source":
+    {"note":"A mesh draw no longer searches its shader's source or rebuilds a feature list"},
 };

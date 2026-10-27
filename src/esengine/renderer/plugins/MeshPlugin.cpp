@@ -1190,6 +1190,32 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         profiler.add("render.collect.mesh.bounds", phase[2]);
         profiler.add("render.collect.mesh.program", phase[3]);
         profiler.add("render.collect.mesh.emit", phase[4]);
+        // Which pass walked, how many times, and what the walk cost it: the same meshes are visited once per view of the frame, and the
+        // total above cannot say which view the time belongs to.
+        // The profiler keeps the name pointer, so these are literals, one set per purpose.
+        const f64 spent = phase[0] + phase[1] + phase[2] + phase[3] + phase[4];
+        switch (ctx.purpose) {
+            case RenderPurpose::Scene:
+                profiler.add("render.collect.mesh.scene.walks", 1.0);
+                profiler.add("render.collect.mesh.scene.visits", static_cast<f64>(walked));
+                profiler.add("render.collect.mesh.scene.ms", spent);
+                break;
+            case RenderPurpose::ShadowDepth:
+                profiler.add("render.collect.mesh.depth.walks", 1.0);
+                profiler.add("render.collect.mesh.depth.visits", static_cast<f64>(walked));
+                profiler.add("render.collect.mesh.depth.ms", spent);
+                break;
+            case RenderPurpose::Motion:
+                profiler.add("render.collect.mesh.motion.walks", 1.0);
+                profiler.add("render.collect.mesh.motion.visits", static_cast<f64>(walked));
+                profiler.add("render.collect.mesh.motion.ms", spent);
+                break;
+            default:
+                profiler.add("render.collect.mesh.other.walks", 1.0);
+                profiler.add("render.collect.mesh.other.visits", static_cast<f64>(walked));
+                profiler.add("render.collect.mesh.other.ms", spent);
+                break;
+        }
     }
     // The counts beside the time, because a phase that grew and one whose UNIT
     // cost grew are different problems and the milliseconds cannot tell them

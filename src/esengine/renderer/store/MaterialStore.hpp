@@ -198,7 +198,10 @@ public:
     /// be compiled for another vertex source later. Without it the store holds only
     /// the assembled program and a variant would need the author's file again.
     void rememberSource(resource::ShaderHandle shader, std::string source, std::string features) {
-        if (shader.isValid()) sources_[shader.id()] = { std::move(source), std::move(features) };
+        if (shader.isValid()) {
+            const bool mentionsGbuffer = source.find("ES_GBUFFER") != std::string::npos;
+            sources_[shader.id()] = { std::move(source), std::move(features), mentionsGbuffer };
+        }
     }
 
     /// The program that draws @p materialId on resident geometry of this shape, compiled
@@ -446,6 +449,9 @@ private:
     struct ShaderSource {
         std::string source;
         std::string features;
+        /// Whether the source mentions ES_GBUFFER, found once when it is stored: the mesh path asks it for every draw, and the answer was a
+        /// substring search through the whole text each time.
+        bool mentionsGbuffer = false;
     };
     std::unordered_map<u32, ShaderSource> sources_;
     /// (Handle, vertex source) → the program compiled for it (0 = tried and
