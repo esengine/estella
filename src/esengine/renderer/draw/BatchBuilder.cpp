@@ -97,7 +97,10 @@ void pushBatchDraw(DrawList& drawList, const ClipState& clips,
         ? DrawCommand::buildSortKeyYSorted(stage, layer, key.y, key.shaderId,
                                            key.blend, 0, order)
         : DrawCommand::buildSortKey(stage, layer, key.shaderId,
-                                    key.blend, 0, key.depth, key.materialId, order);
+                                    key.blend, 0, key.depth, key.materialId, order,
+                                    key.instanceCount != 0 && key.vertexBuffer != BufferHandle::Invalid
+                                        ? (static_cast<u32>(key.vertexBuffer) * 2654435761u) >> 24 | 1u
+                                        : 0u);
     // Inside a group the member's own order is all that separates siblings. Under a NESTED
     // group it is the inner group's instead — a block does not come apart around another
     // block's contents.

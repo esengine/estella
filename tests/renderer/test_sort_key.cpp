@@ -4,6 +4,7 @@
 
 #include "esengine/renderer/draw/DrawCommand.hpp"
 
+#include <algorithm>
 #include <cstdio>
 
 using namespace esengine;
@@ -124,6 +125,18 @@ int main() {
               "the outside bit alone turns nothing on");
         CHECK(stencilModeOf(CMD_STATE_SCISSOR) == GfxStencilMode::Off,
               "a scissored draw is not a stencilled one");
+    }
+
+    // An instanced mesh draw sorts by its geometry inside a material, so two meshes sharing one do not alternate by depth.
+    {
+        auto mesh = [](u32 geometry, f32 depth) {
+            return DrawCommand::buildSortKey(RenderStage::Opaque, 0, 3, BlendMode::None, 0, depth, 9, 0, geometry);
+        };
+        const u64 a1 = mesh(5, 1.0f), a2 = mesh(5, 40.0f), b1 = mesh(7, 2.0f), b2 = mesh(7, 30.0f);
+        CHECK(std::max(a1, a2) < std::min(b1, b2), "draws of one mesh sit together, whatever their depths");
+        CHECK(mesh(5, 1.0f) != mesh(5, 40.0f), "depth still orders within a mesh");
+        CHECK((mesh(5, 1.0f) >> 14) == (mesh(7, 1.0f) >> 14), "geometry stays below the material field");
+        CHECK(mesh(0, 1.0f) == opaque(0, 0, 1.0f, 3, 9), "no geometry leaves the key as it was");
     }
 
     std::printf(g_failures ? "\n%d check(s) failed\n" : "\nall checks passed\n", g_failures);

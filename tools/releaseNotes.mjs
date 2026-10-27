@@ -3034,4 +3034,6 @@ export const NOTED = {
     {"note":"Writing one material uniform sends that one value"},
   "perf(render): the GL device skips state sets and uniform-buffer binds the context already holds":
     {"note":"The GL device skips state sets the context already holds"},
+  "perf(render): instanced meshes that share a material draw together and merge":
+    {"note":"Instanced meshes that share a material draw together and merge"},
 };

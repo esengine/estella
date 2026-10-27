@@ -196,7 +196,7 @@ struct DrawCommand {
     // material groups first and depth breaks ties. Interleaved orders cost early-z.
 
     // [63:48] layer | [47:40] order | [39:38] stage, then 38 bits the stage decides:
-    //   opaque   [37:30] shader | [29:27] blend | [26:25] flags | [24:14] material | [13:0] depth
+    //   opaque   [37:30] shader | [29:27] blend | [26:25] flags | [24:14] material | [13:0] depth (or [13:6] geometry | [5:0] depth)
     //   blended  [37:18] depth  | [17:10] shader | [9:7] blend  | [6:5] flags | [4:0] material
 
     // A SortingGroup owns [63:40] for its members; [37:30] then carries the member's own
@@ -211,9 +211,13 @@ struct DrawCommand {
     static_assert(static_cast<u32>(RenderStage::Overlay) <= 3,
                   "RenderStage outgrew the sort key's 2-bit field — re-lay the key out");
 
+    // `geometry`, when nonzero, is a hash of the mesh an instanced opaque draw repeats. It takes the top bits of the opaque depth field, so draws
+    // of one mesh that share a material sort together and merge into one instanced draw rather than alternating with another mesh's by depth. A
+    // batching hint like the material: a collision costs a merge, never a wrong draw. Opaque draws are order-independent, so only the coarse
+    // front-to-back order inside a mesh's run is spent.
     static u64 buildSortKey(RenderStage stage, i32 layer, u32 shaderId,
                             BlendMode blend, u16 stateFlags, f32 depth, u32 materialId = 0,
-                            i32 order = 0) {
+                            i32 order = 0, u32 geometry = 0) {
         i32 normalizedLayer = std::clamp(layer + 32768, 0, 65535);
         u64 layerKey = static_cast<u64>(normalizedLayer & 0xFFFF) << 48;
 
@@ -236,12 +240,15 @@ struct DrawCommand {
                  | (static_cast<u64>(stateFlags & 0x03) << 5)
                  | (static_cast<u64>(materialId) & 0x1F);
         }
+        const u64 depthField = geometry != 0
+            ? (static_cast<u64>(geometry & 0xFF) << 6) | static_cast<u64>(orderedDepth >> 26)
+            : static_cast<u64>(orderedDepth >> 18);
         return layerKey | orderBits(order) | stageKey
              | (static_cast<u64>(shaderId & 0xFF) << 30)
              | (blendBits(blend) << 27)
              | (static_cast<u64>(stateFlags & 0x03) << 25)
              | ((static_cast<u64>(materialId) & 0x7FF) << 14)
-             | static_cast<u64>(orderedDepth >> 18);
+             | depthField;
     }
 
     /** @brief The blend field, 3 bits wide wherever it appears.
