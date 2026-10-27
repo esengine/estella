@@ -61,6 +61,31 @@ out vec4 fragColor;
 ${SSAO_GLSL}
 ${GLSL}
 
+/// The history at a uv, by a Catmull-Rom fit in five taps. A bilinear fetch at a fractional offset blurs the picture a little, and every frame
+/// resamples the frame before it, so the blur accumulates: the softness of a temporal pass and the smear of a moving one.
+vec3 historyBicubic(vec2 uv) {
+    vec2 texSize = vec2(textureSize(u_history, 0));
+    vec2 samplePos = uv * texSize;
+    vec2 tc1 = floor(samplePos - 0.5) + 0.5;
+    vec2 f = samplePos - tc1;
+    vec2 w0 = f * (-0.5 + f * (1.0 - 0.5 * f));
+    vec2 w1 = 1.0 + f * f * (-2.5 + 1.5 * f);
+    vec2 w2 = f * (0.5 + f * (2.0 - 1.5 * f));
+    vec2 w3 = f * f * (-0.5 + 0.5 * f);
+    vec2 w12 = w1 + w2;
+    vec2 tc0 = (tc1 - 1.0) / texSize;
+    vec2 tc3 = (tc1 + 2.0) / texSize;
+    vec2 tc12 = (tc1 + w2 / w12) / texSize;
+    vec3 sum = texture(u_history, vec2(tc12.x, tc0.y)).rgb * (w12.x * w0.y)
+             + texture(u_history, vec2(tc0.x, tc12.y)).rgb * (w0.x * w12.y)
+             + texture(u_history, vec2(tc12.x, tc12.y)).rgb * (w12.x * w12.y)
+             + texture(u_history, vec2(tc3.x, tc12.y)).rgb * (w3.x * w12.y)
+             + texture(u_history, vec2(tc12.x, tc3.y)).rgb * (w12.x * w3.y);
+    float weight = w12.x * w0.y + w0.x * w12.y + w12.x * w12.y + w3.x * w12.y + w12.x * w3.y;
+    // The lobes on either side of the fit are negative, so a bright texel beside a dark one overshoots: no light below black.
+    return max(sum / weight, vec3(0.0));
+}
+
 void main() {
     ivec2 size = textureSize(u_texture, 0);
     vec2 texel = 1.0 / vec2(size);
@@ -101,7 +126,7 @@ void main() {
              && puv.x >= 0.0 && puv.x <= 1.0 && puv.y >= 0.0 && puv.y <= 1.0;
     if (!seen) { fragColor = cur; return; }
 
-    vec3 hist = toYCoCg(compress(texture(u_history, puv).rgb));
+    vec3 hist = toYCoCg(compress(historyBicubic(puv)));
     // Pulled toward the neighbourhood's mean until it sits inside the box the
     // current frame spans: what it clips is what no longer matches.
     vec3 lo = mean - sigma * 1.25;
@@ -121,6 +146,29 @@ void main() {
 #pragma fragment wgsl
 ${SSAO_WGSL}
 ${WGSL}
+
+// See the GLSL twin: the history by a Catmull-Rom fit in five taps, not one bilinear fetch.
+fn historyBicubic(uv : vec2f) -> vec3f {
+    let texSize = vec2f(textureDimensions(u_history, 0));
+    let samplePos = uv * texSize;
+    let tc1 = floor(samplePos - 0.5) + 0.5;
+    let f = samplePos - tc1;
+    let w0 = f * (-0.5 + f * (1.0 - 0.5 * f));
+    let w1 = 1.0 + f * f * (-2.5 + 1.5 * f);
+    let w2 = f * (0.5 + f * (2.0 - 1.5 * f));
+    let w3 = f * f * (-0.5 + 0.5 * f);
+    let w12 = w1 + w2;
+    let tc0 = (tc1 - 1.0) / texSize;
+    let tc3 = (tc1 + 2.0) / texSize;
+    let tc12 = (tc1 + w2 / w12) / texSize;
+    let sum = textureSampleLevel(u_history, u_history_s, vec2f(tc12.x, tc0.y), 0.0).rgb * (w12.x * w0.y)
+            + textureSampleLevel(u_history, u_history_s, vec2f(tc0.x, tc12.y), 0.0).rgb * (w0.x * w12.y)
+            + textureSampleLevel(u_history, u_history_s, vec2f(tc12.x, tc12.y), 0.0).rgb * (w12.x * w12.y)
+            + textureSampleLevel(u_history, u_history_s, vec2f(tc3.x, tc12.y), 0.0).rgb * (w3.x * w12.y)
+            + textureSampleLevel(u_history, u_history_s, vec2f(tc12.x, tc3.y), 0.0).rgb * (w12.x * w3.y);
+    let weight = w12.x * w0.y + w0.x * w12.y + w12.x * w12.y + w3.x * w12.y + w12.x * w3.y;
+    return max(sum / weight, vec3f(0.0));
+}
 
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
     let size = vec2i(textureDimensions(t0, 0));
@@ -162,7 +210,7 @@ ${WGSL}
             && puv.x >= 0.0 && puv.x <= 1.0 && puv.y >= 0.0 && puv.y <= 1.0;
     if (!seen) { return cur; }
 
-    var hist = toYCoCg(compress(textureSampleLevel(u_history, u_history_s, puv, 0.0).rgb));
+    var hist = toYCoCg(compress(historyBicubic(puv)));
     let lo = mean - sigma * 1.25;
     let hi = mean + sigma * 1.25;
     let dir = hist - mean;

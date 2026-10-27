@@ -32,7 +32,8 @@ export function installQuality(app: App, config: QualityConfig, authoredMsaa: nu
         applied = quality.profile;
         enabled = quality.enabled;
         const api = engineApi(app);
-        api?.postprocess_setMsaaSamples?.(enabled ? applied.msaaSamples : authoredMsaa);
+        // Temporal anti-aliasing is the one smoothing there is: a multisampled target under it would be paid for and resolved for nothing.
+        api?.postprocess_setMsaaSamples?.(enabled ? (applied.antialiasing === 'temporal' ? 1 : applied.msaaSamples) : authoredMsaa);
         const budgets = api?.renderer_setQualityBudgets;
         quality.setLimitation('quality-budgets-unavailable', enabled && !budgets);
         budgets?.(enabled ? applied.shadowAtlasSize : 2048,

@@ -15,6 +15,14 @@ export interface QualityProfile {
     renderScale: number;
     minRenderScale: number;
     msaaSamples: 1 | 2 | 4 | 8;
+    /**
+     * How the edges of the picture are smoothed. `msaa` is the multisampling above (plus an FXAA pass where the scene has one). `temporal` draws
+     * at one sample and lets the `taa` pass do it from the frames before: it costs a tenth of a millisecond at 1080p where four samples cost three
+     * and two cost over one, and in return the picture is somewhat softer, a cut-out leaf has no coverage dither and a surface that moves by itself
+     * without a motion vector (water) smears a little while the camera moves. The level takes the `taa` pass whether or not the scene's volume
+     * lists it, and leaves `fxaa` out; it needs a post-process volume on the camera.
+     */
+    antialiasing: 'msaa' | 'temporal';
     shadowAtlasSize: number;
     shadowCellSize: number;
     /**
@@ -101,7 +109,7 @@ export interface QualityConfig {
 const LEVELS: readonly QualityLevel[] = ['low', 'medium', 'high'];
 const PROFILES: Record<QualityLevel, QualityProfile> = {
     low: {
-        renderScale: 0.75, minRenderScale: 0.5, msaaSamples: 1,
+        renderScale: 0.75, minRenderScale: 0.5, msaaSamples: 1, antialiasing: 'msaa',
         shadowAtlasSize: 1024, shadowCellSize: 256, shadowCascades: 2,
         planarReflectionScale: 0.25, planarReflectionMaxSize: 512, planarReflectionUpdatesPerSecond: 0, depthPrepass: false,
         shadowDistance: 0, detailScale: 0.5, particleLimit: 1000, postProcess: true, ssao: false,
@@ -109,7 +117,7 @@ const PROFILES: Record<QualityLevel, QualityProfile> = {
         skipEffects: ['ssr', 'taa', 'depthOfField', 'lightShafts', 'motionBlur', 'lensFlare', 'gtao', 'subsurface', 'voxelGI'],
     },
     medium: {
-        renderScale: 1, minRenderScale: 0.65, msaaSamples: 2,
+        renderScale: 1, minRenderScale: 0.65, msaaSamples: 2, antialiasing: 'msaa',
         shadowAtlasSize: 2048, shadowCellSize: 512, shadowCascades: 3,
         planarReflectionScale: 0.5, planarReflectionMaxSize: 1024, planarReflectionUpdatesPerSecond: 0, depthPrepass: true,
         shadowDistance: 0, detailScale: 0.8, particleLimit: 5000, postProcess: true, ssao: true,
@@ -117,7 +125,7 @@ const PROFILES: Record<QualityLevel, QualityProfile> = {
         skipEffects: ['ssr', 'depthOfField'],
     },
     high: {
-        renderScale: 1, minRenderScale: 0.75, msaaSamples: 4,
+        renderScale: 1, minRenderScale: 0.75, msaaSamples: 4, antialiasing: 'msaa',
         // A face is millimetres of relief: at 512 texels a cascade, a skin-hugging card (a brow, a hairline) falls inside one texel of the skin and the
         // shadow speckles it with dirt. 1024 is the cell that clears it for a character at arm's length.
         shadowAtlasSize: 4096, shadowCellSize: 1024, shadowCascades: 4,
@@ -192,6 +200,7 @@ function resolveProfile(level: QualityLevel, value: unknown): QualityProfile {
             0.25, renderScale),
         msaaSamples: [1, 2, 4, 8].includes(r.msaaSamples as number)
             ? r.msaaSamples as QualityProfile['msaaSamples'] : base.msaaSamples,
+        antialiasing: r.antialiasing === 'msaa' || r.antialiasing === 'temporal' ? r.antialiasing : base.antialiasing,
         shadowAtlasSize: atlas,
         shadowCellSize: Math.min(cell, atlas / 2),
         shadowCascades: Math.round(finite(r.shadowCascades, base.shadowCascades, 1, 4)),

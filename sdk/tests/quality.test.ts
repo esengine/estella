@@ -147,6 +147,32 @@ describe('what a quality level lets the chain run', () => {
     });
 });
 
+describe('temporal anti-aliasing as the smoothing of a level', () => {
+    const temporal = (level: 'low' | 'medium' | 'high') => new QualityController({
+        mode: level, profiles: { [level]: { antialiasing: 'temporal' } },
+    }).profile;
+
+    it('is off in every level until a project asks, and parses only the two names', () => {
+        for (const level of ['low', 'medium', 'high'] as const) {
+            expect(new QualityController({ mode: level }).profile.antialiasing, level).toBe('msaa');
+        }
+        const odd = new QualityController({ mode: 'high', profiles: { high: { antialiasing: 'fxaa' as never } } }).profile;
+        expect(odd.antialiasing).toBe('msaa');
+        expect(temporal('medium').antialiasing).toBe('temporal');
+    });
+
+    it('runs the taa pass even where the level skips it, and leaves fxaa out', async () => {
+        const { qualityPassAllowed } = await import('../src/postprocess/qualityFilter');
+        // Low skips `taa` for the cost of everything that needs it: a project that asks for temporal smoothing there has said it wants it.
+        expect(qualityPassAllowed(new QualityController({ mode: 'low' }).profile, 'taa')).toBe(false);
+        expect(qualityPassAllowed(temporal('low'), 'taa')).toBe(true);
+        expect(qualityPassAllowed(temporal('medium'), 'fxaa')).toBe(false);
+        expect(qualityPassAllowed(new QualityController({ mode: 'medium' }).profile, 'fxaa')).toBe(true);
+        // Nothing else changes.
+        expect(qualityPassAllowed(temporal('medium'), 'bloom_extract')).toBe(true);
+    });
+});
+
 describe('how far plants keep their detail', () => {
     it('is a share of a plant\'s distances that falls with the level, and a project may set it', () => {
         const share = (mode: 'low' | 'medium' | 'high', detailScale?: unknown) =>

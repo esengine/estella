@@ -16,6 +16,11 @@ export function qualityPassAllowed(profile: Readonly<QualityProfile> | null, pas
     if (profile === null) return true;
     if (!profile.postProcess) return false;
     const name = passName.toLowerCase();
+    // Temporal anti-aliasing is the level's smoothing: its pass runs whatever the level skips, and FXAA, which would soften what it has settled, does not.
+    if (profile.antialiasing === 'temporal') {
+        if (effectPassNames('taa').some((pass) => pass.toLowerCase() === name)) return true;
+        if (effectPassNames('fxaa').some((pass) => pass.toLowerCase() === name)) return false;
+    }
     // The profile's own switch for ambient occlusion governs both estimators: it was written for the one and means the other.
     if (!profile.ssao && ['ssao', 'gtao'].some((type) => effectPassNames(type).some((pass) => pass.toLowerCase() === name))) return false;
     for (const skipped of profile.skipEffects) {

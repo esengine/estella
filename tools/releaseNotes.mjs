@@ -3090,4 +3090,8 @@ export const NOTED = {
     {"note":"Fewer GL calls when a draw changes buffer"},
   "fix(render): the sky's clouds are worked out at half size again":
     {"internal":"Undoes the quarter-size clouds, which showed a coarse checkerboard in the cloud and streaks near the horizon."},
+  "feat(render): a quality level can smooth edges temporally":
+    {"note":"A quality level can smooth edges temporally."},
+  "perf(render): the temporal anti-aliasing pass samples its history with a Catmull-Rom fit":
+    {"note":"Temporal anti-aliasing keeps more detail"},
 };

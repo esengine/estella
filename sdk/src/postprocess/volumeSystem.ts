@@ -169,11 +169,33 @@ function effectsSignature(effects: ResolvedEffects): string {
     return sig;
 }
 
+/**
+ * The effects with the temporal anti-aliasing pass in them, where the quality level asks for it and the scene has not listed it: before the exposure
+ * and the grading, after the lighting and the fog, which is where the harness measured it and where an author puts it. A level that does not ask
+ * leaves the effects as they are.
+ */
+function withTemporalAntialiasing(api: PostProcessAPI, effects: ResolvedEffects): ResolvedEffects {
+    if (api.antialiasing !== 'temporal' || effects.has('taa')) return effects;
+    const taa: BlendedEffect = { enabled: true, uniforms: new Map([['u_blend', 0.1], ['u_objectMotion', 1]]), textures: new Map(), colors: new Map() };
+    const out: ResolvedEffects = new Map();
+    let placed = false;
+    for (const [type, data] of effects) {
+        if (!placed && type === 'autoExposure') {
+            out.set('taa', taa);
+            placed = true;
+        }
+        out.set(type, data);
+    }
+    if (!placed) out.set('taa', taa);
+    return out;
+}
+
 function applyBlendedEffects(
     api: PostProcessAPI,
     camera: Entity,
-    effects: ResolvedEffects,
+    blended: ResolvedEffects,
 ): void {
+    const effects = withTemporalAntialiasing(api, blended);
     if (effects.size === 0) {
         const existing = api.volumeStacks.get(camera);
         if (existing) {

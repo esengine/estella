@@ -157,6 +157,9 @@ const VARIANTS = [
   { id: 'detail-50', label: 'plant detail scale 0.5', config: quality('high', { detailScale: 0.5 }) },
   // Levels as a project would ship them
   { id: 'medium', label: 'quality medium', config: quality('medium') },
+  // The level smooths edges by itself: one sample, and the volume gets its temporal pass (and loses fxaa) without the scene listing it.
+  { id: 'temporal-medium', label: 'quality medium with temporal anti-aliasing', config: quality('medium', { antialiasing: 'temporal' }) },
+  { id: 'temporal-high', label: 'quality high with temporal anti-aliasing', config: quality('high', { antialiasing: 'temporal' }) },
   { id: 'low', label: 'quality low', config: quality('low') },
   { id: 'base-again', label: 'the scene again, to see the machine drift' },
 ];

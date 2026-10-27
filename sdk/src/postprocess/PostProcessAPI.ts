@@ -245,6 +245,11 @@ export class PostProcessAPI {
         this.engineStack_ = null;
     }
 
+    /** How the quality level in force smooths edges: the volume system adds the temporal pass where it says `temporal`. */
+    get antialiasing(): 'msaa' | 'temporal' {
+        return this.qualityFilter_?.antialiasing ?? 'msaa';
+    }
+
     private allowQualityPass_ = (name: string): boolean => {
         return qualityPassAllowed(this.qualityFilter_, name);
     };
