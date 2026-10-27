@@ -115,6 +115,24 @@ int main(int argc, char** argv) {
         }
         ++cases;
     }
+    // Which glyph pipeline an automatic label gets at a world scale: the same table is pinned on the script side (ui-text-retained.test.ts).
+    {
+        const struct { f32 scale; bool sdf; } table[] = {
+        {1.0f, false},
+        {1.02f, false},
+        {0.98f, false},
+        {1.021f, true},
+        {0.97f, true},
+        {2.0f, true},
+        {0.5f, true},
+        {0.0f, false},
+        {-1.0f, false},
+        {INFINITY, false}, {NAN, false}
+        };
+        bool same = true;
+        for (const auto& row : table) same = same && retainedTextAutoIsSdf(row.scale) == row.sdf;
+        CHECK(same, "the automatic glyph pipeline follows the world scale as the script says");
+    }
     CHECK(cases >= 100, "the cases file has its cases");
     CHECK(none > 0 && all > 0 && subset > 0, "the cases cover nothing, all and some");
     std::printf("%d cases: %d none, %d all, %d some quads kept\n", cases, none, all, subset);

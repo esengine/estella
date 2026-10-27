@@ -200,10 +200,10 @@ void renderer_submitTextBatch(
 }
 
 void renderer_retainedTextBegin(
-    u32 entity, i32 sdf, i32 screen, i32 hasBox, i32 layer, f32 boxWidth, f32 boxHeight
+    u32 entity, i32 sdf, i32 screen, i32 hasBox, i32 layer, f32 boxWidth, f32 boxHeight, i32 autoKind
 ) {
     if (!g_initialized || !g_renderFrame) return;
-    g_renderFrame->retainedText().begin(entity, sdf != 0, screen != 0, hasBox != 0, layer, boxWidth, boxHeight);
+    g_renderFrame->retainedText().begin(entity, sdf != 0, screen != 0, hasBox != 0, layer, boxWidth, boxHeight, autoKind != 0);
 }
 
 void renderer_retainedTextBatch(
@@ -241,9 +241,15 @@ i32 renderer_retainedTextStale(ecs::Registry& registry, uintptr_t outPtr, i32 ca
         const f32 width = node ? node->computed_size_.x : 0.0f;
         const f32 height = node ? node->computed_size_.y : 0.0f;
         const bool screen = ui && ui->isScreenDomain(registry, it->first);
-        if ((width != text.boxWidth || height != text.boxHeight || screen != text.screen) && written < capacity) {
-            out[written++] = it->first;
+        bool stale = width != text.boxWidth || height != text.boxHeight || screen != text.screen;
+        if (!stale && text.autoKind) {
+            // The pipeline was chosen from the world scale: the script no longer reads the transform every frame to see whether it moved.
+            if (auto* transform = registry.tryGet<ecs::Transform>(entity)) {
+                transform->ensureDecomposed();
+                stale = retainedTextAutoIsSdf(transform->worldScale.x) != text.sdf;
+            }
         }
+        if (stale && written < capacity) out[written++] = it->first;
         ++it;
     }
     return written;

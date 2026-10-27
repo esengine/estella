@@ -401,12 +401,12 @@ export class SdfTextRenderer {
      */
     retain(
         api: EngineApi, p: DrawTextParams, entity: number,
-        screen: boolean, hasBox: boolean, layer: number, boxWidth: number, boxHeight: number,
+        screen: boolean, hasBox: boolean, layer: number, boxWidth: number, boxHeight: number, autoKind: boolean,
     ): void {
         if (this.atlas.metricsOnly) throw new Error('Measurement atlases cannot submit text.');
         const batches: Array<{ vertices: Float32Array; indices: Uint16Array; pageId: number }> = [];
         drawTextWith(this.atlas, (vertices, indices, pageId) => { batches.push({ vertices, indices, pageId }); }, { ...p, opacity: 1 });
-        api.renderer_retainedTextBegin!(entity, this.sdf ? 1 : 0, screen ? 1 : 0, hasBox ? 1 : 0, layer, boxWidth, boxHeight);
+        api.renderer_retainedTextBegin!(entity, this.sdf ? 1 : 0, screen ? 1 : 0, hasBox ? 1 : 0, layer, boxWidth, boxHeight, autoKind ? 1 : 0);
         for (const b of batches) {
             const vertexCount = (b.vertices.length / TEXT_VERTEX_FLOATS) | 0;
             if (vertexCount <= 0 || b.indices.length <= 0) continue;

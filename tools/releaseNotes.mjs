@@ -3082,4 +3082,6 @@ export const NOTED = {
     {"note":"A frame of sprites is not sorted again when its draw keys have not changed"},
   "perf(ui): UI text is laid out when it changes and submitted by the engine every frame":
     {"note":"UI text costs less: labels are laid out when they change and submitted by the engine"},
+  "perf(ui): the engine watches the world scale an automatic label picks its glyph pipeline from":
+    {"note":"UI text costs a third less again"},
 };

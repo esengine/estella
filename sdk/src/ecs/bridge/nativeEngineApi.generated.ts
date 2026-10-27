@@ -208,7 +208,7 @@ export interface NativeEngineApi {
     renderer_replayToDrawCall?(drawCallIndex: number): void;
     renderer_resize?(width: number, height: number): void;
     renderer_retainedTextBatch?(entity: number, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, pageId: number): void;
-    renderer_retainedTextBegin?(entity: number, sdf: number, screen: number, hasBox: number, layer: number, boxWidth: number, boxHeight: number): void;
+    renderer_retainedTextBegin?(entity: number, sdf: number, screen: number, hasBox: number, layer: number, boxWidth: number, boxHeight: number, autoKind: number): void;
     renderer_retainedTextClear?(entity: number): void;
     renderer_retainedTextStale?(registry: unknown, outPtr: number, capacity: number): number;
     renderer_retainedTextSubmit?(registry: unknown, screen: number, projectionPtr: number): void;

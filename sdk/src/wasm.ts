@@ -441,7 +441,7 @@ export interface ESEngineModule {
      * domain or box no longer matches what they were laid out for, and `Submit` draws one domain's labels into the open list.
      */
     renderer_retainedTextBegin?(
-        entity: number, sdf: number, screen: number, hasBox: number, layer: number, boxWidth: number, boxHeight: number
+        entity: number, sdf: number, screen: number, hasBox: number, layer: number, boxWidth: number, boxHeight: number, autoKind: number
     ): void;
     renderer_retainedTextBatch?(
         entity: number, verticesPtr: number, vertexCount: number,

@@ -82,7 +82,7 @@ export function glyphContentScale(projScaleX: number, vpW: number, dpr: number):
 
 /** The Text fields a retained label's geometry was laid out from; a label is rebuilt when any of them differs, and not otherwise. */
 export interface TextSnapshot {
-    content: string; family: string; fontSize: number; bold: boolean; italic: boolean; richText: boolean;
+    content: string; family: string; fontSize: number; bold: boolean; italic: boolean; richText: boolean; renderMode: number;
     align: number; verticalAlign: number; wordWrap: boolean; overflow: number; lineHeight: number; layer: number;
     cr: number; cg: number; cb: number; ca: number;
     strokeWidth: number; sr: number; sg: number; sb: number; sa: number;
@@ -93,14 +93,13 @@ export interface TextSnapshot {
 interface RetainedLabel {
     snap: TextSnapshot;
     screen: boolean;
-    kind: 'bitmap' | 'sdf';
     gen: number;
     renderer: SdfTextRenderer;
 }
 
 export function snapshotOf(t: TextData, family: string): TextSnapshot {
     return {
-        content: t.content, family, fontSize: t.fontSize, bold: !!t.bold, italic: !!t.italic, richText: !!t.richText,
+        content: t.content, family, fontSize: t.fontSize, bold: !!t.bold, italic: !!t.italic, richText: !!t.richText, renderMode: t.renderMode,
         align: t.align, verticalAlign: t.verticalAlign, wordWrap: !!t.wordWrap, overflow: t.overflow, lineHeight: t.lineHeight, layer: t.layer | 0,
         cr: t.color.r, cg: t.color.g, cb: t.color.b, ca: t.color.a,
         strokeWidth: t.strokeWidth, sr: t.strokeColor.r, sg: t.strokeColor.g, sb: t.strokeColor.b, sa: t.strokeColor.a,
@@ -111,7 +110,7 @@ export function snapshotOf(t: TextData, family: string): TextSnapshot {
 
 export function sameSnapshot(s: TextSnapshot, t: TextData, family: string): boolean {
     return s.content === t.content && s.family === family && s.fontSize === t.fontSize
-        && s.bold === !!t.bold && s.italic === !!t.italic && s.richText === !!t.richText
+        && s.bold === !!t.bold && s.italic === !!t.italic && s.richText === !!t.richText && s.renderMode === t.renderMode
         && s.align === t.align && s.verticalAlign === t.verticalAlign && s.wordWrap === !!t.wordWrap
         && s.overflow === t.overflow && s.lineHeight === t.lineHeight && s.layer === (t.layer | 0)
         && s.cr === t.color.r && s.cg === t.color.g && s.cb === t.color.b && s.ca === t.color.a
@@ -289,11 +288,10 @@ export class TextPlugin implements Plugin {
             if (!t.content || t.enabled === false) continue; // not seen: swept below
             if (!label && api.ui_isScreenDomain!(registry, entity as number) !== screen) continue;
             const family = resolveTextFamily(t.font, t.fontFamily);
-            const kind = t.renderMode === TextRenderMode.Bitmap ? 'bitmap'
-                : t.renderMode === TextRenderMode.Sdf ? 'sdf'
-                : resolveTextRenderMode(t.renderMode, (world.get(entity, Transform) as TransformData).worldScale.x);
             seen.add(entity as number);
-            if (label && label.kind === kind && label.gen === label.renderer.atlas.generation && sameSnapshot(label.snap, t, family)) {
+            // Which glyph pipeline an automatic label gets follows its world scale, which the engine watches (renderer_retainedTextStale): the
+            // transform is not read here every frame for every label to find out.
+            if (label && label.gen === label.renderer.atlas.generation && sameSnapshot(label.snap, t, family)) {
                 label.renderer.markDrawn(entity as number);
                 continue;
             }
@@ -421,8 +419,9 @@ export class TextPlugin implements Plugin {
                 outline,
             },
             entity as number, screen, hasBox, t.layer | 0, w, h,
+            t.renderMode !== TextRenderMode.Bitmap && t.renderMode !== TextRenderMode.Sdf,
         );
-        appState.retained.set(entity as number, { snap: snapshotOf(t, family), screen, kind, gen: renderer.atlas.generation, renderer });
+        appState.retained.set(entity as number, { snap: snapshotOf(t, family), screen, gen: renderer.atlas.generation, renderer });
     }
 
     private drawDomainWithMatrix(app: App, screen: boolean, readMatrix?: (entity: number) => boolean, projection?: Float32Array): void {

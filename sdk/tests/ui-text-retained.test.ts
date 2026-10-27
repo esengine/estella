@@ -8,7 +8,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { GlyphAtlas } from '../src/ui/text/glyph-atlas';
 import { SdfTextRenderer, drawTextWith, type DrawTextParams } from '../src/ui/text/text-renderer';
-import { sameSnapshot, snapshotOf } from '../src/ui/text/plugin';
+import { resolveTextRenderMode, sameSnapshot, snapshotOf } from '../src/ui/text/plugin';
 import type { TextData } from '../src/ui/core/text';
 import type { EngineApi } from '../src/ecs/bridge/engineApi';
 import { TEXT_VERTEX_FLOATS } from '../src/ui/text/submit';
@@ -49,11 +49,12 @@ describe('which Text fields make a retained label laid out again', () => {
         ['shadowOffsetX', t => { t.shadowOffsetX = 2; }],
         ['shadowOffsetY', t => { t.shadowOffsetY = 2; }],
         ['richText', t => { t.richText = true; }],
+        ['renderMode', t => { t.renderMode = 1; }],
         ['layer', t => { t.layer = 3; }],
     ];
-    // font is resolved to the family and compared as that; renderMode picks the glyph pipeline, compared as `kind`; enabled and an empty
-    // content decide whether the label exists at all; i18nKey only ever changes `content`.
-    const elsewhere = ['font', 'renderMode', 'enabled', 'i18nKey'];
+    // font is resolved to the family and compared as that; enabled and an empty content decide whether the label exists at all; i18nKey only
+    // ever changes `content`.
+    const elsewhere = ['font', 'enabled', 'i18nKey'];
 
     it('accounts for every field of the component', () => {
         const all = Object.keys(freshText()).sort();
@@ -72,6 +73,15 @@ describe('which Text fields make a retained label laid out again', () => {
     it('treats the resolved family as the font', () => {
         const t = freshText();
         expect(sameSnapshot(snapshotOf(t, 'Arial'), t, 'Georgia')).toBe(false);
+    });
+});
+
+describe('the glyph pipeline an automatic label gets', () => {
+    // The engine decides it from the world scale (RetainedText.hpp, retainedTextAutoIsSdf) and this table is pinned there too: float32 values,
+    // as the engine holds them.
+    const table: Array<[number, 'bitmap' | 'sdf']> = [[1.0, 'bitmap'], [1.02, 'bitmap'], [0.98, 'bitmap'], [1.021, 'sdf'], [0.97, 'sdf'], [2.0, 'sdf'], [0.5, 'sdf'], [0.0, 'bitmap'], [-1.0, 'bitmap'], [Infinity, 'bitmap'], [NaN, 'bitmap']];
+    it.each(table)('scale %s draws with %s', (scale, kind) => {
+        expect(resolveTextRenderMode(undefined, Math.fround(scale))).toBe(kind);
     });
 });
 
@@ -117,8 +127,8 @@ describe('handing a label to the engine', () => {
         const atlas = makeAtlas();
         const renderer = rendererWith(atlas);
         const { api, batches, calls } = engine();
-        renderer.retain(api, params, 42, true, true, 7, 120, 30);
-        expect(calls[0]).toBe('begin 42,0,1,1,7,120,30');
+        renderer.retain(api, params, 42, true, true, 7, 120, 30, true);
+        expect(calls[0]).toBe('begin 42,0,1,1,7,120,30,1');
         const expected: Array<{ v: number[]; i: number[]; page: number }> = [];
         drawTextWith(atlas, (v, i, page) => expected.push({ v: Array.from(v), i: Array.from(i), page }), { ...params, opacity: 1 });
         expect(batches.map(b => ({ v: b.vertices, i: b.indices, page: b.pageId }))).toEqual(expected);
@@ -130,7 +140,7 @@ describe('handing a label to the engine', () => {
         const renderer = rendererWith(atlas);
         const retain = vi.spyOn(atlas, 'retainPages');
         const { api, batches } = engine();
-        renderer.retain(api, params, 5, false, false, 0, 0, 0);
+        renderer.retain(api, params, 5, false, false, 0, 0, 0, false);
         const pages = new Set(batches.map(b => b.pageId));
         expect(pages.size).toBeGreaterThan(0);
         // Frames that do not draw it again (an Update with no render, a frame the label is unchanged) must not release its pages.

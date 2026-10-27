@@ -97,9 +97,10 @@ void renderer_submitTextBatch(
  * @brief Glyph quads handed over once and submitted by the engine each frame (see RetainedText.hpp).
  * @{
  */
-/// Starts (or replaces) an entity's retained text: the layout's domain, box and order, with its batches to follow.
+/// Starts (or replaces) an entity's retained text: the layout's domain, box and order, with its batches to follow. @p autoKind says the glyph
+/// pipeline (@p sdf) was picked from the entity's world scale, which the engine then watches in place of the script.
 void renderer_retainedTextBegin(
-    u32 entity, i32 sdf, i32 screen, i32 hasBox, i32 layer, f32 boxWidth, f32 boxHeight
+    u32 entity, i32 sdf, i32 screen, i32 hasBox, i32 layer, f32 boxWidth, f32 boxHeight, i32 autoKind
 );
 /// One batch of glyph quads of the entity begun last: TEXT_VERTEX_FLOATS floats a vertex, whole quads, drawn from atlas page @p pageId.
 void renderer_retainedTextBatch(
@@ -110,7 +111,7 @@ void renderer_retainedTextBatch(
 void renderer_retainedTextClear(u32 entity);
 /**
  * @brief The entities whose retained text no longer matches the world, written to @p outPtr as u32s.
- * @details Stale means the entity's domain or box is not the one it was laid out for. An entity that is gone is dropped here and not reported.
+ * @details Stale means the entity's domain or box is not the one it was laid out for, or its world scale now picks the other glyph pipeline. An entity that is gone is dropped here and not reported.
  * @return How many were written, at most @p capacity.
  */
 i32 renderer_retainedTextStale(ecs::Registry& registry, uintptr_t outPtr, i32 capacity);

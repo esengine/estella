@@ -38,6 +38,7 @@ struct RetainedText {
     bool sdf = false;
     bool screen = false;  ///< The domain the geometry was laid out for.
     bool hasBox = false;  ///< Laid out in a UINode box, so ordered by the UI tree rather than by `layer`.
+    bool autoKind = false;  ///< The glyph pipeline was chosen from the entity's world scale, so a changed scale can change it.
     i32 layer = 0;        ///< Text.layer, for a label with no box.
     f32 boxWidth = 0.0f;  ///< The box the layout used: a label whose box has since changed is stale.
     f32 boxHeight = 0.0f;
@@ -47,12 +48,13 @@ struct RetainedText {
 class RetainedTextStore {
 public:
     /// Replaces any geometry the entity held, with none yet: batches follow through add().
-    void begin(u32 entity, bool sdf, bool screen, bool hasBox, i32 layer, f32 boxWidth, f32 boxHeight) {
+    void begin(u32 entity, bool sdf, bool screen, bool hasBox, i32 layer, f32 boxWidth, f32 boxHeight, bool autoKind = false) {
         RetainedText& text = entries_[entity];
         text = RetainedText{};
         text.sdf = sdf;
         text.screen = screen;
         text.hasBox = hasBox;
+        text.autoKind = autoKind;
         text.layer = layer;
         text.boxWidth = boxWidth;
         text.boxHeight = boxHeight;
@@ -94,6 +96,15 @@ public:
 private:
     std::map<u32, RetainedText> entries_;
 };
+
+/// Which glyph pipeline a label of automatic render mode draws with at a world scale: hinted bitmaps while the scale is within 2% of 1:1, SDF past
+/// it. The same rule, in the same precision, as resolveTextRenderMode in sdk/src/ui/text/plugin.ts. True for SDF.
+inline bool retainedTextAutoIsSdf(f32 worldScaleX) {
+    constexpr double BITMAP_SCALE_EPSILON = 0.02;
+    const double scale = worldScaleX;
+    if (!std::isfinite(scale) || scale <= 0.0) return false;
+    return std::abs(scale - 1.0) > BITMAP_SCALE_EPSILON;
+}
 
 // ---- Clipping a label's quads against a view ------------------------------------------------------------------------------------------------
 // The same arithmetic, in the same precision, as sdk/src/ui/text/text-culling.ts, which the unretained path still runs: the two must agree on
