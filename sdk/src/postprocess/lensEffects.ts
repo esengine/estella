@@ -231,7 +231,6 @@ vec3 fringed(vec2 uv, vec2 dir, vec2 spread) {
 }
 
 void main() {
-    vec4 color = texture(u_texture, v_texCoord);
     vec2 uv = vec2(1.0) - v_texCoord;
     vec2 toCentre = vec2(0.5) - uv;
     vec2 ghostStep = toCentre * u_dispersal;
@@ -246,7 +245,7 @@ void main() {
     vec2 haloDir = normalize(toCentre + 1e-5) * u_haloWidth;
     float haloEdge = 1.0 - clamp(length(vec2(0.5) - (uv + haloDir)) / 0.7071, 0.0, 1.0);
     flare += fringed(uv + haloDir, haloDir, spread) * pow(haloEdge, 4.0) * 2.0;
-    fragColor = vec4(color.rgb + flare * u_tint.rgb * u_intensity, color.a);
+    fragColor = vec4(flare * u_tint.rgb * u_intensity, 1.0);
 }
 #pragma end
 
@@ -264,7 +263,6 @@ fn fringed(uv : vec2f, dir : vec2f, spread : vec2f) -> vec3f {
 }
 
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
-    let color = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
     let uv = vec2f(1.0) - v.v_texCoord;
     let toCentre = vec2f(0.5) - uv;
     let ghostStep = toCentre * mc.u_dispersal;
@@ -280,7 +278,36 @@ fn fringed(uv : vec2f, dir : vec2f, spread : vec2f) -> vec3f {
     let haloDir = dir * mc.u_haloWidth;
     let haloEdge = 1.0 - clamp(length(vec2f(0.5) - (uv + haloDir)) / 0.7071, 0.0, 1.0);
     flare = flare + fringed(uv + haloDir, haloDir, spread) * pow(haloEdge, 4.0) * 2.0;
-    return vec4f(color.rgb + flare * mc.u_tint.rgb * mc.u_intensity, color.a);
+    return vec4f(flare * mc.u_tint.rgb * mc.u_intensity, 1.0);
+}
+#pragma end
+`;
+        return Material.compileShader(source);
+    },
+    /** The second pass of the lens flare: the flare, worked out at half size, laid over the picture it came from. */
+    createLensFlareComposite(): ShaderHandle {
+        const source = `#pragma shader "PP LensFlare Composite"
+#pragma version 300 es
+#pragma domain PostProcess
+
+#pragma fragment
+precision highp float;
+
+in vec2 v_texCoord;
+uniform sampler2D u_texture;
+uniform sampler2D u_sceneTexture;
+out vec4 fragColor;
+
+void main() {
+    vec4 scene = texture(u_sceneTexture, v_texCoord);
+    fragColor = vec4(scene.rgb + texture(u_texture, v_texCoord).rgb, scene.a);
+}
+#pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let scene = textureSampleLevel(t1, s1, v.v_texCoord, 0.0);
+    return vec4f(scene.rgb + textureSampleLevel(t0, s0, v.v_texCoord, 0.0).rgb, scene.a);
 }
 #pragma end
 `;

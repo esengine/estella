@@ -3074,4 +3074,6 @@ export const NOTED = {
     {"note":"The engine's own examples and fixtures no longer commit a generated WebGPU shader twin"},
   "feat(editor): a project of the engine repo gets its shader twin derived as the file is served":
     {"note":"The engine's own examples and fixtures no longer commit a generated WebGPU shader twin"},
+  "perf(render): the lens flare is worked out at half size and laid over the full-size picture":
+    {"note":"Lens flare costs a third of what it did"},
 };

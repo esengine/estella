@@ -777,6 +777,12 @@ registerEffect({
     type: 'lensFlare',
     label: 'Lens Flare',
     factory: () => lensEffects.createLensFlare(),
+    // The flare is smooth (ghosts fade by the cube of their distance from the edge, the halo by the fourth power) and dear: ninety taps a pixel to
+    // find what is bright. It is worked out at half size and laid over the full-size picture, which is a quarter of the pixels paying.
+    multiPass: [
+        { name: 'lensflare_flare', factory: () => lensEffects.createLensFlare(), scale: 0.5 },
+        { name: 'lensflare_composite', factory: () => lensEffects.createLensFlareComposite() },
+    ],
     uniforms: [
         { name: 'u_intensity', label: 'Intensity', min: 0, max: 4, step: 0.01, defaultValue: 0.4, neutralValue: 0 },
         // Only what is brighter than this (in the picture's own units, HDR included) throws a flare.
