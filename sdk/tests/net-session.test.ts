@@ -256,3 +256,44 @@ describe('SessionHost + ClientSession', () => {
         await vi.waitFor(() => expect(got).toEqual(['b1']));
     });
 });
+
+describe('ClientSession: retry and the reason a link ended', () => {
+    it('retryNow dials at once instead of waiting out the backoff, and does nothing when there is nothing to wait for', async () => {
+        const { host, net, client } = setup();
+        host.handle('ping', () => 'pong');
+        const s = track(client('rita', { backoff: { initialMs: 60_000, maxMs: 60_000, jitter: 0 } }));
+        await s.start();
+        s.retryNow(); // ready: nothing to do
+        expect(s.state).toBe('ready');
+        net.down = true;
+        net.cut();
+        await vi.waitFor(() => expect(s.state).toBe('reconnecting'));
+        const dials = net.dials;
+        net.down = false;
+        s.retryNow();
+        await vi.waitFor(() => expect(s.state).toBe('ready'));
+        expect(net.dials).toBe(dials + 1);
+        expect(await s.request('ping', {})).toBe('pong');
+        s.close();
+        s.retryNow(); // closed: still nothing
+        expect(s.state).toBe('closed');
+    });
+
+    it('says how the last link ended, and forgets it once connected again', async () => {
+        const { net, client } = setup({ maxSessions: 1 });
+        const holder = track(client('hal'));
+        await holder.start();
+        expect(holder.lastClose).toBeNull();
+        expect(holder.attempts).toBe(0);
+
+        const full = track(client('fay'));
+        void full.start().catch(() => {});
+        await vi.waitFor(() => expect(full.lastClose?.code).toBe(SessionCloseCode.unavailable));
+        expect(full.attempts).toBeGreaterThan(0);
+
+        holder.close();
+        await vi.waitFor(() => expect(full.state).toBe('ready'));
+        expect(full.lastClose).toBeNull();
+        void net;
+    });
+});

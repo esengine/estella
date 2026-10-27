@@ -17,10 +17,13 @@ transport: NetTransport
 
 ## ClientSession — class @experimental
 ```
+attempts: number
 close: () => void
+lastClose: { code: number; } | null
 on: <T = unknown>(type: string, handler: MessageHandler<T>) => () => void
 onState: (handler: StateHandler) => () => void
 request: <Res = unknown, Req = unknown>(type: string, payload: Req, options?: SessionRequestOptions) => Promise<Res>
+retryNow: () => void
 send: (type: string, payload: unknown) => void
 serverNow: () => number
 start: () => Promise<SessionWelcome>

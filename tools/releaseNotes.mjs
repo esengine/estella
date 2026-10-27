@@ -3016,6 +3016,8 @@ export const NOTED = {
     {"note":"A random generator that gives the same numbers on every host."},
   'feat(net): a session layer for online games that do not share a tick':
     {"note":"A session layer for online games that do not share a tick."},
+  'feat(net): a session can be told to redial now and says why its link ended':
+    {"note":"A session can be told to redial now, and says why its link ended."},
   "perf(sdk): a blank mini-game package no longer carries terrain and water":
     {"note":"A blank mini-game package no longer carries terrain and water."},
   "perf(ecs): one stable sort for every component type, 239KB off the engine wasm":

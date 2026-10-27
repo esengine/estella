@@ -75,6 +75,7 @@ export class ClientSession {
     private channel_: NetChannel | null = null;
     private attached_ = new Set<string>();
     private attempt_ = 0;
+    private lastClose_: { code: number } | null = null;
     private redialTimer_: ReturnType<typeof setTimeout> | null = null;
     private offsetMs_ = 0;
     private welcome_: SessionWelcome | null = null;
@@ -95,6 +96,19 @@ export class ClientSession {
     /** Who the server says this is, once the first hello has succeeded. */
     get welcome(): SessionWelcome | null {
         return this.welcome_;
+    }
+
+    /**
+     * How the last link ended, until the next one is ready: the WebSocket close code (4003 is the
+     * server saying it is full or going away). Null while connected, or when no link has dropped yet.
+     */
+    get lastClose(): { code: number } | null {
+        return this.lastClose_;
+    }
+
+    /** Dial attempts since the last time the session was ready; 0 when ready. */
+    get attempts(): number {
+        return this.attempt_;
     }
 
     /** The server's clock now, in epoch ms, corrected for this device's drift and the link's delay. */
@@ -160,6 +174,17 @@ export class ClientSession {
                 delay *= 2;
             }
         }
+    }
+
+    /**
+     * Redial now instead of waiting out the backoff, for a player who pressed "try again". Does nothing
+     * while a dial is already under way, when the session is ready, or once it has closed for good.
+     */
+    retryNow(): void {
+        if (this.redialTimer_ === null) return;
+        clearTimeout(this.redialTimer_);
+        this.redialTimer_ = null;
+        this.dial_();
     }
 
     /** Leave for good: no redial, requests in flight fail. */
@@ -237,6 +262,7 @@ export class ClientSession {
             this.offsetMs_ = res.serverTimeMs + (received - sent) / 2 - received;
             this.welcome_ = { playerId: res.playerId, data: res.data };
             this.attempt_ = 0;
+            this.lastClose_ = null;
             this.setState_('ready');
             for (const w of this.readyWaiters_.splice(0)) w.resolve();
             this.firstReady_?.resolve(this.welcome_);
@@ -253,6 +279,7 @@ export class ClientSession {
         this.channel_ = null;
         this.socket_ = null;
         if (this.state_ === 'closed') return;
+        this.lastClose_ = { code };
         if (code === SessionCloseCode.replaced) {
             // Another device took the player; fighting it would trade the seat back and forth.
             this.finish_('replaced by a newer connection');
