@@ -3077,7 +3077,7 @@ export const NOTED = {
   "perf(render): the lens flare is worked out at half size and laid over the full-size picture":
     {"note":"Lens flare costs a third of what it did"},
   "perf(render): the sky's clouds are worked out at a quarter of the size":
-    {"note":"The sky's clouds cost 0.9 ms less"},
+    {"internal":"Taken back by the next change: the clouds are half size again, as before."},
   "perf(render): a frame of 2D sprites is not sorted again when its draw keys are the last frame's":
     {"note":"A frame of sprites is not sorted again when its draw keys have not changed"},
   "perf(ui): UI text is laid out when it changes and submitted by the engine every frame":
@@ -3088,4 +3088,6 @@ export const NOTED = {
     {"note":"Tilemaps that have not changed cost almost nothing per frame"},
   "perf(render): a draw that changes buffer no longer re-points its vertex attributes":
     {"note":"Fewer GL calls when a draw changes buffer"},
+  "fix(render): the sky's clouds are worked out at half size again":
+    {"internal":"Undoes the quarter-size clouds, which showed a coarse checkerboard in the cloud and streaks near the horizon."},
 };

@@ -316,12 +316,12 @@ registerEffect({
     type: 'skyAtmosphere',
     label: 'Sky Atmosphere',
     factory: () => postProcessEffects.createSkyClouds(),
-    // The clouds (and the shadow they cast on the ground) are smooth and dear, so they are worked out at a quarter of the size (a sixteenth of the
-    // pixels; half size was a quarter of them) and the composite reads them back by the way a pixel's neighbours agree with it; the dome, sun, moon
-    // and stars, which have an edge, stay full size. Measured against half size: 1.6 ms to 0.7 ms of a 1080p frame, no pixel in a cloud scene more
-    // than 2 of 255 apart.
+    // The clouds (and the shadow they cast on the ground) are smooth and dear, so they are worked out at half size and the composite
+    // reads them back by the way a pixel's neighbours agree with it; the dome, sun, moon and stars, which have an edge, stay full size.
+    // Not smaller: at a quarter the march's per-pixel jitter grain is four pixels coarse, a checkerboard in the cloud and vertical streaks
+    // near the horizon, which a mean pixel difference against half size (0.04 of 255) did not show and the picture does.
     multiPass: [
-        { name: 'sky_clouds', factory: () => postProcessEffects.createSkyClouds(), scale: 0.25 },
+        { name: 'sky_clouds', factory: () => postProcessEffects.createSkyClouds(), scale: 0.5 },
         { name: 'sky_composite', factory: () => postProcessEffects.createSkyAtmosphere() },
     ],
     uniforms: [
