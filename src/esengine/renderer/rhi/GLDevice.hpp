@@ -294,7 +294,26 @@ private:
         u32 bakedOffset[MAX_VERTEX_BUFFER_SLOTS] = {};
         u32 bakedIbo = 0;
     };
-    std::unordered_map<u32, VaoCache> vaos_;
+    // A vertex array object per (layout, the buffers it reads from): it holds the attribute pointers, which name their buffer, so one VAO shared by
+    // every buffer of a layout re-pointed all of them at each draw that changed buffer (a tilemap's strips, a mesh's own vertices). Slots the
+    // layout does not read are 0 in the key, so a stale handle left in one does not make a second VAO. Offsets are not in the key: a draw that
+    // moves along a buffer (instance records) re-points just that slot, as before.
+    struct VaoKey {
+        u32 layout = 0;
+        u32 vbo[MAX_VERTEX_BUFFER_SLOTS] = {};
+        u32 ibo = 0;
+        bool operator==(const VaoKey&) const = default;
+    };
+    struct VaoKeyHash {
+        usize operator()(const VaoKey& key) const {
+            usize h = key.layout * 2654435761u;
+            for (u32 slot = 0; slot < MAX_VERTEX_BUFFER_SLOTS; ++slot) h = (h ^ key.vbo[slot]) * 1099511628211ull;
+            return (h ^ key.ibo) * 1099511628211ull;
+        }
+    };
+    std::unordered_map<VaoKey, VaoCache, VaoKeyHash> vaos_;
+    /// Deletes every VAO that reads from a GL buffer name, before the name is deleted and reused.
+    void releaseVaosUsing(u32 bufferName);
     u32 current_layout_ = 0;
     u32 pending_vbo_[MAX_VERTEX_BUFFER_SLOTS] = {};
     u32 pending_vbo_offset_[MAX_VERTEX_BUFFER_SLOTS] = {};

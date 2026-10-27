@@ -972,6 +972,8 @@ bool GLDevice::backendCreateBuffer(u32 id, const BufferDesc& desc, const void* d
 void GLDevice::backendDeleteBuffer(u32 id) {
     GLuint name = nameOf(buffer_names_, id);
     if (!name) return;
+    // The VAOs that read this buffer go with it: GL gives a deleted name to the next buffer made, and a VAO still keyed by it would be taken for that one.
+    releaseVaosUsing(name);
     glDeleteBuffers(1, &name);
     setName(buffer_names_, id, 0);
     // The context unbinds a deleted buffer from the slots that held it; the record of those slots must not go on saying it is there.
@@ -1016,16 +1018,40 @@ void GLDevice::bindUniformSlot(u32 slot, u32 name) {
 // =============================================================================
 
 void GLDevice::backendDeleteVertexLayout(u32 id) {
-    auto it = vaos_.find(id);
-    if (it == vaos_.end()) return;
-    if (it->second.vao != 0) {
-        if (bound_vao_ == it->second.vao) {
-            glBindVertexArray(0);
-            bound_vao_ = 0;
+    for (auto it = vaos_.begin(); it != vaos_.end();) {
+        if (it->first.layout != id) {
+            ++it;
+            continue;
         }
-        glDeleteVertexArrays(1, &it->second.vao);
+        if (it->second.vao != 0) {
+            if (bound_vao_ == it->second.vao) {
+                glBindVertexArray(0);
+                bound_vao_ = 0;
+            }
+            glDeleteVertexArrays(1, &it->second.vao);
+        }
+        it = vaos_.erase(it);
     }
-    vaos_.erase(it);
+}
+
+void GLDevice::releaseVaosUsing(u32 bufferName) {
+    if (!bufferName) return;
+    for (auto it = vaos_.begin(); it != vaos_.end();) {
+        bool reads = it->first.ibo == bufferName;
+        for (u32 slot = 0; slot < MAX_VERTEX_BUFFER_SLOTS; ++slot) reads = reads || it->first.vbo[slot] == bufferName;
+        if (!reads) {
+            ++it;
+            continue;
+        }
+        if (it->second.vao != 0) {
+            if (bound_vao_ == it->second.vao) {
+                glBindVertexArray(0);
+                bound_vao_ = 0;
+            }
+            glDeleteVertexArrays(1, &it->second.vao);
+        }
+        it = vaos_.erase(it);
+    }
 }
 
 void GLDevice::setVertexBuffer(u32 slot, BufferHandle buffer, u32 offsetBytes) {
@@ -1041,7 +1067,14 @@ void GLDevice::setIndexBuffer(BufferHandle buffer) {
 void GLDevice::prepareVertexState() {
     const VertexLayoutDesc* desc = vertexLayoutDesc(VertexLayoutHandle{current_layout_});
     if (!desc) return;
-    VaoCache& rec = vaos_[current_layout_];
+    VaoKey key;
+    key.layout = current_layout_;
+    key.ibo = pending_ibo_;
+    for (u32 a = 0; a < desc->attributeCount; ++a) {
+        const u32 slot = desc->attributes[a].bufferSlot;
+        if (slot < MAX_VERTEX_BUFFER_SLOTS) key.vbo[slot] = pending_vbo_[slot];
+    }
+    VaoCache& rec = vaos_[key];
 
     if (rec.vao == 0) {
         glGenVertexArrays(1, &rec.vao);

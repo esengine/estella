@@ -3086,4 +3086,6 @@ export const NOTED = {
     {"note":"UI text costs a third less again"},
   "perf(tilemap): a tilemap that has not changed uploads nothing and copies no vertex":
     {"note":"Tilemaps that have not changed cost almost nothing per frame"},
+  "perf(render): a draw that changes buffer no longer re-points its vertex attributes":
+    {"note":"Fewer GL calls when a draw changes buffer"},
 };
