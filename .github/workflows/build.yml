@@ -11,7 +11,9 @@ on:
 
 concurrency:
   group: build-${{ github.ref }}
-  cancel-in-progress: true
+  # master queues: a push there must finish its run (a Packages job alone is 35 minutes), or a
+  # busy day leaves master with no result at all. Branches and PRs still cancel what they supersede.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
 # Least privilege: this workflow only reads the repo and moves artifacts (the
 # artifact API runs on its own runtime token, not contents). Nothing here writes
