@@ -326,6 +326,76 @@
       ]
     },
     {
+      "name": "BlobShadow",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "radius",
+          "type": "number",
+          "default": "50",
+          "doc": "Radius of the disc on the ground, in world units.",
+          "range": "≥ 0, step 1"
+        },
+        {
+          "key": "opacity",
+          "type": "number",
+          "default": "0.5",
+          "doc": "How dark the disc is at its centre.",
+          "range": "0–1, step 0.01"
+        },
+        {
+          "key": "softness",
+          "type": "number",
+          "default": "0.6",
+          "doc": "How soft its edge is (0 hard, 1 fading from the centre).",
+          "range": "0–1, step 0.01"
+        },
+        {
+          "key": "groundY",
+          "type": "number",
+          "default": "0",
+          "doc": "Height of the flat ground. A ground function set from code overrides it.",
+          "range": "step 1"
+        },
+        {
+          "key": "fadeHeight",
+          "type": "number",
+          "default": "200",
+          "doc": "Height above the ground at which the shadow is gone (0 never fades it).",
+          "range": "≥ 0, step 1"
+        },
+        {
+          "key": "shrink",
+          "type": "number",
+          "default": "0.5",
+          "doc": "How small the disc gets at that height (0 keeps its size).",
+          "range": "0–1, step 0.01"
+        },
+        {
+          "key": "lift",
+          "type": "number",
+          "default": "0.5",
+          "doc": "How far above the ground the disc is drawn.",
+          "range": "≥ 0, step 0.1",
+          "advanced": true
+        }
+      ],
+      "animatable": [
+        "radius",
+        "opacity",
+        "softness",
+        "groundY",
+        "fadeHeight",
+        "shrink",
+        "lift"
+      ]
+    },
+    {
       "name": "BoxCollider2D",
       "source": "cpp",
       "fields": [
@@ -6046,6 +6116,16 @@
           "default": "0"
         },
         {
+          "key": "inputFilter",
+          "type": "enum",
+          "default": "None",
+          "doc": "Which characters the field accepts. Digits keeps only 0-9, whether typed or pasted, for a count or a price.",
+          "values": [
+            "None",
+            "Digits"
+          ]
+        },
+        {
           "key": "multiline",
           "type": "boolean",
           "default": "false"
@@ -6110,6 +6190,7 @@
         "backgroundColor.a",
         "padding",
         "maxLength",
+        "inputFilter",
         "cursorPos",
         "textAlign",
         "renderMode"

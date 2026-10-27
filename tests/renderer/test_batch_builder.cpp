@@ -1768,12 +1768,12 @@ std::vector<f32> instanceMarks(Harness& h, const DrawCommand& cmd) {
 TEST_CASE("finalize: the same mesh drawn three times is one instanced draw") {
     Harness h;
     BatchDrawKey key = meshKey(5);
-    // Depths chosen so the sort REORDERS them: written 1,2,3 and drawn nearest
-    // first (opaque is front-to-back), so the run is z=30,20,10 — marks 2,3,1,
-    // with no two records adjacent in the pool. Relocation is why this merges.
-    pushMeshInstance(h, key, 1.0f, 10.0f);
-    pushMeshInstance(h, key, 2.0f, 30.0f);
-    pushMeshInstance(h, key, 3.0f, 20.0f);
+    // Written 1,2,3, drawn nearest first (z=1000,10,1): marks 2,3,1, no two records adjacent
+    // in the pool, which is why relocation is needed. A mesh's run keeps only the top of the
+    // depth's exponent, so these sit in three different steps of it (below 2, to 512, above).
+    pushMeshInstance(h, key, 1.0f, 1.0f);
+    pushMeshInstance(h, key, 2.0f, 1000.0f);
+    pushMeshInstance(h, key, 3.0f, 10.0f);
 
     h.list.finalize(h.pool);
 
@@ -1800,17 +1800,18 @@ void pushMeshInstances(Harness& h, BatchDrawKey key, u32 count, f32 mark, f32 de
 TEST_CASE("finalize: draws that each place the mesh many times merge with every record carried") {
     Harness h;
     const BatchDrawKey key = meshKey(5);
-    // Three draws of 3, 2 and 4 instances; depths reorder them so no two runs are adjacent in the pool.
-    pushMeshInstances(h, key, 3, 10.0f, 10.0f);
-    pushMeshInstances(h, key, 2, 20.0f, 30.0f);
-    pushMeshInstances(h, key, 4, 30.0f, 20.0f);
+    // Three draws of 3, 2 and 4 instances; depths reorder them so no two runs are adjacent in the pool
+    // (in three different steps of the key's coarse depth, as above).
+    pushMeshInstances(h, key, 3, 10.0f, 1.0f);
+    pushMeshInstances(h, key, 2, 20.0f, 1000.0f);
+    pushMeshInstances(h, key, 4, 30.0f, 10.0f);
 
     h.list.finalize(h.pool);
 
     REQUIRE(h.list.mergedDrawCallCount() == 1);
     const DrawCommand& cmd = h.list.command(0);
     CHECK(cmd.instance_count == 9);
-    // Nearest first: the draw at depth 30 (marks 20, 21), then 20 (30..33), then 10 (10..12), each whole.
+    // Nearest first: the draw at depth 1000 (marks 20, 21), then 10 (30..33), then 1 (10..12), each whole.
     CHECK(instanceMarks(h, cmd) == std::vector<f32>{20.0f, 21.0f, 30.0f, 31.0f, 32.0f, 33.0f, 10.0f, 11.0f, 12.0f});
 }
 

@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { afterEach, expect, it, vi } from 'vitest';
 import type { TextEditorEvent } from '../src/platform/types';
+import type { TextInputFilter } from '../src/ui/text/text-input';
 import { bootMockApp } from './helpers/mockApp';
 import { log } from '../src/util/logger';
 
@@ -310,7 +311,7 @@ it.each([
 ])('a digits field removes what it does not accept and keeps the caret in place: $typed', async ({ typed, caret, filter, expected, expectedCaret }) => {
     const app = build(new TextInputPlugin());
     const field = app.world.spawn();
-    app.world.insert(field, TextInput, { value: '', inputFilter: filter });
+    app.world.insert(field, TextInput, { value: '', inputFilter: filter as TextInputFilter });
     app.getResource(FocusManager).focus(field);
     await app.tick(1 / 60);
     vi.spyOn(surfaces[0], 'read').mockReturnValue({ value: typed, selectionStart: caret, selectionEnd: caret, backward: false });

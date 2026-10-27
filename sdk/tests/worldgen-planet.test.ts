@@ -67,7 +67,7 @@ describe('a planet\'s face as a plane', () => {
     });
 
     it('reads noise in three dimensions: a field has no seam where two faces meet', () => {
-        const noiseOf = (face: PlanetFace) => new Environment({ seed: 5, ground: () => ({ y: 0, up: 1 }), ...face.environment() });
+        const noiseOf = (face: PlanetFace) => new Environment({ seed: 5, ...face.environment() });
         const a = faces[0]!, b = faces[5]!;
         // The same point of the planet, found on two faces at their shared edge.
         const half = faceHalf(radius);

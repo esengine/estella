@@ -771,6 +771,112 @@ export const SHIPPED = {
     { notCertifiable: "A rendering feature, covered by its render-scene pixel gates and unit tests; no golden project places it, and one packaged frame cannot decide a result that depends on the device." },
   "Camera shots and nested sequences on the timeline.":
     { notCertifiable: "An editor authoring surface, covered by the editor tests and authoring checks; a packaged game cannot observe the editor interface." },
+  "A `Planet`: ground on a sphere.":
+    { notCertifiable: "A planet is covered by sdk/tests/terrain-sphere.test.ts, planet-gravity.test.ts, terrain-planet-collision.test.ts and worldgen-planet.test.ts; no golden project registers a planet provider yet (check-corpus-authoring records it as owed), so no packaged frame can certify it." },
+  "A far world is planned sparsely, and a failed asset load is tried again.":
+    { notCertifiable: "Foliage and generated worlds are covered by sdk/tests/foliage-placements.test.ts, foliage-builder.test.ts, worldgen-plan.test.ts and worldgen-plants.test.ts; no golden project places a generated world or placed plants yet, so no packaged frame can certify them." },
+  "A quality level sets how far plants keep their detail.":
+    { notCertifiable: "A quality-profile row, covered by sdk/tests/quality.test.ts and quality-runtime.test.ts; no golden project places plants, so no packaged frame can show a level's detail distance." },
+  "Placed plants cast shadows only as far as twice their detailed distance.":
+    { notCertifiable: "A shadow-caster cut-off for placed plants, covered by the foliage and quality suites in sdk/tests; no golden project places plants, so no packaged frame can certify it." },
+  "The editor lets go of a generated world while the game plays.":
+    { notCertifiable: "An editor authoring surface, covered by the editor tests and authoring checks; a packaged game cannot observe the editor interface." },
+  "Plants are instances of one mesh.":
+    { notCertifiable: "Instanced plants are covered by sdk/tests/foliage-placements.test.ts and the test_batch_builder C++ suite; no golden project places plants, so no packaged frame can certify them." },
+  "A project can keep folders out of its asset database.":
+    { notCertifiable: "A pipeline and editor setting, covered by the pipeline and editor tests; it decides which files the asset database reads, which a packaged game cannot observe." },
+  "Small plants need not cast a shadow.":
+    { notCertifiable: "A shadow-caster cut-off for placed plants, covered by the foliage and quality suites in sdk/tests; no golden project places plants, so no packaged frame can certify it." },
+  "A project plugin that needs trust says so.":
+    { notCertifiable: "An editor authoring surface, covered by the editor tests and authoring checks; a packaged game cannot observe the editor interface." },
+  "A game's generated ground shows in the editor.":
+    { notCertifiable: "An editor authoring surface, covered by the editor tests and authoring checks; a packaged game cannot observe the editor interface." },
+  "A lookup table is adopted as data.":
+    { notCertifiable: "An import-pipeline change, covered by pipeline/tests/asset-meta-lut.test.ts and asset-meta-table.test.ts; no golden project carries a lookup table." },
+  "An Outdoor Environment to create.":
+    { notCertifiable: "An editor authoring surface, covered by the editor tests and authoring checks; a packaged game cannot observe the editor interface." },
+  "An Online 3D starter.":
+    { notCertifiable: "A project template, covered by pipeline/tests/project-scaffold.test.ts and desktop/tests/templates.test.ts and the starter-3d editor authoring check; a template is not a golden project." },
+  "Start a project from the command line.":
+    { notCertifiable: "A command-line tool, covered by pipeline/tests/project-scaffold.test.ts; it creates a project and is not part of one." },
+  "Clouds drawn from a coverage picture.":
+    { notCertifiable: "A rendering feature, covered by sdk/tests/cloud-shafts.test.ts and its render-scene pixel gates; no golden project places a cloud layer." },
+  "A Display LUT.":
+    { notCertifiable: "A post-process effect, covered by sdk/tests/display-lut.test.ts and the lut-grade render-scene pixel gate; no golden project places one." },
+  "Light beams that follow the clouds.":
+    { notCertifiable: "A rendering feature, covered by sdk/tests/cloud-shafts.test.ts and its render-scene pixel gates; no golden project places a cloud layer." },
+  "Sparkle on the water.":
+    { notCertifiable: "Water is covered by sdk/tests/water.test.ts, water-zone.test.ts and water-bodies.test.ts and the water-look editor authoring check; no golden project carries a WaterBody yet (check-corpus-authoring records it as owed), so no packaged frame can certify it." },
+  "A generated world's plants.":
+    { notCertifiable: "Foliage and generated worlds are covered by sdk/tests/foliage-placements.test.ts, foliage-builder.test.ts, worldgen-plan.test.ts and worldgen-plants.test.ts; no golden project places a generated world or placed plants yet, so no packaged frame can certify them." },
+  "Each terrain layer says how it meets the others.":
+    { notCertifiable: "Terrain is covered by sdk/tests/terrain-surface.test.ts, terrain-provider.test.ts, terrain-layers.test.ts and terrain-quadtree.test.ts and the terrain-look editor authoring check; no golden project carries a Terrain yet, so no packaged frame can certify it." },
+  "Placed plants.":
+    { notCertifiable: "Foliage and generated worlds are covered by sdk/tests/foliage-placements.test.ts, foliage-builder.test.ts, worldgen-plan.test.ts and worldgen-plants.test.ts; no golden project places a generated world or placed plants yet, so no packaged frame can certify them." },
+  "Water zones.":
+    { notCertifiable: "Water is covered by sdk/tests/water.test.ts, water-zone.test.ts and water-bodies.test.ts and the water-look editor authoring check; no golden project carries a WaterBody yet (check-corpus-authoring records it as owed), so no packaged frame can certify it." },
+  "Wind and rain on the water.":
+    { notCertifiable: "Water weather is covered by sdk/tests/water-weather.test.ts; no golden project carries a WaterBody yet (check-corpus-authoring records it as owed), so no packaged frame can certify it." },
+  "Surf on the shore.":
+    { notCertifiable: "Water is covered by sdk/tests/water.test.ts, water-zone.test.ts and water-bodies.test.ts and the water-look editor authoring check; no golden project carries a WaterBody yet (check-corpus-authoring records it as owed), so no packaged frame can certify it." },
+  "Terrain without cracks, and without end.":
+    { notCertifiable: "Terrain is covered by sdk/tests/terrain-surface.test.ts, terrain-provider.test.ts, terrain-layers.test.ts and terrain-quadtree.test.ts and the terrain-look editor authoring check; no golden project carries a Terrain yet, so no packaged frame can certify it." },
+  "Terrain from a generator the game names, versioned.":
+    { notCertifiable: "Terrain is covered by sdk/tests/terrain-surface.test.ts, terrain-provider.test.ts, terrain-layers.test.ts and terrain-quadtree.test.ts and the terrain-look editor authoring check; no golden project carries a Terrain yet, so no packaged frame can certify it." },
+  "Terrain collision, the same ground that is drawn.":
+    { notCertifiable: "Terrain is covered by sdk/tests/terrain-surface.test.ts, terrain-provider.test.ts, terrain-layers.test.ts and terrain-quadtree.test.ts and the terrain-look editor authoring check; no golden project carries a Terrain yet, so no packaged frame can certify it." },
+  "Procedural chunks, with one owner and one budget.":
+    { notCertifiable: "Procedural chunks are covered by sdk/tests/procedural-chunks.test.ts; no golden project streams generated chunks, so no packaged frame can certify them." },
+  "Generated worlds.":
+    { notCertifiable: "Foliage and generated worlds are covered by sdk/tests/foliage-placements.test.ts, foliage-builder.test.ts, worldgen-plan.test.ts and worldgen-plants.test.ts; no golden project places a generated world or placed plants yet, so no packaged frame can certify them." },
+  "Which water a place is.":
+    { notCertifiable: "Water is covered by sdk/tests/water.test.ts, water-zone.test.ts and water-bodies.test.ts and the water-look editor authoring check; no golden project carries a WaterBody yet (check-corpus-authoring records it as owed), so no packaged frame can certify it." },
+  "An area without a heightmap is a window on its provider's ground.":
+    { notCertifiable: "Terrain is covered by sdk/tests/terrain-surface.test.ts, terrain-provider.test.ts, terrain-layers.test.ts and terrain-quadtree.test.ts and the terrain-look editor authoring check; no golden project carries a Terrain yet, so no packaged frame can certify it." },
+  "Rays against the terrain, anywhere.":
+    { notCertifiable: "Terrain is covered by sdk/tests/terrain-surface.test.ts, terrain-provider.test.ts, terrain-layers.test.ts and terrain-quadtree.test.ts and the terrain-look editor authoring check; no golden project carries a Terrain yet, so no packaged frame can certify it." },
+  "Far versions for generated decoration.":
+    { notCertifiable: "Foliage and generated worlds are covered by sdk/tests/foliage-placements.test.ts, foliage-builder.test.ts, worldgen-plan.test.ts and worldgen-plants.test.ts; no golden project places a generated world or placed plants yet, so no packaged frame can certify them." },
+  "Terrain modifiers, and zones that level their ground.":
+    { notCertifiable: "Terrain is covered by sdk/tests/terrain-surface.test.ts, terrain-provider.test.ts, terrain-layers.test.ts and terrain-quadtree.test.ts and the terrain-look editor authoring check; no golden project carries a Terrain yet, so no packaged frame can certify it." },
+  "Terrain layers: up to eight kinds of ground, each with its normal and mask maps.":
+    { notCertifiable: "Terrain is covered by sdk/tests/terrain-surface.test.ts, terrain-provider.test.ts, terrain-layers.test.ts and terrain-quadtree.test.ts and the terrain-look editor authoring check; no golden project carries a Terrain yet, so no packaged frame can certify it." },
+  "Foam is where waves burst, not along every shore.":
+    { notCertifiable: "Water is covered by sdk/tests/water.test.ts, water-zone.test.ts and water-bodies.test.ts and the water-look editor authoring check; no golden project carries a WaterBody yet (check-corpus-authoring records it as owed), so no packaged frame can certify it." },
+  "Surf comes in from open water as lines.":
+    { notCertifiable: "Water is covered by sdk/tests/water.test.ts, water-zone.test.ts and water-bodies.test.ts and the water-look editor authoring check; no golden project carries a WaterBody yet (check-corpus-authoring records it as owed), so no packaged frame can certify it." },
+  "A river gives way where it runs into the sea or a lake.":
+    { notCertifiable: "Water is covered by sdk/tests/water.test.ts, water-zone.test.ts and water-bodies.test.ts and the water-look editor authoring check; no golden project carries a WaterBody yet (check-corpus-authoring records it as owed), so no packaged frame can certify it." },
+  "Water meets the shore along a smooth line.":
+    { notCertifiable: "Water is covered by sdk/tests/water.test.ts, water-zone.test.ts and water-bodies.test.ts and the water-look editor authoring check; no golden project carries a WaterBody yet (check-corpus-authoring records it as owed), so no packaged frame can certify it." },
+  "The distance to the shore is a distance.":
+    { notCertifiable: "Water is covered by sdk/tests/water.test.ts, water-zone.test.ts and water-bodies.test.ts and the water-look editor authoring check; no golden project carries a WaterBody yet (check-corpus-authoring records it as owed), so no packaged frame can certify it." },
+  "Heightmaps say how they hold their heights.":
+    { notCertifiable: "Terrain is covered by sdk/tests/terrain-surface.test.ts, terrain-provider.test.ts, terrain-layers.test.ts and terrain-quadtree.test.ts and the terrain-look editor authoring check; no golden project carries a Terrain yet, so no packaged frame can certify it." },
+  "Rivers cut their beds.":
+    { notCertifiable: "River beds are covered by sdk/tests/water-river-bed.test.ts; no golden project carries a WaterBody yet (check-corpus-authoring records it as owed), so no packaged frame can certify it." },
+  "Whether a place can be walked to.":
+    { notCertifiable: "Terrain reachability is covered by sdk/tests/terrain-reach.test.ts; no golden project carries a Terrain yet, so no packaged frame can certify it." },
+  "World rules as a file, with an editor.":
+    { notCertifiable: "World rules are covered by sdk/tests/worldgen-rules-asset.test.ts; the editor for them is covered by the editor tests, and no golden project carries a WorldGen yet." },
+  "How far a place is from the water.":
+    { notCertifiable: "Water is covered by sdk/tests/water.test.ts, water-zone.test.ts and water-bodies.test.ts and the water-look editor authoring check; no golden project carries a WaterBody yet (check-corpus-authoring records it as owed), so no packaged frame can certify it." },
+  "A vertex hook can hand the fragment a colour.":
+    { notCertifiable: "A material-hook rendering feature, covered by the prepass-hook render-scene pixel gate and the terrain tests in sdk/tests; no golden project places a Terrain." },
+  "Bakes run over frames, with progress.":
+    { notCertifiable: "Baking is covered by sdk/tests/bakes.test.ts; a bake runs while a project is authored or opened and a packaged game does not run one." },
+  "Eroded and warped terrain.":
+    { notCertifiable: "Terrain erosion is covered by sdk/tests/terrain-erosion.test.ts; no golden project carries a Terrain yet, so no packaged frame can certify it." },
+  "Terrain layers without repeat, and with natural edges.":
+    { notCertifiable: "Terrain is covered by sdk/tests/terrain-surface.test.ts, terrain-provider.test.ts, terrain-layers.test.ts and terrain-quadtree.test.ts and the terrain-look editor authoring check; no golden project carries a Terrain yet, so no packaged frame can certify it." },
+  "A richer Terrain shader.":
+    { notCertifiable: "Terrain is covered by sdk/tests/terrain-surface.test.ts, terrain-provider.test.ts, terrain-layers.test.ts and terrain-quadtree.test.ts and the terrain-look editor authoring check; no golden project carries a Terrain yet, so no packaged frame can certify it." },
+  "Water mirrors the world.":
+    { notCertifiable: "Water is covered by sdk/tests/water.test.ts, water-zone.test.ts and water-bodies.test.ts and the water-look editor authoring check; no golden project carries a WaterBody yet (check-corpus-authoring records it as owed), so no packaged frame can certify it." },
+  "Soft water edges.":
+    { notCertifiable: "Water is covered by sdk/tests/water.test.ts, water-zone.test.ts and water-bodies.test.ts and the water-look editor authoring check; no golden project carries a WaterBody yet (check-corpus-authoring records it as owed), so no packaged frame can certify it." },
+  "Plants keep out of the water.":
+    { notCertifiable: "Foliage and generated worlds are covered by sdk/tests/foliage-placements.test.ts, foliage-builder.test.ts, worldgen-plan.test.ts and worldgen-plants.test.ts; no golden project places a generated world or placed plants yet, so no packaged frame can certify them." },
 };
 
 /** Numeric compare of two `x.y.z` strings. */

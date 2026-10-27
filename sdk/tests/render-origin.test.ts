@@ -7,7 +7,7 @@ import { followRenderOrigin, pushRenderOrigin, renderOrigin, resetRenderOrigin, 
 
 const pov = (over: Partial<CameraPOV>): CameraPOV => ({
     entity: -1, isActive: true, x: 0, y: 0, z: 0, rotation: 0, projection: ProjectionType.Perspective, orthoSize: 10, fov: 60, near: 0.1, far: 100000,
-    viewport: { x: 0, y: 0, z: 1, w: 1 }, clearFlags: ClearFlags.ColorAndDepth, priority: 0, pixelPerfect: false, ...over,
+    viewport: { x: 0, y: 0, z: 1, w: 1 }, clearFlags: ClearFlags.ColorAndDepth, priority: 0, pixelPerfect: false, cullingMask: 0xFFFFFFFF, renderTarget: 0, ...over,
 });
 
 const clip = (m: Float32Array, p: [number, number, number]): [number, number, number, number] =>

@@ -39,7 +39,9 @@ const manifest = JSON.parse(readFileSync(MANIFEST, 'utf8'));
  * static one does.
  */
 function specifiers(file) {
-  const src = readFileSync(file, 'utf8');
+  // Prose is not an import: a doc comment that shows `import { x } from './y'` survives into the chunk,
+  // and would send the walk after a file that was never asked for.
+  const src = readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
   const found = new Set();
   for (const re of [
     /\b(?:import|export)\b[^;\n]*?\bfrom\s*['"]([^'"]+)['"]/g,

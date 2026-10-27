@@ -62,6 +62,7 @@ const DISPOSITIONS = {
     },
     defineSystemSet: { kind: 'no-id', why: 'a set is addressed by its _name; it mints no symbol' },
     defineInputMap: { kind: 'no-id', why: 'a plain action table — nothing addresses a World through it' },
+    defineContract: { kind: 'no-id', why: 'a contract is addressed by the fingerprint of its schemas, not by a minted symbol — evaluating it twice yields the same fingerprint' },
     defineBehavior: { kind: 'delegates', via: 'defineComponent' },
 };
 
