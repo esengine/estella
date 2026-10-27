@@ -17,7 +17,6 @@
 #include "../rhi/ShaderEmbeds.generated.hpp"
 
 #include <cstdlib>
-#include <sstream>
 
 namespace esengine {
 
@@ -351,10 +350,13 @@ MaterialUniformLayout MaterialStore::layoutOf(const resource::ParsedShader& pars
         } else if (p.std140Offset >= 0) {
             MaterialParamSlot slot{ p.name, static_cast<u32>(p.std140Offset), paramArity(p.type) };
             // default(a,b,c,d) csv -> the slot's initial block value.
-            std::istringstream csv(p.defaultValue);
-            std::string tok;
-            for (u32 i = 0; i < slot.arity && std::getline(csv, tok, ','); ++i) {
-                slot.defaults[i] = std::strtof(tok.c_str(), nullptr);
+            // A trailing comma ends the list, as a stream's getline would: no empty last field.
+            usize at = 0;
+            for (u32 i = 0; i < slot.arity && at < p.defaultValue.size(); ++i) {
+                usize comma = p.defaultValue.find(',', at);
+                if (comma == std::string::npos) comma = p.defaultValue.size();
+                slot.defaults[i] = std::strtof(p.defaultValue.substr(at, comma - at).c_str(), nullptr);
+                at = comma + 1;
             }
             layout.params.push_back(slot);
         }

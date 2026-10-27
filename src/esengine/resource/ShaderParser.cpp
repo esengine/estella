@@ -18,7 +18,7 @@
 #include "../renderer/rhi/GfxEnums.hpp"
 #include "../renderer/rhi/WgslBindings.hpp"
 
-#include <sstream>
+#include <string_view>
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
@@ -31,6 +31,54 @@ namespace esengine::resource {
 // =============================================================================
 
 namespace {
+
+// The pieces of a stream this file used, without the stream: libc++'s iostream pulls its locale machinery into the module for the sake of
+// splitting lines and appending text, and these do both.
+
+/// getline(stream, line) over a string: lines split at '\n', no empty line after a final one, an empty source yields none.
+class LineReader {
+public:
+    explicit LineReader(const std::string& text) : text_(text) {}
+    bool next(std::string& line) {
+        if (pos_ >= text_.size()) return false;
+        const usize end = text_.find('\n', pos_);
+        if (end == std::string::npos) {
+            line.assign(text_, pos_, std::string::npos);
+            pos_ = text_.size();
+        } else {
+            line.assign(text_, pos_, end - pos_);
+            pos_ = end + 1;
+        }
+        return true;
+    }
+
+private:
+    const std::string& text_;
+    usize pos_ = 0;
+};
+
+/// `stream >> token`: the next run of non-space characters, empty when there are none left.
+std::string nextToken(const std::string& text, usize& pos) {
+    while (pos < text.size() && std::isspace(static_cast<unsigned char>(text[pos]))) ++pos;
+    const usize start = pos;
+    while (pos < text.size() && !std::isspace(static_cast<unsigned char>(text[pos]))) ++pos;
+    return text.substr(start, pos - start);
+}
+
+/// An ostringstream that only appends.
+class TextBuilder {
+public:
+    TextBuilder& operator<<(const std::string& s) { text_ += s; return *this; }
+    TextBuilder& operator<<(std::string_view s) { text_ += s; return *this; }
+    TextBuilder& operator<<(const char* s) { text_ += s; return *this; }
+    TextBuilder& operator<<(char c) { text_ += c; return *this; }
+    const std::string& str() const { return text_; }
+    void str(const char*) { text_.clear(); }
+    void clear() {}
+
+private:
+    std::string text_;
+};
 
 /**
  * @brief How a vertex stage reaches its own object's record.
@@ -140,10 +188,10 @@ bool expandIncludes(const std::string& source,
         return false;
     }
 
-    std::istringstream stream(source);
+    LineReader stream(source);
     std::string line;
     u32 lineNumber = 0;
-    while (std::getline(stream, line)) {
+    while (stream.next(line)) {
         ++lineNumber;
         const std::string lead = ltrim(line);
         if (lead.rfind("#include", 0) != 0) {
@@ -673,17 +721,17 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
         }
     }
 
-    std::istringstream stream(expanded);
+    LineReader stream(expanded);
     std::string line;
     ParseState state = ParseState::Global;
     std::string currentVariantName;
-    std::ostringstream currentSection;
+    TextBuilder currentSection;
     std::vector<SourceLine> currentSectionMap;
     bool currentSectionIsWGSL = false;
     bool currentSectionIsFullWGSL = false;
     u32 lineNumber = 0;
 
-    while (std::getline(stream, line)) {
+    while (stream.next(line)) {
         lineNumber++;
         std::string directive, argument;
         parseDirective(line, directive, argument);
@@ -788,9 +836,9 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
 
         if (directive == "switch") {
             // Material-controlled compile-time toggle: `#pragma switch NAME [default(on|off)]`.
-            std::istringstream sw(argument);
+            usize swPos = 0;
             ShaderSwitch decl;
-            sw >> decl.name;
+            decl.name = nextToken(argument, swPos);
             if (!decl.name.empty()) {
                 const usize p = argument.find("default(");
                 if (p != std::string::npos) {
@@ -2180,9 +2228,9 @@ std::string preprocessConditionals(const std::string& source, const std::vector<
 
     std::string out;
     out.reserve(source.size());
-    std::istringstream in(source);
+    LineReader in(source);
     std::string line;
-    while (std::getline(in, line)) {
+    while (in.next(line)) {
         const std::string lead = ltrim(line);
         if (lead.rfind("#ifdef", 0) == 0 || lead.rfind("#ifndef", 0) == 0) {
             const bool neg = lead.rfind("#ifndef", 0) == 0;
@@ -2256,7 +2304,7 @@ ShaderParser::AssembledStage assembleWGSLStage(const ParsedShader& parsed,
         return result;
     }
 
-    std::ostringstream assembled;
+    TextBuilder assembled;
     u32 headerLines = 0;
     auto inject = [&](const std::string& s) {
         assembled << s;
@@ -2355,7 +2403,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
     auto stageIt = parsed.stages.find(stage);
     if (stageIt == parsed.stages.end()) return result;
 
-    std::ostringstream assembled;
+    TextBuilder assembled;
     u32 headerLines = 0;
 
     if (!parsed.version.empty()) {
@@ -3678,9 +3726,10 @@ ShaderProperty ShaderParser::parseParamDirective(const std::string& argument) {
     ShaderProperty prop;
     prop.fromParam = true;
 
-    std::istringstream ss(argument);
+    usize ssPos = 0;
     std::string typeStr;
-    ss >> prop.name >> typeStr;
+    prop.name = nextToken(argument, ssPos);
+    typeStr = nextToken(argument, ssPos);
     if (prop.name.empty() || typeStr.empty()) {
         prop.name.clear();  // signal invalid → caller drops it
         return prop;

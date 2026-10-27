@@ -18,7 +18,6 @@
 
 #include <algorithm>
 #include <cstdlib>
-#include <sstream>
 
 namespace esengine {
 

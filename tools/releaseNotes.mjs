@@ -3038,4 +3038,6 @@ export const NOTED = {
     {"note":"The GL device skips state sets the context already holds"},
   "perf(render): instanced meshes that share a material draw together and merge":
     {"note":"Instanced meshes that share a material draw together and merge"},
+  "perf(wasm): the module no longer carries a C++ stream library":
+    {"note":"The web module is 144 KB smaller without the C++ stream library"},
 };

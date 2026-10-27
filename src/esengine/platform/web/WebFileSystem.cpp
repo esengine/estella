@@ -19,8 +19,7 @@
     #include <emscripten.h>
 #endif
 
-#include <fstream>
-#include <sstream>
+#include <cstdio>
 
 namespace esengine {
 
@@ -46,42 +45,63 @@ void FileSystem::update() {
 // File Operations
 // =============================================================================
 
+namespace {
+
+// stdio rather than ifstream: a stream here brings libc++'s iostream and locale machinery into the module for the sake of reading a file.
+struct StdioFile {
+    std::FILE* f;
+    explicit StdioFile(const std::string& path) : f(std::fopen(path.c_str(), "rb")) {}
+    ~StdioFile() { if (f) std::fclose(f); }
+    StdioFile(const StdioFile&) = delete;
+    StdioFile& operator=(const StdioFile&) = delete;
+    /// The file's length, or -1 when it cannot be measured.
+    long size() {
+        if (std::fseek(f, 0, SEEK_END) != 0) return -1;
+        const long n = std::ftell(f);
+        std::fseek(f, 0, SEEK_SET);
+        return n;
+    }
+};
+
+}  // namespace
+
 bool FileSystem::fileExists(const std::string& path) {
-    std::ifstream file(path);
-    return file.good();
+    StdioFile file(path);
+    return file.f != nullptr;
 }
 
 std::string FileSystem::readTextFile(const std::string& path) {
-    std::ifstream file(path, std::ios::in);
-    if (!file.is_open()) {
+    StdioFile file(path);
+    if (!file.f) {
         ES_LOG_ERROR("Failed to open file: {}", path);
         return "";
     }
 
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-    file.close();
-
-    return buffer.str();
+    std::string text;
+    char chunk[4096];
+    usize n;
+    while ((n = std::fread(chunk, 1, sizeof chunk, file.f)) > 0) text.append(chunk, n);
+    return text;
 }
 
 std::vector<u8> FileSystem::readBinaryFile(const std::string& path) {
-    std::ifstream file(path, std::ios::in | std::ios::binary | std::ios::ate);
-    if (!file.is_open()) {
+    StdioFile file(path);
+    if (!file.f) {
         ES_LOG_ERROR("Failed to open file: {}", path);
         return {};
     }
 
-    std::streamsize size = file.tellg();
-    file.seekg(0, std::ios::beg);
-
-    std::vector<u8> buffer(static_cast<usize>(size));
-    if (!file.read(reinterpret_cast<char*>(buffer.data()), size)) {
+    const long size = file.size();
+    if (size < 0) {
         ES_LOG_ERROR("Failed to read file: {}", path);
         return {};
     }
 
-    file.close();
+    std::vector<u8> buffer(static_cast<usize>(size));
+    if (size > 0 && std::fread(buffer.data(), 1, buffer.size(), file.f) != buffer.size()) {
+        ES_LOG_ERROR("Failed to read file: {}", path);
+        return {};
+    }
     return buffer;
 }
 
@@ -100,14 +120,12 @@ bool FileSystem::writeBinaryFile(const std::string& path, const std::vector<u8>&
 }
 
 usize FileSystem::getFileSize(const std::string& path) {
-    std::ifstream file(path, std::ios::in | std::ios::binary | std::ios::ate);
-    if (!file.is_open()) {
+    StdioFile file(path);
+    if (!file.f) {
         return 0;
     }
-
-    usize size = static_cast<usize>(file.tellg());
-    file.close();
-    return size;
+    const long size = file.size();
+    return size < 0 ? 0 : static_cast<usize>(size);
 }
 
 u64 FileSystem::getFileModificationTime(const std::string& path) {

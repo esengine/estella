@@ -7,7 +7,7 @@
 #include "../../core/FrameProfiler.hpp"
 #include "../../core/Log.hpp"
 #include <glm/gtc/type_ptr.hpp>
-#include <sstream>
+#include <string>
 
 namespace esengine {
 void RenderFrame::setPlanarQuality(f32 scale, u32 maxSize, f32 rate) {
@@ -190,10 +190,9 @@ std::string RenderFrame::planarStatus(u32 view, u32 entity) const {
     if (c.receiver.id() != entity) return "{\"state\":\"budget-excluded\"}";
     if (!c.valid || !c.target) return "{\"state\":\"unavailable\"}";
     const auto& spec = c.target->getSpecification();
-    std::ostringstream out;
-    out << "{\"state\":\"ready\",\"width\":" << spec.width << ",\"height\":" << spec.height
-        << ",\"draws\":" << c.draws << ",\"bytes\":" << (static_cast<u64>(spec.width) * spec.height * (spec.colorFormat == GfxPixelFormat::RGBA16F ? 12u : 8u))
-        << ",\"rejected\":" << c.rejected << ",\"updated\":" << (c.lastTime == planar_elapsed_ ? "true" : "false") << "}";
-    return out.str();
+    const u64 bytes = static_cast<u64>(spec.width) * spec.height * (spec.colorFormat == GfxPixelFormat::RGBA16F ? 12u : 8u);
+    return "{\"state\":\"ready\",\"width\":" + std::to_string(spec.width) + ",\"height\":" + std::to_string(spec.height)
+        + ",\"draws\":" + std::to_string(c.draws) + ",\"bytes\":" + std::to_string(bytes)
+        + ",\"rejected\":" + std::to_string(c.rejected) + ",\"updated\":" + (c.lastTime == planar_elapsed_ ? "true" : "false") + "}";
 }
 } // namespace esengine

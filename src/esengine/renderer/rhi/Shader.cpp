@@ -27,7 +27,7 @@
 #include "../../core/Log.hpp"
 
 #include <cstring>
-#include <fstream>
+#include <cstdio>
 #include <vector>
 
 namespace esengine {
@@ -113,26 +113,25 @@ Unique<Shader> Shader::createWithBindings(GfxDevice& device,
 Unique<Shader> Shader::createFromFile(GfxDevice& device,
                                       const std::string& vertexPath, const std::string& fragmentPath) {
     auto readFile = [](const std::string& filepath) -> std::string {
-        std::ifstream file(filepath, std::ios::in | std::ios::binary);
-        if (!file.is_open()) {
+        std::FILE* file = std::fopen(filepath.c_str(), "rb");
+        if (!file) {
             ES_LOG_ERROR("Failed to open shader file: {}", filepath);
             return "";
         }
 
-        file.seekg(0, std::ios::end);
-        const auto fileSize = file.tellg();
-        if (fileSize <= 0) {
-            ES_LOG_ERROR("Shader file is empty: {}", filepath);
+        std::string content;
+        char chunk[4096];
+        usize n;
+        while ((n = std::fread(chunk, 1, sizeof chunk, file)) > 0) content.append(chunk, n);
+        const bool failed = std::ferror(file) != 0;
+        std::fclose(file);
+
+        if (failed) {
+            ES_LOG_ERROR("Failed to read shader file: {}", filepath);
             return "";
         }
-
-        std::string content;
-        content.resize(static_cast<usize>(fileSize));
-        file.seekg(0, std::ios::beg);
-        file.read(&content[0], fileSize);
-
-        if (file.fail()) {
-            ES_LOG_ERROR("Failed to read shader file: {}", filepath);
+        if (content.empty()) {
+            ES_LOG_ERROR("Shader file is empty: {}", filepath);
             return "";
         }
 

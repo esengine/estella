@@ -22,13 +22,11 @@
 #include "Types.hpp"
 
 // Standard library
-#include <charconv>
 #include <cstdlib>
 #include <functional>
-#include <iomanip>
-#include <iostream>
-#include <sstream>
 #include <string>
+#include <string_view>
+#include <type_traits>
 #include <vector>
 
 namespace esengine {
@@ -194,28 +192,31 @@ private:
     static void log(LogLevel level, const char* fmt, Args&&... args) {
         if (level < level_) return;
 
-        std::ostringstream oss;
-        formatTo(oss, fmt, std::forward<Args>(args)...);
-        std::string message = oss.str();
-
-        if (level >= LogLevel::Error) {
-            std::cerr << "[" << levelToString(level) << "] " << message << "\n";
-        } else {
-            std::cout << "[" << levelToString(level) << "] " << message << "\n";
-        }
-
-        notifySinks(level, message);
+        std::string message;
+        formatTo(message, fmt, std::forward<Args>(args)...);
+        emit(level, message);
     }
 
+    // Writes the line to stdout or stderr and hands it to the sinks. Not a template, and not a stream: a stream here pulled the whole of libc++'s
+    // iostream and locale machinery into every build for the sake of printing a line.
+    static void emit(LogLevel level, const std::string& message);
     static void notifySinks(LogLevel level, const std::string& message);
     static const char* levelToString(LogLevel level);
 
-    static void formatTo(std::ostringstream& oss, const char* fmt) {
-        oss << fmt;
+    // The value formatters, kept out of the template so each argument type costs a call and not a copy of the formatting.
+    static void appendSigned(std::string& out, i64 value);
+    static void appendUnsigned(std::string& out, u64 value);
+    static void appendFloat(std::string& out, double value, int precision);
+    static void appendPointer(std::string& out, const void* value);
+    /// The digits of a "{:.Nf}" spec, or -1 when the spec asks for none. Never throws: a malformed spec is a plain value.
+    static int precisionOf(const char* spec, const char* end);
+
+    static void formatTo(std::string& out, const char* fmt) {
+        out += fmt;
     }
 
     template<typename T, typename... Args>
-    static void formatTo(std::ostringstream& oss, const char* fmt, T&& value, Args&&... args) {
+    static void formatTo(std::string& out, const char* fmt, T&& value, Args&&... args) {
         while (*fmt) {
             if (*fmt == '{') {
                 const char* start = fmt + 1;
@@ -223,43 +224,37 @@ private:
                 while (*end && *end != '}') ++end;
 
                 if (*end == '}') {
-                    std::string spec(start, end);
-                    applyFormat(oss, spec, std::forward<T>(value));
-                    formatTo(oss, end + 1, std::forward<Args>(args)...);
+                    appendValue(out, value, precisionOf(start, end));
+                    formatTo(out, end + 1, std::forward<Args>(args)...);
                     return;
                 }
             }
-            oss << *fmt++;
+            out.push_back(*fmt++);
         }
     }
 
     template<typename T>
-    static void applyFormat(std::ostringstream& oss, const std::string& spec, T&& value) {
-        if (spec.empty()) {
-            oss << std::forward<T>(value);
-            return;
+    static void appendValue(std::string& out, const T& value, int precision) {
+        using D = std::remove_cv_t<std::remove_reference_t<T>>;
+        if constexpr (std::is_same_v<D, bool>) {
+            out.push_back(value ? '1' : '0');
+        } else if constexpr (std::is_same_v<D, char> || std::is_same_v<D, signed char> || std::is_same_v<D, unsigned char>) {
+            out.push_back(static_cast<char>(value));
+        } else if constexpr (std::is_enum_v<D>) {
+            appendValue(out, static_cast<std::conditional_t<std::is_signed_v<std::underlying_type_t<D>>, i64, u64>>(value), precision);
+        } else if constexpr (std::is_integral_v<D>) {
+            if constexpr (std::is_signed_v<D>) appendSigned(out, static_cast<i64>(value));
+            else appendUnsigned(out, static_cast<u64>(value));
+        } else if constexpr (std::is_floating_point_v<D>) {
+            appendFloat(out, static_cast<double>(value), precision);
+        } else if constexpr (std::is_same_v<D, const char*> || std::is_same_v<D, char*>) {
+            if (value) out += value;
+        } else if constexpr (std::is_convertible_v<const D&, std::string_view>) {
+            out += std::string_view(value);
+        } else {
+            static_assert(std::is_pointer_v<D>, "Log cannot format this argument type");
+            appendPointer(out, static_cast<const void*>(value));
         }
-
-        if (spec[0] == ':') {
-            std::string fmt = spec.substr(1);
-            if (!fmt.empty() && fmt.back() == 'f') {
-                auto dotPos = fmt.find('.');
-                if (dotPos != std::string::npos) {
-                    // Parse precision digits between '.' and the trailing 'f'.
-                    // from_chars never throws; std::stoi would abort the whole
-                    // module under -fno-exceptions on malformed specs like "{:.f}".
-                    int precision = 0;
-                    const char* begin = fmt.data() + dotPos + 1;
-                    const char* end = fmt.data() + fmt.size() - 1;  // exclude trailing 'f'
-                    auto res = std::from_chars(begin, end, precision);
-                    if (res.ptr != begin) {
-                        oss << std::fixed << std::setprecision(precision);
-                    }
-                }
-            }
-        }
-        oss << std::forward<T>(value);
-        oss << std::defaultfloat;
     }
 };
 

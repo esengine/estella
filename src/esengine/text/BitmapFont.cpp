@@ -4,7 +4,6 @@
 #include "../core/Log.hpp"
 #include "../resource/ResourceManager.hpp"
 
-#include <sstream>
 #include <cstdlib>
 
 namespace esengine::text {
@@ -39,10 +38,13 @@ static i32 extractInt(const std::string& line, const std::string& key) {
 }
 
 bool BitmapFont::parseFntContent(const std::string& content) {
-    std::istringstream stream(content);
     std::string line;
 
-    while (std::getline(stream, line)) {
+    for (usize at = 0; at < content.size();) {
+        usize end = content.find('\n', at);
+        if (end == std::string::npos) end = content.size();
+        line.assign(content, at, end - at);
+        at = end + 1;
         if (line.empty()) {
             continue;
         }

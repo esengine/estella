@@ -73,7 +73,6 @@
 #include <cstring>
 #include <cstddef>
 #include <malloc.h>
-#include <sstream>
 
 static_assert(sizeof(void*) == 4, "EM_JS pointer passing assumes wasm32 (4-byte pointers)");
 
