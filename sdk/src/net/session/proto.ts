@@ -6,6 +6,7 @@
  *          generated message (estella proto gen) brings its codec and its shape, and the
  *          contract takes both from it instead of repeating the fields in a second place.
  */
+import { decodeUtf8, encodeUtf8 } from '../../util/utf8';
 import type { PayloadCodec } from '../wire';
 import type { Schema } from './schema';
 
@@ -56,13 +57,11 @@ export function protoAs<T, W>(message: ProtoMessage<W>, view: { to(value: T): W;
     };
 }
 
-const utf8 = new TextEncoder();
-const utf8Back = new TextDecoder();
 
 /** Plain JSON in both directions: stands in for the side of a request that is not a `proto`. */
 export const jsonCodec: PayloadCodec = {
-    encode: (value) => utf8.encode(JSON.stringify(value)),
-    decode: (bytes) => JSON.parse(utf8Back.decode(bytes)),
+    encode: (value) => encodeUtf8(JSON.stringify(value)),
+    decode: (bytes) => JSON.parse(decodeUtf8(bytes)),
     toJSON: (value) => value,
     fromJSON: (json) => json,
 };

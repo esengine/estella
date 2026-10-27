@@ -314,6 +314,10 @@ target_include_directories(test_retained_text PRIVATE
     ${CMAKE_SOURCE_DIR}/src
     ${CMAKE_SOURCE_DIR}/third_party/glm
 )
+# A wasm harness has an empty file system of its own: node's, from the repository root where the run is started, is what it must read the cases from.
+if(EMSCRIPTEN)
+    target_link_options(test_retained_text PRIVATE -sNODERAWFS=1)
+endif()
 add_test(NAME test_retained_text COMMAND test_retained_text ${CMAKE_CURRENT_SOURCE_DIR}/renderer/data/retained_text_cases.txt)
 
 # Clip-depth convention: the engine builds for [-1,1] and a device keeping [0,1]

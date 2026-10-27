@@ -22,6 +22,8 @@
  * envelope; the other numbers stay with the game and with replication.
  */
 
+import { decodeUtf8, encodeUtf8 } from '../util/utf8';
+
 /** The channel number of binary frames that carry a control message. */
 export const CONTROL_CHANNEL = 255;
 
@@ -54,8 +56,11 @@ export interface Envelope {
 }
 
 const KINDS: EnvelopeKind[] = ['event', 'req', 'res', 'ping', 'pong'];
-const encoder = new TextEncoder();
-const decoder = new TextDecoder('utf-8', { fatal: true });
+// Not built at load: a native host (QuickJS) has no TextEncoder, and a module that throws on import takes the whole bundle with it.
+const decoder = {
+    decode: (bytes: Uint8Array): string => typeof TextDecoder !== 'undefined'
+        ? new TextDecoder('utf-8', { fatal: true }).decode(bytes) : decodeUtf8(bytes),
+};
 
 function varint(out: number[], value: number): void {
     let v = value >>> 0;
@@ -68,7 +73,7 @@ function field(out: number[], number: number, wireType: number): void {
 }
 
 function text(out: number[], number: number, value: string): void {
-    const bytes = encoder.encode(value);
+    const bytes = encodeUtf8(value);
     field(out, number, 2);
     varint(out, bytes.length);
     for (const b of bytes) out.push(b);

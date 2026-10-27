@@ -8,6 +8,7 @@
  *          RPC (`handle`/`request`) with a small JSON envelope. Transport-
  *          agnostic — anything that can `send` and surface `message` events works.
  */
+import { decodeUtf8, encodeUtf8 } from '../util/utf8';
 import type { IdempotencyStore } from './IdempotencyStore';
 import { CONTROL_CHANNEL, decodeEnvelope, encodeEnvelope, type Envelope, type PayloadCodec, type WireFormat } from './wire';
 
@@ -143,9 +144,6 @@ interface Incoming {
     hasPayload: boolean;
     payload(codec: PayloadCodec | undefined): unknown;
 }
-
-const utf8 = new TextEncoder();
-const utf8Back = new TextDecoder();
 
 /**
  * Typed messaging over a {@link NetTransport}. Subscribes to the transport's
@@ -318,7 +316,7 @@ export class NetChannel {
         if (wire.k === 'ping' || wire.k === 'pong') e.id = wire.n;
         if (wire.k === 'req' && wire.ik !== undefined) e.key = wire.ik;
         if (wire.k === 'res' && wire.e !== undefined) e.error = wire.e;
-        if (value !== undefined) e.payload = codec ? codec.encode(value) : utf8.encode(JSON.stringify(value));
+        if (value !== undefined) e.payload = codec ? codec.encode(value) : encodeUtf8(JSON.stringify(value));
         this.transport.send(encodeEnvelope(e));
     }
 
@@ -505,7 +503,7 @@ function incomingFromEnvelope(e: Envelope | null): Incoming | null {
         hasPayload: bytes !== undefined,
         payload: (codec) => {
             if (bytes === undefined) return undefined;
-            return codec ? codec.decode(bytes) : JSON.parse(utf8Back.decode(bytes));
+            return codec ? codec.decode(bytes) : JSON.parse(decodeUtf8(bytes));
         },
     };
 }

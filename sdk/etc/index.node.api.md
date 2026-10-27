@@ -7282,6 +7282,7 @@ _beginScreenCapture: () => void
 _endScreenCapture: () => void
 _executeScreenPasses: () => void
 _resetAfterCamera: () => void
+antialiasing: "msaa" | "temporal"
 begin: () => void
 bind: (camera: Entity, stack: PostProcessStack) => void
 createStack: () => PostProcessStack
@@ -7718,6 +7719,7 @@ static prototype: QualityController
 
 ## QualityProfile — interface @experimental
 ```
+antialiasing: "msaa" | "temporal"
 depthPrepass: boolean
 detailScale: number
 minRenderScale: number
