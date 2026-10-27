@@ -267,3 +267,15 @@ describe('the index', () => {
         expect(parseToolsIndex({ ...f.index, files: [] })).toBeNull();
     });
 });
+
+describe('which engine release to ask for', () => {
+    it('is the one the host names, and never a made-up one', () => {
+        expect(toolSources({ ESTELLA_ENGINE_VERSION: '1.2.3' } as NodeJS.ProcessEnv).every((s) => /\/v1\.2\.3$/.test(s))).toBe(true);
+        // An explicit version wins over the environment.
+        expect(toolSources({ ESTELLA_ENGINE_VERSION: '1.2.3' } as NodeJS.ProcessEnv, '4.5.6').every((s) => /\/v4\.5\.6$/.test(s))).toBe(true);
+        // From the source tree it reads the repo's own version, and that is a real one.
+        expect(toolSources({}).some((s) => /\/v\d+\.\d+\.\d+$/.test(s) && !s.endsWith('/v0.0.0'))).toBe(true);
+        // A base named outright needs no release.
+        expect(toolSources({ ESTELLA_TOOLS_BASE: '/x' } as NodeJS.ProcessEnv)).toEqual(['/x']);
+    });
+});

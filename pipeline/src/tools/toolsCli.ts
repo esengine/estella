@@ -130,10 +130,10 @@ export async function lubanCommand(sub: 'gen' | 'check', projectDir: string, opt
  * packaged from stale JSON. A project that has it off is not touched, and nothing is looked for.
  * Returns the message to stop with, or null to go on.
  */
-export async function prepareProjectTools(projectDir: string, options: { store?: string } = {}): Promise<string | null> {
+export async function prepareProjectTools(projectDir: string, options: { store?: string; installHint?: string } = {}): Promise<string | null> {
     const setting = readProjectManifest(projectDir).tools?.luban;
     if (!setting?.enabled) return null;
-    const result = await runLuban({ projectDir, setting, store: options.store });
+    const result = await runLuban({ projectDir, setting, store: options.store, installHint: options.installHint });
     if (result.ok) return null;
     return `Luban: ${result.errors.join('\n')}`;
 }

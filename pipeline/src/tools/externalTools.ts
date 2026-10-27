@@ -143,17 +143,26 @@ export interface InstallPlan {
     sources: string[];
 }
 
-export function toolSources(env: NodeJS.ProcessEnv = process.env, engineVersion = defaultEngineVersion()): string[] {
+export function toolSources(env: NodeJS.ProcessEnv = process.env, engineVersion?: string): string[] {
     const override = env[TOOLS_BASE_ENV];
-    return override ? [override.replace(/[\\/]+$/, '')] : (releaseAssetBases(engineVersion, env) as string[]);
+    // A base given outright needs no release to be named.
+    return override ? [override.replace(/[\\/]+$/, '')] : (releaseAssetBases(engineVersion ?? defaultEngineVersion(env), env) as string[]);
 }
 
-function defaultEngineVersion(): string {
+/** The environment variable a host sets to say which engine release it is, when it is not running from the source tree. */
+export const ENGINE_VERSION_ENV = 'ESTELLA_ENGINE_VERSION';
+
+/**
+ * Which release's files to ask the mirror for. A packaged editor has no source tree to read it from, so it says so
+ * (an `engineVersion` option, or {@link ENGINE_VERSION_ENV}); and when nothing can say, this throws. It once fell back to
+ * `0.0.0`, which asks the mirror for a release that does not exist and reports a download failure nobody can act on.
+ */
+function defaultEngineVersion(env: NodeJS.ProcessEnv = process.env): string {
+    if (env[ENGINE_VERSION_ENV]) return env[ENGINE_VERSION_ENV];
     try {
-        // The repo root's package.json when running from source; the editor passes its own version.
         return (JSON.parse(readFileSync(new URL('../../../package.json', import.meta.url), 'utf8')) as { version: string }).version;
     } catch {
-        return '0.0.0';
+        throw new Error(`cannot tell which engine release this is: pass engineVersion, or set ${ENGINE_VERSION_ENV}`);
     }
 }
 

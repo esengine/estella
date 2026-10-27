@@ -3024,6 +3024,8 @@ export const NOTED = {
     {"note":"A text field can accept only digits."},
   'feat(tools): optional third-party tools, pinned and fetched from the release mirror':
     {"note":"Optional tools a project switches on, fetched and checked by the engine."},
+  'fix(tools): a host that cannot read the engine version says so instead of asking the mirror for v0.0.0':
+    {"internal":"A fix inside the optional tools feature, which has not shipped yet."},
   "perf(sdk): a blank mini-game package no longer carries terrain and water":
     {"note":"A blank mini-game package no longer carries terrain and water."},
   "perf(ecs): one stable sort for every component type, 239KB off the engine wasm":

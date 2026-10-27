@@ -25,6 +25,8 @@ export interface LubanRunOptions {
     check?: boolean;
     store?: string;
     platform?: ToolPlatform | null;
+    /** What to tell a person to do when the tool is missing, in the words of the place they are (a command line, the editor). */
+    installHint?: string;
     /** For tests: how a process is run. */
     run?: (command: string, args: string[], options: { cwd: string; env: NodeJS.ProcessEnv }) => Promise<{ code: number | null; output: string }>;
 }
@@ -95,7 +97,7 @@ export async function runLuban(options: LubanRunOptions): Promise<LubanRunResult
         const plan = installPlan('luban', where);
         const what = plan.items.map((i) => `${i.name} ${i.version}`).join(' and ');
         return { ok: false, reason: 'missing-tool', changed: [], log: '', errors: [what
-            ? `Luban is switched on for this project but ${what} ${plan.items.length > 1 ? 'are' : 'is'} not installed. Run: estella tools install luban`
+            ? `Luban is switched on for this project but ${what} ${plan.items.length > 1 ? 'are' : 'is'} not installed. ${options.installHint ?? 'Run: estella tools install luban'}`
             : `Luban cannot run here: ${status.problem ?? status.needs.find((n) => !toolReady(n))?.problem ?? 'unavailable'}`] };
     }
     const manifest = toolsManifest();
