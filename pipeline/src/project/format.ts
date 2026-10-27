@@ -24,6 +24,7 @@ import {
 } from 'esengine';
 import { normalizePlatform, type ExportPlatform } from './platforms';
 import { cspConnectSources } from '../export/cspConnect';
+import { parseProjectTools, type ProjectTools } from '../tools/projectTools';
 
 export const PROJECT_FORMAT_VERSION = '1';
 export const PROJECT_MANIFEST_FILE = 'project.esproject';
@@ -527,6 +528,8 @@ export interface ProjectManifest {
   assetExclude?: string[];
   /** Declaration/startup entry points (defaults in {@link DEFAULT_SCRIPTS}). */
   scripts?: ProjectScripts;
+  /** Optional third-party tools the project switches on (Luban for Excel tables). Off unless named here. */
+  tools?: ProjectTools;
   /** One-line summary, shown when the project is used as a New-project template. */
   description?: string;
   /** Short category label for the template gallery (e.g. "2D", "Physics"). */
@@ -775,6 +778,8 @@ export function parseManifest(raw: unknown): ProjectManifest {
     if (typeof s.main === 'string') scripts.main = s.main;
     if (scripts.register !== undefined || scripts.main !== undefined) manifest.scripts = scripts;
   }
+  const tools = parseProjectTools(o.tools);
+  if (tools) manifest.tools = tools;
   if (typeof o.description === 'string') manifest.description = o.description;
   if (typeof o.tag === 'string') manifest.tag = o.tag;
   if (o.features && typeof o.features === 'object') {

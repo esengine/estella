@@ -14,6 +14,10 @@ const REPO = path.join(PIPELINE, '..');
 
 const USAGE = `usage: node pipeline/bin/estella.mjs create <template> <dir> [--name <project name>]
        node pipeline/bin/estella.mjs templates
+       node pipeline/bin/estella.mjs tools status [--json]
+       node pipeline/bin/estella.mjs tools install <tool> [--yes] [--base <dir|url>]
+       node pipeline/bin/estella.mjs tools remove <tool>
+       node pipeline/bin/estella.mjs luban gen|check <projectDir>
        node pipeline/bin/estella.mjs export <projectDir> [options]
        node pipeline/bin/estella.mjs import-model <file.gltf|file.glb|file.fbx> [outDir]
                                      [--project <dir>] [--scale <n>]
@@ -86,6 +90,26 @@ function parseArgs(argv) {
     process.exit(0);
   }
   if (command === 'templates') return { command };
+  // Optional third-party tools (a project switches them on in project.esproject `tools`; nothing here
+  // fetches one the project did not ask for, and `install` shows what it would download and asks first).
+  if (command === 'tools') {
+    const sub = projectDir;
+    const flags = rest.filter((a) => a.startsWith('--'));
+    const base = rest.indexOf('--base');
+    const id = rest.find((a, i) => !a.startsWith('--') && !(base >= 0 && i === base + 1));
+    if (!['status', 'install', 'remove'].includes(sub) || (sub !== 'status' && !id)) {
+      console.error('usage: tools status [--json] | tools install <tool> [--yes] [--base <dir|url>] | tools remove <tool>');
+      process.exit(2);
+    }
+    return { command, sub, id, yes: flags.includes('--yes'), json: flags.includes('--json'), base: base >= 0 ? rest[base + 1] : undefined };
+  }
+  if (command === 'luban') {
+    if (!['gen', 'check'].includes(projectDir) || !rest[0]) {
+      console.error('usage: luban gen|check <projectDir>');
+      process.exit(2);
+    }
+    return { command, sub: projectDir, projectDir: path.resolve(rest[0]) };
+  }
   if (command === 'create') {
     const named = rest.indexOf('--name');
     if (!projectDir || !rest[0] || rest[0].startsWith('--')) {
@@ -741,6 +765,20 @@ if (opts.command === 'templates' || opts.command === 'create') {
   process.exit(process.exitCode ?? 0);
 }
 
+if (opts.command === 'tools' || opts.command === 'luban') {
+  const { mod, cleanup } = await loadPipeline(path.join(PIPELINE, 'src', 'tools', 'toolsCli.ts'), 'toolsCli.mjs');
+  let code = 1;
+  try {
+    if (opts.command === 'luban') code = await mod.lubanCommand(opts.sub, opts.projectDir);
+    else if (opts.sub === 'status') code = mod.toolsStatus({ json: opts.json });
+    else if (opts.sub === 'install') code = await mod.toolsInstall(opts.id, { yes: opts.yes, base: opts.base });
+    else code = mod.toolsRemove(opts.id);
+  } catch (error) {
+    console.error(error.message);
+  } finally { cleanup(); }
+  process.exit(code);
+}
+
 if (opts.command === 'package-openpaas') {
   const { mod, cleanup } = await loadPipeline(path.join(PIPELINE, 'src/export/openpaasPackage.ts'), 'openpaasPackage.mjs');
   try {
@@ -985,6 +1023,19 @@ for (const { key, under } of ignoredManifestKeys(project)) {
   console.warn(under
     ? `  ! project.esproject: "${key}" belongs under "${under}" — ignored where it is`
     : `  ! project.esproject: "${key}" is not a project setting — ignored`);
+}
+
+// A project that has Luban switched on is packaged from tables that are up to date, or not at all. One
+// that has it off is not touched, and nothing is looked for or downloaded.
+if (project.tools?.luban?.enabled === true) {
+  const { mod: toolsCli, cleanup: cleanupTools } = await loadPipeline(path.join(PIPELINE, 'src', 'tools', 'toolsCli.ts'), 'toolsCli.mjs');
+  try {
+    const stop = await toolsCli.prepareProjectTools(opts.projectDir);
+    if (stop) {
+      console.error(stop);
+      process.exit(1);
+    }
+  } finally { cleanupTools(); }
 }
 
 const { mod: exporter, cleanup: cleanupExport } = await loadPipeline(

@@ -1,0 +1,95 @@
+{
+    "$comment": [
+        "The third-party tools an engine release is built against, pinned to exact files.",
+        "A project switches a tool on; the engine then fetches EXACTLY this file, from the release mirror first,",
+        "and refuses anything whose size or SHA-256 differs. Changing a pin is a deliberate act: it ships with an engine version.",
+        "`upstream` is the file the vendor publishes (its URL, size and SHA-256 are what the pin means).",
+        "`tools/sync-external-tools.mjs` copies it to the mirror as a .zip (the one archive format the engine reads) and",
+        "publishes an index; `--record` fills a missing size or SHA-256 from the vendor's file."
+    ],
+    "formatVersion": 1,
+    "tools": {
+        "dotnet": {
+            "name": ".NET runtime",
+            "version": "8.0.33",
+            "license": "MIT",
+            "licenseFiles": [
+                "LICENSE.txt",
+                "ThirdPartyNotices.txt"
+            ],
+            "executables": {
+                "win-x64": [
+                    "dotnet.exe"
+                ],
+                "linux-x64": [
+                    "dotnet"
+                ],
+                "linux-arm64": [
+                    "dotnet"
+                ],
+                "osx-x64": [
+                    "dotnet"
+                ],
+                "osx-arm64": [
+                    "dotnet"
+                ]
+            },
+            "files": {
+                "win-x64": {
+                    "upstream": {
+                        "url": "https://builds.dotnet.microsoft.com/dotnet/Runtime/8.0.33/dotnet-runtime-8.0.33-win-x64.zip",
+                        "bytes": 33337136,
+                        "sha256": "d88b9624950fd33ffd561462f4a23d7ef6d4173ddef55d198adab07016bc5b8c"
+                    }
+                },
+                "linux-x64": {
+                    "upstream": {
+                        "url": "https://builds.dotnet.microsoft.com/dotnet/Runtime/8.0.33/dotnet-runtime-8.0.33-linux-x64.tar.gz",
+                        "bytes": 31318724,
+                        "sha256": "73e6b84de92cc8442229ea991e677cc1376a0a05e3e39f878cf98ebd756861b6"
+                    }
+                },
+                "linux-arm64": {
+                    "upstream": {
+                        "url": "https://builds.dotnet.microsoft.com/dotnet/Runtime/8.0.33/dotnet-runtime-8.0.33-linux-arm64.tar.gz",
+                        "bytes": 29909664,
+                        "sha256": "b899b5b764da6b1d5cf10e97adb0204939c5f456068f657a6138cd2d97f8a8c1"
+                    }
+                },
+                "osx-x64": {
+                    "upstream": {
+                        "url": "https://builds.dotnet.microsoft.com/dotnet/Runtime/8.0.33/dotnet-runtime-8.0.33-osx-x64.tar.gz",
+                        "bytes": 30746138,
+                        "sha256": "015bf2e14f3034a41205ed85796182df37b678bd396e29372c8308363a6a2b79"
+                    }
+                },
+                "osx-arm64": {
+                    "upstream": {
+                        "url": "https://builds.dotnet.microsoft.com/dotnet/Runtime/8.0.33/dotnet-runtime-8.0.33-osx-arm64.tar.gz",
+                        "bytes": 29113192,
+                        "sha256": "bb673780acf815e0e37e373397bc362cd4330f3f95e6b6d87f284c7c3739deae"
+                    }
+                }
+            }
+        },
+        "luban": {
+            "name": "Luban",
+            "version": "5.1.0",
+            "license": "MIT",
+            "licenseFiles": [],
+            "needs": [
+                "dotnet"
+            ],
+            "entry": "Luban.dll",
+            "files": {
+                "any": {
+                    "upstream": {
+                        "url": "https://github.com/focus-creative-games/luban/releases/download/v5.1.0/Luban.7z",
+                        "bytes": 1647739,
+                        "sha256": "bac9a1b8d69cfeaa7ef1d8c67b34a007324d1cd158e0b14294521b3879ba5213"
+                    }
+                }
+            }
+        }
+    }
+}

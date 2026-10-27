@@ -3022,6 +3022,8 @@ export const NOTED = {
     {"note":"A web build can say which servers its game connects to."},
   'feat(ui): a text field can accept only digits':
     {"note":"A text field can accept only digits."},
+  'feat(tools): optional third-party tools, pinned and fetched from the release mirror':
+    {"note":"Optional tools a project switches on, fetched and checked by the engine."},
   "perf(sdk): a blank mini-game package no longer carries terrain and water":
     {"note":"A blank mini-game package no longer carries terrain and water."},
   "perf(ecs): one stable sort for every component type, 239KB off the engine wasm":

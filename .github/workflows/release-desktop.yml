@@ -357,6 +357,32 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "$GITHUB_REF_NAME" artifacts/* --repo "$GITHUB_REPOSITORY" --clobber
 
+  # The third-party tools a project can switch on (Luban and the .NET runtime it runs on), pinned in
+  # external-tools.manifest.json. Each vendor file is checked against its pin, repackaged as a .zip and
+  # attached to the release with an index, so a release carries exactly the tool versions it was built
+  # against and mirror-release.yml copies them to dl.estella.games with everything else. The editor
+  # refuses a file that does not match the index, and an index built from another vendor file than the
+  # engine pins. A vendor file that no longer matches its pin stops this job rather than being published.
+  publish-external-tools:
+    needs: [draft]
+    if: github.event_name == 'push' && needs.draft.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build the tool archives and their index
+        run: |
+          command -v 7z >/dev/null || sudo apt-get install -y p7zip-full
+          node tools/sync-external-tools.mjs --out tool-files
+
+      - name: Upload them to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$GITHUB_REF_NAME" tool-files/* --repo "$GITHUB_REPOSITORY" --clobber
+
   release:
     # Platform jobs only package: SDK + renderer builds are quick TS/JS work,
     # and electron-builder needs the native OS. No emsdk, no C++ here.
@@ -621,11 +647,12 @@ jobs:
   # `release: published`, when the assets are final and downloadable by tag.
   publish:
     name: Publish the release
-    needs: [draft, release, publish-templates]
+    needs: [draft, release, publish-templates, publish-external-tools]
     if: >-
       github.event_name == 'push' &&
       needs.release.result == 'success' &&
-      needs.publish-templates.result == 'success'
+      needs.publish-templates.result == 'success' &&
+      needs.publish-external-tools.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
