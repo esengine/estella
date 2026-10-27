@@ -117,7 +117,7 @@ const PROFILES: Record<QualityLevel, QualityProfile> = {
         skipEffects: ['ssr', 'taa', 'depthOfField', 'lightShafts', 'motionBlur', 'lensFlare', 'gtao', 'subsurface', 'voxelGI'],
     },
     medium: {
-        renderScale: 1, minRenderScale: 0.65, msaaSamples: 2, antialiasing: 'msaa',
+        renderScale: 1, minRenderScale: 0.65, msaaSamples: 2, antialiasing: 'temporal',
         shadowAtlasSize: 2048, shadowCellSize: 512, shadowCascades: 3,
         planarReflectionScale: 0.5, planarReflectionMaxSize: 1024, planarReflectionUpdatesPerSecond: 0, depthPrepass: true,
         shadowDistance: 0, detailScale: 0.8, particleLimit: 5000, postProcess: true, ssao: true,

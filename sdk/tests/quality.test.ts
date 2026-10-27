@@ -152,8 +152,9 @@ describe('temporal anti-aliasing as the smoothing of a level', () => {
         mode: level, profiles: { [level]: { antialiasing: 'temporal' } },
     }).profile;
 
-    it('is off in every level until a project asks, and parses only the two names', () => {
-        for (const level of ['low', 'medium', 'high'] as const) {
+    it('is the smoothing of medium and a choice elsewhere, and parses only the two names', () => {
+        expect(new QualityController({ mode: 'medium' }).profile.antialiasing).toBe('temporal');
+        for (const level of ['low', 'high'] as const) {
             expect(new QualityController({ mode: level }).profile.antialiasing, level).toBe('msaa');
         }
         const odd = new QualityController({ mode: 'high', profiles: { high: { antialiasing: 'fxaa' as never } } }).profile;
@@ -167,7 +168,7 @@ describe('temporal anti-aliasing as the smoothing of a level', () => {
         expect(qualityPassAllowed(new QualityController({ mode: 'low' }).profile, 'taa')).toBe(false);
         expect(qualityPassAllowed(temporal('low'), 'taa')).toBe(true);
         expect(qualityPassAllowed(temporal('medium'), 'fxaa')).toBe(false);
-        expect(qualityPassAllowed(new QualityController({ mode: 'medium' }).profile, 'fxaa')).toBe(true);
+        expect(qualityPassAllowed(new QualityController({ mode: 'medium', profiles: { medium: { antialiasing: 'msaa' } } }).profile, 'fxaa')).toBe(true);
         // Nothing else changes.
         expect(qualityPassAllowed(temporal('medium'), 'bloom_extract')).toBe(true);
     });
