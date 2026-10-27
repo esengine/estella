@@ -8,7 +8,7 @@ import { CONTROL_CHANNEL, decodeEnvelope, encodeEnvelope } from '../src/net/wire
 import { ClientSession } from '../src/net/session/ClientSession';
 import { SessionHost, type AcceptedConnection, type SessionContext } from '../src/net/session/SessionHost';
 import { defineContract } from '../src/net/session/contract';
-import { proto, type ProtoMessage } from '../src/net/session/proto';
+import { proto, protoAs, type ProtoMessage } from '../src/net/session/proto';
 import { s } from '../src/net/session/schema';
 import type { PlatformSocket, PlatformSocketEvents } from '../src/platform/types';
 
@@ -316,5 +316,52 @@ describe('a session choosing its wire', () => {
         const base = defineContract({ requests: { place: { req: proto(item), res: proto(item) } } });
         expect(same.fingerprint).toBe(base.fingerprint);
         expect(other.fingerprint).not.toBe(base.fingerprint);
+    });
+});
+
+describe('a message as the wire form of a type the game already has', () => {
+    type Kind = 'safe' | 'bold';
+    interface Pick { kind: Kind }
+    const KINDS: Kind[] = ['safe', 'bold'];
+    // a message whose only byte is the kind's index
+    const pickMsg: ProtoMessage<{ kind: number }> = {
+        shape: 'Pick{1:Kind kind}',
+        encode: (v) => Uint8Array.from([v.kind]),
+        decode: (b) => ({ kind: b[0]! }),
+        toJSON: (v) => ({ kind: v.kind }),
+        fromJSON: (j) => ({ kind: (j as { kind: number }).kind }),
+    };
+    const pick = protoAs<Pick, { kind: number }>(pickMsg, {
+        to: (v) => ({ kind: KINDS.indexOf(v.kind) }),
+        from: (w) => {
+            const kind = KINDS[w.kind];
+            if (!kind) throw new Error('unknown kind ' + w.kind);
+            return { kind };
+        },
+    });
+
+    it('keeps the game type on both sides, on either wire', async () => {
+        const c = defineContract({ requests: { pick: { req: pick, res: pick } } });
+        for (const wire of ['json', 'pb'] as const) {
+            const host = new SessionHost<Ctx>({ authenticate: (x) => ({ playerId: String(x), name: 'p' }), wire: 'pb', heartbeat: false });
+            c.serve(host, { pick: (v) => ({ kind: v.kind === 'safe' ? 'bold' : 'safe' }) });
+            const net = network(host);
+            const client = new ClientSession({ connect: net.socket, credentials: () => 'ann', wire, heartbeat: false, retries: 0 });
+            await client.start();
+            expect(await c.client(client).pick({ kind: 'safe' })).toEqual({ kind: 'bold' });
+            client.close();
+        }
+    });
+
+    it('refuses a message the game cannot read, as an error on that request', async () => {
+        const c = defineContract({ requests: { pick: { req: pick, res: pick } } });
+        const host = new SessionHost<Ctx>({ authenticate: (x) => ({ playerId: String(x), name: 'p' }), wire: 'pb', heartbeat: false });
+        c.serve(host, { pick: (v) => v });
+        const client = new ClientSession({ connect: network(host).socket, credentials: () => 'ann', wire: 'pb', heartbeat: false, retries: 0 });
+        await client.start();
+        const raw = { ...pick, codec: { ...pick.codec, encode: () => Uint8Array.from([9]) } };
+        const bad = defineContract({ requests: { pick: { req: raw, res: pick } } });
+        await expect(bad.client(client).pick({ kind: 'safe' })).rejects.toThrow(/invalid pick request: unknown kind 9/);
+        client.close();
     });
 });

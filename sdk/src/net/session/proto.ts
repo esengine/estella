@@ -35,6 +35,27 @@ export function proto<T>(message: ProtoMessage<T>, check?: (value: T) => void): 
     };
 }
 
+/**
+ * Use a generated message as the wire form of a type the game already has. `view.to` turns the game's value into
+ * the message to send, `view.from` the message that arrived into the game's value, so game code keeps its own types
+ * (string unions, records) and only the contract knows the message. `check` runs on the game's value.
+ */
+export function protoAs<T, W>(message: ProtoMessage<W>, view: { to(value: T): W; from(wire: W): T }, check?: (value: T) => void): ProtoSchema<T> {
+    return {
+        codec: {
+            encode: (value) => message.encode(view.to(value)),
+            decode: (bytes) => view.from(message.decode(bytes)),
+            toJSON: (value) => message.toJSON(view.to(value)),
+            fromJSON: (json) => view.from(message.fromJSON(json)),
+        },
+        parse(value) {
+            check?.(value as T);
+            return value as T;
+        },
+        describe: () => `proto(${message.shape})`,
+    };
+}
+
 const utf8 = new TextEncoder();
 const utf8Back = new TextDecoder();
 

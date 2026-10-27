@@ -60,7 +60,7 @@ export {
 } from './ClientSession';
 export { acceptWebSocket, type WebSocketLike, type AcceptWebSocketOptions } from './acceptWebSocket';
 export { s, SchemaError, type Schema, type Infer } from './schema';
-export { proto, jsonCodec, type ProtoMessage, type ProtoSchema } from './proto';
+export { proto, protoAs, jsonCodec, type ProtoMessage, type ProtoSchema } from './proto';
 export {
     defineContract,
     type Contract,
