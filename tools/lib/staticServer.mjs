@@ -17,6 +17,7 @@ import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { withDerivedTwin } from './derivedTwin.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const FIXTURES = path.join(ROOT, 'fixtures');
@@ -49,9 +50,11 @@ async function readUnder(root, rel) {
 export function serveHost(dist) {
     const server = http.createServer(async (req, res) => {
         const rel = decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/^\/+/, '') || 'index.html';
-        const bytes = (await readUnder(dist, rel)) ?? (await readUnder(FIXTURES, rel))
+        let bytes = (await readUnder(dist, rel)) ?? (await readUnder(FIXTURES, rel))
             ?? (rel.startsWith('corpora/') ? await readUnder(CORPORA_ROOT, rel) : null);
         if (!bytes) return void res.writeHead(404).end('not found');
+        // A shader the fixtures keep as GLSL only gets its WGSL twin here, derived when asked for, not read from a committed copy.
+        if (rel.endsWith('.esshader')) bytes = Buffer.from(await withDerivedTwin(bytes.toString('utf8')), 'utf8');
         res.writeHead(200, { 'content-type': MIME[path.extname(rel).toLowerCase()] ?? 'application/octet-stream' });
         res.end(bytes);
     });

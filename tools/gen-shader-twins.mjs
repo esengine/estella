@@ -29,9 +29,12 @@
  * TimeConstants 3; group 1 = texture unit u at binding (u<8 ? u : u+8) with its
  * sampler at (u<8 ? u+8 : u+16) — mirrors WebGPUMappings.
  *
- * Usage: node tools/gen-shader-twins.mjs [--check] [--force] <file.esshader ...>
+ * Usage: node tools/gen-shader-twins.mjs [--check] [--force] [--derived | --strip] <file.esshader ...>
  *   --check  report what would change, write nothing (exit 1 if any)
  *   --force  regenerate even when a twin exists (replaces generated sections)
+ *   --derived  for sources that carry NO generated twin and have it derived when read (the repo's own examples,
+ *            fixtures and games): each must still translate, and one that commits a generated twin is reported
+ *   --strip  remove the committed generated twin from a source that can derive it (the one-time migration)
  *
  * Requires: a built engine (pnpm build:web). A `#pragma switch` or feature is a
  * toggle: every combination is emitted into one body behind the same `#ifdef`
@@ -440,9 +443,12 @@ export function composePermutations(toggles, bodies, remaining = toggles, on = [
   return `#ifdef ${head}\n${whenOn}\n#else\n${whenOff}\n#endif`;
 }
 
-export async function processFile(module, file, opts) {
-  const original = await readFile(file, 'utf8');
-  if (isAuthoredTwin(original)) return { file, status: 'has-twin' };
+/**
+ * The file text with its WGSL twin derived from the authored GLSL, or a status saying why there is nothing to add. Pure in its inputs: it reads and
+ * writes no file, so whatever serves a shader (the cook, a dev server, the editor) can ask for the same text the CLI would have written.
+ */
+export async function deriveTwin(module, original, opts = {}) {
+  if (isAuthoredTwin(original)) return { status: 'has-twin' };
   // The twin is generated FROM the authored stages, so an old one is dropped
   // before anything is cooked — its hashes and its body are replaced together.
   let source = stripGeneratedTwins(original);
@@ -457,14 +463,14 @@ export async function processFile(module, file, opts) {
   const staleVertex = engineVertex && /#pragma vertex wgsl full\b/.test(original);
   if (!opts.force && !needsTwin(original) && !staleVertex
       && original.match(STORED_ASSEMBLED_RE)?.[1] === assembled) {
-    return { file, status: 'has-twin' };
+    return { status: 'has-twin' };
   }
 
   // A switch or a feature changes the assembled GLSL, so each combination is its
   // own program to translate.
   const toggles = [...valStrings(info.switches), ...valStrings(info.features)];
   if (toggles.length > MAX_TOGGLES) {
-    return { file, status: `skipped-${toggles.length}-toggles` };
+    return { status: `skipped-${toggles.length}-toggles` };
   }
 
   const workDir = await mkdtemp(path.join(tmpdir(), 'esshader-twin-'));
@@ -500,12 +506,43 @@ export async function processFile(module, file, opts) {
       (engineVertex ? '' : `\n#pragma vertex wgsl full\n${banner}\n${composePermutations(toggles, vert)}\n#pragma end\n`) +
       `\n#pragma fragment wgsl full\n${banner}\n${fragBody}\n#pragma end\n`;
 
-    if (opts.check) return { file, status: 'would-generate' };
-    await writeFile(file, source.trimEnd() + '\n' + twin, 'utf8');
-    return { file, status: 'generated' };
+    return { status: 'generated', text: source.trimEnd() + '\n' + twin };
   } finally {
     await rm(workDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   }
+}
+
+/** `source` with a fresh generated twin when it needs one; `source` itself when it has one, wants none, or cannot be translated (the caller sees the throw). */
+export async function withGeneratedTwin(module, source) {
+  const r = await deriveTwin(module, source, {});
+  return r.status === 'generated' ? r.text : source;
+}
+
+export async function processFile(module, file, opts) {
+  const original = await readFile(file, 'utf8');
+  // A source that derives its twin (the repo's own examples and fixtures) carries none: a committed one is what made every engine header edit a
+  // diff across dozens of files. It must still TRANSLATE, which is what deriving it here proves. A file that keeps a hand-written twin beside a
+  // generated one has nothing to derive once the generated one is gone, so it is left as it is.
+  if (opts.derived || opts.strip) {
+    const committed = /#pragma (?:vertex|fragment) wgsl[ \t]+full\b/.test(original);
+    const bare = committed ? stripGeneratedTwins(original).trimEnd() + '\n' : original;
+    const d = await deriveTwin(module, bare, {});
+    if (d.status !== 'generated') {
+      // A hand-written twin beside a generated one: the generated one stays, so it has to be current like any committed twin.
+      const kept = committed ? await deriveTwin(module, original, {}) : d;
+      return { file, status: kept.status === 'generated' ? 'would-generate' : kept.status };
+    }
+    if (opts.strip && committed) {
+      await writeFile(file, bare, 'utf8');
+      return { file, status: 'stripped' };
+    }
+    return { file, status: committed ? 'committed-twin' : 'derivable' };
+  }
+  const r = await deriveTwin(module, original, opts);
+  if (r.status !== 'generated') return { file, status: r.status };
+  if (opts.check) return { file, status: 'would-generate' };
+  await writeFile(file, r.text, 'utf8');
+  return { file, status: 'generated' };
 }
 
 /** Every .esshader under a directory, or the file itself. A caller that had to
@@ -522,7 +559,7 @@ async function expand(arg) {
 
 async function main() {
   const args = process.argv.slice(2);
-  const opts = { check: args.includes('--check'), force: args.includes('--force') };
+  const opts = { check: args.includes('--check'), force: args.includes('--force'), derived: args.includes('--derived'), strip: args.includes('--strip') };
   const roots = args.filter((a) => !a.startsWith('--'));
   if (roots.length === 0) {
     console.error('usage: node tools/gen-shader-twins.mjs [--check] [--force] <file.esshader | dir ...>');
@@ -542,7 +579,7 @@ async function main() {
     try {
       const r = await processFile(module, file, opts);
       console.log(`[twin] ${r.status}: ${file}`);
-      if (r.status === 'would-generate') pending++;
+      if (r.status === 'would-generate' || r.status === 'committed-twin') pending++;
     } catch (e) {
       failed++;
       console.error(`[twin] FAIL: ${file}\n  ${e.message.replace(/\n/g, '\n  ')}`);

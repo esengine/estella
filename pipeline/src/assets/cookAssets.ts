@@ -449,6 +449,24 @@ export interface CookResult {
 }
 
 /**
+ * The function that gives a `.esshader` its derived WGSL twin, or null when the converters are not here (anywhere but a checkout of the engine).
+ * Loaded by a path it holds in a variable: the bundlers must leave the module and its wasm alone, and the cook runs from the same depth in
+ * the package whether it is bundled or not, which is what lets one relative specifier name it.
+ */
+let twinDeriver: Promise<((source: string) => Promise<string>) | null> | undefined;
+function shaderTwinDeriver(): Promise<((source: string) => Promise<string>) | null> {
+  twinDeriver ??= (async () => {
+    try {
+      const specifier = '../../../tools/lib/derivedTwin.mjs';
+      return ((await import(/* @vite-ignore */ specifier)) as { withDerivedTwin: (source: string) => Promise<string> }).withDerivedTwin;
+    } catch {
+      return null;
+    }
+  })();
+  return twinDeriver;
+}
+
+/**
  * Cook assets reachable from `entryScenes` (project-relative scene paths) into
  * `outDir` (project-relative or absolute). Returns what was included vs culled.
  */
@@ -848,11 +866,15 @@ export async function cookAssets(
           warnings.push(`${entry.path}: tilemap ref rewrite failed — ${err instanceof Error ? err.message : String(err)}`);
         }
       }
-      // Shaders ship as-authored; a WGSL twin is what makes one run on the
-      // WebGPU backend, so a twin-less shader is worth a cook-time warning
-      // (generation is a dev-time step — tools/gen-shader-twins.mjs writes the
-      // twins into the source file, keeping the cook deterministic and free of
-      // converter-toolchain dependencies).
+      // A WGSL twin is what makes a shader run on the WebGPU backend. The repo's own
+      // sources carry none, so one is derived here from the GLSL when the converters
+      // are at hand (a checkout of the engine); a project that ships its own twin has it
+      // already, and one with neither is worth a cook-time warning.
+      if (ext.toLowerCase() === '.esshader' &&
+          !Buffer.from(data).toString('utf8').includes('#pragma fragment wgsl')) {
+        const derive = await shaderTwinDeriver();
+        if (derive) data = Buffer.from(await derive(Buffer.from(data).toString('utf8')), 'utf8');
+      }
       if (ext.toLowerCase() === '.esshader' &&
           !Buffer.from(data).toString('utf8').includes('#pragma fragment wgsl')) {
         warnings.push(

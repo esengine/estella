@@ -587,12 +587,13 @@ jobs:
 
     - uses: ./.github/actions/render-host
 
-    # Twin coverage guard: every fixture AND example .esshader must carry its
-    # WGSL twin (hand-written, generated, or switch-skipped) — a twin-less shader
-    # is WebGPU-dead by design and gen-shader-twins --check exits 1 on it. Covers
-    # examples/ too so a shipped user shader can never regress to WebGL-only.
+    # Twin coverage guard: every fixture AND example .esshader must have a WGSL twin
+    # (hand-written, or derived from its GLSL when read) — one that cannot be translated
+    # is WebGPU-dead, and one that COMMITS a generated twin brings back the churn of every
+    # engine header edit touching dozens of files; --derived exits 1 on either. Covers
+    # examples/ too so a shipped shader can never regress to WebGL-only.
     - name: Check shader twins
-      run: node tools/gen-shader-twins.mjs --check fixtures/scenes examples
+      run: node tools/gen-shader-twins.mjs --check --derived fixtures/scenes examples
 
     # Pipeline smoke: strip a fixture's twins into a temp copy and require the
     # vendored converters (glslang wasm + naga WASI wasm) to produce one —

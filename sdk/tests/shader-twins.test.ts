@@ -88,6 +88,7 @@ describe('embedded .esshader structure', () => {
 const gen = (await import('../../tools/gen-shader-twins.mjs')) as unknown as {
     needsTwin(s: string): boolean;
     sourceHash(s: string): string;
+    deriveTwin(module: unknown, source: string, opts?: object): Promise<{ status: string; text?: string }>;
 };
 describe('gen-shader-twins needsTwin / sourceHash (staleness)', () => {
     const glsl = '#pragma shader "T"\n#pragma fragment\nvoid main() { }\n#pragma end\n';
@@ -114,5 +115,13 @@ describe('gen-shader-twins needsTwin / sourceHash (staleness)', () => {
         const fresh = twin(gen.sourceHash(glsl));
         expect(gen.needsTwin(fresh.replace('fs_main', 'fs_main_x'))).toBe(false);
         expect(gen.needsTwin(fresh.replace('void main() { }', 'void main() { discard; }'))).toBe(true);
+    });
+});
+
+describe('gen-shader-twins deriveTwin (reads and writes no file)', () => {
+    const glsl = '#pragma shader "T"\n#pragma fragment\nvoid main() { }\n#pragma end\n';
+    it('a hand-authored twin is left as it is, without touching the engine', async () => {
+        const authored = `${glsl}\n#pragma fragment wgsl\n@fragment fn fs_main() { }\n#pragma end\n`;
+        expect(await gen.deriveTwin(null, authored)).toEqual({ status: 'has-twin' });
     });
 });

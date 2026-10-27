@@ -3060,4 +3060,14 @@ export const NOTED = {
     {"note":"Instanced meshes that share a material now draw together"},
   "perf(wasm): the module no longer carries a C++ stream library":
     {"note":"The web module is 144 KB smaller"},
+  "feat(tools): a Configuration tables page to switch Luban on, install it with consent, and keep the generated files current":
+    {"note":"Optional tools a project switches on, fetched and checked by the engine."},
+  "feat(tools): a Protobuf block beside Luban on the Configuration tables page":
+    {"note":"Protobuf as a second optional tool: .proto files become TypeScript types and a binary codec."},
+  "fix(export): an export of a project that uses Luban builds its tables first":
+    {"internal":"A fix inside the optional tools feature, which has not shipped yet."},
+  "fix(tests): the Offset test types its unit as a number, and a temp-dir delete retries on Windows":
+    {"internal":"A type annotation and a retry in tests; nothing a creator can observe."},
+  "perf(tools): the engine's own shaders derive their WebGPU twin when read instead of committing it":
+    {"note":"The engine's own shaders derive their WebGPU twin when read"},
 };
