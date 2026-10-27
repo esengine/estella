@@ -146,6 +146,11 @@ export interface MaterialData {
     dirty_: boolean;
     cachedBuffer_: Float32Array | null;
     cachedIdx_: number;
+    /** What the engine's store holds for each non-texture uniform of this material, as [arity, x, y, z, w]: what was last SENT, not what the caller's
+     *  object says now (a caller may reuse and edit one object), which is what lets a write of the number already there be a no-op. */
+    sent_?: Map<string, number[]>;
+    /** The whole material has been defined and pushed once, so the engine holds the rest of it and one changed value may go alone. */
+    pushed_?: boolean;
 }
 
 // =============================================================================
@@ -277,7 +282,36 @@ function pushUniform(handle: MaterialHandle, name: string, value: UniformValue):
         return;
     }
     const { arity, values } = classifyUniformArity(value);
+    const data = materials.get(handle);
+    if (data) {
+        let sent = data.sent_;
+        if (!sent) { sent = new Map(); data.sent_ = sent; }
+        const held = sent.get(name);
+        if (held) { held[0] = arity; held[1] = values[0]; held[2] = values[1]; held[3] = values[2]; held[4] = values[3]; }
+        else sent.set(name, [arity, values[0], values[1], values[2], values[3]]);
+    }
     module.material_setUniform(handle, name, arity, values[0], values[1], values[2], values[3]);
+}
+
+/** Whether the engine already holds exactly this value for the uniform. */
+function alreadySent(handle: MaterialHandle, name: string, value: Exclude<UniformValue, TextureRef>): boolean {
+    const held = materials.get(handle)?.sent_?.get(name);
+    if (!held) return false;
+    const { arity, values } = classifyUniformArity(value);
+    return held[0] === arity && held[1] === values[0] && held[2] === values[1] && held[3] === values[2] && held[4] === values[3];
+}
+
+/** One changed uniform to the engine, for this material and the instances that inherit it (those that override the name keep their own). */
+function pushChanged(handle: MaterialHandle, name: string, value: UniformValue): void {
+    pushUniform(handle, name, value);
+    const data = materials.get(handle);
+    if (data) data.dirty_ = true;
+    const kids = childrenOf.get(handle);
+    if (!kids) return;
+    for (const child of kids) {
+        if (materials.get(child)?.uniforms.has(name)) continue;
+        pushChanged(child, name, value);
+    }
 }
 
 interface ResolvedMaterial {
@@ -326,12 +360,16 @@ function flushMaterial(handle: MaterialHandle, previous?: ReadonlyMap<MaterialHa
         // define preserves existing constants and texture bindings. A deleted value
         // must return to the shader default, including in inheriting descendants.
         const old = previous?.get(handle);
-        if (old && [...old.uniforms.keys()].some(name => !resolved.uniforms.has(name)))
+        if (old && [...old.uniforms.keys()].some(name => !resolved.uniforms.has(name))) {
             module.material_undefine(handle);
+            materials.get(handle)?.sent_?.clear();
+        }
         module.material_define(handle, resolved.shader, resolved.blendMode,
             materialFlags(resolved.depthTest, resolved.depthWrite, resolved.cull),
             resolved.depthBias);
         for (const [name, value] of resolved.uniforms) pushUniform(handle, name, value);
+        const pushed = materials.get(handle);
+        if (pushed) pushed.pushed_ = true;
     }
     const data = materials.get(handle);
     if (data) data.dirty_ = true;
@@ -515,6 +553,19 @@ export const Material = {
         const data = materials.get(material);
         if (data) {
             warnUndeclared(shaderOf(material), name);
+            const previous = data.uniforms.get(name);
+            const plain = !isTextureRef(value) && !(previous !== undefined && isTextureRef(previous));
+            // A value written every frame (a time, a colour, a wave table) is mostly the number the engine already has, and the write is a string
+            // crossing into wasm; and when it does change, the engine holds the rest of the material already, so only that value goes. A texture
+            // is different (it is leased and counted), and a material not yet pushed has nothing to add to: both take the whole flush.
+            if (plain && data.pushed_ && module) {
+                // On an instance, the local uniforms map *is* the override set (presence = override).
+                data.uniforms.set(name, value);
+                if (alreadySent(material, name, value as Exclude<UniformValue, TextureRef>)) return;
+                data.dirty_ = true;  // immediate-mode mesh path re-encodes its uniform cache.
+                pushChanged(material, name, value);
+                return;
+            }
             // On an instance, the local uniforms map *is* the override set (presence = override).
             data.uniforms.set(name, value);
             const releasePrevious = replaceTextureOwnership(material, data.uniforms);

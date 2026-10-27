@@ -271,6 +271,7 @@ private:
     bool surface_blend_off_ = false;
     void applySurfaceBlend(bool off);
     int scissor_test_ = -1;  // tri-state: -1 unknown, 0 disabled, 1 enabled
+    int float_targets_ = -1;  // supportsFloatTargets(), answered once per context: -1 not asked yet
 
     struct VaoCache {
         u32 vao = 0;

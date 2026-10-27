@@ -294,6 +294,7 @@ std::string readProgramInfoLog(GLuint program) {
 // =============================================================================
 
 void GLDevice::init() {
+    float_targets_ = -1;
     glEnable(GL_DEPTH_TEST);
     // GL's own default, stated because the second backend states it too: a rule
     // one backend declares and the other inherits can drift with neither saying so.
@@ -1824,10 +1825,14 @@ bool GLDevice::supportsCompressedFormat(GfxCompressedFormat format) {
 }
 
 bool GLDevice::supportsFloatTargets() {
-    // Rendering INTO RGBA16F needs EXT_color_buffer_float on WebGL2 (sampling
-    // half-float textures is core; only attachment renderability is gated).
-    return glExtensionPresent("GL_EXT_color_buffer_float")
-        || glExtensionPresent("EXT_color_buffer_float");
+    // Asked by the post-process chain several times a frame, and each ask walked the whole extension list across the wasm boundary (a call into the
+    // browser for every extension the context has). What a context supports does not change while it lives; init() runs again for a new one.
+    if (float_targets_ < 0) {
+        // Rendering INTO RGBA16F needs EXT_color_buffer_float on WebGL2 (sampling
+        // half-float textures is core; only attachment renderability is gated).
+        float_targets_ = (glExtensionPresent("GL_EXT_color_buffer_float") || glExtensionPresent("EXT_color_buffer_float")) ? 1 : 0;
+    }
+    return float_targets_ == 1;
 }
 
 }  // namespace esengine

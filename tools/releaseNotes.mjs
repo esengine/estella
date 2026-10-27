@@ -3028,4 +3028,6 @@ export const NOTED = {
     {"note":"The engine's wasm is 239KB smaller, with no change to what it does."},
   "perf(render): a mesh draw finds its cached program without searching shader source":
     {"note":"A mesh draw no longer searches its shader's source or rebuilds a feature list"},
+  "perf(render): writing one material uniform sends one value, and the float-target check is asked once":
+    {"note":"Writing one material uniform sends that one value"},
 };
