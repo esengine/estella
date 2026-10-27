@@ -301,3 +301,44 @@ it.each([
     expect(app.world.get(field, TextInput).cursorPos).toBe(expected.length);
     expect(surfaces[0].write).toHaveBeenCalledWith({ value: expected, selectionStart: expected.length, selectionEnd: expected.length, backward: false });
 });
+
+it.each([
+    { typed: 'x5y', caret: 3, filter: 1, expected: '5', expectedCaret: 1 },
+    { typed: '12ab34', caret: 4, filter: 1, expected: '1234', expectedCaret: 2 },
+    { typed: '٣４5', caret: 3, filter: 1, expected: '5', expectedCaret: 1 },
+    { typed: '', caret: 0, filter: 1, expected: '', expectedCaret: 0 },
+])('a digits field removes what it does not accept and keeps the caret in place: $typed', async ({ typed, caret, filter, expected, expectedCaret }) => {
+    const app = build(new TextInputPlugin());
+    const field = app.world.spawn();
+    app.world.insert(field, TextInput, { value: '', inputFilter: filter });
+    app.getResource(FocusManager).focus(field);
+    await app.tick(1 / 60);
+    vi.spyOn(surfaces[0], 'read').mockReturnValue({ value: typed, selectionStart: caret, selectionEnd: caret, backward: false });
+    for (const listener of surfaces[0].listeners) listener({ kind: 'change' });
+    expect(app.world.get(field, TextInput).value).toBe(expected);
+    expect(app.world.get(field, TextInput).cursorPos).toBe(expectedCaret);
+    if (typed !== expected) {
+        expect(surfaces[0].write).toHaveBeenCalledWith({ value: expected, selectionStart: expectedCaret, selectionEnd: expectedCaret, backward: false });
+    }
+});
+
+it('a field with no filter takes every character, and a digits field still honours its length limit', async () => {
+    const app = build(new TextInputPlugin());
+    const open = app.world.spawn();
+    app.world.insert(open, TextInput, { value: '' });
+    app.getResource(FocusManager).focus(open);
+    await app.tick(1 / 60);
+    vi.spyOn(surfaces[0], 'read').mockReturnValue({ value: 'x5y', selectionStart: 3, selectionEnd: 3, backward: false });
+    for (const listener of surfaces[0].listeners) listener({ kind: 'change' });
+    expect(app.world.get(open, TextInput).value).toBe('x5y');
+    expect(surfaces[0].write).not.toHaveBeenCalled();
+
+    const priced = app.world.spawn();
+    app.world.insert(priced, TextInput, { value: '', inputFilter: 1, maxLength: 3 });
+    app.getResource(FocusManager).focus(priced);
+    await app.tick(1 / 60);
+    const second = surfaces.at(-1)!;
+    vi.spyOn(second, 'read').mockReturnValue({ value: '1a2b3c4d5', selectionStart: 9, selectionEnd: 9, backward: false });
+    for (const listener of second.listeners) listener({ kind: 'change' });
+    expect(app.world.get(priced, TextInput).value).toBe('123');
+});

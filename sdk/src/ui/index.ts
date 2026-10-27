@@ -396,6 +396,8 @@ export { UIInteractionPlugin, uiInteractionPlugin } from './input/interaction';
 export {
     TextInput,
     type TextInputData,
+    TextInputFilter,
+    applyTextInputFilter,
 } from './text/text-input';
 
 export { TextInputPlugin, textInputPlugin } from './text/text-input-plugin';

@@ -72,6 +72,7 @@ export {
     uiPickAllWorld,
     type PickableWorld,
     TextInput,
+    TextInputFilter,
     FillMethod,
     FillOrigin,
     Draggable,

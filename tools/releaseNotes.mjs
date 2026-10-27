@@ -3020,6 +3020,8 @@ export const NOTED = {
     {"note":"A session can be told to redial now, and says why its link ended."},
   'feat(export): a web build lists the origins its game connects to':
     {"note":"A web build can say which servers its game connects to."},
+  'feat(ui): a text field can accept only digits':
+    {"note":"A text field can accept only digits."},
   "perf(sdk): a blank mini-game package no longer carries terrain and water":
     {"note":"A blank mini-game package no longer carries terrain and water."},
   "perf(ecs): one stable sort for every component type, 239KB off the engine wasm":

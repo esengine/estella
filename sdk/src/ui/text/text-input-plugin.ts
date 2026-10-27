@@ -4,7 +4,7 @@ import type { App, Plugin } from '../../app/app';
 import type { Entity } from '../../types';
 import { defineSystem, Schedule } from '../../ecs/system';
 import { registerComponent } from '../../ecs/component';
-import { TextInput, type TextInputData } from './text-input';
+import { TextInput, applyTextInputFilter, type TextInputData } from './text-input';
 import { UINode, UIPositionType, type UINodeData } from '../core/ui-node';
 import { UIVisual, UIVisualType } from '../core/ui-visual';
 import type { UIVisualData } from '../core/ui-visual';
@@ -210,7 +210,16 @@ export class TextInputPlugin implements Plugin {
             if (ti.readOnly) return;
 
             const state = editor!.read();
-            let val = state.value;
+            let val = applyTextInputFilter(state.value, ti.inputFilter);
+            if (val !== state.value) {
+                // The caret stays after the same kept characters, where the removed ones were before it.
+                const caret = applyTextInputFilter(state.value.slice(0, state.selectionStart), ti.inputFilter).length;
+                const rest = { value: val, selectionStart: caret, selectionEnd: caret, backward: false };
+                editor!.write(rest);
+                state.value = val;
+                state.selectionStart = caret;
+                state.selectionEnd = caret;
+            }
             if (ti.maxLength > 0 && val.length > ti.maxLength) {
                 val = val.substring(0, ti.maxLength);
                 // maxLength counts UTF-16 units, but a cut between a surrogate

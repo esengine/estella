@@ -4,6 +4,23 @@ import { defineComponent, enumOptions } from '../../ecs/component';
 import type { Color } from '../../types';
 import { TextAlign, TextRenderMode } from '../core/text';
 
+/**
+ * Which characters a field accepts as they are typed or pasted. The rest never reach `value`: they are
+ * removed from the field itself, so what is on screen and what a script reads are the same.
+ */
+export const TextInputFilter = {
+    /** Anything. */
+    None: 0,
+    /** Only 0-9, for a count or a price. */
+    Digits: 1,
+} as const;
+export type TextInputFilter = typeof TextInputFilter[keyof typeof TextInputFilter];
+
+/** `value` with the characters the filter does not allow taken out. */
+export function applyTextInputFilter(value: string, filter: TextInputFilter | undefined): string {
+    return filter === TextInputFilter.Digits ? value.replace(/[^0-9]/g, '') : value;
+}
+
 export interface TextInputData {
     value: string;
     placeholder: string;
@@ -20,6 +37,8 @@ export interface TextInputData {
     backgroundColor: Color;
     padding: number;
     maxLength: number;
+    /** Characters the field accepts; see {@link TextInputFilter}. */
+    inputFilter: TextInputFilter;
     multiline: boolean;
     password: boolean;
     readOnly: boolean;
@@ -46,6 +65,7 @@ export const TextInput = defineComponent<TextInputData>('TextInput', {
     backgroundColor: { r: 0.15, g: 0.15, b: 0.15, a: 1 },
     padding: 6,
     maxLength: 0,
+    inputFilter: TextInputFilter.None,
     multiline: false,
     password: false,
     readOnly: false,
@@ -59,6 +79,10 @@ export const TextInput = defineComponent<TextInputData>('TextInput', {
         placeholderI18nKey: { label: 'Placeholder I18n Key', enumSource: 'localeKeys', tooltip: 'Translate the empty-field hint through the Localization resource. Leave empty for a literal placeholder.' },
         font: { label: 'Font', tooltip: 'A font file this project ships (.ttf / .otf). Overrides Font Family when set; leave empty to use a font the host already has.' },
         fontFamily: { tooltip: 'A font the HOST already has (system or page-loaded). Ignored when Font is set.' },
+        inputFilter: {
+            enum: enumOptions(TextInputFilter),
+            tooltip: 'Which characters the field accepts. Digits keeps only 0-9, whether typed or pasted, for a count or a price.',
+        },
         textAlign: {
             enum: enumOptions(TextAlign),
             tooltip: 'Where the value sits in the field. A single line holds the alignment while it fits, then scrolls to follow the caret.',
