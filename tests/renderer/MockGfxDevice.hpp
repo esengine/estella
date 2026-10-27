@@ -119,6 +119,9 @@ struct MockGfxDevice final : GfxDevice {
     BufferDesc lastBufferDesc{};
     bool lastCreateBufferHadData = false;
     std::vector<u8> lastCreateBufferBytes;
+    /// Every buffer created with contents, in order: a caller that makes a vertex buffer and then an index buffer leaves only the last in the above.
+    struct CreatedBuffer { u32 id; BufferDesc desc; std::vector<u8> bytes; };
+    std::vector<CreatedBuffer> createdBuffers;
     TextureDesc lastTextureDesc{};
     bool lastCreateTextureHadPixels = false;
     std::vector<u8> lastCreateTextureBytes;
@@ -225,12 +228,13 @@ struct MockGfxDevice final : GfxDevice {
     i32 getInt(GfxIntParam) override { return 16; }
 
 protected:
-    bool backendCreateBuffer(u32, const BufferDesc& desc, const void* data) override {
+    bool backendCreateBuffer(u32 id, const BufferDesc& desc, const void* data) override {
         ++createBufferCalls;
         lastBufferDesc = desc;
         lastCreateBufferHadData = data != nullptr;
         if (data) {
             lastCreateBufferBytes.assign(static_cast<const u8*>(data), static_cast<const u8*>(data) + desc.size);
+            createdBuffers.push_back({id, desc, lastCreateBufferBytes});
         } else {
             lastCreateBufferBytes.clear();
         }

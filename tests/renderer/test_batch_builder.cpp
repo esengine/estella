@@ -178,9 +178,11 @@ TEST_CASE("tilemaps: rotation places cached quads and inverts distant chunk cull
             Frustum frustum;
             RenderFrameContext frameContext{context, resources};
             RenderCollectContext collect{registry, frustum, h.clips, h.pool, h.list, frameContext, {}};
-            TilemapRenderPlugin plugin; plugin.setTilemapSystem(&system); plugin.init(frameContext);
             const auto revision = system.getLayerData(entity)->edit_revision;
             for (f32 angle : {0.0f, .37f, glm::half_pi<f32>(), glm::pi<f32>(), -glm::half_pi<f32>()}) {
+                // A plugin per angle: a layer placed anew from one collect to the next is treated as moving and built per frame, which is
+                // another test's subject; here each angle is the first time the layer is seen at it.
+                TilemapRenderPlugin plugin; plugin.setTilemapSystem(&system); plugin.init(frameContext);
                 const auto rotation = glm::angleAxis(angle, glm::vec3{0, 0, 1});
                 transform.worldPosition = origin; transform.worldRotation = rotation;
                 transform.cachedMatrix_ = glm::translate(glm::mat4{1}, origin) * glm::mat4_cast(rotation);
@@ -188,9 +190,18 @@ TEST_CASE("tilemaps: rotation places cached quads and inverts distant chunk cull
                 const auto center = origin + rotation * localCenter;
                 const auto projection = glm::ortho(center.x - 4, center.x + 4, center.y - 4, center.y + 4);
                 frustum.extractFromMatrix(projection); collect.camera = computeCameraView(projection);
-                h.pool.beginFrame(); h.list.clear(); plugin.collect(collect);
-                REQUIRE(h.pool.vertexBytesUsed(LayoutId::Batch) == 4 * sizeof(BatchVertex));
-                const auto* vertices = reinterpret_cast<const BatchVertex*>(h.pool.vertexData(LayoutId::Batch));
+                h.pool.beginFrame(); h.list.clear(); h.device.createdBuffers.clear(); plugin.collect(collect);
+                // The layer draws from a strip the GPU holds, so the quad is in the buffer made for it, not in the frame's pool: a draw that names
+                // that buffer, for the one tile's six indices.
+                REQUIRE(h.list.commandCount() == 1);
+                REQUIRE(h.list.command(0).hasPersistentGeometry());
+                CHECK(h.list.command(0).index_count == 6);
+                REQUIRE(h.pool.vertexBytesUsed(LayoutId::Batch) == 0);
+                const MockGfxDevice::CreatedBuffer* vertexBuffer = nullptr;
+                for (const auto& made : h.device.createdBuffers) if (made.desc.usage == GfxBufferUsage::Vertex) vertexBuffer = &made;
+                REQUIRE(vertexBuffer != nullptr);
+                REQUIRE(vertexBuffer->bytes.size() == 4 * sizeof(BatchVertex));
+                const auto* vertices = reinterpret_cast<const BatchVertex*>(vertexBuffer->bytes.data());
                 const glm::vec3 offsets[] = {{-8, -12, 0}, {8, -12, 0}, {8, 12, 0}, {-8, 12, 0}};
                 for (u32 i = 0; i < 4; ++i) {
                     const auto expected = origin + rotation * (localCenter + offsets[i]);
@@ -202,6 +213,153 @@ TEST_CASE("tilemaps: rotation places cached quads and inverts distant chunk cull
             resources.shutdown();
         }
     }
+}
+
+TEST_CASE("tilemaps: a layer that has not changed draws again without making or filling a buffer") {
+    Harness h;
+    RenderContext context(h.device);
+    resource::ResourceManager resources;
+    resources.init(h.device);
+    const u8 pixels[16 * 16 * 4] = {};
+    const auto texture = resources.createTexture(resource::ResourceContent::Retained, 16, 16, pixels, TextureFormat::RGBA8);
+    ecs::Registry registry;
+    const auto entity = registry.create();
+    auto& transform = registry.emplace<ecs::Transform>(entity);
+    auto& component = registry.emplace<ecs::TilemapLayer>(entity);
+    component.tileset = texture; component.tilesetColumns = 1; component.cellSize = {16, 16};
+    tilemap::TilemapSystem system;
+    system.initLayer(entity, 64, 64, 16, 16);
+    system.setTile(entity, 3, 3, 1);
+    Frustum frustum;
+    RenderFrameContext frameContext{context, resources};
+    RenderCollectContext collect{registry, frustum, h.clips, h.pool, h.list, frameContext, {}};
+    TilemapRenderPlugin plugin; plugin.setTilemapSystem(&system); plugin.init(frameContext);
+    const auto projection = glm::ortho(0.0f, 200.0f, -200.0f, 0.0f);
+    frustum.extractFromMatrix(projection); collect.camera = computeCameraView(projection);
+    transform.worldPosition = {0, 0, 0}; transform.worldRotation = glm::quat{1, 0, 0, 0};
+    transform.cachedMatrix_ = glm::mat4{1}; transform.decomposed_ = true;
+    const auto frame = [&] { h.pool.beginFrame(); h.list.clear(); plugin.collect(collect); };
+
+    frame();
+    REQUIRE(h.list.commandCount() == 1);
+    CHECK(h.list.command(0).hasPersistentGeometry());
+    const int made = h.device.createBufferCalls;
+    CHECK(made >= 2);  // a vertex and an index buffer
+
+    // The same layer, drawn again: the same two buffers, nothing created and nothing uploaded through the frame's pool.
+    for (int i = 0; i < 3; ++i) {
+        frame();
+        REQUIRE(h.list.commandCount() == 1);
+        CHECK(h.device.createBufferCalls == made);
+        CHECK(h.pool.vertexBytesUsed(LayoutId::Batch) == 0);
+    }
+
+    // A tile edited: the strip it is in is made again, once.
+    system.setTile(entity, 4, 3, 1);
+    frame();
+    CHECK(h.device.createBufferCalls > made);
+    const int afterEdit = h.device.createBufferCalls;
+    frame();
+    CHECK(h.device.createBufferCalls == afterEdit);
+
+    // The layer moved: its tiles are somewhere else in the world, so the strip is made again.
+    transform.worldPosition = {40, 0, 0};
+    transform.cachedMatrix_ = glm::translate(glm::mat4{1}, glm::vec3{40, 0, 0});
+    frame();
+    CHECK(h.device.createBufferCalls > afterEdit);
+    resources.shutdown();
+}
+
+TEST_CASE("tilemaps: a layer placed anew every frame is built per frame, and goes back to held geometry once it stands still") {
+    Harness h;
+    RenderContext context(h.device);
+    resource::ResourceManager resources;
+    resources.init(h.device);
+    const u8 pixels[16 * 16 * 4] = {};
+    const auto texture = resources.createTexture(resource::ResourceContent::Retained, 16, 16, pixels, TextureFormat::RGBA8);
+    ecs::Registry registry;
+    const auto entity = registry.create();
+    auto& transform = registry.emplace<ecs::Transform>(entity);
+    auto& component = registry.emplace<ecs::TilemapLayer>(entity);
+    component.tileset = texture; component.tilesetColumns = 1; component.cellSize = {16, 16};
+    tilemap::TilemapSystem system;
+    system.initLayer(entity, 64, 64, 16, 16);
+    system.setTile(entity, 3, 3, 1);
+    Frustum frustum;
+    RenderFrameContext frameContext{context, resources};
+    RenderCollectContext collect{registry, frustum, h.clips, h.pool, h.list, frameContext, {}};
+    TilemapRenderPlugin plugin; plugin.setTilemapSystem(&system); plugin.init(frameContext);
+    const auto projection = glm::ortho(0.0f, 200.0f, -200.0f, 0.0f);
+    frustum.extractFromMatrix(projection); collect.camera = computeCameraView(projection);
+    transform.worldPosition = {0, 0, 0}; transform.worldRotation = glm::quat{1, 0, 0, 0};
+    transform.cachedMatrix_ = glm::mat4{1}; transform.decomposed_ = true;
+    const auto frame = [&] { h.pool.beginFrame(); h.list.clear(); plugin.collect(collect); };
+
+    frame();
+    REQUIRE(h.list.commandCount() == 1);
+    CHECK(h.list.command(0).hasPersistentGeometry());
+
+    // Faded a little more each frame: its tint is part of where it is placed, so it is placed anew every frame, and a strip is every chunk of a
+    // row of them. It is built for the visible chunks into the frame's pool, as before, and makes no buffer of its own.
+    frame();
+    // Counted by what was made WITH contents: a strip's buffers are, and the frame's own streams (made when the pool is first written) are not.
+    const usize made = h.device.createdBuffers.size();
+    for (int i = 1; i <= 6; ++i) {
+        component.opacity = 1.0f - 0.1f * static_cast<f32>(i);
+        frame();
+        REQUIRE(h.list.commandCount() == 1);
+        CHECK(!h.list.command(0).hasPersistentGeometry());
+        CHECK(h.device.createdBuffers.size() == made);
+    }
+
+    // Standing still for a while, it is held on the GPU again.
+    for (int i = 0; i < 40; ++i) frame();
+    REQUIRE(h.list.commandCount() == 1);
+    CHECK(h.list.command(0).hasPersistentGeometry());
+    resources.shutdown();
+}
+
+TEST_CASE("tilemaps: rows of chunks are drawn from the top row down, each a draw of its own") {
+    Harness h;
+    RenderContext context(h.device);
+    resource::ResourceManager resources;
+    resources.init(h.device);
+    const u8 pixels[16 * 16 * 4] = {};
+    const auto texture = resources.createTexture(resource::ResourceContent::Retained, 16, 16, pixels, TextureFormat::RGBA8);
+    ecs::Registry registry;
+    const auto entity = registry.create();
+    auto& transform = registry.emplace<ecs::Transform>(entity);
+    auto& component = registry.emplace<ecs::TilemapLayer>(entity);
+    component.tileset = texture; component.tilesetColumns = 1; component.cellSize = {16, 16};
+    tilemap::TilemapSystem system;
+    system.initLayer(entity, 64, 64, 16, 16);
+    // One tile in each of three chunk rows (a chunk is sixteen tiles tall), set last row first.
+    system.setTile(entity, 1, 40, 1);
+    system.setTile(entity, 1, 20, 1);
+    system.setTile(entity, 1, 2, 1);
+    Frustum frustum;
+    RenderFrameContext frameContext{context, resources};
+    RenderCollectContext collect{registry, frustum, h.clips, h.pool, h.list, frameContext, {}};
+    TilemapRenderPlugin plugin; plugin.setTilemapSystem(&system); plugin.init(frameContext);
+    const auto projection = glm::ortho(0.0f, 1100.0f, -1100.0f, 0.0f);
+    frustum.extractFromMatrix(projection); collect.camera = computeCameraView(projection);
+    transform.worldPosition = {0, 0, 0}; transform.worldRotation = glm::quat{1, 0, 0, 0};
+    transform.cachedMatrix_ = glm::mat4{1}; transform.decomposed_ = true;
+    h.pool.beginFrame(); h.list.clear(); h.device.createdBuffers.clear(); plugin.collect(collect);
+
+    REQUIRE(h.list.commandCount() == 3);
+    // The tile of chunk row 0 is the one nearest y = 0, and its draw is first: what the merged draw's order was.
+    std::vector<f32> firstY;
+    for (u32 i = 0; i < 3; ++i) {
+        const u32 id = static_cast<u32>(h.list.command(i).vertex_buffer);
+        const MockGfxDevice::CreatedBuffer* found = nullptr;
+        for (const auto& made : h.device.createdBuffers) if (made.id == id) found = &made;
+        REQUIRE(found != nullptr);
+        firstY.push_back(reinterpret_cast<const BatchVertex*>(found->bytes.data())[0].position.y);
+    }
+    CHECK(firstY[0] > firstY[1]);
+    CHECK(firstY[1] > firstY[2]);
+    resources.shutdown();
 }
 
 TEST_CASE("appendQuad: Batch command with baseVertex-offset indices and one texture slot") {

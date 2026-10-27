@@ -117,6 +117,64 @@ void TilemapRenderPlugin::rebuildChunk(
     }
 }
 
+TilemapRenderPlugin::ChunkCache& TilemapRenderPlugin::ensureChunk(
+    const tilemap::TilemapSystem::LayerData& layer, const tilemap::ChunkData& chunkData, tilemap::ChunkCoord coord,
+    const std::vector<tilemap::TilesetSlot>& slots, const std::vector<ResolvedSlot>& resolved, Entity entity, ChunkMap& chunkCaches
+) {
+    auto& cache = chunkCaches[coord];
+    if (chunkData.revision != cache.built_revision
+        || layer.anim_table_revision != cache.built_anim_table_revision
+        || (cache.has_animated_tiles && layer.anim_revision != cache.built_anim_revision)
+        || cache.slots.size() != slots.size()) {
+        rebuildChunk(layer, chunkData, coord, slots, resolved, entity, cache);
+        cache.built_revision = chunkData.revision;
+        cache.built_anim_revision = layer.anim_revision;
+        cache.built_anim_table_revision = layer.anim_table_revision;
+        cache.mesh_serial = ++mesh_serial_;
+    }
+    return cache;
+}
+
+void TilemapRenderPlugin::releaseStrip(GfxDevice& device, Strip& strip) {
+    // Deleted whatever device generation they were made on: a device that was lost keeps its buffers' records (it rebuilds them with their
+    // contents gone), so the handles still name them, and leaving them would grow the device's table by a strip's buffers every recovery.
+    for (StripSlot& slot : strip.slots) {
+        const u64 bytes = static_cast<u64>(slot.vboBytes) + slot.iboBytes;
+        strip_bytes_ = strip_bytes_ >= bytes ? strip_bytes_ - bytes : 0;
+        if (slot.vbo != BufferHandle::Invalid) device.deleteBuffer(slot.vbo);
+        if (slot.ibo != BufferHandle::Invalid) device.deleteBuffer(slot.ibo);
+        slot = StripSlot{};
+    }
+    strip.built = false;
+}
+
+void TilemapRenderPlugin::releaseLayer(LayerCache& layer) {
+    if (device_) {
+        for (auto& [key, strip] : layer.strips) releaseStrip(*device_, strip);
+    }
+    layer.strips.clear();
+}
+
+void TilemapRenderPlugin::evictStrips(GfxDevice& device) {
+    if (strip_bytes_ <= STRIP_BYTES_BUDGET) return;
+    // Not drawn by the last two collects: a frame with several cameras collects once for each, and what an earlier one queued has not drawn yet.
+    for (auto& [entity, layer] : layer_caches_) {
+        for (auto it = layer.strips.begin(); it != layer.strips.end() && strip_bytes_ > STRIP_BYTES_BUDGET;) {
+            if (it->second.lastUsed + 2 <= collect_serial_) {
+                releaseStrip(device, it->second);
+                it = layer.strips.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+}
+
+void TilemapRenderPlugin::shutdown() {
+    for (auto& [entity, layer] : layer_caches_) releaseLayer(layer);
+    layer_caches_.clear();
+}
+
 void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
     auto& registry = collect_ctx.registry;
     auto& clips = collect_ctx.clip_state;
@@ -129,10 +187,12 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
     if (layers.empty()) return;
 
     const CameraView& cam = collect_ctx.camera;
+    ++collect_serial_;
 
     for (const auto& [entity, layer] : layers) {
         auto cachedLayer = layer_caches_.find(entity);
         if (cachedLayer != layer_caches_.end() && cachedLayer->second.generation != layer.generation) {
+            releaseLayer(cachedLayer->second);
             layer_caches_.erase(cachedLayer);
             cachedLayer = layer_caches_.end();
         }
@@ -302,12 +362,132 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
         const LayoutInputs layout{layer.tile_width, layer.tile_height, layer.grid_type,
             layer.hex_side_length, layer.hex_stagger_axis_x, layer.hex_stagger_index_even};
         if (layerCache.layout != layout || layerCache.tilesets != slots || layerCache.resolved != resolved) {
+            releaseLayer(layerCache);
             layerCache.chunks.clear();
             layerCache.layout = layout;
             layerCache.tilesets = slots;
             layerCache.resolved = resolved;
         }
         auto& chunkCaches = layerCache.chunks;
+
+        // A layer that has not moved draws from strips the GPU holds. A parallax layer places its tiles by where the camera is, which changes
+        // every frame it moves, so it keeps the path that builds the vertices each frame; so does a layer being faded, tinted or carried, until
+        // it has stood still for a while.
+        const Placement place{adjOriginX, adjOriginY, originX, originY, originOffset.x, originOffset.y, angle, depth, packedColor};
+        constexpr u64 SETTLE_COLLECTS = 30;
+        if (layerCache.lastPlacementKnown && !(layerCache.lastPlacement == place)) {
+            if (layerCache.movingUntil <= collect_serial_) releaseLayer(layerCache);
+            layerCache.movingUntil = collect_serial_ + SETTLE_COLLECTS;
+        }
+        layerCache.lastPlacement = place;
+        layerCache.lastPlacementKnown = true;
+        if (parallax.x == 1.0f && parallax.y == 1.0f && layerCache.movingUntil <= collect_serial_ && buffers.device().isDeviceUsable()) {
+            GfxDevice& device = buffers.device();
+            device_ = &device;
+            const u64 generation = device.deviceGeneration();
+            const i32 firstStrip = static_cast<i32>(std::floor(static_cast<f32>(minCX) / static_cast<f32>(STRIP_CHUNKS)));
+            const i32 lastStrip = static_cast<i32>(std::floor(static_cast<f32>(maxCX - 1) / static_cast<f32>(STRIP_CHUNKS)));
+            const VertexLayoutHandle batchLayout = buffers.layoutHandle(LayoutId::Batch);
+
+            visible_strips_scratch_.clear();
+            for (i32 cy = minCY; cy < maxCY; ++cy) {
+                for (i32 sx = firstStrip; sx <= lastStrip; ++sx) {
+                    Strip& strip = layerCache.strips[StripKey{sx, cy}];
+                    strip.lastUsed = collect_serial_;
+                    // The chunks the strip is made of, brought up to date: the newest build among them and how many there are say whether the
+                    // strip still describes them.
+                    u64 stamp = 0;
+                    u32 chunkCount = 0;
+                    const i32 cxBegin = sx * STRIP_CHUNKS;
+                    for (i32 cx = cxBegin; cx < cxBegin + STRIP_CHUNKS; ++cx) {
+                        const tilemap::ChunkCoord coord{cx, cy};
+                        const auto chunkIt = layer.chunks.find(coord);
+                        if (chunkIt == layer.chunks.end()) continue;
+                        stamp = std::max(stamp, ensureChunk(layer, chunkIt->second, coord, slots, resolved, entity, chunkCaches).mesh_serial);
+                        ++chunkCount;
+                    }
+                    if (chunkCount == 0 && !strip.built) continue;
+                    const bool current = strip.built && strip.stamp == stamp && strip.chunkCount == chunkCount
+                        && strip.placement == place && strip.deviceGeneration == generation && strip.slots.size() == slots.size();
+                    if (!current) {
+                        releaseStrip(device, strip);
+                        strip.slots.assign(slots.size(), StripSlot{});
+                        for (usize si = 0; si < slots.size(); ++si) {
+                            if (!resolved[si].valid) continue;
+                            strip_vertices_scratch_.clear();
+                            strip_indices_scratch_.clear();
+                            // Chunks in ascending x: the order the merged draw laid a row of them out in.
+                            for (i32 cx = cxBegin; cx < cxBegin + STRIP_CHUNKS; ++cx) {
+                                const auto chunkIt = chunkCaches.find(tilemap::ChunkCoord{cx, cy});
+                                if (chunkIt == chunkCaches.end() || si >= chunkIt->second.slots.size()) continue;
+                                if (layer.chunks.find(tilemap::ChunkCoord{cx, cy}) == layer.chunks.end()) continue;
+                                const SlotMesh& mesh = chunkIt->second.slots[si];
+                                if (mesh.indices.empty()) continue;
+                                const u32 baseVertex = static_cast<u32>(strip_vertices_scratch_.size());
+                                for (const BatchVertex& v : mesh.vertices) {
+                                    const f32 lx = v.position.x + originOffset.x, ly = v.position.y + originOffset.y;
+                                    strip_vertices_scratch_.push_back({
+                                        angle == 0
+                                            ? glm::vec3{v.position.x + adjOriginX, v.position.y + adjOriginY, depth}
+                                            : glm::vec3{originX + parallaxOffsetX + lx * cosAngle - ly * sinAngle,
+                                                        originY + parallaxOffsetY + lx * sinAngle + ly * cosAngle, depth},
+                                        packedColor, v.texCoord });
+                                }
+                                for (u32 idx : mesh.indices) strip_indices_scratch_.push_back(baseVertex + idx);
+                            }
+                            if (strip_indices_scratch_.empty()) continue;
+                            StripSlot& out = strip.slots[si];
+                            out.vertexCount = static_cast<u32>(strip_vertices_scratch_.size());
+                            out.indexCount = static_cast<u32>(strip_indices_scratch_.size());
+                            out.vboBytes = out.vertexCount * static_cast<u32>(sizeof(BatchVertex));
+                            out.iboBytes = out.indexCount * static_cast<u32>(sizeof(u32));
+                            out.vbo = device.createBuffer({GfxBufferUsage::Vertex, out.vboBytes, /*dynamic=*/false}, GfxContent::transient(),
+                                                          strip_vertices_scratch_.data());
+                            out.ibo = device.createBuffer({GfxBufferUsage::Index, out.iboBytes, /*dynamic=*/false}, GfxContent::transient(),
+                                                          strip_indices_scratch_.data());
+                            if (out.vbo == BufferHandle::Invalid || out.ibo == BufferHandle::Invalid) {
+                                if (out.vbo != BufferHandle::Invalid) device.deleteBuffer(out.vbo);
+                                if (out.ibo != BufferHandle::Invalid) device.deleteBuffer(out.ibo);
+                                out = StripSlot{};
+                                continue;
+                            }
+                            strip_bytes_ += out.vboBytes + out.iboBytes;
+                        }
+                        strip.placement = place;
+                        strip.stamp = stamp;
+                        strip.chunkCount = chunkCount;
+                        strip.deviceGeneration = generation;
+                        strip.built = true;
+                    }
+                    visible_strips_scratch_.push_back(&strip);
+                }
+            }
+
+            // Slot by slot, then row by row: the order the merged draws were emitted in, so tiles that overlap overlap the same way.
+            for (usize si = 0; si < slots.size(); ++si) {
+                if (!resolved[si].valid) continue;
+                for (const Strip* strip : visible_strips_scratch_) {
+                    if (si >= strip->slots.size() || strip->slots[si].indexCount == 0) continue;
+                    const StripSlot& slot = strip->slots[si];
+                    BatchDrawKey key{
+                        .stage = ctx.current_stage,
+                        .layer = sortLayer,
+                        .shaderId = batch_shader_id_,
+                        .blend = BlendMode::Normal,
+                        .textureId = resolved[si].glTexId,
+                        .depth = depth,
+                        .entity = entity,
+                        .type = RenderType::Sprite,
+                    };
+                    key.vertexBuffer = slot.vbo;
+                    key.indexBuffer = slot.ibo;
+                    key.vertexLayout = batchLayout;
+                    if (!batchEntityVisible(draw_list, clips, key.entity, key.layer, key.cullBit)) continue;
+                    pushBatchDraw(draw_list, clips, 0, slot.vertexCount, 0, slot.indexCount, key);
+                }
+            }
+            continue;
+        }
 
         // Per-slot merged geometry for this layer (one draw call per slot/texture).
         if (slot_vertices_scratch_.size() < slots.size()) {
@@ -328,18 +508,7 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
                 if (chunkIt == layer.chunks.end()) continue;
 
                 const auto& chunkData = chunkIt->second;
-                auto& cache = chunkCaches[coord];
-
-                if (chunkData.revision != cache.built_revision
-                    || layer.anim_table_revision != cache.built_anim_table_revision
-                    || (cache.has_animated_tiles && layer.anim_revision != cache.built_anim_revision)
-                    || cache.slots.size() != slots.size()) {
-                    rebuildChunk(layer, chunkData, coord,
-                                slots, resolved, entity, cache);
-                    cache.built_revision = chunkData.revision;
-                    cache.built_anim_revision = layer.anim_revision;
-                    cache.built_anim_table_revision = layer.anim_table_revision;
-                }
+                auto& cache = ensureChunk(layer, chunkData, coord, slots, resolved, entity, chunkCaches);
 
                 for (usize si = 0; si < slots.size() && si < cache.slots.size(); ++si) {
                     const SlotMesh& mesh = cache.slots[si];
@@ -386,11 +555,13 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
 
     for (auto it = layer_caches_.begin(); it != layer_caches_.end(); ) {
         if (layers.find(it->first) == layers.end()) {
+            releaseLayer(it->second);
             it = layer_caches_.erase(it);
         } else {
             ++it;
         }
     }
+    if (device_) evictStrips(*device_);
 }
 
 }  // namespace esengine

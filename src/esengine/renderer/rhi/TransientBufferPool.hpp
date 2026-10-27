@@ -28,6 +28,9 @@ class TransientBufferPool {
 public:
     explicit TransientBufferPool(GfxDevice& device);
 
+    /// The device the pool's buffers live on, for a plugin that keeps geometry of its own on it.
+    GfxDevice& device() { return device_; }
+
     /** Initialize layouts; stream storage is allocated on its first non-empty write. */
     void init(u32 initialVertexBytes = 2 * 1024 * 1024,
               u32 initialIndexCount = 256 * 1024);

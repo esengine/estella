@@ -356,7 +356,7 @@ void DrawList::stageBlocks(const PerDrawBlockSet& blocks) {
 
         // gl_InstanceID restarts at zero every draw while the frame's records are
         // one continuous run, so a draw has to say where its own run begins in them.
-        if (blocks.instance && cmd.hasPersistentGeometry()) {
+        if (blocks.instance && cmd.hasPersistentGeometry() && cmd.instance_count != 0) {
             const InstanceConstants at{cmd.vertex_byte_offset / MESH_INSTANCE_STRIDE, {}};
             staged.instance = blocks.instance->stage(&at, sizeof(at));
         }
@@ -554,15 +554,19 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
         }
 
         if (cmd.hasPersistentGeometry()) {
-            if (blocks.instance) {
+            // Geometry the GPU already holds: instanced when it is a mesh placed by records, plain when it is a run of quads a plugin keeps
+            // between frames (a tilemap's chunk strip), which has no records and draws once.
+            if (blocks.instance && cmd.instance_count != 0) {
                 blocks.instance->bind(INSTANCE_CONSTANTS_BINDING, staged.instance);
             }
             device.setVertexBuffer(0, cmd.vertex_buffer, 0);
             device.setIndexBuffer(cmd.index_buffer);
-            device.drawElementsInstanced(
-                cmd.index_count, GfxDataType::UnsignedInt,
-                static_cast<u32>(static_cast<uintptr_t>(cmd.index_offset) * sizeof(u32)),
-                cmd.instance_count);
+            const u32 firstIndexByte = static_cast<u32>(static_cast<uintptr_t>(cmd.index_offset) * sizeof(u32));
+            if (cmd.instance_count != 0) {
+                device.drawElementsInstanced(cmd.index_count, GfxDataType::UnsignedInt, firstIndexByte, cmd.instance_count);
+            } else {
+                device.drawElements(cmd.index_count, GfxDataType::UnsignedInt, firstIndexByte);
+            }
         } else if (cmd.instance_count > 0) {
             // Instanced: static geometry (index_count indices from offset 0) drawn
             // instance_count times, instance attributes rebased at vertex_byte_offset.

@@ -3084,4 +3084,6 @@ export const NOTED = {
     {"note":"UI text costs less: labels are laid out when they change and submitted by the engine"},
   "perf(ui): the engine watches the world scale an automatic label picks its glyph pipeline from":
     {"note":"UI text costs a third less again"},
+  "perf(tilemap): a tilemap that has not changed uploads nothing and copies no vertex":
+    {"note":"Tilemaps that have not changed cost almost nothing per frame"},
 };
