@@ -3030,10 +3030,24 @@ export const NOTED = {
     {"note":"A session can speak protobuf, with the JSON wire kept for debugging."},
   'feat(net): a protobuf message can be the wire form of a type the game already has':
     {"internal":"A follow-up inside the session protobuf feature, which has not shipped yet."},
+  'feat(net): esengine/session exports the seeded generator':
+    {"internal":"A follow-up inside the session protobuf feature, which has not shipped yet."},
   'fix(tools): a host that cannot read the engine version says so instead of asking the mirror for v0.0.0':
     {"internal":"A fix inside the optional tools feature, which has not shipped yet."},
   "perf(sdk): a blank mini-game package no longer carries terrain and water":
-    {"note":"A blank mini-game package no longer carries terrain and water."},
+    {"note":"A blank mini-game package no longer carries terrain, water and timelines."},
+  "perf(sdk): a blank mini-game package no longer carries timelines":
+    {"note":"A blank mini-game package no longer carries terrain, water and timelines."},
+  'fix(text): a Text spawned in Update is ordered in the frame it appears, not drawn under its panels for one frame':
+    {"note":"A Text spawned in Update is ordered in the frame it appears."},
+  'perf(render): the profiler can split the scene pass into a segment per shader, and the cost doc says what is in it':
+    {"note":"Every render-graph pass has its own GPU time in the profiler"},
+  'perf(render): each render-graph pass has its own GPU time, on WebGL2 and WebGPU, read through the profiler':
+    {"note":"Every render-graph pass has its own GPU time in the profiler"},
+  "fix(inspector): Transform stays on top when a component's section order does not list it":
+    {"note":"Transform stays on top of the inspector."},
+  'feat(inspector): an Offset side the layout drops is dimmed, with the reason in its tooltip':
+    {"note":"An Offset side the layout drops is dimmed, with the reason in its tooltip."},
   "perf(ecs): one stable sort for every component type, 239KB off the engine wasm":
     {"note":"The engine's wasm is 239KB smaller, with no change to what it does."},
   "perf(render): a mesh draw finds its cached program without searching shader source":
@@ -3041,9 +3055,9 @@ export const NOTED = {
   "perf(render): writing one material uniform sends one value, and the float-target check is asked once":
     {"note":"Writing one material uniform sends that one value"},
   "perf(render): the GL device skips state sets and uniform-buffer binds the context already holds":
-    {"note":"The GL device skips state sets the context already holds"},
+    {"note":"The GL device no longer sets state the context already holds"},
   "perf(render): instanced meshes that share a material draw together and merge":
-    {"note":"Instanced meshes that share a material draw together and merge"},
+    {"note":"Instanced meshes that share a material now draw together"},
   "perf(wasm): the module no longer carries a C++ stream library":
-    {"note":"The web module is 144 KB smaller without the C++ stream library"},
+    {"note":"The web module is 144 KB smaller"},
 };

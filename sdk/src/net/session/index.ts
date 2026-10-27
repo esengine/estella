@@ -68,3 +68,5 @@ export {
     type ContractImpl,
     type RequestDef,
 } from './contract';
+// The seeded generator rules code shares between server and client: the same seed draws the same numbers on both.
+export { createRng, hashSeed, type Rng, type RngSeed } from '../../math/random';
