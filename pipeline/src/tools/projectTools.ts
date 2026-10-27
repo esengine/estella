@@ -23,9 +23,23 @@ export interface LubanSetting {
   dataDir: string;
 }
 
+export interface ProtobufSetting {
+  enabled: boolean;
+  /** The folder the .proto files are in, project-relative. */
+  protoDir: string;
+  /** Where the generated TypeScript is written, project-relative. */
+  outDir: string;
+}
+
 export interface ProjectTools {
   luban?: LubanSetting;
+  protobuf?: ProtobufSetting;
 }
+
+export const PROTOBUF_DEFAULTS: Omit<ProtobufSetting, 'enabled'> = {
+  protoDir: 'proto',
+  outDir: 'src/proto',
+};
 
 export const LUBAN_DEFAULTS: Omit<LubanSetting, 'enabled'> = {
   conf: 'config/luban/luban.conf',
@@ -39,10 +53,10 @@ export const LUBAN_DEFAULTS: Omit<LubanSetting, 'enabled'> = {
 const NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]*$/;
 
 /** A project-relative path with `/` separators that cannot leave the project. */
-export function projectRelativePath(value: string, what: string): string {
+export function projectRelativePath(value: string, what: string, tool = 'luban'): string {
   const clean = value.trim().replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/+$/, '');
   if (!clean || clean.startsWith('/') || /^[A-Za-z]:/.test(clean) || clean.split('/').some((part) => part === '..' || part === '')) {
-    throw new Error(`tools.luban.${what} must be a path inside the project, not "${value}"`);
+    throw new Error(`tools.${tool}.${what} must be a path inside the project, not "${value}"`);
   }
   return clean;
 }
@@ -73,6 +87,18 @@ export function parseProjectTools(raw: unknown): ProjectTools | undefined {
       codeDir: text(l, 'codeDir', true),
       dataDir: text(l, 'dataDir', true),
     };
+  }
+  const protobuf = (raw as Record<string, unknown>).protobuf;
+  if (protobuf && typeof protobuf === 'object' && !Array.isArray(protobuf)) {
+    const p = protobuf as Record<string, unknown>;
+    if (p.enabled !== undefined && typeof p.enabled !== 'boolean') throw new Error('tools.protobuf.enabled must be true or false');
+    const dir = (key: keyof typeof PROTOBUF_DEFAULTS): string => {
+      const value = p[key];
+      if (value === undefined) return PROTOBUF_DEFAULTS[key];
+      if (typeof value !== 'string') throw new Error(`tools.protobuf.${key} must be text`);
+      return projectRelativePath(value, key, 'protobuf');
+    };
+    tools.protobuf = { enabled: p.enabled === true, protoDir: dir('protoDir'), outDir: dir('outDir') };
   }
   return Object.keys(tools).length > 0 ? tools : undefined;
 }

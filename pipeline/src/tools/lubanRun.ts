@@ -42,7 +42,7 @@ export interface LubanRunResult {
     log: string;
 }
 
-function defaultRun(command: string, args: string[], options: { cwd: string; env: NodeJS.ProcessEnv }): Promise<{ code: number | null; output: string }> {
+export function defaultRun(command: string, args: string[], options: { cwd: string; env: NodeJS.ProcessEnv }): Promise<{ code: number | null; output: string }> {
     return new Promise((resolve, reject) => {
         const child = spawn(command, args, { cwd: options.cwd, env: options.env, windowsHide: true });
         let output = '';
@@ -66,7 +66,7 @@ export function lubanErrors(output: string): string[] {
     return out;
 }
 
-function listFiles(dir: string, rel = ''): string[] {
+export function listFiles(dir: string, rel = ''): string[] {
     if (!existsSync(dir)) return [];
     const out: string[] = [];
     for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
@@ -77,12 +77,12 @@ function listFiles(dir: string, rel = ''): string[] {
     return out;
 }
 
-function sameBytes(a: string, b: string): boolean {
+export function sameBytes(a: string, b: string): boolean {
     return existsSync(a) && existsSync(b) && statSync(a).size === statSync(b).size && readFileSync(a).equals(readFileSync(b));
 }
 
 /** Within the project, whatever the setting says. */
-function inside(root: string, rel: string): string {
+export function inside(root: string, rel: string): string {
     const abs = path.resolve(root, rel);
     if (abs !== root && !abs.startsWith(root + path.sep)) throw new Error(`"${rel}" is outside the project`);
     return abs;
@@ -166,7 +166,7 @@ export type Staleness = 'fresh' | 'stale' | 'never';
 /** Files an editor or Excel leaves beside a document while it is open: not something a designer wrote. */
 const SCRATCH = /^(~\$|\.~lock\.|\.#|.*\.(tmp|bak)$)/i;
 
-function newestInput(dir: string): number {
+export function newestInput(dir: string): number {
     let newest = 0;
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
         if (SCRATCH.test(entry.name)) continue;
@@ -190,10 +190,14 @@ export interface StalenessReport {
  */
 export function lubanStalenessReport(projectDir: string, setting: LubanSetting): StalenessReport {
     const root = path.resolve(projectDir);
-    const confDir = path.dirname(inside(root, setting.conf));
-    const newest = existsSync(confDir) ? newestInput(confDir) : 0;
-    const ledgerFile = path.join(root, LEDGER);
-    if (!existsSync(ledgerFile) || !existsSync(confDir)) return { state: 'never', newest };
+    return ledgerStaleness(root, LEDGER, path.dirname(inside(root, setting.conf)));
+}
+
+/** The look both generators share: the newest input against the ledger the last run left. */
+export function ledgerStaleness(root: string, ledgerRel: string, inputDir: string): StalenessReport {
+    const newest = existsSync(inputDir) ? newestInput(inputDir) : 0;
+    const ledgerFile = path.join(root, ledgerRel);
+    if (!existsSync(ledgerFile) || !existsSync(inputDir)) return { state: 'never', newest };
     let ledger: { files?: string[]; generatedAt?: number };
     try { ledger = JSON.parse(readFileSync(ledgerFile, 'utf8')); } catch { return { state: 'never', newest }; }
     if (typeof ledger.generatedAt !== 'number' || !Array.isArray(ledger.files)) return { state: 'never', newest };

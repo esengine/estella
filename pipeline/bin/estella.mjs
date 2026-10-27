@@ -18,6 +18,7 @@ const USAGE = `usage: node pipeline/bin/estella.mjs create <template> <dir> [--n
        node pipeline/bin/estella.mjs tools install <tool> [--yes] [--base <dir|url>]
        node pipeline/bin/estella.mjs tools remove <tool>
        node pipeline/bin/estella.mjs luban gen|check <projectDir>
+       node pipeline/bin/estella.mjs proto gen|check <projectDir>
        node pipeline/bin/estella.mjs export <projectDir> [options]
        node pipeline/bin/estella.mjs import-model <file.gltf|file.glb|file.fbx> [outDir]
                                      [--project <dir>] [--scale <n>]
@@ -103,9 +104,9 @@ function parseArgs(argv) {
     }
     return { command, sub, id, yes: flags.includes('--yes'), json: flags.includes('--json'), base: base >= 0 ? rest[base + 1] : undefined };
   }
-  if (command === 'luban') {
+  if (command === 'luban' || command === 'proto') {
     if (!['gen', 'check'].includes(projectDir) || !rest[0]) {
-      console.error('usage: luban gen|check <projectDir>');
+      console.error(`usage: ${command} gen|check <projectDir>`);
       process.exit(2);
     }
     return { command, sub: projectDir, projectDir: path.resolve(rest[0]) };
@@ -765,11 +766,12 @@ if (opts.command === 'templates' || opts.command === 'create') {
   process.exit(process.exitCode ?? 0);
 }
 
-if (opts.command === 'tools' || opts.command === 'luban') {
+if (opts.command === 'tools' || opts.command === 'luban' || opts.command === 'proto') {
   const { mod, cleanup } = await loadPipeline(path.join(PIPELINE, 'src', 'tools', 'toolsCli.ts'), 'toolsCli.mjs');
   let code = 1;
   try {
     if (opts.command === 'luban') code = await mod.lubanCommand(opts.sub, opts.projectDir);
+    else if (opts.command === 'proto') code = await mod.protoCommand(opts.sub, opts.projectDir);
     else if (opts.sub === 'status') code = mod.toolsStatus({ json: opts.json });
     else if (opts.sub === 'install') code = await mod.toolsInstall(opts.id, { yes: opts.yes, base: opts.base });
     else code = mod.toolsRemove(opts.id);
@@ -1025,9 +1027,9 @@ for (const { key, under } of ignoredManifestKeys(project)) {
     : `  ! project.esproject: "${key}" is not a project setting — ignored`);
 }
 
-// A project that has Luban switched on is packaged from tables that are up to date, or not at all. One
-// that has it off is not touched, and nothing is looked for or downloaded.
-if (project.tools?.luban?.enabled === true) {
+// A project that has Luban or Protobuf switched on is packaged from generated files that are up to date, or not at
+// all. One that has them off is not touched, and nothing is looked for or downloaded.
+if (project.tools?.luban?.enabled === true || project.tools?.protobuf?.enabled === true) {
   const { mod: toolsCli, cleanup: cleanupTools } = await loadPipeline(path.join(PIPELINE, 'src', 'tools', 'toolsCli.ts'), 'toolsCli.mjs');
   try {
     const stop = await toolsCli.prepareProjectTools(opts.projectDir);

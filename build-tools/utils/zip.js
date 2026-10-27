@@ -260,6 +260,8 @@ export function extractZip(buf, destDir) {
     }
     for (const { name, data } of entries) {
         const target = path.resolve(root, name);
+        // A folder entry ("bin/") makes the folder; it is not a file to write.
+        if (name.endsWith('/')) { mkdirSync(target, { recursive: true }); continue; }
         mkdirSync(path.dirname(target), { recursive: true });
         writeFileSync(target, data);
     }

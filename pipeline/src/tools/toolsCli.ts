@@ -14,6 +14,7 @@ import {
     type InstallPlan, type ToolStatus,
 } from './externalTools';
 import { runLuban } from './lubanRun';
+import { runProtobuf } from './protobufRun';
 import { parseManifest } from '../project/format';
 
 const mb = (bytes: number) => (bytes >= 10 * 1024 * 1024 ? `${Math.round(bytes / 1024 / 1024)} MB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`);
@@ -125,16 +126,37 @@ export async function lubanCommand(sub: 'gen' | 'check', projectDir: string, opt
     return result.reason === 'missing-tool' ? 3 : 1;
 }
 
+/** `estella proto gen|check <project>`: generate TypeScript from the .proto files, or check it is generated. */
+export async function protoCommand(sub: 'gen' | 'check', projectDir: string, options: { store?: string } = {}): Promise<number> {
+    const setting = readProjectManifest(projectDir).tools?.protobuf;
+    if (!setting?.enabled) {
+        console.error('Protobuf is off for this project. Switch it on in project.esproject:\n  "tools": { "protobuf": { "enabled": true } }');
+        return 2;
+    }
+    const result = await runProtobuf({ projectDir, setting, check: sub === 'check', store: options.store });
+    if (result.ok) {
+        console.log(sub === 'check' ? 'The generated protobuf code is up to date.' : result.changed.length ? `Wrote ${result.changed.length} file(s):\n  ${result.changed.join('\n  ')}` : 'Nothing changed.');
+        return 0;
+    }
+    for (const error of result.errors) console.error(error);
+    return result.reason === 'missing-tool' ? 3 : 1;
+}
+
 /**
- * What an export does first for a project that has Luban on: bring the tables up to date, so a game is never
- * packaged from stale JSON. A project that has it off is not touched, and nothing is looked for.
+ * What an export does first for a project that has Luban or Protobuf on: bring the generated files up to date, so a game
+ * is never packaged from stale JSON or stale code. A tool that is off is not touched, and nothing is looked for.
  * Returns the message to stop with, or null to go on.
  */
 export async function prepareProjectTools(projectDir: string, options: { store?: string; installHint?: string } = {}): Promise<string | null> {
-    const setting = readProjectManifest(projectDir).tools?.luban;
-    if (!setting?.enabled) return null;
-    const result = await runLuban({ projectDir, setting, store: options.store, installHint: options.installHint });
-    if (result.ok) return null;
-    return `Luban: ${result.errors.join('\n')}`;
+    const tools = readProjectManifest(projectDir).tools;
+    const problems: string[] = [];
+    if (tools?.luban?.enabled) {
+        const result = await runLuban({ projectDir, setting: tools.luban, store: options.store, installHint: options.installHint });
+        if (!result.ok) problems.push(`Luban: ${result.errors.join('\n')}`);
+    }
+    if (tools?.protobuf?.enabled) {
+        const result = await runProtobuf({ projectDir, setting: tools.protobuf, store: options.store, installHint: options.installHint });
+        if (!result.ok) problems.push(`Protobuf: ${result.errors.join('\n')}`);
+    }
+    return problems.length ? problems.join('\n') : null;
 }
-

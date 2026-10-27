@@ -90,6 +90,66 @@
                     }
                 }
             }
+        },
+        "protoc": {
+            "name": "Protocol Buffers compiler",
+            "version": "36.2",
+            "license": "BSD-3-Clause",
+            "licenseFiles": [],
+            "executables": {
+                "win-x64": [
+                    "bin/protoc.exe"
+                ],
+                "linux-x64": [
+                    "bin/protoc"
+                ],
+                "linux-arm64": [
+                    "bin/protoc"
+                ],
+                "osx-x64": [
+                    "bin/protoc"
+                ],
+                "osx-arm64": [
+                    "bin/protoc"
+                ]
+            },
+            "files": {
+                "win-x64": {
+                    "upstream": {
+                        "url": "https://github.com/protocolbuffers/protobuf/releases/download/v36.2/protoc-36.2-win64.zip",
+                        "bytes": 3565086,
+                        "sha256": "f0c128dc0d8492eceece83bb459a4c0e316764b929ffbf1aa416357fd644edd3"
+                    }
+                },
+                "linux-x64": {
+                    "upstream": {
+                        "url": "https://github.com/protocolbuffers/protobuf/releases/download/v36.2/protoc-36.2-linux-x86_64.zip",
+                        "bytes": 3681545,
+                        "sha256": "121f6c7afe1d4d0e3ea6aab9432038599250134cbf4474cb1167d2c7decd4278"
+                    }
+                },
+                "linux-arm64": {
+                    "upstream": {
+                        "url": "https://github.com/protocolbuffers/protobuf/releases/download/v36.2/protoc-36.2-linux-aarch_64.zip",
+                        "bytes": 3631325,
+                        "sha256": "8b8f18bd2b30346efbc698dd5a73dd7c805f3ef8380f6dfc95c768f3f1852f6a"
+                    }
+                },
+                "osx-x64": {
+                    "upstream": {
+                        "url": "https://github.com/protocolbuffers/protobuf/releases/download/v36.2/protoc-36.2-osx-x86_64.zip",
+                        "bytes": 2760113,
+                        "sha256": "228cc7add4616cc14ca5e80dee83209d44449a7aee95a914ae748fa374efb078"
+                    }
+                },
+                "osx-arm64": {
+                    "upstream": {
+                        "url": "https://github.com/protocolbuffers/protobuf/releases/download/v36.2/protoc-36.2-osx-aarch_64.zip",
+                        "bytes": 2625514,
+                        "sha256": "9cd98a532c5c5e0c4161314de0225de27e4c8a323917b6ea7b1b714d3ae23466"
+                    }
+                }
+            }
         }
     }
 }
