@@ -3018,6 +3018,8 @@ export const NOTED = {
     {"note":"A session layer for online games that do not share a tick."},
   'feat(net): a session can be told to redial now and says why its link ended':
     {"note":"A session can be told to redial now, and says why its link ended."},
+  'feat(export): a web build lists the origins its game connects to':
+    {"note":"A web build can say which servers its game connects to."},
   "perf(sdk): a blank mini-game package no longer carries terrain and water":
     {"note":"A blank mini-game package no longer carries terrain and water."},
   "perf(ecs): one stable sort for every component type, 239KB off the engine wasm":

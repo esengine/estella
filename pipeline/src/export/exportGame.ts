@@ -65,6 +65,7 @@ import { buildCompiledSystems, type BuildMode } from '../bundle/buildCompiledSys
 import { resolveEmcc, runEmcc } from '../bundle/emccPath';
 import { findHostCC } from '../../../compiler/src/hostCC';
 import { explainBundleErrors, type BundleMessage } from '../bundle/bundleDiagnostics';
+import { cspConnectSources } from './cspConnect';
 import { orientationCss, orientationOverlayHtml, orientationLockScript, orientationLockCspHash, type ScreenOrientation } from './orientationHtml';
 import { PAGE_BACKGROUND, splashCss, splashHtml, type SplashLook } from './splash';
 import { emitIosXcodeProject, type IosProjectSources } from '../../../build-tools/utils/iosProject.js';
@@ -339,11 +340,13 @@ function externalEngineImports(metafile: { outputs: Record<string, { imports?: {
  *  for desktop (the Electron shell sizes its own window). */
 function indexHtml(
   title: string, map: EngineImportMap, look: SplashLook, orientation?: ScreenOrientation,
-  debugChannel?: DebugChannelConfig, webChannel?: 'poki' | 'crazygames' | 'youtube',
+  debugChannel?: DebugChannelConfig, webChannel?: 'poki' | 'crazygames' | 'youtube', webConnect?: readonly string[],
 ): string {
   // The editor a development build dials is the one address beyond 'self' the
   // page may connect to; a build without a channel lists none.
-  const connect = debugChannel ? ` ${new URL(debugChannel.url).origin}` : '';
+  // Beside it, the origins the project says its game connects to (a server of its own).
+  const connect = [...(debugChannel ? [new URL(debugChannel.url).origin] : []), ...cspConnectSources(webConnect)]
+    .map((origin) => ` ${origin}`).join('');
   // Every inline script on this page needs its hash listed, or the browser blocks it.
   const inlineScripts = [map.cspHash, ...(orientation ? [orientationLockCspHash(orientation)] : [])]
     .map((h) => `'${h}'`)
@@ -481,6 +484,8 @@ export interface ExportGameOptions {
   scriptsEntry?: string;
   /** Browser distribution channel; standalone leaves the original Web policy intact. */
   webChannel?: 'poki' | 'crazygames' | 'youtube';
+  /** Origins the web page's policy lets the game connect to (project: packaging.platforms.web.connect). */
+  webConnect?: string[];
   leaderboardEncryptionKey?: string;
   sdkDistDir: string;
   /** The engine runtime to copy. */
@@ -1186,7 +1191,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     splashBytes = Buffer.byteLength(splashCss(look.background ?? PAGE_BACKGROUND) + splashHtml(title, look));
     await writeFile(
       path.join(payloadDir, 'index.html'),
-      indexHtml(title, engineMap, look, platform === 'web' ? orientation : undefined, debugChannel, platform === 'web' ? opts.webChannel : undefined),
+      indexHtml(title, engineMap, look, platform === 'web' ? orientation : undefined, debugChannel, platform === 'web' ? opts.webChannel : undefined, platform === 'web' ? opts.webConnect : undefined),
     );
   }
   // Typed against the SDK's contract, so a field the runtimes read can never be

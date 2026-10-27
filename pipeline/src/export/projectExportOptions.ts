@@ -108,6 +108,7 @@ export async function projectExportOptions(
       ? { androidKey: () => androidReleaseKey(root, plat.android!.releaseKey!, secrets.androidKeyPassphrase) }
       : {}),
     ...(platform === 'web' && (plat?.web?.channel === 'poki' || plat?.web?.channel === 'crazygames' || plat?.web?.channel === 'youtube') ? { webChannel: plat.web.channel } : {}),
+    ...(platform === 'web' && plat?.web?.connect?.length ? { webConnect: plat.web.connect } : {}),
     ...(platform === 'web' && plat?.web?.channel === 'crazygames' && plat.web.leaderboardEncryptionKey
       ? { leaderboardEncryptionKey: plat.web.leaderboardEncryptionKey } : {}),
     desktopProductName: plat?.desktop?.productName,

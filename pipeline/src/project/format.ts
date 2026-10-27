@@ -23,6 +23,7 @@ import {
   type AudioProjectConfig, type QualityConfig,
 } from 'esengine';
 import { normalizePlatform, type ExportPlatform } from './platforms';
+import { cspConnectSources } from '../export/cspConnect';
 
 export const PROJECT_FORMAT_VERSION = '1';
 export const PROJECT_MANIFEST_FILE = 'project.esproject';
@@ -432,7 +433,13 @@ export interface ProjectPackaging {
   /** Per-platform packaging config: each target's slice of the app identity, plus
    *  whatever only it has (a WeChat appid, an Android versionCode). */
   platforms?: {
-    web?: { channel?: 'standalone' | 'poki' | 'crazygames' | 'youtube'; leaderboardEncryptionKey?: string };
+    web?: {
+      channel?: 'standalone' | 'poki' | 'crazygames' | 'youtube';
+      leaderboardEncryptionKey?: string;
+      /** Origins the page may open connections to (a game server): `wss://play.example.com`, or a bare `wss:`.
+       *  The page's Content-Security-Policy allows only its own origin otherwise. */
+      connect?: string[];
+    };
     wechat?: WeChatPackaging;
     douyin?: MiniGamePackaging;
     bilibili?: MiniGamePackaging;
@@ -978,6 +985,13 @@ export function parseManifest(raw: unknown): ProjectManifest {
             throw new Error('packaging.platforms.web.leaderboardEncryptionKey must be a base64-encoded 32-byte client encryption key');
           }
           config.leaderboardEncryptionKey = web.leaderboardEncryptionKey;
+        }
+        if (web.connect !== undefined) {
+          if (!Array.isArray(web.connect) || !web.connect.every((o) => typeof o === 'string')) {
+            throw new Error('packaging.platforms.web.connect must be a list of origins');
+          }
+          const connect = cspConnectSources(web.connect as string[]);
+          if (connect.length) config.connect = connect;
         }
         if (Object.keys(config).length) platforms.web = config;
       }
