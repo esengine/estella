@@ -56,8 +56,8 @@ describe('Luban missing', () => {
             expect(result).toMatchObject({ ok: false, reason: 'missing-tool' });
             expect(result.errors[0]).toMatch(/\.NET runtime 8\.0\.33 and Luban 5\.1\.0 are not installed.*estella tools install luban/);
         } finally {
-            rmSync(root, { recursive: true, force: true });
-            rmSync(store, { recursive: true, force: true });
+            rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+            rmSync(store, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
         }
     });
 });
@@ -93,8 +93,8 @@ describe.skipIf(!base || !existsSync(path.join(base, 'external-tools.json')))('L
         writeFileSync(path.join(conf, 'Datas/sites.csv'), '##var,id,item,stock\n##type,string,string,int\n##,id,产出,次数\n,workshop,parts,4\n');
     }, 120_000);
     afterAll(() => {
-        rmSync(store, { recursive: true, force: true });
-        rmSync(root, { recursive: true, force: true });
+        rmSync(store, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+        rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     });
 
     const run = (extra: Partial<Parameters<typeof runLuban>[0]> = {}) => runLuban({ projectDir: root, setting, store, ...extra });
@@ -189,7 +189,7 @@ describe('is the generated output behind the tables?', () => {
             writeFileSync(path.join(root, '.esengine/luban-generated.json'), 'not json');
             expect(lubanStaleness(root, setting)).toBe('never');
         } finally {
-            rmSync(root, { recursive: true, force: true });
+            rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
         }
     });
 });

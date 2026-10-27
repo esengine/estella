@@ -4,7 +4,7 @@
 /**
  * @file  sync-external-tools.mjs — put the pinned third-party tools on the release mirror's terms.
  *
- * `external-tools.manifest.json` pins each tool to the exact file its vendor publishes. This script
+ * `tools/external-tools.manifest.json` pins each tool to the exact file its vendor publishes. This script
  * turns those into what an engine release serves: one .zip per tool and platform (the single archive
  * format the engine reads, so it needs no extractor for .7z or .tar.gz) and an index that says what
  * each file must hash to. The files are attached to the release; `mirror-release.yml` copies them to
@@ -27,7 +27,7 @@ import { fileURLToPath } from 'node:url';
 import { makeZip, readZip, zipTree } from '../build-tools/utils/zip.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const MANIFEST = path.join(ROOT, 'external-tools.manifest.json');
+const MANIFEST = path.join(ROOT, 'tools', 'external-tools.manifest.json');
 export const PLATFORMS = ['win-x64', 'linux-x64', 'linux-arm64', 'osx-x64', 'osx-arm64', 'any'];
 const SHA = /^[0-9a-f]{64}$/;
 
@@ -135,7 +135,7 @@ function read7z(buf) {
         if (run.status !== 0) throw new Error(`7z failed: ${run.stderr || run.stdout}`);
         return zipTree(out);
     } finally {
-        rmSync(temp, { recursive: true, force: true });
+        rmSync(temp, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
 }
 
@@ -173,14 +173,14 @@ async function main() {
 
     if (args.mode === 'check') {
         const problems = manifestProblems(manifest);
-        if (problems.length) { console.error(`external-tools.manifest.json:\n  - ${problems.join('\n  - ')}`); process.exit(1); }
+        if (problems.length) { console.error(`tools/external-tools.manifest.json:\n  - ${problems.join('\n  - ')}`); process.exit(1); }
         const n = Object.values(manifest.tools).reduce((sum, t) => sum + Object.keys(t.files).length, 0);
         console.log(`external-tools: ${Object.keys(manifest.tools).length} tools, ${n} pinned files — ok`);
         return;
     }
 
     const structural = manifestProblems(manifest, { requirePins: false });
-    if (structural.length) { console.error(`external-tools.manifest.json:\n  - ${structural.join('\n  - ')}`); process.exit(1); }
+    if (structural.length) { console.error(`tools/external-tools.manifest.json:\n  - ${structural.join('\n  - ')}`); process.exit(1); }
 
     if (args.mode === 'record') {
         let changed = 0;
@@ -201,7 +201,7 @@ async function main() {
     }
 
     const problems = manifestProblems(manifest);
-    if (problems.length) { console.error(`external-tools.manifest.json:\n  - ${problems.join('\n  - ')}`); process.exit(1); }
+    if (problems.length) { console.error(`tools/external-tools.manifest.json:\n  - ${problems.join('\n  - ')}`); process.exit(1); }
     const engineVersion = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
     mkdirSync(args.out, { recursive: true });
     const index = { kind: 'estella-external-tools', formatVersion: 1, engineVersion, files: [] };

@@ -59,7 +59,7 @@ beforeEach(() => {
     store = path.join(temp, 'store');
     mkdirSync(base);
 });
-afterEach(() => rmSync(temp, { recursive: true, force: true }));
+afterEach(() => rmSync(temp, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
 function publish(f: ReturnType<typeof fixture>, index = f.index) {
     writeFileSync(path.join(base, 'rt-1.2.3-win-x64.zip'), f.rtZip);
@@ -149,7 +149,7 @@ describe('installing', () => {
         publish(f);
         await installTool('gen', { manifest: f.manifest, platform: 'win-x64', store, env: env() });
         expect(removeTool('rt', store)).toBe(false); // not in this manifest's store layout under the real manifest
-        rmSync(path.join(store, 'rt'), { recursive: true });
+        rmSync(path.join(store, 'rt'), { recursive: true, maxRetries: 10, retryDelay: 50 });
         const status = toolStatus('gen', { manifest: f.manifest, platform: 'win-x64', store });
         expect(status.installed).toBe(true);
         expect(toolReady(status)).toBe(false);

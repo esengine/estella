@@ -12,6 +12,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { resolveInside } from '../fs/pathSandbox';
 import { hostPlatform, installPlan, toolReady, toolStatus, toolsManifest, type ToolPlatform } from './externalTools';
 import type { LubanSetting } from './projectTools';
 
@@ -83,9 +84,7 @@ export function sameBytes(a: string, b: string): boolean {
 
 /** Within the project, whatever the setting says. */
 export function inside(root: string, rel: string): string {
-    const abs = path.resolve(root, rel);
-    if (abs !== root && !abs.startsWith(root + path.sep)) throw new Error(`"${rel}" is outside the project`);
-    return abs;
+    return resolveInside(root, rel, 'project');
 }
 
 export async function runLuban(options: LubanRunOptions): Promise<LubanRunResult> {

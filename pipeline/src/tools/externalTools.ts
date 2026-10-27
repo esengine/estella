@@ -3,7 +3,7 @@
 /**
  * @file  externalTools.ts — the third-party tools a project can switch on, found, fetched and checked.
  *
- * `external-tools.manifest.json` (repo root) pins each tool to one exact vendor file. A project that
+ * `tools/external-tools.manifest.json` pins each tool to one exact vendor file. A project that
  * turns a tool on gets exactly that: it is looked for in the user's tool store, and when it is missing
  * the caller is handed a PLAN (what would be fetched, and from where) to put in front of the person
  * before anything is downloaded. Nothing here downloads on its own.
@@ -21,7 +21,7 @@ import { once } from 'node:events';
 import path from 'node:path';
 import { estellaDataDir, releaseAssetBases } from '../../../build-tools/utils/nativeTemplate.js';
 import { extractZip } from '../../../build-tools/utils/zip.js';
-import manifestJson from '../../../external-tools.manifest.json';
+import manifestJson from '../../../tools/external-tools.manifest.json';
 
 export type ToolPlatform = 'win-x64' | 'linux-x64' | 'linux-arm64' | 'osx-x64' | 'osx-arm64' | 'any';
 

@@ -34,8 +34,8 @@ describe('protoc missing', () => {
             expect(result).toMatchObject({ ok: false, reason: 'missing-tool' });
             expect(result.errors[0]).toMatch(/Protocol Buffers compiler 36\.2 is not installed.*estella tools install protoc/);
         } finally {
-            rmSync(root, { recursive: true, force: true });
-            rmSync(store, { recursive: true, force: true });
+            rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+            rmSync(store, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
         }
     });
 
@@ -85,8 +85,8 @@ message Order {
 `);
     }, 120_000);
     afterAll(() => {
-        rmSync(store, { recursive: true, force: true });
-        rmSync(root, { recursive: true, force: true });
+        rmSync(store, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+        rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     });
 
     const run = (extra: Partial<Parameters<typeof runProtobuf>[0]> = {}) => runProtobuf({ projectDir: root, setting, store, ...extra });

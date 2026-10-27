@@ -358,7 +358,7 @@ jobs:
         run: gh release upload "$GITHUB_REF_NAME" artifacts/* --repo "$GITHUB_REPOSITORY" --clobber
 
   # The third-party tools a project can switch on (Luban and the .NET runtime it runs on), pinned in
-  # external-tools.manifest.json. Each vendor file is checked against its pin, repackaged as a .zip and
+  # tools/external-tools.manifest.json. Each vendor file is checked against its pin, repackaged as a .zip and
   # attached to the release with an index, so a release carries exactly the tool versions it was built
   # against and mirror-release.yml copies them to dl.estella.games with everything else. The editor
   # refuses a file that does not match the index, and an index built from another vendor file than the
@@ -372,6 +372,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup
 
       - name: Build the tool archives and their index
         run: |
