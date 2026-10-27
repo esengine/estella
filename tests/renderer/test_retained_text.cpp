@@ -37,10 +37,16 @@ int main(int argc, char** argv) {
         std::printf("FAIL: cannot open %s\n", path.c_str());
         return 1;
     }
+    // The file is checked out with whatever line ending the checkout has; a trailing carriage return is not part of any field.
+    const auto next = [&file](std::string& out) {
+        const bool got = static_cast<bool>(std::getline(file, out));
+        if (got && !out.empty() && out.back() == '\r') out.pop_back();
+        return got;
+    };
     std::string line;
     int cases = 0, none = 0, all = 0, subset = 0;
     RetainedTextClip scratch;
-    while (std::getline(file, line)) {
+    while (next(line)) {
         if (line.rfind("case ", 0) != 0) continue;
         std::istringstream header(line);
         std::string word;
@@ -48,10 +54,10 @@ int main(int argc, char** argv) {
         int planesOk = 0;
         header >> word >> quads >> planesOk;
         std::string viewLine, modelLine, xyLine, keptLine;
-        std::getline(file, viewLine);
-        std::getline(file, modelLine);
-        std::getline(file, xyLine);
-        std::getline(file, keptLine);
+        next(viewLine);
+        next(modelLine);
+        next(xyLine);
+        next(keptLine);
         const std::vector<f32> view = floats(viewLine, 1), model = floats(modelLine, 1), xy = floats(xyLine, 1);
         CHECK(view.size() == 16 && model.size() == 16 && xy.size() == quads * 4 * 2, "a case is well formed");
         if (view.size() != 16 || model.size() != 16 || xy.size() != quads * 4 * 2) continue;
