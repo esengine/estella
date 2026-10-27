@@ -293,6 +293,21 @@ std::string readProgramInfoLog(GLuint program) {
 // Lifecycle
 // =============================================================================
 
+void GLDevice::resetDrawStateCaches() {
+    for (i8& state : cap_state_) state = -1;
+    depth_mask_ = -1;
+    color_mask_ = -1;
+    stencil_mask_ = -1;
+    uniform_bound_.clear();
+}
+
+void GLDevice::setCap(Cap cap, u32 glCap, bool enabled) {
+    const i8 want = enabled ? 1 : 0;
+    if (cap_state_[cap] == want) return;
+    cap_state_[cap] = want;
+    setCapability(static_cast<GLenum>(glCap), enabled);
+}
+
 void GLDevice::init() {
     float_targets_ = -1;
     glEnable(GL_DEPTH_TEST);
@@ -301,6 +316,8 @@ void GLDevice::init() {
     glDepthFunc(GL_LESS);
     glEnable(GL_BLEND);
     glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+    // Depth test and blend were just turned on, but a new context knows nothing the old one was told: nothing is assumed held.
+    resetDrawStateCaches();
     captureDeviceIdentity();
     ES_LOG_DEBUG("GLDevice initialized");
 }
@@ -427,6 +444,7 @@ void GLDevice::resetStateCache() {
     surface_blend_off_ = false;
     current_framebuffer_ = 0;
     timer_query_state_ = 0;
+    resetDrawStateCaches();
 }
 
 void GLDevice::shutdown() {
@@ -506,8 +524,11 @@ void GLDevice::clear(bool color, bool depth, bool stencil) {
 // =============================================================================
 
 void GLDevice::setBlendEnabled(bool enabled) {
+    // Enable/Disable without an index sets every draw buffer: the surface record's own state is gone with it. So while that record's blending is
+    // off, asking for what the context holds still has to be made, and only the ask that changes nothing anywhere is skipped.
+    if (cap_state_[kCapBlend] == (enabled ? 1 : 0) && !surface_blend_off_) return;
     setCapability(GL_BLEND, enabled);
-    // Enable/Disable without an index sets every draw buffer: the surface record's own state is gone with it.
+    cap_state_[kCapBlend] = enabled ? 1 : 0;
     surface_blend_off_ = false;
 }
 
@@ -563,10 +584,13 @@ void GLDevice::setBlendMode(BlendMode mode) {
 // =============================================================================
 
 void GLDevice::setDepthTest(bool enabled) {
-    setCapability(GL_DEPTH_TEST, enabled);
+    setCap(kCapDepthTest, GL_DEPTH_TEST, enabled);
 }
 
 void GLDevice::setDepthWrite(bool enabled) {
+    const i8 want = enabled ? 1 : 0;
+    if (depth_mask_ == want) return;
+    depth_mask_ = want;
     glDepthMask(enabled ? GL_TRUE : GL_FALSE);
 }
 
@@ -575,7 +599,7 @@ void GLDevice::setDepthWrite(bool enabled) {
 // =============================================================================
 
 void GLDevice::setStencilTest(bool enabled) {
-    setCapability(GL_STENCIL_TEST, enabled);
+    setCap(kCapStencilTest, GL_STENCIL_TEST, enabled);
 }
 
 void GLDevice::setStencilFunc(GfxStencilFunc func, i32 ref, u32 mask) {
@@ -587,10 +611,15 @@ void GLDevice::setStencilOp(GfxStencilOp sfail, GfxStencilOp dpfail, GfxStencilO
 }
 
 void GLDevice::setStencilMask(u32 mask) {
+    if (stencil_mask_ == static_cast<i64>(mask)) return;
+    stencil_mask_ = static_cast<i64>(mask);
     glStencilMask(mask);
 }
 
 void GLDevice::setColorMask(bool r, bool g, bool b, bool a) {
+    const i16 bits = static_cast<i16>((r ? 1 : 0) | (g ? 2 : 0) | (b ? 4 : 0) | (a ? 8 : 0));
+    if (color_mask_ == bits) return;
+    color_mask_ = bits;
     glColorMask(r ? GL_TRUE : GL_FALSE, g ? GL_TRUE : GL_FALSE,
                 b ? GL_TRUE : GL_FALSE, a ? GL_TRUE : GL_FALSE);
 }
@@ -615,7 +644,7 @@ void GLDevice::setScissor(i32 x, i32 y, i32 w, i32 h) {
 // =============================================================================
 
 void GLDevice::setCulling(bool enabled) {
-    setCapability(GL_CULL_FACE, enabled);
+    setCap(kCapCull, GL_CULL_FACE, enabled);
 }
 
 void GLDevice::setCullFace(bool front) {
@@ -945,6 +974,10 @@ void GLDevice::backendDeleteBuffer(u32 id) {
     if (!name) return;
     glDeleteBuffers(1, &name);
     setName(buffer_names_, id, 0);
+    // The context unbinds a deleted buffer from the slots that held it; the record of those slots must not go on saying it is there.
+    for (UniformBound& bound : uniform_bound_) {
+        if (bound.known && bound.name == name) bound = {};
+    }
 }
 
 void GLDevice::backendUpdateBuffer(u32 id, u32 offsetBytes, const void* data, u32 sizeBytes) {
@@ -964,6 +997,13 @@ void GLDevice::backendSetUniformBuffer(u32 slot, BufferHandle buffer, u32 offset
 
 void GLDevice::bindUniformSlot(u32 slot, u32 name) {
     const UniformRange range = slot < uniform_ranges_.size() ? uniform_ranges_[slot] : UniformRange{};
+    // Most binds of a frame are to what the slot holds already: the same frame constants and the same material block, once per draw.
+    if (slot >= uniform_bound_.size()) uniform_bound_.resize(static_cast<usize>(slot) + 1);
+    UniformBound& held = uniform_bound_[slot];
+    const u32 wantSize = name ? range.size : 0;
+    const u32 wantOffset = (name && range.size) ? range.offset : 0;
+    if (held.known && held.name == name && held.offset == wantOffset && held.size == wantSize) return;
+    held = {name, wantOffset, wantSize, true};
     if (name && range.size) {
         glBindBufferRange(GL_UNIFORM_BUFFER, slot, name, range.offset, range.size);
     } else {

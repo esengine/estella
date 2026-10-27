@@ -242,6 +242,20 @@ private:
     std::vector<UniformRange> uniform_ranges_;
     void bindUniformSlot(u32 slot, u32 name);
 
+    /// What the context is known to hold for the states every draw sets, so one a pipeline sets to what it already is costs no call. A frame of
+    /// the terrain and water example made 26,000 GL calls and over half of them said what the context already knew: through the browser each is a
+    /// crossing, and on a phone a dear one. -1 is unknown (after init, after a lost context): the next set is made.
+    enum Cap : u32 { kCapDepthTest, kCapStencilTest, kCapCull, kCapBlend, kCapCount };
+    i8 cap_state_[kCapCount] = {-1, -1, -1, -1};
+    i8 depth_mask_ = -1;
+    i16 color_mask_ = -1;     ///< the four channels as bits
+    i64 stencil_mask_ = -1;
+    /// The buffer, offset and size each uniform slot was last bound to. A buffer's deletion forgets the slots that held it.
+    struct UniformBound { u32 name = 0; u32 offset = 0; u32 size = 0; bool known = false; };
+    std::vector<UniformBound> uniform_bound_;
+    void setCap(Cap cap, u32 glCap, bool enabled);  ///< glCap is the GL enum of the capability (this header holds no GL types)
+    void resetDrawStateCaches();
+
     u32 current_pipeline_id_ = 0;
     GfxTopology current_topology_ = GfxTopology::Triangles;
     GfxStencilMode current_stencil_mode_ = GfxStencilMode::Off;

@@ -3030,4 +3030,6 @@ export const NOTED = {
     {"note":"A mesh draw no longer searches its shader's source or rebuilds a feature list"},
   "perf(render): writing one material uniform sends one value, and the float-target check is asked once":
     {"note":"Writing one material uniform sends that one value"},
+  "perf(render): the GL device skips state sets and uniform-buffer binds the context already holds":
+    {"note":"The GL device skips state sets the context already holds"},
 };
