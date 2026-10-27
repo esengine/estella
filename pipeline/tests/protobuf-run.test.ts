@@ -128,6 +128,63 @@ message Order {
         expect(viaProtoc('--encode', viaProtoc('--decode', ours).toString()).equals(theirs)).toBe(true);
     }, 60_000);
 
+    const sample = () => ({
+        id: 'o1', stamp: -5, delta: -3, counts: [1, -2, 300], tags: ['a', 'b'], stock: new Map([['w', 3]]), season: 3, note: 7,
+        inner: { depth: 2, mode: 1 }, payload: { case: 'text', value: 'hi' }, blob: new Uint8Array([1, 2, 3, 4]), flag: true,
+        ref: { id: 'r' }, ratio: 1.5, big: -9007199254740991, f32: 4000000000, zig: -77,
+        trail: [{ depth: 1, mode: 0 }, { depth: 3, mode: 1 }],
+    });
+
+    it('has a JSON form that survives JSON.stringify and comes back the same', async () => {
+        const Order = await load();
+        const json = JSON.parse(JSON.stringify(Order.toJSON(sample())));
+        expect(json.blob).toBe('AQIDBA==');
+        expect(json.stock).toEqual({ w: 3 });
+        expect(json.payload).toEqual({ case: 'text', value: 'hi' });
+        expect(Order.fromJSON(json)).toEqual(sample());
+        // and the binary form of what came back is the binary form of what went in
+        expect(Buffer.from(Order.encode(Order.fromJSON(json))).equals(Buffer.from(Order.encode(sample())))).toBe(true);
+    }, 60_000);
+
+    it('refuses JSON that is not the message, naming the field', async () => {
+        const Order = await load();
+        const bad = (patch: Record<string, unknown>) => () => Order.fromJSON({ ...Order.toJSON(sample()), ...patch });
+        expect(bad({ stamp: 'x' })).toThrow(/Order\.stamp: expected an integer/);
+        expect(bad({ delta: 2 ** 31 })).toThrow(/Order\.delta: outside/);
+        expect(bad({ note: -1 })).toThrow(/Order\.note: outside 0\.\.4294967295/);
+        expect(bad({ tags: 'a' })).toThrow(/Order\.tags: expected a list/);
+        expect(bad({ tags: ['a', 3] })).toThrow(/Order\.tags: expected text/);
+        expect(bad({ blob: 'not base64!' })).toThrow(/Order\.blob: expected base64 text/);
+        expect(bad({ payload: { case: 'nope', value: 1 } })).toThrow(/Order\.payload: unknown case nope/);
+        expect(bad({ inner: 5 })).toThrow(/Order_Inner: expected an object/);
+        expect(bad({ stock: { w: 'x' } })).toThrow(/Order\.stock: expected an integer/);
+        expect(() => Order.fromJSON(null)).toThrow(/Order: expected an object/);
+        expect(Order.fromJSON({}).id).toBe('');
+    }, 60_000);
+
+    it('names every message and enum a message reaches, so a change anywhere behind it changes the shape', async () => {
+        const Order = await load();
+        expect(Order.shape).toContain('Order{1:string id');
+        expect(Order.shape).toContain('Ref{1:string id}');
+        expect(Order.shape).toContain('enum Season{SPRING=0,SUMMER=1,AUTUMN=2,WINTER=3}');
+        expect(Order.shape).toContain('Order_Inner{1:int32 depth,2:Order_Inner_Mode mode}');
+        expect(Order.shape).toContain('payload');
+    }, 60_000);
+
+    it('travels a session channel on either wire as itself', async () => {
+        const Order = await load();
+        const { NetChannel } = await import('../../sdk/src/net/NetChannel');
+        const { MemoryTransport } = await import('../../sdk/src/net/MemoryTransport');
+        for (const wire of ['pb', 'json'] as const) {
+            const [ta, tb] = MemoryTransport.pair();
+            const a = new NetChannel(ta);
+            const b = new NetChannel(tb);
+            a.setWire(wire);
+            b.handle('place', (o: unknown) => o, { req: Order, res: Order });
+            expect(await a.request('place', sample(), { codec: { req: Order, res: Order } })).toEqual(sample());
+        }
+    }, 60_000);
+
     it('leaves defaults off the wire, keeps an unset optional unset, and skips fields it does not know', async () => {
         const Order = await load();
         const empty = Order.encode(Order.create());

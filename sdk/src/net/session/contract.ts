@@ -8,11 +8,12 @@
  *          receipt — so a client built before a change cannot half-understand a
  *          server built after it.
  */
-import type { MessageHandler } from '../NetChannel';
+import type { MessageHandler, PayloadCodec, RequestCodec } from '../NetChannel';
 import { hashSeed } from '../../math/random';
 import type { ClientSession, SessionRequestOptions } from './ClientSession';
 import type { ServerSession, SessionContext, SessionHost } from './SessionHost';
 import { SchemaError, type Infer, type Schema } from './schema';
+import { codecOf, jsonCodec } from './proto';
 
 export interface RequestDef<Req = unknown, Res = unknown> {
     req: Schema<Req>;
@@ -58,6 +59,14 @@ export interface Contract<R extends RequestDefs, E extends EventDefs> {
     on<K extends keyof E & string>(session: ClientSession, type: K, handler: MessageHandler<Infer<E[K]>>): () => void;
 }
 
+/** How a request travels on the protobuf wire: the codecs its schemas bring, JSON for a side that has none, nothing when neither has. */
+function requestCodec(entry: RequestDef<any, any>): RequestCodec<any, any> | undefined {
+    const req = codecOf(entry.req);
+    const res = codecOf(entry.res);
+    if (!req && !res) return undefined;
+    return { req: req ?? jsonCodec, res: res ?? jsonCodec };
+}
+
 export function defineContract<R extends RequestDefs, E extends EventDefs = Record<never, never>>(
     def: { requests: R; events?: E },
 ): Contract<R, E> {
@@ -95,7 +104,7 @@ export function defineContract<R extends RequestDefs, E extends EventDefs = Reco
                         if (err instanceof SchemaError) throw new Error(`server bug: ${name} replied with ${err.message}`);
                         throw err;
                     }
-                });
+                }, requestCodec(entry));
             });
             const unknown = Object.keys(impl).filter((k) => !requestNames.includes(k));
             if (unknown.length > 0) {
@@ -111,7 +120,7 @@ export function defineContract<R extends RequestDefs, E extends EventDefs = Reco
                 const entry = def.requests[name]!;
                 out[name] = async (payload: unknown, options?: SessionRequestOptions) => {
                     const checked = (entry.req as Schema<unknown>).parse(payload);
-                    const reply = await session.request(name, checked, options);
+                    const reply = await session.request(name, checked, { ...options, codec: requestCodec(entry) });
                     return entry.res.parse(reply);
                 };
             }
@@ -119,11 +128,11 @@ export function defineContract<R extends RequestDefs, E extends EventDefs = Reco
         },
 
         push(host, playerId, type, payload) {
-            return host.push(playerId, type, events[type]!.parse(payload));
+            return host.push(playerId, type, events[type]!.parse(payload), codecOf(events[type]!) as PayloadCodec<never> | undefined);
         },
 
         broadcast(host, type, payload, filter) {
-            return host.broadcast(type, events[type]!.parse(payload), filter);
+            return host.broadcast(type, events[type]!.parse(payload), filter, codecOf(events[type]!) as PayloadCodec<never> | undefined);
         },
 
         on(session, type, handler) {
@@ -133,7 +142,7 @@ export function defineContract<R extends RequestDefs, E extends EventDefs = Reco
                 let payload: Infer<E[typeof type]>;
                 try { payload = schema.parse(raw) as Infer<E[typeof type]>; } catch { return; }
                 handler(payload);
-            });
+            }, codecOf(schema));
         },
     };
 }

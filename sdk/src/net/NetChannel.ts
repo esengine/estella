@@ -9,6 +9,15 @@
  *          agnostic — anything that can `send` and surface `message` events works.
  */
 import type { IdempotencyStore } from './IdempotencyStore';
+import { CONTROL_CHANNEL, decodeEnvelope, encodeEnvelope, type Envelope, type PayloadCodec, type WireFormat } from './wire';
+
+export type { PayloadCodec, WireFormat } from './wire';
+
+/** The codecs of one request: how its payload and its answer travel. */
+export interface RequestCodec<Req = unknown, Res = unknown> {
+    req: PayloadCodec<Req>;
+    res: PayloadCodec<Res>;
+}
 
 /** The minimal socket surface NetChannel drives (GameSocket / WeChatSocket fit). */
 export interface NetTransport {
@@ -59,7 +68,7 @@ export class NetRequestError extends Error {
 }
 
 /** Why a channel dropped or refused something the peer sent. */
-export type NetViolation = 'frame-size' | 'rate';
+export type NetViolation = 'frame-size' | 'rate' | 'wire';
 
 export interface NetHeartbeatOptions {
     /** How often to ping the peer. */
@@ -105,6 +114,8 @@ export interface RequestOptions {
      * click), not per attempt.
      */
     idempotencyKey?: string;
+    /** How the payload and the answer travel on the protobuf wire; the JSON wire carries their JSON form. */
+    codec?: RequestCodec<any, any>;
 }
 
 interface WireEvent { k: 'event'; t: string; d: unknown; }
@@ -118,7 +129,23 @@ interface Pending {
     resolve: (value: unknown) => void;
     reject: (err: Error) => void;
     timer: ReturnType<typeof setTimeout> | null;
+    codec: PayloadCodec | undefined;
 }
+
+/** A control message as it arrived, whichever wire it came on; `payload` reads the value with the codec the handler knows. */
+interface Incoming {
+    k: Wire['k'];
+    t?: string;
+    id?: number;
+    ik?: string;
+    e?: string;
+    n?: number;
+    hasPayload: boolean;
+    payload(codec: PayloadCodec | undefined): unknown;
+}
+
+const utf8 = new TextEncoder();
+const utf8Back = new TextDecoder();
 
 /**
  * Typed messaging over a {@link NetTransport}. Subscribes to the transport's
@@ -134,7 +161,10 @@ interface Pending {
 export class NetChannel {
     private readonly transport: NetTransport;
     private readonly handlers = new Map<string, Set<MessageHandler>>();
-    private readonly requestHandlers = new Map<string, RequestHandler>();
+    private readonly requestHandlers = new Map<string, { handler: RequestHandler; codec: RequestCodec<any, any> | undefined }>();
+    private readonly eventCodecs = new Map<string, PayloadCodec>();
+    private wire_: WireFormat = 'json';
+    private jsonAllowed_ = true;
     private readonly binaryHandlers = new Map<number, BinaryHandler>();
     private readonly pending = new Map<number, Pending>();
     private readonly defaultTimeout: number;
@@ -164,7 +194,8 @@ export class NetChannel {
     }
 
     /** Subscribe to a typed event. Returns an unsubscribe function. */
-    on<T = unknown>(type: string, handler: MessageHandler<T>): () => void {
+    on<T = unknown>(type: string, handler: MessageHandler<T>, codec?: PayloadCodec<T>): () => void {
+        if (codec) this.eventCodecs.set(type, codec as PayloadCodec);
         let set = this.handlers.get(type);
         if (!set) { set = new Set(); this.handlers.set(type, set); }
         set.add(handler as MessageHandler);
@@ -175,16 +206,31 @@ export class NetChannel {
     }
 
     /** Fire-and-forget a typed event to the peer. */
-    send<T = unknown>(type: string, payload: T): void {
-        this.send_({ k: 'event', t: type, d: payload });
+    send<T = unknown>(type: string, payload: T, codec?: PayloadCodec<T>): void {
+        this.send_({ k: 'event', t: type, d: payload }, codec as PayloadCodec | undefined);
+    }
+
+    /** The encoding this channel writes. It reads both. */
+    get wire(): WireFormat {
+        return this.wire_;
+    }
+
+    /**
+     * Choose what this channel writes from now on. `acceptJson: false` makes it refuse JSON frames
+     * from the peer (counted as a `wire` violation), for a server that has agreed on protobuf.
+     */
+    setWire(format: WireFormat, options: { acceptJson?: boolean } = {}): void {
+        this.wire_ = format;
+        this.jsonAllowed_ = options.acceptJson ?? true;
     }
 
     /** Register the single handler that answers `request(type, …)` from the peer.
      *  Returns an unregister function. */
-    handle<Req = unknown, Res = unknown>(type: string, handler: RequestHandler<Req, Res>): () => void {
-        this.requestHandlers.set(type, handler as RequestHandler);
+    handle<Req = unknown, Res = unknown>(type: string, handler: RequestHandler<Req, Res>, codec?: RequestCodec<Req, Res>): () => void {
+        const entry = { handler: handler as RequestHandler, codec: codec as RequestCodec<any, any> | undefined };
+        this.requestHandlers.set(type, entry);
         return () => {
-            if (this.requestHandlers.get(type) === (handler as RequestHandler)) {
+            if (this.requestHandlers.get(type) === entry) {
                 this.requestHandlers.delete(type);
             }
         };
@@ -206,16 +252,17 @@ export class NetChannel {
                     reject(new NetRequestError(`net request "${type}" timed out after ${limit}ms`, 'timeout'));
                 }, limit)
                 : null;
-            this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject, timer });
+            this.pending.set(id, { resolve: resolve as (v: unknown) => void, reject, timer, codec: opts.codec?.res });
             const wire: WireReq = { k: 'req', t: type, id, d: payload };
             if (opts.idempotencyKey !== undefined) wire.ik = opts.idempotencyKey;
-            this.send_(wire);
+            this.send_(wire, opts.codec?.req);
         });
     }
 
-    /** Register the single handler for a binary channel id (0-255). Returns an
+    /** Register the single handler for a binary channel id (0-254; 255 carries control messages on the protobuf wire). Returns an
      *  unregister function. */
     onBinary(channel: number, handler: BinaryHandler): () => void {
+        if (channel === CONTROL_CHANNEL) throw new RangeError(`[net] binary channel ${CONTROL_CHANNEL} is reserved for control messages`);
         this.binaryHandlers.set(channel, handler);
         return () => {
             if (this.binaryHandlers.get(channel) === handler) {
@@ -224,8 +271,9 @@ export class NetChannel {
         };
     }
 
-    /** Fire-and-forget a binary payload on a channel id (0-255). */
+    /** Fire-and-forget a binary payload on a channel id (0-254; 255 carries control messages on the protobuf wire). */
     sendBinary(channel: number, payload: Uint8Array): void {
+        if (channel === CONTROL_CHANNEL) throw new RangeError(`[net] binary channel ${CONTROL_CHANNEL} is reserved for control messages`);
         const frame = new Uint8Array(1 + payload.byteLength);
         frame[0] = channel;
         frame.set(payload, 1);
@@ -256,8 +304,22 @@ export class NetChannel {
 
     // -- internals ------------------------------------------------------------
 
-    private send_(wire: Wire): void {
-        this.transport.send(JSON.stringify(wire));
+    /** Write one control message in this channel's wire; `codec` is how its payload travels. */
+    private send_(wire: Wire, codec?: PayloadCodec): void {
+        const value = 'd' in wire ? wire.d : undefined;
+        if (this.wire_ === 'json') {
+            if (codec && value !== undefined) (wire as { d?: unknown }).d = codec.toJSON(value);
+            this.transport.send(JSON.stringify(wire));
+            return;
+        }
+        const e: Envelope = { kind: wire.k };
+        if ('t' in wire) e.type = wire.t;
+        if (wire.k === 'req' || wire.k === 'res') e.id = wire.id;
+        if (wire.k === 'ping' || wire.k === 'pong') e.id = wire.n;
+        if (wire.k === 'req' && wire.ik !== undefined) e.key = wire.ik;
+        if (wire.k === 'res' && wire.e !== undefined) e.error = wire.e;
+        if (value !== undefined) e.payload = codec ? codec.encode(value) : utf8.encode(JSON.stringify(value));
+        this.transport.send(encodeEnvelope(e));
     }
 
     private startHeartbeat_(beat: NetHeartbeatOptions): void {
@@ -296,26 +358,31 @@ export class NetChannel {
             const size = typeof data === 'string' ? data.length : data.byteLength;
             if (size > max) { this.limits_.onViolation?.('frame-size'); return; }
         }
+        let msg: Incoming | null;
         if (typeof data !== 'string') {
             const view = new Uint8Array(data);
             if (view.byteLength === 0) return;
-            this.binaryHandlers.get(view[0])?.(view.subarray(1));
-            return;
+            if (view[0] !== CONTROL_CHANNEL) {
+                this.binaryHandlers.get(view[0]!)?.(view.subarray(1));
+                return;
+            }
+            msg = incomingFromEnvelope(decodeEnvelope(view.subarray(1)));
+        } else {
+            if (!this.jsonAllowed_) { this.limits_.onViolation?.('wire'); return; }
+            msg = incomingFromJson(data);
         }
-        let msg: Wire;
-        try { msg = JSON.parse(data) as Wire; } catch { return; }
-        if (!msg || typeof (msg as { k?: unknown }).k !== 'string') return;
+        if (!msg) return;
         switch (msg.k) {
-            case 'ping': this.send_({ k: 'pong', n: msg.n }); break;
+            case 'ping': this.send_({ k: 'pong', n: msg.n ?? 0 }); break;
             case 'pong': break;
             case 'event':
                 if (!this.admit_()) { this.limits_.onViolation?.('rate'); break; }
-                this.dispatchEvent_(msg.t, msg.d);
+                this.dispatchEvent_(msg);
                 break;
             case 'req':
                 if (!this.admit_()) {
                     this.limits_.onViolation?.('rate');
-                    this.send_({ k: 'res', id: msg.id, e: NET_RATE_LIMITED });
+                    this.send_({ k: 'res', id: msg.id ?? 0, e: NET_RATE_LIMITED });
                     break;
                 }
                 this.handleRequest_(msg);
@@ -324,28 +391,38 @@ export class NetChannel {
         }
     }
 
-    private dispatchEvent_(type: string, payload: unknown): void {
+    private dispatchEvent_(msg: Incoming): void {
+        const type = msg.t ?? '';
         const set = this.handlers.get(type);
         if (!set) return;
+        let payload: unknown;
+        try { payload = msg.payload(this.eventCodecs.get(type)); } catch { return; }
         for (const h of [...set]) h(payload);
     }
 
-    private handleRequest_(msg: WireReq): void {
-        const handler = this.requestHandlers.get(msg.t);
-        if (!handler) {
-            this.send_({ k: 'res', id: msg.id, e: `no request handler for "${msg.t}"` });
+    private handleRequest_(msg: Incoming): void {
+        const type = msg.t ?? '';
+        const id = msg.id ?? 0;
+        const entry = this.requestHandlers.get(type);
+        if (!entry) {
+            this.send_({ k: 'res', id, e: `no request handler for "${type}"` });
+            return;
+        }
+        let payload: unknown;
+        try { payload = msg.payload(entry.codec?.req); } catch (err) {
+            this.send_({ k: 'res', id, e: `invalid ${type} request: ${errorText(err)}` });
             return;
         }
         const store = this.idempotency_;
         if (store && typeof msg.ik === 'string') {
-            void this.handleIdempotent_(store, `${this.scope_}\u0000${msg.t}\u0000${msg.ik}`, handler, msg);
+            void this.handleIdempotent_(store, `${this.scope_}\u0000${type}\u0000${msg.ik}`, entry, id, payload);
             return;
         }
         Promise.resolve()
-            .then(() => handler(msg.d))
+            .then(() => entry.handler(payload))
             .then(
-                (result) => this.send_({ k: 'res', id: msg.id, d: result }),
-                (err) => this.send_({ k: 'res', id: msg.id, e: errorText(err) }),
+                (result) => this.send_({ k: 'res', id, d: result }, entry.codec?.res),
+                (err) => this.send_({ k: 'res', id, e: errorText(err) }),
             );
     }
 
@@ -353,43 +430,84 @@ export class NetChannel {
      * Run a keyed request at most once to completion. A handler that returns has
      * its answer kept, so a retry replays it; one that throws frees the key and
      * the retry runs again — a business refusal belongs in the return value.
+     * The answer is kept in its JSON form, which any store can hold and either wire can rebuild.
      */
-    private async handleIdempotent_(store: IdempotencyStore, key: string, handler: RequestHandler, msg: WireReq): Promise<void> {
+    private async handleIdempotent_(
+        store: IdempotencyStore, key: string, entry: { handler: RequestHandler; codec: RequestCodec<any, any> | undefined }, id: number, payload: unknown,
+    ): Promise<void> {
+        const res = entry.codec?.res;
+        const replay = (stored: unknown): void => {
+            let value: unknown = stored;
+            if (res && stored !== undefined) {
+                try { value = res.fromJSON(stored); } catch (err) { this.send_({ k: 'res', id, e: errorText(err) }); return; }
+            }
+            this.send_({ k: 'res', id, d: value }, res);
+        };
         try {
             const begin = await store.begin(key);
             if (begin.state === 'done') {
-                this.send_({ k: 'res', id: msg.id, d: begin.outcome.d });
+                replay(begin.outcome.d);
                 return;
             }
             if (begin.state === 'busy') {
                 const outcome = await begin.outcome;
-                if (outcome) this.send_({ k: 'res', id: msg.id, d: outcome.d });
-                else this.send_({ k: 'res', id: msg.id, e: NET_ATTEMPT_FAILED });
+                if (outcome) replay(outcome.d);
+                else this.send_({ k: 'res', id, e: NET_ATTEMPT_FAILED });
                 return;
             }
             let result: unknown;
             try {
-                result = await handler(msg.d);
+                result = await entry.handler(payload);
             } catch (err) {
                 await store.abandon(key);
-                this.send_({ k: 'res', id: msg.id, e: errorText(err) });
+                this.send_({ k: 'res', id, e: errorText(err) });
                 return;
             }
-            await store.finish(key, { d: result });
-            this.send_({ k: 'res', id: msg.id, d: result });
+            await store.finish(key, { d: res && result !== undefined ? res.toJSON(result) : result });
+            this.send_({ k: 'res', id, d: result }, res);
         } catch (err) {
-            this.send_({ k: 'res', id: msg.id, e: errorText(err) });
+            this.send_({ k: 'res', id, e: errorText(err) });
         }
     }
 
-    private resolvePending_(msg: WireRes): void {
-        const p = this.pending.get(msg.id);
+    private resolvePending_(msg: Incoming): void {
+        const p = this.pending.get(msg.id ?? 0);
         if (!p) return;
-        this.pending.delete(msg.id);
+        this.pending.delete(msg.id ?? 0);
         if (p.timer) clearTimeout(p.timer);
-        if (msg.e !== undefined) p.reject(new NetRequestError(msg.e, remoteCode(msg.e)));
-        else p.resolve(msg.d);
+        if (msg.e !== undefined) { p.reject(new NetRequestError(msg.e, remoteCode(msg.e))); return; }
+        try { p.resolve(msg.payload(p.codec)); } catch (err) { p.reject(new NetRequestError(`the reply could not be read: ${errorText(err)}`, 'remote')); }
     }
+}
+
+function incomingFromJson(data: string): Incoming | null {
+    let msg: Wire;
+    try { msg = JSON.parse(data) as Wire; } catch { return null; }
+    if (!msg || typeof (msg as { k?: unknown }).k !== 'string') return null;
+    const any = msg as unknown as Record<string, unknown>;
+    return {
+        k: msg.k,
+        t: typeof any.t === 'string' ? any.t : undefined,
+        id: typeof any.id === 'number' ? any.id : undefined,
+        ik: typeof any.ik === 'string' ? any.ik : undefined,
+        e: typeof any.e === 'string' ? any.e : undefined,
+        n: typeof any.n === 'number' ? any.n : undefined,
+        hasPayload: 'd' in any,
+        payload: (codec) => (codec && any.d !== undefined ? codec.fromJSON(any.d) : any.d),
+    };
+}
+
+function incomingFromEnvelope(e: Envelope | null): Incoming | null {
+    if (!e) return null;
+    const bytes = e.payload;
+    return {
+        k: e.kind, t: e.type, id: e.id, ik: e.key, e: e.error, n: e.id,
+        hasPayload: bytes !== undefined,
+        payload: (codec) => {
+            if (bytes === undefined) return undefined;
+            return codec ? codec.decode(bytes) : JSON.parse(utf8Back.decode(bytes));
+        },
+    };
 }
 
 function remoteCode(message: string): NetRequestErrorCode {

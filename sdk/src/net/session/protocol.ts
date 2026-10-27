@@ -26,6 +26,8 @@ export const SessionCloseCode = {
 
 export interface SessionHelloRequest {
     version: number;
+    /** The encoding the client wants to speak after the hello. Absent means JSON. */
+    wire?: 'json' | 'pb';
     /** Whatever the game's `authenticate` understands: a token, a device id. */
     credentials: unknown;
 }
@@ -36,6 +38,8 @@ export type SessionHelloResponse =
         playerId: string;
         /** The server's clock at the moment it answered, in epoch milliseconds. */
         serverTimeMs: number;
+        /** The encoding both ends write from now on. Absent means JSON. */
+        wire?: 'json' | 'pb';
         /** Anything the game wants the client to have at once (a renewed token). */
         data?: unknown;
     }

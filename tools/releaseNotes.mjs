@@ -3026,6 +3026,8 @@ export const NOTED = {
     {"note":"Optional tools a project switches on, fetched and checked by the engine."},
   'feat(tools): Protobuf, with .proto files turned into TypeScript types and a binary codec':
     {"note":"Protobuf as a second optional tool: .proto files become TypeScript types and a binary codec."},
+  'feat(net): a session can speak protobuf, with the JSON wire kept for debugging':
+    {"note":"A session can speak protobuf, with the JSON wire kept for debugging."},
   'fix(tools): a host that cannot read the engine version says so instead of asking the mirror for v0.0.0':
     {"internal":"A fix inside the optional tools feature, which has not shipped yet."},
   "perf(sdk): a blank mini-game package no longer carries terrain and water":

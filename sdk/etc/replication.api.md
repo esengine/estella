@@ -165,13 +165,15 @@ ResourceDef<NetSession>
 ## NetChannel — class @experimental
 ```
 dispose: (reason?: string) => void
-handle: <Req = unknown, Res = unknown>(type: string, handler: RequestHandler<Req, Res>) => () => void
-on: <T = unknown>(type: string, handler: MessageHandler<T>) => () => void
+handle: <Req = unknown, Res = unknown>(type: string, handler: RequestHandler<Req, Res>, codec?: RequestCodec<Req, Res>) => () => void
+on: <T = unknown>(type: string, handler: MessageHandler<T>, codec?: PayloadCodec<T>) => () => void
 onBinary: (channel: number, handler: BinaryHandler) => () => void
 request: <Res = unknown, Req = unknown>(type: string, payload: Req, options?: number | RequestOptions) => Promise<Res>
-send: <T = unknown>(type: string, payload: T) => void
+send: <T = unknown>(type: string, payload: T, codec?: PayloadCodec<T>) => void
 sendBinary: (channel: number, payload: Uint8Array) => void
 setIdempotencyScope: (scope: string) => void
+setWire: (format: WireFormat, options?: { acceptJson?: boolean; }) => void
+wire: WireFormat
 static new (transport: NetTransport, opts?: NetChannelOptions): NetChannel
 static prototype: NetChannel
 ```

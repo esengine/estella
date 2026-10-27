@@ -8,7 +8,7 @@
  *          request under a key so a retry after a lost reply never runs twice.
  *          Subscriptions made on the session survive every reconnect.
  */
-import { NetChannel, NetRequestError, type MessageHandler } from '../NetChannel';
+import { NetChannel, NetRequestError, type MessageHandler, type PayloadCodec, type RequestCodec, type WireFormat } from '../NetChannel';
 import type { PlatformSocket } from '../../platform/types';
 import {
     SESSION_HELLO,
@@ -31,6 +31,8 @@ export interface SessionBackoff {
 export interface ClientSessionOptions {
     /** A fresh, unopened socket each call (`() => createSocket({ url })`). */
     connect: () => PlatformSocket;
+    /** The encoding to ask the server for. Default JSON; the server may not grant protobuf, and the session then speaks JSON. */
+    wire?: WireFormat;
     /** Sent in every hello, first dial and redial alike. */
     credentials: () => unknown | Promise<unknown>;
     /** Ping the server; `false` turns it off. Default 15 s interval, 45 s timeout. */
@@ -56,6 +58,8 @@ export interface SessionRequestOptions {
     timeoutMs?: number;
     /** Overrides the session's retry count for this call. 0 sends once. */
     retries?: number;
+    /** How the payload and the reply travel on the protobuf wire. */
+    codec?: RequestCodec<any, any>;
 }
 
 export interface SessionWelcome {
@@ -68,6 +72,7 @@ type StateHandler = (state: SessionState, reason?: string) => void;
 export class ClientSession {
     private readonly options_: ClientSessionOptions;
     private readonly listeners_ = new Map<string, Set<MessageHandler>>();
+    private readonly eventCodecs_ = new Map<string, PayloadCodec>();
     private readonly stateHandlers_ = new Set<StateHandler>();
     private readonly readyWaiters_: { resolve: () => void; reject: (e: Error) => void }[] = [];
     private state_: SessionState = 'idle';
@@ -123,7 +128,8 @@ export class ClientSession {
     }
 
     /** Subscribe to a server-pushed event. Survives reconnects. */
-    on<T = unknown>(type: string, handler: MessageHandler<T>): () => void {
+    on<T = unknown>(type: string, handler: MessageHandler<T>, codec?: PayloadCodec<T>): () => void {
+        if (codec) this.eventCodecs_.set(type, codec as PayloadCodec);
         let set = this.listeners_.get(type);
         if (!set) { set = new Set(); this.listeners_.set(type, set); }
         set.add(handler as MessageHandler);
@@ -147,8 +153,8 @@ export class ClientSession {
     }
 
     /** Fire-and-forget to the server. Dropped while the link is down. */
-    send(type: string, payload: unknown): void {
-        if (this.state_ === 'ready') this.channel_?.send(type, payload);
+    send(type: string, payload: unknown, codec?: PayloadCodec<never>): void {
+        if (this.state_ === 'ready') this.channel_?.send(type, payload, codec as PayloadCodec | undefined);
     }
 
     /**
@@ -165,6 +171,7 @@ export class ClientSession {
             try {
                 return await this.channel_!.request<Res, Req>(type, payload, {
                     idempotencyKey: key,
+                    codec: options.codec,
                     timeoutMs: options.timeoutMs ?? this.options_.requestTimeoutMs,
                 });
             } catch (err) {
@@ -207,7 +214,7 @@ export class ClientSession {
         this.attached_.add(type);
         channel.on(type, (payload) => {
             for (const h of [...(this.listeners_.get(type) ?? [])]) h(payload);
-        });
+        }, this.eventCodecs_.get(type));
     }
 
     private dial_(): void {
@@ -250,7 +257,7 @@ export class ClientSession {
             const credentials = await o.credentials();
             const sent = Date.now();
             const res = await channel.request<SessionHelloResponse, SessionHelloRequest>(
-                SESSION_HELLO, { version: SESSION_PROTOCOL_VERSION, credentials }, o.requestTimeoutMs,
+                SESSION_HELLO, { version: SESSION_PROTOCOL_VERSION, wire: o.wire ?? 'json', credentials }, o.requestTimeoutMs,
             );
             if (this.channel_ !== channel) return;
             if (!res.ok) {
@@ -258,6 +265,7 @@ export class ClientSession {
                 else socket.close(1000, 'hello refused');
                 return;
             }
+            channel.setWire(res.wire ?? 'json');
             const received = Date.now();
             this.offsetMs_ = res.serverTimeMs + (received - sent) / 2 - received;
             this.welcome_ = { playerId: res.playerId, data: res.data };

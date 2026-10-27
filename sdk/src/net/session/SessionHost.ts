@@ -11,6 +11,8 @@
  */
 import {
     NetChannel,
+    type PayloadCodec,
+    type RequestCodec,
     type NetHeartbeatOptions,
     type NetLimitOptions,
     type NetTransport,
@@ -64,6 +66,12 @@ export interface SessionHostOptions<Ctx extends SessionContext> {
     helloTimeoutMs?: number;
     /** Most connections at once; the next is refused. Default unlimited. */
     maxSessions?: number;
+    /**
+     * The encoding players speak after the hello. `'json'` (default) keeps text frames. `'pb'` gives protobuf to every
+     * client that asks for it and still lets one ask for JSON, which is how a session is read in a debugger.
+     * `'pb-only'` refuses a client that asks for JSON and drops JSON frames afterwards.
+     */
+    wire?: 'json' | 'pb' | 'pb-only';
     /** Request timeout the channels use for the host's own calls. Default 10 s. */
     requestTimeoutMs?: number;
 }
@@ -75,7 +83,7 @@ export type SessionHandler<Ctx extends SessionContext, Req, Res> =
 export interface ServerSession<Ctx extends SessionContext> {
     readonly ctx: Ctx;
     /** Fire-and-forget an event to this player. */
-    push(type: string, payload: unknown): void;
+    push(type: string, payload: unknown, codec?: PayloadCodec<never>): void;
     close(code?: number, reason?: string): void;
 }
 
@@ -86,7 +94,7 @@ interface Live<Ctx extends SessionContext> extends ServerSession<Ctx> {
 export class SessionHost<Ctx extends SessionContext = SessionContext> {
     private readonly options_: SessionHostOptions<Ctx>;
     private readonly store_: IdempotencyStore;
-    private readonly handlers_ = new Map<string, SessionHandler<Ctx, never, unknown>>();
+    private readonly handlers_ = new Map<string, { handler: SessionHandler<Ctx, never, unknown>; codec: RequestCodec<any, any> | undefined }>();
     private readonly byPlayer_ = new Map<string, Live<Ctx>>();
     private readonly connections_ = new Set<AcceptedConnection>();
     private closed_ = false;
@@ -111,19 +119,20 @@ export class SessionHost<Ctx extends SessionContext = SessionContext> {
      * after connections arrive; a connection sees the handlers present when its
      * hello succeeded.
      */
-    handle<Req = unknown, Res = unknown>(type: string, handler: SessionHandler<Ctx, Req, Res>): () => void {
+    handle<Req = unknown, Res = unknown>(type: string, handler: SessionHandler<Ctx, Req, Res>, codec?: RequestCodec<Req, Res>): () => void {
         if (type === SESSION_HELLO) throw new Error(`[net] "${SESSION_HELLO}" is the handshake and cannot be handled`);
-        this.handlers_.set(type, handler as SessionHandler<Ctx, never, unknown>);
+        const entry = { handler: handler as SessionHandler<Ctx, never, unknown>, codec: codec as RequestCodec<any, any> | undefined };
+        this.handlers_.set(type, entry);
         return () => {
-            if (this.handlers_.get(type) === (handler as unknown)) this.handlers_.delete(type);
+            if (this.handlers_.get(type) === entry) this.handlers_.delete(type);
         };
     }
 
     /** Send an event to one player if they are connected to this host. */
-    push(playerId: string, type: string, payload: unknown): boolean {
+    push(playerId: string, type: string, payload: unknown, codec?: PayloadCodec<never>): boolean {
         const live = this.byPlayer_.get(playerId);
         if (!live) return false;
-        live.push(type, payload);
+        live.push(type, payload, codec);
         return true;
     }
 
@@ -132,11 +141,11 @@ export class SessionHost<Ctx extends SessionContext = SessionContext> {
      * hosts, fan out through a shared bus and call this on each; a host does not
      * know about the others.
      */
-    broadcast(type: string, payload: unknown, filter?: (ctx: Ctx) => boolean): number {
+    broadcast(type: string, payload: unknown, filter?: (ctx: Ctx) => boolean, codec?: PayloadCodec<never>): number {
         let sent = 0;
         for (const live of this.byPlayer_.values()) {
             if (filter && !filter(live.ctx)) continue;
-            live.push(type, payload);
+            live.push(type, payload, codec);
             sent++;
         }
         return sent;
@@ -172,6 +181,12 @@ export class SessionHost<Ctx extends SessionContext = SessionContext> {
             if (!hello || hello.version !== SESSION_PROTOCOL_VERSION) {
                 return { ok: false, error: `session protocol v${hello?.version}, server runs v${SESSION_PROTOCOL_VERSION}`, fatal: true };
             }
+            const policy = this.options_.wire ?? 'json';
+            const asked = hello.wire === 'pb' ? 'pb' : 'json';
+            if (policy === 'pb-only' && asked !== 'pb') {
+                return { ok: false, error: 'this server speaks protobuf only; the client asked for JSON', fatal: true };
+            }
+            const granted = policy !== 'json' && asked === 'pb' ? 'pb' : 'json';
             authenticating = true;
             try {
                 const ctx = await this.options_.authenticate(hello.credentials, connection);
@@ -181,7 +196,8 @@ export class SessionHost<Ctx extends SessionContext = SessionContext> {
                 if (!this.connections_.has(connection)) return { ok: false, error: 'connection closed', fatal: false };
                 clearTimeout(helloTimer);
                 live = this.admit_(connection, channel, ctx);
-                return { ok: true, playerId: ctx.playerId, serverTimeMs: Date.now() };
+                channel.setWire(granted, { acceptJson: policy !== 'pb-only' });
+                return { ok: true, playerId: ctx.playerId, serverTimeMs: Date.now(), wire: granted };
             } catch (err) {
                 if (err instanceof SessionRejected) return { ok: false, error: err.message, fatal: err.fatal };
                 return { ok: false, error: 'authentication unavailable', fatal: false };
@@ -231,7 +247,7 @@ export class SessionHost<Ctx extends SessionContext = SessionContext> {
         const live: Live<Ctx> = {
             ctx,
             channel,
-            push: (type, payload) => channel.send(type, payload),
+            push: (type, payload, codec) => channel.send(type, payload, codec as PayloadCodec | undefined),
             close: (code, reason) => connection.close(code, reason),
         };
         this.byPlayer_.set(ctx.playerId, live);
@@ -239,8 +255,8 @@ export class SessionHost<Ctx extends SessionContext = SessionContext> {
         previous?.close(SessionCloseCode.replaced, 'replaced by a newer connection');
 
         channel.setIdempotencyScope(ctx.playerId);
-        for (const [type, handler] of this.handlers_) {
-            channel.handle(type, (payload) => (handler as SessionHandler<Ctx, unknown, unknown>)(payload, ctx, live));
+        for (const [type, { handler, codec }] of this.handlers_) {
+            channel.handle(type, (payload) => (handler as SessionHandler<Ctx, unknown, unknown>)(payload, ctx, live), codec);
         }
         return live;
     }

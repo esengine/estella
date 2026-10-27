@@ -19,6 +19,9 @@ export {
     type NetHeartbeatOptions,
     type NetLimitOptions,
     type NetViolation,
+    type PayloadCodec,
+    type RequestCodec,
+    type WireFormat,
     type NetRequestErrorCode,
     type RequestOptions,
     type MessageHandler,
@@ -57,6 +60,7 @@ export {
 } from './ClientSession';
 export { acceptWebSocket, type WebSocketLike, type AcceptWebSocketOptions } from './acceptWebSocket';
 export { s, SchemaError, type Schema, type Infer } from './schema';
+export { proto, jsonCodec, type ProtoMessage, type ProtoSchema } from './proto';
 export {
     defineContract,
     type Contract,
