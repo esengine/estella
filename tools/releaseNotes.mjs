@@ -3070,4 +3070,8 @@ export const NOTED = {
     {"internal":"A type annotation and a retry in tests; nothing a creator can observe."},
   "perf(tools): the engine's own shaders derive their WebGPU twin when read instead of committing it":
     {"note":"The engine's own examples and fixtures no longer commit a generated WebGPU shader twin"},
+  "perf(tools): the engine's own examples and fixtures keep only the GLSL of a shader":
+    {"note":"The engine's own examples and fixtures no longer commit a generated WebGPU shader twin"},
+  "feat(editor): a project of the engine repo gets its shader twin derived as the file is served":
+    {"note":"The engine's own examples and fixtures no longer commit a generated WebGPU shader twin"},
 };
