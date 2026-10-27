@@ -207,6 +207,11 @@ export interface NativeEngineApi {
     renderer_renderSkeletalPreview?(preview: number, viewProjectionPtr: number): number;
     renderer_replayToDrawCall?(drawCallIndex: number): void;
     renderer_resize?(width: number, height: number): void;
+    renderer_retainedTextBatch?(entity: number, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, pageId: number): void;
+    renderer_retainedTextBegin?(entity: number, sdf: number, screen: number, hasBox: number, layer: number, boxWidth: number, boxHeight: number): void;
+    renderer_retainedTextClear?(entity: number): void;
+    renderer_retainedTextStale?(registry: unknown, outPtr: number, capacity: number): number;
+    renderer_retainedTextSubmit?(registry: unknown, screen: number, projectionPtr: number): void;
     renderer_setAsyncShaderCompile?(on: boolean): void;
     renderer_setClearColor?(r: number, g: number, b: number, a: number): void;
     renderer_setColorSpace?(linear: number): void;
@@ -536,6 +541,11 @@ export function createNativeEngineApi(
     bind('renderer_renderSkeletalPreview', 'es_renderer_renderSkeletalPreview', false);
     bind('renderer_replayToDrawCall', 'es_renderer_replayToDrawCall', false);
     bind('renderer_resize', 'es_renderer_resize', false);
+    bind('renderer_retainedTextBatch', 'es_renderer_retainedTextBatch', false);
+    bind('renderer_retainedTextBegin', 'es_renderer_retainedTextBegin', false);
+    bind('renderer_retainedTextClear', 'es_renderer_retainedTextClear', false);
+    bind('renderer_retainedTextStale', 'es_renderer_retainedTextStale', true);
+    bind('renderer_retainedTextSubmit', 'es_renderer_retainedTextSubmit', true);
     bind('renderer_setAsyncShaderCompile', 'es_renderer_setAsyncShaderCompile', false);
     bind('renderer_setClearColor', 'es_renderer_setClearColor', false);
     bind('renderer_setColorSpace', 'es_renderer_setColorSpace', false);

@@ -241,6 +241,8 @@ export const GATES = [
     why: 'the check cooks each shader to hash the ASSEMBLED GLSL, so it needs the built engine and skips a machine without one; the render CI job runs it where the binary is',
   },
   { id: 'shader-literals', run: 'node tools/check-shader-literals.mjs' },
+  // The engine's copy of the text culling agrees with the TS one only while the cases file is what the TS gives.
+  { id: 'retained-text-cases', run: 'node tools/gen-retained-text-cases.mjs --check' },
   { id: 'import-settings', run: 'node tools/check-import-settings.mjs' },
   { id: 'gizmo-coverage', run: 'node tools/check-gizmo-coverage.mjs', needs: 'editor' },
   { id: 'corpus-authoring', run: 'node tools/check-corpus-authoring.mjs' },

@@ -436,6 +436,21 @@ export interface ESEngineModule {
         entity: number, layer: number, depth: number, sdf: number, cullBit: number
     ): void;
     /**
+     * Retained text: glyph quads handed over once and submitted by the engine every frame (RetainedText.hpp). `Begin` starts or replaces an
+     * entity's label (its domain, box and layer), `Batch` adds one atlas page's quads to it, `Clear` forgets it, `Stale` lists the entities whose
+     * domain or box no longer matches what they were laid out for, and `Submit` draws one domain's labels into the open list.
+     */
+    renderer_retainedTextBegin?(
+        entity: number, sdf: number, screen: number, hasBox: number, layer: number, boxWidth: number, boxHeight: number
+    ): void;
+    renderer_retainedTextBatch?(
+        entity: number, verticesPtr: number, vertexCount: number,
+        indicesPtr: number, indexCount: number, pageId: number
+    ): void;
+    renderer_retainedTextClear?(entity: number): void;
+    renderer_retainedTextStale?(registry: CppRegistry, outPtr: number, capacity: number): number;
+    renderer_retainedTextSubmit?(registry: CppRegistry, screen: number, projectionPtr: number): void;
+    /**
      * Upload a MeshRenderer component's geometry: interleaved f32 [x,y,u,v] per vertex,
      * optional RGBA8 colors (colorsPtr 0 = all white), u32 triangle-list indices.
      * Validated engine-side: out-of-range indices reject the whole upload.

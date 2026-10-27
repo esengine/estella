@@ -22,6 +22,7 @@
 #include "../rhi/GfxDevice.hpp"
 #include "../rhi/TransientBufferPool.hpp"
 #include "../draw/DrawList.hpp"
+#include "../draw/RetainedText.hpp"
 #include "../draw/ClipState.hpp"
 #include "../draw/SpriteMaskRange.hpp"
 #include "../../ecs/Registry.hpp"
@@ -220,6 +221,9 @@ public:
         u32 textureId, const f32* transform16,
         Entity entity, i32 layer, f32 depth, bool sdf, u32 cullBit = 0
     );
+
+    /// The glyph quads of every label the text system laid out and handed over once, which the engine submits itself each frame.
+    RetainedTextStore& retainedText() { return retained_text_; }
 
     /**
      * @brief One offscreen render's resources, correct only together.
@@ -923,6 +927,7 @@ private:
     /// Interleaved (x, y, shadow, channel.rgba) — built on the CPU each frame, because
     /// the geometry is a function of where every light stands.
     std::vector<f32> shadow_2d_vertices_;
+    RetainedTextStore retained_text_;
     BufferHandle shadow_2d_vbo_ = BufferHandle::Invalid;
     u32 shadow_2d_vbo_bytes_ = 0;
     VertexLayoutHandle shadow_2d_layout_ = VertexLayoutHandle::Invalid;

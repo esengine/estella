@@ -92,6 +92,32 @@ void renderer_submitTextBatch(
     u32 textureId, uintptr_t transformPtr,
     u32 entity, i32 layer, f32 depth, i32 sdf, u32 cullBit
 );
+/**
+ * @name Retained text
+ * @brief Glyph quads handed over once and submitted by the engine each frame (see RetainedText.hpp).
+ * @{
+ */
+/// Starts (or replaces) an entity's retained text: the layout's domain, box and order, with its batches to follow.
+void renderer_retainedTextBegin(
+    u32 entity, i32 sdf, i32 screen, i32 hasBox, i32 layer, f32 boxWidth, f32 boxHeight
+);
+/// One batch of glyph quads of the entity begun last: TEXT_VERTEX_FLOATS floats a vertex, whole quads, drawn from atlas page @p pageId.
+void renderer_retainedTextBatch(
+    u32 entity, uintptr_t verticesPtr, i32 vertexCount,
+    uintptr_t indicesPtr, i32 indexCount, u32 pageId
+);
+/// Forgets an entity's retained text.
+void renderer_retainedTextClear(u32 entity);
+/**
+ * @brief The entities whose retained text no longer matches the world, written to @p outPtr as u32s.
+ * @details Stale means the entity's domain or box is not the one it was laid out for. An entity that is gone is dropped here and not reported.
+ * @return How many were written, at most @p capacity.
+ */
+i32 renderer_retainedTextStale(ecs::Registry& registry, uintptr_t outPtr, i32 capacity);
+/// Submits every retained label of one domain into the open list: its matrix, order, opacity and cull bit read off the entity, its quads clipped
+/// against @p projectionPtr (16 floats; 0 for no clipping).
+void renderer_retainedTextSubmit(ecs::Registry& registry, i32 screen, uintptr_t projectionPtr);
+/** @} */
 void meshRenderer_setGeometry(
     ecs::Registry& registry, u32 entity,
     uintptr_t posUvPtr, u32 vertexCount,

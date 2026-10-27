@@ -534,6 +534,11 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_submitSkeletalBatchByEntityEx", &esengine::renderer_submitSkeletalBatchByEntityEx);
     emscripten::function("renderer_entityVisibleToCamera", &esengine::renderer_entityVisibleToCamera);
     emscripten::function("renderer_submitTextBatch", &esengine::renderer_submitTextBatch);
+    emscripten::function("renderer_retainedTextBegin", &esengine::renderer_retainedTextBegin);
+    emscripten::function("renderer_retainedTextBatch", &esengine::renderer_retainedTextBatch);
+    emscripten::function("renderer_retainedTextClear", &esengine::renderer_retainedTextClear);
+    emscripten::function("renderer_retainedTextStale", &esengine::renderer_retainedTextStale);
+    emscripten::function("renderer_retainedTextSubmit", &esengine::renderer_retainedTextSubmit);
     emscripten::function("meshRenderer_setGeometry", &esengine::meshRenderer_setGeometry);
     emscripten::function("meshInstances_set", &esengine::meshInstances_set);
     emscripten::function("mesh_createFromChannels", &esengine::mesh_createFromChannels);

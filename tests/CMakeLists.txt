@@ -307,6 +307,15 @@ target_include_directories(test_sort_key PRIVATE
 )
 add_test(NAME test_sort_key COMMAND test_sort_key)
 
+# A retained label's quads are clipped by the engine as the TS text culling clips them, quad for quad: the cases file is what that TS keeps on
+# random batches (tools/gen-retained-text-cases.mjs). Header-only, so no engine link.
+add_executable(test_retained_text renderer/test_retained_text.cpp)
+target_include_directories(test_retained_text PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party/glm
+)
+add_test(NAME test_retained_text COMMAND test_retained_text ${CMAKE_CURRENT_SOURCE_DIR}/renderer/data/retained_text_cases.txt)
+
 # Clip-depth convention: the engine builds for [-1,1] and a device keeping [0,1]
 # is handed the same projection in its terms. Header-only math, so no engine link.
 add_executable(test_clip_depth renderer/test_clip_depth.cpp)

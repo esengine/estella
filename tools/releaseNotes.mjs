@@ -3080,4 +3080,6 @@ export const NOTED = {
     {"note":"The sky's clouds cost 0.9 ms less"},
   "perf(render): a frame of 2D sprites is not sorted again when its draw keys are the last frame's":
     {"note":"A frame of sprites is not sorted again when its draw keys have not changed"},
+  "perf(ui): UI text is laid out when it changes and submitted by the engine every frame":
+    {"note":"UI text costs less: labels are laid out when they change and submitted by the engine"},
 };

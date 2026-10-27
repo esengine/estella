@@ -27,7 +27,7 @@ import { ScreenOverlay } from '../core/screen-overlay';
 import { getUINodeWidth, getUINodeHeight, ensureUIVisual } from '../util/helpers';
 import { resolveTextFamily } from './font-registry';
 import { platformDevicePixelRatio } from '../../platform';
-import { engineApi } from '../../ecs/bridge/engineApi';
+import { engineApi, type EngineApi } from '../../ecs/bridge/engineApi';
 import { withScratch } from '../../wasm/wasmScratch';
 // UI quads use layer = base + uiOrder, off the C++ declaration that owns it.
 import { UI_BASE_LAYER } from '../../wasm/constants.generated';
@@ -80,6 +80,47 @@ export function glyphContentScale(projScaleX: number, vpW: number, dpr: number):
     return shownSpan > 0 ? vpW / (shownSpan * dpr) : 1;
 }
 
+/** The Text fields a retained label's geometry was laid out from; a label is rebuilt when any of them differs, and not otherwise. */
+export interface TextSnapshot {
+    content: string; family: string; fontSize: number; bold: boolean; italic: boolean; richText: boolean;
+    align: number; verticalAlign: number; wordWrap: boolean; overflow: number; lineHeight: number; layer: number;
+    cr: number; cg: number; cb: number; ca: number;
+    strokeWidth: number; sr: number; sg: number; sb: number; sa: number;
+    shadowBlur: number; shadowX: number; shadowY: number; hr: number; hg: number; hb: number; ha: number;
+}
+
+/** A label whose glyph quads the engine holds (see RetainedText.hpp): what TS needs to know whether those quads are still the right ones. */
+interface RetainedLabel {
+    snap: TextSnapshot;
+    screen: boolean;
+    kind: 'bitmap' | 'sdf';
+    gen: number;
+    renderer: SdfTextRenderer;
+}
+
+export function snapshotOf(t: TextData, family: string): TextSnapshot {
+    return {
+        content: t.content, family, fontSize: t.fontSize, bold: !!t.bold, italic: !!t.italic, richText: !!t.richText,
+        align: t.align, verticalAlign: t.verticalAlign, wordWrap: !!t.wordWrap, overflow: t.overflow, lineHeight: t.lineHeight, layer: t.layer | 0,
+        cr: t.color.r, cg: t.color.g, cb: t.color.b, ca: t.color.a,
+        strokeWidth: t.strokeWidth, sr: t.strokeColor.r, sg: t.strokeColor.g, sb: t.strokeColor.b, sa: t.strokeColor.a,
+        shadowBlur: t.shadowBlur, shadowX: t.shadowOffsetX, shadowY: t.shadowOffsetY,
+        hr: t.shadowColor.r, hg: t.shadowColor.g, hb: t.shadowColor.b, ha: t.shadowColor.a,
+    };
+}
+
+export function sameSnapshot(s: TextSnapshot, t: TextData, family: string): boolean {
+    return s.content === t.content && s.family === family && s.fontSize === t.fontSize
+        && s.bold === !!t.bold && s.italic === !!t.italic && s.richText === !!t.richText
+        && s.align === t.align && s.verticalAlign === t.verticalAlign && s.wordWrap === !!t.wordWrap
+        && s.overflow === t.overflow && s.lineHeight === t.lineHeight && s.layer === (t.layer | 0)
+        && s.cr === t.color.r && s.cg === t.color.g && s.cb === t.color.b && s.ca === t.color.a
+        && s.strokeWidth === t.strokeWidth
+        && s.sr === t.strokeColor.r && s.sg === t.strokeColor.g && s.sb === t.strokeColor.b && s.sa === t.strokeColor.a
+        && s.shadowBlur === t.shadowBlur && s.shadowX === t.shadowOffsetX && s.shadowY === t.shadowOffsetY
+        && s.hr === t.shadowColor.r && s.hg === t.shadowColor.g && s.hb === t.shadowColor.b && s.ha === t.shadowColor.a;
+}
+
 /** The two domains a Text can belong to, and the state each keeps. */
 interface TextDomainState {
     bitmap: SdfTextRenderer | null;
@@ -94,6 +135,7 @@ export class TextPlugin implements Plugin {
         screen: TextDomainState;
         matrix: Float32Array;
         matrixHeap: Float32Array | null;
+        retained: Map<number, RetainedLabel>;
     }>();
 
     private stateFor(app: App) {
@@ -103,6 +145,7 @@ export class TextPlugin implements Plugin {
                 world: { bitmap: null, sdf: null },
                 screen: { bitmap: null, sdf: null },
                 matrix: new Float32Array(16), matrixHeap: null,
+                retained: new Map(),
             };
             this.states_.set(app, state);
         }
@@ -181,6 +224,10 @@ export class TextPlugin implements Plugin {
     private drawDomain(app: App, screen: boolean, projection?: Float32Array): void {
         const appState = this.stateFor(app);
         const api = engineApi(app);
+        if (this.canRetain(api)) {
+            this.drawRetained(app, api!, screen, projection);
+            return;
+        }
         if (!api?.transform_copyFlatRenderMatrix || !api.HEAPU8 || !api._malloc || !api._free) {
             this.drawDomainWithMatrix(app, screen, undefined, projection);
             return;
@@ -199,6 +246,183 @@ export class TextPlugin implements Plugin {
                 return true;
             }, projection);
         });
+    }
+
+    /**
+     * Whether the engine can keep a label's glyph quads and submit them itself. A core without the entry points (an older native host) takes the
+     * path that hands every label over every frame.
+     */
+    private canRetain(api: EngineApi | null): boolean {
+        return !!api && !!api.renderer_retainedTextBegin && !!api.renderer_retainedTextBatch && !!api.renderer_retainedTextClear
+            && !!api.renderer_retainedTextStale && !!api.renderer_retainedTextSubmit && !!api.ui_isScreenDomain
+            && !!api.HEAPU8 && !!api._malloc && !!api._free;
+    }
+
+    /**
+     * One domain's Text, with the glyph quads kept by the engine: a label that is the same as the last time costs a comparison here and the
+     * engine's own loop, and is laid out again only when its text, style or box changed.
+     */
+    private drawRetained(app: App, api: EngineApi, screen: boolean, projection?: Float32Array): void {
+        const appState = this.stateFor(app);
+        const world = app.world;
+        const registry = world.getCppRegistry() as CppRegistry;
+        const dpr = platformDevicePixelRatio();
+        const contentScale = screen ? this.screenContentScale(app, dpr) : this.worldContentScale(app, dpr);
+        const state = screen ? appState.screen : appState.world;
+        const retained = appState.retained;
+        // The atlas rasterizes for the projection that draws it: bring each existing renderer up to this pass's before asking whether its
+        // generation moved.
+        if (state.bitmap) {
+            state.bitmap.setDevicePixelRatio(dpr);
+            state.bitmap.setContentScale(contentScale);
+        }
+
+        // What the engine says no longer matches the world: a box that was resized, a label that moved between domains.
+        this.rebuildStale(app, api, registry);
+
+        const seen = new Set<number>();
+        for (const e of world.getEntitiesWithComponents([Text, Transform])) {
+            const entity = e as Entity;
+            const label = retained.get(entity as number);
+            if (label && label.screen !== screen) continue; // the other domain's pass owns it
+            const t = world.get(entity, Text) as TextData;
+            if (!t.content || t.enabled === false) continue; // not seen: swept below
+            if (!label && api.ui_isScreenDomain!(registry, entity as number) !== screen) continue;
+            const family = resolveTextFamily(t.font, t.fontFamily);
+            const kind = t.renderMode === TextRenderMode.Bitmap ? 'bitmap'
+                : t.renderMode === TextRenderMode.Sdf ? 'sdf'
+                : resolveTextRenderMode(t.renderMode, (world.get(entity, Transform) as TransformData).worldScale.x);
+            seen.add(entity as number);
+            if (label && label.kind === kind && label.gen === label.renderer.atlas.generation && sameSnapshot(label.snap, t, family)) {
+                label.renderer.markDrawn(entity as number);
+                continue;
+            }
+            this.layoutRetained(app, api, registry, entity, t, screen);
+        }
+        for (const [entity, label] of retained) {
+            if (label.screen !== screen || seen.has(entity)) continue;
+            api.renderer_retainedTextClear!(entity);
+            label.renderer.forget(entity);
+            retained.delete(entity);
+        }
+
+        withScratch({ _malloc: size => api._malloc!(size), _free: ptr => api._free!(ptr) }, alloc => {
+            let projectionPtr = 0;
+            if (projection && projection.length >= 16) {
+                projectionPtr = alloc(16 * 4);
+                api.HEAPU8!.set(new Uint8Array(projection.buffer, projection.byteOffset, 16 * 4), projectionPtr);
+            }
+            api.renderer_retainedTextSubmit!(registry, screen ? 1 : 0, projectionPtr);
+        });
+    }
+
+    /** Lay the labels the engine reports stale out again, in the domain they are in now. */
+    private rebuildStale(app: App, api: EngineApi, registry: CppRegistry): void {
+        const appState = this.stateFor(app);
+        const world = app.world;
+        const CAPACITY = 256;
+        for (let round = 0; round < 8; round++) {
+            const stale: number[] = [];
+            withScratch({ _malloc: size => api._malloc!(size), _free: ptr => api._free!(ptr) }, alloc => {
+                const ptr = alloc(CAPACITY * 4);
+                const count = api.renderer_retainedTextStale!(registry, ptr, CAPACITY);
+                const ids = new Uint32Array(api.HEAPU8!.buffer, ptr, count);
+                for (let i = 0; i < count; i++) stale.push(ids[i]!);
+            });
+            for (const entity of stale) {
+                const label = appState.retained.get(entity);
+                const alive = world.valid(entity as Entity) && world.has(entity as Entity, Text);
+                const t = alive ? world.get(entity as Entity, Text) as TextData : null;
+                if (!t || !t.content || t.enabled === false) {
+                    api.renderer_retainedTextClear!(entity);
+                    label?.renderer.forget(entity);
+                    appState.retained.delete(entity);
+                    continue;
+                }
+                this.layoutRetained(app, api, registry, entity as Entity, t, api.ui_isScreenDomain!(registry, entity));
+            }
+            if (stale.length < CAPACITY) return;
+        }
+    }
+
+    /** Lay one label out in @p screen's domain and give the engine its quads. */
+    private layoutRetained(
+        app: App, api: EngineApi, registry: CppRegistry,
+        entity: Entity, t: TextData, screen: boolean,
+    ): void {
+        const appState = this.stateFor(app);
+        const world = app.world;
+        const dpr = platformDevicePixelRatio();
+        const contentScale = screen ? this.screenContentScale(app, dpr) : this.worldContentScale(app, dpr);
+        const state = screen ? appState.screen : appState.world;
+        const tr = world.get(entity, Transform) as TransformData;
+        const kind = resolveTextRenderMode(t.renderMode, tr.worldScale.x);
+        const renderer = this.rendererFor(app, state, kind, contentScale, dpr);
+        const previous = appState.retained.get(entity as number);
+        if (previous && previous.renderer !== renderer) previous.renderer.forget(entity as number);
+
+        const style = (t.bold ? UI_TEXT_BOLD : 0) | (t.italic ? UI_TEXT_ITALIC : 0);
+        // Text.lineHeight is a ratio of fontSize (legacy convention).
+        const lineHeightPx = t.lineHeight > 0 ? t.lineHeight * t.fontSize : undefined;
+        let originX: number | undefined;
+        let originY: number | undefined;
+        let maxWidth: number | undefined;
+        let boxWidth: number | undefined;
+        let boxHeight: number | undefined;
+        let w = 0, h = 0, hasBox = false;
+        if (world.has(entity, UINode)) {
+            w = getUINodeWidth(entity);
+            h = getUINodeHeight(entity);
+            hasBox = w > 0 || h > 0;
+        }
+        if (hasBox) {
+            const box = rectTextBox(0.5, 0.5, w, h, t.fontSize);
+            originX = box.originX;
+            originY = box.originY;
+            boxWidth = box.maxWidth; // align within the box regardless of word-wrap
+            boxHeight = box.boxHeight;
+            if (t.wordWrap) maxWidth = box.maxWidth; // wrap only when enabled
+        }
+        const shadow = t.shadowColor.a > 0
+            && (t.shadowOffsetX !== 0 || t.shadowOffsetY !== 0 || t.shadowBlur > 0)
+            ? {
+                color: [t.shadowColor.r, t.shadowColor.g, t.shadowColor.b, t.shadowColor.a] as RGBA,
+                dx: t.shadowOffsetX,
+                dy: t.shadowOffsetY,
+                blur: t.shadowBlur,
+            }
+            : undefined;
+        const outline = t.strokeWidth > 0 && t.strokeColor.a > 0
+            ? {
+                color: [t.strokeColor.r, t.strokeColor.g, t.strokeColor.b, t.strokeColor.a] as RGBA,
+                width: t.strokeWidth,
+            }
+            : undefined;
+        const family = resolveTextFamily(t.font, t.fontFamily);
+        renderer.retain(
+            api,
+            {
+                text: t.content,
+                fontFamily: family,
+                fontSizePx: t.fontSize,
+                color: [t.color.r, t.color.g, t.color.b, t.color.a],
+                style,
+                richText: t.richText,
+                align: t.align,
+                verticalAlign: t.verticalAlign,
+                lineHeight: lineHeightPx,
+                maxWidth,
+                boxWidth,
+                boxHeight,
+                overflow: t.overflow,
+                originX,
+                originY,
+                shadow,
+                outline,
+            },
+            entity as number, screen, hasBox, t.layer | 0, w, h,
+        );
+        appState.retained.set(entity as number, { snap: snapshotOf(t, family), screen, kind, gen: renderer.atlas.generation, renderer });
     }
 
     private drawDomainWithMatrix(app: App, screen: boolean, readMatrix?: (entity: number) => boolean, projection?: Float32Array): void {

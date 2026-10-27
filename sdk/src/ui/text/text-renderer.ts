@@ -20,6 +20,8 @@ import { EngineAtlasPageStore } from './atlas-page-store';
 import { TextAlign, TextVerticalAlign, TextOverflow } from '../core/text';
 import { layoutText, buildGlyphVertices, MAX_TEXT_BATCH_GLYPHS, type LaidGlyph, type RGBA } from './layout';
 import { submitTextBatch, TEXT_VERTEX_FLOATS } from './submit';
+import { withScratch } from '../../wasm/wasmScratch';
+import type { EngineApi } from '../../ecs/bridge/engineApi';
 
 /** Receives index-safe glyph batches, each bound to one atlas page. */
 export type GlyphBatchSink = (vertices: Float32Array, indices: Uint16Array, pageId: number) => void;
@@ -292,6 +294,8 @@ export class SdfTextRenderer {
     private readonly cache_ = new Map<number, TextCacheEntry>();
     private readonly clipPlanes_ = new Float64Array(36);
     private readonly drawn_ = new Set<number>();
+    /** The atlas pages the retained labels of this renderer draw from, so the pages outlive the frames the labels are not rebuilt in. */
+    private readonly retainedPages_ = new Map<number, number[]>();
 
     /** `module` is null on the native core (no wasm heap); the glyph source is
      *  then the platform's own rasterizer, since there is no 2D canvas to draw
@@ -328,6 +332,7 @@ export class SdfTextRenderer {
         for (const entry of this.cache_.values()) {
             for (const batch of entry.batches) pages.add(batch.pageId);
         }
+        for (const list of this.retainedPages_.values()) for (const pageId of list) pages.add(pageId);
         this.drawn_.clear();
         this.atlas.retainPages(pages);
     }
@@ -335,6 +340,7 @@ export class SdfTextRenderer {
     dispose(): void {
         this.drawn_.clear();
         this.cache_.clear();
+        this.retainedPages_.clear();
         this.atlas.dispose();
     }
 
@@ -389,6 +395,47 @@ export class SdfTextRenderer {
     }
 
     /** Drop cached geometry for entities not drawn this frame (despawned / hidden / no longer text). */
+    /**
+     * Lay a label out and hand its glyph quads to the engine, which keeps them and submits them every frame (see RetainedText.hpp). Called when the
+     * label is new or changed; an unchanged label costs the engine's own loop and nothing here beyond {@link markDrawn}.
+     */
+    retain(
+        api: EngineApi, p: DrawTextParams, entity: number,
+        screen: boolean, hasBox: boolean, layer: number, boxWidth: number, boxHeight: number,
+    ): void {
+        if (this.atlas.metricsOnly) throw new Error('Measurement atlases cannot submit text.');
+        const batches: Array<{ vertices: Float32Array; indices: Uint16Array; pageId: number }> = [];
+        drawTextWith(this.atlas, (vertices, indices, pageId) => { batches.push({ vertices, indices, pageId }); }, { ...p, opacity: 1 });
+        api.renderer_retainedTextBegin!(entity, this.sdf ? 1 : 0, screen ? 1 : 0, hasBox ? 1 : 0, layer, boxWidth, boxHeight);
+        for (const b of batches) {
+            const vertexCount = (b.vertices.length / TEXT_VERTEX_FLOATS) | 0;
+            if (vertexCount <= 0 || b.indices.length <= 0) continue;
+            const vBytes = new Uint8Array(b.vertices.buffer, b.vertices.byteOffset, b.vertices.byteLength);
+            const iBytes = new Uint8Array(b.indices.buffer, b.indices.byteOffset, b.indices.byteLength);
+            withScratch({ _malloc: size => api._malloc!(size), _free: ptr => api._free!(ptr) }, alloc => {
+                const vPtr = alloc(vBytes.byteLength);
+                const iPtr = alloc(iBytes.byteLength);
+                api.HEAPU8!.set(vBytes, vPtr);
+                api.HEAPU8!.set(iBytes, iPtr);
+                api.renderer_retainedTextBatch!(entity, vPtr, vertexCount, iPtr, b.indices.length, b.pageId);
+            });
+        }
+        this.retainedPages_.set(entity, batches.map(b => b.pageId));
+        this.drawn_.add(entity);
+        this.cache_.delete(entity);
+    }
+
+    /** A retained label that is not rebuilt this frame is still on screen: its atlas pages must stay. */
+    markDrawn(entity: number): void {
+        this.drawn_.add(entity);
+    }
+
+    /** Release what a retained label held here (the engine's copy is cleared by the caller). */
+    forget(entity: number): void {
+        this.retainedPages_.delete(entity);
+        this.drawn_.delete(entity);
+    }
+
     retainOnly(live: Set<number>): void {
         if (this.cache_.size === 0) return;
         for (const e of this.cache_.keys()) {
