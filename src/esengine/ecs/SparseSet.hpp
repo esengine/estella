@@ -113,6 +113,24 @@ public:
 
     /** @brief Rank for an entity the caller did not order — sorts last, stably. */
     static constexpr u32 UNRANKED = 0xFFFFFFFFu;
+
+    /**
+     * @brief Which current slot belongs at each position when `dense` is put in `rank` order (stable).
+     * @details Not a member of the template: the sort does not depend on the component type, and a copy of `std::stable_sort` and its
+     *          merge helpers for each of the hundred-odd component types was 227KB of the engine's wasm — over a tenth of its code.
+     *          Entities with no rank sort after the ranked ones, in their present order.
+     */
+    [[gnu::noinline]] static std::vector<usize> stablePermutation(const std::vector<Entity>& dense, const std::vector<u32>& rank) {
+        const usize n = dense.size();
+        std::vector<usize> perm(n);
+        for (usize i = 0; i < n; ++i) perm[i] = i;
+        const auto rankOf = [&](usize i) {
+            const u32 idx = dense[i].index();
+            return idx < rank.size() ? rank[idx] : UNRANKED;
+        };
+        std::stable_sort(perm.begin(), perm.end(), [&](usize a, usize b) { return rankOf(a) < rankOf(b); });
+        return perm;
+    }
 };
 
 // =============================================================================
@@ -377,17 +395,10 @@ public:
         const usize n = dense_.size();
         if (n <= 1) return;
 
-        const auto rankOf = [&](usize i) {
-            const u32 idx = dense_[i].index();
-            return idx < rank.size() ? rank[idx] : UNRANKED;
-        };
-
-        // perm[i] = which current slot belongs at position i. stable_sort keeps
-        // equal-ranked (and unranked) entities in their present order.
-        std::vector<usize> perm(n);
-        for (usize i = 0; i < n; ++i) perm[i] = i;
-        std::stable_sort(perm.begin(), perm.end(),
-                         [&](usize a, usize b) { return rankOf(a) < rankOf(b); });
+        // perm[i] = which current slot belongs at position i. The sort keeps
+        // equal-ranked (and unranked) entities in their present order, and is
+        // one function for every component type (see stablePermutation).
+        std::vector<usize> perm = stablePermutation(dense_, rank);
 
         bool moved = false;
         for (usize i = 0; i < n; ++i) {

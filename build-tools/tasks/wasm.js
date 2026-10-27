@@ -223,7 +223,9 @@ export async function optimizeWasmFiles(buildDir, outputs, optLevel = '-O2', env
         const optimizedPath = `${wasmPath}.opt-${randomUUID()}.wasm`;
         try {
             const before = (await stat(wasmPath)).size;
-            await runCommand('wasm-opt', [optLevel, '--enable-bulk-memory', '--enable-nontrapping-float-to-int', '--enable-simd', '-o', optimizedPath, wasmPath], { silent: true, env });
+            // The optimizer drops the name section unless told to keep it; a build made to find where the bytes are (a size report by subsystem) asks.
+            const keepNames = process.env.ESTELLA_WASM_NAMES === '1' ? ['-g'] : [];
+            await runCommand('wasm-opt', [optLevel, ...keepNames, '--enable-bulk-memory', '--enable-nontrapping-float-to-int', '--enable-simd', '-o', optimizedPath, wasmPath], { silent: true, env });
             const bytes = await readFile(optimizedPath);
             if (!WebAssembly.validate(bytes)) throw new Error('optimizer produced invalid WASM');
             const after = bytes.byteLength;
