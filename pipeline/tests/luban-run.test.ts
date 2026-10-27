@@ -149,3 +149,47 @@ describe.skipIf(!base || !existsSync(path.join(base, 'external-tools.json')))('L
         expect(existsSync(path.join(root, 'assets/data/tbitem.json'))).toBe(true);
     }, 120_000);
 });
+
+describe('is the generated output behind the tables?', () => {
+    it('answers from modification times alone, and ignores what Excel leaves beside an open file', async () => {
+        const { lubanStaleness } = await import('../src/tools/lubanRun');
+        const { utimesSync } = await import('node:fs');
+        const root = mkdtempSync(path.join(tmpdir(), 'estella-stale-'));
+        try {
+            const setting: LubanSetting = { enabled: true, ...LUBAN_DEFAULTS };
+            const datas = path.join(root, 'config/luban/Datas');
+            mkdirSync(datas, { recursive: true });
+            writeFileSync(path.join(root, 'config/luban/luban.conf'), '{}');
+            writeFileSync(path.join(datas, 'items.xlsx'), 'x');
+            expect(lubanStaleness(root, setting)).toBe('never');
+
+            // A run is recorded: what it wrote, and when it began.
+            const out = path.join(root, 'src/gen/data/tbitem.json');
+            mkdirSync(path.dirname(out), { recursive: true });
+            writeFileSync(out, '[]');
+            mkdirSync(path.join(root, '.esengine'), { recursive: true });
+            const begun = Date.now();
+            writeFileSync(path.join(root, '.esengine/luban-generated.json'), JSON.stringify({ generatedAt: begun, files: ['src/gen/data/tbitem.json'] }));
+            const at = (file: string, ms: number) => utimesSync(file, new Date(ms), new Date(ms));
+            for (const f of [path.join(root, 'config/luban/luban.conf'), path.join(datas, 'items.xlsx')]) at(f, begun - 5000);
+            expect(lubanStaleness(root, setting)).toBe('fresh');
+
+            // Excel's lock file appears while a designer has the table open: not a change.
+            writeFileSync(path.join(datas, '~$items.xlsx'), 'lock');
+            at(path.join(datas, '~$items.xlsx'), begun + 5000);
+            expect(lubanStaleness(root, setting)).toBe('fresh');
+
+            // Saving a table afterwards is.
+            at(path.join(datas, 'items.xlsx'), begun + 5000);
+            expect(lubanStaleness(root, setting)).toBe('stale');
+
+            // A file the run wrote has gone: start again.
+            rmSync(out);
+            expect(lubanStaleness(root, setting)).toBe('never');
+            writeFileSync(path.join(root, '.esengine/luban-generated.json'), 'not json');
+            expect(lubanStaleness(root, setting)).toBe('never');
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+});

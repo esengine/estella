@@ -111,6 +111,9 @@ export async function runLuban(options: LubanRunOptions): Promise<LubanRunResult
     const finalCode = inside(root, s.codeDir);
     const finalData = inside(root, s.dataDir);
 
+    // Taken before the run reads anything: a table saved while Luban works is newer than this, so it is seen next time
+    // instead of being counted as already generated.
+    const startedAt = Date.now();
     const scratch = mkdtempSync(path.join(tmpdir(), 'estella-luban-'));
     try {
         const outCode = path.join(scratch, 'code');
@@ -151,9 +154,53 @@ export async function runLuban(options: LubanRunOptions): Promise<LubanRunResult
         }
         for (const rel of stale) rmSync(path.join(root, rel), { force: true });
         mkdirSync(path.dirname(ledgerFile), { recursive: true });
-        writeFileSync(ledgerFile, JSON.stringify({ note: 'Written by estella luban gen. Files listed here are replaced or removed by the next run.', files: made.map((m) => m.rel) }, null, 2) + '\n');
+        writeFileSync(ledgerFile, JSON.stringify({ note: 'Written by estella luban gen. Files listed here are replaced or removed by the next run.', generatedAt: startedAt, files: made.map((m) => m.rel) }, null, 2) + '\n');
         return { ok: true, errors: [], changed: [...differing.map((m) => m.rel), ...stale], log: output };
     } finally {
         rmSync(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
+}
+
+export type Staleness = 'fresh' | 'stale' | 'never';
+
+/** Files an editor or Excel leaves beside a document while it is open: not something a designer wrote. */
+const SCRATCH = /^(~\$|\.~lock\.|\.#|.*\.(tmp|bak)$)/i;
+
+function newestInput(dir: string): number {
+    let newest = 0;
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        if (SCRATCH.test(entry.name)) continue;
+        const full = path.join(dir, entry.name);
+        newest = Math.max(newest, entry.isDirectory() ? newestInput(full) : statSync(full).mtimeMs);
+    }
+    return newest;
+}
+
+export interface StalenessReport {
+    state: Staleness;
+    /** When the newest file under the Luban folder was saved (ms), 0 when there is none. A caller that remembers a failed run by this can tell "still the same mistake" from "edited since". */
+    newest: number;
+}
+
+/**
+ * Do the project's generated files still say what its tables say? A look at modification times, no Luban run:
+ * cheap enough to ask every time a window is focused. `never` means no run has been recorded (or a file it wrote is
+ * gone); `stale` means something under the Luban folder was saved after the last run began. A run that changed
+ * nothing still counts as a run, so saving an Excel file without changing a value is answered once, not for ever.
+ */
+export function lubanStalenessReport(projectDir: string, setting: LubanSetting): StalenessReport {
+    const root = path.resolve(projectDir);
+    const confDir = path.dirname(inside(root, setting.conf));
+    const newest = existsSync(confDir) ? newestInput(confDir) : 0;
+    const ledgerFile = path.join(root, LEDGER);
+    if (!existsSync(ledgerFile) || !existsSync(confDir)) return { state: 'never', newest };
+    let ledger: { files?: string[]; generatedAt?: number };
+    try { ledger = JSON.parse(readFileSync(ledgerFile, 'utf8')); } catch { return { state: 'never', newest }; }
+    if (typeof ledger.generatedAt !== 'number' || !Array.isArray(ledger.files)) return { state: 'never', newest };
+    if (ledger.files.some((rel) => !existsSync(path.join(root, rel)))) return { state: 'never', newest };
+    return { state: newest > ledger.generatedAt ? 'stale' : 'fresh', newest };
+}
+
+export function lubanStaleness(projectDir: string, setting: LubanSetting): Staleness {
+    return lubanStalenessReport(projectDir, setting).state;
 }
