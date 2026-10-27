@@ -71,7 +71,6 @@ bool joinBatchIndexRanges(TransientBufferPool& pool, DrawCommand& head, DrawComm
 void DrawList::clear() {
     commands_.clear();
     entity_counts_.fill(0);
-    sort_entries_.clear();
     skin_matrices_.clear();
     morph_shapes_.clear();
     probes_.clear();
@@ -120,18 +119,28 @@ void DrawList::finalize(TransientBufferPool& pool) {
         return;
     }
 
-    sort_entries_.resize(count);
-    for (u32 i = 0; i < count; ++i) {
-        sort_entries_[i] = { commands_[i].sort_key, i };
-    }
+    // The order the keys give is the order the last frame's identical keys gave: the sort below is a function of the key sequence alone, so a
+    // frame whose keys match is not sorted again. Sprites that move rarely change their key (2D keys hold layer, shader, blend and material, not
+    // where a sprite is), which makes this the common frame.
+    bool sameKeys = sorted_keys_.size() == count && sort_entries_.size() == count;
+    for (u32 i = 0; sameKeys && i < count; ++i) sameKeys = sorted_keys_[i] == commands_[i].sort_key;
+    ES_PROFILE_COUNTER("batch.sortReused", sameKeys ? 1 : 0);
+    if (!sameKeys) {
+        sort_entries_.resize(count);
+        sorted_keys_.resize(count);
+        for (u32 i = 0; i < count; ++i) {
+            sort_entries_[i] = { commands_[i].sort_key, i };
+            sorted_keys_[i] = commands_[i].sort_key;
+        }
 
-    // Tie-break on emit index so same-key commands keep submission order: that keeps an
-    // emit-contiguous run contiguous after sorting, which is what lets the merge coalesce it
-    // (including across different textures, now that texture is out of the key).
-    std::sort(sort_entries_.begin(), sort_entries_.end(),
-              [](const SortEntry& a, const SortEntry& b) {
-                  return a.key < b.key || (a.key == b.key && a.index < b.index);
-              });
+        // Tie-break on emit index so same-key commands keep submission order: that keeps an
+        // emit-contiguous run contiguous after sorting, which is what lets the merge coalesce it
+        // (including across different textures, now that texture is out of the key).
+        std::sort(sort_entries_.begin(), sort_entries_.end(),
+                  [](const SortEntry& a, const SortEntry& b) {
+                      return a.key < b.key || (a.key == b.key && a.index < b.index);
+                  });
+    }
 
     // Gather into a reused scratch buffer (not a fresh per-frame vector) and swap
     // it with commands_, so the allocation is amortized across frames.

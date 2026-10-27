@@ -255,7 +255,10 @@ private:
     };
     std::vector<StagedBlocks> staged_;
     void stageBlocks(const PerDrawBlockSet& blocks);
+    /// The sorted order of the last finalize and the keys, in emit order, it was sorted from. The order is a function of the keys alone (ties break on
+    /// emit index), and in 2D the key holds no position, so a frame of moving sprites has the keys of the frame before it.
     std::vector<SortEntry> sort_entries_;
+    std::vector<u64> sorted_keys_;
     std::vector<DrawCommand> sorted_scratch_;  // reused across frames to avoid a
                                                // per-frame heap alloc in finalize()
     std::vector<DrawCommand> stencil_commands_scratch_;

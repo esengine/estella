@@ -3078,4 +3078,6 @@ export const NOTED = {
     {"note":"Lens flare costs a third of what it did"},
   "perf(render): the sky's clouds are worked out at a quarter of the size":
     {"note":"The sky's clouds cost 0.9 ms less"},
+  "perf(render): a frame of 2D sprites is not sorted again when its draw keys are the last frame's":
+    {"note":"A frame of sprites is not sorted again when its draw keys have not changed"},
 };

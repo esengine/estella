@@ -340,6 +340,31 @@ TEST_CASE("finalize: adjacent same-key Batch draws with different textures merge
     CHECK(verts[7].texIndex == 1.0f);
 }
 
+TEST_CASE("finalize: a frame with the same keys as the last takes its order, a frame with other keys is sorted again") {
+    Harness h;
+    BatchVertex quad[4] = {};
+    // Layers say the order, textures say which draw is which: what a frame draws is read back from the merged draw's slots.
+    const auto frame = [&](const i32 (&layers)[3], const u32 (&textures)[3]) {
+        h.list.clear();
+        h.pool.beginFrame();
+        for (int i = 0; i < 3; ++i) appendQuad(h.pool, h.list, h.clips, quad, quadKey(textures[i], layers[i]));
+        h.list.finalize(h.pool);
+        REQUIRE(h.list.mergedDrawCallCount() == 1);
+        return h.list.command(0);
+    };
+    const DrawCommand first = frame({3, 1, 2}, {10, 11, 12});
+    CHECK((std::vector<u32>{first.texture_ids[0], first.texture_ids[1], first.texture_ids[2]} == std::vector<u32>{11, 12, 10}));
+    // The same layers, so the same order, over other draws.
+    const DrawCommand same = frame({3, 1, 2}, {20, 21, 22});
+    CHECK((std::vector<u32>{same.texture_ids[0], same.texture_ids[1], same.texture_ids[2]} == std::vector<u32>{21, 22, 20}));
+    // Other layers: the order of the frame before is not the order of this one.
+    const DrawCommand other = frame({1, 3, 2}, {30, 31, 32});
+    CHECK((std::vector<u32>{other.texture_ids[0], other.texture_ids[1], other.texture_ids[2]} == std::vector<u32>{30, 32, 31}));
+    // And back to the first keys again, from a list that last sorted something else.
+    const DrawCommand back = frame({3, 1, 2}, {40, 41, 42});
+    CHECK((std::vector<u32>{back.texture_ids[0], back.texture_ids[1], back.texture_ids[2]} == std::vector<u32>{41, 42, 40}));
+}
+
 TEST_CASE("finalize: sorted Batch index gaps merge in painter order with their texture slots") {
     Harness h;
     BatchVertex quad[4] = {};
