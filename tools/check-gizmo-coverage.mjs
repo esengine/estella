@@ -115,6 +115,8 @@ const DISPOSITION = {
   'MeshInstances.drawDistance': ['no-place', 'a distance from the eye, not a region of the entity'],
   'MeshInstances.shadowDistance': ['no-place', 'a distance from the eye, not a region of the entity'],
   'Planet.radius': ['renders', 'the sphere drawn at the entity is the outline'],
+  'BlobShadow.radius': ['renders', 'the disc drawn on the ground is the outline'],
+  'BlobShadow.fadeHeight': ['no-place', 'a height above the ground at which the disc is gone, not a region of the entity'],
   'Planet.collisionDistance': ['no-place', 'how far round each moving body the ground is built for collision, not a region of the entity'],
   'Planet.cellSize': ['no-place', 'the finest cell of the ground\'s mesh near the eye, not a region of the entity'],
   'PlacedFoliage.sizeX': ['renders', 'the area the plants are placed over is the outline'],
