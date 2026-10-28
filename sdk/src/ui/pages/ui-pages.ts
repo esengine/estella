@@ -19,11 +19,12 @@
  * order (a UI's overlays are above its screens because they come after them, and a page built later must not end up on top of
  * an overlay). The mount carries what the prefab's root would have carried; only the root's children are taken.
  */
-import { Children, Name } from '../../ecs/component';
-import type { ChildrenData, NameData } from '../../ecs/component';
+import { Children, Name, Parent } from '../../ecs/component';
+import type { ChildrenData, NameData, ParentData } from '../../ecs/component';
 import { isEntityActive, setEntityActive } from '../../ecs/entityUtils';
 import { instantiatePrefab } from '../../prefab';
 import type { PrefabData, PrefabOverride } from '../../prefab';
+import { deferredEntities, deferredRecord } from '../../scene/deferredInstances';
 import type { World } from '../../ecs/world';
 import type { Entity } from '../../types';
 
@@ -70,6 +71,7 @@ export class UIPages {
     private readonly pages_ = new Map<string, PageState>();
     private readonly builtListeners_: Array<(page: PageHandle) => void> = [];
     private readonly prefabs_ = new Map<string, Promise<PrefabData>>();
+    private readonly mounts_ = new Set<Entity>();
 
     constructor(private readonly world_: World, private readonly assets_: Assets) {}
 
@@ -80,6 +82,32 @@ export class UIPages {
     }
 
     has(id: string): boolean { return this.pages_.has(id); }
+
+    /**
+     * Register a virtual instance of the scene (prefab/deferred.ts) as a page named after its root: the root is the mount, and the
+     * prefab and overrides are the ones the instance was made from. Answers the page's id, or null when the entity is not a virtual
+     * instance or is already registered.
+     */
+    registerDeferred(entity: Entity, onClose: PageDef['onClose'] = 'keep'): string | null {
+        const record = deferredRecord(this.world_, entity);
+        if (record === undefined || this.mounts_.has(entity)) return null;
+        const name = this.world_.has(entity, Name) ? (this.world_.get(entity, Name) as NameData).value : '';
+        if (name === '') throw new Error(`UIPages: a virtual instance needs a name to be a page (entity ${entity})`);
+        this.register(name, { prefab: record.prefab, mount: entity, overrides: record.overrides, onClose });
+        this.mounts_.add(entity);
+        return name;
+    }
+
+    /** Register every virtual instance of the world — or only those under `root` — that is not a page yet. Answers their ids. */
+    registerDeferredAll(root?: Entity, onClose: PageDef['onClose'] = 'keep'): string[] {
+        const ids: string[] = [];
+        for (const entity of deferredEntities(this.world_)) {
+            if (root !== undefined && !this.isUnder_(entity, root)) continue;
+            const id = this.registerDeferred(entity, onClose);
+            if (id !== null) ids.push(id);
+        }
+        return ids;
+    }
 
     /** Whether the page has been built (and not destroyed since). */
     isBuilt(id: string): boolean { return this.state_(id).handle !== null; }
@@ -163,8 +191,21 @@ export class UIPages {
             has: (name) => names.has(name),
             names: () => names.keys(),
         };
+        // Virtual instances inside the page that was just made are pages too, to be opened when they are wanted.
+        this.registerDeferredAll(root, def.onClose);
         for (const listener of [...this.builtListeners_]) listener(handle);
         return handle;
+    }
+
+    private isUnder_(entity: Entity, root: Entity): boolean {
+        const world = this.world_;
+        let at = entity;
+        for (let hops = 0; hops < 256 && world.valid(at); hops++) {
+            if (at === root) return true;
+            if (!world.has(at, Parent)) return false;
+            at = (world.get(at, Parent) as ParentData).entity;
+        }
+        return false;
     }
 
     /** Names are only looked for inside the page, depth first; where one is used twice the first one wins. */

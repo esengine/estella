@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+import type { DeferredRecord } from './prefab/deferred';
+import { registerDeferredInstances } from './scene/deferredInstances';
 import type { World } from './ecs/world';
 import type { Entity } from './types';
 import type { Assets } from './asset/Assets';
@@ -41,6 +43,11 @@ export interface InstantiatePrefabOptions {
     /** The parent must still accept the root after loading; failure rolls back the instance. */
     parent?: Entity;
     overrides?: PrefabOverride[];
+    /**
+     * Make the virtual instances nested in this prefab whole as well (see prefab/deferred.ts). By default they are made as roots
+     * and left to be opened.
+     */
+    expandDeferred?: boolean;
 }
 
 /**
@@ -81,11 +88,13 @@ export async function instantiatePrefab(
     }
 
     let nextId = 0;
+    const deferred: DeferredRecord[] = [];
 
     const ctx: FlattenContext = {
         allocateId: () => nextId++,
         loadPrefab: (path: string) => prefabCache.get(path) ?? null,
         visited: new Set<string>(),
+        ...(options?.expandDeferred ? {} : { deferred }),
     };
 
     const { entities: processed, rootId } = flattenPrefab(
@@ -114,6 +123,7 @@ export async function instantiatePrefab(
         assetBaseUrl: options?.assetBaseUrl,
     });
 
+    registerDeferredInstances(world, deferred, entityMap);
     const root = entityMap.get(rootId)!;
     if (options?.parent !== undefined && !world.trySetParent(root, options.parent)) {
         for (const entity of entityMap.values()) {

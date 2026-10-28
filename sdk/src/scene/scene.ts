@@ -9,6 +9,8 @@ import { World } from '../ecs/world';
 import { Entity, INVALID_ENTITY } from '../types';
 import { upgradeEntityComponents } from './legacyComponents';
 import { isPrefabEntry, type SceneEntry } from './sceneEntry';
+import { canDefer, cutToRoot, isDeferredInstance, rootOnly, rootOverrides, type DeferredRecord } from '../prefab/deferred';
+import { registerDeferredInstances } from './deferredInstances';
 import { validateScene } from './validateScene';
 import { getComponent, Name, Camera, RuntimeOnly } from '../ecs/component';
 import { deepClone } from '../util/deepClone';
@@ -71,6 +73,11 @@ export interface SceneData {
     generator?: string;
     entities: SceneEntityData[];
     textureMetadata?: Record<string, TextureMetadata>;
+    /**
+     * Set by {@link expandScenePrefabs} on the scene it answers, never written to a file: the virtual instances it left as roots
+     * alone, and what each is made from. The loader hands them to the world once the entities exist.
+     */
+    deferredInstances?: DeferredRecord[];
 }
 
 export interface LoadedSceneAssets {
@@ -314,6 +321,7 @@ export async function expandScenePrefabs(
     const allocateId = () => ++nextId;
 
     const out: SceneEntityData[] = [];
+    const deferred: DeferredRecord[] = [];
     for (const entry of entries) {
         if (!isPrefabEntry(entry)) {
             out.push(entry);
@@ -342,7 +350,16 @@ export async function expandScenePrefabs(
             log.warn('scene', `Prefab instance "${entry.prefab}" has an unresolved nested prefab; instance skipped (${e})`);
             continue;
         }
-        const { entities, unresolved } = expandEntry(prefab, entry, allocateId, (ref) => cache.get(ref) ?? null);
+        // A virtual instance is made as its root alone (see prefab/deferred.ts); instances inside it are left to whoever opens it.
+        const virtual = isDeferredInstance(prefab, entry.overrides) && canDefer(entry.overrides, prefab)
+            && entry.added.length === 0 && entry.removed.length === 0;
+        const stub = virtual ? rootOnly(prefab) : null;
+        const { entities: expanded, unresolved: unresolvedAll } = expandEntry(
+            stub ?? prefab, stub ? { ...entry, overrides: rootOverrides(prefab, entry.overrides) } : entry, allocateId,
+            (ref) => cache.get(ref) ?? null, deferred);
+        const entities = virtual && !stub ? cutToRoot(expanded, entry.id) : expanded;
+        const unresolved = virtual ? [] : unresolvedAll;
+        if (virtual) deferred.push({ id: entry.id, prefab: entry.prefab, overrides: entry.overrides.map((o) => ({ ...o })) });
         if (unresolved.length > 0) {
             const targets = [...new Set(unresolved.map((o) => o.prefabEntityId))].join(', ');
             log.warn('scene', `Prefab instance "${entry.prefab}" (entity ${entry.id}) overrides `
@@ -351,7 +368,7 @@ export async function expandScenePrefabs(
         }
         for (const pe of entities) out.push(toSceneEntityData(pe));
     }
-    return { ...scene, entities: out };
+    return deferred.length > 0 ? { ...scene, entities: out, deferredInstances: deferred } : { ...scene, entities: out };
 }
 
 // =============================================================================
@@ -625,7 +642,10 @@ export async function loadSceneWithAssets(
     // Migrate up-front to a private copy; asset resolution + spawn all operate
     // on it, so the caller's SceneData is never mutated.
     const { data } = migrateSceneData(scene);
-    return loadSceneAssetsAndSpawn(world, data, options, timed);
+    const deferred = scene.deferredInstances;
+    const entities = await loadSceneAssetsAndSpawn(world, data, options, timed);
+    registerDeferredInstances(world, deferred, entities);
+    return entities;
 }
 
 /**

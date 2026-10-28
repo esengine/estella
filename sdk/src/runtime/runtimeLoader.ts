@@ -7,6 +7,7 @@
 
 import { SceneOwner } from '../ecs/component';
 import { loadSceneData, updateCameraAspectRatio, sceneHasPrefabEntries, expandScenePrefabs, type SceneData } from '../scene/scene';
+import { registerDeferredInstances } from '../scene/deferredInstances';
 import { recordSceneOrigins, enableSceneOrigins } from '../scene/sceneOrigins';
 import { defineResource } from '../ecs/resource';
 import type { Entity } from '../types';
@@ -610,6 +611,7 @@ export async function publishRuntimeScene(
     const entityMap = await timed('spawn',
         () => loadSceneData(app.world, sceneData, options.externalEntities, onPhase));
     app.getResource(AssetsResource).trackSceneAssetReferences(sceneData, entityMap);
+    registerDeferredInstances(app.world, sceneData.deferredInstances, entityMap);
     // Which document row each entity came from, when someone is keeping track
     // (an editor inspecting its own running game). No-op otherwise.
     mark('origins', () => recordSceneOrigins(app, entityMap));

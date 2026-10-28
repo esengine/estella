@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+import { DEFERRED_KEY, canDefer, cutToRoot, isDeferredInstance, rootOnly, rootOverrides } from './deferred';
 import type {
     PrefabData,
     PrefabEntityData,
@@ -94,12 +95,23 @@ export function flattenPrefab(
             // throws but the SAME prefab may be mounted in several sibling slots
             // (e.g. four turrets on one ship). Pop once the branch returns.
             visited.add(nestedPath);
+            // A virtual mounting (marked on the slot, on the nested prefab's root, or by an override) is made as its root alone; what
+            // it would be made from is recorded for whoever opens it. A prefab that cannot be cut to its root is flattened whole and
+            // cut afterwards.
+            const virtual = ctx.deferred !== undefined && canDefer(nestedOverrides, nestedPrefab)
+                && (pe.metadata?.[DEFERRED_KEY] === true || isDeferredInstance(nestedPrefab, nestedOverrides));
+            const stub = virtual ? rootOnly(nestedPrefab) : null;
             const nested = flattenPrefab(
-                nestedPrefab,
-                nestedOverrides,
-                { ...ctx, visited, depth: depth + 1 },
+                stub ?? nestedPrefab,
+                stub ? rootOverrides(nestedPrefab, nestedOverrides) : nestedOverrides,
+                { ...ctx, visited, depth: depth + 1, ...(virtual ? { deferred: undefined } : {}) },
             );
             visited.delete(nestedPath);
+            if (virtual) {
+                if (!stub) nested.entities = cutToRoot(nested.entities, nested.rootId);
+                nested.unresolved = [];
+                ctx.deferred!.push({ id: nested.rootId, prefab: nestedPath, overrides: nestedOverrides.map((o) => ({ ...o })) });
+            }
 
             // Namespace the nested subtree's stable ids by this slot so two
             // instantiations of the same prefab — or two prefabs reusing the same

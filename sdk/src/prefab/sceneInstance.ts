@@ -28,6 +28,7 @@
 
 import { flattenPrefab } from './flatten';
 import { diffEntities } from './diff';
+import type { DeferredRecord } from './deferred';
 import type { DiffBaselineEntity } from './diff';
 import { cloneComponents } from './clone';
 import { applyOverridesToSource } from './override';
@@ -92,10 +93,12 @@ export function expandInstance(
     delta: PrefabInstanceDelta,
     allocateId: () => number,
     loadPrefab: SyncPrefabResolver = NO_NESTED,
+    deferred?: DeferredRecord[],
 ): { entities: ProcessedEntity[]; rootId: number; unresolved: PrefabOverride[] } {
     const { entities, rootId, unresolved } = flattenPrefab(prefab, delta.overrides, {
         allocateId,
         loadPrefab,
+        ...(deferred ? { deferred } : {}),
     });
 
     // Structural re-parent overrides move a prefab-origin entity BEFORE the
@@ -290,8 +293,9 @@ export function expandEntry(
     entry: PrefabInstanceEntry,
     allocateId: () => number,
     loadPrefab: SyncPrefabResolver = NO_NESTED,
+    deferred?: DeferredRecord[],
 ): { entities: ProcessedEntity[]; rootId: number; unresolved: PrefabOverride[] } {
-    const { entities, rootId, unresolved } = expandInstance(prefab, entry, allocateId, loadPrefab);
+    const { entities, rootId, unresolved } = expandInstance(prefab, entry, allocateId, loadPrefab, deferred);
     // Pin the root to the persisted scene id (external refs target it); internal
     // entities keep their fresh ids. Remap the root id + any parent pointing at it.
     for (const e of entities) {

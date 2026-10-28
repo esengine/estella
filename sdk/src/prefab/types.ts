@@ -1,3 +1,4 @@
+import type { DeferredRecord } from './deferred';
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 export interface ComponentData {
@@ -139,6 +140,11 @@ export interface FlattenContext {
     loadPrefab: (path: string) => PrefabData | null;
     visited?: Set<string>;
     depth?: number;
+    /**
+     * When present, a nested instance that is virtual (see deferred.ts) is flattened to its root only and a record of what it would
+     * be made from is pushed here. Absent: every instance is flattened whole.
+     */
+    deferred?: DeferredRecord[];
 }
 
 export interface FlattenResult {
