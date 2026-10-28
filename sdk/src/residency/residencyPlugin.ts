@@ -9,7 +9,7 @@
 import type { App, Plugin } from '../app/app';
 import { SceneManager } from '../scene/sceneManager';
 import { WorldStreaming, WorldStreamer } from './WorldStreamer';
-import type { ResidencySource } from './cells';
+import { manifestPlane, planeSecond, type ResidencySource } from './cells';
 import { WorldStreamingSource, type WorldStreamingSourceData } from './components';
 import { defineSystem, Schedule, GetWorld } from '../ecs/system';
 import { Res } from '../ecs/resource';
@@ -31,6 +31,7 @@ export const worldResidencySystem = defineSystem(
         // A source parented to a rig has no position of its own, and the ask is
         // about where it IS. Composition is a no-op unless something invalidated it.
         world.ensureTransformsComposed();
+        const plane = manifestPlane(streamer.manifest);
         const sources: ResidencySource[] = [];
         for (const entity of world.getEntitiesWithComponents([WorldStreamingSource, Transform])) {
             const source = world.get(entity, WorldStreamingSource) as WorldStreamingSourceData;
@@ -39,7 +40,7 @@ export const worldResidencySystem = defineSystem(
             const at = transform.worldPosition ?? transform.position;
             sources.push({
                 x: at.x,
-                z: at.z ?? 0,
+                z: planeSecond(at, plane),
                 loadRadius: source.loadRadius,
                 unloadRadius: source.unloadRadius,
                 prefetchRadius: source.prefetchRadius,

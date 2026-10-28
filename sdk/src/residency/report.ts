@@ -19,6 +19,7 @@ import { SceneManager } from '../scene/sceneManager';
 import { WorldStreaming, type CellDelivery } from './WorldStreamer';
 import type { RenderReadinessStamp } from '../render/renderReadiness';
 import { stableEntityId } from './identity';
+import { manifestPlane } from './cells';
 import { renderableComponents } from '../ecs/component';
 
 /** @experimental */
@@ -36,6 +37,8 @@ export interface WorldResidencyReport {
     cells: Array<{ name: string; x: number; z: number }>;
     /** Edge of one grid square, world units — what the coordinates above scale by. */
     cellSize: number;
+    /** The plane the cells lie on: a cell's z is world z on 'xz' (the ground) and world y on 'xy' (a 2D world's screen). */
+    plane: 'xz' | 'xy';
     sourceCount: number;
     desiredCells: string[];
     /** Cells any source is close enough to speculate about. */
@@ -90,7 +93,7 @@ export interface WorldResidencyReport {
 }
 
 const EMPTY: WorldResidencyReport = {
-    streamed: false, cellCount: 0, cells: [], cellSize: 0, sourceCount: 0,
+    streamed: false, cellCount: 0, cells: [], cellSize: 0, plane: 'xz', sourceCount: 0,
     desiredCells: [], prefetchCells: [], residentCells: [], preparedCells: [],
     preparedWithRenderClaim: [], renderClaims: {},
     loadingCells: [], unloadingCells: [],
@@ -146,6 +149,7 @@ export function worldResidencyReport(app: App): WorldResidencyReport {
         cellCount: status.cellCount,
         cells: manifest.cells.map((cell) => ({ name: cell.name, x: cell.x, z: cell.z })),
         cellSize: manifest.cellSize,
+        plane: manifestPlane(manifest),
         sourceCount: status.sourceCount,
         desiredCells: status.desiredCells,
         prefetchCells: status.prefetchCells,

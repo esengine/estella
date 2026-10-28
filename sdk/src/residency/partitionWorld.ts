@@ -25,7 +25,8 @@
  */
 
 import { isPrefabEntry } from '../scene/sceneEntry';
-import { cellAt, cellSquare } from './cells';
+import { cellAt, cellSquare, planeSecond } from './cells';
+import { StreamPlane } from './components';
 import type { SceneData, SceneEntityData, SceneComponentData } from '../scene/scene';
 import type { SceneEntry } from '../scene/sceneEntry';
 import type { PrefabInstanceEntry } from '../prefab/sceneInstance';
@@ -61,6 +62,8 @@ export interface PartitionedCell {
 
 export interface WorldPartition {
     cellSize: number;
+    /** The plane the cells lie on. */
+    plane: 'xz' | 'xy';
     /** The entry scene as it now ships: everything residency never removes. */
     persistent: SceneData;
     cells: PartitionedCell[];
@@ -202,10 +205,12 @@ export function partitionWorld(
 ): WorldPartition | null {
     const entries = (scene.entities ?? []) as unknown as SceneEntry[];
     let cellSize = 0;
+    let plane: 'xz' | 'xy' = 'xz';
     for (const entry of entries) {
         if (!hasComponent(entry, 'StreamedWorld')) continue;
         const declaration = componentData(entry, 'StreamedWorld');
         cellSize = typeof declaration?.cellSize === 'number' ? declaration.cellSize : 0;
+        if (declaration?.plane === StreamPlane.Screen) plane = 'xy';
         break;
     }
     if (cellSize <= 0) {
@@ -213,7 +218,7 @@ export function partitionWorld(
         // scene with no declaration at all is simply not a streamed world.
         return entries.some((entry) => hasComponent(entry, 'StreamedWorld'))
             ? {
-                cellSize: 0, persistent: scene, cells: [], persistentRefs: [],
+                cellSize: 0, plane, persistent: scene, cells: [], persistentRefs: [],
                 errors: [`StreamedWorld in "${sceneName}" declares no positive cellSize`],
                 warnings: [],
             }
@@ -252,7 +257,7 @@ export function partitionWorld(
             && !hasComponent(entry, 'StreamedWorld')
             && (isPrefabEntry(entry) || componentData(entry, 'Transform') !== null);
         const rootPosition = localPosition(entry, options, errors);
-        const cell = streamed ? cellAt(rootPosition.x, rootPosition.z, cellSize) : null;
+        const cell = streamed ? cellAt(rootPosition.x, planeSecond(rootPosition, plane), cellSize) : null;
 
         const subtree: number[] = [];
         const stack: Array<{ id: number; position: Vec3; rotation: [number, number, number, number]; scale: Vec3 }> = [
@@ -348,7 +353,8 @@ export function partitionWorld(
         for (const id of ids) {
             const at = worldPosition.get(id)!;
             minX = Math.min(minX, at.x); maxX = Math.max(maxX, at.x);
-            minZ = Math.min(minZ, at.z); maxZ = Math.max(maxZ, at.z);
+            const second = planeSecond(at, plane);
+            minZ = Math.min(minZ, second); maxZ = Math.max(maxZ, second);
         }
         const name = `${sceneName}.cell_${x}_${z}`;
         cells.push({
@@ -361,6 +367,7 @@ export function partitionWorld(
 
     return {
         cellSize,
+        plane,
         persistent: documentOf(persistentIds, scene.name),
         cells,
         persistentRefs: [...persistentRefs].sort((a, b) => a - b),

@@ -15,13 +15,23 @@
 
 import { defineComponent, defineTag, type ComponentDef } from '../ecs/component';
 
+/** The plane a streamed world is cut on. @experimental */
+export enum StreamPlane {
+    /** A 3D world's ground: cells along world x and z, and y does not partition. */
+    Ground = 0,
+    /** A 2D world's screen plane: cells along world x and y, and z (depth, layering) does not partition. */
+    Screen = 1,
+}
+
 /** The fields of the `StreamedWorld` component. @experimental */
 export interface StreamedWorldData {
     /**
-     * Edge of one square cell in world units, on the XZ plane. Y does not
-     * partition: a cell is a vertical column, so a tower's floors are one place.
+     * Edge of one square cell in world units, on the plane below. The axis that is not on the plane does not
+     * partition: on the ground a cell is a vertical column, so a tower's floors are one place.
      */
     cellSize: number;
+    /** The plane the cells lie on: the ground (x, z) of a 3D world, or the screen (x, y) of a 2D one. */
+    plane: StreamPlane;
 }
 
 /**
@@ -35,10 +45,11 @@ export interface StreamedWorldData {
  */
 export const StreamedWorld: ComponentDef<StreamedWorldData> = defineComponent<StreamedWorldData>(
     'StreamedWorld',
-    { cellSize: 1000 },
+    { cellSize: 1000, plane: StreamPlane.Ground },
     {
         fields: {
-            cellSize: { min: 1, unit: 'wu', tooltip: 'Edge of one cell on the XZ plane.' },
+            cellSize: { min: 1, unit: 'wu', tooltip: 'Edge of one cell on the plane.' },
+            plane: { enum: [{ label: 'Ground (x, z)', value: StreamPlane.Ground }, { label: 'Screen (x, y)', value: StreamPlane.Screen }], tooltip: 'Which two world axes the cells are cut along: a 3D world is cut on the ground, a 2D world on the screen plane.' },
         },
     },
 );

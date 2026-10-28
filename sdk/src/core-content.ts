@@ -312,6 +312,7 @@ export { sceneManagerPlugin } from './scene/scenePlugin';
 
 export {
     StreamedWorld,
+    StreamPlane,
     WorldPersistent,
     WorldStreamingSource,
     WorldStreamer,
@@ -320,6 +321,8 @@ export {
     distanceToCell,
     cellAt,
     cellSquare,
+    manifestPlane,
+    planeSecond,
     worldResidencyPlugin,
     worldResidencySystem,
     worldResidencyReport,

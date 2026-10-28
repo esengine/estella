@@ -109,8 +109,10 @@ The entry scene the package boots is what is left after the cells are taken out
 of it — the things residency never removes. Cells are **not** switchable scenes:
 they are content residency brings in, and a game never names one.
 
-Cells are cut on the XZ plane only. A cell is a vertical column, so a tower's
-floors are one place.
+Cells are cut on one plane. By default that is the ground (world x and z): a cell is a vertical column, so a tower's floors are one place. A 2D world
+lies in the screen plane, where every entity has the same z, so set `plane` to **Screen (x, y)** (`StreamPlane.Screen`) and the cells are cut along
+world x and y instead; the streaming sources are then read by their x and y too. Without it a 2D world falls into one row of cells along x. The same
+field, `plane: 'xy'`, is in the cooked manifest (`WorldManifest.plane`), and a cell's `z` is then world y.
 
 ## The rules a streamed world has to obey
 

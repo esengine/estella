@@ -5593,12 +5593,23 @@
           "key": "cellSize",
           "type": "number",
           "default": "1000",
-          "doc": "Edge of one cell on the XZ plane.",
+          "doc": "Edge of one cell on the plane.",
           "range": "≥ 1"
+        },
+        {
+          "key": "plane",
+          "type": "enum",
+          "default": "Ground (x, z)",
+          "doc": "Which two world axes the cells are cut along: a 3D world is cut on the ground, a 2D world on the screen plane.",
+          "values": [
+            "Ground (x, z)",
+            "Screen (x, y)"
+          ]
         }
       ],
       "animatable": [
-        "cellSize"
+        "cellSize",
+        "plane"
       ]
     },
     {

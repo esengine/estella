@@ -83,6 +83,7 @@ export function cutWorld(
             version: 1,
             scene: sceneName,
             cellSize: partition.cellSize,
+            ...(partition.plane === 'xy' ? { plane: 'xy' as const } : {}),
             persistentRefs: partition.persistentRefs,
             cells,
         },

@@ -44,6 +44,11 @@ export interface WorldManifest {
     /** Edge of one grid square, world units. */
     cellSize: number;
     /**
+     * The world plane the cells lie on: `'xz'` (the default, and what a manifest cooked before this field has) or `'xy'` for a 2D world. A cell's
+     * `z` and `minZ`/`maxZ` are the SECOND axis of that plane, so on `'xy'` they are world y.
+     */
+    plane?: 'xz' | 'xy';
+    /**
      * Authored ids in the persistent world that a cell holds a hard reference to.
      * Only these are kept resolvable — a table of every row would be a cost the
      * whole world pays for the handful of references that exist.
@@ -60,6 +65,16 @@ export interface ResidencySource {
     unloadRadius: number;
     /** How early this source is worth preparing for. Never below `loadRadius`. */
     prefetchRadius: number;
+}
+
+/** The plane a manifest's cells lie on, a manifest cooked before the field existing as the ground. @experimental */
+export function manifestPlane(manifest: { plane?: 'xz' | 'xy' } | null): 'xz' | 'xy' {
+    return manifest?.plane === 'xy' ? 'xy' : 'xz';
+}
+
+/** The second coordinate of a world position on a plane: z on the ground, y on the screen. @experimental */
+export function planeSecond(position: { y: number; z?: number }, plane: 'xz' | 'xy'): number {
+    return plane === 'xy' ? position.y : position.z ?? 0;
 }
 
 /** What residency should be, and the moves that get there. @experimental */
@@ -80,8 +95,8 @@ export interface ResidencyDecision {
 /**
  * The cell a world position falls in — the one rule, with two callers that must
  * not drift: the cook assigns every top-level root by it, and the editor draws
- * its grid from it. The y axis is not consulted, because a world is partitioned
- * on the ground plane.
+ * its grid from it. `z` is the position's SECOND coordinate on the plane the
+ * world is cut on: world z on the ground, world y on the screen plane.
  */
 export function cellAt(x: number, z: number, cellSize: number): { x: number; z: number } {
     return { x: Math.floor(x / cellSize), z: Math.floor(z / cellSize) };

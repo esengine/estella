@@ -6,11 +6,11 @@
  */
 
 export {
-    StreamedWorld, WorldPersistent, WorldStreamingSource,
+    StreamedWorld, StreamPlane, WorldPersistent, WorldStreamingSource,
     type StreamedWorldData, type WorldStreamingSourceData,
 } from './components';
 export {
-    desiredResidency, distanceToCell, cellAt, cellSquare,
+    desiredResidency, distanceToCell, cellAt, cellSquare, manifestPlane, planeSecond,
     type WorldCell, type WorldManifest, type ResidencySource, type ResidencyDecision,
 } from './cells';
 export {

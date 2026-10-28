@@ -11,6 +11,9 @@
  */
 import { describe, it, expect } from 'vitest';
 import { partitionWorld, type PartitionOptions } from '../src/residency/partitionWorld';
+import { cutWorld } from '../src/residency/cutWorld';
+import { StreamPlane } from '../src/residency/components';
+import { desiredResidency, manifestPlane, planeSecond } from '../src/residency/cells';
 import type { SceneData } from '../src/scene/scene';
 
 const SIZE = 1000;
@@ -184,5 +187,54 @@ describe('partitionWorld', () => {
             entity(0, 'World', null, { components: [{ type: 'StreamedWorld', data: { cellSize: 0 } }] }),
         ))!;
         expect(partition.errors.join('\n')).toContain('no positive cellSize');
+    });
+});
+
+describe('a world cut on the screen plane', () => {
+    const screen: Component = { type: 'StreamedWorld', data: { cellSize: SIZE, plane: StreamPlane.Screen } };
+    const world = (): SceneData => scene(
+        entity(0, 'World', null, { components: [screen] }),
+        // A 2D scene lies at z 0 (or a layering depth): only x and y tell the places apart.
+        entity(1, 'Near', [500, 500, 0]),
+        entity(2, 'East', [1500, 500, 0]),
+        entity(3, 'North', [500, 1500, 5]),
+        entity(4, 'Far', [500, -1500, 9]),
+    );
+
+    it('cuts along x and y, so a scene at z 0 is a grid and not one row', () => {
+        const partition = cut(world())!;
+        expect(partition.plane).toBe('xy');
+        expect(partition.cells.map((c) => [c.x, c.z]).sort()).toEqual([[0, -2], [0, 0], [0, 1], [1, 0]]);
+        // The box covers world y, not z: the North entity at y 1500 is inside cell (0, 1).
+        const north = partition.cells.find((c) => c.x === 0 && c.z === 1)!;
+        expect(north.minZ).toBeLessThanOrEqual(1000);
+        expect(north.maxZ).toBeGreaterThanOrEqual(1500);
+    });
+
+    it('still cuts the ground by x and z when the world does not say otherwise', () => {
+        const partition = cut(scene(
+            entity(0, 'World', null, { components: [declaration] }),
+            entity(1, 'A', [500, 500, 0]),
+            entity(2, 'B', [500, 500, 1500]),
+        ))!;
+        expect(partition.plane).toBe('xz');
+        expect(partition.cells.map((c) => [c.x, c.z])).toEqual([[0, 0], [0, 1]]);
+    });
+
+    it('writes the plane into the manifest only for a screen world, and an old manifest reads as the ground', () => {
+        expect(cutWorld(world(), 'main', options)!.manifest.plane).toBe('xy');
+        const ground = cutWorld(scene(entity(0, 'World', null, { components: [declaration] }), entity(1, 'A', [1, 1, 1])), 'main', options)!;
+        expect(ground.manifest.plane).toBeUndefined();
+        expect(manifestPlane(ground.manifest)).toBe('xz');
+        expect(manifestPlane(null)).toBe('xz');
+    });
+
+    it('asks for the cells round a source by its y: a source walking up a 2D world brings in the cells above it', () => {
+        const manifest = cutWorld(world(), 'main', options)!.manifest;
+        const plane = manifestPlane(manifest);
+        const at = { x: 500, y: 1400, z: 0 };
+        const sources = [{ x: at.x, z: planeSecond(at, plane), loadRadius: 300, unloadRadius: 400, prefetchRadius: 300 }];
+        const wanted = desiredResidency(manifest.cells, sources, new Set()).target;
+        expect(wanted).toEqual(['main.cell_0_1']);
     });
 });
