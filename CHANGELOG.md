@@ -14,12 +14,18 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **The engine's runtime tuning is a project setting.** Project Settings → Game → Runtime sets how a scene switch fades (duration and colour), how far one frame may advance the game and how many fixed steps it may catch up, how long an asset may take to load and how soon a failed one is tried again, how much memory the texture, audio and device-loss caches keep, the text canvas size and the default font family. They were reachable only from code (`RuntimeConfig`) and no project file could carry them. The project holds `features.runtime` with only what differs from the engine's own values (`RUNTIME_BUILD_DEFAULTS`), a build ships the same block, and `initRuntime` applies it before the first asset loads on the web, desktop, native, mini-game and playable targets and in Play. The edit viewport keeps the engine's values.
+- **Rows for the choices that could only be written into the project file.** Under Rendering: compile shaders in the background, warm them up behind the loading screen and how long to wait, draw only changing frames and how many frames to keep after a change, each level's anti-aliasing (MSAA or temporal; the MSAA count is hidden where temporal ignores it) and its depth pre-pass. Under Game → Display: the render resolution (screen, design resolution or integer multiple). Under the web build: the servers the page may connect to, each checked by the parser the export uses. `check-project-settings` now reads the keys of `QualityConfig`, `QualityProfile` and `RuntimeBuildConfig` and fails a key that has no row and no stated reason, which is how these went unnoticed behind the one row the block had.
+
 ### Changed
 
 - **The profiler's tables sort by their column header.** Click a column of the cost tree or the systems list to order it by name or by time, and again to reverse it; the choice is remembered. Ranking by time moved a name whenever two systems passed each other, which is every few frames on a live window, so a reader could not follow one; by name the rows stay where they are. The systems list names twelve systems instead of five, so the members change less often too.
 
 ### Fixed
 
+- **Background shader compilation, the warm-up and on-demand drawing reach a build whose quality level is Off.** A build dropped the whole `quality` block when the level was Off, though these three choices hold whatever the level: a project that switched `asyncShaderCompile`, `prewarmShaders` or `renderOnDemand` on read them in the editor and shipped a game that ignored them. The block now ships when any of them is on.
 - **A terrain and a streamed world run on the Android and iOS templates.** The terrain's layer textures were refused on a device (it has no wasm heap to copy them through), and a chunked world's maker threw on every tick because QuickJS has no `AbortController`. The layers now go over as bytes, as every other texture does, and the world uses a handle of its own where the host has none.
 
 ## [0.96.0] - 2026-10-27

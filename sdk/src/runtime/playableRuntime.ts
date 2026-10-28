@@ -14,6 +14,7 @@ import type { App } from '../app/app';
 import { setAppHostPaused } from '../app/app';
 import type { ESEngineModule } from '../wasm';
 import type { AudioProjectConfig } from '../audio/AudioProjectConfig';
+import type { RuntimeBuildConfig } from '../defaults';
 import { initRuntime } from './runtimeLoader';
 import type { ThemeOverrides } from '../ui';
 import type { RuntimeAssetSource } from './runtimeAssets';
@@ -54,6 +55,8 @@ export interface PlayableRuntimeConfig {
     uiThemeOverrides?: ThemeOverrides;
     /** Project-declared mixer state (bus volumes / effects / duck rules). */
     audioConfig?: AudioProjectConfig;
+    /** The project's runtime tuning (Project Settings → Game → Runtime). */
+    runtime?: RuntimeBuildConfig;
     /** Bitmask of render layers (0..31) that y-sort within the layer (Project Settings → Rendering). */
     ySortLayers?: number;
     /** Bitmask of render layers (0..31) that resolve by real depth (2.5D). */
@@ -160,6 +163,7 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
         uiTheme: config.uiTheme,
         uiThemeOverrides: config.uiThemeOverrides,
         audioConfig: config.audioConfig,
+        runtime: config.runtime,
         aspectRatio: config.canvas.width / config.canvas.height,
     });
 

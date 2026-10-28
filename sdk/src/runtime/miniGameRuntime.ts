@@ -114,6 +114,8 @@ export interface MiniGameRuntimeConfig {
     sceneNames: string[];
     firstScene: string;
     runtimeConfig?: RuntimeBuildConfig;
+    /** The project's runtime tuning (Project Settings → Game → Runtime), applied by `initRuntime` before anything loads. */
+    runtime?: RuntimeBuildConfig;
     /** Install physics even when the scene shows no bodies — a project that
      *  spawns them from script (Project Settings → Physics → Enabled). */
     physicsEnabled?: boolean;
@@ -345,6 +347,7 @@ export async function initMiniGameRuntime(config: MiniGameRuntimeConfig): Promis
         uiTheme: config.uiTheme,
         uiThemeOverrides: config.uiThemeOverrides,
         audioConfig: config.audioConfig,
+        runtime: config.runtime,
         aspectRatio: canvas.width / canvas.height,
         ...(config.aot ? { aot: config.aot } : {}),
         ...(config.debugChannel ? { debugChannel: config.debugChannel } : {}),

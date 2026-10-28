@@ -26,9 +26,9 @@
  * fails the build when a field in this shape is not carried by every consumer —
  * or is not listed there as a declared, reasoned gap.
  */
-import { parseQualityConfig } from 'esengine';
+import { parseQualityConfig, parseRuntimeBuildConfig } from 'esengine';
 import type {
-  AudioProjectConfig, PackagedGameConfig, Physics2DPluginConfig, QualityConfig,
+  AudioProjectConfig, PackagedGameConfig, Physics2DPluginConfig, QualityConfig, RuntimeBuildConfig,
 } from 'esengine';
 import { resolveScreenFit, SORTING_LAYER_COUNT, type ProjectFeatures, type ProjectManifest, type ProjectPackaging } from './format';
 
@@ -62,6 +62,8 @@ export interface RuntimeProjectConfig {
   physicsConfig: Physics2DPluginConfig;
   /** Mixer state: bus volumes, custom buses, effects, duck rules. */
   audioConfig: AudioProjectConfig;
+  /** Runtime tuning the project declared — only what differs from the engine's own values, so `{}` is the default. */
+  runtime: RuntimeBuildConfig;
   /** Built-in widget theme; 'dark' is the default. */
   uiTheme: 'dark' | 'light';
   /** Theme colour overrides (role → #rrggbbaa), possibly empty. */
@@ -153,6 +155,7 @@ export function runtimeConfigOf(
     physicsEnabled: f?.physics?.enabled ?? false,
     physicsConfig: physicsConfigOf(f),
     audioConfig: f?.audio ?? {},
+    runtime: parseRuntimeBuildConfig(f?.runtime),
     uiTheme: f?.ui?.theme === 'light' ? 'light' : 'dark',
     uiThemeColors: f?.ui?.colors ?? {},
     ySortLayers: layerMask(f?.rendering?.ySortLayers),
@@ -184,7 +187,7 @@ export type PackagedRuntimeFields = Pick<
   'ySortLayers' | 'depthLayers' | 'colorSpace' | 'outputTransform' | 'renderBackend' | 'screenFit'
   | 'msaaSamples' | 'quality'
   | 'uiTheme' | 'uiThemeColors'
-  | 'physicsEnabled' | 'physicsConfig' | 'audioConfig' | 'achievements' | 'steamAppId'
+  | 'physicsEnabled' | 'physicsConfig' | 'audioConfig' | 'achievements' | 'steamAppId' | 'runtime'
 >;
 
 /**
@@ -203,7 +206,9 @@ export function packagedRuntimeFields(rc: RuntimeProjectConfig): PackagedRuntime
     ...(rc.colorSpace === 'linear' ? { colorSpace: rc.colorSpace } : {}),
     ...(rc.outputTransform !== 'none' ? { outputTransform: rc.outputTransform } : {}),
     ...(rc.msaaSamples !== 4 ? { msaaSamples: rc.msaaSamples } : {}),
-    ...(rc.quality.mode !== 'off' ? { quality: rc.quality } : {}),
+    // The block also carries three delivery choices that have nothing to do with a quality level (compile shaders in the background, warm them up
+    // behind the splash, draw only changing frames); with the level off they must still ship, or the switch is read from a project and never reaches a game.
+    ...(qualityShips(rc.quality) ? { quality: rc.quality } : {}),
     ...(rc.renderBackend === 'webgpu' ? { renderBackend: rc.renderBackend } : {}),
     // ALWAYS, even with the fit off (`scaleMode < 0`): it carries the design
     // resolution, which is what a desktop window opens at. One representation, or
@@ -220,9 +225,16 @@ export function packagedRuntimeFields(rc: RuntimeProjectConfig): PackagedRuntime
     ...(rc.audioConfig.buses?.length || rc.audioConfig.maxVoices !== undefined
       || Object.keys(rc.audioConfig.loadTypes ?? {}).length > 0
       ? { audioConfig: rc.audioConfig } : {}),
+    ...(Object.keys(rc.runtime).length > 0 ? { runtime: rc.runtime } : {}),
     ...(rc.achievements.length ? { achievements: rc.achievements } : {}),
     ...(rc.steamAppId > 0 ? { steamAppId: rc.steamAppId } : {}),
   };
+}
+
+/** Whether a build has anything to be told about quality: a level, or one of the delivery choices that hold whatever the level. */
+export function qualityShips(quality: QualityConfig): boolean {
+  return quality.mode !== 'off' || quality.asyncShaderCompile === true
+    || quality.prewarmShaders === true || quality.renderOnDemand === true;
 }
 
 /** Whether the world config is exactly what a runtime would default to anyway. */

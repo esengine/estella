@@ -3110,4 +3110,8 @@ export const NOTED = {
     {"note":"The medium level uses it"},
   "fix(ci): the net modules build no TextEncoder at load, the API snapshots take the new surface, the retained-text harness reads its cases under node":
     {"internal":"Repairs the build: a module made a TextEncoder when the SDK loaded, which a native host does not have, and the API snapshots and one C++ harness's data path were out of date."},
+  "feat(runtime): a project declares runtime tuning, and a build ships background shader compilation and on-demand drawing with the quality level off":
+    {"note":"The engine's runtime tuning is a project setting."},
+  "feat(editor): rows for background shader compilation, on-demand drawing, a level's smoothing, render resolution and server origins":
+    {"note":"Rows for the choices that could only be written into the project file."},
 };

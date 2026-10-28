@@ -143,7 +143,7 @@ static prototype: ScriptGraphs
 
 ## ScriptNodeShape — interface @experimental
 ```
-entry: "event" | "start" | "update" | "destroy" | undefined
+entry: "destroy" | "event" | "start" | "update" | undefined
 execIn: boolean
 execOut: readonly string[]
 inputs: readonly ScriptPort[]

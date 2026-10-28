@@ -351,7 +351,9 @@ export {
 
 export {
     RuntimeConfig,
+    RUNTIME_BUILD_DEFAULTS,
     applyBuildRuntimeConfig,
+    parseRuntimeBuildConfig,
     type RuntimeBuildConfig,
 } from './defaults';
 

@@ -19,8 +19,8 @@
  */
 
 import {
-  parseAudioProjectConfig, parseQualityConfig, THEME_COLOR_ROLES,
-  type AudioProjectConfig, type QualityConfig,
+  parseAudioProjectConfig, parseQualityConfig, parseRuntimeBuildConfig, THEME_COLOR_ROLES,
+  type AudioProjectConfig, type QualityConfig, type RuntimeBuildConfig,
 } from 'esengine';
 import { normalizePlatform, type ExportPlatform } from './platforms';
 import { cspConnectSources } from '../export/cspConnect';
@@ -200,6 +200,11 @@ export interface ProjectFeatures {
   };
   /** Project mixer state (bus volumes / custom buses / effects / duck rules). */
   audio?: AudioProjectConfig;
+  /**
+   * Runtime tuning: the scene transition, how far one frame may advance the simulation, how long an asset may take, and the budgets of the
+   * texture, audio and device-loss caches. Holds only what differs from the engine's own values (see `RUNTIME_BUILD_DEFAULTS`); absence is the default.
+   */
+  runtime?: RuntimeBuildConfig;
   ui?: {
     /** Built-in widget theme. Only 'light' persists; dark (the default) is
      *  expressed by absence — like rendering.colorSpace. */
@@ -867,6 +872,10 @@ export function parseManifest(raw: unknown): ProjectManifest {
       // A voice cap is a policy on its own: keeping this to `buses` dropped a
       // project that asked for one and shipped the default instead, silently.
       if (audio.buses || audio.maxVoices !== undefined) features.audio = audio;
+    }
+    if (f.runtime && typeof f.runtime === 'object') {
+      const runtime = parseRuntimeBuildConfig(f.runtime);
+      if (Object.keys(runtime).length > 0) features.runtime = runtime;
     }
     if (f.ui && typeof f.ui === 'object') {
       const u = f.ui as Record<string, unknown>;

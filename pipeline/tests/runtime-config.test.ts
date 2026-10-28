@@ -189,3 +189,38 @@ describe('how an audio clip loads', () => {
   });
 });
 
+describe('the quality block that ships with the level off', () => {
+  it('carries a delivery choice, because it holds whatever the level', () => {
+    for (const choice of [{ asyncShaderCompile: true }, { prewarmShaders: true }, { renderOnDemand: true }]) {
+      const rc = runtimeConfigOf({ features: { rendering: { quality: { mode: 'off', ...choice } } } });
+      expect(packagedRuntimeFields(rc).quality).toEqual(rc.quality);
+      expect(packagedRuntimeFields(rc).quality?.mode).toBe('off');
+    }
+  });
+  it('still leaves the block out when nothing in it is on', () => {
+    const rc = runtimeConfigOf({ features: { rendering: { quality: { mode: 'off', targetFps: 30 } } } });
+    expect(packagedRuntimeFields(rc)).not.toHaveProperty('quality');
+  });
+});
+
+describe('the runtime tuning', () => {
+  it('is empty for a project that declares nothing, and ships nothing', () => {
+    const rc = runtimeConfigOf({});
+    expect(rc.runtime).toEqual({});
+    expect(packagedRuntimeFields(rc)).not.toHaveProperty('runtime');
+  });
+  it('ships only what differs from the engine, held to its range', () => {
+    const rc = runtimeConfigOf({ features: { runtime: {
+      maxDeltaTime: 0.25, // the engine's own value: absence is how a default is written
+      assetLoadTimeout: 60000, textureCacheBudget: 128 * 1024 * 1024, maxFixedSteps: 1000, sceneTransitionColor: '#FF0000',
+    } } });
+    expect(rc.runtime).toEqual({
+      assetLoadTimeout: 60000, textureCacheBudget: 128 * 1024 * 1024, maxFixedSteps: 64, sceneTransitionColor: '#ff0000',
+    });
+    expect(packagedRuntimeFields(rc).runtime).toEqual(rc.runtime);
+  });
+  it('drops a field of the wrong type instead of inventing a value', () => {
+    const rc = runtimeConfigOf({ features: { runtime: { maxDeltaTime: '1', defaultFontFamily: 5, sceneTransitionColor: 'red' } as never } });
+    expect(rc.runtime).toEqual({});
+  });
+});

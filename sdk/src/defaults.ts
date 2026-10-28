@@ -77,6 +77,61 @@ export interface RuntimeBuildConfig {
     retainedBudget?: number;
 }
 
+/**
+ * What every {@link RuntimeBuildConfig} field is when a project says nothing, in the units the config is written in (seconds, milliseconds,
+ * bytes, `#rrggbb`). A project block carries only what differs from these, so an untouched project ships the bytes it always did.
+ */
+export const RUNTIME_BUILD_DEFAULTS: Readonly<Required<RuntimeBuildConfig>> = {
+    sceneTransitionDuration: 0.3,
+    sceneTransitionColor: '#000000',
+    defaultFontFamily: DEFAULT_FONT_FAMILY,
+    maxDeltaTime: 0.25,
+    maxFixedSteps: 8,
+    textCanvasSize: 512,
+    assetLoadTimeout: 30000,
+    assetFailureCooldown: 5000,
+    textureCacheBudget: 64 * 1024 * 1024,
+    audioCacheBudget: 32 * 1024 * 1024,
+    retainedBudget: 16 * 1024 * 1024,
+};
+
+const RUNTIME_BUILD_LIMITS = {
+    sceneTransitionDuration: [0, 10, false],
+    maxDeltaTime: [0.01, 5, false],
+    maxFixedSteps: [1, 64, true],
+    textCanvasSize: [64, 4096, true],
+    assetLoadTimeout: [1000, 600000, true],
+    assetFailureCooldown: [0, 600000, true],
+    textureCacheBudget: [0, 4096 * 1024 * 1024, true],
+    audioCacheBudget: [0, 1024 * 1024 * 1024, true],
+    retainedBudget: [0, 1024 * 1024 * 1024, true],
+} as const satisfies Record<string, readonly [min: number, max: number, integer: boolean]>;
+
+/**
+ * The runtime tuning a project declared, read from untrusted JSON: a field of the wrong type is dropped, a number is held to its range, and a value
+ * equal to its default is dropped too (absence is how a default is written everywhere else in a project). Nothing here invents a value.
+ * @experimental
+ */
+export function parseRuntimeBuildConfig(value: unknown): RuntimeBuildConfig {
+    const raw = value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+    const config: RuntimeBuildConfig = {};
+    for (const [key, [min, max, integer]] of Object.entries(RUNTIME_BUILD_LIMITS) as [keyof typeof RUNTIME_BUILD_LIMITS, readonly [number, number, boolean]][]) {
+        const v = raw[key];
+        if (typeof v !== 'number' || !Number.isFinite(v)) continue;
+        const held = Math.min(max, Math.max(min, integer ? Math.round(v) : v));
+        if (held !== RUNTIME_BUILD_DEFAULTS[key]) config[key] = held;
+    }
+    const color = raw.sceneTransitionColor;
+    if (typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color) && color.toLowerCase() !== RUNTIME_BUILD_DEFAULTS.sceneTransitionColor) {
+        config.sceneTransitionColor = color.toLowerCase();
+    }
+    const family = raw.defaultFontFamily;
+    if (typeof family === 'string' && family.trim() !== '' && family.length <= 200 && family !== RUNTIME_BUILD_DEFAULTS.defaultFontFamily) {
+        config.defaultFontFamily = family;
+    }
+    return config;
+}
+
 export function applyBuildRuntimeConfig(app: { setMaxDeltaTime(v: number): void; setMaxFixedSteps(v: number): void }, config: RuntimeBuildConfig): void {
     if (config.maxDeltaTime !== undefined) {
         RuntimeConfig.maxDeltaTime = config.maxDeltaTime;

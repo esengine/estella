@@ -30,6 +30,7 @@ import { ManifestModel, type AddressableManifest } from '../asset/AddressableMan
 import type { SceneData } from '../scene/scene';
 import type { Physics2DPluginConfig } from '../physics/PhysicsTypes';
 import type { AudioProjectConfig } from '../audio/AudioProjectConfig';
+import type { RuntimeBuildConfig } from '../defaults';
 import { fetchDecodePixels } from '../asset/imageDecode';
 import { applyAssetRefResolvers } from './packagedRuntime';
 import { extractUuid, UUID_REF_PREFIX } from '../asset/AssetRegistry';
@@ -89,6 +90,8 @@ export interface PlayRealmRuntimeConfig {
     uiThemeOverrides?: ThemeOverrides;
     /** Project-declared mixer state (bus volumes / effects / duck rules). */
     audioConfig?: AudioProjectConfig;
+    /** The project's runtime tuning (Project Settings → Game → Runtime), so Play runs under what ships. */
+    runtime?: RuntimeBuildConfig;
     /** The project's declared achievement ids — Play checks an unlock against the
      *  same set a shipped build does, so a typo is found here. */
     achievements?: string[];
@@ -252,6 +255,7 @@ export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Prom
         uiTheme: config.uiTheme,
         uiThemeOverrides: config.uiThemeOverrides,
         audioConfig: config.audioConfig,
+        runtime: config.runtime,
         achievements: config.achievements,
         // Physics (and spine) are acquired from app.sideModules — the fetch host
         // createWebApp built from this realm's wasmBaseUrl.

@@ -35,7 +35,7 @@ import type { RenderReadiness } from '../render/renderReadiness';
 import { WorldStreaming } from '../residency/WorldStreamer';
 import { persistentEntityRows } from '../residency/identity';
 import type { WorldManifest } from '../residency/cells';
-import { DEFAULT_GRAVITY, DEFAULT_FIXED_TIMESTEP } from '../defaults';
+import { DEFAULT_GRAVITY, DEFAULT_FIXED_TIMESTEP, applyBuildRuntimeConfig, type RuntimeBuildConfig } from '../defaults';
 import { SpriteAnimation } from '../animation/SpriteAnimator';
 import { Audio } from '../audio/Audio';
 import { Achievements } from '../services/achievements';
@@ -782,6 +782,9 @@ export interface RuntimeInitConfig {
     /** Project-declared mixer state (bus volumes / custom buses / effects / duck
      *  rules) — threaded from the editor's audio config, applied once at boot. */
     audioConfig?: AudioProjectConfig;
+    /** The project's runtime tuning (scene transition, frame limits, asset timeouts, cache budgets). Applied before anything loads, so the
+     *  first asset already runs under it. */
+    runtime?: RuntimeBuildConfig;
     /** Project-declared UI theme; see {@link LoadRuntimeSceneOptions.uiTheme}. */
     uiTheme?: 'dark' | 'light';
     /** Project-declared theme token overrides; see {@link LoadRuntimeSceneOptions.uiThemeOverrides}. */
@@ -810,6 +813,9 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
     const { app, firstScene, aspectRatio } = config;
 
     flushPendingRegistrations(app);
+
+    // First: the asset timeouts and cache budgets are read by the very first load below.
+    if (config.runtime) applyBuildRuntimeConfig(app, config.runtime);
 
     // After the project's components are registered (the manifest names them)
     // and before any exists (its rows must be in the memory the module reads).

@@ -13,6 +13,7 @@
  */
 
 import type { QualityConfig } from '../render/quality';
+import type { RuntimeBuildConfig } from '../defaults';
 import type { DebugChannelConfig } from './debugChannelProtocol';
 import { extractUuid } from '../asset/AssetRegistry';
 import { platformReadTextFile, platformLoadImagePixels } from '../platform';
@@ -104,6 +105,9 @@ export interface PackagedGameConfig {
     /** Project mixer state: bus volumes, custom buses, effects, duck rules.
      *  Absent ⇒ the default mix. */
     audioConfig?: AudioProjectConfig;
+    /** The runtime tuning the project declared (scene transition, frame limits, asset timeouts, cache budgets).
+     *  Absent ⇒ the engine's own values; only fields that differ from them are written. */
+    runtime?: RuntimeBuildConfig;
     /** Hot-update delivery: the CDN root `remote`-group assets resolve against +
      *  the storage key an applied update persists under (both optional). */
     hotUpdate?: { remoteRoot?: string; persistUpdateKey?: string };
@@ -234,11 +238,12 @@ export function packagedAppOptions(
 export function packagedRuntimeInit(
     config: Pick<PackagedGameConfig,
         'physicsEnabled' | 'physicsConfig' | 'audioConfig' | 'uiTheme' | 'uiThemeColors'
-        | 'achievements' | 'steamAppId' | 'screenFit' | 'aot' | 'debugChannel'>,
+        | 'achievements' | 'steamAppId' | 'screenFit' | 'aot' | 'debugChannel' | 'runtime'>,
 ): {
     physicsEnabled?: boolean;
     physicsConfig?: Physics2DPluginConfig;
     audioConfig?: AudioProjectConfig;
+    runtime?: RuntimeBuildConfig;
     uiTheme?: 'light';
     uiThemeOverrides?: ThemeOverrides;
     achievements?: string[];
@@ -251,6 +256,7 @@ export function packagedRuntimeInit(
         physicsEnabled: config.physicsEnabled,
         physicsConfig: config.physicsConfig,
         audioConfig: config.audioConfig,
+        runtime: config.runtime,
         uiTheme: config.uiTheme,
         uiThemeOverrides: parseThemeOverrides(config.uiThemeColors),
         achievements: config.achievements,

@@ -55,6 +55,8 @@ const FORMAT = 'pipeline/src/project/format.ts';
 const STORE = 'desktop/src/project/ProjectStore.ts';
 /** Where a project setting becomes a row a creator can see. */
 const SETTINGS = 'desktop/src/settings/projectSettings.ts';
+/** The rows built from a block's own keys live beside it; they count as the same surface. */
+const SETTINGS_FILES = [SETTINGS, 'desktop/src/settings/qualitySettings.ts', 'desktop/src/settings/runtimeSettings.ts'];
 
 /**
  * Where each field of RuntimeProjectConfig has to show up, and the reason when
@@ -100,6 +102,10 @@ const DECLARED_GAPS = {
   uiThemeColors: {
     editor: 'applied together with uiTheme (one applyWidgetTheme call takes both)',
   },
+  runtime: {
+    editor: 'the edit viewport keeps the engine\'s own timeouts, budgets and frame limits so authoring behaves the same in every project; '
+      + 'Play and a shipped build run under the declared values (initRuntime applies them before the first load)',
+  },
 };
 
 /** The feature branch in the manifest parser each field is read from. */
@@ -109,6 +115,7 @@ const PARSE_KEY = {
   physicsEnabled: 'p.enabled',
   physicsConfig: 'physics',
   audioConfig: 'parseAudioProjectConfig',
+  runtime: 'parseRuntimeBuildConfig',
   uiTheme: 'u.theme',
   uiThemeColors: 'u.colors',
   ySortLayers: 'r.ySortLayers',
@@ -132,6 +139,7 @@ const AUTHORING = {
   physicsEnabled: { ui: 'project.physics.enabled' },
   physicsConfig: { ui: ['project.physics.gravityX', 'project.physics.gravityY', 'project.physics.fixedTimestep'] },
   audioConfig: { ui: ['project.audio.maxVoices', 'project.audio.buses', 'project.audio.effects'] },
+  runtime: { ui: ['project.runtime.'] },
   uiTheme: { ui: 'project.ui.theme' },
   uiThemeColors: { ui: 'project.ui.color.' },
   ySortLayers: { ui: 'project.rendering.ySortLayers' },
@@ -154,7 +162,7 @@ function runtimeConfigFields(src) {
 const runtimeSrc = read(RUNTIME_CONFIG);
 const formatSrc = read(FORMAT);
 const storeSrc = read(STORE);
-const settingsSrc = read(SETTINGS);
+const settingsSrc = SETTINGS_FILES.map(read).join(String.fromCharCode(10));
 const fields = runtimeConfigFields(runtimeSrc);
 
 if (fields.length === 0) {
@@ -237,6 +245,103 @@ for (const field of fields) {
   // A field nobody parses is a field a manifest can hold and nothing will read.
   if (!PARSE_KEY[field]) {
     problems.push(`${field} has no PARSE_KEY entry — say which manifest branch reads it.`);
+  }
+}
+
+
+/**
+ * The blocks inside a RuntimeProjectConfig field. A field passing the transport questions above says nothing about the keys it holds: `quality`
+ * has one row for its level and thirty keys. Each block's keys are read from its interface and must say how a creator reaches them.
+ *
+ * `ui` is the settings id, looked for in the settings sources; an id built in a loop from the key (`project.rendering.quality.${row.key}`)
+ * counts when its prefix is built that way and the key is named. `manual` and `internal` carry a reason; `owed` is debt.
+ */
+const BLOCKS = [
+  {
+    name: 'QualityConfig', file: 'sdk/src/render/quality.ts',
+    keys: {
+      mode: { ui: 'project.rendering.quality' },
+      targetFps: { ui: 'project.rendering.qualityTargetFps' },
+      dynamicResolution: { ui: 'project.rendering.dynamicResolution' },
+      asyncShaderCompile: { ui: 'project.rendering.quality.asyncShaderCompile' },
+      prewarmShaders: { ui: 'project.rendering.quality.prewarmShaders' },
+      prewarmTimeoutMs: { ui: 'project.rendering.quality.prewarmTimeoutMs' },
+      renderOnDemand: { ui: 'project.rendering.quality.renderOnDemand' },
+      renderOnDemandTail: { ui: 'project.rendering.quality.renderOnDemandTail' },
+      profiles: { ui: 'project.rendering.quality.renderScale' },
+      deviceRules: { ui: 'project.rendering.qualityDeviceRules' },
+    },
+  },
+  {
+    name: 'QualityProfile', file: 'sdk/src/render/quality.ts',
+    keys: {
+      renderScale: { ui: 'project.rendering.quality.renderScale' },
+      minRenderScale: { ui: 'project.rendering.quality.minRenderScale' },
+      msaaSamples: { ui: 'project.rendering.quality.msaaSamples' },
+      antialiasing: { ui: 'project.rendering.quality.antialiasing' },
+      shadowAtlasSize: { ui: 'project.rendering.quality.shadowAtlasSize' },
+      shadowCellSize: { ui: 'project.rendering.quality.shadowCellSize' },
+      shadowCascades: { ui: 'project.rendering.quality.shadowCascades' },
+      shadowDistance: { ui: 'project.rendering.quality.shadowDistance' },
+      detailScale: { ui: 'project.rendering.quality.detailScale' },
+      particleLimit: { ui: 'project.rendering.quality.particleLimit' },
+      planarReflectionScale: { ui: 'project.rendering.quality.planarReflectionScale' },
+      planarReflectionMaxSize: { ui: 'project.rendering.quality.planarReflectionMaxSize' },
+      planarReflectionUpdatesPerSecond: { ui: 'project.rendering.quality.planarReflectionUpdatesPerSecond' },
+      depthPrepass: { ui: 'project.rendering.quality.depthPrepass' },
+      postProcess: { ui: 'project.rendering.quality.postProcess' },
+      ssao: { ui: 'project.rendering.quality.effects' },
+      waterWaves: { ui: 'project.rendering.quality.waterWaves' },
+      waterRippleCells: { ui: 'project.rendering.quality.waterRippleCells' },
+      waterDisplacement: { ui: 'project.rendering.quality.waterDisplacement' },
+      waterMirror: { ui: 'project.rendering.quality.waterMirror' },
+      waterCaustics: { ui: 'project.rendering.quality.waterCaustics' },
+      skipEffects: { ui: 'project.rendering.quality.effects' },
+    },
+  },
+  {
+    name: 'RuntimeBuildConfig', file: 'sdk/src/defaults.ts',
+    keys: Object.fromEntries([
+      'sceneTransitionDuration', 'sceneTransitionColor', 'defaultFontFamily', 'maxDeltaTime', 'maxFixedSteps', 'textCanvasSize',
+      'assetLoadTimeout', 'assetFailureCooldown', 'textureCacheBudget', 'audioCacheBudget', 'retainedBudget',
+    ].map((k) => [k, { ui: `project.runtime.${k}` }])),
+  },
+];
+
+/** The member names of an interface, from its source text. */
+function interfaceKeys(src, name) {
+  const at = src.indexOf(`export interface ${name} {`);
+  if (at < 0) return null;
+  const body = src.slice(at);
+  const end = body.indexOf(String.fromCharCode(10) + '}');
+  return [...body.slice(0, end).matchAll(/^ {4}(\w+)\??:/gm)].map((m) => m[1]);
+}
+
+/** Whether a settings id is registered: quoted as it stands, or built in a loop from its last segment under the same prefix. */
+function rowRegistered(id) {
+  if (settingsSrc.includes(`'${id}'`)) return true;
+  const dot = id.lastIndexOf('.');
+  const prefix = id.slice(0, dot + 1);
+  const key = id.slice(dot + 1);
+  return settingsSrc.includes(`\`${prefix}\${`) && settingsSrc.includes(`'${key}'`);
+}
+
+for (const block of BLOCKS) {
+  const keys = interfaceKeys(read(block.file), block.name);
+  if (!keys) { problems.push(`${block.name}: not found in ${block.file} — has it moved?`); continue; }
+  for (const key of keys) {
+    const answer = block.keys[key];
+    if (!answer) {
+      problems.push(`${block.name}.${key} says nothing about authoring — add it to BLOCKS in tools/check-project-settings.mjs `
+        + 'with the settings row that sets it, or a manual / internal reason, or record it as owed');
+      continue;
+    }
+    if (answer.ui && !rowRegistered(answer.ui)) problems.push(`${block.name}.${key} claims the row ${answer.ui}, which no settings file registers`);
+    if (answer.owed) owed.push(`  ${block.name}.${key} → ${answer.owed}`);
+    if ((answer.manual || answer.internal) === '') problems.push(`${block.name}.${key} declares a reason that is empty`);
+  }
+  for (const key of Object.keys(block.keys)) {
+    if (!keys.includes(key)) problems.push(`${block.name}.${key} is declared here and no longer in the interface — remove the entry`);
   }
 }
 
