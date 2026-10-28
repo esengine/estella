@@ -3098,6 +3098,10 @@ export const NOTED = {
     {"internal":"A golden package's launch window; no creator can observe it."},
   "fix(ci): a golden package launch waits for its settle frames, and only gives up on a package that hangs":
     {"internal":"A golden package's launch window; no creator can observe it."},
+  "feat(editor): the profiler's tables sort by the column header, and the systems list names a dozen":
+    {"note":"The profiler's tables sort by their column header."},
+  "fix(editor): the profiler's sort header keeps to the theme's grid and icon sizes":
+    {"internal":"Spacing and icon size of the sort header added in the same release."},
   "fix(ci): the ledger names its own repair":
     {"internal":"Repairs the release-notes ledger; no creator can observe it."},
   "feat(render): the medium quality level smooths edges temporally by default":

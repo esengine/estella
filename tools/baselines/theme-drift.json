@@ -92,7 +92,7 @@
     "panels/LightingPanel.tsx": 1,
     "panels/Outliner.tsx": 1,
     "panels/OutputLog.tsx": 1,
-    "panels/ProfilerPanel.tsx": 8,
+    "panels/ProfilerPanel.tsx": 9,
     "panels/ScatterPanel.tsx": 1,
     "panels/Sequencer.tsx": 7,
     "panels/SpineDiagnosticsSection.tsx": 1,
