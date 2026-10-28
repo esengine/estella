@@ -34,10 +34,6 @@ constexpr u32 kShadow2DFloats = 7;
 /// channel of the light it belongs to.
 constexpr u32 kShape2DFloats = 8;
 
-/// Samples across a source that has width. A penumbra made of samples IS banded,
-/// and sixteen is where the bands stop reading as rays from the corner that threw
-/// them — one silhouette each, over a scene with tens of occluders.
-constexpr u32 kSoftSamples = 16;
 
 /// How far past a light's own reach a shadow is extruded. A shadow that stopped
 /// exactly at the reach would end in a visible edge where the light already
@@ -250,7 +246,7 @@ void RenderFrame::buildShadow2DGeometry() {
     // One silhouette is two triangles, and the worst case is every ring seen by every
     // sample of every light. Reserved once so the frame's growth is not a re-alloc.
     shadow_2d_vertices_.reserve(shadow_rings_2d_.size() * shadow_2d_lights_.size()
-                                * kSoftSamples * 6 * kShadow2DFloats);
+                                * shadow_2d_soft_samples_ * 6 * kShadow2DFloats);
 
     auto vertex = [this](const glm::vec2& p, f32 shadow, u32 channel) {
         shadow_2d_vertices_.push_back(p.x);
@@ -269,10 +265,9 @@ void RenderFrame::buildShadow2DGeometry() {
 
     for (const Shadow2DLight& light : shadow_2d_lights_) {
         const u32 channel = light.channel;
-        // A source with width is sampled across, each sample throwing the silhouette
-        // it sees at its own share. The shares add, which is the soft edge: hidden from
-        // every sample collects all of them, from half collects half.
-        const u32 samples = light.softness > 1e-4f ? kSoftSamples : 1u;
+        // A source with width is sampled across, each sample throwing its silhouette at its own share; the shares add, which is the
+        // soft edge. A penumbra made of samples IS banded: sixteen is where the bands stop reading as rays from the corner that threw them.
+        const u32 samples = light.softness > 1e-4f ? shadow_2d_soft_samples_ : 1u;
         const f32 share = 1.0f / static_cast<f32>(samples);
         // How far a sample sits from the middle of the source, in -1..1.
         const auto offsetOf = [samples](u32 s) {

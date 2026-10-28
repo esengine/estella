@@ -1998,6 +1998,10 @@ void RenderFrame::setShadowDistance(f32 distance) {
     shadow_distance_ = std::isfinite(distance) ? std::max(distance, 0.0f) : 0.0f;
 }
 
+void RenderFrame::setShadow2DSoftSamples(u32 samples) {
+    shadow_2d_soft_samples_ = std::clamp(samples, 1u, 32u);
+}
+
 void RenderFrame::buildShadowPlan(ecs::Registry& registry) {
     shadow_texture_id_ = 0;
     shadow_resource_ = rg::kNoResource;

@@ -227,6 +227,9 @@ describe('the 2D rain', () => {
         expect(defaultQualityProfile('low').shelterMaskSize).toBe(256);
         expect(defaultQualityProfile('medium').shelterMaskSize).toBe(512);
         expect(defaultQualityProfile('high').shelterMaskSize).toBe(1024);
+        expect([8, 12, 16]).toEqual(['low', 'medium', 'high'].map((l) => defaultQualityProfile(l as 'low').shadowSoftSamples));
+        expect(parseQualityConfig({ mode: 'low', profiles: { low: { shadowSoftSamples: 99 }, medium: { shadowSoftSamples: 0 } } }).profiles?.low?.shadowSoftSamples).toBe(32);
+        expect(parseQualityConfig({ mode: 'low', profiles: { medium: { shadowSoftSamples: 0 } } }).profiles?.medium?.shadowSoftSamples).toBe(1);
         const q = parseQualityConfig({ mode: 'low', profiles: { low: { shelterMaskSize: 100000 }, medium: { shelterMaskSize: 'big' } } });
         expect(q.profiles?.low?.shelterMaskSize).toBe(2048);
         expect(q.profiles?.medium?.shelterMaskSize).toBe(512);

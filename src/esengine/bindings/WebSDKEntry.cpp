@@ -792,6 +792,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_setDepthLayers", &esengine::renderer_setDepthLayers);
     emscripten::function("renderer_setQualityBudgets", &esengine::renderer_setQualityBudgets);
     emscripten::function("renderer_setShadowDistance", &esengine::renderer_setShadowDistance);
+    emscripten::function("renderer_setShadow2DSoftSamples", &esengine::renderer_setShadow2DSoftSamples);
     emscripten::function("renderer_setDepthPrepass", &esengine::renderer_setDepthPrepass);
     emscripten::function("renderer_setAsyncShaderCompile", &esengine::renderer_setAsyncShaderCompile);
     emscripten::function("renderer_getPendingShaders", &esengine::renderer_getPendingShaders);

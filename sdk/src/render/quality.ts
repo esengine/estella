@@ -72,6 +72,11 @@ export interface QualityProfile {
      * a weak device spends less on a smaller one and gets rain whose dry edges are softer.
      */
     shelterMaskSize: number;
+    /**
+     * How many samples across a light source a soft 2D shadow is drawn with, 1 to 32: a light's `shadowSoftness` is a source with width, and its penumbra
+     * is that many silhouettes added up. Fewer is cheaper and shows the edge as bands; sixteen is where the bands stop reading as separate shadows.
+     */
+    shadowSoftSamples: number;
 }
 
 export interface DeviceQualityRule {
@@ -120,7 +125,7 @@ const PROFILES: Record<QualityLevel, QualityProfile> = {
         shadowDistance: 0, detailScale: 0.5, particleLimit: 1000, postProcess: true, ssao: false,
         waterWaves: 2, waterRippleCells: 32, waterDisplacement: false, waterMirror: false, waterCaustics: false,
         skipEffects: ['ssr', 'taa', 'depthOfField', 'lightShafts', 'motionBlur', 'lensFlare', 'gtao', 'subsurface', 'voxelGI'],
-        shelterMaskSize: 256,
+        shelterMaskSize: 256, shadowSoftSamples: 8,
     },
     medium: {
         renderScale: 1, minRenderScale: 0.65, msaaSamples: 2, antialiasing: 'temporal',
@@ -129,7 +134,7 @@ const PROFILES: Record<QualityLevel, QualityProfile> = {
         shadowDistance: 0, detailScale: 0.8, particleLimit: 5000, postProcess: true, ssao: true,
         waterWaves: 3, waterRippleCells: 64, waterDisplacement: true, waterMirror: true, waterCaustics: true,
         skipEffects: ['ssr', 'depthOfField'],
-        shelterMaskSize: 512,
+        shelterMaskSize: 512, shadowSoftSamples: 12,
     },
     high: {
         renderScale: 1, minRenderScale: 0.75, msaaSamples: 4, antialiasing: 'msaa',
@@ -140,7 +145,7 @@ const PROFILES: Record<QualityLevel, QualityProfile> = {
         shadowDistance: 0, detailScale: 1, particleLimit: 20000, postProcess: true, ssao: true,
         waterWaves: 4, waterRippleCells: 128, waterDisplacement: true, waterMirror: true, waterCaustics: true,
         skipEffects: [],
-        shelterMaskSize: 1024,
+        shelterMaskSize: 1024, shadowSoftSamples: 16,
     },
 };
 
@@ -231,6 +236,7 @@ function resolveProfile(level: QualityLevel, value: unknown): QualityProfile {
                 .map((e) => e.trim()).slice(0, 32)
             : base.skipEffects,
         shelterMaskSize: Math.round(finite(r.shelterMaskSize, base.shelterMaskSize, 64, 2048)),
+        shadowSoftSamples: Math.round(finite(r.shadowSoftSamples, base.shadowSoftSamples, 1, 32)),
     };
 }
 

@@ -112,6 +112,8 @@ public:
     void resize(u32 width, u32 height);
     void setShadowBudget(u32 atlasSize, u32 cellSize, u32 cascades);
     void setShadowDistance(f32 distance);
+    /// How many samples across a light source a soft 2D shadow is drawn with: the quality level's say on the penumbra's smoothness and cost.
+    void setShadow2DSoftSamples(u32 samples);
     /// Draws the opaque scene twice, depth alone first (see DrawList::DrawPass). Off unless asked: where a GPU already shades each pixel once
     /// (a tiled one), the second pass is geometry paid for twice.
     void setDepthPrepass(bool on) { depth_prepass_ = on; }
@@ -1041,6 +1043,7 @@ private:
     u32 shadow_cell_size_ = kShadowCellSize;
     u32 shadow_cascades_ = MAX_SHADOW_CASCADES;
     f32 shadow_distance_ = 0.0f;
+    u32 shadow_2d_soft_samples_ = 16;
     ShadowPlanReport shadow_plan_;
     LightCapReport light_cap_;
     ViewLighting view_lighting_;

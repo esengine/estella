@@ -42,6 +42,8 @@ export function installQuality(app: App, config: QualityConfig, authoredMsaa: nu
         quality.setLimitation('shadow-distance-unavailable',
             enabled && applied.shadowDistance > 0 && !api?.renderer_setShadowDistance);
         api?.renderer_setShadowDistance?.(enabled ? applied.shadowDistance : 0);
+        // With no quality policy a soft 2D shadow is drawn with the sixteen samples it always was.
+        api?.renderer_setShadow2DSoftSamples?.(enabled ? applied.shadowSoftSamples : 16);
         api?.renderer_setDepthPrepass?.(enabled && applied.depthPrepass);
         api?.renderer_setPlanarReflectionQuality?.(enabled ? applied.planarReflectionScale : 0.5,
             enabled ? applied.planarReflectionMaxSize : 1024,

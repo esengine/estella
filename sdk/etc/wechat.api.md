@@ -7801,6 +7801,7 @@ shadowAtlasSize: number
 shadowCascades: number
 shadowCellSize: number
 shadowDistance: number
+shadowSoftSamples: number
 shelterMaskSize: number
 skipEffects: readonly string[]
 ssao: boolean

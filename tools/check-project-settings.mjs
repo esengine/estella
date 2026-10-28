@@ -297,6 +297,7 @@ const BLOCKS = [
       waterMirror: { ui: 'project.rendering.quality.waterMirror' },
       waterCaustics: { ui: 'project.rendering.quality.waterCaustics' },
       shelterMaskSize: { ui: 'project.rendering.quality.shelterMaskSize' },
+      shadowSoftSamples: { ui: 'project.rendering.quality.shadowSoftSamples' },
       skipEffects: { ui: 'project.rendering.quality.effects' },
     },
   },

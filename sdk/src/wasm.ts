@@ -715,6 +715,8 @@ export interface ESEngineModule {
     renderer_setQualityBudgets?(atlasSize: number, cellSize: number,
         cascades: number, particleLimit: number): void;
     renderer_setShadowDistance?(distance: number): void;
+    /** How many samples across a light source a soft 2D shadow is drawn with (1 to 32). */
+    renderer_setShadow2DSoftSamples?(samples: number): void;
     /** Draw the opaque scene twice, depth alone first, so a pixel is shaded for the surface in front of it. */
     renderer_setDepthPrepass?(on: boolean): void;
     renderer_setAsyncShaderCompile?(on: boolean): void;

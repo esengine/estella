@@ -360,7 +360,10 @@ cmds.spawn()
 Shadow **quality** is controlled on the light, not the caster:
 
 - **`shadowSoftness`** — the light-source size. `0` is a crisp hard edge; larger values
-  give a soft penumbra (a bigger, closer light casts softer shadows).
+  give a soft penumbra (a bigger, closer light casts softer shadows). The penumbra is that many
+  silhouettes added up, so how smooth it is and what it costs is a quality setting: the profile's
+  `shadowSoftSamples` (1 to 32; 8 low, 12 medium, 16 high; **Project Settings → Rendering → Quality**).
+  Fewer is cheaper and shows the edge as bands; sixteen is where they stop reading as separate shadows.
 - **`shadowDistance`** — for a **Directional** light, how far its shadows extend; `0`
   leaves a directional light shadow-free.
 - **`shadowStrength`** — how much of the light a shadow takes away, `0..1`. A 2D scene
