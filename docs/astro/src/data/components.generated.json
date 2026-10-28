@@ -2373,6 +2373,20 @@
           "range": "0–1"
         },
         {
+          "key": "layerMin",
+          "type": "number",
+          "default": "-128",
+          "doc": "The lowest sprite layer this light reaches (default: every layer).",
+          "range": "-128–127, step 1"
+        },
+        {
+          "key": "layerMax",
+          "type": "number",
+          "default": "127",
+          "doc": "The highest sprite layer this light reaches (default: every layer).",
+          "range": "-128–127, step 1"
+        },
+        {
           "key": "cookie",
           "type": "Asset<texture>",
           "default": "none",

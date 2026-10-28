@@ -406,6 +406,14 @@ target_include_directories(test_tiled_lights PRIVATE
 )
 add_test(NAME test_tiled_lights COMMAND test_tiled_lights)
 
+# The range of sprite layers a light reaches, and the lane it rides in. Header-only, so it runs without a device.
+add_executable(test_light_layers renderer/test_light_layers.cpp)
+target_include_directories(test_light_layers PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party/glm
+)
+add_test(NAME test_light_layers COMMAND test_light_layers)
+
 # Which baked column a point reflects. Header-only, so it runs without a device —
 # the pixel gate says a surface came out the wrong colour, this says whether the
 # lookup took the wrong box or let two bakes into one frame.

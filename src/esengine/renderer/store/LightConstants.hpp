@@ -15,6 +15,7 @@
 #include "../../core/Types.hpp"
 #include "./TiledLights.hpp"
 
+#include <algorithm>
 #include <glm/glm.hpp>
 
 namespace esengine {
@@ -120,6 +121,23 @@ inline constexpr u32 MAX_SHADOW_TILES = 16;
 inline constexpr u32 MAX_REFLECTION_PROBES = 15;
 
 /**
+ * @brief The sprite layers a light reaches ride in `GpuLight::shadowMap.y` above the atlas tile count: `tiles + 8 * range`.
+ * @details The block has no spare lane (it sits at the 16 KB every device guarantees). The range is two bytes, the lowest layer biased up by 128
+ *          and the highest counted down from 127, so that ZERO IS EVERY LAYER and a light nobody gave a range is unchanged.
+ */
+inline constexpr f32 LIGHT_TILE_BITS = 8.0f;
+
+/** @brief The range of sprite layers a light reaches, as the number that rides in `shadowMap.y` above the tile count. 0 is every layer. */
+inline f32 packLightLayerRange(i32 layerMin, i32 layerMax) {
+    const i32 lo = std::clamp(layerMin, -128, 127) + 128;
+    const i32 hi = 127 - std::clamp(layerMax, -128, 127);
+    return static_cast<f32>(lo + 256 * hi);
+}
+
+/** @brief What a sprite's layer is written as in the vertex lane the lit fragment reads: the layer plus 129, so 0 is "no layer to test". */
+inline constexpr f32 SPRITE_LAYER_BIAS = 129.0f;
+
+/**
  * @brief One 2D light, std140-packed (six vec4s, 96 bytes, 16-aligned).
  * @details Every lane is spoken for; each field says which. An Ambient light occupies no
  *          slot at all — it folds into LightConstants::ambient.
@@ -138,9 +156,8 @@ struct GpuLight {
     /// directional light's shadow march distance (0 = it casts none); z = a positional
     /// light's world height, measured against only by real geometry; w = a spot axis' z.
     glm::vec4 shadow{0.0f};
-    /// x = first atlas tile, y = how many it owns (0 = no map); z = the tangent of the
-    /// angle its source subtends, for the map with no distance to divide by (0 for a
-    /// light that stands somewhere); w = its 2D mask channel, -1 for none.
+    /// x = first atlas tile, y = tiles owned (0 = no map) in its low bits and the sprite-layer range above (packLightLayerRange);
+    /// z = the tangent of the angle its source subtends (0 for a light that stands somewhere); w = its 2D mask channel, -1 for none.
     glm::vec4 shadowMap{0.0f, 0.0f, 0.0f, -1.0f};
     /// How the light ENDS, as opposed to where: x = the radius it holds full strength
     /// out to, y = the power its ramp is raised to (1 = linear), z = how much a shadow

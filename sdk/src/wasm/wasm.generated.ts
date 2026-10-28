@@ -612,6 +612,8 @@ export interface Light {
     innerRadius: number;
     falloff: number;
     shadowStrength: number;
+    layerMin: number;
+    layerMax: number;
     cookie: number;
     cookieSize: Vec2;
     innerAngle: number;

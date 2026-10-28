@@ -89,6 +89,22 @@ const addSun = defineSystem([Commands()], (cmds) => {
 - 平面反射只用那 16 盏绘制:它的相机不是分块所对应的那个相机。
 - 2D 光也走同一个集合,所以有五十支火把的 2D 场景同样被照亮。
 
+## 灯照到哪些层
+
+一盏灯会照亮它够得着的每一个精灵，不管精灵在哪一层。这对小屋里的灯就不对了：它不该照亮盖在头顶的屋顶。给灯设置 **Layer Min** 和 **Layer Max**（`layerMin`、`layerMax`），它就只照亮 `layer` 在这个范围内的精灵：
+
+```ts
+// 地板和家具在 1 到 4 层，屋顶在 7 层：这盏灯只照到 6 层为止。
+world.insert(lamp, Light, { type: 0, color: { r: 1, g: 0.78, b: 0.45, a: 1 }, intensity: 1.5, radius: 330, layerMax: 6 });
+```
+
+默认的 -128 到 127 是所有层。屋顶仍然会受场景的**环境光**照亮，环境光不是有范围限制的灯，而是天空，所以夜里暗、白天亮，只是灯的光晕不再照到它。
+
+- **只有精灵带层**：受光照的 `Sprite`（勾选 Lit，或用 Lit、Sway 模板建的材质）会按它测试。mesh、瓦片地图、粒子和骨骼没有层可测，照旧受光。
+- **自定义的受光精灵着色器**要参与，就用 `applyLighting2DLayer(albedo, N, worldPos, v_lightLayer)` 代替 `applyLighting2D`，并声明 `flat in highp float v_lightLayer;`。继续调用 `applyLighting2D` 的着色器像以前一样被所有灯照亮。
+- **方向光**也能设范围，所以太阳可以不照某个室内层。
+- 每盏灯每个像素多一次比较；没有灯设范围时没有别的开销。
+
 ## 让渲染器接受光照
 
 默认情况下,一个 `Sprite` 用**不受光**材质绘制,会忽略每一盏灯。让它受光最简单的方式是

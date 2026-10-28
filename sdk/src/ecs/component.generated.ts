@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, Cl
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '952e9aafee3c2480';
+export const ABI_LAYOUT_HASH = '11e3c2bb051fdd37';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -466,6 +466,8 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             innerRadius: 0,
             falloff: 1,
             shadowStrength: 1,
+            layerMin: -128,
+            layerMax: 127,
             cookie: 0,
             cookieSize: { x: 0, y: 0 },
             innerAngle: 30,
@@ -497,6 +499,8 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             innerRadius: { min: 0, tooltip: "Radius held at full strength before the falloff starts.", shownWhen: { field: "type", values: [0, 3] } },
             falloff: { min: 0, max: 8, tooltip: "Falloff shape: 1 = linear, higher pools near the light, lower reaches further.", shownWhen: { field: "type", values: [0, 3] } },
             shadowStrength: { min: 0, max: 1, slider: true, tooltip: "How much of this light its shadows remove (1 = all of it).", shownWhen: { field: "type", values: [0, 1, 3] } },
+            layerMin: { min: -128, max: 127, step: 1, tooltip: "The lowest sprite layer this light reaches (default: every layer).", shownWhen: { field: "type", values: [0, 1, 3] } },
+            layerMax: { min: -128, max: 127, step: 1, tooltip: "The highest sprite layer this light reaches (default: every layer).", shownWhen: { field: "type", values: [0, 1, 3] } },
             cookie: { tooltip: "A texture whose alpha shapes this light (a cookie).", shownWhen: { field: "type", values: [0, 3] } },
             cookieSize: { min: 0, tooltip: "Cookie size in world units; 0 = the light's own reach.", shownWhen: { field: "type", values: [0, 3] } },
             innerAngle: { min: 0, max: 180, unit: "°", advanced: true, shownWhen: { field: "type", values: [3] } },
@@ -1567,6 +1571,8 @@ export interface LightData {
     innerRadius: number;
     falloff: number;
     shadowStrength: number;
+    layerMin?: number;
+    layerMax?: number;
     cookie: number;
     cookieSize: Vec2;
     innerAngle: number;

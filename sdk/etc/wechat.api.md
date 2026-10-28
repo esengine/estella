@@ -5244,6 +5244,8 @@ followEnvironmentSun: boolean
 innerAngle: number
 innerRadius: number
 intensity: number
+layerMax: number | undefined
+layerMin: number | undefined
 meshShadows: boolean
 outerAngle: number
 radius: number

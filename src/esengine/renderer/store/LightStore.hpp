@@ -20,6 +20,7 @@
 #include "../rhi/GfxEnums.hpp"
 #include "./LightConstants.hpp"
 
+#include <cmath>
 #include <glm/glm.hpp>
 
 namespace esengine {
@@ -106,8 +107,10 @@ public:
         if (slot >= count_) return;
         // The two the atlas decides, and nothing else: z is the light's own source size,
         // written when it was collected and not this pass's to overwrite.
+        // The layer range this light carries above the count is not the atlas's to overwrite either.
+        const f32 range = std::floor(data_.lights[slot].shadowMap.y / LIGHT_TILE_BITS);
         data_.lights[slot].shadowMap.x = static_cast<f32>(first);
-        data_.lights[slot].shadowMap.y = static_cast<f32>(tiles);
+        data_.lights[slot].shadowMap.y = static_cast<f32>(tiles) + LIGHT_TILE_BITS * range;
         dirty_ = true;
     }
 

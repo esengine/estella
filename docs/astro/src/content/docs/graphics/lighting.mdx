@@ -98,6 +98,24 @@ What to keep in mind:
 - Planar reflections are drawn with the sixteen only: their camera is not the one the tiles were made for.
 - 2D lights ride the same set, so a 2D scene with fifty torches is lit too.
 
+## Which layers a light reaches
+
+A light lights every sprite it reaches, whatever layer the sprite is on. That is wrong for a lamp inside a hut, which has no business lighting the roof drawn over it.
+Give the light a **Layer Min** and **Layer Max** (`layerMin`, `layerMax`) and it lights only the sprites whose `layer` is in that range:
+
+```ts
+// The floor and the furniture are layers 1 to 4, the roof is 7: the lamp reaches everything up to 6.
+world.insert(lamp, Light, { type: 0, color: { r: 1, g: 0.78, b: 0.45, a: 1 }, intensity: 1.5, radius: 330, layerMax: 6 });
+```
+
+The default, -128 to 127, is every layer. The roof still takes the scene's **ambient** light, which is not a range-limited lamp but the sky, so it is dark by night and
+bright by day, and only the lamp's glow is kept off it.
+
+- **Sprites carry the layer**, and only sprites: a lit `Sprite` (the Lit checkbox, or a material built from the Lit or Sway template) is tested against it. A mesh, a tilemap, a particle or a skeleton has no layer to test and is lit as it always was.
+- **A custom lit sprite shader** takes part by calling `applyLighting2DLayer(albedo, N, worldPos, v_lightLayer)` instead of `applyLighting2D`, with `flat in highp float v_lightLayer;` declared. A shader that keeps calling `applyLighting2D` is lit by every light, as before.
+- **Directional lights** take a range too, so a sun can leave an interior layer alone.
+- It costs a comparison per light per pixel, and nothing where no light has a range.
+
 ## Shaping the falloff
 
 A Point or Spot light fades from its own centre to nothing at `radius`, in a straight

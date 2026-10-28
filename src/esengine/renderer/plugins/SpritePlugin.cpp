@@ -12,7 +12,9 @@
 #include "../../ecs/components/SpriteMask.hpp"
 #include "../../ecs/components/UINode.hpp"
 #include "../draw/SpriteDrawResolve.hpp"
+#include "../store/LightConstants.hpp"
 
+#include <algorithm>
 #include <cmath>
 
 namespace esengine {
@@ -182,6 +184,16 @@ void SpritePlugin::collect(RenderCollectContext& collect_ctx) {
             for (u32 i = vertexStart / sizeof(BatchVertex); i < vertexEnd / sizeof(BatchVertex); ++i) {
                 const glm::vec3 delta = vertices[i].position - position;
                 vertices[i].position = position + basisX * delta.x + basisY * delta.y;
+            }
+        }
+        // A lit sprite hands its layer to the fragment stage in the batch layout's last lane (text spends it on an outline, and a sprite
+        // is never SDF text), where a light's range of layers is tested against it. See SPRITE_LAYER_BIAS in LightConstants.hpp.
+        if (sprite.lit || sprite.material != 0) {
+            const u32 vertexEnd = buffers.vertexBytesUsed(LayoutId::Batch);
+            auto* vertices = reinterpret_cast<BatchVertex*>(buffers.vertexData(LayoutId::Batch));
+            const f32 lane = static_cast<f32>(std::clamp(sprite.layer, -128, 127)) + SPRITE_LAYER_BIAS;
+            for (u32 i = vertexStart / sizeof(BatchVertex); i < vertexEnd / sizeof(BatchVertex); ++i) {
+                vertices[i].sdfBias = lane;
             }
         }
     }

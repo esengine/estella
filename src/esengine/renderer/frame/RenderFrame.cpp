@@ -1636,6 +1636,8 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
         gpu.falloff = glm::vec4(std::max(light.innerRadius, 0.0f),
                                 std::max(light.falloff, 0.0f),
                                 std::clamp(light.shadowStrength, 0.0f, 1.0f), 0.0f);
+        // The sprite layers it reaches ride above the tile count the shadow atlas fills in later.
+        gpu.shadowMap.y = LIGHT_TILE_BITS * packLightLayerRange(light.layerMin, light.layerMax);
         if (type == ecs::LightType::Directional) {
             // z=1 flags directional (no attenuation) in the shader; w carries the aim's third
             // component, which only a directional light has a use for — point and spot spend

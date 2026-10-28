@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { coversPoint, stepFade } from '../src/render/coverFade';
 import { applyRainSheltersToRain, drynessOf, nearestShelters, shelterOf, type Shelter } from '../src/render/rainShelter';
 import { RAIN_SHELTER_SLOTS, shelterUniform } from '../src/postprocess/rainShelterSlots';
+import { Light } from '../src/ecs/component';
 import type { SpriteData, TransformData } from '../src/ecs/component';
 import { applyWeatherToEffects, blendWeather, WeatherDrive, WEATHER_CLEAR, WEATHER_NONE, WEATHER_RAIN } from '../src/postprocess/weather';
 import { getEffectDef } from '../src/postprocess/effects';
@@ -180,5 +181,27 @@ describe('the 2D rain', () => {
         const plain = new Map<string, BlendedEffect>();
         applyWeatherToEffects(plain, rain, WeatherDrive.Rain);
         expect(plain.has('rain')).toBe(true);
+    });
+});
+
+describe('the layers a light reaches', () => {
+    it('is every layer by default, so a scene written before it is lit as it was', () => {
+        expect(Light._default.layerMin).toBe(-128);
+        expect(Light._default.layerMax).toBe(127);
+    });
+
+    it('is told to every Lit sprite template, which reads the layer its vertex wrote and names it to the lighting', () => {
+        for (const id of ['sprite-lit', 'sprite-sway']) {
+            const source = BUILTIN_SHADER_TEMPLATES.find((t) => t.id === id)!.source;
+            expect(source, id).toContain('flat in highp float v_lightLayer;');
+            expect(source, id).toContain('applyLighting2DLayer(base.rgb, N, v_worldPos, v_lightLayer)');
+            expect(source, id).toContain('applyLighting2DLayer(base.rgb, N, v.v_worldPos, v.v_lightLayer)');
+        }
+    });
+
+    it('is not asked of the mesh templates, which have no layer to give', () => {
+        for (const id of ['model', 'toon', 'matcap']) {
+            expect(BUILTIN_SHADER_TEMPLATES.find((t) => t.id === id)!.source, id).not.toContain('v_lightLayer');
+        }
     });
 });

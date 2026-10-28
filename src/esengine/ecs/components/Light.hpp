@@ -96,6 +96,20 @@ struct Light {
                 tooltip="How much of this light its shadows remove (1 = all of it).")
     f32 shadowStrength{1.0f};
 
+    /** @brief The lowest sprite layer this light reaches. A sprite on a layer below it is not lit by this light,
+     *         which is what keeps a lamp inside a room from lighting the roof drawn over it (a layer above the
+     *         lamp's @ref layerMax). The default, with @ref layerMax, is every layer. Ambient lights reach every
+     *         layer whatever these say: they are the scene's own sky, not a lamp somebody stands beside. Only
+     *         sprites carry a layer to test; a mesh, a tilemap, a particle or a skeleton is lit as it always was. */
+    ES_PROPERTY(min=-128, max=127, step=1, optional, shown_when=type:Point|Directional|Spot,
+                tooltip="The lowest sprite layer this light reaches (default: every layer).")
+    i32 layerMin{-128};
+
+    /** @brief The highest sprite layer this light reaches. See @ref layerMin. */
+    ES_PROPERTY(min=-128, max=127, step=1, optional, shown_when=type:Point|Directional|Spot,
+                tooltip="The highest sprite layer this light reaches (default: every layer).")
+    i32 layerMax{127};
+
     /** @brief A texture whose ALPHA is this light's shape — a lantern's glow, a window's
      *         shaft. Drawn at the light's own place, turned by its Transform, and
      *         multiplied into what the light gives a pixel; the colour is not read,

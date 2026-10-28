@@ -5,7 +5,7 @@ Symbols: 115 public · 164 beta · 1936 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"952e9aafee3c2480"
+"11e3c2bb051fdd37"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -5250,6 +5250,8 @@ followEnvironmentSun: boolean
 innerAngle: number
 innerRadius: number
 intensity: number
+layerMax: number | undefined
+layerMin: number | undefined
 meshShadows: boolean
 outerAngle: number
 radius: number

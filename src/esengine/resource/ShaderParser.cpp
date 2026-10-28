@@ -252,6 +252,8 @@ std::string wgslCanonicalVSOut(bool lit) {
         "    @location(1) v_texCoord : vec2f,\n";
     if (lit) {
         src += "    @location(2) v_worldPos : vec2f,\n";
+        // The layer the sprite is on (plus 129), or 0 where the draw has none to give.
+        src += "    @location(8) @interpolate(flat) v_lightLayer : f32,\n";
     }
     // A mesh that HAS normals hands them on, with the full world position a
     // tangent frame needs. v_worldPos stays vec2 so one fragment stage serves
@@ -328,6 +330,9 @@ std::string canonicalVertexStageWGSL(bool lit, const std::string& hook = {}) {
         "#ifdef MESH_TANGENTS\n"
         "    @location(4) a_tangent : vec4f,\n"
         "#endif\n"
+        + std::string(lit ? "#if !defined(MESH) && !defined(SKINNED)\n"
+                            "    @location(4) a_lightLayer : f32,\n"
+                            "#endif\n" : "") +
         "#ifdef SKINNED\n"
         "    @location(5) a_joints : vec4u,\n"
         "    @location(6) a_weights : vec4f,\n"
@@ -427,6 +432,7 @@ std::string canonicalVertexStageWGSL(bool lit, const std::string& hook = {}) {
         "#endif\n";
     if (lit) {
         src += "    out.v_worldPos = world.xy;\n";
+        src += "#if !defined(MESH) && !defined(SKINNED) && !defined(PARTICLE)\n    out.v_lightLayer = v.a_lightLayer;\n#else\n    out.v_lightLayer = 0.0;\n#endif\n";
         // Declared by wgslVSOut under the same condition, so filled here —
         // a slot left at zero makes every instance read the first probe.
         src += "    out.v_probeSlot = f32(instanceId);\n";
@@ -522,6 +528,10 @@ std::string canonicalVertexStage(bool lit, const std::string& hook = {}) {
         "#ifdef MESH_TANGENTS\n"
         "layout(location = 4) in vec4 a_tangent;\n"
         "#endif\n"
+        // The batch layout carries a sprite's layer in the lane text spends on its outline (see SPRITE_LAYER_BIAS); a lit batch draw reads it.
+        + std::string(lit ? "#if !defined(MESH) && !defined(SKINNED)\n"
+                            "layout(location = 4) in float a_lightLayer;\n"
+                            "#endif\n" : "") +
         "#ifdef SKINNED\n"
         "layout(location = 5) in uvec4 a_joints;\n"
         "layout(location = 6) in vec4 a_weights;\n"
@@ -570,6 +580,8 @@ std::string canonicalVertexStage(bool lit, const std::string& hook = {}) {
         "#endif\n";
     if (lit) {
         src += "out highp vec2 v_worldPos;\n";
+        // The layer the sprite is on (plus 129), or 0 where the draw has none to give. Flat: it is a label, not a gradient.
+        src += "flat out highp float v_lightLayer;\n";
         // Which run of coefficients THIS instance reads. The fragment stage has
         // no instance index, and the draw's own base is the same for every
         // instance in a merged run — so the one stage that can say it, says it.
@@ -653,6 +665,7 @@ std::string canonicalVertexStage(bool lit, const std::string& hook = {}) {
         "#endif\n";
     if (lit) {
         src += "    v_worldPos = world.xy;\n";
+        src += "#if !defined(MESH) && !defined(SKINNED) && !defined(PARTICLE)\n    v_lightLayer = a_lightLayer;\n#else\n    v_lightLayer = 0.0;\n#endif\n";
         // The instance's own run of probe coefficients — declared by the Lit
         // vertex header, so filled under the same condition.
         src += "    v_probeSlot = float(ES_INSTANCE_ID);\n";
@@ -1260,7 +1273,7 @@ fn findSun() -> Sun {
         if (l.posDir.z > 0.5 && l.posDir.z < 1.5 && l.color.a > 0.0) {
             s.dir = vec4f(-normalize(vec3f(l.posDir.x, l.posDir.y, l.posDir.w)), 1.0);
             s.color = l.color;
-            s.tiles = vec2i(i32(l.shadowMap.x), i32(l.shadowMap.y));
+            s.tiles = vec2i(i32(l.shadowMap.x), i32(l.shadowMap.y % 8.0));
             return s;
         }
     }
@@ -2045,6 +2058,17 @@ fn applyLightingPBR(albedo : vec3f, N : vec3f, worldPos : vec3f, V : vec3f, meta
     return applyLightingSurface(albedo, N, worldPos, V, metallic, roughness, specular, ao, surfaceExtNone(N));
 }
 struct LightTerm { lit : vec3f, gloss : vec3f, extra : vec3f };
+// The layer of the sprite being lit, as its vertex wrote it (the layer plus 129; 0 when the surface has none to test), and whether a light's
+// range of layers, which rides in shadowMap.y above the tile count, takes it in. See packLightLayerRange.
+var<private> g_surfaceLayer : f32 = 0.0;
+fn lightReachesLayer(rangeLane : f32) -> bool {
+    if (rangeLane < 8.0 || g_surfaceLayer < 0.5) { return true; }
+    let range = floor(rangeLane / 8.0);
+    let lo = range % 256.0 - 128.0;
+    let hi = 127.0 - floor(range / 256.0);
+    let layer = g_surfaceLayer - 129.0;
+    return layer >= lo && layer <= hi;
+}
 fn shadeLight(pd : vec4f, col : vec4f, sp : vec4f, sh : vec4f, sm : vec4f, fo : vec4f, N : vec3f, V : vec3f,
               worldPos : vec3f, a : f32, F0 : vec3f, NdotV : f32, specular : f32, roughness : f32,
               ext : SurfaceExt, shadow3D : bool) -> LightTerm {
@@ -2052,7 +2076,7 @@ fn shadeLight(pd : vec4f, col : vec4f, sp : vec4f, sh : vec4f, sm : vec4f, fo : 
     var gloss = vec3f(0.0);
     var extra = vec3f(0.0);
     // A slot nothing lights from adds exactly nothing (see the GLSL twin).
-    if (col.a == 0.0) { return LightTerm(lit, gloss, extra); }
+    if (col.a == 0.0 || !lightReachesLayer(sm.y)) { return LightTerm(lit, gloss, extra); }
     {
         var L : vec3f;
         var atten : f32;
@@ -2084,9 +2108,9 @@ fn shadeLight(pd : vec4f, col : vec4f, sp : vec4f, sh : vec4f, sm : vec4f, fo : 
             atten *= mix(1.0, shadowFactor2D(sm.w, worldPos.xy), fo.z);
         }
         // See the GLSL twin: a light the tiles carry has no shadow map, and says so.
-        if (shadow3D && sm.y > 0.0 && atten > 0.0) {
+        if (shadow3D && sm.y % 8.0 > 0.0 && atten > 0.0) {
             atten *= mix(1.0,
-                         shadowFactor3D(worldPos, N, L, vec2f(sh.x, sm.z), i32(sm.x), i32(sm.y)),
+                         shadowFactor3D(worldPos, N, L, vec2f(sh.x, sm.z), i32(sm.x), i32(sm.y % 8.0)),
                          fo.z);
         }
         var ndotl = max(dot(N, L), 0.0);
@@ -2174,6 +2198,11 @@ fn applyLighting2DAO(albedo : vec3f, N : vec3f, worldPos : vec2f, ao : f32) -> v
     return applyLightingPBR(albedo, N, P, viewDirection(P), 0.0, 1.0, 0.0, ao);
 }
 fn applyLighting2D(albedo : vec3f, N : vec3f, worldPos : vec2f) -> vec3f {
+    return applyLighting2DAO(albedo, N, worldPos, 1.0);
+}
+// The same, for a sprite that knows its layer: layerLane is the varying the vertex stage wrote (v_lightLayer).
+fn applyLighting2DLayer(albedo : vec3f, N : vec3f, worldPos : vec2f, layerLane : f32) -> vec3f {
+    g_surfaceLayer = layerLane;
     return applyLighting2DAO(albedo, N, worldPos, 1.0);
 }
 )";
@@ -3261,6 +3290,17 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    return clamp(F * mix(vec3(1.0), tint * 2.0, film.x), vec3(0.0), vec3(1.0));\n"
             "}\n"
             // The body of the per-light loop, a function so that the lights the tiles carry are shaded by the same code as the sixteen.
+            // The layer of the sprite being lit, as its vertex wrote it (the layer plus 129; 0 when the surface has none to test), and
+            // whether a light's range of layers, which rides in shadowMap.y above the tile count, takes it in. See packLightLayerRange.
+            "highp float g_surfaceLayer = 0.0;\n"
+            "bool lightReachesLayer(in highp float rangeLane) {\n"
+            "    if (rangeLane < 8.0 || g_surfaceLayer < 0.5) return true;\n"
+            "    highp float range = floor(rangeLane / 8.0);\n"
+            "    highp float lo = mod(range, 256.0) - 128.0;\n"
+            "    highp float hi = 127.0 - floor(range / 256.0);\n"
+            "    highp float layer = g_surfaceLayer - 129.0;\n"
+            "    return layer >= lo && layer <= hi;\n"
+            "}\n"
             "void shadeLight(in highp vec4 pd, in highp vec4 col, in highp vec4 sp, in highp vec4 sh, in highp vec4 sm,\n"
             "                in highp vec4 fo, in highp vec3 N, in highp vec3 V, in highp vec3 worldPos,\n"
             "                in highp float a, in highp vec3 F0, in highp float NdotV, in highp float specular,\n"
@@ -3369,7 +3409,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "                inout highp vec3 extra, in bool shadow3D) {\n"
             // A slot nothing lights from (the block holds sixteen and a scene has one or two): every term below is its colour times
             // its intensity, so it adds exactly nothing, but the lobe is worked out for it all the same without this.
-            "        if (col.a == 0.0) return;\n"
+            "        if (col.a == 0.0 || !lightReachesLayer(sm.y)) return;\n"
             "        highp vec3 L;\n"
             "        highp float atten;\n"
             "        highp vec2 target = pd.xy;\n"           // shadow-ray aim point (light position by default)
@@ -3408,9 +3448,9 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // seen from somewhere no light reaching it is standing.
             // A light the tiles carry has no shadow map (the sixteen are where the lights that cast are), so its call says so and the compiler
             // drops the lookup from that copy of this function: a program holds the whole shadow filter once, not twice.
-            "        if (shadow3D && sm.y > 0.0 && atten > 0.0) {\n"
+            "        if (shadow3D && mod(sm.y, 8.0) > 0.0 && atten > 0.0) {\n"
             "            atten *= mix(1.0, shadowFactor3D(worldPos, N, L, vec2(sh.x, sm.z),\n"
-            "                                             int(sm.x), int(sm.y)), fo.z);\n"
+            "                                             int(sm.x), int(mod(sm.y, 8.0))), fo.z);\n"
             "        }\n"
             "        highp float ndotl = max(dot(N, L), 0.0);\n"
             // Hair (misc.y above zero; aniso.xyz is the strand): Kajiya-Kay diffuse, which lights a strand by how far light is from along it.
@@ -3495,6 +3535,11 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "}\n"
             "highp vec3 applyLighting2D(highp vec3 albedo, highp vec3 N, highp vec2 worldPos) {\n"
             "    return applyLighting2DAO(albedo, N, worldPos, 1.0);\n"
+            "}\n"
+            // The same, for a sprite that knows its layer: layerLane is the varying the vertex stage wrote (v_lightLayer).
+            "highp vec3 applyLighting2DLayer(highp vec3 albedo, highp vec3 N, highp vec2 worldPos, highp float layerLane) {\n"
+            "    g_surfaceLayer = layerLane;\n"
+            "    return applyLighting2DAO(albedo, N, worldPos, 1.0);\n"
             "}\n";
         // Emitted only for a variant that has the feature, not behind an #ifdef:
         // a varying declared in dead text still reads as one to a tool that
@@ -3553,7 +3598,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "        if (l.posDir.z > 0.5 && l.posDir.z < 1.5 && l.color.a > 0.0) {\n"
             "            dir = vec4(-normalize(vec3(l.posDir.x, l.posDir.y, l.posDir.w)), 1.0);\n"
             "            color = l.color;\n"
-            "            tiles = ivec2(int(l.shadowMap.x), int(l.shadowMap.y));\n"
+            "            tiles = ivec2(int(l.shadowMap.x), int(mod(l.shadowMap.y, 8.0)));\n"
             "            return;\n"
             "        }\n"
             "    }\n"

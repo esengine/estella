@@ -29,7 +29,9 @@ layout(location = 0) in vec3 a_position;
 layout(location = 1) in vec4 a_color;
 layout(location = 2) in vec2 a_texCoord;
 layout(location = 3) in float a_texIndex;
-#ifdef SDF
+
+
+#if defined(SDF) || defined(LIT)
 layout(location = 4) in float a_sdfBias;
 #endif
 
@@ -41,6 +43,7 @@ out float v_sdfBias;
 #endif
 #ifdef LIT
 out highp vec2 v_worldPos;
+flat out highp float v_lightLayer;
 #endif
 
 void main() {
@@ -53,6 +56,7 @@ void main() {
 #endif
 #ifdef LIT
     v_worldPos = a_position.xy;
+    v_lightLayer = a_sdfBias;
 #endif
 }
 #pragma end
@@ -70,6 +74,7 @@ in float v_sdfBias;
 #endif
 #ifdef LIT
 in highp vec2 v_worldPos;
+flat in highp float v_lightLayer;
 #endif
 
 
@@ -113,7 +118,7 @@ void main() {
 #elif defined(LIT)
 
     vec4 base = texColor * tint;
-    fragColor = vec4(applyLighting2D(base.rgb, vec3(0.0, 0.0, 1.0), v_worldPos), base.a);
+    fragColor = vec4(applyLighting2DLayer(base.rgb, vec3(0.0, 0.0, 1.0), v_worldPos, v_lightLayer), base.a);
 #else
   #ifdef ALPHA_CLIP
 
@@ -134,6 +139,8 @@ struct VSIn {
     @location(3) a_texIndex : f32,
 #ifdef SDF
     @location(4) a_sdfBias : f32,
+#elif defined(LIT)
+    @location(4) a_sdfBias : f32,
 #endif
 };
 struct VSOut {
@@ -143,6 +150,7 @@ struct VSOut {
     @location(2) v_texIndex : f32,
 #ifdef LIT
     @location(3) v_worldPos : vec2f,
+    @location(5) @interpolate(flat) v_lightLayer : f32,
 #endif
 #ifdef SDF
     @location(4) v_sdfBias : f32,
@@ -160,6 +168,7 @@ struct VSOut {
 #endif
 #ifdef LIT
     out.v_worldPos = v.a_position.xy;
+    out.v_lightLayer = v.a_sdfBias;
 #endif
     return out;
 }
@@ -190,6 +199,7 @@ struct VSOut {
     @location(2) v_texIndex : f32,
 #ifdef LIT
     @location(3) v_worldPos : vec2f,
+    @location(5) @interpolate(flat) v_lightLayer : f32,
 #endif
 #ifdef SDF
     @location(4) v_sdfBias : f32,
@@ -229,7 +239,7 @@ struct VSOut {
     return vec4f(tint.rgb, tint.a * coverage);
 #elif defined(LIT)
     let base = texColor * tint;
-    return vec4f(applyLighting2D(base.rgb, vec3f(0.0, 0.0, 1.0), v.v_worldPos), base.a);
+    return vec4f(applyLighting2DLayer(base.rgb, vec3f(0.0, 0.0, 1.0), v.v_worldPos, v.v_lightLayer), base.a);
 #else
   #ifdef ALPHA_CLIP
 

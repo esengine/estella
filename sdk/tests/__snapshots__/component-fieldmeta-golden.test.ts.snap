@@ -334,6 +334,34 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "min": 0,
       "tooltip": "Brightness multiplier of the light.",
     },
+    "layerMax": {
+      "max": 127,
+      "min": -128,
+      "shownWhen": {
+        "field": "type",
+        "values": [
+          0,
+          1,
+          3,
+        ],
+      },
+      "step": 1,
+      "tooltip": "The highest sprite layer this light reaches (default: every layer).",
+    },
+    "layerMin": {
+      "max": 127,
+      "min": -128,
+      "shownWhen": {
+        "field": "type",
+        "values": [
+          0,
+          1,
+          3,
+        ],
+      },
+      "step": 1,
+      "tooltip": "The lowest sprite layer this light reaches (default: every layer).",
+    },
     "meshShadows": {
       "shownWhen": {
         "field": "type",

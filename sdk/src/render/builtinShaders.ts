@@ -91,6 +91,7 @@ precision mediump float;
 in vec4 v_color;
 in vec2 v_texCoord;
 in highp vec2 v_worldPos;
+flat in highp float v_lightLayer;
 #ifdef MESH_NORMALS
 in highp vec3 v_worldNormal;
 in highp vec3 v_worldXYZ;
@@ -113,7 +114,7 @@ void main() {
 #else
     vec3 N = sampleNormal(u_normalMap, v_texCoord);
 #endif
-    fragColor = vec4(applyLighting2D(base.rgb, N, v_worldPos), base.a);
+    fragColor = vec4(applyLighting2DLayer(base.rgb, N, v_worldPos, v_lightLayer), base.a);
 }
 #pragma end
 
@@ -130,7 +131,7 @@ void main() {
 #else
     let N = sampleNormalGrad(u_normalMap, u_normalMap_s, v.v_texCoord, duvx, duvy);
 #endif
-    return vec4f(applyLighting2D(base.rgb, N, v.v_worldPos), base.a);
+    return vec4f(applyLighting2DLayer(base.rgb, N, v.v_worldPos, v.v_lightLayer), base.a);
 }
 #pragma end
 `;
@@ -154,6 +155,7 @@ precision mediump float;
 in vec4 v_color;
 in vec2 v_texCoord;
 in highp vec2 v_worldPos;
+flat in highp float v_lightLayer;
 
 uniform sampler2D u_textures[8];
 
@@ -169,7 +171,7 @@ void main() {
     vec4 base = texture(u_textures[0], uv) * v_color * u_tint;
     if (uv.x < 0.0 || uv.x > 1.0) base.a = 0.0;
     vec3 N = sampleNormal(u_normalMap, uv);
-    fragColor = vec4(applyLighting2D(base.rgb, N, v_worldPos), base.a);
+    fragColor = vec4(applyLighting2DLayer(base.rgb, N, v_worldPos, v_lightLayer), base.a);
 }
 #pragma end
 
@@ -186,7 +188,7 @@ void main() {
     var base = textureSampleGrad(t0, s0, uv, duvx, duvy) * v.v_color * mc.u_tint;
     if (uv.x < 0.0 || uv.x > 1.0) { base.a = 0.0; }
     let N = sampleNormalGrad(u_normalMap, u_normalMap_s, uv, duvx, duvy);
-    return vec4f(applyLighting2D(base.rgb, N, v.v_worldPos), base.a);
+    return vec4f(applyLighting2DLayer(base.rgb, N, v.v_worldPos, v.v_lightLayer), base.a);
 }
 #pragma end
 `;

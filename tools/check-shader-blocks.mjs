@@ -220,7 +220,7 @@ function helpers(pattern) {
     return out;
 }
 
-const glslFns = helpers(/^\s*(?:highp\s+)?(?:void|vec[234]|float|mat[234]|SurfaceExt)\s+(\w+)\s*\(([^)]*)\)\s*\{/gm);
+const glslFns = helpers(/^\s*(?:highp\s+)?(?:void|bool|vec[234]|float|mat[234]|SurfaceExt)\s+(\w+)\s*\(([^)]*)\)\s*\{/gm);
 const wgslFns = helpers(/\bfn\s+(\w+)\s*\(([^)]*)\)\s*->/g);
 
 const shape = (counts) => counts.length === 1 ? `${counts[0]} argument(s)`
