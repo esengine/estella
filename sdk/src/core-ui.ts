@@ -272,6 +272,9 @@ export {
     widgetToPrefab,
     BUILTIN_UI_PREFABS,
     BUILTIN_UI_WIDGET_NAMES,
+    UIPages,
+    type PageDef,
+    type PageHandle,
 } from './ui';
 
 export { VirtualJoystick, VirtualButton, VirtualJoystickMode, createVirtualJoystick, createVirtualButton, type VirtualJoystickData, type VirtualButtonData, type VirtualJoystickOptions, type VirtualButtonOptions } from './ui';

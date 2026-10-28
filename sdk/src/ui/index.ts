@@ -544,5 +544,6 @@ export { submitTextBatch, TEXT_VERTEX_FLOATS } from './text/submit';
 export { ScreenOverlay, type ScreenOverlayData } from './core/screen-overlay';
 export { canvasRootEntities } from './core/canvas-roots';
 
+export { UIPages, type PageDef, type PageHandle } from './pages/ui-pages';
 export { VirtualJoystick, VirtualButton, VirtualJoystickMode, joystickAxis, type VirtualJoystickData, type VirtualButtonData } from './behavior/virtual-controls';
 export { createVirtualJoystick, createVirtualButton, type VirtualJoystickOptions, type VirtualButtonOptions } from './widgets/virtual-controls';
