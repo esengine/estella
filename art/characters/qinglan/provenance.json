@@ -1,0 +1,27 @@
+{
+  "asset": "Qinglan / 青岚",
+  "design": "Original adult xianxia sword cultivator; see references/design-lock.json and qinglan-design.png",
+  "human_base": {
+    "tool": "MPFB 2.0.17",
+    "asset": "MakeHuman hm08 core base mesh and parametric targets",
+    "asset_license": "CC0-1.0",
+    "license_source": "https://static.makehumancommunity.org/about/license.html",
+    "note": "MPFB application code is GPL; the core mesh and target assets have a separate CC0 license. No MPFB application source is redistributed in this asset."
+  },
+  "workflow": {
+    "repository": "https://github.com/EL4CTEO/blender-skills",
+    "commit": "71d031dab8bc6729504d11a78cbe91945401045f",
+    "license": "MIT",
+    "scripts_used": ["env_report.py", "sculpt_ops.py", "bake_maps.py", "qa_check.py", "review_shots.py", "export_asset.py"],
+    "execution": "Blender 5.2.1 LTS background CLI; no editor or visible application launched"
+  },
+  "costume_hair_equipment": "Editable project meshes and curves fitted to the recorded character design",
+  "textures": "Blender-baked complexion, iris, normal and fabric roughness maps",
+  "face_style_sources": [
+    {"game": "Moonlight Blade / 天涯明月刀", "page": "https://shouyou.3dmgame.com/gl/173761.html", "use": "Visual style reference only; no game mesh, texture or face preset redistributed"},
+    {"game": "Sword of Justice / 逆水寒", "page": "https://www.4gamers.com.tw/news/detail/64387/ni-shui-han-3a", "use": "Visual style reference only; no game mesh, texture or face preset redistributed"}
+  ],
+  "face_target": "references/qinglan-face-target.png is the working original identity design; neutral head renders remain the geometric evidence, and exact reference identity approval is pending.",
+  "paid_external_generation_services": [],
+  "engine_acceptance": "Not performed; static art delivery only"
+}

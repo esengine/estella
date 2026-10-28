@@ -1,0 +1,29 @@
+{
+  "character": "Qinglan / 青岚",
+  "archetype": "Adult female xianxia sword cultivator",
+  "reference": "qinglan-design.png",
+  "revision": 2,
+  "priority": "Human and face first, per user direction. Face shape must be reviewed before costume detail or export metrics.",
+  "face_reference": "qinglan-face-target.png",
+  "face_direction": "Original adult face informed by Moonlight Blade and Sword of Justice: slender oval silhouette, almond eyes, low slender brows, delicate nose, restrained rose lips. Neutral front, profile and three-quarter views are required.",
+  "age_years": 26,
+  "body_height_m": 1.72,
+  "pose": "Relaxed A-pose, feet on the ground, facing Blender -Y",
+  "palette_srgb": {"ivory": "E6DFCD", "jade_silk": "356A6E", "dark_sash": "203F43", "champagne_gold": "CBB17C", "hair": "191717"},
+  "parts": {
+    "QL01": "Parametric body with continuous face and finger topology",
+    "QL02": "Eyes, irises, brows and eyelashes",
+    "QL03": "Ivory wrap bodice and crossed jade collar",
+    "QL04": "Paired bell sleeves with embroidered cuffs",
+    "QL05": "Ivory pleated ankle-length under-skirt",
+    "QL06": "Jade split over-skirt panels and gold edging",
+    "QL07": "Dark waist sash, lotus clasp and jade pendant",
+    "QL08": "Black half-up bun, long back locks, face framing strands",
+    "QL09": "Crescent lotus hair ornament and jade drop earrings",
+    "QL10": "Straight jian in jade scabbard at left rear hip",
+    "QL11": "Paired silk tassels and waist chains",
+    "QL12": "Ivory ankle boots"
+  },
+  "delivery_scope": "Editable high-poly art source and static GLB review asset; rig, motion and Estella device acceptance require separate evidence.",
+  "reference_status": "Working design selected from the user's xianxia direction; the reference board is not geometric ground truth."
+}

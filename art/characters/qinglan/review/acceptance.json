@@ -1,0 +1,32 @@
+{
+  "asset": "Qinglan / 青岚",
+  "priority": "Human and face first",
+  "human": {
+    "complete_source": "qinglan-human-study.blend",
+    "base_vertices": 13380,
+    "base_faces": 13378,
+    "height_m": 1.72,
+    "reviewed_views": ["head/front.png", "head/profile.png", "head/three-quarter.png", "head/clay-three-quarter.png", "head/body-front.png", "head/body-side.png"],
+    "revision": "Slender oval face, almond eye aperture, brow/eyelid contact, nose and lip proportions; arm-pose influence restricted to avoid thigh distortion.",
+    "reference_identity": "Original approximate fit; exact reference identity and final aesthetic approval remain pending."
+  },
+  "static_asset": {
+    "highpoly_triangles": 6540088,
+    "glb_triangles": 1339088,
+    "mesh_qa_profile": "render",
+    "mesh_qa_pass": true,
+    "mesh_qa_warnings": 11,
+    "roundtrip_pass": true,
+    "gltf_errors": 0,
+    "gltf_warnings": 0,
+    "warning_notes": "Near-coincident vertices in fine ornaments, hidden back-to-back surfaces in layered geometry, and the ground warning from separately checked hand islands are retained in mesh-qa.json."
+  },
+  "not_accepted": [
+    "production retopology and LOD budgets",
+    "shared skeleton, skinning and facial expressions",
+    "motion deformation and animation clipping",
+    "Estella editor / CI import acceptance",
+    "runtime device performance"
+  ],
+  "verification_environment": "Blender 5.2.1 LTS background CLI and Khronos glTF Validator; no visible application launched."
+}

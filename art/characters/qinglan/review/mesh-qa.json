@@ -1,0 +1,401 @@
+{
+  "ok": true,
+  "pass": true,
+  "errors": [],
+  "warnings": [
+    "QL02_Qinglan: duplicate verts=4 loose verts=0",
+    "QL08_Qinglan: duplicate verts=1 loose verts=0",
+    "QL09_Qinglan: duplicate verts=96 loose verts=0",
+    "hidden back-to-back faces: QL03_Qinglan (330 pairs) - delete to save tris",
+    "hidden back-to-back faces: QL04_Qinglan (36 pairs) - delete to save tris",
+    "hidden back-to-back faces: QL04_Qinglan<->QL06_Qinglan (22 pairs) - delete to save tris",
+    "hidden back-to-back faces: QL02_Qinglan<->QA_Skin_Island (18 pairs) - delete to save tris",
+    "hidden back-to-back faces: QL08_Qinglan (12 pairs) - delete to save tris",
+    "hidden back-to-back faces: QL06_Qinglan (6 pairs) - delete to save tris",
+    "asset lowest point z=0.7211 (not resting on ground plane z=0)",
+    "asset lowest point z=0.7211 (not resting on ground plane z=0)"
+  ],
+  "ground_z": 0.0,
+  "zfighting": [],
+  "floating": [],
+  "back_to_back": [
+    {
+      "where": "QL03_Qinglan",
+      "tri_pairs": 330
+    },
+    {
+      "where": "QL04_Qinglan",
+      "tri_pairs": 36
+    },
+    {
+      "where": "QL04_Qinglan<->QL06_Qinglan",
+      "tri_pairs": 22
+    },
+    {
+      "where": "QL02_Qinglan<->QA_Skin_Island",
+      "tri_pairs": 18
+    },
+    {
+      "where": "QL08_Qinglan",
+      "tri_pairs": 12
+    },
+    {
+      "where": "QL06_Qinglan",
+      "tri_pairs": 6
+    }
+  ],
+  "enclosed": [],
+  "objects": {
+    "QL02_Qinglan": {
+      "verts": 15264,
+      "faces": 15794,
+      "tris": 29072,
+      "ngons": 0,
+      "boundary_edges": 384,
+      "nonmanifold_edges": 0,
+      "wire_edges": 0,
+      "loose_verts": 0,
+      "degenerate_faces": 0,
+      "zero_length_edges": 0,
+      "inconsistent_normals_edges": 0,
+      "duplicate_verts": 4,
+      "islands": 270,
+      "inside_out_islands": 0,
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "materials": 6
+    },
+    "QL03_Qinglan": {
+      "verts": 68598,
+      "faces": 68600,
+      "tris": 137184,
+      "ngons": 0,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "wire_edges": 0,
+      "loose_verts": 0,
+      "degenerate_faces": 0,
+      "zero_length_edges": 0,
+      "inconsistent_normals_edges": 0,
+      "duplicate_verts": 0,
+      "islands": 7,
+      "inside_out_islands": 0,
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "materials": 3
+    },
+    "QL04_Qinglan": {
+      "verts": 94752,
+      "faces": 94752,
+      "tris": 189504,
+      "ngons": 0,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "wire_edges": 0,
+      "loose_verts": 0,
+      "degenerate_faces": 0,
+      "zero_length_edges": 0,
+      "inconsistent_normals_edges": 0,
+      "duplicate_verts": 0,
+      "islands": 8,
+      "inside_out_islands": 0,
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "materials": 3
+    },
+    "QL05_Qinglan": {
+      "verts": 100352,
+      "faces": 100352,
+      "tris": 200704,
+      "ngons": 0,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "wire_edges": 0,
+      "loose_verts": 0,
+      "degenerate_faces": 0,
+      "zero_length_edges": 0,
+      "inconsistent_normals_edges": 0,
+      "duplicate_verts": 0,
+      "islands": 3,
+      "inside_out_islands": 0,
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "materials": 2
+    },
+    "QL06_Qinglan": {
+      "verts": 95216,
+      "faces": 119026,
+      "tris": 192328,
+      "ngons": 0,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "wire_edges": 0,
+      "loose_verts": 0,
+      "degenerate_faces": 0,
+      "zero_length_edges": 0,
+      "inconsistent_normals_edges": 0,
+      "duplicate_verts": 0,
+      "islands": 48,
+      "inside_out_islands": 0,
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "materials": 3
+    },
+    "QL07_Qinglan": {
+      "verts": 19100,
+      "faces": 19304,
+      "tris": 38120,
+      "ngons": 0,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "wire_edges": 0,
+      "loose_verts": 0,
+      "degenerate_faces": 0,
+      "zero_length_edges": 0,
+      "inconsistent_normals_edges": 0,
+      "duplicate_verts": 0,
+      "islands": 42,
+      "inside_out_islands": 0,
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "materials": 3
+    },
+    "QL08_Qinglan": {
+      "verts": 125746,
+      "faces": 126618,
+      "tris": 250260,
+      "ngons": 0,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "wire_edges": 0,
+      "loose_verts": 0,
+      "degenerate_faces": 0,
+      "zero_length_edges": 0,
+      "inconsistent_normals_edges": 0,
+      "duplicate_verts": 1,
+      "islands": 308,
+      "inside_out_islands": 0,
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "materials": 2
+    },
+    "QL09_Qinglan": {
+      "verts": 12108,
+      "faces": 12388,
+      "tris": 24112,
+      "ngons": 0,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "wire_edges": 0,
+      "loose_verts": 0,
+      "degenerate_faces": 0,
+      "zero_length_edges": 0,
+      "inconsistent_normals_edges": 0,
+      "duplicate_verts": 96,
+      "islands": 41,
+      "inside_out_islands": 0,
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "materials": 2
+    },
+    "QL10_Qinglan": {
+      "verts": 4450,
+      "faces": 4612,
+      "tris": 8716,
+      "ngons": 0,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "wire_edges": 0,
+      "loose_verts": 0,
+      "degenerate_faces": 0,
+      "zero_length_edges": 0,
+      "inconsistent_normals_edges": 0,
+      "duplicate_verts": 0,
+      "islands": 58,
+      "inside_out_islands": 0,
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "materials": 3
+    },
+    "QL11_Qinglan": {
+      "verts": 3884,
+      "faces": 4140,
+      "tris": 7464,
+      "ngons": 0,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "wire_edges": 0,
+      "loose_verts": 0,
+      "degenerate_faces": 0,
+      "zero_length_edges": 0,
+      "inconsistent_normals_edges": 0,
+      "duplicate_verts": 0,
+      "islands": 77,
+      "inside_out_islands": 0,
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "materials": 3
+    },
+    "QL12_Qinglan": {
+      "verts": 3656,
+      "faces": 3840,
+      "tris": 7296,
+      "ngons": 0,
+      "boundary_edges": 0,
+      "nonmanifold_edges": 0,
+      "wire_edges": 0,
+      "loose_verts": 0,
+      "degenerate_faces": 0,
+      "zero_length_edges": 0,
+      "inconsistent_normals_edges": 0,
+      "duplicate_verts": 0,
+      "islands": 4,
+      "inside_out_islands": 0,
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "materials": 2
+    },
+    "QA_Skin_Island": {
+      "verts": 71365,
+      "faces": 71212,
+      "tris": 142424,
+      "ngons": 0,
+      "boundary_edges": 304,
+      "nonmanifold_edges": 0,
+      "wire_edges": 0,
+      "loose_verts": 0,
+      "degenerate_faces": 0,
+      "zero_length_edges": 0,
+      "inconsistent_normals_edges": 0,
+      "duplicate_verts": 0,
+      "islands": 1,
+      "inside_out_islands": 0,
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "materials": 3
+    }
+  },
+  "intentional_separate_skin_islands": [
+    {
+      "ok": true,
+      "pass": true,
+      "errors": [],
+      "warnings": [
+        "asset lowest point z=0.7211 (not resting on ground plane z=0)"
+      ],
+      "ground_z": 0.7211,
+      "zfighting": [],
+      "floating": [],
+      "back_to_back": [],
+      "enclosed": [],
+      "objects": {
+        "QA_Skin_Island.001": {
+          "verts": 28021,
+          "faces": 27976,
+          "tris": 55952,
+          "ngons": 0,
+          "boundary_edges": 88,
+          "nonmanifold_edges": 0,
+          "wire_edges": 0,
+          "loose_verts": 0,
+          "degenerate_faces": 0,
+          "zero_length_edges": 0,
+          "inconsistent_normals_edges": 0,
+          "duplicate_verts": 0,
+          "islands": 1,
+          "inside_out_islands": 0,
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "materials": 3,
+          "uv_maps": 1,
+          "uv_oob_pct": 0.0,
+          "uv_zero_area_faces": 0,
+          "uv_overlap_pct": 0.0,
+          "uv_coverage_pct": 1.9
+        }
+      }
+    },
+    {
+      "ok": true,
+      "pass": true,
+      "errors": [],
+      "warnings": [
+        "asset lowest point z=0.7211 (not resting on ground plane z=0)"
+      ],
+      "ground_z": 0.7211,
+      "zfighting": [],
+      "floating": [],
+      "back_to_back": [],
+      "enclosed": [],
+      "objects": {
+        "QA_Skin_Island.002": {
+          "verts": 28021,
+          "faces": 27976,
+          "tris": 55952,
+          "ngons": 0,
+          "boundary_edges": 88,
+          "nonmanifold_edges": 0,
+          "wire_edges": 0,
+          "loose_verts": 0,
+          "degenerate_faces": 0,
+          "zero_length_edges": 0,
+          "inconsistent_normals_edges": 0,
+          "duplicate_verts": 0,
+          "islands": 1,
+          "inside_out_islands": 0,
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "materials": 3,
+          "uv_maps": 1,
+          "uv_oob_pct": 0.0,
+          "uv_zero_area_faces": 0,
+          "uv_overlap_pct": 0.0,
+          "uv_coverage_pct": 1.8
+        }
+      }
+    }
+  ],
+  "uv_policy": "Skin UVs checked by the skill. Garments share woven tile maps on their inner/outer surfaces; solid-colored trim does not require unique UVs."
+}

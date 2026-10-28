@@ -1,0 +1,18 @@
+{
+  "pass": true,
+  "file": "qinglan-static.glb",
+  "file_bytes": 53053680,
+  "meshes": 12,
+  "triangles": 1339088,
+  "materials": 15,
+  "images": 6,
+  "dimensions_m": [
+    0.9660106897354126,
+    0.5679359436035156,
+    1.810988187789917
+  ],
+  "ground_z": 0.0,
+  "skins": 0,
+  "animations": 0,
+  "scope": "Blender GLB import round-trip; not Estella or device acceptance"
+}

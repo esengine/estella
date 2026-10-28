@@ -1,0 +1,42 @@
+{
+  "ok": true,
+  "preset": "gltf",
+  "format": "gltf",
+  "files": [
+    {
+      "file": "D:\\estella\\art\\characters\\qinglan\\export\\qinglan-static.glb",
+      "ok": true,
+      "kb": 51810.2,
+      "objects": [
+        "QL01_Qinglan",
+        "QL02_Qinglan",
+        "QL03_Qinglan",
+        "QL04_Qinglan",
+        "QL05_Qinglan",
+        "QL06_Qinglan",
+        "QL07_Qinglan",
+        "QL08_Qinglan",
+        "QL09_Qinglan",
+        "QL10_Qinglan",
+        "QL11_Qinglan",
+        "QL12_Qinglan"
+      ],
+      "summary": {
+        "nodes": 12,
+        "meshes": 12,
+        "materials": 15,
+        "images": 6,
+        "animations": 0,
+        "skins": 0,
+        "tris": 1339088,
+        "extensions": [
+          "KHR_materials_specular",
+          "KHR_materials_anisotropy",
+          "KHR_materials_sheen"
+        ],
+        "animation_names": []
+      }
+    }
+  ],
+  "warnings": []
+}
