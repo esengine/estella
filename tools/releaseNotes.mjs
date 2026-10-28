@@ -3094,6 +3094,8 @@ export const NOTED = {
     {"note":"A quality level can smooth edges temporally."},
   "fix(ci): the changelog names the performance work and the notes name the commits that landed it":
     {"internal":"Repairs the release-notes ledger; no creator can observe it."},
+  "fix(ci): world-streaming-3d is given the settle window its frame rate needs":
+    {"internal":"A golden package's launch window; no creator can observe it."},
   "fix(ci): the ledger names its own repair":
     {"internal":"Repairs the release-notes ledger; no creator can observe it."},
   "feat(render): the medium quality level smooths edges temporally by default":
