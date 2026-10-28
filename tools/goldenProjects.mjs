@@ -877,6 +877,64 @@ export const SHIPPED = {
     { notCertifiable: "Water is covered by sdk/tests/water.test.ts, water-zone.test.ts and water-bodies.test.ts and the water-look editor authoring check; no golden project carries a WaterBody yet (check-corpus-authoring records it as owed), so no packaged frame can certify it." },
   "Plants keep out of the water.":
     { notCertifiable: "Foliage and generated worlds are covered by sdk/tests/foliage-placements.test.ts, foliage-builder.test.ts, worldgen-plan.test.ts and worldgen-plants.test.ts; no golden project places a generated world or placed plants yet, so no packaged frame can certify them." },
+  "A quality level can smooth edges temporally.":
+    { notCertifiable: "A rendering feature, covered by sdk/tests/quality.test.ts; no golden project selects temporal smoothing, and one packaged frame cannot decide a softness that depends on the device." },
+  "An Offset side the layout drops is dimmed, with the reason i":
+    { notCertifiable: "Editor or tooling behaviour rather than a rendered game capability; its own suites check it." },
+  "Every render-graph pass has its own GPU time in the profiler":
+    { notCertifiable: "Editor or tooling behaviour rather than a rendered game capability; its own suites check it." },
+  "Optional tools a project switches on, fetched and checked by":
+    { notCertifiable: "Editor or tooling behaviour rather than a rendered game capability; its own suites check it." },
+  "Protobuf as a second optional tool: .proto files become Type":
+    { notCertifiable: "Editor or tooling behaviour rather than a rendered game capability; its own suites check it." },
+  "A session can speak protobuf, with the JSON wire kept for de":
+    { notCertifiable: "Session and network code, covered by its unit tests and the loopback session suites; a packaged game's launch frame does not open a connection, so no golden act decides it." },
+  "A text field can accept only digits.":
+    { notCertifiable: "A UI input behaviour, covered by its unit test; no golden project has a filtered text field, and a packaged launch frame does not type into one." },
+  "A web build can say which servers its game connects to.":
+    { notCertifiable: "A web export setting, covered by the export pipeline's tests; the golden web packages declare no servers, and the policy only matters to a game that connects." },
+  "A session can be told to redial now, and says why its link e":
+    { notCertifiable: "Session and network code, covered by its unit tests and the loopback session suites; a packaged game's launch frame does not open a connection, so no golden act decides it." },
+  "A session layer for online games that do not share a tick.":
+    { notCertifiable: "Session and network code, covered by its unit tests and the loopback session suites; a packaged game's launch frame does not open a connection, so no golden act decides it." },
+  "A random generator that gives the same numbers on every host":
+    { notCertifiable: "A deterministic library function, covered by its unit tests (same sequence for the same seed); no golden project draws random numbers whose values a frame could decide." },
+  "Sharpen on WebGL2.":
+    { notCertifiable: "A rendering feature, covered by its unit tests and the render-scene pixel gates where it draws; no golden project places it, and one packaged frame cannot decide a result that depends on the device." },
+  "Blob shadows.":
+    { notCertifiable: "A rendering feature, covered by its unit tests and the render-scene pixel gates where it draws; no golden project places it, and one packaged frame cannot decide a result that depends on the device." },
+  "Edge Outline, a coloured line at silhouettes and creases.":
+    { notCertifiable: "A rendering feature, covered by its unit tests and the render-scene pixel gates where it draws; no golden project places it, and one packaged frame cannot decide a result that depends on the device." },
+  "Filled polygons and joined strokes.":
+    { notCertifiable: "A rendering feature, covered by its unit tests and the render-scene pixel gates where it draws; no golden project places it, and one packaged frame cannot decide a result that depends on the device." },
+  "Toon and Matcap materials.":
+    { notCertifiable: "A rendering feature, covered by its unit tests and the render-scene pixel gates where it draws; no golden project places it, and one packaged frame cannot decide a result that depends on the device." },
+  "Drawing only the frames that can look different.":
+    { notCertifiable: "A frame-scheduling option that is off unless a game turns it on, covered by its unit test; no golden project turns it on, and a launch frame cannot tell a skipped draw from a repeated one." },
+  "Shaders that compile without stopping the frame.":
+    { notCertifiable: "A shader-compilation option that is off unless a game turns it on, covered by its unit tests; no golden project turns it on, and one frame cannot decide whether the frame stopped." },
+  "A depth prepass for the opaque scene.":
+    { notCertifiable: "A rendering feature, covered by its unit tests and the render-scene pixel gates where it draws; no golden project places it, and one packaged frame cannot decide a result that depends on the device." },
+  "A third mesh for a plant.":
+    { notCertifiable: "A rendering feature, covered by its unit tests and the render-scene pixel gates where it draws; no golden project places it, and one packaged frame cannot decide a result that depends on the device." },
+  "A generated world on worker threads.":
+    { notCertifiable: "World generation on worker threads, covered by its unit tests (byte-for-byte equal to the main thread's); no golden project generates a world on workers." },
+  "A flat world's generation on worker threads too.":
+    { notCertifiable: "World generation on worker threads, covered by its unit tests (byte-for-byte equal to the main thread's); no golden project generates a world on workers." },
+  "A planet's sea and sky.":
+    { notCertifiable: "A planet-world feature, covered by its unit tests and the render-scene gates; no golden project carries a planet, and one packaged frame cannot decide a result that depends on the device." },
+  "A generated world on a planet.":
+    { notCertifiable: "A planet-world feature, covered by its unit tests and the render-scene gates; no golden project carries a planet, and one packaged frame cannot decide a result that depends on the device." },
+  "A planet pulls and answers.":
+    { notCertifiable: "A planet-world feature, covered by its unit tests and the render-scene gates; no golden project carries a planet, and one packaged frame cannot decide a result that depends on the device." },
+  "A render origin for large worlds.":
+    { notCertifiable: "A rendering feature, covered by its unit tests and the render-scene pixel gates where it draws; no golden project places it, and one packaged frame cannot decide a result that depends on the device." },
+  "A planet's ground has the layers' textures.":
+    { notCertifiable: "A planet-world feature, covered by its unit tests and the render-scene gates; no golden project carries a planet, and one packaged frame cannot decide a result that depends on the device." },
+  "A planet's ground collides.":
+    { notCertifiable: "A planet-world feature, covered by its unit tests and the render-scene gates; no golden project carries a planet, and one packaged frame cannot decide a result that depends on the device." },
+  "Height Fog by height above a planet.":
+    { notCertifiable: "A planet-world feature, covered by its unit tests and the render-scene gates; no golden project carries a planet, and one packaged frame cannot decide a result that depends on the device." },
 };
 
 /** Numeric compare of two `x.y.z` strings. */

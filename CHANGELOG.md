@@ -14,6 +14,8 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.96.0] - 2026-10-27
+
 ### Added
 
 - **A quality level can smooth edges temporally.** `QualityProfile.antialiasing` is `'msaa'` (what every level does today) or `'temporal'`: that level draws at one sample, adds the `taa` pass to the camera's post-process volume whether or not the scene lists it, leaves `fxaa` out, and runs `taa` even where the level skips it. On the terrain-water example at 1080p it is 12.9 ms against 15.4 ms for 4 samples and FXAA, and 12.6 ms against 13.5 ms for the medium level's 2 samples; the pass itself is 0.18 ms. The picture is softer, a cut-out leaf has no coverage dither, and water, which has no motion vector, smears a little when the camera moves fast. The medium level uses it; set `antialiasing: 'msaa'` in its profile to keep the 2 samples.
@@ -14934,7 +14936,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.95.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.96.0...HEAD
+[0.96.0]: https://github.com/esengine/estella/compare/v0.95.0...v0.96.0
 [0.95.0]: https://github.com/esengine/estella/compare/v0.94.0...v0.95.0
 [0.94.0]: https://github.com/esengine/estella/compare/v0.93.0...v0.94.0
 [0.93.0]: https://github.com/esengine/estella/compare/v0.92.0...v0.93.0
