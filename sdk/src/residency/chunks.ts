@@ -29,14 +29,20 @@ import { WorldStreamingSource, type WorldStreamingSourceData } from './component
 import { bakesOf } from '../runtime/bakes';
 import { log } from '../util/logger';
 
-/** A place a layer is wanted round, on the ground plane, in world units. */
+/** A place a layer is wanted round, on the layer's plane (the ground by default), in world units. */
 export interface ChunkSource { x: number; z: number; /** Its height, where a layer is not on a plane (a planet's collision reads the whole position). */ y?: number }
 
 /** One kind of chunk: how it is cut, where it is wanted and how it is made. */
 export interface ChunkLayer<T> {
     /** What the layer is, for the progress shown while its chunks are made. */
     readonly label: string;
-    /** The world position of chunk (0, 0)'s corner, and the side of a chunk along x and z. */
+    /**
+     * The world plane the chunk grid lies on. `'xz'` (the default) is the ground of a 3D world and chunks are cut along world x and z. `'xy'` is a 2D
+     * world, whose ground is the screen plane: chunks are cut along world x and y, and every place below called z is world y. It decides how the world's own
+     * streaming sources (and the camera) are read; a layer's own `sources()` already answer in the layer's plane.
+     */
+    plane?: 'xz' | 'xy';
+    /** The world position of chunk (0, 0)'s corner, and the side of a chunk along the plane's two axes (x, then z, or y on 'xy'). */
     originX: number;
     originZ: number;
     sizeX: number;
@@ -131,7 +137,7 @@ export class ProceduralChunks {
         return this.layers_.has(id);
     }
 
-    /** Where the chunk of layer `id` at world (x, z) stands, or null when it is not wanted, not made, or there is no such layer. */
+    /** Where the chunk of layer `id` at world (x, z) (x, y on an 'xy' layer) stands, or null when it is not wanted, not made, or there is no such layer. */
     stateAt(id: string, x: number, z: number): ChunkState | null {
         const layer = this.layers_.get(id);
         if (!layer) return null;
@@ -193,7 +199,7 @@ export class ProceduralChunks {
         const wanted: { layer: Layer<unknown>; cx: number; cz: number; dist: number }[] = [];
         for (const layer of this.layers_.values()) {
             const d = layer.def;
-            const sources = d.sources ? [...d.sources()] : world;
+            const sources = d.sources ? [...d.sources()] : d.plane === 'xy' ? world.map((s) => ({ x: s.x, z: s.y ?? 0 })) : world;
             const near = new Map<string, number>();
             const keep = new Set<string>();
             for (const s of sources) {

@@ -144,6 +144,14 @@ void TilemapSystem::setChunkTiles(Entity entity, i32 chunkX, i32 chunkY,
     }
 }
 
+void TilemapSystem::removeChunk(Entity entity, i32 chunkX, i32 chunkY) {
+    auto* layer = getLayerDataMut(entity);
+    if (!layer) return;
+    if (layer->chunks.erase(ChunkCoord{chunkX, chunkY}) == 0) return;
+    ++layer->edit_revision;
+    ++layer->chunks_erased;
+}
+
 void TilemapSystem::destroyLayer(Entity entity) {
     layers_.erase(entity);
 }

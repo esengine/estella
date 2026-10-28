@@ -2488,6 +2488,7 @@ loadRadius: number
 make: (cx: number, cz: number, signal: AbortSignal) => T | null | Promise<T | null>
 originX: number
 originZ: number
+plane: "xz" | "xy" | undefined
 publish: (cx: number, cz: number, value: T) => void
 release: (cx: number, cz: number, value: T) => void
 sizeX: number

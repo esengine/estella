@@ -651,3 +651,27 @@ TEST_CASE("tilemap_signed_coordinate_edges_preserve_chunk_ownership") {
     sys.fillRect(E(0), low, 0, std::numeric_limits<u32>::max(), 0, 8);
     CHECK(layer->edit_revision == revision);
 }
+
+TEST_CASE("tilemap_remove_chunk_takes_one_chunk_out_and_tells_the_renderer") {
+    TilemapSystem sys;
+    sys.initInfiniteLayer(E(0), 16.0f, 16.0f);
+    std::vector<u16> tiles(CHUNK_SIZE * CHUNK_SIZE, 7);
+    sys.setChunkTiles(E(0), 3, -2, tiles.data(), CHUNK_SIZE, CHUNK_SIZE);
+    sys.setChunkTiles(E(0), 4, -2, tiles.data(), CHUNK_SIZE, CHUNK_SIZE);
+    const auto* layer = sys.getLayerData(E(0));
+    CHECK(layer->chunks.size() == 2);
+    CHECK(layer->chunks_erased == 0);
+
+    sys.removeChunk(E(0), 3, -2);
+    CHECK(layer->chunks.size() == 1);
+    CHECK(layer->chunks_erased == 1);
+    CHECK(sys.getTile(E(0), 3 * static_cast<i32>(CHUNK_SIZE), -2 * static_cast<i32>(CHUNK_SIZE)) == EMPTY_TILE);
+    CHECK(sys.getTile(E(0), 4 * static_cast<i32>(CHUNK_SIZE), -2 * static_cast<i32>(CHUNK_SIZE)) == 7);
+
+    // A chunk that is not there is not an edit: the renderer is not asked to look again.
+    const auto revision = layer->edit_revision;
+    sys.removeChunk(E(0), 3, -2);
+    sys.removeChunk(E(0), 90, 90);
+    CHECK(layer->chunks_erased == 1);
+    CHECK(layer->edit_revision == revision);
+}

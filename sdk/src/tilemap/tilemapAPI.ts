@@ -50,6 +50,7 @@ interface TilemapModule {
     tilemap_importChunks?(entity: number, encoded: string): boolean;
     tilemap_setChunkTiles(entity: number, chunkX: number, chunkY: number,
                            tilesPtr: number, width: number, height: number): void;
+    tilemap_removeChunk?(entity: number, chunkX: number, chunkY: number): void;
     tilemap_tileToWorld(entity: number, tx: number, ty: number,
                          originX: number, originY: number): number;
     tilemap_worldToTile(entity: number, wx: number, wy: number,
@@ -280,6 +281,14 @@ function tilemapAPI(moduleOf: () => TilemapModule | null) {
             new Uint16Array(m.HEAPU8.buffer, ptr, tiles.length).set(tiles);
             m.tilemap_setChunkTiles(entity, chunkX, chunkY, ptr, width, height);
         });
+    },
+
+    /**
+     * Takes one chunk (16 by 16 tiles, in chunk coordinates) out of a layer, tiles and drawn mesh both. A world that is streamed in as it is walked
+     * calls this for the chunks it has left behind, so the layer holds the ones near and not every one it ever held.
+     */
+    removeChunk(entity: number, chunkX: number, chunkY: number): void {
+        moduleOf()?.tilemap_removeChunk?.(entity, chunkX, chunkY);
     },
 
     setGridType(entity: number, type: number): void {

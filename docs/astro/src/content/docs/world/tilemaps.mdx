@@ -224,8 +224,14 @@ For large or streaming worlds, use an infinite layer and write chunk by chunk;
 
 ```typescript
 tilemap.initInfiniteLayer(layer, 16, 16);
-tilemap.setChunkTiles(layer, chunkX, chunkY, tiles, 32, 32);
+tilemap.setChunkTiles(layer, chunkX, chunkY, tiles, 16, 16);
+tilemap.removeChunk(layer, chunkX, chunkY);    // a chunk the player has walked away from
 ```
+
+A chunk is 16 by 16 tiles. A layer's tile rows run **down** from its origin, as in Tiled, so tile row `ty` lies at world y `-ty * tileHeight`: a chunk whose world
+square spans `[y, y + 288)` for 18-pixel tiles is chunk row `-(floor(y / 288)) - 1`. `removeChunk` takes the tiles out and the drawn mesh with them, so a layer that
+follows a walker holds the chunks near it and not every one it has held. Streaming a 2D world through `ProceduralChunks` (see [Streaming](/world/streaming/)) with
+`plane: 'xy'` can use either one layer and `removeChunk`, or a small layer entity per chunk that it despawns on release.
 
 ## Terrain autotiling
 
@@ -400,6 +406,7 @@ origin / pixels-per-unit / play-mode lifecycle as tile collision.
 | `setTilesets(layer, slots)` | Assign a multi-tileset slot table. |
 | `setTileAnimation(layer, tileId, frames)` | Animate a tile id. |
 | `setChunkTiles(layer, cx, cy, tiles, w, h)` | Write a chunk (infinite layers). |
+| `removeChunk(layer, cx, cy)` | Take a chunk out of the layer, its mesh with it. |
 | `exportChunks(layer)` / `importChunks(layer, data)` | Serialize / restore chunk data. |
 | `setTint(layer, color)` / `setVisible(layer, on)` / `setRenderProps(...)` | Live visual overrides. |
 | `setTileProperty(...)` / `getTileProperty(...)` | Per-tile custom key/value properties. |

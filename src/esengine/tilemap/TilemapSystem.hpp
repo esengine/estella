@@ -79,6 +79,9 @@ public:
     void initInfiniteLayer(Entity entity, f32 tileWidth, f32 tileHeight);
     void setChunkTiles(Entity entity, i32 chunkX, i32 chunkY,
                        const u16* tiles, u32 width, u32 height);
+    /// Takes one chunk out of the layer: its tiles are gone and the renderer lets go of what it built for them. A layer that streams a world
+    /// in as it is walked needs this, or every chunk it has ever held stays.
+    void removeChunk(Entity entity, i32 chunkX, i32 chunkY);
     void destroyLayer(Entity entity);
     bool hasLayer(Entity entity) const;
 
@@ -151,6 +154,8 @@ public:
         // ChunkData::revision so the renderer detects changes without the content
         // system exposing a mutable dirty flag.
         u32 edit_revision = 0;
+        // Bumped when a chunk is taken out, so the renderer knows to drop what it cached for chunks that are gone.
+        u32 chunks_erased = 0;
 
         std::unordered_map<u16, TileAnimation> tile_animations;
         f64 elapsed_ms = 0;  // f64: an f32 accumulator stalls (dt < ULP) after ~day-scale uptime

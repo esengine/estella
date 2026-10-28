@@ -658,6 +658,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("tilemap_importChunks", &esengine::tilemap_importChunks);
     emscripten::function("tilemap_initInfiniteLayer", &esengine::tilemap_initInfiniteLayer);
     emscripten::function("tilemap_setChunkTiles", &esengine::tilemap_setChunkTiles);
+    emscripten::function("tilemap_removeChunk", &esengine::tilemap_removeChunk);
     emscripten::function("tilemap_setTileAnimation", &esengine::tilemap_setTileAnimation);
     emscripten::function("tilemap_clearTileAnimations", &esengine::tilemap_clearTileAnimations);
     emscripten::function("tilemap_advanceAnimations", &esengine::tilemap_advanceAnimations);

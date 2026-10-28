@@ -143,6 +143,8 @@ private:
         Placement lastPlacement;
         bool lastPlacementKnown = false;
         u64 movingUntil = 0;
+        /// The layer's count of chunks taken out when its caches were last cleared of the ones that are gone.
+        u32 chunksErasedSeen = 0;
     };
     using LayerChunkMap = std::unordered_map<Entity, LayerCache>;
 

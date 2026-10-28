@@ -156,6 +156,35 @@ describe('procedural chunks', () => {
     });
 });
 
+describe('a layer on the xy plane', () => {
+    it('reads the world\'s sources by x and y, where the ground plane reads x and z', () => {
+        const at = [{ x: 5, y: 505, z: 10 }];
+        const run = (plane: 'xz' | 'xy' | undefined) => {
+            const chunks = new ProceduralChunks();
+            chunks.sources_ = () => at;
+            const { layer, live } = recording({ loadRadius: 12, unloadRadius: 12, plane });
+            chunks.set('l', layer);
+            chunks.step(always);
+            return [...live.keys()].sort();
+        };
+        // On the ground the source stands at z 10, so the rows it wants are the first few.
+        expect(run(undefined).every((k) => Number(k.split(',')[1]) <= 2)).toBe(true);
+        // On the screen plane it stands at y 505: row 50.
+        const keys = run('xy');
+        expect(keys.length).toBeGreaterThan(0);
+        expect(keys.every((k) => Number(k.split(',')[1]) >= 49 && Number(k.split(',')[1]) <= 51)).toBe(true);
+    });
+
+    it('leaves a layer that names its own sources as they answer', () => {
+        const chunks = new ProceduralChunks();
+        chunks.sources_ = () => [{ x: 5, y: 505, z: 10 }];
+        const { layer, live } = recording({ loadRadius: 12, unloadRadius: 12, plane: 'xy', sources: () => [{ x: 5, z: 15 }] });
+        chunks.set('l', layer);
+        chunks.step(always);
+        expect([...live.keys()].every((k) => Number(k.split(',')[1]) <= 2)).toBe(true);
+    });
+});
+
 describe('the frame\'s one budget', () => {
     it('is shared: work stepped elsewhere that ran short gets half of the next frame from the jobs', () => {
         const bakes = new Bakes();

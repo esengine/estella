@@ -369,6 +369,13 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
             layerCache.resolved = resolved;
         }
         auto& chunkCaches = layerCache.chunks;
+        // A chunk taken out of the layer leaves its mesh here; let those go, or a layer walked over for ever grows by every chunk it held.
+        if (layerCache.chunksErasedSeen != layer.chunks_erased) {
+            for (auto it = chunkCaches.begin(); it != chunkCaches.end();) {
+                it = layer.chunks.find(it->first) == layer.chunks.end() ? chunkCaches.erase(it) : std::next(it);
+            }
+            layerCache.chunksErasedSeen = layer.chunks_erased;
+        }
 
         // A layer that has not moved draws from strips the GPU holds. A parallax layer places its tiles by where the camera is, which changes
         // every frame it moves, so it keeps the path that builds the vertices each frame; so does a layer being faded, tinted or carried, until

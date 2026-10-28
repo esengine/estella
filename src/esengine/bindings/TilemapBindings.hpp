@@ -53,6 +53,8 @@ void tilemap_fillRect(u32 entity, i32 x, i32 y, u32 w, u32 h, u32 tileId);
 void tilemap_setTiles(u32 entity, uintptr_t tilesPtr, u32 count);
 void tilemap_setChunkTiles(u32 entity, i32 chunkX, i32 chunkY,
                            uintptr_t tilesPtr, u32 width, u32 height);
+/// Takes one chunk (16 by 16 tiles, at chunk coordinates) out of a layer, so a streamed world can let go of what it has walked away from.
+void tilemap_removeChunk(u32 entity, i32 chunkX, i32 chunkY);
 void tilemap_flipTile(u32 entity, i32 x, i32 y, bool flipH, bool flipV, bool flipD);
 void tilemap_rotateTile(u32 entity, i32 x, i32 y, i32 degrees);
 

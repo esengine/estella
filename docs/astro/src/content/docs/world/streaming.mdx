@@ -153,6 +153,9 @@ chunksOf(app).set('ruins', {
 
 - **One set of sources.** A layer is wanted round the same `WorldStreamingSource`s the streamer reads (or the eye, where there are
   none), unless it names its own: terrain collision follows every moving 3D body and character.
+- **A 2D world is cut on x and y.** A layer is cut on the ground by default (world x and z), and a 2D camera never leaves z, so it would stream nothing as it walks up
+  or down. Say `plane: 'xy'` and the layer is cut along world x and y, and the sources are read the same way; every "z" a layer names
+  (`originZ`, `sizeZ`, the chunk's `cz`, `stateAt`'s second coordinate) is then world y. A layer's own `sources()` answer in the layer's plane already.
 - **One budget.** Every frame the wanted chunks of every layer are made nearest first: the ones a source stands in at once, the rest
   while the frame's budget lasts. The budget is `Bakes.budgetMs`, shared with the bakes and the terrain's pages.
 - **Bounded.** A chunk past every source's `unloadRadius` is released, with everything it published, so walking for ever holds a fixed

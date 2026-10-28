@@ -203,7 +203,8 @@ tilemap.setTileAnimation(layer, 10, [
 
 ```typescript
 tilemap.initInfiniteLayer(layer, 16, 16);
-tilemap.setChunkTiles(layer, chunkX, chunkY, tiles, 32, 32);
+tilemap.setChunkTiles(layer, chunkX, chunkY, tiles, 16, 16);
+tilemap.removeChunk(layer, chunkX, chunkY);    // 玩家已经走远的块
 ```
 
 ## 地形自动拼接
@@ -348,6 +349,7 @@ origin / 每单位像素 / 播放模式生命周期。
 | `setTilesets(layer, slots)` | 指定多图集 slot 表。 |
 | `setTileAnimation(layer, tileId, frames)` | 动画化一个瓦片 id。 |
 | `setChunkTiles(layer, cx, cy, tiles, w, h)` | 写一个块(无限图层)。 |
+| `removeChunk(layer, cx, cy)` | 把一个块从图层里拿掉,连同它画出来的网格。 |
 | `exportChunks(layer)` / `importChunks(layer, data)` | 序列化 / 恢复分块数据。 |
 | `setTint(layer, color)` / `setVisible(layer, on)` / `setRenderProps(...)` | 实时视觉覆盖。 |
 | `setTileProperty(...)` / `getTileProperty(...)` | 逐瓦片自定义键值属性。 |

@@ -354,6 +354,12 @@ void tilemap_setChunkTiles(u32 entity, i32 chunkX, i32 chunkY,
     getTilemapSystem().setChunkTiles(e, chunkX, chunkY, tiles, width, height);
 }
 
+void tilemap_removeChunk(u32 entity, i32 chunkX, i32 chunkY) {
+    auto e = Entity::fromRaw(entity);
+    if (e == INVALID_ENTITY || !getTilemapSystem().hasLayer(e)) return;
+    getTilemapSystem().removeChunk(e, chunkX, chunkY);
+}
+
 void tilemap_setTileAnimation(u32 entity, u32 tileId,
                                uintptr_t framesPtr, u32 frameCount) {
     auto e = Entity::fromRaw(entity);
