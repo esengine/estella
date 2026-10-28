@@ -307,7 +307,7 @@ function launchPackage(id, target, args) {
   // Three launches on one rasterizer each get the wait three would: alone,
   // model-import settles 30 frames inside its 30 s; beside two workers it made 22.
   const at = args.indexOf('--timeout');
-  const timeoutMs = (at >= 0 ? Number(args[at + 1]) : 30_000) * SHARE;
+  const timeoutMs = (at >= 0 ? Number(args[at + 1]) : 180_000) * SHARE;
   const patient = at >= 0
     ? [...args.slice(0, at + 1), String(timeoutMs), ...args.slice(at + 2)]
     : [...args, '--timeout', String(timeoutMs)];

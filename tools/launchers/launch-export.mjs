@@ -21,7 +21,7 @@
  *     --w / --h          surface size (default 640x360)
  *     --settle <n>       frames to let run before capturing (default 30)
  *     --frame-ms <n>     simulated time per render frame (default 1000/60; 0 = real time)
- *     --timeout <ms>     how long to wait for the first frame (default 30000)
+ *     --timeout <ms>     how long to wait for the first frame (default 180000)
  *     --scene <name>     boot this named scene instead of the package's entry
  *     --port <n>         serve on a fixed loopback port for same-origin restart tests
  *     --present          present without taking focus, for virtual-desktop frame checks
@@ -110,7 +110,9 @@ const SETTLE = Number(flag('settle', '30'));
 const INPUT = flag('input', '');
 /** After the input, keep running until the engine has nothing left to bake, instead of guessing a frame count. */
 const UNTIL_IDLE = has('until-idle');
-const TIMEOUT = Number(flag('timeout', '30000'));
+// How long to wait for the settle frames before calling the launch dead. A slow rasterizer makes frames late, not wrong, so the bound is only there
+// for a package that hangs; what the launch decides is whether the frames came.
+const TIMEOUT = Number(flag('timeout', '180000'));
 const LOG = flag('log', '');
 /** Emulate a link before loading, so the start screen is asked a real question. */
 const THROTTLE = flag('throttle', '');

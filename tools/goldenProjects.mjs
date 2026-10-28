@@ -1343,9 +1343,6 @@ export const GOLDEN = [
     // Walking is what makes a place exist here, so the frame after 60 frames of
     // it differs by more than a character moving — a cell came in.
     interact: { keys: ['KeyD'], frames: 60 },
-    // Measured on a runner of its own: 25, 28 and 30 of 30 settle frames inside the 30 s default on different runs of the same code, about
-    // a frame a second in software GL. The window is the project's, as character-rig's is.
-    launchTimeoutMs: 120_000,
     // Comparable now that the editor cuts this world the way the package does —
     // but not the claim: the frame moved only 0.0073 → 0.0008 when Play stopped
     // loading it whole. verify-world-residency.mjs asks both for their residency.
