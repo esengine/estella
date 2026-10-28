@@ -79,6 +79,36 @@ describe('virtual prefab instances: loading a scene', () => {
     });
 });
 
+describe('virtual prefab instances: the page can ask for them whole', () => {
+    const withAddress = async (search: string | undefined, run: () => Promise<void>) => {
+        const g = globalThis as { location?: unknown };
+        const before = Object.getOwnPropertyDescriptor(globalThis, 'location');
+        Object.defineProperty(globalThis, 'location', { value: search === undefined ? undefined : { search }, configurable: true, writable: true });
+        try { await run(); } finally { if (before) Object.defineProperty(globalThis, 'location', before); else delete g.location; }
+    };
+    const prefabs = { shop: prefab('shop', ['x', 'y']) };
+    it('?expand-virtual makes a marked instance whole, with nothing to open later', async () => {
+        await withAddress('?headless&expand-virtual', async () => {
+            const out = await expandScenePrefabs(sceneOf(entry(3, 'shop', [mark()])), loader(prefabs));
+            expect(out.entities.map((e) => e.name)).toEqual(expect.arrayContaining(['shop', 'x', 'y']));
+            expect(out.deferredInstances).toBeUndefined();
+        });
+    });
+    it('without it, and on a page with no address, the instance stays virtual', async () => {
+        await withAddress('?headless', async () => {
+            expect((await expandScenePrefabs(sceneOf(entry(3, 'shop', [mark()])), loader(prefabs))).deferredInstances).toHaveLength(1);
+        });
+        await withAddress(undefined, async () => {
+            expect((await expandScenePrefabs(sceneOf(entry(3, 'shop', [mark()])), loader(prefabs))).deferredInstances).toHaveLength(1);
+        });
+    });
+    it('the option wins over the address', async () => {
+        await withAddress('?expand-virtual', async () => {
+            expect((await expandScenePrefabs(sceneOf(entry(3, 'shop', [mark()])), loader(prefabs), { expandVirtual: false })).deferredInstances).toHaveLength(1);
+        });
+    });
+});
+
 describe.skipIf(!HAS_WASM)('virtual prefab instances: in a world', () => {
     let engine: ESEngineModule;
     beforeAll(async () => { engine = await loadWasmModule(); });

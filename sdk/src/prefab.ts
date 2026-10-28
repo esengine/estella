@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { DeferredRecord } from './prefab/deferred';
-import { registerDeferredInstances } from './scene/deferredInstances';
+import { expandVirtualRequested, registerDeferredInstances } from './scene/deferredInstances';
 import type { World } from './ecs/world';
 import type { Entity } from './types';
 import type { Assets } from './asset/Assets';
@@ -94,7 +94,7 @@ export async function instantiatePrefab(
         allocateId: () => nextId++,
         loadPrefab: (path: string) => prefabCache.get(path) ?? null,
         visited: new Set<string>(),
-        ...(options?.expandDeferred ? {} : { deferred }),
+        ...((options?.expandDeferred ?? expandVirtualRequested()) ? {} : { deferred }),
     };
 
     const { entities: processed, rootId } = flattenPrefab(

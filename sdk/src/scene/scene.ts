@@ -10,7 +10,7 @@ import { Entity, INVALID_ENTITY } from '../types';
 import { upgradeEntityComponents } from './legacyComponents';
 import { isPrefabEntry, type SceneEntry } from './sceneEntry';
 import { canDefer, cutToRoot, isDeferredInstance, rootOnly, rootOverrides, type DeferredRecord } from '../prefab/deferred';
-import { registerDeferredInstances } from './deferredInstances';
+import { expandVirtualRequested, registerDeferredInstances } from './deferredInstances';
 import { validateScene } from './validateScene';
 import { getComponent, Name, Camera, RuntimeOnly } from '../ecs/component';
 import { deepClone } from '../util/deepClone';
@@ -311,7 +311,9 @@ const toSceneEntityData = (e: ProcessedEntity): SceneEntityData => ({
 export async function expandScenePrefabs(
     scene: SceneData,
     loadPrefab: PrefabAssetResolver,
+    options?: { expandVirtual?: boolean },
 ): Promise<SceneData> {
+    const expandVirtual = options?.expandVirtual ?? expandVirtualRequested();
     const entries = scene.entities as SceneEntry[];
     // Allocate fresh ids for expanded internals above every id already in the
     // file, so they never collide with non-prefab entities or instance roots
@@ -351,12 +353,12 @@ export async function expandScenePrefabs(
             continue;
         }
         // A virtual instance is made as its root alone (see prefab/deferred.ts); instances inside it are left to whoever opens it.
-        const virtual = isDeferredInstance(prefab, entry.overrides) && canDefer(entry.overrides, prefab)
+        const virtual = !expandVirtual && isDeferredInstance(prefab, entry.overrides) && canDefer(entry.overrides, prefab)
             && entry.added.length === 0 && entry.removed.length === 0;
         const stub = virtual ? rootOnly(prefab) : null;
         const { entities: expanded, unresolved: unresolvedAll } = expandEntry(
             stub ?? prefab, stub ? { ...entry, overrides: rootOverrides(prefab, entry.overrides) } : entry, allocateId,
-            (ref) => cache.get(ref) ?? null, deferred);
+            (ref) => cache.get(ref) ?? null, expandVirtual ? undefined : deferred);
         const entities = virtual && !stub ? cutToRoot(expanded, entry.id) : expanded;
         const unresolved = virtual ? [] : unresolvedAll;
         if (virtual) deferred.push({ id: entry.id, prefab: entry.prefab, overrides: entry.overrides.map((o) => ({ ...o })) });

@@ -14,6 +14,19 @@ import type { Entity } from '../types';
 
 const records = new WeakMap<World, Map<Entity, DeferredRecord>>();
 
+/**
+ * Whether the page was asked to make virtual instances whole (`?expand-virtual` in its address): a switch for looking at a game as
+ * the editor shows it (an authoring preview, a pixel check of every page) and for ruling virtual instances in or out when something
+ * is wrong. A page without an address (a test host, a device) answers no.
+ */
+export function expandVirtualRequested(): boolean {
+    try {
+        return new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? '').has('expand-virtual');
+    } catch {
+        return false;
+    }
+}
+
 /** Remember the virtual instances a scene was loaded with: `entities` is the scene's id -> entity map the load answered. */
 export function registerDeferredInstances(world: World, list: readonly DeferredRecord[] | undefined, entities: ReadonlyMap<number, Entity>): void {
     if (!list || list.length === 0) return;
