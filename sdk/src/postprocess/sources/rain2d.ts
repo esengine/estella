@@ -104,6 +104,7 @@ const SOURCE = `#pragma shader "PP Rain 2D"
 #pragma param u_speed float default(1.6) range(0.2,6)
 #pragma param u_streakLength float default(0.3) range(0.05,0.9)
 #pragma param u_streakColor color default(0.78,0.82,0.9,1)
+#pragma param u_maskSize float default(512) range(64,2048)
 #pragma param u_maskL float default(0) range(-1000000000,1000000000)
 #pragma param u_maskB float default(0) range(-1000000000,1000000000)
 #pragma param u_maskW float default(0) range(0,1000000000)

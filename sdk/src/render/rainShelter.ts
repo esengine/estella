@@ -25,7 +25,8 @@ import { BlendMode } from './blend';
 import { Renderer } from './renderer';
 import { RenderTexture, type RenderTextureHandle } from './renderTexture';
 import { log } from '../util/logger';
-import { RAIN_SHELTER_MASK_SIZE, RAIN_SHELTER_MASK_TEXTURE } from '../postprocess/rainShelterMask';
+import { RAIN_SHELTER_MASK_SIZE, RAIN_SHELTER_MASK_MIN, RAIN_SHELTER_MASK_MAX, RAIN_SHELTER_MASK_TEXTURE } from '../postprocess/rainShelterMask';
+import { Quality } from './qualityRuntime';
 import { runtimeTextureRef } from '../postprocess/runtimeTextures';
 import type { BlendedEffect } from '../postprocess/volumeBlending';
 
@@ -98,8 +99,20 @@ export function shelterOf(sprite: SpriteData, transform: TransformData, data: Ra
     return { x: centre.x, y: centre.y, hx, hy: data.round ? -hy : hy, dry };
 }
 
-/** How many strips an ellipse is cut into: the mask is a few hundred texels across, so more would draw what it cannot show. */
+/** How many strips an ellipse is cut into at the default mask size. */
 export const ELLIPSE_STRIPS = 32;
+
+/** The size a mask is painted at: what the effect asks for, held to what the quality level allows (none: as asked), in whole sixteens of texels. */
+export function shelterMaskSizeOf(asked: number, allowed: number | null): number {
+    const wanted = Number.isFinite(asked) ? asked : RAIN_SHELTER_MASK_SIZE;
+    const size = Math.round(Math.min(wanted, allowed ?? wanted) / 16) * 16;
+    return Math.min(Math.max(size, RAIN_SHELTER_MASK_MIN), RAIN_SHELTER_MASK_MAX);
+}
+
+/** How many strips an ellipse is cut into for a mask this big: one per sixteen texels, since more would draw what the mask cannot show. */
+export function ellipseStripsOf(size: number): number {
+    return Math.min(Math.max(Math.round(size / 16), 8), 64);
+}
 
 /**
  * What to draw for the shelters: a rectangle each, an ellipse as strips of one, the driest last so where two overlap the drier wins (a draw
@@ -107,7 +120,9 @@ export const ELLIPSE_STRIPS = 32;
  *
  * @param view  The world rectangle the mask covers.
  */
-export function maskRects(shelters: readonly Shelter[], view: { left: number; bottom: number; right: number; top: number }): MaskRect[] {
+export function maskRects(
+    shelters: readonly Shelter[], view: { left: number; bottom: number; right: number; top: number }, strips: number = ELLIPSE_STRIPS,
+): MaskRect[] {
     const rects: MaskRect[] = [];
     const ordered = [...shelters].sort((a, b) => a.dry - b.dry);
     for (const s of ordered) {
@@ -117,9 +132,9 @@ export function maskRects(shelters: readonly Shelter[], view: { left: number; bo
             rects.push({ x: s.x, y: s.y, w: s.hx * 2, h: h * 2, dry: s.dry });
             continue;
         }
-        const strip = (h * 2) / ELLIPSE_STRIPS;
-        for (let i = 0; i < ELLIPSE_STRIPS; i++) {
-            const t = ((i + 0.5) / ELLIPSE_STRIPS) * 2 - 1;
+        const strip = (h * 2) / strips;
+        for (let i = 0; i < strips; i++) {
+            const t = ((i + 0.5) / strips) * 2 - 1;
             const width = s.hx * 2 * Math.sqrt(Math.max(1 - t * t, 0));
             if (width <= 0) continue;
             rects.push({ x: s.x, y: s.y + t * h, w: width, h: strip, dry: s.dry });
@@ -138,6 +153,8 @@ interface MaskState {
 }
 
 let maskNow: MaskState | null = null;
+/** The mask size the last resolved `rain2d` asked for. */
+let askedSize = RAIN_SHELTER_MASK_SIZE;
 
 /** Column-major orthographic projection over a rectangle: what RenderTexture.begin wants. */
 function ortho(l: number, r: number, b: number, t: number): Float32Array {
@@ -159,6 +176,7 @@ export function applyRainSheltersToRain(effects: Map<string, BlendedEffect>): vo
     const rain = effects.get('rain2d');
     if (!rain || !rain.enabled) return;
     const mask = maskNow;
+    askedSize = rain.uniforms.get('u_maskSize') ?? RAIN_SHELTER_MASK_SIZE;
     rain.uniforms.set('u_maskL', mask ? mask.left : 0);
     rain.uniforms.set('u_maskB', mask ? mask.bottom : 0);
     rain.uniforms.set('u_maskW', mask ? mask.width : 0);
@@ -171,6 +189,12 @@ export function installRainShelter(app: App): () => void {
     let target: RenderTextureHandle | null = null;
     let failed = false;
 
+    /** The size the quality level lets the mask be, or null with no quality policy running. */
+    const allowedSize = (): number | null => {
+        const policy = app.hasResource(Quality) ? app.getResource(Quality) : null;
+        return policy && policy.enabled ? policy.profile.shelterMaskSize : null;
+    };
+
     /** The world rectangle the camera shows, or null where there is none to cover. */
     const viewOf = (): { left: number; right: number; bottom: number; top: number } | null => {
         const view = app.hasResource(CameraView) ? app.getResource(CameraView).getWorldBounds() : null;
@@ -180,8 +204,11 @@ export function installRainShelter(app: App): () => void {
     const paint = (rects: readonly MaskRect[], view: { left: number; right: number; bottom: number; top: number }): boolean => {
         if (failed) return false;
         try {
+            const size = shelterMaskSizeOf(askedSize, allowedSize());
+            // Asked for another size (the effect's field, or the level changed): the old one goes and a new one is made.
+            if (target && target.width !== size) { RenderTexture.release(target); target = null; }
             if (!target) {
-                const created = RenderTexture.create({ width: RAIN_SHELTER_MASK_SIZE, height: RAIN_SHELTER_MASK_SIZE, depth: false, filter: 'linear' });
+                const created = RenderTexture.create({ width: size, height: size, depth: false, filter: 'linear' });
                 // The renderer may not be up yet: try again next frame.
                 if (created.textureId === 0 || created.texture === 0) { RenderTexture.release(created); return false; }
                 target = created;
@@ -224,7 +251,7 @@ export function installRainShelter(app: App): () => void {
             maskNow = null;
             if (found.length === 0) return;
             const view = viewOf();
-            if (view) paint(maskRects(found, view), view);
+            if (view) paint(maskRects(found, view, ellipseStripsOf(shelterMaskSizeOf(askedSize, allowedSize()))), view);
         },
         { name: 'RainShelterSystem' },
     );

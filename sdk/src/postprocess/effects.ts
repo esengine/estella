@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { ShaderHandle } from '../render/material';
-import { RAIN_SHELTER_UNIFORMS, RAIN_SHELTER_MASK_TEXTURE } from './rainShelterMask';
+import { RAIN_SHELTER_UNIFORMS, RAIN_SHELTER_MASK_TEXTURE, RAIN_SHELTER_MASK_SIZE, RAIN_SHELTER_MASK_MIN, RAIN_SHELTER_MASK_MAX } from './rainShelterMask';
 import { effectSourcesOf, computeSourceOf } from './effectSources';
 import type { basicEffects } from './sources/basic';
 import type { atmosphereEffects } from './sources/atmosphere';
@@ -335,6 +335,9 @@ registerEffect({
         { name: 'u_wind', label: 'Wind', min: -1, max: 1, step: 0.01, defaultValue: 0.15 },
         { name: 'u_speed', label: 'Speed', min: 0.2, max: 6, step: 0.1, defaultValue: 1.6 },
         { name: 'u_streakLength', label: 'Streak Length', min: 0.05, max: 0.9, step: 0.01, defaultValue: 0.3 },
+        // How many texels a side the shelter mask is: the picture of where the rain is dry is painted this big every frame, so a bigger mask has finer
+        // edges and costs more, and a quality level can hold it lower.
+        { name: 'u_maskSize', label: 'Shelter Mask Size', min: RAIN_SHELTER_MASK_MIN, max: RAIN_SHELTER_MASK_MAX, step: 64, defaultValue: RAIN_SHELTER_MASK_SIZE },
         // Where the mask sits in the world, written each frame by the rain-shelter system with the mask itself.
         ...RAIN_SHELTER_UNIFORMS,
     ],

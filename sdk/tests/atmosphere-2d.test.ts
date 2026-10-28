@@ -2,7 +2,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, expect, it } from 'vitest';
 import { coversPoint, stepFade } from '../src/render/coverFade';
-import { applyRainSheltersToRain, drynessOf, maskRects, shelterOf, ELLIPSE_STRIPS, type Shelter } from '../src/render/rainShelter';
+import { applyRainSheltersToRain, drynessOf, maskRects, shelterOf, shelterMaskSizeOf, ellipseStripsOf, ELLIPSE_STRIPS, type Shelter } from '../src/render/rainShelter';
+import { defaultQualityProfile, parseQualityConfig } from '../src/render/quality';
 import { RAIN_SHELTER_MASK_TEXTURE } from '../src/postprocess/rainShelterMask';
 import { runtimeTextureHandle, runtimeTextureRef } from '../src/postprocess/runtimeTextures';
 import { Light } from '../src/ecs/component';
@@ -197,6 +198,38 @@ describe('the 2D rain', () => {
         const off = new Map([['rain2d', { ...mist(), enabled: false }]]);
         applyRainSheltersToRain(off);
         expect(off.get('rain2d')!.uniforms.size).toBe(0);
+    });
+
+    it('has a mask size of its own, authored on the effect, that a quality level can only hold lower', () => {
+        const size = getEffectDef('rain2d')!.uniforms.find((u) => u.name === 'u_maskSize')!;
+        expect(size.defaultValue).toBe(512);
+        expect(size.internal).toBeUndefined();
+        expect(shelterMaskSizeOf(1024, 256)).toBe(256);
+        expect(shelterMaskSizeOf(128, 256)).toBe(128);
+        expect(shelterMaskSizeOf(1024, null)).toBe(1024);
+        expect(shelterMaskSizeOf(Number.NaN, null)).toBe(512);
+        expect(shelterMaskSizeOf(1, null)).toBe(64);
+        expect(shelterMaskSizeOf(99999, null)).toBe(2048);
+        expect(shelterMaskSizeOf(500, null) % 16).toBe(0);
+    });
+
+    it('cuts an ellipse into as many strips as its mask can show', () => {
+        expect(ellipseStripsOf(512)).toBe(ELLIPSE_STRIPS);
+        expect(ellipseStripsOf(64)).toBe(8);
+        expect(ellipseStripsOf(4096)).toBe(64);
+        const round: Shelter[] = [{ x: 0, y: 0, hx: 100, hy: -50, dry: 1 }];
+        const view = { left: -500, bottom: -500, right: 500, top: 500 };
+        expect(maskRects(round, view, 8)).toHaveLength(8);
+        expect(maskRects(round, view, 64)).toHaveLength(64);
+    });
+
+    it('is held lower by each quality level, and a project can say its own', () => {
+        expect(defaultQualityProfile('low').shelterMaskSize).toBe(256);
+        expect(defaultQualityProfile('medium').shelterMaskSize).toBe(512);
+        expect(defaultQualityProfile('high').shelterMaskSize).toBe(1024);
+        const q = parseQualityConfig({ mode: 'low', profiles: { low: { shelterMaskSize: 100000 }, medium: { shelterMaskSize: 'big' } } });
+        expect(q.profiles?.low?.shelterMaskSize).toBe(2048);
+        expect(q.profiles?.medium?.shelterMaskSize).toBe(512);
     });
 
     it('names its mask by a ref that carries the handle, so a texture made again is a new ref', () => {

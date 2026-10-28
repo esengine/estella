@@ -67,6 +67,11 @@ export interface QualityProfile {
      * skips follows from what a frame on that device can afford.
      */
     skipEffects: readonly string[];
+    /**
+     * The most texels a side the 2D rain's shelter mask has: the largest a `rain2d` effect is let draw its own `maskSize` at. The mask is painted every frame, so
+     * a weak device spends less on a smaller one and gets rain whose dry edges are softer.
+     */
+    shelterMaskSize: number;
 }
 
 export interface DeviceQualityRule {
@@ -115,6 +120,7 @@ const PROFILES: Record<QualityLevel, QualityProfile> = {
         shadowDistance: 0, detailScale: 0.5, particleLimit: 1000, postProcess: true, ssao: false,
         waterWaves: 2, waterRippleCells: 32, waterDisplacement: false, waterMirror: false, waterCaustics: false,
         skipEffects: ['ssr', 'taa', 'depthOfField', 'lightShafts', 'motionBlur', 'lensFlare', 'gtao', 'subsurface', 'voxelGI'],
+        shelterMaskSize: 256,
     },
     medium: {
         renderScale: 1, minRenderScale: 0.65, msaaSamples: 2, antialiasing: 'temporal',
@@ -123,6 +129,7 @@ const PROFILES: Record<QualityLevel, QualityProfile> = {
         shadowDistance: 0, detailScale: 0.8, particleLimit: 5000, postProcess: true, ssao: true,
         waterWaves: 3, waterRippleCells: 64, waterDisplacement: true, waterMirror: true, waterCaustics: true,
         skipEffects: ['ssr', 'depthOfField'],
+        shelterMaskSize: 512,
     },
     high: {
         renderScale: 1, minRenderScale: 0.75, msaaSamples: 4, antialiasing: 'msaa',
@@ -133,6 +140,7 @@ const PROFILES: Record<QualityLevel, QualityProfile> = {
         shadowDistance: 0, detailScale: 1, particleLimit: 20000, postProcess: true, ssao: true,
         waterWaves: 4, waterRippleCells: 128, waterDisplacement: true, waterMirror: true, waterCaustics: true,
         skipEffects: [],
+        shelterMaskSize: 1024,
     },
 };
 
@@ -222,6 +230,7 @@ function resolveProfile(level: QualityLevel, value: unknown): QualityProfile {
             ? r.skipEffects.filter((e): e is string => typeof e === 'string' && e.trim() !== '')
                 .map((e) => e.trim()).slice(0, 32)
             : base.skipEffects,
+        shelterMaskSize: Math.round(finite(r.shelterMaskSize, base.shelterMaskSize, 64, 2048)),
     };
 }
 
