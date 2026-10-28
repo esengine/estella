@@ -278,3 +278,6 @@ export {
 } from './ui';
 
 export { VirtualJoystick, VirtualButton, VirtualJoystickMode, createVirtualJoystick, createVirtualButton, type VirtualJoystickData, type VirtualButtonData, type VirtualJoystickOptions, type VirtualButtonOptions } from './ui';
+
+export { deferredEntities, deferredRecord } from './scene/deferredInstances';
+export type { DeferredRecord } from './prefab/deferred';
