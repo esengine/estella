@@ -5,7 +5,8 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { optimizePlayableAssets, type PlayablePayload, type PlayableOptimizationAsset } from '../src/export/playableOptimization';
+import { randomBytes } from 'node:crypto';
+import { optimizePlayableAssets, playableAssetsJsonBytes, type PlayablePayload, type PlayableOptimizationAsset } from '../src/export/playableOptimization';
 import { makeZip } from '../../build-tools/utils/zip.js';
 import { noisePng } from './fixtures/solidPng.mjs';
 import { decodePngImage, encodeRgbaPng } from '../src/assets/atlasPacker';
@@ -131,5 +132,41 @@ describe('playable network budget optimization', () => {
       expect(retained.report.changes).toEqual([]);
       expect(retained.payloads.get('audio')!.data).toEqual(asset.data);
     }
+  }, 60_000);
+});
+
+describe('playable size is worked out, not rebuilt', () => {
+  it('the arithmetic size of the assets object is the size JSON.stringify writes', () => {
+    const maps: Array<Map<string, PlayablePayload>> = [
+      new Map(),
+      new Map([['@uuid:a', { data: new Uint8Array(0), mime: 'image/png' }]]),
+      new Map([['@uuid:a', { data: new Uint8Array([1]), mime: 'image/png' }], ['@uuid:b', { data: new Uint8Array([1, 2]), mime: 'font/woff2' }],
+        ['@uuid:c', { data: new Uint8Array(1000).fill(7), mime: 'image/webp' }], ['@uuid:汉字', { data: new Uint8Array(4097), mime: 'audio/mpeg' }]]),
+    ];
+    for (const m of maps) {
+      const urls = Object.fromEntries([...m].map(([k, v]) => [k, `data:${v.mime};base64,${Buffer.from(v.data).toString('base64')}`]));
+      expect(playableAssetsJsonBytes(m)).toBe(Buffer.byteLength(JSON.stringify(urls)));
+    }
+  });
+
+  it('gives up the search at once when what cannot be shrunk is already over the target, and still reports the size', async () => {
+    const font: PlayableOptimizationAsset = { key: 'font', path: 'font.woff2', data: new Uint8Array(randomBytes(300_000)), mime: 'font/woff2' };
+    const warnings: string[] = []; const stages: string[] = [];
+    const t0 = Date.now();
+    const result = await run([font, image()], { targetDeliveryBytes: 100_000, warnings, onStage: (s: string) => stages.push(s) });
+    expect(stages).toEqual([]);
+    expect(result.report.changes).toEqual([]);
+    expect(result.report.meetsTarget).toBe(false);
+    expect(result.report.selected).toEqual(result.report.baseline);
+    expect(result.payloads.get('image')!.mime).toBe('image/png');
+    expect(warnings.some(w => /cannot reach the target/.test(w))).toBe(true);
+    expect(Date.now() - t0).toBeLessThan(2000);
+  });
+
+  it('reports each stage it starts', async () => {
+    const stages: string[] = [];
+    await run([image()], { onStage: (s: string) => stages.push(s) });
+    expect(stages[0]).toBe('lossless');
+    expect(stages.length).toBeGreaterThan(1);
   }, 60_000);
 });

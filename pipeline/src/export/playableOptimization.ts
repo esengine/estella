@@ -30,6 +30,21 @@ export interface PlayableOptimizationReport {
   changes: { path: string; codec: PlayableSelectedCodec; inputBytes: number; outputBytes: number }[];
 }
 
+/**
+ * The bytes `JSON.stringify` writes for a `key -> data URL` map, worked out from the payload sizes alone. The page carries
+ * every asset as one such JSON object, so its size is a fixed part plus this; measuring it by building the object (a base64
+ * copy of every asset) for each candidate encoding made the search cost the whole package once per candidate.
+ */
+export function playableAssetsJsonBytes(payloads: ReadonlyMap<string, PlayablePayload>): number {
+  if (payloads.size === 0) return 2;
+  let bytes = 1 + (payloads.size - 1) + 1;                                   // { , , }
+  for (const [key, payload] of payloads) {
+    const url = 'data:'.length + payload.mime.length + ';base64,'.length + 4 * Math.ceil(payload.data.byteLength / 3);
+    bytes += Buffer.byteLength(JSON.stringify(key)) + 1 + (url + 2);         // "key":"url"
+  }
+  return bytes;
+}
+
 /** WebP cannot retain PNG gamma/profile chunks, animation or 16-bit samples. */
 function canReencodePng(data: Uint8Array): boolean {
   const png = Buffer.from(data);
@@ -92,6 +107,8 @@ export async function optimizePlayableAssets(opts: {
   maxHtmlBytes?: number;
   measure: (payloads: ReadonlyMap<string, PlayablePayload>) => PlayableMeasuredSize;
   warnings: string[];
+  /** Called as each stage of the search begins, so a long one is not a silent spinner. */
+  onStage?: (stage: string, assets: number) => void;
 }): Promise<{ payloads: Map<string, PlayablePayload>; report: PlayableOptimizationReport }> {
   const payloads = new Map<string, PlayablePayload>(opts.assets.map(asset => [asset.key, { data: asset.data, mime: asset.mime }]));
   const measure = () => {
@@ -113,10 +130,23 @@ export async function optimizePlayableAssets(opts: {
       }
     }
   }
+  // What no encoder here can shrink (fonts, data, anything that is not a PNG or a WAV) is a floor under the page. When that
+  // part alone, weighed the way the page is weighed, is already over the target, no search will get there: the package is
+  // made as it is and the size is reported, instead of trying every image at every quality to arrive at the same answer.
+  const fixed = opts.assets.filter(a => !(a.mime === 'image/png' || a.sourceWav));
+  if (fixed.length > 0 && score(selected) > 1) {
+    const floor = opts.measure(new Map(fixed.map(a => [a.key, { data: a.data, mime: a.mime }])));
+    if (score(floor) > 1) {
+      opts.warnings.push(`Playable size cannot reach the target: the parts no encoder can shrink (fonts and other files) alone come to ${(floor.deliveryBytes / 1048576).toFixed(1)} MB, against a target of ${(opts.targetDeliveryBytes / 1048576).toFixed(1)} MB. The package is built as it is; its size and what it is made of are reported.`);
+      return { payloads, report: { mode: opts.textures || opts.audio ? 'auto' : 'skip', targetDeliveryBytes: opts.targetDeliveryBytes,
+        maxHtmlBytes: opts.maxHtmlBytes, baseline, selected, meetsTarget: false, changes: [] } };
+    }
+  }
   let encoder: { bin: string; id: string } | null | undefined;
   const failures = new Set<string>();
   for (const stage of ['lossless', 'audio-128', 'audio-96', 90, 80] as const) {
     if (score(selected) <= 1) break;
+    opts.onStage?.(String(stage), sorted.length);
     for (const asset of sorted) {
       if (score(selected) <= 1) break;
       const previous = payloads.get(asset.key)!;

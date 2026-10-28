@@ -29,7 +29,7 @@ import { deflateRawSync } from 'node:zlib';
 import path from 'node:path';
 import { cookAssets } from '../assets/cookAssets';
 import { scanAssetDatabase } from '../assets/assetDb';
-import { optimizePlayableAssets, type PlayableOptimizationAsset, type PlayablePayload } from './playableOptimization';
+import { optimizePlayableAssets, playableAssetsJsonBytes, type PlayableOptimizationAsset, type PlayablePayload } from './playableOptimization';
 import type { OnExportProgress } from './exportProgress';
 import { esengineAlias } from '../bundle/esengineResolve';
 import { officialPackagesPlugin } from '../bundle/officialPackages';
@@ -419,6 +419,7 @@ export async function exportPlayable(opts: {
       ...archiveFiles.map(file => ({ name: file.name, data: Buffer.from(file.content) }))]) : html;
     return { html, delivery, htmlBytes: html.byteLength, deliveryBytes: delivery.byteLength };
   };
+  const emptyHtmlBytes = assemble(new Map()).htmlBytes;
   const targetDeliveryBytes = Math.min(adProfile.maxBytes, opts.sizeBudgetBytes ?? Infinity, 3 * 1024 * 1024);
   const baseline = assemble(new Map(optimizationAssets.map(asset => [asset.key, asset])));
   if (errors.length === 0 && (opts.resizeTextures || opts.compressAudio) &&
@@ -440,7 +441,9 @@ export async function exportPlayable(opts: {
   const optimized = await optimizePlayableAssets({ root: opts.root, assets: optimizationAssets,
     textures: errors.length === 0 && !!opts.resizeTextures, audio: errors.length === 0 && !!opts.compressAudio,
     targetDeliveryBytes, maxHtmlBytes: adProfile.maxHtmlBytes,
-    measure: payloads => assemble(payloads), warnings });
+    // A single-file page measures by arithmetic (its size is a fixed part plus the assets' JSON); a zip has to be built to be weighed.
+    measure: payloads => zipFile ? assemble(payloads) : (() => { const htmlBytes = emptyHtmlBytes - 2 + playableAssetsJsonBytes(payloads); return { htmlBytes, deliveryBytes: htmlBytes }; })(),
+    onStage: (stage, assets) => progress({ phase: 'Optimizing playable budget', detail: `${stage} — up to ${assets} assets` }), warnings });
   optimized.report.mode = opts.resizeTextures || opts.compressAudio ? 'auto' : 'skip';
   const final = assemble(optimized.payloads);
   await writeFile(outFile, final.html);
@@ -453,7 +456,8 @@ export async function exportPlayable(opts: {
   }
   if (!optimized.report.meetsTarget) warnings.push(`Playable optimization target not met: delivery ${bytes}/${targetDeliveryBytes} bytes, HTML ${htmlBytes}/${adProfile.maxHtmlBytes ?? 'unlimited'} bytes. Reduce assets or engine modules; no quality below WebP 80 / MP3 96 kbps is selected.`);
   if (adProfile.maxHtmlBytes !== undefined && htmlBytes > adProfile.maxHtmlBytes) {
-    errors.push(`${adProfile.label}: index.html is ${htmlBytes} bytes, exceeding the uncompressed HTML limit of ${adProfile.maxHtmlBytes} bytes. ${adProfile.limitNote}`);
+    // The file is written and its size is on the screen: whether to slim it or ship it anyway is the developer's call, not a failed build.
+    warnings.push(`${adProfile.label}: index.html is ${htmlBytes} bytes, exceeding the uncompressed HTML limit of ${adProfile.maxHtmlBytes} bytes. ${adProfile.limitNote}`);
   }
   const inlined = spans.reduce((n, s) => n + s.bytes, 0);
   spans.push({ path: 'index.html', bytes: Math.max(0, htmlBytes - inlined) });

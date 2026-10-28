@@ -377,7 +377,7 @@ describe('exportGame (playable)', () => {
     expect(res.errors.join('\n')).toMatch(/unique portable root filenames/);
   }, 60_000);
 
-  it('rejects an oversized HTML even when a ZIP is the uploaded file', async () => {
+  it('builds an oversized HTML anyway and says how big it is, even when a ZIP is the uploaded file', async () => {
     const res = await exportGame({
       root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES,
       scriptsEntry: 'src/main.ts', sdkDistDir: path.join(root, '_sdk'), wasmDir: path.join(root, '_wasm'),
@@ -385,8 +385,11 @@ describe('exportGame (playable)', () => {
       playableAdProfile: { id: 'htmlcap', label: 'HTML cap', maxBytes: 5 * 1024 * 1024,
         maxHtmlBytes: 1, limitNote: 'HTML cap docs', delivery: 'zip' },
     });
-    expect(res.ok).toBe(false);
-    expect(res.errors.join('\n')).toMatch(/uncompressed HTML limit/);
+    // The file is there and its size is on the screen; slimming it or shipping it is the developer's call, so this is not a failed build.
+    expect(res.ok).toBe(true);
+    expect(res.errors).toEqual([]);
+    expect(res.warnings.join('\n')).toMatch(/index\.html is \d+ bytes, exceeding the uncompressed HTML limit/);
+    expect(res.htmlBytes).toBeGreaterThan(1);
   }, 60_000);
 
   it('injects nothing and keeps the default cap with no network selected', async () => {
