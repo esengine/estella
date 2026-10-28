@@ -3116,4 +3116,6 @@ export const NOTED = {
     {"note":"Rows for the choices that could only be written into the project file."},
   "fix(ci): the export result names the playable's html size the test reads":
     {"internal":"A type the playable size test needed; the value was already returned."},
+  "fix(ci): the theme ratchet banks the inspector's new virtual-instance button":
+    {"internal":"Moves a baseline count; no creator can observe it."},
 };

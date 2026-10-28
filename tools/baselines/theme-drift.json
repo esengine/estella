@@ -83,7 +83,7 @@
     "panels/AnimatorEditor.tsx": 1,
     "panels/ContentBrowser.tsx": 5,
     "panels/ControllersPanel.tsx": 2,
-    "panels/Details.tsx": 18,
+    "panels/Details.tsx": 19,
     "panels/FlipbookEditor.tsx": 3,
     "panels/HistoryPanel.tsx": 5,
     "panels/InputMapEditor.tsx": 1,
