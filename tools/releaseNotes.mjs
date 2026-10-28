@@ -3114,4 +3114,6 @@ export const NOTED = {
     {"note":"The engine's runtime tuning is a project setting."},
   "feat(editor): rows for background shader compilation, on-demand drawing, a level's smoothing, render resolution and server origins":
     {"note":"Rows for the choices that could only be written into the project file."},
+  "fix(ci): the export result names the playable's html size the test reads":
+    {"internal":"A type the playable size test needed; the value was already returned."},
 };

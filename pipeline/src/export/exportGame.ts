@@ -311,6 +311,8 @@ export interface ExportGameResult {
   packageFile?: string;
   /** Playable: what the single file is made of. See ExportPlayableResult. */
   inlineParts?: { path: string; bytes: number }[];
+  /** Playable: index.html on its own, which is `size` of the upload unless a zip was written. */
+  htmlBytes?: number;
   playableCheck?: PlayableCheckReport;
   /** The start screen written into the host page, logo included. */
   splashBytes?: number;
