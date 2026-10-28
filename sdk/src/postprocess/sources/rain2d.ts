@@ -6,9 +6,10 @@
  *
  * @details The 3D rain finds the ground by its depth and its shelter by a map of the scene seen from above. A 2D scene has neither: its sprites
  *          are blended and write no depth, and there is no "above" to look from. This rain lays its rings and puddles on the ground plane in
- *          WORLD units (found from the screen as the 2D mist finds them) and asks the shelters it is told of where it is dry: up to eight boxes
- *          or ellipses, the ones nearest the camera, written each frame by the rain-shelter system. A shelter's dryness is how much of the ground
- *          under it can be seen, so an opaque roof (which shows the roof, and the rain falls on that) is not dry, and one faded to show the room is.
+ *          WORLD units (found from the screen as the 2D mist finds them) and reads where it is dry from a mask: a small texture the rain-shelter
+ *          system paints each frame over the view, a shelter's dryness in its alpha, however many shelters there are. A shelter's dryness is how
+ *          much of the ground under it can be seen, so an opaque roof (which shows the roof, and the rain falls on that) is not dry, and one faded
+ *          to show the room is.
  *
  *          It cannot tell a character from the ground it stands on, so rings and the darkening of a wet floor are drawn over everything. They are
  *          small and low, which is why that reads as rain on the picture and not as a fault.
@@ -16,12 +17,6 @@
 import type { ShaderHandle } from '../../render/material';
 import { Material } from '../../render/material';
 
-import { RAIN_SHELTER_SLOTS, SHELTER_FIELDS, shelterUniform } from '../rainShelterSlots';
-
-const slots = Array.from({ length: RAIN_SHELTER_SLOTS }, (_, i) => i);
-const PARAMS = slots.flatMap((i) => SHELTER_FIELDS.map((f) => `#pragma param ${shelterUniform(i, f)} float default(0) range(-100000,100000)`)).join('\n');
-const callGlsl = (i: number) => `    d = max(d, shelterOf(w, ${shelterUniform(i, 'x')}, ${shelterUniform(i, 'y')}, ${shelterUniform(i, 'hx')}, ${shelterUniform(i, 'hy')}, ${shelterUniform(i, 'dry')}));`;
-const callWgsl = (i: number) => `    d = max(d, shelterOf(w, mc.${shelterUniform(i, 'x')}, mc.${shelterUniform(i, 'y')}, mc.${shelterUniform(i, 'hx')}, mc.${shelterUniform(i, 'hy')}, mc.${shelterUniform(i, 'dry')}));`;
 
 const GLSL = `
 float hash11(float n) { return fract(sin(n * 127.1) * 43758.5453); }
@@ -35,17 +30,12 @@ float vnoise(vec2 p) {
 float puddleNoise(vec2 p) {
     return vnoise(p) * 0.5 + vnoise(p * 2.07 + vec2(11.0, 5.0)) * 0.3 + vnoise(p * 4.3 + vec2(3.0, 17.0)) * 0.2;
 }
-/// How dry a point of the ground is under one shelter: 0 outside it, its dryness inside, soft at the edge. A negative half-height says round.
-float shelterOf(vec2 w, float cx, float cy, float hx, float hy, float dry) {
-    if (hx <= 0.0) return 0.0;
-    float h = abs(hy);
-    float m = hy < 0.0 ? (1.0 - length((w - vec2(cx, cy)) / vec2(hx, h))) * min(hx, h) : min(hx - abs(w.x - cx), h - abs(w.y - cy));
-    return smoothstep(0.0, 8.0, m) * dry;
-}
+/// How dry the ground is at a point: the alpha of the shelter mask, which covers the view from (u_maskL, u_maskB) by (u_maskW, u_maskH) world units.
 float dryAt(vec2 w) {
-    float d = 0.0;
-${slots.map(callGlsl).join('\n')}
-    return d;
+    if (u_maskW <= 0.0 || u_maskH <= 0.0) return 0.0;
+    vec2 uv = (w - vec2(u_maskL, u_maskB)) / vec2(u_maskW, u_maskH);
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 0.0;
+    return textureLod(u_shelterMask, uv, 0.0).a;
 }
 /// One layer of streaks: columns across the screen, one streak per cell at most, scrolling down.
 float streaks(vec2 uv, float aspect, float cols, float speed, float seed, float T) {
@@ -77,17 +67,12 @@ fn vnoise(p : vec2f) -> f32 {
 fn puddleNoise(p : vec2f) -> f32 {
     return vnoise(p) * 0.5 + vnoise(p * 2.07 + vec2f(11.0, 5.0)) * 0.3 + vnoise(p * 4.3 + vec2f(3.0, 17.0)) * 0.2;
 }
-fn shelterOf(w : vec2f, cx : f32, cy : f32, hx : f32, hy : f32, dry : f32) -> f32 {
-    if (hx <= 0.0) { return 0.0; }
-    let h = abs(hy);
-    var m = min(hx - abs(w.x - cx), h - abs(w.y - cy));
-    if (hy < 0.0) { m = (1.0 - length((w - vec2f(cx, cy)) / vec2f(hx, h))) * min(hx, h); }
-    return smoothstep(0.0, 8.0, m) * dry;
-}
 fn dryAt(w : vec2f) -> f32 {
-    var d = 0.0;
-${slots.map(callWgsl).join('\n')}
-    return d;
+    if (mc.u_maskW <= 0.0 || mc.u_maskH <= 0.0) { return 0.0; }
+    let uv = (w - vec2f(mc.u_maskL, mc.u_maskB)) / vec2f(mc.u_maskW, mc.u_maskH);
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { return 0.0; }
+    // This device's texture rows run the other way from the clip space the mask was drawn in.
+    return textureSampleLevel(u_shelterMask, u_shelterMask_s, vec2f(uv.x, 1.0 - uv.y), 0.0).a;
 }
 fn streaks(uv : vec2f, aspect : f32, cols : f32, speed : f32, seed : f32, T : f32) -> f32 {
     let q = vec2f(uv.x * aspect - (1.0 - uv.y) * mc.u_wind, 1.0 - uv.y);
@@ -119,7 +104,11 @@ const SOURCE = `#pragma shader "PP Rain 2D"
 #pragma param u_speed float default(1.6) range(0.2,6)
 #pragma param u_streakLength float default(0.3) range(0.05,0.9)
 #pragma param u_streakColor color default(0.78,0.82,0.9,1)
-${PARAMS}
+#pragma param u_maskL float default(0) range(-1000000000,1000000000)
+#pragma param u_maskB float default(0) range(-1000000000,1000000000)
+#pragma param u_maskW float default(0) range(0,1000000000)
+#pragma param u_maskH float default(0) range(0,1000000000)
+#pragma param u_shelterMask texture default(black)
 
 #pragma fragment
 precision highp float;

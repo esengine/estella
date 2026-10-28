@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { ShaderHandle } from '../render/material';
-import { RAIN_SHELTER_UNIFORMS } from './rainShelterSlots';
+import { RAIN_SHELTER_UNIFORMS, RAIN_SHELTER_MASK_TEXTURE } from './rainShelterMask';
 import { effectSourcesOf, computeSourceOf } from './effectSources';
 import type { basicEffects } from './sources/basic';
 import type { atmosphereEffects } from './sources/atmosphere';
@@ -335,8 +335,11 @@ registerEffect({
         { name: 'u_wind', label: 'Wind', min: -1, max: 1, step: 0.01, defaultValue: 0.15 },
         { name: 'u_speed', label: 'Speed', min: 0.2, max: 6, step: 0.1, defaultValue: 1.6 },
         { name: 'u_streakLength', label: 'Streak Length', min: 0.05, max: 0.9, step: 0.01, defaultValue: 0.3 },
-        // The shelters, written each frame by the rain-shelter system from the RainShelter sprites nearest the camera.
+        // Where the mask sits in the world, written each frame by the rain-shelter system with the mask itself.
         ...RAIN_SHELTER_UNIFORMS,
+    ],
+    textures: [
+        { name: RAIN_SHELTER_MASK_TEXTURE, label: 'Shelter Mask', internal: true },
     ],
     colors: [
         { name: 'u_streakColor', label: 'Streak Colour', defaultValue: { r: 0.78, g: 0.82, b: 0.9, a: 1 } },

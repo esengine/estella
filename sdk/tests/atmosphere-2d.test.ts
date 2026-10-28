@@ -2,8 +2,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, expect, it } from 'vitest';
 import { coversPoint, stepFade } from '../src/render/coverFade';
-import { applyRainSheltersToRain, drynessOf, nearestShelters, shelterOf, type Shelter } from '../src/render/rainShelter';
-import { RAIN_SHELTER_SLOTS, shelterUniform } from '../src/postprocess/rainShelterSlots';
+import { applyRainSheltersToRain, drynessOf, maskRects, shelterOf, ELLIPSE_STRIPS, type Shelter } from '../src/render/rainShelter';
+import { RAIN_SHELTER_MASK_TEXTURE } from '../src/postprocess/rainShelterMask';
+import { runtimeTextureHandle, runtimeTextureRef } from '../src/postprocess/runtimeTextures';
 import { Light } from '../src/ecs/component';
 import type { SpriteData, TransformData } from '../src/ecs/component';
 import { applyWeatherToEffects, blendWeather, WeatherDrive, WEATHER_CLEAR, WEATHER_NONE, WEATHER_RAIN } from '../src/postprocess/weather';
@@ -113,12 +114,12 @@ describe('the 2D rain', () => {
         ({ worldPosition: { x, y, z: 0 }, worldScale: { x: 1, y: 1, z: 1 } }) as TransformData;
     const data = { round: false, margin: 0, enabled: true };
 
-    it('is an effect that asks for no depth and for no shelter map, with every shelter slot internal', () => {
+    it('is an effect that asks for no depth, whose shelter mask and the rectangle it covers are written by the engine', () => {
         const def = getEffectDef('rain2d');
         expect(def).toBeDefined();
         expect(def!.category).toBe('atmosphere');
-        const slots = def!.uniforms.filter((u) => u.internal);
-        expect(slots).toHaveLength(RAIN_SHELTER_SLOTS * 5);
+        expect(def!.uniforms.filter((u) => u.internal).map((u) => u.name)).toEqual(['u_maskL', 'u_maskB', 'u_maskW', 'u_maskH']);
+        expect(def!.textures).toEqual([{ name: RAIN_SHELTER_MASK_TEXTURE, label: 'Shelter Mask', internal: true }]);
         expect(def!.uniforms.map((u) => u.name)).toEqual(expect.arrayContaining(['u_intensity', 'u_wetness', 'u_puddles', 'u_puddleScale', 'u_rippleScale']));
     });
 
@@ -152,24 +153,58 @@ describe('the 2D rain', () => {
         expect(s.y).toBeCloseTo(30, 6);
     });
 
-    it('hands the shader the shelters nearest the camera, by their edge, so a big roof is not passed over for a small shed', () => {
-        const roof: Shelter = { x: 300, y: 0, hx: 250, hy: 250, dry: 1 };
-        const shed: Shelter = { x: 120, y: 0, hx: 10, hy: 10, dry: 1 };
-        const far: Shelter = { x: 900, y: 0, hx: 10, hy: 10, dry: 1 };
-        expect(nearestShelters([far, shed, roof], 0, 0, 2)).toEqual([roof, shed]);
+    const view = { left: -500, bottom: -500, right: 500, top: 500 };
+
+    it('draws a box shelter as one rectangle of its own size', () => {
+        expect(maskRects([{ x: 10, y: 20, hx: 50, hy: 30, dry: 0.7 }], view)).toEqual([{ x: 10, y: 20, w: 100, h: 60, dry: 0.7 }]);
     });
 
-    it('writes the slots of a rain2d effect and leaves other effects and a disabled rain alone', () => {
+    it('draws a round shelter as strips whose widths follow the ellipse and whose heights fill it', () => {
+        const rects = maskRects([{ x: 0, y: 0, hx: 100, hy: -50, dry: 1 }], view);
+        expect(rects).toHaveLength(ELLIPSE_STRIPS);
+        expect(rects.reduce((sum, r) => sum + r.h, 0)).toBeCloseTo(100, 6);
+        const widest = Math.max(...rects.map((r) => r.w));
+        expect(widest).toBeGreaterThan(190);
+        expect(widest).toBeLessThanOrEqual(200);
+        expect(Math.min(...rects.map((r) => r.w))).toBeLessThan(80);
+        const area = rects.reduce((sum, r) => sum + r.w * r.h, 0);
+        expect(area).toBeGreaterThan(Math.PI * 100 * 50 * 0.97);
+        expect(area).toBeLessThan(Math.PI * 100 * 50 * 1.03);
+    });
+
+    it('draws the driest last, so where two shelters overlap the drier wins', () => {
+        const rects = maskRects([{ x: 0, y: 0, hx: 10, hy: 10, dry: 0.9 }, { x: 0, y: 0, hx: 40, hy: 40, dry: 0.2 }], view);
+        expect(rects.map((r) => r.dry)).toEqual([0.2, 0.9]);
+    });
+
+    it('leaves out a shelter the view cannot see, and keeps every one it can: there is no count to run out of', () => {
+        const many: Shelter[] = Array.from({ length: 200 }, (_, i) => ({ x: (i % 20) * 40 - 400, y: Math.floor(i / 20) * 40 - 200, hx: 15, hy: 15, dry: 0.5 }));
+        expect(maskRects(many, view)).toHaveLength(200);
+        const away: Shelter[] = [{ x: 5000, y: 0, hx: 10, hy: 10, dry: 1 }, { x: 0, y: -5000, hx: 10, hy: 10, dry: 1 }];
+        expect(maskRects(away, view)).toEqual([]);
+        expect(maskRects([{ x: 540, y: 0, hx: 50, hy: 10, dry: 1 }], view)).toHaveLength(1);
+    });
+
+    it('tells a rain2d effect where the mask lies and which texture it is, and leaves other effects and a disabled rain alone', () => {
         const effects = new Map([['rain2d', mist()]]);
-        applyRainSheltersToRain(effects, 0, 0);
+        applyRainSheltersToRain(effects);
         const rain = effects.get('rain2d')!;
-        for (let slot = 0; slot < RAIN_SHELTER_SLOTS; slot++) expect(rain.uniforms.get(shelterUniform(slot, 'hx'))).toBe(0);
+        for (const name of ['u_maskL', 'u_maskB', 'u_maskW', 'u_maskH']) expect(rain.uniforms.get(name)).toBe(0);
+        expect(rain.textures.size).toBe(0);
         const none = new Map([['mist2d', mist()]]);
-        applyRainSheltersToRain(none, 0, 0);
+        applyRainSheltersToRain(none);
         expect(none.get('mist2d')!.uniforms.size).toBe(0);
         const off = new Map([['rain2d', { ...mist(), enabled: false }]]);
-        applyRainSheltersToRain(off, 0, 0);
+        applyRainSheltersToRain(off);
         expect(off.get('rain2d')!.uniforms.size).toBe(0);
+    });
+
+    it('names its mask by a ref that carries the handle, so a texture made again is a new ref', () => {
+        const ref = runtimeTextureRef(RAIN_SHELTER_MASK_TEXTURE, 42);
+        expect(runtimeTextureHandle(ref)).toBe(42);
+        expect(runtimeTextureRef(RAIN_SHELTER_MASK_TEXTURE, 43)).not.toBe(ref);
+        expect(runtimeTextureHandle('assets/textures/rain.png')).toBeNull();
+        expect(runtimeTextureHandle('@runtime:rain-shelter-mask#0')).toBeNull();
     });
 
     it('is the rain a weather raises, and brings no second rain beside it', () => {

@@ -346,7 +346,7 @@ export { RenderDemand } from './render/renderDemand';
 export { buildPathGeometry, mergeGeometry, cubicBezier, quadraticBezier, circlePoints } from './render/vectorPath';
 export type { PathStyle, PathFill, PathStroke, PathColor, LineJoin, LineCap } from './render/vectorPath';
 export { setPath, clearPath } from './render/pathRenderer';
-export { RainShelter, drynessOf, nearestShelters, type RainShelterData, type Shelter } from './render/rainShelter';
+export { RainShelter, drynessOf, maskRects, type RainShelterData, type Shelter, type MaskRect } from './render/rainShelter';
 export { CoverFade, CoverFadeTarget, coveredGround, coversPoint, stepFade, type CoverFadeData } from './render/coverFade';
 export { BlobShadow, setBlobShadowGround, buildBlobMesh, blobAlpha, type BlobShadowData, type BlobShadowGround } from './render/blobShadow';
 export type { RenderOnDemandOptions } from './render/renderDemand';

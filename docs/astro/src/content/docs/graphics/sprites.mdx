@@ -261,7 +261,9 @@ has a room that is dry. So one roof carries both components, and the rain stops 
 | `round` | The covered ground is the ellipse inside the rectangle (a crown), not the whole rectangle (a roof). |
 | `margin` | Ground around the sprite's edge that stays dry too, in world units: eaves. |
 
-The eight shelters nearest the camera are the ones the rain reads. The rings and the darkening of a wet floor are drawn over everything, characters included, because a
+There is no limit on how many shelters a scene has. Each frame the shelters in view are painted into a small mask over the view (one rectangle each, an ellipse as a few strips),
+and the rain reads one texel of it per pixel; a village of roofs costs what a hut does. The mask is 512 texels across, so a shelter's edge is soft by about the view's size over
+that. The rings and the darkening of a wet floor are drawn over everything, characters included, because a
 2D picture has no way to tell a character from the ground under it; they are small and low, which is why it reads as rain on the picture.
 
 ### Depth layers (2.5D)
