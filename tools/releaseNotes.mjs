@@ -3092,6 +3092,10 @@ export const NOTED = {
     {"internal":"Undoes the quarter-size clouds, which showed a coarse checkerboard in the cloud and streaks near the horizon."},
   "feat(render): a quality level can smooth edges temporally, and the temporal pass keeps more detail":
     {"note":"A quality level can smooth edges temporally."},
+  "fix(ci): the changelog names the performance work and the notes name the commits that landed it":
+    {"internal":"Repairs the release-notes ledger; no creator can observe it."},
+  "fix(ci): the ledger names its own repair":
+    {"internal":"Repairs the release-notes ledger; no creator can observe it."},
   "feat(render): the medium quality level smooths edges temporally by default":
     {"note":"The medium level uses it"},
   "fix(ci): the net modules build no TextEncoder at load, the API snapshots take the new surface, the retained-text harness reads its cases under node":
