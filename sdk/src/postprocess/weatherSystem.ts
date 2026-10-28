@@ -25,6 +25,7 @@ import { isEditor, isPlayMode } from '../ecs/env';
 import {
     blendWeather, setCurrentWeather, weatherPresetId, WEATHER_NONE, WeatherDrive, type WeatherState,
 } from './weather';
+import { Material } from '../render/material';
 import { timeOfDayAt, setCurrentTimeOfDay, TimeDrive, type TimeOfDayState } from './timeOfDay';
 
 /** What a light was authored with, kept so a weather scales the author's number and never its own last answer. */
@@ -43,6 +44,21 @@ interface LightBase {
 }
 
 const bases = new Map<Entity, LightBase>();
+
+/** The materials the weather has put its wind on, so they can be set back to 1 when it goes. */
+const blown = new Set<number>();
+
+/**
+ * The weather's wind on sprites that sway: a material that declares `u_swayWind` (the Sway template) is told how hard it blows, as the Foliage
+ * module tells its own. A value written per frame, not scaled from an authored one, so there is nothing to put back but the 1 it started at.
+ */
+function blowSprites(wind: number): void {
+    if (wind === 1 && blown.size === 0) return;
+    for (const material of Material.materialsDeclaring('u_swayWind')) {
+        Material.setUniform(material, 'u_swayWind', wind);
+        if (wind === 1) blown.delete(material); else blown.add(material);
+    }
+}
 
 /** Where each Weather is in its sequence, and how long it has held. Not in the component: a scene file need not carry it. */
 const cycles = new Map<Entity, { index: number; held: number }>();
@@ -267,6 +283,7 @@ export const weatherSystem = defineSystem(
         let clock: [Entity, TimeOfDayData] | null = null;
         for (const entry of times) { clock = entry; break; }
         if (!found && !clock) {
+            blowSprites(1);
             if (bases.size > 0) restoreLights(world);
             if (soundBases.size > 0) restoreSound(world);
             cycles.clear();
@@ -300,6 +317,8 @@ export const weatherSystem = defineSystem(
             setCurrentTimeOfDay(null);
         }
 
+        blowSprites(weatherState && playing && (weatherDrive & WeatherDrive.Wind) ? weatherState.wind : 1);
+
         const lightWork = (weatherState !== null && (weatherDrive & (WeatherDrive.Lights | WeatherDrive.Reflections)) !== 0)
             || (timeState !== null && (timeDrive & (TimeDrive.Lights | TimeDrive.Reflections)) !== 0);
         if (playing && lightWork) applyLights(world, { weather: weatherState, weatherDrive, time: timeState, timeDrive });
@@ -315,6 +334,7 @@ export const weatherSystem = defineSystem(
 export function resetWeatherSystem(): void {
     bases.clear();
     soundBases.clear();
+    blown.clear();
     cycles.clear();
     setCurrentWeather(null);
     setCurrentTimeOfDay(null);

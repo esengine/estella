@@ -22,6 +22,7 @@ import { AnimatorController, AnimatorControllerAPI, type AnimatorControllerDef }
 import type { AnimatorAvatar } from './animatorAvatar';
 import { appRegistryAsset } from '../asset/registryLookup';
 import { playModeOnly } from '../ecs/env';
+import { installCoverFade } from '../render/coverFade';
 import { SystemLabel } from '../ecs/systemLabels';
 
 export class AnimationPlugin implements Plugin {
@@ -52,8 +53,11 @@ export class AnimationPlugin implements Plugin {
             anim.removeEntityListeners(entity);
             animator.removeEntity(entity);
         });
-        this.despawnCleanups_.set(app, offDespawn);
-        this.latestDespawnCleanup_ = offDespawn;
+        // A roof or a crown with a CoverFade thins out over what stands under it; with none in the scene the system finds nothing and returns.
+        const offCoverFade = installCoverFade(app);
+        const release = (): void => { offDespawn(); offCoverFade(); };
+        this.despawnCleanups_.set(app, release);
+        this.latestDespawnCleanup_ = release;
 
         app.addSystemToSchedule(Schedule.Update, defineSystem(
             [Res(Time), Res(Tween)],

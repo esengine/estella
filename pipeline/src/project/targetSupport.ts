@@ -86,7 +86,7 @@ export const POST_PROCESS_EFFECT_GROUP: Readonly<Record<string, Subsystem>> = {
     chromaticAberration: 'fxBasic', tonemap: 'fxBasic', fxaa: 'fxBasic', lensDistortion: 'fxBasic', pixelate: 'fxBasic',
     outline: 'fxBasic', depthOutline: 'fxBasic', edgeOutline: 'fxBasic', lutGrade: 'fxBasic', agx: 'fxBasic', sharpen: 'fxBasic', filmGrain: 'fxBasic',
     motionBlur: 'fxBasic', lensFlare: 'fxBasic',
-    distanceFog: 'fxAtmosphere', skyAtmosphere: 'fxAtmosphere', heightFog: 'fxAtmosphere', rain: 'fxAtmosphere',
+    mist2d: 'fxAtmosphere', distanceFog: 'fxAtmosphere', skyAtmosphere: 'fxAtmosphere', heightFog: 'fxAtmosphere', rain: 'fxAtmosphere',
     voxelGI: 'fxLighting', ssgi: 'fxLighting', contactShadows: 'fxLighting', lightShafts: 'fxLighting',
     autoExposure: 'fxLighting', depthOfField: 'fxLighting', ssao: 'fxLighting', subsurface: 'fxLighting',
     gtao: 'fxLighting', ssr: 'fxLighting', taa: 'fxLighting',

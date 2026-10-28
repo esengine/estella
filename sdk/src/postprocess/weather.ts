@@ -246,6 +246,19 @@ export function applyWeatherToEffects(effects: Map<string, BlendedEffect>, state
         }
     }
     if (drive & WeatherDrive.Fog) {
+        // A 2D scene's mist is an opacity, not an exponent: the weather's multiplier is taken as a root so a rain thickens it
+        // without clamping straight to opaque, and it spreads as it thickens (more of the ground under it, not only denser banks).
+        const mist = effects.get('mist2d');
+        if (mist && mist.enabled) {
+            mist.uniforms.set('u_density', Math.min(value(mist, 'mist2d', 'u_density') * Math.sqrt(state.fogDensity), 1));
+            mist.uniforms.set('u_coverage', Math.min(value(mist, 'mist2d', 'u_coverage') * (1 + 0.1 * (state.fogDensity - 1)), 1));
+            mist.uniforms.set('u_glow', value(mist, 'mist2d', 'u_glow') * state.fogGlow);
+            const colour = mist.colors.get('u_fogColor')
+                ?? getEffectDef('mist2d')?.colors?.find((c) => c.name === 'u_fogColor')?.defaultValue;
+            if (colour && state.fogTintAmount > 0) mist.colors.set('u_fogColor', towards(colour, state.fogTint, state.fogTintAmount));
+        }
+    }
+    if (drive & WeatherDrive.Fog) {
         const sky = effects.get('skyAtmosphere');
         if (sky && sky.enabled) sky.uniforms.set('u_overcast', Math.max(value(sky, 'skyAtmosphere', 'u_overcast'), state.overcast));
     }

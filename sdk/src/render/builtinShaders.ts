@@ -135,6 +135,62 @@ void main() {
 #pragma end
 `;
 
+// Grass, reeds, hanging cloth: the sprite's top leans and returns, its foot stays. A sprite shader is a fragment shader, so the lean is a shift of where
+// the texture is read, growing from nothing at the bottom edge to u_swayStrength (a share of the sprite's width) at the top; the sprite's picture should
+// leave a margin at the sides for it to lean into. u_swayWind is the weather's wind, written by the engine each frame (1 with none).
+const SPRITE_SWAY = `#pragma shader "Sway"
+#pragma version 300 es
+#pragma domain Lit
+#pragma param u_tint color default(1,1,1,1)
+#pragma param u_normalMap texture default(flatnormal) texel(data)
+#pragma param u_swayStrength float default(0.12) range(0,0.5) ui(slider)
+#pragma param u_swaySpeed float default(1.6) range(0,8) ui(slider)
+#pragma param u_swayScale float default(260) range(20,2000)
+#pragma param u_swayWind float default(1) range(0,4)
+
+#pragma fragment
+precision mediump float;
+
+in vec4 v_color;
+in vec2 v_texCoord;
+in highp vec2 v_worldPos;
+
+uniform sampler2D u_textures[8];
+
+out vec4 fragColor;
+
+void main() {
+    // The gust travels across the world, so neighbouring plants lean in turn and not together.
+    highp float t = u_time.x * u_swaySpeed;
+    highp float phase = (v_worldPos.x + v_worldPos.y * 0.5) / u_swayScale;
+    float gust = sin(t + phase) + 0.5 * sin(t * 2.3 + phase * 1.7);
+    float tip = pow(clamp(v_texCoord.y, 0.0, 1.0), 1.5);
+    vec2 uv = vec2(v_texCoord.x - gust * u_swayStrength * u_swayWind * tip, v_texCoord.y);
+    vec4 base = texture(u_textures[0], uv) * v_color * u_tint;
+    if (uv.x < 0.0 || uv.x > 1.0) base.a = 0.0;
+    vec3 N = sampleNormal(u_normalMap, uv);
+    fragColor = vec4(applyLighting2D(base.rgb, N, v_worldPos), base.a);
+}
+#pragma end
+
+#pragma fragment wgsl
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    // Taken before any branch: a derivative needs every fragment of its quad.
+    let duvx = dpdx(v.v_texCoord);
+    let duvy = dpdy(v.v_texCoord);
+    let t = tc.u_time.x * mc.u_swaySpeed;
+    let phase = (v.v_worldPos.x + v.v_worldPos.y * 0.5) / mc.u_swayScale;
+    let gust = sin(t + phase) + 0.5 * sin(t * 2.3 + phase * 1.7);
+    let tip = pow(clamp(v.v_texCoord.y, 0.0, 1.0), 1.5);
+    let uv = vec2f(v.v_texCoord.x - gust * mc.u_swayStrength * mc.u_swayWind * tip, v.v_texCoord.y);
+    var base = textureSampleGrad(t0, s0, uv, duvx, duvy) * v.v_color * mc.u_tint;
+    if (uv.x < 0.0 || uv.x > 1.0) { base.a = 0.0; }
+    let N = sampleNormalGrad(u_normalMap, u_normalMap_s, uv, duvx, duvy);
+    return vec4f(applyLighting2D(base.rgb, N, v.v_worldPos), base.a);
+}
+#pragma end
+`;
+
 const SPRITE_HIT_FLASH = `#pragma shader "Hit Flash"
 #pragma version 300 es
 #pragma domain Unlit
@@ -1022,6 +1078,8 @@ fn packNormal(n : vec3f) -> vec2f {
 export const BUILTIN_SHADER_TEMPLATES: readonly BuiltinShaderTemplate[] = [
     template('sprite-unlit', 'Unlit', 'Texture × vertex color × tint, no lighting.', SPRITE_UNLIT),
     template('sprite-lit', 'Lit', 'Lit by the scene\'s 2D lights; optional normal map.', SPRITE_LIT),
+    template('sprite-sway', 'Sway',
+        'Leans in the wind, foot fixed and tip free: grass, reeds, hanging cloth. Takes the weather wind.', SPRITE_SWAY),
     template('sprite-hit-flash', 'Hit Flash',
         'Blend toward a flash color; drive u_flash from code for damage blinks.', SPRITE_HIT_FLASH),
     template('sprite-outline', 'Outline',

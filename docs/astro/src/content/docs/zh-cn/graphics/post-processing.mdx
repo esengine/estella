@@ -26,6 +26,7 @@ Estella 通过 ping-pong 帧缓冲运行全屏后处理。加一个 `PostProcess
 | `lensFlare` | 亮于阈值的物体投出的鬼影和光晕,带色彩边缘 | `intensity`、`threshold`、`ghosts`、`dispersal`、`haloWidth`、`chromatic`、`tint` |
 | `blur` | 高斯模糊 | `intensity` |
 | `fxaa` | 快速抗锯齿 | `intensity` |
+| `mist2d` | 按世界坐标铺在地面上的、会飘动的成团薄雾。不读深度，2D 场景也能用；被照亮的东西会在雾里发光 | `density`、`coverage`、`scale`、`speed`、`direction`、`glow`、颜色 |
 | `distanceFog` | 按到相机的距离做线性雾 | `near`、`far`、`intensity`、颜色 |
 | `heightFog` | 指数高度雾,带太阳辉光和朦胧的地平线 | `density`、`heightFalloff`、`baseHeight`、`sunAzimuth`、`sunElevation`、`skyFog`、颜色 |
 | `skyAtmosphere` | 散射太阳光的大气,带太阳、月亮、星星和体积云,画在没有表面的地方 | `intensity`、`haze`、`altitude`、`clouds`、`cloudBase`、`cloudThickness`、`windSpeed`、`overcast`、`sunAzimuth`、`sunElevation` |
@@ -380,7 +381,7 @@ stack.addPass('lutGrade', getEffectDef('lutGrade')!.factory())
 | 组 | 子路径 | 效果 |
 |---|---|---|
 | 基础 | `esengine/fx-basic` | blur、bloom、vignette、grayscale、colorGrade、lutGrade、chromaticAberration、tonemap、fxaa、sharpen、lensDistortion、pixelate、outline、depthOutline、edgeOutline、filmGrain、motionBlur、lensFlare |
-| 大气 | `esengine/fx-atmosphere` | skyAtmosphere、heightFog、distanceFog、rain |
+| 大气 | `esengine/fx-atmosphere` | mist2d、skyAtmosphere、heightFog、distanceFog、rain |
 | 光照 | `esengine/fx-lighting` | ssao、gtao、ssr、ssgi、voxelGI、contactShadows、lightShafts、autoExposure、depthOfField、subsurface、taa |
 
 导出会读 `PostProcessVolume` 里写了哪些效果(以及驱动大气组的 `Weather`、`TimeOfDay` 组件),并导入它们需要的组。**从脚本里**加的效果——

@@ -2364,6 +2364,99 @@ fn shelteredAt(W : vec3f) -> f32 {
 `;
         return Material.compileShader(source);
     },
+    createMist2d(): ShaderHandle {
+        // Fog that does not ask the depth buffer, because a 2D scene has none: sprites are blended, they write no depth, so the
+        // fogs that measure a distance see nothing to fog. This one is a layer of drifting noise laid over the ground in WORLD
+        // units, found from the screen by un-projecting at the near plane, which for an orthographic eye is the world's x and y.
+        // It sits over the finished picture, so what is lit shows through it: `u_glow` lets a lamp's light scatter in the haze.
+        const GLSL = `
+float mistHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float mistNoise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(mistHash(i), mistHash(i + vec2(1.0, 0.0)), f.x), mix(mistHash(i + vec2(0.0, 1.0)), mistHash(i + vec2(1.0, 1.0)), f.x), f.y);
+}
+float mistFbm(vec2 p) {
+    float a = 0.5;
+    float s = 0.0;
+    for (int k = 0; k < 3; k++) { s += a * mistNoise(p); p = p * 2.03 + vec2(17.3, 9.1); a *= 0.5; }
+    return s / 0.875;
+}`;
+        const WGSL = `
+fn mistHash(p : vec2f) -> f32 { return fract(sin(dot(p, vec2f(127.1, 311.7))) * 43758.5453); }
+fn mistNoise(p : vec2f) -> f32 {
+    let i = floor(p);
+    var f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(mix(mistHash(i), mistHash(i + vec2f(1.0, 0.0)), f.x), mix(mistHash(i + vec2f(0.0, 1.0)), mistHash(i + vec2f(1.0, 1.0)), f.x), f.y);
+}
+fn mistFbm(q : vec2f) -> f32 {
+    var p = q;
+    var a = 0.5;
+    var s = 0.0;
+    for (var k = 0; k < 3; k = k + 1) { s = s + a * mistNoise(p); p = p * 2.03 + vec2f(17.3, 9.1); a = a * 0.5; }
+    return s / 0.875;
+}`;
+        const source = `#pragma shader "PP Mist 2D"
+#pragma version 300 es
+#pragma domain PostProcess
+#pragma param u_fogColor color default(0.62,0.72,0.76,1)
+#pragma param u_density float default(0.55) range(0,1)
+#pragma param u_coverage float default(0.6) range(0,1)
+#pragma param u_scale float default(520) range(40,4000)
+#pragma param u_speed float default(18) range(0,400)
+#pragma param u_direction float default(25) range(0,360)
+#pragma param u_glow float default(0.6) range(0,2)
+
+#pragma fragment
+precision highp float;
+
+in vec2 v_texCoord;
+uniform sampler2D u_texture;
+out vec4 fragColor;
+${GLSL}
+
+void main() {
+    vec4 src = texture(u_texture, v_texCoord);
+    vec2 world = worldFromDepth(v_texCoord, 0.0).xy + u_renderOrigin.xy;
+    float angle = radians(u_direction);
+    vec2 p = (world - vec2(cos(angle), sin(angle)) * (u_speed * u_time.x)) / max(u_scale, 1.0);
+    // Warped by a slower noise of its own, so the banks fold into one another and do not just slide.
+    float n = mistFbm(p + 0.4 * vec2(mistFbm(p * 0.6 + 3.1), mistFbm(p * 0.6 + 8.4)));
+    float lo = 1.0 - u_coverage * 0.9;
+    float t = smoothstep(lo, lo + 0.35, n) * u_density;
+    vec3 fog = u_fogColor.rgb;
+#ifdef ES_LINEAR
+    fog = srgbToLinear(fog);
+#endif
+    vec3 col = mix(src.rgb, fog, t) + src.rgb * (t * u_glow);
+    fragColor = vec4(col, src.a);
+}
+#pragma end
+
+#pragma fragment wgsl
+${WGSL}
+
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
+    let world = worldFromDepth(v.v_texCoord, 0.0).xy + frame.renderOrigin.xy;
+    let angle = radians(mc.u_direction);
+    let p = (world - vec2f(cos(angle), sin(angle)) * (mc.u_speed * tc.u_time.x)) / max(mc.u_scale, 1.0);
+    let n = mistFbm(p + 0.4 * vec2f(mistFbm(p * 0.6 + 3.1), mistFbm(p * 0.6 + 8.4)));
+    let lo = 1.0 - mc.u_coverage * 0.9;
+    let t = smoothstep(lo, lo + 0.35, n) * mc.u_density;
+    var fog = mc.u_fogColor.rgb;
+#ifdef ES_LINEAR
+    fog = srgbToLinear(fog);
+#endif
+    let col = mix(src.rgb, fog, vec3f(t)) + src.rgb * (t * mc.u_glow);
+    return vec4f(col, src.a);
+}
+#pragma end
+`;
+        return Material.compileShader(source);
+    },
     createDistanceFog(): ShaderHandle {
         // Fog is a DISTANCE and a depth sample is not one: the same 0.9 is a
         // metre away up close and a hundred out. `worldFromDepth` (injected with

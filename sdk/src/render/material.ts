@@ -473,6 +473,18 @@ export const Material = {
         return handle;
     },
 
+    /**
+     * Every live material whose shader declares `param`: what a value that belongs to the whole scene (the weather's wind) is written to, without
+     * asking each sprite which material it wears.
+     */
+    materialsDeclaring(param: string): MaterialHandle[] {
+        const found: MaterialHandle[] = [];
+        for (const [handle, data] of materials) {
+            if (declaredParams.get(data.shader)?.has(param)) found.push(handle);
+        }
+        return found;
+    },
+
     /** Gets an enabled static switch (false when unset). */
     getSwitch(material: MaterialHandle, name: string): boolean {
         return materials.get(material)?.switches[name] ?? false;

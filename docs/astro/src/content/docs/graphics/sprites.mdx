@@ -233,6 +233,21 @@ front of it — no manual `layer` or z juggling.
   gameplay layer(s) that need it.
 </Aside>
 
+### Fading a roof or a crown over the player
+
+A roof, or a tree crown, drawn over the ground it covers hides whoever walks in. Put `CoverFade` on the covering sprite and `CoverFadeTarget` on the
+thing that must stay visible (the player): while a target stands on the sprite's ground, the sprite eases down to `opacity` of its own alpha over `fadeTime`,
+and eases back when the target leaves.
+
+| Field | What it does |
+|---|---|
+| `opacity` | The sprite's alpha, as a share of its own, while something stands under it. |
+| `fadeTime` | Seconds the fade takes, either way. |
+| `margin` | Ground around the sprite's edge that counts as under it, so the fade starts as a target steps up to the edge. |
+| `round` | The covered ground is the ellipse inside the rectangle (a crown), not the whole rectangle (a roof). |
+
+The covered ground is the sprite's size and pivot under the entity's scale; rotation is not read. It runs in play only.
+
 ### Depth layers (2.5D)
 
 Check a layer under **Settings → Project → Rendering → Advanced → Depth-sorted layers** and it

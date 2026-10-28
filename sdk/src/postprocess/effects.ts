@@ -297,6 +297,27 @@ registerEffect({
 });
 
 registerEffect({
+    type: 'mist2d',
+    label: 'Mist 2D',
+    factory: () => postProcessEffects.createMist2d(),
+    uniforms: [
+        // How thick the mist is where it is thickest.
+        { name: 'u_density', label: 'Density', min: 0, max: 1, step: 0.01, defaultValue: 0.55, neutralValue: 0 },
+        // How much of the ground it covers: 0 is none, 1 nearly all.
+        { name: 'u_coverage', label: 'Coverage', min: 0, max: 1, step: 0.01, defaultValue: 0.6 },
+        // WORLD lengths: the size of the banks, how fast they drift, and which way (degrees from +X).
+        { name: 'u_scale', label: 'Scale', min: 40, max: 4000, step: 10, defaultValue: 520 },
+        { name: 'u_speed', label: 'Speed', min: 0, max: 400, step: 1, defaultValue: 18 },
+        { name: 'u_direction', label: 'Direction', min: 0, max: 360, step: 1, defaultValue: 25 },
+        // How much of what is lit scatters in the mist: a lamp glows in it.
+        { name: 'u_glow', label: 'Glow', min: 0, max: 2, step: 0.01, defaultValue: 0.6 },
+    ],
+    colors: [
+        { name: 'u_fogColor', label: 'Colour', defaultValue: { r: 0.62, g: 0.72, b: 0.76, a: 1 } },
+    ],
+});
+
+registerEffect({
     type: 'distanceFog',
     label: 'Distance Fog',
     factory: () => postProcessEffects.createDistanceFog(),
@@ -840,7 +861,7 @@ const CATEGORIES: Record<EffectCategory, string[]> = {
     lens: ['bloom', 'depthOfField', 'motionBlur', 'lensFlare', 'filmGrain', 'chromaticAberration', 'lensDistortion', 'vignette', 'sharpen'],
     color: ['tonemap', 'agx', 'colorGrade', 'lutGrade', 'displayLut', 'autoExposure', 'grayscale'],
     light: ['ssao', 'gtao', 'ssgi', 'ssr', 'voxelGI', 'contactShadows', 'lightShafts', 'subsurface'],
-    atmosphere: ['distanceFog', 'heightFog', 'skyAtmosphere', 'rain'],
+    atmosphere: ['mist2d', 'distanceFog', 'heightFog', 'skyAtmosphere', 'rain'],
     aa: ['fxaa', 'taa'],
     stylize: ['blur', 'pixelate', 'outline', 'depthOutline', 'edgeOutline'],
 };
