@@ -18,7 +18,7 @@
  * editor preview path) can exercise the value logic without a World.
  */
 import { defineSystem, type SystemDef } from '../../ecs/system';
-import { getComponent } from '../../ecs/component';
+import { getComponent, Parent } from '../../ecs/component';
 import { Res, Time, type TimeData } from '../../ecs/resource';
 import { applyEasing } from '../../animation/Easing';
 import { EntityStateMap } from '../util/helpers';
@@ -188,7 +188,25 @@ interface BindingTx {
 export function createGearApplySystem(world: World): SystemDef {
     const tracker = new EntityStateMap<{ ref: unknown; txs: Array<BindingTx | null> }>();
 
+    // A frame in which nothing a gear reads has changed does the same nothing as the last one, so it is not run. Everything the
+    // pass depends on is tracked: the controllers' pages (UIController), the bindings (UIGear), where each node hangs (Parent, which
+    // is how a controller is found), and what exists and carries which component (the world's structural version, which covers a
+    // target component arriving later). A tween in flight is the one thing that moves without any of those changing, so it keeps
+    // the pass running until it settles. A world without change tracking (a test double) runs every frame as it always did.
+    const canSkip = typeof world.enableChangeTracking === 'function' && typeof world.anyChangedSince === 'function'
+        && typeof world.getWorldTick === 'function' && typeof world.getWorldVersion === 'function';
+    if (canSkip) {
+        world.enableChangeTracking(UIController);
+        world.enableChangeTracking(UIGear);
+        world.enableChangeTracking(Parent);
+    }
+    let settledTick = -1, settledVersion = -1, inFlight = true;
+
     return defineSystem([Res(Time)], (time: TimeData) => {
+        if (canSkip && !inFlight && settledVersion === world.getWorldVersion()
+            && !world.anyChangedSince(UIController, settledTick) && !world.anyChangedSince(UIGear, settledTick)
+            && !world.anyChangedSince(Parent, settledTick)) return;
+        let moving = false;
         const dt = time.delta;
         const seen = new Set<Entity>();
 
@@ -216,7 +234,8 @@ export function createGearApplySystem(world: World): SystemDef {
                 if (target === undefined) continue; // page not authored → leave field alone
 
                 const comp = getComponent(b.component);
-                if (!comp || !world.has(e, comp)) continue;
+                if (!comp) { moving = true; continue; }                  // not registered yet: look again next frame
+                if (!world.has(e, comp)) continue;
 
                 const fade = Math.max(0, b.tween?.duration ?? 0);
                 const lerpable = fade > 0 && isLerpable(target);
@@ -241,8 +260,14 @@ export function createGearApplySystem(world: World): SystemDef {
                 if (writeFieldPath(data, b.property, value)) {
                     world.insert(e, comp, data);
                 }
-                if (t >= 1) tx.done = true;
+                if (t >= 1) tx.done = true; else moving = true;
             }
+        }
+        if (canSkip) {
+            inFlight = moving;
+            // Strictly-after, like the layout pass: a write that lands later in this same tick is seen next frame.
+            settledTick = world.getWorldTick() - 1;
+            settledVersion = world.getWorldVersion();
         }
 
         // Purge trackers for entities that no longer carry UIGear (the query only

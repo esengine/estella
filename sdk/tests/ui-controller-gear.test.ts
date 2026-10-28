@@ -339,3 +339,110 @@ describe('InteractionControllerDriverSystem — button states through gears', ()
         expect(getControllerPage(world as never, e, '$interaction')).toBe('hover');
     });
 });
+
+// ─── Skipping the frames in which nothing changed ────────────────────────
+
+/** The mock world with the change tracking the real one has: a tick per frame, a structural version, and when each component last changed. */
+function makeTrackedWorld() {
+    const base = makeMockWorld();
+    let tick = 0, version = 0;
+    const changedAt = new Map<AnyComponentDef, number>();
+    const reads = { get: 0, has: 0 };
+    const note = (c: AnyComponentDef) => changedAt.set(c, tick);
+    const world = {
+        ...base,
+        get: (e: Entity, c: AnyComponentDef) => { reads.get++; return base.get(e, c); },
+        has: (e: Entity, c: AnyComponentDef) => { reads.has++; return base.has(e, c); },
+        insert: (e: Entity, c: AnyComponentDef, d: unknown) => { if (!base.has(e, c)) version++; base.insert(e, c, d); note(c); },
+        update: (e: Entity, c: AnyComponentDef, edit: (d: unknown) => void) => { base.update(e, c, edit); note(c); },
+        remove: (e: Entity, c: AnyComponentDef) => { version++; return base.remove(e, c); },
+        enableChangeTracking: () => {},
+        getWorldTick: () => tick,
+        getWorldVersion: () => version,
+        anyChangedSince: (c: AnyComponentDef, since: number) => (changedAt.get(c) ?? -1) > since,
+        nextFrame: () => { tick++; },
+        reads,
+    };
+    return world;
+}
+
+describe('GearApplySystem — idle frames are skipped', () => {
+    let world: ReturnType<typeof makeTrackedWorld>;
+    let e: Entity;
+    const red = { r: 1, g: 0, b: 0, a: 1 }, blue = { r: 0, g: 0, b: 1, a: 1 };
+    const frame = (sys: SystemDef, dt = 1 / 60) => { world.nextFrame(); runSystem(sys, dt); };
+    beforeEach(() => {
+        world = makeTrackedWorld();
+        e = world.spawn();
+        world.insert(e, UIVisual, makeVisual());
+        world.insert(e, UIController, { controllers: [controllerState('tab', ['a', 'b'], 'a')] });
+        world.insert(e, UIGear, { bindings: [gearBinding('tab', 'UIVisual', 'color', { a: red, b: blue })] } as UIGearData);
+    });
+
+    it('reads nothing from the world in a frame where nothing changed, once the gears have settled', () => {
+        const sys = createGearApplySystem(world as never);
+        frame(sys); frame(sys); frame(sys);               // the first pass applies, the next ones settle
+        expect((world.get(e, UIVisual) as UIVisualData).color).toEqual(red);
+        world.reads.get = 0; world.reads.has = 0;
+        for (let i = 0; i < 20; i++) frame(sys);
+        expect(world.reads.get + world.reads.has).toBe(0);
+    });
+
+    it('wakes for a controller page change and applies it', () => {
+        const sys = createGearApplySystem(world as never);
+        frame(sys); frame(sys); frame(sys);
+        setControllerPage(world as never, e, 'tab', 'b');
+        world.update(e, UIController, () => {});            // what setControllerPage's own write records
+        frame(sys);
+        expect((world.get(e, UIVisual) as UIVisualData).color).toEqual(blue);
+    });
+
+    it('keeps running while a tween is in flight, with nothing else changing, until it settles', () => {
+        world.insert(e, UIGear, { bindings: [gearBinding('tab', 'UIVisual', 'color', { a: red, b: blue }, { duration: 0.5, easing: 0 })] } as UIGearData);
+        const sys = createGearApplySystem(world as never);
+        frame(sys); frame(sys);
+        world.update(e, UIController, (d) => { (d as UIControllerData).controllers[0].current = 'b'; });
+        frame(sys, 0.1);
+        const early = (world.get(e, UIVisual) as UIVisualData).color.b;
+        expect(early).toBeGreaterThan(0); expect(early).toBeLessThan(1);
+        for (let i = 0; i < 10; i++) frame(sys, 0.1);       // no write to anything a gear reads: only the tween moves it
+        expect((world.get(e, UIVisual) as UIVisualData).color).toEqual(blue);
+        world.reads.get = 0; world.reads.has = 0;
+        for (let i = 0; i < 5; i++) frame(sys, 0.1);
+        expect(world.reads.get + world.reads.has).toBe(0);  // and once it has settled it sleeps again
+    });
+
+    it('wakes when the component a gear writes to arrives after the gear', () => {
+        const other = world.spawn();
+        world.insert(other, UIController, { controllers: [controllerState('tab', ['a', 'b'], 'b')] });
+        world.insert(other, UIGear, { bindings: [gearBinding('tab', 'UIVisual', 'color', { a: red, b: blue })] } as UIGearData);
+        const sys = createGearApplySystem(world as never);
+        frame(sys); frame(sys); frame(sys);                 // `other` has no UIVisual yet: nothing to write to
+        expect(world.has(other, UIVisual)).toBe(false);
+        world.insert(other, UIVisual, makeVisual());
+        frame(sys);
+        expect((world.get(other, UIVisual) as UIVisualData).color).toEqual(blue);
+    });
+
+    it('wakes when a node is hung under a different parent, so its controller is found again', () => {
+        const bare = world.spawn(), root = world.spawn(), leaf = world.spawn();
+        world.insert(root, UIController, { controllers: [controllerState('tab', ['a', 'b'], 'b')] });
+        world.insert(leaf, UIVisual, makeVisual());
+        world.insert(leaf, Parent, { entity: bare });       // it already hangs somewhere, so moving it adds no component
+        world.insert(leaf, UIGear, { bindings: [gearBinding('tab', 'UIVisual', 'color', { a: red, b: blue })] } as UIGearData);
+        const sys = createGearApplySystem(world as never);
+        frame(sys); frame(sys); frame(sys);                 // no controller above it yet: left alone
+        expect((world.get(leaf, UIVisual) as UIVisualData).color).toEqual({ r: 1, g: 1, b: 1, a: 1 });
+        world.update(leaf, Parent, (d) => { (d as { entity: Entity }).entity = root; });
+        frame(sys);
+        expect((world.get(leaf, UIVisual) as UIVisualData).color).toEqual(blue);
+    });
+
+    it('wakes when the bindings themselves are rewritten', () => {
+        const sys = createGearApplySystem(world as never);
+        frame(sys); frame(sys); frame(sys);
+        world.update(e, UIGear, (d) => { (d as UIGearData).bindings = [gearBinding('tab', 'UIVisual', 'color', { a: blue, b: red })]; });
+        frame(sys);
+        expect((world.get(e, UIVisual) as UIVisualData).color).toEqual(blue);
+    });
+});
