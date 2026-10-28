@@ -19,6 +19,7 @@
  *              provider still working on the planet just left) is thrown away, never published.
  *            - A chunk whose making throws is failed until the generation changes, and says why.
  */
+import { createAbort, type AbortHandle } from '../util/abort';
 import type { App } from '../app/app';
 import { defineResource } from '../ecs/resource';
 import { defineSystem, Schedule } from '../ecs/system';
@@ -83,7 +84,7 @@ interface Chunk<T> {
     value: T | null;
     publishedFor: number | string | null;
     /** Being made: for which generation, and how to stop it. */
-    making: { generation: number | string; abort: AbortController } | null;
+    making: { generation: number | string; abort: AbortHandle } | null;
     failedFor: number | string | null;
     reason?: string;
 }
@@ -250,7 +251,7 @@ export class ProceduralChunks {
         }
         const chunk = c;
         const generation = layer.def.generation;
-        const abort = new AbortController();
+        const abort = createAbort();
         let made: unknown;
         try {
             made = layer.def.make(cx, cz, abort.signal);

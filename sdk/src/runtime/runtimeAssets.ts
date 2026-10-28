@@ -199,13 +199,19 @@ export function createTextureArrayFromPixels(
         throw new Error(`createTextureArrayFromPixels: every layer must be ${width}x${height} RGBA8 (${layerBytes} bytes)`);
     }
     const rm = owner ?? requireResourceManager();
-    if (!rm.createTextureArray || !module) {
-        throw new Error('createTextureArrayFromPixels: needs the wasm ResourceManager and its heap');
-    }
     const format = samplesAsSrgb(params?.srgb) ? 2 : 1;
     const filter = params ? textureFilterCode(params) : -1;
     const wrap = WRAP_MODE_MAP[params?.wrapMode ?? 'clamp'] ?? 1;
     const total = layerBytes * layers.length;
+    // Native path: no wasm heap, so the layers go over as one run of bytes and the host copies them.
+    if (rm.createTextureArrayFromBytes) {
+        const bytes = new Uint8Array(total);
+        layers.forEach((layer, i) => bytes.set(layer, i * layerBytes));
+        return rm.createTextureArrayFromBytes(width, height, layers.length, bytes, format, filter, wrap, content);
+    }
+    if (!rm.createTextureArray || !module) {
+        throw new Error('createTextureArrayFromPixels: needs the wasm ResourceManager and its heap');
+    }
     return withMalloc(module, total, ptr => {
         if (!ptr) return 0;
         layers.forEach((layer, i) => module.HEAPU8.set(layer, ptr + i * layerBytes));

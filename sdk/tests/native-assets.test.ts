@@ -104,6 +104,22 @@ describe('createNativeResourceManager', () => {
         expect(rm.getTextureDimensions(handle)).toBeNull();
     });
 
+    it('makes a texture array from its layers as bytes, without a wasm heap', async () => {
+        const calls: unknown[][] = [];
+        const rm = createNativeResourceManager({
+            es_rm_createTextureArray: (...args: unknown[]) => { calls.push(args); return 7; },
+        });
+        const { createTextureArrayFromPixels } = await import('../src/runtime/runtimeAssets');
+        const a = new Uint8Array(16).fill(1);
+        const b = new Uint8Array(16).fill(2);
+        // No module, no heap: the device has neither, and used to refuse the terrain's layer arrays for it.
+        const handle = createTextureArrayFromPixels(null, { width: 2, height: 2, layers: [a, b] }, TextureContent.Asset, undefined, rm);
+        expect(handle).toBe(7);
+        const [w, h, layers, bytes, len] = calls[0] as [number, number, number, Uint8Array, number];
+        expect([w, h, layers, len]).toEqual([2, 2, 2, 32]);
+        expect([...bytes]).toEqual([...a, ...b]);
+    });
+
     it('fails loud on the wasm/GL-only surface (no heap or GL on native)', () => {
         const rm = createNativeResourceManager({});
         expect(() => rm.createTexture(1, 1, 0, 4, 1, true, TextureContent.Asset)).toThrow(/not supported/);

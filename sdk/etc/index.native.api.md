@@ -8054,7 +8054,7 @@ ReadonlyMap<string, string>
 
 ## RESOURCE_BINDINGS — const @experimental
 ```
-{ readonly createTexture: "es_rm_createTextureEx"; readonly createTextureKTX2: "es_createTextureKTX2"; readonly releaseTexture: "es_rm_releaseTexture"; readonly registerTextureWithPath: "es_rm_registerTextureWithPath"; readonly getTextureDimensions: "es_getTextureDimensions"; }
+{ readonly createTexture: "es_rm_createTextureEx"; readonly createTextureArray: "es_rm_createTextureArray"; readonly createTextureKTX2: "es_createTextureKTX2"; readonly releaseTexture: "es_rm_releaseTexture"; readonly registerTextureWithPath: "es_rm_registerTextureWithPath"; readonly getTextureDimensions: "es_getTextureDimensions"; }
 ```
 
 ## RETIRED_COMPONENT_TYPES — const @experimental

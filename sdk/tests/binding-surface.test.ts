@@ -529,6 +529,7 @@ describe('WASM binding surface: embind class methods', () => {
         // web ResourceManager. Optional + native-only by construction — exempt from
         // the web mirror the way embind's implicit `delete` is below.
         ts.delete('createTextureFromBytes');
+        ts.delete('createTextureArrayFromBytes');
         ts.delete('updateTextureSubregionFromBytes');
         ts.delete('createTextureFromKTX2');   // KTX2 transcode lives in the native host, not embind
         expect(sorted(ts)).toEqual(sorted(cpp.keys()));

@@ -3102,6 +3102,8 @@ export const NOTED = {
     {"note":"The profiler's tables sort by their column header."},
   "fix(editor): the profiler's sort header keeps to the theme's grid and icon sizes":
     {"internal":"Spacing and icon size of the sort header added in the same release."},
+  "fix(native): a terrain and a streamed world run on a device with no wasm heap and no AbortController":
+    {"note":"A terrain and a streamed world run on the Android and iOS templates."},
   "fix(ci): the ledger names its own repair":
     {"internal":"Repairs the release-notes ledger; no creator can observe it."},
   "feat(render): the medium quality level smooths edges temporally by default":

@@ -18,6 +18,10 @@ published separately; it ships inside the editor.
 
 - **The profiler's tables sort by their column header.** Click a column of the cost tree or the systems list to order it by name or by time, and again to reverse it; the choice is remembered. Ranking by time moved a name whenever two systems passed each other, which is every few frames on a live window, so a reader could not follow one; by name the rows stay where they are. The systems list names twelve systems instead of five, so the members change less often too.
 
+### Fixed
+
+- **A terrain and a streamed world run on the Android and iOS templates.** The terrain's layer textures were refused on a device (it has no wasm heap to copy them through), and a chunked world's maker threw on every tick because QuickJS has no `AbortController`. The layers now go over as bytes, as every other texture does, and the world uses a handle of its own where the host has none.
+
 ## [0.96.0] - 2026-10-27
 
 ### Added

@@ -85,6 +85,7 @@ export const COMPOSITION_BINDINGS = {
  */
 export const RESOURCE_BINDINGS = {
     createTexture: 'es_rm_createTextureEx',
+    createTextureArray: 'es_rm_createTextureArray',
     createTextureKTX2: 'es_createTextureKTX2',
     releaseTexture: 'es_rm_releaseTexture',
     registerTextureWithPath: 'es_rm_registerTextureWithPath',

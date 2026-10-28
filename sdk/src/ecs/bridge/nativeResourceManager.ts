@@ -76,6 +76,12 @@ export function createNativeResourceManager(
                 [width, height, pixels, pixels.length, format, flipY,
                  filterMode ?? FILTER_LINEAR, wrapMode ?? WRAP_CLAMP_TO_EDGE, content]) as number,
 
+        // A texture array from its layers back to back, as the engine's `rm_createTextureArray` takes them: the host copies the bytes, as it does
+        // for `createTextureFromBytes`, so the terrain's layer arrays exist on a device with no wasm heap.
+        createTextureArrayFromBytes: (width, height, layers, pixels, format, filterMode, wrapMode, content): number =>
+            hostCall(scope, RESOURCE_BINDINGS.createTextureArray,
+                [width, height, layers, pixels, pixels.length, format, filterMode, wrapMode, content]) as number,
+
         // The host transcodes KTX2 (basis) and uploads the blocks:
         // { id, width, height, format, blockRefused } → { handle, ... }. A host
         // without the last two leaves them undefined, never a compressed answer.

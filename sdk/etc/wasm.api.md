@@ -245,6 +245,7 @@ createLabelAtlasFont: (textureHandle: number, texWidth: number, texHeight: numbe
 createShader: (vertSrc: string, fragSrc: string) => number
 createTexture: (width: number, height: number, pixels: number, pixelsLen: number, format: number, flipY: boolean, content: TextureContent) => number
 createTextureArray: ((width: number, height: number, layers: number, pixels: number, pixelsLen: number, format: number, filterMode: number, wrapMode: number, content: TextureContent) => number) | undefined
+createTextureArrayFromBytes: ((width: number, height: number, layers: number, pixels: Uint8Array, format: number, filterMode: number, wrapMode: number, content: TextureContent) => number) | undefined
 createTextureEx: (width: number, height: number, pixels: number, pixelsLen: number, format: number, flipY: boolean, filterMode: number, wrapMode: number, content: TextureContent) => number
 createTextureFromBytes: ((width: number, height: number, pixels: Uint8Array, format: number, flipY: boolean, content: TextureContent, filterMode?: number, wrapMode?: number) => number) | undefined
 createTextureFromKTX2: ((bytes: Uint8Array, srgb: boolean) => { handle: number; width: number; height: number; format?: number; blockRefused?: boolean; } | null) | undefined

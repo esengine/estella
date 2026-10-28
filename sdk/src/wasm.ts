@@ -91,6 +91,8 @@ export interface CppResourceManager {
      * wasm heap to marshal into); the wasm embind object does not implement it, so
      * the upload helpers fall through to the heap path and web stays byte-identical.
      * `filterMode`/`wrapMode` mirror {@link createTextureEx}'s codes (optional). */
+    /** {@link createTextureArray} without a wasm heap: the layers back to back as bytes. Present only on the native ResourceManager. */
+    createTextureArrayFromBytes?(width: number, height: number, layers: number, pixels: Uint8Array, format: number, filterMode: number, wrapMode: number, content: TextureContent): number;
     createTextureFromBytes?(width: number, height: number, pixels: Uint8Array, format: number, flipY: boolean, content: TextureContent, filterMode?: number, wrapMode?: number): number;
     /** Transcode + upload a KTX2/Basis container to a device-supported compressed
      *  format (or RGBA32). Native only (the basis transcoder lives in the host);
