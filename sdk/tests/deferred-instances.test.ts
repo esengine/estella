@@ -102,6 +102,13 @@ describe('virtual prefab instances: the page can ask for them whole', () => {
             expect((await expandScenePrefabs(sceneOf(entry(3, 'shop', [mark()])), loader(prefabs))).deferredInstances).toHaveLength(1);
         });
     });
+    it('?expand-virtual leaves out an instance marked as another layout, and keeps it virtual otherwise', async () => {
+        const variant: PrefabOverride = { prefabEntityId: 'root', type: 'metadata_set', metadataKey: 'variant', value: 'phone' };
+        const scene = sceneOf(entry(3, 'shop', [mark(), variant]));
+        const whole = await expandScenePrefabs(scene, loader(prefabs), { expandVirtual: true });
+        expect(whole.entities.some((e) => e.name === 'shop')).toBe(false);
+        expect((await expandScenePrefabs(scene, loader(prefabs), { expandVirtual: false })).deferredInstances).toHaveLength(1);
+    });
     it('the option wins over the address', async () => {
         await withAddress('?expand-virtual', async () => {
             expect((await expandScenePrefabs(sceneOf(entry(3, 'shop', [mark()])), loader(prefabs), { expandVirtual: false })).deferredInstances).toHaveLength(1);

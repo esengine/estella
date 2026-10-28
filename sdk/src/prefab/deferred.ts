@@ -17,6 +17,9 @@ import type { PrefabData, PrefabOverride, ProcessedEntity } from './types';
 /** The metadata key that makes an instance virtual. */
 export const DEFERRED_KEY = 'deferred';
 
+/** The metadata key a scene instance carries when it is one layout of a page that has several (a phone's, say): `?expand-virtual` leaves such an instance out, as the layouts would stand side by side. */
+export const VARIANT_KEY = 'variant';
+
 /** What stands in for a virtual instance until it is opened. `id` is the entity the root was made as. */
 export interface DeferredRecord {
     id: number;

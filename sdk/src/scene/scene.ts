@@ -9,7 +9,7 @@ import { World } from '../ecs/world';
 import { Entity, INVALID_ENTITY } from '../types';
 import { upgradeEntityComponents } from './legacyComponents';
 import { isPrefabEntry, type SceneEntry } from './sceneEntry';
-import { canDefer, cutToRoot, isDeferredInstance, rootOnly, rootOverrides, type DeferredRecord } from '../prefab/deferred';
+import { canDefer, cutToRoot, isDeferredInstance, rootOnly, rootOverrides, type DeferredRecord, VARIANT_KEY } from '../prefab/deferred';
 import { expandVirtualRequested, registerDeferredInstances } from './deferredInstances';
 import { validateScene } from './validateScene';
 import { getComponent, Name, Camera, RuntimeOnly } from '../ecs/component';
@@ -329,6 +329,7 @@ export async function expandScenePrefabs(
             out.push(entry);
             continue;
         }
+        if (expandVirtual && entry.overrides.some((o) => o.type === 'metadata_set' && o.metadataKey === VARIANT_KEY)) continue;
         const raw = await loadPrefab(entry.prefab);
         if (!raw) {
             log.warn('scene', `Prefab instance "${entry.prefab}" could not be resolved; instance skipped`);
