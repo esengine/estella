@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { ShaderHandle } from '../render/material';
+import { RAIN_SHELTER_UNIFORMS } from './rainShelterSlots';
 import { effectSourcesOf, computeSourceOf } from './effectSources';
 import type { basicEffects } from './sources/basic';
 import type { atmosphereEffects } from './sources/atmosphere';
@@ -314,6 +315,31 @@ registerEffect({
     ],
     colors: [
         { name: 'u_fogColor', label: 'Colour', defaultValue: { r: 0.62, g: 0.72, b: 0.76, a: 1 } },
+    ],
+});
+
+registerEffect({
+    type: 'rain2d',
+    label: 'Rain 2D',
+    factory: () => postProcessEffects.createRain2d(),
+    uniforms: [
+        // How much rain falls: how many of the streaks a layer could hold are there.
+        { name: 'u_intensity', label: 'Intensity', min: 0, max: 2, step: 0.01, defaultValue: 1, neutralValue: 0 },
+        // How wet the ground is: how far it darkens and how clearly the rings read.
+        { name: 'u_wetness', label: 'Wetness', min: 0, max: 1, step: 0.01, defaultValue: 1, neutralValue: 0 },
+        // How much of the ground is standing water, and how big the pools are (a WORLD length).
+        { name: 'u_puddles', label: 'Puddles', min: 0, max: 1, step: 0.01, defaultValue: 0.4, neutralValue: 0 },
+        { name: 'u_puddleScale', label: 'Puddle Size', min: 20, max: 4000, step: 10, defaultValue: 220 },
+        // A WORLD length: the size of the grid cell each ring lives in.
+        { name: 'u_rippleScale', label: 'Ripple Scale', min: 6, max: 400, step: 1, defaultValue: 36 },
+        { name: 'u_wind', label: 'Wind', min: -1, max: 1, step: 0.01, defaultValue: 0.15 },
+        { name: 'u_speed', label: 'Speed', min: 0.2, max: 6, step: 0.1, defaultValue: 1.6 },
+        { name: 'u_streakLength', label: 'Streak Length', min: 0.05, max: 0.9, step: 0.01, defaultValue: 0.3 },
+        // The shelters, written each frame by the rain-shelter system from the RainShelter sprites nearest the camera.
+        ...RAIN_SHELTER_UNIFORMS,
+    ],
+    colors: [
+        { name: 'u_streakColor', label: 'Streak Colour', defaultValue: { r: 0.78, g: 0.82, b: 0.9, a: 1 } },
     ],
 });
 
@@ -861,7 +887,7 @@ const CATEGORIES: Record<EffectCategory, string[]> = {
     lens: ['bloom', 'depthOfField', 'motionBlur', 'lensFlare', 'filmGrain', 'chromaticAberration', 'lensDistortion', 'vignette', 'sharpen'],
     color: ['tonemap', 'agx', 'colorGrade', 'lutGrade', 'displayLut', 'autoExposure', 'grayscale'],
     light: ['ssao', 'gtao', 'ssgi', 'ssr', 'voxelGI', 'contactShadows', 'lightShafts', 'subsurface'],
-    atmosphere: ['mist2d', 'distanceFog', 'heightFog', 'skyAtmosphere', 'rain'],
+    atmosphere: ['mist2d', 'rain2d', 'distanceFog', 'heightFog', 'skyAtmosphere', 'rain'],
     aa: ['fxaa', 'taa'],
     stylize: ['blur', 'pixelate', 'outline', 'depthOutline', 'edgeOutline'],
 };

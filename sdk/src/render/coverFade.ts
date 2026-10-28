@@ -14,7 +14,7 @@
  */
 import type { App } from '../app/app';
 import type { Entity } from '../types';
-import { defineComponent, Sprite, Transform, type SpriteData, type TransformData } from '../ecs/component';
+import { defineComponent, defineTag, Sprite, Transform, type SpriteData, type TransformData } from '../ecs/component';
 import { defineSystem, Schedule, GetWorld } from '../ecs/system';
 import { Res, Time, type TimeData } from '../ecs/resource';
 import { Query } from '../ecs/query';
@@ -53,7 +53,21 @@ export const CoverFade = defineComponent<CoverFadeData>('CoverFade',
 );
 
 /** Marks what a `CoverFade` keeps visible: the player, and anything else that must not be hidden. @experimental */
-export const CoverFadeTarget = defineComponent<Record<string, never>>('CoverFadeTarget', {});
+export const CoverFadeTarget = defineTag('CoverFadeTarget');
+
+/**
+ * The ground a sprite covers: its rectangle's centre and half extents, from its size and pivot under the entity's scale. The pivot is where the
+ * entity's position sits in the sprite (0.5 is the middle). Rotation is not read.
+ */
+export function coveredGround(sprite: SpriteData, transform: TransformData): { centre: { x: number; y: number }; half: { x: number; y: number } } {
+    const scale = transform.worldScale;
+    const half = { x: Math.abs(sprite.size.x * scale.x) / 2, y: Math.abs(sprite.size.y * scale.y) / 2 };
+    const origin = transform.worldPosition;
+    return {
+        half,
+        centre: { x: origin.x + (0.5 - sprite.pivot.x) * half.x * 2, y: origin.y + (0.5 - sprite.pivot.y) * half.y * 2 },
+    };
+}
 
 /** Whether the point (px, py) is on the ground a sprite covers. */
 export function coversPoint(
@@ -119,14 +133,7 @@ export function installCoverFade(app: App): () => void {
                 if (!cover.enabled) { if (state) restore(world, entity, state); continue; }
                 if (!state) { state = { authored: sprite.color.a, shown: 1 }; fading.set(entity, state); }
 
-                const scale = transform.worldScale;
-                const half = { x: Math.abs(sprite.size.x * scale.x) / 2, y: Math.abs(sprite.size.y * scale.y) / 2 };
-                // The pivot is where the entity's position sits in the sprite: 0.5 is the middle.
-                const origin = transform.worldPosition;
-                const centre = {
-                    x: origin.x + (0.5 - sprite.pivot.x) * half.x * 2,
-                    y: origin.y + (0.5 - sprite.pivot.y) * half.y * 2,
-                };
+                const { centre, half } = coveredGround(sprite, transform);
                 let under = false;
                 for (const p of points) {
                     if (coversPoint(p.x, p.y, centre, half, cover.margin, cover.round)) { under = true; break; }

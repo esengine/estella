@@ -248,6 +248,22 @@ and eases back when the target leaves.
 
 The covered ground is the sprite's size and pivot under the entity's scale; rotation is not read. It runs in play only.
 
+### Keeping the ground under a roof dry
+
+The 3D rain finds what stands over a place by drawing the scene from above; a 2D scene has no "above", so the covering sprite says so. Add a `rain2d` effect to the
+scene's post-process volume, and `RainShelter` to the roof or crown. The ground the sprite covers is dry: no streaks, no rings, no puddle.
+
+How dry follows how much of that ground can be seen. An opaque roof shows the roof, which the rain falls on; the same roof faded by a `CoverFade` to show the room
+has a room that is dry. So one roof carries both components, and the rain stops as the room appears.
+
+| Field | What it does |
+|---|---|
+| `round` | The covered ground is the ellipse inside the rectangle (a crown), not the whole rectangle (a roof). |
+| `margin` | Ground around the sprite's edge that stays dry too, in world units: eaves. |
+
+The eight shelters nearest the camera are the ones the rain reads. The rings and the darkening of a wet floor are drawn over everything, characters included, because a
+2D picture has no way to tell a character from the ground under it; they are small and low, which is why it reads as rain on the picture.
+
 ### Depth layers (2.5D)
 
 Check a layer under **Settings → Project → Rendering → Advanced → Depth-sorted layers** and it

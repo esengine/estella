@@ -1107,6 +1107,55 @@
       ]
     },
     {
+      "name": "CoverFade",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "opacity",
+          "type": "number",
+          "default": "0.25",
+          "doc": "The sprite's alpha, as a share of its own, while something stands under it.",
+          "range": "0–1, step 0.01"
+        },
+        {
+          "key": "fadeTime",
+          "type": "number",
+          "default": "0.25",
+          "doc": "Seconds the fade takes, either way.",
+          "range": "0–5, step 0.05"
+        },
+        {
+          "key": "margin",
+          "type": "number",
+          "default": "0",
+          "doc": "Ground around the sprite's edge that counts as under it, in world units.",
+          "range": "≥ 0, step 1"
+        },
+        {
+          "key": "round",
+          "type": "boolean",
+          "default": "false",
+          "doc": "The covered ground is the ellipse inside the sprite's rectangle (a tree crown) and not the whole of it (a roof)."
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "opacity",
+        "fadeTime",
+        "margin"
+      ]
+    },
+    {
+      "name": "CoverFadeTarget",
+      "source": "ts",
+      "fields": [],
+      "tag": true
+    },
+    {
       "name": "DecalProjector",
       "source": "ts",
       "fields": [
@@ -4205,6 +4254,33 @@
         "priority",
         "weight",
         "blendDistance"
+      ]
+    },
+    {
+      "name": "RainShelter",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "round",
+          "type": "boolean",
+          "default": "false",
+          "doc": "The covered ground is the ellipse inside the sprite's rectangle (a tree crown) and not the whole of it (a roof)."
+        },
+        {
+          "key": "margin",
+          "type": "number",
+          "default": "0",
+          "doc": "Ground around the sprite's edge that stays dry too, in world units.",
+          "range": "≥ 0, step 1"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "margin"
       ]
     },
     {

@@ -23,6 +23,7 @@ import type { AnimatorAvatar } from './animatorAvatar';
 import { appRegistryAsset } from '../asset/registryLookup';
 import { playModeOnly } from '../ecs/env';
 import { installCoverFade } from '../render/coverFade';
+import { installRainShelter } from '../render/rainShelter';
 import { SystemLabel } from '../ecs/systemLabels';
 
 export class AnimationPlugin implements Plugin {
@@ -55,7 +56,8 @@ export class AnimationPlugin implements Plugin {
         });
         // A roof or a crown with a CoverFade thins out over what stands under it; with none in the scene the system finds nothing and returns.
         const offCoverFade = installCoverFade(app);
-        const release = (): void => { offDespawn(); offCoverFade(); };
+        const offRainShelter = installRainShelter(app);
+        const release = (): void => { offDespawn(); offCoverFade(); offRainShelter(); };
         this.despawnCleanups_.set(app, release);
         this.latestDespawnCleanup_ = release;
 

@@ -7,9 +7,11 @@
 import type { ShaderHandle } from '../../render/material';
 import { Material } from '../../render/material';
 import { registerEffectSources } from '../effectSources';
+import { rain2dEffects } from './rain2d';
 import { SSAO_GLSL, SSAO_WGSL, PUDDLE_GLSL, PUDDLE_WGSL, BASIN_GLSL, BASIN_WGSL, GBUFFER_GLSL, GBUFFER_WGSL } from './shared';
 
 export const atmosphereEffects = {
+    ...rain2dEffects,
     /**
      * A sky that has a time of day and weather in it: the scattering of the atmosphere, a sun that goes red as it sets, a
      * moon, stars, and volumetric clouds that the sun lights.

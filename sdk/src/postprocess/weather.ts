@@ -246,13 +246,13 @@ export function applyWeatherToEffects(effects: Map<string, BlendedEffect>, state
         }
     }
     if (drive & WeatherDrive.Fog) {
-        // A 2D scene's mist is an opacity, not an exponent: the weather's multiplier is taken as a root so a rain thickens it
-        // without clamping straight to opaque, and it spreads as it thickens (more of the ground under it, not only denser banks).
+        // A 2D scene's mist is an opacity, not an exponent: the weather's multiplier is taken as a logarithm so a rain
+        // thickens it without clamping straight to opaque, and it spreads a little as it thickens (more of the ground under it, not only denser banks).
         const mist = effects.get('mist2d');
         if (mist && mist.enabled) {
-            mist.uniforms.set('u_density', Math.min(value(mist, 'mist2d', 'u_density') * Math.sqrt(state.fogDensity), 1));
-            mist.uniforms.set('u_coverage', Math.min(value(mist, 'mist2d', 'u_coverage') * (1 + 0.1 * (state.fogDensity - 1)), 1));
-            mist.uniforms.set('u_glow', value(mist, 'mist2d', 'u_glow') * state.fogGlow);
+            mist.uniforms.set('u_density', Math.min(value(mist, 'mist2d', 'u_density') * (1 + 0.25 * Math.log(Math.max(state.fogDensity, 1))), 1));
+            mist.uniforms.set('u_coverage', Math.min(value(mist, 'mist2d', 'u_coverage') * (1 + 0.04 * (state.fogDensity - 1)), 1));
+            mist.uniforms.set('u_glow', value(mist, 'mist2d', 'u_glow') * Math.min(state.fogGlow, 1.2));
             const colour = mist.colors.get('u_fogColor')
                 ?? getEffectDef('mist2d')?.colors?.find((c) => c.name === 'u_fogColor')?.defaultValue;
             if (colour && state.fogTintAmount > 0) mist.colors.set('u_fogColor', towards(colour, state.fogTint, state.fogTintAmount));
@@ -265,9 +265,12 @@ export function applyWeatherToEffects(effects: Map<string, BlendedEffect>, state
     if (drive & WeatherDrive.Rain) {
         if (state.rain > 0.001 || state.wetness > 0.001) {
             // A rain the scene authored is a floor the weather rises above; one the weather brings is exactly its own.
-            const authored = effects.has('rain');
-            const rain = entry(effects, 'rain');
-            const pick = (name: string, level: number): number => authored ? Math.max(value(rain, 'rain', name), level) : level;
+            // A 2D scene's rain is the one that reads no depth; the weather raises it, and brings no second rain beside it.
+            const flat = effects.get('rain2d');
+            const type = flat && flat.enabled ? 'rain2d' : 'rain';
+            const authored = effects.has(type);
+            const rain = entry(effects, type);
+            const pick = (name: string, level: number): number => authored ? Math.max(value(rain, type, name), level) : level;
             rain.uniforms.set('u_intensity', pick('u_intensity', state.rain));
             rain.uniforms.set('u_wetness', pick('u_wetness', state.wetness));
             rain.uniforms.set('u_puddles', pick('u_puddles', state.puddles));

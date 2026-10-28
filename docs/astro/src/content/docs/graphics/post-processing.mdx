@@ -25,6 +25,7 @@ several can stack in one frame at no extra target cost beyond the passes.
 | `blur` | Gaussian blur | `intensity` |
 | `fxaa` | Fast anti-aliasing | `intensity` |
 | `mist2d` | Drifting banks of mist laid over the ground in world units. Reads no depth, so a 2D scene can have it; what is lit glows through it | `density`, `coverage`, `scale`, `speed`, `direction`, `glow`, colour |
+| `rain2d` | Rain for a scene with no depth: streaks, rings and splashes and puddles on the ground in world units, dry under a `RainShelter` sprite | `intensity`, `wetness`, `puddles`, `puddleScale`, `rippleScale`, `wind`, `speed`, `streakLength`, colour |
 | `distanceFog` | Linear fog by distance from the camera | `near`, `far`, `intensity`, colour |
 | `heightFog` | Exponential height fog with the sun's glow and a hazy horizon | `density`, `heightFalloff`, `baseHeight`, `sunAzimuth`, `sunElevation`, `skyFog`, colours |
 | `skyAtmosphere` | An atmosphere that scatters the sun's light, with sun, moon, stars and volumetric clouds, drawn where there is no surface | `intensity`, `haze`, `altitude`, `clouds`, `cloudBase`, `cloudThickness`, `windSpeed`, `overcast`, `sunAzimuth`, `sunElevation` |
@@ -497,7 +498,7 @@ package carries only when its content uses one:
 | Group | Subpath | Effects |
 |---|---|---|
 | Basic | `esengine/fx-basic` | blur, bloom, vignette, grayscale, colorGrade, lutGrade, agx, chromaticAberration, tonemap, fxaa, sharpen, lensDistortion, pixelate, outline, depthOutline, edgeOutline, filmGrain, motionBlur, lensFlare |
-| Atmosphere | `esengine/fx-atmosphere` | mist2d, skyAtmosphere, heightFog, distanceFog, rain |
+| Atmosphere | `esengine/fx-atmosphere` | mist2d, rain2d, skyAtmosphere, heightFog, distanceFog, rain |
 | Lighting | `esengine/fx-lighting` | ssao, gtao, ssr, ssgi, voxelGI, contactShadows, lightShafts, autoExposure, depthOfField, subsurface, taa |
 
 The export reads the effects a `PostProcessVolume` names (and a `Weather` or `TimeOfDay` component, which drive the atmosphere group) and imports

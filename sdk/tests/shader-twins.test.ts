@@ -43,7 +43,7 @@ const CASES: Array<{ name: string; source: string }> = [
     ...BUILTIN_SHADER_TEMPLATES.map((t) => ({ name: `template:${t.id}`, source: t.source })),
     ...embeddedEsshaders('render/filters.ts').map((source, i) => ({ name: `filters.ts[${i}]`, source })),
     ...embeddedEsshaders('render/spriteFilter.ts').map((source, i) => ({ name: `spriteFilter.ts[${i}]`, source })),
-    ...['basic', 'atmosphere', 'lighting'].flatMap((group) => embeddedEsshaders(`postprocess/sources/${group}.ts`).map(
+    ...['basic', 'atmosphere', 'lighting', 'rain2d'].flatMap((group) => embeddedEsshaders(`postprocess/sources/${group}.ts`).map(
         (source, i) => ({ name: `postProcessEffects.ts[${group}:${i}]`, source }))),
     ...embeddedEsshaders('camera/editorGridRenderer.ts').map(
         (source, i) => ({ name: `editorGridRenderer.ts[${i}]`, source })),
@@ -53,7 +53,7 @@ describe('embedded .esshader structure', () => {
     it('found the filter, effect and grid sources', () => {
         expect(CASES.filter((c) => c.name.startsWith('filters.ts')).length).toBe(1);
         expect(CASES.filter((c) => c.name.startsWith('spriteFilter.ts')).length).toBe(2);
-        expect(CASES.filter((c) => c.name.startsWith('postProcessEffects.ts')).length).toBe(40);
+        expect(CASES.filter((c) => c.name.startsWith('postProcessEffects.ts')).length).toBe(41);
         expect(CASES.filter((c) => c.name.startsWith('editorGridRenderer.ts')).length).toBe(1);
     });
 
