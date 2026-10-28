@@ -3090,8 +3090,10 @@ export const NOTED = {
     {"note":"Fewer GL calls when a draw changes buffer"},
   "fix(render): the sky's clouds are worked out at half size again":
     {"internal":"Undoes the quarter-size clouds, which showed a coarse checkerboard in the cloud and streaks near the horizon."},
-  "feat(render): a quality level can smooth edges temporally":
+  "feat(render): a quality level can smooth edges temporally, and the temporal pass keeps more detail":
     {"note":"A quality level can smooth edges temporally."},
-  "perf(render): the temporal anti-aliasing pass samples its history with a Catmull-Rom fit":
-    {"note":"Temporal anti-aliasing keeps more detail"},
+  "feat(render): the medium quality level smooths edges temporally by default":
+    {"note":"The medium level uses it"},
+  "fix(ci): the net modules build no TextEncoder at load, the API snapshots take the new surface, the retained-text harness reads its cases under node":
+    {"internal":"Repairs the build: a module made a TextEncoder when the SDK loaded, which a native host does not have, and the API snapshots and one C++ harness's data path were out of date."},
 };
