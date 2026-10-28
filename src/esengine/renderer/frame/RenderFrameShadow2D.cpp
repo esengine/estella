@@ -17,6 +17,7 @@
 #include "../../resource/ShaderParser.hpp"
 #include "../rhi/ShaderEmbeds.generated.hpp"
 #include "../../core/FrameProfiler.hpp"
+#include "../store/ShadowChannels2D.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -49,6 +50,7 @@ void RenderFrame::collectShadow2D(ecs::Registry& registry) {
     shadow_points_2d_.clear();
     shadow_rings_2d_.clear();
     shadow_2d_lights_.clear();
+    shadow_2d_unplaced_ = 0;
     shadow_2d_resource_ = rg::kNoResource;
     shadow_2d_texture_id_ = 0;
     context_.lights().setMask2DRect(glm::vec4(0.0f));
@@ -88,11 +90,23 @@ void RenderFrame::collectShadow2D(ecs::Registry& registry) {
     }
     if (shadow_rings_2d_.empty()) return;
 
-    // Which lights the mask can carry. The collect already ordered the light array by
-    // what the cap sorted on, so taking them in slot order takes the brightest first.
+    for (ShadowRing2D& ring : shadow_rings_2d_) {
+        const glm::vec2* pts = shadow_points_2d_.data() + ring.first;
+        glm::vec2 centre{0.0f};
+        for (u32 i = 0; i < ring.count; ++i) centre += pts[i];
+        centre /= static_cast<f32>(ring.count);
+        f32 radius = 0.0f;
+        for (u32 i = 0; i < ring.count; ++i) radius = std::max(radius, glm::distance(pts[i], centre));
+        ring.centre = centre;
+        ring.radius = radius;
+    }
+
+    // The lights that cast. The collect already ordered the light array by what the cap
+    // sorted on, so taking them in slot order takes the brightest first, and the mask's
+    // four channels are shared by lights that cannot meet (see ShadowChannels2D.hpp).
     const LightConstants& lights = context_.lights().data();
+    std::vector<ShadowMaskLight> masks;
     for (u32 slot = 0; slot < context_.lights().count(); ++slot) {
-        if (shadow_2d_lights_.size() >= MAX_SHADOW_2D_LIGHTS) break;
         const GpuLight& light = lights.lights[slot];
         if (light.color.a <= 0.0f) continue;
         const f32 type = light.posDir.z;
@@ -113,7 +127,26 @@ void RenderFrame::collectShadow2D(ecs::Registry& registry) {
             entry.reach = light.shadow.y;
         }
         if (entry.reach <= 0.0f) continue;
+
+        ShadowMaskLight mask;
+        mask.pos = entry.pos;
+        if (entry.directional) {
+            mask.everywhere = true;
+        } else {
+            // Where its geometry can land: the furthest of the occluders it sees, plus how far a shadow is carried past them. A light
+            // that sees none draws nothing and has no shadow to read, so it takes no channel.
+            f32 furthest = -1.0f;
+            for (const ShadowRing2D& ring : shadow_rings_2d_) {
+                const f32 d = glm::distance(ring.centre, entry.pos);
+                if (d > entry.reach + entry.softness + ring.radius) continue;
+                furthest = std::max(furthest, d + ring.radius + entry.softness);
+            }
+            if (furthest < 0.0f) continue;
+            mask.read = entry.reach;
+            mask.write = furthest + entry.reach * kShadow2DOvershoot;
+        }
         shadow_2d_lights_.push_back(entry);
+        masks.push_back(mask);
     }
     if (shadow_2d_lights_.empty()) {
         shadow_rings_2d_.clear();
@@ -121,8 +154,26 @@ void RenderFrame::collectShadow2D(ecs::Registry& registry) {
         return;
     }
 
-    for (u32 i = 0; i < shadow_2d_lights_.size(); ++i) {
-        context_.lights().setLightShadow2DChannel(shadow_2d_lights_[i].slot, i);
+    std::vector<i32> channels(masks.size(), -1);
+    const u32 dropped = assignShadowChannels(masks.data(), static_cast<u32>(masks.size()), MAX_SHADOW_2D_LIGHTS, channels.data());
+    // A light that found no free channel still lights the scene; it only casts no 2D shadow. Kept in order, so what stays is the brightest.
+    usize kept = 0;
+    for (usize i = 0; i < shadow_2d_lights_.size(); ++i) {
+        if (channels[i] < 0) continue;
+        shadow_2d_lights_[kept] = shadow_2d_lights_[i];
+        shadow_2d_lights_[kept].channel = static_cast<u32>(channels[i]);
+        ++kept;
+    }
+    shadow_2d_lights_.resize(kept);
+    shadow_2d_unplaced_ = dropped;
+    if (shadow_2d_lights_.empty()) {
+        shadow_rings_2d_.clear();
+        shadow_points_2d_.clear();
+        return;
+    }
+
+    for (const Shadow2DLight& light : shadow_2d_lights_) {
+        context_.lights().setLightShadow2DChannel(light.slot, light.channel);
     }
 
     rg::TargetDesc desc;
@@ -216,8 +267,8 @@ void RenderFrame::buildShadow2DGeometry() {
         vertex(c, sc, channel);
     };
 
-    for (u32 channel = 0; channel < shadow_2d_lights_.size(); ++channel) {
-        const Shadow2DLight& light = shadow_2d_lights_[channel];
+    for (const Shadow2DLight& light : shadow_2d_lights_) {
+        const u32 channel = light.channel;
         // A source with width is sampled across, each sample throwing the silhouette
         // it sees at its own share. The shares add, which is the soft edge: hidden from
         // every sample collects all of them, from half collects half.
@@ -231,21 +282,13 @@ void RenderFrame::buildShadow2DGeometry() {
 
         for (const ShadowRing2D& ring : shadow_rings_2d_) {
             const glm::vec2* pts = shadow_points_2d_.data() + ring.first;
-            glm::vec2 centre{0.0f};
-            for (u32 i = 0; i < ring.count; ++i) centre += pts[i];
-            centre /= static_cast<f32>(ring.count);
+            const glm::vec2 centre = ring.centre;
 
-            // What a light cannot reach it cannot be hidden from: past its own reach it
-            // contributes nothing, so an occluder out there has no shadow to draw. Costs
-            // one distance per ring and saves every triangle behind it.
-            if (!light.directional) {
-                f32 radius = 0.0f;
-                for (u32 i = 0; i < ring.count; ++i) {
-                    radius = std::max(radius, glm::distance(pts[i], centre));
-                }
-                if (glm::distance(centre, light.pos) > light.reach + light.softness + radius) {
-                    continue;
-                }
+            // Past a light's own reach it contributes nothing, so an occluder out there has no shadow
+            // to draw. The same test bounds where this light's channel is written (collectShadow2D).
+            if (!light.directional
+                && glm::distance(centre, light.pos) > light.reach + light.softness + ring.radius) {
+                continue;
             }
 
             for (u32 s = 0; s < samples; ++s) {
@@ -325,6 +368,8 @@ void RenderFrame::executeShadow2DPass() {
                        static_cast<u32>(shadow_2d_vertices_.size() / (kShadow2DFloats * 3)));
     ES_PROFILE_COUNTER("render.shadow2d.occluders", static_cast<u32>(shadow_rings_2d_.size()));
     ES_PROFILE_COUNTER("render.shadow2d.lights", static_cast<u32>(shadow_2d_lights_.size()));
+    // Casting lights that found every channel held by one they overlap, and so cast no 2D shadow this frame.
+    ES_PROFILE_COUNTER("render.shadow2d.unplaced", shadow_2d_unplaced_);
     if (shadow_2d_vertices_.empty()) return;
 
     const u32 bytes = static_cast<u32>(shadow_2d_vertices_.size() * sizeof(f32));

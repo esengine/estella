@@ -899,6 +899,9 @@ private:
     struct ShadowRing2D {
         u32 first = 0;
         u32 count = 0;
+        /// The middle of its points and how far the furthest is from it: what a light tests its reach against.
+        glm::vec2 centre{0.0f};
+        f32 radius = 0.0f;
     };
 
     /** @brief A light whose 2D shadows the frame draws, and the mask channel it owns. */
@@ -914,12 +917,16 @@ private:
         f32 softness = 0.0f;
         /// Its slot in the light array, which is what the channel is recorded against.
         u32 slot = 0;
+        /// The mask channel it draws into and is read from. Lights that cannot meet share one (see ShadowChannels2D.hpp).
+        u32 channel = 0;
         bool directional = false;
     };
 
     std::vector<glm::vec2> shadow_points_2d_;
     std::vector<ShadowRing2D> shadow_rings_2d_;
     std::vector<Shadow2DLight> shadow_2d_lights_;
+    /// How many casting lights the last collect could give no channel.
+    u32 shadow_2d_unplaced_ = 0;
     /// The mask as a graph resource: the 2D shadow pass writes it, the scene reads it
     /// through a pinned sampler unit rather than a graph-bound one.
     rg::ResourceId shadow_2d_resource_ = rg::kNoResource;

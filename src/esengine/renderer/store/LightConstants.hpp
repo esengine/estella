@@ -80,11 +80,9 @@ inline constexpr u32 SHAPE_2D_TEXTURE_UNIT = 6;
 inline constexpr u32 MAX_SHAPE_2D_LIGHTS = 4;
 
 /**
- * @brief Lights whose 2D shadows one frame can carry — the mask's four channels.
- * @details A cap on CASTERS, not on lights: past it a light still lights the scene and
- *          stops shadowing, which is the failure a 2D scene can look at and understand.
- *          Four because an RGBA8 target has four channels and a fifth would be a second
- *          target, a second bind and a second sample for a case 2D art rarely reaches.
+ * @brief Channels of the 2D shadow mask: the lights that MEET one another and cast at once (see ShadowChannels2D.hpp).
+ * @details Four because an RGBA8 target has four, and a fifth would be a second target, bind and sample. A light past them still
+ *          lights the scene and stops shadowing, which is the failure a 2D scene can look at and understand.
  */
 inline constexpr u32 MAX_SHADOW_2D_LIGHTS = 4;
 

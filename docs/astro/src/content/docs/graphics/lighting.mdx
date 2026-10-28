@@ -375,13 +375,15 @@ mask, and a lit surface reads one texel of it. So the number of occluders is a n
 of triangles rather than a shader constant — a room may have as many walls as it needs,
 and adding one costs a few triangles rather than a test on every pixel of the screen.
 
-What IS capped is how many lights cast at once: the mask has **four channels**, so the
-first four casting lights get one each. A light past that still lights the scene and
-stops shadowing — the room stays lit, and what is missing is a shadow rather than the
-light. A scene with more than four shadow-casting lights in view at once is usually
-saying something about its art direction; the fix is to turn shadows off (`shadowDistance`
-of 0 on a sun, or a smaller `radius` that takes a light out of view) on the ones whose
-shadows nobody looks at.
+What IS capped is how many lights that **meet** cast at once. The mask has **four channels**, and a channel is only wrong where two lights could both be: a pixel reads the
+channel of each light that reaches it, so two lights may share one whenever neither's reach touches the other's shadow. A camp of torches spread round a clearing is as many
+casting lights as it has torches; only lights whose reach and shadows overlap each need a channel of their own, so four lights in one place fill the mask and a fifth among them
+does not. The sixteen lights the lighting loop reads are the ones that can cast (the brightest, once there are more than sixteen).
+
+A light left without a channel still lights the scene and stops shadowing — the room stays lit, and what is missing is a shadow rather than the light. The first lights in
+brightness order are placed first, so it is the dimmest of a crowd that goes without. A sun (a directional light with `shadowDistance`) is everywhere, so it takes a channel to
+itself and leaves three for the rest. The profiler's `render.shadow2d.unplaced` counts the lights that went without. To make room, give the ones whose shadows nobody looks
+at no shadow (`shadowDistance` of 0 on a sun), or a smaller `radius` so they stop overlapping their neighbours.
 
 ## Blob shadows: a disc instead of a shadow map
 

@@ -414,6 +414,14 @@ target_include_directories(test_light_layers PRIVATE
 )
 add_test(NAME test_light_layers COMMAND test_light_layers)
 
+# Which channel of the 2D shadow mask each casting light draws into. Header-only, so it runs without a device.
+add_executable(test_shadow_channels renderer/test_shadow_channels.cpp)
+target_include_directories(test_shadow_channels PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party/glm
+)
+add_test(NAME test_shadow_channels COMMAND test_shadow_channels)
+
 # Which baked column a point reflects. Header-only, so it runs without a device —
 # the pixel gate says a surface came out the wrong colour, this says whether the
 # lookup took the wrong box or let two bakes into one frame.
