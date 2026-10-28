@@ -11,8 +11,8 @@
  *          much of the ground under it can be seen, so an opaque roof (which shows the roof, and the rain falls on that) is not dry, and one faded
  *          to show the room is.
  *
- *          It cannot tell a character from the ground it stands on, so rings and the darkening of a wet floor are drawn over everything. They are
- *          small and low, which is why that reads as rain on the picture and not as a fault.
+ *          It cannot tell a character from the ground it stands on by itself, so a sprite marked `RainUpright` is painted into the red channel of the
+ *          same mask, and the rings, splashes, puddles and wet darkening are left off it. The falling streaks cross it: rain does fall on people.
  */
 import type { ShaderHandle } from '../../render/material';
 import { Material } from '../../render/material';
@@ -30,12 +30,13 @@ float vnoise(vec2 p) {
 float puddleNoise(vec2 p) {
     return vnoise(p) * 0.5 + vnoise(p * 2.07 + vec2(11.0, 5.0)) * 0.3 + vnoise(p * 4.3 + vec2(3.0, 17.0)) * 0.2;
 }
-/// How dry the ground is at a point: the alpha of the shelter mask, which covers the view from (u_maskL, u_maskB) by (u_maskW, u_maskH) world units.
-float dryAt(vec2 w) {
-    if (u_maskW <= 0.0 || u_maskH <= 0.0) return 0.0;
+/// The mask at a point: its alpha is how dry the ground is, its red how much of the point is something standing on it. The mask covers the view from (u_maskL, u_maskB) by (u_maskW, u_maskH) world units.
+vec2 maskAt(vec2 w) {
+    if (u_maskW <= 0.0 || u_maskH <= 0.0) return vec2(0.0);
     vec2 uv = (w - vec2(u_maskL, u_maskB)) / vec2(u_maskW, u_maskH);
-    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 0.0;
-    return textureLod(u_shelterMask, uv, 0.0).a;
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return vec2(0.0);
+    vec4 m = textureLod(u_shelterMask, uv, 0.0);
+    return vec2(m.a, m.r);
 }
 /// One layer of streaks: columns across the screen, one streak per cell at most, scrolling down.
 float streaks(vec2 uv, float aspect, float cols, float speed, float seed, float T) {
@@ -67,12 +68,13 @@ fn vnoise(p : vec2f) -> f32 {
 fn puddleNoise(p : vec2f) -> f32 {
     return vnoise(p) * 0.5 + vnoise(p * 2.07 + vec2f(11.0, 5.0)) * 0.3 + vnoise(p * 4.3 + vec2f(3.0, 17.0)) * 0.2;
 }
-fn dryAt(w : vec2f) -> f32 {
-    if (mc.u_maskW <= 0.0 || mc.u_maskH <= 0.0) { return 0.0; }
+fn maskAt(w : vec2f) -> vec2f {
+    if (mc.u_maskW <= 0.0 || mc.u_maskH <= 0.0) { return vec2f(0.0); }
     let uv = (w - vec2f(mc.u_maskL, mc.u_maskB)) / vec2f(mc.u_maskW, mc.u_maskH);
-    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { return 0.0; }
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { return vec2f(0.0); }
     // This device's texture rows run the other way from the clip space the mask was drawn in.
-    return textureSampleLevel(u_shelterMask, u_shelterMask_s, vec2f(uv.x, 1.0 - uv.y), 0.0).a;
+    let m = textureSampleLevel(u_shelterMask, u_shelterMask_s, vec2f(uv.x, 1.0 - uv.y), 0.0);
+    return vec2f(m.a, m.r);
 }
 fn streaks(uv : vec2f, aspect : f32, cols : f32, speed : f32, seed : f32, T : f32) -> f32 {
     let q = vec2f(uv.x * aspect - (1.0 - uv.y) * mc.u_wind, 1.0 - uv.y);
@@ -130,9 +132,12 @@ void main() {
     tint = srgbToLinear(tint);
 #endif
     // Where a roof or a crown shows the ground under it, that ground is dry and nothing falls on it.
-    float dry = min(dryAt(w) * 1.15, 1.0);
-    float wet = u_wetness * (1.0 - dry);
-    float falling = clamp(u_intensity, 0.0, 1.0) * (1.0 - dry);
+    vec2 m = maskAt(w);
+    float dry = min(m.x * 1.15, 1.0);
+    // Ground only: where a character or a trunk stands, the floor is not what is seen, so no rings, puddles or wet darkening are drawn on it.
+    float ground = 1.0 - min(m.y * 1.15, 1.0);
+    float wet = u_wetness * (1.0 - dry) * ground;
+    float falling = clamp(u_intensity, 0.0, 1.0) * (1.0 - dry) * ground;
     vec3 col = src.rgb;
 
     // Standing water where a slow noise of the ground passes a threshold; the rest of the ground is only darker.
@@ -184,9 +189,11 @@ ${WGSL}
 #ifdef ES_LINEAR
     tint = srgbToLinear(tint);
 #endif
-    let dry = min(dryAt(w) * 1.15, 1.0);
-    let wet = mc.u_wetness * (1.0 - dry);
-    let falling = clamp(mc.u_intensity, 0.0, 1.0) * (1.0 - dry);
+    let m = maskAt(w);
+    let dry = min(m.x * 1.15, 1.0);
+    let ground = 1.0 - min(m.y * 1.15, 1.0);
+    let wet = mc.u_wetness * (1.0 - dry) * ground;
+    let falling = clamp(mc.u_intensity, 0.0, 1.0) * (1.0 - dry) * ground;
     var col = src.rgb;
 
     let lo = 1.0 - mc.u_puddles;

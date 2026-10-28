@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { coversPoint, stepFade } from '../src/render/coverFade';
-import { applyRainSheltersToRain, drynessOf, maskRects, shelterOf, shelterMaskSizeOf, ellipseStripsOf, ELLIPSE_STRIPS, type Shelter } from '../src/render/rainShelter';
+import { applyRainSheltersToRain, drynessOf, maskRects, shelterOf, uprightOf, uprightRects, shelterMaskSizeOf, ellipseStripsOf, ELLIPSE_STRIPS, type Shelter } from '../src/render/rainShelter';
 import { defaultQualityProfile, parseQualityConfig } from '../src/render/quality';
 import { RAIN_SHELTER_MASK_TEXTURE } from '../src/postprocess/rainShelterMask';
 import { runtimeTextureHandle, runtimeTextureRef } from '../src/postprocess/runtimeTextures';
@@ -136,6 +139,28 @@ describe('the 2D rain', () => {
         const s = shelterOf(sprite(0.25), at(10, 20), { ...data, margin: 5 })!;
         expect(s).toMatchObject({ x: 10, y: 20, hx: 55, hy: 35 });
         expect(s.dry).toBeCloseTo(0.75, 6);
+    });
+
+    it('lists a sprite that stands on the ground as an upright, with how much of it shows', () => {
+        const u = uprightOf(sprite(0.5), at(10, 20), { inset: 4, enabled: true })!;
+        expect(u).toMatchObject({ x: 10, y: 20, hx: 46, hy: 26 });
+        expect(u.amount).toBe(0.5);
+        expect(uprightOf(sprite(0), at(0, 0), { inset: 0, enabled: true })).toBeNull();
+        expect(uprightOf(sprite(1), at(0, 0), { inset: 0, enabled: false })).toBeNull();
+        expect(uprightOf(sprite(1), at(0, 0), { inset: 40, enabled: true })).toBeNull();
+    });
+
+    it('paints only the uprights the view can see, one rectangle each, the amount in the colour', () => {
+        const view = { left: -100, right: 100, bottom: -100, top: 100 };
+        const seen = uprightOf(sprite(1), at(0, 0), { inset: 0, enabled: true })!;
+        const far = uprightOf(sprite(1), at(900, 0), { inset: 0, enabled: true })!;
+        expect(uprightRects([seen, far], view)).toEqual([{ x: 0, y: 0, w: 100, h: 60, dry: 1 }]);
+    });
+
+    it('leaves the rings, splashes and wet darkening off what stands, in both shader languages', () => {
+        const rain2dSource = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'postprocess', 'sources', 'rain2d.ts'), 'utf8');
+        expect(rain2dSource).toContain('float ground = 1.0 - min(m.y * 1.15, 1.0);');
+        expect(rain2dSource).toContain('let ground = 1.0 - min(m.y * 1.15, 1.0);');
     });
 
     it('says round by a negative half height', () => {

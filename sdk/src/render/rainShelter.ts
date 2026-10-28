@@ -55,6 +55,60 @@ export const RainShelter = defineComponent<RainShelterData>('RainShelter',
     },
 );
 
+/** The fields of the `RainUpright` component. @experimental */
+export interface RainUprightData {
+    /** Ground around the sprite's edge that the rain still draws on, in world units: the feet, or a trunk's base. */
+    inset: number;
+    /** Off: the sprite is treated as ground like any other. */
+    enabled: boolean;
+}
+
+/**
+ * Marks a sprite that STANDS on the ground (a character, a trunk, a crate), so the 2D rain's rings, splashes and wet darkening are not drawn over
+ * it. The rain is laid over the finished picture and cannot tell a character from the floor under them; this tells it. Falling streaks still cross it.
+ *
+ * @experimental
+ */
+export const RainUpright = defineComponent<RainUprightData>('RainUpright',
+    { inset: 0, enabled: true },
+    {
+        fields: {
+            inset: { min: 0, step: 1, tooltip: 'Ground around the sprite\'s edge that the rain still draws on, in world units: the feet, or a trunk\'s base.' },
+        },
+    },
+);
+
+/** One upright sprite's rectangle, and how much of it shows (a faded one shows the ground behind it). */
+export interface Upright {
+    x: number;
+    y: number;
+    hx: number;
+    hy: number;
+    amount: number;
+}
+
+/** The upright a sprite is, or null where it has no body to keep the rain off. */
+export function uprightOf(sprite: SpriteData, transform: TransformData, data: RainUprightData): Upright | null {
+    if (!data.enabled || !sprite.enabled) return null;
+    const amount = Math.min(Math.max(sprite.color.a, 0), 1);
+    if (amount <= 0) return null;
+    const { centre, half } = coveredGround(sprite, transform);
+    const hx = half.x - data.inset;
+    const hy = half.y - data.inset;
+    if (hx <= 0 || hy <= 0) return null;
+    return { x: centre.x, y: centre.y, hx, hy, amount };
+}
+
+/** What to draw for the uprights the view can see: a rectangle each, the amount in the red channel. */
+export function uprightRects(uprights: readonly Upright[], view: { left: number; bottom: number; right: number; top: number }): MaskRect[] {
+    const rects: MaskRect[] = [];
+    for (const u of uprights) {
+        if (u.x + u.hx < view.left || u.x - u.hx > view.right || u.y + u.hy < view.bottom || u.y - u.hy > view.top) continue;
+        rects.push({ x: u.x, y: u.y, w: u.hx * 2, h: u.hy * 2, dry: u.amount });
+    }
+    return rects;
+}
+
 /** One shelter: its ground and how dry it is. A negative half height says round. */
 export interface Shelter {
     x: number;
@@ -201,7 +255,7 @@ export function installRainShelter(app: App): () => void {
         return view && view.right > view.left && view.top > view.bottom ? view : null;
     };
 
-    const paint = (rects: readonly MaskRect[], view: { left: number; right: number; bottom: number; top: number }): boolean => {
+    const paint = (rects: readonly MaskRect[], stands: readonly MaskRect[], view: { left: number; right: number; bottom: number; top: number }): boolean => {
         if (failed) return false;
         try {
             const size = shelterMaskSizeOf(askedSize, allowedSize());
@@ -224,6 +278,9 @@ export function installRainShelter(app: App): () => void {
             Draw.setBlendMode(BlendMode.None);
             Draw.rect({ x: cx, y: cy }, { x: view.right - view.left, y: view.top - view.bottom }, { r: 0, g: 0, b: 0, a: 0 });
             for (const r of rects) Draw.rect({ x: r.x, y: r.y }, { x: r.w, y: r.h }, { r: 0, g: 0, b: 0, a: r.dry });
+            // What stands on the ground goes in the red channel, and Lighten keeps the alpha the shelters wrote.
+            Draw.setBlendMode(BlendMode.Lighten);
+            for (const r of stands) Draw.rect({ x: r.x, y: r.y }, { x: r.w, y: r.h }, { r: r.dry, g: 0, b: 0, a: 0 });
             Draw.end();
             RenderTexture.end();
             RenderTexture.contentDrawn(target);
@@ -240,18 +297,23 @@ export function installRainShelter(app: App): () => void {
     };
 
     const system = defineSystem(
-        [Query(RainShelter, Sprite, Transform)],
-        (shelters: Iterable<[Entity, RainShelterData, SpriteData, TransformData]>) => {
+        [Query(RainShelter, Sprite, Transform), Query(RainUpright, Sprite, Transform)],
+        (shelters: Iterable<[Entity, RainShelterData, SpriteData, TransformData]>, uprights: Iterable<[Entity, RainUprightData, SpriteData, TransformData]>) => {
             const found: Shelter[] = [];
             for (const [, data, sprite, transform] of shelters) {
                 const shelter = shelterOf(sprite, transform, data);
                 if (shelter) found.push(shelter);
             }
+            const standing: Upright[] = [];
+            for (const [, data, sprite, transform] of uprights) {
+                const upright = uprightOf(sprite, transform, data);
+                if (upright) standing.push(upright);
+            }
             sheltersNow = found;
             maskNow = null;
-            if (found.length === 0) return;
+            if (found.length === 0 && standing.length === 0) return;
             const view = viewOf();
-            if (view) paint(maskRects(found, view, ellipseStripsOf(shelterMaskSizeOf(askedSize, allowedSize()))), view);
+            if (view) paint(maskRects(found, view, ellipseStripsOf(shelterMaskSizeOf(askedSize, allowedSize()))), uprightRects(standing, view), view);
         },
         { name: 'RainShelterSystem' },
     );

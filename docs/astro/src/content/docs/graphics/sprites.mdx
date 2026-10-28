@@ -264,8 +264,10 @@ has a room that is dry. So one roof carries both components, and the rain stops 
 There is no limit on how many shelters a scene has. Each frame the shelters in view are painted into a small mask over the view (one rectangle each, an ellipse as a few strips),
 and the rain reads one texel of it per pixel; a village of roofs costs what a hut does. The mask is 512 texels across by default, so a shelter's edge is soft by about the view's size over
 that. Set the effect's **Shelter Mask Size** (`maskSize`, 64 to 2048) for finer edges or a cheaper mask, and a quality level holds it lower still: the profile's
-`shelterMaskSize` is the most a level allows (256 low, 512 medium, 1024 high; **Project Settings → Rendering → Quality**). The rings and the darkening of a wet floor are drawn over everything, characters included, because a
-2D picture has no way to tell a character from the ground under it; they are small and low, which is why it reads as rain on the picture.
+`shelterMaskSize` is the most a level allows (256 low, 512 medium, 1024 high; **Project Settings → Rendering → Quality**). The rain is laid over the finished picture, so it cannot tell a character from the floor under them. Put `RainUpright` on a sprite that stands on the ground
+(a character, a trunk, a crate) and the rings, splashes, puddles and wet darkening are left off it; the falling streaks still cross it, since rain falls on people.
+The sprite's rectangle is what is kept clear, so `inset` (world units) shrinks it by that much on every side, to leave the ground at the feet wet. A sprite faded by a
+`CoverFade` keeps the rain off it only as much as it shows.
 
 ### Depth layers (2.5D)
 

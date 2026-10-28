@@ -4298,6 +4298,27 @@
       ]
     },
     {
+      "name": "RainUpright",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "inset",
+          "type": "number",
+          "default": "0",
+          "doc": "Ground around the sprite's edge that the rain still draws on, in world units: the feet, or a trunk's base.",
+          "range": "≥ 0, step 1"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "inset"
+      ]
+    },
+    {
       "name": "ReflectionProbe",
       "source": "cpp",
       "fields": [
