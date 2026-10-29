@@ -28,6 +28,8 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(cocos): BoxCollider maps to the engine box collider with a static body, Line is a component over the engine vector path, Graphics builds its mesh with it (polygon fills, joins and caps), and a sprite whose frame is missing stays, switched off':
+    {"internal":"The Cocos Creator compatibility layer and importer have not shipped; nothing a creator reaches without opting in."},
   'feat(cocos): EditBox is a component over the platform text editor (mode and length rules, hint, password bullets, the four editing events), and the importer maps it':
     {"internal":"The Cocos Creator compatibility layer and importer have not shipped; nothing a creator reaches without opting in."},
   'feat(cocos): Graphics is a component over the engine Draw (rect, circle and stroked paths kept until clear), UIMeshRenderer folds into its host, and a Node has worldScale and worldRotation':

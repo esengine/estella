@@ -16,5 +16,5 @@ export { getVisibleSize, setVisibleSize } from './screen';
 export { Camera } from './camera';
 export { RichText } from './richText';
 export { Mask } from './mask';
-export { Graphics } from './graphics';
+export { Graphics, Line } from './graphics';
 export { EditBox } from './editBox';

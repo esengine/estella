@@ -12,7 +12,7 @@
  *        That is a world-space `Sprite`/`Text` with a pivot, not a flex box, so
  *        UI maps there and `UITransform` is folded into it.
  */
-import { particleSystem } from './particle';
+import { curveRange, particleSystem } from './particle';
 import type { CocosAssetEntry, CocosAssetIndex } from './assets';
 import { type CocosComponent, type CocosNode } from './document';
 import type { ImportReport } from './report';
@@ -145,10 +145,12 @@ function sprite(c: CocosComponent, box: UiBox | null, ctx: ComponentContext, whe
     const entry = ctx.assets.byUuid.get(frameUuid);
     const sub = entry?.subs.get(frameUuid);
     if (!entry || !sub || entry.importer !== 'image' || sub.importer !== 'sprite-frame') {
-        ctx.report.component('cc.Sprite', 'unmapped');
+        // A frame the project does not have draws nothing in Cocos either. The sprite stays, switched off, so a script that sets its frame later
+        // finds the component, and a white quad does not stand where a picture was meant.
+        ctx.report.component('cc.Sprite', 'partial');
         ctx.report.note(entry ? 'sprite-frame-not-from-image' : 'sprite-frame-missing', where);
         if (!entry) ctx.report.missingAsset(frameUuid);
-        return null;
+        return { type: 'Sprite', data: { ...data, enabled: false } };
     }
 
     const ud = sub.userData;
@@ -638,6 +640,46 @@ function graphics(c: CocosComponent): ComponentData {
     };
 }
 
+/** `cc.Line`: a polyline of a width and a colour. The width is a curve in Cocos and a number here, read at the start; the colour is the gradient's first. */
+function line(c: CocosComponent, ctx: ComponentContext, where: string): ComponentData {
+    const d = c.data;
+    const width = curveRange(d._width, 0, 1);
+    const gradient = isObj(d._color) ? d._color : {};
+    const first = isObj(gradient.color) ? gradient.color : { r: 255, g: 255, b: 255, a: 255 };
+    if (isObj(d._width) && num(d._width.mode, 0) !== 0 && width.min !== width.max) ctx.report.note('line-width-curve', where);
+    if (num(gradient._mode, 0) !== 0) ctx.report.note('line-color-gradient', where);
+    return {
+        type: `${LAYER}Line`,
+        data: {
+            enabled: c.enabled,
+            worldSpace: d._worldSpace !== false,
+            width: (width.min + width.max) / 2,
+            color: { r: num(first.r, 255), g: num(first.g, 255), b: num(first.b, 255), a: num(first.a, 255) },
+            positions: (Array.isArray(d._positions) ? d._positions : []).filter(isObj).map((p) => ({ x: num(p.x, 0), y: num(p.y, 0), z: num(p.z, 0) })),
+        },
+    };
+}
+
+/**
+ * `cc.BoxCollider`: the engine's box, half the node-scaled size on each side. A Cocos collider with no rigid body is a static one, which the engine
+ * spells as a static body beside the box. The engine's box is centred on the entity, so a collider that sits off-centre keeps its size and loses
+ * where it stood, which is counted.
+ */
+function boxCollider(c: CocosComponent, node: CocosNode, ctx: ComponentContext, where: string, extra: ComponentData[]): ComponentData {
+    const size = isObj(c.data._size) ? c.data._size : {};
+    const center = isObj(c.data._center) ? c.data._center : {};
+    const half = (axis: 'x' | 'y' | 'z'): number => Math.abs(num(size[axis], 1) * (node.scale[axis] ?? 1)) / 2;
+    const off = Math.abs(num(center.x, 0)) + Math.abs(num(center.y, 0)) + Math.abs(num(center.z, 0));
+    if (off > 1e-6) {
+        ctx.report.component('cc.BoxCollider', 'partial');
+        ctx.report.note('collider-center-dropped', where);
+    } else {
+        ctx.report.component('cc.BoxCollider', 'mapped');
+    }
+    if (!node.components.some((n) => n.type === 'cc.RigidBody') && !extra.some((e) => e.type === 'RigidBody3D')) extra.push({ type: 'RigidBody3D', data: { bodyType: 0 } });
+    return { type: 'BoxCollider3D', data: { halfExtents: { x: half('x'), y: half('y'), z: half('z') }, isSensor: c.data._isTrigger === true, enabled: c.enabled } };
+}
+
 /** `cc.EditBox`: the box and its two labels are the scene's own nodes; what is typed goes through the platform's text editor. */
 function editBox(c: CocosComponent, ctx: ComponentContext): ComponentData {
     return {
@@ -777,6 +819,12 @@ export function convertNode(node: CocosNode, ctx: ComponentContext, where: strin
                 break;
             case 'cc.SkeletalAnimation':
                 out = skeletalAnimation(c, node, ctx, where);
+                break;
+            case 'cc.Line':
+                out = line(c, ctx, where);
+                break;
+            case 'cc.BoxCollider':
+                out = boxCollider(c, node, ctx, where, extra);
                 break;
             case 'cc.EditBox':
                 out = editBox(c, ctx);

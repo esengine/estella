@@ -2,39 +2,46 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    cocos/ui/graphics.ts
- * @brief   `Graphics`: the path-drawing component, over the engine's immediate `Draw`.
+ * @brief   `Graphics` and `Line`: path-drawing components, over the engine's vector paths.
  *
  * A scene stores only a Graphics' style (line width, colours); its picture is what scripts draw with `moveTo`, `lineTo`, `rect`, `circle`,
- * `stroke` and `fill`, and Cocos keeps that picture until `clear()`. So this keeps the recorded drawing and plays it into the engine's `Draw`
- * every frame, in the node's place. What `Draw` can paint, this paints: lines at a width, filled rectangles and circles. A filled path of any other
- * shape is counted (and said once), not drawn — the engine has no polygon fill, and guessing one would draw the wrong thing.
+ * `stroke` and `fill`, and Cocos keeps that picture until `clear()`. So this records the drawing and turns it into the geometry of the node's own
+ * `MeshRenderer` (the engine's `buildPathGeometry`: ear-clipped fills, strokes with the line join and cap Cocos names), which is retained,
+ * sorted and batched like any mesh and moves with the node. Nothing is redrawn per frame; the geometry is rebuilt on the frame after a change.
  */
 import { Component } from '../component';
 import { Color, Vec2 } from '../math';
 import { declareClass } from '../host';
-import { Draw } from '../../render/draw';
-import { registerScopedDrawCallback, unregisterDrawCallback } from '../../render/customDraw';
-import type { CppRegistry } from '../../wasm';
-import { log } from '../../util/logger';
+import { Schedule, defineSystem, addSystemToSchedule } from '../../ecs/system';
+import { Res } from '../../ecs/resource';
+import { MeshRenderer } from '../../ecs/component';
+import { MeshRenderers, type MeshRendererAPI } from '../../render/meshRenderer';
+import { buildPathGeometry, mergeGeometry, type LineCap, type LineJoin, type PathColor } from '../../render/vectorPath';
+import type { MeshRendererGeometry } from '../../ecs/component';
 
 interface Subpath {
     points: Vec2[];
     closed: boolean;
-    /** Set when the subpath is exactly a rectangle or a circle, which can be filled. */
-    shape?: { kind: 'rect'; x: number; y: number; w: number; h: number } | { kind: 'circle'; x: number; y: number; r: number };
 }
 
 interface Op {
     kind: 'stroke' | 'fill';
     paths: Subpath[];
-    color: Color;
+    color: PathColor;
     width: number;
+    join: LineJoin;
+    cap: LineCap;
+    miterLimit: number;
 }
 
 const SEGMENTS_PER_CURVE = 16;
-let ids = 0;
+const JOINS: LineJoin[] = ['bevel', 'round', 'miter'];
+const CAPS: LineCap[] = ['butt', 'round', 'square'];
 
-const toEngine = (c: Color): { r: number; g: number; b: number; a: number } => ({ r: c.r / 255, g: c.g / 255, b: c.b / 255, a: c.a / 255 });
+const toColor = (c: Color): PathColor => [c.r / 255, c.g / 255, c.b / 255, c.a / 255];
+
+/** The engine's geometry API, handed over by the frame (a component has no app to ask). */
+let meshApi: MeshRendererAPI | null = null;
 
 export class Graphics extends Component {
     static readonly LineJoin = Object.freeze({ BEVEL: 0, ROUND: 1, MITER: 2 });
@@ -51,16 +58,19 @@ export class Graphics extends Component {
     private cursor_: Vec2 | null = null;
     private drawn_ = false;
     private ops_: Op[] = [];
-    private callback_: string | null = null;
-    private warned_ = false;
+    private dirty_ = false;
 
     // ---- building a path ---------------------------------------------------------------------------------------------
 
-    private current_(): Subpath {
-        // A path begun after something was drawn is a new one: the earlier shapes are on the canvas, not in the path.
+    /** A path begun after something was drawn is a new one: the earlier shapes are on the canvas, not in the path. */
+    private fresh_(): void {
         if (this.drawn_) { this.path_ = []; this.drawn_ = false; }
+    }
+
+    private current_(): Subpath {
+        this.fresh_();
         let sub = this.path_[this.path_.length - 1];
-        if (!sub || sub.closed || sub.shape) {
+        if (!sub || sub.closed) {
             sub = { points: this.cursor_ ? [this.cursor_] : [], closed: false };
             this.path_.push(sub);
         }
@@ -68,7 +78,7 @@ export class Graphics extends Component {
     }
 
     moveTo(x: number, y: number): void {
-        if (this.drawn_) { this.path_ = []; this.drawn_ = false; }
+        this.fresh_();
         this.cursor_ = new Vec2(x, y);
         this.path_.push({ points: [this.cursor_], closed: false });
     }
@@ -114,19 +124,19 @@ export class Graphics extends Component {
         this.cursor_ = sub.points[sub.points.length - 1]!;
     }
 
-    private shape_(points: Vec2[], shape: Subpath['shape']): void {
-        if (this.drawn_) { this.path_ = []; this.drawn_ = false; }
-        this.path_.push({ points, closed: true, shape });
+    private closedShape_(points: Vec2[]): void {
+        this.fresh_();
+        this.path_.push({ points, closed: true });
         this.cursor_ = points[0] ?? null;
     }
 
     rect(x: number, y: number, w: number, h: number): void {
-        this.shape_([new Vec2(x, y), new Vec2(x + w, y), new Vec2(x + w, y + h), new Vec2(x, y + h)], { kind: 'rect', x, y, w, h });
+        this.closedShape_([new Vec2(x, y), new Vec2(x + w, y), new Vec2(x + w, y + h), new Vec2(x, y + h)]);
     }
 
-    /** A rounded rectangle is drawn as its outline of arcs, and filled as the rectangle it rounds: the engine fills no rounded corner here. */
     roundRect(x: number, y: number, w: number, h: number, r: number): void {
         const radius = Math.min(Math.abs(r), Math.abs(w) / 2, Math.abs(h) / 2);
+        if (radius === 0) { this.rect(x, y, w, h); return; }
         const pts: Vec2[] = [];
         const corner = (cx: number, cy: number, from: number): void => {
             for (let i = 0; i <= 8; i++) {
@@ -138,7 +148,7 @@ export class Graphics extends Component {
         corner(x + w - radius, y + h - radius, 0);
         corner(x + radius, y + h - radius, Math.PI / 2);
         corner(x + radius, y + radius, Math.PI);
-        this.shape_(pts, radius === 0 ? { kind: 'rect', x, y, w, h } : undefined);
+        this.closedShape_(pts);
     }
 
     fillRect(x: number, y: number, w: number, h: number): void {
@@ -146,37 +156,39 @@ export class Graphics extends Component {
         this.fill();
     }
 
-    circle(cx: number, cy: number, r: number): void {
-        const pts: Vec2[] = [];
-        for (let i = 0; i < 48; i++) pts.push(new Vec2(cx + Math.cos((i / 48) * Math.PI * 2) * r, cy + Math.sin((i / 48) * Math.PI * 2) * r));
-        this.shape_(pts, { kind: 'circle', x: cx, y: cy, r });
-    }
+    circle(cx: number, cy: number, r: number): void { this.ellipse(cx, cy, r, r); }
 
     ellipse(cx: number, cy: number, rx: number, ry: number): void {
+        const n = Math.max(24, Math.min(96, Math.ceil(Math.max(Math.abs(rx), Math.abs(ry)) / 2)));
         const pts: Vec2[] = [];
-        for (let i = 0; i < 48; i++) pts.push(new Vec2(cx + Math.cos((i / 48) * Math.PI * 2) * rx, cy + Math.sin((i / 48) * Math.PI * 2) * ry));
-        this.shape_(pts, rx === ry ? { kind: 'circle', x: cx, y: cy, r: rx } : undefined);
+        for (let i = 0; i < n; i++) pts.push(new Vec2(cx + Math.cos((i / n) * Math.PI * 2) * rx, cy + Math.sin((i / n) * Math.PI * 2) * ry));
+        this.closedShape_(pts);
     }
 
     close(): void {
         const sub = this.path_[this.path_.length - 1];
-        if (sub && !sub.shape) { sub.closed = true; this.cursor_ = sub.points[0] ?? null; }
+        if (sub) { sub.closed = true; this.cursor_ = sub.points[0] ?? null; }
     }
 
     // ---- painting it ---------------------------------------------------------------------------------------------------
 
     private snapshot_(): Subpath[] {
-        return this.path_.filter((p) => p.points.length > 0).map((p) => ({ ...p, points: p.points.map((v) => v.clone()) }));
+        return this.path_.filter((p) => p.points.length > 0).map((p) => ({ closed: p.closed, points: p.points.map((v) => v.clone()) }));
     }
 
     stroke(): void {
-        this.ops_.push({ kind: 'stroke', paths: this.snapshot_(), color: this.strokeColor.clone(), width: this.lineWidth });
+        this.ops_.push({
+            kind: 'stroke', paths: this.snapshot_(), color: toColor(this.strokeColor), width: this.lineWidth,
+            join: JOINS[this.lineJoin] ?? 'miter', cap: CAPS[this.lineCap] ?? 'butt', miterLimit: this.miterLimit,
+        });
         this.drawn_ = true;
+        this.dirty_ = true;
     }
 
     fill(): void {
-        this.ops_.push({ kind: 'fill', paths: this.snapshot_(), color: this.fillColor.clone(), width: 0 });
+        this.ops_.push({ kind: 'fill', paths: this.snapshot_(), color: toColor(this.fillColor), width: 0, join: 'miter', cap: 'butt', miterLimit: 4 });
         this.drawn_ = true;
+        this.dirty_ = true;
     }
 
     clear(): void {
@@ -184,56 +196,99 @@ export class Graphics extends Component {
         this.path_ = [];
         this.cursor_ = null;
         this.drawn_ = false;
+        this.dirty_ = true;
     }
 
-    // ---- into the frame --------------------------------------------------------------------------------------------------
+    // ---- into the engine -------------------------------------------------------------------------------------------------
 
-    onEnable(): void {
-        const registry = this._world.getCppRegistry() as CppRegistry | null;
-        if (!registry || this.callback_) return;
-        this.callback_ = `cocos-graphics:${++ids}`;
-        registerScopedDrawCallback(this.callback_, registry, () => this.paint_());
+    update(): void {
+        if (this.dirty_ && meshApi) this.upload_(meshApi);
     }
 
     onDisable(): void {
-        if (this.callback_) unregisterDrawCallback(this.callback_);
-        this.callback_ = null;
+        // a Graphics that is off draws nothing; its picture is kept and comes back when it is on
+        meshApi?.clearGeometry(this.node._entity);
+        this.dirty_ = true;
     }
 
-    private paint_(): void {
-        if (this.ops_.length === 0) return;
-        const node = this.node;
-        const p = node.worldPosition, s = node.worldScale, q = node.worldRotation;
-        // the node's turn about Z, which is all a drawing on a flat scene has
-        const angle = 2 * Math.atan2(q.z, q.w);
-        const cos = Math.cos(angle), sin = Math.sin(angle);
-        const place = (v: Vec2): { x: number; y: number } => {
-            const x = v.x * s.x, y = v.y * s.y;
-            return { x: p.x + x * cos - y * sin, y: p.y + x * sin + y * cos };
-        };
-        const scale = (Math.abs(s.x) + Math.abs(s.y)) / 2;
+    private upload_(api: MeshRendererAPI): void {
+        this.dirty_ = false;
+        putGeometry(this, api, this.geometry());
+    }
+
+    /** What the recorded drawing is as geometry, in this node's own space. */
+    geometry(): MeshRendererGeometry {
+        const parts: MeshRendererGeometry[] = [];
         for (const op of this.ops_) {
-            const color = toEngine(op.color);
-            if (color.a <= 0) continue;
             for (const sub of op.paths) {
-                if (op.kind === 'stroke') {
-                    const pts = sub.points.map(place);
-                    const thickness = Math.max(op.width * scale, 1);
-                    for (let i = 1; i < pts.length; i++) Draw.line(pts[i - 1]!, pts[i]!, color, thickness);
-                    if (sub.closed && pts.length > 2) Draw.line(pts[pts.length - 1]!, pts[0]!, color, thickness);
-                } else if (sub.shape?.kind === 'rect' && Math.abs(angle) < 1e-4) {
-                    const a = place(new Vec2(sub.shape.x, sub.shape.y)), b = place(new Vec2(sub.shape.x + sub.shape.w, sub.shape.y + sub.shape.h));
-                    Draw.rect({ x: Math.min(a.x, b.x), y: Math.min(a.y, b.y) }, { x: Math.abs(b.x - a.x), y: Math.abs(b.y - a.y) }, color, true);
-                } else if (sub.shape?.kind === 'circle') {
-                    Draw.circle(place(new Vec2(sub.shape.x, sub.shape.y)), sub.shape.r * scale, color, true, 32);
-                } else if (!this.warned_) {
-                    this.warned_ = true;
-                    log.warn('cocos', `Graphics.fill() of a path that is not a rectangle or a circle is not drawn (${this.node.name})`);
+                const points = sub.points;
+                if (op.kind === 'fill') {
+                    if (points.length >= 3) parts.push(buildPathGeometry(points, { fill: { color: op.color }, closed: true }));
+                } else if (points.length >= 2) {
+                    parts.push(buildPathGeometry(points, {
+                        stroke: { color: op.color, width: op.width, join: op.join, cap: op.cap, miterLimit: op.miterLimit }, closed: sub.closed,
+                    }));
                 }
             }
         }
+        return mergeGeometry(parts);
     }
 }
+
+/** Give a component's node the geometry as its mesh, or take its mesh away when there is none. */
+function putGeometry(component: Component, api: MeshRendererAPI, geometry: MeshRendererGeometry): void {
+    const entity = component.node._entity;
+    if (geometry.indices.length === 0) { api.clearGeometry(entity); return; }
+    if (!component._world.has(entity, MeshRenderer)) component._world.insert(entity, MeshRenderer, { enabled: true });
+    api.setGeometry(entity, geometry);
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Line
+// ---------------------------------------------------------------------------------------------------------------------
+
+/** `Line`: a polyline of a width and a colour. Its points are the world's (`worldSpace`) or the node's own. */
+export class Line extends Component {
+    private positions_: Array<{ x: number; y: number; z: number }> = [];
+    worldSpace = true;
+    width = 1;
+    color: Color = new Color(255, 255, 255, 255);
+    private dirty_ = true;
+
+    get positions(): Array<{ x: number; y: number; z: number }> { return this.positions_; }
+    set positions(value: Array<{ x: number; y: number; z: number }>) { this.positions_ = value; this.dirty_ = true; }
+
+    update(): void {
+        if (!this.dirty_ || !meshApi) return;
+        this.dirty_ = false;
+        putGeometry(this, meshApi, this.geometry());
+    }
+
+    onDisable(): void {
+        meshApi?.clearGeometry(this.node._entity);
+        this.dirty_ = true;
+    }
+
+    /** The polyline as geometry in the node's space: a world-space line is carried back through the node's place. */
+    geometry(): MeshRendererGeometry {
+        if (this.positions_.length < 2) return { positions: [], colors: [], indices: [] };
+        let points: Vec2[] = this.positions_.map((p) => new Vec2(p.x, p.y));
+        if (this.worldSpace) {
+            const node = this.node;
+            const p = node.worldPosition, s = node.worldScale, q = node.worldRotation;
+            const angle = 2 * Math.atan2(q.z, q.w);
+            const cos = Math.cos(-angle), sin = Math.sin(-angle);
+            points = points.map((v) => {
+                const x = v.x - p.x, y = v.y - p.y;
+                return new Vec2((x * cos - y * sin) / (s.x || 1), (x * sin + y * cos) / (s.y || 1));
+            });
+        }
+        return buildPathGeometry(points, { stroke: { color: toColor(this.color), width: this.width, join: 'round', cap: 'butt' } });
+    }
+}
+
+/** Test seam: the geometry API the frame would hand over. */
+export function setGraphicsMeshApi(api: MeshRendererAPI | null): void { meshApi = api; }
 
 export function declareGraphics(): void {
     declareClass(Graphics as never, 'Graphics', [
@@ -244,4 +299,16 @@ export function declareGraphics(): void {
         { name: 'strokeColor', kind: 'color' },
         { name: 'fillColor', kind: 'color' },
     ]);
+    declareClass(Line as never, 'Line', [
+        { name: 'worldSpace', kind: 'boolean' },
+        { name: 'width', kind: 'number' },
+        { name: 'color', kind: 'color' },
+        { name: 'positions', kind: 'json' },
+    ]);
+    // The geometry API lives on the app; a component has no way to ask for it, so a system hands it over each frame.
+    addSystemToSchedule(Schedule.PreUpdate, defineSystem(
+        [Res(MeshRenderers)],
+        (api) => { if (api) meshApi = api; },
+        { name: 'Cocos:GraphicsApi', touches: { opaque: true } },
+    ));
 }
