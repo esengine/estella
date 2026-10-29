@@ -739,6 +739,12 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "richText": false,
               "renderMode": 0,
               "layer": 0,
+              "boxWidth": 0,
+              "boxHeight": 0,
+              "boxPivot": {
+                "x": 0.5,
+                "y": 0.5
+              },
               "enabled": true
             }
           }
@@ -2069,6 +2075,12 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "richText": false,
               "renderMode": 0,
               "layer": 0,
+              "boxWidth": 0,
+              "boxHeight": 0,
+              "boxPivot": {
+                "x": 0.5,
+                "y": 0.5
+              },
               "enabled": true
             }
           },
@@ -2415,6 +2427,12 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "richText": false,
               "renderMode": 0,
               "layer": 0,
+              "boxWidth": 0,
+              "boxHeight": 0,
+              "boxPivot": {
+                "x": 0.5,
+                "y": 0.5
+              },
               "enabled": true
             }
           },
@@ -2761,6 +2779,12 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "richText": false,
               "renderMode": 0,
               "layer": 0,
+              "boxWidth": 0,
+              "boxHeight": 0,
+              "boxPivot": {
+                "x": 0.5,
+                "y": 0.5
+              },
               "enabled": true
             }
           },
@@ -3107,6 +3131,12 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "richText": false,
               "renderMode": 0,
               "layer": 0,
+              "boxWidth": 0,
+              "boxHeight": 0,
+              "boxPivot": {
+                "x": 0.5,
+                "y": 0.5
+              },
               "enabled": true
             }
           },
@@ -3878,6 +3908,12 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "richText": false,
               "renderMode": 0,
               "layer": 0,
+              "boxWidth": 0,
+              "boxHeight": 0,
+              "boxPivot": {
+                "x": 0.5,
+                "y": 0.5
+              },
               "enabled": true
             }
           },
@@ -4939,6 +4975,12 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "richText": false,
               "renderMode": 0,
               "layer": 0,
+              "boxWidth": 0,
+              "boxHeight": 0,
+              "boxPivot": {
+                "x": 0.5,
+                "y": 0.5
+              },
               "enabled": true
             }
           },
@@ -5639,6 +5681,12 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "richText": false,
               "renderMode": 0,
               "layer": 0,
+              "boxWidth": 0,
+              "boxHeight": 0,
+              "boxPivot": {
+                "x": 0.5,
+                "y": 0.5
+              },
               "enabled": true
             }
           },
@@ -6339,6 +6387,12 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "richText": false,
               "renderMode": 0,
               "layer": 0,
+              "boxWidth": 0,
+              "boxHeight": 0,
+              "boxPivot": {
+                "x": 0.5,
+                "y": 0.5
+              },
               "enabled": true
             }
           },
@@ -6668,6 +6722,12 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "richText": false,
               "renderMode": 0,
               "layer": 0,
+              "boxWidth": 0,
+              "boxHeight": 0,
+              "boxPivot": {
+                "x": 0.5,
+                "y": 0.5
+              },
               "enabled": true
             }
           },
@@ -7590,6 +7650,12 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "richText": false,
               "renderMode": 0,
               "layer": 0,
+              "boxWidth": 0,
+              "boxHeight": 0,
+              "boxPivot": {
+                "x": 0.5,
+                "y": 0.5
+              },
               "enabled": true
             }
           },
@@ -8010,6 +8076,12 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "richText": false,
               "renderMode": 0,
               "layer": 0,
+              "boxWidth": 0,
+              "boxHeight": 0,
+              "boxPivot": {
+                "x": 0.5,
+                "y": 0.5
+              },
               "enabled": true
             }
           },
@@ -10238,6 +10310,12 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "richText": false,
               "renderMode": 0,
               "layer": 0,
+              "boxWidth": 0,
+              "boxHeight": 0,
+              "boxPivot": {
+                "x": 0.5,
+                "y": 0.5
+              },
               "enabled": true
             }
           },
@@ -10590,6 +10668,12 @@ export const BUILTIN_UI_PREFABS: Record<string, PrefabData> = {
               "richText": false,
               "renderMode": 0,
               "layer": 0,
+              "boxWidth": 0,
+              "boxHeight": 0,
+              "boxPivot": {
+                "x": 0.5,
+                "y": 0.5
+              },
               "enabled": true
             }
           },

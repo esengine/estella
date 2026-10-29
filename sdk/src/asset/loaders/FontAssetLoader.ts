@@ -8,6 +8,8 @@ import { getPlatform } from '../../platform/base';
 import {
     freshProjectFontFamily, projectFontFamily, registerProjectFontEra, releaseProjectFontEra,
 } from '../../ui/text/font-registry';
+import { parseBmFont, registerBitmapFont, unregisterBitmapFont } from '../../ui/text/bitmap-font';
+import { log } from '../../util/logger';
 import type { FontHandle } from '../../types';
 
 /** Outline fonts — rasterized per glyph by the text stack, not pre-baked pages. */
@@ -36,6 +38,7 @@ export class FontAssetLoader implements AssetLoader<FontResult> {
             releaseProjectFontEra(asset.handle);
             return;
         }
+        unregisterBitmapFont(asset.handle);
         const rm = requireResourceManager();
         rm.releaseBitmapFont(asset.handle);
     }
@@ -87,6 +90,15 @@ export class FontAssetLoader implements AssetLoader<FontResult> {
         const handle = rm.loadBitmapFont(
             fntContent, texResult.handle, texResult.width, texResult.height,
         ) as FontHandle;
+
+        // The same font serves `Text`, which draws it from the page texture with this table — `BitmapText` keeps using the
+        // C++ resource above. A font the parser cannot read still loads for BitmapText; Text just will not find it.
+        try {
+            // the batch binds a page by GL texture id, as it does for the glyph atlas's own pages
+            registerBitmapFont(handle, parseBmFont(fntContent), rm.getTextureGLId(texResult.handle));
+        } catch (err) {
+            log.warn('text', `${path}: not usable by Text as a bitmap font — ${err instanceof Error ? err.message : String(err)}`);
+        }
 
         return { handle };
     }

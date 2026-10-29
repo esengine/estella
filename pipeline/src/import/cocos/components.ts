@@ -195,7 +195,10 @@ function label(c: CocosComponent, siblings: CocosComponent[], box: UiBox | null,
     }
 
     const outline = siblings.find((s) => s.type === 'cc.LabelOutline' && s.enabled);
-    if (outline) {
+    // A bitmap font carries its own outline in the page, so a stroke drawn round it would be a second ring.
+    if (outline && data.font && String(data.font).endsWith('.fnt')) {
+        ctx.report.note('label-outline-baked-in-font', where);
+    } else if (outline) {
         data.strokeColor = color(outline.data._color);
         data.strokeWidth = num(outline.data._width, 0);
     }

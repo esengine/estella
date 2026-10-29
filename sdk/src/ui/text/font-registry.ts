@@ -25,6 +25,7 @@
  */
 
 import { RuntimeConfig } from '../../defaults';
+import { bitmapFontFamily } from './bitmap-font';
 
 /** Distinct from any ResourceManager handle (those count up from small ints). */
 const HANDLE_BASE = 0x4000_0000;
@@ -107,7 +108,7 @@ export function unregisterProjectFont(path: string): void {
  * "whatever this project uses", which is what makes that project setting real.
  */
 export function resolveTextFamily(font: number | undefined, fontFamily: string): string {
-    return (font ? projectFontFamily(font) : null) ?? (fontFamily || RuntimeConfig.defaultFontFamily);
+    return (font ? projectFontFamily(font) ?? bitmapFontFamily(font) : null) ?? (fontFamily || RuntimeConfig.defaultFontFamily);
 }
 
 /** Test seam: drop every registration. */

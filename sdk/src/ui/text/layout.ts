@@ -74,7 +74,7 @@ export function layoutLine(
     opts: TextLayoutOptions,
     style = 0,
 ): TextLayout {
-    const pixelSize = atlas.pixelSizeFor(opts.fontSizePx);
+    const pixelSize = atlas.pixelSizeFor(opts.fontSizePx, fontFamily);
     const scale = opts.fontSizePx / pixelSize;
     const spacing = opts.letterSpacing ?? 0;
     const glyphs: LaidGlyph[] = [];
@@ -220,7 +220,7 @@ function truncateLine(
 export function measureWidth(
     text: string, atlas: GlyphAtlas, fontFamily: string, fontSizePx: number, style: number, letterSpacing = 0,
 ): number {
-    const pixelSize = atlas.pixelSizeFor(fontSizePx);
+    const pixelSize = atlas.pixelSizeFor(fontSizePx, fontFamily);
     const scale = fontSizePx / pixelSize;
     let w = 0;
     for (const ch of text) {
@@ -236,7 +236,7 @@ export function measureWidth(
 export function measurePrefixWidths(
     text: string, atlas: GlyphAtlas, fontFamily: string, fontSizePx: number, style: number, letterSpacing = 0,
 ): number[] {
-    const pixelSize = atlas.pixelSizeFor(fontSizePx);
+    const pixelSize = atlas.pixelSizeFor(fontSizePx, fontFamily);
     const scale = fontSizePx / pixelSize;
     const advance = (cp: number): number => {
         const glyph = atlas.getGlyph(cp, fontFamily, style, pixelSize);
@@ -328,7 +328,7 @@ export function wrapLine(
     text: string, atlas: GlyphAtlas, fontFamily: string, fontSizePx: number,
     style: number, maxWidth: number, letterSpacing = 0,
 ): string[] {
-    const pixelSize = atlas.pixelSizeFor(fontSizePx);
+    const pixelSize = atlas.pixelSizeFor(fontSizePx, fontFamily);
     const scale = fontSizePx / pixelSize;
     const append = (width: number, suffix: string): number => {
         for (const ch of suffix) {
@@ -509,7 +509,7 @@ function measureRun(
     baseSizePx: number, baseStyle: number, spacing: number,
 ): number {
     const runSize = run.fontSize ?? baseSizePx;
-    const pixelSize = atlas.pixelSizeFor(runSize);
+    const pixelSize = atlas.pixelSizeFor(runSize, fontFamily);
     const scale = runSize / pixelSize;
     const style = baseStyle | (run.bold ? UI_TEXT_BOLD : 0) | (run.italic ? UI_TEXT_ITALIC : 0);
     let w = 0;
@@ -644,7 +644,7 @@ export function layoutRichRuns(
             continue;
         }
         const runSize = run.fontSize ?? opts.fontSizePx;
-        const pixelSize = atlas.pixelSizeFor(runSize);
+        const pixelSize = atlas.pixelSizeFor(runSize, fontFamily);
         const scale = runSize / pixelSize;
         const style = baseStyle | (run.bold ? UI_TEXT_BOLD : 0) | (run.italic ? UI_TEXT_ITALIC : 0);
         const color: RGBA = run.color

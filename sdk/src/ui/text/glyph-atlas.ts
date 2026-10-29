@@ -18,6 +18,7 @@
  */
 import { ShelfPacker, type Packer } from '../../util/shelfPack';
 import { log } from '../../util/logger';
+import { bitmapFontOf, bitmapGlyph } from './bitmap-font';
 
 /** A glyph rendered to an upload-ready bitmap plus its layout metrics (in render-size px). */
 export interface RasterGlyph {
@@ -225,7 +226,10 @@ export class GlyphAtlas {
 
     /** Rasterization size for a display size: SDF uses one fixed source;
      *  bitmap rasterizes per size at the effective on-screen density. */
-    pixelSizeFor(displaySize: number): number {
+    pixelSizeFor(displaySize: number, fontFamily?: string): number {
+        // A bitmap font has one size: the one it was drawn at, which the layout scales from.
+        const bitmap = fontFamily === undefined ? null : bitmapFontOf(fontFamily);
+        if (bitmap) return bitmap.size;
         return this.sdf
             ? this.renderSize
             : Math.max(1, Math.round(displaySize * this.dpr * this.contentScale_));
@@ -244,6 +248,8 @@ export class GlyphAtlas {
      * Drawable entries follow page lifetime; page-free entries use a bounded LRU.
      */
     getGlyph(codepoint: number, fontFamily: string, style = 0, pixelSize = this.renderSize): GlyphEntry | null {
+        // A bitmap font is its own atlas: the glyph is already on a page the engine holds.
+        if (bitmapFontOf(fontFamily)) return bitmapGlyph(fontFamily, codepoint);
         const k = this.key(codepoint, fontFamily, style, pixelSize);
         const hit = this.cache.get(k);
         if (hit !== undefined) return hit;

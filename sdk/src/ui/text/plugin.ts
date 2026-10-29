@@ -20,6 +20,7 @@ import { SdfTextRenderer } from './text-renderer';
 import type { RGBA } from './layout';
 import { composeTRS, rectTextBox, UI_TEXT_BOLD, UI_TEXT_ITALIC } from './text-transform';
 import { Text, TextRenderMode, type TextData } from '../core/text';
+import { bitmapFontOf } from './bitmap-font';
 import { UINode } from '../core/ui-node';
 import { Localization } from '../../i18n/Localization';
 import { applyTextLocalization, type TextWorldView } from './localize';
@@ -379,7 +380,9 @@ export class TextPlugin implements Plugin {
         const contentScale = screen ? this.screenContentScale(app, dpr) : this.worldContentScale(app, dpr);
         const state = screen ? appState.screen : appState.world;
         const tr = world.get(entity, Transform) as TransformData;
-        const kind = resolveTextRenderMode(t.renderMode, tr.worldScale.x);
+        const family = resolveTextFamily(t.font, t.fontFamily);
+        // A bitmap font has no distance field and one size, so it draws as a bitmap whatever the scale.
+        const kind = bitmapFontOf(family) ? 'bitmap' : resolveTextRenderMode(t.renderMode, tr.worldScale.x);
         const renderer = this.rendererFor(app, state, kind, contentScale, dpr);
         const previous = appState.retained.get(entity as number);
         if (previous && previous.renderer !== renderer) previous.renderer.forget(entity as number);
@@ -418,7 +421,6 @@ export class TextPlugin implements Plugin {
                 width: t.strokeWidth,
             }
             : undefined;
-        const family = resolveTextFamily(t.font, t.fontFamily);
         renderer.retain(
             api,
             {
@@ -443,7 +445,7 @@ export class TextPlugin implements Plugin {
             // The engine orders a boxed label by the UI tree and re-lays it out when the node's size changes; a box
             // that is the Text's own is neither, so it is reported as no box (its size reaches layout above).
             entity as number, screen, hasBox && frame.ui, t.layer | 0, frame.ui ? w : 0, frame.ui ? h : 0,
-            t.renderMode !== TextRenderMode.Bitmap && t.renderMode !== TextRenderMode.Sdf,
+            t.renderMode !== TextRenderMode.Bitmap && t.renderMode !== TextRenderMode.Sdf && !bitmapFontOf(family),
         );
         appState.retained.set(entity as number, { snap: snapshotOf(t, family), screen, gen: renderer.atlas.generation, renderer });
     }
@@ -484,7 +486,7 @@ export class TextPlugin implements Plugin {
             const tr = world.get(entity, Transform) as TransformData;
             const renderer = this.rendererFor(
                 app, state,
-                resolveTextRenderMode(t.renderMode, tr.worldScale.x),
+                bitmapFontOf(resolveTextFamily(t.font, t.fontFamily)) ? 'bitmap' : resolveTextRenderMode(t.renderMode, tr.worldScale.x),
                 contentScale,
                 dpr,
             );
