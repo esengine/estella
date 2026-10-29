@@ -77,23 +77,26 @@ export class EventMouse {
     stopped = false;
     private readonly location_: Vec2;
     private prev_: Vec2;
+    private readonly screen_: Vec2;
     private scrollX_ = 0;
     private scrollY_ = 0;
     private button_ = 0;
 
-    constructor(public readonly type: string, x = 0, y = 0, prev?: Vec2) {
+    /** @p x / @p y are the canvas (UI) point, @p sx / @p sy the screen point (pixels of the surface, origin bottom-left). */
+    constructor(public readonly type: string, x = 0, y = 0, prev?: Vec2, sx: number = x, sy: number = y) {
         this.location_ = new Vec2(x, y);
         this.prev_ = prev ?? new Vec2(x, y);
+        this.screen_ = new Vec2(sx, sy);
     }
 
     /** @internal */ _button(b: number): this { this.button_ = b; return this; }
     /** @internal */ _scroll(x: number, y: number): this { this.scrollX_ = x; this.scrollY_ = y; return this; }
 
     getButton(): number { return this.button_; }
-    getLocation(out: Vec2 = new Vec2()): Vec2 { return out.set(this.location_.x, this.location_.y); }
-    getLocationX(): number { return this.location_.x; }
-    getLocationY(): number { return this.location_.y; }
-    getUILocation(out: Vec2 = new Vec2()): Vec2 { return this.getLocation(out); }
+    getLocation(out: Vec2 = new Vec2()): Vec2 { return out.set(this.screen_.x, this.screen_.y); }
+    getLocationX(): number { return this.screen_.x; }
+    getLocationY(): number { return this.screen_.y; }
+    getUILocation(out: Vec2 = new Vec2()): Vec2 { return out.set(this.location_.x, this.location_.y); }
     getUILocationX(): number { return this.location_.x; }
     getUILocationY(): number { return this.location_.y; }
     getPreviousLocation(out: Vec2 = new Vec2()): Vec2 { return out.set(this.prev_.x, this.prev_.y); }

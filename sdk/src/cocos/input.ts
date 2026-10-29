@@ -29,32 +29,42 @@ import { UITransform } from './ui/uiTransform';
 import { log } from '../util/logger';
 import { EventKeyboard, EventMouse, input as globalInput, keyCodeOf, Input as InputApi } from './inputApi';
 
-/** One finger (or the mouse button) as a script sees it. */
+interface Point { x: number; y: number; sx: number; sy: number }
+
+/**
+ * One finger (or the mouse button) as a script sees it, at two kinds of place as in Cocos: the SCREEN point
+ * (`getLocation`: pixels of the drawing surface, origin bottom-left — what a camera's `screenToWorld` takes), and the CANVAS point
+ * (`getUILocation`: the space the UI is laid out in, which in an imported scene is the world's).
+ */
 export class Touch {
-    constructor(
-        public readonly id: number,
-        private x_: number,
-        private y_: number,
-        private readonly startX_: number = x_,
-        private readonly startY_: number = y_,
-        private prevX_: number = x_,
-        private prevY_: number = y_,
-    ) {}
+    private cur_: Point;
+    private readonly start_: Point;
+    private prev_: Point;
+
+    constructor(public readonly id: number, x: number, y: number, sx: number = x, sy: number = y) {
+        this.cur_ = { x, y, sx, sy };
+        this.start_ = { ...this.cur_ };
+        this.prev_ = { ...this.cur_ };
+    }
 
     /** @internal */
-    _move(x: number, y: number): void { this.prevX_ = this.x_; this.prevY_ = this.y_; this.x_ = x; this.y_ = y; }
+    _move(x: number, y: number, sx: number = x, sy: number = y): void { this.prev_ = this.cur_; this.cur_ = { x, y, sx, sy }; }
 
     getID(): number { return this.id; }
-    getLocation(out: Vec2 = new Vec2()): Vec2 { return out.set(this.x_, this.y_); }
-    getLocationX(): number { return this.x_; }
-    getLocationY(): number { return this.y_; }
-    /** The canvas-space point: in an imported scene the same space as the world, see the file comment. */
-    getUILocation(out: Vec2 = new Vec2()): Vec2 { return out.set(this.x_, this.y_); }
-    getUILocationX(): number { return this.x_; }
-    getUILocationY(): number { return this.y_; }
-    getStartLocation(out: Vec2 = new Vec2()): Vec2 { return out.set(this.startX_, this.startY_); }
-    getPreviousLocation(out: Vec2 = new Vec2()): Vec2 { return out.set(this.prevX_, this.prevY_); }
-    getDelta(out: Vec2 = new Vec2()): Vec2 { return out.set(this.x_ - this.prevX_, this.y_ - this.prevY_); }
+
+    getLocation(out: Vec2 = new Vec2()): Vec2 { return out.set(this.cur_.sx, this.cur_.sy); }
+    getLocationX(): number { return this.cur_.sx; }
+    getLocationY(): number { return this.cur_.sy; }
+    getStartLocation(out: Vec2 = new Vec2()): Vec2 { return out.set(this.start_.sx, this.start_.sy); }
+    getPreviousLocation(out: Vec2 = new Vec2()): Vec2 { return out.set(this.prev_.sx, this.prev_.sy); }
+    getDelta(out: Vec2 = new Vec2()): Vec2 { return out.set(this.cur_.sx - this.prev_.sx, this.cur_.sy - this.prev_.sy); }
+
+    getUILocation(out: Vec2 = new Vec2()): Vec2 { return out.set(this.cur_.x, this.cur_.y); }
+    getUILocationX(): number { return this.cur_.x; }
+    getUILocationY(): number { return this.cur_.y; }
+    getUIStartLocation(out: Vec2 = new Vec2()): Vec2 { return out.set(this.start_.x, this.start_.y); }
+    getUIPreviousLocation(out: Vec2 = new Vec2()): Vec2 { return out.set(this.prev_.x, this.prev_.y); }
+    getUIDelta(out: Vec2 = new Vec2()): Vec2 { return out.set(this.cur_.x - this.prev_.x, this.cur_.y - this.prev_.y); }
 }
 
 /** The event a touch listener receives. */
@@ -85,6 +95,9 @@ export class EventTouch {
     getLocationX(): number { return this.touch.getLocationX(); }
     getLocationY(): number { return this.touch.getLocationY(); }
     getUILocation(out?: Vec2): Vec2 { return this.touch.getUILocation(out); }
+    getUIStartLocation(out?: Vec2): Vec2 { return this.touch.getUIStartLocation(out); }
+    getUIPreviousLocation(out?: Vec2): Vec2 { return this.touch.getUIPreviousLocation(out); }
+    getUIDelta(out?: Vec2): Vec2 { return this.touch.getUIDelta(out); }
     getUILocationX(): number { return this.touch.getUILocationX(); }
     getUILocationY(): number { return this.touch.getUILocationY(); }
     getStartLocation(out?: Vec2): Vec2 { return this.touch.getStartLocation(out); }
@@ -199,11 +212,12 @@ export function pumpTouches(world: World, input: InputState, camera: UICameraDat
     const live = [...book.values()].map((g) => g.touch);
 
     for (const p of pointers) {
-        const at = camera.valid ? screenToUiWorld(camera, p.x * dpr, surfaceH - p.y * dpr) : { x: 0, y: 0 };
+        const sx = p.x * dpr, sy = surfaceH - p.y * dpr;
+        const at = camera.valid ? screenToUiWorld(camera, sx, sy) : { x: 0, y: 0 };
         let gesture = book.get(p.id);
 
         if (p.pressed && !gesture) {
-            const touch = new Touch(p.id, at.x, at.y);
+            const touch = new Touch(p.id, at.x, at.y, sx, sy);
             const hit = hitNode(world, new Vec2(at.x, at.y));
             gesture = { touch, target: hit, chainFrom: hit };
             book.set(p.id, gesture);
@@ -214,12 +228,12 @@ export function pumpTouches(world: World, input: InputState, camera: UICameraDat
         if (!gesture) continue;
 
         if (p.down && (at.x !== gesture.touch.getLocationX() || at.y !== gesture.touch.getLocationY())) {
-            gesture.touch._move(at.x, at.y);
+            gesture.touch._move(at.x, at.y, sx, sy);
             globalInput.emit(Node.EventType.TOUCH_MOVE, new EventTouch(Node.EventType.TOUCH_MOVE, gesture.touch, live));
             if (gesture.chainFrom) dispatch(withCancel(new EventTouch(Node.EventType.TOUCH_MOVE, gesture.touch, live), gesture, live), gesture.target, gesture.chainFrom);
         }
         if (p.released) {
-            gesture.touch._move(at.x, at.y);
+            gesture.touch._move(at.x, at.y, sx, sy);
             const type = p.cancelled ? Node.EventType.TOUCH_CANCEL : Node.EventType.TOUCH_END;
             globalInput.emit(type, new EventTouch(type, gesture.touch, live));
             if (gesture.chainFrom) dispatch(withCancel(new EventTouch(type, gesture.touch, live), gesture, live), gesture.target, gesture.chainFrom);
@@ -244,12 +258,13 @@ export function pumpKeysAndMouse(input: InputState, camera: UICameraData): void 
     for (const code of input.keysReleased) globalInput.emit(InputApi.EventType.KEY_UP, new EventKeyboard(keyCodeOf(code), InputApi.EventType.KEY_UP));
 
     const dpr = platformDevicePixelRatio();
-    const at = camera.valid ? screenToUiWorld(camera, input.mouseX * dpr, camera.screenH - input.mouseY * dpr) : { x: 0, y: 0 };
+    const sx = input.mouseX * dpr, sy = camera.screenH - input.mouseY * dpr;
+    const at = camera.valid ? screenToUiWorld(camera, sx, sy) : { x: 0, y: 0 };
     const lastMouse = lastMouseOf.get(input);
     const previous = lastMouse ?? at;
     const moved = lastMouse !== undefined && (at.x !== lastMouse.x || at.y !== lastMouse.y);
     const prev = new Vec2(previous.x, previous.y);
-    const event = (type: string): EventMouse => new EventMouse(type, at.x, at.y, prev);
+    const event = (type: string): EventMouse => new EventMouse(type, at.x, at.y, prev, sx, sy);
     for (const b of input.mouseButtonsPressed) globalInput.emit(InputApi.EventType.MOUSE_DOWN, event(InputApi.EventType.MOUSE_DOWN)._button(b));
     if (moved) globalInput.emit(InputApi.EventType.MOUSE_MOVE, event(InputApi.EventType.MOUSE_MOVE));
     for (const b of input.mouseButtonsReleased) globalInput.emit(InputApi.EventType.MOUSE_UP, event(InputApi.EventType.MOUSE_UP)._button(b));

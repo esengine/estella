@@ -227,7 +227,8 @@ function label(c: CocosComponent, siblings: CocosComponent[], box: UiBox | null,
 
 function richText(c: CocosComponent, box: UiBox | null, ctx: ComponentContext): ComponentData {
     const d = c.data;
-    ctx.report.component('cc.RichText', 'partial');
+    // The markup is the engine's rich-text parser's to read (it knows Cocos's tags), so the string goes across as written.
+    ctx.report.component('cc.RichText', 'mapped');
     const maxWidth = num(d._maxWidth, 0);
     return {
         type: 'Text',
@@ -257,6 +258,7 @@ function camera(c: CocosComponent, ctx: ComponentContext): ComponentData {
             farPlane: num(d._far, 1000),
             priority: num(d._priority, 0),
             cullingMask: num(d._visibility, 0xffffffff) >>> 0,
+            ...(isObj(d._rect) ? { viewport: { x: num(d._rect.x, 0), y: num(d._rect.y, 0), z: num(d._rect.width, 1), w: num(d._rect.height, 1) } } : {}),
             isActive: c.enabled,
         },
     };

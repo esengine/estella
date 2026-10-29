@@ -16,7 +16,7 @@ import { alignAllWidgets, declareWidget } from './widget';
 import { layoutAll, declareLayout } from './layout';
 import { declareControls } from './controls';
 import { declareScrollView } from './scrollView';
-import { setVisibleSize, setWindowPixels } from './screen';
+import { setUiCameraData, setVisibleSize, setWindowPixels } from './screen';
 
 export function declareUiPass(): void {
     declareWidget();
@@ -27,6 +27,7 @@ export function declareUiPass(): void {
         [Res(UICameraInfo), GetWorld()],
         (camera, world) => {
             // What the UI camera shows is the visible area scripts and widgets measure against; the surface is the window.
+            setUiCameraData(camera ?? null);
             if (camera?.valid) {
                 setVisibleSize(camera.worldRight - camera.worldLeft, camera.worldTop - camera.worldBottom);
                 setWindowPixels(camera.screenW, camera.screenH);

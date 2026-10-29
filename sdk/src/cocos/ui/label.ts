@@ -35,7 +35,7 @@ function toCocosOverflow(engine: number): number {
 }
 
 /** The `Text` data of an entity: the thing every property below reads and writes. */
-class TextView extends Component {
+export class TextView extends Component {
     protected text_(): TextData { return this._world.get(this._entity, Text); }
     protected patch_(patch: Partial<TextData>): void { this._world.set(this._entity, Text, { ...this.text_(), ...patch }); }
 }

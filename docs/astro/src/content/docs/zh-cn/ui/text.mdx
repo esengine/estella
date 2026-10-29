@@ -140,8 +140,10 @@ const pulseBanner = defineSystem([Query(Mut(Transform), Text), Res(Time)], (q, t
 |---|---|
 | `<b>…</b>` | 加粗片段。 |
 | `<i>…</i>` | 斜体片段。 |
-| `<color=#RRGGBB>…</color>` | 着色片段;`#RRGGBBAA` 带 alpha。 |
-| `<font size=32>…</font>` | 另一字号的片段(`size="32"` 也能解析);共享基线。 |
+| `<color=#RRGGBB>…</color>` | 着色片段;`#RRGGBBAA` 带 alpha。也可以写颜色名:`<color=red>`(black、white、red、green、blue、yellow、cyan、magenta、orange、gray、purple、pink、brown)。 |
+| `<font size=32>…</font>` | 另一字号的片段(`size="32"` 也能解析);共享基线。`<size=32>…</size>` 等价。 |
+| `<br/>` | 换行。 |
+| `<u>`、`<s>`、`<outline …>`、`<on click=…>` | 接受这些标记,使为其他引擎写的文本不会显示出原始标签;文字保留,样式(或点击)不生效。 |
 | `<img src="…" width=24 height=24 />` | 内联图片——随文本一起排布的图标(见[下文](#内联图片))。 |
 
 ```typescript

@@ -134,3 +134,41 @@ describe('parseRichText – <font> tag', () => {
         expect(fullText).toContain('text');
     });
 });
+
+describe('parseRichText – the tags Cocos Creator\'s rich text writes', () => {
+    const text = (runs: RichTextRun[]): string[] => runs.filter((r) => r.type === 'text').map((r) => (r as { text: string }).text);
+
+    it('reads <size=N> as a font size, and </size> ends it', () => {
+        const runs = parseRichText('a<size=30>b</size>c');
+        expect(text(runs)).toEqual(['a', 'b', 'c']);
+        expect(runs.map((r) => (r as { fontSize: number | null }).fontSize)).toEqual([null, 30, null]);
+    });
+
+    it('reads a colour by name as well as by hex', () => {
+        const runs = parseRichText('<color=red>x</color><color=#00ff00>y</color><color=Blue>z</color>');
+        const colors = runs.map((r) => (r as { color: { r: number; g: number; b: number } | null }).color);
+        expect(colors[0]).toMatchObject({ r: 1, g: 0, b: 0 });
+        expect(colors[1]).toMatchObject({ r: 0, g: 1, b: 0 });
+        expect(colors[2]).toMatchObject({ r: 0, g: 0, b: 1 });
+    });
+
+    it('does not take an unknown colour name for markup: it stays as text', () => {
+        expect(text(parseRichText('<color=nonesuch>x</color>')).join('')).toContain('<color=nonesuch>');
+    });
+
+    it('turns <br/> into a line break', () => {
+        expect(text(parseRichText('a<br/>b')).join('')).toBe('a\nb');
+        expect(text(parseRichText('a<br>b')).join('')).toBe('a\nb');
+    });
+
+    it('keeps the text of tags it cannot style (underline, strike, outline, click) and drops the tag', () => {
+        expect(text(parseRichText('<u>under</u> <s>gone</s> <outline color=black width=2>edge</outline> <on click="go">tap</on>')).join(''))
+            .toBe('under gone edge tap');
+    });
+
+    it('still styles text inside a tag it cannot style', () => {
+        const runs = parseRichText('<u><b>both</b></u>');
+        expect(text(runs)).toEqual(['both']);
+        expect((runs[0] as { bold: boolean }).bold).toBe(true);
+    });
+});

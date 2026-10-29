@@ -160,8 +160,10 @@ known tag renders literally (so a stray `<` cannot eat your text).
 |---|---|
 | `<b>…</b>` | Bold run. |
 | `<i>…</i>` | Italic run. |
-| `<color=#RRGGBB>…</color>` | Colored run; `#RRGGBBAA` adds alpha. |
-| `<font size=32>…</font>` | Run at another font size (`size="32"` also parses); the shared baseline is kept. |
+| `<color=#RRGGBB>…</color>` | Colored run; `#RRGGBBAA` adds alpha. A name works too: `<color=red>` (black, white, red, green, blue, yellow, cyan, magenta, orange, gray, purple, pink, brown). |
+| `<font size=32>…</font>` | Run at another font size (`size="32"` also parses); the shared baseline is kept. `<size=32>…</size>` is the same. |
+| `<br/>` | A line break. |
+| `<u>`, `<s>`, `<outline …>`, `<on click=…>` | Accepted so text written for other engines does not show raw tags; the text is kept and the style (or click) is not applied. |
 | `<img src="…" width=24 height=24 />` | Inline image — an icon flowed in with the text (see [below](#inline-images)). |
 
 ```typescript

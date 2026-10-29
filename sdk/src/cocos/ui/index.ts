@@ -13,3 +13,5 @@ export { ScrollView } from './scrollView';
 export { Widget, alignWidget } from './widget';
 export { Layout } from './layout';
 export { getVisibleSize, setVisibleSize } from './screen';
+export { Camera } from './camera';
+export { RichText } from './richText';

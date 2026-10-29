@@ -111,7 +111,7 @@ export class Button extends Component {
         if (!this.pressed_) return;
         this.pressed_ = false;
         this.applyTransition_();
-        const inside = this.node.getComponent(UITransform)?.isHit(event.getLocation()) ?? true;
+        const inside = this.node.getComponent(UITransform)?.isHit(event.getUILocation()) ?? true;
         if (this.interactable && this.enabledInHierarchy && inside) {
             EventHandler.emitEvents(this.clickEvents, event);
             this.node.emit(EventType.CLICK, this);

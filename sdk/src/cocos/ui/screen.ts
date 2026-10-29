@@ -10,6 +10,9 @@
  * (see pass.ts); until it does, it is the size of a typical design resolution so a scene still lays out.
  */
 
+import type { UICameraData } from '../../ui/core/ui-camera-info';
+
+let uiCamera: UICameraData | null = null;
 let width = 960;
 let height = 640;
 let generation = 0;
@@ -47,3 +50,7 @@ export function onScreenChange(listener: (kind: 'visible' | 'window') => void): 
     listeners.push(listener);
     return () => { const i = listeners.indexOf(listener); if (i >= 0) listeners.splice(i, 1); };
 }
+
+/** The UI camera's data as of the last frame (the live object the frame loop keeps current), for the conversions a camera offers. */
+export function setUiCameraData(data: UICameraData | null): void { uiCamera = data; }
+export function uiCameraData(): UICameraData | null { return uiCamera; }

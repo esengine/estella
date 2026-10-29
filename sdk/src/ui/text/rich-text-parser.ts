@@ -38,6 +38,18 @@ interface StyleFrame {
 
 const TAG_COLOR_RE = /^color=(#[0-9a-fA-F]{6,8})$/;
 const TAG_FONT_SIZE_RE = /^font\s+size=(?:"(\d+)"|(\d+))$/;
+/** `<size=24>`: the same as `<font size=24>`, in the spelling Cocos Creator's rich text uses. */
+const TAG_SIZE_RE = /^size=(?:"(\d+)"|'(\d+)'|(\d+))$/;
+/** `<color=red>`: a colour by name, as well as by hex. */
+const TAG_COLOR_NAME_RE = /^color=(?:"([a-zA-Z]+)"|'([a-zA-Z]+)'|([a-zA-Z]+))$/;
+/** Tags that mark text this renderer cannot style (underline, strike, outline) or react to (`<on click>`): the tag is consumed and its text kept. */
+const TAG_INERT_OPEN_RE = /^(?:u|s|outline(?:\s[^>]*)?|on(?:\s[^>]*)?)$/;
+const TAG_INERT_CLOSE = new Set(['/u', '/s', '/outline', '/on']);
+
+const NAMED_COLORS: Readonly<Record<string, string>> = {
+    black: '#000000', white: '#ffffff', red: '#ff0000', green: '#00ff00', blue: '#0000ff', yellow: '#ffff00', cyan: '#00ffff',
+    magenta: '#ff00ff', orange: '#ffa500', gray: '#808080', grey: '#808080', purple: '#800080', pink: '#ffc0cb', brown: '#a52a2a',
+};
 
 function parseHexColor(hex: string): Color | null {
     if (hex.length !== 7 && hex.length !== 9) return null;
@@ -119,7 +131,18 @@ export function parseRichText(input: string): RichTextRun[] {
             emitTextRun(runs, buffer, current);
             buffer = '';
             stack.push({ ...current, italic: true });
-        } else if (tagContent === '/b' || tagContent === '/i' || tagContent === '/color' || tagContent === '/font') {
+        } else if (tagContent === '/b' || tagContent === '/i' || tagContent === '/color' || tagContent === '/font' || tagContent === '/size') {
+            emitTextRun(runs, buffer, current);
+            buffer = '';
+            if (stack.length > 1) stack.pop();
+        } else if (tagContent === 'br' || tagContent === 'br/' || tagContent === 'br /') {
+            buffer += '\n';
+        } else if (TAG_INERT_OPEN_RE.test(tagContent)) {
+            // keep the text; the style (or the click) is not something this renderer has
+            emitTextRun(runs, buffer, current);
+            buffer = '';
+            stack.push({ ...current });
+        } else if (TAG_INERT_CLOSE.has(tagContent)) {
             emitTextRun(runs, buffer, current);
             buffer = '';
             if (stack.length > 1) stack.pop();
@@ -136,9 +159,13 @@ export function parseRichText(input: string): RichTextRun[] {
             }
         } else {
             const colorMatch = tagContent.match(TAG_COLOR_RE);
-            const parsed = colorMatch ? parseHexColor(colorMatch[1]) : null;
+            const nameMatch = colorMatch ? null : tagContent.match(TAG_COLOR_NAME_RE);
+            const named = nameMatch ? NAMED_COLORS[(nameMatch[1] ?? nameMatch[2] ?? nameMatch[3]).toLowerCase()] : undefined;
+            const parsed = colorMatch ? parseHexColor(colorMatch[1]) : named ? parseHexColor(named) : null;
             const fontSizeMatch = tagContent.match(TAG_FONT_SIZE_RE);
-            const parsedSize = fontSizeMatch ? parseInt(fontSizeMatch[1] ?? fontSizeMatch[2], 10) : NaN;
+            const sizeMatch = fontSizeMatch ? null : tagContent.match(TAG_SIZE_RE);
+            const parsedSize = fontSizeMatch ? parseInt(fontSizeMatch[1] ?? fontSizeMatch[2], 10)
+                : sizeMatch ? parseInt(sizeMatch[1] ?? sizeMatch[2] ?? sizeMatch[3], 10) : NaN;
 
             if (parsed) {
                 emitTextRun(runs, buffer, current);
