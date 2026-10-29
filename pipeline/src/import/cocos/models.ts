@@ -161,6 +161,12 @@ function readUse(prefabAbs: string, prefab: string, absDir: string, stem: string
     return { prefab: hasPrefab ? prefab : '', rootId: (doc as { rootEntityId?: string }).rootEntityId ?? 'n1', byEntity, clips, paths, skin };
 }
 
+/** Give a generated asset the `.meta` an export needs to ship it, unless it has one. */
+export function mintSidecar(file: string): void {
+    const type = metaTypeFor(file);
+    if (type && !existsSync(`${file}.meta`)) writeFileSync(`${file}.meta`, `${JSON.stringify(mintMeta(type), null, 2)}\n`);
+}
+
 /** How a Cocos clip plays, from the sub-asset the scene names: the part of the animation it is, and what it does at its end. */
 export interface ClipPlay {
     span?: { from: number; to: number };
@@ -228,7 +234,6 @@ export function retargetClip(out: string, clipRef: string, paths: Map<string, st
     mkdirSync(path.dirname(file), { recursive: true });
     const copy = { ...doc, tracks, duration: span ? span.to - span.from : doc.duration, ...(play.wrapMode ? { wrapMode: play.wrapMode } : {}) };
     writeFileSync(file, `${JSON.stringify(copy, null, 2)}\n`);
-    const type = metaTypeFor(file);
-    if (type && !existsSync(`${file}.meta`)) writeFileSync(`${file}.meta`, `${JSON.stringify(mintMeta(type), null, 2)}\n`);
+    mintSidecar(file);
     return { ref, dropped };
 }

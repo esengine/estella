@@ -18,7 +18,8 @@ import type { AssetHints, SliceBorder } from './components';
 import { convertPrefab, convertScene, type ConvertContext } from './convert';
 import { parseCocosDocument, type CocosDocument } from './document';
 import { ImportReport, type ImportReportData } from './report';
-import { CocosModels, clipOf, clipPlayOf, retargetClip } from './models';
+import { CocosModels, clipOf, clipPlayOf, mintSidecar, retargetClip } from './models';
+import { convertAnimationClip } from './animationClip';
 import type { MaterialInfo } from './components';
 
 export interface CocosImportOptions {
@@ -130,6 +131,7 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
     };
 
     const models = new CocosModels(index, out, into, opts.dryRun === true);
+    const clips = new Map<string, string | null>();
     const scripts = buildScriptIndex(index);
     /** The scripts a converted document refers to, which the project has to bundle for those components to exist. */
     const usedScripts = new Set<string>();
@@ -172,6 +174,25 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
             const own = name ? m.use.skin.get(name) : undefined;
             if (own) return own;
             return m.use.skin.size === 1 ? [...m.use.skin.values()][0]! : null;
+        },
+        animationClip(clipUuid, where) {
+            const entry = index.byUuid.get(clipUuid.split('@')[0]!);
+            if (!entry || !entry.rel.endsWith('.anim')) return null;
+            const rel = outRef(esRel(entry.rel, '.estimeline'));
+            if (clips.has(entry.file)) return clips.get(entry.file) ?? null;
+            let ref: string | null = null;
+            try {
+                const converted = convertAnimationClip(JSON.parse(readFileSync(entry.file, 'utf8')));
+                for (const [what, count] of converted.skipped) report.note('animation-track-unsupported', `${entry.rel}: ${what} ×${count}`);
+                if (converted.events > 0) report.note('animation-events-dropped', `${entry.rel}: ${converted.events}`);
+                write(rel, converted.document);
+                if (!opts.dryRun) mintSidecar(path.join(out, rel));
+                ref = rel;
+            } catch (err) {
+                report.note('animation-clip-unreadable', `${where}: ${entry.rel}: ${(err as Error).message}`);
+            }
+            clips.set(entry.file, ref);
+            return ref;
         },
         clipOn(clipUuid, paths, where) {
             const clip = models.use(clipUuid);

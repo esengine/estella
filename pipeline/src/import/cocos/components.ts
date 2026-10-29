@@ -65,6 +65,8 @@ export interface ComponentContext {
      * the part was picked because the model draws only one.
      */
     modelMesh?(uuid: string): { components: Record<string, unknown>[]; exact: boolean } | null;
+    /** The timeline a Cocos `.anim` clip is converted to (project-relative), or null when the clip is not one of the project's. */
+    animationClip?(clipUuid: string, where: string): string | null;
     /** The joints, by name, a skinned part of a model is bound to, in the order its vertices index them. */
     modelSkin?(meshUuid: string): string[] | null;
     /**
@@ -501,6 +503,18 @@ function skinnedMeshRenderer(c: CocosComponent, ctx: ComponentContext, where: st
     return { component: mesh.component, extra: [{ type: 'MeshSkin', data: { joints } }] };
 }
 
+/** `cc.Animation`: the clip it plays by default, as a timeline that plays on the node, from the start if the node asks. */
+function animation(c: CocosComponent, node: CocosNode, ctx: ComponentContext, where: string): ComponentData | null {
+    const clips = (Array.isArray(c.data._clips) ? c.data._clips : []).map(uuidOf).filter(Boolean);
+    const wanted = uuidOf(c.data._defaultClip) || clips[0] || '';
+    // a clip of the project's own, or one that lives in a model file and animates the bones below this node
+    const ref = wanted ? ctx.animationClip?.(wanted, where) ?? ctx.clipOn?.(wanted, namePaths(node), where) : null;
+    if (!ref) return null;
+    if (clips.length > 1) ctx.report.note('animation-several-clips', where);
+    ctx.report.component('cc.Animation', clips.length > 1 ? 'partial' : 'mapped');
+    return { type: 'TimelinePlayer', data: { timeline: ref, playing: c.data.playOnLoad === true, speed: 1, wrapMode: '' } };
+}
+
 /** `cc.SkeletalAnimation`: the clip it plays by default, copied onto this node's own bones, played from the start if the node asks. */
 function skeletalAnimation(c: CocosComponent, node: CocosNode, ctx: ComponentContext, where: string): ComponentData | null {
     const clips = (Array.isArray(c.data._clips) ? c.data._clips : []).map(uuidOf).filter(Boolean);
@@ -711,6 +725,9 @@ export function convertNode(node: CocosNode, ctx: ComponentContext, where: strin
                 if (skinned) extra.push(...skinned.extra);
                 break;
             }
+            case 'cc.Animation':
+                out = animation(c, node, ctx, where);
+                break;
             case 'cc.SkeletalAnimation':
                 out = skeletalAnimation(c, node, ctx, where);
                 break;
