@@ -3709,6 +3709,30 @@
           ]
         },
         {
+          "key": "renderMode",
+          "type": "enum",
+          "default": "Billboard",
+          "doc": "Billboard faces the view. Stretched lays the quad's long axis (its Y) along the particle's velocity and lengthens it with speed. Drawn by the CPU simulation; a GPU-simulated emitter draws as Billboard.",
+          "values": [
+            "Billboard",
+            "Stretched"
+          ]
+        },
+        {
+          "key": "velocityScale",
+          "type": "number",
+          "default": "0",
+          "doc": "Stretched: how much of the particle's speed is added to the quad's length, in world units per unit of speed.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "lengthScale",
+          "type": "number",
+          "default": "1",
+          "doc": "Stretched: the quad's own length is its size times this.",
+          "range": "≥ 0"
+        },
+        {
           "key": "enabled",
           "type": "boolean",
           "default": "true"

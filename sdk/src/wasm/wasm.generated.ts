@@ -223,6 +223,16 @@ export enum ParticleEasing {
 }
 
 /**
+ * The engine's `ParticleRenderMode`, generated from the C++ enum.
+ *
+ * @beta
+ */
+export enum ParticleRenderMode {
+    Billboard = 0,
+    Stretched = 1,
+}
+
+/**
  * The engine's `ProjectionType`, generated from the C++ enum.
  *
  * @beta
@@ -769,6 +779,9 @@ export interface ParticleEmitter {
     layer: number;
     material: number;
     simulationSpace: number;
+    renderMode: number;
+    velocityScale: number;
+    lengthScale: number;
     enabled: boolean;
     subEmitterTrigger: number;
     subEmitterChance: number;

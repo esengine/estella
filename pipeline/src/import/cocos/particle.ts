@@ -269,7 +269,14 @@ export function particleSystem(c: { enabled: boolean; data: Raw }, ctx: Particle
         if (isObj(m) && m._enable === true) lose(code);
     }
     const renderer = isObj(d.renderer) ? d.renderer : null;
-    if (renderer && num(renderer._renderMode, 0) !== 0) lose('particle-render-mode');
+    const renderMode = renderer ? num(renderer._renderMode, 0) : 0;
+    if (renderMode === 1) {
+        out.renderMode = 1; // Stretched
+        out.velocityScale = num(renderer?._velocityScale, 0);
+        out.lengthScale = num(renderer?._lengthScale, 1);
+    } else if (renderMode !== 0) {
+        lose('particle-render-mode'); // horizontal, vertical and mesh particles have no counterpart
+    }
 
     ctx.report.component('cc.ParticleSystem', partial ? 'partial' : 'mapped');
     return { type: 'ParticleEmitter', data: out };

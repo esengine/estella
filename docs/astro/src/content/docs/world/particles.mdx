@@ -183,6 +183,9 @@ See [Noise & turbulence](#noise--turbulence-1) below.
 | `layer` | number | `0` | Sorting layer for draw order. |
 | `material` | asset | none | Optional custom material/shader. |
 | `simulationSpace` | `SimulationSpace` | `World` | `World` or `Local` (see [below](#simulation-space)). |
+| `renderMode` | `ParticleRenderMode` | `Billboard` | `Billboard` faces the view; `Stretched` lays the quad along the particle's velocity (see [Stretched particles](#stretched-particles)). |
+| `velocityScale` | number | `0` | `Stretched`: length added per unit of speed. |
+| `lengthScale` | number | `1` | `Stretched`: the quad's own length is its size times this. |
 | `enabled` | boolean | `true` | Disable to freeze and hide without removing the component. |
 
 ### Sub-emitter
@@ -457,6 +460,13 @@ splashes fade out instead of skittering forever.
 |---|---|---|
 | `World` (default) | No — they stay where they were born | Trails, exhaust, sparks left behind a moving object |
 | `Local` | Yes — they move with the entity's transform | Auras, shields, effects rigidly attached to a mover |
+
+## Stretched particles
+
+With `renderMode: Stretched` each particle's quad turns so its Y axis runs along the particle's velocity, and its length is
+`size × lengthScale + speed × velocityScale` while its width stays the particle's own. Use a texture drawn pointing up: a spark,
+a raindrop, a streak. A particle that is not moving keeps the rotation it was born with. Stretching is done where the CPU
+simulation draws; an emitter simulated on the GPU draws as `Billboard`.
 
 ## Blend modes
 

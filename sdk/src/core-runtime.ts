@@ -165,6 +165,7 @@ export {
     ParticleEasing,
     ParticleCollisionMode,
     ParticleCollisionFallback,
+    ParticleRenderMode,
     type ParticleEmitterData,
     ParticleForceField,
     ForceFieldType,

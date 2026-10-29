@@ -28,6 +28,8 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(particle): a stretched render mode lays a particle along its velocity and lengthens it with speed, and the Cocos stretched billboard maps onto it':
+    {"note":"Particles can be stretched along their velocity."},
   'feat(cocos): a particle system colour gradient and size curve become the emitter colorGradient and sizeCurve instead of their two ends':
     {"internal":"The Cocos Creator compatibility layer and importer have not shipped; nothing a creator reaches without opting in."},
   'feat(cocos): the importer maps ParticleSystem onto ParticleEmitter, and counts what the emitter has no field for':

@@ -17,6 +17,7 @@
 #include "../../particle/ParticleSystem.hpp"
 #include "../../particle/Particle.hpp"
 
+#include "../../particle/ParticleStretch.hpp"
 #include <algorithm>
 #include <string>
 #include <cmath>
@@ -155,6 +156,10 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
                 buffers.vertexData(LayoutId::ParticleInstance) + instByteOffset);
         }
 
+        const bool stretched = emitter.renderMode == static_cast<i32>(ecs::ParticleRenderMode::Stretched);
+        const f32 lengthScale = emitter.lengthScale;
+        const f32 velocityScale = emitter.velocityScale;
+
         u32 i = 0;
         if (!state->gpu) state->pool.forEachAlive([&](const particle::Particle& p) {
             glm::vec3 worldPos;
@@ -183,10 +188,23 @@ void ParticlePlugin::collect(RenderCollectContext& collect_ctx) {
                 v0 = static_cast<f32>(row) * uvScaleY;
             }
 
+            f32 rotation = p.rotation;
+            if (stretched) {
+                // The velocity as the world sees it: a local-space emitter's turn and scale carry it too.
+                glm::vec2 v(p.velocity);
+                if (isLocalSpace) {
+                    v *= emitterScale;
+                    v = glm::vec2(v.x * cosA - v.y * sinA, v.x * sinA + v.y * cosA);
+                }
+                const particle::StretchedQuad quad = particle::stretchedQuad(v, rotation, size.y, lengthScale, velocityScale);
+                rotation = quad.rotation;
+                size.y = quad.length;
+            }
+
             ParticleInstanceData& d = inst[i++];
             d.px = worldPos.x;       d.py = worldPos.y;       d.pz = worldPos.z;
             d.sx = size.x;           d.sy = size.y;
-            d.rotation = p.rotation;
+            d.rotation = rotation;
             d.color = packColor(p.color);
             d.uvOffsetX = u0;        d.uvOffsetY = v0;
             d.uvScaleX = sheet ? uvScaleX : 1.0f;

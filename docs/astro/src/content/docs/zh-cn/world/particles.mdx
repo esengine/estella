@@ -174,6 +174,9 @@ const spawnEmbers = defineSystem([Commands()], (cmds) => {
 | `layer` | number | `0` | 决定绘制顺序的排序层。 |
 | `material` | asset | 无 | 可选的自定义材质/着色器。 |
 | `simulationSpace` | `SimulationSpace` | `World` | `World` 或 `Local`(见[下](#模拟空间))。 |
+| `renderMode` | `ParticleRenderMode` | `Billboard` | `Billboard` 朝向视图;`Stretched` 让四边形沿粒子速度方向拉伸(见[拉伸粒子](#拉伸粒子))。 |
+| `velocityScale` | number | `0` | `Stretched`:每单位速度增加的长度。 |
+| `lengthScale` | number | `1` | `Stretched`:四边形自身长度是 size 乘以它。 |
 | `enabled` | boolean | `true` | 关掉即冻结并隐藏,而不移除组件。 |
 
 ### 子发射器 (Sub-emitter)
@@ -420,6 +423,12 @@ cmds.spawn()
 |---|---|---|
 | `World`(默认) | 否——它们留在出生的地方 | 拖尾、尾焰、移动物体身后留下的火花 |
 | `Local` | 是——它们随实体的 transform 移动 | 光环、护盾、刚性附着在移动体上的特效 |
+
+## 拉伸粒子
+
+`renderMode` 设为 `Stretched` 后，每个粒子的四边形会转到 Y 轴沿着粒子速度的方向，长度是
+`size × lengthScale + speed × velocityScale`，宽度仍是粒子自己的大小。贴图应画成朝上的形状：火花、雨滴、拖光。
+静止的粒子保持出生时的旋转。拉伸发生在 CPU 模拟的绘制处，用 GPU 模拟的发射器按 `Billboard` 绘制。
 
 ## 混合模式
 

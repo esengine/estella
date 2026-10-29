@@ -104,6 +104,19 @@ describe('a particle system', () => {
         expect(validate('ParticleEmitter', def._default, d, def.assetFields)).toEqual([]);
     });
 
+    it('maps a stretched billboard with its scales, and counts the render modes it cannot draw', () => {
+        const stretched = convert({ renderer: { _renderMode: 1, _velocityScale: 1, _lengthScale: 7 } });
+        const d = stretched.out.data as Record<string, any>;
+        expect([d.renderMode, d.velocityScale, d.lengthScale]).toEqual([1, 1, 7]);
+        expect(stretched.report.components['cc.ParticleSystem']).toEqual({ mapped: 1, partial: 0, unmapped: 0 });
+        const def = registry.ParticleEmitter!;
+        expect(validate('ParticleEmitter', def._default, d, def.assetFields)).toEqual([]);
+
+        const mesh = convert({ renderer: { _renderMode: 4 } });
+        expect(mesh.report.notes['particle-render-mode']?.count).toBe(1);
+        expect((mesh.out.data as Record<string, any>).renderMode).toBeUndefined();
+    });
+
     it('counts the modules the emitter has no field for', () => {
         const { report } = convert({ _noiseModule: { _enable: true }, _trailModule: { _enable: true } });
         expect(report.notes['particle-noise']?.count).toBe(1);

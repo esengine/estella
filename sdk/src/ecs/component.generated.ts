@@ -7,7 +7,7 @@
 import type { AssetFieldType } from '../scene/scene';
 import type { FieldMeta } from './component';
 import type { Color, Entity, Quat, Vec2, Vec3, Vec4 } from '../types';
-import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, ClearFlags, Dimension, EmitterShape, FlexDirection, FlexWrap, ForceFieldType, JustifyContent, LightType, MaskMode, Padding, ParticleCollisionFallback, ParticleCollisionMode, ParticleEasing, ProjectionType, ReflectionAxis, ReflectionQuality, ReflectionUpdate, ScrollMovement, ShapeType, SimulationSpace, SpringBoneShape, SpriteDrawMode, SpriteMaskInteraction, SubEmitterTrigger, TextAlign, TilemapOrientation, TilemapStaggerAxis, TilemapStaggerIndex, UIDisplay, UIFillMethod, UIFillOrigin, UIPointerEvents, UIPositionType, UIVisualFit, UIVisualType } from '../wasm/wasm.generated';
+import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, ClearFlags, Dimension, EmitterShape, FlexDirection, FlexWrap, ForceFieldType, JustifyContent, LightType, MaskMode, Padding, ParticleCollisionFallback, ParticleCollisionMode, ParticleEasing, ParticleRenderMode, ProjectionType, ReflectionAxis, ReflectionQuality, ReflectionUpdate, ScrollMovement, ShapeType, SimulationSpace, SpringBoneShape, SpriteDrawMode, SpriteMaskInteraction, SubEmitterTrigger, TextAlign, TilemapOrientation, TilemapStaggerAxis, TilemapStaggerIndex, UIDisplay, UIFillMethod, UIFillOrigin, UIPointerEvents, UIPositionType, UIVisualFit, UIVisualType } from '../wasm/wasm.generated';
 
 /**
  * Single-source-of-truth hash of the C++/TS boundary ABI (component
@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, Cl
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = 'e064dcf6ece54b86';
+export const ABI_LAYOUT_HASH = '7e1e50433c8b93cf';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -745,6 +745,9 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             layer: 0,
             material: 0,
             simulationSpace: 0,
+            renderMode: 0,
+            velocityScale: 0,
+            lengthScale: 1,
             enabled: true,
             subEmitterTrigger: 0,
             subEmitterChance: 1,
@@ -818,6 +821,9 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             layer: { step: 1, category: "Rendering", enumSource: "sortingLayers" },
             material: { category: "Rendering" },
             simulationSpace: { enum: [{ label: 'World', value: 0 }, { label: 'Local', value: 1 }], category: "Rendering" },
+            renderMode: { enum: [{ label: 'Billboard', value: 0 }, { label: 'Stretched', value: 1 }], tooltip: "Billboard faces the view. Stretched lays the quad's long axis (its Y) along the particle's velocity and lengthens it with speed. Drawn by the CPU simulation; a GPU-simulated emitter draws as Billboard.", category: "Rendering" },
+            velocityScale: { min: 0, tooltip: "Stretched: how much of the particle's speed is added to the quad's length, in world units per unit of speed.", category: "Rendering", shownWhen: { field: "renderMode", values: [1] } },
+            lengthScale: { min: 0, tooltip: "Stretched: the quad's own length is its size times this.", category: "Rendering", shownWhen: { field: "renderMode", values: [1] } },
             subEmitterTrigger: { enum: [{ label: 'Death', value: 0 }, { label: 'Birth', value: 1 }, { label: 'Collision', value: 2 }], category: "SubEmitter" },
             subEmitterChance: { min: 0, max: 1, category: "SubEmitter" },
             subEmitterInheritVelocity: { min: 0, max: 1, category: "SubEmitter" },
@@ -1766,6 +1772,9 @@ export interface ParticleEmitterData {
     layer: number;
     material: number;
     simulationSpace: SimulationSpace;
+    renderMode: ParticleRenderMode;
+    velocityScale: number;
+    lengthScale: number;
     enabled: boolean;
     subEmitterTrigger: SubEmitterTrigger;
     subEmitterChance: number;

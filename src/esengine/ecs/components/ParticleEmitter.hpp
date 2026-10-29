@@ -32,6 +32,14 @@ enum class ParticleEasing : i32 {
     EaseInOut = 3,
 };
 
+/// How a particle's quad is turned. Billboard faces the view and spins by its own rotation; Stretched lays the quad's
+/// long axis along the particle's velocity and lengthens it with speed — sparks, rain, streaks.
+ES_ENUM(stability=beta)
+enum class ParticleRenderMode : i32 {
+    Billboard = 0,
+    Stretched = 1,
+};
+
 ES_ENUM(stability=beta)
 enum class SimulationSpace : i32 {
     World = 0,
@@ -220,6 +228,15 @@ struct ParticleEmitter {
     // Space — i32 storage, dropdown generated from the SimulationSpace enum.
     ES_PROPERTY(enum=SimulationSpace, category=Rendering)
     i32 simulationSpace{static_cast<i32>(SimulationSpace::World)};
+
+    ES_PROPERTY(enum=ParticleRenderMode, category=Rendering, tooltip="Billboard faces the view. Stretched lays the quad's long axis (its Y) along the particle's velocity and lengthens it with speed. Drawn by the CPU simulation; a GPU-simulated emitter draws as Billboard.")
+    i32 renderMode{static_cast<i32>(ParticleRenderMode::Billboard)};
+
+    ES_PROPERTY(min=0, category=Rendering, shown_when=renderMode:Stretched, tooltip="Stretched: how much of the particle's speed is added to the quad's length, in world units per unit of speed.")
+    f32 velocityScale{0.0f};
+
+    ES_PROPERTY(min=0, category=Rendering, shown_when=renderMode:Stretched, tooltip="Stretched: the quad's own length is its size times this.")
+    f32 lengthScale{1.0f};
 
     // State
     ES_PROPERTY()

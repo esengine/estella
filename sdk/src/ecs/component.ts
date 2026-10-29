@@ -28,7 +28,7 @@ import type {
 // C++ enum and the editor dropdowns derive from the same values. ScaleMode's
 // canonical values come from CanvasScaleMode (only its Cocos-compat aliases
 // ShowAll/NoBorder are TS-side).
-import { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, SubEmitterTrigger, ForceFieldType, LightType, CanvasScaleMode, ShapeType, ParticleEasing, ParticleCollisionMode, ParticleCollisionFallback, ReflectionAxis, ReflectionQuality, ReflectionUpdate, SpriteMaskInteraction, SpriteDrawMode } from '../wasm/wasm.generated';
+import { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, SubEmitterTrigger, ForceFieldType, LightType, CanvasScaleMode, ShapeType, ParticleEasing, ParticleCollisionMode, ParticleCollisionFallback, ParticleRenderMode, ReflectionAxis, ReflectionQuality, ReflectionUpdate, SpriteMaskInteraction, SpriteDrawMode } from '../wasm/wasm.generated';
 import { BlendMode } from '../render/blend';
 import { getDefaultContext } from './context';
 import type {
@@ -1190,7 +1190,7 @@ export const TilemapLayer = defineBuiltin<TilemapLayerData>('TilemapLayer',
 // EmitterShape, SimulationSpace and ParticleEasing are re-exported from the
 // generated module (see the import at the top) — single-sourced from their C++
 // ES_ENUMs beside the component fields that serialize them.
-export { ParticleEasing, ParticleCollisionMode, ParticleCollisionFallback, ReflectionAxis, ReflectionQuality, ReflectionUpdate };
+export { ParticleEasing, ParticleCollisionMode, ParticleCollisionFallback, ParticleRenderMode, ReflectionAxis, ReflectionQuality, ReflectionUpdate };
 
 // =============================================================================
 // ParticleEmitter Component
