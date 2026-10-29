@@ -28,6 +28,8 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(2d): GroupOpacity fades an entity and everything under it; sprites, text, shapes, trails and tilemap layers multiply the opacities of the groups above them into their own alpha, and the Cocos UIOpacity is a view on it':
+    {"note":"Fade a whole group of world content with one value: `GroupOpacity`."},
   'feat(cocos): the importer maps DirectionalLight, Sorting and Canvas':
     {"internal":"The Cocos Creator compatibility layer and importer have not shipped; nothing a creator reaches without opting in."},
   'feat(editor): Re-import Cocos Project brings the Cocos side\'s changes into the converted project and keeps the documents edited here; a conversion says which components did not come across':

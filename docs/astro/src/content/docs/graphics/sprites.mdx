@@ -61,6 +61,19 @@ sprite.color = { r: 1, g: 1, b: 1, a: 0.5 };      // 50% transparent
 `color` (and `size`) are **animatable** — key them in the
 [Sequencer](/docs/animation/timeline/) for flashes and fades.
 
+### Fading a whole group
+
+`GroupOpacity` on an entity fades that entity and everything under it. The opacities multiply down the
+hierarchy into each descendant's own alpha, so a panel made of sprites, text and shapes fades with one value:
+
+```typescript
+world.insert(panel, GroupOpacity, { opacity: 0.5 });
+```
+
+It reaches sprites, text, shapes, trails and tilemap layers. It is not a composited layer: where children
+overlap they show through one another while the group is partly faded. A UI node keeps answering to its own
+`UINode.opacity`, which works the same way.
+
 ## Size & pivot
 
 `size` is the quad's size in **world units**, independent of the texture's pixel

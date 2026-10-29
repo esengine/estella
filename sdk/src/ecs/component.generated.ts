@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, Cl
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = 'ac076564c4c51626';
+export const ABI_LAYOUT_HASH = 'e064dcf6ece54b86';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -430,6 +430,19 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             justifyContent: { enum: [{ label: 'Start', value: 0 }, { label: 'Center', value: 1 }, { label: 'End', value: 2 }, { label: 'SpaceBetween', value: 3 }, { label: 'SpaceAround', value: 4 }, { label: 'SpaceEvenly', value: 5 }] },
             alignItems: { enum: [{ label: 'Start', value: 0 }, { label: 'Center', value: 1 }, { label: 'End', value: 2 }, { label: 'Stretch', value: 3 }] },
             alignContent: { enum: [{ label: 'Start', value: 0 }, { label: 'Center', value: 1 }, { label: 'End', value: 2 }, { label: 'Stretch', value: 3 }, { label: 'SpaceBetween', value: 4 }, { label: 'SpaceAround', value: 5 }] },
+        },
+    },
+    GroupOpacity: {
+        defaults: {
+            opacity: 1,
+            enabled: true,
+        },
+        assetFields: [],
+        entityFields: [],
+        colorFields: [],
+        animatableFields: [],
+        fields: {
+            opacity: { min: 0, max: 1, step: 0.01, tooltip: "Opacity of this entity and everything under it, multiplied with the opacity of every group above it." },
         },
     },
     Interactable: {
@@ -1562,6 +1575,17 @@ export interface FlexContainerData {
     alignContent: AlignContent;
     gap: Vec2;
     padding: Padding;
+}
+
+/**
+ * The fields of the engine's `GroupOpacity` component, generated from
+ * the C++ struct so the two shapes cannot drift.
+ *
+ * @beta
+ */
+export interface GroupOpacityData {
+    opacity: number;
+    enabled: boolean;
 }
 
 export interface InteractableData {

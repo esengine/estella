@@ -7,6 +7,7 @@
 #include "../../tilemap/TileFlip.hpp"
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/TilemapLayer.hpp"
+#include "../../ecs/GroupOpacityLookup.hpp"
 #include "../frame/RenderFrame.hpp"
 
 #include <cmath>
@@ -182,6 +183,7 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
     auto& draw_list = collect_ctx.draw_list;
     auto& ctx = collect_ctx.frame_context;
     if (!tilemap_system_) return;
+    const ecs::GroupOpacityLookup groupOpacity(registry);
 
     const auto& layers = tilemap_system_->allLayers();
     if (layers.empty()) return;
@@ -236,6 +238,7 @@ void TilemapRenderPlugin::collect(RenderCollectContext& collect_ctx) {
             singleColumns = layer.tileset_columns;
         }
 
+        if (registry.valid(entity)) opacity *= groupOpacity.of(entity);
         if (!visible) continue;
 
         // The layer's tileset slot list: the multi-tileset table when present

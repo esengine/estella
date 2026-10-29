@@ -416,6 +416,12 @@ function directionalLight(c: CocosComponent, ctx: ComponentContext, where: strin
     };
 }
 
+/** `cc.UIOpacity`: the alpha of the node and everything under it, which the engine's GroupOpacity is. */
+function uiOpacity(c: CocosComponent, ctx: ComponentContext): ComponentData {
+    ctx.report.component('cc.UIOpacity', 'mapped');
+    return { type: 'GroupOpacity', data: { opacity: Math.min(255, Math.max(0, num(c.data._opacity, 255))) / 255, enabled: c.enabled } };
+}
+
 /** `cc.Sorting`: the sorting layer and order of the renderer on the node, which the engine states for a node and its subtree. */
 function sorting(c: CocosComponent, ctx: ComponentContext, where: string): ComponentData {
     const d = c.data;
@@ -503,6 +509,9 @@ export function convertNode(node: CocosNode, ctx: ComponentContext, where: strin
                 break;
             case 'cc.DirectionalLight':
                 out = directionalLight(c, ctx, where);
+                break;
+            case 'cc.UIOpacity':
+                out = uiOpacity(c, ctx);
                 break;
             case 'cc.Sorting':
                 out = sorting(c, ctx, where);

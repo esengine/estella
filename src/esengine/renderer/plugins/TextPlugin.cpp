@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #include "TextPlugin.hpp"
+#include "../../ecs/GroupOpacityLookup.hpp"
 #include "../draw/BatchBuilder.hpp"
 #include "../frame/RenderContext.hpp"
 #include "../frame/RenderFrame.hpp"
@@ -146,6 +147,7 @@ void TextPlugin::collect(RenderCollectContext& collect_ctx) {
     auto& draw_list = collect_ctx.draw_list;
     auto& ctx = collect_ctx.frame_context;
     auto textView = registry.activeView<ecs::Transform, ecs::BitmapText>();
+    const ecs::GroupOpacityLookup groupOpacity(registry);
 
     for (auto entity : textView) {
         const auto& bt = textView.get<ecs::BitmapText>(entity);
@@ -198,7 +200,10 @@ void TextPlugin::collect(RenderCollectContext& collect_ctx) {
             continue;
         }
 
-        u32 packedColor = packColor(bt.color);
+        glm::vec4 textColor = bt.color;
+        textColor.a *= groupOpacity.of(entity);
+        if (textColor.a <= 0.0f) continue;
+        u32 packedColor = packColor(textColor);
         scratch_.clear();
         index_scratch_.clear();
         const bool allVisible = collect_ctx.isOverlay() || containsBox(collect_ctx.frustum, center, halfExtents);

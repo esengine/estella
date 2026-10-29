@@ -209,6 +209,13 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'padding', type: 'struct', offset: 16, members: [{ name: 'left', type: 'f32', offset: 0 }, { name: 'top', type: 'f32', offset: 4 }, { name: 'right', type: 'f32', offset: 8 }, { name: 'bottom', type: 'f32', offset: 12 }] },
         ],
     },
+    GroupOpacity: {
+        ptrFn: 'getGroupOpacityPtr',
+        fields: [
+            { name: 'opacity', type: 'f32', offset: 0 },
+            { name: 'enabled', type: 'bool', offset: 4 },
+        ],
+    },
     Interactable: {
         ptrFn: 'getInteractablePtr',
         fields: [

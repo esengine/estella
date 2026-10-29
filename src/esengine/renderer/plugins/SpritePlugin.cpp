@@ -11,6 +11,7 @@
 #include "../../ecs/components/Sprite.hpp"
 #include "../../ecs/components/SpriteMask.hpp"
 #include "../../ecs/components/UINode.hpp"
+#include "../../ecs/GroupOpacityLookup.hpp"
 #include "../draw/SpriteDrawResolve.hpp"
 #include "../store/LightConstants.hpp"
 
@@ -28,6 +29,7 @@ void SpritePlugin::collect(RenderCollectContext& collect_ctx) {
     auto spriteView = registry.activeView<ecs::Transform, ecs::Sprite>();
 
     u32 litProgram = 0;
+    const ecs::GroupOpacityLookup groupOpacity(registry);
 
     for (auto entity : spriteView) {
         if (!collect_ctx.accepts(entity)) continue;
@@ -155,10 +157,14 @@ void SpritePlugin::collect(RenderCollectContext& collect_ctx) {
             }
         }
 
+        glm::vec4 color = sprite.color;
+        color.a *= groupOpacity.of(entity);
+        if (color.a <= 0.0f) continue;
+
         if (hasTiling) {
             emitTiledQuads(buffers, draw_list, clips,
                 position, finalSize, sprite.pivot,
-                angle, sprite.color, uvOff, uvSc,
+                angle, color, uvOff, uvSc,
                 sprite.tileSize * glm::abs(glm::vec2(scale)),
                 sprite.tileSpacing * glm::abs(glm::vec2(scale)),
                 key);
@@ -167,11 +173,11 @@ void SpritePlugin::collect(RenderCollectContext& collect_ctx) {
                 position, finalSize, sprite.pivot,
                 angle, texSize,
                 glm::vec4(sliceBorder.left, sliceBorder.right, sliceBorder.top, sliceBorder.bottom),
-                uvOff, uvSc, sprite.color, key);
+                uvOff, uvSc, color, key);
         } else {
             emitQuad(buffers, draw_list, clips,
                 position, finalSize, sprite.pivot,
-                angle, uvOff, uvSc, sprite.color, key);
+                angle, uvOff, uvSc, color, key);
         }
         if (mapBasis) {
             const glm::vec2 divisor = hasTiling ? glm::abs(finalSize) / sprite.size

@@ -19,6 +19,7 @@
 #include "esengine/ecs/components/Draggable.hpp"
 #include "esengine/ecs/components/DragonBonesAnimation.hpp"
 #include "esengine/ecs/components/FlexContainer.hpp"
+#include "esengine/ecs/components/GroupOpacity.hpp"
 #include "esengine/ecs/components/Interactable.hpp"
 #include "esengine/ecs/components/LODGroup.hpp"
 #include "esengine/ecs/components/Light.hpp"
@@ -140,6 +141,11 @@ ComponentAt engineComponentAt(ecs::Registry& registry, const char* name) {
     if (std::strcmp(name, "FlexContainer") == 0) {
         return [&registry](std::uint32_t raw) -> void* {
             return registry.tryGet<esengine::ecs::FlexContainer>(Entity::fromRaw(raw));
+        };
+    }
+    if (std::strcmp(name, "GroupOpacity") == 0) {
+        return [&registry](std::uint32_t raw) -> void* {
+            return registry.tryGet<esengine::ecs::GroupOpacity>(Entity::fromRaw(raw));
         };
     }
     if (std::strcmp(name, "Interactable") == 0) {
@@ -406,6 +412,11 @@ CandidatesOf engineComponentCandidates(ecs::Registry& registry, const char* name
             return denseAsIds(registry.entitiesWith<esengine::ecs::FlexContainer>());
         };
     }
+    if (std::strcmp(name, "GroupOpacity") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::GroupOpacity>());
+        };
+    }
     if (std::strcmp(name, "Interactable") == 0) {
         return [&registry]() -> Candidates {
             return denseAsIds(registry.entitiesWith<esengine::ecs::Interactable>());
@@ -610,6 +621,7 @@ bool isEngineComponent(const char* name) {
     if (std::strcmp(name, "Draggable") == 0) return true;
     if (std::strcmp(name, "DragonBonesAnimation") == 0) return true;
     if (std::strcmp(name, "FlexContainer") == 0) return true;
+    if (std::strcmp(name, "GroupOpacity") == 0) return true;
     if (std::strcmp(name, "Interactable") == 0) return true;
     if (std::strcmp(name, "LODGroup") == 0) return true;
     if (std::strcmp(name, "Light") == 0) return true;

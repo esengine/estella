@@ -21,6 +21,7 @@
 #include "../renderer/draw/CustomGeometry.hpp"
 #include "../renderer/draw/TextVertexFormat.hpp"
 #include "../resource/ResourceManager.hpp"
+#include "../ecs/GroupOpacityLookup.hpp"
 #include "../ecs/Registry.hpp"
 #include "../ecs/TransformSystem.hpp"
 #include "../core/World.hpp"
@@ -262,13 +263,14 @@ void renderer_retainedTextSubmit(ecs::Registry& registry, i32 screen, uintptr_t 
     static RetainedTextClip clip;
     static std::vector<f32> faded;
     double planes[36];
+    const ecs::GroupOpacityLookup groupOpacity(registry);
     for (auto& [raw, text] : g_renderFrame->retainedText().entries()) {
         if (text.screen != (screen != 0)) continue;
         const Entity entity = Entity::fromRaw(raw);
         if (!registry.valid(entity)) continue;
         const auto* node = registry.tryGet<ecs::UINode>(entity);
         if (node && node->hidden_in_tree_) continue;
-        const f32 opacity = node ? node->alpha_in_tree_ : 1.0f;
+        const f32 opacity = (node ? node->alpha_in_tree_ : 1.0f) * groupOpacity.of(entity);
         if (opacity <= 0.0f) continue;
         glm::mat4 matrix;
         if (!ecs::copyFlatRenderMatrix(registry, entity, matrix)) continue;

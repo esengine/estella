@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #include "ShapePlugin.hpp"
+#include "../../ecs/GroupOpacityLookup.hpp"
 #include "../draw/BatchBuilder.hpp"
 #include "../frame/RenderContext.hpp"
 #include "../frame/RenderFrame.hpp"
@@ -45,9 +46,13 @@ void ShapePlugin::collect(RenderCollectContext& collect_ctx) {
     auto& ctx = collect_ctx.frame_context;
     auto shapeView = registry.activeView<ecs::Transform, ecs::ShapeRenderer>();
 
+    const ecs::GroupOpacityLookup groupOpacity(registry);
+
     for (auto entity : shapeView) {
         const auto& shape = shapeView.get<ecs::ShapeRenderer>(entity);
         if (!shape.enabled) continue;
+        const f32 groupAlpha = groupOpacity.of(entity);
+        if (groupAlpha <= 0.0f) continue;
 
         auto& transform = shapeView.get<ecs::Transform>(entity);
         glm::vec3 position = parallaxedWorldPosition(transform, shape.parallax, collect_ctx.camera);
@@ -101,7 +106,7 @@ void ShapePlugin::collect(RenderCollectContext& collect_ctx) {
             verts[v].cr = shape.color.r;
             verts[v].cg = shape.color.g;
             verts[v].cb = shape.color.b;
-            verts[v].ca = shape.color.a;
+            verts[v].ca = shape.color.a * groupAlpha;
             verts[v].shapeType = static_cast<f32>(shape.shapeType);
             verts[v].halfW = halfSize.x;
             verts[v].halfH = halfSize.y;

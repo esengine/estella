@@ -15,6 +15,7 @@ import { Sprite as EngineSprite, Transform, ensureBuiltinComponentsRegistered } 
 import { AppContext, setDefaultContext } from '../../src/ecs/context';
 import { Text } from '../../src/ui/core/text';
 import { TextOverflow } from '../../src/ui/core/text';
+import { GroupOpacity } from '../../src/ecs/component';
 import { Color, Label, LabelOutline, LabelShadow, Node, Size, Sprite, UIOpacity, UITransform, Vec2, Vec3, setCurrentWorld } from '../../src/cocos';
 import { HAS_WASM, loadWasmModule } from '../helpers/loadWasm';
 
@@ -158,19 +159,16 @@ describe.skipIf(!HAS_WASM)('built-in UI components on the engine', () => {
             expect(W().get(n._entity, EngineSprite).enabled).toBe(false);
         });
 
-        it('fades the node\'s own sprite by UIOpacity, and does not compound repeated writes', () => {
+        it('is the engine\'s GroupOpacity, in Cocos\'s 0..255', () => {
             connect();
-            const n = node('s');
-            n.addComponent(Sprite);
+            const n = node('p');
             const opacity = n.addComponent(UIOpacity)!;
+            expect(opacity.opacity).toBe(255);
             opacity.opacity = 128;
-            const a1 = W().get(n._entity, EngineSprite).color.a;
-            expect(a1).toBeCloseTo(128 / 255, 3);
-            opacity.opacity = 128;
-            opacity.opacity = 128;
-            expect(W().get(n._entity, EngineSprite).color.a).toBeCloseTo(a1, 5);
-            opacity.opacity = 255;
-            expect(W().get(n._entity, EngineSprite).color.a).toBeCloseTo(1, 5);
+            expect(W().get(n._entity, GroupOpacity).opacity).toBeCloseTo(128 / 255, 5);
+            expect(opacity.opacity).toBe(128);
+            opacity.opacity = 999;
+            expect(opacity.opacity).toBe(255);
         });
     });
 

@@ -610,6 +610,11 @@ export interface FlexContainer {
     padding: Padding;
 }
 
+export interface GroupOpacity {
+    opacity: number;
+    enabled: boolean;
+}
+
 export interface Interactable {
     enabled: boolean;
     blockRaycast: boolean;
@@ -1127,6 +1132,10 @@ export interface Registry {
     getFlexContainer(entity: Entity): FlexContainer;
     addFlexContainer(entity: Entity, component: FlexContainer): void;
     removeFlexContainer(entity: Entity): void;
+    hasGroupOpacity(entity: Entity): boolean;
+    getGroupOpacity(entity: Entity): GroupOpacity;
+    addGroupOpacity(entity: Entity, component: GroupOpacity): void;
+    removeGroupOpacity(entity: Entity): void;
     hasInteractable(entity: Entity): boolean;
     getInteractable(entity: Entity): Interactable;
     addInteractable(entity: Entity, component: Interactable): void;
@@ -1309,6 +1318,7 @@ export interface ESEngineModule {
     Draggable: new () => Draggable;
     DragonBonesAnimation: new () => DragonBonesAnimation;
     FlexContainer: new () => FlexContainer;
+    GroupOpacity: new () => GroupOpacity;
     Interactable: new () => Interactable;
     LODGroup: new () => LODGroup;
     Light: new () => Light;

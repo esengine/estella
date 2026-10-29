@@ -2,13 +2,13 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    cocos/ui/sprite.ts
- * @brief   `Sprite` and `UIOpacity`: views on the engine's `Sprite`.
+ * @brief   `Sprite` and `UIOpacity`: views on the engine's `Sprite` and `GroupOpacity`.
  *
  * Colour, the draw type and the enable flag map directly. The frame (`spriteFrame`) is a texture, which the engine addresses by a
  * handle that an asset load produces; assigning one is the asset layer's job, so here the frame is the path the `Sprite` was made
  * with and assigning a path is carried to the engine's `texture` only where the project's assets have already loaded it.
  */
-import { Sprite as EngineSprite } from '../../ecs/component';
+import { GroupOpacity, Sprite as EngineSprite } from '../../ecs/component';
 import { SpriteDrawMode } from '../../wasm/wasm.generated';
 import type { World } from '../../ecs/world';
 import type { Entity } from '../../types';
@@ -57,28 +57,24 @@ export class Sprite extends Component {
     set enabled(v: boolean) { this.patch_({ enabled: v }); }
 }
 
-/**
- * `UIOpacity`: the alpha of a node and everything under it. The engine has no subtree alpha for world content, so this fades the
- * node's own renderer — a `Sprite`'s colour alpha — and not its children. A script that fades a panel by its `UIOpacity` will see the
- * panel's own art fade and its children stay; that is a difference from Cocos, and one the engine would have to grow a feature to close.
- */
+/** `UIOpacity`: the alpha of a node and everything under it, which is the engine's `GroupOpacity` (0..1) in Cocos's 0..255. */
 export class UIOpacity extends Component {
-    private opacity_ = 255;
-    /** The sprite's own alpha before any fade, taken the first time one is applied so repeated writes do not compound. */
-    private baseAlpha_: number | null = null;
-
-    get opacity(): number { return this.opacity_; }
+    get opacity(): number { return Math.round(this._world.get(this._entity, GroupOpacity).opacity * 255); }
     set opacity(v: number) {
-        this.opacity_ = Math.min(255, Math.max(0, v));
-        if (!this._world.has(this._entity, EngineSprite)) return;
-        const s = this._world.get(this._entity, EngineSprite);
-        if (this.baseAlpha_ === null) this.baseAlpha_ = s.color.a;
-        this._world.set(this._entity, EngineSprite, { ...s, color: { ...s.color, a: this.baseAlpha_ * (this.opacity_ / 255) } });
+        const opacity = Math.min(255, Math.max(0, v)) / 255;
+        this._world.set(this._entity, GroupOpacity, { ...this._world.get(this._entity, GroupOpacity), opacity });
     }
+
+    get enabled(): boolean { return this._world.get(this._entity, GroupOpacity).enabled; }
+    set enabled(v: boolean) { this._world.set(this._entity, GroupOpacity, { ...this._world.get(this._entity, GroupOpacity), enabled: v }); }
 }
 
 const hasSprite = (world: World, entity: Entity): boolean => world.has(entity, EngineSprite);
 const addSprite = (world: World, entity: Entity): void => { world.insert(entity, EngineSprite, {}); };
 
 registerBuiltinComponent(Sprite, ['cc.Sprite', 'Sprite'], viewAdapter(Sprite, hasSprite, addSprite));
-registerBuiltinComponent(UIOpacity, ['cc.UIOpacity', 'UIOpacity'], viewAdapter(UIOpacity, () => true, () => {}));
+registerBuiltinComponent(UIOpacity, ['cc.UIOpacity', 'UIOpacity'], viewAdapter(
+    UIOpacity,
+    (world, entity) => world.has(entity, GroupOpacity),
+    (world, entity) => { world.insert(entity, GroupOpacity, {}); },
+));

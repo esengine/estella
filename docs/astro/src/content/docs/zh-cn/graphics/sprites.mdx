@@ -57,6 +57,18 @@ sprite.color = { r: 1, g: 1, b: 1, a: 0.5 };      // 50% 透明
 `color`(和 `size`)都**可动画**——在 [Sequencer](/docs/zh-cn/animation/timeline/) 里给它们打关键帧
 做闪烁和淡入淡出。
 
+### 整组淡出
+
+在实体上加 `GroupOpacity`，这个实体和它下面的所有内容一起淡出。不透明度沿层级向下相乘，乘进每个后代自己的
+alpha，所以由精灵、文字和形状组成的面板只用一个值就能整体淡出：
+
+```typescript
+world.insert(panel, GroupOpacity, { opacity: 0.5 });
+```
+
+它作用于精灵、文字、形状、拖尾和瓦片地图层。它不是合成出来的图层：子级互相重叠的地方，在组半透明时会彼此透出。
+UI 节点仍然看自己的 `UINode.opacity`，两者的规则相同。
+
 ## 尺寸与轴心
 
 `size` 是四边形的**世界单位**尺寸,与纹理的像素尺寸无关——设成 `{ tex.width, tex.height }` 得到

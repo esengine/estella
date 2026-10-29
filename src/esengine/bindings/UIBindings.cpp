@@ -14,6 +14,7 @@
 #include "ActiveContext.hpp"
 #include "../core/EstellaContext.hpp"
 #include "../core/World.hpp"
+#include "../ecs/GroupOpacityLookup.hpp"
 #include "../ecs/Registry.hpp"
 #include "../ui/UISystem.hpp"
 #include "../resource/ResourceManager.hpp"
@@ -120,7 +121,7 @@ bool getUINodeHiddenInTree(ecs::Registry& registry, u32 entity) {
 // renderer + input router need it to behave like the C++ visuals do.
 f32 getUINodeAlphaInTree(ecs::Registry& registry, u32 entity) {
     auto* node = registry.tryGet<ecs::UINode>(Entity::fromRaw(entity));
-    return node ? node->alpha_in_tree_ : 1.0f;
+    return (node ? node->alpha_in_tree_ : 1.0f) * ecs::GroupOpacityLookup(registry).of(Entity::fromRaw(entity));
 }
 
 f32 getUINodeComputedWidth(ecs::Registry& registry, u32 entity) {

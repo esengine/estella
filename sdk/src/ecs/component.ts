@@ -16,7 +16,7 @@ export type { AssetFieldMeta, SkeletalFieldMeta };
 // extending the generated base.
 import type {
     TransformData, SpriteData, ShapeRendererData, LightData, ShadowCaster2DData, DraggableData,
-    SortingGroupData, SpriteMaskData, LightProbeVolumeData, OccluderData,
+    SortingGroupData, GroupOpacityData, SpriteMaskData, LightProbeVolumeData, OccluderData,
     ReflectionProbeData, PlanarReflectionData,
     CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData, DragonBonesAnimationData,
     TilemapLayerData, BitmapTextData, TrailRendererData, ParticleForceFieldData, SpringBoneData, SpringBoneColliderData,
@@ -830,7 +830,7 @@ export type ScaleMode = (typeof ScaleMode)[keyof typeof ScaleMode];
 // automatically; tsc then enforces every consumer matches.
 export type {
     TransformData, SpriteData, ShapeRendererData, LightData, ShadowCaster2DData, DraggableData,
-    SortingGroupData, SpriteMaskData, LightProbeVolumeData, OccluderData,
+    SortingGroupData, GroupOpacityData, SpriteMaskData, LightProbeVolumeData, OccluderData,
     ReflectionProbeData, PlanarReflectionData,
     CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData, DragonBonesAnimationData,
     TilemapLayerData, BitmapTextData, TrailRendererData, ParticleForceFieldData, SpringBoneData, SpringBoneColliderData,
@@ -1000,6 +1000,15 @@ export const SpriteMask = defineBuiltin<SpriteMaskData>('SpriteMask',
  */
 export const SortingGroup = defineBuiltin<SortingGroupData>('SortingGroup',
     metaDefaults<SortingGroupData>('SortingGroup')
+);
+
+/**
+ * Fades this entity and everything under it: the opacities multiply down the hierarchy into each descendant's own alpha,
+ * the way `UINode.opacity` does for a UI subtree. It is not a composited layer — overlapping children show through one
+ * another mid-fade.
+ */
+export const GroupOpacity = defineBuiltin<GroupOpacityData>('GroupOpacity',
+    metaDefaults<GroupOpacityData>('GroupOpacity')
 );
 
 // The authoring defaults that differ from the C++ ctor (an active Orthographic

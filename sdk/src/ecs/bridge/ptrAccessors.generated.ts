@@ -737,6 +737,34 @@ export function createFlexContainerData(): FlexContainerPtrData {
     };
 }
 
+export interface GroupOpacityPtrData {
+    opacity: number;
+    enabled: boolean;
+}
+
+export function fillGroupOpacity(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: GroupOpacityPtrData,
+): void {
+    out.opacity = f32[ptr >> 2];
+    out.enabled = u8[ptr + 4] !== 0;
+}
+
+export function writeGroupOpacity(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: GroupOpacityPtrData,
+): void {
+    f32[ptr >> 2] = data.opacity;
+    u8[ptr + 4] = data.enabled ? 1 : 0;
+}
+
+export function createGroupOpacityData(): GroupOpacityPtrData {
+    return {
+        opacity: 0,
+        enabled: false,
+    };
+}
+
 export interface InteractablePtrData {
     enabled: boolean;
     blockRaycast: boolean;
@@ -2742,6 +2770,7 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     Draggable: { fill: fillDraggable, write: writeDraggable, create: createDraggableData },
     DragonBonesAnimation: { fill: fillDragonBonesAnimation, write: writeDragonBonesAnimation, create: createDragonBonesAnimationData },
     FlexContainer: { fill: fillFlexContainer, write: writeFlexContainer, create: createFlexContainerData },
+    GroupOpacity: { fill: fillGroupOpacity, write: writeGroupOpacity, create: createGroupOpacityData },
     Interactable: { fill: fillInteractable, write: writeInteractable, create: createInteractableData },
     LODGroup: { fill: fillLODGroup, write: writeLODGroup, create: createLODGroupData },
     Light: { fill: fillLight, write: writeLight, create: createLightData },

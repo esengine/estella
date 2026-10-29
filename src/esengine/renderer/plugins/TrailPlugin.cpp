@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 #include "TrailPlugin.hpp"
+#include "../../ecs/GroupOpacityLookup.hpp"
 #include "../draw/BatchBuilder.hpp"
 #include "../store/MaterialStore.hpp"
 #include "../frame/RenderFrame.hpp"
@@ -28,9 +29,12 @@ void TrailPlugin::collect(RenderCollectContext& collect_ctx) {
     const f32 now = trail_system_->now();
 
     auto view = registry.activeView<ecs::Transform, ecs::TrailRenderer>();
+    const ecs::GroupOpacityLookup groupOpacity(registry);
     for (auto entity : view) {
         const auto& trail = view.get<ecs::TrailRenderer>(entity);
         if (!trail.enabled) continue;
+        const f32 groupAlpha = groupOpacity.of(entity);
+        if (groupAlpha <= 0.0f) continue;
 
         const trail::TrailState* state = trail_system_->getState(entity);
         if (!state || state->points.empty()) continue;
@@ -123,7 +127,9 @@ void TrailPlugin::collect(RenderCollectContext& collect_ctx) {
             lastSide = side;
 
             f32 halfW = 0.5f * (trail.startWidth + (trail.endWidth - trail.startWidth) * c.age01);
-            u32 color = packColor(glm::mix(trail.startColor, trail.endColor, c.age01));
+            glm::vec4 trailColor = glm::mix(trail.startColor, trail.endColor, c.age01);
+            trailColor.a *= groupAlpha;
+            u32 color = packColor(trailColor);
             f32 u = c.age01;  // U runs head(0)→tail(1) along the ribbon
 
             scratch_verts_.push_back({c.pos + side * halfW, color, glm::vec2(u, 0.0f)});

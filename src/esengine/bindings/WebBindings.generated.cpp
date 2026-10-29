@@ -21,6 +21,7 @@
 #include "../ecs/components/Draggable.hpp"
 #include "../ecs/components/DragonBonesAnimation.hpp"
 #include "../ecs/components/FlexContainer.hpp"
+#include "../ecs/components/GroupOpacity.hpp"
 #include "../ecs/components/Hierarchy.hpp"
 #include "../ecs/components/Interactable.hpp"
 #include "../ecs/components/LODGroup.hpp"
@@ -1951,6 +1952,10 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("gap", &FlexContainerJS::gap)
         .field("padding", &FlexContainerJS::padding);
 
+    value_object<esengine::ecs::GroupOpacity>("GroupOpacity")
+        .field("opacity", &esengine::ecs::GroupOpacity::opacity)
+        .field("enabled", &esengine::ecs::GroupOpacity::enabled);
+
     value_object<esengine::ecs::Interactable>("Interactable")
         .field("enabled", &esengine::ecs::Interactable::enabled)
         .field("blockRaycast", &esengine::ecs::Interactable::blockRaycast)
@@ -2407,6 +2412,7 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             if (r.has<esengine::ecs::Draggable>(entity)) { if (!names.empty()) names += "|"; names += "Draggable"; }
             if (r.has<esengine::ecs::DragonBonesAnimation>(entity)) { if (!names.empty()) names += "|"; names += "DragonBonesAnimation"; }
             if (r.has<esengine::ecs::FlexContainer>(entity)) { if (!names.empty()) names += "|"; names += "FlexContainer"; }
+            if (r.has<esengine::ecs::GroupOpacity>(entity)) { if (!names.empty()) names += "|"; names += "GroupOpacity"; }
             if (r.has<esengine::ecs::Interactable>(entity)) { if (!names.empty()) names += "|"; names += "Interactable"; }
             if (r.has<esengine::ecs::LODGroup>(entity)) { if (!names.empty()) names += "|"; names += "LODGroup"; }
             if (r.has<esengine::ecs::Light>(entity)) { if (!names.empty()) names += "|"; names += "Light"; }
@@ -2463,6 +2469,7 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             if (name == "Draggable") return static_cast<int>(componentTypeId<esengine::ecs::Draggable>());
             if (name == "DragonBonesAnimation") return static_cast<int>(componentTypeId<esengine::ecs::DragonBonesAnimation>());
             if (name == "FlexContainer") return static_cast<int>(componentTypeId<esengine::ecs::FlexContainer>());
+            if (name == "GroupOpacity") return static_cast<int>(componentTypeId<esengine::ecs::GroupOpacity>());
             if (name == "Interactable") return static_cast<int>(componentTypeId<esengine::ecs::Interactable>());
             if (name == "LODGroup") return static_cast<int>(componentTypeId<esengine::ecs::LODGroup>());
             if (name == "Light") return static_cast<int>(componentTypeId<esengine::ecs::Light>());
@@ -2835,6 +2842,27 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity) || !r.has<esengine::ecs::FlexContainer>(entity)) return;
             r.remove<esengine::ecs::FlexContainer>(entity);
+        }))
+
+        // GroupOpacity
+        .function("hasGroupOpacity", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::GroupOpacity>(static_cast<Entity>(e));
+        }))
+        .function("getGroupOpacity", optional_override([](Registry& r, u32 e) -> esengine::ecs::GroupOpacity& {
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::GroupOpacity s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::GroupOpacity>(entity)) return s_dummy;
+            return r.get<esengine::ecs::GroupOpacity>(entity);
+        }), allow_raw_pointers())
+        .function("addGroupOpacity", optional_override([](Registry& r, u32 e, const esengine::ecs::GroupOpacity& c) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::GroupOpacity>(entity, c);
+        }))
+        .function("removeGroupOpacity", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::GroupOpacity>(entity)) return;
+            r.remove<esengine::ecs::GroupOpacity>(entity);
         }))
 
         // Interactable
@@ -3720,6 +3748,7 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("Draggable")));
     arr.set(i++, val(std::string("DragonBonesAnimation")));
     arr.set(i++, val(std::string("FlexContainer")));
+    arr.set(i++, val(std::string("GroupOpacity")));
     arr.set(i++, val(std::string("Interactable")));
     arr.set(i++, val(std::string("LODGroup")));
     arr.set(i++, val(std::string("Light")));
@@ -3883,6 +3912,8 @@ static_assert(offsetof(esengine::ecs::FlexContainer, alignItems) == 3, "ABI offs
 static_assert(offsetof(esengine::ecs::FlexContainer, alignContent) == 4, "ABI offset drift: esengine::ecs::FlexContainer.alignContent (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::FlexContainer, gap) == 8, "ABI offset drift: esengine::ecs::FlexContainer.gap (EHT expected 8)");
 static_assert(offsetof(esengine::ecs::FlexContainer, padding) == 16, "ABI offset drift: esengine::ecs::FlexContainer.padding (EHT expected 16)");
+static_assert(offsetof(esengine::ecs::GroupOpacity, opacity) == 0, "ABI offset drift: esengine::ecs::GroupOpacity.opacity (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::GroupOpacity, enabled) == 4, "ABI offset drift: esengine::ecs::GroupOpacity.enabled (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::Interactable, enabled) == 0, "ABI offset drift: esengine::ecs::Interactable.enabled (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::Interactable, blockRaycast) == 1, "ABI offset drift: esengine::ecs::Interactable.blockRaycast (EHT expected 1)");
 static_assert(offsetof(esengine::ecs::Interactable, raycastTarget) == 2, "ABI offset drift: esengine::ecs::Interactable.raycastTarget (EHT expected 2)");
@@ -4215,7 +4246,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "ac076564c4c51626";
+static const char* kEsAbiLayoutHash = "e064dcf6ece54b86";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);
