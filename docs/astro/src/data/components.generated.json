@@ -4684,6 +4684,56 @@
       ]
     },
     {
+      "name": "SightTarget",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "hiddenOpacity",
+          "type": "number",
+          "default": "0",
+          "doc": "The sprite's alpha, as a share of its own, while no viewer sees it.",
+          "range": "0–1, step 0.01"
+        },
+        {
+          "key": "fadeTime",
+          "type": "number",
+          "default": "0.15",
+          "doc": "Seconds the fade takes, either way.",
+          "range": "0–5, step 0.05"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "hiddenOpacity",
+        "fadeTime"
+      ]
+    },
+    {
+      "name": "SightViewer",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "radius",
+          "type": "number",
+          "default": "0",
+          "doc": "How far this eye sees. 0 is no limit: only a wall stops it.",
+          "range": "≥ 0, step 1"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "radius"
+      ]
+    },
+    {
       "name": "SixDOFJoint3D",
       "source": "ts",
       "fields": [

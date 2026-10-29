@@ -116,6 +116,7 @@ const DISPOSITION = {
   'MeshInstances.shadowDistance': ['no-place', 'a distance from the eye, not a region of the entity'],
   'Planet.radius': ['renders', 'the sphere drawn at the entity is the outline'],
   'BlobShadow.radius': ['renders', 'the disc drawn on the ground is the outline'],
+  'SightViewer.radius': ['no-place', 'how far an eye sees round the entity, a limit on what it reports and not a region the editor lays out'],
   'BlobShadow.fadeHeight': ['no-place', 'a height above the ground at which the disc is gone, not a region of the entity'],
   'Planet.collisionDistance': ['no-place', 'how far round each moving body the ground is built for collision, not a region of the entity'],
   'Planet.cellSize': ['no-place', 'the finest cell of the ground\'s mesh near the eye, not a region of the entity'],

@@ -3,10 +3,10 @@
   "counts": {
     "public": 115,
     "beta": 171,
-    "experimental": 2672,
+    "experimental": 2683,
     "deprecated": 3
   },
-  "total": 2958,
+  "total": 2969,
   "subsystems": [
     {
       "id": "mobile-controls",

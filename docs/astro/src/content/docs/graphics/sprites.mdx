@@ -269,6 +269,22 @@ that. Set the effect's **Shelter Mask Size** (`maskSize`, 64 to 2048) for finer 
 The sprite's rectangle is what is kept clear, so `inset` (world units) shrinks it by that much on every side, to leave the ground at the feet wet. A sprite faded by a
 `CoverFade` keeps the rain off it only as much as it shows.
 
+### What the player can see
+
+A lit sprite behind a wall is already dark: the wall's `ShadowCaster2D` shadows the light that would show it. Anything that is not lit is not: an enemy drawn
+unlit, its health bar, a pickup that glows on its own. `SightViewer` and `SightTarget` read the same walls again, on the CPU, for those. Put `SightViewer` on the
+player (an eye) and `SightTarget` on a sprite that should not be seen unless some viewer has a clear line to it; it eases to `hiddenOpacity` while none has.
+
+| Field | On | What it does |
+|---|---|---|
+| `radius` | `SightViewer` | How far the eye sees, in world units. 0 is no limit: only a wall stops it. |
+| `hiddenOpacity` | `SightTarget` | The sprite's alpha, as a share of its own, while no viewer sees it. 0 is gone. |
+| `fadeTime` | `SightTarget` | Seconds the fade takes, either way. |
+
+A wall that contains the viewer or the target blocks nothing for that pair (standing in a bush you see out of it). A scene with no viewer hides every target. Do not
+put a `SightTarget` and a `CoverFade` on one sprite, since each owns the sprite's alpha. `segmentBlocked(from, to, rings)`, `seesPoint` and `currentSightRings()` give
+gameplay the same answer the sprites got. This is what is in view; it does not remember what was seen, so ground the player has left is dark again.
+
 ### Depth layers (2.5D)
 
 Check a layer under **Settings → Project → Rendering → Advanced → Depth-sorted layers** and it
