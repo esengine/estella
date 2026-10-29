@@ -28,6 +28,8 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(cocos): Graphics is a component over the engine Draw (rect, circle and stroked paths kept until clear), UIMeshRenderer folds into its host, and a Node has worldScale and worldRotation':
+    {"internal":"The Cocos Creator compatibility layer and importer have not shipped; nothing a creator reaches without opting in."},
   'feat(animation): an animator state can play at the speed of a float parameter (speedParameter), and the Cocos animation graph is converted to an animator controller':
     {"note":"An animator state can play at the speed of a parameter."},
   'feat(cocos): the importer converts Animation clips (.anim) to timelines: position, scale, rotation, sprite and label colour, opacity and active tracks, and plays model-file clips on the node':

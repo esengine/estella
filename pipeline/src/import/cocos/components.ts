@@ -630,6 +630,14 @@ function meshRenderer(c: CocosComponent, ctx: ComponentContext, where: string): 
     return { component: { type: 'MeshRenderer', data }, partial };
 }
 
+/** `cc.Graphics`: the style a scene stores; what is drawn is what scripts draw with it. */
+function graphics(c: CocosComponent): ComponentData {
+    return {
+        type: `${LAYER}Graphics`,
+        data: renamed(c, { _lineWidth: 'lineWidth', _lineJoin: 'lineJoin', _lineCap: 'lineCap', _miterLimit: 'miterLimit', _strokeColor: 'strokeColor', _fillColor: 'fillColor' }),
+    };
+}
+
 /** `cc.UIOpacity`: the alpha of the node and everything under it, which the engine's GroupOpacity is. */
 function uiOpacity(c: CocosComponent, ctx: ComponentContext): ComponentData {
     ctx.report.component('cc.UIOpacity', 'mapped');
@@ -659,7 +667,7 @@ function script(c: CocosComponent, ctx: ComponentContext): ComponentData | null 
 }
 
 /** Components that are folded into another, or carry nothing of their own. */
-const FOLDED = new Set(['cc.UITransform', 'cc.LabelOutline', 'cc.LabelShadow', 'cc.Canvas']);
+const FOLDED = new Set(['cc.UITransform', 'cc.LabelOutline', 'cc.LabelShadow', 'cc.Canvas', 'cc.UIMeshRenderer']);
 
 export interface ConvertedNode {
     components: ComponentData[];
@@ -753,6 +761,9 @@ export function convertNode(node: CocosNode, ctx: ComponentContext, where: strin
             case 'cc.SkeletalAnimation':
                 out = skeletalAnimation(c, node, ctx, where);
                 break;
+            case 'cc.Graphics':
+                out = graphics(c);
+                break;
             case 'cc.UIOpacity':
                 out = uiOpacity(c, ctx);
                 break;
@@ -773,7 +784,7 @@ export function convertNode(node: CocosNode, ctx: ComponentContext, where: strin
         }
         if (FOLDED.has(c.type)) {
             // A canvas carries nothing of its own here: the design resolution is the scene's, and its camera is a component of its own.
-            const host = c.type === 'cc.UITransform' || c.type === 'cc.Canvas' ? true : node.components.some((s) => s.type === 'cc.Label');
+            const host = c.type === 'cc.UITransform' || c.type === 'cc.Canvas' || c.type === 'cc.UIMeshRenderer' ? true : node.components.some((s) => s.type === 'cc.Label');
             if (host) {
                 ctx.report.component(c.type, 'mapped');
                 continue;
