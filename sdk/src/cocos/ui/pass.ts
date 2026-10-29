@@ -17,6 +17,7 @@ import { alignAllWidgets, declareWidget } from './widget';
 import { layoutAll, declareLayout } from './layout';
 import { declareControls } from './controls';
 import { declareGraphics } from './graphics';
+import { declareEditBox } from './editBox';
 import { declareScrollView } from './scrollView';
 import { setUiCameraData, setVisibleSize, setWindowPixels } from './screen';
 
@@ -25,6 +26,7 @@ export function declareUiPass(): void {
     declareLayout();
     declareControls();
     declareGraphics();
+    declareEditBox();
     declareScrollView();
     const system = defineSystem(
         [Res(UICameraInfo), Res(ScreenLayout), GetWorld()],

@@ -17,3 +17,4 @@ export { Camera } from './camera';
 export { RichText } from './richText';
 export { Mask } from './mask';
 export { Graphics } from './graphics';
+export { EditBox } from './editBox';

@@ -638,6 +638,23 @@ function graphics(c: CocosComponent): ComponentData {
     };
 }
 
+/** `cc.EditBox`: the box and its two labels are the scene's own nodes; what is typed goes through the platform's text editor. */
+function editBox(c: CocosComponent, ctx: ComponentContext): ComponentData {
+    return {
+        type: `${LAYER}EditBox`,
+        data: {
+            ...renamed(c, {
+                _string: 'string_', _maxLength: 'maxLength', _inputMode: 'inputMode', _inputFlag: 'inputFlag', _returnType: 'returnType', _tabIndex: 'tabIndex',
+                _textLabel: 'textLabel', _placeholderLabel: 'placeholderLabel',
+            }),
+            ...handlerLists(c.data.editingDidBegan, 'editingDidBegan', ctx),
+            ...handlerLists(c.data.textChanged, 'textChanged', ctx),
+            ...handlerLists(c.data.editingDidEnded, 'editingDidEnded', ctx),
+            ...handlerLists(c.data.editingReturn, 'editingReturn', ctx),
+        },
+    };
+}
+
 /** `cc.UIOpacity`: the alpha of the node and everything under it, which the engine's GroupOpacity is. */
 function uiOpacity(c: CocosComponent, ctx: ComponentContext): ComponentData {
     ctx.report.component('cc.UIOpacity', 'mapped');
@@ -760,6 +777,9 @@ export function convertNode(node: CocosNode, ctx: ComponentContext, where: strin
                 break;
             case 'cc.SkeletalAnimation':
                 out = skeletalAnimation(c, node, ctx, where);
+                break;
+            case 'cc.EditBox':
+                out = editBox(c, ctx);
                 break;
             case 'cc.Graphics':
                 out = graphics(c);
