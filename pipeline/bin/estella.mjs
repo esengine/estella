@@ -24,6 +24,8 @@ const USAGE = `usage: node pipeline/bin/estella.mjs create <template> <dir> [--n
                                      [--project <dir>] [--scale <n>]
                                      [--specular-map color|orm] [--lightmap-uv] [--lods <0-3>]
        node pipeline/bin/estella.mjs import-hdr <file.hdr> [outDir] [--face-size <n>]
+       node pipeline/bin/estella.mjs import-cocos <cocosProjectDir> <estellaProjectDir>
+                                     [--only <assets/ subpath>]... [--into <folder>] [--dry-run]
        node pipeline/bin/estella.mjs bake-scene <scene.esscene> [--check]
        node pipeline/bin/estella.mjs package-openpaas <exportDir> --config <local.json> --out <game.sp>
 
@@ -74,6 +76,16 @@ editor), unwrapping one where the source's second set is too sparse to bake into
 --lods <n> writes n cheaper levels of every mesh (about 50%, 20% and 7% of its
 triangles) as <mesh>_lod<n>.esmesh and a LODGroup that swaps them in (Generate
 LODs in the editor); skinned and morphing meshes keep one level.
+
+import-cocos takes a Cocos Creator 3.x project into an Estella project without touching
+it: the source is only read, and an output folder inside it is refused. Prefabs and scenes
+become \`.esprefab\` / \`.esscene\` under assets/<into> (default cocos), keeping the source's
+folder layout; a prefab instance stays a nested prefab whose changes are overrides. Only the
+textures and fonts the converted documents use are copied. Components with a counterpart
+(Node, Sprite, Label, RichText, Camera) are mapped; every other component is kept verbatim
+under the entity's metadata.cocos and counted. assets/<into>/import-report.json says what
+was mapped, approximated and left out, and --dry-run writes nothing but still prints it.
+--only restricts the documents converted to those under the given assets/ subpath(s).
 
 import-hdr bakes an equirectangular panorama into the two things a renderer asks
 an environment for: nine irradiance coefficients (in the \`.esenv\`) and one
@@ -133,6 +145,20 @@ function parseArgs(argv) {
       process.exit(2);
     }
     return { command, source: path.resolve(projectDir), config: path.resolve(rest[config + 1]), out: path.resolve(rest[out + 1]) };
+  }
+  if (command === 'import-cocos') {
+    const target = rest.find((a, i) => !a.startsWith('--') && rest[i - 1] !== '--only' && rest[i - 1] !== '--into');
+    if (!projectDir || !target) {
+      console.error(USAGE);
+      process.exit(2);
+    }
+    const only = [];
+    for (let i = 0; i < rest.length; i++) if (rest[i] === '--only' && rest[i + 1]) only.push(rest[i + 1].replace(/^\/+/, ''));
+    const into = rest.indexOf('--into');
+    return {
+      command, source: path.resolve(projectDir), out: path.resolve(target), only,
+      into: into >= 0 ? rest[into + 1] : undefined, dryRun: rest.includes('--dry-run'),
+    };
   }
   if (command === 'import-model' || command === 'import-gltf' || command === 'import-hdr') {
     if (!projectDir) {
@@ -790,6 +816,21 @@ if (opts.command === 'package-openpaas') {
     process.exitCode = 1;
   } finally { cleanup(); }
   // No export, login or upload follows packaging.
+  process.exit(process.exitCode ?? 0);
+}
+
+if (opts.command === 'import-cocos') {
+  const { mod, cleanup } = await loadPipeline(path.join(PIPELINE, 'src', 'import', 'cocos', 'index.ts'), 'cocosImport.mjs');
+  try {
+    const report = mod.importCocosProject({
+      source: opts.source, out: opts.out, only: opts.only, dryRun: opts.dryRun, ...(opts.into ? { into: opts.into } : {}),
+    });
+    console.log(JSON.stringify(report, null, 2));
+    process.exitCode = report.documents.failed.length ? 1 : 0;
+  } catch (e) {
+    console.error(e instanceof Error ? e.message : String(e));
+    process.exitCode = 1;
+  } finally { cleanup(); }
   process.exit(process.exitCode ?? 0);
 }
 

@@ -1,0 +1,369 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file  A Cocos prefab or scene as an Estella prefab or scene.
+ *
+ *        A nested prefab stays a nested prefab: the instance becomes a slot that
+ *        names the converted prefab, and what the Cocos instance changed becomes
+ *        overrides. Those are not translated property by property — the instance's
+ *        overrides are applied to the Cocos tree, both versions are converted, and
+ *        the difference is the override list. So the override vocabulary is
+ *        whatever the component mapping already knows, with no second table.
+ *
+ *        Addresses follow the engine's own: an entity inside a nested prefab is
+ *        `slot/localId`, a prefab's own entities are bare ids.
+ */
+import { convertNode, sameData, type ComponentContext, type ComponentData } from './components';
+import type { CocosDocument, CocosNode, CocosOverride } from './document';
+import { ImportReport } from './report';
+
+const SEP = '/';
+
+type Raw = Record<string, unknown>;
+
+export interface PrefabOverride {
+    prefabEntityId: string;
+    type: 'property' | 'component_added' | 'component_removed' | 'name' | 'visibility';
+    componentType?: string;
+    propertyName?: string;
+    value?: unknown;
+    componentData?: ComponentData;
+}
+
+export interface PrefabEntity {
+    prefabEntityId: string;
+    name: string;
+    parent: string | null;
+    children: string[];
+    components: ComponentData[];
+    visible: boolean;
+    metadata?: Raw;
+    nestedPrefab?: { prefabPath: string; overrides: PrefabOverride[] };
+}
+
+export interface PrefabFile {
+    version: string;
+    name: string;
+    rootEntityId: string;
+    entities: PrefabEntity[];
+}
+
+export interface SceneEntity {
+    id: number;
+    name: string;
+    parent: number | null;
+    children: number[];
+    components: ComponentData[];
+    visible: boolean;
+    metadata?: Raw;
+}
+
+export interface SceneInstanceEntry {
+    id: number;
+    parent: number | null;
+    prefab: string;
+    overrides: PrefabOverride[];
+    added: never[];
+    removed: string[];
+}
+
+export interface SceneFile {
+    version: number;
+    name: string;
+    entities: (SceneEntity | SceneInstanceEntry)[];
+}
+
+export interface ConvertContext extends ComponentContext {
+    /** The parsed prefab a uuid names, or null when the project does not have it. */
+    loadPrefab(uuid: string): CocosDocument | null;
+    /** The project-relative path the converted prefab of a uuid is written to. */
+    prefabRef(uuid: string): string | null;
+    /** Where the document being converted lives, for notes. */
+    where: string;
+}
+
+// ---------------------------------------------------------------------------
+// The expanded Cocos tree: instances inlined, overrides applied.
+// ---------------------------------------------------------------------------
+
+interface XNode {
+    /** Engine address: bare id in a prefab's own space, `slot/id` across a nesting boundary. */
+    addr: string;
+    /** Prefix the engine address adds to this node's components' ids. */
+    prefix: string;
+    node: CocosNode;
+    children: XNode[];
+}
+
+const MAX_DEPTH = 24;
+
+function build(node: CocosNode, ctx: ConvertContext, stack: string[]): XNode {
+    if (node.instance) {
+        const sub = expandAsset(node.instance.asset, ctx, stack);
+        if (!sub) {
+            ctx.report.note('prefab-missing', `${ctx.where}: ${node.name}`);
+            ctx.report.missingAsset(node.instance.asset);
+            return { addr: node.id, prefix: '', node: { ...node, children: [] }, children: [] };
+        }
+        applyOverrides(sub, node.instance.overrides, ctx);
+        if (node.instance.mountedChildren) ctx.report.note('instance-mounted-children', `${ctx.where}: ${node.name}`);
+        if (node.instance.mountedComponents) ctx.report.note('instance-mounted-components', `${ctx.where}: ${node.name}`);
+        if (node.instance.removedComponents) ctx.report.note('instance-removed-components', `${ctx.where}: ${node.name}`);
+        return lift(sub, node.id);
+    }
+    return { addr: node.id, prefix: '', node: { ...node, children: [] }, children: node.children.map((c) => build(c, ctx, stack)) };
+}
+
+/** Put a tree under a slot: every address gains the slot's prefix. */
+function lift(tree: XNode, slot: string): XNode {
+    const walk = (x: XNode): XNode => ({
+        addr: `${slot}${SEP}${x.addr}`,
+        prefix: x.prefix ? `${slot}${SEP}${x.prefix}` : slot,
+        node: x.node,
+        children: x.children.map(walk),
+    });
+    return walk(tree);
+}
+
+const expanded = new WeakMap<ConvertContext, Map<string, XNode | null>>();
+
+/** A prefab with its own instances expanded, in its own address space. Cached; callers get a copy. */
+function expandAsset(uuid: string, ctx: ConvertContext, stack: string[]): XNode | null {
+    let cache = expanded.get(ctx);
+    if (!cache) expanded.set(ctx, (cache = new Map()));
+    const hit = cache.get(uuid);
+    if (hit !== undefined) return hit ? structuredClone(hit) : null;
+    if (stack.includes(uuid) || stack.length > MAX_DEPTH) {
+        ctx.report.note('prefab-cycle', `${ctx.where}: ${uuid}`);
+        return null;
+    }
+    const doc = ctx.loadPrefab(uuid);
+    const root = doc?.roots[0];
+    if (!doc || !root) {
+        cache.set(uuid, null);
+        return null;
+    }
+    const tree = build(root, ctx, [...stack, uuid]);
+    cache.set(uuid, tree);
+    return structuredClone(tree);
+}
+
+// ---------------------------------------------------------------------------
+// Overrides, in the Cocos domain.
+// ---------------------------------------------------------------------------
+
+/** A Cocos value without its `__type__` tags, which name the class and mean nothing to the data. */
+function clean(v: unknown): unknown {
+    if (Array.isArray(v)) return v.map(clean);
+    if (typeof v !== 'object' || v === null) return v;
+    return Object.fromEntries(Object.entries(v).filter(([k]) => k !== '__type__').map(([k, x]) => [k, clean(x)]));
+}
+
+function applyOverrides(tree: XNode, overrides: CocosOverride[], ctx: ConvertContext): void {
+    const nodes = new Map<string, XNode>();
+    const comps = new Map<string, { c: CocosNode["components"][number] }>();
+    const index = (x: XNode): void => {
+        nodes.set(x.addr, x);
+        for (const c of x.node.components) comps.set(x.prefix ? `${x.prefix}${SEP}${c.id}` : c.id, { c });
+        x.children.forEach(index);
+    };
+    index(tree);
+
+    for (const raw of overrides) {
+        const o = { ...raw, value: clean(raw.value) };
+        const key = o.target.join(SEP);
+        const prop = o.path[0];
+        const nodeHit = nodes.get(key);
+        const compHit = comps.get(key);
+        if (compHit && prop !== undefined) {
+            // The tree came from a clone, so its nodes are this call's to change.
+            const { c } = compHit;
+            if (prop === '_enabled') {
+                c.enabled = o.value !== false;
+                continue;
+            }
+            setPath(c.data, o.path, o.value);
+            continue;
+        }
+        if (nodeHit && prop !== undefined) {
+            const n = nodeHit.node;
+            const v = o.value as Raw;
+            if (typeof v === 'object' && v !== null && '__id__' in v) {
+                ctx.report.note('override-object-reference', `${ctx.where}: ${key}.${prop}`);
+                continue;
+            }
+            switch (prop) {
+                case '_name': n.name = String(o.value); break;
+                case '_active': n.active = o.value !== false; break;
+                case '_lpos': n.pos = { ...n.pos, ...(v as object) }; break;
+                case '_lrot': n.rot = { ...n.rot, ...(v as object) }; break;
+                case '_lscale': n.scale = { ...n.scale, ...(v as object) }; break;
+                case '_layer': n.layer = Number(o.value); break;
+                case '_euler': break; // derived from the rotation
+                default: ctx.report.note('override-node-property', `${ctx.where}: ${prop}`);
+            }
+            continue;
+        }
+        ctx.report.note(o.target.length > 1 ? 'override-target-missing-nested' : 'override-target-missing', `${ctx.where}: ${key}`);
+    }
+}
+
+function setPath(target: Raw, path: string[], value: unknown): void {
+    let cur = target;
+    for (let i = 0; i < path.length - 1; i++) {
+        const k = path[i]!;
+        const next = cur[k];
+        cur[k] = typeof next === 'object' && next !== null ? { ...(next as Raw) } : {};
+        cur = cur[k] as Raw;
+    }
+    cur[path[path.length - 1]!] = value;
+}
+
+// ---------------------------------------------------------------------------
+// Converting an expanded tree, and the difference between two.
+// ---------------------------------------------------------------------------
+
+interface Flat {
+    name: string;
+    visible: boolean;
+    components: ComponentData[];
+}
+
+function flatten(tree: XNode, ctx: ConvertContext): Map<string, Flat> {
+    const out = new Map<string, Flat>();
+    const walk = (x: XNode): void => {
+        const conv = convertNode(x.node, ctx, `${ctx.where}: ${x.node.name}`);
+        out.set(x.addr, { name: x.node.name, visible: x.node.active, components: conv.components });
+        x.children.forEach(walk);
+    };
+    walk(tree);
+    return out;
+}
+
+/** What turns `pristine` into `patched`, as the engine's override list. */
+function diff(pristine: Map<string, Flat>, patched: Map<string, Flat>, ctx: ConvertContext): PrefabOverride[] {
+    const out: PrefabOverride[] = [];
+    for (const [addr, now] of patched) {
+        const was = pristine.get(addr);
+        if (!was) {
+            ctx.report.note('instance-added-entity', `${ctx.where}: ${addr}`);
+            continue;
+        }
+        if (was.name !== now.name) out.push({ prefabEntityId: addr, type: 'name', value: now.name });
+        if (was.visible !== now.visible) out.push({ prefabEntityId: addr, type: 'visibility', value: now.visible });
+        const before = new Map(was.components.map((c) => [c.type, c]));
+        const after = new Map(now.components.map((c) => [c.type, c]));
+        for (const [type, c] of after) {
+            const b = before.get(type);
+            if (!b) {
+                out.push({ prefabEntityId: addr, type: 'component_added', componentType: type, componentData: c });
+                continue;
+            }
+            for (const [field, value] of Object.entries(c.data)) {
+                if (!sameData(b.data[field], value)) {
+                    out.push({ prefabEntityId: addr, type: 'property', componentType: type, propertyName: field, value });
+                }
+            }
+        }
+        for (const type of before.keys()) {
+            if (!after.has(type)) out.push({ prefabEntityId: addr, type: 'component_removed', componentType: type });
+        }
+    }
+    return out;
+}
+
+/** The overrides an instance node applies over the prefab it names, or null when that prefab is missing. */
+function instanceOverrides(node: CocosNode, ctx: ConvertContext): PrefabOverride[] | null {
+    const inst = node.instance;
+    if (!inst) return null;
+    const pristine = expandAsset(inst.asset, ctx, []);
+    if (!pristine) return null;
+    const patched = structuredClone(pristine);
+    applyOverrides(patched, inst.overrides, ctx);
+    if (inst.mountedChildren) ctx.report.note('instance-mounted-children', `${ctx.where}: ${node.name}`);
+    if (inst.mountedComponents) ctx.report.note('instance-mounted-components', `${ctx.where}: ${node.name}`);
+    if (inst.removedComponents) ctx.report.note('instance-removed-components', `${ctx.where}: ${node.name}`);
+    // Converting both sides is for the difference only; the report counts a component where its own prefab is converted.
+    const quiet: ConvertContext = { ...ctx, report: new ImportReport() };
+    return diff(flatten(pristine, quiet), flatten(patched, quiet), ctx);
+}
+
+// ---------------------------------------------------------------------------
+// Documents.
+// ---------------------------------------------------------------------------
+
+export function convertPrefab(doc: CocosDocument, ctx: ConvertContext): PrefabFile {
+    const root = doc.roots[0];
+    if (!root) throw new Error('prefab has no root node');
+    const entities: PrefabEntity[] = [];
+    ctx.report.documents.converted++;
+    if (doc.duplicateIds) ctx.report.note('duplicate-fileid', `${ctx.where}: ${doc.duplicateIds}`);
+
+    const walk = (n: CocosNode, parent: string | null): void => {
+        ctx.report.nodes++;
+        const here = `${ctx.where}: ${n.name}`;
+        const entity: PrefabEntity = { prefabEntityId: n.id, name: n.name, parent, children: [], components: [], visible: n.active };
+        entities.push(entity);
+        const ref = n.instance ? ctx.prefabRef(n.instance.asset) : null;
+        const overrides = n.instance && ref ? instanceOverrides(n, ctx) : null;
+        if (n.instance) {
+            ctx.report.prefabInstances++;
+            if (ref && overrides) entity.nestedPrefab = { prefabPath: ref, overrides };
+            else {
+                ctx.report.note('prefab-missing', here);
+                ctx.report.missingAsset(n.instance.asset);
+            }
+            return;
+        }
+        const conv = convertNode(n, ctx, here);
+        entity.components = conv.components;
+        if (conv.metadata) entity.metadata = conv.metadata;
+        for (const c of n.children) {
+            entity.children.push(c.id);
+            walk(c, n.id);
+        }
+    };
+    walk(root, null);
+    return { version: '2', name: doc.name, rootEntityId: root.id, entities };
+}
+
+export function convertScene(doc: CocosDocument, ctx: ConvertContext): SceneFile {
+    const entities: (SceneEntity | SceneInstanceEntry)[] = [];
+    ctx.report.documents.converted++;
+    let next = 0;
+    if (doc.globals.length) ctx.report.note('scene-globals-dropped', `${ctx.where}: ${doc.globals.join(',')}`);
+
+    const walk = (n: CocosNode, parent: SceneEntity | null): void => {
+        ctx.report.nodes++;
+        const id = next++;
+        const here = `${ctx.where}: ${n.name}`;
+        if (n.instance) {
+            ctx.report.prefabInstances++;
+            const ref = ctx.prefabRef(n.instance.asset);
+            const overrides = ref ? instanceOverrides(n, ctx) : null;
+            if (ref && overrides) {
+                // Same shape the engine writes: the entry carries its parent, the parent lists the entry.
+                entities.push({ id, parent: parent ? parent.id : null, prefab: ref, overrides, added: [], removed: [] });
+                parent?.children.push(id);
+                return;
+            }
+            ctx.report.note('prefab-missing', here);
+            ctx.report.missingAsset(n.instance.asset);
+        }
+        const conv = n.instance ? { components: [] as ComponentData[] } : convertNode(n, ctx, here);
+        const entity: SceneEntity = {
+            id,
+            name: n.name,
+            parent: parent ? parent.id : null,
+            children: [],
+            components: conv.components,
+            visible: n.active,
+        };
+        if ('metadata' in conv && conv.metadata) entity.metadata = conv.metadata;
+        entities.push(entity);
+        parent?.children.push(id);
+        if (!n.instance) for (const c of n.children) walk(c, entity);
+    };
+    for (const r of doc.roots) walk(r, null);
+    return { version: 4, name: doc.name, entities };
+}
