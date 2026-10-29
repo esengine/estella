@@ -898,6 +898,23 @@ registerEffect({
 
 // A graded look read off a table by the picture as the display shows it: the last pass's, after the output transform and the transfer
 // function, which no effect in the chain can be (they run on scene values, before both). For a look authored against the finished image.
+// A look held to a few colours: every pixel becomes the nearest of a palette read from a strip image (N by 1, up to 64 colours), after an ordered
+// dither that spreads a gradient over neighbouring colours. For pixel art that must keep to one palette however the lights and the weather move.
+registerEffect({
+    type: 'palette',
+    label: 'Palette',
+    factory: () => postProcessEffects.createPalette(),
+    uniforms: [
+        { name: 'u_strength', label: 'Strength', min: 0, max: 1, step: 0.01, defaultValue: 1, neutralValue: 0 },
+        // How far the choice is spread between neighbouring colours, and the size in device pixels of one cell of the dither (match the art's pixel size).
+        { name: 'u_dither', label: 'Dither', min: 0, max: 1, step: 0.01, defaultValue: 0.5 },
+        { name: 'u_ditherScale', label: 'Dither Scale', min: 1, max: 16, step: 1, defaultValue: 1 },
+    ],
+    textures: [
+        { name: 'u_palette', label: 'Palette (N x 1 image, one colour a pixel, up to 64)' },
+    ],
+});
+
 registerEffect({
     type: 'displayLut',
     label: 'Display LUT',
@@ -916,7 +933,7 @@ const CATEGORIES: Record<EffectCategory, string[]> = {
     light: ['ssao', 'gtao', 'ssgi', 'ssr', 'voxelGI', 'contactShadows', 'lightShafts', 'subsurface'],
     atmosphere: ['mist2d', 'rain2d', 'fog2d', 'distanceFog', 'heightFog', 'skyAtmosphere', 'rain'],
     aa: ['fxaa', 'taa'],
-    stylize: ['blur', 'pixelate', 'outline', 'depthOutline', 'edgeOutline'],
+    stylize: ['blur', 'pixelate', 'palette', 'outline', 'depthOutline', 'edgeOutline'],
 };
 for (const [category, types] of Object.entries(CATEGORIES) as [EffectCategory, string[]][]) {
     for (const type of types) {

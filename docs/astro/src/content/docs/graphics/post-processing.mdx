@@ -48,6 +48,7 @@ several can stack in one frame at no extra target cost beyond the passes.
 | `filmGrain` | Noise the size of a film crystal, strongest in the mid-tones, crawling with the clock | `intensity`, `size`, `response` |
 | `lensFlare` | Ghosts and a halo thrown by whatever is brighter than a threshold, with a colour fringe | `intensity`, `threshold`, `ghosts`, `dispersal`, `haloWidth`, `chromatic`, `tint` |
 | `pixelate` | Block quantization | `pixelSize` |
+| `palette` | Holds the picture to a palette: each pixel becomes the nearest colour of a strip image (N by 1, one colour a pixel, up to 64), after an ordered dither. Put it last and set the texture to the palette image (import it with nearest filtering) | `strength`, `dither`, `ditherScale` (match the art's pixel size), `palette` |
 | `outline` | Ink-edge outlines (Sobel edge darkening) | `intensity`, `threshold`, `thickness` |
 | `depthOutline` | Black outline where the depth steps (a silhouette, not shading) | `intensity`, `threshold`, `thickness` |
 | `edgeOutline` | A coloured line at silhouettes **and** creases: where the camera distance steps, and where the surface normal turns (needs surfaces that write a normal: lit meshes, Model, Toon) | `intensity`, `depthThreshold`, `normalThreshold`, `thickness`, colour `lineColor` |

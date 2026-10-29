@@ -84,7 +84,7 @@ export const SUBSYSTEM_COMPONENTS: Readonly<Record<Subsystem, readonly string[]>
 export const POST_PROCESS_EFFECT_GROUP: Readonly<Record<string, Subsystem>> = {
     blur: 'fxBasic', bloom: 'fxBasic', vignette: 'fxBasic', grayscale: 'fxBasic', colorGrade: 'fxBasic',
     chromaticAberration: 'fxBasic', tonemap: 'fxBasic', fxaa: 'fxBasic', lensDistortion: 'fxBasic', pixelate: 'fxBasic',
-    outline: 'fxBasic', depthOutline: 'fxBasic', edgeOutline: 'fxBasic', lutGrade: 'fxBasic', agx: 'fxBasic', sharpen: 'fxBasic', filmGrain: 'fxBasic',
+    outline: 'fxBasic', depthOutline: 'fxBasic', edgeOutline: 'fxBasic', lutGrade: 'fxBasic', palette: 'fxBasic', agx: 'fxBasic', sharpen: 'fxBasic', filmGrain: 'fxBasic',
     motionBlur: 'fxBasic', lensFlare: 'fxBasic',
     mist2d: 'fxAtmosphere', rain2d: 'fxAtmosphere', fog2d: 'fxAtmosphere', distanceFog: 'fxAtmosphere', skyAtmosphere: 'fxAtmosphere', heightFog: 'fxAtmosphere', rain: 'fxAtmosphere',
     voxelGI: 'fxLighting', ssgi: 'fxLighting', contactShadows: 'fxLighting', lightShafts: 'fxLighting',

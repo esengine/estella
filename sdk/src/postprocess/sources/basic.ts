@@ -1033,6 +1033,92 @@ void main() {
 `;
         return Material.compileShader(source);
     },
+    createPalette(): ShaderHandle {
+        // Every pixel becomes the nearest colour of a palette read from a strip image (one colour a pixel, up to 64), after an ordered dither
+        // that spreads the choice between neighbouring colours so a gradient reads as a pattern and not a band. The nearest is found in sRGB,
+        // the space a palette is authored in, with the weights of the "redmean" distance.
+        const source = `#pragma shader "PP Palette"
+#pragma version 300 es
+#pragma domain PostProcess
+#pragma param u_strength float default(1) range(0,1)
+#pragma param u_dither float default(0.5) range(0,1)
+#pragma param u_ditherScale float default(1) range(1,16)
+#pragma param u_palette texture default(white) texel(data)
+
+#pragma fragment
+precision highp float;
+
+in vec2 v_texCoord;
+uniform sampler2D u_texture;
+out vec4 fragColor;
+
+vec3 palToSrgb(vec3 c) { return mix(c * 12.92, 1.055 * pow(max(c, 0.0), vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)); }
+vec3 palToLinear(vec3 c) { return mix(c / 12.92, pow((max(c, 0.0) + 0.055) / 1.055, vec3(2.4)), step(0.04045, c)); }
+float bayer2(vec2 a) { a = floor(a); return fract(a.x / 2.0 + a.y * a.y * 0.75); }
+float bayer8(vec2 a) { return (bayer2(0.25 * a) * 0.25 + bayer2(0.5 * a)) * 0.25 + bayer2(a); }
+
+void main() {
+    vec4 src = texture(u_texture, v_texCoord);
+    int n = min(textureSize(u_palette, 0).x, 64);
+    if (n <= 1) { fragColor = src; return; }
+    vec3 c = src.rgb;
+#ifdef ES_LINEAR
+    c = palToSrgb(c);
+#endif
+    vec2 px = floor(v_texCoord * u_viewport.xy / max(u_ditherScale, 1.0));
+    vec3 aim = clamp(c + (bayer8(px) - 0.5) * u_dither * 0.25, 0.0, 1.0);
+    vec3 best = c;
+    float bestD = 1e9;
+    for (int i = 0; i < n; i++) {
+        vec3 p = texelFetch(u_palette, ivec2(i, 0), 0).rgb;
+        vec3 d = aim - p;
+        float m = (aim.r + p.r) * 0.5;
+        float dist = (2.0 + m) * d.r * d.r + 4.0 * d.g * d.g + (3.0 - m) * d.b * d.b;
+        if (dist < bestD) { bestD = dist; best = p; }
+    }
+    vec3 outc = mix(c, best, u_strength);
+#ifdef ES_LINEAR
+    outc = palToLinear(outc);
+#endif
+    fragColor = vec4(outc, src.a);
+}
+#pragma end
+
+#pragma fragment wgsl
+fn palToSrgb(c : vec3f) -> vec3f { return mix(c * 12.92, 1.055 * pow(max(c, vec3f(0.0)), vec3f(1.0 / 2.4)) - 0.055, step(vec3f(0.0031308), c)); }
+fn palToLinear(c : vec3f) -> vec3f { return mix(c / 12.92, pow((max(c, vec3f(0.0)) + 0.055) / 1.055, vec3f(2.4)), step(vec3f(0.04045), c)); }
+fn bayer2(a0 : vec2f) -> f32 { let a = floor(a0); return fract(a.x / 2.0 + a.y * a.y * 0.75); }
+fn bayer8(a : vec2f) -> f32 { return (bayer2(0.25 * a) * 0.25 + bayer2(0.5 * a)) * 0.25 + bayer2(a); }
+
+@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
+    let src = textureSampleLevel(t0, s0, v.v_texCoord, 0.0);
+    let n = min(i32(textureDimensions(u_palette).x), 64);
+    if (n <= 1) { return src; }
+    var c = src.rgb;
+#ifdef ES_LINEAR
+    c = palToSrgb(c);
+#endif
+    let px = floor(v.v_texCoord * tc.u_viewport.xy / max(mc.u_ditherScale, 1.0));
+    let aim = clamp(c + (bayer8(px) - 0.5) * mc.u_dither * 0.25, vec3f(0.0), vec3f(1.0));
+    var best = c;
+    var bestD = 1e9;
+    for (var i = 0; i < n; i = i + 1) {
+        let p = textureLoad(u_palette, vec2i(i, 0), 0).rgb;
+        let d = aim - p;
+        let m = (aim.r + p.r) * 0.5;
+        let dist = (2.0 + m) * d.r * d.r + 4.0 * d.g * d.g + (3.0 - m) * d.b * d.b;
+        if (dist < bestD) { bestD = dist; best = p; }
+    }
+    var outc = mix(c, best, mc.u_strength);
+#ifdef ES_LINEAR
+    outc = palToLinear(outc);
+#endif
+    return vec4f(outc, src.a);
+}
+#pragma end
+`;
+        return Material.compileShader(source);
+    },
 };
 
 export function registerBasicEffectSources(): void {

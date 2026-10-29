@@ -47,6 +47,7 @@ Estella 通过 ping-pong 帧缓冲运行全屏后处理。加一个 `PostProcess
 | `taa` | 时间性抗锯齿:边缘跨多帧平滑,移动网格按它自己的运动跟随 | `blend`、`objectMotion` |
 | `lensDistortion` | 桶形 / 枕形畸变 | `strength`、`zoom` |
 | `pixelate` | 块状量化 | `pixelSize` |
+| `palette` | 把画面收进一套调色板:每个像素变成色板条图(N×1,每像素一种颜色,最多 64 色)里最接近的颜色,先做有序抖动。放在效果链最后,把贴图设成色板图片(导入时用最近邻过滤) | `strength`、`dither`、`ditherScale`(与美术的像素大小一致)、`palette` |
 | `outline` | 墨线描边(Sobel 边缘压暗) | `intensity`、`threshold`、`thickness` |
 | `depthOutline` | 深度跳变处的黑色轮廓(轮廓,不是着色) | `intensity`、`threshold`、`thickness` |
 | `edgeOutline` | 轮廓**和**折痕处画一条有颜色的线:相机距离跳变处,以及表面法线转折处(需要写法线的表面:受光网格、Model、Toon) | `intensity`、`depthThreshold`、`normalThreshold`、`thickness`、颜色 `lineColor` |
