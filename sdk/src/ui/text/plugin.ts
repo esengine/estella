@@ -18,9 +18,9 @@ import type { Entity } from '../../types';
 import type { World } from '../../ecs/world';
 import { SdfTextRenderer } from './text-renderer';
 import type { RGBA } from './layout';
-import { composeTRS, rectTextBox, UI_TEXT_BOLD, UI_TEXT_ITALIC } from './text-transform';
+import { composeTRS, DEFAULT_ASCENT, rectTextBox, UI_TEXT_BOLD, UI_TEXT_ITALIC } from './text-transform';
 import { Text, TextRenderMode, type TextData } from '../core/text';
-import { bitmapFontOf } from './bitmap-font';
+import { bitmapFontOf, fontAscent } from './bitmap-font';
 import { UINode } from '../core/ui-node';
 import { Localization } from '../../i18n/Localization';
 import { applyTextLocalization, type TextWorldView } from './localize';
@@ -399,7 +399,7 @@ export class TextPlugin implements Plugin {
         const w = frame.w, h = frame.h;
         const hasBox = w > 0 || h > 0;
         if (hasBox) {
-            const box = rectTextBox(frame.px, frame.py, w, h, t.fontSize);
+            const box = rectTextBox(frame.px, frame.py, w, h, t.fontSize, fontAscent(family, DEFAULT_ASCENT));
             originX = box.originX;
             originY = box.originY;
             boxWidth = box.maxWidth; // align within the box regardless of word-wrap
@@ -508,7 +508,7 @@ export class TextPlugin implements Plugin {
             const frame = textFrame(world, entity, t);
             const hasBox = frame.w > 0 || frame.h > 0;
             if (hasBox) {
-                const box = rectTextBox(frame.px, frame.py, frame.w, frame.h, t.fontSize);
+                const box = rectTextBox(frame.px, frame.py, frame.w, frame.h, t.fontSize, fontAscent(resolveTextFamily(t.font, t.fontFamily), DEFAULT_ASCENT));
                 originX = box.originX;
                 originY = box.originY;
                 boxWidth = box.maxWidth; // align within the box regardless of word-wrap

@@ -9,6 +9,13 @@
  */
 import type { Vec3, Quat } from '../../types';
 
+/**
+ * How far the first baseline sits below the top of its line, as a fraction of the font size, for a font that does not say.
+ * An outline font's real ascent is not known here (the platform's text stack rasterizes it); a bitmap font's is, and
+ * {@link fontAscent} asks it.
+ */
+export const DEFAULT_ASCENT = 0.8;
+
 /** Style bit flags — bold | italic (the atlas cache-key + rasterizer style arg). */
 export const UI_TEXT_BOLD = 1;
 export const UI_TEXT_ITALIC = 2;
@@ -42,11 +49,11 @@ export function composeTRS(out: Float32Array, t: Vec3, q: Quat, s: Vec3): Float3
  * (ascent ≈ fontSize × 0.8). Pure.
  */
 export function rectTextBox(
-    pivotX: number, pivotY: number, width: number, height: number, fontSizePx: number,
+    pivotX: number, pivotY: number, width: number, height: number, fontSizePx: number, ascent = DEFAULT_ASCENT,
 ): { originX: number; originY: number; maxWidth: number; boxHeight: number } {
     return {
         originX: -pivotX * width,
-        originY: (1 - pivotY) * height - fontSizePx * 0.8,
+        originY: (1 - pivotY) * height - fontSizePx * ascent,
         maxWidth: width,
         boxHeight: height,
     };

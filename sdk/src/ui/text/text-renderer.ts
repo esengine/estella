@@ -20,7 +20,8 @@ import { EngineAtlasPageStore } from './atlas-page-store';
 import { TextAlign, TextVerticalAlign, TextOverflow } from '../core/text';
 import { layoutText, buildGlyphVertices, MAX_TEXT_BATCH_GLYPHS, type LaidGlyph, type RGBA } from './layout';
 import { submitTextBatch, TEXT_VERTEX_FLOATS, TextGlyphMode } from './submit';
-import { bitmapFontOf } from './bitmap-font';
+import { bitmapFontOf, fontAscent } from './bitmap-font';
+import { DEFAULT_ASCENT } from './text-transform';
 import { withScratch } from '../../wasm/wasmScratch';
 import type { EngineApi } from '../../ecs/bridge/engineApi';
 
@@ -149,7 +150,7 @@ export function textBlockOffsetX(
  */
 export function textBlockOriginY(
     originY: number, boxHeight: number, lineHeight: number, fontSizePx: number,
-    verticalAlign: number | undefined, lineHeightPx: number | undefined,
+    verticalAlign: number | undefined, lineHeightPx: number | undefined, ascent = DEFAULT_ASCENT,
 ): number {
     let y = originY;
     // Boxless: the entity origin is a zero-height box, so it gets the same
@@ -157,7 +158,7 @@ export function textBlockOriginY(
     // every alignment, not only the ones that then shift — otherwise Top means
     // "baseline on the origin" while Middle means "block centred on it", and the
     // three do not sit on one ladder.
-    if (boxHeight <= 0) y -= fontSizePx * 0.8;
+    if (boxHeight <= 0) y -= fontSizePx * ascent;
     // Shift the block down (y-up) by the slack between box and content. With a
     // zero-height box the slack is -blockHeight, which anchors the block to the origin.
     if (verticalAlign) {
@@ -205,10 +206,12 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
     // half-leading, the outline — is measured in the size it got. A boxed origin already carries 0.8em of the asked-for
     // size (rectTextBox), which is put right.
     const fontSizePx = layout.fontSizePx ?? p.fontSizePx;
+    // Where this font puts its baseline under the line top: a bitmap font's own number, 0.8em for the rest.
+    const ascent = fontAscent(p.fontFamily, DEFAULT_ASCENT);
     const lineHeightPx = p.lineHeight !== undefined ? p.lineHeight * fontSizePx / p.fontSizePx : undefined;
     const originY = textBlockOriginY(
-        (p.originY ?? 0) + (p.originY !== undefined ? (p.fontSizePx - fontSizePx) * 0.8 : 0),
-        boxHeight, layout.lineHeight, fontSizePx, p.verticalAlign, lineHeightPx,
+        (p.originY ?? 0) + (p.originY !== undefined ? (p.fontSizePx - fontSizePx) * ascent : 0),
+        boxHeight, layout.lineHeight, fontSizePx, p.verticalAlign, lineHeightPx, ascent,
     );
 
     // A string can reference glyphs across several atlas pages; each page is a

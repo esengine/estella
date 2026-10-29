@@ -135,6 +135,16 @@ export function bitmapFontFamily(handle: number): string | null {
     return byHandle.get(handle)?.family ?? null;
 }
 
+/**
+ * Where a family's first baseline sits below the top of its line, as a fraction of the font size: a bitmap font says
+ * (`base` over the size it was drawn at — a glyph's top is `yoffset` below the line top and its baseline `base`), any
+ * other font gets @p fallback.
+ */
+export function fontAscent(family: string, fallback: number): number {
+    const font = byFamily.get(family)?.font;
+    return font && font.size > 0 && font.base > 0 ? font.base / font.size : fallback;
+}
+
 /** The font a family names, or null when the family is an ordinary (outline) one. */
 export function bitmapFontOf(family: string): BmFont | null {
     return byFamily.get(family)?.font ?? null;

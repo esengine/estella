@@ -11,13 +11,14 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { GlyphAtlas, type AtlasPageStore, type GlyphRasterizer } from '../src/ui/text/glyph-atlas';
 import {
-    bitmapFontFamily, bitmapFontOf, bitmapGlyph, parseBmFont, registerBitmapFont, resetBitmapFonts, unregisterBitmapFont,
+    bitmapFontFamily, bitmapFontOf, bitmapGlyph, fontAscent, parseBmFont, registerBitmapFont, resetBitmapFonts, unregisterBitmapFont,
 } from '../src/ui/text/bitmap-font';
 import { resolveTextFamily } from '../src/ui/text/font-registry';
 import { layoutText, measureWidth } from '../src/ui/text/layout';
 import { TextOverflow } from '../src/ui/core/text';
 import { drawTextWith, type DrawTextParams } from '../src/ui/text/text-renderer';
 import { TextGlyphMode } from '../src/ui/text/submit';
+import { DEFAULT_ASCENT, rectTextBox } from '../src/ui/text/text-transform';
 
 const FNT = [
     'info face="Demo" size=-40 bold=0 italic=0 charset="" unicode=1 stretchH=100 smooth=1 aa=1 padding=0,0,0,0 spacing=1,1',
@@ -192,5 +193,30 @@ describe('a font with its outline baked into the page', () => {
 describe('the engine boundary names how a page is read', () => {
     it('numbers the modes as the engine does, with 0 and 1 what the sdf flag was', () => {
         expect(TextGlyphMode).toEqual({ Color: 0, Sdf: 1, Mask: 2, Fill: 3 });
+    });
+});
+
+describe('where a bitmap font puts its baseline', () => {
+    // The font says: a glyph's top is yoffset below its line's top and the baseline is `base` below it. The layout used to assume
+    // every font's baseline is 0.8em down, which put a font with base/size of 0.95 four pixels high at 48px.
+    it('takes the ascent from the font\'s own base over its size, and 0.8em for a font that does not say', () => {
+        registerBitmapFont(5, parseBmFont(FNT), PAGE_TEXTURE);
+        expect(fontAscent('bmfont:5', DEFAULT_ASCENT)).toBeCloseTo(38 / 40);
+        expect(fontAscent('Arial', DEFAULT_ASCENT)).toBe(0.8);
+    });
+
+    it('lands a glyph\'s top yoffset below the top of the box, for any font size', () => {
+        registerBitmapFont(5, parseBmFont(FNT), PAGE_TEXTURE);
+        const a = atlas();
+        for (const fontSize of [20, 40, 64]) {
+            const box = rectTextBox(0.5, 1, 200, 100, fontSize, fontAscent('bmfont:5', DEFAULT_ASCENT));
+            const q = layoutText('A', a, 'bmfont:5', { fontSizePx: fontSize }).glyphs[0]!;
+            // box top is at y = 0 here (pivot at the top); the first baseline is box.originY, the glyph's top q.y1 above it
+            expect(box.originY + q.y1).toBeCloseTo(-4 * (fontSize / 40)); // yoffset 4, scaled
+        }
+    });
+
+    it('leaves the box of an ordinary font where it was', () => {
+        expect(rectTextBox(0.5, 0.5, 200, 60, 20).originY).toBe(30 - 16);
     });
 });
