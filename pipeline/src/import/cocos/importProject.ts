@@ -49,12 +49,31 @@ function writeOut(file: string, text: string): void {
     writeFileSync(file, text);
 }
 
-/** A bitmap font is a .fnt that names its glyph pages; they sit beside it and must travel with it. */
-function copyFontPages(fnt: string, dest: string): void {
+/**
+ * A bitmap font is a .fnt that names its glyph pages; they sit beside it and must travel with it. Each page gets a
+ * `.meta` that keeps it at full size: the default cap (2048) would halve a 4096 page, and glyphs drawn from half the
+ * pixels they were drawn with are soft and fringed. Glyph UVs are fractions of the page, so only the sharpness suffers,
+ * never the placement — which is why nothing else notices.
+ */
+function copyFontPages(fnt: string, dest: string, uuidFor: (pageFile: string) => string | undefined): void {
     const text = readFileSync(fnt, 'utf8');
+    const common = /\bcommon\b[^\n]*/.exec(text)?.[0] ?? '';
+    const side = Math.max(Number(/\bscaleW=(\d+)/.exec(common)?.[1]) || 0, Number(/\bscaleH=(\d+)/.exec(common)?.[1]) || 0);
+    let maxSize = 256;
+    while (maxSize < side && maxSize < 8192) maxSize *= 2;
     for (const m of text.matchAll(/file="([^"]+)"/g)) {
         const page = path.join(path.dirname(fnt), m[1]!);
-        if (existsSync(page)) copyFileSync(page, path.join(path.dirname(dest), m[1]!));
+        if (!existsSync(page)) continue;
+        const to = path.join(path.dirname(dest), m[1]!);
+        copyFileSync(page, to);
+        const uuid = uuidFor(page);
+        if (uuid) {
+            const meta = {
+                uuid, version: '2.0', type: 'texture',
+                importer: { maxSize: Math.max(2048, maxSize), filterMode: 'linear', wrapMode: 'clamp', premultiplyAlpha: false },
+            };
+            writeOut(`${to}.meta`, `${JSON.stringify(meta, null, 2)}\n`);
+        }
     }
 }
 
@@ -174,7 +193,7 @@ export function importCocosProject(opts: CocosImportOptions): ImportReportData {
             mkdirSync(path.dirname(dest), { recursive: true });
             copyFileSync(entry.file, dest);
             if (entry.file.endsWith('.fnt')) {
-                copyFontPages(entry.file, dest);
+                copyFontPages(entry.file, dest, (page) => byRel.get(norm(path.relative(assetsDir, page)))?.uuid);
                 // The asset database ships a font's page image only for a `bitmapfont`, since nothing else names it.
                 writeOut(`${dest}.meta`, `${JSON.stringify({ uuid: entry.uuid, version: '2.0', type: 'bitmapfont', importer: {} }, null, 2)}
 `);
