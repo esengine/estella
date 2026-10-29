@@ -324,6 +324,25 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
         if ('x' in o) return { r: n(o.x, 1), g: n(o.y, 1), b: n(o.z, 1), a: n(o.w, 1) };
         return undefined;
     };
+    // What a project's own effect is, read from its source: whether its main pass lights the surface (it names the unlit or the standard fragment
+    // stage), which is how the project's effects are built even when they add outlines, a toon light or a dissolve behind switches.
+    const effectKinds = new Map<string, { unlit: boolean; known: boolean }>();
+    const effectKind = (effect: CocosAssetEntry | undefined): { unlit: boolean; known: boolean } => {
+        if (!effect) return { unlit: false, known: false };
+        const hit = effectKinds.get(effect.file);
+        if (hit) return hit;
+        let kind = { unlit: /unlit/i.test(effect.rel), known: false };
+        try {
+            const text = readFileSync(effect.file, 'utf8');
+            const frags = [...text.matchAll(/frag:\s*([A-Za-z0-9_-]+)-fs/g)].map((m) => m[1]!.toLowerCase());
+            const main = frags.filter((f) => f !== 'outline');
+            if (main.length > 0) kind = { unlit: main.every((f) => f.includes('unlit')), known: main.every((f) => f.includes('unlit') || f.includes('standard')) };
+        } catch {
+            // an effect that cannot be read is judged by its name
+        }
+        effectKinds.set(effect.file, kind);
+        return kind;
+    };
     const materialInfo = (materialUuid: string): MaterialInfo | null => {
         if (materials.has(materialUuid)) return materials.get(materialUuid) ?? null;
         let info: MaterialInfo | null = null;
@@ -332,6 +351,7 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
             if (mat) {
                 const json = JSON.parse(readFileSync(mat.file, 'utf8')) as {
                     _effectAsset?: { __uuid__?: string };
+                    _defines?: Array<Record<string, unknown>>;
                     _props?: Array<Record<string, unknown>>;
                     _states?: Array<{ blendState?: { targets?: Array<{ blend?: boolean; blendSrc?: number; blendDst?: number }> }; rasterizerState?: { cullMode?: number } }>;
                 };
@@ -346,15 +366,19 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
                 const effectEntry = index.byUuid.get(effectUuid);
                 const effectName = (effectEntry ? path.basename(effectEntry.rel) : '').toLowerCase();
                 const color = colorOf(props.mainColor) ?? colorOf(props.albedo);
+                const kind = effectKind(effectEntry);
+                // the optional features a material switches on (a toon light, an outline, a dissolve) are what a plain texture and tint do not say
+                const switched = [...new Set((json._defines ?? []).flatMap((pass) => Object.entries(pass).filter(([, on]) => on === true).map(([name]) => name)))]
+                    .filter((name) => !['USE_ALBEDO_MAP', 'USE_TEXTURE', 'USE_VERTEX_COLOR', 'USE_ALPHA_TEST', 'USE_INSTANCING', 'USE_BATCHING', 'CC_SUPPORT_CASCADED_SHADOW_MAP'].includes(name));
                 info = {
                     texture: entryOf(props.mainTexture) ?? entryOf(props.albedoMap),
                     ...(color ? { color } : {}),
                     normal: entryOf(props.normalMap),
                     additive: target?.blend === true && target.blendDst === 1,
                     transparent: target?.blend === true,
-                    unlit: effectUuid === BUILTIN_UNLIT || effectName.includes('unlit'),
+                    unlit: effectUuid === BUILTIN_UNLIT || effectName.includes('unlit') || kind.unlit,
                     cullBack: (json._states?.[0]?.rasterizerState?.cullMode ?? 2) === 2,
-                    builtinEffect: BUILTIN_EFFECTS.has(effectUuid),
+                    builtinEffect: BUILTIN_EFFECTS.has(effectUuid) || (kind.known && switched.length === 0),
                 };
             }
         } catch {

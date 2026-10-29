@@ -28,6 +28,8 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(cocos): a project effect is judged by its fragment stage and the features a material switches on, and a sprite-stencil mask maps to the engine stencil mask':
+    {"internal":"The Cocos Creator compatibility layer and importer have not shipped; nothing a creator reaches without opting in."},
   'feat(particle): an emitter has its own simulation speed, and the Cocos simulation speed, noise, trail and burst time map onto the emitter':
     {"note":"An emitter runs on its own clock."},
   'feat(cocos): PageView, PageViewIndicator, ScrollBar, SafeArea and WebView components, and the importer maps SpriteRenderer, Spine skeletons, ParticleSystem2D, Terrain and the players and animators whose clip or graph is missing':

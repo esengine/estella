@@ -339,12 +339,18 @@ function contentRectData(box: UiBox): ComponentData {
 }
 
 /**
- * `cc.Mask` as the engine's `UIMask`, clipping to the node's rectangle. The rectangle mask is exact; ellipse, graphics and image masks
- * clip to the same rectangle rather than to their shape (the engine's shaped clip is a stencil cut from a sprite on the node, which a
- * Cocos mask does not carry), so those are counted as partial.
+ * `cc.Mask` as the engine's `UIMask`. A rectangle mask clips to the node's rectangle, exactly; a sprite-stencil mask clips to the shape the node's
+ * sprite draws, which is the engine's stencil mode. Ellipse and graphics masks clip to the rectangle instead of to their shape, so those are
+ * counted as partial.
  */
 function mask(c: CocosComponent, ctx: ComponentContext): ComponentData {
-    ctx.report.component('cc.Mask', num(c.data._type, 0) === 0 ? 'mapped' : 'partial');
+    const type = num(c.data._type, 0);
+    // A sprite-stencil mask clips to the shape its node's sprite draws, above an alpha threshold: the engine's stencil mode.
+    if (type === 3) {
+        ctx.report.component('cc.Mask', 'mapped');
+        return { type: 'UIMask', data: { enabled: c.enabled, mode: 1, alphaCutoff: Math.max(num(c.data._alphaThreshold, 0.1), 0.001) } };
+    }
+    ctx.report.component('cc.Mask', type === 0 ? 'mapped' : 'partial');
     return { type: 'UIMask', data: { enabled: c.enabled, mode: 0, alphaCutoff: 0 } };
 }
 
