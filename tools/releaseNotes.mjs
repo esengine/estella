@@ -28,6 +28,8 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(particle): an emitter can carry an added velocity per particle and limit particle speed with a dampening, and the Cocos velocity, force and limit modules map onto them':
+    {"note":"Particles can carry an added velocity and be held to a speed limit."},
   'feat(particle): an emitter can wait startDelay seconds before it emits, with the duration counted from the end of the delay, and the Cocos start delay maps onto it':
     {"note":"An emitter can start late."},
   'feat(particle): a stretched render mode lays a particle along its velocity and lengthens it with speed, and the Cocos stretched billboard maps onto it':

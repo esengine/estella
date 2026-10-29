@@ -5,7 +5,7 @@ Symbols: 115 public · 166 beta · 1985 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"e41570f14820a1a8"
+"097d3c7989a498a1"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -6666,6 +6666,8 @@ BuiltinComponentDef<ParticleEmitterData>
 
 ## ParticleEmitterData — interface @beta
 ```
+addedVelocityMax: Vec3
+addedVelocityMin: Vec3
 angleSpreadMax: number
 angleSpreadMin: number
 angularVelocityMax: number
@@ -6699,6 +6701,7 @@ layer: number
 lengthScale: number
 lifetimeMax: number
 lifetimeMin: number
+limitDampen: number
 looping: boolean
 material: number
 maxParticles: number
@@ -6718,6 +6721,7 @@ shapeSize: Vec3
 simulationSpace: SimulationSpace
 sizeCurve: { keys: { t: number; v: number; }[]; }
 sizeEasing: ParticleEasing
+speedLimit: number
 speedMax: number
 speedMin: number
 spriteColumns: number

@@ -6458,6 +6458,8 @@ BuiltinComponentDef<ParticleEmitterData>
 
 ## ParticleEmitterData — interface @beta
 ```
+addedVelocityMax: Vec3
+addedVelocityMin: Vec3
 angleSpreadMax: number
 angleSpreadMin: number
 angularVelocityMax: number
@@ -6491,6 +6493,7 @@ layer: number
 lengthScale: number
 lifetimeMax: number
 lifetimeMin: number
+limitDampen: number
 looping: boolean
 material: number
 maxParticles: number
@@ -6510,6 +6513,7 @@ shapeSize: Vec3
 simulationSpace: SimulationSpace
 sizeCurve: { keys: { t: number; v: number; }[]; }
 sizeEasing: ParticleEasing
+speedLimit: number
 speedMax: number
 speedMin: number
 spriteColumns: number

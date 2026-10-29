@@ -158,6 +158,10 @@ function sizeKeys(v: unknown): Array<{ time: number; value: number; inTangent: n
 /** Cocos's emitter shapes in the engine's numbering. */
 const SHAPE: Record<number, number> = { 0: 2 /* Box */, 1: 1 /* Circle */, 2: 3 /* Cone */, 3: 4 /* Sphere */, 4: 5 /* Hemisphere */ };
 
+function enabledModule(v: unknown): Raw | null {
+    return isObj(v) && v._enable === true ? v : null;
+}
+
 export function particleSystem(c: { enabled: boolean; data: Raw }, ctx: ParticleContext, where: string): { type: string; data: Raw } {
     const d = c.data;
     const note = (code: string): void => ctx.report.note(code, where);
@@ -261,9 +265,38 @@ export function particleSystem(c: { enabled: boolean; data: Raw }, ctx: Particle
         lose('particle-no-material');
     }
 
+    // a velocity carried on top of the particle's own, chosen per axis when it is born
+    const velocity = enabledModule(d._velocityOvertimeModule);
+    if (velocity) {
+        const axes = (['x', 'y', 'z'] as const).map((a) => curveRange(velocity[a], 0, 0));
+        out.addedVelocityMin = { x: axes[0]!.min, y: axes[1]!.min, z: axes[2]!.min };
+        out.addedVelocityMax = { x: axes[0]!.max, y: axes[1]!.max, z: axes[2]!.max };
+        if (['x', 'y', 'z'].some((a) => [1, 2].includes(num((velocity[a] as Raw | undefined)?.mode, 0)))) lose('particle-velocity-curve');
+        if (mid(curveRange(velocity.speedModifier, 0, 1)) !== 1) lose('particle-velocity-speed-modifier');
+    }
+
+    // a force is an acceleration: it joins gravity
+    const force = enabledModule(d._forceOvertimeModule);
+    if (force) {
+        const accel = (['x', 'y', 'z'] as const).map((a) => mid(curveRange(force[a], 0, 0)));
+        const g = out.gravity as { x: number; y: number; z: number };
+        out.gravity = { x: g.x + accel[0]!, y: g.y + accel[1]!, z: g.z + accel[2]! };
+        if (['x', 'y', 'z'].some((a) => [1, 2].includes(num((force[a] as Raw | undefined)?.mode, 0)))) lose('particle-force-curve');
+    }
+
+    // the fastest a particle may go, pulled back by the dampen fraction
+    const limit = enabledModule(d._limitVelocityOvertimeModule);
+    if (limit) {
+        if (limit.separateAxes === true || limit._separateAxes === true) {
+            lose('particle-limit-per-axis');
+        } else {
+            out.speedLimit = Math.max(mid(curveRange(limit.limit, 0, 0)), 1e-4); // 0 means "stop" there, and "off" here
+            out.limitDampen = Math.min(1, Math.max(0, num(limit.dampen, 1)));
+        }
+    }
+
     for (const [module, code] of [
-        ['_velocityOvertimeModule', 'particle-velocity-over-time'], ['_forceOvertimeModule', 'particle-force-over-time'],
-        ['_limitVelocityOvertimeModule', 'particle-limit-velocity'], ['_noiseModule', 'particle-noise'], ['_trailModule', 'particle-trail'],
+        ['_noiseModule', 'particle-noise'], ['_trailModule', 'particle-trail'],
     ] as const) {
         const m = d[module];
         if (isObj(m) && m._enable === true) lose(code);

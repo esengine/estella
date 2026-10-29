@@ -116,6 +116,9 @@ const spawnEmbers = defineSystem([Commands()], (cmds) => {
 | `angleSpreadMax` | number | `360` | 发射方向弧的结束(°)。 |
 | `gravity` | Vec2 | `{0, 0}` | 施加到每个粒子的恒定加速度。 |
 | `damping` | number | `0` | 每秒速度阻尼(`0` = 无)。 |
+| `addedVelocityMin` / `addedVelocityMax` | Vec3 | `{0,0,0}` | 每个粒子在自身速度之上额外带的速度,出生时在两端之间随机取值。重力、阻尼、噪声和速度上限都不作用于它。仅 CPU 模拟。 |
+| `speedLimit` | number | `0` | 粒子凭自身速度能达到的最快速度(`0` = 不限)。更快的会被拉回到上限附近。仅 CPU 模拟。 |
+| `limitDampen` | number | `1` | 每 1/60 秒去掉超出上限部分的多少:`1` 立即夹到上限,小值则缓慢刹车。 |
 
 ### 噪声与湍流 (Noise & turbulence)
 

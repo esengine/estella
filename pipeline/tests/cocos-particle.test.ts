@@ -123,6 +123,27 @@ describe('a particle system', () => {
         expect((mesh.out.data as Record<string, any>).renderMode).toBeUndefined();
     });
 
+    it('maps added velocity, a speed limit and a force, and counts the curves it cannot hold', () => {
+        const { out, report } = convert({
+            _velocityOvertimeModule: { _enable: true, x: between(-0.2, 0.2), y: constant(1), z: constant(0), speedModifier: constant(1) },
+            _limitVelocityOvertimeModule: { _enable: true, limit: constant(3), dampen: 0.2, separateAxes: false },
+            _forceOvertimeModule: { _enable: true, x: constant(0), y: constant(-30), z: constant(0) },
+        });
+        const d = out.data as Record<string, any>;
+        expect(d.addedVelocityMin).toEqual({ x: -0.2, y: 1, z: 0 });
+        expect(d.addedVelocityMax).toEqual({ x: 0.2, y: 1, z: 0 });
+        expect([d.speedLimit, d.limitDampen]).toEqual([3, 0.2]);
+        expect(d.gravity.y).toBeCloseTo(-4.9 - 30, 5);   // the system's own gravity plus the force
+        expect(report.components['cc.ParticleSystem']).toEqual({ mapped: 1, partial: 0, unmapped: 0 });
+        const def = registry.ParticleEmitter!;
+        expect(validate('ParticleEmitter', def._default, d, def.assetFields)).toEqual([]);
+
+        const bent = convert({ _velocityOvertimeModule: { _enable: true, x: curve([[0, 0], [1, 5]]), y: constant(0), z: constant(0), speedModifier: constant(1) } });
+        expect(bent.report.notes['particle-velocity-curve']?.count).toBe(1);
+        const axes = convert({ _limitVelocityOvertimeModule: { _enable: true, separateAxes: true } });
+        expect(axes.report.notes['particle-limit-per-axis']?.count).toBe(1);
+    });
+
     it('counts the modules the emitter has no field for', () => {
         const { report } = convert({ _noiseModule: { _enable: true }, _trailModule: { _enable: true } });
         expect(report.notes['particle-noise']?.count).toBe(1);

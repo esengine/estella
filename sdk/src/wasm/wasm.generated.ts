@@ -767,6 +767,10 @@ export interface ParticleEmitter {
     angularVelocityMax: number;
     gravity: Vec3;
     damping: number;
+    addedVelocityMin: Vec3;
+    addedVelocityMax: Vec3;
+    speedLimit: number;
+    limitDampen: number;
     noiseStrength: number;
     noiseFrequency: number;
     noiseScrollSpeed: number;

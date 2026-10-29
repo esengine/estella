@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, Cl
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = 'e41570f14820a1a8';
+export const ABI_LAYOUT_HASH = '097d3c7989a498a1';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -733,6 +733,10 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             angularVelocityMax: 0,
             gravity: { x: 0, y: 0, z: 0 },
             damping: 0,
+            addedVelocityMin: { x: 0, y: 0, z: 0 },
+            addedVelocityMax: { x: 0, y: 0, z: 0 },
+            speedLimit: 0,
+            limitDampen: 1,
             noiseStrength: 0,
             noiseFrequency: 0.01,
             noiseScrollSpeed: 0,
@@ -810,6 +814,10 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             angularVelocityMax: { category: "Rotation" },
             gravity: { category: "Velocity" },
             damping: { min: 0, category: "Velocity" },
+            addedVelocityMin: { tooltip: "A velocity each particle carries on top of its own, chosen between the two ends when it is born. Gravity, damping, noise and the speed limit do not act on it. Run by the CPU simulation.", category: "Velocity" },
+            addedVelocityMax: { category: "Velocity" },
+            speedLimit: { min: 0, tooltip: "The fastest a particle may move under its own velocity; 0 is no limit. A faster particle is pulled back toward the limit. Run by the CPU simulation.", category: "Velocity" },
+            limitDampen: { min: 0, max: 1, tooltip: "How much of the excess over the limit is removed per 1/60 s: 1 clamps at once, a small value brakes gently.", category: "Velocity" },
             noiseStrength: { min: 0, category: "Noise" },
             noiseFrequency: { min: 0, category: "Noise" },
             noiseScrollSpeed: { category: "Noise" },
@@ -1762,6 +1770,10 @@ export interface ParticleEmitterData {
     angularVelocityMax: number;
     gravity: Vec3;
     damping: number;
+    addedVelocityMin: Vec3;
+    addedVelocityMax: Vec3;
+    speedLimit: number;
+    limitDampen: number;
     noiseStrength: number;
     noiseFrequency: number;
     noiseScrollSpeed: number;

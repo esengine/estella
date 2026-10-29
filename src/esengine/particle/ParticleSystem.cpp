@@ -9,6 +9,7 @@
 
 #include "../core/RandomSource.hpp"
 #include "../ecs/components/Camera.hpp"
+#include "ParticleSpeedLimit.hpp"
 
 namespace esengine::particle {
 
@@ -425,6 +426,9 @@ void ParticleSystem::emitInto(const ecs::ParticleEmitter& emitter, EmitterState&
         const glm::vec3 dir = isWorldSpace ? worldDirOf(sample.direction, frame)
                                            : sample.direction;
         p->velocity = dir * speed + velocityBias;
+        p->added_velocity = glm::vec3(randomRange(emitter.addedVelocityMin.x, emitter.addedVelocityMax.x),
+                                      randomRange(emitter.addedVelocityMin.y, emitter.addedVelocityMax.y),
+                                      randomRange(emitter.addedVelocityMin.z, emitter.addedVelocityMax.z));
 
         p->sprite_frame = 0;
         p->subEmitterDepth = depth;
@@ -603,11 +607,14 @@ void ParticleSystem::updateParticles(const ecs::ParticleEmitter& emitter,
         if (emitter.damping > 0.0f) {
             p.velocity *= (1.0f - emitter.damping * dt);
         }
+        if (emitter.speedLimit > 0.0f) {
+            p.velocity = limitedVelocity(p.velocity, emitter.speedLimit, emitter.limitDampen, dt);
+        }
         // Applied to the STEP, not to velocity, so speed-over-life cannot become
         // a second force system: gravity, damping and noise still accumulate into
         // velocity exactly as before.
         const glm::vec3 collisionFrom = p.position;
-        p.position += p.velocity * (speedLut ? sampleSizeLut(*speedLut, t) : 1.0f) * dt;
+        p.position += (p.velocity * (speedLut ? sampleSizeLut(*speedLut, t) : 1.0f) + p.added_velocity) * dt;
 
         if (noiseOn) {
             // The curl field is a 2D flow, sampled on the plane the particle is

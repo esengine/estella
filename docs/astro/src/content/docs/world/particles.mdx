@@ -125,6 +125,9 @@ Where particles spawn and their initial direction. See [Emitter shapes](#emitter
 | `angleSpreadMax` | number | `360` | End of the emission-direction arc (°). |
 | `gravity` | Vec2 | `{0, 0}` | Constant acceleration applied to every particle. |
 | `damping` | number | `0` | Velocity drag per second (`0` = none). |
+| `addedVelocityMin` / `addedVelocityMax` | Vec3 | `{0,0,0}` | A velocity each particle carries on top of its own, chosen between the two ends when it is born. Gravity, damping, noise and the speed limit do not act on it. CPU simulation. |
+| `speedLimit` | number | `0` | The fastest a particle may move under its own velocity (`0` = no limit). A faster one is pulled back toward the limit. CPU simulation. |
+| `limitDampen` | number | `1` | How much of the excess over the limit is removed per 1/60 s: `1` clamps at once, a small value brakes gently. |
 
 ### Noise & turbulence
 

@@ -3628,6 +3628,31 @@
           "range": "≥ 0"
         },
         {
+          "key": "addedVelocityMin",
+          "type": "Vec3",
+          "default": "(0, 0, 0)",
+          "doc": "A velocity each particle carries on top of its own, chosen between the two ends when it is born. Gravity, damping, noise and the speed limit do not act on it. Run by the CPU simulation."
+        },
+        {
+          "key": "addedVelocityMax",
+          "type": "Vec3",
+          "default": "(0, 0, 0)"
+        },
+        {
+          "key": "speedLimit",
+          "type": "number",
+          "default": "0",
+          "doc": "The fastest a particle may move under its own velocity; 0 is no limit. A faster particle is pulled back toward the limit. Run by the CPU simulation.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "limitDampen",
+          "type": "number",
+          "default": "1",
+          "doc": "How much of the excess over the limit is removed per 1/60 s: 1 clamps at once, a small value brakes gently.",
+          "range": "0–1"
+        },
+        {
           "key": "noiseStrength",
           "type": "number",
           "default": "0",

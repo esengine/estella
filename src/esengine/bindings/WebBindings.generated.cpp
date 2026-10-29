@@ -971,6 +971,10 @@ struct ParticleEmitterJS {
     f32 angularVelocityMax;
     glm::vec3 gravity;
     f32 damping;
+    glm::vec3 addedVelocityMin;
+    glm::vec3 addedVelocityMax;
+    f32 speedLimit;
+    f32 limitDampen;
     f32 noiseStrength;
     f32 noiseFrequency;
     f32 noiseScrollSpeed;
@@ -1044,6 +1048,10 @@ void particleemitterApplyJS(esengine::ecs::ParticleEmitter& c, const ParticleEmi
     c.angularVelocityMax = js.angularVelocityMax;
     c.gravity = js.gravity;
     c.damping = js.damping;
+    c.addedVelocityMin = js.addedVelocityMin;
+    c.addedVelocityMax = js.addedVelocityMax;
+    c.speedLimit = js.speedLimit;
+    c.limitDampen = js.limitDampen;
     c.noiseStrength = js.noiseStrength;
     c.noiseFrequency = js.noiseFrequency;
     c.noiseScrollSpeed = js.noiseScrollSpeed;
@@ -1124,6 +1132,10 @@ ParticleEmitterJS particleemitterToJS(const esengine::ecs::ParticleEmitter& c) {
     js.angularVelocityMax = c.angularVelocityMax;
     js.gravity = c.gravity;
     js.damping = c.damping;
+    js.addedVelocityMin = c.addedVelocityMin;
+    js.addedVelocityMax = c.addedVelocityMax;
+    js.speedLimit = c.speedLimit;
+    js.limitDampen = c.limitDampen;
     js.noiseStrength = c.noiseStrength;
     js.noiseFrequency = c.noiseFrequency;
     js.noiseScrollSpeed = c.noiseScrollSpeed;
@@ -2102,6 +2114,10 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("angularVelocityMax", &ParticleEmitterJS::angularVelocityMax)
         .field("gravity", &ParticleEmitterJS::gravity)
         .field("damping", &ParticleEmitterJS::damping)
+        .field("addedVelocityMin", &ParticleEmitterJS::addedVelocityMin)
+        .field("addedVelocityMax", &ParticleEmitterJS::addedVelocityMax)
+        .field("speedLimit", &ParticleEmitterJS::speedLimit)
+        .field("limitDampen", &ParticleEmitterJS::limitDampen)
         .field("noiseStrength", &ParticleEmitterJS::noiseStrength)
         .field("noiseFrequency", &ParticleEmitterJS::noiseFrequency)
         .field("noiseScrollSpeed", &ParticleEmitterJS::noiseScrollSpeed)
@@ -4036,43 +4052,47 @@ static_assert(offsetof(esengine::ecs::ParticleEmitter, angularVelocityMin) == 14
 static_assert(offsetof(esengine::ecs::ParticleEmitter, angularVelocityMax) == 148, "ABI offset drift: esengine::ecs::ParticleEmitter.angularVelocityMax (EHT expected 148)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, gravity) == 152, "ABI offset drift: esengine::ecs::ParticleEmitter.gravity (EHT expected 152)");
 static_assert(offsetof(esengine::ecs::ParticleEmitter, damping) == 164, "ABI offset drift: esengine::ecs::ParticleEmitter.damping (EHT expected 164)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, noiseStrength) == 168, "ABI offset drift: esengine::ecs::ParticleEmitter.noiseStrength (EHT expected 168)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, noiseFrequency) == 172, "ABI offset drift: esengine::ecs::ParticleEmitter.noiseFrequency (EHT expected 172)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, noiseScrollSpeed) == 176, "ABI offset drift: esengine::ecs::ParticleEmitter.noiseScrollSpeed (EHT expected 176)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, noiseOctaves) == 180, "ABI offset drift: esengine::ecs::ParticleEmitter.noiseOctaves (EHT expected 180)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, texture) == 184, "ABI offset drift: esengine::ecs::ParticleEmitter.texture (EHT expected 184)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, spriteColumns) == 188, "ABI offset drift: esengine::ecs::ParticleEmitter.spriteColumns (EHT expected 188)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, spriteRows) == 192, "ABI offset drift: esengine::ecs::ParticleEmitter.spriteRows (EHT expected 192)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, spriteFPS) == 196, "ABI offset drift: esengine::ecs::ParticleEmitter.spriteFPS (EHT expected 196)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, spriteLoop) == 200, "ABI offset drift: esengine::ecs::ParticleEmitter.spriteLoop (EHT expected 200)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, blendMode) == 204, "ABI offset drift: esengine::ecs::ParticleEmitter.blendMode (EHT expected 204)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, layer) == 208, "ABI offset drift: esengine::ecs::ParticleEmitter.layer (EHT expected 208)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, material) == 212, "ABI offset drift: esengine::ecs::ParticleEmitter.material (EHT expected 212)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, simulationSpace) == 216, "ABI offset drift: esengine::ecs::ParticleEmitter.simulationSpace (EHT expected 216)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, renderMode) == 220, "ABI offset drift: esengine::ecs::ParticleEmitter.renderMode (EHT expected 220)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, velocityScale) == 224, "ABI offset drift: esengine::ecs::ParticleEmitter.velocityScale (EHT expected 224)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, lengthScale) == 228, "ABI offset drift: esengine::ecs::ParticleEmitter.lengthScale (EHT expected 228)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, enabled) == 232, "ABI offset drift: esengine::ecs::ParticleEmitter.enabled (EHT expected 232)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, subEmitterTrigger) == 236, "ABI offset drift: esengine::ecs::ParticleEmitter.subEmitterTrigger (EHT expected 236)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, subEmitterChance) == 240, "ABI offset drift: esengine::ecs::ParticleEmitter.subEmitterChance (EHT expected 240)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, subEmitterInheritVelocity) == 244, "ABI offset drift: esengine::ecs::ParticleEmitter.subEmitterInheritVelocity (EHT expected 244)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, subEmitter) == 248, "ABI offset drift: esengine::ecs::ParticleEmitter.subEmitter (EHT expected 248)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, trailEnabled) == 252, "ABI offset drift: esengine::ecs::ParticleEmitter.trailEnabled (EHT expected 252)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, trailWidth) == 256, "ABI offset drift: esengine::ecs::ParticleEmitter.trailWidth (EHT expected 256)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, trailPoints) == 260, "ABI offset drift: esengine::ecs::ParticleEmitter.trailPoints (EHT expected 260)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, trailMinDistance) == 264, "ABI offset drift: esengine::ecs::ParticleEmitter.trailMinDistance (EHT expected 264)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionEnabled) == 268, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionEnabled (EHT expected 268)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionFloor) == 272, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionFloor (EHT expected 272)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionMode) == 276, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionMode (EHT expected 276)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionMask) == 280, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionMask (EHT expected 280)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionQueryBudget) == 284, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionQueryBudget (EHT expected 284)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionMaxDistance) == 288, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionMaxDistance (EHT expected 288)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionFallback) == 292, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionFallback (EHT expected 292)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionEvents) == 296, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionEvents (EHT expected 296)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionEventBudget) == 300, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionEventBudget (EHT expected 300)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionBounce) == 304, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionBounce (EHT expected 304)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionFriction) == 308, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionFriction (EHT expected 308)");
-static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionLifetimeLoss) == 312, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionLifetimeLoss (EHT expected 312)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, addedVelocityMin) == 168, "ABI offset drift: esengine::ecs::ParticleEmitter.addedVelocityMin (EHT expected 168)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, addedVelocityMax) == 180, "ABI offset drift: esengine::ecs::ParticleEmitter.addedVelocityMax (EHT expected 180)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, speedLimit) == 192, "ABI offset drift: esengine::ecs::ParticleEmitter.speedLimit (EHT expected 192)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, limitDampen) == 196, "ABI offset drift: esengine::ecs::ParticleEmitter.limitDampen (EHT expected 196)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, noiseStrength) == 200, "ABI offset drift: esengine::ecs::ParticleEmitter.noiseStrength (EHT expected 200)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, noiseFrequency) == 204, "ABI offset drift: esengine::ecs::ParticleEmitter.noiseFrequency (EHT expected 204)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, noiseScrollSpeed) == 208, "ABI offset drift: esengine::ecs::ParticleEmitter.noiseScrollSpeed (EHT expected 208)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, noiseOctaves) == 212, "ABI offset drift: esengine::ecs::ParticleEmitter.noiseOctaves (EHT expected 212)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, texture) == 216, "ABI offset drift: esengine::ecs::ParticleEmitter.texture (EHT expected 216)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, spriteColumns) == 220, "ABI offset drift: esengine::ecs::ParticleEmitter.spriteColumns (EHT expected 220)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, spriteRows) == 224, "ABI offset drift: esengine::ecs::ParticleEmitter.spriteRows (EHT expected 224)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, spriteFPS) == 228, "ABI offset drift: esengine::ecs::ParticleEmitter.spriteFPS (EHT expected 228)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, spriteLoop) == 232, "ABI offset drift: esengine::ecs::ParticleEmitter.spriteLoop (EHT expected 232)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, blendMode) == 236, "ABI offset drift: esengine::ecs::ParticleEmitter.blendMode (EHT expected 236)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, layer) == 240, "ABI offset drift: esengine::ecs::ParticleEmitter.layer (EHT expected 240)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, material) == 244, "ABI offset drift: esengine::ecs::ParticleEmitter.material (EHT expected 244)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, simulationSpace) == 248, "ABI offset drift: esengine::ecs::ParticleEmitter.simulationSpace (EHT expected 248)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, renderMode) == 252, "ABI offset drift: esengine::ecs::ParticleEmitter.renderMode (EHT expected 252)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, velocityScale) == 256, "ABI offset drift: esengine::ecs::ParticleEmitter.velocityScale (EHT expected 256)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, lengthScale) == 260, "ABI offset drift: esengine::ecs::ParticleEmitter.lengthScale (EHT expected 260)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, enabled) == 264, "ABI offset drift: esengine::ecs::ParticleEmitter.enabled (EHT expected 264)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, subEmitterTrigger) == 268, "ABI offset drift: esengine::ecs::ParticleEmitter.subEmitterTrigger (EHT expected 268)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, subEmitterChance) == 272, "ABI offset drift: esengine::ecs::ParticleEmitter.subEmitterChance (EHT expected 272)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, subEmitterInheritVelocity) == 276, "ABI offset drift: esengine::ecs::ParticleEmitter.subEmitterInheritVelocity (EHT expected 276)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, subEmitter) == 280, "ABI offset drift: esengine::ecs::ParticleEmitter.subEmitter (EHT expected 280)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, trailEnabled) == 284, "ABI offset drift: esengine::ecs::ParticleEmitter.trailEnabled (EHT expected 284)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, trailWidth) == 288, "ABI offset drift: esengine::ecs::ParticleEmitter.trailWidth (EHT expected 288)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, trailPoints) == 292, "ABI offset drift: esengine::ecs::ParticleEmitter.trailPoints (EHT expected 292)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, trailMinDistance) == 296, "ABI offset drift: esengine::ecs::ParticleEmitter.trailMinDistance (EHT expected 296)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionEnabled) == 300, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionEnabled (EHT expected 300)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionFloor) == 304, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionFloor (EHT expected 304)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionMode) == 308, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionMode (EHT expected 308)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionMask) == 312, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionMask (EHT expected 312)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionQueryBudget) == 316, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionQueryBudget (EHT expected 316)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionMaxDistance) == 320, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionMaxDistance (EHT expected 320)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionFallback) == 324, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionFallback (EHT expected 324)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionEvents) == 328, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionEvents (EHT expected 328)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionEventBudget) == 332, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionEventBudget (EHT expected 332)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionBounce) == 336, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionBounce (EHT expected 336)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionFriction) == 340, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionFriction (EHT expected 340)");
+static_assert(offsetof(esengine::ecs::ParticleEmitter, collisionLifetimeLoss) == 344, "ABI offset drift: esengine::ecs::ParticleEmitter.collisionLifetimeLoss (EHT expected 344)");
 static_assert(offsetof(esengine::ecs::ParticleForceField, type) == 0, "ABI offset drift: esengine::ecs::ParticleForceField.type (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::ParticleForceField, strength) == 4, "ABI offset drift: esengine::ecs::ParticleForceField.strength (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::ParticleForceField, radius) == 8, "ABI offset drift: esengine::ecs::ParticleForceField.radius (EHT expected 8)");
@@ -4270,7 +4290,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "e41570f14820a1a8";
+static const char* kEsAbiLayoutHash = "097d3c7989a498a1";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

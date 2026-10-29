@@ -186,6 +186,18 @@ struct ParticleEmitter {
     ES_PROPERTY(min=0, category=Velocity)
     f32 damping{0.0f};
 
+    ES_PROPERTY(category=Velocity, tooltip="A velocity each particle carries on top of its own, chosen between the two ends when it is born. Gravity, damping, noise and the speed limit do not act on it. Run by the CPU simulation.")
+    glm::vec3 addedVelocityMin{0.0f, 0.0f, 0.0f};
+
+    ES_PROPERTY(category=Velocity)
+    glm::vec3 addedVelocityMax{0.0f, 0.0f, 0.0f};
+
+    ES_PROPERTY(min=0, category=Velocity, tooltip="The fastest a particle may move under its own velocity; 0 is no limit. A faster particle is pulled back toward the limit. Run by the CPU simulation.")
+    f32 speedLimit{0.0f};
+
+    ES_PROPERTY(min=0, max=1, category=Velocity, tooltip="How much of the excess over the limit is removed per 1/60 s: 1 clamps at once, a small value brakes gently.")
+    f32 limitDampen{1.0f};
+
     // Noise / Turbulence — a divergence-free curl-noise flow field advects each
     // particle, layered on top of velocity/gravity. Strength 0 disables it (no
     // field is sampled), so the module is free when unused.

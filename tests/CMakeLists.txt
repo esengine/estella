@@ -358,6 +358,14 @@ target_include_directories(test_particle_stretch PRIVATE
 )
 add_test(NAME test_particle_stretch COMMAND test_particle_stretch)
 
+# Particle speed limit: the braking arithmetic, and that it does not depend on the frame rate. Header-only.
+add_executable(test_particle_speed_limit particle/test_particle_speed_limit.cpp)
+target_include_directories(test_particle_speed_limit PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party/glm
+)
+add_test(NAME test_particle_speed_limit COMMAND test_particle_speed_limit)
+
 # LOD selection: the projection arithmetic, the hysteresis band and the per-view
 # memory. Header-only, so it runs without a device — the pixel gates say which
 # level was drawn, this says which of the claims behind it broke.

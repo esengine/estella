@@ -317,6 +317,68 @@ TEST_CASE("system_no_start_delay_emits_on_the_first_update_as_before") {
     CHECK_EQ(system.totalAliveParticles(), 7u);
 }
 
+TEST_CASE("system_added_velocity_moves_a_particle_that_gravity_and_damping_do_not_touch") {
+    ecs::Registry registry;
+    ParticleSystem system;
+
+    Entity e = registry.create();
+    registry.emplace<ecs::Transform>(e);
+    auto& emitter = registry.emplace<ecs::ParticleEmitter>(e);
+    emitter.rate = 0.0f;
+    emitter.burstCount = 1;
+    emitter.shape = static_cast<i32>(ecs::EmitterShape::Point);
+    emitter.speedMin = 0.0f;
+    emitter.speedMax = 0.0f;
+    emitter.lifetimeMin = 10.0f;
+    emitter.lifetimeMax = 10.0f;
+    emitter.maxParticles = 4;
+    emitter.addedVelocityMin = {10.0f, 0.0f, 0.0f};
+    emitter.addedVelocityMax = {10.0f, 0.0f, 0.0f};
+    emitter.damping = 1.0f;
+    emitter.enabled = true;
+    emitter.playOnStart = true;
+
+    system.update(registry, 0.016f);              // born
+    system.update(registry, 0.5f);
+    system.update(registry, 0.5f);
+    auto* state = system.getState(e);
+    REQUIRE(state != nullptr);
+    f32 x = 0.0f;
+    state->pool.forEachAlive([&](const Particle& p) { x = p.position.x; });
+    CHECK(x == doctest::Approx(10.0f).epsilon(0.1));   // 10 per second for about a second, damping or not
+}
+
+TEST_CASE("system_speed_limit_holds_a_fast_particle_to_the_limit") {
+    ecs::Registry registry;
+    ParticleSystem system;
+
+    Entity e = registry.create();
+    registry.emplace<ecs::Transform>(e);
+    auto& emitter = registry.emplace<ecs::ParticleEmitter>(e);
+    emitter.rate = 0.0f;
+    emitter.burstCount = 1;
+    emitter.shape = static_cast<i32>(ecs::EmitterShape::Point);
+    emitter.angleSpreadMin = 0.0f;
+    emitter.angleSpreadMax = 0.0f;
+    emitter.speedMin = 100.0f;
+    emitter.speedMax = 100.0f;
+    emitter.lifetimeMin = 10.0f;
+    emitter.lifetimeMax = 10.0f;
+    emitter.maxParticles = 4;
+    emitter.speedLimit = 10.0f;
+    emitter.limitDampen = 1.0f;
+    emitter.enabled = true;
+    emitter.playOnStart = true;
+
+    system.update(registry, 0.016f);
+    system.update(registry, 0.016f);
+    auto* state = system.getState(e);
+    REQUIRE(state != nullptr);
+    f32 speed = 0.0f;
+    state->pool.forEachAlive([&](const Particle& p) { speed = glm::length(p.velocity); });
+    CHECK(speed == doctest::Approx(10.0f).epsilon(0.01));
+}
+
 TEST_CASE("system_disabled_emitter_no_spawn") {
     ecs::Registry registry;
     ParticleSystem system;

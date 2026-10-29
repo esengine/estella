@@ -13,6 +13,7 @@ namespace esengine::particle {
 struct Particle {
     glm::vec3 position{0.0f};
     glm::vec3 velocity{0.0f};
+    glm::vec3 added_velocity{0.0f};  ///< Carried on top of `velocity`, outside gravity, damping and the speed limit.
     f32 rotation = 0.0f;
     f32 angular_velocity = 0.0f;
     f32 lifetime = 1.0f;
