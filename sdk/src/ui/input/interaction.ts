@@ -29,15 +29,16 @@ import { fireGestureClick, expireGestureFired } from './gestureClick';
 import { inputRouter } from '../../input/inputRouter';
 import { SystemLabel, PluginName } from '../../ecs/systemLabels';
 import type { UILayoutGenerationData } from '../layout/ui-layout-generation';
-import { UIControlPointers, type ControlPointer } from './control-pointers';
+import { UIControlPointers, type ControlPointer, type UiPointerEventData } from './control-pointers';
 
 function emitWithBubbling(
     world: World,
     events: UIEventQueue,
     entity: Entity,
     type: string,
+    data?: UiPointerEventData,
 ): void {
-    const event = events.emit(entity, type);
+    const event = events.emit(entity, type, data);
     if (!world.valid(entity)) return;
 
     walkParentChain(world, entity, (ancestor) => {
@@ -81,7 +82,26 @@ export class UIInteractionPlugin implements Plugin {
         // imply. Gestures (drag, scroll, slider) stay on the primary pointer.
         const book = new UiPointerBook();
         const controlPointers = new Map<number, ControlPointer>();
-        app.insertResource(UIControlPointers, { pointers: controlPointers });
+        const lastMoveSent = new Map<number, { x: number; y: number }>();
+        /** What a pointer event tells about its pointer, from the position this frame's raycast used. */
+        const dataFor = (pointer: number): UiPointerEventData | undefined => {
+            const c = controlPointers.get(pointer);
+            return c ? { pointer, worldX: c.worldX, worldY: c.worldY, layoutX: c.layoutX, layoutY: c.layoutY, screenX: c.screenX, screenY: c.screenY } : undefined;
+        };
+        app.insertResource(UIControlPointers, {
+            pointers: controlPointers,
+            cancelHold: (pointer: number, to?: Entity): void => {
+                const held = book.cancelHold(pointer, to);
+                if (held === null || !world.valid(held)) return;
+                if (world.has(held, UIInteraction)) {
+                    world.set(held, UIInteraction, { ...world.get(held, UIInteraction), pressed: false, justReleased: false });
+                }
+                emitWithBubbling(world, events, held, UIEventType.PressCancel, dataFor(pointer));
+                // the new holder hears the moves from here, not from wherever the last holder was told about
+                const here = controlPointers.get(pointer);
+                if (to !== undefined && here) lastMoveSent.set(pointer, { x: here.worldX, y: here.worldY });
+            },
+        });
         /** Where each pointer last hit, so a settled pointer skips the raycast. */
         const lastHit = new UiPointerHitCache();
         const offExecution = app.onExecutionChange(held => {
@@ -168,7 +188,7 @@ export class UIInteractionPlugin implements Plugin {
                     const layoutPointer = overlay.active ? screenToUiLayout(overlay, glX, glY) : worldPointer;
                     controlPointers.set(pointer.id, { id: pointer.id, down: pointer.down, pressed: pointer.pressed,
                         entity: null, pressedEntity: null, layoutX: layoutPointer.x, layoutY: layoutPointer.y,
-                        worldX: worldPointer.x, worldY: worldPointer.y });
+                        worldX: worldPointer.x, worldY: worldPointer.y, screenX: glX, screenY: glY });
                     if (!primaryWritten && (pointer.down || !hasHeldPointer)) {
                         primaryWritten = true;
                         camera.worldMouseX = worldPointer.x;
@@ -218,17 +238,31 @@ export class UIInteractionPlugin implements Plugin {
                             // A complete click may arrive between frames. Preserve its
                             // edge even when the final held-state is already false.
                             world.set(event.entity, UIInteraction, { ...world.get(event.entity, UIInteraction), justPressed: true });
-                            emitWithBubbling(world, events, event.entity, UIEventType.Press);
+                            emitWithBubbling(world, events, event.entity, UIEventType.Press, dataFor(event.pointer));
                             break;
                         case 'release':
                             if (world.has(event.entity, UIInteraction))
                                 world.set(event.entity, UIInteraction, { ...world.get(event.entity, UIInteraction), justReleased: true });
-                            emitWithBubbling(world, events, event.entity, UIEventType.Release);
+                            emitWithBubbling(world, events, event.entity, UIEventType.Release, dataFor(event.pointer));
                             break;
                         case 'click':
-                            emitWithBubbling(world, events, event.entity, UIEventType.Click);
+                            emitWithBubbling(world, events, event.entity, UIEventType.Click, dataFor(event.pointer));
                             break;
                     }
+                }
+                // A pointer holding an entity that moved: the holder hears it (and its ancestors), with where.
+                for (const [id, entity] of book.cancelledHolds) {
+                    lastMoveSent.delete(id);
+                    if (active(entity)) emitWithBubbling(world, events, entity, UIEventType.PressCancel, dataFor(id));
+                }
+                for (const pointer of pointers) {
+                    const held = pointer.down ? book.heldBy(pointer.id) : null;
+                    const c = controlPointers.get(pointer.id);
+                    if (held === null || !c) { lastMoveSent.delete(pointer.id); continue; }
+                    const before = lastMoveSent.get(pointer.id);
+                    lastMoveSent.set(pointer.id, { x: c.worldX, y: c.worldY });
+                    if (pointer.pressed || !before || (before.x === c.worldX && before.y === c.worldY)) continue;
+                    if (active(held)) emitWithBubbling(world, events, held, UIEventType.PointerMove, dataFor(pointer.id));
                 }
                 book.prune(active);
                 for (const pointer of controlPointers.values()) pointer.entity = book.heldBy(pointer.id);

@@ -345,6 +345,7 @@ export class Node {
         const list = map?.get(type);
         if (!list) return;
         map!.set(type, list.filter((l) => (callback && l.callback !== callback) || (target !== undefined && l.target !== target)));
+        this.forgetTouchIfSilent_();
     }
     /** Remove every listener that was registered with @p target. */
     targetOff(target: unknown): void {
@@ -352,6 +353,18 @@ export class Node {
             if (!map) continue;
             for (const [type, list] of map) map.set(type, list.filter((l) => l.target !== target));
         }
+        this.forgetTouchIfSilent_();
+    }
+
+    /** An entity with no touch listener left is not one a pointer can land on any more. */
+    private forgetTouchIfSilent_(): void {
+        const set = touchListeners.get(this._world);
+        if (!set?.has(this._entity)) return;
+        for (const map of [this.listeners_, this.captureListeners_]) {
+            if (!map) continue;
+            for (const [type, list] of map) if (type.startsWith('touch-') && list.length > 0) return;
+        }
+        set.delete(this._entity);
     }
     hasEventListener(type: string, useCapture?: boolean): boolean {
         if (useCapture === true) return (this.captureListeners_?.get(type)?.length ?? 0) > 0;

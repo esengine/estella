@@ -134,7 +134,14 @@ hears its buttons:
 
 `click` · `press` · `release` · `hover_enter` · `hover_exit` · `focus` · `blur` ·
 `change` · `submit` · `drag_start` · `drag_move` · `drag_end` · `scroll` · `select` · `deselect` ·
-`shown` · `hidden`
+`pointer_move` · `press_cancel` · `shown` · `hidden`
+
+Every pointer event (`press`, `release`, `click`, `pointer_move`, `press_cancel`) carries a `UiPointerEventData`:
+which pointer (`pointer`, -1 for the mouse), where it is in the world (`worldX`, `worldY`) and on the surface
+(`screenX`, `screenY`, counted up from the bottom-left). The entity that was pressed is the one that hears
+`pointer_move` for as long as the pointer is held, wherever it goes. A hold can be given up with
+`UIControlPointers.cancelHold(pointer, to?)`: the holder hears `press_cancel`, nothing clicks, and with `to` another entity
+takes the rest of the gesture. An entity that is only a `ContentRect` plus an `Interactable` can be pressed.
 
 `shown` and `hidden` are the exception to "a widget emits them": nobody clicked anything, the
 node simply arrived on screen or left it — usually because an **ancestor** was shown or hidden,

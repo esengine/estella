@@ -28,6 +28,10 @@ export const UIEventType = {
     Click: 'click',
     Press: 'press',
     Release: 'release',
+    /** A pointer holding this entity moved. Carries a {@link UiPointerEventData}; bubbles like a press. */
+    PointerMove: 'pointer_move',
+    /** A pointer's hold on this entity ended without a release: the system cancelled it, or something took the gesture over. */
+    PressCancel: 'press_cancel',
     HoverEnter: 'hover_enter',
     HoverExit: 'hover_exit',
     Focus: 'focus',

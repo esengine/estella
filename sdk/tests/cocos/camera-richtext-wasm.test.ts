@@ -12,14 +12,13 @@ import type { ESEngineModule } from '../../src/wasm';
 import { App, flushPendingRegistrations } from '../../src/app/app';
 import { Camera as EngineCamera, Transform, ensureBuiltinComponentsRegistered } from '../../src/ecs/component';
 import { AppContext, setDefaultContext } from '../../src/ecs/context';
-import { InputState } from '../../src/input/input';
 import { Text } from '../../src/ui/core/text';
 import { UIMask, MaskMode } from '../../src/ui/core/ui-mask';
 import { ContentRect } from '../../src/ui/core/content-rect';
 import { parseRichText } from '../../src/ui/text/rich-text-parser';
 import { resetClassRegistry } from '../../src/cocos/registry';
 import { declareBuiltinScripts } from '../../src/cocos/builtinScripts';
-import { Camera, Color, EventTouch, Mask, Node, RichText, UITransform, Vec3, pumpTouches, setCurrentWorld } from '../../src/cocos';
+import { Camera, Color, Mask, Node, RichText, UITransform, Vec3, setCurrentWorld } from '../../src/cocos';
 import { setUiCameraData } from '../../src/cocos/ui/screen';
 import { HAS_WASM, loadWasmModule } from '../helpers/loadWasm';
 
@@ -124,45 +123,6 @@ describe.skipIf(!HAS_WASM)('Camera, RichText and touch locations', () => {
             panel.setPosition(200, 100, 0);
             const local = cam.convertToUINode(new Vec3(230, 90, 0), panel);
             expect([local.x, local.y]).toEqual([30, -10]);
-        });
-    });
-
-    describe('touch locations', () => {
-        it('gives the screen point from getLocation and the canvas point from getUILocation', () => {
-            boot();
-            const input = new InputState();
-            const seen: Array<{ screen: number[]; ui: number[] }> = [];
-            const n = node('target');
-            n.addComponent(UITransform)!.setContentSize(2000, 2000);
-            n.on(Node.EventType.TOUCH_START, (e: EventTouch) => {
-                seen.push({ screen: [e.getLocationX(), e.getLocationY()], ui: [e.getUILocationX(), e.getUILocationY()] });
-            });
-            // a pointer at CSS (500, 250) with the surface 600 high: GL y = 600 - 250 = 350
-            const p = { id: 1, x: 500, y: 250 };
-            input.touches.set(1, p);
-            input.touchesStarted.set(1, p);
-            pumpTouches(app!.world, input, { valid: true, screenH: 600 } as never);
-            expect(seen).toEqual([{ screen: [500, 350], ui: [100, 50] }]);
-        });
-
-        it('hands a camera the touch\'s screen point and gets the canvas point back', () => {
-            boot();
-            const cam = node('cam').addComponent(Camera)!;
-            const input = new InputState();
-            let converted: Vec3 | null = null;
-            const n = node('target');
-            n.addComponent(UITransform)!.setContentSize(2000, 2000);
-            n.on(Node.EventType.TOUCH_START, (e: EventTouch) => {
-                const l = e.getLocation();
-                converted = cam.screenToWorld(new Vec3(l.x, l.y, 0));
-                expect(converted.x).toBe(e.getUILocationX());
-                expect(converted.y).toBe(e.getUILocationY());
-            });
-            const p = { id: 1, x: 120, y: 80 };
-            input.touches.set(1, p);
-            input.touchesStarted.set(1, p);
-            pumpTouches(app!.world, input, { valid: true, screenH: 600 } as never);
-            expect(converted).not.toBeNull();
         });
     });
 

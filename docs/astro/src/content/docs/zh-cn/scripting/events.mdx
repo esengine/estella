@@ -128,7 +128,13 @@ registerAction('game.award', {
 
 `click` · `press` · `release` · `hover_enter` · `hover_exit` · `focus` · `blur` ·
 `change` · `submit` · `drag_start` · `drag_move` · `drag_end` · `scroll` · `select` · `deselect` ·
-`shown` · `hidden`
+`pointer_move` · `press_cancel` · `shown` · `hidden`
+
+每个指针事件（`press`、`release`、`click`、`pointer_move`、`press_cancel`）都带一个 `UiPointerEventData`：
+是哪个指针（`pointer`，鼠标是 -1）、它在世界里的位置（`worldX`、`worldY`）和在表面上的位置（`screenX`、
+`screenY`，从左下角向上数）。被按下的那个实体，在指针按住期间无论移到哪里，都由它收到 `pointer_move`。
+一次按住可以放弃：`UIControlPointers.cancelHold(pointer, to?)`，持有者收到 `press_cancel`，不会触发点击；
+给了 `to`，这次手势的其余部分就交给那个实体。只有 `ContentRect` 加 `Interactable` 的实体也可以被按下。
 
 `shown` 和 `hidden` 是「控件发出的」里的例外：没人点任何东西，是这个节点出现在了屏幕上、或者离开了
 屏幕——通常因为**某个祖先**被显示或隐藏，也就是导航、页签、弹窗在做的事。子树里的每个节点都会被告知，

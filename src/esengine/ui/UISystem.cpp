@@ -15,6 +15,7 @@
 #include "../ecs/components/UINode.hpp"
 #include "../ecs/components/UIVisual.hpp"
 #include "../ecs/components/Sprite.hpp"
+#include "../ecs/components/ContentRect.hpp"
 #include "../ecs/components/MeshRenderer.hpp"
 #include "../resource/ResourceManager.hpp"
 
@@ -105,6 +106,9 @@ void UISystem::hitWorldContent(Registry& registry, const PickRay& ray,
             const bool sameDepth = std::abs(t - bestT) <= 1e-4f;
             if (!sameDepth && t > bestT) return;
             if (sameDepth && layer < bestLayer) return;
+            // A full tie goes to the later entity, by its number rather than by where a pool happened to list it: the order content is
+            // created in is the order it is drawn in, and which component pool is walked first says nothing about either.
+            if (sameDepth && layer == bestLayer && entity.id() < best.id()) return;
         }
         haveBest = true;
         bestT = t;
@@ -132,6 +136,30 @@ void UISystem::hitWorldContent(Registry& registry, const PickRay& ray,
             )) return;
 
             consider(entity, hitT, static_cast<i32>(sprite.layer));
+        });
+
+    // An entity that is only a rectangle — a touch area, a scroll viewport — has no sprite to take a box from. A sprite on the same
+    // entity is handled above (it follows the rectangle), so this is for the ones that draw nothing.
+    registry.eachLive<ContentRect, Interactable>(
+        [&](Entity entity, ContentRect& rect, Interactable& interactable) {
+            if (!registry.isEntityActive(entity)) return;
+            if (!interactable.enabled || !interactable.raycastTarget) return;
+            if (registry.has<UINode>(entity) || registry.has<Sprite>(entity)) return;
+            if (!registry.has<Transform>(entity)) return;
+
+            auto& t = registry.get<Transform>(entity);
+            t.ensureDecomposed();
+
+            f32 px = 0.0f, py = 0.0f, hitT = 0.0f;
+            if (!rayHitsPlaneZ(ray, t.worldPosition.z, px, py, hitT)) return;
+
+            if (!pointInTransformedBox(
+                registry, entity, t, px, py, rect.size.x, rect.size.y,
+                rect.pivot.x, rect.pivot.y
+            )) return;
+
+            // No sorting layer: it ties with a sprite at the same depth and loses to a higher layer, and the later entity wins a tie.
+            consider(entity, hitT, 0);
         });
 
     registry.eachLive<MeshRenderer, Interactable>(

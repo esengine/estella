@@ -28,6 +28,8 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(ui): a held pointer reports its moves (pointer_move) and a given-up hold (press_cancel), every pointer event says where the pointer is, and a ContentRect-only entity can be pressed; the Cocos touches translate the engine\'s pointer events instead of dispatching on their own':
+    {"note":"A held pointer reports where it goes, and a hold can be given up."},
   'feat(ui): ContentRect, the rectangle world content occupies — Sprite and Text follow it, a UIMask on the entity clips to it, a world point can be tested against it; the Cocos UITransform and Mask are views on it, and the importer writes it':
     {"note":"World content has a rectangle: `ContentRect`."},
   'feat(text): the engine\'s rich-text parser reads Cocos\'s tags (size, color names, br; underline/outline/click kept as plain text); Cocos Camera and RichText are views on the engine\'s Camera and Text; a touch has a screen point (getLocation) and a canvas point (getUILocation)':

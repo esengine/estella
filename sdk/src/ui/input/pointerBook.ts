@@ -104,6 +104,24 @@ export class UiPointerBook {
 
     get cancelled(): ReadonlySet<Entity> { return this.cancelled_; }
 
+    /** The holds the pointer system itself ended this step (a cancelled pointer), by pointer. */
+    private cancelledBy_ = new Map<number, Entity>();
+    get cancelledHolds(): ReadonlyMap<number, Entity> { return this.cancelledBy_; }
+
+    /**
+     * End what @p pointer is holding without a release or a click, optionally handing the pointer to @p to. Returns the entity it
+     * held, or null when it held nothing.
+     */
+    cancelHold(pointer: number, to?: Entity): Entity | null {
+        const held = this.pressedBy_.get(pointer);
+        // handing a hold to the one that already has it changes nothing
+        if (held === undefined || held === to) return null;
+        this.pressedBy_.delete(pointer);
+        this.cancelled_.add(held);
+        if (to !== undefined) this.pressedBy_.set(pointer, to);
+        return held;
+    }
+
     /** Entities at least one pointer is over. */
     get hovered(): ReadonlySet<Entity> {
         return new Set(this.hoveredBy_.values());
@@ -139,13 +157,14 @@ export class UiPointerBook {
     ): UiPointerEvent[] {
         const out: UiPointerEvent[] = [];
         this.cancelled_.clear();
+        this.cancelledBy_.clear();
         const live = new Set<number>();
 
         for (const p of pointers) {
             live.add(p.id);
             if (p.cancelled) {
                 const held = this.pressedBy_.get(p.id);
-                if (held !== undefined) this.cancelled_.add(held);
+                if (held !== undefined) { this.cancelled_.add(held); this.cancelledBy_.set(p.id, held); }
                 this.pressedBy_.delete(p.id);
             }
             const under = hit(p);

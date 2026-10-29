@@ -14,6 +14,29 @@ export interface ControlPointer {
     layoutY: number;
     worldX: number;
     worldY: number;
+    /** The pointer on the drawing surface: pixels, origin bottom-left — what a camera's `screenToWorld` takes. */
+    screenX: number;
+    screenY: number;
+}
+
+/** What a pointer event says about the pointer that made it. */
+export interface UiPointerEventData {
+    pointer: number;
+    worldX: number;
+    worldY: number;
+    layoutX: number;
+    layoutY: number;
+    screenX: number;
+    screenY: number;
 }
 /** Per-app projection of the UI hit tester's captures; never a second raycast. */
-export const UIControlPointers = defineResource<{ pointers: Map<number, ControlPointer> }>({ pointers: new Map() }, 'UIControlPointers');
+export interface UIControlPointersData {
+    pointers: Map<number, ControlPointer>;
+    /**
+     * Take what @p pointer is holding away from it: the held entity gets `press_cancel` and is clicked by nothing when the pointer
+     * lifts. With @p to, that entity holds the pointer from now on and hears its moves and its release — a scroll area that has
+     * decided a drag is a drag takes it from the button under the finger this way.
+     */
+    cancelHold(pointer: number, to?: Entity): void;
+}
+export const UIControlPointers = defineResource<UIControlPointersData>({ pointers: new Map(), cancelHold: () => {} }, 'UIControlPointers');

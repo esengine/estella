@@ -5,54 +5,25 @@
  *
  * The camera is faked as the identity, as in the touch tests, so a screen pixel is a world unit with y flipped.
  */
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { ESEngineModule } from '../../src/wasm';
-import { App, flushPendingRegistrations } from '../../src/app/app';
 import { Transform, ensureBuiltinComponentsRegistered } from '../../src/ecs/component';
-import { AppContext, setDefaultContext } from '../../src/ecs/context';
-import { InputState } from '../../src/input/input';
-import { resetClassRegistry } from '../../src/cocos/registry';
-import { declareBuiltinScripts } from '../../src/cocos/builtinScripts';
 import {
     BlockInputEvents, Button, Node, ProgressBar, ScrollView, Slider, Sprite, Toggle, ToggleContainer, UITransform, Vec2,
-    pumpTouches, setCurrentWorld,
 } from '../../src/cocos';
 import { HAS_WASM, loadWasmModule } from '../helpers/loadWasm';
-
-vi.mock('../../src/ui/util/ui-pick', () => ({ screenToUiWorld: (_cam: unknown, glX: number, glY: number) => ({ x: glX, y: glY }) }));
-
-const SURFACE_H = 800;
-const camera = { valid: true, screenH: SURFACE_H } as never;
+import { pointerApp, type PointerApp } from './helpers/pointerApp';
 
 describe.skipIf(!HAS_WASM)('toggles, bars, sliders and scroll views', () => {
     let module: ESEngineModule;
-    let registry: InstanceType<ESEngineModule['Registry']> | undefined;
-    let app: App | undefined;
-    let input: InputState;
+    let P: PointerApp | undefined;
 
     beforeAll(async () => { ensureBuiltinComponentsRegistered(); module = await loadWasmModule(); });
-    afterEach(() => {
-        setCurrentWorld(null);
-        app?.world.disconnectCpp();
-        registry?.delete();
-        app = undefined;
-        registry = undefined;
-    });
+    afterEach(() => { P?.dispose(); P = undefined; });
 
-    function boot(): void {
-        setDefaultContext(new AppContext());
-        ensureBuiltinComponentsRegistered();
-        resetClassRegistry();
-        declareBuiltinScripts();
-        registry = new module.Registry();
-        app = App.new();
-        app.connectCpp(registry as never, module);
-        flushPendingRegistrations(app);
-        setCurrentWorld(app.world);
-        input = new InputState();
-    }
-    const W = () => app!.world;
-    const frame = async (n = 2): Promise<void> => { for (let i = 0; i < n; i++) await app!.tick(1 / 60); };
+    function boot(): void { P = pointerApp(module); }
+    const W = () => P!.app.world;
+    const frame = (n = 2): Promise<void> => P!.frame(n);
 
     function box(name: string, x: number, y: number, w = 100, h = 100, parent?: Node): Node {
         const n = new Node(name);
@@ -63,12 +34,10 @@ describe.skipIf(!HAS_WASM)('toggles, bars, sliders and scroll views', () => {
         return n;
     }
 
-    const screenOf = (wx: number, wy: number) => ({ x: wx, y: SURFACE_H - wy });
-    function pump(): void { pumpTouches(W(), input, camera); input.touchesStarted.clear(); input.touchesEnded.clear(); }
-    function press(wx: number, wy: number, id = 1): void { const p = { id, ...screenOf(wx, wy) }; input.touches.set(id, p); input.touchesStarted.set(id, p); pump(); }
-    function move(wx: number, wy: number, id = 1): void { input.touches.set(id, { id, ...screenOf(wx, wy) }); pump(); }
-    function release(wx: number, wy: number, id = 1): void { const p = { id, ...screenOf(wx, wy) }; input.touches.delete(id); input.touchesEnded.set(id, p); pump(); }
-    const tap = (x: number, y: number): void => { press(x, y); release(x, y); };
+    const press = (x: number, y: number, id = 1): Promise<void> => P!.press(x, y, id);
+    const move = (x: number, y: number, id = 1): Promise<void> => P!.move(x, y, id);
+    const release = (x: number, y: number, id = 1): Promise<void> => P!.release(x, y, id);
+    const tap = (x: number, y: number): Promise<void> => P!.tap(x, y);
 
     // ---- Toggle -----------------------------------------------------------------------------------------------------
 
@@ -88,10 +57,10 @@ describe.skipIf(!HAS_WASM)('toggles, bars, sliders and scroll views', () => {
         const seen: boolean[] = [];
         node.on(Toggle.EventType.TOGGLE, (x: Toggle) => seen.push(x.isChecked));
         expect(mark.active).toBe(false);
-        tap(200, 200);
+        await tap(200, 200);
         expect(t.isChecked).toBe(true);
         expect(mark.active).toBe(true);
-        tap(200, 200);
+        await tap(200, 200);
         expect(t.isChecked).toBe(false);
         expect(mark.active).toBe(false);
         expect(seen).toEqual([true, false]);
@@ -101,7 +70,7 @@ describe.skipIf(!HAS_WASM)('toggles, bars, sliders and scroll views', () => {
         boot();
         const { t, mark } = await toggle('t', 200, 200);
         t.interactable = false;
-        tap(200, 200);
+        await tap(200, 200);
         expect(t.isChecked).toBe(false);
         t.interactable = true;
         t.setIsCheckedWithoutNotify(true);
@@ -120,15 +89,15 @@ describe.skipIf(!HAS_WASM)('toggles, bars, sliders and scroll views', () => {
         expect(a.t.isChecked || b.t.isChecked).toBe(true);   // the container made one on when it enabled
         const firstOn = a.t.isChecked ? a : b;
         const other = a.t.isChecked ? b : a;
-        tap(other.node.getWorldPosition().x, other.node.getWorldPosition().y);
+        await tap(other.node.getWorldPosition().x, other.node.getWorldPosition().y);
         expect(other.t.isChecked).toBe(true);
         expect(firstOn.t.isChecked).toBe(false);
         // clicking the one that is on does nothing
-        tap(other.node.getWorldPosition().x, other.node.getWorldPosition().y);
+        await tap(other.node.getWorldPosition().x, other.node.getWorldPosition().y);
         expect(other.t.isChecked).toBe(true);
         // …unless the group allows none
         group.allowSwitchOff = true;
-        tap(other.node.getWorldPosition().x, other.node.getWorldPosition().y);
+        await tap(other.node.getWorldPosition().x, other.node.getWorldPosition().y);
         expect(other.t.isChecked).toBe(false);
         expect(group.anyTogglesChecked()).toBe(false);
     });
@@ -167,11 +136,11 @@ describe.skipIf(!HAS_WASM)('toggles, bars, sliders and scroll views', () => {
         await frame(1);
         let slid = 0;
         track.on(Slider.EventType.SLIDE, () => slid++);
-        press(250, 300);                   // a quarter of the way: the track spans 200..400
+        await press(250, 300);                   // a quarter of the way: the track spans 200..400
         expect(s.progress).toBeCloseTo(0.25, 5);
-        move(350, 300);
+        await move(350, 300);
         expect(s.progress).toBeCloseTo(0.75, 5);
-        release(350, 300);
+        await release(350, 300);
         expect(knobNode.position.x).toBeCloseTo(50, 3);   // 0.75 * 200 - 100
         expect(slid).toBe(2);
     });
@@ -187,9 +156,9 @@ describe.skipIf(!HAS_WASM)('toggles, bars, sliders and scroll views', () => {
         await frame(1);
         let heard = 0;
         behind.on(Node.EventType.TOUCH_START, () => heard++);
-        tap(200, 200);
+        await tap(200, 200);
         expect(heard).toBe(0);
-        tap(320, 200);   // beside the blocker (it spans 150..250), still on the node behind (50..350)
+        await tap(320, 200);   // beside the blocker (it spans 150..250), still on the node behind (50..350)
         expect(heard).toBe(1);
     });
 
@@ -224,10 +193,10 @@ describe.skipIf(!HAS_WASM)('toggles, bars, sliders and scroll views', () => {
         const { content, sv } = await scroller();
         sv.inertia = false;
         const top = content.position.y;
-        press(300, 350);
-        move(300, 340);                    // 10 px: past the drag threshold
-        move(300, 300);                    // 50 more, upward on screen = toward the content's end
-        release(300, 300);
+        await press(300, 350);
+        await move(300, 340);                    // 10 px: past the drag threshold
+        await move(300, 300);                    // 50 more, upward on screen = toward the content's end
+        await release(300, 300);
         // the finger went DOWN the screen (y decreases) by 50 after the threshold, which pulls the content down: offset shrinks, but
         // it was at the start, so it is an overscroll that springs back; check the direction through the offset sign mid-drag instead
         expect(sv.getScrollOffset().y).toBeLessThanOrEqual(0);
@@ -239,11 +208,11 @@ describe.skipIf(!HAS_WASM)('toggles, bars, sliders and scroll views', () => {
     it('scrolls toward the end when the finger moves up the screen, and glides on after a flick', async () => {
         boot();
         const { sv } = await scroller();
-        press(300, 250);
-        for (let i = 1; i <= 8; i++) { move(300, 250 + i * 10); await frame(1); }   // up the screen: world y grows
+        await press(300, 250);
+        for (let i = 1; i <= 8; i++) { await move(300, 250 + i * 10); }   // up the screen: world y grows
         const held = sv.getScrollOffset().y;
         expect(held).toBeGreaterThan(40);
-        release(300, 330);
+        await release(300, 330);
         await frame(1);
         await frame(60);
         expect(sv.getScrollOffset().y).toBeGreaterThan(held);
@@ -256,16 +225,16 @@ describe.skipIf(!HAS_WASM)('toggles, bars, sliders and scroll views', () => {
         // the button is 100 below the content's top edge; the content's top is at the view's top (y 400)
         const bx = 300, by = 300;   // view centre: content top 400, button centre at 400 - 100 = 300
         void button;
-        press(bx, by);
-        move(bx, by + 30);
-        move(bx, by + 60);
-        release(bx, by + 60);
+        await press(bx, by);
+        await move(bx, by + 30);
+        await move(bx, by + 60);
+        await release(bx, by + 60);
         expect(clicks()).toBe(0);
         expect(sv.getScrollOffset().y).toBeGreaterThan(0);
 
         sv.scrollToTop(0);
         await frame(2);
-        tap(bx, by);
+        await tap(bx, by);
         expect(clicks()).toBe(1);
     });
 

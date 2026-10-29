@@ -9,54 +9,23 @@
  *
  * The camera is faked as the identity (a screen pixel is a world unit, y flipped), so the geometry in the tests is the geometry on screen.
  */
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { ESEngineModule } from '../../src/wasm';
-import { App, flushPendingRegistrations } from '../../src/app/app';
 import { Transform, ensureBuiltinComponentsRegistered } from '../../src/ecs/component';
-import { AppContext, setDefaultContext } from '../../src/ecs/context';
-import { InputState } from '../../src/input/input';
-import { resetClassRegistry } from '../../src/cocos/registry';
-import {
-    Button, Component, EventHandler, EventTouch, Node, NodeEventType, UITransform, Vec2, _decorator, pumpTouches, setCurrentWorld,
-} from '../../src/cocos';
-import { declareButton } from '../../src/cocos/ui/button';
+import { Button, Component, EventHandler, EventTouch, Node, NodeEventType, UITransform, _decorator } from '../../src/cocos';
 import { HAS_WASM, loadWasmModule } from '../helpers/loadWasm';
-
-// A screen pixel is a world unit: the GL y is the surface height minus the screen y.
-vi.mock('../../src/ui/util/ui-pick', () => ({ screenToUiWorld: (_cam: unknown, glX: number, glY: number) => ({ x: glX, y: glY }) }));
-
-const SURFACE_H = 800;
-const camera = { valid: true, screenH: SURFACE_H } as never;
+import { pointerApp, type PointerApp } from './helpers/pointerApp';
 
 describe.skipIf(!HAS_WASM)('touches and buttons on the engine', () => {
     let module: ESEngineModule;
-    let registry: InstanceType<ESEngineModule['Registry']> | undefined;
-    let app: App | undefined;
-    let input: InputState;
+    let P: PointerApp | undefined;
 
     beforeAll(async () => { ensureBuiltinComponentsRegistered(); module = await loadWasmModule(); });
+    afterEach(() => { P?.dispose(); P = undefined; });
 
-    function connect(): void {
-        setDefaultContext(new AppContext());
-        ensureBuiltinComponentsRegistered();
-        resetClassRegistry();
-        declareButton();
-        registry = new module.Registry();
-        app = App.new();
-        app.connectCpp(registry as never, module);
-        flushPendingRegistrations(app);
-        setCurrentWorld(app.world);
-        input = new InputState();
-    }
-    afterEach(() => {
-        setCurrentWorld(null);
-        app?.world.disconnectCpp();
-        registry?.delete();
-        app = undefined;
-        registry = undefined;
-    });
-
-    const W = () => app!.world;
+    function connect(): void { P = pointerApp(module); }
+    const app = () => P!.app;
+    const W = () => P!.app.world;
 
     /** A node of @p w by @p h whose centre is at (x, y). */
     function box(name: string, x: number, y: number, w = 100, h = 100, parent?: Node): Node {
@@ -68,22 +37,10 @@ describe.skipIf(!HAS_WASM)('touches and buttons on the engine', () => {
         return n;
     }
 
-    // ---- driving the pointers by hand ----------------------------------------------------------------------------------
-    const screenOf = (wx: number, wy: number): { x: number; y: number } => ({ x: wx, y: SURFACE_H - wy });
-    function pump(): void { pumpTouches(W(), input, camera); input.touchesStarted.clear(); input.touchesEnded.clear(); }
-    function press(id: number, wx: number, wy: number): void {
-        const p = { id, ...screenOf(wx, wy) };
-        input.touches.set(id, p);
-        input.touchesStarted.set(id, p);
-        pump();
-    }
-    function move(id: number, wx: number, wy: number): void { input.touches.set(id, { id, ...screenOf(wx, wy) }); pump(); }
-    function release(id: number, wx: number, wy: number): void {
-        const p = { id, ...screenOf(wx, wy) };
-        input.touches.delete(id);
-        input.touchesEnded.set(id, p);
-        pump();
-    }
+    // ---- driving the pointers: real frames through the engine's own interaction system ----------------------------------------
+    const press = (id: number, x: number, y: number): Promise<void> => P!.press(x, y, id);
+    const move = (id: number, x: number, y: number): Promise<void> => P!.move(x, y, id);
+    const release = (id: number, x: number, y: number): Promise<void> => P!.release(x, y, id);
 
     function record(node: Node, log: string[], tag = node.name): void {
         for (const type of [NodeEventType.TOUCH_START, NodeEventType.TOUCH_MOVE, NodeEventType.TOUCH_END]) {
@@ -91,28 +48,28 @@ describe.skipIf(!HAS_WASM)('touches and buttons on the engine', () => {
         }
     }
 
-    it('tells a node about a touch that starts, moves and ends on it, with where each happened', () => {
+    it('tells a node about a touch that starts, moves and ends on it, with where each happened', async () => {
         connect();
         const a = box('a', 200, 200);
         const log: string[] = [];
         record(a, log);
-        press(1, 210, 190);
-        move(1, 230, 190);
-        release(1, 230, 190);
+        await press(1, 210, 190);
+        await move(1, 230, 190);
+        await release(1, 230, 190);
         expect(log).toEqual(['a:start@210,190', 'a:move@230,190', 'a:end@230,190']);
     });
 
-    it('says nothing to a node the touch missed', () => {
+    it('says nothing to a node the touch missed', async () => {
         connect();
         const a = box('a', 200, 200);
         const log: string[] = [];
         record(a, log);
-        press(1, 400, 400);
-        release(1, 400, 400);
+        await press(1, 400, 400);
+        await release(1, 400, 400);
         expect(log).toEqual([]);
     });
 
-    it('hands the touch to the topmost of two overlapping nodes: the later sibling', () => {
+    it('hands the touch to the topmost of two overlapping nodes: the later sibling', async () => {
         connect();
         const root = box('root', 0, 0, 1000, 1000);
         const under = box('under', 200, 200, 100, 100, root);
@@ -120,26 +77,26 @@ describe.skipIf(!HAS_WASM)('touches and buttons on the engine', () => {
         const log: string[] = [];
         record(under, log);
         record(over, log);
-        press(1, 210, 200);   // inside both
-        release(1, 210, 200);
+        await press(1, 210, 200);   // inside both
+        await release(1, 210, 200);
         expect(log.every((l) => l.startsWith('over:'))).toBe(true);
         expect(log).toHaveLength(2);
     });
 
-    it('keeps sending the gesture to the node that claimed it, wherever the finger goes', () => {
+    it('keeps sending the gesture to the node that claimed it, wherever the finger goes', async () => {
         connect();
         const a = box('a', 200, 200);
         const b = box('b', 600, 200);
         const log: string[] = [];
         record(a, log);
         record(b, log);
-        press(1, 200, 200);
-        move(1, 600, 200);       // over b, but a has the touch
-        release(1, 600, 200);
+        await press(1, 200, 200);
+        await move(1, 600, 200);       // over b, but a has the touch
+        await release(1, 600, 200);
         expect(log.map((l) => l.split('@')[0])).toEqual(['a:start', 'a:move', 'a:end']);
     });
 
-    it('bubbles to the ancestors nearest first, and stops where a listener says so', () => {
+    it('bubbles to the ancestors nearest first, and stops where a listener says so', async () => {
         connect();
         const parent = box('parent', 300, 300, 400, 400);
         const child = box('child', 0, 0, 100, 100, parent);
@@ -147,33 +104,33 @@ describe.skipIf(!HAS_WASM)('touches and buttons on the engine', () => {
         const order: string[] = [];
         child.on(NodeEventType.TOUCH_START, () => order.push('child'));
         parent.on(NodeEventType.TOUCH_START, () => order.push('parent'));
-        press(1, 300, 300);
-        release(1, 300, 300);
+        await press(1, 300, 300);
+        await release(1, 300, 300);
         expect(order).toEqual(['child', 'parent']);
 
         order.length = 0;
         child.targetOff(undefined);
         child.on(NodeEventType.TOUCH_START, (e: EventTouch) => { order.push('child2'); e.stopPropagation(); });
-        press(2, 300, 300);
-        release(2, 300, 300);
+        await press(2, 300, 300);
+        await release(2, 300, 300);
         expect(order).toContain('child2');
         expect(order).not.toContain('parent');
         void grand;
     });
 
-    it('does not tell a switched-off node, or one under a switched-off parent', () => {
+    it('does not tell a switched-off node, or one under a switched-off parent', async () => {
         connect();
         const parent = box('parent', 200, 200, 300, 300);
         const child = box('child', 0, 0, 100, 100, parent);
         const log: string[] = [];
         record(child, log);
         parent.active = false;
-        press(1, 200, 200);
-        release(1, 200, 200);
+        await press(1, 200, 200);
+        await release(1, 200, 200);
         expect(log).toEqual([]);
     });
 
-    it('gives the event its target and current target, and reads back a delta', () => {
+    it('gives the event its target and current target, and reads back a delta', async () => {
         connect();
         const parent = box('parent', 200, 200, 300, 300);
         const child = box('child', 0, 0, 100, 100, parent);
@@ -181,8 +138,8 @@ describe.skipIf(!HAS_WASM)('touches and buttons on the engine', () => {
         child.on(NodeEventType.TOUCH_START, () => {});
         parent.on(NodeEventType.TOUCH_START, (e: EventTouch) => seen.push({ target: e.target!.name, current: e.currentTarget!.name }));
         child.on(NodeEventType.TOUCH_MOVE, (e: EventTouch) => seen.push({ target: 'm', current: 'm', dx: e.getDelta().x }));
-        press(1, 200, 200);
-        move(1, 215, 200);
+        await press(1, 200, 200);
+        await move(1, 215, 200);
         expect(seen[0]).toEqual({ target: 'child', current: 'parent' });
         expect(seen[1]!.dx).toBe(15);
     });
@@ -202,7 +159,7 @@ describe.skipIf(!HAS_WASM)('touches and buttons on the engine', () => {
     async function button(x = 200, y = 200): Promise<{ node: Node; button: Button }> {
         const node = box('btn', x, y);
         const b = node.addComponent<Button>('Button')!;
-        await app!.tick(1 / 60);   // onEnable registers the listeners
+        await P!.frame(1);   // onEnable registers the listeners
         return { node, button: b };
     }
 
@@ -217,8 +174,8 @@ describe.skipIf(!HAS_WASM)('touches and buttons on the engine', () => {
         b.clickEvents = [handler];
         let clicked = 0;
         node.on(Button.EventType.CLICK, () => clicked++);
-        press(1, 205, 205);
-        release(1, 195, 195);
+        await press(1, 205, 205);
+        await release(1, 195, 195);
         expect(clicked).toBe(1);
         expect(t.calls).toEqual([['buy']]);
     });
@@ -228,12 +185,12 @@ describe.skipIf(!HAS_WASM)('touches and buttons on the engine', () => {
         const { node, button: b } = await button();
         let clicked = 0;
         node.on(Button.EventType.CLICK, () => clicked++);
-        press(1, 200, 200);
-        release(1, 500, 500);   // dragged off and let go
+        await press(1, 200, 200);
+        await release(1, 500, 500);   // dragged off and let go
         expect(clicked).toBe(0);
         b.interactable = false;
-        press(2, 200, 200);
-        release(2, 200, 200);
+        await press(2, 200, 200);
+        await release(2, 200, 200);
         expect(clicked).toBe(0);
     });
 
@@ -243,8 +200,8 @@ describe.skipIf(!HAS_WASM)('touches and buttons on the engine', () => {
         const log: string[] = [];
         record(behind, log);
         await button();
-        press(1, 200, 200);
-        release(1, 200, 200);
+        await press(1, 200, 200);
+        await release(1, 200, 200);
         expect(log).toEqual([]);
     });
 
@@ -254,9 +211,9 @@ describe.skipIf(!HAS_WASM)('touches and buttons on the engine', () => {
         b.transition = Button.Transition.SCALE;
         b.zoomScale = 1.5;
         node.setScale(2, 2, 1);
-        press(1, 200, 200);
+        await press(1, 200, 200);
         expect(node.scale.x).toBeCloseTo(3, 5);
-        release(1, 200, 200);
+        await release(1, 200, 200);
         expect(node.scale.x).toBeCloseTo(2, 5);
     });
 
@@ -266,10 +223,9 @@ describe.skipIf(!HAS_WASM)('touches and buttons on the engine', () => {
         let clicked = 0;
         node.on(Button.EventType.CLICK, () => clicked++);
         b.enabled = false;
-        await app!.tick(1 / 60);   // the host sees the change and calls onDisable
-        press(1, 200, 200);
-        release(1, 200, 200);
+        await P!.frame(1);   // the host sees the change and calls onDisable
+        await press(1, 200, 200);
+        await release(1, 200, 200);
         expect(clicked).toBe(0);
-        void Vec2;
     });
 });
