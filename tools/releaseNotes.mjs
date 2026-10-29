@@ -28,6 +28,8 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(ui): ContentRect, the rectangle world content occupies — Sprite and Text follow it, a UIMask on the entity clips to it, a world point can be tested against it; the Cocos UITransform and Mask are views on it, and the importer writes it':
+    {"note":"World content has a rectangle: `ContentRect`."},
   'feat(text): the engine\'s rich-text parser reads Cocos\'s tags (size, color names, br; underline/outline/click kept as plain text); Cocos Camera and RichText are views on the engine\'s Camera and Text; a touch has a screen point (getLocation) and a canvas point (getUILocation)':
     {"note":"Rich text reads the tags other engines write."},
   'feat(animation): sine, quart, quint, expo, circ, bounce in/in-out, smoothstep and smootherstep easing curves in the engine (C++ and TypeScript, parity-tested); the Cocos tween\'s easing names map onto the engine\'s curves instead of carrying their own':
