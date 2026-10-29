@@ -347,6 +347,7 @@ export { buildPathGeometry, mergeGeometry, cubicBezier, quadraticBezier, circleP
 export type { PathStyle, PathFill, PathStroke, PathColor, LineJoin, LineCap } from './render/vectorPath';
 export { setPath, clearPath } from './render/pathRenderer';
 export { RainShelter, RainUpright, uprightOf, uprightRects, drynessOf, maskRects, shelterMaskSizeOf, ellipseStripsOf, type RainShelterData, type RainUprightData, type Upright, type Shelter, type MaskRect } from './render/rainShelter';
+export { SwayPusher, nearestPushers, SWAY_PUSHERS, type SwayPusherData, type PushValue } from './render/swayPush';
 export { FogOfWar, ExploredGrid, fanDistances, exploredToString, exploredFromString, type FogOfWarData } from './render/fogOfWar';
 export { SightViewer, SightTarget, segmentBlocked, seesPoint, sightRingOf, ringContains, currentSightRings, type SightViewerData, type SightTargetData, type SightRing, type SightPoint } from './render/sight';
 export { CoverFade, CoverFadeTarget, coveredGround, coversPoint, stepFade, type CoverFadeData } from './render/coverFade';

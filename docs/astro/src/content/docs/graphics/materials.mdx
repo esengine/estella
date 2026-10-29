@@ -27,7 +27,7 @@ creates a material from a built-in template — the same list ships in code as
 |---|---|---|
 | **Unlit** | `sprite-unlit` | Texture × vertex color × `u_tint`. The plain default. |
 | **Lit** | `sprite-lit` | Lit by the scene's 2D lights; `u_tint` + optional `u_normalMap`. |
-| **Sway** | `sprite-sway` | Leans in the wind with the foot fixed and the tip free — grass, reeds, hanging cloth. `u_swayStrength` is the lean as a share of the sprite's width; the weather's `wind` scales it. Lit, with an optional normal map. |
+| **Sway** | `sprite-sway` | Leans in the wind with the foot fixed and the tip free — grass, reeds, hanging cloth. `u_swayStrength` is the lean as a share of the sprite's width; the weather's `wind` scales it. Lit, with an optional normal map. A `SwayPusher` on a character makes the plants lean away from it as it walks through (the eight nearest the camera; `u_swayPushStrength` is how far they lean). |
 | **Hit Flash** | `sprite-hit-flash` | Blends toward `u_flashColor` by `u_flash` — drive it from code for damage blinks. |
 | **Outline** | `sprite-outline` | Colored silhouette outline (`u_outlineColor`, `u_outlineWidth` in texels). |
 | **Dissolve** | `sprite-dissolve` | Noise burn-away with a glowing edge (`u_progress` 0→1). |

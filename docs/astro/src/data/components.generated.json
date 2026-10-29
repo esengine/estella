@@ -5716,6 +5716,35 @@
       ]
     },
     {
+      "name": "SwayPusher",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "radius",
+          "type": "number",
+          "default": "48",
+          "doc": "How far from the entity the plants lean away.",
+          "range": "≥ 1, step 1"
+        },
+        {
+          "key": "strength",
+          "type": "number",
+          "default": "1",
+          "doc": "How hard they lean: 1 is the full lean the material's Push Strength says.",
+          "range": "0–2, step 0.01"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "radius",
+        "strength"
+      ]
+    },
+    {
       "name": "SwingTwistJoint3D",
       "source": "ts",
       "fields": [
@@ -6246,6 +6275,24 @@
           "doc": "Draw layer for a text standing in the WORLD (no UINode) — read like Sprite/ShapeRenderer layer, so a label can sit in front of the content around it. Ignored inside a Canvas, where the UI render order decides."
         },
         {
+          "key": "boxWidth",
+          "type": "number",
+          "default": "0",
+          "doc": "Layout box width for a text with no UINode (0 = no box: the origin is the box). Alignment, wrapping and overflow work inside it. A UINode, if present, decides the box instead."
+        },
+        {
+          "key": "boxHeight",
+          "type": "number",
+          "default": "0",
+          "doc": "Layout box height (0 = none). Vertical alignment and Clip/Ellipsis need it."
+        },
+        {
+          "key": "boxPivot",
+          "type": "Vec2",
+          "default": "(0.5, 0.5)",
+          "doc": "Where the entity origin sits in the box, as a fraction from its left/bottom edge: (0.5, 0.5) is the centre, (0, 1) the top-left corner."
+        },
+        {
           "key": "enabled",
           "type": "boolean",
           "default": "true"
@@ -6275,7 +6322,11 @@
         "shadowOffsetX",
         "shadowOffsetY",
         "renderMode",
-        "layer"
+        "layer",
+        "boxWidth",
+        "boxHeight",
+        "boxPivot.x",
+        "boxPivot.y"
       ]
     },
     {

@@ -148,6 +148,16 @@ const SPRITE_SWAY = `#pragma shader "Sway"
 #pragma param u_swaySpeed float default(1.6) range(0,8) ui(slider)
 #pragma param u_swayScale float default(260) range(20,2000)
 #pragma param u_swayWind float default(1) range(0,4)
+#pragma param u_swayPushStrength float default(0.5) range(0,1) ui(slider)
+// The bodies the plant leans away from, written each frame by the sway-push system (a SwayPusher): x, y where it stands, z how far it reaches, w how hard.
+#pragma param u_swayPush0 vec4 default(0,0,0,0)
+#pragma param u_swayPush1 vec4 default(0,0,0,0)
+#pragma param u_swayPush2 vec4 default(0,0,0,0)
+#pragma param u_swayPush3 vec4 default(0,0,0,0)
+#pragma param u_swayPush4 vec4 default(0,0,0,0)
+#pragma param u_swayPush5 vec4 default(0,0,0,0)
+#pragma param u_swayPush6 vec4 default(0,0,0,0)
+#pragma param u_swayPush7 vec4 default(0,0,0,0)
 
 #pragma fragment
 precision mediump float;
@@ -161,13 +171,31 @@ uniform sampler2D u_textures[8];
 
 out vec4 fragColor;
 
+// How far one body pushes the plant at a point: away from it, fading smoothly to nothing at its reach.
+vec2 swayPush(vec4 body, vec2 at) {
+    vec2 d = at - body.xy;
+    float len = length(d);
+    float f = clamp(1.0 - len / max(body.z, 1e-3), 0.0, 1.0);
+    f = f * f * (3.0 - 2.0 * f) * body.w;
+    return len > 1e-3 ? d / len * f : vec2(0.0);
+}
+
 void main() {
     // The gust travels across the world, so neighbouring plants lean in turn and not together.
     highp float t = u_time.x * u_swaySpeed;
     highp float phase = (v_worldPos.x + v_worldPos.y * 0.5) / u_swayScale;
     float gust = sin(t + phase) + 0.5 * sin(t * 2.3 + phase * 1.7);
     float tip = pow(clamp(v_texCoord.y, 0.0, 1.0), 1.5);
-    vec2 uv = vec2(v_texCoord.x - gust * u_swayStrength * u_swayWind * tip, v_texCoord.y);
+    vec2 push = vec2(0.0);
+    push += swayPush(u_swayPush0, v_worldPos);
+    push += swayPush(u_swayPush1, v_worldPos);
+    push += swayPush(u_swayPush2, v_worldPos);
+    push += swayPush(u_swayPush3, v_worldPos);
+    push += swayPush(u_swayPush4, v_worldPos);
+    push += swayPush(u_swayPush5, v_worldPos);
+    push += swayPush(u_swayPush6, v_worldPos);
+    push += swayPush(u_swayPush7, v_worldPos);
+    vec2 uv = vec2(v_texCoord.x - gust * u_swayStrength * u_swayWind * tip - push.x * u_swayPushStrength * tip, v_texCoord.y);
     vec4 base = texture(u_textures[0], uv) * v_color * u_tint;
     if (uv.x < 0.0 || uv.x > 1.0) base.a = 0.0;
     vec3 N = sampleNormal(u_normalMap, uv);
@@ -176,6 +204,15 @@ void main() {
 #pragma end
 
 #pragma fragment wgsl
+fn swayPush(body : vec4f, at : vec2f) -> vec2f {
+    let d = at - body.xy;
+    let len = length(d);
+    var f = clamp(1.0 - len / max(body.z, 1e-3), 0.0, 1.0);
+    f = f * f * (3.0 - 2.0 * f) * body.w;
+    if (len > 1e-3) { return d / len * f; }
+    return vec2f(0.0);
+}
+
 @fragment fn fs_main(v : VSOut) -> @location(0) vec4f {
     // Taken before any branch: a derivative needs every fragment of its quad.
     let duvx = dpdx(v.v_texCoord);
@@ -184,7 +221,16 @@ void main() {
     let phase = (v.v_worldPos.x + v.v_worldPos.y * 0.5) / mc.u_swayScale;
     let gust = sin(t + phase) + 0.5 * sin(t * 2.3 + phase * 1.7);
     let tip = pow(clamp(v.v_texCoord.y, 0.0, 1.0), 1.5);
-    let uv = vec2f(v.v_texCoord.x - gust * mc.u_swayStrength * mc.u_swayWind * tip, v.v_texCoord.y);
+    var push = vec2f(0.0);
+    push = push + swayPush(mc.u_swayPush0, v.v_worldPos);
+    push = push + swayPush(mc.u_swayPush1, v.v_worldPos);
+    push = push + swayPush(mc.u_swayPush2, v.v_worldPos);
+    push = push + swayPush(mc.u_swayPush3, v.v_worldPos);
+    push = push + swayPush(mc.u_swayPush4, v.v_worldPos);
+    push = push + swayPush(mc.u_swayPush5, v.v_worldPos);
+    push = push + swayPush(mc.u_swayPush6, v.v_worldPos);
+    push = push + swayPush(mc.u_swayPush7, v.v_worldPos);
+    let uv = vec2f(v.v_texCoord.x - gust * mc.u_swayStrength * mc.u_swayWind * tip - push.x * mc.u_swayPushStrength * tip, v.v_texCoord.y);
     var base = textureSampleGrad(t0, s0, uv, duvx, duvy) * v.v_color * mc.u_tint;
     if (uv.x < 0.0 || uv.x > 1.0) { base.a = 0.0; }
     let N = sampleNormalGrad(u_normalMap, u_normalMap_s, uv, duvx, duvy);

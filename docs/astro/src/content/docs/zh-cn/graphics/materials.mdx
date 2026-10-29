@@ -23,7 +23,7 @@ std140 uniform 块,于是 CPU 能按名字设置、并安全地送到 GPU。一�
 |---|---|---|
 | **Unlit** | `sprite-unlit` | 纹理 × 顶点色 × `u_tint`,普通默认。 |
 | **Lit** | `sprite-lit` | 被场景 2D 灯光照亮;`u_tint` + 可选 `u_normalMap`。 |
-| **Sway** | `sprite-sway` | 随风倾斜，底部固定、顶部自由——草、芦苇、悬挂的布。`u_swayStrength` 是倾斜幅度占精灵宽度的比例，天气的 `wind` 会放大它。受光照，可带法线贴图。 |
+| **Sway** | `sprite-sway` | 随风倾斜，底部固定、顶部自由——草、芦苇、悬挂的布。`u_swayStrength` 是倾斜幅度占精灵宽度的比例，天气的 `wind` 会放大它。受光照，可带法线贴图。给角色加 `SwayPusher`，它走过时周围的植物会向外倒(取离相机最近的八个;`u_swayPushStrength` 是倒的幅度)。 |
 | **Hit Flash** | `sprite-hit-flash` | 按 `u_flash` 混向 `u_flashColor`——代码里驱动它做受击闪白。 |
 | **Outline** | `sprite-outline` | 彩色剪影描边(`u_outlineColor`、`u_outlineWidth`,单位纹素)。 |
 | **Dissolve** | `sprite-dissolve` | 噪声烧蚀 + 发光边缘(`u_progress` 0→1)。 |
