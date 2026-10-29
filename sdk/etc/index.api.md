@@ -5,7 +5,7 @@ Symbols: 115 public · 161 beta · 1966 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"7e1e50433c8b93cf"
+"e41570f14820a1a8"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -6522,6 +6522,7 @@ spriteFPS: number
 spriteLoop: boolean
 spriteRows: number
 startColor: Color
+startDelay: number
 startSizeMax: number
 startSizeMin: number
 subEmitter: number

@@ -104,6 +104,12 @@ describe('a particle system', () => {
         expect(validate('ParticleEmitter', def._default, d, def.assetFields)).toEqual([]);
     });
 
+    it('carries the start delay, taking the middle of a range of them', () => {
+        expect((convert({ startDelay: constant(0.4) }).out.data as Record<string, any>).startDelay).toBeCloseTo(0.4, 5);
+        expect((convert({ startDelay: between(0.2, 0.6) }).out.data as Record<string, any>).startDelay).toBeCloseTo(0.4, 5);
+        expect(convert().report.notes['particle-start-delay']).toBeUndefined();
+    });
+
     it('maps a stretched billboard with its scales, and counts the render modes it cannot draw', () => {
         const stretched = convert({ renderer: { _renderMode: 1, _velocityScale: 1, _lengthScale: 7 } });
         const d = stretched.out.data as Record<string, any>;

@@ -1054,6 +1054,11 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
     "startColor": {
       "category": "Color",
     },
+    "startDelay": {
+      "category": "Emission",
+      "min": 0,
+      "tooltip": "Seconds after the emitter starts playing before it emits anything. The duration counts from the end of the delay.",
+    },
     "startSizeMax": {
       "category": "Size",
       "min": 0,

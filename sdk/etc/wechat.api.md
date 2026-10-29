@@ -6524,6 +6524,7 @@ spriteFPS: number
 spriteLoop: boolean
 spriteRows: number
 startColor: Color
+startDelay: number
 startSizeMax: number
 startSizeMin: number
 subEmitter: number

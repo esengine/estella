@@ -28,6 +28,8 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(particle): an emitter can wait startDelay seconds before it emits, with the duration counted from the end of the delay, and the Cocos start delay maps onto it':
+    {"note":"An emitter can start late."},
   'feat(particle): a stretched render mode lays a particle along its velocity and lengthens it with speed, and the Cocos stretched billboard maps onto it':
     {"note":"Particles can be stretched along their velocity."},
   'feat(cocos): a particle system colour gradient and size curve become the emitter colorGradient and sizeCurve instead of their two ends':

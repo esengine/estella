@@ -83,6 +83,9 @@ struct ParticleEmitter {
     ES_PROPERTY(min=0, category=Emission)
     f32 duration{5.0f};
 
+    ES_PROPERTY(min=0, category=Emission, tooltip="Seconds after the emitter starts playing before it emits anything. The duration counts from the end of the delay.")
+    f32 startDelay{0.0f};
+
     ES_PROPERTY(category=Emission)
     bool looping{true};
 

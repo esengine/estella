@@ -3451,6 +3451,13 @@
           "range": "≥ 0"
         },
         {
+          "key": "startDelay",
+          "type": "number",
+          "default": "0",
+          "doc": "Seconds after the emitter starts playing before it emits anything. The duration counts from the end of the delay.",
+          "range": "≥ 0"
+        },
+        {
           "key": "looping",
           "type": "boolean",
           "default": "true"

@@ -268,6 +268,55 @@ TEST_CASE("system_non_looping_stops_after_duration") {
     CHECK_EQ(system.totalAliveParticles(), 0u);
 }
 
+TEST_CASE("system_start_delay_holds_emission_back_then_runs_the_duration_from_its_end") {
+    ecs::Registry registry;
+    ParticleSystem system;
+
+    Entity e = registry.create();
+    registry.emplace<ecs::Transform>(e);
+    auto& emitter = registry.emplace<ecs::ParticleEmitter>(e);
+    emitter.rate = 100.0f;
+    emitter.lifetimeMin = 5.0f;
+    emitter.lifetimeMax = 5.0f;
+    emitter.maxParticles = 1000;
+    emitter.startDelay = 0.5f;
+    emitter.duration = 0.1f;
+    emitter.looping = false;
+    emitter.enabled = true;
+    emitter.playOnStart = true;
+
+    system.update(registry, 0.2f);
+    system.update(registry, 0.2f);
+    CHECK_EQ(system.totalAliveParticles(), 0u);       // 0.4 s in: still inside the delay
+
+    system.update(registry, 0.2f);                    // crosses 0.5 s: emission begins
+    CHECK(system.totalAliveParticles() > 0u);
+    const u32 started = system.totalAliveParticles();
+
+    system.update(registry, 0.5f);                    // 0.6 s of play: the 0.1 s duration, counted from 0.5, has run out
+    system.update(registry, 0.5f);
+    CHECK_EQ(system.totalAliveParticles(), started);  // a stopped emitter adds nothing more
+}
+
+TEST_CASE("system_no_start_delay_emits_on_the_first_update_as_before") {
+    ecs::Registry registry;
+    ParticleSystem system;
+
+    Entity e = registry.create();
+    registry.emplace<ecs::Transform>(e);
+    auto& emitter = registry.emplace<ecs::ParticleEmitter>(e);
+    emitter.rate = 0.0f;
+    emitter.burstCount = 7;
+    emitter.lifetimeMin = 5.0f;
+    emitter.lifetimeMax = 5.0f;
+    emitter.maxParticles = 100;
+    emitter.enabled = true;
+    emitter.playOnStart = true;
+
+    system.update(registry, 0.016f);
+    CHECK_EQ(system.totalAliveParticles(), 7u);
+}
+
 TEST_CASE("system_disabled_emitter_no_spawn") {
     ecs::Registry registry;
     ParticleSystem system;

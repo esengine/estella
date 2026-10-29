@@ -190,7 +190,7 @@ export function particleSystem(c: { enabled: boolean; data: Raw }, ctx: Particle
         simulationSpace: num(d._simulationSpace, 1) === 0 ? 1 /* Local */ : 0 /* World */,
     };
     if (num(d.simulationSpeed, 1) !== 1) lose('particle-simulation-speed');
-    if (mid(curveRange(d.startDelay, 0, 0)) > 0) lose('particle-start-delay');
+    out.startDelay = Math.max(0, mid(curveRange(d.startDelay, 0, 0)));
     if (mid(curveRange(d.rateOverDistance, 0, 0)) > 0) lose('particle-rate-over-distance');
 
     // colour: the start colour times the over-lifetime gradient, sampled by age

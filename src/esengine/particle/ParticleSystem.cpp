@@ -152,8 +152,10 @@ void ParticleSystem::update(ecs::Registry& registry, f32 dt) {
             state.first_update = false;
         }
 
+        // The delay is time the emitter plays without emitting; the duration is counted from its end.
+        const f32 startDelay = std::max(emitter.startDelay, 0.0f);
         bool emitting = state.playing;
-        if (!emitter.looping && state.elapsed_time >= emitter.duration) {
+        if (!emitter.looping && state.elapsed_time >= startDelay + emitter.duration) {
             emitting = false;
         }
 
@@ -166,7 +168,8 @@ void ParticleSystem::update(ecs::Registry& registry, f32 dt) {
 
         if (emitting) {
             state.elapsed_time += dt;
-
+        }
+        if (emitting && state.elapsed_time >= startDelay) {
             if (emitter.rate > 0.0f) {
                 state.emission_accumulator += emitter.rate * dt;
                 u32 toEmit = static_cast<u32>(state.emission_accumulator);
