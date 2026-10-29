@@ -5,7 +5,7 @@
 // The far side is generated from the C++ signature and opens `if (argc < 11)
 // return`, so a seam one argument short draws nothing and says nothing.
 import { describe, it, expect } from 'vitest';
-import { submitTextBatch, setNativeTextSubmit, TEXT_VERTEX_FLOATS } from '../src/ui/text/submit';
+import { submitTextBatch, setNativeTextSubmit, TEXT_VERTEX_FLOATS, TextGlyphMode } from '../src/ui/text/submit';
 
 function capture() {
     const calls: unknown[][] = [];
@@ -45,5 +45,16 @@ describe('the native text submit seam', () => {
         setNativeTextSubmit(null);
 
         expect(calls).toHaveLength(0);
+    });
+
+    it('hands the host the glyph mode as a number: a mode as given, and the old sdf flag as the mode it always meant', () => {
+        const calls = capture();
+        submitTextBatch(null, vertices, indices, 7, transform, 42, 3, 0.5, TextGlyphMode.Fill);
+        submitTextBatch(null, vertices, indices, 7, transform, 42, 3, 0.5, TextGlyphMode.Mask);
+        submitTextBatch(null, vertices, indices, 7, transform, 42, 3, 0.5, true);
+        submitTextBatch(null, vertices, indices, 7, transform, 42, 3, 0.5, false);
+        setNativeTextSubmit(null);
+        // (vertices, vertexCount, indices, textureId, transform, entity, layer, depth, mode, cullBit)
+        expect(calls.map((c) => c[8])).toEqual([3, 2, 1, 0]);
     });
 });

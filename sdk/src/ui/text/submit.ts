@@ -10,6 +10,23 @@
 import type { ESEngineModule } from '../../wasm';
 import { withScratch } from '../../wasm/wasmScratch';
 
+/**
+ * How a glyph page's pixels become coverage — the engine's `TextGlyphMode`, numbered as it is there. 0 and 1 are
+ * what the `sdf` flag this replaced was (false, true).
+ */
+export const TextGlyphMode = {
+    /** The page's RGBA, tinted: a rasterized atlas carrying native-AA coverage in alpha, or a colour font. */
+    Color: 0,
+    /** Alpha is a signed distance; coverage is derived from it. */
+    Sdf: 1,
+    /** Alpha alone is coverage and the page's colour is ignored: the silhouette of a glyph with its outline baked into the page. */
+    Mask: 2,
+    /** Red x alpha is coverage: the glyph proper of that page. Mask under Fill is the outlined glyph, its ring in any colour. */
+    Fill: 3,
+} as const;
+/** @public */
+export type TextGlyphMode = (typeof TextGlyphMode)[keyof typeof TextGlyphMode];
+
 /** Floats per glyph vertex: position(2) + uv(2) + color(4) + sdfBias(1). */
 export const TEXT_VERTEX_FLOATS = 9;
 
@@ -27,7 +44,7 @@ export type NativeTextBatchSubmit = (
     entity: number,
     layer: number,
     depth: number,
-    sdf: boolean,
+    mode: number,
     cullBit: number,
 ) => void;
 
@@ -54,14 +71,16 @@ export function submitTextBatch(
     entity: number,
     layer: number,
     depth: number,
-    sdf: boolean,
+    mode: TextGlyphMode | boolean,
     cullBit = 0,
 ): void {
+    // A caller from before there were modes passed whether the page was a distance field.
+    const glyphMode: number = typeof mode === 'boolean' ? (mode ? TextGlyphMode.Sdf : TextGlyphMode.Color) : mode;
     const vertexCount = (vertices.length / TEXT_VERTEX_FLOATS) | 0;
     if (vertexCount <= 0 || indices.length <= 0 || transform.length < 16) return;
     // No wasm heap (the native core): the host reads the arrays as they are.
     if (!module?.renderer_submitTextBatch) {
-        nativeSubmit_?.(vertices, vertexCount, indices, textureId, transform, entity, layer, depth, sdf, cullBit);
+        nativeSubmit_?.(vertices, vertexCount, indices, textureId, transform, entity, layer, depth, glyphMode, cullBit);
         return;
     }
 
@@ -78,7 +97,7 @@ export function submitTextBatch(
         module.HEAPU8.set(iBytes, iPtr);
         module.HEAPU8.set(tBytes, tPtr);
         module.renderer_submitTextBatch!(
-            vPtr, vertexCount, iPtr, indices.length, textureId, tPtr, entity, layer, depth, sdf ? 1 : 0,
+            vPtr, vertexCount, iPtr, indices.length, textureId, tPtr, entity, layer, depth, glyphMode,
             cullBit,
         );
     });

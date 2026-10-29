@@ -213,15 +213,16 @@ public:
     /**
      * Submit a batch of pre-laid-out glyph quads from TS. Same vertex format as
      * submitSpineBatch (x,y,u,v,r,g,b,a per vertex), RenderType::Text, atlas page
-     * = `textureId`. `sdf` picks the shader: true → the SDF variant (scalable SDF
-     * atlas); false → the plain textured batch (device-resolution bitmap atlas
-     * carrying native-AA coverage in alpha).
+     * = `textureId`. `mode` picks the shader (see TextGlyphMode): Sdf → the SDF
+     * variant (scalable SDF atlas); Color → the plain textured batch (device-resolution
+     * bitmap atlas carrying native-AA coverage in alpha); Mask and Fill → the two
+     * ways a bitmap font with its outline baked into the page is read.
      */
     void submitTextBatch(
         const f32* vertices, i32 vertexCount,
         const u16* indices, i32 indexCount,
         u32 textureId, const f32* transform16,
-        Entity entity, i32 layer, f32 depth, bool sdf, u32 cullBit = 0
+        Entity entity, i32 layer, f32 depth, TextGlyphMode mode, u32 cullBit = 0
     );
 
     /// The glyph quads of every label the text system laid out and handed over once, which the engine submits itself each frame.

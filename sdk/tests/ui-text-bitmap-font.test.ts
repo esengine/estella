@@ -16,6 +16,8 @@ import {
 import { resolveTextFamily } from '../src/ui/text/font-registry';
 import { layoutText, measureWidth } from '../src/ui/text/layout';
 import { TextOverflow } from '../src/ui/core/text';
+import { drawTextWith, type DrawTextParams } from '../src/ui/text/text-renderer';
+import { TextGlyphMode } from '../src/ui/text/submit';
 
 const FNT = [
     'info face="Demo" size=-40 bold=0 italic=0 charset="" unicode=1 stretchH=100 smooth=1 aa=1 padding=0,0,0,0 spacing=1,1',
@@ -135,5 +137,60 @@ describe('Text laying out with a bitmap font', () => {
         });
         expect(l.fontSizePx).toBeLessThan(40);
         expect(l.width).toBeLessThanOrEqual(100 + 1e-6);
+    });
+});
+
+// A font that bakes its outline into the page says so in BMFont's own channel flags: red is the glyph, alpha is glyph and
+// outline. Drawn through two lenses, the ring can be any colour — or, with no outline asked for, not drawn at all.
+const BAKED = FNT.replace('pages=1 packed=0', 'pages=1 packed=0 alphaChnl=2 redChnl=0 greenChnl=0 blueChnl=0');
+
+describe('a font with its outline baked into the page', () => {
+    it('is recognised from the channel flags, and a page that says nothing is plain', () => {
+        expect(parseBmFont(BAKED).outlineInAlpha).toBe(true);
+        expect(parseBmFont(FNT).outlineInAlpha).toBe(false);
+        // alpha as the outline alone, or as the glyph alone, is not this layout
+        expect(parseBmFont(FNT.replace('pages=1 packed=0', 'pages=1 packed=0 alphaChnl=1 redChnl=0')).outlineInAlpha).toBe(false);
+        expect(parseBmFont(FNT.replace('pages=1 packed=0', 'pages=1 packed=0 alphaChnl=0 redChnl=0')).outlineInAlpha).toBe(false);
+    });
+
+    const draw = (family: string, extra: Partial<DrawTextParams>): Array<{ pageId: number; mode: number | undefined }> => {
+        const passes: Array<{ pageId: number; mode: number | undefined }> = [];
+        drawTextWith(atlas(), (_v, _i, pageId, mode) => { passes.push({ pageId, mode }); }, {
+            text: 'AB', fontFamily: family, fontSizePx: 40, color: [1, 1, 1, 1], ...extra,
+        } as DrawTextParams);
+        return passes;
+    };
+    const RING: DrawTextParams['outline'] = { color: [0, 0, 0, 0.5], width: 2 };
+
+    it('draws the ring first, in the outline colour, then the glyph on the same page', () => {
+        registerBitmapFont(5, parseBmFont(BAKED), PAGE_TEXTURE);
+        expect(draw('bmfont:5', { outline: RING })).toEqual([
+            { pageId: PAGE_TEXTURE, mode: TextGlyphMode.Mask },
+            { pageId: PAGE_TEXTURE, mode: TextGlyphMode.Fill },
+        ]);
+    });
+
+    it('draws no ring when no outline is asked for: the glyph proper only', () => {
+        registerBitmapFont(5, parseBmFont(BAKED), PAGE_TEXTURE);
+        expect(draw('bmfont:5', {})).toEqual([{ pageId: PAGE_TEXTURE, mode: TextGlyphMode.Fill }]);
+        expect(draw('bmfont:5', { outline: { color: [0, 0, 0, 1], width: 0 } })).toHaveLength(1);
+        expect(draw('bmfont:5', { outline: { color: [0, 0, 0, 0], width: 2 } })).toHaveLength(1);
+    });
+
+    it('shadows the silhouette, never the page\'s own colours', () => {
+        registerBitmapFont(5, parseBmFont(BAKED), PAGE_TEXTURE);
+        const passes = draw('bmfont:5', { shadow: { color: [0, 0, 0, 0.5], dx: 2, dy: 2, blur: 0 } });
+        expect(passes.map((p) => p.mode)).toEqual([TextGlyphMode.Mask, TextGlyphMode.Fill]);
+    });
+
+    it('leaves a plain bitmap font and an outline font as they were: no mode of their own', () => {
+        registerBitmapFont(6, parseBmFont(FNT), PAGE_TEXTURE);
+        expect(draw('bmfont:6', { outline: RING }).every((p) => p.mode === undefined)).toBe(true);
+    });
+});
+
+describe('the engine boundary names how a page is read', () => {
+    it('numbers the modes as the engine does, with 0 and 1 what the sdf flag was', () => {
+        expect(TextGlyphMode).toEqual({ Color: 0, Sdf: 1, Mask: 2, Fill: 3 });
     });
 });

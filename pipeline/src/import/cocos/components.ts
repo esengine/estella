@@ -23,11 +23,22 @@ export interface ComponentData {
 
 export interface SliceBorder { left: number; right: number; top: number; bottom: number }
 
+/** What the engine needs to know about an asset beyond its bytes, learnt from how the project uses it. */
+export interface AssetHints {
+    /** A bitmap font whose page carries the glyph in red and glyph-and-outline in alpha. */
+    bakedOutline?: boolean;
+}
+
 export interface ComponentContext {
     assets: CocosAssetIndex;
     report: ImportReport;
     /** The project-relative ref of a copied asset; records that it must be copied. */
-    assetRef(entry: CocosAssetEntry, slice?: SliceBorder): string;
+    assetRef(entry: CocosAssetEntry, slice?: SliceBorder, hints?: AssetHints): string;
+    /**
+     * Whether a Cocos material draws a bitmap font's page as two layers, a glyph in the red channel and its outline in alpha, with the
+     * outline's colour supplied at draw time. Such a font has to say so, in the channel flags BMFont gives that layout.
+     */
+    drawsBakedOutline?(materialUuid: string): boolean;
 }
 
 type Raw = Record<string, unknown>;
@@ -177,10 +188,9 @@ function label(c: CocosComponent, siblings: CocosComponent[], box: UiBox | null,
         if (font?.importer === 'ttf-font') {
             data.font = ctx.assetRef(font);
         } else if (font?.importer === 'bitmap-font') {
-            // The engine takes a .fnt in Text.font. How its glyph scale reads `fontSize` is still to be checked on screen.
-            data.font = ctx.assetRef(font);
-            status = 'partial';
-            ctx.report.note('label-bitmap-font', where);
+            const material = uuidOf(d._customMaterial);
+            const baked = material !== '' && ctx.drawsBakedOutline?.(material) === true;
+            data.font = ctx.assetRef(font, undefined, baked ? { bakedOutline: true } : undefined);
         } else {
             status = 'partial';
             ctx.report.note(font ? 'label-font-unsupported' : 'label-font-missing', where);
@@ -195,10 +205,7 @@ function label(c: CocosComponent, siblings: CocosComponent[], box: UiBox | null,
     }
 
     const outline = siblings.find((s) => s.type === 'cc.LabelOutline' && s.enabled);
-    // A bitmap font carries its own outline in the page, so a stroke drawn round it would be a second ring.
-    if (outline && data.font && String(data.font).endsWith('.fnt')) {
-        ctx.report.note('label-outline-baked-in-font', where);
-    } else if (outline) {
+    if (outline) {
         data.strokeColor = color(outline.data._color);
         data.strokeWidth = num(outline.data._width, 0);
     }

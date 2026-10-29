@@ -539,7 +539,7 @@ export {
 
 export { ShelfPacker, type Packer, type PackPos } from '../util/shelfPack';
 export { sdfFromAlpha } from './text/sdf';
-export { submitTextBatch, TEXT_VERTEX_FLOATS } from './text/submit';
+export { submitTextBatch, TEXT_VERTEX_FLOATS, TextGlyphMode } from './text/submit';
 
 export { ScreenOverlay, type ScreenOverlayData } from './core/screen-overlay';
 export { canvasRootEntities } from './core/canvas-roots';

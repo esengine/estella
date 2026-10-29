@@ -91,7 +91,7 @@ void renderer_submitTextBatch(
     uintptr_t verticesPtr, i32 vertexCount,
     uintptr_t indicesPtr, i32 indexCount,
     u32 textureId, uintptr_t transformPtr,
-    u32 entity, i32 layer, f32 depth, i32 sdf, u32 cullBit
+    u32 entity, i32 layer, f32 depth, i32 glyphMode, u32 cullBit
 );
 /**
  * @name Retained text
@@ -103,10 +103,11 @@ void renderer_submitTextBatch(
 void renderer_retainedTextBegin(
     u32 entity, i32 sdf, i32 screen, i32 hasBox, i32 layer, f32 boxWidth, f32 boxHeight, i32 autoKind
 );
-/// One batch of glyph quads of the entity begun last: TEXT_VERTEX_FLOATS floats a vertex, whole quads, drawn from atlas page @p pageId.
+/// One batch of glyph quads of the entity begun last: TEXT_VERTEX_FLOATS floats a vertex, whole quads, drawn from atlas page @p pageId and
+/// read as @p glyphMode says (TextGlyphMode; 0 is a plain RGBA page, 1 a distance field).
 void renderer_retainedTextBatch(
     u32 entity, uintptr_t verticesPtr, i32 vertexCount,
-    uintptr_t indicesPtr, i32 indexCount, u32 pageId
+    uintptr_t indicesPtr, i32 indexCount, u32 pageId, i32 glyphMode
 );
 /// Forgets an entity's retained text.
 void renderer_retainedTextClear(u32 entity);

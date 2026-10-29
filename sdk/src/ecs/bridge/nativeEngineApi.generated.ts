@@ -207,7 +207,7 @@ export interface NativeEngineApi {
     renderer_renderSkeletalPreview?(preview: number, viewProjectionPtr: number): number;
     renderer_replayToDrawCall?(drawCallIndex: number): void;
     renderer_resize?(width: number, height: number): void;
-    renderer_retainedTextBatch?(entity: number, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, pageId: number): void;
+    renderer_retainedTextBatch?(entity: number, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, pageId: number, glyphMode: number): void;
     renderer_retainedTextBegin?(entity: number, sdf: number, screen: number, hasBox: number, layer: number, boxWidth: number, boxHeight: number, autoKind: number): void;
     renderer_retainedTextClear?(entity: number): void;
     renderer_retainedTextStale?(registry: unknown, outPtr: number, capacity: number): number;
@@ -242,7 +242,7 @@ export interface NativeEngineApi {
     renderer_submitSkeletalBatchByEntityEx?(registry: unknown, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, entity: number, skelScale: number, flipX: boolean, flipY: boolean, layer: number, depth: number, materialId: number, premultipliedColor: boolean): void;
     renderer_submitSkeletalPreviewBatch?(preview: number, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, transformPtr: number, layer: number, depth: number, materialId: number): number;
     renderer_submitSkeletalPreviewBatchEx?(preview: number, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, transformPtr: number, layer: number, depth: number, materialId: number, premultipliedColor: boolean): number;
-    renderer_submitTextBatch?(verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, transformPtr: number, entity: number, layer: number, depth: number, sdf: number, cullBit: number): void;
+    renderer_submitTextBatch?(verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, transformPtr: number, entity: number, layer: number, depth: number, glyphMode: number, cullBit: number): void;
     renderer_takeFrameCapture?(handle: number, dest: number, destSize: number): boolean;
     renderer_updateTransforms?(registry: unknown): void;
     rm_acquireTextureByPath?(rm: unknown, path: string): number;

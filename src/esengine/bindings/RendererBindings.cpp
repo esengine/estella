@@ -186,7 +186,7 @@ void renderer_submitTextBatch(
     uintptr_t verticesPtr, i32 vertexCount,
     uintptr_t indicesPtr, i32 indexCount,
     u32 textureId, uintptr_t transformPtr,
-    u32 entity, i32 layer, f32 depth, i32 sdf, u32 cullBit
+    u32 entity, i32 layer, f32 depth, i32 glyphMode, u32 cullBit
 ) {
     if (!g_initialized || !g_renderFrame) return;
     if (vertexCount < 0 || indexCount < 0) return;
@@ -196,7 +196,7 @@ void renderer_submitTextBatch(
     if (!vertices || !indices || !transform) return;
     g_renderFrame->submitTextBatch(
         vertices, vertexCount, indices, indexCount,
-        textureId, transform, Entity::fromRaw(entity), layer, depth, sdf != 0, cullBit);
+        textureId, transform, Entity::fromRaw(entity), layer, depth, textGlyphModeFromRaw(glyphMode), cullBit);
 }
 
 void renderer_retainedTextBegin(
@@ -208,14 +208,14 @@ void renderer_retainedTextBegin(
 
 void renderer_retainedTextBatch(
     u32 entity, uintptr_t verticesPtr, i32 vertexCount,
-    uintptr_t indicesPtr, i32 indexCount, u32 pageId
+    uintptr_t indicesPtr, i32 indexCount, u32 pageId, i32 glyphMode
 ) {
     if (!g_initialized || !g_renderFrame) return;
     if (vertexCount < 0 || indexCount < 0) return;
     auto* vertices = boundarySpan<f32>(verticesPtr, static_cast<u64>(vertexCount) * TEXT_VERTEX_FLOATS, "renderer_retainedTextBatch.vertices");
     auto* indices = boundarySpan<u16>(indicesPtr, static_cast<u64>(indexCount), "renderer_retainedTextBatch.indices");
     if (!vertices || !indices) return;
-    g_renderFrame->retainedText().add(entity, vertices, vertexCount, indices, indexCount, pageId);
+    g_renderFrame->retainedText().add(entity, vertices, vertexCount, indices, indexCount, pageId, textGlyphModeFromRaw(glyphMode));
 }
 
 void renderer_retainedTextClear(u32 entity) {
@@ -301,7 +301,7 @@ void renderer_retainedTextSubmit(ecs::Registry& registry, i32 screen, uintptr_t 
                 vertices = faded.data();
             }
             g_renderFrame->submitTextBatch(vertices, static_cast<i32>(vertexCount), indices, static_cast<i32>(vertexCount / 4 * 6),
-                                           batch.pageId, model, entity, layer, depth, text.sdf, cullBit);
+                                           batch.pageId, model, entity, layer, depth, batch.mode, cullBit);
         }
     }
 }

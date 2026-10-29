@@ -30,7 +30,34 @@ static std::vector<f32> floats(const std::string& line, usize skip) {
     return out;
 }
 
+// How a batch's page is read travels with the batch: a label may draw an outline's ring and then its fill from the same page, so the mode is the
+// batch's and not the label's. And what a script-side number means is pinned here, because 0 and 1 were once `sdf` = false, true.
+static void checkGlyphModes() {
+    CHECK(textGlyphModeFromRaw(0) == TextGlyphMode::Color && textGlyphModeFromRaw(1) == TextGlyphMode::Sdf, "0 and 1 are what the old sdf flag was");
+    CHECK(textGlyphModeFromRaw(2) == TextGlyphMode::Mask && textGlyphModeFromRaw(3) == TextGlyphMode::Fill, "2 is the silhouette, 3 the fill");
+    CHECK(textGlyphModeFromRaw(-1) == TextGlyphMode::Color && textGlyphModeFromRaw(4) == TextGlyphMode::Color, "a number no mode owns is the plain draw");
+
+    const std::vector<f32> quad(RETAINED_TEXT_QUAD_FLOATS, 0.0f);
+    const u16 indices[6] = {0, 1, 2, 2, 3, 0};
+    RetainedTextStore store;
+    store.begin(1, false, false, false, 0, 0.0f, 0.0f);
+    CHECK(store.add(1, quad.data(), 4, indices, 6, 7), "a batch given no mode is accepted");
+    CHECK(store.add(1, quad.data(), 4, indices, 6, 7, TextGlyphMode::Mask), "the ring of an outlined glyph");
+    CHECK(store.add(1, quad.data(), 4, indices, 6, 7, TextGlyphMode::Fill), "and its fill");
+    const auto& batches = store.entries().at(1).batches;
+    CHECK(batches.size() == 3, "three batches");
+    if (batches.size() == 3) {
+        CHECK(batches[0].mode == TextGlyphMode::Color, "no mode is the plain draw, as before");
+        CHECK(batches[1].mode == TextGlyphMode::Mask && batches[2].mode == TextGlyphMode::Fill, "each batch keeps its own mode, in order");
+    }
+    // The label's own flag is the pipeline chosen by world scale; it says nothing of what its batches draw with.
+    store.begin(2, true, false, false, 0, 0.0f, 0.0f);
+    store.add(2, quad.data(), 4, indices, 6, 7, TextGlyphMode::Fill);
+    CHECK(store.entries().at(2).sdf && store.entries().at(2).batches.at(0).mode == TextGlyphMode::Fill, "the label's sdf and a batch's mode are separate things");
+}
+
 int main(int argc, char** argv) {
+    checkGlyphModes();
     const std::string path = argc > 1 ? argv[1] : "tests/renderer/data/retained_text_cases.txt";
     std::ifstream file(path);
     if (!file) {

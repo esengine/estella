@@ -41,6 +41,13 @@ export interface BmFont {
     pageHeight: number;
     /** The first page's image file, as the `.fnt` spells it. */
     page: string;
+    /**
+     * The page carries the glyph's outline in it, as BMFont's channel flags say: red is the glyph proper
+     * (`redChnl=0`) and alpha is glyph and outline together (`alphaChnl=2`). Such a font is drawn in two passes —
+     * the silhouette in the outline colour, the glyph on top — so the outline can be any colour, or absent.
+     * A page that says nothing of its channels is a plain RGBA image to tint.
+     */
+    outlineInAlpha: boolean;
     glyphs: Map<number, BmGlyph>;
 }
 
@@ -63,6 +70,7 @@ const int = (v: string | undefined, d = 0): number => {
 export function parseBmFont(text: string): BmFont {
     let size = 0, lineHeight = 0, base = 0, pageWidth = 0, pageHeight = 0, page = '';
     let sawCommon = false;
+    let outlineInAlpha = false;
     const glyphs = new Map<number, BmGlyph>();
     for (const raw of text.split(/\r?\n/)) {
         const line = raw.trim();
@@ -73,6 +81,8 @@ export function parseBmFont(text: string): BmFont {
             base = int(a.base);
             pageWidth = int(a.scaleW);
             pageHeight = int(a.scaleH);
+            // BMFont's channel codes: 0 glyph, 1 outline, 2 glyph and outline.
+            outlineInAlpha = int(a.alphaChnl, -1) === 2 && int(a.redChnl, -1) === 0;
             sawCommon = true;
         } else if (line.startsWith('page ')) {
             const a = attrs(line);
@@ -87,7 +97,7 @@ export function parseBmFont(text: string): BmFont {
         }
     }
     if (!sawCommon || !page || pageWidth <= 0 || pageHeight <= 0) throw new Error('not a bitmap font: no common line or page');
-    return { size: size || lineHeight, lineHeight, base, pageWidth, pageHeight, page, glyphs };
+    return { size: size || lineHeight, lineHeight, base, pageWidth, pageHeight, page, outlineInAlpha, glyphs };
 }
 
 /** A registered font: the table, and the GL texture id its glyphs are on (what a text batch binds). */

@@ -11,7 +11,7 @@
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { buildCocosAssetIndex, type CocosAssetEntry } from './assets';
-import type { SliceBorder } from './components';
+import type { AssetHints, SliceBorder } from './components';
 import { convertPrefab, convertScene, type ConvertContext } from './convert';
 import { parseCocosDocument, type CocosDocument } from './document';
 import { ImportReport, type ImportReportData } from './report';
@@ -77,6 +77,16 @@ function copyFontPages(fnt: string, dest: string, uuidFor: (pageFile: string) =>
     }
 }
 
+/**
+ * The `.fnt`, with its `common` line saying what the page holds, in the channel flags BMFont defines for it: glyph in red (`redChnl=0`), glyph and
+ * outline in alpha (`alphaChnl=2`). That is how the engine knows to draw it in two passes, and it is what a real BMFont export of such a page says.
+ */
+function declareBakedOutline(fnt: string): string {
+    return fnt.replace(/^(\s*common\b[^\r\n]*?)(\r?\n|$)/m, (line, head: string, eol: string) => (
+        /\balphaChnl=/.test(head) ? line : `${head} alphaChnl=2 redChnl=0 greenChnl=0 blueChnl=0${eol}`
+    ));
+}
+
 export function importCocosProject(opts: CocosImportOptions): ImportReportData {
     const source = path.resolve(opts.source);
     const out = path.resolve(opts.out);
@@ -94,7 +104,7 @@ export function importCocosProject(opts: CocosImportOptions): ImportReportData {
     const outRef = (assetRel: string): string => `assets/${into}/${assetRel}`;
     const esRel = (assetRel: string, ext: string): string => assetRel.replace(/\.[^./]+$/, ext);
 
-    const textures = new Map<string, { entry: CocosAssetEntry; slice?: SliceBorder }>();
+    const textures = new Map<string, { entry: CocosAssetEntry; slice?: SliceBorder; hints?: AssetHints }>();
     const docs = new Map<string, CocosDocument | null>();
     const pending: string[] = [];
     const queued = new Set<string>();
@@ -119,10 +129,20 @@ export function importCocosProject(opts: CocosImportOptions): ImportReportData {
         assets: index,
         report,
         where: '',
-        assetRef(entry, slice) {
-            const merged = slice ?? textures.get(entry.file)?.slice;
-            textures.set(entry.file, merged ? { entry, slice: merged } : { entry });
+        assetRef(entry, slice, hints) {
+            const prev = textures.get(entry.file);
+            const merged = slice ?? prev?.slice;
+            // A font any label draws as two layers is declared so; the declaration is about the page, not the label.
+            const bakedOutline = hints?.bakedOutline === true || prev?.hints?.bakedOutline === true;
+            textures.set(entry.file, {
+                entry,
+                ...(merged ? { slice: merged } : {}),
+                ...(bakedOutline ? { hints: { bakedOutline: true } } : {}),
+            });
             return outRef(entry.rel);
+        },
+        drawsBakedOutline(materialUuid) {
+            return materialBakesOutline(materialUuid);
         },
         loadPrefab(uuid) {
             const e = prefabEntry(uuid);
@@ -137,6 +157,24 @@ export function importCocosProject(opts: CocosImportOptions): ImportReportData {
             }
             return outRef(esRel(e.rel, '.esprefab'));
         },
+    };
+
+    // A material says how its font page is read through the effect it uses; the outline effect mixes an outline colour in by the red channel.
+    const bakes = new Map<string, boolean>();
+    const materialBakesOutline = (materialUuid: string): boolean => {
+        const known = bakes.get(materialUuid);
+        if (known !== undefined) return known;
+        let result = false;
+        try {
+            const mat = index.byUuid.get(materialUuid);
+            const effectUuid = mat && JSON.parse(readFileSync(mat.file, 'utf8'))?._effectAsset?.__uuid__;
+            const effect = typeof effectUuid === 'string' ? index.byUuid.get(effectUuid) : undefined;
+            result = !!effect && /alphaLerp\s*=\s*o\.r/.test(readFileSync(effect.file, 'utf8'));
+        } catch {
+            result = false;
+        }
+        bakes.set(materialUuid, result);
+        return result;
     };
 
     const wanted = (relPath: string): boolean => !opts.only?.length || opts.only.some((p) => relPath.startsWith(p));
@@ -184,14 +222,15 @@ export function importCocosProject(opts: CocosImportOptions): ImportReportData {
 
     report.textures = textures.size;
     if (!opts.dryRun) {
-        for (const { entry, slice } of textures.values()) {
+        for (const { entry, slice, hints } of textures.values()) {
             const dest = path.join(out, outRef(entry.rel));
             if (!existsSync(entry.file)) {
                 report.missingAsset(entry.uuid);
                 continue;
             }
             mkdirSync(path.dirname(dest), { recursive: true });
-            copyFileSync(entry.file, dest);
+            if (entry.file.endsWith('.fnt') && hints?.bakedOutline) writeOut(dest, declareBakedOutline(readFileSync(entry.file, 'utf8')));
+            else copyFileSync(entry.file, dest);
             if (entry.file.endsWith('.fnt')) {
                 copyFontPages(entry.file, dest, (page) => byRel.get(norm(path.relative(assetsDir, page)))?.uuid);
                 // The asset database ships a font's page image only for a `bitmapfont`, since nothing else names it.

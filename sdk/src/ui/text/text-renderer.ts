@@ -19,12 +19,14 @@ import { NativeGlyphRasterizer } from './native-glyph-rasterizer';
 import { EngineAtlasPageStore } from './atlas-page-store';
 import { TextAlign, TextVerticalAlign, TextOverflow } from '../core/text';
 import { layoutText, buildGlyphVertices, MAX_TEXT_BATCH_GLYPHS, type LaidGlyph, type RGBA } from './layout';
-import { submitTextBatch, TEXT_VERTEX_FLOATS } from './submit';
+import { submitTextBatch, TEXT_VERTEX_FLOATS, TextGlyphMode } from './submit';
+import { bitmapFontOf } from './bitmap-font';
 import { withScratch } from '../../wasm/wasmScratch';
 import type { EngineApi } from '../../ecs/bridge/engineApi';
 
 /** Receives index-safe glyph batches, each bound to one atlas page. */
-export type GlyphBatchSink = (vertices: Float32Array, indices: Uint16Array, pageId: number) => void;
+/** @p mode is how the page is read; left out, it is whatever the renderer's own kind draws (a distance field, or a plain bitmap page). */
+export type GlyphBatchSink = (vertices: Float32Array, indices: Uint16Array, pageId: number, mode?: TextGlyphMode) => void;
 
 export interface DrawTextParams {
     text: string;
@@ -229,13 +231,17 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
     // Emit the glyph set once per page, recolored + offset. All passes are SDF
     // glyphs in the same atlas/layer, so they batch and draw in submit order —
     // shadow + outline first (behind), fill last (on top).
-    const emitPass = (color: RGBA, dx: number, dy: number, bias = 0, useGlyphColors = false): void => {
+    // A font with its outline baked into the page is read through two lenses (see BmFont.outlineInAlpha): Mask for everything
+    // that is a shape — shadow, the outline ring — and Fill for the glyph. The page's own colours never show, so the ring is
+    // whatever colour the outline asks for, and without an outline there is no ring at all.
+    const baked = bitmapFontOf(p.fontFamily)?.outlineInAlpha === true;
+    const emitPass = (color: RGBA, dx: number, dy: number, bias = 0, useGlyphColors = false, mode?: TextGlyphMode): void => {
         for (const [pageId, glyphs] of chunks) {
             const { vertices, indices } = buildGlyphVertices(glyphs, color, baseX + dx, originY + dy, bias, useGlyphColors);
             if (opacity !== 1) {
                 for (let i = 7; i < vertices.length; i += TEXT_VERTEX_FLOATS) vertices[i] *= opacity;
             }
-            sink(vertices, indices, pageId);
+            sink(vertices, indices, pageId, mode);
         }
     };
 
@@ -248,24 +254,27 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
             const a = tapAlpha(color[3], SHADOW_RING.length);
             const tap: RGBA = [color[0], color[1], color[2], a];
             for (const [rx, ry, r] of SHADOW_RING) {
-                emitPass(tap, dx + rx * blur * r, -dy + ry * blur * r);
+                emitPass(tap, dx + rx * blur * r, -dy + ry * blur * r, 0, false, baked ? TextGlyphMode.Mask : undefined);
             }
         } else {
-            emitPass(color, dx, -dy);
+            emitPass(color, dx, -dy, 0, false, baked ? TextGlyphMode.Mask : undefined);
         }
     }
     // Outline. On a distance-field atlas this is the glyph drawn once more with
     // its edge pushed out — a real dilation, so the shape survives any width. The
     // bitmap atlas has no distance to push, so it keeps the eight-way stamp, which
     // is only ever asked for hairlines there.
-    if (p.outline && p.outline.width > 0 && p.outline.color[3] > 0) {
+    if (baked) {
+        // The page has the ring already: it is drawn, not grown, so the width only says whether there is one.
+        if (p.outline && p.outline.width > 0 && p.outline.color[3] > 0) emitPass(p.outline.color, 0, 0, 0, false, TextGlyphMode.Mask);
+    } else if (p.outline && p.outline.width > 0 && p.outline.color[3] > 0) {
         const w = p.outline.width;
         const bias = outlineBias(atlas, fontSizePx, w);
         if (bias > 0) emitPass(p.outline.color, 0, 0, bias);
         else for (const [ox, oy] of OUTLINE_OFFSETS) emitPass(p.outline.color, ox * w, oy * w);
     }
     // Fill (on top).
-    emitPass(p.color, 0, 0, 0, true);
+    emitPass(p.color, 0, 0, 0, true, baked ? TextGlyphMode.Fill : undefined);
 }
 
 export interface TextRendererOptions extends CanvasGlyphRasterizerOptions {
@@ -282,6 +291,8 @@ interface CachedTextBatch extends TextCullGeometry {
     vertices: Float32Array;
     indices: Uint16Array;
     pageId: number;
+    /** How the page is read; absent means the renderer's own kind. */
+    mode?: TextGlyphMode;
     /** Original vertex alphas, retained lazily so repeated fades never compound. */
     alphas?: Float32Array;
 }
@@ -297,6 +308,8 @@ interface TextCacheEntry {
 export class SdfTextRenderer {
     readonly atlas: GlyphAtlas;
     private readonly sdf: boolean;
+    /** How a batch with no mode of its own is read: by the kind of atlas this renderer keeps. */
+    private get defaultMode(): TextGlyphMode { return this.sdf ? TextGlyphMode.Sdf : TextGlyphMode.Color; }
     private readonly cache_ = new Map<number, TextCacheEntry>();
     private readonly clipPlanes_ = new Float64Array(36);
     private readonly drawn_ = new Set<number>();
@@ -377,8 +390,8 @@ export class SdfTextRenderer {
         let entry = this.cache_.get(entity);
         if (!entry || entry.gen !== gen || entry.sig !== sig) {
             const batches: CachedTextBatch[] = [];
-            drawTextWith(this.atlas, (vertices, indices, pageId) => {
-                batches.push({ ...createTextCullGeometry(vertices, indices), pageId });
+            drawTextWith(this.atlas, (vertices, indices, pageId, mode) => {
+                batches.push({ ...createTextCullGeometry(vertices, indices), pageId, ...(mode !== undefined ? { mode } : {}) });
             }, { ...p, opacity: 1 });
             entry = { sig, gen, batches, opacity: 1 };
             this.cache_.set(entity, entry);
@@ -395,7 +408,7 @@ export class SdfTextRenderer {
                 }
             }
             const visible = clipTextGeometry(b, planes);
-            if (visible) submitTextBatch(this.module, visible.vertices, visible.indices, b.pageId, transform, entity, layer, depth, this.sdf, cullBit);
+            if (visible) submitTextBatch(this.module, visible.vertices, visible.indices, b.pageId, transform, entity, layer, depth, b.mode ?? this.defaultMode, cullBit);
         }
         entry.opacity = opacity;
     }
@@ -410,8 +423,10 @@ export class SdfTextRenderer {
         screen: boolean, hasBox: boolean, layer: number, boxWidth: number, boxHeight: number, autoKind: boolean,
     ): void {
         if (this.atlas.metricsOnly) throw new Error('Measurement atlases cannot submit text.');
-        const batches: Array<{ vertices: Float32Array; indices: Uint16Array; pageId: number }> = [];
-        drawTextWith(this.atlas, (vertices, indices, pageId) => { batches.push({ vertices, indices, pageId }); }, { ...p, opacity: 1 });
+        const batches: Array<{ vertices: Float32Array; indices: Uint16Array; pageId: number; mode?: TextGlyphMode }> = [];
+        drawTextWith(this.atlas, (vertices, indices, pageId, mode) => {
+            batches.push({ vertices, indices, pageId, ...(mode !== undefined ? { mode } : {}) });
+        }, { ...p, opacity: 1 });
         api.renderer_retainedTextBegin!(entity, this.sdf ? 1 : 0, screen ? 1 : 0, hasBox ? 1 : 0, layer, boxWidth, boxHeight, autoKind ? 1 : 0);
         for (const b of batches) {
             const vertexCount = (b.vertices.length / TEXT_VERTEX_FLOATS) | 0;
@@ -423,7 +438,7 @@ export class SdfTextRenderer {
                 const iPtr = alloc(iBytes.byteLength);
                 api.HEAPU8!.set(vBytes, vPtr);
                 api.HEAPU8!.set(iBytes, iPtr);
-                api.renderer_retainedTextBatch!(entity, vPtr, vertexCount, iPtr, b.indices.length, b.pageId);
+                api.renderer_retainedTextBatch!(entity, vPtr, vertexCount, iPtr, b.indices.length, b.pageId, b.mode ?? this.defaultMode);
             });
         }
         this.retainedPages_.set(entity, batches.map(b => b.pageId));

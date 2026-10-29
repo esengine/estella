@@ -560,7 +560,7 @@ TEST_CASE("camera mask: hidden text and skeletal submissions upload no geometry"
     frame.setCullingMask(1u << 6);
     const int uploads = device.updateBufferCalls;
     for (u32 i = 0; i < 1000; ++i) {
-        frame.submitTextBatch(text, 4, indices, 6, 1, &transform[0][0], Entity(1), 4, 0, false);
+        frame.submitTextBatch(text, 4, indices, 6, 1, &transform[0][0], Entity(1), 4, 0, TextGlyphMode::Color);
         frame.submitSkeletalBatch(skeletal, 4, indices, 6, 1, 0, &transform[0][0], Entity(2), 4, 0, 0, false);
     }
     frame.flush();
@@ -569,7 +569,7 @@ TEST_CASE("camera mask: hidden text and skeletal submissions upload no geometry"
     frame.end();
     frame.begin(transform);
     frame.setCullingMask(1u << 6);
-    frame.submitTextBatch(text, 4, indices, 6, 1, &transform[0][0], Entity(1), 4, 0, false, 1u << 6);
+    frame.submitTextBatch(text, 4, indices, 6, 1, &transform[0][0], Entity(1), 4, 0, TextGlyphMode::Color, 1u << 6);
     frame.submitSkeletalBatch(skeletal, 4, indices, 6, 1, 0, &transform[0][0], Entity(2), 6, 0, 0, false);
     frame.flush();
     CHECK(frame.stats().sprites == 0);
@@ -816,7 +816,7 @@ TEST_CASE("UI scissor: affine corners determine the projected clip rectangle") {
     frame.begin(glm::ortho(-100.0f, 100.0f, -100.0f, 100.0f));
     frame.processMasks(registry, 0, 0, 200, 200);
     frame.collectAll(registry);
-    frame.submitTextBatch(vertices, 4, indices, 6, 1, &identity[0][0], child, 0, 0, false);
+    frame.submitTextBatch(vertices, 4, indices, 6, 1, &identity[0][0], child, 0, 0, TextGlyphMode::Color);
     frame.flush();
     frame.end();
     CHECK(std::find(device.scissorRectangles.begin(), device.scissorRectangles.end(), expected)
@@ -908,7 +908,7 @@ TEST_CASE("UI masks: collapsed parent bases clip the complete subtree") {
             frame.processMasks(registry, 0, 0, 64, 64);
             frame.collectAll(registry);
             const auto uploads = device.updateBufferCalls;
-            frame.submitTextBatch(vertices, 4, indices, 6, 1, &identity[0][0], child, 0, 0, false);
+            frame.submitTextBatch(vertices, 4, indices, 6, 1, &identity[0][0], child, 0, 0, TextGlyphMode::Color);
             frame.flush();
             frame.end();
             CHECK(frame.stats().text == (collapsed ? 0 : 1));
@@ -1267,7 +1267,7 @@ TEST_CASE("UI masks: deep grouping hierarchies reach their leaf without call-sta
             frame.processMasks(registry, 0, 0, 64, 64);
             frame.collectAll(registry);
             const int uploads = device.updateBufferCalls;
-            frame.submitTextBatch(text, 4, indices, 6, 1, &transform[0][0], leaf, 0, 0, false);
+            frame.submitTextBatch(text, 4, indices, 6, 1, &transform[0][0], leaf, 0, 0, TextGlyphMode::Color);
             frame.flush();
             if (empty) {
                 CHECK(frame.stats().text == 0);
@@ -1318,7 +1318,7 @@ TEST_CASE("UI stencil traversal keeps nested and sibling references in authored 
         frame.collectAll(registry);
         i32 layer = 0;
         for (Entity entity : {root, a, nested, b, deep, c, d, e}) {
-            frame.submitTextBatch(text, 4, indices, 6, 1, &transform[0][0], entity, layer++, 0, false);
+            frame.submitTextBatch(text, 4, indices, 6, 1, &transform[0][0], entity, layer++, 0, TextGlyphMode::Color);
         }
         frame.flush();
         frame.end();
@@ -1375,7 +1375,7 @@ TEST_CASE("UI stencil reference budget follows depth rather than sibling count")
     frame.collectAll(registry);
     i32 layer = 0;
     for (Entity entity : ordered) {
-        frame.submitTextBatch(text, 4, indices, 6, 1, &transform[0][0], entity, layer++, 0, false);
+        frame.submitTextBatch(text, 4, indices, 6, 1, &transform[0][0], entity, layer++, 0, TextGlyphMode::Color);
     }
     frame.flush();
     frame.end();
@@ -1702,7 +1702,7 @@ TEST_CASE("camera passes: empty text and skeletal clips recover on the next came
         frame.setEntityClipRect(2, 0, 0, size.first, size.second);
         frame.collectAll(registry);
         const int uploads = device.updateBufferCalls;
-        frame.submitTextBatch(text, 4, indices, 6, 1, &transform[0][0], Entity(1), 0, 0, false);
+        frame.submitTextBatch(text, 4, indices, 6, 1, &transform[0][0], Entity(1), 0, 0, TextGlyphMode::Color);
         frame.submitSkeletalBatch(skeletal, 4, indices, 6, 1, 0, &transform[0][0], Entity(2), 0, 0, 0, false);
         frame.flush();
         CHECK(device.updateBufferCalls == uploads);
@@ -1712,7 +1712,7 @@ TEST_CASE("camera passes: empty text and skeletal clips recover on the next came
         frame.begin(transform);
         frame.clearAllClipRects();
         frame.collectAll(registry);
-        frame.submitTextBatch(text, 4, indices, 6, 1, &transform[0][0], Entity(1), 0, 0, false);
+        frame.submitTextBatch(text, 4, indices, 6, 1, &transform[0][0], Entity(1), 0, 0, TextGlyphMode::Color);
         frame.submitSkeletalBatch(skeletal, 4, indices, 6, 1, 0, &transform[0][0], Entity(2), 0, 0, 0, false);
         frame.flush();
         CHECK(frame.stats().text == 1);

@@ -428,14 +428,15 @@ export interface ESEngineModule {
         layer: number, depth: number, materialId: number, premultipliedColor: boolean
     ): void;
     /**
-     * Submit pre-laid-out glyph quads. Vertex format x,y,u,v,r,g,b,a; `sdf` (1/0)
-     * selects the SDF variant vs the plain textured batch (device bitmap atlas).
+     * Submit pre-laid-out glyph quads. Vertex format x,y,u,v,r,g,b,a,sdfBias; `glyphMode` (TextGlyphMode) says how the page's
+     * pixels become coverage: 0 the plain textured batch (device bitmap atlas), 1 the SDF variant, 2 and 3 a baked-outline page's
+     * silhouette and fill.
      */
     renderer_submitTextBatch?(
         verticesPtr: number, vertexCount: number,
         indicesPtr: number, indexCount: number,
         textureId: number, transformPtr: number,
-        entity: number, layer: number, depth: number, sdf: number, cullBit: number
+        entity: number, layer: number, depth: number, glyphMode: number, cullBit: number
     ): void;
     /**
      * Retained text: glyph quads handed over once and submitted by the engine every frame (RetainedText.hpp). `Begin` starts or replaces an
@@ -447,7 +448,7 @@ export interface ESEngineModule {
     ): void;
     renderer_retainedTextBatch?(
         entity: number, verticesPtr: number, vertexCount: number,
-        indicesPtr: number, indexCount: number, pageId: number
+        indicesPtr: number, indexCount: number, pageId: number, glyphMode: number
     ): void;
     renderer_retainedTextClear?(entity: number): void;
     renderer_retainedTextStale?(registry: CppRegistry, outPtr: number, capacity: number): number;

@@ -279,11 +279,11 @@ function installNativeUI(app: App, scope: Record<string, unknown>): void {
     const submit = scope[TEXT_BINDINGS.submitTextBatch] as (
         vertices: Float32Array, vertexCount: number, indices: Uint16Array, indexCount: number,
         textureId: number, transform: Float32Array, entity: number, layer: number,
-        depth: number, sdf: number, cullBit: number,
+        depth: number, glyphMode: number, cullBit: number,
     ) => void;
-    setNativeTextSubmit((vertices, vertexCount, indices, textureId, transform, entity, layer, depth, sdf, cullBit) => {
+    setNativeTextSubmit((vertices, vertexCount, indices, textureId, transform, entity, layer, depth, mode, cullBit) => {
         submit(vertices, vertexCount, indices, indices.length, textureId, transform,
-               entity, layer, depth, sdf ? 1 : 0, cullBit);
+               entity, layer, depth, mode, cullBit);
     });
     app.addPlugin(uiPlugin);
 }

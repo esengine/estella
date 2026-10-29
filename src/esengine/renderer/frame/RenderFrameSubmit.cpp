@@ -45,7 +45,7 @@ void RenderFrame::submitTextBatch(
     const f32* vertices, i32 vertexCount,
     const u16* indices, i32 indexCount,
     u32 textureId, const f32* transform16,
-    Entity entity, i32 layer, f32 depth, bool sdf, u32 cullBit
+    Entity entity, i32 layer, f32 depth, TextGlyphMode mode, u32 cullBit
 ) {
     if (vertexCount <= 0 || indexCount <= 0
         || !batchEntityVisible(draw_list_, clip_state_, entity, layer, cullBit)) return;
@@ -65,13 +65,20 @@ void RenderFrame::submitTextBatch(
         dst[i] = { {worldPos.x, worldPos.y, worldPos.z}, pc, {v[2], v[3]}, 0.0f, v[8] };
     }
 
-    // sdf: the SDF variant derives coverage from the distance field; otherwise the
-    // featureless batch multiplies the atlas alpha (native-AA bitmap coverage) directly.
+    // Sdf derives coverage from the distance field; Mask and Fill read a baked-outline page (see TextGlyphMode); Color is the featureless batch,
+    // which multiplies the page's RGBA by the tint (native-AA bitmap coverage in alpha, or a colour font).
+    u32 program = 0;
+    switch (mode) {
+        case TextGlyphMode::Sdf: program = batchProgram({"SDF"}); break;
+        case TextGlyphMode::Mask: program = batchProgram({"GLYPH_MASK"}); break;
+        case TextGlyphMode::Fill: program = batchProgram({"GLYPH_FILL"}); break;
+        case TextGlyphMode::Color: program = batchProgram({}); break;
+    }
     pushBatchCommand(pool_, draw_list_, clip_state_, vOff, static_cast<u32>(vertexCount), indices,
                      static_cast<u32>(indexCount), BatchDrawKey{
         .stage = current_stage_,
         .layer = layer,
-        .shaderId = sdf ? batchProgram({"SDF"}) : batchProgram({}),
+        .shaderId = program,
         .blend = BlendMode::Normal,
         .textureId = textureId,
         .depth = depth,

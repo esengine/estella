@@ -24,6 +24,8 @@ const IMG = '11111111-1111-4111-8111-111111111111';
 const ITEM = '22222222-2222-4222-8222-222222222222';
 const PANEL = '33333333-3333-4333-8333-333333333333';
 const FONT = '44444444-4444-4444-8444-444444444444';
+const MAT = '66666666-6666-4666-8666-666666666666';
+const EFFECT = '77777777-7777-4777-8777-777777777777';
 
 const vec = (x: number, y: number, z = 0) => ({ __type__: 'cc.Vec3', x, y, z });
 const ident = { __type__: 'cc.Quat', x: 0, y: 0, z: 0, w: 1 };
@@ -53,7 +55,7 @@ const itemPrefab = [
     { __type__: 'cc.PrefabInfo', root: { __id__: 1 }, asset: { __id__: 0 }, fileId: 'itemRoot', instance: null },       // 8
     { __type__: 'cc.UITransform', node: { __id__: 2 }, _enabled: true, __prefab: { __id__: 10 }, _contentSize: { width: 80, height: 20 }, _anchorPoint: { x: 0.5, y: 0.5 } }, // 9
     { __type__: 'cc.CompPrefabInfo', fileId: 'ut2' },                                            // 10
-    { __type__: 'cc.Label', node: { __id__: 2 }, _enabled: true, __prefab: { __id__: 12 }, _string: 'hello', _fontSize: 20, _lineHeight: 24, _color: { r: 255, g: 0, b: 0, a: 255 }, _horizontalAlign: 1, _verticalAlign: 1, _isSystemFontUsed: false, _font: { __uuid__: FONT }, _overflow: 0, _enableWrapText: true }, // 11
+    { __type__: 'cc.Label', node: { __id__: 2 }, _enabled: true, __prefab: { __id__: 12 }, _string: 'hello', _fontSize: 20, _lineHeight: 24, _color: { r: 255, g: 0, b: 0, a: 255 }, _horizontalAlign: 1, _verticalAlign: 1, _isSystemFontUsed: false, _font: { __uuid__: FONT }, _customMaterial: { __uuid__: MAT }, _overflow: 0, _enableWrapText: true }, // 11
     { __type__: 'cc.CompPrefabInfo', fileId: 'lab' },                                            // 12
     { __type__: 'cc.PrefabInfo', root: { __id__: 1 }, asset: { __id__: 0 }, fileId: 'capt', instance: null },          // 13
 ];
@@ -146,9 +148,14 @@ beforeAll(async () => {
     put('ui/item.prefab.meta', meta(ITEM, 'prefab'));
     put('ui/panel.prefab', panelPrefab);
     put('ui/panel.prefab.meta', meta(PANEL, 'prefab'));
-    put('ui/f.fnt', 'info face="f"\npage id=0 file="f_0.png"\n');
+    put('ui/f.fnt', 'info face="f" size=20\ncommon lineHeight=20 base=16 scaleW=64 scaleH=64 pages=1 packed=0\npage id=0 file="f_0.png"\n');
     put('ui/f_0.png', 'page');
     put('ui/f.fnt.meta', meta(FONT, 'bitmap-font'));
+    // the outline effect mixes the outline colour in by the red channel; the material that uses it is what marks a font page as baked
+    put('ui/font.effect', 'vec4 frag () { float alphaLerp = o.r; return mix(outlineColor, color, alphaLerp); }');
+    put('ui/font.effect.meta', meta(EFFECT, 'effect'));
+    put('ui/font.mtl', { __type__: 'cc.Material', _effectAsset: { __uuid__: EFFECT } });
+    put('ui/font.mtl.meta', meta(MAT, 'material'));
     put('main.scene', scene);
     put('main.scene.meta', meta('55555555-5555-4555-8555-555555555555', 'scene'));
     before = Object.fromEntries([...files(src)].map((f) => [f, sha(f)]));
@@ -191,6 +198,16 @@ describe('importing a Cocos project', () => {
         expect(written, written.join(',')).toContain('assets/cocos/ui/f_0.png');
     });
 
+    it('declares a font page that its material draws as glyph and outline layers, in BMFont\'s own channel flags', () => {
+        const fnt = readFileSync(path.join(out, 'assets/cocos/ui/f.fnt'), 'utf8');
+        const common = fnt.split(/\r?\n/).find((l) => l.startsWith('common'))!;
+        expect(common).toContain('alphaChnl=2');
+        expect(common).toContain('redChnl=0');
+        // the rest of the file is as it was
+        expect(fnt).toContain('page id=0 file="f_0.png"');
+        expect(common).toContain('scaleW=64');
+    });
+
     it('keeps a nested prefab nested, with the instance\'s changes as overrides', () => {
         const panel = readJson('assets/cocos/ui/panel.esprefab');
         const b = panel.entities.find((e: any) => e.prefabEntityId === 'instB');
@@ -231,8 +248,8 @@ describe('importing a Cocos project', () => {
 
     it('counts what it did not map instead of dropping it', () => {
         expect(report.components['cc.Sprite']).toEqual({ mapped: 1, partial: 0, unmapped: 0 });
-        expect(report.components['cc.Label']).toEqual({ mapped: 0, partial: 1, unmapped: 0 });
-        expect(report.notes['label-bitmap-font']?.count).toBe(1);
+        expect(report.components['cc.Label']).toEqual({ mapped: 1, partial: 0, unmapped: 0 });
+        expect(report.notes['label-bitmap-font']).toBeUndefined();
         expect(report.notes['scene-globals-dropped']?.count).toBe(1);
         expect(report.prefabInstances).toBe(3);
     });

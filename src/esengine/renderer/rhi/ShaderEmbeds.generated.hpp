@@ -12,6 +12,14 @@ inline constexpr const char* BATCH = R"esshader(#pragma shader "Batch"
 
 
 
+
+
+
+#pragma feature GLYPH_MASK
+#pragma feature GLYPH_FILL
+
+
+
 #pragma feature LIT
 
 
@@ -115,6 +123,10 @@ void main() {
     float screenPxDist = (dist - 0.5 + v_sdfBias) / max(fwidth(dist), 1e-6);
     float coverage = clamp(screenPxDist + 0.5, 0.0, 1.0);
     fragColor = vec4(tint.rgb, tint.a * coverage);
+#elif defined(GLYPH_MASK)
+    fragColor = vec4(tint.rgb, tint.a * texColor.a);
+#elif defined(GLYPH_FILL)
+    fragColor = vec4(tint.rgb, tint.a * texColor.r * texColor.a);
 #elif defined(LIT)
 
     vec4 base = texColor * tint;
@@ -237,6 +249,10 @@ struct VSOut {
     let screenPxDist = (dist - 0.5 + v.v_sdfBias) / max(fwidth(dist), 1e-6);
     let coverage = clamp(screenPxDist + 0.5, 0.0, 1.0);
     return vec4f(tint.rgb, tint.a * coverage);
+#elif defined(GLYPH_MASK)
+    return vec4f(tint.rgb, tint.a * texColor.a);
+#elif defined(GLYPH_FILL)
+    return vec4f(tint.rgb, tint.a * texColor.r * texColor.a);
 #elif defined(LIT)
     let base = texColor * tint;
     return vec4f(applyLighting2DLayer(base.rgb, vec3f(0.0, 0.0, 1.0), v.v_worldPos, v.v_lightLayer), base.a);

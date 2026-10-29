@@ -31,11 +31,12 @@ struct RetainedTextBatch {
     std::vector<u16> indices;   ///< Six a quad, naming this batch's own vertices.
     std::vector<f32> blocks;    ///< left, bottom, right, top of each RETAINED_TEXT_BLOCK_QUADS quads.
     u32 pageId = 0;             ///< The atlas page, which is the draw's texture.
+    TextGlyphMode mode = TextGlyphMode::Color;  ///< How the page's pixels become coverage. A label may mix them: an outline's ring, then its fill.
 };
 
 struct RetainedText {
     std::vector<RetainedTextBatch> batches;
-    bool sdf = false;
+    bool sdf = false;     ///< The pipeline the label's glyphs were chosen for, by world scale (autoKind). What each batch draws with is its own `mode`.
     bool screen = false;  ///< The domain the geometry was laid out for.
     bool hasBox = false;  ///< Laid out in a UINode box, so ordered by the UI tree rather than by `layer`.
     bool autoKind = false;  ///< The glyph pipeline was chosen from the entity's world scale, so a changed scale can change it.
@@ -61,13 +62,15 @@ public:
     }
 
     /// One batch of an entity begun with begin(). False when it was not begun or the batch is not whole quads.
-    bool add(u32 entity, const f32* vertices, i32 vertexCount, const u16* indices, i32 indexCount, u32 pageId) {
+    bool add(u32 entity, const f32* vertices, i32 vertexCount, const u16* indices, i32 indexCount, u32 pageId,
+             TextGlyphMode mode = TextGlyphMode::Color) {
         const auto found = entries_.find(entity);
         if (found == entries_.end() || vertexCount <= 0 || indexCount <= 0 || vertexCount % 4 != 0 || indexCount != vertexCount / 4 * 6) return false;
         RetainedTextBatch& batch = found->second.batches.emplace_back();
         batch.vertices.assign(vertices, vertices + static_cast<usize>(vertexCount) * TEXT_VERTEX_FLOATS);
         batch.indices.assign(indices, indices + indexCount);
         batch.pageId = pageId;
+        batch.mode = mode;
         const u32 quads = static_cast<u32>(vertexCount) / 4;
         batch.blocks.resize(static_cast<usize>((quads + RETAINED_TEXT_BLOCK_QUADS - 1) / RETAINED_TEXT_BLOCK_QUADS) * 4);
         for (u32 start = 0; start < quads; start += RETAINED_TEXT_BLOCK_QUADS) {
