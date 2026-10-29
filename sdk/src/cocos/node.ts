@@ -27,6 +27,32 @@ import { log } from '../util/logger';
 /** The world a `new Node()` spawns into: set by whatever is running script code (the host, a test). */
 let currentWorld: World | null = null;
 /** Make @p world current, and return the one that was, so a caller can put it back. */
+// A node made by `instantiate` is not in the scene until it is given a parent. The entity exists in the world from the start, so it
+// is held switched off, and `active` keeps answering what the node itself was made as; the first `addChild` lets it in.
+const detached = new WeakMap<World, Map<Entity, boolean>>();
+
+/** Hold a freshly instantiated root out of the scene until it has a parent. @internal */
+export function markDetached(world: World, entity: Entity): void {
+    let perWorld = detached.get(world);
+    if (!perWorld) detached.set(world, (perWorld = new Map()));
+    perWorld.set(entity, !world.has(entity, Disabled));
+    setEntityActive(world, entity, false);
+}
+function detachedActive(world: World, entity: Entity): boolean | undefined { return detached.get(world)?.get(entity); }
+function setDetachedActive(world: World, entity: Entity, value: boolean): boolean {
+    const perWorld = detached.get(world);
+    if (!perWorld?.has(entity)) return false;
+    perWorld.set(entity, value);
+    return true;
+}
+function releaseDetached(world: World, entity: Entity): void {
+    const perWorld = detached.get(world);
+    const wasActive = perWorld?.get(entity);
+    if (wasActive === undefined) return;
+    perWorld!.delete(entity);
+    setEntityActive(world, entity, wasActive);
+}
+
 export function setCurrentWorld(world: World | null): World | null { const previous = currentWorld; currentWorld = world; return previous; }
 export function getCurrentWorld(): World | null { return currentWorld; }
 
@@ -106,8 +132,11 @@ export class Node {
     // ---- activity --------------------------------------------------------------------------------------------------
 
     /** This node's own switch. */
-    get active(): boolean { return !this._world.has(this._entity, Disabled); }
-    set active(value: boolean) { setEntityActive(this._world, this._entity, value); }
+    get active(): boolean { return detachedActive(this._world, this._entity) ?? !this._world.has(this._entity, Disabled); }
+    set active(value: boolean) {
+        if (setDetachedActive(this._world, this._entity, value)) return;
+        setEntityActive(this._world, this._entity, value);
+    }
 
     /** This node's switch and every ancestor's. */
     get activeInHierarchy(): boolean { return this._world.isEntityActive(this._entity); }
@@ -127,8 +156,10 @@ export class Node {
     get childrenCount(): number { return this._world.tryGet(this._entity, Children)?.entities.length ?? 0; }
 
     setParent(parent: Node | null, _keepWorldTransform = false): void {
-        if (parent) this._world.setParent(this._entity, parent._entity);
-        else this._world.removeParent(this._entity);
+        if (parent) {
+            this._world.setParent(this._entity, parent._entity);
+            releaseDetached(this._world, this._entity);
+        } else this._world.removeParent(this._entity);
     }
 
     addChild(child: Node): void { child.setParent(this); }

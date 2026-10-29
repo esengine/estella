@@ -13,6 +13,8 @@ import { declareButton } from './ui/button';
 import { declareInputSystem } from './input';
 import { declareUiPass } from './ui/pass';
 import { uiTransformDef } from './ui/uiTransform';
+import { declareTweenSystem } from './tween';
+import { declarePrefabSystem } from './prefabs';
 import { resetClassRegistry } from './registry';
 
 const declared = new WeakSet<object>();
@@ -27,6 +29,8 @@ export function declareBuiltinScripts(): void {
     // A scene holds `Cocos.UITransform` before any script asks for one, so the component has to exist when it loads.
     uiTransformDef();
     declareUiPass();
+    declareTweenSystem();
+    declarePrefabSystem();
 }
 
 /** Test seam: forget the registry and declare again into the (possibly new) current context. */

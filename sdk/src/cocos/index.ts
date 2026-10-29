@@ -27,6 +27,8 @@ export {
 export { registerBuiltinComponent, type BuiltinAdapter } from './builtins';
 export { UITransform, Label, LabelOutline, LabelShadow, Sprite, UIOpacity, Button, EventHandler, Widget, Layout, getVisibleSize, setVisibleSize } from './ui';
 export { Touch, EventTouch, pumpTouches } from './input';
+export { tween, Tween, tweenUtil, easing, updateTweens } from './tween';
+export { instantiate, loadPrefab, providePrefab } from './prefabs';
 export { declareBuiltinScripts, redeclareBuiltinScripts } from './builtinScripts';
 /** `cc/env` is the same module here: its flags are named exports beside the rest. */
 export * from './env';

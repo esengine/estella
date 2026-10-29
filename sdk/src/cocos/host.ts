@@ -47,6 +47,8 @@ function inferKind(value: unknown): PropertyKind {
     return 'json';
 }
 import type { Component } from './component';
+import { Prefab, type Asset } from './assets';
+import { requestPrepare } from './prefabs';
 
 /** The value a freshly declared component carries for one property: what the class's own initializer gave, in the form the engine stores. */
 function storedDefault(spec: PropertySpec, value: unknown): unknown {
@@ -65,6 +67,13 @@ function storedDefault(spec: PropertySpec, value: unknown): unknown {
     }
 }
 
+/** An asset path as the asset class the script named; a prefab starts loading the moment a script holds it. */
+function asAsset(type: Function, path: string): unknown {
+    const asset = new (type as new (path: string) => Asset)(path);
+    if (asset instanceof Prefab) requestPrepare(path);
+    return asset;
+}
+
 /** What a stored value becomes on an instance. */
 function liveValue(world: World, spec: PropertySpec, stored: unknown): unknown {
     const one = (v: unknown): unknown => {
@@ -78,6 +87,7 @@ function liveValue(world: World, spec: PropertySpec, stored: unknown): unknown {
             case 'vec2': return v && typeof v === 'object' ? new Vec2((v as Vec2).x, (v as Vec2).y) : new Vec2();
             case 'vec3': return v && typeof v === 'object' ? new Vec3((v as Vec3).x, (v as Vec3).y, (v as Vec3).z) : new Vec3();
             case 'color': return v && typeof v === 'object' ? new Color((v as Color).r, (v as Color).g, (v as Color).b, (v as Color).a) : new Color();
+            case 'asset': return typeof v === 'string' && v !== '' && typeof spec.type === 'function' ? asAsset(spec.type, v) : v;
             default: return v;
         }
     };

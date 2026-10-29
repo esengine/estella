@@ -362,7 +362,8 @@ export function convertPrefab(doc: CocosDocument, ctx: ConvertContext): PrefabFi
 export function convertScene(doc: CocosDocument, ctx: ConvertContext): SceneFile {
     const entities: (SceneEntity | SceneInstanceEntry)[] = [];
     ctx.report.documents.converted++;
-    let next = 0;
+    // From 1: 0 is the engine's "no entity", and a reference to an entity numbered 0 would read as none.
+    let next = 1;
     // Ids are given before any node is converted, so a reference to a node that comes later in the file has something to point at.
     const ids = new Map<string, number>();
     const assign = (n: CocosNode): void => {

@@ -98,6 +98,25 @@ export class Quat {
     clone(): Quat { return new Quat(this.x, this.y, this.z, this.w); }
 
     /** The rotation of @p x, @p y, @p z degrees about those axes — Cocos's own formula, so a script's angles mean what they meant there. */
+    /** Spherical interpolation from @p a to @p b, written to @p out. */
+    static slerp(out: Quat, a: Quat, b: Quat, t: number): Quat {
+        let cosom = a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w;
+        let bx = b.x, by = b.y, bz = b.z, bw = b.w;
+        if (cosom < 0) { cosom = -cosom; bx = -bx; by = -by; bz = -bz; bw = -bw; }
+        let scale0 = 1 - t, scale1 = t;
+        if (1 - cosom > 1e-6) {
+            const omega = Math.acos(cosom);
+            const sinom = Math.sin(omega);
+            scale0 = Math.sin((1 - t) * omega) / sinom;
+            scale1 = Math.sin(t * omega) / sinom;
+        }
+        out.x = scale0 * a.x + scale1 * bx;
+        out.y = scale0 * a.y + scale1 * by;
+        out.z = scale0 * a.z + scale1 * bz;
+        out.w = scale0 * a.w + scale1 * bw;
+        return out;
+    }
+
     static fromEuler(out: Quat, x: number, y: number, z: number): Quat {
         const hx = (x * Math.PI) / 360, hy = (y * Math.PI) / 360, hz = (z * Math.PI) / 360;
         const sx = Math.sin(hx), cx = Math.cos(hx), sy = Math.sin(hy), cy = Math.cos(hy), sz = Math.sin(hz), cz = Math.cos(hz);

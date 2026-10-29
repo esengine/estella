@@ -14,7 +14,19 @@ export class ImageAsset extends Asset {}
 export class Texture2D extends Asset {}
 export class SpriteFrame extends Asset {}
 export class SpriteAtlas extends Asset {}
-export class Prefab extends Asset {}
+/** Prepared prefabs by path: shared by every `Prefab` handle that names the path. */
+export const preparedPrefabs = new Map<string, unknown>();
+
+/**
+ * A prefab a script holds. `instantiate` is synchronous in Cocos, which is only possible because the prefab was loaded first; here
+ * that is the prepared form (see prefabs.ts), made once per path as soon as a script holds the handle.
+ */
+export class Prefab extends Asset {
+    /** The engine's prepared prefab, once it has loaded. @internal */
+    get _prepared(): unknown { return preparedPrefabs.get(this.path); }
+    /** Why preparing failed, when it did. @internal */
+    _failed = '';
+}
 export class AudioClip extends Asset {}
 export class Material extends Asset {}
 export class JsonAsset extends Asset {}

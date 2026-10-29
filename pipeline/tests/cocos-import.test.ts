@@ -237,7 +237,7 @@ describe('importing a Cocos project', () => {
     it('turns a scene\'s prefab instance into an entry with the overrides it applied', () => {
         const scene = readJson('assets/cocos/main.esscene');
         const entry = scene.entities.find((e: any) => typeof e.prefab === 'string');
-        expect(entry).toMatchObject({ prefab: 'assets/cocos/ui/panel.esprefab', parent: 0, added: [], removed: [] });
+        expect(entry).toMatchObject({ prefab: 'assets/cocos/ui/panel.esprefab', parent: 1, added: [], removed: [] });
         // 'instB/itemRoot' addresses the engine's composed id for the nested root: slot / local id
         expect(entry.overrides).toEqual([
             expect.objectContaining({ prefabEntityId: 'instB/itemRoot', type: 'property', componentType: 'Transform', propertyName: 'position', value: { x: 9, y: 9, z: 0 } }),
