@@ -305,25 +305,70 @@ function layout(c: CocosComponent): ComponentData {
     return { type: `${LAYER}Layout`, data };
 }
 
+/**
+ * An editor-authored handler list as the data model keeps it: the target nodes in a list of their own (they are entity references the
+ * loader remaps) and the rest of each record beside it. @p prefix names the pair: `click` gives `clickTargets` / `clickHandlers`.
+ */
+function handlerLists(events: unknown, prefix: string, ctx: ComponentContext): Raw {
+    const list = Array.isArray(events) ? events.filter(isObj) : [];
+    return {
+        [`${prefix}Targets`]: list.map((e) => e.target ?? null),
+        [`${prefix}Handlers`]: list.map((e) => {
+            const id = typeof e._componentId === 'string' ? e._componentId : '';
+            const known = id ? ctx.scriptClass?.(id)?.name : undefined;
+            return {
+                component: known ?? (typeof e.component === 'string' ? e.component : ''),
+                handler: typeof e.handler === 'string' ? e.handler : '',
+                customEventData: typeof e.customEventData === 'string' ? e.customEventData : '',
+            };
+        }),
+    };
+}
+
+const BUTTON_FIELDS: Record<string, string> = {
+    _interactable: 'interactable', _transition: 'transition', _zoomScale: 'zoomScale', _duration: 'duration',
+    _normalColor: 'normalColor', _hoverColor: 'hoverColor', _pressedColor: 'pressedColor', _disabledColor: 'disabledColor',
+    _target: 'target',
+};
+
 function button(c: CocosComponent, ctx: ComponentContext): ComponentData {
-    const data = renamed(c, {
-        _interactable: 'interactable', _transition: 'transition', _zoomScale: 'zoomScale', _duration: 'duration',
-        _normalColor: 'normalColor', _hoverColor: 'hoverColor', _pressedColor: 'pressedColor', _disabledColor: 'disabledColor',
-        _target: 'target',
-    });
-    // An editor-authored handler holds a node, which the data model keeps in a list of its own beside the rest of the record.
-    const events = Array.isArray(c.data.clickEvents) ? c.data.clickEvents.filter(isObj) : [];
-    data.clickTargets = events.map((e) => e.target ?? null);
-    data.clickHandlers = events.map((e) => {
-        const id = typeof e._componentId === 'string' ? e._componentId : '';
-        const known = id ? ctx.scriptClass?.(id)?.name : undefined;
-        return {
-            component: known ?? (typeof e.component === 'string' ? e.component : ''),
-            handler: typeof e.handler === 'string' ? e.handler : '',
-            customEventData: typeof e.customEventData === 'string' ? e.customEventData : '',
-        };
-    });
-    return { type: `${LAYER}Button`, data };
+    return { type: `${LAYER}Button`, data: { ...renamed(c, BUTTON_FIELDS), ...handlerLists(c.data.clickEvents, 'click', ctx) } };
+}
+
+function toggle(c: CocosComponent, ctx: ComponentContext): ComponentData {
+    return {
+        type: `${LAYER}Toggle`,
+        data: {
+            ...renamed(c, { ...BUTTON_FIELDS, _isChecked: 'isChecked', _checkMark: 'checkMark', _toggleGroup: 'toggleGroup' }),
+            ...handlerLists(c.data.clickEvents, 'click', ctx),
+            ...handlerLists(c.data.checkEvents, 'check', ctx),
+        },
+    };
+}
+
+function toggleContainer(c: CocosComponent, ctx: ComponentContext): ComponentData {
+    return { type: `${LAYER}ToggleContainer`, data: { ...renamed(c, { _allowSwitchOff: 'allowSwitchOff' }), ...handlerLists(c.data.checkEvents, 'check', ctx) } };
+}
+
+function progressBar(c: CocosComponent): ComponentData {
+    return { type: `${LAYER}ProgressBar`, data: renamed(c, { _barSprite: 'barSprite', _mode: 'mode', _totalLength: 'totalLength', _progress: 'progress_', _reverse: 'reverse' }) };
+}
+
+function slider(c: CocosComponent, ctx: ComponentContext): ComponentData {
+    return { type: `${LAYER}Slider`, data: { ...renamed(c, { _handle: 'handle', _direction: 'direction', _progress: 'progress_' }), ...handlerLists(c.data.slideEvents, 'slide', ctx) } };
+}
+
+function scrollView(c: CocosComponent, ctx: ComponentContext): ComponentData {
+    return {
+        type: `${LAYER}ScrollView`,
+        data: {
+            ...renamed(c, {
+                _content: 'content', horizontal: 'horizontal', vertical: 'vertical', inertia: 'inertia', brake: 'brake', elastic: 'elastic',
+                bounceDuration: 'bounceDuration', cancelInnerEvents: 'cancelInnerEvents',
+            }),
+            ...handlerLists(c.data.scrollEvents, 'scroll', ctx),
+        },
+    };
 }
 
 /** A script component's fields, with asset references turned into project paths. */
@@ -394,6 +439,24 @@ export function convertNode(node: CocosNode, ctx: ComponentContext, where: strin
                 break;
             case 'cc.Button':
                 out = button(c, ctx);
+                break;
+            case 'cc.Toggle':
+                out = toggle(c, ctx);
+                break;
+            case 'cc.ToggleContainer':
+                out = toggleContainer(c, ctx);
+                break;
+            case 'cc.ProgressBar':
+                out = progressBar(c);
+                break;
+            case 'cc.Slider':
+                out = slider(c, ctx);
+                break;
+            case 'cc.ScrollView':
+                out = scrollView(c, ctx);
+                break;
+            case 'cc.BlockInputEvents':
+                out = { type: `${LAYER}BlockInputEvents`, data: { enabled: c.enabled } };
                 break;
             default:
                 out = c.type.startsWith('cc.') ? null : script(c, ctx);

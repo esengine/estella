@@ -10,6 +10,7 @@
  * Estella component with an instance — and the parts of Cocos that have no counterpart are not simulated (see each file).
  */
 export { Vec2, Vec3, Quat, Color, Size, Rect, v2, v3, color, size, rect, math, toRadian, toDegree, clamp, clamp01, lerp } from './math';
+export { Vec4, Mat4 } from './mat4';
 export { Component } from './component';
 export { Node, setCurrentWorld, getCurrentWorld } from './node';
 import { Node as NodeClass } from './node';
@@ -25,7 +26,7 @@ export {
     AnimationClip, SceneAsset, EffectAsset, Mesh,
 } from './assets';
 export { registerBuiltinComponent, type BuiltinAdapter } from './builtins';
-export { UITransform, Label, LabelOutline, LabelShadow, Sprite, UIOpacity, Button, EventHandler, Widget, Layout, getVisibleSize, setVisibleSize } from './ui';
+export { UITransform, Label, LabelOutline, LabelShadow, Sprite, UIOpacity, Button, EventHandler, Widget, Layout, Toggle, ToggleContainer, ProgressBar, Slider, BlockInputEvents, ScrollView, getVisibleSize, setVisibleSize } from './ui';
 export { Touch, EventTouch, pumpTouches } from './input';
 export { tween, Tween, tweenUtil, easing, updateTweens } from './tween';
 export { instantiate, loadPrefab, providePrefab } from './prefabs';

@@ -81,6 +81,8 @@ export class Node {
     /** @internal */ readonly _world: World;
     /** @internal */ readonly _entity: Entity;
     private listeners_: Map<string, Listener[]> | null = null;
+    /** Listeners registered for the capture phase: they hear a touch on the way DOWN to its target, before the target does. */
+    private captureListeners_: Map<string, Listener[]> | null = null;
     /** Cocos's `layer` bitmask: carried, not interpreted. */
     layer = 1 << 25;
 
@@ -331,24 +333,37 @@ export class Node {
 
     // ---- events ----------------------------------------------------------------------------------------------------
 
-    on(type: string, callback: (...args: any[]) => void, target?: unknown, _useCapture?: boolean): typeof callback {
-        this.addListener_(type, { callback, target, once: false });
+    on(type: string, callback: (...args: any[]) => void, target?: unknown, useCapture = false): typeof callback {
+        this.addListener_(type, { callback, target, once: false }, useCapture);
         return callback;
     }
     once(type: string, callback: (...args: any[]) => void, target?: unknown): void {
         this.addListener_(type, { callback, target, once: true });
     }
-    off(type: string, callback?: (...args: any[]) => void, target?: unknown): void {
-        const list = this.listeners_?.get(type);
+    off(type: string, callback?: (...args: any[]) => void, target?: unknown, useCapture = false): void {
+        const map = useCapture ? this.captureListeners_ : this.listeners_;
+        const list = map?.get(type);
         if (!list) return;
-        this.listeners_!.set(type, list.filter((l) => (callback && l.callback !== callback) || (target !== undefined && l.target !== target)));
+        map!.set(type, list.filter((l) => (callback && l.callback !== callback) || (target !== undefined && l.target !== target)));
     }
     /** Remove every listener that was registered with @p target. */
     targetOff(target: unknown): void {
-        if (!this.listeners_) return;
-        for (const [type, list] of this.listeners_) this.listeners_.set(type, list.filter((l) => l.target !== target));
+        for (const map of [this.listeners_, this.captureListeners_]) {
+            if (!map) continue;
+            for (const [type, list] of map) map.set(type, list.filter((l) => l.target !== target));
+        }
     }
-    hasEventListener(type: string): boolean { return (this.listeners_?.get(type)?.length ?? 0) > 0; }
+    hasEventListener(type: string, useCapture?: boolean): boolean {
+        if (useCapture === true) return (this.captureListeners_?.get(type)?.length ?? 0) > 0;
+        if (useCapture === false) return (this.listeners_?.get(type)?.length ?? 0) > 0;
+        return (this.listeners_?.get(type)?.length ?? 0) > 0 || (this.captureListeners_?.get(type)?.length ?? 0) > 0;
+    }
+    /** @internal Call the capture-phase listeners for @p type. */
+    _emitCapture(type: string, ...args: any[]): void {
+        const list = this.captureListeners_?.get(type);
+        if (!list) return;
+        for (const l of [...list]) l.callback.call(l.target, ...args);
+    }
     emit(type: string, ...args: any[]): void {
         const list = this.listeners_?.get(type);
         if (!list) return;
@@ -359,15 +374,15 @@ export class Node {
     }
     dispatchEvent(event: { type: string }): void { this.emit(event.type, event); }
 
-    private addListener_(type: string, listener: Listener): void {
+    private addListener_(type: string, listener: Listener, useCapture = false): void {
         if (type.startsWith('touch-')) {
             let set = touchListeners.get(this._world);
             if (!set) touchListeners.set(this._world, (set = new Set()));
             set.add(this._entity);
         }
-        if (!this.listeners_) this.listeners_ = new Map();
-        const list = this.listeners_.get(type);
-        if (list) list.push(listener); else this.listeners_.set(type, [listener]);
+        const map = useCapture ? (this.captureListeners_ ??= new Map()) : (this.listeners_ ??= new Map());
+        const list = map.get(type);
+        if (list) list.push(listener); else map.set(type, [listener]);
     }
 }
 

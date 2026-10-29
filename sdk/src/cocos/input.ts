@@ -64,8 +64,16 @@ export class EventTouch {
     target: Node | null = null;
     currentTarget: Node | null = null;
     private stopped_ = false;
+    /** @internal Set by the dispatcher: cancels the touch for the node that claimed it. */
+    _cancelTarget: (() => void) | null = null;
 
     constructor(public readonly type: string, public readonly touch: Touch, private readonly all_: Touch[]) {}
+
+    /**
+     * Tell the node the touch started on that it is cancelled, and stop sending it the rest of the gesture. A scroll view calls this
+     * once a drag is clearly a drag, so a button under the finger does not also click when it is lifted.
+     */
+    cancelInner(): void { this._cancelTarget?.(); }
 
     get propagationStopped(): boolean { return this.stopped_; }
     stopPropagation(): void { this.stopped_ = true; }
@@ -131,17 +139,27 @@ function hitNode(world: World, point: Vec2): Node | null {
     return hits[0]!.node;
 }
 
-/** Hand an event to a node and its ancestors, nearest first, until one stops it. */
-function dispatch(event: EventTouch, from: Node): void {
-    event.target = from;
+/**
+ * Hand an event down and up the tree: capture listeners of the ancestors from the top, then the target's own, then the normal
+ * listeners from the target up through its ancestors, until one stops it. @p chainFrom is the node the capture path is read from,
+ * which differs from @p from once a capturing ancestor has cancelled the target.
+ */
+function dispatch(event: EventTouch, from: Node | null, chainFrom: Node | null = from): void {
+    const path: Node[] = [];
+    for (let n: Node | null = chainFrom; n; n = n.parent) path.unshift(n);
+    event.target = from ?? chainFrom;
+    const guard = (fn: () => void, node: Node): void => {
+        try { fn(); } catch (err) { log.error('cocos', `${node.name} ${event.type} listener threw`, err); }
+    };
+    for (const node of path) {
+        if (event.propagationStopped) return;
+        event.currentTarget = node;
+        guard(() => node._emitCapture(event.type, event), node);
+    }
     for (let node: Node | null = from; node && !event.propagationStopped; node = node.parent) {
         event.currentTarget = node;
-        if (!node.hasEventListener(event.type)) continue;
-        try {
-            node.emit(event.type, event);
-        } catch (err) {
-            log.error('cocos', `${node.name} ${event.type} listener threw`, err);
-        }
+        if (!node.hasEventListener(event.type, false)) continue;
+        guard(() => node!.emit(event.type, event), node);
     }
 }
 
@@ -149,13 +167,27 @@ function dispatch(event: EventTouch, from: Node): void {
 // The per-frame system.
 // ---------------------------------------------------------------------------------------------------------------------
 
-interface Gesture { touch: Touch; target: Node | null }
+interface Gesture { touch: Touch; target: Node | null; chainFrom: Node | null }
 const gestures = new WeakMap<World, Map<number, Gesture>>();
 
 function gesturesOf(world: World): Map<number, Gesture> {
     let g = gestures.get(world);
     if (!g) gestures.set(world, (g = new Map()));
     return g;
+}
+
+/** Give an event the means to cancel the node that claimed its gesture, without bubbling the cancellation back to the canceller. */
+function withCancel(event: EventTouch, gesture: Gesture, live: Touch[]): EventTouch {
+    event._cancelTarget = () => {
+        const target = gesture.target;
+        if (!target) return;
+        gesture.target = null;
+        const cancel = new EventTouch(Node.EventType.TOUCH_CANCEL, gesture.touch, live);
+        cancel.target = target;
+        cancel.currentTarget = target;
+        try { target.emit(Node.EventType.TOUCH_CANCEL, cancel); } catch (err) { log.error('cocos', `${target.name} cancel listener threw`, err); }
+    };
+    return event;
 }
 
 /** Turn this frame's pointers into TOUCH_START / MOVE / END events. Exported so a test (or a host with its own loop) can drive it. */
@@ -172,24 +204,25 @@ export function pumpTouches(world: World, input: InputState, camera: UICameraDat
 
         if (p.pressed && !gesture) {
             const touch = new Touch(p.id, at.x, at.y);
-            gesture = { touch, target: hitNode(world, new Vec2(at.x, at.y)) };
+            const hit = hitNode(world, new Vec2(at.x, at.y));
+            gesture = { touch, target: hit, chainFrom: hit };
             book.set(p.id, gesture);
             live.push(touch);
             globalInput.emit(Node.EventType.TOUCH_START, new EventTouch(Node.EventType.TOUCH_START, touch, live));
-            if (gesture.target) dispatch(new EventTouch(Node.EventType.TOUCH_START, touch, live), gesture.target);
+            if (gesture.chainFrom) dispatch(withCancel(new EventTouch(Node.EventType.TOUCH_START, touch, live), gesture, live), gesture.target, gesture.chainFrom);
         }
         if (!gesture) continue;
 
         if (p.down && (at.x !== gesture.touch.getLocationX() || at.y !== gesture.touch.getLocationY())) {
             gesture.touch._move(at.x, at.y);
             globalInput.emit(Node.EventType.TOUCH_MOVE, new EventTouch(Node.EventType.TOUCH_MOVE, gesture.touch, live));
-            if (gesture.target) dispatch(new EventTouch(Node.EventType.TOUCH_MOVE, gesture.touch, live), gesture.target);
+            if (gesture.chainFrom) dispatch(withCancel(new EventTouch(Node.EventType.TOUCH_MOVE, gesture.touch, live), gesture, live), gesture.target, gesture.chainFrom);
         }
         if (p.released) {
             gesture.touch._move(at.x, at.y);
             const type = p.cancelled ? Node.EventType.TOUCH_CANCEL : Node.EventType.TOUCH_END;
             globalInput.emit(type, new EventTouch(type, gesture.touch, live));
-            if (gesture.target) dispatch(new EventTouch(type, gesture.touch, live), gesture.target);
+            if (gesture.chainFrom) dispatch(withCancel(new EventTouch(type, gesture.touch, live), gesture, live), gesture.target, gesture.chainFrom);
             book.delete(p.id);
         }
     }

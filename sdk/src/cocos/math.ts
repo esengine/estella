@@ -54,6 +54,16 @@ export class Vec3 {
         return this;
     }
     clone(): Vec3 { return new Vec3(this.x, this.y, this.z); }
+    /** A point through a matrix (w = 1), with the perspective divide. */
+    static transformMat4(out: Vec3, a: Vec3, m: { m00: number; m01: number; m02: number; m03: number; m04: number; m05: number; m06: number; m07: number; m08: number; m09: number; m10: number; m11: number; m12: number; m13: number; m14: number; m15: number }): Vec3 {
+        const x = a.x, y = a.y, z = a.z;
+        let w = m.m03 * x + m.m07 * y + m.m11 * z + m.m15;
+        w = w ? 1 / w : 1;
+        out.x = (m.m00 * x + m.m04 * y + m.m08 * z + m.m12) * w;
+        out.y = (m.m01 * x + m.m05 * y + m.m09 * z + m.m13) * w;
+        out.z = (m.m02 * x + m.m06 * y + m.m10 * z + m.m14) * w;
+        return out;
+    }
     add(v: Vec3): this { this.x += v.x; this.y += v.y; this.z += v.z; return this; }
     subtract(v: Vec3): this { this.x -= v.x; this.y -= v.y; this.z -= v.z; return this; }
     multiplyScalar(s: number): this { this.x *= s; this.y *= s; this.z *= s; return this; }

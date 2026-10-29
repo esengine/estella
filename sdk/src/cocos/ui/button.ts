@@ -42,6 +42,21 @@ export class EventHandler {
     }
 }
 
+/** Editor-authored handlers are stored as a list of target nodes beside a list of the rest; join them. */
+export function joinHandlers(
+    targets: Array<Node | null>,
+    records: Array<{ component: string; handler: string; customEventData: string }>,
+): EventHandler[] {
+    return records.map((r, i) => {
+        const e = new EventHandler();
+        e.target = targets[i] ?? null;
+        e.component = r.component;
+        e.handler = r.handler;
+        e.customEventData = r.customEventData;
+        return e;
+    });
+}
+
 const Transition = Object.freeze({ NONE: 0, COLOR: 1, SPRITE: 2, SCALE: 3 });
 const EventType = Object.freeze({ CLICK: 'click' });
 
@@ -67,16 +82,7 @@ export class Button extends Component {
     private restScale_: { x: number; y: number; z: number } | null = null;
 
     onLoad(): void {
-        if (this.clickEvents.length === 0) {
-            this.clickEvents = this.clickHandlers.map((h, i) => {
-                const e = new EventHandler();
-                e.target = this.clickTargets[i] ?? null;
-                e.component = h.component;
-                e.handler = h.handler;
-                e.customEventData = h.customEventData;
-                return e;
-            });
-        }
+        if (this.clickEvents.length === 0) this.clickEvents = joinHandlers(this.clickTargets, this.clickHandlers);
     }
 
     onEnable(): void {
@@ -109,9 +115,13 @@ export class Button extends Component {
         if (this.interactable && this.enabledInHierarchy && inside) {
             EventHandler.emitEvents(this.clickEvents, event);
             this.node.emit(EventType.CLICK, this);
+            this.onClicked_(event);
         }
         event.stopPropagation();
     }
+
+    /** A click has been delivered. A button has nothing more to do; a toggle flips here. */
+    protected onClicked_(_event: EventTouch): void { /* nothing */ }
 
     private onTouchCancel(): void {
         this.pressed_ = false;
@@ -148,20 +158,22 @@ export class Button extends Component {
 }
 
 /** Declare the button's component, so a scene that holds one finds it. */
+export const BUTTON_PROPS: Array<{ name: string; kind: 'number' | 'boolean' | 'color' | 'node' | 'json'; array?: boolean }> = [
+    { name: 'interactable', kind: 'boolean' },
+    { name: 'transition', kind: 'number' },
+    { name: 'zoomScale', kind: 'number' },
+    { name: 'duration', kind: 'number' },
+    { name: 'normalColor', kind: 'color' },
+    { name: 'hoverColor', kind: 'color' },
+    { name: 'pressedColor', kind: 'color' },
+    { name: 'disabledColor', kind: 'color' },
+    { name: 'target', kind: 'node' },
+    { name: 'clickTargets', kind: 'node', array: true },
+    { name: 'clickHandlers', kind: 'json' },
+];
+
 export function declareButton(): void {
-    declareClass(Button as never, 'Button', [
-        { name: 'interactable', kind: 'boolean' },
-        { name: 'transition', kind: 'number' },
-        { name: 'zoomScale', kind: 'number' },
-        { name: 'duration', kind: 'number' },
-        { name: 'normalColor', kind: 'color' },
-        { name: 'hoverColor', kind: 'color' },
-        { name: 'pressedColor', kind: 'color' },
-        { name: 'disabledColor', kind: 'color' },
-        { name: 'target', kind: 'node' },
-        { name: 'clickTargets', kind: 'node', array: true },
-        { name: 'clickHandlers', kind: 'json' },
-    ]);
+    declareClass(Button as never, 'Button', BUTTON_PROPS);
 }
 
 export const isButtonDeclared = (): boolean => classInfoNamed('Button') !== undefined;

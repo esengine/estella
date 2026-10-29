@@ -8,6 +8,8 @@ export { UITransform, uiTransformDef, ensureUITransform } from './uiTransform';
 export { Label, LabelOutline, LabelShadow } from './label';
 export { Sprite, UIOpacity } from './sprite';
 export { Button, EventHandler, declareButton } from './button';
+export { Toggle, ToggleContainer, ProgressBar, Slider, BlockInputEvents } from './controls';
+export { ScrollView } from './scrollView';
 export { Widget, alignWidget } from './widget';
 export { Layout } from './layout';
 export { getVisibleSize, setVisibleSize } from './screen';

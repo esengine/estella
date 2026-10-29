@@ -33,7 +33,7 @@ const ui = (n: number, w: number, h: number): object =>
 const scene = [
     { __type__: 'cc.SceneAsset', _name: 'main', scene: { __id__: 1 } },                                                       // 0
     { __type__: 'cc.Scene', _name: 'main', _children: [{ __id__: 2 }] },                                                      // 1
-    node('Canvas', 1, [3, 4], [5, 6]),                                                                                        // 2
+    node('Canvas', 1, [3, 4, 12], [5, 6]),                                                                                        // 2
     node('Buy', 2, [], [7, 8]),                                                                                               // 3
     node('Hud', 2, [], [9, 11]),                                                                                              // 4
     ui(2, 960, 640),                                                                                                          // 5
@@ -45,6 +45,14 @@ const scene = [
         buttonOf: { __id__: 8 }, icon: { __uuid__: PLAIN }, _hidden: { __id__: 99 } },                                         // 9
     { __type__: 'cc.ClickEvent', target: { __id__: 4 }, component: '', _componentId: compressUuid(HUD), handler: 'onBuy', customEventData: 'gold' }, // 10
     { __type__: 'cc.Layout', node: { __id__: 4 }, _enabled: true, _layoutType: 2, _resizeMode: 1, _spacingY: 8, _paddingTop: 4, _cellSize: { width: 50, height: 60 }, _verticalDirection: 1 }, // 11
+    node('Panel', 2, [], [13, 14, 15, 16, 17]),                                                                               // 12
+    ui(12, 80, 20),                                                                                                           // 13
+    { __type__: 'cc.Toggle', node: { __id__: 12 }, _enabled: true, _isChecked: true, _checkMark: { __id__: 15 }, _interactable: true, _transition: 0,
+        clickEvents: [], checkEvents: [{ __id__: 18 }] },                                                                       // 14
+    { __type__: 'cc.Sprite', node: { __id__: 12 }, _enabled: true, _color: { r: 255, g: 255, b: 255, a: 255 } },               // 15
+    { __type__: 'cc.ScrollView', node: { __id__: 12 }, _enabled: true, _content: { __id__: 3 }, vertical: true, horizontal: false, brake: 0.75, bounceDuration: 0.23, scrollEvents: [] }, // 16
+    { __type__: 'cc.ProgressBar', node: { __id__: 12 }, _enabled: true, _barSprite: { __id__: 15 }, _progress: 0.4, _totalLength: 80, _mode: 0 }, // 17
+    { __type__: 'cc.ClickEvent', target: { __id__: 4 }, component: '', _componentId: compressUuid(HUD), handler: 'onPicked', customEventData: 'x' }, // 18
 ];
 
 describe('importing for the compatibility layer', () => {
@@ -140,6 +148,18 @@ describe('importing for the compatibility layer', () => {
         expect(manifest.resources['prefab/thing']).toEqual({ path: 'assets/cocos/resources/prefab/thing.esprefab', kind: 'prefab' });
         expect(manifest.hero['skin']).toEqual({ path: 'assets/cocos/hero/skin.json', kind: 'json' });
         expect(readFileSync(path.join(root, 'out', 'assets', 'cocos', 'resources', 'cfg', 'rules.json'), 'utf8')).toBe('{"a":1}');
+    });
+
+    it('carries a toggle, a scroll view and a progress bar, with their node and component references mapped', () => {
+        const panel = entity('Panel').id;
+        const t = comp('Panel', 'Cocos.Toggle').data;
+        expect([t.isChecked, t.checkMark]).toEqual([true, panel]);
+        expect(t.checkTargets).toEqual([entity('Hud').id]);
+        expect(t.checkHandlers).toEqual([{ component: 'Hud', handler: 'onPicked', customEventData: 'x' }]);
+        const sv = comp('Panel', 'Cocos.ScrollView').data;
+        expect([sv.content, sv.vertical, sv.brake, sv.bounceDuration]).toEqual([entity('Buy').id, true, 0.75, 0.23]);
+        const bar = comp('Panel', 'Cocos.ProgressBar').data;
+        expect([bar.barSprite, bar.progress_, bar.totalLength]).toEqual([panel, 0.4, 80]);
     });
 
     it('counts the components it maps', () => {

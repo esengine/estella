@@ -14,11 +14,15 @@ import { UICameraInfo } from '../../ui/core/ui-camera-info';
 import { setCurrentWorld } from '../node';
 import { alignAllWidgets, declareWidget } from './widget';
 import { layoutAll, declareLayout } from './layout';
+import { declareControls } from './controls';
+import { declareScrollView } from './scrollView';
 import { setVisibleSize, setWindowPixels } from './screen';
 
 export function declareUiPass(): void {
     declareWidget();
     declareLayout();
+    declareControls();
+    declareScrollView();
     const system = defineSystem(
         [Res(UICameraInfo), GetWorld()],
         (camera, world) => {
