@@ -14,10 +14,12 @@ import { Camera as EngineCamera, Transform, ensureBuiltinComponentsRegistered } 
 import { AppContext, setDefaultContext } from '../../src/ecs/context';
 import { InputState } from '../../src/input/input';
 import { Text } from '../../src/ui/core/text';
+import { UIMask, MaskMode } from '../../src/ui/core/ui-mask';
+import { ContentRect } from '../../src/ui/core/content-rect';
 import { parseRichText } from '../../src/ui/text/rich-text-parser';
 import { resetClassRegistry } from '../../src/cocos/registry';
 import { declareBuiltinScripts } from '../../src/cocos/builtinScripts';
-import { Camera, Color, EventTouch, Node, RichText, UITransform, Vec3, pumpTouches, setCurrentWorld } from '../../src/cocos';
+import { Camera, Color, EventTouch, Mask, Node, RichText, UITransform, Vec3, pumpTouches, setCurrentWorld } from '../../src/cocos';
 import { setUiCameraData } from '../../src/cocos/ui/screen';
 import { HAS_WASM, loadWasmModule } from '../helpers/loadWasm';
 
@@ -203,6 +205,23 @@ describe.skipIf(!HAS_WASM)('Camera, RichText and touch locations', () => {
             const n = node('plain');
             app!.world.insert(n._entity, Text, {});
             expect(n.getComponent(RichText)).toBeNull();
+        });
+    });
+
+    describe('Mask', () => {
+        it('is the engine UIMask on a node with a rectangle, so the clip box is the size of the node', () => {
+            boot();
+            const n = node('clip');
+            const m = n.addComponent(Mask)!;
+            expect(app!.world.has(n._entity, UIMask)).toBe(true);
+            expect(app!.world.get(n._entity, UIMask).mode).toBe(MaskMode.Scissor);
+            expect(app!.world.has(n._entity, ContentRect)).toBe(true);
+            n.getComponent(UITransform)!.setContentSize(300, 200);
+            const r = app!.world.get(n._entity, ContentRect);
+            expect([r.size.x, r.size.y]).toEqual([300, 200]);
+            m.enabled = false;
+            expect(app!.world.get(n._entity, UIMask).enabled).toBe(false);
+            expect(n.getComponent(Mask)).toBe(m);
         });
     });
 });

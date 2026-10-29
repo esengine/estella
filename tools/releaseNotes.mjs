@@ -28,6 +28,30 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(text): the engine\'s rich-text parser reads Cocos\'s tags (size, color names, br; underline/outline/click kept as plain text); Cocos Camera and RichText are views on the engine\'s Camera and Text; a touch has a screen point (getLocation) and a canvas point (getUILocation)':
+    {"note":"Rich text reads the tags other engines write."},
+  'feat(animation): sine, quart, quint, expo, circ, bounce in/in-out, smoothstep and smootherstep easing curves in the engine (C++ and TypeScript, parity-tested); the Cocos tween\'s easing names map onto the engine\'s curves instead of carrying their own':
+    {"note":"More easing curves."},
+  'feat(ui): scroll areas can be pulled past an end and spring back (ScrollContainer overscroll, ScrollMotion for the gesture); ScrollMovement.Elastic now does what its comment said. The Cocos ScrollView drives the engine\'s scroll model instead of carrying its own':
+    {"note":"Scroll areas can be pulled past an end and spring back."},
+  'feat(cocos): Toggle, ToggleContainer, ProgressBar, Slider, BlockInputEvents and ScrollView, Vec4 and Mat4, a capture phase for touches; the drag/inertia/elastic physics is an engine module (ui/collection/scroll-physics) the compatibility layer adapts':
+    {"internal":"The Cocos Creator compatibility layer and importer have not shipped; nothing a creator reaches without opting in."},
+  'feat(cocos): sys, view/screen, macro, Layers, game, the global input with KeyCode and keyboard/mouse/touch events, and resources/assetManager/Bundle over a manifest the importer writes for resources and bundle folders':
+    {"internal":"The Cocos Creator compatibility layer and importer have not shipped; nothing a creator reaches without opting in."},
+  'feat(cocos): instantiate (prepared prefab or node copy, held out of the scene until parented) and tween (to/by/set/delay/call/then/union/sequence/parallel/repeat, easing, Tween.stopAll*); the importer numbers scene entities from 1 so a reference to the first one is not read as none':
+    {"internal":"The Cocos Creator compatibility layer and importer have not shipped; nothing a creator reaches without opting in."},
+  'feat(cocos): esengine/cocos as a published subpath, cc and cc/env resolved to it in every script bundle with legacy decorators, and an entry the importer writes that brings the Cocos scripts into the bundle':
+    {"internal":"The Cocos Creator compatibility layer and importer have not shipped; nothing a creator reaches without opting in."},
+  'feat(cocos-import): emit the compatibility layer\'s components — UITransform, Widget, Layout, Button and the project\'s own scripts as Cocos.<Class>, with node references resolved to the entities those nodes became':
+    {"internal":"The Cocos Creator compatibility layer and importer have not shipped; nothing a creator reaches without opting in."},
+  'feat(cocos): Widget and Layout — edge/centre/stretch alignment against the parent or the visible area, and row, column and grid layouts with Cocos\'s arithmetic, run in an end-of-frame pass':
+    {"internal":"The Cocos Creator compatibility layer and importer have not shipped; nothing a creator reaches without opting in."},
+  'feat(cocos): UI component adapters, touch events on nodes, and Button — Label/Sprite/UIOpacity/UITransform as views on the engine\'s components, the topmost listener claiming a touch and bubbling it up, clicks that end inside':
+    {"internal":"The Cocos Creator compatibility layer and importer have not shipped; nothing a creator reaches without opting in."},
+  'feat(cocos): the cc compatibility core — Node as a handle on an entity, Component with Cocos\'s lifecycle on the engine\'s frame loop, @ccclass/@property as Estella components, and the value types':
+    {"internal":"The Cocos Creator compatibility layer and importer have not shipped; nothing a creator reaches without opting in."},
+
+
   'feat(openpaas): build and verify native SUD test packages': { note: 'SUD OpenPaaS development export.' },
   'fix(openpaas): align directory manifest with official web2sp': { note: 'SUD OpenPaaS development export.' },
   'feat(openpaas): integrate SUD runtime and PinK directory export': { note: 'SUD OpenPaaS development export.' },

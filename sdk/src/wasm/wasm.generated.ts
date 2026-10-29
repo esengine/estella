@@ -558,6 +558,11 @@ export interface CircleCollider2D {
     maskBits: number;
 }
 
+export interface ContentRect {
+    size: Vec2;
+    pivot: Vec2;
+}
+
 export interface ConvexCollider3D {
     mesh: number;
     friction: number;
@@ -1102,6 +1107,10 @@ export interface Registry {
     getCircleCollider2D(entity: Entity): CircleCollider2D;
     addCircleCollider2D(entity: Entity, component: CircleCollider2D): void;
     removeCircleCollider2D(entity: Entity): void;
+    hasContentRect(entity: Entity): boolean;
+    getContentRect(entity: Entity): ContentRect;
+    addContentRect(entity: Entity, component: ContentRect): void;
+    removeContentRect(entity: Entity): void;
     hasConvexCollider3D(entity: Entity): boolean;
     getConvexCollider3D(entity: Entity): ConvexCollider3D;
     addConvexCollider3D(entity: Entity, component: ConvexCollider3D): void;
@@ -1295,6 +1304,7 @@ export interface ESEngineModule {
     CharacterController3D: new () => CharacterController3D;
     Children: new () => Children;
     CircleCollider2D: new () => CircleCollider2D;
+    ContentRect: new () => ContentRect;
     ConvexCollider3D: new () => ConvexCollider3D;
     Draggable: new () => Draggable;
     DragonBonesAnimation: new () => DragonBonesAnimation;

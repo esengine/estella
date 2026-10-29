@@ -126,14 +126,14 @@ export interface TextData {
      * under a `UINode`, while the text stays world content sorted by `layer`. A `UINode`, when present, decides
      * the box and these three are ignored.
      */
-    boxWidth: number;
+    boxWidth?: number;
     /** Height of that box; 0 for none. Vertical alignment and `Clip`/`Ellipsis` need it. */
-    boxHeight: number;
+    boxHeight?: number;
     /**
      * Where the entity origin sits inside the box, as a fraction from its left and bottom edges: (0.5, 0.5) is
      * the centre, (0, 1) the top-left corner. It is the anchor point of a Cocos or Unity rect transform.
      */
-    boxPivot: Vec2;
+    boxPivot?: Vec2;
     /** Render toggle — the editor's eye and runtime hiding both flip this. */
     enabled: boolean;
 }

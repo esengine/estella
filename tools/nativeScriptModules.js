@@ -97,6 +97,10 @@ export const MODULES = {
         disposition: 'forbidden-native-script',
         why: 'the Node entry, for servers and tools (examples/multiplayer-arena/server) — it reaches for node: builtins a packaged game has none of',
     },
+    'esengine/cocos': {
+        disposition: 'forbidden-native-script',
+        why: 'the Cocos Creator compatibility layer, built for the web and mini-game bundles; a native build does not carry it yet',
+    },
     'esengine/wechat': {
         disposition: 'forbidden-native-script',
         why: 'the WeChat mini-game entry, a different host with a different platform adapter',

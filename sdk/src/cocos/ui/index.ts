@@ -4,7 +4,7 @@
  * @file    cocos/ui/index.ts
  * @brief   Cocos's built-in UI components, as views on the engine's. Importing this registers their adapters.
  */
-export { UITransform, uiTransformDef, ensureUITransform } from './uiTransform';
+export { UITransform, ensureUITransform } from './uiTransform';
 export { Label, LabelOutline, LabelShadow } from './label';
 export { Sprite, UIOpacity } from './sprite';
 export { Button, EventHandler, declareButton } from './button';
@@ -15,3 +15,4 @@ export { Layout } from './layout';
 export { getVisibleSize, setVisibleSize } from './screen';
 export { Camera } from './camera';
 export { RichText } from './richText';
+export { Mask } from './mask';

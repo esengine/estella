@@ -10,6 +10,7 @@
  */
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { isInsideRoot } from '../../fs/pathSandbox';
 import { buildScriptIndex } from './scripts';
 import { buildCocosAssetIndex, type CocosAssetEntry } from './assets';
 import type { AssetHints, SliceBorder } from './components';
@@ -91,8 +92,7 @@ function declareBakedOutline(fnt: string): string {
 export function importCocosProject(opts: CocosImportOptions): ImportReportData {
     const source = path.resolve(opts.source);
     const out = path.resolve(opts.out);
-    const rel = path.relative(source, out);
-    if (rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))) {
+    if (out === source || isInsideRoot(source, out)) {
         throw new Error('the output project must not be inside the Cocos project: the source is never written to');
     }
     const assetsDir = path.join(source, 'assets');

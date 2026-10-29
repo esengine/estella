@@ -271,8 +271,19 @@ function camera(c: CocosComponent, ctx: ComponentContext): ComponentData {
 /** Names of the components the layer declares for built-ins; a scene that holds one needs `esengine/cocos` loaded. */
 const LAYER = 'Cocos.';
 
-function uiTransformData(box: UiBox): ComponentData {
-    return { type: `${LAYER}UITransform`, data: { width: box.width, height: box.height, anchorX: box.ax, anchorY: box.ay } };
+/** A node's rectangle as the engine's `ContentRect`: the size, and the pivot the node's position is the position of. */
+function contentRectData(box: UiBox): ComponentData {
+    return { type: 'ContentRect', data: { size: { x: box.width, y: box.height }, pivot: { x: box.ax, y: box.ay } } };
+}
+
+/**
+ * `cc.Mask` as the engine's `UIMask`, clipping to the node's rectangle. The rectangle mask is exact; ellipse, graphics and image masks
+ * clip to the same rectangle rather than to their shape (the engine's shaped clip is a stencil cut from a sprite on the node, which a
+ * Cocos mask does not carry), so those are counted as partial.
+ */
+function mask(c: CocosComponent, ctx: ComponentContext): ComponentData {
+    ctx.report.component('cc.Mask', num(c.data._type, 0) === 0 ? 'mapped' : 'partial');
+    return { type: 'UIMask', data: { enabled: c.enabled, mode: 0, alphaCutoff: 0 } };
 }
 
 /** Copy the serialised fields named in @p map to the layer's names, leaving out the ones the file does not carry. */
@@ -431,7 +442,10 @@ export function convertNode(node: CocosNode, ctx: ComponentContext, where: strin
                 break;
             case 'cc.UITransform':
                 // Also the size the renderers below were given; this keeps the rectangle for a node that draws nothing.
-                if (box) components.push(uiTransformData(box));
+                if (box) components.push(contentRectData(box));
+                break;
+            case 'cc.Mask':
+                out = mask(c, ctx);
                 break;
             case 'cc.Widget':
                 out = widget(c);

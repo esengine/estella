@@ -505,6 +505,34 @@ export function createCircleCollider2DData(): CircleCollider2DPtrData {
     };
 }
 
+export interface ContentRectPtrData {
+    size: Vec2;
+    pivot: Vec2;
+}
+
+export function fillContentRect(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: ContentRectPtrData,
+): void {
+    const size_ = out.size; size_.x = f32[ptr >> 2]; size_.y = f32[(ptr >> 2) + 1];
+    const pivot_ = out.pivot; pivot_.x = f32[(ptr + 8) >> 2]; pivot_.y = f32[((ptr + 8) >> 2) + 1];
+}
+
+export function writeContentRect(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: ContentRectPtrData,
+): void {
+    f32[ptr >> 2] = data.size.x; f32[(ptr >> 2) + 1] = data.size.y;
+    f32[(ptr + 8) >> 2] = data.pivot.x; f32[((ptr + 8) >> 2) + 1] = data.pivot.y;
+}
+
+export function createContentRectData(): ContentRectPtrData {
+    return {
+        size: { x: 0, y: 0 },
+        pivot: { x: 0, y: 0 },
+    };
+}
+
 export interface ConvexCollider3DPtrData {
     mesh: number;
     friction: number;
@@ -2709,6 +2737,7 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     CapsuleCollider3D: { fill: fillCapsuleCollider3D, write: writeCapsuleCollider3D, create: createCapsuleCollider3DData },
     CharacterController3D: { fill: fillCharacterController3D, write: writeCharacterController3D, create: createCharacterController3DData },
     CircleCollider2D: { fill: fillCircleCollider2D, write: writeCircleCollider2D, create: createCircleCollider2DData },
+    ContentRect: { fill: fillContentRect, write: writeContentRect, create: createContentRectData },
     ConvexCollider3D: { fill: fillConvexCollider3D, write: writeConvexCollider3D, create: createConvexCollider3DData },
     Draggable: { fill: fillDraggable, write: writeDraggable, create: createDraggableData },
     DragonBonesAnimation: { fill: fillDragonBonesAnimation, write: writeDragonBonesAnimation, create: createDragonBonesAnimationData },

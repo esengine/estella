@@ -33,7 +33,7 @@ describe('bundling a Cocos script', () => {
         writeFileSync(path.join(root, 'scripts', 'Plain.ts'), 'export const answer: number = 42;\n');
         writeFileSync(path.join(root, 'layer.js'), 'export const _decorator = { ccclass: (n) => (c) => c, property: () => () => {} };\nexport class Component {}\nexport const EDITOR = false;\n');
     });
-    afterAll(() => rmSync(root, { recursive: true, force: true }));
+    afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
     const run = (extra: object) => build({
         entryPoints: [path.join(root, 'scripts', 'Counter.ts')],

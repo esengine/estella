@@ -40,7 +40,7 @@ export class RichText extends TextView {
     set horizontalAlign(v: number) { this.patch_({ align: v as TextData['align'] }); }
 
     /** The width at which lines wrap; 0 means they do not. */
-    get maxWidth(): number { const t = this.text_(); return t.wordWrap ? t.boxWidth : 0; }
+    get maxWidth(): number { const t = this.text_(); return t.wordWrap ? (t.boxWidth ?? 0) : 0; }
     set maxWidth(v: number) { this.patch_(v > 0 ? { wordWrap: true, boxWidth: v } : { wordWrap: false }); }
 
     get enabled(): boolean { return this.text_().enabled; }

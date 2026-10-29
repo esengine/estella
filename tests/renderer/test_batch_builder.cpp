@@ -28,6 +28,7 @@
 #include "esengine/ecs/components/UINode.hpp"
 #include "esengine/ecs/components/UIVisual.hpp"
 #include "esengine/ecs/components/UIMask.hpp"
+#include "esengine/ecs/components/ContentRect.hpp"
 #include "esengine/ecs/components/Interactable.hpp"
 #include "esengine/ui/UISystem.hpp"
 #include "esengine/ecs/FlatGeometry.hpp"
@@ -822,6 +823,46 @@ TEST_CASE("UI scissor: affine corners determine the projected clip rectangle") {
     CHECK(std::find(device.scissorRectangles.begin(), device.scissorRectangles.end(), expected)
           != device.scissorRectangles.end());
     frame.endFrame();
+}
+
+TEST_CASE("UI scissor: a ContentRect gives world content a clip box, about its pivot") {
+    struct Case { glm::vec2 pivot; std::array<i32, 4> expected; };
+    // The entity stands at the world origin, which the orthographic view puts at pixel (100, 100). A 20 x 30 rectangle hangs from its
+    // pivot: pivot (0,0) reaches right and up from the origin; pivot (0.5,0.5) is centred on it; pivot (1,1) reaches left and down.
+    const Case cases[] = {
+        {{0.0f, 0.0f}, {100, 100, 20, 30}},
+        {{0.5f, 0.5f}, {90, 85, 20, 30}},
+        {{1.0f, 1.0f}, {80, 70, 20, 30}},
+    };
+    for (const auto& c : cases) {
+        MockGfxDevice device;
+        RenderContext context(device);
+        resource::ResourceManager resources;
+        ecs::Registry registry;
+        RenderFrame frame(device, context, resources);
+        frame.init(200, 200);
+        const auto mask = registry.create(), child = registry.create();
+        registry.emplace<ecs::Children>(mask).entities.push_back(child);
+        registry.emplace<ecs::Parent>(child).entity = mask;
+        registry.emplace<ecs::Transform>(mask);
+        auto& rect = registry.emplace<ecs::ContentRect>(mask);
+        rect.size = {20, 30};
+        rect.pivot = c.pivot;
+        registry.emplace<ecs::UIMask>(mask).mode = ecs::MaskMode::Scissor;
+        const f32 vertices[36] = {};
+        const u16 indices[] = {0, 1, 2, 2, 3, 0};
+        const glm::mat4 identity(1);
+        frame.beginFrame();
+        frame.begin(glm::ortho(-100.0f, 100.0f, -100.0f, 100.0f));
+        frame.processMasks(registry, 0, 0, 200, 200);
+        frame.collectAll(registry);
+        frame.submitTextBatch(vertices, 4, indices, 6, 1, &identity[0][0], child, 0, 0, TextGlyphMode::Color);
+        frame.flush();
+        frame.end();
+        CHECK(std::find(device.scissorRectangles.begin(), device.scissorRectangles.end(), c.expected)
+              != device.scissorRectangles.end());
+        frame.endFrame();
+    }
 }
 
 TEST_CASE("flat geometry: collapsed parent bases skip uploads and recover") {

@@ -23,6 +23,7 @@ export { uiPlugins } from './app/uiPlugins';
 export { uiPlugin, UIPlugin } from './ui/ui-plugin';
 export { textPlugin, TextPlugin } from './ui/text/plugin';
 export { uiMaskPlugin, UIMaskPlugin } from './ui/render/mask';
+export { contentRectPlugin, ContentRectPlugin } from './ui/render/content-rect';
 export { uiInteractionPlugin, UIInteractionPlugin } from './ui/input/interaction';
 export { uiLayoutPlugin, UILayoutPlugin } from './ui/layout/layout';
 export { uiRenderOrderPlugin, UIRenderOrderPlugin } from './ui/render/render-order';

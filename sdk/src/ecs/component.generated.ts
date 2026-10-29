@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, Cl
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '6c653a8ebb70b5bc';
+export const ABI_LAYOUT_HASH = 'ac076564c4c51626';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -318,6 +318,20 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         entityFields: [],
         colorFields: [],
         animatableFields: [],
+    },
+    ContentRect: {
+        defaults: {
+            size: { x: 100, y: 100 },
+            pivot: { x: 0.5, y: 0.5 },
+        },
+        assetFields: [],
+        entityFields: [],
+        colorFields: [],
+        animatableFields: [],
+        fields: {
+            size: { min: 0, tooltip: "Width and height of the content in local units (before scale)." },
+            pivot: { tooltip: "The point of the rectangle the entity sits on, as a fraction of its size (0.5,0.5 = centre). Rotation and scale turn about it.", normalizedOf: "size" },
+        },
     },
     ConvexCollider3D: {
         defaults: {
@@ -1490,6 +1504,17 @@ export interface CircleCollider2DData {
     enabled: boolean;
     categoryBits: number;
     maskBits: number;
+}
+
+/**
+ * The fields of the engine's `ContentRect` component, generated from
+ * the C++ struct so the two shapes cannot drift.
+ *
+ * @experimental
+ */
+export interface ContentRectData {
+    size: Vec2;
+    pivot: Vec2;
 }
 
 export interface ConvexCollider3DData {

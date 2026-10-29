@@ -13,7 +13,7 @@ import { App, flushPendingRegistrations } from '../../src/app/app';
 import { ensureBuiltinComponentsRegistered } from '../../src/ecs/component';
 import { AppContext, setDefaultContext } from '../../src/ecs/context';
 import { InputState } from '../../src/input/input';
-import { UICameraInfo } from '../../src/ui/core/ui-camera-info';
+import { ScreenLayout } from '../../src/ui/core/screen-layout';
 import { resetClassRegistry } from '../../src/cocos/registry';
 import { declareBuiltinScripts } from '../../src/cocos/builtinScripts';
 import { pumpKeysAndMouse, pumpTouches } from '../../src/cocos/input';
@@ -124,10 +124,11 @@ describe.skipIf(!HAS_WASM)('input, game and view from the frame loop', () => {
         expect(game.frameStartTime).toBeGreaterThan(0);
     });
 
-    it('takes the visible size and the window from what the UI camera shows', async () => {
+    it('takes the visible size and the window from the screen layout', async () => {
         boot();
-        app!.insertResource(UICameraInfo, {
-            valid: true, worldLeft: -640, worldRight: 640, worldBottom: -360, worldTop: 360, screenW: 2560, screenH: 1440,
+        app!.insertResource(ScreenLayout, {
+            valid: true, left: -640, right: 640, bottom: -360, top: 360, safeLeft: -640, safeRight: 640, safeBottom: -360, safeTop: 360,
+            scale: 2, viewportW: 2560, viewportH: 1440,
         } as never);
         await app!.tick(1 / 60);
         expect([view.getVisibleSize().width, view.getVisibleSize().height]).toEqual([1280, 720]);

@@ -18,6 +18,7 @@ import type { Entity } from '../types';
 
 import { uiLayoutPlugin } from './layout/layout';
 import { uiMaskPlugin } from './render/mask';
+import { contentRectPlugin } from './render/content-rect';
 import { safeAreaPlugin } from './layout/safe-area';
 import { textPlugin } from './text/plugin';
 import { inlineImagePlugin } from './text/inline-image-plugin';
@@ -43,6 +44,7 @@ import type { ScrollContainer } from './collection/scroll-container';
 const SUB_PLUGINS: Plugin[] = [
     uiLayoutPlugin,
     uiMaskPlugin,
+    contentRectPlugin,
     safeAreaPlugin,
     textPlugin,
     inlineImagePlugin,

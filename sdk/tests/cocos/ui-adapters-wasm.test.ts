@@ -204,7 +204,7 @@ describe.skipIf(!HAS_WASM)('built-in UI components on the engine', () => {
             const s = W().get(n._entity, EngineSprite);
             expect([s.size.x, s.size.y, s.pivot.x, s.pivot.y]).toEqual([120, 60, 0.5, 1]);
             const x = W().get(n._entity, Text);
-            expect([x.boxWidth, x.boxHeight, x.boxPivot.x, x.boxPivot.y]).toEqual([120, 60, 0.5, 1]);
+            expect([x.boxWidth, x.boxHeight, x.boxPivot?.x, x.boxPivot?.y]).toEqual([120, 60, 0.5, 1]);
         });
 
         it('tests a world point against its rectangle, anchor and position applied', () => {

@@ -45,7 +45,7 @@ const scene = [
         buttonOf: { __id__: 8 }, icon: { __uuid__: PLAIN }, _hidden: { __id__: 99 } },                                         // 9
     { __type__: 'cc.ClickEvent', target: { __id__: 4 }, component: '', _componentId: compressUuid(HUD), handler: 'onBuy', customEventData: 'gold' }, // 10
     { __type__: 'cc.Layout', node: { __id__: 4 }, _enabled: true, _layoutType: 2, _resizeMode: 1, _spacingY: 8, _paddingTop: 4, _cellSize: { width: 50, height: 60 }, _verticalDirection: 1 }, // 11
-    node('Panel', 2, [], [13, 14, 15, 16, 17]),                                                                               // 12
+    node('Panel', 2, [], [13, 14, 15, 16, 17, 19]),                                                                               // 12
     ui(12, 80, 20),                                                                                                           // 13
     { __type__: 'cc.Toggle', node: { __id__: 12 }, _enabled: true, _isChecked: true, _checkMark: { __id__: 15 }, _interactable: true, _transition: 0,
         clickEvents: [], checkEvents: [{ __id__: 18 }] },                                                                       // 14
@@ -53,6 +53,7 @@ const scene = [
     { __type__: 'cc.ScrollView', node: { __id__: 12 }, _enabled: true, _content: { __id__: 3 }, vertical: true, horizontal: false, brake: 0.75, bounceDuration: 0.23, scrollEvents: [] }, // 16
     { __type__: 'cc.ProgressBar', node: { __id__: 12 }, _enabled: true, _barSprite: { __id__: 15 }, _progress: 0.4, _totalLength: 80, _mode: 0 }, // 17
     { __type__: 'cc.ClickEvent', target: { __id__: 4 }, component: '', _componentId: compressUuid(HUD), handler: 'onPicked', customEventData: 'x' }, // 18
+    { __type__: 'cc.Mask', node: { __id__: 12 }, _enabled: true, _type: 0 },                                                  // 19
 ];
 
 describe('importing for the compatibility layer', () => {
@@ -89,13 +90,13 @@ describe('importing for the compatibility layer', () => {
         report = importCocosProject({ source: path.join(root, 'creator'), out: path.join(root, 'out') });
         scenes = JSON.parse(readFileSync(path.join(root, 'out', 'assets', 'cocos', 'main.esscene'), 'utf8'));
     });
-    afterAll(() => rmSync(root, { recursive: true, force: true }));
+    afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
     const entity = (name: string) => scenes.entities.find((e) => e.name === name)!;
     const comp = (name: string, type: string) => entity(name).components.find((c) => c.type === type)!;
 
     it('keeps a node\'s rectangle as a component of its own, as well as the size its renderers got', () => {
-        expect(comp('Canvas', 'Cocos.UITransform').data).toEqual({ width: 960, height: 640, anchorX: 0.5, anchorY: 0.5 });
+        expect(comp('Canvas', 'ContentRect').data).toEqual({ size: { x: 960, y: 640 }, pivot: { x: 0.5, y: 0.5 } });
     });
 
     it('carries a widget\'s and a layout\'s settings under the names the layer uses', () => {
@@ -160,6 +161,12 @@ describe('importing for the compatibility layer', () => {
         expect([sv.content, sv.vertical, sv.brake, sv.bounceDuration]).toEqual([entity('Buy').id, true, 0.75, 0.23]);
         const bar = comp('Panel', 'Cocos.ProgressBar').data;
         expect([bar.barSprite, bar.progress_, bar.totalLength]).toEqual([panel, 0.4, 80]);
+    });
+
+    it('turns a rectangle mask into the engine UIMask, which clips to the ContentRect beside it', () => {
+        expect(comp('Panel', 'UIMask').data).toEqual({ enabled: true, mode: 0, alphaCutoff: 0 });
+        expect(comp('Panel', 'ContentRect').data.size).toEqual({ x: 80, y: 20 });
+        expect(report.components['cc.Mask']).toEqual({ mapped: 1, partial: 0, unmapped: 0 });
     });
 
     it('counts the components it maps', () => {

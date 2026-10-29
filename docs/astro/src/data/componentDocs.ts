@@ -120,6 +120,7 @@ export const COMPONENT_DOCS: Record<string, ComponentDoc> = {
   UINode: { category: 'ui', summary: 'The UI box: size, position, margins and padding in design pixels. Every UI entity has one.', doc: 'ui/layout', anchor: 'uinode--the-box', anchorZh: 'uinode盒子' },
   UIVisual: { category: 'ui', summary: 'What a UI node actually paints — a colour, a texture, or a nine-sliced sprite.', doc: 'ui/overview', anchor: 'uivisual-and-uimask', anchorZh: 'uivisual-与-uimask' },
   UIMask: { category: 'ui', summary: "Clips descendants to this node's rect, with an optional alpha cutoff.", doc: 'ui/lists', anchor: 'clipping--uimask', anchorZh: '裁剪--uimask' },
+  ContentRect: { category: 'ui', summary: 'The rectangle world content occupies — a size and the pivot the transform sits on — that its sprite, text and clip mask follow.', doc: 'ui/overview', anchor: 'contentrect--a-rectangle-for-world-content', anchorZh: 'contentrect--世界内容的矩形' },
   UIScroll: { category: 'ui', summary: 'Scrollable content inside a clipped viewport, with momentum and scrollbars.', doc: 'ui/overview', anchor: 'scrolling', anchorZh: '滚动' },
   FlexContainer: { category: 'ui', summary: 'Lays children out along an axis — direction, justification, alignment, wrapping and gaps.', doc: 'ui/layout', anchor: 'flexcontainer--laying-out-children', anchorZh: 'flexcontainer排布子项' },
   Interactable: { category: 'ui', summary: 'Makes a UI node hit-testable, so pointer events can land on it.', doc: 'ui/interaction', anchor: 'hit-testing-interactable--uiinteraction', anchorZh: '命中测试interactable--uiinteraction' },

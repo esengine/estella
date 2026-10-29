@@ -3,7 +3,7 @@
 /**
  * @file  A scene as the importer writes it, loaded into the real engine with the compatibility layer.
  *
- * The importer (pipeline/src/import/cocos) and the layer agree on a contract by name only: `Cocos.UITransform`, `Cocos.Widget`,
+ * The importer (pipeline/src/import/cocos) and the layer agree on a contract by name only: `ContentRect` (the engine's), `Cocos.Widget`,
  * `Cocos.Button`, `Cocos.<ScriptClass>`, with a node reference as the entity id the loader maps. This is the one place that agreement
  * is exercised end to end, so a rename on either side fails here and not on a user's project.
  */
@@ -66,12 +66,12 @@ describe.skipIf(!HAS_WASM)('the importer\'s scene in the compatibility layer', (
             entities: [
                 { id: 0, name: 'Canvas', parent: null, children: [1, 2], visible: true, components: [
                     transform,
-                    { type: 'Cocos.UITransform', data: { width: 10, height: 10, anchorX: 0.5, anchorY: 0.5 } },
+                    { type: 'ContentRect', data: { size: { x: 10, y: 10 }, pivot: { x: 0.5, y: 0.5 } } },
                     { type: 'Cocos.Widget', data: { enabled: true, alignFlags: 45, left: 0, right: 0, top: 0, bottom: 0, alignMode: 1 } },
                 ] },
                 { id: 1, name: 'Buy', parent: 0, children: [], visible: true, components: [
                     transform,
-                    { type: 'Cocos.UITransform', data: { width: 120, height: 48, anchorX: 0.5, anchorY: 0.5 } },
+                    { type: 'ContentRect', data: { size: { x: 120, y: 48 }, pivot: { x: 0.5, y: 0.5 } } },
                     { type: 'Cocos.Button', data: { enabled: true, interactable: true, transition: 3, zoomScale: 1.1, clickTargets: [2], clickHandlers: [{ component: 'Hud', handler: 'onBuy', customEventData: 'gold' }] } },
                 ] },
                 { id: 2, name: 'Hud', parent: 0, children: [], visible: true, components: [

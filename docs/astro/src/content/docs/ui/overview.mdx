@@ -163,6 +163,26 @@ the shape the mask actually draws, testing the **sprite's** alpha (not the tinte
 because a mask graphic is routinely tinted to near-zero alpha so it masks without being
 seen). `0` stays the default, so scenes authored against box clipping are unchanged.
 
+### `ContentRect` — a rectangle for world content
+
+`UINode` is the engine's box layout, and it is what UI is built from. Content placed in the
+world by its `Transform` — a HUD pinned to a camera, an imported scene — has no layout, and
+until now its extent lived in several places: a `Sprite` has a size and pivot, a `Text` a box,
+and an entity that draws nothing has no extent at all, so nothing could be clipped to it.
+
+`ContentRect` is that one rectangle: a `size` in local units and the `pivot` of it the entity's
+transform sits on (`(0.5, 0.5)` is the centre). Add it, and:
+
+- the `Sprite` and `Text` on the same entity take their size and pivot from it, so the
+  rectangle is written in one place;
+- a `UIMask` on the entity clips its descendants to it, with no `UINode` needed;
+- `contentRectContains(world, entity, x, y)` tests a world point against it, with the
+  entity's position, rotation and scale applied.
+
+An entity with both a `UINode` and a `ContentRect` keeps the layout's box for clipping.
+Adding a `Sprite` or `Text` to an entity that already has a rect: call `applyContentRect`
+once, or write the rect again; a changed rect is followed by itself.
+
 ### Subtree opacity and pointer gating
 
 `UINode` carries two fields that resolve **hierarchically**, in the same pass that already

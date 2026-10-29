@@ -17,6 +17,7 @@
 #include "../ecs/components/Camera.hpp"
 #include "../ecs/components/Canvas.hpp"
 #include "../ecs/components/Collider2D.hpp"
+#include "../ecs/components/ContentRect.hpp"
 #include "../ecs/components/Draggable.hpp"
 #include "../ecs/components/DragonBonesAnimation.hpp"
 #include "../ecs/components/FlexContainer.hpp"
@@ -1903,6 +1904,10 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("categoryBits", &esengine::ecs::CircleCollider2D::categoryBits)
         .field("maskBits", &esengine::ecs::CircleCollider2D::maskBits);
 
+    value_object<esengine::ecs::ContentRect>("ContentRect")
+        .field("size", &esengine::ecs::ContentRect::size)
+        .field("pivot", &esengine::ecs::ContentRect::pivot);
+
     value_object<ConvexCollider3DJS>("ConvexCollider3D")
         .field("mesh", &ConvexCollider3DJS::mesh)
         .field("friction", &ConvexCollider3DJS::friction)
@@ -2397,6 +2402,7 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             if (r.has<esengine::ecs::CharacterController3D>(entity)) { if (!names.empty()) names += "|"; names += "CharacterController3D"; }
             if (r.has<esengine::ecs::Children>(entity)) { if (!names.empty()) names += "|"; names += "Children"; }
             if (r.has<esengine::ecs::CircleCollider2D>(entity)) { if (!names.empty()) names += "|"; names += "CircleCollider2D"; }
+            if (r.has<esengine::ecs::ContentRect>(entity)) { if (!names.empty()) names += "|"; names += "ContentRect"; }
             if (r.has<esengine::ecs::ConvexCollider3D>(entity)) { if (!names.empty()) names += "|"; names += "ConvexCollider3D"; }
             if (r.has<esengine::ecs::Draggable>(entity)) { if (!names.empty()) names += "|"; names += "Draggable"; }
             if (r.has<esengine::ecs::DragonBonesAnimation>(entity)) { if (!names.empty()) names += "|"; names += "DragonBonesAnimation"; }
@@ -2452,6 +2458,7 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             if (name == "CharacterController3D") return static_cast<int>(componentTypeId<esengine::ecs::CharacterController3D>());
             if (name == "Children") return static_cast<int>(componentTypeId<esengine::ecs::Children>());
             if (name == "CircleCollider2D") return static_cast<int>(componentTypeId<esengine::ecs::CircleCollider2D>());
+            if (name == "ContentRect") return static_cast<int>(componentTypeId<esengine::ecs::ContentRect>());
             if (name == "ConvexCollider3D") return static_cast<int>(componentTypeId<esengine::ecs::ConvexCollider3D>());
             if (name == "Draggable") return static_cast<int>(componentTypeId<esengine::ecs::Draggable>());
             if (name == "DragonBonesAnimation") return static_cast<int>(componentTypeId<esengine::ecs::DragonBonesAnimation>());
@@ -2717,6 +2724,27 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity) || !r.has<esengine::ecs::CircleCollider2D>(entity)) return;
             r.remove<esengine::ecs::CircleCollider2D>(entity);
+        }))
+
+        // ContentRect
+        .function("hasContentRect", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::ContentRect>(static_cast<Entity>(e));
+        }))
+        .function("getContentRect", optional_override([](Registry& r, u32 e) -> esengine::ecs::ContentRect& {
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::ContentRect s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::ContentRect>(entity)) return s_dummy;
+            return r.get<esengine::ecs::ContentRect>(entity);
+        }), allow_raw_pointers())
+        .function("addContentRect", optional_override([](Registry& r, u32 e, const esengine::ecs::ContentRect& c) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::ContentRect>(entity, c);
+        }))
+        .function("removeContentRect", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::ContentRect>(entity)) return;
+            r.remove<esengine::ecs::ContentRect>(entity);
         }))
 
         // ConvexCollider3D
@@ -3687,6 +3715,7 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("CharacterController3D")));
     arr.set(i++, val(std::string("Children")));
     arr.set(i++, val(std::string("CircleCollider2D")));
+    arr.set(i++, val(std::string("ContentRect")));
     arr.set(i++, val(std::string("ConvexCollider3D")));
     arr.set(i++, val(std::string("Draggable")));
     arr.set(i++, val(std::string("DragonBonesAnimation")));
@@ -3821,6 +3850,8 @@ static_assert(offsetof(esengine::ecs::CircleCollider2D, isSensor) == 24, "ABI of
 static_assert(offsetof(esengine::ecs::CircleCollider2D, enabled) == 25, "ABI offset drift: esengine::ecs::CircleCollider2D.enabled (EHT expected 25)");
 static_assert(offsetof(esengine::ecs::CircleCollider2D, categoryBits) == 28, "ABI offset drift: esengine::ecs::CircleCollider2D.categoryBits (EHT expected 28)");
 static_assert(offsetof(esengine::ecs::CircleCollider2D, maskBits) == 32, "ABI offset drift: esengine::ecs::CircleCollider2D.maskBits (EHT expected 32)");
+static_assert(offsetof(esengine::ecs::ContentRect, size) == 0, "ABI offset drift: esengine::ecs::ContentRect.size (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::ContentRect, pivot) == 8, "ABI offset drift: esengine::ecs::ContentRect.pivot (EHT expected 8)");
 static_assert(offsetof(esengine::ecs::ConvexCollider3D, mesh) == 0, "ABI offset drift: esengine::ecs::ConvexCollider3D.mesh (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::ConvexCollider3D, friction) == 4, "ABI offset drift: esengine::ecs::ConvexCollider3D.friction (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::ConvexCollider3D, restitution) == 8, "ABI offset drift: esengine::ecs::ConvexCollider3D.restitution (EHT expected 8)");
@@ -4184,7 +4215,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "6c653a8ebb70b5bc";
+static const char* kEsAbiLayoutHash = "ac076564c4c51626";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

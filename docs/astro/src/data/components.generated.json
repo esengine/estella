@@ -1073,6 +1073,25 @@
       ]
     },
     {
+      "name": "ContentRect",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "size",
+          "type": "Vec2",
+          "default": "(100, 100)",
+          "doc": "Width and height of the content in local units (before scale).",
+          "range": "≥ 0"
+        },
+        {
+          "key": "pivot",
+          "type": "Vec2",
+          "default": "(0.5, 0.5)",
+          "doc": "The point of the rectangle the entity sits on, as a fraction of its size (0.5,0.5 = centre). Rotation and scale turn about it."
+        }
+      ]
+    },
+    {
       "name": "ConvexCollider3D",
       "source": "cpp",
       "fields": [

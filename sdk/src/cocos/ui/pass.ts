@@ -11,6 +11,7 @@
 import { Schedule, defineSystem, addSystemToSchedule, GetWorld } from '../../ecs/system';
 import { Res } from '../../ecs/resource';
 import { UICameraInfo } from '../../ui/core/ui-camera-info';
+import { ScreenLayout } from '../../ui/core/screen-layout';
 import { setCurrentWorld } from '../node';
 import { alignAllWidgets, declareWidget } from './widget';
 import { layoutAll, declareLayout } from './layout';
@@ -24,13 +25,14 @@ export function declareUiPass(): void {
     declareControls();
     declareScrollView();
     const system = defineSystem(
-        [Res(UICameraInfo), GetWorld()],
-        (camera, world) => {
-            // What the UI camera shows is the visible area scripts and widgets measure against; the surface is the window.
+        [Res(UICameraInfo), Res(ScreenLayout), GetWorld()],
+        (camera, screen, world) => {
+            // The camera is kept for the conversions a Cocos `Camera` offers. What the player sees, and the window, are the screen's: the
+            // layout box UI is placed within, and the framebuffer it projects onto.
             setUiCameraData(camera ?? null);
-            if (camera?.valid) {
-                setVisibleSize(camera.worldRight - camera.worldLeft, camera.worldTop - camera.worldBottom);
-                setWindowPixels(camera.screenW, camera.screenH);
+            if (screen?.valid) {
+                setVisibleSize(screen.right - screen.left, screen.top - screen.bottom);
+                setWindowPixels(screen.viewportW, screen.viewportH);
             }
             const previous = setCurrentWorld(world);
             try {

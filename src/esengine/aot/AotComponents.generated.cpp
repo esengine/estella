@@ -15,6 +15,7 @@
 #include "esengine/ecs/components/Camera.hpp"
 #include "esengine/ecs/components/Canvas.hpp"
 #include "esengine/ecs/components/Hierarchy.hpp"
+#include "esengine/ecs/components/ContentRect.hpp"
 #include "esengine/ecs/components/Draggable.hpp"
 #include "esengine/ecs/components/DragonBonesAnimation.hpp"
 #include "esengine/ecs/components/FlexContainer.hpp"
@@ -114,6 +115,11 @@ ComponentAt engineComponentAt(ecs::Registry& registry, const char* name) {
     if (std::strcmp(name, "CircleCollider2D") == 0) {
         return [&registry](std::uint32_t raw) -> void* {
             return registry.tryGet<esengine::ecs::CircleCollider2D>(Entity::fromRaw(raw));
+        };
+    }
+    if (std::strcmp(name, "ContentRect") == 0) {
+        return [&registry](std::uint32_t raw) -> void* {
+            return registry.tryGet<esengine::ecs::ContentRect>(Entity::fromRaw(raw));
         };
     }
     if (std::strcmp(name, "ConvexCollider3D") == 0) {
@@ -375,6 +381,11 @@ CandidatesOf engineComponentCandidates(ecs::Registry& registry, const char* name
             return denseAsIds(registry.entitiesWith<esengine::ecs::CircleCollider2D>());
         };
     }
+    if (std::strcmp(name, "ContentRect") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::ContentRect>());
+        };
+    }
     if (std::strcmp(name, "ConvexCollider3D") == 0) {
         return [&registry]() -> Candidates {
             return denseAsIds(registry.entitiesWith<esengine::ecs::ConvexCollider3D>());
@@ -594,6 +605,7 @@ bool isEngineComponent(const char* name) {
     if (std::strcmp(name, "CharacterController3D") == 0) return true;
     if (std::strcmp(name, "Children") == 0) return true;
     if (std::strcmp(name, "CircleCollider2D") == 0) return true;
+    if (std::strcmp(name, "ContentRect") == 0) return true;
     if (std::strcmp(name, "ConvexCollider3D") == 0) return true;
     if (std::strcmp(name, "Draggable") == 0) return true;
     if (std::strcmp(name, "DragonBonesAnimation") == 0) return true;

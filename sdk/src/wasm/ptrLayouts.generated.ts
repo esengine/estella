@@ -151,6 +151,13 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'maskBits', type: 'u32', offset: 32 },
         ],
     },
+    ContentRect: {
+        ptrFn: 'getContentRectPtr',
+        fields: [
+            { name: 'size', type: 'vec2', offset: 0 },
+            { name: 'pivot', type: 'vec2', offset: 8 },
+        ],
+    },
     ConvexCollider3D: {
         ptrFn: 'getConvexCollider3DPtr',
         fields: [

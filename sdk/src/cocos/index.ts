@@ -26,7 +26,7 @@ export {
     AnimationClip, SceneAsset, EffectAsset, Mesh,
 } from './assets';
 export { registerBuiltinComponent, type BuiltinAdapter } from './builtins';
-export { UITransform, Label, LabelOutline, LabelShadow, Sprite, UIOpacity, Button, EventHandler, Widget, Layout, Camera, RichText, Toggle, ToggleContainer, ProgressBar, Slider, BlockInputEvents, ScrollView, getVisibleSize, setVisibleSize } from './ui';
+export { UITransform, Label, LabelOutline, LabelShadow, Sprite, UIOpacity, Button, EventHandler, Widget, Layout, Camera, RichText, Mask, Toggle, ToggleContainer, ProgressBar, Slider, BlockInputEvents, ScrollView, getVisibleSize, setVisibleSize } from './ui';
 export { Touch, EventTouch, pumpTouches } from './input';
 export { tween, Tween, tweenUtil, easing, updateTweens } from './tween';
 export { instantiate, loadPrefab, providePrefab } from './prefabs';

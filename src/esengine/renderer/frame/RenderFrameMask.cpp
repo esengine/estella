@@ -4,6 +4,7 @@
 #include "../../core/Log.hpp"
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/UINode.hpp"
+#include "../../ecs/components/ContentRect.hpp"
 #include "../../ecs/components/UIMask.hpp"
 #include "../../ecs/components/Hierarchy.hpp"
 #include "../../ecs/FlatGeometry.hpp"
@@ -43,15 +44,34 @@ glm::vec2 worldToScreen(const glm::vec3& world, const glm::mat4& vp,
 /// Whether the masks being laid out stand in the world (and so are taken from the render origin) or on the screen, whose units have none.
 thread_local bool g_masksInWorld = false;
 
+/// The box a mask clips to and where it sits: a UINode's computed box centred on the transform, or, for content laid out by its
+/// transform alone, the entity's ContentRect about its pivot. A zero size means there is no box.
+struct MaskBox {
+    glm::vec2 size{0.0f, 0.0f};
+    /// The box centre's offset from the transform, in local units (0,0 for a UINode, whose box is centred).
+    glm::vec2 centerOffset{0.0f, 0.0f};
+    bool present = false;
+};
+
+MaskBox maskBoxOf(ecs::Registry& registry, Entity entity) {
+    if (const auto* node = registry.tryGet<ecs::UINode>(entity)) {
+        return {node->computed_size_, {0.0f, 0.0f}, true};
+    }
+    if (const auto* rect = registry.tryGet<ecs::ContentRect>(entity)) {
+        return {rect->size, {(0.5f - rect->pivot.x) * rect->size.x, (0.5f - rect->pivot.y) * rect->size.y}, true};
+    }
+    return {};
+}
+
 ScreenRect computeMaskScreenRect(
     ecs::Registry& registry, Entity entity,
     const glm::mat4& vp, i32 vpX, i32 vpY, i32 vpW, i32 vpH
 ) {
-    if (!registry.has<ecs::UINode>(entity) || !registry.has<ecs::Transform>(entity)) {
+    const MaskBox box = maskBoxOf(registry, entity);
+    if (!box.present || !registry.has<ecs::Transform>(entity)) {
         return {0, 0, 0, 0};
     }
-    const auto& node = registry.get<ecs::UINode>(entity);
-    if (node.computed_size_.x <= 0.0f || node.computed_size_.y <= 0.0f) return {0, 0, 0, 0};
+    if (box.size.x <= 0.0f || box.size.y <= 0.0f) return {0, 0, 0, 0};
     auto& transform = registry.get<ecs::Transform>(entity);
     // The world TRS below is decomposed on demand, so a mask whose transform no
     // other pass has read this frame would be clipped to where it used to be.
@@ -68,9 +88,10 @@ ScreenRect computeMaskScreenRect(
         axisX = glm::vec3(turn.x, turn.y, 0) * transform.worldScale.x;
         axisY = glm::vec3(-turn.y, turn.x, 0) * transform.worldScale.y;
     }
-    const glm::vec3 hx = axisX * node.computed_size_.x * .5f;
-    const glm::vec3 hy = axisY * node.computed_size_.y * .5f;
-    const glm::vec3 center = g_masksInWorld ? rebased(transform.worldPosition) : glm::vec3(transform.worldPosition);
+    const glm::vec3 hx = axisX * box.size.x * .5f;
+    const glm::vec3 hy = axisY * box.size.y * .5f;
+    const glm::vec3 origin = g_masksInWorld ? rebased(transform.worldPosition) : glm::vec3(transform.worldPosition);
+    const glm::vec3 center = origin + axisX * box.centerOffset.x + axisY * box.centerOffset.y;
     const glm::vec3 corners[] = {center - hx - hy, center + hx - hy,
                                 center + hx + hy, center - hx + hy};
 
@@ -160,10 +181,10 @@ void applyScissorToDescendants(
 static constexpr i32 MAX_STENCIL_REF = 255;
 
 bool hasEmptyMaskBox(ecs::Registry& registry, Entity entity) {
-    const auto* node = registry.tryGet<ecs::UINode>(entity);
+    const MaskBox box = maskBoxOf(registry, entity);
     auto* transform = registry.tryGet<ecs::Transform>(entity);
-    if (!node || !transform) return false;
-    if (node->computed_size_.x <= 0.0f || node->computed_size_.y <= 0.0f) return true;
+    if (!box.present || !transform) return false;
+    if (box.size.x <= 0.0f || box.size.y <= 0.0f) return true;
     transform->ensureDecomposed();
     return transform->worldScale.x == 0 || transform->worldScale.y == 0
         || !ecs::hasFlatGeometryArea(registry, entity, *transform);

@@ -2,19 +2,17 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    cocos/ui/uiTransform.ts
- * @brief   `UITransform`: a node's content size and anchor point.
+ * @brief   `UITransform`: a node's content size and anchor point, as a view on the engine's `ContentRect`.
  *
- * In Cocos the rectangle belongs to the node and the renderers draw into it. The engine has the opposite arrangement — a `Sprite`
- * has its own size and pivot, a `Text` its own box — and nothing for a node that draws nothing but still has an extent (a button's
- * hit area, a layout container, a scroll view's viewport). So the extent is kept in a small data component of the compatibility layer,
- * `Cocos.UITransform`, which is the one place a script's `contentSize` lives, and a write to it is carried through to the `Sprite` and
- * `Text` on the same node so they draw into the rectangle the script set.
+ * In Cocos the rectangle belongs to the node and the renderers draw into it; the engine's `ContentRect` is the same idea (a size and
+ * the pivot the transform sits on), and the `Sprite`, `Text` and clip mask on the entity follow it. So `UITransform` has no
+ * storage and no copying of its own: it reads and writes `ContentRect`, and the rectangle's consumers are the engine's.
  *
- * Importing a scene writes this component for every node that had a `UITransform`, so it starts out as authored; a node that never
- * had one gets it when a script first asks, filled in from the renderer it has.
+ * Importing a scene writes a `ContentRect` for every node that had a `UITransform`; a node that never had one gets it when a
+ * script first asks, filled in from the renderer it has.
  */
-import { defineComponent } from '../../ecs/component';
 import { Sprite, Transform } from '../../ecs/component';
+import { ContentRect, applyContentRect, contentRectContains, type ContentRectData } from '../../ui/core/content-rect';
 import { Text } from '../../ui/core/text';
 import type { World } from '../../ecs/world';
 import type { Entity } from '../../types';
@@ -23,81 +21,58 @@ import { Component } from '../component';
 import { registerBuiltinComponent } from '../builtins';
 import { viewAdapter } from './view';
 
-export interface UITransformData {
-    width: number;
-    height: number;
-    anchorX: number;
-    anchorY: number;
-}
-
-/** The data component, defined per context so a fresh `AppContext` still finds it. */
-export function uiTransformDef() {
-    return defineComponent<UITransformData>('Cocos.UITransform', { width: 100, height: 100, anchorX: 0.5, anchorY: 0.5 });
-}
-
 /** The rectangle a node's renderers say it has, for a node that was never given one. */
-function derive(world: World, entity: Entity): UITransformData {
+function derive(world: World, entity: Entity): ContentRectData {
     const sprite = world.has(entity, Sprite) ? world.get(entity, Sprite) : null;
-    if (sprite) return { width: sprite.size.x, height: sprite.size.y, anchorX: sprite.pivot.x, anchorY: sprite.pivot.y };
+    if (sprite) return { size: { x: sprite.size.x, y: sprite.size.y }, pivot: { x: sprite.pivot.x, y: sprite.pivot.y } };
     const text = world.has(entity, Text) ? world.get(entity, Text) : null;
-    if (text && (text.boxWidth > 0 || text.boxHeight > 0)) {
-        return { width: text.boxWidth, height: text.boxHeight, anchorX: text.boxPivot.x, anchorY: text.boxPivot.y };
+    const w = text?.boxWidth ?? 0, h = text?.boxHeight ?? 0;
+    if (text && (w > 0 || h > 0)) {
+        const pivot = text.boxPivot ?? { x: 0.5, y: 0.5 };
+        return { size: { x: w, y: h }, pivot: { x: pivot.x, y: pivot.y } };
     }
-    return { width: 100, height: 100, anchorX: 0.5, anchorY: 0.5 };
+    return { size: { x: 100, y: 100 }, pivot: { x: 0.5, y: 0.5 } };
 }
 
-/** The rectangle data of a node, made if it has none. */
-export function ensureUITransform(world: World, entity: Entity): UITransformData {
-    const def = uiTransformDef();
-    if (!world.has(entity, def)) world.insert(entity, def, derive(world, entity));
-    return world.get(entity, def);
-}
-
-/** Carry a rectangle to the renderers on the same node, which draw it. */
-function propagate(world: World, entity: Entity, rect: UITransformData): void {
-    if (world.has(entity, Sprite)) {
-        const s = world.get(entity, Sprite);
-        world.set(entity, Sprite, { ...s, size: { x: rect.width, y: rect.height }, pivot: { x: rect.anchorX, y: rect.anchorY } });
-    }
-    if (world.has(entity, Text)) {
-        const t = world.get(entity, Text);
-        world.set(entity, Text, { ...t, boxWidth: rect.width, boxHeight: rect.height, boxPivot: { x: rect.anchorX, y: rect.anchorY } });
-    }
+/** The rectangle of a node, made if it has none. */
+export function ensureUITransform(world: World, entity: Entity): ContentRectData {
+    if (!world.has(entity, ContentRect)) world.insert(entity, ContentRect, derive(world, entity));
+    return world.get(entity, ContentRect);
 }
 
 export class UITransform extends Component {
-    private read_(): UITransformData { return ensureUITransform(this._world, this._entity); }
-    private write_(patch: Partial<UITransformData>): void {
-        const next = { ...this.read_(), ...patch };
-        this._world.set(this._entity, uiTransformDef(), next);
-        propagate(this._world, this._entity, next);
+    private rect_(): ContentRectData { return ensureUITransform(this._world, this._entity); }
+    /** Write the rectangle, and let the sprite and text on the node follow it now rather than at the end of the frame. */
+    private write_(size: { x: number; y: number }, pivot: { x: number; y: number }): void {
+        this._world.set(this._entity, ContentRect, { size, pivot });
+        applyContentRect(this._world, this._entity);
     }
 
-    get contentSize(): Size { const r = this.read_(); return new Size(r.width, r.height); }
-    set contentSize(v: Size) { this.write_({ width: v.width, height: v.height }); }
+    get contentSize(): Size { const r = this.rect_(); return new Size(r.size.x, r.size.y); }
+    set contentSize(v: Size) { this.write_({ x: v.width, y: v.height }, this.rect_().pivot); }
     setContentSize(w: number | Size, h?: number): void {
-        if (typeof w === 'object') this.contentSize = w; else this.write_({ width: w, height: h ?? this.read_().height });
+        if (typeof w === 'object') this.contentSize = w; else this.write_({ x: w, y: h ?? this.rect_().size.y }, this.rect_().pivot);
     }
 
-    get width(): number { return this.read_().width; }
-    set width(v: number) { this.write_({ width: v }); }
-    get height(): number { return this.read_().height; }
-    set height(v: number) { this.write_({ height: v }); }
+    get width(): number { return this.rect_().size.x; }
+    set width(v: number) { const r = this.rect_(); this.write_({ x: v, y: r.size.y }, r.pivot); }
+    get height(): number { return this.rect_().size.y; }
+    set height(v: number) { const r = this.rect_(); this.write_({ x: r.size.x, y: v }, r.pivot); }
 
-    get anchorPoint(): Vec2 { const r = this.read_(); return new Vec2(r.anchorX, r.anchorY); }
-    set anchorPoint(v: Vec2) { this.write_({ anchorX: v.x, anchorY: v.y }); }
+    get anchorPoint(): Vec2 { const r = this.rect_(); return new Vec2(r.pivot.x, r.pivot.y); }
+    set anchorPoint(v: Vec2) { this.write_(this.rect_().size, { x: v.x, y: v.y }); }
     setAnchorPoint(x: number | Vec2, y?: number): void {
-        if (typeof x === 'object') this.anchorPoint = x; else this.write_({ anchorX: x, anchorY: y ?? this.read_().anchorY });
+        if (typeof x === 'object') this.anchorPoint = x; else this.write_(this.rect_().size, { x, y: y ?? this.rect_().pivot.y });
     }
-    get anchorX(): number { return this.read_().anchorX; }
-    set anchorX(v: number) { this.write_({ anchorX: v }); }
-    get anchorY(): number { return this.read_().anchorY; }
-    set anchorY(v: number) { this.write_({ anchorY: v }); }
+    get anchorX(): number { return this.rect_().pivot.x; }
+    set anchorX(v: number) { const r = this.rect_(); this.write_(r.size, { x: v, y: r.pivot.y }); }
+    get anchorY(): number { return this.rect_().pivot.y; }
+    set anchorY(v: number) { const r = this.rect_(); this.write_(r.size, { x: r.pivot.x, y: v }); }
 
     /** The rectangle in the node's own space: its left/bottom corner is minus the anchor times the size. */
     private local_(): Rect {
-        const r = this.read_();
-        return new Rect(-r.anchorX * r.width, -r.anchorY * r.height, r.width, r.height);
+        const r = this.rect_();
+        return new Rect(-r.pivot.x * r.size.x, -r.pivot.y * r.size.y, r.size.x, r.size.y);
     }
 
     /** A point in the node's space (relative to its anchor) as a point in world space, scale and rotation applied. */
@@ -136,8 +111,8 @@ export class UITransform extends Component {
 
     /** Whether a world-space point is inside the rectangle. */
     isHit(worldPoint: Vec2): boolean {
-        const local = this.convertToNodeSpaceAR(new Vec3(worldPoint.x, worldPoint.y, 0));
-        return this.local_().contains(new Vec2(local.x, local.y));
+        this.rect_();
+        return contentRectContains(this._world, this._entity, worldPoint.x, worldPoint.y);
     }
 
     /** The axis-aligned box of the rectangle in world space. */
@@ -153,6 +128,6 @@ export class UITransform extends Component {
 
 registerBuiltinComponent(UITransform, ['cc.UITransform', 'UITransform'], viewAdapter(
     UITransform,
-    (world, entity) => world.has(entity, uiTransformDef()) || world.has(entity, Sprite) || world.has(entity, Text),
+    (world, entity) => world.has(entity, ContentRect) || world.has(entity, Sprite) || world.has(entity, Text),
     (world, entity) => { ensureUITransform(world, entity); },
 ));

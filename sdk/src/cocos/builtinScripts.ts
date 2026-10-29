@@ -9,10 +9,11 @@
  * again, and does so here; asking twice for the same context is harmless.
  */
 import { getDefaultContext } from '../ecs/context';
+import { registerComponent } from '../ecs/component';
+import { ContentRect } from '../ui/core/content-rect';
 import { declareButton } from './ui/button';
 import { declareInputSystem } from './input';
 import { declareUiPass } from './ui/pass';
-import { uiTransformDef } from './ui/uiTransform';
 import { declareTweenSystem } from './tween';
 import { declarePrefabSystem } from './prefabs';
 import { declareGameSystem } from './game';
@@ -25,10 +26,10 @@ export function declareBuiltinScripts(): void {
     const context = getDefaultContext();
     if (declared.has(context)) return;
     declared.add(context);
+    // `UITransform` is a view on the engine's rectangle; a scene that holds one needs it registered even in an app without the UI pipeline.
+    registerComponent('ContentRect', ContentRect);
     declareButton();
     declareInputSystem();
-    // A scene holds `Cocos.UITransform` before any script asks for one, so the component has to exist when it loads.
-    uiTransformDef();
     declareUiPass();
     declareTweenSystem();
     declarePrefabSystem();

@@ -162,7 +162,7 @@ beforeAll(async () => {
     report = importCocosProject({ source: src, out });
 });
 
-afterAll(() => rmSync(root, { recursive: true, force: true }));
+afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
 const readJson = (rel: string): any => JSON.parse(readFileSync(path.join(out, rel), 'utf8'));
 
