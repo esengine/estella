@@ -155,6 +155,9 @@ export function importCocosProject(opts: CocosImportOptions): ImportReportData {
         drawsBakedOutline(materialUuid) {
             return materialBakesOutline(materialUuid);
         },
+        material(materialUuid) {
+            return materialInfo(materialUuid);
+        },
         loadPrefab(uuid) {
             const e = prefabEntry(uuid);
             return e ? loadDoc(e) : null;
@@ -168,6 +171,30 @@ export function importCocosProject(opts: CocosImportOptions): ImportReportData {
             }
             return outRef(esRel(e.rel, '.esprefab'));
         },
+    };
+
+    // What a particle material draws and how: its main texture (a sub-asset of an image) and whether the destination factor is One.
+    const materials = new Map<string, { texture: CocosAssetEntry | null; additive: boolean } | null>();
+    const materialInfo = (materialUuid: string): { texture: CocosAssetEntry | null; additive: boolean } | null => {
+        if (materials.has(materialUuid)) return materials.get(materialUuid) ?? null;
+        let info: { texture: CocosAssetEntry | null; additive: boolean } | null = null;
+        try {
+            const mat = index.byUuid.get(materialUuid);
+            if (mat) {
+                const json = JSON.parse(readFileSync(mat.file, 'utf8')) as {
+                    _props?: Array<{ mainTexture?: { __uuid__?: string } }>;
+                    _states?: Array<{ blendState?: { targets?: Array<{ blend?: boolean; blendDst?: number }> } }>;
+                };
+                const texUuid = json._props?.find((p) => p.mainTexture?.__uuid__)?.mainTexture?.__uuid__;
+                const base = typeof texUuid === 'string' ? texUuid.split('@')[0]! : undefined;
+                const target = json._states?.[0]?.blendState?.targets?.[0];
+                info = { texture: base ? index.byUuid.get(base) ?? null : null, additive: target?.blend === true && target.blendDst === 1 };
+            }
+        } catch {
+            info = null;
+        }
+        materials.set(materialUuid, info);
+        return info;
     };
 
     // A material says how its font page is read through the effect it uses; the outline effect mixes an outline colour in by the red channel.

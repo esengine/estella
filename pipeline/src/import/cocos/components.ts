@@ -12,6 +12,7 @@
  *        That is a world-space `Sprite`/`Text` with a pivot, not a flex box, so
  *        UI maps there and `UITransform` is folded into it.
  */
+import { particleSystem } from './particle';
 import type { CocosAssetEntry, CocosAssetIndex } from './assets';
 import { type CocosComponent, type CocosNode } from './document';
 import type { ImportReport } from './report';
@@ -39,6 +40,8 @@ export interface ComponentContext {
      * outline's colour supplied at draw time. Such a font has to say so, in the channel flags BMFont gives that layout.
      */
     drawsBakedOutline?(materialUuid: string): boolean;
+    /** A material's main texture and whether it blends additively; null when the project has no such material. */
+    material?(uuid: string): { texture: CocosAssetEntry | null; additive: boolean } | null;
     /** The script class a compressed class id names, when the project has that script. */
     scriptClass?(classId: string): { name: string } | undefined;
     /** The project-relative ref of a prefab, queuing it for conversion; null when the project does not have it. */
@@ -506,6 +509,9 @@ export function convertNode(node: CocosNode, ctx: ComponentContext, where: strin
                 break;
             case 'cc.ScrollView':
                 out = scrollView(c, ctx);
+                break;
+            case 'cc.ParticleSystem':
+                out = particleSystem(c, ctx, where);
                 break;
             case 'cc.DirectionalLight':
                 out = directionalLight(c, ctx, where);
