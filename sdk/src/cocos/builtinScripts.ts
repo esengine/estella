@@ -12,6 +12,7 @@ import { getDefaultContext } from '../ecs/context';
 import { declareButton } from './ui/button';
 import { declareInputSystem } from './input';
 import { declareUiPass } from './ui/pass';
+import { uiTransformDef } from './ui/uiTransform';
 import { resetClassRegistry } from './registry';
 
 const declared = new WeakSet<object>();
@@ -23,6 +24,8 @@ export function declareBuiltinScripts(): void {
     declared.add(context);
     declareButton();
     declareInputSystem();
+    // A scene holds `Cocos.UITransform` before any script asks for one, so the component has to exist when it loads.
+    uiTransformDef();
     declareUiPass();
 }
 

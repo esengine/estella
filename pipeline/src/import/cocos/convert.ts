@@ -14,7 +14,7 @@
  *        `slot/localId`, a prefab's own entities are bare ids.
  */
 import { convertNode, sameData, type ComponentContext, type ComponentData } from './components';
-import type { CocosDocument, CocosNode, CocosOverride } from './document';
+import { NODE_REF, type CocosDocument, type CocosNode, type CocosOverride } from './document';
 import { ImportReport } from './report';
 
 const SEP = '/';
@@ -261,6 +261,10 @@ function diff(pristine: Map<string, Flat>, patched: Map<string, Flat>, ctx: Conv
             }
             for (const [field, value] of Object.entries(c.data)) {
                 if (!sameData(b.data[field], value)) {
+                    if (holdsRef(value)) {
+                        ctx.report.note('override-node-reference', `${ctx.where}: ${addr} ${type}.${field}`);
+                        continue;
+                    }
                     out.push({ prefabEntityId: addr, type: 'property', componentType: type, propertyName: field, value });
                 }
             }
@@ -286,6 +290,31 @@ function instanceOverrides(node: CocosNode, ctx: ConvertContext): PrefabOverride
     // Converting both sides is for the difference only; the report counts a component where its own prefab is converted.
     const quiet: ConvertContext = { ...ctx, report: new ImportReport() };
     return diff(flatten(pristine, quiet), flatten(patched, quiet), ctx);
+}
+
+// ---------------------------------------------------------------------------
+// References to nodes, inside component data.
+// ---------------------------------------------------------------------------
+
+const isRef = (v: unknown): v is Raw => typeof v === 'object' && v !== null && !Array.isArray(v) && NODE_REF in v;
+
+/** Whether a value holds a node reference anywhere inside it. */
+function holdsRef(v: unknown): boolean {
+    if (Array.isArray(v)) return v.some(holdsRef);
+    if (typeof v !== 'object' || v === null) return false;
+    return NODE_REF in v || Object.values(v).some(holdsRef);
+}
+
+/** Replace every node reference in @p v by what @p to makes of the node's id; a node the file does not hold gets @p missing. */
+function mapRefs(v: unknown, to: (id: string) => unknown, missing: unknown): unknown {
+    if (Array.isArray(v)) return v.map((x) => mapRefs(x, to, missing));
+    if (typeof v !== 'object' || v === null) return v;
+    if (isRef(v)) return typeof v[NODE_REF] === 'string' ? to(v[NODE_REF] as string) : missing;
+    return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, mapRefs(x, to, missing)]));
+}
+
+function resolveRefs(components: ComponentData[], to: (id: string) => unknown, missing: unknown): void {
+    for (const c of components) for (const [k, v] of Object.entries(c.data)) if (holdsRef(v)) c.data[k] = mapRefs(v, to, missing);
 }
 
 // ---------------------------------------------------------------------------
@@ -324,6 +353,9 @@ export function convertPrefab(doc: CocosDocument, ctx: ConvertContext): PrefabFi
         }
     };
     walk(root, null);
+    // A reference to a node of this prefab is that node's prefab-local id; a prefab's refs are strings the loader maps.
+    const own = new Set(entities.map((e) => e.prefabEntityId));
+    for (const e of entities) resolveRefs(e.components, (id) => (own.has(id) ? id : ''), '');
     return { version: '2', name: doc.name, rootEntityId: root.id, entities };
 }
 
@@ -331,11 +363,18 @@ export function convertScene(doc: CocosDocument, ctx: ConvertContext): SceneFile
     const entities: (SceneEntity | SceneInstanceEntry)[] = [];
     ctx.report.documents.converted++;
     let next = 0;
+    // Ids are given before any node is converted, so a reference to a node that comes later in the file has something to point at.
+    const ids = new Map<string, number>();
+    const assign = (n: CocosNode): void => {
+        ids.set(n.id, next++);
+        if (!n.instance) n.children.forEach(assign);
+    };
+    doc.roots.forEach(assign);
     if (doc.globals.length) ctx.report.note('scene-globals-dropped', `${ctx.where}: ${doc.globals.join(',')}`);
 
     const walk = (n: CocosNode, parent: SceneEntity | null): void => {
         ctx.report.nodes++;
-        const id = next++;
+        const id = ids.get(n.id)!;
         const here = `${ctx.where}: ${n.name}`;
         if (n.instance) {
             ctx.report.prefabInstances++;
@@ -365,5 +404,7 @@ export function convertScene(doc: CocosDocument, ctx: ConvertContext): SceneFile
         if (!n.instance) for (const c of n.children) walk(c, entity);
     };
     for (const r of doc.roots) walk(r, null);
+    // 0 is the engine's "no entity"; the loader maps the rest.
+    for (const e of entities) if ('components' in e) resolveRefs(e.components, (id) => ids.get(id) ?? 0, 0);
     return { version: 4, name: doc.name, entities };
 }

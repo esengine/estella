@@ -10,6 +10,7 @@
  */
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { buildScriptIndex } from './scripts';
 import { buildCocosAssetIndex, type CocosAssetEntry } from './assets';
 import type { AssetHints, SliceBorder } from './components';
 import { convertPrefab, convertScene, type ConvertContext } from './convert';
@@ -125,8 +126,11 @@ export function importCocosProject(opts: CocosImportOptions): ImportReportData {
         return doc;
     };
 
+    const scripts = buildScriptIndex(index);
     const ctx: ConvertContext = {
         assets: index,
+        scriptClass: (classId) => scripts.get(classId),
+        prefabAssetRef: (uuid) => ctx.prefabRef(uuid),
         report,
         where: '',
         assetRef(entry, slice, hints) {

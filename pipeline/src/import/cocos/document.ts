@@ -70,6 +70,9 @@ export interface CocosDocument {
 
 type Raw = Record<string, unknown>;
 
+/** Key of a reference to a node inside a component's data: the value is that node's `CocosNode.id`. */
+export const NODE_REF = '__node__';
+
 const BOOKKEEPING = new Set(['__type__', '_name', '_objFlags', 'node', '__prefab', '_id', '__editorExtras__']);
 
 const isObj = (v: unknown): v is Raw => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -118,6 +121,8 @@ export function parseCocosDocument(file: unknown, fallbackName = ''): CocosDocum
     }
 
     const seen = new Set<number>();
+    /** Which node an object in the file is, or belongs to: a `cc.Node` itself, or a component on one. */
+    const nodeAt = new Map<number, CocosNode>();
     const usedIds = new Map<string, number>();
     let duplicateIds = 0;
     // Copy-pasted instances can carry the same fileId; the engine needs every entity in a prefab to have its own.
@@ -133,6 +138,7 @@ export function parseCocosDocument(file: unknown, fallbackName = ''): CocosDocum
         const n = at(ref);
         if (!n || n.__type__ !== 'cc.Node' || seen.has(idx)) return null;
         seen.add(idx);
+        const rawComponents = Array.isArray(n._components) ? n._components : [];
         const info = at(n._prefab);
         const instRaw = info ? at(info.instance) : null;
         // An instance node's PrefabInfo.fileId is the nested prefab's own root id, so two instances of one prefab share it;
@@ -153,6 +159,8 @@ export function parseCocosDocument(file: unknown, fallbackName = ''): CocosDocum
             components: [],
             children: [],
         };
+        nodeAt.set(idx, node);
+        for (const cref of rawComponents) nodeAt.set(indexOf(cref), node);
 
         for (const cref of Array.isArray(n._components) ? n._components : []) {
             const c = at(cref);
@@ -195,5 +203,32 @@ export function parseCocosDocument(file: unknown, fallbackName = ''): CocosDocum
         const n = readNode(r);
         if (n) roots.push(n);
     }
+    // A component's fields point at other objects in the file by index. Nodes and components become the id of their node, which is what
+    // a later stage can map to an entity; any other object (a click event, a nested serialised class) is read in place.
+    const resolveRefs = (value: unknown, stack: Set<number>): unknown => {
+        if (Array.isArray(value)) return value.map((v) => resolveRefs(v, stack));
+        if (!isObj(value)) return value;
+        if (typeof value.__id__ === 'number') {
+            const owner = nodeAt.get(value.__id__);
+            if (owner) return { [NODE_REF]: owner.id };
+            const target = objs[value.__id__];
+            if (!isObj(target) || stack.has(value.__id__) || target.__type__ === 'cc.Node') return null;
+            stack.add(value.__id__);
+            const out = resolveObject(target, stack);
+            stack.delete(value.__id__);
+            return out;
+        }
+        return resolveObject(value, stack);
+    };
+    const resolveObject = (o: Raw, stack: Set<number>): Raw => {
+        const out: Raw = {};
+        for (const [k, v] of Object.entries(o)) if (k !== '__type__' && !BOOKKEEPING.has(k)) out[k] = resolveRefs(v, stack);
+        return out;
+    };
+    const resolveNode = (node: CocosNode): void => {
+        for (const c of node.components) for (const [k, v] of Object.entries(c.data)) c.data[k] = resolveRefs(v, new Set());
+        node.children.forEach(resolveNode);
+    };
+    roots.forEach(resolveNode);
     return { kind, name, roots, globals, duplicateIds };
 }

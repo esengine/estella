@@ -13,7 +13,7 @@
  *        UI maps there and `UITransform` is folded into it.
  */
 import type { CocosAssetEntry, CocosAssetIndex } from './assets';
-import type { CocosComponent, CocosNode } from './document';
+import { type CocosComponent, type CocosNode } from './document';
 import type { ImportReport } from './report';
 
 export interface ComponentData {
@@ -39,6 +39,10 @@ export interface ComponentContext {
      * outline's colour supplied at draw time. Such a font has to say so, in the channel flags BMFont gives that layout.
      */
     drawsBakedOutline?(materialUuid: string): boolean;
+    /** The script class a compressed class id names, when the project has that script. */
+    scriptClass?(classId: string): { name: string } | undefined;
+    /** The project-relative ref of a prefab, queuing it for conversion; null when the project does not have it. */
+    prefabAssetRef?(uuid: string): string | null;
 }
 
 type Raw = Record<string, unknown>;
@@ -258,6 +262,94 @@ function camera(c: CocosComponent, ctx: ComponentContext): ComponentData {
     };
 }
 
+// ---------------------------------------------------------------------------
+// The compatibility layer's components: UI geometry, alignment, layout, buttons, and the project's own scripts.
+// ---------------------------------------------------------------------------
+
+/** Names of the components the layer declares for built-ins; a scene that holds one needs `esengine/cocos` loaded. */
+const LAYER = 'Cocos.';
+
+function uiTransformData(box: UiBox): ComponentData {
+    return { type: `${LAYER}UITransform`, data: { width: box.width, height: box.height, anchorX: box.ax, anchorY: box.ay } };
+}
+
+/** Copy the serialised fields named in @p map to the layer's names, leaving out the ones the file does not carry. */
+function renamed(c: CocosComponent, map: Record<string, string>): Raw {
+    const out: Raw = { enabled: c.enabled };
+    for (const [from, to] of Object.entries(map)) if (c.data[from] !== undefined) out[to] = c.data[from];
+    return out;
+}
+
+function widget(c: CocosComponent): ComponentData {
+    const data = renamed(c, {
+        _alignFlags: 'alignFlags', _left: 'left', _right: 'right', _top: 'top', _bottom: 'bottom',
+        _horizontalCenter: 'horizontalCenter', _verticalCenter: 'verticalCenter',
+        _isAbsLeft: 'isAbsLeft', _isAbsRight: 'isAbsRight', _isAbsTop: 'isAbsTop', _isAbsBottom: 'isAbsBottom',
+        _isAbsHorizontalCenter: 'isAbsHorizontalCenter', _isAbsVerticalCenter: 'isAbsVerticalCenter',
+        _alignMode: 'alignMode', _target: 'target',
+    });
+    return { type: `${LAYER}Widget`, data };
+}
+
+function layout(c: CocosComponent): ComponentData {
+    const data = renamed(c, {
+        _layoutType: 'type', _resizeMode: 'resizeMode', _paddingLeft: 'paddingLeft', _paddingRight: 'paddingRight',
+        _paddingTop: 'paddingTop', _paddingBottom: 'paddingBottom', _spacingX: 'spacingX', _spacingY: 'spacingY',
+        _verticalDirection: 'verticalDirection', _horizontalDirection: 'horizontalDirection', _affectedByScale: 'affectedByScale',
+        _startAxis: 'startAxis', _constraint: 'constraint', _constraintNum: 'constraintNum', _isAlign: 'isAlign',
+    });
+    if (isObj(c.data._cellSize)) {
+        data.cellWidth = num(c.data._cellSize.width, 40);
+        data.cellHeight = num(c.data._cellSize.height, 40);
+    }
+    return { type: `${LAYER}Layout`, data };
+}
+
+function button(c: CocosComponent, ctx: ComponentContext): ComponentData {
+    const data = renamed(c, {
+        _interactable: 'interactable', _transition: 'transition', _zoomScale: 'zoomScale', _duration: 'duration',
+        _normalColor: 'normalColor', _hoverColor: 'hoverColor', _pressedColor: 'pressedColor', _disabledColor: 'disabledColor',
+        _target: 'target',
+    });
+    // An editor-authored handler holds a node, which the data model keeps in a list of its own beside the rest of the record.
+    const events = Array.isArray(c.data.clickEvents) ? c.data.clickEvents.filter(isObj) : [];
+    data.clickTargets = events.map((e) => e.target ?? null);
+    data.clickHandlers = events.map((e) => {
+        const id = typeof e._componentId === 'string' ? e._componentId : '';
+        const known = id ? ctx.scriptClass?.(id)?.name : undefined;
+        return {
+            component: known ?? (typeof e.component === 'string' ? e.component : ''),
+            handler: typeof e.handler === 'string' ? e.handler : '',
+            customEventData: typeof e.customEventData === 'string' ? e.customEventData : '',
+        };
+    });
+    return { type: `${LAYER}Button`, data };
+}
+
+/** A script component's fields, with asset references turned into project paths. */
+function scriptValue(v: unknown, ctx: ComponentContext): unknown {
+    if (Array.isArray(v)) return v.map((x) => scriptValue(x, ctx));
+    if (!isObj(v)) return v;
+    if (typeof v.__uuid__ === 'string') {
+        const uuid = v.__uuid__;
+        const prefab = ctx.prefabAssetRef?.(uuid);
+        if (prefab) return prefab;
+        const entry = ctx.assets.byUuid.get(uuid);
+        return entry ? ctx.assetRef(entry) : '';
+    }
+    const out: Raw = {};
+    for (const [k, x] of Object.entries(v)) out[k] = scriptValue(x, ctx);
+    return out;
+}
+
+function script(c: CocosComponent, ctx: ComponentContext): ComponentData | null {
+    const cls = ctx.scriptClass?.(c.type);
+    if (!cls) return null;
+    const data: Raw = { enabled: c.enabled };
+    for (const [k, v] of Object.entries(c.data)) data[k] = scriptValue(v, ctx);
+    return { type: `${LAYER}${cls.name}`, data };
+}
+
 /** Components that are folded into another, or carry nothing of their own. */
 const FOLDED = new Set(['cc.UITransform', 'cc.LabelOutline', 'cc.LabelShadow']);
 
@@ -290,11 +382,26 @@ export function convertNode(node: CocosNode, ctx: ComponentContext, where: strin
             case 'cc.Camera':
                 out = camera(c, ctx);
                 break;
+            case 'cc.UITransform':
+                // Also the size the renderers below were given; this keeps the rectangle for a node that draws nothing.
+                if (box) components.push(uiTransformData(box));
+                break;
+            case 'cc.Widget':
+                out = widget(c);
+                break;
+            case 'cc.Layout':
+                out = layout(c);
+                break;
+            case 'cc.Button':
+                out = button(c, ctx);
+                break;
             default:
+                out = c.type.startsWith('cc.') ? null : script(c, ctx);
                 break;
         }
         if (out) {
             components.push(out);
+            if (out.type.startsWith(LAYER)) ctx.report.component(c.type.startsWith('cc.') ? c.type : `script:${out.type.slice(LAYER.length)}`, 'mapped');
             continue;
         }
         if (FOLDED.has(c.type)) {
