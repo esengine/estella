@@ -4,9 +4,9 @@
  * @file  `cc.ParticleSystem` as the engine's `ParticleEmitter`.
  *
  * Cocos describes a system as a main block plus optional modules (shape, size/colour/rotation over lifetime, texture animation, ...), each
- * value a range that is a constant, two constants, or a curve. The engine's emitter is flatter: one start and one end value per quantity,
- * linearly eased. What the two share is mapped; a curve is sampled at its two ends, so a fade that rises and falls keeps only its ends. What
- * the engine's emitter has no field for is counted, so the gap is a list.
+ * value a range that is a constant, two constants, or a curve. The emitter carries a start and an end value per quantity, and for a
+ * colour or size that changes in more than a straight line, an authored gradient (`colorGradient`) or curve (`sizeCurve`) that the sim
+ * samples by age. What the emitter has no field for is counted, so the gap is a list.
  */
 import type { CocosAssetEntry } from './assets';
 import type { ImportReport } from './report';
@@ -107,11 +107,52 @@ function gradientRange(v: unknown, t: number): Rgba {
 
 const mid = (r: Range): number => (r.min + r.max) / 2;
 
-/** How many distinct keys a gradient has between its ends: the engine's linear start-to-end ease cannot hold them. */
-function interiorKeys(g: unknown): number {
-    if (!isObj(g)) return 0;
-    const count = (list: unknown): number => (Array.isArray(list) ? list.filter((k) => isObj(k) && num(k.time, 0) > 0.001 && num(k.time, 0) < 0.999).length : 0);
-    return count(g.colorKeys) + count(g.alphaKeys);
+/** The times at which a gradient range changes, ends included, in order. */
+function gradientTimes(v: unknown): number[] {
+    const times = new Set<number>([0, 1]);
+    if (isObj(v)) {
+        for (const g of [v.gradient, v.gradientMin]) {
+            if (!isObj(g)) continue;
+            for (const list of [g.colorKeys, g.alphaKeys]) {
+                for (const k of Array.isArray(list) ? list : []) {
+                    if (isObj(k)) times.add(Math.min(1, Math.max(0, num(k.time, 0))));
+                }
+            }
+        }
+    }
+    return [...times].sort((a, b) => a - b);
+}
+
+/** The colour over a particle's life: the start colour times the over-lifetime gradient, as stops the sim samples by age. */
+function colorStops(start: Rgba, over: unknown): Array<{ t: number; color: Raw }> {
+    return gradientTimes(over).map((t) => {
+        const g = gradientRange(over, t);
+        return { t, color: { r: start[0] * g[0], g: start[1] * g[1], b: start[2] * g[2], a: start[3] * g[3] } };
+    });
+}
+
+/** A size-over-lifetime curve as the engine's keyframes (value times the start size). Two curves are averaged at every key time. */
+function sizeKeys(v: unknown): Array<{ time: number; value: number; inTangent: number; outTangent: number }> | null {
+    if (!isObj(v)) return null;
+    const mode = num(v.mode, 0);
+    const mult = num(v.multiplier, 1);
+    const read = (spline: unknown): Array<{ time: number; value: number; inTangent: number; outTangent: number }> | null => {
+        if (!isObj(spline) || !Array.isArray(spline._values)) return null;
+        const keys = spline._values.filter(isObj).map((k) => ({
+            time: num(k.time, 0), value: num(k.value, 0) * mult, inTangent: num(k.inTangent, 0) * mult, outTangent: num(k.outTangent, 0) * mult,
+        }));
+        return keys.length ? keys : null;
+    };
+    if (mode === 1) return read(v.spline);
+    if (mode === 2) {
+        const lo = read(v.splineMin);
+        const hi = read(v.splineMax);
+        if (!lo || !hi) return lo ?? hi;
+        const times = [...new Set([...lo, ...hi].map((k) => k.time))].sort((a, b) => a - b);
+        return times.map((time) => ({ time, value: (sampleKeys(lo, time) + sampleKeys(hi, time)) / 2, inTangent: 0, outTangent: 0 }));
+    }
+    const k = mid(curveRange(v, 0, 1));
+    return [{ time: 0, value: k, inTangent: 0, outTangent: 0 }, { time: 1, value: k, inTangent: 0, outTangent: 0 }];
 }
 
 /** Cocos's emitter shapes in the engine's numbering. */
@@ -152,35 +193,24 @@ export function particleSystem(c: { enabled: boolean; data: Raw }, ctx: Particle
     if (mid(curveRange(d.startDelay, 0, 0)) > 0) lose('particle-start-delay');
     if (mid(curveRange(d.rateOverDistance, 0, 0)) > 0) lose('particle-rate-over-distance');
 
-    // colour: the start colour, eased to its value at the end of life by the over-lifetime gradient
+    // colour: the start colour times the over-lifetime gradient, sampled by age
     const start = gradientRange(d.startColor, 0);
-    let first: Rgba = [1, 1, 1, 1];
-    let last: Rgba = [1, 1, 1, 1];
     const colorModule = isObj(d._colorOverLifetimeModule) && d._colorOverLifetimeModule._enable === true ? d._colorOverLifetimeModule : null;
-    if (colorModule) {
-        first = gradientRange(colorModule.color, 0);
-        last = gradientRange(colorModule.color, 1);
-        const range = isObj(colorModule.color) ? colorModule.color : {};
-        if (interiorKeys(range.gradient) + interiorKeys(range.gradientMin) > 0) lose('particle-color-keys');
-    }
-    const mul = (a: Rgba, b: Rgba): Raw => ({ r: a[0] * b[0], g: a[1] * b[1], b: a[2] * b[2], a: a[3] * b[3] });
-    out.startColor = mul(start, first);
-    out.endColor = mul(start, last);
+    const stops = colorStops(start, colorModule?.color);
+    out.startColor = stops[0]!.color;
+    out.endColor = stops[stops.length - 1]!.color;
+    if (colorModule && stops.length > 2) out.colorGradient = { stops };
 
-    // size over lifetime scales the start size to the curve's value at the end
+    // size over lifetime multiplies the start size by the curve's value at the particle's age
     const sizeModule = isObj(d._sizeOvertimeModule) && d._sizeOvertimeModule._enable === true ? d._sizeOvertimeModule : null;
-    if (sizeModule) {
-        const from = mid(curveRange(sizeModule.size, 0, 1));
-        const to = mid(curveRange(sizeModule.size, 1, 1));
-        const k = from === 0 ? 1 : to / from;
-        out.endSizeMin = size.min * k;
-        out.endSizeMax = size.max * k;
-        if (isObj(sizeModule.size) && num(sizeModule.size.mode, 0) !== 0 && Math.abs(mid(curveRange(sizeModule.size, 0.5, from)) - (from + to) / 2) > 0.1 * Math.max(Math.abs(from), 0.0001)) {
-            lose('particle-size-curve');
-        }
-    } else {
-        out.endSizeMin = size.min;
-        out.endSizeMax = size.max;
+    out.endSizeMin = size.min;
+    out.endSizeMax = size.max;
+    const keys = sizeModule ? sizeKeys(sizeModule.size) : null;
+    if (keys) {
+        out.sizeCurve = { keys };
+        const end = sampleKeys(keys, 1);
+        out.endSizeMin = size.min * end;
+        out.endSizeMax = size.max * end;
     }
 
     const rotationModule = isObj(d._rotationOvertimeModule) && d._rotationOvertimeModule._enable === true ? d._rotationOvertimeModule : null;

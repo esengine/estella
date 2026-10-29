@@ -92,11 +92,16 @@ describe('a particle system', () => {
         expect([d.startSizeMin, d.endSizeMin]).toEqual([0.6, 0.3]);
     });
 
-    it('counts a fade that rises and falls as partial, since the engine eases between two ends', () => {
+    it('keeps a fade that rises and falls as a gradient the sim samples by age, and a size curve as keys', () => {
         const fade = { _mode: 1, gradient: { colorKeys: [], alphaKeys: [{ time: 0, alpha: 0 }, { time: 0.5, alpha: 255 }, { time: 1, alpha: 0 }] } };
-        const { report } = convert({ _colorOverLifetimeModule: { _enable: true, color: fade } });
-        expect(report.components['cc.ParticleSystem']).toEqual({ mapped: 0, partial: 1, unmapped: 0 });
-        expect(report.notes['particle-color-keys']?.count).toBe(1);
+        const swell = curve([[0, 0.2], [0.5, 1], [1, 0.1]]);
+        const { out, report } = convert({ _colorOverLifetimeModule: { _enable: true, color: fade }, _sizeOvertimeModule: { _enable: true, size: swell } });
+        const d = out.data as Record<string, any>;
+        expect(d.colorGradient.stops.map((s: any) => [s.t, Math.round(s.color.a * 100) / 100])).toEqual([[0, 0], [0.5, 1], [1, 0]]);
+        expect(d.sizeCurve.keys.map((k: any) => [k.time, k.value])).toEqual([[0, 0.2], [0.5, 1], [1, 0.1]]);
+        expect(report.components['cc.ParticleSystem']).toEqual({ mapped: 1, partial: 0, unmapped: 0 });
+        const def = registry.ParticleEmitter!;
+        expect(validate('ParticleEmitter', def._default, d, def.assetFields)).toEqual([]);
     });
 
     it('counts the modules the emitter has no field for', () => {

@@ -28,6 +28,8 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(cocos): a particle system colour gradient and size curve become the emitter colorGradient and sizeCurve instead of their two ends':
+    {"internal":"The Cocos Creator compatibility layer and importer have not shipped; nothing a creator reaches without opting in."},
   'feat(cocos): the importer maps ParticleSystem onto ParticleEmitter, and counts what the emitter has no field for':
     {"internal":"The Cocos Creator compatibility layer and importer have not shipped; nothing a creator reaches without opting in."},
   'feat(2d): GroupOpacity fades an entity and everything under it; sprites, text, shapes, trails and tilemap layers multiply the opacities of the groups above them into their own alpha, and the Cocos UIOpacity is a view on it':
