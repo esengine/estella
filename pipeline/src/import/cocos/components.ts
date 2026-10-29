@@ -400,6 +400,36 @@ function scriptValue(v: unknown, ctx: ComponentContext): unknown {
     return out;
 }
 
+/** A sunlight: colour and strength. Cocos states strength in lux; its LDR figure is the one a game without HDR is lit by. */
+function directionalLight(c: CocosComponent, ctx: ComponentContext, where: string): ComponentData {
+    const d = c.data;
+    ctx.report.component('cc.DirectionalLight', 'partial');
+    ctx.report.note('light-intensity-units', where);
+    return {
+        type: 'Light',
+        data: {
+            type: 1, // Directional
+            color: color(d._color),
+            intensity: num(d._illuminanceLDR, 1),
+            enabled: c.enabled,
+        },
+    };
+}
+
+/** `cc.Sorting`: the sorting layer and order of the renderer on the node, which the engine states for a node and its subtree. */
+function sorting(c: CocosComponent, ctx: ComponentContext, where: string): ComponentData {
+    const d = c.data;
+    const order = num(d._sortingOrder, 0);
+    const clamped = Math.min(127, Math.max(-128, Math.trunc(order)));
+    if (clamped !== order) {
+        ctx.report.component('cc.Sorting', 'partial');
+        ctx.report.note('sorting-order-clamped', where);
+    } else {
+        ctx.report.component('cc.Sorting', 'mapped');
+    }
+    return { type: 'SortingGroup', data: { layer: Math.trunc(num(d._sortingLayer, 0)), order: clamped, enabled: c.enabled } };
+}
+
 function script(c: CocosComponent, ctx: ComponentContext): ComponentData | null {
     const cls = ctx.scriptClass?.(c.type);
     if (!cls) return null;
@@ -409,7 +439,7 @@ function script(c: CocosComponent, ctx: ComponentContext): ComponentData | null 
 }
 
 /** Components that are folded into another, or carry nothing of their own. */
-const FOLDED = new Set(['cc.UITransform', 'cc.LabelOutline', 'cc.LabelShadow']);
+const FOLDED = new Set(['cc.UITransform', 'cc.LabelOutline', 'cc.LabelShadow', 'cc.Canvas']);
 
 export interface ConvertedNode {
     components: ComponentData[];
@@ -471,6 +501,12 @@ export function convertNode(node: CocosNode, ctx: ComponentContext, where: strin
             case 'cc.ScrollView':
                 out = scrollView(c, ctx);
                 break;
+            case 'cc.DirectionalLight':
+                out = directionalLight(c, ctx, where);
+                break;
+            case 'cc.Sorting':
+                out = sorting(c, ctx, where);
+                break;
             case 'cc.BlockInputEvents':
                 out = { type: `${LAYER}BlockInputEvents`, data: { enabled: c.enabled } };
                 break;
@@ -484,7 +520,8 @@ export function convertNode(node: CocosNode, ctx: ComponentContext, where: strin
             continue;
         }
         if (FOLDED.has(c.type)) {
-            const host = c.type === 'cc.UITransform' ? true : node.components.some((s) => s.type === 'cc.Label');
+            // A canvas carries nothing of its own here: the design resolution is the scene's, and its camera is a component of its own.
+            const host = c.type === 'cc.UITransform' || c.type === 'cc.Canvas' ? true : node.components.some((s) => s.type === 'cc.Label');
             if (host) {
                 ctx.report.component(c.type, 'mapped');
                 continue;
