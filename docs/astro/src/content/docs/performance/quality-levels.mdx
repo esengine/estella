@@ -68,6 +68,26 @@ Shown when the mode is Auto. Each row names a level and the conditions a device 
 **GPU contains**, **Max RAM** and **Max cores**, all of which must hold. The first row that matches decides the level. A
 row with no condition would match every device, so it must have one.
 
+## Saving power
+
+A long session on a phone is heat and battery, and the frame is where both go. Turn on **Save power when the battery is low or the device is hot** (`QualityConfig.power`) and the engine
+watches the device every few seconds: while it is saving it lowers the frame cap and puts a ceiling on the quality level, and when the device recovers it puts both back. Off (the default), the device
+is not watched and nothing changes.
+
+| Setting | What it does |
+|---|---|
+| **Battery below** (`lowBattery`) | Saves while the battery is under this share and not charging. Default 20%; 0 never saves for the battery. |
+| **Thermal pressure** (`thermal`) | Saves when the platform reports pressure of this level or worse: Serious (default), Critical, or Never. |
+| **Frame cap while saving** (`fps`) | Frames a second while saving. Default 30. A cap the game already set lower is kept. |
+| **Level ceiling while saving** (`ceiling`) | No level above this while saving; a level already under it is left. Default Medium. |
+
+At Critical thermal pressure it goes further: the cap is halved (never under 15) and the level is held at Low (`severe: 'never'` turns that off). What a platform does not report never triggers
+anything: a browser with no battery API saves nothing for the battery, and most browsers report no heat at all (Chromium reports the battery and the processor's pressure; the WeChat mini-game
+platform reports the battery). `Device.power()` gives a game the same numbers (`level`, `charging`, `thermal`, each `null` where the platform does not say), and `Quality`'s report names `power-saver`
+among its limitations while it is holding the level down. The cap is put back only if the game has not changed it itself since.
+
+For a still screen (a menu, a card table) the better saving is to draw nothing: see render-on-demand in the same page of the editor's settings.
+
 ## In code
 
 The same settings are `QualityConfig` — `QualityController`, `parseQualityConfig`, `resolveQualityProfile` and

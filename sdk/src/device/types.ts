@@ -34,7 +34,18 @@ export interface MotionSample {
 export type VibrationIntensity = 'light' | 'medium' | 'heavy';
 export interface VibrationOptions { duration?: 'short' | 'long'; intensity?: VibrationIntensity }
 export interface DeviceState { fullscreen: boolean; pointerLocked: boolean; screenOn: boolean; motionActive: boolean }
+/** How much the device has left to give: the battery and how hot it runs. A null is a thing this platform does not say, which is not the same as nothing being wrong. */
+export interface PowerState {
+    /** The battery's charge, 0 to 1. */
+    level: number | null;
+    charging: boolean | null;
+    /** Thermal pressure on the processor, as the platform reports it. */
+    thermal: 'nominal' | 'fair' | 'serious' | 'critical' | null;
+}
+export const NO_POWER_STATE: PowerState = { level: null, charging: null, thermal: null };
 export interface DeviceBackend {
+    /** The device's battery and thermal state, from what the platform has told it so far. Absent on a backend that cannot know. */
+    power?(): PowerState;
     capabilities(): DeviceCapabilities;
     state(): DeviceState;
     startMotion(options?: MotionOptions): Promise<DeviceResult>;

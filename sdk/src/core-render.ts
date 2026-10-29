@@ -348,6 +348,7 @@ export type { PathStyle, PathFill, PathStroke, PathColor, LineJoin, LineCap } fr
 export { setPath, clearPath } from './render/pathRenderer';
 export { RainShelter, RainUpright, uprightOf, uprightRects, drynessOf, maskRects, shelterMaskSizeOf, ellipseStripsOf, type RainShelterData, type RainUprightData, type Upright, type Shelter, type MaskRect } from './render/rainShelter';
 export { Footsteps, StepSurface, StepKind, surfaceAt, footAt, stampLook, type FootstepsData, type StepSurfaceData } from './render/footsteps';
+export { decidePower, type PowerPolicy, type PowerDecision, type PowerLevel } from './render/power';
 export { SwayPusher, nearestPushers, SWAY_PUSHERS, type SwayPusherData, type PushValue } from './render/swayPush';
 export { FogOfWar, ExploredGrid, fanDistances, exploredToString, exploredFromString, type FogOfWarData } from './render/fogOfWar';
 export { SightViewer, SightTarget, segmentBlocked, seesPoint, sightRingOf, ringContains, currentSightRings, type SightViewerData, type SightTargetData, type SightRing, type SightPoint } from './render/sight';

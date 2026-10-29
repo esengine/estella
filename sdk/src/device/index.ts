@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { getPlatform, isPlatformInitialized } from '../platform/base';
 import { unavailableDevice } from './core';
-import { deviceFailure, type DeviceBackend, type DeviceResult, type MotionOptions, type MotionSample, type DeviceState, type VibrationOptions } from './types';
+import { NO_POWER_STATE, deviceFailure, type DeviceBackend, type PowerState, type DeviceResult, type MotionOptions, type MotionSample, type DeviceState, type VibrationOptions } from './types';
 export type * from './types';
 const unavailable = unavailableDevice();
 function backend(): DeviceBackend {
@@ -15,6 +15,8 @@ function invoke(call: (device: DeviceBackend) => Promise<DeviceResult>): Promise
 export const Device = {
     capabilities: () => backend().capabilities(),
     state: () => backend().state(),
+    /** The battery and the processor's heat as far as the platform has said (a null is a thing it does not say). */
+    power: (): PowerState => backend().power?.() ?? NO_POWER_STATE,
     motion: {
         start: (options?: MotionOptions) => invoke(d => d.startMotion(options)),
         stop: () => invoke(d => d.stopMotion()),

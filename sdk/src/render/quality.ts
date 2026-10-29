@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+import type { PowerPolicy } from './power';
 
 export type QualityLevel = 'low' | 'medium' | 'high';
 export type QualityMode = 'off' | 'auto' | QualityLevel;
@@ -114,6 +115,11 @@ export interface QualityConfig {
     prewarmTimeoutMs?: number;
     profiles?: Partial<Record<QualityLevel, Partial<QualityProfile>>>;
     deviceRules?: DeviceQualityRule[];
+    /**
+     * Draw less when the device is short of battery or running hot: a frame cap and a ceiling on the level while it is, both taken off when it recovers.
+     * Absent, the device is not watched and nothing changes. See {@link PowerPolicy}.
+     */
+    power?: PowerPolicy;
 }
 
 const LEVELS: readonly QualityLevel[] = ['low', 'medium', 'high'];
@@ -173,6 +179,7 @@ export function parseQualityConfig(value: unknown): QualityConfig {
         renderOnDemandTail: finite(raw.renderOnDemandTail, 30, 1, 600),
         prewarmTimeoutMs: finite(raw.prewarmTimeoutMs, 30000, 1000, 600000),
     };
+    if (raw.power !== undefined && raw.power !== false) config.power = parsePowerPolicy(raw.power);
     if (raw.profiles) {
         config.profiles = {};
         for (const level of LEVELS) {
@@ -197,6 +204,18 @@ export function parseQualityConfig(value: unknown): QualityConfig {
         });
     }
     return config;
+}
+
+/** A power policy from a project's settings: what is not a usable number or name keeps its default, and `true` is every default. */
+export function parsePowerPolicy(value: unknown): PowerPolicy {
+    const r = record(value);
+    const policy: PowerPolicy = {};
+    if (typeof r.lowBattery === 'number' && Number.isFinite(r.lowBattery)) policy.lowBattery = Math.min(Math.max(r.lowBattery, 0), 1);
+    if (r.thermal === 'serious' || r.thermal === 'critical' || r.thermal === 'never') policy.thermal = r.thermal;
+    if (typeof r.fps === 'number' && Number.isFinite(r.fps)) policy.fps = Math.min(Math.max(Math.round(r.fps), 10), 120);
+    if (r.ceiling === 'low' || r.ceiling === 'medium' || r.ceiling === 'high') policy.ceiling = r.ceiling;
+    if (r.severe === 'critical' || r.severe === 'never') policy.severe = r.severe;
+    return policy;
 }
 
 function resolveProfile(level: QualityLevel, value: unknown): QualityProfile {
@@ -275,6 +294,9 @@ export interface QualityReport {
 export class QualityController {
     private config_: QualityConfig;
     private level_: QualityLevel = 'high';
+    /** The level the mode asks for, before a ceiling lowers it. */
+    private modeLevel_: QualityLevel = 'high';
+    private ceiling_: QualityLevel | null = null;
     private profile_: QualityProfile = PROFILES.high;
     private scale_ = 1;
     private average_ = 0;
@@ -298,14 +320,36 @@ export class QualityController {
         const rule = this.config_.deviceRules?.find(r => matches(r, this.device_));
         const low = (this.device_.memoryGB !== undefined && this.device_.memoryGB <= 2)
             || (this.device_.cores !== undefined && this.device_.cores <= 2);
-        this.level_ = mode === 'off' ? 'high' : mode === 'auto'
+        this.modeLevel_ = mode === 'off' ? 'high' : mode === 'auto'
             ? rule?.level ?? (low ? 'low' : 'medium') : mode;
+        this.level_ = this.ceilingOf_(this.modeLevel_);
         this.profile_ = resolveProfile(this.level_, this.config_.profiles?.[this.level_]);
         this.scale_ = mode === 'off' ? 1 : this.profile_.renderScale;
         this.average_ = this.pressureMs_ = this.recoveryMs_ = 0;
         this.reason_ = mode === 'off' ? 'disabled' : mode !== 'auto' ? 'manual'
             : rule ? 'device-rule' : low ? 'device-capacity' : 'device-unknown';
         this.modeReason_ = this.reason_;
+    }
+
+    private ceilingOf_(level: QualityLevel): QualityLevel {
+        return this.ceiling_ !== null && LEVELS.indexOf(this.ceiling_) < LEVELS.indexOf(level) ? this.ceiling_ : level;
+    }
+
+    /**
+     * No level above `level` while it is set; null takes it off. Only lowers: a mode already at or under the ceiling is left as it is. Used by the power
+     * policy, which holds the level down while the device is short of battery or hot.
+     */
+    setCeiling(level: QualityLevel | null): void {
+        if (this.ceiling_ === level) return;
+        this.ceiling_ = level;
+        const next = this.ceilingOf_(this.modeLevel_);
+        this.setLimitation('power-saver', next !== this.modeLevel_);
+        if (next === this.level_) return;
+        this.level_ = next;
+        this.profile_ = resolveProfile(next, this.config_.profiles?.[next]);
+        this.scale_ = this.enabled ? this.profile_.renderScale : 1;
+        this.average_ = this.pressureMs_ = this.recoveryMs_ = 0;
+        this.reason_ = next !== this.modeLevel_ ? 'power-saver' : this.modeReason_;
     }
 
     setLimitation(reason: string, active: boolean): void {

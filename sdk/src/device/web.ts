@@ -2,11 +2,14 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { DeviceEvents, emptyMotion } from './core';
 import { DEVICE_OK, DEVICE_UNAVAILABLE, deviceFailure, type DeviceBackend, type DeviceCapabilities, type DeviceResult,
-    type MotionOptions, type VibrationOptions } from './types';
+    type MotionOptions, type PowerState, type VibrationOptions } from './types';
 
 type PermissionEvent = { requestPermission?: () => Promise<string> };
 type WakeSentinel = { released: boolean; release(): Promise<void>; addEventListener(type: string, listener: () => void): void };
-type WakeNavigator = Navigator & { wakeLock?: { request(type: 'screen'): Promise<WakeSentinel> } };
+type BatteryManager = { level: number; charging: boolean; addEventListener(type: string, listener: () => void): void; removeEventListener(type: string, listener: () => void): void };
+type PressureRecord = { state: PowerState['thermal'] };
+type PressureObserverLike = { observe(source: 'cpu'): Promise<void>; disconnect(): void };
+type WakeNavigator = Navigator & { wakeLock?: { request(type: 'screen'): Promise<WakeSentinel> }; getBattery?: () => Promise<BatteryManager> };
 
 export class WebDevice implements DeviceBackend {
     private readonly events = new DeviceEvents();
@@ -17,6 +20,10 @@ export class WebDevice implements DeviceBackend {
     private wake: WakeSentinel | null = null;
     private disposed = false;
     private lastMotion = 0;
+    private battery: BatteryManager | null = null;
+    private pressure: PowerState['thermal'] = null;
+    private pressureObserver: PressureObserverLike | null = null;
+    private powerStarted = false;
     constructor(private readonly win: Window = window, private readonly doc: Document = document,
         private readonly nav: WakeNavigator = navigator as WakeNavigator) {
         doc.addEventListener('visibilitychange', this.visibility);
@@ -34,6 +41,25 @@ export class WebDevice implements DeviceBackend {
             pointerLock: typeof this.doc.documentElement?.requestPointerLock === 'function' };
     }
     state() { return { ...this.events.state }; }
+    /** What the browser has said so far: the battery (Chromium) and the processor's pressure (Chromium). Both arrive a moment after the first call. */
+    power(): PowerState {
+        this.startPower();
+        const battery = this.battery;
+        return { level: battery ? battery.level : null, charging: battery ? battery.charging : null, thermal: this.pressure };
+    }
+    private startPower(): void {
+        if (this.powerStarted || this.disposed) return;
+        this.powerStarted = true;
+        try { void this.nav.getBattery?.().then((battery) => { if (!this.disposed) this.battery = battery; }, () => undefined); } catch { /* no battery to read */ }
+        try {
+            const Observer = (this.win as unknown as { PressureObserver?: new (callback: (records: PressureRecord[]) => void) => PressureObserverLike }).PressureObserver;
+            if (Observer) {
+                const observer = new Observer((records) => { const last = records[records.length - 1]; if (last) this.pressure = last.state; });
+                this.pressureObserver = observer;
+                void observer.observe('cpu').catch(() => undefined);
+            }
+        } catch { /* the page may not be allowed to observe pressure */ }
+    }
     onMotion(handler: Parameters<DeviceBackend['onMotion']>[0]) { return this.events.onMotion(handler); }
     onStateChange(handler: Parameters<DeviceBackend['onStateChange']>[0]) { return this.events.onStateChange(handler); }
     async startMotion(options: MotionOptions = {}): Promise<DeviceResult> {
@@ -133,6 +159,7 @@ export class WebDevice implements DeviceBackend {
         this.win.removeEventListener('pagehide', this.hide); this.win.removeEventListener('pageshow', this.visibility);
         this.doc.removeEventListener('fullscreenchange', this.screenChanged);
         this.doc.removeEventListener('pointerlockchange', this.screenChanged); this.events.dispose();
+        this.pressureObserver?.disconnect(); this.pressureObserver = null; this.battery = null;
     }
     private bindMotion(): void {
         if (!this.options || this.disposed) return;

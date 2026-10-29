@@ -267,6 +267,7 @@ const BLOCKS = [
       prewarmShaders: { ui: 'project.rendering.quality.prewarmShaders' },
       prewarmTimeoutMs: { ui: 'project.rendering.quality.prewarmTimeoutMs' },
       renderOnDemand: { ui: 'project.rendering.quality.renderOnDemand' },
+      power: { ui: 'project.rendering.quality.power' },
       renderOnDemandTail: { ui: 'project.rendering.quality.renderOnDemandTail' },
       profiles: { ui: 'project.rendering.quality.renderScale' },
       deviceRules: { ui: 'project.rendering.qualityDeviceRules' },

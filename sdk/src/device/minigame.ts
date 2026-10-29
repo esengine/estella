@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { DeviceEvents, emptyMotion } from './core';
-import { DEVICE_OK, DEVICE_UNAVAILABLE, NO_DEVICE_CAPABILITIES, deviceFailure,
-    type DeviceBackend, type DeviceResult, type MotionOptions, type VibrationOptions } from './types';
+import { DEVICE_OK, DEVICE_UNAVAILABLE, NO_DEVICE_CAPABILITIES, NO_POWER_STATE, deviceFailure,
+    type DeviceBackend, type DeviceResult, type MotionOptions, type PowerState, type VibrationOptions } from './types';
 import type { Vec3 } from '../types';
 
 interface Callbacks { success?(): void; fail?(error: { errMsg?: string }): void }
@@ -19,6 +19,8 @@ export interface MiniGameDeviceHost {
     vibrateShort?(options: Callbacks & { type: 'light' | 'medium' | 'heavy' }): void;
     vibrateLong?(options: Callbacks): void;
     setKeepScreenOn?(options: Callbacks & { keepScreenOn: boolean }): void;
+    /** The battery as the mini-game platform reports it: level 0 to 100. */
+    getBatteryInfoSync?(): { level: number; isCharging: boolean };
     onHide?(handler: () => void): void;
     offHide?(handler: () => void): void;
     onShow?(handler: () => void): void;
@@ -35,6 +37,12 @@ export class MiniGameDevice implements DeviceBackend {
     private tail: Promise<unknown> = Promise.resolve();
     constructor(private readonly host: MiniGameDeviceHost, private readonly now: () => number = () => Date.now()) {
         host.onHide?.(this.hide); host.onShow?.(this.show);
+    }
+    power(): PowerState {
+        try {
+            const info = this.host.getBatteryInfoSync?.();
+            return info ? { level: Math.min(Math.max(info.level / 100, 0), 1), charging: !!info.isCharging, thermal: null } : NO_POWER_STATE;
+        } catch { return NO_POWER_STATE; }
     }
     capabilities() {
         const h = this.host;
