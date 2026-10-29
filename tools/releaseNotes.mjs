@@ -28,7 +28,7 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
-  'feat(editor): Re-import Cocos Project brings the Cocos side's changes into the converted project and keeps the documents edited here; a conversion says which components did not come across':
+  'feat(editor): Re-import Cocos Project brings the Cocos side\'s changes into the converted project and keeps the documents edited here; a conversion says which components did not come across':
     {"note":"Re-import a Cocos project without losing your edits."},
   'feat(editor): opening a Cocos Creator folder converts it into an Estella project beside it and opens that':
     {"note":"Open a Cocos Creator project from the editor."},
