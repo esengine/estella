@@ -11,6 +11,7 @@ export {
 export { parseWorldRules, isRulesFile, WorldRulesAssetLoader } from './rulesAsset';
 export { WorldPlan, type Placement, type Group, type Rejection } from './plan';
 export { Zones, zoneDistance, zoneWeight, zoneBounds, type ZoneDef, type ZoneShape } from './zones';
+export { createWorld2D, world2dChunk, placement2D, streamingPoints2D, type World2D, type World2DOptions, type World2DChunk, type Placement2D } from './world2d';
 export { PlacementDiffs, type PlacementChange, type PlacementDiffsData } from './diffs';
 export {
     Environment, fbm, fbm3, hash01, hashString, type FieldValues, type FieldFn, type NoiseField, type EnvironmentInputs,

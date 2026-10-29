@@ -144,6 +144,33 @@ gens.diffs().load(saved);                 // 以及读回
 { "version": "1.0", "groups": { "recipes": { "folder": "assets/models", "mode": "local", "alwaysInclude": true } } }
 ```
 
+## 2D 世界
+
+同一套规则也能生成 2D 世界:没有地形,把规划按 **x 和 y** 平铺来读,围绕相机分块发布。引擎不画任何东西;放置物长什么样(精灵、预制体)、地面怎么画(瓦片层、着色器)由你在 `publish` 里决定。
+
+```typescript
+import { registerWorldRules, createWorld2D } from 'esengine/worldgen';
+
+registerWorldRules(rules);                        // 群系、配方和层,与上文相同
+const world = createWorld2D(app, 'island', {
+    rules: rules.id, seed: 11, chunkSize: 512, cellSize: 32,
+    publish(chunk) {
+        // chunk.placements:这里立着什么(id、recipe、member、biome、x、y、scale、interactive、footprint……)
+        // chunk.biomeGrid:地面每个格子的群系,是 chunk.biomes 的下标
+        const spawned = spawnTilesAndSprites(chunk);
+        return () => despawn(spawned);            // 撤掉这个区块
+    },
+});
+
+world.diffs.remove(tree.id);                      // 砍倒了:只有那个区块重做,并且一直保持砍倒
+```
+
+- **区块跟着相机走**(或跟着流送源),在帧预算内由近及远生成,超过 `unloadRadius` 就释放;它是 `'xy'` 平面上的 `ProceduralChunks`,所以无论世界多大,同时存在的区块数都有上限。
+- **先问谁都一样。** 一个区块只取决于种子、规则和位置,所以邻居早做晚做结果都一致,服务器和客户端一致,放置物的 id 在多次加载间稳定。一组(锚点和它的成员)属于锚点所在的区块。
+- **玩家改过的东西**是 `PlacementDiffs`,在区块显示前盖在规划上;`diffs.toJSON()` 和 `diffs.load()` 就是存档。
+- **区域手工规划**:`ZoneDef` 的 `z` 是世界 y,用来让一片区域保持空旷或固定为某个群系(玩家搭的营地)。
+- 配方的 `ring` 是世界单位,`arc` 是从 +x 转向 +y 的角度。`mesh`、`material`、`attach` 和 `minUp` 是 3D 的东西,这里不读。
+
 ## 限制
 
 - **装饰按区块合并绘制,而不是 GPU 实例化。** 渲染器的实例记录每帧重写,成千上万株植物每帧要上传数兆字节;合并的静态网格每帧不上传任何东西,内存由区块驻留限制住。

@@ -176,6 +176,36 @@ always included, in `.esengine/asset-groups.json`:
 { "version": "1.0", "groups": { "recipes": { "folder": "assets/models", "mode": "local", "alwaysInclude": true } } }
 ```
 
+## A 2D world
+
+The same rules lay out a 2D world: no terrain, the plan read flat over **x and y**, published in chunks round the camera. Nothing is drawn by the engine; what a
+placement looks like (a sprite, a prefab) and how the ground is painted (a tile layer, a shader) are yours, said in `publish`.
+
+```typescript
+import { registerWorldRules, createWorld2D } from 'esengine/worldgen';
+
+registerWorldRules(rules);                        // biomes, recipes and layers, as above
+const world = createWorld2D(app, 'island', {
+    rules: rules.id, seed: 11, chunkSize: 512, cellSize: 32,
+    publish(chunk) {
+        // chunk.placements: what stands here (id, recipe, member, biome, x, y, scale, interactive, footprint...)
+        // chunk.biomeGrid: the biome of each cell of the ground, indexes chunk.biomes
+        const spawned = spawnTilesAndSprites(chunk);
+        return () => despawn(spawned);            // taking the chunk away
+    },
+});
+
+world.diffs.remove(tree.id);                      // felled: only that chunk is made again, and it stays felled
+```
+
+- **Chunks follow the camera** (or the streaming sources), nearest first within the frame's budget, and are released past `unloadRadius`; it is `ProceduralChunks` on the
+  `'xy'` plane, so a world of any size holds a bounded number of them.
+- **The same whatever is asked first.** A chunk is a function of the seed, the rules and its place, so a neighbour made earlier or later agrees, a server and a client agree, and a
+  placement's id is stable across loads. A group (an anchor and its members) belongs to the chunk its anchor stands in.
+- **What players changed** is a `PlacementDiffs`, laid over the plan before a chunk is shown; `diffs.toJSON()` and `diffs.load()` are the save.
+- **Zones are planned by hand**: a `ZoneDef` whose `z` is world y keeps an area clear or holds it to a biome (a camp the player built).
+- A recipe's `ring` is in world units and `arc` in degrees from +x toward +y. `mesh`, `material`, `attach` and `minUp` are 3D things and are not read.
+
 ## Limits
 
 - **Decoration is merged a chunk at a time, not GPU-instanced.** The renderer's instance records are written each frame, which for a
