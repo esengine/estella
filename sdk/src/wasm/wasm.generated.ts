@@ -738,6 +738,7 @@ export interface ParticleEmitter {
     burstCount: number;
     burstInterval: number;
     duration: number;
+    simulationSpeed: number;
     startDelay: number;
     looping: boolean;
     playOnStart: boolean;

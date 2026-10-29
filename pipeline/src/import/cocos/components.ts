@@ -141,9 +141,10 @@ function sprite(c: CocosComponent, box: UiBox | null, ctx: ComponentContext, whe
         data.pivot = { x: box.ax, y: box.ay };
     }
     if (!frameUuid) {
-        ctx.report.component(as, 'partial');
+        // No frame draws nothing in Cocos: the sprite is there, off, for a script that sets its frame; a white quad would be wrong.
+        ctx.report.component(as, 'mapped');
         ctx.report.note('sprite-no-frame', where);
-        return { type: 'Sprite', data };
+        return { type: 'Sprite', data: { ...data, enabled: false } };
     }
     const entry = ctx.assets.byUuid.get(frameUuid);
     const sub = entry?.subs.get(frameUuid);
@@ -189,7 +190,19 @@ function sprite(c: CocosComponent, box: UiBox | null, ctx: ComponentContext, whe
     if (rawW > 0 && rawH > 0 && (w !== rawW || h !== rawH || x !== 0 || y !== 0)) {
         data.uvOffset = { x: x / rawW, y: 1 - (y + h) / rawH };
         data.uvScale = { x: w / rawW, y: h / rawH };
-        status = 'partial';
+        // Cocos's `trim` (the default) fills the node's rectangle with the frame's trimmed region, which is what the UV window does. With trim
+        // off the region keeps the place it had in the full image, scaled with the node: its size is the node's times its share of the image,
+        // and its centre sits off the node's centre by how far it sat off the image's.
+        if (c.data._isTrimmedMode === false && box && kind !== 1) {
+            const sx = box.width / rawW, sy = box.height / rawH;
+            const size = { x: w * sx, y: h * sy };
+            const centre = {
+                x: (0.5 - box.ax) * box.width + (x + w / 2 - rawW / 2) * sx,
+                y: (0.5 - box.ay) * box.height - (y + h / 2 - rawH / 2) * sy,
+            };
+            data.size = size;
+            data.pivot = { x: size.x === 0 ? 0.5 : 0.5 - centre.x / size.x, y: size.y === 0 ? 0.5 : 0.5 - centre.y / size.y };
+        }
         ctx.report.note('sprite-trimmed-frame', where);
     }
     if (ud.rotated === true) {

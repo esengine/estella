@@ -5,7 +5,7 @@ Symbols: 115 public · 161 beta · 1966 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"097d3c7989a498a1"
+"63a00195ad788bd8"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -6517,6 +6517,7 @@ shapeAngle: number
 shapeRadius: number
 shapeSize: Vec3
 simulationSpace: SimulationSpace
+simulationSpeed: number
 sizeCurve: { keys: { t: number; v: number; }[]; }
 sizeEasing: ParticleEasing
 speedLimit: number

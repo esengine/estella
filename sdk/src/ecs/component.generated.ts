@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, Cl
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '097d3c7989a498a1';
+export const ABI_LAYOUT_HASH = '63a00195ad788bd8';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -704,6 +704,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             burstCount: 0,
             burstInterval: 1,
             duration: 5,
+            simulationSpeed: 1,
             startDelay: 0,
             looping: true,
             playOnStart: true,
@@ -785,6 +786,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             burstCount: { min: 0, step: 1, category: "Emission" },
             burstInterval: { min: 0, category: "Emission" },
             duration: { min: 0, category: "Emission" },
+            simulationSpeed: { min: 0, tooltip: "How fast this emitter's own time runs: 2 plays it twice as fast, 0.5 at half, 0 holds it. Scales emission, lifetimes and motion alike.", category: "Emission" },
             startDelay: { min: 0, tooltip: "Seconds after the emitter starts playing before it emits anything. The duration counts from the end of the delay.", category: "Emission" },
             looping: { category: "Emission" },
             playOnStart: { category: "Emission" },
@@ -1741,6 +1743,7 @@ export interface ParticleEmitterData {
     burstCount: number;
     burstInterval: number;
     duration: number;
+    simulationSpeed: number;
     startDelay: number;
     looping: boolean;
     playOnStart: boolean;

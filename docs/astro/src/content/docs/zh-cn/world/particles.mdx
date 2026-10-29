@@ -82,6 +82,7 @@ const spawnEmbers = defineSystem([Commands()], (cmds) => {
 | `burstCount` | number | `0` | 每次爆发释放的粒子数。`0` 禁用爆发。 |
 | `burstInterval` | number | `1` | 两次爆发之间的秒数。 |
 | `duration` | number | `5` | 发射器停止前运行的秒数(见 `looping`)。 |
+| `simulationSpeed` | number | `1` | 这个发射器自己的时间流速：`2` 是两倍速，`0` 是停住。发射、寿命和运动都跟着它走。 |
 | `startDelay` | number | `0` | 发射器开始播放后、真正发射之前等待的秒数;`duration` 从延迟结束后开始计时。 |
 | `looping` | boolean | `true` | 到 `duration` 后重新开始,而不是停止。 |
 | `playOnStart` | boolean | `true` | 实体一存在就开始发射。 |

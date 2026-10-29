@@ -3451,6 +3451,13 @@
           "range": "≥ 0"
         },
         {
+          "key": "simulationSpeed",
+          "type": "number",
+          "default": "1",
+          "doc": "How fast this emitter's own time runs: 2 plays it twice as fast, 0.5 at half, 0 holds it. Scales emission, lifetimes and motion alike.",
+          "range": "≥ 0"
+        },
+        {
           "key": "startDelay",
           "type": "number",
           "default": "0",

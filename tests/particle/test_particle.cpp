@@ -379,6 +379,31 @@ TEST_CASE("system_speed_limit_holds_a_fast_particle_to_the_limit") {
     CHECK(speed == doctest::Approx(10.0f).epsilon(0.01));
 }
 
+TEST_CASE("system_simulation_speed_runs_the_emitters_own_time") {
+    auto spawned = [](f32 speed) {
+        ecs::Registry registry;
+        ParticleSystem system;
+        Entity e = registry.create();
+        registry.emplace<ecs::Transform>(e);
+        auto& emitter = registry.emplace<ecs::ParticleEmitter>(e);
+        emitter.rate = 100.0f;
+        emitter.lifetimeMin = 100.0f;
+        emitter.lifetimeMax = 100.0f;
+        emitter.maxParticles = 10000;
+        emitter.simulationSpeed = speed;
+        emitter.enabled = true;
+        emitter.playOnStart = true;
+        system.update(registry, 0.5f);
+        system.update(registry, 0.5f);
+        return system.totalAliveParticles();
+    };
+    const u32 normal = spawned(1.0f);
+    CHECK(normal > 0u);
+    CHECK_EQ(spawned(2.0f), normal * 2);
+    CHECK(spawned(0.5f) <= normal / 2 + 1);
+    CHECK_EQ(spawned(0.0f), 0u);
+}
+
 TEST_CASE("system_disabled_emitter_no_spawn") {
     ecs::Registry registry;
     ParticleSystem system;

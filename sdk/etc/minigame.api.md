@@ -6807,6 +6807,7 @@ shapeAngle: number
 shapeRadius: number
 shapeSize: Vec3
 simulationSpace: SimulationSpace
+simulationSpeed: number
 sizeCurve: { keys: { t: number; v: number; }[]; }
 sizeEasing: ParticleEasing
 speedLimit: number

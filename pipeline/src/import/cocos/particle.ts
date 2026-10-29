@@ -193,7 +193,7 @@ export function particleSystem(c: { enabled: boolean; data: Raw }, ctx: Particle
         gravity: { x: 0, y: -9.8 * mid(gravity), z: 0 },
         simulationSpace: num(d._simulationSpace, 1) === 0 ? 1 /* Local */ : 0 /* World */,
     };
-    if (num(d.simulationSpeed, 1) !== 1) lose('particle-simulation-speed');
+    out.simulationSpeed = Math.max(0, num(d.simulationSpeed, 1));
     out.startDelay = Math.max(0, mid(curveRange(d.startDelay, 0, 0)));
     if (mid(curveRange(d.rateOverDistance, 0, 0)) > 0) lose('particle-rate-over-distance');
 
@@ -242,7 +242,11 @@ export function particleSystem(c: { enabled: boolean; data: Raw }, ctx: Particle
         const b = bursts[0]!;
         out.burstCount = Math.round(mid(curveRange(b.count, 0, 0)));
         out.burstInterval = Math.max(num(b.repeatInterval, 1), 0.01);
-        if (bursts.length > 1 || num(b._time, 0) > 0) lose('particle-bursts');
+        const at = num(b._time, 0);
+        // A system that only bursts has nothing to wait for but its burst: the wait is the emitter's start delay. With a steady rate beside it the
+        // delay would hold the rate back too, so that burst's time is counted instead.
+        if (at > 0 && bursts.length === 1 && mid(rate) === 0) out.startDelay = Number(out.startDelay ?? 0) + at;
+        else if (bursts.length > 1 || at > 0) lose('particle-bursts');
     }
 
     // a sheet of frames played over a life
@@ -295,11 +299,27 @@ export function particleSystem(c: { enabled: boolean; data: Raw }, ctx: Particle
         }
     }
 
-    for (const [module, code] of [
-        ['_noiseModule', 'particle-noise'], ['_trailModule', 'particle-trail'],
-    ] as const) {
-        const m = d[module];
-        if (isObj(m) && m._enable === true) lose(code);
+    // turbulence: a flow the particles are pushed along, as strong and as fine as the module says
+    const noise = enabledModule(d._noiseModule);
+    if (noise) {
+        const strength = (num(noise._strengthX, 0) + num(noise._strengthY, 0)) / 2;
+        out.noiseStrength = strength;
+        out.noiseFrequency = Math.max(num(noise._noiseFrequency, 1), 0.0001);
+        out.noiseScrollSpeed = (num(noise._noiseSpeedX, 0) + num(noise._noiseSpeedY, 0)) / 2;
+        out.noiseOctaves = Math.min(8, Math.max(1, Math.trunc(num(noise._octaves, 1))));
+    }
+
+    // a ribbon behind each particle: how long it lives sets how many points it keeps, and the width is the ratio read at the head
+    const trail = enabledModule(d._trailModule);
+    if (trail) {
+        const life = mid(curveRange(trail.lifeTime, 0, 0.3));
+        const ratio = mid(curveRange(trail.widthRatio, 0, 1));
+        out.trailEnabled = true;
+        out.trailPoints = Math.min(12, Math.max(2, Math.round(life / 0.05)));
+        out.trailMinDistance = Math.max(0, num(trail._minParticleDistance, 0.1));
+        out.trailWidth = trail.widthFromParticle === true ? mid(size) * ratio : ratio;
+        if (isObj(trail.colorOverTrail) && num(trail.colorOverTrail._mode, 0) !== 0) lose('particle-trail-colour');
+        if (num(trail._space, 0) !== 0) lose('particle-trail-space');
     }
     const renderer = isObj(d.renderer) ? d.renderer : null;
     const renderMode = renderer ? num(renderer._renderMode, 0) : 0;

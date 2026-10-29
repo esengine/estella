@@ -83,6 +83,9 @@ struct ParticleEmitter {
     ES_PROPERTY(min=0, category=Emission)
     f32 duration{5.0f};
 
+    ES_PROPERTY(min=0, category=Emission, tooltip="How fast this emitter's own time runs: 2 plays it twice as fast, 0.5 at half, 0 holds it. Scales emission, lifetimes and motion alike.")
+    f32 simulationSpeed{1.0f};
+
     ES_PROPERTY(min=0, category=Emission, tooltip="Seconds after the emitter starts playing before it emits anything. The duration counts from the end of the delay.")
     f32 startDelay{0.0f};
 

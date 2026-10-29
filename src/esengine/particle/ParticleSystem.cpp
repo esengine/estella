@@ -20,11 +20,11 @@ void ParticleSystem::reseedFrom(const esengine::RandomSource& source) {
     rng_ = source.stream(kRandomStream);
 }
 
-void ParticleSystem::update(ecs::Registry& registry, f32 dt) {
+void ParticleSystem::update(ecs::Registry& registry, f32 frameDt) {
     collision_queries_.clear(); collision_pending_.clear(); collision_events_.clear();
     collision_stats_.clear(); collision_cameras_.clear();
     event_attempts_ = 0; collision_child_bursts_ = 0;
-    if (!std::isfinite(dt) || dt < 0) return;
+    if (!std::isfinite(frameDt) || frameDt < 0) return;
     auto cameras = registry.activeView<ecs::Camera, ecs::Transform>();
     for (auto entity : cameras) {
         if (!cameras.get<ecs::Camera>(entity).isActive) continue;
@@ -86,6 +86,8 @@ void ParticleSystem::update(ecs::Registry& registry, f32 dt) {
         if (!emitter.enabled) {
             continue;
         }
+        // The emitter's own time: it runs at its simulation speed, so everything below (emission, ageing, motion) follows it.
+        const f32 dt = frameDt * std::max(emitter.simulationSpeed, 0.0f);
 
         // A GPU emitter keeps no pool: its particles live in a GPU ring. Where the device cannot compute it
         // is an ordinary emitter, capped so a million-particle setup cannot take the CPU down with it.

@@ -1016,6 +1016,11 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
         },
       ],
     },
+    "simulationSpeed": {
+      "category": "Emission",
+      "min": 0,
+      "tooltip": "How fast this emitter's own time runs: 2 plays it twice as fast, 0.5 at half, 0 holds it. Scales emission, lifetimes and motion alike.",
+    },
     "sizeCurve": {
       "category": "Size",
       "curve": true,
