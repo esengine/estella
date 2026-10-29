@@ -1,0 +1,259 @@
+{
+  "stages": [
+    {
+      "name": "01_Soften_brow",
+      "center": [
+        0.01600000075995922,
+        -0.13784480094909668,
+        1.5479999780654907
+      ],
+      "radius_m": 0.024,
+      "delta": [
+        0,
+        0.0018,
+        -0.0005
+      ],
+      "scale": null,
+      "depth_protection": null,
+      "affected_vertices": 283,
+      "unchanged_vertices": 10299,
+      "protected_vertices": 6943,
+      "protected_delta_mm": 0,
+      "max_delta_mm": 1.8246565570262168
+    },
+    {
+      "name": "02_Nose_width",
+      "center": [
+        0.0,
+        -0.1652541160583496,
+        1.4980000257492065
+      ],
+      "radius_m": 0.026,
+      "delta": null,
+      "scale": [
+        0.78,
+        1,
+        1
+      ],
+      "depth_protection": null,
+      "affected_vertices": 239,
+      "unchanged_vertices": 10343,
+      "protected_vertices": 6943,
+      "protected_delta_mm": 0,
+      "max_delta_mm": 1.2695975535089894
+    },
+    {
+      "name": "03_Nose_projection",
+      "center": [
+        0.0,
+        -0.1671433448791504,
+        1.503999948501587
+      ],
+      "radius_m": 0.022,
+      "delta": [
+        0,
+        0.0022,
+        0
+      ],
+      "scale": null,
+      "depth_protection": null,
+      "affected_vertices": 102,
+      "unchanged_vertices": 10480,
+      "protected_vertices": 6943,
+      "protected_delta_mm": 0,
+      "max_delta_mm": 2.166103338911901
+    },
+    {
+      "name": "04_Mouth_width",
+      "center": [
+        0.0,
+        -0.15564846992492676,
+        1.4700000286102295
+      ],
+      "radius_m": 0.03,
+      "delta": null,
+      "scale": [
+        0.91,
+        1,
+        1
+      ],
+      "depth_protection": null,
+      "affected_vertices": 563,
+      "unchanged_vertices": 10019,
+      "protected_vertices": 6943,
+      "protected_delta_mm": 0,
+      "max_delta_mm": 0.6611821654816333
+    },
+    {
+      "name": "05_Lip_projection",
+      "center": [
+        0.0,
+        -0.15321731567382812,
+        1.468000054359436
+      ],
+      "radius_m": 0.021,
+      "delta": [
+        0,
+        0.0012,
+        0
+      ],
+      "scale": null,
+      "depth_protection": null,
+      "affected_vertices": 181,
+      "unchanged_vertices": 10401,
+      "protected_vertices": 6943,
+      "protected_delta_mm": 0,
+      "max_delta_mm": 1.1794513534570394
+    },
+    {
+      "name": "06_Jaw_taper",
+      "center": [
+        0.05700000002980232,
+        -0.1005101203918457,
+        1.4639999866485596
+      ],
+      "radius_m": 0.043,
+      "delta": [
+        -0.0036,
+        0,
+        0
+      ],
+      "scale": null,
+      "depth_protection": null,
+      "affected_vertices": 256,
+      "unchanged_vertices": 10326,
+      "protected_vertices": 6943,
+      "protected_delta_mm": 0,
+      "max_delta_mm": 3.5892543635796734
+    },
+    {
+      "name": "07_Chin_width",
+      "center": [
+        0.0,
+        -0.14474129676818848,
+        1.4450000524520874
+      ],
+      "radius_m": 0.035,
+      "delta": null,
+      "scale": [
+        0.85,
+        1,
+        1
+      ],
+      "depth_protection": null,
+      "affected_vertices": 601,
+      "unchanged_vertices": 9981,
+      "protected_vertices": 6943,
+      "protected_delta_mm": 0,
+      "max_delta_mm": 1.2863791844430623
+    },
+    {
+      "name": "08_Cheek_softness",
+      "center": [
+        0.041999999433755875,
+        -0.13443708419799805,
+        1.5010000467300415
+      ],
+      "radius_m": 0.032,
+      "delta": [
+        0,
+        -0.0015,
+        0
+      ],
+      "scale": null,
+      "depth_protection": null,
+      "affected_vertices": 374,
+      "unchanged_vertices": 10208,
+      "protected_vertices": 6943,
+      "protected_delta_mm": 0,
+      "max_delta_mm": 1.4669430207712164
+    },
+    {
+      "name": "09_Eye_aperture",
+      "center": [
+        0.032999999821186066,
+        -0.10571980476379395,
+        1.534999966621399
+      ],
+      "radius_m": 0.026,
+      "delta": null,
+      "scale": [
+        1.23,
+        1,
+        1.08
+      ],
+      "depth_protection": [
+        -0.123,
+        -0.108
+      ],
+      "affected_vertices": 493,
+      "unchanged_vertices": 10089,
+      "protected_vertices": 6943,
+      "protected_delta_mm": 0,
+      "max_delta_mm": 0.5436212236320836
+    },
+    {
+      "name": "10_Lower_face_proportion",
+      "method": "Masked lower-jaw scale about the mouth; compact band",
+      "scale": [
+        1,
+        1,
+        0.72
+      ],
+      "affected_vertices": 762,
+      "unchanged_vertices": 9820,
+      "protected_vertices": 9812,
+      "protected_delta_mm": 0,
+      "max_delta_mm": 13.65955564428778
+    },
+    {
+      "name": "11_Nasal_tip",
+      "center": [
+        0.0,
+        -0.16490674018859863,
+        1.5049999952316284
+      ],
+      "radius_m": 0.024,
+      "delta": [
+        0,
+        0,
+        -0.0055
+      ],
+      "scale": null,
+      "depth_protection": null,
+      "affected_vertices": 128,
+      "unchanged_vertices": 10454,
+      "protected_vertices": 6943,
+      "protected_delta_mm": 0,
+      "max_delta_mm": 5.318127645062898
+    }
+  ],
+  "eyes": [
+    {
+      "name": "GEO-body_female_realistic.eye.L",
+      "center": [
+        0.032859278842806816,
+        -0.12403267994523048,
+        1.6024056673049927
+      ],
+      "radii": [
+        0.011999053880572319,
+        0.012186940759420395,
+        0.013212323188781738
+      ]
+    },
+    {
+      "name": "GEO-body_female_realistic.eye.R",
+      "center": [
+        -0.03288150578737259,
+        -0.12384172156453133,
+        1.602405309677124
+      ],
+      "radii": [
+        0.012002263218164444,
+        0.012197863310575485,
+        0.013212323188781738
+      ]
+    }
+  ]
+}

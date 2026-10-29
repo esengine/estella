@@ -1,0 +1,54 @@
+{
+  "asset": "Qinglan face geometry candidate V5",
+  "status": "editable_candidate_not_art_approved",
+  "created": "2026-10-29",
+  "source": {
+    "publisher": "Blender",
+    "bundle": "Human Base Meshes v1.4.1",
+    "page": "https://www.blender.org/download/demo-files/",
+    "download": "https://download.blender.org/demo/asset-bundles/human-base-meshes/human-base-meshes-bundle-v1.4.1.zip",
+    "author": "Dan Ulrich",
+    "collection": "Body Female - Realistic",
+    "objects": [
+      "GEO-body_female_realistic",
+      "GEO-body_female_realistic.eye.L",
+      "GEO-body_female_realistic.eye.R"
+    ],
+    "license": "CC0-1.0",
+    "license_evidence": "Selected asset collection metadata and the bundle's Human Base Meshes README both state CC0. No Rain Rig objects were imported.",
+    "zip_sha256": "811f43accbb31a88266d932f8f5563b2d13586fca0ba2693aad1f5fe582b3515",
+    "blend_sha256": "3c121505651140ceb4d69fd1d8923f7788ffadd81672f5be14845a5f2c75c137"
+  },
+  "workflow_tools": {
+    "blender": "5.2.1 LTS",
+    "skill_repository": "https://github.com/scenario-labs/skills",
+    "skill_revision": "d44410f058991f677ccf733a8e86ce95110857eb",
+    "skill_license": "MIT",
+    "skills": [
+      "scenario-blender-expert",
+      "scenario-blender-sculpting",
+      "scenario-blender-retopology"
+    ],
+    "used_helpers": [
+      "bx_sculpt.Sculptor",
+      "bx_sculpt.write_shape_key",
+      "bx_sculpt.final_render",
+      "bx_review.review",
+      "bx_retopo.topology_report",
+      "bx_audit.audit",
+      "bx_audit.deliverable"
+    ],
+    "execution": "Headless Blender CLI and data-level mesh edits; no computer use and no live sculpt-brush operations."
+  },
+  "reference": {
+    "file": "../references/qinglan-face-target.png",
+    "use": "Working visual design, packed into the blend; not calibrated photographic reconstruction.",
+    "game_influence": "Beautiful adult xianxia female character; no extracted game meshes or game textures used."
+  },
+  "adaptation": {
+    "method": "11 independently reversible local shape-key deltas, compact protection masks, preserved source Multires grids and eye globes.",
+    "eye_cavity_protection": "Eye-aperture edits fade to zero behind the visible lid region; control-cage intersection pairs compared to the source.",
+    "body": "Original body controls retained only to preserve Multires data, protected from local edits and hidden after Multires.",
+    "inspection_snapshots": "Hidden cage and high-surface collections are static verification snapshots; edit Qinglan_Head_Multires and regenerate them."
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "asset": "qinglan-face-candidate.blend",
+  "review_date": "2026-10-29",
+  "status": "needs_revision",
+  "user_approved": false,
+  "stage": "Editable face structure candidate; not a finished xianxia character",
+  "evidence": [
+    "face-review.png",
+    "reference-comparison.png",
+    "front.png",
+    "profile.png",
+    "threequarter.png",
+    "low.png",
+    "topology/review_sheet.png",
+    "clay/review_sheet.png"
+  ],
+  "usable_progress": [
+    "Original artist-authored quad control topology and Multires detail are preserved.",
+    "Local edits are separated into 11 reversible shape keys; protected body controls remain unchanged.",
+    "Eye-aperture edit now protects the internal socket; it adds no control-cage intersection pairs relative to the source.",
+    "Nose, lips, cheek and lower-jaw changes can be inspected from front, profile and three-quarter under neutral lighting."
+  ],
+  "weakest_link": "Eye shape and gaze still read as a generic mannequin rather than the intended refined xianxia face.",
+  "remaining_art_issues": [
+    "Upper and lower lids need more deliberate curvature, canthal placement and fit around the eyeballs.",
+    "Nasal tip, nostril rims and philtrum need finer coordinated shaping against the working reference.",
+    "Lip contour and chin-to-cheek transition remain firmer and more generic than the reference.",
+    "Temporary iris and pupil patches are inspection aids, not final eye anatomy or shading.",
+    "The open neck attachment is an isolated-head study boundary, not a finished bust base."
+  ],
+  "technical_limits": {
+    "head_render_gate": "passed; does not imply art acceptance or game readiness",
+    "control_cage_intersections": "55 overlapping face pairs remain, all also present in the original source; zero newly introduced pairs",
+    "dense_surface_self_intersections": "not checked by the skill audit because the mesh exceeds its face-count threshold",
+    "not_validated": [
+      "expression deformation",
+      "blink and mouth closure",
+      "rigging and skinning",
+      "game topology and runtime budget",
+      "Estella and device acceptance"
+    ]
+  },
+  "next_work": "Continue on the editable face source, concentrating on eye/lid structure and the nose-lip region before clothing or surface texture. The installed sculpting skill places client-quality brush finishing in a live Blender session via MCP; the bridge was unavailable at this checkpoint. No computer use was used."
+}

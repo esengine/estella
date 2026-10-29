@@ -1,0 +1,9 @@
+rows x cols (top-left first):
+silhouette / front
+silhouette / right
+silhouette / threequarter
+silhouette / low
+matcap / front
+matcap / right
+matcap / threequarter
+matcap / low

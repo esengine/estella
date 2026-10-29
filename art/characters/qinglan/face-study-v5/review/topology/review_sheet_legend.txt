@@ -1,0 +1,5 @@
+rows x cols (top-left first):
+wire / front
+wire / right
+wire / threequarter
+wire / low
