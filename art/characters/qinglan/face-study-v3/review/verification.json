@@ -1,0 +1,42 @@
+{
+  "scope": "Static editable face study, not rig/game acceptance",
+  "vertices": 4350,
+  "edges": 8673,
+  "faces": 4324,
+  "triangles": 8648,
+  "quad_faces": 4324,
+  "source_vertex_ids_preserved": true,
+  "topology_preserved": true,
+  "basis_preserved": true,
+  "shape_keys": [
+    "Basis_Previous_Face",
+    "01_Skull_Cheeks_Jaw",
+    "02_Forehead_Orbit_Eyelids",
+    "03_Nose_Philtrum_Lips",
+    "04_Eyelid_Volume_Clearance"
+  ],
+  "saved_mix_matches_fitted_cage_max_error_m": 1.639672975173312e-07,
+  "boundary_edges": 50,
+  "boundary_description": "Intentional open neck cut, all at z=1.435m",
+  "nonfinite_coordinates": 0,
+  "degenerate_faces_below_1e12_m2": 0,
+  "edges_over_two_faces": 0,
+  "blender_skills_qa_pass": true,
+  "camera_calibration": {
+    "resolution": [
+      592,
+      828
+    ],
+    "ortho_scale_m": 0.357696,
+    "mm_per_pixel": 0.432,
+    "reference_side_degrees_from_front": 75,
+    "true_profile_degrees": 90
+  },
+  "not_verified": [
+    "Final likeness approval",
+    "Eyelid deformation/blinking",
+    "Mouth expressions",
+    "Production skin and hair",
+    "Engine integration"
+  ]
+}

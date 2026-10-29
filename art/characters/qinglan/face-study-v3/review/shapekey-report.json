@@ -1,0 +1,12 @@
+{
+  "ok": true,
+  "mesh": "Qinglan_Face_Cage",
+  "keys": 4,
+  "unsculpted": [],
+  "max_offset": {
+    "01_Skull_Cheeks_Jaw": 0.02205,
+    "02_Forehead_Orbit_Eyelids": 0.01876,
+    "03_Nose_Philtrum_Lips": 0.01416,
+    "04_Eyelid_Volume_Clearance": 0.0102
+  }
+}
