@@ -104,19 +104,24 @@ export function createScrollAdoptSystem(
             wheelSpeed: scroll.wheelSpeed,
             dragScroll: scroll.dragScroll,
             decelerationRate: scroll.movement === ScrollMovement.Elastic ? scroll.decelerationRate : 0,
+            elastic: scroll.movement === ScrollMovement.Elastic,
             initialOffset: offset,
         });
         // The offset moves the content by its insets, exactly as the widget does,
         // so both paths leave the same thing in the scene.
+        // …and shows it pulled past an end by the overscroll, when the area is elastic.
         const applyOffset = (offset: Vec2): void => {
             const node = world.tryGet(content, UINode);
             if (!node) return;
+            const over = container.getOverscroll();
             node.position = UIPositionType.Absolute;
-            node.insetLeft = px(-offset.x);
-            node.insetTop = px(-offset.y);
+            node.insetLeft = px(-(offset.x + over.x));
+            node.insetTop = px(-(offset.y + over.y));
             world.insert(content, UINode, node);
         };
-        const unsubscribe = container.onScroll(applyOffset);
+        const unsubscribeScroll = container.onScroll(applyOffset);
+        const unsubscribeOver = container.onOverscroll((_over, offset) => applyOffset(offset));
+        const unsubscribe = (): void => { unsubscribeScroll(); unsubscribeOver(); };
         const clamped = container.getOffset();
         if (clamped.x !== offset.x || clamped.y !== offset.y) applyOffset(clamped);
         host.attachScrollContainer(entity, container);

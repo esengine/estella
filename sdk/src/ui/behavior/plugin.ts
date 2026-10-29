@@ -22,7 +22,7 @@ import { ScrollContainer, ScrollContainerRegistry } from '../collection/scroll-c
 import { createScrollAdoptSystem } from './scroll';
 import { engineApi } from '../../ecs/bridge/engineApi';
 import type { CppRegistry } from '../../wasm';
-import { KineticScroll } from '../collection/kinetic-scroll';
+import { ScrollMotion } from '../collection/scroll-motion';
 import { Interactable, UIInteraction, type UIInteractionData } from '../input/interactable';
 import { UINode } from '../core/ui-node';
 import { getEntityDepth, walkParentChain } from '../util/helpers';
@@ -198,11 +198,11 @@ export class UIBehaviorPlugin implements Plugin {
         );
         // Fling state per scroll entity, shared between the wheel and drag
         // systems so either input source interrupts a coast.
-        const dynamics = new Map<Entity, { container: ScrollContainer; motion: KineticScroll }>();
-        const dynamicsFor = (entity: Entity, container: ScrollContainer): KineticScroll => {
+        const dynamics = new Map<Entity, { container: ScrollContainer; motion: ScrollMotion }>();
+        const dynamicsFor = (entity: Entity, container: ScrollContainer): ScrollMotion => {
             let d = dynamics.get(entity);
             if (!d || d.container !== container) {
-                d = { container, motion: new KineticScroll({ decelerationRate: container.getDecelerationRate() }) };
+                d = { container, motion: new ScrollMotion(container) };
                 dynamics.set(entity, d);
             }
             return d.motion;
@@ -271,8 +271,6 @@ export class UIBehaviorPlugin implements Plugin {
         let capturedContainer: ScrollContainer | null = null;
         let lastCancellationVersion = primaryPointerCancellationVersion(app.getResource(Input));
         let grabStartWorld: Vec2 = { x: 0, y: 0 };
-        let grabStartOffset: Vec2 = { x: 0, y: 0 };
-        let lastOffset: Vec2 = { x: 0, y: 0 };
 
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [Res(Input), Res(UICameraInfo), Res(Time), Res(ScreenLayout), Res(ScreenOverlay)],
@@ -332,9 +330,7 @@ export class UIBehaviorPlugin implements Plugin {
                         if (screenDist >= SCROLL_DRAG_THRESHOLD_PX) {
                             activeEntity = pendingEntity;
                             pendingEntity = null;
-                            grabStartOffset = container.getOffset();
-                            lastOffset = { x: grabStartOffset.x, y: grabStartOffset.y };
-                            dynamicsFor(activeEntity, container).beginDrag();
+                            dynamicsFor(activeEntity, container).grab();
                         }
                     }
                 }
@@ -358,37 +354,23 @@ export class UIBehaviorPlugin implements Plugin {
                     const pointer = pointerFor(activeEntity);
                     const totalDx = pointer.x - grabStartWorld.x;
                     const totalDy = pointer.y - grabStartWorld.y;
-                    container.setOffset({
-                        x: grabStartOffset.x - totalDx / sx,
-                        y: grabStartOffset.y + totalDy / sy,
-                    });
-
-                    const now = container.getOffset();
                     const dyn = dynamicsFor(activeEntity, container);
-                    dyn.sample({ x: now.x - lastOffset.x, y: now.y - lastOffset.y }, time.delta);
-                    lastOffset = now;
+                    dyn.dragBy({ x: -totalDx / sx, y: totalDy / sy }, time.delta);
 
                     if (!input.isMouseButtonDown(0)) {
-                        dyn.endDrag(); // sampled velocity carries into the coast
+                        dyn.release(); // sampled velocity carries into the coast; an over-pulled end springs back
                         activeEntity = null;
                     }
                 }
 
-                // Coast: tick flung containers; an axis the clamp stops is dead.
+                // Coast and spring: tick what was let go of. An axis the clamp stops hands its speed to the overscroll.
                 for (const [entity, state] of dynamics) {
                     const container = scrollContainers.get(entity);
                     if (container !== state.container || !scrollAvailable(entity)) {
                         dynamics.delete(entity);
                         continue;
                     }
-                    const dyn = state.motion;
-                    if (!dyn.isCoasting()) continue;
-                    const delta = dyn.tick(time.delta);
-                    const before = container.getOffset();
-                    container.scrollBy(delta);
-                    const after = container.getOffset();
-                    if (delta.x !== 0 && after.x === before.x) dyn.killAxis('x');
-                    if (delta.y !== 0 && after.y === before.y) dyn.killAxis('y');
+                    state.motion.tick(time.delta);
                 }
             },
             { name: 'ScrollDragSystem', runAfter: [SystemLabel.UIInteraction] },

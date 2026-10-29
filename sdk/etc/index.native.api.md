@@ -9236,21 +9236,29 @@ scaleMode: number
 
 ## ScrollContainer — class @experimental
 ```
+absorb: (axis: "x" | "y", velocity: number) => void
 dispose: () => void
+dragTo: (raw: Vec2) => void
 getContentSize: () => Vec2
 getDecelerationRate: () => number
 getDragScroll: () => boolean
 getMaxOffset: () => Vec2
 getOffset: () => Vec2
+getOverscroll: () => Vec2
 getShowScrollbar: () => boolean
 getViewportSize: () => Vec2
 getWheelSpeed: () => number
+isElastic: () => boolean
+isSpringing: () => boolean
+onOverscroll: (listener: OverscrollListener) => () => void
 onScroll: (listener: ScrollListener) => () => void
+releaseSpring: () => void
 scrollBy: (delta: Vec2) => void
 setContentSize: (size: Vec2) => void
 setOffset: (offset: Vec2) => void
 setSizes: (viewport: Vec2, content: Vec2) => void
 setViewportSize: (size: Vec2) => void
+tickSpring: (dt: number) => boolean
 static new (opts: ScrollContainerOptions): ScrollContainer
 static prototype: ScrollContainer
 ```

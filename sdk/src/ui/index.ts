@@ -248,7 +248,12 @@ export {
     ScrollContainerRegistry,
     type ScrollContainerOptions,
     type ScrollListener,
+    type OverscrollListener,
+    rubberBand,
+    rubberBandInverse,
 } from './collection/scroll-container';
+
+export { ScrollMotion } from './collection/scroll-motion';
 
 export {
     KineticScroll,
