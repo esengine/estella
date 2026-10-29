@@ -32,6 +32,12 @@ export function getCurrentWorld(): World | null { return currentWorld; }
 
 const cache = new WeakMap<World, Map<Entity, Node>>();
 
+/** The entities that have registered a touch listener: the only ones a touch has to be tested against. */
+const touchListeners = new WeakMap<World, Set<Entity>>();
+export function touchListeningEntities(world: World): Iterable<Entity> {
+    return touchListeners.get(world) ?? [];
+}
+
 type Listener = { callback: (...args: any[]) => void; target?: unknown; once: boolean };
 
 export class Node {
@@ -323,6 +329,11 @@ export class Node {
     dispatchEvent(event: { type: string }): void { this.emit(event.type, event); }
 
     private addListener_(type: string, listener: Listener): void {
+        if (type.startsWith('touch-')) {
+            let set = touchListeners.get(this._world);
+            if (!set) touchListeners.set(this._world, (set = new Set()));
+            set.add(this._entity);
+        }
         if (!this.listeners_) this.listeners_ = new Map();
         const list = this.listeners_.get(type);
         if (list) list.push(listener); else this.listeners_.set(type, [listener]);

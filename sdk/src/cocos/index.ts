@@ -12,6 +12,9 @@
 export { Vec2, Vec3, Quat, Color, Size, Rect, v2, v3, color, size, rect, math, toRadian, toDegree, clamp, clamp01, lerp } from './math';
 export { Component } from './component';
 export { Node, setCurrentWorld, getCurrentWorld } from './node';
+import { Node as NodeClass } from './node';
+/** The event names, under the name scripts import them by. */
+export const NodeEventType = NodeClass.EventType;
 export {
     _decorator, ccclass, property, requireComponent, executionOrder, menu, help, icon, inspector, playOnFocus, executeInEditMode,
     disallowMultiple, type, integer, float, string, boolean, CCInteger, CCFloat, CCString, CCBoolean, Enum,
@@ -22,4 +25,11 @@ export {
     AnimationClip, SceneAsset, EffectAsset, Mesh,
 } from './assets';
 export { registerBuiltinComponent, type BuiltinAdapter } from './builtins';
+export { UITransform, Label, LabelOutline, LabelShadow, Sprite, UIOpacity, Button, EventHandler } from './ui';
+export { Touch, EventTouch, pumpTouches } from './input';
+export { declareBuiltinScripts, redeclareBuiltinScripts } from './builtinScripts';
 export { classInfoNamed, classInfoOf, allClassInfos, COMPONENT_PREFIX, resetClassRegistry } from './registry';
+
+import { declareBuiltinScripts as declare } from './builtinScripts';
+// Declared once, into the context a game runs in, when the layer is imported.
+declare();

@@ -32,8 +32,13 @@ interface Timer {
 export class Component {
     /** The node this component is on. Set before `onLoad`. */
     node!: Node;
-    /** Whether the component takes part: a disabled one gets no `update`, and `onDisable` has run. */
-    enabled = true;
+    private enabled_ = true;
+    /**
+     * Whether the component takes part: a disabled one gets no `update`, and `onDisable` has run. An accessor, so the built-in views
+     * (`Label`, `Sprite`) can answer it from the engine component they stand for.
+     */
+    get enabled(): boolean { return this.enabled_; }
+    set enabled(value: boolean) { this.enabled_ = value; }
 
     /** @internal */ _world!: World;
     /** @internal */ _entity!: Entity;

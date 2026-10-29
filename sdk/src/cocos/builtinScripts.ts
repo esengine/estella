@@ -1,0 +1,31 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file    cocos/builtinScripts.ts
+ * @brief   The parts of the layer that are scripts and systems rather than views: `Button`, and the touch system.
+ *
+ * A script class and a system are declared into the engine's current context, and a context is what a running app owns — so these
+ * are declared once for the one a game runs in, which importing the layer does. A test that replaces the context has to declare them
+ * again, and does so here; asking twice for the same context is harmless.
+ */
+import { getDefaultContext } from '../ecs/context';
+import { declareButton } from './ui/button';
+import { declareInputSystem } from './input';
+import { resetClassRegistry } from './registry';
+
+const declared = new WeakSet<object>();
+
+/** Declare the layer's own classes and systems into the current context, once per context. */
+export function declareBuiltinScripts(): void {
+    const context = getDefaultContext();
+    if (declared.has(context)) return;
+    declared.add(context);
+    declareButton();
+    declareInputSystem();
+}
+
+/** Test seam: forget the registry and declare again into the (possibly new) current context. */
+export function redeclareBuiltinScripts(): void {
+    resetClassRegistry();
+    declareBuiltinScripts();
+}
