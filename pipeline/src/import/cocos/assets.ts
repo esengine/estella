@@ -28,6 +28,15 @@ export interface CocosAssetIndex {
     root: string;
     /** Every asset and every sub-asset, by uuid. A sub-asset resolves to its parent file. */
     byUuid: Map<string, CocosAssetEntry>;
+    /** Folders whose contents scripts load by path at run time: asset bundles, and the `resources` folders. */
+    bundles: CocosBundleRoot[];
+}
+
+export interface CocosBundleRoot {
+    /** The name a script loads it by: `resources`, or the bundle's own name. */
+    name: string;
+    /** The folder, relative to the project's `assets`. */
+    rel: string;
 }
 
 const SKIP = new Set(['node_modules', '.git']);
@@ -52,6 +61,7 @@ const asObj = (v: unknown): Record<string, unknown> => (typeof v === 'object' &&
 
 export function buildCocosAssetIndex(root: string): CocosAssetIndex {
     const byUuid = new Map<string, CocosAssetEntry>();
+    const bundles: CocosBundleRoot[] = [];
     for (const metaFile of walk(root)) {
         let meta: Record<string, unknown>;
         try {
@@ -60,7 +70,15 @@ export function buildCocosAssetIndex(root: string): CocosAssetIndex {
             continue;
         }
         const uuid = meta.uuid;
-        if (typeof uuid !== 'string' || meta.importer === 'directory') continue;
+        if (meta.importer === 'directory') {
+            const folder = metaFile.slice(0, -'.meta'.length);
+            const rel = path.relative(root, folder).split(path.sep).join('/');
+            const userData = asObj(meta.userData);
+            if (userData.isBundle === true) bundles.push({ name: typeof userData.bundleName === 'string' && userData.bundleName ? userData.bundleName : path.basename(folder), rel });
+            else if (path.basename(folder) === 'resources') bundles.push({ name: 'resources', rel });
+            continue;
+        }
+        if (typeof uuid !== 'string') continue;
         const file = metaFile.slice(0, -'.meta'.length);
         const entry: CocosAssetEntry = {
             uuid,
@@ -78,5 +96,5 @@ export function buildCocosAssetIndex(root: string): CocosAssetIndex {
         }
         byUuid.set(uuid, entry);
     }
-    return { root, byUuid };
+    return { root, byUuid, bundles };
 }

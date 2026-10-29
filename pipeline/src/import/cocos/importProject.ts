@@ -206,6 +206,36 @@ export function importCocosProject(opts: CocosImportOptions): ImportReportData {
     const byRel = new Map<string, CocosAssetEntry>();
     for (const e of index.byUuid.values()) byRel.set(e.rel, e);
 
+    // Assets scripts load by path at run time (`resources.load('ui/icon')`) are named by no scene, so nothing above would bring them
+    // across. They are copied, and listed by bundle in a manifest the runtime layer resolves those paths through.
+    const manifest: Record<string, Record<string, { path: string; kind: string }>> = {};
+    if (index.bundles.length > 0) {
+        const files = new Set(index.byUuid.values());
+        for (const bundle of index.bundles) {
+            const entries = (manifest[bundle.name] ??= {});
+            for (const entry of files) {
+                if (!entry.rel.startsWith(`${bundle.rel}/`) || !wanted(entry.rel)) continue;
+                const key = entry.rel.slice(bundle.rel.length + 1).replace(/\.[^./]+$/, '');
+                const ext = /\.([^./]+)$/.exec(entry.rel)?.[1]?.toLowerCase() ?? '';
+                if (ext === 'prefab') {
+                    const ref = ctx.prefabRef(entry.uuid);
+                    if (ref) entries[key] = { path: ref, kind: 'prefab' };
+                } else if (ext === 'json') {
+                    entries[key] = { path: ctx.assetRef(entry), kind: 'json' };
+                } else if (['txt', 'text', 'xml', 'csv', 'atlas'].includes(ext)) {
+                    entries[key] = { path: ctx.assetRef(entry), kind: 'text' };
+                } else if (['png', 'jpg', 'jpeg', 'webp'].includes(ext)) {
+                    entries[key] = { path: ctx.assetRef(entry), kind: 'texture' };
+                } else if (['mp3', 'wav', 'ogg', 'm4a'].includes(ext)) {
+                    entries[key] = { path: ctx.assetRef(entry), kind: 'audio' };
+                } else if (ext !== 'meta' && ext !== 'ts' && ext !== 'js' && ext !== 'scene') {
+                    entries[key] = { path: '', kind: ext || 'other' };
+                }
+            }
+        }
+        write(outRef('resources.json'), manifest);
+    }
+
     for (let i = 0; i < pending.length; i++) {
         const r = pending[i]!;
         const e = byRel.get(r);

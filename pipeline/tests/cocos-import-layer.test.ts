@@ -66,6 +66,16 @@ describe('importing for the compatibility layer', () => {
         put('scripts/Hud.ts.meta', meta(HUD, 'typescript'));
         put('scripts/Other.ts', "@ccclass\n@menu('x')\n// a comment between\n@executionOrder(-1)\nexport default class Other extends Component {}\n");
         put('scripts/Other.ts.meta', meta(OTHER, 'typescript'));
+        put('resources.meta', { ver: '1.2.0', importer: 'directory', uuid: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', userData: { isBundle: true, bundleName: 'resources' } });
+        put('resources/cfg/rules.json', '{"a":1}');
+        put('resources/cfg/rules.json.meta', meta('f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1', 'json'));
+        put('resources/ui/icon.png', 'not a png');
+        put('resources/ui/icon.png.meta', meta('f2f2f2f2-f2f2-4f2f-8f2f-f2f2f2f2f2f2', 'image'));
+        put('resources/prefab/thing.prefab', [{ __type__: 'cc.Prefab', _name: 'thing', data: { __id__: 1 } }, { ...node('Thing', 0, [], []), _prefab: { __id__: 2 } }, { __type__: 'cc.PrefabInfo', root: { __id__: 1 }, asset: { __id__: 0 }, fileId: 'thingRoot', instance: null }]);
+        put('resources/prefab/thing.prefab.meta', meta('f3f3f3f3-f3f3-4f3f-8f3f-f3f3f3f3f3f3', 'prefab'));
+        put('hero.meta', { ver: '1.2.0', importer: 'directory', uuid: 'f4f4f4f4-f4f4-4f4f-8f4f-f4f4f4f4f4f4', userData: { isBundle: true, bundleName: 'hero' } });
+        put('hero/skin.json', '{}');
+        put('hero/skin.json.meta', meta('f5f5f5f5-f5f5-4f5f-8f5f-f5f5f5f5f5f5', 'json'));
         put('art/plain.json', '{}');
         put('art/plain.json.meta', meta(PLAIN, 'json'));
         report = importCocosProject({ source: path.join(root, 'creator'), out: path.join(root, 'out') });
@@ -121,6 +131,15 @@ describe('importing for the compatibility layer', () => {
         expect(line).toBeDefined();
         // the path leads back to the Cocos project, which is not copied
         expect(path.resolve(root, 'out', 'src', line.slice("import '".length, -2) + '.ts')).toBe(path.join(root, 'creator', 'assets', 'scripts', 'Hud.ts'));
+    });
+
+    it('lists what scripts load by path in a manifest, by bundle, and copies those files', () => {
+        const manifest = JSON.parse(readFileSync(path.join(root, 'out', 'assets', 'cocos', 'resources.json'), 'utf8'));
+        expect(manifest.resources['cfg/rules']).toEqual({ path: 'assets/cocos/resources/cfg/rules.json', kind: 'json' });
+        expect(manifest.resources['ui/icon']).toEqual({ path: 'assets/cocos/resources/ui/icon.png', kind: 'texture' });
+        expect(manifest.resources['prefab/thing']).toEqual({ path: 'assets/cocos/resources/prefab/thing.esprefab', kind: 'prefab' });
+        expect(manifest.hero['skin']).toEqual({ path: 'assets/cocos/hero/skin.json', kind: 'json' });
+        expect(readFileSync(path.join(root, 'out', 'assets', 'cocos', 'resources', 'cfg', 'rules.json'), 'utf8')).toBe('{"a":1}');
     });
 
     it('counts the components it maps', () => {

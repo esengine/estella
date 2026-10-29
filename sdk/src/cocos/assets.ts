@@ -29,8 +29,8 @@ export class Prefab extends Asset {
 }
 export class AudioClip extends Asset {}
 export class Material extends Asset {}
-export class JsonAsset extends Asset {}
-export class TextAsset extends Asset {}
+export class JsonAsset extends Asset { json: unknown = null; }
+export class TextAsset extends Asset { text = ''; }
 export class BitmapFont extends Asset {}
 export class Font extends Asset {}
 export class AnimationClip extends Asset {}

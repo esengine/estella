@@ -31,6 +31,9 @@ const assetsOf = new WeakMap<World, AssetsClass>();
 const wanted = new Set<string>();
 const inFlight = new Set<string>();
 
+/** The engine's asset loader for a world, once the frame loop has seen it. */
+export function assetsFor(world: World | null): AssetsClass | undefined { return world ? assetsOf.get(world) : undefined; }
+
 /** Start preparing the prefab at @p path, once the engine's asset loader is there to do it. */
 export function requestPrepare(path: string): void {
     if (path && !preparedPrefabs.has(path) && !inFlight.has(path)) wanted.add(path);

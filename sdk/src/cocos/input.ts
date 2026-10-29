@@ -27,6 +27,7 @@ import { Vec2 } from './math';
 import { Node, touchListeningEntities } from './node';
 import { UITransform } from './ui/uiTransform';
 import { log } from '../util/logger';
+import { EventKeyboard, EventMouse, input as globalInput, keyCodeOf, Input as InputApi } from './inputApi';
 
 /** One finger (or the mouse button) as a script sees it. */
 export class Touch {
@@ -174,28 +175,63 @@ export function pumpTouches(world: World, input: InputState, camera: UICameraDat
             gesture = { touch, target: hitNode(world, new Vec2(at.x, at.y)) };
             book.set(p.id, gesture);
             live.push(touch);
+            globalInput.emit(Node.EventType.TOUCH_START, new EventTouch(Node.EventType.TOUCH_START, touch, live));
             if (gesture.target) dispatch(new EventTouch(Node.EventType.TOUCH_START, touch, live), gesture.target);
         }
         if (!gesture) continue;
 
         if (p.down && (at.x !== gesture.touch.getLocationX() || at.y !== gesture.touch.getLocationY())) {
             gesture.touch._move(at.x, at.y);
+            globalInput.emit(Node.EventType.TOUCH_MOVE, new EventTouch(Node.EventType.TOUCH_MOVE, gesture.touch, live));
             if (gesture.target) dispatch(new EventTouch(Node.EventType.TOUCH_MOVE, gesture.touch, live), gesture.target);
         }
         if (p.released) {
             gesture.touch._move(at.x, at.y);
             const type = p.cancelled ? Node.EventType.TOUCH_CANCEL : Node.EventType.TOUCH_END;
+            globalInput.emit(type, new EventTouch(type, gesture.touch, live));
             if (gesture.target) dispatch(new EventTouch(type, gesture.touch, live), gesture.target);
             book.delete(p.id);
         }
     }
 }
 
+// ---------------------------------------------------------------------------------------------------------------------
+// Keyboard and mouse, to the global `input`.
+// ---------------------------------------------------------------------------------------------------------------------
+
+/** Where each input state's mouse was last frame, so a move is a change and the first frame is not one. */
+const lastMouseOf = new WeakMap<InputState, { x: number; y: number }>();
+
+/** Turn this frame's key, button and wheel state into events on the global `input`. Touches are `pumpTouches`'s. */
+export function pumpKeysAndMouse(input: InputState, camera: UICameraData): void {
+    for (const code of input.keysPressed) globalInput.emit(InputApi.EventType.KEY_DOWN, new EventKeyboard(keyCodeOf(code), InputApi.EventType.KEY_DOWN));
+    for (const code of input.keysDown) {
+        if (!input.keysPressed.has(code)) globalInput.emit(InputApi.EventType.KEY_PRESSING, new EventKeyboard(keyCodeOf(code), InputApi.EventType.KEY_PRESSING));
+    }
+    for (const code of input.keysReleased) globalInput.emit(InputApi.EventType.KEY_UP, new EventKeyboard(keyCodeOf(code), InputApi.EventType.KEY_UP));
+
+    const dpr = platformDevicePixelRatio();
+    const at = camera.valid ? screenToUiWorld(camera, input.mouseX * dpr, camera.screenH - input.mouseY * dpr) : { x: 0, y: 0 };
+    const lastMouse = lastMouseOf.get(input);
+    const previous = lastMouse ?? at;
+    const moved = lastMouse !== undefined && (at.x !== lastMouse.x || at.y !== lastMouse.y);
+    const prev = new Vec2(previous.x, previous.y);
+    const event = (type: string): EventMouse => new EventMouse(type, at.x, at.y, prev);
+    for (const b of input.mouseButtonsPressed) globalInput.emit(InputApi.EventType.MOUSE_DOWN, event(InputApi.EventType.MOUSE_DOWN)._button(b));
+    if (moved) globalInput.emit(InputApi.EventType.MOUSE_MOVE, event(InputApi.EventType.MOUSE_MOVE));
+    for (const b of input.mouseButtonsReleased) globalInput.emit(InputApi.EventType.MOUSE_UP, event(InputApi.EventType.MOUSE_UP)._button(b));
+    if (input.scrollDeltaX !== 0 || input.scrollDeltaY !== 0) {
+        // Cocos reports a wheel turned away from the player as positive; a DOM delta is the other way.
+        globalInput.emit(InputApi.EventType.MOUSE_WHEEL, event(InputApi.EventType.MOUSE_WHEEL)._scroll(-input.scrollDeltaX, -input.scrollDeltaY));
+    }
+    lastMouseOf.set(input, { x: at.x, y: at.y });
+}
+
 /** Register the touch system with the engine's frame loop. Idempotent per context is the caller's business: see `declareBuiltinScripts`. */
 export function declareInputSystem(): void {
     const system = defineSystem(
         [Res(Input), Res(UICameraInfo), GetWorld()],
-        (input, camera, world) => { pumpTouches(world, input, camera); },
+        (input, camera, world) => { pumpTouches(world, input, camera); pumpKeysAndMouse(input, camera); },
         { name: 'Cocos:Input', touches: { opaque: true } },
     );
     addSystemToSchedule(Schedule.PreUpdate, system);

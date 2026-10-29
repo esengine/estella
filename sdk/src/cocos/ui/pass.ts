@@ -9,16 +9,24 @@
  * then widgets once more for the ones that follow a size the layouts just set (those set to align every frame).
  */
 import { Schedule, defineSystem, addSystemToSchedule, GetWorld } from '../../ecs/system';
+import { Res } from '../../ecs/resource';
+import { UICameraInfo } from '../../ui/core/ui-camera-info';
 import { setCurrentWorld } from '../node';
 import { alignAllWidgets, declareWidget } from './widget';
 import { layoutAll, declareLayout } from './layout';
+import { setVisibleSize, setWindowPixels } from './screen';
 
 export function declareUiPass(): void {
     declareWidget();
     declareLayout();
     const system = defineSystem(
-        [GetWorld()],
-        (world) => {
+        [Res(UICameraInfo), GetWorld()],
+        (camera, world) => {
+            // What the UI camera shows is the visible area scripts and widgets measure against; the surface is the window.
+            if (camera?.valid) {
+                setVisibleSize(camera.worldRight - camera.worldLeft, camera.worldTop - camera.worldBottom);
+                setWindowPixels(camera.screenW, camera.screenH);
+            }
             const previous = setCurrentWorld(world);
             try {
                 alignAllWidgets(world);

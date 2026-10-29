@@ -15,6 +15,7 @@ import { declareUiPass } from './ui/pass';
 import { uiTransformDef } from './ui/uiTransform';
 import { declareTweenSystem } from './tween';
 import { declarePrefabSystem } from './prefabs';
+import { declareGameSystem } from './game';
 import { resetClassRegistry } from './registry';
 
 const declared = new WeakSet<object>();
@@ -31,6 +32,7 @@ export function declareBuiltinScripts(): void {
     declareUiPass();
     declareTweenSystem();
     declarePrefabSystem();
+    declareGameSystem();
 }
 
 /** Test seam: forget the registry and declare again into the (possibly new) current context. */

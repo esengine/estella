@@ -29,6 +29,14 @@ export { UITransform, Label, LabelOutline, LabelShadow, Sprite, UIOpacity, Butto
 export { Touch, EventTouch, pumpTouches } from './input';
 export { tween, Tween, tweenUtil, easing, updateTweens } from './tween';
 export { instantiate, loadPrefab, providePrefab } from './prefabs';
+export { sys } from './sys';
+export { macro } from './macro';
+export { Layers } from './layers';
+export { view, View, ResolutionPolicy, screen } from './view';
+export { game, Game } from './game';
+export { input, Input, KeyCode, EventKeyboard, EventMouse } from './inputApi';
+export { Emitter as EventTarget } from './emitter';
+export { assetManager, AssetManager, Bundle, Cache, resources, setResourceManifest, type ResourceManifest, type ResourceEntry } from './assetManager';
 export { declareBuiltinScripts, redeclareBuiltinScripts } from './builtinScripts';
 /** `cc/env` is the same module here: its flags are named exports beside the rest. */
 export * from './env';
