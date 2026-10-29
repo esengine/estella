@@ -140,7 +140,7 @@ function sprite(c: CocosComponent, box: UiBox | null, ctx: ComponentContext, whe
     return { type: 'Sprite', data };
 }
 
-function label(c: CocosComponent, siblings: CocosComponent[], ctx: ComponentContext, where: string): ComponentData {
+function label(c: CocosComponent, siblings: CocosComponent[], box: UiBox | null, ctx: ComponentContext, where: string): ComponentData {
     const d = c.data;
     const fontSize = num(d._fontSize, 40);
     const lineHeight = num(d._lineHeight, fontSize);
@@ -160,6 +160,12 @@ function label(c: CocosComponent, siblings: CocosComponent[], ctx: ComponentCont
         italic: d._isItalic === true,
         enabled: c.enabled,
     };
+    // A Label wraps, aligns and clips inside its UITransform rect, and the node origin is that rect's anchor.
+    if (box) {
+        data.boxWidth = box.width;
+        data.boxHeight = box.height;
+        data.boxPivot = { x: box.ax, y: box.ay };
+    }
     if (overflow === 2 || overflow === 3) {
         status = 'partial';
         ctx.report.note(overflow === 2 ? 'label-shrink-overflow' : 'label-resize-height', where);
@@ -205,12 +211,14 @@ function label(c: CocosComponent, siblings: CocosComponent[], ctx: ComponentCont
     return { type: 'Text', data };
 }
 
-function richText(c: CocosComponent, ctx: ComponentContext): ComponentData {
+function richText(c: CocosComponent, box: UiBox | null, ctx: ComponentContext): ComponentData {
     const d = c.data;
     ctx.report.component('cc.RichText', 'partial');
+    const maxWidth = num(d._maxWidth, 0);
     return {
         type: 'Text',
         data: {
+            ...(box && maxWidth > 0 ? { boxWidth: maxWidth, boxHeight: box.height, boxPivot: { x: box.ax, y: box.ay } } : {}),
             content: typeof d._string === 'string' ? d._string : '',
             fontSize: num(d._fontSize, 40),
             color: color(d._fontColor),
@@ -264,10 +272,10 @@ export function convertNode(node: CocosNode, ctx: ComponentContext, where: strin
                 out = sprite(c, box, ctx, where);
                 break;
             case 'cc.Label':
-                out = label(c, node.components, ctx, where);
+                out = label(c, node.components, box, ctx, where);
                 break;
             case 'cc.RichText':
-                out = richText(c, ctx);
+                out = richText(c, box, ctx);
                 break;
             case 'cc.Camera':
                 out = camera(c, ctx);

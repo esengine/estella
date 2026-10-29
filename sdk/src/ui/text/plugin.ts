@@ -15,6 +15,7 @@ import { defineSystem, Schedule } from '../../ecs/system';
 import { SystemLabel } from '../../ecs/systemLabels';
 import type { ESEngineModule, CppRegistry } from '../../wasm';
 import type { Entity } from '../../types';
+import type { World } from '../../ecs/world';
 import { SdfTextRenderer } from './text-renderer';
 import type { RGBA } from './layout';
 import { composeTRS, rectTextBox, UI_TEXT_BOLD, UI_TEXT_ITALIC } from './text-transform';
@@ -80,10 +81,32 @@ export function glyphContentScale(projScaleX: number, vpW: number, dpr: number):
     return shownSpan > 0 ? vpW / (shownSpan * dpr) : 1;
 }
 
+/** The box a Text is laid out in, and where the entity origin sits in it. */
+export interface TextFrame {
+    w: number;
+    h: number;
+    /** Pivot as a fraction from the box's left / bottom edge. */
+    px: number;
+    py: number;
+    /** True when a UINode supplied the box: the label is then UI content, ordered by the UI tree. */
+    ui: boolean;
+}
+
+/**
+ * Where a Text gets its box. A UINode decides it, pivot-centred, as ever; without one, the Text's own box fields
+ * do, with the pivot they name — so world content can wrap, align and clip inside a rect without joining a Canvas.
+ * Pure over what it is given, apart from reading the node's computed size.
+ */
+export function textFrame(world: World, entity: Entity, t: TextData): TextFrame {
+    if (world.has(entity, UINode)) return { w: getUINodeWidth(entity), h: getUINodeHeight(entity), px: 0.5, py: 0.5, ui: true };
+    return { w: t.boxWidth || 0, h: t.boxHeight || 0, px: t.boxPivot?.x ?? 0.5, py: t.boxPivot?.y ?? 0.5, ui: false };
+}
+
 /** The Text fields a retained label's geometry was laid out from; a label is rebuilt when any of them differs, and not otherwise. */
 export interface TextSnapshot {
     content: string; family: string; fontSize: number; bold: boolean; italic: boolean; richText: boolean; renderMode: number;
     align: number; verticalAlign: number; wordWrap: boolean; overflow: number; lineHeight: number; layer: number;
+    boxW: number; boxH: number; boxPx: number; boxPy: number;
     cr: number; cg: number; cb: number; ca: number;
     strokeWidth: number; sr: number; sg: number; sb: number; sa: number;
     shadowBlur: number; shadowX: number; shadowY: number; hr: number; hg: number; hb: number; ha: number;
@@ -101,6 +124,7 @@ export function snapshotOf(t: TextData, family: string): TextSnapshot {
     return {
         content: t.content, family, fontSize: t.fontSize, bold: !!t.bold, italic: !!t.italic, richText: !!t.richText, renderMode: t.renderMode,
         align: t.align, verticalAlign: t.verticalAlign, wordWrap: !!t.wordWrap, overflow: t.overflow, lineHeight: t.lineHeight, layer: t.layer | 0,
+        boxW: t.boxWidth || 0, boxH: t.boxHeight || 0, boxPx: t.boxPivot?.x ?? 0.5, boxPy: t.boxPivot?.y ?? 0.5,
         cr: t.color.r, cg: t.color.g, cb: t.color.b, ca: t.color.a,
         strokeWidth: t.strokeWidth, sr: t.strokeColor.r, sg: t.strokeColor.g, sb: t.strokeColor.b, sa: t.strokeColor.a,
         shadowBlur: t.shadowBlur, shadowX: t.shadowOffsetX, shadowY: t.shadowOffsetY,
@@ -113,6 +137,7 @@ export function sameSnapshot(s: TextSnapshot, t: TextData, family: string): bool
         && s.bold === !!t.bold && s.italic === !!t.italic && s.richText === !!t.richText && s.renderMode === t.renderMode
         && s.align === t.align && s.verticalAlign === t.verticalAlign && s.wordWrap === !!t.wordWrap
         && s.overflow === t.overflow && s.lineHeight === t.lineHeight && s.layer === (t.layer | 0)
+        && s.boxW === (t.boxWidth || 0) && s.boxH === (t.boxHeight || 0) && s.boxPx === (t.boxPivot?.x ?? 0.5) && s.boxPy === (t.boxPivot?.y ?? 0.5)
         && s.cr === t.color.r && s.cg === t.color.g && s.cb === t.color.b && s.ca === t.color.a
         && s.strokeWidth === t.strokeWidth
         && s.sr === t.strokeColor.r && s.sg === t.strokeColor.g && s.sb === t.strokeColor.b && s.sa === t.strokeColor.a
@@ -367,14 +392,11 @@ export class TextPlugin implements Plugin {
         let maxWidth: number | undefined;
         let boxWidth: number | undefined;
         let boxHeight: number | undefined;
-        let w = 0, h = 0, hasBox = false;
-        if (world.has(entity, UINode)) {
-            w = getUINodeWidth(entity);
-            h = getUINodeHeight(entity);
-            hasBox = w > 0 || h > 0;
-        }
+        const frame = textFrame(world, entity, t);
+        const w = frame.w, h = frame.h;
+        const hasBox = w > 0 || h > 0;
         if (hasBox) {
-            const box = rectTextBox(0.5, 0.5, w, h, t.fontSize);
+            const box = rectTextBox(frame.px, frame.py, w, h, t.fontSize);
             originX = box.originX;
             originY = box.originY;
             boxWidth = box.maxWidth; // align within the box regardless of word-wrap
@@ -418,7 +440,9 @@ export class TextPlugin implements Plugin {
                 shadow,
                 outline,
             },
-            entity as number, screen, hasBox, t.layer | 0, w, h,
+            // The engine orders a boxed label by the UI tree and re-lays it out when the node's size changes; a box
+            // that is the Text's own is neither, so it is reported as no box (its size reaches layout above).
+            entity as number, screen, hasBox && frame.ui, t.layer | 0, frame.ui ? w : 0, frame.ui ? h : 0,
             t.renderMode !== TextRenderMode.Bitmap && t.renderMode !== TextRenderMode.Sdf,
         );
         appState.retained.set(entity as number, { snap: snapshotOf(t, family), screen, gen: renderer.atlas.generation, renderer });
@@ -479,22 +503,20 @@ export class TextPlugin implements Plugin {
             let boxWidth: number | undefined;
             let boxHeight: number | undefined;
             let layer = t.layer | 0;
-            let w = 0, h = 0, hasBox = false;
-            if (world.has(entity, UINode)) {
-                w = getUINodeWidth(entity);
-                h = getUINodeHeight(entity);
-                hasBox = w > 0 || h > 0;
-            }
+            const frame = textFrame(world, entity, t);
+            const hasBox = frame.w > 0 || frame.h > 0;
             if (hasBox) {
-                const box = rectTextBox(0.5, 0.5, w, h, t.fontSize);
+                const box = rectTextBox(frame.px, frame.py, frame.w, frame.h, t.fontSize);
                 originX = box.originX;
                 originY = box.originY;
                 boxWidth = box.maxWidth; // align within the box regardless of word-wrap
                 boxHeight = box.boxHeight;
                 if (t.wordWrap) maxWidth = box.maxWidth; // wrap only when enabled
 
-                const order = api?.ui_getRenderOrder?.(registry, entity as number) ?? -1;
-                layer = order >= 0 ? UI_BASE_LAYER + order : UI_BASE_LAYER;
+                if (frame.ui) {
+                    const order = api?.ui_getRenderOrder?.(registry, entity as number) ?? -1;
+                    layer = order >= 0 ? UI_BASE_LAYER + order : UI_BASE_LAYER;
+                }
             }
 
             // A blur with no offset is still a shadow — a halo centred on the

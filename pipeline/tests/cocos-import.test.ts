@@ -184,6 +184,8 @@ describe('importing a Cocos project', () => {
         const caption = readJson('assets/cocos/ui/item.esprefab').entities.find((e: any) => e.prefabEntityId === 'capt');
         expect(caption.components.find((c: any) => c.type === 'Text').data).toMatchObject({
             content: 'hello', fontSize: 20, align: 1, verticalAlign: 1, overflow: 0, font: 'assets/cocos/ui/f.fnt',
+            // the Label's UITransform becomes its layout box, with the node origin at the anchor
+            boxWidth: 80, boxHeight: 20, boxPivot: { x: 0.5, y: 0.5 },
         });
         const written = [...files(out)].map((f) => path.relative(out, f).split(path.sep).join('/'));
         expect(written, written.join(',')).toContain('assets/cocos/ui/f_0.png');

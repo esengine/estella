@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { defineComponent, enumOptions } from '../../ecs/component';
-import type { Color } from '../../types';
+import type { Color, Vec2 } from '../../types';
 
 /**
  * Horizontal alignment. With a layout box it aligns inside the box; without one it
@@ -118,6 +118,20 @@ export interface TextData {
      * it names — with nothing in the component to reach for.
      */
     layer: number;
+    /**
+     * Width of the layout box for a text with NO `UINode` — 0 (the default) means no box, and the entity origin
+     * is the box, as it always was. With a box, alignment, wrapping and overflow work inside it, exactly as
+     * under a `UINode`, while the text stays world content sorted by `layer`. A `UINode`, when present, decides
+     * the box and these three are ignored.
+     */
+    boxWidth: number;
+    /** Height of that box; 0 for none. Vertical alignment and `Clip`/`Ellipsis` need it. */
+    boxHeight: number;
+    /**
+     * Where the entity origin sits inside the box, as a fraction from its left and bottom edges: (0.5, 0.5) is
+     * the centre, (0, 1) the top-left corner. It is the anchor point of a Cocos or Unity rect transform.
+     */
+    boxPivot: Vec2;
     /** Render toggle — the editor's eye and runtime hiding both flip this. */
     enabled: boolean;
 }
@@ -152,6 +166,9 @@ export const Text = defineComponent<TextData>('Text', {
     richText: false,
     renderMode: TextRenderMode.Auto,
     layer: 0,
+    boxWidth: 0,
+    boxHeight: 0,
+    boxPivot: { x: 0.5, y: 0.5 },
     enabled: true,
 }, {
     // Text draws itself (the plugin skips a disabled one) rather than through a
@@ -173,6 +190,9 @@ export const Text = defineComponent<TextData>('Text', {
             tooltip: 'What text too big for its box does. Needs a layout box: Clip and Ellipsis drop the lines past its height and trim a line past its width.',
         },
         renderMode: { enum: enumOptions(TextRenderMode) },
+        boxWidth: { tooltip: 'Layout box width for a text with no UINode (0 = no box: the origin is the box). Alignment, wrapping and overflow work inside it. A UINode, if present, decides the box instead.' },
+        boxHeight: { tooltip: 'Layout box height (0 = none). Vertical alignment and Clip/Ellipsis need it.' },
+        boxPivot: { tooltip: 'Where the entity origin sits in the box, as a fraction from its left/bottom edge: (0.5, 0.5) is the centre, (0, 1) the top-left corner.' },
         layer: { tooltip: 'Draw layer for a text standing in the WORLD (no UINode) — read like Sprite/ShapeRenderer layer, so a label can sit in front of the content around it. Ignored inside a Canvas, where the UI render order decides.' },
     },
 });

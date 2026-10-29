@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { GlyphAtlas } from '../src/ui/text/glyph-atlas';
 import { SdfTextRenderer, drawTextWith, type DrawTextParams } from '../src/ui/text/text-renderer';
 import { resolveTextRenderMode, sameSnapshot, snapshotOf } from '../src/ui/text/plugin';
+import { rectTextBox } from '../src/ui/text/text-transform';
 import type { TextData } from '../src/ui/core/text';
 import type { EngineApi } from '../src/ecs/bridge/engineApi';
 import { TEXT_VERTEX_FLOATS } from '../src/ui/text/submit';
@@ -24,6 +25,7 @@ function freshText(): TextData {
         align: 0, verticalAlign: 0, wordWrap: true, overflow: 0, lineHeight: 1.2, bold: false, italic: false,
         strokeColor: { r: 0, g: 0, b: 0, a: 1 }, strokeWidth: 0, shadowColor: { r: 0, g: 0, b: 0, a: 1 }, shadowBlur: 0,
         shadowOffsetX: 0, shadowOffsetY: 0, richText: false, renderMode: 0, layer: 0, enabled: true,
+        boxWidth: 0, boxHeight: 0, boxPivot: { x: 0.5, y: 0.5 },
     } as TextData;
 }
 
@@ -51,6 +53,10 @@ describe('which Text fields make a retained label laid out again', () => {
         ['richText', t => { t.richText = true; }],
         ['renderMode', t => { t.renderMode = 1; }],
         ['layer', t => { t.layer = 3; }],
+        // The box a world label lays out in: moving or resizing it moves the glyphs, so each is part of what "the same label" means.
+        ['boxWidth', t => { t.boxWidth = 120; }],
+        ['boxHeight', t => { t.boxHeight = 40; }],
+        ['boxPivot', t => { t.boxPivot = { x: 0, y: 1 }; }],
     ];
     // font is resolved to the family and compared as that; enabled and an empty content decide whether the label exists at all; i18nKey only
     // ever changes `content`.
@@ -152,5 +158,29 @@ describe('handing a label to the engine', () => {
         renderer.beginFrame();
         const afterForget = (retain.mock.calls.at(-1)![0] as Set<number>);
         expect([...pages].some(p => afterForget.has(p))).toBe(false);
+    });
+});
+
+describe('where a text box puts the glyphs relative to the entity', () => {
+    // The entity origin is the box's pivot (an anchor point, from the left and the BOTTOM edge); the glyph block starts at the box's top-left
+    // corner, one ascent (0.8 em) below the top for the first baseline.
+    it('centred pivot: the box straddles the origin', () => {
+        const b = rectTextBox(0.5, 0.5, 200, 60, 20);
+        expect(b.originX).toBe(-100);
+        expect(b.originY).toBe(30 - 16);
+        expect(b.maxWidth).toBe(200);
+        expect(b.boxHeight).toBe(60);
+    });
+
+    it('top-left pivot: the box hangs right of and below the origin', () => {
+        const b = rectTextBox(0, 1, 200, 60, 20);
+        expect(b.originX).toBeCloseTo(0);
+        expect(b.originY).toBe(0 - 16);
+    });
+
+    it('bottom-right pivot: the box sits left of and above the origin', () => {
+        const b = rectTextBox(1, 0, 200, 60, 20);
+        expect(b.originX).toBe(-200);
+        expect(b.originY).toBe(60 - 16);
     });
 });

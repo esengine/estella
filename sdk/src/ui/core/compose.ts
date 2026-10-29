@@ -165,6 +165,9 @@ export function buildText(init: TextInit = {}): TextData {
         richText: init.richText ?? false,
         renderMode: init.renderMode ?? TextRenderMode.Auto,
         layer: init.layer ?? 0,
+        boxWidth: init.boxWidth ?? 0,
+        boxHeight: init.boxHeight ?? 0,
+        boxPivot: init.boxPivot ?? { x: 0.5, y: 0.5 },
         enabled: init.enabled ?? true,
     };
 }
