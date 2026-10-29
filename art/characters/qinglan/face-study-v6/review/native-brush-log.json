@@ -1,0 +1,727 @@
+[
+  {
+    "label": "Outer canthus: 2.8 mm lateral, 1.8 mm upward target",
+    "brush": "Grab",
+    "operator": "bpy.ops.sculpt.brush_stroke",
+    "result": [
+      "FINISHED"
+    ],
+    "axis": "FRONT",
+    "points_world_m": [
+      [
+        0.044,
+        -0.128,
+        1.603
+      ],
+      [
+        0.0468,
+        -0.128,
+        1.6048
+      ]
+    ],
+    "size_px": 70,
+    "strength": 0.65,
+    "invert": false,
+    "snap": false,
+    "missed_points": [],
+    "key": "01_Lid_Refinement",
+    "moved_vertices": 7031,
+    "max_move_mm": 2.1517906188964844,
+    "affected_bounds": [
+      [
+        -0.05588022619485855,
+        0.05595085397362709
+      ],
+      [
+        -0.12975119054317474,
+        -0.12001834064722061
+      ],
+      [
+        1.5896135568618774,
+        1.6161177158355713
+      ]
+    ],
+    "disposition": "reverted: outer-canthus transition too sharp"
+  },
+  {
+    "label": "Upper lid settles over iris",
+    "brush": "Grab",
+    "operator": "bpy.ops.sculpt.brush_stroke",
+    "result": [
+      "FINISHED"
+    ],
+    "axis": "FRONT",
+    "points_world_m": [
+      [
+        0.033,
+        -0.135,
+        1.61
+      ],
+      [
+        0.033,
+        -0.135,
+        1.6078
+      ]
+    ],
+    "size_px": 67,
+    "strength": 0.62,
+    "invert": false,
+    "snap": false,
+    "missed_points": [],
+    "key": "01_Lid_Refinement",
+    "moved_vertices": 8686,
+    "max_move_mm": 1.3539791107177734,
+    "affected_bounds": [
+      [
+        -0.04754820838570595,
+        0.04753661900758743
+      ],
+      [
+        -0.13950683176517487,
+        -0.12152357399463654
+      ],
+      [
+        1.604036569595337,
+        1.625248670578003
+      ]
+    ],
+    "disposition": "reverted: outer-canthus transition too sharp"
+  },
+  {
+    "label": "Lower lid slight support",
+    "brush": "Grab",
+    "operator": "bpy.ops.sculpt.brush_stroke",
+    "result": [
+      "FINISHED"
+    ],
+    "axis": "FRONT",
+    "points_world_m": [
+      [
+        0.033,
+        -0.136,
+        1.5958
+      ],
+      [
+        0.033,
+        -0.136,
+        1.5966
+      ]
+    ],
+    "size_px": 62,
+    "strength": 0.5,
+    "invert": false,
+    "snap": false,
+    "missed_points": [],
+    "key": "01_Lid_Refinement",
+    "moved_vertices": 10342,
+    "max_move_mm": 0.3992319107055664,
+    "affected_bounds": [
+      [
+        -0.04651070758700371,
+        0.04644991084933281
+      ],
+      [
+        -0.137876957654953,
+        -0.1226886510848999
+      ],
+      [
+        1.5860549211502075,
+        1.6028873920440674
+      ]
+    ],
+    "disposition": "reverted: outer-canthus transition too sharp"
+  },
+  {
+    "label": "Blend canthal transition after grab",
+    "brush": "Smooth",
+    "operator": "bpy.ops.sculpt.brush_stroke",
+    "result": [
+      "FINISHED"
+    ],
+    "axis": "FRONT",
+    "points_world_m": [
+      [
+        0.041,
+        -0.13,
+        1.606
+      ],
+      [
+        0.044,
+        -0.128,
+        1.604
+      ],
+      [
+        0.046,
+        -0.127,
+        1.602
+      ],
+      [
+        0.044,
+        -0.128,
+        1.604
+      ],
+      [
+        0.041,
+        -0.13,
+        1.606
+      ]
+    ],
+    "size_px": 52,
+    "strength": 0.2,
+    "invert": false,
+    "snap": true,
+    "missed_points": [],
+    "key": "01_Lid_Refinement",
+    "moved_vertices": 18098,
+    "max_move_mm": 0.3029106855392456,
+    "affected_bounds": [
+      [
+        -0.05939071998000145,
+        0.05928749218583107
+      ],
+      [
+        -0.1367182433605194,
+        -0.11228320747613907
+      ],
+      [
+        1.589415192604065,
+        1.620786190032959
+      ]
+    ],
+    "disposition": "reverted: outer-canthus transition too sharp"
+  },
+  {
+    "label": "Broader, smaller canthal correction",
+    "brush": "Grab",
+    "operator": "bpy.ops.sculpt.brush_stroke",
+    "result": [
+      "FINISHED"
+    ],
+    "axis": "FRONT",
+    "points_world_m": [
+      [
+        0.044,
+        -0.128,
+        1.603
+      ],
+      [
+        0.0463,
+        -0.128,
+        1.6043
+      ]
+    ],
+    "size_px": 104,
+    "strength": 0.55,
+    "invert": false,
+    "snap": false,
+    "missed_points": [],
+    "key": "01_Lid_Refinement",
+    "moved_vertices": 8408,
+    "max_move_mm": 1.4460169076919556,
+    "affected_bounds": [
+      [
+        -0.056276820600032806,
+        0.05635283142328262
+      ],
+      [
+        -0.12975119054317474,
+        -0.11247067153453827
+      ],
+      [
+        1.589613914489746,
+        1.61611807346344
+      ]
+    ],
+    "disposition": "reverted: unified size override identified"
+  },
+  {
+    "label": "Upper lid coverage with relaxed depth mask",
+    "brush": "Grab",
+    "operator": "bpy.ops.sculpt.brush_stroke",
+    "result": [
+      "FINISHED"
+    ],
+    "axis": "FRONT",
+    "points_world_m": [
+      [
+        0.033,
+        -0.135,
+        1.61
+      ],
+      [
+        0.033,
+        -0.135,
+        1.6084
+      ]
+    ],
+    "size_px": 67,
+    "strength": 0.55,
+    "invert": false,
+    "snap": false,
+    "missed_points": [],
+    "key": "01_Lid_Refinement",
+    "moved_vertices": 8955,
+    "max_move_mm": 0.873565673828125,
+    "affected_bounds": [
+      [
+        -0.04754820838570595,
+        0.04753661900758743
+      ],
+      [
+        -0.13950683176517487,
+        -0.12152357399463654
+      ],
+      [
+        1.603084921836853,
+        1.625266194343567
+      ]
+    ],
+    "disposition": "reverted: unified size override identified"
+  },
+  {
+    "label": "Calibrated broad canthus transition",
+    "brush": "Grab",
+    "operator": "bpy.ops.sculpt.brush_stroke",
+    "result": [
+      "FINISHED"
+    ],
+    "axis": "FRONT",
+    "points_world_m": [
+      [
+        0.044,
+        -0.128,
+        1.603
+      ],
+      [
+        0.046,
+        -0.128,
+        1.6042
+      ]
+    ],
+    "size_px": 150,
+    "strength": 0.55,
+    "invert": false,
+    "snap": false,
+    "missed_points": [],
+    "key": "01_Lid_Refinement",
+    "moved_vertices": 19578,
+    "max_move_mm": 1.212084412574768,
+    "affected_bounds": [
+      [
+        -0.06111980974674225,
+        0.06100403890013695
+      ],
+      [
+        -0.13560718297958374,
+        -0.10779318958520889
+      ],
+      [
+        1.584457278251648,
+        1.6218005418777466
+      ]
+    ],
+    "disposition": "kept in V6 candidate; art acceptance pending"
+  },
+  {
+    "label": "Calibrated upper lid coverage",
+    "brush": "Grab",
+    "operator": "bpy.ops.sculpt.brush_stroke",
+    "result": [
+      "FINISHED"
+    ],
+    "axis": "FRONT",
+    "points_world_m": [
+      [
+        0.033,
+        -0.135,
+        1.61
+      ],
+      [
+        0.033,
+        -0.135,
+        1.6086
+      ]
+    ],
+    "size_px": 85,
+    "strength": 0.6,
+    "invert": false,
+    "snap": false,
+    "missed_points": [],
+    "key": "01_Lid_Refinement",
+    "moved_vertices": 4569,
+    "max_move_mm": 0.8255243301391602,
+    "affected_bounds": [
+      [
+        -0.04554356634616852,
+        0.04548172280192375
+      ],
+      [
+        -0.13841889798641205,
+        -0.12886202335357666
+      ],
+      [
+        1.6030569076538086,
+        1.6229445934295654
+      ]
+    ],
+    "disposition": "kept in V6 candidate; art acceptance pending"
+  },
+  {
+    "label": "Soften orbital transition",
+    "brush": "Smooth",
+    "operator": "bpy.ops.sculpt.brush_stroke",
+    "result": [
+      "FINISHED"
+    ],
+    "axis": "FRONT",
+    "points_world_m": [
+      [
+        0.04,
+        -0.132,
+        1.61
+      ],
+      [
+        0.044,
+        -0.128,
+        1.606
+      ],
+      [
+        0.047,
+        -0.125,
+        1.6
+      ],
+      [
+        0.045,
+        -0.127,
+        1.597
+      ],
+      [
+        0.041,
+        -0.13,
+        1.599
+      ]
+    ],
+    "size_px": 88,
+    "strength": 0.2,
+    "invert": false,
+    "snap": true,
+    "missed_points": [],
+    "key": "01_Lid_Refinement",
+    "moved_vertices": 17716,
+    "max_move_mm": 0.03879344463348389,
+    "affected_bounds": [
+      [
+        -0.055597927421331406,
+        0.0558912418782711
+      ],
+      [
+        -0.13708342611789703,
+        -0.10779320448637009
+      ],
+      [
+        1.5864027738571167,
+        1.623029351234436
+      ]
+    ],
+    "disposition": "kept in V6 candidate; art acceptance pending"
+  },
+  {
+    "label": "Lift columella slightly",
+    "brush": "Grab",
+    "operator": "bpy.ops.sculpt.brush_stroke",
+    "result": [
+      "FINISHED"
+    ],
+    "axis": "FRONT",
+    "points_world_m": [
+      [
+        0,
+        -0.1603,
+        1.554
+      ],
+      [
+        0,
+        -0.1603,
+        1.5555
+      ]
+    ],
+    "size_px": 90,
+    "strength": 0.5,
+    "invert": false,
+    "snap": false,
+    "missed_points": [],
+    "key": "02_Nose_Lip_Refinement",
+    "moved_vertices": 3151,
+    "max_move_mm": 0.5741119384765625,
+    "affected_bounds": [
+      [
+        -0.012565771117806435,
+        0.01249012816697359
+      ],
+      [
+        -0.16886413097381592,
+        -0.15172000229358673
+      ],
+      [
+        1.5461803674697876,
+        1.5650076866149902
+      ]
+    ],
+    "disposition": "kept in V6 candidate; art acceptance pending"
+  },
+  {
+    "label": "Blend alar transition",
+    "brush": "Smooth",
+    "operator": "bpy.ops.sculpt.brush_stroke",
+    "result": [
+      "FINISHED"
+    ],
+    "axis": "FRONT",
+    "points_world_m": [
+      [
+        0.012,
+        -0.158,
+        1.564
+      ],
+      [
+        0.014,
+        -0.157,
+        1.561
+      ],
+      [
+        0.015,
+        -0.154,
+        1.557
+      ],
+      [
+        0.014,
+        -0.152,
+        1.555
+      ],
+      [
+        0.012,
+        -0.153,
+        1.557
+      ]
+    ],
+    "size_px": 65,
+    "strength": 0.3,
+    "invert": false,
+    "snap": true,
+    "missed_points": [],
+    "key": "02_Nose_Lip_Refinement",
+    "moved_vertices": 4575,
+    "max_move_mm": 0.023905960842967033,
+    "affected_bounds": [
+      [
+        -0.02237733080983162,
+        0.02224775403738022
+      ],
+      [
+        -0.16769939661026,
+        -0.14387144148349762
+      ],
+      [
+        1.5472384691238403,
+        1.5730088949203491
+      ]
+    ],
+    "disposition": "kept in V6 candidate; art acceptance pending"
+  },
+  {
+    "label": "Upper lip gentle lift",
+    "brush": "Grab",
+    "operator": "bpy.ops.sculpt.brush_stroke",
+    "result": [
+      "FINISHED"
+    ],
+    "axis": "FRONT",
+    "points_world_m": [
+      [
+        0,
+        -0.159,
+        1.539
+      ],
+      [
+        0,
+        -0.159,
+        1.5402
+      ]
+    ],
+    "size_px": 105,
+    "strength": 0.5,
+    "invert": false,
+    "snap": false,
+    "missed_points": [],
+    "key": "02_Nose_Lip_Refinement",
+    "moved_vertices": 2821,
+    "max_move_mm": 0.5850791931152344,
+    "affected_bounds": [
+      [
+        -0.015303056687116623,
+        0.015439045615494251
+      ],
+      [
+        -0.15976199507713318,
+        -0.15221823751926422
+      ],
+      [
+        1.5282063484191895,
+        1.553644061088562
+      ]
+    ],
+    "disposition": "kept in V6 candidate; art acceptance pending"
+  },
+  {
+    "label": "Relax mouth corners",
+    "brush": "Grab",
+    "operator": "bpy.ops.sculpt.brush_stroke",
+    "result": [
+      "FINISHED"
+    ],
+    "axis": "FRONT",
+    "points_world_m": [
+      [
+        0.021,
+        -0.1495,
+        1.534
+      ],
+      [
+        0.021,
+        -0.1495,
+        1.5347
+      ]
+    ],
+    "size_px": 100,
+    "strength": 0.5,
+    "invert": false,
+    "snap": false,
+    "missed_points": [],
+    "key": "02_Nose_Lip_Refinement",
+    "moved_vertices": 8598,
+    "max_move_mm": 0.2759695053100586,
+    "affected_bounds": [
+      [
+        -0.03373004496097565,
+        0.033792994916439056
+      ],
+      [
+        -0.15797536075115204,
+        -0.1388566792011261
+      ],
+      [
+        1.5231273174285889,
+        1.5493338108062744
+      ]
+    ],
+    "disposition": "kept in V6 candidate; art acceptance pending"
+  },
+  {
+    "label": "Soften philtrum transition",
+    "brush": "Smooth",
+    "operator": "bpy.ops.sculpt.brush_stroke",
+    "result": [
+      "FINISHED"
+    ],
+    "axis": "FRONT",
+    "points_world_m": [
+      [
+        0.004,
+        -0.158,
+        1.541
+      ],
+      [
+        0.005,
+        -0.156,
+        1.545
+      ],
+      [
+        0.004,
+        -0.156,
+        1.549
+      ],
+      [
+        0.003,
+        -0.158,
+        1.552
+      ],
+      [
+        0.005,
+        -0.156,
+        1.548
+      ],
+      [
+        0.004,
+        -0.156,
+        1.544
+      ]
+    ],
+    "size_px": 70,
+    "strength": 0.35,
+    "invert": false,
+    "snap": true,
+    "missed_points": [],
+    "key": "02_Nose_Lip_Refinement",
+    "moved_vertices": 2302,
+    "max_move_mm": 0.020536230877041817,
+    "affected_bounds": [
+      [
+        -0.013965517282485962,
+        0.01417971309274435
+      ],
+      [
+        -0.16561192274093628,
+        -0.1502401977777481
+      ],
+      [
+        1.5390836000442505,
+        1.557784080505371
+      ]
+    ],
+    "disposition": "kept in V6 candidate; art acceptance pending"
+  },
+  {
+    "label": "Upper lid follows iris edge",
+    "brush": "Grab",
+    "operator": "bpy.ops.sculpt.brush_stroke",
+    "result": [
+      "FINISHED"
+    ],
+    "axis": "FRONT",
+    "points_world_m": [
+      [
+        0.033,
+        -0.135,
+        1.6095
+      ],
+      [
+        0.033,
+        -0.135,
+        1.608
+      ]
+    ],
+    "size_px": 100,
+    "strength": 0.5,
+    "invert": false,
+    "snap": false,
+    "missed_points": [],
+    "key": "03_Upper_Lid_Fit",
+    "moved_vertices": 6017,
+    "max_move_mm": 0.7377862930297852,
+    "affected_bounds": [
+      [
+        -0.04758965224027634,
+        0.04757438227534294
+      ],
+      [
+        -0.13934703171253204,
+        -0.12698377668857574
+      ],
+      [
+        1.6000579595565796,
+        1.624807596206665
+      ]
+    ],
+    "disposition": "kept in V6 candidate; art acceptance pending"
+  }
+]

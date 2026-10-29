@@ -1,0 +1,31 @@
+{
+  "asset": "qinglan-live-face.blend",
+  "status": "needs_revision",
+  "user_approved": false,
+  "stage": "Local native-brush iteration on the V5 face source",
+  "reviewed_views": ["front", "profile", "threequarter", "low"],
+  "comparison": "before-after.png",
+  "visible_result": [
+    "Upper lids cover more of the iris and the outer orbital transition is less abrupt than the rejected first brush trial.",
+    "The nasal base and upper lip have small local changes; the source face remains visually dominant.",
+    "Iris and pupil geometry were adjusted separately, so the eye appearance change is not all attributable to sculpting."
+  ],
+  "remaining_art_issues": [
+    "The face still lacks the intended delicate xianxia identity.",
+    "Eye expression, brow forms and nose-to-lip relationship need further coordinated shaping.",
+    "Jaw and cheek transitions remain firmer than the design reference.",
+    "Neutral gray material does not establish final skin, eyebrow or eyelash quality."
+  ],
+  "revision_handling": {
+    "reverted": "Six initial native brush passes were reverted after visible canthal creases and a unified-size override were identified.",
+    "retained": "Nine subsequent native brush passes contribute to three independent high-resolution shape keys.",
+    "post_sculpt_protection": "Nose/lip deltas near the internal mouth seam were attenuated to zero using the documented protection mask; source interior vertices were restored."
+  },
+  "technical_limits": [
+    "The source contains existing mouth-region crossings; this is not a cleaned production head.",
+    "The additional intersection check covers the selected face patch, with tangencies and coplanar overlap excluded.",
+    "Live high-resolution sculpt changes have not been transferred back to the low-resolution source cage.",
+    "No facial expressions, blink, rig, skinning, game export or Estella acceptance were completed."
+  ],
+  "next_work": "Continue face identity and mouth-interior cleanup before moving to hair, clothing or skin detail."
+}

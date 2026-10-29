@@ -1,0 +1,43 @@
+{
+  "asset": "Qinglan V6 live sculpt candidate",
+  "status": "needs_art_revision",
+  "source": {
+    "file": "../face-study-v5/qinglan-face-candidate.blend",
+    "sha256": "19f5e9271b7b51d1ed9879425b7cb9a2d5609063324f89fe10a68c848b71613d",
+    "license_record": "../face-study-v5/provenance.json",
+    "original_author": "Dan Ulrich / Blender Human Base Meshes v1.4.1",
+    "original_asset_license": "CC0-1.0",
+    "reference": "../references/qinglan-face-target.png"
+  },
+  "execution": {
+    "modeling": "User-opened Blender 5.2.1 LTS GUI session through Blender MCP",
+    "addon_version": [1, 6],
+    "protocol_version": 5,
+    "native_operator": "bpy.ops.sculpt.brush_stroke",
+    "native_brushes": ["Grab", "Smooth"],
+    "kept_brush_passes": 9,
+    "reverted_trial_passes": 6,
+    "computer_use": false,
+    "review": "Saved copy audited and rendered by headless Blender CLI",
+    "eye_geometry": "Direct reversible mesh shape keys; explicitly separate from native brush passes",
+    "post_sculpt_protection": "Native nose/lip deltas below world Z 1.530 m are restored to the source, with a smooth transition to full sculpt delta at 1.537 m. See review/post-sculpt-protection.json."
+  },
+  "skills": {
+    "repository": "https://github.com/scenario-labs/skills",
+    "revision": "d44410f058991f677ccf733a8e86ce95110857eb",
+    "names": ["scenario-blender-expert", "scenario-blender-sculpting", "scenario-blender-retopology"],
+    "live_helpers_used": ["bx_gui.set_view", "bx_gui.stroke", "bx_sculpt.expert_brush"],
+    "session_corrections": [
+      "Explicit RegionView3D.update after view changes",
+      "Explicit unified Sculpt brush diameter; stroke payload size alone did not override the user's existing unified size"
+    ]
+  },
+  "reversibility": {
+    "head_source_preserved": "Hidden Qinglan_Head_Multires retains V5 control geometry and original Multires detail",
+    "live_surface": "Qinglan_Live_Sculpt",
+    "baseline": "Basis_V5_Evaluated",
+    "head_keys": ["01_Lid_Refinement", "02_Nose_Lip_Refinement", "03_Upper_Lid_Fit"],
+    "eyes": "Separate source and fit keys on eye globes, iris patches and pupil patches",
+    "low_poly_transfer": "Not performed"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "operation": "Protect internal lip seam after native sculpt",
+  "key": "02_Nose_Lip_Refinement",
+  "zero_delta_below_world_z_m": 1.53,
+  "full_brush_delta_above_world_z_m": 1.537,
+  "feather": "smoothstep",
+  "vertices_whose_delta_was_reduced": 7887,
+  "max_removed_delta_mm": 0.2694692015647888,
+  "purpose": "Keep source mouth interior untouched while retaining external upper-lip and nose brush deltas"
+}

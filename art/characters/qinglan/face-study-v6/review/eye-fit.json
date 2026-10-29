@@ -1,0 +1,36 @@
+[
+  {
+    "side": "L",
+    "eye_center_world_m": [
+      0.032859278842806816,
+      -0.12403267994523048,
+      1.6024056673049927
+    ],
+    "fitted_eye_radii_m": [
+      0.012838987652212383,
+      0.012186940759420395,
+      0.013212323188781738
+    ],
+    "globe_width_scale": 1.07,
+    "iris_radius_m": 0.0062,
+    "pupil_radius_m": 0.0017,
+    "method": "Reversible eye shape keys; iris patches projected onto fitted ellipsoid, not sculpt brush work"
+  },
+  {
+    "side": "R",
+    "eye_center_world_m": [
+      -0.03288150578737259,
+      -0.12384172156453133,
+      1.602405309677124
+    ],
+    "fitted_eye_radii_m": [
+      0.012842421643435955,
+      0.012197863310575485,
+      0.013212323188781738
+    ],
+    "globe_width_scale": 1.07,
+    "iris_radius_m": 0.0062,
+    "pupil_radius_m": 0.0017,
+    "method": "Reversible eye shape keys; iris patches projected onto fitted ellipsoid, not sculpt brush work"
+  }
+]
