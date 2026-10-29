@@ -18,7 +18,7 @@ import type { AssetHints, SliceBorder } from './components';
 import { convertPrefab, convertScene, type ConvertContext } from './convert';
 import { parseCocosDocument, type CocosDocument } from './document';
 import { ImportReport, type ImportReportData } from './report';
-import { CocosModels } from './models';
+import { CocosModels, clipOf, clipPlayOf, retargetClip } from './models';
 
 export interface CocosImportOptions {
     /** The Cocos project folder (the one holding `assets/` and `settings/`). */
@@ -162,7 +162,31 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
         },
         modelInstance(uuid) {
             const m = models.use(uuid);
-            return m && m.use.prefab ? { prefab: m.use.prefab, rootId: m.use.rootId, name: path.basename(m.entry.rel).replace(/\.[^.]+$/, '') } : null;
+            return m && m.use.prefab ? { prefab: m.use.prefab, rootId: m.use.rootId, name: path.basename(m.entry.rel).replace(/\.[^.]+$/, ''), paths: m.use.paths } : null;
+        },
+        modelSkin(meshUuid) {
+            const m = models.use(meshUuid);
+            if (!m) return null;
+            const name = models.meshName(m.entry, meshUuid);
+            const own = name ? m.use.skin.get(name) : undefined;
+            if (own) return own;
+            return m.use.skin.size === 1 ? [...m.use.skin.values()][0]! : null;
+        },
+        clipOn(clipUuid, paths, where) {
+            const clip = models.use(clipUuid);
+            if (!clip) return null;
+            const sub = clip.entry.subs.get(clipUuid);
+            const ref = clipOf(clip.use, sub?.name);
+            if (!ref) return null;
+            if (opts.dryRun) return ref;
+            const key = createHash('sha1').update(JSON.stringify([...paths].sort())).digest('hex').slice(0, 8);
+            const copy = retargetClip(out, ref, paths, key, clipPlayOf(sub?.userData));
+            if (!copy) {
+                report.note('animation-no-matching-bones', where);
+                return null;
+            }
+            if (copy.dropped > 0) report.note('animation-tracks-dropped', `${where}: ${copy.dropped}`);
+            return copy.ref;
         },
         modelMesh(uuid) {
             const m = models.use(uuid);

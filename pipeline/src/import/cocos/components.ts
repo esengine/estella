@@ -16,6 +16,7 @@ import { particleSystem } from './particle';
 import type { CocosAssetEntry, CocosAssetIndex } from './assets';
 import { type CocosComponent, type CocosNode } from './document';
 import type { ImportReport } from './report';
+import { NODE_REF } from './document';
 
 export interface ComponentData {
     type: string;
@@ -47,6 +48,15 @@ export interface ComponentContext {
      * the part was picked because the model draws only one.
      */
     modelMesh?(uuid: string): { components: Record<string, unknown>[]; exact: boolean } | null;
+    /** The joints, by name, a skinned part of a model is bound to, in the order its vertices index them. */
+    modelSkin?(meshUuid: string): string[] | null;
+    /**
+     * A clip of a model, ready to play on the hierarchy @p paths describes (node name to its path under the node the clip plays from): the
+     * project-relative timeline, or null when the clip or its nodes are not there.
+     */
+    clipOn?(clipUuid: string, paths: Map<string, string>, where: string): string | null;
+    /** The Cocos node an id names in the document being converted. */
+    nodeById?: Map<string, CocosNode>;
     /** The script class a compressed class id names, when the project has that script. */
     scriptClass?(classId: string): { name: string } | undefined;
     /** The project-relative ref of a prefab, queuing it for conversion; null when the project does not have it. */
@@ -424,6 +434,67 @@ function directionalLight(c: CocosComponent, ctx: ComponentContext, where: strin
     };
 }
 
+/** Where each node under @p node stands, by name, as a path from it: what a clip addresses a node by. The first node of a name wins. */
+function namePaths(node: CocosNode): Map<string, string> {
+    const paths = new Map<string, string>();
+    const walk = (n: CocosNode, prefix: string): void => {
+        for (const child of n.children) {
+            const here = prefix ? `${prefix}/${child.name}` : child.name;
+            if (!paths.has(child.name)) paths.set(child.name, here);
+            walk(child, here);
+        }
+    };
+    walk(node, '');
+    return paths;
+}
+
+/** The first node of a name in the subtree under @p root, the root itself included. */
+function findByName(root: CocosNode, name: string): CocosNode | null {
+    if (root.name === name) return root;
+    for (const child of root.children) {
+        const hit = findByName(child, name);
+        if (hit) return hit;
+    }
+    return null;
+}
+
+/**
+ * `cc.SkinnedMeshRenderer`: a part of a model bound to bones that are nodes of this document. The mesh is the model's own; the joints are the
+ * nodes under the skinning root that carry the names the model's skin binds, in the order the model's vertices index them.
+ */
+function skinnedMeshRenderer(c: CocosComponent, ctx: ComponentContext, where: string): { component: ComponentData; extra: ComponentData[] } | null {
+    const mesh = meshRenderer(c, ctx, where);
+    if (!mesh) return null;
+    const meshUuid = uuidOf(c.data._mesh);
+    const names = ctx.modelSkin?.(meshUuid);
+    const rootRef = isObj(c.data._skinningRoot) ? c.data._skinningRoot[NODE_REF] : undefined;
+    const root = typeof rootRef === 'string' ? ctx.nodeById?.get(rootRef) : undefined;
+    if (!names || names.length === 0 || !root) {
+        ctx.report.component('cc.SkinnedMeshRenderer', 'partial');
+        ctx.report.note('skin-not-bound', where);
+        return { component: mesh.component, extra: [] };
+    }
+    const joints = names.map((name) => {
+        const node = findByName(root, name);
+        return node ? { [NODE_REF]: node.id } : { [NODE_REF]: null };
+    });
+    const missing = names.filter((name) => !findByName(root, name)).length;
+    ctx.report.component('cc.SkinnedMeshRenderer', missing > 0 || mesh.partial ? 'partial' : 'mapped');
+    if (missing > 0) ctx.report.note('skin-joint-missing', `${where}: ${missing} of ${names.length}`);
+    return { component: mesh.component, extra: [{ type: 'MeshSkin', data: { joints } }] };
+}
+
+/** `cc.SkeletalAnimation`: the clip it plays by default, copied onto this node's own bones, played from the start if the node asks. */
+function skeletalAnimation(c: CocosComponent, node: CocosNode, ctx: ComponentContext, where: string): ComponentData | null {
+    const clips = (Array.isArray(c.data._clips) ? c.data._clips : []).map(uuidOf).filter(Boolean);
+    const wanted = uuidOf(c.data._defaultClip) || clips[0] || '';
+    const ref = wanted ? ctx.clipOn?.(wanted, namePaths(node), where) : null;
+    if (!ref) return null;
+    if (clips.length > 1) ctx.report.note('animation-several-clips', where);
+    ctx.report.component('cc.SkeletalAnimation', clips.length > 1 ? 'partial' : 'mapped');
+    return { type: 'TimelinePlayer', data: { timeline: ref, playing: c.data.playOnLoad === true, speed: 1, wrapMode: '' } };
+}
+
 /**
  * The shapes Cocos Creator builds in (`db://internal/primitives.fbx`), identified by the bounds of what the editor imported them to: the
  * engine's own builtin meshes, and the size of the Cocos one in world units. The engine's are 100 across, the Cocos ones about 1 (a plane 10),
@@ -440,7 +511,7 @@ const PRIMITIVE_MESHES: Record<string, { ref: string; size: number }> = {
 const ENGINE_PRIMITIVE_SIZE = 100;
 
 /** `cc.MeshRenderer`: the mesh is the model's own part, drawn with the model's own material until the Cocos material is carried across. */
-function meshRenderer(c: CocosComponent, ctx: ComponentContext, where: string): { component: ComponentData; scale?: number } | null {
+function meshRenderer(c: CocosComponent, ctx: ComponentContext, where: string): { component: ComponentData; scale?: number; partial: boolean } | null {
     const meshUuid = uuidOf(c.data._mesh);
     const hasMaterial = Array.isArray(c.data._materials) && c.data._materials.some((m) => uuidOf(m) !== '');
     if (meshUuid.startsWith(COCOS_PRIMITIVES)) {
@@ -449,11 +520,11 @@ function meshRenderer(c: CocosComponent, ctx: ComponentContext, where: string): 
             ctx.report.note('mesh-builtin-shape-unknown', `${where}: ${meshUuid.split('@')[1] ?? ''}`);
             return null;
         }
-        ctx.report.component('cc.MeshRenderer', hasMaterial ? 'partial' : 'mapped');
         if (hasMaterial) ctx.report.note('mesh-material-not-carried', where);
         return {
             component: { type: 'MeshRenderer', data: { mesh: primitive.ref, enabled: c.enabled } },
             scale: primitive.size / ENGINE_PRIMITIVE_SIZE,
+            partial: hasMaterial,
         };
     }
     const found = meshUuid ? ctx.modelMesh?.(meshUuid) : null;
@@ -471,8 +542,7 @@ function meshRenderer(c: CocosComponent, ctx: ComponentContext, where: string): 
         partial = true;
         ctx.report.note('mesh-material-from-model', where);
     }
-    ctx.report.component('cc.MeshRenderer', partial ? 'partial' : 'mapped');
-    return { component: { type: 'MeshRenderer', data: { ...found.components[0]!, enabled: c.enabled } } };
+    return { component: { type: 'MeshRenderer', data: { ...found.components[0]!, enabled: c.enabled } }, partial };
 }
 
 /** `cc.UIOpacity`: the alpha of the node and everything under it, which the engine's GroupOpacity is. */
@@ -521,6 +591,8 @@ export function convertNode(node: CocosNode, ctx: ComponentContext, where: strin
     const unmapped: Raw[] = [];
     // a mesh whose unit is not the engine's resizes the node it hangs on
     let unitScale = 1;
+    // components a mapped one brings with it, added after the loop
+    const extra: ComponentData[] = [];
 
     for (const c of node.components) {
         let out: ComponentData | null = null;
@@ -577,9 +649,19 @@ export function convertNode(node: CocosNode, ctx: ComponentContext, where: strin
             case 'cc.MeshRenderer': {
                 const mesh = meshRenderer(c, ctx, where);
                 out = mesh?.component ?? null;
+                if (mesh) ctx.report.component('cc.MeshRenderer', mesh.partial ? 'partial' : 'mapped');
                 if (mesh?.scale !== undefined) unitScale = mesh.scale;
                 break;
             }
+            case 'cc.SkinnedMeshRenderer': {
+                const skinned = skinnedMeshRenderer(c, ctx, where);
+                out = skinned?.component ?? null;
+                if (skinned) extra.push(...skinned.extra);
+                break;
+            }
+            case 'cc.SkeletalAnimation':
+                out = skeletalAnimation(c, node, ctx, where);
+                break;
             case 'cc.UIOpacity':
                 out = uiOpacity(c, ctx);
                 break;
@@ -614,6 +696,7 @@ export function convertNode(node: CocosNode, ctx: ComponentContext, where: strin
         unmapped.push({ type: c.type, enabled: c.enabled, data: c.data });
     }
 
+    components.push(...extra);
     if (unitScale !== 1) {
         const scale = components[0]!.data.scale as { x: number; y: number; z: number };
         components[0]!.data.scale = { x: scale.x * unitScale, y: scale.y * unitScale, z: scale.z * unitScale };

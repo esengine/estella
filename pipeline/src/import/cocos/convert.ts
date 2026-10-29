@@ -79,7 +79,7 @@ export interface ConvertContext extends ComponentContext {
     /** The project-relative path the converted prefab of a uuid is written to. */
     prefabRef(uuid: string): string | null;
     /** The engine prefab of a model a uuid names (the whole model, or its scene), or null when the uuid is not a model that was brought in. */
-    modelInstance?(uuid: string): { prefab: string; rootId: string; name: string } | null;
+    modelInstance?(uuid: string): { prefab: string; rootId: string; name: string; paths: Map<string, string> } | null;
     /** Where the document being converted lives, for notes. */
     where: string;
 }
@@ -283,13 +283,29 @@ function diff(pristine: Map<string, Flat>, patched: Map<string, Flat>, ctx: Conv
  * instance's root can be addressed: its name, whether it is active and where it stands. The rest (a material put on a mesh, a clip set on its
  * animation) is counted, not lost silently.
  */
-function modelInstanceOverrides(node: CocosNode, model: { rootId: string; name: string }, ctx: ConvertContext): PrefabOverride[] {
+function modelInstanceOverrides(node: CocosNode, model: { rootId: string; name: string; paths: Map<string, string> }, ctx: ConvertContext): PrefabOverride[] {
     const inst = node.instance!;
-    const roots = inst.overrides.filter((o) => o.target.length === 1);
-    const inner = inst.overrides.length - roots.length;
+    // A property of the instance's root: its name, whether it is on, where it stands. The overrides on a component of the model are told apart
+    // by what they set: a skeletal animation's clip is carried, anything else is counted.
+    const animation = animationOverrides(inst.overrides);
+    const shape = (o: CocosOverride): boolean => ['_name', '_active', '_lpos', '_lrot', '_lscale', '_euler'].includes(o.path[0] ?? '');
+    const roots = inst.overrides.filter((o) => o.target.length === 1 && shape(o));
+    const inner = inst.overrides.length - roots.length - animation.used;
     if (inner > 0) ctx.report.note('model-instance-overrides', `${ctx.where}: ${node.name} (${inner} on the model's own parts)`);
+    const out: PrefabOverride[] = [];
+    if (animation.clip) {
+        const timeline = ctx.clipOn?.(animation.clip, model.paths, `${ctx.where}: ${node.name}`);
+        if (timeline) {
+            out.push({
+                prefabEntityId: model.rootId, type: 'component_added', componentType: 'TimelinePlayer',
+                componentData: { type: 'TimelinePlayer', data: { timeline, playing: animation.playOnLoad, speed: 1, wrapMode: '' } },
+            });
+        } else {
+            ctx.report.note('model-instance-clip-not-found', `${ctx.where}: ${node.name}`);
+        }
+    }
     const addr = roots[0]?.target[0];
-    if (addr === undefined) return [];
+    if (addr === undefined) return out;
     const base: CocosNode = {
         id: addr, name: model.name, active: true, pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0, w: 1 }, scale: { x: 1, y: 1, z: 1 },
         layer: 33554432, components: [], children: [],
@@ -298,7 +314,24 @@ function modelInstanceOverrides(node: CocosNode, model: { rootId: string; name: 
     const patched = structuredClone(pristine);
     applyOverrides(patched, roots, ctx);
     const quiet: ConvertContext = { ...ctx, report: new ImportReport() };
-    return diff(flatten(pristine, quiet), flatten(patched, quiet), ctx).map((o) => ({ ...o, prefabEntityId: model.rootId }));
+    return [...out, ...diff(flatten(pristine, quiet), flatten(patched, quiet), ctx).map((o) => ({ ...o, prefabEntityId: model.rootId }))];
+}
+
+/** The clip an instance sets on its model's skeletal animation, if it sets one, and whether it plays on load. `used` counts the overrides read. */
+function animationOverrides(overrides: CocosOverride[]): { clip: string | null; playOnLoad: boolean; used: number } {
+    let defaultClip = '';
+    let firstClip = '';
+    let playOnLoad = false;
+    let used = 0;
+    for (const o of overrides) {
+        const prop = o.path[0];
+        const value = o.value as { __uuid__?: unknown } | boolean | null;
+        if (prop === '_defaultClip' && typeof value === 'object' && value && typeof value.__uuid__ === 'string') { defaultClip = value.__uuid__; used++; }
+        else if (prop === '_clips' && o.path[1] === '0' && typeof value === 'object' && value && typeof value.__uuid__ === 'string') { firstClip = value.__uuid__; used++; }
+        else if (prop === '_clips' && o.path[1] === 'length') used++;
+        else if (prop === 'playOnLoad') { playOnLoad = value === true; used++; }
+    }
+    return { clip: defaultClip || firstClip || null, playOnLoad, used };
 }
 
 /** The overrides an instance node applies over the prefab it names, or null when that prefab is missing. */
@@ -348,7 +381,19 @@ function resolveRefs(components: ComponentData[], to: (id: string) => unknown, m
 // Documents.
 // ---------------------------------------------------------------------------
 
+/** Every node of a document by id, the nodes under an instance left out (they are the prefab's own, in its own space). */
+function indexNodes(roots: CocosNode[]): Map<string, CocosNode> {
+    const nodes = new Map<string, CocosNode>();
+    const walk = (n: CocosNode): void => {
+        nodes.set(n.id, n);
+        if (!n.instance) n.children.forEach(walk);
+    };
+    roots.forEach(walk);
+    return nodes;
+}
+
 export function convertPrefab(doc: CocosDocument, ctx: ConvertContext): PrefabFile {
+    ctx.nodeById = indexNodes(doc.roots);
     const root = doc.roots[0];
     if (!root) throw new Error('prefab has no root node');
     const entities: PrefabEntity[] = [];
@@ -387,6 +432,7 @@ export function convertPrefab(doc: CocosDocument, ctx: ConvertContext): PrefabFi
 }
 
 export function convertScene(doc: CocosDocument, ctx: ConvertContext): SceneFile {
+    ctx.nodeById = indexNodes(doc.roots);
     const entities: (SceneEntity | SceneInstanceEntry)[] = [];
     ctx.report.documents.converted++;
     // From 1: 0 is the engine's "no entity", and a reference to an entity numbered 0 would read as none.

@@ -146,3 +146,61 @@ describe('a Cocos built-in shape', () => {
         expect(transform.data.scale.x).toBeCloseTo(0.02, 6);
     });
 });
+
+describe('a clip played on another skeleton', () => {
+    let dir: string;
+    const clip = (tracks: Array<{ childPath: string; keys: number[] }>) => ({
+        version: '1.3', type: 'timeline', duration: 4, wrapMode: 'once',
+        tracks: tracks.map((t) => ({
+            type: 'property', name: t.childPath.split('/').pop(), childPath: t.childPath, component: 'Transform',
+            channels: [{ property: 'position.x', keyframes: t.keys.map((time) => ({ time, value: time * 10, inTangent: 0, outTangent: 0, interpolation: 'linear' })) }],
+        })),
+    });
+    const write = (name: string, doc: unknown): string => {
+        mkdirSync(path.join(dir, 'clips'), { recursive: true });
+        writeFileSync(path.join(dir, 'clips', name), JSON.stringify(doc));
+        return `clips/${name}`;
+    };
+    const read = (ref: string): any => JSON.parse(readFileSync(path.join(dir, ref), 'utf8'));
+
+    beforeAll(() => { dir = mkdtempSync(path.join(tmpdir(), 'cocos-clip-')); });
+    afterAll(() => rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
+
+    it('addresses each track by where its bone stands in the skeleton it is played on', async () => {
+        const { retargetClip } = await import('../src/import/cocos/models');
+        const ref = write('walk.estimeline', clip([{ childPath: 'Bone001', keys: [0, 1] }, { childPath: 'Bone001/Hand', keys: [0, 1] }]));
+        const copy = retargetClip(dir, ref, new Map([['Bone001', 'Root/Bone001'], ['Hand', 'Root/Bone001/Hand']]), 'rigA');
+        expect(copy?.dropped).toBe(0);
+        expect(read(copy!.ref).tracks.map((t: any) => t.childPath)).toEqual(['Root/Bone001', 'Root/Bone001/Hand']);
+        expect(existsSync(path.join(dir, `${copy!.ref}.meta`))).toBe(true);
+    });
+
+    it('drops a track whose bone the skeleton does not have, and says how many', async () => {
+        const { retargetClip } = await import('../src/import/cocos/models');
+        const ref = write('run.estimeline', clip([{ childPath: 'Bone001', keys: [0, 1] }, { childPath: 'Bone001/Tail', keys: [0, 1] }]));
+        const copy = retargetClip(dir, ref, new Map([['Bone001', 'Bone001']]), 'rigB');
+        expect(copy?.dropped).toBe(1);
+        expect(read(copy!.ref).tracks).toHaveLength(1);
+        expect(retargetClip(dir, ref, new Map(), 'rigC')).toBeNull();
+    });
+
+    it('plays a clip that animates a single object on the node it is put on, whatever that node is called', async () => {
+        const { retargetClip } = await import('../src/import/cocos/models');
+        const ref = write('spin.estimeline', clip([{ childPath: 'fx_moon', keys: [0, 2] }]));
+        const copy = retargetClip(dir, ref, new Map(), 'host');
+        expect(read(copy!.ref).tracks.map((t: any) => t.childPath)).toEqual(['']);
+    });
+
+    it('keeps the part of the take a Cocos clip covers, starting at zero, and the wrap mode it asks for', async () => {
+        const { retargetClip, clipPlayOf } = await import('../src/import/cocos/models');
+        const ref = write('take.estimeline', clip([{ childPath: 'Bone001', keys: [0, 1, 2, 3, 4] }]));
+        const play = clipPlayOf({ span: { from: 1, to: 3 }, wrapMode: 2 });
+        const copy = retargetClip(dir, ref, new Map([['Bone001', 'Bone001']]), 'cut', play);
+        const doc = read(copy!.ref);
+        expect(doc.duration).toBe(2);
+        expect(doc.wrapMode).toBe('loop');
+        expect(doc.tracks[0].channels[0].keyframes.map((k: any) => k.time)).toEqual([0, 1, 2]);
+        expect(clipPlayOf({ wrapMode: 36 }).wrapMode).toBe('pingPong');
+        expect(clipPlayOf({ wrapMode: 1 }).wrapMode).toBe('once');
+    });
+});
