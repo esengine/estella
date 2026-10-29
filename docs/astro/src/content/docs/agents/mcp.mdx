@@ -20,6 +20,21 @@ Save. You can watch it work in the editor window, and take over at any time.
 
 ## Connecting an AI tool
 
+### One-click add
+
+Under **Settings → Editor → Tools & AI → External Agents** there is an "Add to …" switch
+for each of Claude Code, Cursor and Claude Desktop that is installed on the machine.
+Turning it on writes the editor into that tool's MCP config (only `mcpServers.estella`;
+everything else in the file is kept) and opens "Allow AI agents to connect". Turning it
+off removes just that entry. The switch shows what the file actually holds, so deleting
+the entry by hand turns it off.
+
+The entry runs the bundled script on the editor's own executable, so **no Node.js install
+is needed** and there is no path to look up. "Let AI agents change the project" is off by
+default: an agent can only look until you turn it on, and entries already added follow it.
+
+The manual setup below is for tools the switches do not cover.
+
 The MCP server is a small node script that ships inside the editor. It talks MCP
 over stdio to your AI tool and drives an editor instance for you (spawning one, or
 attaching to one that's already open).
