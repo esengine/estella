@@ -22,16 +22,24 @@ Save. You can watch it work in the editor window, and take over at any time.
 
 ### One-click add
 
-Under **Settings → Editor → Tools & AI → External Agents** there is an "Add to …" switch
-for each of Claude Code, Cursor and Claude Desktop that is installed on the machine.
-Turning it on writes the editor into that tool's MCP config (only `mcpServers.estella`;
-everything else in the file is kept) and opens "Allow AI agents to connect". Turning it
-off removes just that entry. The switch shows what the file actually holds, so deleting
-the entry by hand turns it off.
+**Window → Connect AI Tools…** (also the "AI agent" mark in the status bar, and the
+"Connect an AI tool…" button in Settings) opens the connect dialog. It lists the
+Claude Code, Cursor, Claude Desktop and VS Code installed on the machine, each with a
+Connect / Disconnect button: connecting writes the editor into that tool's own MCP
+config (only the `estella` entry; everything else in the file is kept) and opens
+"Allow AI agents to connect". The state is read off the config, so deleting the entry
+by hand shows it as not connected. A config file it cannot parse is refused, never
+overwritten.
 
-The entry runs the bundled script on the editor's own executable, so **no Node.js install
-is needed** and there is no path to look up. "Let AI agents change the project" is off by
-default: an agent can only look until you turn it on, and entries already added follow it.
+- **No Node.js install needed** — the entry runs the bundled script on the editor's
+  own executable.
+- **What an agent may do** is switched in the dialog: Read only / Can edit. The editor
+  decides it live and the entries carry no permission, so a change reaches every
+  connected tool at once, with no restart and no config rewritten.
+- **Whether it really connected** is the line at the bottom: "Last call: Claude Code,
+  12 s ago". An entry being written does not mean the tool uses it; that line does.
+- Tools the editor cannot write for (Windsurf, Zed, Codex…) get the same entry as text
+  under "Other tools" — JSON, TOML or a command, paths filled in — to copy.
 
 The manual setup below is for tools the switches do not cover.
 
