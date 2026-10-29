@@ -1,0 +1,18 @@
+[
+  {
+    "target": "Restore cheek fullness and fair cheek-to-jaw depth",
+    "cheek_fill_m": 0.006,
+    "relax_iterations": 6,
+    "key": "V7_05_Cheek_Transition",
+    "moved_control_vertices": 769,
+    "max_displacement_mm": 6.338067959714949,
+    "protected_body_delta_m": 0
+  },
+  {
+    "target": "Round the blunt chin edge while holding the central chin anchor",
+    "key": "V7_06_Chin_Roundness",
+    "moved_control_vertices": 357,
+    "max_displacement_mm": 3.1416584610686193,
+    "protected_body_delta_m": 0
+  }
+]

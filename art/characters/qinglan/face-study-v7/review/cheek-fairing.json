@@ -1,0 +1,9 @@
+{
+  "target": "Fill the hollow cheek surface to a local convex envelope; matched X/Z contour held",
+  "depth_only": true,
+  "internal_vertices_protected_by_front_visibility": true,
+  "key": "V7_11_Cheek_Plane_Fairing",
+  "moved_control_vertices": 307,
+  "max_displacement_mm": 18.000000000000004,
+  "protected_body_delta_m": 0
+}

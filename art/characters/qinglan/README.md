@@ -4,17 +4,20 @@
 
 用户已否决 `face-study-v3` 的脸部效果。该版本保留用于定位变形问题和回退，不应作为后续细节制作的造型基础；见 [脸部审查记录](face-study-v3/review/art-review.json)。网格与导出检查通过不能代表人物造型合格。
 
-最新脸部候选位于 [face-study-v6](face-study-v6/README.md)。本版在用户打开的 Blender 中通过 MCP 调用原生 Grab 与 Smooth 笔刷，保留 V5 来源和三组可回退的局部雕刻修改，并提供同机位前后对照。当前仍需继续修正五官气质与参考接近程度。
+最新脸部比例候选位于 [face-study-v7](face-study-v7/README.md)。本轮回到约 3,700 面的控制网格，调整口裂高度、下颌、眼裂和耳位，并提供设计稿叠加、估计视角对照与真实控制网格图。五官气质、脸颊过渡和嘴唇接合仍需修改；本版尚未美术验收，也未通过严格的新增交叉检查。
+
+[face-study-v6](face-study-v6/README.md) 保留此前通过 Blender MCP 调用原生 Grab 与 Smooth 的高分辨率笔刷试改及同机位前后对照。
 
 [face-study-v5](face-study-v5/README.md) 保留 Blender 官方 CC0 女性基网格来源、原作者的多级雕刻数据，以及 Scenario Blender、雕刻与拓扑技能的接入记录。
 
-此前的人体版本保留了参数化人体来源、手臂姿态、眉毛及睫毛试作。相关文件用于过程记录；最新 V5 是独立脸部候选，下方完整角色与导出说明对应此前版本。
+此前的人体版本保留了参数化人体来源、手臂姿态、眉毛及睫毛试作。相关文件用于过程记录；V7 是独立脸部候选，下方完整角色与导出说明对应此前版本。
 
 ## 文件
 
 | 文件 | 用途 |
 | --- | --- |
-| `face-study-v6/qinglan-live-face.blend` | 最新实时雕刻候选、3 个原生笔刷修订形态键及前后对照；尚未美术验收 |
+| `face-study-v7/qinglan-identity-cage.blend` | 最新控制网格比例候选、参考叠加及多视角检查；待继续修改 |
+| `face-study-v6/qinglan-live-face.blend` | 实时雕刻试改、3 个原生笔刷修订形态键及前后对照；尚未美术验收 |
 | `face-study-v5/qinglan-face-candidate.blend` | V5 脸部来源、11 个分区形态键及灰模/拓扑检查；尚未美术验收 |
 | `qinglan-human-study.blend` | 完整人体与独立头部检查场景；灰色区域是检查材质，不是服装网格 |
 | `qinglan-highpoly.blend` | 带完整衣饰、头发、佩剑的高模，保留多级细分、曲线和来源集合 |

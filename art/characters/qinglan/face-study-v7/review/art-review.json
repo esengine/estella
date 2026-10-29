@@ -1,0 +1,45 @@
+{
+  "status": "needs_revision",
+  "stage": "Primary facial proportion comparison complete; head-identity gate remains open",
+  "accepted_changes": [
+    "Mouth region raised toward the front reference",
+    "Reduced mouth width",
+    "Moderate jaw taper and rounded chin edge",
+    "Extended eye aperture with coordinated globe/iris changes",
+    "Raised and shortened source ears",
+    "Brow silhouette proxies"
+  ],
+  "rejected_changes": [
+    "Broad cheek fill and constrained cheek envelope produced undesirable transitions",
+    "Extra upper-lip lift and forced lip-shell separation changed the intended closed-mouth expression"
+  ],
+  "remaining_art_issues": [
+    "Cheekbone-to-jaw transition remains too angular",
+    "Lids and orbital mass remain too heavy for the reference",
+    "Nose/lip surface planes and chin still carry the base-mesh identity",
+    "Brows are simple proxies; no final hairline, lashes or groom"
+  ],
+  "technical": {
+    "render_structure_gate": true,
+    "strict_contact_check": false,
+    "cage_source_crossings": 52,
+    "cage_new_crossings": 0,
+    "level2_source_crossings": 412,
+    "level2_current_crossings": 412,
+    "level2_new_pairs": 24
+  },
+  "reviewed_views": [
+    "after-front.png",
+    "after-profile.png",
+    "after-threequarter.png",
+    "after-low.png",
+    "reference-camera-front.png",
+    "reference-camera-profile.png",
+    "reference-camera-threequarter.png",
+    "cage-front.png",
+    "cage-threequarter.png",
+    "reference-overlay.png",
+    "reference-multiview.png"
+  ],
+  "next_work": "Remain at the head-identity gate. Correct cheek planes and lid thickness in small local areas, compare fixed renders, and clean the lip contact topology before production export."
+}

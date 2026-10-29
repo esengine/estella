@@ -1,0 +1,26 @@
+[
+  {
+    "object": "Iris_L",
+    "radius_m": 0.0066,
+    "surface_offset_m": 6e-05,
+    "ray_misses": 0
+  },
+  {
+    "object": "Pupil_L",
+    "radius_m": 0.0017,
+    "surface_offset_m": 0.00012,
+    "ray_misses": 0
+  },
+  {
+    "object": "Iris_R",
+    "radius_m": 0.0066,
+    "surface_offset_m": 6e-05,
+    "ray_misses": 0
+  },
+  {
+    "object": "Pupil_R",
+    "radius_m": 0.0017,
+    "surface_offset_m": 0.00012,
+    "ray_misses": 0
+  }
+]

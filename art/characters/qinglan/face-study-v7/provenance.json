@@ -1,0 +1,167 @@
+{
+  "asset": "Qinglan V7 reference-led control-cage proportion study",
+  "status": "editable_review_candidate_not_art_or_production_approved",
+  "created": "2026-10-29",
+  "source": {
+    "publisher": "Blender",
+    "bundle": "Human Base Meshes v1.4.1",
+    "page": "https://www.blender.org/download/demo-files/",
+    "download": "https://download.blender.org/demo/asset-bundles/human-base-meshes/human-base-meshes-bundle-v1.4.1.zip",
+    "author": "Dan Ulrich",
+    "collection": "Body Female - Realistic",
+    "objects": [
+      "GEO-body_female_realistic",
+      "GEO-body_female_realistic.eye.L",
+      "GEO-body_female_realistic.eye.R"
+    ],
+    "license": "CC0-1.0",
+    "license_evidence": "Selected asset collection metadata and the bundle's Human Base Meshes README both state CC0. No Rain Rig objects were imported.",
+    "zip_sha256": "811f43accbb31a88266d932f8f5563b2d13586fca0ba2693aad1f5fe582b3515",
+    "blend_sha256": "3c121505651140ceb4d69fd1d8923f7788ffadd81672f5be14845a5f2c75c137"
+  },
+  "parent_file": "../face-study-v5/qinglan-face-candidate.blend",
+  "parent_sha256": "19f5e9271b7b51d1ed9879425b7cb9a2d5609063324f89fe10a68c848b71613d",
+  "current_file": "qinglan-identity-cage.blend",
+  "current_sha256": "f82e51a1cb6fb475adbf56d79ccc58544454201525da248a85c66adddf4823cb",
+  "reference": {
+    "file": "../references/qinglan-face-target.png",
+    "sha256": "6ab4f8b82b92dc3ccb31c8b2b4e398b016a50b72e4ee6d8efd9c4dcbf5104405",
+    "calibrated": false
+  },
+  "workflow": {
+    "blender": "5.2.1 LTS",
+    "skill_revision": "d44410f058991f677ccf733a8e86ce95110857eb",
+    "skills": [
+      "scenario-blender-expert",
+      "scenario-blender-sculpting",
+      "scenario-blender-retopology",
+      "estella-character-production"
+    ],
+    "execution": "Initial control edits over the live Blender MCP connection; after a Blender process crash, recovered from a stage copy and continued through headless CLI. No computer use, no newly launched GUI, no paid add-on activation.",
+    "native_brushes_this_version": false,
+    "comparison_images": "Unaltered reference/render pixels arranged with Matplotlib; approximate eye/eye-chin alignment."
+  },
+  "final_keys": [
+    {
+      "name": "Basis_Studio_Female",
+      "value": 1.0,
+      "muted": false
+    },
+    {
+      "name": "01_Soften_brow",
+      "value": 1.0,
+      "muted": false
+    },
+    {
+      "name": "02_Nose_width",
+      "value": 1.0,
+      "muted": false
+    },
+    {
+      "name": "03_Nose_projection",
+      "value": 1.0,
+      "muted": false
+    },
+    {
+      "name": "04_Mouth_width",
+      "value": 1.0,
+      "muted": false
+    },
+    {
+      "name": "05_Lip_projection",
+      "value": 1.0,
+      "muted": false
+    },
+    {
+      "name": "06_Jaw_taper",
+      "value": 1.0,
+      "muted": false
+    },
+    {
+      "name": "07_Chin_width",
+      "value": 1.0,
+      "muted": false
+    },
+    {
+      "name": "08_Cheek_softness",
+      "value": 1.0,
+      "muted": false
+    },
+    {
+      "name": "09_Eye_aperture",
+      "value": 1.0,
+      "muted": false
+    },
+    {
+      "name": "10_Lower_face_proportion",
+      "value": 1.0,
+      "muted": false
+    },
+    {
+      "name": "11_Nasal_tip",
+      "value": 1.0,
+      "muted": false
+    },
+    {
+      "name": "V7_01_Mouth_Height",
+      "value": 1.0,
+      "muted": false
+    },
+    {
+      "name": "V7_02_Mouth_Width",
+      "value": 1.0,
+      "muted": false
+    },
+    {
+      "name": "V7_03_Jaw_Chin_Taper",
+      "value": 0.5,
+      "muted": false
+    },
+    {
+      "name": "V7_04_Orbital_Proportion",
+      "value": 1.0,
+      "muted": false
+    },
+    {
+      "name": "V7_05_Cheek_Transition",
+      "value": 0.0,
+      "muted": true
+    },
+    {
+      "name": "V7_06_Chin_Roundness",
+      "value": 1.0,
+      "muted": false
+    },
+    {
+      "name": "V7_07_Ear_Proportion",
+      "value": 1.0,
+      "muted": false
+    },
+    {
+      "name": "V7_08_Nose_Profile",
+      "value": 1.0,
+      "muted": false
+    },
+    {
+      "name": "V7_09_Upper_Lip",
+      "value": 0.0,
+      "muted": true
+    },
+    {
+      "name": "V7_10_Oral_Contact",
+      "value": 0.0,
+      "muted": true
+    },
+    {
+      "name": "V7_11_Cheek_Plane_Fairing",
+      "value": 0.0,
+      "muted": true
+    }
+  ],
+  "limits": [
+    "Facial identity needs further work",
+    "Strict new-crossing-pair check fails at Multires level 2",
+    "Internal source contacts and neck attachment unfinished",
+    "No rig, expression, UV, runtime export or Estella acceptance"
+  ]
+}

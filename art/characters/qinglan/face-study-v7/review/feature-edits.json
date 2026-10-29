@@ -1,0 +1,23 @@
+[
+  {
+    "target": "Raise and shorten low source ears to the reference eye/nose-base band",
+    "key": "V7_07_Ear_Proportion",
+    "moved_control_vertices": 558,
+    "max_displacement_mm": 13.15680692571292,
+    "protected_body_delta_m": 0
+  },
+  {
+    "target": "Soften projecting nasal tip while preserving bridge and nostril topology",
+    "key": "V7_08_Nose_Profile",
+    "moved_control_vertices": 188,
+    "max_displacement_mm": 3.200000000000008,
+    "protected_body_delta_m": 0
+  },
+  {
+    "target": "Restore upper-lip volume above the raised mouth seam",
+    "key": "V7_09_Upper_Lip",
+    "moved_control_vertices": 203,
+    "max_displacement_mm": 2.4041630560342337,
+    "protected_body_delta_m": 0
+  }
+]

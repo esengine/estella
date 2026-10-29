@@ -1,0 +1,12 @@
+[
+  {
+    "side": "L",
+    "method": "Same spatial deformation as orbital control region",
+    "max_delta_mm": 5.647635334806258
+  },
+  {
+    "side": "R",
+    "method": "Same spatial deformation as orbital control region",
+    "max_delta_mm": 5.638280084070033
+  }
+]

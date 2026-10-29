@@ -1,0 +1,17 @@
+{
+  "orbital": {
+    "target": "Visible lid edits with fixed deep orbital return",
+    "key": "V7_04_Orbital_Proportion",
+    "moved_control_vertices": 662,
+    "max_displacement_mm": 5.767201229172113,
+    "protected_body_delta_m": 0
+  },
+  "oral": {
+    "target": "Separate upper/lower lip shells using geodesic surface labels",
+    "separation_each_side_m": 0.0011,
+    "key": "V7_10_Oral_Contact",
+    "moved_control_vertices": 425,
+    "max_displacement_mm": 1.100000000000101,
+    "protected_body_delta_m": 0
+  }
+}

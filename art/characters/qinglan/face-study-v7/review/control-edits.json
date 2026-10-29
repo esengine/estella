@@ -1,0 +1,36 @@
+[
+  {
+    "target": "Raise oral region toward reference lip-line height",
+    "target_lift_m": 0.0085,
+    "key": "V7_01_Mouth_Height",
+    "moved_control_vertices": 1019,
+    "max_displacement_mm": 8.499999999999952,
+    "protected_body_delta_m": 0
+  },
+  {
+    "target": "Compact lip outline",
+    "central_width_scale": 0.9,
+    "key": "V7_02_Mouth_Width",
+    "moved_control_vertices": 820,
+    "max_displacement_mm": 3.1586424794584484,
+    "protected_body_delta_m": 0
+  },
+  {
+    "target": "Oval lower-face contour; oral rings protected from jaw taper",
+    "strength": 0.65,
+    "key": "V7_03_Jaw_Chin_Taper",
+    "moved_control_vertices": 1664,
+    "max_displacement_mm": 6.620841878967831,
+    "protected_body_delta_m": 0
+  },
+  {
+    "target": "Wider almond-shaped aperture with coordinated lid tilt",
+    "outer_canthal_target_m": 0.0055,
+    "inner_canthal_target_m": -0.001,
+    "tilt_m": 0.002,
+    "key": "V7_04_Orbital_Proportion",
+    "moved_control_vertices": 662,
+    "max_displacement_mm": 5.7671600440269675,
+    "protected_body_delta_m": 0
+  }
+]

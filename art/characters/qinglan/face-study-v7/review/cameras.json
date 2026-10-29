@@ -1,0 +1,121 @@
+[
+  {
+    "name": "Reference_front",
+    "type": "PERSP",
+    "lens_mm": 90.0,
+    "ortho_scale": 6.0,
+    "location": [
+      0.0,
+      -0.8379999995231628,
+      1.5820000171661377
+    ],
+    "rotation_euler": [
+      1.5707964897155762,
+      -0.0,
+      0.0
+    ],
+    "calibrated": false
+  },
+  {
+    "name": "Reference_profile",
+    "type": "PERSP",
+    "lens_mm": 90.0,
+    "ortho_scale": 6.0,
+    "location": [
+      -0.8179086446762085,
+      -0.3397546410560608,
+      1.5820000171661377
+    ],
+    "rotation_euler": [
+      1.570796251296997,
+      -8.364411030470364e-08,
+      -1.2566369771957397
+    ],
+    "calibrated": false
+  },
+  {
+    "name": "Reference_threequarter",
+    "type": "PERSP",
+    "lens_mm": 90.0,
+    "ortho_scale": 6.0,
+    "location": [
+      0.33386844396591187,
+      -0.7639831900596619,
+      1.5820000171661377
+    ],
+    "rotation_euler": [
+      1.5707961320877075,
+      -2.329406001422285e-09,
+      0.43633222579956055
+    ],
+    "calibrated": false
+  },
+  {
+    "name": "Review_front",
+    "type": "ORTHO",
+    "lens_mm": 90.0,
+    "ortho_scale": 0.3089999854564667,
+    "location": [
+      0.0,
+      -1.2029999494552612,
+      1.5820000171661377
+    ],
+    "rotation_euler": [
+      1.5707964897155762,
+      -0.0,
+      0.0
+    ],
+    "calibrated": false
+  },
+  {
+    "name": "Review_low",
+    "type": "PERSP",
+    "lens_mm": 90.0,
+    "ortho_scale": 0.3089999854564667,
+    "location": [
+      0.46411454677581787,
+      -1.0743657350540161,
+      1.3241585493087769
+    ],
+    "rotation_euler": [
+      1.7949458360671997,
+      -4.796226704684159e-08,
+      0.4228539764881134
+    ],
+    "calibrated": false
+  },
+  {
+    "name": "Review_profile",
+    "type": "ORTHO",
+    "lens_mm": 90.0,
+    "ortho_scale": 0.3089999854564667,
+    "location": [
+      -1.159999966621399,
+      -0.06499999761581421,
+      1.5820000171661377
+    ],
+    "rotation_euler": [
+      1.5707963705062866,
+      -0.0,
+      -1.5707963705062866
+    ],
+    "calibrated": false
+  },
+  {
+    "name": "Review_threequarter",
+    "type": "PERSP",
+    "lens_mm": 90.0,
+    "ortho_scale": 0.3089999854564667,
+    "location": [
+      0.665216326713562,
+      -0.9933090209960938,
+      1.5820000171661377
+    ],
+    "rotation_euler": [
+      1.5707963705062866,
+      1.4855039864869468e-08,
+      0.610725998878479
+    ],
+    "calibrated": false
+  }
+]

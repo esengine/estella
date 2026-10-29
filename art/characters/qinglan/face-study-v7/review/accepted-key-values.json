@@ -1,0 +1,117 @@
+[
+  {
+    "name": "Basis_Studio_Female",
+    "value": 1.0,
+    "muted": false
+  },
+  {
+    "name": "01_Soften_brow",
+    "value": 1.0,
+    "muted": false
+  },
+  {
+    "name": "02_Nose_width",
+    "value": 1.0,
+    "muted": false
+  },
+  {
+    "name": "03_Nose_projection",
+    "value": 1.0,
+    "muted": false
+  },
+  {
+    "name": "04_Mouth_width",
+    "value": 1.0,
+    "muted": false
+  },
+  {
+    "name": "05_Lip_projection",
+    "value": 1.0,
+    "muted": false
+  },
+  {
+    "name": "06_Jaw_taper",
+    "value": 1.0,
+    "muted": false
+  },
+  {
+    "name": "07_Chin_width",
+    "value": 1.0,
+    "muted": false
+  },
+  {
+    "name": "08_Cheek_softness",
+    "value": 1.0,
+    "muted": false
+  },
+  {
+    "name": "09_Eye_aperture",
+    "value": 1.0,
+    "muted": false
+  },
+  {
+    "name": "10_Lower_face_proportion",
+    "value": 1.0,
+    "muted": false
+  },
+  {
+    "name": "11_Nasal_tip",
+    "value": 1.0,
+    "muted": false
+  },
+  {
+    "name": "V7_01_Mouth_Height",
+    "value": 1.0,
+    "muted": false
+  },
+  {
+    "name": "V7_02_Mouth_Width",
+    "value": 1.0,
+    "muted": false
+  },
+  {
+    "name": "V7_03_Jaw_Chin_Taper",
+    "value": 0.5,
+    "muted": false
+  },
+  {
+    "name": "V7_04_Orbital_Proportion",
+    "value": 1.0,
+    "muted": false
+  },
+  {
+    "name": "V7_05_Cheek_Transition",
+    "value": 0.0,
+    "muted": true
+  },
+  {
+    "name": "V7_06_Chin_Roundness",
+    "value": 1.0,
+    "muted": false
+  },
+  {
+    "name": "V7_07_Ear_Proportion",
+    "value": 1.0,
+    "muted": false
+  },
+  {
+    "name": "V7_08_Nose_Profile",
+    "value": 1.0,
+    "muted": false
+  },
+  {
+    "name": "V7_09_Upper_Lip",
+    "value": 0.0,
+    "muted": true
+  },
+  {
+    "name": "V7_10_Oral_Contact",
+    "value": 0.0,
+    "muted": true
+  },
+  {
+    "name": "V7_11_Cheek_Plane_Fairing",
+    "value": 0.0,
+    "muted": true
+  }
+]
