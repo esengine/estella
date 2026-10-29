@@ -11,6 +11,7 @@
 import { getDefaultContext } from '../ecs/context';
 import { declareButton } from './ui/button';
 import { declareInputSystem } from './input';
+import { declareUiPass } from './ui/pass';
 import { resetClassRegistry } from './registry';
 
 const declared = new WeakSet<object>();
@@ -22,6 +23,7 @@ export function declareBuiltinScripts(): void {
     declared.add(context);
     declareButton();
     declareInputSystem();
+    declareUiPass();
 }
 
 /** Test seam: forget the registry and declare again into the (possibly new) current context. */

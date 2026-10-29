@@ -25,7 +25,7 @@ export {
     AnimationClip, SceneAsset, EffectAsset, Mesh,
 } from './assets';
 export { registerBuiltinComponent, type BuiltinAdapter } from './builtins';
-export { UITransform, Label, LabelOutline, LabelShadow, Sprite, UIOpacity, Button, EventHandler } from './ui';
+export { UITransform, Label, LabelOutline, LabelShadow, Sprite, UIOpacity, Button, EventHandler, Widget, Layout, getVisibleSize, setVisibleSize } from './ui';
 export { Touch, EventTouch, pumpTouches } from './input';
 export { declareBuiltinScripts, redeclareBuiltinScripts } from './builtinScripts';
 export { classInfoNamed, classInfoOf, allClassInfos, COMPONENT_PREFIX, resetClassRegistry } from './registry';
