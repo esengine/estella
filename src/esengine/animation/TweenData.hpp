@@ -24,7 +24,26 @@ enum class EasingType : u8 {
     EaseInOutElastic,
     EaseOutBounce,
     CubicBezier,
-    Step
+    Step,
+    EaseInSine,
+    EaseOutSine,
+    EaseInOutSine,
+    EaseInQuart,
+    EaseOutQuart,
+    EaseInOutQuart,
+    EaseInQuint,
+    EaseOutQuint,
+    EaseInOutQuint,
+    EaseInExpo,
+    EaseOutExpo,
+    EaseInOutExpo,
+    EaseInCirc,
+    EaseOutCirc,
+    EaseInOutCirc,
+    EaseInBounce,
+    EaseInOutBounce,
+    Smoothstep,
+    Smootherstep
 };
 
 ES_ENUM(stability=experimental)

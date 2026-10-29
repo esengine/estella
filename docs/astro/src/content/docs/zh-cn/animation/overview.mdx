@@ -290,9 +290,10 @@ const animate = defineSystem([Res(Tween)], (tween) => {
 | `loop` | `LoopMode` | `None` | `None` / `Restart` / `PingPong`。 |
 | `loopCount` | number | `0` | 循环次数;`-1` = 永远。 |
 
-`EasingType` 覆盖 `Linear`、quad/cubic/back/elastic 系列(`EaseIn*` / `EaseOut*` /
-`EaseInOut*`)、`EaseOutBounce`、`Step` 和 `CubicBezier`——自定义贝塞尔用句柄的
-`.bezier(p1x, p1y, p2x, p2y)`。
+`EasingType` 覆盖 `Linear`、quad/cubic/quart/quint/sine/expo/circ/back/elastic
+系列(`EaseIn*` / `EaseOut*` / `EaseInOut*`)、bounce 系列(`EaseInBounce`、
+`EaseOutBounce`、`EaseInOutBounce`)、`Smoothstep` 与 `Smootherstep`、`Step` 和
+`CubicBezier`——自定义贝塞尔用句柄的 `.bezier(p1x, p1y, p2x, p2y)`。
 
 ![每种 EasingType 从 0 到 1 的曲线](@/assets/guides/tween-easings.svg)
 

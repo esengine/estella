@@ -315,9 +315,10 @@ const animate = defineSystem([Res(Tween)], (tween) => {
 | `loop` | `LoopMode` | `None` | `None` / `Restart` / `PingPong`. |
 | `loopCount` | number | `0` | Number of loops; `-1` = forever. |
 
-`EasingType` covers `Linear`, the quad/cubic/back/elastic families
-(`EaseIn*` / `EaseOut*` / `EaseInOut*`), `EaseOutBounce`, `Step`, and `CubicBezier`
-— use a custom bezier with the handle's `.bezier(p1x, p1y, p2x, p2y)`.
+`EasingType` covers `Linear`, the quad/cubic/quart/quint/sine/expo/circ/back/elastic
+families (`EaseIn*` / `EaseOut*` / `EaseInOut*`), the bounce family (`EaseInBounce`,
+`EaseOutBounce`, `EaseInOutBounce`), `Smoothstep` and `Smootherstep`, `Step`, and
+`CubicBezier` — use a custom bezier with the handle's `.bezier(p1x, p1y, p2x, p2y)`.
 
 ![Every EasingType plotted as a curve from 0 to 1](@/assets/guides/tween-easings.svg)
 

@@ -154,7 +154,26 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
         .value("EaseInOutElastic", esengine::animation::EasingType::EaseInOutElastic)
         .value("EaseOutBounce", esengine::animation::EasingType::EaseOutBounce)
         .value("CubicBezier", esengine::animation::EasingType::CubicBezier)
-        .value("Step", esengine::animation::EasingType::Step);
+        .value("Step", esengine::animation::EasingType::Step)
+        .value("EaseInSine", esengine::animation::EasingType::EaseInSine)
+        .value("EaseOutSine", esengine::animation::EasingType::EaseOutSine)
+        .value("EaseInOutSine", esengine::animation::EasingType::EaseInOutSine)
+        .value("EaseInQuart", esengine::animation::EasingType::EaseInQuart)
+        .value("EaseOutQuart", esengine::animation::EasingType::EaseOutQuart)
+        .value("EaseInOutQuart", esengine::animation::EasingType::EaseInOutQuart)
+        .value("EaseInQuint", esengine::animation::EasingType::EaseInQuint)
+        .value("EaseOutQuint", esengine::animation::EasingType::EaseOutQuint)
+        .value("EaseInOutQuint", esengine::animation::EasingType::EaseInOutQuint)
+        .value("EaseInExpo", esengine::animation::EasingType::EaseInExpo)
+        .value("EaseOutExpo", esengine::animation::EasingType::EaseOutExpo)
+        .value("EaseInOutExpo", esengine::animation::EasingType::EaseInOutExpo)
+        .value("EaseInCirc", esengine::animation::EasingType::EaseInCirc)
+        .value("EaseOutCirc", esengine::animation::EasingType::EaseOutCirc)
+        .value("EaseInOutCirc", esengine::animation::EasingType::EaseInOutCirc)
+        .value("EaseInBounce", esengine::animation::EasingType::EaseInBounce)
+        .value("EaseInOutBounce", esengine::animation::EasingType::EaseInOutBounce)
+        .value("Smoothstep", esengine::animation::EasingType::Smoothstep)
+        .value("Smootherstep", esengine::animation::EasingType::Smootherstep);
 
     enum_<esengine::ecs::EmitterShape>("EmitterShape")
         .value("Point", esengine::ecs::EmitterShape::Point)
@@ -4165,7 +4184,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "11e3c2bb051fdd37";
+static const char* kEsAbiLayoutHash = "6c653a8ebb70b5bc";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

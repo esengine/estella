@@ -3666,19 +3666,38 @@ readonly ["texture-compression-astc", "texture-compression-bc", "texture-compres
 ```
 CubicBezier = 14
 EaseInBack = 7
+EaseInBounce = 31
+EaseInCirc = 28
 EaseInCubic = 4
 EaseInElastic = 10
+EaseInExpo = 25
 EaseInOutBack = 9
+EaseInOutBounce = 32
+EaseInOutCirc = 30
 EaseInOutCubic = 6
 EaseInOutElastic = 12
+EaseInOutExpo = 27
 EaseInOutQuad = 3
+EaseInOutQuart = 21
+EaseInOutQuint = 24
+EaseInOutSine = 18
 EaseInQuad = 1
+EaseInQuart = 19
+EaseInQuint = 22
+EaseInSine = 16
 EaseOutBack = 8
 EaseOutBounce = 13
+EaseOutCirc = 29
 EaseOutCubic = 5
 EaseOutElastic = 11
+EaseOutExpo = 26
 EaseOutQuad = 2
+EaseOutQuart = 20
+EaseOutQuint = 23
+EaseOutSine = 17
 Linear = 0
+Smootherstep = 34
+Smoothstep = 33
 Step = 15
 ```
 

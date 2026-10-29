@@ -149,6 +149,50 @@ function step(t: number): number {
     return t < 1 ? 0 : 1;
 }
 
+// Sine, quart, quint, expo, circ, bounce in/in-out, smoothstep: ports of the same-named functions in EasingFunctions.hpp.
+
+export function easeInSine(t: number): number { return 1 - Math.cos((t * Math.PI) / 2); }
+export function easeOutSine(t: number): number { return Math.sin((t * Math.PI) / 2); }
+export function easeInOutSine(t: number): number { return -(Math.cos(Math.PI * t) - 1) / 2; }
+
+export function easeInQuart(t: number): number { return t * t * t * t; }
+export function easeOutQuart(t: number): number { const u = 1 - t; return 1 - u * u * u * u; }
+export function easeInOutQuart(t: number): number {
+    if (t < 0.5) return 8 * t * t * t * t;
+    const u = -2 * t + 2;
+    return 1 - (u * u * u * u) / 2;
+}
+
+export function easeInQuint(t: number): number { return t * t * t * t * t; }
+export function easeOutQuint(t: number): number { const u = 1 - t; return 1 - u * u * u * u * u; }
+export function easeInOutQuint(t: number): number {
+    if (t < 0.5) return 16 * t * t * t * t * t;
+    const u = -2 * t + 2;
+    return 1 - (u * u * u * u * u) / 2;
+}
+
+export function easeInExpo(t: number): number { return t === 0 ? 0 : 2 ** (10 * t - 10); }
+export function easeOutExpo(t: number): number { return t === 1 ? 1 : 1 - 2 ** (-10 * t); }
+export function easeInOutExpo(t: number): number {
+    if (t === 0 || t === 1) return t;
+    return t < 0.5 ? 2 ** (20 * t - 10) / 2 : (2 - 2 ** (-20 * t + 10)) / 2;
+}
+
+export function easeInCirc(t: number): number { return 1 - Math.sqrt(1 - t * t); }
+export function easeOutCirc(t: number): number { const u = t - 1; return Math.sqrt(1 - u * u); }
+export function easeInOutCirc(t: number): number {
+    if (t < 0.5) return (1 - Math.sqrt(1 - (2 * t) ** 2)) / 2;
+    return (Math.sqrt(1 - (-2 * t + 2) ** 2) + 1) / 2;
+}
+
+export function easeInBounce(t: number): number { return 1 - easeOutBounce(1 - t); }
+export function easeInOutBounce(t: number): number {
+    return t < 0.5 ? (1 - easeOutBounce(1 - 2 * t)) / 2 : (1 + easeOutBounce(2 * t - 1)) / 2;
+}
+
+export function smoothstep(t: number): number { return t <= 0 ? 0 : t >= 1 ? 1 : t * t * (3 - 2 * t); }
+export function smootherstep(t: number): number { return t <= 0 ? 0 : t >= 1 ? 1 : t * t * t * (t * (t * 6 - 15) + 10); }
+
 // =============================================================================
 // Public Easing Dispatcher
 // =============================================================================
@@ -173,6 +217,25 @@ export function applyEasing(type: EasingType, t: number, bezier?: BezierPoints):
             if (bezier) return cubicBezier(t, bezier.p1x, bezier.p1y, bezier.p2x, bezier.p2y);
             return easeLinear(t);
         case EasingType.Step:             return step(t);
+        case EasingType.EaseInSine: return easeInSine(t);
+        case EasingType.EaseOutSine: return easeOutSine(t);
+        case EasingType.EaseInOutSine: return easeInOutSine(t);
+        case EasingType.EaseInQuart: return easeInQuart(t);
+        case EasingType.EaseOutQuart: return easeOutQuart(t);
+        case EasingType.EaseInOutQuart: return easeInOutQuart(t);
+        case EasingType.EaseInQuint: return easeInQuint(t);
+        case EasingType.EaseOutQuint: return easeOutQuint(t);
+        case EasingType.EaseInOutQuint: return easeInOutQuint(t);
+        case EasingType.EaseInExpo: return easeInExpo(t);
+        case EasingType.EaseOutExpo: return easeOutExpo(t);
+        case EasingType.EaseInOutExpo: return easeInOutExpo(t);
+        case EasingType.EaseInCirc: return easeInCirc(t);
+        case EasingType.EaseOutCirc: return easeOutCirc(t);
+        case EasingType.EaseInOutCirc: return easeInOutCirc(t);
+        case EasingType.EaseInBounce: return easeInBounce(t);
+        case EasingType.EaseInOutBounce: return easeInOutBounce(t);
+        case EasingType.Smoothstep: return smoothstep(t);
+        case EasingType.Smootherstep: return smootherstep(t);
         default:                          return easeLinear(t);
     }
 }
