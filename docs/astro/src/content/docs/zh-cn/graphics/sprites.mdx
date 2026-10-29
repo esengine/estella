@@ -256,6 +256,21 @@ world.applyEntityOrder([other, another, card]);
 
 效果上的 **Remembered Brightness** 与 **Remembered Desaturation** 决定被记住的地面长什么样,**Unexplored Colour** 是没见过的地方的颜色。存档能保存玩家已经发现的地方:`exploredToString()` 返回一个字符串,`exploredFromString(text)` 把它放回去(与迷雾的 `texels` 不符时返回 false),迷雾随后据此重绘。显卡设备丢失后,也是靠这张网格重绘。场景里没有 `FogOfWar` 时,`fog2d` 效果会被关掉,而不是整屏变黑。
 
+### 脚印与涟漪
+
+给会走动的东西加 `Footsteps`,给值得留下痕迹的地面精灵加 `StepSurface`:池塘(`kind` 选 Water)、泥地或雪地(`kind` 选 Print)。走动者每走 `stride` 个世界单位就迈一步,左右脚沿前进方向交替。踩在 Water 表面上留下一个从三分之一大小扩散并淡出的**涟漪**;踩在 Print 表面上留下一个保持原大小、在 `printLife` 秒内淡去的**脚印**;其它地方什么也不留,除非走动者勾选 `onBareGround`。表面覆盖的地面是它精灵的矩形,勾 `round` 则取矩形内接的椭圆;两个表面都盖住同一点时,精灵层更高的那个生效。
+
+| 字段 | 所在组件 | 作用 |
+|---|---|---|
+| `stride`、`width` | `Footsteps` | 两步之间的距离,以及左右脚相距多远。 |
+| `printSize`、`printLife`、`printColor` | `Footsteps` | 脚印的长度、持续多久、颜色(alpha 是最浓时的透明度)。 |
+| `rippleSize`、`rippleLife`、`rippleColor` | `Footsteps` | 涟漪最终的宽度、扩散并淡出要多久、颜色。 |
+| `layer` | `Footsteps` | 痕迹画在哪个精灵层:在地面之上、走动者之下。 |
+| `printTexture`、`rippleTexture` | `Footsteps` | 自己的纹理句柄;0 表示用引擎画出来的那两张(切成椭圆的圆盘,和一个圆环)。 |
+| `kind`、`round`、`margin` | `StepSurface` | Water 或 Print;取矩形内接椭圆;边缘外多远仍算在表面上。 |
+
+每一步都是引擎自己生成、自己收走的精灵,不会被保存,所有走动者加起来最多同时存在 256 个。走动者瞬移越过半个世界时,那一跳不算步数。
+
 ### 深度层(2.5D)
 
 在 **设置 → 项目 → 渲染 → 高级 → 深度排序层** 勾选某个层后,该层完全不再依赖

@@ -2048,6 +2048,111 @@
       ]
     },
     {
+      "name": "Footsteps",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "stride",
+          "type": "number",
+          "default": "28",
+          "doc": "How far it travels between two steps.",
+          "range": "≥ 1, step 1"
+        },
+        {
+          "key": "width",
+          "type": "number",
+          "default": "10",
+          "doc": "How far apart the left and right feet are.",
+          "range": "≥ 0, step 1"
+        },
+        {
+          "key": "printSize",
+          "type": "number",
+          "default": "14",
+          "doc": "A footprint's length.",
+          "range": "≥ 1, step 1"
+        },
+        {
+          "key": "printLife",
+          "type": "number",
+          "default": "6",
+          "doc": "How long a footprint lasts before it has faded.",
+          "range": "≥ 0.1, step 0.1"
+        },
+        {
+          "key": "printColor",
+          "type": "Color",
+          "default": "#00000066"
+        },
+        {
+          "key": "rippleSize",
+          "type": "number",
+          "default": "64",
+          "doc": "A ring's width when it has spread.",
+          "range": "≥ 1, step 1"
+        },
+        {
+          "key": "rippleLife",
+          "type": "number",
+          "default": "1.4",
+          "doc": "How long a ring takes to spread and fade.",
+          "range": "≥ 0.1, step 0.1"
+        },
+        {
+          "key": "rippleColor",
+          "type": "Color",
+          "default": "#ffffffb3"
+        },
+        {
+          "key": "layer",
+          "type": "number",
+          "default": "1",
+          "doc": "The sprite layer the steps are drawn on: above the ground, below whatever walks.",
+          "range": "step 1"
+        },
+        {
+          "key": "onBareGround",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Also leave a print where there is no StepSurface."
+        },
+        {
+          "key": "printTexture",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "rippleTexture",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "stride",
+        "width",
+        "printSize",
+        "printLife",
+        "printColor.r",
+        "printColor.g",
+        "printColor.b",
+        "printColor.a",
+        "rippleSize",
+        "rippleLife",
+        "rippleColor.r",
+        "rippleColor.g",
+        "rippleColor.b",
+        "rippleColor.a",
+        "layer",
+        "printTexture",
+        "rippleTexture"
+      ]
+    },
+    {
       "name": "Health",
       "source": "ts",
       "fields": [
@@ -5686,6 +5791,44 @@
       "animatable": [
         "state",
         "batched"
+      ]
+    },
+    {
+      "name": "StepSurface",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "kind",
+          "type": "enum",
+          "default": "Water (a ring)",
+          "doc": "What a step on this ground leaves: a ring that spreads, or a footprint.",
+          "values": [
+            "Water (a ring)",
+            "Print (a footprint)"
+          ]
+        },
+        {
+          "key": "round",
+          "type": "boolean",
+          "default": "false",
+          "doc": "The covered ground is the ellipse inside the sprite's rectangle and not the whole of it."
+        },
+        {
+          "key": "margin",
+          "type": "number",
+          "default": "0",
+          "doc": "Ground around the sprite's edge that counts as on it, in world units.",
+          "range": "≥ 0, step 1"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "kind",
+        "margin"
       ]
     },
     {

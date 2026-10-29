@@ -302,6 +302,24 @@ The effect's **Remembered Brightness** and **Remembered Desaturation** say how t
 `exploredToString()` gives a string and `exploredFromString(text)` puts it back (false for one that does not fit the fog's `texels`), and the fog repaints from it. The same grid is
 what repaints the map after a lost graphics device. A scene with no `FogOfWar` has its `fog2d` effect turned off, not black.
 
+### Footsteps and ripples
+
+Put `Footsteps` on what walks, and `StepSurface` on the sprites that are ground worth marking: a pond (`kind` Water), a mud flat or snow (`kind` Print). Every `stride` world units
+the walker travels it takes a step, alternating left and right of the way it is heading. A step on a Water surface is a **ring** that spreads from a third of its size and fades;
+on a Print surface it is a **footprint** that stays full size and fades over `printLife` seconds; anywhere else it is nothing, unless the walker sets `onBareGround`. A surface's covered
+ground is its sprite's rectangle, or the ellipse inside it with `round`, and where two cover a point the one on the higher sprite layer wins.
+
+| Field | On | What it does |
+|---|---|---|
+| `stride`, `width` | `Footsteps` | How far between two steps, and how far apart the left and right feet are. |
+| `printSize`, `printLife`, `printColor` | `Footsteps` | A footprint's length, how long it lasts, and its colour (alpha is its strongest). |
+| `rippleSize`, `rippleLife`, `rippleColor` | `Footsteps` | A ring's final width, how long it takes to spread and fade, and its colour. |
+| `layer` | `Footsteps` | The sprite layer the steps are drawn on: above the ground, below whatever walks. |
+| `printTexture`, `rippleTexture` | `Footsteps` | A texture handle of your own for either; 0 uses the ones drawn by the engine (a disc cut to an oval, and a ring). |
+| `kind`, `round`, `margin` | `StepSurface` | Water or Print; the ellipse inside the rectangle; ground round the edge that counts. |
+
+Each step is a sprite of its own that the engine spawns and puts away, never saved, and at most 256 are alive at once over every walker. A walker that jumps across the world (a teleport) takes no steps for the jump.
+
 ### Depth layers (2.5D)
 
 Check a layer under **Settings → Project → Rendering → Advanced → Depth-sorted layers** and it
