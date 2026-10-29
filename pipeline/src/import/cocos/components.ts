@@ -31,6 +31,23 @@ export interface AssetHints {
     bakedOutline?: boolean;
 }
 
+/** What a Cocos material says that a MeshRenderer, a Sprite or a particle can carry: the image and tint, and how it blends and culls. */
+export interface MaterialInfo {
+    texture: CocosAssetEntry | null;
+    /** The tint (`mainColor` or `albedo`), 0..1, when the material sets one. */
+    color?: { r: number; g: number; b: number; a: number };
+    normal?: CocosAssetEntry | null;
+    additive: boolean;
+    /** Blends with what is behind it. */
+    transparent: boolean;
+    /** The effect does not light the surface. */
+    unlit: boolean;
+    /** Faces turned away are not drawn. */
+    cullBack: boolean;
+    /** The effect is one of the engine's built-ins rather than the project's own shader, which is approximated. */
+    builtinEffect: boolean;
+}
+
 export interface ComponentContext {
     assets: CocosAssetIndex;
     report: ImportReport;
@@ -41,8 +58,8 @@ export interface ComponentContext {
      * outline's colour supplied at draw time. Such a font has to say so, in the channel flags BMFont gives that layout.
      */
     drawsBakedOutline?(materialUuid: string): boolean;
-    /** A material's main texture and whether it blends additively; null when the project has no such material. */
-    material?(uuid: string): { texture: CocosAssetEntry | null; additive: boolean } | null;
+    /** What a Cocos material draws and how; null when the project has no such material. */
+    material?(uuid: string): MaterialInfo | null;
     /**
      * The engine MeshRenderer data of the part of a model a Cocos mesh sub-asset names, once that model was brought in. `exact` is false when
      * the part was picked because the model draws only one.
@@ -510,6 +527,35 @@ const PRIMITIVE_MESHES: Record<string, { ref: string; size: number }> = {
 };
 const ENGINE_PRIMITIVE_SIZE = 100;
 
+/**
+ * Put a Cocos material on a MeshRenderer's data: its image and tint, whether it blends, whether it lights, which faces it draws. The material the
+ * model brought is dropped then, since a material owns shading fully and would hide these. Only the first of several materials is carried.
+ *
+ * @returns `found`: the project had the material; `exact`: it was one of the built-in effects, so nothing of its look was approximated.
+ */
+function applyMaterial(data: Raw, c: CocosComponent, ctx: ComponentContext, where: string): { found: boolean; exact: boolean } {
+    const uuids = (Array.isArray(c.data._materials) ? c.data._materials : []).map(uuidOf).filter(Boolean);
+    const info = uuids[0] ? ctx.material?.(uuids[0]) ?? null : null;
+    if (!info) {
+        if (uuids.length > 0) ctx.report.note('mesh-material-missing', where);
+        return { found: false, exact: false };
+    }
+    delete data.material;
+    if (info.texture) data.texture = ctx.assetRef(info.texture);
+    if (info.normal) data.normalMap = ctx.assetRef(info.normal);
+    if (info.color) data.color = info.color;
+    data.lit = !info.unlit;
+    data.opaque = !info.transparent;
+    data.cullBackfaces = info.cullBack;
+    let exact = info.builtinEffect;
+    if (!info.builtinEffect) ctx.report.note('mesh-custom-effect', where);
+    if (uuids.length > 1) {
+        exact = false;
+        ctx.report.note('mesh-several-materials', where);
+    }
+    return { found: true, exact };
+}
+
 /** `cc.MeshRenderer`: the mesh is the model's own part, drawn with the model's own material until the Cocos material is carried across. */
 function meshRenderer(c: CocosComponent, ctx: ComponentContext, where: string): { component: ComponentData; scale?: number; partial: boolean } | null {
     const meshUuid = uuidOf(c.data._mesh);
@@ -520,15 +566,16 @@ function meshRenderer(c: CocosComponent, ctx: ComponentContext, where: string): 
             ctx.report.note('mesh-builtin-shape-unknown', `${where}: ${meshUuid.split('@')[1] ?? ''}`);
             return null;
         }
-        if (hasMaterial) ctx.report.note('mesh-material-not-carried', where);
-        return {
-            component: { type: 'MeshRenderer', data: { mesh: primitive.ref, enabled: c.enabled } },
-            scale: primitive.size / ENGINE_PRIMITIVE_SIZE,
-            partial: hasMaterial,
-        };
+        const data: Raw = { mesh: primitive.ref, enabled: c.enabled };
+        const applied = applyMaterial(data, c, ctx, where);
+        return { component: { type: 'MeshRenderer', data }, scale: primitive.size / ENGINE_PRIMITIVE_SIZE, partial: hasMaterial && !applied.exact };
     }
     const found = meshUuid ? ctx.modelMesh?.(meshUuid) : null;
-    if (!found) return null;
+    if (!found) {
+        ctx.report.note(meshUuid ? 'mesh-model-part-not-found' : 'mesh-none', `${where}: ${meshUuid}`);
+        return null;
+    }
+    const materials = (Array.isArray(c.data._materials) ? c.data._materials : []).map(uuidOf).filter(Boolean);
     let partial = false;
     if (found.components.length > 1) {
         partial = true;
@@ -538,11 +585,16 @@ function meshRenderer(c: CocosComponent, ctx: ComponentContext, where: string): 
         partial = true;
         ctx.report.note('mesh-guessed-from-model', where);
     }
-    if (hasMaterial) {
-        partial = true;
-        ctx.report.note('mesh-material-from-model', where);
+    const data: Raw = { ...found.components[0]!, enabled: c.enabled };
+    if (materials.length > 0) {
+        const applied = applyMaterial(data, c, ctx, where);
+        if (!applied.exact) partial = true;
+        if (!applied.found) {
+            partial = true;
+            ctx.report.note('mesh-material-from-model', where);
+        }
     }
-    return { component: { type: 'MeshRenderer', data: { ...found.components[0]!, enabled: c.enabled } }, partial };
+    return { component: { type: 'MeshRenderer', data }, partial };
 }
 
 /** `cc.UIOpacity`: the alpha of the node and everything under it, which the engine's GroupOpacity is. */

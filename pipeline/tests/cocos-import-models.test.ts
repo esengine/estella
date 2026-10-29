@@ -17,6 +17,9 @@ import { importCocosProject } from '../src/import/cocos';
 const MODEL = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const PREFAB = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const PRIMITIVES = '1263d74c-8167-4928-91a6-4e2672411f47';
+const GROUND_IMG = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+const GROUND_MAT = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+const STANDARD = 'a3cd009f-0ab0-420d-9278-b9fdab939bbc';
 
 const vec = (x: number, y: number, z = 0) => ({ __type__: 'cc.Vec3', x, y, z });
 const ident = { __type__: 'cc.Quat', x: 0, y: 0, z: 0, w: 1 };
@@ -51,7 +54,7 @@ const propsPrefab = [
     { __type__: 'cc.MeshRenderer', node: { __id__: 2 }, _enabled: true, __prefab: { __id__: 12 }, _materials: [], _mesh: { __uuid__: `${MODEL}@00a01` } }, // 3
     { __type__: 'cc.PrefabInfo', root: { __id__: 1 }, asset: { __id__: 0 }, fileId: 'propsRoot', instance: null }, // 4
     node('Ground', 1, [], [6], 13, vec(0, 0), vec(2, 2, 2)),                                            // 5
-    { __type__: 'cc.MeshRenderer', node: { __id__: 5 }, _enabled: true, __prefab: { __id__: 14 }, _materials: [], _mesh: { __uuid__: `${PRIMITIVES}@fc873` } }, // 6
+    { __type__: 'cc.MeshRenderer', node: { __id__: 5 }, _enabled: true, __prefab: { __id__: 14 }, _materials: [{ __uuid__: GROUND_MAT }], _mesh: { __uuid__: `${PRIMITIVES}@fc873` } }, // 6
     { __type__: 'cc.Node', _name: 'unused' },                                                           // 7
     { __type__: 'cc.Node', _objFlags: 0, _parent: { __id__: 1 }, _prefab: { __id__: 9 } },              // 8  (instance of the model's scene)
     { __type__: 'cc.PrefabInfo', root: { __id__: 8 }, asset: { __uuid__: `${MODEL}@00b02` }, fileId: 'modelRoot', instance: { __id__: 10 } }, // 9
@@ -92,6 +95,14 @@ beforeAll(async () => {
             '00b02': { importer: 'gltf-scene', uuid: `${MODEL}@00b02`, name: 'tri.prefab', userData: { gltfIndex: 0 } },
         },
     }));
+    put('tex/ground.png', 'not really a png');
+    put('tex/ground.png.meta', meta(GROUND_IMG, 'image', { subMetas: { '6c48a': { importer: 'texture', uuid: `${GROUND_IMG}@6c48a`, name: 'texture', userData: {} } } }));
+    put('mat/ground.mtl', {
+        __type__: 'cc.Material', _effectAsset: { __uuid__: STANDARD }, _techIdx: 0,
+        _props: [{ mainTexture: { __uuid__: `${GROUND_IMG}@6c48a` }, mainColor: { __type__: 'cc.Color', r: 255, g: 128, b: 0, a: 255 } }],
+        _states: [{ rasterizerState: { cullMode: 0 }, blendState: { targets: [{ blend: true, blendSrc: 2, blendDst: 4 }] } }],
+    });
+    put('mat/ground.mtl.meta', meta(GROUND_MAT, 'material'));
     put('props/props.prefab', propsPrefab);
     put('props/props.prefab.meta', meta(PREFAB, 'prefab'));
     sourceBefore = readFileSync(path.join(src, 'assets', 'models/tri/tri.gltf'), 'utf8');
@@ -144,6 +155,18 @@ describe('a Cocos built-in shape', () => {
         // the engine's quad is 100 across and Cocos's is 1: a node scaled 2 stands at 2 / 100 of the engine's
         const transform = ground.components.find((c: any) => c.type === 'Transform');
         expect(transform.data.scale.x).toBeCloseTo(0.02, 6);
+    });
+
+    it('wears the Cocos material it was given: its image, tint, blending and culling', () => {
+        const ground = entity(readJson('assets/cocos/props/props.esprefab'), 'Ground');
+        const mesh = ground.components.find((c: any) => c.type === 'MeshRenderer').data;
+        expect(mesh.texture).toBe('assets/cocos/tex/ground.png');
+        expect(mesh.color.r).toBeCloseTo(1, 5);
+        expect(mesh.color.g).toBeCloseTo(128 / 255, 5);
+        expect(mesh.lit).toBe(true);        // the built-in standard effect lights the surface
+        expect(mesh.opaque).toBe(false);    // it blends
+        expect(mesh.cullBackfaces).toBe(false);   // cull mode none
+        expect(report.components['cc.MeshRenderer']?.mapped).toBeGreaterThanOrEqual(1);
     });
 });
 

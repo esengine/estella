@@ -28,6 +28,8 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(cocos): a MeshRenderer wears the Cocos material it was given (image, tint, blending, culling, lighting), and a mesh is found by its place in the model when its name is not readable':
+    {"internal":"The Cocos Creator compatibility layer and importer have not shipped; nothing a creator reaches without opting in."},
   'feat(cocos): the importer binds SkinnedMeshRenderer to the model skin and plays SkeletalAnimation clips on the skeleton they are put on, cut to the span and wrap mode Cocos names':
     {"internal":"The Cocos Creator compatibility layer and importer have not shipped; nothing a creator reaches without opting in."},
   'feat(cocos): the importer brings in the models a project draws with the engine model import, maps MeshRenderer and the built-in shapes onto it, and the editor and the importer share one model import':

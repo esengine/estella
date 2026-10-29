@@ -19,6 +19,7 @@ import { convertPrefab, convertScene, type ConvertContext } from './convert';
 import { parseCocosDocument, type CocosDocument } from './document';
 import { ImportReport, type ImportReportData } from './report';
 import { CocosModels, clipOf, clipPlayOf, retargetClip } from './models';
+import type { MaterialInfo } from './components';
 
 export interface CocosImportOptions {
     /** The Cocos project folder (the one holding `assets/` and `settings/`). */
@@ -195,9 +196,17 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
             const hit = name ? m.use.byEntity.get(name) : undefined;
             const renderers = (hit ?? []).filter((c) => c.type === 'MeshRenderer');
             if (renderers.length > 0) return { components: renderers.map((c) => structuredClone(c.data) as Record<string, unknown>), exact: true };
+            // a mesh's name can be in any language and any state of repair, but its place in the file is a number: the engine names the parts of a
+            // model with several meshes `<stem>_<mesh>_<primitive>`
+            const gltfIndex = m.entry.subs.get(uuid)?.userData.gltfIndex;
+            if (typeof gltfIndex === 'number') {
+                const wanted = new RegExp(`_${gltfIndex}_\\d+\\.esmesh$`);
+                const byIndex = [...m.use.byEntity.values()].flat().filter((c) => c.type === 'MeshRenderer' && typeof (c.data as { mesh?: unknown }).mesh === 'string' && wanted.test((c.data as { mesh: string }).mesh));
+                if (byIndex.length > 0) return { components: byIndex.map((c) => structuredClone(c.data) as Record<string, unknown>), exact: true };
+            }
             // a model with one drawn part has no other mesh a node could mean
             const all = [...m.use.byEntity.values()].flat().filter((c) => c.type === 'MeshRenderer');
-            return all.length === 1 ? { components: [structuredClone(all[0]!.data) as Record<string, unknown>], exact: false } : null;
+            return all.length === 1 ? { components: [structuredClone(all[0]!.data) as Record<string, unknown>], exact: true } : null;
         },
         loadPrefab(uuid) {
             const e = prefabEntry(uuid);
@@ -216,22 +225,51 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
         },
     };
 
-    // What a particle material draws and how: its main texture (a sub-asset of an image) and whether the destination factor is One.
-    const materials = new Map<string, { texture: CocosAssetEntry | null; additive: boolean } | null>();
-    const materialInfo = (materialUuid: string): { texture: CocosAssetEntry | null; additive: boolean } | null => {
+    // What a material draws and how: its main texture (a sub-asset of an image), its tint, and the state it sets.
+    const BUILTIN_EFFECTS = new Set(['a3cd009f-0ab0-420d-9278-b9fdab939bbc', '1baf0fc9-befa-459c-8bdd-af1a450a0319']); // builtin-standard, builtin-unlit
+    const BUILTIN_UNLIT = '1baf0fc9-befa-459c-8bdd-af1a450a0319';
+    const materials = new Map<string, MaterialInfo | null>();
+    const colorOf = (v: unknown): { r: number; g: number; b: number; a: number } | undefined => {
+        if (typeof v !== 'object' || v === null) return undefined;
+        const o = v as Record<string, unknown>;
+        const n = (x: unknown, d: number): number => (typeof x === 'number' && Number.isFinite(x) ? x : d);
+        // a Color is 0..255 by r g b a; a Vec4 is 0..1 by x y z w
+        if ('r' in o) return { r: n(o.r, 255) / 255, g: n(o.g, 255) / 255, b: n(o.b, 255) / 255, a: n(o.a, 255) / 255 };
+        if ('x' in o) return { r: n(o.x, 1), g: n(o.y, 1), b: n(o.z, 1), a: n(o.w, 1) };
+        return undefined;
+    };
+    const materialInfo = (materialUuid: string): MaterialInfo | null => {
         if (materials.has(materialUuid)) return materials.get(materialUuid) ?? null;
-        let info: { texture: CocosAssetEntry | null; additive: boolean } | null = null;
+        let info: MaterialInfo | null = null;
         try {
             const mat = index.byUuid.get(materialUuid);
             if (mat) {
                 const json = JSON.parse(readFileSync(mat.file, 'utf8')) as {
-                    _props?: Array<{ mainTexture?: { __uuid__?: string } }>;
-                    _states?: Array<{ blendState?: { targets?: Array<{ blend?: boolean; blendDst?: number }> } }>;
+                    _effectAsset?: { __uuid__?: string };
+                    _props?: Array<Record<string, unknown>>;
+                    _states?: Array<{ blendState?: { targets?: Array<{ blend?: boolean; blendSrc?: number; blendDst?: number }> }; rasterizerState?: { cullMode?: number } }>;
                 };
-                const texUuid = json._props?.find((p) => p.mainTexture?.__uuid__)?.mainTexture?.__uuid__;
-                const base = typeof texUuid === 'string' ? texUuid.split('@')[0]! : undefined;
+                const props = Object.assign({}, ...(json._props ?? [])) as Record<string, unknown>;
+                const uuidIn = (v: unknown): string | undefined => (typeof v === 'object' && v !== null ? ((v as { __uuid__?: string }).__uuid__ ?? undefined) : undefined);
+                const entryOf = (v: unknown): CocosAssetEntry | null => {
+                    const u = uuidIn(v);
+                    return u ? index.byUuid.get(u.split('@')[0]!) ?? null : null;
+                };
                 const target = json._states?.[0]?.blendState?.targets?.[0];
-                info = { texture: base ? index.byUuid.get(base) ?? null : null, additive: target?.blend === true && target.blendDst === 1 };
+                const effectUuid = json._effectAsset?.__uuid__ ?? '';
+                const effectEntry = index.byUuid.get(effectUuid);
+                const effectName = (effectEntry ? path.basename(effectEntry.rel) : '').toLowerCase();
+                const color = colorOf(props.mainColor) ?? colorOf(props.albedo);
+                info = {
+                    texture: entryOf(props.mainTexture) ?? entryOf(props.albedoMap),
+                    ...(color ? { color } : {}),
+                    normal: entryOf(props.normalMap),
+                    additive: target?.blend === true && target.blendDst === 1,
+                    transparent: target?.blend === true,
+                    unlit: effectUuid === BUILTIN_UNLIT || effectName.includes('unlit'),
+                    cullBack: (json._states?.[0]?.rasterizerState?.cullMode ?? 2) === 2,
+                    builtinEffect: BUILTIN_EFFECTS.has(effectUuid),
+                };
             }
         } catch {
             info = null;
