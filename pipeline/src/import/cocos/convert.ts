@@ -233,7 +233,7 @@ function flatten(tree: XNode, ctx: ConvertContext): Map<string, Flat> {
     const out = new Map<string, Flat>();
     const walk = (x: XNode): void => {
         const conv = convertNode(x.node, ctx, `${ctx.where}: ${x.node.name}`);
-        out.set(x.addr, { name: x.node.name, visible: x.node.active, components: conv.components });
+        out.set(x.addr, { name: x.node.name, visible: true, components: conv.components });
         x.children.forEach(walk);
     };
     walk(tree);
@@ -302,7 +302,7 @@ export function convertPrefab(doc: CocosDocument, ctx: ConvertContext): PrefabFi
     const walk = (n: CocosNode, parent: string | null): void => {
         ctx.report.nodes++;
         const here = `${ctx.where}: ${n.name}`;
-        const entity: PrefabEntity = { prefabEntityId: n.id, name: n.name, parent, children: [], components: [], visible: n.active };
+        const entity: PrefabEntity = { prefabEntityId: n.id, name: n.name, parent, children: [], components: [], visible: true };
         entities.push(entity);
         const ref = n.instance ? ctx.prefabRef(n.instance.asset) : null;
         const overrides = n.instance && ref ? instanceOverrides(n, ctx) : null;
@@ -357,7 +357,7 @@ export function convertScene(doc: CocosDocument, ctx: ConvertContext): SceneFile
             parent: parent ? parent.id : null,
             children: [],
             components: conv.components,
-            visible: n.active,
+            visible: true,
         };
         if ('metadata' in conv && conv.metadata) entity.metadata = conv.metadata;
         entities.push(entity);

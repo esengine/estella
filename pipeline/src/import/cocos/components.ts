@@ -251,6 +251,9 @@ export interface ConvertedNode {
 
 export function convertNode(node: CocosNode, ctx: ComponentContext, where: string): ConvertedNode {
     const components: ComponentData[] = [transform(node)];
+    // Cocos `active` is switched-off-with-its-subtree, which is what the engine's Disabled tag means; `visible: false`
+    // would instead not create the entity at all and leave its children standing on their own.
+    if (!node.active) components.push({ type: 'Disabled', data: {} });
     const box = uiBox(node);
     const unmapped: Raw[] = [];
 
