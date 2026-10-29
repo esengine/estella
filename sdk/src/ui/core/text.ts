@@ -43,6 +43,8 @@ export const TextOverflow = {
     Visible: 0,
     Clip: 1,
     Ellipsis: 2,
+    /** Smaller type until the text fits the box: the size drops a whole pixel at a time, and line height and letter spacing with it. */
+    Shrink: 3,
 } as const;
 /** @public */
 export type TextOverflow = (typeof TextOverflow)[keyof typeof TextOverflow];
@@ -187,7 +189,7 @@ export const Text = defineComponent<TextData>('Text', {
         verticalAlign: { enum: enumOptions(TextVerticalAlign), tooltip: 'Vertical alignment: within the layout box when the entity has a UINode, else it anchors the text to the entity origin (top/middle/bottom).' },
         overflow: {
             enum: enumOptions(TextOverflow),
-            tooltip: 'What text too big for its box does. Needs a layout box: Clip and Ellipsis drop the lines past its height and trim a line past its width.',
+            tooltip: 'What text too big for its box does. Needs a layout box: Clip and Ellipsis drop the lines past its height and trim a line past its width; Shrink sets the text smaller until it fits both.',
         },
         renderMode: { enum: enumOptions(TextRenderMode) },
         boxWidth: { tooltip: 'Layout box width for a text with no UINode (0 = no box: the origin is the box). Alignment, wrapping and overflow work inside it. A UINode, if present, decides the box instead.' },

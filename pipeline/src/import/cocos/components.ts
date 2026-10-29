@@ -154,7 +154,7 @@ function label(c: CocosComponent, siblings: CocosComponent[], box: UiBox | null,
         align: clamp012(d._horizontalAlign),
         verticalAlign: clamp012(d._verticalAlign),
         wordWrap: d._enableWrapText !== false,
-        overflow: overflow === 1 ? 1 : 0, // Clip : Visible
+        overflow: overflow === 1 ? 1 : overflow === 2 ? 3 : 0, // Clip, Shrink, otherwise Visible
         lineHeight: fontSize > 0 ? Math.round((lineHeight / fontSize) * 1000) / 1000 : 1.2,
         bold: d._isBold === true,
         italic: d._isItalic === true,
@@ -166,9 +166,9 @@ function label(c: CocosComponent, siblings: CocosComponent[], box: UiBox | null,
         data.boxHeight = box.height;
         data.boxPivot = { x: box.ax, y: box.ay };
     }
-    if (overflow === 2 || overflow === 3) {
+    if (overflow === 3) {
         status = 'partial';
-        ctx.report.note(overflow === 2 ? 'label-shrink-overflow' : 'label-resize-height', where);
+        ctx.report.note('label-resize-height', where);
     }
 
     const fontUuid = uuidOf(d._font);

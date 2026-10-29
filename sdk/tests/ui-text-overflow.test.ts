@@ -11,7 +11,7 @@ import { describe, it, expect } from 'vitest';
 import {
     GlyphAtlas, type GlyphRasterizer, type AtlasPageStore, type RasterGlyph,
 } from '../src/ui/text/glyph-atlas';
-import { layoutText, measureWidth } from '../src/ui/text/layout';
+import { layoutText, measureWidth, shrinkFontSize } from '../src/ui/text/layout';
 import { TextOverflow } from '../src/ui/core/text';
 
 function makeAtlas(): GlyphAtlas {
@@ -158,4 +158,53 @@ it.each([-8, 0, 2.25])('matches whole-codepoint trimming with spaces and signed 
             }
         }
     }
+});
+
+describe('TextOverflow.Shrink', () => {
+    const wideText = 'the quick brown fox';
+    const at = (size: number) => measureWidth(wideText, atlas, 'Arial', size, 0);
+
+    it('leaves text that already fits exactly as it was', () => {
+        const l = lay(wideText, { boxWidth: at(F) + 40, boxHeight: LINE * 2, overflow: TextOverflow.Shrink });
+        expect(l.fontSizePx).toBeUndefined();
+        expect(l.width).toBeCloseTo(at(F));
+    });
+
+    it('takes the largest whole size that fits the width, and not one more', () => {
+        const box = at(F) * 0.6;
+        const size = shrinkFontSize(wideText, atlas, 'Arial', { fontSizePx: F, lineHeight: LINE, boxWidth: box });
+        expect(size).toBeLessThan(F);
+        expect(Number.isInteger(size)).toBe(true);
+        expect(at(size)).toBeLessThanOrEqual(box + 1e-6);
+        expect(at(size + 1)).toBeGreaterThan(box);
+    });
+
+    it('lays the text out at that size, and says which size it was', () => {
+        const box = at(F) * 0.6;
+        const l = lay(wideText, { boxWidth: box, boxHeight: LINE, overflow: TextOverflow.Shrink });
+        expect(l.fontSizePx).toBeLessThan(F);
+        expect(l.width).toBeLessThanOrEqual(box + 1e-6);
+        // line height shrinks with the type: the block is one line of the smaller size
+        expect(l.lineHeight).toBeCloseTo(LINE * (l.fontSizePx! / F));
+    });
+
+    it('fits the height of wrapped text by making the lines smaller and more of them fit', () => {
+        const box = { boxWidth: at(F) * 0.5, maxWidth: at(F) * 0.5, boxHeight: LINE * 1.5 };
+        const l = lay(wideText, { ...box, overflow: TextOverflow.Shrink });
+        expect(l.lineHeight).toBeLessThanOrEqual(box.boxHeight + 1e-6);
+        expect(l.width).toBeLessThanOrEqual(box.boxWidth + 1e-6);
+        // and the plain, unshrunk text really did not fit — otherwise this proves nothing
+        expect(lay(wideText, { ...box, overflow: TextOverflow.Visible }).lineHeight).toBeGreaterThan(box.boxHeight);
+    });
+
+    it('is a no-op without a box, since nothing can overflow one', () => {
+        const l = lay(wideText, { overflow: TextOverflow.Shrink });
+        expect(l.fontSizePx).toBeUndefined();
+    });
+
+    it('never goes below one pixel: a box too small for anything shows the smallest text, not none', () => {
+        const l = lay(wideText, { boxWidth: 1, boxHeight: 1, overflow: TextOverflow.Shrink });
+        expect(l.fontSizePx).toBe(1);
+        expect(l.glyphs.length).toBeGreaterThan(0);
+    });
 });

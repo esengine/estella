@@ -199,8 +199,14 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
     const boxHeight = p.boxHeight ?? 0;
     const boxWidth = p.boxWidth ?? 0;
 
+    // A Shrink label was laid out smaller than it was asked for, so everything measured in em from here — the baseline,
+    // half-leading, the outline — is measured in the size it got. A boxed origin already carries 0.8em of the asked-for
+    // size (rectTextBox), which is put right.
+    const fontSizePx = layout.fontSizePx ?? p.fontSizePx;
+    const lineHeightPx = p.lineHeight !== undefined ? p.lineHeight * fontSizePx / p.fontSizePx : undefined;
     const originY = textBlockOriginY(
-        p.originY ?? 0, boxHeight, layout.lineHeight, p.fontSizePx, p.verticalAlign, p.lineHeight,
+        (p.originY ?? 0) + (p.originY !== undefined ? (p.fontSizePx - fontSizePx) * 0.8 : 0),
+        boxHeight, layout.lineHeight, fontSizePx, p.verticalAlign, lineHeightPx,
     );
 
     // A string can reference glyphs across several atlas pages; each page is a
@@ -254,7 +260,7 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
     // is only ever asked for hairlines there.
     if (p.outline && p.outline.width > 0 && p.outline.color[3] > 0) {
         const w = p.outline.width;
-        const bias = outlineBias(atlas, p.fontSizePx, w);
+        const bias = outlineBias(atlas, fontSizePx, w);
         if (bias > 0) emitPass(p.outline.color, 0, 0, bias);
         else for (const [ox, oy] of OUTLINE_OFFSETS) emitPass(p.outline.color, ox * w, oy * w);
     }

@@ -59,6 +59,8 @@ export interface TextLayout {
     width: number;
     /** Line height (display px). */
     lineHeight: number;
+    /** The font size the text was laid out at, when that is not the one asked for ({@link TextOverflow.Shrink}). */
+    fontSizePx?: number;
 }
 
 /**
@@ -339,6 +341,49 @@ export function wrapLine(
 }
 
 /**
+ * The largest whole-pixel font size, at most the one asked for, at which the text fits its box: no taller than
+ * `boxHeight` and no wider than `boxWidth` (each only when given). Line height and letter spacing scale with the
+ * size, as they do for a label the author sized by hand. Never below 1px: a box too small for anything shows
+ * the smallest text rather than none.
+ *
+ * Fitting is assumed to get easier as type gets smaller, which holds for wrapping text (fewer, shorter lines) and
+ * lets a binary search stand in for trying every size.
+ */
+export function shrinkFontSize(
+    text: string, atlas: GlyphAtlas, fontFamily: string, opts: MultilineTextOptions, style = 0,
+): number {
+    const base = opts.fontSizePx;
+    const width = opts.boxWidth ?? 0;
+    const height = opts.boxHeight ?? 0;
+    if (!(base > 1) || (!(width > 0) && !(height > 0))) return base;
+    const fits = (size: number): boolean => {
+        const laid = layoutText(text, atlas, fontFamily, scaledTo(opts, size), style);
+        return (!(height > 0) || laid.lineHeight <= height + 1e-6) && (!(width > 0) || laid.width <= width + 1e-6);
+    };
+    const whole = Math.floor(base);
+    if (fits(whole)) return base;
+    let lo = 1;          // the smallest size we will answer with, whether or not it fits
+    let hi = whole - 1;  // known not to fit at `whole`
+    while (lo < hi) {
+        const mid = Math.ceil((lo + hi) / 2);
+        if (fits(mid)) lo = mid; else hi = mid - 1;
+    }
+    return lo;
+}
+
+/** The same layout request at another font size: line height and letter spacing follow, and nothing is clipped. */
+function scaledTo(opts: MultilineTextOptions, size: number): MultilineTextOptions {
+    const k = size / opts.fontSizePx;
+    return {
+        ...opts,
+        fontSizePx: size,
+        ...(opts.lineHeight !== undefined ? { lineHeight: opts.lineHeight * k } : {}),
+        ...(opts.letterSpacing !== undefined ? { letterSpacing: opts.letterSpacing * k } : {}),
+        overflow: TextOverflow.Visible,
+    };
+}
+
+/**
  * Lay out multi-line text: splits on `\n`, lays each line out
  * (rich or plain), stacks lines downward (y-up: line 0 on top) by `lineHeight`,
  * and horizontally aligns each line within the widest line's block. Pure →
@@ -351,6 +396,11 @@ export function layoutText(
     opts: MultilineTextOptions,
     style = 0,
 ): TextLayout {
+    if (opts.overflow === TextOverflow.Shrink) {
+        const size = shrinkFontSize(text, atlas, fontFamily, opts, style);
+        const fitted = layoutText(text, atlas, fontFamily, scaledTo(opts, size), style);
+        return size === opts.fontSizePx ? fitted : { ...fitted, fontSizePx: size };
+    }
     const lineHeight = opts.lineHeight ?? opts.fontSizePx * 1.2;
     const align = opts.align ?? TEXT_ALIGN_LEFT;
     const baseColor = opts.color ?? ([1, 1, 1, 1] as const);
