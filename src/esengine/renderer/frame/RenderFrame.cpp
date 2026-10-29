@@ -298,8 +298,9 @@ void RenderFrame::drawScene(DrawList::Phase phase) {
     } else {
         context_.lights().setMask2DRect(glm::vec4(0.0f));
     }
-    draw_list_.setMask2DTexture(SHADOW_2D_TEXTURE_UNIT, shadow_2d_texture_id_);
-    draw_list_.setMask2DTexture(SHAPE_2D_TEXTURE_UNIT, shape_2d_texture_id_);
+    draw_list_.setMask2DTexture(SHADOW_2D_TEXTURE_UNIT, shadow_2d_masks_[0].textureId);
+    // Unit 6 is the shape mask's, or the second shadow mask's in a frame with no cookie (see MAX_SHADOW_2D_LIGHTS).
+    draw_list_.setMask2DTexture(SHAPE_2D_TEXTURE_UNIT, shape_2d_texture_id_ != 0 ? shape_2d_texture_id_ : shadow_2d_masks_[1].textureId);
     // Here and not in flush(): the shadow pass runs before this one and decides
     // which atlas tile each light reads, so the block has to go up after it.
     context_.lights().uploadAndBind();
@@ -593,8 +594,8 @@ void RenderFrame::flush() {
             // does not exist yet. The shape mask sits below the shadow one, so a frame
             // with a shape keeps both whether anything casts or not.
             draw_list_.reserveMask2DSlots(
-                shape_2d_resource_ != rg::kNoResource ? 2u
-                    : (shadow_2d_resource_ != rg::kNoResource ? 1u : 0u));
+                (shape_2d_resource_ != rg::kNoResource || shadow_2d_masks_[1].resource != rg::kNoResource) ? 2u
+                    : (shadow_2d_masks_[0].resource != rg::kNoResource ? 1u : 0u));
             draw_list_.finalize(pool_);
         }
         {
@@ -710,8 +711,8 @@ void RenderFrame::end() {
         if (shape_2d_resource_ != rg::kNoResource) {
             scene.dependencies.push_back(shape_2d_resource_);
         }
-        if (shadow_2d_resource_ != rg::kNoResource) {
-            scene.dependencies.push_back(shadow_2d_resource_);
+        for (const Shadow2DMask& mask : shadow_2d_masks_) {
+            if (mask.resource != rg::kNoResource) scene.dependencies.push_back(mask.resource);
         }
         if (planar_resource_ != rg::kNoResource) scene.dependencies.push_back(planar_resource_);
 #ifdef ES_ENABLE_GPU_PARTICLES
@@ -1635,7 +1636,8 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
         // floors the exponent too — pow(0, 0) is 1, which lights the whole screen.
         gpu.falloff = glm::vec4(std::max(light.innerRadius, 0.0f),
                                 std::max(light.falloff, 0.0f),
-                                std::clamp(light.shadowStrength, 0.0f, 1.0f), 0.0f);
+                                // w: the shape mask channel, -1 for a light with no shape of its own. A zero would read channel 0 of whatever sits on that unit.
+                                std::clamp(light.shadowStrength, 0.0f, 1.0f), -1.0f);
         // The sprite layers it reaches ride above the tile count the shadow atlas fills in later.
         gpu.shadowMap.y = LIGHT_TILE_BITS * packLightLayerRange(light.layerMin, light.layerMax);
         if (type == ecs::LightType::Directional) {

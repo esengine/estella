@@ -94,6 +94,15 @@ int main() {
         CHECK(c[0] == 0 && c[3] == 3, "and the first four keep theirs: what is dropped is the last given, the dimmest");
     }
 
+    // --- a second mask doubles what a camp of lamps can hold
+    {
+        std::vector<ShadowMaskLight> camp;
+        for (int i = 0; i < 9; ++i) camp.push_back(lamp(static_cast<f32>(i), 0));
+        std::vector<i32> out(camp.size(), 0);
+        const u32 dropped = assignShadowChannels(camp.data(), static_cast<u32>(camp.size()), 8, out.data());
+        CHECK(dropped == 1 && out[7] == 7 && out[8] == -1, "with eight channels the eighth overlapping lamp holds the last and the ninth has none");
+    }
+
     // --- nothing at all
     {
         u32 dropped = 7;

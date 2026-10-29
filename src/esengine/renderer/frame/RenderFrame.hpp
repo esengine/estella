@@ -770,15 +770,18 @@ private:
      */
     void collectShadow2D(ecs::Registry& registry);
 
+    /// Whether some light has a cookie the shape mask will draw, which keeps the texture unit the second shadow mask would take.
+    bool hasShape2DLight(ecs::Registry& registry);
+
     /// Declares the pass that draws the mask, ahead of the scene that samples it.
     void declareShadow2DPass();
 
     /// The mask pass's body: the shadow each edge casts from each light, drawn with MIN
     /// blending so a fragment keeps the darkest claim on it. The graph cleared the target.
-    void executeShadow2DPass();
+    void executeShadow2DPass(u32 mask);
 
-    /// Fills @ref shadow_2d_vertices_ with the geometry the mask pass draws.
-    void buildShadow2DGeometry();
+    /// Fills the vertices of mask @p mask (0: channels 0 to 3, 1: channels 4 to 7) with the geometry its pass draws.
+    void buildShadow2DGeometry(u32 mask);
 
     /// Frees the mask's own GPU objects. Called while the device is still valid.
     void releaseShadow2DResources();
@@ -788,7 +791,7 @@ private:
 
     /// Whether this frame drew a mask — what the batch's slot budget and the sampler
     /// binding both key off.
-    bool shadow2DActive() const { return shadow_2d_texture_id_ != 0; }
+    bool shadow2DActive() const { return shadow_2d_masks_[0].textureId != 0; }
 
     /**
      * @brief Gathers the frame's SHAPED lights and hands each one a shape-mask channel.
@@ -917,10 +920,12 @@ private:
         f32 reach = 0.0f;
         /// Half-extent of the source, in world units — what widens the penumbra.
         f32 softness = 0.0f;
-        /// Its slot in the light array, which is what the channel is recorded against.
+        /// Its slot in the light array (or, for a tiled light, its index in the tiled list), which is what the channel is recorded against.
         u32 slot = 0;
         /// The mask channel it draws into and is read from. Lights that cannot meet share one (see ShadowChannels2D.hpp).
         u32 channel = 0;
+        /// A light of the tiled list, past the loop's sixteen.
+        bool tiled = false;
         bool directional = false;
     };
 
@@ -931,14 +936,18 @@ private:
     u32 shadow_2d_unplaced_ = 0;
     /// The mask as a graph resource: the 2D shadow pass writes it, the scene reads it
     /// through a pinned sampler unit rather than a graph-bound one.
-    rg::ResourceId shadow_2d_resource_ = rg::kNoResource;
-    u32 shadow_2d_texture_id_ = 0;
-    /// Interleaved (x, y, shadow, channel.rgba) — built on the CPU each frame, because
-    /// the geometry is a function of where every light stands.
-    std::vector<f32> shadow_2d_vertices_;
+    /// One mask of the shadow channels: [0] carries channels 0 to 3, [1] channels 4 to 7 and exists only when a light holds one of those.
+    struct Shadow2DMask {
+        rg::ResourceId resource = rg::kNoResource;
+        u32 textureId = 0;
+        /// Interleaved (x, y, shadow, channel.rgba) — built on the CPU each frame, because
+        /// the geometry is a function of where every light stands.
+        std::vector<f32> vertices;
+        BufferHandle vbo = BufferHandle::Invalid;
+        u32 vboBytes = 0;
+    };
+    Shadow2DMask shadow_2d_masks_[2];
     RetainedTextStore retained_text_;
-    BufferHandle shadow_2d_vbo_ = BufferHandle::Invalid;
-    u32 shadow_2d_vbo_bytes_ = 0;
     VertexLayoutHandle shadow_2d_layout_ = VertexLayoutHandle::Invalid;
     resource::ShaderHandle shadow_2d_shader_{};
     bool shadow_2d_shader_tried_ = false;

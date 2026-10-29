@@ -170,6 +170,13 @@ public:
         dirty_ = true;
     }
 
+    /// The same for the @p index'th light of the tiled list, the ones past the loop's sixteen.
+    void setTiledLightShadow2DChannel(u32 index, u32 channel) {
+        if (index >= tiledCount_ || channel >= MAX_SHADOW_2D_LIGHTS) return;
+        data_.tiledLights[index].shadowMap.w = static_cast<f32>(channel);
+        dirty_ = true;
+    }
+
     /// Gives light @p slot a channel of the frame's shape mask. A slot nobody names
     /// keeps -1, which is a light with no shape of its own — it lights a full circle.
     void setLightShape2DChannel(u32 slot, u32 channel) {

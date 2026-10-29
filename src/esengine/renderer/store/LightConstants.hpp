@@ -79,12 +79,17 @@ inline constexpr u32 SHAPE_2D_TEXTURE_UNIT = 6;
 /** @brief Lights whose SHAPE one frame can carry — the shape mask's four channels. */
 inline constexpr u32 MAX_SHAPE_2D_LIGHTS = 4;
 
+/// Channels one 2D shadow mask carries: an RGBA8 target has four.
+inline constexpr u32 SHADOW_2D_MASK_CHANNELS = 4;
+
 /**
  * @brief Channels of the 2D shadow mask: the lights that MEET one another and cast at once (see ShadowChannels2D.hpp).
- * @details Four because an RGBA8 target has four, and a fifth would be a second target, bind and sample. A light past them still
- *          lights the scene and stops shadowing, which is the failure a 2D scene can look at and understand.
+ * @details Eight: a second mask, which takes the shape mask's texture unit (6) because every unit above it is the first mask's and
+ *          every one below is spoken for. A frame with a light that has a cookie needs that unit for the shape mask, and has the first
+ *          mask's four. A light past the channels still lights the scene and stops shadowing, which is the failure a 2D scene can look
+ *          at and understand.
  */
-inline constexpr u32 MAX_SHADOW_2D_LIGHTS = 4;
+inline constexpr u32 MAX_SHADOW_2D_LIGHTS = 8;
 
 /**
  * @brief Slices one directional shadow map is split into, each covering a stretch

@@ -1697,7 +1697,10 @@ fn shadowFactor2D(channel : f32, worldPos : vec2f) -> f32 {
     if (channel < 0.0 || lc.u_mask2DRect.z <= 0.0) { return 1.0; }
     let uv = mask2DUv(worldPos);
     if (uv.x < 0.0) { return 1.0; }
-    let hidden = mask2DChannel(textureSampleLevel(t7, s7, uv, 0.0), channel);
+    // Channels 4 to 7 live in the second mask, which takes the shape mask's unit in a frame with no cookie.
+    var hidden = 0.0;
+    if (channel < 3.5) { hidden = mask2DChannel(textureSampleLevel(t7, s7, uv, 0.0), channel); }
+    else { hidden = mask2DChannel(textureSampleLevel(t6, s6, uv, 0.0), channel - 4.0); }
     return 1.0 - min(hidden, 1.0);
 }
 // What the light's own SHAPE covers here — its cookie, drawn into the shape mask at the
@@ -2988,7 +2991,10 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    if (uv.x < 0.0) return 1.0;\n"
             // Clamped, because two walls over one pixel add past one and a light cannot
             // be hidden more than entirely.
-            "    highp float hidden = mask2DChannel(textureLod(u_shadow2D, uv, 0.0), channel);\n"
+            // Channels 4 to 7 live in the second mask, which takes the shape mask's unit in a frame with no cookie.
+            "    highp float hidden = (channel < 3.5)\n"
+            "        ? mask2DChannel(textureLod(u_shadow2D, uv, 0.0), channel)\n"
+            "        : mask2DChannel(textureLod(u_lightShape2D, uv, 0.0), channel - 4.0);\n"
             "    return 1.0 - min(hidden, 1.0);\n"
             "}\n"
             // What the light's own SHAPE covers here — its cookie, drawn into the shape

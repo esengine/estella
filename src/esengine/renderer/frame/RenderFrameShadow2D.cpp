@@ -47,8 +47,10 @@ void RenderFrame::collectShadow2D(ecs::Registry& registry) {
     shadow_rings_2d_.clear();
     shadow_2d_lights_.clear();
     shadow_2d_unplaced_ = 0;
-    shadow_2d_resource_ = rg::kNoResource;
-    shadow_2d_texture_id_ = 0;
+    for (Shadow2DMask& mask : shadow_2d_masks_) {
+        mask.resource = rg::kNoResource;
+        mask.textureId = 0;
+    }
     context_.lights().setMask2DRect(glm::vec4(0.0f));
 
     auto casters = registry.activeView<ecs::Transform, ecs::ShadowCaster2D>();
@@ -97,17 +99,17 @@ void RenderFrame::collectShadow2D(ecs::Registry& registry) {
         ring.radius = radius;
     }
 
-    // The lights that cast. The collect already ordered the light array by what the cap
-    // sorted on, so taking them in slot order takes the brightest first, and the mask's
-    // four channels are shared by lights that cannot meet (see ShadowChannels2D.hpp).
+    // The lights that cast. The collect already ordered the light array by what the cap sorted on, so taking them in slot order takes the
+    // brightest first, the loop's sixteen and then the tiled list; the mask's channels are shared by lights that cannot meet (see
+    // ShadowChannels2D.hpp). A second mask doubles them, and takes the shape mask's texture unit: a frame with a cookie keeps the first four.
     const LightConstants& lights = context_.lights().data();
     std::vector<ShadowMaskLight> masks;
-    for (u32 slot = 0; slot < context_.lights().count(); ++slot) {
-        const GpuLight& light = lights.lights[slot];
-        if (light.color.a <= 0.0f) continue;
+    const auto consider = [&](const GpuLight& light, u32 slot, bool tiled) {
+        if (light.color.a <= 0.0f) return;
         const f32 type = light.posDir.z;
         Shadow2DLight entry;
         entry.slot = slot;
+        entry.tiled = tiled;
         entry.softness = light.shadow.x;
         if (type < 0.5f || type > 1.5f) {
             entry.pos = glm::vec2(light.posDir.x, light.posDir.y);
@@ -117,12 +119,12 @@ void RenderFrame::collectShadow2D(ecs::Registry& registry) {
             // travel and how far the author let one march. Zero distance is a sun that
             // casts none, which is the default.
             const glm::vec2 aim(light.posDir.x, light.posDir.y);
-            if (light.shadow.y <= 0.0f || glm::dot(aim, aim) < 1e-8f) continue;
+            if (light.shadow.y <= 0.0f || glm::dot(aim, aim) < 1e-8f) return;
             entry.directional = true;
             entry.dir = glm::normalize(aim);
             entry.reach = light.shadow.y;
         }
-        if (entry.reach <= 0.0f) continue;
+        if (entry.reach <= 0.0f) return;
 
         ShadowMaskLight mask;
         mask.pos = entry.pos;
@@ -137,13 +139,15 @@ void RenderFrame::collectShadow2D(ecs::Registry& registry) {
                 if (d > entry.reach + entry.softness + ring.radius) continue;
                 furthest = std::max(furthest, d + ring.radius + entry.softness);
             }
-            if (furthest < 0.0f) continue;
+            if (furthest < 0.0f) return;
             mask.read = entry.reach;
             mask.write = furthest + entry.reach * kShadow2DOvershoot;
         }
         shadow_2d_lights_.push_back(entry);
         masks.push_back(mask);
-    }
+    };
+    for (u32 slot = 0; slot < context_.lights().count(); ++slot) consider(lights.lights[slot], slot, false);
+    for (u32 index = 0; index < context_.lights().tiledCount(); ++index) consider(lights.tiledLights[index], index, true);
     if (shadow_2d_lights_.empty()) {
         shadow_rings_2d_.clear();
         shadow_points_2d_.clear();
@@ -151,7 +155,8 @@ void RenderFrame::collectShadow2D(ecs::Registry& registry) {
     }
 
     std::vector<i32> channels(masks.size(), -1);
-    const u32 dropped = assignShadowChannels(masks.data(), static_cast<u32>(masks.size()), MAX_SHADOW_2D_LIGHTS, channels.data());
+    const u32 channelCap = hasShape2DLight(registry) ? SHADOW_2D_MASK_CHANNELS : MAX_SHADOW_2D_LIGHTS;
+    const u32 dropped = assignShadowChannels(masks.data(), static_cast<u32>(masks.size()), channelCap, channels.data());
     // A light that found no free channel still lights the scene; it only casts no 2D shadow. Kept in order, so what stays is the brightest.
     usize kept = 0;
     for (usize i = 0; i < shadow_2d_lights_.size(); ++i) {
@@ -168,8 +173,11 @@ void RenderFrame::collectShadow2D(ecs::Registry& registry) {
         return;
     }
 
+    bool second = false;
     for (const Shadow2DLight& light : shadow_2d_lights_) {
-        context_.lights().setLightShadow2DChannel(light.slot, light.channel);
+        if (light.tiled) context_.lights().setTiledLightShadow2DChannel(light.slot, light.channel);
+        else context_.lights().setLightShadow2DChannel(light.slot, light.channel);
+        if (light.channel >= SHADOW_2D_MASK_CHANNELS) second = true;
     }
 
     rg::TargetDesc desc;
@@ -178,14 +186,17 @@ void RenderFrame::collectShadow2D(ecs::Registry& registry) {
     // Nearest: a fragment reads the texel it was drawn into, and a filtered read would
     // blend in the neighbouring light's shadow at a silhouette.
     desc.linearFilter = false;
-    shadow_2d_resource_ = graph_.createTarget(desc);
+    shadow_2d_masks_[0].resource = graph_.createTarget(desc);
+    if (second) shadow_2d_masks_[1].resource = graph_.createTarget(desc);
 }
 
 void RenderFrame::releaseShadow2DResources() {
-    if (shadow_2d_vbo_ != BufferHandle::Invalid) device_.deleteBuffer(shadow_2d_vbo_);
+    for (Shadow2DMask& mask : shadow_2d_masks_) {
+        if (mask.vbo != BufferHandle::Invalid) device_.deleteBuffer(mask.vbo);
+        mask.vbo = BufferHandle::Invalid;
+        mask.vboBytes = 0;
+    }
     if (shadow_2d_layout_ != VertexLayoutHandle::Invalid) device_.deleteVertexLayout(shadow_2d_layout_);
-    shadow_2d_vbo_ = BufferHandle::Invalid;
-    shadow_2d_vbo_bytes_ = 0;
     shadow_2d_layout_ = VertexLayoutHandle::Invalid;
 }
 
@@ -240,20 +251,21 @@ inline glm::vec2 extrude(const glm::vec2& p, const glm::vec2& from, f32 reach) {
 
 }  // namespace
 
-void RenderFrame::buildShadow2DGeometry() {
+void RenderFrame::buildShadow2DGeometry(u32 maskIndex) {
     ES_PROFILE_SCOPE("render.shadow2d.geometry");
-    shadow_2d_vertices_.clear();
+    std::vector<f32>& vertices = shadow_2d_masks_[maskIndex].vertices;
+    vertices.clear();
     // One silhouette is two triangles, and the worst case is every ring seen by every
     // sample of every light. Reserved once so the frame's growth is not a re-alloc.
-    shadow_2d_vertices_.reserve(shadow_rings_2d_.size() * shadow_2d_lights_.size()
-                                * shadow_2d_soft_samples_ * 6 * kShadow2DFloats);
+    vertices.reserve(shadow_rings_2d_.size() * shadow_2d_lights_.size()
+                     * shadow_2d_soft_samples_ * 6 * kShadow2DFloats);
 
-    auto vertex = [this](const glm::vec2& p, f32 shadow, u32 channel) {
-        shadow_2d_vertices_.push_back(p.x);
-        shadow_2d_vertices_.push_back(p.y);
-        shadow_2d_vertices_.push_back(shadow);
+    auto vertex = [&vertices](const glm::vec2& p, f32 shadow, u32 channel) {
+        vertices.push_back(p.x);
+        vertices.push_back(p.y);
+        vertices.push_back(shadow);
         for (u32 c = 0; c < 4; ++c) {
-            shadow_2d_vertices_.push_back(c == channel ? 1.0f : 0.0f);
+            vertices.push_back(c == channel ? 1.0f : 0.0f);
         }
     };
     auto triangle = [&vertex](const glm::vec2& a, f32 sa, const glm::vec2& b, f32 sb,
@@ -264,7 +276,9 @@ void RenderFrame::buildShadow2DGeometry() {
     };
 
     for (const Shadow2DLight& light : shadow_2d_lights_) {
-        const u32 channel = light.channel;
+        // Each mask draws the lights whose channel it carries, as that channel of its own four.
+        if (light.channel / SHADOW_2D_MASK_CHANNELS != maskIndex) continue;
+        const u32 channel = light.channel % SHADOW_2D_MASK_CHANNELS;
         // A source with width is sampled across, each sample throwing its silhouette at its own share; the shares add, which is the
         // soft edge. A penumbra made of samples IS banded: sixteen is where the bands stop reading as rays from the corner that threw them.
         const u32 samples = light.softness > 1e-4f ? shadow_2d_soft_samples_ : 1u;
@@ -337,47 +351,52 @@ void RenderFrame::buildShadow2DGeometry() {
 }
 
 void RenderFrame::declareShadow2DPass() {
-    if (shadow_2d_resource_ == rg::kNoResource) return;
-
-    rg::PassDesc mask;
-    mask.name = "shadow-2d";
-    mask.write = shadow_2d_resource_;
-    mask.clear = true;
-    // Zero is "nothing hides this light here" in all four channels, which is what a
-    // frame whose geometry comes back empty has to read as.
-    mask.clearColor[0] = mask.clearColor[1] = mask.clearColor[2] = 0.0f;
-    mask.clearColor[3] = 0.0f;
-    mask.execute = [this](const rg::PassContext&) { executeShadow2DPass(); };
-    graph_.addPass(std::move(mask));
+    for (u32 i = 0; i < 2; ++i) {
+        if (shadow_2d_masks_[i].resource == rg::kNoResource) continue;
+        rg::PassDesc mask;
+        mask.name = i == 0 ? "shadow-2d" : "shadow-2d-b";
+        mask.write = shadow_2d_masks_[i].resource;
+        mask.clear = true;
+        // Zero is "nothing hides this light here" in all four channels, which is what a
+        // frame whose geometry comes back empty has to read as.
+        mask.clearColor[0] = mask.clearColor[1] = mask.clearColor[2] = 0.0f;
+        mask.clearColor[3] = 0.0f;
+        mask.execute = [this, i](const rg::PassContext&) { executeShadow2DPass(i); };
+        graph_.addPass(std::move(mask));
+    }
 }
 
-void RenderFrame::executeShadow2DPass() {
-    if (shadow_2d_resource_ == rg::kNoResource) return;
+void RenderFrame::executeShadow2DPass(u32 maskIndex) {
+    Shadow2DMask& mask = shadow_2d_masks_[maskIndex];
+    if (mask.resource == rg::kNoResource) return;
     if (!ensureShadow2DShader()) return;
 
     ES_PROFILE_SCOPE("render.shadow2d");
-    buildShadow2DGeometry();
+    // Named before anything can return: a mask with no geometry is still cleared, and a light that holds one of its channels reads it.
+    mask.textureId = static_cast<u32>(graph_.textureOf(mask.resource));
+    buildShadow2DGeometry(maskIndex);
     // What the mask cost, in the unit it is spent in: a shadow is triangles now, and
     // neither the count nor the occluders behind it shows in a pixel.
     ES_PROFILE_COUNTER("render.shadow2d.triangles",
-                       static_cast<u32>(shadow_2d_vertices_.size() / (kShadow2DFloats * 3)));
+                       static_cast<u32>(mask.vertices.size() / (kShadow2DFloats * 3)));
     ES_PROFILE_COUNTER("render.shadow2d.occluders", static_cast<u32>(shadow_rings_2d_.size()));
     ES_PROFILE_COUNTER("render.shadow2d.lights", static_cast<u32>(shadow_2d_lights_.size()));
     // Casting lights that found every channel held by one they overlap, and so cast no 2D shadow this frame.
     ES_PROFILE_COUNTER("render.shadow2d.unplaced", shadow_2d_unplaced_);
-    if (shadow_2d_vertices_.empty()) return;
+    if (mask.vertices.empty()) return;
 
-    const u32 bytes = static_cast<u32>(shadow_2d_vertices_.size() * sizeof(f32));
-    if (shadow_2d_vbo_ == BufferHandle::Invalid || bytes > shadow_2d_vbo_bytes_) {
-        if (shadow_2d_vbo_ != BufferHandle::Invalid) device_.deleteBuffer(shadow_2d_vbo_);
+    // One buffer per mask: the second mask's pass must not find the first's geometry overwritten before it runs.
+    const u32 bytes = static_cast<u32>(mask.vertices.size() * sizeof(f32));
+    if (mask.vbo == BufferHandle::Invalid || bytes > mask.vboBytes) {
+        if (mask.vbo != BufferHandle::Invalid) device_.deleteBuffer(mask.vbo);
         // Grown in steps rather than to the exact size: the geometry follows how many
         // lights are moving, and a re-create every frame is a re-create every frame.
-        shadow_2d_vbo_bytes_ = std::max(bytes * 2u, 4096u);
-        shadow_2d_vbo_ = device_.createBuffer(
-            {GfxBufferUsage::Vertex, shadow_2d_vbo_bytes_, /*dynamic=*/true}, GfxContent::transient(), nullptr);
-        if (shadow_2d_vbo_ == BufferHandle::Invalid) return;
+        mask.vboBytes = std::max(bytes * 2u, 4096u);
+        mask.vbo = device_.createBuffer(
+            {GfxBufferUsage::Vertex, mask.vboBytes, /*dynamic=*/true}, GfxContent::transient(), nullptr);
+        if (mask.vbo == BufferHandle::Invalid) return;
     }
-    device_.updateBuffer(shadow_2d_vbo_, 0, shadow_2d_vertices_.data(), bytes);
+    device_.updateBuffer(mask.vbo, 0, mask.vertices.data(), bytes);
 
     Shader* shader = resource_manager_.getShader(shadow_2d_shader_);
     if (!shader) return;
@@ -398,11 +417,20 @@ void RenderFrame::executeShadow2DPass() {
     device_.setViewport(std::max(scene_viewport_.x, 0), std::max(scene_viewport_.y, 0),
                         static_cast<i32>(scene_viewport_.w), static_cast<i32>(scene_viewport_.h));
     context_.updateCameraConstants(view_projection_);
-    device_.setVertexBuffer(0, shadow_2d_vbo_, 0);
+    device_.setVertexBuffer(0, mask.vbo, 0);
     device_.setIndexBuffer(BufferHandle::Invalid);
-    device_.drawArrays(0, static_cast<u32>(shadow_2d_vertices_.size() / kShadow2DFloats));
+    device_.drawArrays(0, static_cast<u32>(mask.vertices.size() / kShadow2DFloats));
+}
 
-    shadow_2d_texture_id_ = static_cast<u32>(graph_.textureOf(shadow_2d_resource_));
+bool RenderFrame::hasShape2DLight(ecs::Registry& registry) {
+    auto view = registry.activeView<ecs::Transform, ecs::Light>();
+    for (auto entity : view) {
+        const auto& light = view.get<ecs::Light>(entity);
+        if (!light.enabled || !light.cookie.isValid()) continue;
+        Texture* tex = resource_manager_.getTexture(light.cookie);
+        if (tex && tex->getId() != 0) return true;
+    }
+    return false;
 }
 
 
