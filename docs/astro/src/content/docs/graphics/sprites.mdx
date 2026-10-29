@@ -283,7 +283,24 @@ player (an eye) and `SightTarget` on a sprite that should not be seen unless som
 
 A wall that contains the viewer or the target blocks nothing for that pair (standing in a bush you see out of it). A scene with no viewer hides every target. Do not
 put a `SightTarget` and a `CoverFade` on one sprite, since each owns the sprite's alpha. `segmentBlocked(from, to, rings)`, `seesPoint` and `currentSightRings()` give
-gameplay the same answer the sprites got. This is what is in view; it does not remember what was seen, so ground the player has left is dark again.
+gameplay the same answer the sprites got. This is what is in view. What was seen and left is the fog of war, below.
+
+### Fog of war
+
+Put `FogOfWar` on an entity with a `Transform` and a `fog2d` effect in the scene's post-process volume. Ground no `SightViewer` has ever seen is dark; ground it has seen and left is
+remembered, dimmed and drained of colour; ground in view is as drawn. Each frame every viewer's field of view is found by casting rays against the same walls (the `ShadowCaster2D`s)
+and painted into two maps over the rectangle the component names: where anyone sees now, and where anyone ever has.
+
+| Field | What it does |
+|---|---|
+| `width`, `height` | The world rectangle the fog covers, centred on the entity. The world has to fit in it. |
+| `texels` | How many texels a side the maps are: finer edges, and more to paint. |
+| `viewRadius` | How far a viewer with no `radius` of its own sees. |
+| `rays` | How many rays each viewer casts: the fineness of its field of view's edge. |
+
+The effect's **Remembered Brightness** and **Remembered Desaturation** say how the remembered ground looks, and **Unexplored Colour** what the unseen is. A save keeps what the player has found:
+`exploredToString()` gives a string and `exploredFromString(text)` puts it back (false for one that does not fit the fog's `texels`), and the fog repaints from it. The same grid is
+what repaints the map after a lost graphics device. A scene with no `FogOfWar` has its `fog2d` effect turned off, not black.
 
 ### Depth layers (2.5D)
 

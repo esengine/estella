@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { ShaderHandle } from '../render/material';
+import { FOG_UNIFORMS, FOG_EXPLORED_TEXTURE, FOG_VISIBLE_TEXTURE } from './fogOfWarMask';
 import { RAIN_SHELTER_UNIFORMS, RAIN_SHELTER_MASK_TEXTURE, RAIN_SHELTER_MASK_SIZE, RAIN_SHELTER_MASK_MIN, RAIN_SHELTER_MASK_MAX } from './rainShelterMask';
 import { effectSourcesOf, computeSourceOf } from './effectSources';
 import type { basicEffects } from './sources/basic';
@@ -346,6 +347,26 @@ registerEffect({
     ],
     colors: [
         { name: 'u_streakColor', label: 'Streak Colour', defaultValue: { r: 0.78, g: 0.82, b: 0.9, a: 1 } },
+    ],
+});
+
+registerEffect({
+    type: 'fog2d',
+    label: 'Fog of War 2D',
+    factory: () => postProcessEffects.createFog2d(),
+    uniforms: [
+        // How bright ground that has been seen and left is, and how much of its colour goes.
+        { name: 'u_forgetLight', label: 'Remembered Brightness', min: 0, max: 1, step: 0.01, defaultValue: 0.4 },
+        { name: 'u_forgetDesat', label: 'Remembered Desaturation', min: 0, max: 1, step: 0.01, defaultValue: 0.7 },
+        // Where the maps sit in the world, written each frame by the fog-of-war system with the maps themselves.
+        ...FOG_UNIFORMS,
+    ],
+    textures: [
+        { name: FOG_EXPLORED_TEXTURE, label: 'Explored Map', internal: true },
+        { name: FOG_VISIBLE_TEXTURE, label: 'Visible Map', internal: true },
+    ],
+    colors: [
+        { name: 'u_unexploredColor', label: 'Unexplored Colour', defaultValue: { r: 0, g: 0, b: 0, a: 1 } },
     ],
 });
 
@@ -893,7 +914,7 @@ const CATEGORIES: Record<EffectCategory, string[]> = {
     lens: ['bloom', 'depthOfField', 'motionBlur', 'lensFlare', 'filmGrain', 'chromaticAberration', 'lensDistortion', 'vignette', 'sharpen'],
     color: ['tonemap', 'agx', 'colorGrade', 'lutGrade', 'displayLut', 'autoExposure', 'grayscale'],
     light: ['ssao', 'gtao', 'ssgi', 'ssr', 'voxelGI', 'contactShadows', 'lightShafts', 'subsurface'],
-    atmosphere: ['mist2d', 'rain2d', 'distanceFog', 'heightFog', 'skyAtmosphere', 'rain'],
+    atmosphere: ['mist2d', 'rain2d', 'fog2d', 'distanceFog', 'heightFog', 'skyAtmosphere', 'rain'],
     aa: ['fxaa', 'taa'],
     stylize: ['blur', 'pixelate', 'outline', 'depthOutline', 'edgeOutline'],
 };

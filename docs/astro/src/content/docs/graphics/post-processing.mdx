@@ -25,6 +25,7 @@ several can stack in one frame at no extra target cost beyond the passes.
 | `blur` | Gaussian blur | `intensity` |
 | `fxaa` | Fast anti-aliasing | `intensity` |
 | `mist2d` | Drifting banks of mist laid over the ground in world units. Reads no depth, so a 2D scene can have it; what is lit glows through it | `density`, `coverage`, `scale`, `speed`, `direction`, `glow`, colour |
+| `fog2d` | Fog of war for a scene with no depth: ground never seen is dark, ground seen and left is remembered, dimmed and drained of colour, ground in view is as drawn; needs a `FogOfWar` | remembered brightness and desaturation, unexplored colour |
 | `rain2d` | Rain for a scene with no depth: streaks, rings and splashes and puddles on the ground in world units, dry under a `RainShelter` sprite | `intensity`, `wetness`, `puddles`, `puddleScale`, `rippleScale`, `wind`, `speed`, `streakLength`, colour |
 | `distanceFog` | Linear fog by distance from the camera | `near`, `far`, `intensity`, colour |
 | `heightFog` | Exponential height fog with the sun's glow and a hazy horizon | `density`, `heightFalloff`, `baseHeight`, `sunAzimuth`, `sunElevation`, `skyFog`, colours |

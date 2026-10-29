@@ -136,6 +136,7 @@ const DISPOSITION = {
   // — owed: a creator-facing component nothing in the shipped corpus authors.
   //   Each reason names where the coverage belongs. —
   BlobShadow: ['owed', 'only the blob-shadow render fixture places one; an example for a phone-scale scene that wants a shadow without a shadow map is owed'],
+  FogOfWar: ['owed', 'only the rainforest-2d probe, kept out of the examples, places one; it arrives with the top-down example CoverFade is owed'],
   SightViewer: ['owed', 'only the rainforest-2d probe, kept out of the examples, places one; it arrives with the top-down example CoverFade is owed'],
   SightTarget: ['owed', 'only the rainforest-2d probe, kept out of the examples, places one; it arrives with the top-down example CoverFade is owed'],
   CoverFade: ['owed', 'only the rainforest-2d probe, kept out of the examples, places one; an example of a top-down hut whose roof thins as the player walks in is owed'],

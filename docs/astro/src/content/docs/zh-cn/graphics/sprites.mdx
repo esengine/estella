@@ -241,7 +241,20 @@ world.applyEntityOrder([other, another, card]);
 | `hiddenOpacity` | `SightTarget` | 没有任何眼睛看见它时,精灵的透明度占自己的几成。0 是完全隐去。 |
 | `fadeTime` | `SightTarget` | 渐变用多少秒,来去相同。 |
 
-墙若包含了观察者或目标,对这一对就不挡视线(站在灌木里能看到外面)。场景里没有任何观察者时,所有目标都是隐藏的。不要把 `SightTarget` 和 `CoverFade` 放在同一个精灵上,两者都要管它的透明度。`segmentBlocked(from, to, rings)`、`seesPoint` 和 `currentSightRings()` 让玩法代码得到和精灵一样的答案。这里只管"此刻看得见什么",不记忆看过的地方,玩家走开后那片地面又是暗的。
+墙若包含了观察者或目标,对这一对就不挡视线(站在灌木里能看到外面)。场景里没有任何观察者时,所有目标都是隐藏的。不要把 `SightTarget` 和 `CoverFade` 放在同一个精灵上,两者都要管它的透明度。`segmentBlocked(from, to, rings)`、`seesPoint` 和 `currentSightRings()` 让玩法代码得到和精灵一样的答案。这里只管"此刻看得见什么",看过又离开的地方由下面的战争迷雾记住。
+
+### 战争迷雾
+
+给带 `Transform` 的实体加 `FogOfWar`,并在场景的后处理体积里加 `fog2d` 效果。没有任何 `SightViewer` 看过的地面是黑的;看过又离开的地面被记住,变暗并褪去颜色;眼前的地面保持原样。每一帧,每个观察者的视野用射线对着同样的墙(`ShadowCaster2D`)求出,画进组件所指定的矩形范围上的两张图:现在谁看得见,以及谁曾经看见过。
+
+| 字段 | 作用 |
+|---|---|
+| `width`、`height` | 迷雾覆盖的世界矩形,以该实体为中心。整个世界必须放得进去。 |
+| `texels` | 两张图每边的纹素数:越大边缘越细,绘制开销也越大。 |
+| `viewRadius` | 自己没有 `radius` 的观察者能看多远。 |
+| `rays` | 每个观察者投射多少条射线:决定视野边缘的细腻程度。 |
+
+效果上的 **Remembered Brightness** 与 **Remembered Desaturation** 决定被记住的地面长什么样,**Unexplored Colour** 是没见过的地方的颜色。存档能保存玩家已经发现的地方:`exploredToString()` 返回一个字符串,`exploredFromString(text)` 把它放回去(与迷雾的 `texels` 不符时返回 false),迷雾随后据此重绘。显卡设备丢失后,也是靠这张网格重绘。场景里没有 `FogOfWar` 时,`fog2d` 效果会被关掉,而不是整屏变黑。
 
 ### 深度层(2.5D)
 

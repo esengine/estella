@@ -16,6 +16,7 @@ import { Material } from '../render/material';
 import { applyWeatherToEffects, currentWeather, currentWeatherDrive } from './weather';
 import { applyCloudsToFog } from './cloudShafts';
 import { applyRainSheltersToRain } from '../render/rainShelter';
+import { applyFogOfWarToFog } from '../render/fogOfWar';
 import { runtimeTextureHandle } from './runtimeTextures';
 import { applyUnderwaterToEffects, currentUnderwater } from './underwater';
 import { applyTimeToEffects, currentTimeOfDay, currentTimeDrive, timeLightsApplied } from './timeOfDay';
@@ -307,6 +308,7 @@ export function effectsAt(volumes: { data: PostProcessVolumeData; tx: VolumeTran
     applyCloudsToFog(blended);
     // A 2D rain is told where the ground under a roof is dry, by a mask drawn this frame.
     applyRainSheltersToRain(blended);
+    applyFogOfWarToFog(blended);
     // A camera under water: the effect the water module says it needs.
     applyUnderwaterToEffects(blended, currentUnderwater());
     return blended;

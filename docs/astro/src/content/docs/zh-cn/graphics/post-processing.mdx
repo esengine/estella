@@ -27,6 +27,7 @@ Estella 通过 ping-pong 帧缓冲运行全屏后处理。加一个 `PostProcess
 | `blur` | 高斯模糊 | `intensity` |
 | `fxaa` | 快速抗锯齿 | `intensity` |
 | `mist2d` | 按世界坐标铺在地面上的、会飘动的成团薄雾。不读深度，2D 场景也能用；被照亮的东西会在雾里发光 | `density`、`coverage`、`scale`、`speed`、`direction`、`glow`、颜色 |
+| `fog2d` | 给没有深度的场景用的战争迷雾:没见过的地面是黑的,见过又离开的地面被记住并变暗褪色,眼前的地面保持原样;需要 `FogOfWar` | 被记住的亮度与褪色、未探索区域的颜色 |
 | `rain2d` | 给没有深度的场景用的雨：雨线、按世界坐标落在地面上的涟漪、溅花和积水，`RainShelter` 精灵下面是干的 | `intensity`、`wetness`、`puddles`、`puddleScale`、`rippleScale`、`wind`、`speed`、`streakLength`、颜色 |
 | `distanceFog` | 按到相机的距离做线性雾 | `near`、`far`、`intensity`、颜色 |
 | `heightFog` | 指数高度雾,带太阳辉光和朦胧的地平线 | `density`、`heightFalloff`、`baseHeight`、`sunAzimuth`、`sunElevation`、`skyFog`、颜色 |

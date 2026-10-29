@@ -25,6 +25,7 @@ import { playModeOnly } from '../ecs/env';
 import { installCoverFade } from '../render/coverFade';
 import { installRainShelter } from '../render/rainShelter';
 import { installSight } from '../render/sight';
+import { installFogOfWar } from '../render/fogOfWar';
 import { SystemLabel } from '../ecs/systemLabels';
 
 export class AnimationPlugin implements Plugin {
@@ -59,7 +60,9 @@ export class AnimationPlugin implements Plugin {
         const offCoverFade = installCoverFade(app);
         const offRainShelter = installRainShelter(app);
         const offSight = installSight(app);
-        const release = (): void => { offDespawn(); offCoverFade(); offRainShelter(); offSight(); };
+        // After the sight system, whose walls it casts rays against.
+        const offFog = installFogOfWar(app);
+        const release = (): void => { offDespawn(); offCoverFade(); offRainShelter(); offSight(); offFog(); };
         this.despawnCleanups_.set(app, release);
         this.latestDespawnCleanup_ = release;
 

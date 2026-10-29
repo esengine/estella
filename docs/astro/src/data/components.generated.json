@@ -1772,6 +1772,59 @@
       ]
     },
     {
+      "name": "FogOfWar",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "width",
+          "type": "number",
+          "default": "4096",
+          "doc": "The world rectangle the fog covers, centred on this entity.",
+          "range": "≥ 1, step 16"
+        },
+        {
+          "key": "height",
+          "type": "number",
+          "default": "4096",
+          "doc": "The world rectangle the fog covers, centred on this entity.",
+          "range": "≥ 1, step 16"
+        },
+        {
+          "key": "texels",
+          "type": "number",
+          "default": "512",
+          "doc": "How many texels a side the maps are: finer edges, and more to paint.",
+          "range": "32–2048, step 32"
+        },
+        {
+          "key": "viewRadius",
+          "type": "number",
+          "default": "400",
+          "doc": "How far a viewer with no radius of its own sees.",
+          "range": "≥ 1, step 1"
+        },
+        {
+          "key": "rays",
+          "type": "number",
+          "default": "256",
+          "doc": "How many rays are cast from each viewer: the fineness of the field of view's edge.",
+          "range": "16–1024, step 8"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "width",
+        "height",
+        "texels",
+        "viewRadius",
+        "rays"
+      ]
+    },
+    {
       "name": "Foliage",
       "source": "ts",
       "fields": [
