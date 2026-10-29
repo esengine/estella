@@ -39,6 +39,7 @@ export const isModelEntry = (entry: CocosAssetEntry | undefined): entry is Cocos
 export class CocosModels {
     private readonly uses = new Map<string, ModelUse | null>();
     private readonly scanned = new Map<string, string[]>();
+    private readonly scanning = new Set<string>();
     readonly failures: Array<{ file: string; error: string }> = [];
     readonly warnings: Array<{ file: string; warning: string }> = [];
 
@@ -67,6 +68,11 @@ export class CocosModels {
         for (const u of uuids) {
             const entry = this.index.byUuid.get(u);
             if (isModelEntry(entry) && !found.includes(entry)) found.push(entry);
+            // an animation graph names the clips it plays, which live in model files the document itself never mentions
+            else if (entry && entry.rel.endsWith('.animgraph') && !this.scanning.has(entry.file)) {
+                this.scanning.add(entry.file);
+                for (const nested of this.modelsIn(entry.file)) if (!found.includes(nested)) found.push(nested);
+            }
         }
         return found;
     }

@@ -163,7 +163,7 @@ export function setStateMotion(
 
 export function setStateProps(
     def: AnimatorControllerDef, name: string,
-    patch: { speed?: number; loop?: boolean; rootMotion?: boolean }, layer = 0,
+    patch: { speed?: number; loop?: boolean; rootMotion?: boolean; speedParameter?: string }, layer = 0,
 ): AnimatorControllerDef {
     return withLayer(def, layer, {
         states: scopeAt(def, layer).states.map((s) => (s.name === name ? { ...s, ...patch } : s)),

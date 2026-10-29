@@ -601,3 +601,54 @@ describe('a layer playing something that cannot be sampled', () => {
         expect(clipOf(world)).toBe('base_clip');
     });
 });
+
+describe('a state whose speed follows a parameter', () => {
+    const ramped = (state: Record<string, unknown> = {}, params: AnimatorControllerDef['parameters'] = [{ name: 'Speed', type: 'float', default: 1 }]) => {
+        const world = seedWorld();
+        const timeline = new TimelineAPI();
+        timeline.registerAsset('ramp.estimeline', ramp('lift', 0, 100));
+        const ctrl = new AnimatorControllerAPI();
+        ctrl.registerMotionDriver(TIMELINE_MOTION, createTimelineMotionDriver(timeline));
+        ctrl.registerController('rig', {
+            parameters: params,
+            states: [{ name: 'Run', motion: { kind: TIMELINE_MOTION, clip: 'ramp.estimeline', loop: true }, transitions: [], ...state }],
+            initialState: 'Run',
+        });
+        attach(world);
+        return { world, ctrl };
+    };
+
+    it('plays at the clock\'s rate while the parameter is 1, and at twice it while the parameter is 2', () => {
+        const slow = ramped({ speedParameter: 'Speed' });
+        slow.ctrl.update(slow.world, 0);
+        slow.ctrl.update(slow.world, 1);
+        const normal = read(slow.world).lift;
+
+        const fast = ramped({ speedParameter: 'Speed' });
+        fast.ctrl.setFloat(E, 'Speed', 2);
+        fast.ctrl.update(fast.world, 0);
+        fast.ctrl.update(fast.world, 1);
+        expect(read(fast.world).lift).toBeCloseTo(normal * 2, 3);
+    });
+
+    it('holds the pose while the parameter is 0', () => {
+        const held = ramped({ speedParameter: 'Speed' });
+        held.ctrl.setFloat(E, 'Speed', 0);
+        held.ctrl.update(held.world, 0);
+        held.ctrl.update(held.world, 1);
+        expect(read(held.world).lift).toBeCloseTo(0, 5);
+    });
+
+    it('ignores a state that names no parameter, and a parameter nobody declared', () => {
+        const plain = ramped({});
+        plain.ctrl.setFloat(E, 'Speed', 5);
+        plain.ctrl.update(plain.world, 0);
+        plain.ctrl.update(plain.world, 1);
+        const base = read(plain.world).lift;
+
+        const unknown = ramped({ speedParameter: 'Nope' });
+        unknown.ctrl.update(unknown.world, 0);
+        unknown.ctrl.update(unknown.world, 1);
+        expect(read(unknown.world).lift).toBeCloseTo(base, 3);
+    });
+});

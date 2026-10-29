@@ -687,6 +687,7 @@ motion: AnimatorMotion | undefined
 name: string
 rootMotion: boolean | undefined
 speed: number | undefined
+speedParameter: string | undefined
 spine: AnimatorSpineMotion | undefined
 stateMachine: AnimatorSubMachine | undefined
 transitions: AnimatorTransition[]
@@ -16240,7 +16241,7 @@ ServicesPlugin
 
 ## setAnimatorStateProps — function @experimental
 ```
-(def: AnimatorControllerDef, name: string, patch: { speed?: number; loop?: boolean; rootMotion?: boolean; }, layer?: number): AnimatorControllerDef
+(def: AnimatorControllerDef, name: string, patch: { speed?: number; loop?: boolean; rootMotion?: boolean; speedParameter?: string; }, layer?: number): AnimatorControllerDef
 ```
 
 ## setBlobShadowGround — function @experimental

@@ -20,6 +20,7 @@ import { parseCocosDocument, type CocosDocument } from './document';
 import { ImportReport, type ImportReportData } from './report';
 import { CocosModels, clipOf, clipPlayOf, mintSidecar, retargetClip } from './models';
 import { convertAnimationClip } from './animationClip';
+import { convertAnimationGraph } from './animationGraph';
 import type { MaterialInfo } from './components';
 
 export interface CocosImportOptions {
@@ -193,6 +194,36 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
             }
             clips.set(entry.file, ref);
             return ref;
+        },
+        animatorController(graphUuid, paths, where) {
+            const entry = index.byUuid.get(graphUuid.split('@')[0]!);
+            if (!entry || !entry.rel.endsWith('.animgraph')) return null;
+            let ref: string | null = null;
+            let complete = true;
+            try {
+                let onModel = false;
+                const converted = convertAnimationGraph(JSON.parse(readFileSync(entry.file, 'utf8')), {
+                    clip: (uuid) => {
+                        const own = ctx.animationClip?.(uuid, where);
+                        if (own) return own;
+                        onModel = true;
+                        return ctx.clipOn?.(uuid, paths, where) ?? null;
+                    },
+                    note: (code) => {
+                        report.note(code, `${where}: ${entry.rel}`);
+                        if (code !== 'graph-transition-to-exit') complete = false;
+                    },
+                });
+                // a graph that plays a model's clips is written for the skeleton it is put on
+                const key = createHash('sha1').update(JSON.stringify([...paths].sort())).digest('hex').slice(0, 8);
+                const rel = outRef(esRel(entry.rel, onModel ? `__${key}.esanimator` : '.esanimator'));
+                write(rel, converted.document);
+                if (!opts.dryRun) mintSidecar(path.join(out, rel));
+                ref = rel;
+            } catch (err) {
+                report.note('animation-graph-unreadable', `${where}: ${entry.rel}: ${(err as Error).message}`);
+            }
+            return ref ? { ref, complete } : null;
         },
         clipOn(clipUuid, paths, where) {
             const clip = models.use(clipUuid);

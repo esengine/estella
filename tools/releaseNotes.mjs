@@ -28,6 +28,8 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(animation): an animator state can play at the speed of a float parameter (speedParameter), and the Cocos animation graph is converted to an animator controller':
+    {"note":"An animator state can play at the speed of a parameter."},
   'feat(cocos): the importer converts Animation clips (.anim) to timelines: position, scale, rotation, sprite and label colour, opacity and active tracks, and plays model-file clips on the node':
     {"internal":"The Cocos Creator compatibility layer and importer have not shipped; nothing a creator reaches without opting in."},
   'feat(cocos): a MeshRenderer wears the Cocos material it was given (image, tint, blending, culling, lighting), and a mesh is found by its place in the model when its name is not readable':

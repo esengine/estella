@@ -153,6 +153,12 @@ export interface AnimatorState {
      */
     rootMotion?: boolean;
     speed?: number;
+    /**
+     * A float parameter that multiplies how fast this state plays: its clock advances by `dt * parameter`, so a run clip follows a character's
+     * speed and a parameter of 0 holds the pose. Whatever the motion's kind, because it is the state's clock that is scaled. A missing or
+     * negative parameter plays at the normal rate or stops, never backwards.
+     */
+    speedParameter?: string;
     loop?: boolean;
     transitions: AnimatorTransition[];
     /** Editor-only canvas position; the interpreter ignores it. */
@@ -454,6 +460,13 @@ export const SPINE_MOTION = 'spine';
  * allocating one per tick.
  */
 const migratedMotions = new WeakMap<AnimatorState, AnimatorMotion | null>();
+
+/** How much faster than the clock a state's own clock runs: its speed parameter's value, or 1 for a state that names none. */
+export function stateTimeScale(state: AnimatorState, params: Readonly<Record<string, number | boolean>>): number {
+    if (!state.speedParameter) return 1;
+    const value = params[state.speedParameter];
+    return typeof value === 'number' && value > 0 ? value : typeof value === 'number' ? 0 : 1;
+}
 
 /** A legacy 1D blend over sprite clips, as the equivalent blend over motions.
  *  A stop's own speed/loop wins over the state's, which is what it did before. */
@@ -830,7 +843,7 @@ export class AnimatorControllerAPI {
         // Advance BEFORE asking whether the motion ran out: judging the clip
         // on the previous frame's clock holds every exit-time transition one
         // frame past the clip it was waiting for.
-        this.advance(lrt, dt);
+        this.advance(lrt, dt * stateTimeScale(leaf, params));
         const leafMotion = motionOf(leaf);
         const clipFinished = leafMotion !== null && this.motionEnded(ctx, leafMotion, lrt.time);
 

@@ -78,8 +78,6 @@ export interface ConvertContext extends ComponentContext {
     loadPrefab(uuid: string): CocosDocument | null;
     /** The project-relative path the converted prefab of a uuid is written to. */
     prefabRef(uuid: string): string | null;
-    /** The engine prefab of a model a uuid names (the whole model, or its scene), or null when the uuid is not a model that was brought in. */
-    modelInstance?(uuid: string): { prefab: string; rootId: string; name: string; paths: Map<string, string> } | null;
     /** Where the document being converted lives, for notes. */
     where: string;
 }

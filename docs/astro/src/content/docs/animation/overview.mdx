@@ -613,6 +613,25 @@ What the animator promises:
 The animator calls into no particle system, no audio and no gameplay: it states
 the event, and whoever owns those things answers it.
 
+### State speed that follows a parameter
+
+A state's playback speed can follow a float parameter, so a run clip keeps pace
+with a character's speed:
+
+```json
+{
+  "name": "Run",
+  "motion": { "kind": "timeline", "clip": "run.estimeline", "loop": true },
+  "speedParameter": "MoveSpeed",
+  "transitions": []
+}
+```
+
+The state's clock advances by `dt × MoveSpeed`: 2 plays twice as fast, 0 holds the
+pose. It scales whatever the motion is, a sprite clip, a timeline or a blend,
+because it is the state's clock that is scaled. A parameter that is not there plays
+at the normal rate.
+
 ### Root motion
 
 A clip that animates the entity it is played **on** is not posing a skeleton —

@@ -65,6 +65,13 @@ export interface ComponentContext {
      * the part was picked because the model draws only one.
      */
     modelMesh?(uuid: string): { components: Record<string, unknown>[]; exact: boolean } | null;
+    /** The engine prefab of a model a uuid names (the whole model, or its scene), or null when the uuid is not a model that was brought in. */
+    modelInstance?(uuid: string): { prefab: string; rootId: string; name: string; paths: Map<string, string> } | null;
+    /**
+     * The `.esanimator` a Cocos animation graph is converted to for a node whose bones stand at @p paths, or null when the graph is not one of the
+     * project's. A graph that plays clips of a model is written once for each skeleton it is put on.
+     */
+    animatorController?(graphUuid: string, paths: Map<string, string>, where: string): { ref: string; complete: boolean } | null;
     /** The timeline a Cocos `.anim` clip is converted to (project-relative), or null when the clip is not one of the project's. */
     animationClip?(clipUuid: string, where: string): string | null;
     /** The joints, by name, a skinned part of a model is bound to, in the order its vertices index them. */
@@ -454,12 +461,15 @@ function directionalLight(c: CocosComponent, ctx: ComponentContext, where: strin
 }
 
 /** Where each node under @p node stands, by name, as a path from it: what a clip addresses a node by. The first node of a name wins. */
-function namePaths(node: CocosNode): Map<string, string> {
+function namePaths(node: CocosNode, ctx: ComponentContext): Map<string, string> {
     const paths = new Map<string, string>();
     const walk = (n: CocosNode, prefix: string): void => {
         for (const child of n.children) {
             const here = prefix ? `${prefix}/${child.name}` : child.name;
             if (!paths.has(child.name)) paths.set(child.name, here);
+            // a model put in under this node brings its own bones, which stand below the instance
+            const model = child.instance ? ctx.modelInstance?.(child.instance.asset) : null;
+            if (model) for (const [name, below] of model.paths) if (!paths.has(name)) paths.set(name, `${here}/${below}`);
             walk(child, here);
         }
     };
@@ -508,18 +518,27 @@ function animation(c: CocosComponent, node: CocosNode, ctx: ComponentContext, wh
     const clips = (Array.isArray(c.data._clips) ? c.data._clips : []).map(uuidOf).filter(Boolean);
     const wanted = uuidOf(c.data._defaultClip) || clips[0] || '';
     // a clip of the project's own, or one that lives in a model file and animates the bones below this node
-    const ref = wanted ? ctx.animationClip?.(wanted, where) ?? ctx.clipOn?.(wanted, namePaths(node), where) : null;
+    const ref = wanted ? ctx.animationClip?.(wanted, where) ?? ctx.clipOn?.(wanted, namePaths(node, ctx), where) : null;
     if (!ref) return null;
     if (clips.length > 1) ctx.report.note('animation-several-clips', where);
     ctx.report.component('cc.Animation', clips.length > 1 ? 'partial' : 'mapped');
     return { type: 'TimelinePlayer', data: { timeline: ref, playing: c.data.playOnLoad === true, speed: 1, wrapMode: '' } };
 }
 
+/** `cc.animation.AnimationController`: the graph as the engine's Animator, with its clips on this node's own bones. */
+function animationController(c: CocosComponent, node: CocosNode, ctx: ComponentContext, where: string): ComponentData | null {
+    const graph = uuidOf(c.data._graph) || uuidOf(c.data.graph);
+    const made = graph ? ctx.animatorController?.(graph, namePaths(node, ctx), where) : null;
+    if (!made) return null;
+    ctx.report.component('cc.animation.AnimationController', made.complete ? 'mapped' : 'partial');
+    return { type: 'Animator', data: { controller: made.ref, enabled: c.enabled } };
+}
+
 /** `cc.SkeletalAnimation`: the clip it plays by default, copied onto this node's own bones, played from the start if the node asks. */
 function skeletalAnimation(c: CocosComponent, node: CocosNode, ctx: ComponentContext, where: string): ComponentData | null {
     const clips = (Array.isArray(c.data._clips) ? c.data._clips : []).map(uuidOf).filter(Boolean);
     const wanted = uuidOf(c.data._defaultClip) || clips[0] || '';
-    const ref = wanted ? ctx.clipOn?.(wanted, namePaths(node), where) : null;
+    const ref = wanted ? ctx.clipOn?.(wanted, namePaths(node, ctx), where) : null;
     if (!ref) return null;
     if (clips.length > 1) ctx.report.note('animation-several-clips', where);
     ctx.report.component('cc.SkeletalAnimation', clips.length > 1 ? 'partial' : 'mapped');
@@ -725,6 +744,9 @@ export function convertNode(node: CocosNode, ctx: ComponentContext, where: strin
                 if (skinned) extra.push(...skinned.extra);
                 break;
             }
+            case 'cc.animation.AnimationController':
+                out = animationController(c, node, ctx, where);
+                break;
             case 'cc.Animation':
                 out = animation(c, node, ctx, where);
                 break;
