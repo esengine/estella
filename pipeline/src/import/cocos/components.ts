@@ -39,6 +39,8 @@ const color = (v: unknown, fallback = 1): Raw => {
     return { r: num(c.r, 255) / 255, g: num(c.g, 255) / 255, b: num(c.b, 255) / 255, a: num(c.a, fallback * 255) / 255 };
 };
 
+const clamp012 = (v: unknown): number => Math.min(2, Math.max(0, Math.trunc(num(v, 0))));
+
 const uuidOf = (v: unknown): string => (isObj(v) && typeof v.__uuid__ === 'string' ? v.__uuid__ : '');
 
 /** The same value for `a` and `b`, structurally. Overrides are the fields where it is not. */
@@ -102,12 +104,12 @@ function sprite(c: CocosComponent, box: UiBox | null, ctx: ComponentContext, whe
     };
     const hasBorder = border.left + border.right + border.top + border.bottom > 0;
     if (kind === 1 && hasBorder) {
-        data.drawMode = 'NineSlice';
+        data.drawMode = 3; // NineSlice
         data.texture = ctx.assetRef(entry, border);
     } else {
         data.texture = ctx.assetRef(entry);
         if (kind === 2) {
-            data.drawMode = 'Tiled';
+            data.drawMode = 2; // Tiled
         } else if (kind === 3) {
             status = 'partial';
             ctx.report.note('sprite-filled-as-simple', where);
@@ -148,10 +150,11 @@ function label(c: CocosComponent, siblings: CocosComponent[], ctx: ComponentCont
         content: typeof d._string === 'string' ? d._string : '',
         fontSize,
         color: color(d._color),
-        align: (['Left', 'Center', 'Right'] as const)[num(d._horizontalAlign, 0)] ?? 'Left',
-        verticalAlign: (['Top', 'Middle', 'Bottom'] as const)[num(d._verticalAlign, 0)] ?? 'Top',
+        // Left/Center/Right and Top/Middle/Bottom number the same in both engines (0, 1, 2).
+        align: clamp012(d._horizontalAlign),
+        verticalAlign: clamp012(d._verticalAlign),
         wordWrap: d._enableWrapText !== false,
-        overflow: overflow === 1 ? 'Clip' : 'Visible',
+        overflow: overflow === 1 ? 1 : 0, // Clip : Visible
         lineHeight: fontSize > 0 ? Math.round((lineHeight / fontSize) * 1000) / 1000 : 1.2,
         bold: d._isBold === true,
         italic: d._isItalic === true,
@@ -213,7 +216,7 @@ function richText(c: CocosComponent, ctx: ComponentContext): ComponentData {
             color: color(d._fontColor),
             richText: true,
             wordWrap: num(d._maxWidth, 0) > 0,
-            align: (['Left', 'Center', 'Right'] as const)[num(d._horizontalAlign, 0)] ?? 'Left',
+            align: clamp012(d._horizontalAlign),
             enabled: c.enabled,
         },
     };
@@ -225,7 +228,7 @@ function camera(c: CocosComponent, ctx: ComponentContext): ComponentData {
     return {
         type: 'Camera',
         data: {
-            projectionType: num(d._projection, 0) === 0 ? 'Orthographic' : 'Perspective',
+            projectionType: num(d._projection, 0) === 0 ? 1 : 0, // Orthographic : Perspective
             fov: num(d._fov, 45),
             orthoSize: num(d._orthoHeight, 10),
             nearPlane: num(d._near, 1),

@@ -115,6 +115,11 @@ function* files(dir: string): Generator<string> {
 type Flatten = (prefab: unknown, overrides: unknown[], ctx: { allocateId: () => number; loadPrefab: (p: string) => unknown }) => { entities: any[] };
 const FLATTEN = path.resolve(__dirname, '../../sdk/src/prefab/flatten.ts');
 let flattenPrefab: Flatten;
+const SDK = path.resolve(__dirname, '../../sdk/src');
+
+type Validate = (name: string, defaults: unknown, data: unknown, assetFields?: unknown) => { field: string; expected: string; value: unknown }[];
+let validate: Validate;
+let registry: Record<string, any>;
 
 let root: string;
 let src: string;
@@ -124,6 +129,9 @@ let before: Record<string, string>;
 
 beforeAll(async () => {
     flattenPrefab = (await import(/* @vite-ignore */ FLATTEN)).flattenPrefab as Flatten;
+    validate = (await import(/* @vite-ignore */ path.join(SDK, 'util/validation.ts'))).validateComponentData as Validate;
+    registry = await import(/* @vite-ignore */ path.join(SDK, 'ecs/component.ts'));
+    registry.Text = (await import(/* @vite-ignore */ path.join(SDK, 'ui/core/text.ts'))).Text;
     root = mkdtempSync(path.join(tmpdir(), 'cocos-import-'));
     src = path.join(root, 'creator');
     out = path.join(root, 'estella');
@@ -175,7 +183,7 @@ describe('importing a Cocos project', () => {
     it('maps a Label to Text with a bitmap font, and carries the font pages along', () => {
         const caption = readJson('assets/cocos/ui/item.esprefab').entities.find((e: any) => e.prefabEntityId === 'capt');
         expect(caption.components.find((c: any) => c.type === 'Text').data).toMatchObject({
-            content: 'hello', fontSize: 20, align: 'Center', verticalAlign: 'Middle', font: 'assets/cocos/ui/f.fnt',
+            content: 'hello', fontSize: 20, align: 1, verticalAlign: 1, overflow: 0, font: 'assets/cocos/ui/f.fnt',
         });
         const written = [...files(out)].map((f) => path.relative(out, f).split(path.sep).join('/'));
         expect(written, written.join(',')).toContain('assets/cocos/ui/f_0.png');
@@ -225,5 +233,26 @@ describe('importing a Cocos project', () => {
         expect(report.notes['label-bitmap-font']?.count).toBe(1);
         expect(report.notes['scene-globals-dropped']?.count).toBe(1);
         expect(report.prefabInstances).toBe(3);
+    });
+
+    it('writes component data the engine accepts: every field has the type its component declares', () => {
+        // A string where the engine wants an enum number loads, warns, and falls back to the default — a UI that is
+        // wrong everywhere and says so only in a console. The engine's own validator is the judge.
+        const docs = ['assets/cocos/ui/item.esprefab', 'assets/cocos/ui/panel.esprefab', 'assets/cocos/main.esscene'].map(readJson);
+        const problems: string[] = [];
+        let checked = 0;
+        for (const doc of docs) {
+            for (const e of doc.entities) {
+                const all = [...(e.components ?? []), ...(e.nestedPrefab?.overrides ?? e.overrides ?? []).flatMap((o: any) => (o.type === 'property' ? [{ type: o.componentType, data: { [o.propertyName]: o.value } }] : o.componentData ? [o.componentData] : []))];
+                for (const c of all) {
+                    const def = registry[c.type];
+                    if (!def) continue;
+                    checked++;
+                    for (const err of validate(c.type, def._default, c.data, def.assetFields)) problems.push(`${c.type}.${err.field}: expected ${err.expected}, got ${JSON.stringify(err.value)}`);
+                }
+            }
+        }
+        expect(checked).toBeGreaterThan(5);
+        expect(problems).toEqual([]);
     });
 });

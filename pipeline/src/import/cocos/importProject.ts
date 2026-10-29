@@ -173,7 +173,12 @@ export function importCocosProject(opts: CocosImportOptions): ImportReportData {
             }
             mkdirSync(path.dirname(dest), { recursive: true });
             copyFileSync(entry.file, dest);
-            if (entry.file.endsWith('.fnt')) copyFontPages(entry.file, dest);
+            if (entry.file.endsWith('.fnt')) {
+                copyFontPages(entry.file, dest);
+                // The asset database ships a font's page image only for a `bitmapfont`, since nothing else names it.
+                writeOut(`${dest}.meta`, `${JSON.stringify({ uuid: entry.uuid, version: '2.0', type: 'bitmapfont', importer: {} }, null, 2)}
+`);
+            }
             if (slice) {
                 // A slice border is a texture import setting here; the Cocos image keeps its uuid.
                 writeOut(`${dest}.meta`, `${JSON.stringify({ uuid: entry.uuid, version: '2.0', type: 'texture', importer: { sliceBorder: slice } }, null, 2)}\n`);
