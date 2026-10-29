@@ -202,7 +202,7 @@ interface Key { time: number; [k: string]: unknown }
  *
  * @returns the project-relative path of the copy, or null when no track found its node.
  */
-export function retargetClip(out: string, clipRef: string, paths: Map<string, string>, key: string, play: ClipPlay = {}): { ref: string; dropped: number } | null {
+export function retargetClip(out: string, clipRef: string, paths: Map<string, string> | null, key: string, play: ClipPlay = {}): { ref: string; dropped: number } | null {
     const abs = path.join(out, clipRef);
     const doc = JSON.parse(readFileSync(abs, 'utf8')) as { tracks?: Raw[]; duration?: number; wrapMode?: string };
     const span = play.span;
@@ -213,13 +213,14 @@ export function retargetClip(out: string, clipRef: string, paths: Map<string, st
     const loose = new Set<string>();
     for (const track of doc.tracks ?? []) {
         const cp = typeof track.childPath === 'string' ? track.childPath : '';
-        if (cp !== '' && !cp.includes('/') && !paths.has(cp)) loose.add(cp);
+        if (paths !== null && cp !== '' && !cp.includes('/') && !paths.has(cp)) loose.add(cp);
     }
     const host = loose.size === 1 && (doc.tracks ?? []).every((t) => t.childPath === [...loose][0]) ? [...loose][0]! : null;
     for (const track of doc.tracks ?? []) {
         const childPath = typeof track.childPath === 'string' ? track.childPath : '';
         const name = childPath.split('/').pop() ?? '';
-        const target = childPath === '' || (host !== null && childPath === host) ? '' : paths.get(name);
+        // with no skeleton to follow, the clip keeps the paths it was written with: it is the holder of a clip, to be played on a skeleton later
+        const target = paths === null ? childPath : childPath === '' || (host !== null && childPath === host) ? '' : paths.get(name);
         if (target === undefined) {
             dropped++;
             continue;
@@ -231,7 +232,7 @@ export function retargetClip(out: string, clipRef: string, paths: Map<string, st
             return { ...channel, keyframes: inside };
         }).filter((channel) => (channel.keyframes as unknown[]).length > 0);
         if (channels.length === 0) continue;
-        tracks.push({ ...track, childPath: target, name: target.split('/').pop() || track.name, channels });
+        tracks.push({ ...track, childPath: target, name: (target.split('/').pop() ?? '') || track.name, channels });
     }
     if (tracks.length === 0) return null;
     const tag = [key, span ? `${span.from}-${span.to}` : '', play.wrapMode ?? ''].filter(Boolean).join('_').replace(/[^A-Za-z0-9]+/g, '_');

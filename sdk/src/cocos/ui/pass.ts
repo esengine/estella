@@ -19,7 +19,9 @@ import { declareControls } from './controls';
 import { declareGraphics } from './graphics';
 import { declareEditBox } from './editBox';
 import { declareScrollView } from './scrollView';
-import { setUiCameraData, setVisibleSize, setWindowPixels } from './screen';
+import { setSafeInsets, setUiCameraData, setVisibleSize, setWindowPixels } from './screen';
+import { declarePages } from './pages';
+import { declareMisc } from './misc';
 
 export function declareUiPass(): void {
     declareWidget();
@@ -27,6 +29,8 @@ export function declareUiPass(): void {
     declareControls();
     declareGraphics();
     declareEditBox();
+    declarePages();
+    declareMisc();
     declareScrollView();
     const system = defineSystem(
         [Res(UICameraInfo), Res(ScreenLayout), GetWorld()],
@@ -37,6 +41,9 @@ export function declareUiPass(): void {
             if (screen?.valid) {
                 setVisibleSize(screen.right - screen.left, screen.top - screen.bottom);
                 setWindowPixels(screen.viewportW, screen.viewportH);
+                setSafeInsets(
+                    Math.max(0, screen.safeLeft - screen.left), Math.max(0, screen.right - screen.safeRight),
+                    Math.max(0, screen.top - screen.safeTop), Math.max(0, screen.safeBottom - screen.bottom));
             }
             const previous = setCurrentWorld(world);
             try {

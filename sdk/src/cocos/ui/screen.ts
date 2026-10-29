@@ -16,12 +16,28 @@ let uiCamera: UICameraData | null = null;
 let width = 960;
 let height = 640;
 let generation = 0;
+let safeLeft = 0;
+let safeRight = 0;
+let safeTop = 0;
+let safeBottom = 0;
 let windowW = 960;
 let windowH = 640;
 const listeners: Array<(kind: 'visible' | 'window') => void> = [];
 
 /** The visible area's size, in the canvas units scripts see. */
 export function getVisibleSize(): { width: number; height: number } { return { width, height }; }
+
+/** How far in from each edge of the visible area the safe area starts (a notch, a rounded corner, a home bar), in canvas units. */
+export function getSafeInsets(): { left: number; right: number; top: number; bottom: number } {
+    return { left: safeLeft, right: safeRight, top: safeTop, bottom: safeBottom };
+}
+
+export function setSafeInsets(left: number, right: number, top: number, bottom: number): void {
+    if (left === safeLeft && right === safeRight && top === safeTop && bottom === safeBottom) return;
+    safeLeft = left; safeRight = right; safeTop = top; safeBottom = bottom;
+    generation++;
+    for (const l of [...listeners]) l('visible');
+}
 
 /** Tell the layer the visible area changed; widgets set to follow the window re-align. */
 export function setVisibleSize(w: number, h: number): void {

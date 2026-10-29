@@ -133,6 +133,7 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
 
     const models = new CocosModels(index, out, into, opts.dryRun === true);
     const clips = new Map<string, string | null>();
+    const spines = new Map<string, { skeleton: string; atlas: string } | null>();
     const scripts = buildScriptIndex(index);
     /** The scripts a converted document refers to, which the project has to bundle for those components to exist. */
     const usedScripts = new Set<string>();
@@ -175,6 +176,38 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
             const own = name ? m.use.skin.get(name) : undefined;
             if (own) return own;
             return m.use.skin.size === 1 ? [...m.use.skin.values()][0]! : null;
+        },
+        spineAssets(uuid) {
+            const entry = index.byUuid.get(uuid);
+            if (!entry || !/\.(skel|json)$/i.test(entry.rel)) return null;
+            const key = entry.file;
+            if (spines.has(key)) return spines.get(key) ?? null;
+            let found: { skeleton: string; atlas: string } | null = null;
+            try {
+                const dir = path.dirname(entry.file);
+                const stem = path.basename(entry.file).replace(/\.[^.]+$/, '');
+                const atlasFile = readdirSync(dir).find((f) => f.toLowerCase() === `${stem.toLowerCase()}.atlas`) ?? readdirSync(dir).find((f) => f.toLowerCase().endsWith('.atlas'));
+                if (atlasFile) {
+                    const toRef = (name: string): string => outRef(norm(path.relative(assetsDir, path.join(dir, name))));
+                    // the images the atlas names (a page is a line that ends in an image extension) travel with it
+                    const pages = readFileSync(path.join(dir, atlasFile), 'utf8').split(/\r?\n/).map((l) => l.trim()).filter((l) => /\.(png|jpg|jpeg|webp)$/i.test(l));
+                    if (!opts.dryRun) {
+                        for (const name of [path.basename(entry.file), atlasFile, ...pages]) {
+                            const from = path.join(dir, name);
+                            if (!existsSync(from)) continue;
+                            const to = path.join(out, toRef(name));
+                            mkdirSync(path.dirname(to), { recursive: true });
+                            copyFileSync(from, to);
+                            mintSidecar(to);
+                        }
+                    }
+                    found = { skeleton: toRef(path.basename(entry.file)), atlas: toRef(atlasFile) };
+                }
+            } catch {
+                found = null;
+            }
+            spines.set(key, found);
+            return found;
         },
         animationClip(clipUuid, where) {
             const entry = index.byUuid.get(clipUuid.split('@')[0]!);
@@ -233,7 +266,8 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
             if (!ref) return null;
             if (opts.dryRun) return ref;
             const key = createHash('sha1').update(JSON.stringify([...paths].sort())).digest('hex').slice(0, 8);
-            const copy = retargetClip(out, ref, paths, key, clipPlayOf(sub?.userData));
+            // a node with no bones of its own (a prefab that only holds a clip) gets the clip as it was written
+            const copy = retargetClip(out, ref, paths, key, clipPlayOf(sub?.userData)) ?? (paths.size === 0 ? retargetClip(out, ref, null, 'free', clipPlayOf(sub?.userData)) : null);
             if (!copy) {
                 report.note('animation-no-matching-bones', where);
                 return null;

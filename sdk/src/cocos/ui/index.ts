@@ -18,3 +18,5 @@ export { RichText } from './richText';
 export { Mask } from './mask';
 export { Graphics, Line } from './graphics';
 export { EditBox } from './editBox';
+export { PageView, PageViewIndicator, ScrollBar } from './pages';
+export { SafeArea, WebView } from './misc';

@@ -9,7 +9,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import path from 'node:path';
 import { ImportReport } from '../src/import/cocos/report';
-import { curveRange, particleSystem, type ParticleContext } from '../src/import/cocos/particle';
+import { curveRange, particleSystem, particleSystem2D, type ParticleContext } from '../src/import/cocos/particle';
 
 const SDK = path.resolve(__dirname, '../../sdk/src');
 type Validate = (name: string, defaults: unknown, data: unknown, assetFields?: unknown) => { field: string; expected: string; value: unknown }[];
@@ -161,5 +161,45 @@ describe('a curve range', () => {
         expect(curveRange(constant(2), 0)).toEqual({ min: 2, max: 2 });
         expect(curveRange(between(1, 3), 0)).toEqual({ min: 1, max: 3 });
         expect(curveRange(curve([[0, 0], [1, 10]], 2), 0.5).min).toBeCloseTo(10, 5);
+    });
+});
+
+describe('a 2D particle system', () => {
+    const color = (r: number, g: number, b: number, a: number) => ({ __type__: 'cc.Color', r, g, b, a });
+    const convert2D = (over: Record<string, unknown> = {}) => {
+        const report = new ImportReport();
+        const out = particleSystem2D({
+            enabled: true,
+            data: {
+                duration: -1, emissionRate: 50, life: 1, lifeVar: 0.25, angle: 90, angleVar: 10, speed: 100, speedVar: 20, startSize: 30, startSizeVar: 10, endSize: 5, endSizeVar: 0,
+                startSpin: 0, endSpin: 90, emitterMode: 0, gravity: { x: 0, y: -50 }, _totalParticles: 200, _dstBlendFactor: 1, _positionType: 0,
+                _startColor: color(255, 128, 0, 255), _endColor: color(255, 0, 0, 0), _spriteFrame: { __uuid__: 'frame@f9941' }, ...over,
+            },
+        }, { report, assetRef: () => 'x', frame: () => 'assets/cocos/spark.png' }, 'fx.scene');
+        return { out, report: report.toJSON() };
+    };
+
+    it('maps the start and end ranges, the gravity, the colour and the picture, and validates', () => {
+        const { out, report } = convert2D();
+        const d = out.data as Record<string, any>;
+        expect([d.lifetimeMin, d.lifetimeMax]).toEqual([0.75, 1.25]);
+        expect([d.speedMin, d.speedMax]).toEqual([80, 120]);
+        expect([d.angleSpreadMin, d.angleSpreadMax]).toEqual([80, 100]);
+        expect([d.startSizeMin, d.startSizeMax, d.endSizeMin]).toEqual([20, 40, 5]);
+        expect(d.looping).toBe(true);
+        expect(d.gravity).toEqual({ x: 0, y: -50, z: 0 });
+        expect(d.endColor.a).toBe(0);
+        expect(d.texture).toBe('assets/cocos/spark.png');
+        expect(d.angularVelocityMin).toBeCloseTo(90, 3);
+        expect(report.components['cc.ParticleSystem2D']).toEqual({ mapped: 1, partial: 0, unmapped: 0 });
+        const def = registry.ParticleEmitter!;
+        expect(validate('ParticleEmitter', def._default, d, def.assetFields)).toEqual([]);
+    });
+
+    it('counts the radius mode and the accelerations the emitter has no model for', () => {
+        const radius = convert2D({ emitterMode: 1 });
+        expect(radius.report.notes['particle2d-radius-mode']?.count).toBe(1);
+        const accel = convert2D({ radialAccel: -100 });
+        expect(accel.report.notes['particle2d-accel']?.count).toBe(1);
     });
 });

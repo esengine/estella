@@ -314,3 +314,64 @@ export function particleSystem(c: { enabled: boolean; data: Raw }, ctx: Particle
     ctx.report.component('cc.ParticleSystem', partial ? 'partial' : 'mapped');
     return { type: 'ParticleEmitter', data: out };
 }
+
+export interface Particle2DContext extends ParticleContext {
+    /** The image of a sprite frame, as a project path. */
+    frame?(uuid: string): string | null;
+}
+
+/**
+ * `cc.ParticleSystem2D`: the 2D particle model of the older engine, a start and an end for size, spin and colour, each with a variance, and either
+ * gravity or a ring that the particles circle. The emitter's start and end ranges are the same idea; the gravity model maps, a radial one is counted.
+ */
+export function particleSystem2D(c: { enabled: boolean; data: Raw }, ctx: Particle2DContext, where: string): { type: string; data: Raw } {
+    const d = c.data;
+    let partial = false;
+    const lose = (code: string): void => { partial = true; ctx.report.note(code, where); };
+    const life = num(d.life, 1), lifeVar = num(d.lifeVar, 0);
+    const speed = num(d.speed, 0), speedVar = num(d.speedVar, 0);
+    const angle = num(d.angle, 90), angleVar = num(d.angleVar, 0);
+    const startSize = num(d.startSize, 50), startSizeVar = num(d.startSizeVar, 0);
+    const endSize = num(d.endSize, 0), endSizeVar = num(d.endSizeVar, 0);
+    // a colour and its variance: the middle of the range it can start at (the variance is a spread around the colour)
+    const colour = (value: unknown): Rgba => colorOf(value);
+    const start = colour(d._startColor), end = colour(d._endColor);
+    const out: Raw = {
+        enabled: c.enabled,
+        looping: num(d.duration, -1) < 0,
+        playOnStart: d.playOnLoad !== false,
+        duration: num(d.duration, -1) < 0 ? 5 : num(d.duration, 5),
+        maxParticles: Math.max(1, Math.trunc(num(d._totalParticles, 150))),
+        rate: num(d.emissionRate, 100),
+        lifetimeMin: Math.max(0, life - lifeVar), lifetimeMax: life + lifeVar,
+        shape: 0, // Point: the position variance is a small box in the old model
+        angleSpreadMin: angle - angleVar, angleSpreadMax: angle + angleVar,
+        speedMin: Math.max(0, speed - speedVar), speedMax: speed + speedVar,
+        startSizeMin: Math.max(0, startSize - startSizeVar), startSizeMax: startSize + startSizeVar,
+        endSizeMin: Math.max(0, endSize - endSizeVar), endSizeMax: endSize + endSizeVar,
+        rotationMin: num(d.startSpin, 0) - num(d.startSpinVar, 0), rotationMax: num(d.startSpin, 0) + num(d.startSpinVar, 0),
+        startColor: { r: start[0], g: start[1], b: start[2], a: start[3] },
+        endColor: { r: end[0], g: end[1], b: end[2], a: end[3] },
+        simulationSpace: num(d._positionType, 0) === 0 ? 0 : 1, // free is the world's, relative and grouped follow the emitter
+        blendMode: num(d._dstBlendFactor, 1) === 1 ? 1 : 0,
+    };
+    // the spin that changes over a life is a steady turn from the start spin to the end spin
+    const spinChange = (num(d.endSpin, 0) - num(d.startSpin, 0)) / Math.max(life, 0.0001);
+    out.angularVelocityMin = spinChange - num(d.endSpinVar, 0) / Math.max(life, 0.0001);
+    out.angularVelocityMax = spinChange + num(d.endSpinVar, 0) / Math.max(life, 0.0001);
+    if (num(d.emitterMode, 0) === 0) {
+        const g = isObj(d.gravity) ? d.gravity : {};
+        out.gravity = { x: num(g.x, 0), y: num(g.y, 0), z: 0 };
+        if (num(d.tangentialAccel, 0) !== 0 || num(d.radialAccel, 0) !== 0) lose('particle2d-accel');
+    } else {
+        lose('particle2d-radius-mode');
+    }
+    const pos = isObj(d.posVar) ? d.posVar : {};
+    if (num(pos.x, 0) !== 0 || num(pos.y, 0) !== 0) lose('particle2d-position-variance');
+    const frameUuid = isObj(d._spriteFrame) && typeof d._spriteFrame.__uuid__ === 'string' ? d._spriteFrame.__uuid__ : '';
+    const texture = frameUuid ? ctx.frame?.(frameUuid) : null;
+    if (texture) out.texture = texture;
+    else lose('particle2d-no-texture');
+    ctx.report.component('cc.ParticleSystem2D', partial ? 'partial' : 'mapped');
+    return { type: 'ParticleEmitter', data: out };
+}

@@ -12,7 +12,8 @@
  *        That is a world-space `Sprite`/`Text` with a pivot, not a flex box, so
  *        UI maps there and `UITransform` is folded into it.
  */
-import { curveRange, particleSystem } from './particle';
+import { readFileSync } from 'node:fs';
+import { curveRange, particleSystem, particleSystem2D } from './particle';
 import type { CocosAssetEntry, CocosAssetIndex } from './assets';
 import { type CocosComponent, type CocosNode } from './document';
 import type { ImportReport } from './report';
@@ -72,6 +73,8 @@ export interface ComponentContext {
      * project's. A graph that plays clips of a model is written once for each skeleton it is put on.
      */
     animatorController?(graphUuid: string, paths: Map<string, string>, where: string): { ref: string; complete: boolean } | null;
+    /** The skeleton and atlas files of a Spine data asset, copied into the project (project-relative), or null when the project does not have them. */
+    spineAssets?(uuid: string): { skeleton: string; atlas: string } | null;
     /** The timeline a Cocos `.anim` clip is converted to (project-relative), or null when the clip is not one of the project's. */
     animationClip?(clipUuid: string, where: string): string | null;
     /** The joints, by name, a skinned part of a model is bound to, in the order its vertices index them. */
@@ -130,7 +133,7 @@ function uiBox(node: CocosNode): UiBox | null {
     return { width: num(s.width, 100), height: num(s.height, 100), ax: num(a.x, 0.5), ay: num(a.y, 0.5) };
 }
 
-function sprite(c: CocosComponent, box: UiBox | null, ctx: ComponentContext, where: string): ComponentData | null {
+function sprite(c: CocosComponent, box: UiBox | null, ctx: ComponentContext, where: string, as: 'cc.Sprite' | 'cc.SpriteRenderer' = 'cc.Sprite'): ComponentData | null {
     const frameUuid = uuidOf(c.data._spriteFrame);
     const data: Raw = { color: color(c.data._color), enabled: c.enabled };
     if (box) {
@@ -138,7 +141,7 @@ function sprite(c: CocosComponent, box: UiBox | null, ctx: ComponentContext, whe
         data.pivot = { x: box.ax, y: box.ay };
     }
     if (!frameUuid) {
-        ctx.report.component('cc.Sprite', 'partial');
+        ctx.report.component(as, 'partial');
         ctx.report.note('sprite-no-frame', where);
         return { type: 'Sprite', data };
     }
@@ -147,7 +150,7 @@ function sprite(c: CocosComponent, box: UiBox | null, ctx: ComponentContext, whe
     if (!entry || !sub || entry.importer !== 'image' || sub.importer !== 'sprite-frame') {
         // A frame the project does not have draws nothing in Cocos either. The sprite stays, switched off, so a script that sets its frame later
         // finds the component, and a white quad does not stand where a picture was meant.
-        ctx.report.component('cc.Sprite', 'partial');
+        ctx.report.component(as, 'partial');
         ctx.report.note(entry ? 'sprite-frame-not-from-image' : 'sprite-frame-missing', where);
         if (!entry) ctx.report.missingAsset(frameUuid);
         return { type: 'Sprite', data: { ...data, enabled: false } };
@@ -197,7 +200,7 @@ function sprite(c: CocosComponent, box: UiBox | null, ctx: ComponentContext, whe
         status = 'partial';
         ctx.report.note('sprite-grayscale', where);
     }
-    ctx.report.component('cc.Sprite', status);
+    ctx.report.component(as, status);
     return { type: 'Sprite', data };
 }
 
@@ -521,7 +524,12 @@ function animation(c: CocosComponent, node: CocosNode, ctx: ComponentContext, wh
     const wanted = uuidOf(c.data._defaultClip) || clips[0] || '';
     // a clip of the project's own, or one that lives in a model file and animates the bones below this node
     const ref = wanted ? ctx.animationClip?.(wanted, where) ?? ctx.clipOn?.(wanted, namePaths(node, ctx), where) : null;
-    if (!ref) return null;
+    if (!ref) {
+        ctx.report.note(wanted ? 'animation-clip-not-found' : 'animation-no-clip', `${where}: ${wanted}`);
+        // no clip yet (a script gives it one), or one the project does not have: the player stays, empty, so a script that sets a clip finds it
+        ctx.report.component('cc.Animation', wanted ? 'partial' : 'mapped');
+        return { type: 'TimelinePlayer', data: { timeline: '', playing: false, speed: 1, wrapMode: '' } };
+    }
     if (clips.length > 1) ctx.report.note('animation-several-clips', where);
     ctx.report.component('cc.Animation', clips.length > 1 ? 'partial' : 'mapped');
     return { type: 'TimelinePlayer', data: { timeline: ref, playing: c.data.playOnLoad === true, speed: 1, wrapMode: '' } };
@@ -531,7 +539,12 @@ function animation(c: CocosComponent, node: CocosNode, ctx: ComponentContext, wh
 function animationController(c: CocosComponent, node: CocosNode, ctx: ComponentContext, where: string): ComponentData | null {
     const graph = uuidOf(c.data._graph) || uuidOf(c.data.graph);
     const made = graph ? ctx.animatorController?.(graph, namePaths(node, ctx), where) : null;
-    if (!made) return null;
+    if (!made) {
+        // a graph the project does not have: the Animator stays with no controller, for a script that sets one
+        ctx.report.note('animator-graph-not-found', `${where}: ${graph}`);
+        ctx.report.component('cc.animation.AnimationController', 'partial');
+        return { type: 'Animator', data: { controller: '', enabled: c.enabled } };
+    }
     ctx.report.component('cc.animation.AnimationController', made.complete ? 'mapped' : 'partial');
     return { type: 'Animator', data: { controller: made.ref, enabled: c.enabled } };
 }
@@ -541,7 +554,12 @@ function skeletalAnimation(c: CocosComponent, node: CocosNode, ctx: ComponentCon
     const clips = (Array.isArray(c.data._clips) ? c.data._clips : []).map(uuidOf).filter(Boolean);
     const wanted = uuidOf(c.data._defaultClip) || clips[0] || '';
     const ref = wanted ? ctx.clipOn?.(wanted, namePaths(node, ctx), where) : null;
-    if (!ref) return null;
+    if (!ref) {
+        // no clip, or one this node has no bones for: the player stays, empty, for a script that gives it one
+        ctx.report.note(wanted ? 'skeletal-clip-not-found' : 'skeletal-no-clip', `${where}: ${wanted}`);
+        ctx.report.component('cc.SkeletalAnimation', wanted ? 'partial' : 'mapped');
+        return { type: 'TimelinePlayer', data: { timeline: '', playing: false, speed: 1, wrapMode: '' } };
+    }
     if (clips.length > 1) ctx.report.note('animation-several-clips', where);
     ctx.report.component('cc.SkeletalAnimation', clips.length > 1 ? 'partial' : 'mapped');
     return { type: 'TimelinePlayer', data: { timeline: ref, playing: c.data.playOnLoad === true, speed: 1, wrapMode: '' } };
@@ -607,8 +625,12 @@ function meshRenderer(c: CocosComponent, ctx: ComponentContext, where: string): 
     }
     const found = meshUuid ? ctx.modelMesh?.(meshUuid) : null;
     if (!found) {
+        // The renderer stays, with no mesh: a script that assigns one finds the component, and a mesh the project does not have draws nothing in
+        // Cocos either. A renderer that never had a mesh lost nothing; one whose mesh is missing did.
         ctx.report.note(meshUuid ? 'mesh-model-part-not-found' : 'mesh-none', `${where}: ${meshUuid}`);
-        return null;
+        const data: Raw = { enabled: c.enabled };
+        const applied = applyMaterial(data, c, ctx, where);
+        return { component: { type: 'MeshRenderer', data }, partial: meshUuid !== '' || !applied.exact && hasMaterial };
     }
     const materials = (Array.isArray(c.data._materials) ? c.data._materials : []).map(uuidOf).filter(Boolean);
     let partial = false;
@@ -660,6 +682,32 @@ function line(c: CocosComponent, ctx: ComponentContext, where: string): Componen
     };
 }
 
+/** `sp.Skeleton`: a Spine skeleton, played from its default animation. The skeleton, its atlas and the atlas's images come with it. */
+function spineSkeleton(c: CocosComponent, ctx: ComponentContext, where: string): ComponentData | null {
+    const d = c.data;
+    const files = ctx.spineAssets?.(uuidOf(d._skeletonData));
+    if (!files) {
+        ctx.report.note('spine-data-missing', where);
+        return null;
+    }
+    const animation = typeof d.defaultAnimation === 'string' ? d.defaultAnimation : '';
+    ctx.report.component('sp.Skeleton', 'mapped');
+    return {
+        type: 'SpineAnimation',
+        data: {
+            skeletonPath: files.skeleton,
+            atlasPath: files.atlas,
+            skin: typeof d.defaultSkin === 'string' ? d.defaultSkin : 'default',
+            animation,
+            timeScale: num(d._timeScale, 1),
+            loop: d.loop !== false,
+            playing: animation !== '',
+            color: color(d._color),
+            enabled: c.enabled,
+        },
+    };
+}
+
 /**
  * `cc.BoxCollider`: the engine's box, half the node-scaled size on each side. A Cocos collider with no rigid body is a static one, which the engine
  * spells as a static body beside the box. The engine's box is centred on the entity, so a collider that sits off-centre keeps its size and loses
@@ -678,6 +726,41 @@ function boxCollider(c: CocosComponent, node: CocosNode, ctx: ComponentContext, 
     }
     if (!node.components.some((n) => n.type === 'cc.RigidBody') && !extra.some((e) => e.type === 'RigidBody3D')) extra.push({ type: 'RigidBody3D', data: { bodyType: 0 } });
     return { type: 'BoxCollider3D', data: { halfExtents: { x: half('x'), y: half('y'), z: half('z') }, isSensor: c.data._isTrigger === true, enabled: c.enabled } };
+}
+
+/** `cc.PageView`: a scroll view whose content is pages, and the page it settles on. */
+function pageView(c: CocosComponent, ctx: ComponentContext): ComponentData {
+    const scroll = scrollView(c, ctx).data;
+    const direction = num(c.data._direction, 0);
+    return {
+        type: `${LAYER}PageView`,
+        data: {
+            ...scroll,
+            ...renamed(c, { _sizeMode: 'sizeMode', _direction: 'direction', autoPageTurningThreshold: 'autoPageTurningThreshold', pageTurningSpeed: 'pageTurningSpeed', _indicator: 'indicator' }),
+            horizontal: direction === 0,
+            vertical: direction === 1,
+            ...handlerLists(c.data.pageEvents, 'page', ctx),
+        },
+    };
+}
+
+/** `cc.Terrain`: the ground's size, from the header of the terrain file. The heights and the painted layers inside it are not read. */
+function terrain(c: CocosComponent, ctx: ComponentContext, where: string): ComponentData | null {
+    const asset = uuidOf(c.data.__asset);
+    const entry = asset ? ctx.assets.byUuid.get(asset) : undefined;
+    let size = 256;
+    if (entry) {
+        try {
+            const head = readFileSync(entry.file).subarray(0, 20);
+            const tile = head.readDoubleLE(4), blocksX = head.readInt32LE(12), blocksY = head.readInt32LE(16);
+            if (tile > 0 && blocksX > 0 && blocksY > 0 && blocksX < 256 && blocksY < 256) size = Math.max(blocksX, blocksY) * 64 * tile;
+        } catch {
+            // an unreadable file keeps the default size and is counted below
+        }
+    }
+    ctx.report.component('cc.Terrain', 'partial');
+    ctx.report.note('terrain-heights-not-carried', where);
+    return { type: 'Terrain', data: { extent: 0, sizeX: size, sizeZ: size, height: 0, collision: false } };
 }
 
 /** `cc.EditBox`: the box and its two labels are the scene's own nodes; what is typed goes through the platform's text editor. */
@@ -726,7 +809,7 @@ function script(c: CocosComponent, ctx: ComponentContext): ComponentData | null 
 }
 
 /** Components that are folded into another, or carry nothing of their own. */
-const FOLDED = new Set(['cc.UITransform', 'cc.LabelOutline', 'cc.LabelShadow', 'cc.Canvas', 'cc.UIMeshRenderer']);
+const FOLDED = new Set(['cc.UITransform', 'cc.LabelOutline', 'cc.LabelShadow', 'cc.Canvas', 'cc.UIMeshRenderer', 'cc.RenderRoot2D']);
 
 export interface ConvertedNode {
     components: ComponentData[];
@@ -752,6 +835,13 @@ export function convertNode(node: CocosNode, ctx: ComponentContext, where: strin
             case 'cc.Sprite':
                 out = sprite(c, box, ctx, where);
                 break;
+            case 'cc.SpriteRenderer': {
+                // a sprite standing in the 3D world: the same picture and tint, with no rectangle of its own, so the frame's size is the size
+                out = sprite({ ...c, data: { ...c.data, _type: 0 } }, null, ctx, where, 'cc.SpriteRenderer');
+                if (out && c.data._flipX === true) out.data.flipX = true;
+                if (out && c.data._flipY === true) out.data.flipY = true;
+                break;
+            }
             case 'cc.Label':
                 out = label(c, node.components, box, ctx, where);
                 break;
@@ -820,11 +910,35 @@ export function convertNode(node: CocosNode, ctx: ComponentContext, where: strin
             case 'cc.SkeletalAnimation':
                 out = skeletalAnimation(c, node, ctx, where);
                 break;
+            case 'sp.Skeleton':
+                out = spineSkeleton(c, ctx, where);
+                break;
             case 'cc.Line':
                 out = line(c, ctx, where);
                 break;
             case 'cc.BoxCollider':
                 out = boxCollider(c, node, ctx, where, extra);
+                break;
+            case 'cc.PageView':
+                out = pageView(c, ctx);
+                break;
+            case 'cc.PageViewIndicator':
+                out = { type: `${LAYER}PageViewIndicator`, data: { ...renamed(c, { spacing: 'spacing', _direction: 'direction' }), cellSize: isObj(c.data._cellSize) ? { width: num(c.data._cellSize.width, 20), height: num(c.data._cellSize.height, 20) } : { width: 20, height: 20 } } };
+                break;
+            case 'cc.ScrollBar':
+                out = { type: `${LAYER}ScrollBar`, data: renamed(c, { _scrollView: 'scrollView', _handle: 'handle', _direction: 'direction', _enableAutoHide: 'enableAutoHide', _autoHideTime: 'autoHideTime' }) };
+                break;
+            case 'cc.SafeArea':
+                out = { type: `${LAYER}SafeArea`, data: { enabled: c.enabled } };
+                break;
+            case 'cc.WebView':
+                out = { type: `${LAYER}WebView`, data: { enabled: c.enabled, url: typeof c.data._url === 'string' ? c.data._url : '', ...handlerLists(c.data.webviewEvents, 'webview', ctx) } };
+                break;
+            case 'cc.ParticleSystem2D':
+                out = particleSystem2D(c, { report: ctx.report, assetRef: ctx.assetRef, frame: (uuid) => { const e = ctx.assets.byUuid.get(uuid.split('@')[0]!); return e ? ctx.assetRef(e) : null; } }, where);
+                break;
+            case 'cc.Terrain':
+                out = terrain(c, ctx, where);
                 break;
             case 'cc.EditBox':
                 out = editBox(c, ctx);
@@ -852,7 +966,7 @@ export function convertNode(node: CocosNode, ctx: ComponentContext, where: strin
         }
         if (FOLDED.has(c.type)) {
             // A canvas carries nothing of its own here: the design resolution is the scene's, and its camera is a component of its own.
-            const host = c.type === 'cc.UITransform' || c.type === 'cc.Canvas' || c.type === 'cc.UIMeshRenderer' ? true : node.components.some((s) => s.type === 'cc.Label');
+            const host = c.type === 'cc.UITransform' || c.type === 'cc.Canvas' || c.type === 'cc.UIMeshRenderer' || c.type === 'cc.RenderRoot2D' ? true : node.components.some((s) => s.type === 'cc.Label');
             if (host) {
                 ctx.report.component(c.type, 'mapped');
                 continue;
