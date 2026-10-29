@@ -21,6 +21,8 @@ export interface ImportReportData {
     components: Record<string, ComponentTally>;
     notes: Record<string, NoteTally>;
     assets: { textures: number; missing: string[] };
+    /** What a run did to documents already in the project: a document edited since the last run is kept, never overwritten. */
+    sync: { added: number; updated: number; unchanged: number; kept: string[] };
 }
 
 const EXAMPLES = 3;
@@ -33,6 +35,7 @@ export class ImportReport {
     private readonly notes = new Map<string, NoteTally>();
     private readonly missing = new Set<string>();
     textures = 0;
+    readonly sync = { added: 0, updated: 0, unchanged: 0, kept: [] as string[] };
 
     component(type: string, status: MapStatus): void {
         let t = this.components.get(type);
@@ -61,6 +64,7 @@ export class ImportReport {
             components: Object.fromEntries(byCount(this.components, (v) => v.mapped + v.partial + v.unmapped)),
             notes: Object.fromEntries(byCount(this.notes, (v) => v.count)),
             assets: { textures: this.textures, missing: [...this.missing].slice(0, 50) },
+            sync: this.sync,
         };
     }
 }

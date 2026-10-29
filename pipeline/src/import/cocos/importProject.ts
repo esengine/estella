@@ -8,6 +8,7 @@
  *        keeping the source's folder layout so a path in one is findable in the
  *        other. Only what the converted documents reference is copied.
  */
+import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { isInsideRoot } from '../../fs/pathSandbox';
@@ -199,8 +200,31 @@ export function importCocosProject(opts: CocosImportOptions): ImportReportData {
         }
     }
 
+    // A converted document is the project's own once it is written: the creator edits it here. A re-import brings the Cocos side's
+    // changes into the documents nobody touched, and leaves an edited one alone — the state file holds what was written last.
+    const stateFile = path.join(out, 'assets', into, '.import-state.json');
+    const written: Record<string, string> = (() => {
+        try {
+            return (JSON.parse(readFileSync(stateFile, 'utf8')) as { documents?: Record<string, string> }).documents ?? {};
+        } catch {
+            return {};
+        }
+    })();
+    const digest = (text: string): string => createHash('sha1').update(text).digest('hex');
     const write = (relPath: string, json: unknown): void => {
-        if (!opts.dryRun) writeOut(path.join(out, relPath), `${JSON.stringify(json, null, 2)}\n`);
+        const text = `${JSON.stringify(json, null, 2)}\n`;
+        const file = path.join(out, relPath);
+        const next = digest(text);
+        const now = existsSync(file) ? digest(readFileSync(file, 'utf8')) : null;
+        if (now === null) report.sync.added++;
+        else if (now === next) report.sync.unchanged++;
+        else if (written[relPath] === now) report.sync.updated++;
+        else {
+            report.sync.kept.push(relPath);
+            return;
+        }
+        written[relPath] = next;
+        if (!opts.dryRun && now !== next) writeOut(file, text);
     };
 
     const byRel = new Map<string, CocosAssetEntry>();
@@ -301,6 +325,7 @@ export function importCocosProject(opts: CocosImportOptions): ImportReportData {
                 writeOut(`${dest}.meta`, `${JSON.stringify({ uuid: entry.uuid, version: '2.0', type: 'texture', importer: { sliceBorder: slice } }, null, 2)}\n`);
             }
         }
+        writeOut(stateFile, `${JSON.stringify({ source, documents: written }, null, 2)}\n`);
         writeOut(path.join(out, 'assets', into, 'import-report.json'), `${JSON.stringify(report.toJSON(), null, 2)}\n`);
     }
     return report.toJSON();

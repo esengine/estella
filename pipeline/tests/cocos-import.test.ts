@@ -275,3 +275,38 @@ describe('importing a Cocos project', () => {
         expect(problems).toEqual([]);
     });
 });
+
+describe('importing again over the same project', () => {
+    const ITEM_REL = 'assets/cocos/ui/item.esprefab';
+    const stateOf = (): { documents: Record<string, string> } => readJson('assets/cocos/.import-state.json');
+
+    it('finds nothing to do when neither side changed', () => {
+        const again = importCocosProject({ source: src, out });
+        expect(again.sync.added).toBe(0);
+        expect(again.sync.updated).toBe(0);
+        expect(again.sync.kept).toEqual([]);
+        expect(again.sync.unchanged).toBeGreaterThan(0);
+    });
+
+    it('brings the Cocos side\'s change into a document nobody edited', () => {
+        // the file as an earlier import wrote it, different from what the source converts to now
+        const file = path.join(out, ITEM_REL);
+        const stale = `${readFileSync(file, 'utf8').trimEnd()}\n\n`;
+        writeFileSync(file, stale);
+        const state = stateOf();
+        state.documents[ITEM_REL] = createHash('sha1').update(stale).digest('hex');
+        writeFileSync(path.join(out, 'assets/cocos/.import-state.json'), JSON.stringify(state));
+        const again = importCocosProject({ source: src, out });
+        expect(again.sync.updated).toBe(1);
+        expect(readFileSync(file, 'utf8')).not.toBe(stale);
+    });
+
+    it('keeps a document that was edited here, and says so', () => {
+        const file = path.join(out, ITEM_REL);
+        const mine = `${JSON.stringify({ ...readJson(ITEM_REL), edited: true }, null, 2)}\n`;
+        writeFileSync(file, mine);
+        const again = importCocosProject({ source: src, out });
+        expect(again.sync.kept).toEqual([ITEM_REL]);
+        expect(readFileSync(file, 'utf8')).toBe(mine);
+    });
+});
