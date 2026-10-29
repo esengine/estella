@@ -822,7 +822,7 @@ if (opts.command === 'package-openpaas') {
 if (opts.command === 'import-cocos') {
   const { mod, cleanup } = await loadPipeline(path.join(PIPELINE, 'src', 'import', 'cocos', 'index.ts'), 'cocosImport.mjs');
   try {
-    const report = mod.importCocosProject({
+    const report = await mod.importCocosProject({
       source: opts.source, out: opts.out, only: opts.only, dryRun: opts.dryRun, ...(opts.into ? { into: opts.into } : {}),
     });
     console.log(JSON.stringify(report, null, 2));

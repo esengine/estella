@@ -126,7 +126,7 @@ let registry: Record<string, any>;
 let root: string;
 let src: string;
 let out: string;
-let report: ReturnType<typeof importCocosProject>;
+let report: Awaited<ReturnType<typeof importCocosProject>>;
 let before: Record<string, string>;
 
 beforeAll(async () => {
@@ -159,7 +159,7 @@ beforeAll(async () => {
     put('main.scene', scene);
     put('main.scene.meta', meta('55555555-5555-4555-8555-555555555555', 'scene'));
     before = Object.fromEntries([...files(src)].map((f) => [f, sha(f)]));
-    report = importCocosProject({ source: src, out });
+    report = await importCocosProject({ source: src, out });
 });
 
 afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
@@ -167,9 +167,9 @@ afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retr
 const readJson = (rel: string): any => JSON.parse(readFileSync(path.join(out, rel), 'utf8'));
 
 describe('importing a Cocos project', () => {
-    it('never writes to the source, and refuses an output inside it', () => {
+    it('never writes to the source, and refuses an output inside it', async () => {
         expect(Object.fromEntries([...files(src)].map((f) => [f, sha(f)]))).toEqual(before);
-        expect(() => importCocosProject({ source: src, out: path.join(src, 'out') })).toThrow(/never written/);
+        await expect(importCocosProject({ source: src, out: path.join(src, 'out') })).rejects.toThrow(/never written/);
     });
 
     it('converts every prefab and scene without failures', () => {
@@ -280,15 +280,15 @@ describe('importing again over the same project', () => {
     const ITEM_REL = 'assets/cocos/ui/item.esprefab';
     const stateOf = (): { documents: Record<string, string> } => readJson('assets/cocos/.import-state.json');
 
-    it('finds nothing to do when neither side changed', () => {
-        const again = importCocosProject({ source: src, out });
+    it('finds nothing to do when neither side changed', async () => {
+        const again = await importCocosProject({ source: src, out });
         expect(again.sync.added).toBe(0);
         expect(again.sync.updated).toBe(0);
         expect(again.sync.kept).toEqual([]);
         expect(again.sync.unchanged).toBeGreaterThan(0);
     });
 
-    it('brings the Cocos side\'s change into a document nobody edited', () => {
+    it('brings the Cocos side\'s change into a document nobody edited', async () => {
         // the file as an earlier import wrote it, different from what the source converts to now
         const file = path.join(out, ITEM_REL);
         const stale = `${readFileSync(file, 'utf8').trimEnd()}\n\n`;
@@ -296,16 +296,16 @@ describe('importing again over the same project', () => {
         const state = stateOf();
         state.documents[ITEM_REL] = createHash('sha1').update(stale).digest('hex');
         writeFileSync(path.join(out, 'assets/cocos/.import-state.json'), JSON.stringify(state));
-        const again = importCocosProject({ source: src, out });
+        const again = await importCocosProject({ source: src, out });
         expect(again.sync.updated).toBe(1);
         expect(readFileSync(file, 'utf8')).not.toBe(stale);
     });
 
-    it('keeps a document that was edited here, and says so', () => {
+    it('keeps a document that was edited here, and says so', async () => {
         const file = path.join(out, ITEM_REL);
         const mine = `${JSON.stringify({ ...readJson(ITEM_REL), edited: true }, null, 2)}\n`;
         writeFileSync(file, mine);
-        const again = importCocosProject({ source: src, out });
+        const again = await importCocosProject({ source: src, out });
         expect(again.sync.kept).toEqual([ITEM_REL]);
         expect(readFileSync(file, 'utf8')).toBe(mine);
     });

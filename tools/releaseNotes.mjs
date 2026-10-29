@@ -28,6 +28,8 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(cocos): the importer brings in the models a project draws with the engine model import, maps MeshRenderer and the built-in shapes onto it, and the editor and the importer share one model import':
+    {"internal":"The Cocos Creator compatibility layer and importer have not shipped; the shared model import is a refactor with no change a creator sees."},
   'feat(particle): an emitter can carry an added velocity per particle and limit particle speed with a dampening, and the Cocos velocity, force and limit modules map onto them':
     {"note":"Particles can carry an added velocity and be held to a speed limit."},
   'feat(particle): an emitter can wait startDelay seconds before it emits, with the duration counted from the end of the delay, and the Cocos start delay maps onto it':

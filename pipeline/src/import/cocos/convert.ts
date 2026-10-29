@@ -78,6 +78,8 @@ export interface ConvertContext extends ComponentContext {
     loadPrefab(uuid: string): CocosDocument | null;
     /** The project-relative path the converted prefab of a uuid is written to. */
     prefabRef(uuid: string): string | null;
+    /** The engine prefab of a model a uuid names (the whole model, or its scene), or null when the uuid is not a model that was brought in. */
+    modelInstance?(uuid: string): { prefab: string; rootId: string; name: string } | null;
     /** Where the document being converted lives, for notes. */
     where: string;
 }
@@ -276,10 +278,35 @@ function diff(pristine: Map<string, Flat>, patched: Map<string, Flat>, ctx: Conv
     return out;
 }
 
+/**
+ * What an instance of a model changes about it. The model's own nodes were named by Cocos with ids this import does not know, so only the
+ * instance's root can be addressed: its name, whether it is active and where it stands. The rest (a material put on a mesh, a clip set on its
+ * animation) is counted, not lost silently.
+ */
+function modelInstanceOverrides(node: CocosNode, model: { rootId: string; name: string }, ctx: ConvertContext): PrefabOverride[] {
+    const inst = node.instance!;
+    const roots = inst.overrides.filter((o) => o.target.length === 1);
+    const inner = inst.overrides.length - roots.length;
+    if (inner > 0) ctx.report.note('model-instance-overrides', `${ctx.where}: ${node.name} (${inner} on the model's own parts)`);
+    const addr = roots[0]?.target[0];
+    if (addr === undefined) return [];
+    const base: CocosNode = {
+        id: addr, name: model.name, active: true, pos: { x: 0, y: 0, z: 0 }, rot: { x: 0, y: 0, z: 0, w: 1 }, scale: { x: 1, y: 1, z: 1 },
+        layer: 33554432, components: [], children: [],
+    };
+    const pristine: XNode = { addr, prefix: '', node: base, children: [] };
+    const patched = structuredClone(pristine);
+    applyOverrides(patched, roots, ctx);
+    const quiet: ConvertContext = { ...ctx, report: new ImportReport() };
+    return diff(flatten(pristine, quiet), flatten(patched, quiet), ctx).map((o) => ({ ...o, prefabEntityId: model.rootId }));
+}
+
 /** The overrides an instance node applies over the prefab it names, or null when that prefab is missing. */
 function instanceOverrides(node: CocosNode, ctx: ConvertContext): PrefabOverride[] | null {
     const inst = node.instance;
     if (!inst) return null;
+    const model = ctx.modelInstance?.(inst.asset);
+    if (model) return modelInstanceOverrides(node, model, ctx);
     const pristine = expandAsset(inst.asset, ctx, []);
     if (!pristine) return null;
     const patched = structuredClone(pristine);

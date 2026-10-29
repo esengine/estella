@@ -18,6 +18,7 @@ import type { AssetHints, SliceBorder } from './components';
 import { convertPrefab, convertScene, type ConvertContext } from './convert';
 import { parseCocosDocument, type CocosDocument } from './document';
 import { ImportReport, type ImportReportData } from './report';
+import { CocosModels } from './models';
 
 export interface CocosImportOptions {
     /** The Cocos project folder (the one holding `assets/` and `settings/`). */
@@ -90,7 +91,7 @@ function declareBakedOutline(fnt: string): string {
     ));
 }
 
-export function importCocosProject(opts: CocosImportOptions): ImportReportData {
+export async function importCocosProject(opts: CocosImportOptions): Promise<ImportReportData> {
     const source = path.resolve(opts.source);
     const out = path.resolve(opts.out);
     if (out === source || isInsideRoot(source, out)) {
@@ -127,6 +128,7 @@ export function importCocosProject(opts: CocosImportOptions): ImportReportData {
         return doc;
     };
 
+    const models = new CocosModels(index, out, into, opts.dryRun === true);
     const scripts = buildScriptIndex(index);
     /** The scripts a converted document refers to, which the project has to bundle for those components to exist. */
     const usedScripts = new Set<string>();
@@ -158,11 +160,28 @@ export function importCocosProject(opts: CocosImportOptions): ImportReportData {
         material(materialUuid) {
             return materialInfo(materialUuid);
         },
+        modelInstance(uuid) {
+            const m = models.use(uuid);
+            return m && m.use.prefab ? { prefab: m.use.prefab, rootId: m.use.rootId, name: path.basename(m.entry.rel).replace(/\.[^.]+$/, '') } : null;
+        },
+        modelMesh(uuid) {
+            const m = models.use(uuid);
+            if (!m) return null;
+            const name = models.meshName(m.entry, uuid);
+            const hit = name ? m.use.byEntity.get(name) : undefined;
+            const renderers = (hit ?? []).filter((c) => c.type === 'MeshRenderer');
+            if (renderers.length > 0) return { components: renderers.map((c) => structuredClone(c.data) as Record<string, unknown>), exact: true };
+            // a model with one drawn part has no other mesh a node could mean
+            const all = [...m.use.byEntity.values()].flat().filter((c) => c.type === 'MeshRenderer');
+            return all.length === 1 ? { components: [structuredClone(all[0]!.data) as Record<string, unknown>], exact: false } : null;
+        },
         loadPrefab(uuid) {
             const e = prefabEntry(uuid);
             return e ? loadDoc(e) : null;
         },
         prefabRef(uuid) {
+            const model = models.use(uuid);
+            if (model?.use.prefab) return model.use.prefab;
             const e = prefabEntry(uuid);
             if (!e) return null;
             if (!queued.has(e.rel)) {
@@ -293,6 +312,7 @@ export function importCocosProject(opts: CocosImportOptions): ImportReportData {
         const doc = e ? loadDoc(e) : null;
         if (!e || !doc) continue;
         ctx.where = r;
+        await models.ensureFor(e.file);
         try {
             write(outRef(esRel(r, '.esprefab')), convertPrefab(doc, ctx));
         } catch (err) {
@@ -304,12 +324,16 @@ export function importCocosProject(opts: CocosImportOptions): ImportReportData {
         const doc = e ? loadDoc(e) : null;
         if (!e || !doc) continue;
         ctx.where = r;
+        await models.ensureFor(e.file);
         try {
             write(outRef(esRel(r, '.esscene')), convertScene(doc, ctx));
         } catch (err) {
             report.documents.failed.push({ file: r, error: (err as Error).message });
         }
     }
+
+    for (const f of models.failures) report.documents.failed.push(f);
+    for (const w of models.warnings) report.note('model-import-warning', `${w.file}: ${w.warning}`);
 
     if (usedScripts.size > 0) {
         // The scripts stay where they are, unchanged; this file is how the new project's bundle reaches them.

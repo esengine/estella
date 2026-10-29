@@ -20,7 +20,7 @@ export interface CocosAssetEntry {
     importer: string;
     userData: Record<string, unknown>;
     /** Sub-assets by their full uuid (`<uuid>@<id>`). */
-    subs: Map<string, { importer: string; userData: Record<string, unknown> }>;
+    subs: Map<string, { importer: string; name: string; userData: Record<string, unknown> }>;
 }
 
 export interface CocosAssetIndex {
@@ -91,7 +91,7 @@ export function buildCocosAssetIndex(root: string): CocosAssetIndex {
         for (const sub of Object.values(asObj(meta.subMetas))) {
             const s = asObj(sub);
             if (typeof s.uuid !== 'string') continue;
-            entry.subs.set(s.uuid, { importer: typeof s.importer === 'string' ? s.importer : '', userData: asObj(s.userData) });
+            entry.subs.set(s.uuid, { importer: typeof s.importer === 'string' ? s.importer : '', name: typeof s.name === 'string' ? s.name : '', userData: asObj(s.userData) });
             byUuid.set(s.uuid, entry);
         }
         byUuid.set(uuid, entry);

@@ -59,9 +59,9 @@ const scene = [
 describe('importing for the compatibility layer', () => {
     let root: string;
     let scenes: { entities: Array<{ id: number; name: string; components: Array<{ type: string; data: Record<string, any> }> }> };
-    let report: ReturnType<typeof importCocosProject>;
+    let report: Awaited<ReturnType<typeof importCocosProject>>;
 
-    beforeAll(() => {
+    beforeAll(async () => {
         root = mkdtempSync(path.join(tmpdir(), 'cocos-layer-'));
         const put = (rel: string, v: string | object): void => {
             const f = path.join(root, 'creator', 'assets', rel);
@@ -87,7 +87,7 @@ describe('importing for the compatibility layer', () => {
         put('hero/skin.json.meta', meta('f5f5f5f5-f5f5-4f5f-8f5f-f5f5f5f5f5f5', 'json'));
         put('art/plain.json', '{}');
         put('art/plain.json.meta', meta(PLAIN, 'json'));
-        report = importCocosProject({ source: path.join(root, 'creator'), out: path.join(root, 'out') });
+        report = await importCocosProject({ source: path.join(root, 'creator'), out: path.join(root, 'out') });
         scenes = JSON.parse(readFileSync(path.join(root, 'out', 'assets', 'cocos', 'main.esscene'), 'utf8'));
     });
     afterAll(() => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));

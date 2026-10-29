@@ -42,6 +42,11 @@ export interface ComponentContext {
     drawsBakedOutline?(materialUuid: string): boolean;
     /** A material's main texture and whether it blends additively; null when the project has no such material. */
     material?(uuid: string): { texture: CocosAssetEntry | null; additive: boolean } | null;
+    /**
+     * The engine MeshRenderer data of the part of a model a Cocos mesh sub-asset names, once that model was brought in. `exact` is false when
+     * the part was picked because the model draws only one.
+     */
+    modelMesh?(uuid: string): { components: Record<string, unknown>[]; exact: boolean } | null;
     /** The script class a compressed class id names, when the project has that script. */
     scriptClass?(classId: string): { name: string } | undefined;
     /** The project-relative ref of a prefab, queuing it for conversion; null when the project does not have it. */
@@ -419,6 +424,57 @@ function directionalLight(c: CocosComponent, ctx: ComponentContext, where: strin
     };
 }
 
+/**
+ * The shapes Cocos Creator builds in (`db://internal/primitives.fbx`), identified by the bounds of what the editor imported them to: the
+ * engine's own builtin meshes, and the size of the Cocos one in world units. The engine's are 100 across, the Cocos ones about 1 (a plane 10),
+ * so the node's scale carries the difference and the shape stays the size the scene meant.
+ */
+const COCOS_PRIMITIVES = '1263d74c-8167-4928-91a6-4e2672411f47';
+const PRIMITIVE_MESHES: Record<string, { ref: string; size: number }> = {
+    a804a: { ref: 'builtin:cube', size: 1 },
+    '17020': { ref: 'builtin:sphere', size: 1 },
+    '38fd2': { ref: 'builtin:cylinder', size: 1 },
+    '2e76e': { ref: 'builtin:plane', size: 10 },
+    fc873: { ref: 'builtin:quad', size: 1 },
+};
+const ENGINE_PRIMITIVE_SIZE = 100;
+
+/** `cc.MeshRenderer`: the mesh is the model's own part, drawn with the model's own material until the Cocos material is carried across. */
+function meshRenderer(c: CocosComponent, ctx: ComponentContext, where: string): { component: ComponentData; scale?: number } | null {
+    const meshUuid = uuidOf(c.data._mesh);
+    const hasMaterial = Array.isArray(c.data._materials) && c.data._materials.some((m) => uuidOf(m) !== '');
+    if (meshUuid.startsWith(COCOS_PRIMITIVES)) {
+        const primitive = PRIMITIVE_MESHES[meshUuid.split('@')[1] ?? ''];
+        if (!primitive) {
+            ctx.report.note('mesh-builtin-shape-unknown', `${where}: ${meshUuid.split('@')[1] ?? ''}`);
+            return null;
+        }
+        ctx.report.component('cc.MeshRenderer', hasMaterial ? 'partial' : 'mapped');
+        if (hasMaterial) ctx.report.note('mesh-material-not-carried', where);
+        return {
+            component: { type: 'MeshRenderer', data: { mesh: primitive.ref, enabled: c.enabled } },
+            scale: primitive.size / ENGINE_PRIMITIVE_SIZE,
+        };
+    }
+    const found = meshUuid ? ctx.modelMesh?.(meshUuid) : null;
+    if (!found) return null;
+    let partial = false;
+    if (found.components.length > 1) {
+        partial = true;
+        ctx.report.note('mesh-several-primitives', where);
+    }
+    if (!found.exact) {
+        partial = true;
+        ctx.report.note('mesh-guessed-from-model', where);
+    }
+    if (hasMaterial) {
+        partial = true;
+        ctx.report.note('mesh-material-from-model', where);
+    }
+    ctx.report.component('cc.MeshRenderer', partial ? 'partial' : 'mapped');
+    return { component: { type: 'MeshRenderer', data: { ...found.components[0]!, enabled: c.enabled } } };
+}
+
 /** `cc.UIOpacity`: the alpha of the node and everything under it, which the engine's GroupOpacity is. */
 function uiOpacity(c: CocosComponent, ctx: ComponentContext): ComponentData {
     ctx.report.component('cc.UIOpacity', 'mapped');
@@ -463,6 +519,8 @@ export function convertNode(node: CocosNode, ctx: ComponentContext, where: strin
     if (!node.active) components.push({ type: 'Disabled', data: {} });
     const box = uiBox(node);
     const unmapped: Raw[] = [];
+    // a mesh whose unit is not the engine's resizes the node it hangs on
+    let unitScale = 1;
 
     for (const c of node.components) {
         let out: ComponentData | null = null;
@@ -516,6 +574,12 @@ export function convertNode(node: CocosNode, ctx: ComponentContext, where: strin
             case 'cc.DirectionalLight':
                 out = directionalLight(c, ctx, where);
                 break;
+            case 'cc.MeshRenderer': {
+                const mesh = meshRenderer(c, ctx, where);
+                out = mesh?.component ?? null;
+                if (mesh?.scale !== undefined) unitScale = mesh.scale;
+                break;
+            }
             case 'cc.UIOpacity':
                 out = uiOpacity(c, ctx);
                 break;
@@ -548,6 +612,11 @@ export function convertNode(node: CocosNode, ctx: ComponentContext, where: strin
             ctx.report.component(c.type, 'unmapped');
         }
         unmapped.push({ type: c.type, enabled: c.enabled, data: c.data });
+    }
+
+    if (unitScale !== 1) {
+        const scale = components[0]!.data.scale as { x: number; y: number; z: number };
+        components[0]!.data.scale = { x: scale.x * unitScale, y: scale.y * unitScale, z: scale.z * unitScale };
     }
 
     const cocos: Raw = {};
