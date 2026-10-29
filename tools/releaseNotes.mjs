@@ -28,6 +28,8 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(editor): opening a Cocos Creator folder converts it into an Estella project beside it and opens that':
+    {"note":"Open a Cocos Creator project from the editor."},
   'feat(ui): a held pointer reports its moves (pointer_move) and a given-up hold (press_cancel), every pointer event says where the pointer is, and a ContentRect-only entity can be pressed; the Cocos touches translate the engine\'s pointer events instead of dispatching on their own':
     {"note":"A held pointer reports where it goes, and a hold can be given up."},
   'feat(ui): ContentRect, the rectangle world content occupies — Sprite and Text follow it, a UIMask on the entity clips to it, a world point can be tested against it; the Cocos UITransform and Mask are views on it, and the importer writes it':
