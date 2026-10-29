@@ -114,6 +114,15 @@ describe('importing for the compatibility layer', () => {
         expect(report.components['script:Hud']).toEqual({ mapped: 1, partial: 0, unmapped: 0 });
     });
 
+    it('writes the entry that brings the scripts into the bundle, importing them where they are', () => {
+        const entry = readFileSync(path.join(root, 'out', 'src', 'cocos-scripts.ts'), 'utf8');
+        expect(entry).toContain("import 'esengine/cocos';");
+        const line = entry.split('\n').find((l) => l.endsWith("scripts/Hud';"))!;
+        expect(line).toBeDefined();
+        // the path leads back to the Cocos project, which is not copied
+        expect(path.resolve(root, 'out', 'src', line.slice("import '".length, -2) + '.ts')).toBe(path.join(root, 'creator', 'assets', 'scripts', 'Hud.ts'));
+    });
+
     it('counts the components it maps', () => {
         for (const type of ['cc.Widget', 'cc.Layout', 'cc.Button', 'cc.UITransform']) expect(report.components[type]!.unmapped).toBe(0);
     });

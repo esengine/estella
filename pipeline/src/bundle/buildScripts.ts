@@ -18,6 +18,7 @@ import path from 'node:path';
 import { loadEsbuild } from './esbuildRuntime';
 import { explainBundleErrors, type BundleMessage } from './bundleDiagnostics';
 import { officialPackagesPlugin } from './officialPackages';
+import { cocosCompatPlugin } from './cocosCompat';
 
 /** esengine and any subpath import are left for the realm's import map to resolve. */
 const EXTERNAL = ['esengine', 'esengine/*'];
@@ -58,7 +59,7 @@ export async function buildProjectScripts(
       platform: 'browser',
       target: 'es2020',
       external: EXTERNAL,
-      plugins: [officialPackagesPlugin(opts.packagesDir)],
+      plugins: [officialPackagesPlugin(opts.packagesDir), cocosCompatPlugin()],
       outfile: outputPath,
       sourcemap: true,
       write: true,

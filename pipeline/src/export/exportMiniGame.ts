@@ -49,6 +49,7 @@ import { runtimeHostEntry } from '../bundle/runtimeHosts';
 import { breakdownOf, type ModuleBytes } from './bundleBreakdown';
 import { esengineAlias } from '../bundle/esengineResolve';
 import { officialPackagesPlugin } from '../bundle/officialPackages';
+import { cocosCompatPlugin } from '../bundle/cocosCompat';
 import { explainBundleErrors, type BundleMessage } from '../bundle/bundleDiagnostics';
 import { scanSideModuleIds, sideModuleFiles, textureDecoderBytes } from '../bundle/sideModuleScan';
 import { exportedAssetFiles, pruneExportedAssets } from './assetCleanup';
@@ -586,7 +587,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
       // devtools accepts it; es2017 down-levels those while keeping async/await.
       target: profile.esTarget,
       alias: esengineAlias(opts.sdkDir, lean ? leanEntry! : profile.sdkEntryFile),
-      plugins: [officialPackagesPlugin(opts.packagesDir)],
+      plugins: [officialPackagesPlugin(opts.packagesDir), cocosCompatPlugin()],
       minify: opts.minify ?? false,
       sourcemap: false,
       outfile: path.join(absOut, 'game-bundle.js'),

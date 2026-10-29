@@ -28,6 +28,8 @@ export { registerBuiltinComponent, type BuiltinAdapter } from './builtins';
 export { UITransform, Label, LabelOutline, LabelShadow, Sprite, UIOpacity, Button, EventHandler, Widget, Layout, getVisibleSize, setVisibleSize } from './ui';
 export { Touch, EventTouch, pumpTouches } from './input';
 export { declareBuiltinScripts, redeclareBuiltinScripts } from './builtinScripts';
+/** `cc/env` is the same module here: its flags are named exports beside the rest. */
+export * from './env';
 export { classInfoNamed, classInfoOf, allClassInfos, COMPONENT_PREFIX, resetClassRegistry } from './registry';
 
 import { declareBuiltinScripts as declare } from './builtinScripts';

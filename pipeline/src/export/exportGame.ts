@@ -60,6 +60,7 @@ import { genericPlayableProfile, type PlayableAdProfile } from './playableAdProf
 import type { OnExportProgress } from './exportProgress';
 import { ESENGINE_EXTERNAL, ESENGINE_SUBPATHS } from '../bundle/esengineResolve';
 import { officialPackagesPlugin } from '../bundle/officialPackages';
+import { cocosCompatPlugin } from '../bundle/cocosCompat';
 import type { RpkSigningKey } from './rpk';
 import { buildCompiledSystems, type BuildMode } from '../bundle/buildCompiledSystems';
 import { resolveEmcc, runEmcc } from '../bundle/emccPath';
@@ -947,7 +948,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     platform: 'browser',
     target: 'es2020',
     external: ESENGINE_EXTERNAL,
-    plugins: [officialPackagesPlugin(opts.packagesDir)],
+    plugins: [officialPackagesPlugin(opts.packagesDir), cocosCompatPlugin()],
     minify: opts.minify ?? false,
     sourcemap: sourceMaps,
     write: true,
@@ -1047,7 +1048,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       const proj = nativeContent
         ? await build({
           ...common, format: 'iife', external: [],
-          plugins: [esengineGlobalPlugin(), officialPackagesPlugin(opts.packagesDir)],
+          plugins: [esengineGlobalPlugin(), officialPackagesPlugin(opts.packagesDir), cocosCompatPlugin()],
           entryPoints: [scriptsAbs], outfile: path.join(payloadDir, 'scripts.js'),
         })
         : await build({ ...common, entryPoints: [scriptsAbs], outfile: path.join(payloadDir, 'scripts.mjs') });

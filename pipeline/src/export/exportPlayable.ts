@@ -33,6 +33,7 @@ import { optimizePlayableAssets, playableAssetsJsonBytes, type PlayableOptimizat
 import type { OnExportProgress } from './exportProgress';
 import { esengineAlias } from '../bundle/esengineResolve';
 import { officialPackagesPlugin } from '../bundle/officialPackages';
+import { cocosCompatPlugin } from '../bundle/cocosCompat';
 import { explainBundleErrors, type BundleMessage } from '../bundle/bundleDiagnostics';
 import type { ScreenOrientation } from './orientationHtml';
 import { genericPlayableProfile, playableAdInjection, isPlayableZipFileName, type PlayableAdProfile } from './playableAdProfile';
@@ -319,7 +320,7 @@ export async function exportPlayable(opts: {
       // esengine is INLINED (single-file, no import map) → resolve it from the SDK
       // dist; the project root has no esengine installed.
       alias: esengineAlias(opts.sdkDir),
-      plugins: [officialPackagesPlugin(opts.packagesDir)],
+      plugins: [officialPackagesPlugin(opts.packagesDir), cocosCompatPlugin()],
       minify: opts.minify ?? true,
       write: false,
       outfile: 'game-bundle.js',
