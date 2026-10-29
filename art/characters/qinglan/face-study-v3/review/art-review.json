@@ -1,0 +1,27 @@
+{
+  "status": "rejected_by_user",
+  "feedback": "这对吗？这脸怎么这样了呢",
+  "candidate": "qinglan-face-study.blend",
+  "advance_to_detailing": false,
+  "visual_findings": [
+    "Eye sockets are too deep and the eyelid transitions look rigid.",
+    "Forehead, glabella and nose volumes do not form a natural continuous surface.",
+    "Lip and chin shaping looks mechanical and does not match the reference identity."
+  ],
+  "verified_method_failure": {
+    "source": "landmark-pins.json",
+    "total_cage_vertices": 4350,
+    "moved_vertices_by_stage": {
+      "01_Skull_Cheeks_Jaw": 4289,
+      "02_Forehead_Orbit_Eyelids": 4289,
+      "03_Nose_Philtrum_Lips": 4287,
+      "04_Eyelid_Volume_Clearance": 128
+    },
+    "max_final_control_point_drift_mm": 11.90001155672603,
+    "finding": "The spline has global support; regional naming and scale parameters did not restrict edits to anatomical regions. Later stages displaced earlier control points."
+  },
+  "technical_checks_are_not_art_acceptance": true,
+  "preserved_recovery_source": "head-base.blend",
+  "recovery_source_is_not_approved_identity": true,
+  "required_next_gate": "Restore natural head volumes and compare front, side and three-quarter before fine detail. Verify actual local edit support and eye/lip anatomy."
+}

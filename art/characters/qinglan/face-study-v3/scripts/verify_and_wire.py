@@ -89,7 +89,9 @@ sub.show_viewport=True;sub.show_render=True;eyes.hide_render=False
 scene.camera=bpy.data.objects['Review_ThreeQuarter']
 for ob in bpy.context.selected_objects:ob.select_set(False)
 head.select_set(True);bpy.context.view_layer.objects.active=head
-head['status']='Editable face study; remaining likeness differences documented in README'
+head['status']='Rejected face study; global displacement failed to preserve natural facial volumes'
+head['art_status']='rejected_by_user';head['art_review']='review/art-review.json'
+scene['art_acceptance']='rejected_by_user'
 scene['review_method']='Neutral clay plus actual base-cage edge renders, fixed reference projections'
 for screen in bpy.data.screens:
     for area in screen.areas:

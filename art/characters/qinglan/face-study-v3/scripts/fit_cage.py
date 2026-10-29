@@ -169,6 +169,8 @@ stages.append({'name':key.name,'moved_vertices':int(np.count_nonzero(np.linalg.n
                'method':'Outward skin only, clearance to explicit eye volume'})
 
 head['editing_method']='Named cage vertex pins, smooth spline displacement, reversible per-region shape keys'
+head['art_status']='rejected_by_user'
+head['art_review']='review/art-review.json'
 head['reference']='../references/qinglan-face-target.png'
 sub=head.modifiers.new('Preview_Subdivision_Not_Base_Topology','SUBSURF');sub.levels=2;sub.render_levels=2
 head.show_wire=False
