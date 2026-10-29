@@ -134,6 +134,19 @@ const onTrigger = defineSystem([Res(Physics2DEvents), Query(Marker)], (events, m
 (导入的对象在每次加载时从 `.tmj` 重新派生,因此只在播放模式存在;手工创建的 Marker 是普通的
 序列化实体。)如果你需要某个形状的精确顶点,原始的对象组数据仍可经 `getTilemapSource` 取得。
 
+## 找出离得最近的
+
+"交互"按钮在决定做什么之前要先知道一件事:玩家附近有什么、离多远。`nearestMarkers(world, from, options)` 回答它,按距离从近到远:
+
+```typescript
+import { nearestMarkers, nearestEntities } from 'esengine/gameplay';
+
+const near = nearestMarkers(world, { x: player.x, y: player.y }, { radius: 60, type: ['door', 'tree', 'bed'], limit: 1 });
+if (near[0]) promptFor(world.get(near[0].entity, Marker).type);    // 按钮上写什么,由游戏决定
+```
+
+`type` 可以给一个或多个类型,`has` 只保留 `properties` 里带有全部给定键值的标记,`radius` 和 `limit` 限定结果范围,`plane: 'xz'` 表示在地面上量距离。`nearestEntities(world, Component, from, options)` 对任何组件都一样,并可用 `filter` 按组件数据过滤。被 `Disabled` 关掉的实体找不到。每次询问都是对带该组件的实体过一遍,按一次按钮,或每帧刷新一次提示,在一个村子里几百个东西的规模下完全负担得起。
+
 ## 最佳实践
 
 - **用 type 表角色,用 properties 表细节。** 让游戏 switch 的 `type` 值保持小而稳定,把易变的

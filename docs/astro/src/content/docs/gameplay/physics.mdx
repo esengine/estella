@@ -250,6 +250,32 @@ Casts return `RaycastHit`s (`ShapeCastHit` is the same shape):
 | `normal` | `Vec2` | Surface normal at the hit point (unit vector). |
 | `fraction` | number | Fraction of the cast distance at the hit, `0..1` — results sort by it, nearest first. |
 
+## Placing on a grid
+
+A build mode asks three things while a finger drags something over the ground, and `esengine/gameplay` answers them as plain functions (no component, no system): where does the thing sit
+snapped to the grid, and may it stand there. What follows the finger (a ghost sprite), how it is tinted, and what a confirmed placement does are yours.
+
+```typescript
+import { snapFootprint, checkPlacement, type PlacementGrid } from 'esengine/gameplay';
+
+const grid: PlacementGrid = { cellWidth: 32, cellHeight: 32 };      // originX / originY if cell (0, 0) is not at the world origin
+const spot = snapFootprint(grid, fingerX, fingerY, 3, 1);           // a 3 by 1 wall, centred on its middle cell
+ghost.position.x = spot.x; ghost.position.y = spot.y;               // the ghost sits on whole cells
+
+const check = checkPlacement(grid, spot, {
+    physics,                                  // the Physics2D resource: any collider in the footprint is in the way
+    mask: SOLID_LAYERS,
+    solidAt: (x, y) => isTileSolid(layer, ...), // a solid tile under it blocks (see the tilemap guide)
+    blocked: (col, row) => buildings.has(col, row), // your own table of what is taken
+    ignore: new Set([ghostEntity]),
+});
+ghostSprite.color = check.clear ? GREEN : RED;     // check.blockers and check.blockedCells say what is in the way
+```
+
+`snapToGrid` snaps a point to a cell middle or a cell corner; `gridCellAt` and `gridCellCentre` convert between cells and the world. An odd footprint centres on a cell and an even one on a corner,
+each way on its own. Every probe is optional: one you do not pass blocks nothing. `solidAt` is sampled on a lattice over each cell (every `solidStep`, a quarter of a cell by default), so a solid tile
+narrower than that can slip between the points; the physics query is asked once with the footprint shrunk a hair, so a wall that only touches its edge is not in the way.
+
 ## Collision & sensor events
 
 The `Physics2DEvents` resource carries this frame's contacts. Set `isSensor: true` on a

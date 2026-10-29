@@ -73,3 +73,24 @@ export {
 import { registerGameplaySupport } from './gameplaySupport';
 
 registerGameplaySupport();
+
+export {
+    gridCellAt,
+    gridCellCentre,
+    snapToGrid,
+    snapFootprint,
+    checkPlacement,
+    type PlacementGrid,
+    type GridCell,
+    type PlacementRect,
+    type SnappedFootprint,
+    type PlacementProbes,
+    type PlacementCheck,
+} from './placement';
+
+export {
+    nearestEntities,
+    nearestMarkers,
+    type NearEntity,
+    type NearestOptions,
+} from './nearest';

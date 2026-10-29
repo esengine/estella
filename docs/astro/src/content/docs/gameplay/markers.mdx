@@ -148,6 +148,21 @@ load, so they exist in play mode only; hand-authored Markers are ordinary serial
 entities.) The raw object-group data is still available through `getTilemapSource`
 if you need a shape's exact vertices.
 
+## Finding what is nearest
+
+An "interact" button needs one fact before it decides what it does: what stands near the player, and how near. `nearestMarkers(world, from, options)` answers it, nearest first:
+
+```typescript
+import { nearestMarkers, nearestEntities } from 'esengine/gameplay';
+
+const near = nearestMarkers(world, { x: player.x, y: player.y }, { radius: 60, type: ['door', 'tree', 'bed'], limit: 1 });
+if (near[0]) promptFor(world.get(near[0].entity, Marker).type);    // what the button says is the game's
+```
+
+`type` takes one type or several, `has` keeps only markers whose `properties` carry every given key and value, `radius` and `limit` bound the answer, and `plane: 'xz'` measures on the ground.
+`nearestEntities(world, Component, from, options)` is the same over any component, with a `filter` on its data. An entity switched off with `Disabled` is not found. It is one pass over
+the entities that carry the component each time it is asked, which a button press or a prompt refreshed once a frame affords over the hundreds of things a village holds.
+
 ## Best practices
 
 - **Type by role, detail by properties.** A small, stable set of `type` values the

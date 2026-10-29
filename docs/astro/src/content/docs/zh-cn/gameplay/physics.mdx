@@ -234,6 +234,29 @@ const swept  = physics.shapeCastCircle(/* … */);    // sweep a shape
 | `normal` | `Vec2` | 命中点处的表面法线(单位向量)。 |
 | `fraction` | number | 命中处占投射距离的比例,`0..1`——结果按它排序,最近优先。 |
 
+## 在网格上放置
+
+建造模式在手指拖着东西划过地面时要问三件事,`esengine/gameplay` 把它们做成了纯函数(没有组件,也没有系统):这个东西吸附到网格后落在哪里,它能不能站在那里。跟着手指走的幽灵精灵、怎么着色、确认放置之后做什么,都由你来定。
+
+```typescript
+import { snapFootprint, checkPlacement, type PlacementGrid } from 'esengine/gameplay';
+
+const grid: PlacementGrid = { cellWidth: 32, cellHeight: 32 };      // 格子 (0, 0) 不在世界原点时再写 originX / originY
+const spot = snapFootprint(grid, fingerX, fingerY, 3, 1);           // 3×1 的墙,以中间那格为中心
+ghost.position.x = spot.x; ghost.position.y = spot.y;               // 幽灵落在整格上
+
+const check = checkPlacement(grid, spot, {
+    physics,                                  // Physics2D 资源:占地范围内的任何碰撞体都算挡路
+    mask: SOLID_LAYERS,
+    solidAt: (x, y) => isTileSolid(layer, ...), // 脚下有实心瓦片就挡(见瓦片地图指南)
+    blocked: (col, row) => buildings.has(col, row), // 你自己记录的"已被占用"
+    ignore: new Set([ghostEntity]),
+});
+ghostSprite.color = check.clear ? GREEN : RED;     // check.blockers 和 check.blockedCells 说明挡路的是什么
+```
+
+`snapToGrid` 把一个点吸附到格子中心或最近的格角;`gridCellAt` 和 `gridCellCentre` 在格子与世界坐标之间换算。奇数大小的占地以格子中心为中心,偶数大小的以格角为中心,横竖各自处理。每个探测都是可选的,不传的那个什么也不挡。`solidAt` 在每个格子上按网格采样(每隔 `solidStep`,默认四分之一格),比这更窄的实心瓦片可能从采样点之间漏过去;物理查询只问一次,占地范围缩小了一点点,所以只是边贴着墙不算挡路。
+
 ## 碰撞与传感事件
 
 `Physics2DEvents` 资源携带这一帧的接触。给碰撞体设 `isSensor: true` 即可得到 enter/exit 事件
