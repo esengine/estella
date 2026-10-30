@@ -24,11 +24,14 @@
  * Only files that import `cc` are touched: a script that does not is not a Cocos script, and keeps whatever its own tsconfig says.
  * The project's files are read, never written.
  */
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import type { Plugin } from 'esbuild';
+import type { Plugin, PluginBuild } from 'esbuild';
 import { loadEsbuild } from './esbuildRuntime';
+
+/** Changes whenever what this plugin does to a script changes, so a bundle built by an older one is not taken for current. */
+export const COCOS_COMPAT_VERSION = 4;
 
 /** What `cc` and `cc/env` resolve to. */
 export const COCOS_LAYER = 'esengine/cocos';
@@ -92,10 +95,35 @@ export function letTheReassignedConsts(source: string): string {
   return source.replace(CONST_DECL, (all: string, name: string) => (assigned.has(name) ? all.replace('const', 'let') : all));
 }
 
+/** The script classes a converted project renamed, from the file the import wrote beside the project's entry; empty when there is none. */
+function readClassNames(build: PluginBuild): Map<string, { from: string; to: string }> {
+  const options = build.initialOptions;
+  const first = options.entryPoints;
+  const entry = Array.isArray(first) ? first[0] : first && typeof first === 'object' ? Object.values(first)[0] : undefined;
+  const entryFile = typeof entry === 'string' ? entry : entry?.in;
+  const dir = entryFile ? path.dirname(path.resolve(options.absWorkingDir ?? '.', entryFile)) : options.stdin?.resolveDir ? path.join(options.stdin.resolveDir, 'src') : null;
+  const out = new Map<string, { from: string; to: string }>();
+  if (!dir) return out;
+  try {
+    const names = JSON.parse(readFileSync(path.join(dir, 'cocos-class-names.json'), 'utf8')) as Record<string, { from: string; to: string }>;
+    for (const [key, v] of Object.entries(names)) out.set(path.resolve(dir, key).toLowerCase(), v);
+  } catch { /* none renamed */ }
+  return out;
+}
+
+/** The decorator of a renamed class, written with its new name: `@ccclass('Old')` and a bare `@ccclass` both become `@ccclass('New')`. */
+export function renameClass(source: string, from: string, to: string): string {
+  const escaped = from.replace(/[$]/g, (c) => `\\${c}`);
+  const named = new RegExp(String.raw`@ccclass\(\s*(['"])${escaped}\1\s*\)`);
+  if (named.test(source)) return source.replace(named, `@ccclass('${to}')`);
+  return source.replace(/@ccclass(?![\w(])/, `@ccclass('${to}')`);
+}
+
 export function cocosCompatPlugin(): Plugin {
   return {
     name: 'estella-cocos-compat',
     setup(build) {
+      const renames = readClassNames(build);
       build.onResolve({ filter: CC }, async (args) => {
         if (args.pluginData === RESOLVING) return undefined;
         const layer = await build.resolve(COCOS_LAYER, {
@@ -129,6 +157,8 @@ export function cocosCompatPlugin(): Plugin {
         } catch {
           return undefined;
         }
+        const renamed = renames.get(args.path.replace(/\.(tsx?|jsx?)$/, '').toLowerCase());
+        if (renamed) source = renameClass(source, renamed.from, renamed.to);
         if (!IMPORTS_CC.test(source)) {
           const fixed = letTheReassignedConsts(source);
           return fixed === source ? undefined : { contents: fixed, loader: args.path.endsWith('x') ? 'tsx' : 'ts', resolveDir: path.dirname(args.path) };

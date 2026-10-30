@@ -32,6 +32,8 @@ export interface ScriptClass {
     name: string;
     /** Path of the script, relative to the project's `assets`. */
     rel: string;
+    /** The `@ccclass` name the script wrote, when another script had it first and this class was given a name of its own. */
+    wrote?: string;
 }
 
 const NAMED = /@ccclass\(\s*['"]([^'"]+)['"]\s*\)/;
@@ -43,7 +45,10 @@ const UNNAMED = new RegExp(String.raw`@ccclass(?:\(\s*\))?(?![\w(])${BETWEEN}(?:
 /** The compressed uuid of every script that declares a component class, mapped to that class. */
 export function buildScriptIndex(assets: CocosAssetIndex): Map<string, ScriptClass> {
     const out = new Map<string, ScriptClass>();
-    for (const entry of assets.byUuid.values()) {
+    // Cocos tells classes apart by their script, so two may share a name; here a name is a component, so the second of a name (in path order,
+    // which is the same on every import) is numbered.
+    const taken = new Set<string>();
+    for (const entry of [...assets.byUuid.values()].sort((x, y) => (x.rel < y.rel ? -1 : x.rel > y.rel ? 1 : 0))) {
         if (!/\.(ts|js)$/.test(entry.rel) || entry.rel.endsWith('.d.ts')) continue;
         if (entry.importer !== 'typescript' && entry.importer !== 'javascript') continue;
         let text: string;
@@ -54,7 +59,10 @@ export function buildScriptIndex(assets: CocosAssetIndex): Map<string, ScriptCla
         }
         const name = NAMED.exec(text)?.[1] ?? UNNAMED.exec(text)?.[1];
         if (!name) continue;
-        out.set(compressUuid(entry.uuid), { name, rel: entry.rel });
+        let unique = name;
+        for (let n = 2; taken.has(unique); n++) unique = `${name}_${n}`;
+        taken.add(unique);
+        out.set(compressUuid(entry.uuid), { name: unique, rel: entry.rel, ...(unique !== name ? { wrote: name } : {}) });
     }
     return out;
 }
