@@ -813,6 +813,9 @@ function script(c: CocosComponent, ctx: ComponentContext): ComponentData | null 
     return { type: `${LAYER}${cls.name}`, data };
 }
 
+/** The engine components that draw, and carry the layer a camera's culling mask selects. */
+const LAYERED = new Set(['Sprite', 'Text', 'ShapeRenderer', 'SpineAnimation', 'ParticleEmitter', 'MeshRenderer']);
+
 /** Components that are folded into another, or carry nothing of their own. */
 const FOLDED = new Set(['cc.UITransform', 'cc.LabelOutline', 'cc.LabelShadow', 'cc.Canvas', 'cc.UIMeshRenderer', 'cc.RenderRoot2D']);
 
@@ -985,6 +988,12 @@ export function convertNode(node: CocosNode, ctx: ComponentContext, where: strin
         unmapped.push({ type: c.type, enabled: c.enabled, data: c.data });
     }
 
+    // A node's Cocos layer is the layer its renderers draw in: a camera's culling mask picks among those, and a renderer left in layer 0 is
+    // outside the mask of a UI camera (layer 25) and never drawn by it.
+    const layerBit = node.layer > 0 && (node.layer & (node.layer - 1)) === 0 ? Math.log2(node.layer) : -1;
+    if (layerBit >= 0 && layerBit < 32) {
+        for (const c of [...components, ...extra]) if (LAYERED.has(c.type) && !(c.data.layer)) c.data.layer = layerBit;
+    }
     components.push(...extra);
     if (unitScale !== 1) {
         const scale = components[0]!.data.scale as { x: number; y: number; z: number };

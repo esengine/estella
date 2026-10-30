@@ -212,6 +212,12 @@ describe('importing for the compatibility layer', () => {
         expect(at("scripts/Globals'")).toBeLessThan(at("scripts/Hud'"));
     });
 
+    it('puts a renderer in the layer of its node, which is what a UI camera culls by', () => {
+        const sprites = scenes.entities.flatMap((e) => e.components.filter((c) => c.type === 'Sprite'));
+        expect(sprites.length).toBeGreaterThan(0);
+        for (const sprite of sprites) expect(sprite.data.layer).toBe(25);
+    });
+
     it('counts the components it maps', () => {
         for (const type of ['cc.Widget', 'cc.Layout', 'cc.Button', 'cc.UITransform']) expect(report.components[type]!.unmapped).toBe(0);
     });

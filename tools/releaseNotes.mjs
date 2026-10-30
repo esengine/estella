@@ -28,6 +28,8 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'fix(cocos): a renderer is put in the layer of its Cocos node, so a UI camera that culls by layer draws it':
+    {"note":"A Cocos node layer is its renderers layer."},
   'feat(cocos): a converted project starts at the game launch scene and runs its global-defining scripts first, reads the editor built-in assets, and the layer components survive a replay':
     {"note":"A converted Cocos project starts as the game does."},
   'feat(cocos): the colour a script sets on a material instance is the renderer tint':
