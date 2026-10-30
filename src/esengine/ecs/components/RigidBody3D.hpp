@@ -77,6 +77,10 @@ struct BoxCollider3D {
     ES_PROPERTY()
     glm::vec3 halfExtents{0.5f, 0.5f, 0.5f};
 
+    /** @brief Where the shape sits from the entity's origin, in world units; zero is centred on it. */
+    ES_PROPERTY(optional)
+    glm::vec3 center{0.0f, 0.0f, 0.0f};
+
     ES_PROPERTY(min=0)
     f32 friction{0.3f};
 
@@ -95,6 +99,10 @@ ES_COMPONENT()
 struct SphereCollider3D {
     ES_PROPERTY(min=0)
     f32 radius{0.5f};
+
+    /** @brief Where the shape sits from the entity's origin, in world units; zero is centred on it. */
+    ES_PROPERTY(optional)
+    glm::vec3 center{0.0f, 0.0f, 0.0f};
 
     ES_PROPERTY(min=0)
     f32 friction{0.3f};
@@ -123,6 +131,10 @@ struct CapsuleCollider3D {
 
     ES_PROPERTY(min=0)
     f32 halfHeight{0.5f};
+
+    /** @brief Where the shape sits from the entity's origin, in world units; zero is centred on it. */
+    ES_PROPERTY(optional)
+    glm::vec3 center{0.0f, 0.0f, 0.0f};
 
     ES_PROPERTY(min=0)
     f32 friction{0.3f};

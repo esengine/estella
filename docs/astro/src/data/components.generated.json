@@ -6449,7 +6449,8 @@
             "Visible",
             "Clip",
             "Ellipsis",
-            "Shrink"
+            "Shrink",
+            "ResizeHeight"
           ]
         },
         {

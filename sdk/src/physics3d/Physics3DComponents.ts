@@ -39,6 +39,7 @@ export const RigidBody3D = defineBuiltin<RigidBody3DData>('RigidBody3D', {
 
 export const BoxCollider3D = defineBuiltin<BoxCollider3DData>('BoxCollider3D', {
     halfExtents: { x: 0.5, y: 0.5, z: 0.5 },
+    center: { x: 0, y: 0, z: 0 },
     friction: 0.3,
     restitution: 0.0,
     isSensor: false,
@@ -47,6 +48,7 @@ export const BoxCollider3D = defineBuiltin<BoxCollider3DData>('BoxCollider3D', {
 
 export const SphereCollider3D = defineBuiltin<SphereCollider3DData>('SphereCollider3D', {
     radius: 0.5,
+    center: { x: 0, y: 0, z: 0 },
     friction: 0.3,
     restitution: 0.0,
     isSensor: false,
@@ -56,6 +58,7 @@ export const SphereCollider3D = defineBuiltin<SphereCollider3DData>('SphereColli
 export const CapsuleCollider3D = defineBuiltin<CapsuleCollider3DData>('CapsuleCollider3D', {
     radius: 0.3,
     halfHeight: 0.5,
+    center: { x: 0, y: 0, z: 0 },
     friction: 0.3,
     restitution: 0.0,
     isSensor: false,

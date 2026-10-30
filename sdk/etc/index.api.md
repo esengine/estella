@@ -5,7 +5,7 @@ Symbols: 115 public · 161 beta · 1966 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"63a00195ad788bd8"
+"790a68ffa2098d35"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -1802,6 +1802,7 @@ BuiltinComponentDef<BoxCollider3DData>
 
 ## BoxCollider3DData — interface @experimental
 ```
+center: Vec3 | undefined
 enabled: boolean
 friction: number
 halfExtents: Vec3
@@ -2217,6 +2218,7 @@ BuiltinComponentDef<CapsuleCollider3DData>
 
 ## CapsuleCollider3DData — interface @experimental
 ```
+center: Vec3 | undefined
 enabled: boolean
 friction: number
 halfHeight: number
@@ -9725,6 +9727,7 @@ BuiltinComponentDef<SphereCollider3DData>
 
 ## SphereCollider3DData — interface @experimental
 ```
+center: Vec3 | undefined
 enabled: boolean
 friction: number
 isSensor: boolean

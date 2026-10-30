@@ -1797,6 +1797,7 @@ BuiltinComponentDef<BoxCollider3DData>
 
 ## BoxCollider3DData — interface @experimental
 ```
+center: Vec3 | undefined
 enabled: boolean
 friction: number
 halfExtents: Vec3
@@ -2212,6 +2213,7 @@ BuiltinComponentDef<CapsuleCollider3DData>
 
 ## CapsuleCollider3DData — interface @experimental
 ```
+center: Vec3 | undefined
 enabled: boolean
 friction: number
 halfHeight: number
@@ -10015,6 +10017,7 @@ BuiltinComponentDef<SphereCollider3DData>
 
 ## SphereCollider3DData — interface @experimental
 ```
+center: Vec3 | undefined
 enabled: boolean
 friction: number
 isSensor: boolean

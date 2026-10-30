@@ -272,6 +272,15 @@ describe('what a 3D collider looks like', () => {
             expect(size(lines)).toEqual({ x: 14, y: 14, z: 14 });
         });
 
+        it('moves a sphere and a capsule to where their collider sits', () => {
+            const center = { x: 10, y: -20, z: 30 };
+            for (const shape of [{ kind: 'sphere', radius: 7, center }, { kind: 'capsule', radius: 7, halfHeight: 5, center }] as const) {
+                const points = collider3DWireframe(shape).flat();
+                const mid = (axis: 'x' | 'y' | 'z') => (Math.min(...points.map((p) => p[axis])) + Math.max(...points.map((p) => p[axis]))) / 2;
+                expect([mid('x'), mid('y'), mid('z')]).toEqual([10, -20, 30]);
+            }
+        });
+
         it('is as tall AND as wide as the capsule', () => {
             // Height alone cannot tell radius from halfHeight: 30 + 50 and 50 + 30
             // stand the same. The width is what separates them.

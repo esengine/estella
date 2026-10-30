@@ -10,6 +10,7 @@ BuiltinComponentDef<BoxCollider3DData>
 
 ## BoxCollider3DData — interface @experimental
 ```
+center: Vec3 | undefined
 enabled: boolean
 friction: number
 halfExtents: Vec3
@@ -29,6 +30,7 @@ BuiltinComponentDef<CapsuleCollider3DData>
 
 ## CapsuleCollider3DData — interface @experimental
 ```
+center: Vec3 | undefined
 enabled: boolean
 friction: number
 halfHeight: number
@@ -299,8 +301,8 @@ HEAPF32: Float32Array<ArrayBufferLike>
 HEAPU32: Uint32Array<ArrayBufferLike>
 _free: (ptr: number) => void
 _malloc: (bytes: number) => number
-_physics3d_addBox: (entity: number, hx: number, hy: number, hz: number, px: number, py: number, pz: number, qx: number, qy: number, qz: number, qw: number, motion: number, gravityScale: number, linearDamping: number, angularDamping: number, fixedRotation: number, layer: number, continuous: number, friction: number, restitution: number, isSensor: number) => number
-_physics3d_addCapsule: (entity: number, radius: number, halfHeight: number, px: number, py: number, pz: number, qx: number, qy: number, qz: number, qw: number, motion: number, gravityScale: number, linearDamping: number, angularDamping: number, fixedRotation: number, layer: number, continuous: number, friction: number, restitution: number, isSensor: number) => number
+_physics3d_addBox: (entity: number, hx: number, hy: number, hz: number, px: number, py: number, pz: number, qx: number, qy: number, qz: number, qw: number, motion: number, gravityScale: number, linearDamping: number, angularDamping: number, fixedRotation: number, layer: number, continuous: number, friction: number, restitution: number, isSensor: number, cx: number, cy: number, cz: number) => number
+_physics3d_addCapsule: (entity: number, radius: number, halfHeight: number, px: number, py: number, pz: number, qx: number, qy: number, qz: number, qw: number, motion: number, gravityScale: number, linearDamping: number, angularDamping: number, fixedRotation: number, layer: number, continuous: number, friction: number, restitution: number, isSensor: number, cx: number, cy: number, cz: number) => number
 _physics3d_addCharacter: (entity: number, radius: number, halfHeight: number, px: number, py: number, pz: number, maxSlope: number, mass: number, layer: number, pushForce: number) => number
 _physics3d_addConvexBody: (entity: number, vertexPtr: number, vertexCount: number, px: number, py: number, pz: number, qx: number, qy: number, qz: number, qw: number, motion: number, gravityScale: number, linearDamping: number, angularDamping: number, fixedRotation: number, layer: number, continuous: number, friction: number, restitution: number, isSensor: number) => number
 _physics3d_addDistanceJoint: (entity: number, bodyA: number, bodyB: number, ax: number, ay: number, az: number, bx: number, by: number, bz: number, minLength: number, maxLength: number, frequency: number, damping: number, collideConnected: number) => number
@@ -311,7 +313,7 @@ _physics3d_addMeshBody: (entity: number, vertexPtr: number, vertexCount: number,
 _physics3d_addPointJoint: (entity: number, bodyA: number, bodyB: number, px: number, py: number, pz: number, collideConnected: number) => number
 _physics3d_addSixDOFJoint: (entity: number, bodyA: number, bodyB: number, px: number, py: number, pz: number, ax: number, ay: number, az: number, nx: number, ny: number, nz: number, translationMotion: number, rotationMotion: number, lx: number, ly: number, lz: number, hx: number, hy: number, hz: number, rx: number, ry: number, rz: number, sx: number, sy: number, sz: number, collideConnected: number) => number
 _physics3d_addSliderJoint: (entity: number, bodyA: number, bodyB: number, px: number, py: number, pz: number, ax: number, ay: number, az: number, enableLimit: number, lower: number, upper: number, enableMotor: number, motorSpeed: number, maxForce: number, collideConnected: number) => number
-_physics3d_addSphere: (entity: number, radius: number, px: number, py: number, pz: number, qx: number, qy: number, qz: number, qw: number, motion: number, gravityScale: number, linearDamping: number, angularDamping: number, fixedRotation: number, layer: number, continuous: number, friction: number, restitution: number, isSensor: number) => number
+_physics3d_addSphere: (entity: number, radius: number, px: number, py: number, pz: number, qx: number, qy: number, qz: number, qw: number, motion: number, gravityScale: number, linearDamping: number, angularDamping: number, fixedRotation: number, layer: number, continuous: number, friction: number, restitution: number, isSensor: number, cx: number, cy: number, cz: number) => number
 _physics3d_addSwingTwistJoint: (entity: number, bodyA: number, bodyB: number, px: number, py: number, pz: number, ax: number, ay: number, az: number, nx: number, ny: number, nz: number, normalHalf: number, planeHalf: number, twistMin: number, twistMax: number, collideConnected: number) => number
 _physics3d_addTorque: ((bodyId: number, tx: number, ty: number, tz: number) => void) | undefined
 _physics3d_contactEnters: () => number
@@ -440,6 +442,7 @@ BuiltinComponentDef<SphereCollider3DData>
 
 ## SphereCollider3DData — interface @experimental
 ```
+center: Vec3 | undefined
 enabled: boolean
 friction: number
 isSensor: boolean

@@ -43,19 +43,22 @@ uint32_t physics3d_addBox(uint32_t entity, float hx, float hy, float hz,
                           float qx, float qy, float qz, float qw,
                           int motion, float gravityScale, float linearDamping,
                           float angularDamping, int fixedRotation, uint32_t layer,
-                          int continuous, float friction, float restitution, int isSensor);
+                          int continuous, float friction, float restitution, int isSensor,
+                          float cx, float cy, float cz);
 uint32_t physics3d_addSphere(uint32_t entity, float radius,
                              float px, float py, float pz,
                              float qx, float qy, float qz, float qw,
                              int motion, float gravityScale, float linearDamping,
                              float angularDamping, int fixedRotation, uint32_t layer,
-                             int continuous, float friction, float restitution, int isSensor);
+                             int continuous, float friction, float restitution, int isSensor,
+                             float cx, float cy, float cz);
 uint32_t physics3d_addCapsule(uint32_t entity, float radius, float halfHeight,
                               float px, float py, float pz,
                               float qx, float qy, float qz, float qw,
                               int motion, float gravityScale, float linearDamping,
                               float angularDamping, int fixedRotation, uint32_t layer,
-                              int continuous, float friction, float restitution, int isSensor);
+                              int continuous, float friction, float restitution, int isSensor,
+                              float cx, float cy, float cz);
 uint32_t physics3d_addMeshBody(uint32_t entity, uintptr_t vertexPtr, uint32_t vertexCount,
                                uintptr_t indexPtr, uint32_t indexCount,
                                float px, float py, float pz,

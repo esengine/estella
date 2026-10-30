@@ -721,22 +721,16 @@ function spineSkeleton(c: CocosComponent, ctx: ComponentContext, where: string):
 
 /**
  * `cc.BoxCollider`: the engine's box, half the node-scaled size on each side. A Cocos collider with no rigid body is a static one, which the engine
- * spells as a static body beside the box. The engine's box is centred on the entity, so a collider that sits off-centre keeps its size and loses
- * where it stood, which is counted.
+ * spells as a static body beside the box. Where the box stood from the node's origin (`_center`, scaled by the node) is the collider's `center`.
  */
-function boxCollider(c: CocosComponent, node: CocosNode, ctx: ComponentContext, where: string, extra: ComponentData[]): ComponentData {
+function boxCollider(c: CocosComponent, node: CocosNode, ctx: ComponentContext, extra: ComponentData[]): ComponentData {
     const size = isObj(c.data._size) ? c.data._size : {};
     const center = isObj(c.data._center) ? c.data._center : {};
     const half = (axis: 'x' | 'y' | 'z'): number => Math.abs(num(size[axis], 1) * (node.scale[axis] ?? 1)) / 2;
-    const off = Math.abs(num(center.x, 0)) + Math.abs(num(center.y, 0)) + Math.abs(num(center.z, 0));
-    if (off > 1e-6) {
-        ctx.report.component('cc.BoxCollider', 'partial');
-        ctx.report.note('collider-center-dropped', where);
-    } else {
-        ctx.report.component('cc.BoxCollider', 'mapped');
-    }
+    ctx.report.component('cc.BoxCollider', 'mapped');
     if (!node.components.some((n) => n.type === 'cc.RigidBody') && !extra.some((e) => e.type === 'RigidBody3D')) extra.push({ type: 'RigidBody3D', data: { bodyType: 0 } });
-    return { type: 'BoxCollider3D', data: { halfExtents: { x: half('x'), y: half('y'), z: half('z') }, isSensor: c.data._isTrigger === true, enabled: c.enabled } };
+    const at = (axis: 'x' | 'y' | 'z'): number => num(center[axis], 0) * (node.scale[axis] ?? 1);
+    return { type: 'BoxCollider3D', data: { halfExtents: { x: half('x'), y: half('y'), z: half('z') }, center: { x: at('x'), y: at('y'), z: at('z') }, isSensor: c.data._isTrigger === true, enabled: c.enabled } };
 }
 
 /** `cc.PageView`: a scroll view whose content is pages, and the page it settles on. */
@@ -928,7 +922,7 @@ export function convertNode(node: CocosNode, ctx: ComponentContext, where: strin
                 out = line(c, ctx, where);
                 break;
             case 'cc.BoxCollider':
-                out = boxCollider(c, node, ctx, where, extra);
+                out = boxCollider(c, node, ctx, extra);
                 break;
             case 'cc.PageView':
                 out = pageView(c, ctx);

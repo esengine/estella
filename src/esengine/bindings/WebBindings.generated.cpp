@@ -1859,6 +1859,7 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
 
     value_object<esengine::ecs::BoxCollider3D>("BoxCollider3D")
         .field("halfExtents", &esengine::ecs::BoxCollider3D::halfExtents)
+        .field("center", &esengine::ecs::BoxCollider3D::center)
         .field("friction", &esengine::ecs::BoxCollider3D::friction)
         .field("restitution", &esengine::ecs::BoxCollider3D::restitution)
         .field("isSensor", &esengine::ecs::BoxCollider3D::isSensor)
@@ -1902,6 +1903,7 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
     value_object<esengine::ecs::CapsuleCollider3D>("CapsuleCollider3D")
         .field("radius", &esengine::ecs::CapsuleCollider3D::radius)
         .field("halfHeight", &esengine::ecs::CapsuleCollider3D::halfHeight)
+        .field("center", &esengine::ecs::CapsuleCollider3D::center)
         .field("friction", &esengine::ecs::CapsuleCollider3D::friction)
         .field("restitution", &esengine::ecs::CapsuleCollider3D::restitution)
         .field("isSensor", &esengine::ecs::CapsuleCollider3D::isSensor)
@@ -2237,6 +2239,7 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
 
     value_object<esengine::ecs::SphereCollider3D>("SphereCollider3D")
         .field("radius", &esengine::ecs::SphereCollider3D::radius)
+        .field("center", &esengine::ecs::SphereCollider3D::center)
         .field("friction", &esengine::ecs::SphereCollider3D::friction)
         .field("restitution", &esengine::ecs::SphereCollider3D::restitution)
         .field("isSensor", &esengine::ecs::SphereCollider3D::isSensor)
@@ -3858,10 +3861,11 @@ static_assert(offsetof(esengine::ecs::BoxCollider2D, enabled) == 29, "ABI offset
 static_assert(offsetof(esengine::ecs::BoxCollider2D, categoryBits) == 32, "ABI offset drift: esengine::ecs::BoxCollider2D.categoryBits (EHT expected 32)");
 static_assert(offsetof(esengine::ecs::BoxCollider2D, maskBits) == 36, "ABI offset drift: esengine::ecs::BoxCollider2D.maskBits (EHT expected 36)");
 static_assert(offsetof(esengine::ecs::BoxCollider3D, halfExtents) == 0, "ABI offset drift: esengine::ecs::BoxCollider3D.halfExtents (EHT expected 0)");
-static_assert(offsetof(esengine::ecs::BoxCollider3D, friction) == 12, "ABI offset drift: esengine::ecs::BoxCollider3D.friction (EHT expected 12)");
-static_assert(offsetof(esengine::ecs::BoxCollider3D, restitution) == 16, "ABI offset drift: esengine::ecs::BoxCollider3D.restitution (EHT expected 16)");
-static_assert(offsetof(esengine::ecs::BoxCollider3D, isSensor) == 20, "ABI offset drift: esengine::ecs::BoxCollider3D.isSensor (EHT expected 20)");
-static_assert(offsetof(esengine::ecs::BoxCollider3D, enabled) == 21, "ABI offset drift: esengine::ecs::BoxCollider3D.enabled (EHT expected 21)");
+static_assert(offsetof(esengine::ecs::BoxCollider3D, center) == 12, "ABI offset drift: esengine::ecs::BoxCollider3D.center (EHT expected 12)");
+static_assert(offsetof(esengine::ecs::BoxCollider3D, friction) == 24, "ABI offset drift: esengine::ecs::BoxCollider3D.friction (EHT expected 24)");
+static_assert(offsetof(esengine::ecs::BoxCollider3D, restitution) == 28, "ABI offset drift: esengine::ecs::BoxCollider3D.restitution (EHT expected 28)");
+static_assert(offsetof(esengine::ecs::BoxCollider3D, isSensor) == 32, "ABI offset drift: esengine::ecs::BoxCollider3D.isSensor (EHT expected 32)");
+static_assert(offsetof(esengine::ecs::BoxCollider3D, enabled) == 33, "ABI offset drift: esengine::ecs::BoxCollider3D.enabled (EHT expected 33)");
 static_assert(offsetof(esengine::ecs::Camera, projectionType) == 0, "ABI offset drift: esengine::ecs::Camera.projectionType (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::Camera, fov) == 4, "ABI offset drift: esengine::ecs::Camera.fov (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::Camera, orthoSize) == 8, "ABI offset drift: esengine::ecs::Camera.orthoSize (EHT expected 8)");
@@ -3893,10 +3897,11 @@ static_assert(offsetof(esengine::ecs::CapsuleCollider2D, categoryBits) == 32, "A
 static_assert(offsetof(esengine::ecs::CapsuleCollider2D, maskBits) == 36, "ABI offset drift: esengine::ecs::CapsuleCollider2D.maskBits (EHT expected 36)");
 static_assert(offsetof(esengine::ecs::CapsuleCollider3D, radius) == 0, "ABI offset drift: esengine::ecs::CapsuleCollider3D.radius (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::CapsuleCollider3D, halfHeight) == 4, "ABI offset drift: esengine::ecs::CapsuleCollider3D.halfHeight (EHT expected 4)");
-static_assert(offsetof(esengine::ecs::CapsuleCollider3D, friction) == 8, "ABI offset drift: esengine::ecs::CapsuleCollider3D.friction (EHT expected 8)");
-static_assert(offsetof(esengine::ecs::CapsuleCollider3D, restitution) == 12, "ABI offset drift: esengine::ecs::CapsuleCollider3D.restitution (EHT expected 12)");
-static_assert(offsetof(esengine::ecs::CapsuleCollider3D, isSensor) == 16, "ABI offset drift: esengine::ecs::CapsuleCollider3D.isSensor (EHT expected 16)");
-static_assert(offsetof(esengine::ecs::CapsuleCollider3D, enabled) == 17, "ABI offset drift: esengine::ecs::CapsuleCollider3D.enabled (EHT expected 17)");
+static_assert(offsetof(esengine::ecs::CapsuleCollider3D, center) == 8, "ABI offset drift: esengine::ecs::CapsuleCollider3D.center (EHT expected 8)");
+static_assert(offsetof(esengine::ecs::CapsuleCollider3D, friction) == 20, "ABI offset drift: esengine::ecs::CapsuleCollider3D.friction (EHT expected 20)");
+static_assert(offsetof(esengine::ecs::CapsuleCollider3D, restitution) == 24, "ABI offset drift: esengine::ecs::CapsuleCollider3D.restitution (EHT expected 24)");
+static_assert(offsetof(esengine::ecs::CapsuleCollider3D, isSensor) == 28, "ABI offset drift: esengine::ecs::CapsuleCollider3D.isSensor (EHT expected 28)");
+static_assert(offsetof(esengine::ecs::CapsuleCollider3D, enabled) == 29, "ABI offset drift: esengine::ecs::CapsuleCollider3D.enabled (EHT expected 29)");
 static_assert(offsetof(esengine::ecs::CharacterController3D, velocity) == 0, "ABI offset drift: esengine::ecs::CharacterController3D.velocity (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::CharacterController3D, radius) == 12, "ABI offset drift: esengine::ecs::CharacterController3D.radius (EHT expected 12)");
 static_assert(offsetof(esengine::ecs::CharacterController3D, halfHeight) == 16, "ABI offset drift: esengine::ecs::CharacterController3D.halfHeight (EHT expected 16)");
@@ -4155,10 +4160,11 @@ static_assert(offsetof(esengine::ecs::SortingGroup, layer) == 0, "ABI offset dri
 static_assert(offsetof(esengine::ecs::SortingGroup, order) == 4, "ABI offset drift: esengine::ecs::SortingGroup.order (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::SortingGroup, enabled) == 8, "ABI offset drift: esengine::ecs::SortingGroup.enabled (EHT expected 8)");
 static_assert(offsetof(esengine::ecs::SphereCollider3D, radius) == 0, "ABI offset drift: esengine::ecs::SphereCollider3D.radius (EHT expected 0)");
-static_assert(offsetof(esengine::ecs::SphereCollider3D, friction) == 4, "ABI offset drift: esengine::ecs::SphereCollider3D.friction (EHT expected 4)");
-static_assert(offsetof(esengine::ecs::SphereCollider3D, restitution) == 8, "ABI offset drift: esengine::ecs::SphereCollider3D.restitution (EHT expected 8)");
-static_assert(offsetof(esengine::ecs::SphereCollider3D, isSensor) == 12, "ABI offset drift: esengine::ecs::SphereCollider3D.isSensor (EHT expected 12)");
-static_assert(offsetof(esengine::ecs::SphereCollider3D, enabled) == 13, "ABI offset drift: esengine::ecs::SphereCollider3D.enabled (EHT expected 13)");
+static_assert(offsetof(esengine::ecs::SphereCollider3D, center) == 4, "ABI offset drift: esengine::ecs::SphereCollider3D.center (EHT expected 4)");
+static_assert(offsetof(esengine::ecs::SphereCollider3D, friction) == 16, "ABI offset drift: esengine::ecs::SphereCollider3D.friction (EHT expected 16)");
+static_assert(offsetof(esengine::ecs::SphereCollider3D, restitution) == 20, "ABI offset drift: esengine::ecs::SphereCollider3D.restitution (EHT expected 20)");
+static_assert(offsetof(esengine::ecs::SphereCollider3D, isSensor) == 24, "ABI offset drift: esengine::ecs::SphereCollider3D.isSensor (EHT expected 24)");
+static_assert(offsetof(esengine::ecs::SphereCollider3D, enabled) == 25, "ABI offset drift: esengine::ecs::SphereCollider3D.enabled (EHT expected 25)");
 static_assert(offsetof(esengine::ecs::SpineAnimation, timeScale) == 48, "ABI offset drift: esengine::ecs::SpineAnimation.timeScale (EHT expected 48)");
 static_assert(offsetof(esengine::ecs::SpineAnimation, loop) == 52, "ABI offset drift: esengine::ecs::SpineAnimation.loop (EHT expected 52)");
 static_assert(offsetof(esengine::ecs::SpineAnimation, playing) == 53, "ABI offset drift: esengine::ecs::SpineAnimation.playing (EHT expected 53)");
@@ -4295,7 +4301,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "63a00195ad788bd8";
+static const char* kEsAbiLayoutHash = "790a68ffa2098d35";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

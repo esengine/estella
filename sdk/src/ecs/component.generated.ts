@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, Cl
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '63a00195ad788bd8';
+export const ABI_LAYOUT_HASH = '790a68ffa2098d35';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -147,6 +147,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
     BoxCollider3D: {
         defaults: {
             halfExtents: { x: 0.5, y: 0.5, z: 0.5 },
+            center: { x: 0, y: 0, z: 0 },
             friction: 0.3,
             restitution: 0,
             isSensor: false,
@@ -243,6 +244,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         defaults: {
             radius: 0.3,
             halfHeight: 0.5,
+            center: { x: 0, y: 0, z: 0 },
             friction: 0.3,
             restitution: 0,
             isSensor: false,
@@ -1041,6 +1043,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
     SphereCollider3D: {
         defaults: {
             radius: 0.5,
+            center: { x: 0, y: 0, z: 0 },
             friction: 0.3,
             restitution: 0,
             isSensor: false,
@@ -1446,6 +1449,7 @@ export interface BoxCollider2DData {
 
 export interface BoxCollider3DData {
     halfExtents: Vec3;
+    center?: Vec3;
     friction: number;
     restitution: number;
     isSensor: boolean;
@@ -1493,6 +1497,7 @@ export interface CapsuleCollider2DData {
 export interface CapsuleCollider3DData {
     radius: number;
     halfHeight: number;
+    center?: Vec3;
     friction: number;
     restitution: number;
     isSensor: boolean;
@@ -1920,6 +1925,7 @@ export interface SortingGroupData {
 
 export interface SphereCollider3DData {
     radius: number;
+    center?: Vec3;
     friction: number;
     restitution: number;
     isSensor: boolean;

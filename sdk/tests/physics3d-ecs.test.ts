@@ -236,6 +236,21 @@ describe('the 3D world and the ECS', () => {
         expect(call!.args[3]).toBeCloseTo(1.5, 6);
     });
 
+    it('hands the solver where a collider sits from its entity, in metres', () => {
+        const e = spawn();
+        world.insert(e, BoxCollider3D);
+        world.update(e, BoxCollider3D, (c) => { (c as { center: { x: number; y: number; z: number } }).center = { x: 100, y: 250, z: -50 }; });
+        const plain = spawn();
+        world.insert(plain, BoxCollider3D);
+
+        stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG);
+
+        const [off, centred] = called('addBox');
+        // The last three arguments are the offset: the shape moves, the body stays at the entity.
+        expect(off!.args.slice(-3)).toEqual([1, 2.5, -0.5]);
+        expect(centred!.args.slice(-3)).toEqual([0, 0, 0]);
+    });
+
     it('writes the solver’s answer back in world units', () => {
         const e = spawn();
         world.insert(e, BoxCollider3D);

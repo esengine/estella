@@ -23,6 +23,7 @@
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
 #include <Jolt/Physics/Collision/Shape/ConvexHullShape.h>
 #include <Jolt/Physics/Collision/Shape/MeshShape.h>
+#include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/Character/CharacterVirtual.h>
 #include <Jolt/Physics/Collision/CollideShape.h>
@@ -155,10 +156,19 @@ ContactRecorder& recorder() {
 /// Register a shape as a body, and remember which entity it speaks for.
 uint32_t addBody(uint32_t entity, const Ref<Shape>& shape, float px, float py, float pz,
                  float qx, float qy, float qz, float qw, const BodyMotion& how,
-                 float friction, float restitution, int isSensor) {
+                 float friction, float restitution, int isSensor,
+                 float cx = 0.0f, float cy = 0.0f, float cz = 0.0f) {
     if (!g().isValid()) return 0;
+    // A collider off the entity's origin: the shape is carried by a translated wrapper, so the body (and what a dynamic one rotates about)
+    // stays at the entity.
+    Ref<Shape> placed = shape;
+    // `> 0` is false for NaN too, so a caller that leaves the offset off gets a body at the origin.
+    if (cx * cx + cy * cy + cz * cz > 0.0f) {
+        const ShapeSettings::ShapeResult r = RotatedTranslatedShapeSettings(Vec3(cx, cy, cz), Quat::sIdentity(), shape).Create();
+        if (r.IsValid()) placed = r.Get();
+    }
     const EMotionType motionType = motionTypeOf(how.motion);
-    BodyCreationSettings settings(shape, RVec3(px, py, pz), Quat(qx, qy, qz, qw).Normalized(),
+    BodyCreationSettings settings(placed, RVec3(px, py, pz), Quat(qx, qy, qz, qw).Normalized(),
                                   motionType, layerOf(motionType, how.layer));
     settings.mFriction = friction;
     settings.mRestitution = restitution;
@@ -301,11 +311,12 @@ uint32_t physics3d_addBox(uint32_t entity, float hx, float hy, float hz,
                           float qx, float qy, float qz, float qw,
                           int motion, float gravityScale, float linearDamping,
                           float angularDamping, int fixedRotation, uint32_t layer,
-                          int continuous, float friction, float restitution, int isSensor) {
+                          int continuous, float friction, float restitution, int isSensor,
+                          float cx, float cy, float cz) {
     return addBody(entity, new BoxShape(Vec3(hx, hy, hz)), px, py, pz, qx, qy, qz, qw,
                    {motion, gravityScale, linearDamping, angularDamping, fixedRotation, layer,
                     continuous},
-                   friction, restitution, isSensor);
+                   friction, restitution, isSensor, cx, cy, cz);
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -314,11 +325,12 @@ uint32_t physics3d_addSphere(uint32_t entity, float radius,
                              float qx, float qy, float qz, float qw,
                              int motion, float gravityScale, float linearDamping,
                              float angularDamping, int fixedRotation, uint32_t layer,
-                             int continuous, float friction, float restitution, int isSensor) {
+                             int continuous, float friction, float restitution, int isSensor,
+                          float cx, float cy, float cz) {
     return addBody(entity, new SphereShape(radius), px, py, pz, qx, qy, qz, qw,
                    {motion, gravityScale, linearDamping, angularDamping, fixedRotation, layer,
                     continuous},
-                   friction, restitution, isSensor);
+                   friction, restitution, isSensor, cx, cy, cz);
 }
 
 /// `halfHeight` is the cylinder half-height, so the capsule is `2*halfHeight + 2*radius`
@@ -329,11 +341,12 @@ uint32_t physics3d_addCapsule(uint32_t entity, float radius, float halfHeight,
                               float qx, float qy, float qz, float qw,
                               int motion, float gravityScale, float linearDamping,
                               float angularDamping, int fixedRotation, uint32_t layer,
-                              int continuous, float friction, float restitution, int isSensor) {
+                              int continuous, float friction, float restitution, int isSensor,
+                          float cx, float cy, float cz) {
     return addBody(entity, new CapsuleShape(halfHeight, radius), px, py, pz, qx, qy, qz, qw,
                    {motion, gravityScale, linearDamping, angularDamping, fixedRotation, layer,
                     continuous},
-                   friction, restitution, isSensor);
+                   friction, restitution, isSensor, cx, cy, cz);
 }
 
 /**

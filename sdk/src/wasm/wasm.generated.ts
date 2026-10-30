@@ -483,6 +483,7 @@ export interface BoxCollider2D {
 
 export interface BoxCollider3D {
     halfExtents: Vec3;
+    center: Vec3;
     friction: number;
     restitution: number;
     isSensor: boolean;
@@ -530,6 +531,7 @@ export interface CapsuleCollider2D {
 export interface CapsuleCollider3D {
     radius: number;
     halfHeight: number;
+    center: Vec3;
     friction: number;
     restitution: number;
     isSensor: boolean;
@@ -897,6 +899,7 @@ export interface SortingGroup {
 
 export interface SphereCollider3D {
     radius: number;
+    center: Vec3;
     friction: number;
     restitution: number;
     isSensor: boolean;

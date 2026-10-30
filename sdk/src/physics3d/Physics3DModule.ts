@@ -26,21 +26,21 @@ export interface Physics3DWasmModule {
                       motion: number, gravityScale: number, linearDamping: number,
                       angularDamping: number, fixedRotation: number, layer: number,
                       continuous: number, friction: number, restitution: number,
-                      isSensor: number): number;
+                      isSensor: number, cx: number, cy: number, cz: number): number;
     _physics3d_addSphere(entity: number, radius: number,
                          px: number, py: number, pz: number,
                          qx: number, qy: number, qz: number, qw: number,
                          motion: number, gravityScale: number, linearDamping: number,
                          angularDamping: number, fixedRotation: number, layer: number,
                          continuous: number, friction: number, restitution: number,
-                         isSensor: number): number;
+                         isSensor: number, cx: number, cy: number, cz: number): number;
     _physics3d_addCapsule(entity: number, radius: number, halfHeight: number,
                           px: number, py: number, pz: number,
                           qx: number, qy: number, qz: number, qw: number,
                           motion: number, gravityScale: number, linearDamping: number,
                           angularDamping: number, fixedRotation: number, layer: number,
                           continuous: number, friction: number, restitution: number,
-                          isSensor: number): number;
+                          isSensor: number, cx: number, cy: number, cz: number): number;
     _physics3d_addMeshBody(entity: number, vertexPtr: number, vertexCount: number,
                            indexPtr: number, indexCount: number,
                            px: number, py: number, pz: number,

@@ -58,10 +58,11 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
         ptrFn: 'getBoxCollider3DPtr',
         fields: [
             { name: 'halfExtents', type: 'vec3', offset: 0 },
-            { name: 'friction', type: 'f32', offset: 12 },
-            { name: 'restitution', type: 'f32', offset: 16 },
-            { name: 'isSensor', type: 'bool', offset: 20 },
-            { name: 'enabled', type: 'bool', offset: 21 },
+            { name: 'center', type: 'vec3', offset: 12 },
+            { name: 'friction', type: 'f32', offset: 24 },
+            { name: 'restitution', type: 'f32', offset: 28 },
+            { name: 'isSensor', type: 'bool', offset: 32 },
+            { name: 'enabled', type: 'bool', offset: 33 },
         ],
     },
     Camera: {
@@ -113,10 +114,11 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
         fields: [
             { name: 'radius', type: 'f32', offset: 0 },
             { name: 'halfHeight', type: 'f32', offset: 4 },
-            { name: 'friction', type: 'f32', offset: 8 },
-            { name: 'restitution', type: 'f32', offset: 12 },
-            { name: 'isSensor', type: 'bool', offset: 16 },
-            { name: 'enabled', type: 'bool', offset: 17 },
+            { name: 'center', type: 'vec3', offset: 8 },
+            { name: 'friction', type: 'f32', offset: 20 },
+            { name: 'restitution', type: 'f32', offset: 24 },
+            { name: 'isSensor', type: 'bool', offset: 28 },
+            { name: 'enabled', type: 'bool', offset: 29 },
         ],
     },
     CharacterController3D: {
@@ -515,10 +517,11 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
         ptrFn: 'getSphereCollider3DPtr',
         fields: [
             { name: 'radius', type: 'f32', offset: 0 },
-            { name: 'friction', type: 'f32', offset: 4 },
-            { name: 'restitution', type: 'f32', offset: 8 },
-            { name: 'isSensor', type: 'bool', offset: 12 },
-            { name: 'enabled', type: 'bool', offset: 13 },
+            { name: 'center', type: 'vec3', offset: 4 },
+            { name: 'friction', type: 'f32', offset: 16 },
+            { name: 'restitution', type: 'f32', offset: 20 },
+            { name: 'isSensor', type: 'bool', offset: 24 },
+            { name: 'enabled', type: 'bool', offset: 25 },
         ],
     },
     SpineAnimation: {

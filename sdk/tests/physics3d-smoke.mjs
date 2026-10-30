@@ -81,8 +81,8 @@ check('the world reports itself ready', m._physics3d_isReady() === 1);
 // Floor spans y in [-1, 0]; a sphere of radius 0.5 dropped from y=4 comes to rest
 // with its CENTRE at 0.5 — the one number that says contact resolution ran.
 const FLOOR = 1, BALL = 2;
-m._physics3d_addBox(FLOOR, 50, 0.5, 50, 0, -0.5, 0, ...IDENTITY, ...FREE(STATIC), 0.5, 0, 0);
-const ballId = m._physics3d_addSphere(BALL, 0.5, 0, 4, 0, ...IDENTITY, ...FREE(DYNAMIC), 0.5, 0, 0);
+m._physics3d_addBox(FLOOR, 50, 0.5, 50, 0, -0.5, 0, ...IDENTITY, ...FREE(STATIC), 0.5, 0, 0, 0, 0, 0);
+const ballId = m._physics3d_addSphere(BALL, 0.5, 0, 4, 0, ...IDENTITY, ...FREE(DYNAMIC), 0.5, 0, 0, 0, 0, 0);
 m._physics3d_optimize();
 
 check('a body id is handed back', ballId !== 0, `id=${ballId}`);
@@ -116,7 +116,7 @@ check('a ray into empty space misses', raycast(0, 10, 0, 0, 20, 0) === null);
 // ── 3) Static bodies stay put, kinematic ones are moved by hand ─────────────
 const PLATFORM = 3;
 const platformId = m._physics3d_addBox(PLATFORM, 1, 0.25, 1, 5, 2, 0, ...IDENTITY,
-                                       ...FREE(KINEMATIC), 0.5, 0, 0);
+                                       ...FREE(KINEMATIC), 0.5, 0, 0, 0, 0, 0);
 step(60);
 const platform = bodyState(platformId);
 check('a kinematic body ignores gravity', platform && near(platform.y, 2, 1e-3),
@@ -737,6 +737,15 @@ if (before) {
     for (let i = 0; i < 30; i++) { m._physics3d_addTorque(pushed, 0, 0, 5); m._physics3d_step(1 / 60, 1); }
     check('a torque turns it too', dynamics().wz !== spin1.wz, `wz ${dynamics().wz.toFixed(3)}`);
 }
+
+// ── Collider centre: a shape off the entity's origin ────────────────────────
+// A static box whose body sits at y=0 but whose shape is centred 3 above it: a ball dropped onto it rests on the SHAPE (top at 3.5), not on the body origin.
+const OFFSET_BOX = 700, OFFSET_BALL = 701;
+m._physics3d_addBox(OFFSET_BOX, 2, 0.5, 2, 700, 0, 0, ...IDENTITY, ...FREE(STATIC), 0.5, 0, 0, 0, 3, 0);
+const offsetBall = m._physics3d_addSphere(OFFSET_BALL, 0.5, 700, 8, 0, ...IDENTITY, ...FREE(DYNAMIC), 0.5, 0, 0, 0, 0, 0);
+step(180);
+const offsetRest = bodyState(offsetBall);
+check('a box centred above its body holds a ball at the shape, not the origin', offsetRest && near(offsetRest.y, 4, 0.05), `y=${offsetRest?.y.toFixed(3)}`);
 
 m._physics3d_shutdown();
 check('the world reports itself gone', m._physics3d_isReady() === 0);

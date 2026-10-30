@@ -160,6 +160,11 @@ function motionOf(body: RigidBody3DData): number {
         : body.bodyType === 1 ? MOTION.Kinematic : MOTION.Dynamic;
 }
 
+/** Where a collider sits from the entity's origin, in metres. Absent means at the origin. */
+function centreOf(center: { x: number; y: number; z: number } | undefined, ppu: number): [number, number, number] {
+    return center ? [center.x / ppu, center.y / ppu, center.z / ppu] : [0, 0, 0];
+}
+
 /**
  * Create the body an entity's collider describes.
  * @returns the module's body id, or 0 when the entity carries no 3D collider.
@@ -185,14 +190,14 @@ function createBody(app: App, module: Physics3DWasmModule, entity: Entity,
         return module._physics3d_addBox(
             entity as number, box.halfExtents.x / ppu, box.halfExtents.y / ppu,
             box.halfExtents.z / ppu, px, py, pz, r.x, r.y, r.z, r.w,
-            ...how, box.friction, box.restitution, box.isSensor ? 1 : 0);
+            ...how, box.friction, box.restitution, box.isSensor ? 1 : 0, ...centreOf(box.center, ppu));
     }
     const sphere = has(SphereCollider3D)
         ? app.world.get(entity, SphereCollider3D) as SphereCollider3DData : undefined;
     if (sphere?.enabled) {
         return module._physics3d_addSphere(
             entity as number, sphere.radius / ppu, px, py, pz, r.x, r.y, r.z, r.w,
-            ...how, sphere.friction, sphere.restitution, sphere.isSensor ? 1 : 0);
+            ...how, sphere.friction, sphere.restitution, sphere.isSensor ? 1 : 0, ...centreOf(sphere.center, ppu));
     }
     const meshCollider = has(MeshCollider3D)
         ? app.world.get(entity, MeshCollider3D) as MeshCollider3DData : undefined;
@@ -210,7 +215,7 @@ function createBody(app: App, module: Physics3DWasmModule, entity: Entity,
         return module._physics3d_addCapsule(
             entity as number, capsule.radius / ppu, capsule.halfHeight / ppu,
             px, py, pz, r.x, r.y, r.z, r.w,
-            ...how, capsule.friction, capsule.restitution, capsule.isSensor ? 1 : 0);
+            ...how, capsule.friction, capsule.restitution, capsule.isSensor ? 1 : 0, ...centreOf(capsule.center, ppu));
     }
     // A body with no shape has no extent to collide with, so it is not registered
     // at all — the alternative is an invisible point that falls forever.

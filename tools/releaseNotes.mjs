@@ -28,6 +28,8 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(physics3d): a box, sphere or capsule collider can sit off its entity origin (center), and the Cocos BoxCollider centre maps onto it':
+    {"note":"A 3D collider can sit off its entity."},
   'feat(text): Text can underline its lines and grow its box to its text (ResizeHeight), and the Cocos Label maps onto both':
     {"note":"Text can underline, and a box can grow to its text."},
   'feat(cocos): a project effect is judged by its fragment stage and the features a material switches on, and a sprite-stencil mask maps to the engine stencil mask':

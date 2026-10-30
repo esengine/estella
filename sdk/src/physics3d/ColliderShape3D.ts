@@ -38,8 +38,8 @@ export const COLLIDER3D_RING_SEGMENTS = 24;
 /** A 3D collider's geometry in entity-local space, in world units. */
 export type Collider3DShape =
     | { kind: 'box'; halfExtents: Vec3; center: Vec3 }
-    | { kind: 'sphere'; radius: number }
-    | { kind: 'capsule'; radius: number; halfHeight: number };
+    | { kind: 'sphere'; radius: number; center?: Vec3 }
+    | { kind: 'capsule'; radius: number; halfHeight: number; center?: Vec3 };
 
 /** Which component authored a shape — the Inspector target behind a gizmo. */
 export type Collider3DComponent =
@@ -105,7 +105,7 @@ export function readCollider3DShapes(world: World, entity: number): Collider3DIn
         if (chosen) taken = true;
         out.push({
             component: 'BoxCollider3D',
-            shape: { kind: 'box', halfExtents: box.halfExtents, center: ZERO },
+            shape: { kind: 'box', halfExtents: box.halfExtents, center: box.center ?? ZERO },
             isSensor: box.isSensor === true,
             active: chosen && bodyLive,
         });
@@ -118,7 +118,7 @@ export function readCollider3DShapes(world: World, entity: number): Collider3DIn
         if (chosen) taken = true;
         out.push({
             component: 'SphereCollider3D',
-            shape: { kind: 'sphere', radius: sphere.radius },
+            shape: { kind: 'sphere', radius: sphere.radius, ...(sphere.center ? { center: sphere.center } : {}) },
             isSensor: sphere.isSensor === true,
             active: chosen && bodyLive,
         });
@@ -165,7 +165,7 @@ export function readCollider3DShapes(world: World, entity: number): Collider3DIn
         if (chosen) taken = true;
         out.push({
             component: 'CapsuleCollider3D',
-            shape: { kind: 'capsule', radius: capsule.radius, halfHeight: capsule.halfHeight },
+            shape: { kind: 'capsule', radius: capsule.radius, halfHeight: capsule.halfHeight, ...(capsule.center ? { center: capsule.center } : {}) },
             isSensor: capsule.isSensor === true,
             active: chosen && bodyLive,
         });
@@ -220,6 +220,12 @@ function arc(radius: number, axis: 'xy' | 'zy', offset: Vec3, sign: 1 | -1, segm
  * four caps and the four lines between them.
  */
 export function collider3DWireframe(shape: Collider3DShape, segments = COLLIDER3D_RING_SEGMENTS): Vec3[][] {
+    const lines = centredWireframe(shape, segments);
+    const c = shape.kind === 'box' ? undefined : shape.center;
+    return c ? lines.map((line) => line.map((p) => ({ x: p.x + c.x, y: p.y + c.y, z: p.z + c.z }))) : lines;
+}
+
+function centredWireframe(shape: Collider3DShape, segments: number): Vec3[][] {
     if (shape.kind === 'box') {
         const { center: c, halfExtents: h } = shape;
         const corner = (sx: number, sy: number, sz: number): Vec3 =>
@@ -314,6 +320,7 @@ export function collider3DTriangles(
     // appears twice, which is what makes the straight wall between them.
     const radius = shape.radius;
     const halfHeight = shape.kind === 'capsule' ? shape.halfHeight : 0;
+    const off = shape.center ?? ZERO;
     const rings = SOLID_SEGMENTS;
     const segs = SOLID_SEGMENTS;
     const rows = rings + 2;
@@ -326,9 +333,9 @@ export function collider3DTriangles(
         const ringRadius = Math.sin(phi) * radius;
         for (let s = 0; s <= segs; s++) {
             const theta = (s / segs) * Math.PI * 2;
-            positions[n++] = Math.cos(theta) * ringRadius;
-            positions[n++] = y;
-            positions[n++] = Math.sin(theta) * ringRadius;
+            positions[n++] = Math.cos(theta) * ringRadius + off.x;
+            positions[n++] = y + off.y;
+            positions[n++] = Math.sin(theta) * ringRadius + off.z;
         }
     }
     const indices: number[] = [];

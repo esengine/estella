@@ -119,6 +119,7 @@ export function createBoxCollider2DData(): BoxCollider2DPtrData {
 
 export interface BoxCollider3DPtrData {
     halfExtents: Vec3;
+    center: Vec3;
     friction: number;
     restitution: number;
     isSensor: boolean;
@@ -130,10 +131,11 @@ export function fillBoxCollider3D(
     ptr: number, out: BoxCollider3DPtrData,
 ): void {
     const halfExtents_ = out.halfExtents; halfExtents_.x = f32[ptr >> 2]; halfExtents_.y = f32[(ptr >> 2) + 1]; halfExtents_.z = f32[(ptr >> 2) + 2];
-    out.friction = f32[(ptr + 12) >> 2];
-    out.restitution = f32[(ptr + 16) >> 2];
-    out.isSensor = u8[ptr + 20] !== 0;
-    out.enabled = u8[ptr + 21] !== 0;
+    const center_ = out.center; center_.x = f32[(ptr + 12) >> 2]; center_.y = f32[((ptr + 12) >> 2) + 1]; center_.z = f32[((ptr + 12) >> 2) + 2];
+    out.friction = f32[(ptr + 24) >> 2];
+    out.restitution = f32[(ptr + 28) >> 2];
+    out.isSensor = u8[ptr + 32] !== 0;
+    out.enabled = u8[ptr + 33] !== 0;
 }
 
 export function writeBoxCollider3D(
@@ -141,15 +143,17 @@ export function writeBoxCollider3D(
     ptr: number, data: BoxCollider3DPtrData,
 ): void {
     f32[ptr >> 2] = data.halfExtents.x; f32[(ptr >> 2) + 1] = data.halfExtents.y; f32[(ptr >> 2) + 2] = data.halfExtents.z;
-    f32[(ptr + 12) >> 2] = data.friction;
-    f32[(ptr + 16) >> 2] = data.restitution;
-    u8[ptr + 20] = data.isSensor ? 1 : 0;
-    u8[ptr + 21] = data.enabled ? 1 : 0;
+    f32[(ptr + 12) >> 2] = data.center.x; f32[((ptr + 12) >> 2) + 1] = data.center.y; f32[((ptr + 12) >> 2) + 2] = data.center.z;
+    f32[(ptr + 24) >> 2] = data.friction;
+    f32[(ptr + 28) >> 2] = data.restitution;
+    u8[ptr + 32] = data.isSensor ? 1 : 0;
+    u8[ptr + 33] = data.enabled ? 1 : 0;
 }
 
 export function createBoxCollider3DData(): BoxCollider3DPtrData {
     return {
         halfExtents: { x: 0, y: 0, z: 0 },
+        center: { x: 0, y: 0, z: 0 },
         friction: 0,
         restitution: 0,
         isSensor: false,
@@ -336,6 +340,7 @@ export function createCapsuleCollider2DData(): CapsuleCollider2DPtrData {
 export interface CapsuleCollider3DPtrData {
     radius: number;
     halfHeight: number;
+    center: Vec3;
     friction: number;
     restitution: number;
     isSensor: boolean;
@@ -348,10 +353,11 @@ export function fillCapsuleCollider3D(
 ): void {
     out.radius = f32[ptr >> 2];
     out.halfHeight = f32[(ptr + 4) >> 2];
-    out.friction = f32[(ptr + 8) >> 2];
-    out.restitution = f32[(ptr + 12) >> 2];
-    out.isSensor = u8[ptr + 16] !== 0;
-    out.enabled = u8[ptr + 17] !== 0;
+    const center_ = out.center; center_.x = f32[(ptr + 8) >> 2]; center_.y = f32[((ptr + 8) >> 2) + 1]; center_.z = f32[((ptr + 8) >> 2) + 2];
+    out.friction = f32[(ptr + 20) >> 2];
+    out.restitution = f32[(ptr + 24) >> 2];
+    out.isSensor = u8[ptr + 28] !== 0;
+    out.enabled = u8[ptr + 29] !== 0;
 }
 
 export function writeCapsuleCollider3D(
@@ -360,16 +366,18 @@ export function writeCapsuleCollider3D(
 ): void {
     f32[ptr >> 2] = data.radius;
     f32[(ptr + 4) >> 2] = data.halfHeight;
-    f32[(ptr + 8) >> 2] = data.friction;
-    f32[(ptr + 12) >> 2] = data.restitution;
-    u8[ptr + 16] = data.isSensor ? 1 : 0;
-    u8[ptr + 17] = data.enabled ? 1 : 0;
+    f32[(ptr + 8) >> 2] = data.center.x; f32[((ptr + 8) >> 2) + 1] = data.center.y; f32[((ptr + 8) >> 2) + 2] = data.center.z;
+    f32[(ptr + 20) >> 2] = data.friction;
+    f32[(ptr + 24) >> 2] = data.restitution;
+    u8[ptr + 28] = data.isSensor ? 1 : 0;
+    u8[ptr + 29] = data.enabled ? 1 : 0;
 }
 
 export function createCapsuleCollider3DData(): CapsuleCollider3DPtrData {
     return {
         radius: 0,
         halfHeight: 0,
+        center: { x: 0, y: 0, z: 0 },
         friction: 0,
         restitution: 0,
         isSensor: false,
@@ -1947,6 +1955,7 @@ export function createSortingGroupData(): SortingGroupPtrData {
 
 export interface SphereCollider3DPtrData {
     radius: number;
+    center: Vec3;
     friction: number;
     restitution: number;
     isSensor: boolean;
@@ -1958,10 +1967,11 @@ export function fillSphereCollider3D(
     ptr: number, out: SphereCollider3DPtrData,
 ): void {
     out.radius = f32[ptr >> 2];
-    out.friction = f32[(ptr + 4) >> 2];
-    out.restitution = f32[(ptr + 8) >> 2];
-    out.isSensor = u8[ptr + 12] !== 0;
-    out.enabled = u8[ptr + 13] !== 0;
+    const center_ = out.center; center_.x = f32[(ptr + 4) >> 2]; center_.y = f32[((ptr + 4) >> 2) + 1]; center_.z = f32[((ptr + 4) >> 2) + 2];
+    out.friction = f32[(ptr + 16) >> 2];
+    out.restitution = f32[(ptr + 20) >> 2];
+    out.isSensor = u8[ptr + 24] !== 0;
+    out.enabled = u8[ptr + 25] !== 0;
 }
 
 export function writeSphereCollider3D(
@@ -1969,15 +1979,17 @@ export function writeSphereCollider3D(
     ptr: number, data: SphereCollider3DPtrData,
 ): void {
     f32[ptr >> 2] = data.radius;
-    f32[(ptr + 4) >> 2] = data.friction;
-    f32[(ptr + 8) >> 2] = data.restitution;
-    u8[ptr + 12] = data.isSensor ? 1 : 0;
-    u8[ptr + 13] = data.enabled ? 1 : 0;
+    f32[(ptr + 4) >> 2] = data.center.x; f32[((ptr + 4) >> 2) + 1] = data.center.y; f32[((ptr + 4) >> 2) + 2] = data.center.z;
+    f32[(ptr + 16) >> 2] = data.friction;
+    f32[(ptr + 20) >> 2] = data.restitution;
+    u8[ptr + 24] = data.isSensor ? 1 : 0;
+    u8[ptr + 25] = data.enabled ? 1 : 0;
 }
 
 export function createSphereCollider3DData(): SphereCollider3DPtrData {
     return {
         radius: 0,
+        center: { x: 0, y: 0, z: 0 },
         friction: 0,
         restitution: 0,
         isSensor: false,
