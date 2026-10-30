@@ -446,6 +446,9 @@ export class Assets {
     private releasing_ = false;
     private preparations_ = new Set<DependencyRecorder>();
 
+    /** @internal How many times everything this loader held has been given back: what a holder kept of an earlier one names things that are gone. */
+    get epoch(): number { return this.resetEpoch_; }
+
     private assertLoading_(epoch = this.resetEpoch_): void {
         if (this.releasing_ || epoch !== this.resetEpoch_) {
             throw new Error('Assets were released while loading; this request has no owner. Load it again.');

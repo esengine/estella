@@ -990,6 +990,7 @@ ResourceDef<AssetsClass>
 @internal dependentsOfAsset: (asset: AssetIdentity) => AssetIdentity[]
 @internal dependentsOfSource: (ref: string) => AssetIdentity[]
 @internal entityScopes: EntityAssetScopes
+@internal epoch: number
 @internal handleBoundTypes: () => string[]
 @internal preparePrefab: (ref: string, overrides?: readonly PrefabOverride[]) => Promise<PreparedPrefab>
 @internal publishedRegistryAssets: <T>(type: string) => T[]

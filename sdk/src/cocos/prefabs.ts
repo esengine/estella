@@ -29,6 +29,7 @@ import { Prefab, preparedPrefabs } from './assets';
 
 const assetsOf = new WeakMap<World, AssetsClass>();
 let currentAssets: AssetsClass | null = null;
+let currentEpoch = -1;
 const sessionListeners: Array<() => void> = [];
 
 /**
@@ -77,13 +78,15 @@ export function declarePrefabSystem(): void {
         [Res(Assets), GetWorld()],
         (assets, world) => {
             if (!assets) return;
-            if (currentAssets && currentAssets !== assets) {
+            const epoch = (assets as AssetsClass).epoch;
+            if (currentAssets && (currentAssets !== assets || currentEpoch !== epoch)) {
                 preparedPrefabs.clear();
                 wanted.clear();
                 inFlight.clear();
                 for (const fn of sessionListeners) fn();
             }
             currentAssets = assets as AssetsClass;
+            currentEpoch = epoch;
             assetsOf.set(world, assets as AssetsClass);
             if (wanted.size > 0) drain(assets as AssetsClass);
         },
