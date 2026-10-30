@@ -276,6 +276,8 @@ describe('a directory with a file the layer cannot load', () => {
             resources.loadDir('cfg', (err: Error | null, assets: unknown[]) => resolve({ err, assets })));
         expect(result.err).toBeNull();
         expect(result.assets).toHaveLength(1);
+        // named for its file, as a script keys what it loads
+        expect((result.assets[0] as { name: string }).name).toBe('rules');
     });
 });
 

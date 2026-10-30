@@ -19,7 +19,7 @@ import { platformFetch } from '../platform';
 import { log } from '../util/logger';
 import { Asset, JsonAsset, Material, Prefab, TextAsset } from './assets';
 import { getCurrentWorld } from './node';
-import { assetsFor, loadPrefab } from './prefabs';
+import { assetsFor, loadPrefab, onNewSession } from './prefabs';
 
 export interface ResourceEntry {
     /** The project-relative path of the file. */
@@ -91,6 +91,14 @@ function parseLoadArgs<T>(args: unknown[]): { type: AssetCtor | null; onProgress
 }
 
 const loaded = new Cache<Asset>();
+// What the layer loaded belongs to the session that loaded it.
+onNewSession(() => { loaded.clear(); manifest = null; manifestLoad = null; });
+
+/** An asset is named for its file, without the extension: the name a script keys what it loads by (`asset.name`). */
+function named<T extends Asset>(asset: T, entry: ResourceEntry): T {
+    if (!asset.name) asset.name = (entry.path.split('/').pop() ?? '').replace(/\.[^.]+$/, '');
+    return asset;
+}
 
 /** An asset of a kind the layer does not load: not a fault of the asset, so a directory load goes on without it. */
 export class UnsupportedAssetKind extends Error {}
@@ -148,7 +156,7 @@ export class Bundle {
                 const entry = await this.entry_(list[i]!);
                 const key = `${this.name}/${entry.path}`;
                 let asset = loaded.get(key);
-                if (!asset) loaded.add(key, (asset = await loadEntry(entry, type)));
+                if (!asset) loaded.add(key, (asset = named(await loadEntry(entry, type), entry)));
                 out.push(asset);
                 onProgress?.(i + 1, list.length, entry);
             }
@@ -172,7 +180,7 @@ export class Bundle {
                 try {
                     const key = `${this.name}/${entry.path}`;
                     let asset = loaded.get(key);
-                    if (!asset) loaded.add(key, (asset = await loadEntry(entry, type)));
+                    if (!asset) loaded.add(key, (asset = named(await loadEntry(entry, type), entry)));
                     out.push(asset);
                 } catch (err) {
                     // an entry of a kind that does not load, or of another type than asked for, is left out: a directory of configs holds a readme too

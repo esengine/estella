@@ -28,6 +28,14 @@ import { Node, getCurrentWorld, markDetached } from './node';
 import { Prefab, preparedPrefabs } from './assets';
 
 const assetsOf = new WeakMap<World, AssetsClass>();
+let currentAssets: AssetsClass | null = null;
+const sessionListeners: Array<() => void> = [];
+
+/**
+ * Run @p fn when a play session ends and another begins: the engine releases the session's resources, so what the layer kept of
+ * them (a prepared prefab, a loaded asset) names things that are gone. Told as the new session's asset loader is first seen.
+ */
+export function onNewSession(fn: () => void): void { sessionListeners.push(fn); }
 const wanted = new Set<string>();
 const inFlight = new Set<string>();
 
@@ -69,6 +77,13 @@ export function declarePrefabSystem(): void {
         [Res(Assets), GetWorld()],
         (assets, world) => {
             if (!assets) return;
+            if (currentAssets && currentAssets !== assets) {
+                preparedPrefabs.clear();
+                wanted.clear();
+                inFlight.clear();
+                for (const fn of sessionListeners) fn();
+            }
+            currentAssets = assets as AssetsClass;
             assetsOf.set(world, assets as AssetsClass);
             if (wanted.size > 0) drain(assets as AssetsClass);
         },
