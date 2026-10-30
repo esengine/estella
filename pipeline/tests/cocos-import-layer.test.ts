@@ -75,6 +75,8 @@ describe('importing for the compatibility layer', () => {
         put('scripts/Hud.ts.meta', meta(HUD, 'typescript'));
         put('scripts/Other.ts', "@ccclass\n@menu('x')\n// a comment between\n@executionOrder(-1)\nexport default class Other extends Component {}\n");
         put('scripts/Other.ts.meta', meta(OTHER, 'typescript'));
+        put('scripts/Globals.ts', "// @ts-ignore\nglobalThis.app_config = { area: 2 };\n");
+        put('scripts/Globals.ts.meta', meta('99999999-9999-4999-8999-999999999999', 'typescript'));
         put('resources.meta', { ver: '1.2.0', importer: 'directory', uuid: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', userData: { isBundle: true, bundleName: 'resources' } });
         put('resources/cfg/rules.json', '{"a":1}');
         put('resources/cfg/rules.json.meta', meta('f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1', 'json'));
@@ -89,6 +91,9 @@ describe('importing for the compatibility layer', () => {
         put('art/plain.json.meta', meta(PLAIN, 'json'));
         // the starter project's entry, which the import points at the converted scripts
         mkdirSync(path.join(root, 'out', 'src'), { recursive: true });
+        writeFileSync(path.join(root, 'out', 'project.esproject'), JSON.stringify({ formatVersion: '1', name: 'x', defaultScene: 'assets/scenes/main.esscene', designResolution: { width: 800, height: 600 } }));
+        mkdirSync(path.join(root, 'creator', 'settings', 'v2', 'packages'), { recursive: true });
+        writeFileSync(path.join(root, 'creator', 'settings', 'v2', 'packages', 'project.json'), JSON.stringify({ general: { designResolution: { width: 1080, height: 1920 } } }));
         writeFileSync(path.join(root, 'out', 'src', 'main.ts'), "// Game entry.\nimport './components';\n");
         report = await importCocosProject({ source: path.join(root, 'creator'), out: path.join(root, 'out') });
         scenes = JSON.parse(readFileSync(path.join(root, 'out', 'assets', 'cocos', 'main.esscene'), 'utf8'));
@@ -192,6 +197,19 @@ describe('importing for the compatibility layer', () => {
         expect(to.size).toBe(from.size);
         expect(to.ino === from.ino && to.dev === from.dev).toBe(true);
         expect(readFileSync(path.join(root, 'creator', 'assets', 'resources', 'ui', 'icon.png'), 'utf8')).toBe('not a png');
+    });
+
+    it('starts the converted project at the scene and design size of the game, not of the starter', () => {
+        const manifest = JSON.parse(readFileSync(path.join(root, 'out', 'project.esproject'), 'utf8')) as { defaultScene: string; designResolution: { width: number; height: number } };
+        expect(manifest.defaultScene).toBe('assets/cocos/main.esscene');
+        expect(manifest.designResolution).toEqual({ width: 1080, height: 1920 });
+    });
+
+    it('runs a script that only defines globals before the scripts scenes name', () => {
+        const entry = readFileSync(path.join(root, 'out', 'src', 'cocos-scripts.ts'), 'utf8').split('\n');
+        const at = (needle: string): number => entry.findIndex((l) => l.startsWith('load(') && l.includes(needle));
+        expect(at("scripts/Globals'")).toBeGreaterThan(-1);
+        expect(at("scripts/Globals'")).toBeLessThan(at("scripts/Hud'"));
     });
 
     it('counts the components it maps', () => {

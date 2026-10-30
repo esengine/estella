@@ -193,7 +193,9 @@ export function declareClass(ctor: ComponentCtor, name: string, raw: RawProperty
             const previous = setCurrentWorld(world);
             try {
                 const seen = new Set<Entity>();
-                for (const [entity] of q) {
+                // The entities first, then the scripts: a script that switches a node on or off adds and removes components, which a query being
+                // walked does not allow.
+                for (const [entity] of [...q]) {
                     seen.add(entity);
                     const inst = instancesOn(world, entity)?.get(ctor) ?? instantiate(world, entity, ctor);
                     if (inst) drive(world, entity, inst, time.delta);
@@ -218,7 +220,7 @@ export function declareClass(ctor: ComponentCtor, name: string, raw: RawProperty
             (q, time, world) => {
                 const previous = setCurrentWorld(world);
                 try {
-                    for (const [entity] of q) {
+                    for (const [entity] of [...q]) {
                         const inst = instancesOn(world, entity)?.get(ctor);
                         if (inst && inst._started && inst.enabled && world.isEntityActive(entity)) call(inst, 'lateUpdate', time.delta);
                     }

@@ -28,6 +28,8 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(cocos): a converted project starts at the game launch scene and runs its global-defining scripts first, reads the editor built-in assets, and the layer components survive a replay':
+    {"note":"A converted Cocos project starts as the game does."},
   'feat(cocos): the colour a script sets on a material instance is the renderer tint':
     {"note":"A material colour is the renderer tint."},
   'feat(cocos): MeshRenderer, UIMeshRenderer, material properties and cc.geometry in the compatibility layer':

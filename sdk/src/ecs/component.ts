@@ -493,6 +493,19 @@ export function markEngineComponentBaseline(): void {
     engineComponentBaseline_ = new Map(userComponents());
 }
 
+/**
+ * Run @p declare, and count what it registers among the engine's own components. A part of the engine that lives in its own module (the Cocos
+ * layer) registers components when it loads, after the entry took its baseline; without this a reload that clears the registry would drop them,
+ * the module being cached and not loading again. Components the project declares are never added: they come from the project bundle, which a
+ * reload does run again. No-op where no baseline was taken (a test that never loaded the SDK entry).
+ */
+export function declareAsEngineComponents(declare: () => void): void {
+    const before = new Set(userComponents().keys());
+    declare();
+    if (!engineComponentBaseline_) return;
+    for (const [name, def] of userComponents()) if (!before.has(name)) engineComponentBaseline_.set(name, def);
+}
+
 /** Re-add the engine baseline to a registry (only where missing), so a context
  *  that has never re-run the SDK's module-level registrations still has them.
  *  No-op until {@link markEngineComponentBaseline} has run (e.g. unit tests that

@@ -48,5 +48,7 @@ export * from './env';
 export { classInfoNamed, classInfoOf, allClassInfos, COMPONENT_PREFIX, resetClassRegistry } from './registry';
 
 import { declareBuiltinScripts as declare } from './builtinScripts';
-// Declared once, into the context a game runs in, when the layer is imported.
-declare();
+import { declareAsEngineComponents } from '../ecs/component';
+// Declared once, into the context a game runs in, when the layer is imported. They are the engine's components as far as a reload goes: the layer
+// does not load again, so what it declared has to be put back with the rest of them.
+declareAsEngineComponents(declare);
