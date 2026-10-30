@@ -4592,6 +4592,97 @@
       ]
     },
     {
+      "name": "RectAnchors",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "alignFlags",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "left",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "right",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "top",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "bottom",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "horizontalCenter",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "verticalCenter",
+          "type": "number",
+          "default": "0"
+        },
+        {
+          "key": "isAbsLeft",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "isAbsRight",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "isAbsTop",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "isAbsBottom",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "isAbsHorizontalCenter",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "isAbsVerticalCenter",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "alignMode",
+          "type": "number",
+          "default": "1"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        }
+      ],
+      "animatable": [
+        "alignFlags",
+        "left",
+        "right",
+        "top",
+        "bottom",
+        "horizontalCenter",
+        "verticalCenter",
+        "alignMode"
+      ]
+    },
+    {
       "name": "ReflectionProbe",
       "source": "cpp",
       "fields": [
@@ -6519,6 +6610,12 @@
           "default": "0"
         },
         {
+          "key": "underline",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Draw a line under each line of text, using the underscore of the font."
+        },
+        {
           "key": "richText",
           "type": "boolean",
           "default": "false"
@@ -6663,7 +6760,9 @@
           "doc": "Which characters the field accepts. Digits keeps only 0-9, whether typed or pasted, for a count or a price.",
           "values": [
             "None",
-            "Digits"
+            "Digits",
+            "Decimal",
+            "Phone"
           ]
         },
         {
