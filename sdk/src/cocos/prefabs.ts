@@ -48,6 +48,19 @@ export function requestPrepare(path: string): void {
     if (path && !preparedPrefabs.has(path) && !inFlight.has(path)) wanted.add(path);
 }
 
+/** What the layer kept is of the session that kept it: when the loader has given everything back since, it is dropped. */
+function syncSession(assets: AssetsClass): void {
+    const epoch = assets.epoch;
+    if (currentAssets && (currentAssets !== assets || currentEpoch !== epoch)) {
+        preparedPrefabs.clear();
+        wanted.clear();
+        inFlight.clear();
+        for (const fn of sessionListeners) fn();
+    }
+    currentAssets = assets;
+    currentEpoch = epoch;
+}
+
 /** Hand the layer a prefab already prepared (a host that loaded it its own way, or a test). */
 export function providePrefab(path: string, prepared: PreparedPrefab): void {
     preparedPrefabs.set(path, prepared);
@@ -56,6 +69,7 @@ export function providePrefab(path: string, prepared: PreparedPrefab): void {
 /** Prepare a prefab and answer when it is ready to `instantiate`. */
 export function loadPrefab(path: string, world: World | null = getCurrentWorld()): Promise<Prefab> {
     const assets = world ? assetsOf.get(world) : undefined;
+    if (assets) syncSession(assets);
     if (preparedPrefabs.has(path)) return Promise.resolve(new Prefab(path));
     if (!assets) return Promise.reject(new Error(`cocos compat: cannot load prefab "${path}": the engine's asset loader is not running`));
     return preparePrefab(assets, path).then((p) => { preparedPrefabs.set(path, p); return new Prefab(path); });
@@ -78,15 +92,7 @@ export function declarePrefabSystem(): void {
         [Res(Assets), GetWorld()],
         (assets, world) => {
             if (!assets) return;
-            const epoch = (assets as AssetsClass).epoch;
-            if (currentAssets && (currentAssets !== assets || currentEpoch !== epoch)) {
-                preparedPrefabs.clear();
-                wanted.clear();
-                inFlight.clear();
-                for (const fn of sessionListeners) fn();
-            }
-            currentAssets = assets as AssetsClass;
-            currentEpoch = epoch;
+            syncSession(assets as AssetsClass);
             assetsOf.set(world, assets as AssetsClass);
             if (wanted.size > 0) drain(assets as AssetsClass);
         },
