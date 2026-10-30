@@ -172,6 +172,23 @@ export async function importModelFile(opts: ImportModelOptions): Promise<Importe
         externalRefs.set(uri, rel);
     }
 
+    // A texture the model names whose file is not there is left off the material, and said: a reference that resolves to nothing fails to
+    // load every time the model is used, and the material is no better for it (a model exported from a tool that kept its own paths names a
+    // `.psd` the project never had).
+    const lost = new Set(externalFiles.filter((uri) => !externalRefs.has(uri) && !existsSync(path.join(sourceDir, uri))));
+    if (lost.size > 0) {
+        const slots = ['baseColorTexture', 'normalTexture', 'emissiveTexture', 'occlusionTexture', 'metallicRoughnessTexture', 'flowTexture', 'shiftTexture'] as const;
+        for (const mesh of meshes) {
+            const material = mesh.material as Record<string, unknown> | undefined;
+            if (!material) continue;
+            for (const slot of slots) {
+                const image = material[slot] as { external?: boolean; file?: string } | undefined;
+                if (image?.external && image.file !== undefined && lost.has(image.file)) delete material[slot];
+            }
+        }
+        for (const uri of lost) warnings.push(`${uri} is not there; the material is left without that texture`);
+    }
+
     const meshFiles: string[] = [];
     for (const mesh of meshes) {
         meshFiles.push(await write(`${mesh.name}.esmesh`, encodeImportedMesh(mesh)));

@@ -2940,12 +2940,14 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // Tangent frame from screen-space derivatives, so a tangent-space normal
             // lands in world space without the geometry carrying a tangent channel —
             // which most exported models do not. Degenerate UVs return N unchanged.
-            "#ifdef MESH_TANGENTS\n"
+            // Only where the vertex stage writes it: that is LIT with MESH_TANGENTS. A fragment stage that names it elsewhere (an unlit variant of
+            // a mesh that carries tangents) fails to link, though nothing calls the function.
+            "#if defined(MESH_TANGENTS) && defined(LIT)\n"
             "in highp vec4 v_worldTangent;\n"
             "#endif\n"
             "highp vec3 perturbNormal(in highp vec3 N, in highp vec3 worldPos,\n"
             "                         in highp vec2 uv, in highp vec3 tangentNormal) {\n"
-            "#ifdef MESH_TANGENTS\n"
+            "#if defined(MESH_TANGENTS) && defined(LIT)\n"
             // The frame the normal map was baked in: the tangent made square to the interpolated normal.
             "    highp vec3 Tg = normalize(v_worldTangent.xyz - N * dot(N, v_worldTangent.xyz));\n"
             "    highp vec3 Bg = cross(N, Tg) * v_worldTangent.w;\n"

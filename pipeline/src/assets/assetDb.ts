@@ -281,6 +281,13 @@ function collectRefs(
   }
 }
 
+/**
+ * Whether a string could name a file: it ends in an extension, written in one case. Almost every string in a document is a name, a type or
+ * a label (`Transform`, `Cocos.Widget`, `ui_layer`), and each one asked of the path index costs a normalisation and a lookup; in a project of
+ * thousands of documents those are most of the scan.
+ */
+const PATH_LIKE = /\.(?:[a-z0-9]{1,16}|[A-Z0-9]{1,16})$/;
+
 /** Normalize a ref for path-index lookup (forward slashes, no ./ or leading /). */
 function normalizeRefPath(ref: string): string {
   return ref.replace(/\\/g, '/').replace(/^\.\//, '').replace(/^\//, '');
@@ -359,7 +366,7 @@ async function computeDeps(
       } else {
         const json = JSON.parse(await readTextInRoot(path.join(root, entry.path)));
         collectRefs(json, refs, (ref) => {
-          if (ref.includes('://')) return null;
+          if (ref.includes('://') || !PATH_LIKE.test(ref)) return null;
           const direct = byPath.get(normalizeRefPath(ref));
           if (direct) return direct.uuid;
           // Fall back to a path RELATIVE to the referencing document, resolved the way

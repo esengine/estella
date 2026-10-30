@@ -50,7 +50,8 @@ function packageFileFrom(dir: string, specifier: string): string | undefined {
 }
 
 const CONST_DECL = /\bconst\s+([A-Za-z_$][\w$]*)\s*(?::[^=;\n]+)?=/g;
-const escapeRe = (name: string): string => name.replace(/[$]/g, '\\$&');
+/** An assignment statement: the name at the start of a statement, then `=` that is not `==` or `=>`, or a compound operator. */
+const ASSIGNMENT = /(?:^|[;{}\n])\s*([A-Za-z_$][\w$]*)\s*(?:[-+*/%&|^]|\*\*|<<|>>>?|&&|\|\||\?\?)?=(?![=>])/g;
 
 const NAMED_CC_IMPORT = /^[ \t]*import\s*\{([^}]*)\}\s*from\s*(['"])(cc(?:\/env)?)\2\s*;?/gm;
 
@@ -78,18 +79,17 @@ export function readNamedImportsThroughNamespace(source: string): string {
   return reads.length > 0 ? reads.join(' ') + ' ' + rest : rest;
 }
 
-/** The source with every `const` that the script assigns to again read as `let`; the source itself when there is none. */
+/**
+ * The source with every `const` that the script assigns to again read as `let`; the source itself when there is none. Two passes over the text, not
+ * one per declaration: a project's scripts are thousands of files, and this runs on every build, on the editor's main thread.
+ */
 export function letTheReassignedConsts(source: string): string {
   if (!source.includes('const ')) return source;
-  let out = source;
-  for (const m of source.matchAll(CONST_DECL)) {
-    const name = escapeRe(m[1]!);
-    // an assignment statement: the name at the start of a statement, then `=` that is not `==` or `=>`, or a compound operator
-    const assigned = new RegExp(`(?:^|[;{}\\n])\\s*${name}\\s*(?:[-+*/%&|^]|\\*\\*|<<|>>>?|&&|\\|\\||\\?\\?)?=(?![=>])`, 'm');
-    if (!assigned.test(source.slice((m.index ?? 0) + m[0].length))) continue;
-    out = out.replace(new RegExp(`\\bconst(\\s+${name}\\b)`), 'let$1');
-  }
-  return out;
+  const assigned = new Set<string>();
+  for (const m of source.matchAll(ASSIGNMENT)) assigned.add(m[1]!);
+  if (assigned.size === 0) return source;
+  // a name assigned anywhere makes every const of that name a let: harmless where the assignment was to another variable of the same name
+  return source.replace(CONST_DECL, (all: string, name: string) => (assigned.has(name) ? all.replace('const', 'let') : all));
 }
 
 export function cocosCompatPlugin(): Plugin {
