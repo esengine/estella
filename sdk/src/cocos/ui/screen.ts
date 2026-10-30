@@ -5,12 +5,13 @@
  * @brief   The rectangle a root UI node aligns to (Cocos's "visible rect"), and the window it sits in.
  *
  * A widget on a node whose parent has no rectangle of its own (the canvas, or anything straight under the scene) aligns to the
- * visible area of the screen. In an imported scene the engine's world and Cocos's are one space, with the visible area running from
- * the origin to its size, so the rectangle is just a width and a height. The frame loop sets it from the UI camera every frame
+ * visible area of the screen, which in the engine is centred on the world origin, so the rectangle is a width and a height about it. The frame loop sets it from the UI camera every frame
  * (see pass.ts); until it does, it is the size of a typical design resolution so a scene still lays out.
  */
 
 import type { UICameraData } from '../../ui/core/ui-camera-info';
+import type { ScreenLayoutData } from '../../ui/core/screen-layout';
+import type { World } from '../../ecs/world';
 
 let uiCamera: UICameraData | null = null;
 let width = 960;
@@ -23,6 +24,12 @@ let safeBottom = 0;
 let windowW = 960;
 let windowH = 640;
 const listeners: Array<(kind: 'visible' | 'window') => void> = [];
+
+let screenLayout: ScreenLayoutData | null = null;
+/** @internal The layout the pass last saw, for an alignment a script asks for now. */
+export function setScreenLayout(layout: ScreenLayoutData | null): void { screenLayout = layout; }
+/** @internal */
+export function getScreenLayoutOf(_world: World): ScreenLayoutData | null { return screenLayout; }
 
 /** The visible area's size, in the canvas units scripts see. */
 export function getVisibleSize(): { width: number; height: number } { return { width, height }; }

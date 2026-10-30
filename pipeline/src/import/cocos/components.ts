@@ -359,9 +359,11 @@ function widget(c: CocosComponent): ComponentData {
         _horizontalCenter: 'horizontalCenter', _verticalCenter: 'verticalCenter',
         _isAbsLeft: 'isAbsLeft', _isAbsRight: 'isAbsRight', _isAbsTop: 'isAbsTop', _isAbsBottom: 'isAbsBottom',
         _isAbsHorizontalCenter: 'isAbsHorizontalCenter', _isAbsVerticalCenter: 'isAbsVerticalCenter',
-        _alignMode: 'alignMode', _target: 'target',
+        _alignMode: 'alignMode',
     });
-    return { type: `${LAYER}Widget`, data };
+    // The engine's own component: the same fields, aligned by the engine in the editor as well as in play. A widget that targets a node other
+    // than its parent has nothing to say that in; its fields come across and it aligns to the parent.
+    return { type: 'RectAnchors', data };
 }
 
 function layout(c: CocosComponent): ComponentData {
@@ -868,6 +870,7 @@ export function convertNode(node: CocosNode, ctx: ComponentContext, where: strin
                 break;
             case 'cc.Widget':
                 out = widget(c);
+                ctx.report.component('cc.Widget', 'mapped');
                 break;
             case 'cc.Layout':
                 out = layout(c);

@@ -3,7 +3,7 @@
 /**
  * @file  A scene as the importer writes it, loaded into the real engine with the compatibility layer.
  *
- * The importer (pipeline/src/import/cocos) and the layer agree on a contract by name only: `ContentRect` (the engine's), `Cocos.Widget`,
+ * The importer (pipeline/src/import/cocos) and the layer agree on a contract by name only: `ContentRect` (the engine's), `RectAnchors`,
  * `Cocos.Button`, `Cocos.<ScriptClass>`, with a node reference as the entity id the loader maps. This is the one place that agreement
  * is exercised end to end, so a rename on either side fails here and not on a user's project.
  */
@@ -67,7 +67,7 @@ describe.skipIf(!HAS_WASM)('the importer\'s scene in the compatibility layer', (
                 { id: 0, name: 'Canvas', parent: null, children: [1, 2], visible: true, components: [
                     transform,
                     { type: 'ContentRect', data: { size: { x: 10, y: 10 }, pivot: { x: 0.5, y: 0.5 } } },
-                    { type: 'Cocos.Widget', data: { enabled: true, alignFlags: 45, left: 0, right: 0, top: 0, bottom: 0, alignMode: 1 } },
+                    { type: 'RectAnchors', data: { enabled: true, alignFlags: 45, left: 0, right: 0, top: 0, bottom: 0, alignMode: 1 } },
                 ] },
                 { id: 1, name: 'Buy', parent: 0, children: [], visible: true, components: [
                     transform,
@@ -91,7 +91,7 @@ describe.skipIf(!HAS_WASM)('the importer\'s scene in the compatibility layer', (
         // geometry and alignment: the canvas was authored 10x10 and stretches to the visible area
         const t = canvas.getComponent(UITransform)!;
         expect([t.width, t.height]).toEqual([960, 640]);
-        expect(canvas.position.x).toBe(480);
+        expect(canvas.position.x).toBe(0);   // the screen is centred on the origin
 
         // a script with its fields, node references mapped to the entities the loader made
         const script = hud.getComponent('Hud') as unknown as Hud;

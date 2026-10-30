@@ -108,7 +108,7 @@ describe('importing for the compatibility layer', () => {
     });
 
     it('carries a widget\'s and a layout\'s settings under the names the layer uses', () => {
-        const w = comp('Canvas', 'Cocos.Widget').data;
+        const w = comp('Canvas', 'RectAnchors').data;
         expect([w.alignFlags, w.left, w.right, w.top, w.bottom, w.alignMode, w.enabled]).toEqual([45, 10, 10, 5, 5, 2, true]);
         const l = comp('Hud', 'Cocos.Layout').data;
         expect([l.type, l.resizeMode, l.spacingY, l.paddingTop, l.cellWidth, l.cellHeight, l.verticalDirection]).toEqual([2, 1, 8, 4, 50, 60, 1]);

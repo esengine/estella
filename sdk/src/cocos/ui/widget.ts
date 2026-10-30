@@ -2,78 +2,99 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    cocos/ui/widget.ts
- * @brief   `Widget`: a node pinned to the edges (or centre) of its parent's rectangle.
+ * @brief   `Widget`: a view on the engine's `RectAnchors`.
  *
- * The arithmetic is Cocos's own, so a panel lands where it landed there: each axis is either stretched (both edges set — the size
- * follows the parent), pinned to one edge, or centred with an offset, with margins in pixels or as a fraction of the parent. A node
- * whose parent has no rectangle aligns to the visible area (see screen.ts).
- *
- * When it runs follows `alignMode`: ONCE the first time, ON_WINDOW_RESIZE on enable and whenever the visible size changes, ALWAYS
- * every frame. Changing any of the widget's own settings re-aligns it whatever the mode, which is what the setters do in Cocos.
+ * The alignment itself (stretch, pin to an edge, centre, margins in units or as a fraction) is the engine's: `RectAnchors` is a component of
+ * its own, aligned by an engine system in the editor's edit mode as well as in play. A Cocos `Widget` is that component under Cocos's names.
+ * A node whose parent has no rectangle aligns to the screen, the centred layout box of the UI camera's domain.
  *
  * Only the parent as target is supported; a widget that names another node as its target aligns to the parent and says so once.
  */
+import { registerComponent } from '../../ecs/component';
+import { RectAnchors, AnchorFlag, AnchorMode, alignRectAnchorsNow, type RectAnchorsData } from '../../ui/layout/rect-anchors';
+import { ScreenLayout } from '../../ui/core/screen-layout';
 import { Component } from '../component';
 import { Node } from '../node';
-import { Vec3 } from '../math';
-import { declareClass } from '../host';
-import { instancesOfClass } from '../registry';
+import { registerBuiltinComponent } from '../builtins';
 import { log } from '../../util/logger';
-import type { World } from '../../ecs/world';
-import type { Entity } from '../../types';
-import { UITransform } from './uiTransform';
-import { getVisibleSize, visibleSizeGeneration } from './screen';
+import { getScreenLayoutOf } from './screen';
+import { viewAdapter } from './view';
 
-const AlignFlags = Object.freeze({ TOP: 1, MID: 2, BOT: 4, LEFT: 8, CENTER: 16, RIGHT: 32, HORIZONTAL: 8 | 16 | 32, VERTICAL: 1 | 2 | 4 });
-const AlignMode = Object.freeze({ ONCE: 0, ON_WINDOW_RESIZE: 1, ALWAYS: 2 });
+const AlignFlags = Object.freeze({ TOP: AnchorFlag.TOP, MID: AnchorFlag.MID, BOT: AnchorFlag.BOTTOM, LEFT: AnchorFlag.LEFT, CENTER: AnchorFlag.CENTER, RIGHT: AnchorFlag.RIGHT, HORIZONTAL: AnchorFlag.HORIZONTAL, VERTICAL: AnchorFlag.VERTICAL });
+const AlignMode = Object.freeze({ ONCE: AnchorMode.ONCE, ON_WINDOW_RESIZE: AnchorMode.ON_RESIZE, ALWAYS: AnchorMode.ALWAYS });
 
-const SETTINGS = [
-    'alignFlags', 'left', 'right', 'top', 'bottom', 'horizontalCenter', 'verticalCenter',
-    'isAbsLeft', 'isAbsRight', 'isAbsTop', 'isAbsBottom', 'isAbsHorizontalCenter', 'isAbsVerticalCenter', 'alignMode',
-] as const;
+type NumberKey = 'alignFlags' | 'left' | 'right' | 'top' | 'bottom' | 'horizontalCenter' | 'verticalCenter' | 'alignMode';
+type FlagKey = 'isAbsLeft' | 'isAbsRight' | 'isAbsTop' | 'isAbsBottom' | 'isAbsHorizontalCenter' | 'isAbsVerticalCenter';
 
 export class Widget extends Component {
     static readonly AlignMode = AlignMode;
     static readonly AlignFlags = AlignFlags;
 
-    alignFlags = 0;
-    left = 0;
-    right = 0;
-    top = 0;
-    bottom = 0;
-    horizontalCenter = 0;
-    verticalCenter = 0;
-    isAbsLeft = true;
-    isAbsRight = true;
-    isAbsTop = true;
-    isAbsBottom = true;
-    isAbsHorizontalCenter = true;
-    isAbsVerticalCenter = true;
-    alignMode: number = AlignMode.ON_WINDOW_RESIZE;
+    /** The node another widget setting names as its target; only the parent is honoured. */
     target: Node | null = null;
+    private warnedTarget_ = false;
 
-    /** @internal What the last alignment saw: the settings, and the visible size it was done at. */
-    _seen = '';
-    _seenGeneration = -1;
-    _hadAlignOnce = false;
-    _warnedTarget = false;
-
-    private flag_(bit: number): boolean { return (this.alignFlags & bit) > 0; }
-    private setFlag_(bit: number, on: boolean, clears = 0): void {
-        this.alignFlags = on ? (this.alignFlags | bit) & ~clears : this.alignFlags & ~bit;
+    private data_(): RectAnchorsData { return this._world.get(this._entity, RectAnchors); }
+    private patch_(fields: Partial<RectAnchorsData>): void {
+        if (this.target && this.target !== this.node.parent && !this.warnedTarget_) {
+            this.warnedTarget_ = true;
+            log.warn('cocos', `${this.node.name}: Widget.target other than the parent is not supported; aligning to the parent`);
+        }
+        this._world.set(this._entity, RectAnchors, { ...this.data_(), ...fields });
     }
-    get isAlignLeft(): boolean { return this.flag_(AlignFlags.LEFT); }
-    set isAlignLeft(v: boolean) { this.setFlag_(AlignFlags.LEFT, v, AlignFlags.CENTER); }
-    get isAlignRight(): boolean { return this.flag_(AlignFlags.RIGHT); }
-    set isAlignRight(v: boolean) { this.setFlag_(AlignFlags.RIGHT, v, AlignFlags.CENTER); }
-    get isAlignTop(): boolean { return this.flag_(AlignFlags.TOP); }
-    set isAlignTop(v: boolean) { this.setFlag_(AlignFlags.TOP, v, AlignFlags.MID); }
-    get isAlignBottom(): boolean { return this.flag_(AlignFlags.BOT); }
-    set isAlignBottom(v: boolean) { this.setFlag_(AlignFlags.BOT, v, AlignFlags.MID); }
-    get isAlignHorizontalCenter(): boolean { return this.flag_(AlignFlags.CENTER); }
-    set isAlignHorizontalCenter(v: boolean) { this.setFlag_(AlignFlags.CENTER, v, AlignFlags.LEFT | AlignFlags.RIGHT); }
-    get isAlignVerticalCenter(): boolean { return this.flag_(AlignFlags.MID); }
-    set isAlignVerticalCenter(v: boolean) { this.setFlag_(AlignFlags.MID, v, AlignFlags.TOP | AlignFlags.BOT); }
+    private num_(key: NumberKey): number { return this.data_()[key]; }
+    private flag_(key: FlagKey): boolean { return this.data_()[key]; }
+    private bit_(bit: number): boolean { return (this.data_().alignFlags & bit) > 0; }
+    private setBit_(bit: number, on: boolean, clears = 0): void {
+        const flags = this.data_().alignFlags;
+        this.patch_({ alignFlags: on ? (flags | bit) & ~clears : flags & ~bit });
+    }
+
+    get enabled(): boolean { return this.data_().enabled; }
+    set enabled(v: boolean) { this.patch_({ enabled: v }); }
+
+    get alignFlags(): number { return this.num_('alignFlags'); }
+    set alignFlags(v: number) { this.patch_({ alignFlags: v }); }
+    get alignMode(): number { return this.num_('alignMode'); }
+    set alignMode(v: number) { this.patch_({ alignMode: v }); }
+    get left(): number { return this.num_('left'); }
+    set left(v: number) { this.patch_({ left: v }); }
+    get right(): number { return this.num_('right'); }
+    set right(v: number) { this.patch_({ right: v }); }
+    get top(): number { return this.num_('top'); }
+    set top(v: number) { this.patch_({ top: v }); }
+    get bottom(): number { return this.num_('bottom'); }
+    set bottom(v: number) { this.patch_({ bottom: v }); }
+    get horizontalCenter(): number { return this.num_('horizontalCenter'); }
+    set horizontalCenter(v: number) { this.patch_({ horizontalCenter: v }); }
+    get verticalCenter(): number { return this.num_('verticalCenter'); }
+    set verticalCenter(v: number) { this.patch_({ verticalCenter: v }); }
+
+    get isAbsLeft(): boolean { return this.flag_('isAbsLeft'); }
+    set isAbsLeft(v: boolean) { this.patch_({ isAbsLeft: v }); }
+    get isAbsRight(): boolean { return this.flag_('isAbsRight'); }
+    set isAbsRight(v: boolean) { this.patch_({ isAbsRight: v }); }
+    get isAbsTop(): boolean { return this.flag_('isAbsTop'); }
+    set isAbsTop(v: boolean) { this.patch_({ isAbsTop: v }); }
+    get isAbsBottom(): boolean { return this.flag_('isAbsBottom'); }
+    set isAbsBottom(v: boolean) { this.patch_({ isAbsBottom: v }); }
+    get isAbsHorizontalCenter(): boolean { return this.flag_('isAbsHorizontalCenter'); }
+    set isAbsHorizontalCenter(v: boolean) { this.patch_({ isAbsHorizontalCenter: v }); }
+    get isAbsVerticalCenter(): boolean { return this.flag_('isAbsVerticalCenter'); }
+    set isAbsVerticalCenter(v: boolean) { this.patch_({ isAbsVerticalCenter: v }); }
+
+    get isAlignLeft(): boolean { return this.bit_(AlignFlags.LEFT); }
+    set isAlignLeft(v: boolean) { this.setBit_(AlignFlags.LEFT, v, AlignFlags.CENTER); }
+    get isAlignRight(): boolean { return this.bit_(AlignFlags.RIGHT); }
+    set isAlignRight(v: boolean) { this.setBit_(AlignFlags.RIGHT, v, AlignFlags.CENTER); }
+    get isAlignTop(): boolean { return this.bit_(AlignFlags.TOP); }
+    set isAlignTop(v: boolean) { this.setBit_(AlignFlags.TOP, v, AlignFlags.MID); }
+    get isAlignBottom(): boolean { return this.bit_(AlignFlags.BOT); }
+    set isAlignBottom(v: boolean) { this.setBit_(AlignFlags.BOT, v, AlignFlags.MID); }
+    get isAlignHorizontalCenter(): boolean { return this.bit_(AlignFlags.CENTER); }
+    set isAlignHorizontalCenter(v: boolean) { this.setBit_(AlignFlags.CENTER, v, AlignFlags.LEFT | AlignFlags.RIGHT); }
+    get isAlignVerticalCenter(): boolean { return this.bit_(AlignFlags.MID); }
+    set isAlignVerticalCenter(v: boolean) { this.setBit_(AlignFlags.MID, v, AlignFlags.TOP | AlignFlags.BOT); }
     get isStretchWidth(): boolean { return (this.alignFlags & (AlignFlags.LEFT | AlignFlags.RIGHT)) === (AlignFlags.LEFT | AlignFlags.RIGHT); }
     get isStretchHeight(): boolean { return (this.alignFlags & (AlignFlags.TOP | AlignFlags.BOT)) === (AlignFlags.TOP | AlignFlags.BOT); }
 
@@ -91,112 +112,14 @@ export class Widget extends Component {
     set isAbsoluteVerticalCenter(v: boolean) { this.isAbsVerticalCenter = v; }
 
     /** Align now, rather than at the end of the frame. */
-    updateAlignment(): void {
-        this._hadAlignOnce = false;
-        alignWidget(this);
-    }
+    updateAlignment(): void { alignRectAnchorsNow(this._world, this._entity, getScreenLayoutOf(this._world)); }
 
-    /** Ask for alignment at the end of the frame, whatever the mode. */
-    setDirty(): void { this._seen = ''; this._hadAlignOnce = false; }
-
-    private signature_(): string {
-        let s = '';
-        for (const k of SETTINGS) s += `${this[k]},`;
-        return s;
-    }
-
-    /** @internal Whether the pass should align this widget now. */
-    _due(generation: number): boolean {
-        if (this.alignFlags === 0) return false;
-        if (this.alignMode === AlignMode.ALWAYS) return true;
-        const sig = this.signature_();
-        if (sig !== this._seen) { this._seen = sig; this._seenGeneration = generation; this._hadAlignOnce = false; return true; }
-        if (this.alignMode === AlignMode.ONCE) return false;
-        if (generation !== this._seenGeneration) { this._seenGeneration = generation; return true; }
-        return false;
-    }
+    /** Ask for alignment at the end of the frame, whatever the mode: a write of the settings is what the engine watches for. */
+    setDirty(): void { this.patch_({ alignFlags: this.alignFlags }); this.updateAlignment(); }
 }
 
-interface Anchor { x: number; y: number }
-
-/** Align one widget to its parent, as Cocos's `align` does (rotation ignored). */
-export function alignWidget(widget: Widget): void {
-    if (widget._hadAlignOnce) return;
-    if (widget.alignMode === AlignMode.ONCE) widget._hadAlignOnce = true;
-    const node = widget.node;
-    const own = node.getComponent(UITransform);
-    if (!own) return;
-    if (widget.target && widget.target !== node.parent && !widget._warnedTarget) {
-        widget._warnedTarget = true;
-        log.warn('cocos', `${node.name}: Widget.target other than the parent is not supported; aligning to the parent`);
-    }
-
-    const parent = node.parent;
-    const parentTransform = parent?.getComponent(UITransform) ?? null;
-    const isRoot = !parentTransform;
-    const visible = getVisibleSize();
-    const targetW = parentTransform ? parentTransform.width : visible.width;
-    const targetH = parentTransform ? parentTransform.height : visible.height;
-    const targetAnchor: Anchor = parentTransform ? { x: parentTransform.anchorX, y: parentTransform.anchorY } : { x: 0, y: 0 };
-
-    const pos = node.getPosition();
-    const scale = node.getScale();
-    let x = pos.x;
-    let y = pos.y;
-
-    if (widget.alignFlags & AlignFlags.HORIZONTAL) {
-        let left = isRoot ? 0 : -targetAnchor.x * targetW;
-        let right = isRoot ? visible.width : left + targetW;
-        left += widget.isAbsLeft ? widget.left : widget.left * targetW;
-        right -= widget.isAbsRight ? widget.right : widget.right * targetW;
-        let anchorX = own.anchorX;
-        let scaleX = scale.x;
-        if (scaleX < 0) { anchorX = 1 - anchorX; scaleX = -scaleX; }
-        if (widget.isStretchWidth) {
-            const width = right - left;
-            if (scaleX !== 0) own.width = width / scaleX;
-            x = left + anchorX * width;
-        } else {
-            const width = own.width * scaleX;
-            if (widget.isAlignHorizontalCenter) {
-                const offset = widget.isAbsHorizontalCenter ? widget.horizontalCenter : widget.horizontalCenter * targetW;
-                const center = (0.5 - targetAnchor.x) * targetW;
-                x = center + (anchorX - 0.5) * width + offset;
-            } else if (widget.isAlignLeft) {
-                x = left + anchorX * width;
-            } else {
-                x = right + (anchorX - 1) * width;
-            }
-        }
-    }
-
-    if (widget.alignFlags & AlignFlags.VERTICAL) {
-        let bottom = isRoot ? 0 : -targetAnchor.y * targetH;
-        let top = isRoot ? visible.height : bottom + targetH;
-        bottom += widget.isAbsBottom ? widget.bottom : widget.bottom * targetH;
-        top -= widget.isAbsTop ? widget.top : widget.top * targetH;
-        let anchorY = own.anchorY;
-        let scaleY = scale.y;
-        if (scaleY < 0) { anchorY = 1 - anchorY; scaleY = -scaleY; }
-        if (widget.isStretchHeight) {
-            const height = top - bottom;
-            if (scaleY !== 0) own.height = height / scaleY;
-            y = bottom + anchorY * height;
-        } else {
-            const height = own.height * scaleY;
-            if (widget.isAlignVerticalCenter) {
-                const offset = widget.isAbsVerticalCenter ? widget.verticalCenter : widget.verticalCenter * targetH;
-                const middle = (0.5 - targetAnchor.y) * targetH;
-                y = middle + (anchorY - 0.5) * height + offset;
-            } else if (widget.isAlignBottom) {
-                y = bottom + anchorY * height;
-            } else {
-                y = top + (anchorY - 1) * height;
-            }
-        }
-    }
-    node.setPosition(new Vec3(x, y, pos.z));
-}
+/** Align one widget to its parent now (rotation ignored). */
+export function alignWidget(widget: Widget): void { widget.updateAlignment(); }
 
 /** How deep a node is: parents align before the children that depend on their size. */
 export function depthOf(node: Node): number {
@@ -205,23 +128,13 @@ export function depthOf(node: Node): number {
     return d;
 }
 
-/** Align every widget that is due, parents first. */
-export function alignAllWidgets(world: World): void {
-    const generation = visibleSizeGeneration();
-    const due: Array<{ widget: Widget; depth: number }> = [];
-    for (const [entity, inst] of instancesOfClass(world, Widget) as Array<[Entity, Widget]>) {
-        if (!inst.enabled || !world.isEntityActive(entity)) continue;
-        if (inst._due(generation)) due.push({ widget: inst, depth: depthOf(inst.node) });
-    }
-    due.sort((a, b) => a.depth - b.depth);
-    for (const { widget } of due) alignWidget(widget);
-}
+registerBuiltinComponent(Widget, ['cc.Widget', 'Widget'], viewAdapter(
+    Widget,
+    (world, entity) => world.has(entity, RectAnchors),
+    (world, entity) => { world.insert(entity, RectAnchors, {}); },
+));
 
-/** Declare the widget's component, so a scene that holds one finds it. */
-export function declareWidget(): void {
-    declareClass(Widget as never, 'Widget', [
-        ...['alignFlags', 'left', 'right', 'top', 'bottom', 'horizontalCenter', 'verticalCenter', 'alignMode'].map((name) => ({ name, kind: 'number' as const })),
-        ...['isAbsLeft', 'isAbsRight', 'isAbsTop', 'isAbsBottom', 'isAbsHorizontalCenter', 'isAbsVerticalCenter'].map((name) => ({ name, kind: 'boolean' as const })),
-        { name: 'target', kind: 'node' as const },
-    ]);
-}
+/** The component is the engine's; a host without the engine's UI plugin (a test, a bare app) still needs it registered for a scene to load. */
+export function declareWidget(): void { registerComponent('RectAnchors', RectAnchors); }
+
+export { ScreenLayout };

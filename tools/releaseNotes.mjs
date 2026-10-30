@@ -28,6 +28,8 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(ui): RectAnchors pins world content to its parent rectangle or the screen in the engine, and the Cocos Widget is a view on it':
+    {"note":"RectAnchors: world content that follows its parent."},
   'feat(cocos): a converted project keeps the Cocos fit width of its design, and cc.profiler exists in the compatibility layer':
     {"note":"A converted Cocos project fits the screen as the game does."},
   'fix(cocos): a renderer is put in the layer of its Cocos node, so a UI camera that culls by layer draws it':

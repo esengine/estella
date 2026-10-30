@@ -62,6 +62,7 @@ export { UIMask, MaskMode, type UIMaskData } from './core/ui-mask';
 export { UIScroll, ScrollMovement, type UIScrollData } from './core/ui-scroll';
 export { ContentRect, applyContentRect, contentRectContains, localPointInRect, type ContentRectData } from './core/content-rect';
 export { contentRectPlugin, ContentRectPlugin } from './render/content-rect';
+export { RectAnchors, rectAnchorsPlugin, RectAnchorsPlugin, AnchorFlag, AnchorMode, anchoredRect, alignRectAnchorsNow, alignAllRectAnchors, forgetRectAnchors, type RectAnchorsData } from './layout/rect-anchors';
 
 export {
     Text,

@@ -19,6 +19,7 @@ import type { Entity } from '../types';
 import { uiLayoutPlugin } from './layout/layout';
 import { uiMaskPlugin } from './render/mask';
 import { contentRectPlugin } from './render/content-rect';
+import { rectAnchorsPlugin } from './layout/rect-anchors';
 import { safeAreaPlugin } from './layout/safe-area';
 import { textPlugin } from './text/plugin';
 import { inlineImagePlugin } from './text/inline-image-plugin';
@@ -45,6 +46,7 @@ const SUB_PLUGINS: Plugin[] = [
     uiLayoutPlugin,
     uiMaskPlugin,
     contentRectPlugin,
+    rectAnchorsPlugin,
     safeAreaPlugin,
     textPlugin,
     inlineImagePlugin,

@@ -41,8 +41,9 @@ export class View extends Emitter {
     /** The area the player sees, in canvas units. */
     getVisibleSize(): Size { const v = getVisibleSize(); return new Size(v.width, v.height); }
     getVisibleSizeInPixel(): Size { const v = getVisibleSize(); const s = this.getScaleX(); return new Size(v.width * s, v.height * s); }
-    getVisibleOrigin(): Vec2 { return new Vec2(0, 0); }
-    getVisibleOriginInPixel(): Vec2 { return new Vec2(0, 0); }
+    /** The visible area is centred on the world origin, as the engine's screen is. */
+    getVisibleOrigin(): Vec2 { const v = getVisibleSize(); return new Vec2(-v.width / 2, -v.height / 2); }
+    getVisibleOriginInPixel(): Vec2 { const v = this.getVisibleSizeInPixel(); return new Vec2(-v.width / 2, -v.height / 2); }
     getViewportRect(): Rect { const w = getWindowPixels(); return new Rect(0, 0, w.width, w.height); }
 
     getDesignResolutionSize(): Size { return this.design_ ? this.design_.clone() : this.getVisibleSize(); }

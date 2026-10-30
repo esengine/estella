@@ -97,11 +97,11 @@ describe.skipIf(!HAS_WASM)('widgets and layouts on the engine', () => {
         widget(canvas, (w) => { w.isAlignLeft = w.isAlignRight = w.isAlignTop = w.isAlignBottom = true; });
         await frame();
         expect(size(canvas)).toEqual([960, 640]);
-        expect([canvas.position.x, canvas.position.y]).toEqual([480, 320]);
+        expect([canvas.position.x, canvas.position.y]).toEqual([0, 0]);   // the screen is centred on the origin
         setVisibleSize(1280, 720);
         await frame();
         expect(size(canvas)).toEqual([1280, 720]);
-        expect(canvas.position.x).toBe(640);
+        expect(canvas.position.x).toBe(0);
     });
 
     it('aligns once and leaves the node to the script after, in ONCE mode; every frame, in ALWAYS mode', async () => {
