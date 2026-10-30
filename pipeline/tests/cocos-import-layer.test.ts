@@ -7,7 +7,7 @@
  * The scene is built by hand in Cocos's file shape (a flat array of objects pointing at each other by index), because the shape
  * is the thing under test: a script component is named by its script's compressed uuid, and a node is named by an array index.
  */
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -180,6 +180,14 @@ describe('importing for the compatibility layer', () => {
         const main = readFileSync(path.join(root, 'out', 'src', 'main.ts'), 'utf8');
         expect(main).toContain("import './cocos-scripts';");
         expect(main).not.toMatch(/import '\.\/components';/);
+    });
+
+    it('puts a source image in the project as a link to it, not a second copy, and never writes into it', () => {
+        const from = statSync(path.join(root, 'creator', 'assets', 'resources', 'ui', 'icon.png'));
+        const to = statSync(path.join(root, 'out', 'assets', 'cocos', 'resources', 'ui', 'icon.png'));
+        expect(to.size).toBe(from.size);
+        expect(to.ino === from.ino && to.dev === from.dev).toBe(true);
+        expect(readFileSync(path.join(root, 'creator', 'assets', 'resources', 'ui', 'icon.png'), 'utf8')).toBe('not a png');
     });
 
     it('counts the components it maps', () => {

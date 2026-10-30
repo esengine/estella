@@ -28,6 +28,8 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(cocos): a converted project links its source images instead of copying them, so conversion does not store a multi-gigabyte art folder twice':
+    {"note":"A converted Cocos project links its images."},
   'feat(cocos): the importer reports its progress by stage, so a long conversion can show a bar':
     {"note":"A Cocos conversion shows its progress."},
   'feat(particle): an emitter can release bursts on a schedule (bursts), and the Cocos burst list, repeat count and burst times map onto it':
