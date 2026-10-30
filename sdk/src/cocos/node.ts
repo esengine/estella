@@ -17,7 +17,7 @@ import type { World } from '../ecs/world';
 import { INVALID_ENTITY, type Entity } from '../types';
 import { Quat, Vec3 } from './math';
 import {
-    classInfoNamed, classInfoOf, ensureInstance, instancesOn, nodeOf, setNodeFactory, syncActivity,
+    COMPONENT_PREFIX, classInfoNamed, classInfoOf, ensureInstance, instancesOn, nodeOf, setNodeFactory, syncActivity,
     type ComponentCtor,
 } from './registry';
 import type { Component } from './component';
@@ -328,14 +328,37 @@ export class Node {
         const ctor = this.resolveCtor_(type);
         if (ctor) {
             const info = classInfoOf(ctor);
-            if (info) return this._world.has(this._entity, info.def) ? (ensureInstance(this._world, this._entity, ctor) as T | null) : null;
+            if (info) {
+                if (this._world.has(this._entity, info.def)) return ensureInstance(this._world, this._entity, ctor) as T | null;
+                // the component asked for may be a base of the one the node holds (a Button on a node that has a Toggle, which is one)
+                return this.subclassInstances_(ctor)[0] as T | undefined ?? null;
+            }
         }
         return (builtinAdapterFor(type)?.get(this._world, this._entity) as T | null | undefined) ?? null;
     }
 
     getComponents<T extends Component>(type: ComponentCtor<T> | string): T[] {
+        const ctor = this.resolveCtor_(type);
+        const info = ctor ? classInfoOf(ctor) : undefined;
+        if (ctor && info) {
+            const own = this._world.has(this._entity, info.def) ? [ensureInstance(this._world, this._entity, ctor) as T] : [];
+            return [...own, ...(this.subclassInstances_(ctor) as T[])];
+        }
         const one = this.getComponent<T>(type);
         return one ? [one] : [];
+    }
+
+    /** The script components on this node whose class derives from @p base, other than @p base itself. */
+    private subclassInstances_(base: ComponentCtor): Component[] {
+        const out: Component[] = [];
+        for (const type of this._world.getComponentTypes(this._entity)) {
+            if (!type.startsWith(COMPONENT_PREFIX)) continue;
+            const info = classInfoNamed(type.slice(COMPONENT_PREFIX.length));
+            if (!info || info.ctor === base || !(info.ctor.prototype instanceof base)) continue;
+            const inst = ensureInstance(this._world, this._entity, info.ctor);
+            if (inst) out.push(inst);
+        }
+        return out;
     }
 
     getComponentInChildren<T extends Component>(type: ComponentCtor<T> | string): T | null {

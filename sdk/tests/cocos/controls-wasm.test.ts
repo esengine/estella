@@ -102,6 +102,18 @@ describe.skipIf(!HAS_WASM)('toggles, bars, sliders and scroll views', () => {
         expect(group.anyTogglesChecked()).toBe(false);
     });
 
+    it('is found when its base class is asked for, as a Toggle is a Button, and a click on it reaches a handler bound through the Button', async () => {
+        boot();
+        const { t, node } = await toggle('t', 200, 200);
+        expect(node.getComponent(Button)).toBe(t);
+        expect(node.getComponents(Button)).toEqual([t]);
+        const clicked: number[] = [];
+        node.on(Button.EventType.CLICK, () => clicked.push(1));
+        await tap(200, 200);
+        expect(clicked).toEqual([1]);
+        expect(t.isChecked).toBe(true);
+    });
+
     it('belongs to the container its parent holds, and switching one on by assignment switches the others off', async () => {
         boot();
         const holder = box('group', 400, 400, 400, 100);
