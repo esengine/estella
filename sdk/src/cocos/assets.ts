@@ -8,6 +8,7 @@
  * `@property(SpriteFrame)` can say "this field is a sprite frame", and a value held in such a field is the path (loading it is
  * the asset system's job). They carry no behaviour.
  */
+import { Material as EngineMaterial } from '../render/material';
 
 export class Asset { constructor(public path = '') {} }
 export class ImageAsset extends Asset {}
@@ -28,7 +29,44 @@ export class Prefab extends Asset {
     _failed = '';
 }
 export class AudioClip extends Asset {}
-export class Material extends Asset {}
+/** A property value as the engine's material takes it: a number, or a vector of up to four. Colours are 0..255 here and 0..1 there. */
+function uniformOf(value: unknown): number | { x: number; y: number; z: number; w: number } | null {
+    if (typeof value === 'number') return value;
+    if (typeof value === 'boolean') return value ? 1 : 0;
+    if (typeof value !== 'object' || value === null) return null;
+    const v = value as Record<string, unknown>;
+    if (typeof v.r === 'number' && typeof v.g === 'number' && typeof v.b === 'number') {
+        return { x: v.r / 255, y: v.g / 255, z: v.b / 255, w: typeof v.a === 'number' ? v.a / 255 : 1 };
+    }
+    if (typeof v.x === 'number' && typeof v.y === 'number') {
+        return { x: v.x, y: v.y, z: typeof v.z === 'number' ? v.z : 0, w: typeof v.w === 'number' ? v.w : 0 };
+    }
+    return null;
+}
+
+/**
+ * `Material`: the engine's material (`handle`) with Cocos's property calls. A value is written to the engine material under the name the
+ * script gives it, and kept here so `getProperty` answers; a project effect's own property names are not the engine shader's, so a
+ * write the shader does not declare is the engine's to report and ignore.
+ */
+export class Material extends Asset {
+    /** The engine material this stands for; 0 for one the engine has not loaded. @internal */
+    _handle = 0;
+    private readonly props_ = new Map<string, unknown>();
+
+    setProperty(name: string, value: unknown, _passIndex?: number): void {
+        this.props_.set(name, value);
+        const uniform = uniformOf(value);
+        if (this._handle > 0 && uniform !== null) EngineMaterial.setUniform(this._handle, name, uniform);
+    }
+
+    getProperty(name: string, _passIndex?: number): unknown {
+        return this.props_.get(name);
+    }
+
+    /** The material's passes: there is one, and it has no state a script can read. */
+    get passes(): never[] { return []; }
+}
 export class JsonAsset extends Asset { json: unknown = null; }
 export class TextAsset extends Asset { text = ''; }
 export class BitmapFont extends Asset {}

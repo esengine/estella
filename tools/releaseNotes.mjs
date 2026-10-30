@@ -28,6 +28,8 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(cocos): MeshRenderer, UIMeshRenderer, material properties and cc.geometry in the compatibility layer':
+    {"note":"Mesh renderers and materials in the Cocos layer."},
   'feat(cocos): cc.js, ccenum and NodePool exist in the compatibility layer':
     {"note":"More of cc."},
   'feat(bundle): the project script bundle is built again only when a file it read changed, and Cocos scripts that write the same class name each get a component of their own':
