@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
+#include <cstring>
 #include <unordered_set>
 
 namespace esengine::resource {
@@ -2250,10 +2251,66 @@ std::string trimWs(const std::string& s) {
     return s.substr(a, b - a + 1);
 }
 
-// WGSL has no preprocessor, so feature permutations resolve at assembly time:
-// #ifdef/#ifndef/#else/#elif defined(NAME)/#endif over the assembled text,
-// with the feature set as the defined names. GLSL keeps real #defines for the
-// driver, so both targets see identical variant logic in the authored bodies.
+// An #if / #elif condition over the feature set: defined(NAME), defined NAME, a bare
+// NAME (a feature is #defined to 1 on the GLSL side, anything else reads 0), integer
+// literals, !, &&, || and parentheses.
+class ConditionParser {
+public:
+    ConditionParser(const std::string& text, const std::unordered_set<std::string>& defined)
+        : s_(text), defined_(defined) {}
+
+    bool evaluate() { return orExpr(); }
+
+private:
+    void skipWs() { while (i_ < s_.size() && (s_[i_] == ' ' || s_[i_] == '\t' || s_[i_] == '\r')) ++i_; }
+    bool eat(const char* tok) {
+        skipWs();
+        const usize n = std::strlen(tok);
+        if (s_.compare(i_, n, tok) != 0) return false;
+        i_ += n;
+        return true;
+    }
+    std::string ident() {
+        skipWs();
+        const usize start = i_;
+        while (i_ < s_.size() && (std::isalnum(static_cast<unsigned char>(s_[i_])) || s_[i_] == '_')) ++i_;
+        return s_.substr(start, i_ - start);
+    }
+    bool orExpr() {
+        bool v = andExpr();
+        while (eat("||")) v = andExpr() || v;
+        return v;
+    }
+    bool andExpr() {
+        bool v = unary();
+        while (eat("&&")) v = unary() && v;
+        return v;
+    }
+    bool unary() {
+        if (eat("!")) return !unary();
+        if (eat("(")) {
+            const bool v = orExpr();
+            eat(")");
+            return v;
+        }
+        const std::string word = ident();
+        if (word == "defined") {
+            const bool paren = eat("(");
+            const bool v = defined_.count(ident()) != 0;
+            if (paren) eat(")");
+            return v;
+        }
+        if (!word.empty() && std::isdigit(static_cast<unsigned char>(word[0]))) return std::strtol(word.c_str(), nullptr, 0) != 0;
+        return defined_.count(word) != 0;
+    }
+
+    const std::string& s_;
+    const std::unordered_set<std::string>& defined_;
+    usize i_ = 0;
+};
+
+// WGSL has no preprocessor, so feature permutations resolve at assembly time over the assembled text, with the
+// feature set as the defined names. GLSL keeps real #defines for the driver, so both targets see the same variants.
 std::string preprocessConditionals(const std::string& source, const std::vector<std::string>& features) {
     const std::unordered_set<std::string> defined(features.begin(), features.end());
     struct Frame {
@@ -2278,15 +2335,14 @@ std::string preprocessConditionals(const std::string& source, const std::vector<
             stack.push_back(Frame{parent, cond, cond});
             continue;
         }
+        if (lead.rfind("#if", 0) == 0 && (lead.size() == 3 || lead[3] == ' ' || lead[3] == '\t' || lead[3] == '(' || lead[3] == '!')) {
+            const bool parent = activeNow();
+            const bool cond = parent && ConditionParser(lead.substr(3), defined).evaluate();
+            stack.push_back(Frame{parent, cond, cond});
+            continue;
+        }
         if (lead.rfind("#elif", 0) == 0 && !stack.empty()) {
-            bool cond = false;
-            const usize p = lead.find("defined(");
-            if (p != std::string::npos) {
-                const usize close = lead.find(')', p + 8);
-                if (close != std::string::npos) {
-                    cond = defined.count(trimWs(lead.substr(p + 8, close - p - 8))) != 0;
-                }
-            }
+            const bool cond = ConditionParser(lead.substr(5), defined).evaluate();
             Frame& f = stack.back();
             f.active = f.parentActive && !f.taken && cond;
             f.taken = f.taken || f.active;

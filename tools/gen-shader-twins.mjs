@@ -276,25 +276,38 @@ function rewriteCalls(src, fname, mapArgs) {
 const VARYING_DECL = /^([ \t]*)(flat\s+)?(out|in)\s+((?:highp\s+)?(?:float|int|uint|[iu]?vec[234]|mat[234]))\s+(\w+)\s*;/gm;
 
 /**
- * Whether the text at an offset is live under the permutation being translated, given the toggles it switches on. Only `#ifdef` / `#ifndef` / `#else` / `#endif` are
- * read, and a name that is not one of the permutation's own is undefined, as it is to glslang later: the engine's fragment prelude declares a varying inside an
- * `#ifdef` for a vertex stage that may not write it, and a declaration that conditional is not a varying of this program. A conditional it cannot read counts as live.
+ * Whether the text at an offset is live under the permutation being translated, given the toggles it switches on. `#if` / `#ifdef` / `#ifndef` / `#elif` / `#else`
+ * / `#endif` are read, and a name that is not one of the permutation's own is undefined, as it is to glslang later: the engine's fragment prelude declares a varying
+ * inside a conditional for a vertex stage that may not write it, and a declaration that conditional is not a varying of this program. A condition it cannot read
+ * counts as live, and so does every other branch of its chain.
  */
 export function liveAt(src, defined) {
   const edges = [];   // [offset, live] from each directive on, in order
-  const stack = [];
+  const stack = [];   // { outer, taken, unknown }
   let live = true;
   let offset = 0;
+  const open = (cond) => {
+    const top = { outer: live, taken: cond === true, unknown: cond === null };
+    stack.push(top);
+    live = top.outer && cond !== false;
+  };
   for (const line of src.split('\n')) {
-    const m = /^\s*#\s*(ifdef|ifndef|else|endif)\b\s*(\w+)?/.exec(line);
+    const m = /^\s*#\s*(ifdef|ifndef|if|elif|else|endif)\b(.*)$/.exec(line);
     if (m) {
+      const top = stack[stack.length - 1];
       if (m[1] === 'ifdef' || m[1] === 'ifndef') {
-        stack.push({ outer: live, cond: m[1] === 'ifdef' ? defined.has(m[2]) : !defined.has(m[2]) });
-        live = stack[stack.length - 1].outer && stack[stack.length - 1].cond;
-      } else if (m[1] === 'else' && stack.length > 0) {
-        const top = stack[stack.length - 1];
-        live = top.outer && !top.cond;
-      } else if (m[1] === 'endif' && stack.length > 0) {
+        const has = defined.has(m[2].trim().split(/\s/)[0]);
+        open(m[1] === 'ifdef' ? has : !has);
+      } else if (m[1] === 'if') {
+        open(evalCondition(m[2], defined));
+      } else if (m[1] === 'elif' && top) {
+        const cond = top.unknown ? null : evalCondition(m[2], defined);
+        if (cond === null) top.unknown = true;
+        live = top.outer && (top.unknown || (!top.taken && cond));
+        top.taken ||= cond === true;
+      } else if (m[1] === 'else' && top) {
+        live = top.outer && (top.unknown || !top.taken);
+      } else if (m[1] === 'endif' && top) {
         live = stack.pop().outer;
       }
       edges.push([offset + line.length + 1, live]);
@@ -306,6 +319,46 @@ export function liveAt(src, defined) {
     for (const [from, value] of edges) { if (from > at) break; state = value; }
     return state;
   };
+}
+
+/** An `#if` / `#elif` condition over `defined`: defined(NAME), defined NAME, a bare NAME, integer literals, !, &&, || and parentheses; null when it says
+ *  anything else. Mirrors the engine's WGSL assembly (ShaderParser.cpp preprocessConditionals). */
+export function evalCondition(text, defined) {
+  const tokens = text.replace(/\/\/.*$/, '').match(/defined|\w+|&&|\|\||[!()]|\S/g) ?? [];
+  let i = 0;
+  const peek = () => tokens[i];
+  const fail = () => { throw new Error('unreadable'); };
+  const orExpr = () => {
+    let v = andExpr();
+    while (peek() === '||') { i++; v = andExpr() || v; }
+    return v;
+  };
+  const andExpr = () => {
+    let v = unary();
+    while (peek() === '&&') { i++; v = unary() && v; }
+    return v;
+  };
+  const unary = () => {
+    const t = tokens[i++];
+    if (t === '!') return !unary();
+    if (t === '(') { const v = orExpr(); if (tokens[i++] !== ')') fail(); return v; }
+    if (t === 'defined') {
+      const paren = peek() === '(';
+      if (paren) i++;
+      const name = tokens[i++];
+      if (!/^\w+$/.test(name ?? '') || (paren && tokens[i++] !== ')')) fail();
+      return defined.has(name);
+    }
+    if (/^\d+$/.test(t ?? '')) return Number(t) !== 0;
+    if (/^[A-Za-z_]\w*$/.test(t ?? '')) return defined.has(t);
+    return fail();
+  };
+  try {
+    const v = orExpr();
+    return i === tokens.length ? v : null;
+  } catch {
+    return null;
+  }
 }
 
 /**

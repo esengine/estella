@@ -92,4 +92,27 @@ describe('liveAt', () => {
         expect(liveAt(nested, new Set(['A', 'B']))(x)).toBe(true);
         expect(liveAt(nested, new Set(['B']))(y)).toBe(false);
     });
+
+    it('reads an #if expression, and the #endif that closes it does not close the one around it', () => {
+        const src = ['#ifdef OUTER', '#if defined(MESH_TANGENTS) && defined(LIT)', 'in vec4 t;', '#endif', 'in vec4 after;', '#endif', 'in vec4 tail;', ''].join('\n');
+        const t = src.indexOf(' t;'), after = src.indexOf(' after;'), tail = src.indexOf(' tail;');
+        expect(liveAt(src, new Set(['MESH_TANGENTS']))(t)).toBe(false);
+        expect(liveAt(src, new Set(['OUTER', 'MESH_TANGENTS', 'LIT']))(t)).toBe(true);
+        expect(liveAt(src, new Set())(after)).toBe(false);
+        expect(liveAt(src, new Set())(tail)).toBe(true);
+    });
+
+    it('takes the first #elif that holds, and the #else only when none did', () => {
+        const src = ['#if !defined(A)', 'in vec4 x;', '#elif defined(B) || C', 'in vec4 y;', '#else', 'in vec4 z;', '#endif', ''].join('\n');
+        const live = (on: string[], name: string) => liveAt(src, new Set(on))(src.indexOf(` ${name};`));
+        expect([live([], 'x'), live([], 'y'), live([], 'z')]).toEqual([true, false, false]);
+        expect([live(['A', 'C'], 'x'), live(['A', 'C'], 'y'), live(['A', 'C'], 'z')]).toEqual([false, true, false]);
+        expect([live(['A'], 'x'), live(['A'], 'y'), live(['A'], 'z')]).toEqual([false, false, true]);
+    });
+
+    it('counts a condition it cannot read as live, with every branch of its chain', () => {
+        const src = ['#if VERSION >= 300', 'in vec4 x;', '#else', 'in vec4 y;', '#endif', ''].join('\n');
+        expect(liveAt(src, new Set())(src.indexOf(' x;'))).toBe(true);
+        expect(liveAt(src, new Set())(src.indexOf(' y;'))).toBe(true);
+    });
 });

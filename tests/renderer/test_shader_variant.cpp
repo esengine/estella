@@ -12,6 +12,7 @@
 #include <cstdio>
 #include <sstream>
 #include <string>
+#include <vector>
 
 static int g_failures = 0;
 #define CHECK(cond, msg)                                                        \
@@ -183,6 +184,13 @@ void main() { fragColor = vec4(1.0); }
 
 #pragma fragment wgsl
 @fragment fn fs_main() -> @location(0) vec4f {
+#if defined(A) && (defined(B) || !defined(C))
+    let k = 0.25;
+#elif defined(C) || D
+    let k = 0.75;
+#else
+    let k = 0.125;
+#endif
 #ifndef LIT
     return vec4f(1.0);
 #else
@@ -287,6 +295,13 @@ static void testWGSLEmission() {
     // been applied. .xy because 2D lighting works in that plane.
     CHECK(litVs.find("out.v_worldPos = world.xy;") != std::string::npos,
           "Lit canonical WGSL vertex forwards world position");
+    for (const auto& features : std::vector<std::vector<std::string>>{{}, {"MESH"}, {"SKINNED"}, {"MESH", "MESH_TANGENTS"}}) {
+        const std::string vs = wgsl(lit, ShaderStage::Vertex, features);
+        CHECK(vs.find('#') == std::string::npos, "Lit canonical WGSL vertex leaves no directive behind");
+    }
+    CHECK(wgsl(lit, ShaderStage::Vertex).find("a_lightLayer") != std::string::npos &&
+          wgsl(lit, ShaderStage::Vertex, {"MESH"}).find("a_lightLayer") == std::string::npos,
+          "#if !defined(MESH) && !defined(SKINNED) keeps the sprite-only attribute off a mesh");
     const std::string litFs = wgsl(lit, ShaderStage::Fragment);
     CHECK(litFs.find("@location(2) v_worldPos : vec2f,") != std::string::npos,
           "Lit VSOut carries the world-pos varying");
@@ -305,6 +320,15 @@ static void testWGSLEmission() {
           "TimeConstants still injected for authored twins");
     CHECK(pairFs.find("vec4f(1.0)") != std::string::npos && pairFs.find("vec4f(0.5)") == std::string::npos,
           "#ifndef keeps its branch when the feature is off");
+    const auto kOf = [&](const std::vector<std::string>& features) {
+        const std::string fs = wgsl(pair, ShaderStage::Fragment, features);
+        const size_t at = fs.find("let k = ");
+        return fs.find('#') == std::string::npos && at != std::string::npos && fs.find("let k = ", at + 1) == std::string::npos
+            ? fs.substr(at + 8, fs.find(';', at) - at - 8) : std::string("?");
+    };
+    CHECK(kOf({}) == "0.125" && kOf({"A"}) == "0.25" && kOf({"A", "B", "C"}) == "0.25"
+          && kOf({"A", "C"}) == "0.75" && kOf({"D"}) == "0.75",
+          "#if / #elif expressions resolve at assembly");
     const std::string pairVsLit = wgsl(pair, ShaderStage::Vertex, {"LIT"});
     CHECK(pairVsLit.find("vec4f(pos, 1.0, 1.0)") != std::string::npos &&
           pairVsLit.find("vec4f(pos, 0.0, 1.0)") == std::string::npos,
