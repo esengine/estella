@@ -43,9 +43,15 @@ runs:
         # .gitmodules names the https URL so a developer with account access can
         # clone it without a key; the deploy key is SSH-only, hence the rewrite.
         git config --global url."git@github.com:esengine/estella-editor".insteadOf "https://github.com/esengine/estella-editor"
-        if [ "${HISTORY}" = full ]; then
-          git submodule update --init desktop
-        else
-          git submodule update --init --depth 1 desktop
-        fi
+        depth="--depth 1"
+        if [ "${HISTORY}" = full ]; then depth=""; fi
+        # GitHub now and then answers a valid deploy key with "Permission denied
+        # (publickey)" when several jobs dial at once; git's own retry comes too soon.
+        for wait in 10 30 60 0; do
+          # shellcheck disable=SC2086
+          git submodule update --init $depth desktop && break
+          [ "$wait" = 0 ] && exit 1
+          echo "::warning::Fetching the editor failed; trying again in ${wait}s."
+          sleep "$wait"
+        done
         test -f desktop/package.json
