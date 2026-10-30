@@ -197,3 +197,6 @@ tools/emsdk-glx/
 
 # games/ember-radio is its own private repository (github.com/esengine/ember-radio), cloned here.
 /games/ember-radio/
+
+# Independent private game project.
+/games/ember-camp/
