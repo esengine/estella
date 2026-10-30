@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, expect, it } from 'vitest';
-import { NodePool, ccenum, js } from '../../src/cocos/misc';
+import { NodePool, ccenum, js, profiler } from '../../src/cocos/misc';
 import type { Node } from '../../src/cocos/node';
 
 /** The parts of a node a pool touches. */
@@ -68,5 +68,15 @@ describe('js and ccenum', () => {
     it('hands an enum back as it is', () => {
         enum Mode { A, B }
         expect(ccenum(Mode)).toBe(Mode);
+    });
+});
+
+describe('profiler', () => {
+    it('takes show and hide, and remembers which', () => {
+        expect(profiler.isShowingStats()).toBe(false);
+        profiler.showStats();
+        expect(profiler.isShowingStats()).toBe(true);
+        profiler.hideStats();
+        expect(profiler.isShowingStats()).toBe(false);
     });
 });

@@ -99,3 +99,15 @@ export class NodePool {
         return node.getComponent(this.handler_ as never) as unknown as { unuse?(): void; reuse?(args: unknown[]): void } | null;
     }
 }
+
+/**
+ * `profiler`: the engine's on-screen statistics panel. Showing it is the editor's profiler and the host's overlay here, not a node a script
+ * owns, so the calls are accepted and the state is only remembered for `isShowingStats`.
+ */
+let showingStats = false;
+export const profiler = {
+    showStats(): void { showingStats = true; },
+    hideStats(): void { showingStats = false; },
+    isShowingStats(): boolean { return showingStats; },
+    generateNode(): void { /* the panel is not a node here */ },
+};

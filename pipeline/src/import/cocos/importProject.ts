@@ -158,7 +158,7 @@ function startSceneOf(scenes: readonly string[]): string | undefined {
  */
 function wireManifest(out: string, source: string, into: string, scenes: readonly string[]): void {
     const file = path.join(out, 'project.esproject');
-    let manifest: { defaultScene?: string; designResolution?: { width?: number; height?: number } };
+    let manifest: { defaultScene?: string; designResolution?: { width?: number; height?: number }; features?: { rendering?: { cameraScaleMode?: string } } };
     try {
         manifest = JSON.parse(readFileSync(file, 'utf8'));
     } catch {
@@ -171,8 +171,15 @@ function wireManifest(out: string, source: string, into: string, scenes: readonl
         changed = true;
     }
     try {
-        const settings = JSON.parse(readFileSync(path.join(source, 'settings', 'v2', 'packages', 'project.json'), 'utf8')) as { general?: { designResolution?: { width?: number; height?: number } } };
+        const settings = JSON.parse(readFileSync(path.join(source, 'settings', 'v2', 'packages', 'project.json'), 'utf8')) as { general?: { designResolution?: { width?: number; height?: number; fitWidth?: boolean; fitHeight?: boolean } } };
         const size = settings.general?.designResolution;
+        // Fit width (and not height) keeps the design width across the screen and lets the height follow the window: Cocos's FIXED_WIDTH, which is what
+        // a UI laid out in design units needs to come out the same size on every screen.
+        const fit = size?.fitWidth && !size.fitHeight ? 'fixed-width' : size?.fitHeight && !size.fitWidth ? 'fixed-height' : undefined;
+        if (fit && !manifest.features?.rendering?.cameraScaleMode) {
+            manifest.features = { ...manifest.features, rendering: { ...manifest.features?.rendering, cameraScaleMode: fit } };
+            changed = true;
+        }
         const dr = manifest.designResolution;
         if (size?.width && size.height && (!dr || (dr.width === 800 && dr.height === 600))) {
             manifest.designResolution = { width: size.width, height: size.height };

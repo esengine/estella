@@ -93,7 +93,7 @@ describe('importing for the compatibility layer', () => {
         mkdirSync(path.join(root, 'out', 'src'), { recursive: true });
         writeFileSync(path.join(root, 'out', 'project.esproject'), JSON.stringify({ formatVersion: '1', name: 'x', defaultScene: 'assets/scenes/main.esscene', designResolution: { width: 800, height: 600 } }));
         mkdirSync(path.join(root, 'creator', 'settings', 'v2', 'packages'), { recursive: true });
-        writeFileSync(path.join(root, 'creator', 'settings', 'v2', 'packages', 'project.json'), JSON.stringify({ general: { designResolution: { width: 1080, height: 1920 } } }));
+        writeFileSync(path.join(root, 'creator', 'settings', 'v2', 'packages', 'project.json'), JSON.stringify({ general: { designResolution: { width: 1080, height: 1920, fitWidth: true, fitHeight: false } } }));
         writeFileSync(path.join(root, 'out', 'src', 'main.ts'), "// Game entry.\nimport './components';\n");
         report = await importCocosProject({ source: path.join(root, 'creator'), out: path.join(root, 'out') });
         scenes = JSON.parse(readFileSync(path.join(root, 'out', 'assets', 'cocos', 'main.esscene'), 'utf8'));
@@ -203,6 +203,7 @@ describe('importing for the compatibility layer', () => {
         const manifest = JSON.parse(readFileSync(path.join(root, 'out', 'project.esproject'), 'utf8')) as { defaultScene: string; designResolution: { width: number; height: number } };
         expect(manifest.defaultScene).toBe('assets/cocos/main.esscene');
         expect(manifest.designResolution).toEqual({ width: 1080, height: 1920 });
+        expect((manifest as { features?: { rendering?: { cameraScaleMode?: string } } }).features?.rendering?.cameraScaleMode).toBe('fixed-width');
     });
 
     it('runs a script that only defines globals before the scripts scenes name', () => {
