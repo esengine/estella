@@ -88,3 +88,28 @@ export default [${names.join(', ')}, EDITOR, DEBUG];
         expect(result.errors).toEqual([]);
     });
 });
+
+describe('a const the script assigns to again', () => {
+    it('is read as let, and only that one', async () => {
+        const { letTheReassignedConsts } = await import('../src/bundle/cocosCompat');
+        const fixed = letTheReassignedConsts('const a = null;\nconst b = 1;\nif (x) {\n    a = 2;\n}\nconst c: number = 3;\n  c += 1;\nuse(b == 1, a);');
+        expect(fixed).toContain('let a = null');
+        expect(fixed).toContain('const b = 1');
+        expect(fixed).toContain('let c: number = 3');
+    });
+    it('leaves a source with no reassignment as it is', async () => {
+        const { letTheReassignedConsts } = await import('../src/bundle/cocosCompat');
+        const src = 'const a = 1;\nconst f = () => a === 2 ? a : 3;\nconst o = { a: 1 };\no.a = 2;\n';
+        expect(letTheReassignedConsts(src)).toBe(src);
+    });
+});
+
+describe('named imports from cc', () => {
+    it('are read from the layer namespace, so a name the layer lacks is undefined instead of a build error', async () => {
+        const { readNamedImportsThroughNamespace } = await import('../src/bundle/cocosCompat');
+        const out = readNamedImportsThroughNamespace("import { _decorator, Node as N, type Vec3, gfx } from 'cc';\nimport { EDITOR } from 'cc/env';\nconst x = 1;");
+        expect(out).toContain("import * as __cc0 from 'cc'; const { _decorator, Node: N, gfx } = __cc0;");
+        expect(out).toContain("import * as __cc1 from 'cc/env'; const { EDITOR } = __cc1;");
+        expect(out).toContain('const x = 1;');
+    });
+});

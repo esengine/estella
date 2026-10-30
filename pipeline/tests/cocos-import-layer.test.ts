@@ -87,6 +87,9 @@ describe('importing for the compatibility layer', () => {
         put('hero/skin.json.meta', meta('f5f5f5f5-f5f5-4f5f-8f5f-f5f5f5f5f5f5', 'json'));
         put('art/plain.json', '{}');
         put('art/plain.json.meta', meta(PLAIN, 'json'));
+        // the starter project's entry, which the import points at the converted scripts
+        mkdirSync(path.join(root, 'out', 'src'), { recursive: true });
+        writeFileSync(path.join(root, 'out', 'src', 'main.ts'), "// Game entry.\nimport './components';\n");
         report = await importCocosProject({ source: path.join(root, 'creator'), out: path.join(root, 'out') });
         scenes = JSON.parse(readFileSync(path.join(root, 'out', 'assets', 'cocos', 'main.esscene'), 'utf8'));
     });
@@ -167,6 +170,16 @@ describe('importing for the compatibility layer', () => {
         expect(comp('Panel', 'UIMask').data).toEqual({ enabled: true, mode: 0, alphaCutoff: 0 });
         expect(comp('Panel', 'ContentRect').data.size).toEqual({ x: 80, y: 20 });
         expect(report.components['cc.Mask']).toEqual({ mapped: 1, partial: 0, unmapped: 0 });
+    });
+
+    it('declares the script classes the scenes use for the editor, and starts the project from the scripts themselves', () => {
+        const components = readFileSync(path.join(root, 'out', 'src', 'components.ts'), 'utf8');
+        expect(components).toContain("import 'esengine/cocos';");
+        expect(components).toMatch(/defineComponent\("Cocos\.Hud", \{ enabled: true,/);
+        expect(components).toContain('"speed": 0');
+        const main = readFileSync(path.join(root, 'out', 'src', 'main.ts'), 'utf8');
+        expect(main).toContain("import './cocos-scripts';");
+        expect(main).not.toMatch(/import '\.\/components';/);
     });
 
     it('counts the components it maps', () => {
