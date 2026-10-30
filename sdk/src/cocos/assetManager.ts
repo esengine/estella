@@ -17,7 +17,7 @@
  */
 import { platformFetch } from '../platform';
 import { log } from '../util/logger';
-import { Asset, JsonAsset, Prefab, TextAsset } from './assets';
+import { Asset, JsonAsset, Material, Prefab, TextAsset } from './assets';
 import { getCurrentWorld } from './node';
 import { assetsFor, loadPrefab } from './prefabs';
 
@@ -109,6 +109,13 @@ async function loadEntry(entry: ResourceEntry, type: AssetCtor | null): Promise<
             const a = new TextAsset(entry.path);
             a.text = await response.text();
             return a;
+        }
+        case 'mtl':
+        case 'material': {
+            // a Cocos material file is not converted: a script that asks for one gets a Material with no engine material behind it, which takes
+            // properties and holds them, so what loads it carries on
+            if (type && type !== Material && !(Material.prototype instanceof type)) break;
+            return new Material(entry.path);
         }
         default:
     }
@@ -207,12 +214,43 @@ bundles.add('resources', resources);
 class AssetManager {
     /** The cache class, as `AssetManager.Cache`: scripts derive their own caches from it. */
     static readonly Cache = Cache;
+    static readonly Bundle = Bundle;
+    /** The names Cocos gives its own bundles. */
+    static readonly BuiltinBundleName = Object.freeze({ INTERNAL: 'internal', MAIN: 'main', RESOURCES: 'resources', START_SCENE: 'start-scene' });
+    /** The one asset manager, as `AssetManager.instance`: the same object the module exports as `assetManager`. */
+    static get instance(): AssetManager { return assetManager; }
+    /** `factory`: how a downloaded file is made into an object, by kind. The registrations a game makes are held; files here are made by the layer's own loaders. */
+    readonly factory = {
+        _creators: {} as Record<string, unknown>,
+        register(type: string | Record<string, unknown>, handler?: unknown): void {
+            if (typeof type === 'string') this._creators[type] = handler;
+            else Object.assign(this._creators, type);
+        },
+    };
     readonly assets = loaded;
     readonly bundles = bundles;
     readonly resources = resources;
     readonly presets: Record<string, { priority: number; maxConcurrency: number }> = {
         default: { priority: 0, maxConcurrency: 6 }, preload: { priority: -1, maxConcurrency: 2 }, scene: { priority: 1, maxConcurrency: 6 }, bundle: { priority: 2, maxConcurrency: 6 }, remote: { priority: 0, maxConcurrency: 6 },
     };
+    /**
+     * `assetManager.downloader`: how Cocos fetches a file of each kind. Here a file is read from the project or by URL, so it takes the registrations
+     * a game makes (its own scheme for remote bundles) and holds them, and says what it is told about where remote bundles live.
+     */
+    readonly downloader = {
+        remoteServerAddress: '',
+        bundleVers: {} as Record<string, string>,
+        maxConcurrency: 6,
+        maxRequestsPerFrame: 6,
+        _downloaders: {} as Record<string, unknown>,
+        _remoteBundles: [] as string[],
+        register(type: string | Record<string, unknown>, handler?: unknown): void {
+            if (typeof type === 'string') this._downloaders[type] = handler;
+            else Object.assign(this._downloaders, type);
+        },
+        loadSubpackage(_name: string, _onProgress?: unknown, _onComplete?: unknown): void { /* every file is in the project */ },
+    };
+
     readonly cacheManager = {
         cacheDir: '', cachedFiles: new Cache<unknown>(), tempFiles: new Cache<unknown>(), cacheInterval: 500, cacheEnabled: false,
         clearCache(): void { this.cachedFiles.clear(); },

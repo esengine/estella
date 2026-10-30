@@ -25,6 +25,12 @@ let windowW = 960;
 let windowH = 640;
 const listeners: Array<(kind: 'visible' | 'window') => void> = [];
 
+let projectDesign: { width: number; height: number; scaleMode: number } | null = null;
+/** @internal The project's own design resolution and fit (the engine's screen scaling), which a script that never set one reads. */
+export function setProjectDesign(width: number, height: number, scaleMode: number): void { projectDesign = scaleMode >= 0 ? { width, height, scaleMode } : null; }
+/** @internal */
+export function getProjectDesign(): { width: number; height: number; scaleMode: number } | null { return projectDesign; }
+
 let screenLayout: ScreenLayoutData | null = null;
 /** @internal The layout the pass last saw, for an alignment a script asks for now. */
 export function setScreenLayout(layout: ScreenLayoutData | null): void { screenLayout = layout; }

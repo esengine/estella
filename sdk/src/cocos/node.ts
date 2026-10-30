@@ -53,8 +53,14 @@ function releaseDetached(world: World, entity: Entity): void {
     setEntityActive(world, entity, wasActive);
 }
 
-export function setCurrentWorld(world: World | null): World | null { const previous = currentWorld; currentWorld = world; return previous; }
-export function getCurrentWorld(): World | null { return currentWorld; }
+/** The world a script last ran in: what an `await`, a timer or a callback — which run between frames — still belong to. */
+let lastWorld: World | null = null;
+export function setCurrentWorld(world: World | null): World | null { const previous = currentWorld; currentWorld = world; if (world) lastWorld = world; return previous; }
+/**
+ * The world being run now; between frames (a continuation after an `await`, a timer), the one scripts last ran in, while it is still running.
+ * Cocos has one running game, so a node made in a callback belongs to it.
+ */
+export function getCurrentWorld(): World | null { return currentWorld ?? (lastWorld?.hasCpp ? lastWorld : null); }
 
 const cache = new WeakMap<World, Map<Entity, Node>>();
 
@@ -108,11 +114,12 @@ export class Node {
             this._entity = entity;
             return;
         }
-        if (!currentWorld) throw new Error('cocos compat: new Node() outside a running scene (no world is current)');
-        this._world = currentWorld;
-        this._entity = currentWorld.spawn(name ?? 'New Node');
-        let perWorld = cache.get(currentWorld);
-        if (!perWorld) cache.set(currentWorld, (perWorld = new Map()));
+        const running = getCurrentWorld();
+        if (!running) throw new Error('cocos compat: new Node() outside a running scene (no world is current)');
+        this._world = running;
+        this._entity = running.spawn(name ?? 'New Node');
+        let perWorld = cache.get(running);
+        if (!perWorld) cache.set(running, (perWorld = new Map()));
         perWorld.set(this._entity, this);
     }
 

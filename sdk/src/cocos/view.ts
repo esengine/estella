@@ -14,7 +14,7 @@
 import { platformDevicePixelRatio } from '../platform';
 import { Emitter } from './emitter';
 import { Rect, Size, Vec2 } from './math';
-import { getVisibleSize, getWindowPixels, onScreenChange } from './ui/screen';
+import { getProjectDesign, getVisibleSize, getWindowPixels, onScreenChange } from './ui/screen';
 
 const ResolutionPolicy = Object.freeze({ EXACT_FIT: 0, NO_BORDER: 1, SHOW_ALL: 2, FIXED_HEIGHT: 3, FIXED_WIDTH: 4, UNKNOWN: 5 });
 
@@ -46,13 +46,23 @@ export class View extends Emitter {
     getVisibleOriginInPixel(): Vec2 { const v = this.getVisibleSizeInPixel(); return new Vec2(-v.width / 2, -v.height / 2); }
     getViewportRect(): Rect { const w = getWindowPixels(); return new Rect(0, 0, w.width, w.height); }
 
-    getDesignResolutionSize(): Size { return this.design_ ? this.design_.clone() : this.getVisibleSize(); }
+    /** What the script set; else the project's own design resolution (the engine's screen scaling); else the visible size. */
+    getDesignResolutionSize(): Size {
+        if (this.design_) return this.design_.clone();
+        const project = getProjectDesign();
+        return project ? new Size(project.width, project.height) : this.getVisibleSize();
+    }
     setDesignResolutionSize(width: number, height: number, policy: number = this.policy_): void {
         this.design_ = new Size(width, height);
         this.policy_ = policy;
         this.emit('design-resolution-changed');
     }
-    getResolutionPolicy(): number { return this.policy_; }
+    getResolutionPolicy(): number {
+        if (this.policy_ !== ResolutionPolicy.UNKNOWN) return this.policy_;
+        const project = getProjectDesign();
+        // the engine's camera scale mode: fixed width (0) and fixed height (1) are Cocos's FIXED_WIDTH and FIXED_HEIGHT
+        return project?.scaleMode === 0 ? ResolutionPolicy.FIXED_WIDTH : project?.scaleMode === 1 ? ResolutionPolicy.FIXED_HEIGHT : this.policy_;
+    }
     setResolutionPolicy(policy: number): void { this.policy_ = policy; }
 
     /** The window in CSS pixels. */

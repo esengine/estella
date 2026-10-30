@@ -12,6 +12,7 @@ import { Schedule, defineSystem, addSystemToSchedule, GetWorld } from '../../ecs
 import { Res } from '../../ecs/resource';
 import { UICameraInfo } from '../../ui/core/ui-camera-info';
 import { ScreenLayout, type ScreenLayoutData } from '../../ui/core/screen-layout';
+import { ScreenScaling, type ScreenScalingData } from '../../camera/ScreenScaling';
 import { setCurrentWorld } from '../node';
 import { declareWidget } from './widget';
 import { alignAllRectAnchors } from '../../ui/layout/rect-anchors';
@@ -20,7 +21,7 @@ import { declareControls } from './controls';
 import { declareGraphics } from './graphics';
 import { declareEditBox } from './editBox';
 import { declareScrollView } from './scrollView';
-import { getVisibleSize, setSafeInsets, setScreenLayout, setUiCameraData, setVisibleSize, setWindowPixels, visibleSizeGeneration } from './screen';
+import { getVisibleSize, setProjectDesign, setSafeInsets, setScreenLayout, setUiCameraData, setVisibleSize, setWindowPixels, visibleSizeGeneration } from './screen';
 import { declarePages } from './pages';
 import { declareMisc } from './misc';
 
@@ -42,8 +43,9 @@ export function declareUiPass(): void {
     declareMisc();
     declareScrollView();
     const system = defineSystem(
-        [Res(UICameraInfo), Res(ScreenLayout), GetWorld()],
-        (camera, screen, world) => {
+        [Res(UICameraInfo), Res(ScreenLayout), Res(ScreenScaling), GetWorld()],
+        (camera, screen, scaling: ScreenScalingData | undefined, world) => {
+            if (scaling) setProjectDesign(scaling.designWidth, scaling.designHeight, scaling.scaleMode);
             // The camera is kept for the conversions a Cocos `Camera` offers. What the player sees, and the window, are the screen's: the
             // layout box UI is placed within, and the framebuffer it projects onto.
             setUiCameraData(camera ?? null);
@@ -69,4 +71,13 @@ export function declareUiPass(): void {
         { name: 'Cocos:UiPass', touches: { opaque: true } },
     );
     addSystemToSchedule(Schedule.Last, system);
+    addSystemToSchedule(Schedule.PreUpdate, defineSystem(
+        [Res(ScreenScaling), Res(ScreenLayout)],
+        (scaling: ScreenScalingData | undefined, screen: ScreenLayoutData | undefined) => {
+            if (scaling) setProjectDesign(scaling.designWidth, scaling.designHeight, scaling.scaleMode);
+            // what a script reads in start(): the sizes are known before the first frame's pass
+            if (screen?.valid) { setVisibleSize(screen.right - screen.left, screen.top - screen.bottom); setWindowPixels(screen.viewportW, screen.viewportH); }
+        },
+        { name: 'Cocos:ProjectDesign', touches: { opaque: true } },
+    ));
 }
