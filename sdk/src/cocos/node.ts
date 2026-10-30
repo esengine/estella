@@ -17,7 +17,7 @@ import type { World } from '../ecs/world';
 import { INVALID_ENTITY, type Entity } from '../types';
 import { Quat, Vec3 } from './math';
 import {
-    classInfoNamed, classInfoOf, ensureInstance, instancesOn, nodeOf, setNodeFactory,
+    classInfoNamed, classInfoOf, ensureInstance, instancesOn, nodeOf, setNodeFactory, syncActivity,
     type ComponentCtor,
 } from './registry';
 import type { Component } from './component';
@@ -144,6 +144,7 @@ export class Node {
     set active(value: boolean) {
         if (setDetachedActive(this._world, this._entity, value)) return;
         setEntityActive(this._world, this._entity, value);
+        syncActivity(this._world, this._entity);
     }
 
     /** This node's switch and every ancestor's. */
@@ -168,6 +169,7 @@ export class Node {
         if (parent) {
             this._world.setParent(this._entity, parent._entity);
             releaseDetached(this._world, this._entity);
+            syncActivity(this._world, this._entity);
         } else this._world.removeParent(this._entity);
     }
 

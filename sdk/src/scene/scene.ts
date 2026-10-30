@@ -776,7 +776,12 @@ export function loadComponent(world: World, entity: Entity, compData: SceneCompo
             const root = err.field in compData.data ? err.field : err.field.split('.')[0];
             delete compData.data[root];
         }
-        log.warn(
+        // A converted Cocos script component carries what its scene serialized, including fields the class has since dropped; Cocos ignores
+        // those without a word, and so does this.
+        const stale = compData.type.startsWith('Cocos.') && errors.every((e) => e.actual === 'unknown field');
+        const report = stale ? log.debug : log.warn;
+        report.call(
+            log,
             'scene',
             `${formatValidationErrors(compData.type + context, errors)}\n  → invalid fields dropped, their defaults apply (fix the scene file to silence this)`
         );

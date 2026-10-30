@@ -135,6 +135,18 @@ let instantiator: ((world: World, entity: Entity, ctor: ComponentCtor) => Compon
 export function setInstantiator(fn: (world: World, entity: Entity, ctor: ComponentCtor) => Component | null): void {
     instantiator = fn;
 }
+let activitySync: ((world: World, entity: Entity) => void) | null = null;
+export function setActivitySync(fn: (world: World, entity: Entity) => void): void {
+    activitySync = fn;
+}
+/**
+ * A node joined an active parent, or was switched on or off: its scripts' `onLoad`, `onEnable` and `onDisable` run now, as they do in
+ * Cocos, and not on the next frame (a script that sets a value right after `addChild` would otherwise be undone by an `onEnable` that
+ * runs later).
+ */
+export function syncActivity(world: World, entity: Entity): void {
+    activitySync?.(world, entity);
+}
 /** The instance of @p ctor on @p entity, made (and its `onLoad` run) if the entity has the component and it has none yet; null if the entity does not have it. */
 export function ensureInstance(world: World, entity: Entity, ctor: ComponentCtor): Component | null {
     const existing = instancesOn(world, entity)?.get(ctor);

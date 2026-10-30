@@ -15,6 +15,7 @@
  */
 import { defineComponent } from '../ecs/component';
 import { Schedule, defineSystem, addSystemToSchedule, GetWorld } from '../ecs/system';
+import { Children } from '../ecs/component';
 import { Query, Mut } from '../ecs/query';
 import { Res, Time } from '../ecs/resource';
 import type { World } from '../ecs/world';
@@ -23,7 +24,7 @@ import { log } from '../util/logger';
 import { Color, Vec2, Vec3 } from './math';
 import { Node, setCurrentWorld } from './node';
 import {
-    COMPONENT_PREFIX, classInfoOf, dropInstance, instancesOfClass, instancesOn, nodeOf, registerClassInfo, setInstantiator, storeInstance,
+    COMPONENT_PREFIX, classInfoNamed, classInfoOf, dropInstance, instancesOfClass, instancesOn, nodeOf, registerClassInfo, setActivitySync, setInstantiator, storeInstance,
     type ClassInfo, type ComponentCtor, type PropertyKind, type PropertySpec,
 } from './registry';
 
@@ -131,6 +132,45 @@ function instantiate(world: World, entity: Entity, ctor: ComponentCtor): Compone
     }
 }
 setInstantiator(instantiate);
+
+/**
+ * Bring the scripts of a node and everything under it to the state its activity says, at once: the classes it carries are made (`onLoad`)
+ * while it is active, and `onEnable` / `onDisable` run as the switch changed. `start` and `update` stay with the frame.
+ */
+function syncSubtree(world: World, root: Entity): void {
+    const previous = setCurrentWorld(world);
+    try {
+        const stack: Entity[] = [root];
+        while (stack.length > 0) {
+            const entity = stack.pop()!;
+            if (!world.valid(entity)) continue;
+            const active = world.isEntityActive(entity);
+            const made: Component[] = [];
+            for (const type of world.getComponentTypes(entity)) {
+                if (!type.startsWith(COMPONENT_PREFIX)) continue;
+                const info = classInfoNamed(type.slice(COMPONENT_PREFIX.length));
+                if (!info) continue;
+                const inst = instancesOn(world, entity)?.get(info.ctor) ?? (active ? instantiate(world, entity, info.ctor) : null);
+                if (inst) made.push(inst);
+            }
+            for (const inst of made) {
+                const on = inst.enabled && active;
+                if (on && !inst._enabledApplied) {
+                    inst._enabledApplied = true;
+                    call(inst, 'onEnable');
+                } else if (!on && inst._enabledApplied) {
+                    inst._enabledApplied = false;
+                    call(inst, 'onDisable');
+                }
+            }
+            const children = world.tryGet(entity, Children)?.entities;
+            if (children) for (let i = children.length - 1; i >= 0; i--) stack.push(children[i]!);
+        }
+    } finally {
+        setCurrentWorld(previous);
+    }
+}
+setActivitySync(syncSubtree);
 
 /** Run the per-frame part of one instance: enable/disable as its activity changes, then `start` once, then the timers and `update`. */
 function drive(world: World, entity: Entity, inst: Component, dt: number): void {

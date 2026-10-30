@@ -73,4 +73,48 @@ describe.skipIf(!HAS_WASM)('a script that switches nodes on and off', () => {
         expect(Node.for(app.world, map.get(1)!).active).toBe(true);
         expect(started).toContain('bystander');
     });
+
+    it('enables a script as soon as its node joins an active parent, so a value set right after addChild is not undone', async () => {
+        setDefaultContext(new AppContext());
+        ensureBuiltinComponentsRegistered();
+        resetClassRegistry();
+        declareBuiltinScripts();
+        const calls: string[] = [];
+
+        @_decorator.ccclass('Resetter')
+        class Resetter extends Component {
+            opacity = 0;
+            onEnable() { calls.push('enable'); this.opacity = 255; }
+            onDisable() { calls.push('disable'); }
+        }
+        void Resetter;
+
+        registry = new module.Registry();
+        app = App.new();
+        app.connectCpp(registry as never, module);
+        flushPendingRegistrations(app);
+        setCurrentWorld(app.world);
+        const map = loadSceneData(app.world, {
+            version: SCENE_FORMAT_VERSION, name: 'main',
+            entities: [
+                { id: 0, name: 'Parent', parent: null, children: [1], visible: true, components: [transform] },
+                { id: 1, name: 'Child', parent: 0, children: [], visible: true, components: [transform, { type: 'Cocos.Resetter', data: { enabled: true } }] },
+            ],
+        } as unknown as SceneData);
+        const child = Node.for(app.world, map.get(1)!);
+        child.setParent(null);
+        child.active = false;
+        calls.length = 0;
+        // an orphan that is switched on and given a parent: onEnable runs inside the call
+        child.active = true;
+        child.setParent(Node.for(app.world, map.get(0)!));
+        const resetter = child.getComponent(Resetter)!;
+        resetter.opacity = 120;
+        expect(calls).toContain('enable');
+        await app.tick(1 / 60);
+        expect(resetter.opacity).toBe(120);
+
+        child.active = false;
+        expect(calls).toContain('disable');
+    });
 });
