@@ -30,7 +30,7 @@ import { convertEffect, isOutlinePass, type PassConversion } from './effectConve
  * importer that made less (or differently), and is brought up to date when it is opened. Raise it when the converted output changes in a
  * way an existing project needs to pick up: a new generated file, a field a document or a manifest now carries.
  */
-export const COCOS_IMPORT_REVISION = 3;
+export const COCOS_IMPORT_REVISION = 4;
 
 /** Whether the project at @p projectRoot was written by an importer of this revision. A project that was not converted has nothing to bring up. */
 export function cocosImportIsCurrent(projectRoot: string): boolean {
@@ -706,7 +706,7 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
                         const state = json._states?.[passIndex] ?? json._states?.[0];
                         const target = state?.blendState?.targets?.[0];
                         let blendMode = pass.state.blendMode;
-                        if (target) {
+                        if (target && target.blend !== undefined) {
                             const src = FACTORS[target.blendSrc ?? 1], dst = FACTORS[target.blendDst ?? 0];
                             blendMode = target.blend !== true ? 9 : src === 'src_alpha' && dst === 'one' ? 1 : src === 'one' && dst === 'one_minus_src_alpha' ? 4 : src === 'one' && dst === 'one' ? 5 : 0;
                         }

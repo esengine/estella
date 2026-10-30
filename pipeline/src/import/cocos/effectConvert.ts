@@ -339,6 +339,8 @@ export function convertPass(effect: CocosEffect, pass: EffectPass, shaderName: s
     // Samplers: `uniform sampler2D name;` is a texture parameter, bound by the engine.
     const samplers = (text: string): string => text.replace(/(?:layout\s*\([^)]*\)\s*)?uniform\s+(?:highp\s+|mediump\s+|lowp\s+)?sampler(\w+)\s+(\w+)\s*;/g, (_m, dim: string, name: string) => {
         if (dim !== '2D') { approximations.push(`${name} is a sampler${dim}, which has no counterpart; it reads as a 2D texture`); }
+        // The sprite's own texture is the engine's batch texture, not a parameter of the material.
+        if (name === 'cc_spriteTexture') return '';
         if (!declared.has(name)) {
             declared.add(name);
             const def = props.get(name)?.value;
