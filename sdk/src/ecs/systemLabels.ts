@@ -21,6 +21,8 @@ export const PluginName = {
 export const SystemLabel = {
     UILayout: 'UILayoutSystem',
     UILayoutLate: 'UILayoutLateSystem',
+    RectAnchors: 'RectAnchorsSystem',
+    RectAnchorsLate: 'RectAnchorsLateSystem',
     UIRenderOrder: 'UIRenderOrderSystem',
     UIInteraction: 'UIInteractionSystem',
     VirtualControls: 'VirtualControlsSystem',

@@ -16,7 +16,6 @@ import type { World } from '../../ecs/world';
 let uiCamera: UICameraData | null = null;
 let width = 960;
 let height = 640;
-let generation = 0;
 let safeLeft = 0;
 let safeRight = 0;
 let safeTop = 0;
@@ -48,7 +47,6 @@ export function getSafeInsets(): { left: number; right: number; top: number; bot
 export function setSafeInsets(left: number, right: number, top: number, bottom: number): void {
     if (left === safeLeft && right === safeRight && top === safeTop && bottom === safeBottom) return;
     safeLeft = left; safeRight = right; safeTop = top; safeBottom = bottom;
-    generation++;
     for (const l of [...listeners]) l('visible');
 }
 
@@ -57,12 +55,8 @@ export function setVisibleSize(w: number, h: number): void {
     if (w === width && h === height) return;
     width = w;
     height = h;
-    generation++;
     for (const l of [...listeners]) l('visible');
 }
-
-/** Bumps whenever the visible size changes. */
-export function visibleSizeGeneration(): number { return generation; }
 
 /** The window (the drawing surface) in physical pixels. */
 export function getWindowPixels(): { width: number; height: number } { return { width: windowW, height: windowH }; }

@@ -20,6 +20,7 @@ import type { App, Plugin } from '../../app/app';
 import { defineComponent, registerComponent, Transform } from '../../ecs/component';
 import { Parent } from '../../ecs/component';
 import { Res } from '../../ecs/resource';
+import { SystemLabel } from '../../ecs/systemLabels';
 import { defineSystem, Schedule } from '../../ecs/system';
 import type { World } from '../../ecs/world';
 import type { Entity } from '../../types';
@@ -209,6 +210,25 @@ export function forgetRectAnchors(world: World): void { seenByWorld.delete(world
 let screenGeneration = 0;
 let lastScreenKey = '';
 
+let screenFallback: (() => ScreenLayoutData | null) | null = null;
+/**
+ * The screen to align to where the engine has published none yet (a host before its first frame, a test): a layer that knows the
+ * size it was told supplies it here, so a root pinned to the screen still has a box.
+ */
+export function setRectAnchorsScreenFallback(fn: (() => ScreenLayoutData | null) | null): void { screenFallback = fn; }
+
+function alignFrame(world: World, published: ScreenLayoutData | undefined): void {
+    const screen = published?.valid ? published : screenFallback?.() ?? published ?? null;
+    const key = screen?.valid ? `${screen.left},${screen.right},${screen.bottom},${screen.top}` : '';
+    if (key !== lastScreenKey) { lastScreenKey = key; screenGeneration++; }
+    alignAllRectAnchors(world, screen, screenGeneration);
+}
+
+/**
+ * Two passes a frame, the way the engine's own layout has two: anchors place what is pinned, anything that arranges or resizes
+ * content (a layout of another layer) runs between them by ordering itself after the first label and before the second, and the
+ * second pass moves only the nodes set to follow every frame, since the rest were settled by the first.
+ */
 export class RectAnchorsPlugin implements Plugin {
     name = 'rectAnchors';
 
@@ -217,13 +237,14 @@ export class RectAnchorsPlugin implements Plugin {
         const world = app.world;
         app.addSystemToSchedule(Schedule.PostUpdate, defineSystem(
             [Res(ScreenLayout)],
-            (screen: ScreenLayoutData) => {
-                const key = screen?.valid ? `${screen.left},${screen.right},${screen.bottom},${screen.top}` : '';
-                if (key !== lastScreenKey) { lastScreenKey = key; screenGeneration++; }
-                alignAllRectAnchors(world, screen ?? null, screenGeneration);
-            },
-            { name: 'RectAnchorsSystem' },
-        ));
+            (screen: ScreenLayoutData) => alignFrame(world, screen),
+            { name: SystemLabel.RectAnchors },
+        ), { runBefore: [SystemLabel.UILayoutLate] });
+        app.addSystemToSchedule(Schedule.PostUpdate, defineSystem(
+            [Res(ScreenLayout)],
+            (screen: ScreenLayoutData) => alignFrame(world, screen),
+            { name: SystemLabel.RectAnchorsLate },
+        ), { runAfter: [SystemLabel.RectAnchors], runBefore: [SystemLabel.UIRenderOrder] });
     }
 }
 

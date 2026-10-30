@@ -2,11 +2,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    cocos/ui/pass.ts
- * @brief   The end-of-frame pass that aligns widgets and arranges layouts.
+ * @brief   Registers the Cocos UI components and the systems that arrange layouts and publish the screen to scripts.
  *
- * Cocos does both after the frame's scripts have run, so a script that moves or resizes something this frame is answered by the
- * alignment in the same frame. Widgets go first (a stretched container changes what its layout sees), then layouts innermost-first,
- * then widgets once more for the ones that follow a size the layouts just set (those set to align every frame).
+ * Alignment is the engine's (RectAnchors); the Layout arithmetic is Cocos's, and runs between the engine's two anchor passes.
  */
 import { Schedule, defineSystem, addSystemToSchedule, GetWorld } from '../../ecs/system';
 import { Res } from '../../ecs/resource';
@@ -15,13 +13,15 @@ import { ScreenLayout, type ScreenLayoutData } from '../../ui/core/screen-layout
 import { ScreenScaling, type ScreenScalingData } from '../../camera/ScreenScaling';
 import { setCurrentWorld } from '../node';
 import { declareWidget } from './widget';
-import { alignAllRectAnchors } from '../../ui/layout/rect-anchors';
+import { rectAnchorsPlugin, setRectAnchorsScreenFallback } from '../../ui/layout/rect-anchors';
+import { SystemLabel } from '../../ecs/systemLabels';
+import { getDefaultContext } from '../../ecs/context';
 import { layoutAll, declareLayout } from './layout';
 import { declareControls } from './controls';
 import { declareGraphics } from './graphics';
 import { declareEditBox } from './editBox';
 import { declareScrollView } from './scrollView';
-import { getVisibleSize, setProjectDesign, setSafeInsets, setScreenLayout, setUiCameraData, setVisibleSize, setWindowPixels, visibleSizeGeneration } from './screen';
+import { getVisibleSize, setProjectDesign, setSafeInsets, setScreenLayout, setUiCameraData, setVisibleSize, setWindowPixels } from './screen';
 import { declarePages } from './pages';
 import { declareMisc } from './misc';
 
@@ -42,15 +42,27 @@ export function declareUiPass(): void {
     declarePages();
     declareMisc();
     declareScrollView();
-    const system = defineSystem(
-        [Res(UICameraInfo), Res(ScreenLayout), Res(ScreenScaling), GetWorld()],
-        (camera, screen, scaling: ScreenScalingData | undefined, world) => {
+    // The engine's anchor system places what is pinned; a Cocos Layout then arranges and resizes, and the engine's second anchor pass
+    // follows the sizes the layouts set (the nodes set to align every frame). Cocos does both after the frame's scripts have run, so a
+    // script that moves or resizes something this frame is answered in the same frame.
+    getDefaultContext().pendingPlugins.push(rectAnchorsPlugin);
+    setRectAnchorsScreenFallback(() => screenOrVisible(undefined));
+    addSystemToSchedule(Schedule.PostUpdate, defineSystem(
+        [GetWorld()],
+        (world) => {
+            const previous = setCurrentWorld(world);
+            try { layoutAll(world); } finally { setCurrentWorld(previous); }
+        },
+        { name: 'Cocos:Layout', touches: { opaque: true }, runAfter: [SystemLabel.RectAnchors], runBefore: [SystemLabel.RectAnchorsLate] },
+    ));
+    // What scripts read about the screen, before they run: the project design, the visible size and the framebuffer, the safe insets,
+    // the camera for the conversions a Cocos `Camera` offers.
+    addSystemToSchedule(Schedule.PreUpdate, defineSystem(
+        [Res(UICameraInfo), Res(ScreenLayout), Res(ScreenScaling)],
+        (camera, screen: ScreenLayoutData | undefined, scaling: ScreenScalingData | undefined) => {
             if (scaling) setProjectDesign(scaling.designWidth, scaling.designHeight, scaling.scaleMode);
-            // The camera is kept for the conversions a Cocos `Camera` offers. What the player sees, and the window, are the screen's: the
-            // layout box UI is placed within, and the framebuffer it projects onto.
             setUiCameraData(camera ?? null);
-            const layout = screenOrVisible(screen);
-            setScreenLayout(layout);
+            setScreenLayout(screenOrVisible(screen));
             if (screen?.valid) {
                 setVisibleSize(screen.right - screen.left, screen.top - screen.bottom);
                 setWindowPixels(screen.viewportW, screen.viewportH);
@@ -58,26 +70,7 @@ export function declareUiPass(): void {
                     Math.max(0, screen.safeLeft - screen.left), Math.max(0, screen.right - screen.safeRight),
                     Math.max(0, screen.top - screen.safeTop), Math.max(0, screen.safeBottom - screen.bottom));
             }
-            const previous = setCurrentWorld(world);
-            try {
-                // The engine's anchors, between the layouts that depend on them: a Layout resizes what a widget then pins to.
-                alignAllRectAnchors(world, layout, visibleSizeGeneration());
-                layoutAll(world);
-                alignAllRectAnchors(world, layout, visibleSizeGeneration());
-            } finally {
-                setCurrentWorld(previous);
-            }
         },
-        { name: 'Cocos:UiPass', touches: { opaque: true } },
-    );
-    addSystemToSchedule(Schedule.Last, system);
-    addSystemToSchedule(Schedule.PreUpdate, defineSystem(
-        [Res(ScreenScaling), Res(ScreenLayout)],
-        (scaling: ScreenScalingData | undefined, screen: ScreenLayoutData | undefined) => {
-            if (scaling) setProjectDesign(scaling.designWidth, scaling.designHeight, scaling.scaleMode);
-            // what a script reads in start(): the sizes are known before the first frame's pass
-            if (screen?.valid) { setVisibleSize(screen.right - screen.left, screen.top - screen.bottom); setWindowPixels(screen.viewportW, screen.viewportH); }
-        },
-        { name: 'Cocos:ProjectDesign', touches: { opaque: true } },
+        { name: 'Cocos:Screen', touches: { opaque: true } },
     ));
 }
