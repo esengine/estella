@@ -156,6 +156,7 @@ export class Node {
         return p && p !== INVALID_ENTITY ? Node.for(this._world, p) : null;
     }
     set parent(value: Node | null) { this.setParent(value); }
+    getParent(): Node | null { return this.parent; }
 
     get children(): Node[] {
         const ids = this._world.tryGet(this._entity, Children)?.entities ?? [];

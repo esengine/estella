@@ -25,9 +25,27 @@ export class Asset {
     get loaded(): boolean { return true; }
     destroy(): boolean { return true; }
 }
-export class ImageAsset extends Asset {}
-export class Texture2D extends Asset {}
-export class SpriteFrame extends Asset {}
+/** A decoded image: the engine's texture the file loaded to (a handle), and its size. @internal for the handle */
+export class ImageAsset extends Asset {
+    /** The engine texture handle; 0 before the load has bound one. @internal */
+    _handle = 0;
+    width = 0;
+    height = 0;
+}
+export class Texture2D extends ImageAsset {
+    get image(): ImageAsset { return this; }
+    getHash(): number { return this._handle; }
+}
+/** A texture to draw from. The importer keeps one frame per image, so the frame is the whole of its texture. */
+export class SpriteFrame extends Asset {
+    /** The texture this frame draws from, once bound. @internal */
+    texture: Texture2D | null = null;
+    get width(): number { return this.texture?.width ?? 0; }
+    get height(): number { return this.texture?.height ?? 0; }
+    getOriginalSize(): { width: number; height: number } { return { width: this.width, height: this.height }; }
+    get originalSize(): { width: number; height: number } { return this.getOriginalSize(); }
+    get rect(): { x: number; y: number; width: number; height: number } { return { x: 0, y: 0, width: this.width, height: this.height }; }
+}
 export class SpriteAtlas extends Asset {}
 /** Prepared prefabs by path: shared by every `Prefab` handle that names the path. */
 export const preparedPrefabs = new Map<string, unknown>();
@@ -42,7 +60,10 @@ export class Prefab extends Asset {
     /** Why preparing failed, when it did. @internal */
     _failed = '';
 }
-export class AudioClip extends Asset {}
+export class AudioClip extends Asset {
+    /** The engine's audio buffer id, once the clip has loaded. @internal */
+    _bufferId = '';
+}
 /** A property value as the engine's material takes it: a number, or a vector of up to four. Colours are 0..255 here and 0..1 there. */
 function uniformOf(value: unknown): number | { x: number; y: number; z: number; w: number } | null {
     if (typeof value === 'number') return value;

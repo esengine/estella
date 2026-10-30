@@ -139,7 +139,7 @@ describe('resources and assetManager', () => {
     const prepared = { ref: 'bullet.esprefab', scene: { version: 4, name: 'bullet', entities: [] } as never, rootId: 0, missing: [], release() {} };
     beforeEach(() => {
         setResourceManifest({
-            resources: { 'prefab/bullet': { path: 'bullet.esprefab', kind: 'prefab' }, 'icon/gold': { path: 'gold.png', kind: 'texture' } },
+            resources: { 'prefab/bullet': { path: 'bullet.esprefab', kind: 'prefab' }, 'icon/gold': { path: 'gold.png', kind: 'texture' }, 'model/ship': { path: '', kind: 'fbx' } },
             hero: { 'skin/red': { path: 'red.esprefab', kind: 'prefab' } },
         });
         providePrefab('bullet.esprefab', prepared);
@@ -170,8 +170,11 @@ describe('resources and assetManager', () => {
     it('says what is missing or not supported, instead of answering an empty asset', async () => {
         const missing = await load<unknown>((cb) => resources.load('nope', cb));
         expect(missing.err?.message).toMatch(/no asset "nope"/);
+        const model = await load<unknown>((cb) => resources.load('model/ship', cb));
+        expect(model.err?.message).toMatch(/not supported/);
+        // an image needs the engine's loader to become a texture, and says so when there is none
         const texture = await load<unknown>((cb) => resources.load('icon/gold', cb));
-        expect(texture.err?.message).toMatch(/not supported/);
+        expect(texture.err?.message).toMatch(/asset loader/);
     });
 
     it('has bundles by name, from the manifest', async () => {

@@ -13,6 +13,7 @@ import { SpriteDrawMode } from '../../wasm/wasm.generated';
 import type { World } from '../../ecs/world';
 import type { Entity } from '../../types';
 import { Color } from '../math';
+import { SpriteFrame } from '../assets';
 import { Component } from '../component';
 import { UIRenderer } from './renderer';
 import { registerBuiltinComponent } from '../builtins';
@@ -47,7 +48,21 @@ export class Sprite extends UIRenderer {
     get type(): number { return toCocosType(this.data_().drawMode); }
     set type(v: number) { this.patch_({ drawMode: toEngineDrawMode(v) }); }
 
-    /** The frame is set by the asset layer; the engine draws whatever texture the sprite holds. */
+    private frame_: SpriteFrame | null = null;
+    /**
+     * The frame the sprite draws. Its texture is the engine sprite's texture; a frame that has not bound one is not drawn, and the sprite
+     * keeps its size unless the size mode asks for the image's own.
+     */
+    get spriteFrame(): SpriteFrame | null { return this.frame_; }
+    set spriteFrame(v: SpriteFrame | null) {
+        this.frame_ = v;
+        const texture = v?.texture;
+        const patch: Partial<ReturnType<Sprite['data_']>> = { texture: texture?._handle ?? 0 };
+        if (texture && this.sizeMode !== SizeMode.CUSTOM) patch.size = { x: texture.width, y: texture.height };
+        this.patch_(patch);
+    }
+
+    /** The size mode decides whether the node takes the image's size. */
     sizeMode = SizeMode.CUSTOM;
     /** Not carried: the engine has no grayscale draw for a sprite. */
     grayscale = false;

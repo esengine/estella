@@ -16,7 +16,7 @@ import { AppContext, setDefaultContext } from '../../src/ecs/context';
 import { Text } from '../../src/ui/core/text';
 import { TextOverflow } from '../../src/ui/core/text';
 import { GroupOpacity } from '../../src/ecs/component';
-import { Color, Label, LabelOutline, LabelShadow, Node, Size, Sprite, UIOpacity, UITransform, Vec2, Vec3, setCurrentWorld } from '../../src/cocos';
+import { Color, Label, LabelOutline, LabelShadow, Node, Size, Sprite, SpriteFrame, Texture2D, UIOpacity, UITransform, Vec2, Vec3, setCurrentWorld } from '../../src/cocos';
 import { HAS_WASM, loadWasmModule } from '../helpers/loadWasm';
 
 describe.skipIf(!HAS_WASM)('built-in UI components on the engine', () => {
@@ -161,6 +161,23 @@ describe.skipIf(!HAS_WASM)('built-in UI components on the engine', () => {
             expect(sprite.type).toBe(Sprite.Type.TILED);
             sprite.enabled = false;
             expect(W().get(n._entity, EngineSprite).enabled).toBe(false);
+        });
+
+        it('draws the texture of the frame it is given, and lets go of it when given none', () => {
+            connect();
+            const n = node('f');
+            const sprite = n.addComponent(Sprite)!;
+            const texture = new Texture2D('gold.png');
+            texture._handle = 7;
+            texture.width = 64;
+            texture.height = 32;
+            const frame = new SpriteFrame('gold.png');
+            frame.texture = texture;
+            sprite.spriteFrame = frame;
+            expect(sprite.spriteFrame).toBe(frame);
+            expect(W().get(n._entity, EngineSprite).texture).toBe(7);
+            sprite.spriteFrame = null;
+            expect(W().get(n._entity, EngineSprite).texture).toBe(0);
         });
 
         it('is the engine\'s GroupOpacity, in Cocos\'s 0..255', () => {

@@ -17,7 +17,7 @@
  */
 import { platformFetch } from '../platform';
 import { log } from '../util/logger';
-import { Asset, JsonAsset, Material, Prefab, TextAsset } from './assets';
+import { Asset, AudioClip, ImageAsset, JsonAsset, Material, Prefab, SpriteFrame, TextAsset, Texture2D } from './assets';
 import { getCurrentWorld } from './node';
 import { assetsFor, loadPrefab, onNewSession } from './prefabs';
 
@@ -63,7 +63,7 @@ async function theManifest(): Promise<ResourceManifest> {
     if (manifest) return manifest;
     manifestLoad ??= (async () => {
         const assets = assetsFor(getCurrentWorld());
-        if (!assets) throw new Error('the engine\'s asset loader is not running');
+        if (!assets) throw new Error("the engine's asset loader is not running");
         const loaded = await assets.loadJson<ResourceManifest>(MANIFEST_PATH);
         manifest = loaded.data;
         return manifest;
@@ -111,7 +111,7 @@ async function loadEntry(entry: ResourceEntry, type: AssetCtor | null): Promise<
             return loadPrefab(entry.path);
         }
         case 'json': {
-            if (!assets) throw new Error('the engine\'s asset loader is not running');
+            if (!assets) throw new Error("the engine's asset loader is not running");
             const a = new JsonAsset(entry.path);
             a.json = (await assets.loadJson(entry.path)).data;
             return a;
@@ -123,6 +123,28 @@ async function loadEntry(entry: ResourceEntry, type: AssetCtor | null): Promise<
             a.text = await response.text();
             return a;
         }
+        case 'texture': {
+            if (!assets) throw new Error("the engine's asset loader is not running");
+            // The asked-for class decides what a script gets: a frame is the usual ask, an image the Cocos default.
+            const wantsFrame = !!type && (type === SpriteFrame || SpriteFrame.prototype instanceof type);
+            const wantsTexture = !!type && type !== ImageAsset && (type === Texture2D || Texture2D.prototype instanceof type);
+            const loadedTexture = await assets.loadTexture(entry.path);
+            const image = wantsFrame || wantsTexture ? new Texture2D(entry.path) : new ImageAsset(entry.path);
+            image._handle = loadedTexture.handle;
+            image.width = loadedTexture.width;
+            image.height = loadedTexture.height;
+            if (!wantsFrame) return image;
+            const frame = new SpriteFrame(entry.path);
+            frame.texture = image as Texture2D;
+            return frame;
+        }
+        case 'audio': {
+            if (type && type !== AudioClip && !(AudioClip.prototype instanceof type)) break;
+            if (!assets) throw new Error("the engine's asset loader is not running");
+            const clip = new AudioClip(entry.path);
+            clip._bufferId = (await assets.loadAudio(entry.path)).bufferId;
+            return clip;
+        }
         case 'mtl':
         case 'material': {
             // a Cocos material file is not converted: a script that asks for one gets a Material with no engine material behind it, which takes
@@ -132,7 +154,7 @@ async function loadEntry(entry: ResourceEntry, type: AssetCtor | null): Promise<
         }
         default:
     }
-    throw new UnsupportedAssetKind(`cocos compat: loading "${entry.path}" (${entry.kind}${type ? `, as ${type.name}` : ''}) is not supported by the compatibility layer yet; prefabs, JSON and text are`);
+    throw new UnsupportedAssetKind(`cocos compat: loading "${entry.path}" (${entry.kind}${type ? `, as ${type.name}` : ''}) is not supported by the compatibility layer yet; prefabs, JSON, text, images and audio are`);
 }
 
 export class Bundle {
