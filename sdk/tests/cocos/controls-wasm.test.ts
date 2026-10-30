@@ -102,6 +102,19 @@ describe.skipIf(!HAS_WASM)('toggles, bars, sliders and scroll views', () => {
         expect(group.anyTogglesChecked()).toBe(false);
     });
 
+    it('belongs to the container its parent holds, and switching one on by assignment switches the others off', async () => {
+        boot();
+        const holder = box('group', 400, 400, 400, 100);
+        holder.addComponent<ToggleContainer>('ToggleContainer')!;
+        const a = await toggle('a', 300, 400, holder);
+        const b = await toggle('b', 500, 400, holder);   // no toggleGroup named: the parent's container is the group
+        await frame(1);
+        a.t.isChecked = true;
+        b.t.isChecked = true;
+        expect(b.t.isChecked).toBe(true);
+        expect(a.t.isChecked).toBe(false);
+    });
+
     // ---- ProgressBar -----------------------------------------------------------------------------------------------
 
     it('sizes its bar to total length times progress, clamped', async () => {

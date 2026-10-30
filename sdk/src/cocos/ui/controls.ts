@@ -72,10 +72,17 @@ export class ToggleContainer extends Component {
 export class Toggle extends Button {
     static readonly EventType = Object.freeze({ TOGGLE: 'toggle', CLICK: 'click' });
 
-    isChecked = false;
+    private checked_ = false;
+    /** Whether it is on. Assigning to it switches the others of its group off, as checking it does (without the events). */
+    get isChecked(): boolean { return this.checked_; }
+    set isChecked(value: boolean) { this.setChecked_(!!value, false); }
     /** The graphic shown while checked. */
     checkMark: Sprite | null = null;
     toggleGroup: ToggleContainer | null = null;
+    /** The group it belongs to: the one named, else the container its parent node holds, as in Cocos. */
+    private group_(): ToggleContainer | null {
+        return this.toggleGroup ?? this.node.parent?.getComponent(ToggleContainer) ?? null;
+    }
     checkTargets: Array<Node | null> = [];
     checkHandlers: Handlers = [];
     checkEvents: EventHandler[] = [];
@@ -98,7 +105,7 @@ export class Toggle extends Button {
 
     protected onClicked_(_event: EventTouch): void {
         if (!this.interactable) return;
-        const group = this.toggleGroup;
+        const group = this.group_();
         // in a group that needs one on, clicking the one that is on does nothing
         if (group && group.enabled && this.isChecked && !group.allowSwitchOff) return;
         this.setChecked_(!this.isChecked, true);
@@ -106,10 +113,11 @@ export class Toggle extends Button {
 
     /** @internal */
     setChecked_(value: boolean, emit: boolean): void {
-        if (this.isChecked === value) return;
-        this.isChecked = value;
+        if (this.checked_ === value) return;
+        this.checked_ = value;
         this.updateMark_();
-        if (value && this.toggleGroup && this.toggleGroup.enabled) this.toggleGroup.notifyToggleCheck(this, emit);
+        const group = this.group_();
+        if (value && group && group.enabled) group.notifyToggleCheck(this, emit);
         if (emit) {
             EventHandler.emitEvents(this.checkEvents, this);
             this.node.emit(Toggle.EventType.TOGGLE, this);

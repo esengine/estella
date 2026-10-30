@@ -83,6 +83,22 @@ describe.skipIf(!HAS_WASM)('touches and buttons on the engine', () => {
         expect(log).toHaveLength(2);
     });
 
+    it('hands the touch to what is drawn last, not to what was made last: a node made later and placed first is underneath', async () => {
+        connect();
+        const root = box('root', 0, 0, 1000, 1000);
+        const content = box('content', 200, 200, 100, 100, root);
+        // a backdrop taken from a pool and put under the panel after the panel was built: made last, drawn first
+        const backdrop = box('backdrop', 200, 200, 400, 400, root);
+        backdrop.setSiblingIndex(0);
+        const log: string[] = [];
+        record(content, log);
+        record(backdrop, log);
+        await press(1, 210, 200);
+        await release(1, 210, 200);
+        expect(log).toHaveLength(2);
+        expect(log.every((l) => l.startsWith('content:'))).toBe(true);
+    });
+
     it('keeps sending the gesture to the node that claimed it, wherever the finger goes', async () => {
         connect();
         const a = box('a', 200, 200);

@@ -16,11 +16,13 @@
 #include "../ecs/components/UIVisual.hpp"
 #include "../ecs/components/Sprite.hpp"
 #include "../ecs/components/ContentRect.hpp"
+#include "../ecs/components/Hierarchy.hpp"
 #include "../ecs/components/MeshRenderer.hpp"
 #include "../resource/ResourceManager.hpp"
 
 #include <algorithm>
 #include <cstdint>
+#include <vector>
 
 namespace esengine::ecs {
 
@@ -83,6 +85,36 @@ void UISystem::hitTestUpdate(Registry& registry, const PickRay& worldRay, const 
     hitWorldContent(registry, worldRay, resources);
 }
 
+namespace {
+
+/// Where an entity stands in the hierarchy walk: its root, then the index of each ancestor and of itself among its siblings, so that two
+/// paths compare in the order the walk visits them (a parent before its children, an earlier sibling's whole subtree before a later one).
+std::vector<u32> hierarchyPath(Registry& registry, Entity entity) {
+    std::vector<u32> reversed;
+    for (Entity current = entity; ; ) {
+        const auto* parent = registry.tryGet<Parent>(current);
+        if (!parent || parent->entity == INVALID_ENTITY || !registry.valid(parent->entity)) {
+            reversed.push_back(current.id());   // roots are told apart by their number
+            break;
+        }
+        u32 index = 0;
+        if (const auto* children = registry.tryGet<Children>(parent->entity)) {
+            const auto& list = children->entities;
+            index = static_cast<u32>(std::find(list.begin(), list.end(), current) - list.begin());
+        }
+        reversed.push_back(index);
+        current = parent->entity;
+    }
+    return std::vector<u32>(reversed.rbegin(), reversed.rend());
+}
+
+/// Whether @p a is drawn before @p b: the hierarchy's order, which is the order a scene of nodes is stacked in.
+bool drawsBefore(Registry& registry, Entity a, Entity b) {
+    return hierarchyPath(registry, a) < hierarchyPath(registry, b);
+}
+
+}  // namespace
+
 /**
  * World-space pick, for entities the layout tree does not contain — it takes its
  * geometry from UINode, leaving a bare Sprite and every MeshRenderer unreachable.
@@ -106,9 +138,9 @@ void UISystem::hitWorldContent(Registry& registry, const PickRay& ray,
             const bool sameDepth = std::abs(t - bestT) <= 1e-4f;
             if (!sameDepth && t > bestT) return;
             if (sameDepth && layer < bestLayer) return;
-            // A full tie goes to the later entity, by its number rather than by where a pool happened to list it: the order content is
-            // created in is the order it is drawn in, and which component pool is walked first says nothing about either.
-            if (sameDepth && layer == bestLayer && entity.id() < best.id()) return;
+            // A full tie goes to the one drawn later, by its place in the hierarchy rather than by where a pool happened to list it or when
+            // it was created: a node taken from a pool and added under a panel is made last and drawn first, and a number cannot tell.
+            if (sameDepth && layer == bestLayer && drawsBefore(registry, entity, best)) return;
         }
         haveBest = true;
         bestT = t;
