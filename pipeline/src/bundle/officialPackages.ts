@@ -12,6 +12,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { Plugin } from 'esbuild';
+import { BUNDLER_RESOLVES } from './bundlerResolve';
 
 const OFFICIAL = /^(estella-plugin-[^/]+)(\/.+)?$/;
 
@@ -52,8 +53,6 @@ export function readOfficialPackages(packagesDir: string): OfficialPackages {
   return out;
 }
 
-const SKIP = Symbol('official-packages:skip');
-
 /** esbuild plugin: `estella-plugin-*` from the project's node_modules if it has
  *  one, otherwise from `packagesDir`. */
 export function officialPackagesPlugin(packagesDir: string): Plugin {
@@ -61,9 +60,9 @@ export function officialPackagesPlugin(packagesDir: string): Plugin {
     name: 'estella-official-packages',
     setup(build) {
       build.onResolve({ filter: OFFICIAL }, async (args) => {
-        if (args.pluginData === SKIP) return undefined;
+        if (args.pluginData === BUNDLER_RESOLVES) return undefined;
         const own = await build.resolve(args.path, {
-          kind: args.kind, importer: args.importer, resolveDir: args.resolveDir, pluginData: SKIP,
+          kind: args.kind, importer: args.importer, resolveDir: args.resolveDir, pluginData: BUNDLER_RESOLVES,
         });
         if (own.errors.length === 0) return { path: own.path, external: own.external, sideEffects: own.sideEffects };
 

@@ -28,6 +28,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { Plugin, PluginBuild } from 'esbuild';
+import { BUNDLER_RESOLVES } from './bundlerResolve';
 import { loadEsbuild } from './esbuildRuntime';
 
 /** Changes whenever what this plugin does to a script changes, so a bundle built by an older one is not taken for current. */
@@ -40,7 +41,6 @@ const CC = /^cc(\/env)?$/;
 const IMPORTS_CC = /(?:from|import)\s*\(?\s*['"]cc(?:\/env)?['"]/;
 const TS = /\.tsx?$/;
 
-const RESOLVING = Symbol('cocos-compat:resolving');
 const PACKAGE_FILE = /^(?:@[^/]+\/[^/]+|[^@./][^/]*)\/.+/;
 
 /** `<dir>/node_modules/<specifier>` for the nearest dir upward that has it, as a file. */
@@ -125,9 +125,9 @@ export function cocosCompatPlugin(): Plugin {
     setup(build) {
       const renames = readClassNames(build);
       build.onResolve({ filter: CC }, async (args) => {
-        if (args.pluginData === RESOLVING) return undefined;
+        if (args.pluginData === BUNDLER_RESOLVES) return undefined;
         const layer = await build.resolve(COCOS_LAYER, {
-          kind: args.kind, importer: args.importer, resolveDir: args.resolveDir, pluginData: RESOLVING,
+          kind: args.kind, importer: args.importer, resolveDir: args.resolveDir, pluginData: BUNDLER_RESOLVES,
         });
         if (layer.errors.length > 0) {
           return { errors: [{ text: `"${args.path}" is the Cocos Creator module, which the engine provides as "${COCOS_LAYER}" — and that did not resolve here: ${layer.errors[0]!.text}` }] };
@@ -142,8 +142,8 @@ export function cocosCompatPlugin(): Plugin {
 
       // Only a path the bundler could not resolve itself falls back to the plain file lookup.
       build.onResolve({ filter: PACKAGE_FILE }, async (args) => {
-        if (args.pluginData === RESOLVING || args.kind === 'entry-point') return undefined;
-        const tried = await build.resolve(args.path, { kind: args.kind, importer: args.importer, resolveDir: args.resolveDir, pluginData: RESOLVING });
+        if (args.pluginData === BUNDLER_RESOLVES || args.kind === 'entry-point') return undefined;
+        const tried = await build.resolve(args.path, { kind: args.kind, importer: args.importer, resolveDir: args.resolveDir, pluginData: BUNDLER_RESOLVES });
         if (tried.errors.length === 0) return tried;
         const file = packageFileFrom(args.resolveDir, args.path);
         return file ? { path: file } : undefined;
