@@ -18,7 +18,7 @@ import { CanvasGlyphRasterizer, type CanvasGlyphRasterizerOptions } from './glyp
 import { NativeGlyphRasterizer } from './native-glyph-rasterizer';
 import { EngineAtlasPageStore } from './atlas-page-store';
 import { TextAlign, TextVerticalAlign, TextOverflow } from '../core/text';
-import { layoutText, buildGlyphVertices, MAX_TEXT_BATCH_GLYPHS, type LaidGlyph, type RGBA } from './layout';
+import { layoutText, buildGlyphVertices, MAX_TEXT_BATCH_GLYPHS, type LaidGlyph, type RGBA, type TextLayout } from './layout';
 import { submitTextBatch, TEXT_VERTEX_FLOATS, TextGlyphMode } from './submit';
 import { bitmapFontOf, fontAscent } from './bitmap-font';
 import { DEFAULT_ASCENT } from './text-transform';
@@ -58,6 +58,8 @@ export interface DrawTextParams {
     boxHeight?: number;
     /** What a run too big for the box does. */
     overflow?: TextOverflow;
+    /** A bar under each line. */
+    underline?: boolean;
     /**
      * Drop shadow: an offset, recolored copy of the glyphs drawn behind the fill.
      * `blur` (px, 0 = hard) spreads that copy into a ring so the shadow reads as
@@ -178,10 +180,32 @@ export function textBlockOriginY(
  * Lay out text against the atlas and emit index-safe quad batches to the sink.
  * Pure given the atlas, so grouping and geometry are unit-testable.
  */
-export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTextParams): void {
+/**
+ * Draw a bar under each line. The font has no underline to ask for, but it has an underscore: its middle is a bar of the font's own thickness
+ * and depth below the baseline, and a glyph quad can be stretched across the line along that middle (the distance field is flat there).
+ */
+function addUnderlines(layout: TextLayout, atlas: GlyphAtlas, fontFamily: string, fontSizePx: number, style: number): void {
+    if (!layout.lines || layout.lines.length === 0) return;
+    const pixelSize = atlas.pixelSizeFor(fontSizePx, fontFamily);
+    const g = atlas.getGlyph(0x5f, fontFamily, style, pixelSize);
+    if (!g || g.width <= 0 || g.height <= 0) return;
+    const scale = fontSizePx / pixelSize;
+    const span = g.u1 - g.u0;
+    const u0 = g.u0 + span * 0.4, u1 = g.u0 + span * 0.6;
+    const top = g.bearingY * scale, bottom = top - g.height * scale;
+    for (const line of layout.lines) {
+        if (line.width <= 0) continue;
+        layout.glyphs.push({
+            u0, v0: g.v0, u1, v1: g.v1,
+            x0: line.x, x1: line.x + line.width, y0: line.baseline + bottom, y1: line.baseline + top, pageId: g.pageId,
+        });
+    }
+}
+
+export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTextParams): number {
     if (atlas.metricsOnly) throw new Error('Measurement atlases cannot submit text.');
     const opacity = p.opacity ?? 1;
-    if (opacity <= 0) return;
+    if (opacity <= 0) return 0;
     const layout = layoutText(p.text, atlas, p.fontFamily, {
         fontSizePx: p.fontSizePx,
         letterSpacing: p.letterSpacing,
@@ -194,7 +218,8 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
         boxHeight: p.boxHeight,
         overflow: p.overflow,
     }, p.style ?? 0);
-    if (layout.glyphs.length === 0) return;
+    if (layout.glyphs.length === 0) return layout.lineHeight;
+    if (p.underline) addUnderlines(layout, atlas, p.fontFamily, layout.fontSizePx ?? p.fontSizePx, p.style ?? 0);
 
     // Position the block within its box: [originX .. originX+boxWidth] × [originY .. -boxHeight].
     // A boxless label (box 0×0) collapses the box to the entity origin, so align/verticalAlign
@@ -278,6 +303,7 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
     }
     // Fill (on top).
     emitPass(p.color, 0, 0, 0, true, baked ? TextGlyphMode.Fill : undefined);
+    return layout.lineHeight;
 }
 
 export interface TextRendererOptions extends CanvasGlyphRasterizerOptions {
@@ -424,10 +450,10 @@ export class SdfTextRenderer {
     retain(
         api: EngineApi, p: DrawTextParams, entity: number,
         screen: boolean, hasBox: boolean, layer: number, boxWidth: number, boxHeight: number, autoKind: boolean,
-    ): void {
+    ): number {
         if (this.atlas.metricsOnly) throw new Error('Measurement atlases cannot submit text.');
         const batches: Array<{ vertices: Float32Array; indices: Uint16Array; pageId: number; mode?: TextGlyphMode }> = [];
-        drawTextWith(this.atlas, (vertices, indices, pageId, mode) => {
+        const blockHeight = drawTextWith(this.atlas, (vertices, indices, pageId, mode) => {
             batches.push({ vertices, indices, pageId, ...(mode !== undefined ? { mode } : {}) });
         }, { ...p, opacity: 1 });
         api.renderer_retainedTextBegin!(entity, this.sdf ? 1 : 0, screen ? 1 : 0, hasBox ? 1 : 0, layer, boxWidth, boxHeight, autoKind ? 1 : 0);
@@ -447,6 +473,7 @@ export class SdfTextRenderer {
         this.retainedPages_.set(entity, batches.map(b => b.pageId));
         this.drawn_.add(entity);
         this.cache_.delete(entity);
+        return blockHeight;
     }
 
     /** A retained label that is not rebuilt this frame is still on screen: its atlas pages must stay. */
@@ -483,7 +510,7 @@ function textSignature(p: DrawTextParams, opacity: number): string {
         p.richText ? 1 : 0, p.align ?? 0, p.verticalAlign ?? 0,
         p.lineHeight ?? 0, p.letterSpacing ?? 0,
         p.maxWidth ?? 0, p.boxWidth ?? 0, p.boxHeight ?? 0,
-        p.overflow ?? TextOverflow.Visible,
+        p.overflow ?? TextOverflow.Visible, p.underline ? 1 : 0,
         p.originX ?? 0, p.originY ?? 0,
         p.color.join(','), opacity, shadow, outline,
     ]);

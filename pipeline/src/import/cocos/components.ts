@@ -231,7 +231,7 @@ function label(c: CocosComponent, siblings: CocosComponent[], box: UiBox | null,
         align: clamp012(d._horizontalAlign),
         verticalAlign: clamp012(d._verticalAlign),
         wordWrap: d._enableWrapText !== false,
-        overflow: overflow === 1 ? 1 : overflow === 2 ? 3 : 0, // Clip, Shrink, otherwise Visible
+        overflow: overflow === 1 ? 1 : overflow === 2 ? 3 : overflow === 3 ? 4 : 0, // Clip, Shrink, ResizeHeight, otherwise Visible
         lineHeight: fontSize > 0 ? Math.round((lineHeight / fontSize) * 1000) / 1000 : 1.2,
         bold: d._isBold === true,
         italic: d._isItalic === true,
@@ -243,11 +243,6 @@ function label(c: CocosComponent, siblings: CocosComponent[], box: UiBox | null,
         data.boxHeight = box.height;
         data.boxPivot = { x: box.ax, y: box.ay };
     }
-    if (overflow === 3) {
-        status = 'partial';
-        ctx.report.note('label-resize-height', where);
-    }
-
     const fontUuid = uuidOf(d._font);
     if (d._isSystemFontUsed === false && fontUuid) {
         const font = ctx.assets.byUuid.get(fontUuid);
@@ -265,10 +260,7 @@ function label(c: CocosComponent, siblings: CocosComponent[], box: UiBox | null,
     } else if (typeof d._fontFamily === 'string') {
         data.fontFamily = d._fontFamily;
     }
-    if (d._isUnderline === true) {
-        status = 'partial';
-        ctx.report.note('label-underline', where);
-    }
+    if (d._isUnderline === true) data.underline = true;
 
     const outline = siblings.find((s) => s.type === 'cc.LabelOutline' && s.enabled);
     if (outline) {

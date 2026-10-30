@@ -51,8 +51,17 @@ export interface LaidImage {
     tint: RGBA | null;
 }
 
+/** Where one laid-out line sits: its left edge and width, and the baseline, in the same y-up local space as the glyphs. */
+export interface LaidLine {
+    x: number;
+    width: number;
+    baseline: number;
+}
+
 export interface TextLayout {
     glyphs: LaidGlyph[];
+    /** Each line's extent, top to bottom. Undefined for a layout that is a single line laid out on its own. */
+    lines?: LaidLine[];
     /** Inline `<img>` placements (rich text only). Undefined/empty = none. */
     images?: LaidImage[];
     /** Total pen advance (display px). */
@@ -416,14 +425,16 @@ export function layoutText(
     // is what every layout engine does and what a reader can act on.
     const overflow = opts.overflow ?? TextOverflow.Visible;
     const boxHeight = opts.boxHeight ?? 0;
-    const maxLines = overflow !== TextOverflow.Visible && boxHeight > 0
+    // ResizeHeight keeps every line (the box grows to them) and every character (nothing is trimmed).
+    const keepsAll = overflow === TextOverflow.Visible || overflow === TextOverflow.ResizeHeight;
+    const maxLines = !keepsAll && boxHeight > 0
         ? Math.max(1, Math.floor(boxHeight / lineHeight))
         : Infinity;
     const ellipsis = overflow === TextOverflow.Ellipsis;
     // The width a line may not exceed. maxWidth already wrapped to it, so this is
     // for the unwrapped case — a single line in a fixed box, which is the one
     // ellipsis is usually asked for.
-    const widthLimit = overflow === TextOverflow.Visible ? 0
+    const widthLimit = keepsAll ? 0
         : (opts.maxWidth && opts.maxWidth > 0) ? opts.maxWidth
         : (opts.boxWidth ?? 0);
 
@@ -468,6 +479,7 @@ export function layoutText(
         : contentWidth;
     const glyphs: LaidGlyph[] = [];
     const images: LaidImage[] = [];
+    const laidLines: LaidLine[] = [];
 
     for (let i = 0; i < lineLayouts.length; i++) {
         const ll = lineLayouts[i];
@@ -475,6 +487,7 @@ export function layoutText(
             : align === TEXT_ALIGN_RIGHT ? (alignWidth - ll.width)
             : 0;
         const dy = -i * lineHeight; // y-up: first line on top
+        laidLines.push({ x: dx, width: ll.width, baseline: dy });
         for (const g of ll.glyphs) {
             glyphs.push({ ...g, x0: g.x0 + dx, x1: g.x1 + dx, y0: g.y0 + dy, y1: g.y1 + dy });
         }
@@ -483,7 +496,7 @@ export function layoutText(
         }
     }
 
-    return { glyphs, images, width: contentWidth, lineHeight: lines.length * lineHeight };
+    return { glyphs, images, lines: laidLines, width: contentWidth, lineHeight: lines.length * lineHeight };
 }
 
 /**

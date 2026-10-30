@@ -12,6 +12,7 @@ import {
     GlyphAtlas, type GlyphRasterizer, type AtlasPageStore, type RasterGlyph,
 } from '../src/ui/text/glyph-atlas';
 import { layoutText, measureWidth, shrinkFontSize } from '../src/ui/text/layout';
+import { drawTextWith } from '../src/ui/text/text-renderer';
 import { TextOverflow } from '../src/ui/core/text';
 
 function makeAtlas(): GlyphAtlas {
@@ -206,5 +207,51 @@ describe('TextOverflow.Shrink', () => {
         const l = lay(wideText, { boxWidth: 1, boxHeight: 1, overflow: TextOverflow.Shrink });
         expect(l.fontSizePx).toBe(1);
         expect(l.glyphs.length).toBeGreaterThan(0);
+    });
+});
+
+describe('TextOverflow.ResizeHeight', () => {
+    it('keeps every line however short the box, and reports the height of all of them', () => {
+        const l = lay('one\ntwo\nthree', { boxHeight: LINE, overflow: TextOverflow.ResizeHeight });
+        expect(linesOf(l)).toBe(3);
+        expect(l.lineHeight).toBeCloseTo(3 * LINE, 6);
+    });
+
+    it('does not trim a line that is wider than the box', () => {
+        const l = lay('a long line of text', { boxWidth: 20, overflow: TextOverflow.ResizeHeight });
+        expect(l.width).toBeCloseTo(width('a long line of text'), 6);
+    });
+
+    it('grows with wrapping: a narrower wrap width makes the block taller', () => {
+        const wide = lay('one two three four five six', { maxWidth: 400, overflow: TextOverflow.ResizeHeight });
+        const narrow = lay('one two three four five six', { maxWidth: 60, overflow: TextOverflow.ResizeHeight });
+        expect(narrow.lineHeight).toBeGreaterThan(wide.lineHeight);
+    });
+});
+
+describe('a laid-out line', () => {
+    it('says where it sits: its left edge, its width, and its baseline', () => {
+        const l = lay('ab\ncd', { align: 1, boxWidth: 100 });
+        expect(l.lines).toHaveLength(2);
+        expect(l.lines![0]!.baseline).toBeCloseTo(0, 6);
+        expect(l.lines![1]!.baseline).toBeCloseTo(-LINE, 6);
+        expect(l.lines![0]!.x).toBeCloseTo((100 - l.lines![0]!.width) / 2, 6);
+    });
+});
+
+describe('underline', () => {
+    const quads = (underline: boolean) => {
+        const out: number[] = [];
+        drawTextWith(atlas, (vertices) => { out.push(vertices.length); }, {
+            text: 'ab\ncd', fontFamily: 'Arial', fontSizePx: F, color: [1, 1, 1, 1], lineHeight: LINE, underline,
+        });
+        return out.reduce((a, b) => a + b, 0);
+    };
+
+    it('adds one bar to each line', () => {
+        const without = quads(false);
+        const withBars = quads(true);
+        // four glyphs and two bars, against four glyphs: the vertex data grows by one third
+        expect(withBars).toBeCloseTo(without * 6 / 4, 6);
     });
 });

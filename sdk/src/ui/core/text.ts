@@ -45,6 +45,8 @@ export const TextOverflow = {
     Ellipsis: 2,
     /** Smaller type until the text fits the box: the size drops a whole pixel at a time, and line height and letter spacing with it. */
     Shrink: 3,
+    /** Every line shows, and the box grows to hold them: the entity's `ContentRect` height becomes the text's own. */
+    ResizeHeight: 4,
 } as const;
 /** @public */
 export type TextOverflow = (typeof TextOverflow)[keyof typeof TextOverflow];
@@ -103,6 +105,8 @@ export interface TextData {
     shadowBlur: number;
     shadowOffsetX: number;
     shadowOffsetY: number;
+    /** A line under each line of text, in the font's own underscore. Absent is off. */
+    underline?: boolean;
     richText: boolean;
     renderMode: TextRenderMode;
     /**

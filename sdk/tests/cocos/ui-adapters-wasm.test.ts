@@ -114,8 +114,12 @@ describe.skipIf(!HAS_WASM)('built-in UI components on the engine', () => {
             expect(label.overflow).toBe(Label.Overflow.SHRINK);
             label.overflow = Label.Overflow.CLAMP;
             expect(W().get(n._entity, Text).overflow).toBe(TextOverflow.Clip);
-            label.overflow = Label.Overflow.RESIZE_HEIGHT;   // no engine counterpart: draws whole
-            expect(W().get(n._entity, Text).overflow).toBe(TextOverflow.Visible);
+            label.overflow = Label.Overflow.RESIZE_HEIGHT;
+            expect(W().get(n._entity, Text).overflow).toBe(TextOverflow.ResizeHeight);
+            expect(label.overflow).toBe(Label.Overflow.RESIZE_HEIGHT);
+            label.isUnderline = true;
+            expect(W().get(n._entity, Text).underline).toBe(true);
+            expect(label.isUnderline).toBe(true);
             label.horizontalAlign = Label.HorizontalAlign.RIGHT;
             label.verticalAlign = Label.VerticalAlign.BOTTOM;
             const t = W().get(n._entity, Text);

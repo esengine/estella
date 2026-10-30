@@ -74,7 +74,8 @@ const pulseBanner = defineSystem([Query(Mut(Transform), Text), Res(Time)], (q, t
 | `align` | `TextAlign` | `Left` | 水平对齐:`Left` / `Center` / `Right`。 |
 | `verticalAlign` | `TextVerticalAlign` | `Top` | 垂直对齐:`Top` / `Middle` / `Bottom`。 |
 | `wordWrap` | boolean | `true` | 按盒宽换行(需要盒:`UINode`,或 `Text` 自己的 `boxWidth`)。 |
-| `overflow` | `TextOverflow` | `Visible` | 文本超出盒时怎么办(需要盒):`Visible` 全部保留;`Clip` 和 `Ellipsis` 丢弃超出盒高的行、截断超出盒宽的行;`Shrink` 把字一个像素一个像素地缩小,直到放进盒里(行高和字距随之缩小,最小 1px)。 |
+| `overflow` | `TextOverflow` | `Visible` | 文本超出盒时怎么办(需要盒):`Visible` 全部保留;`Clip` 和 `Ellipsis` 丢弃超出盒高的行、截断超出盒宽的行;`Shrink` 把字一个像素一个像素地缩小,直到放进盒里(行高和字距随之缩小,最小 1px);`ResizeHeight` 保留所有行,并把实体的 `ContentRect` 高度撑到这些行的总高。 |
+| `underline` | boolean | `false` | 每行文字下面画一条线,取自字体自己的下划线字形,所以粗细和位置是字体的。 |
 | `boxWidth` / `boxHeight` | number | `0` | **没有** `UINode` 的 `Text` 的排版盒,单位 px。`0` 表示没有盒(实体原点就是盒)。有盒时对齐、换行、溢出都在盒内工作,而文本仍是世界内容,按 `layer` 排序。存在 `UINode` 时由它决定盒。 |
 | `boxPivot` | Vec2 | `(0.5, 0.5)` | 实体原点在这个盒里的位置,按距盒左边、下边的比例:`(0.5, 0.5)` 是中心,`(0, 1)` 是左上角。相当于 Cocos / Unity 矩形变换的锚点。 |
 | `lineHeight` | number | `1.2` | 行距,为 **`fontSize` 的比率**(基线间距 = `lineHeight × fontSize`)。 |

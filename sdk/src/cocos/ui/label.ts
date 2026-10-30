@@ -25,12 +25,14 @@ const CacheMode = Object.freeze({ NONE: 0, BITMAP: 1, CHAR: 2 });
 function toEngineOverflow(cocos: number): number {
     if (cocos === Overflow.CLAMP) return TextOverflow.Clip;
     if (cocos === Overflow.SHRINK) return TextOverflow.Shrink;
-    return TextOverflow.Visible;   // NONE, and RESIZE_HEIGHT, which the engine has no equivalent of
+    if (cocos === Overflow.RESIZE_HEIGHT) return TextOverflow.ResizeHeight;
+    return TextOverflow.Visible;
 }
 
 function toCocosOverflow(engine: number): number {
     if (engine === TextOverflow.Clip || engine === TextOverflow.Ellipsis) return Overflow.CLAMP;
     if (engine === TextOverflow.Shrink) return Overflow.SHRINK;
+    if (engine === TextOverflow.ResizeHeight) return Overflow.RESIZE_HEIGHT;
     return Overflow.NONE;
 }
 
@@ -75,6 +77,9 @@ export class Label extends TextView {
 
     get enableWrapText(): boolean { return this.text_().wordWrap; }
     set enableWrapText(v: boolean) { this.patch_({ wordWrap: v }); }
+
+    get isUnderline(): boolean { return this.text_().underline === true; }
+    set isUnderline(v: boolean) { this.patch_({ underline: v }); }
 
     get isBold(): boolean { return this.text_().bold; }
     set isBold(v: boolean) { this.patch_({ bold: v }); }

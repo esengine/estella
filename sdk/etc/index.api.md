@@ -10819,6 +10819,7 @@ shadowOffsetX: number
 shadowOffsetY: number
 strokeColor: Color
 strokeWidth: number
+underline: boolean | undefined
 verticalAlign: TextVerticalAlign
 wordWrap: boolean
 ```
@@ -10849,6 +10850,7 @@ shadowOffsetX: number | undefined
 shadowOffsetY: number | undefined
 strokeColor: Color | undefined
 strokeWidth: number | undefined
+underline: boolean | undefined
 verticalAlign: TextVerticalAlign | undefined
 wordWrap: boolean | undefined
 ```
