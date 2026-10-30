@@ -22,13 +22,15 @@ import { CocosModels, clipOf, clipPlayOf, mintSidecar, retargetClip } from './mo
 import { convertAnimationClip } from './animationClip';
 import { convertAnimationGraph } from './animationGraph';
 import type { MaterialInfo } from './components';
+import { parseEffect } from './effects';
+import { convertEffect, isOutlinePass, type PassConversion } from './effectConvert';
 
 /**
  * The revision of what an import writes. It is recorded in the state file; a converted project whose record is older was written by an
  * importer that made less (or differently), and is brought up to date when it is opened. Raise it when the converted output changes in a
  * way an existing project needs to pick up: a new generated file, a field a document or a manifest now carries.
  */
-export const COCOS_IMPORT_REVISION = 1;
+export const COCOS_IMPORT_REVISION = 2;
 
 /** Whether the project at @p projectRoot was written by an importer of this revision. A project that was not converted has nothing to bring up. */
 export function cocosImportIsCurrent(projectRoot: string): boolean {
@@ -395,6 +397,9 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
         material(materialUuid) {
             return materialInfo(materialUuid);
         },
+        convertedMaterial(materialUuid) {
+            return convertedMaterial(materialUuid);
+        },
         modelInstance(uuid) {
             const m = models.use(uuid);
             return m && m.use.prefab ? { prefab: m.use.prefab, rootId: m.use.rootId, name: path.basename(m.entry.rel).replace(/\.[^.]+$/, ''), paths: m.use.paths } : null;
@@ -618,6 +623,108 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
         return info;
     };
 
+    // A material of the project's own effect, taken across: the effect's pass becomes a shader of the project, the material's settings become a
+    // material of it, and the renderers that wore the Cocos material wear that one. Null when the pass cannot be given the engine's vertex stage.
+    type EffectTechnique = { name: string; passes: PassConversion[]; passCount: number; outline: boolean[] };
+    const effects = new Map<string, EffectTechnique[] | null>();
+    const convertedMaterials = new Map<string, { ref: string } | null>();
+    const effectOf = (entry: CocosAssetEntry): EffectTechnique[] | null => {
+        if (effects.has(entry.file)) return effects.get(entry.file) ?? null;
+        let result: EffectTechnique[] | null = null;
+        try {
+            const parsed = parseEffect(readFileSync(entry.file, 'utf8'));
+            const stem = entry.rel.replace(/^assets\//, '').replace(/\.effect$/, '');
+            result = convertEffect(parsed, stem).techniques.map((t, i) => ({ name: t.name, passes: t.passes, passCount: t.passes.length, outline: parsed.techniques[i]!.passes.map(isOutlinePass) }));
+        } catch (err) {
+            report.note('effect-unreadable', `${entry.rel}: ${(err as Error).message.split('\n')[0]}`);
+        }
+        effects.set(entry.file, result);
+        return result;
+    };
+    const FACTORS: Record<number, string> = { 0: 'zero', 1: 'one', 2: 'src_alpha', 3: 'dst_alpha', 4: 'one_minus_src_alpha', 5: 'one_minus_dst_alpha', 6: 'src_color', 7: 'dst_color', 8: 'one_minus_src_color', 9: 'one_minus_dst_color' };
+    const numberOf = (x: unknown, d: number): number => (typeof x === 'number' && Number.isFinite(x) ? x : d);
+    const convertedMaterial = (materialUuid: string): { ref: string } | null => {
+        if (convertedMaterials.has(materialUuid)) return convertedMaterials.get(materialUuid) ?? null;
+        let result: { ref: string } | null = null;
+        try {
+            const mat = index.byUuid.get(materialUuid);
+            if (mat && mat.rel.endsWith('.mtl')) {
+                const json = JSON.parse(readFileSync(mat.file, 'utf8')) as {
+                    _effectAsset?: { __uuid__?: string }; _techIdx?: number;
+                    _defines?: Array<Record<string, unknown>>; _props?: Array<Record<string, unknown>>;
+                    _states?: Array<{ blendState?: { targets?: Array<{ blend?: boolean; blendSrc?: number; blendDst?: number }> }; rasterizerState?: { cullMode?: number }; depthStencilState?: { depthTest?: boolean; depthWrite?: boolean } }>;
+                };
+                // the engine's own look-alikes of Cocos's built-in effects are what a built-in effect becomes, as before
+                const effectEntry = BUILTIN_EFFECTS.has(json._effectAsset?.__uuid__ ?? '') ? undefined : index.byUuid.get(json._effectAsset?.__uuid__ ?? '');
+                const technique = effectEntry && effectEntry.rel.endsWith('.effect') ? effectOf(effectEntry)?.[json._techIdx ?? 0] : undefined;
+                // The pass that is the surface: the first that is not an outline, which is where a material's own settings are (its arrays run by pass).
+                const passIndex = technique ? Math.max(0, technique.outline.findIndex((o) => !o)) : 0;
+                const pass = technique?.passes[passIndex];
+                if (effectEntry && technique && pass) {
+                    if (!pass.shader) {
+                        report.note('effect-not-converted', `${effectEntry.rel}: ${pass.unsupported}`);
+                    } else {
+                        if (technique.passCount > 1) report.note('effect-extra-passes', `${effectEntry.rel} (${technique.name}): only pass ${passIndex} is drawn${technique.outline.some(Boolean) ? ' (its outline is not)' : ''}`);
+                        for (const a of pass.shader.approximations) report.note('effect-approximated', `${effectEntry.rel}: ${a}`);
+                        const shaderRel = outRef(`effects/${effectEntry.rel.replace(/^assets\//, '').replace(/\.effect$/, '')}.${technique.name}.${passIndex}.esshader`);
+                        writeText(shaderRel, pass.shader.source);
+                        const materialRel = outRef(`materials/${mat.rel.replace(/^assets\//, '').replace(/\.mtl$/, '')}.esmaterial`);
+                        const props = (json._props?.[passIndex] ?? json._props?.[0] ?? {}) as Record<string, unknown>;
+                        const properties: Record<string, unknown> = {};
+                        for (const param of pass.shader.params) {
+                            const v = props[param.name];
+                            if (v === undefined || v === null) continue;
+                            if (param.type === 'texture') {
+                                const u = typeof v === 'object' ? (v as { __uuid__?: string }).__uuid__ : undefined;
+                                const entry = u ? index.byUuid.get(u.split('@')[0]!) : undefined;
+                                if (entry) properties[param.name] = ctx.assetRef(entry);
+                            } else if (typeof v === 'number') {
+                                properties[param.name] = v;
+                            } else if (typeof v === 'object') {
+                                const o = v as Record<string, unknown>;
+                                if ('r' in o) {
+                                    const c = { r: numberOf(o.r, 255) / 255, g: numberOf(o.g, 255) / 255, b: numberOf(o.b, 255) / 255, a: numberOf(o.a, 255) / 255 };
+                                    properties[param.name] = param.type === 'color' ? c : { x: c.r, y: c.g, z: c.b, w: c.a };
+                                } else if ('x' in o) {
+                                    properties[param.name] = param.type === 'color'
+                                        ? { r: numberOf(o.x, 1), g: numberOf(o.y, 1), b: numberOf(o.z, 1), a: numberOf(o.w, 1) }
+                                        : { x: numberOf(o.x, 0), y: numberOf(o.y, 0), z: numberOf(o.z, 0), w: numberOf(o.w, 0) };
+                                }
+                            }
+                        }
+                        const switches: Record<string, boolean> = {};
+                        for (const [name, on] of Object.entries(json._defines?.[passIndex] ?? json._defines?.[0] ?? {})) if (pass.shader.switches.includes(name) && on) switches[name] = true;
+                        const state = json._states?.[passIndex] ?? json._states?.[0];
+                        const target = state?.blendState?.targets?.[0];
+                        let blendMode = pass.state.blendMode;
+                        if (target) {
+                            const src = FACTORS[target.blendSrc ?? 1], dst = FACTORS[target.blendDst ?? 0];
+                            blendMode = target.blend !== true ? 9 : src === 'src_alpha' && dst === 'one' ? 1 : src === 'one' && dst === 'one_minus_src_alpha' ? 4 : src === 'one' && dst === 'one' ? 5 : 0;
+                        }
+                        const cull = state?.rasterizerState?.cullMode;
+                        write(materialRel, {
+                            version: '1.0',
+                            type: 'material',
+                            shader: path.posix.relative(path.posix.dirname(materialRel), shaderRel),
+                            blendMode,
+                            depthTest: state?.depthStencilState?.depthTest ?? pass.state.depthTest,
+                            depthWrite: state?.depthStencilState?.depthWrite ?? pass.state.depthWrite,
+                            cull: cull === undefined ? pass.state.cull : cull === 0 ? 0 : cull === 1 ? 2 : 1,
+                            ...(Object.keys(switches).length > 0 ? { switches } : {}),
+                            properties,
+                        });
+                        report.note('effect-converted', `${effectEntry.rel} (${technique.name})`);
+                        result = { ref: materialRel };
+                    }
+                }
+            }
+        } catch {
+            result = null;
+        }
+        convertedMaterials.set(materialUuid, result);
+        return result;
+    };
+
     // A material says how its font page is read through the effect it uses; the outline effect mixes an outline colour in by the red channel.
     const bakes = new Map<string, boolean>();
     const materialBakesOutline = (materialUuid: string): boolean => {
@@ -659,8 +766,8 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
         }
     })();
     const digest = (text: string): string => createHash('sha1').update(text).digest('hex');
-    const write = (relPath: string, json: unknown): void => {
-        const text = `${JSON.stringify(json, null, 2)}\n`;
+    const write = (relPath: string, json: unknown): void => writeText(relPath, `${JSON.stringify(json, null, 2)}\n`);
+    function writeText(relPath: string, text: string): void {
         const file = path.join(out, relPath);
         const next = digest(text);
         const now = existsSync(file) ? digest(readFileSync(file, 'utf8')) : null;
@@ -674,7 +781,7 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
         }
         written[relPath] = next;
         if (!opts.dryRun && now !== next) writeOut(file, text);
-    };
+    }
 
     const byRel = new Map<string, CocosAssetEntry>();
     for (const e of index.byUuid.values()) byRel.set(e.rel, e);

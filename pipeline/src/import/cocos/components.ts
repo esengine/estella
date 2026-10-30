@@ -61,6 +61,8 @@ export interface ComponentContext {
     drawsBakedOutline?(materialUuid: string): boolean;
     /** What a Cocos material draws and how; null when the project has no such material. */
     material?(uuid: string): MaterialInfo | null;
+    /** The Estella material a Cocos material of the project's own effect became (its shader converted), by its project path; null when the effect could not be converted. */
+    convertedMaterial?(uuid: string): { ref: string } | null;
     /**
      * The engine MeshRenderer data of the part of a model a Cocos mesh sub-asset names, once that model was brought in. `exact` is false when
      * the part was picked because the model draws only one.
@@ -160,6 +162,13 @@ function sprite(c: CocosComponent, box: UiBox | null, ctx: ComponentContext, whe
     const ud = sub.userData;
     const kind = num(c.data._type, 0);
     let status: 'mapped' | 'partial' = 'mapped';
+    // The material the sprite is drawn with, when the project's own effect for it was converted.
+    const customMaterial = uuidOf(c.data._customMaterial) || uuidOf(Array.isArray(c.data._materials) ? c.data._materials[0] : undefined);
+    if (customMaterial) {
+        const converted = ctx.convertedMaterial?.(customMaterial);
+        if (converted) data.material = converted.ref;
+        else if (ctx.material?.(customMaterial)?.builtinEffect === false) { status = 'partial'; ctx.report.note('sprite-custom-effect', where); }
+    }
 
     const border: SliceBorder = {
         left: num(ud.borderLeft, 0),
@@ -607,14 +616,16 @@ function applyMaterial(data: Raw, c: CocosComponent, ctx: ComponentContext, wher
         return { found: false, exact: false };
     }
     delete data.material;
+    const converted = ctx.convertedMaterial?.(uuids[0]!);
+    if (converted) data.material = converted.ref;
     if (info.texture) data.texture = ctx.assetRef(info.texture);
     if (info.normal) data.normalMap = ctx.assetRef(info.normal);
     if (info.color) data.color = info.color;
     data.lit = !info.unlit;
     data.opaque = !info.transparent;
     data.cullBackfaces = info.cullBack;
-    let exact = info.builtinEffect;
-    if (!info.builtinEffect) ctx.report.note('mesh-custom-effect', where);
+    let exact = info.builtinEffect || converted !== null && converted !== undefined;
+    if (!exact) ctx.report.note('mesh-custom-effect', where);
     if (uuids.length > 1) {
         exact = false;
         ctx.report.note('mesh-several-materials', where);
