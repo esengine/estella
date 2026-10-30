@@ -3412,4 +3412,14 @@ export const NOTED = {
     {"note":"Rain for a 2D scene."},
   "feat(editor): make a prefab instance virtual from the inspector or the outliner":
     {"note":"Virtual prefab instances."},
+  "fix(shaders): an #if or #elif condition resolves in WGSL assembly and in the twin generator, so a lit material's WebGPU program no longer carries a directive into the source":
+    {"note":"Lit materials draw on WebGPU again."},
+  "fix(preview): a LAN preview may connect to any server, as Play may":
+    {"note":"A scanned preview reaches the game's own server."},
+  "fix(bundle): the official-package and Cocos resolvers step aside for one shared marker, so a subpath of an official package no longer resolves forever":
+    {"note":"A subpath of an official package resolves."},
+  "refactor(ui): the anchoring arithmetic is a module of its own, so the Cocos importer uses it without compiling the engine into the pipeline's typecheck":
+    {"internal":"a module split; the arithmetic and the component behave as before"},
+  "fix(cocos): a launched scene has its scripts loaded and enabled before its callback, and the scene before it goes; an instance's mounted components land on the prefab it names; Node.forward/up/right/worldMatrix and the rest of Vec2/Vec3/Quat/Color/Vec4/Mat4 a game calls":
+    {"note":"Cocos scripts drive scenes as the game does."},
 };
