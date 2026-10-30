@@ -239,7 +239,9 @@ function label(c: CocosComponent, siblings: CocosComponent[], box: UiBox | null,
         // Left/Center/Right and Top/Middle/Bottom number the same in both engines (0, 1, 2).
         align: clamp012(d._horizontalAlign),
         verticalAlign: clamp012(d._verticalAlign),
-        wordWrap: d._enableWrapText !== false,
+        // Cocos wraps only where the box limits the text: with no overflow rule (NONE) the node grows to the text and nothing wraps, and
+        // ResizeHeight wraps by width whatever the flag says.
+        wordWrap: overflow === 0 ? false : overflow === 3 ? true : d._enableWrapText !== false,
         overflow: overflow === 1 ? 1 : overflow === 2 ? 3 : overflow === 3 ? 4 : 0, // Clip, Shrink, ResizeHeight, otherwise Visible
         lineHeight: fontSize > 0 ? Math.round((lineHeight / fontSize) * 1000) / 1000 : 1.2,
         bold: d._isBold === true,
@@ -251,6 +253,12 @@ function label(c: CocosComponent, siblings: CocosComponent[], box: UiBox | null,
         data.boxWidth = box.width;
         data.boxHeight = box.height;
         data.boxPivot = { x: box.ax, y: box.ay };
+        // A node that grows to its text keeps its anchor where it was, so the text is laid out from the anchor: a run on a node anchored at
+        // its middle spreads both ways from there, whatever alignment the label names (the alignment only matters inside a box that limits it).
+        if (overflow === 0) {
+            data.align = box.ax <= 0.25 ? 0 : box.ax >= 0.75 ? 2 : 1;
+            data.verticalAlign = box.ay >= 0.75 ? 0 : box.ay <= 0.25 ? 2 : 1;
+        }
     }
     const fontUuid = uuidOf(d._font);
     if (d._isSystemFontUsed === false && fontUuid) {

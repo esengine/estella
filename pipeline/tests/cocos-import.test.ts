@@ -193,6 +193,8 @@ describe('importing a Cocos project', () => {
             content: 'hello', fontSize: 20, align: 1, verticalAlign: 1, overflow: 0, font: 'assets/cocos/ui/f.fnt',
             // the Label's UITransform becomes its layout box, with the node origin at the anchor
             boxWidth: 80, boxHeight: 20, boxPivot: { x: 0.5, y: 0.5 },
+            // no overflow rule: the node grows to its text, so nothing wraps in the box and the run is laid out from the anchor
+            wordWrap: false,
         });
         const written = [...files(out)].map((f) => path.relative(out, f).split(path.sep).join('/'));
         expect(written, written.join(',')).toContain('assets/cocos/ui/f_0.png');
