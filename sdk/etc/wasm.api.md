@@ -542,6 +542,7 @@ renderer_setShadow2DSoftSamples: ((samples: number) => void) | undefined
 renderer_setShadowDistance: ((distance: number) => void) | undefined
 renderer_setStage: (stage: number) => void
 renderer_setTextureParams: (textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number) => void
+renderer_setTreeSortLayers: ((mask: number) => void) | undefined
 renderer_setViewId: ((view: number) => void) | undefined
 renderer_setViewLighting: ((mode: number, rotationDegrees: number, keyIntensity: number, fillIntensity: number, skyIntensity: number, showSky: boolean) => void) | undefined
 renderer_setViewShading: ((view: number, mode: number) => void) | undefined

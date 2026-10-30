@@ -2419,6 +2419,40 @@ TEST_CASE("depth layer: y-sort wins when a layer declares both") {
     CHECK(h.list.layerOrder(5) == DrawList::LayerOrder::Painter);
 }
 
+// A layer painted in tree order stacks its draws as their entities stand in the hierarchy walk, whatever they are drawn with: a label
+// (one shader) of a panel underneath must land below the image (another) of the panel above, which shader order cannot give.
+TEST_CASE("tree layer: draws stack by their entity's place in the walk, not by shader") {
+    Harness h;
+    h.list.setTreeMask(1u << 4);
+    // entity index 1 stands later in the walk than index 2
+    h.list.setTreeSequence({0u, 2u, 1u});
+    BatchVertex quad[4] = {};
+
+    BatchDrawKey later = quadKey(1, /*layer=*/4);
+    later.entity = Entity::fromRaw(1);
+    later.shaderId = 3;   // shader order alone would draw this one first
+    BatchDrawKey earlier = quadKey(2, /*layer=*/4);
+    earlier.entity = Entity::fromRaw(2);
+    earlier.shaderId = 9;
+
+    appendQuad(h.pool, h.list, h.clips, quad, later);
+    appendQuad(h.pool, h.list, h.clips, quad, earlier);
+    h.list.finalize(h.pool);
+
+    CHECK(h.list.layerOrder(4) == DrawList::LayerOrder::Tree);
+    REQUIRE(h.list.mergedDrawCallCount() == 2);
+    CHECK(h.list.command(0).texture_ids[0] == 2);
+    CHECK(h.list.command(1).texture_ids[0] == 1);
+}
+
+// Y-sort is a stated order of its own; a layer asking for both keeps the one it had before tree order existed.
+TEST_CASE("tree layer: y-sort wins when a layer declares both") {
+    Harness h;
+    h.list.setYSortMask(1u << 4);
+    h.list.setTreeMask(1u << 4);
+    CHECK(h.list.layerOrder(4) == DrawList::LayerOrder::YSort);
+}
+
 // ─── Order within a layer ────────────────────────────────────────────────────
 // The author's explicit answer to "what is on top of what", inside one layer. Each case
 // below is one the layer's own ordering gets wrong on purpose, so it measures an override.

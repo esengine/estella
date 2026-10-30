@@ -291,6 +291,8 @@ public:
 
     /// Layers (bits 0..31) that sort by world Y within the layer — see DrawList::setYSortMask.
     void setYSortLayers(u32 mask) { draw_list_.setYSortMask(mask); }
+    /// Layers (bits 0..31) that paint in hierarchy order within the layer — see DrawList::setTreeMask.
+    void setTreeSortLayers(u32 mask) { draw_list_.setTreeMask(mask); }
     void setDepthLayers(u32 mask) {
         draw_list_.setDepthMask(mask);
         // Through the one applier: the mask is no longer the whole answer, only
@@ -669,6 +671,8 @@ private:
     void buildSpriteMasks(ecs::Registry& registry);
     /// Resolves every SortingGroup into the per-entity identity the draw path reads.
     void buildSortingGroups(ecs::Registry& registry);
+    /// The hierarchy position of every entity, for the layers that paint in tree order (DrawList::setTreeMask).
+    void buildTreeSequence(ecs::Registry& registry);
     /// Adds a finalized list's cost to this frame's tally (see the definition).
     void accumulateStats(const DrawList& list);
     /// The overlay pass's body: the projection its geometry was built for, then

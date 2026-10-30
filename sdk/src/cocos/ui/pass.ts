@@ -15,6 +15,7 @@ import { setCurrentWorld } from '../node';
 import { declareWidget } from './widget';
 import { rectAnchorsPlugin, setRectAnchorsScreenFallback } from '../../ui/layout/rect-anchors';
 import { SystemLabel } from '../../ecs/systemLabels';
+import { Renderer } from '../../render/renderer';
 import { getDefaultContext } from '../../ecs/context';
 import { layoutAll, declareLayout } from './layout';
 import { declareControls } from './controls';
@@ -32,6 +33,9 @@ function screenOrVisible(screen: ScreenLayoutData | undefined): ScreenLayoutData
     const halfW = v.width / 2, halfH = v.height / 2;
     return { valid: true, left: -halfW, right: halfW, bottom: -halfH, top: halfH, safeLeft: -halfW, safeRight: halfW, safeBottom: -halfH, safeTop: halfH, scale: 1, viewportW: v.width, viewportH: v.height };
 }
+
+/** Cocos's UI_2D layer, as a bit of the engine's layer mask. */
+const TREE_ORDERED_LAYERS = (1 << 25) >>> 0;
 
 export function declareUiPass(): void {
     declareWidget();
@@ -60,6 +64,9 @@ export function declareUiPass(): void {
     addSystemToSchedule(Schedule.PreUpdate, defineSystem(
         [Res(UICameraInfo), Res(ScreenLayout), Res(ScreenScaling)],
         (camera, screen: ScreenLayoutData | undefined, scaling: ScreenScalingData | undefined) => {
+            // Cocos paints a layer's nodes in hierarchy order, a label no different from an image: a popup covers the text of the view under
+            // it. The UI layer is therefore painted in tree order, which is a setting of the renderer and so is stated where the pass is.
+            Renderer.setTreeSortLayers(TREE_ORDERED_LAYERS);
             if (scaling) setProjectDesign(scaling.designWidth, scaling.designHeight, scaling.scaleMode);
             setUiCameraData(camera ?? null);
             setScreenLayout(screenOrVisible(screen));

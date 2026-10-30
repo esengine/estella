@@ -96,6 +96,9 @@ void pushBatchDraw(DrawList& drawList, const ClipState& clips,
     cmd.sort_key = resolve == DrawList::LayerOrder::YSort
         ? DrawCommand::buildSortKeyYSorted(stage, layer, key.y, key.shaderId,
                                            key.blend, 0, order)
+        : resolve == DrawList::LayerOrder::Tree
+        ? DrawCommand::buildSortKeyTree(stage, layer, drawList.treeSequenceOf(key.entity), key.shaderId,
+                                        key.blend, 0, order)
         : DrawCommand::buildSortKey(stage, layer, key.shaderId,
                                     key.blend, 0, key.depth, key.materialId, order,
                                     key.instanceCount != 0 && key.vertexBuffer != BufferHandle::Invalid

@@ -188,6 +188,8 @@ export const RENDERER_OPTIONAL_BINDINGS = {
     setOrigin: 'es_renderer_setOrigin',
     /** 2.5D depth layers; hosts predating the feature simply stay painter-ordered. */
     setDepthLayers: 'es_renderer_setDepthLayers',
+    /** Layers painted in hierarchy order (cocos compat); hosts predating it paint them as before. */
+    setTreeSortLayers: 'es_renderer_setTreeSortLayers',
     /** Camera culling mask; hosts predating it draw every layer, as they always did. */
     setCullingMask: 'es_renderer_setCullingMask',
     /** Closes the frame. A host predating it released the swapchain image at

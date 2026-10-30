@@ -73,6 +73,7 @@ export interface RendererBackend {
     setViewport(x: number, y: number, w: number, h: number): void;
     setYSortLayers(mask: number): void;
     setDepthLayers(mask: number): void;
+    setTreeSortLayers(mask: number): void;
     setCullingMask(mask: number): void;
     setViewId(view: number): void;
     lodInspect(view: number, entity: number): LodDecision | null;
@@ -250,6 +251,7 @@ function wasmBackend(m: ESEngineModule): RendererBackend {
         setViewport: (x, y, w, h) => m.renderer_setViewport(x, y, w, h),
         setYSortLayers: (mask) => m.renderer_setYSortLayers?.(mask >>> 0),
         setDepthLayers: (mask) => m.renderer_setDepthLayers?.(mask >>> 0),
+        setTreeSortLayers: (mask) => m.renderer_setTreeSortLayers?.(mask >>> 0),
         setCullingMask: (mask) => m.renderer_setCullingMask?.(mask >>> 0),
         setViewId: (view) => m.renderer_setViewId?.(view >>> 0),
         lodInspect: (view, entity) => {
@@ -660,6 +662,15 @@ export const Renderer = {
      */
     setDepthLayers(mask: number): void {
         backend?.setDepthLayers(mask);
+    },
+
+    /**
+     * Layers (bits 0..31) whose draws are painted in hierarchy order: a sprite, a label and a shape stack as their entities do in the tree
+     * (a preorder walk), instead of by shader and depth. The order a scene of nodes has in an authoring tool, and the one in which a panel
+     * covers the text of the panel under it.
+     */
+    setTreeSortLayers(mask: number): void {
+        backend?.setTreeSortLayers(mask);
     },
 
     /**

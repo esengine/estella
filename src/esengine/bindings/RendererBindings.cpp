@@ -1243,6 +1243,10 @@ void renderer_setYSortLayers(u32 mask) {
     if (auto* frame = g_renderFrame) frame->setYSortLayers(mask);
 }
 
+void renderer_setTreeSortLayers(u32 mask) {
+    if (auto* frame = g_renderFrame) frame->setTreeSortLayers(mask);
+}
+
 // The 2.5D opt-in, per sorting layer. Same shape as setYSortLayers because it is
 // the same kind of declaration: how a layer resolves the draws inside it.
 void renderer_setQualityBudgets(u32 atlasSize, u32 cellSize, u32 cascades, u32 particleLimit) {

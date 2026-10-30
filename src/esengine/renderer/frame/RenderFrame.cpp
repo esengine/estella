@@ -1320,6 +1320,39 @@ void RenderFrame::buildSortingGroups(ecs::Registry& registry) {
     }
 }
 
+void RenderFrame::buildTreeSequence(ecs::Registry& registry) {
+    if (draw_list_.treeMask() == 0) {
+        draw_list_.clearTreeSequence();
+        return;
+    }
+    // One preorder walk over every tree of the world: a root is an entity with no live parent, taken in storage order (which is the painter's
+    // order of roots), and its children follow in their list order. The same order a scene's nodes stack in.
+    std::vector<u32> sequence;
+    u32 counter = 1;
+    std::vector<Entity> pending;
+    auto walk = [&](Entity root) {
+        pending.push_back(root);
+        while (!pending.empty()) {
+            const Entity entity = pending.back();
+            pending.pop_back();
+            if (!registry.valid(entity)) continue;
+            const u32 index = entity.index();
+            if (index >= sequence.size()) sequence.resize(index + 1, 0u);
+            sequence[index] = counter++;
+            const auto* children = registry.tryGet<ecs::Children>(entity);
+            if (!children) continue;
+            for (auto child = children->entities.rbegin(); child != children->entities.rend(); ++child) pending.push_back(*child);
+        }
+    };
+    auto transforms = registry.view<ecs::Transform>();
+    for (auto entity : transforms) {
+        const auto* parent = registry.tryGet<ecs::Parent>(entity);
+        if (parent && parent->entity != INVALID_ENTITY && registry.valid(parent->entity)) continue;
+        walk(entity);
+    }
+    draw_list_.setTreeSequence(std::move(sequence));
+}
+
 void RenderFrame::buildSpriteMasks(ecs::Registry& registry) {
     // 255 is the stencil attachment's, not a budget: refs are per FRAME and a mask past
     // the last one is dropped rather than aliased onto another mask's cut.
@@ -2523,7 +2556,7 @@ void RenderFrame::collectAll(ecs::Registry& registry, bool sceneGBuffer) {
     // gathering lights and walking one render type's population are different
     // work that a single total cannot be told apart by.
     { ES_PROFILE_SCOPE("render.collect.clip"); buildClipState(); }
-    { ES_PROFILE_SCOPE("render.collect.sorting"); buildSortingGroups(registry); }
+    { ES_PROFILE_SCOPE("render.collect.sorting"); buildSortingGroups(registry); buildTreeSequence(registry); }
     // After the groups, because a mask's reach is stated in the order a group may own.
     { ES_PROFILE_SCOPE("render.collect.spriteMasks"); buildSpriteMasks(registry); }
     { ES_PROFILE_SCOPE("render.collect.lights"); collectLights(registry); }

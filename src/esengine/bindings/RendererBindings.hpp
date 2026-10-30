@@ -270,6 +270,7 @@ void engine_prepareMeshPrograms(u32 rowsPtr, u32 count, u32 outPtr);
 void renderer_setClearColor(f32 r, f32 g, f32 b, f32 a);
 void renderer_setViewport(i32 x, i32 y, i32 w, i32 h);
 void renderer_setYSortLayers(u32 mask);
+void renderer_setTreeSortLayers(u32 mask);
 /** 2.5D opt-in: bit i ⇒ layer i resolves by real depth. Same shape as y-sort. */
 void renderer_setDepthLayers(u32 mask);
 /** Sorting layers the next collect draws (bit i = layer i). Set per camera. */

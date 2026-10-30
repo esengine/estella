@@ -175,6 +175,11 @@ describe('resources and assetManager', () => {
         // an image needs the engine's loader to become a texture, and says so when there is none
         const texture = await load<unknown>((cb) => resources.load('icon/gold', cb));
         expect(texture.err?.message).toMatch(/asset loader/);
+        // the sprite frame and the texture of an image are named by a suffix on its path, and are found as the image is
+        const frame = await load<unknown>((cb) => resources.load('icon/gold/spriteFrame', cb));
+        expect(frame.err?.message).toMatch(/asset loader/);
+        const asTexture = await load<unknown>((cb) => resources.load('icon/gold/texture', cb));
+        expect(asTexture.err?.message).toMatch(/asset loader/);
     });
 
     it('has bundles by name, from the manifest', async () => {

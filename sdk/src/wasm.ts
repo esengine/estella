@@ -714,6 +714,7 @@ export interface ESEngineModule {
     /** Bitmask of layers 0..31 that y-sort within the layer (top-down occlusion). */
     renderer_setYSortLayers?(mask: number): void;
     renderer_setDepthLayers?(mask: number): void;
+    renderer_setTreeSortLayers?(mask: number): void;
     renderer_setQualityBudgets?(atlasSize: number, cellSize: number,
         cascades: number, particleLimit: number): void;
     renderer_setShadowDistance?(distance: number): void;

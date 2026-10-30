@@ -218,6 +218,7 @@ export interface NativeEngineApi {
     renderer_setColorSpace?(linear: number): void;
     renderer_setCullingMask?(mask: number): void;
     renderer_setDepthLayers?(mask: number): void;
+    renderer_setTreeSortLayers?(mask: number): void;
     renderer_setDepthPrepass?(on: boolean): void;
     renderer_setEntityDrawOrder?(registry: unknown, entitiesPtr: number, count: number): void;
     renderer_setLodPreview?(view: number, entity: number, level: number): void;
@@ -555,6 +556,7 @@ export function createNativeEngineApi(
     bind('renderer_setColorSpace', 'es_renderer_setColorSpace', false);
     bind('renderer_setCullingMask', 'es_renderer_setCullingMask', false);
     bind('renderer_setDepthLayers', 'es_renderer_setDepthLayers', false);
+    bind('renderer_setTreeSortLayers', 'es_renderer_setTreeSortLayers', false);
     bind('renderer_setDepthPrepass', 'es_renderer_setDepthPrepass', false);
     bind('renderer_setEntityDrawOrder', 'es_renderer_setEntityDrawOrder', true);
     bind('renderer_setLodPreview', 'es_renderer_setLodPreview', false);

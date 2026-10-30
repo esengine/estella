@@ -125,6 +125,20 @@ public:
     void setYSortMask(u32 mask) { ysort_mask_ = mask; }
     u32 ySortMask() const { return ysort_mask_; }
 
+    // Bit i set ⇒ layer i (0..31) is painted in TREE order: its draws sort by where their entity stands in the hierarchy (a preorder walk,
+    // children in their list order), whatever they are — a sprite, a label, a shape. That is how a scene of nodes is stacked in an authoring
+    // tool that has no per-material or per-depth ordering, and it is the only order in which a panel can cover the text of the panel
+    // beneath it: ordered by shader, every label would land above every image of the layer.
+    void setTreeMask(u32 mask) { tree_mask_ = mask; }
+    u32 treeMask() const { return tree_mask_; }
+    /// The preorder position of each entity, by entity index. Rebuilt once per collect, only while a layer is tree-ordered.
+    void setTreeSequence(std::vector<u32>&& sequence) { tree_sequence_ = std::move(sequence); }
+    void clearTreeSequence() { tree_sequence_.clear(); }
+    u32 treeSequenceOf(Entity entity) const {
+        const u32 index = entity.index();
+        return index < tree_sequence_.size() ? tree_sequence_[index] : 0u;
+    }
+
     // Bit i set ⇒ layer i resolves its contents by real depth: opaque draws write
     // the depth buffer and sort front-to-back, blended ones test against it without
     // writing and stay in painter's order. This is the 2.5D opt-in.
@@ -158,7 +172,7 @@ public:
     }
 
     /** @brief How one sorting layer resolves the draws inside it. */
-    enum class LayerOrder : u8 { Painter, YSort, Depth };
+    enum class LayerOrder : u8 { Painter, YSort, Depth, Tree };
 
     /**
      * @brief The one answer for @p layer, from two masks that are two spellings of
@@ -175,6 +189,8 @@ public:
         if (layer < 0 || layer >= 32) return LayerOrder::Painter;
         const u32 bit = 1u << layer;
         if (ysort_mask_ & bit) return LayerOrder::YSort;
+        // Tree order is a stated painter's order and depth is a measured one; a layer saying both has asked for the stated one.
+        if (tree_mask_ & bit) return LayerOrder::Tree;
         if (depth_mask_ & bit) return LayerOrder::Depth;
         return LayerOrder::Painter;
     }
@@ -276,6 +292,8 @@ private:
     /// Members of a SortingGroup, by entity id — empty in the common frame.
     std::unordered_map<u32, GroupIdentity> group_identities_;
     u32 ysort_mask_ = 0;
+    u32 tree_mask_ = 0;
+    std::vector<u32> tree_sequence_;
     u32 depth_mask_ = 0;
     /// Any command pushed this collect that tests or writes depth — see needsDepth.
     bool depth_required_ = false;

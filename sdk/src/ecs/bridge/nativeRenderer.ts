@@ -129,6 +129,10 @@ export function createNativeRendererBackend(
             const fn = scope[RENDERER_OPTIONAL_BINDINGS.setDepthLayers];
             if (typeof fn === 'function') (fn as (m: number) => void)(mask >>> 0);
         },
+        setTreeSortLayers: (mask): void => {
+            const fn = scope[RENDERER_OPTIONAL_BINDINGS.setTreeSortLayers];
+            if (typeof fn === 'function') (fn as (m: number) => void)(mask >>> 0);
+        },
         setCullingMask: (mask): void => {
             const fn = scope[RENDERER_OPTIONAL_BINDINGS.setCullingMask];
             if (typeof fn === 'function') (fn as (m: number) => void)(mask >>> 0);

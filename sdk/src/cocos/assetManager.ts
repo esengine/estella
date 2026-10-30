@@ -28,6 +28,8 @@ export interface ResourceEntry {
     kind: string;
     /** The Cocos uuid of the asset, which `loadAny({ uuid })` names it by. */
     uuid?: string;
+    /** For a sub-asset of an image named by a path suffix (`icon/spriteFrame`): which asset of the file it is. @internal */
+    as?: 'SpriteFrame' | 'Texture2D';
 }
 export type ResourceManifest = Record<string, Record<string, ResourceEntry>>;
 
@@ -103,7 +105,8 @@ function named<T extends Asset>(asset: T, entry: ResourceEntry): T {
 /** An asset of a kind the layer does not load: not a fault of the asset, so a directory load goes on without it. */
 export class UnsupportedAssetKind extends Error {}
 
-async function loadEntry(entry: ResourceEntry, type: AssetCtor | null): Promise<Asset> {
+async function loadEntry(entry: ResourceEntry, asked: AssetCtor | null): Promise<Asset> {
+    const type = asked ?? (entry.as === 'SpriteFrame' ? SpriteFrame : entry.as === 'Texture2D' ? Texture2D : null);
     const assets = assetsFor(getCurrentWorld());
     switch (entry.kind) {
         case 'prefab': {
@@ -164,8 +167,13 @@ export class Bundle {
     private async entry_(path: string): Promise<ResourceEntry> {
         const entries = await this.entries_();
         const found = entries[stripExt(path)] ?? entries[path];
-        if (!found) throw new Error(`cocos compat: bundle "${this.name}" has no asset "${path}"`);
-        return found;
+        if (found) return found;
+        // An image is one file here and three assets in Cocos: the image (`icon`), its texture (`icon/texture`) and its sprite frame
+        // (`icon/spriteFrame`). The suffix names which one a script wants, and the file is the same.
+        const sub = /^(.*)\/(spriteFrame|texture)$/.exec(path);
+        const image = sub ? entries[sub[1]!] : undefined;
+        if (sub && image?.kind === 'texture') return { ...image, as: sub[2] === 'spriteFrame' ? 'SpriteFrame' : 'Texture2D' };
+        throw new Error(`cocos compat: bundle "${this.name}" has no asset "${path}"`);
     }
 
     load(...args: unknown[]): void {
@@ -176,7 +184,7 @@ export class Bundle {
             const out: Asset[] = [];
             for (let i = 0; i < list.length; i++) {
                 const entry = await this.entry_(list[i]!);
-                const key = `${this.name}/${entry.path}`;
+                const key = `${this.name}/${entry.path}#${entry.as ?? type?.name ?? ''}`;
                 let asset = loaded.get(key);
                 if (!asset) loaded.add(key, (asset = named(await loadEntry(entry, type), entry)));
                 out.push(asset);
@@ -200,7 +208,7 @@ export class Bundle {
             for (let i = 0; i < keys.length; i++) {
                 const entry = entries[keys[i]!]!;
                 try {
-                    const key = `${this.name}/${entry.path}`;
+                    const key = `${this.name}/${entry.path}#${entry.as ?? type?.name ?? ''}`;
                     let asset = loaded.get(key);
                     if (!asset) loaded.add(key, (asset = named(await loadEntry(entry, type), entry)));
                     out.push(asset);

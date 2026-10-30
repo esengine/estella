@@ -318,6 +318,24 @@ struct DrawCommand {
         return stageKey | layerKey | orderBits(order) | yKey | shaderKey | blendKey | flagsKey;
     }
 
+    // Tree-ordered variant: the entity's place in the hierarchy walk takes the field worldY has in a y-sorted layer, so draws of every kind
+    // stack as their nodes do, and shader/blend/flags only separate what shares a node.
+    static u64 buildSortKeyTree(RenderStage stage, i32 layer, u32 sequence,
+                                u32 shaderId, BlendMode blend, u16 stateFlags,
+                                i32 order = 0) {
+        i32 normalizedLayer = std::clamp(layer + 32768, 0, 65535);
+        u64 layerKey = static_cast<u64>(normalizedLayer & 0xFFFF) << 48;
+
+        u64 stageKey = static_cast<u64>(stage) << 38;
+        u64 sequenceKey = static_cast<u64>(sequence & 0xFFFFFF) << 14;
+
+        u64 shaderKey = static_cast<u64>(shaderId & 0xFF) << 6;
+        u64 blendKey = blendBits(blend) << 3;
+        u64 flagsKey = static_cast<u64>(stateFlags & 0x03) << 1;
+
+        return stageKey | layerKey | orderBits(order) | sequenceKey | shaderKey | blendKey | flagsKey;
+    }
+
     /** @brief Finds @p texId in this command's texture set, adds it (returns its slot), or
      *         -1 if the set is full. Used by the merge to assign per-vertex sampler slots.
      *         @p limit is how many slots the merge may spend: a frame with a 2D shadow
