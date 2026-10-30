@@ -3422,4 +3422,6 @@ export const NOTED = {
     {"internal":"a module split; the arithmetic and the component behave as before"},
   "fix(cocos): a launched scene has its scripts loaded and enabled before its callback, and the scene before it goes; an instance's mounted components land on the prefab it names; Node.forward/up/right/worldMatrix and the rest of Vec2/Vec3/Quat/Color/Vec4/Mat4 a game calls":
     {"note":"Cocos scripts drive scenes as the game does."},
+  "fix(render): a material mesh reads its own tangents on WebGL again":
+    {"internal":"undoes a regression from after 0.96.0 that no release carried"},
 };
