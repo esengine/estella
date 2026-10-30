@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { parseEffect, describeEffect } from '../src/import/cocos/effects';
-import { convertEffect } from '../src/import/cocos/effectConvert';
+import { convertEffect, convertPass, pruneUnreachable } from '../src/import/cocos/effectConvert';
 
 const SPRITE_ADD = `
 CCEffect %{
@@ -65,6 +65,22 @@ CCProgram sprite-fs %{
 }%
 `;
 
+// The Creator install's own chunk, which a project has no copy of: the alpha test applies only where the effect switches USE_ALPHA_TEST on.
+const ALPHA_TEST_CHUNK = `
+#if USE_ALPHA_TEST
+  uniform ALPHA_TEST_DATA {
+    float alphaThreshold;
+  };
+#endif
+void ALPHA_TEST (in vec4 color) {
+  #if USE_ALPHA_TEST
+    if (color.a < alphaThreshold) discard;
+  #endif
+}
+`;
+const chunk = (name: string): string | null => (name === 'builtin/internal/alpha-test' ? ALPHA_TEST_CHUNK : null);
+const convertWithChunks = (effect: ReturnType<typeof parseEffect>, stem: string) => convertEffect(effect, stem, { chunk });
+
 describe('reading an effect', () => {
     it('reads its techniques, passes and properties, and its programs', () => {
         const effect = parseEffect(SPRITE_ADD);
@@ -85,7 +101,7 @@ describe('reading an effect', () => {
 });
 
 describe('converting a pass', () => {
-    const pass = convertEffect(parseEffect(SPRITE_ADD), 'sprite-add').techniques[0]!.passes[0]!;
+    const pass = convertWithChunks(parseEffect(SPRITE_ADD), 'sprite-add').techniques[0]!.passes[0]!;
 
     it('turns the Constant block and the samplers into parameters, with the effect\'s defaults', () => {
         expect(pass.unsupported).toBeNull();
@@ -107,16 +123,31 @@ describe('converting a pass', () => {
     });
 
     it('makes the macros it branches on switches, asked as defined() because an undefined name is an error in GLSL ES', () => {
-        expect(pass.shader!.switches).toEqual(['USE_GLOW', 'USE_TINT']);
+        expect(pass.shader!.switches).toEqual(['USE_ALPHA_TEST', 'USE_GLOW', 'USE_TINT']);
         const source = pass.shader!.source;
         expect(source).toContain('#pragma switch USE_GLOW default(off)');
         expect(source).toContain('#if defined(USE_GLOW)');
         expect(source).toContain('#if !defined(USE_GLOW) && defined(USE_TINT)');
     });
 
-    it('gives the alpha test its threshold as a parameter', () => {
-        expect(pass.shader!.source).toContain('#pragma param alphaThreshold float default(0.5)');
-        expect(pass.shader!.source).toContain('#define ALPHA_TEST(c) if ((c).a < alphaThreshold) discard;');
+    it('reads the alpha test from the install chunk, so it applies only where the effect switches it on', () => {
+        const source = pass.shader!.source;
+        expect(source).toContain('#pragma param alphaThreshold float default(0.5)');
+        expect(source).toContain('#if defined(USE_ALPHA_TEST)');
+        expect(source).toContain('void ALPHA_TEST (in vec4 color)');
+        expect(source).not.toContain('#define ALPHA_TEST(c)');
+    });
+
+    it('has no switches when a material fixes its macros: they are baked in, and what is off is not defined', () => {
+        const effect = parseEffect(SPRITE_ADD);
+        const baked = convertPass(effect, effect.techniques[0]!.passes[0]!, 'baked', { chunk }, { USE_GLOW: true, USE_TINT: false });
+        expect(baked.unsupported).toBeNull();
+        const source = baked.shader!.source;
+        expect(baked.shader!.switches).toEqual([]);
+        expect(source).not.toContain('#pragma switch');
+        expect(source).toContain('#define USE_GLOW 1');
+        expect(source).not.toContain('#define USE_TINT');
+        expect(source).not.toContain('#define USE_ALPHA_TEST');
     });
 
     it('maps the pass\'s blend, depth and cull state', () => {
@@ -128,7 +159,8 @@ describe('a pass whose vertex program does more than place the vertex', () => {
     const SWAY = SPRITE_ADD.replace('vec4 pos = cc_matViewProj * vec4(a_position, 1);', 'vec4 pos = cc_matViewProj * vec4(a_position + vec3(sin(cc_time.x), 0, 0), 1);');
 
     it('is converted with its displacement as the material vertex hook, and that hook translates for WebGPU as well', async () => {
-        const swayed = convertEffect(parseEffect(SWAY), 'sway').techniques[0]!.passes[0]!;
+        const effect = parseEffect(SWAY);
+        const swayed = convertPass(effect, effect.techniques[0]!.passes[0]!, 'sway', { chunk }, {});
         expect(swayed.unsupported).toBeNull();
         const source = swayed.shader!.source;
         expect(source).toContain('#pragma vertexoffset');
@@ -153,15 +185,39 @@ describe('a pass whose vertex program does more than place the vertex', () => {
 
     it('is not converted when its vertex program skins the mesh', () => {
         const skinned = SPRITE_ADD.replace('in vec4 a_color;', 'in vec4 a_color;\n  in vec4 a_joints;');
-        const converted = convertEffect(parseEffect(skinned), 'skin').techniques[0]!.passes[0]!;
+        const converted = convertWithChunks(parseEffect(skinned), 'skin').techniques[0]!.passes[0]!;
         expect(converted.shader).toBeNull();
         expect(converted.unsupported).toMatch(/a_joints|skins/);
     });
 
     it('is not converted when its fragment reads something the vertex stage does not supply', () => {
         const odd = SPRITE_ADD.replace('in vec2 uv0;\n  uniform sampler2D', 'in vec2 uv0;\n  in vec3 v_barycentric;\n  uniform sampler2D');
-        const converted = convertEffect(parseEffect(odd), 'odd').techniques[0]!.passes[0]!;
+        const converted = convertWithChunks(parseEffect(odd), 'odd').techniques[0]!.passes[0]!;
         expect(converted.shader).toBeNull();
         expect(converted.unsupported).toContain('v_barycentric');
+    });
+});
+
+describe('what an entry does not reach', () => {
+    it('is dropped, so a function of another entry that reads what this pass never declares cannot stop the shader', () => {
+        const source = [
+            'uniform float k;',
+            'float helper(float x) { return x * k; }',
+            'vec4 other() { return vec4(undeclaredName); }',
+            'vec4 cocos_frag() {',
+            '  if (k > 0.0) { return vec4(helper(1.0)); }',
+            '  return vec4(0.0);',
+            '}',
+        ].join('\n');
+        const pruned = pruneUnreachable(source, ['cocos_frag']);
+        expect(pruned).toContain('float helper(float x)');
+        expect(pruned).toContain('vec4 cocos_frag()');
+        expect(pruned).not.toContain('undeclaredName');
+        expect(pruned).toContain('uniform float k;');
+    });
+
+    it('keeps what a macro or a declaration outside the functions names', () => {
+        const source = ['float a() { return 1.0; }', '#define USE_A a()', 'vec4 cocos_frag() { return vec4(USE_A); }'].join('\n');
+        expect(pruneUnreachable(source, ['cocos_frag'])).toContain('float a()');
     });
 });

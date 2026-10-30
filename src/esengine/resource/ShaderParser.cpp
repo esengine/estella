@@ -272,6 +272,9 @@ std::string wgslCanonicalVSOut(bool lit) {
         // is the material's, as all of its shading is.
         "#ifdef MESH_LIGHTMAP\n"
         "    @location(5) v_lightmap : vec3f,\n"
+        // The mesh's own second uv set, as authored: what a material that is not a bake reads it for (a mask, a dissolve map). The vertices carry it
+        // whenever MESH_LIGHTMAP is on, which is what that feature says.
+        "    @location(9) v_texCoord1 : vec2f,\n"
         "#endif\n";
     if (lit) {
         // Which run of coefficients this instance reads. Flat: an index, not a
@@ -429,6 +432,7 @@ std::string canonicalVertexStageWGSL(bool lit, const std::string& hook = {}) {
         "    let lmRect = esInstanceLightmapRect();\n"
         "    out.v_lightmap = vec3f(v.a_texCoord1 * lmRect.xy + lmRect.zw,\n"
         "                           select(0.0, 1.0, lmRect.x > 0.0));\n"
+        "    out.v_texCoord1 = v.a_texCoord1;\n"
         "#endif\n";
     if (lit) {
         src += "    out.v_worldPos = world.xy;\n";
@@ -577,6 +581,7 @@ std::string canonicalVertexStage(bool lit, const std::string& hook = {}) {
         "#endif\n"
         "#ifdef MESH_LIGHTMAP\n"
         "out highp vec3 v_lightmap;\n"
+        "out highp vec2 v_texCoord1;\n"
         "#endif\n";
     if (lit) {
         src += "out highp vec2 v_worldPos;\n";
@@ -662,6 +667,7 @@ std::string canonicalVertexStage(bool lit, const std::string& hook = {}) {
         "    highp vec4 lmRect = esInstanceLightmapRect();\n"
         "    v_lightmap = vec3(a_texCoord1 * lmRect.xy + lmRect.zw,\n"
         "                      lmRect.x > 0.0 ? 1.0 : 0.0);\n"
+        "    v_texCoord1 = a_texCoord1;\n"
         "#endif\n";
     if (lit) {
         src += "    v_worldPos = world.xy;\n";

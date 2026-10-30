@@ -11,6 +11,7 @@
 import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, linkSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { isInsideRoot } from '../../fs/pathSandbox';
 import { buildScriptIndex } from './scripts';
 import { buildCocosAssetIndex, cocosEditorAssets, INTERNAL_FOLDER, type CocosAssetEntry, type CocosAssetIndex } from './assets';
@@ -22,15 +23,15 @@ import { CocosModels, clipOf, clipPlayOf, mintSidecar, retargetClip } from './mo
 import { convertAnimationClip } from './animationClip';
 import { convertAnimationGraph } from './animationGraph';
 import type { MaterialInfo } from './components';
-import { parseEffect } from './effects';
-import { convertEffect, isOutlinePass, type PassConversion } from './effectConvert';
+import { parseEffect, type CocosEffect, type EffectPass } from './effects';
+import { convertPass, isOutlinePass, type PassConversion } from './effectConvert';
 
 /**
  * The revision of what an import writes. It is recorded in the state file; a converted project whose record is older was written by an
  * importer that made less (or differently), and is brought up to date when it is opened. Raise it when the converted output changes in a
  * way an existing project needs to pick up: a new generated file, a field a document or a manifest now carries.
  */
-export const COCOS_IMPORT_REVISION = 5;
+export const COCOS_IMPORT_REVISION = 6;
 
 /** Whether the project at @p projectRoot was written by an importer of this revision. A project that was not converted has nothing to bring up. */
 export function cocosImportIsCurrent(projectRoot: string): boolean {
@@ -59,7 +60,7 @@ export interface CocosImportOptions {
 
 /** Where an import is: the step it is in and how many of that step's items are done. */
 export interface CocosImportProgress {
-    stage: 'index' | 'prefabs' | 'scenes' | 'textures' | 'finish';
+    stage: 'index' | 'shaders' | 'prefabs' | 'scenes' | 'textures' | 'finish';
     done: number;
     total: number;
     /** The document or asset being worked on, when there is one. */
@@ -169,6 +170,48 @@ function writeClassNames(out: string, entry: string, assetsDir: string, scripts:
 function startSceneOf(scenes: readonly string[]): string | undefined {
     const find = (re: RegExp): string | undefined => scenes.find((r) => re.test(r));
     return find(/(^|\/)launch\/main\.scene$/) ?? find(/(^|\/)launch\/[^/]+\.scene$/) ?? find(/^main\.scene$/);
+}
+
+/**
+ * The engine's shader tools as a check on one converted shader: it compiles every combination of what the shader leaves to toggle, in GLSL (glslang)
+ * and as the WGSL twin the WebGPU backend runs. Null where the tools are not here (anywhere but a checkout of the engine with a built wasm), and the
+ * conversion then goes unchecked. The module is named by a path held in a variable so that the bundlers leave it and its wasm alone.
+ */
+let shaderChecking: Promise<((source: string) => Promise<string | null>) | null> | undefined;
+function shaderChecker(): Promise<((source: string) => Promise<string | null>) | null> {
+    shaderChecking ??= (async () => {
+        try {
+            // Beside the package when it runs from source, or from the bin that started a bundled run of it (the command line bundles the importer into a
+            // temporary folder), or where ESTELLA_TOOLS says.
+            const candidates = [
+                '../../../../tools/gen-shader-twins.mjs',
+                ...(process.argv[1] ? [pathToFileURL(path.resolve(path.dirname(process.argv[1]), '..', '..', 'tools', 'gen-shader-twins.mjs')).href] : []),
+                ...(process.env.ESTELLA_TOOLS ? [pathToFileURL(path.join(process.env.ESTELLA_TOOLS, 'gen-shader-twins.mjs')).href] : []),
+            ];
+            let loaded: unknown = null;
+            for (const specifier of candidates) {
+                try { loaded = await import(/* @vite-ignore */ specifier); break; } catch { /* the next */ }
+            }
+            if (!loaded) return null;
+            const tool = loaded as {
+                loadTwinModule(): Promise<unknown>;
+                deriveTwin(module: unknown, source: string, opts: object): Promise<{ status: string }>;
+            };
+            const module = await tool.loadTwinModule();
+            return async (source: string) => {
+                try {
+                    const derived = await tool.deriveTwin(module, source, {});
+                    // More toggles than a twin may carry is no error of the shader's: it runs on WebGL.
+                    return derived.status === 'generated' || derived.status === 'has-twin' || derived.status.startsWith('skipped') ? null : derived.status;
+                } catch (err) {
+                    return String((err as Error).message ?? err).split('\n').filter((l) => /ERROR|error|failed/.test(l)).slice(0, 2).join(' ').trim().slice(0, 240) || 'it could not be translated';
+                }
+            };
+        } catch {
+            return null;
+        }
+    })();
+    return shaderChecking;
 }
 
 /** The design resolution a Cocos project declares, which is the box its screen-pinned roots are placed in. */
@@ -631,51 +674,113 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
     const chunkText = (name: string): string | null => {
         const own = projectChunks.find((e) => { const rel = e.rel.replace(/\.chunk$/, ''); return rel === name || rel.endsWith(`/${name}`); });
         if (own) return readFileSync(own.file, 'utf8');
-        const installed = editorAssets ? path.join(editorAssets, 'chunks', `${name}.chunk`) : null;
-        return installed && existsSync(installed) ? readFileSync(installed, 'utf8') : null;
+        // A bare name is one of the install's own, which Cocos finds by where it keeps them.
+        const places = name.includes('/') ? [''] : ['', 'builtin/internal/', 'builtin/', 'common/', 'legacy/'];
+        for (const place of places) {
+            const installed = editorAssets ? path.join(editorAssets, 'chunks', `${place}${name}.chunk`) : null;
+            if (installed && existsSync(installed)) return readFileSync(installed, 'utf8');
+        }
+        return null;
     };
-    type EffectTechnique = { name: string; passes: PassConversion[]; passCount: number; outline: boolean[] };
-    const effects = new Map<string, EffectTechnique[] | null>();
+    type EffectTechnique = { name: string; passes: EffectPass[]; outline: boolean[] };
+    type ParsedEffect = { effect: CocosEffect; techniques: EffectTechnique[] };
+    const effects = new Map<string, ParsedEffect | null>();
     const convertedMaterials = new Map<string, { ref: string } | null>();
-    const effectOf = (entry: CocosAssetEntry): EffectTechnique[] | null => {
+    const effectOf = (entry: CocosAssetEntry): ParsedEffect | null => {
         if (effects.has(entry.file)) return effects.get(entry.file) ?? null;
-        let result: EffectTechnique[] | null = null;
+        let result: ParsedEffect | null = null;
         try {
-            const parsed = parseEffect(readFileSync(entry.file, 'utf8'));
-            const stem = entry.rel.replace(/^assets\//, '').replace(/\.effect$/, '');
-            result = convertEffect(parsed, stem, { chunk: chunkText }).techniques.map((t, i) => ({ name: t.name, passes: t.passes, passCount: t.passes.length, outline: parsed.techniques[i]!.passes.map(isOutlinePass) }));
+            const effect = parseEffect(readFileSync(entry.file, 'utf8'));
+            result = { effect, techniques: effect.techniques.map((t) => ({ name: t.name, passes: t.passes, outline: t.passes.map(isOutlinePass) })) };
         } catch (err) {
             report.note('effect-unreadable', `${entry.rel}: ${(err as Error).message.split('\n')[0]}`);
         }
         effects.set(entry.file, result);
         return result;
     };
+    // One shader for each combination of macros a project's materials use of a pass: the macros are baked in, so a shader has nothing left to switch.
+    const shaders = new Map<string, PassConversion & { rel: string }>();
+    const shaderFor = (entry: CocosAssetEntry, parsed: ParsedEffect, techIndex: number, passIndex: number, defines: Record<string, number | boolean | string>): PassConversion & { rel: string } => {
+        const key = `${entry.file}|${techIndex}|${passIndex}|${JSON.stringify(Object.entries(defines).sort())}`;
+        const hit = shaders.get(key);
+        if (hit) return hit;
+        const technique = parsed.techniques[techIndex]!;
+        const stem = entry.rel.replace(/^assets\//, '').replace(/\.effect$/, '');
+        const variant = Object.keys(defines).length === 0 ? '' : `.${createHash('sha1').update(JSON.stringify(Object.entries(defines).sort())).digest('hex').slice(0, 8)}`;
+        const rel = outRef(`effects/${stem}.${technique.name}.${passIndex}${variant}.esshader`);
+        const converted = convertPass(parsed.effect, technique.passes[passIndex]!, `${stem}.${technique.name}.${passIndex}${variant}`, { chunk: chunkText }, defines);
+        const error = refused.get(rel);
+        const result = error ? { shader: null, unsupported: `the converted shader does not compile: ${error}`, state: converted.state, rel } : { ...converted, rel };
+        shaders.set(key, result);
+        return result;
+    };
     const FACTORS: Record<number, string> = { 0: 'zero', 1: 'one', 2: 'src_alpha', 3: 'dst_alpha', 4: 'one_minus_src_alpha', 5: 'one_minus_dst_alpha', 6: 'src_color', 7: 'dst_color', 8: 'one_minus_src_color', 9: 'one_minus_dst_color' };
     const numberOf = (x: unknown, d: number): number => (typeof x === 'number' && Number.isFinite(x) ? x : d);
+    type MaterialJson = {
+        _effectAsset?: { __uuid__?: string }; _techIdx?: number;
+        _defines?: Array<Record<string, unknown>>; _props?: Array<Record<string, unknown>>;
+        _states?: Array<{ blendState?: { targets?: Array<{ blend?: boolean; blendSrc?: number; blendDst?: number }> }; rasterizerState?: { cullMode?: number }; depthStencilState?: { depthTest?: boolean; depthWrite?: boolean } }>;
+    };
+    /** Which pass of which effect a material is drawn with, and the macros it fixes for it; null for a material of a built-in effect or of none. */
+    const planOf = (mat: CocosAssetEntry) => {
+        const json = JSON.parse(readFileSync(mat.file, 'utf8')) as MaterialJson;
+        // the engine's own look-alikes of Cocos's built-in effects are what a built-in effect becomes, as before
+        const effectEntry = BUILTIN_EFFECTS.has(json._effectAsset?.__uuid__ ?? '') ? undefined : index.byUuid.get(json._effectAsset?.__uuid__ ?? '');
+        const parsed = effectEntry && effectEntry.rel.endsWith('.effect') ? effectOf(effectEntry) : null;
+        const techIndex = json._techIdx ?? 0;
+        const technique = parsed?.techniques[techIndex];
+        // The pass that is the surface: the first that is not an outline, which is where a material's own settings are (its arrays run by pass).
+        const passIndex = technique ? Math.max(0, technique.outline.findIndex((o) => !o)) : 0;
+        const defines: Record<string, number | boolean | string> = {};
+        for (const [name, v] of Object.entries(json._defines?.[passIndex] ?? json._defines?.[0] ?? {})) {
+            if (typeof v === 'number' || typeof v === 'boolean' || typeof v === 'string') defines[name] = v;
+        }
+        return { json, effectEntry, parsed, techIndex, technique, passIndex, defines };
+    };
+    /**
+     * Whether each converted shader compiles, found out ahead of the conversion where the engine's shader tools are here (a checkout of the engine, which
+     * the cook uses as well): glslang reads every combination the shader can take. A pass whose converted fragment does not is reported as not converted, so
+     * that no material is written that names a shader the engine would refuse.
+     */
+    const refused = new Map<string, string>();
+    const checkShaders = async (): Promise<void> => {
+        const check = await shaderChecker();
+        if (!check) return;
+        const seen = new Set<string>();
+        for (const mat of index.byUuid.values()) {
+            if (!mat.rel.endsWith('.mtl') || !wanted(mat.rel)) continue;
+            try {
+                const plan = planOf(mat);
+                if (!plan.effectEntry || !plan.parsed || !plan.technique?.passes[plan.passIndex]) continue;
+                const shader = shaderFor(plan.effectEntry, plan.parsed, plan.techIndex, plan.passIndex, plan.defines);
+                if (!shader.shader || seen.has(shader.rel)) continue;
+                seen.add(shader.rel);
+                const error = await check(shader.shader.source);
+                if (error) {
+                    refused.set(shader.rel, error);
+                    if (process.env.COCOS_IMPORT_TRACE_DIR) writeOut(path.join(process.env.COCOS_IMPORT_TRACE_DIR, path.basename(shader.rel)), shader.shader.source);
+                }
+            } catch { /* a material that cannot be read is dealt with when it is converted */ }
+        }
+        // what was converted before the check is converted again with its answer
+        shaders.clear();
+    };
     const convertedMaterial = (materialUuid: string): { ref: string } | null => {
         if (convertedMaterials.has(materialUuid)) return convertedMaterials.get(materialUuid) ?? null;
         let result: { ref: string } | null = null;
         try {
             const mat = index.byUuid.get(materialUuid);
             if (mat && mat.rel.endsWith('.mtl')) {
-                const json = JSON.parse(readFileSync(mat.file, 'utf8')) as {
-                    _effectAsset?: { __uuid__?: string }; _techIdx?: number;
-                    _defines?: Array<Record<string, unknown>>; _props?: Array<Record<string, unknown>>;
-                    _states?: Array<{ blendState?: { targets?: Array<{ blend?: boolean; blendSrc?: number; blendDst?: number }> }; rasterizerState?: { cullMode?: number }; depthStencilState?: { depthTest?: boolean; depthWrite?: boolean } }>;
-                };
-                // the engine's own look-alikes of Cocos's built-in effects are what a built-in effect becomes, as before
-                const effectEntry = BUILTIN_EFFECTS.has(json._effectAsset?.__uuid__ ?? '') ? undefined : index.byUuid.get(json._effectAsset?.__uuid__ ?? '');
-                const technique = effectEntry && effectEntry.rel.endsWith('.effect') ? effectOf(effectEntry)?.[json._techIdx ?? 0] : undefined;
-                // The pass that is the surface: the first that is not an outline, which is where a material's own settings are (its arrays run by pass).
-                const passIndex = technique ? Math.max(0, technique.outline.findIndex((o) => !o)) : 0;
-                const pass = technique?.passes[passIndex];
+                const { json, effectEntry, parsed, techIndex, technique, passIndex, defines } = planOf(mat);
+                const pass = parsed && technique?.passes[passIndex] ? shaderFor(effectEntry!, parsed, techIndex, passIndex, defines) : null;
                 if (effectEntry && technique && pass) {
                     if (!pass.shader) {
                         report.note('effect-not-converted', `${effectEntry.rel}: ${pass.unsupported}`);
+                        if (process.env.COCOS_IMPORT_TRACE) console.log(`[effect] ${effectEntry.rel} (${technique.name}): ${pass.unsupported}`);
                     } else {
-                        if (technique.passCount > 1) report.note('effect-extra-passes', `${effectEntry.rel} (${technique.name}): only pass ${passIndex} is drawn${technique.outline.some(Boolean) ? ' (its outline is not)' : ''}`);
+                        if (technique.passes.length > 1) report.note('effect-extra-passes', `${effectEntry.rel} (${technique.name}): only pass ${passIndex} is drawn${technique.outline.some(Boolean) ? ' (its outline is not)' : ''}`);
                         for (const a of pass.shader.approximations) report.note('effect-approximated', `${effectEntry.rel}: ${a}`);
-                        const shaderRel = outRef(`effects/${effectEntry.rel.replace(/^assets\//, '').replace(/\.effect$/, '')}.${technique.name}.${passIndex}.esshader`);
+                        const shaderRel = pass.rel;
                         writeText(shaderRel, pass.shader.source);
                         const materialRel = outRef(`materials/${mat.rel.replace(/^assets\//, '').replace(/\.mtl$/, '')}.esmaterial`);
                         const props = (json._props?.[passIndex] ?? json._props?.[0] ?? {}) as Record<string, unknown>;
@@ -701,8 +806,6 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
                                 }
                             }
                         }
-                        const switches: Record<string, boolean> = {};
-                        for (const [name, on] of Object.entries(json._defines?.[passIndex] ?? json._defines?.[0] ?? {})) if (pass.shader.switches.includes(name) && on) switches[name] = true;
                         const state = json._states?.[passIndex] ?? json._states?.[0];
                         const target = state?.blendState?.targets?.[0];
                         let blendMode = pass.state.blendMode;
@@ -719,7 +822,6 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
                             depthTest: state?.depthStencilState?.depthTest ?? pass.state.depthTest,
                             depthWrite: state?.depthStencilState?.depthWrite ?? pass.state.depthWrite,
                             cull: cull === undefined ? pass.state.cull : cull === 0 ? 0 : cull === 1 ? 2 : 1,
-                            ...(Object.keys(switches).length > 0 ? { switches } : {}),
                             properties,
                         });
                         report.note('effect-converted', `${effectEntry.rel} (${technique.name})`);
@@ -776,7 +878,9 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
     })();
     const digest = (text: string): string => createHash('sha1').update(text).digest('hex');
     const write = (relPath: string, json: unknown): void => writeText(relPath, `${JSON.stringify(json, null, 2)}\n`);
+    const touched = new Set<string>();
     function writeText(relPath: string, text: string): void {
+        touched.add(relPath);
         const file = path.join(out, relPath);
         const next = digest(text);
         const now = existsSync(file) ? digest(readFileSync(file, 'utf8')) : null;
@@ -825,6 +929,8 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
         write(outRef('resources.json'), manifest);
     }
 
+    progress('shaders', 0, 1);
+    await checkShaders();
     for (let i = 0; i < pending.length; i++) {
         const r = pending[i]!;
         const e = byRel.get(r);
@@ -918,6 +1024,20 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
             if (slice) {
                 // A slice border is a texture import setting here; the Cocos image keeps its uuid.
                 writeOut(`${dest}.meta`, `${JSON.stringify({ uuid: entry.uuid, version: '2.0', type: 'texture', importer: { sliceBorder: slice } }, null, 2)}\n`);
+            }
+        }
+        // The shaders and materials of an earlier import that this one did not write are the effects' own leftovers (a combination of macros no material
+        // uses now, a material that was deleted): taken away while they are still what the importer wrote, kept once the creator has edited them.
+        for (const rel of Object.keys(written)) {
+            if (touched.has(rel) || !new RegExp(`^assets/${into}/(?:effects|materials)/`).test(rel)) continue;
+            const file = path.join(out, rel);
+            if (existsSync(file) && digest(readFileSync(file, 'utf8')) === written[rel]) {
+                rmSync(file, { force: true });
+                rmSync(`${file}.meta`, { force: true });
+                report.note('effect-stale-removed', rel);
+                delete written[rel];
+            } else if (!existsSync(file)) {
+                delete written[rel];
             }
         }
         progress('finish', 0, 1);

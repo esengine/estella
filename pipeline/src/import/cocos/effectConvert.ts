@@ -5,7 +5,8 @@
  * @brief   A Cocos `.effect` pass as an Estella `.esshader` and the render state of its `.esmaterial`.
  *
  * What carries across is what a pass says about its own fragment: the `frag()` function, the properties it reads (a `Constant` block's
- * members and its samplers, which become `#pragma param`), the macros it branches on (`#pragma switch`) and the pass's blend, depth and cull
+ * members and its samplers, which become `#pragma param`), the macros it branches on (`#pragma switch`, or `#define` when a material's own are given)
+ * and the pass's blend, depth and cull
  * state. The vertex stage is the engine's own: a pass whose vertex program only applies the standard transform needs nothing of its own, which
  * is the usual case (a sprite, a UI quad, an unlit mesh). A pass whose vertex program does more (a wave, a sway, an outline expansion) cannot be
  * given the engine's stage and is reported, not approximated: the converted material would draw something other than what it was made to.
@@ -102,7 +103,6 @@ in highp vec3 v_worldNormal;
 const PRELUDE = `// Cocos built-ins the converted fragment calls.
 #define CCFragOutput(c) (c)
 #define cc_time u_time
-#define CC_HANDLE_RT_SAMPLE_FLIP(uv)
 vec3 LinearToSRGB(vec3 c) { return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(vec3(0.0031308), c)); }
 vec3 SRGBToLinear(vec3 c) { return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c)); }
 `;
@@ -111,6 +111,55 @@ vec3 SRGBToLinear(vec3 c) { return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(
  * A preprocessor expression with each bare macro name asked as `defined(NAME)`: a name that is not defined is 0 in Cocos, and in GLSL ES it is an
  * error. A name compared with a number (`LEVEL == 2`) is left as it is, which is the one thing a bare switch cannot say.
  */
+export function pruneUnreachable(source: string, roots: readonly string[]): string {
+    // The top-level functions: a header at brace depth 0, the span up to the brace that closes it.
+    interface Fn { name: string; start: number; end: number }
+    const functions: Fn[] = [];
+    let depth = 0;
+    let open: { name: string; start: number } | null = null;
+    const header = /(?:^|\n)[ \t]*(?:(?:highp|mediump|lowp|const|inout|in|out)\s+)*\w+(?:\[\d*\])?\s+(\w+)\s*\([^;{}]*\)\s*\{/y;
+    for (let i = 0; i < source.length; i++) {
+        const c = source[i]!;
+        if (depth === 0 && !open && (c === '\n' || i === 0)) {
+            header.lastIndex = i;
+            const m = header.exec(source);
+            if (m && !/^(?:if|for|while|switch|return)$/.test(m[1]!)) {
+                const braceAt = i + m[0].length - 1;
+                open = { name: m[1]!, start: i === 0 && source[0] !== '\n' ? 0 : i + 1 };
+                depth = 1;
+                i = braceAt;
+                continue;
+            }
+        }
+        if (c === '{') depth++;
+        else if (c === '}') {
+            depth--;
+            if (depth === 0 && open) { functions.push({ ...open, end: i + 1 }); open = null; }
+        }
+    }
+    if (functions.length === 0) return source;
+    // What the roots reach by name, through the bodies of the functions of that name (overloads share one).
+    const reached = new Set<string>(roots);
+    const byName = new Map<string, Fn[]>();
+    for (const f of functions) byName.set(f.name, [...(byName.get(f.name) ?? []), f]);
+    const queue = [...roots];
+    // A function is a root too where something outside every function names it (a macro, an initialiser).
+    const outside = functions.reduceRight((text, f) => text.slice(0, f.start) + ' ' + text.slice(f.end), source);
+    for (const name of byName.keys()) if (new RegExp(`\\b${name}\\b`).test(outside) && !reached.has(name)) { reached.add(name); queue.push(name); }
+    while (queue.length > 0) {
+        const name = queue.pop()!;
+        for (const f of byName.get(name) ?? []) {
+            for (const m of source.slice(f.start, f.end).matchAll(/\b([A-Za-z_]\w*)\s*\(/g)) {
+                const callee = m[1]!;
+                if (byName.has(callee) && !reached.has(callee)) { reached.add(callee); queue.push(callee); }
+            }
+        }
+    }
+    let out = source;
+    for (const f of [...functions].reverse()) if (!reached.has(f.name)) out = out.slice(0, f.start) + out.slice(f.end);
+    return out;
+}
+
 function definedForm(expr: string): string {
     const kept: string[] = [];
     const guarded = expr.replace(/\bdefined\s*(?:\(\s*\w+\s*\)|\s+\w+)/g, (m) => { kept.push(m); return `\u0001${kept.length - 1}\u0001`; });
@@ -150,7 +199,7 @@ export interface EffectOptions {
 }
 
 /** Chunks of Cocos that the prelude gives (a fragment's built-ins, the scene's uniform blocks): they are left out rather than read. */
-const PROVIDED = /(?:^|\/)(?:fog-fs|output|output-standard|embedded-alpha|alpha-test|common-define|cc-global|cc-local|cc-environment|cc-forward-light|cc-shadow|gamma|aces)$/;
+const PROVIDED = /(?:^|\/)(?:fog-fs|output|output-standard|embedded-alpha|cc-global|cc-local|cc-environment|cc-forward-light|cc-shadow|gamma|aces)$/;
 
 /** Chunks that make up Cocos's vertex input and its world matrix. The vertex stage is emulated (see below) with the prelude's version of them. */
 const VERTEX_STRUCTURE = /(?:^|\/)(?:input|input-standard|decode-base|decode-standard|local-batch|fog-vs|shadow-map-vs|morph|skinning)$/;
@@ -170,7 +219,7 @@ function expandIncludes(
         if (skip.test(name)) return '';
         if (seen.has(name)) return '';
         seen.add(name);
-        const text = effect.programs.get(name)?.source ?? options.chunk?.(name) ?? null;
+        const text = (effect.programs.get(name)?.source ?? options.chunk?.(name) ?? null)?.replace(/\r\n/g, '\n') ?? null;
         if (text === null) { missing.push(name); return line; }
         if (depth > 12) { missing.push(`${name} (too deep)`); return line; }
         return expandIncludes(text, effect, options, seen, missing, depth + 1, skip);
@@ -194,7 +243,6 @@ const VERTEX_PRELUDE = `// The vertex stage of the effect, run per fragment on w
 struct StandardVertInput { highp vec4 position; vec3 normal; vec4 tangent; };
 #define CCGetWorldMatrix(m) m = mat4(1.0)
 #define CCGetWorldMatrixFull(m, mit) m = mat4(1.0); mit = mat4(1.0)
-#define CC_HANDLE_GET_CLIP_FLIP(p) p
 #define CCVertInput(In) CCDecode(In)
 void CCDecode(out StandardVertInput In) { In.position = vec4(a_position, 1.0); In.normal = a_normal; In.tangent = a_tangent; }
 void CCDecode(out vec4 position) { position = vec4(a_position, 1.0); }
@@ -202,7 +250,7 @@ void CCDecode(out vec4 position) { position = vec4(a_position, 1.0); }
 
 const ATTRIBUTE_SOURCES: Record<string, string> = {
     a_position: 'cocos_position', a_normal: 'cocos_normal', a_tangent: 'cocos_tangent', a_texCoord: 'v_texCoord', a_color: 'v_color',
-    a_texCoord1: 'v_texCoord', a_uv0: 'v_texCoord',
+    a_texCoord1: 'cocos_texCoord1', a_uv0: 'v_texCoord',
 };
 
 /** The attributes the vertex stage always has: declared whether or not the program says so, since the prelude's decode reads them. */
@@ -210,6 +258,14 @@ const STANDARD_ATTRIBUTES: Record<string, string> = { a_position: 'vec3', a_norm
 
 /** The varyings the engine's vertex stage owns. */
 const ENGINE_VARYING_NAMES = new Set(['v_color', 'v_texCoord', 'v_worldPos', 'v_worldXYZ', 'v_worldNormal', 'v_worldTangent']);
+
+/** The second uv set: the engine hands it down wherever the vertices carry one (MESH_LIGHTMAP), and a draw with none reads the first. */
+const UV1_VARYING = `#ifdef MESH_LIGHTMAP
+in highp vec2 v_texCoord1;
+#define cocos_texCoord1 v_texCoord1
+#else
+#define cocos_texCoord1 v_texCoord
+#endif`;
 
 const TANGENT_VARYING = `#ifdef MESH_TANGENTS
 in highp vec4 v_worldTangent;
@@ -262,7 +318,7 @@ function emulateVertex(program: string, entry: string): Emulated | { error: stri
         declared.push(`${type} ${name};`);
         const source = ATTRIBUTE_SOURCES[name];
         if (source) setup.push(`    ${name} = ${source}${coerce(type, name)};`);
-        if (name === 'a_texCoord1') approximations.push('the second uv is the first until the engine carries one');
+        if (name === 'a_texCoord1') approximations.push('the second uv is the mesh\'s own where it has one and the first uv where it has none');
     }
     return { source: text, attributes: declared.join('\n'), outputs, attributeSetup: setup, approximations, displaces };
 }
@@ -281,12 +337,14 @@ function coerce(type: string, name: string): string {
 // ---------------------------------------------------------------------------
 
 /** Convert one pass. The effect's name is the shader's. */
-export function convertPass(effect: CocosEffect, pass: EffectPass, shaderName: string, options: EffectOptions = {}): PassConversion {
+export function convertPass(
+    effect: CocosEffect, pass: EffectPass, shaderName: string, options: EffectOptions = {}, defines?: Readonly<Record<string, number | boolean | string>>,
+): PassConversion {
     const state = stateOf(pass);
     const fail = (unsupported: string): PassConversion => ({ shader: null, unsupported, state });
     const [fragProgram, fragEntry = 'frag'] = pass.frag.split(':');
     const [vertProgram, vertEntry = 'vert'] = pass.vert.split(':');
-    const programText = (name: string | undefined): string | null => (name ? effect.programs.get(name)?.source ?? options.chunk?.(name) ?? null : null);
+    const programText = (name: string | undefined): string | null => (name ? effect.programs.get(name)?.source ?? options.chunk?.(name) ?? null : null)?.replace(/\r\n/g, '\n') ?? null;
     const fragSource = programText(fragProgram);
     if (fragSource === null) return fail(`fragment program ${fragProgram} is not in the effect`);
     // A vertex stage the Creator install supplies (`general-vs`, `legacy/main-functions/general-vs`) is the standard one: the engine's.
@@ -320,13 +378,23 @@ export function convertPass(effect: CocosEffect, pass: EffectPass, shaderName: s
     if (missing.length > 0) return fail(`it includes ${[...new Set(missing)].join(', ')}, which the engine has no counterpart for`);
     if (/fog-fs|fog-vs/.test(fragSource + (vertSource ?? ''))) approximations.push('fog is not applied');
 
+    // Macros that only Cocos's own effect compiler reads: one that carries a preprocessor directive in its body or pastes tokens (`##`) is no GLSL ES, and
+    // is left out; a pass that calls one fails to compile, and says so.
+    const portable = (text: string): string => text
+        .replace(/^[ \t]*#[ \t]*define(?:\\\n|[^\n])*/gm, (block) => (/##|\\\n[ \t]*#[ \t]*(?:if|endif|else)/.test(block) ? '' : block))
+        .replace(/^[ \t]*#[ \t]*pragma[ \t]*\/\/[^\n]*$/gm, '');
     const strip = (text: string): string => text.replace(/^[ \t]*#[ \t]*pragma[ \t]+define[ \t]+(?!-meta)/gm, '#define ').replace(/^\s*#include\s*<[^>]+>\s*$/gm, '').replace(/^\s*precision\s+\w+\s+float\s*;\s*$/gm, '').replace(/^\s*#pragma\s+(?:builtin|define-meta|format)\([^)]*\)\s*$/gm, '').replace(/^\s*#pragma\s+define-meta[^\n]*$/gm, '');
-    body = strip(body);
-    vertexText = strip(vertexText);
+    // What a chunk declares as a macro's default (`#pragma define-meta NAME default(1)`, `options([a, r])`): the value a material that sets none has.
+    const metaDefaults = new Map<string, string>();
+    for (const m of `${body}\n${vertexText}`.matchAll(/^[ \t]*#[ \t]*pragma[ \t]+define-meta[ \t]+(\w+)[ \t]+(.*)$/gm)) {
+        const value = /\bdefault\(([^)]*)\)/.exec(m[2]!)?.[1] ?? /\boptions\(\[\s*([^,\]\s]+)/.exec(m[2]!)?.[1];
+        if (value !== undefined && !metaDefaults.has(m[1]!)) metaDefaults.set(m[1]!, value.trim());
+    }
+    body = portable(strip(body));
+    vertexText = portable(strip(vertexText));
 
     // The Constant blocks' members become parameters, the vertex program's as well as the fragment's; the blocks go.
-    const blocks = (text: string): string => text.replace(/(?:layout\s*\([^)]*\)\s*)?uniform\s+(\w+)\s*\{([\s\S]*?)\}\s*;?/g, (_m, block: string, members: string) => {
-        if (block === 'AlphaTestConstants' || block === 'ALPHA_TEST_CONSTANTS') { members = 'float alphaThreshold;'; }
+    const blocks = (text: string): string => text.replace(/(?:layout\s*\([^)]*\)\s*)?uniform\s+(\w+)\s*\{([\s\S]*?)\}\s*;?/g, (_m, _block: string, members: string) => {
         for (const decl of members.split(';')) {
             const m = /^\s*(?:highp\s+|mediump\s+|lowp\s+)?(float|int|bool|vec2|vec3|vec4)\s+(\w+)\s*$/.exec(decl.replace(/\/\/[^\n]*/g, '').trim());
             if (!m) continue;
@@ -396,6 +464,7 @@ export function convertPass(effect: CocosEffect, pass: EffectPass, shaderName: s
         needed.add(POSITION_VARYING);
         needed.add(NORMAL_VARYING);
         needed.add(TANGENT_VARYING);
+        if (/\ba_texCoord1\b/.test(vertex.attributes)) needed.add(UV1_VARYING);
     }
     const usesPosition = needed.has(POSITION_VARYING);
     if (usesPosition) approximations.push('v_position is the world position of the draw: the engine gives the full position to meshes with normals, and the plane position to sprites');
@@ -437,35 +506,63 @@ export function convertPass(effect: CocosEffect, pass: EffectPass, shaderName: s
     }
     // The camera's matrices have no value at the fragment that means the same: the emulation's matrices are the identity.
     const matrices = ['cc_matView', 'cc_matProj', 'cc_matViewProj', 'cc_matWorld', 'cc_matWorldIT', 'cc_matViewInv'].filter((m) => new RegExp(`\\b${m}\\b`).test(everything));
+    const everyText = `${body}\n${vertexText}`;
+    // Cocos's helper macros: the install's own where its common-define is included, these where it is not.
+    const flipFallback = Object.entries({ CC_HANDLE_RT_SAMPLE_FLIP: '(uv)', CC_HANDLE_GET_CLIP_FLIP: '(p) p' })
+        .filter(([name]) => new RegExp(`\\b${name}\\s*\\(`).test(everyText) && !new RegExp(`#define\\s+${name}\\b`).test(everyText))
+        .map(([name, tail]) => `#define ${name}${tail}\n`).join('');
     const matrixDefs = matrices.map((m) => `#define ${m} mat4(1.0)`).join('\n');
-
-    // Alpha test: a parameter and a discard, behind the switch the effect uses.
-    let alphaTest = '';
-    if (/\bALPHA_TEST\s*\(/.test(body)) {
-        if (!declared.has('alphaThreshold')) { declared.add('alphaThreshold'); params.push({ name: 'alphaThreshold', type: 'float', value: [0.5] }); }
-        alphaTest = '#define ALPHA_TEST(c) if ((c).a < alphaThreshold) discard;';
-    }
 
     // The entry: `vec4 frag()` is the fragment's colour.
     const entry = new RegExp(`\\bvec4\\s+${fragEntry}\\s*\\(\\s*\\)`);
     if (!entry.test(body)) return fail(`the fragment entry ${fragEntry}() is not there`);
     body = body.replace(entry, 'vec4 cocos_frag()');
+    // A function nothing reaches (a variant of the entry this pass does not name) may read what the pass never declares, which a compiler refuses.
+    body = pruneUnreachable(body, ['cocos_frag']);
+    if (vertex) vertexText = pruneUnreachable(vertexText, ['cocos_vert']);
 
     // Cocos reads a macro that is not defined as 0 in `#if`; GLSL ES refuses an undefined name there. A switch is defined when it is on.
     const definedFormed = (text: string): string => text.replace(/^([ \t]*#[ \t]*(?:el)?if)([ \t]+.*)$/gm, (_m, directive: string, expr: string) => `${directive}${definedForm(expr)}`);
     body = definedFormed(body);
     vertexText = definedFormed(vertexText);
 
-    // Macros: what the code branches on is a switch a material turns on.
+    // Macros: what the code branches on. A material fixes them (its `defines`), so given those they are baked into the shader as `#define`s and it
+    // has no switches: one shader per combination a project uses, which is the same set of programs and a shader that can be given a WGSL twin
+    // (a twin carries a body for every combination of what is left to toggle). Without them they are switches a material turns on.
     const found = macrosIn(`${vertexText}\n${body}`);
-    const switches = found.switches.filter((s) => !/^(MESH_NORMALS|MESH_TANGENTS|GL_ES|CC_[A-Z_]+_ENABLED)$/.test(s) && !found.compared.includes(s));
-    if (found.compared.length > 0) approximations.push(`${found.compared.join(', ')} is compared to a number; the engine's switches are on or off`);
+    const ENGINE_FEATURE = /^(?:MESH_NORMALS|MESH_TANGENTS|MESH_LIGHTMAP|GL_ES|CC_[A-Z_]+_ENABLED)$/;
+    const named = found.switches.filter((m) => !ENGINE_FEATURE.test(m) && !found.compared.includes(m));
+    const compared = found.compared.filter((m) => !ENGINE_FEATURE.test(m));
+    let switches: string[] = [];
+    const baked: string[] = [];
+    if (defines) {
+        const value = { ...Object.fromEntries(metaDefaults), ...pass.macros, ...defines } as Record<string, unknown>;
+        // What the code branches on, and what it merely reads (a channel name a material gives).
+        const text = `${vertexText}
+${body}`;
+        const used = Object.keys(value).filter((k) => new RegExp(`\b${k}\b`).test(text));
+        for (const m of new Set([...named, ...compared, ...used])) {
+            const v = value[m];
+            // Zero is the undefined of Cocos's `#if`, so a name that is not compared is left undefined for it.
+            if (typeof v === 'string') { if (v !== '0' || compared.includes(m)) baked.push(`#define ${m} ${v}`); continue; }
+            const n = typeof v === 'number' ? v : v === true ? 1 : 0;
+            // A name asked as a number has to be defined; a name asked as a switch is defined when it is on.
+            if (compared.includes(m) || n !== 0) baked.push(`#define ${m} ${n}`);
+        }
+    } else {
+        switches = named;
+        if (compared.length > 0) approximations.push(`${compared.join(', ')} is compared to a number; the engine's switches are on or off`);
+    }
+    // What the engine's vertex stage offers a fragment, which the shader asks for by name so that a twin carries a body for each.
+    const offered = ['MESH_NORMALS', 'MESH_TANGENTS', 'MESH_LIGHTMAP']
+        .filter((f) => new RegExp(`\\b${f}\\b`).test(`${[...needed].join('\n')}\n${vertexText}\n${body}`));
 
     const lines: string[] = [
         `#pragma shader "${shaderName}"`,
         '#pragma version 300 es',
         usesPosition ? '#pragma domain Lit' : '#pragma domain Unlit',
     ];
+    for (const f of offered) lines.push(`#pragma feature ${f}`);
     for (const s of switches) lines.push(`#pragma switch ${s} default(${pass.macros[s] ? 'on' : 'off'})`);
     for (const p of params) {
         lines.push(p.type === 'texture'
@@ -475,9 +572,9 @@ export function convertPass(effect: CocosEffect, pass: EffectPass, shaderName: s
     const main = ['void main() {'];
     if (vertex) main.push(...vertex.attributeSetup, '    cocos_vert();');
     main.push('    fragColor = cocos_frag();', '}');
-    lines.push('', '#pragma fragment', 'precision mediump float;', '', ...[...needed].filter((n) => !n.startsWith('/*')), '',
+    lines.push('', '#pragma fragment', 'precision mediump float;', ...baked, '', ...[...needed].filter((n) => !n.startsWith('/*')), '',
         ...(usesSpriteTexture ? ['uniform sampler2D u_textures[8];'] : []), 'out vec4 fragColor;', '', PRELUDE,
-        ...(matrixDefs ? [matrixDefs, ''] : []), ...(alphaTest ? [alphaTest, ''] : []),
+        ...(matrixDefs ? [matrixDefs, ''] : []), ...(flipFallback ? [flipFallback] : []),
         ...(vertex ? [vertex.attributes, VERTEX_PRELUDE, vertexText.trim(), ''] : []), body.trim(), '', ...main, '#pragma end', '');
     // The displacement, given to the engine as the material's vertex hook: the same program, run on the vertex's own position and normal. The engine's
     // vertex stage owns the attribute names, so the program's are its own here.
@@ -490,6 +587,7 @@ export function convertPass(effect: CocosEffect, pass: EffectPass, shaderName: s
             const extra = [...vertex.attributes.matchAll(/\ba_(texCoord1|uv0)\b/g)].map((m) => `    hook_a_${m[1]} = uv;`);
             const hook = [
                 '#pragma vertexoffset',
+                ...baked,
                 '#define cc_time u_time',
                 ...(matrixDefs ? [matrixDefs] : []),
                 own(vertex.attributes), own(VERTEX_PRELUDE), own(vertexText.trim()), '',
