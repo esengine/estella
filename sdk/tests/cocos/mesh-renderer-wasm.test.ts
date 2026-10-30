@@ -85,6 +85,20 @@ describe.skipIf(!HAS_WASM)('MeshRenderer on the engine', () => {
         expect(EngineMaterial.getUniform(shared, 'u_level')).toBe(0);   // the shared one did not change
     });
 
+    it('makes the colour of an instance the renderer tint, and reads it back', () => {
+        connect();
+        const shared = EngineMaterial.create({ shader: 7 });
+        const n = node('t');
+        const r = n.addComponent(MeshRenderer)!;
+        W().set(n._entity, EngineMeshRenderer, { ...W().get(n._entity, EngineMeshRenderer), material: shared });
+        const m = r.getMaterialInstance(0)!;
+        m.setProperty('mainColor', new Color(255, 128, 0, 255));
+        const tint = W().get(n._entity, EngineMeshRenderer).color;
+        expect([tint.r, Math.round(tint.g * 255), tint.b, tint.a]).toEqual([1, 128, 0, 1]);
+        const back = m.getProperty('mainColor') as Color;
+        expect([back.r, back.g, back.b]).toEqual([255, 128, 0]);
+    });
+
     it('lets UIMeshRenderer be added without anything behind it', () => {
         connect();
         const n = node('ui');

@@ -54,14 +54,24 @@ export class Material extends Asset {
     _handle = 0;
     private readonly props_ = new Map<string, unknown>();
 
+    /**
+     * Where a property goes that is not a shader parameter here: the renderer an instance belongs to holds its colour itself. Answers whether it
+     * took the property. @internal
+     */
+    _take?: (name: string, value: unknown) => boolean;
+
     setProperty(name: string, value: unknown, _passIndex?: number): void {
         this.props_.set(name, value);
+        if (this._take?.(name, value)) return;
         const uniform = uniformOf(value);
         if (this._handle > 0 && uniform !== null) EngineMaterial.setUniform(this._handle, name, uniform);
     }
 
+    /** What the property was last set to. @internal */
+    _give?: (name: string) => unknown;
+
     getProperty(name: string, _passIndex?: number): unknown {
-        return this.props_.get(name);
+        return this._give?.(name) ?? this.props_.get(name);
     }
 
     /** The material's passes: there is one, and it has no state a script can read. */

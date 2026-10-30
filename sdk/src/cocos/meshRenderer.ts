@@ -15,7 +15,7 @@ import type { Entity } from '../types';
 import { Material } from './assets';
 import { Component } from './component';
 import { registerBuiltinComponent } from './builtins';
-import { viewAdapter } from './ui/view';
+import { toCocosColor, viewAdapter } from './ui/view';
 
 /** The layer's material objects, one per engine material, so the same material is the same object. */
 const wrappers = new Map<number, Material>();
@@ -29,6 +29,9 @@ function wrap(handle: number): Material | null {
     }
     return m;
 }
+
+/** The names a Cocos effect gives the colour that multiplies what a surface draws. */
+const TINT_PROPERTIES = new Set(['mainColor', 'albedo', 'baseColor', 'color']);
 
 /** The base of every renderer that draws a model. */
 export class ModelRenderer extends Component {}
@@ -67,7 +70,21 @@ export class MeshRenderer extends ModelRenderer {
             this.patch_({ material: this.instance_ });
             this.source_ = current;
         }
-        return wrap(this.instance_);
+        const own = wrap(this.instance_)!;
+        this.bind_(own);
+        return own;
+    }
+
+    /** An instance is this renderer's own, so the colour a script gives it is the renderer's tint. */
+    private bind_(material: Material): void {
+        material._take = (name, value) => {
+            if (!TINT_PROPERTIES.has(name) || typeof value !== 'object' || value === null) return false;
+            const c = value as { r?: number; g?: number; b?: number; a?: number };
+            if (typeof c.r !== 'number') return false;
+            this.patch_({ color: { r: c.r / 255, g: c.g! / 255, b: c.b! / 255, a: (c.a ?? 255) / 255 } });
+            return true;
+        };
+        material._give = (name) => (TINT_PROPERTIES.has(name) ? toCocosColor(this.data_().color) : undefined);
     }
 
     setMaterial(material: Material | null, index: number): void {

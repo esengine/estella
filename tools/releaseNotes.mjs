@@ -28,6 +28,8 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(cocos): the colour a script sets on a material instance is the renderer tint':
+    {"note":"A material colour is the renderer tint."},
   'feat(cocos): MeshRenderer, UIMeshRenderer, material properties and cc.geometry in the compatibility layer':
     {"note":"Mesh renderers and materials in the Cocos layer."},
   'feat(cocos): cc.js, ccenum and NodePool exist in the compatibility layer':
