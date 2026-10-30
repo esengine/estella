@@ -402,8 +402,8 @@ u32 MeshPlugin::meshProgram(RenderFrameContext& ctx, u32 variant) {
     if (normalMapped) features.emplace_back("NORMAL_MAP");
     if (skinned) features.emplace_back("SKINNED");
     if (lightmapped) features.emplace_back("MESH_LIGHTMAP");
-    // Not in a depth pass: its vertex stage writes no tangent varying, and a fragment that declares one fails to link.
-    if (tangents && normals && !depthOnly) features.emplace_back("MESH_TANGENTS");
+    // Only where its vertex stage writes the tangent varying (lit, and not a depth pass): a fragment that declares one it lacks fails to link.
+    if (tangents && normals && lit && !depthOnly) features.emplace_back("MESH_TANGENTS");
     if (weightHeat) features.emplace_back("WEIGHT_HEAT");
     if (depthOnly) features.emplace_back("SHADOW_DEPTH");
     if (motion) features.emplace_back("ES_VELOCITY");
