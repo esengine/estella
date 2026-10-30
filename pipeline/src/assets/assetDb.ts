@@ -370,6 +370,7 @@ async function computeDeps(
   root: string,
   entries: readonly AssetEntry[],
   targets?: readonly AssetEntry[],
+  onProgress?: (progress: ScanProgress) => void,
 ): Promise<{ deps: Record<string, string[]>; warnings: string[] }> {
   const byPath = new Map(entries.map((e) => [e.path, e]));
   const uuids = new Set(entries.map((e) => e.uuid));
@@ -393,7 +394,7 @@ async function computeDeps(
     cacheDirty = true;
     return cache.files[rel]!.c;
   };
-  const depResults = await mapLimit(refEntries, SCAN_IO_CONCURRENCY, async (entry): Promise<DepResult> => {
+  const dependenciesOf = async (entry: AssetEntry): Promise<DepResult> => {
     // A spine `.atlas` is a TEXT manifest (not JSON): its page image names are
     // texture deps — the same edge the SpineAssetLoader walks at runtime. Scan it
     // apart from the JSON path so the cook embeds those textures (else the atlas
@@ -438,6 +439,11 @@ async function computeDeps(
     } catch (err) {
       return { warning: `${entry.path}: ${err instanceof Error ? err.message : String(err)}` };
     }
+  };
+  let finished = 0;
+  const depResults = await mapLimit(refEntries, SCAN_IO_CONCURRENCY, async (entry): Promise<DepResult> => {
+    // Counted as each document is done, whichever way it ends.
+    try { return await dependenciesOf(entry); } finally { onProgress?.({ phase: 'references', done: ++finished, total: refEntries.length }); }
   });
   // A full scan forgets the documents that are gone; one of some documents only (`targets`) leaves the rest as they are.
   if (!targets) for (const rel of Object.keys(cache.files)) if (!seenFiles.has(rel)) { delete cache.files[rel]; cacheDirty = true; }
@@ -506,13 +512,16 @@ async function excludedFolders(root: string): Promise<readonly string[] | undefi
   }
 }
 
+/** How far a scan is: the step it is in and how many of that step's items are done. */
+export interface ScanProgress { phase: 'references'; done: number; total: number }
+
 /**
  * Scan `root` for `.meta` sidecars → build the asset index (registry + dep
  * graph) and (unless `write: false`) write `.esengine/cache/assets.json`.
  */
 export async function scanAssetDatabase(
   root: string,
-  opts?: { write?: boolean; adopt?: boolean },
+  opts?: { write?: boolean; adopt?: boolean; onProgress?: (progress: ScanProgress) => void },
 ): Promise<ScanAssetsResult> {
   const entries: AssetEntry[] = [];
   const warnings: string[] = [];
@@ -566,7 +575,8 @@ export async function scanAssetDatabase(
   t.walk = performance.now() - tWalk;
 
   const tDeps = performance.now();
-  const { deps, warnings: depWarnings } = await computeDeps(root, entries);
+  opts?.onProgress?.({ phase: 'references', done: 0, total: entries.length });
+  const { deps, warnings: depWarnings } = await computeDeps(root, entries, undefined, opts?.onProgress);
   warnings.push(...depWarnings);
 
   t.deps = performance.now() - tDeps;
