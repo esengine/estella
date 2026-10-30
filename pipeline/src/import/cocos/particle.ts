@@ -19,6 +19,7 @@ export interface ParticleContext {
     report: ImportReport;
     /** A material's main texture and whether it blends additively; null when the project has no such material. */
     material?(uuid: string): { texture: CocosAssetEntry | null; additive: boolean } | null;
+    convertedMaterial?(uuid: string): { ref: string } | null;
     assetRef(entry: CocosAssetEntry): string;
 }
 
@@ -267,6 +268,9 @@ export function particleSystem(c: { enabled: boolean; data: Raw }, ctx: Particle
     if (material) {
         if (material.texture) out.texture = ctx.assetRef(material.texture);
         out.blendMode = material.additive ? 1 : 0;
+        // The project's own effect for it, when it was converted: its fragment draws the particle.
+        const converted = typeof matUuid === 'string' ? ctx.convertedMaterial?.(matUuid) ?? null : null;
+        if (converted) out.material = converted.ref;
     } else {
         lose('particle-no-material');
     }

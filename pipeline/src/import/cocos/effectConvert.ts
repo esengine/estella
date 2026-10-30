@@ -79,6 +79,7 @@ function stateOf(pass: EffectPass): PassConversion['state'] {
 const VARYINGS: Record<string, { name: string; glsl: string; mesh?: boolean }> = {
     v_uv: { name: 'v_texCoord', glsl: 'in vec2 v_texCoord;' },
     uv0: { name: 'v_texCoord', glsl: 'in vec2 v_texCoord;' },
+    uv: { name: 'v_texCoord', glsl: 'in vec2 v_texCoord;' },
     v_color: { name: 'v_color', glsl: 'in vec4 v_color;' },
     color: { name: 'v_color', glsl: 'in vec4 v_color;' },
 };
@@ -291,6 +292,9 @@ export function convertPass(effect: CocosEffect, pass: EffectPass, shaderName: s
     const standardVertex = vertSource === null
         && /^(?:(?:general|unlit|sprite|standard)-vs|legacy\/main-functions\/(?:general|unlit|standard)-vs|builtin\/.*)$/.test(vertProgram ?? '');
     if (vertSource === null && !standardVertex) return fail(`vertex program ${vertProgram} is not in the effect`);
+    // A particle's vertex program builds the billboard from the emitter's own data, which is what the engine's particle stage does: that stage is the
+    // one this pass is drawn with, and only its fragment is converted. The fragment's `uv` and `color` are what the particle stage hands down.
+    const particleVertex = /particle|trail/i.test(vertProgram ?? '');
 
     const approximations: string[] = [];
     const props = new Map(pass.properties.map((p) => [p.name, p]));
@@ -302,7 +306,7 @@ export function convertPass(effect: CocosEffect, pass: EffectPass, shaderName: s
     // The vertex program, carried into the fragment.
     let vertex: Emulated | null = null;
     let vertexText = '';
-    if (vertSource !== null) {
+    if (vertSource !== null && !particleVertex) {
         const expanded = expandIncludes(vertSource, effect, options, seen, missing, 0, PROVIDED_AND_STRUCTURE);
         const emulated = emulateVertex(expanded, vertEntry);
         if ('error' in emulated) return fail(emulated.error);
@@ -355,6 +359,7 @@ export function convertPass(effect: CocosEffect, pass: EffectPass, shaderName: s
     // the pass's reason not to convert.
     const needed = new Set<string>();
     const renames = new Map<string, string>();
+    const mapped = new Set<string>();
     const produced = vertex?.outputs ?? new Set<string>();
     body = body.replace(/^\s*in\s+(?:highp\s+|mediump\s+|lowp\s+)?(\w+)\s+(\w+)\s*;\s*$/gm, (_m, _type: string, name: string) => {
         if (produced.has(name)) return '';
@@ -362,10 +367,15 @@ export function convertPass(effect: CocosEffect, pass: EffectPass, shaderName: s
         if (v) { needed.add(v.glsl); renames.set(name, v.name); return ''; }
         if (name === 'v_position' || name === 'v_worldPos') { needed.add(POSITION_VARYING); renames.set(name, 'cocos_position'); return ''; }
         if (name === 'v_normal') { needed.add(NORMAL_VARYING); renames.set(name, 'cocos_normal'); return ''; }
+        // What a particle's own vertex program computes for its fragment, stood for by what the engine's particle stage gives: the mask's uv is the uv.
+        if (name === 'uvmask') { needed.add(VARYINGS.v_uv!.glsl); renames.set(name, 'v_texCoord'); mapped.add('uvmask is the uv'); return ''; }
+        if (name === 'mPosition') { needed.add(POSITION_VARYING); renames.set(name, 'cocos_position'); return ''; }
+        if (name === 'mNormal') { needed.add(NORMAL_VARYING); renames.set(name, 'cocos_normal'); return ''; }
         if (name === 'v_tangent') { needed.add(TANGENT_VARYING); renames.set(name, 'cocos_tangent.xyz'); return ''; }
         needed.add(`/* the vertex stage does not supply ${name} */`);
         return '';
     });
+    for (const m of mapped) approximations.push(m);
     const unsupplied = [...needed].filter((n) => n.startsWith('/*'));
     if (unsupplied.length > 0) return fail(`its fragment reads ${unsupplied.map((m) => /supply (\w+)/.exec(m)![1]).join(', ')}, which the engine's vertex stage does not supply`);
     for (const [from, to] of renames) if (from !== to) body = body.replace(new RegExp(`\\b${from}\\b`, 'g'), to);
