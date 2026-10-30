@@ -13,7 +13,7 @@ import { copyFileSync, existsSync, linkSync, mkdirSync, readdirSync, readFileSyn
 import path from 'node:path';
 import { isInsideRoot } from '../../fs/pathSandbox';
 import { buildScriptIndex } from './scripts';
-import { buildCocosAssetIndex, cocosEditorAssets, type CocosAssetEntry, type CocosAssetIndex } from './assets';
+import { buildCocosAssetIndex, cocosEditorAssets, INTERNAL_FOLDER, type CocosAssetEntry, type CocosAssetIndex } from './assets';
 import type { AssetHints, SliceBorder } from './components';
 import { convertPrefab, convertScene, type ConvertContext } from './convert';
 import { parseCocosDocument, type CocosDocument } from './document';
@@ -30,7 +30,7 @@ import { convertEffect, isOutlinePass, type PassConversion } from './effectConve
  * importer that made less (or differently), and is brought up to date when it is opened. Raise it when the converted output changes in a
  * way an existing project needs to pick up: a new generated file, a field a document or a manifest now carries.
  */
-export const COCOS_IMPORT_REVISION = 2;
+export const COCOS_IMPORT_REVISION = 3;
 
 /** Whether the project at @p projectRoot was written by an importer of this revision. A project that was not converted has nothing to bring up. */
 export function cocosImportIsCurrent(projectRoot: string): boolean {
@@ -319,7 +319,8 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
     const progress = (stage: CocosImportProgress['stage'], done: number, total: number, item?: string): void => opts.onProgress?.({ stage, done, total, ...(item ? { item } : {}) });
     progress('index', 0, 1);
     const version = (() => { try { return (JSON.parse(readFileSync(path.join(source, 'package.json'), 'utf8')) as { creator?: { version?: string } }).creator?.version; } catch { return undefined; } })();
-    const index = buildCocosAssetIndex(assetsDir, cocosEditorAssets(version));
+    const editorAssets = cocosEditorAssets(version);
+    const index = buildCocosAssetIndex(assetsDir, editorAssets);
 
     const outRef = (assetRel: string): string => `assets/${into}/${assetRel}`;
     const esRel = (assetRel: string, ext: string): string => assetRel.replace(/\.[^./]+$/, ext);
@@ -625,6 +626,14 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
 
     // A material of the project's own effect, taken across: the effect's pass becomes a shader of the project, the material's settings become a
     // material of it, and the renderers that wore the Cocos material wear that one. Null when the pass cannot be given the engine's vertex stage.
+    // The chunks an effect includes: the project's own (by their path under the assets folder, or just their name), then the Creator install's.
+    const projectChunks = [...index.byUuid.values()].filter((e) => e.rel.endsWith('.chunk') && !e.rel.startsWith(`${INTERNAL_FOLDER}/`));
+    const chunkText = (name: string): string | null => {
+        const own = projectChunks.find((e) => { const rel = e.rel.replace(/\.chunk$/, ''); return rel === name || rel.endsWith(`/${name}`); });
+        if (own) return readFileSync(own.file, 'utf8');
+        const installed = editorAssets ? path.join(editorAssets, 'chunks', `${name}.chunk`) : null;
+        return installed && existsSync(installed) ? readFileSync(installed, 'utf8') : null;
+    };
     type EffectTechnique = { name: string; passes: PassConversion[]; passCount: number; outline: boolean[] };
     const effects = new Map<string, EffectTechnique[] | null>();
     const convertedMaterials = new Map<string, { ref: string } | null>();
@@ -634,7 +643,7 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
         try {
             const parsed = parseEffect(readFileSync(entry.file, 'utf8'));
             const stem = entry.rel.replace(/^assets\//, '').replace(/\.effect$/, '');
-            result = convertEffect(parsed, stem).techniques.map((t, i) => ({ name: t.name, passes: t.passes, passCount: t.passes.length, outline: parsed.techniques[i]!.passes.map(isOutlinePass) }));
+            result = convertEffect(parsed, stem, { chunk: chunkText }).techniques.map((t, i) => ({ name: t.name, passes: t.passes, passCount: t.passes.length, outline: parsed.techniques[i]!.passes.map(isOutlinePass) }));
         } catch (err) {
             report.note('effect-unreadable', `${entry.rel}: ${(err as Error).message.split('\n')[0]}`);
         }

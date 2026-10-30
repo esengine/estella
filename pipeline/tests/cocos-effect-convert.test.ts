@@ -97,13 +97,13 @@ describe('converting a pass', () => {
         expect(source).not.toMatch(/uniform sampler2D mainTexture/);
     });
 
-    it('takes the engine\'s vertex stage, and the varyings it supplies under their engine names', () => {
+    it('runs the effect vertex program ahead of the fragment, on what the engine vertex stage hands down', () => {
         const source = pass.shader!.source;
         expect(source).not.toContain('#pragma vertex');
         expect(source).toContain('in vec2 v_texCoord;');
-        expect(source).toContain('in vec4 v_color;');
-        expect(source).toContain('texture(mainTexture, v_texCoord) * v_color');
-        expect(source).toContain('fragColor = cocos_frag();');
+        expect(source).toContain('vec4 cocos_vert()');
+        expect(source).toContain('a_texCoord = v_texCoord;');
+        expect(source).toContain('    cocos_vert();\n    fragColor = cocos_frag();');
     });
 
     it('makes the macros it branches on switches, asked as defined() because an undefined name is an error in GLSL ES', () => {
@@ -124,13 +124,20 @@ describe('converting a pass', () => {
     });
 });
 
-describe('a pass the engine\'s vertex stage cannot stand in for', () => {
+describe('a pass whose vertex program does more than place the vertex', () => {
     const SWAY = SPRITE_ADD.replace('vec4 pos = cc_matViewProj * vec4(a_position, 1);', 'vec4 pos = cc_matViewProj * vec4(a_position + vec3(sin(cc_time.x), 0, 0), 1);');
 
-    it('is not converted, and says what its vertex program does', () => {
+    it('is converted without the displacement, and says so', () => {
         const swayed = convertEffect(parseEffect(SWAY), 'sway').techniques[0]!.passes[0]!;
-        expect(swayed.shader).toBeNull();
-        expect(swayed.unsupported).toMatch(/cc_time|displacement/);
+        expect(swayed.unsupported).toBeNull();
+        expect(swayed.shader!.approximations).toContain('a displacement of the vertex position is not applied');
+    });
+
+    it('is not converted when its vertex program skins the mesh', () => {
+        const skinned = SPRITE_ADD.replace('in vec4 a_color;', 'in vec4 a_color;\n  in vec4 a_joints;');
+        const converted = convertEffect(parseEffect(skinned), 'skin').techniques[0]!.passes[0]!;
+        expect(converted.shader).toBeNull();
+        expect(converted.unsupported).toMatch(/a_joints|skins/);
     });
 
     it('is not converted when its fragment reads something the vertex stage does not supply', () => {
