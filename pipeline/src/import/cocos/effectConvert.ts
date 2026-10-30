@@ -187,7 +187,8 @@ function expandIncludes(
  * and the rest are arithmetic on them. So the vertex program is not given a stage of its own: it is run in the fragment, ahead of the fragment's own
  * function, with the attributes it reads standing for what the engine's stage passes down. The result is the same for everything that is a function
  * of the vertex's own values and the material's (a tiling, a world position, a tangent frame), and costs a little more per pixel than per vertex.
- * What it cannot reproduce is where the vertex is drawn: a displacement of the position is not applied, which the pass says.
+ * Where the vertex is drawn is the engine's, so a program that displaces the position (a sway, a wave) is also given to the engine as the material's
+ * vertex hook, run with the same attributes, which moves the vertex where the effect moved it. The hook reads no texture: one that does is not given.
  */
 const VERTEX_PRELUDE = `// The vertex stage of the effect, run per fragment on what the engine's vertex stage hands down.
 struct StandardVertInput { highp vec4 position; vec3 normal; vec4 tangent; };
@@ -227,6 +228,8 @@ interface Emulated {
     /** The assignments that give the attributes it declares their values. */
     attributeSetup: string[];
     approximations: string[];
+    /** The program moves the vertex before it is placed (a displacement by time or by a function of the position). */
+    displaces: boolean;
 }
 
 function emulateVertex(program: string, entry: string): Emulated | { error: string } {
@@ -251,9 +254,8 @@ function emulateVertex(program: string, entry: string): Emulated | { error: stri
     const entryRe = new RegExp(`\\bvec4\\s+${entry}\\s*\\(\\s*\\)`);
     if (!entryRe.test(text)) return { error: `the vertex entry ${entry}() is not there` };
     text = text.replace(entryRe, 'vec4 cocos_vert()');
-    if (/\bcc_(?:time)\b[^;]*\b(?:position|pos)\b|\b(?:position|pos)\b[^;]*\bcc_time\b/.test(text) || /\bsin\s*\([^;]*\b(?:position|pos)\b/.test(text)) {
-        approximations.push('a displacement of the vertex position is not applied');
-    }
+    // A statement that assigns the position before the matrices are applied, from time or a periodic function: a displacement.
+    const displaces = /(?:\bIn\.position|\bposition|\ba_position)\b[^;]*\b(?:cc_time|sin|cos)\b|\b(?:cc_time|sin|cos)\b[^;]*(?:\bIn\.position|\bposition|\ba_position)\b/.test(text);
     const setup: string[] = [];
     const declared: string[] = [];
     for (const [name, type] of attributes) {
@@ -262,7 +264,7 @@ function emulateVertex(program: string, entry: string): Emulated | { error: stri
         if (source) setup.push(`    ${name} = ${source}${coerce(type, name)};`);
         if (name === 'a_texCoord1') approximations.push('the second uv is the first until the engine carries one');
     }
-    return { source: text, attributes: declared.join('\n'), outputs, attributeSetup: setup, approximations };
+    return { source: text, attributes: declared.join('\n'), outputs, attributeSetup: setup, approximations, displaces };
 }
 
 /** The conversion that makes an engine value of one width fit the type an attribute is declared with. */
@@ -477,6 +479,31 @@ export function convertPass(effect: CocosEffect, pass: EffectPass, shaderName: s
         ...(usesSpriteTexture ? ['uniform sampler2D u_textures[8];'] : []), 'out vec4 fragColor;', '', PRELUDE,
         ...(matrixDefs ? [matrixDefs, ''] : []), ...(alphaTest ? [alphaTest, ''] : []),
         ...(vertex ? [vertex.attributes, VERTEX_PRELUDE, vertexText.trim(), ''] : []), body.trim(), '', ...main, '#pragma end', '');
+    // The displacement, given to the engine as the material's vertex hook: the same program, run on the vertex's own position and normal. The engine's
+    // vertex stage owns the attribute names, so the program's are its own here.
+    if (vertex?.displaces) {
+        const vertexReadsTexture = params.some((p) => p.type === 'texture' && new RegExp(`\b${p.name}\b`).test(vertexText));
+        if (vertexReadsTexture) {
+            approximations.push('a displacement of the vertex position that reads a texture is not applied');
+        } else {
+            const own = (text: string): string => text.replace(/\ba_(\w+)\b/g, 'hook_a_$1');
+            const extra = [...vertex.attributes.matchAll(/\ba_(texCoord1|uv0)\b/g)].map((m) => `    hook_a_${m[1]} = uv;`);
+            const hook = [
+                '#pragma vertexoffset',
+                '#define cc_time u_time',
+                ...(matrixDefs ? [matrixDefs] : []),
+                own(vertex.attributes), own(VERTEX_PRELUDE), own(vertexText.trim()), '',
+                'void esMaterialVertex(inout vec3 local, inout vec3 localNormal, in vec2 uv) {',
+                '    hook_a_position = local; hook_a_normal = localNormal; hook_a_tangent = vec4(1.0, 0.0, 0.0, 1.0); hook_a_texCoord = uv; hook_a_color = es_vertexColor;',
+                ...extra,
+                '    local = cocos_vert().xyz;',
+                '}', '#pragma end', '',
+            ];
+            lines.splice(lines.indexOf('#pragma fragment'), 0, ...hook);
+        }
+    } else if (vertex && /\bcc_time\b/.test(vertexText) && /\bsin\b|\bcos\b/.test(vertexText)) {
+        approximations.push('the vertex program computes something of time that the fragment does not reproduce');
+    }
     return { shader: { source: lines.join('\n'), switches, params, approximations }, unsupported: null, state };
 }
 

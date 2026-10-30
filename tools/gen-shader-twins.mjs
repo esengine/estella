@@ -19,6 +19,10 @@
  *   naga (vendored WASI wasm)         — SPIR-V → WGSL, in-process
  *   post (this file)                  — entry rename to vs_main/fs_main
  *
+ * A material's vertex hook (`#pragma vertexoffset`) is translated the same way, as a small program of its own: the hook, the material's block and
+ * a `main` that calls it. What comes out is the hook's function and the helpers it calls, under the names the engine's WGSL vertex stage injects them
+ * with (`esMaterialVertex(local, localNormal, uv)`, the material block as `mc`). A hook that reads a texture is not translated.
+ *
  * Both converters live in build-tools/shader-twins/ as committed wasm — the
  * pipeline needs no Vulkan SDK, no Rust toolchain, no PATH binaries.
  *
@@ -354,9 +358,81 @@ async function glslToWgsl(glsl, stage, entryName, workDir) {
   return text.replace(/\bfn main\(/, `fn ${entryName}(`);
 }
 
+/** The authored GLSL vertex hook of a shader (its `#pragma vertexoffset` section), or null. */
+function glslHookOf(source) {
+  const m = /#pragma vertexoffset[ \t]*\r?\n([\s\S]*?)#pragma end/.exec(source);
+  return m ? m[1] : null;
+}
+
+/** Whether the shader carries a hook twin written by hand: such a twin is authored, and is not replaced. */
+function hasAuthoredHookTwin(source) {
+  return /#pragma vertexoffset wgsl\r?\n(?!\/\/ GENERATED)/.test(source);
+}
+
+/**
+ * One permutation of a shader's vertex hook as WGSL: the hook is compiled as a vertex program of its own (the material's block, the vertex inputs, a
+ * `main` that calls it), and what the engine's vertex stage needs of the result is taken out of it. Null when the hook reads a texture, which
+ * the engine's stage binds on units a program of this size does not know.
+ */
+async function translateHook(hookGlsl, materialBlock, on, textures, workDir) {
+  if (textures.some((t) => new RegExp(`\\b${t.name ?? t}\\b`).test(hookGlsl))) return null;
+  const defines = on.map((n) => `#define ${n}`).join('\n');
+  const glsl = adaptGlsl([
+    '#version 300 es',
+    defines,
+    'layout(std140) uniform TimeConstants { highp vec4 u_time; highp vec4 u_viewport; };',
+    materialBlock,
+    'layout(location = 0) in vec3 a_position;',
+    'layout(location = 1) in vec3 a_normal;',
+    'layout(location = 2) in vec2 a_texCoord;',
+    'highp vec4 es_vertexColor;',
+    hookGlsl,
+    'void main() {',
+    '  vec3 l = a_position; vec3 n = a_normal;',
+    '  es_vertexColor = vec4(1.0);',
+    '  esMaterialVertex(l, n, a_texCoord);',
+    '  gl_Position = vec4(l + n * 0.0, 1.0);',
+    '}',
+  ].join('\n'), []);
+  const spv = path.join(workDir, 'hook.spv');
+  const wgslFile = path.join(workDir, 'hook.wgsl');
+  await writeFile(spv, await glslToSpv(glsl, 'vert'));
+  await spvFileToWgsl(spv, wgslFile);
+  const text = await readFile(wgslFile, 'utf8');
+  // Everything but what the engine's stage declares itself: the material block (it is `mc`), the stage's inputs and outputs, and `main`.
+  const uniformNames = new Map([...text.matchAll(/var<uniform> (\w+): (\w+);/g)].map((m) => [m[1], { MaterialConstants: 'mc', TimeConstants: 'tc' }[m[2]] ?? m[1]]));
+  const keep = [];
+  const blocks = text.split(/\n(?=fn |struct |var<|const |@group)/);
+  let entryName = null;
+  for (const block of blocks) {
+    const fn = /^fn (\w+)\(/.exec(block);
+    if (fn) {
+      if (fn[1] === 'main_1' || fn[1] === 'main') continue;
+      if (fn[1].startsWith('esMaterialVertex_u0028_')) { entryName = fn[1]; }
+      keep.push(block);
+      continue;
+    }
+    if (/^struct (MaterialConstants|TimeConstants|gl_PerVertex)\b/.test(block)) continue;
+    if (/^@group\(\d+\)/.test(block)) continue;
+    if (/^var<uniform>/.test(block)) continue;
+    if (/^var<private> (a_position_1|a_normal_1|a_texCoord_1|es_vertexColor\w*)\b/.test(block) || /^var<private> unnamed_\d+: gl_PerVertex/.test(block)) continue;
+    keep.push(block);
+  }
+  if (!entryName) throw new Error('the translated hook has no esMaterialVertex');
+  let body = keep.join('\n');
+  for (const [from, to] of uniformNames) body = body.replace(new RegExp(`\\b${from}\\b`, 'g'), to);
+  body = body
+    // naga hands every function parameter over as a pointer, and the engine's stage hands the hook its uv by value.
+    .replace(new RegExp(`\\b${entryName}\\b`, 'g'), 'esMaterialVertexBody')
+    .replace(/\bes_vertexColor_1\b/g, 'es_vertexColor');
+  return `${body.trimEnd()}\n\nfn esMaterialVertex(local : ptr<function, vec3f>, localNormal : ptr<function, vec3f>, uv : vec2f) {\n    var uvArg = uv;\n    esMaterialVertexBody(local, localNormal, &uvArg);\n}`;
+}
+
 /** Strip previously generated `wgsl full` sections (for --force / stale regen). */
 function stripGeneratedTwins(source) {
-  return source.replace(/\n?#pragma (?:vertex|fragment) wgsl full\n[\s\S]*?#pragma end\n?/g, '\n');
+  return source
+    .replace(/\n?#pragma (?:vertex|fragment) wgsl full\n[\s\S]*?#pragma end\n?/g, '\n')
+    .replace(/\n?#pragma vertexoffset wgsl\n\/\/ GENERATED[\s\S]*?#pragma end\n?/g, '\n');
 }
 
 /** Hash of a shader's AUTHORED content — everything but the generated twins, i.e.
@@ -501,10 +577,27 @@ export async function deriveTwin(module, original, opts = {}) {
     }
 
     const banner = bannerFor(sourceHash(source), assembled);
+    // A vertex hook is translated beside the stages, unless one was written by hand or it reads a texture.
+    let hookTwin = '';
+    const hookGlsl = glslHookOf(source);
+    if (hookGlsl !== null && !hasAuthoredHookTwin(source)) {
+      const block = (/layout\s*\(\s*std140\s*\)\s*uniform\s+MaterialConstants\s*\{[\s\S]*?\}\s*;/.exec(info.vertGlsl) ?? [''])[0];
+      const hooks = new Map();
+      let translatable = true;
+      for (const on of permutationsOf(toggles)) {
+        const cooked = toggles.length === 0 ? info : module.esshader_cookInfo(source, permutationKey(on));
+        const textures = [];
+        for (let i = 0; i < cooked.textures.length; i++) textures.push(cooked.textures[i]);
+        const text = await translateHook(hookGlsl, block, on, textures, workDir);
+        if (text === null) { translatable = false; break; }
+        hooks.set(permutationKey(on), text);
+      }
+      if (translatable) hookTwin = `\n#pragma vertexoffset wgsl\n${banner}\n${composePermutations(toggles, hooks)}\n#pragma end\n`;
+    }
     const fragBody = composePermutations(toggles, frag);
     const twin =
       (engineVertex ? '' : `\n#pragma vertex wgsl full\n${banner}\n${composePermutations(toggles, vert)}\n#pragma end\n`) +
-      `\n#pragma fragment wgsl full\n${banner}\n${fragBody}\n#pragma end\n`;
+      `\n#pragma fragment wgsl full\n${banner}\n${fragBody}\n#pragma end\n` + hookTwin;
 
     return { status: 'generated', text: source.trimEnd() + '\n' + twin };
   } finally {

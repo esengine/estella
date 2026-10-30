@@ -127,11 +127,29 @@ describe('converting a pass', () => {
 describe('a pass whose vertex program does more than place the vertex', () => {
     const SWAY = SPRITE_ADD.replace('vec4 pos = cc_matViewProj * vec4(a_position, 1);', 'vec4 pos = cc_matViewProj * vec4(a_position + vec3(sin(cc_time.x), 0, 0), 1);');
 
-    it('is converted without the displacement, and says so', () => {
+    it('is converted with its displacement as the material vertex hook, and that hook translates for WebGPU as well', async () => {
         const swayed = convertEffect(parseEffect(SWAY), 'sway').techniques[0]!.passes[0]!;
         expect(swayed.unsupported).toBeNull();
-        expect(swayed.shader!.approximations).toContain('a displacement of the vertex position is not applied');
-    });
+        const source = swayed.shader!.source;
+        expect(source).toContain('#pragma vertexoffset');
+        expect(source).toContain('void esMaterialVertex(inout vec3 local, inout vec3 localNormal, in vec2 uv)');
+        expect(source).toContain('local = cocos_vert().xyz;');
+        // the hook has attribute names of its own: the engine vertex stage declares a_position and the others
+        const hook = /#pragma vertexoffset\n([\s\S]*?)#pragma end/.exec(source)![1]!;
+        expect(hook).not.toMatch(/(?<!hook_)\ba_position\b/);
+        expect(swayed.shader!.approximations.join('\n')).not.toContain('displacement');
+        // and the twin tool derives its WGSL, which is what a GLSL error in it would show as
+        // @ts-expect-error a repo tool, shipped as .mjs with no declarations
+        const tool = await import('../../tools/gen-shader-twins.mjs');
+        let module: unknown = null;
+        try { module = await tool.loadTwinModule(); } catch { /* no built engine here */ }
+        if (module) {
+            const derived = await tool.deriveTwin(module, source, {});
+            expect(derived.status).toBe('generated');
+            expect(derived.text).toContain('#pragma vertexoffset wgsl');
+            expect(derived.text).toContain('tc.u_time');
+        }
+    }, 120000);
 
     it('is not converted when its vertex program skins the mesh', () => {
         const skinned = SPRITE_ADD.replace('in vec4 a_color;', 'in vec4 a_color;\n  in vec4 a_joints;');
