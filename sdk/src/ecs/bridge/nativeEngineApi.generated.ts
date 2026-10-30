@@ -218,7 +218,6 @@ export interface NativeEngineApi {
     renderer_setColorSpace?(linear: number): void;
     renderer_setCullingMask?(mask: number): void;
     renderer_setDepthLayers?(mask: number): void;
-    renderer_setTreeSortLayers?(mask: number): void;
     renderer_setDepthPrepass?(on: boolean): void;
     renderer_setEntityDrawOrder?(registry: unknown, entitiesPtr: number, count: number): void;
     renderer_setLodPreview?(view: number, entity: number, level: number): void;
@@ -230,6 +229,7 @@ export interface NativeEngineApi {
     renderer_setShadowDistance?(distance: number): void;
     renderer_setStage?(stage: number): void;
     renderer_setTextureParams?(textureId: number, minFilter: number, magFilter: number, wrapS: number, wrapT: number): void;
+    renderer_setTreeSortLayers?(mask: number): void;
     renderer_setViewId?(view: number): void;
     renderer_setViewLighting?(mode: number, rotationDegrees: number, keyIntensity: number, fillIntensity: number, skyIntensity: number, showSky: boolean): void;
     renderer_setViewShading?(view: number, mode: number): void;
@@ -556,7 +556,6 @@ export function createNativeEngineApi(
     bind('renderer_setColorSpace', 'es_renderer_setColorSpace', false);
     bind('renderer_setCullingMask', 'es_renderer_setCullingMask', false);
     bind('renderer_setDepthLayers', 'es_renderer_setDepthLayers', false);
-    bind('renderer_setTreeSortLayers', 'es_renderer_setTreeSortLayers', false);
     bind('renderer_setDepthPrepass', 'es_renderer_setDepthPrepass', false);
     bind('renderer_setEntityDrawOrder', 'es_renderer_setEntityDrawOrder', true);
     bind('renderer_setLodPreview', 'es_renderer_setLodPreview', false);
@@ -568,6 +567,7 @@ export function createNativeEngineApi(
     bind('renderer_setShadowDistance', 'es_renderer_setShadowDistance', false);
     bind('renderer_setStage', 'es_renderer_setStage', false);
     bind('renderer_setTextureParams', 'es_renderer_setTextureParams', false);
+    bind('renderer_setTreeSortLayers', 'es_renderer_setTreeSortLayers', false);
     bind('renderer_setViewId', 'es_renderer_setViewId', false);
     bind('renderer_setViewLighting', 'es_renderer_setViewLighting', false);
     bind('renderer_setViewShading', 'es_renderer_setViewShading', false);

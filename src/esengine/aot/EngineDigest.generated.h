@@ -6,7 +6,7 @@
 
 /* One per address width, because the width is IN the digest: a host that
    took the other one would refuse every module built for it. */
-#define ES_ENGINE_ABI_DIGEST_32 0x105073109860f394ULL
-#define ES_ENGINE_ABI_DIGEST_64 0xb71d1ed9cc346220ULL
+#define ES_ENGINE_ABI_DIGEST_32 0x871948205fc6eb73ULL
+#define ES_ENGINE_ABI_DIGEST_64 0x57b9f31fef78b5a7ULL
 #define ES_ENGINE_ABI_DIGEST \
     (sizeof(es_addr_t) == 8 ? ES_ENGINE_ABI_DIGEST_64 : ES_ENGINE_ABI_DIGEST_32)
