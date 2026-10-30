@@ -664,7 +664,7 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
 
     // Assets scripts load by path at run time (`resources.load('ui/icon')`) are named by no scene, so nothing above would bring them
     // across. They are copied, and listed by bundle in a manifest the runtime layer resolves those paths through.
-    const manifest: Record<string, Record<string, { path: string; kind: string }>> = {};
+    const manifest: Record<string, Record<string, { path: string; kind: string; uuid: string }>> = {};
     if (index.bundles.length > 0) {
         const files = new Set(index.byUuid.values());
         for (const bundle of index.bundles) {
@@ -675,17 +675,17 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
                 const ext = /\.([^./]+)$/.exec(entry.rel)?.[1]?.toLowerCase() ?? '';
                 if (ext === 'prefab') {
                     const ref = ctx.prefabRef(entry.uuid);
-                    if (ref) entries[key] = { path: ref, kind: 'prefab' };
+                    if (ref) entries[key] = { path: ref, kind: 'prefab', uuid: entry.uuid };
                 } else if (ext === 'json') {
-                    entries[key] = { path: ctx.assetRef(entry), kind: 'json' };
+                    entries[key] = { path: ctx.assetRef(entry), kind: 'json', uuid: entry.uuid };
                 } else if (['txt', 'text', 'xml', 'csv', 'atlas'].includes(ext)) {
-                    entries[key] = { path: ctx.assetRef(entry), kind: 'text' };
+                    entries[key] = { path: ctx.assetRef(entry), kind: 'text', uuid: entry.uuid };
                 } else if (['png', 'jpg', 'jpeg', 'webp'].includes(ext)) {
-                    entries[key] = { path: ctx.assetRef(entry), kind: 'texture' };
+                    entries[key] = { path: ctx.assetRef(entry), kind: 'texture', uuid: entry.uuid };
                 } else if (['mp3', 'wav', 'ogg', 'm4a'].includes(ext)) {
-                    entries[key] = { path: ctx.assetRef(entry), kind: 'audio' };
+                    entries[key] = { path: ctx.assetRef(entry), kind: 'audio', uuid: entry.uuid };
                 } else if (ext !== 'meta' && ext !== 'ts' && ext !== 'js' && ext !== 'scene') {
-                    entries[key] = { path: '', kind: ext || 'other' };
+                    entries[key] = { path: '', kind: ext || 'other', uuid: entry.uuid };
                 }
             }
         }

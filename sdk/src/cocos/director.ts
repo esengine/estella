@@ -11,7 +11,10 @@
 import { Name, Parent } from '../ecs/component';
 import type { World } from '../ecs/world';
 import { INVALID_ENTITY, type Entity } from '../types';
+import { Schedule, defineSystem, addSystemToSchedule } from '../ecs/system';
+import { Res, Time } from '../ecs/resource';
 import { Node, getCurrentWorld } from './node';
+import { Scheduler, scheduler } from './scheduler';
 
 /** The root of the running scene: a stand-in for the parent the world's top-level entities do not have. */
 export class Scene {
@@ -63,6 +66,9 @@ export const director = {
     /** The time of the last frame, in seconds. */
     getDeltaTime(): number { return lastDelta; },
     getTotalFrames(): number { return totalFrames; },
+    /** The timers kept by target: the ones a game's own timer service runs on. */
+    getScheduler(): Scheduler { return scheduler; },
+    getAnimationManager(): undefined { return undefined; },
     on(type: string, callback: (...args: any[]) => void, target?: unknown): void {
         const list = directorListeners.get(type);
         if (list) list.push({ callback, target }); else directorListeners.set(type, [{ callback, target }]);
@@ -91,6 +97,7 @@ let totalFrames = 0;
 export function reportFrame(delta: number): void {
     lastDelta = delta;
     totalFrames++;
+    scheduler.update(delta);
 }
 
 /**
@@ -129,4 +136,27 @@ export function isValid(value: unknown, _strict = false): boolean {
     if (value === null || value === undefined) return false;
     const v = value as { isValid?: boolean };
     return typeof v.isValid === 'boolean' ? v.isValid : true;
+}
+
+/**
+ * The director's frame, which scripts hook: the delta it reports and the events around the update and the draw. The frame is the
+ * engine's; these systems mark its start (before the scripts run), the end of the update and the end of the frame, in the order Cocos
+ * emits them.
+ */
+export function declareDirector(): void {
+    addSystemToSchedule(Schedule.First, defineSystem(
+        [Res(Time)],
+        (time) => { reportFrame(time.delta); director.emit(Director.EVENT_BEFORE_UPDATE); },
+        { name: 'Cocos:DirectorBegin', touches: { opaque: true } },
+    ));
+    addSystemToSchedule(Schedule.Last, defineSystem(
+        [],
+        () => {
+            director.emit(Director.EVENT_AFTER_UPDATE);
+            director.emit(Director.EVENT_BEFORE_DRAW);
+            director.emit(Director.EVENT_AFTER_DRAW);
+            director.emit(Director.EVENT_END_FRAME);
+        },
+        { name: 'Cocos:DirectorEnd', touches: { opaque: true } },
+    ));
 }

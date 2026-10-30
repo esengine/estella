@@ -14,6 +14,7 @@ import { ContentRect } from '../ui/core/content-rect';
 import { declareButton } from './ui/button';
 import { declareInputSystem } from './input';
 import { declareUiPass } from './ui/pass';
+import { declareDirector } from './director';
 import { declareTweenSystem } from './tween';
 import { declarePrefabSystem } from './prefabs';
 import { declareGameSystem } from './game';
@@ -31,6 +32,7 @@ export function declareBuiltinScripts(): void {
     declareButton();
     declareInputSystem();
     declareUiPass();
+    declareDirector();
     declareTweenSystem();
     declarePrefabSystem();
     declareGameSystem();

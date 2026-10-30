@@ -65,6 +65,20 @@ describe.skipIf(!HAS_WASM)('Node on the engine', () => {
         expect(canvas.isChildOf(button)).toBe(false);
     });
 
+    it('moves a node among its siblings, and the child order follows', () => {
+        connect();
+        const { canvas, panel, label } = tree();
+        const extra = new Node('Extra'); W().insert(extra._entity, Transform); canvas.addChild(extra);
+        expect(names(canvas.children)).toEqual(['Panel', 'Label', 'Extra']);
+        extra.setSiblingIndex(0);
+        expect(names(canvas.children)).toEqual(['Extra', 'Panel', 'Label']);
+        expect(extra.getSiblingIndex()).toBe(0);
+        panel.setSiblingIndex(-1);
+        expect(names(canvas.children)).toEqual(['Extra', 'Label', 'Panel']);
+        label.setSiblingIndex(99);   // past the end is the end
+        expect(names(canvas.children)).toEqual(['Extra', 'Panel', 'Label']);
+    });
+
     it('detaches with removeFromParent, and moves with setParent', () => {
         connect();
         const { canvas, panel, button, label } = tree();

@@ -158,10 +158,12 @@ describe('importing for the compatibility layer', () => {
 
     it('lists what scripts load by path in a manifest, by bundle, and copies those files', () => {
         const manifest = JSON.parse(readFileSync(path.join(root, 'out', 'assets', 'cocos', 'resources.json'), 'utf8'));
-        expect(manifest.resources['cfg/rules']).toEqual({ path: 'assets/cocos/resources/cfg/rules.json', kind: 'json' });
-        expect(manifest.resources['ui/icon']).toEqual({ path: 'assets/cocos/resources/ui/icon.png', kind: 'texture' });
-        expect(manifest.resources['prefab/thing']).toEqual({ path: 'assets/cocos/resources/prefab/thing.esprefab', kind: 'prefab' });
-        expect(manifest.hero['skin']).toEqual({ path: 'assets/cocos/hero/skin.json', kind: 'json' });
+        // each entry also names the asset's Cocos uuid, which loadAny({ uuid }) resolves it by
+        expect(typeof manifest.resources['cfg/rules'].uuid).toBe('string');
+        expect(manifest.resources['cfg/rules']).toMatchObject({ path: 'assets/cocos/resources/cfg/rules.json', kind: 'json' });
+        expect(manifest.resources['ui/icon']).toMatchObject({ path: 'assets/cocos/resources/ui/icon.png', kind: 'texture' });
+        expect(manifest.resources['prefab/thing']).toMatchObject({ path: 'assets/cocos/resources/prefab/thing.esprefab', kind: 'prefab' });
+        expect(manifest.hero['skin']).toMatchObject({ path: 'assets/cocos/hero/skin.json', kind: 'json' });
         expect(readFileSync(path.join(root, 'out', 'assets', 'cocos', 'resources', 'cfg', 'rules.json'), 'utf8')).toBe('{"a":1}');
     });
 

@@ -10,7 +10,21 @@
  */
 import { Material as EngineMaterial } from '../render/material';
 
-export class Asset { constructor(public path = '') {} }
+export class Asset {
+    constructor(public path = '') {}
+    /** The Cocos uuid and display name of the asset, where the project's manifest gave one. */
+    uuid = '';
+    name = '';
+    private refCount_ = 0;
+    /** How many holders have asked to keep it. An asset here lives as long as the engine's own resource table holds it, so the count is advice. */
+    get refCount(): number { return this.refCount_; }
+    addRef(): this { this.refCount_++; return this; }
+    decRef(_autoRelease = true): this { if (this.refCount_ > 0) this.refCount_--; return this; }
+    get isDefault(): boolean { return false; }
+    get nativeUrl(): string { return this.path; }
+    get loaded(): boolean { return true; }
+    destroy(): boolean { return true; }
+}
 export class ImageAsset extends Asset {}
 export class Texture2D extends Asset {}
 export class SpriteFrame extends Asset {}

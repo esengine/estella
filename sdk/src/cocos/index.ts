@@ -21,6 +21,7 @@ export {
     disallowMultiple, type, integer, float, string, boolean, CCInteger, CCFloat, CCString, CCBoolean, Enum,
 } from './decorators';
 export { director, Director, Scene, find, isValid, reportFrame } from './director';
+export { Scheduler } from './scheduler';
 export {
     Asset, ImageAsset, Texture2D, SpriteFrame, SpriteAtlas, Prefab, AudioClip, Material, JsonAsset, TextAsset, BitmapFont, Font,
     AnimationClip, SceneAsset, EffectAsset, Mesh,

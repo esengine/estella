@@ -22,7 +22,6 @@ import {
 } from './registry';
 import type { Component } from './component';
 import { builtinAdapterFor } from './builtins';
-import { log } from '../util/logger';
 
 /** The world a `new Node()` spawns into: set by whatever is running script code (the host, a test). */
 let currentWorld: World | null = null;
@@ -196,8 +195,26 @@ export class Node {
         const p = this.parent;
         return p ? (this._world.tryGet(p._entity, Children)?.entities.indexOf(this._entity) ?? -1) : 0;
     }
-    setSiblingIndex(_index: number): void {
-        warnOnce('setSiblingIndex', 'Node.setSiblingIndex does not reorder yet: the engine owns the child order');
+    /**
+     * Move this node among its siblings (-1 is the last place). The engine keeps the child order and the draw order together, in the storage
+     * order of its entities, so the siblings swap their places there and the engine re-establishes both from it: the same operation an
+     * outliner drag is.
+     */
+    setSiblingIndex(index: number): void {
+        const parent = this.parent;
+        if (!parent) return;
+        const siblings = [...(this._world.tryGet(parent._entity, Children)?.entities ?? [])];
+        const from = siblings.indexOf(this._entity);
+        if (from < 0) return;
+        const to = Math.max(0, Math.min(siblings.length - 1, index < 0 ? siblings.length - 1 : index));
+        if (to === from) return;
+        siblings.splice(from, 1);
+        siblings.splice(to, 0, this._entity);
+        const taken = new Set<Entity>(siblings);
+        const order = this._world.getAllEntities();
+        let next = 0;
+        for (let i = 0; i < order.length; i++) if (taken.has(order[i]!)) order[i] = siblings[next++]!;
+        this._world.applyEntityOrder(order);
     }
 
     /** Whether @p other is this node or below it. */
@@ -410,13 +427,6 @@ export class Node {
 
 setNodeFactory((world, entity) => Node.for(world, entity));
 
-
-const warned = new Set<string>();
-function warnOnce(key: string, message: string): void {
-    if (warned.has(key)) return;
-    warned.add(key);
-    log.warn('cocos', message);
-}
 
 /** The node for an entity, for the parts of the layer that hold only an entity id. */
 export function nodeForEntity(world: World, entity: Entity): Node { return nodeOf(world, entity); }

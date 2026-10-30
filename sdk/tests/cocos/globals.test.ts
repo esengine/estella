@@ -6,7 +6,7 @@
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
-    Game, KeyCode, Layers, Prefab, Size, View, assetManager, game, macro, resources, screen, setResourceManifest, setVisibleSize, sys, view,
+    Game, KeyCode, Scheduler, Asset, director, reportFrame, Layers, Prefab, Size, View, assetManager, game, macro, resources, screen, setResourceManifest, setVisibleSize, sys, view,
     providePrefab,
 } from '../../src/cocos';
 import { keyCodeOf } from '../../src/cocos/inputApi';
@@ -193,5 +193,72 @@ describe('resources and assetManager', () => {
         expect(seen).toBe(assetManager.assets.count);
         expect(assetManager.bundles.find((b) => b.name === 'resources')).toBe(resources);
         expect(assetManager.cacheManager.cachedFiles.count).toBe(0);
+    });
+});
+
+describe('director', () => {
+    it('hands out a scheduler that runs timers by target, with a delay, an interval and a repeat count', () => {
+        const scheduler = director.getScheduler();
+        const target = {};
+        const calls: number[] = [];
+        scheduler.schedule(function (this: unknown, dt) { expect(this).toBe(target); calls.push(dt); }, target, 0.5, 1, 0.25);
+        reportFrame(0.2); expect(calls).toHaveLength(0);               // inside the delay
+        reportFrame(0.1); expect(calls).toHaveLength(1);               // the delay ended: the first fire
+        reportFrame(0.5); expect(calls).toHaveLength(2);               // one interval later: the one repeat
+        reportFrame(0.5); expect(calls).toHaveLength(2);               // and no more
+        expect(scheduler.isScheduled(() => {}, target)).toBe(false);
+    });
+
+    it('stops what was unscheduled, pauses by target, and scales time', () => {
+        const scheduler = new Scheduler();
+        const target = {};
+        let n = 0;
+        const tick = (): void => { n++; };
+        scheduler.schedule(tick, target);
+        scheduler.update(0.1); expect(n).toBe(1);
+        scheduler.pauseTarget(target); scheduler.update(0.1); expect(n).toBe(1);
+        scheduler.resumeTarget(target); scheduler.setTimeScale(0.5);
+        let seen = 0; scheduler.unscheduleAllForTarget(target);
+        scheduler.schedule((dt) => { seen = dt; }, target);
+        scheduler.update(0.2); expect(seen).toBeCloseTo(0.1);
+        scheduler.unscheduleAllForTarget(target); scheduler.update(0.2); expect(n).toBe(1);
+    });
+
+    it('calls update on a scheduled target, lowest priority first', () => {
+        const scheduler = new Scheduler();
+        const order: string[] = [];
+        scheduler.scheduleUpdate({ update: () => order.push('late') }, 5);
+        scheduler.scheduleUpdate({ update: () => order.push('early') }, -5);
+        scheduler.update(0.016);
+        expect(order).toEqual(['early', 'late']);
+    });
+
+    it('reports the frame delta to scripts', () => {
+        reportFrame(0.033);
+        expect(director.getDeltaTime()).toBeCloseTo(0.033);
+    });
+});
+
+describe('Asset', () => {
+    it('keeps a count of its holders', () => {
+        const a = new Asset('x');
+        expect(a.addRef()).toBe(a);
+        a.addRef();
+        expect(a.refCount).toBe(2);
+        a.decRef();
+        expect(a.refCount).toBe(1);
+        a.decRef(); a.decRef();
+        expect(a.refCount).toBe(0);
+    });
+
+    it('is loaded by uuid, from the manifest listing', async () => {
+        setResourceManifest({ resources: { 'prefab/bullet': { path: 'bullet.esprefab', kind: 'prefab', uuid: 'abc-123' } } });
+        providePrefab('bullet.esprefab', { ref: 'bullet.esprefab', scene: { version: 4, name: 'bullet', entities: [] } as never, rootId: 0, missing: [], release() {} });
+        const loaded = await new Promise<{ err: Error | null; result: unknown }>((resolve) =>
+            assetManager.loadAny({ uuid: 'abc-123' }, (err: Error | null, result: unknown) => resolve({ err, result })));
+        expect(loaded.err).toBeNull();
+        expect(loaded.result).toBeInstanceOf(Prefab);
+        const missing = await new Promise<Error | null>((resolve) => assetManager.loadAny('nope', (err: Error | null) => resolve(err)));
+        expect(missing?.message).toMatch(/uuid nope/);
     });
 });

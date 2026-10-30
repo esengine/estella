@@ -26,6 +26,8 @@ export interface ResourceEntry {
     path: string;
     /** What kind of asset it is: `prefab`, `json`, `text`, or another the layer cannot load. */
     kind: string;
+    /** The Cocos uuid of the asset, which `loadAny({ uuid })` names it by. */
+    uuid?: string;
 }
 export type ResourceManifest = Record<string, Record<string, ResourceEntry>>;
 
@@ -289,20 +291,37 @@ class AssetManager {
         })().then((a) => { loaded.add(url, a); onComplete?.(null, a); }, (e: Error) => { if (onComplete) onComplete(e, null as never); else log.warn('cocos', e.message); });
     }
 
-    /** Requests in the shapes a script writes: `{ url }` remote, `{ path, bundle?, type? }` a bundle's asset. A uuid is not resolvable here. */
+    /** Requests in the shapes a script writes: `{ url }` remote, `{ path, bundle?, type? }` a bundle's asset, `{ uuid }` or a bare uuid (by the manifest's listing). */
     loadAny(requests: unknown, ...rest: unknown[]): void {
         const onComplete = rest.find((a) => typeof a === 'function') as Callback<unknown> | undefined;
         const one = (r: any): Promise<Asset> => new Promise((resolve, reject) => {
             const done: Callback<Asset> = (e, a) => (e ? reject(e) : resolve(a));
             if (r && typeof r === 'object' && typeof r.url === 'string') this.loadRemote(r.url, r, done);
             else if (r && typeof r === 'object' && typeof r.path === 'string') (bundles.get(r.bundle ?? 'resources') ?? resources).load(r.path, r.type ?? null, done);
-            else reject(new Error('cocos compat: loadAny by uuid is not supported; use a bundle path or a url'));
+            else if (r && typeof r === 'object' && typeof r.uuid === 'string') {
+                this.loadByUuid_(r.uuid, r.type ?? null).then(resolve, reject);
+            } else if (typeof r === 'string') this.loadByUuid_(r, null).then(resolve, reject);
+            else reject(new Error('cocos compat: loadAny takes a uuid, a bundle path or a url'));
         });
         const list = Array.isArray(requests) ? requests : [requests];
         Promise.all(list.map(one)).then(
             (r) => onComplete?.(null, Array.isArray(requests) ? r : r[0]),
             (e: Error) => { if (onComplete) onComplete(e, null); else log.warn('cocos', e.message); },
         );
+    }
+
+    /** The bundle and key a uuid is listed under in the resource manifest. */
+    private async loadByUuid_(uuid: string, type: AssetCtor | null): Promise<Asset> {
+        const m = await theManifest();
+        for (const [bundle, entries] of Object.entries(m)) {
+            for (const [key, entry] of Object.entries(entries)) {
+                if (entry.uuid !== uuid) continue;
+                return new Promise<Asset>((resolve, reject) => {
+                    (bundles.get(bundle) ?? resources).load(key, type, (e: Error | null, a: Asset) => (e ? reject(e) : resolve(a)));
+                });
+            }
+        }
+        throw new Error(`cocos compat: no asset with uuid ${uuid} is listed in the project's bundles`);
     }
 
     releaseAsset(asset: Asset): void { for (const [k, v] of [...loaded.entries()]) if (v === asset) loaded.remove(k); }
