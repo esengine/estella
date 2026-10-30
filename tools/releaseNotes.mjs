@@ -28,6 +28,8 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(cocos): a document the creator edited moves from the layer Cocos.Widget to the engine RectAnchors on re-import':
+    {"note":"Edited Cocos documents move to RectAnchors."},
   'feat(ui): RectAnchors pins world content to its parent rectangle or the screen in the engine, and the Cocos Widget is a view on it':
     {"note":"RectAnchors: world content that follows its parent."},
   'feat(cocos): a converted project keeps the Cocos fit width of its design, and cc.profiler exists in the compatibility layer':
