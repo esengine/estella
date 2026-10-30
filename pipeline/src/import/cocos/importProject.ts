@@ -34,6 +34,17 @@ export interface CocosImportOptions {
     dryRun?: boolean;
     /** Folder under the project's `assets/` that receives everything. */
     into?: string;
+    /** Told how far along the import is, so a long one can show it. */
+    onProgress?: (p: CocosImportProgress) => void;
+}
+
+/** Where an import is: the step it is in and how many of that step's items are done. */
+export interface CocosImportProgress {
+    stage: 'index' | 'prefabs' | 'scenes' | 'textures' | 'finish';
+    done: number;
+    total: number;
+    /** The document or asset being worked on, when there is one. */
+    item?: string;
 }
 
 const norm = (p: string): string => p.split(path.sep).join('/');
@@ -105,6 +116,8 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
     const into = opts.into ?? 'cocos';
 
     const report = new ImportReport();
+    const progress = (stage: CocosImportProgress['stage'], done: number, total: number, item?: string): void => opts.onProgress?.({ stage, done, total, ...(item ? { item } : {}) });
+    progress('index', 0, 1);
     const index = buildCocosAssetIndex(assetsDir);
 
     const outRef = (assetRel: string): string => `assets/${into}/${assetRel}`;
@@ -484,6 +497,7 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
         const doc = e ? loadDoc(e) : null;
         if (!e || !doc) continue;
         ctx.where = r;
+        progress('prefabs', i, pending.length, r);
         await models.ensureFor(e.file);
         try {
             write(outRef(esRel(r, '.esprefab')), convertPrefab(doc, ctx));
@@ -491,11 +505,12 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
             report.documents.failed.push({ file: r, error: (err as Error).message });
         }
     }
-    for (const r of scenes) {
+    for (const [si, r] of scenes.entries()) {
         const e = byRel.get(r);
         const doc = e ? loadDoc(e) : null;
         if (!e || !doc) continue;
         ctx.where = r;
+        progress('scenes', si, scenes.length, r);
         await models.ensureFor(e.file);
         try {
             write(outRef(esRel(r, '.esscene')), convertScene(doc, ctx));
@@ -528,7 +543,10 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
 
     report.textures = textures.size;
     if (!opts.dryRun) {
+        let copied = 0;
         for (const { entry, slice, hints } of textures.values()) {
+            if (copied % 25 === 0) progress('textures', copied, textures.size, entry.rel);
+            copied++;
             const dest = path.join(out, outRef(entry.rel));
             if (!existsSync(entry.file)) {
                 report.missingAsset(entry.uuid);
@@ -548,6 +566,7 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
                 writeOut(`${dest}.meta`, `${JSON.stringify({ uuid: entry.uuid, version: '2.0', type: 'texture', importer: { sliceBorder: slice } }, null, 2)}\n`);
             }
         }
+        progress('finish', 0, 1);
         writeOut(stateFile, `${JSON.stringify({ source, documents: written }, null, 2)}\n`);
         writeOut(path.join(out, 'assets', into, 'import-report.json'), `${JSON.stringify(report.toJSON(), null, 2)}\n`);
     }
