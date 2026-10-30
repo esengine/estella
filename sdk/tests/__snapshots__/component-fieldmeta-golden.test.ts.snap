@@ -659,6 +659,9 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "category": "Emission",
       "min": 0,
     },
+    "bursts": {
+      "category": "Emission",
+    },
     "collisionBounce": {
       "category": "Collision",
       "max": 1,

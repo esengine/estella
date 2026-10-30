@@ -27,6 +27,8 @@ export class ParticlePlugin implements Plugin {
     private readonly gradients_ = new Map<number, Gradient>();
     /** Entity → authored size-over-life curve (out-of-band; baked to the C++ LUT). */
     private readonly sizeCurves_ = new Map<number, Curve>();
+    /** Entity → authored burst schedule (out-of-band; handed to the sim as (time, count) pairs). */
+    private readonly bursts_ = new Map<number, { time: number; count: number }[]>();
     private overlay_: string | null = null;
     private offDespawn_: (() => void) | null = null;
 
@@ -53,14 +55,16 @@ export class ParticlePlugin implements Plugin {
         // C++ field — carry it out-of-band and bake it into the sim's LUT on load.
         const gradients = this.gradients_;
         const sizeCurves = this.sizeCurves_;
+        const bursts = this.bursts_;
 
         this.offDespawn_ = app.world.onDespawn((entity) => {
             if (gradients.delete(entity)) api.setColorLut(entity, null);
             if (sizeCurves.delete(entity)) api.setSizeLut(entity, null);
+            if (bursts.delete(entity)) api.setBursts(entity, null);
         });
 
         registerSceneComponentCodec('ParticleEmitter', {
-            outOfBandFields: ['colorGradient', 'sizeCurve'],
+            outOfBandFields: ['colorGradient', 'sizeCurve', 'bursts'],
             importData: (entity, outOfBand) => {
                 const g = outOfBand.colorGradient as Gradient | undefined;
                 api.setColorLut(entity, bakeGradient(g));
@@ -71,12 +75,19 @@ export class ParticlePlugin implements Plugin {
                 api.setSizeLut(entity, bakeCurve(c));
                 if (c?.keys?.length) sizeCurves.set(entity, c);
                 else sizeCurves.delete(entity);
+
+                const b = outOfBand.bursts as { time: number; count: number }[] | undefined;
+                api.setBursts(entity, b ?? null);
+                if (b?.length) bursts.set(entity, b);
+                else bursts.delete(entity);
             },
             exportData: (entity, data) => {
                 const g = gradients.get(entity);
                 if (g) data.colorGradient = g;
                 const c = sizeCurves.get(entity);
                 if (c) data.sizeCurve = c;
+                const b = bursts.get(entity);
+                if (b) data.bursts = b;
             },
         });
 

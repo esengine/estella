@@ -366,6 +366,14 @@ target_include_directories(test_particle_speed_limit PRIVATE
 )
 add_test(NAME test_particle_speed_limit COMMAND test_particle_speed_limit)
 
+# Particle burst schedule: each burst fires once per pass of the clock, and a looping emitter passes every duration. Header-only.
+add_executable(test_particle_bursts particle/test_particle_bursts.cpp)
+target_include_directories(test_particle_bursts PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party/glm
+)
+add_test(NAME test_particle_bursts COMMAND test_particle_bursts)
+
 # LOD selection: the projection arithmetic, the hysteresis band and the per-view
 # memory. Header-only, so it runs without a device — the pixel gates say which
 # level was drawn, this says which of the claims behind it broke.

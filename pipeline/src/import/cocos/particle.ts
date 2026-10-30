@@ -236,17 +236,19 @@ export function particleSystem(c: { enabled: boolean; data: Raw }, ctx: Particle
         out.shape = 0; // Point
     }
 
-    // bursts: the engine repeats one burst on an interval
+    // bursts: each one fires at its time, `repeatCount` times `repeatInterval` apart, and the schedule repeats with the system's loop
     const bursts = (Array.isArray(d.bursts) ? d.bursts : []).filter(isObj);
     if (bursts.length > 0) {
-        const b = bursts[0]!;
-        out.burstCount = Math.round(mid(curveRange(b.count, 0, 0)));
-        out.burstInterval = Math.max(num(b.repeatInterval, 1), 0.01);
-        const at = num(b._time, 0);
-        // A system that only bursts has nothing to wait for but its burst: the wait is the emitter's start delay. With a steady rate beside it the
-        // delay would hold the rate back too, so that burst's time is counted instead.
-        if (at > 0 && bursts.length === 1 && mid(rate) === 0) out.startDelay = Number(out.startDelay ?? 0) + at;
-        else if (bursts.length > 1 || at > 0) lose('particle-bursts');
+        const schedule: { time: number; count: number }[] = [];
+        for (const b of bursts) {
+            const count = Math.round(mid(curveRange(b.count, 0, 0)));
+            const repeats = Math.max(1, Math.min(Math.trunc(isObj(b.repeatCount) ? mid(curveRange(b.repeatCount, 1, 1)) : num(b._repeatCount ?? b.repeatCount, 1)), 64));
+            const every = Math.max(num(b.repeatInterval, 1), 0.01);
+            if (count <= 0) continue;
+            for (let i = 0; i < repeats && schedule.length < 64; i++) schedule.push({ time: Math.max(num(b._time, 0), 0) + i * every, count });
+        }
+        schedule.sort((a, c) => a.time - c.time);
+        if (schedule.length > 0) out.bursts = schedule;
     }
 
     // a sheet of frames played over a life

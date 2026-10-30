@@ -39,6 +39,7 @@ void ParticleSystem::update(ecs::Registry& registry, f32 frameDt) {
             colorLuts_.erase(entity);
             sizeLuts_.erase(entity);
             speedLuts_.erase(entity);
+            burstSchedules_.erase(entity);
         });
     }
 
@@ -108,6 +109,7 @@ void ParticleSystem::update(ecs::Registry& registry, f32 frameDt) {
             next.emission_accumulator = old.emission_accumulator;
             next.elapsed_time = old.elapsed_time;
             next.burst_timer = old.burst_timer;
+            next.burst_clock = old.burst_clock;
             next.noise_time = old.noise_time;
             next.playing = old.playing;
             next.first_update = old.first_update;
@@ -173,6 +175,12 @@ void ParticleSystem::update(ecs::Registry& registry, f32 frameDt) {
             state.elapsed_time += dt;
         }
         if (emitting && state.elapsed_time >= startDelay) {
+            if (auto schedule = burstSchedules_.find(entity); schedule != burstSchedules_.end()) {
+                const f32 clock = state.elapsed_time - startDelay;
+                const u32 due = burstsDue(schedule->second, state.burst_clock, clock, emitter.duration, emitter.looping);
+                state.burst_clock = clock;
+                if (due > 0) emit(due, true);
+            }
             if (emitter.rate > 0.0f) {
                 state.emission_accumulator += emitter.rate * dt;
                 u32 toEmit = static_cast<u32>(state.emission_accumulator);
@@ -265,6 +273,7 @@ void ParticleSystem::reset(Entity entity) {
         it->second.emission_accumulator = 0.0f;
         it->second.elapsed_time = 0.0f;
         it->second.burst_timer = 0.0f;
+        it->second.burst_clock = -1.0f;
         it->second.playing = false;
     }
 }
@@ -296,6 +305,18 @@ void ParticleSystem::setSpeedLut(Entity entity, const f32* values, i32 count) {
     }
     SizeLut& lut = speedLuts_[entity];
     for (std::size_t i = 0; i < kColorLutSize; ++i) lut[i] = values[i];
+}
+
+void ParticleSystem::setBursts(Entity entity, const f32* values, i32 count) {
+    if (count <= 0 || values == nullptr) {
+        burstSchedules_.erase(entity);
+        return;
+    }
+    std::vector<ScheduledBurst>& schedule = burstSchedules_[entity];
+    schedule.clear();
+    for (i32 i = 0; i < count && i < 64; ++i) {
+        schedule.push_back({values[i * 2], static_cast<u32>(std::max(values[i * 2 + 1], 0.0f))});
+    }
 }
 
 u32 ParticleSystem::aliveCount(Entity entity) const {

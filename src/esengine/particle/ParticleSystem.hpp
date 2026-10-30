@@ -9,6 +9,7 @@
 #include "../ecs/components/ParticleEmitter.hpp"
 #include "../ecs/components/ParticleForceField.hpp"
 #include "Particle.hpp"
+#include "ParticleBursts.hpp"
 #include "ParticleEasing.hpp"
 #include "ParticleShapes.hpp"
 
@@ -88,6 +89,8 @@ struct EmitterState {
     f32 emission_accumulator = 0.0f;
     f32 elapsed_time = 0.0f;
     f32 burst_timer = 0.0f;
+    /// Where the scheduled bursts last looked: the emitting clock of the previous step, below zero before the first.
+    f32 burst_clock = -1.0f;
     // Monotonic clock for the noise field's scroll — advances every update
     // regardless of play/stop so the turbulence never snaps when emission pauses.
     f32 noise_time = 0.0f;
@@ -178,6 +181,10 @@ public:
      *  and gravity, damping and noise still accumulate into velocity as before. */
     void setSpeedLut(Entity entity, const f32* values, i32 count);
 
+    /** Set/clear an entity's burst schedule: `count` pairs of (seconds, particles) in `values`. Each fires once per
+     *  pass of the emitter's clock over its time, and a looping emitter passes every duration. */
+    void setBursts(Entity entity, const f32* values, i32 count);
+
     /// The over-life curves an entity was given, for the GPU kernel to read; null where none was set.
     const ColorLut* colorLut(Entity entity) const { auto it = colorLuts_.find(entity); return it == colorLuts_.end() ? nullptr : &it->second; }
     const SizeLut* sizeLut(Entity entity) const { auto it = sizeLuts_.find(entity); return it == sizeLuts_.end() ? nullptr : &it->second; }
@@ -240,6 +247,7 @@ private:
     std::unordered_map<Entity, ColorLut> colorLuts_;
     std::unordered_map<Entity, SizeLut> sizeLuts_;
     std::unordered_map<Entity, SizeLut> speedLuts_;
+    std::unordered_map<Entity, std::vector<ScheduledBurst>> burstSchedules_;
     std::mt19937 rng_;
     bool gpu_available_ = false;
     u32 particle_limit_ = 0xffffffffu;

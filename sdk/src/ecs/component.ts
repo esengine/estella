@@ -1215,6 +1215,11 @@ export interface ParticleEmitterData extends ParticleEmitterDataCpp {
      * has keys it overrides startSize/endSize + sizeEasing. Empty ⇒ start/end fallback.
      */
     sizeCurve: { keys: { t: number; v: number }[] };
+    /**
+     * Bursts on a schedule: `count` particles once the emitter has been emitting for `time` seconds, repeated every
+     * `duration` while it loops. Beside (not instead of) `burstCount`, which repeats one burst on an interval.
+     */
+    bursts: { time: number; count: number }[];
 }
 
 /**
@@ -1226,17 +1231,18 @@ export interface ParticleEmitterData extends ParticleEmitterDataCpp {
  * @beta
  */
 export const ParticleEmitter = defineBuiltin<ParticleEmitterData>('ParticleEmitter',
-    metaDefaults<ParticleEmitterData>('ParticleEmitter', { colorGradient: { stops: [] }, sizeCurve: { keys: [] } }),
+    metaDefaults<ParticleEmitterData>('ParticleEmitter', { colorGradient: { stops: [] }, sizeCurve: { keys: [] }, bursts: [] }),
     {
         // Most field metadata is authored at the C++ ES_PROPERTY site (categories,
         // min/step, and the shape/simulationSpace/easing enum dropdowns via `enum=`).
         // Only what an annotation can't express stays here: the blendMode dropdown
         // (BlendMode is a renderer enum with no component ES_ENUM), and the two
-        // TS-only editor fields (sizeCurve / colorGradient have no C++ member).
+        // TS-only editor fields (sizeCurve / colorGradient / bursts have no C++ member).
         fields: {
             blendMode: { enum: enumOptions(BlendMode) },
             sizeCurve: { curve: true, category: 'Size' },
             colorGradient: { gradient: true, category: 'Color' },
+            bursts: { category: 'Emission' },
         },
     }
 );

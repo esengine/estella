@@ -73,8 +73,7 @@ describe('a particle system', () => {
         const d = convert().out.data as Record<string, any>;
         expect(d.maxParticles).toBe(30);
         expect(d.looping).toBe(false);
-        expect(d.burstCount).toBe(12);
-        expect(d.burstInterval).toBe(0.5);
+        expect(d.bursts).toEqual([{ time: 0, count: 12 }]);
         expect([d.speedMin, d.speedMax]).toEqual([1, 3]);
         expect(d.lifetimeMin).toBe(1);
         expect(d.gravity.y).toBeCloseTo(-4.9, 5);
@@ -144,7 +143,7 @@ describe('a particle system', () => {
         expect(axes.report.notes['particle-limit-per-axis']?.count).toBe(1);
     });
 
-    it('maps simulation speed, turbulence and a trail, and the burst time of a burst-only system as its start delay', () => {
+    it('maps simulation speed, turbulence and a trail, and a burst scheduled at its time', () => {
         const { out, report } = convert({
             simulationSpeed: 2,
             bursts: [{ _time: 0.4, count: constant(5), repeatInterval: 1 }],
@@ -153,7 +152,7 @@ describe('a particle system', () => {
         });
         const d = out.data as Record<string, any>;
         expect(d.simulationSpeed).toBe(2);
-        expect(d.startDelay).toBeCloseTo(0.4, 5);
+        expect(d.bursts).toEqual([{ time: 0.4, count: 5 }]);
         expect([d.noiseStrength, d.noiseFrequency, d.noiseScrollSpeed, d.noiseOctaves]).toEqual([0.6000000000000001, 0.5, 2, 2]);
         expect([d.trailEnabled, d.trailPoints, d.trailWidth, d.trailMinDistance]).toEqual([true, 7, 0.8, 0.1]);
         expect(report.components['cc.ParticleSystem']).toEqual({ mapped: 1, partial: 0, unmapped: 0 });
@@ -161,12 +160,19 @@ describe('a particle system', () => {
         expect(validate('ParticleEmitter', def._default, d, def.assetFields)).toEqual([]);
     });
 
-    it('counts what the emitter has no field for: several bursts, a trail coloured along its length', () => {
+    it('schedules several bursts and a repeating one, in time order', () => {
+        const { out } = convert({
+            bursts: [{ _time: 1, count: constant(4), repeatInterval: 1 }, { _time: 0, _repeatCount: 3, count: constant(5), repeatInterval: 0.5 }],
+        });
+        expect((out.data as Record<string, any>).bursts).toEqual([
+            { time: 0, count: 5 }, { time: 0.5, count: 5 }, { time: 1, count: 4 }, { time: 1, count: 5 },
+        ]);
+    });
+
+    it('counts what the emitter has no field for: a trail coloured along its length', () => {
         const { report } = convert({
-            bursts: [{ _time: 0, count: constant(5), repeatInterval: 1 }, { _time: 1, count: constant(5), repeatInterval: 1 }],
             _trailModule: { _enable: true, lifeTime: constant(0.3), widthRatio: constant(1), colorOverTrail: { _mode: 1 } },
         });
-        expect(report.notes['particle-bursts']?.count).toBe(1);
         expect(report.notes['particle-trail-colour']?.count).toBe(1);
     });
 

@@ -90,8 +90,8 @@ shape: Collider3DShape
 ## Collider3DShape — type @experimental
 ```
 | { kind: 'box'; halfExtents: Vec3; center: Vec3 }
-    | { kind: 'sphere'; radius: number }
-    | { kind: 'capsule'; radius: number; halfHeight: number }
+    | { kind: 'sphere'; radius: number; center?: Vec3 }
+    | { kind: 'capsule'; radius: number; halfHeight: number; center?: Vec3 }
 ```
 
 ## Contact3DEvent — interface @experimental

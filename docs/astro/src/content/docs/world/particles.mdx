@@ -89,6 +89,7 @@ in degrees.
 |---|---|---|---|
 | `rate` | number | `10` | Continuous emission, particles per second. `0` = bursts only. |
 | `burstCount` | number | `0` | Particles released per burst. `0` disables bursts. |
+| `bursts` | `{ time, count }[]` | `[]` | A schedule of bursts: `count` particles once the emitter has been emitting for `time` seconds (counted from the end of `startDelay`). A looping emitter repeats the schedule every `duration`. Used beside `burstCount`, not instead of it. |
 | `burstInterval` | number | `1` | Seconds between bursts. |
 | `duration` | number | `5` | Seconds the emitter runs before stopping (see `looping`). |
 | `simulationSpeed` | number | `1` | How fast this emitter's own time runs: `2` plays it twice as fast, `0` holds it. Emission, lifetimes and motion all follow it. |

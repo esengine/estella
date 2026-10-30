@@ -463,6 +463,11 @@
           "default": "(0.5, 0.5, 0.5)"
         },
         {
+          "key": "center",
+          "type": "Vec3",
+          "default": "(0, 0, 0)"
+        },
+        {
           "key": "friction",
           "type": "number",
           "default": "0.3",
@@ -743,6 +748,11 @@
           "type": "number",
           "default": "0.5",
           "range": "≥ 0"
+        },
+        {
+          "key": "center",
+          "type": "Vec3",
+          "default": "(0, 0, 0)"
         },
         {
           "key": "friction",
@@ -3911,6 +3921,11 @@
           "key": "sizeCurve",
           "type": "object",
           "default": "{\"keys\":[]}"
+        },
+        {
+          "key": "bursts",
+          "type": "array",
+          "default": "empty"
         }
       ]
     },
@@ -5375,6 +5390,11 @@
           "type": "number",
           "default": "0.5",
           "range": "≥ 0"
+        },
+        {
+          "key": "center",
+          "type": "Vec3",
+          "default": "(0, 0, 0)"
         },
         {
           "key": "friction",

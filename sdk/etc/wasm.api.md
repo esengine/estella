@@ -400,6 +400,7 @@ particle_collisionStatsCount: (() => number) | undefined
 particle_getAliveCount: ((entity: number) => number) | undefined
 particle_play: ((registry: CppRegistry, entity: number) => void) | undefined
 particle_reset: ((registry: CppRegistry, entity: number) => void) | undefined
+particle_set_bursts: ((entity: number, ptr: number, count: number) => void) | undefined
 particle_set_color_lut: ((entity: number, ptr: number, count: number) => void) | undefined
 particle_set_size_lut: ((entity: number, ptr: number, count: number) => void) | undefined
 particle_set_speed_lut: ((entity: number, ptr: number, count: number) => void) | undefined

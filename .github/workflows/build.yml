@@ -37,6 +37,7 @@ env:
     test_bitmap_font test_texture_cache test_material_shader_lifetime test_mesh_recovery test_aot_host test_aot_conformance
     test_touch_stream
     test_frame_lifecycle
+    test_particle_stretch test_particle_speed_limit test_particle_bursts
 
 jobs:
   playable-runtime:

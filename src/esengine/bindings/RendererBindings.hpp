@@ -204,6 +204,8 @@ void particle_set_color_lut(u32 entity, uintptr_t ptr, i32 count);
 void particle_set_size_lut(u32 entity, uintptr_t ptr, i32 count);
 /** Speed-over-life multiplier LUT: scales the step, never the forces. */
 void particle_set_speed_lut(u32 entity, uintptr_t ptr, i32 count);
+/** Burst schedule: `count` pairs of (seconds, particles) at `ptr`; 0 clears. */
+void particle_set_bursts(u32 entity, uintptr_t ptr, i32 count);
 #endif
 void trail_update(ecs::Registry& registry, f32 dt);
 void trail_clear(ecs::Registry& registry, u32 entity);

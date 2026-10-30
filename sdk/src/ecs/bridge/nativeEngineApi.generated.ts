@@ -95,6 +95,7 @@ export interface NativeEngineApi {
     particle_getAliveCount?(entity: number): number;
     particle_play?(registry: unknown, entity: number): void;
     particle_reset?(registry: unknown, entity: number): void;
+    particle_set_bursts?(entity: number, ptr: number, count: number): void;
     particle_set_color_lut?(entity: number, ptr: number, count: number): void;
     particle_set_size_lut?(entity: number, ptr: number, count: number): void;
     particle_set_speed_lut?(entity: number, ptr: number, count: number): void;
@@ -431,6 +432,7 @@ export function createNativeEngineApi(
     bind('particle_getAliveCount', 'es_particle_getAliveCount', false);
     bind('particle_play', 'es_particle_play', true);
     bind('particle_reset', 'es_particle_reset', true);
+    bind('particle_set_bursts', 'es_particle_set_bursts', false);
     bind('particle_set_color_lut', 'es_particle_set_color_lut', false);
     bind('particle_set_size_lut', 'es_particle_set_size_lut', false);
     bind('particle_set_speed_lut', 'es_particle_set_speed_lut', false);

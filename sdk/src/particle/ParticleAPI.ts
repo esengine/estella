@@ -91,6 +91,15 @@ export class ParticleAPI {
         this.uploadLut(this.module_.particle_set_speed_lut, entity, lut, 1);
     }
 
+    /**
+     * Burst schedule: each burst releases `count` particles once the emitter has been emitting for `time` seconds
+     * (counted from the end of its start delay). A looping emitter repeats the schedule every duration. Null clears.
+     */
+    setBursts(entity: Entity, bursts: readonly { time: number; count: number }[] | null): void {
+        const lut = bursts && bursts.length > 0 ? Float32Array.from(bursts.flatMap((b) => [b.time, b.count])) : null;
+        this.uploadLut(this.module_.particle_set_bursts, entity, lut, 2);
+    }
+
     // Copy a Float32Array into the core's heap and hand its offset + element count
     // (length / `stride`) to the C++ setter, then free; null/empty clears. The heap
     // is wasm linear memory on the web and the host's arena on a device — the same

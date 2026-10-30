@@ -2600,8 +2600,8 @@ shape: Collider3DShape
 ## Collider3DShape — type @experimental
 ```
 | { kind: 'box'; halfExtents: Vec3; center: Vec3 }
-    | { kind: 'sphere'; radius: number }
-    | { kind: 'capsule'; radius: number; halfHeight: number }
+    | { kind: 'sphere'; radius: number; center?: Vec3 }
+    | { kind: 'capsule'; radius: number; halfHeight: number; center?: Vec3 }
 ```
 
 ## CollisionEnterEvent — interface @experimental
@@ -6589,6 +6589,7 @@ debugNormals: boolean
 getAliveCount: (entity: Entity) => number
 play: (entity: Entity) => void
 reset: (entity: Entity) => void
+setBursts: (entity: Entity, bursts: readonly { time: number; count: number; }[] | null) => void
 setCollisionBudget: (budget: Partial<ParticleCollisionBudget>) => void
 setColorLut: (entity: Entity, lut: Float32Array | null) => void
 setSizeLut: (entity: Entity, lut: Float32Array | null) => void
@@ -6678,6 +6679,7 @@ angularVelocityMin: number
 blendMode: number
 burstCount: number
 burstInterval: number
+bursts: { time: number; count: number; }[]
 collisionBounce: number
 collisionEnabled: boolean
 collisionEventBudget: number

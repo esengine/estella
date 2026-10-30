@@ -751,6 +751,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("particle_set_color_lut", &esengine::particle_set_color_lut);
     emscripten::function("particle_set_size_lut", &esengine::particle_set_size_lut);
     emscripten::function("particle_set_speed_lut", &esengine::particle_set_speed_lut);
+    emscripten::function("particle_set_bursts", &esengine::particle_set_bursts);
 #endif
     emscripten::function("trail_update", &esengine::trail_update);
     emscripten::function("trail_clear", &esengine::trail_clear);

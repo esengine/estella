@@ -923,6 +923,11 @@ void particle_set_speed_lut(u32 entity, uintptr_t ptr, i32 count) {
     if (!g_particleSystem) return;
     g_particleSystem->setSpeedLut(Entity::fromRaw(entity), reinterpret_cast<const f32*>(ptr), count);
 }
+
+void particle_set_bursts(u32 entity, uintptr_t ptr, i32 count) {
+    if (!g_particleSystem) return;
+    g_particleSystem->setBursts(Entity::fromRaw(entity), reinterpret_cast<const f32*>(ptr), count);
+}
 #endif
 
 void trail_update(ecs::Registry& registry, f32 dt) {
