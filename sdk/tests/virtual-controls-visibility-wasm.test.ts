@@ -22,7 +22,7 @@ describe.skipIf(!HAS_WASM)('virtual controls read authored visibility on real WA
     const layout = () => engine.uiLayout_update(registry, -100, -100, 100, 100, true);
     const point = (pressed: boolean) => pointers.set(1, {
         id: 1, entity, pressedEntity: pressed ? entity : null, pressed, down: true,
-        layoutX: 50, layoutY: 0, worldX: 50, worldY: 0,
+        layoutX: 50, layoutY: 0, worldX: 50, worldY: 0, screenX: 0, screenY: 0,
     });
     const tick = () => (controls.system._fn as (...args: unknown[]) => void)(input, { pointers }, { delta: 1 / 60 });
     beforeAll(async () => { engine = await loadWasmModule(); });

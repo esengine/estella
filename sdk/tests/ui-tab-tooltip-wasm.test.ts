@@ -66,7 +66,7 @@ describe.skipIf(!HAS_WASM)('TabView and Tooltip on real WASM', () => {
         app.insertResource(ScreenLayout, layout);
         app.insertResource(ScreenOverlay, { ...defaultScreenOverlay(), active: true, projection: screenProjection(layout), vpW: 800, vpH: 600, surfaceW: 800, surfaceH: 600 });
         app.insertResource(UICameraInfo, structuredClone(UICameraInfo._default));
-        app.insertResource(UIControlPointers, { pointers: new Map() });
+        app.insertResource(UIControlPointers, { pointers: new Map(), cancelHold: () => {} });
         app.addSystemToSchedule(Schedule.Update, createTabViewSystem(app.world, events));
         app.addSystemToSchedule(Schedule.Update, createToggleSystem(app.world, events));
         tooltips = createTooltipSystem(app.world);
@@ -89,7 +89,7 @@ describe.skipIf(!HAS_WASM)('TabView and Tooltip on real WASM', () => {
     const pointer = (entity: number, id = MOUSE_POINTER, down = false) => {
         app.world.insert(entity, UIInteraction, { hovered: true, pressed: down, justPressed: down });
         const p: ControlPointer = { id, down, pressed: down, entity: down ? entity : null, pressedEntity: down ? entity : null,
-            layoutX: 0, layoutY: 0, worldX: 0, worldY: 0 };
+            layoutX: 0, layoutY: 0, worldX: 0, worldY: 0, screenX: 0, screenY: 0 };
         app.getResource(UIControlPointers).pointers.set(id, p); return p;
     };
     const bubbles = () => app.world.getEntitiesWithComponents([Text]).filter(e => app.world.get(e, Text).content === 'Volume controls the music.');

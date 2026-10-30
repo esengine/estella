@@ -178,5 +178,10 @@ export function declareButton(): void {
 
 export const isButtonDeclared = (): boolean => classInfoNamed('Button') !== undefined;
 
-/** `Component.EventHandler`, as scripts name the class. */
+declare module '../component' {
+    namespace Component {
+        /** `Component.EventHandler`, as scripts name the class. */
+        let EventHandler: typeof import('./button').EventHandler;
+    }
+}
 (Component as unknown as { EventHandler: typeof EventHandler }).EventHandler = EventHandler;

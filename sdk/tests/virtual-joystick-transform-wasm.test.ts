@@ -38,7 +38,7 @@ describe.skipIf(!HAS_WASM)('virtual joystick coordinates on real WASM', () => {
         const c = Math.SQRT1_2, worldX = 7 + 2 * (-30 + c * (10 + x) - c * (20 + y));
         const worldY = -3 + 15 + c * (10 + x) + c * (20 + y);
         pointers.set(1, { id: 1, entity, pressedEntity: pressed ? entity : null, down: true, pressed,
-            layoutX: worldX, layoutY: worldY, worldX, worldY });
+            layoutX: worldX, layoutY: worldY, worldX, worldY, screenX: 0, screenY: 0 });
     };
     const tick = () => (controls.system._fn as (...args: unknown[]) => void)(input, { pointers }, { delta: 1 / 60 });
     it.each([[25, 0], [0, 25], [15, 20]])('preserves local direction and strength at (%s, %s) through sheared ancestors', (x, y) => {

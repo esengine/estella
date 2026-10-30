@@ -53,7 +53,7 @@ describe.skipIf(!HAS_WASM)('TreeView / ColorPicker on real WASM', () => {
         app.insertResource(Input, new InputState()); app.insertResource(FocusManager, new FocusManagerState());
         const layout = screenLayoutRect(null, 800, 600); app.insertResource(ScreenLayout, layout);
         app.insertResource(ScreenOverlay, { ...defaultScreenOverlay(), active: true, projection: screenProjection(layout), vpW:800,vpH:600,surfaceW:800,surfaceH:600 });
-        app.insertResource(UICameraInfo, structuredClone(UICameraInfo._default)); app.insertResource(UIControlPointers, { pointers:new Map() });
+        app.insertResource(UICameraInfo, structuredClone(UICameraInfo._default)); app.insertResource(UIControlPointers, { pointers:new Map(), cancelHold: () => {} });
         lists=new ListViewRegistry();const scrolls=new ScrollContainerRegistry();
         offTree=installTreeViews(app,{registerListView:list=>lists.add(list),unregisterListView:list=>lists.remove(list),attachScrollContainer:(e,c)=>scrolls.attach(e,c),detachScrollContainer:e=>scrolls.detach(e)});
         offColor=installColorPickers(app);

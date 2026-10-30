@@ -38,7 +38,7 @@ function fixture() {
     const tick = () => invoke(input, { pointers }, { delta: 1 / 60 });
     const point = (id: number, entity: number, x: number, y: number, pressed = false) => {
         pointers.set(id, { id, entity: entity as Entity, pressedEntity: pressed ? entity as Entity : null,
-            down: true, pressed, layoutX: x, layoutY: y, worldX: x, worldY: y });
+            down: true, pressed, layoutX: x, layoutY: y, worldX: x, worldY: y, screenX: 0, screenY: 0 });
     };
     const remove = (id: number) => { for (const h of removals) h(id as Entity); entities.delete(id); };
     return { world, input, pointers, events, tick, point, add, remove, dispose: control.dispose };
