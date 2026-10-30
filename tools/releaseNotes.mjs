@@ -3424,4 +3424,6 @@ export const NOTED = {
     {"note":"Cocos scripts drive scenes as the game does."},
   "fix(render): a material mesh reads its own tangents on WebGL again":
     {"internal":"undoes a regression from after 0.96.0 that no release carried"},
+  "fix(editor): the loading screens take the type scale and the shadow token, and the play overlay's stop is a Button":
+    {"note":"The loading screens say how far they are."},
 };
