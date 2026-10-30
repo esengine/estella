@@ -43,11 +43,11 @@ export const NOTED = {
   'feat(cocos): MeshRenderer, UIMeshRenderer, material properties and cc.geometry in the compatibility layer':
     {"note":"Mesh renderers and materials in the Cocos layer."},
   'feat(cocos): cc.js, ccenum and NodePool exist in the compatibility layer':
-    {"note":"More of cc."},
+    {"note":"More of `cc`."},
   'feat(bundle): the project script bundle is built again only when a file it read changed, and Cocos scripts that write the same class name each get a component of their own':
     {"note":"The script bundle is not rebuilt for nothing."},
   'fix(editor): opening a large project no longer spends seconds on strings that cannot be paths, a model texture the project lacks is left off instead of dangling, and an unlit mesh variant with tangents links':
-    {"note":"Large projects open faster, and a model texture the project lacks is left off."},
+    {"note":"Large projects open faster."},
   'feat(cocos): one script that fails to load no longer takes the others with it, a part of cc the layer lacks is a stand-in that survives use, and Director, AssetManager.Cache and the input dispatcher hook exist':
     {"note":"Cocos scripts load one by one."},
   'feat(cocos): a converted project links its source images instead of copying them, so conversion does not store a multi-gigabyte art folder twice':
@@ -3218,4 +3218,198 @@ export const NOTED = {
     {"internal":"A type the playable size test needed; the value was already returned."},
   "fix(ci): the theme ratchet banks the inspector's new virtual-instance button":
     {"internal":"Moves a baseline count; no creator can observe it."},
+  "feat(cocos): director.loadScene runs a project scene through the engine's scene manager (scenes are in the manifest, persistent roots are SceneOwner.persistent); components start in one phase before the frame's updates; Camera.screenPointToRay":
+    {"note":"Cocos scripts drive scenes as the game does."},
+  "fix(cocos): getComponent finds a component by a base class it derives from, so a handler bound through the Button of a Toggle's node reaches it":
+    {"note":"Cocos scripts drive scenes as the game does."},
+  "feat(ui): TextInput stands on a world rectangle as well as a UI node, and a Cocos EditBox becomes it: the importer folds the two labels into the field and the layer's EditBox is a view on it":
+    {"note":"A text field can stand in the world."},
+  "fix(ui): a pointer lands on what is drawn last by its place in the hierarchy, not on what was made last; a Toggle belongs to the container its parent holds and assigning isChecked switches its group's others off":
+    {"note":"A pointer lands on what is drawn on top."},
+  "fix(cocos): a Label takes a game's replaced string setter (the engine's _string and friends land on the Text), and an EditBox shows its text label while it holds text":
+    {"note":"Converted Cocos UI looks as it does in Cocos."},
+  "fix(cocos): a play session that follows another in the same script runtime gets the layer's systems again and none of what the last one loaded":
+    {"note":"Cocos scripts drive scenes as the game does."},
+  "fix(cocos): a Label with no overflow rule does not wrap and is laid out from its anchor, as the node grows to the text in Cocos":
+    {"note":"Converted Cocos UI looks as it does in Cocos."},
+  "feat(render): layers painted in hierarchy order, so a panel covers the text of the panel under it; the Cocos UI layer uses it. Text takes an underline field; resources.load finds an image's spriteFrame and texture by path suffix":
+    {"note":"A layer can be painted in hierarchy order."},
+  "fix(cocos): a node's scripts load and enable as it joins an active parent or is switched, not a frame later; a converted script component's dropped fields are ignored quietly":
+    {"note":"Cocos scripts drive scenes as the game does."},
+  "feat(cocos): resources.load gives images, sprite frames and audio by path, Sprite takes a spriteFrame, Node has getParent; the script entry leaves out the editor's own scripts":
+    {"note":"Cocos scripts load assets by path."},
+  "feat(cocos): the generated script entry loads every component class of the project, since a game opens its views by class name":
+    {"note":"A converted project's scripts are components the editor knows."},
+  "fix(cocos): the session check also runs when a prefab is asked for":
+    {"note":"Cocos scripts drive scenes as the game does."},
+  "fix(cocos): the layer drops what it kept of a session when the asset loader gives everything back":
+    {"note":"Cocos scripts drive scenes as the game does."},
+  "fix(cocos): a loaded asset is named for its file, and what the layer kept of a play session is dropped when the next begins":
+    {"note":"Cocos scripts load assets by path."},
+  "fix(cocos): a directory load leaves out what the layer cannot load instead of failing, and Component.EventHandler exists":
+    {"note":"Cocos scripts load assets by path."},
+  "feat(assets): a scan reports how many documents it has read of how many":
+    {"note":"The loading screens say how far they are."},
+  "perf(assets): a scan keeps what each document refers to by what the file was, so a second scan of a large project reads nothing it has read; fix(cocos): a component is found by its cc. name and can be named by a script":
+    {"note":"A second scan of a large project reads nothing it has already read."},
+  "feat(shaders): the canonical vertex stage hands a mesh second uv set to a material, and a converted effect is one shader per macro combination, compiled and given its WGSL twin before it is written":
+    {"note":"A material can read a mesh's second uv set."},
+  "feat(shaders): a material vertex hook gets a derived WGSL twin, and an effect that displaces its vertices is converted with the displacement as that hook":
+    {"note":"A Cocos project's own effects are converted."},
+  "feat(cocos): a particle effect is converted on the engine particle stage, and a particle takes the converted material":
+    {"note":"A Cocos project's own effects are converted."},
+  "fix(cocos): the sprite texture is no parameter of a converted material, and a material blend state it does not set is the effect's":
+    {"note":"A Cocos project's own effects are converted."},
+  "feat(cocos): an effect includes its chunks and its vertex program is carried into the fragment, so the project materials convert for meshes as well as sprites":
+    {"note":"A Cocos project's own effects are converted."},
+  "feat(cocos): a project's own effect is converted to an Estella shader and material, so a sprite or mesh that wore it keeps its look":
+    {"note":"A Cocos project's own effects are converted."},
+  "feat(cocos): a sprite, a label and a graphics are UIRenderers, which accept the rebuild requests scripts send":
+    {"note":"Cocos scripts drive scenes as the game does."},
+  "feat(cocos): the importer records its revision, so a project it wrote earlier is re-imported on open":
+    {"note":"A converted Cocos project is brought up to date when it is opened."},
+  "feat(cocos): director has a scheduler and fires its frame events, setSiblingIndex reorders through the engine entity order, loadAny takes a uuid, and an asset counts its holders":
+    {"note":"Cocos scripts drive scenes as the game does."},
+  "feat(cocos): a root pinned to the screen is stored where the engine places it in the design box, so the document and the viewport agree":
+    {"note":"Converted Cocos UI looks as it does in Cocos."},
+  "refactor(ui): the engine anchors run in two ordered passes and the Cocos Layout is a system between them, so alignment has one owner instead of a second hand-called copy":
+    {"note":"Converted Cocos UI looks as it does in Cocos."},
+  "feat(cocos): the project design resolution is known to scripts before they run, assetManager has a downloader and factory, and a node made between frames joins the running world":
+    {"note":"Cocos scripts drive scenes as the game does."},
+  "feat(cocos): a converted project declares its script components for the editor and starts from the scripts, and the Cocos scripts bundle past the gaps Cocos tolerates (missing cc names, reassigned const, package files outside exports, preview-only imports)":
+    {"note":"A converted project's scripts are components the editor knows."},
+  "fix(release): escape the apostrophe in the Cocos re-import release-note key":
+    {"internal":"Repairs a key of the release-notes ledger; no creator can observe it."},
+  "feat(art): preserve Qinglan native sculpt revision and comparison":
+    {"internal":"Source art studies kept in the repository's art/ folder; no part of the engine, the editor or a build reads or ships them."},
+  "feat(gameplay): grid snapping and a placement check, and the entities nearest a point":
+    {"note":"Grid placement, and what stands nearest."},
+  "feat(art): add reversible Qinglan face candidate and review evidence":
+    {"internal":"Source art studies kept in the repository's art/ folder; no part of the engine, the editor or a build reads or ships them."},
+  "feat(engine): the device's battery and heat lower the frame cap and the quality level, by a policy the project names":
+    {"note":"Save power when the battery is low or the device is hot."},
+  "fix(text): a bitmap font's baseline comes from the font's own base over its size, not a 0.8em guess that put a 0.88 font four pixels high at 48px":
+    {"note":"Bitmap fonts."},
+  "feat(text): a glyph page is read by a mode — plain, distance field, mask, fill — so a bitmap font with its outline baked into the page draws in two passes with the ring in any colour; the Cocos import declares such fonts":
+    {"note":"Bitmap fonts."},
+  "feat(2d): a palette effect holds the whole picture to one set of colours, dithered":
+    {"note":"A palette effect."},
+  "fix(import): a Cocos bitmap font's page keeps its full size, not the 2048 default cap that halved a 4096 page and softened every glyph":
+    {"note":"Converted Cocos UI looks as it does in Cocos."},
+  "feat(2d): what walks leaves rings on water and prints on soft ground":
+    {"note":"Footprints and ripples."},
+  "feat(text): Text draws a bitmap font (.fnt) from its page texture, through the same layout as any font; widget prefabs regenerated for the Text box defaults":
+    {"note":"Bitmap fonts."},
+  "feat(text): TextOverflow.Shrink sets type smaller, a whole pixel at a time, until it fits its box; the Cocos import maps its Shrink labels to it":
+    {"note":"Text can shrink to fit its box."},
+  "feat(text): a world Text can lay out in its own box — width, height and an anchor pivot — so labels wrap, align and clip without joining a Canvas; the Cocos import uses it":
+    {"note":"World content has a rectangle: `ContentRect`."},
+  "feat(2d): plants of a sway material lean away from a body walking through them":
+    {"note":"Mist, wind in the grass, and roofs that fade over the player."},
+  "fix(import): a Cocos inactive node becomes the Disabled tag, so its subtree goes with it, instead of a dropped entity that strands its children":
+    {"note":"Converted Cocos UI looks as it does in Cocos."},
+  "feat(2d): a generated world on the screen plane, laid out by the worldgen rules and published in chunks":
+    {"note":"A generated 2D world."},
+  "fix(art): reject Qinglan face study after visual review":
+    {"internal":"Source art studies kept in the repository's art/ folder; no part of the engine, the editor or a build reads or ships them."},
+  "fix(import): Cocos enums as the engine's numbers, bitmapfont meta so the page ships, and the engine's own component validation in the test":
+    {"note":"Converted Cocos UI looks as it does in Cocos."},
+  "feat(2d): 2D shadows have eight channels and reach the tiled lights past the loop's sixteen":
+    {"note":"More 2D lights cast shadows at once."},
+  "feat(art): add editable Qinglan face cage study":
+    {"internal":"Source art studies kept in the repository's art/ folder; no part of the engine, the editor or a build reads or ships them."},
+  "feat(pipeline): import a Cocos Creator 3.x project as Estella prefabs and scenes, without touching the source":
+    {"note":"Open a Cocos Creator project from the editor."},
+  "feat(2d): a fog of war remembers what a viewer has seen, and a save can keep it":
+    {"note":"What the player can see, and what they have seen."},
+  "feat(2d): a viewer and the walls it cannot see through hide what is not lit":
+    {"note":"What the player can see, and what they have seen."},
+  "feat(mcp): a connect dialog for AI tools, with the permission decided by the editor (desktop ac014832)":
+    {"note":"Connect AI tools to the editor from one dialog."},
+  "feat(mcp): one-click add of the editor to Claude Code, Cursor and Claude Desktop (desktop b2cb78f3)":
+    {"note":"Connect AI tools to the editor from one dialog."},
+  "feat(art): add Qinglan xianxia character and human face studies":
+    {"internal":"Source art studies kept in the repository's art/ folder; no part of the engine, the editor or a build reads or ships them."},
+  "feat(2d): a cooked streamed world can be cut on x and y, so a 2D scene is a grid and not one row":
+    {"note":"A 2D world streams on x and y."},
+  "feat(2d): a streamed world is cut on x and y, and an infinite tile layer can let a chunk go":
+    {"note":"A 2D world streams on x and y."},
+  "feat(2d): a sprite that stands on the ground keeps the rain's rings and wet darkening off it":
+    {"note":"Rain for a 2D scene."},
+  "feat(2d): the samples across a soft shadow's light source are a quality setting":
+    {"note":"A soft 2D shadow's smoothness is a quality setting."},
+  "feat(2d): the rain shelter mask size is the effect's own field, and a quality level holds it lower":
+    {"note":"Rain for a 2D scene."},
+  "feat(2d): the rain's shelters are painted into a mask, so a scene has as many as it has roofs":
+    {"note":"Rain for a 2D scene."},
+  "feat(2d): lights that cannot meet share a channel of the 2D shadow mask, so a camp of torches all cast":
+    {"note":"More 2D lights cast shadows at once."},
+  "feat(2d): a light reaches a range of sprite layers, so a lamp in a hut does not light the roof over it":
+    {"note":"A 2D light can keep to a range of sprite layers."},
+  "feat(2d): rain that reads no depth, with rings and puddles on the ground and dry ground under a roof":
+    {"note":"Rain for a 2D scene."},
+  "feat(2d): mist, sprite wind and cover fade, so a top-down scene can have the weather a forest needs":
+    {"note":"Mist, wind in the grass, and roofs that fade over the player."},
+  "feat(prefab): ?expand-virtual leaves out an instance marked as another layout":
+    {"note":"Virtual prefab instances."},
+  "feat(ui): export deferredEntities and deferredRecord, for a game that keeps two layouts as virtual instances":
+    {"note":"Virtual prefab instances."},
+  "feat(prefab): ?expand-virtual makes virtual instances whole, for a harness that expects every node at boot":
+    {"note":"Virtual prefab instances."},
+  "feat(prefab): virtual instances, seen when authoring and made when they are used":
+    {"note":"Virtual prefab instances."},
+  "feat(ui): UIPages, pages of a UI that exist only while they are wanted":
+    {"note":"UI pages that exist only while they are wanted: `UIPages`."},
+  "perf(ui): GearApplySystem does not run in a frame where nothing it reads changed":
+    {"note":"UI gears cost nothing on a frame where nothing they read changed."},
+  "fix(export): a playable that is far over its cap is built at once and reports its size":
+    {"note":"A playable far over its size cap is built at once and says its size."},
+  "fix(editor): the project watch is quiet while a Cocos re-import writes, and the project is refreshed once at the end":
+    {"note":"Re-import a Cocos project without losing your edits."},
+  "feat(editor): a selection draws nothing over the running game unless Inspect is on; a new one shows where it is for a moment":
+    {"note":"A selection stays off the running game unless Inspect is on."},
+  "feat(editor): the engine step of the loading screen shows which step of the boot it is in":
+    {"note":"The loading screens say how far they are."},
+  "feat(editor): the loading screens say how far they are: one bar, a line per step with its count and time, and the time so far":
+    {"note":"The loading screens say how far they are."},
+  "feat(cocos): the import progress has a stage for checking the converted effects":
+    {"note":"A Cocos project's own effects are converted."},
+  "fix(editor): the status strip keeps each readout on one line and drops the long message and the least useful readouts when it is short of room":
+    {"note":"The status strip fits a narrow window."},
+  "feat(cocos): a project converted by an older importer is brought up to date when it is opened":
+    {"note":"A converted Cocos project is brought up to date when it is opened."},
+  "fix(test): the MCP client adapter checks run under the throwaway home, so they no longer touch the real VS Code config on Windows":
+    {"internal":"Points the MCP client adapter tests at a throwaway home directory; no creator can observe it."},
+  "refactor(editor): the edit world reads the screen fit from the one runtime config derivation instead of deriving it a second time":
+    {"internal":"The edit world reads the screen fit from the one runtime config derivation; the fit it lays out in is the next fix's, and this changes nothing on its own."},
+  "fix(editor): the edit world lays UI out in the project fit, so a root pinned to the screen takes the design box instead of the viewport pixels":
+    {"note":"The edit viewport frames and lays out the scene as the game does."},
+  "fix(viewport): the design and device frame is drawn round the camera that shows the scene, so a project whose camera is off the origin sees the frame where the camera looks":
+    {"note":"The edit viewport frames and lays out the scene as the game does."},
+  "fix(play): a project script bundle that throws while it loads is logged instead of looking like no bundle":
+    {"note":"A project script bundle that throws while it loads is reported."},
+  "fix(cocos): the schema extractor resolves cc, so a converted project's components reach the inspector":
+    {"note":"A converted project's scripts are components the editor knows."},
+  "fix(cocos): the conversion progress window carries the editor icon, has no scrollbar, and speaks the editor language":
+    {"note":"A Cocos conversion shows its progress."},
+  "feat(cocos): converting a Cocos project runs on a thread of its own with a progress bar, so the editor no longer looks hung":
+    {"note":"A Cocos conversion shows its progress."},
+  "feat(editor): settings rows for the power-saving policy":
+    {"note":"Save power when the battery is low or the device is hot."},
+  "fix(editor): the connect dialog and its status-bar mark use the editor's own components and tokens":
+    {"note":"Connect AI tools to the editor from one dialog."},
+  "fix(editor): the status bar's AI agent mark waits for the bridge it reads from":
+    {"note":"Connect AI tools to the editor from one dialog."},
+  "feat(editor): one dialog connects AI tools, and the editor grants what an agent may do live":
+    {"note":"Connect AI tools to the editor from one dialog."},
+  "feat(editor): the editor adds itself to the AI tools on the machine, one switch each":
+    {"note":"Connect AI tools to the editor from one dialog."},
+  "feat(editor): the streamed-world grid follows the plane a world is cut on":
+    {"note":"A 2D world streams on x and y."},
+  "feat(editor): the quality page sets how many samples a soft 2D shadow is drawn with":
+    {"note":"A soft 2D shadow's smoothness is a quality setting."},
+  "feat(editor): the quality page sets the largest 2D rain shelter mask a level allows":
+    {"note":"Rain for a 2D scene."},
+  "feat(editor): make a prefab instance virtual from the inspector or the outliner":
+    {"note":"Virtual prefab instances."},
 };
