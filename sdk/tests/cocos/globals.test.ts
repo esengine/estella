@@ -6,7 +6,7 @@
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
-    Game, KeyCode, Scheduler, Asset, director, reportFrame, Layers, Prefab, Size, View, assetManager, game, macro, resources, screen, setResourceManifest, setVisibleSize, sys, view,
+    Component, EventHandler, Game, KeyCode, Scheduler, Asset, director, reportFrame, Layers, Prefab, Size, View, assetManager, game, macro, resources, screen, setResourceManifest, setVisibleSize, sys, view,
     providePrefab,
 } from '../../src/cocos';
 import { keyCodeOf } from '../../src/cocos/inputApi';
@@ -260,5 +260,30 @@ describe('Asset', () => {
         expect(loaded.result).toBeInstanceOf(Prefab);
         const missing = await new Promise<Error | null>((resolve) => assetManager.loadAny('nope', (err: Error | null) => resolve(err)));
         expect(missing?.message).toMatch(/uuid nope/);
+    });
+});
+
+describe('a directory with a file the layer cannot load', () => {
+    it('loads the rest: a directory of configs holds a readme too', async () => {
+        setResourceManifest({
+            resources: {
+                'cfg/rules': { path: 'rules.esprefab', kind: 'prefab' },
+                'cfg/README': { path: '', kind: 'md' },
+            },
+        });
+        providePrefab('rules.esprefab', { ref: 'rules.esprefab', scene: { version: 4, name: 'rules', entities: [] } as never, rootId: 0, missing: [], release() {} });
+        const result = await new Promise<{ err: Error | null; assets: unknown[] }>((resolve) =>
+            resources.loadDir('cfg', (err: Error | null, assets: unknown[]) => resolve({ err, assets })));
+        expect(result.err).toBeNull();
+        expect(result.assets).toHaveLength(1);
+    });
+});
+
+describe('Component.EventHandler', () => {
+    it('is the class scripts construct handlers with', () => {
+        const handler = new Component.EventHandler();
+        handler.handler = 'onTap';
+        expect(handler).toBeInstanceOf(EventHandler);
+        expect(handler.handler).toBe('onTap');
     });
 });

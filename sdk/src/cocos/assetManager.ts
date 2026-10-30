@@ -92,6 +92,9 @@ function parseLoadArgs<T>(args: unknown[]): { type: AssetCtor | null; onProgress
 
 const loaded = new Cache<Asset>();
 
+/** An asset of a kind the layer does not load: not a fault of the asset, so a directory load goes on without it. */
+export class UnsupportedAssetKind extends Error {}
+
 async function loadEntry(entry: ResourceEntry, type: AssetCtor | null): Promise<Asset> {
     const assets = assetsFor(getCurrentWorld());
     switch (entry.kind) {
@@ -121,7 +124,7 @@ async function loadEntry(entry: ResourceEntry, type: AssetCtor | null): Promise<
         }
         default:
     }
-    throw new Error(`cocos compat: loading "${entry.path}" (${entry.kind}${type ? `, as ${type.name}` : ''}) is not supported by the compatibility layer yet; prefabs, JSON and text are`);
+    throw new UnsupportedAssetKind(`cocos compat: loading "${entry.path}" (${entry.kind}${type ? `, as ${type.name}` : ''}) is not supported by the compatibility layer yet; prefabs, JSON and text are`);
 }
 
 export class Bundle {
@@ -163,6 +166,7 @@ export class Bundle {
             const entries = await this.entries_();
             const keys = Object.keys(entries).filter((k) => dir === '' || k === dir || k.startsWith(`${dir}/`));
             const out: Asset[] = [];
+            const skipped = new Set<string>();
             for (let i = 0; i < keys.length; i++) {
                 const entry = entries[keys[i]!]!;
                 try {
@@ -171,12 +175,14 @@ export class Bundle {
                     if (!asset) loaded.add(key, (asset = await loadEntry(entry, type)));
                     out.push(asset);
                 } catch (err) {
-                    // an entry of a kind that does not load, or of another type than asked for, is skipped like a type mismatch
+                    // an entry of a kind that does not load, or of another type than asked for, is left out: a directory of configs holds a readme too
                     if (type) continue;
+                    if (err instanceof UnsupportedAssetKind) { skipped.add(entry.kind); continue; }
                     throw err;
                 }
                 onProgress?.(i + 1, keys.length, entry);
             }
+            if (skipped.size > 0) log.info('cocos', `loadDir("${dir}") left out the assets of kind ${[...skipped].join(', ')}, which the layer does not load`);
             return out;
         })().then(
             (r) => onComplete?.(null, r),
