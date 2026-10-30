@@ -15,12 +15,13 @@ import { Focusable, FocusManager, FocusManagerState } from '../input/focusable';
 import type { FocusableData } from '../input/focusable';
 import { isFocusEligible } from '../input/focus-inspection';
 import { UICameraInfo, type UICameraData } from '../core/ui-camera-info';
-import { Transform, type TransformData } from '../../ecs/component';
-import { UIEvents, UIEventQueue, type UIEvent } from '../core/events';
+import { Transform, Sprite, type TransformData, type SpriteData } from '../../ecs/component';
+import { ContentRect } from '../core/content-rect';
+import { UIEvents, UIEventQueue, UIEventType, type UIEvent } from '../core/events';
 import { Res } from '../../ecs/resource';
 import { playModeOnly } from '../../ecs/env';
 import { ensureComponent, getUINodeWidth, getUINodeHeight } from '../util/helpers';
-import { spawnUIEntity } from '../core/compose';
+import { spawnUIEntity, identityTransform, buildText } from '../core/compose';
 import { px } from '../core/dimension';
 import { SdfTextRenderer } from './text-renderer';
 import type { ESEngineModule } from '../../wasm';
@@ -104,6 +105,34 @@ export class TextInputPlugin implements Plugin {
             return measureRenderer;
         };
 
+        /**
+         * The rectangle a field occupies, whichever kind of node it is on. A field laid out by the UI tree has a `UINode` (a CSS box centred on
+         * its transform); one standing in the world — an imported scene's input, a hand-built HUD — has a `ContentRect`, a size and the point of
+         * it the transform sits on. Everything below is written against this, so the editing, the caret, the selection and the click-to-caret
+         * are one implementation for both.
+         */
+        interface FieldBox {
+            w: number;
+            h: number;
+            /** Where the transform sits in the box, as a fraction from its left and from its bottom. */
+            px: number;
+            py: number;
+            /** Laid out in world space (a `ContentRect`), not by the UI tree. */
+            world: boolean;
+        }
+        function boxOf(entity: Entity): FieldBox | null {
+            if (world.has(entity, UINode)) return { w: getUINodeWidth(entity), h: getUINodeHeight(entity), px: 0.5, py: 0.5, world: false };
+            const rect = world.tryGet(entity, ContentRect);
+            return rect ? { w: rect.size.x, h: rect.size.y, px: rect.pivot.x, py: rect.pivot.y, world: true } : null;
+        }
+        /** The box's left edge and top edge in the world, and the scale local units have there. */
+        function boxFrame(entity: Entity, box: FieldBox): { left: number; top: number; sx: number; sy: number } {
+            const tr = world.get(entity, Transform) as TransformData;
+            const sx = box.world ? (tr.worldScale?.x || 1) : 1;
+            const sy = box.world ? (tr.worldScale?.y || 1) : 1;
+            return { left: tr.worldPosition.x - box.px * box.w * sx, top: tr.worldPosition.y + (1 - box.py) * box.h * sy, sx, sy };
+        }
+
         let composing = false;
         let editingEntity: Entity | null = null;
         let nativeEvents: UIEvent[] = [];
@@ -181,6 +210,7 @@ export class TextInputPlugin implements Plugin {
                             const f = world.get(focused, Focusable) as FocusableData;
                             f.isFocused = false;
                             world.insert(focused, Focusable, f);
+                            (app.getResource(UIEvents) as UIEventQueue).emit(focused, UIEventType.Blur);
                         }
                     }
                     break;
@@ -252,17 +282,17 @@ export class TextInputPlugin implements Plugin {
             const cam = app.getResource(UICameraInfo) as UICameraData | undefined;
             const overlay = app.getResource(ScreenOverlay) as ScreenOverlayData | undefined;
             if (!cam || !overlay || (!cam.valid && !overlay.active)) return null;
-            if (!world.has(entity, Transform) || !world.has(entity, UINode)) return null;
+            const box = boxOf(entity);
+            if (!world.has(entity, Transform) || !box) return null;
             // The pointer in the FIELD's domain: every subtraction below is a
             // pointer minus a transform, and the two have to be in one space.
             const pointer = uiPointerFor(world, entity, cam, overlay);
             const ti = world.get(entity, TextInput) as TextInputData;
-            const width = getUINodeWidth(entity);
+            const width = box.w;
             if (width <= 0) return null;
-            // The layout centers the box on its Transform (pivot 0.5): left edge is
-            // half a width to the left, top edge half a height above (world y-up).
-            const tr = world.get(entity, Transform) as TransformData;
-            const fieldLeft = tr.worldPosition.x - width / 2;
+            // Left edge and top edge of the box in the world (y-up), and the scale between the world and the box's own units.
+            const frame = boxFrame(entity, box);
+            const fieldLeft = frame.left;
             const val = editor!.read().value;   // focused ⇒ the surface is the value source
             const atlas = ensureMeasure().atlas;
             // The family the child Text will actually rasterize with. The caret is
@@ -274,15 +304,13 @@ export class TextInputPlugin implements Plugin {
             const innerW = Math.max(0, width - 2 * ti.padding);
 
             if (ti.multiline) {
-                const height = getUINodeHeight(entity);
                 const lineH = ti.fontSize * TEXT_INPUT_LINE_HEIGHT_RATIO;
-                const fieldTop = tr.worldPosition.y + height / 2;
-                const localY = fieldTop - pointer.y; // y-down from the box top
+                const localY = (frame.top - pointer.y) / frame.sy; // y-down from the box top
                 const lines = splitLines(val);
                 const li = Math.max(0, Math.min(Math.floor(localY / lineH), lines.length - 1));
                 const line = lines[li];
                 // Each line carries its own alignment offset, so undo THIS line's.
-                const textX = pointer.x - fieldLeft - ti.padding
+                const textX = (pointer.x - fieldLeft) / frame.sx - ti.padding
                     - alignOffset(ti.textAlign, innerW, mw(line.text));
                 const prefixes = measurePrefixWidths(line.text, atlas, family, ti.fontSize, 0);
                 return line.start + nearestCaretIndex(prefixes, textX, line.text);
@@ -293,7 +321,7 @@ export class TextInputPlugin implements Plugin {
             // a focused field's value can differ from what was last drawn, and a
             // guess about the offset lands the caret on the wrong glyph.
             const ao = alignOffsetOf.get(entity) ?? 0;
-            const textX = pointer.x - fieldLeft - ti.padding - ao + scrollX;
+            const textX = (pointer.x - fieldLeft) / frame.sx - ti.padding - ao + scrollX;
             const display = ti.password ? PASSWORD_CHAR.repeat(val.length) : val;
             const prefixes = measurePrefixWidths(display, atlas, family, ti.fontSize, 0);
             return nearestCaretIndex(prefixes, textX, val);
@@ -321,6 +349,13 @@ export class TextInputPlugin implements Plugin {
             }
             const fm = app.getResource(FocusManager) as FocusManagerState;
             fm.blur();
+            // The field lost focus, so it says so, as a control does when a press elsewhere takes it.
+            if (focused !== null && world.valid(focused) && world.has(focused, Focusable)) {
+                const f = world.get(focused, Focusable) as FocusableData;
+                f.isFocused = false;
+                world.insert(focused, Focusable, f);
+                (app.getResource(UIEvents) as UIEventQueue).emit(focused, UIEventType.Blur);
+            }
             editingEntity = null;
             composing = false;
             editor!.blur();
@@ -334,14 +369,12 @@ export class TextInputPlugin implements Plugin {
             const cam = app.getResource(UICameraInfo) as UICameraData | undefined;
             const overlay = app.getResource(ScreenOverlay) as ScreenOverlayData | undefined;
             if (!cam || !overlay || (!cam.valid && !overlay.active)) return;
-            if (!world.has(entity, Transform)) return;
+            const box = boxOf(entity);
+            if (!world.has(entity, Transform) || !box) return;
             const screen = isScreenEntity(world, entity);
-            const tr = world.get(entity, Transform) as TransformData;
-            const w = getUINodeWidth(entity);
-            const h = getUINodeHeight(entity);
-            // Box is centered on its Transform (pivot 0.5): left/top edges from it.
-            const worldX = (tr.worldPosition.x - w / 2) + caretX;
-            const worldY = (tr.worldPosition.y + h / 2) - caretBottom; // world y-up
+            const frame = boxFrame(entity, box);
+            const worldX = frame.left + caretX * frame.sx;
+            const worldY = frame.top - caretBottom * frame.sy; // world y-up
             // Forward through whichever projection actually drew the field.
             const scr = screen
                 ? uiLayoutToScreen(overlay, worldX, worldY)
@@ -470,14 +503,15 @@ export class TextInputPlugin implements Plugin {
                     }
                 }
 
-                for (const entity of world.getEntitiesWithComponents([TextInput, UINode])) {
+                for (const entity of world.getEntitiesWithComponents([TextInput])) {
                     const ti = world.get(entity, TextInput) as TextInputData;
-                    const w = getUINodeWidth(entity);
-                    const h = getUINodeHeight(entity);
-                    if (w <= 0 || h <= 0) continue;
+                    const box = boxOf(entity);
+                    if (!box || box.w <= 0 || box.h <= 0) continue;
+                    const w = box.w;
+                    const h = box.h;
 
-                    ensureBackground(entity, ti);
-                    const ch = ensureChildren(entity, ti);
+                    ensureBackground(entity, ti, box);
+                    const ch = ensureChildren(entity, ti, box);
                     // While focused, the editing surface is the single source of
                     // truth — caret moves, native shift/Ctrl-A selection, and the
                     // live IME preedit all land there — so a focused field renders
@@ -549,10 +583,10 @@ export class TextInputPlugin implements Plugin {
                     scrollXOf.set(entity, scrollX);
                     alignOffsetOf.set(entity, ao);
 
-                    syncSelChild(ch.sel, ti, sshow, sx, stop, sw);
-                    syncTextChild(ch.text, ti, disp, innerW, scrollX, ao);
+                    syncSelChild(ch.sel, ti, box, sshow, sx, stop, sw);
+                    syncTextChild(ch.text, ti, box, disp, innerW, scrollX, ao);
                     // The blinking caret hides while a highlight is drawn.
-                    syncCaretChild(ch.caret, ti, caretX, caretTop, editing && ti.focused && cursorVisible && !sshow);
+                    syncCaretChild(ch.caret, ti, box, caretX, caretTop, editing && ti.focused && cursorVisible && !sshow);
 
                     // Anchor the IME at the caret. Not while composing — moving it
                     // mid-composition would yank an open candidate window.
@@ -564,12 +598,14 @@ export class TextInputPlugin implements Plugin {
             { name: 'TextInputRenderSystem' }
         ));
 
-        function ensureBackground(entity: Entity, ti: TextInputData): void {
+        function ensureBackground(entity: Entity, ti: TextInputData, box: FieldBox): void {
             // Clip the editable text + caret to the field box: a long value scrolls
             // horizontally past the edge and must not spill outside the input.
             if (!world.has(entity, UIMask)) {
                 world.insert(entity, UIMask, { enabled: true, mode: MaskMode.Scissor });
             }
+            // A field standing in the world is drawn by the sprite its scene gave it: there is no background of the field's own to keep.
+            if (box.world) return;
             if (!world.has(entity, UIVisual)) {
                 world.insert(entity, UIVisual, {
                     visualType: UIVisualType.SolidColor, texture: 0,
@@ -596,57 +632,121 @@ export class TextInputPlugin implements Plugin {
             }
         }
 
-        function ensureChildren(entity: Entity, ti: TextInputData): { sel: Entity; text: Entity; caret: Entity } {
+        /** The sorting layer a world field draws on, so what it adds sorts with it (a tree-ordered layer stacks the children in place). */
+        function layerOf(entity: Entity): number {
+            return world.tryGet(entity, Sprite)?.layer ?? world.tryGet(entity, Text)?.layer ?? 0;
+        }
+
+        /** A world entity under @p parent with a top-left-anchored rectangle, which is how the field's parts are placed from its top-left. */
+        function spawnWorldPart(parent: Entity): Entity {
+            const e = world.spawn();
+            world.insert(e, Transform, identityTransform());
+            world.insert(e, ContentRect, { size: { x: 0, y: 0 }, pivot: { x: 0, y: 1 } });
+            world.setParent(e, parent);
+            return e;
+        }
+
+        function ensureChildren(entity: Entity, ti: TextInputData, box: FieldBox): { sel: Entity; text: Entity; caret: Entity } {
             const existing = childrenOf.get(entity);
             if (existing && world.valid(existing.sel) && world.valid(existing.text) && world.valid(existing.caret)) return existing;
-            const pad = px(ti.padding);
             // Spawn order is the tree-DFS render order: highlight (behind) < text < caret.
-            const sel = spawnUIEntity({
-                world, parent: entity,
-                node: { position: UIPositionType.Absolute, width: px(0), height: px(ti.fontSize), insetLeft: pad, insetTop: px(0) },
-                visual: { visualType: UIVisualType.SolidColor, color: { ...SELECTION_COLOR }, enabled: false },
-            });
-            const text = spawnUIEntity({
-                world, parent: entity,
-                // Left-anchored by insetLeft (scrolled by the render loop) with an
-                // explicit width — NOT insetRight — so a single-line value can slide
-                // under the Scissor mask instead of being pinned to the box.
-                node: { position: UIPositionType.Absolute, insetLeft: pad, insetTop: px(0), insetBottom: px(0), width: px(0) },
-                text: {
+            let ch: { sel: Entity; text: Entity; caret: Entity };
+            if (box.world) {
+                const layer = layerOf(entity);
+                const sel = spawnWorldPart(entity);
+                world.insert(sel, Sprite, { layer, color: { ...SELECTION_COLOR }, enabled: false } as Partial<SpriteData> as SpriteData);
+                const text = spawnWorldPart(entity);
+                world.insert(text, Text, buildText({
                     content: '', font: ti.font, fontFamily: ti.fontFamily, fontSize: ti.fontSize,
                     align: TextAlign.Left, verticalAlign: TextVerticalAlign.Middle, wordWrap: ti.multiline,
-                    renderMode: ti.renderMode,
-                },
-            });
-            const caret = spawnUIEntity({
-                world, parent: entity,
-                node: { position: UIPositionType.Absolute, width: px(2), height: px(ti.fontSize), insetLeft: px(ti.padding), insetTop: px(0) },
-                visual: { visualType: UIVisualType.SolidColor, color: ti.color, enabled: false },
-            });
-            const ch = { sel, text, caret };
+                    renderMode: ti.renderMode, layer,
+                }));
+                const caret = spawnWorldPart(entity);
+                world.insert(caret, Sprite, { layer, color: { ...ti.color }, enabled: false } as Partial<SpriteData> as SpriteData);
+                ch = { sel, text, caret };
+            } else {
+                const pad = px(ti.padding);
+                const sel = spawnUIEntity({
+                    world, parent: entity,
+                    node: { position: UIPositionType.Absolute, width: px(0), height: px(ti.fontSize), insetLeft: pad, insetTop: px(0) },
+                    visual: { visualType: UIVisualType.SolidColor, color: { ...SELECTION_COLOR }, enabled: false },
+                });
+                const text = spawnUIEntity({
+                    world, parent: entity,
+                    // Left-anchored by insetLeft (scrolled by the render loop) with an
+                    // explicit width — NOT insetRight — so a single-line value can slide
+                    // under the Scissor mask instead of being pinned to the box.
+                    node: { position: UIPositionType.Absolute, insetLeft: pad, insetTop: px(0), insetBottom: px(0), width: px(0) },
+                    text: {
+                        content: '', font: ti.font, fontFamily: ti.fontFamily, fontSize: ti.fontSize,
+                        align: TextAlign.Left, verticalAlign: TextVerticalAlign.Middle, wordWrap: ti.multiline,
+                        renderMode: ti.renderMode,
+                    },
+                });
+                const caret = spawnUIEntity({
+                    world, parent: entity,
+                    node: { position: UIPositionType.Absolute, width: px(2), height: px(ti.fontSize), insetLeft: px(ti.padding), insetTop: px(0) },
+                    visual: { visualType: UIVisualType.SolidColor, color: ti.color, enabled: false },
+                });
+                ch = { sel, text, caret };
+            }
             childrenOf.set(entity, ch);
             return ch;
         }
 
-        function syncSelChild(selEntity: Entity, ti: TextInputData, show: boolean, x: number, top: number, width: number): void {
-            const w = Math.max(0, width);
-            const node = world.get(selEntity, UINode) as UINodeData;
-            if (node.insetLeft.value !== x || node.insetTop.value !== top || node.width.value !== w || node.height.value !== ti.fontSize) {
-                node.insetLeft = px(x);
-                node.insetTop = px(top);
-                node.width = px(w);
-                node.height = px(ti.fontSize);
-                world.insert(selEntity, UINode, node);
+        /**
+         * Put a part of the field at (@p left, @p top) from the box's top-left, @p width by @p height. A UI field's parts are absolutely
+         * positioned UI nodes; a world field's are top-left-anchored rectangles placed by their transform from the field's own origin.
+         */
+        function placePart(part: Entity, box: FieldBox, left: number, top: number, width: number, height: number | null): void {
+            if (!box.world) {
+                const node = world.get(part, UINode) as UINodeData;
+                // `height` null: the node is sized by its insets (the text spans top to bottom) and keeps what it has.
+                if (node.insetLeft.value !== left || node.insetTop.value !== top || node.width.value !== width || (height !== null && node.height.value !== height)) {
+                    node.insetLeft = px(left);
+                    node.insetTop = px(top);
+                    node.width = px(width);
+                    if (height !== null) node.height = px(height);
+                    world.insert(part, UINode, node);
+                }
+                return;
             }
-            const v = world.get(selEntity, UIVisual) as UIVisualData;
-            const on = show && w > 0;
-            if (v.enabled !== on) {
-                v.enabled = on;
-                world.insert(selEntity, UIVisual, v);
+            const worldHeight = height ?? box.h;
+            const x = -box.px * box.w + left;
+            const y = (1 - box.py) * box.h - top;
+            const tr = world.get(part, Transform) as TransformData;
+            if (tr.position.x !== x || tr.position.y !== y) {
+                tr.position = { x, y, z: 0 };
+                world.insert(part, Transform, tr);
+            }
+            const rect = world.get(part, ContentRect);
+            if (rect.size.x !== width || rect.size.y !== worldHeight) world.insert(part, ContentRect, { ...rect, size: { x: width, y: worldHeight } });
+        }
+
+        /** Show or hide a solid-colour part (the highlight, the caret) and give it its colour. */
+        function paintPart(part: Entity, box: FieldBox, on: boolean, color: { r: number; g: number; b: number; a: number }, withColor: boolean): void {
+            if (!box.world) {
+                const v = world.get(part, UIVisual) as UIVisualData;
+                if (v.enabled !== on || (withColor && (v.color.r !== color.r || v.color.g !== color.g || v.color.b !== color.b))) {
+                    v.enabled = on;
+                    if (withColor) v.color = { ...color };
+                    world.insert(part, UIVisual, v);
+                }
+                return;
+            }
+            const sp = world.get(part, Sprite) as SpriteData;
+            if (sp.enabled !== on || (withColor && (sp.color.r !== color.r || sp.color.g !== color.g || sp.color.b !== color.b))) {
+                world.insert(part, Sprite, { ...sp, enabled: on, ...(withColor ? { color: { ...color } } : {}) });
             }
         }
 
-        function syncTextChild(textEntity: Entity, ti: TextInputData, disp: TextFieldDisplay, innerW: number, scrollX: number, ao: number): void {
+        function syncSelChild(selEntity: Entity, ti: TextInputData, box: FieldBox, show: boolean, x: number, top: number, width: number): void {
+            const w = Math.max(0, width);
+            placePart(selEntity, box, x, top, w, ti.fontSize);
+            paintPart(selEntity, box, show && w > 0, SELECTION_COLOR, false);
+        }
+
+        function syncTextChild(textEntity: Entity, ti: TextInputData, box: FieldBox, disp: TextFieldDisplay, innerW: number, scrollX: number, ao: number): void {
             const t = world.get(textEntity, Text) as TextData;
             const show = disp.text;
             const col = disp.isPlaceholder ? ti.placeholderColor : ti.color;
@@ -674,30 +774,13 @@ export class TextInputPlugin implements Plugin {
             }
             // Slide the text box by the alignment offset and the scroll; width = the
             // inner box (a single line overflows it rightward and the Scissor mask
-            // clips).
-            const node = world.get(textEntity, UINode) as UINodeData;
-            const left = ti.padding + ao - scrollX;
-            if (node.insetLeft.value !== left || node.width.value !== innerW) {
-                node.insetLeft = px(left);
-                node.width = px(innerW);
-                world.insert(textEntity, UINode, node);
-            }
+            // clips). A UI node takes its height from its insets, a world rectangle needs it said.
+            placePart(textEntity, box, ti.padding + ao - scrollX, 0, innerW, null);
         }
 
-        function syncCaretChild(caretEntity: Entity, ti: TextInputData, caretX: number, caretTop: number, show: boolean): void {
-            const node = world.get(caretEntity, UINode) as UINodeData;
-            if (node.insetLeft.value !== caretX || node.insetTop.value !== caretTop || node.height.value !== ti.fontSize) {
-                node.insetLeft = px(caretX);
-                node.insetTop = px(caretTop);
-                node.height = px(ti.fontSize);
-                world.insert(caretEntity, UINode, node);
-            }
-            const v = world.get(caretEntity, UIVisual) as UIVisualData;
-            if (v.enabled !== show || v.color.r !== ti.color.r || v.color.g !== ti.color.g || v.color.b !== ti.color.b) {
-                v.enabled = show;
-                v.color = { ...ti.color };
-                world.insert(caretEntity, UIVisual, v);
-            }
+        function syncCaretChild(caretEntity: Entity, ti: TextInputData, box: FieldBox, caretX: number, caretTop: number, show: boolean): void {
+            placePart(caretEntity, box, caretX, caretTop, 2, ti.fontSize);
+            paintPart(caretEntity, box, show, ti.color, true);
         }
     }
 }

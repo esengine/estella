@@ -14,6 +14,8 @@ import { Input, InputState } from '../../../src/input/input';
 import { UICameraInfo } from '../../../src/ui/core/ui-camera-info';
 import { UILayoutGeneration } from '../../../src/ui/layout/ui-layout-generation';
 import { uiInteractionPlugin } from '../../../src/ui/input/interaction';
+import { focusPlugin } from '../../../src/ui/input/focus';
+import { textInputPlugin } from '../../../src/ui/text/text-input-plugin';
 import { ensureBuiltinComponentsRegistered } from '../../../src/ecs/component';
 import { resetClassRegistry } from '../../../src/cocos/registry';
 import { declareBuiltinScripts } from '../../../src/cocos/builtinScripts';
@@ -36,7 +38,7 @@ export interface PointerApp {
 }
 
 /** @p origin: how far the world's origin sits from the surface's bottom-left corner, in pixels: a surface point is the world point plus it. */
-export function pointerApp(module: ESEngineModule, origin: { x: number; y: number } = { x: 0, y: 0 }): PointerApp {
+export function pointerApp(module: ESEngineModule, origin: { x: number; y: number } = { x: 0, y: 0 }, options: { fields?: boolean } = {}): PointerApp {
     setDefaultContext(new AppContext());
     ensureBuiltinComponentsRegistered();
     resetClassRegistry();
@@ -53,6 +55,11 @@ export function pointerApp(module: ESEngineModule, origin: { x: number; y: numbe
     });
     app.insertResource(UILayoutGeneration, { generation: 0 });
     uiInteractionPlugin.build(app);
+    // text fields: focus follows a press, and the field's plugin takes the text surface
+    if (options.fields) {
+        focusPlugin.build(app);
+        textInputPlugin.build(app);
+    }
     flushPendingRegistrations(app);
     setCurrentWorld(app.world);
 
@@ -90,6 +97,7 @@ export function pointerApp(module: ESEngineModule, origin: { x: number; y: numbe
         },
         dispose() {
             uiInteractionPlugin.cleanup(app);
+            textInputPlugin.cleanup(app);
             setCurrentWorld(null);
             app.world.disconnectCpp();
             registry.delete();

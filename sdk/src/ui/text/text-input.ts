@@ -13,12 +13,21 @@ export const TextInputFilter = {
     None: 0,
     /** Only 0-9, for a count or a price. */
     Digits: 1,
+    /** 0-9, a point and a minus sign, for a number that may have a fraction or be negative. */
+    Decimal: 2,
+    /** 0-9 and the characters of a phone number: + * # and -. */
+    Phone: 3,
 } as const;
 export type TextInputFilter = typeof TextInputFilter[keyof typeof TextInputFilter];
 
 /** `value` with the characters the filter does not allow taken out. */
 export function applyTextInputFilter(value: string, filter: TextInputFilter | undefined): string {
-    return filter === TextInputFilter.Digits ? value.replace(/[^0-9]/g, '') : value;
+    switch (filter) {
+        case TextInputFilter.Digits: return value.replace(/[^0-9]/g, '');
+        case TextInputFilter.Decimal: return value.replace(/[^0-9.\-]/g, '');
+        case TextInputFilter.Phone: return value.replace(/[^0-9+*#\-]/g, '');
+        default: return value;
+    }
 }
 
 export interface TextInputData {

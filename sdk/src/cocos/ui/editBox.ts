@@ -2,24 +2,29 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    cocos/ui/editBox.ts
- * @brief   `EditBox`: a text field whose box and labels are nodes of the scene, typed into through the platform's own text editor.
+ * @brief   `EditBox`: a view on the engine's `TextInput`, as `Label` is a view on `Text`.
  *
- * The engine's `TextInput` composes its own flex-laid-out children, and an imported scene is world-space nodes: an EditBox here is the box a
- * scene already drew, a `Label` that shows what was typed and one that shows the hint. A click on the box takes focus on the OS editing surface
- * (a hidden textarea on the web, the soft keyboard and its IME on a device), whose value the labels follow. A host with no such surface shows the
- * box and does not type, as the engine's own fields do.
+ * The engine's field does everything an edit box does — it takes focus on a press, holds the value and the selection on the platform's own
+ * text surface (a hidden textarea on the web, the soft keyboard and its IME on a device), draws the text, the hint, the caret and the
+ * selection, and scrolls to keep the caret in view. An imported scene's edit box is that field on the node that was the box, with the
+ * style its two labels carried; nothing here holds a second copy of any of it. What a script reaches through `textLabel` and
+ * `placeholderLabel` — a colour, a size, a string — is the field's own style, handed back as a label-shaped object.
  */
 import { Component } from '../component';
 import { Node } from '../node';
-import { declareClass } from '../host';
-import type { EventTouch } from '../input';
-import { Label } from './label';
-import { UITransform } from './uiTransform';
-import { EventHandler, joinHandlers } from './button';
-import { platformCreateTextEditor } from '../../platform';
-import type { PlatformTextEditor } from '../../platform/types';
-
-type Handlers = Array<{ component: string; handler: string; customEventData: string }>;
+import type { World } from '../../ecs/world';
+import type { Entity } from '../../types';
+import { TextInput, TextInputFilter, type TextInputData } from '../../ui/text/text-input';
+import { TextAlign } from '../../ui/core/text';
+import { FocusManager, Focusable, type FocusManagerState } from '../../ui/input/focusable';
+import { UIEventType } from '../../ui/core/events';
+import { EntityEvents, type EntityEventQueue } from '../../ecs/entityEvents';
+import { Schedule, defineSystem, addSystemToSchedule, GetWorld } from '../../ecs/system';
+import { Res } from '../../ecs/resource';
+import { SystemLabel } from '../../ecs/systemLabels';
+import { Color } from '../math';
+import { registerBuiltinComponent } from '../builtins';
+import { toCocosColor, toEngineColor, viewAdapter } from './view';
 
 const InputMode = Object.freeze({ ANY: 0, EMAIL: 1, NUMERIC: 2, PHONE_NUMBER: 3, URL: 4, DECIMAL: 5, SINGLE_LINE: 6 });
 const InputFlag = Object.freeze({ PASSWORD: 0, SENSITIVE: 1, INITIAL_CAPS_WORD: 2, INITIAL_CAPS_SENTENCE: 3, INITIAL_CAPS_ALL_CHARACTERS: 4, DEFAULT: 5 });
@@ -28,20 +33,64 @@ const EventType = Object.freeze({
     EDITING_DID_BEGAN: 'editing-did-began', EDITING_DID_ENDED: 'editing-did-ended', TEXT_CHANGED: 'text-changed', EDITING_RETURN: 'editing-return',
 });
 
-/** The characters a field of this input mode takes. */
-function allowed(mode: number, value: string): string {
+/** The filter and the line mode the engine's field has for a Cocos input mode. */
+function fieldMode(mode: number): { inputFilter: TextInputFilter; multiline: boolean } {
     switch (mode) {
-        case InputMode.NUMERIC: return value.replace(/[^0-9]/g, '');
-        case InputMode.DECIMAL: return value.replace(/[^0-9.\-]/g, '');
-        case InputMode.PHONE_NUMBER: return value.replace(/[^0-9+*#\-]/g, '');
+        case InputMode.NUMERIC: return { inputFilter: TextInputFilter.Digits, multiline: false };
+        case InputMode.DECIMAL: return { inputFilter: TextInputFilter.Decimal, multiline: false };
+        case InputMode.PHONE_NUMBER: return { inputFilter: TextInputFilter.Phone, multiline: false };
         case InputMode.EMAIL:
         case InputMode.URL:
-        case InputMode.SINGLE_LINE: return value.replace(/[\r\n]/g, '');
-        default: return value;
+        case InputMode.SINGLE_LINE: return { inputFilter: TextInputFilter.None, multiline: false };
+        default: return { inputFilter: TextInputFilter.None, multiline: true };
     }
 }
 
-const BULLET = '●';
+/** The Cocos input mode a field's settings say, as far as they can: the filter decides, then the line mode. */
+function modeOf(data: TextInputData): number {
+    if (data.inputFilter === TextInputFilter.Digits) return InputMode.NUMERIC;
+    if (data.inputFilter === TextInputFilter.Decimal) return InputMode.DECIMAL;
+    if (data.inputFilter === TextInputFilter.Phone) return InputMode.PHONE_NUMBER;
+    return data.multiline ? InputMode.ANY : InputMode.SINGLE_LINE;
+}
+
+/**
+ * What a script holds as an edit box's `textLabel` or `placeholderLabel`: the style of the field's text or of its hint, with a label's
+ * names. There is no node behind it — the engine draws the field's text itself — so the properties read and write the field.
+ */
+class FieldLabel {
+    constructor(private readonly box: EditBox, private readonly hint: boolean) {}
+
+    get node(): Node { return this.box.node; }
+    get enabled(): boolean { return true; }
+    set enabled(_v: boolean) {}
+
+    get string(): string { return this.hint ? this.box.placeholder : this.box.string; }
+    set string(v: string) { if (this.hint) this.box.placeholder = v; else this.box.string = v; }
+
+    get color(): Color { const d = this.box._data(); return toCocosColor(this.hint ? d.placeholderColor : d.color); }
+    set color(v: Color) { this.box._patch(this.hint ? { placeholderColor: toEngineColor(v) } : { color: toEngineColor(v) }); }
+
+    get fontSize(): number { return this.box._data().fontSize; }
+    set fontSize(v: number) { this.box._patch({ fontSize: v }); }
+    get actualFontSize(): number { return this.fontSize; }
+    get fontFamily(): string { return this.box._data().fontFamily; }
+    set fontFamily(v: string) { this.box._patch({ fontFamily: v }); }
+
+    /** The field lays its lines out at a fixed ratio of the size; a script that reads the pixel height gets that one back. */
+    lineHeight = 0;
+    horizontalAlign = 0;
+    verticalAlign = 1;
+    overflow = 0;
+    enableWrapText = false;
+    isBold = false;
+    isItalic = false;
+    isUnderline = false;
+    useSystemFont = true;
+    cacheMode = 0;
+    updateRenderData(_force = false): void {}
+    markForUpdateRenderData(_enable = true): void {}
+}
 
 export class EditBox extends Component {
     static readonly EventType = EventType;
@@ -49,151 +98,104 @@ export class EditBox extends Component {
     static readonly InputFlag = InputFlag;
     static readonly KeyboardReturnType = KeyboardReturnType;
 
-    maxLength = 20;
-    inputMode: number = InputMode.ANY;
-    inputFlag: number = InputFlag.DEFAULT;
+    /** @internal */
+    _data(): TextInputData { return this._world.get(this._entity, TextInput); }
+    /** @internal */
+    _patch(patch: Partial<TextInputData>): void { this._world.set(this._entity, TextInput, { ...this._data(), ...patch }); }
+
     returnType: number = KeyboardReturnType.DEFAULT;
-    tabIndex = 0;
-    textLabel: Label | null = null;
-    placeholderLabel: Label | null = null;
+    private readonly textLabel_ = new FieldLabel(this, false);
+    private readonly placeholderLabel_ = new FieldLabel(this, true);
 
-    editingDidBeganTargets: Array<Node | null> = [];
-    editingDidBeganHandlers: Handlers = [];
-    textChangedTargets: Array<Node | null> = [];
-    textChangedHandlers: Handlers = [];
-    editingDidEndedTargets: Array<Node | null> = [];
-    editingDidEndedHandlers: Handlers = [];
-    editingReturnTargets: Array<Node | null> = [];
-    editingReturnHandlers: Handlers = [];
-    editingDidBegan: EventHandler[] = [];
-    textChanged: EventHandler[] = [];
-    editingDidEnded: EventHandler[] = [];
-    editingReturn: EventHandler[] = [];
+    get textLabel(): FieldLabel { return this.textLabel_; }
+    set textLabel(_v: unknown) {}
+    get placeholderLabel(): FieldLabel { return this.placeholderLabel_; }
+    set placeholderLabel(_v: unknown) {}
 
-    private string_ = '';
-    private editor_: PlatformTextEditor | null = null;
-    private unsubscribe_: (() => void) | null = null;
-
-    get string(): string { return this.string_; }
+    get string(): string { return this._data().value; }
     set string(value: string) {
-        this.string_ = this.fit_(value);
-        this.refresh_();
+        const text = value === null || value === undefined ? '' : String(value);
+        // the field's own rules apply to what a script puts in as to what is typed: the caret follows to the end of it
+        this._patch({ value: text, cursorPos: text.length });
     }
 
     /** The hint shown while the field is empty. */
-    get placeholder(): string { return this.placeholderLabel?.string ?? ''; }
-    set placeholder(value: string) { if (this.placeholderLabel) this.placeholderLabel.string = value; }
+    get placeholder(): string { return this._data().placeholder; }
+    set placeholder(value: string) { this._patch({ placeholder: value }); }
 
-    isFocused(): boolean { return this.editor_ !== null; }
+    get maxLength(): number { return this._data().maxLength || -1; }
+    set maxLength(value: number) { this._patch({ maxLength: value > 0 ? value : 0 }); }
 
-    onLoad(): void {
-        if (this.editingDidBegan.length === 0) this.editingDidBegan = joinHandlers(this.editingDidBeganTargets, this.editingDidBeganHandlers);
-        if (this.textChanged.length === 0) this.textChanged = joinHandlers(this.textChangedTargets, this.textChangedHandlers);
-        if (this.editingDidEnded.length === 0) this.editingDidEnded = joinHandlers(this.editingDidEndedTargets, this.editingDidEndedHandlers);
-        if (this.editingReturn.length === 0) this.editingReturn = joinHandlers(this.editingReturnTargets, this.editingReturnHandlers);
+    get inputMode(): number { return modeOf(this._data()); }
+    set inputMode(value: number) { this._patch(fieldMode(value)); }
+
+    get inputFlag(): number { return this._data().password ? InputFlag.PASSWORD : InputFlag.DEFAULT; }
+    set inputFlag(value: number) { this._patch({ password: value === InputFlag.PASSWORD }); }
+
+    get tabIndex(): number { return this._world.tryGet(this._entity, Focusable)?.tabIndex ?? 0; }
+    set tabIndex(value: number) {
+        const focusable = this._world.tryGet(this._entity, Focusable);
+        if (focusable) this._world.set(this._entity, Focusable, { ...focusable, tabIndex: value });
     }
 
-    onEnable(): void {
-        this.node.on(Node.EventType.TOUCH_END, this.onTouchEnd_, this);
-        this.refresh_();
-    }
+    get enabled(): boolean { return !this._data().readOnly; }
+    set enabled(value: boolean) { this._patch({ readOnly: !value }); }
 
-    onDisable(): void {
-        this.node.off(Node.EventType.TOUCH_END, this.onTouchEnd_, this);
-        this.blur();
-    }
+    isFocused(): boolean { return this._data().focused; }
 
-    private onTouchEnd_(event: EventTouch): void {
-        const inside = this.node.getComponent(UITransform)?.isHit(event.getUILocation()) ?? true;
-        if (inside) this.focus();
-        event.stopPropagation();
-    }
-
-    /** Take the keyboard, as a click on the box does. */
+    /** Take the keyboard, as a press on the box does. */
     focus(): void {
-        if (this.editor_ || !this.enabledInHierarchy) return;
-        const editor = platformCreateTextEditor();
-        if (!editor) return;   // a host with no text surface shows the field and does not type
-        this.editor_ = editor;
-        const end = this.string_.length;
-        editor.focus(
-            { value: this.string_, selectionStart: end, selectionEnd: end, backward: false },
-            { multiline: this.inputMode === InputMode.ANY, maxLength: this.maxLength > 0 ? this.maxLength : 0, password: this.inputFlag === InputFlag.PASSWORD },
-        );
-        this.unsubscribe_ = editor.subscribe((event) => {
-            if (event.kind === 'change') this.onChange_();
-            else if (event.kind === 'submit') { this.fire_(this.editingReturn, EventType.EDITING_RETURN); this.blur(); }
-            else if (event.kind === 'cancel' || event.kind === 'blur') this.blur();
-        });
-        this.refresh_();
-        this.fire_(this.editingDidBegan, EventType.EDITING_DID_BEGAN);
+        focusOf.get(this._world)?.focus(this._entity, false);
     }
 
     /** Give the keyboard back. */
     blur(): void {
-        const editor = this.editor_;
-        if (!editor) return;
-        this.editor_ = null;
-        this.unsubscribe_?.();
-        this.unsubscribe_ = null;
-        editor.blur();
-        editor.dispose();
-        this.refresh_();
-        this.fire_(this.editingDidEnded, EventType.EDITING_DID_ENDED);
-    }
-
-    private onChange_(): void {
-        const editor = this.editor_;
-        if (!editor) return;
-        const state = editor.read();
-        const value = this.fit_(state.value);
-        if (value !== state.value) editor.write({ ...state, value, selectionStart: Math.min(state.selectionStart, value.length), selectionEnd: Math.min(state.selectionEnd, value.length) });
-        if (value === this.string_) return;
-        this.string_ = value;
-        this.refresh_();
-        EventHandler.emitEvents(this.textChanged, value, this);
-        this.node.emit(EventType.TEXT_CHANGED, this);
-    }
-
-    private fit_(value: string): string {
-        const text = allowed(this.inputMode, value);
-        return this.maxLength > 0 && text.length > this.maxLength ? text.slice(0, this.maxLength) : text;
-    }
-
-    private fire_(handlers: EventHandler[], type: string): void {
-        EventHandler.emitEvents(handlers, this);
-        this.node.emit(type, this);
-    }
-
-    /** What the labels show: the text (as bullets for a password), or the hint while there is none. */
-    private refresh_(): void {
-        const shown = this.inputFlag === InputFlag.PASSWORD ? BULLET.repeat(this.string_.length) : this.string_;
-        if (this.textLabel) {
-            this.textLabel.string = shown;
-            // The text label is authored switched off (the field starts empty); it is on while there is text, which is when Cocos shows it.
-            this.textLabel.node.active = shown !== '';
-        }
-        if (this.placeholderLabel) this.placeholderLabel.node.active = this.string_ === '';
+        const manager = focusOf.get(this._world);
+        if (manager?.focusedEntity === this._entity) manager.blur();
     }
 }
 
+/** The focus manager of each world, learned from the frame loop that runs the systems below. */
+const focusOf = new WeakMap<World, FocusManagerState>();
+
+const hasField = (world: World, entity: Entity): boolean => world.has(entity, TextInput);
+const addField = (world: World, entity: Entity): void => {
+    // a text surface that holds one line unless the script says otherwise, as a Cocos box's default mode is any text with a line limit of its own
+    world.insert(entity, TextInput, { ...fieldMode(InputMode.ANY), maxLength: 20 });
+};
+
+registerBuiltinComponent(EditBox, ['cc.EditBox', 'EditBox'], viewAdapter(EditBox, hasField, addField));
+
+/** What the engine's field says happened, as the events a Cocos edit box emits on its node. */
+const ToCocos: Record<string, string> = {
+    [UIEventType.Focus]: EventType.EDITING_DID_BEGAN,
+    [UIEventType.Blur]: EventType.EDITING_DID_ENDED,
+    [UIEventType.Change]: EventType.TEXT_CHANGED,
+    [UIEventType.Submit]: EventType.EDITING_RETURN,
+};
+const subscribed = new WeakMap<object, WeakSet<object>>();
+
+/** Register the system that turns the field's events into the edit box's, for a script that listens on the node. */
 export function declareEditBox(): void {
-    declareClass(EditBox as never, 'EditBox', [
-        { name: 'string_', kind: 'string' },
-        { name: 'maxLength', kind: 'number' },
-        { name: 'inputMode', kind: 'number' },
-        { name: 'inputFlag', kind: 'number' },
-        { name: 'returnType', kind: 'number' },
-        { name: 'tabIndex', kind: 'number' },
-        { name: 'textLabel', kind: 'component', type: Label },
-        { name: 'placeholderLabel', kind: 'component', type: Label },
-        { name: 'editingDidBeganTargets', kind: 'node', array: true },
-        { name: 'editingDidBeganHandlers', kind: 'json' },
-        { name: 'textChangedTargets', kind: 'node', array: true },
-        { name: 'textChangedHandlers', kind: 'json' },
-        { name: 'editingDidEndedTargets', kind: 'node', array: true },
-        { name: 'editingDidEndedHandlers', kind: 'json' },
-        { name: 'editingReturnTargets', kind: 'node', array: true },
-        { name: 'editingReturnHandlers', kind: 'json' },
-    ]);
+    addSystemToSchedule(Schedule.PreUpdate, defineSystem(
+        [Res(EntityEvents), Res(FocusManager), GetWorld()],
+        (events, focus, world) => {
+            if (focus) focusOf.set(world, focus as FocusManagerState);
+            if (!events) return;
+            const queue = events as EntityEventQueue;
+            let seen = subscribed.get(world);
+            if (!seen) subscribed.set(world, (seen = new WeakSet()));
+            if (seen.has(queue)) return;
+            seen.add(queue);
+            for (const [engineType, cocosType] of Object.entries(ToCocos)) {
+                queue.on(engineType, (e) => {
+                    // an event bubbles to interactable ancestors as copies; the node tree does its own, from the original only
+                    if (e.currentTarget !== e.target || !world.valid(e.target) || !world.has(e.target, TextInput)) return;
+                    const node = Node.for(world, e.target);
+                    node.emit(cocosType, node.getComponent(EditBox));
+                });
+            }
+        },
+        { name: 'Cocos:EditBoxEvents', touches: { opaque: true }, runAfter: [SystemLabel.UIInteraction] },
+    ));
 }

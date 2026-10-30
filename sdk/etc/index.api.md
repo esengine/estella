@@ -829,6 +829,7 @@ editorMode: boolean
 pendingPlugins: unknown[]
 pendingSystems: PendingSystemEntry[]
 playMode: boolean
+queueEpoch: number
 reset: () => void
 wasmError: WasmErrorState
 static new (): AppContext

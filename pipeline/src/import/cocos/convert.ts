@@ -14,6 +14,7 @@
  *        `slot/localId`, a prefab's own entities are bare ids.
  */
 import { convertNode, sameData, type ComponentContext, type ComponentData } from './components';
+import { foldEditBoxes } from './editBoxFold';
 import { NODE_REF, type CocosDocument, type CocosNode, type CocosOverride } from './document';
 import { ImportReport } from './report';
 import { anchoredRect, type RectAnchorsData } from '../../../../sdk/src/ui/layout/rect-anchors';
@@ -436,7 +437,8 @@ export function convertPrefab(doc: CocosDocument, ctx: ConvertContext): PrefabFi
     // A reference to a node of this prefab is that node's prefab-local id; a prefab's refs are strings the loader maps.
     const own = new Set(entities.map((e) => e.prefabEntityId));
     for (const e of entities) resolveRefs(e.components, (id) => (own.has(id) ? id : ''), '');
-    return { version: '2', name: doc.name, rootEntityId: root.id, entities };
+    // an edit box is the engine's text field, with the style its two labels had; the labels are not written
+    return { version: '2', name: doc.name, rootEntityId: root.id, entities: foldEditBoxes(entities, (e) => e.prefabEntityId) };
 }
 
 /**
@@ -510,6 +512,12 @@ export function convertScene(doc: CocosDocument, ctx: ConvertContext): SceneFile
     for (const r of doc.roots) walk(r, null);
     // 0 is the engine's "no entity"; the loader maps the rest.
     for (const e of entities) if ('components' in e) resolveRefs(e.components, (id) => ids.get(id) ?? 0, 0);
+    // an edit box is the engine's text field, with the style its two labels had; the labels are not written
+    const withComponents = entities.filter((e): e is SceneEntity => 'components' in e);
+    const surviving = new Set<SceneEntity | SceneInstanceEntry>(foldEditBoxes(withComponents, (e) => e.id));
+    const folded = entities.filter((e) => !('components' in e) || surviving.has(e));
+    entities.length = 0;
+    entities.push(...folded);
     if (ctx.design) for (const e of entities) if ('components' in e && e.parent === null) placeInDesign(e.components, ctx.design);
     return { version: 4, name: doc.name, entities };
 }

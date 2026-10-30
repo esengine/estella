@@ -343,3 +343,39 @@ it('a field with no filter takes every character, and a digits field still honou
     for (const listener of second.listeners) listener({ kind: 'change' });
     expect(app.world.get(priced, TextInput).value).toBe('123');
 });
+
+it('puts a field on a world rectangle together from world parts: text, selection and caret placed from the box top-left', async () => {
+    const { ContentRect } = await import('../src/ui/core/content-rect');
+    const { Sprite } = await import('../src/ecs/component');
+    const { Parent, Children } = await import('../src/ecs/component');
+    const app = build(new TextInputPlugin());
+    const field = app.world.spawn();
+    app.world.insert(field, Transform, { position: { x: 100, y: 50, z: 0 }, rotation: { w: 1, x: 0, y: 0, z: 0 }, scale: { x: 1, y: 1, z: 1 },
+        worldPosition: { x: 100, y: 50, z: 0 }, worldRotation: { w: 1, x: 0, y: 0, z: 0 }, worldScale: { x: 1, y: 1, z: 1 } });
+    // 200 by 60, the transform in the middle
+    app.world.insert(field, ContentRect, { size: { x: 200, y: 60 }, pivot: { x: 0.5, y: 0.5 } });
+    app.world.insert(field, TextInput, { value: 'typed', padding: 8, fontSize: 20 });
+    app.getResource(FocusManager).focus(field);
+    await app.tick(1 / 60);
+    await app.tick(1 / 60);
+
+    // a UI field would have grown UI nodes; this one grew world parts, three of them under it, none a UINode
+    const parts = app.world.get(field, Children).entities;
+    expect(parts).toHaveLength(3);
+    for (const part of parts) {
+        expect(app.world.has(part, UINode)).toBe(false);
+        expect(app.world.has(part, ContentRect)).toBe(true);
+        expect(app.world.get(part, Parent).entity).toBe(field);
+    }
+    const [selection, text, caret] = parts as [number, number, number];
+    expect(app.world.get(text, Text).content).toBe('typed');
+    // the text starts one padding in from the left edge (-100), and sits at the top (+30), from the field's own origin
+    expect(app.world.get(text, Transform).position.x).toBe(-100 + 8);
+    expect(app.world.get(text, Transform).position.y).toBe(30);
+    expect(app.world.get(text, ContentRect).size.x).toBe(200 - 16);
+    // the caret is a solid bar after the five typed characters (the measuring stub's glyph is 16 at 64, so 5 at this size), 2 wide and a line tall
+    expect(app.world.get(caret, ContentRect).size).toEqual({ x: 2, y: 20 });
+    expect(app.world.get(caret, Transform).position.x).toBeCloseTo(-100 + 8 + 5 * 5, 3);
+    expect(app.world.get(caret, Sprite).enabled).toBe(true);
+    expect(app.world.get(selection, Sprite).enabled).toBe(false);
+});
