@@ -28,6 +28,8 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(cocos): one script that fails to load no longer takes the others with it, a part of cc the layer lacks is a stand-in that survives use, and Director, AssetManager.Cache and the input dispatcher hook exist':
+    {"note":"Cocos scripts load one by one."},
   'feat(cocos): a converted project links its source images instead of copying them, so conversion does not store a multi-gigabyte art folder twice':
     {"note":"A converted Cocos project links its images."},
   'feat(cocos): the importer reports its progress by stage, so a long conversion can show a bar':

@@ -205,6 +205,8 @@ const resources = bundleOf('resources');
 bundles.add('resources', resources);
 
 class AssetManager {
+    /** The cache class, as `AssetManager.Cache`: scripts derive their own caches from it. */
+    static readonly Cache = Cache;
     readonly assets = loaded;
     readonly bundles = bundles;
     readonly resources = resources;

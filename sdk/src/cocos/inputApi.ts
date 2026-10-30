@@ -115,6 +115,8 @@ class InputTarget extends Emitter {
     /** Whether the device sends orientation / motion; there is no sensor feed behind it. */
     setAccelerometerEnabled(_enabled: boolean): void { /* no sensor source */ }
     setAccelerometerInterval(_interval: number): void { /* no sensor source */ }
+    /** Cocos's private hook for a game that routes input itself. Input here is the engine's pointer pipeline, which nothing else dispatches. */
+    _registerEventDispatcher(_dispatcher: unknown): void { /* the engine dispatches */ }
 }
 
 /** The `Input` class scripts name for its `EventType`, and the instance `input`. */

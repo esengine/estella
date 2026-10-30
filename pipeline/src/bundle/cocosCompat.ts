@@ -61,13 +61,21 @@ const NAMED_CC_IMPORT = /^[ \t]*import\s*\{([^}]*)\}\s*from\s*(['"])(cc(?:\/env)
  */
 export function readNamedImportsThroughNamespace(source: string): string {
   let n = 0;
-  return source.replace(NAMED_CC_IMPORT, (_all, list: string, quote: string, from: string) => {
+  const reads: string[] = [];
+  const rest = source.replace(NAMED_CC_IMPORT, (all, list: string, quote: string, from: string) => {
     const bindings = list.split(',').map((x) => x.trim()).filter((x) => x && !/^type\s/.test(x))
-      .map((x) => { const [name, alias] = x.split(/\s+as\s+/); return alias ? `${name!.trim()}: ${alias.trim()}` : name!.trim(); });
-    if (bindings.length === 0) return '';
-    const ns = `__cc${n++}`;
-    return `import * as ${ns} from ${quote}${from}${quote}; const { ${bindings.join(', ')} } = ${ns};`;
+      .map((x) => { const [name, alias] = x.split(/\s+as\s+/); return { name: name!.trim(), local: (alias ?? name)!.trim() }; });
+    if (bindings.length > 0) {
+      const ns = '__cc' + n++;
+      // a name the layer lacks is a stand-in that survives being used, so a script that reaches into it while its module loads does not stop the rest
+      const each = bindings.map((b) => b.local + ' = ' + ns + '.' + b.name + ' ?? ' + ns + '.unsupported(' + JSON.stringify(b.name) + ')').join(', ');
+      reads.push('import * as ' + ns + ' from ' + quote + from + quote + '; const ' + each + ';');
+    }
+    // the statement leaves its lines behind, so what follows keeps its line numbers
+    return all.replace(/[^\n]/g, '');
   });
+  // an import is hoisted: a script may use a name above the line that imports it, so the bindings go first, on the first line
+  return reads.length > 0 ? reads.join(' ') + ' ' + rest : rest;
 }
 
 /** The source with every `const` that the script assigns to again read as `let`; the source itself when there is none. */

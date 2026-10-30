@@ -107,9 +107,12 @@ describe('a const the script assigns to again', () => {
 describe('named imports from cc', () => {
     it('are read from the layer namespace, so a name the layer lacks is undefined instead of a build error', async () => {
         const { readNamedImportsThroughNamespace } = await import('../src/bundle/cocosCompat');
-        const out = readNamedImportsThroughNamespace("import { _decorator, Node as N, type Vec3, gfx } from 'cc';\nimport { EDITOR } from 'cc/env';\nconst x = 1;");
-        expect(out).toContain("import * as __cc0 from 'cc'; const { _decorator, Node: N, gfx } = __cc0;");
-        expect(out).toContain("import * as __cc1 from 'cc/env'; const { EDITOR } = __cc1;");
+        const out = readNamedImportsThroughNamespace("const { ccclass } = _decorator;\nimport { _decorator, Node as N, type Vec3, gfx } from 'cc';\nimport { EDITOR } from 'cc/env';\nconst x = 1;");
+        // the bindings come first, on line one: a script may use a name above the import line that declares it
+        expect(out.startsWith("import * as __cc0 from 'cc'; const _decorator = __cc0._decorator ?? __cc0.unsupported(\"_decorator\"), N = __cc0.Node ?? __cc0.unsupported(\"Node\"), gfx = __cc0.gfx ?? __cc0.unsupported(\"gfx\");")).toBe(true);
+        expect(out).toContain("import * as __cc1 from 'cc/env'; const EDITOR = __cc1.EDITOR ?? __cc1.unsupported(\"EDITOR\");");
+        expect(out.split('\n')).toHaveLength(4);
+        expect(out).toContain('const { ccclass } = _decorator;');
         expect(out).toContain('const x = 1;');
     });
 });

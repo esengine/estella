@@ -139,10 +139,14 @@ describe('importing for the compatibility layer', () => {
     it('writes the entry that brings the scripts into the bundle, importing them where they are', () => {
         const entry = readFileSync(path.join(root, 'out', 'src', 'cocos-scripts.ts'), 'utf8');
         expect(entry).toContain("import 'esengine/cocos';");
-        const line = entry.split('\n').find((l) => l.endsWith("scripts/Hud';"))!;
+        const line = entry.split('\n').find((l) => l.includes("scripts/Hud'"))!;
         expect(line).toBeDefined();
+        // each script loads on its own, so one that throws does not stop the others
+        expect(line).toMatch(/^load\(\(\) => require\('/);
+        expect(entry).toContain('try {');
         // the path leads back to the Cocos project, which is not copied
-        expect(path.resolve(root, 'out', 'src', line.slice("import '".length, -2) + '.ts')).toBe(path.join(root, 'creator', 'assets', 'scripts', 'Hud.ts'));
+        const target = /require\('([^']+)'\)/.exec(line)![1]!;
+        expect(path.resolve(root, 'out', 'src', target + '.ts')).toBe(path.join(root, 'creator', 'assets', 'scripts', 'Hud.ts'));
     });
 
     it('lists what scripts load by path in a manifest, by bundle, and copies those files', () => {

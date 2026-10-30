@@ -93,13 +93,22 @@ export function reportFrame(delta: number): void {
     totalFrames++;
 }
 
-/** `Director`'s event names. */
-export const Director = Object.freeze({
-    EVENT_BEFORE_UPDATE: 'director_before_update',
-    EVENT_AFTER_UPDATE: 'director_after_update',
-    EVENT_BEFORE_SCENE_LOADING: 'director_before_scene_loading',
-    EVENT_AFTER_SCENE_LAUNCH: 'director_after_scene_launch',
-});
+/**
+ * `Director`: its event names, and the class the singleton `director` is an instance of. Scripts patch `Director.prototype.tick` to hook the
+ * frame; here the frame is the engine's, so a patched `tick` is never called, but the patch itself has somewhere to land.
+ */
+export class Director {
+    static readonly EVENT_BEFORE_UPDATE = 'director_before_update';
+    static readonly EVENT_AFTER_UPDATE = 'director_after_update';
+    static readonly EVENT_BEFORE_SCENE_LOADING = 'director_before_scene_loading';
+    static readonly EVENT_AFTER_SCENE_LAUNCH = 'director_after_scene_launch';
+    static readonly EVENT_BEFORE_DRAW = 'director_before_draw';
+    static readonly EVENT_AFTER_DRAW = 'director_after_draw';
+    static readonly EVENT_END_FRAME = 'director_end_frame';
+    static get instance(): typeof director { return director; }
+    static getInstance(): typeof director { return director; }
+    tick(_now?: number): void { /* the engine runs the frame */ }
+}
 
 /** A node by absolute path from the scene roots: `find('Canvas/Panel')`. A name with no slash searches the roots, then everything. */
 export function find(path: string, referenceNode?: Node): Node | null {
