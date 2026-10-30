@@ -24,7 +24,7 @@ import { log } from '../util/logger';
 import { Color, Vec2, Vec3 } from './math';
 import { Node, setCurrentWorld } from './node';
 import {
-    COMPONENT_PREFIX, classInfoNamed, classInfoOf, dropInstance, instancesOfClass, instancesOn, nodeOf, registerClassInfo, setActivitySync, setInstantiator, storeInstance,
+    COMPONENT_PREFIX, classInfoNamed, ensureBuiltinsDeclared, classInfoOf, dropInstance, instancesOfClass, instancesOn, nodeOf, registerClassInfo, setActivitySync, setInstantiator, storeInstance,
     type ClassInfo, type ComponentCtor, type PropertyKind, type PropertySpec,
 } from './registry';
 
@@ -211,6 +211,7 @@ function destroyInstance(world: World, entity: Entity, ctor: Function, inst: Com
  * @param specs The class's `@property` fields, with their kinds settled.
  */
 export function declareClass(ctor: ComponentCtor, name: string, raw: RawPropertySpec[]): ClassInfo {
+    ensureBuiltinsDeclared();
     // The class's own initializers say what each property starts as, which is what Cocos reads to fill its inspector.
     let probe: Record<string, unknown> | null = null;
     try { probe = new ctor() as unknown as Record<string, unknown>; } catch { probe = null; }

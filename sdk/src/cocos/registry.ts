@@ -135,6 +135,19 @@ let instantiator: ((world: World, entity: Entity, ctor: ComponentCtor) => Compon
 export function setInstantiator(fn: (world: World, entity: Entity, ctor: ComponentCtor) => Component | null): void {
     instantiator = fn;
 }
+let builtinDeclarer: (() => void) | null = null;
+export function setBuiltinDeclarer(fn: () => void): void {
+    builtinDeclarer = fn;
+}
+/**
+ * Make sure the layer's own classes and systems are declared in the context now current. The layer declares them once, when it is first
+ * imported; a host that keeps the script runtime from one play session to the next gives the next session a new context and does not
+ * import the layer again, so a game's own classes, declared as its scripts run, ask for them.
+ */
+export function ensureBuiltinsDeclared(): void {
+    builtinDeclarer?.();
+}
+
 let activitySync: ((world: World, entity: Entity) => void) | null = null;
 export function setActivitySync(fn: (world: World, entity: Entity) => void): void {
     activitySync = fn;

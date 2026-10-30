@@ -24,7 +24,7 @@ import { loadSceneData, serializeEntityComponents, SCENE_FORMAT_VERSION, type Sc
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 import { log } from '../util/logger';
-import { Node, getCurrentWorld, markDetached } from './node';
+import { Node, getCurrentWorld, markDetached, onWorldChanged } from './node';
 import { Prefab, preparedPrefabs } from './assets';
 
 const assetsOf = new WeakMap<World, AssetsClass>();
@@ -48,15 +48,22 @@ export function requestPrepare(path: string): void {
     if (path && !preparedPrefabs.has(path) && !inFlight.has(path)) wanted.add(path);
 }
 
+/** Drop what the layer kept of the session that ended, and tell whoever else kept something. */
+function endSession(): void {
+    preparedPrefabs.clear();
+    wanted.clear();
+    inFlight.clear();
+    currentAssets = null;
+    for (const fn of sessionListeners) fn();
+}
+// A script that begins to run in another world is in another session, before any frame has told the loader so: a game asks for what it
+// loaded last time at start-up, and must not be handed that.
+onWorldChanged(endSession);
+
 /** What the layer kept is of the session that kept it: when the loader has given everything back since, it is dropped. */
 function syncSession(assets: AssetsClass): void {
     const epoch = assets.epoch;
-    if (currentAssets && (currentAssets !== assets || currentEpoch !== epoch)) {
-        preparedPrefabs.clear();
-        wanted.clear();
-        inFlight.clear();
-        for (const fn of sessionListeners) fn();
-    }
+    if (currentAssets && (currentAssets !== assets || currentEpoch !== epoch)) endSession();
     currentAssets = assets;
     currentEpoch = epoch;
 }

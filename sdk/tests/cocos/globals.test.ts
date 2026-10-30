@@ -6,10 +6,13 @@
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
-    Component, EventHandler, Game, KeyCode, Scheduler, Asset, director, reportFrame, Layers, Prefab, Size, View, assetManager, game, macro, resources, screen, setResourceManifest, setVisibleSize, sys, view,
+    Component, EventHandler, Game, KeyCode, Scheduler, Asset, director, reportFrame, Layers, Prefab, Size, View, assetManager, game, macro, resources, screen, setCurrentWorld, setResourceManifest, setVisibleSize, sys, view,
     providePrefab,
 } from '../../src/cocos';
 import { keyCodeOf } from '../../src/cocos/inputApi';
+import { AppContext, setDefaultContext } from '../../src/ecs/context';
+import { declareBuiltinScripts } from '../../src/cocos/builtinScripts';
+import { resetClassRegistry } from '../../src/cocos/registry';
 import { setWindowPixels } from '../../src/cocos/ui/screen';
 
 describe('sys', () => {
@@ -268,6 +271,32 @@ describe('Asset', () => {
         expect(loaded.result).toBeInstanceOf(Prefab);
         const missing = await new Promise<Error | null>((resolve) => assetManager.loadAny('nope', (err: Error | null) => resolve(err)));
         expect(missing?.message).toMatch(/uuid nope/);
+    });
+});
+
+describe('a session that follows another in the same script runtime', () => {
+    it("queues the layer's own systems again for the App that follows, once", () => {
+        const context = new AppContext();
+        setDefaultContext(context);
+        resetClassRegistry();
+        declareBuiltinScripts();
+        const first = context.drainPendingSystems().length;
+        expect(first).toBeGreaterThan(0);
+        // the next App takes the queues from a context that declared the layer once and does not import it again
+        declareBuiltinScripts();
+        expect(context.pendingSystems.length).toBe(first);
+        declareBuiltinScripts();
+        expect(context.pendingSystems.length).toBe(first);
+    });
+
+    it('is not handed what the last one loaded, from the moment scripts run in its world', () => {
+        const first = {} as never, second = {} as never;
+        setCurrentWorld(first);
+        providePrefab('kept.esprefab', { ref: 'kept.esprefab', scene: { version: 4, name: 'kept', entities: [] } as never, rootId: 0, missing: [], release() {} });
+        expect(new Prefab('kept.esprefab')._prepared).toBeDefined();
+        setCurrentWorld(second);
+        expect(new Prefab('kept.esprefab')._prepared).toBeUndefined();
+        setCurrentWorld(null);
     });
 });
 

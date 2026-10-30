@@ -18,15 +18,27 @@ import { declareDirector } from './director';
 import { declareTweenSystem } from './tween';
 import { declarePrefabSystem } from './prefabs';
 import { declareGameSystem } from './game';
-import { resetClassRegistry } from './registry';
+import { resetClassRegistry, setBuiltinDeclarer } from './registry';
 
 const declared = new WeakSet<object>();
+/** What the layer queued into a context, and the queue's epoch when it did: queued again for each App that takes the queues after that. */
+const queued = new WeakMap<object, { systems: unknown[]; plugins: unknown[]; epoch: number }>();
+
+function requeue(context: ReturnType<typeof getDefaultContext>): void {
+    const kept = queued.get(context);
+    if (!kept || kept.epoch === context.queueEpoch) return;
+    context.pendingSystems.push(...(kept.systems as never[]));
+    context.pendingPlugins.push(...kept.plugins);
+    kept.epoch = context.queueEpoch;
+}
 
 /** Declare the layer's own classes and systems into the current context, once per context. */
 export function declareBuiltinScripts(): void {
     const context = getDefaultContext();
-    if (declared.has(context)) return;
+    if (declared.has(context)) { requeue(context); return; }
     declared.add(context);
+    const systemsBefore = context.pendingSystems.length;
+    const pluginsBefore = context.pendingPlugins.length;
     // `UITransform` is a view on the engine's rectangle; a scene that holds one needs it registered even in an app without the UI pipeline.
     registerComponent('ContentRect', ContentRect);
     declareButton();
@@ -36,7 +48,12 @@ export function declareBuiltinScripts(): void {
     declareTweenSystem();
     declarePrefabSystem();
     declareGameSystem();
+    queued.set(context, {
+        systems: context.pendingSystems.slice(systemsBefore), plugins: context.pendingPlugins.slice(pluginsBefore), epoch: context.queueEpoch,
+    });
 }
+
+setBuiltinDeclarer(declareBuiltinScripts);
 
 /** Test seam: forget the registry and declare again into the (possibly new) current context. */
 export function redeclareBuiltinScripts(): void {

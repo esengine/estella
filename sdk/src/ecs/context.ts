@@ -72,9 +72,16 @@ export class AppContext {
     editorMode = false;
     playMode = false;
 
+    /**
+     * How many times the queues have been taken or cleared. What was declared into them belongs to the App that took them, so a declaration
+     * made once for the context (a layer that is imported once) has to be queued again for the next App when this has moved.
+     */
+    queueEpoch = 0;
+
     /** @brief Drain all pending systems and clear the queue */
     drainPendingSystems(): PendingSystemEntry[] {
         const drained = this.pendingSystems.splice(0);
+        this.queueEpoch++;
         return drained;
     }
 
@@ -85,6 +92,7 @@ export class AppContext {
 
     /** @brief Reset all mutable state for a new session */
     reset(): void {
+        this.queueEpoch++;
         this.pendingSystems.length = 0;
         this.pendingPlugins.length = 0;
         this.componentRegistry.clear();

@@ -54,7 +54,22 @@ function releaseDetached(world: World, entity: Entity): void {
 
 /** The world a script last ran in: what an `await`, a timer or a callback — which run between frames — still belong to. */
 let lastWorld: World | null = null;
-export function setCurrentWorld(world: World | null): World | null { const previous = currentWorld; currentWorld = world; if (world) lastWorld = world; return previous; }
+const worldChangeListeners: Array<() => void> = [];
+/**
+ * Run @p fn when scripts begin to run in another world than the one they last ran in. A play session is a world, and a host may keep the
+ * script runtime (its modules, what they kept) from one session to the next: what was kept of the last world names things that are gone.
+ */
+export function onWorldChanged(fn: () => void): void { worldChangeListeners.push(fn); }
+export function setCurrentWorld(world: World | null): World | null {
+    const previous = currentWorld;
+    currentWorld = world;
+    if (world) {
+        const changed = lastWorld !== null && lastWorld !== world;
+        lastWorld = world;
+        if (changed) for (const fn of worldChangeListeners) fn();
+    }
+    return previous;
+}
 /**
  * The world being run now; between frames (a continuation after an `await`, a timer), the one scripts last ran in, while it is still running.
  * Cocos has one running game, so a node made in a callback belongs to it.

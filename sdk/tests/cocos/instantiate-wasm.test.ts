@@ -114,8 +114,9 @@ describe.skipIf(!HAS_WASM)('instantiate and tween on the engine', () => {
 
     it('keeps a switched-off instance switched off after it is parented', async () => {
         connect();
-        providePrefab('p.esprefab', bullet());
         boot();
+        // provided once the session's world is the current one: a prefab provided before it belongs to the session before
+        providePrefab('p.esprefab', bullet());
         const made = instantiate(new Prefab('p.esprefab'));
         made.active = false;
         expect(made.active).toBe(false);
