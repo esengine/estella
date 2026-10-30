@@ -338,6 +338,10 @@ function externalEngineImports(metafile: { outputs: Record<string, { imports?: {
   return [...found];
 }
 
+/** What a LAN preview may connect to: as much as the editor's Play, where the game's own server was reachable without
+ *  being listed. A shipping export lists only the project's `web.connect`. */
+const PREVIEW_CONNECT = ['http:', 'https:', 'ws:', 'wss:'];
+
 /** The web host page. `orientation` pins the canvas to a screen orientation (rotate-
  *  to-fit overlay + best-effort lock) — set for the mobile-facing web target, omitted
  *  for desktop (the Electron shell sizes its own window). */
@@ -1194,7 +1198,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     splashBytes = Buffer.byteLength(splashCss(look.background ?? PAGE_BACKGROUND) + splashHtml(title, look));
     await writeFile(
       path.join(payloadDir, 'index.html'),
-      indexHtml(title, engineMap, look, platform === 'web' ? orientation : undefined, debugChannel, platform === 'web' ? opts.webChannel : undefined, platform === 'web' ? opts.webConnect : undefined),
+      indexHtml(title, engineMap, look, platform === 'web' ? orientation : undefined, debugChannel, platform === 'web' ? opts.webChannel : undefined, platform === 'web' ? (opts.developmentPreview ? [...PREVIEW_CONNECT, ...(opts.webConnect ?? [])] : opts.webConnect) : undefined),
     );
   }
   // Typed against the SDK's contract, so a field the runtimes read can never be
