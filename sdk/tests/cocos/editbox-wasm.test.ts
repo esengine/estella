@@ -127,6 +127,15 @@ describe.skipIf(!HAS_WASM)('EditBox', () => {
         expect(hint.node.active).toBe(false);
     });
 
+    it('switches its text label on while it holds text, even when the label was authored off', async () => {
+        const { edit, text } = await field();
+        text.node.active = false;
+        edit.string = 'preset';
+        expect(text.node.active).toBe(true);
+        edit.string = '';
+        expect(text.node.active).toBe(false);
+    });
+
     it('does nothing on a host with no text editor', async () => {
         editor = null;
         const { edit } = await field();

@@ -73,6 +73,28 @@ describe.skipIf(!HAS_WASM)('built-in UI components on the engine', () => {
             expect(label.string).toBe('胜利');
         });
 
+        it('takes a game that replaces the engine\'s string setter and writes its internal _string', () => {
+            connect();
+            const n = node('l');
+            const label = n.addComponent(Label)!;
+            const original = Object.getOwnPropertyDescriptor(Label.prototype, 'string')!;
+            // what a project patching the engine's Label does: it sets the engine's own field and marks the element for a rebuild
+            Object.defineProperty(Label.prototype, 'string', {
+                set(this: { _string: string; markForUpdateRenderData(): void }, value: string) {
+                    if (this._string === value) return;
+                    this._string = value;
+                    this.markForUpdateRenderData();
+                },
+            });
+            try {
+                label.string = 'patched';
+                expect(W().get(n._entity, Text).content).toBe('patched');
+                expect(label.string).toBe('patched');
+            } finally {
+                Object.defineProperty(Label.prototype, 'string', original);
+            }
+        });
+
         it('turns a null or undefined string into empty text, as Cocos does', () => {
             connect();
             const label = node('l').addComponent(Label)!;

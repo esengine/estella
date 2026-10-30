@@ -93,6 +93,17 @@ export class Label extends TextView {
     get useSystemFont(): boolean { return !this.text_().font; }
     set useSystemFont(_v: boolean) {}
 
+    // What a game that patches the engine's `Label` (a replaced `string` setter, a replaced `onEnable`) reads and writes of its internals: the
+    // same data as the properties above, so the patch lands on the `Text` instead of on a field nothing draws from.
+    get _string(): string { return this.text_().content; }
+    set _string(v: string) { this.patch_({ content: v }); }
+    get _fontFamily(): string { return this.text_().fontFamily; }
+    set _fontFamily(v: string) { this.patch_({ fontFamily: v }); }
+    get _isSystemFontUsed(): boolean { return !this.text_().font; }
+    set _isSystemFontUsed(_v: boolean) {}
+    _font: unknown = null;
+    _applyFontTexture(): void {}
+
     /** The measured size of the text is the engine's layout to know; a no-op here, as a script calls it to force a refresh. */
     updateRenderData(_force = false): void {}
 

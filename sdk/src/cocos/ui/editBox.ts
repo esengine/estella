@@ -168,7 +168,11 @@ export class EditBox extends Component {
     /** What the labels show: the text (as bullets for a password), or the hint while there is none. */
     private refresh_(): void {
         const shown = this.inputFlag === InputFlag.PASSWORD ? BULLET.repeat(this.string_.length) : this.string_;
-        if (this.textLabel) this.textLabel.string = shown;
+        if (this.textLabel) {
+            this.textLabel.string = shown;
+            // The text label is authored switched off (the field starts empty); it is on while there is text, which is when Cocos shows it.
+            this.textLabel.node.active = shown !== '';
+        }
         if (this.placeholderLabel) this.placeholderLabel.node.active = this.string_ === '';
     }
 }

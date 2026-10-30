@@ -16,6 +16,8 @@ export class UIRenderer extends Component {
     markForUpdateRenderData(_enable = true): void { /* drawn from the component's data every frame */ }
     setVertsDirty(): void { /* see markForUpdateRenderData */ }
     updateRenderer(): void { /* see markForUpdateRenderData */ }
+    /** A script that replaces `onEnable` on the engine's class calls the base one first; there is nothing to set up here. */
+    onEnable(): void { /* the engine draws from the component's data */ }
     /** Whether the element is waiting for a rebuild: never, here. */
     get renderEntity(): undefined { return undefined; }
 }
