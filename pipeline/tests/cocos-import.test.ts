@@ -18,7 +18,7 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { importCocosProject } from '../src/import/cocos';
+import { COCOS_IMPORT_REVISION, cocosImportIsCurrent, importCocosProject } from '../src/import/cocos';
 
 const IMG = '11111111-1111-4111-8111-111111111111';
 const ITEM = '22222222-2222-4222-8222-222222222222';
@@ -279,6 +279,19 @@ describe('importing a Cocos project', () => {
 describe('importing again over the same project', () => {
     const ITEM_REL = 'assets/cocos/ui/item.esprefab';
     const stateOf = (): { documents: Record<string, string> } => readJson('assets/cocos/.import-state.json');
+
+    it('records the importer revision, so a project written by an older importer is known to need bringing up', () => {
+        expect(cocosImportIsCurrent(out)).toBe(true);
+        const state = { ...readJson('assets/cocos/.import-state.json') } as { revision?: number };
+        expect(state.revision).toBe(COCOS_IMPORT_REVISION);
+        const file = path.join(out, 'assets/cocos/.import-state.json');
+        const text = readFileSync(file, 'utf8');
+        delete state.revision;
+        writeFileSync(file, JSON.stringify(state));
+        expect(cocosImportIsCurrent(out)).toBe(false);
+        writeFileSync(file, text);
+        expect(cocosImportIsCurrent(path.join(out, 'nowhere'))).toBe(true);   // not converted: nothing to bring up
+    });
 
     it('finds nothing to do when neither side changed', async () => {
         const again = await importCocosProject({ source: src, out });

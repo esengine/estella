@@ -23,6 +23,23 @@ import { convertAnimationClip } from './animationClip';
 import { convertAnimationGraph } from './animationGraph';
 import type { MaterialInfo } from './components';
 
+/**
+ * The revision of what an import writes. It is recorded in the state file; a converted project whose record is older was written by an
+ * importer that made less (or differently), and is brought up to date when it is opened. Raise it when the converted output changes in a
+ * way an existing project needs to pick up: a new generated file, a field a document or a manifest now carries.
+ */
+export const COCOS_IMPORT_REVISION = 1;
+
+/** Whether the project at @p projectRoot was written by an importer of this revision. A project that was not converted has nothing to bring up. */
+export function cocosImportIsCurrent(projectRoot: string): boolean {
+    try {
+        const state = JSON.parse(readFileSync(path.join(projectRoot, 'assets', 'cocos', '.import-state.json'), 'utf8')) as { revision?: unknown };
+        return state.revision === COCOS_IMPORT_REVISION;
+    } catch {
+        return true;
+    }
+}
+
 export interface CocosImportOptions {
     /** The Cocos project folder (the one holding `assets/` and `settings/`). */
     source: string;
@@ -788,7 +805,7 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
             }
         }
         progress('finish', 0, 1);
-        writeOut(stateFile, `${JSON.stringify({ source, documents: written }, null, 2)}\n`);
+        writeOut(stateFile, `${JSON.stringify({ revision: COCOS_IMPORT_REVISION, source, documents: written }, null, 2)}\n`);
         writeOut(path.join(out, 'assets', into, 'import-report.json'), `${JSON.stringify(report.toJSON(), null, 2)}\n`);
     }
     return report.toJSON();
