@@ -16,6 +16,14 @@
 import { convertNode, sameData, type ComponentContext, type ComponentData } from './components';
 import { NODE_REF, type CocosDocument, type CocosNode, type CocosOverride } from './document';
 import { ImportReport } from './report';
+import { anchoredRect, type RectAnchorsData } from '../../../../sdk/src/ui/layout/rect-anchors';
+
+/** What a field a document does not carry means (the component's own defaults). */
+const DEFAULT_ANCHORS: RectAnchorsData = {
+    alignFlags: 0, left: 0, right: 0, top: 0, bottom: 0, horizontalCenter: 0, verticalCenter: 0,
+    isAbsLeft: true, isAbsRight: true, isAbsTop: true, isAbsBottom: true, isAbsHorizontalCenter: true, isAbsVerticalCenter: true,
+    alignMode: 1, enabled: true,
+};
 
 const SEP = '/';
 
@@ -80,6 +88,8 @@ export interface ConvertContext extends ComponentContext {
     prefabRef(uuid: string): string | null;
     /** Where the document being converted lives, for notes. */
     where: string;
+    /** The project's design resolution: the box a root pinned to the screen is placed in, so the document holds where it will be. */
+    design?: { width: number; height: number };
 }
 
 // ---------------------------------------------------------------------------
@@ -429,6 +439,28 @@ export function convertPrefab(doc: CocosDocument, ctx: ConvertContext): PrefabFi
     return { version: '2', name: doc.name, rootEntityId: root.id, entities };
 }
 
+/**
+ * A root pinned to the screen is stored where the engine will put it: Cocos keeps such a root at its own corner-based position, and the
+ * engine's screen is centred on the origin, so the document would otherwise say one place and show another until the first frame. The
+ * same function the engine aligns with places it, in the project's design box.
+ */
+function placeInDesign(components: ComponentData[], design: { width: number; height: number }): void {
+    const anchors = components.find((c) => c.type === 'RectAnchors');
+    const transform = components.find((c) => c.type === 'Transform');
+    if (!anchors || !transform) return;
+    const a = { ...DEFAULT_ANCHORS, ...(anchors.data as Partial<RectAnchorsData>) };
+    if (!a.alignFlags || a.enabled === false) return;
+    const rect = components.find((c) => c.type === 'ContentRect')?.data as { size?: { x: number; y: number }; pivot?: { x: number; y: number } } | undefined;
+    const t = transform.data as { position: { x: number; y: number; z: number }; scale?: { x: number; y: number } };
+    const out = anchoredRect(
+        a, { left: -design.width / 2, right: design.width / 2, bottom: -design.height / 2, top: design.height / 2 },
+        { width: rect?.size?.x ?? 0, height: rect?.size?.y ?? 0, pivotX: rect?.pivot?.x ?? 0.5, pivotY: rect?.pivot?.y ?? 0.5 },
+        { x: t.scale?.x ?? 1, y: t.scale?.y ?? 1 }, { x: t.position.x, y: t.position.y },
+    );
+    t.position = { ...t.position, x: out.x, y: out.y };
+    if (rect?.size) rect.size = { x: out.width, y: out.height };
+}
+
 export function convertScene(doc: CocosDocument, ctx: ConvertContext): SceneFile {
     ctx.nodeById = indexNodes(doc.roots);
     const entities: (SceneEntity | SceneInstanceEntry)[] = [];
@@ -478,5 +510,6 @@ export function convertScene(doc: CocosDocument, ctx: ConvertContext): SceneFile
     for (const r of doc.roots) walk(r, null);
     // 0 is the engine's "no entity"; the loader maps the rest.
     for (const e of entities) if ('components' in e) resolveRefs(e.components, (id) => ids.get(id) ?? 0, 0);
+    if (ctx.design) for (const e of entities) if ('components' in e && e.parent === null) placeInDesign(e.components, ctx.design);
     return { version: 4, name: doc.name, entities };
 }

@@ -152,6 +152,15 @@ function startSceneOf(scenes: readonly string[]): string | undefined {
     return find(/(^|\/)launch\/main\.scene$/) ?? find(/(^|\/)launch\/[^/]+\.scene$/) ?? find(/^main\.scene$/);
 }
 
+/** The design resolution a Cocos project declares, which is the box its screen-pinned roots are placed in. */
+function designSizeOf(source: string): { width: number; height: number } | undefined {
+    try {
+        const settings = JSON.parse(readFileSync(path.join(source, 'settings', 'v2', 'packages', 'project.json'), 'utf8')) as { general?: { designResolution?: { width?: number; height?: number } } };
+        const size = settings.general?.designResolution;
+        return size?.width && size.height ? { width: size.width, height: size.height } : undefined;
+    } catch { return undefined; }
+}
+
 /**
  * Make the converted project start where the Cocos game does: the starter project opens its own empty scene and an 800x600 design size, so
  * playing it shows nothing of the game. Only a manifest still carrying the starter's values is changed; one the creator edited is theirs.
@@ -342,6 +351,7 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
     const scriptNames = new Set<string>();
     const ctx: ConvertContext = {
         assets: index,
+        design: designSizeOf(source),
         scriptClass: (classId) => {
             const found = scripts.get(classId);
             if (found) { usedScripts.add(found.rel); scriptNames.add(`Cocos.${found.name}`); }

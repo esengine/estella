@@ -104,7 +104,9 @@ describe('importing for the compatibility layer', () => {
     const comp = (name: string, type: string) => entity(name).components.find((c) => c.type === type)!;
 
     it('keeps a node\'s rectangle as a component of its own, as well as the size its renderers got', () => {
-        expect(comp('Canvas', 'ContentRect').data).toEqual({ size: { x: 960, y: 640 }, pivot: { x: 0.5, y: 0.5 } });
+        // a root pinned to the screen is stored as the engine will place it in the project's design box (1080x1920, centred on the origin)
+        expect(comp('Canvas', 'ContentRect').data).toEqual({ size: { x: 1060, y: 1910 }, pivot: { x: 0.5, y: 0.5 } });
+        expect(comp('Canvas', 'Transform').data.position).toMatchObject({ x: 0, y: 0 });
     });
 
     it('carries a widget\'s and a layout\'s settings under the names the layer uses', () => {
