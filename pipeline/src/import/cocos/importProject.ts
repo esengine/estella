@@ -31,7 +31,7 @@ import { convertPass, isOutlinePass, type PassConversion } from './effectConvert
  * importer that made less (or differently), and is brought up to date when it is opened. Raise it when the converted output changes in a
  * way an existing project needs to pick up: a new generated file, a field a document or a manifest now carries.
  */
-export const COCOS_IMPORT_REVISION = 10;
+export const COCOS_IMPORT_REVISION = 11;
 
 /** Whether the project at @p projectRoot was written by an importer of this revision. A project that was not converted has nothing to bring up. */
 export function cocosImportIsCurrent(projectRoot: string): boolean {
@@ -921,7 +921,10 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
                     entries[key] = { path: ctx.assetRef(entry), kind: 'texture', uuid: entry.uuid };
                 } else if (['mp3', 'wav', 'ogg', 'm4a'].includes(ext)) {
                     entries[key] = { path: ctx.assetRef(entry), kind: 'audio', uuid: entry.uuid };
-                } else if (ext !== 'meta' && ext !== 'ts' && ext !== 'js' && ext !== 'scene') {
+                } else if (ext === 'scene') {
+                    // a scene is run by its name (`director.loadScene('scene_level_003')`), which is the file's, wherever its bundle puts it
+                    entries[key] = { path: outRef(esRel(entry.rel, '.esscene')), kind: 'scene', uuid: entry.uuid };
+                } else if (ext !== 'meta' && ext !== 'ts' && ext !== 'js') {
                     entries[key] = { path: '', kind: ext || 'other', uuid: entry.uuid };
                 }
             }

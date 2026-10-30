@@ -17,7 +17,7 @@
  */
 import { platformFetch } from '../platform';
 import { log } from '../util/logger';
-import { Asset, AudioClip, ImageAsset, JsonAsset, Material, Prefab, SpriteFrame, TextAsset, Texture2D } from './assets';
+import { Asset, AudioClip, ImageAsset, JsonAsset, Material, Prefab, SceneAsset, SpriteFrame, TextAsset, Texture2D } from './assets';
 import { getCurrentWorld } from './node';
 import { assetsFor, loadPrefab, onNewSession } from './prefabs';
 
@@ -160,6 +160,20 @@ async function loadEntry(entry: ResourceEntry, asked: AssetCtor | null): Promise
     throw new UnsupportedAssetKind(`cocos compat: loading "${entry.path}" (${entry.kind}${type ? `, as ${type.name}` : ''}) is not supported by the compatibility layer yet; prefabs, JSON, text, images and audio are`);
 }
 
+/** The scenes of the project, by the name a script runs them by: the file's name, without its folders or extension. */
+export async function listScenes(): Promise<Array<{ name: string; path: string }>> {
+    const manifest = await theManifest();
+    const out = new Map<string, string>();
+    for (const bundle of Object.values(manifest)) {
+        for (const [key, entry] of Object.entries(bundle)) {
+            if (entry.kind !== 'scene' || !entry.path) continue;
+            const name = key.slice(key.lastIndexOf('/') + 1);
+            if (!out.has(name)) out.set(name, entry.path);
+        }
+    }
+    return [...out].map(([name, path]) => ({ name, path }));
+}
+
 export class Bundle {
     readonly base = '';
     constructor(readonly name: string, private readonly entries_: () => Promise<Record<string, ResourceEntry>>) {}
@@ -227,6 +241,20 @@ export class Bundle {
             (e: Error) => { if (onComplete) onComplete(e, null as never); else log.warn('cocos', e.message); },
         );
     }
+
+    /** A scene of the bundle as an asset: what `director.runScene` takes. The scene's content is the engine's scene manager's to load. */
+    loadScene(name: string, ...rest: unknown[]): void {
+        const fns = rest.filter((a): a is (...args: unknown[]) => void => typeof a === 'function');
+        const done = fns[fns.length - 1] as ((error: Error | null, asset?: SceneAsset) => void) | undefined;
+        listScenes().then((scenes) => {
+            if (!scenes.some((s) => s.name === name)) throw new Error(`cocos compat: bundle "${this.name}" has no scene "${name}"`);
+            const asset = new SceneAsset(name);
+            asset.name = name;
+            return asset;
+        }).then((asset) => done?.(null, asset), (error: Error) => done?.(error));
+    }
+    /** Preparing a scene is finding it, here: the scene manager readies what it loads when it loads it. */
+    preloadScene(name: string, ...rest: unknown[]): void { this.loadScene(name, ...rest); }
 
     /** Preparing is loading, here. */
     preload(...args: unknown[]): void { this.load(...args); }

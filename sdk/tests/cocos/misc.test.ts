@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { NodePool, ccenum, js, profiler } from '../../src/cocos/misc';
 import type { Node } from '../../src/cocos/node';
-import { Graphics, Label, Sprite, UIRenderer } from '../../src/cocos';
+import { Graphics, Label, Quat, Sprite, UIRenderer, Vec3 } from '../../src/cocos';
 
 /** The parts of a node a pool touches. */
 function fakeNode(handler?: { unuse(): void; reuse(args: unknown[]): void }) {
@@ -90,5 +90,17 @@ describe('UIRenderer', () => {
         }
         const probe = Object.create(Sprite.prototype) as Sprite;
         expect(() => { probe.markForUpdateRenderData(); probe.markForUpdateRenderData(false); probe.setVertsDirty(); }).not.toThrow();
+    });
+});
+
+describe('Vec3.transformQuat', () => {
+    it('keeps a vector under the identity and turns it by a quarter about Y', () => {
+        const forward = new Vec3(0, 0, -1);
+        expect(Vec3.transformQuat(new Vec3(), forward, new Quat(0, 0, 0, 1))).toMatchObject({ x: 0, y: 0, z: -1 });
+        const s = Math.SQRT1_2;
+        const turned = Vec3.transformQuat(new Vec3(), forward, new Quat(0, s, 0, s));
+        expect(turned.x).toBeCloseTo(-1, 6);
+        expect(turned.y).toBeCloseTo(0, 6);
+        expect(turned.z).toBeCloseTo(0, 6);
     });
 });

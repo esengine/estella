@@ -54,6 +54,17 @@ export class Vec3 {
         return this;
     }
     clone(): Vec3 { return new Vec3(this.x, this.y, this.z); }
+    /** A vector turned by a unit quaternion. */
+    static transformQuat(out: Vec3, a: Vec3, q: { x: number; y: number; z: number; w: number }): Vec3 {
+        const ix = q.w * a.x + q.y * a.z - q.z * a.y;
+        const iy = q.w * a.y + q.z * a.x - q.x * a.z;
+        const iz = q.w * a.z + q.x * a.y - q.y * a.x;
+        const iw = -q.x * a.x - q.y * a.y - q.z * a.z;
+        out.x = ix * q.w + iw * -q.x + iy * -q.z - iz * -q.y;
+        out.y = iy * q.w + iw * -q.y + iz * -q.x - ix * -q.z;
+        out.z = iz * q.w + iw * -q.z + ix * -q.y - iy * -q.x;
+        return out;
+    }
     /** A point through a matrix (w = 1), with the perspective divide. */
     static transformMat4(out: Vec3, a: Vec3, m: { m00: number; m01: number; m02: number; m03: number; m04: number; m05: number; m06: number; m07: number; m08: number; m09: number; m10: number; m11: number; m12: number; m13: number; m14: number; m15: number }): Vec3 {
         const x = a.x, y = a.y, z = a.z;

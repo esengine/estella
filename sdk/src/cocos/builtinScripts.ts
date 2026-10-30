@@ -18,6 +18,7 @@ import { declareDirector } from './director';
 import { declareTweenSystem } from './tween';
 import { declarePrefabSystem } from './prefabs';
 import { declareGameSystem } from './game';
+import { declareStartPhase } from './host';
 import { resetClassRegistry, setBuiltinDeclarer } from './registry';
 
 const declared = new WeakSet<object>();
@@ -48,6 +49,7 @@ export function declareBuiltinScripts(): void {
     declareTweenSystem();
     declarePrefabSystem();
     declareGameSystem();
+    declareStartPhase();
     queued.set(context, {
         systems: context.pendingSystems.slice(systemsBefore), plugins: context.pendingPlugins.slice(pluginsBefore), epoch: context.queueEpoch,
     });

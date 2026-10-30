@@ -11,9 +11,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { App, flushPendingRegistrations } from '../../src/app/app';
 import { AppContext, setDefaultContext } from '../../src/ecs/context';
-import { getUserComponents } from '../../src/ecs/component';
+import { SceneOwner, getUserComponents } from '../../src/ecs/component';
 import { resetClassRegistry } from '../../src/cocos/registry';
-import { Component, Node, Vec3, _decorator, director, find, isValid } from '../../src/cocos';
+import { Component, Node, Vec3, _decorator, director, find, isValid, setCurrentWorld } from '../../src/cocos';
 
 const { ccclass, property } = _decorator;
 
@@ -273,5 +273,63 @@ describe('director, find, isValid', () => {
         app.world.despawn(c);
         expect(isValid(canvas)).toBe(false);
         expect(isValid(null)).toBe(false);
+    });
+});
+
+describe('the start phase', () => {
+    it("gives every enabled component its start before any update of the frame, whichever was declared first", async () => {
+        const seen: unknown[] = [];
+
+        @ccclass('Bar')
+        class Bar extends Component {
+            state = '';
+            percent: number | undefined;
+            update(dt: number) { if (this.state === 'start') this.percent = dt; }
+        }
+
+        @ccclass('Screen')
+        class Screen extends Component {
+            bar: Bar | null = null;
+            start() { this.bar!.state = 'start'; }
+            update() { seen.push(this.bar!.percent); }
+        }
+        void Screen;
+
+        const app = await boot();
+        const world = app.world;
+        const barEntity = world.spawn('bar');
+        world.insert(barEntity, comp('Bar'), { enabled: true });
+        const screenEntity = world.spawn('screen');
+        world.insert(screenEntity, comp('Screen'), { enabled: true });
+        // both exist before the frame, as a view and its child do when a script has been asking for them
+        const bar = Node.for(world, barEntity).getComponent(Bar)!;
+        const screen = Node.for(world, screenEntity).getComponent(Screen)!;
+        screen.bar = bar;
+        await app.tick(1 / 60);
+        // Bar is declared before Screen, so its update runs first in the frame: it must already see what Screen's start set
+        expect(seen).toEqual([1 / 60]);
+    });
+});
+
+describe('keeping a node through scene changes', () => {
+    it("marks the node persistent, and lists the new scene's own roots before the kept ones", async () => {
+        const app = await boot();
+        const world = app.world;
+        const kept = world.spawn('ui_layer');
+        world.insert(kept, SceneOwner, { scene: 'main', persistent: false });
+        const own = world.spawn('ui_layer');
+        world.insert(own, SceneOwner, { scene: 'level', persistent: false });
+
+        setCurrentWorld(world);
+        director.addPersistRootNode(Node.for(world, kept));
+        expect(world.get(kept, SceneOwner).persistent).toBe(true);
+        expect(world.get(own, SceneOwner).persistent).toBe(false);
+        expect(director.isPersistRootNode(Node.for(world, kept))).toBe(true);
+
+        // the new scene's own root answers a lookup by name, as in Cocos, where the kept nodes are put under the scene after it
+        const scene = director.getScene()!;
+        expect(scene.getChildByName('ui_layer')!._entity).toBe(own);
+        director.removePersistRootNode(Node.for(world, kept));
+        setCurrentWorld(null);
     });
 });

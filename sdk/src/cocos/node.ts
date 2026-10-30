@@ -301,6 +301,7 @@ export class Node {
     get worldRotation(): Quat { const q = this.composedTransform_().worldRotation; return new Quat(q.x, q.y, q.z, q.w); }
     get worldPosition(): Vec3 { const p = this.composedTransform_().worldPosition; return new Vec3(p.x, p.y, p.z); }
     set worldPosition(v: Vec3) { this.setWorldPosition(v); }
+    getWorldRotation(out?: Quat): Quat { const q = this.composedTransform_().worldRotation; return (out ?? new Quat()).set(q.x, q.y, q.z, q.w); }
     getWorldPosition(out?: Vec3): Vec3 { const p = this.composedTransform_().worldPosition; return (out ?? new Vec3()).set(p.x, p.y, p.z); }
 
     /** Place this node so its world position is @p x. Under a parent that is rotated or scaled, the local position is solved for. */

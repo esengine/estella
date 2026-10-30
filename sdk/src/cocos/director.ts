@@ -8,20 +8,28 @@
  * expects over that: its children are the world's parentless named entities, so `director.getScene().getChildByName('Canvas')`
  * and `find('Canvas/Panel')` mean what they say.
  */
-import { Name, Parent } from '../ecs/component';
+import { Children, Name, Parent, SceneOwner } from '../ecs/component';
+import { log } from '../util/logger';
 import type { World } from '../ecs/world';
 import { INVALID_ENTITY, type Entity } from '../types';
-import { Schedule, defineSystem, addSystemToSchedule } from '../ecs/system';
+import { Schedule, defineSystem, addSystemToSchedule, GetWorld } from '../ecs/system';
 import { Res, Time } from '../ecs/resource';
 import { Node, getCurrentWorld } from './node';
 import { Scheduler, scheduler } from './scheduler';
+import { SceneManager, type SceneManagerState } from '../scene/sceneManager';
+import { listScenes } from './assetManager';
+import { SceneAsset } from './assets';
 
 /** The root of the running scene: a stand-in for the parent the world's top-level entities do not have. */
 export class Scene {
     constructor(private readonly world: World) {}
 
-    get name(): string { return 'Scene'; }
+    private name_ = 'Scene';
+    get name(): string { return this.name_; }
+    set name(value: string) { this.name_ = value; }
     get active(): boolean { return true; }
+    /** A scene is a root, not a node: it holds no components. */
+    getComponent(_type?: unknown): null { return null; }
     get isValid(): boolean { return true; }
 
     get children(): Node[] {
@@ -30,6 +38,9 @@ export class Scene {
             const parent = this.world.tryGet(e, Parent)?.entity;
             if (!parent || parent === INVALID_ENTITY) roots.push(e);
         }
+        // A node kept across scenes is moved under the new scene after the scene's own, so the new scene's come first
+        const kept = (e: Entity): boolean => this.world.tryGet(e, SceneOwner)?.persistent === true;
+        roots.sort((a, b) => Number(kept(a)) - Number(kept(b)));
         return roots.map((e) => Node.for(this.world, e));
     }
     get childrenCount(): number { return this.children.length; }
@@ -57,8 +68,81 @@ function requireWorld(what: string): World {
     return world;
 }
 
-/** The parts of `director` scripts actually call. Scene loading and the persistent-root list are the engine's, and are not simulated. */
+/** The engine's scene manager of each world, learned from the frame loop (see {@link declareDirector}). */
+const sceneManagers = new WeakMap<World, SceneManagerState>();
+const registeredScenes = new WeakMap<World, Set<string>>();
+let loadingScene = '';
+
+/** What a scene's nodes keep across a scene change: the engine's `SceneOwner.persistent`, set on the node and what is under it. */
+function setPersistent(node: Node, persistent: boolean): void {
+    const world = node._world;
+    const visit = (e: Entity): void => {
+        const owner = world.tryGet(e, SceneOwner);
+        if (owner && owner.persistent !== persistent) world.set(e, SceneOwner, { ...owner, persistent });
+        for (const child of world.tryGet(e, Children)?.entities ?? []) visit(child);
+    };
+    visit(node._entity);
+}
+
+/** Give the scene manager every scene of the project by name, once. */
+async function registerScenes(world: World, manager: SceneManagerState): Promise<void> {
+    let done = registeredScenes.get(world);
+    if (!done) registeredScenes.set(world, (done = new Set()));
+    for (const scene of await listScenes()) {
+        if (done.has(scene.name)) continue;
+        done.add(scene.name);
+        manager.register({ name: scene.name, path: scene.path });
+    }
+}
+
+function sceneManagerOf(world: World): SceneManagerState {
+    const manager = sceneManagers.get(world);
+    if (!manager) throw new Error('cocos compat: the engine\'s scene manager is not running');
+    return manager;
+}
+
+/** Run @p name as the scene: the one before it goes, what the game marked persistent stays, and @p done hears how it went. */
+function runScene(name: string, done?: (error: Error | null, scene?: Scene) => void): void {
+    const world = requireWorld('director.loadScene');
+    loadingScene = name;
+    director.emit(Director.EVENT_BEFORE_SCENE_LOADING, name);
+    (async () => {
+        const manager = sceneManagerOf(world);
+        await registerScenes(world, manager);
+        await manager.load(name);
+        return new Scene(world);
+    })().then(
+        (scene) => { loadingScene = ''; director.emit(Director.EVENT_AFTER_SCENE_LAUNCH, scene); done?.(null, scene); },
+        (error: Error) => { loadingScene = ''; log.warn('cocos', `scene "${name}" did not load: ${String(error.message ?? error)}`); done?.(error); },
+    );
+}
+
+/** The parts of `director` scripts actually call. */
 export const director = {
+    /** The name of the scene being loaded, or empty: a game reads it to refuse a second load while one is under way. */
+    get _loadingScene(): string { return loadingScene; },
+    /** Run a scene by its name. `onLaunched(error, scene)` hears the result. */
+    loadScene(name: string, onLaunched?: (error: Error | null, scene?: Scene) => void): boolean {
+        runScene(name, onLaunched);
+        return true;
+    },
+    /** Run a scene a bundle's `loadScene` gave. */
+    runScene(scene: SceneAsset | string, _onBeforeLoad?: () => void, onLaunched?: (error: Error | null, scene?: Scene) => void): void {
+        runScene(typeof scene === 'string' ? scene : scene.name, onLaunched);
+    },
+    /** Ready a scene so running it is quick. */
+    preloadScene(name: string, onProgress?: unknown, onLoaded?: (error: Error | null, scene?: SceneAsset) => void): void {
+        const done = (typeof onProgress === 'function' && onLoaded === undefined ? onProgress : onLoaded) as ((error: Error | null, scene?: SceneAsset) => void) | undefined;
+        const world = requireWorld('director.preloadScene');
+        (async () => {
+            const manager = sceneManagerOf(world);
+            await registerScenes(world, manager);
+            await manager.prepare(name);
+            const asset = new SceneAsset(name);
+            asset.name = name;
+            return asset;
+        })().then((asset) => done?.(null, asset), (error: Error) => done?.(error));
+    },
     getScene(): Scene | null {
         const world = getCurrentWorld();
         return world ? new Scene(world) : null;
@@ -85,10 +169,10 @@ export const director = {
     emit(type: string, ...args: any[]): void {
         for (const l of [...(directorListeners.get(type) ?? [])]) l.callback.apply(l.target, args);
     },
-    /** Kept for scripts that mark a node to survive a scene change: the engine's scene streaming decides that. */
-    addPersistRootNode(_node: Node): void {},
-    removePersistRootNode(_node: Node): void {},
-    isPersistRootNode(_node: Node): boolean { return false; },
+    /** Keep a node (and what is under it) through scene changes. */
+    addPersistRootNode(node: Node): void { setPersistent(node, true); },
+    removePersistRootNode(node: Node): void { setPersistent(node, false); },
+    isPersistRootNode(node: Node): boolean { return node._world.tryGet(node._entity, SceneOwner)?.persistent === true; },
 };
 
 let lastDelta = 0;
@@ -144,6 +228,11 @@ export function isValid(value: unknown, _strict = false): boolean {
  * emits them.
  */
 export function declareDirector(): void {
+    addSystemToSchedule(Schedule.First, defineSystem(
+        [Res(SceneManager), GetWorld()],
+        (manager, world) => { if (manager) sceneManagers.set(world, manager as SceneManagerState); },
+        { name: 'Cocos:SceneManager', touches: { opaque: true } },
+    ));
     addSystemToSchedule(Schedule.First, defineSystem(
         [Res(Time)],
         (time) => { reportFrame(time.delta); director.emit(Director.EVENT_BEFORE_UPDATE); },

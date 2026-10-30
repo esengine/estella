@@ -110,6 +110,16 @@ export function storeInstance(world: World, entity: Entity, ctor: Function, inst
     byClass.set(ctor, inst);
 }
 
+/** The instances waiting for their `start`, by world, in the order they were made. */
+const awaitingStart = new WeakMap<World, Set<Component>>();
+/** An instance with a `start` waits for the start phase, which runs before any `update` of the frame. */
+export function awaitStart(world: World, inst: Component): void {
+    let set = awaitingStart.get(world);
+    if (!set) awaitingStart.set(world, (set = new Set()));
+    set.add(inst);
+}
+export function pendingStarts(world: World): Set<Component> | undefined { return awaitingStart.get(world); }
+
 export function dropInstance(world: World, entity: Entity, ctor: Function): void {
     const perEntity = instances.get(world);
     const byClass = perEntity?.get(entity);

@@ -24,7 +24,7 @@ import { log } from '../util/logger';
 import { Color, Vec2, Vec3 } from './math';
 import { Node, setCurrentWorld } from './node';
 import {
-    COMPONENT_PREFIX, classInfoNamed, ensureBuiltinsDeclared, classInfoOf, dropInstance, instancesOfClass, instancesOn, nodeOf, registerClassInfo, setActivitySync, setInstantiator, storeInstance,
+    COMPONENT_PREFIX, classInfoNamed, ensureBuiltinsDeclared, classInfoOf, dropInstance, instancesOfClass, instancesOn, nodeOf, registerClassInfo, setActivitySync, setInstantiator, storeInstance, awaitStart, pendingStarts,
     type ClassInfo, type ComponentCtor, type PropertyKind, type PropertySpec,
 } from './registry';
 
@@ -126,6 +126,9 @@ function instantiate(world: World, entity: Entity, ctor: ComponentCtor): Compone
         }
         inst._loaded = true;
         call(inst, 'onLoad');
+        // `start` belongs to the start phase, which runs before the frame's updates; what has no `start` has started
+        if (typeof (inst as unknown as { start?: unknown }).start === 'function') awaitStart(world, inst);
+        else inst._started = true;
         return inst;
     } finally {
         setCurrentWorld(previous);
@@ -173,7 +176,7 @@ function syncSubtree(world: World, root: Entity): void {
 setActivitySync(syncSubtree);
 
 /** Run the per-frame part of one instance: enable/disable as its activity changes, then `start` once, then the timers and `update`. */
-function drive(world: World, entity: Entity, inst: Component, dt: number): void {
+function drive(world: World, entity: Entity, inst: Component, dt: number, fresh = false): void {
     const active = inst.enabled && world.isEntityActive(entity);
     if (active && !inst._enabledApplied) {
         inst._enabledApplied = true;
@@ -184,6 +187,10 @@ function drive(world: World, entity: Entity, inst: Component, dt: number): void 
     }
     if (!active) return;
     if (!inst._started) {
+        // A component made by this very pass has no earlier life to be ordered against: it starts here, as one that existed when the frame began.
+        // Any other waits for the start phase, which gives every enabled component its `start` ahead of the frame's updates.
+        if (!fresh) return;
+        pendingStarts(world)?.delete(inst);
         inst._started = true;
         call(inst, 'start');
     }
@@ -204,6 +211,39 @@ function destroyInstance(world: World, entity: Entity, ctor: Function, inst: Com
     inst.unscheduleAllCallbacks();
     call(inst, 'onDestroy');
     dropInstance(world, entity, ctor);
+}
+
+/**
+ * The start phase of a frame. Cocos calls `start` on every component enabled since the last frame before it calls any `update`, so a script
+ * that sets another component up in its `start` is read by that component's `update` of the same frame, whichever of them was declared first.
+ */
+export function declareStartPhase(): void {
+    addSystemToSchedule(Schedule.PreUpdate, defineSystem(
+        [GetWorld()],
+        (world) => {
+            const waiting = pendingStarts(world);
+            if (!waiting || waiting.size === 0) return;
+            const previous = setCurrentWorld(world);
+            try {
+                // `start` may enable more components; those wait for the next phase
+                for (const inst of [...waiting]) {
+                    if (inst._destroyed) { waiting.delete(inst); continue; }
+                    if (!world.valid(inst._entity) || !inst.enabled || !world.isEntityActive(inst._entity)) continue;
+                    // enabled by the time the frame begins, whether or not its class has had a pass yet
+                    if (!inst._enabledApplied) {
+                        inst._enabledApplied = true;
+                        call(inst, 'onEnable');
+                    }
+                    waiting.delete(inst);
+                    inst._started = true;
+                    call(inst, 'start');
+                }
+            } finally {
+                setCurrentWorld(previous);
+            }
+        },
+        { name: 'Cocos:Start', touches: { opaque: true } },
+    ));
 }
 
 /**
@@ -238,8 +278,9 @@ export function declareClass(ctor: ComponentCtor, name: string, raw: RawProperty
                 // walked does not allow.
                 for (const [entity] of [...q]) {
                     seen.add(entity);
-                    const inst = instancesOn(world, entity)?.get(ctor) ?? instantiate(world, entity, ctor);
-                    if (inst) drive(world, entity, inst, time.delta);
+                    const existing = instancesOn(world, entity)?.get(ctor);
+                    const inst = existing ?? instantiate(world, entity, ctor);
+                    if (inst) drive(world, entity, inst, time.delta, !existing);
                 }
                 // Instances the query did not return are either switched off (still carrying the component) or gone.
                 for (const [entity, inst] of instancesOfClass(world, ctor)) {

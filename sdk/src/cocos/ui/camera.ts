@@ -18,12 +18,13 @@ import type { Entity } from '../../types';
 import { isProjectable, projectWorldPoint } from '../../ui/util/math';
 import { screenToUiWorld } from '../../ui/util/ui-pick';
 import { Color, Rect, Vec3 } from '../math';
+import { Ray } from '../geometry';
 import { Component } from '../component';
 import { registerBuiltinComponent } from '../builtins';
 import type { Node } from '../node';
 import { viewAdapter } from './view';
 import { UITransform } from './uiTransform';
-import { uiCameraData } from './screen';
+import { getWindowPixels, uiCameraData } from './screen';
 
 const ProjectionType = Object.freeze({ ORTHO: 0, PERSPECTIVE: 1 });
 const FOVAxis = Object.freeze({ VERTICAL: 0, HORIZONTAL: 1 });
@@ -87,6 +88,36 @@ export class Camera extends Component {
         if (!cam?.valid) return out.set(0, 0, 0);
         const w = screenToUiWorld(cam, screenPos.x, screenPos.y);
         return out.set(w.x, w.y, 0);
+    }
+
+    /**
+     * The ray from the camera through a screen point (pixels of the drawing surface, origin bottom-left): from the camera's own pose and lens,
+     * so a perspective camera's rays fan out from its position and an orthographic one's run parallel.
+     */
+    screenPointToRay(x: number, y: number, out: Ray = new Ray()): Ray {
+        const surface = getWindowPixels();
+        const width = surface.width > 0 ? surface.width : 1;
+        const height = surface.height > 0 ? surface.height : 1;
+        const lens = this.data_();
+        const nx = (x / width) * 2 - 1;
+        const ny = (y / height) * 2 - 1;
+        const aspect = width / height;
+        const rotation = this.node.getWorldRotation();
+        const position = this.node.getWorldPosition();
+        const turn = (v: Vec3): Vec3 => Vec3.transformQuat(new Vec3(), v, rotation);
+        if (lens.projectionType === ENGINE_ORTHO) {
+            const half = lens.orthoSize;
+            const origin = turn(new Vec3(nx * half * aspect, ny * half, 0));
+            const dir = turn(new Vec3(0, 0, -1));
+            out.o.set(position.x + origin.x, position.y + origin.y, position.z + origin.z);
+            out.d.set(dir.x, dir.y, dir.z);
+            return out;
+        }
+        const reach = Math.tan((lens.fov * Math.PI) / 360);
+        const dir = turn(new Vec3(nx * reach * aspect, ny * reach, -1)).normalize();
+        out.o.set(position.x, position.y, position.z);
+        out.d.set(dir.x, dir.y, dir.z);
+        return out;
     }
 
     /** The screen point (surface pixels, origin bottom-left) a world point lands on. */
