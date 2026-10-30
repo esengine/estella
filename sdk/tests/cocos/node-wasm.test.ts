@@ -13,7 +13,7 @@ import type { ESEngineModule } from '../../src/wasm';
 import { World } from '../../src/ecs/world';
 import { Transform, ensureBuiltinComponentsRegistered } from '../../src/ecs/component';
 import { AppContext, setDefaultContext } from '../../src/ecs/context';
-import { Node, Quat, Vec3, director, find, setCurrentWorld } from '../../src/cocos';
+import { Button, Node, Quat, Vec3, director, find, setCurrentWorld } from '../../src/cocos';
 import { HAS_WASM, loadWasmModule } from '../helpers/loadWasm';
 
 describe.skipIf(!HAS_WASM)('Node on the engine', () => {
@@ -77,6 +77,24 @@ describe.skipIf(!HAS_WASM)('Node on the engine', () => {
         expect(names(canvas.children)).toEqual(['Extra', 'Label', 'Panel']);
         label.setSiblingIndex(99);   // past the end is the end
         expect(names(canvas.children)).toEqual(['Extra', 'Panel', 'Label']);
+    });
+
+    it('finds a layer component by the name a scene and a script give it, `cc.Button`, as well as `Button`', () => {
+        connect();
+        const { panel } = tree();
+        const button = panel.addComponent(Button)!;
+        expect(panel.getComponent('Button')).toBe(button);
+        expect(panel.getComponent('cc.Button')).toBe(button);
+        expect(panel.getComponent('cc.NoSuchThing')).toBeNull();
+    });
+
+    it('lets a script name its component', () => {
+        connect();
+        const { panel } = tree();
+        const button = panel.addComponent(Button)!;
+        expect(button.name).toBe('Panel<Button>');
+        button.name = 'MyButton';
+        expect(button.name).toBe('MyButton');
     });
 
     it('detaches with removeFromParent, and moves with setParent', () => {

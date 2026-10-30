@@ -350,7 +350,8 @@ export class Node {
     }
 
     private resolveCtor_(type: ComponentCtor | string): ComponentCtor | undefined {
-        if (typeof type === 'string') return classInfoNamed(type)?.ctor;
+        // A scene and a script say `'cc.Button'`; the layer declares the class as `Button`.
+        if (typeof type === 'string') return (classInfoNamed(type) ?? classInfoNamed(type.replace(/^cc\./, '')))?.ctor;
         return type;
     }
 

@@ -217,3 +217,22 @@ describe('two files that claim the same uuid', () => {
     }
   });
 });
+
+describe('the references of a document, read once', () => {
+  it('are kept by what the file was, so a second scan reads nothing it has read, and still sees a path that came into being since', async () => {
+    const first = await scanAssetDatabase(root, { write: false });
+    expect(existsSync(path.join(root, '.esengine', 'cache', 'ref-candidates.json'))).toBe(true);
+    const again = await scanAssetDatabase(root, { write: false });
+    expect(again.index.deps).toEqual(first.index.deps);
+
+    // a document names a file by path; the file is added AFTER the document was read: its edge appears without the document being read again
+    const SHEET = '55555555-5555-4555-8555-555555555555';
+    const HOLDER = '66666666-6666-4666-8666-666666666666';
+    writeAsset('assets/materials/holder.esmaterial', 'material', HOLDER, JSON.stringify({ shader: 'builtin:sprite', properties: { u_mask: 'assets/textures/late.png' } }));
+    const before = await scanAssetDatabase(root, { write: false });
+    expect(before.index.deps[HOLDER] ?? []).toEqual([]);
+    writeAsset('assets/textures/late.png', 'texture', SHEET, 'LATE');
+    const after = await scanAssetDatabase(root, { write: false });
+    expect(after.index.deps[HOLDER]).toEqual([SHEET]);
+  });
+});

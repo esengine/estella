@@ -61,7 +61,10 @@ export class Component {
     /** See {@link Node.toJSON}: a component holds the world too. */
     toJSON(): { component: string; entity: number } { return { component: this.constructor.name, entity: this._entity }; }
     [Symbol.for('nodejs.util.inspect.custom')](): string { return `${this.constructor.name}(#${this._entity})`; }
-    get name(): string { return `${this.node?.name ?? ''}<${this.constructor.name}>`; }
+    /** A script that names its component (`comp.name = 'UILogin'`) is believed; otherwise it is the node's name and the class. */
+    get name(): string { return this.name_ ?? `${this.node?.name ?? ''}<${this.constructor.name}>`; }
+    set name(value: string) { this.name_ = value; }
+    private name_: string | undefined;
 
     /** False once the component or its entity has gone. */
     get isValid(): boolean { return !this._destroyed && !!this._world?.valid(this._entity); }

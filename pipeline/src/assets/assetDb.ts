@@ -16,7 +16,7 @@
  * main.ts. The `.meta` files carry the authored `type`, so this needs no
  * extension→type table — it reads the type each meta already declares.
  */
-import { readFile, writeFile, mkdir, readdir, stat } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, readdir, stat, rename } from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
 import { existsSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
@@ -282,6 +282,44 @@ function collectRefs(
 }
 
 /**
+ * What a document can refer to by name, before any of it is resolved: its `@uuid:` strings, its bare uuids and the strings that could be file paths.
+ * This is what reading and parsing a document finds; which of them are assets is a question of the rest of the project, asked again on every scan.
+ */
+function collectCandidates(value: unknown, into: Set<string>): void {
+    if (typeof value === 'string') {
+        if (value.startsWith(UUID_PREFIX) || UUID_V4.test(value) || (!value.includes('://') && PATH_LIKE.test(value))) into.add(value);
+        return;
+    }
+    if (Array.isArray(value)) {
+        for (const v of value) collectCandidates(v, into);
+        return;
+    }
+    if (value && typeof value === 'object') for (const v of Object.values(value as Record<string, unknown>)) collectCandidates(v, into);
+}
+
+/** The candidates of each document by what the file was when they were read: a document that is the same size and was changed at the same time is not read again. */
+interface CandidateCache { version: 1; files: Record<string, { size: number; mtimeMs: number; c: string[] }> }
+const CANDIDATE_CACHE_FILE = path.join('.esengine', 'cache', 'ref-candidates.json');
+
+async function readCandidateCache(root: string): Promise<CandidateCache> {
+  try {
+    const parsed = JSON.parse(await readFile(path.join(root, CANDIDATE_CACHE_FILE), 'utf8')) as CandidateCache;
+    if (parsed.version === 1 && parsed.files) return parsed;
+  } catch { /* none yet, or one that cannot be read: the documents are read */ }
+  return { version: 1, files: {} };
+}
+
+async function writeCandidateCache(root: string, cache: CandidateCache): Promise<void> {
+  try {
+    const file = path.join(root, CANDIDATE_CACHE_FILE);
+    await mkdir(path.dirname(file), { recursive: true });
+    const tmp = `${file}.${process.pid}.tmp`;
+    await writeFile(tmp, JSON.stringify(cache), 'utf8');
+    await rename(tmp, file);
+  } catch { /* a cache that cannot be written costs the next scan its reads */ }
+}
+
+/**
  * Whether a string could name a file: it ends in an extension, written in one case. Almost every string in a document is a name, a type or
  * a label (`Transform`, `Cocos.Widget`, `ui_layer`), and each one asked of the path index costs a normalisation and a lookup; in a project of
  * thousands of documents those are most of the scan.
@@ -340,6 +378,21 @@ async function computeDeps(
       || SKELETAL_ATLAS_TYPES.has(getEditorType(e.path)),
   );
   type DepResult = { uuid: string; refs: string[] } | { warning: string };
+  const cache = await readCandidateCache(root);
+  let cacheDirty = false;
+  const seenFiles = new Set<string>();
+  const candidatesOf = async (rel: string): Promise<string[]> => {
+    seenFiles.add(rel);
+    const file = path.join(root, rel);
+    const info = await stat(file);
+    const hit = cache.files[rel];
+    if (hit && hit.size === info.size && hit.mtimeMs === info.mtimeMs) return hit.c;
+    const found = new Set<string>();
+    collectCandidates(JSON.parse(await readTextInRoot(file)), found);
+    cache.files[rel] = { size: info.size, mtimeMs: info.mtimeMs, c: [...found] };
+    cacheDirty = true;
+    return cache.files[rel]!.c;
+  };
   const depResults = await mapLimit(refEntries, SCAN_IO_CONCURRENCY, async (entry): Promise<DepResult> => {
     // A spine `.atlas` is a TEXT manifest (not JSON): its page image names are
     // texture deps — the same edge the SpineAssetLoader walks at runtime. Scan it
@@ -364,8 +417,8 @@ async function computeDeps(
           if (dep) refs.add(dep.uuid);
         }
       } else {
-        const json = JSON.parse(await readTextInRoot(path.join(root, entry.path)));
-        collectRefs(json, refs, (ref) => {
+        const candidates = await candidatesOf(entry.path);
+        const resolvePath = (ref: string): string | null => {
           if (ref.includes('://') || !PATH_LIKE.test(ref)) return null;
           const direct = byPath.get(normalizeRefPath(ref));
           if (direct) return direct.uuid;
@@ -377,7 +430,8 @@ async function computeDeps(
           // single-file playable 404'd them.)
           const rel = byPath.get(normalizeRefPath(resolveRelativePath(entry.path, ref)));
           return rel?.uuid ?? null;
-        }, (id) => uuids.has(id));
+        };
+        for (const candidate of candidates) collectRefs(candidate, refs, resolvePath, (id) => uuids.has(id));
       }
       refs.delete(entry.uuid);
       return { uuid: entry.uuid, refs: [...refs].sort() };
@@ -385,6 +439,9 @@ async function computeDeps(
       return { warning: `${entry.path}: ${err instanceof Error ? err.message : String(err)}` };
     }
   });
+  // A full scan forgets the documents that are gone; one of some documents only (`targets`) leaves the rest as they are.
+  if (!targets) for (const rel of Object.keys(cache.files)) if (!seenFiles.has(rel)) { delete cache.files[rel]; cacheDirty = true; }
+  if (cacheDirty) await writeCandidateCache(root, cache);
   const deps: Record<string, string[]> = {};
   const warnings: string[] = [];
   for (const r of depResults) {
