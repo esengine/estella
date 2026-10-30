@@ -31,7 +31,7 @@ import { convertPass, isOutlinePass, type PassConversion } from './effectConvert
  * importer that made less (or differently), and is brought up to date when it is opened. Raise it when the converted output changes in a
  * way an existing project needs to pick up: a new generated file, a field a document or a manifest now carries.
  */
-export const COCOS_IMPORT_REVISION = 6;
+export const COCOS_IMPORT_REVISION = 7;
 
 /** Whether the project at @p projectRoot was written by an importer of this revision. A project that was not converted has nothing to bring up. */
 export function cocosImportIsCurrent(projectRoot: string): boolean {
@@ -971,8 +971,11 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
         const entry = path.join(out, 'src', 'cocos-scripts.ts');
         // Cocos runs every script of the project when the game starts, and a game leans on that: a script that only defines globals (the game's
         // configuration, its helpers on `window`) is named by no scene, and what loads next reads them. Those run first.
-        const starters = globalDefiningScripts(index).filter((rel) => !usedScripts.has(rel));
-        const loads = [...starters, ...[...usedScripts].sort()].map((rel) => {
+        // And every script that declares a component class: a game finds its classes by name too (a view is opened by its class's name), and a
+        // class no scene names is still there in Cocos.
+        const everyClass = new Set([...usedScripts, ...[...scripts.values()].map((c) => c.rel)]);
+        const starters = globalDefiningScripts(index).filter((rel) => !everyClass.has(rel));
+        const loads = [...starters, ...[...everyClass].sort()].map((rel) => {
             const target = path.join(assetsDir, rel.replace(/\.(ts|js)$/, ''));
             // On another drive there is no relative path, only the absolute one, which a require takes just as well.
             const rel2 = path.relative(path.dirname(entry), target).split(path.sep).join('/');
@@ -996,7 +999,7 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
         ].join('\n');
         if (!opts.dryRun) writeOut(entry, text);
         if (!opts.dryRun) writeClassNames(out, entry, assetsDir, scripts);
-        report.note('cocos-scripts-entry', `${path.relative(out, entry).split(path.sep).join('/')}: ${usedScripts.size} script(s)`);
+        report.note('cocos-scripts-entry', `${path.relative(out, entry).split(path.sep).join('/')}: ${everyClass.size} script(s)`);
         if (!opts.dryRun) wireProjectEntries(out, scriptFields);
     }
     if (!opts.dryRun) wireManifest(out, source, into, scenes);
