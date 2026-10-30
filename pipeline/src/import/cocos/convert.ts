@@ -17,7 +17,7 @@ import { convertNode, sameData, type ComponentContext, type ComponentData } from
 import { foldEditBoxes } from './editBoxFold';
 import { NODE_REF, type CocosDocument, type CocosNode, type CocosOverride } from './document';
 import { ImportReport } from './report';
-import { anchoredRect, type RectAnchorsData } from '../../../../sdk/src/ui/layout/rect-anchors';
+import { anchoredRect, type RectAnchorsData } from '../../../../sdk/src/ui/layout/anchored-rect';
 
 /** What a field a document does not carry means (the component's own defaults). */
 const DEFAULT_ANCHORS: RectAnchorsData = {
