@@ -28,6 +28,8 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(cocos): cc.js, ccenum and NodePool exist in the compatibility layer':
+    {"note":"More of cc."},
   'feat(bundle): the project script bundle is built again only when a file it read changed, and Cocos scripts that write the same class name each get a component of their own':
     {"note":"The script bundle is not rebuilt for nothing."},
   'fix(editor): opening a large project no longer spends seconds on strings that cannot be paths, a model texture the project lacks is left off instead of dangling, and an unlit mesh variant with tangents links':
