@@ -28,6 +28,8 @@ export const NOTES_FLOOR = 'v0.65.0';
  * the reader recognises anyway.
  */
 export const NOTED = {
+  'feat(cocos): the importer reports its progress by stage, so a long conversion can show a bar':
+    {"note":"A Cocos conversion shows its progress."},
   'feat(particle): an emitter can release bursts on a schedule (bursts), and the Cocos burst list, repeat count and burst times map onto it':
     {"note":"Bursts on a schedule."},
   'feat(physics3d): a box, sphere or capsule collider can sit off its entity origin (center), and the Cocos BoxCollider centre maps onto it':
