@@ -136,16 +136,16 @@ const DISPOSITION = {
   // — owed: a creator-facing component nothing in the shipped corpus authors.
   //   Each reason names where the coverage belongs. —
   BlobShadow: ['owed', 'only the blob-shadow render fixture places one; an example for a phone-scale scene that wants a shadow without a shadow map is owed'],
-  Footsteps: ['owed', 'only the rainforest-2d probe, kept out of the examples, places one; it arrives with the top-down example CoverFade is owed'],
-  StepSurface: ['owed', 'only the rainforest-2d probe, kept out of the examples, places one; it arrives with the top-down example CoverFade is owed'],
-  SwayPusher: ['owed', 'only the rainforest-2d probe, kept out of the examples, places one; it arrives with the top-down example CoverFade is owed'],
-  FogOfWar: ['owed', 'only the rainforest-2d probe, kept out of the examples, places one; it arrives with the top-down example CoverFade is owed'],
-  SightViewer: ['owed', 'only the rainforest-2d probe, kept out of the examples, places one; it arrives with the top-down example CoverFade is owed'],
-  SightTarget: ['owed', 'only the rainforest-2d probe, kept out of the examples, places one; it arrives with the top-down example CoverFade is owed'],
-  CoverFade: ['owed', 'only the rainforest-2d probe, kept out of the examples, places one; an example of a top-down hut whose roof thins as the player walks in is owed'],
+  Footsteps: ['owed', 'no committed example places one yet; it arrives with the top-down example CoverFade is owed'],
+  StepSurface: ['owed', 'no committed example places one yet; it arrives with the top-down example CoverFade is owed'],
+  SwayPusher: ['owed', 'no committed example places one yet; it arrives with the top-down example CoverFade is owed'],
+  FogOfWar: ['owed', 'no committed example places one yet; it arrives with the top-down example CoverFade is owed'],
+  SightViewer: ['owed', 'no committed example places one yet; it arrives with the top-down example CoverFade is owed'],
+  SightTarget: ['owed', 'no committed example places one yet; it arrives with the top-down example CoverFade is owed'],
+  CoverFade: ['owed', 'no committed example places one yet; an example of a top-down hut whose roof thins as the player walks in is owed'],
   CoverFadeTarget: ['owed', 'the tag that goes with CoverFade, and owed with it'],
-  RainUpright: ['owed', 'only the rainforest-2d probe, kept out of the examples, places one; it arrives with the top-down rain example RainShelter is owed'],
-  RainShelter: ['owed', 'only the rainforest-2d probe, kept out of the examples, places one; it arrives with the top-down rain example CoverFade is owed'],
+  RainUpright: ['owed', 'no committed example places one yet; it arrives with the top-down rain example RainShelter is owed'],
+  RainShelter: ['owed', 'no committed example places one yet; it arrives with the top-down rain example CoverFade is owed'],
   StaticBatch: ['owed', 'no corpus scene marks a mesh yet: a marked mesh is merged while the game runs, which a golden project has no frame to certify — the static-batch-on / static-batch-off render scenes, tests/static-batch.test.ts and the static-batch editor check hold it'],
 };
 
