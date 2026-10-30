@@ -16,6 +16,7 @@ import { setEntityActive } from '../ecs/entityUtils';
 import type { World } from '../ecs/world';
 import { INVALID_ENTITY, type Entity } from '../types';
 import { Quat, Vec3 } from './math';
+import { Mat4 } from './mat4';
 import {
     COMPONENT_PREFIX, classInfoNamed, classInfoOf, ensureInstance, instancesOn, nodeOf, setNodeFactory, syncActivity,
     type ComponentCtor,
@@ -302,6 +303,16 @@ export class Node {
     get worldPosition(): Vec3 { const p = this.composedTransform_().worldPosition; return new Vec3(p.x, p.y, p.z); }
     set worldPosition(v: Vec3) { this.setWorldPosition(v); }
     getWorldRotation(out?: Quat): Quat { const q = this.composedTransform_().worldRotation; return (out ?? new Quat()).set(q.x, q.y, q.z, q.w); }
+    /** The node's world transform as a matrix (translation, rotation and scale composed). */
+    get worldMatrix(): Mat4 { return this.getWorldMatrix(); }
+    getWorldMatrix(out: Mat4 = new Mat4()): Mat4 {
+        const t = this.composedTransform_();
+        return Mat4.fromTRS(out, t.worldPosition as Vec3, t.worldRotation as Quat, t.worldScale as Vec3);
+    }
+    /** The world-space directions of this node's axes: forward is -Z, as in Cocos. */
+    get forward(): Vec3 { return Vec3.transformQuat(new Vec3(), new Vec3(0, 0, -1), this.composedTransform_().worldRotation); }
+    get up(): Vec3 { return Vec3.transformQuat(new Vec3(), new Vec3(0, 1, 0), this.composedTransform_().worldRotation); }
+    get right(): Vec3 { return Vec3.transformQuat(new Vec3(), new Vec3(1, 0, 0), this.composedTransform_().worldRotation); }
     getWorldPosition(out?: Vec3): Vec3 { const p = this.composedTransform_().worldPosition; return (out ?? new Vec3()).set(p.x, p.y, p.z); }
 
     /** Place this node so its world position is @p x. Under a parent that is rotated or scaled, the local position is solved for. */

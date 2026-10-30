@@ -42,6 +42,11 @@ export interface CocosInstanceRef {
     mountedChildren: number;
     mountedComponents: number;
     removedComponents: number;
+    /**
+     * The components the instance's file adds to nodes of the prefab it names (`mountedComponents`): the target is the `localID` path of a
+     * node, crossing the instances inside the prefab as an override's does.
+     */
+    mounted: Array<{ target: string[]; components: CocosComponent[] }>;
 }
 
 export interface CocosNode {
@@ -133,6 +138,15 @@ export function parseCocosDocument(file: unknown, fallbackName = ''): CocosDocum
         duplicateIds++;
         return `${id}~${n + 1}`;
     };
+    const readComponent = (cref: unknown): CocosComponent | null => {
+        const c = at(cref);
+        if (!c || typeof c.__type__ !== 'string') return null;
+        const cinfo = at(c.__prefab);
+        const cid = safeId((cinfo && typeof cinfo.fileId === 'string' && cinfo.fileId) || (typeof c._id === 'string' && c._id) || `#${indexOf(cref)}`);
+        const data: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(c)) if (!BOOKKEEPING.has(k)) data[k] = v;
+        return { type: c.__type__, id: cid, enabled: c._enabled !== false, data };
+    };
     const readNode = (ref: unknown): CocosNode | null => {
         const idx = indexOf(ref);
         const n = at(ref);
@@ -163,13 +177,8 @@ export function parseCocosDocument(file: unknown, fallbackName = ''): CocosDocum
         for (const cref of rawComponents) nodeAt.set(indexOf(cref), node);
 
         for (const cref of Array.isArray(n._components) ? n._components : []) {
-            const c = at(cref);
-            if (!c || typeof c.__type__ !== 'string') continue;
-            const cinfo = at(c.__prefab);
-            const cid = safeId((cinfo && typeof cinfo.fileId === 'string' && cinfo.fileId) || (typeof c._id === 'string' && c._id) || `#${indexOf(cref)}`);
-            const data: Record<string, unknown> = {};
-            for (const [k, v] of Object.entries(c)) if (!BOOKKEEPING.has(k)) data[k] = v;
-            node.components.push({ type: c.__type__, id: cid, enabled: c._enabled !== false, data });
+            const comp = readComponent(cref);
+            if (comp) node.components.push(comp);
         }
 
         if (instRaw && info) {
@@ -182,7 +191,16 @@ export function parseCocosDocument(file: unknown, fallbackName = ''): CocosDocum
                 overrides.push({ target: t.localID.map((x) => safeId(String(x))), path: o.propertyPath.map(String), value: o.value });
             }
             const count = (v: unknown): number => (Array.isArray(v) ? v.length : 0);
+            const mounted: CocosInstanceRef['mounted'] = [];
+            for (const mref of Array.isArray(instRaw.mountedComponents) ? instRaw.mountedComponents : []) {
+                const m = at(mref);
+                const t = m ? at(m.targetInfo) : null;
+                if (!m || !t || !Array.isArray(t.localID)) continue;
+                const components = (Array.isArray(m.components) ? m.components : []).map(readComponent).filter((c): c is CocosComponent => c !== null);
+                if (components.length > 0) mounted.push({ target: t.localID.map((x) => safeId(String(x))), components });
+            }
             node.instance = {
+                mounted,
                 asset,
                 overrides,
                 mountedChildren: count(instRaw.mountedChildren),
@@ -227,6 +245,9 @@ export function parseCocosDocument(file: unknown, fallbackName = ''): CocosDocum
     };
     const resolveNode = (node: CocosNode): void => {
         for (const c of node.components) for (const [k, v] of Object.entries(c.data)) c.data[k] = resolveRefs(v, new Set());
+        for (const m of node.instance?.mounted ?? []) {
+            for (const c of m.components) for (const [k, v] of Object.entries(c.data)) c.data[k] = resolveRefs(v, new Set());
+        }
         node.children.forEach(resolveNode);
     };
     roots.forEach(resolveNode);

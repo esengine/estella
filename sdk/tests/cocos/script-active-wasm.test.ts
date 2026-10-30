@@ -11,7 +11,7 @@ import { ensureBuiltinComponentsRegistered } from '../../src/ecs/component';
 import { AppContext, setDefaultContext } from '../../src/ecs/context';
 import { loadSceneData, SCENE_FORMAT_VERSION } from '../../src/scene/scene';
 import type { SceneData } from '../../src/scene/scene';
-import { resetClassRegistry } from '../../src/cocos/registry';
+import { resetClassRegistry, syncActivity } from '../../src/cocos/registry';
 import { declareBuiltinScripts } from '../../src/cocos/builtinScripts';
 import { Component, Node, _decorator, setCurrentWorld } from '../../src/cocos';
 import { HAS_WASM, loadWasmModule } from '../helpers/loadWasm';
@@ -116,5 +116,40 @@ describe.skipIf(!HAS_WASM)('a script that switches nodes on and off', () => {
 
         child.active = false;
         expect(calls).toContain('disable');
+    });
+
+    it('loads every script of a tree before it enables any, in node order, when the tree is activated at once', async () => {
+        setDefaultContext(new AppContext());
+        ensureBuiltinComponentsRegistered();
+        resetClassRegistry();
+        declareBuiltinScripts();
+        const calls: string[] = [];
+
+        @_decorator.ccclass('First')
+        class First extends Component {
+            onLoad() { calls.push('first.load'); }
+            onEnable() { calls.push('first.enable'); }
+        }
+        @_decorator.ccclass('Second')
+        class Second extends Component {
+            onLoad() { calls.push('second.load'); }
+            onEnable() { calls.push('second.enable'); }
+        }
+        void First; void Second;
+
+        registry = new module.Registry();
+        app = App.new();
+        app.connectCpp(registry as never, module);
+        flushPendingRegistrations(app);
+        setCurrentWorld(app.world);
+        const map = loadSceneData(app.world, {
+            version: SCENE_FORMAT_VERSION, name: 'main',
+            entities: [
+                { id: 0, name: 'Root', parent: null, children: [1], visible: true, components: [transform, { type: 'Cocos.First', data: { enabled: true } }] },
+                { id: 1, name: 'Child', parent: 0, children: [], visible: true, components: [transform, { type: 'Cocos.Second', data: { enabled: true } }] },
+            ],
+        } as unknown as SceneData);
+        syncActivity(app.world, map.get(0)!);
+        expect(calls).toEqual(['first.load', 'second.load', 'first.enable', 'second.enable']);
     });
 });

@@ -67,7 +67,7 @@ const panelPrefab = [
     node('Panel', null, [2, 6], [], 10),                                                         // 1
     { __type__: 'cc.Node', _objFlags: 0, _parent: { __id__: 1 }, _prefab: { __id__: 3 } },       // 2  (instance A, untouched)
     { __type__: 'cc.PrefabInfo', root: { __id__: 2 }, asset: { __uuid__: ITEM }, fileId: 'itemRoot', instance: { __id__: 4 } }, // 3
-    { __type__: 'cc.PrefabInstance', fileId: 'instA', prefabRootNode: { __id__: 1 }, mountedChildren: [], mountedComponents: [], propertyOverrides: [], removedComponents: [] }, // 4
+    { __type__: 'cc.PrefabInstance', fileId: 'instA', prefabRootNode: { __id__: 1 }, mountedChildren: [], mountedComponents: [{ __id__: 18 }], propertyOverrides: [], removedComponents: [] }, // 4
     { __type__: 'cc.Node', _name: 'pad' },                                                       // 5
     { __type__: 'cc.Node', _objFlags: 0, _parent: { __id__: 1 }, _prefab: { __id__: 7 } },       // 6  (instance B)
     { __type__: 'cc.PrefabInfo', root: { __id__: 6 }, asset: { __uuid__: ITEM }, fileId: 'itemRoot', instance: { __id__: 8 } }, // 7
@@ -82,6 +82,11 @@ const panelPrefab = [
     { __type__: 'CCPropertyOverrideInfo', targetInfo: { __id__: 14 }, propertyPath: ['_color'], value: { __type__: 'cc.Color', r: 0, g: 255, b: 0, a: 255 } }, // 15
     { __type__: 'cc.TargetInfo', localID: ['lab'] },                                             // 16
     { __type__: 'CCPropertyOverrideInfo', targetInfo: { __id__: 16 }, propertyPath: ['_string'], value: 'changed' },   // 17
+    // instance A carries a component its file mounted on the item's root: a component the item prefab itself does not have
+    { __type__: 'cc.MountedComponentsInfo', targetInfo: { __id__: 19 }, components: [{ __id__: 20 }] },               // 18
+    { __type__: 'cc.TargetInfo', localID: ['itemRoot'] },                                        // 19
+    { __type__: 'cc.Button', node: { __id__: 2 }, _enabled: true, __prefab: { __id__: 21 }, _interactable: true, _transition: 0 }, // 20
+    { __type__: 'cc.CompPrefabInfo', fileId: 'mountedButton' },                                  // 21
 ];
 void instOverrides;
 
@@ -220,6 +225,14 @@ describe('importing a Cocos project', () => {
         ]));
         // nothing else changed, so nothing else is said
         expect(kinds).toHaveLength(4);
+    });
+
+    it("puts a component the instance's file mounted on the prefab it names, as an added component of that instance", () => {
+        const panel = readJson('assets/cocos/ui/panel.esprefab');
+        const a = panel.entities.find((e: any) => e.prefabEntityId === 'instA');
+        const added = a.nestedPrefab.overrides.filter((o: any) => o.type === 'component_added');
+        expect(added.map((o: any) => `${o.prefabEntityId}:${o.componentType}`)).toEqual(['itemRoot:Cocos.Button']);
+        expect(added[0].componentData.data).toMatchObject({ interactable: true });
     });
 
     it('expands, through the engine\'s own flatten, to what the Cocos instance has', () => {

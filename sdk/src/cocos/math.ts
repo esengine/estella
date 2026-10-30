@@ -30,6 +30,9 @@ export class Vec2 {
     lengthSqr(): number { return this.x * this.x + this.y * this.y; }
     normalize(): this { const l = this.length(); if (l > 0) { this.x /= l; this.y /= l; } return this; }
     dot(v: Vec2): number { return this.x * v.x + this.y * v.y; }
+    lerp(to: Vec2, ratio: number): this { this.x += (to.x - this.x) * ratio; this.y += (to.y - this.y) * ratio; return this; }
+    multiply(v: Vec2): this { this.x *= v.x; this.y *= v.y; return this; }
+    angle(v: Vec2): number { return Vec2.angle(this, v); }
     equals(v: Vec2, epsilon = 1e-6): boolean { return Math.abs(this.x - v.x) <= epsilon && Math.abs(this.y - v.y) <= epsilon; }
     toString(): string { return `(${this.x.toFixed(2)}, ${this.y.toFixed(2)})`; }
 
@@ -38,6 +41,17 @@ export class Vec2 {
     static subtract(out: Vec2, a: Vec2, b: Vec2): Vec2 { out.x = a.x - b.x; out.y = a.y - b.y; return out; }
     static multiplyScalar(out: Vec2, a: Vec2, s: number): Vec2 { out.x = a.x * s; out.y = a.y * s; return out; }
     static lerp(out: Vec2, a: Vec2, b: Vec2, t: number): Vec2 { out.x = a.x + (b.x - a.x) * t; out.y = a.y + (b.y - a.y) * t; return out; }
+    static set(out: Vec2, x: number, y: number): Vec2 { out.x = x; out.y = y; return out; }
+    static copy(out: Vec2, a: Vec2): Vec2 { out.x = a.x; out.y = a.y; return out; }
+    static len(a: Vec2): number { return Math.hypot(a.x, a.y); }
+    static dot(a: Vec2, b: Vec2): number { return a.x * b.x + a.y * b.y; }
+    static squaredDistance(a: Vec2, b: Vec2): number { return (a.x - b.x) ** 2 + (a.y - b.y) ** 2; }
+    /** The angle between two vectors, in radians; 0 if either has no length. */
+    static angle(a: Vec2, b: Vec2): number {
+        const m = Math.hypot(a.x, a.y) * Math.hypot(b.x, b.y);
+        return m === 0 ? 0 : Math.acos(Math.min(Math.max((a.x * b.x + a.y * b.y) / m, -1), 1));
+    }
+    static normalize(out: Vec2, a: Vec2): Vec2 { out.x = a.x; out.y = a.y; return out.normalize(); }
 }
 
 export class Vec3 {
@@ -88,6 +102,16 @@ export class Vec3 {
         this.x = y * v.z - z * v.y; this.y = z * v.x - x * v.z; this.z = x * v.y - y * v.x;
         return this;
     }
+    lerp(to: Vec3, ratio: number): this { this.x += (to.x - this.x) * ratio; this.y += (to.y - this.y) * ratio; this.z += (to.z - this.z) * ratio; return this; }
+    multiply(v: Vec3): this { this.x *= v.x; this.y *= v.y; this.z *= v.z; return this; }
+    divide(v: Vec3): this { this.x /= v.x; this.y /= v.y; this.z /= v.z; return this; }
+    clampf(min: Vec3, max: Vec3): this {
+        this.x = Math.min(Math.max(this.x, min.x), max.x); this.y = Math.min(Math.max(this.y, min.y), max.y); this.z = Math.min(Math.max(this.z, min.z), max.z);
+        return this;
+    }
+    /** The angle to @p v, in radians; 0 if either has no length. */
+    angle(v: Vec3): number { return Vec3.angle(this, v); }
+    strictEquals(v: Vec3): boolean { return this.x === v.x && this.y === v.y && this.z === v.z; }
     equals(v: Vec3, epsilon = 1e-6): boolean {
         return Math.abs(this.x - v.x) <= epsilon && Math.abs(this.y - v.y) <= epsilon && Math.abs(this.z - v.z) <= epsilon;
     }
@@ -103,6 +127,46 @@ export class Vec3 {
         out.x = a.x + (b.x - a.x) * t; out.y = a.y + (b.y - a.y) * t; out.z = a.z + (b.z - a.z) * t;
         return out;
     }
+    static clone(a: Vec3): Vec3 { return new Vec3(a.x, a.y, a.z); }
+    static set(out: Vec3, x: number, y: number, z: number): Vec3 { out.x = x; out.y = y; out.z = z; return out; }
+    static zero(out: Vec3): Vec3 { out.x = 0; out.y = 0; out.z = 0; return out; }
+    static len(a: Vec3): number { return Math.hypot(a.x, a.y, a.z); }
+    static lengthSqr(a: Vec3): number { return a.x * a.x + a.y * a.y + a.z * a.z; }
+    static squaredDistance(a: Vec3, b: Vec3): number { return (a.x - b.x) ** 2 + (a.y - b.y) ** 2 + (a.z - b.z) ** 2; }
+    static dot(a: Vec3, b: Vec3): number { return a.x * b.x + a.y * b.y + a.z * b.z; }
+    static multiply(out: Vec3, a: Vec3, b: Vec3): Vec3 { out.x = a.x * b.x; out.y = a.y * b.y; out.z = a.z * b.z; return out; }
+    static divide(out: Vec3, a: Vec3, b: Vec3): Vec3 { out.x = a.x / b.x; out.y = a.y / b.y; out.z = a.z / b.z; return out; }
+    static negate(out: Vec3, a: Vec3): Vec3 { out.x = -a.x; out.y = -a.y; out.z = -a.z; return out; }
+    static inverse(out: Vec3, a: Vec3): Vec3 { out.x = 1 / a.x; out.y = 1 / a.y; out.z = 1 / a.z; return out; }
+    static min(out: Vec3, a: Vec3, b: Vec3): Vec3 { out.x = Math.min(a.x, b.x); out.y = Math.min(a.y, b.y); out.z = Math.min(a.z, b.z); return out; }
+    static max(out: Vec3, a: Vec3, b: Vec3): Vec3 { out.x = Math.max(a.x, b.x); out.y = Math.max(a.y, b.y); out.z = Math.max(a.z, b.z); return out; }
+    static clampf(out: Vec3, a: Vec3, min: Vec3, max: Vec3): Vec3 {
+        out.x = Math.min(Math.max(a.x, min.x), max.x); out.y = Math.min(Math.max(a.y, min.y), max.y); out.z = Math.min(Math.max(a.z, min.z), max.z);
+        return out;
+    }
+    /** @p a plus @p b scaled by @p scale. */
+    static scaleAndAdd(out: Vec3, a: Vec3, b: Vec3, scale: number): Vec3 {
+        out.x = a.x + b.x * scale; out.y = a.y + b.y * scale; out.z = a.z + b.z * scale;
+        return out;
+    }
+    static cross(out: Vec3, a: Vec3, b: Vec3): Vec3 {
+        const x = a.y * b.z - a.z * b.y, y = a.z * b.x - a.x * b.z, z = a.x * b.y - a.y * b.x;
+        out.x = x; out.y = y; out.z = z;
+        return out;
+    }
+    /** The angle between two vectors, in radians; 0 if either has no length. */
+    static angle(a: Vec3, b: Vec3): number {
+        const m = Math.hypot(a.x, a.y, a.z) * Math.hypot(b.x, b.y, b.z);
+        return m === 0 ? 0 : Math.acos(Math.min(Math.max((a.x * b.x + a.y * b.y + a.z * b.z) / m, -1), 1));
+    }
+    static equals(a: Vec3, b: Vec3, epsilon = 1e-6): boolean {
+        return Math.abs(a.x - b.x) <= epsilon * Math.max(1, Math.abs(a.x), Math.abs(b.x))
+            && Math.abs(a.y - b.y) <= epsilon * Math.max(1, Math.abs(a.y), Math.abs(b.y))
+            && Math.abs(a.z - b.z) <= epsilon * Math.max(1, Math.abs(a.z), Math.abs(b.z));
+    }
+    static strictEquals(a: Vec3, b: Vec3): boolean { return a.x === b.x && a.y === b.y && a.z === b.z; }
+    static toArray<T extends number[]>(out: T, v: Vec3, ofs = 0): T { out[ofs] = v.x; out[ofs + 1] = v.y; out[ofs + 2] = v.z; return out; }
+    static fromArray(out: Vec3, arr: ArrayLike<number>, ofs = 0): Vec3 { out.x = arr[ofs]!; out.y = arr[ofs + 1]!; out.z = arr[ofs + 2]!; return out; }
 }
 
 export class Quat {
@@ -175,6 +239,75 @@ export class Quat {
         return out;
     }
 
+    static copy(out: Quat, a: Quat): Quat { out.x = a.x; out.y = a.y; out.z = a.z; out.w = a.w; return out; }
+    static set(out: Quat, x: number, y: number, z: number, w: number): Quat { out.x = x; out.y = y; out.z = z; out.w = w; return out; }
+    static dot(a: Quat, b: Quat): number { return a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w; }
+    static normalize(out: Quat, a: Quat): Quat {
+        const len = a.x * a.x + a.y * a.y + a.z * a.z + a.w * a.w;
+        if (len > 0) {
+            const k = 1 / Math.sqrt(len);
+            out.x = a.x * k; out.y = a.y * k; out.z = a.z * k; out.w = a.w * k;
+        } else {
+            out.x = 0; out.y = 0; out.z = 0; out.w = 0;
+        }
+        return out;
+    }
+    /** The inverse of a rotation (its conjugate over its squared length). */
+    static invert(out: Quat, a: Quat): Quat {
+        const dot = a.x * a.x + a.y * a.y + a.z * a.z + a.w * a.w;
+        const inv = dot ? 1 / dot : 0;
+        out.x = -a.x * inv; out.y = -a.y * inv; out.z = -a.z * inv; out.w = a.w * inv;
+        return out;
+    }
+    static conjugate(out: Quat, a: Quat): Quat { out.x = -a.x; out.y = -a.y; out.z = -a.z; out.w = a.w; return out; }
+    static fromAxisAngle(out: Quat, axis: Vec3, rad: number): Quat {
+        const half = rad * 0.5, s = Math.sin(half);
+        out.x = s * axis.x; out.y = s * axis.y; out.z = s * axis.z; out.w = Math.cos(half);
+        return out;
+    }
+    /** The rotation that turns +Z to @p view with @p up (default +Y) kept upright, as Cocos's `lookAt` builds it. */
+    static fromViewUp(out: Quat, view: Vec3, up: Vec3 = Vec3.UP): Quat {
+        if (view.x * view.x + view.y * view.y + view.z * view.z < 1e-12) return Quat.set(out, 0, 0, 0, 1);
+        const right = Vec3.normalize(new Vec3(), Vec3.cross(new Vec3(), up, view));
+        if (right.lengthSqr() < 1e-12) return Quat.set(out, 0, 0, 0, 1);
+        const upper = Vec3.cross(new Vec3(), view, right);
+        // the columns right / upper / view, as a rotation matrix
+        const m00 = right.x, m01 = right.y, m02 = right.z, m03 = upper.x, m04 = upper.y, m05 = upper.z, m06 = view.x, m07 = view.y, m08 = view.z;
+        const trace = m00 + m04 + m08;
+        if (trace > 0) {
+            const k = 0.5 / Math.sqrt(trace + 1);
+            out.w = 0.25 / k; out.x = (m05 - m07) * k; out.y = (m06 - m02) * k; out.z = (m01 - m03) * k;
+        } else if (m00 > m04 && m00 > m08) {
+            const k = 2 * Math.sqrt(1 + m00 - m04 - m08);
+            out.w = (m05 - m07) / k; out.x = 0.25 * k; out.y = (m01 + m03) / k; out.z = (m06 + m02) / k;
+        } else if (m04 > m08) {
+            const k = 2 * Math.sqrt(1 + m04 - m00 - m08);
+            out.w = (m06 - m02) / k; out.x = (m01 + m03) / k; out.y = 0.25 * k; out.z = (m05 + m07) / k;
+        } else {
+            const k = 2 * Math.sqrt(1 + m08 - m00 - m04);
+            out.w = (m01 - m03) / k; out.x = (m06 + m02) / k; out.y = (m05 + m07) / k; out.z = 0.25 * k;
+        }
+        return Quat.normalize(out, out);
+    }
+    /** The shortest rotation from direction @p a to direction @p b (both unit length). */
+    static rotationTo(out: Quat, a: Vec3, b: Vec3): Quat {
+        const dot = a.dot(b);
+        if (dot < -0.999999) {
+            const axis = Vec3.cross(new Vec3(), Vec3.RIGHT, a);
+            if (axis.length() < 1e-6) Vec3.cross(axis, Vec3.UP, a);
+            axis.normalize();
+            return Quat.fromAxisAngle(out, axis, Math.PI);
+        }
+        if (dot > 0.999999) return Quat.set(out, 0, 0, 0, 1);
+        const axis = Vec3.cross(new Vec3(), a, b);
+        return Quat.normalize(out, Quat.set(out, axis.x, axis.y, axis.z, 1 + dot));
+    }
+    static fromArray(out: Quat, arr: ArrayLike<number>, ofs = 0): Quat { out.x = arr[ofs]!; out.y = arr[ofs + 1]!; out.z = arr[ofs + 2]!; out.w = arr[ofs + 3]!; return out; }
+    static toArray<T extends number[]>(out: T, q: Quat, ofs = 0): T { out[ofs] = q.x; out[ofs + 1] = q.y; out[ofs + 2] = q.z; out[ofs + 3] = q.w; return out; }
+    static equals(a: Quat, b: Quat, epsilon = 1e-6): boolean {
+        return Math.abs(a.x - b.x) <= epsilon && Math.abs(a.y - b.y) <= epsilon && Math.abs(a.z - b.z) <= epsilon && Math.abs(a.w - b.w) <= epsilon;
+    }
+
     static multiply(out: Quat, a: Quat, b: Quat): Quat {
         const x = a.x * b.w + a.w * b.x + a.y * b.z - a.z * b.y;
         const y = a.y * b.w + a.w * b.y + a.z * b.x - a.x * b.z;
@@ -205,6 +338,19 @@ export class Color {
     }
     clone(): Color { return new Color(this.r, this.g, this.b, this.a); }
     equals(c: Color): boolean { return this.r === c.r && this.g === c.g && this.b === c.b && this.a === c.a; }
+
+    /** The channels of @p c as 0..1 floats written to @p out at @p ofs. */
+    static toArray<T extends number[]>(out: T, c: Color, ofs = 0): T {
+        out[ofs] = c.r / 255; out[ofs + 1] = c.g / 255; out[ofs + 2] = c.b / 255; out[ofs + 3] = c.a / 255;
+        return out;
+    }
+    static lerp(out: Color, from: Color, to: Color, ratio: number): Color {
+        out.r = from.r + ratio * (to.r - from.r); out.g = from.g + ratio * (to.g - from.g);
+        out.b = from.b + ratio * (to.b - from.b); out.a = from.a + ratio * (to.a - from.a);
+        return out;
+    }
+    static copy(out: Color, a: Color): Color { return out.set(a); }
+    static fromHEX(out: Color, hex: string): Color { return out.fromHEX(hex); }
 
     /** From `#rgb`, `#rrggbb` or `#rrggbbaa`. */
     fromHEX(hex: string): this {

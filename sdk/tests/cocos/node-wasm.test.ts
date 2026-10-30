@@ -129,6 +129,27 @@ describe.skipIf(!HAS_WASM)('Node on the engine', () => {
         expect(panel.eulerAngles.z).toBeCloseTo(45, 4);
     });
 
+    it('reads the world directions of its axes: forward is -z, turned by the rotation', () => {
+        connect();
+        const { panel } = tree();
+        expect(panel.forward.z).toBeCloseTo(-1, 5);
+        expect(panel.up.y).toBeCloseTo(1, 5);
+        panel.setRotationFromEuler(0, 90, 0);
+        expect(panel.forward.x).toBeCloseTo(-1, 5);
+        expect(panel.right.z).toBeCloseTo(-1, 5);
+    });
+
+    it('gives its world transform as a matrix: the position in the translation column, the scale on the diagonal', () => {
+        connect();
+        const { panel } = tree();
+        panel.setPosition(4, 5, 6);
+        panel.setScale(2, 2, 2);
+        const m = panel.worldMatrix;
+        expect(m.m12).toBeCloseTo(panel.worldPosition.x, 5);
+        expect(m.m13).toBeCloseTo(panel.worldPosition.y, 5);
+        expect(m.m00).toBeCloseTo(panel.worldScale.x, 5);
+    });
+
     it('reads a changed position back as a new object, so mutating it does not move the node', () => {
         connect();
         const { panel } = tree();

@@ -32,6 +32,9 @@ export class Vec4 {
     }
     toString(): string { return `(${this.x.toFixed(2)}, ${this.y.toFixed(2)}, ${this.z.toFixed(2)}, ${this.w.toFixed(2)})`; }
 
+    static copy(out: Vec4, a: Vec4): Vec4 { out.x = a.x; out.y = a.y; out.z = a.z; out.w = a.w; return out; }
+    static toArray<T extends number[]>(out: T, v: Vec4, ofs = 0): T { out[ofs] = v.x; out[ofs + 1] = v.y; out[ofs + 2] = v.z; out[ofs + 3] = v.w; return out; }
+    static fromArray(out: Vec4, arr: ArrayLike<number>, ofs = 0): Vec4 { out.x = arr[ofs]!; out.y = arr[ofs + 1]!; out.z = arr[ofs + 2]!; out.w = arr[ofs + 3]!; return out; }
     static add(out: Vec4, a: Vec4, b: Vec4): Vec4 { out.x = a.x + b.x; out.y = a.y + b.y; out.z = a.z + b.z; out.w = a.w + b.w; return out; }
     static subtract(out: Vec4, a: Vec4, b: Vec4): Vec4 { out.x = a.x - b.x; out.y = a.y - b.y; out.z = a.z - b.z; out.w = a.w - b.w; return out; }
     static lerp(out: Vec4, a: Vec4, b: Vec4, t: number): Vec4 {
@@ -117,6 +120,46 @@ export class Mat4 {
             out.w = (r01 - r10) / k; out.x = (r20 + r02) / k; out.y = (r21 + r12) / k; out.z = 0.25 * k;
         }
         return out;
+    }
+
+    static copy(out: Mat4, a: Mat4): Mat4 { return out.load_(a.a_()); }
+    static strictEquals(a: Mat4, b: Mat4): boolean { const A = a.a_(), B = b.a_(); return A.every((v, i) => v === B[i]); }
+    static toArray<T extends number[]>(out: T, m: Mat4, ofs = 0): T { const a = m.a_(); for (let i = 0; i < 16; i++) out[ofs + i] = a[i]!; return out; }
+    static fromArray(out: Mat4, arr: ArrayLike<number>, ofs = 0): Mat4 {
+        const a = new Array<number>(16);
+        for (let i = 0; i < 16; i++) a[i] = arr[ofs + i]!;
+        return out.load_(a);
+    }
+    static getTranslation(out: Vec3, m: Mat4): Vec3 { return m.getTranslation(out); }
+    static getScaling(out: Vec3, m: Mat4): Vec3 { return m.getScale(out); }
+    static getRotation(out: Quat, m: Mat4): Quat { return m.getRotation(out); }
+    /** Rotation, translation and scale composed (the order Cocos's argument list has them in). */
+    static fromRTS(out: Mat4, q: Quat, t: Vec3, s: Vec3): Mat4 { return Mat4.fromTRS(out, t, q, s); }
+    /** Take a matrix apart into its rotation, translation and scale. */
+    static toRTS(m: Mat4, q: Quat, v: Vec3, s: Vec3): void {
+        m.getScale(s);
+        m.getTranslation(v);
+        m.getRotation(q);
+    }
+    /** @p a turned by @p rad about Y (applied after @p a's own transform, as gl-matrix does). */
+    static rotateY(out: Mat4, a: Mat4, rad: number): Mat4 {
+        const s = Math.sin(rad), c = Math.cos(rad);
+        return Mat4.multiply(out, a, new Mat4(c, 0, -s, 0, 0, 1, 0, 0, s, 0, c, 0, 0, 0, 0, 1));
+    }
+    static rotateX(out: Mat4, a: Mat4, rad: number): Mat4 {
+        const s = Math.sin(rad), c = Math.cos(rad);
+        return Mat4.multiply(out, a, new Mat4(1, 0, 0, 0, 0, c, s, 0, 0, -s, c, 0, 0, 0, 0, 1));
+    }
+    static rotateZ(out: Mat4, a: Mat4, rad: number): Mat4 {
+        const s = Math.sin(rad), c = Math.cos(rad);
+        return Mat4.multiply(out, a, new Mat4(c, s, 0, 0, -s, c, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1));
+    }
+    /** A perspective projection; @p minClipZ is -1 for GL clip space and 0 for the others. */
+    static perspective(out: Mat4, fov: number, aspect: number, near: number, far: number, isFOVY = true, minClipZ = -1, projectionSignY = 1): Mat4 {
+        const f = 1 / Math.tan(fov / 2), nf = 1 / (near - far);
+        const x = isFOVY ? f / aspect : f;
+        const y = (isFOVY ? f : f * aspect) * projectionSignY;
+        return out.load_([x, 0, 0, 0, 0, y, 0, 0, 0, 0, (far - minClipZ * near) * nf, -1, 0, 0, far * near * nf * (1 - minClipZ), 0]);
     }
 
     static multiply(out: Mat4, a: Mat4, b: Mat4): Mat4 {

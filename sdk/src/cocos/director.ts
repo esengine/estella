@@ -18,6 +18,7 @@ import { Node, getCurrentWorld } from './node';
 import { Scheduler, scheduler } from './scheduler';
 import { SceneManager, type SceneManagerState } from '../scene/sceneManager';
 import { listScenes } from './assetManager';
+import { syncActivity } from './registry';
 import { SceneAsset } from './assets';
 
 /** The root of the running scene: a stand-in for the parent the world's top-level entities do not have. */
@@ -109,8 +110,13 @@ function runScene(name: string, done?: (error: Error | null, scene?: Scene) => v
     (async () => {
         const manager = sceneManagerOf(world);
         await registerScenes(world, manager);
-        await manager.load(name);
-        return new Scene(world);
+        // The scene before this one goes (what the game kept stays); asked for the scene already running, it starts over, as Cocos does
+        if (manager.getActive() === name) await manager.reload();
+        else await manager.switchTo(name);
+        const scene = new Scene(world);
+        // The scene is launched with its scripts loaded and enabled: a script added to it right after (as the game does) finds them there
+        for (const root of scene.children) syncActivity(world, root._entity);
+        return scene;
     })().then(
         (scene) => { loadingScene = ''; director.emit(Director.EVENT_AFTER_SCENE_LAUNCH, scene); done?.(null, scene); },
         (error: Error) => { loadingScene = ''; log.warn('cocos', `scene "${name}" did not load: ${String(error.message ?? error)}`); done?.(error); },

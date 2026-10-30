@@ -117,8 +117,8 @@ function build(node: CocosNode, ctx: ConvertContext, stack: string[]): XNode {
             return { addr: node.id, prefix: '', node: { ...node, children: [] }, children: [] };
         }
         applyOverrides(sub, node.instance.overrides, ctx);
+        applyMounted(sub, node.instance.mounted, ctx);
         if (node.instance.mountedChildren) ctx.report.note('instance-mounted-children', `${ctx.where}: ${node.name}`);
-        if (node.instance.mountedComponents) ctx.report.note('instance-mounted-components', `${ctx.where}: ${node.name}`);
         if (node.instance.removedComponents) ctx.report.note('instance-removed-components', `${ctx.where}: ${node.name}`);
         return lift(sub, node.id);
     }
@@ -216,6 +216,30 @@ function applyOverrides(tree: XNode, overrides: CocosOverride[], ctx: ConvertCon
             continue;
         }
         ctx.report.note(o.target.length > 1 ? 'override-target-missing-nested' : 'override-target-missing', `${ctx.where}: ${key}`);
+    }
+}
+
+/**
+ * The components the instance's file mounts on nodes of the prefab it names. The target is addressed as an override's is; a mounted component
+ * with no node to land on is counted, not lost silently.
+ */
+function applyMounted(tree: XNode, mounted: NonNullable<CocosNode['instance']>['mounted'], ctx: ConvertContext): void {
+    if (mounted.length === 0) return;
+    const nodes = new Map<string, XNode>();
+    const index = (x: XNode): void => {
+        nodes.set(x.addr, x);
+        x.children.forEach(index);
+    };
+    index(tree);
+    for (const m of mounted) {
+        const target = nodes.get(m.target.join(SEP));
+        if (!target) {
+            ctx.report.note('mounted-target-missing', `${ctx.where}: ${m.target.join(SEP)}`);
+            continue;
+        }
+        for (const c of m.components) {
+            target.node.components.push(structuredClone(c));
+        }
     }
 }
 
@@ -353,8 +377,8 @@ function instanceOverrides(node: CocosNode, ctx: ConvertContext): PrefabOverride
     if (!pristine) return null;
     const patched = structuredClone(pristine);
     applyOverrides(patched, inst.overrides, ctx);
+    applyMounted(patched, inst.mounted, ctx);
     if (inst.mountedChildren) ctx.report.note('instance-mounted-children', `${ctx.where}: ${node.name}`);
-    if (inst.mountedComponents) ctx.report.note('instance-mounted-components', `${ctx.where}: ${node.name}`);
     if (inst.removedComponents) ctx.report.note('instance-removed-components', `${ctx.where}: ${node.name}`);
     // Converting both sides is for the difference only; the report counts a component where its own prefab is converted.
     const quiet: ConvertContext = { ...ctx, report: new ImportReport() };

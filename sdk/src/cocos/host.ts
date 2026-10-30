@@ -144,11 +144,12 @@ function syncSubtree(world: World, root: Entity): void {
     const previous = setCurrentWorld(world);
     try {
         const stack: Entity[] = [root];
+        // As Cocos activates a tree: every component's `onLoad` first, in node order, then every `onEnable`
+        const made: Component[] = [];
         while (stack.length > 0) {
             const entity = stack.pop()!;
             if (!world.valid(entity)) continue;
             const active = world.isEntityActive(entity);
-            const made: Component[] = [];
             for (const type of world.getComponentTypes(entity)) {
                 if (!type.startsWith(COMPONENT_PREFIX)) continue;
                 const info = classInfoNamed(type.slice(COMPONENT_PREFIX.length));
@@ -156,18 +157,19 @@ function syncSubtree(world: World, root: Entity): void {
                 const inst = instancesOn(world, entity)?.get(info.ctor) ?? (active ? instantiate(world, entity, info.ctor) : null);
                 if (inst) made.push(inst);
             }
-            for (const inst of made) {
-                const on = inst.enabled && active;
-                if (on && !inst._enabledApplied) {
-                    inst._enabledApplied = true;
-                    call(inst, 'onEnable');
-                } else if (!on && inst._enabledApplied) {
-                    inst._enabledApplied = false;
-                    call(inst, 'onDisable');
-                }
-            }
             const children = world.tryGet(entity, Children)?.entities;
             if (children) for (let i = children.length - 1; i >= 0; i--) stack.push(children[i]!);
+        }
+        for (const inst of made) {
+            if (!world.valid(inst._entity)) continue;
+            const on = inst.enabled && world.isEntityActive(inst._entity);
+            if (on && !inst._enabledApplied) {
+                inst._enabledApplied = true;
+                call(inst, 'onEnable');
+            } else if (!on && inst._enabledApplied) {
+                inst._enabledApplied = false;
+                call(inst, 'onDisable');
+            }
         }
     } finally {
         setCurrentWorld(previous);
