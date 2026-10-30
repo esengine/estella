@@ -348,6 +348,176 @@
     },
     {
       "id": 11,
+      "name": "Light0-a",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -60,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Light",
+          "data": {
+            "type": 0,
+            "color": {
+              "r": 0,
+              "g": 1,
+              "b": 0,
+              "a": 1
+            },
+            "intensity": 1,
+            "radius": 150,
+            "shadowSoftness": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "name": "Light0-b",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -60,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Light",
+          "data": {
+            "type": 0,
+            "color": {
+              "r": 0,
+              "g": 1,
+              "b": 0,
+              "a": 1
+            },
+            "intensity": 1,
+            "radius": 150,
+            "shadowSoftness": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "name": "Light0-c",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -60,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Light",
+          "data": {
+            "type": 0,
+            "color": {
+              "r": 0,
+              "g": 1,
+              "b": 0,
+              "a": 1
+            },
+            "intensity": 1,
+            "radius": 150,
+            "shadowSoftness": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "name": "Light0-d",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -60,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Light",
+          "data": {
+            "type": 0,
+            "color": {
+              "r": 0,
+              "g": 1,
+              "b": 0,
+              "a": 1
+            },
+            "intensity": 1,
+            "radius": 150,
+            "shadowSoftness": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "name": "Light0-e",
+      "parent": null,
+      "children": [],
+      "visible": true,
+      "components": [
+        {
+          "type": "Transform",
+          "data": {
+            "position": {
+              "x": -60,
+              "y": 0,
+              "z": 0
+            }
+          }
+        },
+        {
+          "type": "Light",
+          "data": {
+            "type": 0,
+            "color": {
+              "r": 0,
+              "g": 1,
+              "b": 0,
+              "a": 1
+            },
+            "intensity": 1,
+            "radius": 150,
+            "shadowSoftness": 0
+          }
+        }
+      ]
+    },
+    {
+      "id": 16,
       "name": "Light0",
       "parent": null,
       "children": [],

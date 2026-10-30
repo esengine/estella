@@ -851,9 +851,10 @@ export const SCENES = [
   // have held: the counters are the capacity, the criteria above are the correctness.
   // 0.64ms of a frame here against 0.057ms with the casters off.
   { id: "shadow2d-load", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PLAY: "1", ESTELLA_VERIFY_SCENE: "/scenes/shadow2d-load.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/shadow2d-load.textures.json", ESTELLA_VERIFY_W: "1280", ESTELLA_VERIFY_H: "720", ESTELLA_VERIFY_STEPS: "6", ESTELLA_VERIFY_COUNTERS: "{\"render.shadow2d.occluders\":100,\"render.shadow2d.lights\":4}" } },
-  // Five lights that want to cast and a mask with four channels: the fifth goes
-  // without, which is a lit floor rather than a dark one. The scene is asymmetric on
-  // purpose — a symmetric one cannot see a mask sampled upside down.
+  // A mask with eight channels, all held by lights Light0 meets (the outer four share
+  // three, the five beside it take the rest): Light0 goes without, which is a lit floor
+  // rather than a dark one. The scene is asymmetric on purpose — a symmetric one cannot
+  // see a mask sampled upside down.
   { id: "shadow2d-light-cap", tier: "pr", webgpu: true, env: { ESTELLA_VERIFY_PLAY: "1", ESTELLA_VERIFY_SCENE: "/scenes/shadow2d-light-cap.esscene", ESTELLA_VERIFY_MANIFEST: "/scenes/shadow2d-light-cap.textures.json", ESTELLA_VERIFY_W: "200", ESTELLA_VERIFY_H: "1000", ESTELLA_VERIFY_STEPS: "4", ESTELLA_VERIFY_EXPECT: "[{\"x\":0.70,\"y\":0.1,\"rgb\":[0,0,0],\"tol\":40},{\"x\":0.70,\"y\":0.3,\"rgb\":[0,0,0],\"tol\":40},{\"x\":0.70,\"y\":0.7,\"rgb\":[0,0,0],\"tol\":40},{\"x\":0.70,\"y\":0.9,\"rgb\":[0,0,0],\"tol\":40},{\"x\":0.70,\"y\":0.5,\"rgb\":[0,120,0],\"tol\":70}]" } },
   // Two cameras with half the frame each: what a camera draws is bounded by the rect
   // it asked for, and one covering the other is what taking that rect off the device

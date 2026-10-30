@@ -130,6 +130,8 @@ const DISPOSITION = {
 
   // — code-only: an example demonstrates it from TypeScript, honestly —
   SpringBone: ['owed', 'no example carries a rigged character with hair or a tail yet; the first one imported with its chains goes into one'],
+  ContentRect: ['owed', 'the Cocos importer writes it on every node it converts, and no example is an imported Cocos scene yet; the first one that is carries it'],
+  GroupOpacity: ['owed', 'the Cocos importer writes it for a UIOpacity; it arrives in the corpus with the first imported Cocos scene'],
   SpringBoneCollider: ['owed', 'no example has a spring-bone chain to keep out of anything; it arrives with the first SpringBone'],
   Replicated: ['code-only', 'multiplayer-arena declares its replicated set beside the server systems that own it; the wire table is a contract both ends compile against, not scene content'],
 

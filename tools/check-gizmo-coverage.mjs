@@ -162,6 +162,7 @@ const DISPOSITION = {
   'WaterBody.waveHeight': ['no-place', 'the height of the tallest wave, not a region of the entity'],
   'WaterBody.bedDepth': ['renders', 'a river\'s bed is cut into the terrain, which draws it'],
   'SpringBone.radius': ['no-place', 'the thickness of the strand, kept clear of the colliders; a margin on each bone, not a region of the root'],
+  'ContentRect.size': ['owed', 'a sprite or text on the entity follows it and is the outline, but a bare rect (a clip box, a hit area) draws nothing yet'],
   'Sprite.size': ['renders', 'the sprite drawn at it is the outline'],
   'Sprite.tileSize': ['renders', 'the repeat of a drawn sprite'],
   'ShapeRenderer.size': ['renders', 'the shape drawn at it is the outline'],
