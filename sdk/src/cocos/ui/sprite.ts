@@ -14,6 +14,7 @@ import type { World } from '../../ecs/world';
 import type { Entity } from '../../types';
 import { Color } from '../math';
 import { Component } from '../component';
+import { UIRenderer } from './renderer';
 import { registerBuiltinComponent } from '../builtins';
 import { toCocosColor, toEngineColor, viewAdapter } from './view';
 
@@ -33,7 +34,7 @@ function toCocosType(mode: SpriteDrawMode | undefined): number {
     return SpriteType.SIMPLE;
 }
 
-export class Sprite extends Component {
+export class Sprite extends UIRenderer {
     static readonly Type = SpriteType;
     static readonly SizeMode = SizeMode;
 

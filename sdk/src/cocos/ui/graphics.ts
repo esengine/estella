@@ -10,6 +10,7 @@
  * sorted and batched like any mesh and moves with the node. Nothing is redrawn per frame; the geometry is rebuilt on the frame after a change.
  */
 import { Component } from '../component';
+import { UIRenderer } from './renderer';
 import { Color, Vec2 } from '../math';
 import { declareClass } from '../host';
 import { Schedule, defineSystem, addSystemToSchedule } from '../../ecs/system';
@@ -43,7 +44,7 @@ const toColor = (c: Color): PathColor => [c.r / 255, c.g / 255, c.b / 255, c.a /
 /** The engine's geometry API, handed over by the frame (a component has no app to ask). */
 let meshApi: MeshRendererAPI | null = null;
 
-export class Graphics extends Component {
+export class Graphics extends UIRenderer {
     static readonly LineJoin = Object.freeze({ BEVEL: 0, ROUND: 1, MITER: 2 });
     static readonly LineCap = Object.freeze({ BUTT: 0, ROUND: 1, SQUARE: 2 });
 

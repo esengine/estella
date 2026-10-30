@@ -30,6 +30,7 @@ export { registerBuiltinComponent, type BuiltinAdapter } from './builtins';
 export { unsupported } from './unsupported';
 export { ccenum, js, NodePool, profiler } from './misc';
 export { MeshRenderer, ModelRenderer, UIMeshRenderer } from './meshRenderer';
+export { UIRenderer } from './ui/renderer';
 export { geometry } from './geometry';
 export { UITransform, Label, LabelOutline, LabelShadow, Sprite, UIOpacity, Button, EventHandler, Widget, Layout, Camera, RichText, Mask, Toggle, ToggleContainer, ProgressBar, Slider, BlockInputEvents, ScrollView, Graphics, Line, EditBox, PageView, PageViewIndicator, ScrollBar, SafeArea, WebView, getVisibleSize, setVisibleSize } from './ui';
 export { Touch, EventTouch } from './input';

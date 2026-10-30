@@ -3,6 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { NodePool, ccenum, js, profiler } from '../../src/cocos/misc';
 import type { Node } from '../../src/cocos/node';
+import { Graphics, Label, Sprite, UIRenderer } from '../../src/cocos';
 
 /** The parts of a node a pool touches. */
 function fakeNode(handler?: { unuse(): void; reuse(args: unknown[]): void }) {
@@ -78,5 +79,16 @@ describe('profiler', () => {
         expect(profiler.isShowingStats()).toBe(true);
         profiler.hideStats();
         expect(profiler.isShowingStats()).toBe(false);
+    });
+});
+
+describe('UIRenderer', () => {
+    it('is the base of what draws a 2D element, and takes the rebuild requests that scripts send', () => {
+        for (const type of [Sprite, Label, Graphics]) {
+            expect(type.prototype).toBeInstanceOf(UIRenderer);
+            expect(typeof type.prototype.markForUpdateRenderData).toBe('function');
+        }
+        const probe = Object.create(Sprite.prototype) as Sprite;
+        expect(() => { probe.markForUpdateRenderData(); probe.markForUpdateRenderData(false); probe.setVertsDirty(); }).not.toThrow();
     });
 });

@@ -13,6 +13,7 @@ import type { World } from '../../ecs/world';
 import type { Entity } from '../../types';
 import { Color } from '../math';
 import { Component } from '../component';
+import { UIRenderer } from './renderer';
 import { registerBuiltinComponent } from '../builtins';
 import { toCocosColor, toEngineColor, viewAdapter } from './view';
 
@@ -37,7 +38,7 @@ function toCocosOverflow(engine: number): number {
 }
 
 /** The `Text` data of an entity: the thing every property below reads and writes. */
-export class TextView extends Component {
+export class TextView extends UIRenderer {
     protected text_(): TextData { return this._world.get(this._entity, Text); }
     protected patch_(patch: Partial<TextData>): void { this._world.set(this._entity, Text, { ...this.text_(), ...patch }); }
 }
