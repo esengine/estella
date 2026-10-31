@@ -23,7 +23,7 @@ function engine() {
             content.set(handle, c);
             return handle;
         }),
-        adoptTextureContent: vi.fn(() => true),
+        adoptTextureContent: vi.fn((_into: number, _from: number) => true),
         releaseTexture: vi.fn(),
     };
     initResourceManager(rm as unknown as CppResourceManager);
@@ -49,7 +49,7 @@ describe('terrain layer arrays after a device loss', () => {
             for (const h of handles) expect(await textureRefill(h)!()).toBe(true);
             expect(repack).toHaveBeenCalledTimes(loss);
             expect(rm.adoptTextureContent.mock.calls.map(([into]) => into)).toEqual(handles);
-            for (const [, fresh] of rm.adoptTextureContent.mock.calls as unknown as Array<[number, number]>) {
+            for (const [, fresh] of rm.adoptTextureContent.mock.calls) {
                 expect(content.get(fresh)).toBe(TextureContent.Transient);
                 expect(rm.releaseTexture).toHaveBeenCalledWith(fresh);
             }
