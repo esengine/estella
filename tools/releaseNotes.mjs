@@ -3442,4 +3442,6 @@ export const NOTED = {
     {"note":"A web game comes back after the GPU goes away."},
   "fix(terrain): the page atlases are owed after a device loss, so their refill runs and the ground comes back":
     {"note":"A web game comes back after the GPU goes away."},
+  "fix(postprocess): rain darkens a slope and a leaf as it does the flat, so a hillside in the rain is not cut into pale wedges":
+    {"note":"Rain wets hillsides and plants, not only flat ground."},
 };

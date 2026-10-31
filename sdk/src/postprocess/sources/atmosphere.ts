@@ -2234,7 +2234,13 @@ void main() {
         // Standing water on what is sealed (a street, a flagstone); ground as rough as soil or grass soaks it up, and is only darker.
         float soaks = surface.known ? smoothstep(0.82, 0.95, surface.roughness) : 0.0;
         float puddle = puddleMask(P.xz, basinCoverage(c, size, P, u_puddles, u_puddleScale), u_puddleScale) * up * wet * (1.0 - soaks);
-        col *= 1.0 - 0.32 * wet * up;
+        // Rain darkens a slope and a leaf as it does the flat, a little less where it faces away from the sky: darkening only what
+        // faced straight up cut a hillside into pale wedges at one slope and left every plant light on dark ground. The surface's
+        // own normal where it wrote one (a leaf's), the depth's elsewhere.
+        vec3 Ns = surface.known ? surface.normal : N;
+        if (dot(Ns, viewDirection(P)) < 0.0) Ns = -Ns;
+        float exposed = mix(0.6, 1.0, smoothstep(0.0, 0.9, Ns.y));
+        col *= 1.0 - 0.32 * wet * exposed;
         col *= 1.0 - 0.35 * puddle;
         // Drops landing need drops falling: wet ground under no rain is still.
         float falling = clamp(u_intensity, 0.0, 1.0) * (1.0 - shelter);
@@ -2329,7 +2335,12 @@ fn shelteredAt(W : vec3f) -> f32 {
         var soaks = 0.0;
         if (surface.known) { soaks = smoothstep(0.82, 0.95, surface.roughness); }
         let puddle = puddleMask(P.xz, basinCoverage(c, size, P, mc.u_puddles, mc.u_puddleScale), mc.u_puddleScale) * up * wet * (1.0 - soaks);
-        col = col * (1.0 - 0.32 * wet * up);
+        // See the GLSL: rain darkens what does not face straight up too.
+        var Ns = N;
+        if (surface.known) { Ns = surface.normal; }
+        if (dot(Ns, viewDirection(P)) < 0.0) { Ns = -Ns; }
+        let exposed = mix(0.6, 1.0, smoothstep(0.0, 0.9, Ns.y));
+        col = col * (1.0 - 0.32 * wet * exposed);
         col = col * (1.0 - 0.35 * puddle);
         let falling = clamp(mc.u_intensity, 0.0, 1.0) * (1.0 - shelter);
         let near = 1.0 - smoothstep(1200.0, 3500.0, dist);
