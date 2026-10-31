@@ -3434,4 +3434,6 @@ export const NOTED = {
     {"note":"A terrain with texture layers no longer keeps a second copy of them in memory."},
   "fix(build-tools): --debug builds a debug engine; --release, always on, overrode it":
     {"internal":"the build command's debug switch; no engine change"},
+  "fix(editor): the content browser grid reads a scroller the dock has not attached yet as having no padding, not a NaN width":
+    {"note":"No \"NaN is an invalid value for height\" error when a project opens."},
 };
