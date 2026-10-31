@@ -248,7 +248,8 @@ void fillHook(std::string& src, const std::string& token, const std::string& tex
 std::string wgslCanonicalVSOut(bool lit) {
     std::string src =
         "struct VSOut {\n"
-        "    @builtin(position) pos : vec4f,\n"
+        // Invariant as mesh.esshader's: a material's depth prepass draws with that stage and its colour pass with this one.
+        "    @builtin(position) @invariant pos : vec4f,\n"
         "    @location(0) v_color : vec4f,\n"
         "    @location(1) v_texCoord : vec2f,\n";
     if (lit) {
@@ -571,6 +572,9 @@ std::string canonicalVertexStage(bool lit, const std::string& hook = {}) {
         "}\n"
         "#endif\n"
         "\n"
+        // A material's depth prepass draws with mesh.esshader's vertex stage and its colour pass with this one, landing on that depth by an
+        // equal test: both declare the position invariant, or a compiler (Metal's) may order the arithmetic differently and miss by a bit.
+        "invariant gl_Position;\n"
         "out vec4 v_color;\n"
         "out vec2 v_texCoord;\n"
         "#ifdef MESH_NORMALS\n"

@@ -256,6 +256,8 @@ static void testWGSLEmission() {
     CHECK(vs.find("@group(0) @binding(0) var<uniform> frame") != std::string::npos,
           "canonical WGSL vertex reads FrameConstants at binding 0");
     CHECK(vs.find("v_worldPos") == std::string::npos, "Unlit WGSL vertex has no world-pos varying");
+    // See testFragmentOnly: the colour pass behind a material's depth prepass.
+    CHECK(vs.find("@builtin(position) @invariant pos") != std::string::npos, "canonical WGSL vertex declares its position invariant");
 
     const std::string fs = wgsl(p, ShaderStage::Fragment);
     CHECK(fs.find("struct VSOut") != std::string::npos, "canonical varying interface injected");
@@ -431,6 +433,12 @@ static void testFragmentOnly() {
           "Lit canonical vertex forwards world position");
     const std::string lf = ShaderParser::assembleStage(lit, ShaderStage::Fragment);
     CHECK(lf.find("applyLighting2D") != std::string::npos, "Lit fragment gets the lighting helper injected");
+    // A material's depth prepass draws with mesh.esshader's vertex stage, which declares its position invariant; the colour pass lands on that
+    // depth by an equal test from this stage, so it must declare it too. The drivers the pixel gates run on happen to agree without it; Metal does not.
+    for (const ParsedShader* s : {&unlit, &lit}) {
+        CHECK(ShaderParser::assembleStage(*s, ShaderStage::Vertex, "", {"MESH"}).find("invariant gl_Position;") != std::string::npos,
+              "canonical GLSL vertex declares its position invariant");
+    }
 
     ParsedShader pp = ShaderParser::parse(FRAG_ONLY_POSTPROCESS);
     CHECK(pp.valid, "fragment-only PostProcess shader parses");
