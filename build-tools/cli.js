@@ -30,7 +30,6 @@ program
     .description('Build ESEngine')
     .option('-t, --target <target>', 'Build target (web, wechat, wechat-lite, spine, spine21, spine38, spine41, spine43, dragonbones, physics, physics-wechat, spine-wechat, dragonbones-wechat, basis, basis-wechat, sdk, all)', 'web')
     .option('-d, --debug', 'Debug build', false)
-    .option('-r, --release', 'Release build (default)', true)
     .option('-c, --clean', 'Clean before build', false)
     .option('--no-cache', 'Disable EHT cache')
     .option('-v, --verbose', 'Verbose output', false)
@@ -50,7 +49,7 @@ program
                 process.exit(1);
             }
 
-            const isDebug = options.debug && !options.release;
+            const isDebug = options.debug;
             // Every module the config declares, rather than a second list of them.
             const targets = options.target === 'all'
                 ? Object.keys(config.wasm)
