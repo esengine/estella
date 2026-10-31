@@ -173,6 +173,7 @@ Android 的下限是 29,因为引擎的字体路径调用 `AFontMatcher_create`,
 | 音频 | 原生混音器([miniaudio](https://miniaud.io/))—— CoreAudio / AAudio |
 | 文本输入 | 平台**软键盘**就是输入框的编辑面 |
 | 网络 | 系统网络栈(`NSURLSession` / `HttpURLConnection`) |
+| 地形与流式世界 | 在原生运行时上运行。地形的图层纹理和其他纹理一样以字节送到设备(设备上没有可供拷贝的 wasm 堆);分块世界的生成器使用自己的取消句柄,因为 QuickJS 没有 `AbortController` |
 | 压缩纹理 | KTX2 转码到设备支持的格式(ASTC → ETC2 → BC),含 mip 链 |
 | 生命周期 | `onShow` / `onHide` 与系统内存警告都能到达应用 |
 

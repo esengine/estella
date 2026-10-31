@@ -336,7 +336,7 @@ events.on(field, 'change', () => { /* value edited */ });
 events.on(field, 'submit', () => save(world.get(field, TextInput).value));  // Enter
 ```
 
-The component carries three fields the factory doesn't take — the ones a field
+The component carries four fields the factory doesn't take — the ones a field
 authored in a scene needs to stop looking generic:
 
 | Field | Default | Description |
@@ -344,6 +344,7 @@ authored in a scene needs to stop looking generic:
 | `font` | `0` | A font asset **this project ships** (`.ttf` / `.otf`), the same slot [`Text.font`](/docs/ui/text/#custom-fonts) uses. Set, it wins over `fontFamily` — so a field on a panel drawn in the game's typeface is drawn in it too, rather than in Arial. |
 | `textAlign` | `Left` | Where the value sits in the field: `Left` / `Center` / `Right`. A single line holds the alignment **while the value fits**; past that the field scrolls to follow the caret, exactly as a left-aligned one always has. Multiline aligns per line. |
 | `renderMode` | `Auto` | Glyph pipeline for the field text — mirrors `Text.renderMode`. |
+| `inputFilter` | `None` | Which characters the field accepts, whether typed or pasted — the rest are taken out of the value itself, so what is on screen and what a script reads are the same. `TextInputFilter.Digits` keeps `0-9`; `Decimal` keeps `0-9`, a point and a minus sign; `Phone` keeps `0-9` and `+ * # -`. |
 
 **A skinned field keeps its skin.** The field draws over the entity's own
 `UIVisual`, and it only manages that visual when it is a **plain fill** —
@@ -360,6 +361,10 @@ const field = spawnUIEntity({
 });
 world.insert(field, TextInput, { placeholder: 'Name', font: gameFont, textAlign: TextAlign.Center });
 ```
+
+A field does not need a `UINode`: `TextInput` also works on an entity with a
+[`ContentRect`](/docs/ui/overview/#contentrect--a-rectangle-for-world-content), so a text field can stand
+in the world.
 
 Click (or Tab to) the field to focus it; **Escape** blurs, **Enter** fires
 `submit` on single-line fields. A value longer than the box **clips to it and scrolls

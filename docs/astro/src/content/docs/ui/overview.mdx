@@ -183,6 +183,58 @@ An entity with both a `UINode` and a `ContentRect` keeps the layout's box for cl
 Adding a `Sprite` or `Text` to an entity that already has a rect: call `applyContentRect`
 once, or write the rect again; a changed rect is followed by itself.
 
+### `RectAnchors` — world content that follows its parent
+
+World content has no flexbox, but it often wants to stay at an edge or the centre of its parent,
+or stretch with it. `RectAnchors` pins an entity — placed by its `Transform`, sized by its
+`ContentRect` — to its parent's rectangle:
+
+- **Stretch**: pin both edges of an axis and the entity's size follows the parent.
+- **Pin to an edge**, or **centre with an offset**, on each axis independently.
+- Margins are in layout units, or a fraction of the parent's size (the `isAbs…` flags per margin).
+- With no parent `ContentRect`, the entity aligns to the **screen**, which is centred on the
+  world origin.
+
+`alignMode` says when it aligns: `ONCE`, `ON_RESIZE` (the default: when enabled, when its own
+settings change, and whenever the screen changes) or `ALWAYS` (every frame). Parents are
+aligned before the children that depend on their size, in the editor's edit mode as well as in
+play, so a scene shows laid out as it will run.
+
+```typescript
+import { RectAnchors, AnchorFlag } from 'esengine';
+
+// Stretch across the top of the screen, 40 units from the edges.
+world.insert(banner, RectAnchors, {
+  alignFlags: AnchorFlag.TOP | AnchorFlag.LEFT | AnchorFlag.RIGHT,
+  top: 0, left: 40, right: 40,
+});
+```
+
+### `UIPages` — pages that exist only while wanted
+
+A screen with many pages does not need all of them in the world at once. `UIPages` keeps each
+page as a prefab and builds it the first time it is opened:
+
+```typescript
+import { UIPages } from 'esengine';
+
+const pages = new UIPages(world, assets);
+pages.register('shop', { prefab: 'assets/ui/shop.esprefab', parent: canvas, onClose: 'destroy' });
+
+const shop = await pages.open('shop');   // builds on first open; callers asking at once share one build
+shop.find('buyButton');                   // a node by name, inside this page
+pages.close('shop');
+```
+
+- **`onClose`**: `'keep'` (default) switches the page off, so the next open is instant;
+  `'destroy'` takes its contents and assets out and the next open builds again.
+- **`parent`** adds the page as a new root under an entity. **`mount`** is an entity already in
+  the scene: the page is built under it, so it keeps the mount's place in the draw order.
+- `pages.preload(id)` fetches the prefab ahead of time; `pages.onBuilt(fn)` is where to wire a
+  page when it is built.
+- Pages can also come from [virtual prefab instances](/docs/world/prefabs/#virtual-instances):
+  `registerDeferred(entity)` and `registerDeferredAll(root?)` register them, named after the instance root.
+
 ### Subtree opacity and pointer gating
 
 `UINode` carries two fields that resolve **hierarchically**, in the same pass that already
@@ -227,6 +279,11 @@ world.insert(viewport, Interactable, { enabled: true, raycastTarget: true });
 const content = spawnUIEntity({ world, parent: viewport, node: { width: px(400), height: px(1200) } });
 world.insert(viewport, UIScroll, { vertical: true });   // content defaults to the first child
 ```
+
+`Elastic` is opt-in per area (`Clamped` is the default). A drag past an end gets stiffer the
+further out it goes, letting go returns the content, and a flick that reaches an end bounces off it.
+The gesture model behind it, `ScrollMotion` (with `ScrollContainer.dragTo` and `getOverscroll`), is
+exported, so anything else — a world-space node scrolled by touch — can scroll the same way.
 
 The component is what a **scene** can say. Scrolling used to be reachable only by building
 the `ScrollView` widget in code, so a scroll area placed in the editor described all its

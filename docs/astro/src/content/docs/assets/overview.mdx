@@ -285,12 +285,19 @@ When the graphics context is lost (a driver reset, a mobile browser reclaiming
 the GPU), the engine rebuilds every texture and buffer behind the handles your
 game holds. Most content comes back from where it came from — an asset is
 loaded again, a text page is repainted from its glyphs, a skeleton's atlas page
-is decoded again. What has no such source (a mesh built at runtime, a tile
+is decoded again, a terrain's layer textures are read and packed again from their files and its page atlases refilled. What has no such source (a mesh built at runtime, a tile
 collection composed at load) is kept as a CPU copy, which counts against your
 memory but not against any GPU figure. `stats.retainedBytes` is that copy; the
 engine's own is about 28 KB. It warns once when the copy grows past
 `RuntimeConfig.retainedBudget` (**16 MB** by default, `retainedBudget` in the
-build config, or `setRetainedBudget(bytes)`; 0 never warns).
+build config, or `setRetainedBudget(bytes)`; 0 never warns). Content the engine
+can make again is not kept twice: a terrain with texture layers holds no CPU copy of them.
+
+Recovery is one transaction of the device, and a web game comes back to the picture it
+had. While the engine waits for its textures, frames the device refuses start empty and
+collect nothing, so their staging does not grow; and the restored WebGL context is given
+its extensions again before the device probes what it can do, so an HDR scene does not
+come back black.
 
 What the engine cannot put back is content **your game drew**: a render texture
 is GPU storage, so a rebuilt device hands it back blank. `onDeviceRestored` says

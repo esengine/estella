@@ -1,6 +1,6 @@
 ---
 title: Materials & Shaders
-description: The complete guide to custom materials — authoring GLSL with reflected #pragma param uniforms, the Material API, and applying materials to renderers.
+description: "The complete guide to custom materials — authoring GLSL with reflected #pragma param uniforms, the Material API, and applying materials to renderers."
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -188,6 +188,10 @@ varyings arrive ready to use:
 | `v_texCoord` | `vec2` | Texture UV. |
 | `v_worldPos` | `highp vec2` | World-space position (**Lit domain only**). |
 
+On a **mesh** that carries a second uv set (the `MESH_LIGHTMAP` variant), the vertex stage also hands the
+fragment `v_texCoord1` (`vec2`) — that second uv set exactly as authored, beside the lightmap coordinates
+the engine derives from it. A material that is not a bake can read it for a mask or a dissolve map.
+
 The sprite's texture is `u_textures[0]` (declare `uniform sampler2D u_textures[8];`
 — units 0–7 belong to the batch; texture *params* bind above them automatically).
 
@@ -227,6 +231,10 @@ The engine injects these into every compiled `.esshader` — never declare them 
 
 A `#pragma switch` selects a static shader permutation baked into the material at
 compile time (via the `features` argument to `compileShader`).
+
+`#if` and `#elif` conditions may use `defined`, `!`, `&&`, `||` and parentheses, and resolve the same way in a
+shader's WGSL twin as in its GLSL, so a lit material on the engine's own vertex stage or a lit 2D shader draws on
+WebGPU as it does on WebGL2.
 
 ## Create & apply in code
 

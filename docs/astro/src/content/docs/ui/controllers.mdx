@@ -85,6 +85,8 @@ keyed by page name: a page with no entry leaves the field untouched.
 **Values** — numbers, colours (`{r,g,b,a}`), and vectors (`{x,y,z}`) interpolate when the
 binding has a `tween`; strings and booleans always snap. A geared element is owned by the
 controller for that field: on each page change the gear applies the page's value.
+A frame in which no controller, gear or parent changed, the world's structure is the same and no
+tween is in flight costs nothing, so a still screen with thousands of gears stays cheap.
 
 <Aside type="note">
   Gears apply in **edit mode too** — the system that applies them isn't gated to play. So

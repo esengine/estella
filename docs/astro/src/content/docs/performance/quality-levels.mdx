@@ -29,7 +29,7 @@ to.
 
 | Group | Settings |
 |---|---|
-| Rendering | Render scale, Min render scale, MSAA, Detail distance |
+| Rendering | Render scale, Min render scale, Anti-aliasing (MSAA or Temporal), MSAA, Depth pre-pass, Detail distance |
 | Shadows | Atlas size, Cell size, Cascades, Distance |
 | Reflections and particles | Planar reflection scale, max size and updates per second, Particle limit |
 | Post-processing | A master switch, and a tick for each effect that runs at this level |
@@ -37,6 +37,12 @@ to.
 Each level starts from the engine's own values for it, and **only what you change is saved** in `project.esproject`
 under `features.rendering.quality.profiles.<level>`. A default the engine improves later reaches a project that never
 touched it, and a row set back to its level's default is not a difference.
+
+**Anti-aliasing** is MSAA or Temporal. Temporal draws at one sample and lets the TAA pass smooth from the frames before:
+far cheaper at 1080p and somewhat softer, it needs a post-process volume on the camera, and the MSAA row is hidden while it
+is chosen. **Depth pre-pass** draws the opaque scene twice, depth alone first, so each pixel is shaded once for the surface in
+front. It pays where surfaces overlap (a wood, a crowd of foliage) on a GPU that shades what it rasterises; on one that defers
+shading to the end of a tile it is geometry paid for twice. It is off at Low and on at Medium and High. The pre-pass and the colour pass declare the vertex position invariant on both WebGL2 and WebGPU, so a surface's colour always passes the equal-depth test against its own depth, including on Metal; a Mac that showed dark triangles on terrain with the pre-pass on needs nothing but an up-to-date build.
 
 <Aside type="note">
 A row's "default" is the default of the level it is showing, so the same number can be a change at Low and the default
@@ -67,6 +73,32 @@ which is a way to find out what yours costs before choosing what a level skips.
 Shown when the mode is Auto. Each row names a level and the conditions a device must meet: **Model contains**,
 **GPU contains**, **Max RAM** and **Max cores**, all of which must hold. The first row that matches decides the level. A
 row with no condition would match every device, so it must have one.
+
+## Shader compilation and render on demand
+
+Two groups on the same page hold choices about how a game is *delivered* rather than which level it runs at. They apply
+whatever the quality level, **Off** included, and are saved under `features.rendering.quality`.
+
+![Project Settings, Rendering page: the Shader Compilation, Render on Demand, Power Saving and Antialiasing groups](@/assets/guides/en/settings-shader-compilation.png)
+
+**Shader Compilation**
+
+| Setting | What it does |
+|---|---|
+| **Compile shaders in the background** (`asyncShaderCompile`) | A draw whose shader the browser is still compiling is left out, so the game opens at once and fills in as shaders are ready. Off, the first draw to need a shader waits for it: every frame is complete, but a first visit can stall for seconds. Needs `KHR_parallel_shader_compile`; without it shaders compile as before. |
+| **Warm up behind the loading screen** (`prewarmShaders`) | Draws the first scene out of sight, behind the loading screen, until no shader is compiling, then opens on a complete picture. Shown once background compilation is on. |
+| **Warm-up timeout** | The longest the loading screen waits (in seconds, default 30) before opening anyway. Shown once warm-up is on. |
+
+**Render on Demand**
+
+| Setting | What it does |
+|---|---|
+| **Draw only changing frames** (`renderOnDemand`) | A still screen costs the game's logic and nothing else. A frame is drawn when something asked for it, the player did something, the surface changed size, entities were created or destroyed, or shaders are still compiling. |
+| **Frames kept after a change** (`renderOnDemandTail`) | Frames still drawn after the last reason to draw, so a fade or a settling motion finishes. Default 30. |
+
+The engine cannot see what a script changes by itself (a colour, an animation). Say so with `RenderDemand.request()` for
+one frame, or `RenderDemand.hold()` (it returns the function that releases it) for something that moves on its own, or
+that change is not drawn until something else wakes the screen. That is why the switch is opt-in.
 
 ## Saving power
 

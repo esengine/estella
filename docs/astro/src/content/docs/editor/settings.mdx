@@ -17,23 +17,54 @@ setting on any page.
   - **Game** — **Display** (the project design resolution, which seeds new Canvases and
     drives the device preview in any scene; the project-wide **screen orientation**, which
     every export target honors and which, unset, is derived from the design resolution's
-    aspect; and the **camera fit**, how the main camera scales the design resolution
-    without a UI Canvas — `None` = off), **UI** (the widget **theme**, dark or light, and
+    aspect; the **camera fit**, how the main camera scales the design resolution
+    without a UI Canvas — `None` = off; and the **render resolution**, whether the scene is
+    drawn at the screen's size, at the design resolution or at an integer multiple of it and
+    then scaled to the screen), **UI** (the widget **theme**, dark or light, and
     per-role **Theme Colors** overrides, applied identically in the editor, Play, and every
-    export — see [UI widgets — theming](/docs/ui/widgets/#theming)), **Audio** and **Spine**.
+    export — see [UI widgets — theming](/docs/ui/widgets/#theming)), **Audio**, **Spine** and **Runtime** (the engine's tuning, below).
   - **Rendering** — up to thirty-two named sorting layers that populate the inspector's
     layer dropdown, and which of them y-sort. The names are suggestions, not a limit:
     a render `layer` still accepts a number outside them. Quality tiers and the project
-    environment live here too.
+    environment live here too, with the choices about delivery: compiling shaders in the
+    background, warming them up behind the loading screen, and drawing only frames that
+    change (see [Quality levels](/docs/performance/quality-levels/#shader-compilation-and-render-on-demand)).
   - **Physics** — enable, gravity, sixteen collision-layer names and a 16×16 collision
     matrix, plus solver tuning (fixed timestep, sub-steps, contact Hz/damping/push
     speed, sleeping, continuous collision). See [Physics](/docs/gameplay/physics/).
   - **Build and modules** — per-target packaging metadata (WeChat AppID, Desktop app id /
-    product name, splash, achievements) and the engine modules the project includes.
+    product name, splash, achievements), the engine modules the project includes and, for
+    the web build, the **allowed server origins** — the servers (`wss://play.example.com`) the
+    page may open connections to. Without any, the page's Content-Security-Policy allows only
+    its own origin.
+  - **Configuration tables** — the optional **Luban** (designers keep tables in Excel; the
+    editor generates the JSON and TypeScript the game reads) and **Protobuf** (messages written
+    in `.proto` files become TypeScript types and a compact binary codec) tools. Each is off by
+    default: off, the editor looks for nothing and downloads nothing; on, it checks the tool is
+    installed (asking before it downloads anything) and keeps the generated code current.
 
 Settings you set once and then leave alone — screen presets, solver tuning, the theme's
 colors, the module switches, the endpoints of your own AI providers — sit under a page's
 **Advanced** fold, so a page's body is what people actually touch.
+
+## Runtime
+
+**Project → Game → Runtime** holds the engine's own tuning, which used to be reachable only
+from code. The project file keeps only what differs from the engine's values, in
+`features.runtime`; every build ships the same block and Play applies it before the first
+asset loads. The edit viewport keeps the engine's values.
+
+![Project Settings, Game page, Runtime section: the Scene Transition, Frame Limits, Cache Budgets and Text groups](@/assets/guides/en/settings-runtime.png)
+
+The settings used least sit under the page's **Advanced** fold: **Most fixed steps per frame**, **Load timeout**, **Retry cooldown**, **Device-loss copies** and **Text canvas size**.
+
+| Group | Settings |
+|---|---|
+| **Scene Transition** | **Duration** (default 0.3 s) and **Colour** of the fade a scene switch uses when the call names none. |
+| **Frame Limits** | **Longest frame step** (0.25 s): a frame that took longer — a tab in the background, a stall — advances the game by this much, not by the time that really passed. **Most fixed steps per frame** (8): the cap on catch-up steps of the fixed-rate update (physics); past it the simulation slows down instead of spiralling. |
+| **Asset Loading** | **Load timeout** (30 s) before one asset's load fails, and **Retry cooldown** (5 s) before a failed asset is tried again. |
+| **Cache Budgets** | Memory kept for **Texture cache** (64 MiB of GPU memory for textures nothing uses right now), **Audio cache** (32 MiB of decoded clips) and **Device-loss copies** (16 MiB of CPU copies the device keeps to survive losing the GPU, past which it warns). 0 turns the first two off. |
+| **Text** | **Text canvas size** (512) the text is rasterised on, and the **Default font family** for a Text with none of its own. |
 
 ## Editor language
 

@@ -32,6 +32,11 @@ The Outliner is the scene's hierarchy. You can:
   loads. Locking leaves it visible and selectable but gives it no handles: the
   viewport won't pick it, and the transform gizmo won't appear for it.
 - **Create Prefab** from a selection, then drop instances back into the scene.
+- Right-click a prefab instance for **Edit Prefab**, **Apply to Prefab**, **Revert to
+  Prefab**, **Create Variant** and **Unpack Prefab**, and **Make Virtual (load on demand)** /
+  **Make Whole (load with the scene)**. A virtual instance is shown and edited whole here
+  but a running scene builds only its root — see
+  [Virtual instances](/docs/world/prefabs/#virtual-instances).
 
 ## The Details panel
 
@@ -46,6 +51,9 @@ matches.
 Each component is a **collapsible section**, and the panel remembers what you fold —
 across reselects *and* editor restarts — so an inspector stays as tidy as you leave it.
 Rarely-touched "chrome" (a widget's `Focusable` and `ThemeStyle` tags) starts folded.
+
+On a prefab instance, the prefab bar at the top of Details carries the **Virtual** toggle
+described above.
 
 Where a visual control beats a row of raw numbers, Details shows a **purpose-built
 widget** — most of them for UI nodes:

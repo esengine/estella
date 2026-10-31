@@ -95,9 +95,12 @@ clouds are still drawn where there is sky.
 
 `rain` is a storm in two parts. **Falling rain** is three layers of thin slanted streaks scrolling down the
 screen, each standing at its own distance: a streak is hidden by a surface nearer than its layer and drawn
-over one farther away, and the sky counts as infinitely far. **Wet ground** is found from the depth buffer —
-a surface that faces up, flat enough to hold water — and darkened by `wetness`, because water in the pores takes
-the light a dry surface scatters. Drops that land on it leave **ripples** (rings that spread and fade) and
+over one farther away, and the sky counts as infinitely far. **Wet surfaces** are everything the rain falls on,
+darkened by `wetness` because water in the pores takes the light a dry surface scatters. The darkening is full on
+ground that faces the sky and a little less (down to 0.6 of it) where a surface faces away, taken from the surface's own
+normal where the G-buffer has one (a leaf's) and from the depth buffer elsewhere, so a hillside and a plant in a storm
+darken with the flat ground beside them instead of standing out pale. What needs **flat ground** — a surface that faces
+up, flat enough to hold water — is the standing water and the drops that land on it, which leave **ripples** (rings that spread and fade) and
 **splashes** (the small quick crown of a drop on ground that is not water), laid out on a grid in the world so they
 stay on the ground when the camera moves. Ripples need drops: with `intensity` at 0 the ground is wet and still.
 

@@ -42,6 +42,10 @@ cmds.spawn()
 | `SphereCollider3D` | `radius`. |
 | `CapsuleCollider3D` | An upright capsule: `halfHeight` is the cylinder's half, with a cap of `radius` on each end, so the total height is `2 * (halfHeight + radius)`. |
 
+Each of the three also takes an optional `center`: the shape's place from the entity origin, in world
+units (default `{ 0, 0, 0 }`). The body stays at the entity, so a dynamic body turns about its origin and
+an off-centre shape swings round it.
+
 <Aside>
   Sizes are authored in **world units** and reach the solver in metres, at the same
   `pixelsPerUnit` the 2D world uses (100 by default). A solver tuned for metres

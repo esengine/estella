@@ -246,6 +246,12 @@ front of it — no manual `layer` or z juggling.
   gameplay layer(s) that need it.
 </Aside>
 
+### Hierarchy-order layers
+
+`Renderer.setTreeSortLayers(mask)` names the layers (bits 0–31) whose sprites, labels and shapes stack in
+the order of the hierarchy — a parent before its children, an earlier sibling's subtree before a later
+one's — instead of by shader and depth. Use it where a panel must cover the text of the panel under it.
+
 ### Fading a roof or a crown over the player
 
 A roof, or a tree crown, drawn over the ground it covers hides whoever walks in. Put `CoverFade` on the covering sprite and `CoverFadeTarget` on the

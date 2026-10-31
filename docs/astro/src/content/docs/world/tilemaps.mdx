@@ -230,7 +230,7 @@ tilemap.removeChunk(layer, chunkX, chunkY);    // a chunk the player has walked 
 
 A chunk is 16 by 16 tiles. A layer's tile rows run **down** from its origin, as in Tiled, so tile row `ty` lies at world y `-ty * tileHeight`: a chunk whose world
 square spans `[y, y + 288)` for 18-pixel tiles is chunk row `-(floor(y / 288)) - 1`. `removeChunk` takes the tiles out and the drawn mesh with them, so a layer that
-follows a walker holds the chunks near it and not every one it has held. Streaming a 2D world through `ProceduralChunks` (see [Streaming](/world/streaming/)) with
+follows a walker holds the chunks near it and not every one it has held. Streaming a 2D world through `ProceduralChunks` (see [Streaming](/docs/world/streaming/)) with
 `plane: 'xy'` can use either one layer and `removeChunk`, or a small layer entity per chunk that it despawns on release.
 
 ## Terrain autotiling

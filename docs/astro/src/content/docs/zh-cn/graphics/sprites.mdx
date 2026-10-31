@@ -217,6 +217,12 @@ world.applyEntityOrder([other, another, card]);
   只对需要它的玩法层开启 Y 排序。
 </Aside>
 
+### 层级顺序层
+
+`Renderer.setTreeSortLayers(mask)` 指定一些层(位 0–31),其上的精灵、文本与图形按层级顺序叠放——
+父节点先于子节点、靠前兄弟的整棵子树先于靠后兄弟的——而不是按着色器与深度排序。
+适合需要"上面的面板盖住下面面板的文字"的场景。
+
 ### 屋顶与树冠遮挡淡出
 
 盖在地面上的屋顶、树冠会挡住走进去的人。给遮挡的精灵加 `CoverFade`，给必须看得见的对象（玩家）加 `CoverFadeTarget`：目标站在精灵所覆盖的地面上时，精灵在 `fadeTime` 内淡到自身 alpha 的 `opacity` 倍，离开后淡回。

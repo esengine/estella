@@ -165,6 +165,53 @@ addStartupSystem(buildPauseMenu);
 同时有 `UINode` 和 `ContentRect` 的实体,裁剪仍用布局的盒子。给已有矩形的实体再加
 `Sprite` 或 `Text` 时:调用一次 `applyContentRect`,或者把矩形再写一遍;矩形变化时它们会自己跟随。
 
+### `RectAnchors` —— 跟随父级的世界内容
+
+世界内容没有 flexbox,但常常要贴着父级的某条边、居中,或随父级拉伸。`RectAnchors` 把一个
+用 `Transform` 摆放、用 `ContentRect` 定大小的实体钉到父级矩形上:
+
+- **拉伸**:同一轴的两条边都钉住,实体尺寸就跟随父级。
+- 每个轴可以独立地**钉到一条边**,或**居中并带偏移**。
+- 边距可以是布局单位,也可以是父级尺寸的比例(每个边距各有一个 `isAbs…` 开关)。
+- 父级没有 `ContentRect` 时,对齐到**屏幕**,屏幕以世界原点为中心。
+
+`alignMode` 决定何时对齐:`ONCE`、`ON_RESIZE`(默认:启用时、自身设置变化时、屏幕变化时)
+或 `ALWAYS`(每帧)。父级总是先于依赖其尺寸的子级对齐,编辑器的编辑模式下和运行时一样,
+所以场景在编辑器里看到的就是运行时的布局。
+
+```typescript
+import { RectAnchors, AnchorFlag } from 'esengine';
+
+// 横贯屏幕顶部,距左右边缘各 40 单位。
+world.insert(banner, RectAnchors, {
+  alignFlags: AnchorFlag.TOP | AnchorFlag.LEFT | AnchorFlag.RIGHT,
+  top: 0, left: 40, right: 40,
+});
+```
+
+### `UIPages` —— 用到才存在的页面
+
+一个有很多页面的界面不需要把它们同时放进世界。`UIPages` 把每个页面存成预制体,第一次打开时才构建:
+
+```typescript
+import { UIPages } from 'esengine';
+
+const pages = new UIPages(world, assets);
+pages.register('shop', { prefab: 'assets/ui/shop.esprefab', parent: canvas, onClose: 'destroy' });
+
+const shop = await pages.open('shop');   // 首次打开时构建;同时打开的调用共享一次构建
+shop.find('buyButton');                   // 按名字在本页内找节点
+pages.close('shop');
+```
+
+- **`onClose`**:`'keep'`(默认)只是把页面关掉,下次打开是即时的;`'destroy'` 把它的内容连同资源
+  一起移除,下次打开重新构建。
+- **`parent`** 把页面作为新根加到某个实体下;**`mount`** 是场景里已有的实体:页面构建在它下面,
+  因此保持挂载点在绘制顺序中的位置。
+- `pages.preload(id)` 提前拉取预制体;`pages.onBuilt(fn)` 是页面构建后接线的地方。
+- 页面也可以来自[虚拟预制体实例](/docs/zh-cn/world/prefabs/#虚拟实例):用 `registerDeferred(entity)`
+  和 `registerDeferredAll(root?)` 注册,页面名取实例根的名字。
+
 ### 子树透明度与指针门
 
 `UINode` 上有两个**沿层级解析**的字段,与已有的 `display` 在同一趟里完成:
@@ -206,6 +253,10 @@ world.insert(viewport, Interactable, { enabled: true, raycastTarget: true });
 const content = spawnUIEntity({ world, parent: viewport, node: { width: px(400), height: px(1200) } });
 world.insert(viewport, UIScroll, { vertical: true });   // content 缺省取第一个子节点
 ```
+
+`Elastic` 按区域自行开启(默认是 `Clamped`)。拖过一端时越拉越紧,松手后内容回弹,甩动撞到一端会被弹回。
+它背后的手势模型 `ScrollMotion`(配合 `ScrollContainer.dragTo` 与 `getOverscroll`)已导出,
+所以别的东西——比如靠触摸滚动的世界空间节点——也能用同样的方式滚动。
 
 这个组件补的是**场景能说出口的话**。以前滚动只能靠在代码里构造 `ScrollView` widget,所以在
 编辑器里摆出来的滚动区能描述自己的每个零件——被裁剪的盒子、超长的子节点——唯独说不出「它会滚」

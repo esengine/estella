@@ -209,6 +209,7 @@ behaves exactly as it does in a browser.
 | Audio | Native mixer ([miniaudio](https://miniaud.io/)) — CoreAudio / AAudio |
 | Text input | The platform's **soft keyboard** is the field's editing surface |
 | Networking | The OS network stack (`NSURLSession` / `HttpURLConnection`) |
+| Terrain and streamed worlds | Run on the native runtime. A terrain's layer textures go to the device as bytes, as every other texture does (a device has no wasm heap to copy them through), and a chunked world's maker uses a cancellation handle of its own, because QuickJS has no `AbortController` |
 | Compressed textures | KTX2 transcoded to the device's format (ASTC → ETC2 → BC), with mip chains |
 | Lifecycle | `onShow` / `onHide` and OS memory warnings reach the app |
 

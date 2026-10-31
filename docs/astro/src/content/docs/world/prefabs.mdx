@@ -95,6 +95,24 @@ removals in red, with structural changes flagged as destructive.
   affected instance and offers a **Repair** — saving the scene persists the cleaned-up state.
 </Aside>
 
+### Virtual instances
+
+A screen made of many pages does not need every page's entities in a running scene. Mark a
+prefab instance **Virtual** (the toggle in the prefab bar of Details, or the Outliner's context
+menu) and the editor still shows and edits it whole, but a running scene makes only its root and
+builds the rest when the instance is opened. Use [`UIPages`](/docs/ui/overview/) to open it:
+`registerDeferred(entity)` registers a virtual instance as a page named after its root.
+
+![The prefab bar at the top of Details with the Edit, Select, Apply, Revert and Virtual buttons](@/assets/guides/en/prefab-virtual-toggle.png)
+
+![The Outliner's context menu on a prefab instance, with Make Virtual (load on demand)](@/assets/guides/en/outliner-prefab-menu.png)
+
+- An instance that adds, removes or re-parents parts is made whole, not virtual.
+- Adding `?expand-virtual` to the page address makes every virtual instance whole at boot, for a
+  test harness that expects every node (an instance marked as another layout of the same page is
+  left out, as the layouts would stand side by side).
+- `deferredEntities` and `deferredRecord` are exported for a game that keeps two layouts this way.
+
 ## Spawn a prefab
 
 `instantiate` loads the prefab and spawns it. It's async and returns the spawned

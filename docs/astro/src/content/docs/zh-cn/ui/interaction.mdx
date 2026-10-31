@@ -40,6 +40,9 @@ const onTiles = defineSystem([Query(Interactable, UIInteraction)], (q) => {
 });
 ```
 
+两个可点节点在同一深度、同一层上重叠时,命中归**画在后面**(更靠上)的那个——由它在层级里的位置决定,而不是创建顺序。
+所以从对象池取出、挂到面板下的节点,不会抢走本该给覆盖它的节点的点按。
+
 只要有任一 UI 节点被命中,`input.isPointerOverUI()` 即为 `true`——这是防止
 点按钮同时触发世界点击的标准防线。
 

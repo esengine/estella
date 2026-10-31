@@ -568,7 +568,11 @@ notifies on phase changes. The full lifecycle model is covered in
 The desktop editor builds its profiling UI on these same surfaces: the
 **Profiler panel** shows a live frame-time graph with per-phase and per-system
 breakdowns (click a frame to inspect it), and the viewport has a small perf
-overlay for an at-a-glance FPS readout. For in-game builds, `statsPlugin` above
+overlay for an at-a-glance FPS readout. Click a column header of the cost tree or the
+systems list to order it by name or by time, and again to reverse it; the choice is
+remembered. Ranking by time moves a row whenever two systems pass each other, which on
+a live window is every few frames, so sort by name when you want to follow one system.
+The systems list names twelve systems. For in-game builds, `statsPlugin` above
 is the equivalent.
 
 ## Best practices

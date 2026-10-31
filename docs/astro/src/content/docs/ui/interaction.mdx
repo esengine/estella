@@ -42,6 +42,10 @@ const onTiles = defineSystem([Query(Interactable, UIInteraction)], (q) => {
 });
 ```
 
+Where two pressable nodes overlap at the same depth and layer, the hit goes to the one **drawn
+later** — decided by its place in the hierarchy, not by creation order. So a node taken from a pool
+and added under a panel does not steal presses meant for what covers it.
+
 While any UI node is hit, `input.isPointerOverUI()` is `true` — the standard
 guard that keeps a button click from also firing a world click.
 

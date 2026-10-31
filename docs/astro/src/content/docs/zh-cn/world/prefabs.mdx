@@ -78,6 +78,22 @@ Prefab Mode 暂不支持:就地编辑**嵌套**预制体,或基不是扁平的�
   toast)。检视器会标出受影响的实例并提供 **Repair**——保存场景即把清理后的状态写入文件。
 </Aside>
 
+### 虚拟实例
+
+一个由很多页面组成的界面,运行中的场景不需要每个页面的实体都在。把预制体实例标记为**虚拟**
+(Details 预制体栏里的开关,或 Outliner 右键菜单),编辑器里仍然完整显示、完整编辑,但运行中的
+场景只创建它的根,其余部分在实例被打开时才构建。用 [`UIPages`](/docs/zh-cn/ui/overview/) 来打开它:
+`registerDeferred(entity)` 把一个虚拟实例注册为页面,页面名取实例根的名字。
+
+![Details 顶部的预制体栏,有编辑、选择、应用、还原和虚拟几个按钮](@/assets/guides/zh/prefab-virtual-toggle.png)
+
+![Outliner 里预制体实例的右键菜单,含「设为虚拟(按需加载)」](@/assets/guides/zh/outliner-prefab-menu.png)
+
+- 增、删或改父级了部件的实例会被变成完整实例,不再是虚拟的。
+- 页面地址里加 `?expand-virtual` 会在启动时把所有虚拟实例变完整,供要求每个节点都在的测试环境使用
+  (标记为同一页面另一种布局的实例除外,因为各布局会并排出现)。
+- `deferredEntities` 和 `deferredRecord` 已导出,给用这种方式保存两套布局的游戏使用。
+
 ## 生成一个预制体
 
 `instantiate` 加载预制体并生成它。它是异步的,并返回生成的树——`root` 是新的根实体:

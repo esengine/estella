@@ -321,13 +321,14 @@ events.on(field, 'change', () => { /* value edited */ });
 events.on(field, 'submit', () => save(world.get(field, TextInput).value));  // Enter
 ```
 
-组件上还有三个字段是工厂不收的——恰是场景里创作的输入框想摆脱"千框一面"所需的:
+组件上还有四个字段是工厂不收的——恰是场景里创作的输入框想摆脱"千框一面"所需的:
 
 | 字段 | 默认 | 说明 |
 |---|---|---|
 | `font` | `0` | **本项目自带**的字体资源(`.ttf` / `.otf`),与 [`Text.font`](/docs/zh-cn/ui/text/#自定义字体) 是同一个槽位。设了它就压过 `fontFamily`——于是画在游戏自有字体面板上的输入框也用那套字,而不是 Arial。 |
 | `textAlign` | `Left` | 值在框内的位置:`Left` / `Center` / `Right`。单行**在放得下时**保持该对齐;放不下之后改为跟随光标横向滚动,与一向左对齐时的行为一致。多行按行对齐。 |
 | `renderMode` | `Auto` | 框内文本的字形管线——与 `Text.renderMode` 对应。 |
+| `inputFilter` | `None` | 框接受哪些字符,键入或粘贴都一样——其余字符直接从值里剔除,所以屏幕上看到的和脚本读到的一致。`TextInputFilter.Digits` 只留 `0-9`;`Decimal` 留 `0-9`、小数点和负号;`Phone` 留 `0-9` 与 `+ * # -`。 |
 
 **已换皮的输入框会保住它的皮。** 输入框画在实体自己的 `UIVisual` 上,而它**只**在
 这个 visual 是**纯色填充**时才去管它——`backgroundColor` 是给没人换皮的框兜底用的。
@@ -343,6 +344,8 @@ const field = spawnUIEntity({
 });
 world.insert(field, TextInput, { placeholder: 'Name', font: gameFont, textAlign: TextAlign.Center });
 ```
+
+输入框不需要 `UINode`:`TextInput` 也能放在带 [`ContentRect`](/docs/zh-cn/ui/overview/#contentrect--世界内容的矩形) 的实体上,于是输入框可以直接立在世界里。
 
 点击(或 Tab 到)输入框即聚焦;**Escape** 失焦,单行框 **Enter** 触发 `submit`。
 超出盒宽的内容**裁剪到盒内并横向滚动**,输入时光标始终可见。

@@ -1,6 +1,6 @@
 ---
 title: 材质与着色器
-description: 自定义材质完整指南——用 #pragma param 反射 uniform 编写 GLSL、Material API,以及把材质应用到渲染器。
+description: "自定义材质完整指南——用 #pragma param 反射 uniform 编写 GLSL、Material API,以及把材质应用到渲染器。"
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -156,6 +156,9 @@ std140 uniform 块,于是 CPU 能按名字设置、并安全地送到 GPU。一�
 | `v_texCoord` | `vec2` | 纹理 UV。 |
 | `v_worldPos` | `highp vec2` | 世界坐标(**仅 Lit 域**)。 |
 
+在带第二套 uv 的**网格**上(`MESH_LIGHTMAP` 变体),顶点阶段还会给片元阶段一个 `v_texCoord1`(`vec2`)——
+原样的第二套 uv,与引擎由它推出的光照图坐标并列。不是烘焙的材质可以用它做遮罩或溶解贴图。
+
 精灵纹理是 `u_textures[0]`(声明 `uniform sampler2D u_textures[8];`——单元 0–7 归批处理;
 纹理*参数*自动绑定在其上方)。
 
@@ -193,6 +196,9 @@ std140 uniform 块,于是 CPU 能按名字设置、并安全地送到 GPU。一�
 | `shadowFactor2D(worldPos, target, softness)` | Lit | 朝向目标点的遮挡系数(`applyLighting2D` 内部使用)。 |
 
 `#pragma switch` 选择编译期烘焙进材质的静态着色器排列(通过 `compileShader` 的 `features` 参数)。
+
+`#if` 和 `#elif` 的条件可以使用 `defined`、`!`、`&&`、`||` 和括号,在着色器的 WGSL 孪生版里与在 GLSL 里按同样方式解析,
+所以用引擎自带顶点阶段的受光材质、或受光的 2D 着色器,在 WebGPU 上与在 WebGL2 上一样能画出来。
 
 ## 用代码创建与应用
 

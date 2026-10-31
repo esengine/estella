@@ -209,6 +209,10 @@ Metal and roughness are written even when they match the engine's own defaults: 
 defaults both factors to 1 (a fully rough metal) and the shader defaults metal to 0, so a
 product that left them out would describe a surface the source did not.
 
+A texture the material names that is not in the project (the file is missing next to the
+model) is left off: the model imports without it and a warning says so, instead of keeping a
+reference that fails to load on every use.
+
 The material also restates the draw's blending, depth and culling, because a material
 replaces them — a model told to occlude itself keeps doing so through its material.
 
