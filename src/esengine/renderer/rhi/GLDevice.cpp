@@ -19,6 +19,7 @@
 #include <emscripten/html5.h>
 #endif
 
+#include <cstdlib>
 #include <cstring>
 
 #ifndef GL_DEPTH_STENCIL
@@ -398,6 +399,20 @@ bool GLDevice::recreateDevice() {
     // handle, and until it does there is nothing to do but wait.
     const EMSCRIPTEN_WEBGL_CONTEXT_HANDLE ctx = emscripten_webgl_get_current_context();
     if (ctx == 0 || emscripten_is_webgl_context_lost(ctx)) return false;
+    // A restored context has no extension enabled, and the probes in init() read what is SUPPORTED: the float targets of an HDR
+    // frame would be judged renderable and every one of them come back incomplete. The hosts register the context with every
+    // extension enabled (enableExtensionsByDefault), so the restored one is given them all again first.
+    if (char* names = emscripten_webgl_get_supported_extensions()) {
+        for (char* name = names; *name;) {
+            char* end = name;
+            while (*end && *end != ' ') ++end;
+            const char next = *end;
+            *end = '\0';
+            if (end != name) emscripten_webgl_enable_extension(ctx, name);
+            name = next ? end + 1 : end;
+        }
+        free(names);
+    }
 #endif
     // Every name belonged to the old context. The registry rebuilds each object
     // behind its id; nothing here survives but the maps' shape.
