@@ -14,6 +14,8 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+## [0.97.0] - 2026-10-31
+
 ### Added
 
 - **Rich text reads the tags other engines write.** `<size=24>…</size>`, a colour by name (`<color=red>`), and `<br/>` now work beside `<color=#RRGGBB>`, `<font size=…>`, `<b>` and `<i>`. `<u>`, `<s>`, `<outline …>` and `<on click=…>` are accepted so text written for another engine shows no raw tags: the words are kept, the underline, outline and click are not drawn. Unknown tags still show as text.
@@ -15027,7 +15029,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.96.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.97.0...HEAD
+[0.97.0]: https://github.com/esengine/estella/compare/v0.96.0...v0.97.0
 [0.96.0]: https://github.com/esengine/estella/compare/v0.95.0...v0.96.0
 [0.95.0]: https://github.com/esengine/estella/compare/v0.94.0...v0.95.0
 [0.94.0]: https://github.com/esengine/estella/compare/v0.93.0...v0.94.0

@@ -936,6 +936,128 @@ export const SHIPPED = {
     { notCertifiable: "A planet-world feature, covered by its unit tests and the render-scene gates; no golden project carries a planet, and one packaged frame cannot decide a result that depends on the device." },
   "Height Fog by height above a planet.":
     { notCertifiable: "A planet-world feature, covered by its unit tests and the render-scene gates; no golden project carries a planet, and one packaged frame cannot decide a result that depends on the device." },
+  "Rich text reads the tags other engines write.":
+    { notCertifiable: "A UI behaviour, covered by its unit tests; no golden project uses it, and a packaged launch frame does not drive it." },
+  "Scroll areas can be pulled past an end and spring back.":
+    { notCertifiable: "A UI behaviour, covered by its unit tests; no golden project uses it, and a packaged launch frame does not drive it." },
+  "More easing curves.":
+    { notCertifiable: "A UI behaviour, covered by its unit tests; no golden project uses it, and a packaged launch frame does not drive it." },
+  "World content has a rectangle: `ContentRect`.":
+    { notCertifiable: "A rendering feature, covered by its unit tests and the render-scene pixel gates where it draws; no golden project places it, and one packaged frame cannot decide a result that depends on the device." },
+  "Edited Cocos documents move to RectAnchors.":
+    { notCertifiable: "Cocos Creator project conversion, covered by the converter's unit tests and the editor suite; no golden project is a converted Cocos project, so no packaged frame can decide it." },
+  "RectAnchors: world content that follows its parent.":
+    { notCertifiable: "Cocos Creator project conversion, covered by the converter's unit tests and the editor suite; no golden project is a converted Cocos project, so no packaged frame can decide it." },
+  "A converted Cocos project fits the screen as the game does.":
+    { notCertifiable: "Cocos Creator project conversion, covered by the converter's unit tests and the editor suite; no golden project is a converted Cocos project, so no packaged frame can decide it." },
+  "A Cocos node layer is its renderers layer.":
+    { notCertifiable: "Cocos Creator project conversion, covered by the converter's unit tests and the editor suite; no golden project is a converted Cocos project, so no packaged frame can decide it." },
+  "A converted Cocos project starts as the game does.":
+    { notCertifiable: "Cocos Creator project conversion, covered by the converter's unit tests and the editor suite; no golden project is a converted Cocos project, so no packaged frame can decide it." },
+  "Cocos layer components survive a replay.":
+    { notCertifiable: "Cocos Creator project conversion, covered by the converter's unit tests and the editor suite; no golden project is a converted Cocos project, so no packaged frame can decide it." },
+  "A material colour is the renderer tint.":
+    { notCertifiable: "A rendering feature, covered by its unit tests and the render-scene pixel gates where it draws; no golden project places it, and one packaged frame cannot decide a result that depends on the device." },
+  "Mesh renderers and materials in the Cocos layer.":
+    { notCertifiable: "Cocos Creator project conversion, covered by the converter's unit tests and the editor suite; no golden project is a converted Cocos project, so no packaged frame can decide it." },
+  "More of `cc`.":
+    { notCertifiable: "Cocos Creator project conversion, covered by the converter's unit tests and the editor suite; no golden project is a converted Cocos project, so no packaged frame can decide it." },
+  "The script bundle is not rebuilt for nothing.":
+    { notCertifiable: "Editor or tooling behaviour rather than a rendered game capability; its own suites check it." },
+  "Two Cocos classes with one name.":
+    { notCertifiable: "Cocos Creator project conversion, covered by the converter's unit tests and the editor suite; no golden project is a converted Cocos project, so no packaged frame can decide it." },
+  "Large projects open faster.":
+    { notCertifiable: "Editor or tooling behaviour rather than a rendered game capability; its own suites check it." },
+  "A model texture the project does not have is left off.":
+    { notCertifiable: "A rendering feature, covered by its unit tests and the render-scene pixel gates where it draws; no golden project places it, and one packaged frame cannot decide a result that depends on the device." },
+  "An unlit mesh variant with tangents links.":
+    { notCertifiable: "A rendering feature, covered by its unit tests and the render-scene pixel gates where it draws; no golden project places it, and one packaged frame cannot decide a result that depends on the device." },
+  "Cocos scripts load one by one.":
+    { notCertifiable: "Cocos Creator project conversion, covered by the converter's unit tests and the editor suite; no golden project is a converted Cocos project, so no packaged frame can decide it." },
+  "A converted Cocos project links its images.":
+    { notCertifiable: "Cocos Creator project conversion, covered by the converter's unit tests and the editor suite; no golden project is a converted Cocos project, so no packaged frame can decide it." },
+  "A Cocos conversion shows its progress.":
+    { notCertifiable: "Cocos Creator project conversion, covered by the converter's unit tests and the editor suite; no golden project is a converted Cocos project, so no packaged frame can decide it." },
+  "Bursts on a schedule.":
+    { notCertifiable: "A rendering feature, covered by its unit tests and the render-scene pixel gates where it draws; no golden project places it, and one packaged frame cannot decide a result that depends on the device." },
+  "A 3D collider can sit off its entity.":
+    { notCertifiable: "A rendering feature, covered by its unit tests and the render-scene pixel gates where it draws; no golden project places it, and one packaged frame cannot decide a result that depends on the device." },
+  "Text can underline, and a box can grow to its text.":
+    { notCertifiable: "A UI behaviour, covered by its unit tests; no golden project uses it, and a packaged launch frame does not drive it." },
+  "An emitter runs on its own clock.":
+    { notCertifiable: "A rendering feature, covered by its unit tests and the render-scene pixel gates where it draws; no golden project places it, and one packaged frame cannot decide a result that depends on the device." },
+  "An animator state can play at the speed of a parameter.":
+    { notCertifiable: "A runtime feature, covered by its unit tests; no golden project uses it, and one packaged launch frame cannot decide it." },
+  "Particles can carry an added velocity and be held to a speed limit.":
+    { notCertifiable: "A rendering feature, covered by its unit tests and the render-scene pixel gates where it draws; no golden project places it, and one packaged frame cannot decide a result that depends on the device." },
+  "An emitter can start late.":
+    { notCertifiable: "A rendering feature, covered by its unit tests and the render-scene pixel gates where it draws; no golden project places it, and one packaged frame cannot decide a result that depends on the device." },
+  "Particles can be stretched along their velocity.":
+    { notCertifiable: "A rendering feature, covered by its unit tests and the render-scene pixel gates where it draws; no golden project places it, and one packaged frame cannot decide a result that depends on the device." },
+  "Fade a whole group of world content with one value: `GroupOpacity`.":
+    { notCertifiable: "A rendering feature, covered by its unit tests and the render-scene pixel gates where it draws; no golden project places it, and one packaged frame cannot decide a result that depends on the device." },
+  "Open a Cocos Creator project from the editor.":
+    { notCertifiable: "Editor or tooling behaviour rather than a rendered game capability; its own suites check it." },
+  "Re-import a Cocos project without losing your edits.":
+    { notCertifiable: "Editor or tooling behaviour rather than a rendered game capability; its own suites check it." },
+  "A held pointer reports where it goes, and a hold can be given up.":
+    { notCertifiable: "A UI behaviour, covered by its unit tests; no golden project uses it, and a packaged launch frame does not drive it." },
+  "The engine's runtime tuning is a project setting.":
+    { notCertifiable: "Editor or tooling behaviour rather than a rendered game capability; its own suites check it." },
+  "Rows for the choices that could only be written into the project file.":
+    { notCertifiable: "Editor or tooling behaviour rather than a rendered game capability; its own suites check it." },
+  "Rain for a 2D scene.":
+    { notCertifiable: "A rendering feature, covered by its unit tests and the render-scene pixel gates where it draws; no golden project places it, and one packaged frame cannot decide a result that depends on the device." },
+  "Mist, wind in the grass, and roofs that fade over the player.":
+    { notCertifiable: "A rendering feature, covered by its unit tests and the render-scene pixel gates where it draws; no golden project places it, and one packaged frame cannot decide a result that depends on the device." },
+  "Footprints and ripples.":
+    { notCertifiable: "A rendering feature, covered by its unit tests and the render-scene pixel gates where it draws; no golden project places it, and one packaged frame cannot decide a result that depends on the device." },
+  "A 2D light can keep to a range of sprite layers.":
+    { notCertifiable: "A rendering feature, covered by its unit tests and the render-scene pixel gates where it draws; no golden project places it, and one packaged frame cannot decide a result that depends on the device." },
+  "More 2D lights cast shadows at once.":
+    { notCertifiable: "A rendering feature, covered by its unit tests and the render-scene pixel gates where it draws; no golden project places it, and one packaged frame cannot decide a result that depends on the device." },
+  "A soft 2D shadow's smoothness is a quality setting.":
+    { notCertifiable: "A rendering feature, covered by its unit tests and the render-scene pixel gates where it draws; no golden project places it, and one packaged frame cannot decide a result that depends on the device." },
+  "What the player can see, and what they have seen.":
+    { notCertifiable: "A runtime feature, covered by its unit tests; no golden project uses it, and one packaged launch frame cannot decide it." },
+  "A palette effect.":
+    { notCertifiable: "A rendering feature, covered by its unit tests and the render-scene pixel gates where it draws; no golden project places it, and one packaged frame cannot decide a result that depends on the device." },
+  "A 2D world streams on x and y.":
+    { notCertifiable: "A runtime feature, covered by its unit tests; no golden project uses it, and one packaged launch frame cannot decide it." },
+  "A generated 2D world.":
+    { notCertifiable: "A runtime feature, covered by its unit tests; no golden project uses it, and one packaged launch frame cannot decide it." },
+  "Grid placement, and what stands nearest.":
+    { notCertifiable: "A runtime feature, covered by its unit tests; no golden project uses it, and one packaged launch frame cannot decide it." },
+  "Save power when the battery is low or the device is hot.":
+    { notCertifiable: "A runtime feature, covered by its unit tests; no golden project uses it, and one packaged launch frame cannot decide it." },
+  "Bitmap fonts.":
+    { notCertifiable: "A UI behaviour, covered by its unit tests; no golden project uses it, and a packaged launch frame does not drive it." },
+  "Text can shrink to fit its box.":
+    { notCertifiable: "A UI behaviour, covered by its unit tests; no golden project uses it, and a packaged launch frame does not drive it." },
+  "A layer can be painted in hierarchy order.":
+    { notCertifiable: "A rendering feature, covered by its unit tests and the render-scene pixel gates where it draws; no golden project places it, and one packaged frame cannot decide a result that depends on the device." },
+  "A text field can stand in the world.":
+    { notCertifiable: "A UI behaviour, covered by its unit tests; no golden project uses it, and a packaged launch frame does not drive it." },
+  "UI pages that exist only while they are wanted: `UIPages`.":
+    { notCertifiable: "A UI behaviour, covered by its unit tests; no golden project uses it, and a packaged launch frame does not drive it." },
+  "Virtual prefab instances.":
+    { notCertifiable: "A runtime feature, covered by its unit tests; no golden project uses it, and one packaged launch frame cannot decide it." },
+  "The loading screens say how far they are.":
+    { notCertifiable: "A UI behaviour, covered by its unit tests; no golden project uses it, and a packaged launch frame does not drive it." },
+  "A material can read a mesh's second uv set.":
+    { notCertifiable: "A rendering feature, covered by its unit tests and the render-scene pixel gates where it draws; no golden project places it, and one packaged frame cannot decide a result that depends on the device." },
+  "Cocos scripts drive scenes as the game does.":
+    { notCertifiable: "Cocos Creator project conversion, covered by the converter's unit tests and the editor suite; no golden project is a converted Cocos project, so no packaged frame can decide it." },
+  "Cocos scripts load assets by path.":
+    { notCertifiable: "Cocos Creator project conversion, covered by the converter's unit tests and the editor suite; no golden project is a converted Cocos project, so no packaged frame can decide it." },
+  "A converted project's scripts are components the editor knows.":
+    { notCertifiable: "Cocos Creator project conversion, covered by the converter's unit tests and the editor suite; no golden project is a converted Cocos project, so no packaged frame can decide it." },
+  "A Cocos project's own effects are converted.":
+    { notCertifiable: "Cocos Creator project conversion, covered by the converter's unit tests and the editor suite; no golden project is a converted Cocos project, so no packaged frame can decide it." },
+  "Converted Cocos UI looks as it does in Cocos.":
+    { notCertifiable: "Cocos Creator project conversion, covered by the converter's unit tests and the editor suite; no golden project is a converted Cocos project, so no packaged frame can decide it." },
+  "A converted Cocos project is brought up to date when it is opened.":
+    { notCertifiable: "Cocos Creator project conversion, covered by the converter's unit tests and the editor suite; no golden project is a converted Cocos project, so no packaged frame can decide it." },
 };
 
 /** Numeric compare of two `x.y.z` strings. */
