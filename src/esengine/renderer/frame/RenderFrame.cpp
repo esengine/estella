@@ -421,6 +421,13 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
 
 void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::Handle target,
                         const PassClear& clear) {
+    // Emptied before the device is asked, so a refused frame starts empty too: the host still submits text and skinned batches into
+    // it, and while a lost device waits for its content no end() ever ran to empty them, so the staging grew every frame until an
+    // allocation of gigabytes failed.
+    pool_.beginFrame();
+    draw_list_.clear();
+    clip_state_.clear();
+
     // A lost device makes the whole frame meaningless, so it is refused here
     // rather than discovered by each pass and readback failing separately.
     // in_frame_ stays false, which makes end() a no-op too: no half-frame.
@@ -438,10 +445,6 @@ void RenderFrame::begin(const glm::mat4& view_projection, RenderTargetManager::H
     current_stage_ = RenderStage::Transparent;
     in_frame_ = true;
     frame_capture_.beginPass(CapturePass::Scene);
-
-    pool_.beginFrame();
-    draw_list_.clear();
-    clip_state_.clear();
 
     openPass(clear, target);
 

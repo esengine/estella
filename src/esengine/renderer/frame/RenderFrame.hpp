@@ -511,6 +511,10 @@ public:
      *         entity of it need exist. */
     RenderPrewarmResult prewarmDocument(const MeshDocumentRecord* rows, u32 count);
     void collectAll(ecs::Registry& registry, bool sceneGBuffer = true);
+    /** @brief Whether begin() opened a frame; false when it refused one for a lost device. */
+    bool inFrame() const { return in_frame_; }
+    /** @brief The vertex bytes staged for @p layout since the last begin(). */
+    u32 stagedVertexBytes(LayoutId layout) const { return pool_.vertexBytesUsed(layout); }
 
     /**
      * @brief Whether the camera being rendered right now would draw something of

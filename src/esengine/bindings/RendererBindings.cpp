@@ -851,7 +851,8 @@ void renderer_endScreenOverlay(u32 targetHandle) {
 }
 
 void renderer_submitAll(ecs::Registry& registry, i32 vpX, i32 vpY, i32 vpW, i32 vpH) {
-    if (!g_renderFrame) return;
+    // A frame refused for a lost device draws nothing, so nothing is collected for it.
+    if (!g_renderFrame || !g_renderFrame->inFrame()) return;
     ensureTransformsUpdated(registry);
     // What this camera must NOT draw. Set on every collect rather than once a
     // frame: the set is rebuilt by each layout pass, and a camera holding the
