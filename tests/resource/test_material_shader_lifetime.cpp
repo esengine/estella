@@ -3,6 +3,9 @@
 #include "../renderer/MockGfxDevice.hpp"
 #include "esengine/resource/ResourceManager.hpp"
 #include "esengine/renderer/store/MaterialStore.hpp"
+#include "esengine/renderer/rhi/Shader.hpp"
+#include "esengine/resource/ShaderParser.hpp"
+#include "esengine/core/Log.hpp"
 #include <cstdio>
 using namespace esengine;
 static int failures = 0;
@@ -80,6 +83,28 @@ int main() {
         rm.releaseShader(shader);
         CHECK(rm.getStats().shaderCount == 0, "retirement after store destruction invokes no dead observer");
         rm.shutdown();
+    }
+    {
+        // A variant that does not read one of the material's textures (a depth program) has it optimized out: seeding skips it, and says nothing.
+        MockGfxDevice device; resource::ResourceManager rm; rm.init(device);
+        device.absentUniforms = {"u_detail"};
+        auto handle = rm.createShader("vertex", "fragment", false);
+        Shader* shader = rm.getShader(handle);
+        const resource::ParsedShader parsed = resource::ShaderParser::parse(
+            "#pragma shader \"Seeds\"\n#pragma version 300 es\n#pragma domain Unlit\n"
+            "#pragma param u_base texture default(white)\n#pragma param u_detail texture default(white)\n"
+            "#pragma fragment\nprecision mediump float;\nout vec4 fragColor;\nvoid main() { fragColor = vec4(1.0); }\n#pragma end\n");
+        int notFound = 0;
+        const u32 sink = Log::addSink([&](const LogEntry& entry) {
+            if (entry.level == LogLevel::Warn && entry.message.find("not found") != std::string::npos) ++notFound;
+        });
+        const int before = device.setUniform1iCalls;
+        CHECK(parsed.valid && shader != nullptr, "a shader with two texture params");
+        if (shader) MaterialStore::seedSamplers(*shader, parsed);
+        Log::removeSink(sink);
+        CHECK(device.setUniform1iCalls == before + 1, "the texture the program reads is seeded");
+        CHECK(notFound == 0, "the one it optimized out is skipped without a warning");
+        rm.releaseShader(handle); rm.shutdown();
     }
     std::printf("Material shader lifetime: %d failures\n", failures);
     return failures ? 1 : 0;

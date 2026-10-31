@@ -10,6 +10,7 @@
 
 #include <cstring>
 #include <array>
+#include <string>
 #include <vector>
 
 namespace esengine {
@@ -51,6 +52,8 @@ struct MockGfxDevice final : GfxDevice {
     void backendDeleteCompute(u32) override { ++deleteComputeCalls; }
     bool backendDispatchCompute(u32, const GfxComputeBinding*, u32, u32, u32, u32) override { ++dispatchComputeCalls; return true; }
     int deleteProgramCalls = 0;
+    /** Uniforms a compiler would have optimized out: no location. */
+    std::vector<std::string> absentUniforms;
     int setUniform1iCalls = 0;
     int setUniform1fCalls = 0;
     int setUniform4fCalls = 0;
@@ -288,7 +291,10 @@ protected:
     }
     void backendDeleteProgram(u32) override { ++deleteProgramCalls; }
     void backendUseProgram(u32 id) override { ++useProgramCalls; lastProgram = ShaderHandle{id}; }
-    i32 backendUniformLocation(u32, const char*) override { return 0; }
+    i32 backendUniformLocation(u32, const char* name) override {
+        for (const auto& absent : absentUniforms) if (absent == name) return -1;
+        return 0;
+    }
     i32 backendAttribLocation(u32, const char*) override { return 0; }
     void backendSetUniform(i32 location, const GfxUniformValue& value) override {
         switch (value.type) {

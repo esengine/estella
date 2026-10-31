@@ -373,10 +373,13 @@ void MaterialStore::seedSamplers(Shader& shader, const resource::ParsedShader& p
             seeds.emplace_back(p.name, static_cast<i32>(p.textureUnit));
         }
     }
-    // After the program links, which for one made with deferLink is when something first needs it.
+    // After the program links, which for one made with deferLink is when something first needs it. Every variant gets the material's
+    // whole list, and one that does not read a texture (a depth program, most of all) has had it optimized out: that is not a typo.
     shader.whenLinked([seeds = std::move(seeds)](Shader& s) {
         s.bind();
-        for (const auto& [name, unit] : seeds) s.setUniform(name, unit);
+        for (const auto& [name, unit] : seeds) {
+            if (s.hasUniform(name)) s.setUniform(name, unit);
+        }
         s.unbind();
     });
 }

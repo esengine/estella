@@ -3428,4 +3428,6 @@ export const NOTED = {
     {"note":"The loading screens say how far they are."},
   "fix(render): a fragment-only material's vertex stage declares its position invariant, so its colour lands on its prepass depth on Metal":
     {"note":"The ground has no dark patches on a Mac."},
+  "fix(render): seeding a material's samplers skips the ones a program optimized out, instead of warning of a typo for each":
+    {"note":"No \"uniform not found\" warnings for a texture a program does not read."},
 };
