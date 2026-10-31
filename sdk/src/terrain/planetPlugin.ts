@@ -22,9 +22,8 @@ import { Assets } from '../asset/AssetPlugin';
 import type { MaterialShaderSource } from '../asset/loaders/MaterialShaderAssetLoader';
 import { CullMode, Material, MATERIAL_FORMAT_VERSION } from '../render/material';
 import { BlendMode } from '../render/blend';
-import { createTextureFromPixels, updateTextureSubregion } from '../runtime/runtimeAssets';
-import { getResourceManager, provideTextureContent, withdrawTextureContent } from '../wasm/resourceManager';
-import { TextureContent } from '../wasm';
+import { updateTextureSubregion } from '../runtime/runtimeAssets';
+import { getResourceManager, withdrawTextureContent } from '../wasm/resourceManager';
 import { EditorView, editorViewEye } from '../camera/EditorView';
 import { log } from '../util/logger';
 import { renderOrigin } from '../render/renderOrigin';
@@ -33,6 +32,7 @@ import type { Color, Entity } from '../types';
 import { PageTable, PAGE_SIDE, PAGE_TEXELS, PATCH_CELLS, type PageImage } from './pages';
 import { buildPatchMesh } from './patch';
 import { loadLayerArrays, releaseLayerArrays } from './layerArrays';
+import { createPageAtlases } from './atlases';
 import { PlanetRegistry, PlanetRegistryRes } from './planetQuery';
 import { buildSphereMesh } from './planetSea';
 import { removePlanetCollision, updatePlanetCollision } from './planetCollision';
@@ -293,12 +293,7 @@ export class PlanetPlugin implements Plugin {
             if (built.epoch !== epoch) return;
             const assets = app.getResource(Assets);
             built.mesh = assets.createMesh(buildPatchMesh(PATCH_CELLS, true));
-            const blank = new Uint8Array(ATLAS_SIZE * ATLAS_SIZE * 4);
-            const params = { filterMode: 'linear', wrapMode: 'clamp', srgb: false } as const;
-            built.heights = createTextureFromPixels(app.wasmModule, { width: ATLAS_SIZE, height: ATLAS_SIZE, pixels: blank }, TextureContent.Transient, false, params);
-            built.paint = createTextureFromPixels(app.wasmModule, { width: ATLAS_SIZE, height: ATLAS_SIZE, pixels: blank }, TextureContent.Transient, false, params);
-            // A device that lost the atlases has lost every page in them: they are made again as they are wanted.
-            for (const handle of [built.heights, built.paint]) provideTextureContent(handle, () => { built.table.clear(); return true; });
+            [built.heights = 0, built.paint = 0] = createPageAtlases(app, 2, ATLAS_SIZE, () => built.table.clear());
             built.instance = Material.createInstance(material);
             if (!built.mesh || !built.heights || !built.paint || !built.instance) {
                 built.failure = 'the engine refused the planet\'s mesh, atlases or material';

@@ -29,8 +29,8 @@ import { decodeImagePixels } from '../asset/imageDecode';
 import { decodePngData } from '../asset/pngData';
 import { Material, MATERIAL_FORMAT_VERSION } from '../render/material';
 import { BlendMode } from '../render/blend';
-import { createTextureArrayFromPixels, createTextureFromPixels, updateTextureSubregion } from '../runtime/runtimeAssets';
-import { getResourceManager, provideTextureContent, withdrawTextureContent } from '../wasm/resourceManager';
+import { createTextureArrayFromPixels, updateTextureSubregion } from '../runtime/runtimeAssets';
+import { getResourceManager, withdrawTextureContent } from '../wasm/resourceManager';
 import { TextureContent } from '../wasm';
 import { EditorView, editorViewEye } from '../camera/EditorView';
 import { log } from '../util/logger';
@@ -52,6 +52,7 @@ import { collisionGeometryOf } from '../runtime/collisionGeometry';
 import { chunksOf, ProceduralChunksRes } from '../residency/chunks';
 import { movers } from './movers';
 import { createLayerArrays, imagePixelsAt, readAndPackLayers, releaseLayerArrays } from './layerArrays';
+import { createPageAtlases } from './atlases';
 
 /** The engine's own provider of ground without end: seeded noise of the world's position. */
 export const NOISE_PROVIDER = 'estella:noise';
@@ -769,15 +770,7 @@ export class TerrainPlugin implements Plugin {
             if (built.epoch !== epoch) return;
             const assets = app.getResource(Assets);
             built.mesh = assets.createMesh(buildPatchMesh(PATCH_CELLS));
-            const blank = new Uint8Array(ATLAS_SIZE * ATLAS_SIZE * 4);
-            const params = { filterMode: 'linear', wrapMode: 'clamp', srgb: false } as const;
-            built.heights = createTextureFromPixels(app.wasmModule, { width: ATLAS_SIZE, height: ATLAS_SIZE, pixels: blank }, TextureContent.Transient, false, params);
-            built.paint = createTextureFromPixels(app.wasmModule, { width: ATLAS_SIZE, height: ATLAS_SIZE, pixels: blank }, TextureContent.Transient, false, params);
-            if (layered) built.paint2 = createTextureFromPixels(app.wasmModule, { width: ATLAS_SIZE, height: ATLAS_SIZE, pixels: blank }, TextureContent.Transient, false, params);
-            // A device that lost the atlases has lost every page in them: they are made again as they are wanted.
-            for (const handle of [built.heights, built.paint, built.paint2].filter(Boolean)) {
-                provideTextureContent(handle, () => { built.table.clear(); return true; });
-            }
+            [built.heights = 0, built.paint = 0, built.paint2 = 0] = createPageAtlases(app, layered ? 3 : 2, ATLAS_SIZE, () => built.table.clear());
             built.instance = Material.createInstance(material);
             if (!built.mesh || !built.heights || !built.paint || !built.instance) {
                 log.warn('terrain', 'the engine refused the terrain\'s mesh, atlases or material');

@@ -3436,4 +3436,10 @@ export const NOTED = {
     {"internal":"the build command's debug switch; no engine change"},
   "fix(editor): the content browser grid reads a scroller the dock has not attached yet as having no padding, not a NaN width":
     {"note":"No \"NaN is an invalid value for height\" error when a project opens."},
+  "fix(render): a frame refused for a lost device starts empty and collects nothing, so its staging no longer grows until an allocation stops the module":
+    {"note":"A web game comes back after the GPU goes away."},
+  "fix(render): a restored WebGL context is given its extensions again before the device probes what it can do":
+    {"note":"A web game comes back after the GPU goes away."},
+  "fix(terrain): the page atlases are owed after a device loss, so their refill runs and the ground comes back":
+    {"note":"A web game comes back after the GPU goes away."},
 };
