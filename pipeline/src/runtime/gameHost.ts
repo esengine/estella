@@ -21,7 +21,7 @@ import {
   AnimatorRootMotion, Playthrough, Name,
   worldResidencyReport, PostProcess, Renderer, Audio, Camera,
   getComponentRegistry, BakesRes,
-  startDebugChannel, glContextAttributes, warmShaders,
+  startDebugChannel, glContextAttributes, warmShaders, getResourceStats,
 } from 'esengine';
 import { installDevicePreview } from './devicePreviewClient';
 declare const __ESTELLA_LAN_PREVIEW__: boolean;
@@ -788,6 +788,8 @@ async function boot(): Promise<void> {
           generation: m.renderer_deviceGeneration?.() ?? -1,
           programEpoch: m.renderer_programEpoch?.() ?? -1,
           lost: gl ? gl.isContextLost() : false,
+          // The CPU copies the device keeps to restore content after a loss.
+          retainedBytes: getResourceStats()?.retainedBytes ?? -1,
         };
       },
       loseDevice(): boolean {

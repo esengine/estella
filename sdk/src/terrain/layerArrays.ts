@@ -11,10 +11,10 @@ import { decodeImagePixels } from '../asset/imageDecode';
 import { decodePngData } from '../asset/pngData';
 import { isMiniGame } from '../platform';
 import { createTextureArrayFromPixels } from '../runtime/runtimeAssets';
-import { getResourceManager } from '../wasm/resourceManager';
+import { getResourceManager, provideTextureContent, withdrawTextureContent } from '../wasm/resourceManager';
 import { TextureContent } from '../wasm';
 import { log } from '../util/logger';
-import { packLayers, type LayerImage, type LayerSource, type TerrainLayerDef } from './layers';
+import { packLayers, type LayerImage, type LayerSource, type PackedLayers, type TerrainLayerDef } from './layers';
 
 /** An image file's pixels exactly as stored (no premultiply, no colour conversion), by its project path or reference. */
 export async function imagePixelsAt(app: App, path: string): Promise<{ width: number; height: number; pixels: Uint8Array; wide?: Uint16Array } | null> {
@@ -41,8 +41,8 @@ export interface LayerArrays {
     tiles: number[];
 }
 
-/** Reads the layer files `refs` and packs them; null if the engine refuses the arrays. At most `most` layers are packed. */
-export async function loadLayerArrays(app: App, refs: readonly string[], most: number): Promise<LayerArrays | null> {
+/** Reads the layer files `refs` (at most `most`) and packs them, at half the size on a minigame, whose memory is smaller. */
+export async function readAndPackLayers(app: App, refs: readonly string[], most: number): Promise<PackedLayers> {
     const assets = app.getResource(Assets);
     if (refs.length > most) log.warn('terrain', `a ground draws ${most} layers at most; it names ${refs.length}`);
     const sources: LayerSource[] = [];
@@ -56,20 +56,56 @@ export async function loadLayerArrays(app: App, refs: readonly string[], most: n
         };
         sources.push({ def, albedo: await image(def.albedo), normal: await image(def.normal), mask: await image(def.mask) });
     }
-    // A minigame's memory holds the layers at half the size.
-    const packed = packLayers(sources, isMiniGame() ? 512 : 1024);
-    const made = (layers: Uint8Array[], srgb: boolean): number => createTextureArrayFromPixels(app.wasmModule,
-        { width: packed.size, height: packed.size, layers }, TextureContent.Retained, { filterMode: 'linear', wrapMode: 'repeat', mipmaps: true, srgb });
-    const albedo = made(packed.albedo, true), normal = made(packed.normal, false);
-    if (!albedo || !normal) {
-        releaseLayerArrays([albedo, normal]);
-        return null;
-    }
-    return { albedo, normal, tiles: packed.tiles };
+    return packLayers(sources, isMiniGame() ? 512 : 1024);
 }
 
-/** Gives the engine back arrays made by {@link loadLayerArrays}. */
+type LayerKind = 'albedo' | 'normal' | 'mask';
+
+/**
+ * One texture array per kind from `packed`. The device keeps no copy of them (four layers of three kinds are 48 MiB): after a device loss
+ * `repack` packs the sources again, once for all the kinds, and each kind's layers are moved behind the handle it had, which is when the
+ * device counts them restored. Null, with nothing left made, if the engine refuses one.
+ */
+export function createLayerArrays(app: App, packed: PackedLayers, kinds: readonly LayerKind[],
+                                  repack: () => Promise<PackedLayers>): number[] | null {
+    const make = (layers: Uint8Array[], kind: LayerKind, content: TextureContent): number => createTextureArrayFromPixels(app.wasmModule,
+        { width: packed.size, height: packed.size, layers }, content, { filterMode: 'linear', wrapMode: 'repeat', mipmaps: true, srgb: kind === 'albedo' });
+    const handles = kinds.map((kind) => make(packed[kind], kind, TextureContent.Composed));
+    if (handles.some((h) => !h)) {
+        releaseLayerArrays(handles);
+        return null;
+    }
+    let again: Promise<PackedLayers> | null = null;
+    let waiting = 0;
+    handles.forEach((handle, i) => provideTextureContent(handle, async () => {
+        if (!again) { again = repack(); waiting = handles.length; }
+        try {
+            const fresh = make((await again)[kinds[i]!], kinds[i]!, TextureContent.Transient);
+            const rm = getResourceManager();
+            if (!fresh || !rm?.adoptTextureContent) return false;
+            const moved = rm.adoptTextureContent(handle, fresh);
+            rm.releaseTexture(fresh);
+            return moved;
+        } finally {
+            if (--waiting === 0) again = null;
+        }
+    }));
+    return handles;
+}
+
+/** Reads the layer files `refs` and packs them; null if the engine refuses the arrays. At most `most` layers are packed. */
+export async function loadLayerArrays(app: App, refs: readonly string[], most: number): Promise<LayerArrays | null> {
+    const packed = await readAndPackLayers(app, refs, most);
+    const made = createLayerArrays(app, packed, ['albedo', 'normal'], () => readAndPackLayers(app, refs, most));
+    return made ? { albedo: made[0]!, normal: made[1]!, tiles: packed.tiles } : null;
+}
+
+/** Gives the engine back arrays made by {@link createLayerArrays}. */
 export function releaseLayerArrays(handles: readonly number[]): void {
     const rm = getResourceManager();
-    for (const handle of handles) if (handle) rm?.releaseTexture(handle);
+    for (const handle of handles) {
+        if (!handle) continue;
+        withdrawTextureContent(handle);
+        rm?.releaseTexture(handle);
+    }
 }

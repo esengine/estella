@@ -3430,4 +3430,8 @@ export const NOTED = {
     {"note":"The ground has no dark patches on a Mac."},
   "fix(render): seeding a material's samplers skips the ones a program optimized out, instead of warning of a typo for each":
     {"note":"No \"uniform not found\" warnings for a texture a program does not read."},
+  "fix(terrain): the layer arrays are composed again after a device loss instead of kept as a CPU copy":
+    {"note":"A terrain with texture layers no longer keeps a second copy of them in memory."},
+  "fix(build-tools): --debug builds a debug engine; --release, always on, overrode it":
+    {"internal":"the build command's debug switch; no engine change"},
 };

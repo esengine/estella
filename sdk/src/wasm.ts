@@ -66,6 +66,8 @@ export const TextureContent = {
     GlyphPage: 6,
     /** A skeleton's atlas page, decoded again from its image. */
     AtlasPage: 7,
+    /** Composed again by its creator from its sources (a terrain's layer arrays). */
+    Composed: 8,
 } as const;
 export type TextureContent = typeof TextureContent[keyof typeof TextureContent];
 

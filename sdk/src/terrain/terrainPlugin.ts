@@ -46,14 +46,12 @@ import { levelRange, nodeKey, parentOf, selectNodes, type QuadtreeParams, type T
 import { makePage, PageTable, PAGE_SIDE, PAGE_TEXELS, PATCH_CELLS, type PageImage, type Repaint } from './pages';
 import { noiseProvider, ProviderSource, terrainProvider, terrainProvidersRevision, TerrainUnavailable, type TerrainProvider } from './provider';
 import { buildPatchMesh } from './patch';
-import { isMiniGame } from '../platform';
-import { packLayers, type LayerImage, type LayerSource, type TerrainLayerDef } from './layers';
 import { TerrainSurface, TILE_CELLS, type SurfaceTile } from './surface';
 import { groundHeightAt, groundNormalAt, groundPaintAt, type GroundData } from './groundQuery';
 import { collisionGeometryOf } from '../runtime/collisionGeometry';
 import { chunksOf, ProceduralChunksRes } from '../residency/chunks';
 import { movers } from './movers';
-import { imagePixelsAt } from './layerArrays';
+import { createLayerArrays, imagePixelsAt, readAndPackLayers, releaseLayerArrays } from './layerArrays';
 
 /** The engine's own provider of ground without end: seeded noise of the world's position. */
 export const NOISE_PROVIDER = 'estella:noise';
@@ -732,31 +730,14 @@ export class TerrainPlugin implements Plugin {
         }
         void (async () => {
             try {
-                if (refs.length > MAX_LAYERS) log.warn('terrain', `a terrain draws ${MAX_LAYERS} layers at most; it names ${refs.length}`);
-                const sources: LayerSource[] = [];
-                for (const ref of refs.slice(0, MAX_LAYERS)) {
-                    const def = await assets.load<TerrainLayerDef>('terrain-layer', ref);
-                    const image = async (path: string | undefined): Promise<LayerImage | null> => {
-                        if (!path) return null;
-                        const got = await this.pixelsAt(app, path);
-                        if (!got) log.warn('terrain', `the texture ${path} of terrain layer ${ref} could not be read`);
-                        return got;
-                    };
-                    sources.push({ def, albedo: await image(def.albedo), normal: await image(def.normal), mask: await image(def.mask) });
-                }
+                const packed = await readAndPackLayers(app, refs, MAX_LAYERS);
                 if (built.epoch !== epoch || !built.instance) return;
-                // A minigame's memory holds the layers at half the size.
-                const packed = packLayers(sources, isMiniGame() ? 512 : 1024);
-                const made = (layers: Uint8Array[], srgb: boolean): number => createTextureArrayFromPixels(app.wasmModule,
-                    { width: packed.size, height: packed.size, layers }, TextureContent.Retained,
-                    { filterMode: 'linear', wrapMode: 'repeat', mipmaps: true, srgb });
-                const arrays = [made(packed.albedo, true), made(packed.normal, false), made(packed.mask, false)];
-                if (arrays.some((h) => !h)) {
+                const arrays = createLayerArrays(app, packed, ['albedo', 'normal', 'mask'], () => readAndPackLayers(app, refs, MAX_LAYERS));
+                if (!arrays) {
                     log.warn('terrain', 'the engine refused the terrain layers\' texture arrays');
-                    this.releaseArrays(arrays);
                     return;
                 }
-                this.releaseArrays(built.arrays);
+                releaseLayerArrays(built.arrays);
                 built.arrays = arrays;
                 const set = (name: string, value: Parameters<typeof Material.setUniform>[2]): void => { Material.setUniform(built.instance, name, value); };
                 set('u_albedoLayers', Material.tex(arrays[0]!));
@@ -776,11 +757,6 @@ export class TerrainPlugin implements Plugin {
                 built.packing = false;
             }
         })();
-    }
-
-    private releaseArrays(arrays: readonly number[]): void {
-        const rm = getResourceManager();
-        for (const handle of arrays) if (handle) rm?.releaseTexture(handle);
     }
 
     /** Makes what the ground is drawn with: the patch, the atlases and an instance of its material. */
@@ -1055,7 +1031,7 @@ export class TerrainPlugin implements Plugin {
             rm?.releaseTexture(handle);
         }
         built.heights = built.paint = built.paint2 = 0;
-        this.releaseArrays(built.arrays);
+        releaseLayerArrays(built.arrays);
         built.arrays = [];
         built.packed = '';
         if (built.instance) Material.release(built.instance);

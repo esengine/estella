@@ -56,6 +56,7 @@ enum class ResourceContent : u32 {
     Mesh = 5,       ///< Geometry the asset layer replays (MeshRecovery::SourceReplayable).
     GlyphPage = 6,  ///< Repainted from the glyphs placed on it.
     AtlasPage = 7,  ///< A skeleton's atlas page, decoded again from its image.
+    Composed = 8,   ///< Composed again by its creator from its sources (a terrain's layer arrays).
 };
 
 /** @brief The device's policy for a content code; unknown codes are Asset, the one that asks. */
