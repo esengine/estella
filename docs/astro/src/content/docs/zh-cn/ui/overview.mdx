@@ -241,8 +241,8 @@ world.set(dialog, UINode, { ...node, opacity: 0.3, pointerEvents: UIPointerEvent
 | `horizontal` / `vertical` | `false` / `true` | 哪些轴可滚。 |
 | `movement` | `Clamped` | `Elastic` 会在两端过冲再弹回。 |
 | `wheelSpeed` | `1` | 滚轮增量的倍率。 |
-| `dragScroll` | `true` | 拖拽/触摸抓取,带惯性甩动。 |
-| `decelerationRate` | `0.135` | 甩动速度每秒保留的比例;`0` 表示松手即停。 |
+| `dragScroll` | `true` | 拖拽/触摸抓取;松手后的惯性甩动只在 `Elastic` 下生效。 |
+| `decelerationRate` | `0.135` | `Elastic` 下甩动速度每秒保留的比例;`0` 表示松手即停。`Clamped` 下该组件松手即停。 |
 
 ```ts
 // 一个在固定盒子里纵向滚动的列表。

@@ -82,6 +82,7 @@ world.insert(rock, LODGroup, {
   一律到不了(引擎会告警)。
 - **尺寸必须递减。** `lod2Size` 小于 `lod1Size`,依此类推。
 - **`cullSize: 0`** 完全关掉剔除,于是这一组永远不会消失。
+- **各级可以在导入时生成。** 在模型的导入设置里把 **Generate LODs** 设为 1–3 级(或给 `import-model` 传 `--lods <n>`):每个网格会被塌缩成约 50%、20%、7% 三角形的副本,写成 `<mesh>_lod<n>.esmesh`,并在实体上加一个 `LODGroup`。蒙皮和变形网格,以及三角形少于 **LOD Minimum Triangles**(256)的网格,只保留一级。
 - **蒙皮的一组必须共用一副骨架。** 蒙皮网格的每一级都要有相同的关节数;对不上的那一级会
   画成绑定姿势,引擎会说出来。
 
@@ -103,4 +104,7 @@ world.insert(rock, LODGroup, {
 
 `LODGroup` 讲的是**同一个物体在不同尺寸下**的事。它不是流式加载:每一级的网格都常驻,
 不会加载也不会卸载;小到 `cullSize` 以下的物体只是不画,并没有从世界里移走。
-把远处的物体合并成一个代理(HLOD),以及把世界分块加载,都是另外的题目。
+把远处的物体合并成一个代理(HLOD),以及把世界分块加载,都是另外的题目;引擎里没有把任意场景物体烘成代理的通用 HLOD。
+现有的是针对具体内容的:植物的远景版本(`Foliage`、`PlacedFoliage`,见[植被](/docs/zh-cn/graphics/foliage/))、
+地形自己按距离切分的四叉树([地形](/docs/zh-cn/graphics/terrain/)),以及[静态合批](/docs/zh-cn/performance/static-batching/)
+(把不同网格合并以省绘制调用,但不会让它们在远处变便宜)。

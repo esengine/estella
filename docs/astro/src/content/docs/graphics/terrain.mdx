@@ -299,6 +299,6 @@ Set `sea` and the planet has a sea: a translucent, lit sphere at `seaLevel` abov
 - **No holes, caves or overhangs.** A heightfield has one height at each place. Caves and bridges are meshes placed with it.
 - **Position only.** The terrain follows its entity's position; its rotation and scale are not taken into account, by `heightAt` or by
   the shader that lifts the ground. Keep the entity unrotated and unscaled, and set the ground's size with `sizeX`, `sizeZ` and `height`.
-- **An infinite ground is noise only.** It takes no heightmap or splatmap, and its erosion paints no dirt.
+- **An infinite ground is made by its provider.** It takes no heightmap or splatmap, and its erosion (the engine's noise) paints no dirt.
 - **Pages are made a few a frame**, so on the first frames, or after a jump of the eye, the ground is drawn coarse for a moment and
   sharpens rather than stalling a frame.

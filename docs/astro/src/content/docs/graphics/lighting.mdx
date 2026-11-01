@@ -92,7 +92,7 @@ follows the lights near a pixel, not the lights in the scene — a hundred lamps
 
 What to keep in mind:
 
-- **Tiled lights do not cast shadows.** A shadow-casting light that does not make the sixteen is turned away (the Light Status in the editor says so), since the loop is the only
+- **Tiled lights do not cast 3D shadows.** (2D lights are different: the 2D shadow mask serves tiled lights too, see [2D shadows](#2d-shadows).) A shadow-casting light that does not make the sixteen is turned away (the Light Status in the editor says so), since the loop is the only
   place a shadow map is read. Give the lights that matter shadows and let the many be the glow.
 - **`radius` is the reach.** The tile masks are built from it; a light with a huge radius touches every tile and costs like it.
 - Planar reflections are drawn with the sixteen only: their camera is not the one the tiles were made for.
@@ -413,9 +413,10 @@ own that is never saved with the scene.
 
 ## Baked light
 
-Sixteen lights reach one frame. The seventeenth is dropped — by brightness, with a
-warning naming what was refused — and that ceiling is not a quality setting: a room
-with thirty lamps in it cannot be lit in real time here at all.
+A frame carries 112 lights: sixteen read for every pixel and 96 tiled (see
+[Many lights](#many-lights)). Past that the dimmest are dropped — by brightness, with a
+warning naming what was refused — and that ceiling is not a quality setting. Tiled
+lights cast no 3D shadows, and every light still costs its share of every pixel it reaches.
 
 A **bake** is the way past it. Light that never moves is computed once, offline, and
 stored as a texture; at run time the surface reads a texel instead of summing lights.

@@ -144,6 +144,8 @@ same component, the same handle sharing — only the decoder differs:
 | Platform | Decoder | Notes |
 |---|---|---|
 | Web / Desktop | `HTMLVideoElement` | Any browser-supported codec (H.264 `.mp4`, WebM…). WebGL2 uploads each frame zero-copy; WebGPU via a canvas readback. |
+| Native (Android / iOS) | The same engine-owned wasm decoder, acquired as a side module | Plays the cooked `.esv` + `.m4a`; a device has no other video path. |
+| Other mini-game platforms | The same engine-owned wasm decoder, by default on every vendor | Host video decoders are absent on desktop clients and unreliable on phones, so the one deterministic path wins. |
 | WeChat | Engine-owned MPEG-1 wasm (`videodec`, pl_mpeg) | Deterministic on every device — `wx.createVideoDecoder` is absent on PC and unreliable on phones. Ships automatically when a scene uses `Video`; plays the cooked `.esv` + `.m4a`. |
 
 ## Best practices

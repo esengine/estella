@@ -71,6 +71,24 @@ scalar.deg2rad(90);              // degrees -> radians
 
 还有:`clamp`、`inverseLerp`、`rad2deg`、`approximately`、`mod`、`sign`。
 
+## 带种子的随机数
+
+`createRng(seed)` 返回一个带种子的生成器,**在每个宿主上抽出相同的序列**(基于 32 位整数运算的 SFC32),
+所以裁定结果的服务器和做预览的客户端能得到一致的数。`hashSeed` 把数字、字符串或列表变成稳定的 32 位哈希:
+
+```typescript
+import { createRng } from 'esengine';
+
+const rng = createRng(['loot', levelId]);
+rng.float();                     // [0, 1)
+rng.int(1, 6);                   // 1..6(含两端),无取模偏差
+rng.chance(0.25);                // 25% 概率为 true
+rng.pick(items);                 // 随机取一个元素
+rng.weighted(items, (i) => i.weight);
+rng.shuffle(items);              // 洗牌后的副本
+const drops = rng.fork('drops'); // 独立的随机流,不受本流抽取次数影响
+```
+
 ## 旋转辅助
 
 `Transform.rotation` 是四元数;2D 下只会绕 Z 轴旋转,几个导出就覆盖了
@@ -96,6 +114,8 @@ const delta = normalizeAngle(targetAngle - facing);
 | `quat(w?, x?, y?, z?)` | 四元数工厂;不传参数得到单位四元数 `{w: 1, x: 0, y: 0, z: 0}`。 |
 | `quaternionToAngle2D(rz, rw)` | 由四元数的 `z`/`w` 求 Z 角度(弧度,`2 * atan2(z, w)`)。 |
 | `normalizeAngle(a)` | 把任意角度归一到 `(-π, π]`,用于最短转向比较。 |
+
+完整的 3D 旋转用 `q` 命名空间:`create`、`mul`、`axis(axis, rad)`、`normalize`、`conjugate`、`rotate(q, v)`、`fromEuler` / `toEuler`、`rotationTo(from, to)`、`setAngleZ` / `angleZ` 等。
 
 如果需要的是方向*向量*而不是旋转,留在 `v2` 里就好:`fromAngle` / `angle` /
 `rotate`。完整的工作示例(炮塔朝向光标)见

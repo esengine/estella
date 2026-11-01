@@ -130,8 +130,8 @@ because either one points at something residency is entitled to delete.
 **Residency owns existence; it does not own continuity.** A cell that unloads
 loses its runtime state, and reloading rebuilds it from what was authored. An
 enemy at 25 health that you walk away from comes back at full health. What does
-survive is the entity's authored identity, which is what a save system will be
-built on later.
+survive is the entity's authored identity, which a save system can be built on
+(the engine keeps no per-cell state for you).
 
 ## Procedural chunks
 
@@ -183,9 +183,17 @@ does not exist look the same from a camera.
 
 ## What this version does not do
 
-Cells load asynchronously through the same scene loading a game already uses, but
-there is no priority, no prefetch and no budget yet: a large cell arriving is a
-hitch. There is no HLOD, so a place that is not resident is not represented at
-all in the distance. Navigation meshes are not streamed — a world-sized navmesh
-stays resident. Neither is texture streaming, and the world origin is never
-rebased.
+Cells load asynchronously through the same scene loading a game already uses.
+They are ordered (a cell a source is walking into goes before one it only might,
+nearest first) and can be readied ahead by `prefetchRadius`, but there is no
+admission budget: a large cell arriving is still a hitch. There is no
+general-purpose HLOD for streamed cells — nothing bakes a cell into a single
+far proxy, so a cell that is not resident is not represented at all in the
+distance. Some content has a far version of its own: the ground
+([Terrain](/docs/graphics/terrain/) is a distance-based quadtree out to
+`drawDistance`, a planet is one down to its horizon), and plants (the far
+cards of [Foliage](/docs/graphics/foliage/) and `PlacedFoliage`, and of a
+generated world's plants) stand over a whole area at once. Navigation meshes are
+not streamed — a world-sized navmesh stays resident. Neither is texture
+streaming, and the world origin is never rebased (`setRenderOriginStep` keeps
+*drawing* precise far from zero, see [Camera](/docs/graphics/camera/)).

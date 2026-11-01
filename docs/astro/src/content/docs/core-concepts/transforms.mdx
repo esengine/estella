@@ -65,7 +65,10 @@ can key them), and `position` / `rotation` / `scale` are replicated by
 - **World space is Y-up**: `+Y` is up, `+X` is right, angle `0` points along
   `+X`, and positive angles turn counter-clockwise (`Math.atan2(dy, dx)` gives
   the angle toward a target directly).
-- **`position.z` is draw-order, not perspective**: 2D rendering orders coarsely
+- **`position.z` is draw-order in a 2D scene, a real depth axis in a 3D one**. In a
+  3D scene (meshes, a perspective camera, [3D physics](/docs/gameplay/physics-3d/)) the
+  axes stay Y-up and `z` is ordinary space: cameras and lights look down `-Z`, and the
+  ground plane is XZ. For 2D sprites, rendering orders coarsely
   by each renderer's sorting `layer`; within a layer, use `z` for fine ordering
   (or a [y-sorted layer](/docs/graphics/sprites/#draw-order--sorting-layers) for
   top-down depth). It does not foreshorten or scale sprites.

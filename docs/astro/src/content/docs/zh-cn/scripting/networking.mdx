@@ -6,7 +6,7 @@ description: 联网完整指南——跨平台 WebSocket(createSocket)与类型�
 import { Aside } from '@astrojs/starlight/components';
 
 Estella 附带一个**跨平台 WebSocket**。`createSocket` 为平台返回正确的实现——Web 上是浏览器
-`WebSocket`,微信小游戏上是 `wx.connectSocket`——都在一套 API 之后。在它之上,`NetChannel`
+`WebSocket`,微信小游戏上是 `wx.connectSocket`,Node 下是 `ws`,原生与其他小游戏宿主用各自的 socket——都在一套 API 之后。在它之上,`NetChannel`
 增加类型化消息与请求/响应。
 
 ## 连接与收发消息
@@ -144,7 +144,7 @@ clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // 每 tick 输入上�
   再用 `flushPendingRegistrations(app)` 装上项目在模块作用域注册的东西(与正式 Web
   运行时同一道门),权威端跑的就是项目自己的系统,而不是它的副本。
 - **重连目前由你负责**:`Replicated.owner` 是*连接* id,玩家重连会拿到新的一个。
-  SDK 没有任何身份能跨越断开的 socket,所以稳定玩家 id、会话令牌和宽限期都归你的游戏。
+  SDK 没有任何身份能跨越断开的 socket,所以稳定玩家 id、会话令牌和宽限期都归你的游戏。(下面的请求/应答[会话层](#异步在线游戏会话层)确实会重连并保留订阅,但它与状态复制是两套东西。)
 
 完整范式(复制、每 tick 输入、客户端预测)见 **Multiplayer Arena** 示例(约 130 行)。它的 `server/` 目录就是专用服务器那一半:同一个项目,无头运行,后面是一条真实的 WebSocket。
 
@@ -250,6 +250,44 @@ clientNet.client.sendInput({ move: { x: 1, y: 0 } });  // pawn 立刻动
 - **平滑**:`prediction: { apply, smoothing: { halfLife: 0.08 } }` 让修正
   渐出(视觉误差每 `halfLife` 秒减半)而不是硬 snap;加 `maxError` 让真正的
   传送仍然瞬移。纯表现层——模拟状态不可能因此漂移。
+
+## 异步在线游戏——会话层
+
+状态复制让服务器与客户端共享一个 tick。而**异步**玩共享世界的游戏(城建、卡牌、抽卡)没有共享 tick,
+需要的是在糟糕网络下仍然成立的请求与应答。这是 `esengine/session` 的职责,它独立于状态复制:
+
+- 服务器端的 **`SessionHost`** 在服务任何请求之前先认证每个连接,限制帧大小与消息速率,给客户端发心跳,
+  并让同一玩家的新连接顶替旧连接。它不持有游戏状态:每个处理函数都从上下文里拿到玩家。
+- 设备端的 **`ClientSession`** 负责拨号、断线后带退避与抖动地重连、请求发出前先等服务器就绪,
+  并让事件订阅跨重连保留。`retryNow()` 立刻重拨;`serverNow()` 给出服务器时钟。
+- 每个请求都带一个**键**,所以应答丢了之后重发的请求会从记忆里应答,而不是再执行一遍
+  (购买、出征)。多个服务器进程共用同一个 `IdempotencyStore`。
+- `defineContract` 用 `s` 校验器(`s.object`、`s.int`、`s.string` ……)把每个请求与事件只写一次:
+  服务器据此校验每个请求,客户端校验每个应答,两端的类型也由它推出。它的 `fingerprint` 能让服务器
+  拒绝按另一份契约构建的客户端。
+
+```typescript
+import { defineContract, s, SessionHost, ClientSession, acceptWebSocket } from 'esengine/session';
+import { createSocket } from 'esengine';
+
+const api = defineContract({
+  requests: { buy: { req: s.object({ item: s.string() }), res: s.object({ gold: s.int() }) } },
+  events: { news: s.object({ text: s.string() }) },
+});
+
+// 服务器(Node):把每个 `ws` socket 交给 host。
+const host = new SessionHost({ authenticate: (cred) => ({ playerId: String((cred as any).id) }) });
+api.serve(host, { buy: async ({ item }, ctx) => ({ gold: await purchase(ctx.playerId, item) }) });
+// wss.on('connection', (socket) => acceptWebSocket(host, socket));
+
+// 客户端:整局游戏只有这一个对象,不管链路断多少次。
+const session = new ClientSession({ connect: () => createSocket({ url: 'wss://example.com/play' }), credentials: () => ({ id: 'p1' }) });
+await session.start();
+const { gold } = await api.client(session).buy({ item: 'sword' });
+```
+
+会话可以用 protobuf 代替 JSON(客户端 `wire: 'pb'`,host 端同名 `wire`;`proto()` / `protoAs()` 把 `.proto`
+消息带进契约),调试时仍可按 JSON 读。
 
 ## 最佳实践
 

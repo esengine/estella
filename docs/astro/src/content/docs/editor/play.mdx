@@ -10,6 +10,10 @@ The **Play** controls in the toolbar run your game:
   or **Play In New Window** (a dedicated **Game** tab), and toggles **Maximize Viewport on
   Play** — which hands the whole workspace to the running game and restores your layout on
   Stop.
+- The same dropdown picks **Single Player** or **2 / 3 / 4 Players (Listen Server)**:
+  with more than one, the first realm boots as the listen server and each extra
+  player gets a client realm wired to it by in-editor replication, so a networked
+  game can be tried without leaving the editor.
 - A running game reads as a soft accent ring around the viewport (amber, with the frame
   dimmed, when paused) — not a badge over the game.
 - Shortcuts: **F5** play, **Esc** stop, **F6** pause/resume, **Shift+F5** restart, and
@@ -17,6 +21,10 @@ The **Play** controls in the toolbar run your game:
 
 Because play uses an isolated realm — the same runtime that ships your game — what you
 see in play is what a player gets.
+
+![The play mode menu: play in viewport or a new window, maximize on play, and single player or two to four players with a listen server](@/assets/guides/en/play-mode-menu.png)
+
+*The menu beside **Play**.*
 
 ## The Outliner while playing
 

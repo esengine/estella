@@ -390,8 +390,10 @@ the caret position, click-to-place and within-line selection track the
 newlines).
 
 <Aside type="note">
-  Text input runs in **play mode only** and needs a browser DOM (the hidden
-  native textarea) — it's inert in the editor's edit view.
+  Text input runs in **play mode only** and needs a platform text-editing surface:
+  the hidden native textarea on the web, the host's own text model (SDL input and
+  IME) in native builds. A headless host renders fields but cannot type into them,
+  and the editor's edit view leaves them inert.
 </Aside>
 
 ## Lists & scrolling

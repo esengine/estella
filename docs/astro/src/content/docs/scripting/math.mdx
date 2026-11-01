@@ -73,6 +73,26 @@ scalar.deg2rad(90);              // degrees -> radians
 
 Also: `clamp`, `inverseLerp`, `rad2deg`, `approximately`, `mod`, `sign`.
 
+## Seeded randomness
+
+`createRng(seed)` returns a seeded generator that draws **the same sequence on every
+host** (SFC32 over 32-bit integer arithmetic), so a server that settles an outcome and a
+client that previews it agree. `hashSeed` turns a number, string or list into a stable
+32-bit hash:
+
+```typescript
+import { createRng } from 'esengine';
+
+const rng = createRng(['loot', levelId]);
+rng.float();                     // [0, 1)
+rng.int(1, 6);                   // 1..6 inclusive, no modulo bias
+rng.chance(0.25);                // true 25% of the time
+rng.pick(items);                 // one element
+rng.weighted(items, (i) => i.weight);
+rng.shuffle(items);              // a shuffled copy
+const drops = rng.fork('drops'); // an independent stream, unmoved by draws on this one
+```
+
 ## Rotation helpers
 
 `Transform.rotation` is a quaternion; in 2D you only ever rotate about Z, and a
@@ -98,6 +118,8 @@ const delta = normalizeAngle(targetAngle - facing);
 | `quat(w?, x?, y?, z?)` | Quaternion factory; no arguments gives the identity `{w: 1, x: 0, y: 0, z: 0}`. |
 | `quaternionToAngle2D(rz, rw)` | Z angle in radians from a quaternion's `z`/`w` (`2 * atan2(z, w)`). |
 | `normalizeAngle(a)` | Wrap any angle to `(-π, π]` for shortest-turn comparisons. |
+
+For full 3D rotations, the `q` namespace has `create`, `mul`, `axis(axis, rad)`, `normalize`, `conjugate`, `rotate(q, v)`, `fromEuler` / `toEuler`, `rotationTo(from, to)`, `setAngleZ` / `angleZ` and more.
 
 For direction *vectors* instead of rotations, stay in `v2`: `fromAngle` /
 `angle` / `rotate`. A full worked example (turrets facing the cursor) is in

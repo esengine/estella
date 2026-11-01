@@ -129,6 +129,7 @@ bindings, and multiple bindings sum (then clamp), so keyboard and gamepad coexis
 | `Keys1D(neg, pos)` | axis | Two keys → a signed 1D axis. |
 | `Keys2D(up, down, left, right)` | axis2d | Four keys → a 2D direction. |
 | `Stick('left' \| 'right', pad?)` | axis2d | A gamepad stick (up = +y, matching `Keys2D`). |
+| `Virtual(id)` | button / axis / axis2d | A named value the game writes with `input.setVirtual(id, x, y)` — what an on-screen [VirtualJoystick or VirtualButton](/docs/ui/widgets/#virtualjoystick) feeds, so touch controls drive the same action a key does. |
 
 ### The data model
 
@@ -156,6 +157,7 @@ const jump: ActionDef = {
 | `keys1d` | `neg`, `pos` | `Keys1D` |
 | `keys2d` | `up`, `down`, `left`, `right` | `Keys2D` |
 | `stick` | `stick: 'left' \| 'right'`, `pad?` | `Stick` |
+| `virtual` | `id` | `Virtual` |
 
 Because bindings are data, this one model is also the **rebind and persistence
 format**: `toJSON()` / `loadJSON()` round-trip the bindings alone (per-action

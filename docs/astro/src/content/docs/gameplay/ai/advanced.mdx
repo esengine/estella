@@ -15,7 +15,7 @@ cells, 4- or 8-connected, with an octile/manhattan heuristic and no corner
 cutting (a diagonal step needs both shared orthogonal cells open). Drop to it
 when you steer movement yourself, draw a path preview, or compute reachability
 for turn-based ranges — or when one grid isn't enough, since the `Nav` resource
-holds a single grid:
+holds one active surface:
 
 ```typescript
 import { NavGrid, findPath, pathToWorld } from 'esengine/ai';
@@ -64,16 +64,17 @@ const grid = navGridFromTiles((x, y) => level.tiles[y][x], {
 
 ### Perception internals
 
-The perception plugin is a thin wrapper over four exported functions — useful for
+The perception plugin is a thin wrapper over exported functions — useful for
 one-off sight checks from an action, custom senses (memory, hearing, multiple
 targets), or unit tests against a fake world:
 
-- **`senseTarget(ox, oy, facing, tx, ty, range, halfFov, isBlocked?)`** — the pure
-  geometry: a range check, a FOV cone check (`halfFov` is *half* the cone in
-  radians; ≥ π means omnidirectional), then the optional occlusion callback.
-- **`quaternionToAngle2D(z, w)`** — 2D facing angle in radians from a `Transform`
-  rotation quaternion's z/w components.
-- **`makeLosCheck(physics)`** — builds the occlusion callback from a physics
+- **`senseTarget(observer, facing, target, range, halfFov, isBlocked?)`** — the pure
+  geometry, all in 3D (`Vec3` points; a flat scene is the case where `z` is constant): a range
+  check, a FOV cone check (`halfFov` is *half* the cone in radians; ≥ π means
+  omnidirectional), then the optional occlusion callback.
+- **`facingFromRotation(rotation, axis?)`** — the world direction an entity faces, from a
+  `Transform` rotation and a `FacingAxis` (`'x'` by default, or `'-z'`).
+- **`makeLosCheck(physics)`** — builds the occlusion callback from a 2D physics
   raycast: occluded when any hit lands clearly short of the target
   (`fraction < 0.98` — the last ~2% is the target itself).
 - **`stepPerception(world, isBlocked?)`** — the exact per-frame step the plugin
@@ -81,16 +82,15 @@ targets), or unit tests against a fake world:
   the nearest visible one, and write the `Perception` component.
 
 ```typescript
-import { quaternionToAngle2D, Transform, registerCondition } from 'esengine';
-import { senseTarget } from 'esengine/ai';
+import { Transform, registerCondition } from 'esengine';
+import { senseTarget, facingFromRotation } from 'esengine/ai';
 
 // A one-off sight check against a POINT — no PerceptionTarget needed.
 registerCondition('seesShrine', (ctx) => {
   const tf = ctx.get(Transform);
-  const facing = quaternionToAngle2D(tf.rotation.z, tf.rotation.w);
   return senseTarget(
-    tf.position.x, tf.position.y, facing,
-    SHRINE.x, SHRINE.y,
+    tf.position, facingFromRotation(tf.rotation),
+    SHRINE,                      // a { x, y, z } point
     300, Math.PI / 3,            // 300 px range, 120° cone
   ).visible;
 });
@@ -102,16 +102,16 @@ registerCondition('seesShrine', (ctx) => {
 |---|---|
 | `visible` | The target is within range, inside the cone, and not occluded. |
 | `distance` | Distance to the target — always set, even when not visible. |
-| `dirX` / `dirY` | Unit direction observer → target; `(0, 0)` when not visible. |
+| `dir` | Unit direction observer → target as a `Vec3`; zero when not visible. |
 
-The built-in system wires `makeLosCheck` in only when the physics module is
-loaded; otherwise sensing is range + FOV only — the AI layer has no hard physics
-dependency.
+The built-in system wires in a line-of-sight check only when a physics module is
+loaded (the 3D solver if the scene has one, otherwise 2D); with neither, sensing
+is range + FOV only — the AI layer has no hard physics dependency.
 
 ## Custom app setup
 
-The perception, FSM, BT, and navigation plugins are part of the default plugin set,
-so the **editor and the `esengine` web runtime add them for you**. Only when you build
+Importing `esengine/ai` registers the perception, FSM, BT, and navigation plugins, so
+the **editor and the `esengine` web runtime add them for you**. Only when you build
 an app from a bare `new App()` do you add them explicitly:
 
 ```typescript

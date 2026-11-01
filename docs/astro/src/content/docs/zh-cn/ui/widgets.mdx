@@ -351,8 +351,9 @@ world.insert(field, TextInput, { placeholder: 'Name', font: gameFont, textAlign:
 超出盒宽的内容**裁剪到盒内并横向滚动**,输入时光标始终可见。
 
 <Aside type="note">
-  文本输入只在**播放模式**运行,且需要浏览器 DOM(它驱动一个隐藏的原生 textarea
-  以支持 IME)——在编辑器的编辑视图中是惰性的。
+  文本输入只在**播放模式**运行,且需要平台提供的文本编辑面:Web 上是隐藏的原生
+  textarea(用于 IME),原生构建里是宿主自己的文本模型(SDL 输入与 IME)。无界面宿主
+  会渲染输入框但无法输入,编辑器的编辑视图中也是惰性的。
 </Aside>
 
 ## 列表与滚动

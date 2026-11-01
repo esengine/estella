@@ -60,6 +60,7 @@ i18n.t('apples', { count: 3 });   // "3 apples"
 | `t(key, params?)` | 查找 + 插值一个字符串。 |
 | `setLocale(locale)` | 设置当前 locale。 |
 | `setFallbackLocale(locale)` | 设置 key 缺失时使用的 locale。 |
+| `setPseudoLocalization(options \| null)` | 可选的长度压力预览(`expansion`、`accents`);`null` 恢复正常翻译。 |
 | `setPluralSelector(locale, selector)` | 为某 locale 设自定义复数规则。 |
 | `availableLocales()` | 列出已注册的 locale。 |
 | `has(key)` | key 是否存在于当前/回退 locale。 |
@@ -92,6 +93,13 @@ i18n.t('apples', { count: 3 });   // "3 apples"
 `new LocalizationPlugin({ tables: ['assets/i18n/zh-CN.eslocale'] })`,或者让
 [下面的 Text 绑定](#把-ui-text-绑到-key)全自动加载。导出 cook 永远会把 `.eslocale`
 打进包里——它们按 key 加载,可达性分析看不见它们,所以强制收入。
+
+双击 `.eslocale` 会打开**字符串表**编辑器,把项目的所有语言并排显示:每个 key 一行、每张表一列,未翻译的格子有标记,
+带筛选,可以添加和删除 key(每次编辑立即写入对应语言的文件)。它能**导入** Excel(`.xlsx`)、CSV 或 XLIFF(`.xlf`)文件,
+按 key 合并进各张表;也能把所有语言**导出**成一张 Excel 或 CSV 表,或 XLIFF 1.2,并先列出发现的问题;复数条目在检查器里编辑。
+
+想看更长的语言排版会不会放不下,可以用 `i18n.setPseudoLocalization({ expansion: 0.35, accents: true })`
+(`@experimental`):它把每条译文拉长并加上重音符号,同时保留占位符、富文本标签和换行;`setPseudoLocalization(null)` 恢复真实文本。
 
 ## 把 UI Text 绑到 key
 

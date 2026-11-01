@@ -52,7 +52,7 @@ Estella is a **2D and 3D game engine** — sprites, tilemaps and UI as much as l
 | **TypeScript SDK** | Type-safe API: `defineSystem`, `defineComponent`, `Query`, `Commands` |
 | **Cross-Platform** | One project → web, desktop, WeChat MiniGames, playable ads, and native Android / iOS |
 | **Native mobile** | A real arm64 app rendering through an embedded Dawn (Metal / Vulkan) — not a WebView |
-| **AI agents** | The editor is an MCP server with 65 tools, and ships a built-in agent that drives the same ones |
+| **AI agents** | The editor is an MCP server with 130+ tools, and ships a built-in agent that drives the same ones |
 
 ## Getting Started
 

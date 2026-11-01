@@ -232,6 +232,19 @@ so a track cannot drive the wrong one; that name is what the prefab shows.
 
 `LINEAR`, `STEP` and `CUBICSPLINE` all carry across, tangents included.
 
+A `weights` channel (an animation of a model's morph targets) comes too: it becomes a
+track per primitive the node draws, with one channel per target, so the clip drives the
+`MeshMorph` weights described under [Morph targets](#morph-targets).
+
+## Lights and cameras
+
+A glTF's `KHR_lights_punctual` lights and cameras, and an FBX's point, directional and
+spot lights and cameras, become `Light` and `Camera` components on their nodes inside
+the prefab, turned to face -Z as the engine's do. Colour, cone angles, reach, field of
+view and clip planes carry over; intensity is carried as the file states it, since the
+engine's has no photometric unit. An imported camera is never the active one, so a
+model cannot take the view away from the scene's own camera.
+
 ## Skinning
 
 A rigged model comes in rigged: the mesh carries its joint indices, weights and bind pose,
@@ -312,18 +325,15 @@ when it runs.
 
 | Not imported | Why |
 |---|---|
-| `weights` animation channels | The shapes themselves are imported (see [Morph targets](#morph-targets)); a clip that drives them is not carried yet. |
-| A second UV set (`TEXCOORD_1`), `KHR_texture_transform`, an FBX uv transform | UVs are used as authored. |
+| A material texture that asks for `TEXCOORD_1`, a `KHR_texture_transform` that offsets, scales or rotates, an FBX uv transform | A material samples the first UV set as authored. (The mesh itself keeps its second UV set, which a lightmap or a material's `v_texCoord1` can read.) |
 | Non-triangle primitives (`mode` ≠ 4) | The renderer draws triangle lists. |
 | `normalTexture.scale` | The map is applied at full strength. |
 | The textures of a shading layer (`clearcoatTexture`, `sheenColorTexture`, `anisotropyTexture`, …), `specularColorFactor`, `attenuationDistance` | Each layer is a constant for the whole material; its factors are kept and the textures are reported. See [Shading layers](/docs/graphics/materials/#shading-layers). |
-| Cameras and lights in an FBX | A scene's camera and lighting are the scene's, not the model's. |
+| Area and volume lights | Named in the import notes and skipped. (Point, directional and spot lights, and cameras, **are** imported: see [Lights and cameras](#lights-and-cameras).) |
 | Separate FBX metalness/roughness maps, an FBX opacity map | See [FBX](#fbx). |
 
 ## Limits worth knowing
 
-- Point lights measure distance in the XY plane (the 2D lighting model); **directional
-  lights are exact**, which is what a shaded model usually wants.
 - A material that writes its own vertex stage is not redirected onto mesh geometry — it
   would ignore the per-object transform. Fragment-only materials work on both.
 - Geometry with no `NORMAL` attribute still takes light, off the constant normal a 2D

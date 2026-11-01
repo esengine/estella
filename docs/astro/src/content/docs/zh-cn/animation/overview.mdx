@@ -391,7 +391,8 @@ const drive = defineSystem([Query(Animator), Res(AnimatorController)], (q, anim)
 | `Animator` 字段 | 类型 | 默认 | 说明 |
 |---|---|---|---|
 | `controller` | string | `''` | 一个 `.esanimator` 资产引用(编辑器写入的),或代码里传给 `registerController` 的名字。 |
-| `currentState` | string | `''` | 活动状态;嵌套状态机时是 `/` 分隔的路径(从控制器的初始状态种入)。 |
+| `avatar` | string | `''` | 一个 `.esavatar` 资产,说明这个骨架如何称呼片段所指名的关节(见[层、遮罩与 IK](#层遮罩与-ik))。 |
+| `currentState` | string | `''` | 基础层的活动状态;嵌套状态机时是 `/` 分隔的路径(从控制器的初始状态种入)。 |
 | `enabled` | boolean | `true` | 关掉即冻结状态机。 |
 
 | `AnimatorController` 方法 | 说明 |
@@ -402,8 +403,10 @@ const drive = defineSystem([Query(Animator), Res(AnimatorController)], (q, anim)
 | `resetTrigger(entity, name)` | 在被消费前清除一个 trigger。 |
 | `getFloat(entity, name)` / `getBool(entity, name)` | 读回一个参数。 |
 
-控制器可以同时驱动精灵**和** [Spine](/docs/zh-cn/animation/spine/) 动画,所以一套状态机就能
-管一整个角色。
+状态的运动可以是精灵片段、[Spine](/docs/zh-cn/animation/spine/) 动画,或
+[时间线](/docs/zh-cn/animation/timeline/)片段(蒙皮 3D 骨架就是这样播的),所以一套状态机就能
+管一整个角色。转移还可以带 `duration`(秒),从离开的状态交叉淡入进入的状态;只有两端运动都能被采样时才生效,
+精灵图集是直接切换,因为两张图之间没有「半途」可言。
 
 参数有三种类型(`AnimatorParamType`):`'float'`、`'bool'`、`'trigger'`。条件用
 `gt` / `lt` / `eq` / `neq` 比较数值(带 `value`),用 `true` / `false` 测试 bool,
@@ -417,9 +420,8 @@ const drive = defineSystem([Query(Animator), Res(AnimatorController)], (q, anim)
 *一维 blend:float 参数挑出「阈值 ≤ 它」中最高的那个片段——这里随 `speed` 上升在 `idle` / `walk` / `run` 之间切换,彼此不做过渡。*
 
 状态可以携带一个 1D **blend** 来代替单个片段:由一个 float 参数在
-`AnimatorBlendThreshold` 档位之间做选择。因为精灵通道一次只播一个片段,这里的混合是
-按阈值的*选择*——`value` 不超过参数值的档位中取最大者(低于所有档位时播第一个)——
-而不是加权姿态混合。每个档位是 `{ value, clip, speed?, loop? }`;档位级的
+`AnimatorBlendThreshold` 档位之间做选择。对精灵片段(一次只播一个)来说,这是
+按阈值的*选择*——`value` 不超过参数值的档位中取最大者(低于所有档位时播第一个)。每个档位是 `{ value, clip, speed?, loop? }`;档位级的
 `speed` / `loop` 覆盖状态自己的。选择每帧重算,所以 `speed` 参数上升时
 idle→walk→run 无需任何转移:
 
@@ -450,10 +452,18 @@ const setup = defineSystem([Res(AnimatorController)], (anim) => {
 
 纯函数 `selectBlendClip(blend, value)` 返回某个值会选中的档位——方便做工具或测试。
 
+对可采样的运动(驱动骨架或任意组件字段的时间线片段),blend 不再「挑一个」,而是把参数两侧的档位**混合**起来,
+并且按共同的*相位*而不是共同的秒数对齐,所以 2 秒的待机和 0.6 秒的跑步脚步不会打滑。写法是用 `motion`
+代替单一类型字段:`{ kind: 'blend1d', parameter, thresholds: [{ value, motion }] }`,档位的运动本身还可以是另一个 blend。
+会转向的移动用 `blend2d`,把档位放在两个参数张成的平面上——
+`{ kind: 'blend2d', parameterX, parameterY, points: [{ position: { x, y }, motion }] }`——
+并混合采样点周围的各点(采样点正落在某个片段上就只播它;落在凸包外则取最近的边)。状态检查器的类型选择里有
+无 / 片段 / 1D 混合 / 2D 混合,不必手改文件。
+
 骨骼角色的状态可以改为携带 `spine` 运动(`AnimatorSpineMotion`,
 `{ animation, loop? }`):进入时控制器设置该 [Spine](/docs/zh-cn/animation/spine/)
 动画(`loop` 默认 `true`),轨道播放与混合交给 Spine 运行时——完全不碰
-`SpriteAnimator`。状态互斥:`clip`、`blend`、`spine`、`stateMachine` 四者取一。
+`SpriteAnimator`。状态互斥:`clip`、`blend`、`spine`、`motion`(通用写法:任一已注册类型 `sprite` / `timeline`,或它们之上的 `blend1d` / `blend2d`)、`stateMachine` 五者取一。
 
 ### 子状态机
 
@@ -521,6 +531,40 @@ evaluateAnimatorPath(player, 'locomotion/idle', { speed: 3 }, new Set());
 | `leafStateOf(def, path)` | 路径的承载运动的叶子状态,或 `null`。 |
 | `evaluateAnimatorPath(def, path, params, triggers, clipFinished?)` | 对路径做一步纯求值 → `{ nextPath, consumedTriggers }`。 |
 | `STATE_PATH_SEP` | 路径分隔符,`'/'`。 |
+
+### 层、遮罩与 IK
+
+![动画控制器编辑器:图层列表(Upper body 叠在基础层上)和参数面板](@/assets/guides/zh/animator-layers.png)
+
+*第三人称示例的动画控制器。右上角的**图层**叠在基础层之上,各有自己的权重和遮罩;下面的**参数**驱动状态转移。*
+
+
+
+一台状态机只能说角色在跑或者在挥手,不能同时说两件事。控制器可以在基础状态机之上带**层**:每一层是自己的状态机,
+有自己的时钟、转移和活动状态,实体最终是整叠层合成后的结果,只写一次。层按顺序合成,调换两层就是另一个角色。
+
+```jsonc
+// 在 .esanimator 里,与 "states" 并列
+"layers": [{
+  "name": "Upper body",
+  "weight": 1,                  // 0 不动下面的层,1 表示本层完整生效
+  "blend": "override",          // 或 "additive":叠加片段相对其首帧的偏离
+  "mask": { "paths": ["Spine"] }, // 本层可写的关节(按 childPath),每条代表它下面的整棵子树
+  "initialState": "Rest",
+  "states": [ /* ... */ ]
+}]
+```
+
+`mask` 就是一组片段本来用来指名所动画对象的 `childPath`。没有 mask 就写整个骨架;`paths` 为空数组则什么也不写。
+根运动只属于基础层,触发器是所有层都会被告知的同一个事件。编辑器里用层栏切换画布编辑哪一台状态机。
+
+控制器的 `ik` 列表让姿态去够片段不知道的东西:`two-bone` 把肢体末端(`tip`,按 `childPath` 指名的关节)放到 `target` 上,
+可选 `pole` 决定朝哪边弯;`look-at` 让某个关节自己的 `axis` 转向目标。两者都有 `weight`,并可由一个 float `parameter` 淡入淡出。
+IK 属于控制器而不是某一层,在层叠加的结果上只运行一次。
+
+**Avatar。** 片段按导出者起的名字指名关节,所以两个人绑的两个角色互相用不了对方的片段。`.esavatar`(新建菜单)是骨架自己对这些名字的翻译,
+并记录它的绑定姿态;控制器的 `avatar` 指明它的片段是对着哪个 avatar 做的,`Animator` 的 `avatar` 字段填这个骨架自己的。
+这样一个控制器就能驱动骨骼名字不同、绑定姿态不同的角色,根运动也会按各自骨架应走的距离缩放。
 
 ### 动画事件
 

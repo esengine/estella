@@ -199,8 +199,9 @@ const focusDebug = defineSystem([Res(FocusManager)], (focus) => {
 ```
 
 <Aside type="note">
-  Gamepad navigation is not built into the focus system — the ring is driven by
-  `Tab` / `Enter` / `Space` / `Escape` and the arrow keys. For gamepad menus,
+  Gamepad navigation is not built into the focus system — the ring moves with
+  `Tab` / `Shift+Tab` only (`Enter` / `Space` / `Escape` and the arrow keys act on the
+  focused widget). For gamepad menus,
   drive selection yourself from an [input map](/docs/scripting/input/) and call
   widget state directly.
 </Aside>

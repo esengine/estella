@@ -377,7 +377,8 @@ so a sprite at z = -400 is grabbable where it is drawn.
 - **Flip** a sprite with `flipX` / `flipY` — e.g. face a character left or right without
   a separate texture.
 - **Atlases**: show one cell of a packed sheet by setting `uvOffset` and `uvScale` to
-  the cell's normalized rectangle. (For frame-by-frame animation, drive these from the
+  the cell's normalized rectangle — or pack separate textures onto one canvas at run time with
+  [`TextureAtlas`](/docs/graphics/drawing/#packing-textures-onto-one-canvas-textureatlas). (For frame-by-frame animation, drive these from the
   [Animator](/docs/animation/overview/) instead of by hand.)
 - **Scrolling**: animate `uvOffset` over time to scroll a texture (water, conveyor
   belts), and set `tileSize` to repeat it across a large sprite.

@@ -122,6 +122,7 @@ if (Controls.pressed('Jump')) { /* 本帧边沿 */ }
 | `Keys1D(neg, pos)` | axis | 两个键 → 带符号的 1D 轴。 |
 | `Keys2D(up, down, left, right)` | axis2d | 四个键 → 2D 方向。 |
 | `Stick('left' \| 'right', pad?)` | axis2d | 一根手柄摇杆(上 = +y,与 `Keys2D` 一致)。 |
+| `Virtual(id)` | button / axis / axis2d | 游戏用 `input.setVirtual(id, x, y)` 写入的具名值——屏幕上的[虚拟摇杆与虚拟按键](/docs/zh-cn/ui/widgets/#virtualjoystick)喂的就是它,触屏控件因此和按键驱动同一个动作。 |
 
 ### 数据模型
 
@@ -149,6 +150,7 @@ const jump: ActionDef = {
 | `keys1d` | `neg`、`pos` | `Keys1D` |
 | `keys2d` | `up`、`down`、`left`、`right` | `Keys2D` |
 | `stick` | `stick: 'left' \| 'right'`、`pad?` | `Stick` |
+| `virtual` | `id` | `Virtual` |
 
 因为绑定就是数据,这一份模型同时也是**改键与持久化格式**:`toJSON()` / `loadJSON()`
 只往返绑定本身(每动作一个 `Binding[]`),而 `toAsset()` 序列化整张映射——连动作类型

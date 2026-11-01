@@ -11,6 +11,18 @@ import { Aside } from '@astrojs/starlight/components';
 它与 [2D 物理](/docs/zh-cn/gameplay/physics/)**并存**,不是取代:2D 场景保留它已经有的
 求解器、单位和手感,而一个从不索取 3D 世界的项目也从不加载它。
 
+## 配置
+
+与 2D 侧模块一样,在编辑器和 Web 运行时里,场景用到 3D 刚体时 3D 世界会自动加载。自定义应用则自己加插件,
+所有选项都可省略(重力默认 `{ x: 0, y: -9.81, z: 0 }`,`fixedTimestep` 默认 `1/60`,`pixelsPerUnit` 默认 `100`,
+`maxBodies` 默认 `1024`):
+
+```typescript
+import { Physics3DPlugin } from 'esengine/physics3d';
+
+app.addPlugin(new Physics3DPlugin('physics3d.js', { gravity: { x: 0, y: -9.81, z: 0 } }));
+```
+
 ## 刚体
 
 一个实体同时带着 `RigidBody3D` **和**一个形状时才在世界里。没有形状的刚体没有任何
@@ -29,6 +41,7 @@ cmds.spawn()
 | `gravityScale` | 这个刚体分担的重力比例。`0` 是失重,不是「掉得慢」。 |
 | `linearDamping` / `angularDamping` | 运动衰减的快慢。 |
 | `fixedRotation` | 冻结刚体被给定的朝向——让角色不会倒下的那个开关。它不会把一个一开始就歪的刚体扶正。 |
+| `layer` | 刚体所在的十六个[碰撞层](#碰撞层)之一。 |
 | `continuousCollision` | 检查这一步走过的整条路径,而不只是它最后停在哪。子弹需要它;默认关闭,因为它更贵。 |
 
 ## 形状
@@ -114,6 +127,9 @@ app.getResource(Physics3DDebugDraw).enabled = true;
 
   这层覆盖**不参与深度测试**,所以埋在墙里的形状照样看得见。调试视图就是要这样。
 </Aside>
+
+带有 `gravity` 大于 0 的 `Planet` 会把每个动态刚体拉向自己的中心,而不是沿世界唯一的重力向量,
+圆形世界因此处处有"下"(行星本身见[地形](/docs/zh-cn/graphics/terrain/))。
 
 ## 角色
 

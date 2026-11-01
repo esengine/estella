@@ -60,16 +60,16 @@ await app.run();
    `RenderPipeline`。
 2. **UI**:`uiPlugins`——组合好的 UI 管线(布局、文本、文本输入、遮罩、
    渲染排序、交互、拖拽、焦点、安全区)。
-3. **基础内容**:`timerPlugin`、`lifecyclePlugin`、`animationPlugin`、
-   `audioPlugin`、`videoPlugin`、`particlePlugin`、`trailPlugin`、
-   `mesh2dPlugin`、`tilemapPlugin`、`postProcessPlugin`、`timelinePlugin`、
-   `perceptionPlugin`、`fsmPlugin`、`btPlugin`、`navPlugin`、
-   `replicationPlugin`。
-4. **Spine**:一个 `SpinePlugin` 实例(按需从 `app.sideModules` 拉取对应版本
-   的 wasm 运行时——场景不用 Spine 就什么也不加载)。
+3. **基础内容**:诊断、计时器、速度、生命周期、动画、音频、视频、粒子、拖尾、弹簧骨骼、网格渲染、
+   静态合批、后处理、事件绑定与服务这些插件。
+4. **随导入安装的可选子系统**:导入某个子路径——如 `esengine/tilemap`、`esengine/timeline`、
+   `esengine/ai`(感知、FSM、BT 与导航)、`esengine/logic`(脚本图)、`esengine/gameplay`、
+   `esengine/replication`、`esengine/spine`、`esengine/dragonbones`,以及地形、植被、水体、世界生成这几个子路径——
+   就会注册该子系统的插件,工厂把已注册的都加上。游戏从不导入某个子路径,就既不安装也不携带它的子系统。
+   Spine 按需从 `app.sideModules` 拉取对应版本的 wasm 运行时——场景不用 Spine 就什么也不加载。
 5. **你的 `plugins`**,按给出顺序。
 
-物理**不在**默认集合里:`Physics2DPlugin` 需要物理 wasm 模块。发行运行时会在项目
+物理**不在**默认集合里:`Physics2DPlugin`(3D 世界是 `Physics3DPlugin`)需要各自的 wasm 模块。发行运行时会在项目
 声明了物理、或场景含有物理组件时,自动从侧模块 host 获取 `'physics'` 并安装插件;
 手动组装时请自己构造 `Physics2DPlugin`(它和 `loadPhysicsModule` 都从 `esengine`
 导出;完整 API 在 `esengine/physics` 子路径上)。
@@ -96,13 +96,12 @@ stop();
 | `plugins` | `Plugin[]` | 你的玩法插件,追加在基础集合之后。 |
 | `sideModules` | `SideModuleHost` | 可选原生模块获取器(服务器上的物理)。 |
 
-包含:`assetPlugin`、`prefabsPlugin`、`sceneManagerPlugin`、`timerPlugin`、
-`lifecyclePlugin`、`audioPlugin`(无音频设备的宿主上静音),以及游戏 AI /
-复制集合(`perceptionPlugin`、`fsmPlugin`、`btPlugin`、`navPlugin`、
-`replicationPlugin`)。
+包含:`assetPlugin`、`prefabsPlugin`、`sceneManagerPlugin`,计时器、速度、生命周期、事件绑定与服务这些插件,
+`audioPlugin`(无音频设备的宿主上静音),以及项目导入过的每个可选子系统(游戏 AI、脚本图、复制 ……)——
+与上面同样是随导入决定的那一组。
 
 不包含——一切*为了被看见*而存在的东西:`corePlugin`(它接线的渲染 facade 只在
-`initRenderer()` 之后才存在)、UI、粒子、tilemap 渲染、后处理、时间轴、Spine、
+`initRenderer()` 之后才存在)、UI、粒子、tilemap 渲染、后处理、Spine、
 输入。
 
 `runHeadless(app, { fps? })` 用挂钟 `setInterval` 驱动应用(服务器上没有
@@ -311,7 +310,7 @@ for (const s of app.subsystems.getStatuses()) {
 ## 侧模块
 
 可选的原生子系统以**独立 wasm 模块**按需加载,让基础引擎下载体积保持小:物理
-(Box2D)、逐版本的 Spine 运行时、Basis Universal 纹理转码器、软件视频解码器。
+(Box2D)、Jolt 3D 物理世界、逐版本的 Spine 运行时、DragonBones、Basis Universal 纹理转码器、软件视频解码器。
 每个都是一对 emscripten 产物——`<file>.js` 胶水加 `<file>.wasm`——统一经由
 `SideModuleHost` 获取;各 realm 之间只有*传输方式*不同。
 
@@ -320,11 +319,13 @@ for (const s of app.subsystems.getStatuses()) {
 | `SideModuleId` | 产物 | 内容 |
 |---|---|---|
 | `'physics'` | `physics.js` / `.wasm` | Box2D 物理。 |
-| `'spine:3.8'` / `'spine:4.1'` / `'spine:4.2'` | `spine38` / `spine41` / `spine42` 的 `.js`/`.wasm` | 每个骨骼格式版本一份 Spine 运行时。 |
+| `'physics3d'` | `physics3d.js` / `.wasm` | Jolt 3D 物理。 |
+| `'spine:2.1'` / `'3.8'` / `'4.1'` / `'4.2'` / `'4.3'` | `spine21` … `spine43` 的 `.js`/`.wasm` | 每个骨骼格式版本一份 Spine 运行时。 |
+| `'dragonbones'` | `dragonbones.js` / `.wasm` | DragonBones 运行时(只有一项:格式已冻结)。 |
 | `'basis'` | `basis.js` / `.wasm` | Basis Universal KTX2 转码器(压缩纹理)。 |
 | `'videodec'` | `videodec.js` / `.wasm` | MPEG-1 软件视频解码器。 |
 
-`SPINE_VERSIONS` 是只读列表 `['3.8', '4.1', '4.2']`,`spineModuleId(version)`
+`SPINE_VERSIONS` 是只读列表 `['2.1', '3.8', '4.1', '4.2', '4.3']`,`spineModuleId(version)`
 构造对应的 id。
 
 host 用 `acquire(id)` 应答,返回已实例化模块的 promise(按 id 缓存,失败也以
@@ -333,15 +334,15 @@ host 用 `acquire(id)` 应答,返回已实例化模块的 promise(按 id 缓存,
 - **`createFetchSideModuleHost(baseUrl)`**——从基址 fetch 胶水与 wasm
   (`wasmBaseUrl` 构建的就是它);编辑器、Web 与桌面使用。
 - **`createEmbeddedSideModuleHost(...)`**——模块以 base64 内联(Playable 广告)。
-- **`createWeChatSideModuleHost(...)`**——微信的预编译模块工厂。
+- **`createMiniGameSideModuleHost(...)`**(同时以 `createWeChatSideModuleHost` 导出)——小游戏宿主的预编译模块工厂。
 
 你通常永远不用自己调 `acquire`——设置好 `app.sideModules`(经 `wasmBaseUrl`
 或 `sideModules`),Spine 插件和物理安装会在需要时从中拉取。
 
 <Aside type="note">
-  主 `esengine` barrel 恰好镜像了物理/Spine 的**接线**层——`Physics2DPlugin`、
-  `Physics2DEvents`、`Physics`、`loadPhysicsModule`、`SpinePlugin`、
-  `SpineEvents`、`Spine`——宿主无需子路径导入即可注册这些插件。完整 API 在
+  主 `esengine` barrel 镜像了物理/Spine 的**接线**层——`Physics2DPlugin`、
+  `Physics2DEvents`、`Physics2D`、`loadPhysicsModule`、`Physics3DPlugin`、`Physics3D`、
+  `SpinePlugin`、`SpineEvents`、`Spine`——宿主无需子路径导入即可注册这些插件。完整 API 在
   `esengine/physics` 与 `esengine/spine` 子路径上。见[物理](/docs/zh-cn/gameplay/physics/)
   与 [Spine](/docs/zh-cn/animation/spine/)。
 </Aside>

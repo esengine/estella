@@ -53,10 +53,12 @@ const reviveSystem = defineSystem([Res(Ads), GetWorld()], (ads, world) => {
 `Ads.available` 在**存在某个广告源**时为 true——平台自带的,或安装进来的 provider。
 用它诚实地隐藏"看广告"按钮:
 
-- **微信 / 抖音构建**——宿主的激励/插屏广告,同一份家族实现。
+- **小游戏构建**(微信、抖音和其他同族宿主)——宿主的激励/插屏广告,同一份家族实现。
+  宿主没有广告接口的厂商,`available` 为 false。
+- **带广告的渠道 Web 导出**——Poki、CrazyGames 和 YouTube Playables 会安装各自的 provider(见下文)。
 - **编辑器 Play 模式**——自动安装 **mock provider**:`showRewarded`"播放"片刻后
   resolve `completed: true`,真实的暂停/音频仪式照常运行。复活流程在工位上就能排练。
-- **Web 与原生构建**——没有广告系统,`available` 为 false。接入聚合 SDK 的原生壳
+- **普通 Web 与原生构建**——没有广告系统,`available` 为 false。接入聚合 SDK 的原生壳
   走编辑器同一扇门:`Ads.setProvider(...)`。
 
 ## 分享
@@ -312,6 +314,18 @@ CI 使用真正无头 Chromium、SDK 模拟和同提交 Web WASM 检查这些流
 Inspector 会提供测试上下文。训练示例的真实 SDK 初始化、加载、开始/暂停
 和奖励完成已通过这条入口核实；提交前仍须逐项完成其余 QA 模块，不能把
 这些观察等同于设备验收或正式投放的广告填充保证。
+
+## CrazyGames Web 导出
+
+在同一个 Web 打包设置里选择 **CrazyGames**,或设置 `packaging.platforms.web.channel`
+为 `"crazygames"`。导出会接入官方 v3 SDK:上报加载开始与结束,奖励广告和中插广告走现有的
+`Ads` 资源,存档通过 SDK 的 Data API 保存(须在 CrazyGames 开发者后台开启 **Progress Save**;
+`setItem` 不代表云备份确认),并跟随宿主的静音设置。初始化失败时,游戏继续运行,宿主服务关闭。
+
+与 Poki 一样,由游戏逻辑上报真实的 gameplay 开始与结束;导出器不会去推断。`Scores.submit`
+可以向已获邀请的 CrazyGames 分数榜发送加密后的分数——在项目设置里填平台配置中的
+Base64 **Encryption Key**(切勿填服务器 API Key;它会随 Web 包发布),留空则禁用提交。
+发送了分数不代表榜单接受它,导出也不是平台审核:官方检查须另行完成。
 
 ## YouTube Playables Web 导出
 

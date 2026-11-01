@@ -34,10 +34,11 @@ in code, then wire them into either an FSM or a BT — graphs authored visually 
 editor, not hardcoded. Perception feeds the decision; the decision drives navigation.
 
 <Aside type="note">
-  Everything here is pure TypeScript in the `esengine` core (no WebAssembly
-  side-module). All four plugins — perception, FSM, BT, and navigation — are added
-  automatically by the editor and the web runtime. You only wire plugins yourself in
-  a bare `new App()` (see [Custom app setup](/docs/gameplay/ai/advanced/#custom-app-setup)).
+  Everything here is pure TypeScript in the `esengine/ai` subpath (no WebAssembly
+  side-module). All four plugins — perception, FSM, BT, and navigation — are installed
+  by importing `esengine/ai`, and the editor and the web runtime add them to the app.
+  You only wire plugins yourself in a bare `new App()` (see
+  [Custom app setup](/docs/gameplay/ai/advanced/#custom-app-setup)).
 </Aside>
 
 ## The shared registry
@@ -124,7 +125,7 @@ an FSM hook.
 
 ### Built-in names
 
-The engine pre-registers a few names, so common glue needs **no code at all** — they
+The engine pre-registers a handful of names, so common glue needs **no code at all** — they
 appear in the editor palettes next to your own. All of them operate on components of
 the agent entity (the same channel your code and the editor use):
 
@@ -137,6 +138,11 @@ the agent entity (the same channel your code and the editor use):
 | `spriteAnim.restart` | action | Rewind the flipbook to frame 0 and play (argument switches clip). |
 | `spriteAnim.stop` | action | Pause the flipbook. |
 | `spriteAnim.finished` | condition | True once a one-shot sprite clip has finished. |
+| `audio.play` | action | Raise the agent's `AudioSource` play flag; the argument switches to that clip. Already sounding the same clip is a no-op. |
+| `audio.stop` | action | Lower the `AudioSource` play flag. |
+| `audio.finished` | condition | True once a non-looping clip has ended and is no longer playing. |
+| `soundEvent.trigger` / `soundEvent.stop` | action | Start / stop the agent's `SoundEventSource`. |
+| `property.set` | action | Write any component field on the agent (or another entity) by `Component.field` path and a value, e.g. `UIVisual.color.a`. |
 
 Actions can carry an optional **string argument** — set it next to the action
 name in the FSM state inspector (or on a BT action node). Built-ins use it for

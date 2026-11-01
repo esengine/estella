@@ -5,12 +5,13 @@ description: 为微信小游戏构建和导出游戏，并使用分包。
 
 import { Steps, Aside } from '@astrojs/starlight/components';
 
-Estella 能把同一个项目导出为**微信小游戏**。你为微信目标构建引擎，从编辑器导出游戏，
+Estella 能把同一个项目导出为**微信小游戏**。你从编辑器导出游戏，
 再用微信开发者工具打开结果。
 
 ## 为微信构建引擎
 
-微信目标用微信的 `WXWebAssembly` 垫片编译 C++ 内核：
+编辑器下载包已经自带微信引擎和它的侧模块，装好的编辑器不需要做这一步。在引擎源码检出里，
+需要先构建一次。微信目标用微信的 `WXWebAssembly` 垫片编译 C++ 内核：
 
 ```bash
 node build-tools/cli.js build -t wechat
@@ -54,9 +55,14 @@ node build-tools/cli.js build -t videodec-wechat  # 视频（MPEG-1 wasm 解码�
   实例化，改名会让游戏在开发者工具里直接挂掉。
 </Aside>
 
+![打包对话框的微信小游戏目标页,可见 wasm 压缩、引擎分包、AppID 和 EmscriptenGLX 设置](@/assets/guides/zh/build-wechat.png)
+
+*微信小游戏目标页:标题下是体积上限,然后是该目标自己的设置,再往下是通用的构建选项。*
+
 ## 压缩纹理
 
-在打包对话框勾选**压缩纹理**，把 PNG 烘焙为 KTX2 —— 包更小、首屏更快。两个微信
+打包对话框的**资源压缩**选**按导入设置**时，纹理按各自导入设置里的**压缩**
+（自动、GPU 压缩或原图）烘焙为 KTX2 —— 包更小、首屏更快。两个微信
 特有的细节，都已自动处理：
 
 - Basis 转码器以 `basis-wechat` 侧模块的形式随包发布——构建一次（见上），否则
@@ -103,7 +109,7 @@ node build-tools/cli.js build -t wechat-glx
 - **保持在 4 MB 主包限制以内**：把按需内容移到 `subpackages/<name>/`——见
   [资源](/docs/zh-cn/assets/overview/)。导出会设置 `bigPackageSizeSupport`，超限的包
   在开发者工具里仍可*预览*——但上传照样卡限制。
-- **压缩纹理** —— 见上文；这是包体最大的一笔节省。
+- **压缩纹理** —— 见上文（让**资源压缩**保持**按导入设置**）；这是包体最大的一笔节省。
 - **在微信开发者工具里测试**，而不只是浏览器——文件系统、存储与套接字后端都与 Web 不同。
 - **在游玩中预加载下一关的分组**（`loadGroup`），让分包下载不卡过渡。
 

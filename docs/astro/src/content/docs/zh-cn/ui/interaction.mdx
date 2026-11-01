@@ -185,8 +185,8 @@ const focusDebug = defineSystem([Res(FocusManager)], (focus) => {
 ```
 
 <Aside type="note">
-  手柄导航未内置于焦点系统——焦点环由 `Tab` / `Enter` / `Space` / `Escape` 和
-  方向键驱动。手柄菜单请用[输入映射](/docs/zh-cn/scripting/input/)自行驱动选择,
+  手柄导航未内置于焦点系统——焦点环只随 `Tab` / `Shift+Tab` 移动
+  (`Enter` / `Space` / `Escape` 与方向键作用于当前聚焦的控件)。手柄菜单请用[输入映射](/docs/zh-cn/scripting/input/)自行驱动选择,
   直接调用控件状态。
 </Aside>
 

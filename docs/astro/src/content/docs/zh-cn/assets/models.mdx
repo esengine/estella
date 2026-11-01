@@ -201,6 +201,15 @@ API，它就开始播。
 
 `LINEAR`、`STEP`、`CUBICSPLINE` 都会带过来，含切线。
 
+`weights` 通道(模型 morph target 的动画)也会带过来：它变成该节点所绘制的每个 primitive 一条轨道、每个 target 一个通道，
+这样剪辑就能驱动 [Morph target](#morph-target) 一节说的 `MeshMorph` 权重。
+
+## 灯光与相机
+
+glTF 的 `KHR_lights_punctual` 灯光和相机，以及 FBX 的点光、方向光、聚光灯和相机，会变成 prefab 里对应节点上的 `Light` 和
+`Camera` 组件，并像引擎自己的那样转成朝向 -Z。颜色、锥角、照射范围、视场角与裁剪面都会带过来；强度按文件所写原样带入，
+因为引擎的强度没有光度学单位。导入的相机从不是活动相机，所以模型夺不走场景自己相机的画面。
+
 ## 蒙皮
 
 绑定好的模型会带着绑定进来：mesh 携带它的骨骼索引、权重和绑定姿态，prefab 给实体挂一个
@@ -272,17 +281,15 @@ Physical、Blender 的 Principled 最终都落到[材质](#材质)那一节列�
 
 | 不导入 | 为什么 |
 |---|---|
-| `weights` 动画通道 | 形状本身会被导入（见 [Morph target](#morph-target)）；驱动它们的剪辑还没有被带过来。 |
-| 第二套 UV（`TEXCOORD_1`）、`KHR_texture_transform`、FBX 的 uv transform | UV 按作者写的原样使用。 |
+| 材质贴图要求用 `TEXCOORD_1`、带偏移/缩放/旋转的 `KHR_texture_transform`、FBX 的 uv transform | 材质按作者写的原样读第一套 UV。(mesh 本身保留第二套 UV，光照贴图或材质的 `v_texCoord1` 可以读它。) |
 | 非三角形 primitive（`mode` ≠ 4） | 渲染器画的是三角形列表。 |
 | `normalTexture.scale` | 法线贴图按全强度应用。 |
 | 着色层的贴图(`clearcoatTexture`、`sheenColorTexture`、`anisotropyTexture` 等)、`specularColorFactor`、`attenuationDistance` | 每一层对整个材质是一个常量;系数保留,贴图只做报告。见[着色层](/docs/zh-cn/graphics/materials/#着色层)。 |
-| FBX 里的相机与灯光 | 场景的相机与灯光属于场景，不属于模型。 |
+| 面光与体积光 | 在导入提示里点名并跳过。(点光、方向光、聚光灯以及相机**会**导入：见[灯光与相机](#灯光与相机)。) |
 | FBX 分离的金属度/粗糙度贴图、FBX 的不透明度贴图 | 见 [FBX](#fbx)。 |
 
 ## 值得知道的限制
 
-- 点光的距离在 XY 平面上算（2D 光照模型固有）；**方向光是精确的**，而那通常正是着色一个模型需要的。
 - 自己写了 vertex stage 的材质**不会**被重定向到 mesh 几何上 —— 那样它会无视 per-object transform。
   只写 fragment 的材质两边都能用。
 - 没有 `NORMAL` 属性的几何仍然会受光，落在 2D 表面那个常量法线上 —— 平，但不是黑的。

@@ -43,7 +43,7 @@ import { Aside, Steps, FileTree } from '@astrojs/starlight/components';
   "id": "acme.level-tools",
   "name": "Level Tools",
   "version": "0.1.0",
-  "engines": { "editor": "^0.34" },
+  "engines": { "editor": "^0.97" },
   "main": { "editor": "src/editor.ts" }
 }
 ```
@@ -68,7 +68,7 @@ export default definePlugin({
 
 <Aside type="tip" title="engines.editor 由编辑器写，别照抄">
 `engines.editor` 是插件声称适配的编辑器版本区间。1.0 之前，**次版本号是破坏性
-变更的轴**——`^0.34` 不匹配 `0.35`。新建插件时编辑器按**当前自己的版本**写这一行，
+变更的轴**——`^0.97` 不匹配 `0.98`。新建插件时编辑器按**当前自己的版本**写这一行，
 所以从别处抄一个旧区间过来，插件一装上就是"版本不兼容"。
 </Aside>
 
@@ -100,6 +100,10 @@ export default definePlugin({
 
 "我的面板怎么没出来"通常在这里就有答案：它要么不在列表里（`activate` 没跑到那一行），
 要么在列表里但 id 和你以为的不一样。
+
+![插件面板,选中内置的 Audio Mixer 插件,显示它声明和贡献的内容](@/assets/guides/zh/plugins-panel.png)
+
+*插件面板:顶部是新建插件、导入和刷新,左边是插件列表,右边是所选插件**声明**和**贡献**的内容。*
 
 ## 分享插件
 
@@ -460,8 +464,8 @@ export default definePlugin({ activate: () => {} });
 ## 项目原生模块
 
 有些运行时是以 WASM 形态存在的：矢量动画播放器、各种求解器，凡是出身 C++、并且有
-官方 emscripten 构建的东西都算。引擎自己就以这种方式加载着五个——物理、Basis 转码
-器、各版本 Spine 运行时——项目也可以按同样的规则加自己的。
+官方 emscripten 构建的东西都算。引擎自己就以这种方式加载着它的模块——物理、Basis 转码
+器、DragonBones 运行时、视频解码器、各版本 Spine 运行时——项目也可以按同样的规则加自己的。
 
 自己 `fetch` 一个只在网页上行得通，别处都不行：小游戏没有 `fetch`，二进制必须**在
 包里**；试玩广告根本没有文件这个概念。而**项目模块**得到的是引擎自家模块同等的待

@@ -342,8 +342,8 @@ What is not there yet, so nobody is surprised:
 - One zone is used, the first `WaterZone` found, with one material for all of its water, and one ocean, the first found. Water outside the zone's region is not drawn, except the ocean.
   A shore or a river is traced at the zone's resolution: a river a texel or two wide, or an outline's detail finer than that, is lost, and a large region wants a high `resolution`.
 - The surface reaches `cells * cellSize * 2^(rings - 1) / 2` from the camera; with a `WaterZone` of your own, make that cover what should be seen (a zone you did not author grows its cells to do it).
-- A river does not carve the ground, and rapids and falls are not foamed by how fast or steep the water runs. A lake's outline is a polygon on a plane: it does not follow a curved
-  shore, and the waves die toward the shore without breaking on it.
+- A river cuts its bed only when `bedDepth` is above zero (see [Its bed](#rivers)); rapids and falls are not foamed by how fast or steep the water runs. A lake's outline is a polygon on a plane: it does not follow a curved
+  shore.
 - Things float (see [Floating](#floating)) and make a wake (see [Ripples](#ripples)); nothing swims yet.
 - Caustics and shafts follow the first directional light only, from a pattern and not a simulation: the web does not respond to the actual shape of the waves. From above the caustics
   take what is under the water to face up (the picture holds no normals there), so a wall under the surface is lit as a floor would be.

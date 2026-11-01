@@ -18,6 +18,10 @@ description: 用节点和连线可视化编写玩法逻辑,保存为 .esgraph �
 资产按路径引用并随场景预加载,所以在代理第一次 tick 之前就已就绪。图在 **Play**(以及导出的游戏)中运行,
 位于 `Update` 阶段,和状态机解释器并列。
 
+![画布上的脚本图:Every frame 事件连过 Set variable、Set property 和 Branch 节点,左侧是 Inputs、Outputs 和 Variables 列表](@/assets/guides/zh/script-graph.png)
+
+*脚本图示例:一个每帧移动、碰到边缘就折返的物体。左侧列出变量,以及各有多少个节点读取和写入它。*
+
 ## 两种连线
 
 | 连线 | 携带 | 方向 |
@@ -41,7 +45,7 @@ description: 用节点和连线可视化编写玩法逻辑,保存为 .esgraph �
 | **流程** | **分支**、**顺序**(引脚数可配)、**循环**、**延迟**。 |
 | **变量** | **读取变量**、**设置变量**。 |
 | **常量** | **数字**、**布尔**、**字符串**字面量。 |
-| **动作** | 带执行引脚、会做事的节点:`timeline.play` / `timeline.pause`、`spriteAnim.play` / `restart` / `stop`、`audio.play` / `stop`、`soundEvent.trigger` / `stop`、`property.set`、`entity.despawn`、`debug.log`、`scene.load` / `reload`、`ui.setVisible`、`ui.setPage`、`fsm.fire`、`blackboard.set`——以及你在代码里注册的所有动作。 |
+| **动作** | 带执行引脚、会做事的节点:`timeline.play` / `timeline.pause`、`spriteAnim.play` / `restart` / `stop`、`audio.play` / `stop`、`soundEvent.trigger` / `stop`、`property.set`、`entity.spawn`(生成图里指定的预制体,可给 x / y 与父实体,并返回新实体)、`entity.despawn`、`debug.log`、`scene.load` / `reload`、`ui.setVisible`、`ui.setPage`、`fsm.fire`、`blackboard.set`——以及你在代码里注册的所有动作。 |
 | **取值** | 只产出值的节点(没有执行引脚):`math.*`(add、subtract、multiply、divide、min、max、abs、clamp、lerp、random)、`compare.*`(equal、less、greater)、`logic.*`(and、or、not)、`string.concat`、`property.get`、`entity.self`、`entity.byName`、`input.down` / `pressed` / `axis` / `pointer`——以及所有已注册的条件。 |
 | **图** | 项目里其他可调用的图,用**调用图**节点来调用(在有图声明了入参之前为空)。 |
 

@@ -49,7 +49,7 @@ The editor writes a plugin that already runs, and loads it:
   "id": "acme.level-tools",
   "name": "Level Tools",
   "version": "0.1.0",
-  "engines": { "editor": "^0.34" },
+  "engines": { "editor": "^0.97" },
   "main": { "editor": "src/editor.ts" }
 }
 ```
@@ -75,7 +75,7 @@ reopens on the new build.
 
 <Aside type="tip" title="Let the editor write engines.editor">
 `engines.editor` is the editor range a plugin claims to work with. Below 1.0 the
-**minor is the breaking-change axis** — `^0.34` does not match `0.35`. Creating a
+**minor is the breaking-change axis** — `^0.97` does not match `0.98`. Creating a
 plugin pins it to the editor doing the creating, so copying an older range in from
 somewhere else is how a plugin arrives already marked *incompatible*.
 </Aside>
@@ -111,6 +111,10 @@ inspector sections, asset types, entity templates, menu items — each with its 
 
 "Why isn't my panel showing up?" is usually answered here: either it isn't in the
 list (`activate` never reached that line), or it is, under an id you didn't expect.
+
+![The Plugins panel with the built-in Audio Mixer plugin selected, showing what it declares and contributes](@/assets/guides/en/plugins-panel.png)
+
+*The Plugins panel: New plugin, Import and Refresh across the top, the plugins on the left, and on the right what the selected one **declares** and **contributes**.*
 
 ## Sharing a plugin
 
@@ -525,9 +529,9 @@ Package dialog.
 ## Project native modules
 
 Some runtimes arrive as WASM: a vector-animation player, a solver, anything with
-a C++ heritage and an official emscripten build. The engine already loads five of
-its own that way — physics, the Basis transcoder, the per-version Spine runtimes
-— and a project can add its own on the same terms.
+a C++ heritage and an official emscripten build. The engine already loads its own
+that way — physics, the Basis transcoder, the DragonBones runtime, the video decoder,
+the per-version Spine runtimes — and a project can add its own on the same terms.
 
 Fetching one by hand works on the web and nowhere else. A mini-game has no
 `fetch` and needs the binary *inside* the package; a playable has no files at

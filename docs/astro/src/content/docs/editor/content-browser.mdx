@@ -5,10 +5,21 @@ description: "Your project's asset explorer — creating and importing assets, p
 The Content Browser is your project's asset explorer. Its **create** menu makes new
 assets in place:
 
-- New Scene, New Animation, New Input Map, New Material, New Material Graph,
-  **New Shader**, New State Machine, New Behavior Tree, **New Script…**, New Folder.
-- Context actions per asset type: **Create Tileset** (from a texture), **Create
-  Tilemap** (from a tileset), **Create Material Instance** (from a material).
+- New Scene, New Prefab, **New Script…**, New Animation, New Animation Controller,
+  New Input Map, New Locale Table, New Cube Environment (six images), New Material,
+  New Material Graph, New Material Subgraph, **New Shader**, New State Machine,
+  New Behavior Tree, New Script Graph, New Avatar, Create Sound Event, New World
+  Rules, New Terrain Layer, New Folder — plus any asset type a plugin adds.
+- Context actions per asset type: **Create Tileset** and **Create Sprite
+  Animation** (from a texture), **Create Tilemap** (from a tileset), **Create
+  Animated Sprite** (from an animation clip), **Create Material Instance** (from a
+  material); a scene also offers **Set as Startup Scene**, and an imported asset
+  **Reimport**.
+
+![The Content Browser New menu listing every asset type that can be created](@/assets/guides/en/content-new-menu.png)
+
+*The Content Browser **New** menu.*
+
 
 **New Script…** is the one that writes more than a file: a module nothing imports is
 never bundled and its component never reaches Add Component, so the dialog also adds

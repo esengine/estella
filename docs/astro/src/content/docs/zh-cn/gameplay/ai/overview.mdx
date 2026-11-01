@@ -29,9 +29,9 @@ Estella 的 AI 层把一个实体变成会**感知**、会**决策**、会**移�
 感知喂给决策,决策驱动导航。
 
 <Aside type="note">
-  这里的一切都是 `esengine` 内核里的纯 TypeScript(没有 WebAssembly 侧模块)。感知、FSM、BT、
-  导航这四个插件都由编辑器和 Web 运行时**自动**加入。只有当你从一个裸的 `new App()` 起步时,
-  才需要自己加插件(见[自定义应用](/docs/zh-cn/gameplay/ai/advanced/#自定义应用))。
+  这里的一切都是 `esengine/ai` 子路径里的纯 TypeScript(没有 WebAssembly 侧模块)。感知、FSM、BT、
+  导航这四个插件在你的游戏导入 `esengine/ai` 时安装,编辑器和 Web 运行时会把它们加进应用。
+  只有当你从一个裸的 `new App()` 起步时,才需要自己加插件(见[自定义应用](/docs/zh-cn/gameplay/ai/advanced/#自定义应用))。
 </Aside>
 
 ## 共享注册表
@@ -122,6 +122,11 @@ export enum Status { Success = 'success', Failure = 'failure', Running = 'runnin
 | `spriteAnim.restart` | 动作 | 回卷到第 0 帧并播放(参数可切换剪辑)。 |
 | `spriteAnim.stop` | 动作 | 暂停翻页动画。 |
 | `spriteAnim.finished` | 条件 | 一次性精灵剪辑播完后为真。 |
+| `audio.play` | 动作 | 拉起该实体 `AudioSource` 的播放旗标;参数可切换到指定剪辑。已在播放同一剪辑时不会重播。 |
+| `audio.stop` | 动作 | 放下 `AudioSource` 的播放旗标。 |
+| `audio.finished` | 条件 | 非循环剪辑播完且已停止播放时为真。 |
+| `soundEvent.trigger` / `soundEvent.stop` | 动作 | 触发 / 停止该实体的 `SoundEventSource`。 |
+| `property.set` | 动作 | 按 `Component.field` 路径与取值写入代理实体(或另一实体)的任意组件字段,例如 `UIVisual.color.a`。 |
 
 动作可携带一个可选**字符串参数**——在 FSM 状态检查器的动作名旁(或 BT 动作节点上)填写。
 内置动作用它承载组件无法按状态携带的数据,比如 `spriteAnim.play` 要切换到哪个剪辑;

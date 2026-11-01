@@ -100,6 +100,7 @@ A field at three levels reaches the GPU as roughly three draws, not as one per p
 - **The sizes must descend.** `lod2Size` below `lod1Size`, and so on.
 - **`cullSize: 0`** disables culling entirely, so the group is never invisible.
 - **A group may have no stand-in at all.** With only a `cullSize` it draws the renderer's own mesh while it is big enough and nothing once it is smaller: the right group for a tuft of grass, which has no cheaper version and is not worth drawing past a distance.
+- **The levels can be generated at import.** Set **Generate LODs** to 1–3 levels in a model's import settings (or pass `--lods <n>` to `import-model`): each mesh is collapsed into copies with about 50%, 20% and 7% of its triangles, written as `<mesh>_lod<n>.esmesh`, with a `LODGroup` on the entity. Skinned and morphing meshes, and meshes under **LOD Minimum Triangles** (256), keep one level.
 - **A skinned group must share one skeleton.** Every level of a skinned mesh needs
   the same joint count; a level that disagrees is drawn in its bind pose, and the
   engine says so.
@@ -126,4 +127,9 @@ thousand props is shippable at all.
 system: every level's mesh is resident, nothing is loaded or unloaded, and an
 object that is `cullSize`-small is simply not drawn rather than removed from the
 world. Combining distant objects into one merged proxy (HLOD) and loading a world
-in pieces are separate concerns.
+in pieces are separate concerns, and there is no general-purpose HLOD that bakes
+arbitrary scene objects into a proxy. What exists is specific: the far versions
+of plants (`Foliage`, `PlacedFoliage` — see [Foliage](/docs/graphics/foliage/)),
+the terrain's own distance-based quadtree
+([Terrain](/docs/graphics/terrain/)), and [static batching](/docs/performance/static-batching/),
+which merges different meshes to save draws but does not make them cheaper far away.

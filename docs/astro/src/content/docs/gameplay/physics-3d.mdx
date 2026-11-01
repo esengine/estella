@@ -13,6 +13,19 @@ It sits **beside** the [2D physics](/docs/gameplay/physics/), not on top of it. 
 scene keeps the solver, the units and the feel it already has, and a project that
 never asks for a 3D world never loads it.
 
+## Setup
+
+Like the 2D side module, the 3D world loads on its own in the editor and the web
+runtime when a scene uses a 3D body. In a custom app, add the plugin yourself; every
+option is optional (gravity defaults to `{ x: 0, y: -9.81, z: 0 }`, `fixedTimestep` to
+`1/60`, `pixelsPerUnit` to `100`, `maxBodies` to `1024`):
+
+```typescript
+import { Physics3DPlugin } from 'esengine/physics3d';
+
+app.addPlugin(new Physics3DPlugin('physics3d.js', { gravity: { x: 0, y: -9.81, z: 0 } }));
+```
+
 ## Bodies
 
 An entity is in the world when it carries a `RigidBody3D` **and** a shape. A body
@@ -32,6 +45,7 @@ cmds.spawn()
 | `gravityScale` | This body's share of world gravity. `0` is weightlessness, not slow falling. |
 | `linearDamping` / `angularDamping` | How quickly motion bleeds off. |
 | `fixedRotation` | Freezes the orientation the body was given — what keeps a character from toppling. It does not right a body that starts tilted. |
+| `layer` | Which of the sixteen [collision layers](#collision-layers) the body is in. |
 | `continuousCollision` | Checks the whole path a step covers rather than where the body ended up. What a bullet needs; off by default, since it costs more. |
 
 ## Shapes
@@ -128,6 +142,10 @@ app.getResource(Physics3DDebugDraw).enabled = true;
   The overlay ignores the depth buffer, so a shape inside a wall is still
   visible. That is what a debug view is for.
 </Aside>
+
+A `Planet` with `gravity` above 0 pulls every dynamic body toward its centre instead of
+along the world's single gravity vector, so a round world has a down everywhere (see
+[Terrain](/docs/graphics/terrain/) for the planet itself).
 
 ## Characters
 

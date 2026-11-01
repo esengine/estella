@@ -26,12 +26,18 @@ cmds.spawn()
 |---|---|---|---|
 | **`Perceiver`** | `range` | `220` | Sight range in world pixels. |
 | | `fovDegrees` | `360` | Field-of-view cone in degrees (`360` = omnidirectional). |
+| | `facingAxis` | `'x'` | Which of the entity's own axes the cone points down: `'x'` is screen-right (a flat scene), `'-z'` is where an imported 3D model faces. |
+| | `losLayers` | `0` | 3D only: physics layers the line-of-sight ray may hit (`0` = every layer). |
 | **`Perception`** | `visible` | `false` | A target is currently seen. |
 | | `distance` | `0` | Distance to the seen target. |
-| | `targetX`, `targetY` | `0` | Seen target position, world pixels. |
-| | `dirX`, `dirY` | `0` | Unit direction from observer to target. |
+| | `targetX`, `targetY`, `targetZ` | `0` | Seen target position, world pixels. |
+| | `dirX`, `dirY`, `dirZ` | `0` | Unit direction from observer to target. |
 | **`PerceptionTarget`** | *(tag)* | — | Marks an entity as sensable by `Perceiver`s. |
 
-The FOV cone is oriented by the perceiver's `Transform` rotation. `Perception` is a
+Sensing is three-dimensional (a flat scene is the case where `z` is constant), so the
+cone and the distance work in a 3D scene too. The FOV cone is oriented by the perceiver's
+`Transform` rotation along `facingAxis`. When a physics world is present the sight ray is
+cast against it, so walls block sight: the 3D solver is used if the scene has one, otherwise
+the 2D one; with neither, sensing is range + cone only. `Perception` is a
 transient, runtime-only component — the plugin rewrites it every frame, so you never
 author its values.

@@ -5,12 +5,13 @@ description: Build and export a game for WeChat MiniGames, with subpackages.
 
 import { Steps, Aside } from '@astrojs/starlight/components';
 
-Estella exports the same project to **WeChat MiniGames**. You build the engine
-for the WeChat target, export the game from the editor, and open the result in
-WeChat DevTools.
+Estella exports the same project to **WeChat MiniGames**. You export the game from
+the editor and open the result in WeChat DevTools.
 
 ## Build the engine for WeChat
 
+The editor download already carries the WeChat engine and its side modules, so an
+installed editor needs none of this. In an engine source checkout, build them once.
 The WeChat target compiles the C++ core with WeChat's `WXWebAssembly` shims:
 
 ```bash
@@ -63,11 +64,16 @@ the side modules your scenes need. Every scene in the build is a
   DevTools.
 </Aside>
 
+![The Package Project dialog on the WeChat target, with the wasm compression, engine subpackage, AppID and EmscriptenGLX settings](@/assets/guides/en/build-wechat.png)
+
+*The WeChat target: the size limits under the title, then the target's own settings, then the shared build options.*
+
 ## Compressed textures
 
-Enable **Compress textures** in the Package dialog to cook PNGs to KTX2 —
-a smaller package and faster first load. Two WeChat-specific details, both
-handled automatically:
+With the Package dialog's **Compression** set to **By import settings**, textures
+cook to KTX2 per their **Compression** import setting (Auto, GPU compressed or
+Original image) — a smaller package and faster first load. Two WeChat-specific
+details, both handled automatically:
 
 - The Basis transcoder ships as the `basis-wechat` side module — build it once
   (above), or the export fails with the exact command to run.
@@ -135,7 +141,7 @@ levels download on demand rather than bloating the initial package:
   `subpackages/<name>/` — see [Assets](/docs/assets/overview/). The export sets
   `bigPackageSizeSupport`, so an oversized package still *previews* in
   DevTools — but upload enforces the cap.
-- **Compress textures** — see above; the single biggest package-size win.
+- **Compress textures** — see above (leave **Compression** on **By import settings**); the single biggest package-size win.
 - **Test in WeChat DevTools**, not just the browser — the file system, storage,
   and socket backends differ from the web.
 - **Preload the next level's group** (`loadGroup`) during play so the

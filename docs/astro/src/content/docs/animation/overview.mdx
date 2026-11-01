@@ -425,7 +425,8 @@ const drive = defineSystem([Query(Animator), Res(AnimatorController)], (q, anim)
 | `Animator` field | Type | Default | Description |
 |---|---|---|---|
 | `controller` | string | `''` | An `.esanimator` asset ref (what the editor writes) or a name passed to `registerController` in code. |
-| `currentState` | string | `''` | Active state, as a `/`-separated path for nested machines (seeded from the controller's initial state). |
+| `avatar` | string | `''` | An `.esavatar` asset saying how this rig spells the joints the clips name (see [Avatars](#layers-masks-and-ik)). |
+| `currentState` | string | `''` | The base layer's active state, as a `/`-separated path for nested machines (seeded from the controller's initial state). |
 | `enabled` | boolean | `true` | Disable to freeze the state machine. |
 
 | `AnimatorController` method | Description |
@@ -436,8 +437,12 @@ const drive = defineSystem([Query(Animator), Res(AnimatorController)], (q, anim)
 | `resetTrigger(entity, name)` | Clear a trigger before it's consumed. |
 | `getFloat(entity, name)` / `getBool(entity, name)` | Read a parameter back. |
 
-The controller can drive both sprite **and** [Spine](/docs/animation/spine/)
-animations, so one state machine handles a whole character.
+A state's motion can be a sprite clip, a [Spine](/docs/animation/spine/) animation, or
+a [timeline](/docs/animation/timeline/) clip (which is how a skinned 3D rig is animated),
+so one state machine handles a whole character. A transition can also carry a
+`duration` (seconds) to crossfade from the state being left into the one being entered;
+it is honoured wherever both motions can be sampled, and a sprite sheet is switched
+instead, having nothing to be halfway between.
 
 Parameters come in three types (`AnimatorParamType`): `'float'`, `'bool'`, and
 `'trigger'`. Conditions compare them with `gt` / `lt` / `eq` / `neq` (numeric,
@@ -452,10 +457,10 @@ parameter and `eq` / `neq`.
 *A 1D blend: a float parameter picks the clip whose threshold is the highest one at or below it — here `idle` / `walk` / `run` as `speed` rises, with no transitions between them.*
 
 A state can carry a 1D **blend** instead of a single clip: a float parameter
-selects between `AnimatorBlendThreshold` stops. Because the sprite channel plays
-one clip at a time, this is a *selection* by threshold — the stop with the
+selects between `AnimatorBlendThreshold` stops. For sprite clips, which play one at
+a time, this is a *selection* by threshold — the stop with the
 greatest `value` at or below the parameter wins (below all stops, the first one
-plays) — not a weighted pose blend. Each threshold is
+plays). Each threshold is
 `{ value, clip, speed?, loop? }`; per-threshold `speed` / `loop` override the
 state's own. The selection re-evaluates every frame, so a rising `speed`
 parameter walks idle→walk→run with no transitions:
@@ -488,11 +493,24 @@ const setup = defineSystem([Res(AnimatorController)], (anim) => {
 The pure helper `selectBlendClip(blend, value)` returns the threshold a value
 selects — handy for tooling or tests.
 
+A blend over motions that can be sampled (timeline clips driving a skeleton or any
+component field) does not pick: it **mixes** the stops either side of the parameter,
+at a shared phase rather than a shared second, so a 2 s idle and a 0.6 s run keep
+their feet together. Write it with a `motion` instead of the single-kind fields:
+`{ kind: 'blend1d', parameter, thresholds: [{ value, motion }] }`, where a stop's
+motion can itself be another blend. For a locomotion that turns, `blend2d` places its
+stops in the plane two parameters span —
+`{ kind: 'blend2d', parameterX, parameterY, points: [{ position: { x, y }, motion }] }` —
+and mixes the points around the sample (a sample standing on a clip plays that clip
+alone; one outside the hull is held by its nearest edge). The state inspector offers
+None / Clip / Blend 1D / Blend 2D, so none of this needs a hand-edited file.
+
 For skeletal characters, a state can instead carry a `spine` motion
 (`AnimatorSpineMotion`, `{ animation, loop? }`): on entry the controller sets
 that [Spine](/docs/animation/spine/) animation (`loop` defaults `true`) and leaves
 track playback and mixing to the Spine runtime — it never touches
 `SpriteAnimator`. States are exclusive: exactly one of `clip`, `blend`, `spine`,
+`motion` (the general form: any registered kind, `sprite` or `timeline`, or a `blend1d` / `blend2d` over them),
 or `stateMachine`.
 
 ### Sub-state machines
@@ -565,6 +583,49 @@ evaluateAnimatorPath(player, 'locomotion/idle', { speed: 3 }, new Set());
 | `leafStateOf(def, path)` | The motion-bearing leaf state of a path, or `null`. |
 | `evaluateAnimatorPath(def, path, params, triggers, clipFinished?)` | One pure evaluation step over a path → `{ nextPath, consumedTriggers }`. |
 | `STATE_PATH_SEP` | The path separator, `'/'`. |
+
+### Layers, masks and IK
+
+![The animator controller editor with a Layers list (Upper body over Base) and the parameters panel](@/assets/guides/en/animator-layers.png)
+
+*The animator controller of the third-person example. **Layers** (top right) stack on the base layer, each with its own weight and mask; **Parameters** below drive the transitions.*
+
+
+
+One state machine can say a character is running or waving, never both. A controller
+can carry **layers** over its base machine: each is a machine of its own, with its own
+clock, transitions and active state, and the entity ends up as the whole stack,
+written once. Layers compose in order, so swapping two is a different character.
+
+```jsonc
+// in the .esanimator, beside "states"
+"layers": [{
+  "name": "Upper body",
+  "weight": 1,                  // 0 leaves the layers below alone, 1 states this layer whole
+  "blend": "override",          // or "additive": add what the clip departs from its first frame
+  "mask": { "paths": ["Spine"] }, // joints this layer may write, by childPath; each stands for its subtree
+  "initialState": "Rest",
+  "states": [ /* ... */ ]
+}]
+```
+
+A `mask` is a set of the same `childPath`s a clip already uses to name what it
+animates. No mask writes the whole rig; an empty `paths` list writes nothing. Root
+motion belongs to the base layer alone, and a trigger is one event every layer is told
+about. The editor's layer rail picks which machine the canvas edits.
+
+A controller's `ik` list reaches for things the clips did not know about:
+`two-bone` puts a limb's tip (`tip`, a joint by `childPath`) on a `target`, bending
+towards an optional `pole`; `look-at` turns a joint until its own `axis` points at the
+target. Each has a `weight`, and a float `parameter` can fade it. IK belongs to the
+controller, not to a layer, and runs once on the stack's answer.
+
+**Avatars.** A clip names joints by whatever the exporter called them, so two
+characters rigged by two people share no clip. A `.esavatar` (New menu) is the rig's
+own translation of those names and records its bind pose; a controller's `avatar` names
+the avatar its clips were authored against, and the Animator's `avatar` field takes the rig's own. One controller then drives rigs with different bone names and
+different bind poses, and root motion is scaled to the distance each rig would
+travel.
 
 ### Animation events
 

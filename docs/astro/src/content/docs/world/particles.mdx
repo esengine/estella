@@ -112,9 +112,9 @@ Where particles spawn and their initial direction. See [Emitter shapes](#emitter
 
 | Property | Type | Default | Description |
 |---|---|---|---|
-| `shape` | `EmitterShape` | `Cone` | `Point` / `Circle` / `Rectangle` / `Cone`. |
-| `shapeRadius` | number | `100` | Radius for `Circle` / `Cone`. |
-| `shapeSize` | Vec2 | `{100, 100}` | Box extents for `Rectangle`. |
+| `shape` | `EmitterShape` | `Cone` | `Point` / `Circle` / `Box` / `Cone` / `Sphere` / `Hemisphere`. |
+| `shapeRadius` | number | `100` | Radius for `Circle` / `Cone` / `Sphere` / `Hemisphere`. |
+| `shapeSize` | Vec3 | `{100, 100, 0}` | Box extents for `Box` (a `z` of `0` is the flat rectangle a 2D emitter spawns from). |
 | `shapeAngle` | number | `25` | Cone half-angle (°) for `Cone`. |
 
 ### Velocity & forces
@@ -123,9 +123,9 @@ Where particles spawn and their initial direction. See [Emitter shapes](#emitter
 |---|---|---|---|
 | `speedMin` | number | `500` | Slowest initial speed. |
 | `speedMax` | number | `500` | Fastest initial speed. |
-| `angleSpreadMin` | number | `0` | Start of the emission-direction arc (°). |
-| `angleSpreadMax` | number | `360` | End of the emission-direction arc (°). |
-| `gravity` | Vec2 | `{0, 0}` | Constant acceleration applied to every particle. |
+| `angleSpreadMin` | number | `0` | Start of the emission-direction arc (°), in the emitter's local XY plane. Read by `Point` and `Box` only. |
+| `angleSpreadMax` | number | `360` | End of the emission-direction arc (°). Read by `Point` and `Box` only. |
+| `gravity` | Vec3 | `{0, 0, 0}` | Constant acceleration applied to every particle. |
 | `damping` | number | `0` | Velocity drag per second (`0` = none). |
 | `addedVelocityMin` / `addedVelocityMax` | Vec3 | `{0,0,0}` | A velocity each particle carries on top of its own, chosen between the two ends when it is born. Gravity, damping, noise and the speed limit do not act on it. CPU simulation. |
 | `speedLimit` | number | `0` | The fastest a particle may move under its own velocity (`0` = no limit). A faster one is pulled back toward the limit. CPU simulation. |
@@ -227,12 +227,17 @@ See [Per-particle trails](#per-particle-trails) below.
 | Shape | Uses | Behavior |
 |---|---|---|
 | `Point` | — | All particles spawn at the entity origin. |
-| `Circle` | `shapeRadius` | Spawn inside a disc; direction radiates outward. |
-| `Rectangle` | `shapeSize` | Spawn inside a box. |
+| `Circle` | `shapeRadius` | Spawn inside a disc in the emitter's own plane; direction radiates outward. |
+| `Box` | `shapeSize` | Spawn inside a box (a flat rectangle when `shapeSize.z` is `0`). |
 | `Cone` | `shapeRadius`, `shapeAngle` | Spawn in a cone — a directed spray (fountains, thrusters). |
+| `Sphere` | `shapeRadius` | Spawn inside a ball; direction radiates outward. |
+| `Hemisphere` | `shapeRadius` | Spawn inside a half ball about local +Y; direction radiates outward. |
 
-The `angleSpreadMin…Max` arc further constrains the launch direction, so you can
-aim any shape (e.g. a `Circle` that only emits upward with `0…180`).
+Directed shapes point along the emitter's local +Y, so an unrotated emitter sprays up
+and rotating the entity aims it, in 3D as well. `Point` and `Box` have no direction of
+their own: the `angleSpreadMin…Max` arc (in the emitter's local XY plane) says which way
+they launch, so a `Point` that only emits upward uses `0…180`. `Circle`, `Cone`, `Sphere`
+and `Hemisphere` carry their direction with them and ignore the arc.
 
 ## Color & size over life
 
@@ -329,12 +334,13 @@ the parent triggers it. Its `burstCount` sets how many particles each sub-burst
 spawns. Point the parent's `subEmitter` at that child entity:
 
 ```typescript
-import { SubEmitterTrigger } from 'esengine';
+import { EmitterShape, SubEmitterTrigger } from 'esengine';
 
 // The burst template — a normal emitter that only fires when triggered.
 const shell = cmds.spawn()
   .insert(Transform, {})
   .insert(ParticleEmitter, {
+    shape: EmitterShape.Point,                     // no direction of its own: sparks fly all round
     rate: 0, playOnStart: false, burstCount: 44,   // 44 sparks per burst
     lifetimeMin: 0.6, lifetimeMax: 1.1, speedMin: 160, speedMax: 340,
     startColor: { r: 1, g: 0.85, b: 0.35, a: 1 }, endColor: { r: 1, g: 0.3, b: 0.1, a: 0 },
@@ -345,6 +351,7 @@ const shell = cmds.spawn()
 cmds.spawn()
   .insert(Transform, { position: { x: 0, y: -230, z: 0 } })
   .insert(ParticleEmitter, {
+    shape: EmitterShape.Point,
     rate: 2.5, lifetimeMin: 1.4, lifetimeMax: 1.8, speedMin: 560, speedMax: 660,
     angleSpreadMin: 84, angleSpreadMax: 96,
     subEmitter: shell,
@@ -455,8 +462,8 @@ splashes fade out instead of skittering forever.
 
 <Aside type="note">
   This is a single horizontal floor — the common case (a ground line). Collision
-  against arbitrary geometry and tilemaps goes through the physics world and is a
-  separate, opt-in path. Like force fields, floor collision applies to **world-space**
+  against walls, bodies and tilemap colliders goes through the physics world (`Physics2D` /
+  `Physics3D`) and is a separate, opt-in path: see [Scene collisions](#scene-collisions). Like force fields, floor collision applies to **world-space**
   particles only.
 </Aside>
 

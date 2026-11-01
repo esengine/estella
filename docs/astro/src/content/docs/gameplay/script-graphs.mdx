@@ -26,6 +26,10 @@ The asset is referenced by path and preloaded with the scene, so it is ready bef
 the agent first ticks. Graphs run in **Play** (and in the exported game), in the
 `Update` schedule beside the state-machine interpreter.
 
+![A script graph on its canvas: an Every frame event wired through Set variable, Set property and Branch nodes, with the Inputs, Outputs and Variables list on the left](@/assets/guides/en/script-graph.png)
+
+*The Script Graph Demo example: a bouncer that moves every frame and turns round at an edge. Variables are listed on the left with how many nodes read and write each.*
+
 ## Two kinds of wire
 
 | Wire | Carries | Direction |
@@ -52,7 +56,7 @@ groups (**Events**, **Flow**, **Variables**, **Values**, **Actions**, **Queries*
 | **Flow** | **Branch**, **Sequence** (configurable pin count), **While**, **Delay**. |
 | **Variables** | **Get variable**, **Set variable**. |
 | **Values** | **Number**, **Boolean**, **String** literals. |
-| **Actions** | Nodes with an exec pin that do something: `timeline.play` / `timeline.pause`, `spriteAnim.play` / `restart` / `stop`, `audio.play` / `stop`, `soundEvent.trigger` / `stop`, `property.set`, `entity.despawn`, `debug.log`, `scene.load` / `reload`, `ui.setVisible`, `ui.setPage`, `fsm.fire`, `blackboard.set` — plus every action you register in code. |
+| **Actions** | Nodes with an exec pin that do something: `timeline.play` / `timeline.pause`, `spriteAnim.play` / `restart` / `stop`, `audio.play` / `stop`, `soundEvent.trigger` / `stop`, `property.set`, `entity.spawn` (spawns a prefab the graph names, at an x / y and optionally under a parent, and hands the new entity back), `entity.despawn`, `debug.log`, `scene.load` / `reload`, `ui.setVisible`, `ui.setPage`, `fsm.fire`, `blackboard.set` — plus every action you register in code. |
 | **Queries** | Value-only nodes (no exec pin): `math.*` (add, subtract, multiply, divide, min, max, abs, clamp, lerp, random), `compare.*` (equal, less, greater), `logic.*` (and, or, not), `string.concat`, `property.get`, `entity.self`, `entity.byName`, `input.down` / `pressed` / `axis` / `pointer` — plus every registered condition. |
 | **Graphs** | Every other callable graph in the project, to call it with a **Call graph** node (empty until a graph declares an input). |
 

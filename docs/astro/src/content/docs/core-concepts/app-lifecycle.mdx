@@ -65,17 +65,21 @@ content stack, in this order:
    `RenderPipeline`.
 2. **UI**: `uiPlugins` — the composed UI pipeline (layout, text, text input,
    masks, render order, interaction, drag, focus, safe area).
-3. **Base content**: `timerPlugin`, `lifecyclePlugin`, `animationPlugin`,
-   `audioPlugin`, `videoPlugin`, `particlePlugin`, `trailPlugin`,
-   `mesh2dPlugin`, `tilemapPlugin`, `postProcessPlugin`, `timelinePlugin`,
-   `perceptionPlugin`, `fsmPlugin`, `btPlugin`, `navPlugin`,
-   `replicationPlugin`.
-4. **Spine**: a `SpinePlugin` instance (it pulls its per-version wasm runtime
-   from `app.sideModules` on demand — nothing loads unless a scene uses Spine).
+3. **Base content**: the diagnostics, timer, velocity, lifecycle, animation, audio,
+   video, particle, trail, spring-bone, mesh-renderer, static-batch,
+   post-processing, event-binding and services plugins.
+4. **Optional subsystems, installed by import**: importing a subpath such as
+   `esengine/tilemap`, `esengine/timeline`, `esengine/ai` (perception, FSM,
+   BT and navigation), `esengine/logic` (script graphs), `esengine/gameplay`,
+   `esengine/replication`, `esengine/spine`, `esengine/dragonbones`, or the
+   terrain, foliage, water and worldgen subpaths registers that subsystem's plugins,
+   and the factory adds whatever has registered. A game that never imports a subpath
+   neither installs nor ships its subsystem. Spine pulls its per-version wasm runtime
+   from `app.sideModules` on demand — nothing loads unless a scene uses Spine.
 5. **Your `plugins`**, in the order given.
 
-Physics is **not** in the default set: `Physics2DPlugin` needs the physics wasm
-module. The shipped runtime acquires `'physics'` from the side-module host and
+Physics is **not** in the default set: `Physics2DPlugin` (and `Physics3DPlugin` for the
+3D world) needs its wasm module. The shipped runtime acquires `'physics'` from the side-module host and
 installs the plugin automatically when the project declares physics or the
 scene contains physics components; when composing manually, construct
 `Physics2DPlugin` yourself (it and `loadPhysicsModule` are exported from
@@ -104,14 +108,14 @@ stop();
 | `plugins` | `Plugin[]` | Your gameplay plugins, appended after the base set. |
 | `sideModules` | `SideModuleHost` | Optional-native-module acquirer (physics on the server). |
 
-Included: `assetPlugin`, `prefabsPlugin`, `sceneManagerPlugin`, `timerPlugin`,
-`lifecyclePlugin`, `audioPlugin` (silent on hosts without a device), and the
-gameplay-AI/replication set (`perceptionPlugin`, `fsmPlugin`, `btPlugin`,
-`navPlugin`, `replicationPlugin`).
+Included: `assetPlugin`, `prefabsPlugin`, `sceneManagerPlugin`, the timer, velocity,
+lifecycle, event-binding and services plugins, `audioPlugin` (silent on hosts without a
+device), and every optional subsystem the project imported (gameplay AI, script graphs,
+replication, …) — the same import-driven set as above.
 
 Excluded — everything that exists *to be seen*: `corePlugin` (it wires render
 facades that only exist after `initRenderer()`), UI, particles, tilemap
-rendering, post-processing, timeline, Spine, input.
+rendering, post-processing, Spine, input.
 
 `runHeadless(app, { fps? })` drives the app on a wall-clock `setInterval`
 (there is no `requestAnimationFrame` on a server), default 60 fps. Delta is
@@ -343,8 +347,8 @@ independently.
 
 Optional native subsystems ship as **standalone wasm modules** loaded on
 demand, so the base engine download stays small: physics (Box2D), the
-per-version Spine runtimes, the Basis Universal texture transcoder, and the
-software video decoder. Each is an emscripten pair — `<file>.js` glue plus
+the Jolt 3D physics world, the per-version Spine runtimes, DragonBones, the Basis
+Universal texture transcoder, and the software video decoder. Each is an emscripten pair — `<file>.js` glue plus
 `<file>.wasm` — acquired uniformly through a `SideModuleHost`; only the
 *transport* differs per realm.
 
@@ -353,11 +357,13 @@ software video decoder. Each is an emscripten pair — `<file>.js` glue plus
 | `SideModuleId` | Artifacts | Contents |
 |---|---|---|
 | `'physics'` | `physics.js` / `.wasm` | Box2D physics. |
-| `'spine:3.8'` / `'spine:4.1'` / `'spine:4.2'` | `spine38` / `spine41` / `spine42` `.js`/`.wasm` | One Spine runtime per skeleton format version. |
+| `'physics3d'` | `physics3d.js` / `.wasm` | Jolt 3D physics. |
+| `'spine:2.1'` / `'3.8'` / `'4.1'` / `'4.2'` / `'4.3'` | `spine21` … `spine43` `.js`/`.wasm` | One Spine runtime per skeleton format version. |
+| `'dragonbones'` | `dragonbones.js` / `.wasm` | The DragonBones runtime (one entry: the format is frozen). |
 | `'basis'` | `basis.js` / `.wasm` | Basis Universal KTX2 transcoder (compressed textures). |
 | `'videodec'` | `videodec.js` / `.wasm` | MPEG-1 software video decoder. |
 
-`SPINE_VERSIONS` is the readonly list `['3.8', '4.1', '4.2']`, and
+`SPINE_VERSIONS` is the readonly list `['2.1', '3.8', '4.1', '4.2', '4.3']`, and
 `spineModuleId(version)` builds the corresponding id.
 
 A host answers `acquire(id)` with a promise of the instantiated module (cached
@@ -368,17 +374,17 @@ built-in transports:
   base URL (what `wasmBaseUrl` builds); used by the editor, web, and desktop.
 - **`createEmbeddedSideModuleHost(...)`** — modules inlined as base64
   (Playable ads).
-- **`createWeChatSideModuleHost(...)`** — WeChat's precompiled module
-  factories.
+- **`createMiniGameSideModuleHost(...)`** (also exported as `createWeChatSideModuleHost`) —
+  the mini-game hosts' precompiled module factories.
 
 You normally never call `acquire` yourself — set `app.sideModules` (via
 `wasmBaseUrl` or `sideModules`) and the Spine plugin and physics install pull
 from it when needed.
 
 <Aside type="note">
-  The main `esengine` barrel mirrors exactly the physics/spine **wiring**
-  layer — `Physics2DPlugin`, `Physics2DEvents`, `Physics`, `loadPhysicsModule`,
-  `SpinePlugin`, `SpineEvents`, `Spine` — so hosts can register the plugins
+  The main `esengine` barrel mirrors the physics/spine **wiring**
+  layer — `Physics2DPlugin`, `Physics2DEvents`, `Physics2D`, `loadPhysicsModule`,
+  `Physics3DPlugin`, `Physics3D`, `SpinePlugin`, `SpineEvents`, `Spine` — so hosts can register the plugins
   without a subpath import. The full APIs live on the `esengine/physics` and
   `esengine/spine` subpaths. See [Physics](/docs/gameplay/physics/) and
   [Spine](/docs/animation/spine/).

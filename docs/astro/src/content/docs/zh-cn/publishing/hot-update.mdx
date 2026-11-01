@@ -112,7 +112,7 @@ Estella 的热更新是**内容寻址**、**原子**（要么全成、要么回�
 
 ## 构建产出了什么
 
-每次 Web / 桌面导出都会在游戏旁写出一份 **`asset-manifest.json`**（可寻址清单）——那正是客户端做热更新 diff 的依据。当这次构建有 CDN 根地址时，导出还会把一段 `hotUpdate` 烘进 `game.config.json`：
+每次 Web、桌面、小游戏和原生导出都会在游戏旁写出一份 **`asset-manifest.json`**（可寻址清单）——那正是客户端做热更新 diff 的依据。当这次构建有 CDN 根地址时，导出还会把一段 `hotUpdate` 烘进 `game.config.json`：
 
 ```json
 {

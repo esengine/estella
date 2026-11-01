@@ -5,9 +5,9 @@ description: Ship one project to Web, Desktop, WeChat MiniGame, a single-file Pl
 
 import { Aside, Steps } from '@astrojs/starlight/components';
 
-One Estella project ships to six targets — **Web**, **Desktop**, **WeChat
-MiniGame**, a single-file **Playable Ad**, and native **Android** / **iOS** apps —
-all from the editor. The export uses the **same runtime you played in the editor**,
+One Estella project ships to **Web**, **Desktop**, **WeChat MiniGame** and the other
+mini-game platforms (Douyin, Kuaishou, Bilibili, quick games, Alipay, Huawei), a
+single-file **Playable Ad**, and native **Android** / **iOS** apps — all from the editor. The export uses the **same runtime you played in the editor**,
 so what you shipped is what you tested (*play == ship*).
 
 ## Exporting from the editor
@@ -76,9 +76,10 @@ and opens it in your browser.
 | **Web** | A static, self-contained web build. | `dist-web/` | **Preview over http**, or upload the folder to any static host. |
 | **Desktop** | A runnable **native** app per installed desktop template — a `.app` on macOS, a `<Name>/` directory holding `<Name>.exe` on Windows or `<Name>` on Linux. No Chromium and no npm project. | `dist-desktop/` | Double-click it. Selecting the **Steam** channel also writes the depot scripts and a `STEAM.md` with this build's own values — see [Steam](/docs/publishing/steam/). |
 | **WeChat** | A WeChat MiniGame package. | `dist-wechat/` | Open the folder in WeChat DevTools and set your AppID. See [WeChat MiniGame](/docs/publishing/wechat/). |
+| **Douyin**, **Kuaishou**, **Bilibili**, **Quick games**, **Alipay**, **Huawei** | A mini-game package for that host (a signed `.rpk` for quick games and Huawei), on the same pipeline as WeChat — see [Mini-game platforms](/docs/publishing/minigame-platforms/). | `dist-douyin/`, `dist-kuaishou/`, `dist-bilibili/`, `dist-quickgame/`, `dist-alipay/`, `dist-huawei/` | Open it in that platform's developer tool (Douyin and Bilibili take an AppID in Project Settings; Kuaishou and Alipay take it in the developer tool; Huawei needs an app registered in AppGallery Connect). |
 | **Playable** | One self-contained `index.html` with everything inlined — no external requests, as ad networks require. | `dist-playable/` | **Preview over http** (its real surface is an ad-network iframe). Pick the [ad network](#playable-ad-networks) so the CTA and the size check match where it ships. |
-| **Android** | Content for a **native** arm64 app (Vulkan) — a real APK, not a WebView. | `dist-android/` | `node build-tools/cli.js native --package --content dist-android` wraps it in a signed APK. See [Android & iOS](/docs/publishing/android-ios/). |
-| **iOS** | Content for a **native** arm64 app (Metal), plus the Xcode project when the engine is built for iOS here. | `dist-ios/` | Open the generated Xcode project, pick a signing team, Run. See [Android & iOS](/docs/publishing/android-ios/). |
+| **Android** | Content for a **native** arm64 app (Vulkan) — a real APK, not a WebView. | `dist-android/` | With the Android runtime template installed, the export writes the signed APK itself (or an Android Studio project, or an App Bundle beside the APK). See [Android & iOS](/docs/publishing/android-ios/). |
+| **iOS** | Content for a **native** arm64 app (Metal), plus the Xcode project written around it once the iOS runtime template is installed. | `dist-ios/` | Open the generated Xcode project, pick a signing team, Run. See [Android & iOS](/docs/publishing/android-ios/). |
 
 Desktop, Android and iOS export app **content**, not a runnable payload: the
 engine, the SDK and the game runtime live in the app binary. Each is assembled
@@ -114,9 +115,9 @@ selected it is a no-op, so the same scene still runs in the editor and on the we
 
 | Network | Limit | Click-through | Notes |
 |---|---|---|---|
-| **Generic** | 2MB | — | No network API. The cap is the strictest we know of, since an unnamed target could be any of them. |
-| **Meta** (Facebook / Instagram) | 2MB for `index.html` | `FbPlayableAd.onCTAClick()` | Meta's 5MB figure is the total for a ZIP bundle; a single-file playable is capped by the `index.html` rule. Forbids any HTTP request. |
-| **Google Ads** (App campaigns) | 5MB | `ExitApi.exit()` | Its exit API is a Google-hosted script, which the docs require as a literal `<script>` in `<head>` — the export writes it for you. Google uploads a **ZIP**, so compress the `index.html` before uploading. |
+| **Generic** | 5MB | — | No network API. The cap is the one every network listed here accepts, since an unnamed target could be any of them. |
+| **Meta** (Facebook / Instagram) | 5MB | `FbPlayableAd.onCTAClick()` | Meta caps a playable HTML5 file at 5MB; the 2MB figure often quoted for it is in no Meta specification. Forbids any HTTP request. |
+| **Google Ads** (App campaigns) | 5MB | `ExitApi.exit()` | Its exit API is a Google-hosted script, which the docs require as a literal `<script>` in `<head>` — the export writes it for you. Google uploads a **ZIP**, so the export also writes `playable.zip` beside the HTML and measures the limit on that. |
 | **MRAID network** (generic) | 5MB | `mraid.open()` | For any MRAID host. `mraid` is injected by the webview, so nothing goes in `<head>`. |
 | **Unity Ads** | 5MB | `mraid.open()` | The runtime waits for MRAID readiness and viewability, pauses on hidden ads, and removes host listeners on exit. |
 | **AppLovin** | 5MB | `mraid.open()` | Requires every resource embedded — which a single-file playable already is. |
@@ -188,16 +189,22 @@ export default {
 It then appears in the dialog's Ad network dropdown beside the built-in ones, and
 packages through the same pipeline.
 
+![The Package Project dialog on the Playable target, with the ad network selector, configuration, compression and output folder](@/assets/guides/en/build-playable.png)
+
+*The Playable target. The **Ad network** picks the size limit and the delivery shape the package is held to.*
+
 ## Runtime prerequisites
 
 Web, Desktop and **Playable** all reuse the engine runtime that ships with the
 editor, so they export with no setup — a playable inlines that same web runtime
 (glue as a blob module, wasm as base64) rather than needing a build of its own.
 **WeChat** is the exception among the web-based targets: its WebAssembly loader
-differs, so its runtime is built once:
+differs, so it runs on a runtime of its own. The editor download carries that too, with
+the side modules WeChat needs, so an installed editor exports to WeChat with no setup. In
+an engine source checkout it is built once:
 
 ```bash
-# only before the first WeChat export
+# source checkout only, before the first WeChat export
 node build-tools/cli.js build -t wechat
 ```
 
@@ -205,8 +212,8 @@ The Package Project dialog reminds you when a target's runtime is missing, and a
 WeChat export **fails fast** — naming the exact build command — rather than
 producing a package that breaks at runtime. WeChat also needs a matching side
 module for each engine feature the game uses (`physics-wechat`, `spine-wechat`,
-`basis-wechat` for compressed textures) — see
-[WeChat MiniGame](/docs/publishing/wechat/).
+`dragonbones-wechat`, `basis-wechat` for compressed textures, `videodec-wechat` for
+video) — see [WeChat MiniGame](/docs/publishing/wechat/).
 
 The dialog distinguishes **two kinds** of missing prerequisite, because they don't
 block the same amount:
@@ -218,11 +225,12 @@ block the same amount:
   toolchain, and that step can run on another machine — an iOS build always does
   when the editor is on Windows.
 
-<Aside type="caution" title="Mobile needs an engine checkout">
-  Android and iOS are the one pair of targets the editor download does not carry
-  end to end: the native host is built once from an engine source checkout (Dawn +
-  QuickJS), plus the Android SDK/NDK or macOS with Xcode. See
-  [Android & iOS](/docs/publishing/android-ios/).
+<Aside type="caution" title="Mobile needs a runtime template">
+  Android and iOS are the one pair of targets the editor download does not carry:
+  the engine's compiled half is a runtime template you download once per editor
+  version (the target's row in Package Project offers **Download**). That is all
+  Android needs — no engine checkout, SDK, NDK or JDK. iOS additionally needs macOS
+  with Xcode to sign and run. See [Android & iOS](/docs/publishing/android-ios/).
 </Aside>
 
 ## Content a target cannot render
@@ -311,7 +319,7 @@ Resize it (or pad it) to a multiple of 4 to get the compression back. Atlas page
 are always whole blocks, so packing small odd-sized sprites is the other way out.
 :::
 
-**Content addressing** is on by default for Web/Desktop (each file named by a hash
+**Content addressing** is on by default (Web, Desktop and the mini-game targets; each file named by a hash
 of its bytes — immutable URLs, automatic dedupe). **Advanced** holds the CDN root
 for [hot update](/docs/publishing/hot-update/), source maps, and whether to open the
 output folder when the build finishes.
@@ -371,7 +379,7 @@ the game for good — the player turns the phone and nothing changes, because th
 query was reading the container all along. Playables stay responsive (every network
 asks for that), and the orientation is only *declared* to the platform where one wants
 it, e.g. Google's `ad.orientation` meta tag. Design for both aspects, or letterbox
-with [a camera fit](#) so the framing survives either one.
+with [a camera fit](/docs/core-concepts/screen/) so the framing survives either one.
 
 See [The Editor](/docs/editor/overview/) for the settings UI.
 
@@ -411,7 +419,7 @@ import { Tilemap } from 'esengine/tilemap';
 One subsystem has no subpath yet: a project using **Video** takes the whole engine, with
 every optional subsystem in it. Nothing else changes — the API is identical either way.
 
-The same goes for the engine binary on WeChat and Douyin. When no scene or prefab has a particle emitter, a post-process volume or a
+The same goes for the engine binary on the WeChat-runtime mini-game targets (WeChat, Douyin, Kuaishou, Bilibili). When no scene or prefab has a particle emitter, a post-process volume or a
 tilemap, and no script mentions them, the package carries the **lite engine**: the same engine without those three subsystems, about
 200 KB smaller against the 4 MB main package. A single mention in a script (`ParticleEmitter`, `PostProcess…`, `Tilemap…`) is enough to carry
 the full one, as is naming `esengine/tilemap` as **Include** in Project Settings; a doubt always ships everything.
@@ -425,7 +433,7 @@ platform's current docs rather than trusting us:
 | Target | Limit |
 | --- | --- |
 | WeChat MiniGame | 4MB main package, and 30MB across the main package and all subpackages |
-| Playable ad | whatever the chosen network accepts — Meta 2MB for a single `index.html`, Google 5MB for a ZIP, etc. |
+| Playable ad | whatever the chosen network accepts — Meta 5MB, Google 5MB for a ZIP, etc. |
 | Web / Desktop / Android / iOS | none published; set your own below |
 
 A build over a limit is reported, not blocked — it built and it runs, and whether

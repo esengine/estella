@@ -318,7 +318,7 @@ world.applyEntityOrder([other, another, card]);
 ## 翻转、图集与滚动
 
 - 用 `flipX` / `flipY` **翻转**精灵——例如让角色朝左或朝右,而不用另一张纹理。
-- **图集**:把 `uvOffset` 和 `uvScale` 设为某个单元格的归一化矩形,显示打包图集里的一格。(逐帧动画
+- **图集**:把 `uvOffset` 和 `uvScale` 设为某个单元格的归一化矩形,显示打包图集里的一格;分散的纹理可以用 [`TextureAtlas`](/docs/zh-cn/graphics/drawing/) 在运行时合到一张画布上。(逐帧动画
   请用 [Animator](/docs/zh-cn/animation/overview/) 驱动这些,而非手动。)
 - **滚动**:随时间改 `uvOffset` 来滚动纹理(水面、传送带),并设 `tileSize` 把它在大精灵上重复平铺。
 

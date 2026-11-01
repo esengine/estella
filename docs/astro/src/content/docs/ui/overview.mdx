@@ -267,8 +267,8 @@ does not move, so the component is inert until there is something to scroll.
 | `horizontal` / `vertical` | `false` / `true` | Which axes scroll. |
 | `movement` | `Clamped` | `Elastic` overshoots at the ends and springs back. |
 | `wheelSpeed` | `1` | Multiplier on wheel deltas. |
-| `dragScroll` | `true` | Drag/touch grabbing, with a kinetic fling. |
-| `decelerationRate` | `0.135` | Fling velocity kept per second; `0` stops on release. |
+| `dragScroll` | `true` | Drag/touch grabbing; the kinetic fling after release runs only with `Elastic`. |
+| `decelerationRate` | `0.135` | Fling velocity kept per second under `Elastic`; `0` stops on release. With `Clamped` the component always stops on release. |
 
 ```ts
 // A list that scrolls vertically inside a fixed box.

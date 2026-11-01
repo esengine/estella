@@ -5,8 +5,8 @@ description: 从编辑器的"打包项目"对话框把一个项目发布到 Web�
 
 import { Aside, Steps } from '@astrojs/starlight/components';
 
-一个 Estella 项目可发布到六个目标——**Web**、**桌面**、**微信小游戏**、单文件 **Playable 广告**,
-以及原生 **Android** / **iOS** 应用——全部从编辑器完成。导出用的是**你在编辑器里运行的同一套运行时**,
+一个 Estella 项目可发布到 **Web**、**桌面**、**微信小游戏**和其他小游戏平台(抖音、快手、B 站、快游戏、
+支付宝、华为快游戏)、单文件 **Playable 广告**,以及原生 **Android** / **iOS** 应用——全部从编辑器完成。导出用的是**你在编辑器里运行的同一套运行时**,
 所以你发布的就是你测过的(*play == ship*)。
 
 ## 从编辑器导出
@@ -64,9 +64,10 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 | **Web** | 一个静态、自包含的 Web 构建。 | `dist-web/` | **Preview over http**,或把文件夹上传到任意静态托管。 |
 | **桌面** | 每装了一个桌面运行时模板,就出一个可直接运行的**原生**应用——macOS 上是 `.app`,Windows 与 Linux 上是 `<Name>/` 目录(其中分别是 `<Name>.exe` 和 `<Name>`)。没有 Chromium,也没有 npm 工程。 | `dist-desktop/` | 双击即可。选了 **Steam** 渠道还会写出 depot 脚本和一份带本次构建确切取值的 `STEAM.md`——见 [Steam](/docs/zh-cn/publishing/steam/)。 |
 | **微信** | 一个微信小游戏包。 | `dist-wechat/` | 在微信开发者工具里打开该文件夹并设置你的 AppID。见 [微信小游戏](/docs/zh-cn/publishing/wechat/)。 |
+| **抖音**、**快手**、**B 站**、**快游戏**、**支付宝**、**华为快游戏** | 对应宿主的小游戏包(快游戏和华为是已签名的 `.rpk`),走与微信同一条管线——见[小游戏平台](/docs/zh-cn/publishing/minigame-platforms/)。 | `dist-douyin/`、`dist-kuaishou/`、`dist-bilibili/`、`dist-quickgame/`、`dist-alipay/`、`dist-huawei/` | 在该平台的开发者工具里打开(抖音和 B 站的 AppID 填在项目设置里,快手和支付宝在开发者工具里填;华为需要在 AppGallery Connect 注册应用)。 |
 | **Playable** | 一个自包含的 `index.html`,一切内联——无外部请求(广告平台的要求)。 | `dist-playable/` | **Preview over http**(它的真实宿主是广告平台的 iframe)。先选好[广告平台](#试玩广告平台),CTA 与体积检查才对得上投放目标。 |
-| **Android** | **原生** arm64 应用(Vulkan)的内容——真 APK,不是 WebView。 | `dist-android/` | `node build-tools/cli.js native --package --content dist-android` 把它包成已签名的 APK。见 [Android 与 iOS](/docs/zh-cn/publishing/android-ios/)。 |
-| **iOS** | **原生** arm64 应用(Metal)的内容;若本机已为 iOS 构建过引擎,还会附带 Xcode 工程。 | `dist-ios/` | 打开生成的 Xcode 工程,选签名 Team,Run。见 [Android 与 iOS](/docs/zh-cn/publishing/android-ios/)。 |
+| **Android** | **原生** arm64 应用(Vulkan)的内容——真 APK,不是 WebView。 | `dist-android/` | 装好 Android 运行时模板后,导出本身就写出已签名的 APK(也可以写 Android Studio 工程,或在 APK 旁再写一个 App Bundle)。见 [Android 与 iOS](/docs/zh-cn/publishing/android-ios/)。 |
+| **iOS** | **原生** arm64 应用(Metal)的内容;装好 iOS 运行时模板后,还会围着它写出 Xcode 工程。 | `dist-ios/` | 打开生成的 Xcode 工程,选签名 Team,Run。见 [Android 与 iOS](/docs/zh-cn/publishing/android-ios/)。 |
 
 桌面、Android 与 iOS 导出的是应用**内容**而非可直接运行的载荷:引擎、SDK 和游戏运行时都住在
 应用二进制里。三者都由编辑器安装的运行时模板组装而成,所以打包本身不需要任何工具链——见下文的
@@ -97,9 +98,9 @@ playableCta();
 
 | 平台 | 上限 | 点击跳转 | 说明 |
 |---|---|---|---|
-| **通用** | 2MB | — | 不接任何平台接口。上限取我们已知里最严的一档——毕竟未指名的目标可能是其中任何一家。 |
-| **Meta**(Facebook / Instagram) | `index.html` 2MB | `FbPlayableAd.onCTAClick()` | Meta 的 5MB 是 ZIP 包的总量;单文件试玩受 `index.html` 那条约束。禁止任何 HTTP 请求。 |
-| **Google Ads**(应用广告系列) | 5MB | `ExitApi.exit()` | 它的退出接口是 Google 托管的脚本,官方要求以字面 `<script>` 写在 `<head>` 里——导出会帮你写好。Google 上传 **ZIP**,所以要先把 `index.html` 压缩。 |
+| **通用** | 5MB | — | 不接任何平台接口。上限取这里列出的各平台都接受的那一档——毕竟未指名的目标可能是其中任何一家。 |
+| **Meta**(Facebook / Instagram) | 5MB | `FbPlayableAd.onCTAClick()` | Meta 把一个 HTML5 试玩文件限制在 5MB;常被引用的 2MB 不在 Meta 的任何规范里。禁止任何 HTTP 请求。 |
+| **Google Ads**(应用广告系列) | 5MB | `ExitApi.exit()` | 它的退出接口是 Google 托管的脚本,官方要求以字面 `<script>` 写在 `<head>` 里——导出会帮你写好。Google 上传 **ZIP**,所以导出还会在 HTML 旁写一个 `playable.zip`,体积上限按它来量。 |
 | **MRAID 平台**(通用) | 5MB | `mraid.open()` | 适用于任何 MRAID 宿主。`mraid` 由宿主 webview 注入,`<head>` 无需任何内容。 |
 | **Unity Ads** | 5MB | `mraid.open()` | 运行时自动等待 MRAID ready 和 viewable，隐藏时暂停游戏及音频，退出时释放宿主监听。 |
 | **AppLovin** | 5MB | `mraid.open()` | 要求所有资源内嵌——单文件试玩本来就是。 |
@@ -164,20 +165,25 @@ export default {
 
 它随后就会和内置平台并列出现在对话框的"广告平台"下拉里,并走同一条导出管线。
 
+![打包对话框的 Playable 目标页,可见广告网络选择、配置、压缩和输出目录](@/assets/guides/zh/build-playable.png)
+
+*Playable 目标页。**广告网络**决定包要遵守的体积上限和交付形式。*
+
 ## 运行时前置条件
 
 Web、桌面与 **Playable** 都复用随编辑器附带的引擎运行时,所以导出无需准备——试玩包内联的
 就是同一份 web 运行时(glue 作为 blob 模块、wasm 以 base64 传入),不需要单独构建。在这些基于
-网页的目标里 **微信**是例外:它的 WebAssembly 加载器不同,运行时需先构建一次:
+网页的目标里 **微信**是例外:它的 WebAssembly 加载器不同,用的是自己的运行时。编辑器下载包也自带这份运行时,
+连同微信需要的侧模块,所以装好的编辑器导出微信无需任何准备;在引擎源码检出里则需先构建一次:
 
 ```bash
-# 仅在首次微信导出前
+# 仅源码检出,首次微信导出前
 node build-tools/cli.js build -t wechat
 ```
 
 当某个目标的运行时缺失时,打包项目对话框会提醒你,而微信导出会**直接失败**并给出确切的
 构建命令——而不是产出一个运行时才崩的包。微信还需要为游戏用到的每个引擎特性构建对应的
-侧模块(`physics-wechat`、`spine-wechat`,压缩纹理用 `basis-wechat`)——见
+侧模块(`physics-wechat`、`spine-wechat`、`dragonbones-wechat`,压缩纹理用 `basis-wechat`,视频用 `videodec-wechat`)——见
 [微信小游戏](/docs/zh-cn/publishing/wechat/)。
 
 对话框区分**两类**缺失的前置条件,因为它们挡住的程度并不一样:
@@ -187,9 +193,10 @@ node build-tools/cli.js build -t wechat
   可安装应用那一步需要工具链,而那一步可以在另一台机器上跑——编辑器在 Windows 上时,
   iOS 构建本来就得如此。
 
-<Aside type="caution" title="移动端需要引擎源码检出">
-  Android 和 iOS 是唯一一对编辑器下载包没有端到端自带的目标:原生宿主需要先从引擎源码
-  检出构建一次(Dawn + QuickJS),再加上 Android SDK/NDK,或装有 Xcode 的 macOS。见
+<Aside type="caution" title="移动端需要运行时模板">
+  Android 和 iOS 是唯一一对编辑器下载包没有自带的目标:引擎编译好的那一半是**运行时模板**,
+  每个编辑器版本下载一次(打包对话框里该目标的那一行有**下载**按钮)。Android 只需要这个——
+  不需要引擎源码检出、SDK、NDK 或 JDK。iOS 另外需要装有 Xcode 的 macOS 来签名和运行。见
   [Android 与 iOS](/docs/zh-cn/publishing/android-ios/)。
 </Aside>
 
@@ -261,7 +268,7 @@ which a block-compressed texture must be
 打进图集是另一条出路。
 :::
 
-**内容寻址** 对 Web/桌面默认开启(每个文件按字节哈希命名——URL 不可变、自动去重)。
+**内容寻址** 默认开启(Web、桌面和小游戏目标;每个文件按字节哈希命名——URL 不可变、自动去重)。
 **高级**里放着[热更新](/docs/zh-cn/publishing/hot-update/)的 CDN 根地址、source map,
 以及构建结束后是否打开输出目录。
 
@@ -296,7 +303,7 @@ which a block-compressed texture must be
 
 方向是**一个项目级设置**,而非逐平台:**设置 → 项目 → 游戏 → 显示(Display) → 屏幕方向**(竖屏或横屏),就在设计分辨率旁边。所有目标都遵循它——微信 `game.json` 的 `deviceOrientation`、Web 构建的"请旋转设备"提示(以及尽力而为的 `screen.orientation.lock`)、桌面窗口的宽高比,以及原生应用的 `app.config.json`(引擎能 letterbox,却转不动手机)。留空则**从设计分辨率的宽高比推导**(更宽或方形 ⇒ 横屏,更高 ⇒ 竖屏),因此横屏设计零配置即在各处横屏发布。
 
-**试玩包是有意的例外**:它从不锁定页面方向。在广告 SDK 里,容器尺寸由 SDK 决定,因此"请旋转设备"这类遮罩可能把游戏永久挡住——玩家转了手机却毫无变化,因为那条 media query 一直在读容器而不是设备。试玩包保持自适应(各平台都要求如此),方向只在平台需要时**声明**出去,例如 Google 的 `ad.orientation` meta 标签。请为两种比例都设计,或用[相机适配](#)做 letterbox,让构图在任一比例下都成立。
+**试玩包是有意的例外**:它从不锁定页面方向。在广告 SDK 里,容器尺寸由 SDK 决定,因此"请旋转设备"这类遮罩可能把游戏永久挡住——玩家转了手机却毫无变化,因为那条 media query 一直在读容器而不是设备。试玩包保持自适应(各平台都要求如此),方向只在平台需要时**声明**出去,例如 Google 的 `ad.orientation` meta 标签。请为两种比例都设计,或用[相机适配](/docs/zh-cn/core-concepts/screen/)做 letterbox,让构图在任一比例下都成立。
 
 设置界面见 [编辑器](/docs/zh-cn/editor/overview/)。
 
@@ -329,7 +336,7 @@ import { Tilemap } from 'esengine/tilemap';
 只有一个子系统暂时没有子路径：用到 **Video** 的项目会拿整份引擎，包含全部可选子系统。其他
 什么都不变——两种情况下 API 完全一样。
 
-微信和抖音上的引擎二进制也是同样的道理。当没有任何场景或预制体里有粒子发射器、后处理体积或瓦片地图，脚本里也没有提到它们时，包里带的是
+用微信运行时的小游戏目标(微信、抖音、快手、B 站)上的引擎二进制也是同样的道理。当没有任何场景或预制体里有粒子发射器、后处理体积或瓦片地图，脚本里也没有提到它们时，包里带的是
 **精简引擎**：同一个引擎去掉这三个子系统，在 4 MB 主包限制下小约 200 KB。脚本里只要出现一次（`ParticleEmitter`、`PostProcess…`、`Tilemap…`）就会带完整版，
 在项目设置里把 `esengine/tilemap` 设为**包含**也一样；拿不准时总是全带。
 
@@ -340,7 +347,7 @@ import { Tilemap } from 'esengine/tilemap';
 | 目标 | 上限 |
 | --- | --- |
 | 微信小游戏 | 主包 4MB,主包与所有分包合计 30MB |
-| 试玩广告 | 取决于所选平台 —— Meta 单个 `index.html` 2MB、Google ZIP 5MB 等 |
+| 试玩广告 | 取决于所选平台 —— Meta 5MB、Google ZIP 5MB 等 |
 | 网页 / 桌面 / Android / iOS | 无公开上限;可用下面的方式自定 |
 
 超出上限只报告、不阻断——它构建成功也能跑,是否卡发布由你决定(见下面的[用体积卡构建](#用体积卡构建))。超过上限的 90% 后进度条转为琥珀色,因为再来一轮美术就该破线了。

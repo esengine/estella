@@ -57,12 +57,15 @@ there; the devtools simulator shows a test ad.
 `Ads.available` is `true` where SOME ad source exists — the platform's, or an
 installed provider. Use it to hide the "watch ad" button honestly:
 
-- **WeChat / Douyin builds** — the host's rewarded/interstitial ads, one family
-  implementation.
+- **Mini-game builds** (WeChat, Douyin and the other family hosts) — the host's
+  rewarded/interstitial ads, one family implementation. A vendor whose host has no
+  ad call reports `available` as `false`.
+- **Web exports on a channel with ads** — Poki, CrazyGames and YouTube Playables
+  install their own provider (see below).
 - **The editor's Play mode** — a **mock provider** is installed automatically:
   `showRewarded` "plays" for a moment and resolves `completed: true`, with the
   real pause/audio ceremony running. Your revive flow rehearses at your desk.
-- **Web and native builds** — no ad system, `available` is `false`. A native
+- **Plain web and native builds** — no ad system, `available` is `false`. A native
   shell that integrates a mediation SDK installs it through the same door the
   editor uses: `Ads.setProvider(...)`.
 
@@ -234,9 +237,6 @@ and `submit()` reaches it, so your own row moves.
 What it cannot rehearse is the part that is genuinely the host's: real friends
 and the sandbox they live in. Check that on a device before you ship.
 
-What it cannot rehearse is the part that is genuinely the host's — real friends
-and the sandbox they live in. Check that on a device before you ship.
-
 ## Signing in
 
 A mini-game host signs the player in and hands back a **one-time code**. That
@@ -352,6 +352,24 @@ running for the session; the Inspector supplies its testing context. This path
 has been checked with the training example's real SDK initialization, loading,
 play/pause and rewarded completion. Complete the remaining QA modules before
 submission; these observations do not certify devices or production ad fill.
+
+## CrazyGames Web exports
+
+In the same Web packaging setting select **CrazyGames**, or set
+`packaging.platforms.web.channel` to `"crazygames"`. The export connects the official
+v3 SDK: it reports loading start and stop, serves rewarded and midgame breaks
+through the existing `Ads` resource, stores saves through the SDK's Data API (switch on
+**Progress Save** in the CrazyGames developer console; `setItem` is not a cloud-backup
+acknowledgment) and follows the host's audio mute. If initialization fails the game
+continues with the host services off.
+
+As with Poki, game logic reports the real gameplay start and stop transitions; the
+exporter does not infer them. `Scores.submit` can send an encrypted score for an invited
+CrazyGames leaderboard — enter the base64 **Encryption Key** from the platform
+configuration in Project Settings (never the server API key; it ships in the Web
+package), and leave it empty to disable submission. A sent score does not prove the
+leaderboard accepted it, and an export is not platform approval: complete the official
+checks separately.
 
 ## YouTube Playables Web exports
 

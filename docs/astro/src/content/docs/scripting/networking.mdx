@@ -7,7 +7,7 @@ import { Aside } from '@astrojs/starlight/components';
 
 Estella ships a **cross-platform WebSocket**. `createSocket` returns the right
 implementation for the platform — a browser `WebSocket` on the web, `wx.connectSocket`
-on WeChat MiniGames — behind one API. On top of it, `NetChannel` adds typed messages
+on WeChat MiniGames, `ws` under Node, and the native and other mini-game hosts' own sockets — behind one API. On top of it, `NetChannel` adds typed messages
 and request/response.
 
 ## Connect & exchange messages
@@ -155,7 +155,7 @@ clientNet.client?.sendInput({ move: { x: 1, y: 0 } });   // per-tick input uplin
 - **Reconnect is yours for now**: `Replicated.owner` is a *connection* id, and a
   player who reconnects gets a new one. Nothing in the SDK carries an identity
   across a dropped socket, so a stable player id, a session token and a grace
-  window belong to your game.
+  window belong to your game. (The request/reply [session layer](#asynchronous-online-games--sessions) below does redial and keep subscriptions across drops, but it is separate from replication.)
 
 See the **Multiplayer Arena** example for the full pattern — replication, per-tick input, and client prediction — in ~130 lines. Its `server/` directory is the dedicated-server half: the same project, headless, behind a real WebSocket.
 
@@ -280,6 +280,52 @@ never re-sends snap back. Owned entities bypass snapshot interpolation.
   corrections out (the visual error halves every `halfLife` seconds) instead
   of hard-snapping; add `maxError` so a genuine teleport still snaps. Purely
   presentational — the simulation state can't drift.
+
+## Asynchronous online games — sessions
+
+Replication shares a tick between server and clients. A game played **asynchronously**
+over a shared world (a city builder, a card game, a gacha) has no shared tick; it needs
+requests and replies that survive a bad link. That is the job of `esengine/session`,
+independent of replication:
+
+- A **`SessionHost`** on the server authenticates each connection before it serves
+  anything, limits frame size and message rate, pings the client, and lets a newer
+  connection for the same player replace the older one. It holds no game state: every
+  handler receives the player from its context.
+- A **`ClientSession`** on the device dials, redials with backoff and jitter when the link
+  drops, waits for the server before a request goes out, and keeps event subscriptions
+  across reconnects. `retryNow()` redials at once; `serverNow()` is the server's clock.
+- Every request carries a **key**, so one whose reply was lost and is sent again is
+  answered from memory instead of running twice (a purchase, a departure). Several server
+  processes share one `IdempotencyStore`.
+- `defineContract` writes every request and event once with the `s` validators
+  (`s.object`, `s.int`, `s.string`, …); the server checks each request against it, the
+  client checks each reply, and both are typed from it. Its `fingerprint` lets the server
+  turn away a client built against another contract.
+
+```typescript
+import { defineContract, s, SessionHost, ClientSession, acceptWebSocket } from 'esengine/session';
+import { createSocket } from 'esengine';
+
+const api = defineContract({
+  requests: { buy: { req: s.object({ item: s.string() }), res: s.object({ gold: s.int() }) } },
+  events: { news: s.object({ text: s.string() }) },
+});
+
+// SERVER (Node): wire each `ws` socket into a host.
+const host = new SessionHost({ authenticate: (cred) => ({ playerId: String((cred as any).id) }) });
+api.serve(host, { buy: async ({ item }, ctx) => ({ gold: await purchase(ctx.playerId, item) }) });
+// wss.on('connection', (socket) => acceptWebSocket(host, socket));
+
+// CLIENT: one object for the whole run, however often the link drops.
+const session = new ClientSession({ connect: () => createSocket({ url: 'wss://example.com/play' }), credentials: () => ({ id: 'p1' }) });
+await session.start();
+const { gold } = await api.client(session).buy({ item: 'sword' });
+```
+
+A session can speak protobuf instead of JSON (`wire: 'pb'` on the client, `wire` on the
+host; `proto()` / `protoAs()` bring a `.proto` message into a contract) and still be read
+as JSON in a debugger.
 
 ## Best practices
 

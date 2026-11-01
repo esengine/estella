@@ -103,9 +103,9 @@ const spawnEmbers = defineSystem([Commands()], (cmds) => {
 
 | 属性 | 类型 | 默认 | 说明 |
 |---|---|---|---|
-| `shape` | `EmitterShape` | `Cone` | `Point` / `Circle` / `Rectangle` / `Cone`。 |
+| `shape` | `EmitterShape` | `Cone` | `Point` / `Circle` / `Box` / `Cone` / `Sphere` / `Hemisphere`。 |
 | `shapeRadius` | number | `100` | `Circle` / `Cone` 的半径。 |
-| `shapeSize` | Vec2 | `{100, 100}` | `Rectangle` 的盒子范围。 |
+| `shapeSize` | Vec3 | `{100, 100, 0}` | `Box` 的盒子范围(`z` 为 `0` 就是 2D 发射器用的平面矩形)。 |
 | `shapeAngle` | number | `25` | `Cone` 的锥半角(°)。 |
 
 ### 速度与力 (Velocity & forces)
@@ -114,9 +114,9 @@ const spawnEmbers = defineSystem([Commands()], (cmds) => {
 |---|---|---|---|
 | `speedMin` | number | `500` | 最慢初速度。 |
 | `speedMax` | number | `500` | 最快初速度。 |
-| `angleSpreadMin` | number | `0` | 发射方向弧的起始(°)。 |
-| `angleSpreadMax` | number | `360` | 发射方向弧的结束(°)。 |
-| `gravity` | Vec2 | `{0, 0}` | 施加到每个粒子的恒定加速度。 |
+| `angleSpreadMin` | number | `0` | 发射方向弧的起始(°),在发射器局部 XY 平面内。只对 `Point` 和 `Box` 生效。 |
+| `angleSpreadMax` | number | `360` | 发射方向弧的结束(°)。只对 `Point` 和 `Box` 生效。 |
+| `gravity` | Vec3 | `{0, 0, 0}` | 施加到每个粒子的恒定加速度。 |
 | `damping` | number | `0` | 每秒速度阻尼(`0` = 无)。 |
 | `addedVelocityMin` / `addedVelocityMax` | Vec3 | `{0,0,0}` | 每个粒子在自身速度之上额外带的速度,出生时在两端之间随机取值。重力、阻尼、噪声和速度上限都不作用于它。仅 CPU 模拟。 |
 | `speedLimit` | number | `0` | 粒子凭自身速度能达到的最快速度(`0` = 不限)。更快的会被拉回到上限附近。仅 CPU 模拟。 |
@@ -218,12 +218,15 @@ const spawnEmbers = defineSystem([Commands()], (cmds) => {
 | 形状 | 使用 | 行为 |
 |---|---|---|
 | `Point` | — | 所有粒子在实体原点生成。 |
-| `Circle` | `shapeRadius` | 在圆盘内生成;方向向外辐射。 |
-| `Rectangle` | `shapeSize` | 在矩形盒内生成。 |
+| `Circle` | `shapeRadius` | 在发射器自己所在平面的圆盘内生成;方向向外辐射。 |
+| `Box` | `shapeSize` | 在盒内生成(`shapeSize.z` 为 `0` 时是平面矩形)。 |
 | `Cone` | `shapeRadius`、`shapeAngle` | 在锥内生成——一束有方向的喷射(喷泉、推进器)。 |
+| `Sphere` | `shapeRadius` | 在球内生成;方向向外辐射。 |
+| `Hemisphere` | `shapeRadius` | 在以局部 +Y 为轴的半球内生成;方向向外辐射。 |
 
-`angleSpreadMin…Max` 弧进一步约束发射方向,所以任何形状都能定向(例如一个只向上发射的
-`Circle`,用 `0…180`)。
+有方向的形状沿发射器局部 +Y 指向,所以没旋转的发射器向上喷,旋转实体就能给它瞄准,3D 里也一样。`Point` 和 `Box` 自己没有方向:
+由 `angleSpreadMin…Max` 弧(在发射器局部 XY 平面内)决定朝哪边发射,所以只向上发射的 `Point` 用 `0…180`。`Circle`、`Cone`、`Sphere`、
+`Hemisphere` 自带方向,会忽略这条弧。
 
 ## 随生命的颜色与尺寸
 
@@ -309,12 +312,13 @@ const recolor = defineSystem([Res(Particle)], (particles) => {
 决定每次子爆发生成多少粒子。把父级的 `subEmitter` 指向那个子实体:
 
 ```typescript
-import { SubEmitterTrigger } from 'esengine';
+import { EmitterShape, SubEmitterTrigger } from 'esengine';
 
 // 爆发模板 —— 一个只在被触发时才发射的普通发射器。
 const shell = cmds.spawn()
   .insert(Transform, {})
   .insert(ParticleEmitter, {
+    shape: EmitterShape.Point,                     // 自己没有方向:火星四散
     rate: 0, playOnStart: false, burstCount: 44,   // 每次爆发 44 颗火星
     lifetimeMin: 0.6, lifetimeMax: 1.1, speedMin: 160, speedMax: 340,
     startColor: { r: 1, g: 0.85, b: 0.35, a: 1 }, endColor: { r: 1, g: 0.3, b: 0.1, a: 0 },
@@ -325,6 +329,7 @@ const shell = cmds.spawn()
 cmds.spawn()
   .insert(Transform, { position: { x: 0, y: -230, z: 0 } })
   .insert(ParticleEmitter, {
+    shape: EmitterShape.Point,
     rate: 2.5, lifetimeMin: 1.4, lifetimeMax: 1.8, speedMin: 560, speedMax: 660,
     angleSpreadMin: 84, angleSpreadMax: 96,
     subEmitter: shell,
@@ -419,8 +424,8 @@ cmds.spawn()
 射渐隐而不是永远蹦跳。
 
 <Aside type="note">
-  这是单一水平地面 —— 最常见的情形(一条地平线)。对任意几何体和瓦片地图的碰撞走物理
-  世界,是另一条可选路径。和力场一样,地面碰撞只作用于**世界空间**粒子。
+  这是单一水平地面 —— 最常见的情形(一条地平线)。对墙体、刚体和瓦片地图碰撞体的碰撞走物理
+  世界(`Physics2D` / `Physics3D`),是另一条可选路径:见[场景碰撞](#场景碰撞)。和力场一样,地面碰撞只作用于**世界空间**粒子。
 </Aside>
 
 ## 模拟空间

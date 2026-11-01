@@ -130,6 +130,8 @@ const playIntro = defineSystem([Res(VideoPlayer)], (video) => {
 | 平台 | 解码器 | 说明 |
 |---|---|---|
 | Web / 桌面 | `HTMLVideoElement` | 任何浏览器支持的编解码(H.264 `.mp4`、WebM……)。WebGL2 逐帧零拷贝上传;WebGPU 走 canvas 回读。 |
+| 原生(Android / iOS) | 同一个引擎自带的 wasm 解码器,作为侧模块取得 | 播放烹饪后的 `.esv` + `.m4a`;设备上没有别的视频路径。 |
+| 其他小游戏平台 | 同一个引擎自带的 wasm 解码器,在每个厂商上都是默认路径 | 宿主自带的视频解码器在 PC 客户端上缺失、在手机上不可靠,所以取唯一确定的那条路径。 |
 | 微信 | 引擎自带 MPEG-1 wasm(`videodec`,pl_mpeg) | 每个设备上都确定——`wx.createVideoDecoder` 在 PC 上缺失、在手机上不可靠。场景一旦用到 `Video` 就自动随包;播放烹饪后的 `.esv` + `.m4a`。 |
 
 ## 最佳实践

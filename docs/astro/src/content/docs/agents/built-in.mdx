@@ -102,14 +102,15 @@ long run is visible and interruptible with the drawer closed.
 
 ## What it may do without asking
 
-The tiers are drawn where **Undo stops working**, which is what makes them worth
+The tiers are drawn where **going back stops working**, which is what makes them worth
 knowing:
 
 | Tier | Examples | What happens |
 | --- | --- | --- |
 | Read | `get_scene_tree`, `get_inspector`, `capture_viewport` | Runs. Never asks. |
 | Undoable | create, delete, `set_field`, re-parent, paint tiles | Runs. The whole turn is bracketed by one checkpoint, so a single **Undo** takes all of it back. |
-| Irreversible | writing a file, exporting a build, saving, `run_editor_command` | **Always asks first.** Undo cannot rescue you afterwards. |
+| Project files | `write_project_file`, `save_scene`, creating a script, scene or asset | Runs. The editor keeps each file's before-image, so the turn's **Revert** in History takes the files back with the scene. |
+| Irreversible | creating a new project, exporting a build, `run_editor_command`, probing the running game | **Always asks first.** Nothing can take it back afterwards. |
 
 So the approval you give is not per edit — it is the Undo button, and it applies to
 the turn as a whole. When a run finishes having changed something, the transcript

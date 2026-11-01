@@ -170,7 +170,7 @@ way it can:
 - **Content-address** — name each shipped file by a hash of its bytes, so URLs
   are immutable and identical files dedupe to a single copy. On by default for
   Web/Desktop.
-- **Auto-atlas** — put loose PNGs in a `<name>.atlas/` folder and the cook packs
+- **Auto-atlas** — an opt-in cook option (off unless the build asks for it): put loose PNGs in a `<name>.atlas/` folder and the cook packs
   them into atlas pages (with the frame UVs written into the manifest), so many
   small sprites ship as one texture and batch in one draw call.
 

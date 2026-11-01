@@ -34,7 +34,7 @@ const attach = defineSystem([Commands()], (cmds) => {
 | `timeline` | asset | `''` | The timeline asset (`.estimeline`). |
 | `playing` | boolean | `false` | The play flag — raise to play, lower to pause. Raising it on a finished clip replays from the top. |
 | `speed` | number | `1` | Playback rate multiplier. |
-| `wrapMode` | string | `'once'` | `'once'`, `'loop'`, or `'pingPong'` (camelCase — other values silently play once). |
+| `wrapMode` | string | `''` | Overrides the clip's own wrap mode: `'once'`, `'loop'`, or `'pingPong'` (camelCase). Empty — and any other string, which counts as a typo — leaves the mode the clip declares standing. |
 | `finished` | boolean | `false` | Latched true when a `'once'` clip completes; cleared on the next play. Runtime, read-only. |
 
 The component flags **are** the playback control: the engine reconciles them into
@@ -220,8 +220,8 @@ the channel's dot-path field on the named component.
 
 ### Wrap modes
 
-Playback uses the **player component's** `wrapMode` string; the numeric
-`WrapMode` constant lives on the asset and in the pure evaluation API. The
+A clip declares its own numeric `WrapMode` (on the asset and in the pure evaluation
+API); the **player component's** `wrapMode` string, when it names one, overrides it. The
 mapping and behavior:
 
 | `WrapMode` | Player string | Behavior past the end |

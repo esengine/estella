@@ -12,7 +12,7 @@ description: "组件层之下的原语——手动寻路、感知内幕,以及�
 `findPath` 就是导航插件用的那个 A\*:在 `NavGrid` 格子上做均匀代价搜索,4 连通或
 8 连通,octile/曼哈顿启发式,且不切角(走对角线要求两个共享的正交格子都可通行)。
 当你要自己驱动移动、画路径预览、或计算可达性(回合制的移动范围)时下沉到它——
-或者当一张网格不够用时,因为 `Nav` 资源只持有一张网格:
+或者当一张网格不够用时,因为 `Nav` 资源只持有一个当前表面:
 
 ```typescript
 import { NavGrid, findPath, pathToWorld } from 'esengine/ai';
@@ -60,32 +60,31 @@ const grid = navGridFromTiles((x, y) => level.tiles[y][x], {
 
 ### 感知内幕
 
-感知插件是四个导出函数之上的薄封装——适合在动作里做一次性视线检查、做自定义感官
+感知插件是若干导出函数之上的薄封装——适合在动作里做一次性视线检查、做自定义感官
 (记忆、听觉、多目标),或对着一个假 world 做单元测试:
 
-- **`senseTarget(ox, oy, facing, tx, ty, range, halfFov, isBlocked?)`**——纯几何:
-  先查距离,再查视野锥(`halfFov` 是锥角的*一半*,弧度;≥ π 表示全向),最后走可选的
-  遮挡回调。
-- **`quaternionToAngle2D(z, w)`**——从 `Transform` 旋转四元数的 z/w 分量求 2D 朝向角
-  (弧度)。
-- **`makeLosCheck(physics)`**——用物理射线构建遮挡回调:任何命中明显落在目标之前
+- **`senseTarget(observer, facing, target, range, halfFov, isBlocked?)`**——纯几何,全部按 3D
+  计算(参数是 `Vec3` 点;平面场景只是 `z` 恒定的特例):先查距离,再查视野锥(`halfFov`
+  是锥角的*一半*,弧度;≥ π 表示全向),最后走可选的遮挡回调。
+- **`facingFromRotation(rotation, axis?)`**——由 `Transform` 旋转和 `FacingAxis`(默认 `'x'`,
+  或 `'-z'`)求实体朝向的世界方向。
+- **`makeLosCheck(physics)`**——用 2D 物理射线构建遮挡回调:任何命中明显落在目标之前
   (`fraction < 0.98`——最后约 2% 是目标自己)即视为遮挡。
 - **`stepPerception(world, isBlocked?)`**——插件每帧在 `PreUpdate` 跑的那一步:
   对每个 `Perceiver`,感知全部 `PerceptionTarget`,留下最近的可见者,写入
   `Perception` 组件。
 
 ```typescript
-import { quaternionToAngle2D, Transform, registerCondition } from 'esengine';
-import { senseTarget } from 'esengine/ai';
+import { Transform, registerCondition } from 'esengine';
+import { senseTarget, facingFromRotation } from 'esengine/ai';
 
-// A one-off sight check against a POINT — no PerceptionTarget needed.
+// 对一个"点"做一次性视线检查——不需要 PerceptionTarget。
 registerCondition('seesShrine', (ctx) => {
   const tf = ctx.get(Transform);
-  const facing = quaternionToAngle2D(tf.rotation.z, tf.rotation.w);
   return senseTarget(
-    tf.position.x, tf.position.y, facing,
-    SHRINE.x, SHRINE.y,
-    300, Math.PI / 3,            // 300 px range, 120° cone
+    tf.position, facingFromRotation(tf.rotation),
+    SHRINE,                      // 一个 { x, y, z } 点
+    300, Math.PI / 3,            // 300 px 范围,120° 视野锥
   ).visible;
 });
 ```
@@ -96,14 +95,14 @@ registerCondition('seesShrine', (ctx) => {
 |---|---|
 | `visible` | 目标在范围内、在锥内、且未被遮挡。 |
 | `distance` | 到目标的距离——即使不可见也总是被设置。 |
-| `dirX` / `dirY` | 观察者 → 目标的单位方向;不可见时为 `(0, 0)`。 |
+| `dir` | 观察者 → 目标的单位方向(`Vec3`);不可见时为零向量。 |
 
-内置系统只在物理模块已加载时才接入 `makeLosCheck`;否则感知只做距离 + 视野锥——
-AI 层没有对物理的硬依赖。
+内置系统只在物理模块已加载时才接入视线检查(场景有 3D 求解器就用 3D 的,否则用 2D 的);
+两者都没有时感知只做距离 + 视野锥——AI 层没有对物理的硬依赖。
 
 ## 自定义应用
 
-感知、FSM、BT、导航这四个插件是默认插件集的一部分,所以**编辑器和 `esengine` Web 运行时会替你
+导入 `esengine/ai` 会注册感知、FSM、BT、导航这四个插件,所以**编辑器和 `esengine` Web 运行时会替你
 加上它们**。只有当你从一个裸的 `new App()` 构建应用时,才需要显式加:
 
 ```typescript

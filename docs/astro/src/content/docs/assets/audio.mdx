@@ -8,7 +8,8 @@ import { Aside } from '@astrojs/starlight/components';
 Estella's audio plays one-shot effects and looping music through the `Audio`
 resource, controls individual sounds with a handle, balances the mix with a bus
 hierarchy, and positions sounds in the world with spatial audio. It runs on the
-Web Audio backend in browsers and the native backend on WeChat.
+Web Audio backend in browsers, a player-per-sound backend on WeChat and the other mini-game hosts, and the host's
+native audio engine (miniaudio) in the iOS and Android apps.
 
 ## How it works
 
@@ -123,6 +124,12 @@ and graph triggers.
 
 ### Authoring sound events
 
+![The sound event editor: three weighted variants with waveforms, and playback, level and pitch, and voice settings](@/assets/guides/en/sound-event.png)
+
+*A sound event with three variants. Each row has its waveform and weight (the share is weight over the sum), and **Trigger** plays it at the listener with the event's own rules.*
+
+
+
 Choose **New → Create Sound Event** in the Content Browser, or select audio assets
 and use **Create Sound Event** in their context menu. Double-click a `.esaudioevent`
 to open its dedicated editor. Dropping audio into an empty event panel creates an
@@ -208,6 +215,8 @@ the audio system starts it automatically.
 | `volume` | number | `1` | Volume, 0..1. |
 | `pitch` | number | `1` | Playback speed / pitch. |
 | `loop` | boolean | `false` | Loop the clip. |
+| `playing` | boolean | `false` | The play flag: raise to play, lower to stop. The engine lowers it when a non-looping clip ends. |
+| `finished` | boolean | `false` | Runtime, read-only: the clip completed; raising `playing` plays it again. |
 | `playOnAwake` | boolean | `false` | Start automatically when the entity is enabled. |
 | `spatial` | boolean | `false` | Attenuate by distance from the listener. |
 | `minDistance` | number | `100` | Distance within which volume is full. |
@@ -233,7 +242,8 @@ audio.muteBus('music', true);
 Route a sound to a bus with the `AudioSource.bus` field, or leave `playSFX`
 defaulting to `sfx`. Volume setters exist for `setMasterVolume` (a global slider)
 and `setMusicVolume` / `setSFXVolume` / `setUIVolume`. The `voice` bus routes sounds
-but has no volume setter — toggle it with `muteBus('voice', …)`.
+and has no named setter: set it with `setBusVolume('voice', v)` (which reaches any bus by name) or toggle it with
+`muteBus('voice', …)`.
 
 ### Bus effects & ducking
 
@@ -275,11 +285,19 @@ Settings**: `Compress` and `Bitrate` control the cook's WAV → MP3 transcode
 pass through untouched. MP3 has a small encoder delay — turn `Compress` off on
 clips that must loop seamlessly.
 
+**Load Type** decides how the clip is held on the Web: *Auto* streams clips of 30 seconds
+or longer from their compressed file and decodes shorter ones, *Decompress On Load* always
+decodes (instant to start; a three-minute track costs about 69 MB), and *Streaming* always
+streams. A streamed clip takes almost no memory and goes through the same bus, volume and
+fades, but gives up a sample-accurate loop point and a second simultaneous voice of the
+same clip. The choice ships in the exported game's audio settings, so Play, an export and a
+playable ad stream the same clips.
+
 ## Under the facade
 
 `Audio` is a facade over three exported classes the Web Audio backend assembles —
 `AudioMixer`, `AudioBus`, and `AudioPool`. You rarely construct them inside a
-game (on the WeChat backend they don't exist at all, which is why the bus APIs
+game (on the WeChat and native backends they don't exist at all, which is why the bus APIs
 degrade to no-ops there), but they're public for two real jobs: **custom buses
 beyond the built-in four**, and **standalone audio pipelines** — an audition
 tool, a custom `PlatformAudioBackend`, tests — built on your own `AudioContext`.
@@ -386,18 +404,19 @@ const setupSpatial = defineSystem([Commands()], (cmds) => {
 `AudioListener` has a single field, `enabled` (default `true`) — keep exactly one
 enabled listener in the scene.
 
-Estella's spatial pipeline is honest 2D: each frame, the audio system takes the
-source's and the listener's world positions, computes the distance, and drives
-the playing handle with `volume × attenuation` plus an **x-axis stereo pan**
-(`(sourceX − listenerX) / maxDistance`, clamped to ±1). There is no HRTF,
-doppler, or occlusion. A spatial source playing with no enabled listener warns
+Spatial audio is three-dimensional: each frame, the audio system takes the
+source's and the listener's world positions, computes the distance in all three
+axes, and drives the playing handle with `volume × attenuation` plus a **stereo pan**
+along the listener's own right (`dot(source − listener, right) / maxDistance`, clamped
+to ±1; an unturned listener's right is world +X, and a listener that turns hears the
+world turn with it). There is no HRTF, doppler, or occlusion. A spatial source playing with no enabled listener warns
 once and measures from the world origin.
 
 The curve math is exported as pure functions for tools and tests —
 `calculateAttenuation(distance, config)` with a `SpatialAudioConfig`
 (`model`, `refDistance`, `maxDistance`, `rolloff` — the system fills it from
 `AudioSource.minDistance`/`maxDistance`/`rolloff`), and
-`calculatePanning(sourceX, sourceY, listenerX, listenerY, maxDistance)`:
+`calculatePanning(source, listener, right, maxDistance)` (the first three are `{ x, y, z }`):
 
 ```typescript
 import { calculateAttenuation, calculatePanning, AttenuationModel } from 'esengine';
@@ -405,7 +424,9 @@ import { calculateAttenuation, calculatePanning, AttenuationModel } from 'esengi
 const gain = calculateAttenuation(250, {
   model: AttenuationModel.Inverse, refDistance: 100, maxDistance: 1000, rolloff: 1,
 });                                                  // 0.4 — refDistance / distance
-const pan = calculatePanning(600, 0, 0, 0, 1000);    // 0.6 — to the right
+const pan = calculatePanning(
+  { x: 600, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }, 1000,
+);                                                   // 0.6 — to the right
 ```
 
 ### Sound event source

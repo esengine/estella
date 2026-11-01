@@ -103,7 +103,7 @@ A member names a mesh and a material, or a **plant**: an entry in the rules' `pl
 | `sink` | How far it is sunk into the ground, in world units (a stone's buried underside). |
 | `unit` | World units to a unit of its mesh: 100 for plants modelled in metres in a world of centimetres. A recipe's `scale` is then a size relative to the model. |
 
-Plants are grown a cell at a time by the same machinery as a [placed foliage](/docs/graphics/foliage/#placed-plants): a chunk stands at once and fills in over the frames after it, each mesh a few milliseconds of the frame's budget. The far versions are a layer of their own, laid out as far as the furthest of them goes and shown from past what their kinds draw as themselves, so a layer's `drawDistance` is what its plants draw as themselves and not how far the world is seen. A world on a terrain of an area ends where the terrain does. A plant stands upright; it does not lean with the ground.
+Plants are grown a cell at a time by the same machinery as a [placed foliage](/docs/graphics/foliage/#placed-plants): a chunk stands at once and fills in over the frames after it, each mesh a few milliseconds of the frame's budget. The far versions are a layer of their own, laid out as far as the furthest of them goes and shown from past what their kinds draw as themselves, so a layer's `drawDistance` is what its plants draw as themselves and not how far the world is seen. A world on a terrain of an area ends where the terrain does.
 
 ### Layers
 

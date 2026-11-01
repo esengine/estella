@@ -6,7 +6,7 @@ description: 音频完整指南——音效、音乐、播放句柄、AudioSourc
 import { Aside } from '@astrojs/starlight/components';
 
 Estella 的音频通过 `Audio` 资源播放一次性音效和循环音乐,用句柄控制单个声音,用总线层级
-平衡混音,并用空间音频把声音定位到世界里。它在浏览器上跑 Web Audio 后端,在微信上跑原生后端。
+平衡混音,并用空间音频把声音定位到世界里。它在浏览器上跑 Web Audio 后端,在微信等小游戏宿主上每个声音一个播放器,在 iOS 和 Android 应用里用宿主的原生音频引擎(miniaudio)。
 
 ## 工作原理
 
@@ -104,6 +104,12 @@ if (voice) {
 
 ### 制作音效事件
 
+![声音事件编辑器:三个带波形和权重的变体,以及播放、音量与音高、并发设置](@/assets/guides/zh/sound-event.png)
+
+*一个有三个变体的声音事件。每行有波形和权重(占比＝权重除以权重之和),**触发试听**按该事件自己的规则在监听器位置播放。*
+
+
+
 在内容浏览器选择 **新建 → 创建音效事件**，或选中音频资源后从右键菜单创建。
 双击 `.esaudioevent` 打开专用编辑器。将音频拖到空事件面板，会在第一条音频旁创建
 事件；拖到已打开的事件则添加变体。
@@ -182,6 +188,8 @@ shot.onEnd = () => { /* the sound finished */ };
 | `volume` | number | `1` | 音量,0..1。 |
 | `pitch` | number | `1` | 播放速度 / 音调。 |
 | `loop` | boolean | `false` | 循环片段。 |
+| `playing` | boolean | `false` | 播放标志:升起即播放,放下即停止。非循环片段播完时引擎会把它放下。 |
+| `finished` | boolean | `false` | 运行时只读:片段已播完;再次升起 `playing` 会重新播放。 |
 | `playOnAwake` | boolean | `false` | 实体启用时自动开始。 |
 | `spatial` | boolean | `false` | 按与监听器的距离衰减。 |
 | `minDistance` | number | `100` | 在此距离内音量为满。 |
@@ -206,7 +214,7 @@ audio.muteBus('music', true);
 
 用 `AudioSource.bus` 字段把声音路由到某个总线,或让 `playSFX` 默认走 `sfx`。音量设置器有
 `setMasterVolume`(全局滑条)和 `setMusicVolume` / `setSFXVolume` / `setUIVolume`。`voice`
-总线能路由声音但没有音量设置器——用 `muteBus('voice', …)` 开关它。
+总线能路由声音,但没有专门命名的设置器:用 `setBusVolume('voice', v)`(它能按名字指到任何总线)设音量,或用 `muteBus('voice', …)` 开关它。
 
 ### 总线效果与自动闪避(ducking)
 
@@ -244,10 +252,14 @@ audio.setBusDucking('music', null);  // 移除
 `Bitrate` 控制打包时的 WAV → MP3 转码(在打包对话框勾选**压缩音频**)。
 已压缩格式原样通过。MP3 有少量编码器延迟——需要无缝循环的素材请关闭 `Compress`。
 
+**加载方式(Load Type)** 决定这个片段在 Web 上怎么持有:*自动*把 30 秒及以上的片段按压缩文件流式播放、较短的则解码,
+*加载时解压*总是解码(起播即时,三分钟的曲子约占 69 MB),*流式*总是流式播放。流式片段几乎不占内存,走同样的总线、音量与淡入淡出,
+但放弃了采样精确的循环点,以及同一片段的第二个并发声音。这个选择会写进导出游戏的音频设置,所以编辑器 Play、导出和试玩广告流式播放的是同一批片段。
+
 ## 门面之下
 
 `Audio` 是一个门面,其后是 Web Audio 后端组装的三个导出类——`AudioMixer`、`AudioBus`、
-`AudioPool`。游戏里很少直接构造它们(微信后端上它们根本不存在,这正是总线 API 在那里
+`AudioPool`。游戏里很少直接构造它们(微信和原生后端上它们根本不存在,这正是总线 API 在那里
 降级为空操作的原因),但它们公开导出是为了两件实事:**内建四条之外的自定义总线**,以及
 **独立音频管线**——试听工具、自定义 `PlatformAudioBackend`、测试——建在你自己的
 `AudioContext` 上。
@@ -350,15 +362,15 @@ const setupSpatial = defineSystem([Commands()], (cmds) => {
 
 `AudioListener` 只有一个字段 `enabled`(默认 `true`)——场景里保持恰好一个启用的监听器。
 
-Estella 的空间管线是诚实的 2D:每帧,音频系统取声源和监听器的世界位置,算出距离,用
-`volume × 衰减` 加上**沿 x 轴的立体声声像**(`(sourceX − listenerX) / maxDistance`,
-钳制到 ±1)驱动正在播放的句柄。没有 HRTF、多普勒或遮挡。空间声源在没有启用监听器时播放,
+空间音频是三维的:每帧,音频系统取声源和监听器的世界位置,按三个轴算出距离,用
+`volume × 衰减` 加上**沿监听器自己右方向的立体声声像**(`dot(source − listener, right) / maxDistance`,
+钳制到 ±1;没转过的监听器的右方向就是世界 +X,监听器转向后听到的世界也跟着转)驱动正在播放的句柄。没有 HRTF、多普勒或遮挡。空间声源在没有启用监听器时播放,
 会警告一次并从世界原点量距离。
 
 曲线数学以纯函数导出,供工具和测试使用——`calculateAttenuation(distance, config)`
 配 `SpatialAudioConfig`(`model`、`refDistance`、`maxDistance`、`rolloff`——系统用
 `AudioSource.minDistance`/`maxDistance`/`rolloff` 填充它),以及
-`calculatePanning(sourceX, sourceY, listenerX, listenerY, maxDistance)`:
+`calculatePanning(source, listener, right, maxDistance)`(前三个是 `{ x, y, z }`):
 
 ```typescript
 import { calculateAttenuation, calculatePanning, AttenuationModel } from 'esengine';
@@ -366,7 +378,9 @@ import { calculateAttenuation, calculatePanning, AttenuationModel } from 'esengi
 const gain = calculateAttenuation(250, {
   model: AttenuationModel.Inverse, refDistance: 100, maxDistance: 1000, rolloff: 1,
 });                                                  // 0.4 — refDistance / distance
-const pan = calculatePanning(600, 0, 0, 0, 1000);    // 0.6 — to the right
+const pan = calculatePanning(
+  { x: 600, y: 0, z: 0 }, { x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }, 1000,
+);                                                   // 0.6 — to the right
 ```
 
 ### 音效事件源

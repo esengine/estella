@@ -192,8 +192,8 @@ registerDrawCallback('custom-mesh', () => {
 要把**整个场景**画进去,让一台相机指向它:把 `Camera.renderTarget` 设成目标的句柄,
 那台相机就画到那里而不是屏幕——在屏幕相机之前渲染,也不参与「谁是主视图」的竞争。
 它看见什么由自己的排序层(`Camera.cullingMask`)决定,所以小地图相机和玩家相机可以
-看同一个世界、显示不同的部分。目前仅 WebGL2:WebGPU 后端还不能把渲染目标的纹理
-交给 `Sprite`:
+看同一个世界、显示不同的部分。渲染目标在两个后端上都能交给 `Sprite`;这条路径的
+像素验证目前只在 WebGL2 上跑(WebGPU 上,一帧同时含离屏和屏幕通道时,帧回读返回空):
 
 ```typescript
 import { RenderTexture, Draw } from 'esengine';
@@ -228,6 +228,45 @@ sprite.texture = rt.texture;
 
 这是低层接口:它不会替你渲染场景——只是把你在 `begin`/`end` 之间画的东西,
 在你构建的 view-projection 矩阵下重定向到目标。
+
+## 把多张纹理合到一张画布:`TextureAtlas`
+
+共用同一张纹理的精灵会合成一个批次绘制。当图片是分开来的——从服务器取的图标、由部件拼成的角色、
+玩家选的图片——`TextureAtlas.pack` 会在运行时把它们画到**一张**画布上,并告诉你每张落在哪里。
+
+![底部四张彩色卡片是四个独立精灵,旁边画着它们被合进的那张画布(缩小)](@/assets/guides/zh/texture-atlas.png)
+
+*上图每张卡片都是从同一张画布上切出来的精灵(右侧的小图就是画布本身)。卡片左上角的白色方块和
+底边的深色条说明它们方向没有翻转。*
+
+```typescript
+import { TextureAtlas } from 'esengine';
+
+// 在 Schedule.Update 的系统里调用——画布在自己独立的一趟里绘制。
+const atlas = TextureAtlas.pack([iconA, iconB, iconC], { padding: 2 });
+if (!atlas) return;                      // 渲染器还没起来:下一帧再试
+
+world.insert(entity, Sprite, { ...atlas.sprite(iconB), size: { x: 64, y: 64 } });
+```
+
+`sources` 是纹理句柄(`Sprite.texture` 里存的那种)。`atlas.sprite(source)` 返回可直接给 `Sprite`
+用的 `{ texture, uvOffset, uvScale }`;`atlas.get(source)` 还会给出像素矩形(`x`、`y` 从顶边算起,
+以及 `width`、`height`)。
+
+| 选项 | 默认 | 说明 |
+|---|---|---|
+| `maxSize` | `2048` | 最大尝试的画布边长(像素)。放不下时 pack 会抛错。 |
+| `padding` | `2` | 图片之间留的透明像素,避免过滤时边缘采到邻居。 |
+| `filter` | `'linear'` | 画布的采样方式:`'linear'` 或 `'nearest'`(像素风)。 |
+
+- 画布取能装下全部图片的最小 2 的幂尺寸。图片按原样拷贝、不做混合,所以透明度完全保留。
+- 同一个句柄传两次只会打包一次。
+- 图集在用期间**不要释放源纹理**:图形设备丢失后,画布会用它们自动重画。
+- `atlas.repaint()` 手动重画(改了源之后);`atlas.release()` 释放画布。两者都不动源纹理。
+- 和 `RenderTexture` 一样,可以用在 `Sprite` 上;这条路径的像素验证目前只在 WebGL2 上跑(WebGPU 上一帧同时含离屏和屏幕通道时,帧回读返回空)。
+
+[Render Texture 示例](https://github.com/esengine/estella/tree/master/examples/render-texture)
+里建了四张卡片并打包(`src/systems/atlas.ts`)。
 
 ## 参见
 

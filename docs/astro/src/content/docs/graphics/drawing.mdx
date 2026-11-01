@@ -208,8 +208,9 @@ A whole **scene** goes into one by pointing a camera at it: set
 of the screen, before the screen cameras and without competing to be the main
 view. Its own sorting layers (`Camera.cullingMask`) decide what it sees, so a
 minimap camera and the player's camera can look at the same world and show
-different parts of it. On WebGL2 today; the WebGPU backend cannot yet hand a
-render target's texture to a `Sprite`:
+different parts of it. A render target reaches a `Sprite` on both backends; the
+pixel check of that path runs on WebGL2 only for now (on WebGPU a frame readback
+comes back empty when one frame holds both an offscreen and a surface pass):
 
 ```typescript
 import { RenderTexture, Draw } from 'esengine';
@@ -244,6 +245,51 @@ sprite.texture = rt.texture;
 
 This is a low-level surface: it doesn't render the scene for you — it redirects
 whatever you draw between `begin`/`end`, under a view-projection matrix you build.
+
+## Packing textures onto one canvas: `TextureAtlas`
+
+Sprites that share a texture draw in one batch. When your pictures arrive separately — icons
+fetched from a server, a character built from parts, images a player picked — `TextureAtlas.pack`
+draws them onto **one** canvas at run time and tells you where each one landed.
+
+![Four coloured cards as separate sprites along the bottom, and the one canvas they were packed onto, drawn small beside them](@/assets/guides/en/texture-atlas.png)
+
+*Each card above is a sprite cut from the same canvas (the small picture on the right is the
+canvas itself). The white square at a card's top-left and the dark bar along its bottom show they
+came out the right way up.*
+
+```typescript
+import { TextureAtlas } from 'esengine';
+
+// In a system in Schedule.Update — the canvas is painted in a pass of its own.
+const atlas = TextureAtlas.pack([iconA, iconB, iconC], { padding: 2 });
+if (!atlas) return;                      // the renderer is not up yet: try again next frame
+
+world.insert(entity, Sprite, { ...atlas.sprite(iconB), size: { x: 64, y: 64 } });
+```
+
+`sources` are texture handles (what `Sprite.texture` holds). `atlas.sprite(source)` returns
+`{ texture, uvOffset, uvScale }` for a `Sprite`; `atlas.get(source)` returns the pixel rectangle
+too (`x`, `y` from the top, `width`, `height`).
+
+| Option | Default | Description |
+|---|---|---|
+| `maxSize` | `2048` | The largest canvas edge to try, in pixels. Packing throws if the textures do not fit. |
+| `padding` | `2` | Transparent pixels kept between pictures, so a filtered edge does not pick up its neighbour. |
+| `filter` | `'linear'` | How the canvas is sampled: `'linear'` or `'nearest'` (pixel art). |
+
+- The canvas is the smallest power-of-two size that holds everything. Pictures are copied as
+  they are, with no blending, so their transparency is kept exactly.
+- A handle given twice is packed once.
+- **Keep the source textures alive** for as long as the atlas is in use. After a lost graphics
+  device the canvas is drawn again from them, automatically.
+- `atlas.repaint()` draws the canvas again by hand (after changing a source); `atlas.release()`
+  frees it. Neither touches the sources.
+- Like `RenderTexture`, it can be shown on a `Sprite`; the pixel check of that path runs on WebGL2
+  only for now (a WebGPU frame readback returns nothing when one frame holds an offscreen and a surface pass).
+
+The [Render Texture example](https://github.com/esengine/estella/tree/master/examples/render-texture)
+builds four cards and packs them (`src/systems/atlas.ts`).
 
 ## See also
 

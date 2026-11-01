@@ -9,7 +9,7 @@ Estella 编辑器支持 **Model Context Protocol (MCP)**。任何支持 MCP 的 
 Claude Code、Cursor，或你自己写的代理——都能驱动真实的编辑器：打开或创建项目、
 打开场景、用与你相同的"创建"菜单目录生成实体、编辑组件字段、在活的引擎 World
 里验证结果、进入 Play 模式、截图*亲眼看到*它搭出来的东西，并把成品游戏导出
-——走的都是 UI 自己的管线，共 65 个工具。
+——走的都是 UI 自己的管线，共一百多个工具。
 
 <Aside type="tip">
 代理做的每件事都经过编辑器自己的命令面——创建可撤销、Play 模式不会弄脏编辑
@@ -117,11 +117,11 @@ claude mcp add estella --env ESTELLA_MCP_ALLOW_WRITES=1 -- \
 | 预制体 | `create_prefab_from_entity`、`edit_prefab` / `exit_prefab_mode`（Prefab Mode）、`apply_prefab`、`revert_prefab`、`unpack_prefab`、`create_prefab_variant` |
 | 零代码行为 | `get_event_bindings` / `set_event_bindings`（给按钮接线）、`add_component` / `remove_component` |
 | 游戏代码 | `read_project_file`、`write_project_file`、`list_project_files` |
-| 运行与发布 | `toggle_play` + `get_play_state`、`export_game`（web / desktop / wechat / playable） |
+| 运行与发布 | `set_play`（playing / paused / stopped）+ `get_play_state`、`step`、`play_input`、`export_game`（打包对话框列表里的任一目标：web、desktop、wechat、playable、android 等） |
 
 典型的代理循环：`open_project` → `open_scene` → `list_entity_templates` →
 `apply_scene_ops` → `get_diagnostics` → `screenshot` 检查成果 → `save_scene` →
-`toggle_play` → 再次 `screenshot` → `export_game`。
+`set_play` → 再次 `screenshot` → `export_game`。
 
 ### 编辑预制体
 

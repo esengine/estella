@@ -57,8 +57,10 @@ const drift = defineSystem([Query(Mut(Transform))], (q) => {
 
 - **世界空间 Y 轴向上**:`+Y` 朝上,`+X` 朝右,角度 `0` 指向 `+X`,正角度逆时针
   (`Math.atan2(dy, dx)` 可直接得到指向目标的角度)。
-- **`position.z` 是绘制顺序,不是透视**:2D 渲染先按各渲染器的排序层 `layer` 粗排;
-  同一层内用 `z` 做精细排序(俯视角深度请用
+- **`position.z` 在 2D 场景里是绘制顺序,在 3D 场景里是真正的深度轴**。3D 场景
+  (网格、透视相机、[3D 物理](/docs/zh-cn/gameplay/physics-3d/))里坐标轴仍是 Y 向上,
+  `z` 就是普通空间轴:相机与灯光朝 `-Z` 看,地面是 XZ 平面。对 2D 精灵,渲染先按各渲染器的排序层
+  `layer` 粗排;同一层内用 `z` 做精细排序(俯视角深度请用
   [y 排序层](/docs/zh-cn/graphics/sprites/#绘制顺序与排序层))。它不会使精灵产生
   透视缩放。
 - **屏幕空间 Y 轴向下**:指针坐标(`Input.mouseX/mouseY`、UI 命中测试)是从画布

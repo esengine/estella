@@ -66,6 +66,7 @@ i18n.t('apples', { count: 3 });   // "3 apples"
 | `setLocale(locale)` | Set the active locale. |
 | `setFallbackLocale(locale)` | Set the locale used when a key is missing. |
 | `setPluralSelector(locale, selector)` | Custom plural rule for a locale. |
+| `setPseudoLocalization(options \| null)` | Opt-in length-stress preview (`expansion`, `accents`); `null` restores ordinary translation. |
 | `availableLocales()` | List registered locales. |
 | `has(key)` | Whether a key exists in the active/fallback locale. |
 
@@ -100,6 +101,17 @@ localization plugin — it fails loud otherwise), preload via
 [Text binding below](#bind-ui-text-to-keys) load everything automatically. The
 export cook always ships `.eslocale` files — they load by key, so reachability
 can't see them and force-includes them instead.
+
+Double-click a `.eslocale` to open the **String Table** editor, which shows every language of
+the project side by side: one row per key, one column per table, untranslated cells marked,
+a filter, and add and remove for keys (each edit is written to that language's file at once).
+It can **Import** an Excel (`.xlsx`), CSV or XLIFF (`.xlf`) file and merge it into the tables by key,
+and **Export** every language as one Excel or CSV sheet or as XLIFF 1.2, listing the problems it found
+first; a plural entry is edited in the inspector.
+
+To check how a longer language will fit, `i18n.setPseudoLocalization({ expansion: 0.35, accents: true })`
+(`@experimental`) stretches and accents every translated string while keeping placeholders, rich-text tags
+and newlines intact; `setPseudoLocalization(null)` goes back to the real text.
 
 ## Bind UI Text to keys
 
