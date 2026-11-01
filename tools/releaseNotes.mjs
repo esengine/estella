@@ -3444,4 +3444,6 @@ export const NOTED = {
     {"note":"A web game comes back after the GPU goes away."},
   "fix(postprocess): rain darkens a slope and a leaf as it does the flat, so a hillside in the rain is not cut into pale wedges":
     {"note":"Rain wets hillsides and plants, not only flat ground."},
+  "feat(render): TextureAtlas packs several textures onto one canvas at run time, and RectAnchors, AnchorFlag and AnchorMode are exported from the package root":
+    {"note":"Pack several textures onto one canvas at run time: `TextureAtlas.pack`."},
 };
