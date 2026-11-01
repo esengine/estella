@@ -130,7 +130,7 @@ addStartupSystem(buildPauseMenu);
 
 给节点加上 `UIMask`,它的子项就会被裁剪到该节点。默认裁剪的是节点的**外框**——一个矩形。
 这对列表视口足够了,但也正是圆形头像框以前仍然裁出方形的原因:遮罩图形是圆的,裁剪范围不是。
-`alphaCutoff` 大于 0 时,裁剪范围切换为遮罩实际绘制出的形状。
+在 `mode: MaskMode.Stencil` 下,`alphaCutoff` 大于 0 时,裁剪范围切换为遮罩实际绘制出的形状(默认模式 `Scissor` 始终按外框裁剪)。
 
 ![方形照片配圆形遮罩:按外框裁剪时仍是方的;alphaCutoff 大于 0 后被裁成圆形](@/assets/guides/ui-mask.svg)
 
@@ -146,7 +146,7 @@ addStartupSystem(buildPauseMenu);
 
 **`UIMask.alphaCutoff` —— 按形状裁剪,而不是按外框。** 模板遮罩裁剪的是遮罩的*矩形*,所以
 圆形头像框裁出来仍是方的。大于 `0` 时它按遮罩实际绘制的形状裁剪,判定用的是**精灵**的 alpha
-(而非着色后的结果——遮罩图形常被调到接近全透明,好让它遮挡而不被看见)。默认仍是 `0`,因此
+(而非着色后的结果——遮罩图形常被调到接近全透明,好让它遮挡而不被看见)。它只在 `MaskMode.Stencil` 下生效;`Scissor`(默认模式)始终按矩形裁剪。默认仍是 `0`,因此
 按外框裁剪创作的场景不受影响。
 
 ### `ContentRect` —— 世界内容的矩形
@@ -174,6 +174,8 @@ addStartupSystem(buildPauseMenu);
 - 每个轴可以独立地**钉到一条边**,或**居中并带偏移**。
 - 边距可以是布局单位,也可以是父级尺寸的比例(每个边距各有一个 `isAbs…` 开关)。
 - 父级没有 `ContentRect` 时,对齐到**屏幕**,屏幕以世界原点为中心。
+
+`alignFlags` 是 `AnchorFlag`(`TOP`、`MID`、`BOTTOM`、`LEFT`、`CENTER`、`RIGHT`)的位集合;默认 `0` 不钉任何边,设置标志之前这个组件什么都不做。
 
 `alignMode` 决定何时对齐:`ONCE`、`ON_RESIZE`(默认:启用时、自身设置变化时、屏幕变化时)
 或 `ALWAYS`(每帧)。父级总是先于依赖其尺寸的子级对齐,编辑器的编辑模式下和运行时一样,
@@ -237,6 +239,7 @@ world.set(dialog, UINode, { ...node, opacity: 0.3, pointerEvents: UIPointerEvent
 
 | 字段 | 默认 | 含义 |
 |---|---|---|
+| `enabled` | `true` | 不移除组件而关掉滚动。 |
 | `content` | 第一个子节点 | 被移动的那个子节点。 |
 | `horizontal` / `vertical` | `false` / `true` | 哪些轴可滚。 |
 | `movement` | `Clamped` | `Elastic` 会在两端过冲再弹回。 |

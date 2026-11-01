@@ -21,16 +21,20 @@ Add a `Weather` component to one entity.
 
 | Field | What it does |
 |---|---|
-| `preset` | The weather the scene is in: Clear, Mist, Overcast, Rain, Storm. |
-| `target` | The weather it is turning into; None for none. |
-| `progress` | How far along that turn it is (0–1). The game advances it; set it in the editor to preview a half-turn. |
-| `duration` | Seconds a turn takes. |
-| `sequence` | Presets to cycle through by themselves, comma separated — `clear,mist,rain,clear`. Empty stays put. |
-| `hold` | Seconds each weather of the sequence holds before the next turn. |
-| `drive` | What the weather drives: Lights, Fog, Rain, Grade, Exposure, Reflections, Sound. |
+| `preset` | The weather the scene is in: Clear, Mist, Overcast, Rain, Storm. Default Clear. |
+| `target` | The weather it is turning into; None for none (the default). |
+| `progress` | How far along that turn it is (0–1, default 0). The game advances it; set it in the editor to preview a half-turn. |
+| `duration` | Seconds a turn takes (default 6). |
+| `sequence` | Presets to cycle through by themselves, comma separated — `clear,mist,rain,clear`. Empty (the default) stays put. |
+| `hold` | Seconds each weather of the sequence holds before the next turn (default 20). |
+| `drive` | What the weather drives: Lights, Fog, Rain, Grade, Exposure, Reflections, Sound, Wind. All by default. |
 | `soundSource` | An entity with a looping `AudioSource` — the sound of the rain. The weather raises its `playing` while it rains and sets its volume to the authored one times how hard it rains. |
 
 A turn is eased, so it starts and ends gently, and a finished turn lands on its target and clears itself.
+
+![Details of a Weather component with the five weathers, the transition target and progress](@/assets/guides/en/details-weather.png)
+
+*The **Weather** component: the five weathers to switch between, and the transition below them.*
 
 ## In the editor
 
@@ -56,6 +60,7 @@ Post Process Volume, which the panel says.
   The ambient light carries `reflectionScale` and `reflectionSaturation` for exactly this: what baked probes show is
   multiplied by the first and drained of colour by the second, and the weather turns both down.
 - **Sky.** A Sky Atmosphere effect takes the preset's `overcast` as cloud coverage and haze: the clouds thicken and join up, and the sun, moon and stars behind them are hidden by the same transmittance.
+- **Wind.** The preset's `wind` scales how far plants sway (a Foliage material's `u_windStrength`, a Sway sprite's `u_swayWind`) and `waves` scales the height of the waves on every body of water, in what is drawn and in what the surface answers.
 - **Grade and exposure.** Colour Grade's saturation and contrast are scaled, and Auto Exposure's compensation raised.
 
 The effects are applied after the scene's volumes have blended, so a scene that fogs itself thinly stays thinner than

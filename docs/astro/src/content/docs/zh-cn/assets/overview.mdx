@@ -57,11 +57,15 @@ const loadArt = defineSystem([Query(Mut(Sprite)), Res(Assets)], async (q, assets
 |---|---|
 | `loadTexture(ref)` | `{ handle, width, height }` |
 | `loadAudio(ref)` | `{ bufferId }` |
-| `loadFont(ref)` | `{ handle }` |
+| `loadFont(ref)` | `{ handle, family? }`(矢量字体带 `family`) |
 | `loadMaterial(ref)` | `{ handle, shaderHandle }` |
-| `loadSpine(skeletonRef, atlasRef?)` | `{ skeletonHandle }` |
+| `loadSpine(skeletonRef, atlasRef?)` | `{ skelData, atlasText, isBinary, textures }` —— 准备好的骨骼与图集,`Spine` 组件据此绘制 |
 | `loadTilemap(ref)` / `loadTileset(ref)` | `{ sourceId }` / `{ tilesetId }` |
 | `loadTimeline(ref)` | `{ timelineId }` |
+| `loadAnimClip(ref)` | `{ clipId }` |
+| `loadAnimatorController(ref)` | `{ controllerId }` |
+| `loadStateMachine(ref)` / `loadBehaviorTree(ref)` | `{ fsmId }` / `{ btId }` |
+| `loadLocaleTable(ref)` | `{ locale, keyCount }` |
 | `loadPrefab(ref)` | `{ data }` |
 | `loadJson<T>(ref)` | `{ data: T }` |
 
@@ -181,8 +185,8 @@ const { failed } = await assets.preload(
 }
 ```
 
-它就是 Unity 的 `Resources` 文件夹、Unreal 的 additional cook directory,
-只不过落在这个项目原本就有的模型里。**默认关闭**,这是刻意的。
+它是文件夹级别对可达性判断的覆盖,
+落在这个项目原本就有的模型里。**默认关闭**,这是刻意的。
 
 <Aside type="tip">
   `subpackages/` 下的资源即使触达不到也总会被包含——只是分组归属不同。

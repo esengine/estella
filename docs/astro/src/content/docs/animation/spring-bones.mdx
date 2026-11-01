@@ -18,18 +18,18 @@ is simulated.
 | Field | What it does |
 |---|---|
 | `enabled` | Off leaves the chain exactly as the animation poses it. |
-| `stiffness` | How hard each bone is pulled back toward its animated pose, 0 to 1 a frame at 60 Hz. 0 hangs free. |
-| `drag` | How much of its speed a bone loses each frame, 0 to 1. Higher settles sooner; the default is damped enough not to ring. |
-| `gravity` | World units a second squared (world y is up). The default is a metre a hundred units. |
+| `stiffness` | How hard each bone is pulled back toward its animated pose, 0 to 1 a frame at 60 Hz. 0 hangs free. Default 0.1. |
+| `drag` | How much of its speed a bone loses each frame, 0 to 1. Higher settles sooner; the default (0.5) is damped enough not to ring. |
+| `gravity` | World units a second squared (world y is up). The default is `{0, -980, 0}`: a metre a hundred units. |
 | `wind` | A steady wind on the chain, world units a second squared. Zero is still air. |
 | `windGust` | How far gusts swing the wind's strength, 0 to 1. 0 is steady; 1 takes it from calm to twice its strength. Each bone meets a gust a moment after the one above, so the strand ripples. |
-| `windFrequency` | Gusts a second. |
+| `windFrequency` | Gusts a second (default 0.5). |
 | `endLength` | A leaf bone has no child to aim at; this gives it a tip that long. 0 leaves leaf bones unsimulated. |
 | `radius` | The thickness of the strand, kept clear of the colliders. |
-| `weight` | How much of the simulation is used, 0 to 1. 0 is the animation alone. |
+| `weight` | How much of the simulation is used, 0 to 1 (default 1). 0 is the animation alone. |
 | `colliders` | Entities with a `SpringBoneCollider` the chain is kept out of. |
 
-A `SpringBoneCollider` is a sphere, or a capsule along its entity's own Y axis, placed by the entity's transform (and its `offset`). Put them on the head
+A `SpringBoneCollider` is a sphere (the default, `radius` 10), or a capsule along its entity's own Y axis (`height` 20, the distance between its end centres), placed by the entity's transform (and its `offset`). Put them on the head
 and shoulders bones so hair does not pass through the body.
 
 ## From a model

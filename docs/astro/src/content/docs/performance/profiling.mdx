@@ -69,7 +69,7 @@ the render counters are the current frame's):
 | `triangles` | number | Triangles submitted this frame. |
 | `sprites` | number | Sprites rendered this frame. |
 | `text` | number | Text entities rendered this frame. |
-| `spine` | number | Spine skeletons rendered this frame. |
+| `skeletal` | number | Triangles posed by a skeletal runtime this frame (Spine and DragonBones both count here). |
 | `meshes` | number | Meshes rendered this frame. |
 | `culled` | number | Entities culled (not submitted) this frame. |
 
@@ -109,7 +109,7 @@ addSystem(feedOverlay);
 The render counters in `FrameStats` come from `Renderer.getStats()`, which you
 can also call directly (no stats plugin needed) — it returns a `RenderStats`
 with the same seven fields: `drawCalls`, `triangles`, `sprites`, `text`,
-`spine`, `meshes`, `culled`.
+`skeletal`, `meshes`, `culled`.
 
 ```typescript
 import { Renderer } from 'esengine';
@@ -415,32 +415,34 @@ if (Renderer.hasCapturedData()) {
   for (const dc of capture!.drawCalls) {
     console.log(
       `#${dc.index} ${RenderType[dc.type]} tex=${dc.textureId} ` +
-      `tris=${dc.triangleCount} entities=${dc.entityCount} ` +
+      `tris=${dc.triangleCount} entities=${dc.entities.length} ` +
       `break=${BatchBreak[dc.breakReason]}`
     );
   }
-  console.log(`${capture!.cameraCount} camera pass(es)`);
+  console.log(`${capture!.passCount} pass(es)`);
 }
 ```
 
-`FrameCaptureData` is `{ drawCalls: DrawCallInfo[], cameraCount }`. Each
+`FrameCaptureData` is `{ drawCalls: DrawCallInfo[], passCount }`. Each
 `DrawCallInfo`:
 
 | `DrawCallInfo` field | Description |
 |---|---|
 | `index` | Draw call index within the frame (submission order). |
-| `cameraIndex` | Which camera pass issued it. |
+| `pass` / `passKind` | Which pass of the frame drew it, in the order the passes ran, and whether it is a camera's scene (`CapturePass.Scene`) or the screen-space overlay (`CapturePass.Overlay`). |
 | `stage` | Render stage (`RenderStage`: Background / Opaque / Transparent / Overlay). |
 | `type` | What kind of content (`RenderType`, below). |
 | `blendMode` | Blend mode id in effect. |
 | `textureId` / `materialId` / `shaderId` | GPU resources bound for the call. |
-| `vertexCount` / `triangleCount` | Geometry submitted. |
-| `entityCount` / `entityOffset` / `entities` | The entity ids batched into this call. |
+| `indexCount` / `triangleCount` | Geometry submitted. |
+| `instanceCount` | Instances in the call; 0 for a draw that is not instanced. |
+| `entities` | The entity ids the draw was made from, in draw order; an item with no entity (a glyph run, a gizmo) is not listed. |
 | `layer` | Render layer of the batch. |
 | `breakReason` | Why this call started instead of joining the one before it (`BatchBreak`, below). |
 | `scissorX/Y/W/H`, `scissorEnabled` | Scissor rect state (UI masks). |
 | `stencilWrite` / `stencilTest` / `stencilRef` | Stencil state (mask writers/readers). |
 | `textureSlotUsage` | Texture slots the batch consumed. |
+| `textures` | Every texture the draw bound, slot 0 first; `textureId` is the first. |
 
 `RenderType` tells you what a call drew: `Sprite`, `Spine`, `Mesh`,
 `ExternalMesh`, `Text`, `Particle`, `Shape`, `UIElement`.

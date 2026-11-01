@@ -55,6 +55,18 @@ const addSun = defineSystem([Commands()], (cmds) => {
 | `outerAngle` | `45` | Spot cone outer angle, degrees (falls to zero by here). |
 | `shadowSoftness` | `0` | Shadow edge softness (light-source size); `0` = hard edge. |
 | `shadowDistance` | `0` | Directional shadow reach; `0` = no directional shadow. |
+| `layerMin` / `layerMax` | `-128` / `127` | The sprite layers a Point / Spot / Directional light reaches (see [Which layers a light reaches](#which-layers-a-light-reaches)). |
+| `sourceAngle` | `0.53` | Directional only: the angular diameter of the source in degrees (the sun is 0.53); `0` = hard edge. |
+| `meshShadows` | `false` | Cast a shadow map over 3D meshes (Directional, Spot, Point). |
+| `shadowExtent` | `0` | Directional only: radius the mesh shadow map covers, centred on the camera; `0` fits the view. |
+| `followEnvironmentSun` | `false` | Directional only: take direction and strength from the environment's sun, and light the sky without it. |
+| `aimFollowedSun` | `false` | With `followEnvironmentSun`: aim by this light's `Transform` instead of the panorama's sun. |
+| `environment` | — | Ambient only: a baked `.esenv` environment. |
+| `environmentRotation` | `0` | Ambient only: turn the environment about the up axis, in degrees. |
+| `drawEnvironment` | `false` | Ambient only: also draw the environment as the sky behind the scene. |
+| `reflectionScale` | `1` | Ambient only: scale what baked reflection probes show (`1` = as baked). |
+| `reflectionSaturation` | `1` | Ambient only: how much colour baked reflection probes keep (`0` = grey). |
+| `bakedTint` | `{1,1,1,1}` | Ambient only: multiplies baked indirect light (lightmaps, probe volumes) — a day or weather scales the bake here. |
 | `enabled` | `true` | Turn the light off without removing it. |
 
 ## Light types
@@ -80,6 +92,10 @@ const addSun = defineSystem([Commands()], (cmds) => {
 .insert(Light, { type: LightType.Ambient, intensity: 0.25 });
 ```
 
+![The 2D Lighting example: a spot light lighting a grid of dark boxes](@/assets/guides/en/play-lighting-2d.png)
+
+*The 2D Lighting example: a light pooling on dark boxes, with the rest of the scene unlit.*
+
 ## Many lights
 
 A frame carries **112 lights** at once: sixteen the lighting loop reads for every pixel, and up to 96 more that are **tiled**. A street at night with
@@ -92,11 +108,15 @@ follows the lights near a pixel, not the lights in the scene — a hundred lamps
 
 What to keep in mind:
 
-- **Tiled lights do not cast 3D shadows.** (2D lights are different: the 2D shadow mask serves tiled lights too, see [2D shadows](#2d-shadows).) A shadow-casting light that does not make the sixteen is turned away (the Light Status in the editor says so), since the loop is the only
+- **Tiled lights do not cast 3D shadows.** (2D lights are different: the 2D shadow mask serves tiled lights too, see [Casting shadows](#casting-shadows).) A shadow-casting light that does not make the sixteen is turned away (the Light Status in the editor says so), since the loop is the only
   place a shadow map is read. Give the lights that matter shadows and let the many be the glow.
 - **`radius` is the reach.** The tile masks are built from it; a light with a huge radius touches every tile and costs like it.
 - Planar reflections are drawn with the sixteen only: their camera is not the one the tiles were made for.
 - 2D lights ride the same set, so a 2D scene with fifty torches is lit too.
+
+![Details of a directional Light showing its status, lights in frame, colour, intensity, shadow strength and layer range](@/assets/guides/en/details-light.png)
+
+*A directional **Light**: its status and how many lights reach the frame (1 of 112) sit above the fields.*
 
 ## Which layers a light reaches
 
@@ -355,6 +375,7 @@ cmds.spawn()
 | `ShadowCaster2D` field | Default | Description |
 |---|---|---|
 | `size` | `{32,32}` | The occluder's size in world units. |
+| `path` | `[]` | The occluder's outline in local units (three points or more, in order round the shape); when set it replaces the `size` box. |
 | `enabled` | `true` | Toggle shadow casting. |
 
 Shadow **quality** is controlled on the light, not the caster:

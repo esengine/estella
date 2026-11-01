@@ -427,6 +427,7 @@ const drive = defineSystem([Query(Animator), Res(AnimatorController)], (q, anim)
 | `controller` | string | `''` | An `.esanimator` asset ref (what the editor writes) or a name passed to `registerController` in code. |
 | `avatar` | string | `''` | An `.esavatar` asset saying how this rig spells the joints the clips name (see [Avatars](#layers-masks-and-ik)). |
 | `currentState` | string | `''` | The base layer's active state, as a `/`-separated path for nested machines (seeded from the controller's initial state). |
+| `layerStates` | string[] | `[]` | The active state of each layer above the base one, in layer order (the base layer's is `currentState`). |
 | `enabled` | boolean | `true` | Disable to freeze the state machine. |
 
 | `AnimatorController` method | Description |

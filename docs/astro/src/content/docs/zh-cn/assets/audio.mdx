@@ -236,7 +236,7 @@ audio.setBusDucking('music', { trigger: 'voice', amount: 0.3, attack: 0.05, rele
 audio.setBusDucking('music', null);  // 移除
 ```
 
-`trigger` 总线有信号时,目标总线的闪避级压到 `amount`;静默后按 `release` 恢复到 1。
+`attack`(默认 0.05 秒)和 `release`(默认 0.4 秒)是时间常数,`threshold`(默认 0.003,0 到 1 的 RMS 电平)是触发总线响到多大才算有信号。`trigger` 总线有信号时,目标总线的闪避级压到 `amount`;静默后按 `release` 恢复到 1。
 闪避是独立的增益级,不会与用户音量设置打架。无 WebAudio 图的后端(微信)上,
 两个 API 与音量调用一样优雅降级为空操作。
 
@@ -248,8 +248,8 @@ audio.setBusDucking('music', null);  // 移除
 
 ### 导入设置与打包音频
 
-选中音频资产会显示解码波形(可播放/点击跳转)和**导入设置**:`Compress` 与
-`Bitrate` 控制打包时的 WAV → MP3 转码(在打包对话框勾选**压缩音频**)。
+选中音频资产会显示解码波形(可播放/点击跳转)和**导入设置**:`Compress`(默认开)与
+`Bitrate`(96、128 或 192 kbps,默认 128)控制打包时的 WAV → MP3 转码(在打包对话框勾选**压缩音频**)。
 已压缩格式原样通过。MP3 有少量编码器延迟——需要无缝循环的素材请关闭 `Compress`。
 
 **加载方式(Load Type)** 决定这个片段在 Web 上怎么持有:*自动*把 30 秒及以上的片段按压缩文件流式播放、较短的则解码,

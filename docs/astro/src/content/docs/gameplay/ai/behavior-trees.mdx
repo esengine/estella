@@ -47,16 +47,21 @@ registerBt('guard', {
 });
 ```
 
+The tree is **reactive**: composites re-evaluate their children from the first one every tick and
+keep no memory of which child was running, so a higher-priority branch whose condition just became
+true preempts a lower-priority branch that was `Running`. Only `wait` and `repeater` keep per-node
+state (elapsed time, completed runs).
+
 Node types:
 
 | Category | Type | Behavior |
 |---|---|---|
-| Composite | `sequence` | Ticks children in order; fails on the first failure, succeeds if all succeed. |
-| | `selector` | Ticks children in order; succeeds on the first success, fails if all fail. |
-| | `parallel` | Ticks all children; `policy: 'one'` succeeds when any does, `'all'` (default) when all do. |
-| Decorator | `inverter` | Inverts its child's Success/Failure. |
-| | `succeeder` | Always reports Success. |
-| | `repeater` | Re-runs its child `count` times (`0` = forever). |
-| | `wait` | Runs for `seconds` before reporting Success. |
-| Leaf | `action` | Runs the registered action `name`; its `Status` (or `Success` on void) propagates up. |
+| Composite | `sequence` | Ticks children in order; fails on the first failure, succeeds if all succeed, and stops at the first child that is `Running`. |
+| | `selector` | Ticks children in order; succeeds on the first success, fails if all fail, and stops at the first child that is `Running`. |
+| | `parallel` | Ticks all children every frame. `policy: 'all'` (default) fails as soon as any child fails and succeeds when all succeed; `'one'` succeeds when any succeeds and fails only when all fail. Otherwise it reports `Running`. |
+| Decorator | `inverter` | Inverts its child's Success/Failure; `Running` passes through. |
+| | `succeeder` | Reports Success whenever its child finishes; `Running` passes through. |
+| | `repeater` | Re-runs its child `count` times (`0` = forever). Each finished run, success or failure, counts as one; it reports `Running` between runs and `Success` after the last. |
+| | `wait` | Reports `Running` for `seconds` (a leaf; it has no child), then `Success`. |
+| Leaf | `action` | Runs the registered action `name`; its `Status` (or `Success` on void) propagates up. An unregistered name fails. |
 | | `condition` | Returns `Success` when the registered condition `name` is true, else `Failure`. |

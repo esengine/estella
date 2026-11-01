@@ -263,8 +263,21 @@ export const Thruster = defineBehavior('Thruster', {
 });
 ```
 
-可用的相位包括 `Startup`、`PreUpdate`、`Update`、`PostUpdate`,以及固定三件套
+可用的相位包括 `Startup`、`First`、`PreUpdate`、`Update`、`PostUpdate`、`Last`,以及固定三件套
 `FixedPreUpdate` / `FixedUpdate` / `FixedPostUpdate`。
+
+### 声明你会碰哪些组件
+
+行为通过 `ctx.get` / `ctx.set` 访问其他组件,调度器看不到这一步。不声明时它被当作不透明,
+与其他所有系统冲突。传 `touches`(组件名)后,它才能被正确排序与并行:
+
+```typescript
+export const Drifter = defineBehavior('Drifter', {
+  state: { speed: 60 },
+  touches: { reads: ['Transform'], writes: ['Transform'] },
+  update(ctx, dt) { /* … */ },
+});
+```
 
 ## 计时器
 
@@ -299,15 +312,15 @@ const arm = defineSystem([Res(TimerRes)], (timers) => {
 不必手写移动系统。引擎在播放模式下每次 update 把它积分进 `Transform`:
 
 ```typescript
-import { Velocity } from 'esengine';
+import { Velocity, Transform, Sprite } from 'esengine';
 
-world.spawn()
-  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
-  .insert(Sprite, { texture: bulletTex })
-  .insert(Velocity, {
-    linear: { x: 240, y: 0, z: 0 },          // 单位/秒
-    angular: { x: 0, y: 0, z: Math.PI },     // 弧度/秒(z = 2D 自转)
-  });
+const bullet = world.spawn();
+world.insert(bullet, Transform, { position: { x: 0, y: 0, z: 0 } });
+world.insert(bullet, Sprite, { texture: bulletTex });
+world.insert(bullet, Velocity, {
+  linear: { x: 240, y: 0, z: 0 },          // 单位/秒
+  angular: { x: 0, y: 0, z: Math.PI },     // 弧度/秒(z = 2D 自转)
+});
 ```
 
 带 `RigidBody2D` 的实体会被跳过——物理求解器拥有它们的变换,两者永远不会争抢同一个实体。

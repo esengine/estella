@@ -43,13 +43,15 @@ await app.run();
 | `sideModules` | `SideModuleHost` | 由 `wasmBaseUrl` 构建,否则无 | 该 realm 的可选原生模块获取器。内联模块的 realm(Playable、微信)直接传 host 而不是 URL。 |
 | `plugins` | `Plugin[]` | `[]` | 额外插件,追加在默认集合**之后**。 |
 | `getViewportSize` | `() => { width, height }` | — | 视口尺寸回调,供相机系统使用(也是 WebGPU 初始化尺寸;缺省时为 `800×600`)。 |
-| `glContextHandle` | `number` | — | 预注册的 WebGL2 上下文句柄;不传则模块通过 `initRenderer()` 自建上下文。 |
-| `backend` | `'webgl2' \| 'webgpu'` | `'webgl2'` | `'webgpu'` 走注入设备路径——宿主必须先取得 `GPUDevice` 并在实例化前作为模块工厂的 `preinitializedWebGPUDevice` 传入。 |
-| `canvasSelector` | `string` | `'#canvas'` | WebGPU 交换链画布的 CSS 选择器(必须已在 DOM 中)。WebGL 忽略它。 |
+| `renderSurface` | `RenderSurfaceSource` | `{ kind: 'default' }` | 宿主如何提供渲染表面:`{ kind: 'gl-context', handle, glx? }` 渲染进预注册的 WebGL2 上下文句柄(`glx` 标明是微信的 EmscriptenGLX 上下文);`{ kind: 'webgpu', canvasSelector?, readback? }` 走注入设备路径——宿主必须先取得 `GPUDevice` 并在实例化前作为模块工厂的 `preinitializedWebGPUDevice` 传入,`canvasSelector` 默认 `'#canvas'`(必须已在 DOM 中),`readback` 让引擎能回读自己的帧(`captureFrame`);`{ kind: 'default' }` 由模块通过 `initRenderer()` 自建上下文。 |
 | `colorSpace` | `'gamma' \| 'linear'` | `'gamma'` | 项目色彩空间。`'linear'` 在线性光下渲染(采样时 sRGB 解码、线性混合、最终 blit 显式编码)。必须**在创建应用时**声明——着色器按它编译。 |
 | `randomSeed` | `number` | — | 给引擎的随机性播种,让这次运行可复现——回放、bug 复现、对某一帧下断言。不填则每次运行都不同,这对粒子正是玩家想要的。各子系统取的是按名字独立的流,所以新增一个发射器不会改变别处抽到的数。 |
 | `ySortLayers` | `number` | `0` | 渲染层位掩码(bit 0–31):层内按世界 Y 排序(俯视遮挡)。 |
-| `screenFit` | `ScreenScalingData` | 关(`scaleMode: -1`) | 项目相机适配:把设计分辨率 letterbox 进实际宽高比。仅当 `scaleMode` 为真实模式(≥ 0)时安装;`SCREEN_FIT_OFF`(-1)保持旧行为(有 Canvas 用 Canvas 适配,否则用原始 orthoSize)。 |
+| `depthLayers` | `number` | `0` | 渲染层位掩码(bit 0–31):这些层按真实深度而非画家顺序解析——2.5D 的开关。不透明绘制写深度缓冲并由近到远排序;混合绘制只测试不写入。同时按 Y 排序的层保持 Y 排序。 |
+| `outputTransform` | `'none' \| 'aces' \| 'neutral'` | `'none'` | 一帧在送往显示前统一、最后应用一次的曲线。`'aces'` 是受光 3D 场景想要的电影式肩部;`'neutral'`(Khronos PBR Neutral)保留色相与饱和度。 |
+| `msaaSamples` | `number` | `4` | 场景目标的多重采样;`1` 关闭。设备会钳制它,所以这是项目的请求而非实际所得。 |
+| `quality` | `QualityConfig` | — | 画质模式(`'off'`、`'auto'`、`'low'`、`'medium'`、`'high'`)、目标帧率、动态分辨率、按档位的配置、设备规则、异步着色器编译与按需渲染。仅在传入时安装。 |
+| `screenFit` | `ScreenScalingData` | 关(`scaleMode: -1`) | 项目相机适配:把设计分辨率 letterbox 进实际宽高比。相机适配仅在 `scaleMode` 为真实模式(≥ 0)时生效;`SCREEN_FIT_OFF`(-1)保持旧行为(有 Canvas 用 Canvas 适配,否则用原始 orthoSize)。`renderPolicy` 不是 `Surface` 时该资源同样会被安装。 |
 
 ### 它安装什么
 
@@ -155,10 +157,10 @@ export const scorePlugin: Plugin = {
 拓扑排序,遇环抛错。若 `build()` 抛错,插件会被回滚,失败以 `error` 条目的形式
 留在子系统注册表里可见。
 
-**`flushPendingSystems(app)`**——模块级的 `addSystem` / `addStartupSystem` /
-`defineBehavior` 调用(在 import 时、任何插件之外发生)排队在环境上下文里,而
-不是某个具体应用上。工厂对应的运行时会替你把队列灌进应用;当你手动搭一个裸
-`App` 又想要这些模块级注册时,自己调用 `flushPendingSystems`。
+**`flushPendingRegistrations(app)`**——模块级的 `addPlugin` / `addSystem` /
+`addStartupSystem` / `defineBehavior` 调用(在 import 时、任何插件之外发生)排队在环境上下文里,而
+不是某个具体应用上。工厂对应的运行时会替你把队列灌进应用(先插件、后系统);当你手动搭一个裸
+`App` 又想要这些模块级注册时,自己调用 `flushPendingRegistrations`。
 
 ## `App` 的接口
 
@@ -370,7 +372,7 @@ import 你的 bundle,返回一个 `ProbedRegistrations`:
   手搓 `App.new()` 加插件列表是引擎嵌入方的事。
 - **给插件起名。**一个 `name` 零成本却买来可观测性:子系统注册表条目、插件系统
   的存活性归因、可用的依赖报错。
-- **前置声明 `colorSpace` 和 `backend`。**两者都在创建时固化(着色器编译、设备
+- **前置声明 `colorSpace` 和 `renderSurface`。**两者都在创建时固化(着色器编译、设备
   注入)——不能在存活应用上切换。
 - **别和生命周期自动暂停较劲。**用 `new LifecyclePlugin({ autoPause: false })`(或
   `lifecycle.autoPause = false`)关掉它,而不是在监听器里解除暂停;manager 只会

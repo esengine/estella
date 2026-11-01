@@ -31,6 +31,10 @@ world.insert(rock, LODGroup, {
 
 把这个组件去掉,最精细的网格就回来了 —— 渲染器的其他部分一点没变。
 
+![LOD Group 的 Details:当前级别、实体的屏幕占比和各级阈值表](@/assets/guides/zh/details-lod-group.png)
+
+*编辑器里的 **LOD Group**:正在使用的级别、实体的屏幕占比和各级阈值表。*
+
 ## 这些尺寸是屏幕占比,不是距离
 
 `lod1Size` 和它的兄弟们,是物体包围体覆盖**视口高度**的比例。`1.0` 表示物体正好一屏高,
@@ -81,6 +85,7 @@ world.insert(rock, LODGroup, {
 - **槽位按顺序填** —— 先 `lod1`,再 `lod2`,再 `lod3`。留空的槽位就是梯子的终点,它后面的
   一律到不了(引擎会告警)。
 - **尺寸必须递减。** `lod2Size` 小于 `lod1Size`,依此类推。
+- **默认值。** `lod1Size` 0.5、`lod2Size` 0.25、`lod3Size` 0.1、`cullSize` 0.02、`hysteresis` 0.1(取值 0 到 1);组件的 `enabled` 关闭时始终画渲染器自己的网格。
 - **`cullSize: 0`** 完全关掉剔除,于是这一组永远不会消失。
 - **各级可以在导入时生成。** 在模型的导入设置里把 **Generate LODs** 设为 1–3 级(或给 `import-model` 传 `--lods <n>`):每个网格会被塌缩成约 50%、20%、7% 三角形的副本,写成 `<mesh>_lod<n>.esmesh`,并在实体上加一个 `LODGroup`。蒙皮和变形网格,以及三角形少于 **LOD Minimum Triangles**(256)的网格,只保留一级。
 - **蒙皮的一组必须共用一副骨架。** 蒙皮网格的每一级都要有相同的关节数;对不上的那一级会

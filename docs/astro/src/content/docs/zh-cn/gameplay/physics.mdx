@@ -20,6 +20,20 @@ import { Physics2DPlugin } from 'esengine/physics';
 app.addPlugin(new Physics2DPlugin('physics.js', { gravity: { x: 0, y: -9.81 } }));
 ```
 
+第二个参数是 `Physics2DPluginConfig`,字段全部可选:
+
+| 字段 | 默认 | 说明 |
+|---|---|---|
+| `gravity` | `{ x: 0, y: -9.81 }` | 世界重力,m/s²。 |
+| `fixedTimestep` | `1/30` | 物理步长(秒)。插件同时把应用的固定步长设成它,所以 `FixedUpdate` 系统也以 30 Hz 运行。 |
+| `subStepCount` | `4` | 每步的求解器子步数。 |
+| `contactHertz` / `contactDampingRatio` / `contactSpeed` | `30` / `10` / `3` | 接触的软度,以及最大推出速度(m/s)。 |
+| `collisionLayerMasks` | 无 | 按层的碰撞掩码(下标 = 层 0–15),取代每个碰撞体自己的 `maskBits`;编辑器用碰撞矩阵填它。 |
+| `enableSleep` | `true` | 允许静止刚体休眠。 |
+| `enableContinuous` | `true` | 对快速刚体做连续碰撞。 |
+| `restitutionThreshold` | Box2D 默认 | 产生反弹的最小撞击速度(m/s);`0` 或更小则保持默认。 |
+| `maxLinearSpeed` | Box2D 默认 | 刚体速度上限;`0` 或更小则保持默认。 |
+
 <Aside type="note">
   物理的类型从 **`esengine/physics`** 导入(API、插件、事件),而组件(`RigidBody2D`、各碰撞体、
   `CharacterController2D`)来自主 `esengine` barrel。
@@ -37,6 +51,9 @@ Box2D 以**米**模拟;引擎其余部分以**世界像素**工作。二者的�
 | 面向求解器的方法——`applyForce` / `applyImpulse`、`setLinearVelocity` / `getLinearVelocity`、`setGravity`…… | **米**(m/s、m/s²)。 |
 | 空间查询——`raycast`、`shapeCast*`、`overlapCircle` / `overlapAABB`、`moveCharacter` | **世界像素**,按当前 PPU 缩放。 |
 | `CharacterController2D.velocity`、`MotorJoint2D.linearVelocity` | 世界像素/秒。 |
+| 关节组件的 `anchorA` / `anchorB`、`length`、`minLength` / `maxLength`、`lowerTranslation` / `upperTranslation`;以及取像素的关节方法(`setDistanceJointLength`、`setDistanceJointLimits`、`setPrismaticJointLimits`、`setWheelJointLimits`……)和对应的读取方法 | **世界像素。** 角度(铰链的 `lowerAngle`、`motorSpeed`)是弧度。 |
+| 接触事件的位置与速度——`contactX/Y`、`pointX/Y`、`approachSpeed` | 世界像素、像素/秒。 |
+| `createRevoluteJoint` 的 `anchorA` / `anchorB` | **米**——原样交给求解器,与关节组件的像素锚点不同。 |
 
 `physics.getPixelsPerUnit()` 返回当前 PPU(每帧从 `Canvas` 推送),换算永远不用写死 `100`:
 
@@ -88,7 +105,7 @@ const spawnBall = defineSystem([Commands()], (cmds) => {
 
 ### 碰撞体
 
-所有碰撞体共享这些字段,各自再加自己的形状参数。尺寸以米计。
+碰撞体共享这些字段,各自再加自己的形状参数(例外见下表)。尺寸以米计。
 
 | 共享属性 | 类型 | 默认 | 说明 |
 |---|---|---|---|
@@ -105,10 +122,10 @@ const spawnBall = defineSystem([Commands()], (cmds) => {
 |---|---|
 | `BoxCollider2D` | `halfExtents`(`{0.5, 0.5}`)、`radius`(圆角,`0.05`)。 |
 | `CircleCollider2D` | `radius`(`0.5`)。 |
-| `CapsuleCollider2D` | `radius`、`halfHeight`。 |
-| `SegmentCollider2D` | `point1`、`point2`(单边)。 |
-| `PolygonCollider2D` | `vertices: Vec2[]`（任意形状，可以是凹的）、`radius`(圆角)。 |
-| `ChainCollider2D` | `points: Vec2[]`、`isLoop`(静态边链;无 `density`/`isSensor`)。 |
+| `CapsuleCollider2D` | `radius`(`0.25`)、`halfHeight`(`0.5`)。 |
+| `SegmentCollider2D` | `point1`(`{-0.5, 0}`)、`point2`(`{0.5, 0}`)——单边;没有 `offset`。 |
+| `PolygonCollider2D` | `vertices: Vec2[]`（任意形状，可以是凹的;默认一个单位正方形）、`radius`(圆角,`0`);没有 `offset`。 |
+| `ChainCollider2D` | `points: Vec2[]`(至少 4 个)、`isLoop`(`true`)——静态边链;`friction` 默认 `0.6`,没有 `offset`、`density`、`isSensor`。 |
 
 #### 凹多边形，以及你能画多少个顶点
 
@@ -215,15 +232,15 @@ for (const hit of hits) {
 
 const nearby = physics.overlapCircle(center, 64);   // Entity[]
 const inBox  = physics.overlapAABB(min, max);       // Entity[]
-const swept  = physics.shapeCastCircle(/* … */);    // sweep a shape
+const swept  = physics.shapeCastCircle(center, 16, { x: 100, y: 0 });  // ShapeCastHit[]
 ```
 
 | 方法 | 返回 | 说明 |
 |---|---|---|
-| `raycast(origin, dir, dist, maskBits?)` | 命中列表 | 射线上所有命中,最近优先。 |
+| `raycast(origin, dir, dist, maskBits?)` | `RaycastHit[]` | 射线上所有命中,最近优先。`dir` 是方向,`dist` 以像素计。 |
 | `overlapCircle(center, radius, maskBits?)` | `Entity[]` | 与圆重叠的碰撞体。 |
 | `overlapAABB(min, max, maskBits?)` | `Entity[]` | 与盒重叠的碰撞体。 |
-| `shapeCastCircle` / `shapeCastBox` / `shapeCastCapsule` | 命中 | 扫掠一个形状并得到它会撞到什么。 |
+| `shapeCastCircle(center, radius, translation, maskBits?)` / `shapeCastBox(center, halfExtents, angle, translation, maskBits?)` / `shapeCastCapsule(center1, center2, radius, translation, maskBits?)` | `ShapeCastHit[]` | 沿 `translation` 扫掠一个形状,得到它会撞到的所有东西。 |
 
 各种 cast 都返回 `RaycastHit`(`ShapeCastHit` 是同一个形状):
 
@@ -274,6 +291,12 @@ const onHit = defineSystem([Res(Physics2DEvents)], (events) => {
   for (const s of events.sensorExits)     { /* … */ }
 });
 ```
+
+事件里的位置是世界像素(`contactX/Y`、`pointX/Y`),速度是像素/秒(`approachSpeed`)。
+这个资源每渲染帧发布一次,包含该帧内所有固定步的全部接触。同样的事件还会按实体再发一份:
+`collision_enter`、`collision_exit`、`collision_hit`、`trigger_enter`、`trigger_exit`
+(即 `Physics2DEventType` 常量)——双方各收到一条,把对方实体放在 `other` 里,
+所以创作出来的事件绑定不写代码就能响应触发区。
 
 | 事件列表 | 触发时机 |
 |---|---|
@@ -344,15 +367,15 @@ physics.setMotorJointLinearVelocity(crate, { x: -200, y: 0 }); // 运行时反�
 ```typescript
 import { OneWayPlatform2D } from 'esengine/physics';
 
-world.spawn(
-  Transform, { position: { x: 0, y: 0 } },
-  RigidBody2D, { bodyType: BodyType.Static },
-  BoxCollider2D, { halfExtents: { x: 2, y: 0.2 } },
-  OneWayPlatform2D, { normal: { x: 0, y: 1 } }, // 实心顶面:从上落下、从下穿过
-);
+const platform = world.spawn('ledge');
+world.insert(platform, Transform, { position: { x: 0, y: 0 } });
+world.insert(platform, RigidBody2D, { bodyType: BodyType.Static });
+world.insert(platform, BoxCollider2D, { halfExtents: { x: 2, y: 0.2 } });
+world.insert(platform, OneWayPlatform2D, { normal: { x: 0, y: 1 } }); // 实心顶面:从上落下、从下穿过
 ```
 
-`normal` 是世界空间里的实心侧方向;`{ x: 0, y: 1 }`(默认)= "实心顶面"。设 `enabled: false`
+`normal` 是世界空间里的实心侧方向;`{ x: 0, y: 1 }`(默认)= "实心顶面"。设
+`localSpace: true`(默认 `false`)则法线随刚体旋转,包含父级的旋转。设 `enabled: false`
 让平台恢复为普通实心体。在编辑器里,单向平台的碰撞体 gizmo 会沿实心侧法线多画一支箭头,
 朝向一眼可辨。
 
@@ -372,7 +395,8 @@ physics.setMouseTarget(cursorWorld);
 physics.destroyMouseJoint();
 ```
 
-同一时刻只有一个拖拽在生效。传 `{ hertz, dampingRatio, maxForce }` 调弹簧的刚度与抓力。
+同一时刻只有一个拖拽在生效。传 `{ hertz, dampingRatio, maxForce }` 调弹簧的刚度(`hertz`,默认 `7.5`)、阻尼(`dampingRatio`,默认 `1`)
+与抓力(`maxForce`,默认按刚体重量自动取值)。`cursorWorld` 是世界像素坐标。
 
 ## 角色控制器
 
@@ -382,14 +406,15 @@ physics.destroyMouseJoint();
 干净地移动和起跳,而不是粘在地面上。它把结果写回,并报告碰到了什么:
 
 ```typescript
-import { defineSystem, Query, Mut, CharacterController2D } from 'esengine';
+import { defineSystem, Query, Mut, Res, Time, Schedule, CharacterController2D } from 'esengine';
 
-const drive = defineSystem([Query(Mut(CharacterController2D))], (q) => {
+const drive = defineSystem([Query(Mut(CharacterController2D)), Res(Time)], (q, time) => {
   for (const [entity, cc] of q) {
-    cc.velocity = { x: input.moveX * 240, y: cc.velocity.y - 900 * dt };  // gravity
+    cc.velocity = { x: moveX * 240, y: cc.velocity.y - 900 * time.fixedDelta };  // gravity
     if (cc.isOnFloor && jumpPressed) cc.velocity.y = 480;
   }
 });
+app.addSystemToSchedule(Schedule.FixedUpdate, drive);   // moveX / jumpPressed:你自己的输入
 ```
 
 给实体加一个碰撞体(mover 形状由它推导——盒子会内接成沿长轴的胶囊);若希望别的刚体能撞到角色,
@@ -447,7 +472,8 @@ gizmo(见[关节——在编辑器里](#在编辑器里));两者互相独立。<
 
 ## 最佳实践
 
-- **固定时间步**:*每帧*施加持续力、读 `Physics2DEvents`,因为物理独立于帧 delta 做子步。
+- **固定时间步**:在 `FixedUpdate` 系统里施加持续力,*每帧*读 `Physics2DEvents`——这个资源每帧发布一次,
+  包含该帧内所有固定步的接触。
 - 快速细小刚体(子弹、薄平台)用 **`bullet: true`** 防穿透。
 - 角色用 **`fixedRotation: true`** 免得翻倒。
 - **碰撞体与求解器用米,查询和角色控制器用像素**——混用是最常见的 bug;用

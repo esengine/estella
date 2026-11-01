@@ -117,7 +117,8 @@ const playIntro = defineSystem([Res(VideoPlayer)], (video) => {
 | `onReady` / `onEnded` / `onError` | callback | Lifecycle hooks. |
 
 `video.play(source, options)` takes the same options as the component
-(`autoplay`, `loop`, `muted`, `volume`, `playbackRate`); `video.stop(handle)` ends
+(`autoplay`, `loop`, `muted`, `volume`, `playbackRate`) but with its own defaults:
+`autoplay: true`, `loop: false`, `muted: false`, `volume: 1`, `playbackRate: 1`; `video.stop(handle)` ends
 one stream and `video.stopAll()` ends every stream.
 
 ## Import settings & cooked video

@@ -38,6 +38,10 @@ curve by default, or a full **gradient/curve** for precise control (see below).
   (duration, bursts, looping) restart the emitter; re-toggling replays from t=0.
 </Aside>
 
+![The Particle demo example: a campfire with smoke and sparks](@/assets/guides/en/play-particles.png)
+
+*The Particle demo example: a campfire made of two emitters, smoke and sparks.*
+
 ## Setup
 
 The particle system ships in the main bundle. In the editor and the web runtime
@@ -138,7 +142,7 @@ Where particles spawn and their initial direction. See [Emitter shapes](#emitter
 | `noiseStrength` | number | `0` | Peak flow speed (px/s) the turbulence pushes particles at. `0` = module off. |
 | `noiseFrequency` | number | `0.01` | Spatial scale of the field — larger = tighter, busier swirls. |
 | `noiseScrollSpeed` | number | `0` | How fast the field drifts over time (`0` = a static field). |
-| `noiseOctaves` | number | `1` | Fractal detail layers. `1` = smooth flow; more = finer turbulence. |
+| `noiseOctaves` | number | `1` | Fractal detail layers (1..8). `1` = smooth flow; more = finer turbulence. |
 
 See [Noise & turbulence](#noise--turbulence-1) below.
 
@@ -199,7 +203,7 @@ See [Noise & turbulence](#noise--turbulence-1) below.
 | Property | Type | Default | Description |
 |---|---|---|---|
 | `subEmitter` | entity | none | Child emitter entity fired when a particle triggers. `0`/unset = off. |
-| `subEmitterTrigger` | `SubEmitterTrigger` | `Death` | Fire on each particle's `Death` or `Birth`. |
+| `subEmitterTrigger` | `SubEmitterTrigger` | `Death` | Fire on each particle's `Death` or `Birth`, or when it hits something (`Collision`, see [Scene collisions](#scene-collisions)). |
 | `subEmitterChance` | number | `1` | Probability (0..1) a triggering particle fires the child. |
 | `subEmitterInheritVelocity` | number | `0` | Fraction of the parent particle's velocity passed to the sub-burst. |
 
@@ -215,6 +219,29 @@ See [Sub-emitters](#sub-emitters) below.
 | `trailMinDistance` | number | `6` | Min world distance a particle must move before a new trail point is recorded. |
 
 See [Per-particle trails](#per-particle-trails) below.
+
+![Details of a Particle Emitter with the Collision group, sub-emitter and emission fields](@/assets/guides/en/details-particle-emitter.png)
+
+*The **Particle Emitter** Details, with the **Collision** group at the top (off here) above the emission fields.*
+
+### Collision
+
+Shown once `collisionEnabled` is on. See [Floor collision](#floor-collision) and [Scene collisions](#scene-collisions).
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `collisionEnabled` | boolean | `false` | Turn collision on. |
+| `collisionMode` | `ParticleCollisionMode` | `Floor` | `Floor` (a horizontal plane), `Physics2D` or `Physics3D` (cast through the physics world). |
+| `collisionFloor` | number | `0` | World height of the floor plane. |
+| `collisionBounce` | number | `0.5` | 0 = stop dead, 1 = fully elastic. |
+| `collisionFriction` | number | `0.1` | Horizontal speed shed per bounce, 0..1. |
+| `collisionLifetimeLoss` | number | `0` | Fraction of life burned per bounce, 0..1. |
+| `collisionMask` | bitmask | all (`65535`) | Physics layers the scene modes hit; zero selects none. |
+| `collisionQueryBudget` | number | `128` | Most queries this emitter makes per update, 0..4096. |
+| `collisionMaxDistance` | number | `0` | Distance from the nearest active camera beyond which collision is skipped; `0` = no distance culling. |
+| `collisionFallback` | `ParticleCollisionFallback` | `Floor` | `Floor` or `Skip`, when physics is unavailable, the budget is spent or a particle is too far away. |
+| `collisionEvents` | boolean | `false` | Emit `ParticleCollisionEvent`s. |
+| `collisionEventBudget` | number | `32` | Most events this emitter raises per update, 0..1024. |
 
 ## Emitter shapes
 
@@ -421,6 +448,8 @@ cmds.spawn()
   });
 ```
 
+The component's other defaults: `type` `Directional`, `strength` `200`, `radius` `0`, `direction` `{1, 0, 0}`, `falloff` on, `enabled` on.
+
 | Type | Effect |
 |---|---|
 | `Directional` | A constant push along `direction` — wind, updrafts, a current. |
@@ -492,6 +521,9 @@ simulation draws; an emitter simulated on the GPU draws as `Billboard`.
 | `Multiply` | Darkens — smoke, shadow. |
 | `Screen` | Brightens, softer than additive. |
 | `PremultipliedAlpha` | For textures with premultiplied alpha. |
+| `PmaAdditive` | Additive with a premultiplied-alpha source. |
+| `Lighten` | Takes the brighter of particle and scene pixel. |
+| `Darken` | Takes the darker of the two. |
 
 ## Controlling playback — `Res(Particle)`
 
@@ -517,6 +549,9 @@ const control = defineSystem([Res(Particle)], (particles) => {
 | `getAliveCount(entity)` | Number of currently live particles. |
 | `setColorLut(entity, lut \| null)` | Upload a baked color LUT (see above), or clear. |
 | `setSizeLut(entity, lut \| null)` | Upload a baked size LUT, or clear. |
+| `setSpeedLut(entity, lut \| null)` | Upload a baked speed-over-life multiplier; it scales how fast a particle travels along its trajectory, and does not replace gravity or noise. |
+| `setBursts(entity, bursts \| null)` | Set the burst schedule (`{ time, count }[]`) from code, or clear. |
+| `setCollisionBudget({ queries?, events? })` | Change the shared per-App collision caps. |
 
 <Aside type="tip">
   The per-frame `update` is driven automatically by the particle system — you

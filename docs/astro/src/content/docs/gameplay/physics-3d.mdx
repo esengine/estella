@@ -18,7 +18,8 @@ never asks for a 3D world never loads it.
 Like the 2D side module, the 3D world loads on its own in the editor and the web
 runtime when a scene uses a 3D body. In a custom app, add the plugin yourself; every
 option is optional (gravity defaults to `{ x: 0, y: -9.81, z: 0 }`, `fixedTimestep` to
-`1/60`, `pixelsPerUnit` to `100`, `maxBodies` to `1024`):
+`1/60`, `collisionSteps` to `1`, `pixelsPerUnit` to `100`, `maxBodies` to `1024`; `layerMasks` is covered under
+[collision layers](#collision-layers)):
 
 ```typescript
 import { Physics3DPlugin } from 'esengine/physics3d';
@@ -43,7 +44,7 @@ cmds.spawn()
 |---|---|
 | `bodyType` | `Static` never moves, `Kinematic` is moved by hand, `Dynamic` is solved. |
 | `gravityScale` | This body's share of world gravity. `0` is weightlessness, not slow falling. |
-| `linearDamping` / `angularDamping` | How quickly motion bleeds off. |
+| `linearDamping` / `angularDamping` | How quickly motion bleeds off (both default `0.05`; 2D bodies default to `0`). |
 | `fixedRotation` | Freezes the orientation the body was given — what keeps a character from toppling. It does not right a body that starts tilted. |
 | `layer` | Which of the sixteen [collision layers](#collision-layers) the body is in. |
 | `continuousCollision` | Checks the whole path a step covers rather than where the body ended up. What a bullet needs; off by default, since it costs more. |
@@ -55,6 +56,10 @@ cmds.spawn()
 | `BoxCollider3D` | `halfExtents` on each axis. |
 | `SphereCollider3D` | `radius`. |
 | `CapsuleCollider3D` | An upright capsule: `halfHeight` is the cylinder's half, with a cap of `radius` on each end, so the total height is `2 * (halfHeight + radius)`. |
+
+Defaults: `halfExtents` `{ 0.5, 0.5, 0.5 }`, `radius` `0.5` (`0.3` on the capsule), `halfHeight` `0.5` —
+world units, so a freshly added shape is small until you size it. All three also carry `friction` (`0.3`),
+`restitution` (`0`) and `isSensor` (`false`).
 
 Each of the three also takes an optional `center`: the shape's place from the entity origin, in world
 units (default `{ 0, 0, 0 }`). The body stays at the entity, so a dynamic body turns about its origin and
@@ -98,6 +103,10 @@ cmds.spawn()
   .insert(RigidBody3D, { bodyType: BodyType.Dynamic })
   .insert(ConvexCollider3D, { mesh: 'assets/models/rock.esmesh' });
 ```
+
+![The 3D Physics example running with collider outlines drawn over boxes, spheres, capsules and cones](@/assets/guides/en/play-physics-3d.png)
+
+*The 3D Physics example with the physics debug draw on: every collider is outlined, whatever the body does.*
 
 ## Seeing a shape
 
@@ -154,18 +163,25 @@ body the solver pushes and a character that sweeps are two answers to where an
 entity is. Set `velocity` from gameplay each step and read the result back.
 
 ```typescript
-const c = world.get(player, CharacterController3D);
-c.velocity.x = input.axis('move') * 200;
-if (input.justPressed('jump') && c.isOnFloor) c.velocity.y = 500;
+const drive = defineSystem([Query(Mut(CharacterController3D)), Res(Input)], (q, input) => {
+  for (const [, c] of q) {
+    c.velocity.x = (input.isKeyDown('KeyD') ? 200 : 0) - (input.isKeyDown('KeyA') ? 200 : 0);
+    if (input.isKeyPressed('Space') && c.isOnFloor) c.velocity.y = 500;
+  }
+});
+app.addSystemToSchedule(Schedule.FixedUpdate, drive);
 ```
 
 | Field | What it does |
 |---|---|
 | `velocity` | Desired velocity in world units/second. A positive `y` is a jump. |
-| `stepHeight` | Tallest step it climbs instead of stopping at. `0` climbs nothing. |
-| `snapDown` | How far it reaches down to stay on the floor over a crest. `0` is off. |
-| `maxSlope` | Steepest ground it can stand on; beyond this it slides. |
-| `pushForce` | How hard it shoves dynamic bodies it walks into. `0` moves nothing. |
+| `radius` / `halfHeight` | The upright capsule that is swept (defaults `0.3` / `0.5`, world units), shaped like `CapsuleCollider3D`'s. |
+| `stepHeight` | Tallest step it climbs instead of stopping at (default `0.4`). `0` climbs nothing. |
+| `snapDown` | How far it reaches down to stay on the floor over a crest (default `0.5`). `0` is off. |
+| `maxSlope` | Steepest ground it can stand on, radians (default `0.87`, about 50°); beyond this it slides. |
+| `mass` | The character's mass in kilograms (default `70`), used when it shoves bodies. |
+| `pushForce` | How hard it shoves dynamic bodies it walks into (default `5000`). `0` moves nothing. |
+| `layer` | Which [collision layer](#collision-layers) it is in (0–15). |
 | `isOnFloor` / `floorNormal` / `realVelocity` | Outputs, read after the step. |
 
 <Aside>
@@ -180,6 +196,10 @@ if (input.justPressed('jump') && c.isOnFloor) c.velocity.y = 500;
   `0` walks into everything as if it were a wall.
 </Aside>
 
+![Details of the Player: Character Controller 3D with radius, half height and slope, and Third Person Controller with move speed and acceleration](@/assets/guides/en/details-character-3d.png)
+
+*The **Character Controller 3D** and **Third Person Controller** of the Third Person example's player.*
+
 ## Third person
 
 `ThirdPersonController` and `ThirdPersonCamera` are the gameplay layer above a
@@ -188,8 +208,8 @@ answer is what the animator hears.
 
 ```typescript
 // Nothing to write. Both are components a scene declares.
-player.add(ThirdPersonController, { moveSpeed: 320, jumpSpeed: 520 });
-rig.add(ThirdPersonCamera, { target: player, distance: 420 });
+world.insert(player, ThirdPersonController, { moveSpeed: 320, jumpSpeed: 520 });
+world.insert(rig, ThirdPersonCamera, { target: player, distance: 420 });
 ```
 
 The stick is read in the camera's GROUND plane, so an eye angled steeply down
@@ -197,12 +217,27 @@ still walks the character across the floor. Pitch never reaches the character.
 
 | Field | What it does |
 |---|---|
-| `moveSpeed` | Top speed on the ground, world units/second. |
-| `acceleration` / `deceleration` | How fast it reaches that speed, and sheds it. |
-| `rotationSpeed` | How fast it turns to face where it went, degrees/second. |
-| `jumpSpeed` | Upward speed a jump starts with. `0` cannot jump. |
-| `airControl` | How much of `acceleration` applies off the ground, 0..1. |
-| `camera` | Whose forward the stick is read against. |
+| `moveSpeed` | Top speed on the ground, world units/second (default `320`). |
+| `acceleration` / `deceleration` | How fast it reaches that speed, and sheds it, units/second² (defaults `2400` / `3200`). |
+| `rotationSpeed` | How fast it turns to face where it went, degrees/second (default `720`). |
+| `jumpSpeed` | Upward speed a jump starts with. `0` (the default) cannot jump. |
+| `airControl` | How much of `acceleration` applies off the ground, 0..1 (default `0.3`). |
+| `cameraRelative` | Read the stick in the camera's ground plane (default `true`) rather than the world's. |
+| `camera` | Whose forward the stick is read against; `0` (the default) means the first `ThirdPersonCamera` found. |
+| `idleThreshold` | Speed under which the animator is told the character is standing still (default `8`). |
+
+`ThirdPersonCamera` orbits a `target` under pointer control:
+
+| Field | What it does |
+|---|---|
+| `target` | The entity it orbits; `0` leaves the camera inert. |
+| `distance` | How far back it sits when nothing is in the way, world units (default `420`). |
+| `yaw` / `pitch` | Turn about world up, and above the horizon (positive looks down), degrees (defaults `0` / `15`). |
+| `minPitch` / `maxPitch` | Pitch limits, degrees (defaults `-30` / `70`). |
+| `sensitivity` | Degrees per pixel of pointer travel (default `0.2`). |
+| `followDamping` | How fast the position catches up, per second; `0` is rigid (default `12`). |
+| `targetOffset` | Lifts the pivot off the target's origin so the eye frames the chest, not the feet (default `{ 0, 90, 0 }`). |
+| `obstruction` / `obstructionRadius` / `obstructionLayers` | Pull in when something solid is between pivot and eye (default on), how fat the probe is (default `15`), and which layers it hits (`0` is all). |
 
 <Aside>
   The animator is told the speed the character REACHED, not the speed it asked
@@ -231,14 +266,14 @@ or re-balanced without touching the other two.
 on a `customEvent` track — `attack-start`, `hit`, `attack-end`:
 
 ```typescript
-player.add(MeleeAttack, { radius: 70, damage: 25, anchor: swordSocket });
-dummy.add(Health, { current: 100, max: 100 });
+world.insert(player, MeleeAttack, { radius: 70, damage: 25, anchor: swordSocket });
+world.insert(dummy, Health, { current: 100, max: 100 });
 ```
 
 | Field | What it does |
 |---|---|
-| `radius` | Radius of the sphere a `hit` beat tests, world units. |
-| `damage` | What a landed blow takes off. |
+| `radius` | Radius of the sphere a `hit` beat tests, world units (default `60`). |
+| `damage` | What a landed blow takes off (default `25`). |
 | `layers` | Physics layers the swing can reach; `0` is every layer. |
 | `anchor` | The entity whose WORLD placement the query is centred on. |
 | `attackId` | Engine-written: the live swing, `0` when none is running. |
@@ -279,7 +314,7 @@ const hitSparks = defineSystem(
 );
 ```
 
-A blow carries `target`, `source`, `amount` and the point it landed at — that
+A blow carries `target`, `source`, `amount` and the point it landed at (`x`, `y`, `z`) — that
 point cannot be recovered later, because by the time a spark is drawn the swing
 has moved on. The bus is double buffered, so a blow sent this frame lands on the
 next.
@@ -339,6 +374,10 @@ the door swung without integrating the swing a second time.
   also how a scene says which is which.
 </Aside>
 
+![Details of a Hinge Joint 3D: connected entity, anchor, axis, angle limits and motor](@/assets/guides/en/details-hinge-joint-3d.png)
+
+*A **Hinge Joint 3D** on the 3D Physics example's door: the connected frame, the hinge axis and its angle limits.*
+
 ## Asking the world what is where
 
 The `Physics3D` resource answers spatial questions in world units.
@@ -359,9 +398,12 @@ const occupants = q.overlapSphere(spawnPoint, 50);
 
 | Query | Answers |
 |---|---|
-| `raycast` | The nearest body on a line. |
-| `sphereCast` | The first body a moving sphere would meet. |
-| `overlapSphere` / `overlapBox` | Every body already inside a volume. |
+| `raycast(origin, direction, layerMask?)` | The nearest body on a line, as `{ entity, fraction, x, y, z, normalX, normalY, normalZ }`, or `null`. `direction` carries the ray's length. |
+| `sphereCast(origin, radius, direction, layerMask?)` | The first body a moving sphere would meet, same shape, or `null`. |
+| `overlapSphere(centre, radius, layerMask?)` / `overlapBox(centre, halfExtents, layerMask?)` | Every body already inside a volume, as `{ entity, x, y, z }[]`. |
+
+`Physics3D` holds `null` until the physics module has finished loading, so a system
+that asks in the first frames should check for it.
 
 <Aside>
   A layer mask of `0` means EVERY layer, not none: a caller that did not ask to

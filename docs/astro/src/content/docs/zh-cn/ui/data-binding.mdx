@@ -98,13 +98,14 @@ bindWidgetValue(world, events, entity, Component, field, signal, payloadKey?)
   一次往返一跳即收敛。
 - 返回的 dispose 同时拆除两个方向(向下绑定在实体销毁时也会自动解除)。
 
-`payloadKey` 指名 `change` payload 里承载值的字段,默认与组件字段同名:
+`payloadKey` 指名 `change` payload 里承载值的字段,默认与组件字段同名(文本输入框的 payload 里没有值——在 `change` 处理器里读 `TextInput.value`):
 
 | 控件 | 组件 / 字段 | `payloadKey` |
 |---|---|---|
 | 滑杆 | `UISlider.value` | `'value'`(默认) |
 | 开关 | `UIToggle.isOn` | `'isOn'`(默认) |
 | 下拉框 | `UIDropdown.selectedIndex` | `'index'`(需显式传入) |
+| 页签视图 | `UITabView.selectedIndex` | `'index'`(需显式传入;payload 为 `{ index, page }`) |
 
 一行音量控件——滑杆与标签绑到同一个信号:
 

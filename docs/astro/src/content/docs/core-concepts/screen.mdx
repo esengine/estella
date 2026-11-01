@@ -43,6 +43,7 @@ found is the one the engine uses.
 | `scaleMode` | `ScaleMode` | `FixedHeight` | How the design resolution adapts to the actual screen aspect (see below). |
 | `matchWidthOrHeight` | number | `0.5` | `Match`-mode blend, 0–1: `0` = fit width, `1` = fit height. Ignored by the other modes. |
 | `backgroundColor` | Color | `{r:0, g:0, b:0, a:1}` | Background color declared for the letterbox/pillarbox areas outside the design box. |
+| `layer` | number | `0` | Sorting layer this canvas' UI belongs to — cameras include or exclude the UI through it (see [`Camera.cullingMask`](#which-cameras-see-it-cameracullingmask)). |
 
 ```typescript
 import { defineSystem, GetWorld, Canvas } from 'esengine';
@@ -143,9 +144,10 @@ carries an older resolution than the project fit cannot lay UI out one way in th
 editor and another in the shipped build.
 
 <Aside type="caution">
-  While a fit source is active, the main camera's authored `orthoSize` is **not
-  used** — the visible half-height comes entirely from the design resolution and
-  the scale mode. Zoom by editing/tweening `orthoSize` only takes effect when no
+  While a fit source is active, a full-screen orthographic scene camera's authored
+  `orthoSize` is **not used** — the visible half-height comes entirely from the
+  design resolution and the scale mode. Sub-viewport cameras, cameras that render
+  into a texture and perspective cameras keep their own zoom. Zoom by editing/tweening `orthoSize` only takes effect when no
   fit source is active (no `Canvas` in the scene and `ScreenScaling` off).
 </Aside>
 
@@ -165,9 +167,10 @@ runtime image of **Settings → Project → Game → Display → Camera fit**.
 | `designHeight` | number | `1080` | Design (reference) resolution height in px. |
 | `scaleMode` | number | `SCREEN_FIT_OFF` (`-1`) | A real `ScaleMode` (`0`–`4`) turns the project fit **on**; `SCREEN_FIT_OFF` keeps the legacy behavior (Canvas fit when present, else raw `orthoSize`). |
 | `matchWidthOrHeight` | number | `0.5` | `Match`-mode blend 0–1 (`0` = fit width, `1` = fit height); ignored by other modes. |
+| `renderPolicy` | `RenderResolution` (optional) | `RenderResolution.Surface` (`0`) | How the scene's own resolution is chosen. `Surface` renders straight to the screen; `Design` (`1`) renders at the size the camera's world height asks for (one world unit = one rendered pixel) and scales that one image to the screen — no seams between sprites, slightly soft at non-integer ratios; `IntegerMultiple` (`2`) presents it at a whole multiple of its size, with black bars where that does not fill the screen. Independent of `scaleMode`. |
 
 `DEFAULT_SCREEN_SCALING` is that off-by-default value, and `SCREEN_FIT_OFF` (`-1`)
-is the sentinel. When the project fit is on it is **authoritative** — for the
+is the sentinel. The resource is installed when `scaleMode` is a real mode **or** `renderPolicy` is not `Surface`; the camera fit itself needs the former. When the project fit is on it is **authoritative** — for the
 camera and for the UI layout box alike, since both resolve the fit the same way.
 
 The shipped runtimes install it from the project config (`createWebApp`'s
@@ -309,11 +312,13 @@ insets or screen change. The system ships as part of the standard UI plugin
 | `applyBottom` | boolean | `true` | Same for the bottom inset. |
 | `applyLeft` | boolean | `true` | Same for the left inset. |
 | `applyRight` | boolean | `true` | Same for the right inset. |
+| `avoidHostMenu` | boolean | `false` | Also clear the host's own overlay — WeChat's capsule menu, which sits *inside* the safe area. The top inset becomes the larger of the safe-area inset and the capsule's bottom edge. Set it only on a node the capsule actually reaches: the whole node moves down. |
 
 Platform insets are converted from device pixels into UI design pixels before
 being written, so the layout stays resolution-independent:
 
 - **WeChat:** read from `wx.getSystemInfoSync().safeArea` automatically.
+- **Native (iOS / Android):** read from the platform's cached OS insets every frame.
 - **Web:** read from the `--sat` / `--sab` / `--sal` / `--sar` CSS custom
   properties on the root element — define them from `env(safe-area-inset-*)` in
   your host page to opt in (they read as `0` otherwise).
@@ -361,22 +366,9 @@ Where each **Settings → Project → Game → Display** field lives and lands:
 | Orientation | `packaging.orientation` (`'portrait'` \| `'landscape'`; absent = derived from the design aspect) | WeChat `game.json`, web/playable rotate hint, desktop window aspect, editor device preview. |
 | Camera fit | `features.rendering.cameraScaleMode` (`'none'`, `'fixed-width'`, `'fixed-height'`, `'expand'`, `'shrink'`, `'match'`; absent = `'none'`) | Mapped to `ScreenScaling.scaleMode` (`'none'` → `SCREEN_FIT_OFF`). |
 | Camera fit match | `features.rendering.cameraMatch` (0–1, default `0.5`) | `ScreenScaling.matchWidthOrHeight`. |
+| Render resolution | `features.rendering.renderResolution` (`'surface'`, `'design'`, `'integer'`; absent = `'surface'`) | `ScreenScaling.renderPolicy` (`Surface` / `Design` / `IntegerMultiple`). |
 
-Separately, two `RuntimeConfig` knobs set the **default `scaleMode` for newly
-created `Canvas` components** (they do not touch canvases already saved in a
-scene): `RuntimeConfig.canvasScaleMode` (default `1` = `FixedHeight`) and
-`RuntimeConfig.canvasMatchWidthOrHeight` (default `0.5`). Build configs set them
-by name through `applyBuildRuntimeConfig` — canonical `CanvasScaleMode` names plus
-the `ShowAll` / `NoBorder` aliases; unknown names fall back to `FixedHeight`:
-
-```typescript
-import { applyBuildRuntimeConfig } from 'esengine';
-
-applyBuildRuntimeConfig(app, {
-  canvasScaleMode: 'Expand',        // name-based: 'FixedWidth' … 'Match', 'ShowAll', 'NoBorder'
-  canvasMatchWidthOrHeight: 0.5,
-});
-```
+A newly created `Canvas` starts with `scaleMode` `FixedHeight` (`1`) and `matchWidthOrHeight` `0.5` — the component defaults. Canvases already saved in a scene keep what they saved.
 
 ## Best practices
 

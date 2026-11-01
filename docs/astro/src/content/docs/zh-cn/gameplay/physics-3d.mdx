@@ -14,8 +14,8 @@ import { Aside } from '@astrojs/starlight/components';
 ## 配置
 
 与 2D 侧模块一样,在编辑器和 Web 运行时里,场景用到 3D 刚体时 3D 世界会自动加载。自定义应用则自己加插件,
-所有选项都可省略(重力默认 `{ x: 0, y: -9.81, z: 0 }`,`fixedTimestep` 默认 `1/60`,`pixelsPerUnit` 默认 `100`,
-`maxBodies` 默认 `1024`):
+所有选项都可省略(重力默认 `{ x: 0, y: -9.81, z: 0 }`,`fixedTimestep` 默认 `1/60`,`collisionSteps` 默认 `1`,`pixelsPerUnit` 默认 `100`,
+`maxBodies` 默认 `1024`;`layerMasks` 见[碰撞层](#碰撞层)):
 
 ```typescript
 import { Physics3DPlugin } from 'esengine/physics3d';
@@ -39,7 +39,7 @@ cmds.spawn()
 |---|---|
 | `bodyType` | `Static` 从不移动,`Kinematic` 由你搬动,`Dynamic` 由求解器解。 |
 | `gravityScale` | 这个刚体分担的重力比例。`0` 是失重,不是「掉得慢」。 |
-| `linearDamping` / `angularDamping` | 运动衰减的快慢。 |
+| `linearDamping` / `angularDamping` | 运动衰减的快慢(默认都是 `0.05`;2D 刚体默认是 `0`)。 |
 | `fixedRotation` | 冻结刚体被给定的朝向——让角色不会倒下的那个开关。它不会把一个一开始就歪的刚体扶正。 |
 | `layer` | 刚体所在的十六个[碰撞层](#碰撞层)之一。 |
 | `continuousCollision` | 检查这一步走过的整条路径,而不只是它最后停在哪。子弹需要它;默认关闭,因为它更贵。 |
@@ -51,6 +51,9 @@ cmds.spawn()
 | `BoxCollider3D` | 每个轴上的 `halfExtents`。 |
 | `SphereCollider3D` | `radius`。 |
 | `CapsuleCollider3D` | 一个直立胶囊:`halfHeight` 是圆柱段的一半,两端各扣一个 `radius` 的半球,所以总高是 `2 * (halfHeight + radius)`。 |
+
+默认值:`halfExtents` `{ 0.5, 0.5, 0.5 }`,`radius` `0.5`(胶囊为 `0.3`),`halfHeight` `0.5`——都是世界单位,
+所以新加的形状很小,要自己调大。三者还都有 `friction`(`0.3`)、`restitution`(`0`)和 `isSensor`(`false`)。
 
 这三种碰撞体都还有可选的 `center`:形状相对实体原点的位置,单位为世界单位(默认 `{ 0, 0, 0 }`)。
 刚体仍位于实体处,所以动态刚体绕自己的原点转动,偏离中心的形状会绕着它甩动。
@@ -89,6 +92,10 @@ cmds.spawn()
   .insert(RigidBody3D, { bodyType: BodyType.Dynamic })
   .insert(ConvexCollider3D, { mesh: 'assets/models/rock.esmesh' });
 ```
+
+![3D 物理示例开着物理调试绘制:盒、球、胶囊和锥体的碰撞体都被描出轮廓](@/assets/guides/zh/play-physics-3d.png)
+
+*3D 物理示例开着物理调试绘制:每个碰撞体都被描出轮廓。*
 
 ## 看见形状
 
@@ -137,18 +144,25 @@ app.getResource(Physics3DDebugDraw).enabled = true;
 和自己扫掠的角色,是「这个实体在哪」的两个答案。每步从游戏逻辑设 `velocity`,再把结果读回来。
 
 ```typescript
-const c = world.get(player, CharacterController3D);
-c.velocity.x = input.axis('move') * 200;
-if (input.justPressed('jump') && c.isOnFloor) c.velocity.y = 500;
+const drive = defineSystem([Query(Mut(CharacterController3D)), Res(Input)], (q, input) => {
+  for (const [, c] of q) {
+    c.velocity.x = (input.isKeyDown('KeyD') ? 200 : 0) - (input.isKeyDown('KeyA') ? 200 : 0);
+    if (input.isKeyPressed('Space') && c.isOnFloor) c.velocity.y = 500;
+  }
+});
+app.addSystemToSchedule(Schedule.FixedUpdate, drive);
 ```
 
 | 字段 | 作用 |
 |---|---|
 | `velocity` | 期望速度,世界单位/秒。`y` 为正就是跳。 |
-| `stepHeight` | 能迈上去而不是被挡住的最高台阶。`0` 就什么都迈不上。 |
-| `snapDown` | 过坡顶时向下够多远以贴住地面。`0` 是关掉。 |
-| `maxSlope` | 能站住的最陡地面;比这更陡就会滑下去。 |
-| `pushForce` | 撞上动态刚体时能推多用力。`0` 什么都推不动。 |
+| `radius` / `halfHeight` | 被扫掠的直立胶囊(默认 `0.3` / `0.5`,世界单位),形状与 `CapsuleCollider3D` 相同。 |
+| `stepHeight` | 能迈上去而不是被挡住的最高台阶(默认 `0.4`)。`0` 就什么都迈不上。 |
+| `snapDown` | 过坡顶时向下够多远以贴住地面(默认 `0.5`)。`0` 是关掉。 |
+| `maxSlope` | 能站住的最陡地面,弧度(默认 `0.87`,约 50°);比这更陡就会滑下去。 |
+| `mass` | 角色质量,千克(默认 `70`),推东西时用。 |
+| `pushForce` | 撞上动态刚体时能推多用力(默认 `5000`)。`0` 什么都推不动。 |
+| `layer` | 所在的[碰撞层](#碰撞层)(0–15)。 |
 | `isOnFloor` / `floorNormal` / `realVelocity` | 输出,步进之后读。 |
 
 <Aside>
@@ -161,6 +175,10 @@ if (input.justPressed('jump') && c.isOnFloor) c.velocity.y = 500;
   更重的要给更多,而 `0` 会让它把所有东西都当成墙。
 </Aside>
 
+![Player 的 Details:带半径、半高和坡度的 Character Controller 3D,以及带移动速度和加速度的 Third Person Controller](@/assets/guides/zh/details-character-3d.png)
+
+*第三人称示例里玩家的 **Character Controller 3D** 和 **Third Person Controller**。*
+
 ## 第三人称
 
 `ThirdPersonController` 与 `ThirdPersonCamera` 是角色之上的 gameplay 层：输入
@@ -168,8 +186,8 @@ if (input.justPressed('jump') && c.isOnFloor) c.velocity.y = 500;
 
 ```typescript
 // 不需要写脚本，两者都是场景声明的组件。
-player.add(ThirdPersonController, { moveSpeed: 320, jumpSpeed: 520 });
-rig.add(ThirdPersonCamera, { target: player, distance: 420 });
+world.insert(player, ThirdPersonController, { moveSpeed: 320, jumpSpeed: 520 });
+world.insert(rig, ThirdPersonCamera, { target: player, distance: 420 });
 ```
 
 摇杆是在相机的**地面**平面里读的，所以镜头再怎么俯视，角色仍然沿地面走。俯仰
@@ -177,12 +195,27 @@ rig.add(ThirdPersonCamera, { target: player, distance: 420 });
 
 | 字段 | 作用 |
 |---|---|
-| `moveSpeed` | 地面上的最高速度，世界单位/秒。 |
-| `acceleration` / `deceleration` | 加速到该速度的快慢，以及减速的快慢。 |
-| `rotationSpeed` | 转向「实际去过的方向」的角速度，度/秒。 |
-| `jumpSpeed` | 起跳的初始向上速度。`0` 表示不能跳。 |
-| `airControl` | 离地时 `acceleration` 生效的比例，0..1。 |
-| `camera` | 摇杆以谁的前方为准。 |
+| `moveSpeed` | 地面上的最高速度，世界单位/秒(默认 `320`)。 |
+| `acceleration` / `deceleration` | 加速到该速度的快慢，以及减速的快慢,单位/秒²(默认 `2400` / `3200`)。 |
+| `rotationSpeed` | 转向「实际去过的方向」的角速度，度/秒(默认 `720`)。 |
+| `jumpSpeed` | 起跳的初始向上速度。`0`(默认)表示不能跳。 |
+| `airControl` | 离地时 `acceleration` 生效的比例，0..1(默认 `0.3`)。 |
+| `cameraRelative` | 在相机的地面平面里读摇杆(默认 `true`),而不是世界的。 |
+| `camera` | 摇杆以谁的前方为准;`0`(默认)表示找到的第一个 `ThirdPersonCamera`。 |
+| `idleThreshold` | 低于这个速度,就告诉动画角色是站着的(默认 `8`)。 |
+
+`ThirdPersonCamera` 在指针控制下绕 `target` 旋转:
+
+| 字段 | 作用 |
+|---|---|
+| `target` | 它绕着转的实体;`0` 让相机不动。 |
+| `distance` | 没有东西挡路时它在后方多远,世界单位(默认 `420`)。 |
+| `yaw` / `pitch` | 绕世界上方向的转角,以及高出地平线的角度(正值向下看),度(默认 `0` / `15`)。 |
+| `minPitch` / `maxPitch` | 俯仰限位,度(默认 `-30` / `70`)。 |
+| `sensitivity` | 指针每移动一像素转多少度(默认 `0.2`)。 |
+| `followDamping` | 位置追上的快慢,每秒;`0` 为刚性(默认 `12`)。 |
+| `targetOffset` | 把支点从目标原点抬高,让镜头框住胸口而不是脚(默认 `{ 0, 90, 0 }`)。 |
+| `obstruction` / `obstructionRadius` / `obstructionLayers` | 支点与眼睛之间有实体时拉近(默认开)、探针的粗细(默认 `15`)、能撞到的层(`0` 为所有层)。 |
 
 <Aside>
   告诉动画的是角色**实际达到**的速度，而不是它请求的速度。顶着墙的角色摇杆推满
@@ -207,14 +240,14 @@ rig.add(ThirdPersonCamera, { target: player, distance: 420 });
 ——`attack-start`、`hit`、`attack-end`：
 
 ```typescript
-player.add(MeleeAttack, { radius: 70, damage: 25, anchor: swordSocket });
-dummy.add(Health, { current: 100, max: 100 });
+world.insert(player, MeleeAttack, { radius: 70, damage: 25, anchor: swordSocket });
+world.insert(dummy, Health, { current: 100, max: 100 });
 ```
 
 | 字段 | 作用 |
 |---|---|
-| `radius` | `hit` 节拍测试的球半径，世界单位。 |
-| `damage` | 一次落地的攻击扣掉多少。 |
+| `radius` | `hit` 节拍测试的球半径，世界单位(默认 `60`)。 |
+| `damage` | 一次落地的攻击扣掉多少(默认 `25`)。 |
 | `layers` | 这一刀能够到的物理层；`0` 表示所有层。 |
 | `anchor` | 查询以哪个实体的**世界**位置为中心。 |
 | `attackId` | 引擎写入：正在进行的那一刀，没有时为 `0`。 |
@@ -251,7 +284,7 @@ const hitSparks = defineSystem(
 );
 ```
 
-一次攻击携带 `target`、`source`、`amount` 和它落在哪个点——这个点事后是找不回来的，
+一次攻击携带 `target`、`source`、`amount` 和它落在哪个点(`x`、`y`、`z`)——这个点事后是找不回来的，
 等火花画出来的时候，那一刀早就挥过去了。总线是双缓冲的，本帧发出的攻击在下一帧落地。
 
 <Aside type="tip">
@@ -303,6 +336,10 @@ cmds.spawn()
   需要两个关节的实体就挂一个子实体给第二个,这也正好让场景说清楚哪个是哪个。
 </Aside>
 
+![Hinge Joint 3D 的 Details:连接的实体、锚点、轴、角度限制和马达](@/assets/guides/zh/details-hinge-joint-3d.png)
+
+*3D 物理示例里门上的 **Hinge Joint 3D**:连接的门框、铰链轴和角度限制。*
+
 ## 问世界「那里有什么」
 
 `Physics3D` 资源用世界单位回答空间问题。
@@ -323,9 +360,11 @@ const occupants = q.overlapSphere(spawnPoint, 50);
 
 | 查询 | 回答 |
 |---|---|
-| `raycast` | 一条线上最近的刚体。 |
-| `sphereCast` | 一个运动的球最先撞上的刚体。 |
-| `overlapSphere` / `overlapBox` | 已经在某个体积里的所有刚体。 |
+| `raycast(origin, direction, layerMask?)` | 一条线上最近的刚体,形如 `{ entity, fraction, x, y, z, normalX, normalY, normalZ }`,没有则为 `null`。`direction` 自带射线长度。 |
+| `sphereCast(origin, radius, direction, layerMask?)` | 一个运动的球最先撞上的刚体,形状同上,没有则为 `null`。 |
+| `overlapSphere(centre, radius, layerMask?)` / `overlapBox(centre, halfExtents, layerMask?)` | 已经在某个体积里的所有刚体,形如 `{ entity, x, y, z }[]`。 |
+
+物理模块加载完成之前 `Physics3D` 是 `null`,所以在最初几帧里询问的系统要先判断。
 
 <Aside>
   层掩码为 `0` 表示**所有层**,不是「一个都不要」:没有要求过滤的调用者是在要全部,

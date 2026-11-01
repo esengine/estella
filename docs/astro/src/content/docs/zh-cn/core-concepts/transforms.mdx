@@ -38,7 +38,7 @@ const drift = defineSystem([Query(Mut(Transform))], (q) => {
 });
 ```
 
-`position.x/y/z`、`rotation.z`、`scale.x/y/z` 是可动画字段([Sequencer](/docs/zh-cn/animation/timeline/)
+`position.x/y/z`、`rotation.x/y/z/w`、`rotation.angle`(Z 轴转角,弧度,不影响另外两个轴)、`scale.x/y/z` 是可动画字段([Sequencer](/docs/zh-cn/animation/timeline/)
 和[补间](/docs/zh-cn/animation/overview/#补间tween)可以打关键帧),而 `position` /
 `rotation` / `scale` 会被[网络](/docs/zh-cn/scripting/networking/)的状态复制同步。
 
@@ -49,8 +49,8 @@ const drift = defineSystem([Query(Mut(Transform))], (q) => {
 </Aside>
 
 <Aside type="tip">
-  编辑器的 Details 面板为了方便,把旋转显示为单个**以度为单位的 Z 角度**,但底层
-  存储的数据始终是四元数。
+  编辑器的 Details 面板把旋转显示为**以度为单位的 X / Y / Z 欧拉角**(先 X、再 Y、后 Z;
+  2D 内容只绕 Z 转),但底层存储的数据始终是四元数。
 </Aside>
 
 ## 坐标系
@@ -173,7 +173,7 @@ const aim = defineSystem([Query(Mut(Transform)).with(Turret), Res(CameraView)], 
 ```
 
 想动画化旋转,`TweenTarget.RotationZ` 以**弧度**驱动 Z 角度(引擎每步重建四元数),
-Sequencer 给 `rotation.z` 打关键帧也是同样的语义——见
+Sequencer 给 `rotation.angle` 打关键帧也是同样的语义——见
 [动画](/docs/zh-cn/animation/overview/#补间tween)。
 
 <Aside type="tip">
@@ -239,8 +239,9 @@ world = parentWorld × T(position) × R(rotation) × S(scale)
   父实体的 `Children` 列表会失去同步——而引擎的一半(布局、渲染、销毁)都在遍历
   `Children`。永远用 `world.setParent`。
 - **兄弟顺序在移除后不稳定。**摘除一个子实体是对 `Children` 做 swap-remove,会打乱
-  剩余兄弟的次序。不要在 `Children` 顺序里编码含义;绘制顺序用 `position.z` 或
-  排序层表达。
+  剩余兄弟的次序。UI 的布局与绘制顺序、层级顺序层(`Renderer.setTreeSortLayers`)都按
+  `Children` 顺序来,所以这些要在编辑器的大纲里调整,而不是靠摘下再挂回去。普通 2D 绘制顺序
+  则不要在 `Children` 顺序里编码含义,用 `position.z` 或排序层表达。
 
 ## 缩放
 

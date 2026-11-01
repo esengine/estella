@@ -32,12 +32,14 @@ std140 uniform 块,于是 CPU 能按名字设置、并安全地送到 GPU。一�
 | **Model** | `model` | glTF 材质在 base color 之外说的东西:`u_normalMap`、`u_emissive`(`Map`)、`u_occlusionMap` + `u_occlusionStrength`、`u_alphaCutoff`、`u_metallic` / `u_roughness`(以及 `u_metallicRoughnessMap`),还有[着色层](#着色层)——清漆、绒面、各向异性、半透、薄膜干涉、折射率、透射。模型导入会写出它。 |
 | **Toon** | `toon` | 分档受光:每盏灯的光被切成 `u_bands` 个平坦的档(`u_bandSoftness` 让档与档的交界变软),`u_shadeColor` 是灯照不到处的颜色,亮度超过 `u_specThreshold` 画一块平的高光(`u_specColor`,`u_specSize` 是光滑度),再加一圈边缘光(`u_rimColor`、`u_rimWidth`、`u_rimStrength`)。灯的阴影算进它的那一档。用帧里的 16 盏灯,和 Model 一样带着灯的循环。 |
 | **Matcap** | `matcap` | 用一张"打好光的球"的图(`u_matcap`)按表面朝向相机的方向查色。不问任何灯、不读阴影,只读一次纹理,所以适合手机。`u_baseBlend` 把底色乘进去。 |
-
 | **Terrain** | `terrain` | 四个纹理图层(草、泥土、雪、岩石),由 [Terrain](/docs/zh-cn/graphics/terrain/) 组件加权并按世界位置平铺。 |
 | **Foliage** | `foliage` | 在风里摆动的植物:按顶点颜色里画好的权重做顶点弯曲,双面、半透光,可选镂空纹理。见[植被](/docs/zh-cn/graphics/foliage/)。 |
 | **Skin** | `skin` | 按颜色分开的柔和漫反射、偏暖的明暗交界、薄处透光、两层高光和一层绒毛光,不模糊画面。见[皮肤与头发](#皮肤与头发)。 |
 | **Hair** | `hair` | 发丝光照:Kajiya-Kay 漫反射、沿流向图错开的两条高光,以及透过发丝的光。见[皮肤与头发](#皮肤与头发)。 |
+| **Eye** | `eye` | 用深度图和虹膜法线图做出的眼睛:角膜折射、带纤维/角膜缘环/瞳孔的虹膜、有包裹光的巩膜与眼睑阴影。见[皮肤与头发](#皮肤与头发)。 |
 | **Water** | `water` | 水平的水体:传播的波浪和涟漪、被折射并按水深染色的背后场景、反射与泡沫。见[水](#水)。 |
+
+Terrain、Foliage、Water、Hair、Skin、Eye 这几个模板属于各自的模块(`esengine/terrain`、`esengine/foliage`、`esengine/water`、`esengine/character-shaders`),项目装了对应模块才会出现在列表里。
 
 新建材质是**按 id 引用**其模板的——它存的是 `shader: "builtin:sprite-unlit"`,并**不会**在磁盘上
 写出 shader 文件。引擎从内置源码编译该模板(运行时加载器、cook 步骤、编辑器三处以同样方式解析
@@ -85,7 +87,7 @@ std140 uniform 块,于是 CPU 能按名字设置、并安全地送到 GPU。一�
 - **半透是着色项,不是模糊。** 它让光越过明暗交界线向背光侧延伸,并让背后的灯透出来,但从某一点进入的光仍在这一点出去。真正的扩散是次表面散射效果的事,它会模糊被标记表面的整个受光颜色,所以表面上锐利的高光也会被一并变软。
 - **不读取层的贴图。** 每一层对整个材质是一个常量(Model shader 已经没有多余的纹理单元);glTF 扩展的贴图在导入时会报告,其系数会保留。
 - **绒面和薄膜是拟合。** 绒面的能量损失和薄膜的干涉是解析近似,代替了生产级渲染器烘焙的查找表。
-- **不提供:** 头发(Marschner 式的发丝模型)、眼睛、清漆单独的法线贴图、超过一层清漆的分层材质。
+- **不提供:** Marschner 式的发丝模型、清漆单独的法线贴图、超过一层清漆的分层材质。
 
 ### 在你自己的 shader 里
 
@@ -253,10 +255,11 @@ const v = Material.getUniform(tintMat, 'u_intensity');
 | `depthTest` | `false` | 对深度缓冲做测试。 |
 | `depthWrite` | `true` | 写入深度缓冲。 |
 | `cull` | `CullMode.None` | 三角形剔除模式。 |
+| `depthBias` | `0` | 朝眼睛方向的深度缓冲单位——决定两个共面表面谁胜出(墙上的贴花)。 |
 | `switches` | `{}` | 启用的 `#pragma switch` 名——该材质编译时选定的静态排列。 |
 
 每个状态字段都有运行时 setter——`setBlendMode`、`setDepthTest`、`setDepthWrite`、
-`setCull`——而 `Material.createInstance(source)` 构建一个廉价变体:从父材质继承
+`setDepthBias`、`setCull`——而 `Material.createInstance(source)` 构建一个廉价变体:从父材质继承
 一切,只存储你之后在它上面设置的差异。
 
 ### `CullMode`

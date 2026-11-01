@@ -220,6 +220,15 @@ replaces them — a model told to occlude itself keeps doing so through its mate
 
 A model's materials import on the Model shader. Turn on **Character Materials** (`characterMaterials: auto`) in the model's import settings and a material whose name says skin, face, head, hair or eye gets the Skin, Hair or Eye shader instead, with its normal map and its occlusion/roughness map bound to them. The hair's triangles are also put in the order a blended draw wants, the cards nearest the middle of the hair first, which is back to front from any side for a shell of cards around a head (a ponytail that leaves the shell is not ordered by it). A hair material is cut out by its alpha (`u_alphaCutoff`, 0.5 unless the source says otherwise) and drawn without blending, so its edges are feathered by coverage. The name is read word by word, so `BodySkin` and `Hair_A` match while `Eyelashes` and `Headband` do not, and the colour texture's file name counts too. A name is a convention, not a fact: look at what it chose in the materials the import writes, and change a shader by hand where it guessed wrong. Eyes need their iris maps (`u_depthMap`, `u_irisNormalMap`) assigned by hand, as the source has no slot for them. Hair's strand-direction and highlight-shift maps have no glTF slot either, so a hair material names them in its extras (`flow_map` and `shift_map`, paths from the model, and `suggested_tipSoftness`) and the import binds them as `u_flowMap`, `u_shiftMap` and `u_tipSoftness`. It is off by default, so re-importing never changes a material you did not ask about.
 
+## Spring bones and the specular map
+
+Two more model import settings, both under advanced:
+
+| Setting | Default | What it does |
+|---|---|---|
+| **Spring Bones** (`springBones`) | Off | **From File Data and Names** gives hair its secondary motion from what the model already says: a VRM spring-bone extension or `extras.estella.springBone` / `springCollider` is used as stated, and for what they leave out a bone called `Hair_<region>_<chain>_00` becomes a `SpringBone` and an empty called `SBC_Sphere_<name>_r<cm>` or `SBC_Capsule_<name>_r<cm>_h<cm>` a collider. See [Spring bones](/docs/animation/spring-bones/). |
+| **Specular Map** (`specularMap`) | Specular Color | What the source's specular map holds. **Packed ORM** binds it as occlusion, roughness and metalness, for scenes that pack them there (Bistro, Sun Temple); the default reads it as a highlight tint, which the metal/rough shading has no slot for. FBX only. |
+
 ## Animations
 
 Each animation in the source becomes an `.estimeline` beside the meshes, and the prefab's

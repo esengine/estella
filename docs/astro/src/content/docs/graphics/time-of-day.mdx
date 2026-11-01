@@ -15,12 +15,16 @@ Add a `TimeOfDay` component to one entity.
 
 | Field | What it does |
 |---|---|
-| `hour` | The hour, 0–24 (12 is noon). The game advances it; set it in the editor to preview an hour. |
-| `daySeconds` | Seconds a whole day takes while the game runs. 0 holds the hour where it is. |
-| `latitude` | Where on the planet, in degrees (positive is north): how high the noon sun climbs. |
-| `declination` | The season, −23.5 to 23.5: positive is summer in the north. |
-| `north` | How far the world is turned from compass north (+Z) toward +X, in degrees — which way the sun rises. |
-| `drive` | What the time drives: Lights, Sky, Fog, Exposure, Reflections. |
+| `hour` | The hour, 0–24 (12 is noon, default 12). The game advances it; set it in the editor to preview an hour. |
+| `daySeconds` | Seconds a whole day takes while the game runs. 0 (the default) holds the hour where it is. |
+| `latitude` | Where on the planet, in degrees (positive is north): how high the noon sun climbs (default 40). |
+| `declination` | The season, −23.5 to 23.5: positive is summer in the north (default 15). |
+| `north` | How far the world is turned from compass north (+Z) toward +X, in degrees — which way the sun rises (default 0). |
+| `drive` | What the time drives: Lights, Sky, Fog, Exposure, Reflections. All five by default. |
+
+![Details of a Time Of Day component with the daylight curve, the hour, sun height, daylight and key light readouts, and what it drives](@/assets/guides/en/details-time-of-day.png)
+
+*The **Time Of Day** component: the daylight curve with the hour marked, live readouts of the sun, and the bits it drives.*
 
 ## In the editor
 
@@ -74,4 +78,4 @@ The baked lighting and the baked reflection probes are one moment's: the bake is
 **not** from lights (lightmaps, probe volumes) does not move with the sun. A scene that is meant to pass through a whole day wants
 its sun and its sky live — a lit-by-lights scene, or a baked one whose bake is mostly the sky's soft light — and the dimming
 and tinting above do the rest. Windows and lamps do not light themselves at night; give them an emissive material or a light you
-turn on with `currentTimeOfDay().daylight`.
+turn on with `currentTimeOfDay()?.daylight`.

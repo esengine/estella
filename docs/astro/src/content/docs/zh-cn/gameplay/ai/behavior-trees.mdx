@@ -46,16 +46,20 @@ registerBt('guard', {
 });
 ```
 
+这棵树是**响应式**的:组合节点每个 tick 都从第一个子节点重新求值,不记得上次运行到哪个子节点,所以
+条件刚变真的高优先级分支会抢占正在 `Running` 的低优先级分支。只有 `wait` 和 `repeater` 保存逐节点的
+状态(已过时间、已完成次数)。
+
 节点类型:
 
 | 类别 | 类型 | 行为 |
 |---|---|---|
-| 组合 | `sequence` | 按序 tick 子节点;第一个失败即失败,全部成功才成功。 |
-| | `selector` | 按序 tick 子节点;第一个成功即成功,全部失败才失败。 |
-| | `parallel` | tick 全部子节点;`policy: 'one'` 任一成功即成功,`'all'`(默认)全部成功才成功。 |
-| 装饰器 | `inverter` | 反转子节点的成功/失败。 |
-| | `succeeder` | 总是报告 Success。 |
-| | `repeater` | 把子节点重跑 `count` 次(`0` = 永远)。 |
-| | `wait` | 运行 `seconds` 秒后报告 Success。 |
-| 叶子 | `action` | 运行已注册动作 `name`;它的 `Status`(void 则为 `Success`)向上传播。 |
+| 组合 | `sequence` | 按序 tick 子节点;第一个失败即失败,全部成功才成功,遇到第一个 `Running` 的子节点就停在那里。 |
+| | `selector` | 按序 tick 子节点;第一个成功即成功,全部失败才失败,遇到第一个 `Running` 的子节点就停在那里。 |
+| | `parallel` | 每帧 tick 全部子节点。`policy: 'all'`(默认)任一失败即失败、全部成功才成功;`'one'` 任一成功即成功、全部失败才失败;其余情况报告 `Running`。 |
+| 装饰器 | `inverter` | 反转子节点的成功/失败;`Running` 原样透传。 |
+| | `succeeder` | 子节点一结束就报告 Success;`Running` 原样透传。 |
+| | `repeater` | 把子节点重跑 `count` 次(`0` = 永远)。每次跑完(无论成败)算一次;两次之间报告 `Running`,最后一次之后报告 `Success`。 |
+| | `wait` | 在 `seconds` 秒内报告 `Running`(它是叶子,没有子节点),之后报告 `Success`。 |
+| 叶子 | `action` | 运行已注册动作 `name`;它的 `Status`(void 则为 `Success`)向上传播。名字未注册则失败。 |
 | | `condition` | 已注册条件 `name` 为真时返回 `Success`,否则 `Failure`。 |

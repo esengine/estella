@@ -69,7 +69,8 @@ position the player:
 ```typescript
 import { defineSystem, Commands, Query, Marker, Transform } from 'esengine';
 
-// Runs once: find every spawn marker and place the player at the first one.
+// Find every spawn marker and place the player at the first one.
+// Register it with app.addSystemToSchedule(Schedule.Startup, placePlayer) to run it once.
 const placePlayer = defineSystem([Commands(), Query(Marker, Transform)], (cmds, markers) => {
   for (const [entity, marker, transform] of markers) {
     if (marker.type !== 'spawn') continue;
@@ -129,7 +130,9 @@ Keep sensors cheap in a busy world by putting triggers and the bodies that shoul
 notice them on dedicated [collision layers](/docs/gameplay/physics/#collision-filtering),
 so each sensor's mask narrows what it considers. See
 [Collision & sensor events](/docs/gameplay/physics/#collision--sensor-events) for the
-full event surface.
+full event surface. The same crossings are also sent as per-entity `trigger_enter` /
+`trigger_exit` events, which an [event binding](/docs/scripting/events/) on the area can
+react to without code.
 
 ## Imported from Tiled
 
@@ -139,14 +142,14 @@ converge onto the same entities you author by hand — no separate structure to 
 | Tiled object | Becomes |
 |---|---|
 | **Point** | A `Marker` (its `type` = the Tiled class, its custom properties → `Marker.properties`). |
-| **Rectangle / ellipse / polygon / polyline** | A trigger **Region** — a `Marker` plus a matching sensor collider (or solid geometry when the object group is named `collision`). |
+| **Rectangle / ellipse / polygon / polyline** | A trigger **Region** — a `Marker` (its `type` = the Tiled class) plus a static body and a matching collider: a box, a circle, a polygon of up to 8 vertices (more falls back to its bounding box) or an open chain. It is a sensor, or solid geometry when the object group is named `collision`. |
 | **Tile object** (has a gid) | A sprite child of the map. |
 
 So one `Query(Marker)` reads spawn points whether you dropped them in the Estella
 editor or drew them in Tiled. (Imported objects are re-derived from the `.tmj` on each
 load, so they exist in play mode only; hand-authored Markers are ordinary serialized
-entities.) The raw object-group data is still available through `getTilemapSource`
-if you need a shape's exact vertices.
+entities.) The raw object-group data is still available through `tilemapSource(assets, ref)`
+(from `esengine/tilemap`) if you need a shape's exact vertices.
 
 ## Finding what is nearest
 
@@ -159,7 +162,7 @@ const near = nearestMarkers(world, { x: player.x, y: player.y }, { radius: 60, t
 if (near[0]) promptFor(world.get(near[0].entity, Marker).type);    // what the button says is the game's
 ```
 
-`type` takes one type or several, `has` keeps only markers whose `properties` carry every given key and value, `radius` and `limit` bound the answer, and `plane: 'xz'` measures on the ground.
+`type` takes one type or several, `has` keeps only markers whose `properties` carry every given key and value, `radius` and `limit` bound the answer, and `plane: 'xz'` measures on the ground (then `from.y` is the ground z). Each result is `{ entity, distance, x, y }`.
 `nearestEntities(world, Component, from, options)` is the same over any component, with a `filter` on its data. An entity switched off with `Disabled` is not found. It is one pass over
 the entities that carry the component each time it is asked, which a button press or a prompt refreshed once a frame affords over the hundreds of things a village holds.
 

@@ -28,7 +28,7 @@ and is **read-only for your logic**: query it, never mutate it.
 | `UIInteraction` field | Description |
 |---|---|
 | `hovered` | The pointer is over the node. |
-| `pressed` | The primary button is held down on the node. |
+| `pressed` | A pointer (mouse button or touch) is held down on the node. |
 | `justPressed` | Became pressed this frame (one-frame edge). |
 | `justReleased` | Released this frame on the node that was pressed (one-frame edge — a click). |
 
@@ -53,20 +53,28 @@ guard that keeps a button click from also firing a world click.
 
 The `UIEvents` resource is a pub/sub queue with DOM-like bubbling. Widgets and
 the interaction systems emit the standard set; the type space is **open** —
-emit any string you like (a ListView emits `'item_selected'`).
+emit any string you like.
 
 | `UIEventType` constant | String | Emitted when | Bubbles |
 |---|---|---|---|
 | `Click` | `'click'` | Press and release on the same node. Keyboard Enter/Space also emits it (on the target only, no bubble). | Yes |
-| `Press` / `Release` | `'press'` / `'release'` | Primary button down / up on a node. | Yes |
+| `Press` / `Release` | `'press'` / `'release'` | A pointer (mouse button or touch) goes down / up on a node. `data` is a `UiPointerEventData` (`pointer` id plus `worldX/Y`, `layoutX/Y`, `screenX/Y`). | Yes |
+| `PointerMove` | `'pointer_move'` | A pointer holding the node moved; same `data`. | Yes |
+| `PressCancel` | `'press_cancel'` | A pointer's hold ended without a release — the system cancelled it, or something (a scroll area deciding a drag is a drag) took the gesture over. No click follows. | Yes |
 | `HoverEnter` / `HoverExit` | `'hover_enter'` / `'hover_exit'` | The hit node changed. | No |
+| `Shown` / `Hidden` | `'shown'` / `'hidden'` | The node (or an ancestor) stopped / started being `display: None`. Only watched while something listens for them. | No |
 | `Focus` / `Blur` | `'focus'` / `'blur'` | Keyboard focus moved (see [Focus](#focus--keyboard)). | No |
 | `Change` | `'change'` | A widget's value changed (toggle, slider, dropdown…). | No |
 | `Submit` | `'submit'` | A text input confirmed (Enter). | No |
 | `DragStart` / `DragMove` / `DragEnd` | `'drag_start'` / `'drag_move'` / `'drag_end'` | The drag system (see [Drag](#drag--drop)). | No |
-| `Scroll` / `Select` / `Deselect` | `'scroll'` / `'select'` / `'deselect'` | Scroll views and list selection. | No |
 
-Bubbling events climb the parent chain, revisiting every **enabled**
+`Scroll`, `Select` and `Deselect` (`'scroll'` / `'select'` / `'deselect'`) are reserved
+names — no built-in widget emits them, so emit them yourself if you want them
+(`createListView` has no selection model; scroll changes arrive through the
+handle's `scroll.onScroll` / `onScroll` option). The tree view emits `change` and
+`drop_request`.
+
+Bubbling events (`click`, `press`, `release`, `pointer_move`, `press_cancel`) climb the parent chain, revisiting every **enabled**
 `Interactable` ancestor; an ancestor with `blockRaycast` ends the walk, and any
 handler can call `stopPropagation()`. Each `UIEvent` carries:
 
@@ -127,7 +135,8 @@ layout pass), else translating the `Transform`.
 | `enabled` | `true` | Master switch. |
 | `dragThreshold` | `5` | Screen px of travel before the drag starts (keeps clicks clickable). |
 | `lockX` / `lockY` | `false` | Freeze an axis (a horizontal-only slider card). |
-| `constraintMin` / `constraintMax` | `null` | World-space clamp corners, or `null` for unbounded. |
+| `constrainMin` / `constrainMax` | `false` | Turn the lower / upper clamp on. A flag, not a `null` bound, because `0` is a usable limit. |
+| `constraintMin` / `constraintMax` | `{0, 0}` | World-space clamp corners (`Vec2`), applied to both axes while the matching `constrain*` flag is on. |
 
 While dragging, the transient `DragState` component carries the live geometry
 (all world-space):
@@ -183,7 +192,7 @@ focused entity; `Focusable.isFocused` mirrors it per entity, and `focus` /
 
 | Interaction | Behavior |
 |---|---|
-| Click a focusable | Focuses it. |
+| Click a focusable | Focuses it — but not *visibly*: the control keeps the look the pointer left it. Only Tab (keyboard) focus puts the control on its `focused` page, and shows tab-view and tooltip focus hints. |
 | Click empty space / press `Escape` | Clears focus. |
 | `Tab` / `Shift+Tab` | Cycles the focus ring — sorted by `tabIndex` (ties in discovery order), skipping disabled `Interactable`s and anything hidden by `display: none` up its tree. |
 | `Enter` / `Space` on the focused control | Emits `click` — activates buttons, toggles, dropdowns. Text inputs keep these keys for editing. |
@@ -227,7 +236,7 @@ const tooltip = defineSystem([GetWorld(), Res(UICameraInfo)], (world, camera) =>
 
 | Helper | Returns | Use |
 |---|---|---|
-| `uiHitTestWorld(world, x, y)` | Topmost **interactable** entity or `null` | The runtime raycast — same rules the interaction system uses. |
+| `uiHitTestWorld(world, ray, screenRay?)` | Topmost **interactable** entity or `null` | The runtime raycast — same rules the interaction system uses. Takes a `WorldRay` (`{ origin, dir }`), not x/y; for a plain point use `uiPickWorld`. |
 | `uiPickWorld(world, x, y)` | Topmost UI entity or `null` | Editor-style pick, ignores `Interactable`. |
 | `uiPickAllWorld(world, x, y)` | All UI entities under the point, most specific first | Pick-through menus, debug overlays. |
 | `screenToUiWorld(camera, glX, glY)` | `{ x, y }` world point | Project a GL-oriented screen point through the UI camera. |

@@ -38,8 +38,8 @@ export const setupNav = defineSystem([Res(Nav)], (nav) => {
 | `width` | number | Cell columns. |
 | `height` | number | Cell rows. |
 | `cellSize` | number | World pixels per cell (square). |
-| `origin` | `Vec3` | World position of cell `(0,0)`'s center. Its `z` is the depth every waypoint comes back at. Defaults to `(0,0,0)`. |
-| `walkable` | `Uint8Array` | Optional row-major `width*height` mask, `1` = walkable, `0` = blocked. Omitted → all walkable. |
+| `origin` | `{ x, y, z? }` | World position of cell `(0,0)`'s center. Its `z` is the depth every waypoint comes back at. Defaults to `(0,0,0)`. |
+| `walkable` | `ArrayLike<number>` | Optional row-major `width*height` mask, `1` = walkable, `0` = blocked. Omitted → all walkable. Copied in, not retained. |
 
 To derive a grid from a painted tilemap instead of hand-authoring the mask, use
 `navGridFromTilemapLayer` (which cells a layer's solid tiles block) or
@@ -127,7 +127,7 @@ are two places and a route can use either.
 Each volume is baked once, on the first frame its geometry is available — a mesh
 collider contributes nothing until its asset has loaded, so the bake waits for it.
 `buildNavMesh(verts, indices, options)` is callable directly if a game wants to bake
-on its own terms, and `collectNavGeometry(world, box)` is what gathers the triangles.
+on its own terms, and `collectNavGeometry(world, { min, max, layers? })` is what gathers the triangles.
 
 <Aside type="caution">
   **One agent size per mesh.** `agentRadius` is baked in, not applied per query: the
@@ -232,6 +232,10 @@ opening gives back exactly the ground that was there.
   is a job for the character controller it collides with, not for the bake.
 </Aside>
 
+![The 3D viewport with View, Show Navigation Mesh on: the baked walkable surfaces are filled in amber and outlined](@/assets/guides/en/view-navmesh.png)
+
+*The baked walkable surface, filled and outlined in the viewport by **View ▸ Show Navigation Mesh**.*
+
 ### Seeing what was baked
 
 The volume's wireframe says where the bake looked. To see what it **found** while
@@ -244,14 +248,19 @@ in front of you.
 The same picture from inside a running game comes from the `NavDebugDraw` resource:
 
 ```typescript
+import { NavDebugDraw } from 'esengine/ai';
+
 app.getResource(NavDebugDraw).enabled = true;
 ```
+
+Its `showFaces`, `showBorders` and `showLinks` (all `true`) switch the face outlines, the red
+stop edges and the `NavLink` connections on and off individually.
 
 Every walkable face is outlined where it actually is — at the height of the ground
 for a mesh, in the scene's own plane for a grid — and every edge the walkable world
 **stops** at is marked in red. Those edges are the only thing that explains a route
 going the long way round. Off by default (a surface is thousands of loops a frame),
-and it stops after a few thousand faces: `cellSize` is the knob for seeing more of a
+and it stops after 4096 faces: `cellSize` is the knob for seeing more of a
 big world.
 
 <Aside type="tip">
@@ -279,8 +288,9 @@ distinguished from reaching the destination. It returns `{ path, status, reason 
 | `partial` / `disconnected` | Stops on the reachable side of a disconnected region or closed passage. |
 | `partial` / `insufficient-clearance` | A point can get through the grid, but the requested body cannot. |
 | `unavailable` / `no-surface` | No navigation surface is installed. |
+| `unavailable` / `building` | A surface update is pending (`nav.surfaceUpdatePending`). |
 | `unavailable` / `start-unavailable` | No usable starting point was found. |
-| `target-unavailable` | No usable destination was found; a mesh may still return a partial approach. |
+| `unavailable` (grid) or `partial` (mesh) / `target-unavailable` | No usable destination was found; a mesh still returns a partial approach toward it. |
 | `unavailable` / `radius-mismatch` | The requested body is wider than the mesh's baked radius. |
 | `unknown` / `diagnostics-unavailable` | A custom surface implements only the legacy path API. |
 
@@ -321,6 +331,10 @@ The reference substitutes only the previous search; both sides use current
 obstacle clearance. Reports record source and bundle identity, raw rebuild and
 query times, and frame gaps. They measure navigation CPU work, excluding physics
 geometry collection, avoidance, rendering and the rest of the game frame.
+
+![Details of a Nav Agent: speed, radius, arrive radius and repath interval, then the target](@/assets/guides/en/details-nav-agent.png)
+
+*A **Nav Agent**: how it moves, then where it is going.*
 
 ### Moving an agent
 
@@ -386,9 +400,9 @@ stopNavAgent(world, entity);
 | `radius` | `0` | How wide the body is, in pixels. On a grid, planning routes it around anything it would not fit through; on a mesh this is the volume's `agentRadius` instead. |
 | `arriveRadius` | `6` | Stop distance from the final goal. |
 | `repathInterval` | `0.5` | Seconds between periodic replans; `0` disables periodic refresh. Target/topology changes and blocked-route recovery still replan. |
-| `hasTarget` | `false` | Whether a destination is set (managed for you). |
+| `hasTarget` | `false` | Whether a destination is set. Set by `setNavDestination`; cleared on arrival and by `stopNavAgent`. |
 | `targetX`, `targetY`, `targetZ` | `0` | Current destination in world pixels. |
-| `arrived` | `false` | Set true the frame the agent reaches its goal. |
+| `arrived` | `false` | Set true when the agent reaches its goal; stays true until the next `setNavDestination`. |
 
 `setNavDestination` is safe to call every frame to chase a moving target — the agent
 replans for changed targets/topology, stalled-route recovery or an elapsed periodic timer. Read

@@ -4,8 +4,14 @@ description: "A Perceiver senses nearby targets within a sight cone and writes w
 ---
 
 A `Perceiver` scans for the nearest visible `PerceptionTarget` each frame and writes
-the result into a `Perception` component on the same entity. Decisions read
-`Perception`; sensing is just ECS data, not a side channel.
+the result into a `Perception` component on the same entity (adding one if the entity has none). A
+`Perceiver` never senses itself. Decisions read `Perception`; sensing is just ECS data, not a side
+channel. The step runs in `PreUpdate`, in play mode only, so a decision system reads a fresh result
+the same frame.
+
+![Details of a Perceiver and its Perception: range, field of view, facing axis and line-of-sight layers](@/assets/guides/en/details-perceiver.png)
+
+*A **Perceiver** (above) and the **Perception** it writes (below, off until play).*
 
 ```typescript
 import { Perceiver, PerceptionTarget, Perception } from 'esengine/ai';
@@ -25,7 +31,7 @@ cmds.spawn()
 | Component | Field | Default | Description |
 |---|---|---|---|
 | **`Perceiver`** | `range` | `220` | Sight range in world pixels. |
-| | `fovDegrees` | `360` | Field-of-view cone in degrees (`360` = omnidirectional). |
+| | `fovDegrees` | `360` | Field-of-view cone in degrees, `0`–`360` (`360` = omnidirectional). |
 | | `facingAxis` | `'x'` | Which of the entity's own axes the cone points down: `'x'` is screen-right (a flat scene), `'-z'` is where an imported 3D model faces. |
 | | `losLayers` | `0` | 3D only: physics layers the line-of-sight ray may hit (`0` = every layer). |
 | **`Perception`** | `visible` | `false` | A target is currently seen. |

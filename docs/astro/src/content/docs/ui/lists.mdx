@@ -55,7 +55,7 @@ satisfies it).
 | `data` | — | A `DataSource<T>`, or a raw array (wrapped in an `ArrayDataSource` — the array is **copied**, so mutate the source afterwards, not your original array). |
 | `layout` | — | Layout sugar (`itemHeight` / `itemWidth` / `columns`, below) or a full [`LayoutProvider`](#layout-providers). |
 | `item` | — | One [item template](#the-item-template), or a map of item type → template for heterogeneous rows. |
-| `direction` | from layout | Scroll axis: `'vertical'` \| `'horizontal'` \| `'both'`. Column and grid layouts default to vertical, row layouts to horizontal. |
+| `direction` | from layout | Scroll axis: `'vertical'` \| `'horizontal'` \| `'both'`. Column and grid layouts default to vertical, row layouts to horizontal; a custom `LayoutProvider` always defaults to vertical, so pass `direction` for a horizontal one. |
 | `recycleBuffer` | `2` | Extra indices kept mounted on each side of the visible range. For grids, think in rows: `columns * 2` keeps two extra rows. |
 | `wheelSpeed` | `1` | Wheel delta multiplier. |
 | `dragScroll` | `true` | Pointer/touch drag scrolling with a kinetic fling. |
@@ -293,9 +293,10 @@ createListView<Message>({
 `measureText(text, { fontSize, maxWidth?, fontFamily?, bold?, italic?, letterSpacing?, lineHeight? })`
 returns `{ width, lineCount, height }` measured off the **same Canvas2D metrics
 the glyph atlas draws from**, so a measured height matches what actually renders
-— no clipped or overflowing rows. `lineHeight` defaults to `fontSize * 1.2`,
-the `Text` default ratio; omit `maxWidth` for a single unwrapped line. (A
-DOM-less host falls back to an average-glyph estimate.)
+— no clipped or overflowing rows. `fontFamily` defaults to Arial and `lineHeight`
+to `fontSize * 1.2`, the `Text` default ratio; omit `maxWidth` for a single
+unwrapped line. (On a device the metrics come from the platform's own glyph
+rasterizer; only a headless host falls back to an average-glyph estimate.)
 
 ## How virtualization works
 
@@ -406,7 +407,10 @@ after ~0.8 s of stillness. Thumb length tracks the viewport/content ratio,
 it's out of flow (no layout impact), not interactable (no input surface), and
 theme-tagged with the `text` role so it re-skins on a live theme swap. The
 factories always leave scrollbars on; opting out (`showScrollbar: false`) is a
-`ScrollContainer` construction option, for manual compositions.
+`ScrollContainer` construction option, for manual compositions. The same
+constructor takes `initialOffset`, `elastic` (default `false`: let a drag pull the
+content past either end, rubber-banded, and spring back) and `bounceTime`
+(seconds the spring takes to settle, default `0.5`).
 
 ## Clipping — `UIMask`
 

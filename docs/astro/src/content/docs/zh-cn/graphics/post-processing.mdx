@@ -53,6 +53,10 @@ Estella 通过 ping-pong 帧缓冲运行全屏后处理。加一个 `PostProcess
 | `edgeOutline` | 轮廓**和**折痕处画一条有颜色的线:相机距离跳变处,以及表面法线转折处(需要写法线的表面:受光网格、Model、Toon) | `intensity`、`depthThreshold`、`normalThreshold`、`thickness`、颜色 `lineColor` |
 | `grayscale` | 去色 | `intensity` |
 
+![后处理示例开着 Bloom:明亮的方块向外溢出柔和的光晕](@/assets/guides/zh/play-postprocess.png)
+
+*后处理示例:**Bloom** 让明亮的像素溢出柔和的光晕。*
+
 ### 链路之前的抗锯齿
 
 几何边缘由**场景本身的 MSAA** 抹平,不是某个效果做的:默认 4×,WebGL2 与 WebGPU 都有——
@@ -140,7 +144,7 @@ Estella 通过 ping-pong 帧缓冲运行全屏后处理。加一个 `PostProcess
 每个像素在自己的圆里收集邻居,只在邻居自己的模糊够得着这里时才计入:清晰的前景物体不会渗进模糊的背景,而模糊的前景会铺到它后面的东西上。
 六十四个采样沿螺旋按像素不同的小数偏移,留下一层细颗粒,由 `taa` 平均掉。
 
-**散景**就是镜头的形状:`blades` 为 3 或更大时光圈是那么多边的多边形(0 为圆形),按 `bladeRotation` 转动,失焦的亮点就成了那个形状。
+**散景**就是镜头的形状:`blades` 为 3 或更大时光圈是那么多边的多边形(0 为圆形),按 `bokehRotation` 转动,失焦的亮点就成了那个形状。
 `highlight` 让亮的采样权重更大,所以失焦的灯是一个明亮的形状而不是暗淡的一团。
 
 ### G-buffer
@@ -190,10 +194,10 @@ import { registerEffect } from 'esengine';
 
 registerEffect({
   type: 'myInvert',
-  label: '反相',
+  label: 'Invert',
   compute: { source: INVERT_WGSL, workgroupSize: [8, 8] },
   // 参数块:这些,按这个顺序,作为 f32。
-  uniforms: [{ name: 'u_amount', label: '强度', min: 0, max: 1, step: 0.01, defaultValue: 1 }],
+  uniforms: [{ name: 'u_amount', label: 'Amount', min: 0, max: 1, step: 0.01, defaultValue: 1 }],
 });
 ```
 
@@ -271,10 +275,10 @@ registerEffect({
 骨骼上一次画时的姿态。不跟随的有混合表面,以及材质顶点钩子加上的运动——它们退回相机的答案,并被夹进像素周围
 的颜色里。TAA 和 SSAO 一样要读场景深度,因此在 WebGPU 上,没有深度解析的多重采样场景里无法运行。
 
-上面是友好标签;**在代码里它们带 `u_` 前缀**(`u_intensity`、`u_exposure`……)。多数效果
-在默认值下是恒等(`colorGrade`、`blur`、`chromaticAberration`、`fxaa`、`lensDistortion`、
-`lutGrade`),加进去不调参不改画面。少数一加就可见——`grayscale`(完全去色)、`vignette`、
-`bloom`、`outline`、`tonemap`(ACES 曲线恒生效)——这些只在你需要时才启用。
+上面是友好标签;**在代码里它们带 `u_` 前缀**(`u_intensity`、`u_exposure`……)。少数效果
+在默认值下是恒等(`colorGrade`、`lensDistortion`、没绑定查找表的 `lutGrade`),加进去不调参不改画面。
+多数一加就可见——`grayscale`(完全去色)、`vignette`、`bloom`、`blur`(强度 2)、
+`chromaticAberration`(3)、`pixelate`(4)、`outline`、`tonemap`(ACES 曲线恒生效)——这些只在你需要时才启用。
 
 ## HDR(线性色彩空间)
 
@@ -323,10 +327,10 @@ registerEffect({
 
 | 属性 | 类型 | 默认 | 说明 |
 |---|---|---|---|
-| `effects` | list | `[]` | 每个效果的 `{ type, enabled, uniforms }`。 |
+| `effects` | list | `[]` | 每个效果的 `{ type, enabled, uniforms, textures?, colors? }`——`textures` 放纹理引用(查找表、遮罩),`colors` 放颜色参数。 |
 | `isGlobal` | boolean | `true` | 全局应用 vs 仅在体积形状内。 |
 | `shape` | `'box' \| 'sphere'` | `'box'` | 局部体积的边界形状。 |
-| `size` | Vec2 | `{5, 5}` | 体积范围(局部体积)。 |
+| `size` | Vec2 | `{5, 5}` | 局部体积的半尺寸(球体用 `x` 当半径)。可选的 `z` 是盒体的半深度;`0` 或省略表示深度上不设限。 |
 | `priority` | number | `0` | 重叠处优先级高者胜。 |
 | `weight` | number | `1` | 混合权重,0..1(淡化整个体积)。 |
 | `blendDistance` | number | `0` | 体积边缘的衰减距离。 |
@@ -385,12 +389,12 @@ stack.addPass('lutGrade', getEffectDef('lutGrade')!.factory())
 
 | 组 | 子路径 | 效果 |
 |---|---|---|
-| 基础 | `esengine/fx-basic` | blur、bloom、vignette、grayscale、colorGrade、lutGrade、chromaticAberration、tonemap、fxaa、sharpen、lensDistortion、pixelate、outline、depthOutline、edgeOutline、filmGrain、motionBlur、lensFlare |
-| 大气 | `esengine/fx-atmosphere` | mist2d、rain2d、skyAtmosphere、heightFog、distanceFog、rain |
+| 基础 | `esengine/fx-basic` | blur、bloom、vignette、grayscale、colorGrade、lutGrade、agx、chromaticAberration、tonemap、fxaa、sharpen、lensDistortion、pixelate、palette、outline、depthOutline、edgeOutline、filmGrain、motionBlur、lensFlare |
+| 大气 | `esengine/fx-atmosphere` | mist2d、rain2d、fog2d、skyAtmosphere、heightFog、distanceFog、rain |
 | 光照 | `esengine/fx-lighting` | ssao、gtao、ssr、ssgi、voxelGI、contactShadows、lightShafts、autoExposure、depthOfField、subsurface、taa |
 
 导出会读 `PostProcessVolume` 里写了哪些效果(以及驱动大气组的 `Weather`、`TimeOfDay` 组件),并导入它们需要的组。**从脚本里**加的效果——
-`PostProcess.add('bloom')`——在内容里没有痕迹,所以要自己导入对应的组(`import 'esengine/fx-basic'`),或在项目设置里把该模块设为**包含**;否则这个效果第一次
+`getEffectDef('bloom')!.factory()`——在内容里没有痕迹,所以要自己导入对应的组(`import 'esengine/fx-basic'`),或在项目设置里把该模块设为**包含**;否则这个效果第一次
 被用到时会告诉你它需要哪一组。编辑器和任何非精简入口三组都带。
 
 ## 最佳实践

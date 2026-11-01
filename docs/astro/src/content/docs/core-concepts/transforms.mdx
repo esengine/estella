@@ -43,7 +43,7 @@ const drift = defineSystem([Query(Mut(Transform))], (q) => {
 });
 ```
 
-`position.x/y/z`, `rotation.z`, and `scale.x/y/z` are animatable (the
+`position.x/y/z`, `rotation.x/y/z/w`, `rotation.angle` (the Z turn, in radians, which leaves the other two axes intact) and `scale.x/y/z` are animatable (the
 [Sequencer](/docs/animation/timeline/) and [tweens](/docs/animation/overview/#tweens)
 can key them), and `position` / `rotation` / `scale` are replicated by
 [networking](/docs/scripting/networking/)'s state replication.
@@ -56,8 +56,9 @@ can key them), and `position` / `rotation` / `scale` are replicated by
 </Aside>
 
 <Aside type="tip">
-  The editor's Details panel shows rotation as a single **Z angle in degrees**
-  for convenience, but the stored data is always the quaternion.
+  The editor's Details panel shows rotation as **X / Y / Z Euler angles in
+  degrees** (applied X, then Y, then Z; 2D content turns about Z alone), but the
+  stored data is always the quaternion.
 </Aside>
 
 ## Coordinate system
@@ -190,7 +191,7 @@ const aim = defineSystem([Query(Mut(Transform)).with(Turret), Res(CameraView)], 
 
 To animate a rotation, `TweenTarget.RotationZ` drives the Z angle **in radians**
 (the engine rebuilds the quaternion each step), and the Sequencer keys
-`rotation.z` the same way — see [Animation](/docs/animation/overview/#tweens).
+`rotation.angle` the same way — see [Animation](/docs/animation/overview/#tweens).
 
 <Aside type="tip">
   For aiming math without touching rotation at all, `v2.fromAngle(angle, len)`
@@ -262,8 +263,11 @@ the parent in world space. The decomposed results land in
   the engine (layout, rendering, despawn) walks `Children`. Always
   `world.setParent`.
 - **Sibling order is not stable across removals.** Detaching a child swap-removes
-  it from `Children`, reordering the remaining siblings. Don't encode meaning in
-  `Children` order; use `position.z` or sorting layers for draw order.
+  it from `Children`, reordering the remaining siblings. `Children` order is what UI
+  layout and UI draw order follow, and what hierarchy-order layers
+  (`Renderer.setTreeSortLayers`) stack by — so reorder those in the editor's Outliner rather than by detaching and
+  re-attaching. For ordinary 2D
+  draw order, don't encode meaning in it: use `position.z` or sorting layers.
 
 ## Scale
 

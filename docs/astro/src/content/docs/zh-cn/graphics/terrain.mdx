@@ -44,6 +44,10 @@ description: 一个 Terrain 组件,用高度图或噪声生成地面,可以是�
 
 无限地面没有让雨水流走的边缘,所以它的侵蚀是噪声自己的:噪声的每个八度在它下面的八度已经很陡的地方被压低。这样会在尖锐的山脊之间留下平缓的山谷,和雨水的效果很像,除了噪声本身之外不花额外代价。它不画泥土水道。
 
+![地形与水面示例:绿色山丘、流向大海的河流和前景的海面](@/assets/guides/zh/play-terrain-water.png)
+
+*地形与水面示例:分层的地面、河流和海面,全部来自 Terrain 和 Water 组件。*
+
 ## 地形层
 
 地形层(`.esterrainlayer` 文件;编辑器里 **新建 → 新建地形层**)是一种地面——草、土路、沙、岩石——由美术为它制作的贴图组成。Terrain 列出它所用的地形层(`layers`,最多八个),地表图给出权重:第一张的红、绿、蓝、透明通道是第 1 到 4 层,第二张是第 5 到 8 层。没有地表图时,前四层按高度和坡度作为草、土、雪、岩上色;[生成世界](/docs/zh-cn/world/generation/)的群落可以为全部八层上色。
@@ -62,6 +66,10 @@ description: 一个 Terrain 组件,用高度图或噪声生成地面,可以是�
 地面由 **Terrain Layers** 着色器(`builtin:terrain-layers`)绘制。每一层按世界位置铺设,近处去除重复,远处混入更大的平铺;层与层交界处遮罩高度更高的一层显露(草间露出石头、石缝里填着沙);坡面上同时从侧面投影,悬崖不会被拉伸。法线贴图和遮罩的遮蔽、粗糙度参与光照。材质控制效果:`u_sharpness`、`u_heightBlend`、`u_blendNoise`、`u_antiTile`、`u_farScale`、`u_macroVariation`、`u_triplanarFrom`(多陡开始读侧面)和 `u_wetLevel`/`u_wetBand`,含义同下文 Terrain 着色器。
 
 美术每层交付:三张贴图,正方形,边长为 2 的幂(1024 足够;打包时取最大一层的尺寸,最大 1024,小游戏上 512),四方连续,法线和遮罩按数据保存(不做色彩管理)。地形构建时各层贴图会打包成纹理数组,地形层文件或其贴图保存后会重新打包。
+
+![Terrain 的 Details:图层列表,以及地面的形状和高度来源](@/assets/guides/zh/details-terrain.png)
+
+***Terrain** 组件:先是图层,然后是地面的形状和高度的来源。*
 
 ## 图层与 Terrain 材质
 
@@ -189,9 +197,26 @@ registerTerrainProvider(planet);
 | `radius` | 星球半径，单位米。星球立在它的实体处，不旋转、不缩放。 |
 | `provider`、`world`、`generatorVersion`、`seed` | 生成地面的生成器（`registerPlanetProvider`）、游戏给它起的世界名、版本和种子。这四个相同，各处的地面就相同。 |
 | `cellSize`、`detail` | 地面网格最细的格子，单位米；以及最细的格子往外延伸多远（大于 1 更远）。 |
-| `layerColor0`–`3`、`macroScale`、`macroVariation` | 四个图层的颜色（草、土、雪、岩），以及盖在上面的亮度起伏。 |
+| `layerColor0`–`3`、`macroScale`、`macroVariation` | 四个图层的颜色（草、土、雪、岩），以及盖在上面的亮度起伏:`macroScale` 是它的尺寸(米),`macroVariation` 是它的强度(0 到 1)。 |
+| `layers` | 最多四个用来绘制地面的 `.esterrainlayer` 文件;为空则画四种颜色。 |
+| `collision`、`collisionDistance`、`collisionLayer`、`friction` | 与平面地形相同:物体是否与地面碰撞、围绕每个运动物体构建地面的范围、地面的层与摩擦。 |
+| `gravity` | 星球对其上物体的吸引力,单位米每二次方秒(表面处);`0`(默认)表示不吸引。 |
+| `sea`、`seaLevel`、`seaColor`、`seaOpacity` | 星球是否有海、海面高出半径的高度、海的颜色,以及它盖住下方景物的程度(0 到 1)。 |
 
 星球的提供器回答的是**方向**，不是位置：它拿到从星球中心出发的单位方向和它们所在的半径，给出每个方向上高出半径的高度，如果上色，再给出四个图层权重。球面没有 x 和 z，所以生成器读三维噪声，没有接缝也没有极点。
+
+```typescript
+registerPlanetProvider({
+    id: 'my-game:planet',
+    versions: [1],
+    range: () => [-40, 200],
+    sample({ seed, radius, directions, count }) {
+        const heights = new Float32Array(count);
+        for (let i = 0; i < count; i++) heights[i] = myHeight(seed, radius, directions[i * 3]!, directions[i * 3 + 1]!, directions[i * 3 + 2]!);
+        return { heights };
+    },
+});
+```
 
 星球回答圆形世界向站在上面的一切提出的问题，通过 `PlanetRegistryRes` 资源：`up(planet, x, y, z)` 是背离球心的单位方向，`altitude` 是高出半径的高度，`groundHeight` 是生成器自己在某位置下的地面高度（提供器稍后才回答时为 null），`groundPoint` 是它下面地面上的那个点。`nearest(x, y, z)` 给出表面最近的星球。设置 `gravity`（表面处的米每二次方秒），3D 物理就把每个动态刚体拉向最近的、有引力的星球中心：世界唯一的重力从刚体上拿掉，换上星球的，每个固定步长作为一个力施加；世界重力设为 0 时，刚体就是朝星球落下。
 

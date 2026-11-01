@@ -190,7 +190,7 @@ tilemap.setTilesets(layer, [
 Optional `margin` (border before the first tile) and `spacing` (gap between tiles),
 both in pixels, describe atlases that pad their cells — each tile then samples its
 own texels instead of bleeding toward its neighbour. They default to `0`, so a
-gapless atlas needs neither; the Tiled/`.estileset` importer fills them in
+gapless atlas needs neither (a slot also takes an `extrude`, also `0` by default); the Tiled/`.estileset` importer fills them in
 automatically from the tileset's own margin/spacing.
 
 ## Tile animation
@@ -402,13 +402,13 @@ origin / pixels-per-unit / play-mode lifecycle as tile collision.
 | `fillRect(layer, x, y, w, h, id)` | Fill a rectangle with a tile id. |
 | `flipTile(layer, x, y, h, v, d)` | Flip a tile (horizontal / vertical / diagonal). |
 | `rotateTile(layer, x, y, degrees)` | Rotate a tile (90° steps). |
-| `tileToWorld(layer, tx, ty, ox, oy)` / `worldToTile(layer, wx, wy, ox, oy)` | Convert coordinates. |
+| `tileToWorld(layer, tx, ty, ox, oy, rotation?)` / `worldToTile(layer, wx, wy, ox, oy, rotation?)` | Convert coordinates; `ox`/`oy` is the layer's world origin and the optional `rotation` its world Z angle in radians. |
 | `setTilesets(layer, slots)` | Assign a multi-tileset slot table. |
 | `setTileAnimation(layer, tileId, frames)` | Animate a tile id. |
 | `setChunkTiles(layer, cx, cy, tiles, w, h)` | Write a chunk (infinite layers). |
 | `removeChunk(layer, cx, cy)` | Take a chunk out of the layer, its mesh with it. |
 | `exportChunks(layer)` / `importChunks(layer, data)` | Serialize / restore chunk data. |
-| `setTint(layer, color)` / `setVisible(layer, on)` / `setRenderProps(...)` | Live visual overrides. |
+| `setTint(layer, r, g, b, a, opacity)` / `setVisible(layer, on)` / `setRenderProps(...)` | Live visual overrides. |
 | `setTileProperty(...)` / `getTileProperty(...)` | Per-tile custom key/value properties. |
 | `setGridType(layer, type)` / `setHexParams(...)` | Orientation (orthogonal / isometric / hex). |
 | `destroyLayer(layer)` | Tear a layer down. |

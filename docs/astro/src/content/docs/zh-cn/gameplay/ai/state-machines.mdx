@@ -49,7 +49,10 @@ registerFsm('guard', {
 });
 ```
 
-每个状态最多带三个具名钩子——`onEnter`、`onUpdate`、`onExit`——以及一组 `transitions`。当一条
+每个状态最多带三个具名钩子——`onEnter`、`onUpdate`、`onExit`——以及一组 `transitions`。钩子是一个已注册的动作名,
+需要参数时写成 `{ name, arg?, params? }`。`onEnter` 在该状态激活后的第一个 tick 运行(也就是转移进入它之后的
+下一个 tick),`onExit` 在转移被采用时运行,`onUpdate` 在没有转移触发的 tick 上运行。每个 tick 最多采用一条转移。
+指名了一个未注册条件的转移永远不会启用。当一条
 转移所指定的机制**全部**成立时它才被启用;一条什么都不指定的转移是无条件的:
 
 | 转移字段 | 说明 |
@@ -60,4 +63,5 @@ registerFsm('guard', {
 | `guard` | 一个或多个黑板比较,按 AND 组合。 |
 
 守卫用 `==`、`!=`、`<`、`<=`、`>`、`>=`、`truthy`、`falsy` 比较一个黑板 key——例如
-`{ key: 'health', op: '<', value: 20 }`。
+`{ key: 'health', op: '<', value: 20 }`。`truthy` / `falsy` 忽略 `value`;key 不存在时读作 `undefined`,
+大小比较按数值进行。

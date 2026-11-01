@@ -17,9 +17,10 @@ description: 一个 Foliage 组件,把草或网格散布到一片区域或地形
 | `count`、`seed` | 每格的植物数,以及种子:换一个种子就在别处长出同样的植物。 |
 | `minScale`、`maxScale` | 每棵植物的大小在这两者之间。 |
 | `minUp`、`heightMin`、`heightMax` | 植物在哪里生长:一个地方最少要朝上多少(调低能让植物长上斜坡),以及一段世界高度范围。 |
+| `waterDepth` | 植物能站在水下多深:`0`(默认)让它们只长在干地上,芦苇则站在浅水里。 |
 | `bladeHeight`、`bladeWidth` | 只对草:缩放为 1 时一根草叶的大小。 |
 | `lodDistance`、`drawDistance` | 超过前者,格子用它的远景版本绘制;超过后者就不画。 |
-| `cardU0`、`cardV0`、`cardU1`、`cardV1` | 网格的远景版本是两张交叉的卡片,显示它纹理的这个矩形。 |
+| `cardU0`、`cardV0`、`cardU1`、`cardV1` | 网格的远景版本是两张交叉的卡片,显示它纹理的这个矩形(`cardTent` 为 `1` 时卡片裁成帐篷形,即针叶树的轮廓,而不是矩形)。 |
 
 如果场景里有 [Terrain](/docs/zh-cn/graphics/terrain/),植物就站在它上面,避开太陡的地方,并等它构建完;没有地形时,区域是实体所在高度的平地。
 

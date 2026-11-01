@@ -36,12 +36,14 @@ creates a material from a built-in template — the same list ships in code as
 | **Model** | `model` | What a glTF material says beyond base color: `u_normalMap`, `u_emissive`(`Map`), `u_occlusionMap` + `u_occlusionStrength`, `u_alphaCutoff`, `u_metallic` / `u_roughness` (+ `u_metallicRoughnessMap`), and the [shading layers](#shading-layers) — clear coat, sheen, anisotropy, translucency, thin film, index of refraction, transmission. Written by model import. |
 | **Toon** | `toon` | Lit in steps: each lamp's light is cut into `u_bands` flat bands (`u_bandSoftness` softens the step), `u_shadeColor` is the colour of what no lamp reaches, a flat highlight of `u_specColor` above `u_specThreshold` (`u_specSize` is how glossy), and a rim (`u_rimColor`, `u_rimWidth`, `u_rimStrength`). A lamp's shadow is part of its step. Uses the sixteen lamps of the frame, and carries the lamp loop as Model does. |
 | **Matcap** | `matcap` | What a picture of a lit sphere (`u_matcap`) shows, looked up by which way the surface faces the camera. No lamp is asked and no shadow is read: one texture read, which is why it suits a phone. `u_baseBlend` multiplies the base colour in. |
-
 | **Terrain** | `terrain` | Four texture layers (grass, dirt, snow, rock) weighted by the [Terrain](/docs/graphics/terrain/) component and tiled by world position. |
 | **Foliage** | `foliage` | Plants that sway in the wind: a vertex bend by weights painted in the vertex colour, two-sided and translucent, with an optional cutout texture. See [Foliage](/docs/graphics/foliage/). |
 | **Skin** | `skin` | Soft diffuse by colour, a warm terminator, light through thin places, two shine lobes and a fuzz — without blurring the picture. See [Skin and hair](#skin-and-hair). |
 | **Hair** | `hair` | Strand lighting: Kajiya-Kay diffuse, two shifted highlights along a flow map, and light through the strands. See [Skin and hair](#skin-and-hair). |
+| **Eye** | `eye` | An eye from a depth map and an iris normal map: refraction through the cornea, an iris with fibres, limbal ring and pupil, a wrapped sclera and lid shadow. See [Skin and hair](#skin-and-hair). |
 | **Water** | `water` | A horizontal body of water: travelling waves and ripples, the scene behind it bent and tinted by how deep the water is, reflections, and foam. See [Water](/docs/graphics/water/). |
+
+The Terrain, Foliage, Water, Hair, Skin and Eye templates belong to modules (`esengine/terrain`, `esengine/foliage`, `esengine/water`, `esengine/character-shaders`) and are listed once the project installs the module.
 
 A new material **references** its template by id — it stores `shader: "builtin:sprite-unlit"`
 and writes **no shader file** to disk. The engine compiles the built-in from in-code source
@@ -108,7 +110,7 @@ it. Reflectance, the index of refraction and the specular scale, has no switch.
 - **Translucency is a shading term, not a blur.** It wraps light past the terminator and lets a lamp behind show through, but the light that enters at a point leaves at that point. The spreading itself is the Subsurface Scattering effect's, and it blurs the whole lit colour of the marked surface, so a sharp highlight on it is softened too.
 - **A layer's textures are not read.** Each layer is a constant for the whole material (the Model shader has no texture unit left for more); a glTF extension's maps are reported at import and its factors are kept.
 - **Sheen and thin film are fits.** Sheen's energy loss and the film's interference are analytic approximations in place of the lookup tables a production renderer bakes.
-- **Not provided:** hair (a Marschner-style strand model), eyes, a separate normal map for the coat, layered materials beyond one coat.
+- **Not provided:** a Marschner-style strand model, a separate normal map for the coat, layered materials beyond one coat.
 
 ### In your own shader
 
@@ -290,10 +292,11 @@ const v = Material.getUniform(tintMat, 'u_intensity');
 | `depthTest` | `false` | Test against the depth buffer. |
 | `depthWrite` | `true` | Write to the depth buffer. |
 | `cull` | `CullMode.None` | Triangle culling mode. |
+| `depthBias` | `0` | Depth-buffer units toward the eye — decides which of two coplanar surfaces wins (a decal on a wall). |
 | `switches` | `{}` | Enabled `#pragma switch` names — the static permutation this material was compiled for. |
 
 Each state field also has a runtime setter — `setBlendMode`, `setDepthTest`,
-`setDepthWrite`, `setCull` — and `Material.createInstance(source)` builds a cheap
+`setDepthWrite`, `setDepthBias`, `setCull` — and `Material.createInstance(source)` builds a cheap
 variant that inherits everything from a parent material and stores only the diffs
 you set on it.
 

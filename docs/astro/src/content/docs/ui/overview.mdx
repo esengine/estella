@@ -141,7 +141,7 @@ disappear at the edge of their viewport rather than spilling over the rest of th
 Add `UIMask` to a node and its children are clipped to that node. By default the clip is
 the node's **box** — a rectangle. That is enough for a list viewport, but it is why a
 circular avatar frame used to still cut a square: the mask graphic was round, the clip
-was not. `alphaCutoff` above 0 switches the clip to the shape the mask actually draws.
+was not. With `mode: MaskMode.Stencil`, `alphaCutoff` above 0 switches the clip to the shape the mask actually draws (the default mode, `Scissor`, is always the box).
 
 ![A square photo under a circular mask: clipped to the box it stays square; with alphaCutoff above zero it is clipped to the circle](@/assets/guides/ui-mask.svg)
 
@@ -161,7 +161,8 @@ it — adapting to the box is their whole job.
 mask's *rectangle*, so a circular avatar frame still cut a square. Above `0` it clips to
 the shape the mask actually draws, testing the **sprite's** alpha (not the tinted result,
 because a mask graphic is routinely tinted to near-zero alpha so it masks without being
-seen). `0` stays the default, so scenes authored against box clipping are unchanged.
+seen). It only applies in `MaskMode.Stencil`; `Scissor` (the default mode) always clips to
+the rectangle. `0` stays the default, so scenes authored against box clipping are unchanged.
 
 ### `ContentRect` — a rectangle for world content
 
@@ -194,6 +195,8 @@ or stretch with it. `RectAnchors` pins an entity — placed by its `Transform`, 
 - Margins are in layout units, or a fraction of the parent's size (the `isAbs…` flags per margin).
 - With no parent `ContentRect`, the entity aligns to the **screen**, which is centred on the
   world origin.
+
+`alignFlags` is a bit set of `AnchorFlag` (`TOP`, `MID`, `BOTTOM`, `LEFT`, `CENTER`, `RIGHT`); the default `0` pins nothing, so the component does nothing until a flag is set.
 
 `alignMode` says when it aligns: `ONCE`, `ON_RESIZE` (the default: when enabled, when its own
 settings change, and whenever the screen changes) or `ALWAYS` (every frame). Parents are
@@ -263,6 +266,7 @@ does not move, so the component is inert until there is something to scroll.
 
 | Field | Default | Meaning |
 |---|---|---|
+| `enabled` | `true` | Switches the scroller off without removing the component. |
 | `content` | first child | The child that moves. |
 | `horizontal` / `vertical` | `false` / `true` | Which axes scroll. |
 | `movement` | `Clamped` | `Elastic` overshoots at the ends and springs back. |

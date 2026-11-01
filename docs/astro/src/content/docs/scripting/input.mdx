@@ -118,7 +118,9 @@ if (Controls.pressed('Jump')) { /* this-frame edge */ }
 | `axis2d(name)` | `{ x, y }` direction (normalized when longer than 1). |
 
 An action is `Button(…)`, `Axis1D(…)`, or `Axis2D(…)`; each takes any number of
-bindings, and multiple bindings sum (then clamp), so keyboard and gamepad coexist:
+bindings, so keyboard and gamepad coexist. A `Button` takes the strongest binding
+(clamped to `0..1`); `Axis1D` and `Axis2D` sum their bindings, then clamp (to `-1..1`, or to
+length 1):
 
 | Binding | Feeds | Meaning |
 |---|---|---|
@@ -184,14 +186,19 @@ families the capture listens to: `keyboard` and `gamepad` default **on**,
 itself captured. Axis sources are never captured; rebinding targets discrete
 inputs.
 
-`getBindings` / `setBindings` inspect and edit bindings programmatically, and
+`getBindings` / `setBindings` inspect and edit bindings programmatically, `actions()` lists
+the action names, `isListening()` says whether a capture is pending, and
 `cancelListen()` aborts a pending capture (it resolves with `null`).
 
 ### Data-driven maps (`.inputmap`)
 
 A whole map also serializes as an asset: create a **New Input Map** in the
-editor's Content Browser, then build the live map with `loadInputMapAsset(json)`
-instead of `defineInputMap`. `toAsset()` produces the same format from code.
+editor's Content Browser, then build the live map with `loadInputMapAsset(asset)` (the
+parsed `InputMapAsset`) instead of `defineInputMap`. `toAsset()` produces the same format from code.
+
+![The Mobile Controls example: a virtual joystick at the lower left and a Fire button at the lower right over a dungeon](@/assets/guides/en/play-mobile-controls.png)
+
+*The Mobile Controls example: a **VirtualJoystick** and a **VirtualButton** drive the same input actions as the keyboard.*
 
 ## Touch gestures
 
@@ -283,9 +290,9 @@ consuming, so a broken tool can't swallow all input.
 | Group | Methods |
 |---|---|
 | Keyboard | `isKeyDown(code)`, `isKeyPressed(code)`, `isKeyReleased(code)`. |
-| Mouse | `isMouseButtonDown(b)`, `isMouseButtonPressed(b)`, `isMouseButtonReleased(b)`; `mouseX` / `mouseY`, `scrollDeltaY`. |
-| Touch | `isTouchActive(id)`, the `touches` map of active points. |
-| Gamepad | `isGamepadConnected(pad?)`, `isGamepadButtonDown(btn, pad?)`, `isGamepadButtonPressed`/`Released(btn, pad?)`, `getGamepadAxis(axis, pad?)`. |
+| Mouse | `isMouseButtonDown(b)`, `isMouseButtonPressed(b)`, `isMouseButtonReleased(b)`; `mouseX` / `mouseY` (or `getMousePosition()`), `scrollDeltaX` / `scrollDeltaY` (or `getScrollDelta()`). |
+| Touch | `isTouchActive(id)`, `getTouches()` / `getTouch(id)` / `getTouchCount()`, the `touches` map of active points, and `touchesStarted` / `touchesEnded` for this frame's edges. |
+| Gamepad | `isGamepadConnected(pad?)`, `isGamepadButtonDown(btn, pad?)`, `isGamepadButtonPressed`/`Released(btn, pad?)`, `getGamepadButtonValue(btn, pad?)` (analog `0..1`), `getGamepadAxis(axis, pad?)`, `getGamepads()`. |
 | Pointer | `isPointerOverUI()` — the cursor is over a UI element. |
 
 Each `*Down` reads held state; `*Pressed` / `*Released` are the this-frame edges.
@@ -313,6 +320,8 @@ the physical sensor or vibration motor. Requests return `ok`, `unavailable`,
 exceptions.
 
 ```ts
+import { Device } from 'esengine';
+
 const off = Device.motion.onChange(sample => {
   if (sample.gravity) console.log(sample.gravity);
 });

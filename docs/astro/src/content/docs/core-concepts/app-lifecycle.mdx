@@ -47,13 +47,15 @@ importable from `esengine`) with `wasmBaseUrl`:
 | `sideModules` | `SideModuleHost` | built from `wasmBaseUrl`, else none | The realm's acquirer for optional native modules. Realms that inline their modules (Playable, WeChat) pass a host directly instead of a URL. |
 | `plugins` | `Plugin[]` | `[]` | Extra plugins, appended **after** the default set. |
 | `getViewportSize` | `() => { width, height }` | — | Viewport size callback for the camera system (and the WebGPU init size; `800×600` if absent). |
-| `glContextHandle` | `number` | — | A pre-registered WebGL2 context handle to render into; without it the module creates its own context via `initRenderer()`. |
-| `backend` | `'webgl2' \| 'webgpu'` | `'webgl2'` | `'webgpu'` boots the injected-device path — the host must have acquired a `GPUDevice` and passed it as the module factory's `preinitializedWebGPUDevice` before instantiation. |
-| `canvasSelector` | `string` | `'#canvas'` | CSS selector for the WebGPU swapchain canvas (must be in the DOM). WebGL ignores it. |
+| `renderSurface` | `RenderSurfaceSource` | `{ kind: 'default' }` | How the host provides the render surface: `{ kind: 'gl-context', handle, glx? }` renders into a pre-registered WebGL2 context handle (`glx` marks WeChat's EmscriptenGLX context); `{ kind: 'webgpu', canvasSelector?, readback? }` boots the injected-device path — the host must have acquired a `GPUDevice` and passed it as the module factory's `preinitializedWebGPUDevice` before instantiation, `canvasSelector` defaults to `'#canvas'` (must be in the DOM) and `readback` lets the engine read its own frames back (`captureFrame`); `{ kind: 'default' }` lets the module create its own context via `initRenderer()`. |
 | `colorSpace` | `'gamma' \| 'linear'` | `'gamma'` | Project color space. `'linear'` renders in linear light (sRGB decode on sample, linear blending, explicit encode in the final blit). Must be declared **at app creation** — shaders compile against it. |
 | `randomSeed` | `number` | — | Seed the engine's randomness so the run reproduces — a replay, a bug report, an assertion about a frame. Absent, every run differs, which is what a player wants of particles. Subsystems take independent named streams, so adding an emitter cannot change what something else rolled. |
 | `ySortLayers` | `number` | `0` | Bitmask of render layers (bits 0–31) that sort by world Y within the layer (top-down occlusion). |
-| `screenFit` | `ScreenScalingData` | off (`scaleMode: -1`) | Project camera fit: letterboxes a design resolution into the actual aspect. Only installed when `scaleMode` is a real mode (≥ 0); `SCREEN_FIT_OFF` (-1) keeps the legacy Canvas-or-raw fit. |
+| `depthLayers` | `number` | `0` | Bitmask of render layers (bits 0–31) that resolve by real depth instead of painter's order — the 2.5D opt-in. Opaque draws write the depth buffer and sort front-to-back; blended ones test without writing. A layer that also y-sorts keeps y-sorting. |
+| `outputTransform` | `'none' \| 'aces' \| 'neutral'` | `'none'` | The curve the frame applies once, last, on its way to the display. `'aces'` is the filmic shoulder a lit 3D scene wants; `'neutral'` (Khronos PBR Neutral) keeps hue and saturation. |
+| `msaaSamples` | `number` | `4` | Scene-target multisampling; `1` turns it off. The device clamps it, so this is what the project asks for, not what it gets. |
+| `quality` | `QualityConfig` | — | Quality mode (`'off'`, `'auto'`, `'low'`, `'medium'`, `'high'`), target frame rate, dynamic resolution, per-level profiles, device rules, async shader compile and render-on-demand. Installed only when given. |
+| `screenFit` | `ScreenScalingData` | off (`scaleMode: -1`) | Project camera fit: letterboxes a design resolution into the actual aspect. The camera fit applies only when `scaleMode` is a real mode (≥ 0); `SCREEN_FIT_OFF` (-1) keeps the legacy Canvas-or-raw fit. The resource is also installed when `renderPolicy` is not `Surface`. |
 
 ### What it installs
 
@@ -172,11 +174,11 @@ sorts the batch by `dependencies` / `before` / `after` and throws on a cycle.
 If `build()` throws, the plugin is rolled back and the failure stays visible in
 the subsystem registry as an `error` entry.
 
-**`flushPendingSystems(app)`** — module-level `addSystem` /
-`addStartupSystem` / `defineBehavior` calls (made at import time, outside any
+**`flushPendingRegistrations(app)`** — module-level `addPlugin` /
+`addSystem` / `addStartupSystem` / `defineBehavior` calls (made at import time, outside any
 plugin) queue on the ambient context rather than on a specific app. The
-factories' runtimes drain that queue into the app for you; call
-`flushPendingSystems` yourself when you build a bare `App` manually and still
+factories' runtimes drain that queue into the app for you (plugins first, then
+systems); call `flushPendingRegistrations` yourself when you build a bare `App` manually and still
 want those module-level registrations.
 
 ## The `App` surface
@@ -421,7 +423,7 @@ after a reload — write them as idempotent setup (see
 - **Name your plugins.** A `name` costs nothing and buys observability: the
   subsystem registry entry, liveness attribution for the plugin's systems, and
   usable dependency errors.
-- **Declare `colorSpace` and `backend` up front.** Both are baked in at
+- **Declare `colorSpace` and `renderSurface` up front.** Both are baked in at
   creation (shader compilation, device injection) — they cannot be toggled on a
   live app.
 - **Don't fight the lifecycle auto-pause.** Turn it off with

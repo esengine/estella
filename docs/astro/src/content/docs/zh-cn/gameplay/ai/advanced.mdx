@@ -21,24 +21,25 @@ const grid = new NavGrid({ width: 32, height: 24, cellSize: 32 });
 
 const path = findPath(
   grid,
-  grid.worldToCell(hero.x, hero.y),      // Cell — integer grid coordinates
-  grid.worldToCell(chest.x, chest.y),
+  grid.worldToCell(hero),               // Cell — integer grid coordinates
+  grid.worldToCell(chest),
   { diagonal: false },
 );
 if (path) {
-  const waypoints = pathToWorld(grid, path);   // Vec2[] — cell centers, world pixels
+  const waypoints = pathToWorld(grid, path);   // Vec3[] — cell centers, world pixels
 }
 ```
 
 `findPath(grid, start, goal, opts?)` 返回含首尾两端的 `Cell[]` 路径,不可达时返回
 `null`。`Cell` 是整数网格坐标 `{ x, y }`(与 `Vec2` 刻意区分,以标示格子空间);用
-`grid.worldToCell` / `grid.cellToWorld` 互转,或用 `pathToWorld` 把整条路径转成
+`grid.worldToCell(point)` / `grid.cellToWorld(gx, gy)` 互转,或用 `pathToWorld` 把整条路径转成
 世界空间路点。
 
 | `PathfindOptions` 字段 | 默认 | 说明 |
 |---|---|---|
 | `diagonal` | `true` | 允许 8 连通的对角移动。 |
 | `snapRadius` | `8` | 起点/终点落在被阻挡格子上时,先在此环半径内吸附到最近的可走格子再搜索;`0` 关闭吸附。 |
+| `clearance` | `0` | 身体每一步需要的余量(格数,`0` 按一个点规划)。`NavAgent` 的 `radius` 会自动换算成它。 |
 
 `navGridFromTiles` 从任意瓦片读取器构建可走掩码——它是 `navGridFromTilemapLayer`
 底下的核心,后者只是接上了 `TilemapAPI.getTile`:

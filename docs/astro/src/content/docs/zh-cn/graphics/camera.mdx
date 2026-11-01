@@ -56,6 +56,8 @@ SDK 默认值为 2D 调好(正交、活动、`orthoSize` 540)。移动相机就�
 | `viewport` | Vec4 | `{0,0,1,1}` | 屏幕矩形 `x, y, w, h`(0–1,分屏/画中画)。 |
 | `clearFlags` | `ClearFlags` | `ColorAndDepth` | 渲染前清什么:`Nothing` / `Color` / `Depth` / `ColorAndDepth`。 |
 | `pixelPerfect` | boolean | `false` | 吸附到世界像素网格,让像素画清晰(正交)。 |
+| `cullingMask` | number | 全部层 | 这台相机渲染的排序层位掩码(第 *i* 位 = 第 *i* 层)。 |
+| `renderTarget` | number | `0` | 这台相机绘制到的 `RenderTexture` 句柄,而不是屏幕(`0` = 屏幕)——小地图、镜子;运行时由脚本设置。 |
 | `showFrustum` | boolean | `false` | 仅编辑器：画出这台相机的整个视锥体(近面到远面)。关闭时 gizmo 只勾出它在内容平面上取景的范围——相机朝向别处时那里是空的。 |
 
 ## 缩放与投影
@@ -95,6 +97,10 @@ const zoomIn = defineSystem([Res(Tween)], (tween) => {
 下一致。缩放模式、letterbox 实例与 `ScreenScaling` 字段详见
 [屏幕与设计分辨率](/docs/zh-cn/core-concepts/screen/)。
 
+![第三人称示例:相机跟在角色身后,前方是树木之间的台阶](@/assets/guides/zh/play-third-person.png)
+
+*第三人称示例:相机从角色身后跟随。*
+
 ## 跟随目标
 
 给相机加一个 `FollowTarget` 并指向一个实体。跟随是帧率无关的阻尼移动,带一个死区,所以相机
@@ -122,7 +128,9 @@ const follow = defineSystem([Query(Camera), Commands()], (cameras, cmds) => {
 | `target` | Entity | `-1` | 要跟随的实体(`-1` = 无)。 |
 | `offsetX` | number | `0` | 相对目标的世界空间 X 偏移。 |
 | `offsetY` | number | `0` | 相对目标的世界空间 Y 偏移。 |
-| `deadzone` | number | `0` | 目标可漫游而相机不动的半径(世界单位)。 |
+| `offsetZ` | number | `0` | 相对目标的世界空间 Z 偏移(3D 跟随使用)。 |
+| `followZ` | boolean | `false` | 同时跟随目标的深度。平面场景保持关闭,因为那里相机的 z 是它退后的距离。 |
+| `deadzone` | number | `0` | 目标可漫游而相机不动的半径(世界单位,3D 中为球体)。 |
 | `damping` | number | `0.25` | 平滑时间常数(秒,越大越慢;`0` = 立即吸附)。 |
 
 数据形状导出为 `FollowTargetData` 类型。跟随系统直接写相机的 `Transform`(所以 director
@@ -173,8 +181,8 @@ const pick = defineSystem([Res(CameraView), Res(Input)], (view, input) => {
 
 | 方法 | 返回 | 说明 |
 |---|---|---|
-| `screenToWorld(sx, sy)` | `{x, y} \| null` | 屏幕像素 → 世界位置。 |
-| `worldToScreen(wx, wy)` | `{x, y} \| null` | 世界位置 → 屏幕像素。 |
+| `screenToWorld(sx, sy, planeZ = 0)` | `{x, y} \| null` | 屏幕像素 → `planeZ` 平面上的世界位置。正交相机忽略该平面;透视相机下请传目标所在的 z。 |
+| `worldToScreen(wx, wy, wz = 0)` | `{x, y} \| null` | 世界位置 → 屏幕像素。没有相机或点在眼睛处/身后时为 `null`;在视口之外仍返回坐标。 |
 | `getWorldMousePosition()` | `{x, y} \| null` | 世界空间里的光标。 |
 | `getWorldBounds()` | `{left, right, bottom, top} \| null` | 可见的世界矩形。 |
 
@@ -239,7 +247,7 @@ setViewTarget(app, cutsceneCamera, { time: 1.5, curve: BlendCurve.EaseInOut });
 | `currentMain` | `CameraPOV \| null` | `null` | 最后解析出的主 POV,**未加震屏**——也是屏幕↔世界转换所用的视图。 |
 | `shakes` | `ActiveShake[]` | `[]` | 活动的瞬时震屏(由 `shakeCamera` 压入,衰减完即丢弃)。 |
 
-其余字段(`hasPending`、`pendingTarget`、`pendingTime`、`pendingCurve`、`from`、
+其余字段(`timelineShot`、`timelineOwner`(由播放中的时间线相机轨道写入)、`hasPending`、`pendingTarget`、`pendingTime`、`pendingCurve`、`from`、
 `startTime`、`shakeSeq`)是 `setViewTarget` 写入的 director 内部请求/混合簿记。
 
 ```typescript

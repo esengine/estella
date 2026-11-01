@@ -61,6 +61,8 @@ the camera by moving its entity's `Transform`.
 | `viewport` | Vec4 | `{0,0,1,1}` | Screen rect `x, y, w, h` in 0–1 (split-screen / PiP). |
 | `clearFlags` | `ClearFlags` | `ColorAndDepth` | What to clear first: `Nothing` / `Color` / `Depth` / `ColorAndDepth`. |
 | `pixelPerfect` | boolean | `false` | Snap to the world pixel grid for crisp pixel art (Orthographic). |
+| `cullingMask` | number | all layers | Bitmask of sorting layers this camera renders (bit *i* = layer *i*). |
+| `renderTarget` | number | `0` | `RenderTexture` handle this camera draws into instead of the screen (`0` = screen) — a minimap or mirror; set from a script at run time. |
 | `showFrustum` | boolean | `false` | Editor-only: draw this camera's whole view volume, near face to far. Off, its gizmo outlines what it frames on the content plane — which is empty for a camera aimed away from it. |
 
 ## Zoom & projection
@@ -104,6 +106,10 @@ and unfitted views agree at the design aspect. Scale modes, worked letterbox
 examples, and the `ScreenScaling` fields are covered in
 [Screen & Design Resolution](/docs/core-concepts/screen/).
 
+![The Third Person example: the camera behind a character on a staircase between trees](@/assets/guides/en/play-third-person.png)
+
+*The Third Person example: a camera that follows the character from behind.*
+
 ## Follow a target
 
 Add a `FollowTarget` to the camera and point it at an entity. The follow is a
@@ -132,7 +138,9 @@ const follow = defineSystem([Query(Camera), Commands()], (cameras, cmds) => {
 | `target` | Entity | `-1` | Entity to follow (`-1` = none). |
 | `offsetX` | number | `0` | World-space X offset from the target. |
 | `offsetY` | number | `0` | World-space Y offset from the target. |
-| `deadzone` | number | `0` | Radius (world units) the target may roam before the camera moves. |
+| `offsetZ` | number | `0` | World-space Z offset from the target (used by 3D follow). |
+| `followZ` | boolean | `false` | Follow the target's depth too. Off for a flat scene, where the camera's z is how far back it stands. |
+| `deadzone` | number | `0` | Radius (world units; a sphere in 3D) the target may roam before the camera moves. |
 | `damping` | number | `0.25` | Smoothing time-constant in seconds (larger = slower; `0` = snap). |
 
 The data shape is exported as the `FollowTargetData` type. The follow system writes
@@ -189,8 +197,8 @@ const pick = defineSystem([Res(CameraView), Res(Input)], (view, input) => {
 
 | Method | Returns | Description |
 |---|---|---|
-| `screenToWorld(sx, sy)` | `{x, y} \| null` | Screen pixel → world position. |
-| `worldToScreen(wx, wy)` | `{x, y} \| null` | World position → screen pixel. |
+| `screenToWorld(sx, sy, planeZ = 0)` | `{x, y} \| null` | Screen pixel → world position on the plane at `planeZ`. Orthographic cameras ignore the plane; under a perspective camera pass the z the target sits on. |
+| `worldToScreen(wx, wy, wz = 0)` | `{x, y} \| null` | World position → screen pixel. `null` when there is no camera or the point is at or behind the eye; outside the viewport still returns coordinates. |
 | `getWorldMousePosition()` | `{x, y} \| null` | The cursor in world space. |
 | `getWorldBounds()` | `{left, right, bottom, top} \| null` | The visible world rectangle. |
 
@@ -260,7 +268,7 @@ flight, with shakes applied on top of the rendered view only. Its state
 | `currentMain` | `CameraPOV \| null` | `null` | The last resolved main POV, **pre-shake** — also what screen↔world conversion uses. |
 | `shakes` | `ActiveShake[]` | `[]` | Active transient shakes (pushed by `shakeCamera`, dropped when they decay out). |
 
-The remaining fields (`hasPending`, `pendingTarget`, `pendingTime`, `pendingCurve`,
+The remaining fields (`timelineShot`, `timelineOwner` — set by a playing timeline's camera track — `hasPending`, `pendingTarget`, `pendingTime`, `pendingCurve`,
 `from`, `startTime`, `shakeSeq`) are the director's internal request/blend
 bookkeeping written by `setViewTarget`.
 

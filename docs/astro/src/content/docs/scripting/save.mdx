@@ -64,7 +64,8 @@ gap is caught immediately instead of silently corrupting data.
   The migration chain is also exported as a pure function — `migrateSaveData(version,
   data, currentVersion, migrations)` — for migrating data outside a `SaveManager`
   (e.g. in a unit test or a one-off import). `SaveManager` also accepts `storage`
-  and `now` options you can inject for deterministic tests.
+  and `now` options you can inject for deterministic tests, and a `keyPrefix`
+  (default `save:`) that namespaces its slots in the store.
 </Aside>
 
 ## Plain key/value storage

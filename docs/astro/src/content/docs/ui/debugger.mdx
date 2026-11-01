@@ -3,8 +3,6 @@ title: UI Debugger
 description: Inspect a UI tree live — pick an element, record the events it receives, check text for overflow and pseudo-localization, and walk the Tab order.
 ---
 
-import { Aside } from '@astrojs/starlight/components';
-
 The **UI Debugger** is the editor's inspector for the UI tree. Where Details edits an
 entity's components, the Debugger answers *why a control looks or behaves the way it
 does*: what size layout gave it, what input reaches it, whether its text fits, and
@@ -43,10 +41,10 @@ Every `Text` in the scene with its **measured** size next to its **box** and ove
 mode, so clipped or overflowing labels stand out. Counts for **texts**, **overflow**
 and **to review** sit at the top; **Issues only** hides the rest.
 
-The **Preview** menu re-renders all text as **accent** (letters become accented
-look-alikes — catches fonts missing those glyphs) or **long** (expanded so strings run
-noticeably longer — catches layouts that only fit English). Preview never writes the
-scene's text.
+The **Preview** menu re-renders all text as **Original**, **Accents + 35%** (letters
+become accented look-alikes and strings run about a third longer — catches fonts missing
+those glyphs) or **Accents + 100%** (the same, doubled in length — catches layouts that
+only fit English). Preview never writes the scene's text.
 
 ## Focus order
 
@@ -57,9 +55,3 @@ is a visible (keyboard) focus. Selecting a row only inspects the entity; it neve
 focus.
 
 If nothing is listed, add `Focusable` to the controls and capture again.
-
-<Aside>
-The layout readout reports input *candidates*, not hit verdicts: an ancestor mask or an
-occluding sibling can still stop input, so verify clipping and occlusion when a control
-that looks reachable does not respond.
-</Aside>

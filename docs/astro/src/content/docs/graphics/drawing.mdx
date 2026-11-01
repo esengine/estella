@@ -21,6 +21,10 @@ Rule of thumb: if the visual belongs to the *scene* (sorted, saved, inspectable)
 make it a component; if it belongs to a *frame* (debug, HUD-ish overlays,
 procedural effects), draw it in a callback.
 
+![The Drawing demo example: an immediate-mode radar made with Draw, a retained star made with Graphics, and a procedural ribbon made with Mesh2D](@/assets/guides/en/play-drawing.png)
+
+*The Drawing demo example, one picture per API: **Draw** (the radar), **Graphics** (the star) and a **MeshRenderer** ribbon.*
+
 ## Draw callbacks
 
 Register a callback and it runs inside the render pass every frame, with the
@@ -197,14 +201,13 @@ layout, so they pair directly with fragment-only `.esshader` materials.
 
 ## Offscreen targets: `RenderTexture`
 
-For minimaps, portraits, mirrors — and as the backing of
-[cache-as-bitmap](/docs/graphics/sprites/) — `RenderTexture` allocates an offscreen
+For minimaps, portraits and mirrors, `RenderTexture` allocates an offscreen
 render target. Wrap draw commands in `begin`/`end` to render into it; the
 resulting `texture` is an ordinary texture handle usable anywhere (a
 `Sprite.texture`, `Draw.texture`, a material texture param).
 
 A whole **scene** goes into one by pointing a camera at it: set
-`Camera.renderTarget` to the target's handle and that camera draws there instead
+`Camera.renderTarget` to the target's render-target handle (`rt._handle`, not the `rt.texture` you put on a sprite) and that camera draws there instead
 of the screen, before the screen cameras and without competing to be the main
 view. Its own sorting layers (`Camera.cullingMask`) decide what it sees, so a
 minimap camera and the player's camera can look at the same world and show

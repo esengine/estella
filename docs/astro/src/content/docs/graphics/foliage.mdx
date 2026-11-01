@@ -23,9 +23,10 @@ replaces it. Nothing is baked.
 | `count`, `seed` | Plants per cell, and the seed: another seed grows the same plants in other places. |
 | `minScale`, `maxScale` | Each plant is given a size between these. |
 | `minUp`, `heightMin`, `heightMax` | Where plants grow: the least a place may face up (lower lets them onto slopes), and a band of world heights. |
+| `waterDepth` | How deep under water a plant may stand: `0` (the default) keeps them on dry ground, reeds stand in the shallows. |
 | `bladeHeight`, `bladeWidth` | Grass only: the size of a blade at scale 1. |
 | `lodDistance`, `drawDistance` | Past the first a cell is drawn as its far version; past the second it is not drawn. |
-| `cardU0`, `cardV0`, `cardU1`, `cardV1` | A mesh's far version is two crossed cards showing this rectangle of its texture. |
+| `cardU0`, `cardV0`, `cardU1`, `cardV1` | A mesh's far version is two crossed cards showing this rectangle of its texture (`cardTent` `1` cuts them as tents, a conifer's outline, instead of rectangles). |
 
 If the scene has a [Terrain](/docs/graphics/terrain/), plants stand on it, keep off what is too steep, and wait for it to be built; with none, the
 area is flat at the entity's height.

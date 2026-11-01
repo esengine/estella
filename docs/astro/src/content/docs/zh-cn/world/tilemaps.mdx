@@ -174,7 +174,7 @@ tilemap.setTilesets(layer, [
 
 可选的 `margin`(第一个 tile 前的边距)和 `spacing`(tile 之间的间隙)以像素为单位,用于描述
 单元之间留白的图集——这样每个 tile 只采样自己的纹素,不会渗到相邻 tile。两者默认为 `0`,所以
-无间隙图集无需设置;Tiled / `.estileset` 导入器会自动从图集自身的 margin/spacing 填入。
+无间隙图集无需设置(每个槽位还可以带 `extrude`,默认同为 `0`);Tiled / `.estileset` 导入器会自动从图集自身的 margin/spacing 填入。
 
 ## 瓦片动画
 
@@ -306,7 +306,7 @@ Tiled 的**对象层**(出生点、触发器、区域形状)随地图一起加�
 **Trigger Area** 区域——正是你手工创建的那些实体——于是一条查询就能读到对象,无论它来自
 Tiled 还是 Estella 编辑器。
 
-原始的组数据仍可用地图的源路径经 `getTilemapSource` 查询——每个组携带它的对象,含位置、
+原始的组数据仍可用地图的源路径经 `tilemapSource` 查询——每个组携带它的对象,含位置、
 尺寸、`type`(Tiled 的 class)、`shape` 和自定义 `properties`:
 
 ```typescript
@@ -345,13 +345,13 @@ origin / 每单位像素 / 播放模式生命周期。
 | `fillRect(layer, x, y, w, h, id)` | 用瓦片 id 填充一个矩形。 |
 | `flipTile(layer, x, y, h, v, d)` | 翻转一个瓦片(水平 / 垂直 / 对角)。 |
 | `rotateTile(layer, x, y, degrees)` | 旋转一个瓦片(90° 步进)。 |
-| `tileToWorld(layer, tx, ty, ox, oy)` / `worldToTile(layer, wx, wy, ox, oy)` | 坐标转换。 |
+| `tileToWorld(layer, tx, ty, ox, oy, rotation?)` / `worldToTile(layer, wx, wy, ox, oy, rotation?)` | 坐标转换;`ox`/`oy` 是层的世界原点,可选的 `rotation` 是层绕世界 Z 轴的角度(弧度)。 |
 | `setTilesets(layer, slots)` | 指定多图集 slot 表。 |
 | `setTileAnimation(layer, tileId, frames)` | 动画化一个瓦片 id。 |
 | `setChunkTiles(layer, cx, cy, tiles, w, h)` | 写一个块(无限图层)。 |
 | `removeChunk(layer, cx, cy)` | 把一个块从图层里拿掉,连同它画出来的网格。 |
 | `exportChunks(layer)` / `importChunks(layer, data)` | 序列化 / 恢复分块数据。 |
-| `setTint(layer, color)` / `setVisible(layer, on)` / `setRenderProps(...)` | 实时视觉覆盖。 |
+| `setTint(layer, r, g, b, a, opacity)` / `setVisible(layer, on)` / `setRenderProps(...)` | 实时视觉覆盖。 |
 | `setTileProperty(...)` / `getTileProperty(...)` | 逐瓦片自定义键值属性。 |
 | `setGridType(layer, type)` / `setHexParams(...)` | 朝向(正交 / 等距 / 六边形)。 |
 | `destroyLayer(layer)` | 销毁图层。 |

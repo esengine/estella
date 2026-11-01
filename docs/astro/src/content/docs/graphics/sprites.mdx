@@ -1,6 +1,6 @@
 ---
 title: Sprites & Rendering
-description: Draw 2D images with the Sprite component — textures, tint and transparency, size and pivot, flipping, sorting layers and draw order, y-sort and depth layers (2.5D), parallax — plus texture filtering, hit-testing, cache-as-bitmap, ShapeRenderer primitives, sprite filters, motion trails, and world-space bitmap text.
+description: Draw 2D images with the Sprite component — textures, tint and transparency, size and pivot, flipping, sorting layers and draw order, y-sort and depth layers (2.5D), parallax — plus texture filtering, hit-testing, ShapeRenderer primitives, sprite filters, motion trails, and world-space bitmap text.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -31,6 +31,10 @@ const spawnPlayer = defineSystem([Commands(), Res(Assets)], async (cmds, assets)
 (`assets.loadTexture(ref)`). In the editor you don't write this: drag an image from the
 Content Browser onto an entity, or set the Sprite's texture field in Details.
 
+![The Sprite Lab example: tints and draw layers, an orbit with alpha, rotate and flip, and a sorting group](@/assets/guides/en/play-sprites.png)
+
+*The Sprite Lab example: one white texture, eight tints, flips, and a sorting group.*
+
 ## Sprite fields
 
 | Field | Default | Description |
@@ -40,6 +44,9 @@ Content Browser onto an entity, or set the Sprite's texture field in Details.
 | `size` | `{100,100}` | Rendered size in world units. |
 | `pivot` | `{0.5,0.5}` | Anchor point the sprite rotates and scales about, as a fraction of its `size`. Values outside 0–1 sit off the sprite. |
 | `layer` | `0` | Sorting layer — controls draw order (see below). |
+| `order` | `0` | Order inside the sorting layer, −128…127 — higher draws on top (see below). |
+| `maskInteraction` | `None` | Whether a [`SpriteMask`](#sprite-masks) cuts this sprite: `None` / `VisibleInside` / `VisibleOutside`. |
+| `drawMode` | `Auto` | `Auto` infers from `tileSize` and the texture's 9-slice border; `Simple`, `Tiled` and `NineSlice` force one. |
 | `flipX` / `flipY` | `false` | Mirror horizontally / vertically. |
 | `material` | `0` | A custom [material](/docs/graphics/materials/) handle (`0` = the default sprite shader). |
 | `lit` | `false` | Receive 2D lights with a flat normal — the one-flag path to lit sprites (a custom `material` overrides it). |
@@ -208,7 +215,7 @@ that alpha do not mask, so a round mask cuts a circle.
 A mask reaches **forward** — it cuts what is drawn after it, in the order you already
 arrange by layer and order. That is the order its stencil is written in, so a sprite at
 the same layer *and* order as the mask is not cut at all. Turn on `limitRange` to stop
-the reach at a stated layer and order.
+the reach at the layer `rangeEndLayer` and order `rangeEndOrder` (inclusive).
 
 <Aside type="caution">
   Where two masks overlap, the **nearer** one decides — it wrote last, and that is what
@@ -444,6 +451,10 @@ To make a sprite respond to `Light` lights, the simplest path is to set
 normal maps or a fully custom look, use a **Lit-2D material** instead. Either way,
 see [2D Lighting & Shadows](/docs/graphics/lighting/).
 
+![The Effects Gallery example: the same character with no filter, an outline, a glow, a drop shadow and a pixelate filter](@/assets/guides/en/play-effects.png)
+
+*The Effects Gallery example: the same sprite with different **SpriteFilter** effects applied.*
+
 ### Sprite filters (outline, glow, drop shadow)
 
 For the most common per-sprite effects you don't need to write a shader —
@@ -483,6 +494,10 @@ cmds.spawn()
 ```
 
 `ShapeRenderer` shares the sorting `layer` and `color` conventions with `Sprite`.
+
+![The Trail Renderer example: a comet with a long additive trail and a dasher leaving a short one](@/assets/guides/en/play-trail.png)
+
+*The Trail Renderer example: the comet's long additive trail follows its path.*
 
 ## Motion trails
 

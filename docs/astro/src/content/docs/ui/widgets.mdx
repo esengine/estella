@@ -71,6 +71,7 @@ const btn = createButton({
 | `disabled` | `false` | Start disabled. |
 | `focusable` / `tabIndex` | `true` / `0` | Keyboard reachability and Tab order. |
 | `onClick(entity)` | — | Click callback (gated on the enabled state). |
+| `userGesture` | `false` | Run `onClick` inside the host's own release event instead of on the next frame — for a call a host accepts only from a player's gesture (sharing a recording on WeChat). |
 
 **Handle:** `entity`, `setDisabled(disabled)`, `dispose()`.
 
@@ -310,11 +311,12 @@ const name = createTextInput({
 |---|---|---|
 | `node` | 220×32 | The field's `UINode` layout (the one factory that doesn't default to fill-parent). |
 | `value` / `placeholder` | `''` | Content / hint shown while empty. |
+| `placeholderI18nKey` | `''` | Catalog key for the empty-field hint; needs a `Localization` resource. The authored `placeholder` stays the fallback. |
 | `maxLength` | `0` | Character cap (`0` = unlimited). |
 | `multiline` | `false` | Enter inserts a newline instead of submitting. |
 | `password` | `false` | Mask the characters. |
 | `readOnly` | `false` | Focusable but not editable. |
-| `fontSize` / `fontFamily` | theme label size / `'Arial'` | Text style. |
+| `fontSize` / `fontFamily` | theme label size / `''` (the project's default font) | Text style. |
 | `color` / `backgroundColor` / `placeholderColor` | theme `text` / `control` / faded `text` | Color overrides — theme roles when omitted. |
 | `padding` | `6` | Inner horizontal padding in px. |
 | `renderMode` | `Auto` | Glyph pipeline for the field text — `Auto` (crisp bitmap when unscaled, SDF once scaled), always `Bitmap`, or always `Sdf`. |
@@ -419,8 +421,8 @@ Axis locks and range clamps included. See
 ## Keyboard focus
 
 Entities with a `Focusable` participate in keyboard focus: Tab / Shift+Tab cycle
-by `tabIndex`, Enter/Space activate, sliders take the arrow keys, and a focused
-control shows its `focused` interaction page. Widget factories add `Focusable`
+by `tabIndex`, Enter/Space activate, sliders take the arrow keys, and a control
+focused from the keyboard shows its `focused` interaction page. Widget factories add `Focusable`
 automatically (`focusable: false` opts out); the `FocusManager` resource gives
 programmatic control. Details in **[UI Interaction](/docs/ui/interaction/)**.
 
@@ -494,6 +496,9 @@ const stick = createVirtualJoystick({ world, parent: canvas, inputId: 'move',
 const actions = defineInputMap({ Move: Axis2D(Virtual('move')) });
 ```
 
+Defaults: `inputId` `'move'`, `mode` Fixed, `radius` 50 px, `deadZone` 0.15 (0 to 0.99)
+and `returnSpeed` 18. A Follow joystick defaults to a 240×160 touch area.
+
 The editor's Create entity picker's UI category includes the same generated prefab. Mouse drag
 in Play uses the same capture as touch. Disable, hide, remove, cancel or background
 a control to release its own contribution; other controls keep their outputs.
@@ -502,7 +507,9 @@ Custom base/handle visuals are supported.
 ## VirtualButton
 
 `createVirtualButton({ world, events, parent: canvas, inputId: 'fire', text: 'Fire' })`
-uses the normal button appearance and publishes a held scalar to `Virtual('fire')`.
+uses the normal button appearance and publishes a held scalar to `Virtual('fire')`
+(`inputId` defaults to `'fire'`; `value` is the published scalar, default `1`; the
+button is never keyboard-focusable).
 It supports independent fingers, multiple fingers on the same button, and taps
 completed between frames. Multiple controls can share a binding without one
 control's removal clearing the others. Use an explicit stable owner with
@@ -536,6 +543,12 @@ const settings = createTabView({ world, events, parent: canvas,
 settings.select(1);
 ```
 
+`createTabView` also takes `selectedIndex` (initial tab, default `0`), `tabHeight`
+(default `36` px) and `onChange(index, page)`. `UITabView` additionally carries
+`vertical` (arrows follow the vertical axis, default `false`), `loopNavigation`
+(default `true`), `selectOnFocus` (default `true`) and `allowSwitchOff` (default
+`false`).
+
 The `tabs` and `pages` entity lists are remapped when a scene/prefab is instantiated
 or copied. `labels` provides captions for the tab's direct Text child. Deleting a
 selected target chooses another valid binding; removing a binding restores that
@@ -558,7 +571,9 @@ attachTooltip(world, musicVolume, {
 });
 ```
 
-`side` is Bottom (0), Top (1), Left (2) or Right (3). Placement prefers that side,
+The defaults are `hover: true`, `focus: true`, `longPress: true`, `hoverDelay: 0.5` s,
+`longPressDelay: 0.6` s, `side: 0`, `gap: 8` px, `avoidEdges: true` and `maxWidth: 240` px;
+`hover` / `focus` / `longPress` switch each trigger on or off. `side` is Bottom (0), Top (1), Left (2) or Right (3). Placement prefers that side,
 tries the opposite, then clamps inside the screen safe area. `maxWidth` is text
 width in layout pixels. The empty `stylePrefab` uses the project's live UI theme;
 a custom `.esprefab` needs a UINode root and a Text child. Its colors and font style
@@ -635,6 +650,10 @@ const picker = createColorPicker({ world, events, parent: canvas,
 });
 picker.setColor(project.accent);
 ```
+
+Other options: `alphaEnabled` (default `true`), `format` (`0` HSV + HEX, `1` RGB + HEX),
+`history` (initial recent colors), `historyLimit` (default `8`, at most `32`) and
+`rememberColors` (default `true`). The default size is 280×412.
 
 `UIColorPicker.color` is the canonical `{ r, g, b, a }` shape, with 0..1 channels.
 `change` carries `{ color }`; `history_change` carries `{ colors }`. The picker

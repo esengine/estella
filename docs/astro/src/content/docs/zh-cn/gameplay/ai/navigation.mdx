@@ -37,8 +37,8 @@ export const setupNav = defineSystem([Res(Nav)], (nav) => {
 | `width` | number | 格子列数。 |
 | `height` | number | 格子行数。 |
 | `cellSize` | number | 每格的世界像素(正方形)。 |
-| `origin` | `Vec3` | 格子 `(0,0)` 中心的世界坐标。它的 `z` 就是每个路点返回时所在的深度。默认 `(0,0,0)`。 |
-| `walkable` | `Uint8Array` | 可选的行主序 `width*height` 掩码,`1` = 可走,`0` = 阻挡。省略则全部可走。 |
+| `origin` | `{ x, y, z? }` | 格子 `(0,0)` 中心的世界坐标。它的 `z` 就是每个路点返回时所在的深度。默认 `(0,0,0)`。 |
+| `walkable` | `ArrayLike<number>` | 可选的行主序 `width*height` 掩码,`1` = 可走,`0` = 阻挡。省略则全部可走。会被拷贝进去,不保留引用。 |
 
 若想从已绘制的瓦片地图推导网格,而不是手写掩码,用 `navGridFromTilemapLayer`(把某图层的
 实心瓦片视作阻挡)或 `navGridFromTiles`。`grid.setWalkable(x, y, false)` 随时可以关掉一格
@@ -112,7 +112,7 @@ async function replaceTerrain(nav: Navigation, load: () => Promise<NavGridOption
 
 每个体积只烘焙一次,在它的几何可用的第一帧——网格碰撞体在资产加载完之前贡献不了任何三角面,
 烘焙会等它。想按自己的方式烘焙的游戏可以直接调 `buildNavMesh(verts, indices, options)`,
-而 `collectNavGeometry(world, box)` 就是收集三角面的那一步。
+而 `collectNavGeometry(world, { min, max, layers? })` 就是收集三角面的那一步。
 
 <Aside type="caution">
   **一张网格只对应一种 agent 尺寸。**`agentRadius` 是烘进去的,不是查询时才应用的:这张网格
@@ -200,6 +200,10 @@ world.set(entity, NavObstacle, door);
   会移动的物体该交给和它碰撞的角色控制器,不是交给烘焙。
 </Aside>
 
+![打开「视图 ▸ 显示导航网格」的 3D 视口:烘焙出的可走面被填成琥珀色并描边](@/assets/guides/zh/view-navmesh.png)
+
+*烘焙出的可走面,由**视图 ▸ 显示导航网格**在视口里填色并描边。*
+
 ### 看见烘出来的东西
 
 体积的线框说的是烘焙**往哪看**。想在还在编排场景的时候就看见它**找到了什么**,打开
@@ -210,12 +214,16 @@ world.set(entity, NavObstacle, door);
 同一张图在运行中的游戏里由 `NavDebugDraw` 资源给出:
 
 ```typescript
+import { NavDebugDraw } from 'esengine/ai';
+
 app.getResource(NavDebugDraw).enabled = true;
 ```
 
+`showFaces`、`showBorders`、`showLinks`(默认都是 `true`)分别开关面轮廓、红色的终止边和 `NavLink` 连线。
+
 每个可走的面都画在它实际所在的位置——网格画在地面高度上,格子画在场景自己的平面上——而
 可走世界**终止**的每一条边都标成红色。那些边是唯一能解释「路线为什么绕远」的东西。默认关闭
-(一个 surface 是每帧几千个环),而且画到几千个面就停:想看清更大的世界,调 `cellSize`。
+(一个 surface 是每帧几千个环),而且画到 4096 个面就停:想看清更大的世界,调 `cellSize`。
 
 <Aside type="tip">
   `Nav` 资源也能直接回答一次性查询:`nav.findWorldPath(from, to)` 返回一组世界空间路点,
@@ -238,8 +246,9 @@ app.getResource(NavDebugDraw).enabled = true;
 | `partial` / `disconnected` | 路线止于断开的区域或关闭通道的可达一侧。 |
 | `partial` / `insufficient-clearance` | 点能通过格子，但指定宽度的角色无法通过。 |
 | `unavailable` / `no-surface` | 尚未安装导航面。 |
+| `unavailable` / `building` | 有一次导航面替换正在进行(`nav.surfaceUpdatePending`)。 |
 | `unavailable` / `start-unavailable` | 找不到可用起点。 |
-| `target-unavailable` | 找不到可用终点；网格仍可能给出靠近它的部分路线。 |
+| `unavailable`(格子)或 `partial`(网格)/ `target-unavailable` | 找不到可用终点；网格仍会给出靠近它的部分路线。 |
 | `unavailable` / `radius-mismatch` | 角色半径超过导航网格烘焙时的半径。 |
 | `unknown` / `diagnostics-unavailable` | 自定义导航面仅实现了原有路径接口。 |
 
@@ -272,6 +281,10 @@ node tools/navigation-rebuild-benchmark.mjs output/navigation-reference.json --s
 
 对照只替换旧寻路实现，两侧均使用当前的动态障碍净空。报告包含源码与 bundle 标识、原始
 构建/查询耗时和帧间隔。该计时不含物理几何收集、避让、渲染及完整游戏帧的其余工作。
+
+![Nav Agent 的 Details:速度、半径、到达半径和重新寻路间隔,然后是目标](@/assets/guides/zh/details-nav-agent.png)
+
+*一个 **Nav Agent**:它怎么移动,然后是它要去哪里。*
 
 ### 移动 agent
 
@@ -328,9 +341,9 @@ stopNavAgent(world, entity);
 | `radius` | `0` | 身体有多宽(像素)。在格子上,寻路会绕开它挤不过去的地方;在网格上,这件事由体积的 `agentRadius` 决定。 |
 | `arriveRadius` | `6` | 距最终目标的停止距离。 |
 | `repathInterval` | `0.5` | 周期重规划间隔；`0` 关闭周期刷新，目标/拓扑变化和受阻恢复仍会重规划。 |
-| `hasTarget` | `false` | 是否已设目的地(自动管理)。 |
+| `hasTarget` | `false` | 是否已设目的地。由 `setNavDestination` 置真;到达时和调用 `stopNavAgent` 时清除。 |
 | `targetX`、`targetY`、`targetZ` | `0` | 当前目的地(世界像素)。 |
-| `arrived` | `false` | agent 到达目标的那一帧被置真。 |
+| `arrived` | `false` | agent 到达目标时被置真,直到下一次 `setNavDestination` 才清除。 |
 
 `setNavDestination` 每帧调用都安全,可用于追一个移动的目标——只有当目标真的移动、或
 `repathInterval` 到点，或拓扑变化/受阻恢复时，agent 才重新规划。读 `agent.arrived`(或 `Perception`)来判断何时

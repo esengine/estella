@@ -105,7 +105,7 @@ playableCta();
 | **Unity Ads** | 5MB | `mraid.open()` | 运行时自动等待 MRAID ready 和 viewable，隐藏时暂停游戏及音频，退出时释放宿主监听。 |
 | **AppLovin** | 5MB | `mraid.open()` | 要求所有资源内嵌——单文件试玩本来就是。 |
 | **Mintegral** | 5MB | `window.install()` | 导出资源内嵌的 `index.html` 和同名 `index.zip`。等待宿主开始，关闭时暂停游戏和音频。 |
-| **TikTok / 海外 Pangle** | ZIP &lt;5MB | `window.openAppStore()` | 根目录包含 `config.json`，方向字段按平台区分；游戏脚本前注入官方 SDK。仍需广告管理平台预览验收，国内穿山甲另行适配。 |
+| **TikTok / 海外 Pangle** | ZIP &lt;5MB | `window.openAppStore()` | 根目录包含 `config.json`，方向字段按平台区分；游戏脚本前注入官方 SDK。仍需广告管理平台预览验收。 |
 
 上限会变,所以每条警告都指名它用的是哪一家的上限、以及这个数字出自哪里,而不是丢一个
 让你盲信的数字。
@@ -134,7 +134,7 @@ pnpm verify:playable output/playable/index.html --report output/playable.json --
 
 请按自己的场景调整点击计划。版本 1 声明 `viewports` 和 `steps`：`click` 的 `x`/`y` 是相对 canvas 的归一化坐标；`expect` 指定 `store-click`、`game-end` 或 `game-retry` 的准确 `count`，以及可选 `userActivation`。`host` 发送 `ready`、`show`、`hide`；`frozen` 在 `ms` 间隔比较画面；`wait`、`snapshot` 记录等待及截图。步骤或期望可用 `networks` 明确限定，每个视口独立启动。示例覆盖横竖屏、CTA、完成/重玩及支持的隐藏生命周期；Google/Meta 生命周期保持待验证。
 
-命令仅使用无头 Chromium，静音且不启动编辑器。`runtime-check.json` 记录原 HTML/交付文件、导出报告、场景计划、检查器和 mock 哈希，浏览器版本、事件及截图哈希。非预期请求（含 CSP 阻止的尝试）、页面错误、事件数量/激活状态不符、隐藏动画或输入、日志丢失、静态/导出失败及输入变更都使检查失败。Windows/POSIX 旧归档路径均按相邻 ZIP 文件名定位。结论仅为 **local-mock**，覆盖明确请求的观察；宿主 SDK 被替换，浏览器激活状态观察不能证明原 SDK 的同步调用规则。原 SDK 行为、音频生命周期、质量复核、官方工具和真机验收仍待完成。
+命令仅使用无头 Chromium，静音且不启动编辑器。`runtime-check.json` 记录原 HTML/交付文件、导出报告、场景计划、检查器和 mock 哈希，浏览器版本、事件及截图哈希。非预期请求（含 CSP 阻止的尝试）、页面错误、事件数量/激活状态不符、隐藏动画或输入、截断、静态/导出失败及输入变更都使检查失败。Windows/POSIX 归档路径均按相邻 ZIP 文件名解析。结论仅为 **local-mock**，覆盖明确请求的观察；宿主 SDK 被替换，浏览器激活状态观察不能证明原 SDK 的同步调用规则。原 SDK 行为、音频生命周期、质量复核、官方工具和真机验收仍待完成。
 
 必需宿主 SDK 检查会核对真实的 script 标签及其位置：Google Exit API 位于 head，TikTok／Pangle 位于 body 且在游戏脚本之前。缺少脚本、位置错误或 TikTok／Pangle SDK 延迟加载都会使静态检查失败。真实 SDK 是否可用及 CTA 行为仍需运行验证。
 

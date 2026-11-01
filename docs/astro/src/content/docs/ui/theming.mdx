@@ -31,7 +31,7 @@ interface ThemeTokens {
 
 ### Color roles (`ThemeColors`)
 
-Every role, in display order (this is also the runtime list `THEME_COLOR_ROLES`
+Every role (13), in display order (this is also the runtime list `THEME_COLOR_ROLES`
 — the array a theme editor or config validator iterates):
 
 | Role | Purpose |
@@ -41,6 +41,7 @@ Every role, in display order (this is also the runtime list `THEME_COLOR_ROLES`
 | `control` | Interactive control resting fill (button, option). |
 | `controlHover` | Control fill while hovered. |
 | `controlActive` | Control fill while pressed. |
+| `controlFocus` | Control fill while it has keyboard focus (shown only for focus that arrived by keyboard, so it stays distinct from `controlHover`). |
 | `track` | Slider / progress track. |
 | `primary` | Accent — slider fill, progress fill, selected option. |
 | `primaryHover` | Accent while hovered. |
@@ -135,6 +136,8 @@ Two shared functions carry those settings to every runtime:
   (`'dark' | 'light'`) with the partial overrides into effective
   `ThemeTokens`, so a project that overrides `primary` alone re-tints the
   accent while inheriting everything else.
+  `ThemeOverrides` is `{ colors?, type? }`; the project manifest carries only colors,
+  so a custom type scale (`label` / `body` / `title`) is set from code.
 
 ```typescript
 import { resolveThemeTokens, parseThemeOverrides, switchTheme } from 'esengine';

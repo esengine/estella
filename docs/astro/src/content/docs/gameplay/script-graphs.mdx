@@ -60,6 +60,18 @@ groups (**Events**, **Flow**, **Variables**, **Values**, **Actions**, **Queries*
 | **Queries** | Value-only nodes (no exec pin): `math.*` (add, subtract, multiply, divide, min, max, abs, clamp, lerp, random), `compare.*` (equal, less, greater), `logic.*` (and, or, not), `string.concat`, `property.get`, `entity.self`, `entity.byName`, `input.down` / `pressed` / `axis` / `pointer` — plus every registered condition. |
 | **Graphs** | Every other callable graph in the project, to call it with a **Call graph** node (empty until a graph declares an input). |
 
+A few nodes carry data worth knowing:
+
+- **Every frame** outputs `dt`, the frame's delta in seconds.
+- **On event** listens for an entity event by type (for example `trigger_enter` from a
+  [Trigger Area](/docs/gameplay/markers/), or `click` from a button) and outputs `target`
+  and `other` — the entity the event was sent to, and the one it names besides (the
+  other body of a contact; `0` when it names nobody).
+- **Sequence** has 1–16 pins (2 by default). **While** has a `body` and a `done` pin.
+- **Delay** waits `seconds`, then continues. Entering a Delay that is already counting
+  does nothing, so a fast caller cannot keep restarting it. A graph another graph calls
+  cannot contain a Delay (a call finishes inside one step), and the graph reports it as a problem.
+
 The menu lists the verbs by their registry name; once placed, a node is titled
 readably (**Find entity by name**, **Key pressed**, **Set property**…) with the name
 underneath.

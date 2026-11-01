@@ -32,6 +32,10 @@ CPU 模拟粒子,并按发射器**GPU 实例化**为单次 draw call 渲染,所�
   burst、looping)会自动重启该发射器;重新切换开关 = 全部从 t=0 重播。
 </Aside>
 
+![粒子示例:一堆篝火,有烟和火星](@/assets/guides/zh/play-particles.png)
+
+*粒子示例:由两个发射器(烟和火星)组成的篝火。*
+
 ## 安装
 
 粒子系统在主包里。编辑器和 Web 运行时会自动安装插件。在自定义 `App` 里手动加一次:
@@ -129,7 +133,7 @@ const spawnEmbers = defineSystem([Commands()], (cmds) => {
 | `noiseStrength` | number | `0` | 湍流推动粒子的峰值流速(px/s)。`0` = 关闭该模块。 |
 | `noiseFrequency` | number | `0.01` | 场的空间尺度 —— 越大漩涡越紧、越繁密。 |
 | `noiseScrollSpeed` | number | `0` | 场随时间漂移的速度(`0` = 静止场)。 |
-| `noiseOctaves` | number | `1` | 分形细节层数。`1` = 平滑流动;越多越细碎的湍流。 |
+| `noiseOctaves` | number | `1` | 分形细节层数(1..8)。`1` = 平滑流动;越多越细碎的湍流。 |
 
 见下文[噪声与湍流](#噪声与湍流-1)。
 
@@ -190,7 +194,7 @@ const spawnEmbers = defineSystem([Commands()], (cmds) => {
 | 属性 | 类型 | 默认 | 说明 |
 |---|---|---|---|
 | `subEmitter` | entity | 无 | 粒子触发时发射的子发射器实体。`0`/未设 = 关闭。 |
-| `subEmitterTrigger` | `SubEmitterTrigger` | `Death` | 在每个粒子的 `Death`(死亡)或 `Birth`(出生)时触发。 |
+| `subEmitterTrigger` | `SubEmitterTrigger` | `Death` | 在每个粒子的 `Death`(死亡)或 `Birth`(出生)时触发,或在粒子撞到东西时(`Collision`,见[场景碰撞](#场景碰撞))。 |
 | `subEmitterChance` | number | `1` | 触发粒子发射子爆发的概率(0..1)。 |
 | `subEmitterInheritVelocity` | number | `0` | 传给子爆发的父粒子速度比例。 |
 
@@ -206,6 +210,29 @@ const spawnEmbers = defineSystem([Commands()], (cmds) => {
 | `trailMinDistance` | number | `6` | 记录新拖尾点前粒子须移动的最小世界距离。 |
 
 见下文[逐粒子拖尾](#逐粒子拖尾)。
+
+![Particle Emitter 的 Details:顶部是碰撞分组(此处关闭),下面是发射字段](@/assets/guides/zh/details-particle-emitter.png)
+
+***Particle Emitter** 的 Details:顶部是**碰撞**分组(这里关闭),下面是发射字段。*
+
+### 碰撞 (Collision)
+
+`collisionEnabled` 打开后才显示。见[地面碰撞](#地面碰撞)和[场景碰撞](#场景碰撞)。
+
+| 属性 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `collisionEnabled` | boolean | `false` | 打开碰撞。 |
+| `collisionMode` | `ParticleCollisionMode` | `Floor` | `Floor`(水平面)、`Physics2D` 或 `Physics3D`(穿过物理世界投射)。 |
+| `collisionFloor` | number | `0` | 地面平面的世界高度。 |
+| `collisionBounce` | number | `0.5` | 0 = 立即停住,1 = 完全弹性。 |
+| `collisionFriction` | number | `0.1` | 每次反弹损失的水平速度,0..1。 |
+| `collisionLifetimeLoss` | number | `0` | 每次反弹消耗的寿命比例,0..1。 |
+| `collisionMask` | 位掩码 | 全部(`65535`) | 场景模式会命中的物理层;0 表示一层都不选。 |
+| `collisionQueryBudget` | number | `128` | 该发射器每次更新最多做多少次查询,0..4096。 |
+| `collisionMaxDistance` | number | `0` | 距最近活动相机超过此距离则跳过碰撞;`0` = 不做距离剔除。 |
+| `collisionFallback` | `ParticleCollisionFallback` | `Floor` | 物理不可用、预算用完或粒子太远时的退路:`Floor` 或 `Skip`。 |
+| `collisionEvents` | boolean | `false` | 发出 `ParticleCollisionEvent`。 |
+| `collisionEventBudget` | number | `32` | 该发射器每次更新最多发出多少事件,0..1024。 |
 
 ## 发射器形状
 
@@ -389,6 +416,8 @@ cmds.spawn()
   });
 ```
 
+组件其余字段的默认值:`type` 为 `Directional`,`strength` 为 `200`,`radius` 为 `0`,`direction` 为 `{1, 0, 0}`,`falloff` 开,`enabled` 开。
+
 | 类型 | 效果 |
 |---|---|
 | `Directional` | 沿 `direction` 的恒定推力 —— 风、上升气流、水流。 |
@@ -452,6 +481,9 @@ cmds.spawn()
 | `Multiply` | 变暗——烟雾、阴影。 |
 | `Screen` | 提亮,比 additive 更柔和。 |
 | `PremultipliedAlpha` | 用于预乘 alpha 的贴图。 |
+| `PmaAdditive` | 预乘 alpha 来源的叠加。 |
+| `Lighten` | 取粒子与场景像素中较亮的。 |
+| `Darken` | 取两者中较暗的。 |
 
 ## 控制播放 —— `Res(Particle)`
 
@@ -477,6 +509,9 @@ const control = defineSystem([Res(Particle)], (particles) => {
 | `getAliveCount(entity)` | 当前存活的粒子数。 |
 | `setColorLut(entity, lut \| null)` | 上传烘焙好的颜色 LUT(见上),或清空。 |
 | `setSizeLut(entity, lut \| null)` | 上传烘焙好的尺寸 LUT,或清空。 |
+| `setSpeedLut(entity, lut \| null)` | 上传烘焙好的速度随寿命倍率;它缩放粒子沿既有轨迹的速度,不取代重力和噪声。 |
+| `setBursts(entity, bursts \| null)` | 从代码设置爆发时间表(`{ time, count }[]`),或清空。 |
+| `setCollisionBudget({ queries?, events? })` | 修改整个 App 共享的碰撞上限。 |
 
 <Aside type="tip">
   每帧的 `update` 由粒子系统自动驱动——你不用调它。对于一次性特效,留着一个已停止的发射器,

@@ -61,7 +61,7 @@ world.insert(button, EventBinding, {
 | `params` | 该动作声明的参数，按名字给。 |
 | `arg` | 同一份输入的规范字符串形式（`"tabs:settings"`）。两种写法都能跑。 |
 | `guard` | 必须通过才执行该行的具名条件。 |
-| `once` | 每次运行最多执行一次。 |
+| `once` | 最多执行一次,此后保持失效,直到场景重新加载。 |
 | `enabled` | `false` 让该行失效但不删除。 |
 
 连线只在运行态触发——编辑时编辑器绝不会执行你的动作。
@@ -89,9 +89,12 @@ world.insert(button, EventBinding, {
 |---|---|
 | `ui.setPage` | 把 [UI 控制器](/docs/zh-cn/ui/controllers/)切到某一页。 |
 | `ui.setVisible` | 显示/隐藏一棵 UI 子树（`UINode.display`）。 |
-| `property.set` | 写任意组件字段，按 `Component.dot.path` 寻址。 |
+| `property.set` | 写任意组件字段，按 `Component.dot.path` 寻址；可选的 `entity` 参数写别的实体。 |
 | `fsm.fire` | 向目标的状态机发一个触发器。 |
-| `blackboard.set` | 设置一个黑板变量。 |
+| `blackboard.set` | 设置一个黑板变量（`key=value`；值能按 JSON 解析时按 JSON 读）。 |
+| `scene.load` · `scene.reload` | 切换到指定场景，或重启当前场景，可选淡入淡出秒数。 |
+| `audio.play` · `audio.stop` | 驱动目标上的 `AudioSource`；`audio.play` 可指定另一个音频剪辑。 |
+| `soundEvent.trigger` · `soundEvent.stop` | 驱动目标上的声音事件源。 |
 | `timeline.play` · `timeline.pause` | 驱动目标上的[时间轴](/docs/zh-cn/animation/timeline/)。 |
 | `spriteAnim.play` · `spriteAnim.restart` · `spriteAnim.stop` | 驱动精灵序列帧。 |
 
@@ -132,8 +135,8 @@ registerAction('game.award', {
 `pointer_move` · `press_cancel` · `shown` · `hidden`
 
 每个指针事件（`press`、`release`、`click`、`pointer_move`、`press_cancel`）都带一个 `UiPointerEventData`：
-是哪个指针（`pointer`，鼠标是 -1）、它在世界里的位置（`worldX`、`worldY`）和在表面上的位置（`screenX`、
-`screenY`，从左下角向上数）。被按下的那个实体，在指针按住期间无论移到哪里，都由它收到 `pointer_move`。
+是哪个指针（`pointer`，鼠标是 -1）、它在世界里的位置（`worldX`、`worldY`）、在表面上的位置（`screenX`、
+`screenY`，单位像素，从左下角向上数）和 UI 布局空间里的位置（`layoutX`、`layoutY`）。被按下的那个实体，在指针按住期间无论移到哪里，都由它收到 `pointer_move`。
 一次按住可以放弃：`UIControlPointers.cancelHold(pointer, to?)`，持有者收到 `press_cancel`，不会触发点击；
 给了 `to`，这次手势的其余部分就交给那个实体。只有 `ContentRect` 加 `Interactable` 的实体也可以被按下。
 

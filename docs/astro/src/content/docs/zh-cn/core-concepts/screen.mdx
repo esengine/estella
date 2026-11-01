@@ -38,6 +38,7 @@ Estella 的 2D 单位模型刻意保持简单:
 | `scaleMode` | `ScaleMode` | `FixedHeight` | 设计分辨率如何适配实际屏幕宽高比(见下)。 |
 | `matchWidthOrHeight` | number | `0.5` | `Match` 模式的混合值,0–1:`0` = 适配宽度,`1` = 适配高度。其余模式忽略。 |
 | `backgroundColor` | Color | `{r:0, g:0, b:0, a:1}` | 为设计盒之外的 letterbox/pillarbox 区域声明的背景色。 |
+| `layer` | number | `0` | 该画布的 UI 所属的排序层——相机通过它包含或排除这块 UI(见下文 `Camera.cullingMask`)。 |
 
 ```typescript
 import { defineSystem, GetWorld, Canvas } from 'esengine';
@@ -130,8 +131,8 @@ const halfH = computeEffectiveOrthoSize(
 里另一个盒子"。
 
 <Aside type="caution">
-  适配源生效期间,主相机自己写的 `orthoSize` **不会被使用**——可见半高完全来自设计分辨率
-  与缩放模式。通过编辑/tween `orthoSize` 缩放,只在没有适配源时生效(场景无 `Canvas`
+  适配源生效期间,全屏正交场景相机自己写的 `orthoSize` **不会被使用**——可见半高完全来自设计分辨率
+  与缩放模式。子视口相机、渲染到纹理的相机和透视相机保留自己的缩放。通过编辑/tween `orthoSize` 缩放,只在没有适配源时生效(场景无 `Canvas`
   且项目适配关闭)。
 </Aside>
 
@@ -149,8 +150,9 @@ const halfH = computeEffectiveOrthoSize(
 | `designHeight` | number | `1080` | 设计(参考)分辨率高度,像素。 |
 | `scaleMode` | number | `SCREEN_FIT_OFF`(`-1`) | 真实的 `ScaleMode`(`0`–`4`)**开启**项目适配;`SCREEN_FIT_OFF` 保持旧行为(有 Canvas 用 Canvas 适配,否则原始 `orthoSize`)。 |
 | `matchWidthOrHeight` | number | `0.5` | `Match` 模式混合值 0–1(`0` = 适配宽度,`1` = 适配高度);其余模式忽略。 |
+| `renderPolicy` | `RenderResolution`(可选) | `RenderResolution.Surface`(`0`) | 场景用什么分辨率绘制。`Surface` 直接画到屏幕;`Design`(`1`)按相机世界高度要求的尺寸绘制(1 世界单位 = 1 渲染像素),再把这一整张图缩放到屏幕——精灵之间没有缝,非整数比例下略软;`IntegerMultiple`(`2`)以整数倍呈现,整数倍铺不满的地方留黑边。与 `scaleMode` 相互独立。 |
 
-`DEFAULT_SCREEN_SCALING` 就是这个默认关闭的值,`SCREEN_FIT_OFF`(`-1`)是哨兵值。项目
+`DEFAULT_SCREEN_SCALING` 就是这个默认关闭的值,`SCREEN_FIT_OFF`(`-1`)是哨兵值。`scaleMode` 为真实模式**或** `renderPolicy` 不是 `Surface` 时,该资源都会被安装;相机适配本身只看前者。项目
 适配开启时它就是**权威**——相机和 UI 布局盒都一样,因为两者解析适配源的方式相同。
 
 各发布运行时从项目配置安装它(`createWebApp` 的 `screenFit` 选项)。游戏代码可以实时读取
@@ -274,10 +276,12 @@ feed();
 | `applyBottom` | boolean | `true` | 底部 inset 同理。 |
 | `applyLeft` | boolean | `true` | 左侧 inset 同理。 |
 | `applyRight` | boolean | `true` | 右侧 inset 同理。 |
+| `avoidHostMenu` | boolean | `false` | 同时避开宿主自己的悬浮层——微信的胶囊菜单,它位于安全区*之内*。顶部 inset 取安全区 inset 与胶囊底边中的较大者。只对胶囊确实够得着的节点开启:整个节点都会下移。 |
 
 平台 inset 在写入前会从设备像素换算到 UI 设计像素,布局保持分辨率无关:
 
 - **微信:**自动从 `wx.getSystemInfoSync().safeArea` 读取。
+- **原生(iOS / Android):**每帧读取平台缓存的系统 inset。
 - **Web:**从根元素上的 `--sat` / `--sab` / `--sal` / `--sar` CSS 自定义属性读取——
   在宿主页面里用 `env(safe-area-inset-*)` 定义它们即可启用(否则读到 `0`)。
 
@@ -321,21 +325,9 @@ const buildHudRoot = defineSystem([GetWorld()], (world) => {
 | 方向 | `packaging.orientation`(`'portrait'` \| `'landscape'`;缺省 = 由设计宽高比推导) | 微信 `game.json`、web/playable 旋转提示、桌面窗口宽高比、编辑器设备预览。 |
 | 相机适配 | `features.rendering.cameraScaleMode`(`'none'`、`'fixed-width'`、`'fixed-height'`、`'expand'`、`'shrink'`、`'match'`;缺省 = `'none'`) | 映射到 `ScreenScaling.scaleMode`(`'none'` → `SCREEN_FIT_OFF`)。 |
 | 相机适配 match | `features.rendering.cameraMatch`(0–1,默认 `0.5`) | `ScreenScaling.matchWidthOrHeight`。 |
+| 渲染分辨率 | `features.rendering.renderResolution`(`'surface'`、`'design'`、`'integer'`;缺省 = `'surface'`) | `ScreenScaling.renderPolicy`(`Surface` / `Design` / `IntegerMultiple`)。 |
 
-另外,两个 `RuntimeConfig` 旋钮设置**新建 `Canvas` 组件的默认 `scaleMode`**(不影响场景中
-已保存的 canvas):`RuntimeConfig.canvasScaleMode`(默认 `1` = `FixedHeight`)与
-`RuntimeConfig.canvasMatchWidthOrHeight`(默认 `0.5`)。构建配置通过
-`applyBuildRuntimeConfig` 按名字设置——规范的 `CanvasScaleMode` 名字加上 `ShowAll` /
-`NoBorder` 别名;未知名字回退到 `FixedHeight`:
-
-```typescript
-import { applyBuildRuntimeConfig } from 'esengine';
-
-applyBuildRuntimeConfig(app, {
-  canvasScaleMode: 'Expand',        // name-based: 'FixedWidth' … 'Match', 'ShowAll', 'NoBorder'
-  canvasMatchWidthOrHeight: 0.5,
-});
-```
+新建的 `Canvas` 以 `scaleMode` `FixedHeight`(`1`)和 `matchWidthOrHeight` `0.5` 起步——即组件默认值。场景中已保存的 canvas 保持它们保存的值。
 
 ## 最佳实践
 

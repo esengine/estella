@@ -22,6 +22,20 @@ import { Physics2DPlugin } from 'esengine/physics';
 app.addPlugin(new Physics2DPlugin('physics.js', { gravity: { x: 0, y: -9.81 } }));
 ```
 
+The second argument is a `Physics2DPluginConfig`; every field is optional:
+
+| Field | Default | Description |
+|---|---|---|
+| `gravity` | `{ x: 0, y: -9.81 }` | World gravity, m/s². |
+| `fixedTimestep` | `1/30` | Physics step in seconds. The plugin also sets the app's fixed step to it, so `FixedUpdate` systems run at the same 30 Hz. |
+| `subStepCount` | `4` | Solver substeps per step. |
+| `contactHertz` / `contactDampingRatio` / `contactSpeed` | `30` / `10` / `3` | Contact softness and the maximum push-out speed (m/s). |
+| `collisionLayerMasks` | none | Per-layer collision masks (index = layer 0–15) that replace each collider's own `maskBits`; the editor fills it from the collision matrix. |
+| `enableSleep` | `true` | Let resting bodies sleep. |
+| `enableContinuous` | `true` | Continuous collision for fast bodies. |
+| `restitutionThreshold` | Box2D default | Minimum impact speed (m/s) that produces a bounce; `0` or less keeps the default. |
+| `maxLinearSpeed` | Box2D default | Clamp on body speed; `0` or less keeps the default. |
+
 <Aside type="note">
   Physics types are imported from **`esengine/physics`** (the API, plugin, events),
   while the components (`RigidBody2D`, colliders, `CharacterController2D`) come from the
@@ -41,6 +55,9 @@ side of that boundary:
 | Solver-facing methods — `applyForce` / `applyImpulse`, `setLinearVelocity` / `getLinearVelocity`, `setGravity`, … | **Meters** (m/s, m/s²). |
 | Spatial queries — `raycast`, `shapeCast*`, `overlapCircle` / `overlapAABB`, `moveCharacter` | **World pixels**, scaled by the live PPU. |
 | `CharacterController2D.velocity`, `MotorJoint2D.linearVelocity` | World pixels per second. |
+| Joint components' `anchorA` / `anchorB`, `length`, `minLength` / `maxLength`, `lowerTranslation` / `upperTranslation`; the pixel-taking joint methods (`setDistanceJointLength`, `setDistanceJointLimits`, `setPrismaticJointLimits`, `setWheelJointLimits`, …) and their getters | **World pixels.** Angles (`lowerAngle`, `motorSpeed` of a hinge) are radians. |
+| Contact event positions and speeds — `contactX/Y`, `pointX/Y`, `approachSpeed` | World pixels, pixels per second. |
+| `createRevoluteJoint`'s `anchorA` / `anchorB` | **Meters** — passed to the solver as is, unlike the joint component's pixel anchors. |
 
 `physics.getPixelsPerUnit()` returns the live PPU (pushed from the `Canvas` each
 frame), so conversions never hard-code `100`:
@@ -95,8 +112,8 @@ const spawnBall = defineSystem([Commands()], (cmds) => {
 
 ### Colliders
 
-All colliders share these fields; each adds its own shape parameters. Dimensions
-are in meters.
+Colliders share these fields; each adds its own shape parameters (the table below
+lists the exceptions). Dimensions are in meters.
 
 | Shared property | Type | Default | Description |
 |---|---|---|---|
@@ -113,10 +130,10 @@ are in meters.
 |---|---|
 | `BoxCollider2D` | `halfExtents` (`{0.5, 0.5}`), `radius` (rounded corner, `0.05`). |
 | `CircleCollider2D` | `radius` (`0.5`). |
-| `CapsuleCollider2D` | `radius`, `halfHeight`. |
-| `SegmentCollider2D` | `point1`, `point2` (a one-sided edge). |
-| `PolygonCollider2D` | `vertices: Vec2[]` (any shape, concave allowed), `radius` (rounded). |
-| `ChainCollider2D` | `points: Vec2[]`, `isLoop` (static edge chain; no `density`/`isSensor`). |
+| `CapsuleCollider2D` | `radius` (`0.25`), `halfHeight` (`0.5`). |
+| `SegmentCollider2D` | `point1` (`{-0.5, 0}`), `point2` (`{0.5, 0}`) — a one-sided edge; no `offset`. |
+| `PolygonCollider2D` | `vertices: Vec2[]` (any shape, concave allowed; default a unit square), `radius` (rounded, `0`); no `offset`. |
+| `ChainCollider2D` | `points: Vec2[]` (at least 4), `isLoop` (`true`) — a static edge chain; `friction` defaults to `0.6`, and it has no `offset`, `density` or `isSensor`. |
 
 #### Concave polygons, and how many vertices you may draw
 
@@ -231,15 +248,15 @@ for (const hit of hits) {
 
 const nearby = physics.overlapCircle(center, 64);   // Entity[]
 const inBox  = physics.overlapAABB(min, max);       // Entity[]
-const swept  = physics.shapeCastCircle(/* … */);    // sweep a shape
+const swept  = physics.shapeCastCircle(center, 16, { x: 100, y: 0 });  // ShapeCastHit[]
 ```
 
 | Method | Returns | Description |
 |---|---|---|
-| `raycast(origin, dir, dist, maskBits?)` | hit list | All hits along a ray, nearest first. |
+| `raycast(origin, dir, dist, maskBits?)` | `RaycastHit[]` | All hits along a ray, nearest first. `dir` is a direction, `dist` is in pixels. |
 | `overlapCircle(center, radius, maskBits?)` | `Entity[]` | Colliders overlapping a circle. |
 | `overlapAABB(min, max, maskBits?)` | `Entity[]` | Colliders overlapping a box. |
-| `shapeCastCircle` / `shapeCastBox` / `shapeCastCapsule` | hit | Sweep a shape and get what it would hit. |
+| `shapeCastCircle(center, radius, translation, maskBits?)` / `shapeCastBox(center, halfExtents, angle, translation, maskBits?)` / `shapeCastCapsule(center1, center2, radius, translation, maskBits?)` | `ShapeCastHit[]` | Sweep a shape along `translation` and get everything it would hit. |
 
 Casts return `RaycastHit`s (`ShapeCastHit` is the same shape):
 
@@ -293,6 +310,14 @@ const onHit = defineSystem([Res(Physics2DEvents)], (events) => {
   for (const s of events.sensorExits)     { /* … */ }
 });
 ```
+
+The events carry world pixels (`contactX/Y`, `pointX/Y`) and pixels per second
+(`approachSpeed`). The resource is published once per rendered frame and holds every
+contact from all fixed steps in that frame. The same events are also re-sent per entity
+as `collision_enter`, `collision_exit`, `collision_hit`, `trigger_enter` and
+`trigger_exit` (the `Physics2DEventType` constants) — both participants receive one
+carrying the other entity as `other`, which is what lets an authored event binding react
+to a trigger zone without code.
 
 | Event list | Fired when |
 |---|---|
@@ -376,7 +401,8 @@ world.insert(platform, OneWayPlatform2D, { normal: { x: 0, y: 1 } }); // solid t
 ```
 
 `normal` is the solid-side direction in world space; `{ x: 0, y: 1 }` (the default)
-means "solid top". Set `enabled: false` to turn the platform back into a normal solid.
+means "solid top". Set `localSpace: true` (default `false`) to rotate the normal with the
+body instead, including its parent's rotation. Set `enabled: false` to turn the platform back into a normal solid.
 In the editor, a one-way platform's collider gizmo grows an arrow along the solid-side
 normal, so which way it carries is visible at a glance.
 
@@ -399,7 +425,8 @@ physics.destroyMouseJoint();
 ```
 
 Only one drag is live at a time. Pass `{ hertz, dampingRatio, maxForce }` to tune the
-spring's stiffness and grip.
+spring's stiffness (`hertz`, default `7.5`), damping (`dampingRatio`, default `1`) and grip
+(`maxForce`, default auto-sized from the body's weight). `cursorWorld` is in world pixels.
 
 ## Character controller
 
@@ -412,14 +439,15 @@ instead of sticking to it. It writes the resolved pose back and reports what it
 touched:
 
 ```typescript
-import { defineSystem, Query, Mut, CharacterController2D } from 'esengine';
+import { defineSystem, Query, Mut, Res, Time, Schedule, CharacterController2D } from 'esengine';
 
-const drive = defineSystem([Query(Mut(CharacterController2D))], (q) => {
+const drive = defineSystem([Query(Mut(CharacterController2D)), Res(Time)], (q, time) => {
   for (const [entity, cc] of q) {
-    cc.velocity = { x: input.moveX * 240, y: cc.velocity.y - 900 * dt };  // gravity
+    cc.velocity = { x: moveX * 240, y: cc.velocity.y - 900 * time.fixedDelta };  // gravity
     if (cc.isOnFloor && jumpPressed) cc.velocity.y = 480;
   }
 });
+app.addSystemToSchedule(Schedule.FixedUpdate, drive);   // moveX / jumpPressed: your input
 ```
 
 Give the entity a collider (the mover shape is derived from it — a box becomes a
@@ -486,8 +514,9 @@ collider/joint gizmos under the Physics Show Flag (see
 
 ## Best practices
 
-- **Fixed timestep**: apply continuous forces and read `Physics2DEvents` *every frame*,
-  since physics substeps independently of the frame delta.
+- **Fixed timestep**: apply continuous forces from a `FixedUpdate` system, and read
+  `Physics2DEvents` *every frame* — the resource is published once per frame and holds the
+  contacts from every fixed step in it.
 - **`bullet: true`** on fast, thin bodies (bullets, thin platforms) to avoid tunneling.
 - **`fixedRotation: true`** for characters so they don't topple.
 - **Colliders and the solver in meters, queries and the character controller in

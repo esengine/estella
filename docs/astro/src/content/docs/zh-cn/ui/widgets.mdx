@@ -66,6 +66,7 @@ const btn = createButton({
 | `disabled` | `false` | 以禁用态启动。 |
 | `focusable` / `tabIndex` | `true` / `0` | 键盘可达性与 Tab 顺序。 |
 | `onClick(entity)` | — | 点击回调(受启用态门控)。 |
+| `userGesture` | `false` | 在宿主自己的松开事件内同步执行 `onClick`,而不是下一帧——用于宿主只接受玩家手势直接触发的调用(如在微信里分享录屏)。 |
 
 **句柄:** `entity`、`setDisabled(disabled)`、`dispose()`。
 
@@ -296,11 +297,12 @@ const name = createTextInput({
 |---|---|---|
 | `node` | 220×32 | 输入框的 `UINode` 布局(唯一不默认填满父级的工厂)。 |
 | `value` / `placeholder` | `''` | 内容 / 为空时的提示。 |
+| `placeholderI18nKey` | `''` | 空输入框提示的文案键;需要 `Localization` 资源。写在 `placeholder` 里的原文作为回退。 |
 | `maxLength` | `0` | 字符上限(`0` = 不限)。 |
 | `multiline` | `false` | Enter 插入换行而不是提交。 |
 | `password` | `false` | 掩码显示字符。 |
 | `readOnly` | `false` | 可聚焦但不可编辑。 |
-| `fontSize` / `fontFamily` | 主题 label 字号 / `'Arial'` | 文本样式。 |
+| `fontSize` / `fontFamily` | 主题 label 字号 / `''`(项目默认字体) | 文本样式。 |
 | `color` / `backgroundColor` / `placeholderColor` | 主题 `text` / `control` / 淡化 `text` | 颜色覆盖——省略时用主题角色。 |
 | `padding` | `6` | 内部水平内边距(px)。 |
 | `renderMode` | `Auto` | 输入框文字的字形管线——`Auto`(未缩放时清晰位图,缩放后 SDF)、恒 `Bitmap`、或恒 `Sdf`。 |
@@ -376,7 +378,7 @@ world.insert(field, TextInput, { placeholder: 'Name', font: gameFont, textAlign:
 ## 键盘焦点
 
 带 `Focusable` 的实体参与键盘焦点:Tab / Shift+Tab 按 `tabIndex` 轮换,
-Enter/Space 激活,滑块接管方向键,聚焦的控件显示其 `focused` 交互页。
+Enter/Space 激活,滑块接管方向键,经键盘聚焦的控件显示其 `focused` 交互页。
 控件工厂自动加 `Focusable`(`focusable: false` 退出);`FocusManager` 资源提供
 程序化控制。详见 **[UI 交互](/docs/zh-cn/ui/interaction/)**。
 
@@ -440,6 +442,9 @@ const stick = createVirtualJoystick({ world, parent: canvas, inputId: 'move',
 const actions = defineInputMap({ Move: Axis2D(Virtual('move')) });
 ```
 
+默认值:`inputId` 为 `'move'`,`mode` 为 Fixed,`radius` 50 px,`deadZone` 0.15(范围 0 到 0.99),
+`returnSpeed` 18。Follow 模式的摇杆默认触控区为 240×160。
+
 编辑器的创建实体选择器里,UI 分类提供同一个生成预制体。Play 中的鼠标拖动和触控使用
 同一套捕获机制。禁用、隐藏、移除、取消或切后台会释放该控件自己的贡献，
 其他控件仍保持输出。可以提供自定义底座和手柄外观。
@@ -447,7 +452,7 @@ const actions = defineInputMap({ Move: Axis2D(Virtual('move')) });
 ## VirtualButton
 
 `createVirtualButton({ world, events, parent: canvas, inputId: 'fire', text: 'Fire' })`
-复用普通按钮外观，向 `Virtual('fire')` 输出按住状态。不同按钮、同一按钮上的
+复用普通按钮外观，向 `Virtual('fire')` 输出按住状态(`inputId` 默认 `'fire'`;`value` 是输出的标量,默认 `1`;该按钮不可键盘聚焦)。不同按钮、同一按钮上的
 多个触点，以及两帧之间完成的短按都能正常释放。多个控件共享绑定时，移除
 其中一个不会清空其他控件。自定义控件可使用固定 owner 的 `Input.setVirtualSource`，
 并在销毁时移除该 owner。
@@ -477,6 +482,10 @@ const settings = createTabView({ world, events, parent: canvas,
 settings.select(1);
 ```
 
+`createTabView` 还接受 `selectedIndex`(初始页签,默认 `0`)、`tabHeight`(默认 `36` px)和
+`onChange(index, page)`。`UITabView` 另有 `vertical`(方向键沿纵向,默认 `false`)、
+`loopNavigation`(默认 `true`)、`selectOnFocus`(默认 `true`)和 `allowSwitchOff`(默认 `false`)。
+
 场景、Prefab 实例化和复制会重映射 `tabs` / `pages` 实体数组。
 `labels` 提供页签直接 Text 子节点的文字。删除当前选择的目标后会选择其他有效绑定；
 移除绑定会恢复该内容页原本的 display。
@@ -497,7 +506,7 @@ attachTooltip(world, musicVolume, {
 });
 ```
 
-`side` 的 0/1/2/3 对应下/上/左/右。定位会先尝试优先方向和相反方向，再限制在屏幕安全区内。
+默认值:`hover: true`、`focus: true`、`longPress: true`、`hoverDelay: 0.5` 秒、`longPressDelay: 0.6` 秒、`side: 0`、`gap: 8` px、`avoidEdges: true`、`maxWidth: 240` px;`hover` / `focus` / `longPress` 分别开关三种触发方式。`side` 的 0/1/2/3 对应下/上/左/右。定位会先尝试优先方向和相反方向，再限制在屏幕安全区内。
 `maxWidth` 是布局像素单位的最大文本宽度。`stylePrefab` 留空时使用项目的实时 UI 主题；
 自定义 `.esprefab` 需要 UINode 根节点和 Text 子节点，保留其中的颜色和字体样式，
 浮层行为负责位置、文字和内边距。样式通过普通 Prefab 资源加载流程加载，需要 `PrefabsPlugin`。
@@ -559,6 +568,10 @@ const picker = createColorPicker({ world, events, parent: canvas,
   onHistoryChange: colors => project.savePalette(colors),
 });
 ```
+
+其他选项:`alphaEnabled`(默认 `true`)、`format`(`0` 为 HSV + HEX,`1` 为 RGB + HEX)、
+`history`(初始最近颜色)、`historyLimit`(默认 `8`,最大 `32`)和 `rememberColors`(默认 `true`)。
+默认尺寸 280×412。
 
 `UIColorPicker.color` 使用引擎统一的 `{ r, g, b, a }`，通道范围 0..1。
 `change` 携带 `{ color }`，`history_change` 携带 `{ colors }`。目标绑定、业务修改和

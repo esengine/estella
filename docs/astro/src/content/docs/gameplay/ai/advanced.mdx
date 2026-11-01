@@ -24,25 +24,26 @@ const grid = new NavGrid({ width: 32, height: 24, cellSize: 32 });
 
 const path = findPath(
   grid,
-  grid.worldToCell(hero.x, hero.y),      // Cell — integer grid coordinates
-  grid.worldToCell(chest.x, chest.y),
+  grid.worldToCell(hero),               // Cell — integer grid coordinates
+  grid.worldToCell(chest),
   { diagonal: false },
 );
 if (path) {
-  const waypoints = pathToWorld(grid, path);   // Vec2[] — cell centers, world pixels
+  const waypoints = pathToWorld(grid, path);   // Vec3[] — cell centers, world pixels
 }
 ```
 
 `findPath(grid, start, goal, opts?)` returns the `Cell[]` path inclusive of both
 endpoints, or `null` when unreachable. A `Cell` is an integer grid coordinate
 `{ x, y }` (kept distinct from `Vec2` to flag cell space); convert with
-`grid.worldToCell` / `grid.cellToWorld`, or turn a whole path into world-space
+`grid.worldToCell(point)` / `grid.cellToWorld(gx, gy)`, or turn a whole path into world-space
 waypoints with `pathToWorld`.
 
 | `PathfindOptions` field | Default | Description |
 |---|---|---|
 | `diagonal` | `true` | Allow 8-connected diagonal moves. |
 | `snapRadius` | `8` | When start/goal lands on a blocked cell, snap to the nearest walkable cell within this ring radius before searching; `0` disables snapping. |
+| `clearance` | `0` | Cells of room the body needs on every step (`0` plans for a point). A `NavAgent`'s `radius` is turned into this for you. |
 
 `navGridFromTiles` builds the walkability mask from any tile reader — it is the
 core under `navGridFromTilemapLayer`, which just plugs in `TilemapAPI.getTile`:

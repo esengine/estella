@@ -36,6 +36,10 @@ world.insert(rock, LODGroup, {
 Remove the component and the full-detail mesh comes back — nothing else about the
 renderer changes.
 
+![Details of a LOD Group: the current level, the projected size, the level table and the three level meshes](@/assets/guides/en/details-lod-group.png)
+
+*A **LOD Group** in the editor: the level in use, the projected size of the entity, and the table of thresholds.*
+
 ## The sizes are fractions of the screen, not distances
 
 `lod1Size` and its siblings are the fraction of the **viewport's height** the
@@ -97,6 +101,7 @@ A field at three levels reaches the GPU as roughly three draws, not as one per p
 
 - **Fill the slots in order** — `lod1`, then `lod2`, then `lod3`. A slot left empty
   ends the ladder, and anything after it is never reached (the engine warns).
+- **Defaults.** `lod1Size` 0.5, `lod2Size` 0.25, `lod3Size` 0.1, `cullSize` 0.02, `hysteresis` 0.1 (0 to 1); the component's `enabled` switch, when off, always draws the renderer's own mesh.
 - **The sizes must descend.** `lod2Size` below `lod1Size`, and so on.
 - **`cullSize: 0`** disables culling entirely, so the group is never invisible.
 - **A group may have no stand-in at all.** With only a `cullSize` it draws the renderer's own mesh while it is big enough and nothing once it is smaller: the right group for a tuft of grass, which has no cheaper version and is not worth drawing past a distance.

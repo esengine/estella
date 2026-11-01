@@ -53,7 +53,8 @@ col.multiply(base, tint);   // per-channel tint
 ```
 
 - 构造:`create`、`rgb`、`from255`、`fromHex`(格式非法时抛错)、`clone`。
-- 混合:`lerp`、`withAlpha`、`multiply`、`scaleRgb`;用 `toHex` 序列化。
+- HSV:`fromHsv(h, s, v, a?)`(色相为角度,其余 `0..1`)与 `toHsv`。
+- 混合:`lerp`、`withAlpha`、`multiply`、`scaleRgb`;用 `toHex(c, withAlpha = false)` 序列化;用 `equals` 比较。
 
 ## 标量
 
@@ -115,7 +116,7 @@ const delta = normalizeAngle(targetAngle - facing);
 | `quaternionToAngle2D(rz, rw)` | 由四元数的 `z`/`w` 求 Z 角度(弧度,`2 * atan2(z, w)`)。 |
 | `normalizeAngle(a)` | 把任意角度归一到 `(-π, π]`,用于最短转向比较。 |
 
-完整的 3D 旋转用 `q` 命名空间:`create`、`mul`、`axis(axis, rad)`、`normalize`、`conjugate`、`rotate(q, v)`、`fromEuler` / `toEuler`、`rotationTo(from, to)`、`setAngleZ` / `angleZ` 等。
+完整的 3D 旋转用 `q` 命名空间:`create`、`mul`、`axis(axis, rad)`、`normalize`、`conjugate`、`rotate(q, v)`、`fromEuler` / `toEuler`(欧拉角单位是**度**)、`rotationTo(from, to)`、`setAngleZ(q, deg)`(度)/ `angleZ(q)`(弧度)等。
 
 如果需要的是方向*向量*而不是旋转,留在 `v2` 里就好:`fromAngle` / `angle` /
 `rotate`。完整的工作示例(炮塔朝向光标)见

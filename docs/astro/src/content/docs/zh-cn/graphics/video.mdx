@@ -107,7 +107,8 @@ const playIntro = defineSystem([Res(VideoPlayer)], (video) => {
 | `onReady` / `onEnded` / `onError` | 回调 | 生命周期钩子。 |
 
 `video.play(source, options)` 接受与组件相同的选项(`autoplay`、`loop`、`muted`、
-`volume`、`playbackRate`);`video.stop(handle)` 结束一条流,`video.stopAll()` 结束所有流。
+`volume`、`playbackRate`),但默认值不同:
+`autoplay: true`、`loop: false`、`muted: false`、`volume: 1`、`playbackRate: 1`;`video.stop(handle)` 结束一条流,`video.stopAll()` 结束所有流。
 
 ## 导入设置与烹饪后的视频
 

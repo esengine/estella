@@ -59,7 +59,8 @@ const data = saves.load('slot1');
 <Aside type="tip">
   迁移链也作为纯函数导出——`migrateSaveData(version, data, currentVersion, migrations)`
   ——用于在 `SaveManager` 之外迁移数据(比如单元测试或一次性导入)。`SaveManager` 还接受
-  可注入的 `storage` 与 `now` 选项,便于写确定性的测试。
+  可注入的 `storage` 与 `now` 选项,便于写确定性的测试;另有 `keyPrefix`(默认 `save:`),
+  给槽位在存储里加命名空间前缀。
 </Aside>
 
 ## 普通键值存储

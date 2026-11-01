@@ -1,6 +1,6 @@
 ---
 title: 精灵与渲染
-description: 用 Sprite 组件绘制 2D 图像——纹理、着色与透明、尺寸与轴心、翻转、排序层与绘制顺序、Y 排序与深度层(2.5D)、视差——外加纹理过滤、点击检测、位图缓存、ShapeRenderer 图元、精灵滤镜、拖尾与世界空间位图文字。
+description: 用 Sprite 组件绘制 2D 图像——纹理、着色与透明、尺寸与轴心、翻转、排序层与绘制顺序、Y 排序与深度层(2.5D)、视差——外加纹理过滤、点击检测、ShapeRenderer 图元、精灵滤镜、拖尾与世界空间位图文字。
 ---
 
 import { Aside } from '@astrojs/starlight/components';
@@ -28,6 +28,10 @@ const spawnPlayer = defineSystem([Commands(), Res(Assets)], async (cmds, assets)
 `sprite.texture` 是一个纹理**句柄**,而不是路径——你从加载器(`assets.loadTexture(ref)`)拿到它。
 在编辑器里你不用写这个:从内容浏览器把一张图拖到实体上,或在 Details 里设精灵的 texture 字段。
 
+![Sprite Lab 示例:同一张白纹理的八种着色、翻转,以及一个排序组](@/assets/guides/zh/play-sprites.png)
+
+*Sprite Lab 示例:同一张纹理、八种着色、翻转和一个排序组。*
+
 ## Sprite 字段
 
 | 字段 | 默认 | 说明 |
@@ -37,6 +41,9 @@ const spawnPlayer = defineSystem([Commands(), Res(Assets)], async (cmds, assets)
 | `size` | `{100,100}` | 渲染尺寸,世界单位。 |
 | `pivot` | `{0.5,0.5}` | 精灵旋转/缩放所绕的轴心点,取值是相对 `size` 的比例。超出 0–1 就落在精灵外面。 |
 | `layer` | `0` | 排序层——控制绘制顺序(见下)。 |
+| `order` | `0` | 排序层内的顺序,−128…127——越大越靠上(见下)。 |
+| `maskInteraction` | `None` | [`SpriteMask`](#精灵遮罩) 是否裁切这个精灵:`None` / `VisibleInside` / `VisibleOutside`。 |
+| `drawMode` | `Auto` | `Auto` 按 `tileSize` 与纹理的九宫格边界自动推断;`Simple`、`Tiled`、`NineSlice` 强制指定。 |
 | `flipX` / `flipY` | `false` | 水平 / 垂直镜像。 |
 | `material` | `0` | 自定义[材质](/docs/zh-cn/graphics/materials/)句柄(`0` = 默认精灵着色器)。 |
 | `lit` | `false` | 用平面法线接收 2D 光照——让精灵变"受光"的一键路径(自定义 `material` 会覆盖它)。 |
@@ -184,7 +191,7 @@ world.update(fog, Sprite, (s) => {
 
 遮罩**向前生效** —— 它裁切在它之后绘制的东西,也就是你已经用层和层内次序安排好的那个顺序。
 那正是它的模板被写入的时刻,所以与遮罩处在**同层同次序**的精灵完全不会被裁。打开 `limitRange`
-可以让它的作用范围停在指定的层与次序上。
+可以让它的作用范围停在 `rangeEndLayer` 层、`rangeEndOrder` 次序(含)上。
 
 <Aside type="caution">
   两个遮罩重叠的地方,由**更近的那个**说了算 —— 它写在后面,模板里留下的是它。被更远那个遮罩裁切的
@@ -378,6 +385,10 @@ setTextureParams(tex.handle, TextureFilter.Nearest, TextureFilter.Nearest,
 (用平面法线受光)。需要法线贴图或完全自定义的观感时,改用 **Lit-2D 材质**。两种方式都见
 [2D 光照与阴影](/docs/zh-cn/graphics/lighting/)。
 
+![效果画廊示例:同一个角色分别套上描边、发光、投影和像素化滤镜](@/assets/guides/zh/play-effects.png)
+
+*效果画廊示例:同一个精灵套上不同的 **SpriteFilter** 效果。*
+
 ### 精灵滤镜(描边、发光、投影)
 
 最常见的逐精灵效果不用写着色器——`SpriteFilter` 直接构建一个现成材质,赋给
@@ -415,6 +426,10 @@ cmds.spawn()
 ```
 
 `ShapeRenderer` 与 `Sprite` 共享排序 `layer` 和 `color` 约定。
+
+![拖尾示例:一颗拖着长长叠加拖尾的彗星](@/assets/guides/zh/play-trail.png)
+
+*拖尾示例:彗星的长叠加拖尾跟随它的轨迹。*
 
 ## 拖尾
 

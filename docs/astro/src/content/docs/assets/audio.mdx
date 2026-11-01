@@ -265,7 +265,7 @@ audio.setBusDucking('music', { trigger: 'voice', amount: 0.3, attack: 0.05, rele
 audio.setBusDucking('music', null);  // remove
 ```
 
-While the `trigger` bus carries signal, the target's duck stage ramps to
+`attack` (default 0.05 s) and `release` (default 0.4 s) are time constants, and `threshold` (default 0.003, an RMS level from 0 to 1) is how loud the trigger bus must be to count as active. While the `trigger` bus carries signal, the target's duck stage ramps to
 `amount`; on silence it releases back to 1. Ducking is a separate gain stage,
 so it never fights the user's volume setting. On backends without a WebAudio
 graph (WeChat) both APIs degrade to no-ops, like the volume calls.
@@ -280,7 +280,7 @@ apply live in the editor; Play and every export boot the identical mix.
 ### Import settings & cooked audio
 
 Selecting an audio asset shows a decoded waveform with play/seek plus **Import
-Settings**: `Compress` and `Bitrate` control the cook's WAV → MP3 transcode
+Settings**: `Compress` (default on) and `Bitrate` (96, 128 or 192 kbps; default 128) control the cook's WAV → MP3 transcode
 (enable **Compress audio** in the Package dialog). Already-compressed formats
 pass through untouched. MP3 has a small encoder delay — turn `Compress` off on
 clips that must loop seamlessly.

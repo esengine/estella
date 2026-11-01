@@ -62,7 +62,8 @@ app.addPlugin(new Physics2DPlugin('physics.js'));
 ```typescript
 import { defineSystem, Commands, Query, Marker, Transform } from 'esengine';
 
-// 只跑一次:找到每个 spawn 标记,把玩家放到第一个上。
+// 找到每个 spawn 标记,把玩家放到第一个上。
+// 用 app.addSystemToSchedule(Schedule.Startup, placePlayer) 注册,它就只跑一次。
 const placePlayer = defineSystem([Commands(), Query(Marker, Transform)], (cmds, markers) => {
   for (const [entity, marker, transform] of markers) {
     if (marker.type !== 'spawn') continue;
@@ -117,7 +118,8 @@ const onTrigger = defineSystem([Res(Physics2DEvents), Query(Marker)], (events, m
 
 在繁忙的世界里让传感器保持廉价:把触发区和应当感知它们的刚体放到专门的
 [碰撞层](/docs/zh-cn/gameplay/physics/#碰撞过滤)上,让每个传感器的掩码收窄它要考虑的范围。完整
-事件面见 [碰撞与传感事件](/docs/zh-cn/gameplay/physics/#碰撞与传感事件)。
+事件面见 [碰撞与传感事件](/docs/zh-cn/gameplay/physics/#碰撞与传感事件)。同样的穿越还会按实体发出
+`trigger_enter` / `trigger_exit` 事件,挂在触发区上的[事件绑定](/docs/zh-cn/scripting/events/)不写代码就能响应。
 
 ## 从 Tiled 导入
 
@@ -127,12 +129,12 @@ const onTrigger = defineSystem([Res(Physics2DEvents), Query(Marker)], (events, m
 | Tiled 对象 | 变成 |
 |---|---|
 | **点(Point)** | 一个 `Marker`(它的 `type` = Tiled 的 class,它的自定义属性 → `Marker.properties`)。 |
-| **矩形 / 椭圆 / 多边形 / 折线** | 一块触发 **Region**——一个 `Marker` 加一个匹配的传感器碰撞体(当对象组名为 `collision` 时则是实心几何体)。 |
+| **矩形 / 椭圆 / 多边形 / 折线** | 一块触发 **Region**——一个 `Marker`(它的 `type` = Tiled 的 class)加一个静态刚体和与形状匹配的碰撞体:盒、圆、最多 8 个顶点的多边形(更多则退回它的包围盒)或开放的链。它是传感器;当对象组名为 `collision` 时则是实心几何体。 |
 | **瓦片对象**(带 gid) | 地图的一个精灵子实体。 |
 
 于是一条 `Query(Marker)` 就能读到出生点,无论你是在 Estella 编辑器里放的还是在 Tiled 里画的。
 (导入的对象在每次加载时从 `.tmj` 重新派生,因此只在播放模式存在;手工创建的 Marker 是普通的
-序列化实体。)如果你需要某个形状的精确顶点,原始的对象组数据仍可经 `getTilemapSource` 取得。
+序列化实体。)如果你需要某个形状的精确顶点,原始的对象组数据仍可经 `tilemapSource(assets, ref)`(来自 `esengine/tilemap`)取得。
 
 ## 找出离得最近的
 
@@ -145,7 +147,7 @@ const near = nearestMarkers(world, { x: player.x, y: player.y }, { radius: 60, t
 if (near[0]) promptFor(world.get(near[0].entity, Marker).type);    // 按钮上写什么,由游戏决定
 ```
 
-`type` 可以给一个或多个类型,`has` 只保留 `properties` 里带有全部给定键值的标记,`radius` 和 `limit` 限定结果范围,`plane: 'xz'` 表示在地面上量距离。`nearestEntities(world, Component, from, options)` 对任何组件都一样,并可用 `filter` 按组件数据过滤。被 `Disabled` 关掉的实体找不到。每次询问都是对带该组件的实体过一遍,按一次按钮,或每帧刷新一次提示,在一个村子里几百个东西的规模下完全负担得起。
+`type` 可以给一个或多个类型,`has` 只保留 `properties` 里带有全部给定键值的标记,`radius` 和 `limit` 限定结果范围,`plane: 'xz'` 表示在地面上量距离(此时 `from.y` 就是地面的 z)。每个结果形如 `{ entity, distance, x, y }`。`nearestEntities(world, Component, from, options)` 对任何组件都一样,并可用 `filter` 按组件数据过滤。被 `Disabled` 关掉的实体找不到。每次询问都是对带该组件的实体过一遍,按一次按钮,或每帧刷新一次提示,在一个村子里几百个东西的规模下完全负担得起。
 
 ## 最佳实践
 

@@ -49,7 +49,7 @@ const list = createListView<Player>({
 | `data` | — | 一个 `DataSource<T>`,或裸数组(会被包成 `ArrayDataSource`——数组会被**拷贝**,之后请改数据源而不是你的原数组)。 |
 | `layout` | — | 布局语法糖(`itemHeight` / `itemWidth` / `columns`,见下)或完整的[布局提供者](#布局提供者)。 |
 | `item` | — | 一个[条目模板](#条目模板),或"条目类型 → 模板"的 map(异构行)。 |
-| `direction` | 由布局推导 | 滚动轴:`'vertical'` \| `'horizontal'` \| `'both'`。列/网格布局默认竖向,行布局默认横向。 |
+| `direction` | 由布局推导 | 滚动轴:`'vertical'` \| `'horizontal'` \| `'both'`。列/网格布局默认竖向,行布局默认横向;自定义 `LayoutProvider` 一律默认竖向,横向的要自己传 `direction`。 |
 | `recycleBuffer` | `2` | 可见范围两侧各多保留挂载的索引数。网格按行思考:`columns * 2` 即多留两行。 |
 | `wheelSpeed` | `1` | 滚轮增量倍率。 |
 | `dragScroll` | `true` | 指针/触摸拖拽滚动,带惯性甩动。 |
@@ -263,9 +263,9 @@ createListView<Message>({
 
 `measureText(text, { fontSize, maxWidth?, fontFamily?, bold?, italic?, letterSpacing?, lineHeight? })`
 返回 `{ width, lineCount, height }`,度量来源与**字形图集绘制所用的同一份 Canvas2D 指标**,
-所以测出的高度与实际渲染一致——不再有被裁或溢出的行。`lineHeight` 默认
-`fontSize * 1.2`(`Text` 的默认比例);不传 `maxWidth` 即单行不折行。
-(无 DOM 的宿主回退到平均字宽估算。)
+所以测出的高度与实际渲染一致——不再有被裁或溢出的行。`fontFamily` 默认 Arial,
+`lineHeight` 默认 `fontSize * 1.2`(`Text` 的默认比例);不传 `maxWidth` 即单行不折行。
+(设备上度量来自平台自己的字形光栅化器;只有无头宿主才回退到平均字宽估算。)
 
 ## 虚拟化的工作方式
 
@@ -357,7 +357,9 @@ UI 插件负责喂输入:
 thumb 出现,静止约 0.8 秒后淡出。thumb 长度跟随视口/内容比例,不占布局(脱离文档流)、
 不接输入(非交互),并以 `text` 主题角色标记,主题热切换时会重新上色。
 工厂始终开启滚动条;关闭(`showScrollbar: false`)是 `ScrollContainer`
-的构造选项,供手动组合使用。
+的构造选项,供手动组合使用。同一构造函数还接受 `initialOffset`、`elastic`
+(默认 `false`:拖动可把内容拉过两端,带橡皮筋阻尼,松手后弹回)和 `bounceTime`
+(弹回稳定所需秒数,默认 `0.5`)。
 
 ## 裁剪 —— `UIMask`
 

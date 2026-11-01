@@ -37,6 +37,8 @@ socket.connect();
 | `readyState` | `'connecting' \| 'open' \| 'closing' \| 'closed'`. |
 | `on(event, fn)` | Subscribe to `'open'` / `'message'` / `'close'` / `'error'`; returns an unsubscribe function. |
 
+`createSocket` takes `{ url, protocols? }` (`protocols` is the WebSocket sub-protocol string or list).
+
 ## Typed messages & RPC — `NetChannel`
 
 `NetChannel` wraps a transport with **routed, typed messages** and **request/response**,
@@ -63,7 +65,8 @@ const stats = await channel.request<{ hp: number }>('getStats', { id: 'p1' }, 50
 | `on(type, handler)` | Subscribe to a message type; returns an unsubscribe fn. |
 | `send(type, payload)` | Send a typed event. |
 | `handle(type, handler)` | Register an RPC handler; returns an unsubscribe fn. |
-| `request(type, payload, timeoutMs?)` | Send an RPC; resolves with the reply. |
+| `request(type, payload, options?)` | Send an RPC; resolves with the reply. `options` is a timeout in ms, or `{ timeoutMs, idempotencyKey, codec }`. The default timeout is 10 s (`requestTimeoutMs` on the channel); `0` disables it. |
+| `sendBinary(channel, bytes)` / `onBinary(channel, handler)` | Raw binary frames on a numbered channel. |
 | `dispose(reason?)` | Tear down the channel and reject pending requests. |
 
 ## State replication — multiplayer entities
@@ -331,7 +334,8 @@ as JSON in a debugger.
 
 - **Use `NetChannel`** for anything beyond a trivial socket — routed types and RPC
   beat a giant `'message'` handler switch.
-- **Set an RPC timeout** so a lost reply rejects instead of hanging forever.
+- **Mind the RPC timeout**: a lost reply rejects after 10 s by default; pass a shorter
+  `timeoutMs` where the player is waiting, and avoid `0` (no timeout).
 - **Push received state into components** via `Commands` so gameplay stays in ECS.
 - **Queue-before-open is automatic** — you can `send` right after `connect()`.
 - **Gate authority in systems** — check `app.getResource(Net).role` (`'server'` /

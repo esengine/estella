@@ -71,10 +71,17 @@ is the same programming model as a [`defineBehavior`](/docs/scripting/overview/)
 | `ctx.dt` | `number` | Frame delta in seconds. |
 | `ctx.world` | `World` | Full world access for cross-entity reads. |
 | `ctx.commands` | `Commands` | Deferred spawn/despawn, safe mid-tick. |
+| `ctx.input` | `InputState` | Runtime input — the same state a `defineBehavior` reads. Empty (nothing pressed) when the host has no devices. |
 | `ctx.blackboard` | `Blackboard` | This agent's AI data plane (see [Blackboard](/docs/gameplay/ai/blackboard/)). |
 | `ctx.get(Comp)` | `ComponentData` | Read another component on **this** entity. |
 | `ctx.set(Comp, data)` | `void` | Write a component on **this** entity. |
 | `ctx.has(Comp)` | `boolean` | Whether this entity has `Comp`. |
+
+An action is called as `(ctx, blackboard, arg?, params?, out?)` and a condition as
+`(ctx, blackboard)`; `registerAction` also accepts a spec object
+(`{ run, params, outputs, pure, touches, separator }`) that declares typed parameters, which the
+editor then renders as real controls instead of one text box. `registerValue(name, spec)`
+registers a pure name that only answers a question, for script graphs to read.
 
 <Aside type="tip">
   Register your actions and conditions at module load (top-level, or in a
@@ -142,18 +149,21 @@ the agent entity (the same channel your code and the editor use):
 | `audio.stop` | action | Lower the `AudioSource` play flag. |
 | `audio.finished` | condition | True once a non-looping clip has ended and is no longer playing. |
 | `soundEvent.trigger` / `soundEvent.stop` | action | Start / stop the agent's `SoundEventSource`. |
-| `property.set` | action | Write any component field on the agent (or another entity) by `Component.field` path and a value, e.g. `UIVisual.color.a`. |
+| `property.set` | action | Write any component field on the agent (or another entity, via the optional `entity` parameter) by `Component.field` path and a value, e.g. `UIVisual.color.a`. The argument form is `path=value`; the value is read as JSON when it parses (`3`, `true`, `{"r":1}`), otherwise kept as a string. |
 
 Actions can carry an optional **string argument** — set it next to the action
 name in the FSM state inspector (or on a BT action node). Built-ins use it for
 data the component can't carry per-state, like which clip `spriteAnim.play`
 should switch to; your own registered actions receive it as their third
-parameter: `(ctx, blackboard, arg) => …`.
+parameter: `(ctx, blackboard, arg) => …`. An action that declares `params` also
+receives the same values by name as the fourth.
 
 Together they make a **code-free cutscene state**: entering the state starts the
 clip, and its completion drives the transition out.
 
 ```typescript
+import { registerFsm } from 'esengine/ai';
+
 registerFsm('intro', {
   initial: 'Cutscene',
   states: [
@@ -212,12 +222,17 @@ enemy.add(MeleeAttack, { radius: 110, damage: 20, anchor: swordSocket });
 enemy.add(Health, { current: 50, max: 50 });
 ```
 
-| Field | What it does |
-|---|---|
-| `attackRange` | Ground-plane distance it closes to before it swings. |
-| `attackInterval` | Seconds between swings. |
-| `rotationSpeed` | How fast it turns to face, degrees/second. |
-| `idleThreshold` | Speed under which the animator is told it is standing still. |
+`Hunter` is a 3D component: it measures distance in the x/z ground plane, moves through
+`CharacterController3D`, and sets the animator trigger named `attack`, so the entity
+needs an `Animator` whose graph answers that trigger.
+
+| Field | Default | What it does |
+|---|---|---|
+| `attackRange` | `110` | Ground-plane distance it closes to before it swings. |
+| `attackInterval` | `1.6` | Seconds between swings. |
+| `rotationSpeed` | `540` | How fast it turns to face, degrees/second. |
+| `idleThreshold` | `8` | Speed under which the animator is told it is standing still. |
+| `enabled` | `true` | When off, the hunter is skipped entirely. |
 | `state` | Engine-written: `idle` / `chase` / `attack` / `dead`. |
 | `cooldown` | Engine-written: seconds until it may swing again. |
 

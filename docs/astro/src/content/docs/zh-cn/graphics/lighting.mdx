@@ -44,10 +44,27 @@ const addSun = defineSystem([Commands()], (cmds) => {
 | `color` | `{1,1,1,1}` | 光颜色,RGBA 0..1。 |
 | `intensity` | `1` | 亮度倍数。 |
 | `radius` | `200` | 衰减半径,世界单位(Point / Spot)。 |
+| `innerRadius` | `0` | 衰减开始前保持满强度的半径(Point / Spot)。 |
+| `falloff` | `1` | 衰减形状:`1` 为线性,更大则光集中在光源附近,更小则照得更远。 |
+| `shadowStrength` | `1` | 这盏灯的阴影能去掉多少光;`0.6` 让阴影暗而不黑。 |
+| `cookie` | — | 一张纹理,它的 **alpha** 就是这盏灯的形状(Point / Spot)。 |
+| `cookieSize` | `{0,0}` | cookie 绘制的大小,世界单位;`0` 覆盖灯自己的照射范围。 |
 | `innerAngle` | `30` | 聚光锥内角,度(内部全亮)。 |
 | `outerAngle` | `45` | 聚光锥外角,度(到这里衰减为零)。 |
 | `shadowSoftness` | `0` | 阴影边缘柔和度(光源尺寸);`0` = 硬边。 |
 | `shadowDistance` | `0` | 方向光阴影延伸距离;`0` = 无方向光阴影。 |
+| `layerMin` / `layerMax` | `-128` / `127` | Point / Spot / Directional 灯能照到的精灵层范围(见[灯照到哪些层](#灯照到哪些层))。 |
+| `sourceAngle` | `0.53` | 仅 Directional:光源的角直径,度(太阳是 0.53);`0` = 硬边。 |
+| `meshShadows` | `false` | 在 3D mesh 上投射阴影图(Directional、Spot、Point)。 |
+| `shadowExtent` | `0` | 仅 Directional:mesh 阴影图覆盖的半径,以相机为中心;`0` 表示贴合视野。 |
+| `followEnvironmentSun` | `false` | 仅 Directional:方向和强度取自环境里的太阳,天空光则不再带太阳。 |
+| `aimFollowedSun` | `false` | 配合 `followEnvironmentSun`:按这盏灯自己的 `Transform` 定向,而不是全景图里的太阳。 |
+| `environment` | — | 仅 Ambient:烘焙好的 `.esenv` 环境。 |
+| `environmentRotation` | `0` | 仅 Ambient:绕向上轴转动环境,度。 |
+| `drawEnvironment` | `false` | 仅 Ambient:同时把环境画成场景背后的天空。 |
+| `reflectionScale` | `1` | 仅 Ambient:缩放烘焙反射探针显示的内容(`1` = 烘焙原样)。 |
+| `reflectionSaturation` | `1` | 仅 Ambient:烘焙反射探针保留多少颜色(`0` = 灰)。 |
+| `bakedTint` | `{1,1,1,1}` | 仅 Ambient:乘到烘焙间接光(光照图、探针体积)上——一天或天气的变化通过它缩放烘焙。 |
 | `enabled` | `true` | 不移除也能关掉光源。 |
 
 ## 光源类型
@@ -73,6 +90,10 @@ const addSun = defineSystem([Commands()], (cmds) => {
 .insert(Light, { type: LightType.Ambient, intensity: 0.25 });
 ```
 
+![2D 光照示例:一盏聚光灯照亮一片暗色方块](@/assets/guides/zh/play-lighting-2d.png)
+
+*2D 光照示例:光落在暗色方块上,场景其余部分不受光。*
+
 ## 大量光源
 
 一帧可以同时携带 **112 盏光**:光照循环对每个像素都读取的 16 盏,以及最多 96 盏**分块(tiled)**光。夜晚每隔几米一盏路灯的街道、一条霓虹走廊、
@@ -89,6 +110,10 @@ const addSun = defineSystem([Commands()], (cmds) => {
 - 平面反射只用那 16 盏绘制:它的相机不是分块所对应的那个相机。
 - 2D 光也走同一个集合,所以有五十支火把的 2D 场景同样被照亮。
 
+![平行光 Light 的 Details:状态、本帧灯光数、颜色、强度、阴影强度和层范围](@/assets/guides/zh/details-light.png)
+
+*一盏平行光的 **Light**:字段上方是它的状态和进入本帧的灯光数(1 / 112)。*
+
 ## 灯照到哪些层
 
 一盏灯会照亮它够得着的每一个精灵，不管精灵在哪一层。这对小屋里的灯就不对了：它不该照亮盖在头顶的屋顶。给灯设置 **Layer Min** 和 **Layer Max**（`layerMin`、`layerMax`），它就只照亮 `layer` 在这个范围内的精灵：
@@ -104,6 +129,46 @@ world.insert(lamp, Light, { type: 0, color: { r: 1, g: 0.78, b: 0.45, a: 1 }, in
 - **自定义的受光精灵着色器**要参与，就用 `applyLighting2DLayer(albedo, N, worldPos, v_lightLayer)` 代替 `applyLighting2D`，并声明 `flat in highp float v_lightLayer;`。继续调用 `applyLighting2D` 的着色器像以前一样被所有灯照亮。
 - **方向光**也能设范围，所以太阳可以不照某个室内层。
 - 每盏灯每个像素多一次比较；没有灯设范围时没有别的开销。
+
+## 塑造衰减
+
+Point 或 Spot 灯从自己的中心起,沿一条直线衰减,到 `radius` 处归零。有两个字段可以把这条线掰弯,
+而且都不会改变灯照到哪里为止:
+
+- **`innerRadius`** 让灯在自己的这个半径之内保持满强度,衰减只发生在剩下的那一圈里。带明亮灯芯的
+  灯,就是把 `innerRadius` 设到接近 `radius`;不设就是以前那条直线。
+- **`falloff`** 是对剩下那段斜坡取的幂。`1` 是线性。大于 1 时,光集中在光源附近,外圈很快变暗——更接近
+  光的真实行为。小于 1 时,光在大半距离内都保持明亮,然后才结束,这正是风格化 2D 场景常想要的样子。
+
+```ts
+// 一盏提灯:明亮的灯芯,然后快速衰减。
+entity.insert(Light, {
+    type: LightType.Point, radius: 400, innerRadius: 120, falloff: 2.5, intensity: 1.4,
+});
+```
+
+两者默认都是那条直线,所以在它们出现之前写的场景渲染结果与以前完全一致。
+
+## 给灯一个形状
+
+灯是一个圆,或者一个锥。真实的灯两者都不是:提灯投出参差的光晕,窗户投出一道光柱,火把以衰减曲线描述不
+了的形状闪烁。给灯一个 **`cookie`**——一张 alpha 就是形状的纹理——它就照出那个形状。
+
+```ts
+entity.insert(Light, {
+    type: LightType.Point, radius: 300, intensity: 1.6,
+    cookie: 'assets/textures/lantern-glow.png',
+});
+```
+
+- **alpha 就是形状。** cookie 的颜色不会被读取:灯的颜色属于灯,设色的地方有两处就多了一处。
+- **它画在灯所在的位置**,随实体的旋转转动,大小由 `cookieSize` 决定——为零时,则覆盖灯自己的照射范围。
+- 它是**乘到**衰减上,而不是替换衰减,所以有形状的灯仍然在 `radius` 处淡出,也仍然遵守 `innerRadius`
+  和 `falloff`。
+- **一帧能容纳四盏有形状的灯。** 超过之后,灯照亮场景但不再有形状,就像第五个投影者仍然照亮而不再投影。
+
+形状被画进一张屏幕空间的遮蔽图,每盏有形状的灯占一个通道——和 2D 阴影用的是同一套机器,所以一个 cookie
+花的是一个四边形,而不是每盏灯一个纹理槽位。
 
 ## 让渲染器接受光照
 
@@ -282,6 +347,7 @@ cmds.spawn()
 | `ShadowCaster2D` 字段 | 默认 | 说明 |
 |---|---|---|
 | `size` | `{32,32}` | 遮挡体尺寸,世界单位。 |
+| `path` | `[]` | 遮挡体的局部轮廓(三个及以上的点,沿形状顺序排列);设置后取代 `size` 方块。 |
 | `enabled` | `true` | 开关阴影投射。 |
 
 阴影**质量**在光源上控制,而非遮挡体:
@@ -289,6 +355,7 @@ cmds.spawn()
 - **`shadowSoftness`** — 光源尺寸。`0` 是锐利硬边;更大的值给出柔和半影(更大、更近的光投出更软的
   阴影)。半影是这么多个轮廓叠加出来的,所以它多平滑、花多少,是一个画质设置:档位的 `shadowSoftSamples`(1 到 32;低 8、中 12、高 16;在**项目设置 → 渲染 → 画质**里改)。更少更便宜,边缘会显出条带;十六是条带不再被看成一道道独立阴影的位置。
 - **`shadowDistance`** — 对 **Directional** 光,阴影延伸多远;`0` 让方向光不产生阴影。
+- **`shadowStrength`** — 阴影从光里拿走多少,`0..1`。2D 场景通常不想拿走全部:真实的阴影处也被各种反弹光照亮,而 `1` 恰恰是唯一不可能出现的值。
 
 ### 能放多少,代价是什么
 

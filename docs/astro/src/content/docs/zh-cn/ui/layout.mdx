@@ -57,6 +57,8 @@ isAuto(d)    // true when d is the auto length
 |---|---|---|---|
 | `position` | `UIPositionType` | `Relative` | `Relative` = 在 flex 流中;`Absolute` = 脱离流,由内偏移放置。 |
 | `display` | `UIDisplay` | `Flex` | `None` 把该节点**连同整棵子树**从布局、渲染和命中测试中移除——层级式显示/隐藏。对比 `UIVisual.enabled`:后者只隐藏本实体的视觉。 |
+| `opacity` | number | `1` | 子树不透明度,沿树向下相乘,同 CSS `opacity`(乘进每个后代自己的 alpha,不会把子树离屏合成)。 |
+| `pointerEvents` | `UIPointerEvents` | `Auto` | `None` 让该节点**连同整棵子树**对指针透明:照常绘制,点击直接穿过。 |
 | `width` / `height` | `Dimension` | `auto()` | 盒尺寸;`auto` = 内容/flex 驱动。 |
 | `minWidth` / `minHeight` | `Dimension` | `auto()` | 尺寸下限;`auto` = 无约束。 |
 | `maxWidth` / `maxHeight` | `Dimension` | `auto()` | 尺寸上限;`auto` = 无约束。 |

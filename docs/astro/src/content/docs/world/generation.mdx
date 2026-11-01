@@ -18,7 +18,8 @@ them, what is reserved for a home or a road. The **artists** make the recipes: a
 | `rules` | The rules the world is laid out by: a `.esworld` file, or the id of rules the game registered with `registerWorldRules`. |
 | `version` | The version of the rules the world was made with. A saved world keeps it; rules that no longer have it fail the world (its status says why) rather than laying out another one. |
 | `world`, `seed` | The world (a planet, a level) as the game names it, and its seed. Another seed lays out another world by the same rules. |
-| `paintGround` | Whether the biomes paint the terrain. |
+| `paintGround` | Whether the biomes paint the terrain (default on). |
+| `surface`, `seaLevel` | `Plane` (the default) lays the world out over a `Terrain`; `Planet` means the entity is also a `Planet` and the world is laid out over its six faces. `seaLevel` (shown for `Planet`) is the height of the sea above the planet's radius: ground lower than it is under water. |
 
 What the rules place is published as the entity's children, round the [streaming sources](/docs/world/streaming/) (or the camera):
 see [procedural chunks](/docs/world/streaming/#procedural-chunks).
@@ -112,17 +113,21 @@ drawn for it. Of two candidates whose groups would overlap, the higher priority 
 of the layers before it, so a fern does not grow through a trunk and a stone does not sit inside a boulder. A layer is published in
 chunks of `chunkSize` out to `drawDistance`. `occupies: false` makes a layer that later ones may overlap (ground cover). `farSpacing` (default 1) plans the far versions of a layer's plants that much further apart: ground cover whose far versions keep a quarter of the plants is planned at 2, so a quarter of the candidates are worked out and none is made only to be thrown away.
 
+![Details of a World Gen component: rules, version, world, seed, paint ground and surface](@/assets/guides/en/details-worldgen.png)
+
+*The **World Gen** component of the Terrain & Water example: the rules asset, the seed and the surface.*
+
 ## Zones
 
-A zone plans an area by hand: a home, a road, a landing site, a building's footprint, a view kept open.
+A zone (the `WorldZone` component) plans an area by hand: a home, a road, a landing site, a building's footprint, a view kept open. It follows its entity's position and its turn about the vertical.
 
 | Field | What it does |
 |---|---|
-| `kind` | What it is for, in the game's own words. |
-| `shape`, `radius`, `sizeX`, `sizeZ` | A circle, or a box turned with the entity about the vertical. The editor draws its outline. |
-| `falloff` | Over how many world units past the outline it fades out: what it excludes thins there instead of stopping on a line. |
+| `kind` | What it is for, in the game's own words (default `reserve`). |
+| `shape`, `radius`, `sizeX`, `sizeZ` | A circle (default; `radius` 10), or a box (`sizeX` × `sizeZ`, 20 × 20) turned with the entity about the vertical. The editor draws its outline. |
+| `falloff` | Over how many world units past the outline it fades out (default 4): what it excludes thins there instead of stopping on a line. |
 | `priority` | Where zones overlap, the higher holds the biome. |
-| `excludes` | The tags of what it keeps out, separated by commas: a layer, a recipe, a recipe's or member's tags, `decor`, `interactive`; `*` is everything. |
+| `excludes` | The tags of what it keeps out, separated by commas: a layer, a recipe, a recipe's or member's tags, `decor`, `interactive`; `*` is everything (the default); empty keeps nothing out. |
 | `biome` | A biome it holds over its area. |
 | `flatten` | Levels the terrain under it to the ground's height at its centre, blending back over `falloff`: a plot to build on. In code, `flatten` is a world height or `'ground'`. |
 
@@ -135,6 +140,10 @@ gens.zones().set({ id: 'house 1', kind: 'building', shape: { type: 'rect', x, z,
 ```
 
 Only the chunks the zone reaches are made again, each keeping its old version until the new one replaces it.
+
+![Details of a World Zone: kind, shape, radius, falloff, priority, excludes, biome and flatten](@/assets/guides/en/details-worldzone.png)
+
+*A **World Zone**: a circle that tells the generator which biome to grow inside it.*
 
 ## Interactive placements and changes
 

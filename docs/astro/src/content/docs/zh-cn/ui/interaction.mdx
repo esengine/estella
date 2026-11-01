@@ -26,7 +26,7 @@ import { Aside } from '@astrojs/starlight/components';
 | `UIInteraction` 字段 | 说明 |
 |---|---|
 | `hovered` | 指针悬停在节点上。 |
-| `pressed` | 主键在节点上按住。 |
+| `pressed` | 有指针(鼠标键或触点)在节点上按住。 |
 | `justPressed` | 本帧变为按下(单帧沿)。 |
 | `justReleased` | 本帧在被按下的节点上释放(单帧沿——即一次点击)。 |
 
@@ -49,20 +49,26 @@ const onTiles = defineSystem([Query(Interactable, UIInteraction)], (q) => {
 ## `UIEvents` 总线
 
 `UIEvents` 资源是带 DOM 式冒泡的发布/订阅队列。控件与交互系统发出标准事件集;
-类型空间是**开放的**——你可以发出任意字符串(ListView 就发 `'item_selected'`)。
+类型空间是**开放的**——你可以发出任意字符串。
 
 | `UIEventType` 常量 | 字符串 | 触发时机 | 冒泡 |
 |---|---|---|---|
 | `Click` | `'click'` | 在同一节点上按下并释放。键盘 Enter/Space 也会发出(仅发到 target,不冒泡)。 | 是 |
-| `Press` / `Release` | `'press'` / `'release'` | 主键在节点上按下 / 抬起。 | 是 |
+| `Press` / `Release` | `'press'` / `'release'` | 某个指针(鼠标键或触点)在节点上按下 / 抬起。`data` 是 `UiPointerEventData`(`pointer` 编号加 `worldX/Y`、`layoutX/Y`、`screenX/Y`)。 | 是 |
+| `PointerMove` | `'pointer_move'` | 按住该节点的指针移动了;`data` 同上。 | 是 |
+| `PressCancel` | `'press_cancel'` | 指针的按住在没有松开的情况下结束——被系统取消,或被别的东西接管了手势(如滚动区域判定为拖动)。之后不会有 click。 | 是 |
 | `HoverEnter` / `HoverExit` | `'hover_enter'` / `'hover_exit'` | 命中节点发生变化。 | 否 |
+| `Shown` / `Hidden` | `'shown'` / `'hidden'` | 节点(或其祖先)不再 / 开始处于 `display: None`。只有存在监听者时才会监视。 | 否 |
 | `Focus` / `Blur` | `'focus'` / `'blur'` | 键盘焦点移动(见[焦点](#焦点与键盘))。 | 否 |
 | `Change` | `'change'` | 控件值变化(toggle、slider、dropdown……)。 | 否 |
 | `Submit` | `'submit'` | 文本输入确认(Enter)。 | 否 |
 | `DragStart` / `DragMove` / `DragEnd` | `'drag_start'` / `'drag_move'` / `'drag_end'` | 拖拽系统(见[拖放](#拖放))。 | 否 |
-| `Scroll` / `Select` / `Deselect` | `'scroll'` / `'select'` / `'deselect'` | 滚动视图与列表选择。 | 否 |
 
-冒泡事件沿父链上行,途经每个**启用的** `Interactable` 祖先;带 `blockRaycast`
+`Scroll`、`Select`、`Deselect`(`'scroll'` / `'select'` / `'deselect'`)只是预留名字——没有任何内置控件
+会发出它们,需要时自己发(`createListView` 没有选择模型;滚动变化通过句柄的 `scroll.onScroll` /
+`onScroll` 选项获得)。树视图发出的是 `change` 和 `drop_request`。
+
+冒泡事件(`click`、`press`、`release`、`pointer_move`、`press_cancel`)沿父链上行,途经每个**启用的** `Interactable` 祖先;带 `blockRaycast`
 的祖先终止走链,任何处理器都可调用 `stopPropagation()`。每个 `UIEvent` 携带:
 
 | `UIEvent` 字段 | 说明 |
@@ -117,7 +123,8 @@ makeWidgetInteractable(world, myWidgetRoot, { tabIndex: 2 });
 | `enabled` | `true` | 总开关。 |
 | `dragThreshold` | `5` | 拖拽启动前需移动的屏幕像素(保住点击手感)。 |
 | `lockX` / `lockY` | `false` | 冻结某轴(仅水平拖动的卡片)。 |
-| `constraintMin` / `constraintMax` | `null` | 世界空间夹取角点,`null` 为不限制。 |
+| `constrainMin` / `constrainMax` | `false` | 打开下 / 上限夹取。用开关而不是 `null` 边界,因为 `0` 是合法的限制值。 |
+| `constraintMin` / `constraintMax` | `{0, 0}` | 世界空间夹取角点(`Vec2`),对应的 `constrain*` 开关打开时对两个轴生效。 |
 
 拖拽期间,transient 组件 `DragState` 携带实时几何(均为世界空间):
 
@@ -169,7 +176,7 @@ addStartupSystem(buildCard);
 
 | 交互 | 行为 |
 |---|---|
-| 点击可聚焦控件 | 聚焦它。 |
+| 点击可聚焦控件 | 聚焦它——但不是*可见*聚焦:控件保持指针离开时的外观。只有 Tab(键盘)获得的焦点才会让控件进入 `focused` 页,并显示页签与提示气泡的聚焦提示。 |
 | 点击空白处 / 按 `Escape` | 清除焦点。 |
 | `Tab` / `Shift+Tab` | 循环焦点环——按 `tabIndex` 排序(相同者按发现顺序),跳过禁用的 `Interactable` 和树上被 `display: none` 隐藏的一切。 |
 | 焦点控件上按 `Enter` / `Space` | 发出 `click`——激活按钮、开关、下拉。文本输入保留这些键用于编辑。 |
@@ -210,7 +217,7 @@ const tooltip = defineSystem([GetWorld(), Res(UICameraInfo)], (world, camera) =>
 
 | 辅助函数 | 返回 | 用途 |
 |---|---|---|
-| `uiHitTestWorld(world, x, y)` | 最顶层**可交互**实体或 `null` | 运行时射线——与交互系统同一套规则。 |
+| `uiHitTestWorld(world, ray, screenRay?)` | 最顶层**可交互**实体或 `null` | 运行时射线——与交互系统同一套规则。参数是 `WorldRay`(`{ origin, dir }`),不是 x/y;只有一个点时用 `uiPickWorld`。 |
 | `uiPickWorld(world, x, y)` | 最顶层 UI 实体或 `null` | 编辑器式拾取,无视 `Interactable`。 |
 | `uiPickAllWorld(world, x, y)` | 该点下全部 UI 实体,最具体的在前 | 穿透式菜单、调试叠层。 |
 | `screenToUiWorld(camera, glX, glY)` | `{ x, y }` 世界点 | 把 GL 朝向的屏幕点经 UI 相机投到世界。 |

@@ -24,7 +24,7 @@ In the editor, select the meshes and choose **Static Batch** from the outliner's
   layer, culling and lighting flags — and by the optional **group** on the component, so two
   rooms can be kept apart.
 - Each group is cut into cells of the world, so a batch is a neighbourhood and culling still
-  has something to cull. A cell never holds more than 262,144 vertices.
+  has something to cull. A cell is 1,600 world units on a side by default and never holds more than 262,144 vertices.
 - The marked entities stay as authored: scripts find them, colliders collide and the editor
   picks them. Only their drawing moves to the merged mesh, which is an entity of its own.
 - A marked mesh **does not move** after it has been merged. Destroying one is supported (its
@@ -43,6 +43,9 @@ runs, and in the profiler's **Static batch** section.
 | Blended | Its result depends on drawing order, and merging is the loss of order. |
 | Moves | A dynamic body or a character controller: a batch bakes where a mesh stands. |
 | Baked light | The scene has probes or a bake, and a merged mesh cannot keep each part's own. |
+| No mesh yet | Nothing is behind the handle (still loading, or the mesh failed), so there is nothing to copy. |
+| Switched off | Nothing is drawn, so there is nothing to merge. |
+| Vertex layout | Positions or normals that are not 32-bit floats, which the merge cannot transform. |
 | Alone in its group | Merging one mesh saves nothing and costs memory. |
 
 ## What it costs

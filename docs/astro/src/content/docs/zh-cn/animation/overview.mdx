@@ -393,6 +393,7 @@ const drive = defineSystem([Query(Animator), Res(AnimatorController)], (q, anim)
 | `controller` | string | `''` | 一个 `.esanimator` 资产引用(编辑器写入的),或代码里传给 `registerController` 的名字。 |
 | `avatar` | string | `''` | 一个 `.esavatar` 资产,说明这个骨架如何称呼片段所指名的关节(见[层、遮罩与 IK](#层遮罩与-ik))。 |
 | `currentState` | string | `''` | 基础层的活动状态;嵌套状态机时是 `/` 分隔的路径(从控制器的初始状态种入)。 |
+| `layerStates` | string[] | `[]` | 基础层之上每一层的活动状态,按层顺序排列(基础层的在 `currentState` 里)。 |
 | `enabled` | boolean | `true` | 关掉即冻结状态机。 |
 
 | `AnimatorController` 方法 | 说明 |

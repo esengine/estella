@@ -20,6 +20,23 @@ registerAction('takeDamage', (ctx) => {
 | `has(key)` / `delete(key)` | 测试 / 删除一个 key。 |
 | `fire(trigger)` | fire 一个一次性事件;以它为键的转移在被采用前保持启用。 |
 | `isFired(trigger)` / `consume(trigger)` | 测试 / 清除一个触发器。 |
+| `clearTriggers()` | 清掉所有待处理的触发器。 |
 
 黑板的值支撑 FSM 转移上的 `guard` 比较,而 `trigger` 机制就是 Unity 式的边事件:fire 一次,
 被采用它的那条转移消费。
+
+叶子之外的游戏代码通过两个资源访问某个 agent 的黑板,也可以在 agent 首次 tick 之前先写入初值或 fire
+触发器。黑板与实体同生命周期,不会被序列化:
+
+```typescript
+import { AiFsm, AiBt } from 'esengine/ai';
+
+const fsm = app.getResource(AiFsm);
+fsm.blackboard(enemy).set('health', 100);
+fsm.fire(enemy, 'alarm');          // 被该 agent 下一条启用的转移消费
+fsm.state(enemy);                  // 当前激活状态名;首次 tick 之前为 null
+
+const bt = app.getResource(AiBt);
+bt.blackboard(enemy);              // 行为树 agent 的黑板
+bt.status(enemy);                  // 上一次根状态
+```

@@ -66,7 +66,7 @@ addSystem(watchPerf);
 | `triangles` | number | 本帧提交的三角形数。 |
 | `sprites` | number | 本帧渲染的精灵数。 |
 | `text` | number | 本帧渲染的文本实体数。 |
-| `spine` | number | 本帧渲染的 Spine 骨骼数。 |
+| `skeletal` | number | 本帧由骨骼运行时摆好姿态的三角形数(Spine 和 DragonBones 都计在这里)。 |
 | `meshes` | number | 本帧渲染的网格数。 |
 | `culled` | number | 本帧被剔除(未提交)的实体数。 |
 
@@ -101,7 +101,7 @@ addSystem(feedOverlay);
 
 `FrameStats` 里的渲染计数来自 `Renderer.getStats()`,也可以直接调用(不需要
 stats 插件)——它返回一个 `RenderStats`,同样是那七个字段:`drawCalls`、
-`triangles`、`sprites`、`text`、`spine`、`meshes`、`culled`。
+`triangles`、`sprites`、`text`、`skeletal`、`meshes`、`culled`。
 
 ```typescript
 import { Renderer } from 'esengine';
@@ -368,32 +368,34 @@ if (Renderer.hasCapturedData()) {
   for (const dc of capture!.drawCalls) {
     console.log(
       `#${dc.index} ${RenderType[dc.type]} tex=${dc.textureId} ` +
-      `tris=${dc.triangleCount} entities=${dc.entityCount} ` +
+      `tris=${dc.triangleCount} entities=${dc.entities.length} ` +
       `break=${BatchBreak[dc.breakReason]}`
     );
   }
-  console.log(`${capture!.cameraCount} camera pass(es)`);
+  console.log(`${capture!.passCount} pass(es)`);
 }
 ```
 
-`FrameCaptureData` 是 `{ drawCalls: DrawCallInfo[], cameraCount }`。每个
+`FrameCaptureData` 是 `{ drawCalls: DrawCallInfo[], passCount }`。每个
 `DrawCallInfo`:
 
 | `DrawCallInfo` 字段 | 说明 |
 |---|---|
 | `index` | 该 draw call 在帧内的序号(提交顺序)。 |
-| `cameraIndex` | 由哪个相机 pass 发出。 |
+| `pass` / `passKind` | 由帧内第几个 pass 画出(按 pass 运行顺序),以及它是相机的场景 pass(`CapturePass.Scene`)还是屏幕叠加 pass(`CapturePass.Overlay`)。 |
 | `stage` | 渲染阶段(`RenderStage`:Background / Opaque / Transparent / Overlay)。 |
 | `type` | 绘制的内容类型(`RenderType`,见下)。 |
 | `blendMode` | 生效的混合模式 id。 |
 | `textureId` / `materialId` / `shaderId` | 该调用绑定的 GPU 资源。 |
-| `vertexCount` / `triangleCount` | 提交的几何量。 |
-| `entityCount` / `entityOffset` / `entities` | 被批进该调用的实体 id。 |
+| `indexCount` / `triangleCount` | 提交的几何量。 |
+| `instanceCount` | 该调用的实例数;非实例化绘制为 0。 |
+| `entities` | 该绘制所来自的实体 id,按绘制顺序;没有实体的项(文字、辅助图形)不列出。 |
 | `layer` | 批次的渲染层。 |
 | `breakReason` | 该调用为何没有并入前一个(`BatchBreak`,见下)。 |
 | `scissorX/Y/W/H`、`scissorEnabled` | 裁剪矩形状态(UI 遮罩)。 |
 | `stencilWrite` / `stencilTest` / `stencilRef` | 模板状态(遮罩写入/读取方)。 |
 | `textureSlotUsage` | 批次占用的纹理槽数。 |
+| `textures` | 该绘制绑定的所有纹理,0 号槽在前;`textureId` 即第一个。 |
 
 `RenderType` 说明一个调用画了什么:`Sprite`、`Spine`、`Mesh`、`ExternalMesh`、
 `Text`、`Particle`、`Shape`、`UIElement`。

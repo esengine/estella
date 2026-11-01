@@ -34,7 +34,7 @@ getControllerPage(world, anyDescendant, 'tab');           // → 'shop'
 `controllerState(name, pages, current?)` 构造一个控制器(current 默认取第一页)。
 `setControllerPage` / `getControllerPage` 会沿 **自身 → 祖先** 找到最近的同名控制器,
 所以叶子上的绑定能找到根上的控制器。`setControllerPage` 对未知控制器、未知页、或已是当前页
-都是空操作(防拼写错,而不是报错)。
+都是空操作(防拼写错,而不是报错),只有真的切了页才返回 `true`。
 
 | `ControllerState` 字段 | 说明 |
 |---|---|
@@ -92,12 +92,12 @@ world.insert(card, UIGear, {
 ## 无需专用状态的按钮
 
 内建控制器名 **`$interaction`** 由指针状态驱动
-(`normal` / `hover` / `pressed` / `disabled`)。给元素配一个 `$interaction` 控制器 +
+(`normal` / `hover` / `pressed` / `disabled` / `focused`)。给元素配一个 `$interaction` 控制器 +
 一个 `Interactable` + 一条绑定,它就通过与其他一切相同的机制获得按钮状态——`createButton`
 本身就是这样构成的:
 
 ```typescript
-import { UIController, UIGear, interactionController, gearBinding, EasingType } from 'esengine';
+import { UIController, UIGear, Interactable, interactionController, gearBinding, EasingType } from 'esengine';
 
 world.insert(btn, UIController, { controllers: [interactionController()] });
 world.insert(btn, Interactable, { enabled: true, blockRaycast: true, raycastTarget: true });
@@ -111,8 +111,11 @@ world.insert(btn, UIGear, {
 });
 ```
 
-`interactionController(pages?)` 默认给出这四个规范页。因为绑定能驱动 *任意* 字段,同一个按钮
-还能把缩放、子图标的着色、或标签一并绑上——四态,一套机制。
+`interactionController(pages?)` 默认给出这五个规范页。驱动器的取页顺序:`Interactable` 关闭则
+`disabled`,否则 `pressed`,否则 `hover`,否则 `focused`(仅限键盘聚焦——点击不会让按钮一直亮着),
+否则 `normal`;且只会写入控制器列出的页。驱动器不拥有的页(比如 `'loading'`)会被原样保留,
+直到你的代码切回来。因为绑定能驱动 *任意* 字段,同一个按钮还能把缩放、子图标的着色、
+或标签一并绑上——每种状态,一套机制。
 
 ## 在编辑器里授权
 
@@ -124,7 +127,7 @@ world.insert(btn, UIGear, {
 列出它能看到的所有控制器——自己的加上每个祖先的(继承行标注所有者名字),所以在被绑定的
 叶子上工作时,根上的控制器依然可见、可切页:
 
-- **添加控制器**(指针按钮预设一键添加带四页的 `$interaction`),页以 **chip** 管理:
+- **添加控制器**(指针按钮预设一键添加带五页的 `$interaction`),页以 **chip** 管理:
   单击预览、双击重命名、拖拽排序、悬停 × 删除——重命名会级联进所有解析到该控制器的
   绑定,删页会清掉该页已录的值。
 - 点击某个控制器使其 **活动**。在 [细节](/docs/zh-cn/editor/overview/) 面板里,每个字段旁便出现一个小的
@@ -160,6 +163,9 @@ activeTab.set('shop');   // 翻页,所有被绑定的元素重排
 ```json
 { "event": "click", "action": "ui.setPage", "params": { "controller": "tab", "page": "shop" } }
 ```
+
+(`params` 也可以拆成 `{ controller, page }` 两半——编辑器里的两个下拉框写的就是这种;
+`ui.setVisible` 配 `{ visible }` 同样可以显示 / 隐藏一棵子树。)
 
 **从状态机** —— `ui.setPage` 动作让数据驱动的
 [FSM / 行为树](/docs/zh-cn/gameplay/ai/overview/)(`.esfsm` / `.esbt`)无需写码就切页。参数是 `"controller:page"`:

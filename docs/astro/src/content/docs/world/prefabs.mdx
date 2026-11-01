@@ -130,14 +130,14 @@ const spawnEnemy = defineSystem([Res(Prefabs)], async (prefabs) => {
 ## Parent it & reach its children
 
 Nest the instance under another entity, and use the returned `entities` map to reach
-children by their prefab-local id:
+the spawned children:
 
 ```typescript
 const { root, entities } = await prefabs.instantiate('assets/prefabs/turret.esprefab', {
   parent: mountPointEntity,
 });
 // root      → the instance root
-// entities  → Map<prefab-local id, spawned Entity>, for reaching children
+// entities  → Map<number, spawned Entity>, keyed by the id the spawn gave each entity
 ```
 
 ## Per-instance overrides
@@ -156,8 +156,7 @@ const { root } = await prefabs.instantiate('assets/prefabs/enemy.esprefab', {
 ```
 
 To reach a **child**, add its `prefabEntityId` — the entity's own **string** id,
-a UUID for editor-authored prefabs. Read it from the `.esprefab`, or from the
-`entities` map a previous instantiate returned.
+a UUID for editor-authored prefabs. Read it from the `.esprefab` (an override that names no `prefabEntityId` aims at the root).
 
 :::caution[`prefabEntityId: '0'` no longer matches anything]
 `'0'` is the id every prefab had before stable ids, and it appears in older
@@ -167,7 +166,7 @@ the ids that do exist — before, it was dropped in silence, and the only sympto
 was every instance appearing at the position the prefab was authored with.
 :::
 
-Besides `'property'`, `type` can be `'name'`, `'visibility'`, `'component_added'`,
+Besides `'property'`, `type` can be `'name'`, `'visibility'`, `'parent'`, `'component_added'`,
 `'component_replaced'`, `'component_removed'`, `'metadata_set'`, or `'metadata_removed'`
 (the metadata forms use `metadataKey` in place of `componentType`/`propertyName`).
 
@@ -183,7 +182,7 @@ Besides `'property'`, `type` can be `'name'`, `'visibility'`, `'component_added'
 | Result field | Description |
 |---|---|
 | `root` | The instance's root `Entity`. |
-| `entities` | `Map<prefab-local id, Entity>` for reaching children. |
+| `entities` | `Map<number, Entity>` of every spawned entity, root included, for reaching children. |
 
 ## Best practices
 

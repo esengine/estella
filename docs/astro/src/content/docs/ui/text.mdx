@@ -74,7 +74,8 @@ Defaults below are the component defaults (what the inspector shows).
 |---|---|---|---|
 | `content` | string | `''` | The string to display. `\n` hard-breaks lines. |
 | `i18nKey` | string | `''` | Localization key. Non-empty ⇒ `content` becomes **derived**: resolved from the Localization catalogs every frame (see [below](#localization)). |
-| `fontFamily` | string | `'Arial'` | Font family, resolved by the platform's Canvas2D (see [Custom fonts](#custom-fonts)). |
+| `font` | font asset | none | A font file the project ships (`.ttf` / `.otf` / `.woff` / `.woff2`, or a bitmap `.fnt`). Wins over `fontFamily` when set (see [Custom fonts](#custom-fonts)). |
+| `fontFamily` | string | `''` | A font family the host already has, resolved by the platform's text stack (see [Custom fonts](#custom-fonts)). Empty uses the project's default font family (Settings → Runtime → Text; `Arial` unless changed). |
 | `fontSize` | number | `24` | Size in **design px** — the same units as `UINode` `px()` sizes. The design-resolution fit and device pixel ratio are compensated at rasterization. |
 | `color` | Color | `{1,1,1,1}` | Fill color (per-channel `0..1`). |
 | `align` | `TextAlign` | `Left` | Horizontal alignment: `Left` / `Center` / `Right`. |
@@ -93,6 +94,7 @@ Defaults below are the component defaults (what the inspector shows).
 | `shadowBlur` | number | `0` | Softens the shadow, in px. `0` is a hard offset copy; above that the shadow spreads into a ring, so it reads as a soft mass under the glyphs rather than a second stamp of them. A blur with no offset is a halo. |
 | `richText` | boolean | `false` | Parse inline [rich-text markup](#rich-text). |
 | `renderMode` | `TextRenderMode` | `Auto` | Glyph pipeline: `Auto` / `Bitmap` / `Sdf` (see above). |
+| `layer` | number | `0` | Draw layer of a `Text` with **no** `UINode`, read like `Sprite.layer`, so a world label can sit in front of or behind the content around it. Ignored under a `UINode`, where the UI render order decides. |
 | `enabled` | boolean | `true` | Render toggle (the editor's eye icon uses it too). |
 
 <Aside type="note">
@@ -150,6 +152,10 @@ A `shadowBlur` above 0 stamps the shadow at the centre plus a ring of eight
 around it, with each tap's alpha inverted out of the compositing equation so the
 stack lands at the alpha you asked for. Unlike the outline it *softens* the edge
 rather than moving it, which is why the two are separate fields.
+
+![The Rich Text playground: markup with bold, italic, colour and size tags, and the rendered result above it](@/assets/guides/en/play-rich-text.png)
+
+*The Rich Text playground: edit the markup and the rendered text above it updates.*
 
 ## Rich text
 

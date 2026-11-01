@@ -54,6 +54,10 @@ several can stack in one frame at no extra target cost beyond the passes.
 | `edgeOutline` | A coloured line at silhouettes **and** creases: where the camera distance steps, and where the surface normal turns (needs surfaces that write a normal: lit meshes, Model, Toon) | `intensity`, `depthThreshold`, `normalThreshold`, `thickness`, colour `lineColor` |
 | `grayscale` | Desaturate | `intensity` |
 
+![The Post-process Effects example with Bloom on: bright squares bleed a soft glow](@/assets/guides/en/play-postprocess.png)
+
+*The Post-process Effects example: **Bloom** makes bright pixels bleed a soft glow.*
+
 ### Anti-aliasing before the chain
 
 Geometry edges are smoothed by **MSAA on the scene itself**, not by an effect: 4×
@@ -197,7 +201,7 @@ blurred background does not bleed into it, while a blurred foreground spreads ov
 shift along their spiral by a different fraction at each pixel, which leaves a fine grain that `taa` averages away.
 
 **The bokeh** is the shape of the lens: `blades` of 3 or more makes the aperture a polygon of that many sides (0 is round), turned
-by `bladeRotation`, and a bright point out of focus becomes that shape. `highlight` makes bright taps count for more, so a lamp
+by `bokehRotation`, and a bright point out of focus becomes that shape. `highlight` makes bright taps count for more, so a lamp
 out of focus is a bright shape and not a dim smear.
 
 ### The G-buffer
@@ -371,11 +375,12 @@ the camera's answer, clipped into the colours around the pixel. TAA needs scene 
 it cannot run with multisampling on a scene that has no depth resolve.
 
 The uniform names above are the friendly labels; **in code they are `u_`-prefixed**
-(`u_intensity`, `u_exposure`, …). Most effects are identity at their defaults
-(`colorGrade`, `blur`, `chromaticAberration`, `fxaa`, `lensDistortion`, `lutGrade`),
-so adding them changes nothing until you dial them in. A few are visible the moment
-you add them — `grayscale` (full desaturation), `vignette`, `bloom`, `outline`, and
-`tonemap` (the ACES curve always applies) — so enable those only when you want them.
+(`u_intensity`, `u_exposure`, …). A few effects are identity at their defaults
+(`colorGrade`, `lensDistortion`, `lutGrade` with no table bound),
+so adding them changes nothing until you dial them in. Most are visible the moment
+you add them — `grayscale` (full desaturation), `vignette`, `bloom`, `blur` (intensity 2),
+`chromaticAberration` (3), `pixelate` (4), `outline`, and `tonemap` (the ACES curve always
+applies) — so enable those only when you want them.
 
 ## HDR (linear color space)
 
@@ -436,10 +441,10 @@ volume) or fade them in over a transition.
 
 | Property | Type | Default | Description |
 |---|---|---|---|
-| `effects` | list | `[]` | `{ type, enabled, uniforms }` per effect. |
+| `effects` | list | `[]` | `{ type, enabled, uniforms, textures?, colors? }` per effect — `textures` carries texture refs (LUTs, masks), `colors` colour params. |
 | `isGlobal` | boolean | `true` | Apply everywhere vs. only inside the volume shape. |
 | `shape` | `'box' \| 'sphere'` | `'box'` | Bounds shape for a local volume. |
-| `size` | Vec2 | `{5, 5}` | Volume extents (local volumes). |
+| `size` | Vec2 | `{5, 5}` | Half-extents of a local volume (a sphere uses `x` as its radius). An optional `z` is a box's half-depth; `0` or absent is unbounded in depth. |
 | `priority` | number | `0` | Higher-priority volumes win where they overlap. |
 | `weight` | number | `1` | Blend weight, 0..1 (fade the whole volume). |
 | `blendDistance` | number | `0` | Falloff distance at the volume edge. |
@@ -502,12 +507,12 @@ package carries only when its content uses one:
 
 | Group | Subpath | Effects |
 |---|---|---|
-| Basic | `esengine/fx-basic` | blur, bloom, vignette, grayscale, colorGrade, lutGrade, agx, chromaticAberration, tonemap, fxaa, sharpen, lensDistortion, pixelate, outline, depthOutline, edgeOutline, filmGrain, motionBlur, lensFlare |
-| Atmosphere | `esengine/fx-atmosphere` | mist2d, rain2d, skyAtmosphere, heightFog, distanceFog, rain |
+| Basic | `esengine/fx-basic` | blur, bloom, vignette, grayscale, colorGrade, lutGrade, agx, chromaticAberration, tonemap, fxaa, sharpen, lensDistortion, pixelate, palette, outline, depthOutline, edgeOutline, filmGrain, motionBlur, lensFlare |
+| Atmosphere | `esengine/fx-atmosphere` | mist2d, rain2d, fog2d, skyAtmosphere, heightFog, distanceFog, rain |
 | Lighting | `esengine/fx-lighting` | ssao, gtao, ssr, ssgi, voxelGI, contactShadows, lightShafts, autoExposure, depthOfField, subsurface, taa |
 
 The export reads the effects a `PostProcessVolume` names (and a `Weather` or `TimeOfDay` component, which drive the atmosphere group) and imports
-the groups they need. An effect you add **from a script** — `PostProcess.add('bloom')` — leaves no trace in the content, so import its group
+the groups they need. An effect you add **from a script** — `getEffectDef('bloom')!.factory()` — leaves no trace in the content, so import its group
 (`import 'esengine/fx-basic'`) or set the module to **Include** in Project Settings; otherwise the effect says which group it needs when it is
 first used. The editor, and any entry that is not lean, carries all three.
 

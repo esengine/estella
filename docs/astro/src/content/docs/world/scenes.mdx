@@ -188,7 +188,7 @@ leaking. With no cells registered, `update()` is a no-op.
 |---|---|
 | `configure({ loadRadius, unloadRadius, policy? })` | Set the radii (`unloadRadius` is clamped up to `loadRadius`) and the out-of-range policy — `'unload'` (default) or `'sleep'`. |
 | `register(cell)` / `unregister(scene)` / `clear()` | Manage the cell set (`{ scene, x, y, radius }`). |
-| `setFocus(x, y)` | Drive the focus point directly (call each frame). |
+| `setFocus(x, y, z?)` | Drive the focus point directly (call each frame); distance is measured in 3D, with `z` defaulting to 0 and a cell's optional `z` to 0. |
 | `setFocusEntity(entity)` / `getFocusEntity()` | Follow an entity instead — the streaming system reads its `Transform` each tick (play mode only). |
 | `getActive()` | Scene names the controller currently holds in-range. |
 | `update()` | Reconcile resident cells against the focus (`sceneManagerPlugin` calls this every frame). |
@@ -216,6 +216,7 @@ ship the startup scene only. See
 |---|---|
 | `switchTo(name, options?)` | Replace the active scene (async; optional transition). |
 | `loadAdditive(name, onProgress?)` | Load a scene on top; returns its context (async). |
+| `reload(options?)` | Switch to the active scene again, from its file (async; optional transition). |
 | `unload(name, options?)` | Unload a scene (async; optional transition). |
 | `getScene(name)` | A loaded scene's `SceneContext` (`spawn` / `adopt` / `despawn` / `setPersistent` / draw callbacks / post-process binding), or `null`. |
 | `getActive()` | The active scene name, or `null`. |
@@ -283,7 +284,7 @@ const checkpoint = defineSystem([GetWorld(), Res(Assets)], async (world, assets)
 | `collectAssets` | Bookkeeping sets the load adds acquired asset keys to, so the caller (normally the scene manager) can release them on unload. |
 
 **Versioning.** Scene files carry a `version` (currently
-`SCENE_FORMAT_VERSION = '1.0'`). `migrateSceneData(raw)` upgrades any older
+`SCENE_FORMAT_VERSION = 4`). `migrateSceneData(raw)` upgrades any older
 shape to the current one: it never mutates its input (it returns a migrated deep
 copy), is idempotent, drops component types retired by engine upgrades, and
 **rejects data newer than the engine**. Every loader runs it internally — call

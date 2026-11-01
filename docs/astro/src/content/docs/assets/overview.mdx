@@ -63,11 +63,15 @@ const loadArt = defineSystem([Query(Mut(Sprite)), Res(Assets)], async (q, assets
 |---|---|
 | `loadTexture(ref)` | `{ handle, width, height }` |
 | `loadAudio(ref)` | `{ bufferId }` |
-| `loadFont(ref)` | `{ handle }` |
+| `loadFont(ref)` | `{ handle, family? }` (`family` for outline fonts) |
 | `loadMaterial(ref)` | `{ handle, shaderHandle }` |
-| `loadSpine(skeletonRef, atlasRef?)` | `{ skeletonHandle }` |
+| `loadSpine(skeletonRef, atlasRef?)` | `{ skelData, atlasText, isBinary, textures }` — the prepared skeleton and atlas, which the `Spine` component draws from |
 | `loadTilemap(ref)` / `loadTileset(ref)` | `{ sourceId }` / `{ tilesetId }` |
 | `loadTimeline(ref)` | `{ timelineId }` |
+| `loadAnimClip(ref)` | `{ clipId }` |
+| `loadAnimatorController(ref)` | `{ controllerId }` |
+| `loadStateMachine(ref)` / `loadBehaviorTree(ref)` | `{ fsmId }` / `{ btId }` |
+| `loadLocaleTable(ref)` | `{ locale, keyCount }` |
 | `loadPrefab(ref)` | `{ data }` |
 | `loadJson<T>(ref)` | `{ data: T }` |
 
@@ -207,8 +211,8 @@ subpackage / remote delivery, writing to the same `.esengine/asset-groups.json`:
 }
 ```
 
-It is Unity's `Resources` folder and Unreal's additional cook directory, in the
-model this project already had. **Off by default**, deliberately.
+It is a folder-level override of reachability, in the model this project already had.
+**Off by default**, deliberately.
 
 <Aside type="tip">
   Assets under `subpackages/` are always included even when unreachable — only

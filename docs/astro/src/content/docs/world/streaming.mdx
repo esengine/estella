@@ -53,6 +53,8 @@ world.insert(player, WorldStreamingSource, {
 });
 ```
 
+The three radii are in world units and default to the values above; the component also has an `enabled` switch (default on) that takes a source out of the union without removing it. `StreamedWorld.cellSize` defaults to 1000.
+
 Several sources may exist, and what they ask for is **unioned** — a cell any one
 of them needs stays resident. That is what makes split screen, a spectator
 camera, a cinematic camera and an editor preview the same kind of thing rather

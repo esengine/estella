@@ -189,6 +189,15 @@ chart,每片投影到自己的平面,再按**同一个**世界-纹素比打包�
 
 模型的材质默认导入到 Model 着色器。在模型的导入设置里打开**角色材质**(`characterMaterials: auto`)后,名字里带 skin、face、head、hair 或 eye 的材质会改用 Skin、Hair 或 Eye 着色器,并绑上它的法线贴图和遮蔽/粗糙度贴图。头发的三角形还会按混合绘制需要的顺序重排,最靠近头发中心的发片排在最前,对围绕头部的一圈发片来说,从任何一侧看这都是由后向前(离开这一圈的马尾不受这个排序约束)。头发材质按 alpha 裁剪(`u_alphaCutoff`,源文件没说就取 0.5),并且不做混合绘制,边缘由覆盖率来柔化。名字是按单词读的,所以 `BodySkin`、`Hair_A` 会命中,`Eyelashes`、`Headband` 不会,颜色贴图的文件名也算。名字只是约定,不是事实:请看导入写出的材质选了什么,猜错的地方手动改着色器。眼睛的虹膜贴图(`u_depthMap`、`u_irisNormalMap`)需要手动指定,源文件里没有对应的位置。头发的流向图和高光偏移图在 glTF 里同样没有位置,所以头发材质在它的 extras 里写出它们(`flow_map`、`shift_map`,路径相对于模型,以及 `suggested_tipSoftness`),导入时绑定为 `u_flowMap`、`u_shiftMap` 和 `u_tipSoftness`。默认关闭,所以重新导入不会改动你没要求改的材质。
 
+## 弹簧骨骼与高光贴图
+
+模型还有两个导入设置，都在高级里：
+
+| 设置 | 默认 | 作用 |
+|---|---|---|
+| **Spring Bones**(`springBones`) | 关 | 选 **From File Data and Names** 后，导入器根据模型已有的信息给头发加上次级运动：VRM 的 spring-bone 扩展或 `extras.estella.springBone` / `springCollider` 按所述使用；它们没覆盖到的部分，名为 `Hair_<region>_<chain>_00` 的骨骼会变成 `SpringBone`，名为 `SBC_Sphere_<name>_r<cm>` 或 `SBC_Capsule_<name>_r<cm>_h<cm>` 的空节点会变成碰撞体。见[弹簧骨骼](/docs/zh-cn/animation/spring-bones/)。 |
+| **Specular Map**(`specularMap`) | Specular Color | 源文件的高光贴图里装的是什么。**Packed ORM** 把它按遮蔽、粗糙度、金属度绑定，适用于把这三者打包在那里的场景(Bistro、Sun Temple)；默认把它当作高光染色读取，而金属/粗糙度着色没有这个槽位。仅 FBX。 |
+
 ## 动画
 
 源里的每个动画会在 mesh 旁边写出一个 `.estimeline`，prefab 的根挂一个 `TimelinePlayer`

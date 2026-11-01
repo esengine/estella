@@ -21,7 +21,25 @@ registerAction('takeDamage', (ctx) => {
 | `has(key)` / `delete(key)` | Test / remove a key. |
 | `fire(trigger)` | Fire a one-shot event; a transition keyed on it becomes enabled until taken. |
 | `isFired(trigger)` / `consume(trigger)` | Test / clear a trigger. |
+| `clearTriggers()` | Drop every pending trigger. |
 
 Blackboard values back the `guard` comparisons on FSM transitions, and the `trigger`
 mechanism is the Unity-style edge event: fired once, consumed by the transition that
 takes it.
+
+Game code outside a leaf reaches an agent's blackboard through two resources, which also
+let it seed values or fire a trigger before the agent's first tick. The blackboard lives
+as long as the entity and is never serialized:
+
+```typescript
+import { AiFsm, AiBt } from 'esengine/ai';
+
+const fsm = app.getResource(AiFsm);
+fsm.blackboard(enemy).set('health', 100);
+fsm.fire(enemy, 'alarm');          // consumed by the agent's next enabled transition
+fsm.state(enemy);                  // active state name, or null before the first tick
+
+const bt = app.getResource(AiBt);
+bt.blackboard(enemy);              // a tree agent's blackboard
+bt.status(enemy);                  // last root status
+```

@@ -36,7 +36,8 @@ getControllerPage(world, anyDescendant, 'tab');           // → 'shop'
 first page). `setControllerPage` / `getControllerPage` resolve the nearest controller of
 that name walking **self → ancestors**, so a gear on a leaf finds the controller on the
 root. `setControllerPage` is a no-op on an unknown controller, an unknown page, or the
-current page (it guards typos rather than failing).
+current page (it guards typos rather than failing) and returns `true` only when it
+actually switched.
 
 | `ControllerState` field | Description |
 |---|---|
@@ -97,12 +98,12 @@ tween is in flight costs nothing, so a still screen with thousands of gears stay
 ## A button, without bespoke state
 
 The built-in controller name **`$interaction`** is driven by pointer state
-(`normal` / `hover` / `pressed` / `disabled`). Give an element an `$interaction`
+(`normal` / `hover` / `pressed` / `disabled` / `focused`). Give an element an `$interaction`
 controller + an `Interactable` + a gear, and it gets its button states through the
 same mechanism as everything else — this is what `createButton` itself is made of:
 
 ```typescript
-import { UIController, UIGear, interactionController, gearBinding, EasingType } from 'esengine';
+import { UIController, UIGear, Interactable, interactionController, gearBinding, EasingType } from 'esengine';
 
 world.insert(btn, UIController, { controllers: [interactionController()] });
 world.insert(btn, Interactable, { enabled: true, blockRaycast: true, raycastTarget: true });
@@ -116,9 +117,13 @@ world.insert(btn, UIGear, {
 });
 ```
 
-`interactionController(pages?)` defaults to the four canonical pages. Because a gear can
-drive *any* field, the same button can also gear its scale, a child icon's tint, or a
-label — all four states, one mechanism.
+`interactionController(pages?)` defaults to the five canonical pages. The driver picks
+`disabled` (the `Interactable` is off), else `pressed`, else `hover`, else `focused`
+(keyboard focus only — a click does not leave the button lit), else `normal`, and only
+ever writes a page the controller lists; a page it does not own (say `'loading'`) is
+left alone until your code switches back. Because a gear can drive *any* field, the same
+button can also gear its scale, a child icon's tint, or a label — every state, one
+mechanism.
 
 ## Authoring in the editor
 
@@ -131,7 +136,7 @@ Everything above can be authored visually — no code. Select any UI entity and 
 its own plus each ancestor's (inherited rows carry the owner's name), so the
 root's controllers stay switchable while you work on a geared leaf:
 
-- **Add a controller** (the pointer-button preset adds `$interaction` with its four
+- **Add a controller** (the pointer-button preset adds `$interaction` with its five
   pages in one click), then manage **pages** as chips: click to preview, double-click
   to rename, drag to reorder, and the hover × deletes — renames cascade into every
   gear binding that resolves to the controller, and deleting a page clears its
@@ -172,6 +177,9 @@ runs `ui.setPage` when it is clicked, targeting the entity that owns the control
 ```json
 { "event": "click", "action": "ui.setPage", "params": { "controller": "tab", "page": "shop" } }
 ```
+
+(`params` also takes the two halves — `{ controller, page }` — which is what the editor's
+two dropdowns write; `ui.setVisible` with `{ visible }` shows or hides a subtree the same way.)
 
 **From a state machine** — the `ui.setPage` action lets a data-driven
 [FSM / behavior tree](/docs/gameplay/ai/overview/) (`.esfsm` / `.esbt`) switch a page with no code.

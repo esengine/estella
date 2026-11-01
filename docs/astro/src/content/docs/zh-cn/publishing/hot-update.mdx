@@ -196,6 +196,7 @@ const unsub = assets.onInvalidate((event) => {
 | `checkForUpdate(options)` | `Promise<UpdatePlan>` | 拉取候选清单，与活动清单 diff，并暂存。不下载任何资产。 |
 | `applyUpdate(onProgress?)` | `Promise<ApplyUpdateResult>` | **原子地**应用暂存的更新：下载并校验每个变更资产，然后切换清单、重绑运行中的句柄、持久化。`onProgress(loaded, total)` 回报下载进度。 |
 | `restorePersistedUpdate(key)` | `boolean` | 在启动时，恢复上一次 `applyUpdate` 以 `key` 持久化的清单。设了 `persistUpdateKey` 时运行时会替你调用。 |
+| `updateStatus()` | `UpdateStatus` | `{ revision, persistedRevision, staged, applying }`——供诊断界面使用。 |
 | `setRemoteRoot(url?)` | `void` | 把远端组解析指向某个 CDN 根地址（`undefined` 清除 → 同源）。运行时会从构建的 `remoteRoot` 设置它。 |
 | `remoteRoot` | `string \| undefined` | 当前 CDN 根地址（getter）。 |
 | `onInvalidate(listener)` | `() => void` | 订阅失效事件。监听器收到 `{ ref, type, oldValue }`（用于自定义重绑）；返回一个取消订阅的函数。 |
@@ -227,6 +228,22 @@ const unsub = assets.onInvalidate((event) => {
 | `ok` | `boolean` | 仅当每个变更资产都下载 + 校验通过且清单已切换时为真。 |
 | `updated` | `number` | 应用了多少个资产（失败时为 `0`）。 |
 | `failed` | `AssetDownloadFailure[]` | 为何回滚——每项 `{ path, reason: 'fetch' \| 'integrity' }`。 |
+| `stages` | `UpdateStages` | 走到了哪一步——见下。光看 `ok` 并不能说明下次启动是否保留这次更新。 |
+| `revision` | `string \| null` | 这次会话之后运行所处的修订号。 |
+| `uncached` | `string[]` | 落盘缓存拒收的变更资产（按 url）——下次启动会再次拉取的那些。 |
+| `reason` | `'nothing-staged'`（可选） | 什么都没尝试：没有暂存的更新（没检查过，或已被另一次 `applyUpdate` 取走）。 |
+
+**`UpdateStages`**——每一项都是独立的答案：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `verified` | `boolean` | 每个变更资产都已下载，且与其内容哈希相符。 |
+| `applied` | `boolean` | 这次会话运行在新清单上，其资产也已在它上面稳定下来。 |
+| `persisted` | `boolean \| null` | 下次启动从它开始：已存下并读回。存储拒绝时（配额已满）为 `false`；没有持久化键时为 `null`。 |
+| `cached` | `boolean \| null` | 每个变更的远端资产都在落盘缓存里，下次启动无需网络即可读取。平台不设缓存的地方（Web）为 `null`。 |
+
+`updateStatus()` 随时回答同样的问题：当前运行的修订号、下次启动所起始的修订号、暂存了什么以及它会下载什么，
+以及是否正在应用。
 
 ## 按需组（DLC）
 
@@ -262,15 +279,21 @@ assets.releaseGroup('world2');
 
 ## 持久化与离线
 
-当设了 `persistUpdateKey` 时（导出会自动设置），`applyUpdate` 会把已应用的清单存入平台存储。下次启动时运行时调用 `restorePersistedUpdate(key)`，玩家便**直接从已更新的内容开始——哪怕没有网络**。在原生与小游戏目标上，校验过的字节还会写入一个内容寻址的**落盘缓存**，于是已更新的资产离线加载而无需再次访问 CDN。
+当设了 `persistUpdateKey` 时（导出会自动设置），`applyUpdate` 会把已应用的清单存入平台存储。下次启动时运行时调用 `restorePersistedUpdate(key)`，玩家便**直接从已更新的内容开始**。在有落盘缓存的目标上，校验过的字节也会写进去，
+于是已更新的资产**无需网络**即可加载；`stages.cached` 说明它们是否全部写入。
+
+已存下的更新属于打出它的那个包。玩家安装更新的构建时（新的 Web 部署、应用商店更新），存下的更新比随包发布的更旧，
+所以会被丢弃，游戏从新包开始。
+
+应用一次只跑一个。另一次下载进行中发现的更新仍保持暂存，应用它时只下载第一次没带来的部分。
 
 ## 平台支持
 
 | 目标 | 清单 + diff | CDN 拉取 | 持久化 | 落盘缓存 |
 | --- | --- | --- | --- | --- |
-| **Web** | ✅ | ✅（受 CORS/CSP 约束） | `localStorage` | 浏览器 HTTP 缓存 |
+| **Web** | ✅ | ✅（受 CORS/CSP 约束） | `localStorage` | —（下次启动重新从 CDN 拉取） |
 | **桌面** | ✅ | ✅ | ✅ | ✅（内容寻址） |
-| **微信小游戏** | ✅ | ✅ | ✅ | ✅ |
+| **小游戏**（微信、抖音……） | ✅ | ✅ | ✅ | ✅（宿主的用户数据目录） |
 | **原生（iOS / Android）** | ✅ | ✅ | ✅ | ✅ |
 
 清单 diff 是纯粹且平台无关的；只有拉取、存储与落盘缓存原语按平台不同，运行时会挑选正确的那一个。

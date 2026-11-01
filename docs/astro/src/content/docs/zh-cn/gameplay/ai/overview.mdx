@@ -62,10 +62,16 @@ registerAction('chase', (ctx) => {
 | `ctx.dt` | `number` | 帧间隔(秒)。 |
 | `ctx.world` | `World` | 完整世界访问,用于跨实体读取。 |
 | `ctx.commands` | `Commands` | 延迟的 spawn/despawn,tick 中调用安全。 |
+| `ctx.input` | `InputState` | 运行时输入——和 `defineBehavior` 读到的是同一份状态。宿主没有输入设备时为空(什么都没按下)。 |
 | `ctx.blackboard` | `Blackboard` | 该 agent 的 AI 数据面(见[黑板](/docs/zh-cn/gameplay/ai/blackboard/))。 |
 | `ctx.get(Comp)` | `ComponentData` | 读取**本**实体上的另一个组件。 |
 | `ctx.set(Comp, data)` | `void` | 写入**本**实体上的一个组件。 |
 | `ctx.has(Comp)` | `boolean` | 本实体是否拥有 `Comp`。 |
+
+动作的调用形式是 `(ctx, blackboard, arg?, params?, out?)`,条件是 `(ctx, blackboard)`;
+`registerAction` 也接受一个规格对象(`{ run, params, outputs, pure, touches, separator }`)来
+声明带类型的参数,编辑器随之把它渲染成真正的控件而不是一个文本框。
+`registerValue(name, spec)` 注册一个只回答问题的纯名字,供脚本图读取。
 
 <Aside type="tip">
   在模块加载时(顶层,或在一个 `Schedule.Startup` 系统里)注册你的动作和条件,好让它们在任何
@@ -126,15 +132,17 @@ export enum Status { Success = 'success', Failure = 'failure', Running = 'runnin
 | `audio.stop` | 动作 | 放下 `AudioSource` 的播放旗标。 |
 | `audio.finished` | 条件 | 非循环剪辑播完且已停止播放时为真。 |
 | `soundEvent.trigger` / `soundEvent.stop` | 动作 | 触发 / 停止该实体的 `SoundEventSource`。 |
-| `property.set` | 动作 | 按 `Component.field` 路径与取值写入代理实体(或另一实体)的任意组件字段,例如 `UIVisual.color.a`。 |
+| `property.set` | 动作 | 按 `Component.field` 路径与取值写入代理实体(或通过可选的 `entity` 参数指定的另一实体)的任意组件字段,例如 `UIVisual.color.a`。字符串参数形式为 `path=value`;取值能按 JSON 解析时按 JSON 读(`3`、`true`、`{"r":1}`),否则当作字符串。 |
 
 动作可携带一个可选**字符串参数**——在 FSM 状态检查器的动作名旁(或 BT 动作节点上)填写。
 内置动作用它承载组件无法按状态携带的数据,比如 `spriteAnim.play` 要切换到哪个剪辑;
-你自己注册的动作在第三个参数收到它:`(ctx, blackboard, arg) => …`。
+你自己注册的动作在第三个参数收到它:`(ctx, blackboard, arg) => …`。声明了 `params` 的动作还会在第四个参数里按名字收到同样的值。
 
 三者组合出一个**零代码的过场状态**:进入状态即播放片段,片段播完即驱动转移:
 
 ```typescript
+import { registerFsm } from 'esengine/ai';
+
 registerFsm('intro', {
   initial: 'Cutscene',
   states: [
@@ -188,12 +196,16 @@ enemy.add(MeleeAttack, { radius: 110, damage: 20, anchor: swordSocket });
 enemy.add(Health, { current: 50, max: 50 });
 ```
 
-| 字段 | 作用 |
-|---|---|
-| `attackRange` | 地平面上靠近到多远才挥击。 |
-| `attackInterval` | 两次挥击之间的秒数。 |
-| `rotationSpeed` | 转身速度，度/秒。 |
-| `idleThreshold` | 低于这个速度就告诉动画器它站着不动。 |
+`Hunter` 是 3D 组件:它在 x/z 地平面上量距离,通过 `CharacterController3D` 移动,并设置名为
+`attack` 的动画器触发器,所以该实体需要一个能响应这个触发器的 `Animator`。
+
+| 字段 | 默认值 | 作用 |
+|---|---|---|
+| `attackRange` | `110` | 地平面上靠近到多远才挥击。 |
+| `attackInterval` | `1.6` | 两次挥击之间的秒数。 |
+| `rotationSpeed` | `540` | 转身速度，度/秒。 |
+| `idleThreshold` | `8` | 低于这个速度就告诉动画器它站着不动。 |
+| `enabled` | `true` | 关闭后这个猎手被整个跳过。 |
 | `state` | 引擎写入：`idle` / `chase` / `attack` / `dead`。 |
 | `cooldown` | 引擎写入：还有多少秒才能再挥。 |
 

@@ -20,6 +20,10 @@ import { Aside } from '@astrojs/starlight/components';
 经验法则:视觉属于*场景*(参与排序、保存、可检视)就做成组件;属于*某一帧*
 (调试、类 HUD 覆盖、程序化效果)就在回调里画。
 
+![绘制示例:用 Draw 画的即时模式雷达、用 Graphics 画的留存星形,以及用 Mesh2D 生成的彩带](@/assets/guides/zh/play-drawing.png)
+
+*绘制示例,每种 API 一幅:**Draw**(雷达)、**Graphics**(星形)和 **MeshRenderer** 彩带。*
+
 ## 绘制回调
 
 注册一个回调,它每帧在渲染通道内执行,相机的 view-projection 已经就位——无需任何
@@ -184,12 +188,11 @@ registerDrawCallback('custom-mesh', () => {
 
 ## 离屏目标:`RenderTexture`
 
-小地图、头像、镜面——以及[位图缓存](/docs/zh-cn/graphics/sprites/)的底层——
-`RenderTexture` 分配一个离屏渲染目标。把绘制命令包在 `begin`/`end` 之间即渲染
+小地图、头像、镜面——`RenderTexture` 分配一个离屏渲染目标。把绘制命令包在 `begin`/`end` 之间即渲染
 进去;得到的 `texture` 是普通纹理句柄,哪里都能用(`Sprite.texture`、
 `Draw.texture`、材质纹理参数)。
 
-要把**整个场景**画进去,让一台相机指向它:把 `Camera.renderTarget` 设成目标的句柄,
+要把**整个场景**画进去,让一台相机指向它:把 `Camera.renderTarget` 设成目标的渲染目标句柄(`rt._handle`,不是放到精灵上的 `rt.texture`),
 那台相机就画到那里而不是屏幕——在屏幕相机之前渲染,也不参与「谁是主视图」的竞争。
 它看见什么由自己的排序层(`Camera.cullingMask`)决定,所以小地图相机和玩家相机可以
 看同一个世界、显示不同的部分。渲染目标在两个后端上都能交给 `Sprite`;这条路径的

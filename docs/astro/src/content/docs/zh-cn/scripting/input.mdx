@@ -110,8 +110,8 @@ if (Controls.pressed('Jump')) { /* 本帧边沿 */ }
 | `value(name)` | button `0..1` · axis `-1..1` · axis2d 的幅度 `0..1`。 |
 | `axis2d(name)` | `{ x, y }` 方向(超过 1 时归一化)。 |
 
-动作是 `Button(…)`、`Axis1D(…)` 或 `Axis2D(…)`;各接任意数量的绑定,多个绑定
-求和(再钳制),键盘与手柄自然共存:
+动作是 `Button(…)`、`Axis1D(…)` 或 `Axis2D(…)`;各接任意数量的绑定,键盘与手柄自然共存。`Button` 取最强的那个绑定
+(钳制到 `0..1`);`Axis1D` 与 `Axis2D` 把各绑定求和再钳制(到 `-1..1`,或长度 1):
 
 | 绑定 | 供给 | 含义 |
 |---|---|---|
@@ -173,14 +173,18 @@ Controls.load('controls');                // 重新应用已存的绑定(如有)
 `keyboard` 和 `gamepad` 默认**开**,`mouse` 默认**关**——这样按下"改键"按钮的那次点击
 不会被捕获成绑定。轴类输入永远不会被捕获;改键只面向离散输入。
 
-`getBindings` / `setBindings` 以编程方式查看和编辑绑定;`cancelListen()` 中止
-挂起的捕获(以 `null` 解析)。
+`getBindings` / `setBindings` 以编程方式查看和编辑绑定;`actions()` 列出动作名,
+`isListening()` 告诉你是否有捕获挂起;`cancelListen()` 中止挂起的捕获(以 `null` 解析)。
 
 ### 数据驱动的映射(`.inputmap`)
 
-整张映射也能序列化为资产:在编辑器内容浏览器里**新建 Input Map**,然后用
-`loadInputMapAsset(json)` 代替 `defineInputMap` 构建。`toAsset()` 从代码产出
+整张映射也能序列化为资产:在编辑器内容浏览器里**新建输入映射**,然后用
+`loadInputMapAsset(asset)`(传入解析后的 `InputMapAsset`)代替 `defineInputMap` 构建。`toAsset()` 从代码产出
 同样的格式。
+
+![移动端控制示例:地牢画面上左下角的虚拟摇杆和右下角的开火按钮](@/assets/guides/zh/play-mobile-controls.png)
+
+*移动端控制示例:**VirtualJoystick** 和 **VirtualButton** 驱动与键盘相同的输入动作。*
 
 ## 触摸手势
 
@@ -266,9 +270,9 @@ key-up 边沿,处理器看到的它仍是按住的,与 DOM `event.shiftKey` 的�
 | 分组 | 方法 |
 |---|---|
 | 键盘 | `isKeyDown(code)`、`isKeyPressed(code)`、`isKeyReleased(code)`。 |
-| 鼠标 | `isMouseButtonDown(b)`、`isMouseButtonPressed(b)`、`isMouseButtonReleased(b)`;`mouseX` / `mouseY`、`scrollDeltaY`。 |
-| 触摸 | `isTouchActive(id)`、活动触点的 `touches` map。 |
-| 手柄 | `isGamepadConnected(pad?)`、`isGamepadButtonDown(btn, pad?)`、`isGamepadButtonPressed`/`Released(btn, pad?)`、`getGamepadAxis(axis, pad?)`。 |
+| 鼠标 | `isMouseButtonDown(b)`、`isMouseButtonPressed(b)`、`isMouseButtonReleased(b)`;`mouseX` / `mouseY`(或 `getMousePosition()`)、`scrollDeltaX` / `scrollDeltaY`(或 `getScrollDelta()`)。 |
+| 触摸 | `isTouchActive(id)`、`getTouches()` / `getTouch(id)` / `getTouchCount()`、活动触点的 `touches` map,以及本帧边沿 `touchesStarted` / `touchesEnded`。 |
+| 手柄 | `isGamepadConnected(pad?)`、`isGamepadButtonDown(btn, pad?)`、`isGamepadButtonPressed`/`Released(btn, pad?)`、`getGamepadButtonValue(btn, pad?)`(模拟值 `0..1`)、`getGamepadAxis(axis, pad?)`、`getGamepads()`。 |
 | 指针 | `isPointerOverUI()` —— 光标在 UI 元素上方。 |
 
 `*Down` 读按住状态;`*Pressed` / `*Released` 是本帧边沿。
@@ -293,6 +297,8 @@ key-up 边沿,处理器看到的它仍是按住的,与 DOM `event.shiftKey` 的�
 判断。
 
 ```ts
+import { Device } from 'esengine';
+
 const off = Device.motion.onChange(sample => {
   if (sample.gravity) console.log(sample.gravity);
 });

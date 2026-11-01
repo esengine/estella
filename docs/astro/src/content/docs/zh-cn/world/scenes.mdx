@@ -155,7 +155,7 @@ const setupStreaming = defineSystem([Res(SceneStreaming)], (streaming) => {
 |---|---|
 | `configure({ loadRadius, unloadRadius, policy? })` | 设置半径(`unloadRadius` 向上钳制到不小于 `loadRadius`)与出界策略——`'unload'`(默认)或 `'sleep'`。 |
 | `register(cell)` / `unregister(scene)` / `clear()` | 管理单元集合(`{ scene, x, y, radius }`)。 |
-| `setFocus(x, y)` | 直接驱动焦点(每帧调用)。 |
+| `setFocus(x, y, z?)` | 直接驱动焦点(每帧调用);距离按三维量,`z` 默认 0,格子的可选 `z` 也默认 0。 |
 | `setFocusEntity(entity)` / `getFocusEntity()` | 改为跟随一个实体——流送系统每 tick 读它的 `Transform`(仅 play 模式)。 |
 | `getActive()` | 控制器当前认为在范围内的场景名。 |
 | `update()` | 按当前焦点调和驻留单元(`sceneManagerPlugin` 每帧调用)。 |
@@ -180,6 +180,7 @@ const setupStreaming = defineSystem([Res(SceneStreaming)], (streaming) => {
 |---|---|
 | `switchTo(name, options?)` | 替换活动场景(异步;可选过渡)。 |
 | `loadAdditive(name, onProgress?)` | 在顶部加载一个场景;返回其上下文(异步)。 |
+| `reload(options?)` | 用场景文件重新切换到当前活动场景(异步;可带过渡)。 |
 | `unload(name, options?)` | 卸载一个场景(异步;可选过渡)。 |
 | `getScene(name)` | 已加载场景的 `SceneContext`(`spawn` / `adopt` / `despawn` / `setPersistent` / draw 回调 / 后处理绑定),或 `null`。 |
 | `getActive()` | 活动场景名,或 `null`。 |
@@ -240,7 +241,7 @@ const checkpoint = defineSystem([GetWorld(), Res(Assets)], async (world, assets)
 | `abortOnMissingAssets` | 默认 `false`——缺失资源拿到句柄 `0`,场景照常加载。`true` 时在预加载之后、任何实体生成之前抛出 `MissingAssetsError`。 |
 | `collectAssets` | 记账集合,加载把获取到的资源键加入其中,调用方(通常是场景管理器)卸载时据此释放。 |
 
-**版本化。** 场景文件带 `version`(当前 `SCENE_FORMAT_VERSION = '1.0'`)。
+**版本化。** 场景文件带 `version`(当前 `SCENE_FORMAT_VERSION = 4`)。
 `migrateSceneData(raw)` 把任何旧形态升级到当前格式:它从不改动输入(返回迁移后的深拷贝)、
 幂等、丢弃被引擎升级淘汰的组件类型,并**拒绝比引擎更新的数据**。每个加载器内部都会跑它——
 只有想检查 `migrated` / `fromVersion` 时才自己调用(比如提示重新保存升级后的文件):

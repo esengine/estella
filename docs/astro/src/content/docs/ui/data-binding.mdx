@@ -109,13 +109,15 @@ bindWidgetValue(world, events, entity, Component, field, signal, payloadKey?)
   auto-disposes on despawn).
 
 `payloadKey` names the value inside the `change` payload and defaults to the
-field name:
+field name (a text input has no value in its payload — read `TextInput.value`
+from the `change` handler instead):
 
 | Widget | Component / field | `payloadKey` |
 |---|---|---|
 | Slider | `UISlider.value` | `'value'` (the default) |
 | Toggle | `UIToggle.isOn` | `'isOn'` (the default) |
 | Dropdown | `UIDropdown.selectedIndex` | `'index'` (pass explicitly) |
+| Tab view | `UITabView.selectedIndex` | `'index'` (pass explicitly; the payload is `{ index, page }`) |
 
 A volume row — slider and label, both bound to one signal:
 

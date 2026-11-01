@@ -30,7 +30,7 @@ interface ThemeTokens {
 
 ### 颜色角色(`ThemeColors`)
 
-全部角色按显示顺序列出(这也是运行时列表 `THEME_COLOR_ROLES`——主题编辑器或
+全部 13 个角色按显示顺序列出(这也是运行时列表 `THEME_COLOR_ROLES`——主题编辑器或
 配置校验器迭代的那个数组):
 
 | 角色 | 用途 |
@@ -40,6 +40,7 @@ interface ThemeTokens {
 | `control` | 交互控件的静止填充(按钮、选项)。 |
 | `controlHover` | 悬停时的控件填充。 |
 | `controlActive` | 按下时的控件填充。 |
+| `controlFocus` | 控件获得键盘焦点时的填充(只在焦点由键盘到达时显示,因此与 `controlHover` 区分开)。 |
 | `track` | 滑杆 / 进度条轨道。 |
 | `primary` | 强调色——滑杆填充、进度填充、选中项。 |
 | `primaryHover` | 悬停时的强调色。 |
@@ -130,6 +131,8 @@ switchTheme(world, getTheme() === DARK_TOKENS ? LIGHT_TOKENS : DARK_TOKENS);
 - **`resolveThemeTokens(base, overrides?)`** —— 把基础主题名
   (`'dark' | 'light'`)与局部覆盖合并成有效的 `ThemeTokens`,于是只覆盖
   `primary` 的项目在继承其余角色的同时重染强调色。
+  `ThemeOverrides` 形如 `{ colors?, type? }`;项目清单只带颜色,
+  自定义字号档位(`label` / `body` / `title`)只能在代码里设置。
 
 ```typescript
 import { resolveThemeTokens, parseThemeOverrides, switchTheme } from 'esengine';

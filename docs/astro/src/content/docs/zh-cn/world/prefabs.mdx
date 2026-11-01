@@ -109,14 +109,14 @@ const spawnEnemy = defineSystem([Res(Prefabs)], async (prefabs) => {
 
 ## 设置父级并访问子项
 
-把实例嵌套到另一个实体下,并用返回的 `entities` map 按预制体局部 id 访问子项:
+把实例嵌套到另一个实体下,并用返回的 `entities` map 访问生成出来的子项:
 
 ```typescript
 const { root, entities } = await prefabs.instantiate('assets/prefabs/turret.esprefab', {
   parent: mountPointEntity,
 });
 // root      → the instance root
-// entities  → Map<prefab-local id, spawned Entity>, for reaching children
+// entities  → Map<number, spawned Entity>,按生成时给每个实体的 id 索引
 ```
 
 ## 逐实例覆盖
@@ -133,8 +133,7 @@ const { root } = await prefabs.instantiate('assets/prefabs/enemy.esprefab', {
 ```
 
 要作用到**子实体**,补上它的 `prefabEntityId`——即那个实体自己的**字符串** id,
-编辑器创作的预制体里是 UUID。可以从 `.esprefab` 里读,也可以从上一次 instantiate
-返回的 `entities` 映射里取。
+编辑器创作的预制体里是 UUID。可以从 `.esprefab` 里读(不写 `prefabEntityId` 的覆盖作用到根实体)。
 
 :::caution[`prefabEntityId: '0'` 已经匹配不到任何东西]
 `'0'` 是稳定 id 之前所有预制体的 id,旧的示例代码里还留着它。此后由编辑器保存的预制体
@@ -142,7 +141,7 @@ const { root } = await prefabs.instantiate('assets/prefabs/enemy.esprefab', {
 id——在此之前它是被静默丢弃的,唯一的症状就是每个实例都出现在预制体被创作时的那个位置。
 :::
 
-除了 `'property'`,`type` 还可以是 `'name'`、`'visibility'`、`'component_added'`、
+除了 `'property'`,`type` 还可以是 `'name'`、`'visibility'`、`'parent'`、`'component_added'`、
 `'component_replaced'`、`'component_removed'`、`'metadata_set'` 或 `'metadata_removed'`
 (metadata 两种用 `metadataKey` 代替 `componentType`/`propertyName`)。
 
@@ -158,7 +157,7 @@ id——在此之前它是被静默丢弃的,唯一的症状就是每个实例�
 | 结果字段 | 说明 |
 |---|---|
 | `root` | 实例的根 `Entity`。 |
-| `entities` | `Map<prefab-local id, Entity>`,用于访问子项。 |
+| `entities` | `Map<number, Entity>`,含根在内的所有生成实体,用于访问子项。 |
 
 ## 最佳实践
 

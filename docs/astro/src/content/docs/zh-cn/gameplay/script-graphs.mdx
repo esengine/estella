@@ -49,6 +49,15 @@ description: 用节点和连线可视化编写玩法逻辑,保存为 .esgraph �
 | **取值** | 只产出值的节点(没有执行引脚):`math.*`(add、subtract、multiply、divide、min、max、abs、clamp、lerp、random)、`compare.*`(equal、less、greater)、`logic.*`(and、or、not)、`string.concat`、`property.get`、`entity.self`、`entity.byName`、`input.down` / `pressed` / `axis` / `pointer`——以及所有已注册的条件。 |
 | **图** | 项目里其他可调用的图,用**调用图**节点来调用(在有图声明了入参之前为空)。 |
 
+有几个节点带着值得知道的数据:
+
+- **每帧更新**输出 `dt`,即这一帧的时间增量(秒)。
+- **监听事件**按类型监听实体事件(例如 [触发区](/docs/zh-cn/gameplay/markers/)发出的 `trigger_enter`,或按钮的 `click`),
+  输出 `target` 和 `other`——事件发给的实体,以及它另外点名的那个(接触的另一方刚体;没有点名则为 `0`)。
+- **顺序**有 1–16 个引脚(默认 2)。**循环**有 `body` 和 `done` 两个引脚。
+- **延迟**等待 `seconds` 秒再继续。进入一个已在计时的延迟节点什么也不做,所以高频调用方无法让它一直重启。
+  被别的图调用的图里不能放延迟(一次调用在一步内完成),这张图会把它报告为问题。
+
 菜单按注册名列出这些动词;放到画布上之后,节点会用易读的标题(**按名称找实体**、**按键按下**、**设置属性**……),下面附上注册名。
 
 你用 `registerAction` / `registerCondition` 注册的动作和条件——状态机、行为树用的是同一批——会按它们的声明带着对应端口出现在这里。

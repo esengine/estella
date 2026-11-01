@@ -29,9 +29,10 @@ to.
 
 | Group | Settings |
 |---|---|
-| Rendering | Render scale, Min render scale, Anti-aliasing (MSAA or Temporal), MSAA, Depth pre-pass, Detail distance |
-| Shadows | Atlas size, Cell size, Cascades, Distance |
+| Rendering | Render scale, Min render scale, Anti-aliasing (MSAA or Temporal), MSAA, Depth pre-pass, Detail distance, 2D rain shelter mask |
+| Shadows | Atlas size, Cell size, Cascades, Distance, 2D soft-shadow samples |
 | Reflections and particles | Planar reflection scale, max size and updates per second, Particle limit |
+| Water | Water waves (1 to 4), Water ripple cells, and the Displacement, Mirror and Caustics switches. Shown once the level is not Off and the water module is in the build |
 | Post-processing | A master switch, and a tick for each effect that runs at this level |
 
 Each level starts from the engine's own values for it, and **only what you change is saved** in `project.esproject`
@@ -42,7 +43,7 @@ touched it, and a row set back to its level's default is not a difference.
 far cheaper at 1080p and somewhat softer, it needs a post-process volume on the camera, and the MSAA row is hidden while it
 is chosen. **Depth pre-pass** draws the opaque scene twice, depth alone first, so each pixel is shaded once for the surface in
 front. It pays where surfaces overlap (a wood, a crowd of foliage) on a GPU that shades what it rasterises; on one that defers
-shading to the end of a tile it is geometry paid for twice. It is off at Low and on at Medium and High. The pre-pass and the colour pass declare the vertex position invariant on both WebGL2 and WebGPU, so a surface's colour always passes the equal-depth test against its own depth, including on Metal; a Mac that showed dark triangles on terrain with the pre-pass on needs nothing but an up-to-date build.
+shading to the end of a tile it is geometry paid for twice. It is off at Low and on at Medium and High. The default anti-aliasing is MSAA at Low (one sample) and High (4), and Temporal at Medium. The pre-pass and the colour pass declare the vertex position invariant on both WebGL2 and WebGPU, so a surface's colour always passes the equal-depth test against its own depth, including on Metal; a Mac that showed dark triangles on terrain with the pre-pass on needs nothing but an up-to-date build.
 
 <Aside type="note">
 A row's "default" is the default of the level it is showing, so the same number can be a change at Low and the default
@@ -63,7 +64,7 @@ Occlusion or Auto Exposure, is removed whole. The manifest holds the effects lef
 "quality": { "mode": "auto", "profiles": { "low": { "skipEffects": ["ssr", "taa", "depthOfField"] } } }
 ```
 
-By default Low leaves out reflections, temporal anti-aliasing, depth of field and light shafts; Medium leaves out
+By default Low leaves out reflections, temporal anti-aliasing, depth of field, light shafts, motion blur, lens flare, GTAO, subsurface scattering and voxel GI; Medium leaves out
 reflections and depth of field; High leaves out nothing. These defaults follow the work each effect does per pixel; they
 are **not** measured on weak devices. The editor's `fx-cost` check measures each effect's cost on the machine it runs on,
 which is a way to find out what yours costs before choosing what a level skips.

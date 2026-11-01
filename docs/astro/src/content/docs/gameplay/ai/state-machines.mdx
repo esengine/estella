@@ -52,7 +52,11 @@ registerFsm('guard', {
 ```
 
 Each state carries up to three named hooks — `onEnter`, `onUpdate`, `onExit` — and a
-list of `transitions`. A transition is enabled when **all** of its specified
+list of `transitions`. A hook is a registered action name, or `{ name, arg?, params? }` when it
+needs an argument. `onEnter` runs on the first tick the state is active (so the tick after a
+transition into it), `onExit` runs as a transition is taken, and `onUpdate` runs on ticks where no
+transition fires. At most one transition is taken per tick. A transition naming a condition that is
+not registered is never enabled. A transition is enabled when **all** of its specified
 mechanisms hold; a transition with none is unconditional:
 
 | Transition field | Description |
@@ -63,4 +67,5 @@ mechanisms hold; a transition with none is unconditional:
 | `guard` | One or more blackboard comparisons, AND-combined. |
 
 Guards compare a blackboard key with `==`, `!=`, `<`, `<=`, `>`, `>=`, `truthy`, or
-`falsy` — e.g. `{ key: 'health', op: '<', value: 20 }`.
+`falsy` — e.g. `{ key: 'health', op: '<', value: 20 }`. `value` is ignored by `truthy` / `falsy`;
+a missing key reads as `undefined`, and the ordering operators compare numerically.

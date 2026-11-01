@@ -55,7 +55,8 @@ col.multiply(base, tint);   // per-channel tint
 ```
 
 - Build: `create`, `rgb`, `from255`, `fromHex` (throws on malformed input), `clone`.
-- Blend: `lerp`, `withAlpha`, `multiply`, `scaleRgb`; serialize with `toHex`.
+- HSV: `fromHsv(h, s, v, a?)` (hue in degrees, the rest `0..1`) and `toHsv`.
+- Blend: `lerp`, `withAlpha`, `multiply`, `scaleRgb`; serialize with `toHex(c, withAlpha = false)`; compare with `equals`.
 
 ## Scalars
 
@@ -119,7 +120,7 @@ const delta = normalizeAngle(targetAngle - facing);
 | `quaternionToAngle2D(rz, rw)` | Z angle in radians from a quaternion's `z`/`w` (`2 * atan2(z, w)`). |
 | `normalizeAngle(a)` | Wrap any angle to `(-π, π]` for shortest-turn comparisons. |
 
-For full 3D rotations, the `q` namespace has `create`, `mul`, `axis(axis, rad)`, `normalize`, `conjugate`, `rotate(q, v)`, `fromEuler` / `toEuler`, `rotationTo(from, to)`, `setAngleZ` / `angleZ` and more.
+For full 3D rotations, the `q` namespace has `create`, `mul`, `axis(axis, rad)`, `normalize`, `conjugate`, `rotate(q, v)`, `fromEuler` / `toEuler` (Euler angles in **degrees**), `rotationTo(from, to)`, `setAngleZ(q, deg)` (degrees) / `angleZ(q)` (radians) and more.
 
 For direction *vectors* instead of rotations, stay in `v2`: `fromAngle` /
 `angle` / `rotate`. A full worked example (turrets facing the cursor) is in

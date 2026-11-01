@@ -58,6 +58,10 @@ Infinite ground has no edge for rain to run off, so its erosion is the noise's o
 octaves under it are already steep. That leaves smooth valleys between sharp ridges, much as rain would, at no cost beyond the noise.
 It paints no dirt channels.
 
+![The Terrain & Water example: green hills, a river running to the sea, and the sea in the foreground](@/assets/guides/en/play-terrain-water.png)
+
+*The Terrain & Water example: layered ground, a river and the sea, all from the Terrain and Water components.*
+
 ## Terrain layers
 
 A terrain layer (a `.esterrainlayer` file; **New → New Terrain Layer** in the editor) is one kind of ground — grass, a path's dirt,
@@ -86,6 +90,10 @@ occlusion and roughness light it. Its material sets how: `u_sharpness`, `u_heigh
 What an artist delivers, per layer: the three textures, square, a power of two (1024 is plenty; they are packed at the largest
 layer's size, at most 1024, 512 on a minigame), tiling seamlessly, the normal and mask saved as data (not colour-managed). A layer's
 textures are packed into texture arrays when the terrain is built, and again whenever a layer file or one of its textures is saved.
+
+![Details of a Terrain: the layer list and the shape fields](@/assets/guides/en/details-terrain.png)
+
+*The **Terrain** component: its layers, then the shape of the ground and where its heights come from.*
 
 ## Layers and the Terrain material
 
@@ -264,7 +272,11 @@ to switch between.
 | `radius` | The planet's radius in metres. The planet stands at its entity, unrotated and unscaled. |
 | `provider`, `world`, `generatorVersion`, `seed` | The generator the ground is made by (`registerPlanetProvider`), the world it belongs to as the game names it, its version and its seed. The same four are the same ground everywhere. |
 | `cellSize`, `detail` | The finest cell of the ground's mesh in metres, and how far out the finest cells reach (above 1 is further). |
-| `layerColor0`–`3`, `macroScale`, `macroVariation` | The four layers' colours (grass, dirt, snow, rock), and the wander in brightness laid over them. |
+| `layerColor0`–`3`, `macroScale`, `macroVariation` | The four layers' colours (grass, dirt, snow, rock), and the wander in brightness laid over them: `macroScale` is its size in metres, `macroVariation` its strength (0 to 1). |
+| `layers` | Up to four `.esterrainlayer` files the ground is drawn with; empty draws the four colours. |
+| `collision`, `collisionDistance`, `collisionLayer`, `friction` | As on a flat terrain: whether bodies collide, how far round each moving body the ground is built, its layer and its grip. |
+| `gravity` | How hard the planet pulls what is on it, in metres a second squared at the surface; `0` (the default) pulls nothing. |
+| `sea`, `seaLevel`, `seaColor`, `seaOpacity` | Whether the planet has a sea, its height above the radius, its colour and how much of it covers what is under it (0 to 1). |
 
 A planet's provider answers for **directions**, not positions: it is handed unit directions from the planet's centre and the radius they are on, and gives back each one's height above the radius
 and, if it paints, four layer weights. A sphere has no x and z, so a generator reads three-dimensional noise at the point's place, which has no seam and no pole.

@@ -117,15 +117,18 @@ Browser — every sprite that uses the texture inherits them.
 
 | Setting | Default | What it does |
 |---|---|---|
-| **Max Size** | `2048` | Downscale cap applied at cook (a power of two). A source larger than this on its longest side is box-filtered down; a smaller source is untouched. |
+| **Max Size** | `2048` | Downscale cap applied at cook (256 to 8192, a power of two). A source larger than this on its longest side is box-filtered down; a smaller source is untouched. |
 | **Compression** | `Auto` | **GPU compressed** ships a KTX2 (Basis Universal) that stays compressed in video memory — about a quarter of the decoded image — and transcodes per device. **Original image** ships the file as it is: exact, and for flat art far smaller to download, but decoded in full on the GPU. **Auto** is GPU compressed for a texture a mesh draws (directly or through its material) and the original image for sprites and UI. A build does what this row says; it never swaps one for the other because a file came out smaller. |
 | **Compress Format** | `uastc` | `uastc` — high quality, larger. `etc1s` — much smaller, lower quality (good for photographic art). Only used when the texture is GPU compressed. |
 | **Mip Maps** | on | Keep a chain of half-size copies so a texture drawn small samples a filtered image instead of shimmering; costs a third more memory. Turn it off for pixel art and UI that is always drawn at its own size. |
 | **Filter** | `linear` | Sampling filter. `nearest` keeps pixel art crisp; `linear` smooths. |
 | **Wrap** | `repeat` | How UVs outside `[0,1]` are addressed: `repeat`, `clamp`, `mirror`. |
 | **sRGB Color** | `true` | The image stores sRGB-encoded color (albedo, UI). Disable for authored-linear data — normal maps, masks. Only meaningful when the project renders in linear color. |
-| **Mip Coverage Cutoff** | `0` | For a cutout (leaves, grass, fences): the alpha cutoff its material tests. Each mip level keeps the share of texels above it that the full image has, so the cutout does not thin out with distance. `0` = off; applies to UASTC-compressed textures. |
+| **Mip Coverage Cutoff** | `0` | For a cutout (leaves, grass, fences): the alpha cutoff its material tests. Each mip level keeps the share of texels above it that the full image has, so the cutout does not thin out with distance. `0` = off (0 to 1); applies to UASTC-compressed textures. |
 | **9-Slice Border** | `0,0,0,0` | Left/right/top/bottom border in **texture pixels**: where the image's corners end. Authored once here, inherited by every `UIVisual` set to Sliced. |
+| **Cell Width / Cell Height** | `0` | The size of one cell of a sprite sheet, in pixels. `0` means the image is not a sheet; setting it lets a `Sprite` pick a frame of the image instead of showing all of it. |
+| **Margin** | `0` | Padding before the first cell, on both axes. |
+| **Spacing** | `0` | Gap between neighbouring cells, paid between cells only, never after the last one. |
 
 <Aside type="tip">
   **Pixel art**: set Filter to `nearest` and Compression to **Original image** (Auto already

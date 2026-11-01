@@ -293,8 +293,22 @@ export const Thruster = defineBehavior('Thruster', {
 });
 ```
 
-Available phases include `Startup`, `PreUpdate`, `Update`, `PostUpdate`, and the fixed
-trio `FixedPreUpdate` / `FixedUpdate` / `FixedPostUpdate`.
+Available phases include `Startup`, `First`, `PreUpdate`, `Update`, `PostUpdate`, `Last`, and
+the fixed trio `FixedPreUpdate` / `FixedUpdate` / `FixedPostUpdate`.
+
+### Declaring what you touch
+
+A behavior reaches other components through `ctx.get` / `ctx.set`, which the scheduler
+cannot see. Left undeclared, it is treated as opaque and conflicts with every other
+system. Pass `touches` (component names) so it can be ordered and parallelised:
+
+```typescript
+export const Drifter = defineBehavior('Drifter', {
+  state: { speed: 60 },
+  touches: { reads: ['Transform'], writes: ['Transform'] },
+  update(ctx, dt) { /* … */ },
+});
+```
 
 ## Timers
 
@@ -332,15 +346,15 @@ builtin `Velocity` component instead of writing a movement system. The engine
 integrates it into `Transform` every update in play mode:
 
 ```typescript
-import { Velocity } from 'esengine';
+import { Velocity, Transform, Sprite } from 'esengine';
 
-world.spawn()
-  .insert(Transform, { position: { x: 0, y: 0, z: 0 } })
-  .insert(Sprite, { texture: bulletTex })
-  .insert(Velocity, {
-    linear: { x: 240, y: 0, z: 0 },          // units per second
-    angular: { x: 0, y: 0, z: Math.PI },     // radians per second (z = 2D spin)
-  });
+const bullet = world.spawn();
+world.insert(bullet, Transform, { position: { x: 0, y: 0, z: 0 } });
+world.insert(bullet, Sprite, { texture: bulletTex });
+world.insert(bullet, Velocity, {
+  linear: { x: 240, y: 0, z: 0 },          // units per second
+  angular: { x: 0, y: 0, z: Math.PI },     // radians per second (z = 2D spin)
+});
 ```
 
 Entities with a `RigidBody2D` are skipped — the physics solver owns their transform,
