@@ -128,7 +128,7 @@ lists the exceptions). Dimensions are in meters.
 
 | Component | Shape parameters |
 |---|---|
-| `BoxCollider2D` | `halfExtents` (`{0.5, 0.5}`), `radius` (rounded corner, `0.05`). |
+| `BoxCollider2D` | `halfExtents` (`{0.5, 0.5}`). Its corners are always rounded by `0.05` m; there is no field to change that (a `radius` written to the component is not stored). |
 | `CircleCollider2D` | `radius` (`0.5`). |
 | `CapsuleCollider2D` | `radius` (`0.25`), `halfHeight` (`0.5`). |
 | `SegmentCollider2D` | `point1` (`{-0.5, 0}`), `point2` (`{0.5, 0}`) — a one-sided edge; no `offset`. |

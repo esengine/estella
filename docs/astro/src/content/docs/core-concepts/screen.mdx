@@ -259,10 +259,10 @@ In the editor the mask is a multi-select of your project's **sorting layer names
 (Settings → Project → Rendering → Layer names). The editor's own viewport ignores it
 and always shows every layer, so culling never hides content while you author.
 
-<Aside type="caution">
-  A sub-viewport camera clears only its own rectangle, but its draws are not
-  clipped to it — content it renders can spill across the full frame. Culling
-  decides *what* such a camera draws; scoping *where* is a separate gap.
+<Aside>
+  A sub-viewport camera draws and clears only its own rectangle, so two cameras
+  with a half each give a split screen. Culling decides *what* such a camera
+  draws; its `viewport` decides *where*.
 </Aside>
 
 ## Screen size & orientation: `ScreenInfo`

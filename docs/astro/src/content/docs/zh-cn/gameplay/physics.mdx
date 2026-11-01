@@ -120,7 +120,7 @@ const spawnBall = defineSystem([Commands()], (cmds) => {
 
 | 组件 | 形状参数 |
 |---|---|
-| `BoxCollider2D` | `halfExtents`(`{0.5, 0.5}`)、`radius`(圆角,`0.05`)。 |
+| `BoxCollider2D` | `halfExtents`(`{0.5, 0.5}`)。四个角固定圆角 `0.05` 米,没有字段可以改(写进组件的 `radius` 不会被保存)。 |
 | `CircleCollider2D` | `radius`(`0.5`)。 |
 | `CapsuleCollider2D` | `radius`(`0.25`)、`halfHeight`(`0.5`)。 |
 | `SegmentCollider2D` | `point1`(`{-0.5, 0}`)、`point2`(`{0.5, 0}`)——单边;没有 `offset`。 |
