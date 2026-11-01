@@ -308,6 +308,13 @@ export {
     type RenderTextureOptions,
 } from './render/renderTexture';
 
+export {
+    TextureAtlas,
+    type TextureAtlasHandle,
+    type TextureAtlasOptions,
+    type AtlasEntry,
+} from './render/textureAtlas';
+
 // =============================================================================
 // Render Pipeline
 // =============================================================================

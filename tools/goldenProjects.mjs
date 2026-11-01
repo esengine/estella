@@ -1058,6 +1058,8 @@ export const SHIPPED = {
     { notCertifiable: "Cocos Creator project conversion, covered by the converter's unit tests and the editor suite; no golden project is a converted Cocos project, so no packaged frame can decide it." },
   "A converted Cocos project is brought up to date when it is opened.":
     { notCertifiable: "Cocos Creator project conversion, covered by the converter's unit tests and the editor suite; no golden project is a converted Cocos project, so no packaged frame can decide it." },
+  "Pack several textures onto one canvas at run time: `TextureAtlas.pack`.":
+    { notCertifiable: "A rendering feature, covered by its unit tests and by the Render Texture example run in the editor; no golden project packs textures, and one packaged frame cannot decide a result that depends on the device." },
 };
 
 /** Numeric compare of two `x.y.z` strings. */

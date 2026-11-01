@@ -277,6 +277,8 @@ export {
     type PageHandle,
 } from './ui';
 
+export { RectAnchors, AnchorFlag, AnchorMode, alignRectAnchorsNow, type RectAnchorsData } from './ui';
+
 export { VirtualJoystick, VirtualButton, VirtualJoystickMode, createVirtualJoystick, createVirtualButton, type VirtualJoystickData, type VirtualButtonData, type VirtualJoystickOptions, type VirtualButtonOptions } from './ui';
 
 export { deferredEntities, deferredRecord } from './scene/deferredInstances';

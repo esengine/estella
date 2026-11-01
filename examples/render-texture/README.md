@@ -9,6 +9,10 @@ A quad pinned to the top-right corner shows the whole world live: every frame
 a system paints a schematic of the world into a `RenderTexture`, and the
 quad's `Sprite` samples the target's `texture`.
 
+Along the bottom-left, four cards are sprites cut from **one** canvas that
+`TextureAtlas.pack` drew from four separate textures (`src/systems/atlas.ts`); the small
+picture beside them is the canvas itself.
+
 | Key | Action |
 |---|---|
 | **R** | Cycle the target's resolution: 96×60 → 192×120 → 384×240 → 768×480. The quad keeps the same on-screen size, so the fidelity change is obvious (and `resize` semantics are exercised — see below). |
