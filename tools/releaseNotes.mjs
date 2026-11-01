@@ -3446,4 +3446,8 @@ export const NOTED = {
     {"note":"Rain wets hillsides and plants, not only flat ground."},
   "feat(render): TextureAtlas packs several textures onto one canvas at run time, and RectAnchors, AnchorFlag and AnchorMode are exported from the package root":
     {"note":"Pack several textures onto one canvas at run time: `TextureAtlas.pack`."},
+  "fix(physics3d): a contact point is given in the units of Transform, as a ray hit is, so the debug draw crosses land where the bodies met":
+    {"note":"A 3D contact point is in the units of `Transform`."},
+  "fix(cocos): a converted effect reads the tangent varying the engine fragment prelude declares, instead of declaring it again":
+    {"internal":"corrects a converted Cocos effect that no release has shipped yet"},
 };
