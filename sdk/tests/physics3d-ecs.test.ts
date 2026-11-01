@@ -325,7 +325,7 @@ describe('the 3D world and the ECS', () => {
         const events = {
             contactEnters: [], contactExits: [], sensorEnters: [], sensorExits: [],
         };
-        // (entityA, entityB, normal, point) — two bodies met head-on at 1m up.
+        // (entityA, entityB, normal, point) — two bodies met head-on at 1m up, which is 100 in Transform units.
         module.publishContacts([7, 9, 0, 1, 0, 0, 1, 0]);
         stepPhysics3D(app, module, bodies, DEFAULT_PHYSICS3D_CONFIG, new Map(), events);
 
@@ -334,7 +334,7 @@ describe('the 3D world and the ECS', () => {
         expect(hit!.entityA).toBe(7);
         expect(hit!.entityB).toBe(9);
         expect(hit!.normalY).toBeCloseTo(1, 6);
-        expect(hit!.pointY).toBeCloseTo(1, 6);
+        expect(hit!.pointY).toBeCloseTo(DEFAULT_PHYSICS3D_CONFIG.pixelsPerUnit, 6);
     });
 
     it('collides against a loaded mesh\u2019s own triangles', () => {

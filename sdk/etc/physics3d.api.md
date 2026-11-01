@@ -484,7 +484,7 @@ twistMinAngle: number
 
 ## drainPhysics3DEvents — function @experimental
 ```
-(module: Physics3DWasmModule, events: Physics3DEventsData): void
+(module: Physics3DWasmModule, events: Physics3DEventsData, pixelsPerUnit?: number): void
 ```
 
 ## drawPhysics3DDebug — function @experimental

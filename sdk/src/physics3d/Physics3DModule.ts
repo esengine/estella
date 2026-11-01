@@ -231,9 +231,13 @@ export const Physics3DEvents = defineResource<Physics3DEventsData>({
     sensorExits: [],
 }, 'Physics3DEvents');
 
-/** Refill `events` from the module's four buffers. */
+/**
+ * Refill `events` from the module's four buffers. A contact point is made in the world's own
+ * units, so `pixelsPerUnit` brings it into the space `Transform` and the queries speak.
+ */
 export function drainPhysics3DEvents(module: Physics3DWasmModule,
-                                     events: Physics3DEventsData): void {
+                                     events: Physics3DEventsData,
+                                     pixelsPerUnit = 1): void {
     const f32 = module.HEAPF32;
     const read = <T>(ptr: number, bytes: number, stride: number,
                      make: (base: number) => T): T[] => {
@@ -248,7 +252,7 @@ export function drainPhysics3DEvents(module: Physics3DWasmModule,
         (o) => ({
             entityA: f32[o] as Entity, entityB: f32[o + 1] as Entity,
             normalX: f32[o + 2]!, normalY: f32[o + 3]!, normalZ: f32[o + 4]!,
-            pointX: f32[o + 5]!, pointY: f32[o + 6]!, pointZ: f32[o + 7]!,
+            pointX: f32[o + 5]! * pixelsPerUnit, pointY: f32[o + 6]! * pixelsPerUnit, pointZ: f32[o + 7]! * pixelsPerUnit,
         }));
     events.contactExits = read(
         module._physics3d_contactExits(), module._physics3d_contactExitsBytes(), 2,

@@ -359,7 +359,7 @@ export function stepPhysics3D(app: App, module: Physics3DWasmModule,
     module._physics3d_step(config.fixedTimestep, config.collisionSteps);
     // Drained immediately after the step that produced them: the module's buffers
     // hold one step's worth and the next step clears them.
-    if (events) drainPhysics3DEvents(module, events);
+    if (events) drainPhysics3DEvents(module, events, ppu);
 
     // Only bodies the solver moved are in the buffer, so this is the frame's
     // moving population rather than every body in the world.

@@ -90,6 +90,7 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A 3D contact point is in the units of `Transform`.** The point a `Physics3DEvents.contactEnters` entry carries was in the physics world's own units, so with the default 100 pixels to the unit it sat a hundredth of the way from the origin, and the contact crosses of the physics debug draw landed there instead of where the bodies met. It is now scaled as a ray hit is.
 - **`RectAnchors`, `AnchorFlag` and `AnchorMode` can be imported from `esengine`.** They were exported from the UI module only, so the import the manual shows did not resolve.
 - **Lit materials draw on WebGPU again.** A lit material on the engine's own vertex stage, and a 2D lit shader, built a WebGPU program with a preprocessor line left in it, so the material drew nothing (and a desktop build of a 3D scene came up black). `#if` and `#elif` conditions with `defined`, `!`, `&&`, `||` and parentheses now resolve in a WGSL twin as they do in GLSL.
 - **A scanned preview reaches the game's own server.** The page a phone opens from the preview QR code allowed connections only to itself, so a game that logged in to a server on the LAN worked in Play and in a single-file build but not on the phone. The preview now connects as Play does; a shipping web export still connects only to the servers listed in Project Settings → Allowed server origins.
