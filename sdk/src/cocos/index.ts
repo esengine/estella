@@ -28,6 +28,7 @@ export {
 } from './assets';
 export { registerBuiltinComponent, type BuiltinAdapter } from './builtins';
 export { unsupported } from './unsupported';
+export { renderer } from './renderer';
 export { ccenum, js, NodePool, profiler } from './misc';
 export { MeshRenderer, ModelRenderer, UIMeshRenderer } from './meshRenderer';
 export { Collider, BoxCollider } from './collider';
