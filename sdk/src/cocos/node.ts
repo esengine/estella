@@ -501,6 +501,21 @@ export class Node {
         return type;
     }
 
+    /**
+     * Every script component on this node, made if it was not yet and not loaded: Cocos keeps them on the node as `_components`, and a project reads
+     * them to prepare a freshly made instance (parse its nodes) before the node is given a parent that would load it.
+     */
+    get _components(): Component[] {
+        const out: Component[] = [];
+        for (const type of this._world.getComponentTypes(this._entity)) {
+            if (!type.startsWith(COMPONENT_PREFIX)) continue;
+            const info = classInfoNamed(type.slice(COMPONENT_PREFIX.length));
+            const inst = info ? ensureInstance(this._world, this._entity, info.ctor) : null;
+            if (inst) out.push(inst);
+        }
+        return out;
+    }
+
     /** @internal Every live script component on this node. */
     _allInstances(): Component[] { return [...(instancesOn(this._world, this._entity)?.values() ?? [])]; }
 
