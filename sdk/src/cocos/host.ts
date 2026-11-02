@@ -124,17 +124,24 @@ function instantiate(world: World, entity: Entity, ctor: ComponentCtor): Compone
         for (const spec of info.props) {
             if (spec.name in data) (inst as unknown as Record<string, unknown>)[spec.name] = liveValue(world, spec, data[spec.name]);
         }
-        inst._loaded = true;
-        call(inst, 'onLoad');
-        // `start` belongs to the start phase, which runs before the frame's updates; what has no `start` has started
-        if (typeof (inst as unknown as { start?: unknown }).start === 'function') awaitStart(world, inst);
-        else inst._started = true;
+        // A component added to a node that is not active in the hierarchy (a prefab instance not yet given a parent) is there to be read and set, and
+        // loads when the node becomes active, as in Cocos.
+        if (world.isEntityActive(entity)) loadInstance(world, inst);
         return inst;
     } finally {
         setCurrentWorld(previous);
     }
 }
 setInstantiator(instantiate);
+
+/** Run the load part of a component's life: `onLoad` now, `start` in the start phase. */
+function loadInstance(world: World, inst: Component): void {
+    inst._loaded = true;
+    call(inst, 'onLoad');
+    // `start` belongs to the start phase, which runs before the frame's updates; what has no `start` has started
+    if (typeof (inst as unknown as { start?: unknown }).start === 'function') awaitStart(world, inst);
+    else inst._started = true;
+}
 
 /**
  * Bring the scripts of a node and everything under it to the state its activity says, at once: the classes it carries are made (`onLoad`)
@@ -155,6 +162,7 @@ function syncSubtree(world: World, root: Entity): void {
                 const info = classInfoNamed(type.slice(COMPONENT_PREFIX.length));
                 if (!info) continue;
                 const inst = instancesOn(world, entity)?.get(info.ctor) ?? (active ? instantiate(world, entity, info.ctor) : null);
+                if (inst && active && !inst._loaded) loadInstance(world, inst);
                 if (inst) made.push(inst);
             }
             const children = world.tryGet(entity, Children)?.entities;
@@ -180,6 +188,7 @@ setActivitySync(syncSubtree);
 /** Run the per-frame part of one instance: enable/disable as its activity changes, then `start` once, then the timers and `update`. */
 function drive(world: World, entity: Entity, inst: Component, dt: number, fresh = false): void {
     const active = inst.enabled && world.isEntityActive(entity);
+    if (active && !inst._loaded) loadInstance(world, inst);
     if (active && !inst._enabledApplied) {
         inst._enabledApplied = true;
         call(inst, 'onEnable');

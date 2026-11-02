@@ -13,7 +13,7 @@ import type { ESEngineModule } from '../../src/wasm';
 import { World } from '../../src/ecs/world';
 import { Transform, ensureBuiltinComponentsRegistered } from '../../src/ecs/component';
 import { AppContext, setDefaultContext } from '../../src/ecs/context';
-import { Button, Node, Quat, Vec3, director, find, setCurrentWorld } from '../../src/cocos';
+import { Button, Label, Node, Quat, UIRenderer, Vec3, director, find, setCurrentWorld } from '../../src/cocos';
 import { HAS_WASM, loadWasmModule } from '../helpers/loadWasm';
 
 describe.skipIf(!HAS_WASM)('Node on the engine', () => {
@@ -283,5 +283,42 @@ describe.skipIf(!HAS_WASM)('Node world-space setters', () => {
         expect(child.inverseTransformPoint(new Vec3(), new Vec3(3, 0, 0)).x).toBeCloseTo(1, 5);
         child.translate(new Vec3(0, 0, 1), Node.NodeSpace.WORLD);
         expect(child.worldPosition.z).toBeCloseTo(1, 5);
+    });
+});
+
+describe.skipIf(!HAS_WASM)('Node.insertChild', () => {
+    let module: ESEngineModule;
+    let registry: InstanceType<ESEngineModule['Registry']> | undefined;
+    let world: World | undefined;
+    beforeAll(async () => { ensureBuiltinComponentsRegistered(); module = await loadWasmModule(); });
+    afterEach(() => { setCurrentWorld(null); world?.disconnectCpp(); registry?.delete(); registry = undefined; world = undefined; });
+
+    it('puts a child at the place asked among the others', () => {
+        setDefaultContext(new AppContext());
+        registry = new module.Registry(); world = new World(); world.connectCpp(registry, module); setCurrentWorld(world);
+        const mk = (name: string): Node => { const n = new Node(name); world!.insert(n._entity, Transform); return n; };
+        const parent = mk('p'), a = mk('a'), b = mk('b'), c = mk('c');
+        parent.addChild(a); parent.addChild(b);
+        parent.insertChild(c, 1);
+        expect(parent.children.map((n) => n.name)).toEqual(['a', 'c', 'b']);
+    });
+});
+
+describe.skipIf(!HAS_WASM)('a base of the built-in views', () => {
+    let module: ESEngineModule;
+    let registry: InstanceType<ESEngineModule['Registry']> | undefined;
+    let world: World | undefined;
+    beforeAll(async () => { ensureBuiltinComponentsRegistered(); module = await loadWasmModule(); });
+    afterEach(() => { setCurrentWorld(null); world?.disconnectCpp(); registry?.delete(); registry = undefined; world = undefined; });
+
+    it('is found as the Label the node holds, and is nothing on a node with no drawn element', () => {
+        setDefaultContext(new AppContext());
+        registry = new module.Registry(); world = new World(); world.connectCpp(registry, module); setCurrentWorld(world);
+        const n = new Node('n'), bare = new Node('bare');
+        world.insert(n._entity, Transform); world.insert(bare._entity, Transform);
+        const label = n.addComponent(Label)!;
+        expect(n.getComponent(UIRenderer)).toBe(label);
+        expect(n.getComponents(UIRenderer)).toEqual([label]);
+        expect(bare.getComponent(UIRenderer)).toBeNull();
     });
 });

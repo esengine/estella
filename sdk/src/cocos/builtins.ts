@@ -31,6 +31,15 @@ export function builtinAdapterFor(type: unknown): BuiltinAdapter | undefined {
     return adapters.get(type);
 }
 
+/** The adapters of the built-in classes that derive from @p base (`UIRenderer` is the base of `Label` and `Sprite`, and has no view of its own). */
+export function builtinAdaptersDerivedFrom(base: Function): BuiltinAdapter[] {
+    const out: BuiltinAdapter[] = [];
+    for (const [key, adapter] of adapters) {
+        if (typeof key === 'function' && key !== base && key.prototype instanceof base) out.push(adapter);
+    }
+    return out;
+}
+
 /** Test seam. */
 export function resetBuiltinAdapters(): void {
     adapters.clear();

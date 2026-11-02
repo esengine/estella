@@ -7,7 +7,7 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { ESEngineModule } from '../../src/wasm';
 import { App, flushPendingRegistrations } from '../../src/app/app';
-import { ensureBuiltinComponentsRegistered } from '../../src/ecs/component';
+import { Transform, ensureBuiltinComponentsRegistered } from '../../src/ecs/component';
 import { AppContext, setDefaultContext } from '../../src/ecs/context';
 import { loadSceneData, SCENE_FORMAT_VERSION } from '../../src/scene/scene';
 import type { SceneData } from '../../src/scene/scene';
@@ -151,5 +151,39 @@ describe.skipIf(!HAS_WASM)('a script that switches nodes on and off', () => {
         } as unknown as SceneData);
         syncActivity(app.world, map.get(0)!);
         expect(calls).toEqual(['first.load', 'second.load', 'first.enable', 'second.enable']);
+    });
+});
+
+describe.skipIf(!HAS_WASM)('a component added to a node that is not active', () => {
+    let module: ESEngineModule;
+    let registry: InstanceType<ESEngineModule['Registry']> | undefined;
+    let app: App | undefined;
+    beforeAll(async () => { ensureBuiltinComponentsRegistered(); module = await loadWasmModule(); });
+    afterEach(() => { setCurrentWorld(null); app?.world.disconnectCpp(); registry?.delete(); app = undefined; registry = undefined; });
+
+    it('loads when the node becomes active, not when it is added, so what its creator sets after addComponent is there for onLoad', () => {
+        setDefaultContext(new AppContext());
+        ensureBuiltinComponentsRegistered();
+        resetClassRegistry();
+        declareBuiltinScripts();
+        const seen: Array<string | null> = [];
+        @_decorator.ccclass('NeedsOwner')
+        class NeedsOwner extends Component {
+            owner: string | null = null;
+            onLoad() { seen.push(this.owner); }
+        }
+        registry = new module.Registry();
+        app = App.new();
+        app.connectCpp(registry as never, module);
+        flushPendingRegistrations(app);
+        setCurrentWorld(app.world);
+        const n = new Node('n');
+        app.world.insert(n._entity, Transform);
+        n.active = false;
+        const comp = n.addComponent(NeedsOwner)!;
+        expect(seen).toEqual([]);
+        comp.owner = 'view';
+        n.active = true;
+        expect(seen).toEqual(['view']);
     });
 });

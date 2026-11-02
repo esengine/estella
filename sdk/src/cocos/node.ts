@@ -22,7 +22,7 @@ import {
     type ComponentCtor,
 } from './registry';
 import type { Component } from './component';
-import { builtinAdapterFor } from './builtins';
+import { builtinAdapterFor, builtinAdaptersDerivedFrom } from './builtins';
 
 /** The world a `new Node()` spawns into: set by whatever is running script code (the host, a test). */
 let currentWorld: World | null = null;
@@ -194,6 +194,11 @@ export class Node {
     }
 
     addChild(child: Node): void { child.setParent(this); }
+    /** Add @p child at place @p index among this node's children (the end when it is past it). */
+    insertChild(child: Node, index: number): void {
+        child.setParent(this);
+        child.setSiblingIndex(index);
+    }
     removeChild(child: Node): void { if (child.parent === this) child.setParent(null); }
     removeFromParent(): void { this.setParent(null); }
     removeAllChildren(): void { for (const c of this.children) c.setParent(null); }
@@ -421,7 +426,20 @@ export class Node {
                 return this.subclassInstances_(ctor)[0] as T | undefined ?? null;
             }
         }
-        return (builtinAdapterFor(type)?.get(this._world, this._entity) as T | null | undefined) ?? null;
+        const own = builtinAdapterFor(type)?.get(this._world, this._entity) as T | null | undefined;
+        if (own) return own;
+        // the base of built-in views (`UIRenderer`) is found by the one the node holds
+        return (typeof type === 'function' ? this.derivedViews_(type)[0] : undefined) as T | undefined ?? null;
+    }
+
+    /** The views on this node of the built-in classes that derive from @p base. */
+    private derivedViews_(base: Function): Component[] {
+        const out: Component[] = [];
+        for (const adapter of builtinAdaptersDerivedFrom(base)) {
+            const view = adapter.get(this._world, this._entity);
+            if (view) out.push(view);
+        }
+        return out;
     }
 
     getComponents<T extends Component>(type: ComponentCtor<T> | string): T[] {
