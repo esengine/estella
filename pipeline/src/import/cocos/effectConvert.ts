@@ -257,7 +257,7 @@ const ATTRIBUTE_SOURCES: Record<string, string> = {
 const STANDARD_ATTRIBUTES: Record<string, string> = { a_position: 'vec3', a_normal: 'vec3', a_texCoord: 'vec2', a_tangent: 'vec4' };
 
 /** The varyings the engine's vertex stage owns. */
-const ENGINE_VARYING_NAMES = new Set(['v_color', 'v_texCoord', 'v_worldPos', 'v_worldXYZ', 'v_worldNormal', 'v_worldTangent']);
+const ENGINE_VARYING_NAMES = new Set(['v_color', 'v_texCoord', 'v_worldPos', 'v_worldXYZ', 'v_worldNormal', 'v_worldTangent', 'v_localPos']);
 
 /** The second uv set: the engine hands it down wherever the vertices carry one (MESH_LIGHTMAP), and a draw with none reads the first. */
 const UV1_VARYING = `#ifdef MESH_LIGHTMAP
@@ -268,13 +268,25 @@ in highp vec2 v_texCoord1;
 #endif`;
 
 const TANGENT_VARYING = `#ifdef MESH_TANGENTS
-in highp vec4 v_worldTangent;
 #define cocos_tangent v_worldTangent
 #else
 #define cocos_tangent vec4(1.0, 0.0, 0.0, 1.0)
 #endif`;
 
+/**
+ * The mesh's position before it is placed, which the engine's vertex stage hands down to a shader that declares MESH_LOCAL_POSITION. Where a draw has none
+ * (a sprite, whose vertices are already in the world) it is the world position, which is what it would be.
+ */
+const LOCAL_POSITION_VARYING = `#ifdef MESH_LOCAL_POSITION
+in highp vec3 v_localPos;
+#define cocos_localPosition v_localPos
+#else
+#define cocos_localPosition cocos_position
+#endif`;
+
 interface Emulated {
+    /** The program reads the position as the mesh has it, in its own space (a swizzle of it, not a point it puts through the world matrix). */
+    readsModelPosition: boolean;
     /** The program, as GLSL that declares what it wrote as globals and has the entry `cocos_vert`. */
     source: string;
     /** The attributes it reads, as globals. */
@@ -350,15 +362,19 @@ function emulateVertex(program: string, entry: string): Emulated | { error: stri
     text = text.replace(entryRe, 'vec4 cocos_vert()');
     // A statement that assigns the position before the matrices are applied, from time or a periodic function: a displacement.
     const displaces = /(?:\bIn\.position|\bposition|\ba_position)\b[^;]*\b(?:cc_time|sin|cos)\b|\b(?:cc_time|sin|cos)\b[^;]*(?:\bIn\.position|\bposition|\ba_position)\b/.test(text);
+    // A statement that takes components of the position and does not put it through the world matrix reads it in the mesh's own space (a terrain tiles its
+    // detail by `position.xz`); the engine's value for it, the world position, is the same only for a mesh that stands at the origin, unscaled and unturned.
+    const readsModelPosition = text.split(';').some((statement) => /(?:\bIn\.position|\bposition|\ba_position)\.[xyzw]{1,4}\b/.test(statement) && !/matWorld|cc_matWorld|matWorldIT/.test(statement));
     const setup: string[] = [];
     const declared: string[] = [];
     for (const [name, type] of attributes) {
         declared.push(`${type} ${name};`);
-        const source = ATTRIBUTE_SOURCES[name];
+        const source = name === 'a_position' && readsModelPosition ? 'cocos_localPosition' : ATTRIBUTE_SOURCES[name];
         if (source) setup.push(`    ${name} = ${source}${coerce(type, name)};`);
         if (name === 'a_texCoord1') approximations.push('the second uv is the mesh\'s own where it has one and the first uv where it has none');
     }
-    return { source: text, attributes: declared.join('\n'), outputs, attributeSetup: setup, approximations, displaces };
+    if (readsModelPosition) approximations.push('the vertex position is the mesh\'s own where the draw is a mesh, and the world position where it is a sprite');
+    return { source: text, attributes: declared.join('\n'), outputs, attributeSetup: setup, approximations, displaces, readsModelPosition };
 }
 
 /** The conversion that makes an engine value of one width fit the type an attribute is declared with. */
@@ -515,6 +531,7 @@ export function convertPass(
         needed.add(NORMAL_VARYING);
         needed.add(TANGENT_VARYING);
         if (/\ba_texCoord1\b/.test(vertex.attributes)) needed.add(UV1_VARYING);
+        if (vertex.readsModelPosition) needed.add(LOCAL_POSITION_VARYING);
     }
     const usesPosition = needed.has(POSITION_VARYING);
     if (usesPosition) approximations.push('v_position is the world position of the draw: the engine gives the full position to meshes with normals, and the plane position to sprites');
@@ -580,7 +597,7 @@ export function convertPass(
     // has no switches: one shader per combination a project uses, which is the same set of programs and a shader that can be given a WGSL twin
     // (a twin carries a body for every combination of what is left to toggle). Without them they are switches a material turns on.
     const found = macrosIn(`${vertexText}\n${body}`);
-    const ENGINE_FEATURE = /^(?:MESH_NORMALS|MESH_TANGENTS|MESH_LIGHTMAP|GL_ES|CC_[A-Z_]+_ENABLED)$/;
+    const ENGINE_FEATURE = /^(?:MESH_NORMALS|MESH_TANGENTS|MESH_LIGHTMAP|MESH_LOCAL_POSITION|GL_ES|CC_[A-Z_]+_ENABLED)$/;
     const named = found.switches.filter((m) => !ENGINE_FEATURE.test(m) && !found.compared.includes(m));
     const compared = found.compared.filter((m) => !ENGINE_FEATURE.test(m));
     let switches: string[] = [];
@@ -604,7 +621,7 @@ ${body}`;
         if (compared.length > 0) approximations.push(`${compared.join(', ')} is compared to a number; the engine's switches are on or off`);
     }
     // What the engine's vertex stage offers a fragment, which the shader asks for by name so that a twin carries a body for each.
-    const offered = ['MESH_NORMALS', 'MESH_TANGENTS', 'MESH_LIGHTMAP']
+    const offered = ['MESH_NORMALS', 'MESH_TANGENTS', 'MESH_LIGHTMAP', 'MESH_LOCAL_POSITION']
         .filter((f) => new RegExp(`\\b${f}\\b`).test(`${[...needed].join('\n')}\n${vertexText}\n${body}`));
 
     const lines: string[] = [

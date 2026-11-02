@@ -277,6 +277,11 @@ std::string wgslCanonicalVSOut(bool lit) {
         // The mesh's own second uv set, as authored: what a material that is not a bake reads it for (a mask, a dissolve map). The vertices carry it
         // whenever MESH_LIGHTMAP is on, which is what that feature says.
         "    @location(9) v_texCoord1 : vec2f,\n"
+        "#endif\n"
+        // The mesh's own position, before it is placed: what an effect authored against model space reads (a terrain tiles its detail by it).
+        // Only a shader that declares the feature gets it.
+        "#ifdef MESH_LOCAL_POSITION\n"
+        "    @location(10) v_localPos : vec3f,\n"
         "#endif\n";
     if (lit) {
         // Which run of coefficients this instance reads. Flat: an index, not a
@@ -435,6 +440,9 @@ std::string canonicalVertexStageWGSL(bool lit, const std::string& hook = {}) {
         "    out.v_lightmap = vec3f(v.a_texCoord1 * lmRect.xy + lmRect.zw,\n"
         "                           select(0.0, 1.0, lmRect.x > 0.0));\n"
         "    out.v_texCoord1 = v.a_texCoord1;\n"
+        "#endif\n"
+        "#if defined(MESH_LOCAL_POSITION) && defined(MESH)\n"
+        "    out.v_localPos = v.a_position;\n"
         "#endif\n";
     if (lit) {
         src += "    out.v_worldPos = world.xy;\n";
@@ -587,6 +595,10 @@ std::string canonicalVertexStage(bool lit, const std::string& hook = {}) {
         "#ifdef MESH_LIGHTMAP\n"
         "out highp vec3 v_lightmap;\n"
         "out highp vec2 v_texCoord1;\n"
+        "#endif\n"
+        // The mesh's own position, before it is placed, for a shader that declares MESH_LOCAL_POSITION (see the WGSL twin's v_localPos).
+        "#ifdef MESH_LOCAL_POSITION\n"
+        "out highp vec3 v_localPos;\n"
         "#endif\n";
     if (lit) {
         src += "out highp vec2 v_worldPos;\n";
@@ -673,6 +685,9 @@ std::string canonicalVertexStage(bool lit, const std::string& hook = {}) {
         "    v_lightmap = vec3(a_texCoord1 * lmRect.xy + lmRect.zw,\n"
         "                      lmRect.x > 0.0 ? 1.0 : 0.0);\n"
         "    v_texCoord1 = a_texCoord1;\n"
+        "#endif\n"
+        "#if defined(MESH_LOCAL_POSITION) && defined(MESH)\n"
+        "    v_localPos = a_position;\n"
         "#endif\n";
     if (lit) {
         src += "    v_worldPos = world.xy;\n";
@@ -2490,6 +2505,13 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
     if (!parsed.vertexIsCanonical
         && std::find(parsed.features.begin(), parsed.features.end(), "MESH_TANGENTS") == parsed.features.end()) {
         features.erase(std::remove(features.begin(), features.end(), std::string("MESH_TANGENTS")), features.end());
+    }
+    // The mesh's own position is handed down only on the engine's canonical vertex stage, for a mesh draw of a shader that asks for it: it costs a
+    // varying, which no other shader should pay.
+    const auto has = [](const std::vector<std::string>& list, const char* name) { return std::find(list.begin(), list.end(), name) != list.end(); };
+    features.erase(std::remove(features.begin(), features.end(), std::string("MESH_LOCAL_POSITION")), features.end());
+    if (parsed.vertexIsCanonical && has(parsed.features, "MESH_LOCAL_POSITION") && has(features, "MESH")) {
+        features.push_back("MESH_LOCAL_POSITION");
     }
     if (target == ShaderTargetLanguage::WGSL) {
         return assembleWGSLStage(parsed, stage, features);
