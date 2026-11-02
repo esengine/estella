@@ -294,6 +294,36 @@ too (`x`, `y` from the top, `width`, `height`).
 The [Render Texture example](https://github.com/esengine/estella/tree/master/examples/render-texture)
 builds four cards and packs them (`src/systems/atlas.ts`).
 
+## Composing a picture at known positions: `TextureCanvas`
+
+When you already know where each piece goes — a character built from parts, a card with an icon and a
+frame — make a blank canvas, paste textures into it, and put the result on a `Sprite`. It is the same
+idea as Unity's `Graphics.CopyTexture` or drawing onto an Unreal render target.
+
+```typescript
+import { TextureCanvas } from 'esengine';
+
+// In a system in Schedule.Update — each draw is a pass of its own.
+const canvas = TextureCanvas.create(256, 256);       // 1. a blank, transparent canvas
+if (!canvas) return;                                 //    the renderer is not up yet: try again next frame
+canvas.draw(body, 96, 100);                          // 2. paste: (x, y) is the picture's top-left corner
+canvas.draw(head, 104, 46);
+canvas.draw(head, 190, 20, 24, 24);                  //    optional width and height scale it
+world.insert(entity, Sprite, { texture: canvas.texture, size: { x: 512, y: 512 } });   // 3. show it
+```
+
+- `x` and `y` count pixels from the canvas's top-left, y pointing down. The picture is drawn at its
+  own size unless you give `width` and `height`.
+- Pictures blend over what is already there, in the order you paste them.
+- `canvas.clear()` makes it transparent again; `canvas.release()` frees it.
+- **Keep the pasted textures alive.** After a lost graphics device the canvas is drawn again from
+  them, in the same order, automatically.
+- The canvas is an ordinary texture — show it with no `flipY`. For pictures you have no positions for,
+  `TextureAtlas.pack` lays them out for you.
+
+The [Texture Canvas example](https://github.com/esengine/estella/tree/master/examples/texture-canvas)
+builds a small figure from seven pastes.
+
 ## See also
 
 - [Sprites & Rendering](/docs/graphics/sprites/) — the component path for images and shapes.

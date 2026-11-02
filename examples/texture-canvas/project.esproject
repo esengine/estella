@@ -1,0 +1,13 @@
+{
+  "formatVersion": "1",
+  "name": "Texture Canvas",
+  "description": "Compose a picture at run time: make a blank TextureCanvas, paste textures into it at pixel positions, and show the result on a Sprite.",
+  "tag": "Rendering",
+  "version": "1.0.0",
+  "defaultScene": "assets/scenes/main.esscene",
+  "designResolution": {
+    "width": 1280,
+    "height": 720
+  },
+  "spineVersion": "none"
+}

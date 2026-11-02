@@ -315,6 +315,12 @@ export {
     type AtlasEntry,
 } from './render/textureAtlas';
 
+export {
+    TextureCanvas,
+    type TextureCanvasHandle,
+    type TextureCanvasOptions,
+} from './render/textureCanvas';
+
 // =============================================================================
 // Render Pipeline
 // =============================================================================

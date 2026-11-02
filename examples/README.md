@@ -39,6 +39,7 @@ for your own game.
 | **lighting-2d** | Rendering | Dynamic 2D lights and soft shadow casters over `Sprite.lit` surfaces. |
 | **effects-gallery** | Rendering | The built-in material effect templates — hit flash, outline, dissolve, pixelate, UV scroll — with params driven from code. |
 | **render-texture** | Rendering | Render-to-texture — a live minimap painted with the `Draw` API into a `RenderTexture`, resolution cycling on R. |
+| **texture-canvas** | Rendering | Compose a picture at run time — a blank `TextureCanvas`, textures pasted in at pixel positions, the result shown on a `Sprite`. |
 | **drawing-demo** | Rendering | The three drawing tiers — immediate `Draw` radar overlay, retained `Graphics` vector star, procedural `Mesh2D` ribbon. |
 | **wilds** | Rendering | A lake under mountains at dusk — a generated `Terrain` from a heightmap, `Water` with measured depth and shore foam, `Foliage` grass and pines swaying in the wind, and clouds that cast shadows. Everything is made from numbers by `tools/build.mjs`. |
 | **worldgen** | Rendering | A world laid out by rules as you walk through it — `WorldGen` biomes, groves and rock groups composed by recipe, copper to mine, `WorldZone`s keeping a home and a road clear, over ground without end. |

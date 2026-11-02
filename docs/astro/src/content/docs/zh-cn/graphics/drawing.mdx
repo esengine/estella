@@ -271,6 +271,32 @@ world.insert(entity, Sprite, { ...atlas.sprite(iconB), size: { x: 64, y: 64 } })
 [Render Texture 示例](https://github.com/esengine/estella/tree/master/examples/render-texture)
 里建了四张卡片并打包(`src/systems/atlas.ts`)。
 
+## 按指定位置拼一张图:`TextureCanvas`
+
+已经知道每一块放在哪里时(由部件拼成的角色、带图标和边框的卡片),先建一块空白画布,把纹理贴进去,
+再把成品放到 `Sprite` 上。思路与 Unity 的 `Graphics.CopyTexture`、往 UE 的 RenderTarget 上绘制相同。
+
+```typescript
+import { TextureCanvas } from 'esengine';
+
+// 在 Schedule.Update 的系统里——每次 draw 都是一个独立的渲染 pass。
+const canvas = TextureCanvas.create(256, 256);       // 1. 空白透明画布
+if (!canvas) return;                                 //    渲染器还没起来:下一帧再试
+canvas.draw(body, 96, 100);                          // 2. 贴图:(x, y) 是这张图的左上角
+canvas.draw(head, 104, 46);
+canvas.draw(head, 190, 20, 24, 24);                  //    可选的 width、height 用来缩放
+world.insert(entity, Sprite, { texture: canvas.texture, size: { x: 512, y: 512 } });   // 3. 显示
+```
+
+- `x`、`y` 以画布左上角为原点、单位像素、y 向下。不给 `width`、`height` 就按图片自身大小绘制。
+- 后贴的盖在先贴的上面,透明部分会混合。
+- `canvas.clear()` 清回透明,`canvas.release()` 释放。
+- **被贴的纹理要保持存活。** 图形设备丢失后,画布会按原顺序自动重画。
+- 画布就是普通纹理,显示时不要加 `flipY`。没有现成位置、想让引擎自动排布时,用 `TextureAtlas.pack`。
+
+[Texture Canvas 示例](https://github.com/esengine/estella/tree/master/examples/texture-canvas)
+用七次贴图拼出一个小人。
+
 ## 参见
 
 - [精灵与渲染](/docs/zh-cn/graphics/sprites/) —— 图像与形状的组件路径。
