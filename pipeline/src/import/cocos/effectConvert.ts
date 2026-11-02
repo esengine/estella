@@ -358,6 +358,18 @@ export function convertPass(
 
     const approximations: string[] = [];
     const props = new Map(pass.properties.map((p) => [p.name, p]));
+    // A property that says `target: colorScaleAndCutoff.xyz` is part of a vec4 uniform, and what the uniform starts as is those parts put together:
+    // the uniform has no property of its own to say it.
+    const packedDefaults = new Map<string, number[]>();
+    for (const p of pass.properties) {
+        const m = p.target ? /^(\w+)\.([xyzwrgba]+)$/.exec(p.target) : null;
+        if (!m || p.value === null || p.value === undefined) continue;
+        const lanes = [...m[2]!].map((c) => 'xyzw'.indexOf(c) >= 0 ? 'xyzw'.indexOf(c) : 'rgba'.indexOf(c));
+        const whole = packedDefaults.get(m[1]!) ?? [0, 0, 0, 0];
+        const given = numbersOf(p.value, lanes.length);
+        lanes.forEach((lane, i) => { whole[lane] = given[i] ?? 0; });
+        packedDefaults.set(m[1]!, whole);
+    }
     const params: ConvertedShader['params'] = [];
     const declared = new Set<string>();
     const missing: string[] = [];
@@ -403,7 +415,7 @@ export function convertPass(
             declared.add(name);
             const prop = props.get(name);
             const type = paramTypeOf(glsl, prop);
-            params.push({ name, type, value: numbersOf(prop?.value ?? (name === 'alphaThreshold' ? 0.5 : 0), ARITY[type]!) });
+            params.push({ name, type, value: numbersOf(prop?.value ?? packedDefaults.get(name) ?? (name === 'alphaThreshold' ? 0.5 : 0), ARITY[type]!) });
         }
         return '';
     });
