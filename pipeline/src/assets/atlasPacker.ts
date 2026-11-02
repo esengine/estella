@@ -193,18 +193,23 @@ export function downscaleRgba(img: AtlasInputImage, maxDim: number): AtlasInputI
             const sx0 = Math.floor((x * img.width) / nw);
             const sx1 = Math.max(sx0 + 1, Math.floor(((x + 1) * img.width) / nw));
             let r = 0, g = 0, b = 0, a = 0, n = 0;
+            // the colour with no weight: what a footprint that is clear all through is averaged by
+            let r0 = 0, g0 = 0, b0 = 0;
             for (let sy = sy0; sy < sy1; sy++) {
                 for (let sx = sx0; sx < sx1; sx++) {
                     const i = (sy * img.width + sx) * 4;
                     const al = img.rgba[i + 3];
                     r += img.rgba[i] * al; g += img.rgba[i + 1] * al; b += img.rgba[i + 2] * al;
+                    r0 += img.rgba[i]; g0 += img.rgba[i + 1]; b0 += img.rgba[i + 2];
                     a += al; n++;
                 }
             }
             const o = (y * nw + x) * 4;
-            out[o] = a > 0 ? Math.round(r / a) : 0;
-            out[o + 1] = a > 0 ? Math.round(g / a) : 0;
-            out[o + 2] = a > 0 ? Math.round(b / a) : 0;
+            // Weighted by coverage, so a clear texel does not dull the ones it is averaged with; and where all of them are clear, the plain mean rather than black,
+            // since a texture that holds numbers in its colour under a clear alpha (a weight map) has them there.
+            out[o] = Math.round(a > 0 ? r / a : r0 / n);
+            out[o + 1] = Math.round(a > 0 ? g / a : g0 / n);
+            out[o + 2] = Math.round(a > 0 ? b / a : b0 / n);
             out[o + 3] = Math.round(a / n);
         }
     }

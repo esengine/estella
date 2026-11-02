@@ -125,6 +125,13 @@ describe('downscaleRgba (Max Size cook cap)', () => {
     expect([...out.rgba]).toEqual([255, 0, 0, 128]);
   });
 
+  it('keeps the colour of a footprint that is clear all through (a weight map holds its numbers there)', () => {
+    // 2×1: a red texel and a blue one, both with alpha 0: the shrunk pixel is their mean, not black
+    const img: AtlasInputImage = { key: 'k', width: 2, height: 1, rgba: new Uint8Array([255, 0, 0, 0, 0, 0, 255, 0]) };
+    const out = downscaleRgba(img, 1);
+    expect([...out.rgba]).toEqual([128, 0, 128, 0]);
+  });
+
   it('encodeRgbaPng round-trips raw pixels', () => {
     const rgba = new Uint8Array([9, 8, 7, 255, 6, 5, 4, 255]);
     const back = decodePngImage('p', encodeRgbaPng(2, 1, rgba));
