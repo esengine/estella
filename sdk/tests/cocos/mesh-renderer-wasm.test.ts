@@ -10,7 +10,7 @@ import { World } from '../../src/ecs/world';
 import { MeshRenderer as EngineMeshRenderer, Transform, ensureBuiltinComponentsRegistered } from '../../src/ecs/component';
 import { AppContext, setDefaultContext } from '../../src/ecs/context';
 import { Material as EngineMaterial } from '../../src/render/material';
-import { Color, MeshRenderer, Node, UIMeshRenderer, setCurrentWorld } from '../../src/cocos';
+import { Color, MeshRenderer, Node, SpriteFrame, Texture2D, UIMeshRenderer, setCurrentWorld } from '../../src/cocos';
 import { HAS_WASM, loadWasmModule } from '../helpers/loadWasm';
 
 describe.skipIf(!HAS_WASM)('MeshRenderer on the engine', () => {
@@ -83,6 +83,25 @@ describe.skipIf(!HAS_WASM)('MeshRenderer on the engine', () => {
         expect([tint.x, tint.y, tint.z, tint.w].map((v) => Math.round(v * 100) / 100)).toEqual([1, 0, 0.5, 1]);
         expect(m.getProperty('u_level')).toBe(0.5);
         expect(EngineMaterial.getUniform(shared, 'u_level')).toBe(0);   // the shared one did not change
+    });
+
+    it('hands the engine material the texture a script sets by name, from an image or from the frame that holds one', () => {
+        connect();
+        const shared = EngineMaterial.create({ shader: 7, uniforms: {} });
+        const n = node('t');
+        const r = n.addComponent(MeshRenderer)!;
+        W().set(n._entity, EngineMeshRenderer, { ...W().get(n._entity, EngineMeshRenderer), material: shared });
+        const m = r.getMaterialInstance(0)!;
+        const image = new Texture2D('mask');
+        image._handle = 5;
+        m.setProperty('regionMask', image);
+        expect(EngineMaterial.getUniform(m._handle, 'regionMask')).toMatchObject({ __textureRef: true, textureId: 5 });
+        const other = new Texture2D('other');
+        other._handle = 6;
+        const frame = new SpriteFrame('frame');
+        frame.texture = other;
+        m.setProperty('regionMask', frame);
+        expect(EngineMaterial.getUniform(m._handle, 'regionMask')).toMatchObject({ textureId: 6 });
     });
 
     it('makes the colour of an instance the renderer tint, and reads it back', () => {

@@ -65,6 +65,13 @@ export class AudioClip extends Asset {
     _bufferId = '';
 }
 /** A property value as the engine's material takes it: a number, or a vector of up to four. Colours are 0..255 here and 0..1 there. */
+/** A texture a script hands a material (`setProperty('regionMask', texture)`): the engine texture behind a loaded image or the frame that holds one. */
+function textureOf(value: unknown): { __textureRef: true; textureId: number } | null {
+    const image = value instanceof SpriteFrame ? value.texture : value;
+    if (!(image instanceof ImageAsset) || image._handle <= 0) return null;
+    return { __textureRef: true, textureId: image._handle };
+}
+
 function uniformOf(value: unknown): number | { x: number; y: number; z: number; w: number } | null {
     if (typeof value === 'number') return value;
     if (typeof value === 'boolean') return value ? 1 : 0;
@@ -98,7 +105,7 @@ export class Material extends Asset {
     setProperty(name: string, value: unknown, _passIndex?: number): void {
         this.props_.set(name, value);
         if (this._take?.(name, value)) return;
-        const uniform = uniformOf(value);
+        const uniform = textureOf(value) ?? uniformOf(value);
         if (this._handle > 0 && uniform !== null) EngineMaterial.setUniform(this._handle, name, uniform);
     }
 
