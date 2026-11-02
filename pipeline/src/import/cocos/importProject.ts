@@ -9,6 +9,7 @@
  *        other. Only what the converted documents reference is copied.
  */
 import { createHash } from 'node:crypto';
+import { decodePngImage } from '../../assets/atlasPacker';
 import { copyFileSync, existsSync, linkSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -31,7 +32,7 @@ import { convertPass, isOutlinePass, type PassConversion } from './effectConvert
  * importer that made less (or differently), and is brought up to date when it is opened. Raise it when the converted output changes in a
  * way an existing project needs to pick up: a new generated file, a field a document or a manifest now carries.
  */
-export const COCOS_IMPORT_REVISION = 18;
+export const COCOS_IMPORT_REVISION = 19;
 
 /** Whether the project at @p projectRoot was written by an importer of this revision. A project that was not converted has nothing to bring up. */
 export function cocosImportIsCurrent(projectRoot: string): boolean {
@@ -87,6 +88,32 @@ function withoutDerivedTwin(source: string): string {
     return source
         .replace(/\n?#pragma (?:vertex|fragment) wgsl full\n[\s\S]*?#pragma end\n?/g, '\n')
         .replace(/\n?#pragma vertexoffset wgsl\n\/\/ GENERATED[\s\S]*?#pragma end\n?/g, '\n');
+}
+
+/**
+ * Whether a PNG keeps its colour under a clear alpha: most of its texels are clear and carry colour all the same. That is a texture that holds numbers in
+ * its channels (a weight map the ground is mixed by), not a picture, and compressing it, or reading its colour as sRGB, wrecks it: a cook that encodes a
+ * texture is free to forget what is under alpha 0.
+ */
+export function hidesColorUnderClearAlpha(file: string): boolean {
+    try {
+        const bytes = readFileSync(file);
+        // IHDR: colour type 4 (grey + alpha) and 6 (RGBA) are the ones with an alpha channel
+        if (bytes.length < 26 || bytes.toString('latin1', 1, 4) !== 'PNG' || (bytes[25] !== 4 && bytes[25] !== 6)) return false;
+        const image = decodePngImage(file, new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength));
+        let clear = 0, coloured = 0;
+        const step = Math.max(1, Math.floor(image.rgba.length / 4 / 65536));
+        let sampled = 0;
+        for (let i = 0; i < image.rgba.length; i += 4 * step) {
+            sampled++;
+            if (image.rgba[i + 3]! !== 0) continue;
+            clear++;
+            if (image.rgba[i]! + image.rgba[i + 1]! + image.rgba[i + 2]! > 0) coloured++;
+        }
+        return sampled > 0 && clear / sampled > 0.5 && coloured / sampled > 0.1;
+    } catch {
+        return false;
+    }
 }
 
 function writeOut(file: string, text: string): void {
@@ -1071,9 +1098,12 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
                 writeOut(`${dest}.meta`, `${JSON.stringify({ uuid: entry.uuid, version: '2.0', type: 'bitmapfont', importer: {} }, null, 2)}
 `);
             }
-            if (slice) {
-                // A slice border is a texture import setting here; the Cocos image keeps its uuid.
-                writeOut(`${dest}.meta`, `${JSON.stringify({ uuid: entry.uuid, version: '2.0', type: 'texture', importer: { sliceBorder: slice } }, null, 2)}\n`);
+            const data = dest.endsWith('.png') && hidesColorUnderClearAlpha(entry.file);
+            if (slice || data) {
+                // A slice border is a texture import setting here; the Cocos image keeps its uuid. A texture that holds numbers is shipped as the numbers it has.
+                const importer = { ...(slice ? { sliceBorder: slice } : {}), ...(data ? { compress: 'off', sRGB: false } : {}) };
+                writeOut(`${dest}.meta`, `${JSON.stringify({ uuid: entry.uuid, version: '2.0', type: 'texture', importer }, null, 2)}\n`);
+                if (data) report.note('texture-kept-as-data', entry.rel);
             }
         }
         // The shaders and materials of an earlier import that this one did not write are the effects' own leftovers (a combination of macros no material
