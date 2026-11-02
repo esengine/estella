@@ -8,6 +8,7 @@ vi.mock('../src/render/material', () => ({
         setUniform: vi.fn(),
         tex: vi.fn((handle: number) => ({ kind: 'tex', handle })),
         compileShader: vi.fn().mockReturnValue(7),
+        noteProgram: vi.fn(),
         releaseShader: vi.fn(),
         release: vi.fn(),
     },

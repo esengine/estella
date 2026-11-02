@@ -18,6 +18,7 @@ export class MaterialShaderSource {
         const handle = Material.compileShader(this.source_, features);
         if (!handle) throw new Error(`Failed to compile material shader: ${this.path_}`);
         this.programs_.set(key, handle);
+        Material.noteProgram(handle, features, this.source_, next => this.compile(next));
         return handle;
     }
 

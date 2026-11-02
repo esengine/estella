@@ -140,6 +140,8 @@ export interface MaterialData {
      * fields. Undefined on a base material.
      */
     parent?: MaterialHandle;
+    /** The permutation an instance switched to for itself; an instance otherwise draws with its parent's shader. */
+    ownShader?: ShaderHandle;
     overrides: Set<string>;
     // Immediate-mode mesh uniform cache (draw.ts): the encoded uniform buffer is rebuilt
     // only when dirty_ (a uniform changed). Distinct from the batch render path's material UBO.
@@ -199,6 +201,9 @@ const childrenOf = new Map<MaterialHandle, Set<MaterialHandle>>();
 // A shader built from raw GLSL (createShader) declares nothing and gets no entry: no
 // vocabulary, no verdict.
 const declaredParams = new Map<ShaderHandle, Set<string>>();
+/** What a compiled permutation was made from, so a material can ask for the same source under other switches. */
+interface ProgramOrigin { features: readonly string[]; declared: ReadonlySet<string>; compile(features: string[]): ShaderHandle }
+const programOrigins = new Map<ShaderHandle, ProgramOrigin>();
 // One complaint per (shader, param). A uniform driven from a system is written every
 // frame, and a warning that repeats 60 times a second is a log nobody can read.
 const warnedParams = new Set<string>();
@@ -223,7 +228,7 @@ export function shutdownMaterialAPI(): void {
     ownedTextures.clear();
     try { releaseTextures(textures); }
     finally {
-        materials.clear(); childrenOf.clear(); declaredParams.clear(); warnedParams.clear();
+        materials.clear(); childrenOf.clear(); declaredParams.clear(); programOrigins.clear(); warnedParams.clear();
         nextMaterialId = 1; bridge.disconnect(); module = null;
     }
 }
@@ -232,8 +237,9 @@ export function shutdownMaterialAPI(): void {
 function shaderOf(handle: MaterialHandle): ShaderHandle | undefined {
     let data = materials.get(handle);
     // Bounded: a cycle in the parent chain would otherwise hang a per-write check.
+    const own = data?.ownShader;
     for (let depth = 0; data?.parent !== undefined && depth < 16; depth++) data = materials.get(data.parent);
-    return data?.shader;
+    return own ?? data?.shader;
 }
 
 /**
@@ -342,7 +348,7 @@ function resolveMaterial(handle: MaterialHandle, includeUniforms = true): Resolv
     const uniforms = parent.uniforms;  // fresh map from the recursive call
     if (includeUniforms) for (const [k, v] of data.uniforms) uniforms.set(k, v);  // instance overrides win
     return {
-        shader: parent.shader,  // instances inherit the shader
+        shader: data.ownShader ?? parent.shader,  // instances inherit the shader unless they switched permutation
         blendMode: data.overrides.has('blendMode') ? data.blendMode : parent.blendMode,
         depthTest: data.overrides.has('depthTest') ? data.depthTest : parent.depthTest,
         depthWrite: data.overrides.has('depthWrite') ? data.depthWrite : parent.depthWrite,
@@ -419,6 +425,7 @@ export const Material = {
     releaseShader(shader: ShaderHandle): void {
         if (shader > 0) {
             declaredParams.delete(shader);
+            programOrigins.delete(shader);
             requireResourceManager().releaseShader(shader);
         }
     },
@@ -483,6 +490,39 @@ export const Material = {
             if (declaredParams.get(data.shader)?.has(param)) found.push(handle);
         }
         return found;
+    },
+
+    /**
+     * Record what a compiled permutation was made from: the source's switches and how to compile it under others. The asset loader says so for
+     * every shader it compiles, which is what lets `recompile` answer for a material that only holds the handle.
+     */
+    noteProgram(shader: ShaderHandle, features: readonly string[], esshaderSource: string, compile: (features: string[]) => ShaderHandle): void {
+        const declared = new Set<string>();
+        for (const m of esshaderSource.matchAll(/^[ \t]*#pragma[ \t]+switch[ \t]+(\w+)/gm)) declared.add(m[1]!);
+        programOrigins.set(shader, { features, declared, compile });
+    },
+
+    /**
+     * Switch a material to the permutation of its own shader source that has `changes` applied: a switch the shader does not declare is left out
+     * (a project's macro the effect never branched on), and the material takes the permutation at once, with its parameters and textures
+     * carried over. A material that inherits (an instance) switches for itself and leaves its parent as it is. Answers whether the shader changed.
+     */
+    recompile(material: MaterialHandle, changes: Record<string, boolean>): boolean {
+        const data = materials.get(material);
+        const current = shaderOf(material);
+        const origin = current !== undefined ? programOrigins.get(current) : undefined;
+        if (!data || !origin) return false;
+        const on = new Set(origin.features);
+        for (const [name, value] of Object.entries(changes)) {
+            data.switches[name] = value;
+            if (value) on.add(name); else on.delete(name);
+        }
+        const features = [...on].filter(name => origin.declared.has(name)).sort();
+        const next = origin.compile(features);
+        if (next === current || next <= 0) return false;
+        if (data.parent === undefined) data.shader = next; else data.ownShader = next;
+        flushMaterial(material);
+        return true;
     },
 
     /** Gets an enabled static switch (false when unset). */

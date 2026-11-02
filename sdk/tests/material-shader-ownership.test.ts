@@ -16,6 +16,7 @@ vi.mock('../src/render/material', () => ({ Material: {
         if (source === 'invalid') return 0;
         const handle = gpu.next++; gpu.live.add(handle); return handle;
     }),
+    noteProgram: vi.fn(),
     releaseShader: vi.fn((handle: number) => { gpu.live.delete(handle); gpu.released.push(handle); }),
     createFromAsset: vi.fn(() => gpu.next++), release: vi.fn(), setUniform: vi.fn(), tex: vi.fn(),
 } }));

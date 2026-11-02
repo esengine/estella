@@ -110,12 +110,14 @@ export class Material extends Asset {
     }
 
     /**
-     * Switch the shader's macros. The engine keeps a material's switches on its record, and the permutation they pick is fixed when the shader is
-     * compiled, so the record answers now and the permutation changes where the engine next compiles the shader.
+     * Switch the shader's macros. The engine material takes the permutation of its shader that has them applied, now: a macro the effect never
+     * branched on has no permutation of its own, so it is kept on the record and changes nothing drawn.
      */
     recompileShaders(defines: Record<string, unknown>, _passIndex?: number): void {
         if (this._handle <= 0) return;
-        for (const [name, value] of Object.entries(defines)) EngineMaterial.setSwitch(this._handle, name, !!value && value !== '0');
+        const changes: Record<string, boolean> = {};
+        for (const [name, value] of Object.entries(defines)) changes[name] = !!value && value !== '0';
+        EngineMaterial.recompile(this._handle, changes);
     }
 
     /** What the property was last set to. @internal */
