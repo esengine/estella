@@ -268,6 +268,7 @@ in highp vec2 v_texCoord1;
 #endif`;
 
 const TANGENT_VARYING = `#ifdef MESH_TANGENTS
+in highp vec4 v_worldTangent;
 #define cocos_tangent v_worldTangent
 #else
 #define cocos_tangent vec4(1.0, 0.0, 0.0, 1.0)
