@@ -813,6 +813,33 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
                                 }
                             }
                         }
+                        // A property that is lanes of a vec4 uniform (`fogLayerBlend`, which is `fogParams.x`) is written under the uniform's name: the material says the lane,
+                        // the shader has the whole of it.
+                        const packed = new Map<string, number[]>();
+                        for (const p of technique.passes[passIndex]?.properties ?? []) {
+                            const m = p.target ? /^(\w+)\.([xyzwrgba]+)$/.exec(p.target) : null;
+                            const v = m ? props[p.name] : undefined;
+                            const uniform = m ? pass.shader.params.find((q) => q.name === m[1] && q.type !== 'texture') : undefined;
+                            if (!m || !uniform || v === undefined || v === null) continue;
+                            const given = typeof v === 'number' ? [v] : typeof v === 'object' && 'x' in (v as object)
+                                ? [numberOf((v as Record<string, unknown>).x, 0), numberOf((v as Record<string, unknown>).y, 0), numberOf((v as Record<string, unknown>).z, 0), numberOf((v as Record<string, unknown>).w, 0)]
+                                : null;
+                            if (!given) continue;
+                            const whole = packed.get(uniform.name) ?? ((): number[] => {
+                                const own = properties[uniform.name] as Record<string, number> | undefined;
+                                if (own && typeof own === 'object') return 'x' in own ? [own.x!, own.y!, own.z!, own.w!] : [own.r!, own.g!, own.b!, own.a!];
+                                return Array.isArray(uniform.value) ? [...(uniform.value as number[]), 0, 0, 0, 0].slice(0, 4) : [0, 0, 0, 0];
+                            })();
+                            [...m[2]!].forEach((lane, i) => {
+                                const at = 'xyzw'.indexOf(lane) >= 0 ? 'xyzw'.indexOf(lane) : 'rgba'.indexOf(lane);
+                                if (given[i] !== undefined) whole[at] = given[i]!;
+                            });
+                            packed.set(uniform.name, whole);
+                        }
+                        for (const [name, whole] of packed) {
+                            const isColor = pass.shader.params.find((q) => q.name === name)?.type === 'color';
+                            properties[name] = isColor ? { r: whole[0]!, g: whole[1]!, b: whole[2]!, a: whole[3]! } : { x: whole[0]!, y: whole[1]!, z: whole[2]!, w: whole[3]! };
+                        }
                         const state = json._states?.[passIndex] ?? json._states?.[0];
                         const target = state?.blendState?.targets?.[0];
                         let blendMode = pass.state.blendMode;
