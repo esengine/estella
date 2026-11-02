@@ -55,11 +55,73 @@ export interface DecodedPixels {
  * v=1=top for general textures, v=0=top for spine / bitmap fonts.
  */
 export async function decodeImagePixels(src: ImageBitmapSource, maxEdge = 0): Promise<DecodedPixels> {
-    const bitmap = await decodeImageBitmap(src, false);
+    let bitmap = await decodeImageBitmap(src, false);
     try {
+        const longest = Math.max(bitmap.width, bitmap.height);
+        if (maxEdge > 0 && longest > maxEdge && typeof createImageBitmap === 'function') {
+            // Made smaller by the decoder, with the same options: a canvas would scale it, and a canvas keeps nothing under a clear texel.
+            const k = maxEdge / longest;
+            const smaller = await createImageBitmap(bitmap, {
+                resizeWidth: Math.max(1, Math.round(bitmap.width * k)),
+                resizeHeight: Math.max(1, Math.round(bitmap.height * k)),
+                resizeQuality: 'high',
+                premultiplyAlpha: 'none',
+                colorSpaceConversion: 'none',
+            });
+            bitmap.close?.();
+            bitmap = smaller;
+        }
         return readImagePixels(bitmap, maxEdge);
     } finally {
         bitmap.close?.();
+    }
+}
+
+/** The GL context pixels are read through, made once; null where there is none (a host without WebGL2, a test). */
+let readbackGl: WebGL2RenderingContext | null | undefined;
+function readbackContext(): WebGL2RenderingContext | null {
+    if (readbackGl !== undefined) return readbackGl;
+    readbackGl = null;
+    try {
+        const canvas = platformCreateCanvas(1, 1);
+        // A platform canvas is typed for 2D alone; on the hosts that have WebGL it is a DOM or offscreen canvas and answers for it too.
+        const gl = (canvas as unknown as { getContext(kind: string, options?: object): unknown })
+            .getContext('webgl2', { alpha: true, premultipliedAlpha: false, antialias: false, depth: false, stencil: false }) as WebGL2RenderingContext | null;
+        if (gl && typeof gl.texImage2D === 'function' && typeof gl.readPixels === 'function') readbackGl = gl;
+    } catch {
+        readbackGl = null;
+    }
+    return readbackGl;
+}
+
+/**
+ * The texels of a decoded bitmap exactly as the file has them, through a texture rather than a canvas. A 2D canvas keeps its pixels premultiplied, so
+ * the colour of a texel that is clear is gone by the time it is read back, and a texture that carries data in its colour under a clear alpha (a weight map
+ * the ground is mixed by) comes out black. A texture keeps what it is given.
+ */
+function readTexels(image: ImageBitmap, width: number, height: number): Uint8Array | null {
+    const gl = readbackContext();
+    if (!gl || width > gl.getParameter(gl.MAX_TEXTURE_SIZE) || height > gl.getParameter(gl.MAX_TEXTURE_SIZE)) return null;
+    const texture = gl.createTexture();
+    const framebuffer = gl.createFramebuffer();
+    try {
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+        gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+        if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) return null;
+        const pixels = new Uint8Array(width * height * 4);
+        gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+        return gl.getError() === gl.NO_ERROR ? pixels : null;
+    } catch {
+        return null;
+    } finally {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.deleteFramebuffer(framebuffer);
+        gl.deleteTexture(texture);
     }
 }
 
@@ -74,6 +136,11 @@ export function readImagePixels(image: PlatformImage | ImageBitmap, maxEdge = 0)
     const scale = maxEdge > 0 ? Math.min(1, maxEdge / Math.max(image.width, image.height)) : 1;
     const width = Math.max(1, Math.round(image.width * scale));
     const height = Math.max(1, Math.round(image.height * scale));
+    // A bitmap of the size asked for is read as the texels it holds; anything else goes through a canvas, which scales and which is what hosts without GL have.
+    if (typeof ImageBitmap !== 'undefined' && image instanceof ImageBitmap && width === image.width && height === image.height) {
+        const texels = readTexels(image, width, height);
+        if (texels) return { width, height, pixels: texels };
+    }
     const canvas = platformCreateCanvas(width, height);
     canvas.width = width;
     canvas.height = height;
