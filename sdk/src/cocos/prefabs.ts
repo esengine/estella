@@ -26,6 +26,7 @@ import type { Entity } from '../types';
 import { log } from '../util/logger';
 import { Node, getCurrentWorld, markDetached, onWorldChanged } from './node';
 import { Prefab, preparedPrefabs } from './assets';
+import { COMPONENT_PREFIX, classInfoNamed } from './registry';
 
 const assetsOf = new WeakMap<World, AssetsClass>();
 let currentAssets: AssetsClass | null = null;
@@ -51,6 +52,7 @@ export function requestPrepare(path: string): void {
 /** Drop what the layer kept of the session that ended, and tell whoever else kept something. */
 function endSession(): void {
     preparedPrefabs.clear();
+    preparing.clear();
     wanted.clear();
     inFlight.clear();
     currentAssets = null;
@@ -73,21 +75,57 @@ export function providePrefab(path: string, prepared: PreparedPrefab): void {
     preparedPrefabs.set(path, prepared);
 }
 
+/** The prefabs a prepared prefab's script components hold in `@property(Prefab)` fields: what Cocos loads before it hands the prefab over. */
+/** @internal */
+export function prefabsHeldBy(prepared: PreparedPrefab): string[] {
+    const held = new Set<string>();
+    for (const entity of prepared.scene.entities) {
+        for (const component of entity.components) {
+            if (!component.type.startsWith(COMPONENT_PREFIX)) continue;
+            const info = classInfoNamed(component.type.slice(COMPONENT_PREFIX.length));
+            for (const spec of info?.props ?? []) {
+                if (spec.kind !== 'asset' || typeof spec.type !== 'function' || !(spec.type === Prefab || spec.type.prototype instanceof Prefab)) continue;
+                const value = component.data[spec.name];
+                for (const path of Array.isArray(value) ? value : [value]) if (typeof path === 'string' && path !== '') held.add(path);
+            }
+        }
+    }
+    return [...held];
+}
+
+const preparing = new Map<string, Promise<void>>();
+
+/** Prepare a prefab and the prefabs its scripts hold, and answer when all of them are ready. A prefab that holds itself is waited for once. */
+function prepareWithHeld(assets: AssetsClass, path: string): Promise<void> {
+    if (preparedPrefabs.has(path)) return Promise.resolve();
+    let pending = preparing.get(path);
+    if (!pending) {
+        pending = preparePrefab(assets, path)
+            .then((p) => { preparedPrefabs.set(path, p); return p; })
+            .then(async (p) => {
+                // the held ones are best effort: one that cannot be prepared is reported where the script uses it, not here
+                await Promise.all(prefabsHeldBy(p).map((held) => prepareWithHeld(assets, held).catch(() => undefined)));
+            })
+            .finally(() => { preparing.delete(path); });
+        preparing.set(path, pending);
+    }
+    return pending;
+}
+
 /** Prepare a prefab and answer when it is ready to `instantiate`. */
 export function loadPrefab(path: string, world: World | null = getCurrentWorld()): Promise<Prefab> {
     const assets = world ? assetsOf.get(world) : undefined;
     if (assets) syncSession(assets);
     if (preparedPrefabs.has(path)) return Promise.resolve(new Prefab(path));
     if (!assets) return Promise.reject(new Error(`cocos compat: cannot load prefab "${path}": the engine's asset loader is not running`));
-    return preparePrefab(assets, path).then((p) => { preparedPrefabs.set(path, p); return new Prefab(path); });
+    return prepareWithHeld(assets, path).then(() => new Prefab(path));
 }
 
 function drain(assets: AssetsClass): void {
     for (const path of wanted) {
         wanted.delete(path);
         inFlight.add(path);
-        preparePrefab(assets, path)
-            .then((p) => { preparedPrefabs.set(path, p); })
+        prepareWithHeld(assets, path)
             .catch((err) => { log.warn('cocos', `prefab "${path}" could not be prepared: ${String(err)}`); })
             .finally(() => { inFlight.delete(path); });
     }
