@@ -288,11 +288,49 @@ interface Emulated {
     displaces: boolean;
 }
 
+/**
+ * A vertex program with the branches it takes only for a light probe taken out. A material is not given probe data, so `CC_USE_LIGHT_PROBE` is off for it, and a
+ * program that mentions probes only under that macro does not read them.
+ */
+function withoutLightProbeBranches(program: string): string {
+    interface Frame { probe: boolean; dropping: boolean; reopened: boolean }
+    const stack: Frame[] = [];
+    const out: string[] = [];
+    const emitting = (): boolean => stack.every((f) => !f.dropping);
+    for (const line of program.split('\n')) {
+        const directive = /^\s*#\s*(if|ifdef|ifndef|elif|else|endif)\b(.*)$/.exec(line);
+        if (!directive) {
+            if (emitting()) out.push(line);
+            continue;
+        }
+        const [, kind, rest] = directive as unknown as [string, string, string];
+        if (kind === 'if' || kind === 'ifdef' || kind === 'ifndef') {
+            const probe = kind !== 'ifndef' && /^\s*(?:defined\s*\(\s*)?CC_USE_LIGHT_PROBE\b/.test(rest);
+            const emit = emitting();
+            stack.push({ probe, dropping: probe, reopened: false });
+            if (emit && !probe) out.push(line);
+        } else if (kind === 'endif') {
+            const frame = stack.pop();
+            if (emitting() && !(frame?.probe && !frame.reopened)) out.push(line);
+        } else {
+            // #else / #elif: the side of a probe branch that comes after it is the one a material takes
+            const frame = stack[stack.length - 1];
+            if (frame?.probe && frame.dropping) {
+                frame.dropping = false;
+                if (kind === 'elif') { frame.reopened = true; if (emitting()) out.push('#if' + rest); }
+            } else if (emitting()) {
+                out.push(line);
+            }
+        }
+    }
+    return out.join('\n');
+}
+
 function emulateVertex(program: string, entry: string): Emulated | { error: string } {
     const outputs = new Set<string>();
     const attributes = new Map<string, string>(Object.entries(STANDARD_ATTRIBUTES));
     const approximations: string[] = [];
-    let text = program;
+    let text = withoutLightProbeBranches(program);
     // Declarations: an attribute is a global the setup fills; an output is a global the fragment then reads.
     text = text.replace(/^[ \t]*(?:layout\s*\([^)]*\)\s*)?in\s+(?:(?:highp|mediump|lowp|flat)\s+)*(\w+)\s+(a_\w+)\s*;[ \t]*$/gm, (_m, type: string, name: string) => {
         attributes.set(name, type);
