@@ -62,7 +62,8 @@ export interface ComponentContext {
     /** What a Cocos material draws and how; null when the project has no such material. */
     material?(uuid: string): MaterialInfo | null;
     /** The Estella material a Cocos material of the project's own effect became (its shader converted), by its project path; null when the effect could not be converted. */
-    convertedMaterial?(uuid: string): { ref: string } | null;
+    /** The converted material for a project material, and whether it blends (its effect's pass says so, which the material file does not). */
+    convertedMaterial?(uuid: string): { ref: string; blends?: boolean } | null;
     /**
      * The engine MeshRenderer data of the part of a model a Cocos mesh sub-asset names, once that model was brought in. `exact` is false when
      * the part was picked because the model draws only one.
@@ -641,6 +642,8 @@ function applyMaterial(data: Raw, c: CocosComponent, ctx: ComponentContext, wher
     if (info.color) data.color = info.color;
     data.lit = !info.unlit;
     data.opaque = !info.transparent;
+    // what the effect's pass blends is what the draw does: a mesh the engine takes for opaque is drawn without blending, and a fog that fades out would draw black
+    if (converted?.blends !== undefined) data.opaque = !converted.blends;
     data.cullBackfaces = info.cullBack;
     let exact = info.builtinEffect || converted !== null && converted !== undefined;
     if (!exact) ctx.report.note('mesh-custom-effect', where);

@@ -31,7 +31,7 @@ import { convertPass, isOutlinePass, type PassConversion } from './effectConvert
  * importer that made less (or differently), and is brought up to date when it is opened. Raise it when the converted output changes in a
  * way an existing project needs to pick up: a new generated file, a field a document or a manifest now carries.
  */
-export const COCOS_IMPORT_REVISION = 17;
+export const COCOS_IMPORT_REVISION = 18;
 
 /** Whether the project at @p projectRoot was written by an importer of this revision. A project that was not converted has nothing to bring up. */
 export function cocosImportIsCurrent(projectRoot: string): boolean {
@@ -692,7 +692,7 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
     type EffectTechnique = { name: string; passes: EffectPass[]; outline: boolean[] };
     type ParsedEffect = { effect: CocosEffect; techniques: EffectTechnique[] };
     const effects = new Map<string, ParsedEffect | null>();
-    const convertedMaterials = new Map<string, { ref: string } | null>();
+    const convertedMaterials = new Map<string, { ref: string; blends?: boolean } | null>();
     const effectOf = (entry: CocosAssetEntry): ParsedEffect | null => {
         if (effects.has(entry.file)) return effects.get(entry.file) ?? null;
         let result: ParsedEffect | null = null;
@@ -772,9 +772,9 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
         // what was converted before the check is converted again with its answer
         shaders.clear();
     };
-    const convertedMaterial = (materialUuid: string): { ref: string } | null => {
+    const convertedMaterial = (materialUuid: string): { ref: string; blends?: boolean } | null => {
         if (convertedMaterials.has(materialUuid)) return convertedMaterials.get(materialUuid) ?? null;
-        let result: { ref: string } | null = null;
+        let result: { ref: string; blends?: boolean } | null = null;
         try {
             const mat = index.byUuid.get(materialUuid);
             if (mat && mat.rel.endsWith('.mtl')) {
@@ -859,7 +859,7 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
                             properties,
                         });
                         report.note('effect-converted', `${effectEntry.rel} (${technique.name})`);
-                        result = { ref: materialRel };
+                        result = { ref: materialRel, blends: blendMode !== 9 };
                     }
                 }
             }
