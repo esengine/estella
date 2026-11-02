@@ -500,8 +500,8 @@ export function convertScene(doc: CocosDocument, ctx: ConvertContext): SceneFile
         if (!n.instance) n.children.forEach(assign);
     };
     doc.roots.forEach(assign);
-    // what is left of the scene's settings is not carried: the ambient light is
-    const dropped = doc.globals.filter((g) => !(g === 'ambient' && doc.ambient));
+    // what is left of the scene's settings that are on is not carried: the ambient light and a linear fog are
+    const dropped = doc.globals.filter((g) => !(g === 'ambient' && doc.ambient) && !(g === 'fog' && doc.fog));
     if (dropped.length) ctx.report.note('scene-globals-dropped', `${ctx.where}: ${dropped.join(',')}`);
 
     const walk = (n: CocosNode, parent: SceneEntity | null): void => {
@@ -553,6 +553,27 @@ export function convertScene(doc: CocosDocument, ctx: ConvertContext): SceneFile
             components: [
                 { type: 'Transform', data: { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 }, scale: { x: 1, y: 1, z: 1 } } },
                 { type: 'Light', data: { type: 2, color: { r: color.r, g: color.g, b: color.b, a: 1 }, intensity, enabled: true } },
+            ],
+        });
+    }
+    // The scene's fog is a setting of the scene in Cocos and a global volume in the engine: the distance fog the post-process stack already has.
+    if (doc.fog) {
+        const { start, end, color } = doc.fog;
+        entities.push({
+            id: next++, name: 'Fog', parent: null, children: [], visible: true,
+            components: [
+                { type: 'Transform', data: { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 }, scale: { x: 1, y: 1, z: 1 } } },
+                {
+                    type: 'PostProcessVolume',
+                    data: {
+                        effects: [{
+                            type: 'distanceFog', enabled: true,
+                            uniforms: { u_fogNear: start, u_fogFar: end },
+                            colors: { u_fogColor: { r: color.r, g: color.g, b: color.b, a: 1 } },
+                        }],
+                        isGlobal: true, shape: 'box', size: { x: 1, y: 1, z: 0 }, priority: 0, weight: 1, blendDistance: 0,
+                    },
+                },
             ],
         });
     }

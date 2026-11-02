@@ -97,7 +97,7 @@ const scene = [
     { __type__: 'cc.Node', _name: 'Canvas', _parent: { __id__: 1 }, _children: [{ __id__: 3 }], _active: true, _components: [], _prefab: null, _lpos: vec(0, 0), _lrot: ident, _lscale: one, _layer: 33554432, _id: 'canvas' },
     { __type__: 'cc.Node', _objFlags: 0, _parent: { __id__: 2 }, _prefab: { __id__: 4 }, _id: '' },
     { __type__: 'cc.PrefabInfo', root: { __id__: 3 }, asset: { __uuid__: PANEL }, fileId: 'panelRoot', instance: { __id__: 6 } },
-    { __type__: 'cc.SceneGlobals', skybox: { __id__: 5 } },
+    { __type__: 'cc.SceneGlobals', skybox: { __id__: 5 }, _enabled: true },
     { __type__: 'cc.PrefabInstance', fileId: 'inst', prefabRootNode: { __id__: 2 }, mountedChildren: [], mountedComponents: [], removedComponents: [], propertyOverrides: [{ __id__: 7 }] },
     { __type__: 'CCPropertyOverrideInfo', targetInfo: { __id__: 8 }, propertyPath: ['_lpos'], value: vec(9, 9) },
     { __type__: 'cc.TargetInfo', localID: ['instB', 'itemRoot'] },

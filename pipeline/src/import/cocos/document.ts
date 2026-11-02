@@ -67,10 +67,12 @@ export interface CocosDocument {
     kind: 'prefab' | 'scene';
     name: string;
     roots: CocosNode[];
-    /** Scene-level settings (skybox, fog, shadows...) that were present and are not carried over. */
+    /** Scene-level settings (skybox, fog, shadows...) that are switched on. The ambient light and a linear fog are carried; the rest are not. */
     globals: string[];
     /** The scene's ambient light, as the low-dynamic-range sky colour and the illumination it is lit by; absent when the scene sets none. */
     ambient?: { color: { r: number; g: number; b: number }; intensity: number };
+    /** The scene's fog when it is switched on and falls off linearly between two distances (the other falloffs are not carried); colour is 0..1. */
+    fog?: { start: number; end: number; color: { r: number; g: number; b: number } };
     /** Node ids that had to be made unique because the file repeats them. */
     duplicateIds: number;
 }
@@ -109,6 +111,7 @@ export function parseCocosDocument(file: unknown, fallbackName = ''): CocosDocum
     const head = isObj(objs[0]) ? objs[0] : null;
     const globals: string[] = [];
     let ambient: CocosDocument['ambient'];
+    let fog: CocosDocument['fog'];
     let rootRefs: unknown[];
     let kind: CocosDocument['kind'];
     let name = fallbackName;
@@ -123,7 +126,23 @@ export function parseCocosDocument(file: unknown, fallbackName = ''): CocosDocum
         name = typeof scene._name === 'string' && scene._name ? scene._name : name;
         rootRefs = Array.isArray(scene._children) ? scene._children : [];
         const g = at(scene._globals);
-        if (g) for (const k of ['ambient', 'shadows', 'skybox', 'fog', 'octree', 'lightProbeInfo']) if (g[k]) globals.push(k);
+        // A setting the scene leaves switched off changes nothing drawn, so only a setting that is on counts as one the scene has.
+        // The skybox is `_skybox` in the file, the rest are named as they are here.
+        const settings: Array<[string, unknown]> = g
+            ? [['ambient', g.ambient], ['shadows', g.shadows], ['skybox', g._skybox ?? g.skybox], ['fog', g.fog], ['octree', g.octree], ['lightProbeInfo', g.lightProbeInfo]]
+            : [];
+        for (const [k, ref] of settings) {
+            const s = at(ref);
+            if (s && (k === 'ambient' || s._enabled === true)) globals.push(k);
+        }
+        const fogInfo = g ? at(g.fog) : null;
+        if (fogInfo && fogInfo._enabled === true && num(fogInfo._type, 0) === 0) {
+            const c = isObj(fogInfo._fogColor) ? fogInfo._fogColor : {};
+            fog = {
+                start: num(fogInfo._fogStart, 0), end: num(fogInfo._fogEnd, 300),
+                color: { r: num(c.r, 200) / 255, g: num(c.g, 200) / 255, b: num(c.b, 200) / 255 },
+            };
+        }
         const amb = g ? at(g.ambient) : null;
         const sky = amb && isObj(amb._skyColorLDR) ? amb._skyColorLDR : null;
         if (amb && sky && typeof sky.x === 'number' && typeof sky.y === 'number' && typeof sky.z === 'number') {
@@ -259,5 +278,5 @@ export function parseCocosDocument(file: unknown, fallbackName = ''): CocosDocum
         node.children.forEach(resolveNode);
     };
     roots.forEach(resolveNode);
-    return { kind, name, roots, globals, ambient, duplicateIds };
+    return { kind, name, roots, globals, ambient, fog, duplicateIds };
 }
