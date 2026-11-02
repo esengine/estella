@@ -9,8 +9,8 @@
  * UI camera — the one that draws the scene's UI and world content — so `screenToWorld(touch.getLocation())` lands where the
  * finger is, which is what a script that has a camera in hand wants.
  *
- * Not carried: `clearColor` and `clearFlags` are held so a script can read back what it set, but the engine's clear belongs to its
- * renderer settings, not to the camera.
+ * `clearFlags` is carried (colour and depth, as the engine has them; a camera drawn over another clears depth only). `clearColor` is held so a
+ * script can read back what it set, but the engine's clear colour belongs to its renderer settings, not to the camera.
  */
 import { Camera as EngineCamera, type CameraData } from '../../ecs/component';
 import type { World } from '../../ecs/world';
@@ -42,7 +42,6 @@ export class Camera extends Component {
     private patch_(patch: Partial<CameraData>): void { this._world.set(this._entity, EngineCamera, { ...this.data_(), ...patch }); }
 
     private clearColor_ = new Color(0, 0, 0, 255);
-    private clearFlags_: number = ClearFlag.SOLID_COLOR;
 
     get projection(): number { return this.data_().projectionType === ENGINE_ORTHO ? ProjectionType.ORTHO : ProjectionType.PERSPECTIVE; }
     set projection(v: number) { this.patch_({ projectionType: v === ProjectionType.ORTHO ? ENGINE_ORTHO : 0 }); }
@@ -71,8 +70,11 @@ export class Camera extends Component {
     get rect(): Rect { const v = this.data_().viewport; return new Rect(v.x, v.y, v.z, v.w); }
     set rect(r: Rect) { this.patch_({ viewport: { x: r.x, y: r.y, z: r.width, w: r.height } }); }
 
-    get clearFlags(): number { return this.clearFlags_; }
-    set clearFlags(v: number) { this.clearFlags_ = v; }
+    get clearFlags(): number {
+        const engine = this.data_().clearFlags;
+        return engine === 3 ? ClearFlag.SOLID_COLOR : engine === 2 ? ClearFlag.DEPTH_ONLY : engine === 1 ? ClearFlag.SOLID_COLOR : ClearFlag.DONT_CLEAR;
+    }
+    set clearFlags(v: number) { this.patch_({ clearFlags: v === ClearFlag.SKYBOX ? 3 : (v & 1 ? 1 : 0) | (v & 2 ? 2 : 0) }); }
     get clearColor(): Color { return this.clearColor_.clone(); }
     set clearColor(v: Color) { this.clearColor_ = v.clone(); }
 

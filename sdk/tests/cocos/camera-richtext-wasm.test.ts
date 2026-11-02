@@ -88,6 +88,19 @@ describe.skipIf(!HAS_WASM)('Camera, RichText and touch locations', () => {
             expect(cam.projection).toBe(Camera.ProjectionType.PERSPECTIVE);
         });
 
+        it('clears what Cocos says it clears: a camera drawn over another clears depth only', () => {
+            boot();
+            const n = node('cam');
+            const cam = n.addComponent(Camera)!;
+            cam.clearFlags = Camera.ClearFlag.DEPTH_ONLY;
+            expect(app!.world.get(n._entity, EngineCamera).clearFlags).toBe(2);
+            expect(cam.clearFlags).toBe(Camera.ClearFlag.DEPTH_ONLY);
+            cam.clearFlags = Camera.ClearFlag.SOLID_COLOR;
+            expect(app!.world.get(n._entity, EngineCamera).clearFlags).toBe(3);
+            cam.clearFlags = Camera.ClearFlag.DONT_CLEAR;
+            expect(app!.world.get(n._entity, EngineCamera).clearFlags).toBe(0);
+        });
+
         it('maps the viewport to rect and the active flag to enabled', () => {
             boot();
             const n = node('cam');

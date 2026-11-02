@@ -316,6 +316,14 @@ function richText(c: CocosComponent, box: UiBox | null, ctx: ComponentContext): 
     };
 }
 
+/**
+ * What a Cocos camera clears, as the engine's: the engine's flags are colour (1) and depth (2). Cocos writes the graphics API's bits, so a solid
+ * colour is 7 (all three), depth only is 6 and a skybox is 14; the engine has no skybox, which a camera that would have drawn one clears as a colour.
+ */
+export function engineClearFlags(cocos: number): number {
+    return cocos === 14 ? 3 : (cocos & 1 ? 1 : 0) | (cocos & 2 ? 2 : 0);
+}
+
 function camera(c: CocosComponent, ctx: ComponentContext): ComponentData {
     const d = c.data;
     ctx.report.component('cc.Camera', 'mapped');
@@ -329,6 +337,8 @@ function camera(c: CocosComponent, ctx: ComponentContext): ComponentData {
             farPlane: num(d._far, 1000),
             priority: num(d._priority, 0),
             cullingMask: num(d._visibility, 0xffffffff) >>> 0,
+            // a camera drawn over another (the UI's, which clears only depth) must not wipe what the one under it drew
+            clearFlags: engineClearFlags(num(d._clearFlags, 7)),
             ...(isObj(d._rect) ? { viewport: { x: num(d._rect.x, 0), y: num(d._rect.y, 0), z: num(d._rect.width, 1), w: num(d._rect.height, 1) } } : {}),
             isActive: c.enabled,
         },
