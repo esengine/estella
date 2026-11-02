@@ -32,7 +32,7 @@ import { convertPass, isOutlinePass, type PassConversion } from './effectConvert
  * importer that made less (or differently), and is brought up to date when it is opened. Raise it when the converted output changes in a
  * way an existing project needs to pick up: a new generated file, a field a document or a manifest now carries.
  */
-export const COCOS_IMPORT_REVISION = 19;
+export const COCOS_IMPORT_REVISION = 20;
 
 /** Whether the project at @p projectRoot was written by an importer of this revision. A project that was not converted has nothing to bring up. */
 export function cocosImportIsCurrent(projectRoot: string): boolean {
@@ -101,12 +101,15 @@ export function hidesColorUnderClearAlpha(file: string): boolean {
         // IHDR: colour type 4 (grey + alpha) and 6 (RGBA) are the ones with an alpha channel
         if (bytes.length < 26 || bytes.toString('latin1', 1, 4) !== 'PNG' || (bytes[25] !== 4 && bytes[25] !== 6)) return false;
         const image = decodePngImage(file, new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength));
-        let clear = 0, coloured = 0;
+        // only one that spans a map: a weight map covers a ground, while the effects' masks and sheets that are clear and coloured are a particle's, and keep what they were
+        if (Math.max(image.width, image.height) < 2048) return false;
+        let clear = 0, coloured = 0, solid = 0;
         const hues = new Set<number>();
         const step = Math.max(1, Math.floor(image.rgba.length / 4 / 65536));
         let sampled = 0;
         for (let i = 0; i < image.rgba.length; i += 4 * step) {
             sampled++;
+            if (image.rgba[i + 3]! === 255) solid++;
             if (image.rgba[i + 3]! !== 0) continue;
             clear++;
             if (image.rgba[i]! + image.rgba[i + 1]! + image.rgba[i + 2]! > 0) {
@@ -115,7 +118,8 @@ export function hidesColorUnderClearAlpha(file: string): boolean {
             }
         }
         // a painter leaves one colour under a background (white, black); numbers are laid out in several
-        return sampled > 0 && clear / sampled > 0.5 && coloured / sampled > 0.1 && hues.size >= 4;
+        // and nothing is drawn: a sprite has a body that shows, a picture of numbers has next to none
+        return sampled > 0 && clear / sampled > 0.5 && solid / sampled < 0.02 && coloured / sampled > 0.1 && hues.size >= 4;
     } catch {
         return false;
     }
@@ -1114,6 +1118,13 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
                 const importer = { ...(slice ? { sliceBorder: slice } : {}), ...(data ? { compress: 'off', sRGB: false } : {}) };
                 writeOut(`${dest}.meta`, `${JSON.stringify({ uuid: entry.uuid, version: '2.0', type: 'texture', importer }, null, 2)}\n`);
                 if (data) report.note('texture-kept-as-data', entry.rel);
+            } else if (existsSync(`${dest}.meta`)) {
+                // what an earlier import wrote for a texture it no longer takes for data, and only that, is taken away
+                try {
+                    const earlier = JSON.parse(readFileSync(`${dest}.meta`, 'utf8')) as { importer?: Record<string, unknown> };
+                    const keys = Object.keys(earlier.importer ?? {}).sort().join(',');
+                    if (keys === 'compress,sRGB' && earlier.importer!.compress === 'off' && earlier.importer!.sRGB === false) rmSync(`${dest}.meta`, { force: true });
+                } catch { /* a meta that is not readable is not ours to remove */ }
             }
         }
         // The shaders and materials of an earlier import that this one did not write are the effects' own leftovers (a combination of macros no material

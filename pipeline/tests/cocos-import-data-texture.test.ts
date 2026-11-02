@@ -22,9 +22,14 @@ describe('a PNG that hides colour under a clear alpha', () => {
     beforeAll(() => { dir = mkdtempSync(path.join(tmpdir(), 'cocos-data-texture-')); });
     afterAll(() => rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
-    it('is a weight map: clear everywhere, with the weights laid out in the colour', () => {
+    it('is a weight map: clear everywhere, with the weights laid out in the colour, and as big as a map', () => {
         const weights: Array<[number, number, number, number]> = [[255, 0, 0, 0], [0, 255, 0, 0], [0, 0, 255, 0], [128, 128, 0, 0], [0, 128, 128, 0]];
-        expect(hidesColorUnderClearAlpha(png('weights.png', (i) => weights[i % weights.length]!))).toBe(true);
+        expect(hidesColorUnderClearAlpha(png('weights.png', (i) => weights[i % weights.length]!, 2048, 8))).toBe(true);
+    });
+
+    it('is not the mask of an effect: the same laid out, but small', () => {
+        const weights: Array<[number, number, number, number]> = [[255, 0, 0, 0], [0, 255, 0, 0], [0, 0, 255, 0], [128, 128, 0, 0]];
+        expect(hidesColorUnderClearAlpha(png('mask.png', (i) => weights[i % weights.length]!))).toBe(false);
     });
 
     it('is not one when what lies under the clear is a single colour, as a painter leaves under a background', () => {
