@@ -663,6 +663,63 @@ TEST_CASE("sprites: affine parents preserve every draw mode and mirrored tile gr
     }
 }
 
+TEST_CASE("sprites: a pivot outside 0..1 puts the box where the pivot says, in every draw mode") {
+    // Pivot (-0.5, -0.25) puts the origin half a width left of, and a quarter-height below, the box: the box spans
+    // [-pivot*size, (1-pivot)*size] about the origin, i.e. x in [10, 30], y in [7.5, 37.5] for a 20x30 sprite.
+    const glm::vec2 pivots[] = {{-.5f, -.25f}, {1.5f, 1.25f}, {-1.f, 2.f}};
+    for (auto mode : {ecs::SpriteDrawMode::Simple, ecs::SpriteDrawMode::NineSlice, ecs::SpriteDrawMode::Tiled}) {
+        for (f32 angle : {0.0f, .7f}) for (const auto pivot : pivots) {
+            Harness h;
+            RenderContext context(h.device);
+            resource::ResourceManager resources;
+            resources.init(h.device);
+            const u8 pixels[16 * 16 * 4] = {};
+            const auto texture = resources.createTexture(resource::ResourceContent::Retained, 16, 16,
+                                                         pixels, TextureFormat::RGBA8);
+            resource::TextureMetadata metadata;
+            metadata.sliceBorder = {2, 2, 2, 2};
+            resources.setTextureMetadata(texture, metadata);
+            ecs::Registry registry;
+            const auto entity = registry.create();
+            auto& transform = registry.emplace<ecs::Transform>(entity);
+            transform.worldPosition = {40, -60, 0};
+            transform.worldRotation = glm::angleAxis(angle, glm::vec3(0, 0, 1));
+            transform.worldScale = {1, 1, 1};
+            transform.decomposed_ = true;
+            auto& sprite = registry.emplace<ecs::Sprite>(entity);
+            sprite.texture = texture;
+            sprite.size = {20, 30};
+            sprite.pivot = pivot;
+            sprite.tileSize = {4, 5};
+            sprite.drawMode = mode;
+            Frustum frustum;
+            frustum.extractFromMatrix(glm::ortho(-500.0f, 500.0f, -500.0f, 500.0f));
+            RenderFrameContext frameContext{context, resources};
+            RenderCollectContext collect{registry, frustum, h.clips, h.pool, h.list, frameContext, {}};
+            SpritePlugin plugin;
+            plugin.init(frameContext);
+            plugin.collect(collect);
+            const auto* vertices = reinterpret_cast<const BatchVertex*>(h.pool.vertexData(LayoutId::Batch));
+            const u32 count = h.pool.vertexBytesUsed(LayoutId::Batch) / sizeof(BatchVertex);
+            REQUIRE(count > 0);
+            const auto inverse = glm::inverse(glm::translate(glm::mat4(1), glm::vec3(40, -60, 0))
+                                              * glm::mat4_cast(transform.worldRotation));
+            glm::vec2 low{1e9f}, high{-1e9f};
+            for (u32 i = 0; i < count; ++i) {
+                const auto local = glm::vec2(inverse * glm::vec4(vertices[i].position, 1));
+                low = glm::min(low, local);
+                high = glm::max(high, local);
+            }
+            INFO("mode ", int(mode), " angle ", angle, " pivot ", pivot.x, ",", pivot.y);
+            CHECK(low.x == doctest::Approx(-pivot.x * 20).epsilon(.0001));
+            CHECK(low.y == doctest::Approx(-pivot.y * 30).epsilon(.0001));
+            CHECK(high.x == doctest::Approx((1 - pivot.x) * 20).epsilon(.0001));
+            CHECK(high.y == doctest::Approx((1 - pivot.y) * 30).epsilon(.0001));
+            resources.shutdown();
+        }
+    }
+}
+
 TEST_CASE("UI visuals: affine parents preserve box-local geometry and fill edges") {
     for (auto type : {ecs::UIVisualType::SolidColor, ecs::UIVisualType::Image,
                       ecs::UIVisualType::NineSlice, ecs::UIVisualType::Tiled, ecs::UIVisualType::Filled}) {
