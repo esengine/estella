@@ -87,7 +87,11 @@ export function touchListeningEntities(world: World): Iterable<Entity> {
 
 type Listener = { callback: (...args: any[]) => void; target?: unknown; once: boolean };
 
+/** Which axes a turn or a move is about. */
+export enum NodeSpace { LOCAL = 0, WORLD = 1 }
+
 export class Node {
+    static readonly NodeSpace = NodeSpace;
     /** The event names Cocos scripts register for. Only the ones the engine raises are delivered; see the host. */
     static readonly EventType = Object.freeze({
         TOUCH_START: 'touch-start', TOUCH_MOVE: 'touch-move', TOUCH_END: 'touch-end', TOUCH_CANCEL: 'touch-cancel',
@@ -313,6 +317,77 @@ export class Node {
     get forward(): Vec3 { return Vec3.transformQuat(new Vec3(), new Vec3(0, 0, -1), this.composedTransform_().worldRotation); }
     get up(): Vec3 { return Vec3.transformQuat(new Vec3(), new Vec3(0, 1, 0), this.composedTransform_().worldRotation); }
     get right(): Vec3 { return Vec3.transformQuat(new Vec3(), new Vec3(1, 0, 0), this.composedTransform_().worldRotation); }
+    set worldRotation(q: Quat) { this.setWorldRotation(q); }
+    set worldScale(v: Vec3) { this.setWorldScale(v); }
+    getWorldScale(out?: Vec3): Vec3 { const s = this.composedTransform_().worldScale; return (out ?? new Vec3()).set(s.x, s.y, s.z); }
+    get worldEulerAngles(): Vec3 { return Quat.toEuler(new Vec3(), this.worldRotation); }
+    set worldEulerAngles(v: Vec3) { this.setWorldRotationFromEuler(v.x, v.y, v.z); }
+
+    /** Turn this node so its world rotation is @p x; under a rotated parent the local rotation is solved for. */
+    setWorldRotation(x: number | Quat, y?: number, z?: number, w?: number): void {
+        const world = typeof x === 'object' ? x : new Quat(x, y, z, w);
+        const parent = this.parent;
+        if (!parent) { this.setRotation(world); return; }
+        const inverse = Quat.invert(new Quat(), parent.worldRotation);
+        this.setRotation(Quat.multiply(new Quat(), inverse, world));
+    }
+    setWorldRotationFromEuler(x: number, y: number, z: number): void { this.setWorldRotation(Quat.fromEuler(new Quat(), x, y, z)); }
+
+    /** Scale this node so its world scale is @p x; the parent's scale is divided out. */
+    setWorldScale(x: number | Vec3, y?: number, z?: number): void {
+        const world = typeof x === 'object' ? x : new Vec3(x, y ?? 0, z ?? 0);
+        const parent = this.parent;
+        if (!parent) { this.setScale(world); return; }
+        const s = parent.worldScale;
+        this.setScale(world.x / (s.x || 1), world.y / (s.y || 1), world.z / (s.z || 1));
+    }
+
+    /** Turn by @p rot about the node's own axes (local) or about the world's. */
+    rotate(rot: Quat, ns: number = NodeSpace.LOCAL): void {
+        if (ns === NodeSpace.WORLD) this.setWorldRotation(Quat.multiply(new Quat(), rot, this.worldRotation));
+        else this.setRotation(Quat.multiply(new Quat(), this.rotation, rot));
+    }
+
+    /** Move by @p trans, in the node's own axes (local) or the world's. */
+    translate(trans: Vec3, ns: number = NodeSpace.LOCAL): void {
+        if (ns === NodeSpace.WORLD) {
+            const p = this.worldPosition;
+            this.setWorldPosition(p.x + trans.x, p.y + trans.y, p.z + trans.z);
+        } else {
+            const d = Vec3.transformQuat(new Vec3(), trans, this.rotation);
+            const p = this.position;
+            this.setPosition(p.x + d.x, p.y + d.y, p.z + d.z);
+        }
+    }
+
+    /** Face -Z towards @p target, with @p up kept upright. */
+    lookAt(target: Vec3, up: Vec3 = Vec3.UP): void {
+        const from = this.worldPosition;
+        const view = new Vec3(from.x - target.x, from.y - target.y, from.z - target.z).normalize();
+        this.setWorldRotation(Quat.fromViewUp(new Quat(), view, up));
+    }
+
+    /** A world point as this node sees it: the inverse of the node's world transform applied to it. */
+    inverseTransformPoint(out: Vec3, p: Vec3): Vec3 {
+        const t = this.composedTransform_();
+        const d = new Vec3(p.x - t.worldPosition.x, p.y - t.worldPosition.y, p.z - t.worldPosition.z);
+        Vec3.transformQuat(d, d, Quat.invert(new Quat(), this.worldRotation));
+        return out.set(d.x / (t.worldScale.x || 1), d.y / (t.worldScale.y || 1), d.z / (t.worldScale.z || 1));
+    }
+
+    /** What changed since the last frame: nothing is tracked here, and a script that asks is told nothing did. */
+    get hasChangedFlags(): number { return 0; }
+    set hasChangedFlags(_v: number) { /* nothing is tracked */ }
+    /** The world transform is composed when it is read, so there is nothing to bring up to date. */
+    updateWorldTransform(): void {}
+
+    /** Visit this node and everything under it: @p before on the way in, @p after on the way out. */
+    walk(before: (node: Node) => void, after?: (node: Node) => void): void {
+        before(this);
+        for (const c of this.children) c.walk(before, after);
+        after?.(this);
+    }
+
     getWorldPosition(out?: Vec3): Vec3 { const p = this.composedTransform_().worldPosition; return (out ?? new Vec3()).set(p.x, p.y, p.z); }
 
     /** Place this node so its world position is @p x. Under a parent that is rotated or scaled, the local position is solved for. */

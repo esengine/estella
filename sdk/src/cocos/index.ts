@@ -12,7 +12,7 @@
 export { Vec2, Vec3, Quat, Color, Size, Rect, v2, v3, color, size, rect, math, toRadian, toDegree, clamp, clamp01, lerp } from './math';
 export { Vec4, Mat4 } from './mat4';
 export { Component } from './component';
-export { Node, setCurrentWorld, getCurrentWorld } from './node';
+export { Node, NodeSpace, setCurrentWorld, getCurrentWorld } from './node';
 import { Node as NodeClass } from './node';
 /** The event names, under the name scripts import them by. */
 export const NodeEventType = NodeClass.EventType;

@@ -242,3 +242,46 @@ describe('Euler angles', () => {
         expect(e.y).toBeCloseTo(0, 4);
     });
 });
+
+describe.skipIf(!HAS_WASM)('Node world-space setters', () => {
+    let module: ESEngineModule;
+    let registry: InstanceType<ESEngineModule['Registry']> | undefined;
+    let world: World | undefined;
+    beforeAll(async () => { ensureBuiltinComponentsRegistered(); module = await loadWasmModule(); });
+    afterEach(() => { setCurrentWorld(null); world?.disconnectCpp(); registry?.delete(); registry = undefined; world = undefined; });
+
+    function pair(): { parent: Node; child: Node } {
+        setDefaultContext(new AppContext());
+        registry = new module.Registry(); world = new World(); world.connectCpp(registry, module); setCurrentWorld(world);
+        const parent = new Node('p'), child = new Node('c');
+        world.insert(parent._entity, Transform); world.insert(child._entity, Transform);
+        parent.addChild(child);
+        parent.setScale(2, 2, 2);
+        parent.setRotationFromEuler(0, 90, 0);
+        return { parent, child };
+    }
+
+    it('sets a world rotation and scale that read back, under a turned and scaled parent', () => {
+        const { child } = pair();
+        child.setWorldRotationFromEuler(0, 30, 0);
+        child.setWorldScale(new Vec3(4, 4, 4));
+        expect(child.worldEulerAngles.y).toBeCloseTo(30, 4);
+        expect(child.worldScale.x).toBeCloseTo(4, 5);
+        expect(child.scale.x).toBeCloseTo(2, 5);
+    });
+
+    it('looks at a point with -Z, walks the tree, and puts a world point in the node\'s space', () => {
+        const { parent, child } = pair();
+        child.setWorldPosition(new Vec3(0, 0, 0));
+        child.lookAt(new Vec3(10, 0, 0));
+        expect(child.forward.x).toBeCloseTo(1, 5);
+        const seen: string[] = [];
+        parent.walk((n) => seen.push(`in:${n.name}`), (n) => seen.push(`out:${n.name}`));
+        expect(seen).toEqual(['in:p', 'in:c', 'out:c', 'out:p']);
+        child.setWorldRotation(new Quat(0, 0, 0, 1));
+        child.setWorldPosition(new Vec3(1, 0, 0));
+        expect(child.inverseTransformPoint(new Vec3(), new Vec3(3, 0, 0)).x).toBeCloseTo(1, 5);
+        child.translate(new Vec3(0, 0, 1), Node.NodeSpace.WORLD);
+        expect(child.worldPosition.z).toBeCloseTo(1, 5);
+    });
+});
