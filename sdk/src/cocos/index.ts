@@ -31,6 +31,7 @@ export { unsupported } from './unsupported';
 export { ccenum, js, NodePool, profiler } from './misc';
 export { MeshRenderer, ModelRenderer, UIMeshRenderer } from './meshRenderer';
 export { Collider, BoxCollider } from './collider';
+export { PhysicsSystem, PhysicsRayResult } from './physicsSystem';
 export { UIRenderer } from './ui/renderer';
 export { geometry } from './geometry';
 export { UITransform, Label, LabelOutline, LabelShadow, Sprite, UIOpacity, Button, EventHandler, Widget, Layout, Camera, RichText, Mask, Toggle, ToggleContainer, ProgressBar, Slider, BlockInputEvents, ScrollView, Graphics, Line, EditBox, PageView, PageViewIndicator, ScrollBar, SafeArea, WebView, getVisibleSize, setVisibleSize } from './ui';

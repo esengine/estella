@@ -10,7 +10,7 @@ import { World } from '../../src/ecs/world';
 import { Transform, ensureBuiltinComponentsRegistered } from '../../src/ecs/component';
 import { AppContext, setDefaultContext } from '../../src/ecs/context';
 import { BoxCollider3D, RigidBody3D } from '../../src/physics3d/Physics3DComponents';
-import { BoxCollider, Node, Vec3, setCurrentWorld } from '../../src/cocos';
+import { BoxCollider, Node, PhysicsSystem, Vec3, geometry, setCurrentWorld } from '../../src/cocos';
 import { HAS_WASM, loadWasmModule } from '../helpers/loadWasm';
 
 describe.skipIf(!HAS_WASM)('BoxCollider on the engine', () => {
@@ -62,5 +62,52 @@ describe.skipIf(!HAS_WASM)('BoxCollider on the engine', () => {
         expect([c.size.x, c.size.y, c.size.z]).toEqual([1, 1.5, 1]);
         expect(c.center.y).toBeCloseTo(0.75, 6);
         expect(c.isTrigger).toBe(true);
+    });
+});
+
+describe.skipIf(!HAS_WASM)('PhysicsSystem on the engine', () => {
+    let module: ESEngineModule;
+    let registry: InstanceType<ESEngineModule['Registry']> | undefined;
+    let world: World | undefined;
+    beforeAll(async () => { ensureBuiltinComponentsRegistered(); module = await loadWasmModule(); });
+    afterEach(() => { setCurrentWorld(null); world?.disconnectCpp(); registry?.delete(); registry = undefined; world = undefined; });
+
+    function box(name: string, at: Vec3, size: Vec3, trigger = false): Node {
+        const n = new Node(name);
+        world!.insert(n._entity, Transform);
+        n.setPosition(at);
+        const c = n.addComponent(BoxCollider)!;
+        c.size = size;
+        c.isTrigger = trigger;
+        return n;
+    }
+
+    it('lists the boxes a ray crosses nearest first and names the face it met', () => {
+        setDefaultContext(new AppContext());
+        registry = new module.Registry(); world = new World(); world.connectCpp(registry, module); setCurrentWorld(world);
+        const far = box('far', new Vec3(0, 0, -10), new Vec3(2, 2, 2));
+        const near = box('near', new Vec3(0, 0, -4), new Vec3(2, 2, 2));
+        box('aside', new Vec3(8, 0, -4), new Vec3(2, 2, 2));
+        const ray = new geometry.Ray(0, 0, 0, 0, 0, -1);
+        expect(PhysicsSystem.instance.raycast(ray)).toBe(true);
+        const hits = PhysicsSystem.instance.raycastResults;
+        expect(hits.map((h) => h.collider.node.name)).toEqual(['near', 'far']);
+        expect(hits[0]!.distance).toBeCloseTo(3, 6);
+        expect(hits[0]!.hitPoint.z).toBeCloseTo(-3, 6);
+        expect(hits[0]!.hitNormal.z).toBeCloseTo(1, 6);
+        expect(PhysicsSystem.instance.raycastClosest(ray)).toBe(true);
+        expect(PhysicsSystem.instance.raycastClosestResult.collider.node).toBe(near);
+        expect(far).toBeTruthy();
+    });
+
+    it('skips triggers when asked not to, and boxes behind the origin or past the range', () => {
+        setDefaultContext(new AppContext());
+        registry = new module.Registry(); world = new World(); world.connectCpp(registry, module); setCurrentWorld(world);
+        box('trigger', new Vec3(0, 0, -4), new Vec3(2, 2, 2), true);
+        box('behind', new Vec3(0, 0, 6), new Vec3(2, 2, 2));
+        const ray = new geometry.Ray(0, 0, 0, 0, 0, -1);
+        expect(PhysicsSystem.instance.raycast(ray, 0xffffffff, 100, false)).toBe(false);
+        expect(PhysicsSystem.instance.raycast(ray, 0xffffffff, 2, true)).toBe(false);
+        expect(PhysicsSystem.instance.raycast(ray, 0xffffffff, 100, true)).toBe(true);
     });
 });
