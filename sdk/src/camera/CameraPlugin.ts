@@ -558,8 +558,7 @@ function resolveCameras(
     // draws is usually what the main view is about to sample.
     const offscreen = povs.filter((p) => p.renderTarget !== 0).sort((a, b) => a.priority - b.priority);
     const onScreen = povs.filter((p) => p.renderTarget === 0);
-    const fullFrame = onScreen.filter((p) => isFullFrame(p.viewport));
-    const overlays = onScreen.filter((p) => !isFullFrame(p.viewport)).sort((a, b) => a.priority - b.priority);
+    const { fullFrame, overlays } = splitOnScreenCameras(onScreen);
 
     // The origin follows the screen's own camera, before any view is built for it.
     if (advance) {
@@ -777,6 +776,20 @@ function publishScreenOverlay(
     overlay.vpW = width;
     overlay.vpH = height;
     overlay.active = true;
+}
+
+/**
+ * Which on-screen cameras compete to be the main view and which are laid over it. A full-frame camera that does not clear colour is drawn over
+ * what another one drew (a UI camera over the world's): it is a layer on the main view, not a candidate to be it. With nothing else to lay it
+ * over, it is the main view. Sub-viewport cameras are layers too; the layers are in priority order.
+ * @internal
+ */
+export function splitOnScreenCameras(onScreen: CameraPOV[]): { fullFrame: CameraPOV[]; overlays: CameraPOV[] } {
+    const clearsColour = (p: CameraPOV): boolean => (p.clearFlags & ClearFlags.Color) !== 0;
+    const all = onScreen.filter((p) => isFullFrame(p.viewport));
+    const fullFrame = all.some(clearsColour) ? all.filter(clearsColour) : all;
+    const overlays = onScreen.filter((p) => !fullFrame.includes(p)).sort((a, b) => a.priority - b.priority);
+    return { fullFrame, overlays };
 }
 
 // =============================================================================
