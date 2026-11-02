@@ -4,7 +4,7 @@ import type { AssetLoader, LoadContext, TextureResult } from '../AssetLoader';
 import { linearColorSpace, samplesAsSrgb } from '../../ecs/env';
 import { platformCreateImage } from '../../platform/base';
 import type { PlatformImage } from '../../platform/types';
-import { decodeImageBitmap, readImagePixels } from '../imageDecode';
+import { decodeImageBitmap, readImagePixels, shrinkBitmap } from '../imageDecode';
 import { requireResourceManager } from '../../wasm/resourceManager';
 import { TextureContent, type ESEngineModule } from '../../wasm';
 import { withMalloc } from '../../wasm/wasmScratch';
@@ -358,20 +358,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
             img.onload = async () => {
                 if (typeof createImageBitmap !== 'undefined') {
                     try {
-                        const bitmap = await decodeImageBitmap(img, flip);
-                        const longest = Math.max(bitmap.width, bitmap.height);
-                        if (maxEdge > 0 && longest > maxEdge) {
-                            const k = maxEdge / longest;
-                            const smaller = await createImageBitmap(bitmap, {
-                                resizeWidth: Math.max(1, Math.round(bitmap.width * k)),
-                                resizeHeight: Math.max(1, Math.round(bitmap.height * k)),
-                                resizeQuality: 'high',
-                            });
-                            bitmap.close();
-                            resolve(smaller);
-                            return;
-                        }
-                        resolve(bitmap);
+                        resolve(await shrinkBitmap(await decodeImageBitmap(img, flip), maxEdge));
                         return;
                     } catch {
                         // fallback

@@ -55,26 +55,32 @@ export interface DecodedPixels {
  * v=1=top for general textures, v=0=top for spine / bitmap fonts.
  */
 export async function decodeImagePixels(src: ImageBitmapSource, maxEdge = 0): Promise<DecodedPixels> {
-    let bitmap = await decodeImageBitmap(src, false);
+    const bitmap = await shrinkBitmap(await decodeImageBitmap(src, false), maxEdge);
     try {
-        const longest = Math.max(bitmap.width, bitmap.height);
-        if (maxEdge > 0 && longest > maxEdge && typeof createImageBitmap === 'function') {
-            // Made smaller by the decoder, with the same options: a canvas would scale it, and a canvas keeps nothing under a clear texel.
-            const k = maxEdge / longest;
-            const smaller = await createImageBitmap(bitmap, {
-                resizeWidth: Math.max(1, Math.round(bitmap.width * k)),
-                resizeHeight: Math.max(1, Math.round(bitmap.height * k)),
-                resizeQuality: 'high',
-                premultiplyAlpha: 'none',
-                colorSpaceConversion: 'none',
-            });
-            bitmap.close?.();
-            bitmap = smaller;
-        }
         return readImagePixels(bitmap, maxEdge);
     } finally {
         bitmap.close?.();
     }
+}
+
+/**
+ * A bitmap made no longer than `maxEdge` on its long side (the bitmap itself when it already is, or when there is no decoder to do it). The decoder makes
+ * it smaller with the options it decoded with: left to its defaults a resize premultiplies, and the colour under a clear texel is gone, which a weight map
+ * the ground is mixed by has all over it. The bitmap given is closed when a smaller one is made.
+ */
+export async function shrinkBitmap(bitmap: ImageBitmap, maxEdge: number): Promise<ImageBitmap> {
+    const longest = Math.max(bitmap.width, bitmap.height);
+    if (!(maxEdge > 0 && longest > maxEdge) || typeof createImageBitmap !== 'function') return bitmap;
+    const k = maxEdge / longest;
+    const smaller = await createImageBitmap(bitmap, {
+        resizeWidth: Math.max(1, Math.round(bitmap.width * k)),
+        resizeHeight: Math.max(1, Math.round(bitmap.height * k)),
+        resizeQuality: 'high',
+        premultiplyAlpha: 'none',
+        colorSpaceConversion: 'none',
+    });
+    bitmap.close?.();
+    return smaller;
 }
 
 /** The GL context pixels are read through, made once; null where there is none (a host without WebGL2, a test). */

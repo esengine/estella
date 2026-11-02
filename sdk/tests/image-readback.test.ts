@@ -61,3 +61,24 @@ describe('reading a decoded bitmap', () => {
         expect(calls.indexOf('texImage2D')).toBeLessThan(calls.indexOf('readPixels'));
     });
 });
+
+describe('making a bitmap smaller', () => {
+    it('asks the decoder for it unpremultiplied and without a colour conversion, so the colour under a clear texel is kept', async () => {
+        const made: Array<Record<string, unknown>> = [];
+        vi.stubGlobal('createImageBitmap', async (_source: unknown, options: Record<string, unknown>) => { made.push(options); return new FakeBitmap(options.resizeWidth as number, options.resizeHeight as number); });
+        vi.stubGlobal('ImageBitmap', FakeBitmap);
+        const { shrinkBitmap } = await import('../src/asset/imageDecode');
+        const small = await shrinkBitmap(new FakeBitmap(4096, 2048) as unknown as ImageBitmap, 2048);
+        expect([small.width, small.height]).toEqual([2048, 1024]);
+        expect(made).toHaveLength(1);
+        expect(made[0]).toMatchObject({ premultiplyAlpha: 'none', colorSpaceConversion: 'none', resizeWidth: 2048, resizeHeight: 1024 });
+        vi.unstubAllGlobals();
+    });
+
+    it('leaves a bitmap that is small enough as it is', async () => {
+        const { shrinkBitmap } = await import('../src/asset/imageDecode');
+        const bitmap = new FakeBitmap(512, 512) as unknown as ImageBitmap;
+        expect(await shrinkBitmap(bitmap, 2048)).toBe(bitmap);
+        expect(await shrinkBitmap(bitmap, 0)).toBe(bitmap);
+    });
+});
