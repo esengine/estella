@@ -500,7 +500,9 @@ export function convertScene(doc: CocosDocument, ctx: ConvertContext): SceneFile
         if (!n.instance) n.children.forEach(assign);
     };
     doc.roots.forEach(assign);
-    if (doc.globals.length) ctx.report.note('scene-globals-dropped', `${ctx.where}: ${doc.globals.join(',')}`);
+    // what is left of the scene's settings is not carried: the ambient light is
+    const dropped = doc.globals.filter((g) => !(g === 'ambient' && doc.ambient));
+    if (dropped.length) ctx.report.note('scene-globals-dropped', `${ctx.where}: ${dropped.join(',')}`);
 
     const walk = (n: CocosNode, parent: SceneEntity | null): void => {
         ctx.report.nodes++;
@@ -543,5 +545,16 @@ export function convertScene(doc: CocosDocument, ctx: ConvertContext): SceneFile
     entities.length = 0;
     entities.push(...folded);
     if (ctx.design) for (const e of entities) if ('components' in e && e.parent === null) placeInDesign(e.components, ctx.design);
+    // The scene's ambient light is a setting of the scene in Cocos and an entity in the engine: a mesh that is lit gets all it is lit by from it.
+    if (doc.ambient) {
+        const { color, intensity } = doc.ambient;
+        entities.push({
+            id: next++, name: 'Ambient', parent: null, children: [], visible: true,
+            components: [
+                { type: 'Transform', data: { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 }, scale: { x: 1, y: 1, z: 1 } } },
+                { type: 'Light', data: { type: 2, color: { r: color.r, g: color.g, b: color.b, a: 1 }, intensity, enabled: true } },
+            ],
+        });
+    }
     return { version: 4, name: doc.name, entities };
 }

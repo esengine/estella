@@ -69,6 +69,8 @@ export interface CocosDocument {
     roots: CocosNode[];
     /** Scene-level settings (skybox, fog, shadows...) that were present and are not carried over. */
     globals: string[];
+    /** The scene's ambient light, as the low-dynamic-range sky colour and the illumination it is lit by; absent when the scene sets none. */
+    ambient?: { color: { r: number; g: number; b: number }; intensity: number };
     /** Node ids that had to be made unique because the file repeats them. */
     duplicateIds: number;
 }
@@ -106,6 +108,7 @@ export function parseCocosDocument(file: unknown, fallbackName = ''): CocosDocum
 
     const head = isObj(objs[0]) ? objs[0] : null;
     const globals: string[] = [];
+    let ambient: CocosDocument['ambient'];
     let rootRefs: unknown[];
     let kind: CocosDocument['kind'];
     let name = fallbackName;
@@ -121,6 +124,11 @@ export function parseCocosDocument(file: unknown, fallbackName = ''): CocosDocum
         rootRefs = Array.isArray(scene._children) ? scene._children : [];
         const g = at(scene._globals);
         if (g) for (const k of ['ambient', 'shadows', 'skybox', 'fog', 'octree', 'lightProbeInfo']) if (g[k]) globals.push(k);
+        const amb = g ? at(g.ambient) : null;
+        const sky = amb && isObj(amb._skyColorLDR) ? amb._skyColorLDR : null;
+        if (amb && sky && typeof sky.x === 'number' && typeof sky.y === 'number' && typeof sky.z === 'number') {
+            ambient = { color: { r: sky.x, g: sky.y, b: sky.z }, intensity: typeof amb._skyIllumLDR === 'number' ? amb._skyIllumLDR : 1 };
+        }
     } else {
         throw new Error(`not a Cocos scene/prefab: first object is ${String(head?.__type__)}`);
     }
@@ -251,5 +259,5 @@ export function parseCocosDocument(file: unknown, fallbackName = ''): CocosDocum
         node.children.forEach(resolveNode);
     };
     roots.forEach(resolveNode);
-    return { kind, name, roots, globals, duplicateIds };
+    return { kind, name, roots, globals, ambient, duplicateIds };
 }
