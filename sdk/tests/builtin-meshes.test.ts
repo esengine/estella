@@ -38,12 +38,31 @@ const cross = (a: Vec, b: Vec): Vec => ({
 describe('built-in meshes', () => {
   it('offers every primitive under a builtin: ref', () => {
     expect(BUILTIN_MESH_TEMPLATES.map((t) => t.id).sort())
-      .toEqual(['capsule', 'cone', 'cube', 'cylinder', 'plane', 'quad', 'sphere']);
+      .toEqual(['capsule', 'cone', 'cube', 'cylinder', 'map-plane', 'plane', 'quad', 'sphere']);
     for (const t of BUILTIN_MESH_TEMPLATES) {
       expect(t.ref).toBe(`builtin:${t.id}`);
       expect(isBuiltinMeshRef(t.ref)).toBe(true);
       expect(builtinMeshTemplate(t.ref)).toBe(t);
     }
+  });
+
+  // A texture over the plane of Cocos reads as a map seen from above, v running towards +z; the engine's own plane runs it the other way.
+  it('runs the v of the map plane along +z and the v of the plane the other way', () => {
+    const vOf = (id: string, z: number): number => {
+      const mesh = builtinMeshTemplate(`builtin:${id}`)!.build();
+      const view = new DataView(mesh.vertices.buffer, mesh.vertices.byteOffset, mesh.vertices.byteLength);
+      const pos = mesh.channels.find((c) => c.semantic === MeshChannel.Position)!;
+      const uv = mesh.channels.find((c) => c.semantic === MeshChannel.TexCoord0)!;
+      for (let i = 0; i < mesh.vertexCount; i++) {
+        const at = i * mesh.vertexStride;
+        if (Math.abs(view.getFloat32(at + pos.offset + 8, true) - z) < 1e-3) return view.getFloat32(at + uv.offset + 4, true);
+      }
+      throw new Error('no vertex there');
+    };
+    expect(vOf('map-plane', -50)).toBeCloseTo(0, 5);
+    expect(vOf('map-plane', 50)).toBeCloseTo(1, 5);
+    expect(vOf('plane', -50)).toBeCloseTo(1, 5);
+    expect(vOf('plane', 50)).toBeCloseTo(0, 5);
   });
 
   // A misspelled built-in must stay a path, so the loader 404s it by name rather

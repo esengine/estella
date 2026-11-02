@@ -66,12 +66,13 @@ function tri(b: Builder, a: number, c: number, d: number): void {
     b.idx.push(a, c, d);
 }
 
-/** A flat quad from four corners wound counter-clockwise seen from `n`. */
-function quadFace(b: Builder, corners: readonly (readonly number[])[], n: readonly number[]): void {
-    const a = vertex(b, corners[0]!, 0, 0, n);
-    const c = vertex(b, corners[1]!, 1, 0, n);
-    const d = vertex(b, corners[2]!, 1, 1, n);
-    const e = vertex(b, corners[3]!, 0, 1, n);
+/** A flat quad from four corners wound counter-clockwise seen from `n`. `flipV` runs the texture's v the other way along the face. */
+function quadFace(b: Builder, corners: readonly (readonly number[])[], n: readonly number[], flipV = false): void {
+    const [top, bottom] = flipV ? [1, 0] : [0, 1];
+    const a = vertex(b, corners[0]!, 0, top, n);
+    const c = vertex(b, corners[1]!, 1, top, n);
+    const d = vertex(b, corners[2]!, 1, bottom, n);
+    const e = vertex(b, corners[3]!, 0, bottom, n);
     tri(b, a, c, d);
     tri(b, a, d, e);
 }
@@ -200,6 +201,14 @@ function plane(size: number): Builder {
     return b;
 }
 
+/** The plane with v running along +z, so a picture laid over it reads as a map seen from above with +z towards the viewer: the plane of Cocos. */
+function mapPlane(size: number): Builder {
+    const b = newBuilder();
+    const h = size / 2;
+    quadFace(b, [[-h, 0, h], [h, 0, h], [h, 0, -h], [-h, 0, -h]], [0, 1, 0], true);
+    return b;
+}
+
 function quad(size: number): Builder {
     const b = newBuilder();
     const h = size / 2;
@@ -267,6 +276,8 @@ export const BUILTIN_MESH_TEMPLATES: readonly BuiltinMeshTemplate[] = [
              () => cone(UNIT / 2, UNIT)),
     template('plane', 'Plane', `A ${UNIT}-unit ground square in XZ, facing up.`, false,
              () => plane(UNIT)),
+    template('map-plane', 'Map Plane', `A ${UNIT}-unit ground square in XZ, facing up, whose texture's v runs along +z as a map's does.`, false,
+             () => mapPlane(UNIT)),
     template('quad', 'Quad', `A ${UNIT}-unit square in XY, facing the camera.`, false,
              () => quad(UNIT)),
 ];

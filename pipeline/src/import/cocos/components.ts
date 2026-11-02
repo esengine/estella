@@ -615,7 +615,7 @@ const PRIMITIVE_MESHES: Record<string, { ref: string; size: number }> = {
     a804a: { ref: 'builtin:cube', size: 1 },
     '17020': { ref: 'builtin:sphere', size: 1 },
     '38fd2': { ref: 'builtin:cylinder', size: 1 },
-    '2e76e': { ref: 'builtin:plane', size: 10 },
+    '2e76e': { ref: 'builtin:map-plane', size: 10 },
     fc873: { ref: 'builtin:quad', size: 1 },
 };
 const ENGINE_PRIMITIVE_SIZE = 100;
