@@ -611,11 +611,11 @@ function skeletalAnimation(c: CocosComponent, node: CocosNode, ctx: ComponentCon
  * so the node's scale carries the difference and the shape stays the size the scene meant.
  */
 const COCOS_PRIMITIVES = '1263d74c-8167-4928-91a6-4e2672411f47';
-const PRIMITIVE_MESHES: Record<string, { ref: string; size: number }> = {
+const PRIMITIVE_MESHES: Record<string, { ref: string; size: number; engineSize?: number }> = {
     a804a: { ref: 'builtin:cube', size: 1 },
     '17020': { ref: 'builtin:sphere', size: 1 },
     '38fd2': { ref: 'builtin:cylinder', size: 1 },
-    '2e76e': { ref: 'builtin:map-plane', size: 10 },
+    '2e76e': { ref: 'builtin:cocos-plane', size: 10, engineSize: 10 },
     fc873: { ref: 'builtin:quad', size: 1 },
 };
 const ENGINE_PRIMITIVE_SIZE = 100;
@@ -663,7 +663,7 @@ function meshRenderer(c: CocosComponent, ctx: ComponentContext, where: string): 
         }
         const data: Raw = { mesh: primitive.ref, enabled: c.enabled };
         const applied = applyMaterial(data, c, ctx, where);
-        return { component: { type: 'MeshRenderer', data }, scale: primitive.size / ENGINE_PRIMITIVE_SIZE, partial: hasMaterial && !applied.exact };
+        return { component: { type: 'MeshRenderer', data }, scale: primitive.size / (primitive.engineSize ?? ENGINE_PRIMITIVE_SIZE), partial: hasMaterial && !applied.exact };
     }
     const found = meshUuid ? ctx.modelMesh?.(meshUuid) : null;
     if (!found) {
