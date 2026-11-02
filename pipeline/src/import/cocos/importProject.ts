@@ -82,6 +82,13 @@ function* walk(dir: string): Generator<string> {
     }
 }
 
+/** A shader's source without the WGSL twin derived into it: the part the importer wrote. */
+function withoutDerivedTwin(source: string): string {
+    return source
+        .replace(/\n?#pragma (?:vertex|fragment) wgsl full\n[\s\S]*?#pragma end\n?/g, '\n')
+        .replace(/\n?#pragma vertexoffset wgsl\n\/\/ GENERATED[\s\S]*?#pragma end\n?/g, '\n');
+}
+
 function writeOut(file: string, text: string): void {
     mkdirSync(path.dirname(file), { recursive: true });
     writeFileSync(file, text);
@@ -883,17 +890,25 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
         touched.add(relPath);
         const file = path.join(out, relPath);
         const next = digest(text);
-        const now = existsSync(file) ? digest(readFileSync(file, 'utf8')) : null;
+        const onDisk = existsSync(file) ? readFileSync(file, 'utf8') : null;
+        // A shader gets its WGSL twin written into it after the import (the editor and the cook derive it), which is not an edit of the creator's: what
+        // the importer wrote is the GLSL, so that is what the file is compared by.
+        const isShader = relPath.endsWith('.esshader');
+        const compared = onDisk !== null && isShader ? withoutDerivedTwin(onDisk) : onDisk;
+        const now = compared !== null ? digest(compared) : null;
+        // stripping a twin leaves the blank lines it stood between, so a shader is the same when only its trailing whitespace differs
+        const same = compared !== null && (now === next || (isShader && compared.trimEnd() === text.trimEnd()));
+        const ownedBefore = compared !== null && (isShader ? [compared, compared.trimEnd(), `${compared.trimEnd()}\n`] : [compared]).some((t) => written[relPath] === digest(t));
         if (now === null) report.sync.added++;
-        else if (now === next) report.sync.unchanged++;
-        else if (written[relPath] === now) report.sync.updated++;
+        else if (same) report.sync.unchanged++;
+        else if (ownedBefore) report.sync.updated++;
         else {
             report.sync.kept.push(relPath);
             if (!opts.dryRun && migrateWidgets(file)) report.note('widget-migrated', relPath);
             return;
         }
         written[relPath] = next;
-        if (!opts.dryRun && now !== next) writeOut(file, text);
+        if (!opts.dryRun && !same) writeOut(file, text);
     }
 
     const byRel = new Map<string, CocosAssetEntry>();
