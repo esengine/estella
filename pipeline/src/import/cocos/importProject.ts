@@ -102,15 +102,20 @@ export function hidesColorUnderClearAlpha(file: string): boolean {
         if (bytes.length < 26 || bytes.toString('latin1', 1, 4) !== 'PNG' || (bytes[25] !== 4 && bytes[25] !== 6)) return false;
         const image = decodePngImage(file, new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength));
         let clear = 0, coloured = 0;
+        const hues = new Set<number>();
         const step = Math.max(1, Math.floor(image.rgba.length / 4 / 65536));
         let sampled = 0;
         for (let i = 0; i < image.rgba.length; i += 4 * step) {
             sampled++;
             if (image.rgba[i + 3]! !== 0) continue;
             clear++;
-            if (image.rgba[i]! + image.rgba[i + 1]! + image.rgba[i + 2]! > 0) coloured++;
+            if (image.rgba[i]! + image.rgba[i + 1]! + image.rgba[i + 2]! > 0) {
+                coloured++;
+                hues.add(((image.rgba[i]! >> 4) << 8) | ((image.rgba[i + 1]! >> 4) << 4) | (image.rgba[i + 2]! >> 4));
+            }
         }
-        return sampled > 0 && clear / sampled > 0.5 && coloured / sampled > 0.1;
+        // a painter leaves one colour under a background (white, black); numbers are laid out in several
+        return sampled > 0 && clear / sampled > 0.5 && coloured / sampled > 0.1 && hues.size >= 4;
     } catch {
         return false;
     }
@@ -403,6 +408,8 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
     const esRel = (assetRel: string, ext: string): string => assetRel.replace(/\.[^./]+$/, ext);
 
     const textures = new Map<string, { entry: CocosAssetEntry; slice?: SliceBorder; hints?: AssetHints }>();
+    /** The textures a converted material samples: a sprite's picture is never read as numbers, so only these can be data. */
+    const materialTextures = new Set<string>();
     const docs = new Map<string, CocosDocument | null>();
     const pending: string[] = [];
     const queued = new Set<string>();
@@ -825,7 +832,10 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
                             if (param.type === 'texture') {
                                 const u = typeof v === 'object' ? (v as { __uuid__?: string }).__uuid__ : undefined;
                                 const entry = u ? index.byUuid.get(u.split('@')[0]!) : undefined;
-                                if (entry) properties[param.name] = ctx.assetRef(entry);
+                                if (entry) {
+                                    properties[param.name] = ctx.assetRef(entry);
+                                    materialTextures.add(entry.file);
+                                }
                             } else if (typeof v === 'number') {
                                 properties[param.name] = v;
                             } else if (typeof v === 'object') {
@@ -1098,7 +1108,7 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
                 writeOut(`${dest}.meta`, `${JSON.stringify({ uuid: entry.uuid, version: '2.0', type: 'bitmapfont', importer: {} }, null, 2)}
 `);
             }
-            const data = dest.endsWith('.png') && hidesColorUnderClearAlpha(entry.file);
+            const data = dest.endsWith('.png') && materialTextures.has(entry.file) && hidesColorUnderClearAlpha(entry.file);
             if (slice || data) {
                 // A slice border is a texture import setting here; the Cocos image keeps its uuid. A texture that holds numbers is shipped as the numbers it has.
                 const importer = { ...(slice ? { sliceBorder: slice } : {}), ...(data ? { compress: 'off', sRGB: false } : {}) };

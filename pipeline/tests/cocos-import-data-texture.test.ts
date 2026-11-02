@@ -22,8 +22,13 @@ describe('a PNG that hides colour under a clear alpha', () => {
     beforeAll(() => { dir = mkdtempSync(path.join(tmpdir(), 'cocos-data-texture-')); });
     afterAll(() => rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
-    it('is a weight map: clear everywhere, with colour in every texel', () => {
-        expect(hidesColorUnderClearAlpha(png('weights.png', (i) => (i % 2 ? [255, 0, 0, 0] : [0, 0, 255, 0])))).toBe(true);
+    it('is a weight map: clear everywhere, with the weights laid out in the colour', () => {
+        const weights: Array<[number, number, number, number]> = [[255, 0, 0, 0], [0, 255, 0, 0], [0, 0, 255, 0], [128, 128, 0, 0], [0, 128, 128, 0]];
+        expect(hidesColorUnderClearAlpha(png('weights.png', (i) => weights[i % weights.length]!))).toBe(true);
+    });
+
+    it('is not one when what lies under the clear is a single colour, as a painter leaves under a background', () => {
+        expect(hidesColorUnderClearAlpha(png('white-bleed.png', () => [255, 255, 255, 0]))).toBe(false);
     });
 
     it('is not a picture: opaque, or clear with nothing under it', () => {
