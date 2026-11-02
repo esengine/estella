@@ -102,6 +102,8 @@ export function property(...args: unknown[]): any {
 /** `@ccclass('Name')` or bare `@ccclass`: declare the class, under its own name if none is given. */
 export function ccclass(arg?: string | Function): any {
     const declare = (ctor: Function, name?: string): void => {
+        // A class that is not a component (a plain data class, or one whose base the layer does not provide) is not driven: it has no hooks to run, and nothing to put on a node.
+        if (!(ctor.prototype instanceof Component)) return;
         declareClass(ctor as never, name || ctor.name, propertiesOf(ctor));
     };
     if (typeof arg === 'function') { declare(arg); return undefined; }
