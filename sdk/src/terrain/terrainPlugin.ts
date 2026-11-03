@@ -41,6 +41,7 @@ import { findGroundPath, type ReachOptions, type ReachResult } from './reach';
 import { paintWeights } from './paint';
 
 export { paintWeights };
+import { GroundEdit } from './groundEdit';
 import { FieldSource, ModifiedSource, NoiseSource, type TerrainModifier, type TerrainSource } from './source';
 import { levelRange, nodeKey, parentOf, selectNodes, type QuadtreeParams, type TerrainNode } from './quadtree';
 import { makePage, PageTable, PAGE_SIDE, PAGE_TEXELS, PATCH_CELLS, type PageImage, type Repaint } from './pages';
@@ -446,6 +447,16 @@ export class Terrains {
         if (!had) return;
         this.modifiers_.delete(id);
         this.remake_(had.bounds);
+    }
+
+    /**
+     * A handle to change the ground of the area terrain on `entity` with brushes (sculpt.ts), or null while it is being made, when it
+     * is not an area of its own heights (infinite ground, a provider's) or when it is not a terrain.
+     */
+    groundEdit(entity: Entity): GroundEdit | null {
+        const built = this.built_.get(entity), source = built?.source;
+        if (!built || !(source instanceof ModifiedSource) || !(source.base instanceof FieldSource)) return null;
+        return new GroundEdit({ remake: (b) => this.remake_(b) }, source.base, source, built.data.sizeX, built.data.sizeZ);
     }
 
     /** @internal Makes again what the world square `b` reaches: its pages and its collision, and what stands on the ground. */

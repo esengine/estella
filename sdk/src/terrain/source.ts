@@ -71,13 +71,39 @@ export class FieldSource implements TerrainSource {
     constructor(
         readonly field: Heightfield,
         private readonly data: Pick<TerrainData, 'sizeX' | 'sizeZ' | 'height' | 'rockSlope' | 'dirtHeight' | 'snowHeight'>,
-        private readonly splat: Splat | null,
+        private splat: Splat | null,
         private readonly flow: Float32Array | null,
         range: readonly [number, number] = [0, data.height],
-        private readonly splat2: Splat | null = null,
+        private splat2: Splat | null = null,
     ) {
         this.bounds = [-data.sizeX / 2, -data.sizeZ / 2, data.sizeX / 2, data.sizeZ / 2];
         [this.minHeight, this.maxHeight] = range;
+    }
+
+    /**
+     * The splatmaps a brush paints into, made where the ground had none: the first from the paint the ground has now (by height and
+     * slope), the second (layers 5 to 8) empty, and only when `second` says it is wanted. They are as fine as the field, to 1024 a side.
+     */
+    ensureSplats(second: boolean): { a: Splat; b: Splat | null } {
+        const f = this.field, width = Math.min(f.width, 1024), height = Math.min(f.height, 1024);
+        if (!this.splat) {
+            const pixels = new Uint8Array(width * height * 4);
+            const sx = this.data.sizeX, sz = this.data.sizeZ;
+            for (let j = 0; j < height; j++) for (let i = 0; i < width; i++) {
+                const x = (i / (width - 1) - 0.5) * sx, z = (j / (height - 1) - 0.5) * sz;
+                const h = this.height(x, z) ?? this.minHeight, n = this.normal(x, z);
+                const w = paintWeights((h - this.minHeight) / this.span, n ? n[1] : 1, this.data);
+                for (let c = 0; c < 4; c++) pixels[(j * width + i) * 4 + c] = Math.round(w[c]! * 255);
+            }
+            this.splat = { width, height, pixels };
+        }
+        if (second && !this.splat2) this.splat2 = { width: this.splat.width, height: this.splat.height, pixels: new Uint8Array(this.splat.width * this.splat.height * 4) };
+        return { a: this.splat, b: this.splat2 };
+    }
+
+    /** The splatmaps now, null where the ground has none. */
+    splats(): { a: Splat | null; b: Splat | null } {
+        return { a: this.splat, b: this.splat2 };
     }
 
     private get span(): number {

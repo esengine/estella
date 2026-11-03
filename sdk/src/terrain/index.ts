@@ -31,3 +31,5 @@ export {
     FACES, direction, faceOf, levelsFor, nodeAt, nodeBound, nodeDistance, nodePoint, nodeRect, nodeSpan, selectSphereNodes, sphereNodeKey, sphereRange,
     type SphereNode, type SphereTreeParams,
 } from './sphere';
+export { GroundEdit, type GroundPatch } from './groundEdit';
+export { SculptMode, brushWeight, encodeHeightmap, paintSplat, sculptField, unionDirty, type Brush, type Dirty, type PaintDab, type SculptDab } from './sculpt';
