@@ -33,13 +33,13 @@ describe('a model that names a texture the project does not have', () => {
     const roots: string[] = [];
     afterAll(() => { for (const r of roots) rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); });
 
-    async function run(image: string, withFile: boolean) {
+    async function run(image: string, withFile: boolean, besideAs = image) {
         const root = mkdtempSync(path.join(tmpdir(), 'model-missing-'));
         roots.push(root);
         const src = path.join(root, 'assets', 'models');
         mkdirSync(src, { recursive: true });
         writeFileSync(path.join(src, 'tri.gltf'), triangleGltf(image));
-        if (withFile) writeFileSync(path.join(src, image), Buffer.from('89504e470d0a1a0a', 'hex'));
+        if (withFile) writeFileSync(path.join(src, besideAs), Buffer.from('89504e470d0a1a0a', 'hex'));
         const result = await importModelFile({ root, destDir: 'assets/models', absSource: path.join(src, 'tri.gltf') });
         const text = readdirSync(src).map((f) => (/\.(esprefab|esmaterial)$/.test(f) ? readFileSync(path.join(src, f), 'utf8') : '')).join('\n');
         return { result, text };
@@ -55,5 +55,18 @@ describe('a model that names a texture the project does not have', () => {
         const { result, text } = await run('wall.png', true);
         expect(result.warnings.some((w) => w.includes('wall.png'))).toBe(false);
         expect(text).toContain('wall.png');
+    });
+
+    it('finds by its name a texture whose path is one on the artist machine, when the file lies beside the model', async () => {
+        const { result, text } = await run('E:/props/road/wall.png', true, 'wall.png');
+        expect(result.warnings.some((w) => w.includes('is not there'))).toBe(false);
+        expect(text).toContain('assets/models/wall.png');
+        expect(text).not.toContain('E:/');
+    });
+
+    it('still leaves such a texture off when no file by that name is beside the model', async () => {
+        const { result, text } = await run('E:/props/road/wall.png', false);
+        expect(result.warnings.some((w) => w.includes('wall.png'))).toBe(true);
+        expect(text).not.toContain('E:/');
     });
 });

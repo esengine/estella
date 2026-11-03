@@ -123,6 +123,29 @@ export async function importModelFile(opts: ImportModelOptions): Promise<Importe
         },
     );
 
+    // A model exported with the path its artist had on their machine (`E:/props/road/wall.png`) names an image that is not there, and which sits
+    // beside the model in the project it was brought into: the name alone finds it, as a DCC tool's own import does.
+    const slotNames = ['baseColorTexture', 'normalTexture', 'emissiveTexture', 'occlusionTexture', 'metallicRoughnessTexture', 'flowTexture', 'shiftTexture'] as const;
+    const beside = new Map<string, string>();
+    for (const [i, uri] of externalFiles.entries()) {
+        if (existsSync(path.join(sourceDir, uri))) continue;
+        const name = uri.split(/[\\/]/).pop() ?? '';
+        if (name === '' || name === uri || !existsSync(path.join(sourceDir, name))) continue;
+        beside.set(uri, name);
+        externalFiles[i] = name;
+    }
+    if (beside.size > 0) {
+        for (const mesh of meshes) {
+            const material = mesh.material as Record<string, unknown> | undefined;
+            if (!material) continue;
+            for (const slot of slotNames) {
+                const image = material[slot] as { external?: boolean; file?: string } | undefined;
+                const found = image?.external && image.file !== undefined ? beside.get(image.file) : undefined;
+                if (image && found !== undefined) image.file = found;
+            }
+        }
+    }
+
     // Before anything is written, because it splits vertices: every product below is built from the mesh data this leaves behind.
     if (lightmapUV) warnings.push(...applyLightmapUV(meshes));
     // After it, because a level is a collapse of the mesh as it will be written.
