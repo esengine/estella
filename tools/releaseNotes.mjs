@@ -29,31 +29,31 @@ export const NOTES_FLOOR = 'v0.65.0';
  */
 export const NOTED = {
   'feat(cocos): a document the creator edited moves from the layer Cocos.Widget to the engine RectAnchors on re-import':
-    {"note":"Edited Cocos documents move to RectAnchors."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   'feat(ui): RectAnchors pins world content to its parent rectangle or the screen in the engine, and the Cocos Widget is a view on it':
     {"note":"RectAnchors: world content that follows its parent."},
   'feat(cocos): a converted project keeps the Cocos fit width of its design, and cc.profiler exists in the compatibility layer':
-    {"note":"A converted Cocos project fits the screen as the game does."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   'fix(cocos): a renderer is put in the layer of its Cocos node, so a UI camera that culls by layer draws it':
-    {"note":"A Cocos node layer is its renderers layer."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   'feat(cocos): a converted project starts at the game launch scene and runs its global-defining scripts first, reads the editor built-in assets, and the layer components survive a replay':
-    {"note":"A converted Cocos project starts as the game does."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   'feat(cocos): the colour a script sets on a material instance is the renderer tint':
-    {"note":"A material colour is the renderer tint."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   'feat(cocos): MeshRenderer, UIMeshRenderer, material properties and cc.geometry in the compatibility layer':
-    {"note":"Mesh renderers and materials in the Cocos layer."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   'feat(cocos): cc.js, ccenum and NodePool exist in the compatibility layer':
-    {"note":"More of `cc`."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   'feat(bundle): the project script bundle is built again only when a file it read changed, and Cocos scripts that write the same class name each get a component of their own':
     {"note":"The script bundle is not rebuilt for nothing."},
   'fix(editor): opening a large project no longer spends seconds on strings that cannot be paths, a model texture the project lacks is left off instead of dangling, and an unlit mesh variant with tangents links':
     {"note":"Large projects open faster."},
   'feat(cocos): one script that fails to load no longer takes the others with it, a part of cc the layer lacks is a stand-in that survives use, and Director, AssetManager.Cache and the input dispatcher hook exist':
-    {"note":"Cocos scripts load one by one."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   'feat(cocos): a converted project links its source images instead of copying them, so conversion does not store a multi-gigabyte art folder twice':
-    {"note":"A converted Cocos project links its images."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   'feat(cocos): the importer reports its progress by stage, so a long conversion can show a bar':
-    {"note":"A Cocos conversion shows its progress."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   'feat(particle): an emitter can release bursts on a schedule (bursts), and the Cocos burst list, repeat count and burst times map onto it':
     {"note":"Bursts on a schedule."},
   'feat(physics3d): a box, sphere or capsule collider can sit off its entity origin (center), and the Cocos BoxCollider centre maps onto it':
@@ -97,9 +97,9 @@ export const NOTED = {
   'feat(cocos): the importer maps DirectionalLight, Sorting and Canvas':
     {"internal":"The Cocos Creator compatibility layer and importer have not shipped; nothing a creator reaches without opting in."},
   'feat(editor): Re-import Cocos Project brings the Cocos side\'s changes into the converted project and keeps the documents edited here; a conversion says which components did not come across':
-    {"note":"Re-import a Cocos project without losing your edits."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   'feat(editor): opening a Cocos Creator folder converts it into an Estella project beside it and opens that':
-    {"note":"Open a Cocos Creator project from the editor."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   'feat(ui): a held pointer reports its moves (pointer_move) and a given-up hold (press_cancel), every pointer event says where the pointer is, and a ContentRect-only entity can be pressed; the Cocos touches translate the engine\'s pointer events instead of dispatching on their own':
     {"note":"A held pointer reports where it goes, and a hold can be given up."},
   'feat(ui): ContentRect, the rectangle world content occupies — Sprite and Text follow it, a UIMask on the entity clips to it, a world point can be tested against it; the Cocos UITransform and Mask are views on it, and the importer writes it':
@@ -3219,35 +3219,35 @@ export const NOTED = {
   "fix(ci): the theme ratchet banks the inspector's new virtual-instance button":
     {"internal":"Moves a baseline count; no creator can observe it."},
   "feat(cocos): director.loadScene runs a project scene through the engine's scene manager (scenes are in the manifest, persistent roots are SceneOwner.persistent); components start in one phase before the frame's updates; Camera.screenPointToRay":
-    {"note":"Cocos scripts drive scenes as the game does."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "fix(cocos): getComponent finds a component by a base class it derives from, so a handler bound through the Button of a Toggle's node reaches it":
-    {"note":"Cocos scripts drive scenes as the game does."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "feat(ui): TextInput stands on a world rectangle as well as a UI node, and a Cocos EditBox becomes it: the importer folds the two labels into the field and the layer's EditBox is a view on it":
     {"note":"A text field can stand in the world."},
   "fix(ui): a pointer lands on what is drawn last by its place in the hierarchy, not on what was made last; a Toggle belongs to the container its parent holds and assigning isChecked switches its group's others off":
     {"note":"A pointer lands on what is drawn on top."},
   "fix(cocos): a Label takes a game's replaced string setter (the engine's _string and friends land on the Text), and an EditBox shows its text label while it holds text":
-    {"note":"Converted Cocos UI looks as it does in Cocos."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "fix(cocos): a play session that follows another in the same script runtime gets the layer's systems again and none of what the last one loaded":
-    {"note":"Cocos scripts drive scenes as the game does."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "fix(cocos): a Label with no overflow rule does not wrap and is laid out from its anchor, as the node grows to the text in Cocos":
-    {"note":"Converted Cocos UI looks as it does in Cocos."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "feat(render): layers painted in hierarchy order, so a panel covers the text of the panel under it; the Cocos UI layer uses it. Text takes an underline field; resources.load finds an image's spriteFrame and texture by path suffix":
     {"note":"A layer can be painted in hierarchy order."},
   "fix(cocos): a node's scripts load and enable as it joins an active parent or is switched, not a frame later; a converted script component's dropped fields are ignored quietly":
-    {"note":"Cocos scripts drive scenes as the game does."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "feat(cocos): resources.load gives images, sprite frames and audio by path, Sprite takes a spriteFrame, Node has getParent; the script entry leaves out the editor's own scripts":
-    {"note":"Cocos scripts load assets by path."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "feat(cocos): the generated script entry loads every component class of the project, since a game opens its views by class name":
-    {"note":"A converted project's scripts are components the editor knows."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "fix(cocos): the session check also runs when a prefab is asked for":
-    {"note":"Cocos scripts drive scenes as the game does."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "fix(cocos): the layer drops what it kept of a session when the asset loader gives everything back":
-    {"note":"Cocos scripts drive scenes as the game does."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "fix(cocos): a loaded asset is named for its file, and what the layer kept of a play session is dropped when the next begins":
-    {"note":"Cocos scripts load assets by path."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "fix(cocos): a directory load leaves out what the layer cannot load instead of failing, and Component.EventHandler exists":
-    {"note":"Cocos scripts load assets by path."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "feat(assets): a scan reports how many documents it has read of how many":
     {"note":"The loading screens say how far they are."},
   "perf(assets): a scan keeps what each document refers to by what the file was, so a second scan of a large project reads nothing it has read; fix(cocos): a component is found by its cc. name and can be named by a script":
@@ -3255,29 +3255,29 @@ export const NOTED = {
   "feat(shaders): the canonical vertex stage hands a mesh second uv set to a material, and a converted effect is one shader per macro combination, compiled and given its WGSL twin before it is written":
     {"note":"A material can read a mesh's second uv set."},
   "feat(shaders): a material vertex hook gets a derived WGSL twin, and an effect that displaces its vertices is converted with the displacement as that hook":
-    {"note":"A Cocos project's own effects are converted."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "feat(cocos): a particle effect is converted on the engine particle stage, and a particle takes the converted material":
-    {"note":"A Cocos project's own effects are converted."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "fix(cocos): the sprite texture is no parameter of a converted material, and a material blend state it does not set is the effect's":
-    {"note":"A Cocos project's own effects are converted."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "feat(cocos): an effect includes its chunks and its vertex program is carried into the fragment, so the project materials convert for meshes as well as sprites":
-    {"note":"A Cocos project's own effects are converted."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "feat(cocos): a project's own effect is converted to an Estella shader and material, so a sprite or mesh that wore it keeps its look":
-    {"note":"A Cocos project's own effects are converted."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "feat(cocos): a sprite, a label and a graphics are UIRenderers, which accept the rebuild requests scripts send":
-    {"note":"Cocos scripts drive scenes as the game does."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "feat(cocos): the importer records its revision, so a project it wrote earlier is re-imported on open":
-    {"note":"A converted Cocos project is brought up to date when it is opened."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "feat(cocos): director has a scheduler and fires its frame events, setSiblingIndex reorders through the engine entity order, loadAny takes a uuid, and an asset counts its holders":
-    {"note":"Cocos scripts drive scenes as the game does."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "feat(cocos): a root pinned to the screen is stored where the engine places it in the design box, so the document and the viewport agree":
-    {"note":"Converted Cocos UI looks as it does in Cocos."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "refactor(ui): the engine anchors run in two ordered passes and the Cocos Layout is a system between them, so alignment has one owner instead of a second hand-called copy":
-    {"note":"Converted Cocos UI looks as it does in Cocos."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "feat(cocos): the project design resolution is known to scripts before they run, assetManager has a downloader and factory, and a node made between frames joins the running world":
-    {"note":"Cocos scripts drive scenes as the game does."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "feat(cocos): a converted project declares its script components for the editor and starts from the scripts, and the Cocos scripts bundle past the gaps Cocos tolerates (missing cc names, reassigned const, package files outside exports, preview-only imports)":
-    {"note":"A converted project's scripts are components the editor knows."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "fix(release): escape the apostrophe in the Cocos re-import release-note key":
     {"internal":"Repairs a key of the release-notes ledger; no creator can observe it."},
   "feat(art): preserve Qinglan native sculpt revision and comparison":
@@ -3295,7 +3295,7 @@ export const NOTED = {
   "feat(2d): a palette effect holds the whole picture to one set of colours, dithered":
     {"note":"A palette effect."},
   "fix(import): a Cocos bitmap font's page keeps its full size, not the 2048 default cap that halved a 4096 page and softened every glyph":
-    {"note":"Converted Cocos UI looks as it does in Cocos."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "feat(2d): what walks leaves rings on water and prints on soft ground":
     {"note":"Footprints and ripples."},
   "feat(text): Text draws a bitmap font (.fnt) from its page texture, through the same layout as any font; widget prefabs regenerated for the Text box defaults":
@@ -3307,19 +3307,19 @@ export const NOTED = {
   "feat(2d): plants of a sway material lean away from a body walking through them":
     {"note":"Mist, wind in the grass, and roofs that fade over the player."},
   "fix(import): a Cocos inactive node becomes the Disabled tag, so its subtree goes with it, instead of a dropped entity that strands its children":
-    {"note":"Converted Cocos UI looks as it does in Cocos."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "feat(2d): a generated world on the screen plane, laid out by the worldgen rules and published in chunks":
     {"note":"A generated 2D world."},
   "fix(art): reject Qinglan face study after visual review":
     {"internal":"Source art studies kept in the repository's art/ folder; no part of the engine, the editor or a build reads or ships them."},
   "fix(import): Cocos enums as the engine's numbers, bitmapfont meta so the page ships, and the engine's own component validation in the test":
-    {"note":"Converted Cocos UI looks as it does in Cocos."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "feat(2d): 2D shadows have eight channels and reach the tiled lights past the loop's sixteen":
     {"note":"More 2D lights cast shadows at once."},
   "feat(art): add editable Qinglan face cage study":
     {"internal":"Source art studies kept in the repository's art/ folder; no part of the engine, the editor or a build reads or ships them."},
   "feat(pipeline): import a Cocos Creator 3.x project as Estella prefabs and scenes, without touching the source":
-    {"note":"Open a Cocos Creator project from the editor."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "feat(2d): a fog of war remembers what a viewer has seen, and a save can keep it":
     {"note":"What the player can see, and what they have seen."},
   "feat(2d): a viewer and the walls it cannot see through hide what is not lit":
@@ -3365,7 +3365,7 @@ export const NOTED = {
   "fix(export): a playable that is far over its cap is built at once and reports its size":
     {"note":"A playable far over its size cap is built at once and says its size."},
   "fix(editor): the project watch is quiet while a Cocos re-import writes, and the project is refreshed once at the end":
-    {"note":"Re-import a Cocos project without losing your edits."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "feat(editor): a selection draws nothing over the running game unless Inspect is on; a new one shows where it is for a moment":
     {"note":"A selection stays off the running game unless Inspect is on."},
   "feat(editor): the engine step of the loading screen shows which step of the boot it is in":
@@ -3373,11 +3373,11 @@ export const NOTED = {
   "feat(editor): the loading screens say how far they are: one bar, a line per step with its count and time, and the time so far":
     {"note":"The loading screens say how far they are."},
   "feat(cocos): the import progress has a stage for checking the converted effects":
-    {"note":"A Cocos project's own effects are converted."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "fix(editor): the status strip keeps each readout on one line and drops the long message and the least useful readouts when it is short of room":
     {"note":"The status strip fits a narrow window."},
   "feat(cocos): a project converted by an older importer is brought up to date when it is opened":
-    {"note":"A converted Cocos project is brought up to date when it is opened."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "fix(test): the MCP client adapter checks run under the throwaway home, so they no longer touch the real VS Code config on Windows":
     {"internal":"Points the MCP client adapter tests at a throwaway home directory; no creator can observe it."},
   "refactor(editor): the edit world reads the screen fit from the one runtime config derivation instead of deriving it a second time":
@@ -3389,11 +3389,11 @@ export const NOTED = {
   "fix(play): a project script bundle that throws while it loads is logged instead of looking like no bundle":
     {"note":"A project script bundle that throws while it loads is reported."},
   "fix(cocos): the schema extractor resolves cc, so a converted project's components reach the inspector":
-    {"note":"A converted project's scripts are components the editor knows."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "fix(cocos): the conversion progress window carries the editor icon, has no scrollbar, and speaks the editor language":
-    {"note":"A Cocos conversion shows its progress."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "feat(cocos): converting a Cocos project runs on a thread of its own with a progress bar, so the editor no longer looks hung":
-    {"note":"A Cocos conversion shows its progress."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "feat(editor): settings rows for the power-saving policy":
     {"note":"Save power when the battery is low or the device is hot."},
   "fix(editor): the connect dialog and its status-bar mark use the editor's own components and tokens":
@@ -3421,7 +3421,7 @@ export const NOTED = {
   "refactor(ui): the anchoring arithmetic is a module of its own, so the Cocos importer uses it without compiling the engine into the pipeline's typecheck":
     {"internal":"a module split; the arithmetic and the component behave as before"},
   "fix(cocos): a launched scene has its scripts loaded and enabled before its callback, and the scene before it goes; an instance's mounted components land on the prefab it names; Node.forward/up/right/worldMatrix and the rest of Vec2/Vec3/Quat/Color/Vec4/Mat4 a game calls":
-    {"note":"Cocos scripts drive scenes as the game does."},
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
   "fix(render): a material mesh reads its own tangents on WebGL again":
     {"internal":"undoes a regression from after 0.96.0 that no release carried"},
   "fix(editor): the loading screens take the type scale and the shadow token, and the play overlay's stop is a Button":
@@ -3450,4 +3450,82 @@ export const NOTED = {
     {"note":"A 3D contact point is in the units of `Transform`."},
   "fix(cocos): a converted effect reads the tangent varying the engine fragment prelude declares, instead of declaring it again":
     {"internal":"corrects a converted Cocos effect that no release has shipped yet"},
+  "fix(cocos): macros the code only reads are baked into a converted shader, and effects written as GLSL main() programs convert: 17 of the 22 effects that were not converted now are":
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
+  "feat(cocos): a mesh of several primitives is drawn whole with the material of each slot, an effect's outline pass is drawn as a second renderer, skinned parts take their material override, and a macro that defines functions is no longer cut up by the pruning":
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
+  "feat(cocos): a converted effect's ambient parameters start at what most of the project's game scenes set, so a fake-lit material is not brighter than the game draws it":
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
+  "fix(cocos): a converted effect encodes its output for the display in the gamma colour space, and a converted material is not tinted twice by the renderer":
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
+  "feat(cocos): a material put on a part of a model instance reaches that part: the part is told by the id of its renderer, read from the editor library":
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
+  "fix(assets): a model texture named by a path on the artist machine is found by its name beside the model, instead of left as a path that is not there":
+    {"note":"A model texture the project does not have is left off."},
+  "feat(render): TextureCanvas — a blank texture textures are pasted into at pixel positions, then shown on a Sprite; with an example and docs":
+    {"note":"Paste textures onto a blank texture: `TextureCanvas`."},
+  "fix(cocos): a node answers _components with its script instances, so a project that prepares a new instance's nodes before parenting it reaches them":
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
+  "feat(cocos): a scene's linear fog becomes a global distance-fog volume, and the scene settings report counts only those that are switched on":
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
+  "feat(cocos): recompileShaders makes the material take the permutation of its shader that has the macros applied, now, instead of only recording them":
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
+  "fix(assets): shrinking a texture to its Max Size keeps the colour of a footprint that is clear all through, instead of black: a weight map holds its numbers under a clear alpha":
+    {"note":"A texture keeps the colour under its clear texels when it is made smaller or read back."},
+  "fix(cocos): only a map-sized texture that is clear and coloured is kept as data, and the meta an earlier import wrote for one that is not is taken away":
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
+  "fix(cocos): only a texture a material samples, whose clear texels hold several colours, is kept as data: a sprite's white or black bleed is not numbers":
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
+  "fix(cocos): a texture that keeps its colour under a clear alpha holds numbers, and is imported uncompressed and not as sRGB, so a terrain's weight map reaches its shader as it was painted":
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
+  "fix(assets): a texture made smaller to fit its budget keeps the colour under its clear texels: the resize was left to premultiply, which turned a terrain's weight map black":
+    {"note":"A texture keeps the colour under its clear texels when it is made smaller or read back."},
+  "fix(assets): a decoded bitmap is read back through a texture instead of a 2D canvas, so the colour of a texel whose alpha is clear survives: a terrain's weight map came out black everywhere it was clear":
+    {"note":"A texture keeps the colour under its clear texels when it is made smaller or read back."},
+  "fix(cocos): a mesh whose converted material blends is imported as not opaque, so the engine draws it with blending: a fog that fades out was drawn black where it should have been clear":
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
+  "fix(assets): the plane of Cocos imports as builtin:cocos-plane, 10 across like the one effects were written against, so what an effect reads of its position in the mesh's own space has the scale it expects":
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
+  "fix(cocos): a material's property that is a lane of a vec4 uniform (fogLayerBlend is fogParams.x) is written under the uniform, so the values an artist set reach the shader instead of the effect's defaults":
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
+  "feat(assets): builtin:map-plane is the plane with its texture's v running along +z, and a Cocos plane imports as it, so a map laid over one lands where it was drawn":
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
+  "feat(shaders): a mesh shader that declares MESH_LOCAL_POSITION is handed the mesh's own position by the canonical vertex stage, and a converted effect that reads its vertex position in model space asks for it":
+    {"internal":"a vertex-stage input only the Cocos importer's converted effects ask for; the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
+  "fix(cocos): a vertex program that reads light-probe data only under the probe macro converts, since a material is given none: the terrain effect that draws the ground was refused for it":
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
+  "fix(cocos): a converted shader that has been given its derived WGSL twin is still the importer's own, so a re-import updates it instead of keeping it as the creator's edit":
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
+  "fix(cocos): a converted effect's uniform that properties are lanes of starts as those lanes put together, so a fragment that scales by it no longer draws black":
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
+  "feat(cocos): a scene's ambient light becomes an Ambient light entity, so a lit mesh is no longer black":
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
+  "fix(cocos): a converted effect declares the tangent varying it reads again: without it every effect failed its glslang check (294 not converted in the Cocos client) and its materials came out empty":
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
+  "fix(cocos): Material.setProperty takes a texture a script hands it by name, from an image or the frame that holds one, so the fog's region mask reaches its shader":
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
+  "feat(cocos): renderer.scene.CameraProjection has Cocos's numbers, so a script that tells an orthographic camera from a perspective one by it gets the right answer":
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
+  "fix(camera): a full-frame camera that clears no colour is drawn over the main view instead of competing to be it, so a UI camera no longer hides the world camera's picture":
+    {"note":"A camera that clears no colour is drawn over the main view."},
+  "fix(cocos): a camera keeps what it clears: the UI camera clears depth only, so the world camera's picture is no longer wiped by it":
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
+  "fix(cocos): onLoad waits for the node to be active in the hierarchy, a base of the built-in views (UIRenderer) is found through the one the node holds, and Node.insertChild":
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
+  "feat(cocos): Node.setWorldRotation, setWorldRotationFromEuler, setWorldScale, rotate, translate, lookAt, inverseTransformPoint, walk and NodeSpace, as a script calls them":
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
+  "fix(cocos): a prefab is handed over with the prefabs its scripts hold in Prefab fields, and Material.recompileShaders sets the shader's switches":
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
+  "fix(cocos): a @ccclass class that is not a component is not driven as a script, so the frame loop no longer calls timers it does not have":
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
+  "feat(cocos): PhysicsSystem.instance.raycast and raycastClosest cross the world's box colliders as oriented boxes, nearest first, with the point and face met":
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
+  "feat(cocos): BoxCollider and Collider are views on the engine's BoxCollider3D, in the node's units, with the static body a collider without a rigid body is":
+    {"internal":"the Cocos importer and compatibility layer are held on the cocos-import branch and are not in this release"},
+  "fix(play): the connections a play session opened are closed when it ends, so the next session does not log in as an account that is still connected":
+    {"note":"Stopping Play closes the connections the game opened."},
+  "fix(editor): a drop on an Outliner row lands even when it beats the hover's render; it asks for its own answer when the stored one is for another row":
+    {"note":"A drop on an Outliner row lands."},
+  "fix(editor): a play that cannot start prints every compile error to the output log, and the status line carries the reason, not only that it failed":
+    {"note":"A play that cannot start says why."},
 };

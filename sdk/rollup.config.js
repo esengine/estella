@@ -41,7 +41,6 @@ export default [
             'net/replication/index': 'src/net/replication/index.ts',
             'net/session/index': 'src/net/session/index.ts',
             'gameplay/index': 'src/gameplay/index.ts',
-            'cocos/index': 'src/cocos/index.ts',
             'dragonbones/index': 'src/dragonbones/index.ts',
             'wasm': 'src/wasm.ts',
         },

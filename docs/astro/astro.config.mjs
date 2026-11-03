@@ -170,7 +170,6 @@ export default defineConfig({
             { label: 'Play in the Editor', translations: { 'zh-CN': '编辑器内运行' }, slug: 'editor/play' },
             { label: 'Asset Editors', translations: { 'zh-CN': '专用编辑器' }, slug: 'editor/asset-editors' },
             { label: 'Project Settings', translations: { 'zh-CN': '项目设置' }, slug: 'editor/settings' },
-            { label: 'Importing a Cocos Project', translations: { 'zh-CN': '导入 Cocos 项目' }, slug: 'editor/cocos-import' },
             { label: 'History, Scatter & Health', translations: { 'zh-CN': '历史、散布与健康' }, slug: 'editor/history-scatter-health' },
             { label: 'Keyboard Shortcuts', translations: { 'zh-CN': '键盘快捷键' }, slug: 'editor/shortcuts' },
           ],

@@ -66,13 +66,12 @@ function tri(b: Builder, a: number, c: number, d: number): void {
     b.idx.push(a, c, d);
 }
 
-/** A flat quad from four corners wound counter-clockwise seen from `n`. `flipV` runs the texture's v the other way along the face. */
-function quadFace(b: Builder, corners: readonly (readonly number[])[], n: readonly number[], flipV = false): void {
-    const [top, bottom] = flipV ? [1, 0] : [0, 1];
-    const a = vertex(b, corners[0]!, 0, top, n);
-    const c = vertex(b, corners[1]!, 1, top, n);
-    const d = vertex(b, corners[2]!, 1, bottom, n);
-    const e = vertex(b, corners[3]!, 0, bottom, n);
+/** A flat quad from four corners wound counter-clockwise seen from `n`. */
+function quadFace(b: Builder, corners: readonly (readonly number[])[], n: readonly number[]): void {
+    const a = vertex(b, corners[0]!, 0, 0, n);
+    const c = vertex(b, corners[1]!, 1, 0, n);
+    const d = vertex(b, corners[2]!, 1, 1, n);
+    const e = vertex(b, corners[3]!, 0, 1, n);
     tri(b, a, c, d);
     tri(b, a, d, e);
 }
@@ -201,14 +200,6 @@ function plane(size: number): Builder {
     return b;
 }
 
-/** The plane of Cocos Creator: v runs along +z, so a picture laid over it reads as a map seen from above with +z towards the viewer. */
-function cocosPlane(size: number): Builder {
-    const b = newBuilder();
-    const h = size / 2;
-    quadFace(b, [[-h, 0, h], [h, 0, h], [h, 0, -h], [-h, 0, -h]], [0, 1, 0], true);
-    return b;
-}
-
 function quad(size: number): Builder {
     const b = newBuilder();
     const h = size / 2;
@@ -276,9 +267,6 @@ export const BUILTIN_MESH_TEMPLATES: readonly BuiltinMeshTemplate[] = [
              () => cone(UNIT / 2, UNIT)),
     template('plane', 'Plane', `A ${UNIT}-unit ground square in XZ, facing up.`, false,
              () => plane(UNIT)),
-    // Its own size, not the others': an effect of Cocos reads positions in the mesh's own space, so the plane it was written against is 10 across.
-    template('cocos-plane', 'Cocos Plane', 'The ground square of Cocos Creator: 10 units across in XZ, facing up, the v of its texture running along +z as a map\'s does.', false,
-             () => cocosPlane(10)),
     template('quad', 'Quad', `A ${UNIT}-unit square in XY, facing the camera.`, false,
              () => quad(UNIT)),
 ];

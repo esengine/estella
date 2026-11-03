@@ -22,6 +22,7 @@ import { samplesAsSrgb } from '../ecs/env';
 import { glWrapMode, type TextureWrap } from './glTexParams';
 import type { PlatformCanvas, PlatformImage } from '../platform/types';
 import { requireResourceManager } from '../wasm/resourceManager';
+import { platformCreateCanvas } from '../platform/base';
 import type { ESEngineModule, TextureContent } from '../wasm';
 
 /** Anything WebGL will take directly as texture content. */
@@ -176,4 +177,53 @@ export function writeDeviceTexture(
     gl.bindTexture(gl.TEXTURE_2D, texture);
     write(gl);
     return true;
+}
+
+/** The GL context pixels are read through, made once; null where there is none (a host without WebGL2, a test). */
+// A context of its own, never the device's: nothing it makes is a texture the device can lose.
+let readbackGl: WebGL2RenderingContext | null | undefined;
+function readbackContext(): WebGL2RenderingContext | null {
+    if (readbackGl !== undefined) return readbackGl;
+    readbackGl = null;
+    try {
+        const canvas = platformCreateCanvas(1, 1);
+        // A platform canvas is typed for 2D alone; on the hosts that have WebGL it is a DOM or offscreen canvas and answers for it too.
+        const gl = (canvas as unknown as { getContext(kind: string, options?: object): unknown })
+            .getContext('webgl2', { alpha: true, premultipliedAlpha: false, antialias: false, depth: false, stencil: false }) as WebGL2RenderingContext | null;
+        if (gl && typeof gl.texImage2D === 'function' && typeof gl.readPixels === 'function') readbackGl = gl;
+    } catch {
+        readbackGl = null;
+    }
+    return readbackGl;
+}
+
+/**
+ * The texels of a decoded bitmap exactly as the file has them, through a texture rather than a canvas. A 2D canvas keeps its pixels premultiplied, so
+ * the colour of a texel that is clear is gone by the time it is read back, and a texture that carries data in its colour under a clear alpha (a weight map
+ * the ground is mixed by) comes out black. A texture keeps what it is given.
+ */
+export function readBitmapTexels(image: ImageBitmap, width: number, height: number): Uint8Array | null {
+    const gl = readbackContext();
+    if (!gl || width > gl.getParameter(gl.MAX_TEXTURE_SIZE) || height > gl.getParameter(gl.MAX_TEXTURE_SIZE)) return null;
+    const texture = gl.createTexture();
+    const framebuffer = gl.createFramebuffer();
+    try {
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+        gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+        gl.pixelStorei(gl.UNPACK_COLORSPACE_CONVERSION_WEBGL, gl.NONE);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
+        if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) return null;
+        const pixels = new Uint8Array(width * height * 4);
+        gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, pixels);
+        return gl.getError() === gl.NO_ERROR ? pixels : null;
+    } catch {
+        return null;
+    } finally {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.deleteFramebuffer(framebuffer);
+        gl.deleteTexture(texture);
+    }
 }

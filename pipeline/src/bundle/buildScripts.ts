@@ -19,7 +19,6 @@ import path from 'node:path';
 import { loadEsbuild } from './esbuildRuntime';
 import { explainBundleErrors, type BundleMessage } from './bundleDiagnostics';
 import { officialPackagesPlugin } from './officialPackages';
-import { COCOS_COMPAT_VERSION, cocosCompatPlugin } from './cocosCompat';
 
 /** esengine and any subpath import are left for the realm's import map to resolve. */
 const EXTERNAL = ['esengine', 'esengine/*'];
@@ -44,7 +43,6 @@ const STAMP = 'scripts.stamp.json';
 /** What a bundle was built from: enough to know, without building, whether building again would give the same bytes. */
 interface BuildStamp {
   version: number;
-  compat: number;
   esbuild: string;
   entry: string;
   packagesDir: string;
@@ -78,7 +76,7 @@ async function currentStamp(stampPath: string, outputPath: string, want: Omit<Bu
   } catch {
     return null;
   }
-  if (stamp.version !== want.version || stamp.compat !== want.compat || stamp.esbuild !== want.esbuild
+  if (stamp.version !== want.version || stamp.esbuild !== want.esbuild
     || stamp.entry !== want.entry || stamp.packagesDir !== want.packagesDir) return null;
   const files = Object.entries(stamp.inputs);
   // in slices, so a project of thousands of scripts does not open thousands of files at once
@@ -112,7 +110,7 @@ export async function buildProjectScripts(
   const stampPath = path.join(root, CACHE_DIR, STAMP);
   try {
     const esbuild = await loadEsbuild();
-    const want = { version: STAMP_VERSION, compat: COCOS_COMPAT_VERSION, esbuild: esbuild.version, entry: entryPath, packagesDir: opts.packagesDir };
+    const want = { version: STAMP_VERSION, esbuild: esbuild.version, entry: entryPath, packagesDir: opts.packagesDir };
     const fresh = await currentStamp(stampPath, outputPath, want);
     if (fresh) return { ok: true, outputPath, errors: [], warnings: fresh.warnings };
 
@@ -123,7 +121,7 @@ export async function buildProjectScripts(
       platform: 'browser',
       target: 'es2020',
       external: EXTERNAL,
-      plugins: [officialPackagesPlugin(opts.packagesDir), cocosCompatPlugin()],
+      plugins: [officialPackagesPlugin(opts.packagesDir)],
       outfile: outputPath,
       sourcemap: true,
       write: true,

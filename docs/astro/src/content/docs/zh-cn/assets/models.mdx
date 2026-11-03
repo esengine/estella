@@ -15,8 +15,8 @@ import { Aside } from '@astrojs/starlight/components';
 
 ## 内置图元
 
-有八个形状不需要导入、也不需要文件。**+ 添加 → 创建实体… → Cube**（以及 Sphere、Capsule、Cylinder、
-Cone、Plane、Cocos Plane、Quad）建出的实体，其 `MeshRenderer.mesh` 里放的是一个 `builtin:` 引用；同样这八个
+有七个形状不需要导入、也不需要文件。**+ 添加 → 创建实体… → Cube**（以及 Sphere、Capsule、Cylinder、
+Cone、Plane、Quad）建出的实体，其 `MeshRenderer.mesh` 里放的是一个 `builtin:` 引用；同样这七个
 也排在任何 `MeshRenderer.mesh` 字段选择器的最前面。
 
 | 引用 | 形状 |
@@ -27,10 +27,9 @@ Cone、Plane、Cocos Plane、Quad）建出的实体，其 `MeshRenderer.mesh` �
 | `builtin:cylinder` | 100 单位的竖直圆柱，平顶平底 |
 | `builtin:cone` | 100 单位的圆锥，立在底面上 |
 | `builtin:plane` | XZ 平面上 100 单位的方块，朝上 —— 一块地面 |
-| `builtin:cocos-plane` | Cocos Creator 的地面方块：宽 10 单位，贴图的 v 沿 +z 方向，和地图一样 —— 按 Cocos 的平面写的效果读的就是它 |
 | `builtin:quad` | XY 平面上 100 单位的方块，正对相机 —— 一块背板 |
 
-它们在加载时由代码生成，所以在包里不占任何字节，引用了它的场景也不因此多出依赖。八个都
+它们在加载时由代码生成，所以在包里不占任何字节，引用了它的场景也不因此多出依赖。七个都
 和新建的 `ShapeRenderer` 一样大，所以往场景里放一个不用先缩放就看得见；要多大，通过
 Transform 给，和导入的模型一样。
 

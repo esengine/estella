@@ -33,7 +33,6 @@
     "./dist/net/replication/index.js",
     "./dist/net/session/index.js",
     "./dist/gameplay/index.js",
-    "./dist/cocos/index.js",
     "./dist/physics/index.js",
     "./dist/physics3d/index.js",
     "./dist/douyin/index.js",
@@ -147,10 +146,6 @@
     "./gameplay": {
       "import": "./dist/gameplay/index.js",
       "types": "./dist/gameplay/index.d.ts"
-    },
-    "./cocos": {
-      "import": "./dist/cocos/index.js",
-      "types": "./dist/cocos/index.d.ts"
     },
     "./physics": {
       "import": "./dist/physics/index.js",

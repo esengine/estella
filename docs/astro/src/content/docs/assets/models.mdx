@@ -19,8 +19,8 @@ That import is the subject of this page. For the component that draws the result
 ## Built-in primitives
 
 Seven shapes need no import and no file. **+ Add → Create entity… → Cube** (or Sphere, Capsule, Cylinder,
-Cone, Plane, Cocos Plane, Quad) makes an entity whose `MeshRenderer.mesh` holds a `builtin:` ref, and the
-same eight appear at the top of the picker on any `MeshRenderer.mesh` field.
+Cone, Plane, Quad) makes an entity whose `MeshRenderer.mesh` holds a `builtin:` ref, and the
+same seven appear at the top of the picker on any `MeshRenderer.mesh` field.
 
 | Ref | Shape |
 |---|---|
@@ -30,7 +30,6 @@ same eight appear at the top of the picker on any `MeshRenderer.mesh` field.
 | `builtin:cylinder` | 100-unit upright cylinder, flat caps |
 | `builtin:cone` | 100-unit cone standing on its base |
 | `builtin:plane` | 100-unit square in XZ, facing up — a ground |
-| `builtin:cocos-plane` | the ground square of Cocos Creator: 10 units across, the v of its texture running along +z as a map's does — what an effect written against Cocos's plane reads |
 | `builtin:quad` | 100-unit square in XY, facing the camera — a backdrop |
 
 They are built in code at load time, so they cost no bytes in a package and a scene that

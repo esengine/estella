@@ -119,7 +119,6 @@ export default defineConfig([
             'net/replication/index': 'src/net/replication/index.ts',
             'net/session/index': 'src/net/session/index.ts',
             'gameplay/index': 'src/gameplay/index.ts',
-            'cocos/index': 'src/cocos/index.ts',
             'dragonbones/index': 'src/dragonbones/index.ts',
             'douyin/index': 'src/platform/douyin/index.ts',
             'kuaishou/index': 'src/platform/kuaishou/index.ts',
