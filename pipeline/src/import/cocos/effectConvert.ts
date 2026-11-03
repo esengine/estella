@@ -100,11 +100,18 @@ in highp vec3 v_worldNormal;
 #define cocos_normal vec3(0.0, 0.0, 1.0)
 #endif`;
 
+// A Cocos fragment works in linear light, decoding its textures and colours, and ends in \`CCFragOutput\`, which encodes for the display. The engine's
+// linear colour space encodes in the pass that ends the frame, so there the output stays as it is; in the gamma one the shader's own result is what
+// reaches the screen, and it is encoded here, or everything the shader lit comes out dark.
 const PRELUDE = `// Cocos built-ins the converted fragment calls.
-#define CCFragOutput(c) (c)
 #define cc_time u_time
 vec3 LinearToSRGB(vec3 c) { return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(vec3(0.0031308), c)); }
 vec3 SRGBToLinear(vec3 c) { return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c)); }
+#ifdef ES_LINEAR
+#define CCFragOutput(c) (c)
+#else
+#define CCFragOutput(c) vec4(LinearToSRGB((c).rgb), (c).a)
+#endif
 `;
 
 /**

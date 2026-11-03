@@ -639,7 +639,10 @@ function applyMaterial(data: Raw, c: CocosComponent, ctx: ComponentContext, wher
     if (converted) data.material = converted.ref;
     if (info.texture) data.texture = ctx.assetRef(info.texture);
     if (info.normal) data.normalMap = ctx.assetRef(info.normal);
-    if (info.color) data.color = info.color;
+    // A converted material holds its own colour (`mainColor`), and the renderer's colour reaches its shader as the vertex colour, which Cocos leaves
+    // white: the tint put there as well is applied twice, and read as sRGB besides, which is how a wall comes out a third as bright as it is.
+    if (converted) data.color = { r: 1, g: 1, b: 1, a: 1 };
+    else if (info.color) data.color = info.color;
     data.lit = !info.unlit;
     data.opaque = !info.transparent;
     // what the effect's pass blends is what the draw does: a mesh the engine takes for opaque is drawn without blending, and a fog that fades out would draw black
