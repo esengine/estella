@@ -203,6 +203,8 @@ const ARITY: Record<string, number> = { float: 1, int: 1, vec2: 2, vec3: 3, vec4
 export interface EffectOptions {
     /** The text of a chunk by its include name (`common/data/unpack`, a project's `tower_defense_death_dissolve`), or null when there is none. */
     chunk?(name: string): string | null;
+    /** The values a scene gives a fragment (`cc_ambientSky`…), where the project has them: the parameters of the material start there. */
+    scene?: Record<string, number[]>;
 }
 
 /** Chunks of Cocos that the prelude gives (a fragment's built-ins, the scene's uniform blocks): they are left out rather than read. */
@@ -570,6 +572,7 @@ export function convertPass(
     const sceneValues: Record<string, number[]> = {
         cc_ambientSky: [1, 1, 1, 1], cc_ambientGround: [1, 1, 1, 1], cc_cameraPos: [0, 0, 0, 1], cc_nearFar: [0.1, 1000, 0, 0],
         cc_screenSize: [1, 1, 1, 1], cc_exposure: [1, 1, 0, 0], cc_mainLitColor: [1, 1, 1, 1], cc_mainLitDir: [0, 0, -1, 0],
+        ...options.scene,
     };
     const everything = `${vertexText}\n${body}`;
     for (const [name, value] of Object.entries(sceneValues)) {

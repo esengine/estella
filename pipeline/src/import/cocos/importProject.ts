@@ -26,13 +26,14 @@ import { convertAnimationGraph } from './animationGraph';
 import type { MaterialInfo } from './components';
 import { parseEffect, type CocosEffect, type EffectPass } from './effects';
 import { convertPass, isOutlinePass, type PassConversion } from './effectConvert';
+import { dominantAmbient } from './sceneAmbient';
 
 /**
  * The revision of what an import writes. It is recorded in the state file; a converted project whose record is older was written by an
  * importer that made less (or differently), and is brought up to date when it is opened. Raise it when the converted output changes in a
  * way an existing project needs to pick up: a new generated file, a field a document or a manifest now carries.
  */
-export const COCOS_IMPORT_REVISION = 24;
+export const COCOS_IMPORT_REVISION = 25;
 
 /** Whether the project at @p projectRoot was written by an importer of this revision. A project that was not converted has nothing to bring up. */
 export function cocosImportIsCurrent(projectRoot: string): boolean {
@@ -722,6 +723,9 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
     // material of it, and the renderers that wore the Cocos material wear that one. Null when the pass cannot be given the engine's vertex stage.
     // The chunks an effect includes: the project's own (by their path under the assets folder, or just their name), then the Creator install's.
     const projectChunks = [...index.byUuid.values()].filter((e) => e.rel.endsWith('.chunk') && !e.rel.startsWith(`${INTERNAL_FOLDER}/`));
+    // What the project's scenes set for the ambient, which the converted effects read as parameters of their material.
+    const ambient = dominantAmbient(index);
+    const sceneValues = ambient ? { cc_ambientSky: ambient.sky, cc_ambientGround: ambient.ground } : null;
     const chunkText = (name: string): string | null => {
         const own = projectChunks.find((e) => { const rel = e.rel.replace(/\.chunk$/, ''); return rel === name || rel.endsWith(`/${name}`); });
         if (own) return readFileSync(own.file, 'utf8');
@@ -759,7 +763,7 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
         const stem = entry.rel.replace(/^assets\//, '').replace(/\.effect$/, '');
         const variant = Object.keys(defines).length === 0 ? '' : `.${createHash('sha1').update(JSON.stringify(Object.entries(defines).sort())).digest('hex').slice(0, 8)}`;
         const rel = outRef(`effects/${stem}.${technique.name}.${passIndex}${variant}.esshader`);
-        const converted = convertPass(parsed.effect, technique.passes[passIndex]!, `${stem}.${technique.name}.${passIndex}${variant}`, { chunk: chunkText }, defines);
+        const converted = convertPass(parsed.effect, technique.passes[passIndex]!, `${stem}.${technique.name}.${passIndex}${variant}`, { chunk: chunkText, ...(sceneValues ? { scene: sceneValues } : {}) }, defines);
         const error = refused.get(rel);
         const result = error ? { shader: null, unsupported: `the converted shader does not compile: ${error}`, state: converted.state, rel } : { ...converted, rel };
         shaders.set(key, result);
