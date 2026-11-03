@@ -342,7 +342,12 @@ function modelInstanceOverrides(node: CocosNode, model: { rootId: string; name: 
     // where a skinned part finds its skeleton is the model's own: the engine's import binds the part to its joints
     const skeleton = inst.overrides.filter((o) => o.path[0] === '_skinningRoot').length;
     const inner = inst.overrides.length - roots.length - animation.used - materials - skeleton;
-    if (inner > 0) ctx.report.note('model-instance-overrides', `${ctx.where}: ${node.name} (${inner} on the model's own parts)`);
+    if (inner > 0) {
+        // what is left, by the property it sets, so the note says what was not carried
+        const carried = new Set(['_defaultClip', '_clips', 'playOnLoad', '_skinningRoot']);
+        const left = new Set(inst.overrides.filter((o) => !carried.has(o.path[0] ?? '') && !(o.target.length === 1 && shape(o)) && !(o.path[0] === '_materials' && model.parts.has(o.target[0] ?? ''))).map((o) => o.path.join('.')));
+        ctx.report.note('model-instance-overrides', `${ctx.where}: ${node.name} (${inner} on the model's own parts: ${[...left].slice(0, 4).join(', ')})`);
+    }
     if (animation.clip) {
         const timeline = ctx.clipOn?.(animation.clip, model.paths, `${ctx.where}: ${node.name}`);
         if (timeline) {

@@ -150,6 +150,54 @@ describe('converting a pass', () => {
         expect(source).not.toContain('#define USE_ALPHA_TEST');
     });
 
+    it('bakes a macro the code only reads, such as the channel a material names for its alpha test', () => {
+        const channel = SPRITE_ADD.replace('vec4 o = texture(mainTexture, uv0) * color;', 'vec4 o = texture(mainTexture, uv0) * color;\n    float edge = o.TEST_CHANNEL;');
+        const effect = parseEffect(channel);
+        const baked = convertPass(effect, effect.techniques[0]!.passes[0]!, 'channel', { chunk }, { TEST_CHANNEL: 'r' });
+        expect(baked.unsupported).toBeNull();
+        expect(baked.shader!.source).toContain('#define TEST_CHANNEL r');
+    });
+
+    it('converts a pass written as GLSL main() programs, which write gl_Position and an out colour instead of returning them', () => {
+        const raw = `
+CCEffect %{
+  techniques:
+  - passes:
+    - vert: raw-vs
+      frag: raw-fs
+      properties:
+        tint: { value: [1, 0.5, 0.25, 1], editor: { type: color } }
+}%
+CCProgram raw-vs %{
+  precision highp float;
+  #include <builtin/uniforms/cc-global>
+  in vec3 a_position;
+  in vec2 a_texCoord;
+  out vec2 v_uv;
+  void main () {
+    v_uv = a_texCoord;
+    gl_Position = cc_matViewProj * vec4(a_position, 1.0);
+  }
+}%
+CCProgram raw-fs %{
+  precision highp float;
+  in vec2 v_uv;
+  uniform Constant { vec4 tint; };
+  layout(location = 0) out vec4 outColor;
+  void main () {
+    outColor = tint * vec4(v_uv, 0.0, 1.0);
+  }
+}%
+`;
+        const effect = parseEffect(raw);
+        const converted = convertPass(effect, effect.techniques[0]!.passes[0]!, 'raw', { chunk }, {});
+        expect(converted.unsupported).toBeNull();
+        const source = converted.shader!.source;
+        expect(source).toContain('vec4 cocos_frag()');
+        expect(source).toContain('return outColor;');
+        expect(source).toContain('#define gl_Position cocos_glPosition');
+    });
+
     it('maps the pass\'s blend, depth and cull state', () => {
         expect(pass.state).toEqual({ blendMode: 1, depthTest: false, depthWrite: false, cull: 0 });
     });

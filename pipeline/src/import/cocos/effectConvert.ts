@@ -378,8 +378,15 @@ function emulateVertex(program: string, entry: string): Emulated | { error: stri
     if ([...attributes.keys()].some((a) => /^a_(?:joints|weights)$/.test(a))) return { error: 'its vertex program skins the mesh, which the converted material does not' };
     if ([...attributes.keys()].some((a) => /^a_(?:matWorld|instanced|dir|age)/.test(a))) return { error: 'its vertex program reads per-instance data, which the engine\'s own instancing does not give a material' };
     const entryRe = new RegExp(`\\bvec4\\s+${entry}\\s*\\(\\s*\\)`);
-    if (!entryRe.test(text)) return { error: `the vertex entry ${entry}() is not there` };
-    text = text.replace(entryRe, 'vec4 cocos_vert()');
+    // A vertex program written as GLSL's own `void main()` writes `gl_Position` instead of returning it: the position is kept in a global, and the
+    // entry returns it, which is what the emulation calls.
+    const mainRe = /\bvoid\s+main\s*\(\s*\)/;
+    if (!entryRe.test(text) && mainRe.test(text)) {
+        text = `vec4 cocos_glPosition;\n#define gl_Position cocos_glPosition\n${text.replace(mainRe, 'void cocos_vert_main()')}\nvec4 cocos_vert() { cocos_vert_main(); return cocos_glPosition; }\n`;
+    } else {
+        if (!entryRe.test(text)) return { error: `the vertex entry ${entry}() is not there` };
+        text = text.replace(entryRe, 'vec4 cocos_vert()');
+    }
     // A statement that assigns the position before the matrices are applied, from time or a periodic function: a displacement.
     const displaces = /(?:\bIn\.position|\bposition|\ba_position)\b[^;]*\b(?:cc_time|sin|cos)\b|\b(?:cc_time|sin|cos)\b[^;]*(?:\bIn\.position|\bposition|\ba_position)\b/.test(text);
     // A statement that takes components of the position and does not put it through the world matrix reads it in the mesh's own space (a terrain tiles its
@@ -603,8 +610,17 @@ export function convertPass(
 
     // The entry: `vec4 frag()` is the fragment's colour.
     const entry = new RegExp(`\\bvec4\\s+${fragEntry}\\s*\\(\\s*\\)`);
-    if (!entry.test(body)) return fail(`the fragment entry ${fragEntry}() is not there`);
-    body = body.replace(entry, 'vec4 cocos_frag()');
+    // A fragment program written as GLSL's own `void main()` writes the colour to an `out vec4` instead of returning it: the output is a global, and the
+    // entry returns it.
+    const outDeclaration = /^[ \t]*(?:layout\s*\([^)]*\)\s*)?out\s+(?:(?:highp|mediump|lowp)\s+)?vec4\s+(\w+)\s*;[ \t]*$/m.exec(body);
+    const mainFragment = /\bvoid\s+main\s*\(\s*\)/;
+    if (!entry.test(body) && outDeclaration && mainFragment.test(body)) {
+        const written = outDeclaration[1]!;
+        body = `${body.replace(outDeclaration[0], `vec4 ${written};`).replace(mainFragment, 'void cocos_frag_main()')}\nvec4 cocos_frag() { cocos_frag_main(); return ${written}; }\n`;
+    } else {
+        if (!entry.test(body)) return fail(`the fragment entry ${fragEntry}() is not there`);
+        body = body.replace(entry, 'vec4 cocos_frag()');
+    }
     // A function nothing reaches (a variant of the entry this pass does not name) may read what the pass never declares, which a compiler refuses.
     body = pruneUnreachable(body, ['cocos_frag']);
     if (vertex) vertexText = pruneUnreachable(vertexText, ['cocos_vert']);
@@ -628,7 +644,7 @@ export function convertPass(
         // What the code branches on, and what it merely reads (a channel name a material gives).
         const text = `${vertexText}
 ${body}`;
-        const used = Object.keys(value).filter((k) => new RegExp(`\b${k}\b`).test(text));
+        const used = Object.keys(value).filter((k) => new RegExp(`\\b${k}\\b`).test(text));
         for (const m of new Set([...named, ...compared, ...used])) {
             const v = value[m];
             // Zero is the undefined of Cocos's `#if`, so a name that is not compared is left undefined for it.
@@ -667,7 +683,7 @@ ${body}`;
     // The displacement, given to the engine as the material's vertex hook: the same program, run on the vertex's own position and normal. The engine's
     // vertex stage owns the attribute names, so the program's are its own here.
     if (vertex?.displaces) {
-        const vertexReadsTexture = params.some((p) => p.type === 'texture' && new RegExp(`\b${p.name}\b`).test(vertexText));
+        const vertexReadsTexture = params.some((p) => p.type === 'texture' && new RegExp(`\\b${p.name}\\b`).test(vertexText));
         if (vertexReadsTexture) {
             approximations.push('a displacement of the vertex position that reads a texture is not applied');
         } else {

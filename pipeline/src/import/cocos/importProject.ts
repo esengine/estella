@@ -34,7 +34,7 @@ import { OUTLINE_SHADER } from './outlineShader';
  * importer that made less (or differently), and is brought up to date when it is opened. Raise it when the converted output changes in a
  * way an existing project needs to pick up: a new generated file, a field a document or a manifest now carries.
  */
-export const COCOS_IMPORT_REVISION = 27;
+export const COCOS_IMPORT_REVISION = 28;
 
 /** Whether the project at @p projectRoot was written by an importer of this revision. A project that was not converted has nothing to bring up. */
 export function cocosImportIsCurrent(projectRoot: string): boolean {
