@@ -13,7 +13,7 @@
  *        Addresses follow the engine's own: an entity inside a nested prefab is
  *        `slot/localId`, a prefab's own entities are bare ids.
  */
-import { convertNode, sameData, type ComponentContext, type ComponentData } from './components';
+import { convertNode, meshMaterialFields, sameData, type ComponentContext, type ComponentData } from './components';
 import { foldEditBoxes } from './editBoxFold';
 import { NODE_REF, type CocosDocument, type CocosNode, type CocosOverride } from './document';
 import { ImportReport } from './report';
@@ -316,16 +316,31 @@ function diff(pristine: Map<string, Flat>, patched: Map<string, Flat>, ctx: Conv
  * instance's root can be addressed: its name, whether it is active and where it stands. The rest (a material put on a mesh, a clip set on its
  * animation) is counted, not lost silently.
  */
-function modelInstanceOverrides(node: CocosNode, model: { rootId: string; name: string; paths: Map<string, string> }, ctx: ConvertContext): PrefabOverride[] {
+function modelInstanceOverrides(node: CocosNode, model: { rootId: string; name: string; paths: Map<string, string>; parts: Map<string, string> }, ctx: ConvertContext): PrefabOverride[] {
     const inst = node.instance!;
     // A property of the instance's root: its name, whether it is on, where it stands. The overrides on a component of the model are told apart
     // by what they set: a skeletal animation's clip is carried, anything else is counted.
     const animation = animationOverrides(inst.overrides);
     const shape = (o: CocosOverride): boolean => ['_name', '_active', '_lpos', '_lrot', '_lscale', '_euler'].includes(o.path[0] ?? '');
     const roots = inst.overrides.filter((o) => o.target.length === 1 && shape(o));
-    const inner = inst.overrides.length - roots.length - animation.used;
-    if (inner > 0) ctx.report.note('model-instance-overrides', `${ctx.where}: ${node.name} (${inner} on the model's own parts)`);
+    // The material a part of the model is given: the part is told by the id of its renderer, and the material is put on it as it would be on a
+    // renderer that holds it.
     const out: PrefabOverride[] = [];
+    let materials = 0;
+    for (const o of inst.overrides) {
+        if (o.path[0] !== '_materials' || o.path[1] !== '0' || o.target.length !== 1) continue;
+        const part = model.parts.get(o.target[0]!);
+        const uuid = (o.value as { __uuid__?: unknown } | null)?.__uuid__;
+        if (part === undefined || typeof uuid !== 'string') continue;
+        const fields = meshMaterialFields(uuid, ctx, `${ctx.where}: ${node.name}`);
+        if (!fields) continue;
+        materials++;
+        for (const [propertyName, value] of Object.entries(fields)) {
+            out.push({ prefabEntityId: part, type: 'property', componentType: 'MeshRenderer', propertyName, value });
+        }
+    }
+    const inner = inst.overrides.length - roots.length - animation.used - materials;
+    if (inner > 0) ctx.report.note('model-instance-overrides', `${ctx.where}: ${node.name} (${inner} on the model's own parts)`);
     if (animation.clip) {
         const timeline = ctx.clipOn?.(animation.clip, model.paths, `${ctx.where}: ${node.name}`);
         if (timeline) {

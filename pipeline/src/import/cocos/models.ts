@@ -31,6 +31,8 @@ export interface ModelUse {
     paths: Map<string, string>;
     /** The names of the joints a skinned part is bound to, in the order its vertices index them, keyed by the part's name. */
     skin: Map<string, string[]>;
+    /** The prefab entity id of the mesh renderer of each part of the model, by the part's name: a part is a node, and its renderer is on the node or on the child the import made for its geometry. */
+    renderers: Map<string, string>;
 }
 
 const MODEL_EXT = /\.(fbx|gltf|glb)$/i;
@@ -101,6 +103,29 @@ export class CocosModels {
         }
     }
 
+    /**
+     * The mesh renderers of a model by the id Cocos gave each component: what a property override on a model's part addresses. Read from the
+     * editor's library of imported assets, which is there when the project has been opened; without it the parts cannot be told apart.
+     */
+    partsOf(entry: CocosAssetEntry): Map<string, string> {
+        const found = new Map<string, string>();
+        const scene = [...entry.subs.entries()].find(([, sub]) => sub.importer === 'gltf-scene')?.[0];
+        if (!scene) return found;
+        const file = path.join(this.index.root, '..', 'library', scene.slice(0, 2), `${scene}.json`);
+        try {
+            const objs = JSON.parse(readFileSync(file, 'utf8')) as Raw[];
+            for (const o of objs) {
+                if (!isObj(o) || o.__type__ !== 'cc.MeshRenderer') continue;
+                const info = isObj(o.__prefab) && typeof o.__prefab.__id__ === 'number' ? objs[o.__prefab.__id__] : null;
+                const node = isObj(o.node) && typeof o.node.__id__ === 'number' ? objs[o.node.__id__] : null;
+                if (isObj(info) && typeof info.fileId === 'string' && isObj(node) && typeof node._name === 'string') found.set(info.fileId, node._name);
+            }
+        } catch {
+            // no library: the parts stay unaddressed, and the overrides on them are counted
+        }
+        return found;
+    }
+
     /** The model a `<uuid>` or `<uuid>@<id>` names, once it has been brought in. */
     use(uuid: string): { entry: CocosAssetEntry; use: ModelUse } | null {
         const entry = this.index.byUuid.get(uuid.split('@')[0]!);
@@ -164,7 +189,15 @@ function readUse(prefabAbs: string, prefab: string, absDir: string, stem: string
             skin.set(String(e.name), c.data.joints.map((id) => String(byId.get(String(id))?.name ?? '')));
         }
     }
-    return { prefab: hasPrefab ? prefab : '', rootId: (doc as { rootEntityId?: string }).rootEntityId ?? 'n1', byEntity, clips, paths, skin };
+    const renderers = new Map<string, string>();
+    for (const e of entities) {
+        const holds = (Array.isArray(e.components) ? (e.components as Raw[]) : []).some((c) => c.type === 'MeshRenderer');
+        if (!holds || typeof e.name !== 'string') continue;
+        const parent = typeof e.parent === 'string' ? byId.get(e.parent) : undefined;
+        const part = e.name === 'GeometryTransform' && typeof parent?.name === 'string' ? parent.name : e.name;
+        if (!renderers.has(part)) renderers.set(part, String(e.prefabEntityId));
+    }
+    return { prefab: hasPrefab ? prefab : '', rootId: (doc as { rootEntityId?: string }).rootEntityId ?? 'n1', byEntity, clips, paths, skin, renderers };
 }
 
 /** Give a generated asset the `.meta` an export needs to ship it, unless it has one. */

@@ -70,7 +70,7 @@ export interface ComponentContext {
      */
     modelMesh?(uuid: string): { components: Record<string, unknown>[]; exact: boolean } | null;
     /** The engine prefab of a model a uuid names (the whole model, or its scene), or null when the uuid is not a model that was brought in. */
-    modelInstance?(uuid: string): { prefab: string; rootId: string; name: string; paths: Map<string, string> } | null;
+    modelInstance?(uuid: string): { prefab: string; rootId: string; name: string; paths: Map<string, string>; parts: Map<string, string> } | null;
     /**
      * The `.esanimator` a Cocos animation graph is converted to for a node whose bones stand at @p paths, or null when the graph is not one of the
      * project's. A graph that plays clips of a model is written once for each skeleton it is put on.
@@ -652,6 +652,19 @@ function applyMaterial(data: Raw, c: CocosComponent, ctx: ComponentContext, wher
         ctx.report.note('mesh-several-materials', where);
     }
     return { found: true, exact };
+}
+
+/**
+ * What a Cocos material makes of a MeshRenderer's data, as the fields it sets: the same as a renderer that holds the material, for an override that
+ * puts one on a part of a model. Null when the project does not have the material.
+ */
+export function meshMaterialFields(uuid: string, ctx: ComponentContext, where: string): Raw | null {
+    const data: Raw = {};
+    const applied = applyMaterial(data, { type: 'cc.MeshRenderer', id: '', enabled: true, data: { _materials: [{ __uuid__: uuid }] } } as CocosComponent, ctx, where);
+    if (!applied.found) return null;
+    // the model's own material is dropped when this one has no converted counterpart: it would own the shading and hide the image
+    if (!('material' in data)) data.material = '';
+    return data;
 }
 
 /** `cc.MeshRenderer`: the mesh is the model's own part, drawn with the model's own material until the Cocos material is carried across. */

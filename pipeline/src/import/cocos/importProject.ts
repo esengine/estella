@@ -32,7 +32,7 @@ import { convertPass, isOutlinePass, type PassConversion } from './effectConvert
  * importer that made less (or differently), and is brought up to date when it is opened. Raise it when the converted output changes in a
  * way an existing project needs to pick up: a new generated file, a field a document or a manifest now carries.
  */
-export const COCOS_IMPORT_REVISION = 21;
+export const COCOS_IMPORT_REVISION = 22;
 
 /** Whether the project at @p projectRoot was written by an importer of this revision. A project that was not converted has nothing to bring up. */
 export function cocosImportIsCurrent(projectRoot: string): boolean {
@@ -491,7 +491,13 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
         },
         modelInstance(uuid) {
             const m = models.use(uuid);
-            return m && m.use.prefab ? { prefab: m.use.prefab, rootId: m.use.rootId, name: path.basename(m.entry.rel).replace(/\.[^.]+$/, ''), paths: m.use.paths } : null;
+            if (!m || !m.use.prefab) return null;
+            const parts = new Map<string, string>();
+            for (const [fileId, name] of models.partsOf(m.entry)) {
+                const id = m.use.renderers.get(name);
+                if (id !== undefined) parts.set(fileId, id);
+            }
+            return { prefab: m.use.prefab, rootId: m.use.rootId, name: path.basename(m.entry.rel).replace(/\.[^.]+$/, ''), paths: m.use.paths, parts };
         },
         modelSkin(meshUuid) {
             const m = models.use(meshUuid);
