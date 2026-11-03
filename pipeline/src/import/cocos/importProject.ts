@@ -27,13 +27,14 @@ import type { MaterialInfo } from './components';
 import { parseEffect, type CocosEffect, type EffectPass } from './effects';
 import { convertPass, isOutlinePass, type PassConversion } from './effectConvert';
 import { dominantAmbient } from './sceneAmbient';
+import { OUTLINE_SHADER } from './outlineShader';
 
 /**
  * The revision of what an import writes. It is recorded in the state file; a converted project whose record is older was written by an
  * importer that made less (or differently), and is brought up to date when it is opened. Raise it when the converted output changes in a
  * way an existing project needs to pick up: a new generated file, a field a document or a manifest now carries.
  */
-export const COCOS_IMPORT_REVISION = 25;
+export const COCOS_IMPORT_REVISION = 27;
 
 /** Whether the project at @p projectRoot was written by an importer of this revision. A project that was not converted has nothing to bring up. */
 export function cocosImportIsCurrent(projectRoot: string): boolean {
@@ -740,7 +741,7 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
     type EffectTechnique = { name: string; passes: EffectPass[]; outline: boolean[] };
     type ParsedEffect = { effect: CocosEffect; techniques: EffectTechnique[] };
     const effects = new Map<string, ParsedEffect | null>();
-    const convertedMaterials = new Map<string, { ref: string; blends?: boolean } | null>();
+    const convertedMaterials = new Map<string, { ref: string; blends?: boolean; outline?: string } | null>();
     const effectOf = (entry: CocosAssetEntry): ParsedEffect | null => {
         if (effects.has(entry.file)) return effects.get(entry.file) ?? null;
         let result: ParsedEffect | null = null;
@@ -820,9 +821,39 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
         // what was converted before the check is converted again with its answer
         shaders.clear();
     };
-    const convertedMaterial = (materialUuid: string): { ref: string; blends?: boolean } | null => {
+    /**
+     * The outline a material asks for, as a material of its own: the shared outline shader with the width and colour the Cocos material gave its outline
+     * pass. Null when the effect has none, or the material does not turn it on.
+     */
+    const outlineMaterial = (mat: CocosAssetEntry, json: MaterialJson, technique: EffectTechnique): string | null => {
+        const at = technique.outline.findIndex(Boolean);
+        const pass = at >= 0 ? technique.passes[at] : undefined;
+        if (!pass) return null;
+        const on = pass.inherits ? (json._defines?.[at] ?? {})[pass.inherits] : true;
+        if (on !== true && on !== 1 && on !== 'true') return null;
+        const props = (json._props?.[at] ?? {}) as Record<string, unknown>;
+        const declared = (name: string): unknown => pass.properties.find((p) => p.name === name)?.value;
+        const width = numberOf(props.lineWidth ?? declared('lineWidth'), 10);
+        const bias = numberOf(props.depthBias ?? declared('depthBias'), 0);
+        const given = (props.baseColor ?? declared('baseColor')) as Record<string, unknown> | number[] | undefined;
+        const colour = Array.isArray(given)
+            ? { r: numberOf(given[0], 0), g: numberOf(given[1], 0), b: numberOf(given[2], 0), a: 1 }
+            : given && typeof given === 'object' && 'r' in given
+                ? { r: numberOf(given.r, 0) / 255, g: numberOf(given.g, 0) / 255, b: numberOf(given.b, 0) / 255, a: 1 }
+                : { r: 0, g: 0, b: 0, a: 1 };
+        const shaderRel = outRef('effects/cocos-outline.esshader');
+        writeText(shaderRel, OUTLINE_SHADER);
+        const materialRel = outRef(`materials/${mat.rel.replace(/^assets\//, '').replace(/\.mtl$/, '')}.outline.esmaterial`);
+        write(materialRel, {
+            version: '1.0', type: 'material', shader: path.posix.relative(path.posix.dirname(materialRel), shaderRel),
+            blendMode: 9, depthTest: true, depthWrite: true, cull: 2,
+            properties: { lineWidth: width, depthBias: bias, baseColor: colour },
+        });
+        return materialRel;
+    };
+    const convertedMaterial = (materialUuid: string): { ref: string; blends?: boolean; outline?: string } | null => {
         if (convertedMaterials.has(materialUuid)) return convertedMaterials.get(materialUuid) ?? null;
-        let result: { ref: string; blends?: boolean } | null = null;
+        let result: { ref: string; blends?: boolean; outline?: string } | null = null;
         try {
             const mat = index.byUuid.get(materialUuid);
             if (mat && mat.rel.endsWith('.mtl')) {
@@ -911,6 +942,8 @@ export async function importCocosProject(opts: CocosImportOptions): Promise<Impo
                         });
                         report.note('effect-converted', `${effectEntry.rel} (${technique.name})`);
                         result = { ref: materialRel, blends: blendMode !== 9 };
+                        const outline = outlineMaterial(mat, json, technique);
+                        if (outline) result.outline = outline;
                     }
                 }
             }

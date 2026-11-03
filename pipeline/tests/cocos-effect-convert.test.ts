@@ -220,4 +220,23 @@ describe('what an entry does not reach', () => {
         const source = ['float a() { return 1.0; }', '#define USE_A a()', 'vec4 cocos_frag() { return vec4(USE_A); }'].join('\n');
         expect(pruneUnreachable(source, ['cocos_frag'])).toContain('float a()');
     });
+
+    it('leaves a macro that defines functions as it is, for the preprocessor to expand', () => {
+        const source = [
+            '#define DEFINE_PACK(type) \\',
+            'highp type unpackData (type a, type b) {\\',
+            '  return a + b;\\',
+            '}\\',
+            'void packData (out type a, highp type d) {\\',
+            '  a = fract(d);\\',
+            '}',
+            '',
+            'DEFINE_PACK(float)',
+            'vec4 cocos_frag() { return vec4(1.0); }',
+        ].join('\n');
+        const pruned = pruneUnreachable(source, ['cocos_frag']);
+        expect(pruned).toContain('return a + b;\\');
+        expect(pruned).toContain('a = fract(d);\\');
+        expect(pruned).toContain('DEFINE_PACK(float)');
+    });
 });

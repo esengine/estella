@@ -115,7 +115,7 @@ export class CocosModels {
         try {
             const objs = JSON.parse(readFileSync(file, 'utf8')) as Raw[];
             for (const o of objs) {
-                if (!isObj(o) || o.__type__ !== 'cc.MeshRenderer') continue;
+                if (!isObj(o) || (o.__type__ !== 'cc.MeshRenderer' && o.__type__ !== 'cc.SkinnedMeshRenderer')) continue;
                 const info = isObj(o.__prefab) && typeof o.__prefab.__id__ === 'number' ? objs[o.__prefab.__id__] : null;
                 const node = isObj(o.node) && typeof o.node.__id__ === 'number' ? objs[o.node.__id__] : null;
                 if (isObj(info) && typeof info.fileId === 'string' && isObj(node) && typeof node._name === 'string') found.set(info.fileId, node._name);

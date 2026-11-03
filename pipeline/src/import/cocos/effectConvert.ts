@@ -125,11 +125,22 @@ export function pruneUnreachable(source: string, roots: readonly string[]): stri
     let depth = 0;
     let open: { name: string; start: number } | null = null;
     const header = /(?:^|\n)[ \t]*(?:(?:highp|mediump|lowp|const|inout|in|out)\s+)*\w+(?:\[\d*\])?\s+(\w+)\s*\([^;{}]*\)\s*\{/y;
-    for (let i = 0; i < source.length; i++) {
-        const c = source[i]!;
+    // What a macro defines (a directive whose lines end in a backslash) is not a function of the shader: its text is the macro's to expand, and cutting
+    // a function out of it leaves the macro running on into the lines after it. It is blanked for the reading of the structure, same length.
+    const structure = ((): string => {
+        const lines = source.split('\n');
+        let inDirective = false;
+        return lines.map((line) => {
+            const starts = inDirective || /^[ \t]*#/.test(line);
+            inDirective = starts && /\\[ \t]*$/.test(line);
+            return starts ? line.replace(/[^\n]/g, ' ') : line;
+        }).join('\n');
+    })();
+    for (let i = 0; i < structure.length; i++) {
+        const c = structure[i]!;
         if (depth === 0 && !open && (c === '\n' || i === 0)) {
             header.lastIndex = i;
-            const m = header.exec(source);
+            const m = header.exec(structure);
             if (m && !/^(?:if|for|while|switch|return)$/.test(m[1]!)) {
                 const braceAt = i + m[0].length - 1;
                 open = { name: m[1]!, start: i === 0 && source[0] !== '\n' ? 0 : i + 1 };

@@ -339,7 +339,9 @@ function modelInstanceOverrides(node: CocosNode, model: { rootId: string; name: 
             out.push({ prefabEntityId: part, type: 'property', componentType: 'MeshRenderer', propertyName, value });
         }
     }
-    const inner = inst.overrides.length - roots.length - animation.used - materials;
+    // where a skinned part finds its skeleton is the model's own: the engine's import binds the part to its joints
+    const skeleton = inst.overrides.filter((o) => o.path[0] === '_skinningRoot').length;
+    const inner = inst.overrides.length - roots.length - animation.used - materials - skeleton;
     if (inner > 0) ctx.report.note('model-instance-overrides', `${ctx.where}: ${node.name} (${inner} on the model's own parts)`);
     if (animation.clip) {
         const timeline = ctx.clipOn?.(animation.clip, model.paths, `${ctx.where}: ${node.name}`);
@@ -440,6 +442,11 @@ function indexNodes(roots: CocosNode[]): Map<string, CocosNode> {
     return nodes;
 }
 
+/** A part that stands with its node, where the node stands. */
+function partTransform(): ComponentData {
+    return { type: 'Transform', data: { position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 }, scale: { x: 1, y: 1, z: 1 } } };
+}
+
 export function convertPrefab(doc: CocosDocument, ctx: ConvertContext): PrefabFile {
     ctx.nodeById = indexNodes(doc.roots);
     const root = doc.roots[0];
@@ -467,6 +474,12 @@ export function convertPrefab(doc: CocosDocument, ctx: ConvertContext): PrefabFi
         const conv = convertNode(n, ctx, here);
         entity.components = conv.components;
         if (conv.metadata) entity.metadata = conv.metadata;
+        // the primitives of a mesh beyond the first stand with it, each a part of its own
+        for (const [i, part] of (conv.parts ?? []).entries()) {
+            const id = `${n.id}|part${i + 1}`;
+            entities.push({ prefabEntityId: id, name: `${n.name}_${i + 1}`, parent: n.id, children: [], components: [partTransform(), ...part], visible: true });
+            entity.children.push(id);
+        }
         for (const c of n.children) {
             entity.children.push(c.id);
             walk(c, n.id);
@@ -548,6 +561,11 @@ export function convertScene(doc: CocosDocument, ctx: ConvertContext): SceneFile
         if ('metadata' in conv && conv.metadata) entity.metadata = conv.metadata;
         entities.push(entity);
         parent?.children.push(id);
+        for (const [i, part] of ('parts' in conv ? conv.parts ?? [] : []).entries()) {
+            const partId = next++;
+            entities.push({ id: partId, name: `${n.name}_${i + 1}`, parent: id, children: [], components: [partTransform(), ...part], visible: true });
+            entity.children.push(partId);
+        }
         if (!n.instance) for (const c of n.children) walk(c, entity);
     };
     for (const r of doc.roots) walk(r, null);

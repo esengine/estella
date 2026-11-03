@@ -63,7 +63,7 @@ export interface ComponentContext {
     material?(uuid: string): MaterialInfo | null;
     /** The Estella material a Cocos material of the project's own effect became (its shader converted), by its project path; null when the effect could not be converted. */
     /** The converted material for a project material, and whether it blends (its effect's pass says so, which the material file does not). */
-    convertedMaterial?(uuid: string): { ref: string; blends?: boolean } | null;
+    convertedMaterial?(uuid: string): { ref: string; blends?: boolean; outline?: string } | null;
     /**
      * The engine MeshRenderer data of the part of a model a Cocos mesh sub-asset names, once that model was brought in. `exact` is false when
      * the part was picked because the model draws only one.
@@ -537,7 +537,7 @@ function findByName(root: CocosNode, name: string): CocosNode | null {
  * `cc.SkinnedMeshRenderer`: a part of a model bound to bones that are nodes of this document. The mesh is the model's own; the joints are the
  * nodes under the skinning root that carry the names the model's skin binds, in the order the model's vertices index them.
  */
-function skinnedMeshRenderer(c: CocosComponent, ctx: ComponentContext, where: string): { component: ComponentData; extra: ComponentData[] } | null {
+function skinnedMeshRenderer(c: CocosComponent, ctx: ComponentContext, where: string): { component: ComponentData; extra: ComponentData[]; parts: ComponentData[][] } | null {
     const mesh = meshRenderer(c, ctx, where);
     if (!mesh) return null;
     const meshUuid = uuidOf(c.data._mesh);
@@ -547,7 +547,7 @@ function skinnedMeshRenderer(c: CocosComponent, ctx: ComponentContext, where: st
     if (!names || names.length === 0 || !root) {
         ctx.report.component('cc.SkinnedMeshRenderer', 'partial');
         ctx.report.note('skin-not-bound', where);
-        return { component: mesh.component, extra: [] };
+        return { component: mesh.component, extra: [], parts: (mesh.more ?? []).map((m) => [m]) };
     }
     const joints = names.map((name) => {
         const node = findByName(root, name);
@@ -556,7 +556,7 @@ function skinnedMeshRenderer(c: CocosComponent, ctx: ComponentContext, where: st
     const missing = names.filter((name) => !findByName(root, name)).length;
     ctx.report.component('cc.SkinnedMeshRenderer', missing > 0 || mesh.partial ? 'partial' : 'mapped');
     if (missing > 0) ctx.report.note('skin-joint-missing', `${where}: ${missing} of ${names.length}`);
-    return { component: mesh.component, extra: [{ type: 'MeshSkin', data: { joints } }] };
+    return { component: mesh.component, extra: [{ type: 'MeshSkin', data: { joints } }], parts: (mesh.more ?? []).map((m) => [m, { type: 'MeshSkin', data: { joints: structuredClone(joints) } }]) };
 }
 
 /** `cc.Animation`: the clip it plays by default, as a timeline that plays on the node, from the start if the node asks. */
@@ -627,15 +627,16 @@ const ENGINE_PRIMITIVE_SIZE = 100;
  *
  * @returns `found`: the project had the material; `exact`: it was one of the built-in effects, so nothing of its look was approximated.
  */
-function applyMaterial(data: Raw, c: CocosComponent, ctx: ComponentContext, where: string): { found: boolean; exact: boolean } {
-    const uuids = (Array.isArray(c.data._materials) ? c.data._materials : []).map(uuidOf).filter(Boolean);
-    const info = uuids[0] ? ctx.material?.(uuids[0]) ?? null : null;
+function applyMaterial(data: Raw, c: CocosComponent, ctx: ComponentContext, where: string, slot = 0): { found: boolean; exact: boolean; outline?: string } {
+    const uuids = (Array.isArray(c.data._materials) ? c.data._materials : []).map(uuidOf);
+    const uuid = uuids[slot] ?? '';
+    const info = uuid ? ctx.material?.(uuid) ?? null : null;
     if (!info) {
-        if (uuids.length > 0) ctx.report.note('mesh-material-missing', where);
+        if (uuid !== '') ctx.report.note('mesh-material-missing', where);
         return { found: false, exact: false };
     }
     delete data.material;
-    const converted = ctx.convertedMaterial?.(uuids[0]!);
+    const converted = ctx.convertedMaterial?.(uuid);
     if (converted) data.material = converted.ref;
     if (info.texture) data.texture = ctx.assetRef(info.texture);
     if (info.normal) data.normalMap = ctx.assetRef(info.normal);
@@ -648,13 +649,9 @@ function applyMaterial(data: Raw, c: CocosComponent, ctx: ComponentContext, wher
     // what the effect's pass blends is what the draw does: a mesh the engine takes for opaque is drawn without blending, and a fog that fades out would draw black
     if (converted?.blends !== undefined) data.opaque = !converted.blends;
     data.cullBackfaces = info.cullBack;
-    let exact = info.builtinEffect || converted !== null && converted !== undefined;
+    const exact = info.builtinEffect || converted !== null && converted !== undefined;
     if (!exact) ctx.report.note('mesh-custom-effect', where);
-    if (uuids.length > 1) {
-        exact = false;
-        ctx.report.note('mesh-several-materials', where);
-    }
-    return { found: true, exact };
+    return { found: true, exact, ...(converted?.outline ? { outline: converted.outline } : {}) };
 }
 
 /**
@@ -671,7 +668,7 @@ export function meshMaterialFields(uuid: string, ctx: ComponentContext, where: s
 }
 
 /** `cc.MeshRenderer`: the mesh is the model's own part, drawn with the model's own material until the Cocos material is carried across. */
-function meshRenderer(c: CocosComponent, ctx: ComponentContext, where: string): { component: ComponentData; scale?: number; partial: boolean } | null {
+function meshRenderer(c: CocosComponent, ctx: ComponentContext, where: string): { component: ComponentData; scale?: number; partial: boolean; more?: ComponentData[] } | null {
     const meshUuid = uuidOf(c.data._mesh);
     const hasMaterial = Array.isArray(c.data._materials) && c.data._materials.some((m) => uuidOf(m) !== '');
     if (meshUuid.startsWith(COCOS_PRIMITIVES)) {
@@ -693,26 +690,33 @@ function meshRenderer(c: CocosComponent, ctx: ComponentContext, where: string): 
         const applied = applyMaterial(data, c, ctx, where);
         return { component: { type: 'MeshRenderer', data }, partial: meshUuid !== '' || !applied.exact && hasMaterial };
     }
-    const materials = (Array.isArray(c.data._materials) ? c.data._materials : []).map(uuidOf).filter(Boolean);
+    const materials = (Array.isArray(c.data._materials) ? c.data._materials : []).map(uuidOf);
     let partial = false;
-    if (found.components.length > 1) {
-        partial = true;
-        ctx.report.note('mesh-several-primitives', where);
-    }
     if (!found.exact) {
         partial = true;
         ctx.report.note('mesh-guessed-from-model', where);
     }
-    const data: Raw = { ...found.components[0]!, enabled: c.enabled };
-    if (materials.length > 0) {
-        const applied = applyMaterial(data, c, ctx, where);
-        if (!applied.exact) partial = true;
-        if (!applied.found) {
-            partial = true;
-            ctx.report.note('mesh-material-from-model', where);
+    // A mesh of several primitives is drawn by one renderer in Cocos, each primitive with the material of its own slot; here each is a renderer, the
+    // first on this node and the others on parts that stand with it.
+    const outlines: ComponentData[] = [];
+    const renderers = found.components.map((part, slot) => {
+        const data: Raw = { ...part, enabled: c.enabled };
+        if (materials.some((m) => m !== '')) {
+            const applied = applyMaterial(data, c, ctx, where, slot);
+            if (!applied.exact) partial = true;
+            if (!applied.found) {
+                partial = true;
+                ctx.report.note('mesh-material-from-model', where);
+            }
+            // An outline is the same mesh drawn a second time, pushed out along its normals and shown from behind: a renderer of its own
+            if (applied.outline) {
+                outlines.push({ type: 'MeshRenderer', data: { mesh: part.mesh, enabled: c.enabled, material: applied.outline, lit: false, opaque: true, cullBackfaces: false } });
+            }
         }
-    }
-    return { component: { type: 'MeshRenderer', data }, partial };
+        return { type: 'MeshRenderer', data } as ComponentData;
+    });
+    const more = [...renderers.slice(1), ...outlines];
+    return { component: renderers[0]!, partial, ...(more.length > 0 ? { more } : {}) };
 }
 
 /** `cc.Graphics`: the style a scene stores; what is drawn is what scripts draw with it. */
@@ -871,6 +875,8 @@ const FOLDED = new Set(['cc.UITransform', 'cc.LabelOutline', 'cc.LabelShadow', '
 
 export interface ConvertedNode {
     components: ComponentData[];
+    /** The primitives of a mesh beyond the first, each as the components of a part that stands with this node. */
+    parts?: ComponentData[][];
     /** Everything not mapped, verbatim, for whatever consumes it next. */
     metadata?: Raw;
 }
@@ -886,6 +892,7 @@ export function convertNode(node: CocosNode, ctx: ComponentContext, where: strin
     let unitScale = 1;
     // components a mapped one brings with it, added after the loop
     const extra: ComponentData[] = [];
+    const parts: ComponentData[][] = [];
 
     for (const c of node.components) {
         let out: ComponentData | null = null;
@@ -952,12 +959,16 @@ export function convertNode(node: CocosNode, ctx: ComponentContext, where: strin
                 out = mesh?.component ?? null;
                 if (mesh) ctx.report.component('cc.MeshRenderer', mesh.partial ? 'partial' : 'mapped');
                 if (mesh?.scale !== undefined) unitScale = mesh.scale;
+                if (mesh?.more) parts.push(...mesh.more.map((m) => [m]));
                 break;
             }
             case 'cc.SkinnedMeshRenderer': {
                 const skinned = skinnedMeshRenderer(c, ctx, where);
                 out = skinned?.component ?? null;
-                if (skinned) extra.push(...skinned.extra);
+                if (skinned) {
+                    extra.push(...skinned.extra);
+                    parts.push(...skinned.parts);
+                }
                 break;
             }
             case 'cc.animation.AnimationController':
@@ -1043,7 +1054,7 @@ export function convertNode(node: CocosNode, ctx: ComponentContext, where: strin
     // outside the mask of a UI camera (layer 25) and never drawn by it.
     const layerBit = node.layer > 0 && (node.layer & (node.layer - 1)) === 0 ? Math.log2(node.layer) : -1;
     if (layerBit >= 0 && layerBit < 32) {
-        for (const c of [...components, ...extra]) if (LAYERED.has(c.type) && !(c.data.layer)) c.data.layer = layerBit;
+        for (const c of [...components, ...extra, ...parts.flat()]) if (LAYERED.has(c.type) && !(c.data.layer)) c.data.layer = layerBit;
     }
     components.push(...extra);
     if (unitScale !== 1) {
@@ -1056,5 +1067,5 @@ export function convertNode(node: CocosNode, ctx: ComponentContext, where: strin
     if (box) cocos.ui = { width: box.width, height: box.height, anchorX: box.ax, anchorY: box.ay };
     if (node.layer !== 33554432 && node.layer !== 0) cocos.layer = node.layer;
     const metadata = Object.keys(cocos).length ? { cocos } : undefined;
-    return metadata ? { components, metadata } : { components };
+    return { components, ...(parts.length > 0 ? { parts } : {}), ...(metadata ? { metadata } : {}) };
 }
