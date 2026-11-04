@@ -101,6 +101,14 @@ const TEXTURE: ImporterFieldSpec[] = [
       + 'data like normal maps and masks — only meaningful when the project renders in linear color.',
   },
   {
+    key: 'alphaIsTransparency', label: 'Alpha Is Transparency', type: 'bool', default: true, category: 'Texture', advanced: true,
+    tooltip: 'Fill the colour of fully clear texels from their solid neighbours when the texture is '
+      + 'cooked, so filtering and mip maps at a transparent edge do not average in the black (or '
+      + 'whatever was painted) under alpha 0 as a dark fringe. Partly clear and solid texels keep '
+      + 'their colour, and premultiplied art is left as it is. Turn off for an image whose RGB under '
+      + 'alpha 0 a shader reads as data.',
+  },
+  {
     key: 'mipCoverage', label: 'Mip Coverage Cutoff', type: 'number', default: 0, min: 0, max: 1, step: 0.01,
     category: 'Texture', advanced: true,
     tooltip: 'For a cutout (leaves, grass, fences): the alpha cutoff its material tests. Each mip '

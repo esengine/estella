@@ -82,14 +82,19 @@ describe('a texture compressed for the editor', () => {
     }
   }, 60_000);
 
-  it('stays as it is where its settings keep it raw, and is never pending', async () => {
+  it('stays an image where its settings keep it raw, made at most once', async () => {
     const r = mkdtempSync(path.join(tmpdir(), 'estella-texcook-raw-'));
     try {
-      const out = await cookTexture({
+      // An image with an alpha channel may need its clear texels filled: that is
+      // made once, in the background for the editor, and answered from the cache after.
+      const ask = (cachedOnly: boolean) => cookTexture({
         root: r, path: 'lightmap.png', data: new Uint8Array(noisePng(64, 64)), ext: '.png',
-        importer: { compress: false }, encoder: await loadTextureEncoder(),
-        compressTextures: true, atlasTextures: false, drawnIn3D: true, cachedOnly: true,
+        importer: { compress: false }, encoder: null,
+        compressTextures: true, atlasTextures: false, drawnIn3D: true, cachedOnly,
       });
+      const made = await ask(false);
+      expect(made.ext).toBe('.png');
+      const out = await ask(true);
       expect(out.ext).toBe('.png');
       expect(out.pending).toBeUndefined();
     } finally {
@@ -142,8 +147,12 @@ describe('a cutout texture the cook ships', () => {
     // A clear texel beside the leaf is green and still clear; a solid one is exactly as it was.
     expect([...out.rgba.slice(5 * 4, 5 * 4 + 4)]).toEqual([20, 160, 30, 0]);
     expect([...out.rgba.slice(0, 4)]).toEqual([20, 160, 30, 255]);
-    const plain = await cook({ compress: false, mipmaps: true });
-    expect(Buffer.from(plain.data).equals(Buffer.from(png))).toBe(true);
+    // No cutout, but a colour image: its clear texels are filled too, solid ones kept.
+    const plain = decodePngImage('leaf.png', (await cook({ compress: false, mipmaps: true })).data);
+    expect([...plain.rgba.slice(5 * 4, 5 * 4 + 4)]).toEqual([20, 160, 30, 0]);
+    // Unless the importer says its RGB under alpha is data.
+    const kept = await cook({ compress: false, mipmaps: true, alphaIsTransparency: false });
+    expect(Buffer.from(kept.data).equals(Buffer.from(png))).toBe(true);
   });
 });
 
@@ -165,6 +174,43 @@ describe('a UASTC texture the cook ships', () => {
       expect(cooked.data.length).toBeLessThan(plain.length);
       const [a, b] = await Promise.all([encoder.module.transcodeKtx2ToRgba(cooked.data), encoder.module.transcodeKtx2ToRgba(plain)]);
       expect(Buffer.from(a.pixels).equals(Buffer.from(b.pixels))).toBe(true);
+    } finally {
+      rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+    }
+  });
+});
+
+describe('a colour image with clear texels', () => {
+  it('ships with its clear texels filled from their neighbours, edges kept, opaque and data images untouched', async () => {
+    const r = mkdtempSync(path.join(tmpdir(), 'estella-bleed-'));
+    try {
+      // 4x1: white solid, white half-clear edge, then two clear texels whose RGB is black.
+      const rgba = new Uint8Array([255, 255, 255, 255, 255, 255, 255, 128, 0, 0, 0, 0, 0, 0, 0, 0]);
+      const png = encodeRgbaPng(4, 1, rgba);
+      const ask = (importer: Record<string, unknown>, data = png) => cookTexture({
+        root: r, path: 'ui/panel.png', data, ext: '.png', importer,
+        encoder: null, compressTextures: false, atlasTextures: false, drawnIn3D: false,
+      });
+      const out = await ask({});
+      expect(out.ext).toBe('.png');
+      expect(out.cacheFile).toBeDefined();
+      const px = decodePngImage('ui/panel.png', out.data).rgba;
+      expect(Array.from(px.subarray(0, 8))).toEqual([255, 255, 255, 255, 255, 255, 255, 128]);   // solid and edge as painted
+      expect(Array.from(px.subarray(8, 11))).toEqual([255, 255, 255]);   // clear: no longer black
+      expect(px[11]).toBe(0);                                              // and still clear
+
+      const opaque = encodeRgbaPng(2, 1, new Uint8Array([10, 20, 30, 255, 40, 50, 60, 255]));
+      const same = await ask({}, opaque);
+      expect(Buffer.from(same.data).equals(Buffer.from(opaque))).toBe(true);
+      expect(same.cacheFile).toBeUndefined();
+
+      const data = await ask({ sRGB: false });   // a data texture: its RGB is not a colour
+      expect(Buffer.from(data.data).equals(Buffer.from(png))).toBe(true);
+
+      // Premultiplied art (no channel above alpha): its clear RGB must stay 0.
+      const pma = encodeRgbaPng(3, 1, new Uint8Array([200, 200, 200, 255, 100, 100, 100, 128, 0, 0, 0, 0]));
+      const kept = await ask({}, pma);
+      expect(Buffer.from(kept.data).equals(Buffer.from(pma))).toBe(true);
     } finally {
       rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }

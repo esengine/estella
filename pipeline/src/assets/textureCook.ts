@@ -86,6 +86,47 @@ export function pngDimensions(png: Uint8Array): { width: number; height: number 
   return { width: dv.getUint32(16), height: dv.getUint32(20) };
 }
 
+/**
+ * Whether a PNG can hold a transparent texel, from its header: grey+alpha or RGBA,
+ * or a palette with a tRNS chunk. Answered without decoding, so an opaque image
+ * costs nothing here.
+ */
+export function pngMayHaveAlpha(png: Uint8Array): boolean {
+  if (png.byteLength < 26) return false;
+  const colorType = png[25];
+  if (colorType === 4 || colorType === 6) return true;
+  if (colorType !== 3) return false;
+  // tRNS precedes IDAT; walk the chunks up to the first image data.
+  const dv = new DataView(png.buffer, png.byteOffset, png.byteLength);
+  for (let at = 8; at + 8 <= png.byteLength;) {
+    const len = dv.getUint32(at);
+    const type = String.fromCharCode(png[at + 4]!, png[at + 5]!, png[at + 6]!, png[at + 7]!);
+    if (type === 'tRNS') return true;
+    if (type === 'IDAT') return false;
+    at += 12 + len;
+  }
+  return false;
+}
+
+function hasClearTexel(rgba: Uint8Array): boolean {
+  for (let i = 3; i < rgba.length; i += 4) if (rgba[i] === 0) return true;
+  return false;
+}
+
+/**
+ * Whether the colour was multiplied by alpha already (a Spine PMA page): no channel
+ * above its texel's alpha anywhere. Such an image's RGB under alpha 0 is 0 BY
+ * DEFINITION, and premultiplied blending adds it — filling it in would light up
+ * every clear texel.
+ */
+function looksPremultiplied(rgba: Uint8Array): boolean {
+  for (let i = 0; i < rgba.length; i += 4) {
+    const a = rgba[i + 3]!;
+    if (rgba[i]! > a || rgba[i + 1]! > a || rgba[i + 2]! > a) return false;
+  }
+  return true;
+}
+
 function safePngDimensions(png: Uint8Array): { width: number; height: number } | null {
   try {
     return pngDimensions(png);
@@ -167,12 +208,38 @@ export async function cookTexture(input: TextureCookInput): Promise<TextureCookO
   // A cutout (one that asks for its coverage kept) has the colour of its solid texels carried into its clear ones, as a model's cutouts do: what a
   // painter leaves under alpha 0 is a mip's, and a filter's, to average in with the leaf, and the edge of every leaf shows it as a halo.
   const cutout = raster && tex.mipmaps && tex.mipCoverage > 0;
+  // Any other colour image with clear texels gets the same treatment, held to
+  // those texels alone (Unity's "alpha is transparency"): the RGB an editor leaves
+  // under alpha 0 is usually black, and a bilinear sample or a mip at the edge of a
+  // rounded panel averages it in as a dark fringe. A partly clear texel keeps its
+  // colour — on a straight-alpha image it is the colour that is seen.
+  // The importer can say no (`alphaIsTransparency: false`): an image whose RGB under
+  // alpha 0 a shader reads as data.
+  const clearBleed = raster && !cutout && tex.srgb && input.importer?.alphaIsTransparency !== false && pngMayHaveAlpha(data);
   const bled = (image: { rgba: Uint8Array; width: number; height: number }) =>
-    cutout ? { ...image, rgba: bleedCutoutColor({ width: image.width, height: image.height, rgba: image.rgba }) } : image;
-  // A texture that ships as an image ships the shrunk one.
-  if (cook.selected === 'raw' && (scaled || cutout)) {
-    const image = bled(scaled ? scaledImage() : decodePngImage(path, data));
-    data = encodeRgbaPng(image.width, image.height, image.rgba);
+    cutout || (clearBleed && hasClearTexel(image.rgba) && !looksPremultiplied(image.rgba))
+      ? { ...image, rgba: bleedCutoutColor({ width: image.width, height: image.height, rgba: image.rgba }, { clearOnly: !cutout }) }
+      : image;
+  const bleedKey = cutout ? { bleed: 1 } : clearBleed ? { bleed: 'clear' } : {};
+  // A texture that ships as an image ships the shrunk one, and the bled one —
+  // through the cook cache, so the editor shows the same pixels a build ships.
+  if (cook.selected === 'raw' && (scaled || cutout || clearBleed)) {
+    const source = data;
+    const key = [source, JSON.stringify({ raw: 1, maxSize: tex.maxSize, scaled: scaled ? [size!.width, size!.height] : null, ...bleedKey })];
+    const file = cookCacheFile(root, key);
+    const produce = async (): Promise<Uint8Array> => {
+      const decoded = scaled ? scaledImage() : decodePngImage(path, source);
+      const image = bled(decoded);
+      // An image with nothing to change (an RGBA file that is opaque throughout)
+      // ships as it is, byte for byte.
+      if (!scaled && image === decoded) return source;
+      return encodeRgbaPng(image.width, image.height, image.rgba);
+    };
+    const shipped = input.cachedOnly ? await cookCacheHitAt(file) : (await cookCachedAt(file, produce)).bytes;
+    if (!shipped) return { data, ext, cook, warnings, defeatedByFormat, pending: true };
+    const unchanged = shipped.byteLength === source.byteLength && Buffer.from(shipped).equals(Buffer.from(source));
+    return unchanged ? { data: source, ext, cook, warnings, defeatedByFormat }
+      : { data: shipped, ext, cook, warnings, defeatedByFormat, cacheFile: file };
   }
   if (cook.selected !== 'raw') {
     // Only a build that encodes can select an encoding, and that is exactly
@@ -189,9 +256,9 @@ export async function cookTexture(input: TextureCookInput): Promise<TextureCookO
     const supercompress = mode === 'uastc';
     const key = [source, JSON.stringify({ mode, srgb: tex.srgb, maxSize: tex.maxSize, scaled: scaled ? [size!.width, size!.height] : null,
       // `chain: 3` marks the rescaled chain that replaced the share-of-coverage one (chain 2): an entry cooked before it is re-encoded.
-      ...(coverage ? { mipCoverage: coverage, chain: 3 } : {}), ...(cutout ? { bleed: 1 } : {}), ...(supercompress ? { supercompress } : {}), ...mips }), input.encoder!.id];
+      ...(coverage ? { mipCoverage: coverage, chain: 3 } : {}), ...bleedKey, ...(supercompress ? { supercompress } : {}), ...mips }), input.encoder!.id];
     const produce = (): Promise<Uint8Array> => {
-      const image = scaled ? bled(scaledImage()) : cutout ? bled(decodePngImage(path, source)) : null;
+      const image = scaled ? bled(scaledImage()) : cutout || clearBleed ? bled(decodePngImage(path, source)) : null;
       return coverage
         ? encodeCoverageChain(enc, image ?? decodePngImage(path, source), tex.srgb, coverage)
         : image

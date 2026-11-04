@@ -35,7 +35,7 @@ describe('Bistro texture crops, cooked as a build ships them', () => {
       for (const f of files) {
         const png = new Uint8Array(readFileSync(path.join(DIR, f)));
         const cooked = await cookTexture({
-          root, path: `t/${f}`, data: png, ext: '.png', importer: { compress: 'on' },
+          root, path: `t/${f}`, data: png, ext: '.png', importer: { compress: 'on', alphaIsTransparency: false },
           encoder, compressTextures: true, atlasTextures: false, drawnIn3D: false,
         });
         expect(cooked.ext, f).toBe('.ktx2');

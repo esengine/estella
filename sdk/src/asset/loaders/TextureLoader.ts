@@ -88,6 +88,8 @@ export function textureResidencyKey(path: string, flip: boolean): string {
     return `${path}:${flip ? 'f' : 'n'}`;
 }
 
+const isPng = (b: Uint8Array): boolean => b.byteLength > 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47;
+
 export class TextureLoader implements AssetLoader<TextureResult> {
     private readonly imageRevisions_ = new Map<string, number>();
 
@@ -308,6 +310,10 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         let preview = false;
         if (!copy && this.compressedSource_) {
             const compressed = await this.compressedSource_(path);
+            // The source may answer with the image a build ships rather than a KTX2 —
+            // a PNG resized or with its clear texels' colour filled in — and it is drawn
+            // the way any image is, so the editor shows the pixels the package holds.
+            if (compressed instanceof Uint8Array && isPng(compressed)) return this.uploadImageBytes_(compressed, flip, settings, maxEdge);
             if (compressed instanceof Uint8Array) return this.uploadKtx2_(path, compressed, settings, maxEdge);
             preview = compressed === 'pending';
         }
@@ -331,6 +337,21 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         const img = await this.loadImage(url, flip, edge, copy ? undefined : this.imageRevisions_.get(path), full);
         const made = this.createTextureFromImage(img, flip, settings);
         return full.width > made.width || full.height > made.height ? { ...made, fullWidth: full.width, fullHeight: full.height } : made;
+    }
+
+    /** An encoded image in memory, through the same image path a URL takes. */
+    private async uploadImageBytes_(
+        bytes: Uint8Array, flip: boolean, settings?: TextureImportSettings, maxEdge = 0,
+    ): Promise<TextureResult> {
+        const url = URL.createObjectURL(new Blob([bytes as Uint8Array<ArrayBuffer>], { type: 'image/png' }));
+        try {
+            const full = { width: 0, height: 0 };
+            const img = await this.loadImage(url, flip, maxEdge, undefined, full);
+            const made = this.createTextureFromImage(img, flip, settings);
+            return full.width > made.width || full.height > made.height ? { ...made, fullWidth: full.width, fullHeight: full.height } : made;
+        } finally {
+            URL.revokeObjectURL(url);
+        }
     }
 
     /**

@@ -73,7 +73,11 @@ function constantColor(p: Pixels): number[] | null {
  * a skin tone under eyelashes, white under a leaf; a mip averages it in with the strands, and seen from a distance the card drew a veil of
  * that colour over what it covers (the render lab's probe eye came out pink). A texel that is solid keeps its colour exactly.
  */
-export function bleedCutoutColor(p: Pixels): Uint8Array {
+export function bleedCutoutColor(p: Pixels, options?: { clearOnly?: boolean }): Uint8Array {
+    // `clearOnly`: only texels with alpha 0 take the neighbourhood's colour. A
+    // straight-alpha sprite's partly clear texels (an anti-aliased edge) carry the
+    // colour that is SEEN, and pulling them toward a neighbour shifts the edge's hue.
+    const clearOnly = options?.clearOnly === true;
     const levels: { w: number; h: number; c: Float32Array; a: Float32Array }[] = [];
     let w = p.width, h = p.height;
     let c = new Float32Array(w * h * 3), a = new Float32Array(w * h);
@@ -105,7 +109,7 @@ export function bleedCutoutColor(p: Pixels): Uint8Array {
         for (let x = 0; x < p.width; x++) {
             const i = y * p.width + x;
             const alpha = p.rgba[i * 4 + 3]! / 255;
-            if (alpha >= 1) continue;
+            if (alpha >= 1 || (clearOnly && alpha > 0)) continue;
             // The colour of the nearest solid neighbourhood: the first level up whose cell holds any.
             let fill: [number, number, number] | null = null;
             for (let l = 1; l < levels.length; l++) {

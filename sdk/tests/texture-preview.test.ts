@@ -44,4 +44,21 @@ describe('pending texture previews', () => {
         expect((await loader.load('color.png', {} as LoadContext)).width).toBe(2048);
         expect(decoder).toHaveBeenLastCalledWith('color.png', true, 0);
     });
+
+    it('draws a PNG the compressed source answers with as an image, a KTX2 as a KTX2', async () => {
+        const loader = new TextureLoader(null);
+        const internals = loader as unknown as {
+            uploadImageBytes_: (...a: unknown[]) => Promise<unknown>; uploadKtx2_: (...a: unknown[]) => Promise<unknown>;
+        };
+        const image = vi.spyOn(internals, 'uploadImageBytes_').mockResolvedValue({ handle: 1, width: 4, height: 4 });
+        const ktx2 = vi.spyOn(internals, 'uploadKtx2_').mockResolvedValue({ handle: 2, width: 4, height: 4 });
+        const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0]);
+        loader.setCompressedSource(async () => png);
+        await loader.load('panel.png', {} as LoadContext);
+        expect(image).toHaveBeenCalledTimes(1);
+        expect(ktx2).not.toHaveBeenCalled();
+        loader.setCompressedSource(async () => new Uint8Array([0xab, 0x4b, 0x54, 0x58, 0x20, 0x32, 0x30, 0xbb, 0, 0]));
+        await loader.load('panel.png', {} as LoadContext);
+        expect(ktx2).toHaveBeenCalledTimes(1);
+    });
 });
