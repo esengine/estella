@@ -1,0 +1,194 @@
+// Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
+// Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2008-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+#ifndef BP_AABBMANAGER_H
+#define BP_AABBMANAGER_H
+
+#include "foundation/PxHashSet.h"
+#include "foundation/PxHashMap.h"
+#include "BpAABBManagerTasks.h"
+#include "BpAABBManagerBase.h"
+
+namespace physx
+{
+namespace Cm
+{
+	class FlushPool;
+}
+
+namespace Bp
+{
+	struct BroadPhasePair;
+
+	class Aggregate;
+	class PersistentPairs;
+	class PersistentActorAggregatePair;
+	class PersistentAggregateAggregatePair;
+	class PersistentSelfCollisionPairs;
+
+	struct AggPair
+	{
+		PX_FORCE_INLINE AggPair() {}
+		PX_FORCE_INLINE	AggPair(ShapeHandle index0, ShapeHandle index1) : mIndex0(index0), mIndex1(index1)	{}
+		ShapeHandle	mIndex0;
+		ShapeHandle	mIndex1;
+
+		PX_FORCE_INLINE bool operator==(const AggPair& p) const
+		{
+			return (p.mIndex0 == mIndex0) && (p.mIndex1 == mIndex1);
+		}
+	};
+	typedef PxCoalescedHashMap<AggPair, PersistentPairs*> AggPairMap;
+
+	// PT: TODO: isn't there a generic pair structure somewhere? refactor with AggPair anyway
+	struct Pair
+	{
+		PX_FORCE_INLINE	Pair(PxU32 id0, PxU32 id1) : mID0(id0), mID1(id1)	{}
+		PX_FORCE_INLINE Pair(){}
+
+			PX_FORCE_INLINE bool operator<(const Pair& p) const
+			{
+				const PxU64 value0 = *reinterpret_cast<const PxU64*>(this);
+				const PxU64 value1 = *reinterpret_cast<const PxU64*>(&p);
+				return value0 < value1;
+			}
+
+			PX_FORCE_INLINE bool operator==(const Pair& p) const
+			{
+				const PxU64 value0 = *reinterpret_cast<const PxU64*>(this);
+				const PxU64 value1 = *reinterpret_cast<const PxU64*>(&p);
+				return value0 == value1;
+			}
+
+			PX_FORCE_INLINE bool operator!=(const Pair& p) const
+			{
+				const PxU64 value0 = *reinterpret_cast<const PxU64*>(this);
+				const PxU64 value1 = *reinterpret_cast<const PxU64*>(&p);
+				return value0 != value1;
+			}
+
+		PxU32	mID0;
+		PxU32	mID1;
+	};
+
+	class AABBManager;
+
+	class PostBroadPhaseStage2Task : public Cm::Task
+	{
+		Cm::FlushPool* mFlushPool;
+		AABBManager& mManager;
+
+		PX_NOCOPY(PostBroadPhaseStage2Task)
+	public:
+
+		PostBroadPhaseStage2Task(PxU64 contextID, AABBManager& manager) : Cm::Task(contextID), mFlushPool(NULL), mManager(manager)
+		{
+		}
+
+		virtual const char* getName() const PX_OVERRIDE { return "PostBroadPhaseStage2Task"; }
+
+		void setFlushPool(Cm::FlushPool* pool) { mFlushPool = pool; }
+
+		virtual void runInternal() PX_OVERRIDE;
+	};
+
+	class ProcessAggPairsBase;
+
+	/**
+	\brief A structure responsible for:
+	* storing an aabb representation for each active shape in the related scene
+	* managing the creation/removal of aabb representations when their related shapes are created/removed
+	* updating all aabbs that require an update due to modification of shape geometry or transform
+	* updating the aabb of all aggregates from the union of the aabbs of all shapes that make up each aggregate
+	* computing and reporting the incremental changes to the set of overlapping aabb pairs 
+	*/
+	class AABBManager : public AABBManagerBase
+	{
+													PX_NOCOPY(AABBManager)
+	public:
+														AABBManager(BroadPhase& bp, BoundsArray& boundsArray, Cm::PinnableArray<PxReal>& contactDistance,
+																	PxU32 maxNbAggregates, PxU32 maxNbShapes, Cm::VirtualAllocatorCallback& allocator, PxU64 contextID,
+																	PxPairFilteringMode::Enum kineKineFilteringMode, PxPairFilteringMode::Enum staticKineFilteringMode);
+
+		virtual											~AABBManager() {}
+
+		// AABBManagerBase
+		virtual			void							destroy()	PX_OVERRIDE	PX_FINAL;
+		virtual			AggregateHandle					createAggregate(BoundsIndex index, Bp::FilterGroup::Enum group, void* userData, PxU32 maxNumShapes, PxAggregateFilterHint filterHint, PxU32 envID)	PX_OVERRIDE	PX_FINAL;
+		virtual			bool							destroyAggregate(BoundsIndex& index, Bp::FilterGroup::Enum& group, AggregateHandle aggregateHandle)	PX_OVERRIDE	PX_FINAL;
+		virtual			bool							addBounds(BoundsIndex index, PxReal contactDistance, Bp::FilterGroup::Enum group, void* userdata, AggregateHandle aggregateHandle, ElementType::Enum volumeType, PxU32 envID)	PX_OVERRIDE	PX_FINAL;
+		virtual			bool							removeBounds(BoundsIndex index)	PX_OVERRIDE	PX_FINAL;
+		virtual			void							updateBPFirstPass(PxU32 numCpuTasks, Cm::FlushPool& flushPool, bool hasContactDistanceUpdated, PxBaseTask* continuation)	PX_OVERRIDE	PX_FINAL;
+		virtual			void							updateBPSecondPass(PxcScratchAllocator* scratchAllocator, PxBaseTask* continuation)	PX_OVERRIDE	PX_FINAL;
+		virtual			void							postBroadPhase(PxBaseTask*, Cm::FlushPool& flushPool)	PX_OVERRIDE	PX_FINAL;
+		virtual			void							reallocateChangedAABBMgActorHandleMap(const PxU32 size)	PX_OVERRIDE	PX_FINAL;
+		virtual			bool							getOutOfBoundsObjects(OutOfBoundsData& data)			PX_OVERRIDE	PX_FINAL;
+		virtual			void							clearOutOfBoundsObjects()								PX_OVERRIDE	PX_FINAL;
+		virtual			void							visualize(PxRenderOutput& out)	PX_OVERRIDE	PX_FINAL;
+		virtual			void							releaseDeferredAggregateIds()	PX_OVERRIDE	PX_FINAL	{}
+		//~AABBManagerBase
+
+						void							preBpUpdate_CPU(PxU32 numCpuTasks);
+
+						// PT: TODO: what is that BpCacheData for?
+						BpCacheData*					getBpCacheData();
+						void							putBpCacheData(BpCacheData*);
+						void							resetBpCacheData();
+
+						PxMutex							mMapLock;
+	private:
+						//void reserveShapeSpace(PxU32 nbShapes);
+
+						void							postBpStage2(PxBaseTask*, Cm::FlushPool&);
+						void							postBpStage3(PxBaseTask*);
+
+						PostBroadPhaseStage2Task									mPostBroadPhase2;
+						Cm::DelegateTask<AABBManager, &AABBManager::postBpStage3>	mPostBroadPhase3;
+
+						PreBpUpdateTask					mPreBpUpdateTask;
+
+						PxU32							mTimestamp;
+						PxU32							mFirstFreeAggregate;
+						PxArray<Aggregate*>				mAggregates;		// PT: indexed by AggregateHandle
+						PxArray<Aggregate*>				mDirtyAggregates;
+
+						AggPairMap						mActorAggregatePairs;
+						AggPairMap						mAggregateAggregatePairs;
+
+						PxArray<ProcessAggPairsBase*>	mAggPairTasks;
+
+						PxHashSet<Pair>					mCreatedPairsTmp;	// PT: temp hashset for dubious post filtering, persistent to minimize allocs
+
+						PxSList							mBpThreadContextPool;
+
+						PxArray<void*>					mOutOfBoundsObjects;
+						PxArray<void*>					mOutOfBoundsAggregates;
+
+		PX_FORCE_INLINE	Aggregate*						getAggregateFromHandle(AggregateHandle handle)
+														{
+															PX_ASSERT(handle<mAggregates.size());
+															return mAggregates[handle];
+														}
+
+						void							startAggregateBoundsComputationTasks(PxU32 nbToGo, PxU32 numCpuTasks, Cm::FlushPool& flushPool);
+						PersistentActorAggregatePair*	createPersistentActorAggregatePair(ShapeHandle volA, ShapeHandle volB);
+					PersistentAggregateAggregatePair*	createPersistentAggregateAggregatePair(ShapeHandle volA, ShapeHandle volB);
+						void							updatePairs(PersistentPairs& p, BpCacheData* data = NULL);
+						void							handleOriginShift();
+
+	public:
+						void							processBPCreatedPair(const BroadPhasePair& pair);
+						void							processBPDeletedPair(const BroadPhasePair& pair);
+
+		friend class PersistentActorAggregatePair;
+		friend class PersistentAggregateAggregatePair;
+		friend class ProcessSelfCollisionPairsParallel;
+		friend class PostBroadPhaseStage2Task;
+	};
+
+} //namespace Bp
+} //namespace physx
+
+#endif //BP_AABBMANAGER_H

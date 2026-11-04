@@ -59,6 +59,7 @@ import { buildCompiledSystems, type BuildMode } from '../bundle/buildCompiledSys
 import { resolveEmcc, runEmcc } from '../bundle/emccPath';
 import type { MiniGameExportProfile, MiniGameVendor } from './miniGameExportProfile';
 import { contentSubsystems } from './contentSubsystems';
+import type { Physics3DBackend } from 'esengine';
 import { engineInstalls, forcedSideModules, moduleChoices } from '../bundle/engineInstalls';
 
 
@@ -220,9 +221,10 @@ async function scanSideModules(
   wasmDir: string,
   errors: string[],
   forced: readonly string[],
+  physics3dBackend?: Physics3DBackend,
 ): Promise<Array<{ id: string; file: string }>> {
   const ids = await scanSideModuleIds({
-    root, includedPaths, cookEntries, stagedDir: absOut, forced,
+    root, includedPaths, cookEntries, stagedDir: absOut, forced, physics3dBackend,
   });
   const { files, unknown } = sideModuleFiles(ids);
   for (const id of unknown) errors.push(`internal: no artifact mapping for side module "${id}"`);
@@ -442,6 +444,7 @@ export async function exportMiniGame(profile: MiniGameExportProfile, opts: {
   const engineSideModules = await scanSideModules(
     profile, opts.root, cook.includedPaths, cookEntries, absOut, opts.wasmDir, errors,
     forcedSideModules(moduleChoices(opts.features, opts.modulesByPlatform?.[profile.id])),
+    opts.features?.physics?.backend3d,
   );
   // …plus the ones the PROJECT supplies. They are not scanned for: a project put
   // them in `.esengine/modules/` in order to use them, and unlike physics or

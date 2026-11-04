@@ -20,7 +20,7 @@ export type SpineVersion = '2.1' | '3.8' | '4.1' | '4.2' | '4.3';
 
 /** The modules the engine itself builds and ships. */
 export type BuiltinSideModuleId =
-    'physics' | 'physics3d' | 'basis' | 'videodec' | 'dragonbones' | `spine:${SpineVersion}`;
+    'physics' | 'physics3d' | 'physics3d:physx' | 'basis' | 'videodec' | 'dragonbones' | `spine:${SpineVersion}`;
 
 /**
  * Identifies an optional native module across every realm and transport.
@@ -56,6 +56,9 @@ export const SIDE_MODULES: Record<BuiltinSideModuleId, SideModuleDescriptor> = {
     // The 3D world (Jolt). A separate module from the 2D one on purpose: the two
     // never share a solver, and a 2D project should not carry a 3D one's weight.
     physics3d: { file: 'physics3d', globalName: 'ESPhysics3DModule' },
+    // The same 3D surface over PhysX, the solver Unity runs: same entry points,
+    // same factory name. A project picks one backend and ships one.
+    'physics3d:physx': { file: 'physics3d-physx', globalName: 'ESPhysics3DModule' },
     // Basis Universal KTX2 transcoder — compressed textures decode to a
     // GPU format on demand. MODULARIZE glue with a named EXPORT_NAME, like spine.
     basis: { file: 'basis', globalName: 'ESBasisModule' },
@@ -71,6 +74,14 @@ export const SIDE_MODULES: Record<BuiltinSideModuleId, SideModuleDescriptor> = {
     'spine:4.2': { file: 'spine42', globalName: 'ESSpineModule' },
     'spine:4.3': { file: 'spine43', globalName: 'ESSpineModule' },
 };
+
+/** The 3D physics backends a project can choose (Project Settings → Physics). */
+export type Physics3DBackend = 'jolt' | 'physx';
+
+/** The side module that implements the 3D world for `backend`; Jolt when unset. */
+export function physics3dModuleId(backend?: Physics3DBackend): BuiltinSideModuleId {
+    return backend === 'physx' ? 'physics3d:physx' : 'physics3d';
+}
 
 export const SPINE_VERSIONS: readonly SpineVersion[] = ['2.1', '3.8', '4.1', '4.2', '4.3'];
 

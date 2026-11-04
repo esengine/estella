@@ -1,0 +1,135 @@
+// Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
+// Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2008-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+#ifndef SC_ARTICULATION_CORE_H
+#define SC_ARTICULATION_CORE_H
+
+#include "ScActorCore.h"
+#include "DyFeatherstoneArticulation.h"
+
+namespace physx
+{
+class PxNodeIndex;
+
+namespace Sc
+{
+	class ArticulationSim;
+
+	class ArticulationCore
+	{
+// PX_SERIALIZATION
+		public:
+													ArticulationCore(const PxEMPTY) : mSim(NULL), mCore(PxEmpty) {}
+//~PX_SERIALIZATION
+													ArticulationCore();
+													~ArticulationCore();
+
+		//---------------------------------------------------------------------------------
+		// External API
+		//---------------------------------------------------------------------------------
+		PX_FORCE_INLINE	PxReal						getSleepThreshold()					const	{ return mCore.sleepThreshold;			}
+		PX_FORCE_INLINE	void						setSleepThreshold(const PxReal v)			{ mCore.sleepThreshold = v;				}
+
+		PX_FORCE_INLINE	PxReal						getFreezeThreshold()				const	{ return mCore.freezeThreshold;			}
+		PX_FORCE_INLINE	void						setFreezeThreshold(const PxReal v)			{ mCore.freezeThreshold = v;			}
+
+		PX_FORCE_INLINE	PxU16						getSolverIterationCounts()			const	{ return mCore.solverIterationCounts;	}
+		PX_FORCE_INLINE	void						setSolverIterationCounts(PxU16 c)			{ mCore.solverIterationCounts = c;		}
+
+		PX_FORCE_INLINE	PxReal						getWakeCounter()					const	{ return mCore.wakeCounter;				}
+		PX_FORCE_INLINE	void						setWakeCounterInternal(const PxReal v)		{ mCore.wakeCounter = v;				}
+						void						setWakeCounter(const PxReal v);
+
+						bool						isSleeping() const;
+						void						wakeUp(PxReal wakeCounter);
+						void						putToSleep();
+
+		//---------------------------------------------------------------------------------
+		// external reduced coordinate API
+		//---------------------------------------------------------------------------------
+						void						setArticulationFlags(PxArticulationFlags flags);
+						PxArticulationFlags			getArticulationFlags() const { return mCore.flags; }
+
+						PxU32						getDofs() const;
+
+						PxArticulationCache*		createCache() const;
+
+						PxU32						getCacheDataSize() const;
+
+						void						zeroCache(PxArticulationCache& cache) const;
+
+						bool						applyCache(PxArticulationCache& cache, const PxArticulationCacheFlags flag)const;
+		
+						void						copyInternalStateToCache
+														(PxArticulationCache& cache, const PxArticulationCacheFlags flag, const bool isGpuSimEnabled) const;
+
+						void						packJointData(const PxReal* maximum, PxReal* reduced) const;
+
+						void						unpackJointData(const PxReal* reduced, PxReal* maximum) const;
+
+						void						commonInit() const;
+
+						void						computeGeneralizedGravityForce(PxArticulationCache& cache) const;
+
+						void						computeCoriolisAndCentrifugalForce(PxArticulationCache& cache) const;
+
+						void						computeGeneralizedExternalForce(PxArticulationCache& cache) const;
+
+						void						computeJointAcceleration(PxArticulationCache& cache) const;
+
+						void						computeJointForce(PxArticulationCache& cache) const;
+
+						void						computeDenseJacobian(PxArticulationCache& cache, PxU32& nRows, PxU32& nCols) const;
+
+						void						computeCoefficientMatrix_Deprecated(PxArticulationCache& cache) const;
+
+						bool						computeLambda_Deprecated(PxArticulationCache& cache, PxArticulationCache& rollBackCache, const PxReal* const jointTorque, const PxVec3 gravity, const PxU32 maxIter) const;
+
+						void						computeGeneralizedMassMatrix(PxArticulationCache& cache) const;
+
+						PxVec3						computeArticulationCOM(const bool rootFrame) const;
+
+						void						computeCentroidalMomentumMatrix(PxArticulationCache& cache) const;
+
+						PxU32						getCoefficientMatrixSize_Deprecated() const;
+
+						PxSpatialVelocity			getLinkAcceleration(const PxU32 linkId, const bool isGpuSimEnabled) const;
+
+						PxU32						getGpuArticulationIndex() const;				
+
+						void						updateKinematic(PxArticulationKinematicFlags flags);
+		//---------------------------------------------------------------------------------
+		// Internal API
+		//---------------------------------------------------------------------------------
+	public:
+		PX_FORCE_INLINE	void						setSim(ArticulationSim* sim)
+													{
+														PX_ASSERT((sim==0) ^ (mSim == 0));
+														mSim = sim;
+													}
+		PX_FORCE_INLINE	ArticulationSim*			getSim()			const	{ return mSim;			}
+
+		PX_FORCE_INLINE	Dy::ArticulationCore&		getCore()			{ return mCore;			}
+
+		static PX_FORCE_INLINE ArticulationCore&	getArticulationCore(ArticulationCore& core)
+													{
+														const size_t offset = PX_OFFSET_OF(ArticulationCore, mCore);
+														return *reinterpret_cast<ArticulationCore*>(reinterpret_cast<PxU8*>(&core) - offset);
+													}
+
+						PxNodeIndex					getIslandNodeIndex() const;
+
+						void						setGlobalPose();
+
+	private:
+						ArticulationSim*			mSim;
+						Dy::ArticulationCore		mCore;
+	};
+
+} // namespace Sc
+
+}
+
+#endif

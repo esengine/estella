@@ -484,6 +484,11 @@ jobs:
         ESTELLA_REQUIRE_WASM: '1'
       run: node tools/check-physics3d.mjs
 
+    - name: Check the PhysX 3D physics module
+      env:
+        ESTELLA_REQUIRE_WASM: '1'
+      run: node tools/check-physics3d-physx.mjs
+
     - name: Check the 2D physics module
       env:
         ESTELLA_REQUIRE_WASM: '1'

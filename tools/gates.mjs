@@ -337,6 +337,12 @@ export const GATES = [
     where: 'local',
     why: 'it runs the built 3D physics wasm and skips a machine without one; the engine-coupled CI job runs it where the binary is, under ESTELLA_REQUIRE_WASM',
   },
+  {
+    id: 'physics3d-physx',
+    run: 'node tools/check-physics3d-physx.mjs',
+    where: 'local',
+    why: 'it runs the built PhysX 3D wasm and skips a machine without one; the engine-coupled CI job runs it where the binary is, under ESTELLA_REQUIRE_WASM',
+  },
   { id: 'engine-gaps', run: 'node tools/check-engine-gaps.mjs' },
   { id: 'minigame-host', run: 'node tools/check-minigame-host.mjs' },
   { id: 'release-gate', run: 'node tools/check-release-gate.mjs' },

@@ -29,7 +29,7 @@ import { parseThemeOverrides, type ThemeOverrides } from '../ui/theme/tokens';
 import { VideoPlayer } from '../video/VideoAPI';
 import type { App } from '../app/app';
 import type { RuntimeAssetSource } from './runtimeAssets';
-import { registerSideModule } from '../sideModules/registry';
+import { registerSideModule, type Physics3DBackend } from '../sideModules/registry';
 import type { AotManifest } from '../ecs/aot/AotSystems';
 
 /**
@@ -105,6 +105,8 @@ export interface PackagedGameConfig {
     /** The physics world the project declared: gravity, solver, collision matrix.
      *  Absent ⇒ the engine's own defaults. */
     physicsConfig?: Physics2DPluginConfig;
+    /** The 3D physics backend the project chose; absent ⇒ Jolt. */
+    physics3dBackend?: Physics3DBackend;
     /** Project mixer state: bus volumes, custom buses, effects, duck rules.
      *  Absent ⇒ the default mix. */
     audioConfig?: AudioProjectConfig;
@@ -240,11 +242,12 @@ export function packagedAppOptions(
  */
 export function packagedRuntimeInit(
     config: Pick<PackagedGameConfig,
-        'physicsEnabled' | 'physicsConfig' | 'audioConfig' | 'uiTheme' | 'uiThemeColors'
+        'physicsEnabled' | 'physicsConfig' | 'physics3dBackend' | 'audioConfig' | 'uiTheme' | 'uiThemeColors'
         | 'achievements' | 'steamAppId' | 'screenFit' | 'aot' | 'debugChannel' | 'runtime'>,
 ): {
     physicsEnabled?: boolean;
     physicsConfig?: Physics2DPluginConfig;
+    physics3dBackend?: Physics3DBackend;
     audioConfig?: AudioProjectConfig;
     runtime?: RuntimeBuildConfig;
     uiTheme?: 'light';
@@ -258,6 +261,7 @@ export function packagedRuntimeInit(
     return {
         physicsEnabled: config.physicsEnabled,
         physicsConfig: config.physicsConfig,
+        physics3dBackend: config.physics3dBackend,
         audioConfig: config.audioConfig,
         runtime: config.runtime,
         uiTheme: config.uiTheme,

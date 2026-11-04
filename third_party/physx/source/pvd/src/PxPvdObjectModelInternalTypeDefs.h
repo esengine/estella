@@ -1,0 +1,8 @@
+// SPDX-FileCopyrightText: Copyright (c) 2008-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+#define THERE_IS_NO_INCLUDE_GUARD_HERE_FOR_A_REASON
+
+DECLARE_INTERNAL_PVD_TYPE(ArrayData)
+
+#undef THERE_IS_NO_INCLUDE_GUARD_HERE_FOR_A_REASON

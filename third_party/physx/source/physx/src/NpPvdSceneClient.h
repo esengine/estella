@@ -1,0 +1,244 @@
+// Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
+// Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2008-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+#ifndef NP_SCENE_PVD_CLIENT_H
+#define NP_SCENE_PVD_CLIENT_H
+
+#include "PxPhysXConfig.h"
+
+#if PX_SUPPORT_PVD
+
+#include "foundation/PxStrideIterator.h"
+#include "pvd/PxPvdTransport.h"
+#include "pvd/PxPvdSceneClient.h"
+
+#include "PvdMetaDataPvdBinding.h"
+#include "foundation/PxBitMap.h"
+#include "PxPvdClient.h"
+#include "PxPvdUserRenderer.h"
+#include "PsPvd.h"
+
+#include "PxsMaterialCore.h"
+#include "PxsDeformableSurfaceMaterialCore.h"
+#include "PxsDeformableVolumeMaterialCore.h"
+#include "PxsPBDMaterialCore.h"
+
+namespace physx
+{
+class PxActor;
+class PxArticulationLink;
+class PxRenderBuffer;
+class NpConstraint;
+class NpShape;
+class NpAggregate;
+class NpRigidStatic;
+class NpRigidDynamic;
+class NpArticulationLink;
+class NpArticulationJointReducedCoordinate;
+class NpArticulationReducedCoordinate;
+class NpArticulationSpatialTendon;
+class NpArticulationFixedTendon;
+class NpArticulationMimicJoint;
+class NpActor;
+class NpScene;
+
+#if PX_SUPPORT_GPU_PHYSX
+class NpDeformableSurface;
+class NpDeformableVolume;
+class NpPBDParticleSystem;
+class NpDeformableAttachment;
+class NpDeformableElementFilter;
+#endif
+
+namespace Sc
+{
+class ConstraintCore;
+}
+
+namespace Vd
+{
+class PvdSceneClient : public PxPvdSceneClient, public PvdClient, public PvdVisualizer
+{
+	PX_NOCOPY(PvdSceneClient)
+  public:
+							PvdSceneClient(NpScene& scene);
+	virtual					~PvdSceneClient();
+
+	// PxPvdSceneClient
+	virtual	void			setScenePvdFlag(PxPvdSceneFlag::Enum flag, bool value) PX_OVERRIDE;
+	virtual	void			setScenePvdFlags(PxPvdSceneFlags flags) PX_OVERRIDE { mFlags = flags;	}
+	virtual	PxPvdSceneFlags	getScenePvdFlags()							const PX_OVERRIDE { return mFlags;	}
+	virtual	void			updateCamera(const char* name, const PxVec3& origin, const PxVec3& up, const PxVec3& target) PX_OVERRIDE;
+	virtual	void			drawPoints(const PxDebugPoint* points, PxU32 count) PX_OVERRIDE;
+	virtual	void			drawLines(const PxDebugLine* lines, PxU32 count) PX_OVERRIDE;
+	virtual	void			drawTriangles(const PxDebugTriangle* triangles, PxU32 count) PX_OVERRIDE;
+	virtual	void			drawText(const PxDebugText& text) PX_OVERRIDE;
+	virtual	PvdClient*		getClientInternal() PX_OVERRIDE { return this;		}
+	//~PxPvdSceneClient
+	
+	// pvdClient	
+	virtual	PvdDataStream*		getDataStream() PX_OVERRIDE { return mPvdDataStream;	}
+	virtual bool                isConnected()	const PX_OVERRIDE { return mIsConnected;		}
+	virtual void                onPvdConnected() PX_OVERRIDE;
+	virtual void                onPvdDisconnected() PX_OVERRIDE;
+	virtual void                flush() PX_OVERRIDE {}
+	//~pvdClient
+
+	PX_FORCE_INLINE bool checkPvdDebugFlag()	const
+	{
+		return mIsConnected && (mPvd->getInstrumentationFlags() & PxPvdInstrumentationFlag::eDEBUG);
+	}
+
+	PX_FORCE_INLINE	PxPvdSceneFlags	getScenePvdFlagsFast() const	{ return mFlags;	}
+	PX_FORCE_INLINE	void             setPsPvd(PsPvd* pvd)			{ mPvd = pvd;		}
+
+	void frameStart(PxReal simulateElapsedTime);
+	void frameEnd();
+
+	void updatePvdProperties();
+	void releasePvdInstance();
+
+	void createPvdInstance	(const PxActor* actor); // temporary for deformables and particle systems - sschirm: deformables and particles are gone...
+	void updatePvdProperties(const PxActor* actor);
+	void releasePvdInstance	(const PxActor* actor); // temporary for deformables and particle systems - sschirm: deformables and particles are gone...
+
+	void createPvdInstance	(const NpActor* actor); // temporary for deformables and particle systems - sschirm: deformables and particles are gone...
+	void updatePvdProperties(const NpActor* actor);
+	void releasePvdInstance	(const NpActor* actor); // temporary for deformables and particle systems - sschirm: deformables and particles are gone...
+
+	void createPvdInstance		(const NpRigidDynamic* body);
+	void createPvdInstance		(const NpArticulationLink* body);
+	void updatePvdProperties	(const NpRigidDynamic* body);
+	void updatePvdProperties	(const NpArticulationLink* body);
+	void releasePvdInstance		(const NpRigidDynamic* body);
+	void releasePvdInstance		(const NpArticulationLink* body);
+	void updateBodyPvdProperties(const NpActor* body);
+	void updateKinematicTarget	(const NpActor* body, const PxTransform& p);
+
+	void createPvdInstance		(const NpRigidStatic* rigidStatic);
+	void updatePvdProperties	(const NpRigidStatic* rigidStatic);
+	void releasePvdInstance		(const NpRigidStatic* rigidStatic);
+
+	void createPvdInstance	(const NpConstraint* constraint);
+	void updatePvdProperties(const NpConstraint* constraint);
+	void releasePvdInstance	(const NpConstraint* constraint);
+
+	void createPvdInstance	(const NpArticulationReducedCoordinate* articulation);
+	void updatePvdProperties(const NpArticulationReducedCoordinate* articulation);
+	void releasePvdInstance	(const NpArticulationReducedCoordinate* articulation);
+
+	void createPvdInstance	(const NpArticulationJointReducedCoordinate* articulationJoint);
+	void updatePvdProperties(const NpArticulationJointReducedCoordinate* articulationJoint);
+	void releasePvdInstance	(const NpArticulationJointReducedCoordinate* articulationJoint);
+
+	void createPvdInstance(const NpArticulationSpatialTendon* articulationTendon);
+	void updatePvdProperties(const NpArticulationSpatialTendon* articulationTendon);
+	void releasePvdInstance(const NpArticulationSpatialTendon* articulationTendon);
+
+	void createPvdInstance(const NpArticulationFixedTendon* articulationTendon);
+	void updatePvdProperties(const NpArticulationFixedTendon* articulationTendon);
+	void releasePvdInstance(const NpArticulationFixedTendon* articulationTendon);
+
+	void createPvdInstance(const NpArticulationMimicJoint* mimicJoint);
+	void updatePvdProperties(const NpArticulationMimicJoint* mimicJoint);
+	void releasePvdInstance(const NpArticulationMimicJoint* mimicJoint);
+
+	///////////////////////////////////////////////////////////////////////////
+
+	void createPvdInstance	(const PxsMaterialCore* materialCore);
+	void updatePvdProperties(const PxsMaterialCore* materialCore);
+	void releasePvdInstance	(const PxsMaterialCore* materialCore);
+
+	void createPvdInstance(const PxsDeformableSurfaceMaterialCore* materialCore);
+	void updatePvdProperties(const PxsDeformableSurfaceMaterialCore* materialCore);
+	void releasePvdInstance(const PxsDeformableSurfaceMaterialCore* materialCore);
+
+	void createPvdInstance	(const PxsDeformableVolumeMaterialCore* materialCore);
+	void updatePvdProperties(const PxsDeformableVolumeMaterialCore* materialCore);
+	void releasePvdInstance	(const PxsDeformableVolumeMaterialCore* materialCore);
+
+	void createPvdInstance	(const PxsPBDMaterialCore* materialCore);
+	void updatePvdProperties(const PxsPBDMaterialCore* materialCore);
+	void releasePvdInstance	(const PxsPBDMaterialCore* materialCore);
+
+	///////////////////////////////////////////////////////////////////////////
+
+	void createPvdInstance			(const NpShape* shape, PxActor& owner);
+	void updateMaterials			(const NpShape* shape);
+	void updatePvdProperties		(const NpShape* shape);
+	void releaseAndRecreateGeometry	(const NpShape* shape);
+	void releasePvdInstance			(const NpShape* shape, PxActor& owner);
+	void addBodyAndShapesToPvd		(NpRigidDynamic& b);
+	void addStaticAndShapesToPvd	(NpRigidStatic& s);
+
+	void createPvdInstance		(const NpAggregate* aggregate);
+	void updatePvdProperties	(const NpAggregate* aggregate);
+	void attachAggregateActor	(const NpAggregate* aggregate, NpActor* actor);
+	void detachAggregateActor	(const NpAggregate* aggregate, NpActor* actor);
+	void releasePvdInstance		(const NpAggregate* aggregate);
+
+#if PX_SUPPORT_GPU_PHYSX
+	void createPvdInstance(const NpDeformableSurface* deformableSurface);
+	void updatePvdProperties(const NpDeformableSurface* deformableSurface);
+	void attachAggregateActor(const NpDeformableSurface* deformableSurface, NpActor* actor);
+	void detachAggregateActor(const NpDeformableSurface* deformableSurface, NpActor* actor);
+	void releasePvdInstance(const NpDeformableSurface* deformableSurface);
+
+	void createPvdInstance(const NpDeformableVolume* deformableVolume);
+	void updatePvdProperties(const NpDeformableVolume* deformableVolume);
+	void attachAggregateActor(const NpDeformableVolume* deformableVolume, NpActor* actor);
+	void detachAggregateActor(const NpDeformableVolume* deformableVolume, NpActor* actor);
+	void releasePvdInstance(const NpDeformableVolume* deformableVolume);
+
+	void createPvdInstance(const NpPBDParticleSystem* particleSystem);
+	void updatePvdProperties(const NpPBDParticleSystem* particleSystem);
+	void attachAggregateActor(const NpPBDParticleSystem* particleSystem, NpActor* actor);
+	void detachAggregateActor(const NpPBDParticleSystem* particleSystem, NpActor* actor);
+	void releasePvdInstance(const NpPBDParticleSystem* particleSystem);
+
+	void createPvdInstance(const NpDeformableAttachment* attachment);
+	void updatePvdProperties(const NpDeformableAttachment* attachment);
+	void attachAggregateActor(const NpDeformableAttachment* attachment, NpActor* actor);
+	void detachAggregateActor(const NpDeformableAttachment* attachment, NpActor* actor);
+	void releasePvdInstance(const NpDeformableAttachment* attachment);
+
+	void createPvdInstance(const NpDeformableElementFilter* elementFilter);
+	void updatePvdProperties(const NpDeformableElementFilter* elementFilter);
+	void attachAggregateActor(const NpDeformableElementFilter* elementFilter, NpActor* actor);
+	void detachAggregateActor(const NpDeformableElementFilter* elementFilter, NpActor* actor);
+	void releasePvdInstance(const NpDeformableElementFilter* elementFilter);
+#endif
+
+	void originShift(PxVec3 shift);
+	void updateJoints();
+	void updateContacts();
+	void updateSceneQueries();
+
+	// PvdVisualizer
+	virtual	void visualize(PxArticulationLink& link)	PX_OVERRIDE;
+	void visualize(const PxRenderBuffer& debugRenderable);
+
+  private:
+
+	void				sendEntireScene();
+	void				updateConstraint(const Sc::ConstraintCore& scConstraint, PxU32 updateType);
+
+	PxPvdSceneFlags			mFlags;
+	PsPvd*					mPvd;
+	NpScene&				mScene;
+	
+	PvdDataStream*			mPvdDataStream;
+	PvdMetaDataBinding		mMetaDataBinding;
+	PvdUserRenderer*		mUserRender;
+	RendererEventClient*	mRenderClient;
+	bool					mIsConnected;
+};
+
+} // pvd
+
+} // physx
+#endif // PX_SUPPORT_PVD
+
+#endif // NP_SCENE_PVD_CLIENT_H

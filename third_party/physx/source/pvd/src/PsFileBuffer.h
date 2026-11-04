@@ -1,0 +1,224 @@
+// SPDX-FileCopyrightText: Copyright (c) 2008-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+#ifndef PSFILEBUFFER_PSFILEBUFFER_H
+#define PSFILEBUFFER_PSFILEBUFFER_H
+
+#include "PxFileBuf.h"
+
+#include "foundation/PxUserAllocated.h"
+#include <stdio.h>
+
+namespace physx
+{
+namespace general_PxIOStream2
+{
+
+//Use this class if you want to use your own allocator
+class PxFileBufferBase : public PxFileBuf
+{
+public:
+	PxFileBufferBase(const char *fileName,OpenMode mode)
+	{
+		mOpenMode = mode;
+		mFph = NULL;
+		mFileLength = 0;
+		mSeekRead   = 0;
+		mSeekWrite  = 0;
+		mSeekCurrent = 0;
+		switch ( mode )
+		{
+			case OPEN_READ_ONLY:
+				mFph = fopen(fileName,"rb");
+				break;
+			case OPEN_WRITE_ONLY:
+				mFph = fopen(fileName,"wb");
+				break;
+			case OPEN_READ_WRITE_NEW:
+				mFph = fopen(fileName,"wb+");
+				break;
+			case OPEN_READ_WRITE_EXISTING:
+				mFph = fopen(fileName,"rb+");
+				break;
+			case OPEN_FILE_NOT_FOUND:
+				break;
+		}
+		if ( mFph )
+		{
+			fseek(mFph,0L,SEEK_END);
+			mFileLength = static_cast<uint32_t>(ftell(mFph));
+			fseek(mFph,0L,SEEK_SET);
+		}
+		else
+		{
+			mOpenMode = OPEN_FILE_NOT_FOUND;
+		}
+    }
+
+	virtual						~PxFileBufferBase()
+	{
+		close();
+	}
+
+	virtual void close() PX_OVERRIDE
+	{
+		if( mFph )
+		{
+			fclose(mFph);
+			mFph = 0;
+		}
+	}
+
+	virtual SeekType isSeekable() const PX_OVERRIDE
+	{
+		return mSeekType;
+	}
+
+	virtual		uint32_t			read(void* buffer, uint32_t size) PX_OVERRIDE
+	{
+		uint32_t ret = 0;
+		if ( mFph )
+		{
+			setSeekRead();
+			ret = static_cast<uint32_t>(::fread(buffer,1,size,mFph));
+			mSeekRead+=ret;
+			mSeekCurrent+=ret;
+		}
+		return ret;
+	}
+
+	virtual		uint32_t			peek(void* buffer, uint32_t size) PX_OVERRIDE
+	{
+		uint32_t ret = 0;
+		if ( mFph )
+		{
+			uint32_t loc = tellRead();
+			setSeekRead();
+			ret = static_cast<uint32_t>(::fread(buffer,1,size,mFph));
+			mSeekCurrent+=ret;
+			seekRead(loc);
+		}
+		return ret;
+	}
+
+	virtual		uint32_t		write(const void* buffer, uint32_t size) PX_OVERRIDE
+	{
+		uint32_t ret = 0;
+		if ( mFph )
+		{
+			setSeekWrite();
+			ret = static_cast<uint32_t>(::fwrite(buffer,1,size,mFph));
+			mSeekWrite+=ret;
+			mSeekCurrent+=ret;
+			if ( mSeekWrite > mFileLength )
+			{
+				mFileLength = mSeekWrite;
+			}
+		}
+		return ret;
+	}
+
+	virtual uint32_t tellRead() const PX_OVERRIDE
+	{
+		return mSeekRead;
+	}
+
+	virtual uint32_t tellWrite() const PX_OVERRIDE
+	{
+		return mSeekWrite;
+	}
+
+	virtual uint32_t seekRead(uint32_t loc) PX_OVERRIDE
+	{
+		mSeekRead = loc;
+		if ( mSeekRead > mFileLength )
+		{
+			mSeekRead = mFileLength;
+		}
+		return mSeekRead;
+	}
+
+	virtual uint32_t seekWrite(uint32_t loc) PX_OVERRIDE
+	{
+		mSeekWrite = loc;
+		if ( mSeekWrite > mFileLength )
+		{
+			mSeekWrite = mFileLength;
+		}
+		return mSeekWrite;
+	}
+
+	virtual void flush() PX_OVERRIDE
+	{
+		if ( mFph )
+		{
+			::fflush(mFph);
+		}
+	}
+
+	virtual OpenMode	getOpenMode() const PX_OVERRIDE
+	{
+		return mOpenMode;
+	}
+
+	virtual uint32_t getFileLength() const PX_OVERRIDE
+	{
+		return mFileLength;
+	}
+
+private:
+	// Moves the actual file pointer to the current read location
+	void setSeekRead() 
+	{
+		if ( mSeekRead != mSeekCurrent && mFph )
+		{
+			if ( mSeekRead >= mFileLength )
+			{
+				fseek(mFph,0L,SEEK_END);
+			}
+			else
+			{
+				fseek(mFph,static_cast<long>(mSeekRead),SEEK_SET);
+			}
+			mSeekCurrent = mSeekRead = static_cast<uint32_t>(ftell(mFph));
+		}
+	}
+	// Moves the actual file pointer to the current write location
+	void setSeekWrite()
+	{
+		if ( mSeekWrite != mSeekCurrent && mFph )
+		{
+			if ( mSeekWrite >= mFileLength )
+			{
+				fseek(mFph,0L,SEEK_END);
+			}
+			else
+			{
+				fseek(mFph,static_cast<long>(mSeekWrite),SEEK_SET);
+			}
+			mSeekCurrent = mSeekWrite = static_cast<uint32_t>(ftell(mFph));
+		}
+	}
+
+
+	FILE*		mFph;
+	uint32_t	mSeekRead;
+	uint32_t	mSeekWrite;
+	uint32_t	mSeekCurrent;
+	uint32_t	mFileLength;
+	SeekType	mSeekType;
+	OpenMode	mOpenMode;
+};
+
+//Use this class if you want to use PhysX memory allocator
+class PsFileBuffer: public PxFileBufferBase, public PxUserAllocated
+{
+public:
+	PsFileBuffer(const char *fileName,OpenMode mode): PxFileBufferBase(fileName, mode) {}
+};
+
+}
+using namespace general_PxIOStream2;
+}
+
+#endif // PSFILEBUFFER_PSFILEBUFFER_H

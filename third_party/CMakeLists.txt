@@ -97,6 +97,54 @@ if(ES_ENABLE_JOLT)
 endif()
 
 # =============================================================================
+# PhysX 5 - the second 3D backend, for projects that want Unity's solver
+# =============================================================================
+
+# Vendored as the CPU half of NVIDIA-Omniverse/PhysX (include/ and source/, no
+# GPU, CUDA or serialization metadata), and built as ONE library: the upstream
+# tree is a dozen targets whose only reason to be apart is DLL packaging, and no
+# two of its headers share a name, so one include set serves every file.
+if(ES_ENABLE_PHYSX)
+    set(_PX ${CMAKE_CURRENT_SOURCE_DIR}/physx)
+    file(GLOB_RECURSE PHYSX_SOURCES "${_PX}/source/*.cpp")
+    # Remote debugging (PVD) is off in a release build, and the vehicle SDK has
+    # no consumer here yet.
+    list(FILTER PHYSX_SOURCES EXCLUDE REGEX "/source/(pvd|physxvehicle|immediatemode)/")
+    if(WIN32)
+        list(FILTER PHYSX_SOURCES EXCLUDE REGEX "/unix/")
+    else()
+        list(FILTER PHYSX_SOURCES EXCLUDE REGEX "/windows/")
+    endif()
+    add_library(physx STATIC ${PHYSX_SOURCES})
+    file(GLOB_RECURSE _PX_HEADERS LIST_DIRECTORIES false "${_PX}/source/*.h")
+    set(_PX_PRIVATE_DIRS "")
+    # Every directory holding a header, and the ones above it: files include
+    # both "Foo.h" and "omnipvd/Foo.h".
+    foreach(_h ${_PX_HEADERS})
+        get_filename_component(_d "${_h}" DIRECTORY)
+        while(NOT _d STREQUAL "${_PX}/source" AND NOT _d STREQUAL "${_PX}")
+            list(APPEND _PX_PRIVATE_DIRS "${_d}")
+            get_filename_component(_d "${_d}" DIRECTORY)
+        endwhile()
+    endforeach()
+    list(REMOVE_DUPLICATES _PX_PRIVATE_DIRS)
+    target_include_directories(physx PUBLIC ${_PX}/include PRIVATE ${_PX_PRIVATE_DIRS})
+    target_compile_features(physx PUBLIC cxx_std_17)
+    target_compile_definitions(physx PUBLIC
+        PX_PHYSX_STATIC_LIB NDEBUG PX_SUPPORT_PVD=0 PX_SUPPORT_OMNI_PVD=0
+        DISABLE_CUDA_PHYSX PX_PUBLIC_RELEASE=1)
+    if(NOT MSVC)
+        target_compile_options(physx PRIVATE -w -fno-strict-aliasing)
+    endif()
+    if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
+        # The SSE2 path, which emscripten lowers onto wasm SIMD (the flags above
+        # carry -msse2). No LTO: measured, it made the module 130 KB larger.
+        target_compile_options(physx PUBLIC
+            ${ES_EMSCRIPTEN_COMPILE_FLAGS} -msimd128 -fno-rtti -fno-exceptions)
+    endif()
+endif()
+
+# =============================================================================
 # GLM - OpenGL Mathematics Library
 # =============================================================================
 

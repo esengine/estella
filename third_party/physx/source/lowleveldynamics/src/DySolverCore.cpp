@@ -1,0 +1,79 @@
+// Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
+// Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2008-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+#include "foundation/PxPreprocessor.h"
+#include "DySolverCore.h"
+#include "DyCpuGpuArticulation.h"
+#include "DyFeatherstoneArticulation.h"
+
+using namespace physx;
+using namespace aos;
+using namespace Dy;
+
+// PT: TODO: ideally we could reuse this in immediate mode as well, but the code currently uses separate arrays of PxVec3s instead of
+// spatial vectors so the SIMD code won't work there. Switching to spatial vectors requires a change in the immediate mode API (PxSolveConstraints).
+void Dy::saveMotionVelocities(PxU32 nbBodies, const PxSolverBody* PX_RESTRICT solverBodies, Cm::SpatialVector* PX_RESTRICT motionVelocityArray)
+{
+	for(PxU32 i=0; i<nbBodies; i++)
+	{
+		Cm::SpatialVector& motionVel = motionVelocityArray[i];
+		const PxSolverBody& body = solverBodies[i];
+
+		V4StoreA(V4LoadA(&body.linearVelocity.x), &motionVel.linear.x);
+		V4StoreA(V4LoadA(&body.angularState.x), &motionVel.angular.x);
+
+		PX_ASSERT(motionVel.linear.isFinite());
+		PX_ASSERT(motionVel.angular.isFinite());
+	}
+}
+
+// PT: this case is reached when e.g. a lot of objects falling but not touching yet. So there are no contacts but potentially a lot of bodies.
+// See LegacyBenchmark/falling_spheres for example.
+void Dy::solveNoContactsCase(	PxU32 nbBodies, const PxSolverBody* PX_RESTRICT solverBodies, Cm::SpatialVector* PX_RESTRICT motionVelocityArray,
+								PxU32 nbArticulations, FeatherstoneArticulation** PX_RESTRICT articulationListStart, Cm::SpatialVectorF* PX_RESTRICT deltaV,
+								PxU32 nbPosIter, PxU32 nbVelIter, PxF32 dt, PxF32 invDt, PxReal articulationBiasCoefficient, bool solveArticulationContactLast)
+{
+	saveMotionVelocities(nbBodies, solverBodies, motionVelocityArray);
+
+	if(!nbArticulations)
+		return;
+
+	const bool isTGS = false;
+
+	const ArticulationConstraintProcessingConfigCPU singlePassArticulationConstraintProcessingConfig = ArticulationConstraintProcessingConfigCPU::getSinglePassConfig(solveArticulationContactLast);
+	
+	//Even thought there are no external constraints, there may still be internal constraints in the articulations...
+	for(PxU32 i=0; i<nbPosIter; i++)
+	{
+		for(PxU32 j=0; j<nbArticulations; j++)
+		{
+			articulationListStart[j]->solveInternalConstraints(
+				dt, dt, invDt, 
+				false, isTGS, 			
+				singlePassArticulationConstraintProcessingConfig,
+				0.0f, 
+				articulationBiasCoefficient);
+		}
+	}
+
+	for(PxU32 i=0; i<nbArticulations; i++)
+		FeatherstoneArticulation::saveVelocity(articulationListStart[i], deltaV);
+
+	//Enforce a single PGS vel iter to match the codepath that has dynamic contact.
+	for(PxU32 i=0; i<PxMax(1u, nbVelIter); i++) 
+	{
+		for(PxU32 j=0; j<nbArticulations; j++)
+		{
+			articulationListStart[j]->solveInternalConstraints(
+				dt, dt, invDt, 
+				true, isTGS, 
+				singlePassArticulationConstraintProcessingConfig,
+				0.0f, articulationBiasCoefficient);
+		}
+	}
+
+	for(PxU32 j=0; j<nbArticulations; j++)
+		articulationListStart[j]->writebackInternalConstraints(isTGS);
+}

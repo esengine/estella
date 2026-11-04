@@ -60,7 +60,7 @@ The architecture rests on two non-negotiable principles (see `REARCHITECTURE.md`
 ```
 
 On the wasm host these are side modules — wasm of their own, fetched only by a
-project that uses one: Box2D (2D physics), Jolt (3D physics), Spine, DragonBones,
+project that uses one: Box2D (2D physics), Jolt or PhysX (3D physics), Spine, DragonBones,
 Basis/KTX2, video. The native host links them in instead, since there is no
 download to defer. `pipeline/` (`@estella/pipeline`) cooks a project into a shipped
 build with no window and no editor; `editor-api/` is the plugin type surface, so
@@ -375,7 +375,8 @@ The correctness and foundation campaigns are **complete**. Landed:
   probe and a sky; a `Light` casts spot cones, point cubes and sun cascades into
   one shadow atlas; particles simulate and billboard in three axes; navigation
   bakes a polygon navmesh (areas, links, doors, agent avoidance) beside the flat
-  grid; 3D physics is a Jolt side module (`RigidBody3D` + box/sphere/capsule/mesh
+  grid; 3D physics is a side module on Jolt or, per project, PhysX — one
+  `physics3d_*` interface, two implementations (`RigidBody3D` + box/sphere/capsule/mesh
   colliders, joints, character controllers). `Light2D` / `Mesh2D` dropped the
   plane from their names (they are the only light and the only mesh renderer);
   `ShadowCaster2D` keeps it, because it shadows what has no mesh to rasterize.

@@ -1,0 +1,95 @@
+// Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
+// Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2008-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+#ifndef SC_CONSTRAINT_CORE_H
+#define SC_CONSTRAINT_CORE_H
+
+#include "PxConstraint.h"
+
+namespace physx
+{
+namespace Sc
+{
+	class ConstraintSim;
+	class RigidCore;
+
+	class ConstraintCore
+	{
+	public:
+// PX_SERIALIZATION
+											ConstraintCore(const PxEMPTY) : mFlags(PxEmpty), mConnector(NULL), mSim(NULL) {}
+	PX_FORCE_INLINE	void					setConstraintFunctions(PxConstraintConnector& n, const PxConstraintShaderTable& shaders)
+											{ 
+												mConnector = &n;	
+												mSolverPrep = shaders.solverPrep;
+												mVisualize = shaders.visualize;
+											}
+//~PX_SERIALIZATION
+											ConstraintCore(PxConstraintConnector& connector, const PxConstraintShaderTable& shaders, PxU32 dataSize);
+											~ConstraintCore()	{}
+
+					void					setBodies(RigidCore* r0v, RigidCore* r1v);
+
+					PxConstraint*			getPxConstraint();
+					const PxConstraint*		getPxConstraint()								const;
+	PX_FORCE_INLINE	PxConstraintConnector*	getPxConnector()								const	{ return mConnector;				}
+
+	PX_FORCE_INLINE	PxConstraintFlags		getFlags()										const	{ return mFlags;					}
+					void					setFlags(PxConstraintFlags flags);
+
+					void					getForce(PxVec3& force, PxVec3& torque)			const;
+
+					void					setBreakForce(PxReal linear, PxReal angular);
+	PX_FORCE_INLINE	void					getBreakForce(PxReal& linear, PxReal& angular)	const
+											{
+												linear = mLinearBreakForce;
+												angular = mAngularBreakForce;
+											}
+
+					void					setMinResponseThreshold(PxReal threshold);
+	PX_FORCE_INLINE	PxReal					getMinResponseThreshold()						const	{ return mMinResponseThreshold;		}
+
+					void					breakApart();
+
+	PX_FORCE_INLINE	PxConstraintVisualize	getVisualize()									const	{ return mVisualize;				}
+	PX_FORCE_INLINE	PxConstraintSolverPrep	getSolverPrep()									const	{ return mSolverPrep;				}
+	PX_FORCE_INLINE	PxU32					getConstantBlockSize()							const	{ return mDataSize;					}
+
+	PX_FORCE_INLINE	void					setSim(ConstraintSim* sim)
+											{
+												PX_ASSERT((sim==0) ^ (mSim == 0));
+												mSim = sim;
+											}
+	PX_FORCE_INLINE	ConstraintSim*			getSim()										const	{ return mSim;						}
+
+	PX_FORCE_INLINE	bool					isDirty()										const	{ return mIsDirty ? true : false;	}
+	PX_FORCE_INLINE	void					setDirty()												{ mIsDirty = 1;						}
+	PX_FORCE_INLINE	void					clearDirty()											{ mIsDirty = 0;						}
+
+	private:
+					PxConstraintFlags		mFlags;
+					//In order to support O(1) insert/remove mIsDirty really wants to be an index into NpScene's dirty joint array
+					PxU8					mIsDirty;
+					PxU8					mPadding;
+
+					PxVec3					mAppliedForce;
+					PxVec3					mAppliedTorque;
+
+					PxConstraintConnector*	mConnector;
+					PxConstraintSolverPrep	mSolverPrep;
+					PxConstraintVisualize	mVisualize;
+					PxU32					mDataSize;
+					PxReal					mLinearBreakForce;
+					PxReal					mAngularBreakForce;
+					PxReal					mMinResponseThreshold;
+
+					ConstraintSim*			mSim;
+	};
+
+} // namespace Sc
+
+}
+
+#endif

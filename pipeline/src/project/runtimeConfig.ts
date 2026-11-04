@@ -60,6 +60,8 @@ export interface RuntimeProjectConfig {
   physicsEnabled: boolean;
   /** World solver + collision matrix (Project Settings → Physics). */
   physicsConfig: Physics2DPluginConfig;
+  /** The 3D physics backend; 'jolt' is the default. */
+  physics3dBackend: 'jolt' | 'physx';
   /** Mixer state: bus volumes, custom buses, effects, duck rules. */
   audioConfig: AudioProjectConfig;
   /** Runtime tuning the project declared — only what differs from the engine's own values, so `{}` is the default. */
@@ -154,6 +156,7 @@ export function runtimeConfigOf(
       ? (manifest.packaging?.platforms?.desktop?.steam?.appId ?? 0) : 0,
     physicsEnabled: f?.physics?.enabled ?? false,
     physicsConfig: physicsConfigOf(f),
+    physics3dBackend: f?.physics?.backend3d === 'physx' ? 'physx' : 'jolt',
     audioConfig: f?.audio ?? {},
     runtime: parseRuntimeBuildConfig(f?.runtime),
     uiTheme: f?.ui?.theme === 'light' ? 'light' : 'dark',
@@ -187,7 +190,7 @@ export type PackagedRuntimeFields = Pick<
   'ySortLayers' | 'depthLayers' | 'colorSpace' | 'outputTransform' | 'renderBackend' | 'screenFit'
   | 'msaaSamples' | 'quality'
   | 'uiTheme' | 'uiThemeColors'
-  | 'physicsEnabled' | 'physicsConfig' | 'audioConfig' | 'achievements' | 'steamAppId' | 'runtime'
+  | 'physicsEnabled' | 'physicsConfig' | 'physics3dBackend' | 'audioConfig' | 'achievements' | 'steamAppId' | 'runtime'
 >;
 
 /**
@@ -222,6 +225,7 @@ export function packagedRuntimeFields(rc: RuntimeProjectConfig): PackagedRuntime
     // this would have spelled out.
     ...(rc.physicsEnabled ? { physicsEnabled: true } : {}),
     ...(isDefaultPhysics(rc.physicsConfig) ? {} : { physicsConfig: rc.physicsConfig }),
+    ...(rc.physics3dBackend === 'physx' ? { physics3dBackend: rc.physics3dBackend } : {}),
     ...(rc.audioConfig.buses?.length || rc.audioConfig.maxVoices !== undefined
       || Object.keys(rc.audioConfig.loadTypes ?? {}).length > 0
       ? { audioConfig: rc.audioConfig } : {}),

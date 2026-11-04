@@ -1,0 +1,181 @@
+// Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
+// Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2008-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+#ifndef SN_XML_DESERIALIZER_H
+#define SN_XML_DESERIALIZER_H
+
+#include "SnXmlVisitorReader.h"
+
+namespace physx { namespace Sn {
+	
+	//Definitions needed internally in the Serializer headers.
+	template<typename TTriIndexElem>
+	struct Triangle
+	{
+		TTriIndexElem mIdx0;
+		TTriIndexElem mIdx1;
+		TTriIndexElem mIdx2;
+		Triangle( TTriIndexElem inIdx0 = 0, TTriIndexElem inIdx1 = 0, TTriIndexElem inIdx2 = 0)
+			: mIdx0( inIdx0 )
+			, mIdx1( inIdx1 )
+			, mIdx2( inIdx2 )
+		{
+		}
+	};
+
+	struct XmlMemoryAllocateMemoryPoolAllocator
+	{
+		XmlMemoryAllocator* mAllocator;
+		XmlMemoryAllocateMemoryPoolAllocator( XmlMemoryAllocator* inAlloc ) : mAllocator( inAlloc ) {}
+
+		PxU8* allocate( PxU64 inSize ) { return mAllocator->allocate( inSize ); }
+		void deallocate( PxU8* inMem ) { mAllocator->deallocate( inMem ); }
+	};
+
+	inline bool isEmpty(const char *s)
+	{
+		while (*s != '\0')
+		{
+			if (!isspace(*s))
+				return false;
+			s++;
+		}
+		return true;
+	}
+
+	inline void strtoLong( Triangle<PxU32>& ioDatatype,const char*& ioData )
+	{
+		strto( ioDatatype.mIdx0, ioData );
+		strto( ioDatatype.mIdx1, ioData );
+		strto( ioDatatype.mIdx2, ioData );
+	}
+
+	inline void strtoLong( PxHeightFieldSample& ioDatatype,const char*& ioData )
+	{
+		PxU32 tempData;
+		strto( tempData, ioData );
+		if ( isBigEndian() )
+		{
+			PxU32& theItem(tempData);
+			PxU32 theDest = 0;
+			PxU8* theReadPtr( reinterpret_cast< PxU8* >( &theItem ) );
+			PxU8* theWritePtr( reinterpret_cast< PxU8* >( &theDest ) );
+			//A height field sample is a 16 bit number
+			//followed by two bytes.
+
+			//We write this out as a 32 bit integer, LE.
+			//Thus, on a big endian, we need to move the bytes
+			//around a bit.
+			//LE - 1 2 3 4
+			//BE - 4 3 2 1 - after convert from xml number
+			//Correct BE - 2 1 3 4, just like LE but with the 16 number swapped
+			theWritePtr[0] = theReadPtr[2];
+			theWritePtr[1] = theReadPtr[3];
+			theWritePtr[2] = theReadPtr[1];
+			theWritePtr[3] = theReadPtr[0];
+			theItem = theDest;
+		}
+		ioDatatype = *reinterpret_cast<PxHeightFieldSample*>( &tempData );
+	}
+
+	template<typename TDataType>
+	inline void readStridedFlagsProperty( XmlReader& ioReader, const char* inPropName, TDataType*& outData, PxU32& outStride, PxU32& outCount, XmlMemoryAllocator& inAllocator,
+		  const PxU32ToName* inConversions)
+	{
+		const char* theSrcData;
+		outStride = sizeof( TDataType );
+		outData = NULL;
+		outCount = 0;
+		if ( ioReader.read( inPropName, theSrcData ) )
+		{
+			XmlMemoryAllocateMemoryPoolAllocator tempAllocator( &inAllocator );
+			MemoryBufferBase<XmlMemoryAllocateMemoryPoolAllocator> tempBuffer( &tempAllocator );
+
+			if ( theSrcData )
+			{
+				char* theStartData = const_cast< char*>( copyStr( &tempAllocator, theSrcData ) );
+				char* aData = strtok(theStartData, " \n");
+				while( aData )
+				{
+					TDataType tempValue;
+					stringToFlagsType( aData, inAllocator, tempValue, inConversions );						
+					aData = strtok(NULL," \n");
+					tempBuffer.write( &tempValue, sizeof(TDataType) );
+				}
+				outData = reinterpret_cast< TDataType* >( tempBuffer.mBuffer );
+				outCount = tempBuffer.mWriteOffset / sizeof( TDataType );
+				tempAllocator.deallocate( reinterpret_cast<PxU8*>(theStartData) );
+			}
+			tempBuffer.releaseBuffer();
+		}
+	}
+
+	template<typename TDataType>
+	inline void readStridedBufferProperty( XmlReader& ioReader, const char* inPropName, TDataType*& outData, PxU32& outStride, PxU64& outCount, XmlMemoryAllocator& inAllocator)
+	{
+		const char* theSrcData;
+		outStride = sizeof( TDataType );
+		outData = NULL;
+		outCount = 0;
+		if ( ioReader.read( inPropName, theSrcData ) )
+		{
+			XmlMemoryAllocateMemoryPoolAllocator tempAllocator( &inAllocator );
+			MemoryBufferBase<XmlMemoryAllocateMemoryPoolAllocator> tempBuffer( &tempAllocator );
+
+			if ( theSrcData )
+			{
+				char* theStartData = const_cast< char*>( copyStr( &tempAllocator, theSrcData ) );
+				const char* theData = theStartData;
+				while( !isEmpty(theData) )
+				{
+					//These buffers are whitespace delimited.
+					TDataType theType;
+					strtoLong( theType, theData );
+					tempBuffer.write( &theType, sizeof(theType) );
+				}
+				outData = reinterpret_cast< TDataType* >( tempBuffer.mBuffer );
+				outCount = tempBuffer.mWriteOffset / sizeof( TDataType );
+				tempAllocator.deallocate( reinterpret_cast<PxU8*>(theStartData) );
+			}
+			tempBuffer.releaseBuffer();
+		}
+	}
+	
+	template<typename TDataType>
+	inline void readStridedBufferProperty( XmlReader& ioReader, const char* inPropName, PxStridedData& ioData, PxU64& outCount, XmlMemoryAllocator& inAllocator)
+	{
+		TDataType* tempData = NULL;
+		readStridedBufferProperty<TDataType>( ioReader, inPropName, tempData, ioData.stride, outCount, inAllocator ); 
+		ioData.data = tempData;
+	}
+	
+	template<typename TDataType>
+	inline void readStridedBufferProperty( XmlReader& ioReader, const char* inPropName, PxTypedBoundedData<const TDataType>& ioData, PxU64& outCount, XmlMemoryAllocator& inAllocator)
+	{
+		TDataType* tempData = NULL;
+		readStridedBufferProperty<TDataType>( ioReader, inPropName, tempData, ioData.stride, outCount, inAllocator );
+		ioData.data = reinterpret_cast<PxMaterialTableIndex*>( tempData );
+	}
+
+	template<typename TDataType>
+	inline void readStridedBufferProperty( XmlReader& ioReader, const char* inPropName, PxBoundedData& ioData, XmlMemoryAllocator& inAllocator)
+	{
+		// This is used by PxBoundedData but we are keeping count as PxU32 for backward compatibility
+		PxU64 outCount;
+		readStridedBufferProperty<TDataType>( ioReader, inPropName, ioData, outCount, inAllocator );
+
+		if (outCount > PX_MAX_U32)
+		{
+			PxGetFoundation().error(PxErrorCode::eOUT_OF_MEMORY, PX_FL, "PxBoundedData: The value of count is greater than PX_MAX_U32.");
+		}
+		else
+		{
+			ioData.count = (PxU32)outCount;
+		}
+	}
+
+} }
+
+#endif

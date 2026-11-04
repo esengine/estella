@@ -60,6 +60,7 @@ import {
 import type { DragonBonesAssetInfo } from '../dragonbones/loadDragonBonesScene';
 import type { AddressableManifest, ManifestModel } from '../asset/AddressableManifest';
 import type { Catalog } from '../asset/Catalog';
+import { physics3dModuleId, type Physics3DBackend } from '../sideModules/registry';
 
 // =============================================================================
 // Public Interface
@@ -208,6 +209,8 @@ export interface LoadRuntimeSceneOptions {
     /** Project-declared physics world config (gravity, solver tuning, collision-layer
      *  masks, sleep/continuous toggles) — threaded from the editor's Project Settings. */
     physicsConfig?: Physics2DPluginConfig;
+    /** The 3D physics backend; selects the side module the 3D world is acquired from. Absent ⇒ Jolt. */
+    physics3dBackend?: Physics3DBackend;
     /** Project-declared physics enable (`.uproject` features analog) — installs
      *  physics even for runtime-spawned bodies the static scene doesn't show.
      *  OR-combined with a content scan. */
@@ -509,11 +512,11 @@ export async function prepareRuntimeScene(
             if (p3d.installed(app)) return;
             const module3d = options.physics3dModule
                 ?? (app.sideModules
-                    ? (await app.sideModules.acquire('physics3d')) as Physics3DWasmModule | null
+                    ? (await app.sideModules.acquire(physics3dModuleId(options.physics3dBackend))) as Physics3DWasmModule | null
                     : null);
             if (!module3d) {
                 log.warn('physics3d', 'scene has 3D physics components but no module loaded —'
-                    + ' this realm has no side-module host or physics3d.wasm failed to load');
+                    + ` this realm has no side-module host or the ${options.physics3dBackend ?? 'jolt'} module failed to load`);
                 return;
             }
             p3d.install(app, module3d);
@@ -777,6 +780,8 @@ export interface RuntimeInitConfig {
     /** Project-declared physics world config (gravity, solver tuning, collision-layer
      *  masks, sleep/continuous toggles) — threaded from the editor's Project Settings. */
     physicsConfig?: Physics2DPluginConfig;
+    /** The 3D physics backend; selects the side module the 3D world is acquired from. Absent ⇒ Jolt. */
+    physics3dBackend?: Physics3DBackend;
     /** Project-declared physics enable; see {@link LoadRuntimeSceneOptions.physicsEnabled}. */
     physicsEnabled?: boolean;
     /** Project-declared mixer state (bus volumes / custom buses / effects / duck
@@ -872,6 +877,7 @@ export async function initRuntime(config: RuntimeInitConfig): Promise<void> {
         spineManager: config.spineManager,
         physicsModule: config.physicsModule,
         physicsConfig: config.physicsConfig,
+        physics3dBackend: config.physics3dBackend,
         physicsEnabled: config.physicsEnabled,
         uiTheme: config.uiTheme,
         uiThemeOverrides: config.uiThemeOverrides,

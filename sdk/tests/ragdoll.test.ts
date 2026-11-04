@@ -129,7 +129,9 @@ describe.skipIf(!HAS_WASM)('the Ragdoll system', () => {
     });
 });
 
-const HAS_SOLVER = HAS_WASM && existsSync(resolve(WASM_DIR, 'physics3d.wasm'));
+/** Either 3D backend: PHYSICS3D_MODULE=physics3d-physx runs the ragdolls on PhysX. */
+const PHYSICS3D = process.env.PHYSICS3D_MODULE || 'physics3d';
+const HAS_SOLVER = HAS_WASM && existsSync(resolve(WASM_DIR, `${PHYSICS3D}.wasm`));
 
 /** The real solver: a character dropped on a floor falls, comes to rest on it, and stays in one piece. */
 describe.skipIf(!HAS_SOLVER)('a ragdoll under the real solver', () => {
@@ -137,8 +139,8 @@ describe.skipIf(!HAS_SOLVER)('a ragdoll under the real solver', () => {
     beforeAll(async () => { engine = await loadWasmModule(); });
 
     it('falls onto the floor with its bones still joined', async () => {
-        const raw = (await import(/* @vite-ignore */ pathToFileURL(resolve(WASM_DIR, 'physics3d.js')).href)) as { default: (o: object) => Promise<never> };
-        const wasmBinary = readFileSync(resolve(WASM_DIR, 'physics3d.wasm'));
+        const raw = (await import(/* @vite-ignore */ pathToFileURL(resolve(WASM_DIR, `${PHYSICS3D}.js`)).href)) as { default: (o: object) => Promise<never> };
+        const wasmBinary = readFileSync(resolve(WASM_DIR, `${PHYSICS3D}.wasm`));
         const factory = (() => raw.default({ wasmBinary })) as unknown as Physics3DModuleFactory;
         const module = await loadPhysics3DModule('', factory);
         const config = { ...DEFAULT_PHYSICS3D_CONFIG, pixelsPerUnit: 1 };
@@ -247,8 +249,8 @@ describe.skipIf(!HAS_SOLVER)('a knee under the real solver', () => {
 
     /** How far the foot ends up in front of the knee (+z) after two seconds of gravity along z. */
     async function footZ(gravityZ: number, over: Partial<RagdollData> = {}): Promise<{ foot: number; shinLength: number }> {
-        const raw = (await import(/* @vite-ignore */ pathToFileURL(resolve(WASM_DIR, 'physics3d.js')).href)) as { default: (o: object) => Promise<never> };
-        const wasmBinary = readFileSync(resolve(WASM_DIR, 'physics3d.wasm'));
+        const raw = (await import(/* @vite-ignore */ pathToFileURL(resolve(WASM_DIR, `${PHYSICS3D}.js`)).href)) as { default: (o: object) => Promise<never> };
+        const wasmBinary = readFileSync(resolve(WASM_DIR, `${PHYSICS3D}.wasm`));
         const module = await loadPhysics3DModule('', (() => raw.default({ wasmBinary })) as unknown as Physics3DModuleFactory);
         const config = { ...DEFAULT_PHYSICS3D_CONFIG, pixelsPerUnit: 1 };
         module._physics3d_init(0, 0, gravityZ, 256);

@@ -1,0 +1,154 @@
+// Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
+// Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2008-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+#ifndef PVD_META_DATA_PVD_BINDING_H
+#define PVD_META_DATA_PVD_BINDING_H
+
+#if PX_SUPPORT_PVD
+
+#include "PxPhysXConfig.h"
+#include "foundation/PxArray.h"
+
+namespace physx
+{
+	namespace pvdsdk
+	{
+		class PsPvd;
+		class PvdDataStream;
+        struct PvdMetaDataBindingData;
+	}
+}
+
+namespace physx
+{
+
+namespace Sc
+{
+struct Contact;
+}
+
+namespace Vd
+{
+
+using namespace physx::pvdsdk;
+
+class PvdVisualizer
+{
+  protected:
+	virtual ~PvdVisualizer()
+	{
+	}
+
+  public:
+	virtual void visualize(PxArticulationLink& link) = 0;
+};
+
+class PvdMetaDataBinding
+{
+	PvdMetaDataBindingData* mBindingData;
+	
+  public:
+	PvdMetaDataBinding();
+	~PvdMetaDataBinding();
+	void registerSDKProperties(PvdDataStream& inStream);
+
+	void sendAllProperties(PvdDataStream& inStream, const PxPhysics& inPhysics);
+
+	void sendAllProperties(PvdDataStream& inStream, const PxScene& inScene);
+	// per frame update
+	void sendBeginFrame(PvdDataStream& inStream, const PxScene* inScene, PxReal simulateElapsedTime);
+	void sendContacts(PvdDataStream& inStream, const PxScene& inScene, PxArray<Sc::Contact>& inContacts);
+	void sendContacts(PvdDataStream& inStream, const PxScene& inScene);
+	void sendStats(PvdDataStream& inStream, const PxScene* inScene);
+	void sendSceneQueries(PvdDataStream& inStream, const PxScene& inScene, PsPvd* pvd);
+	void sendEndFrame(PvdDataStream& inStream, const PxScene* inScene);
+
+	void createInstance(PvdDataStream& inStream, const PxMaterial& inMaterial, const PxPhysics& ownerPhysics);
+	void sendAllProperties(PvdDataStream& inStream, const PxMaterial& inMaterial);
+	void destroyInstance(PvdDataStream& inStream, const PxMaterial& inMaterial, const PxPhysics& ownerPhysics);
+
+	void createInstance(PvdDataStream& inStream, const PxDeformableSurfaceMaterial& inMaterial, const PxPhysics& ownerPhysics);
+	void sendAllProperties(PvdDataStream& inStream, const PxDeformableSurfaceMaterial& inMaterial);
+	void destroyInstance(PvdDataStream& inStream, const PxDeformableSurfaceMaterial& inMaterial, const PxPhysics& ownerPhysics);
+
+	void createInstance(PvdDataStream& inStream, const PxDeformableVolumeMaterial& inMaterial, const PxPhysics& ownerPhysics);
+	void sendAllProperties(PvdDataStream& inStream, const PxDeformableVolumeMaterial& inMaterial);
+	void destroyInstance(PvdDataStream& inStream, const PxDeformableVolumeMaterial& inMaterial, const PxPhysics& ownerPhysics);
+
+	void createInstance(PvdDataStream& inStream, const PxPBDMaterial& inMaterial, const PxPhysics& ownerPhysics);
+	void sendAllProperties(PvdDataStream& inStream, const PxPBDMaterial& inMaterial);
+	void destroyInstance(PvdDataStream& inStream, const PxPBDMaterial& inMaterial, const PxPhysics& ownerPhysics);
+
+	void createInstance(PvdDataStream& inStream, const PxHeightField& inData, const PxPhysics& ownerPhysics);
+	void sendAllProperties(PvdDataStream& inStream, const PxHeightField& inData);
+	void destroyInstance(PvdDataStream& inStream, const PxHeightField& inData, const PxPhysics& ownerPhysics);
+
+	void createInstance(PvdDataStream& inStream, const PxConvexMesh& inData, const PxPhysics& ownerPhysics);
+	void destroyInstance(PvdDataStream& inStream, const PxConvexMesh& inData, const PxPhysics& ownerPhysics);
+
+	void createInstance(PvdDataStream& inStream, const PxTetrahedronMesh& inData, const PxPhysics& ownerPhysics);
+	void destroyInstance(PvdDataStream& inStream, const PxTetrahedronMesh& inData, const PxPhysics& ownerPhysics);
+
+	void createInstance(PvdDataStream& inStream, const PxTriangleMesh& inData, const PxPhysics& ownerPhysics);
+	void destroyInstance(PvdDataStream& inStream, const PxTriangleMesh& inData, const PxPhysics& ownerPhysics);
+
+	void createInstance(PvdDataStream& inStream, const PxRigidStatic& inObj, const PxScene& ownerScene, const PxPhysics& ownerPhysics, PsPvd* pvd);
+	void sendAllProperties(PvdDataStream& inStream, const PxRigidStatic& inObj);
+	void destroyInstance(PvdDataStream& inStream, const PxRigidStatic& inObj, const PxScene& ownerScene);
+
+	void createInstance(PvdDataStream& inStream, const PxRigidDynamic& inObj, const PxScene& ownerScene, const PxPhysics& ownerPhysics, PsPvd* pvd);
+	void sendAllProperties(PvdDataStream& inStream, const PxRigidDynamic& inObj);
+	void destroyInstance(PvdDataStream& inStream, const PxRigidDynamic& inObj, const PxScene& ownerScene);
+
+	void createInstance(PvdDataStream& inStream, const PxDeformableSurface& inObj, const PxScene& ownerScene, const PxPhysics& ownerPhysics, PsPvd* pvd);
+	void sendAllProperties(PvdDataStream& inStream, const PxDeformableSurface& inObj);
+	void destroyInstance(PvdDataStream& inStream, const PxDeformableSurface& inObj, const PxScene& ownerScene);
+
+	void createInstance(PvdDataStream& inStream, const PxDeformableVolume& inObj, const PxScene& ownerScene, const PxPhysics& ownerPhysics, PsPvd* pvd);
+	void sendAllProperties(PvdDataStream& inStream, const PxDeformableVolume& inObj);
+	void destroyInstance(PvdDataStream& inStream, const PxDeformableVolume& inObj, const PxScene& ownerScene);
+
+	void createInstance(PvdDataStream& inStream, const PxPBDParticleSystem& inObj, const PxScene& ownerScene, const PxPhysics& ownerPhysics, PsPvd* pvd);
+	void sendAllProperties(PvdDataStream& inStream, const PxPBDParticleSystem& inObj);
+	void destroyInstance(PvdDataStream& inStream, const PxPBDParticleSystem& inObj, const PxScene& ownerScene);
+
+	void createInstance(PvdDataStream& inStream, const PxArticulationReducedCoordinate& inObj, const PxScene& ownerScene, const PxPhysics& ownerPhysics, PsPvd* pvd);
+	void sendAllProperties(PvdDataStream& inStream, const PxArticulationReducedCoordinate& inObj);
+	void destroyInstance(PvdDataStream& inStream, const PxArticulationReducedCoordinate& inObj, const PxScene& ownerScene);
+
+	void createInstance(PvdDataStream& inStream, const PxArticulationLink& inObj, const PxPhysics& ownerPhysics, PsPvd* pvd);
+	void sendAllProperties(PvdDataStream& inStream, const PxArticulationLink& inObj);
+	void destroyInstance(PvdDataStream& inStream, const PxArticulationLink& inObj);
+
+	void createInstance(PvdDataStream& inStream, const PxShape& inObj, const PxRigidActor& owner, const PxPhysics& ownerPhysics, PsPvd* pvd);
+	void sendAllProperties(PvdDataStream& inStream, const PxShape& inObj);
+	void releaseAndRecreateGeometry(PvdDataStream& inStream, const PxShape& inObj, PxPhysics& ownerPhysics, PsPvd* pvd);
+	void updateMaterials(PvdDataStream& inStream, const PxShape& inObj, PsPvd* pvd);
+	void destroyInstance(PvdDataStream& inStream, const PxShape& inObj, const PxRigidActor& owner);
+
+	// These are created as part of the articulation link's creation process, so outside entities don't need to
+	// create them.
+	void sendAllProperties(PvdDataStream& inStream, const PxArticulationJointReducedCoordinate& inObj);
+
+	// per frame update
+	void updateDynamicActorsAndArticulations(PvdDataStream& inStream, const PxScene* inScene, PvdVisualizer* linkJointViz);
+
+	// Origin Shift
+	void originShift(PvdDataStream& inStream, const PxScene* inScene, PxVec3 shift);
+
+	void createInstance(PvdDataStream& inStream, const PxAggregate& inObj, const PxScene& ownerScene);
+	void sendAllProperties(PvdDataStream& inStream, const PxAggregate& inObj);
+	void destroyInstance(PvdDataStream& inStream, const PxAggregate& inObj, const PxScene& ownerScene);
+	void detachAggregateActor(PvdDataStream& inStream, const PxAggregate& inObj, const PxActor& inActor);
+	void attachAggregateActor(PvdDataStream& inStream, const PxAggregate& inObj, const PxActor& inActor);
+
+	template <typename TDataType>
+	void registrarPhysicsObject(PvdDataStream&, const TDataType&, PsPvd*);
+};
+}
+}
+
+#endif
+#endif

@@ -23,6 +23,34 @@ import { Physics3DPlugin } from 'esengine/physics3d';
 app.addPlugin(new Physics3DPlugin('physics3d.js', { gravity: { x: 0, y: -9.81, z: 0 } }));
 ```
 
+## 选择求解器：Jolt 或 PhysX
+
+3D 世界默认运行在 **Jolt** 上。**项目设置 → 物理 → 3D 求解器** 可以切换到 **PhysX**，
+也就是 Unity 使用的求解器，适合需要和 Unity 原项目表现一致的项目。清单里的写法：
+
+```json
+"features": { "physics": { "backend3d": "physx" } }
+```
+
+其余都不变。两个后端响应同样的组件、关节、角色、查询和碰撞事件，同一套 98 项行为检查
+分别在两者上运行（`node tools/check-physics3d.mjs`、`node tools/check-physics3d-physx.mjs`）。
+构建只带选中的模块：Jolt 是 `physics3d.wasm`，PhysX 是 `physics3d-physx.wasm`。
+编辑器的 Play 也使用同一个选择。
+
+PhysX 按 Unity 的默认值设置：投影高斯-赛德尔求解、patch 摩擦、摩擦与弹性按 Average 合并、
+0.01 m 接触偏移、2 m/s 弹跳阈值、0.005 休眠阈值、6 次位置迭代和 1 次速度迭代、
+50 rad/s 最大角速度。两个引擎行为不同的地方，PhysX 跟 Unity 一致：
+
+- 角色进入触发器会被报告，和 CharacterController 触发 `OnTriggerEnter` 一样。
+  Jolt 的角色不是刚体，所以 Jolt 的传感器看不到它。
+- 在触发器里睡着的刚体仍然算在里面。Jolt 会在刚体休眠时报告一次离开。
+- 角色保留半径十分之一的皮肤厚度（Unity 推荐的 skin width），所以比 Jolt 角色站得略高。
+- 角色会走上不高于台阶高度的动态刚体；更高的会被推开，推力不超过它的推力强度。
+
+代价：PhysX 的 Web 模块 3.6 MB（gzip 1.15 MB），Jolt 是 1.3 MB；只有选了它的项目才加载。
+混沌的场景（比如球擦过铰链门的边缘）在两个求解器上的结果会不同，任何两个引擎之间都会这样。
+原生包（桌面、Android）目前编进的是 Jolt，两种设置都运行 Jolt，启动时会记一条日志说明。
+
 ## 刚体
 
 一个实体同时带着 `RigidBody3D` **和**一个形状时才在世界里。没有形状的刚体没有任何

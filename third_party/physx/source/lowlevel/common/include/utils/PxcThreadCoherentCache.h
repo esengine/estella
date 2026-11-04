@@ -1,0 +1,125 @@
+// Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
+// Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2008-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+#ifndef PXC_THREAD_COHERENT_CACHE_H
+#define PXC_THREAD_COHERENT_CACHE_H
+
+#include "foundation/PxMutex.h"
+#include "foundation/PxAllocator.h"
+#include "foundation/PxSList.h"
+
+namespace physx
+{
+
+class PxsContext;
+/*!
+Controls a pool of large objects which must be thread safe. 
+Tries to return the object most recently used by the thread(for better cache coherancy).
+Assumes the object has a default contructor.
+
+(Note the semantics are different to a pool because we dont want to construct/destroy each time
+an object is requested, which may be expensive).
+
+TODO: add thread coherancy.
+*/
+template<class T, class Params>
+class PxcThreadCoherentCache : public PxAlignedAllocator<16, PxReflectionAllocator<T> >
+{
+	typedef PxAlignedAllocator<16, PxReflectionAllocator<T> > Allocator;
+	PX_NOCOPY(PxcThreadCoherentCache)
+public:
+
+	typedef PxSListEntry EntryBase;
+
+	PX_INLINE PxcThreadCoherentCache(Params* params, const Allocator& alloc = Allocator()) : Allocator(alloc), mParams(params)
+	{
+	}
+
+	PX_INLINE ~PxcThreadCoherentCache()
+	{
+		T* np = static_cast<T*>(root.pop());
+
+		while(np!=NULL)
+		{
+			np->~T();
+			Allocator::deallocate(np);
+			np = static_cast<T*>(root.pop());
+		}
+	}
+
+	PX_INLINE T* get()
+	{
+		T* rv = static_cast<T*>(root.pop());
+		if(rv==NULL)
+		{
+			rv = reinterpret_cast<T*>(Allocator::allocate(sizeof(T), PX_FL));
+			PX_PLACEMENT_NEW(rv, T(mParams));
+		}
+
+		return rv;
+	}
+
+	PX_INLINE void put(T* item)
+	{
+		root.push(*item);
+	}
+
+
+private:
+	PxSList root;
+	Params* mParams;
+
+	template<class T2, class P2>
+	friend class PxcThreadCoherentCacheIterator;
+};
+
+/*!
+Used to iterate over all objects controlled by the cache.
+
+Note: The iterator flushes the cache(extracts all items on construction and adds them back on
+destruction so we can iterate the list in a safe manner).
+*/
+template<class T, class Params> 
+class PxcThreadCoherentCacheIterator
+{
+public:
+	PxcThreadCoherentCacheIterator(PxcThreadCoherentCache<T, Params>& cache) : mCache(cache)
+	{
+		mNext = cache.root.flush();
+		mFirst = mNext;
+	}
+	~PxcThreadCoherentCacheIterator()
+	{
+		PxSListEntry* np = mFirst;
+		while(np != NULL)
+		{
+			PxSListEntry* npNext = np->next();
+			mCache.root.push(*np);
+			np = npNext;
+		}
+	}
+
+	PX_INLINE T* getNext()
+	{
+		if(mNext == NULL)
+			return NULL;
+
+		T* rv = static_cast<T*>(mNext);
+		mNext = mNext->next();
+
+		return rv;
+	}
+private:
+
+	PxcThreadCoherentCacheIterator<T, Params>& operator=(const PxcThreadCoherentCacheIterator<T, Params>&);
+	PxcThreadCoherentCache<T, Params> &mCache;
+	PxSListEntry* mNext;
+	PxSListEntry* mFirst;
+	
+};
+
+}
+
+#endif

@@ -1047,6 +1047,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       // One path for old and new: moduleChoices reads `physics.enabled` as an
       // include, so the legacy flag arrives here as the choice it always meant.
       forced: forcedSideModules(moduleChoices(opts.features, opts.modulesByPlatform?.[platform])),
+      physics3dBackend: opts.features?.physics?.backend3d,
     })
     : [];
   /** The subpaths this package installs, and whether a lean entry can carry it.

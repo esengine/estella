@@ -5,9 +5,14 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { requireWasm } from '../../tools/lib/wasmDir.mjs';
 
-const wasmDir = requireWasm('physics3d.wasm');
-const factory = (await import('file://' + path.join(wasmDir, 'physics3d.js').replace(/\\/g, '/'))).default;
-const wasmBinary = readFileSync(path.join(wasmDir, 'physics3d.wasm'));
+// Either backend: both export the same entry points, and every assertion below is
+// a statement about physics, not about Jolt. PHYSICS3D_MODULE=physics3d-physx runs
+// them against PhysX.
+const MODULE = process.env.PHYSICS3D_MODULE || 'physics3d';
+const wasmDir = requireWasm(`${MODULE}.wasm`);
+const factory = (await import('file://' + path.join(wasmDir, `${MODULE}.js`).replace(/\\/g, '/'))).default;
+const wasmBinary = readFileSync(path.join(wasmDir, `${MODULE}.wasm`));
+console.log(`backend: ${MODULE}`);
 const m = await factory({ wasmBinary });
 
 let pass = true;
@@ -217,9 +222,11 @@ check('and it did not climb the wall', blocked.y < climbed.y + 0.3,
 // solve against the world, so nothing moves out of its way unless it is given
 // the strength to move it — and `mass` alone never was that.
 const CRATE_STRONG = 12, CRATE_WEAK = 13;
-const strongCrate = m._physics3d_addBox(CRATE_STRONG, 0.2, 0.2, 0.2, -38.5, 0.2, 10,
+// Taller than the 0.4 step the heroes walk with: a crate a character can step onto
+// is climbed rather than pushed (PhysX's controller, Unity's, climbs it).
+const strongCrate = m._physics3d_addBox(CRATE_STRONG, 0.3, 0.3, 0.3, -38.5, 0.3, 10,
                                         ...IDENTITY, ...FREE(DYNAMIC), 0.2, 0, 0);
-const weakCrate = m._physics3d_addBox(CRATE_WEAK, 0.2, 0.2, 0.2, -38.5, 0.2, 20,
+const weakCrate = m._physics3d_addBox(CRATE_WEAK, 0.3, 0.3, 0.3, -38.5, 0.3, 20,
                                       ...IDENTITY, ...FREE(DYNAMIC), 0.2, 0, 0);
 const strongHero = m._physics3d_addCharacter(14, 0.3, 0.5, -40, 0.8, 10, 0.87, 70, 0, 6000);
 const weakHero = m._physics3d_addCharacter(15, 0.3, 0.5, -40, 0.8, 20, 0.87, 70, 0, 0);
@@ -337,9 +344,14 @@ check('a sensor reports its visitor', entered != null && entered[1] === VISITOR,
       JSON.stringify(entered));
 // It carries on to the floor below (top at 0, so a 0.5 sphere rests at 0.5). A
 // sensor that stopped it would hold it on its own top face at 2.5 instead.
-const sensorLeft = collect(sensorExits, 180).find((e) => e[0] === FIELD) ?? null;
+// It comes to rest INSIDE the field (the floor is too), so the exit is made to
+// happen: carried out of the volume. Jolt also reports one when the body falls
+// asleep in it; PhysX, as in Unity, does not, and a sleeping visitor is still in.
+const settled = collect(sensorExits, 180).find((e) => e[0] === FIELD) ?? null;
 check('and does not stop it', near(bodyState(visitorId).y, 0.5, 0.1),
       `visitor y=${bodyState(visitorId)?.y?.toFixed(4)} want 0.5 (through it, onto the floor)`);
+m._physics3d_setTransform(visitorId, -20, 0.5, 30, ...IDENTITY);
+const sensorLeft = settled ?? collect(sensorExits, 30).find((e) => e[0] === FIELD) ?? null;
 check('and reports when it leaves', sensorLeft != null && sensorLeft[1] === VISITOR,
       JSON.stringify(sensorLeft));
 

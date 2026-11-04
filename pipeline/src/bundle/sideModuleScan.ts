@@ -9,9 +9,9 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { statSync } from 'node:fs';
 import {
-  SIDE_MODULES, spineModuleId, getEditorType,
+  SIDE_MODULES, spineModuleId, physics3dModuleId, getEditorType,
   sceneUsesPhysics, sceneUses3DPhysics,
-  type SideModuleId, type SpineVersion,
+  type SideModuleId, type SpineVersion, type Physics3DBackend,
 } from 'esengine';
 
 export type { SpineVersion };
@@ -54,6 +54,8 @@ export interface SideModuleScanInput {
    * scan either, so the project's word is the evidence.
    */
   forced?: readonly string[];
+  /** The project's 3D backend: which module answers for the 3D world. Absent ⇒ Jolt. */
+  physics3dBackend?: Physics3DBackend;
 }
 
 const VERSION_PREFIXES: ReadonlyArray<readonly [string, SpineVersion]> = [
@@ -145,6 +147,9 @@ export async function scanSideModuleIds(input: SideModuleScanInput): Promise<Set
   // Never implied by the 2D flag — that declares the solver 2D scenes use, and
   // this is a different module.
   if (docs.some((d) => sceneUses3DPhysics(d as never))) ids.add('physics3d');
+  // The 3D world is one module whichever solver runs it; the project's backend
+  // picks the artifact, so a PhysX project never carries Jolt and the reverse.
+  if (ids.delete('physics3d')) ids.add(physics3dModuleId(input.physics3dBackend));
 
   for (const e of input.cookEntries) {
     const lower = e.path.toLowerCase();

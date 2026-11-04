@@ -1,0 +1,295 @@
+// Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
+// Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2008-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+#include "NpPBDMaterial.h"
+#include "NpPhysics.h"
+#include "CmUtils.h"
+
+#if PX_SUPPORT_GPU_PHYSX
+using namespace physx;
+using namespace Cm;
+
+NpPBDMaterial::NpPBDMaterial(const PxsPBDMaterialCore& desc) :
+	PxPBDMaterial(PxConcreteType::ePBD_MATERIAL, PxBaseFlag::eOWNS_MEMORY | PxBaseFlag::eIS_RELEASABLE),
+	mMaterial(desc)
+{
+	mMaterial.mMaterial = this;  // back-reference	
+}
+
+NpPBDMaterial::~NpPBDMaterial()
+{
+	NpPhysics::getInstance().removeMaterialFromTable(*this);
+}
+
+// PX_SERIALIZATION
+void NpPBDMaterial::resolveReferences(PxDeserializationContext&)
+{
+	// ### this one could be automated if NpMaterial would inherit from MaterialCore
+	// ### well actually in that case the pointer would not even be needed....
+	mMaterial.mMaterial = this;	// Resolve MaterialCore::mMaterial
+
+	// Maybe not the best place to do it but it has to be done before the shapes resolve material indices
+	// since the material index translation table is needed there. This requires that the materials have
+	// been added to the table already.
+	// PT: TODO: missing line here?
+}
+
+void NpPBDMaterial::onRefCountZero()
+{
+	void* ud = userData;
+
+	if (getBaseFlags() & PxBaseFlag::eOWNS_MEMORY)
+	{
+		NpFactory::getInstance().releasePBDMaterialToPool(*this);
+	}
+	else
+		this->~NpPBDMaterial();
+
+	NpPhysics::getInstance().notifyDeletionListenersMemRelease(this, ud);
+}
+
+NpPBDMaterial* NpPBDMaterial::createObject(PxU8*& address, PxDeserializationContext& context)
+{
+	NpPBDMaterial* obj = PX_PLACEMENT_NEW(address, NpPBDMaterial(PxBaseFlag::eIS_RELEASABLE));
+	address += sizeof(NpPBDMaterial);
+	obj->importExtraData(context);
+	obj->resolveReferences(context);
+	return obj;
+}
+//~PX_SERIALIZATION
+
+void NpPBDMaterial::release()
+{
+	RefCountable_decRefCount(*this);
+}
+
+void NpPBDMaterial::acquireReference()
+{
+	RefCountable_incRefCount(*this);
+}
+
+PxU32 NpPBDMaterial::getReferenceCount() const
+{
+	return RefCountable_getRefCount(*this);
+}
+
+PX_INLINE void NpPBDMaterial::updateMaterial()
+{
+	NpPhysics::getInstance().updateMaterial(*this);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+void NpPBDMaterial::setFriction(PxReal x)
+{
+	PX_CHECK_AND_RETURN(x >= 0.f, "PxPBDMaterial::setFriction: invalid float");
+	mMaterial.friction = x;
+	updateMaterial();
+	OMNI_PVD_SET(OMNI_PVD_CONTEXT_HANDLE, PxPBDMaterial, friction, static_cast<PxPBDMaterial&>(*this), x); // @@@
+}
+
+PxReal NpPBDMaterial::getFriction() const
+{
+	return mMaterial.friction;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+void NpPBDMaterial::setViscosity(PxReal x)
+{
+	PX_CHECK_AND_RETURN(x >= 0.f, "PxPBDMaterial::setViscosity: invalid float");
+	mMaterial.viscosity = x;
+	updateMaterial();
+	OMNI_PVD_SET(OMNI_PVD_CONTEXT_HANDLE, PxPBDMaterial, viscosity, static_cast<PxPBDMaterial&>(*this), x); // @@@
+}
+
+PxReal NpPBDMaterial::getViscosity() const
+{
+	return mMaterial.viscosity;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+void NpPBDMaterial::setDamping(PxReal x)
+{
+	PX_CHECK_AND_RETURN(x >= 0.f, "PxPBDMaterial::setDamping: invalid float");
+	mMaterial.damping = x;
+	updateMaterial();
+	OMNI_PVD_SET(OMNI_PVD_CONTEXT_HANDLE, PxPBDMaterial, damping, static_cast<PxPBDMaterial&>(*this), x); // @@@
+}
+
+PxReal NpPBDMaterial::getDamping() const
+{
+	return mMaterial.damping;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+void NpPBDMaterial::setLift(PxReal x)
+{
+	PX_CHECK_AND_RETURN(x >= 0.f, "PxPBDMaterial::setLift: invalid float");
+	mMaterial.lift = x;
+	updateMaterial();
+	OMNI_PVD_SET(OMNI_PVD_CONTEXT_HANDLE, PxPBDMaterial, lift, static_cast<PxPBDMaterial&>(*this), x); // @@@
+}
+
+PxReal NpPBDMaterial::getLift() const
+{
+	return mMaterial.lift;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+void NpPBDMaterial::setDrag(PxReal x)
+{
+	PX_CHECK_AND_RETURN(x >= 0.f, "PxPBDMaterial::setDrag: invalid float");
+	mMaterial.drag = x;
+	updateMaterial();
+	OMNI_PVD_SET(OMNI_PVD_CONTEXT_HANDLE, PxPBDMaterial, drag, static_cast<PxPBDMaterial&>(*this), x); // @@@
+}
+
+PxReal NpPBDMaterial::getDrag() const
+{
+	return mMaterial.drag;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+void NpPBDMaterial::setCFLCoefficient(PxReal x)
+{
+	PX_CHECK_AND_RETURN(x >= 0.f, "PxPBDMaterial::setCFLCoefficient: invalid float");
+	mMaterial.cflCoefficient = x;
+	updateMaterial();
+	OMNI_PVD_SET(OMNI_PVD_CONTEXT_HANDLE, PxPBDMaterial, CFLCoefficient, static_cast<PxPBDMaterial&>(*this), x); // @@@
+}
+
+PxReal NpPBDMaterial::getCFLCoefficient() const
+{
+	return mMaterial.cflCoefficient;
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
+
+void NpPBDMaterial::setVorticityConfinement(PxReal x)
+{
+	PX_CHECK_AND_RETURN(x >= 0.f, "PxPBDMaterial::setVorticityConfinement: invalid float");
+	mMaterial.vorticityConfinement = x;
+	updateMaterial();
+	OMNI_PVD_SET(OMNI_PVD_CONTEXT_HANDLE, PxPBDMaterial, vorticityConfinement, static_cast<PxPBDMaterial&>(*this), x); // @@@
+}
+
+PxReal NpPBDMaterial::getVorticityConfinement() const
+{
+	return mMaterial.vorticityConfinement;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+void NpPBDMaterial::setSurfaceTension(PxReal x)
+{
+	PX_CHECK_AND_RETURN(x >= 0.f, "PxPBDMaterial::setSurfaceTension: invalid float");
+	mMaterial.surfaceTension = x;
+	updateMaterial();
+	OMNI_PVD_SET(OMNI_PVD_CONTEXT_HANDLE, PxPBDMaterial, surfaceTension, static_cast<PxPBDMaterial&>(*this), x); // @@@
+}
+
+PxReal NpPBDMaterial::getSurfaceTension() const
+{
+	return mMaterial.surfaceTension;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+void NpPBDMaterial::setCohesion(PxReal x)
+{
+	PX_CHECK_AND_RETURN(x >= 0.f, "PxPBDMaterial::setCohesion: invalid float");
+	mMaterial.cohesion = x;
+	updateMaterial();
+	OMNI_PVD_SET(OMNI_PVD_CONTEXT_HANDLE, PxPBDMaterial, cohesion, static_cast<PxPBDMaterial&>(*this), x); // @@@
+}
+
+PxReal NpPBDMaterial::getCohesion() const
+{
+	return mMaterial.cohesion;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+
+void NpPBDMaterial::setAdhesion(PxReal x)
+{
+	PX_CHECK_AND_RETURN(x >= 0.f, "PxPBDPMaterial::setAdhesion: invalid float");
+	mMaterial.adhesion = x;
+	updateMaterial();
+	OMNI_PVD_SET(OMNI_PVD_CONTEXT_HANDLE, PxPBDMaterial, adhesion, static_cast<PxPBDMaterial&>(*this), x); // @@@
+}
+
+PxReal NpPBDMaterial::getAdhesion() const
+{
+	return mMaterial.adhesion;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+void NpPBDMaterial::setGravityScale(PxReal x)
+{
+	PX_CHECK_AND_RETURN(PxIsFinite(x), "PxPBDMaterial::setGravityScale: invalid float");
+	mMaterial.gravityScale = x;
+	updateMaterial();
+	OMNI_PVD_SET(OMNI_PVD_CONTEXT_HANDLE, PxPBDMaterial, gravityScale, static_cast<PxPBDMaterial&>(*this), x); // @@@
+}
+
+PxReal NpPBDMaterial::getGravityScale() const
+{
+	return mMaterial.gravityScale;
+}
+
+//////////////////////////////////////////////////////////////////////////////
+
+void NpPBDMaterial::setAdhesionRadiusScale(PxReal x)
+{
+	PX_CHECK_AND_RETURN(x >= 0.f, "PxPBDMaterial::setAdhesionRadiusScale: invalid float");
+	mMaterial.adhesionRadiusScale = x;
+	updateMaterial();
+	OMNI_PVD_SET(OMNI_PVD_CONTEXT_HANDLE, PxPBDMaterial, adhesionRadiusScale, static_cast<PxPBDMaterial&>(*this), x); // @@@
+}
+
+PxReal NpPBDMaterial::getAdhesionRadiusScale() const
+{
+	return mMaterial.adhesionRadiusScale;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+void NpPBDMaterial::setParticleFrictionScale(PxReal x)
+{
+	PX_CHECK_AND_RETURN(x >= 0.f, "PxPBDMaterial::setParticleFrictionScale: invalid float");
+	mMaterial.particleFrictionScale = x;
+	updateMaterial();
+	OMNI_PVD_SET(OMNI_PVD_CONTEXT_HANDLE, PxPBDMaterial, particleFrictionScale, static_cast<PxPBDMaterial&>(*this), x); // @@@
+}
+
+PxReal NpPBDMaterial::getParticleFrictionScale() const
+{
+	return mMaterial.particleFrictionScale;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
+void NpPBDMaterial::setParticleAdhesionScale(PxReal adhesionScale)
+{
+	PX_CHECK_AND_RETURN(adhesionScale >= 0.f, "PxPBDMaterial::setParticleAdhesionScale: adhesion value must be >= 0");
+	mMaterial.particleAdhesionScale = adhesionScale;
+	updateMaterial();
+	OMNI_PVD_SET(OMNI_PVD_CONTEXT_HANDLE, PxPBDMaterial, particleAdhesionScale, static_cast<PxPBDMaterial&>(*this), adhesionScale); // @@@
+}
+
+PxReal NpPBDMaterial::getParticleAdhesionScale() const
+{
+	return mMaterial.particleAdhesionScale;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+#endif

@@ -124,6 +124,17 @@ export default {
                 'sdk/physics3d.wasm': 'wasm/web/physics3d.wasm',
             },
         },
+        'physics3d-physx': {
+            buildDir: 'build/cmake/physics3d-physx',
+            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_PHYSX=ON', '-DES_PHYSICS_ESM=ON'],
+            // The 3D world over PhysX, for a project that asks for Unity's solver.
+            // Same entry points and factory as physics3d; only the file differs.
+            targets: ['physics3d_physx_module_esm'],
+            outputs: {
+                'sdk/physics3d-physx.js': 'wasm/web/physics3d-physx.js',
+                'sdk/physics3d-physx.wasm': 'wasm/web/physics3d-physx.wasm',
+            },
+        },
         basis: {
             buildDir: 'build/cmake/basis',
             cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_ENABLE_BASIS=ON'],

@@ -1,0 +1,323 @@
+// Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
+// Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2008-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+#ifndef CM_UTILS_H
+#define CM_UTILS_H
+
+#include "foundation/PxVec3.h"
+#include "foundation/PxMat33.h"
+#include "foundation/PxBounds3.h"
+#include "common/PxBase.h"
+#include "foundation/PxInlineArray.h"
+#include "foundation/PxArray.h"
+#include "foundation/PxAllocator.h"
+#include "foundation/PxMemory.h"
+#include "foundation/PxSIMDHelpers.h"
+
+namespace physx
+{
+namespace Cm
+{
+
+template<class DstType, class SrcType>
+PX_FORCE_INLINE PxU32 getArrayOfPointers(DstType** PX_RESTRICT userBuffer, PxU32 bufferSize, PxU32 startIndex, SrcType*const* PX_RESTRICT src, PxU32 size)
+{
+	const PxU32 remainder = PxU32(PxMax<PxI32>(PxI32(size - startIndex), 0));
+	const PxU32 writeCount = PxMin(remainder, bufferSize);
+	src += startIndex;
+	for(PxU32 i=0;i<writeCount;i++)
+		userBuffer[i] = static_cast<DstType*>(src[i]);
+	return writeCount;
+}
+
+template<class DstType>
+PX_FORCE_INLINE DstType safeRecip(const PxVec3& v)
+{
+	return DstType(	v.x == 0.0f ? 0.0f : 1.0f/v.x,
+					v.y == 0.0f ? 0.0f : 1.0f/v.y,
+					v.z == 0.0f ? 0.0f : 1.0f/v.z);
+}
+
+PX_CUDA_CALLABLE PX_INLINE void transformInertiaTensor(const PxVec3& PX_RESTRICT invD, const PxMat33& PX_RESTRICT M, PxMat33& PX_RESTRICT mIInv)
+{
+	const float axx = invD.x*M(0,0), axy = invD.x*M(1,0), axz = invD.x*M(2,0);
+	const float byx = invD.y*M(0,1), byy = invD.y*M(1,1), byz = invD.y*M(2,1);
+	const float czx = invD.z*M(0,2), czy = invD.z*M(1,2), czz = invD.z*M(2,2);
+
+	mIInv(0,0) = axx*M(0,0) + byx*M(0,1) + czx*M(0,2);
+	mIInv(1,1) = axy*M(1,0) + byy*M(1,1) + czy*M(1,2);
+	mIInv(2,2) = axz*M(2,0) + byz*M(2,1) + czz*M(2,2);
+
+	mIInv(0,1) = mIInv(1,0)	= axx*M(1,0) + byx*M(1,1) + czx*M(1,2);
+	mIInv(0,2) = mIInv(2,0)	= axx*M(2,0) + byx*M(2,1) + czx*M(2,2);
+	mIInv(1,2) = mIInv(2,1)	= axy*M(2,0) + byy*M(2,1) + czy*M(2,2);
+}
+
+// PT: this version combines the above reference code (scalar) with a SIMD quat-to-matrix call.
+// At time of writing, new code is 18% smaller with SSE2, 43% smaller with SSE4.2 (see __SSE4_2__).
+PX_INLINE void transformInertiaTensor(const PxVec3p& PX_RESTRICT invD, const PxQuat& PX_RESTRICT q, PxMat33& PX_RESTRICT mIInv)
+{
+	using namespace aos;
+
+	const PxQuat qc = q.getConjugate();	// same as transposing the matrix
+	const QuatV qV = V4LoadU(&qc.x);
+	Vec3V m0, m1, m2;
+	QuatGetMat33V(qV, m0, m1, m2);
+
+	// PT: in theory we could replace the Vec3V_From_Vec4V with Vec3V_From_Vec4V_WUndefined,
+	// since we are going to multiply invDV.w with m0.w/m1.w/m2.w, which are all zero. But
+	// it would assert in Debug inside V3Mul because of the improper Vec3s, and more importantly
+	// it would fail anyway in the presence of NaNs (because 0 * NaN gives NaN instead of 0).
+	// The NaNs could appear at any time when reading the padding bytes of PxVec3p, these are
+	// not NaNs coming from bad input data etc. We could protect against this by always initializing
+	// the padding bytes of PxVec3p to zero, but we do not do that at the moment, and that cost
+	// would spread everywhere PxVec3p is used. Instead, we just keep clearing W here.
+	const Vec3V invDV = Vec3V_From_Vec4V(V4LoadU(&invD.x));
+
+	const Vec3V x = V3Mul(invDV, m0);
+	FStore(V3Dot(x, m0), &mIInv.column0.x);
+	FStore(V3Dot(x, m1), &mIInv.column0.y);
+	FStore(V3Dot(x, m2), &mIInv.column0.z);
+
+	const Vec3V y = V3Mul(invDV, m1);
+	FStore(V3Dot(y, m1), &mIInv.column1.y);
+	FStore(V3Dot(y, m2), &mIInv.column1.z);
+
+	const Vec3V z = V3Mul(invDV, m2);
+	FStore(V3Dot(z, m2), &mIInv.column2.z);
+
+	mIInv.column1.x = mIInv.column0.y;
+	mIInv.column2.x = mIInv.column0.z;
+	mIInv.column2.y = mIInv.column1.z;
+}
+
+// PT: TODO: refactor this with PxBounds3 header
+PX_FORCE_INLINE PxVec3 basisExtent(const PxVec3& basis0, const PxVec3& basis1, const PxVec3& basis2, const PxVec3& extent)
+{
+	// extended basis vectors
+	const PxVec3 c0 = basis0 * extent.x;
+	const PxVec3 c1 = basis1 * extent.y;
+	const PxVec3 c2 = basis2 * extent.z;
+
+	// find combination of base vectors that produces max. distance for each component = sum of abs()
+	return PxVec3 (	PxAbs(c0.x) + PxAbs(c1.x) + PxAbs(c2.x),
+					PxAbs(c0.y) + PxAbs(c1.y) + PxAbs(c2.y),
+					PxAbs(c0.z) + PxAbs(c1.z) + PxAbs(c2.z));
+}
+
+PX_FORCE_INLINE PxBounds3 basisExtent(const PxVec3& center, const PxVec3& basis0, const PxVec3& basis1, const PxVec3& basis2, const PxVec3& extent)
+{
+	const PxVec3 w = basisExtent(basis0, basis1, basis2, extent);
+	return PxBounds3(center - w, center + w);
+}
+
+PX_FORCE_INLINE	bool isValid(const PxVec3& c, const PxVec3& e)
+{
+	return (c.isFinite() && e.isFinite() && (((e.x >= 0.0f) && (e.y >= 0.0f) && (e.z >= 0.0f)) ||
+											((e.x == -PX_MAX_BOUNDS_EXTENTS) &&
+											(e.y == -PX_MAX_BOUNDS_EXTENTS) &&
+											(e.z == -PX_MAX_BOUNDS_EXTENTS))));
+}
+
+PX_FORCE_INLINE	bool isEmpty(const PxVec3& c, const PxVec3& e)
+{
+	PX_UNUSED(c);
+	PX_ASSERT(isValid(c, e));
+	return e.x<0.0f;
+}
+
+// Array with externally managed storage.
+// Allocation and resize policy are managed by the owner, 
+// Very minimal functionality right now, just POD types
+
+template <typename T, 
+		  typename Owner, 
+		  typename IndexType,
+		  void (Owner::*realloc)(T*& currentMem, IndexType& currentCapacity, IndexType size, IndexType requiredMinCapacity)>
+class OwnedArray
+{
+public:
+	OwnedArray() 
+	: mData(0)
+	, mCapacity(0) 
+	, mSize(0)
+	{}
+
+	~OwnedArray()		// owner must call releaseMem before destruction
+	{
+		PX_ASSERT(mCapacity==0);
+	}
+
+	void pushBack(T& element, Owner& owner)
+	{
+		// there's a failure case if here if we push an existing element which causes a resize -
+		// a rare case not worth coding around; if you need it, copy the element then push it.
+
+		PX_ASSERT(&element<mData || &element>=mData+mSize);
+		if(mSize==mCapacity)
+			(owner.*realloc)(mData, mCapacity, mSize, IndexType(mSize+1));
+
+		PX_ASSERT(mData && mSize<mCapacity);
+		mData[mSize++] = element;
+	}
+
+	IndexType size() const
+	{
+		return mSize;
+	}
+
+	void replaceWithLast(IndexType index)
+	{
+		PX_ASSERT(index<mSize);
+		mData[index] = mData[--mSize];
+	}
+
+	T* begin() const
+	{
+		return mData;
+	}
+
+	T* end() const
+	{
+		return mData+mSize;
+	}
+
+	T& operator [](IndexType index)
+	{
+		PX_ASSERT(index<mSize);
+		return mData[index];
+	}
+
+	const T& operator [](IndexType index) const
+	{
+		PX_ASSERT(index<mSize);
+		return mData[index];
+	}
+
+	void reserve(IndexType capacity, Owner &owner)
+	{
+		if(capacity>=mCapacity)
+			(owner.*realloc)(mData, mCapacity, mSize, capacity);
+	}
+
+	void releaseMem(Owner &owner)
+	{
+		mSize = 0;
+		(owner.*realloc)(mData, mCapacity, 0, 0);
+	}
+
+private:
+	T*					mData;
+	IndexType			mCapacity;
+	IndexType			mSize;
+
+	// just in case someone tries to use a non-POD in here
+	union FailIfNonPod
+	{
+		T t;
+		int x;
+	};
+};
+
+/**
+Any object deriving from PxBase needs to call this function instead of 'delete object;'. 
+
+We don't want to implement 'operator delete' in PxBase because that would impose how
+memory of derived classes is allocated. Even though most or all of the time derived classes will 
+be user allocated, we don't want to put UserAllocatable into the API and derive from that.
+*/
+template<typename T>
+PX_INLINE void deletePxBase(T* object)
+{
+	if(object->getBaseFlags() & PxBaseFlag::eOWNS_MEMORY)
+	{
+		PX_DELETE(object);
+	}
+	else
+		object->~T();
+}
+
+#define PX_PADDING_8 0xcd
+#define PX_PADDING_16 0xcdcd
+#define PX_PADDING_32 0xcdcdcdcd
+
+/**
+Macro to instantiate a type for serialization testing. 
+Note: Only use PX_NEW_SERIALIZED once in a scope.
+*/
+#if PX_CHECKED
+	#define PX_NEW_SERIALIZED(v,T)													\
+		void* _buf = physx::PxReflectionAllocator<T>().allocate(sizeof(T), PX_FL);	\
+		PxMarkSerializedMemory(_buf, sizeof(T));									\
+		v = PX_PLACEMENT_NEW(_buf, T)
+#else
+	#define PX_NEW_SERIALIZED(v,T)  v = PX_NEW(T)
+#endif
+
+template<typename T, class Alloc>
+struct ArrayAccess: public PxArray<T, Alloc> 
+{
+	void store(PxSerializationContext& context) const
+	{
+		if(this->mData && (this->mSize || this->capacity()))
+			context.writeData(this->mData, this->capacity()*sizeof(T));
+	}
+
+	void load(PxDeserializationContext& context)
+	{
+		if(this->mData && (this->mSize || this->capacity()))
+			this->mData = context.readExtraData<T>(this->capacity());
+	}
+};
+
+template<typename T, typename Alloc>
+void exportArray(const PxArray<T, Alloc>& a, PxSerializationContext& context)
+{
+	static_cast<const ArrayAccess<T, Alloc>&>(a).store(context);
+}
+
+template<typename T, typename Alloc>
+void importArray(PxArray<T, Alloc>& a, PxDeserializationContext& context)
+{
+	static_cast<ArrayAccess<T, Alloc>&>(a).load(context);
+}
+
+template<typename T, PxU32 N, typename Alloc>
+void exportInlineArray(const PxInlineArray<T, N, Alloc>& a, PxSerializationContext& context)
+{
+	if(!a.isInlined())
+		Cm::exportArray(a, context);
+}
+
+template<typename T, PxU32 N, typename Alloc>
+void importInlineArray(PxInlineArray<T, N, Alloc>& a, PxDeserializationContext& context)
+{
+	if(!a.isInlined())
+		Cm::importArray(a, context);
+}
+
+template<class T>
+static PX_INLINE T* reserveContainerMemory(PxArray<T>& container, PxU32 nb)
+{
+	const PxU32 maxNbEntries = container.capacity();
+	const PxU32 requiredSize = container.size() + nb;
+
+	if(requiredSize>maxNbEntries)
+	{
+		const PxU32 naturalGrowthSize = maxNbEntries ? maxNbEntries*2 : 2;
+		const PxU32 newSize = PxMax(requiredSize, naturalGrowthSize);
+		container.reserve(newSize);
+	}
+
+	T* buf = container.end();
+	container.forceSize_Unsafe(requiredSize);
+	return buf;
+}
+
+} // namespace Cm
+
+}
+
+#endif

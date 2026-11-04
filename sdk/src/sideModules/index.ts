@@ -11,6 +11,7 @@ export {
     SIDE_MODULES,
     SPINE_VERSIONS,
     spineModuleId,
+    physics3dModuleId,
     registerSideModule,
     sideModuleDescriptor,
     projectSideModuleIds,
@@ -19,6 +20,7 @@ export {
     type BuiltinSideModuleId,
     type SideModuleDescriptor,
     type SpineVersion,
+    type Physics3DBackend,
 } from './registry';
 export {
     createSideModuleHost,

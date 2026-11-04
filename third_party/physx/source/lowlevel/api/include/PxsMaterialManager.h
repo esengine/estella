@@ -1,0 +1,146 @@
+// Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
+// Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2008-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+#ifndef PXS_MATERIAL_MANAGER_H
+#define PXS_MATERIAL_MANAGER_H
+
+#include "PxsMaterialCore.h"
+#include "PxsDeformableSurfaceMaterialCore.h"
+#include "PxsDeformableVolumeMaterialCore.h"
+#include "PxsPBDMaterialCore.h"
+#include "foundation/PxAlignedMalloc.h"
+
+namespace physx
+{
+	struct PxsMaterialInfo
+	{
+		PxU16 mMaterialIndex0;
+		PxU16 mMaterialIndex1;
+	};
+
+	template<class MaterialCore>
+	class PxsMaterialManagerT 
+	{
+	public:
+		PxsMaterialManagerT()
+		{
+			const PxU32 matCount = 128;
+			materials = reinterpret_cast<MaterialCore*>(physx::PxAlignedAllocator<16>().allocate(sizeof(MaterialCore)*matCount, PX_FL));
+			maxMaterials = matCount;
+			for(PxU32 i=0; i<matCount; ++i)
+			{
+				materials[i].mMaterialIndex = MATERIAL_INVALID_HANDLE;
+			}
+		}
+
+		~PxsMaterialManagerT()
+		{
+			physx::PxAlignedAllocator<16>().deallocate(materials);
+		}
+
+		void setMaterial(MaterialCore* mat)
+		{
+			const PxU16 materialIndex = mat->mMaterialIndex;
+			resize(PxU32(materialIndex) + 1);
+			materials[materialIndex] = *mat;
+		}
+
+		void updateMaterial(MaterialCore* mat)
+		{
+			materials[mat->mMaterialIndex] =*mat;
+		}
+
+		void removeMaterial(MaterialCore* mat)
+		{
+			mat->mMaterialIndex = MATERIAL_INVALID_HANDLE;
+		}
+
+		PX_FORCE_INLINE MaterialCore* getMaterial(const PxU32 index)const
+		{
+			PX_ASSERT(index <  maxMaterials);
+			return &materials[index];
+		}
+
+		PxU32 getMaxSize()const 
+		{
+			return maxMaterials;
+		}
+
+		void resize(PxU32 minValueForMax)
+		{
+			if(maxMaterials>=minValueForMax)
+				return;
+
+			const PxU32 numMaterials = maxMaterials;
+			
+			maxMaterials = (minValueForMax+31)&~31;
+			MaterialCore* mat = reinterpret_cast<MaterialCore*>(physx::PxAlignedAllocator<16>().allocate(sizeof(MaterialCore)*maxMaterials, PX_FL));
+			for(PxU32 i=0; i<numMaterials; ++i)
+				mat[i] = materials[i];
+
+			for(PxU32 i = numMaterials; i < maxMaterials; ++i)
+				mat[i].mMaterialIndex = MATERIAL_INVALID_HANDLE;
+
+			physx::PxAlignedAllocator<16>().deallocate(materials);
+
+			materials = mat;
+		}
+
+		MaterialCore* materials;//make sure materials's start address is 16 bytes align
+		PxU32 maxMaterials;
+		PxU32 mPad;
+#if !PX_P64_FAMILY
+		PxU32 mPad2;
+#endif
+	};
+
+	//This class is used for forward declaration
+	class PxsMaterialManager : public PxsMaterialManagerT<PxsMaterialCore>
+	{
+	};
+
+	class PxsDeformableSurfaceMaterialManager : public PxsMaterialManagerT<PxsDeformableSurfaceMaterialCore>
+	{
+	};
+
+	class PxsDeformableVolumeMaterialManager : public PxsMaterialManagerT<PxsDeformableVolumeMaterialCore>
+	{
+	};
+
+	class PxsPBDMaterialManager : public PxsMaterialManagerT<PxsPBDMaterialCore>
+	{
+	};
+
+	template<class MaterialCore>
+	class PxsMaterialManagerIterator
+	{
+	
+	public:
+		PxsMaterialManagerIterator(PxsMaterialManagerT<MaterialCore>& manager) : mManager(manager), mIndex(0)
+		{
+		}
+
+		bool getNextMaterial(MaterialCore*& materialCore)
+		{
+			const PxU32 maxSize = mManager.getMaxSize();
+			PxU32 index = mIndex;
+			while(index < maxSize && mManager.getMaterial(index)->mMaterialIndex == MATERIAL_INVALID_HANDLE)
+				index++;
+			materialCore = NULL;
+			if(index < maxSize)
+				materialCore = mManager.getMaterial(index++);
+			mIndex = index;
+			return materialCore!=NULL;
+		}
+
+	private:
+		PxsMaterialManagerIterator& operator=(const PxsMaterialManagerIterator&);
+		PxsMaterialManagerT<MaterialCore>&	mManager;
+		PxU32								mIndex;
+	};
+
+}
+
+#endif

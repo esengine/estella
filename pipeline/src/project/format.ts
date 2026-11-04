@@ -148,6 +148,8 @@ export interface ProjectFeatures {
     gravity?: { x: number; y: number };
     /** Names for the 16 Box2D collision-filter layers (the inspector's layer masks). */
     collisionLayers?: string[];
+    /** The solver behind 3D physics: Jolt (default) or PhysX, the one Unity runs. */
+    backend3d?: 'jolt' | 'physx';
     /** Per-layer collision masks (the UE/Unity collision matrix): masks[i] bit j set ⇒
      *  layer i collides with layer j. 16 entries; absent ⇒ all-collide. */
     collisionLayerMasks?: number[];
@@ -832,6 +834,7 @@ export function parseManifest(raw: unknown): ProjectManifest {
         if (typeof p[k] === 'number' && Number.isFinite(p[k] as number)) physics[k] = p[k] as number;
       }
       if (typeof p.enableSleep === 'boolean') physics.enableSleep = p.enableSleep;
+      if (p.backend3d === 'jolt' || p.backend3d === 'physx') physics.backend3d = p.backend3d;
       if (typeof p.enableContinuous === 'boolean') physics.enableContinuous = p.enableContinuous;
       features.physics = physics;
     }

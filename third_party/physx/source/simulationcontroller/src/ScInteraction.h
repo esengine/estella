@@ -1,0 +1,182 @@
+// Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
+// Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2008-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+#ifndef SC_INTERACTION_H
+#define SC_INTERACTION_H
+
+#include "ScInteractionFlags.h"
+#include "ScActorSim.h"
+#include "foundation/PxUserAllocated.h"
+#include "foundation/PxUtilities.h"
+
+namespace physx
+{
+#define PX_INVALID_INTERACTION_ACTOR_ID 0xffffffff
+#define PX_INVALID_INTERACTION_SCENE_ID 0xffffffff
+
+namespace Sc
+{
+	struct InteractionType
+	{
+		enum Enum
+		{
+			eOVERLAP		= 0,		// corresponds to ShapeInteraction
+			eTRIGGER,					// corresponds to TriggerInteraction
+			eMARKER,					// corresponds to ElementInteractionMarker
+			eTRACKED_IN_SCENE_COUNT,	// not a real type, interactions above this limit are tracked in the scene
+			eCONSTRAINTSHADER,			// corresponds to ConstraintInteraction
+			eARTICULATION,				// corresponds to ArticulationJointSim
+
+			eINVALID
+		};
+	};
+
+	// Interactions are used for connecting actors into activation groups. An interaction always connects exactly two actors. 
+	// An interaction is implicitly active if at least one of the two actors it connects is active.
+
+	class Interaction
+	{
+		PX_NOCOPY(Interaction)
+										Interaction(ActorSim& actor0, ActorSim& actor1, InteractionType::Enum interactionType, PxU8 flags);
+										~Interaction() { PX_ASSERT(!readInteractionFlag(InteractionFlag::eIN_DIRTY_LIST)); }
+	public:
+		// Interactions automatically register themselves in the actors here
+		PX_FORCE_INLINE void			registerInActors();
+
+		// Interactions automatically unregister themselves from the actors here
+		PX_FORCE_INLINE void			unregisterFromActors();
+
+		PX_FORCE_INLINE	ActorSim&		getActorSim0()	const	{ return mActor0; }
+		PX_FORCE_INLINE	ActorSim&		getActorSim1()	const	{ return mActor1; }
+
+		PX_FORCE_INLINE Scene&			getScene() const { return mActor0.getScene(); }
+
+		PX_FORCE_INLINE	InteractionType::Enum getType() const { return InteractionType::Enum(mInteractionType); }
+
+		PX_FORCE_INLINE PxU8			readInteractionFlag(PxU8 flag) const { return PxU8(mInteractionFlags & flag); }
+		PX_FORCE_INLINE void			raiseInteractionFlag(InteractionFlag::Enum flag) { mInteractionFlags |= flag; }
+		PX_FORCE_INLINE void			clearInteractionFlag(InteractionFlag::Enum flag) { mInteractionFlags &= ~flag; }
+
+		/**
+		\brief Mark the interaction as dirty. This will put the interaction into a list that is processed once per simulation step.
+
+		\see InteractionDirtyFlag
+		*/
+		PX_FORCE_INLINE void			setDirty(PxU32 dirtyFlags);
+
+		/**
+		\brief Clear all flags that mark the interaction as dirty and optionally remove the interaction from the list of dirty interactions.
+
+		\see InteractionDirtyFlag
+		*/
+		/*PX_FORCE_INLINE*/ void		setClean(bool removeFromList);
+
+		PX_FORCE_INLINE PxIntBool		needsRefiltering() const { return (getDirtyFlags() & InteractionDirtyFlag::eFILTER_STATE); }
+
+		PX_FORCE_INLINE PxIntBool		isElementInteraction() const;
+
+		PX_FORCE_INLINE	void			setInteractionId(PxU32 id)	{ mSceneId = id;										}
+		PX_FORCE_INLINE	PxU32			getInteractionId()	const	{ return mSceneId;										}
+		PX_FORCE_INLINE	bool			isRegistered()		const	{ return mSceneId != PX_INVALID_INTERACTION_SCENE_ID;	}
+
+		PX_FORCE_INLINE	void			setActorId(ActorSim* actor, PxU32 id);
+		PX_FORCE_INLINE	PxU32			getActorId(const ActorSim* actor) const;
+
+		PX_FORCE_INLINE PxU8			getDirtyFlags() const { return mDirtyFlags; }
+
+	private:
+						void			addToDirtyList();
+						void			removeFromDirtyList();
+
+						ActorSim&		mActor0;
+						ActorSim&		mActor1;
+
+		// PT: TODO: merge the 6bits of the 3 PxU8s in the top bits of the 3 PxU32s
+						PxU32			mSceneId;	// PT: TODO: merge this with mInteractionType
+
+		// PT: TODO: are those IDs even worth caching? Since the number of interactions per actor is (or should be) small,
+		// we could just do a linear search and save memory here...
+						PxU32			mActorId0;	// PT: id of this interaction within mActor0's mInteractions array
+						PxU32			mActorId1;	// PT: id of this interaction within mActor1's mInteractions array
+	protected:
+		const			PxU8			mInteractionType;	// PT: stored on a byte to save space, should be InteractionType enum, 5/6 bits needed here
+						PxU8			mInteractionFlags;	// PT: 6 bits needed here, see InteractionFlag enum
+						PxU8			mDirtyFlags;		// PT: 5 bits needed here, see InteractionDirtyFlag enum
+						PxU8			mPadding8;
+	};
+
+} // namespace Sc
+
+//////////////////////////////////////////////////////////////////////////
+
+PX_FORCE_INLINE void Sc::Interaction::registerInActors()
+{
+	mActor0.registerInteractionInActor(this);
+	mActor1.registerInteractionInActor(this);
+}
+
+PX_FORCE_INLINE void Sc::Interaction::unregisterFromActors()
+{
+	mActor0.unregisterInteractionFromActor(this);
+	mActor1.unregisterInteractionFromActor(this);
+}
+
+PX_FORCE_INLINE	void Sc::Interaction::setActorId(ActorSim* actor, PxU32 id)
+{
+	PX_ASSERT(id != PX_INVALID_INTERACTION_ACTOR_ID);
+	PX_ASSERT(&mActor0 == actor || &mActor1 == actor);
+	if(&mActor0 == actor)
+		mActorId0 = id;
+	else
+		mActorId1 = id;
+}
+
+PX_FORCE_INLINE	PxU32 Sc::Interaction::getActorId(const ActorSim* actor) const
+{
+	PX_ASSERT(&mActor0 == actor || &mActor1 == actor);
+	return &mActor0 == actor ? mActorId0 : mActorId1;
+}
+
+PX_FORCE_INLINE PxIntBool Sc::Interaction::isElementInteraction() const
+{
+	const PxIntBool res = readInteractionFlag(InteractionFlag::eRB_ELEMENT);
+	PX_ASSERT(	(res && 
+				((getType() == InteractionType::eOVERLAP)	|| 
+				(getType() == InteractionType::eTRIGGER)	|| 
+				(getType() == InteractionType::eMARKER))) ||
+				(!res && 
+				((getType() == InteractionType::eCONSTRAINTSHADER)	|| 
+				(getType() == InteractionType::eARTICULATION))));
+
+	return res;
+}
+
+PX_FORCE_INLINE void Sc::Interaction::setDirty(PxU32 dirtyFlags)
+{
+	PX_ASSERT(getType() != InteractionType::eARTICULATION);
+
+	mDirtyFlags |= PxTo8(dirtyFlags);
+	if(!readInteractionFlag(InteractionFlag::eIN_DIRTY_LIST))
+	{
+		addToDirtyList();
+		raiseInteractionFlag(InteractionFlag::eIN_DIRTY_LIST);
+	}
+}
+
+//PX_FORCE_INLINE void Sc::Interaction::setClean(bool removeFromList)
+//{
+//	if (readInteractionFlag(InteractionFlag::eIN_DIRTY_LIST))
+//	{
+//		if (removeFromList)  // if we process all dirty interactions anyway, then we can just clear the list at the end and save the work here.
+//			removeFromDirtyList();
+//		clearInteractionFlag(InteractionFlag::eIN_DIRTY_LIST);
+//	}
+//
+//	mDirtyFlags = 0;
+//}
+
+}
+
+#endif

@@ -1,0 +1,106 @@
+// Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
+// Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2008-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+           
+#include "ScIterators.h"
+#include "ScBodySim.h"
+#include "ScShapeSim.h"
+#include "ScShapeInteraction.h"
+
+using namespace physx;
+
+///////////////////////////////////////////////////////////////////////////////
+
+Sc::ContactIterator::Pair::Pair(const void*& contactPatches, const void*& contactPoints, const void*& frictionPatches, PxU32 /*contactDataSize*/, const PxReal*& forces, PxU32 numContacts, PxU32 numPatches,
+	ShapeSimBase& shape0, ShapeSimBase& shape1, ActorSim* actor0, ActorSim* actor1)
+: mIndex(0)
+, mNumContacts(numContacts)
+, mIter(reinterpret_cast<const PxU8*>(contactPatches), reinterpret_cast<const PxU8*>(contactPoints), reinterpret_cast<const PxU32*>(forces + numContacts), numPatches, numContacts)
+, mAnchorIter(reinterpret_cast<const PxU8*>(contactPatches), reinterpret_cast<const PxU8*>(frictionPatches), numPatches)
+, mForces(forces)
+, mActor0(actor0->getPxActor())
+, mActor1(actor1->getPxActor())
+{
+	mCurrentContact.shape0 = shape0.getPxShape();
+	mCurrentContact.shape1 = shape1.getPxShape();
+	mCurrentContact.normalForceAvailable = (forces != NULL);
+}
+
+Sc::ContactIterator::Pair* Sc::ContactIterator::getNextPair()
+{ 
+	PX_ASSERT(mCurrent || (mCurrent == mLast));
+	if(mCurrent < mLast)
+	{
+		ShapeInteraction* si = static_cast<ShapeInteraction*>(*mCurrent);
+
+		const void* contactPatches = NULL;
+		const void* contactPoints = NULL;
+		PxU32 contactDataSize = 0;
+		const PxReal* forces = NULL;
+		PxU32 numContacts = 0;
+		PxU32 numPatches = 0;
+		const void* frictionPatches = NULL;
+
+		PxU32 nextOffset = si->getContactPointData(contactPatches, contactPoints, contactDataSize, numContacts, numPatches, forces, mOffset, *mOutputs, frictionPatches);
+
+		if (nextOffset == mOffset)
+			++mCurrent;
+		else
+			mOffset = nextOffset;
+
+		mCurrentPair = Pair(contactPatches, contactPoints, frictionPatches, contactDataSize, forces, numContacts, numPatches, si->getShape0(), si->getShape1(), &si->getActorSim0(), &si->getActorSim1());
+		return &mCurrentPair;
+	}
+	else
+		return NULL;
+}
+
+Sc::Contact* Sc::ContactIterator::Pair::getNextContact()
+{
+	if(mIndex < mNumContacts)
+	{
+		while (!mIter.hasNextContact())
+		{
+			if(!mIter.hasNextPatch())
+				return NULL;
+			mIter.nextPatch();
+		}
+		mIter.nextContact();
+
+		mCurrentContact.normal = mIter.getContactNormal();
+		mCurrentContact.point = mIter.getContactPoint();
+		mCurrentContact.separation = mIter.getSeparation();
+		mCurrentContact.normalForce = mForces ? mForces[mIndex] : 0;
+		mCurrentContact.faceIndex0 = mIter.getFaceIndex0();
+		mCurrentContact.faceIndex1 = mIter.getFaceIndex1();
+
+		mIndex++;
+		return &mCurrentContact;
+	}
+	return NULL;
+}
+
+Sc::FrictionAnchor* Sc::ContactIterator::Pair::getNextFrictionAnchor()
+{
+	if(mAnchorIter.hasNextPatch())
+	{
+		while (!mAnchorIter.hasNextFrictionAnchor())
+		{
+			if(!mAnchorIter.hasNextPatch())
+				return NULL;
+			mAnchorIter.nextPatch();
+		}
+		mAnchorIter.nextFrictionAnchor();
+
+		mCurrentAnchor.normal = mAnchorIter.getNormal();
+		mCurrentAnchor.point = mAnchorIter.getPosition();
+		mCurrentAnchor.impulse = mAnchorIter.getImpulse();
+
+		return &mCurrentAnchor;
+	}
+	return NULL;
+}
+
+///////////////////////////////////////////////////////////////////////////////

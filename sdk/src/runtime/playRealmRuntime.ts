@@ -34,6 +34,7 @@ import type { RuntimeBuildConfig } from '../defaults';
 import { fetchDecodePixels } from '../asset/imageDecode';
 import { applyAssetRefResolvers } from './packagedRuntime';
 import { extractUuid, UUID_REF_PREFIX } from '../asset/AssetRegistry';
+import type { Physics3DBackend } from '../sideModules/registry';
 
 export interface PlayRealmRuntimeConfig {
     app: App;
@@ -84,6 +85,8 @@ export interface PlayRealmRuntimeConfig {
     /** Project-declared physics world config (gravity, solver tuning, collision-layer
      *  masks, sleep/continuous) from the editor's Project Settings. */
     physicsConfig?: Physics2DPluginConfig;
+    /** The 3D physics backend the project chose; absent ⇒ Jolt. */
+    physics3dBackend?: Physics3DBackend;
     /** Project-declared UI theme; 'light' re-skins ThemeStyle-tagged widgets at boot. */
     uiTheme?: 'dark' | 'light';
     /** Project-declared theme token overrides (partial re-skin over the base). */
@@ -252,6 +255,7 @@ export async function initPlayRealmRuntime(config: PlayRealmRuntimeConfig): Prom
         aspectRatio: canvas.width / canvas.height,
         physicsEnabled: config.physicsEnabled,
         physicsConfig: config.physicsConfig,
+        physics3dBackend: config.physics3dBackend,
         uiTheme: config.uiTheme,
         uiThemeOverrides: config.uiThemeOverrides,
         audioConfig: config.audioConfig,

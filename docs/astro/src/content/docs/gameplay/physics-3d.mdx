@@ -1,13 +1,13 @@
 ---
 title: 3D Physics
-description: The 3D rigid-body world — Jolt-backed bodies, box/sphere/capsule shapes, and how it sits beside the 2D physics rather than replacing it.
+description: The 3D rigid-body world — bodies on Jolt or PhysX, box/sphere/capsule shapes, and how it sits beside the 2D physics rather than replacing it.
 ---
 
 import { Aside } from '@astrojs/starlight/components';
 
 A 3D model can be imported, animated, skinned and lit. This is what makes it stand
-somewhere: a rigid-body world powered by **Jolt Physics**, running in its own
-WebAssembly module.
+somewhere: a rigid-body world powered by **Jolt Physics** or, if the project
+chooses, **PhysX**, running in its own WebAssembly module.
 
 It sits **beside** the [2D physics](/docs/gameplay/physics/), not on top of it. A 2D
 scene keeps the solver, the units and the feel it already has, and a project that
@@ -26,6 +26,42 @@ import { Physics3DPlugin } from 'esengine/physics3d';
 
 app.addPlugin(new Physics3DPlugin('physics3d.js', { gravity: { x: 0, y: -9.81, z: 0 } }));
 ```
+
+## Choosing the solver: Jolt or PhysX
+
+The 3D world runs on **Jolt** by default. **Project Settings → Physics → 3D solver**
+switches it to **PhysX**, the solver Unity runs, for a project that should behave
+like its Unity original. In the manifest:
+
+```json
+"features": { "physics": { "backend3d": "physx" } }
+```
+
+Nothing else changes. Both backends answer the same components, joints, characters,
+queries and collision events, and the same 98-behaviour smoke runs against each
+(`node tools/check-physics3d.mjs`, `node tools/check-physics3d-physx.mjs`). A build
+ships only the module it chose: `physics3d.wasm` for Jolt, `physics3d-physx.wasm`
+for PhysX. Editor Play uses the same choice.
+
+PhysX is set up with Unity's defaults: projected Gauss-Seidel, patch friction,
+Average friction and bounce combine, a 0.01 m contact offset, a 2 m/s bounce
+threshold, a 0.005 sleep threshold, 6 position and 1 velocity iterations, and a
+50 rad/s maximum angular speed. Where the two engines differ, PhysX follows Unity:
+
+- A trigger reports a character entering it, as `OnTriggerEnter` does for a
+  CharacterController. A Jolt character is not a body, so a Jolt sensor never sees one.
+- A body that falls asleep inside a trigger is still inside it. Jolt reports an exit
+  when the body sleeps.
+- A character keeps a skin of a tenth of its radius (Unity's recommended skin
+  width), so it stands that much higher than a Jolt character.
+- A character climbs onto a dynamic body no taller than its step height. A taller
+  one is pushed, with no more force than its push strength.
+
+What it costs: the PhysX web module is 3.6 MB (1.15 MB gzipped), against Jolt's
+1.3 MB, and it loads only in a project that chose it. A chaotic scene (a ball
+glancing off the edge of a hinged door) ends differently on the two solvers, as
+it would between any two engines. Native builds (desktop, Android) compile Jolt
+in and run it either way for now; they log that once at startup.
 
 ## Bodies
 

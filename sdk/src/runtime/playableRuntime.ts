@@ -26,6 +26,7 @@ import { Audio, setAudioHostSuspended } from '../audio/Audio';
 import { Input, inputEventCallbacks } from '../input/input';
 import { playableAdBridge } from './playableCta';
 import { VideoPlayer } from '../video/VideoAPI';
+import type { Physics3DBackend } from '../sideModules/registry';
 
 export interface PlayableRuntimeConfig {
     app: App;
@@ -49,6 +50,8 @@ export interface PlayableRuntimeConfig {
      *  The FULL config, not a three-field subset: a collision matrix that reached
      *  Play and not a shipped build is a game that only collides in rehearsal. */
     physicsConfig?: Physics2DPluginConfig;
+    /** The 3D physics backend the project chose; absent ⇒ Jolt. */
+    physics3dBackend?: Physics3DBackend;
     /** Project-declared UI theme; 'light' re-skins ThemeStyle-tagged widgets at boot. */
     uiTheme?: 'dark' | 'light';
     /** Project-declared theme token overrides (partial re-skin over the base). */
@@ -160,6 +163,7 @@ export async function initPlayableRuntime(config: PlayableRuntimeConfig): Promis
         firstScene,
         physicsEnabled: config.physicsEnabled,
         physicsConfig: config.physicsConfig,
+        physics3dBackend: config.physics3dBackend,
         uiTheme: config.uiTheme,
         uiThemeOverrides: config.uiThemeOverrides,
         audioConfig: config.audioConfig,

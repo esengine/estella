@@ -1,0 +1,233 @@
+// Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
+// Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2008-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+#include "geomutils/PxContactBuffer.h"
+#include "GuGJKPenetration.h"
+#include "GuEPA.h"
+#include "GuVecBox.h"
+#include "GuVecConvexHull.h"
+#include "GuVecConvexHullNoScale.h"
+#include "GuContactMethodImpl.h"
+#include "GuPCMContactGen.h"
+#include "GuPCMShapeConvex.h"
+
+#define PCM_BOX_HULL_DEBUG 0
+
+using namespace physx;
+using namespace Gu;
+using namespace aos;
+
+static bool fullContactsGenerationBoxConvex(const GjkConvex* relativeConvex, const GjkConvex* localConvex, const PxTransformV& transf0, const PxTransformV& transf1,
+											PersistentContact* manifoldContacts, PxContactBuffer& contactBuffer, PersistentContactManifold& manifold, Vec3VArg normal, 
+											const Vec3VArg closestA, const Vec3VArg closestB, const FloatVArg contactDist, bool idtScale, bool doOverlapTest, PxRenderOutput* renderOutput,
+											PxReal toleranceLength)
+{
+	PolygonalData polyData0;
+
+	const BoxV& box = relativeConvex->getConvex<BoxV>();
+	const ConvexHullV& convexHull = localConvex->getConvex<ConvexHullV>();
+
+	PxVec3 halfExtents;
+	V3StoreU(box.extents, halfExtents);
+	PCMPolygonalBox polyBox0(halfExtents);
+	polyBox0.getPolygonalData(&polyData0);
+	polyData0.mPolygonVertexRefs = gPCMBoxPolygonData;
+	
+	PolygonalData polyData1;
+	getPCMConvexData(convexHull, idtScale, polyData1);
+	
+	const Mat33V identity = M33Identity();
+	SupportLocalImpl<BoxV> map0(box, transf0, identity, identity, true);
+
+	PX_ALIGN(16, PxU8 buff1[sizeof(SupportLocalImpl<ConvexHullV>)]);
+
+	SupportLocal* map1 = (idtScale ? static_cast<SupportLocal*>(PX_PLACEMENT_NEW(buff1, SupportLocalImpl<ConvexHullNoScaleV>)(static_cast<const ConvexHullNoScaleV&>(convexHull), transf1, convexHull.vertex2Shape, convexHull.shape2Vertex, idtScale)) : 
+		static_cast<SupportLocal*>(PX_PLACEMENT_NEW(buff1, SupportLocalImpl<ConvexHullV>)(convexHull, transf1, convexHull.vertex2Shape, convexHull.shape2Vertex, idtScale)));
+
+	PxU32 numContacts = 0;
+	if(generateFullContactManifold(polyData0, polyData1, &map0, map1, manifoldContacts, numContacts, contactDist, normal, closestA, closestB, box.getMarginF(), convexHull.getMarginF(), 
+		doOverlapTest, renderOutput, toleranceLength))
+	{
+		if (numContacts > 0)
+		{
+			//reduce contacts
+			manifold.addBatchManifoldContacts(manifoldContacts, numContacts, toleranceLength);
+
+#if	PCM_LOW_LEVEL_DEBUG
+			manifold.drawManifold(*renderOutput, transf0, transf1);
+#endif
+			const Vec3V worldNormal = manifold.getWorldNormal(transf1);
+
+			manifold.addManifoldContactsToContactBuffer(contactBuffer, worldNormal, transf1, contactDist);
+		}
+		else
+		{
+			//if doOverlapTest is true, which means GJK/EPA degenerate so we won't have any contact in the manifoldContacts array
+			if (!doOverlapTest)
+			{
+				const Vec3V worldNormal = manifold.getWorldNormal(transf1);
+
+				manifold.addManifoldContactsToContactBuffer(contactBuffer, worldNormal, transf1, contactDist);
+			}
+		}
+		
+		return true;
+	}
+	return false;
+}
+
+static bool generateOrProcessContactsBoxConvex(	const GjkConvex* relativeConvex, const GjkConvex* localConvex, const PxTransformV& transf0, const PxTransformV& transf1, 
+												const PxMatTransformV& aToB, GjkStatus status, GjkOutput& output, PersistentContactManifold& manifold, PxContactBuffer& contactBuffer, 
+												PxU32 initialContacts, const FloatV minMargin, const FloatV contactDist,
+												bool idtScale, PxReal toleranceLength, PxRenderOutput* renderOutput)
+{
+	if (status == GJK_NON_INTERSECT)
+	{
+		return false;
+	}
+	else
+	{
+		PersistentContact* manifoldContacts = PX_CP_TO_PCP(contactBuffer.contacts);
+
+		const Vec3V localNor = manifold.mNumContacts ? manifold.getLocalNormal() : V3Zero();
+
+		const FloatV replaceBreakingThreshold = FMul(minMargin, FLoad(0.05f));
+
+		//addGJKEPAContacts will increase the number of contacts in manifold. If status == EPA_CONTACT, we need to run epa algorithm and generate closest points, normal and
+		//pentration. If epa doesn't degenerate, we will store the contacts information in the manifold. Otherwise, we will return true to do the fallback test
+		const bool doOverlapTest = addGJKEPAContacts(relativeConvex, localConvex, aToB, status, manifoldContacts, replaceBreakingThreshold, FLoad(toleranceLength), output, manifold);
+
+#if PCM_LOW_LEVEL_DEBUG
+		manifold.drawManifold(*renderOutput, transf0, transf1);
+#endif
+		//ML: after we refresh the contacts(newContacts) and generate a GJK/EPA contacts(we will store that in the manifold), if the number of contacts is still less than the original contacts,
+		//which means we lose too many contacts and we should regenerate all the contacts in the current configuration
+		//Also, we need to look at the existing contacts, if the existing contacts has very different normal than the GJK/EPA contacts,
+		//which means we should throw away the existing contacts and do full contact gen
+		const bool fullContactGen = FAllGrtr(FLoad(0.707106781f), V3Dot(localNor, output.normal)) || (manifold.mNumContacts < initialContacts);
+
+		if(fullContactGen || doOverlapTest || initialContacts > 1)
+		{
+			return fullContactsGenerationBoxConvex(relativeConvex, localConvex, transf0, transf1, manifoldContacts, contactBuffer,
+				manifold, output.normal, output.closestA, output.closestB, contactDist, idtScale, doOverlapTest, renderOutput, toleranceLength);
+		}
+		else
+		{
+			const Vec3V newLocalNor = V3Add(localNor, output.normal);
+			const Vec3V worldNormal = V3Normalize(transf1.rotate(newLocalNor));
+			//const Vec3V worldNormal = transf1.rotate(normal);
+			manifold.addManifoldContactsToContactBuffer(contactBuffer, worldNormal, transf1, contactDist);
+			return true;
+		}
+	}
+}
+
+bool Gu::pcmContactBoxConvex(GU_CONTACT_METHOD_ARGS)
+{
+	PX_ASSERT(transform1.q.isSane());
+	PX_ASSERT(transform0.q.isSane());
+
+	const PxConvexMeshGeometry& shapeConvex = checkedCast<PxConvexMeshGeometry>(shape1);
+	const PxBoxGeometry& shapeBox = checkedCast<PxBoxGeometry>(shape0);
+	
+	PersistentContactManifold& manifold = cache.getManifold();
+	const ConvexHullData* hullData = _getHullData(shapeConvex);
+	PxPrefetchLine(hullData);
+	
+	const FloatV contactDist = FLoad(params.mContactDistance);
+	const Vec3V boxExtents = V3LoadU(shapeBox.halfExtents);
+
+	const Vec3V vScale = V3LoadU_SafeReadW(shapeConvex.scale.scale);	// PT: safe because 'rotation' follows 'scale' in PxMeshScale
+	
+	const PxTransformV transf0 = loadTransformA(transform0);
+	const PxTransformV transf1 = loadTransformA(transform1);
+	const PxTransformV curRTrans(transf1.transformInv(transf0));
+	const PxMatTransformV aToB(curRTrans);
+
+	const PxReal toleranceLength = params.mToleranceLength;
+	const FloatV convexMargin = CalculatePCMConvexMargin(hullData, vScale, toleranceLength);
+	const FloatV boxMargin = CalculatePCMBoxMargin(boxExtents, toleranceLength);
+
+#if PCM_BOX_HULL_DEBUG
+	const PxVec3* verts = hullData->getHullVertices();
+	
+	for (PxU32 i = 0; i < hullData->mNbPolygons; ++i)
+	{
+		const HullPolygonData& polygon = hullData->mPolygons[i];
+		const PxU8* inds = hullData->getVertexData8() + polygon.mVRef8;
+		Vec3V* points = reinterpret_cast<Vec3V*>(PxAllocaAligned(sizeof(Vec3V)*polygon.mNbVerts, 16));
+		
+		for (PxU32 j = 0; j < polygon.mNbVerts; ++j)
+		{
+			points[j] = V3LoadU_SafeReadW(verts[inds[j]]);
+		}
+
+		PersistentContactManifold::drawPolygon(*renderOutput, transf1, points, (PxU32)polygon.mNbVerts, 0x00ff0000);
+	}
+#endif
+
+	const FloatV minMargin = FMin(convexMargin, boxMargin);//FMin(boxMargin, convexMargin);
+	const FloatV projectBreakingThreshold = FMul(minMargin, FLoad(0.8f));
+	const PxU32 initialContacts = manifold.mNumContacts;
+
+	manifold.refreshContactPoints(aToB, projectBreakingThreshold, contactDist);  
+
+	const Vec3V extents = V3Mul(V3LoadU_SafeReadW(hullData->mInternal.mInternalExtents), vScale);
+	const FloatV radiusA = V3Length(boxExtents);
+	const FloatV radiusB = V3Length(extents);
+	
+	//After the refresh contact points, the numcontacts in the manifold will be changed
+	const bool bLostContacts = (manifold.mNumContacts != initialContacts);
+
+	if(bLostContacts || manifold.invalidate_BoxConvex(curRTrans, transf0.q, transf1.q, minMargin, radiusA, radiusB))
+	{
+		manifold.setRelativeTransform(curRTrans, transf0.q, transf1.q);
+	
+		GjkStatus status = manifold.mNumContacts > 0 ? GJK_UNDEFINED : GJK_NON_INTERSECT;
+
+		const QuatV vQuat = QuatVLoadU(&shapeConvex.scale.rotation.x);
+		const bool idtScale = shapeConvex.scale.isIdentity();
+		const ConvexHullV convexHull(hullData, V3LoadU(hullData->mCenterOfMass), vScale, vQuat, idtScale);
+		const BoxV box(V3Zero(), boxExtents);
+		GjkOutput output;
+		
+		const RelativeConvex<BoxV> relativeConvex(box, aToB);
+
+		if(idtScale)
+		{
+			const LocalConvex<ConvexHullNoScaleV> localConvex(static_cast<const ConvexHullNoScaleV&>(convexHull));
+			
+			status = gjkPenetration<RelativeConvex<BoxV>, LocalConvex<ConvexHullNoScaleV> >(relativeConvex, localConvex, aToB.p, contactDist, true,
+				manifold.mAIndice, manifold.mBIndice, manifold.mNumWarmStartPoints, output);
+
+			return generateOrProcessContactsBoxConvex(&relativeConvex, &localConvex, transf0, transf1, aToB,
+				status, output, manifold, contactBuffer, initialContacts,
+				minMargin, contactDist, idtScale, toleranceLength, renderOutput);	
+		}
+		else
+		{
+			const LocalConvex<ConvexHullV> localConvex(convexHull);
+
+			status = gjkPenetration<RelativeConvex<BoxV>, LocalConvex<ConvexHullV> >(relativeConvex, localConvex, aToB.p, contactDist, true,
+				manifold.mAIndice, manifold.mBIndice, manifold.mNumWarmStartPoints, output);
+
+			return generateOrProcessContactsBoxConvex(&relativeConvex, &localConvex, transf0, transf1, aToB,
+				status, output, manifold, contactBuffer, initialContacts,
+				minMargin, contactDist, idtScale, toleranceLength, renderOutput);
+		} 
+	}
+	else if(manifold.getNumContacts()>0)
+	{
+		const Vec3V worldNormal = manifold.getWorldNormal(transf1);
+		manifold.addManifoldContactsToContactBuffer(contactBuffer, worldNormal, transf1, contactDist);
+#if	PCM_LOW_LEVEL_DEBUG
+		manifold.drawManifold(*renderOutput, transf0, transf1);
+#endif
+		return true;
+	}
+
+	return false;
+}
+

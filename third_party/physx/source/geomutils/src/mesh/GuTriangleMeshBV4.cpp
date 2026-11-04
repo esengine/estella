@@ -1,0 +1,82 @@
+// Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
+// Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2008-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+#include "GuTriangleMesh.h"
+#include "GuTriangleMeshBV4.h"
+
+using namespace physx;
+using namespace Gu;
+
+namespace physx
+{
+BV4TriangleMesh::BV4TriangleMesh(MeshFactory* factory, TriangleMeshData& d) : TriangleMesh(factory, d)
+{
+	PX_ASSERT(d.mType==PxMeshMidPhase::eBVH34);
+
+	BV4TriangleData& bv4Data = static_cast<BV4TriangleData&>(d);
+	mMeshInterface = bv4Data.mMeshInterface;
+	mBV4Tree = bv4Data.mBV4Tree;
+	mBV4Tree.mMeshInterface = &mMeshInterface;
+}
+
+TriangleMesh* BV4TriangleMesh::createObject(PxU8*& address, PxDeserializationContext& context)
+{
+	BV4TriangleMesh* obj = PX_PLACEMENT_NEW(address, BV4TriangleMesh(PxBaseFlag::eIS_RELEASABLE));
+	address += sizeof(BV4TriangleMesh);	
+	obj->importExtraData(context);
+	return obj;
+}
+
+void BV4TriangleMesh::exportExtraData(PxSerializationContext& stream)
+{
+	mBV4Tree.exportExtraData(stream);
+	TriangleMesh::exportExtraData(stream);
+}
+
+void BV4TriangleMesh::importExtraData(PxDeserializationContext& context)
+{
+	mBV4Tree.importExtraData(context);
+	TriangleMesh::importExtraData(context);
+
+	if(has16BitIndices())
+		mMeshInterface.setPointers(NULL, const_cast<IndTri16*>(reinterpret_cast<const IndTri16*>(getTrianglesFast())), getVerticesFast());
+	else
+		mMeshInterface.setPointers(const_cast<IndTri32*>(reinterpret_cast<const IndTri32*>(getTrianglesFast())), NULL, getVerticesFast());
+	mBV4Tree.mMeshInterface = &mMeshInterface;
+}
+
+PxVec3 * BV4TriangleMesh::getVerticesForModification()
+{
+	return const_cast<PxVec3*>(getVertices());
+}
+
+PxBounds3 BV4TriangleMesh::refitBVH()
+{
+	PxBounds3 newBounds;
+
+	const float gBoxEpsilon = 2e-4f;
+	if(mBV4Tree.refit(newBounds, gBoxEpsilon))
+	{
+		mAABB.setMinMax(newBounds.minimum, newBounds.maximum);
+	}
+	else
+	{
+		newBounds = PxBounds3::centerExtents(mAABB.mCenter, mAABB.mExtents);
+
+		PxGetFoundation().error(PxErrorCode::eINVALID_OPERATION, PX_FL, "BVH34 trees: refit operation only available on non-quantized trees.\n");
+	}
+
+	// PT: copied from RTreeTriangleMesh::refitBVH()
+	// reset edge flags and remember we did that using a mesh flag (optimization)
+	if(!mBV4Tree.mIsEdgeSet)
+	{
+		mBV4Tree.mIsEdgeSet = true;
+		setAllEdgesActive();
+	}
+
+	return newBounds;
+}
+
+} // namespace physx

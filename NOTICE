@@ -23,6 +23,8 @@ license text is included in its directory under third_party/.
   Component            Location                          License
   -------------------  --------------------------------  ------------------------
   Box2D                third_party/box2d                 MIT
+  Jolt Physics         third_party/jolt                  MIT
+  NVIDIA PhysX 5       third_party/physx                 Apache-2.0
   GLFW                 third_party/glfw                  zlib/libpng
   GLM                  third_party/glm                   The Happy Bunny / MIT
   nlohmann/json        third_party/nlohmann              MIT

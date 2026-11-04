@@ -1,0 +1,245 @@
+// Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
+// Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2008-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+#ifndef DY_THRESHOLD_TABLE_H
+#define DY_THRESHOLD_TABLE_H
+
+#include "foundation/PxAllocator.h"
+#include "foundation/PxHash.h"
+#include "foundation/PxMemory.h"
+#include "PxNodeIndex.h"
+
+namespace physx
+{
+
+namespace Sc
+{
+	class ShapeInteraction;
+}
+
+namespace Dy
+{
+
+struct ThresholdStreamElement
+{
+	Sc::ShapeInteraction*	shapeInteraction;			//4/8	4/8
+	PxReal					normalForce;				//4		8/12
+	PxReal					threshold;					//4		12/16
+	PxNodeIndex				nodeIndexA;					//8		24 This is the unique node index in island gen which corresonding to that body and it is persistent	16	20
+	PxNodeIndex				nodeIndexB;					//8		32 This is the unique node index in island gen which corresonding to that body and it is persistent	20	24
+	PxReal					accumulatedForce;			//4		36
+	PxU32					pad;						//4		40
+
+	PX_CUDA_CALLABLE bool operator <= (const ThresholdStreamElement& otherPair) const
+	{
+		return ((nodeIndexA < otherPair.nodeIndexA) ||(nodeIndexA == otherPair.nodeIndexA && nodeIndexB <= otherPair.nodeIndexB));
+	}
+
+	PX_CUDA_CALLABLE bool operator < (const ThresholdStreamElement& otherPair) const
+	{
+		return ((nodeIndexA < otherPair.nodeIndexA) || (nodeIndexA == otherPair.nodeIndexA && nodeIndexB < otherPair.nodeIndexB));
+	}
+
+	PX_CUDA_CALLABLE bool operator == (const ThresholdStreamElement& otherPair) const
+	{
+		return ((nodeIndexA == otherPair.nodeIndexA && nodeIndexB == otherPair.nodeIndexB));
+	}
+};
+
+class ThresholdTable
+{
+public:
+
+	ThresholdTable()
+		:	mBuffer(NULL),
+			mHash(NULL),
+			mHashSize(0),
+			mHashCapactiy(0),
+			mPairs(NULL),
+			mNexts(NULL),
+			mPairsSize(0),
+			mPairsCapacity(0)
+	{
+	}
+
+	~ThresholdTable()
+	{
+		PX_FREE(mBuffer);
+	}
+
+	void build(const ThresholdStreamElement* stream, const PxU32 streamSize);
+
+	bool check(const ThresholdStreamElement* stream, const PxU32 streamSize, const PxU32 nodexIndexA, const PxU32 nodexIndexB, PxReal dt);
+
+	bool check(const ThresholdStreamElement* stream, const PxU32 streamSize, const ThresholdStreamElement& elem, PxU32& thresholdIndex);
+
+//private:
+
+	static const PxU32 NO_INDEX = 0xffffffff;
+
+	struct Pair 
+	{
+		PxU32		thresholdStreamIndex;
+		PxReal		accumulatedForce;
+		//PxU32		next;		// hash key & next ptr
+	};
+
+	PxU8*			mBuffer;
+
+	PxU32*			mHash;
+	PxU32			mHashSize;
+	PxU32			mHashCapactiy;
+
+	Pair*			mPairs;
+	PxU32*			mNexts;
+	PxU32			mPairsSize;
+	PxU32			mPairsCapacity;
+};
+
+namespace
+{
+	static PX_FORCE_INLINE PxU32 computeHashKey(const PxU32 nodeIndexA, const PxU32 nodeIndexB, const PxU32 hashCapacity)
+	{
+		return (PxComputeHash(PxU64(nodeIndexA)<<32 | PxU64(nodeIndexB)) % hashCapacity);
+	}
+}
+
+inline bool ThresholdTable::check(const ThresholdStreamElement* stream, const PxU32 streamSize, const ThresholdStreamElement& elem,
+								  PxU32& thresholdIndex)
+{
+	PxU32* PX_RESTRICT hashes = mHash;
+	PxU32* PX_RESTRICT nextIndices = mNexts;
+	Pair* PX_RESTRICT pairs = mPairs;
+
+	PX_ASSERT(elem.nodeIndexA < elem.nodeIndexB);
+	PxU32 hashKey = computeHashKey(elem.nodeIndexA.index(), elem.nodeIndexB.index(), mHashSize);
+
+	PxU32 pairIndex = hashes[hashKey];
+
+	while(NO_INDEX != pairIndex)
+	{
+		Pair& pair = pairs[pairIndex];
+		const PxU32 thresholdStreamIndex = pair.thresholdStreamIndex;
+		PX_ASSERT(thresholdStreamIndex < streamSize);
+		PX_UNUSED(streamSize);
+		const ThresholdStreamElement& otherElement = stream[thresholdStreamIndex];
+		if(otherElement.nodeIndexA==elem.nodeIndexA  && otherElement.nodeIndexB==elem.nodeIndexB && otherElement.shapeInteraction == elem.shapeInteraction)
+		{
+			thresholdIndex = thresholdStreamIndex;
+			return true;
+		}
+		pairIndex = nextIndices[pairIndex];
+	}
+
+	thresholdIndex = NO_INDEX;
+	return false;
+}
+
+
+inline void ThresholdTable::build(const ThresholdStreamElement* stream, const PxU32 streamSize)
+{
+	//Handle the case of an empty stream.
+	if(0==streamSize)
+	{
+		mPairsSize=0;
+		mPairsCapacity=0;
+		mHashSize=0;
+		mHashCapactiy=0;
+		PX_FREE(mBuffer);
+		return;
+	}
+
+	//Realloc/resize if necessary.
+	const PxU32 pairsCapacity = streamSize;
+	const PxU32 hashCapacity = pairsCapacity*2+1;
+	if((pairsCapacity > mPairsCapacity) || (pairsCapacity < (mPairsCapacity >> 2)))
+	{
+		PX_FREE(mBuffer);
+		const PxU32 pairsByteSize = sizeof(Pair)*pairsCapacity;
+		const PxU32 nextsByteSize = sizeof(PxU32)*pairsCapacity;
+		const PxU32 hashByteSize = sizeof(PxU32)*hashCapacity;
+		const PxU32 totalByteSize = pairsByteSize + nextsByteSize + hashByteSize;
+		mBuffer = reinterpret_cast<PxU8*>(PX_ALLOC(totalByteSize, "PxThresholdStream"));
+
+		PxU32 offset = 0;
+		mPairs = reinterpret_cast<Pair*>(mBuffer + offset);
+		offset += pairsByteSize;
+		mNexts = reinterpret_cast<PxU32*>(mBuffer + offset);
+		offset += nextsByteSize;
+		mHash = reinterpret_cast<PxU32*>(mBuffer + offset);
+		offset += hashByteSize;
+		PX_ASSERT(totalByteSize == offset);
+
+		mPairsCapacity = pairsCapacity;
+		mHashCapactiy = hashCapacity;
+	}
+
+	//Set each entry of the hash table to 0xffffffff
+	PxMemSet(mHash, 0xff, sizeof(PxU32)*hashCapacity);
+
+	//Init the sizes of the pairs array and hash array.
+	mPairsSize = 0;
+	mHashSize = hashCapacity;
+
+	PxU32* PX_RESTRICT hashes = mHash;
+	PxU32* PX_RESTRICT nextIndices = mNexts;
+	Pair* PX_RESTRICT pairs = mPairs;
+
+	//Add all the pairs from the stream.
+	PxU32 pairsSize = 0;
+	for(PxU32 i = 0; i < pairsCapacity; i++)
+	{
+		const ThresholdStreamElement& element = stream[i];
+		const PxNodeIndex nodeIndexA = element.nodeIndexA;
+		const PxNodeIndex nodeIndexB = element.nodeIndexB;
+
+		const PxF32 force = element.normalForce;
+				
+		PX_ASSERT(nodeIndexA < nodeIndexB);
+
+		const PxU32 hashKey = computeHashKey(nodeIndexA.index(), nodeIndexB.index(), hashCapacity);
+
+		//Get the index of the first pair found that resulted in a hash that matched hashKey.
+		PxU32 prevPairIndex = hashKey;
+		PxU32 pairIndex = hashes[hashKey];
+
+		//Search through all pairs found that resulted in a hash that matched hashKey.
+		//Search until the exact same body pair is found.
+		//Increment the accumulated force if the exact same body pair is found.
+		while(NO_INDEX != pairIndex)
+		{
+			Pair& pair = pairs[pairIndex];
+			const PxU32 thresholdStreamIndex = pair.thresholdStreamIndex;
+			PX_ASSERT(thresholdStreamIndex < streamSize);
+			const ThresholdStreamElement& otherElement = stream[thresholdStreamIndex];
+			if(nodeIndexA == otherElement.nodeIndexA && nodeIndexB==otherElement.nodeIndexB)
+			{
+				pair.accumulatedForce += force;
+				prevPairIndex = NO_INDEX;
+				pairIndex = NO_INDEX;
+				break;
+			}
+			prevPairIndex = pairIndex;
+			pairIndex = nextIndices[pairIndex];
+		}
+
+		if(NO_INDEX != prevPairIndex)
+		{
+			nextIndices[pairsSize] = hashes[hashKey];
+			hashes[hashKey] = pairsSize;
+			Pair& newPair = pairs[pairsSize];
+			newPair.thresholdStreamIndex = i;
+			newPair.accumulatedForce = force;
+			pairsSize++;
+		}
+	}
+	mPairsSize = pairsSize;
+}
+
+}
+
+}
+
+#endif

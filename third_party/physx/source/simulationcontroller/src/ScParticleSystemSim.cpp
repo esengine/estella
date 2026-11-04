@@ -1,0 +1,83 @@
+// SPDX-FileCopyrightText: Copyright (c) 2008-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+#include "foundation/PxPreprocessor.h"
+
+#if PX_SUPPORT_GPU_PHYSX
+
+#include "ScParticleSystemSim.h"
+
+using namespace physx;
+using namespace Dy;
+
+Sc::ParticleSystemSim::ParticleSystemSim(ParticleSystemCore& core, Scene& scene) :
+	GPUActorSim(scene, core, &core.getShapeCore())
+{
+	createLowLevelVolume();
+
+	mLLParticleSystem = scene.createLLParticleSystem(this);
+
+	mNodeIndex = scene.getSimpleIslandManager()->addNode(false, false, IG::Node::ePARTICLESYSTEM_TYPE, mLLParticleSystem);
+
+	scene.getSimpleIslandManager()->activateNode(mNodeIndex);
+
+	//mCore.setSim(this);
+
+	mLLParticleSystem->setElementId(mShapeSim.getElementID());
+
+	PxParticleSystemGeometry geometry;
+	core.getShapeCore().setGeometry(geometry);
+	
+	mLLParticleSystem->setShapeCore(&core.getShapeCore());
+}
+
+Sc::ParticleSystemSim::~ParticleSystemSim()
+{
+	if (!mLLParticleSystem)
+		return;
+
+	mScene.destroyLLParticleSystem(*mLLParticleSystem);
+
+	mScene.getSimpleIslandManager()->removeNode(mNodeIndex);
+
+	mCore.setSim(NULL);
+}
+
+void Sc::ParticleSystemSim::createLowLevelVolume()
+{
+	//PX_ASSERT(getWorldBounds().isFinite());
+
+	const PxU32 index = mShapeSim.getElementID();
+
+	if (!(static_cast<Sc::ParticleSystemSim&>(mShapeSim.getActor()).getCore().getFlags() & PxParticleFlag::eDISABLE_RIGID_COLLISION))
+	{
+		mScene.getBoundsArray().setBounds(PxBounds3(PxVec3(PX_MAX_BOUNDS_EXTENTS), PxVec3(-PX_MAX_BOUNDS_EXTENTS)), index);
+		mShapeSim.setInBroadPhase();
+	}
+	else
+		mScene.getAABBManager()->reserveSpaceForBounds(index);
+
+	addToAABBMgr(Bp::FilterType::PARTICLESYSTEM);
+}
+
+bool Sc::ParticleSystemSim::isSleeping() const
+{
+	return false;
+}
+
+void Sc::ParticleSystemSim::sleepCheck(PxReal dt)
+{
+	PX_UNUSED(dt);
+}
+
+/*void Sc::ParticleSystemSim::activate()
+{
+	activateInteractions(*this);
+}
+
+void Sc::ParticleSystemSim::deactivate()
+{
+	deactivateInteractions(*this);
+}*/
+
+#endif //PX_SUPPORT_GPU_PHYSX

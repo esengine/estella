@@ -1,0 +1,176 @@
+// Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
+// Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2008-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+#ifndef PVD_TYPE_NAMES_H
+#define PVD_TYPE_NAMES_H
+#if PX_SUPPORT_PVD
+#include "geometry/PxHeightFieldSample.h"
+#include "PxPvdObjectModelBaseTypes.h"
+#include "PxMetaDataObjects.h"
+
+namespace physx
+{
+namespace Vd
+{
+struct PvdSqHit;
+struct PvdRaycast;
+struct PvdOverlap;
+struct PvdSweep;
+
+struct PvdHullPolygonData
+{
+	PxU16 mNumVertices;
+	PxU16 mIndexBase;
+	PvdHullPolygonData(PxU16 numVert, PxU16 idxBase) : mNumVertices(numVert), mIndexBase(idxBase)
+	{
+	}
+};
+
+
+struct PxArticulationLinkUpdateBlock
+{
+	PxTransform GlobalPose;
+	PxVec3 LinearVelocity;
+	PxVec3 AngularVelocity;
+};
+
+struct PxArticulationJointUpdateBlock
+{
+	PxReal JointPosition_eX;
+	PxReal JointPosition_eY;
+	PxReal JointPosition_eZ;
+	PxReal JointPosition_eTwist;
+	PxReal JointPosition_eSwing1;
+	PxReal JointPosition_eSwing2;
+	PxReal JointVelocity_eX;
+	PxReal JointVelocity_eY;
+	PxReal JointVelocity_eZ;
+	PxReal JointVelocity_eTwist;
+	PxReal JointVelocity_eSwing1;
+	PxReal JointVelocity_eSwing2;
+};
+
+struct PxRigidDynamicUpdateBlock : public PxArticulationLinkUpdateBlock
+{
+	bool IsSleeping;
+};
+
+struct PvdContact
+{
+	PxVec3 point;
+	PxVec3 axis;
+	const void* shape0;
+	const void* shape1;
+	PxF32 separation;
+	PxF32 normalForce;
+	PxU32 internalFaceIndex0;
+	PxU32 internalFaceIndex1;
+	bool normalForceAvailable;
+};
+
+struct PvdPositionAndRadius
+{
+	PxVec3 position;
+	PxF32 radius;
+};
+
+} //Vd
+} //physx
+
+namespace physx
+{
+namespace pvdsdk
+{
+
+#define DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(type) DEFINE_PVD_TYPE_NAME_MAP(physx::type, "physx3", #type)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxPhysics)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxScene)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxTolerancesScale)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxTolerancesScaleGeneratedValues)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxSceneDescGeneratedValues)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxSceneDesc)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxGpuBroadPhaseDesc)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxSimulationStatistics)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxSimulationStatisticsGeneratedValues)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxMaterial)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxMaterialGeneratedValues)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxDeformableSurfaceMaterial)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxDeformableSurfaceMaterialGeneratedValues)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxDeformableVolumeMaterial)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxDeformableVolumeMaterialGeneratedValues)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxPBDMaterial)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxPBDMaterialGeneratedValues)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxHeightField)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxHeightFieldDesc)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxHeightFieldDescGeneratedValues)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxTriangleMesh)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxTetrahedronMesh)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxConvexMesh)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxActor)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxRigidActor)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxRigidBody)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxRigidDynamic)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxRigidDynamicGeneratedValues)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxRigidStatic)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxRigidStaticGeneratedValues)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxShape)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxShapeGeneratedValues)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxGeometry)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxBoxGeometry)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxPlaneGeometry)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxCapsuleGeometry)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxSphereGeometry)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxHeightFieldGeometry)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxTriangleMeshGeometry)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxTetrahedronMeshGeometry)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxConvexMeshGeometry)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxCustomGeometry)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxBoxGeometryGeneratedValues)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxPlaneGeometryGeneratedValues)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxCapsuleGeometryGeneratedValues)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxSphereGeometryGeneratedValues)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxTetrahedronMeshGeometryGeneratedValues)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxHeightFieldGeometryGeneratedValues)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxTriangleMeshGeometryGeneratedValues)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxConvexMeshGeometryGeneratedValues)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxCustomGeometryGeneratedValues)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxHeightFieldSample)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxConstraint)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxConstraintGeneratedValues)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxArticulationReducedCoordinate)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxArticulationReducedCoordinateGeneratedValues)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxArticulationLink)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxArticulationLinkGeneratedValues)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxArticulationJointReducedCoordinate)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxArticulationJointReducedCoordinateGeneratedValues)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxAggregate)
+DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP(PxAggregateGeneratedValues)
+
+#undef DEFINE_NATIVE_PVD_PHYSX3_TYPE_MAP
+
+#define DEFINE_NATIVE_PVD_TYPE_MAP(type) DEFINE_PVD_TYPE_NAME_MAP(physx::Vd::type, "physx3", #type)
+DEFINE_NATIVE_PVD_TYPE_MAP(PvdHullPolygonData)
+DEFINE_NATIVE_PVD_TYPE_MAP(PxRigidDynamicUpdateBlock)
+DEFINE_NATIVE_PVD_TYPE_MAP(PxArticulationLinkUpdateBlock)
+DEFINE_NATIVE_PVD_TYPE_MAP(PxArticulationJointUpdateBlock)
+DEFINE_NATIVE_PVD_TYPE_MAP(PvdContact)
+DEFINE_NATIVE_PVD_TYPE_MAP(PvdRaycast)
+DEFINE_NATIVE_PVD_TYPE_MAP(PvdSweep)
+DEFINE_NATIVE_PVD_TYPE_MAP(PvdOverlap)
+DEFINE_NATIVE_PVD_TYPE_MAP(PvdSqHit)
+DEFINE_NATIVE_PVD_TYPE_MAP(PvdPositionAndRadius)
+
+#undef DEFINE_NATIVE_PVD_TYPE_MAP
+
+
+DEFINE_PVD_TYPE_ALIAS(physx::PxFilterData, U32Array4)
+
+
+}
+}
+
+#endif
+
+#endif

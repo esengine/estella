@@ -1,0 +1,104 @@
+// Copyright (c) 2001-2004 NovodeX AG. All rights reserved.
+// Copyright (c) 2004-2008 AGEIA Technologies, Inc. All rights reserved.
+// SPDX-FileCopyrightText: Copyright (c) 2008-2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+#ifndef SC_PHYSICS_H
+#define SC_PHYSICS_H
+
+#include "PxPhysics.h"
+#include "PxScene.h"
+#include "foundation/PxUserAllocated.h"
+#include "foundation/PxBasicTemplates.h"
+#include "PxActor.h"
+
+namespace physx
+{
+
+class PxMaterial;
+class PxTolerancesScale;
+struct PxvOffsetTable;
+
+#if PX_SUPPORT_GPU_PHYSX
+class PxPhysXGpu;
+#endif
+
+namespace Sc
+{
+	class Scene;
+	class StaticCore;
+	class RigidCore;
+	class BodyCore;
+	class ArticulationCore;
+	class ArticulationJointCore;
+	class ConstraintCore;
+	class ShapeCore;
+
+	struct OffsetTable
+	{
+		PX_FORCE_INLINE OffsetTable() {}
+
+		PX_FORCE_INLINE PxShape*			convertScShape2Px(ShapeCore* sc)					const	{ return PxPointerOffset<PxShape*>(sc, scShape2Px);					}
+		PX_FORCE_INLINE const PxShape*		convertScShape2Px(const ShapeCore* sc)				const	{ return PxPointerOffset<const PxShape*>(sc, scShape2Px);			}
+
+		PX_FORCE_INLINE PxConstraint*		convertScConstraint2Px(ConstraintCore* sc)			const	{ return PxPointerOffset<PxConstraint*>(sc, scConstraint2Px);		}
+		PX_FORCE_INLINE const PxConstraint*	convertScConstraint2Px(const ConstraintCore* sc)	const	{ return PxPointerOffset<const PxConstraint*>(sc, scConstraint2Px);	}
+
+		PX_FORCE_INLINE PxArticulationReducedCoordinate* convertScArticulation2Px(ArticulationCore* sc) const
+		{
+			return PxPointerOffset<PxArticulationReducedCoordinate*>(sc, scArticulationRC2Px);
+		}
+
+		PX_FORCE_INLINE const PxArticulationReducedCoordinate* convertScArticulation2Px(const ArticulationCore* sc)	const
+		{
+			return PxPointerOffset<const PxArticulationReducedCoordinate*>(sc, scArticulationRC2Px);
+		}
+
+		PX_FORCE_INLINE PxArticulationJointReducedCoordinate* convertScArticulationJoint2Px(ArticulationJointCore* sc) const
+		{
+			return PxPointerOffset<PxArticulationJointReducedCoordinate*>(sc, scArticulationJointRC2Px);
+		}
+
+		PX_FORCE_INLINE const PxArticulationJointReducedCoordinate* convertScArticulationJoint2Px(const ArticulationJointCore* sc)	const
+		{
+			return PxPointerOffset<const PxArticulationJointReducedCoordinate*>(sc, scArticulationJointRC2Px);
+		}
+
+		ptrdiff_t	scRigidStatic2PxActor;
+		ptrdiff_t 	scRigidDynamic2PxActor;
+		ptrdiff_t 	scArticulationLink2PxActor;
+		ptrdiff_t 	scDeformableSurface2PxActor;
+		ptrdiff_t 	scDeformableVolume2PxActor;
+		ptrdiff_t 	scPBDParticleSystem2PxActor;
+		ptrdiff_t 	scShape2Px;
+		ptrdiff_t 	scArticulationRC2Px;
+		ptrdiff_t 	scArticulationJointRC2Px;
+		ptrdiff_t 	scConstraint2Px;
+
+		ptrdiff_t	scCore2PxActor[PxActorType::eACTOR_COUNT];
+	};
+	extern OffsetTable gOffsetTable;
+
+	class Physics : public PxUserAllocated
+	{
+	public:
+		PX_FORCE_INLINE static Physics&				getInstance()						{ return *mInstance; }
+
+													Physics(const PxTolerancesScale&, const PxvOffsetTable& pxvOffsetTable);
+													~Physics();
+
+		PX_FORCE_INLINE	const PxTolerancesScale&	getTolerancesScale()		const	{ return mScale;	}
+
+	private:
+						PxTolerancesScale			mScale;
+		static			Physics*					mInstance;
+
+	public:
+		static			const PxReal				sWakeCounterOnCreation;
+	};
+
+} // namespace Sc
+
+}
+
+#endif
