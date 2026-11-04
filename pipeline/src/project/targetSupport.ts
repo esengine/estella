@@ -73,7 +73,7 @@ export const SUBSYSTEM_COMPONENTS: Readonly<Record<Subsystem, readonly string[]>
     ],
     replication: ['Replicated', 'NetGhost'],
     gameplay: [
-        'ThirdPersonController', 'ThirdPersonCamera', 'Health', 'MeleeAttack', 'Hunter', 'Playthrough',
+        'ThirdPersonController', 'ThirdPersonCamera', 'FirstPersonController', 'FirstPersonViewModel', 'Health', 'MeleeAttack', 'Hunter', 'Playthrough',
     ],
 };
 

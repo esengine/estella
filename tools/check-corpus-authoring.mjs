@@ -134,6 +134,12 @@ const DISPOSITION = {
   RectAnchors: ['owed', 'the Cocos importer writes it for a Widget; it arrives in the corpus with the first imported Cocos scene'],
   GroupOpacity: ['owed', 'the Cocos importer writes it for a UIOpacity; it arrives in the corpus with the first imported Cocos scene'],
   SpringBoneCollider: ['owed', 'no example has a spring-bone chain to keep out of anything; it arrives with the first SpringBone'],
+  FirstPersonController: ['owed', 'no example has a player who walks in the first person yet; the first-person template, when there is one, authors it'],
+  FirstPersonViewModel: ['owed', 'arrives with FirstPersonController in the first-person template; a held thing needs a character to be held by'],
+  PathFollower: ['owed', 'no example moves a thing along a spline yet; a platform or a cart on a track is the first to'],
+  Ragdoll: ['owed', 'no example carries a skinned character that is knocked down yet; the first one with a rigged enemy goes into one'],
+  RagdollJoint: ['owed', 'arrives with the first example that has a Ragdoll, which is the only place a bone needs a say of its own'],
+  TerrainBand2D: ['owed', 'no example draws a 2D ground from a spline yet; the first side-scroller built on one carries it'],
   Replicated: ['code-only', 'multiplayer-arena declares its replicated set beside the server systems that own it; the wire table is a contract both ends compile against, not scene content'],
 
   // — owed: a creator-facing component nothing in the shipped corpus authors.

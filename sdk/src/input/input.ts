@@ -84,6 +84,9 @@ export class InputState {
     keysReleased = new Set<string>();
     mouseX = 0;
     mouseY = 0;
+    /** How far the pointer moved this frame, summed over its events: what a locked pointer has instead of a position. Cleared at the end of the frame. */
+    mouseDeltaX = 0;
+    mouseDeltaY = 0;
     mouseButtons = new Set<number>();
     mouseButtonsPressed = new Set<number>();
     mouseButtonsReleased = new Set<number>();
@@ -129,6 +132,11 @@ export class InputState {
 
     getMousePosition(): { x: number; y: number } {
         return { x: this.mouseX, y: this.mouseY };
+    }
+
+    /** How far the pointer moved this frame. Zero where the host does not say (a mini game has no pointer to lock). */
+    getMouseDelta(): { x: number; y: number } {
+        return { x: this.mouseDeltaX, y: this.mouseDeltaY };
     }
 
     isMouseButtonDown(button: number): boolean {
@@ -382,6 +390,8 @@ export class InputState {
         this.mouseButtonsReleased.clear();
         this.scrollDeltaX = 0;
         this.scrollDeltaY = 0;
+        this.mouseDeltaX = 0;
+        this.mouseDeltaY = 0;
         this.touchesStarted.clear();
         this.touchesEnded.clear();
     }
@@ -464,8 +474,10 @@ export function inputEventCallbacks(state: InputState): InputEventCallbacks {
             }
             else if (state.keysDown.has(code)) state.noteKeyUp(code);
         },
-        onPointerMove(x, y) {
+        onPointerMove(x, y, dx, dy) {
             if (executionOwners.has(state)) return;
+            // Summed before anything can consume the move: a look that follows the pointer is not a click UI should swallow.
+            if (dx !== undefined && dy !== undefined && Number.isFinite(dx) && Number.isFinite(dy)) { state.mouseDeltaX += dx; state.mouseDeltaY += dy; }
             // Pointer position tracks the cursor even when consumed so
             // gameplay code that reads `getMousePosition()` (e.g. HUD
             // cursor rendering) doesn't freeze while the editor is

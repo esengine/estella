@@ -30,6 +30,7 @@ import { Damage, applyDamage, type DamagePayload } from './Health';
 import { MeleeAttacks, resolveMeleeHits } from './MeleeAttack';
 import { huntTargets } from './Hunter';
 import { q } from '../math/quat';
+import { look as lookFirstPerson, move as moveFirstPerson, installViewModels, TouchLook } from './firstPersonSystems';
 import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 import { Playthrough } from '../runtime/playthrough';
@@ -268,6 +269,7 @@ export function updateCameras(
 export class GameplayPlugin implements Plugin {
     name = 'gameplay';
     private offDespawn_: (() => void) | null = null;
+    private offViewModels_: (() => void) | null = null;
     /** Per App, not per module: two Apps in one process must not share swings. */
     private readonly attacks_ = new MeleeAttacks();
 
@@ -329,6 +331,23 @@ export class GameplayPlugin implements Plugin {
             { name: 'ThirdPersonControllerSystem' },
         ), { runIf: playModeOnly });
 
+        // Looking is a per-frame thing (the pointer moves between steps); walking is asked of the character on the fixed clock, like the third-person layer.
+        const touchLook = new TouchLook();
+        app.addSystemToSchedule(Schedule.Update, defineSystem(
+            [Res(Time), Res(Input)],
+            (time: TimeData, input: InputState) => { lookFirstPerson(world, input, time.delta, touchLook); },
+            { name: 'FirstPersonLookSystem' },
+        ), { runIf: playModeOnly });
+        app.addSystemToSchedule(Schedule.FixedPreUpdate, defineSystem(
+            [Res(Time), Res(Input)],
+            (time: TimeData, input: InputState) => {
+                const queries = app.hasResource(Physics3D) ? app.getResource(Physics3D) : null;
+                moveFirstPerson(world, input, queries, time.fixedDelta);
+            },
+            { name: 'FirstPersonControllerSystem' },
+        ), { runIf: playModeOnly });
+        this.offViewModels_ = installViewModels(app);
+
         // After it: what the world allowed. The animator hears this one.
         app.addSystemToSchedule(Schedule.FixedPostUpdate, defineSystem(
             [Res(Time)],
@@ -354,6 +373,8 @@ export class GameplayPlugin implements Plugin {
     cleanup(): void {
         this.offDespawn_?.();
         this.offDespawn_ = null;
+        this.offViewModels_?.();
+        this.offViewModels_ = null;
         lastPointer.clear();
         this.attacks_.clear();
     }

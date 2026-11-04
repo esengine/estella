@@ -214,7 +214,7 @@ class WebPlatformAdapter implements PlatformAdapter {
         const onVisibilityChange = () => { if (document.hidden) onBlur(); };
         const onMouseMove = (e: Event) => {
             const me = e as MouseEvent;
-            callbacks.onPointerMove(me.offsetX, me.offsetY);
+            callbacks.onPointerMove(me.offsetX, me.offsetY, me.movementX, me.movementY);
         };
         const onMouseDown = (e: Event) => {
             const me = e as MouseEvent;

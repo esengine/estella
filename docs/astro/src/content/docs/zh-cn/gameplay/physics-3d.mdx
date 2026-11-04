@@ -224,6 +224,50 @@ world.insert(rig, ThirdPersonCamera, { target: player, distance: 420 });
   相机会在支点与眼睛之间扫掠物理世界，有实体挡住时把自己拉近。它只移动自己。
 </Aside>
 
+## 第一人称
+
+`FirstPersonController` 在 `CharacterController3D` 里看、走、跳、蹲,和第三人称层一样:它提出请求,物理世界作答。放在身体上,相机作为它的子节点;身体跟着玩家的偏航转,相机跟着俯仰抬。
+
+```typescript
+// 场景里声明的组件。
+world.insert(player, CharacterController3D, { radius: 30, halfHeight: 90 });
+world.insert(player, FirstPersonController, { moveSpeed: 320, jumpSpeed: 420 });
+// ……再在 `player` 的子节点上放一个 Camera。
+```
+
+- **看。** 在 Web 上,第一次点击会拿到指针(`pointerLock`),鼠标转动视角;关掉它则按住鼠标键时才转。触屏上,从屏幕横向 `touchLookFrom` 像素(默认 480)之后开始的手指拖动会转动视角,把左边留给摇杆。小游戏没有指针可拿,靠触摸看。
+- **走。** WASD 或方向键,**Shift** 冲刺,**空格** 跳,**Ctrl** 或 **C** 蹲。速度、冲刺和蹲伏倍率、加速度、空中控制力度都是字段。
+- **蹲** 会用 `crouchHalfHeight` 重新生成胶囊,脚的位置不变:物理世界不能改变角色的大小,所以旧的会先放掉一步。站起来之前先查头顶,没有空间就继续蹲着。
+
+### 视图模型
+
+手持物如果用世界的相机画,会穿墙,还会随广角一起拉伸。放在玩家相机上的 `FirstPersonViewModel` 改用第二台相机来画:在该相机下生成一台,只画你指定的排序层(`layer`,默认 20),有自己的视场角和近裁剪面,画在世界之上、不清除它。玩家的相机则被告知不再画这一层。把手持物放在相机下,把它的渲染器设到这一层。
+
+```typescript
+world.insert(camera, FirstPersonViewModel, { layer: 20, fov: 50, nearPlane: 1 });
+world.insert(weapon, MeshRenderer, { mesh: 'builtin:cube', layer: 20 });
+```
+
+两者都在 `esengine/gameplay` 里。里面没有武器系统、弹道和伤害,也还没有模板;输入读键盘、指针和触屏,不读虚拟摇杆和手柄。
+
+## 布娃娃
+
+蒙皮角色上的 `Ragdoll`,把 `active` 打开,骨头就变成用关节连起来的刚体;关掉,姿态再还给动画。它读角色已有的骨架(蒙皮网格列出的关节),所以除了开关和几个数字,没有别的要设。
+
+```typescript
+world.insert(enemy, Ragdoll, { active: false });
+// 被击倒时:
+world.insert(enemy, Ragdoll, { ...world.get(enemy, Ragdoll), active: true });
+```
+
+- 够长的骨头各得到一个沿骨头方向的盒子,用摆动/扭转关节接到上方最近有盒子的骨头,以动画当帧的姿态生成,所以不会瞬间弹开。动画在下面照常运行,每帧把刚体的姿态盖回去。
+- **限位。** 默认的 `Humanoid` 配置按骨头名字判断它在身体的哪个部位,各取 `swing` 和 `twist` 的一个比例(脊柱硬、肩松、小腿近似铰链)。膝盖和手肘是最多 `bend` 度的单向铰链:小腿向后折,小臂向前折,方向由 `facing`(角色在自己的坐标轴上朝哪边看)决定。
+- **站起来** 会在 `recoverTime` 秒内,从刚体留下的姿态平滑混回动画的姿态。
+- **单根骨头。** 骨头实体上的 `RagdollJoint` 可以让它没有刚体,或者用自己的限位(度数),还能用 `bend` 和 `fold` 把任意骨头变成单向铰链。
+- 在编辑器里选中布娃娃,会按骨架当前的姿态显示它将要生成的盒子和关节限位。
+
+这是被动布娃娃,没有任何东西驱动四肢。目标设备的验收另行记录。
+
 ## 近战
 
 三件事，把它们分开就是战斗系统的全部：

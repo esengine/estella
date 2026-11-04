@@ -249,6 +249,62 @@ still walks the character across the floor. Pitch never reaches the character.
   when something solid stands between. It moves nothing but itself.
 </Aside>
 
+## First person
+
+`FirstPersonController` looks, walks, jumps and crouches in a `CharacterController3D`, the way the third-person layer does: it asks, and the physics world answers.
+Put it on the body, with a camera as its child; the body turns with the player's yaw and the camera tilts with the pitch.
+
+```typescript
+// Components a scene declares.
+world.insert(player, CharacterController3D, { radius: 30, halfHeight: 90 });
+world.insert(player, FirstPersonController, { moveSpeed: 320, jumpSpeed: 420 });
+// …and a Camera on a child of `player`.
+```
+
+- **Looking.** On the web the first click takes the pointer (`pointerLock`) and the mouse turns the view; without it the view turns while a button is held. On a
+  touch screen a finger that starts `touchLookFrom` pixels across the screen (480 by default) turns it, which leaves the left for a stick. A mini game has no pointer
+  to take, so it looks by touch.
+- **Walking.** WASD or the arrow keys, **Shift** to sprint, **Space** to jump, **Ctrl** or **C** to crouch. The speed, the sprint and crouch multipliers, the
+  acceleration and how much say the player has in the air are fields.
+- **Crouching** makes the capsule again at `crouchHalfHeight`, with the feet where they were: the physics world cannot resize a character, so the old one is let go for
+  a step. Standing up first looks for a ceiling, and the player stays down where there is none to stand under.
+
+### A view model
+
+A held thing drawn with the world's camera goes through walls and stretches with a wide field of view. `FirstPersonViewModel`, on the player's camera, draws it with a
+second camera instead: one is made under the camera, drawing only the sorting layer you name (`layer`, 20 by default), with a field of view and near plane of its own, over
+the world and not clearing it. The player's camera is told not to draw that layer. Put the held thing under the camera and give its renderers that layer.
+
+```typescript
+world.insert(camera, FirstPersonViewModel, { layer: 20, fov: 50, nearPlane: 1 });
+world.insert(weapon, MeshRenderer, { mesh: 'builtin:cube', layer: 20 });
+```
+
+Both are in `esengine/gameplay`. There is no weapon system, ballistics or damage in them, and no template yet; the input is the keyboard, the pointer and the touch screen, and a
+virtual stick or a gamepad are not read.
+
+## Ragdoll
+
+A `Ragdoll` on a skinned character turns its bones into jointed bodies when you switch `active` on, and gives the pose back to the animation when you switch it off. It reads
+the skeleton the character already has (the joints its skinned mesh names), so there is nothing to author beyond the switch and a few numbers.
+
+```typescript
+world.insert(enemy, Ragdoll, { active: false });
+// When it is knocked down:
+world.insert(enemy, Ragdoll, { ...world.get(enemy, Ragdoll), active: true });
+```
+
+- Each bone that is long enough gets a box along it, joined by a swing/twist joint to the nearest bone above that has one, at the pose the animation had that frame, so
+  nothing snaps. The animation keeps running underneath; the bodies' pose is put back over it each frame.
+- **Limits.** With the `Humanoid` profile (the default) each joint gets the share of `swing` and `twist` its part of a body has, read from the bone's name (a spine stiff,
+  a shoulder loose, a shin almost a hinge). A knee and an elbow are one-way hinges of at most `bend` degrees: a shin folds back and a forearm folds forward, which is told
+  from `facing`, the way the character looks along its own axes.
+- **Standing up** blends from the pose the bodies were left in to the one the animation gives, over `recoverTime` seconds.
+- **A bone of its own.** A `RagdollJoint` on a bone's entity gives it no body, or limits of its own in degrees (and a `bend` and `fold` to make any bone a one-way hinge).
+- Select a ragdoll in the editor to see the boxes and the joint limits it would be made of, from the pose its skeleton is in.
+
+It is a passive ragdoll: nothing drives the limbs. Target-device acceptance is recorded separately.
+
 ## Melee combat
 
 Three facts, and the whole of a combat system is keeping them apart:

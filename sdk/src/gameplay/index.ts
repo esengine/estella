@@ -23,6 +23,11 @@ export {
 } from './ThirdPersonController';
 
 export {
+    FirstPersonController, FirstPersonViewModel, lookAfter, walkDirection, crouchAfter, yawRotation, pitchRotation,
+    type FirstPersonControllerData, type FirstPersonViewModelData,
+} from './FirstPersonController';
+
+export {
     ThirdPersonCamera,
     orbitOffset,
     cameraGroundBasis,

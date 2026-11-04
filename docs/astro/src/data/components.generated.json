@@ -1575,6 +1575,237 @@
       ]
     },
     {
+      "name": "FirstPersonController",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "moveSpeed",
+          "type": "number",
+          "default": "320",
+          "range": "≥ 0"
+        },
+        {
+          "key": "sprintMultiplier",
+          "type": "number",
+          "default": "1.6",
+          "range": "≥ 1, step 0.05"
+        },
+        {
+          "key": "crouchMultiplier",
+          "type": "number",
+          "default": "0.5",
+          "range": "0–1, step 0.05"
+        },
+        {
+          "key": "acceleration",
+          "type": "number",
+          "default": "2400",
+          "range": "≥ 0",
+          "advanced": true
+        },
+        {
+          "key": "deceleration",
+          "type": "number",
+          "default": "3200",
+          "range": "≥ 0",
+          "advanced": true
+        },
+        {
+          "key": "airControl",
+          "type": "number",
+          "default": "0.3",
+          "range": "0–1, step 0.05",
+          "advanced": true
+        },
+        {
+          "key": "jumpSpeed",
+          "type": "number",
+          "default": "420",
+          "doc": "Upward speed a jump starts with. 0 = cannot jump.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "lookSensitivity",
+          "type": "number",
+          "default": "0.12",
+          "range": "≥ 0, step 0.01"
+        },
+        {
+          "key": "touchSensitivity",
+          "type": "number",
+          "default": "0.2",
+          "range": "≥ 0, step 0.01"
+        },
+        {
+          "key": "pitchMin",
+          "type": "number",
+          "default": "-85",
+          "range": "-90–0"
+        },
+        {
+          "key": "pitchMax",
+          "type": "number",
+          "default": "85",
+          "range": "0–90"
+        },
+        {
+          "key": "eyeHeight",
+          "type": "number",
+          "default": "70",
+          "doc": "Where the eye is above the character's centre when standing."
+        },
+        {
+          "key": "crouchEyeHeight",
+          "type": "number",
+          "default": "28"
+        },
+        {
+          "key": "crouchHalfHeight",
+          "type": "number",
+          "default": "45",
+          "doc": "The capsule's half height when crouched. The standing one is the character controller's own.",
+          "range": "≥ 1"
+        },
+        {
+          "key": "eyeSpeed",
+          "type": "number",
+          "default": "400",
+          "range": "≥ 0",
+          "advanced": true
+        },
+        {
+          "key": "camera",
+          "type": "Entity",
+          "default": "none",
+          "doc": "The camera that looks, under this entity. Empty is the first child that carries one."
+        },
+        {
+          "key": "pointerLock",
+          "type": "boolean",
+          "default": "true",
+          "doc": "Take the pointer for looking once the player clicks, instead of looking while a button is held."
+        },
+        {
+          "key": "touchLook",
+          "type": "boolean",
+          "default": "true",
+          "doc": "Look by dragging a finger on the right of the screen."
+        },
+        {
+          "key": "touchLookFrom",
+          "type": "number",
+          "default": "480",
+          "doc": "How far across the screen, in pixels, a finger must start to look. The left is left for a stick.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true"
+        },
+        {
+          "key": "yaw",
+          "type": "number",
+          "default": "0",
+          "advanced": true
+        },
+        {
+          "key": "pitch",
+          "type": "number",
+          "default": "0",
+          "advanced": true
+        },
+        {
+          "key": "crouching",
+          "type": "boolean",
+          "default": "false",
+          "readonly": true
+        },
+        {
+          "key": "standHalfHeight",
+          "type": "number",
+          "default": "0",
+          "readonly": true
+        },
+        {
+          "key": "eye",
+          "type": "number",
+          "default": "-1",
+          "readonly": true
+        },
+        {
+          "key": "rebuild",
+          "type": "number",
+          "default": "0",
+          "readonly": true
+        }
+      ],
+      "animatable": [
+        "moveSpeed",
+        "sprintMultiplier",
+        "crouchMultiplier",
+        "acceleration",
+        "deceleration",
+        "airControl",
+        "jumpSpeed",
+        "lookSensitivity",
+        "touchSensitivity",
+        "pitchMin",
+        "pitchMax",
+        "eyeHeight",
+        "crouchEyeHeight",
+        "crouchHalfHeight",
+        "eyeSpeed",
+        "camera",
+        "touchLookFrom",
+        "yaw",
+        "pitch",
+        "standHalfHeight",
+        "eye",
+        "rebuild"
+      ]
+    },
+    {
+      "name": "FirstPersonViewModel",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "layer",
+          "type": "number",
+          "default": "20",
+          "doc": "The sorting layer the held thing is on: put it on its renderers, under this camera.",
+          "range": "0–31"
+        },
+        {
+          "key": "fov",
+          "type": "number",
+          "default": "60",
+          "doc": "The held thing's own field of view, so it does not stretch with a wide view of the world.",
+          "range": "1–170"
+        },
+        {
+          "key": "nearPlane",
+          "type": "number",
+          "default": "1",
+          "doc": "How close it may come before it is cut, so it can be held against a wall without going through it.",
+          "range": "≥ 0.01"
+        },
+        {
+          "key": "farPlane",
+          "type": "number",
+          "default": "1000",
+          "range": "≥ 1",
+          "advanced": true
+        }
+      ],
+      "animatable": [
+        "layer",
+        "fov",
+        "nearPlane",
+        "farPlane"
+      ]
+    },
+    {
       "name": "FixedJoint2D",
       "source": "ts",
       "fields": [
@@ -3973,6 +4204,66 @@
       ]
     },
     {
+      "name": "PathFollower",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "spline",
+          "type": "Entity",
+          "default": "-1",
+          "doc": "The entity that holds the Spline to follow."
+        },
+        {
+          "key": "speed",
+          "type": "number",
+          "default": "4",
+          "doc": "World units a second along the curve. Negative runs it backwards."
+        },
+        {
+          "key": "distance",
+          "type": "number",
+          "default": "0",
+          "doc": "How far along the curve it has gone, in world units. Set it to start part-way along.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "mode",
+          "type": "enum",
+          "default": "Loop",
+          "doc": "What it does at the end of the curve: stop, go round again, or turn back.",
+          "values": [
+            "Once",
+            "Loop",
+            "Ping-pong"
+          ]
+        },
+        {
+          "key": "orient",
+          "type": "enum",
+          "default": "None",
+          "doc": "Whether it turns to face the way it is going: about y for a 3D walker, about z for a 2D sprite.",
+          "values": [
+            "None",
+            "Face along (XZ)",
+            "Face along (XY)"
+          ]
+        },
+        {
+          "key": "playing",
+          "type": "boolean",
+          "default": "true",
+          "doc": "Whether it is moving. A follower set to Once stops itself at the end."
+        }
+      ],
+      "animatable": [
+        "spline",
+        "speed",
+        "distance",
+        "mode",
+        "orient"
+      ]
+    },
+    {
       "name": "Perceiver",
       "source": "ts",
       "fields": [
@@ -4541,6 +4832,162 @@
         "priority",
         "weight",
         "blendDistance"
+      ]
+    },
+    {
+      "name": "Ragdoll",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "active",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Whether the character is limp. Turn it on when it is knocked down, off to stand it up."
+        },
+        {
+          "key": "skin",
+          "type": "Entity",
+          "default": "none",
+          "doc": "The entity that holds the skinned mesh, whose joints are the skeleton. Empty looks on this entity and then below it."
+        },
+        {
+          "key": "profile",
+          "type": "enum",
+          "default": "Humanoid",
+          "doc": "Uniform gives every joint the same limits. Humanoid gives each the share of them its part of a body has, read from the bone's name: a spine stiff, a shoulder loose, a shin almost a hinge.",
+          "values": [
+            "Uniform",
+            "Humanoid"
+          ]
+        },
+        {
+          "key": "swing",
+          "type": "number",
+          "default": "100",
+          "doc": "How far a limb may swing from its bone's line, in degrees. With the humanoid profile, the most a loose joint (a shoulder, a hip) is given.",
+          "range": "0–175"
+        },
+        {
+          "key": "twist",
+          "type": "number",
+          "default": "60",
+          "doc": "How far a limb may twist about its own line, in degrees. With the humanoid profile, the most a loose joint is given.",
+          "range": "0–175"
+        },
+        {
+          "key": "bend",
+          "type": "number",
+          "default": "130",
+          "doc": "How far a knee or an elbow may bend, in degrees, and only one way: a shin folds back, a forearm folds forward. 0 leaves them swinging like any other joint. Humanoid profile only.",
+          "range": "0–175"
+        },
+        {
+          "key": "facing",
+          "type": "enum",
+          "default": "+Z",
+          "doc": "Which of its own axes the character looks along. It is what tells a knee from a hyperextended one.",
+          "values": [
+            "+Z",
+            "-Z",
+            "+X",
+            "-X"
+          ]
+        },
+        {
+          "key": "thickness",
+          "type": "number",
+          "default": "0.25",
+          "doc": "A limb's thickness as a fraction of its length.",
+          "range": "0.01–2"
+        },
+        {
+          "key": "minBoneLength",
+          "type": "number",
+          "default": "0.05",
+          "doc": "A bone shorter than this gets no body of its own (a finger, a toe): its parent carries it.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "friction",
+          "type": "number",
+          "default": "0.5",
+          "range": "≥ 0"
+        },
+        {
+          "key": "recoverTime",
+          "type": "number",
+          "default": "0.4",
+          "doc": "Seconds to blend from the limp pose back to the animation once the ragdoll is turned off.",
+          "range": "≥ 0"
+        }
+      ],
+      "animatable": [
+        "skin",
+        "profile",
+        "swing",
+        "twist",
+        "bend",
+        "facing",
+        "thickness",
+        "minBoneLength",
+        "friction",
+        "recoverTime"
+      ]
+    },
+    {
+      "name": "RagdollJoint",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "body",
+          "type": "boolean",
+          "default": "true",
+          "doc": "Whether this bone gets a body of its own. Off, the bone above carries it."
+        },
+        {
+          "key": "custom",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Use the limits below instead of the ones the ragdoll's profile gives this joint."
+        },
+        {
+          "key": "swing",
+          "type": "number",
+          "default": "70",
+          "doc": "How far the limb may swing from its bone's line, in degrees, either way.",
+          "range": "0–175"
+        },
+        {
+          "key": "twist",
+          "type": "number",
+          "default": "40",
+          "doc": "How far the limb may twist about its own line, in degrees, either way.",
+          "range": "0–175"
+        },
+        {
+          "key": "bend",
+          "type": "number",
+          "default": "0",
+          "doc": "How far it may bend, in degrees, one way only (a knee, an elbow). 0 is an ordinary swing and twist joint.",
+          "range": "0–175"
+        },
+        {
+          "key": "fold",
+          "type": "enum",
+          "default": "As its name says",
+          "doc": "Which way a bend goes where the bone's name does not say.",
+          "values": [
+            "As its name says",
+            "Toward the facing",
+            "Away from the facing"
+          ]
+        }
+      ],
+      "animatable": [
+        "swing",
+        "twist",
+        "bend",
+        "fold"
       ]
     },
     {
@@ -6485,6 +6932,77 @@
         "layerColor3.g",
         "layerColor3.b",
         "layerColor3.a"
+      ]
+    },
+    {
+      "name": "TerrainBand2D",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "resolution",
+          "type": "number",
+          "default": "16",
+          "doc": "How far apart, along the curve, the outline's points are. Smaller is smoother and costs more triangles.",
+          "range": "≥ 1"
+        },
+        {
+          "key": "depth",
+          "type": "number",
+          "default": "200",
+          "doc": "How far below its lowest point an open spline's fill reaches. A closed spline ignores it.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "tile",
+          "type": "number",
+          "default": "128",
+          "doc": "The length of one repeat of the fill's texture, in world units.",
+          "range": "≥ 1"
+        },
+        {
+          "key": "edgeWidth",
+          "type": "number",
+          "default": "12",
+          "doc": "How wide the lip along the surface is, drawn over the fill. 0 draws none.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "edgeColor",
+          "type": "Color",
+          "default": "#59a633",
+          "doc": "The lip's colour, multiplying the texture under it."
+        },
+        {
+          "key": "edgeTexture",
+          "type": "Asset<texture>",
+          "default": "none",
+          "doc": "An image the lip is drawn with, repeating along the surface. None draws the lip as a flat colour."
+        },
+        {
+          "key": "edgeTile",
+          "type": "number",
+          "default": "64",
+          "doc": "The length of one repeat of the lip's image along the surface, in world units.",
+          "range": "≥ 1"
+        },
+        {
+          "key": "collider",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Give this entity a chain collider along the surface. Add a static Rigidbody2D to make it solid."
+        }
+      ],
+      "animatable": [
+        "resolution",
+        "depth",
+        "tile",
+        "edgeWidth",
+        "edgeColor.r",
+        "edgeColor.g",
+        "edgeColor.b",
+        "edgeColor.a",
+        "edgeTexture",
+        "edgeTile"
       ]
     },
     {

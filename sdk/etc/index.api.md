@@ -5083,6 +5083,7 @@ gamepads: Map<number, PadState>
 getGamepadAxis: (axis: number, pad?: number) => number
 getGamepadButtonValue: (button: number, pad?: number) => number
 getGamepads: () => number[]
+getMouseDelta: () => { x: number; y: number; }
 getMousePosition: () => { x: number; y: number; }
 getScrollDelta: () => { x: number; y: number; }
 getTouch: (id: number) => TouchPoint | null
@@ -5114,6 +5115,8 @@ mouseButtonsPressed: Set<number>
 mouseButtonsPressedFixed: Set<number>
 mouseButtonsReleased: Set<number>
 mouseButtonsReleasedFixed: Set<number>
+mouseDeltaX: number
+mouseDeltaY: number
 mouseX: number
 mouseY: number
 noteKeyDown: (code: string) => void

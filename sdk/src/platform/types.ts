@@ -52,7 +52,8 @@ export interface InputEventCallbacks {
     /** Return true to cancel the host default (e.g. browser Tab traversal). */
     onKeyDown(code: string): boolean | void;
     onKeyUp(code: string): void;
-    onPointerMove(x: number, y: number): void;
+    /** `dx` and `dy` are how far the pointer moved since the last event, where the host says (a locked pointer has no position to move, only this). */
+    onPointerMove(x: number, y: number, dx?: number, dy?: number): void;
     onPointerDown(button: number, x: number, y: number): void;
     onPointerUp(button: number): void;
     onWheel(deltaX: number, deltaY: number): void;
