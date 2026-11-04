@@ -18,6 +18,7 @@ import { UICameraInfo } from '../core/ui-camera-info';
 import type { UICameraData } from '../core/ui-camera-info';
 import type { InteractableData } from './interactable';
 import { screenToUiWorld, screenToUiLayout, uiPointerRay, uiLayoutRay, uiHitTestWorld } from '../util/ui-pick';
+import { pointerToScreen } from '../util/math';
 import { ScreenOverlay, type ScreenOverlayData } from '../core/screen-overlay';
 import { platformDevicePixelRatio } from '../../platform';
 import { ensureComponent, walkParentChain } from '../util/helpers';
@@ -179,8 +180,7 @@ export class UIInteractionPlugin implements Plugin {
 
                 const hit = (pointer: UiPointerSample): Entity | null => {
                     if (!camera.valid && !overlay.active) return null;
-                    const glX = pointer.x * dpr;
-                    const glY = surfaceH - pointer.y * dpr;
+                    const { x: glX, y: glY } = pointerToScreen(pointer.x, pointer.y, dpr, surfaceH);
                     // The pointer, once per domain. Neither is derived from the
                     // other: each is the inverse of the projection that domain is
                     // drawn with, which is what keeps a click where the pixel is.

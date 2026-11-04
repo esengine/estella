@@ -3,9 +3,10 @@
 import type { App } from '../app/app';
 import { defineResource } from '../ecs/resource';
 import { UICameraInfo, type UICameraData } from '../ui/core/ui-camera-info';
+import { platformDevicePixelRatio } from '../platform';
 import { CameraCommit } from './CameraCommit';
 import type { Vec3 } from '../types';
-import { screenToWorld, projectWorldPoint, projectDirectionAt, nearPlaneSide, isProjectable, createInvVPCache, screenRay, type WorldRay } from '../ui/util/math';
+import { pointerToScreen, screenToWorld, projectWorldPoint, projectDirectionAt, nearPlaneSide, isProjectable, createInvVPCache, screenRay, type WorldRay } from '../ui/util/math';
 
 /**
  * Per-App camera-space query API: screen<->world conversions, the world-space
@@ -80,6 +81,10 @@ export class CameraViewAPI {
     /**
      * Where a screen point lands on the world plane at @p planeZ.
      *
+     * @p screenX / @p screenY are FRAMEBUFFER pixels, y growing up from the
+     * bottom edge. For the pointer use {@link pointerToWorld}, which takes
+     * `input.mouseX` / `input.mouseY` as they come.
+     *
      * A screen point is a ray. Orthographically its x/y do not vary along it, so
      * the plane is irrelevant and the default answers for everyone. Under a
      * perspective camera it decides the answer, and the right plane is the one
@@ -92,6 +97,32 @@ export class CameraViewAPI {
         this.invVPCache.update(cam.viewProjection);
         const invVP = this.invVPCache.getInverse(cam.viewProjection);
         return screenToWorld(screenX, screenY, invVP, cam.vpX, cam.vpY, cam.vpW, cam.vpH, planeZ);
+    }
+
+    /**
+     * Where the POINTER lands on the world plane at @p planeZ, taking the
+     * coordinates {@link Input} reports (`input.mouseX` / `input.mouseY`, a
+     * touch's x / y): CSS pixels, y down from the top.
+     *
+     * `screenToWorld` takes framebuffer pixels with y UP — what the renderer and
+     * the editor viewport work in. Feeding it the pointer directly mirrors the
+     * answer about the viewport's centre; this is the call a game wants.
+     */
+    pointerToWorld(pointerX: number, pointerY: number, planeZ = 0): { x: number; y: number } | null {
+        const s = this.pointerScreen(pointerX, pointerY);
+        return s ? this.screenToWorld(s.x, s.y, planeZ) : null;
+    }
+
+    /** The world ray under the pointer, in {@link Input}'s coordinates — see {@link pointerToWorld}. */
+    pointerRay(pointerX: number, pointerY: number): WorldRay | null {
+        const s = this.pointerScreen(pointerX, pointerY);
+        return s ? this.screenRay(s.x, s.y) : null;
+    }
+
+    private pointerScreen(pointerX: number, pointerY: number): { x: number; y: number } | null {
+        const surface = this.surface();
+        if (!surface) return null;
+        return pointerToScreen(pointerX, pointerY, platformDevicePixelRatio(), surface.screenH);
     }
 
     /**
@@ -184,7 +215,8 @@ export class CameraViewAPI {
 }
 
 /**
- * Per-App camera-query API resource, published by `corePlugin`. Read it as
+ * Per-App camera-query API resource, published by `cameraPlugin` on every core
+ * (web and native alike). Read it as
  * `app.getResource(CameraView)` to convert screen<->world etc. (Named
  * `CameraView` rather than `Camera` because `Camera` is the ECS component.)
  */

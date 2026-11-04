@@ -54,6 +54,21 @@ export interface WorldRay {
     dir: Vec3;
 }
 
+/**
+ * A pointer position as {@link Input} reports it — CSS pixels, y growing DOWN
+ * from the top edge — in the framebuffer pixels every projection here takes:
+ * device pixels, y growing UP from the bottom edge.
+ *
+ * @details The one place the two spaces meet. Passing `input.mouseY` straight to
+ *          a screen-space query mirrors the answer about the viewport's centre,
+ *          which is easy to miss in a symmetric scene.
+ */
+export function pointerToScreen(
+    pointerX: number, pointerY: number, dpr: number, surfaceH: number,
+): { x: number; y: number } {
+    return { x: pointerX * dpr, y: surfaceH - pointerY * dpr };
+}
+
 export function screenRay(
     screenX: number, screenY: number,
     inverseVP: Float32Array,
