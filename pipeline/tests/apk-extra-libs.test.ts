@@ -10,7 +10,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync } from 'nod
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { assembleApk } from '../../build-tools/utils/apk.js';
+import { assembleApk, withExtractNativeLibs } from '../../build-tools/utils/apk.js';
 import { readZip } from '../../build-tools/utils/zip.js';
 import { debugSigningKey } from '../../build-tools/utils/androidKeystore.js';
 import { ANDROID_AOT_LIBRARY } from '../src/export/androidAot';
@@ -60,7 +60,7 @@ describe('an APK with compiled systems', () => {
             const apk = assembleApk({
                 templateDir: template, contentDir: content,
                 app: { id: 'com.example.aot', name: 'Aot', version: '1.0', versionCode: 1 } as never,
-                key: debugSigningKey(), emulatorAbi: true, extraLibs: built,
+                key: debugSigningKey(), emulatorAbi: true, extraLibs: built, compressNativeLibs: false,
             });
 
             const entries = new Map(readZip(apk).map((e) => [e.name, e.data]));
@@ -75,5 +75,48 @@ describe('an APK with compiled systems', () => {
         } finally {
             rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
         }
+    });
+});
+
+describe('how an APK packs its native libraries', () => {
+    const build = (compressNativeLibs?: boolean) => {
+        const dir = mkdtempSync(path.join(tmpdir(), 'estella-apk-libs-'));
+        try {
+            const template = path.join(dir, 'template');
+            mkdirSync(path.join(template, 'lib', 'arm64-v8a'), { recursive: true });
+            // Compressible like a real library, so deflate has something to win.
+            writeFileSync(path.join(template, 'lib', 'arm64-v8a', 'libestella_js_host.so'), Buffer.alloc(64 * 1024, 7));
+            copyFileSync(path.join(ROOT, 'native/android/host/AndroidManifest.xml.in'), path.join(template, 'AndroidManifest.xml.in'));
+            copyFileSync(path.join(ROOT, 'native/icon.png'), path.join(template, 'icon.png'));
+            const content = path.join(dir, 'content');
+            mkdirSync(content, { recursive: true });
+            writeFileSync(path.join(content, 'game.config.json'), '{}');
+            return assembleApk({
+                templateDir: template, contentDir: content,
+                app: { id: 'com.example.libs', name: 'Libs', version: '1.0', versionCode: 1 } as never,
+                key: debugSigningKey(), ...(compressNativeLibs === undefined ? {} : { compressNativeLibs }),
+            });
+        } finally {
+            rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+        }
+    };
+
+    it('deflates them by default — an APK is what a player downloads', () => {
+        const apk = build();
+        expect(layoutOf(apk).get('lib/arm64-v8a/libestella_js_host.so')?.method).toBe(8);
+    });
+
+    it('stores them page-aligned when asked, for the loader to map in place', () => {
+        const at = layoutOf(build(false)).get('lib/arm64-v8a/libestella_js_host.so')!;
+        expect(at.method).toBe(0);
+        expect(at.dataAt % 16384).toBe(0);
+    });
+
+    it('tells the installer to extract exactly the libraries it compressed, whatever the template wrote', () => {
+        const written = '<application android:hasCode="true" android:extractNativeLibs="false">';
+        expect(withExtractNativeLibs(written, true)).toContain('android:extractNativeLibs="true"');
+        expect(withExtractNativeLibs(written, false)).toContain('android:extractNativeLibs="false"');
+        expect(withExtractNativeLibs('<application android:label="x">', true))
+            .toContain('<application android:extractNativeLibs="true" android:label="x">');
     });
 });

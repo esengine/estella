@@ -103,6 +103,7 @@ export async function projectExportOptions(
     androidVersionCode: plat?.android?.versionCode,
     androidAppBundle: plat?.android?.appBundle,
     androidEmulatorAbi: plat?.android?.emulatorAbi,
+    androidCompressNativeLibs: plat?.android?.compressNativeLibs,
     androidOutput: plat?.android?.output,
     ...(platform === 'android' && plat?.android?.releaseKey
       ? { androidKey: () => androidReleaseKey(root, plat.android!.releaseKey!, secrets.androidKeyPassphrase) }

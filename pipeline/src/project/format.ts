@@ -318,6 +318,14 @@ export interface AndroidPackaging {
    */
   emulatorAbi?: boolean;
   /**
+   * Deflate the native libraries inside the .apk (default true): 54 MB of engine
+   * becomes ~19 MB to download, and Android unpacks it once at install. False
+   * stores them and lets the OS map them from the package — half the installed
+   * size, nearly three times the download. The .aab always stores; Google Play
+   * compresses what it delivers.
+   */
+  compressNativeLibs?: boolean;
+  /**
    * The release identity a shipping build is signed with: two PEM paths, relative
    * to the project or absolute. Keep the files out of the project's repository;
    * a passphrase never lives here (the editor's keychain, or
@@ -1074,6 +1082,7 @@ export function parseManifest(raw: unknown): ProjectManifest {
         if (an.output === 'package' || an.output === 'project') a.output = an.output;
         if (typeof an.appBundle === 'boolean') a.appBundle = an.appBundle;
         if (typeof an.emulatorAbi === 'boolean') a.emulatorAbi = an.emulatorAbi;
+        if (typeof an.compressNativeLibs === 'boolean') a.compressNativeLibs = an.compressNativeLibs;
         const key = an.releaseKey as Record<string, unknown> | undefined;
         if (key && typeof key.privateKey === 'string' && typeof key.certificate === 'string') {
           a.releaseKey = { privateKey: key.privateKey, certificate: key.certificate };

@@ -553,6 +553,8 @@ export interface ExportGameOptions {
   androidAppBundle?: boolean;
   /** Android: also carry the emulator's x86_64 libraries. Absent ⇒ phone ABIs only. */
   androidEmulatorAbi?: boolean;
+  /** Android: deflate the .apk's native libraries (extracted at install). Absent ⇒ true. */
+  androidCompressNativeLibs?: boolean;
   /** A project-supplied mini-game export profile (`.esengine/platforms/<id>.mjs`),
    *  for a platform the editor does not ship. Present ⇒ the mini-game pipeline
    *  runs with it, whatever `platform` says. Loaded by the main process, which is
@@ -1375,6 +1377,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
         const assembly = {
           templateDir: template, contentDir: absOut, app: appConfig, key, icon,
           emulatorAbi: opts.androidEmulatorAbi === true,
+          compressNativeLibs: opts.androidCompressNativeLibs !== false,
           ...(androidAotLibs ? { extraLibs: androidAotLibs } : {}),
         };
         apkFile = path.join(absOut, apkFileName(appConfig.id));

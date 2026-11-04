@@ -11,9 +11,13 @@
 // one button. Each has a written spec; each is implemented here, and each is
 // checked against an independent implementation in the tests.
 //
-// Native libraries are STORED and 16 KiB-aligned, with extractNativeLibs=false:
-// the OS maps them straight out of the package, which halves the install and is
-// the posture Android 15's 16 KiB page size requires anyway.
+// Native libraries are COMPRESSED by default, with extractNativeLibs=true: an APK
+// is what a player downloads (a store, a link, a QQ group), and the engine's four
+// libraries are 54 MB stored and 19 MB deflated. Android then unpacks them once at
+// install. `compressNativeLibs: false` keeps the other posture — STORED and 16
+// KiB-aligned with extractNativeLibs=false, mapped straight out of the package,
+// which halves the installed footprint for a package whose download size does not
+// matter. The App Bundle always stores: Google Play compresses what it delivers.
 
 import path from 'path';
 import { createHash, createPublicKey, sign as cryptoSign } from 'crypto';
@@ -146,16 +150,33 @@ export function extraLibEntries(extraLibs, abi, prefix) {
     return (extraLibs?.[abi] ?? []).map((file) => ({ name: `${prefix}/${path.basename(file)}`, data: readFileSync(file) }));
 }
 
+/**
+ * The manifest's `extractNativeLibs`, set to what the package does with its
+ * libraries: a compressed one MUST be extracted, or the loader finds nothing to
+ * map and the app dies on launch. Written over the attribute itself, so a template
+ * installed before the setting existed (it carries a literal "false") is right too.
+ */
+export function withExtractNativeLibs(manifestText, extract) {
+    const value = extract ? 'true' : 'false';
+    if (/android:extractNativeLibs="[^"]*"/.test(manifestText)) {
+        return manifestText.replace(/android:extractNativeLibs="[^"]*"/, `android:extractNativeLibs="${value}"`);
+    }
+    return manifestText.replace(/<application\b/, `<application android:extractNativeLibs="${value}"`);
+}
+
 export function assembleApk(options) {
     const { templateDir, contentDir, app } = options;
     const dex = path.join(templateDir, 'classes.dex');
     const hasDex = existsSync(dex);
     const resources = appResources(options.icon ?? readFileSync(path.join(templateDir, DEFAULT_ICON)));
+    const compress = options.compressNativeLibs !== false;
 
-    const manifest = compileManifest(fillTemplate(
+    const manifest = compileManifest(withExtractNativeLibs(fillTemplate(
         readFileSync(path.join(templateDir, 'AndroidManifest.xml.in'), 'utf8'), {
             ...androidManifestValues(app, { hasCode: hasDex }),
-        }), resources.references);
+        }), compress), resources.references);
+    // Deflated, or stored where the loader can map them in place (see the header).
+    const lib = (e) => (compress ? e : { ...e, store: true, align: PAGE_ALIGNMENT });
 
     // The architectures a phone runs, and the emulator's too only when asked: the emulator
     // ABI is half of the package and no player's device can use it.
@@ -169,12 +190,10 @@ export function assembleApk(options) {
         { name: 'resources.arsc', data: resources.arsc, store: true, align: 4 },
         ...resources.files,
         ...(hasDex ? [{ name: 'classes.dex', data: readFileSync(dex) }] : []),
-        ...abis.flatMap((abi) => packageEntries(path.join(templateDir, 'lib', abi), `lib/${abi}`)
-            .map((e) => ({ ...e, store: true, align: PAGE_ALIGNMENT }))),
+        ...abis.flatMap((abi) => packageEntries(path.join(templateDir, 'lib', abi), `lib/${abi}`).map(lib)),
         // What the export built for each ABI (the project's compiled systems), loaded
-        // by bare name from the same place, so stored and aligned the same way.
-        ...abis.flatMap((abi) => extraLibEntries(options.extraLibs, abi, `lib/${abi}`)
-            .map((e) => ({ ...e, store: true, align: PAGE_ALIGNMENT }))),
+        // by bare name from the same place, so packed the same way.
+        ...abis.flatMap((abi) => extraLibEntries(options.extraLibs, abi, `lib/${abi}`).map(lib)),
         // The template's assets (the SDK bytecode) first, so a project cannot
         // shadow them by accident and quietly change what the host boots.
         ...(existsSync(templateAssets) ? packageEntries(templateAssets, 'assets') : []),

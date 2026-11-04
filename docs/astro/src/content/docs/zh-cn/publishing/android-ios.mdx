@@ -226,9 +226,12 @@ Android 的下限是 29,因为引擎的字体路径调用 `AFontMatcher_create`,
 引擎在各平台都以原生全速运行。**Android** 上游戏脚本也一样:它跑在带 JIT 的 V8 上,
 和 Chrome 是同一个引擎——同一份脚本会像在浏览器里那样编译成机器码,项目里什么都不用改。
 在骁龙 8 Elite 手机上:5000 个脚本实体的一帧,解释器要 64 毫秒,V8 上是 14 毫秒
-(桌面 CPU 上是 76 → 8 毫秒)。V8 让包体大约增加 21 MB:每个 ABI 一份 `libv8android.so`,
-带上 `Intl` 与 Unicode 正则(`/\p{L}/u`)要用的 Unicode 数据,按 Android 对原生库的偏好不压缩存放。
-脚本看到的是和浏览器一样的语言;`TextEncoder` / `TextDecoder` 由宿主提供。
+(桌面 CPU 上是 76 → 8 毫秒)。V8 是每个 ABI 一份 `libv8android.so`,带上 `Intl` 与 Unicode 正则(`/\p{L}/u`)要用的
+Unicode 数据,所以脚本看到的是和浏览器一样的语言;`TextEncoder` / `TextDecoder` 由宿主提供。
+
+**APK 会压缩存放原生库**(项目设置 → Android → *压缩原生库*,默认开启):空项目下载约 20 MB
+而不是 54 MB,安装时由 Android 解压一次。关闭则不压缩存放、由系统直接映射——安装后占用减半,
+下载体积接近三倍。App Bundle 始终不压缩:Google Play 会自行压缩下发。
 
 **iOS** 上游戏脚本由 QuickJS 解释执行:Apple 不允许自家浏览器以外的 JIT。
 用 TypeScript 写的逐实体循环,是那里比浏览器里明显更贵的那一样东西——
