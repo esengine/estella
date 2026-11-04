@@ -78,9 +78,13 @@
                 }
             ],
             "android": {
-                "$comment": "v8-android-jit-nointl 11.1000.4 is V8 10.0.139.9 built for the NDK's libc++ (react-native's prebuilt).",
-                "url": "https://registry.npmjs.org/v8-android-jit-nointl/-/v8-android-jit-nointl-11.1000.4.tgz",
-                "sha256": "46870658adfe0f6eaa4819226af37a25663bd54599304dd7d7c91ed1089dae9e"
+                "$comment": [
+                    "v8-android-jit 11.1000.4 is V8 10.0.139.9 built for the NDK's libc++ (react-native's",
+                    "prebuilt), WITH Intl: the nointl build has no Unicode property escapes in regular",
+                    "expressions, so a game script that a browser and QuickJS both run failed to parse."
+                ],
+                "url": "https://registry.npmjs.org/v8-android-jit/-/v8-android-jit-11.1000.4.tgz",
+                "sha256": "9948d0ea2600b762254a49281bbd73df81840cc17afc3e30c00df136e0467d50"
             }
         }
     },

@@ -74,8 +74,11 @@ system properties there (`adb shell setprop debug.estella.bench_frames 300`, lik
 | thin | interpreted | 63.68 ms | **13.97 ms** |
 | thin | compiled | 5.01 ms | **4.15 ms** |
 
-4.6x on the phone for a project that changes nothing. The V8 APK is 11.5 MB larger
-(44.4 vs 32.9 MB): `libv8android.so` is 15.5 MB, stored uncompressed.
+4.6x on the phone for a project that changes nothing. Those numbers are the nointl V8;
+the shipped one carries Intl (a game script with a Unicode property escape did not
+parse without it) and measures the same (14.32 / 4.78 ms). Its APK is 20.9 MB larger
+than the QuickJS one (53.8 vs 32.9 MB): `libv8android.so` is 24.9 MB, stored
+uncompressed.
 
 ## What was measured (2026-08-27, i5-14600K, Windows, QuickJS-ng in the native host)
 
