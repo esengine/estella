@@ -373,8 +373,9 @@ describe('a frame on the native core', () => {
         });
         await app.tick(1 / 60);
         expect(submitSpy).toHaveBeenCalledTimes(3);
-        expect((submitSpy.mock.calls[0][0] as Float32Array)[7]).toBeCloseTo(0.3);
-        expect((submitSpy.mock.calls[1][0] as Float32Array)[7]).toBeCloseTo(0.2);
+        // Shadow and outline fade with the fill's own alpha (0.8) as well as the subtree's (0.5).
+        expect((submitSpy.mock.calls[0][0] as Float32Array)[7]).toBeCloseTo(0.24);
+        expect((submitSpy.mock.calls[1][0] as Float32Array)[7]).toBeCloseTo(0.16);
         expect((submitSpy.mock.calls[2][0] as Float32Array)[7]).toBeCloseTo(0.4);
         alpha = 0;
         submitSpy.mockClear();

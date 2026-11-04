@@ -273,10 +273,17 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
         }
     };
 
+    // A label's shadow and outline belong to it: they fade with its own alpha, so
+    // a text faded out by its colour leaves no shadow behind (Unity's rule; CSS
+    // keeps the shadow, which every fade then had to undo by hand).
+    const fillAlpha = Math.max(0, Math.min(1, p.color[3]));
+    const decoration = (c: RGBA): RGBA => [c[0], c[1], c[2], c[3] * fillAlpha];
+
     // Shadow (offset drop copy). y-up local space: a positive screen-down offset
     // moves the copy toward -y.
-    if (p.shadow && p.shadow.color[3] > 0) {
-        const { color, dx, dy } = p.shadow;
+    if (p.shadow && p.shadow.color[3] * fillAlpha > 0) {
+        const { dx, dy } = p.shadow;
+        const color = decoration(p.shadow.color);
         const blur = p.shadow.blur ?? 0;
         if (blur > 0) {
             const a = tapAlpha(color[3], SHADOW_RING.length);
@@ -292,14 +299,15 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
     // its edge pushed out — a real dilation, so the shape survives any width. The
     // bitmap atlas has no distance to push, so it keeps the eight-way stamp, which
     // is only ever asked for hairlines there.
+    const outlineColor = p.outline ? decoration(p.outline.color) : null;
     if (baked) {
         // The page has the ring already: it is drawn, not grown, so the width only says whether there is one.
-        if (p.outline && p.outline.width > 0 && p.outline.color[3] > 0) emitPass(p.outline.color, 0, 0, 0, false, TextGlyphMode.Mask);
-    } else if (p.outline && p.outline.width > 0 && p.outline.color[3] > 0) {
+        if (p.outline && p.outline.width > 0 && outlineColor![3] > 0) emitPass(outlineColor!, 0, 0, 0, false, TextGlyphMode.Mask);
+    } else if (p.outline && p.outline.width > 0 && outlineColor![3] > 0) {
         const w = p.outline.width;
         const bias = outlineBias(atlas, fontSizePx, w);
-        if (bias > 0) emitPass(p.outline.color, 0, 0, bias);
-        else for (const [ox, oy] of OUTLINE_OFFSETS) emitPass(p.outline.color, ox * w, oy * w);
+        if (bias > 0) emitPass(outlineColor!, 0, 0, bias);
+        else for (const [ox, oy] of OUTLINE_OFFSETS) emitPass(outlineColor!, ox * w, oy * w);
     }
     // Fill (on top).
     emitPass(p.color, 0, 0, 0, true, baked ? TextGlyphMode.Fill : undefined);

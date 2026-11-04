@@ -64,13 +64,26 @@ describe('REARCH_GUI P1.3b: drawTextWith', () => {
             outline: { color: [0, 1, 0, 0.4], width: 1 },
         });
         expect(sink).toHaveBeenCalledTimes(6);
-        const alpha = [0.3, 0.3, 0.2, 0.2, 0.4, 0.4];
+        // Shadow and outline fade with the fill's own alpha (0.8), then opacity (0.5).
+        const alpha = [0.24, 0.24, 0.16, 0.16, 0.4, 0.4];
         for (let i = 0; i < 6; i++) {
             const vertices = sink.mock.calls[i][0] as Float32Array;
             const indices = sink.mock.calls[i][1] as Uint16Array;
             expect(vertices.length / TEXT_VERTEX_FLOATS).toBeLessThanOrEqual(65536);
             expect(indices.at(-1)).toBe(vertices.length / TEXT_VERTEX_FLOATS - 1);
             expect(vertices[7]).toBeCloseTo(alpha[i]);
+        }
+    });
+
+    it('draws no shadow or outline for a label faded out by its colour', () => {
+        const sink = vi.fn();
+        drawTextWith(makeAtlas(1024), sink, {
+            text: 'Hi', fontFamily: 'Arial', fontSizePx: 24, color: [1, 1, 1, 0],
+            shadow: { color: [0, 0, 0, 0.6], dx: 2, dy: 2 },
+            outline: { color: [0, 1, 0, 0.4], width: 1 },
+        });
+        for (const [vertices] of sink.mock.calls as Array<[Float32Array]>) {
+            for (let i = 7; i < vertices.length; i += TEXT_VERTEX_FLOATS) expect(vertices[i]).toBe(0);
         }
     });
 

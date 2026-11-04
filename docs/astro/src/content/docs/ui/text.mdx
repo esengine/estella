@@ -89,7 +89,7 @@ Defaults below are the component defaults (what the inspector shows).
 | `bold` / `italic` | boolean | `false` | Base font style (rich-text `<b>`/`<i>` layer on top). |
 | `strokeColor` | Color | `{0,0,0,1}` | Outline color. |
 | `strokeWidth` | number | `0` | Outline width in px; `0` disables. On an SDF atlas the glyph's own edge is pushed outward, so it stays the glyph's shape at any width (see [below](#outlines)). |
-| `shadowColor` | Color | `{0,0,0,1}` | Drop-shadow color. |
+| `shadowColor` | Color | `{0,0,0,1}` | Drop-shadow color. The shadow and the outline fade with the text's own `color` alpha, so a label faded out leaves neither behind. |
 | `shadowOffsetX` / `shadowOffsetY` | number | `0` | Shadow offset in px. |
 | `shadowBlur` | number | `0` | Softens the shadow, in px. `0` is a hard offset copy; above that the shadow spreads into a ring, so it reads as a soft mass under the glyphs rather than a second stamp of them. A blur with no offset is a halo. |
 | `richText` | boolean | `false` | Parse inline [rich-text markup](#rich-text). |
