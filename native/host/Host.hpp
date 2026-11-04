@@ -306,8 +306,13 @@ bool bindSurface();
 void surfaceLost();
 
 /** @brief Runs the game's update + one rendered, presented frame. No-op until
- *         boot() has succeeded and a surface is bound. */
-void frame();
+ *         boot() has succeeded and a surface is bound.
+ *
+ *  @param vsyncNanos The vsync this frame is for, on the steady clock's timeline
+ *         (Android's Choreographer hands one over), or 0 to measure the wall clock.
+ *         Frame to frame it is the display's cadence; the wall clock at callback
+ *         entry carries the scheduler's jitter, which reads as uneven motion. */
+void frame(long long vsyncNanos = 0);
 
 /** @brief Feeds one touch to the game. @p type: 0 start / 1 move / 2 end / 3 cancel.
  *         Coordinates are in surface pixels, top-left origin (as on the web). */

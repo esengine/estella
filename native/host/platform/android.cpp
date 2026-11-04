@@ -509,6 +509,25 @@ int32_t onInput(android_app*, AInputEvent* ev) {
 void framesSurface(bool has);
 void framesResumed(bool is);
 
+// Tells the system what rate the game is meant to run at, so the panel and the Choreographer settle on a cadence the game can
+// hold. Without it a 120 Hz panel calls the frame every 8.3 ms, a frame that costs 10 ms plus a blocked present misses by a
+// vsync, and the period lands on 16.6 / 25 / 33 ms at random — 45 to 55 fps and uneven motion. 60 Hz is an exact fraction of
+// 120 Hz and of 60 Hz, so the system can hold it on either. ANativeWindow_setFrameRate is API 30; the manifest floor is 29,
+// so it is looked up like PerformanceHints' symbols rather than made a load-time requirement.
+void hintFrameRate(ANativeWindow* window) {
+    constexpr float kTargetFps = 60.0f;
+    constexpr int8_t kCompatibilityDefault = 0;   // ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT
+    using SetFrameRateFn = int32_t (*)(ANativeWindow*, float, int8_t);
+    const auto set = reinterpret_cast<SetFrameRateFn>(dlsym(RTLD_DEFAULT, "ANativeWindow_setFrameRate"));
+    if (!window || !set) {
+        if (window) __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "frame rate hint: unavailable (API < 30)");
+        return;
+    }
+    const int32_t result = set(window, kTargetFps, kCompatibilityDefault);
+    __android_log_print(result == 0 ? ANDROID_LOG_INFO : ANDROID_LOG_WARN, LOG_TAG,
+                        "frame rate hint: %.0f fps (%s)", kTargetFps, result == 0 ? "accepted" : "refused");
+}
+
 void onAppCmd(android_app* app, int32_t cmd) {
     // NativeActivity supplies a content rectangle in window pixels; the glue
     // updates it before delivering CONTENT_RECT_CHANGED, including rotation.
@@ -523,6 +542,7 @@ void onAppCmd(android_app* app, int32_t cmd) {
                 else eshost::bindSurface();
                 // Ask for frames only once there is something to present to, the
                 // same order iOS unpauses its display link in.
+                hintFrameRate(app->window);   // per window: a recreated surface forgets it
                 framesSurface(eshost::surfaceBound());
             }
             break;
@@ -706,18 +726,19 @@ struct FrameDriver {
     }
 
 private:
-    void tick() {
+    void tick(int64_t vsyncNanos) {
         posted = false;
         if (!running) return;
         // Timed around the frame alone, and re-posted after it: asking for the
         // next vsync first would let a frame that overran queue behind itself.
         const auto begin = std::chrono::steady_clock::now();
-        eshost::frame();
+        eshost::frame(vsyncNanos);
         if (hints) hints->report(std::chrono::steady_clock::now() - begin);
         post();
     }
 
-    static void onVsync64(int64_t, void* data) { static_cast<FrameDriver*>(data)->tick(); }
+    // The vsync's own timestamp is the game clock's tick (Host::frame), not the moment this callback happened to run.
+    static void onVsync64(int64_t frameTimeNanos, void* data) { static_cast<FrameDriver*>(data)->tick(frameTimeNanos); }
 };
 
 FrameDriver g_frames;

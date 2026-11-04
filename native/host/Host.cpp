@@ -284,7 +284,7 @@ bool boot(Platform& platform) {
     return true;
 }
 
-void frame() {
+void frame(long long vsyncNanos) {
     if (!booted()) return;
     HostState& h = host();
     // Skipping is normal (the screen is off, the window is going away) and being
@@ -328,7 +328,11 @@ void frame() {
     // stall wherever it runs.
     constexpr double kMaxDelta = 0.25;
     constexpr double kFirstFrameDelta = 1.0 / 60.0;
-    const auto nowAt = std::chrono::steady_clock::now();
+    // The vsync being drawn for when the display supplied one — the web loop's rule too (rAF's timestamp, not callback
+    // entry). Android's Choreographer stamps on CLOCK_MONOTONIC, which is the steady clock there.
+    const auto nowAt = vsyncNanos > 0
+        ? std::chrono::steady_clock::time_point(std::chrono::nanoseconds(vsyncNanos))
+        : std::chrono::steady_clock::now();
     double deltaSeconds = kFirstFrameDelta;
     if (h.haveLastFrame) {
         deltaSeconds = std::chrono::duration<double>(nowAt - h.lastFrameAt).count();
