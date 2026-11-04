@@ -4,6 +4,22 @@ import type { AddressableAssetType } from '../assetTypes';
 import { indexTextureImportSettings, type ParsedTextureImportSettings } from './textureImportSettings';
 import type { SpineCullingRect, SpineManifestContract } from './spineImportSettings';
 import { contentHashOf } from './contentHash';
+import { log } from '../util/logger';
+
+const warnedNotPackaged = new Set<string>();
+
+/**
+ * A project file the package does not carry, said once and with the reason —
+ * otherwise the first anyone hears of it is a 404 from the loader. Only refs
+ * that look like files: `builtin:` meshes, URLs and blobs are not the cook's.
+ */
+function warnNotPackaged(ref: string): void {
+    if (warnedNotPackaged.has(ref) || ref.includes(':') || !/\.[a-z0-9]{2,8}$/i.test(ref)) return;
+    warnedNotPackaged.add(ref);
+    log.warn('asset', `"${ref}" is not in this package. A build ships what its scenes reference, what the `
+        + 'scripts name as a whole path in a string literal, and the folders asset-groups.json marks '
+        + 'alwaysInclude — name the file whole in code, or mark its folder alwaysInclude.');
+}
 
 export type { AddressableAssetType };
 
@@ -409,6 +425,7 @@ export class ManifestModel {
     resolvePath(ref: string): string {
         const { byKey, byPath } = this.indexes();
         const entry = byKey.get(ref) ?? byPath.get(ref);
+        if (!entry) warnNotPackaged(ref);
         return entry ? entry.path : ref;
     }
 }

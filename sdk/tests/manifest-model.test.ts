@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
     ManifestModel,
     normalizeBundleMode,
@@ -139,6 +139,20 @@ describe('ManifestModel resolution', () => {
     // A build path is the name the cook staged the file under. A ref nothing
     // knows comes back spelled exactly as it was asked for, so the read that
     // fails names the file the caller actually wanted.
+    it('resolvePath: a project file the package lacks is named once, with what ships', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        const m = model();
+        m.resolvePath('assets/ui/never-packaged.png');
+        m.resolvePath('assets/ui/never-packaged.png');
+        m.resolvePath('builtin:cube');
+        m.resolvePath('images/a.abc123.png'); // a build path: a hit, not a miss
+        const said = warn.mock.calls.map((c) => c.join(' ')).filter((t) => t.includes('not in this package'));
+        warn.mockRestore();
+        expect(said).toHaveLength(1);
+        expect(said[0]).toContain('never-packaged.png');
+        expect(said[0]).toContain('alwaysInclude');
+    });
+
     it('resolvePath: miss returns the ref verbatim', () => {
         expect(model().resolvePath('assets/hero.esprefab')).toBe('assets/hero.esprefab');
     });

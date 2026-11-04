@@ -52,6 +52,9 @@ import { cookCached } from './cookCache';
 import { cookTexture, loadTextureEncoder, pngDimensions, COMPRESSED_TARGETS, type BasisEncoderModule } from './textureCook';
 import { meshTextureRoles } from './textureUsage';
 import { makeStreamTail, type StreamTail } from './streamTail';
+import { matchScriptAssetRefs, scanScriptAssetRefs } from './scriptAssetRefs';
+import { readManifest } from '../project/readProject';
+import { resolveScripts } from '../project/format';
 
 const MANIFEST = 'assets.manifest.json';
 
@@ -142,7 +145,9 @@ export type InclusionReason =
     /** A locale table — loaded by code, so reachability would cull it. */
     | 'locale'
     /** A data asset (`.json`), named by the code that loads it. */
-    | 'data';
+    | 'data'
+    /** Named by a string literal in the project's scripts (`via` holds it). */
+    | 'script';
 
 /** How one asset got in: the reason, and for a dependency the asset that named it. */
 export interface Inclusion {
@@ -476,6 +481,17 @@ function shaderTwinDeriver(): Promise<((source: string) => Promise<string>) | nu
  * Cook assets reachable from `entryScenes` (project-relative scene paths) into
  * `outDir` (project-relative or absolute). Returns what was included vs culled.
  */
+/** The folder the project's startup script lives in — every export target cooks
+ *  from here, so each one ships what the scripts name without being told. */
+async function projectScriptDirs(root: string): Promise<string[]> {
+  try {
+    const main = resolveScripts(await readManifest(root)).main;
+    return main ? [path.posix.dirname(main.split(path.sep).join('/').split('\\').join('/'))] : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function cookAssets(
   root: string,
   opts: {
@@ -496,6 +512,10 @@ export async function cookAssets(
     /** Stage a small copy of each texture a mesh draws as its surface (streamTail.ts), for texture streaming to fetch first.
      *  Worth it where files are fetched as they are needed (the web); a package downloaded whole only grows. */
     streamTails?: boolean;
+    /** Project-relative folders holding the game's scripts: an asset a literal there
+     *  names ships even when no scene references it (scriptAssetRefs.ts). Absent:
+     *  the folder of the project's startup script; `[]` scans nothing. */
+    scriptDirs?: string[];
   },
 ): Promise<CookResult> {
   const contentAddressed = opts.contentAddressed ?? false;
@@ -569,6 +589,22 @@ export async function cookAssets(
   // the editor, which serves the whole project, and 404s only in the build.
   for (const e of shippable) {
     if (e.type === 'json') seed(e.uuid, { reason: 'data' });
+  }
+  // …and what the scripts name: a path only code holds never reaches a scene,
+  // and culling it is a build that works in the editor and 404s on a device.
+  const scriptDirs = opts.scriptDirs ?? await projectScriptDirs(root);
+  if (scriptDirs.length > 0) {
+    const named = matchScriptAssetRefs(await scanScriptAssetRefs(root, scriptDirs), shippable);
+    const byFolder = new Map<string, number>();
+    for (const { uuid, via } of named) {
+      if (reachable.has(uuid)) continue;
+      seed(uuid, { reason: 'script', via });
+      if (via.endsWith('/')) byFolder.set(via, (byFolder.get(via) ?? 0) + 1);
+    }
+    for (const [folder, n] of byFolder) {
+      warnings.push(`scripts build paths under "${folder}" at run time, so all ${n} asset(s) there ship; `
+        + 'name the files whole, or list them as alwaysInclude, to ship only what is used');
+    }
   }
   // …then take the transitive closure over the dependency graph.
   while (queue.length > 0) {
