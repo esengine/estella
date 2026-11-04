@@ -597,6 +597,12 @@ export class SystemRunner {
     }
 
     private flushSystem_(system: SystemDef, args: unknown[], t0: number): void {
+        // Kept Mut rows first: the edits a system made to rows it held past the
+        // loop belong to the entities as they stood, before its Commands despawn
+        // or restructure any of them.
+        for (let i = 0; i < args.length; i++) {
+            if (args[i] instanceof QueryInstance) (args[i] as QueryInstance<readonly QueryArg[]>).settleKeptRows();
+        }
         for (let i = 0; i < args.length; i++) {
             if (args[i] instanceof CommandsInstance) {
                 (args[i] as CommandsInstance).flush();

@@ -401,6 +401,12 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
     private readonly allRequired_: AnyComponentDef[];
     private readonly result_: unknown[];
     private readonly mutData_: Array<{ component: AnyComponentDef; data: Record<string, unknown> }>;
+    /**
+     * Mut rows the iterator handed out and the caller may still be holding:
+     * entity, which Mut slot, and the very object it was given. Written once more
+     * when the system returns — see {@link settleKeptRows}.
+     */
+    private kept_: Array<{ entity: Entity; slot: number; data: Record<string, unknown> }> = [];
     private readonly cacheKey_: string;
     // Static cache-dependency ids (required + with + without + filter deps),
     // precomputed like cacheKey_ so per-call query iteration allocates no array.
@@ -599,6 +605,42 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
     }
 
     /**
+     * @internal Write the Mut rows this query's iterator handed out once more,
+     * now that the system has returned. Called by the runner, before the
+     * system's Commands flush.
+     *
+     * The iterator's rows are the ones a caller may KEEP, and keeping them is
+     * how a system edits after the loop: collect, sort, then change the nearest.
+     * A script component's row is its stored object, so that edit already landed;
+     * an engine-backed one (Transform, Sprite) is a copy written back as the loop
+     * advanced, and an edit made after that was silently dropped. Until the
+     * system returns a kept row stays live. The lent rows of {@link forEach} are
+     * not tracked and cost nothing here.
+     */
+    settleKeptRows(): void {
+        const kept = this.kept_;
+        if (kept.length === 0) return;
+        const world = this.world_;
+        const mutData = this.mutData_;
+        const mutSetters = this.mutSetters_;
+        const mutIsBuiltin = this.mutIsBuiltin_;
+        try {
+            for (const { entity, slot, data } of kept) {
+                if (!world.valid(entity)) continue;
+                const component = mutData[slot].component;
+                if (mutIsBuiltin[slot]) {
+                    const setter = mutSetters[slot];
+                    if (setter) setter(entity, data);
+                    else world.set(entity, component, data);
+                }
+                world.markChanged(entity, component);
+            }
+        } finally {
+            kept.length = 0;
+        }
+    }
+
+    /**
      * Rows the caller may keep: a fresh array per entity, and for an
      * engine-backed component a fresh value rather than the shared fill target.
      * {@link forEach} lends its row instead and is cheaper for a body that only
@@ -616,6 +658,7 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
         const world = this.world_;
         const getters = this.gettersRetained_;
         const self = this;
+        const kept = this.kept_;
 
         let idx = 0;
         let prevEntity: Entity | null = null;
@@ -678,7 +721,9 @@ export class QueryInstance<C extends readonly QueryArg[]> implements Iterable<Qu
 
                         if (hasMut) {
                             for (let i = 0; i < mutCount; i++) {
-                                mutData[i].data = row[_mutIndices[i] + 1] as Record<string, unknown>;
+                                const data = row[_mutIndices[i] + 1] as Record<string, unknown>;
+                                mutData[i].data = data;
+                                kept.push({ entity, slot: i, data });
                             }
                             prevEntity = entity;
                         }
