@@ -17,7 +17,7 @@ import { ContentRect } from '../src/ui/core/content-rect';
 import { UICameraInfo } from '../src/ui/core/ui-camera-info';
 import { UIEventType } from '../src/ui/core/events';
 import { UILayoutGeneration } from '../src/ui/layout/ui-layout-generation';
-import { Interactable } from '../src/ui/input/interactable';
+import { Interactable, UIInteraction } from '../src/ui/input/interactable';
 import { UIControlPointers, type UiPointerEventData } from '../src/ui/input/control-pointers';
 import { uiInteractionPlugin } from '../src/ui/input/interaction';
 import { registerComponent } from '../src/ecs/component';
@@ -76,6 +76,14 @@ describe.skipIf(!HAS_WASM)('pointer events (WASM integration)', () => {
         a.world.ensureTransformsComposed();
         await a.tick(1 / 60);
     }
+
+    it('gives every Interactable its UIInteraction before a pointer reaches it', async () => {
+        const { app: a, input } = boot();
+        const untouched = area(a, 200, 200, 10, 10);
+        await frame(a, input, 0, 0);
+        expect(a.world.has(untouched, UIInteraction)).toBe(true);
+        expect(a.world.get(untouched, UIInteraction)).toMatchObject({ hovered: false, pressed: false });
+    });
 
     it('lets an entity that is only a rectangle be the one pressed', async () => {
         const { app: a, input, events } = boot();

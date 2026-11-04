@@ -389,7 +389,7 @@ export {
     type UICameraData,
 } from './core/ui-camera-info';
 
-export { screenToUiWorld, uiWorldToScreen, screenToUiLayout, uiLayoutToScreen, isScreenEntity, uiHitTestWorld, uiPickWorld, uiPickAllWorld } from './util/ui-pick';
+export { screenToUiWorld, uiWorldToScreen, screenToUiLayout, uiLayoutToScreen, isScreenEntity, uiHitTestWorld, uiHitAtScreen, uiPickWorld, uiPickAllWorld } from './util/ui-pick';
 export type { PickableWorld } from './util/ui-pick';
 
 export {

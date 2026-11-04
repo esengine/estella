@@ -68,6 +68,7 @@ export {
     screenToUiWorld,
     uiWorldToScreen,
     uiHitTestWorld,
+    uiHitAtScreen,
     uiPickWorld,
     uiPickAllWorld,
     type PickableWorld,

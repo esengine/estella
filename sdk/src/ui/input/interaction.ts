@@ -17,7 +17,7 @@ import { ensureEntityEvents } from '../../ecs/entityEvents';
 import { UICameraInfo } from '../core/ui-camera-info';
 import type { UICameraData } from '../core/ui-camera-info';
 import type { InteractableData } from './interactable';
-import { screenToUiWorld, screenToUiLayout, uiPointerRay, uiLayoutRay, uiHitTestWorld } from '../util/ui-pick';
+import { screenToUiWorld, screenToUiLayout, uiHitAtScreen } from '../util/ui-pick';
 import { pointerToScreen } from '../util/math';
 import { ScreenOverlay, type ScreenOverlayData } from '../core/screen-overlay';
 import { platformDevicePixelRatio } from '../../platform';
@@ -138,11 +138,24 @@ export class UIInteractionPlugin implements Plugin {
             expireGestureFired(world);
         });
 
+        let ensuredAtVersion = -1;
         app.addSystemToSchedule(Schedule.PreUpdate, defineSystem(
             [Res(Input), Res(UICameraInfo), Res(ScreenOverlay), Res(UILayoutGeneration)],
             (input: InputState, camera: UICameraData, overlay: ScreenOverlayData,
              layoutGen: UILayoutGenerationData) => {
                 events.drain();
+
+                // Every Interactable carries its pointer state from the frame it
+                // appears, not from the first time a pointer reaches it — a query
+                // over UIInteraction otherwise missed every control nobody had
+                // touched yet. Checked only when the world's structure changed.
+                const structure = world.getWorldVersion();
+                if (structure !== ensuredAtVersion) {
+                    ensuredAtVersion = structure;
+                    for (const entity of world.getEntitiesWithComponents([Interactable])) {
+                        if (!world.has(entity, UIInteraction)) ensureComponent(world, entity, UIInteraction);
+                    }
+                }
 
                 const interactionEntities = world.getEntitiesWithComponents([UIInteraction]);
                 for (const entity of interactionEntities) {
@@ -205,12 +218,7 @@ export class UIInteractionPlugin implements Plugin {
                         && (cached.entity === null || eligible(cached.entity))) {
                         entity = cached.entity;
                     } else {
-                        // With no camera there is no world ray: inverting a projection
-                        // never written yields NaN, which answers "no" by accident.
-                        // The screen's ray stands in — nothing is in the world.
-                        const screenRay = overlay.active ? uiLayoutRay(overlay, glX, glY) : undefined;
-                        const worldRay = camera.valid ? uiPointerRay(camera, glX, glY) : screenRay!;
-                        entity = uiHitTestWorld(world, worldRay, screenRay);
+                        entity = uiHitAtScreen(world, camera, overlay, glX, glY);
                         if (entity !== null && !eligible(entity)) entity = null;
                         lastHit.set(pointer.id, { x: layoutPointer.x, y: layoutPointer.y, entity });
                     }

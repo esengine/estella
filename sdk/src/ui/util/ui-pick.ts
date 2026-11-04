@@ -143,6 +143,25 @@ export function uiHitTestWorld(
 
 /** Editor pick: topmost UI entity under the point, regardless of Interactable;
  *  {@link uiHitTestWorld} is the runtime raycast. */
+/**
+ * What the GAME's pointer would hit at framebuffer pixel (@p screenGLX, @p screenGLY)
+ * — the interaction system's own question, so anything that synthesises a click
+ * (an automation driver) is refused exactly where a player's would land
+ * elsewhere: a subtree under `pointerEvents: None` passes the pointer through.
+ * Unlike {@link uiPickWorld}, the editor's selection pick, which sees everything.
+ */
+export function uiHitAtScreen(
+  world: PickableWorld, camera: UICameraData, overlay: ScreenOverlayData,
+  screenGLX: number, screenGLY: number,
+): Entity | null {
+  if (!camera.valid && !overlay.active) return null;
+  // With no camera there is no world ray: inverting a projection never written
+  // yields NaN, which answers "no" by accident. The screen's ray stands in.
+  const screenRay = overlay.active ? uiLayoutRay(overlay, screenGLX, screenGLY) : undefined;
+  const worldRay = camera.valid ? uiPointerRay(camera, screenGLX, screenGLY) : screenRay!;
+  return uiHitTestWorld(world, worldRay, screenRay);
+}
+
 export function uiPickWorld(world: PickableWorld, worldX: number, worldY: number): Entity | null {
   const c = core(world);
   if (!c?.engine.uiHitTest_pick) return null;
