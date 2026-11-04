@@ -232,6 +232,9 @@ folder in one call — each asset keeps the settings the patch does not name.
   one **Ctrl/⌘ + Z**, and comes forward again with Redo. The step shows in **History** as **AI · *tool***. A call that only wrote
   files does not mark the scene unsaved. The agent's own `undo` / `redo` tools answer once the files are back on disk.
   Saving, exporting, creating a project and anything done to the running game are not steps: Undo does not take back a save.
+  History draws a rule where each agent run begins (**AI run · *client* · *time***): clicking the row just above it takes the
+  whole run back. Copies of written files are kept while they fit in 512 MB; a step whose copies had to go is marked
+  **files kept**, and its Undo takes back only the scene part.
 - **Your client knows what each tool does.** Every tool carries MCP annotations: reading tools are marked read-only, and only the
   ones that leave the project or run code nobody listed (an editor command, a probe in the running game) are marked destructive.
   A client that asks before such calls asks only before those.
