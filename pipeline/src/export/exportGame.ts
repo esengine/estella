@@ -974,7 +974,9 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   // for this target before anything is staged — their ids ride game.config.json, so
   // the runtime can acquire them exactly like the engine's own.
   const projectModules = await loadProjectModules(opts.root, platform);
-  const cook = await cookAssets(opts.root, { entryScenes: scenes.map((s) => s.path), outDir: payloadDir, contentAddressed: opts.contentAddressed ?? true, compressTextures: opts.compressTextures, compressAudio: opts.compressAudio, atlasTextures: opts.atlasTextures, transcodeVideo, platform, textureDecoderBytes: textureDecoderBytes(opts.wasmDir) });
+  const cook = await cookAssets(opts.root, { entryScenes: scenes.map((s) => s.path), outDir: payloadDir, contentAddressed: opts.contentAddressed ?? true, compressTextures: opts.compressTextures, compressAudio: opts.compressAudio, atlasTextures: opts.atlasTextures, transcodeVideo, platform, textureDecoderBytes: textureDecoderBytes(opts.wasmDir),
+    // A web game fetches each file as it is needed, so a texture streamed small need not be downloaded whole until it grows.
+    streamTails: platform === 'web' });
   warnings.push(...cook.warnings);
   // An asset the game reaches and the cook could not produce is a hole, not a
   // note: the scene still references it and the runtime 404s at boot.

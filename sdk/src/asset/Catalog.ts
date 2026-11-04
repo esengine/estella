@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+import type { StreamTailInfo } from './AddressableManifest';
 import { extractUuid, UUID_REF_PREFIX } from './AssetRegistry';
 
 export interface AtlasFrameInfo {
@@ -18,6 +19,8 @@ export interface CatalogEntry {
     trim?: { sourceW: number; sourceH: number; offsetX: number; offsetY: number };
     deps?: string[];
     buildPath?: string;
+    /** A small copy of the texture that texture streaming fetches first. */
+    streamTail?: StreamTailInfo;
 }
 
 export interface CatalogData {
@@ -131,6 +134,11 @@ export class Catalog {
             this.addressByBuildPath_ = byBuild;
         }
         return this.addressByBuildPath_.get(path) ?? null;
+    }
+
+    /** The small copy of a texture streaming fetches first, or null when the build shipped none. */
+    getStreamTail(path: string): StreamTailInfo | null {
+        return this.entries_.get(path)?.streamTail ?? null;
     }
 
     getBuildPath(path: string): string {

@@ -86,7 +86,8 @@ export interface QualityProfile {
     drawCallBudget: number;
     /**
      * Hold each texture only meshes draw at the size its views need (see `textureStreamingPlugin`): a texture far away takes a
-     * fraction of its memory, and grows back as the camera comes close. Its file is still read and decoded whole the first time.
+     * fraction of its memory, and grows back as the camera comes close. A web build ships a small copy beside each such texture, so its
+     * file is downloaded only once a view needs more than the copy holds.
      */
     textureStreaming: boolean;
     /** The megabytes the streamed textures may take together; past it they are held a level softer. 0 is no cap. */

@@ -285,13 +285,28 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     private async decodeAndUpload_(
         path: string, ctx: LoadContext, flip: boolean, settings?: TextureImportSettings, maxEdge = 0,
     ): Promise<TextureResult> {
+        // A build that shipped a small copy beside the file (texture streaming) is read from the copy whenever the size asked for
+        // fits in it: the file itself is downloaded only once a view needs more than the copy holds.
+        const tail = maxEdge > 0 ? ctx.catalog.getStreamTail?.(path) ?? null : null;
+        if (tail && maxEdge <= Math.max(tail.width, tail.height)) {
+            const made = await this.decodeFile_(path, tail.path, ctx, flip, settings, maxEdge, true);
+            return { ...made, fullWidth: tail.fullWidth, fullHeight: tail.fullHeight };
+        }
+        return this.decodeFile_(path, ctx.catalog?.getBuildPath(path) ?? path, ctx, flip, settings, maxEdge, false);
+    }
+
+    /** Decode @p path (whose bytes are at @p buildPath; @p copy when that is its small copy) no larger than @p maxEdge, and upload it. */
+    private async decodeFile_(
+        path: string, buildPath: string, ctx: LoadContext, flip: boolean, settings: TextureImportSettings | undefined, maxEdge: number,
+        copy: boolean,
+    ): Promise<TextureResult> {
         this.lastDecision_ = RAW_PAYLOAD_UPLOAD;
-        if (isKtx2Path(path)) {
-            const buf = await ctx.backend.fetchBinary(ctx.catalog.getBuildPath(path));
+        if (isKtx2Path(buildPath)) {
+            const buf = await ctx.backend.fetchBinary(buildPath);
             return this.uploadKtx2_(path, new Uint8Array(buf), settings, maxEdge);
         }
         let preview = false;
-        if (this.compressedSource_) {
+        if (!copy && this.compressedSource_) {
             const compressed = await this.compressedSource_(path);
             if (compressed instanceof Uint8Array) return this.uploadKtx2_(path, compressed, settings, maxEdge);
             preview = compressed === 'pending';
@@ -302,7 +317,8 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         // uploads through the shared createTexture path — the same code the old
         // runtimeLoader.loadTextures used — instead of a URL-based <img>.
         if (this.pixelDecoder_) {
-            const result = await this.pixelDecoder_(path, flip, edge);
+            // A decoder resolves a logical path itself; a copy is named by where it is.
+            const result = await this.pixelDecoder_(copy ? buildPath : path, flip, edge);
             const handle = createTextureFromPixels(this.module_, result, TextureContent.Asset, flip, pixelParams(settings));
             // A decoder that made it smaller says what it was made from; one that could not (a host decoding whole) answers with the
             // file's own size, and the texture is simply whole.
@@ -310,9 +326,9 @@ export class TextureLoader implements AssetLoader<TextureResult> {
                 ? { handle, width: result.width, height: result.height, fullWidth: result.sourceWidth, fullHeight: result.sourceHeight }
                 : { handle, width: result.width, height: result.height };
         }
-        const url = ctx.backend.resolveUrl(ctx.catalog.getBuildPath(path));
+        const url = ctx.backend.resolveUrl(buildPath);
         const full = { width: 0, height: 0 };
-        const img = await this.loadImage(url, flip, edge, this.imageRevisions_.get(path), full);
+        const img = await this.loadImage(url, flip, edge, copy ? undefined : this.imageRevisions_.get(path), full);
         const made = this.createTextureFromImage(img, flip, settings);
         return full.width > made.width || full.height > made.height ? { ...made, fullWidth: full.width, fullHeight: full.height } : made;
     }

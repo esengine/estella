@@ -27,6 +27,7 @@ interface FlatManifest {
     uuid: string; path: string; sourcePath?: string; type: string;
     contentHash?: string; size?: number; group?: string; groupMode?: string;
     compressedFormats?: string[];
+    streamTail?: { path: string; size: number; width: number; height: number; fullWidth: number; fullHeight: number };
     importer?: Record<string, unknown>;
     atlas?: { page: number; frame: { x: number; y: number; width: number; height: number }; pageWidth: number; pageHeight: number };
     pack?: { file: string; offset: number; size: number };
@@ -61,6 +62,7 @@ export async function buildAddressableManifest(absOut: string): Promise<string> 
   type Entry = {
     path: string; address?: string; type: string; size: number; labels: string[]; contentHash?: string;
     compressedFormats?: string[];
+    streamTail?: { path: string; size: number; width: number; height: number; fullWidth: number; fullHeight: number };
     textureImport?: ParsedTextureImportSettings;
     spineImport?: SpineManifestContract;
     pack?: { file: string; offset: number; size: number };
@@ -92,6 +94,7 @@ export async function buildAddressableManifest(absOut: string): Promise<string> 
     // the addressable manifest — the flat one it came from is a build-time
     // intermediate that no longer ships.
     if (e.compressedFormats?.length) entry.compressedFormats = e.compressedFormats;
+    if (e.streamTail) entry.streamTail = e.streamTail;
     // Parsed here, not shipped raw: the runtime needs how the texture is sampled
     // and sliced, never the cook's own knobs (maxSize, compression format). This
     // is the ONLY channel a packaged build has for the `.meta` — without it a

@@ -78,8 +78,24 @@ Measured in the editor's Play at Low, in the `texture-streaming` editor check (t
 | `dusk-fort` | 285.6 MB | 33.6 MB | 31.0 MB | mean difference 0.28 of 255 |
 | `bistro` | 1293.5 MB | 321.1 MB | 449.6 MB (228 textures, 149 moves) | mean difference 1.1 of 255; 0.04% of pixels differ visibly |
 
-What it does not do: it saves GPU memory, not the download, since a file is read whole the first time and again for each size it
-is moved to. Until a view has asked for more, a texture is drawn at the size it started at: the first second or two of a scene can
+**The download.** A web build ships a small copy beside each texture a mesh draws as its surface and that is more than 512 texels
+on a side: no larger than 256, in the same format (a KTX2 encoded again in its own mode, a PNG or a JPEG written as what it was),
+halved from the shipped file with the box filter the cook's own mip chains use. Streaming starts the texture from the copy, and
+fetches the file itself only once a view needs more than the copy holds; a texture nothing comes close to is never downloaded
+whole. Exported for the web at Low and run in a headless browser (software rendering, the files served as immutable):
+
+| Example | Texture download, without the copies | With the copies | Files fetched whole |
+|---|---|---|---|
+| `dusk-fort`, 20 s | 44.8 MB | 14.9 MB (the copies are 0.4 MB of it) | 3 of 12 |
+| `bistro`, 20 s | 35.3 MB | 16.1 MB (3.4 MB of copies) | 4 of 155 |
+| `bistro`, 120 s | — | 18.8 MB | 15 of 155 |
+
+A headless browser draws in software, a frame or two a second, so it grows textures far slower than a GPU does: `bistro` was still
+fetching a file every five seconds or so at two minutes, and these are what was downloaded by then, not what it settles at. The
+copies cost the package their own size (430 KB beside `dusk-fort`'s 42.6 MB of textures). A mini game downloads its package whole,
+so no copies are made for one; nor for a texture something other than a mesh draws.
+
+What it does not do: until a view has asked for more, a texture is drawn at the size it started at: the first second or two of a scene can
 be softer than the rest, and a move costs a decode and an upload on the frame it lands, which shows as a frame or two of tens of
 milliseconds while a scene settles. A texture a sprite, a UI element, a tilemap, a particle or a trail also draws is put back at its
 size and left there. A KTX2 file is cut at a level without decoding; where the host transcodes KTX2 itself (the native builds) it

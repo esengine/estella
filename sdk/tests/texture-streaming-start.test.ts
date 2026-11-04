@@ -42,3 +42,21 @@ describe('which textures a scene\'s meshes draw', () => {
         expect([...found.meshMaterials]).toEqual(['assets/wall.esmaterial']);
     });
 });
+
+describe('a build\'s small copies', () => {
+    it('reach the catalog by every spelling a load uses', async () => {
+        const { catalogFromManifest } = await import('../src/runtime/packagedRuntime');
+        const tail = { path: 'assets/ab12.jpg', size: 9000, width: 256, height: 128, fullWidth: 2048, fullHeight: 1024 };
+        const catalog = catalogFromManifest({
+            version: '2.0', revision: 'r', groups: {
+                main: { bundleMode: 'local', labels: [], assets: {
+                    'u-1': { path: 'assets/cd34.jpg', address: 'assets/wall.jpg', type: 'texture', size: 400000, labels: [], streamTail: tail },
+                } },
+            },
+        } as never)!;
+        expect(catalog.getStreamTail('assets/wall.jpg')).toEqual(tail);
+        expect(catalog.getStreamTail('@uuid:u-1')).toEqual(tail);
+        expect(catalog.getStreamTail('assets/cd34.jpg')).toEqual(tail);
+        expect(catalog.getStreamTail('assets/other.jpg')).toBeNull();
+    });
+});

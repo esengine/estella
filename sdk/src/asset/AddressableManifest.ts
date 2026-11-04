@@ -7,6 +7,16 @@ import { contentHashOf } from './contentHash';
 
 export type { AddressableAssetType };
 
+/** Where a texture's small copy is, and how big it and the file are. */
+export interface StreamTailInfo {
+    path: string;
+    size: number;
+    width: number;
+    height: number;
+    fullWidth: number;
+    fullHeight: number;
+}
+
 export interface AddressableManifestAsset {
     path: string;
     address?: string;
@@ -23,6 +33,8 @@ export interface AddressableManifestAsset {
     contentHash?: string;
     /** GPU compressed formats this asset was encoded for (e.g. ['astc-4x4','etc2-rgba8']). */
     compressedFormats?: string[];
+    /** A small copy of a texture a mesh draws, which texture streaming fetches first (`path` is its build path). */
+    streamTail?: StreamTailInfo;
     /**
      * How the texture is sampled and sliced — the runtime half of the `.meta`
      * importer block, parsed at cook time rather than shipped raw: a packaged

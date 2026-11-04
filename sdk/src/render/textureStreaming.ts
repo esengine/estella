@@ -12,9 +12,10 @@
  *          been needed smaller for a while, so a camera passing by does not make it go back and forth.
  *
  *          What it streams: textures decoded from a file that only meshes draw. A texture a sprite, a UI element, a tilemap, a particle
- *          or a trail also draws is left at its size, since nothing measures what those need. What it saves is GPU memory; a texture is
- *          still read and decoded whole from its file the first time, so it saves neither the download nor the decode. A KTX2 file
- *          is cut at a level and not decoded again.
+ *          or a trail also draws is put back at its size, since nothing measures what those need. A mesh texture is loaded no larger
+ *          than 256 texels on a side to begin with (Assets.setTextureStreamingStart); a web build ships a small copy beside it
+ *          (pipeline streamTail.ts), which is what is fetched then, so the file itself is downloaded only once a view needs more. A
+ *          KTX2 file is cut at a level and not decoded again.
  */
 import type { App, Plugin } from '../app/app';
 import { defineSystem, Schedule } from '../ecs/system';

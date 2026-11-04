@@ -283,12 +283,15 @@ export function catalogFromManifest(manifest: AddressableManifest): Catalog | un
                     asset.path,
                 )
                 : null;
-            if (atlasFields) {
-                entries[`@uuid:${uuid}`] = { type: asset.type, buildPath: asset.path, ...atlasFields };
+            const tail = asset.streamTail ? { streamTail: asset.streamTail } : {};
+            if (atlasFields || asset.streamTail) {
+                entries[`@uuid:${uuid}`] = { type: asset.type, buildPath: asset.path, ...(atlasFields ?? {}), ...tail };
             }
+            // A texture with a small copy is found by whatever spelling a load uses, the build path among them.
+            if (asset.streamTail) entries[asset.path] = { type: asset.type, buildPath: asset.path, ...tail };
             if (!asset.address || asset.address === asset.path) continue;
-            entries[asset.address] = { type: asset.type, buildPath: asset.path, ...(atlasFields ?? {}) };
-            entries[`/${asset.address}`] = { type: asset.type, buildPath: asset.path, ...(atlasFields ?? {}) };
+            entries[asset.address] = { type: asset.type, buildPath: asset.path, ...(atlasFields ?? {}), ...tail };
+            entries[`/${asset.address}`] = { type: asset.type, buildPath: asset.path, ...(atlasFields ?? {}), ...tail };
         }
     }
     return Object.keys(entries).length > 0 ? Catalog.fromJson({ version: 1, entries }) : undefined;

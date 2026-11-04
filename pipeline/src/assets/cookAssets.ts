@@ -51,6 +51,7 @@ import {
 import { cookCached } from './cookCache';
 import { cookTexture, loadTextureEncoder, pngDimensions, COMPRESSED_TARGETS, type BasisEncoderModule } from './textureCook';
 import { meshTextureRoles } from './textureUsage';
+import { makeStreamTail, type StreamTail } from './streamTail';
 
 const MANIFEST = 'assets.manifest.json';
 
@@ -81,6 +82,11 @@ export interface CookManifestEntry extends AssetEntry {
   sourcePath: string;
   /** GPU formats the staged KTX2 can transcode to, when the asset was compressed. */
   compressedFormats?: string[];
+  /**
+   * The small copy of a texture a mesh draws (streamTail.ts), staged beside it: what texture streaming fetches first, so the full
+   * file is downloaded only once a view needs it. `width`/`height` are the copy's, `fullWidth`/`fullHeight` the file's.
+   */
+  streamTail?: { path: string; size: number; width: number; height: number; fullWidth: number; fullHeight: number };
   /**
    * What this build did to the texture's compression request, for images only.
    *
@@ -487,6 +493,9 @@ export async function cookAssets(
      * compressing any of it, and is answered before anything is encoded.
      */
     textureDecoderBytes?: number;
+    /** Stage a small copy of each texture a mesh draws as its surface (streamTail.ts), for texture streaming to fetch first.
+     *  Worth it where files are fetched as they are needed (the web); a package downloaded whole only grows. */
+    streamTails?: boolean;
   },
 ): Promise<CookResult> {
   const contentAddressed = opts.contentAddressed ?? false;
@@ -494,6 +503,7 @@ export async function cookAssets(
   const compressAudio = opts.compressAudio ?? false;
   const transcodeVideo = opts.transcodeVideo ?? false;
   const platform = opts.platform;
+  const streamTails = opts.streamTails ?? false;
   const { index } = await scanAssetDatabase(root, { write: false, adopt: false });
   const warnings: string[] = [];
   const failed: string[] = [];
@@ -758,6 +768,7 @@ export async function cookAssets(
         ? new Uint8Array(0)
         : await readFile(path.join(root, entry.path));
       let ext = path.extname(entry.path);
+      let tail: StreamTail | null = null;
       let compressedFormats: string[] | undefined;
       let cook: TextureCookDecision | undefined;
       // An authored single-level UASTC KTX2 gets the chain a compressed texture
@@ -795,6 +806,14 @@ export async function cookAssets(
         data = t.data; ext = t.ext; cook = t.cook; compressedFormats = t.compressedFormats;
         warnings.push(...t.warnings);
         if (t.defeatedByFormat) defeatedByFormat.push(entry.path);
+        // After the payload is decided, from its bytes: the copy is the picture that ships, in the format it ships in.
+        if (streamTails && roles.get(entry.uuid)?.has('surface')) {
+          try {
+            tail = await makeStreamTail(data, ext, readTextureCookSettings(entry.importer, platform).srgb, textureEnc);
+          } catch (err) {
+            warnings.push(`${entry.path}: no small copy for streaming — ${err instanceof Error ? err.message : String(err)}`);
+          }
+        }
       }
       // WAV sources re-encode to MP3 (universal decode); other audio formats are
       // already compressed and pass through. Hash + name reflect the ENCODED bytes.
@@ -911,6 +930,15 @@ export async function cookAssets(
         await mkdir(path.dirname(dst), { recursive: true });
         await writeFile(dst, data);
       }
+      let streamTail: CookManifestEntry['streamTail'];
+      if (tail) {
+        const tailRel = useCA ? `${caBase}/${contentHashHex(tail.bytes)}${tail.ext}` : `${outRel}.tail${tail.ext}`;
+        if (!staged.has(tailRel)) {
+          staged.add(tailRel);
+          await writeFile(path.join(absOut, tailRel), tail.bytes);
+        }
+        streamTail = { path: tailRel, size: tail.bytes.byteLength, width: tail.width, height: tail.height, fullWidth: tail.fullWidth, fullHeight: tail.fullHeight };
+      }
       manifestEntries.push({
         uuid: entry.uuid,
         path: outRel,
@@ -923,6 +951,7 @@ export async function cookAssets(
         groupMode: delivery,
         ...(compressedFormats ? { compressedFormats } : {}),
         ...(cook ? { cook } : {}),
+        ...(streamTail ? { streamTail } : {}),
       });
       // The video's audio track ships as its own manifest entry addressed as
       // `<source path>.m4a` / uuid `<video uuid>-audio` — the runtime resolves
