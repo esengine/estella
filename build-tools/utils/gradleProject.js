@@ -257,6 +257,11 @@ export async function emitAndroidGradleProject(contentDir, app, sources, icon) {
     }
 
     await cp(sources.libs, path.join(mainDir, 'jniLibs'), { recursive: true });
+    // What the export built per ABI (the project's compiled systems), beside the template's.
+    for (const [abi, files] of Object.entries(sources.extraLibs ?? {})) {
+        if (!abis.includes(abi)) continue;
+        for (const file of files) await cp(file, path.join(mainDir, 'jniLibs', abi, path.basename(file)));
+    }
     if (existsSync(sources.java)) {
         await cp(sources.java, path.join(mainDir, 'java'), { recursive: true });
     }

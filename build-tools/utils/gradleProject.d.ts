@@ -13,6 +13,8 @@
 export interface AndroidProjectSources {
     /** The engine's shared libraries, one directory per ABI. */
     libs: string;
+    /** Libraries the export built, by ABI (the project's compiled systems), copied into `jniLibs/<abi>/` beside the template's. */
+    extraLibs?: Record<string, string[]>;
     /** The host's Java shim, as source — what the project compiles. */
     java: string;
     /** The manifest template the app's identity is substituted into. */

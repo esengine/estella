@@ -19,6 +19,9 @@ import { buildCompiledSystems, readCompiledManifest } from '../src/bundle/buildC
 import { projectShapeDigest } from '../../sdk/src/ecs/aot/abiDigest';
 import { emccPath } from '../../build-tools/utils/emscripten.js';
 import { findHostCC, nativeModuleExt } from '../../compiler/src/hostCC';
+import { ANDROID_AOT_LIBRARY, androidAotCompilers } from '../src/export/androidAot';
+import { androidSdk, ndkTool, requireNdk } from '../../build-tools/utils/android.js';
+import { spawnSync } from 'node:child_process';
 
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -430,6 +433,51 @@ describe('the AOT build step, for a host that loads a library', () => {
   });
 });
 
+
+/**
+ * A phone: no JIT, the same QuickJS the desktop host embeds, so this is where a
+ * compiled system pays most. The one C, cross-compiled by the NDK once per 64-bit
+ * ABI, each a shared object the system linker loads by its bare name.
+ */
+describe('the AOT build step, for an Android package', () => {
+  const android = androidAotCompilers(['arm64-v8a', 'x86_64', 'armeabi-v7a']);
+  const HAS_NDK = android.compilers.length > 0;
+
+  it('leaves 32-bit ABIs out and says so', () => {
+    expect(android.skipped).toEqual(['armeabi-v7a']);
+  });
+
+  it.skipIf(!HAS_NDK)('builds one ELF shared object per ABI, for that machine, exporting the module table', async () => {
+    const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': PROMISED });
+    const out = await buildCompiledSystems(root, {
+      mode: 'release', target: 'native', cc: null, run,
+      outputs: android.compilers.map((c) => ({ id: c.abi, cc: c.cc, flags: c.flags, module: ANDROID_AOT_LIBRARY })),
+    });
+    expect(out.ok, out.errors.join('; ')).toBe(true);
+    expect(Object.keys(out.modules!).sort()).toEqual(['arm64-v8a', 'x86_64']);
+    expect(out.manifest?.systems.map((s) => s.name)).toEqual(['MoveSystem']);
+    const readelf = ndkTool(requireNdk(androidSdk() ?? ''), 'llvm-readelf');
+    const machine = { 'arm64-v8a': 'AArch64', x86_64: 'Advanced Micro Devices X86-64' } as Record<string, string>;
+    for (const [abi, file] of Object.entries(out.modules!)) {
+      expect(path.basename(file)).toBe(ANDROID_AOT_LIBRARY);
+      const header = spawnSync(readelf, ['-h', file], { encoding: 'utf8' }).stdout;
+      expect(header, abi).toContain('DYN (Shared object file)');
+      expect(header, abi).toContain(machine[abi]);
+      // What aot::Module reads out of the library: no manifest file rides along.
+      const symbols = spawnSync(readelf, ['--dyn-syms', file], { encoding: 'utf8' }).stdout;
+      for (const name of ['es_abi_hash', 'es_systems', 'es_system_count']) expect(symbols, `${abi} ${name}`).toContain(name);
+    }
+  }, 120_000);
+
+  it('says what is missing when there is no NDK', async () => {
+    const root = project({ 'src/components.ts': COMPONENTS, 'src/systems.ts': PROMISED });
+    const out = await buildCompiledSystems(root, {
+      mode: 'release', target: 'native', cc: null, run, outputs: [], missing: 'there is no Android NDK',
+    });
+    expect(out.ok).toBe(false);
+    expect(out.errors[0]).toMatch(/no Android NDK/);
+  });
+});
 
 /**
  * Two builds of one engine over one project's shapes. Probed before the pairing

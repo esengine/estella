@@ -19,7 +19,7 @@
 import path from 'path';
 import { existsSync, readFileSync } from 'fs';
 import { makeZip } from './zip.js';
-import { packageEntries } from './apk.js';
+import { packageEntries, extraLibEntries } from './apk.js';
 import { message, bytesField } from './protobuf.js';
 import { compileProtoManifest } from './androidProtoXml.js';
 import { appResources } from './androidResources.js';
@@ -70,6 +70,7 @@ export function assembleAab(options) {
         ...resources.files.map((f) => ({ ...f, name: `base/${f.name}` })),
         ...(hasDex ? [{ name: 'base/dex/classes.dex', data: readFileSync(dex) }] : []),
         ...abis.flatMap((abi) => packageEntries(path.join(templateDir, 'lib', abi), `base/lib/${abi}`)),
+        ...abis.flatMap((abi) => extraLibEntries(options.extraLibs, abi, `base/lib/${abi}`)),
         ...(existsSync(templateAssets) ? packageEntries(templateAssets, 'base/assets') : []),
         ...packageEntries(contentDir, 'base/assets'),
     ];

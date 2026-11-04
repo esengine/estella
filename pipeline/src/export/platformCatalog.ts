@@ -769,6 +769,8 @@ export interface AotToolchains {
   emcc: string | null;
   /** The host's own C compiler, for a library a native host loads. */
   cc: string | null;
+  /** Whether the Android NDK is here, which cross-compiles an Android package's module. Absent: not probed. */
+  ndk?: boolean;
 }
 
 /**
@@ -789,9 +791,11 @@ function withAotPrereq(
     // One probe per road: a machine with emcc and no cc packages for the web
     // and not for the desktop, and being sent to install the other toolchain
     // is worse than being told nothing.
-    if (target === 'wasm' ? toolchains.emcc : toolchains.cc) continue;
+    // Android cross-compiles: its compiler is the NDK, not this machine's own cc.
+    const android = row.id === 'android';
+    if (target === 'wasm' ? toolchains.emcc : android ? toolchains.ndk !== false : toolchains.cc) continue;
     row.ready = false;
-    row.prereq = { kind: 'toolchain-missing', tool: target === 'wasm' ? 'emsdk' : 'hostcc' };
+    row.prereq = { kind: 'toolchain-missing', tool: target === 'wasm' ? 'emsdk' : android ? 'ndk' : 'hostcc' };
   }
   return rows;
 }

@@ -141,6 +141,11 @@ export function packageEntries(dir, prefix) {
  * @param {Buffer}  [options.icon] The launcher icon; the template's default when absent.
  * @returns {Buffer} the signed package.
  */
+/** One ABI's extra libraries as package entries. @internal */
+export function extraLibEntries(extraLibs, abi, prefix) {
+    return (extraLibs?.[abi] ?? []).map((file) => ({ name: `${prefix}/${path.basename(file)}`, data: readFileSync(file) }));
+}
+
 export function assembleApk(options) {
     const { templateDir, contentDir, app } = options;
     const dex = path.join(templateDir, 'classes.dex');
@@ -165,6 +170,10 @@ export function assembleApk(options) {
         ...resources.files,
         ...(hasDex ? [{ name: 'classes.dex', data: readFileSync(dex) }] : []),
         ...abis.flatMap((abi) => packageEntries(path.join(templateDir, 'lib', abi), `lib/${abi}`)
+            .map((e) => ({ ...e, store: true, align: PAGE_ALIGNMENT }))),
+        // What the export built for each ABI (the project's compiled systems), loaded
+        // by bare name from the same place, so stored and aligned the same way.
+        ...abis.flatMap((abi) => extraLibEntries(options.extraLibs, abi, `lib/${abi}`)
             .map((e) => ({ ...e, store: true, align: PAGE_ALIGNMENT }))),
         // The template's assets (the SDK bytecode) first, so a project cannot
         // shadow them by accident and quietly change what the host boots.

@@ -16,6 +16,8 @@ export function assembleAab(options: {
     key: SigningKey;
     /** Also carry the emulator's x86_64 libraries. Default: phone ABIs only. */
     emulatorAbi?: boolean;
+    /** Libraries the export built, by ABI (the project's compiled systems): packaged beside the template's own in `lib/<abi>/`. An ABI the package does not carry is ignored. */
+    extraLibs?: Record<string, string[]>;
 }): Buffer;
 
 export function aabFileName(appId: string): string;

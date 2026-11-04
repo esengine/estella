@@ -70,8 +70,9 @@ import { orientationCss, orientationOverlayHtml, orientationLockScript, orientat
 import { PAGE_BACKGROUND, splashCss, splashHtml, type SplashLook } from './splash';
 import { emitIosXcodeProject, type IosProjectSources } from '../../../build-tools/utils/iosProject.js';
 import { emitAndroidGradleProject } from '../../../build-tools/utils/gradleProject.js';
-import { androidTemplateSources } from '../../../build-tools/utils/nativeTemplate.js';
+import { androidTemplateSources, packageAbis } from '../../../build-tools/utils/nativeTemplate.js';
 import { assembleApk, apkFileName } from '../../../build-tools/utils/apk.js';
+import { ANDROID_AOT_LIBRARY, androidAotCompilers } from './androidAot';
 import { assembleAab, aabFileName } from '../../../build-tools/utils/aab.js';
 import { assembleDesktopApp } from '../../../build-tools/utils/desktopApp.js';
 import { emitSteamBuild, defaultDepotId } from '../../../build-tools/utils/steamChannel.js';
@@ -1115,8 +1116,19 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
   //     because the build dialog looks for the same compiler this does, before
   //     an export starts.
   let aot: PackagedGameConfig['aot'];
+  /** Android: each packaged ABI's build of the compiled systems, for lib/<abi>/ of the package. */
+  let androidAotLibs: Record<string, string[]> | undefined;
   const aotTarget = compileTargetFor(platform);
-  const foreignOs = aotTarget === 'native' ? foreignDesktopOses(opts.desktopTemplates) : [];
+  const foreignOs = aotTarget === 'native' && platform === 'desktop' ? foreignDesktopOses(opts.desktopTemplates) : [];
+  // An Android package is cross-compiled, once per ABI it carries; with no template
+  // there are no ABIs and nothing to package them into.
+  const androidCompilers = platform === 'android' && opts.androidTemplate
+    ? androidAotCompilers(packageAbis(opts.androidTemplate, { emulator: opts.androidEmulatorAbi === true }))
+    : null;
+  if (androidCompilers && androidCompilers.skipped.length > 0) {
+    warnings.push(`Compiled systems run interpreted on ${androidCompilers.skipped.join(', ')}: a compiled module is `
+      + 'built for 64-bit ABIs, whose address width the engine handshake checks.');
+  }
   if (aotTarget !== null && foreignOs.length > 0) {
     // A compiled system is machine code for ONE machine, and this assembles an
     // app per installed template. Half a package with AOT is worse than a
@@ -1131,14 +1143,25 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     const built = await buildCompiledSystems(opts.root, {
       mode: opts.aotMode ?? 'release',
       target: aotTarget,
-      cc: aotTarget === 'native' ? findHostCC() : resolveEmcc(opts.emcc),
+      cc: aotTarget === 'native' ? (platform === 'android' ? null : findHostCC()) : resolveEmcc(opts.emcc),
       run: runEmcc,
+      ...(platform === 'android' ? {
+        outputs: (androidCompilers?.compilers ?? []).map((c) => ({ id: c.abi, cc: c.cc, flags: c.flags, module: ANDROID_AOT_LIBRARY })),
+        missing: androidCompilers?.missing
+          ?? 'there is no Android NDK — install one (Android Studio, SDK Manager) or set ANDROID_NDK_HOME',
+      } : {}),
     });
     if (!built.ok) {
       errors.push(...built.errors);
       return { ok: false, platform, outDir: absOut, included: cook.included.length, warnings, errors };
     }
-    if (built.modulePath && built.manifest) {
+    if (platform === 'android' && built.modules && built.manifest) {
+      progress({ phase: 'Compiling systems', detail: `${built.manifest.systems.length} system(s) for ${Object.keys(built.modules).join(', ')}` });
+      // Not content: each ABI's library goes in lib/<abi>/, where the system linker
+      // finds it by its bare name for the ABI the phone installed.
+      androidAotLibs = Object.fromEntries(Object.entries(built.modules).map(([abi, file]) => [abi, [file]]));
+      aot = { module: ANDROID_AOT_LIBRARY, manifest: built.manifest };
+    } else if (built.modulePath && built.manifest) {
       progress({ phase: 'Compiling systems', detail: `${built.manifest.systems.length} system(s)` });
       const name = path.basename(built.modulePath);
       await mkdir(path.join(payloadDir, 'aot'), { recursive: true });
@@ -1339,7 +1362,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       } else if (wantsProject) {
         progress({ phase: 'Writing Android Studio project' });
         androidProject = await emitAndroidGradleProject(
-          absOut, appConfig, androidTemplateSources(template), icon);
+          absOut, appConfig, { ...androidTemplateSources(template), ...(androidAotLibs ? { extraLibs: androidAotLibs } : {}) }, icon);
       } else {
         progress({ phase: 'Assembling the APK' });
         const release = opts.minify && opts.androidKey
@@ -1352,6 +1375,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
         const assembly = {
           templateDir: template, contentDir: absOut, app: appConfig, key, icon,
           emulatorAbi: opts.androidEmulatorAbi === true,
+          ...(androidAotLibs ? { extraLibs: androidAotLibs } : {}),
         };
         apkFile = path.join(absOut, apkFileName(appConfig.id));
         await writeFile(apkFile, assembleApk(assembly));

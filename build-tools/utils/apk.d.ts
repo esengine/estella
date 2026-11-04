@@ -25,8 +25,11 @@ export function assembleApk(options: {
     icon?: Buffer;
     /** Also carry the emulator's x86_64 libraries. Default: phone ABIs only. */
     emulatorAbi?: boolean;
+    /** Libraries the export built, by ABI (the project's compiled systems): packaged beside the template's own in `lib/<abi>/`. An ABI the package does not carry is ignored. */
+    extraLibs?: Record<string, string[]>;
 }): Buffer;
 
 export function signApkV2(zip: Buffer, key: SigningKey): Buffer;
 export function packageEntries(dir: string, prefix: string): Array<{ name: string; data: Buffer }>;
 export function apkFileName(appId: string): string;
+export function extraLibEntries(extraLibs: Record<string, string[]> | undefined, abi: string, prefix: string): Array<{ name: string; data: Buffer }>;

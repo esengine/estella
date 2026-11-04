@@ -11,7 +11,7 @@
  *        brought its own memory or a data section to write over the engine's.
  */
 import { describe, it, expect } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, copyFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,6 +19,8 @@ import { exportGame } from '../src/export/exportGame';
 import { OFFICIAL_PACKAGES } from './officialPackagesDir';
 import { emccPath } from '../../build-tools/utils/emscripten.js';
 import { writeFakeSdkDist } from './fixtures/fakeSdkDist';
+import { ANDROID_AOT_LIBRARY, androidAotCompilers } from '../src/export/androidAot';
+import { readZip } from '../../build-tools/utils/zip.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const HOSTS = path.join(HERE, '..', 'src', 'runtime');
@@ -134,4 +136,37 @@ describe('the promised systems in a web package', () => {
     expect(WebAssembly.Module.imports(mod)).toEqual([{ module: 'env', name: 'memory', kind: 'memory' }]);
     expect(WebAssembly.Module.exports(mod).map((e) => e.name)).toContain('es_sys_MoveSystem');
   });
+});
+
+describe('the promised systems in an Android package', () => {
+  const NDK = androidAotCompilers(['arm64-v8a']).compilers.length > 0;
+  it('reports whether this gate could run at all', () => {
+    if (!NDK) console.warn('[export-aot] NO ANDROID NDK — the Android case did NOT run.');
+  });
+
+  it.skipIf(!NDK)('cross-compiles them per ABI into lib/<abi>/ of the APK, and names the library bare', async () => {
+    const f = setup({ 'src/components.ts': COMPONENTS, 'src/systems.ts': PROMISED, 'src/main.ts': MAIN });
+    const template = path.join(f.root, '_android');
+    for (const abi of ['arm64-v8a', 'x86_64']) {
+      mkdirSync(path.join(template, 'lib', abi), { recursive: true });
+      writeFileSync(path.join(template, 'lib', abi, 'libestella_js_host.so'), `host ${abi}`);
+    }
+    const ROOT = path.resolve(HERE, '../..');
+    copyFileSync(path.join(ROOT, 'native/android/host/AndroidManifest.xml.in'), path.join(template, 'AndroidManifest.xml.in'));
+    copyFileSync(path.join(ROOT, 'native/icon.png'), path.join(template, 'icon.png'));
+    const res = await exportGame({
+      root: f.root, entryScene: 'scenes/main.esscene', hostsDir: HOSTS, packagesDir: OFFICIAL_PACKAGES,
+      scriptsEntry: 'src/main.ts', sdkDistDir: path.join(f.root, '_sdk'), wasmDir: path.join(f.root, '_wasm'),
+      outDir: f.out, platform: 'android', androidTemplate: template, androidEmulatorAbi: true,
+    });
+    expect(res.errors).toEqual([]);
+    const cfg = JSON.parse(readFileSync(path.join(f.out, 'game.config.json'), 'utf8')) as { aot?: { module: string; manifest: { systems: { name: string }[] } } };
+    expect(cfg.aot?.module).toBe(ANDROID_AOT_LIBRARY);
+    expect(cfg.aot?.manifest.systems.map((s) => s.name)).toEqual(['MoveSystem']);
+    const apk = readdirSync(f.out).find((n) => n.endsWith('.apk'))!;
+    const names = readZip(readFileSync(path.join(f.out, apk))).map((e) => e.name);
+    for (const abi of ['arm64-v8a', 'x86_64']) expect(names).toContain(`lib/${abi}/${ANDROID_AOT_LIBRARY}`);
+    // Not content: the module is not staged into assets as a desktop's is.
+    expect(names.some((n) => n.startsWith('assets/aot/'))).toBe(false);
+  }, 180_000);
 });

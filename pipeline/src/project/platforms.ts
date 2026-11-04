@@ -175,7 +175,7 @@ export type PlatformPrereq =
  * target missing them still exports its content. `emsdk` gates the export
  * itself, because the compiled module ships inside the package.
  */
-export type ToolchainPiece = 'xcode' | 'macos' | 'emsdk' | 'hostcc';
+export type ToolchainPiece = 'xcode' | 'macos' | 'emsdk' | 'hostcc' | 'ndk';
 
 /**
  * WHICH machine this target's compiled systems are built for, or null where it
@@ -188,8 +188,10 @@ export type ToolchainPiece = 'xcode' | 'macos' | 'emsdk' | 'hostcc';
  */
 export function compileTargetFor(platform: ExportPlatform): 'wasm' | 'native' | null {
     if (platform === 'web' || isMiniGamePlatform(platform)) return 'wasm';
-    if (platform === 'desktop') return 'native';
-    if (platform === 'playable' || platform === 'android' || platform === 'ios') return null;
+    // Android is native too: the same 64-bit module, built by the NDK for each ABI
+    // the package carries (export/androidAot.ts). iOS still waits on its link step.
+    if (platform === 'desktop' || platform === 'android') return 'native';
+    if (platform === 'playable' || platform === 'ios') return null;
     // A project platform is a mini-game platform: the playable ones are chosen
     // inside the built-in target, not offered as a row of their own.
     return 'wasm';

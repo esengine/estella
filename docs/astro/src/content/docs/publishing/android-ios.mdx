@@ -270,6 +270,17 @@ one thing that costs meaningfully more here than in a browser — prefer the
 engine's own systems and bulk APIs over hand-written per-entity iteration in the
 hot path.
 
+**On Android, a system marked `@compiled` runs as machine code instead.** The
+export cross-compiles every `/** @compiled */` system with the Android NDK, once per
+64-bit ABI the package carries (arm64-v8a, and x86_64 for the emulator), and the
+APK carries each build in `lib/<abi>/`. Where the interpreter spends microseconds
+per entity, the compiled system spends tens of nanoseconds. The NDK must be
+installed on the exporting machine (Android Studio's SDK Manager, or
+`ANDROID_NDK_HOME`); the Package dialog says so when a project promises compiled
+systems and it is missing. A system the host cannot bind falls back to the
+interpreter for that frame, so a missing module costs speed, never correctness. iOS
+still runs every system interpreted.
+
 ### The first launch after an install
 
 Parsing the SDK bundle on a device takes ~14 s, and a compile cache does not exist

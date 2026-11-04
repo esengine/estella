@@ -138,6 +138,8 @@ export interface BuildCompiledResult {
   /** Absolute path to the built module, or null when there was nothing to
    *  build. Which KIND of module is the target the caller asked for. */
   modulePath: string | null;
+  /** With `outputs`: each output's module, by its id (the first is `modulePath`). */
+  modules?: Record<string, string>;
   manifest: CompiledSystemsManifest | null;
   errors: string[];
   /** Systems the subset refused that were NOT promised — information, not failure. */
@@ -197,6 +199,15 @@ export async function buildCompiledSystems(
     cc: string | null;
     /** Runs a command; the toolchain's own runner, so env and logging match. */
     run: (cmd: string, args: string[], cwd: string) => Promise<{ code: number; stderr: string }>;
+    /**
+     * Native only: the machines to build the one C for, each with its own
+     * compiler and flags — a cross-compiled package carries one module per ABI.
+     * Replaces `cc` and the host's link flags; an empty list means no compiler
+     * here, said with `missing`.
+     */
+    outputs?: ReadonlyArray<{ id: string; cc: string; flags: readonly string[]; module: string }>;
+    /** What to say when `outputs` is empty. */
+    missing?: string;
   },
 ): Promise<BuildCompiledResult> {
   const plan = TARGETS[opts.target ?? 'wasm'];
@@ -255,10 +266,10 @@ export async function buildCompiledSystems(
     };
   }
 
-  if (!opts.cc) {
+  if (opts.outputs ? opts.outputs.length === 0 : !opts.cc) {
     return {
       ok: false, modulePath: null, manifest: null, notes,
-      errors: [`${chosen.length} system(s) are marked @compiled but ${plan.missing}`
+      errors: [`${chosen.length} system(s) are marked @compiled but ${opts.outputs ? opts.missing ?? plan.missing : plan.missing}`
         + ', or remove the marker'],
     };
   }
@@ -279,15 +290,22 @@ export async function buildCompiledSystems(
     units.push(path.join(dir, 'systems_decl.c'));
   }
 
-  const modulePath = path.join(dir, plan.module);
-  const built = await opts.run(opts.cc, [
-    ...CFLAGS, '-Wall', '-Wextra',
-    ...plan.linkFlags(c.symbols),
-    '-o', modulePath, ...units,
-  ], dir);
-  if (built.code !== 0 || !existsSync(modulePath)) {
-    return { ok: false, modulePath: null, manifest: null, notes, errors: [built.stderr.trim()] };
+  // One C, as many machines as were asked for: the host's own by default, or one
+  // module per output (a cross-compiled package's ABIs), each in its own folder.
+  const jobs = opts.outputs
+    ? opts.outputs.map((o) => ({ id: o.id, cc: o.cc, flags: [...o.flags], out: path.join(dir, o.id, o.module) }))
+    : [{ id: plan.module, cc: opts.cc!, flags: plan.linkFlags(c.symbols), out: path.join(dir, plan.module) }];
+  const modules: Record<string, string> = {};
+  for (const job of jobs) {
+    mkdirSync(path.dirname(job.out), { recursive: true });
+    const built = await opts.run(job.cc, [...CFLAGS, '-Wall', '-Wextra', ...job.flags, '-o', job.out, ...units], dir);
+    if (built.code !== 0 || !existsSync(job.out)) {
+      return { ok: false, modulePath: null, manifest: null, notes,
+        errors: [`${opts.outputs ? `${job.id}: ` : ''}${built.stderr.trim()}`] };
+    }
+    modules[job.id] = job.out;
   }
+  const modulePath = jobs[0].out;
 
   const manifest: CompiledSystemsManifest = {
     engineAbi: c.handshake.engineAbi,
@@ -299,7 +317,7 @@ export async function buildCompiledSystems(
     systems: moduleDeclarations(lowered.module, inlined),
   };
   writeFileSync(path.join(dir, MANIFEST), `${JSON.stringify(manifest, null, 2)}\n`);
-  return { ok: true, modulePath, manifest, errors: [], notes };
+  return { ok: true, modulePath, ...(opts.outputs ? { modules } : {}), manifest, errors: [], notes };
 }
 
 /** Read back what a previous build wrote, or null. */
