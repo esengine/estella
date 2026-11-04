@@ -231,11 +231,18 @@ folder in one call — each asset keeps the settings the patch does not name.
 - **One call is one undo step.** Everything a call changes — the scene edits *and* the project files it writes — goes back with
   one **Ctrl/⌘ + Z**, and comes forward again with Redo. The step shows in **History** as **AI · *tool***. A call that only wrote
   files does not mark the scene unsaved. The agent's own `undo` / `redo` tools answer once the files are back on disk.
+  Saving, exporting, creating a project and anything done to the running game are not steps: Undo does not take back a save.
 - **Your client knows what each tool does.** Every tool carries MCP annotations: reading tools are marked read-only, and only the
   ones that leave the project or run code nobody listed (an editor command, a probe in the running game) are marked destructive.
   A client that asks before such calls asks only before those.
 - **Long calls say they are still running.** A client that asks for progress hears every five seconds which tool is running and
-  for how long — opening a large scene or exporting reads as working, not hung.
+  for how long — opening a large scene or exporting reads as working, not hung. A call cancelled before it starts does not
+  run, and a composite one stops at its next step; one editor operation already running (an export, a bake) finishes.
+- **If the editor cannot start**, the call says why, in the editor's own words, and the next call tries again — the
+  connection stays up.
+- **The agent is told the house rules at connect**: tool groups, the open scene versus the running game, `step` instead of
+  waiting, one call per undo step. A client that does not refresh its tool list can still reach plugin tools with
+  `enable_tools` and the `plugins` group.
 - **Which tools fail, on this machine.** The connection notes each call (tool, client, outcome, time, the start of an error —
   never the arguments) in `~/.estella/mcp-calls.jsonl`. `node desktop/scripts/mcp-call-stats.mjs` lists the tools that fail
   most and how. Nothing is sent anywhere; `ESTELLA_MCP_CALL_LOG=0` turns it off.
