@@ -2009,6 +2009,16 @@ export function graphicsPathOf(app: App): GraphicsPath | null {
     return surfaces.get(app)?.graphics ?? null;
 }
 
+/**
+ * Tell @p app the size its host draws at — what a host that builds its App
+ * without {@link createWebApp} (the native core) does, so frame read-back and
+ * anything else asking {@link surfaceSizeOf} gets the same answer on every core.
+ * @internal
+ */
+export function setAppSurfaceSize(app: App, size: () => { width: number; height: number }): void {
+    surfaces.set(app, { graphics: surfaces.get(app)?.graphics ?? null, size });
+}
+
 /** The size the engine draws at, as its host reports it; null when the host did not say. */
 export function surfaceSizeOf(app: App): { width: number; height: number } | null {
     return surfaces.get(app)?.size?.() ?? null;

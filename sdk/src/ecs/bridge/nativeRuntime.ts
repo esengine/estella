@@ -10,7 +10,7 @@
 // authoring runs in the JS engine, writing the native C++ ECS, which the native
 // host renders. No wasm module: entity generations fall back to World's JS path.
 
-import { App } from '../../app/app';
+import { App, setAppSurfaceSize } from '../../app/app';
 import { World } from '../world';
 import { inputPlugin } from '../../input/input';
 import { prefabsPlugin } from '../../prefab/prefabServer';
@@ -241,6 +241,9 @@ function installNativeRenderer(app: App, scope: Record<string, unknown>): void {
     // The viewport is read per frame, so a rotation reaches the projection without
     // anyone pushing a resize event.
     app.addPlugin(cameraPlugin(() => nativeSurfaceSize(scope)));
+    // The same answer for anyone else who asks — the debug channel's screenshot
+    // read nothing here and reported a host that "did not say what size it draws at".
+    setAppSurfaceSize(app, () => nativeSurfaceSize(scope));
     // Tell the host to stop drawing its fallback frame: from here the pipeline
     // above opens and closes every pass, and a second one would clear over it.
     scope[HOST_FLAGS.ownsFrame] = true;

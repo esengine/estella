@@ -16,7 +16,9 @@ import { getPlatform, platformNow } from '../platform/base';
 import type { PlatformSocket } from '../platform/types';
 import type { NextFrame } from '../render/frameCapture';
 import { captureFrameReport, captureEngineOf, replayFrameDraw, type FrameReplayImage } from '../render/frameDebugReport';
-import { captureFramePixels } from '../render/framePixels';
+import { captureFramePixels, canCaptureFramePixels } from '../render/framePixels';
+import { engineApi } from '../ecs/bridge/engineApi';
+import type { ESEngineModule } from '../wasm';
 import { log } from '../util/logger';
 import { Assets } from '../asset/AssetPlugin';
 import { Lifecycle } from '../ecs/lifecycle';
@@ -215,10 +217,13 @@ export function startDebugChannel(config: DebugChannelConfig): void {
             }
             if (q.kind === 'screen') {
                 const size = surfaceSizeOf(game);
-                if (!size || !game.wasmModule) throw new Error('this build cannot read its frame back: its host did not say what size it draws at');
+                if (!size) throw new Error('this build cannot read its frame back: its host did not say what size it draws at');
+                // The core through engineApi, not wasmModule: a device has no wasm
+                // module, and its engine answers the same read-back entry points.
+                const module = engineApi(game) as unknown as ESEngineModule | null;
+                if (!module || !canCaptureFramePixels(module)) throw new Error('this build cannot read its frame back: its engine has no frame read-back');
                 // Asked for inside a frame, before it is handed to the page: GL reads
                 // the default framebuffer on the spot, and once presented it is cleared.
-                const module = game.wasmModule;
                 const shot = await new Promise<Awaited<ReturnType<typeof captureFramePixels>>>((resolve, reject) => {
                     const off = game.onFrameEnd(() => {
                         off();
