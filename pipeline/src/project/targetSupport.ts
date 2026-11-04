@@ -61,7 +61,7 @@ export const SUBSYSTEM_COMPONENTS: Readonly<Record<Subsystem, readonly string[]>
     physics3d: [
         'RigidBody3D', 'BoxCollider3D', 'SphereCollider3D', 'CapsuleCollider3D',
         'MeshCollider3D', 'ConvexCollider3D', 'CharacterController3D',
-        'HingeJoint3D', 'DistanceJoint3D', 'SliderJoint3D', 'FixedJoint3D', 'PointJoint3D', 'SwingTwistJoint3D', 'SixDOFJoint3D', 'Ragdoll',
+        'HingeJoint3D', 'DistanceJoint3D', 'SliderJoint3D', 'FixedJoint3D', 'PointJoint3D', 'SwingTwistJoint3D', 'SixDOFJoint3D', 'Ragdoll', 'RagdollJoint',
     ],
     spine: ['SpineAnimation'],
     dragonbones: ['DragonBonesAnimation'],

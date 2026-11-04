@@ -257,6 +257,10 @@ export {
     readJoint3D,
     type Joint3DShape,
 } from './physics3d/Physics3DJoints';
+export {
+    Ragdoll, RagdollJoint, RagdollProfile, RagdollFacing, ragdollPlan, classifyBone, BONE_LIMITS,
+    type RagdollData, type RagdollJointData, type RagdollPlan, type BoneClass,
+} from './physics3d/ragdoll';
 
 export {
     Physics3DDebugDraw,

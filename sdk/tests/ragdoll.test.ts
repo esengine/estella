@@ -306,3 +306,38 @@ describe.skipIf(!HAS_SOLVER)('a knee under the real solver', () => {
         expect(r.foot).toBeGreaterThan(0.3);
     });
 });
+
+describe('a bone the author has a say in', () => {
+    const named = (id: number, parent: number | null, y: number, name: string, override?: RagdollBone['override']): RagdollBone => ({ ...bone(id, parent, 0, y), name, ...(override ? { override } : {}) });
+    const forwardZ = { x: 0, y: 0, z: 1 };
+
+    it('gets no body when it is told none, and the bone below is joined to the one above', () => {
+        const limbs = planRagdoll([named(1, null, 0, 'DEF-hips'), named(2, 1, 1, 'DEF-spine.001', { body: false }), named(3, 2, 2, 'DEF-spine.002'), named(4, 3, 3, 'DEF-neck')], options);
+        expect(limbs.some((l) => l.entity === 2)).toBe(false);
+        expect(limbs.find((l) => l.entity === 3)!.connected).toBe(1);
+    });
+
+    it('is limited in the degrees it was given, not by its part of the body', () => {
+        const limbs = planRagdoll([named(1, null, 0, 'DEF-hips'), named(2, 1, 1, 'DEF-spine.001', { swing: 12, twist: 7 }), named(3, 2, 2, 'DEF-neck')], options);
+        const spine = limbs.find((l) => l.entity === 2)!;
+        expect(spine.swingDeg).toBe(12);
+        expect(spine.twistDeg).toBe(7);
+        expect(limbs.find((l) => l.entity === 3)!.swingDeg).toBeUndefined();
+    });
+
+    it('is a one-way hinge where it is given a bend and a side, whatever it is called', () => {
+        // A tail bone that folds toward the facing, 90 degrees.
+        const chain = [named(1, null, 0, 'root'), named(2, 1, 1, 'tail_1'), named(3, 2, 2, 'tail_2', { bend: 90, fold: 1 }), named(4, 3, 3, 'tail_3')];
+        const bent = planRagdoll(chain, { ...options, forward: forwardZ });
+        expect(bent.find((l) => l.entity === 3)!.hinge).toBeDefined();
+        const plain = planRagdoll(chain, { ...options, forward: forwardZ, bend: 130 });
+        expect(plain.find((l) => l.entity === 2)!.hinge).toBeUndefined();
+    });
+
+    it('turns a hinge off where its bend is 0', () => {
+        const chain = [named(1, null, 0, 'DEF-hips'), named(2, 1, 1, 'DEF-thigh.L'), named(3, 2, 2, 'DEF-shin.L', { bend: 0, swing: 50, twist: 10 }), named(4, 3, 3, 'DEF-foot.L')];
+        const limbs = planRagdoll(chain, { ...options, forward: forwardZ, bend: 130 });
+        expect(limbs.find((l) => l.entity === 3)!.hinge).toBeUndefined();
+        expect(planRagdoll(chain.map((b) => ({ ...b, override: undefined })), { ...options, forward: forwardZ, bend: 130 }).find((l) => l.entity === 3)!.hinge).toBeDefined();
+    });
+});

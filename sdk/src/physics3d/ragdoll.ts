@@ -16,6 +16,7 @@
  */
 import type { App } from '../app/app';
 import type { Entity, Quat, Vec3 } from '../types';
+import type { World } from '../ecs/world';
 import { defineSystem, Schedule } from '../ecs/system';
 import { Res, Time, type TimeData } from '../ecs/resource';
 import { playModeOnly } from '../ecs/env';
@@ -25,7 +26,7 @@ import { q } from '../math/quat';
 import { log } from '../util/logger';
 import { v3 } from '../math/vec3';
 import { RigidBody3D, BoxCollider3D } from './Physics3DComponents';
-import { SwingTwistJoint3D, SixDOFJoint3D, JointMotion3D } from './AdvancedJoint3D';
+import { SwingTwistJoint3D, SixDOFJoint3D, JointMotion3D, type SwingTwistJoint3DData, type SixDOFJoint3DData } from './AdvancedJoint3D';
 
 /** How a ragdoll's joints are limited. */
 export const RagdollProfile = {
@@ -87,11 +88,47 @@ export const Ragdoll: ComponentDef<RagdollData> = defineComponent<RagdollData>('
     },
 });
 
+/** The fields of the `RagdollJoint` component. @experimental */
+export interface RagdollJointData {
+    /** Whether this bone gets a body of its own. Off, the bone above carries it. */
+    body: boolean;
+    /** Whether the limits below stand in for the ones the profile would give this joint. */
+    custom: boolean;
+    /** How far the limb may swing from its bone's line, in degrees, either way. */
+    swing: number;
+    /** How far the limb may twist about its own line, in degrees, either way. */
+    twist: number;
+    /** How far it may bend, in degrees, one way only (a knee, an elbow). 0 is an ordinary swing and twist joint. */
+    bend: number;
+    /** Which way a bend goes where the bone's name does not say: 0 as its name says (a shin back, a forearm forward), 1 toward the way the character faces, -1 away from it. */
+    fold: number;
+}
+
+/**
+ * What the author says of one bone of a ragdoll: that it gets no body, or limits of its own. Put it on the bone's entity.
+ *
+ * @experimental
+ */
+export const RagdollJoint: ComponentDef<RagdollJointData> = defineComponent<RagdollJointData>('RagdollJoint', {
+    body: true, custom: false, swing: 70, twist: 40, bend: 0, fold: 0,
+}, {
+    fields: {
+        body: { category: 'Ragdoll', tooltip: 'Whether this bone gets a body of its own. Off, the bone above carries it.' },
+        custom: { category: 'Limits', tooltip: 'Use the limits below instead of the ones the ragdoll\'s profile gives this joint.' },
+        swing: { min: 0, max: 175, category: 'Limits', tooltip: 'How far the limb may swing from its bone\'s line, in degrees, either way.', shownWhen: { field: 'custom', values: [1] } },
+        twist: { min: 0, max: 175, category: 'Limits', tooltip: 'How far the limb may twist about its own line, in degrees, either way.', shownWhen: { field: 'custom', values: [1] } },
+        bend: { min: 0, max: 175, category: 'Limits', tooltip: 'How far it may bend, in degrees, one way only (a knee, an elbow). 0 is an ordinary swing and twist joint.', shownWhen: { field: 'custom', values: [1] } },
+        fold: { enum: [{ label: 'As its name says', value: 0 }, { label: 'Toward the facing', value: 1 }, { label: 'Away from the facing', value: -1 }], category: 'Limits', tooltip: 'Which way a bend goes where the bone\'s name does not say.', shownWhen: { field: 'custom', values: [1] } },
+    },
+});
+
 /** A bone as the plan reads it: where it is in the world, and the nearest bone above it. */
 export interface RagdollBone {
     id: number;
     /** What the bone is called, which is how the humanoid profile tells a knee from a shoulder. */
     name?: string;
+    /** What the author said of this bone in a {@link RagdollJoint}: no body, or limits of its own, in degrees. */
+    override?: { body?: boolean; swing?: number; twist?: number; bend?: number; fold?: number };
     parent: number | null;
     position: Vec3;
     rotation: Quat;
@@ -110,6 +147,9 @@ export interface RagdollLimb {
     /** The share (0 to 1) of the component's swing and twist this joint gets. */
     swing: number;
     twist: number;
+    /** Limits the author gave this bone in degrees, which stand in for the share of the component's. */
+    swingDeg?: number;
+    twistDeg?: number;
     /**
      * Set where the joint is a one-way hinge (a knee, an elbow): the hinge axis and a reference perpendicular to it, in this bone's own frame, and
      * how far the bone may turn about it either way from the pose it is in when the joint is made, in radians (the lower is at most 0, the upper at least 0).
@@ -198,6 +238,8 @@ export function planRagdoll(bones: readonly RagdollBone[], options: { thickness:
     for (const r of roots) visit(r);
 
     for (const bone of order) {
+        // A bone the author gave no body is carried by the one above, as a bone too short for one is.
+        if (bone.override?.body === false) continue;
         // Where the bone points: at its longest child, else on along the line its parent came in by.
         let target: Vec3 | null = null, length = 0;
         for (const c of children.get(bone.id) ?? []) {
@@ -237,8 +279,13 @@ export function planRagdoll(bones: readonly RagdollBone[], options: { thickness:
         // A knee folds back and an elbow folds forward, from the straight line the bone above makes: the hinge is across that line and the way the character faces, and what it may do
         // is measured from the pose it is in now, so the allowance is the bend left and the extension it already has.
         const kind = classifyBone(bone.name);
-        if (options.profile !== RagdollProfile.Uniform && options.bend && options.bend > 0 && options.forward && above && (kind === 'shin' || kind === 'forearm')) {
-            const hinge = hingeFor(bone, above, target, kind === 'shin' ? -1 : 1, options.forward, (options.bend * Math.PI) / 180);
+        const ov = bone.override;
+        if (ov?.swing !== undefined) limb.swingDeg = ov.swing;
+        if (ov?.twist !== undefined) limb.twistDeg = ov.twist;
+        const bend = ov?.bend ?? (options.profile !== RagdollProfile.Uniform ? options.bend : 0) ?? 0;
+        const side = ov?.fold ? (ov.fold > 0 ? 1 : -1) : kind === 'shin' ? -1 : kind === 'forearm' ? 1 : 0;
+        if (bend > 0 && side !== 0 && options.forward && above) {
+            const hinge = hingeFor(bone, above, target, side as 1 | -1, options.forward, (bend * Math.PI) / 180);
             if (hinge) limb.hinge = hinge;
         }
         limbs.push(limb);
@@ -294,6 +341,98 @@ function nlerp(a: Quat, b: Quat, t: number): Quat {
     return q.normalize({ w: a.w + (s * b.w - a.w) * t, x: a.x + (s * b.x - a.x) * t, y: a.y + (s * b.y - a.y) * t, z: a.z + (s * b.z - a.z) * t });
 }
 
+/** What a ragdoll is made of: the skeleton it reads, and what each limb gets (a body, and a joint to the limb above). */
+export interface RagdollPlan {
+    skin: Entity;
+    bones: Entity[];
+    limbs: Array<{
+        limb: RagdollLimb;
+        /** The joint it is given: swing and twist, or a one-way hinge as a six-axis joint. Absent for the topmost limb. */
+        joint: { kind: 'swingTwist'; data: SwingTwistJoint3DData } | { kind: 'sixDOF'; data: SixDOFJoint3DData } | null;
+    }>;
+}
+
+/** The skinned mesh a ragdoll reads its skeleton from: the entity named, or this one, or the first thing below it that is skinned. */
+function skinOf(world: World, entity: Entity, data: RagdollData): { skin: Entity; joints: Entity[] } | null {
+    // By name: the skin's joints are a variable-length list the component table has no layout for.
+    const skinDef = getComponent('MeshSkin');
+    if (!skinDef) return null;
+    let skin: Entity | null = null;
+    if (data.skin > 0 && world.valid(data.skin as Entity) && world.has(data.skin as Entity, skinDef)) skin = data.skin as Entity;
+    const queue: Entity[] = data.skin > 0 ? [] : [entity];
+    for (let i = 0; skin === null && i < queue.length && i < 4096; i++) {
+        const e = queue[i]!;
+        if (!world.valid(e)) continue;
+        if (world.has(e, skinDef)) { skin = e; break; }
+        if (world.has(e, Children)) queue.push(...(world.get(e, Children) as ChildrenData).entities);
+    }
+    if (skin === null) return null;
+    const joints = (world.get(skin, skinDef) as MeshSkinData).joints.filter((j) => world.valid(j) && world.has(j, Transform));
+    return joints.length > 0 ? { skin, joints } : null;
+}
+
+/**
+ * What `entity`'s ragdoll would be made of from the pose its skeleton is in now: the same answer the ragdoll builds its bodies from, so the editor can draw it before anything runs.
+ * Null where there is no skinned mesh to read.
+ *
+ * @experimental
+ */
+export function ragdollPlan(world: World, entity: Entity, data: RagdollData): RagdollPlan | null {
+    const rig = skinOf(world, entity, data);
+    if (!rig) return null;
+    world.ensureTransformsComposed();
+    const set = new Set<number>(rig.joints as number[]);
+    const nearestBone = (e: Entity): number | null => {
+        let p = world.has(e, Parent) ? (world.get(e, Parent) as ParentData).entity : undefined;
+        for (let guard = 0; p !== undefined && world.valid(p) && guard < 256; guard++) {
+            if (set.has(p)) return p as number;
+            p = world.has(p, Parent) ? (world.get(p, Parent) as ParentData).entity : undefined;
+        }
+        return null;
+    };
+    const bones: RagdollBone[] = rig.joints.map((j) => {
+        const t = world.get(j, Transform) as TransformData;
+        const mark = world.has(j, RagdollJoint) ? world.get(j, RagdollJoint) as RagdollJointData : null;
+        return {
+            id: j as number, parent: nearestBone(j),
+            name: world.has(j, Name) ? (world.get(j, Name) as { value: string }).value : undefined,
+            position: { x: t.worldPosition.x, y: t.worldPosition.y, z: t.worldPosition.z },
+            rotation: { w: t.worldRotation.w, x: t.worldRotation.x, y: t.worldRotation.y, z: t.worldRotation.z },
+            ...(mark ? { override: { body: mark.body, fold: mark.fold, ...(mark.custom ? { swing: mark.swing, twist: mark.twist, bend: mark.bend } : {}) } } : {}),
+        };
+    });
+    const facing = [{ x: 0, y: 0, z: 1 }, { x: 0, y: 0, z: -1 }, { x: 1, y: 0, z: 0 }, { x: -1, y: 0, z: 0 }][data.facing] ?? { x: 0, y: 0, z: 1 };
+    const rootT = world.get(entity, Transform) as TransformData;
+    const forward = q.rotate({ w: rootT.worldRotation.w, x: rootT.worldRotation.x, y: rootT.worldRotation.y, z: rootT.worldRotation.z }, facing);
+    const limbs = planRagdoll(bones, { thickness: data.thickness, minBoneLength: data.minBoneLength, profile: data.profile, bend: data.bend, forward });
+    const rad = (deg: number): number => (Math.min(Math.max(deg, 0), 175) * Math.PI) / 180;
+    const none = { x: 0, y: 0, z: 0 };
+    return {
+        skin: rig.skin, bones: rig.joints,
+        limbs: limbs.map((limb) => {
+            if (limb.connected === null) return { limb, joint: null };
+            if (limb.hinge) {
+                // The joint is made on this bone and names the bone above, so the rotation it limits is the bone above's relative to this one: the hinge's turn, the other way round.
+                const h = limb.hinge;
+                return { limb, joint: { kind: 'sixDOF' as const, data: {
+                    connectedEntity: limb.connected, anchor: none, axis: h.axis, normalAxis: h.normalAxis,
+                    enableMotor: false, angularVelocity: none, maxMotorTorque: 10, collideConnected: false, enabled: true,
+                    translationMotion: none, rotationMotion: { x: JointMotion3D.Limited, y: JointMotion3D.Locked, z: JointMotion3D.Locked },
+                    translationLower: none, translationUpper: none,
+                    rotationLower: { x: -h.upper, y: 0, z: 0 }, rotationUpper: { x: -h.lower, y: 0, z: 0 },
+                    linearVelocity: none, maxMotorForce: 0,
+                } } };
+            }
+            const swing = rad(limb.swingDeg ?? data.swing * limb.swing), twist = rad(limb.twistDeg ?? data.twist * limb.twist);
+            return { limb, joint: { kind: 'swingTwist' as const, data: {
+                connectedEntity: limb.connected, anchor: none, axis: limb.axis, normalAxis: limb.normalAxis,
+                enableMotor: false, angularVelocity: none, maxMotorTorque: 10, collideConnected: false, enabled: true,
+                normalHalfConeAngle: swing, planeHalfConeAngle: swing, twistMinAngle: -twist, twistMaxAngle: twist,
+            } } };
+        }),
+    };
+}
+
 /**
  * Installs the systems that turn a `Ragdoll`'s switch into bodies and back. Called once by the 3D physics plugin.
  *
@@ -306,25 +445,6 @@ export function installRagdolls(app: App): void {
     const limp = new Map<Entity, Limp>();
     const recovering = new Map<Entity, Recovery>();
     const world = app.world;
-
-    const skeletonOf = (entity: Entity, data: RagdollData): { skin: Entity; joints: Entity[] } | null => {
-        // By name: the skin's joints are a variable-length list the component table has no layout for.
-        const skinDef = getComponent('MeshSkin');
-        if (!skinDef) return null;
-        // The named entity, or else this one, or else the first thing below it that is skinned (an imported character keeps its mesh on a child).
-        let skin: Entity | null = null;
-        if (data.skin > 0 && world.valid(data.skin as Entity) && world.has(data.skin as Entity, skinDef)) skin = data.skin as Entity;
-        const queue: Entity[] = data.skin > 0 ? [] : [entity];
-        for (let i = 0; skin === null && i < queue.length && i < 4096; i++) {
-            const e = queue[i]!;
-            if (!world.valid(e)) continue;
-            if (world.has(e, skinDef)) { skin = e; break; }
-            if (world.has(e, Children)) queue.push(...(world.get(e, Children) as ChildrenData).entities);
-        }
-        if (skin === null) return null;
-        const joints = (world.get(skin, skinDef) as MeshSkinData).joints.filter((j) => world.valid(j) && world.has(j, Transform));
-        return joints.length > 0 ? { skin, joints } : null;
-    };
 
     const localPose = (bone: Entity): Pose => {
         const t = world.get(bone, Transform) as TransformData;
@@ -342,62 +462,21 @@ export function installRagdolls(app: App): void {
     };
 
     const activate = (entity: Entity, data: RagdollData): void => {
-        const rig = skeletonOf(entity, data);
-        if (!rig) {
+        const plan = ragdollPlan(world, entity, data);
+        if (!plan) {
             log.warn('physics3d', `Ragdoll on entity ${entity} found no skinned mesh with joints on it or below it`);
             return;
         }
-        world.ensureTransformsComposed();
-        const set = new Set<number>(rig.joints as number[]);
-        const nearestBone = (e: Entity): number | null => {
-            let p = world.has(e, Parent) ? (world.get(e, Parent) as ParentData).entity : undefined;
-            for (let guard = 0; p !== undefined && world.valid(p) && guard < 256; guard++) {
-                if (set.has(p)) return p as number;
-                p = world.has(p, Parent) ? (world.get(p, Parent) as ParentData).entity : undefined;
-            }
-            return null;
-        };
-        const bones: RagdollBone[] = rig.joints.map((j) => {
-            const t = world.get(j, Transform) as TransformData;
-            return {
-                id: j as number, parent: nearestBone(j),
-                name: world.has(j, Name) ? (world.get(j, Name) as { value: string }).value : undefined,
-                position: { x: t.worldPosition.x, y: t.worldPosition.y, z: t.worldPosition.z },
-                rotation: { w: t.worldRotation.w, x: t.worldRotation.x, y: t.worldRotation.y, z: t.worldRotation.z },
-            };
-        });
-        const facing = [{ x: 0, y: 0, z: 1 }, { x: 0, y: 0, z: -1 }, { x: 1, y: 0, z: 0 }, { x: -1, y: 0, z: 0 }][data.facing] ?? { x: 0, y: 0, z: 1 };
-        const rootT = world.get(entity, Transform) as TransformData;
-        const forward = q.rotate({ w: rootT.worldRotation.w, x: rootT.worldRotation.x, y: rootT.worldRotation.y, z: rootT.worldRotation.z }, facing);
-        const limbs = planRagdoll(bones, { thickness: data.thickness, minBoneLength: data.minBoneLength, profile: data.profile, bend: data.bend, forward });
-        log.info('physics3d', `Ragdoll on entity ${entity}: ${limbs.length} limbs from ${bones.length} bones`);
-        const rad = (deg: number): number => (Math.min(Math.max(deg, 0), 175) * Math.PI) / 180;
-        for (const limb of limbs) {
+        log.info('physics3d', `Ragdoll on entity ${entity}: ${plan.limbs.length} limbs from ${plan.bones.length} bones`);
+        for (const { limb, joint } of plan.limbs) {
             const e = limb.entity as Entity;
             world.insert(e, RigidBody3D, { bodyType: 2, enabled: true });
             world.insert(e, BoxCollider3D, { halfExtents: limb.halfExtents, center: limb.center, friction: data.friction, restitution: 0, isSensor: false, enabled: true });
-            if (limb.connected !== null && limb.hinge) {
-                // The joint is made on this bone and names the bone above, so the rotation it limits is the bone above's relative to this one: the hinge's turn, the other way round.
-                const h = limb.hinge, none = { x: 0, y: 0, z: 0 };
-                world.insert(e, SixDOFJoint3D, {
-                    connectedEntity: limb.connected, anchor: none, axis: h.axis, normalAxis: h.normalAxis,
-                    enableMotor: false, angularVelocity: none, maxMotorTorque: 10, collideConnected: false, enabled: true,
-                    translationMotion: none, rotationMotion: { x: JointMotion3D.Limited, y: JointMotion3D.Locked, z: JointMotion3D.Locked },
-                    translationLower: none, translationUpper: none,
-                    rotationLower: { x: -h.upper, y: 0, z: 0 }, rotationUpper: { x: -h.lower, y: 0, z: 0 },
-                    linearVelocity: none, maxMotorForce: 0,
-                });
-            } else if (limb.connected !== null) {
-                world.insert(e, SwingTwistJoint3D, {
-                    connectedEntity: limb.connected, anchor: { x: 0, y: 0, z: 0 }, axis: limb.axis, normalAxis: limb.normalAxis,
-                    enableMotor: false, angularVelocity: { x: 0, y: 0, z: 0 }, maxMotorTorque: 10, collideConnected: false, enabled: true,
-                    normalHalfConeAngle: rad(data.swing * limb.swing), planeHalfConeAngle: rad(data.swing * limb.swing),
-                    twistMinAngle: -rad(data.twist * limb.twist), twistMaxAngle: rad(data.twist * limb.twist),
-                });
-            }
+            if (joint?.kind === 'sixDOF') world.insert(e, SixDOFJoint3D, joint.data);
+            else if (joint) world.insert(e, SwingTwistJoint3D, joint.data);
         }
         recovering.delete(entity);
-        limp.set(entity, { limbs: limbs.map((l) => l.entity as Entity), posed: new Map() });
+        limp.set(entity, { limbs: plan.limbs.map((l) => l.limb.entity as Entity), posed: new Map() });
     };
 
     const deactivate = (entity: Entity, data: RagdollData): void => {
