@@ -21,6 +21,8 @@ import { triangulateRing } from '../render/vectorPath';
 import { ChainCollider2D, type ChainCollider2DData } from '../physics/PhysicsComponents';
 import { SplineCurve, type SplinePoint } from './curve';
 import { Spline, type SplineData } from './splinePlugin';
+import { Parent } from '../ecs/component';
+import { Transform } from '../ecs/component';
 
 /** The fields of the `TerrainBand2D` component. @experimental */
 export interface TerrainBand2DData {
@@ -34,6 +36,10 @@ export interface TerrainBand2DData {
     edgeWidth: number;
     /** The lip's colour, multiplying the texture under it. */
     edgeColor: { r: number; g: number; b: number; a: number };
+    /** An image the lip is drawn with, repeating along the surface (grass, snow, a rocky rim). None draws the lip as a flat colour in the fill's own mesh. */
+    edgeTexture: number;
+    /** The length of one repeat of the lip's image along the surface, in world units. */
+    edgeTile: number;
     /** Whether the band gives its entity a chain collider along the surface, for a static body to carry. */
     collider: boolean;
 }
@@ -44,14 +50,17 @@ export interface TerrainBand2DData {
  * @experimental
  */
 export const TerrainBand2D: ComponentDef<TerrainBand2DData> = defineComponent<TerrainBand2DData>('TerrainBand2D', {
-    resolution: 16, depth: 200, tile: 128, edgeWidth: 12, edgeColor: { r: 0.35, g: 0.65, b: 0.2, a: 1 }, collider: false,
+    resolution: 16, depth: 200, tile: 128, edgeWidth: 12, edgeColor: { r: 0.35, g: 0.65, b: 0.2, a: 1 }, edgeTexture: 0, edgeTile: 64, collider: false,
 }, {
+    assetFields: [{ field: 'edgeTexture', type: 'texture' }],
     fields: {
         resolution: { min: 1, category: 'Shape', tooltip: 'How far apart, along the curve, the outline\'s points are. Smaller is smoother and costs more triangles.' },
         depth: { min: 0, category: 'Shape', tooltip: 'How far below its lowest point an open spline\'s fill reaches. A closed spline ignores it.' },
         tile: { min: 1, category: 'Look', tooltip: 'The length of one repeat of the fill\'s texture, in world units.' },
         edgeWidth: { min: 0, category: 'Look', tooltip: 'How wide the lip along the surface is, drawn over the fill. 0 draws none.' },
         edgeColor: { category: 'Look', tooltip: 'The lip\'s colour, multiplying the texture under it.' },
+        edgeTexture: { category: 'Look', tooltip: 'An image the lip is drawn with, repeating along the surface. None draws the lip as a flat colour.' },
+        edgeTile: { min: 1, category: 'Look', tooltip: 'The length of one repeat of the lip\'s image along the surface, in world units.' },
         collider: { category: 'Collision', tooltip: 'Give this entity a chain collider along the surface. Add a static Rigidbody2D to make it solid.' },
     },
 });
@@ -59,6 +68,8 @@ export const TerrainBand2D: ComponentDef<TerrainBand2DData> = defineComponent<Te
 /** What a band is built into: the mesh, and the outline its collider follows. */
 export interface TerrainBandBuild {
     geometry: MeshRendererGeometry;
+    /** The lip as a mesh of its own, with its image laid along the surface by arc length, when the band has an `edgeTexture`; the lip is then not in `geometry`. */
+    edge: MeshRendererGeometry | null;
     /** The surface, in the entity's own space: the curve for an open spline, the ring for a closed one. */
     outline: Vec2[];
     closed: boolean;
@@ -112,10 +123,15 @@ export function buildTerrainBand(points: readonly SplinePoint[], closedCurve: bo
     for (const p of fill) push(p.x, p.y, white);
     for (const i of triangulateRing(fill)) indices.push(i);
 
-    // The lip: a strip from each surface point a lip's width into the fill, along the outline's surface side.
+    // The lip: a strip from each surface point a lip's width into the fill, along the outline's surface side. With an image of its own it is a mesh apart.
+    let edgeGeometry: MeshRendererGeometry | null = null;
     if (band.edgeWidth > 0) {
+        const separate = !!band.edgeTexture;
         const n = outline.length;
         const edge = lerpColor(band.edgeColor);
+        const ep: number[] = [], eu: number[] = [], ec: number[] = [], ei: number[] = [];
+        const edgeTile = Math.max(band.edgeTile, 1e-3);
+        let arc = 0;
         const inward: Vec2[] = [];
         for (let i = 0; i < n; i++) {
             const a = outline[closed ? (i + n - 1) % n : Math.max(i - 1, 0)]!;
@@ -125,20 +141,29 @@ export function buildTerrainBand(points: readonly SplinePoint[], closedCurve: bo
             inward.push(closed ? { x: -dy / len, y: dx / len } : { x: dy / len, y: -dx / len });
         }
         const top: number[] = [], under: number[] = [];
+        // A vertex of the lip: in the fill's mesh with the lip's colour, or in the lip's own with the image laid by distance along the surface (0 at the surface, 1 at the lip's inner edge).
+        const lipVertex = (x: number, y: number, v: number): number => {
+            if (!separate) return push(x, y, edge);
+            ep.push(x, y); eu.push(arc / edgeTile, v); ec.push(1, 1, 1, 1);
+            return ep.length / 2 - 1;
+        };
         for (let i = 0; i < n; i++) {
             const p = outline[i]!, d = inward[i]!;
-            top.push(push(p.x, p.y, edge));
-            under.push(push(p.x + d.x * band.edgeWidth, p.y + d.y * band.edgeWidth, edge));
+            if (i > 0) arc += Math.hypot(p.x - outline[i - 1]!.x, p.y - outline[i - 1]!.y);
+            top.push(lipVertex(p.x, p.y, 0));
+            under.push(lipVertex(p.x + d.x * band.edgeWidth, p.y + d.y * band.edgeWidth, 1));
         }
+        const target = separate ? ei : indices;
         const pieces = closed ? n : n - 1;
         for (let i = 0; i < pieces; i++) {
             const j = (i + 1) % n;
             // Counter-clockwise, so it faces the same way as the fill.
-            if (closed) indices.push(top[i]!, under[i]!, under[j]!, top[i]!, under[j]!, top[j]!);
-            else indices.push(top[i]!, under[j]!, top[j]!, top[i]!, under[i]!, under[j]!);
+            if (closed) target.push(top[i]!, under[i]!, under[j]!, top[i]!, under[j]!, top[j]!);
+            else target.push(top[i]!, under[j]!, top[j]!, top[i]!, under[i]!, under[j]!);
         }
+        if (separate) edgeGeometry = { positions: ep, uvs: eu, colors: ec, indices: ei };
     }
-    return { geometry: { positions, uvs, colors, indices }, outline, closed };
+    return { geometry: { positions, uvs, colors, indices }, edge: edgeGeometry, outline, closed };
 }
 
 /** The pixels-per-unit physics measures a Transform's units in. */
@@ -155,7 +180,20 @@ export function installTerrainBands(app: App): void {
     /** What each entity's mesh was last built from, and whether that left it any (an empty one is not worth looking for). */
     const built = new Map<Entity, { key: string; empty: boolean }>();
     const wroteCollider = new Set<Entity>();
-    app.world.onDespawn((entity: Entity) => { built.delete(entity); wroteCollider.delete(entity); });
+    /** The entity that draws each band's lip when the lip has an image of its own. */
+    const lips = new Map<Entity, Entity>();
+    app.world.onDespawn((entity: Entity) => {
+        built.delete(entity); wroteCollider.delete(entity);
+        const lip = lips.get(entity);
+        lips.delete(entity);
+        if (lip !== undefined && app.world.valid(lip)) app.world.despawn(lip);
+    });
+    const dropLip = (band: Entity): void => {
+        const lip = lips.get(band);
+        if (lip === undefined) return;
+        lips.delete(band);
+        if (app.world.valid(lip)) app.world.despawn(lip);
+    };
 
     app.addSystemToSchedule(Schedule.Update, defineSystem([], () => {
         const world = app.world;
@@ -165,6 +203,7 @@ export function installTerrainBands(app: App): void {
             const band = world.get(entity, TerrainBand2D) as TerrainBand2DData;
             const spline = world.get(entity, Spline) as SplineData;
             const ppu = band.collider ? pixelsPerUnit(app) : 0;
+            const handle = band.edgeTexture;
             const key = JSON.stringify([spline.points, spline.closed, band, ppu]);
             const held = built.get(entity);
             // The editor re-imports a MeshRenderer from its scene model, which carries no geometry, and that clears what was uploaded: a mesh
@@ -174,6 +213,19 @@ export function installTerrainBands(app: App): void {
             built.set(entity, { key, empty: !result });
             if (!world.has(entity, MeshRenderer)) world.insert(entity, MeshRenderer, { enabled: true });
             if (result) api.setGeometry(entity, result.geometry); else api.clearGeometry(entity);
+            // A lip with an image of its own is an entity under the band, one layer above it, drawn with the image and the lip's colour.
+            if (result?.edge && handle) {
+                let lip = lips.get(entity);
+                if (lip === undefined || !world.valid(lip)) {
+                    lip = world.spawn('Edge');
+                    world.insert(lip, Transform, {});
+                    world.setParent(lip, entity);
+                    lips.set(entity, lip);
+                }
+                const own = world.get(entity, MeshRenderer) as { layer?: number };
+                world.insert(lip, MeshRenderer, { enabled: true, texture: handle, color: band.edgeColor, layer: (own.layer ?? 0) + 1 });
+                api.setGeometry(lip, result.edge);
+            } else dropLip(entity);
             if (band.collider && result && result.outline.length >= 4) {
                 // Physics measures in units, the Transform in pixels.
                 const points = result.outline.map((p) => ({ x: p.x / ppu, y: p.y / ppu }));

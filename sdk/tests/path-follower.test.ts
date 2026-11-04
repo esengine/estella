@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { afterEach, beforeAll, beforeEach } from 'vitest';
 import { World } from '../src/ecs/world';
 import { Transform } from '../src/ecs/component';
+import { setEntityProperty } from '../src/ecs/propertyPath';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
 import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 import {
@@ -85,6 +86,19 @@ describe.skipIf(!HAS_WASM)('PathFollower', () => {
         const r = world.get(mover, Transform).rotation;
         expect(r.z).toBeCloseTo(0);
         expect(r.w).toBeCloseTo(1);
+    });
+
+    it("is moved by the generic property path, which is how a timeline track or a script graph node reaches any component", () => {
+        const { mover, step } = setup({ speed: 0 });
+        step(1);
+        expect(world.get(mover, Transform).position.x).toBeCloseTo(0);
+        // A timeline's property track, or a graph's property.set, writes by this path: distance drives the follower, speed sets its pace.
+        setEntityProperty(world as never, mover as never, "PathFollower.distance", 6);
+        step(0.0001);
+        expect(world.get(mover, Transform).position.x).toBeCloseTo(6, 1);
+        setEntityProperty(world as never, mover as never, "PathFollower.speed", 2);
+        step(1);
+        expect(world.get(mover, Transform).position.x).toBeCloseTo(8, 1);
     });
 
     it('does nothing while it is not playing, or when its spline is gone', () => {

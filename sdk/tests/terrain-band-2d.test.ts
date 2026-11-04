@@ -6,13 +6,14 @@ import { Transform, MeshRenderer } from '../src/ecs/component';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
 import { ChainCollider2D } from '../src/physics/PhysicsComponents';
 import { MeshRenderers } from '../src/render/meshRenderer';
+import { Parent } from '../src/ecs/component';
 import { Spline } from '../src/spline/splinePlugin';
 import { TerrainBand2D, buildTerrainBand, installTerrainBands, type TerrainBand2DData } from '../src/spline/terrainBand2D';
 import { triangulateRing } from '../src/render/vectorPath';
 import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 
 const band = (over: Partial<TerrainBand2DData> = {}): TerrainBand2DData => ({
-    resolution: 50, depth: 50, tile: 100, edgeWidth: 0, edgeColor: { r: 0, g: 1, b: 0, a: 1 }, collider: false, ...over,
+    resolution: 50, depth: 50, tile: 100, edgeWidth: 0, edgeColor: { r: 0, g: 1, b: 0, a: 1 }, edgeTexture: 0, edgeTile: 64, collider: false, ...over,
 });
 const pt = (x: number, y: number) => ({ x, y, z: 0, width: 1 });
 
@@ -89,6 +90,23 @@ describe('buildTerrainBand', () => {
         expect(b.geometry.uvs![last * 2]).toBeCloseTo(2);
     });
 
+    it('draws a lip with an image as a mesh of its own, the image laid by distance along the surface', () => {
+        const flat = buildTerrainBand([pt(0, 0), pt(200, 0)], false, band({ edgeWidth: 10 }))!;
+        const b = buildTerrainBand([pt(0, 0), pt(200, 0)], false, band({ edgeWidth: 10, edgeTexture: 7, edgeTile: 50 }))!;
+        // The fill is the same without the lip in it, and the lip is its own.
+        const none = buildTerrainBand([pt(0, 0), pt(200, 0)], false, band())!;
+        expect(b.geometry.indices.length).toBe(none.geometry.indices.length);
+        expect(flat.edge).toBeNull();
+        const e = b.edge!;
+        expect(coverage(e)).toBeCloseTo(2000, 0);
+        // v is 0 on the surface and 1 at the lip's inner edge; u runs 0 to 4 over 200 units at 50 a repeat.
+        const us = e.uvs!.filter((_, i) => i % 2 === 0), vs = e.uvs!.filter((_, i) => i % 2 === 1);
+        expect(new Set(vs)).toEqual(new Set([0, 1]));
+        expect(Math.min(...us)).toBeCloseTo(0);
+        expect(Math.max(...us)).toBeCloseTo(4, 1);
+        expect(e.colors!.every((c) => c === 1)).toBe(true);
+    });
+
     it('builds nothing from one point', () => {
         expect(buildTerrainBand([pt(0, 0)], false, band())).toBeNull();
     });
@@ -145,6 +163,19 @@ describe.skipIf(!HAS_WASM)('TerrainBand2D system', () => {
         lose(e);
         run();
         expect(uploads).toEqual([e, e]);
+    });
+
+    it('draws a lip that has an image on an entity under the band, and takes it away with the image', () => {
+        const { run } = install();
+        const e = ground({ edgeWidth: 8, edgeTexture: 7 });
+        run();
+        const kids = () => world.getAllEntities().filter((c) => c !== e && world.has(c, Parent) && (world.get(c, Parent) as { entity: number }).entity === e);
+        const [lip] = kids();
+        expect(lip).toBeDefined();
+        expect((world.get(lip!, MeshRenderer) as { texture: number }).texture).toBe(7);
+        world.insert(e, TerrainBand2D, band({ edgeWidth: 8, edgeTexture: 0 }));
+        run();
+        expect(kids().length).toBe(0);
     });
 
     it('writes a chain collider along the surface in physics units, and takes it back', () => {

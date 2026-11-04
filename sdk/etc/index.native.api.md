@@ -10901,6 +10901,8 @@ ComponentDef<TerrainBand2DData>
 collider: boolean
 depth: number
 edgeColor: { r: number; g: number; b: number; a: number; }
+edgeTexture: number
+edgeTile: number
 edgeWidth: number
 resolution: number
 tile: number
@@ -10909,6 +10911,7 @@ tile: number
 ## TerrainBandBuild — interface @experimental
 ```
 closed: boolean
+edge: MeshRendererGeometry | null
 geometry: MeshRendererGeometry
 outline: Vec2[]
 ```
