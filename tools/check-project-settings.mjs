@@ -299,6 +299,7 @@ const BLOCKS = [
       waterCaustics: { ui: 'project.rendering.quality.waterCaustics' },
       shelterMaskSize: { ui: 'project.rendering.quality.shelterMaskSize' },
       shadowSoftSamples: { ui: 'project.rendering.quality.shadowSoftSamples' },
+      drawCallBudget: { ui: 'project.rendering.quality.drawCallBudget' },
       skipEffects: { ui: 'project.rendering.quality.effects' },
     },
   },

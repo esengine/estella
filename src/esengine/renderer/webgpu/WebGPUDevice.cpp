@@ -2160,12 +2160,14 @@ void WebGPUDevice::drawElements(u32 indexCount, GfxDataType indexType, u32 index
     wgpuRenderPassEncoderSetIndexBuffer(pass_, it->second.buffer, toWGPUIndexFormat(indexType),
                                         0, it->second.size);
     const u32 indexSize = (indexType == GfxDataType::UnsignedShort) ? 2 : 4;
+    countDraw();
     wgpuRenderPassEncoderDrawIndexed(pass_, indexCount, 1, indexByteOffset / indexSize, 0, 0);
 }
 
 void WebGPUDevice::drawArrays(u32 firstVertex, u32 vertexCount) {
     if (!isDeviceUsable() || !pass_) return;
     flushBindGroup();
+    countDraw();
     wgpuRenderPassEncoderDraw(pass_, vertexCount, 1, firstVertex, 0);
 }
 
@@ -2178,6 +2180,7 @@ void WebGPUDevice::drawElementsInstanced(u32 indexCount, GfxDataType indexType, 
     wgpuRenderPassEncoderSetIndexBuffer(pass_, it->second.buffer, toWGPUIndexFormat(indexType),
                                         0, it->second.size);
     const u32 indexSize = (indexType == GfxDataType::UnsignedShort) ? 2 : 4;
+    countDraw();
     wgpuRenderPassEncoderDrawIndexed(pass_, indexCount, instanceCount,
                                      indexByteOffset / indexSize, 0, 0);
 }

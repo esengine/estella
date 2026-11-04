@@ -21,7 +21,13 @@ export enum RenderStage {
 export type RenderTargetHandle = number;
 
 export interface RenderStats {
+    /** The draws of the scene's and the overlay's lists, after batching: what the draw calls a frame debugger lists add up to. */
     drawCalls: number;
+    /**
+     * Every draw the GPU was asked for, every pass included: shadow maps, the depth prepass, reflections, motion vectors and post-processing as well as
+     * the scene. This is the number a draw call budget is held to.
+     */
+    gpuDraws: number;
     triangles: number;
     sprites: number;
     text: number;
@@ -158,7 +164,7 @@ export interface LodDecision {
     screenSize: number;
 }
 
-const NO_STATS: RenderStats = { drawCalls: 0, triangles: 0, sprites: 0, text: 0, skeletal: 0, meshes: 0, culled: 0 };
+const NO_STATS: RenderStats = { drawCalls: 0, gpuDraws: 0, triangles: 0, sprites: 0, text: 0, skeletal: 0, meshes: 0, culled: 0 };
 
 const bridge = new CoreApiBridge('renderer');
 let module: ESEngineModule | null = null;
@@ -292,6 +298,7 @@ function wasmBackend(m: ESEngineModule): RendererBackend {
         },
         getStats: () => ({
             drawCalls: m.renderer_getDrawCalls(),
+            gpuDraws: m.renderer_getGpuDrawCalls?.() ?? 0,
             triangles: m.renderer_getTriangles(),
             sprites: m.renderer_getSprites(),
             text: m.renderer_getText(),

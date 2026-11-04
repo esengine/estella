@@ -187,6 +187,14 @@ public:
     usize retainedBytes() const { return retained_bytes_; }
 
     /**
+     * @brief Every draw the GPU was asked for since the last call, and the tally started again.
+     * @details Counted where the backends issue them, so it holds every pass a frame has: the scene and
+     *          the overlay, and the shadow maps, depth prepass, reflections, motion vectors and
+     *          post-processing that the draw lists' own count leaves out. An instanced draw is one.
+     */
+    u32 takeDraws() { const u32 n = draws_; draws_ = 0; return n; }
+
+    /**
      * @brief Warns once when retainedBytes() grows past `bytes`; 0 never warns.
      * @details Falling back under it re-arms the warning.
      */
@@ -845,6 +853,9 @@ public:
     virtual u32 nativeTextureName(TextureHandle texture) const { (void)texture; return 0; }
 
 protected:
+    /** @brief A backend has issued one draw (see takeDraws). */
+    void countDraw() { ++draws_; }
+
     // =========================================================================
     // Backend primitives. `id` is the handle's value; the backend maps it to its
     // own object for the current generation and nothing else.
@@ -991,6 +1002,7 @@ private:
     GfxResourceRegistry registry_;
     u32 owed_count_ = 0;
     usize retained_bytes_ = 0;
+    u32 draws_ = 0;
     usize retained_budget_ = 0;
     bool over_retained_budget_ = false;
     ShaderHandle current_program_ = ShaderHandle::Invalid;

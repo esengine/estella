@@ -153,6 +153,7 @@ export const RENDERER_BINDINGS = {
  *  module exposes under the same names, so the two paths report identically. */
 export const RENDERER_STATS_BINDINGS = {
     drawCalls: 'es_renderer_getDrawCalls',
+    gpuDraws: 'es_renderer_getGpuDrawCalls',
     triangles: 'es_renderer_getTriangles',
     sprites: 'es_renderer_getSprites',
     text: 'es_renderer_getText',

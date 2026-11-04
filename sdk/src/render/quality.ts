@@ -78,6 +78,12 @@ export interface QualityProfile {
      * is that many silhouettes added up. Fewer is cheaper and shows the edge as bands; sixteen is where the bands stop reading as separate shadows.
      */
     shadowSoftSamples: number;
+    /**
+     * The most draws a frame at this level should ask of the GPU, every pass counted (shadows, prepass, reflections and post-processing with the
+     * scene). Nothing is held back to meet it: the profiler and the stats overlay show a frame over it, and the frame debugger says where the draws
+     * went. Draw calls cost the CPU and the driver more than the GPU, and on a phone or in a mini game they are what a 3D scene runs out of first.
+     */
+    drawCallBudget: number;
 }
 
 export interface DeviceQualityRule {
@@ -131,7 +137,7 @@ const PROFILES: Record<QualityLevel, QualityProfile> = {
         shadowDistance: 0, detailScale: 0.5, particleLimit: 1000, postProcess: true, ssao: false,
         waterWaves: 2, waterRippleCells: 32, waterDisplacement: false, waterMirror: false, waterCaustics: false,
         skipEffects: ['ssr', 'taa', 'depthOfField', 'lightShafts', 'motionBlur', 'lensFlare', 'gtao', 'subsurface', 'voxelGI'],
-        shelterMaskSize: 256, shadowSoftSamples: 8,
+        shelterMaskSize: 256, shadowSoftSamples: 8, drawCallBudget: 150,
     },
     medium: {
         renderScale: 1, minRenderScale: 0.65, msaaSamples: 2, antialiasing: 'temporal',
@@ -140,7 +146,7 @@ const PROFILES: Record<QualityLevel, QualityProfile> = {
         shadowDistance: 0, detailScale: 0.8, particleLimit: 5000, postProcess: true, ssao: true,
         waterWaves: 3, waterRippleCells: 64, waterDisplacement: true, waterMirror: true, waterCaustics: true,
         skipEffects: ['ssr', 'depthOfField'],
-        shelterMaskSize: 512, shadowSoftSamples: 12,
+        shelterMaskSize: 512, shadowSoftSamples: 12, drawCallBudget: 400,
     },
     high: {
         renderScale: 1, minRenderScale: 0.75, msaaSamples: 4, antialiasing: 'msaa',
@@ -151,7 +157,7 @@ const PROFILES: Record<QualityLevel, QualityProfile> = {
         shadowDistance: 0, detailScale: 1, particleLimit: 20000, postProcess: true, ssao: true,
         waterWaves: 4, waterRippleCells: 128, waterDisplacement: true, waterMirror: true, waterCaustics: true,
         skipEffects: [],
-        shelterMaskSize: 1024, shadowSoftSamples: 16,
+        shelterMaskSize: 1024, shadowSoftSamples: 16, drawCallBudget: 1500,
     },
 };
 
@@ -256,6 +262,7 @@ function resolveProfile(level: QualityLevel, value: unknown): QualityProfile {
             : base.skipEffects,
         shelterMaskSize: Math.round(finite(r.shelterMaskSize, base.shelterMaskSize, 64, 2048)),
         shadowSoftSamples: Math.round(finite(r.shadowSoftSamples, base.shadowSoftSamples, 1, 32)),
+        drawCallBudget: Math.round(finite(r.drawCallBudget, base.drawCallBudget, 1, 100000)),
     };
 }
 
@@ -288,6 +295,8 @@ export interface QualityReport {
     frameMs: number;
     reason: string;
     limitations: string[];
+    /** The level's draw call budget (see `QualityProfile.drawCallBudget`). */
+    drawCallBudget: number;
 }
 
 /** @experimental Per-app policy; authored scene components remain unchanged. */
@@ -388,6 +397,7 @@ export class QualityController {
             mode: this.config_.mode ?? 'off', level: this.level_,
             renderScale: this.renderScale, targetFps: this.config_.targetFps ?? 60,
             frameMs: this.average_, reason: this.reason_, limitations: [...this.limitations_],
+            drawCallBudget: this.profile_.drawCallBudget,
         };
     }
 }

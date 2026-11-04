@@ -684,6 +684,8 @@ export interface ESEngineModule {
      */
     es_getMallocBytes?(): number;
     renderer_getDrawCalls(): number;
+    /** Every draw the GPU was asked for in the last frame, every pass included. Optional: older engine builds do not carry it. */
+    renderer_getGpuDrawCalls?(): number;
     /**
      * GPU objects the device has created and not destroyed, for the resource
      * census. Null when no device is initialized — a census must record those

@@ -1015,6 +1015,11 @@ u32 renderer_getDrawCalls() {
     return g_renderFrame->stats().draw_calls;
 }
 
+u32 renderer_getGpuDrawCalls() {
+    if (!g_renderFrame) return 0;
+    return g_renderFrame->stats().gpu_draws;
+}
+
 #ifdef __EMSCRIPTEN__
 /**
  * The local-space XY box of what a MeshRenderer DRAWS — resident geometry when it has

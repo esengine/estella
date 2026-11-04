@@ -118,6 +118,8 @@ export class StatsOverlay {
         sections.push(
             '<div style="color:#8c8c8c;border-bottom:1px solid rgba(60,60,60,0.8);padding-bottom:3px;margin-bottom:3px;margin-top:4px">Rendering</div>' +
             `<div>DC: <span style="color:#d19a66">${stats.drawCalls}</span>` +
+            `    GPU: <span style="color:${stats.drawCallBudget > 0 && stats.gpuDraws > stats.drawCallBudget ? '#e06c75' : '#d19a66'}">${stats.gpuDraws}${stats.drawCallBudget > 0 ? ` / ${stats.drawCallBudget}` : ''}</span></div>` +
+            `<div>` +
             `    Tri: <span style="color:#d19a66">${stats.triangles}</span></div>` +
             `<div>Sprites: <span style="color:#d19a66">${stats.sprites}</span>` +
             `  Culled: <span style="color:#d19a66">${stats.culled}</span></div>`

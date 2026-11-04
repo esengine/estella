@@ -226,6 +226,8 @@ u32 renderer_getTargetDepthTexture(u32 handle);
 void renderer_releaseTarget(u32 handle);
 u32 renderer_getTargetTexture(u32 handle);
 u32 renderer_getDrawCalls();
+/// Every draw the GPU was asked for in the last frame, every pass included (shadows, prepass, reflections, post-processing).
+u32 renderer_getGpuDrawCalls();
 #ifdef __EMSCRIPTEN__
 /// GPU objects the device has not destroyed, for the resource census. Null when
 /// no device is initialized — absent counters, not zeroed ones.

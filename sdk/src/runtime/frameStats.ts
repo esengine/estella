@@ -20,6 +20,8 @@ export interface FrameStatsReport {
      *  profile tree is folded from. Null while the app has stats off. */
     costs: FrameCosts | null;
     drawCalls: number;
+    /** Every draw the GPU was asked for, every pass included; what `quality.drawCallBudget` is held to. */
+    gpuDraws?: number;
     triangles: number;
     sprites: number;
     entities: number;
@@ -56,6 +58,7 @@ export function frameStatsReport(app: App): FrameStatsReport {
         phases: Object.fromEntries(app.getPhaseTimings() ?? []),
         costs: app.getFrameCosts(),
         drawCalls: m?.renderer_getDrawCalls?.() ?? 0,
+        gpuDraws: m?.renderer_getGpuDrawCalls?.() ?? 0,
         triangles: m?.renderer_getTriangles?.() ?? 0,
         sprites: m?.renderer_getSprites?.() ?? 0,
         entities: app.world.getAllEntities().length,

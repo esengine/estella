@@ -47,6 +47,7 @@ function createRendererMockModule() {
         renderer_setStage: vi.fn(),
 
         renderer_getDrawCalls: vi.fn(() => 10),
+        renderer_getGpuDrawCalls: vi.fn(() => 31),
         renderer_getTriangles: vi.fn(() => 500),
         renderer_getSprites: vi.fn(() => 25),
         renderer_getText: vi.fn(() => 5),
@@ -131,6 +132,7 @@ describe('Renderer API', () => {
             const stats = Renderer.getStats();
             expect(stats).toEqual({
                 drawCalls: 0,
+                gpuDraws: 0,
                 triangles: 0,
                 sprites: 0,
                 text: 0,
@@ -376,6 +378,7 @@ describe('Renderer API', () => {
             const stats = Renderer.getStats();
             expect(stats).toEqual({
                 drawCalls: 10,
+                gpuDraws: 31,
                 triangles: 500,
                 sprites: 25,
                 text: 5,

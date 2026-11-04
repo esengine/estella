@@ -29,7 +29,7 @@ to.
 
 | Group | Settings |
 |---|---|
-| Rendering | Render scale, Min render scale, Anti-aliasing (MSAA or Temporal), MSAA, Depth pre-pass, Detail distance, 2D rain shelter mask |
+| Rendering | Render scale, Min render scale, Anti-aliasing (MSAA or Temporal), MSAA, Depth pre-pass, Detail distance, Draw call budget, 2D rain shelter mask |
 | Shadows | Atlas size, Cell size, Cascades, Distance, 2D soft-shadow samples |
 | Reflections and particles | Planar reflection scale, max size and updates per second, Particle limit |
 | Water | Water waves (1 to 4), Water ripple cells, and the Displacement, Mirror and Caustics switches. Shown once the level is not Off and the water module is in the build |
@@ -53,6 +53,14 @@ at Medium.
 **Detail distance** is the share of its distances a placed plant keeps at the level: at 0.5, a tree that changes to its
 cheaper mesh at 60 m and is not drawn as itself past 150 m does so at 30 m and 75 m, and its far cards take over sooner.
 Low keeps 0.5, Medium 0.8 and High all of it, so the same world draws a fraction of the triangles on a phone.
+
+**Draw call budget** is the most draws a frame at the level should ask of the GPU: 150 at Low, 400 at Medium and 1,500 at
+High. Every pass counts, not only the scene's own list: each shadow cascade draws its casters again, the depth pre-pass draws
+the opaque scene again, and post-processing adds a draw per pass. Nothing is held back to meet it. The Profiler's **Render**
+module shows the frame's GPU draws against the budget and splits them by pass, and the stats overlay turns the count red past
+it. A draw costs the CPU and the driver more than the GPU, and on a phone or in a mini game it is what a 3D scene runs out of
+first. To bring it down, see [Static batching](/docs/performance/static-batching/) for many different meshes and fewer shadow
+cascades for the shadow pass.
 
 ## Leaving effects out
 

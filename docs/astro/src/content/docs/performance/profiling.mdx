@@ -65,7 +65,9 @@ the render counters are the current frame's):
 | `entityCount` | number | Live entities in the world. |
 | `systemTimings` | `Map<string, number>` | CPU ms per system this frame, keyed by system name. |
 | `phaseTimings` | `Map<string, number>` | CPU ms per schedule phase this frame. |
-| `drawCalls` | number | GPU draw calls issued this frame. |
+| `drawCalls` | number | Draws of the scene's and the overlay's lists after batching: what the frame capture lists. |
+| `gpuDraws` | number | Every draw the GPU was asked for this frame, every pass included: shadow maps, the depth pre-pass, reflections, motion vectors and post-processing as well as the scene. |
+| `drawCallBudget` | number | The draw call budget of the quality level in force; 0 when the app has no quality levels. |
 | `triangles` | number | Triangles submitted this frame. |
 | `sprites` | number | Sprites rendered this frame. |
 | `text` | number | Text entities rendered this frame. |
@@ -108,7 +110,7 @@ addSystem(feedOverlay);
 
 The render counters in `FrameStats` come from `Renderer.getStats()`, which you
 can also call directly (no stats plugin needed) — it returns a `RenderStats`
-with the same seven fields: `drawCalls`, `triangles`, `sprites`, `text`,
+with the same fields: `drawCalls`, `gpuDraws`, `triangles`, `sprites`, `text`,
 `skeletal`, `meshes`, `culled`.
 
 ```typescript
@@ -117,6 +119,28 @@ import { Renderer } from 'esengine';
 const rs = Renderer.getStats();
 console.log(`${rs.drawCalls} draw calls, ${rs.triangles} triangles`);
 ```
+
+### Where the draws went
+
+`drawCalls` and `gpuDraws` are different numbers on purpose. On the `dusk-fort` example, a lit scene with a
+shadowing sun and a post-process volume, the lists draw 18 times and the GPU is asked for 52: 17 shadow casters
+and 17 post-processing and other passes the lists never see. A budget is held to `gpuDraws`.
+
+`drawBudgetReport` splits a frame's `gpuDraws` by pass, from the engine counters a frame stats report carries
+(`batch.draws`, `render.shadow.draws`, `render.prepass.draws`, `render.planar.draws`, `render.motion.draws`,
+`render.cover.draws`). What no pass claims is `other`, so the shares always add up to the GPU's count. The per-pass
+counters are published only while the frame profiler is on; without them, everything but the lists is `other`.
+
+```typescript
+import { drawBudgetReport } from 'esengine';
+
+const r = drawBudgetReport(gpuDraws, budget, counters);
+for (const p of r.passes) console.log(`${p.pass}: ${p.draws}`);
+if (r.over > 0) console.warn(`${r.over} draws over the budget of ${r.budget}`);
+```
+
+The editor's Profiler shows the same breakdown in its **Render** module. The budget itself is a setting of each
+[quality level](/docs/performance/quality-levels/).
 
 ## Building your own tooling
 

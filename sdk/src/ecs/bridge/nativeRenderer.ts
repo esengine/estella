@@ -209,6 +209,7 @@ export function createNativeRendererBackend(
             };
             return {
                 drawCalls: read(RENDERER_STATS_BINDINGS.drawCalls),
+                gpuDraws: read(RENDERER_STATS_BINDINGS.gpuDraws),
                 triangles: read(RENDERER_STATS_BINDINGS.triangles),
                 sprites: read(RENDERER_STATS_BINDINGS.sprites),
                 text: read(RENDERER_STATS_BINDINGS.text),

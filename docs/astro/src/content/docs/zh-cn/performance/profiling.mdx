@@ -62,7 +62,9 @@ addSystem(watchPerf);
 | `entityCount` | number | 世界中的存活实体数。 |
 | `systemTimings` | `Map<string, number>` | 本帧每个系统的 CPU 毫秒数,按系统名索引。 |
 | `phaseTimings` | `Map<string, number>` | 本帧每个调度阶段的 CPU 毫秒数。 |
-| `drawCalls` | number | 本帧发出的 GPU draw call 数。 |
+| `drawCalls` | number | 场景和叠加层绘制列表合批后的 draw 数,也就是帧捕获列出的那些。 |
+| `gpuDraws` | number | 本帧向 GPU 发出的全部 draw,所有 pass 都算:除了场景,还有阴影贴图、深度预通道、反射、运动矢量和后处理。 |
+| `drawCallBudget` | number | 当前画质档位的 draw call 预算;应用没有画质档位时为 0。 |
 | `triangles` | number | 本帧提交的三角形数。 |
 | `sprites` | number | 本帧渲染的精灵数。 |
 | `text` | number | 本帧渲染的文本实体数。 |
@@ -100,7 +102,7 @@ addSystem(feedOverlay);
 ## 渲染器计数 — `Renderer.getStats()`
 
 `FrameStats` 里的渲染计数来自 `Renderer.getStats()`,也可以直接调用(不需要
-stats 插件)——它返回一个 `RenderStats`,同样是那七个字段:`drawCalls`、
+stats 插件)——它返回一个 `RenderStats`,字段相同:`drawCalls`、`gpuDraws`、
 `triangles`、`sprites`、`text`、`skeletal`、`meshes`、`culled`。
 
 ```typescript
@@ -109,6 +111,22 @@ import { Renderer } from 'esengine';
 const rs = Renderer.getStats();
 console.log(`${rs.drawCalls} draw calls, ${rs.triangles} triangles`);
 ```
+
+### draw 都去了哪里
+
+`drawCalls` 和 `gpuDraws` 是有意不同的两个数。在 `dusk-fort` 示例里(有投影的太阳和后处理体积的光照场景),绘制列表画了 18 次,GPU 却收到 52 次:17 次是阴影投影物,17 次是后处理和其他绘制列表看不到的 pass。预算比的是 `gpuDraws`。
+
+`drawBudgetReport` 根据帧统计报告里的引擎计数(`batch.draws`、`render.shadow.draws`、`render.prepass.draws`、`render.planar.draws`、`render.motion.draws`、`render.cover.draws`),把一帧的 `gpuDraws` 按 pass 拆开。没有被任何 pass 认领的算作 `other`,所以各部分加起来总是等于 GPU 的数。各 pass 的计数只在帧分析器开着时才发布;没有时,除了绘制列表都算在 `other` 里。
+
+```typescript
+import { drawBudgetReport } from 'esengine';
+
+const r = drawBudgetReport(gpuDraws, budget, counters);
+for (const p of r.passes) console.log(`${p.pass}: ${p.draws}`);
+if (r.over > 0) console.warn(`超出预算 ${r.budget} 共 ${r.over}`);
+```
+
+编辑器 Profiler 的**渲染**模块显示同样的拆分。预算本身是每个[画质档位](/docs/zh-cn/performance/quality-levels/)的设置。
 
 ## 自建工具
 

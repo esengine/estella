@@ -618,6 +618,7 @@ void RenderFrame::flush() {
 void RenderFrame::endFrame() {
     frame_capture_.endFrame();
     device_.endFrame();
+    stats_.gpu_draws = device_.takeDraws();
     publishFrameCounters();
     // Once per frame and not per camera: a commit at each camera's end kept only
     // the last camera's scopes and counters.
@@ -636,6 +637,7 @@ void RenderFrame::tallyPass(const DrawList& list) {
 void RenderFrame::publishFrameCounters() {
     if (!FrameProfiler::get().enabled()) return;
     ES_PROFILE_COUNTER("batch.draws", stats_.draw_calls);
+    ES_PROFILE_COUNTER("render.gpu.draws", stats_.gpu_draws);
     ES_PROFILE_COUNTER("batch.merged", frame_merged_);
     // Emitted per reason and only where it happened, so a clean frame publishes
     // nothing rather than a wall of zeroes for a caller to read past.

@@ -1273,6 +1273,7 @@ u32 GLDevice::primitiveMode() const {
 void GLDevice::drawElements(u32 indexCount, GfxDataType indexType, u32 byteOffset) {
     if (!isDeviceUsable()) return;
     prepareVertexState();
+    countDraw();
     glDrawElements(primitiveMode(), static_cast<GLsizei>(indexCount), toGLDataType(indexType),
                    reinterpret_cast<const void*>(static_cast<uintptr_t>(byteOffset)));
 }
@@ -1280,12 +1281,14 @@ void GLDevice::drawElements(u32 indexCount, GfxDataType indexType, u32 byteOffse
 void GLDevice::drawArrays(u32 first, u32 vertexCount) {
     if (!isDeviceUsable()) return;
     prepareVertexState();
+    countDraw();
     glDrawArrays(primitiveMode(), static_cast<GLint>(first), static_cast<GLsizei>(vertexCount));
 }
 
 void GLDevice::drawElementsInstanced(u32 indexCount, GfxDataType indexType, u32 byteOffset, u32 instanceCount) {
     if (!isDeviceUsable()) return;
     prepareVertexState();
+    countDraw();
     glDrawElementsInstanced(primitiveMode(), static_cast<GLsizei>(indexCount), toGLDataType(indexType),
                             reinterpret_cast<const void*>(static_cast<uintptr_t>(byteOffset)),
                             static_cast<GLsizei>(instanceCount));

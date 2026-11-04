@@ -5,6 +5,7 @@ import { defineResource, Res, Time } from './ecs/resource';
 import { defineSystem, GetWorld, Schedule } from './ecs/system';
 import type { App, Plugin } from './app/app';
 import { StatsOverlay, type StatsPosition } from './stats-overlay';
+import { Quality } from './render/qualityRuntime';
 
 export interface FrameStats {
     fps: number;
@@ -13,6 +14,10 @@ export interface FrameStats {
     systemTimings: Map<string, number>;
     phaseTimings: Map<string, number>;
     drawCalls: number;
+    /** Every draw the GPU was asked for, every pass included (see `RenderStats.gpuDraws`). */
+    gpuDraws: number;
+    /** The draw call budget of the quality level in force; 0 when the app has no quality controller. */
+    drawCallBudget: number;
     triangles: number;
     sprites: number;
     text: number;
@@ -29,6 +34,8 @@ export function defaultFrameStats(): FrameStats {
         systemTimings: new Map(),
         phaseTimings: new Map(),
         drawCalls: 0,
+        gpuDraws: 0,
+        drawCallBudget: 0,
         triangles: 0,
         sprites: 0,
         text: 0,
@@ -203,6 +210,8 @@ export class StatsPlugin implements Plugin {
 
                 const renderStats = Renderer.getStats();
                 stats.drawCalls = renderStats.drawCalls;
+                stats.gpuDraws = renderStats.gpuDraws;
+                stats.drawCallBudget = app.hasResource(Quality) ? app.getResource(Quality)?.profile.drawCallBudget ?? 0 : 0;
                 stats.triangles = renderStats.triangles;
                 stats.sprites = renderStats.sprites;
                 stats.text = renderStats.text;

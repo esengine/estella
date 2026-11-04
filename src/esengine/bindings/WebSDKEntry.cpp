@@ -767,6 +767,7 @@ EMSCRIPTEN_BINDINGS(esengine_renderer) {
     emscripten::function("renderer_getTargetTexture", &esengine::renderer_getTargetTexture);
     emscripten::function("renderer_getTargetDepthTexture", &esengine::renderer_getTargetDepthTexture);
     emscripten::function("renderer_getDrawCalls", &esengine::renderer_getDrawCalls);
+    emscripten::function("renderer_getGpuDrawCalls", &esengine::renderer_getGpuDrawCalls);
     emscripten::function("renderer_getLiveObjects", &esengine::renderer_getLiveObjects);
     emscripten::function("renderer_getTriangles", &esengine::renderer_getTriangles);
     emscripten::function("renderer_getSprites", &esengine::renderer_getSprites);
