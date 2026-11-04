@@ -9,7 +9,7 @@ import { requireResourceManager } from '../../wasm/resourceManager';
 import { TextureContent, type ESEngineModule } from '../../wasm';
 import { withMalloc } from '../../wasm/wasmScratch';
 import {
-    isKtx2, isKtx2Path, loadCompressedTexture, chooseEngineTargetFormat, engineFormatCode,
+    isKtx2, isKtx2Path, loadCompressedTexture, levelsFrom, chooseEngineTargetFormat, engineFormatCode,
     compressedUploadDecision, detectCompressedTextureSupport, glInternalFormat,
     supportedTargetFormats, hostUploadDecision, RAW_PAYLOAD_UPLOAD,
     CompressedTextureFormat,
@@ -131,6 +131,8 @@ export class TextureLoader implements AssetLoader<TextureResult> {
      * took the decisions and cannot outlive the textures it describes.
      */
     private readonly formats_ = new TextureFormatLog();
+    /** Where each texture this loader decoded from a file came from: what a resize decodes again. */
+    private readonly sources_ = new Map<number, { path: string; flip: boolean; settings?: TextureImportSettings }>();
     /** The decision the in-flight upload came to. Set by the one entry point that
      *  chooses a path (decodeAndUpload_) and read by the one that records. */
     private lastDecision_: TextureUploadDecision = RAW_PAYLOAD_UPLOAD;
@@ -200,6 +202,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     }
 
     unload(asset: TextureResult): void {
+        this.sources_.delete(asset.handle);
         const rm = requireResourceManager();
         rm.releaseTexture(asset.handle);
     }
@@ -216,10 +219,29 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         return this.decodeAndUpload_(path, ctx, flip, settings);
     }
 
+    /**
+     * Decode the texture behind @p handle again, no larger than @p maxEdge texels on a side (0 is its full size), and move the new
+     * pixels behind the handle: everything that holds the handle — a material, a renderer, a batch key — sees the new size at once.
+     * The texture streamer's one move. False for a handle this loader did not decode from a file, or one the host cannot re-point.
+     */
+    async resize(handle: number, maxEdge: number, ctx: LoadContext): Promise<{ width: number; height: number } | null> {
+        const source = this.sources_.get(handle);
+        const rm = requireResourceManager();
+        if (!source || !rm.adoptTextureContent) return null;
+        const fresh = await this.decodeAndUpload_(source.path, ctx, source.flip, source.settings, maxEdge);
+        const moved = rm.adoptTextureContent(handle, fresh.handle);
+        rm.releaseTexture(fresh.handle);
+        return moved ? { width: fresh.width, height: fresh.height } : null;
+    }
+
+    /** Whether @p handle was decoded from a file by this loader, so it can be decoded again at another size. */
+    resizable(handle: number): boolean { return this.sources_.has(handle); }
+
     private async loadWithFlip(
         path: string, ctx: LoadContext, flip: boolean, settings?: TextureImportSettings,
     ): Promise<TextureResult> {
         const result = await this.decodeAndUpload_(path, ctx, flip, settings);
+        this.sources_.set(result.handle, { path, flip, settings });
         // Recorded HERE, once, for every path into the loader — the compressed
         // paths, the pixel decoder and the <img> upload alike. A record kept only
         // where a fallback happens cannot say that everything else was fine.
@@ -234,29 +256,31 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     }
 
     private async decodeAndUpload_(
-        path: string, ctx: LoadContext, flip: boolean, settings?: TextureImportSettings,
+        path: string, ctx: LoadContext, flip: boolean, settings?: TextureImportSettings, maxEdge = 0,
     ): Promise<TextureResult> {
         this.lastDecision_ = RAW_PAYLOAD_UPLOAD;
         if (isKtx2Path(path)) {
             const buf = await ctx.backend.fetchBinary(ctx.catalog.getBuildPath(path));
-            return this.uploadKtx2_(path, new Uint8Array(buf), settings);
+            return this.uploadKtx2_(path, new Uint8Array(buf), settings, maxEdge);
         }
         let preview = false;
         if (this.compressedSource_) {
             const compressed = await this.compressedSource_(path);
-            if (compressed instanceof Uint8Array) return this.uploadKtx2_(path, compressed, settings);
+            if (compressed instanceof Uint8Array) return this.uploadKtx2_(path, compressed, settings, maxEdge);
             preview = compressed === 'pending';
         }
+        // The smaller of a preview's edge and the one asked for: a texture held small is decoded small.
+        const edge = preview ? (maxEdge > 0 ? Math.min(maxEdge, TEXTURE_PREVIEW_EDGE) : TEXTURE_PREVIEW_EDGE) : maxEdge;
         // A platform pixel decoder (runtime scene loader) pre-decodes to RGBA and
         // uploads through the shared createTexture path — the same code the old
         // runtimeLoader.loadTextures used — instead of a URL-based <img>.
         if (this.pixelDecoder_) {
-            const result = await this.pixelDecoder_(path, flip, preview ? TEXTURE_PREVIEW_EDGE : 0);
+            const result = await this.pixelDecoder_(path, flip, edge);
             const handle = createTextureFromPixels(this.module_, result, TextureContent.Asset, flip, pixelParams(settings));
             return { handle, width: result.width, height: result.height };
         }
         const url = ctx.backend.resolveUrl(ctx.catalog.getBuildPath(path));
-        const img = await this.loadImage(url, flip, preview ? TEXTURE_PREVIEW_EDGE : 0, this.imageRevisions_.get(path));
+        const img = await this.loadImage(url, flip, edge, this.imageRevisions_.get(path));
         return this.createTextureFromImage(img, flip, settings);
     }
 
@@ -266,7 +290,7 @@ export class TextureLoader implements AssetLoader<TextureResult> {
      * the `flip` flag does not apply.
      */
     private async uploadKtx2_(
-        path: string, bytes: Uint8Array, settings?: TextureImportSettings,
+        path: string, bytes: Uint8Array, settings?: TextureImportSettings, maxEdge = 0,
     ): Promise<TextureResult> {
         if (!isKtx2(bytes)) throw new Error(`TextureLoader: ${path} is not a KTX2 file`);
         // Native (embedded Dawn): the ResourceManager transcodes the KTX2 with the
@@ -291,12 +315,12 @@ export class TextureLoader implements AssetLoader<TextureResult> {
             // No GL context (the WebGPU backend): ask the ENGINE which format it
             // samples and upload through it. Sampler state is what the GL path
             // below still has and this one does not — here it takes the defaults.
-            return this.loadCompressedViaEngine(path, transcoder, bytes, samplesAsSrgb(settings?.srgb));
+            return this.loadCompressedViaEngine(path, transcoder, bytes, samplesAsSrgb(settings?.srgb), maxEdge);
         }
         // A WebGL2 context implies a wasm module (native has neither, and threw
         // above on the missing gl); the KTX2 path is web-only.
         const r = await loadCompressedTexture(gl, this.module_!, transcoder, bytes,
-            { ...settings, srgb: samplesAsSrgb(settings?.srgb) });
+            { ...settings, srgb: samplesAsSrgb(settings?.srgb), maxEdge });
         this.lastDecision_ = r.decision;
         return { handle: r.handle, width: r.width, height: r.height };
     }
@@ -307,14 +331,15 @@ export class TextureLoader implements AssetLoader<TextureResult> {
      * transcode to it fails — the same bargain the GL path makes.
      */
     private async loadCompressedViaEngine(
-        path: string, transcoder: BasisTranscoder, bytes: Uint8Array, srgb: boolean,
+        path: string, transcoder: BasisTranscoder, bytes: Uint8Array, srgb: boolean, maxEdge = 0,
     ): Promise<TextureResult> {
         const rm = requireResourceManager();
         const module = this.module_;
         if (module && rm.supportsCompressedFormat && rm.createCompressedTexture) {
             const supports = rm.supportsCompressedFormat.bind(rm);
             const target = chooseEngineTargetFormat((code) => supports(code), srgb);
-            const t = target ? await transcoder.transcode(bytes, target) : null;
+            const whole = target ? await transcoder.transcode(bytes, target) : null;
+            const t = whole ? levelsFrom(whole, maxEdge) : null;
             this.lastDecision_ = compressedUploadDecision(target, t !== null);
             if (target && t) {
                 const code = engineFormatCode(target, srgb);
@@ -338,8 +363,9 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         } else {
             this.lastDecision_ = compressedUploadDecision(null, false);
         }
-        const rgba = await transcoder.transcodeToRgba(bytes);
-        if (!rgba) throw new Error(`TextureLoader: KTX2 decode failed for ${path}`);
+        const decoded = await transcoder.transcodeToRgba(bytes);
+        if (!decoded) throw new Error(`TextureLoader: KTX2 decode failed for ${path}`);
+        const rgba = levelsFrom(decoded, maxEdge);
         return this.loadFromPixels(rgba.width, rgba.height, rgba.data, false, TextureContent.Asset);
     }
 

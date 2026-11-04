@@ -1427,6 +1427,19 @@ void RenderFrame::buildSpriteMasks(ecs::Registry& registry) {
     mask_entities_scratch_.clear();
 }
 
+std::string RenderFrame::takeTextureWants() {
+    std::string out;
+    out.reserve(texture_wants_.size() * 12);
+    for (const auto& [texture, side] : texture_wants_) {
+        if (!out.empty()) out += ',';
+        out += std::to_string(texture);
+        out += ':';
+        out += std::to_string(static_cast<u32>(std::ceil(side)));
+    }
+    texture_wants_.clear();
+    return out;
+}
+
 RenderFrameContext RenderFrame::makeContext() {
     RenderFrameContext ctx{
         context_,

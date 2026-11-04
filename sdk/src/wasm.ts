@@ -688,6 +688,8 @@ export interface ESEngineModule {
     renderer_getGpuDrawCalls?(): number;
     /** Hand an entity's Impostor the atlas it draws from (0 takes it away). Optional: older engine builds do not carry it. */
     renderer_setImpostorAtlas?(entity: number, texture: number, frames: number): void;
+    /** What size each texture was asked for since the last call, as `handle:side` pairs; texture streaming reads it. */
+    renderer_takeTextureWants?(): string;
     /**
      * GPU objects the device has created and not destroyed, for the resource
      * census. Null when no device is initialized — a census must record those

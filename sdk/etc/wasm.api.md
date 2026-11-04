@@ -569,6 +569,7 @@ renderer_submitSkeletalPreviewBatch: (preview: number, verticesPtr: number, vert
 renderer_submitSkeletalPreviewBatchEx: (preview: number, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, transformPtr: number, layer: number, depth: number, materialId: number, premultipliedColor: boolean) => number
 renderer_submitTextBatch: ((verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, transformPtr: number, entity: number, layer: number, depth: number, glyphMode: number, cullBit: number) => void) | undefined
 renderer_takeFrameCapture: ((handle: number, dest: number, destSize: number) => boolean) | undefined
+renderer_takeTextureWants: (() => string) | undefined
 renderer_updateTransforms: (registry: CppRegistry) => void
 sdfFromAlpha: ((alphaPtr: number, outPtr: number, width: number, height: number, spread: number) => void) | undefined
 setActiveContext: (ctx: CppEngineContext | null) => void

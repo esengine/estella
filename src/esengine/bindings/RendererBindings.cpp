@@ -1338,6 +1338,11 @@ i32 renderer_lodInspect(u32 view, u32 entity, uintptr_t outPtr) {
     return 1;
 }
 
+std::string renderer_takeTextureWants() {
+    if (!g_renderFrame) return {};
+    return g_renderFrame->takeTextureWants();
+}
+
 void renderer_setImpostorAtlas(u32 entity, u32 texture, u32 frames) {
     if (!g_renderFrame) return;
     g_renderFrame->setImpostorAtlas(Entity::fromRaw(entity), texture, frames);

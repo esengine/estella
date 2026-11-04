@@ -304,6 +304,13 @@ void renderer_setLodPreview(u32 view, u32 entity, i32 level);
 void renderer_setImpostorAtlas(u32 entity, u32 texture, u32 frames);
 
 /**
+ * @brief What size each texture was asked for since the last call, as `handle:side` pairs joined by commas, and the record starts again.
+ * @details `side` is the texels across a view needs for a texel to be about a pixel where it drew a mesh with that texture (texture
+ *          streaming reads it). Empty when nothing was drawn with a mesh texture.
+ */
+std::string renderer_takeTextureWants();
+
+/**
  * @brief Shade a view's meshes as authored (0), as neutral clay (1) or as flat albedo (2).
  * @details View state, like the LOD preview beside it: the same scene drawn through
  *          another view keeps its own look. Out-of-range modes mean authored.

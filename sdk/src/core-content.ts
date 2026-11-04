@@ -858,6 +858,11 @@ export {
     type StaticBatchGroup, type StaticBatchLimits, type StaticBatchRefusal, type StaticBatchReport,
 } from './render/staticBatch';
 export {
+    TextureStreamingPlugin, textureStreamingPlugin, TextureStreaming, TextureStreamingRes, TEXTURE_STREAMING_DEFAULTS,
+    planStreaming, streamTargetEdge, streamedBytes,
+    type StreamedTexture, type StreamMove, type TextureStreamingOptions,
+} from './render/textureStreaming';
+export {
     ImpostorPlugin, impostorPlugin, ImpostorAtlases, ImpostorAtlasesRes, IMPOSTOR_BAKE_LAYER,
     impostorEncode, impostorDecode, impostorFrameDirection, impostorPictureUp, impostorKindKey,
 } from './render/impostor';

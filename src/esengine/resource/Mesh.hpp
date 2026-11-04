@@ -92,6 +92,10 @@ public:
      *  normal map was baked in. Without one the fragment derives a frame from screen-space derivatives. */
     bool hasTangents = false;
 
+    /** UV units per world unit of the mesh's own surface (see MeshUvDensity.hpp): what a view asks a texture's size by. 0 without
+     *  float positions and a float first UV set. */
+    f32 uvDensity = 0.0f;
+
     /** Local-space bounds of the vertices, for the frustum cull. */
     glm::vec3 localMin{0.0f, 0.0f, 0.0f};
     glm::vec3 localMax{0.0f, 0.0f, 0.0f};

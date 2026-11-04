@@ -13,6 +13,7 @@
 
 #include "../core/Half.hpp"
 #include "ResourceManager.hpp"
+#include "MeshUvDensity.hpp"
 #include "MeshEdges.hpp"
 #include "ShaderParser.hpp"
 #include "../text/BitmapFont.hpp"
@@ -675,6 +676,17 @@ bool ResourceManager::realizeMesh(Mesh& mesh, ConstSpan<u8> vertexBytes, ConstSp
     mesh.hasTangents = tangentChannel && hasNormals;
     mesh.localMin = localMin;
     mesh.localMax = localMax;
+    {
+        const GfxVertexAttribute* position = nullptr;
+        const GfxVertexAttribute* uv = nullptr;
+        for (const GfxVertexAttribute& c : channels) {
+            if (c.location == static_cast<u32>(MeshChannel::Position) && c.type == GfxDataType::Float && c.components >= 3) position = &c;
+            if (c.location == static_cast<u32>(MeshChannel::TexCoord0) && c.type == GfxDataType::Float && c.components >= 2) uv = &c;
+        }
+        mesh.uvDensity = position && uv
+            ? meshUvDensity(vertexBytes.data(), vertexBytes.size(), vertexStride, position->offset, uv->offset, indices.data(), indices.size())
+            : 0.0f;
+    }
     mesh.inverseBind.clear();
     if (skinned) {
         const usize joints = inverseBind.size() / 16;

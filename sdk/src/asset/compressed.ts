@@ -224,6 +224,21 @@ export interface CompressedUploadOptions {
     readonly srgb?: boolean;
     /** False keeps level 0 alone, however many levels the file carries. */
     readonly mipmaps?: boolean;
+    /** Leave out the levels larger than this many texels on a side (texture streaming); 0 keeps them all. */
+    readonly maxEdge?: number;
+}
+
+/**
+ * The chain from the first level no larger than @p maxEdge on a side: what a texture held smaller than its file needs, without decoding
+ * or encoding anything. A file whose smallest level is still larger keeps its smallest; 0 keeps the chain as it is.
+ */
+export function levelsFrom<T extends TranscodeResult | RgbaResult>(r: T, maxEdge: number | undefined): T {
+    if (!maxEdge || maxEdge <= 0 || Math.max(r.width, r.height) <= maxEdge) return r;
+    const levels = r.levels && r.levels.length > 0 ? r.levels : [{ width: r.width, height: r.height, data: r.data }];
+    let from = levels.findIndex((l) => Math.max(l.width, l.height) <= maxEdge);
+    if (from < 0) from = levels.length - 1;
+    const kept = levels.slice(from);
+    return { ...r, width: kept[0]!.width, height: kept[0]!.height, data: kept[0]!.data, levels: kept };
 }
 
 export interface UploadedTexture {
@@ -395,7 +410,8 @@ export async function loadCompressedTexture(
 ): Promise<LoadedCompressedTexture> {
     const support = detectCompressedTextureSupport(gl);
     const target = chooseTargetFormat(support, opts?.srgb ?? false);
-    const t = target !== null ? await transcoder.transcode(bytes, target) : null;
+    const whole = target !== null ? await transcoder.transcode(bytes, target) : null;
+    const t = whole ? levelsFrom(whole, opts?.maxEdge) : null;
     const aligned = target !== null && t !== null && webglCompressedLevelsSupported(target, levelsOf(t, opts));
     const decision: TextureUploadDecision = target !== null && t && !aligned
         ? { payload: 'ktx2', target, effective: 'rgba8', reason: 'not-block-aligned' }
@@ -403,7 +419,8 @@ export async function loadCompressedTexture(
     if (target !== null && t && aligned) {
         return { ...uploadCompressedTexture(gl, module, support, target, t, opts), decision };
     }
-    const rgba = await transcoder.transcodeToRgba(bytes);
-    if (!rgba) throw new Error('BasisTranscoder failed to decode KTX2 (compressed and RGBA paths both failed)');
+    const decoded = await transcoder.transcodeToRgba(bytes);
+    if (!decoded) throw new Error('BasisTranscoder failed to decode KTX2 (compressed and RGBA paths both failed)');
+    const rgba = levelsFrom(decoded, opts?.maxEdge);
     return { ...uploadRgbaTexture(gl, module, rgba, opts), decision };
 }

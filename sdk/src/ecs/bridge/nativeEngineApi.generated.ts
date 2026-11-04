@@ -248,6 +248,7 @@ export interface NativeEngineApi {
     renderer_submitSkeletalPreviewBatchEx?(preview: number, verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, blendMode: number, transformPtr: number, layer: number, depth: number, materialId: number, premultipliedColor: boolean): number;
     renderer_submitTextBatch?(verticesPtr: number, vertexCount: number, indicesPtr: number, indexCount: number, textureId: number, transformPtr: number, entity: number, layer: number, depth: number, glyphMode: number, cullBit: number): void;
     renderer_takeFrameCapture?(handle: number, dest: number, destSize: number): boolean;
+    renderer_takeTextureWants?(): string;
     renderer_updateTransforms?(registry: unknown): void;
     rm_acquireTextureByPath?(rm: unknown, path: string): number;
     rm_adoptTextureContent?(rm: unknown, target: number, source: number): boolean;
@@ -588,6 +589,7 @@ export function createNativeEngineApi(
     bind('renderer_submitSkeletalPreviewBatchEx', 'es_renderer_submitSkeletalPreviewBatchEx', false);
     bind('renderer_submitTextBatch', 'es_renderer_submitTextBatch', false);
     bind('renderer_takeFrameCapture', 'es_renderer_takeFrameCapture', false);
+    bind('renderer_takeTextureWants', 'es_renderer_takeTextureWants', false);
     bind('renderer_updateTransforms', 'es_renderer_updateTransforms', true);
     bind('rm_acquireTextureByPath', 'es_rm_acquireTextureByPath', true);
     bind('rm_adoptTextureContent', 'es_rm_adoptTextureContent', true);

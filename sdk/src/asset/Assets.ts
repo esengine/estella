@@ -548,6 +548,21 @@ export class Assets {
     }
 
     /**
+     * Decode the texture behind @p handle again, no larger than @p maxEdge texels on a side (0 is its full size), behind the same handle:
+     * what texture streaming moves a texture between sizes with. Null for a texture no file of this realm's stands behind.
+     */
+    async resizeTexture(handle: number, maxEdge: number): Promise<{ width: number; height: number } | null> {
+        const size = await this.textureLoader_.resize(handle, maxEdge, this.getLoadContext_());
+        if (size) evictTextureDimensions(handle);
+        return size;
+    }
+
+    /** Whether {@link resizeTexture} can move @p handle between sizes. */
+    textureResizable(handle: number): boolean {
+        return this.textureLoader_.resizable(handle);
+    }
+
+    /**
      * Refills every owed texture someone can: an asset texture is loaded again and
      * moved behind its handle, any other goes to the refill its creator provided.
      * Content nobody can remake is forgone by name, or the device recovers forever.

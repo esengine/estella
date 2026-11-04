@@ -120,6 +120,20 @@ public:
     /// (a tiled one), the second pass is geometry paid for twice.
     void setDepthPrepass(bool on) { depth_prepass_ = on; }
     void setPlanarQuality(f32 scale, u32 maxSize, f32 updatesPerSecond);
+    /**
+     * @brief Note that a view drew a mesh with texture @p texture (a resource handle) where it needs @p side texels across for a texel to
+     *        be about a pixel. The largest asked since the last take is kept.
+     */
+    void wantTextureSide(u32 texture, f32 side) {
+        if (texture == 0 || !(side > 0.0f)) return;
+        f32& held = texture_wants_[texture];
+        if (side > held) held = side;
+    }
+    /** @brief What each texture was asked for since the last take, as `handle:side` pairs joined by commas; the record starts again. */
+    std::string takeTextureWants();
+    /** @brief The pixel height of the view being collected: what a texel is held to. */
+    f32 viewHeightPx() const { return static_cast<f32>(scene_viewport_.h > 0 ? scene_viewport_.h : height_); }
+
     /** @brief An impostor's pictures: the atlas texture and how many frames along its side. */
     struct ImpostorAtlas {
         u32 texture = 0;
@@ -755,6 +769,8 @@ private:
     u32 planar_texture_ = 0;
     /// Each impostor's atlas, by raw entity id: set by the SDK's bake, read by the mesh collect.
     std::unordered_map<u32, ImpostorAtlas> impostor_atlases_;
+    /// The largest side each texture was asked for since the SDK last took the record (texture streaming).
+    std::unordered_map<u32, f32> texture_wants_;
     PlanarConstants planar_constants_;
     glm::vec4 scene_clear_{0.0f, 0.0f, 0.0f, 1.0f};
     rg::ResourceId planar_resource_ = rg::kNoResource;

@@ -84,6 +84,13 @@ export interface QualityProfile {
      * went. Draw calls cost the CPU and the driver more than the GPU, and on a phone or in a mini game they are what a 3D scene runs out of first.
      */
     drawCallBudget: number;
+    /**
+     * Hold each texture only meshes draw at the size its views need (see `textureStreamingPlugin`): a texture far away takes a
+     * fraction of its memory, and grows back as the camera comes close. Its file is still read and decoded whole the first time.
+     */
+    textureStreaming: boolean;
+    /** The megabytes the streamed textures may take together; past it they are held a level softer. 0 is no cap. */
+    textureStreamingBudget: number;
 }
 
 export interface DeviceQualityRule {
@@ -137,7 +144,7 @@ const PROFILES: Record<QualityLevel, QualityProfile> = {
         shadowDistance: 0, detailScale: 0.5, particleLimit: 1000, postProcess: true, ssao: false,
         waterWaves: 2, waterRippleCells: 32, waterDisplacement: false, waterMirror: false, waterCaustics: false,
         skipEffects: ['ssr', 'taa', 'depthOfField', 'lightShafts', 'motionBlur', 'lensFlare', 'gtao', 'subsurface', 'voxelGI'],
-        shelterMaskSize: 256, shadowSoftSamples: 8, drawCallBudget: 150,
+        shelterMaskSize: 256, shadowSoftSamples: 8, drawCallBudget: 150, textureStreaming: true, textureStreamingBudget: 128,
     },
     medium: {
         renderScale: 1, minRenderScale: 0.65, msaaSamples: 2, antialiasing: 'temporal',
@@ -146,7 +153,7 @@ const PROFILES: Record<QualityLevel, QualityProfile> = {
         shadowDistance: 0, detailScale: 0.8, particleLimit: 5000, postProcess: true, ssao: true,
         waterWaves: 3, waterRippleCells: 64, waterDisplacement: true, waterMirror: true, waterCaustics: true,
         skipEffects: ['ssr', 'depthOfField'],
-        shelterMaskSize: 512, shadowSoftSamples: 12, drawCallBudget: 400,
+        shelterMaskSize: 512, shadowSoftSamples: 12, drawCallBudget: 400, textureStreaming: true, textureStreamingBudget: 256,
     },
     high: {
         renderScale: 1, minRenderScale: 0.75, msaaSamples: 4, antialiasing: 'msaa',
@@ -157,7 +164,7 @@ const PROFILES: Record<QualityLevel, QualityProfile> = {
         shadowDistance: 0, detailScale: 1, particleLimit: 20000, postProcess: true, ssao: true,
         waterWaves: 4, waterRippleCells: 128, waterDisplacement: true, waterMirror: true, waterCaustics: true,
         skipEffects: [],
-        shelterMaskSize: 1024, shadowSoftSamples: 16, drawCallBudget: 1500,
+        shelterMaskSize: 1024, shadowSoftSamples: 16, drawCallBudget: 1500, textureStreaming: false, textureStreamingBudget: 0,
     },
 };
 
@@ -263,6 +270,8 @@ function resolveProfile(level: QualityLevel, value: unknown): QualityProfile {
         shelterMaskSize: Math.round(finite(r.shelterMaskSize, base.shelterMaskSize, 64, 2048)),
         shadowSoftSamples: Math.round(finite(r.shadowSoftSamples, base.shadowSoftSamples, 1, 32)),
         drawCallBudget: Math.round(finite(r.drawCallBudget, base.drawCallBudget, 1, 100000)),
+        textureStreaming: typeof r.textureStreaming === 'boolean' ? r.textureStreaming : base.textureStreaming,
+        textureStreamingBudget: Math.round(finite(r.textureStreamingBudget, base.textureStreamingBudget, 0, 65536)),
     };
 }
 

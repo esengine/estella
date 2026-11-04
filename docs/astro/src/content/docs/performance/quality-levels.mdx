@@ -29,7 +29,7 @@ to.
 
 | Group | Settings |
 |---|---|
-| Rendering | Render scale, Min render scale, Anti-aliasing (MSAA or Temporal), MSAA, Depth pre-pass, Detail distance, Draw call budget, 2D rain shelter mask |
+| Rendering | Render scale, Min render scale, Anti-aliasing (MSAA or Temporal), MSAA, Depth pre-pass, Detail distance, Draw call budget, Texture streaming and its budget, 2D rain shelter mask |
 | Shadows | Atlas size, Cell size, Cascades, Distance, 2D soft-shadow samples |
 | Reflections and particles | Planar reflection scale, max size and updates per second, Particle limit |
 | Water | Water waves (1 to 4), Water ripple cells, and the Displacement, Mirror and Caustics switches. Shown once the level is not Off and the water module is in the build |
@@ -61,6 +61,27 @@ module shows the frame's GPU draws against the budget and splits them by pass, a
 it. A draw costs the CPU and the driver more than the GPU, and on a phone or in a mini game it is what a 3D scene runs out of
 first. To bring it down, see [Static batching](/docs/performance/static-batching/) for many different meshes and fewer shadow
 cascades for the shadow pass.
+
+**Texture streaming** holds each texture that only meshes draw at the size its views need, and grows it back as the camera
+comes close. For every mesh a view draws, the renderer works out how many texels across its textures need for a texel to be
+about a pixel there, from the mesh's own UV density, its size and its distance; four times a second the textures that are the
+wrong size are decoded again from their files at the next power of two above that, and put behind the same handle. A texture
+grows as soon as it is needed bigger and shrinks only after it has been needed smaller for three seconds; one no view draws for
+five seconds goes down to 64 texels. It is on at Low and Medium and off at High; **Texture streaming budget** caps what the
+streamed textures take together (128 MB at Low, 256 MB at Medium, 0 is no cap), and past it they are held a level softer.
+
+Measured in the editor's Play at Low, in the `texture-streaming` editor check:
+
+| Example | GPU memory, streaming off | On, ten seconds in | The two pictures |
+|---|---|---|---|
+| `dusk-fort` | 285.6 MB | 31.0 MB (12 textures, 2048 held at 64 to 256) | mean difference 0.28 of 255 |
+| `bistro` | 1293.5 MB | 980.7 MB (228 textures, 62 moved so far) | mean difference 1.8 of 255; 0.05% of pixels differ visibly |
+
+What it does not do: it saves GPU memory, not the download or the decode, since a file is read and decoded whole the first time
+and again for each size it is moved to; a move costs a decode and an upload on the frame it lands, which shows as a frame or two
+of tens of milliseconds while a scene settles. A texture a sprite, a UI element, a tilemap, a particle or a trail also draws is left
+at its size. A KTX2 file is cut at a level without decoding; where the host transcodes KTX2 itself (the native builds) it cannot
+be, and the texture is left at its size.
 
 ## Leaving effects out
 

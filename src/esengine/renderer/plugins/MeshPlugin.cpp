@@ -883,6 +883,26 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         }
         tick(2);
 
+        // How big a texture this mesh needs here: a texel about a pixel at the nearest point of its sphere. The scene's own views
+        // only — a shadow map's texels are not anyone's pixels — and only where the mesh says how much texture its surface holds.
+        if (ctx.purpose == RenderPurpose::Scene && ctx.frame && resident && resident->uvDensity > 0.0f && !placements) {
+            glm::vec3 centre(0.0f);
+            f32 radius = 0.0f;
+            lod::boundingSphere(position, rotation, scale, resident->localMin, resident->localMax, centre, radius);
+            const glm::mat4& vp = ctx.view_projection;
+            // NDC y per world unit is the length of the view-projection's second row under both projections; half the view's
+            // pixels span one unit of NDC.
+            const f32 ndcPerUnit = glm::length(glm::vec3(vp[0][1], vp[1][1], vp[2][1]));
+            const glm::vec4 eye = collect_ctx.camera.eye;
+            const f32 distance = eye.w > 0.5f ? std::max(glm::length(glm::vec3(eye) - centre) - radius, 1e-3f) : 1.0f;
+            const f32 pixelsPerUnit = ndcPerUnit * 0.5f * ctx.frame->viewHeightPx() / distance;
+            const f32 grow = std::max({std::abs(scale.x), std::abs(scale.y), std::abs(scale.z)});
+            const f32 side = pixelsPerUnit * grow / resident->uvDensity;
+            if (mesh.texture.isValid()) ctx.frame->wantTextureSide(mesh.texture.id(), side);
+            if (mesh.normalMap.isValid()) ctx.frame->wantTextureSide(mesh.normalMap.id(), side);
+            if (material) for (const auto& b : material->textures) if (b.texture.isValid()) ctx.frame->wantTextureSide(b.texture.id(), side);
+        }
+
         u32 textureId = ctx.white_texture_id;
         if (mesh.texture.isValid()) {
             if (Texture* tex = ctx.resources.getTexture(mesh.texture)) {
