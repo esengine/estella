@@ -362,7 +362,10 @@ function indexHtml(
   // incompatible with the standalone page's same-origin resource restriction.
   const channelPolicy = webChannel === 'poki' || webChannel === 'crazygames' || webChannel === 'youtube'
     ? `default-src 'self' data: blob: https:; script-src 'self' 'unsafe-eval' blob: https: ${inlineScripts}; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: blob: https:; connect-src 'self' data: blob: https:${connect}; frame-src https:; media-src 'self' data: blob: https:; worker-src 'self' blob:;`
-    : `default-src 'self'; script-src 'self' 'unsafe-eval' blob: ${inlineScripts}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' data: blob:${connect}; worker-src 'self' blob:;`;
+    // media-src: a long clip streams through an <audio> element over a blob: URL of its
+    // compressed bytes (WebAudioBackend), and `default-src 'self'` alone refuses that
+    // source — the music of every exported web game past 30 s stayed silent.
+    : `default-src 'self'; script-src 'self' 'unsafe-eval' blob: ${inlineScripts}; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' data: blob:${connect}; worker-src 'self' blob:;`;
   return `<!doctype html>
 <html lang="en" data-web-channel="${webChannel === 'poki' ? 'poki' : webChannel === 'crazygames' ? 'crazygames' : webChannel === 'youtube' ? 'youtube' : 'standalone'}">
   <head>
