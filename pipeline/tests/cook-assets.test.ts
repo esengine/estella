@@ -519,6 +519,11 @@ describe('cookAssets — auto-atlas (<name>.atlas folder convention)', () => {
       const at = (f: { x: number; y: number }) => [...page.data.subarray((f.y * page.width + f.x) * 4, (f.y * page.width + f.x) * 4 + 4)];
       expect(at(a.atlas!.frame)).toEqual([255, 0, 0, 255]);
       expect(at(b.atlas!.frame)).toEqual([0, 255, 0, 255]);
+      // The clear gap beside a frame took a frame's colour, not black: a frame's
+      // edge samples it, and black there is a dark fringe.
+      const gap = { x: a.atlas!.frame.x + a.atlas!.frame.width, y: a.atlas!.frame.y };
+      const texel = at(gap);
+      if (texel[3] === 0) expect(texel.slice(0, 3)).not.toEqual([0, 0, 0]);
     } finally {
       rmSync(r, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }

@@ -87,6 +87,22 @@ export function pngDimensions(png: Uint8Array): { width: number; height: number 
 }
 
 /**
+ * A colour image's clear texels filled from their solid neighbours — the rule
+ * every cooked image follows (a texture on its own, and an atlas page whose gaps
+ * between frames are clear too). `null` when there is nothing to do: no clear
+ * texel, or premultiplied art (see {@link looksPremultiplied}).
+ */
+export function fillClearTexels(image: { rgba: Uint8Array; width: number; height: number }): Uint8Array | null {
+  if (!hasClearTexel(image.rgba) || looksPremultiplied(image.rgba)) return null;
+  return bleedCutoutColor({ width: image.width, height: image.height, rgba: image.rgba }, { clearOnly: true });
+}
+
+/** Whether an importer lets its clear texels be filled: a colour image that has not said no. */
+export function fillsClearTexels(importer: Record<string, unknown> | undefined, platform?: string): boolean {
+  return readTextureCookSettings(importer, platform).srgb && importer?.alphaIsTransparency !== false;
+}
+
+/**
  * Whether a PNG can hold a transparent texel, from its header: grey+alpha or RGBA,
  * or a palette with a tRNS chunk. Answered without decoding, so an opaque image
  * costs nothing here.
@@ -115,16 +131,21 @@ function hasClearTexel(rgba: Uint8Array): boolean {
 
 /**
  * Whether the colour was multiplied by alpha already (a Spine PMA page): no channel
- * above its texel's alpha anywhere. Such an image's RGB under alpha 0 is 0 BY
+ * above its texel's alpha anywhere, partly clear texels included. Such an image's RGB under alpha 0 is 0 BY
  * DEFINITION, and premultiplied blending adds it — filling it in would light up
  * every clear texel.
  */
 function looksPremultiplied(rgba: Uint8Array): boolean {
+  // Only partly clear texels can tell the two apart: an opaque texel and a clear
+  // one read the same either way. Art with none of them (solid frames on a clear
+  // page, pixel art) is straight; a PMA page has an anti-aliased edge somewhere.
+  let partial = false;
   for (let i = 0; i < rgba.length; i += 4) {
     const a = rgba[i + 3]!;
     if (rgba[i]! > a || rgba[i + 1]! > a || rgba[i + 2]! > a) return false;
+    if (a > 0 && a < 255) partial = true;
   }
-  return true;
+  return partial;
 }
 
 function safePngDimensions(png: Uint8Array): { width: number; height: number } | null {
@@ -215,11 +236,12 @@ export async function cookTexture(input: TextureCookInput): Promise<TextureCookO
   // colour — on a straight-alpha image it is the colour that is seen.
   // The importer can say no (`alphaIsTransparency: false`): an image whose RGB under
   // alpha 0 a shader reads as data.
-  const clearBleed = raster && !cutout && tex.srgb && input.importer?.alphaIsTransparency !== false && pngMayHaveAlpha(data);
-  const bled = (image: { rgba: Uint8Array; width: number; height: number }) =>
-    cutout || (clearBleed && hasClearTexel(image.rgba) && !looksPremultiplied(image.rgba))
-      ? { ...image, rgba: bleedCutoutColor({ width: image.width, height: image.height, rgba: image.rgba }, { clearOnly: !cutout }) }
-      : image;
+  const clearBleed = raster && !cutout && fillsClearTexels(input.importer, platform) && pngMayHaveAlpha(data);
+  const bled = (image: { rgba: Uint8Array; width: number; height: number }) => {
+    if (cutout) return { ...image, rgba: bleedCutoutColor({ width: image.width, height: image.height, rgba: image.rgba }) };
+    const filled = clearBleed ? fillClearTexels(image) : null;
+    return filled ? { ...image, rgba: filled } : image;
+  };
   const bleedKey = cutout ? { bleed: 1 } : clearBleed ? { bleed: 'clear' } : {};
   // A texture that ships as an image ships the shrunk one, and the bled one —
   // through the cook cache, so the editor shows the same pixels a build ships.

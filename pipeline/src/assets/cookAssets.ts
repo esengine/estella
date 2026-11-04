@@ -49,7 +49,7 @@ import {
   readKtx2Layout, wantsMipChain, halveRgba, spliceMipChain,
 } from './ktx2Mips';
 import { cookCached } from './cookCache';
-import { cookTexture, loadTextureEncoder, pngDimensions, COMPRESSED_TARGETS, type BasisEncoderModule } from './textureCook';
+import { cookTexture, loadTextureEncoder, pngDimensions, fillClearTexels, fillsClearTexels, COMPRESSED_TARGETS, type BasisEncoderModule } from './textureCook';
 import { meshTextureRoles } from './textureUsage';
 import { makeStreamTail, type StreamTail } from './streamTail';
 import { matchScriptAssetRefs, scanScriptAssetRefs } from './scriptAssetRefs';
@@ -712,6 +712,14 @@ export async function cookAssets(
       if (images.length === 0) continue;
       const pages = packAtlas(images);
       for (let n = 0; n < pages.length; n++) {
+        // A page is one image: its frames' clear texels and the clear gaps between
+        // them are filled as a lone texture's are, or the frame edge samples the
+        // gap's black. Only where every frame on it allows (see fillsClearTexels).
+        const onPage = pages[n].placements.map((p) => byPath.get(p.key)).filter((e): e is AssetEntry => !!e);
+        if (onPage.length > 0 && onPage.every((e) => fillsClearTexels(e.importer, platform))) {
+          const filled = fillClearTexels(pages[n]);
+          if (filled) pages[n] = { ...pages[n], rgba: filled };
+        }
         const pagePng: Uint8Array = encodePagePng(pages[n]);
         let pageBytes: Uint8Array = pagePng;
         let pageExt = '.png';
