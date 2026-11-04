@@ -20,7 +20,8 @@ import { buildTool, platformJar, ndkTool, ndkLibcxxShared, jdkTool } from '../ut
 import { makeZip, zipTree } from '../utils/zip.js';
 import {
     templateLayout, templateId, ANDROID_ABIS, templateAbis, writeTemplateManifest,
-    missingTemplateFiles, installedTemplateDir, templateZipName, TEMPLATE_INDEX, TEMPLATE_FORMAT,
+    missingTemplateFiles, installedTemplateDir, templateZipName, TEMPLATE_INDEX, TEMPLATE_FORMAT, templateJsEngine,
+    BYTECODE_FILE,
 } from '../utils/nativeTemplate.js';
 
 /** The Java shim's sources — the IME's own side of an editable field, which has to
@@ -133,6 +134,21 @@ export async function writeTemplateIndex(dir, options = {}) {
  * @param {string}  [options.zipTo]       Also write the distributable archive here.
  * @returns {Promise<{dir: string, manifest: object, zip: string|null}>}
  */
+/**
+ * The identity of the SDK bundle a host was built with: FNV-1a 64 of the bytes it
+ * compiles (gen/esengine_bundle.embedded.js), as Runtime.cpp computes it. The gen
+ * dir is wherever this platform's bytecode entry points, built or not.
+ */
+function embeddedSdkIdentity(layout, ctx) {
+    const entry = layout.find((e) => e.rel.endsWith(BYTECODE_FILE));
+    const from = entry?.from(ctx);
+    const embedded = from ? path.join(path.dirname(from), 'esengine_bundle.embedded.js') : null;
+    if (!embedded || !existsSync(embedded)) return {};
+    let hash = 1469598103934665603n;
+    for (const byte of readFileSync(embedded)) hash = BigInt.asUintN(64, (hash ^ BigInt(byte)) * 1099511628211n);
+    return { sdkBundle: hash.toString(16).padStart(16, '0') };
+}
+
 export async function emitNativeTemplate(options) {
     const root = options.root || config.paths.root;
     const platform = options.platform;
@@ -169,12 +185,20 @@ export async function emitNativeTemplate(options) {
         }
     }
 
-    for (const entry of templateLayout(platform, { abis: options.abis })) {
+    const layout = templateLayout(platform, { abis: options.abis });
+    const built = (rel) => {
+        const other = layout.find((e) => e.rel === rel);
+        const from = other && !other.produced ? other.from(ctx) : null;
+        return !!from && existsSync(from);
+    };
+    for (const entry of layout) {
         if (entry.produced) continue;
         const src = entry.from(ctx);
         const dest = path.join(dir, entry.rel);
         if (!src || !existsSync(src)) {
             if (entry.optional) {
+                // Not owed at all — a V8 host's template carries no QuickJS bytecode.
+                if (entry.excusedBy && built(entry.excusedBy)) continue;
                 if (!kept.includes(entry.abi)) {
                     logger.warn(`Template omits ${entry.rel} (not built): ${src ?? 'no source'}`);
                 }
@@ -208,6 +232,13 @@ export async function emitNativeTemplate(options) {
         platform,
         engineVersion,
         spineVersion: options.spineVersion || '4.2',
+        // What runs the game's JS, so the editor (and a person) can tell a JIT
+        // template from an interpreter one without opening the binary.
+        jsEngine: templateJsEngine(dir, platform),
+        // Which SDK the host embeds — the identity its compile cache is keyed by —
+        // so a stale template can be told from a current one whichever engine runs
+        // it (a V8 template has no bytecode to read that off).
+        ...embeddedSdkIdentity(layout, ctx),
         ...(platform === 'ios' ? { deploymentTarget: options.deploymentTarget || '17.0' } : {}),
         ...(platform === 'android'
             ? { androidPlatform: options.androidPlatform || 'android-29', abis: templateAbis(dir) }

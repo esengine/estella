@@ -127,7 +127,9 @@ const BODY = {
 const os = process.platform === 'darwin' ? 'macos' : process.platform === 'win32' ? 'windows' : 'linux';
 const version = JSON.parse(spawnSync(process.execPath, ['-p', 'JSON.stringify(require("./package.json"))'],
     { cwd: ROOT, encoding: 'utf8' }).stdout || '{}').version;
-const template = installedTemplateDir(version, os);
+// BENCH_TEMPLATE runs a template that is not the installed one — how two builds of
+// the host (a JIT one and an interpreter one) are measured against each other.
+const template = process.env.BENCH_TEMPLATE || installedTemplateDir(version, os);
 if (!template || !existsSync(template)) {
     // Saying so was not enough: this exited 0, so the release gate read three
     // criteria as answered on every runner that never had a template. 2 is the
@@ -290,6 +292,9 @@ function run(exe, label) {
             ESTELLA_BENCH_WARMUP: String(WARMUP),
             ESTELLA_BENCH_LABEL: label,
             ESTELLA_BENCH_DT: String(1 / 60),
+            // Drawn and presented as in a visible run, never put on the screen:
+            // a bench is a measurement, not an app in front of whoever is working.
+            ESTELLA_HIDDEN_WINDOW: process.env.ESTELLA_HIDDEN_WINDOW ?? '1',
         },
     });
     requireNativeHostSuccess(r, label);
@@ -306,6 +311,8 @@ function run(exe, label) {
         checksum: checksum ? checksum[1] : null,
         // Installed is not enough: a module can load and never be dispatched to.
         running: /AOT: (\w+) is running compiled/.exec(log)?.[1] ?? null,
+        // What ran the JS, as the host says at boot (Runtime.cpp).
+        engine: /JS engine: ([^\r\n]+)/.exec(log)?.[1]?.trim() ?? null,
     };
 }
 
@@ -368,7 +375,10 @@ try {
 
 // --------------------------------------------------------------------- report
 
-console.log(`\nno-JIT frame — QuickJS-ng in the native host, ${ENTITIES} entities, `
+// The host names its engine: a V8 host's interpreted build is the JIT frame, a
+// QuickJS host's the no-JIT one, and the two are not the same comparison.
+const engine = rows.find((r) => r.engine)?.engine ?? 'an unnamed JS engine';
+console.log(`\nnative frame — ${engine} in the native host, ${ENTITIES} entities, `
     + `${FRAMES} frames after ${WARMUP}, best of ${PAIR_REPS}\n`);
 // `tick` is the microtask drain, not the `update` call: that one only schedules an
 // async tick. `draws` is a column because a body can move the render's cost —

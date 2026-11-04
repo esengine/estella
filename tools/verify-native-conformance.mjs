@@ -6,7 +6,7 @@
  * The suite compares closures against a wasm module, and `test_aot_conformance`
  * compares the emitted C against the same answer. Both run in a test process.
  * Neither says what a PLAYER gets: a packaged game, on the host that embeds
- * QuickJS and the engine, stepping frames the way a frame is stepped.
+ * its JS engine and the engine, stepping frames the way a frame is stepped.
  *
  * So the fixture ships as a project and runs twice on this machine's runtime
  * template — interpreted, and with its systems compiled — printing what the two
@@ -29,7 +29,7 @@ import { fileURLToPath } from 'node:url';
 import { installedTemplateDir } from '../build-tools/utils/nativeTemplate.js';
 import { desktopExecutableIn } from '../build-tools/utils/desktopApp.js';
 import { requireNativeHostSuccess } from './lib/nativeHostResult.mjs';
-import { bytecodeMatchesBundle } from './lib/nativeBytecode.mjs';
+import { templateEmbedsBundle } from './lib/nativeBytecode.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PROJECT = path.join(ROOT, 'fixtures', 'aot-conformance');
@@ -45,7 +45,9 @@ const version = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')
 const os = process.platform === 'darwin' ? 'macos'
   : process.platform === 'win32' ? 'windows' : 'linux';
 
-const template = installedTemplateDir(version, os);
+// NATIVE_TEMPLATE checks a template that is not the installed one — how a second
+// build of the host (the interpreter one, which iOS ships) is held to the trace too.
+const template = process.env.NATIVE_TEMPLATE || installedTemplateDir(version, os);
 if (!template || !existsSync(template)) {
   // 2, not 0: a machine that cannot answer has not answered, and a criterion
   // that reads as met on every runner without a template says nothing anywhere.
@@ -70,16 +72,16 @@ function newestSource(dir) {
   return newest;
 }
 
-// The template EMBEDS the SDK as QuickJS bytecode, so a template built before an
-// SDK edit runs the previous engine and answers for it — green on a defect the
-// run was started to find. Exactly that happened while sabotaging markChanged_.
-const bytecode = path.join(template, 'esengine.native.qjsbc');
+// The template EMBEDS the SDK, so a template built before an SDK edit runs the
+// previous engine and answers for it — green on a defect the run was started to
+// find. Exactly that happened while sabotaging markChanged_.
 const bundle = path.join(ROOT, 'sdk', 'dist', 'index.native.bundled.js');
-const stale = !existsSync(bytecode) || !existsSync(bundle)
-  ? { why: 'SDK bundle or template bytecode is missing', fix: `pnpm --filter ./sdk build && node build-tools/cli.js native --target ${os}` }
+const embeds = existsSync(bundle) ? templateEmbedsBundle(template, readFileSync(bundle)) : null;
+const stale = embeds === null
+  ? { why: 'SDK bundle, or the template record of the SDK it embeds, is missing', fix: `pnpm --filter ./sdk build && node build-tools/cli.js native --target ${os}` }
   : newestSource(path.join(ROOT, 'sdk', 'src')) > statSync(bundle).mtimeMs
     ? { why: 'sdk/dist is older than sdk/src', fix: 'pnpm --filter ./sdk build' }
-    : !bytecodeMatchesBundle(readFileSync(bytecode), readFileSync(bundle))
+    : !embeds
       ? { why: `the ${os} template embeds a different SDK from sdk/dist`,
         fix: `node build-tools/cli.js native --target ${os}` }
       : null;
@@ -132,6 +134,8 @@ function play(compiled) {
         ESTELLA_BENCH_DT: String(want.delta),
         ESTELLA_BENCH_QUIT: '1',
         ESTELLA_BENCH_LABEL: compiled ? 'conformance-aot' : 'conformance-interpreted',
+        // Drawn as in a visible run, never put on the screen.
+        ESTELLA_HIDDEN_WINDOW: process.env.ESTELLA_HIDDEN_WINDOW ?? '1',
       },
     });
     requireNativeHostSuccess(run, compiled ? 'compiled conformance' : 'interpreted conformance');

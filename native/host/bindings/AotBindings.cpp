@@ -5,7 +5,7 @@
  * @brief   es_aot_* — the compiled systems a shipped desktop build loads.
  * @details The web road hands the module the engine's memory and lets JS pack
  *          the rows. Here the engine IS the process: an address is a pointer
- *          nothing in QuickJS can hold, so the rows are packed on this side and
+ *          nothing in JS can hold, so the rows are packed on this side and
  *          JS says only which system to run.
  *
  *          What this owns is the naming, in both directions. Where one component
@@ -117,11 +117,11 @@ void* resourceAt(const char* name) {
 // — the calls —
 
 /** es_aot_install(path) -> system count, or -1 with the reason logged. */
-JSValue installModule(JSContext* ctx, int argc, JSValueConst* argv,
-                      std::optional<std::uint64_t> expectedContract = std::nullopt) {
-    if (argc < 1) return JS_NewInt32(ctx, -1);
-    const char* path = JS_ToCString(ctx, argv[0]);
-    if (path == nullptr) return JS_NewInt32(ctx, -1);
+esjs::Val installModule(const esjs::Args& a,
+                        std::optional<std::uint64_t> expectedContract = std::nullopt) {
+    if (a.size() < 1) return esjs::int32(-1);
+    esjs::Utf8 pathUtf8(a[0]); const char* path = pathUtf8 ? pathUtf8.c_str() : nullptr;
+    if (path == nullptr) return esjs::int32(-1);
 
     // A content-relative name, resolved the way every other packaged file is:
     // the OS loader searches its own path for a bare name and would find
@@ -141,19 +141,18 @@ JSValue installModule(JSContext* ctx, int argc, JSValueConst* argv,
         s.candidates.clear();
     }
     if (!ok) ESHOST_LOGE("[aot] %s: %s", path, why.c_str());
-    JS_FreeCString(ctx, path);
-    return JS_NewInt32(ctx, ok ? static_cast<int>(s.dispatcher.count()) : -1);
+    return esjs::int32(ok ? static_cast<int>(s.dispatcher.count()) : -1);
 }
 
-JSValue js_install(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
-    return installModule(ctx, argc, argv);
+esjs::Val js_install(const esjs::Args& a) {
+    return installModule(a);
 }
 
 /** Validate the sidecar against the candidate before replacing the live module. */
-JSValue js_installChecked(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
-    if (argc < 2) return JS_ThrowTypeError(ctx, "es_aot_install_checked requires a module and contract");
-    const char* text = JS_ToCString(ctx, argv[1]);
-    if (!text) return JS_EXCEPTION;
+esjs::Val js_installChecked(const esjs::Args& a) {
+    if (a.size() < 2) return esjs::throwTypeError("es_aot_install_checked requires a module and contract");
+    esjs::Utf8 textUtf8(a[1]); const char* text = textUtf8 ? textUtf8.c_str() : nullptr;
+    if (!text) return esjs::undefined();
     std::uint64_t expected = 0;
     const std::size_t length = std::strlen(text);
     bool valid = length == 0;
@@ -161,19 +160,17 @@ JSValue js_installChecked(JSContext* ctx, JSValueConst, int argc, JSValueConst* 
         const auto parsed = std::from_chars(text, text + length, expected, 16);
         valid = parsed.ec == std::errc{} && parsed.ptr == text + length;
     }
-    JS_FreeCString(ctx, text);
-    if (!valid) return JS_ThrowTypeError(ctx, "module contract must be empty or 16 hex digits");
-    return installModule(ctx, argc, argv, expected);
+    if (!valid) return esjs::throwTypeError("module contract must be empty or 16 hex digits");
+    return installModule(a, expected);
 }
 
 /** es_aot_index(name) -> the index the scheduler keeps, or -1. */
-JSValue js_index(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
-    if (argc < 1) return JS_NewInt32(ctx, -1);
-    const char* name = JS_ToCString(ctx, argv[0]);
-    if (name == nullptr) return JS_NewInt32(ctx, -1);
+esjs::Val js_index(const esjs::Args& a) {
+    if (a.size() < 1) return esjs::int32(-1);
+    esjs::Utf8 nameUtf8(a[0]); const char* name = nameUtf8 ? nameUtf8.c_str() : nullptr;
+    if (name == nullptr) return esjs::int32(-1);
     const std::size_t at = state().dispatcher.indexOf(name);
-    JS_FreeCString(ctx, name);
-    return JS_NewInt32(ctx, at == aot::Dispatcher::npos ? -1 : static_cast<int>(at));
+    return esjs::int32(at == aot::Dispatcher::npos ? -1 : static_cast<int>(at));
 }
 
 /**
@@ -181,20 +178,20 @@ JSValue js_index(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
  * where it cannot say. The SDK holds the sidecar written beside it and is the
  * only half that can compare the two.
  */
-JSValue js_contract(JSContext* ctx, JSValueConst, int, JSValueConst*) {
+esjs::Val js_contract(const esjs::Args& a) {
     const std::uint64_t value = state().dispatcher.contract();
-    if (value == 0) return JS_NewString(ctx, "");
+    if (value == 0) return esjs::string("");
     char hex[17];
     std::snprintf(hex, sizeof(hex), "%016llx", static_cast<unsigned long long>(value));
-    return JS_NewString(ctx, hex);
+    return esjs::string(hex);
 }
 
 /** es_aot_bound(i) -> whether that system resolved; an unbound one interprets. */
-JSValue js_bound(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
-    if (argc < 1) return JS_FALSE;
+esjs::Val js_bound(const esjs::Args& a) {
+    if (a.size() < 1) return esjs::boolean(false);
     std::uint32_t i = 0;
-    JS_ToUint32(ctx, &i, argv[0]);
-    return JS_NewBool(ctx, state().dispatcher.boundAt(i));
+    i = esjs::toUint32(a[0]);
+    return esjs::boolean(state().dispatcher.boundAt(i));
 }
 
 /**
@@ -206,20 +203,20 @@ JSValue js_bound(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
  * its layout epoch. A 0 row offset says the pool is gone, a 0 owner offset says
  * the column cannot be enumerated and its systems widen.
  */
-JSValue js_scriptRows(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
-    if (argc < 6) return JS_FALSE;
-    const char* name = JS_ToCString(ctx, argv[0]);
-    if (name == nullptr) return JS_FALSE;
+esjs::Val js_scriptRows(const esjs::Args& a) {
+    if (a.size() < 6) return esjs::boolean(false);
+    esjs::Utf8 nameUtf8(a[0]); const char* name = nameUtf8 ? nameUtf8.c_str() : nullptr;
+    if (name == nullptr) return esjs::boolean(false);
     std::uint32_t sparseOff = 0, sparseCount = 0, rowsOff = 0, stride = 0, mask = 0;
     std::uint32_t ownersOff = 0, ownerCount = 0;
-    JS_ToUint32(ctx, &sparseOff, argv[1]);
-    JS_ToUint32(ctx, &sparseCount, argv[2]);
-    JS_ToUint32(ctx, &rowsOff, argv[3]);
-    JS_ToUint32(ctx, &stride, argv[4]);
-    JS_ToUint32(ctx, &mask, argv[5]);
-    if (argc >= 8) {
-        JS_ToUint32(ctx, &ownersOff, argv[6]);
-        JS_ToUint32(ctx, &ownerCount, argv[7]);
+    sparseOff = esjs::toUint32(a[1]);
+    sparseCount = esjs::toUint32(a[2]);
+    rowsOff = esjs::toUint32(a[3]);
+    stride = esjs::toUint32(a[4]);
+    mask = esjs::toUint32(a[5]);
+    if (a.size() >= 8) {
+        ownersOff = esjs::toUint32(a[6]);
+        ownerCount = esjs::toUint32(a[7]);
     }
 
     // Range-checked through the heap rather than trusted: an offset is a number
@@ -229,8 +226,7 @@ JSValue js_scriptRows(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv
     void* owners = ownersOff == 0 ? nullptr
         : heapPtr(ownersOff, static_cast<std::size_t>(ownerCount) * sizeof(std::uint32_t));
     aot::RowSpan* slot = slotFor(name);
-    JS_FreeCString(ctx, name);
-    if (sparse == nullptr && sparseCount > 0) return JS_FALSE;
+    if (sparse == nullptr && sparseCount > 0) return esjs::boolean(false);
     // An owner table that does not check out is DROPPED, not refused: narrowing
     // is an optimisation and must never be the thing that fails a frame.
     if (owners == nullptr) ownerCount = 0;
@@ -240,21 +236,20 @@ JSValue js_scriptRows(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv
         static_cast<unsigned char*>(rows), stride, mask,
         static_cast<const std::uint32_t*>(owners), ownerCount,
     };
-    return JS_TRUE;
+    return esjs::boolean(true);
 }
 
 /** es_aot_resource(name, offset, bytes) -> where one call reads that resource. */
-JSValue js_resource(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
-    if (argc < 3) return JS_FALSE;
-    const char* name = JS_ToCString(ctx, argv[0]);
-    if (name == nullptr) return JS_FALSE;
+esjs::Val js_resource(const esjs::Args& a) {
+    if (a.size() < 3) return esjs::boolean(false);
+    esjs::Utf8 nameUtf8(a[0]); const char* name = nameUtf8 ? nameUtf8.c_str() : nullptr;
+    if (name == nullptr) return esjs::boolean(false);
     std::uint32_t offset = 0, bytes = 0;
-    JS_ToUint32(ctx, &offset, argv[1]);
-    JS_ToUint32(ctx, &bytes, argv[2]);
+    offset = esjs::toUint32(a[1]);
+    bytes = esjs::toUint32(a[2]);
     void* at = heapPtr(offset, bytes);
     if (at != nullptr) state().resources[name] = at;
-    JS_FreeCString(ctx, name);
-    return JS_NewBool(ctx, at != nullptr);
+    return esjs::boolean(at != nullptr);
 }
 
 /**
@@ -270,18 +265,18 @@ JSValue js_resource(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) 
  * a despawn by the previous system moves them; the script epoch can only come
  * from the language that owns those pools. An absent argument reuses nothing.
  */
-JSValue js_run(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
-    if (argc < 1) return JS_NewInt32(ctx, -1);
+esjs::Val js_run(const esjs::Args& a) {
+    if (a.size() < 1) return esjs::int32(-1);
     std::uint32_t i = 0;
-    JS_ToUint32(ctx, &i, argv[0]);
+    i = esjs::toUint32(a[0]);
     AotState& s = state();
     // The dispatcher owns installed state. A failed replacement retains its
     // old systems; an independent flag would disable that preserved module.
-    if (i >= s.dispatcher.count()) return JS_NewInt32(ctx, -1);
+    if (i >= s.dispatcher.count()) return esjs::int32(-1);
 
     aot::WorldStamp world;
     double scriptEpoch = 0.0;
-    if (argc >= 2 && JS_ToFloat64(ctx, &scriptEpoch, argv[1]) == 0 && host().registry != nullptr) {
+    if (a.size() >= 2 && ((scriptEpoch = esjs::toNumber(a[1])), true) && host().registry != nullptr) {
         // Summed, not paired: both halves only ever count up, so no change in
         // one can be cancelled by a change in the other.
         world = aot::WorldStamp{host().registry->layoutEpoch() + scriptEpoch, true};
@@ -293,29 +288,30 @@ JSValue js_run(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
     }
     const auto cmds = s.dispatcher.run(i, s.candidates, resourceAt, world);
     // Asked AFTER the run, because that is where a late binding is settled.
-    if (!s.dispatcher.boundAt(i)) return JS_NewInt32(ctx, -1);
+    if (!s.dispatcher.boundAt(i)) return esjs::int32(-1);
     // What this system covered and what it actually wrote, for the bench and the
     // gates that read them. A no-op unless a bench was asked for.
     benchNoteAotCandidates(s.dispatcher.candidatesWalked(i), s.dispatcher.rowsPacked(i));
     // After the call, never during it: a despawn invalidates the rows it read.
-    return JS_NewInt32(ctx, static_cast<int>(aot::applyCommands(*host().registry, cmds)));
+    return esjs::int32(static_cast<int>(aot::applyCommands(*host().registry, cmds)));
 }
 
 /** es_aot_reset() — close the module and forget every name. */
-JSValue js_reset(JSContext* ctx, JSValueConst, int, JSValueConst*) {
+esjs::Val js_reset(const esjs::Args&) {
     AotState& s = state();
     s.dispatcher.reset();
     s.scriptByName.clear();
     s.scriptSpans.clear();
     s.resources.clear();
-    return JS_UNDEFINED;
+    return esjs::undefined();
 }
 
 }  // namespace
 
-void registerAotBindings(HostState& h, JSValue global) {
-    const auto fn = [&](const char* name, JSCFunction* impl, int arity) {
-        JS_SetPropertyStr(h.js, global, name, JS_NewCFunction(h.js, impl, name, arity));
+void registerAotBindings(HostState& h, esjs::Val global) {
+    (void)h;
+    const auto fn = [&](const char* name, esjs::NativeFn impl, int arity) {
+        esjs::setFunction(global, name, impl, arity);
     };
     fn("es_aot_install", js_install, 1);
     fn("es_aot_install_checked", js_installChecked, 2);

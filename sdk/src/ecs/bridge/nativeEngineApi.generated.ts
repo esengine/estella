@@ -341,7 +341,7 @@ export interface NativeEngineApi {
     ui_isScreenDomain?(registry: unknown, entity: number): boolean;
 }
 
-/** Build the API over a host scope (the QuickJS global object; a plain object
+/** Build the API over a host scope (the native host global object; a plain object
  *  in tests). A name the host did not bind simply stays absent. */
 export function createNativeEngineApi(
     scope: Record<string, unknown> = globalThis as unknown as Record<string, unknown>,

@@ -30,7 +30,7 @@
     },
     "native": {
         "$comment": [
-            "The two projects the native host links that are too large to vendor. PINNED, not",
+            "The projects the native host links that are too large to vendor. PINNED, not",
             "tracked: `--depth 1` of a moving branch makes a runtime template unreproducible, and",
             "webgpu.h is a moving target. Not submodules either — Dawn fetches its own dependencies",
             "with a script rather than submodules, so tracking it that way saves nobody the fetch",
@@ -55,6 +55,33 @@
             ],
             "repo": "https://github.com/libsdl-org/SDL",
             "commit": "147a8ee32dbf9ac02f3794964490687b6bbda1bc"
+        },
+        "v8": {
+            "$comment": [
+                "The JIT the desktop and Android hosts run the SDK and the game on (iOS allows no",
+                "JIT and keeps QuickJS). Prebuilt, because V8 builds only with Chromium's own",
+                "toolchain and Android's only on Linux. ONE V8 version on both, so the embedding",
+                "code (native/host/js/esjs_v8.cpp) is written once. Neither build enables V8's",
+                "sandbox, which is what lets the host hand JS zero-copy views of engine memory.",
+                "Archives are pinned by sha256: a template other people install has to rebuild",
+                "from the same bytes."
+            ],
+            "version": "10.0.139.9",
+            "windows": [
+                {
+                    "url": "https://api.nuget.org/v3-flatcontainer/v8-v143-x64/10.0.139.9/v8-v143-x64.10.0.139.9.nupkg",
+                    "sha256": "4f72f76f6ab235d865732dab48e7b1c7b1640783a2ff9cfbcb1781435fd52e49"
+                },
+                {
+                    "url": "https://api.nuget.org/v3-flatcontainer/v8.redist-v143-x64/10.0.139.9/v8.redist-v143-x64.10.0.139.9.nupkg",
+                    "sha256": "342ea8d47039e56fbad2a52b4425f5e39f37fdb9ba1fe4e7251b899d8479507a"
+                }
+            ],
+            "android": {
+                "$comment": "v8-android-jit-nointl 11.1000.4 is V8 10.0.139.9 built for the NDK's libc++ (react-native's prebuilt).",
+                "url": "https://registry.npmjs.org/v8-android-jit-nointl/-/v8-android-jit-nointl-11.1000.4.tgz",
+                "sha256": "46870658adfe0f6eaa4819226af37a25663bd54599304dd7d7c91ed1089dae9e"
+            }
         }
     },
     "cmake": {

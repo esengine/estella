@@ -32,40 +32,38 @@ namespace eshost {
 namespace {
 
 // es_readAsset(path) -> ArrayBuffer | null. Backs the bridge's readFile.
-JSValue js_readAsset(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
-    const char* path = JS_ToCString(ctx, argv[0]);
-    if (!path) return JS_NULL;
+esjs::Val js_readAsset(const esjs::Args& a) {
+    esjs::Utf8 pathUtf8(a[0]); const char* path = pathUtf8 ? pathUtf8.c_str() : nullptr;
+    if (!path) return esjs::null();
     std::vector<u8> bytes = readAsset(host(), path);
-    JS_FreeCString(ctx, path);
-    if (bytes.empty()) return JS_NULL;
-    return JS_NewArrayBufferCopy(ctx, bytes.data(), bytes.size());
+    if (bytes.empty()) return esjs::null();
+    return esjs::arrayBufferCopy(bytes.data(), bytes.size());
 }
 
 // es_loadImagePixels(path | ArrayBuffer) -> { width, height, pixels: ArrayBuffer(RGBA) } | null.
 // Decodes a packaged image asset — or bytes the script fetched or read from the
 // cache, which is how a CDN image arrives — to top-first RGBA via stb_image.
-JSValue js_loadImagePixels(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
+esjs::Val js_loadImagePixels(const esjs::Args& a) {
     std::vector<u8> file;
-    size_t size = 0;
-    if (uint8_t* raw = JS_GetArrayBuffer(ctx, &size, argv[0])) {
-        file.assign(raw, raw + size);
+    esjs::Bytes raw;
+    if (esjs::bytesOf(a[0], &raw)) {
+        file.assign(raw.data, raw.data + raw.size);
     } else {
-        JS_FreeValue(ctx, JS_GetException(ctx));   // not an ArrayBuffer: a path
-        const char* path = JS_ToCString(ctx, argv[0]);
-        if (!path) return JS_NULL;
+        // not a byte buffer: a path
+        esjs::Utf8 pathUtf8(a[0]); const char* path = pathUtf8 ? pathUtf8.c_str() : nullptr;
+        if (!path) return esjs::null();
         file = readAsset(host(), path);
-        JS_FreeCString(ctx, path);
     }
-    if (file.empty()) return JS_NULL;
+    if (file.empty()) return esjs::null();
     int w = 0, h = 0, ch = 0;
     stbi_uc* px = stbi_load_from_memory(file.data(), (int)file.size(), &w, &h, &ch, 4);
-    if (!px) { ESHOST_LOGE("stb_image decode failed"); return JS_NULL; }
-    JSValue buf = JS_NewArrayBufferCopy(ctx, px, (size_t)w * (size_t)h * 4);
+    if (!px) { ESHOST_LOGE("stb_image decode failed"); return esjs::null(); }
+    esjs::Val buf = esjs::arrayBufferCopy(px, (size_t)w * (size_t)h * 4);
     stbi_image_free(px);
-    JSValue obj = JS_NewObject(ctx);
-    JS_SetPropertyStr(ctx, obj, "width", JS_NewInt32(ctx, w));
-    JS_SetPropertyStr(ctx, obj, "height", JS_NewInt32(ctx, h));
-    JS_SetPropertyStr(ctx, obj, "pixels", buf);   // ArrayBuffer; the bootstrap wraps it Uint8Array
+    esjs::Val obj = esjs::object();
+    esjs::set(obj, "width", esjs::int32(w));
+    esjs::set(obj, "height", esjs::int32(h));
+    esjs::set(obj, "pixels", buf);   // ArrayBuffer; the bootstrap wraps it Uint8Array
     return obj;
 }
 
@@ -81,102 +79,83 @@ std::string pathIn(const std::string& dir, const char* key) {
     return dir + "/" + key;
 }
 
-JSValue readFileAt(JSContext* ctx, const std::string& path) {
-    if (path.empty()) return JS_NULL;
+esjs::Val readFileAt(const std::string& path) {
+    if (path.empty()) return esjs::null();
     FILE* f = fopen(path.c_str(), "rb");
-    if (!f) return JS_NULL;
+    if (!f) return esjs::null();
     fseek(f, 0, SEEK_END);
     const long size = ftell(f);
     fseek(f, 0, SEEK_SET);
     std::vector<u8> bytes(size > 0 ? (size_t)size : 0);
     if (!bytes.empty() && fread(bytes.data(), 1, bytes.size(), f) != bytes.size()) bytes.clear();
     fclose(f);
-    if (bytes.empty()) return JS_NULL;
-    return JS_NewArrayBufferCopy(ctx, bytes.data(), bytes.size());
+    if (bytes.empty()) return esjs::null();
+    return esjs::arrayBufferCopy(bytes.data(), bytes.size());
 }
 
 // A string source is written as UTF-8, so script-side JSON needs no TextEncoder.
-JSValue writeFileAt(JSContext* ctx, const std::string& path, JSValueConst source) {
-    if (path.empty()) return JS_FALSE;
+esjs::Val writeFileAt(const std::string& path, esjs::Val source) {
+    if (path.empty()) return esjs::boolean(false);
     std::vector<u8> bytes;
-    if (JS_IsString(source)) {
-        size_t len = 0;
-        if (const char* text = JS_ToCStringLen(ctx, &len, source)) {
-            bytes.assign(text, text + len);
-            JS_FreeCString(ctx, text);
-        }
+    if (esjs::isString(source)) {
+        const esjs::Utf8 text(source);
+        bytes.assign(text.c_str(), text.c_str() + text.size());
     } else {
-        readByteSource(ctx, source, bytes);
+        readByteSource(source, bytes);
     }
     // Write a temp file and rename over the target: a crash or a kill mid-write
     // must not leave a truncated file where a save used to be. rename(2) within
     // one directory is atomic, so a reader sees the old file or the new one.
     const std::string tmp = path + ".tmp";
     FILE* f = fopen(tmp.c_str(), "wb");
-    if (!f) return JS_FALSE;
+    if (!f) return esjs::boolean(false);
     const bool wrote = bytes.empty() || fwrite(bytes.data(), 1, bytes.size(), f) == bytes.size();
     const bool flushed = wrote && fflush(f) == 0;
     fclose(f);
     if (!flushed || rename(tmp.c_str(), path.c_str()) != 0) {
         remove(tmp.c_str());
-        return JS_FALSE;
+        return esjs::boolean(false);
     }
-    return JS_TRUE;
+    return esjs::boolean(true);
 }
 
 // es_readCacheFile(key) -> ArrayBuffer | null. Reclaimable half: hot-update content.
-JSValue js_readCacheFile(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
-    const char* key = JS_ToCString(ctx, argv[0]);
+esjs::Val js_readCacheFile(const esjs::Args& a) {
+    esjs::Utf8 keyUtf8(a[0]); const char* key = keyUtf8 ? keyUtf8.c_str() : nullptr;
     const std::string path = pathIn(host().cacheDir, key);
-    if (key) JS_FreeCString(ctx, key);
-    return readFileAt(ctx, path);
+    return readFileAt(path);
 }
 
 // es_writeCacheFile(key, ArrayBuffer | TypedArray | string) -> bool.
-JSValue js_writeCacheFile(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
-    if (argc < 2) return JS_FALSE;
-    const char* key = JS_ToCString(ctx, argv[0]);
+esjs::Val js_writeCacheFile(const esjs::Args& a) {
+    if (a.size() < 2) return esjs::boolean(false);
+    esjs::Utf8 keyUtf8(a[0]); const char* key = keyUtf8 ? keyUtf8.c_str() : nullptr;
     const std::string path = pathIn(host().cacheDir, key);
-    if (key) JS_FreeCString(ctx, key);
-    return writeFileAt(ctx, path, argv[1]);
+    return writeFileAt(path, a[1]);
 }
 
 // es_readDataFile(key) -> ArrayBuffer | null. Durable half: what a player keeps.
-JSValue js_readDataFile(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
-    const char* key = JS_ToCString(ctx, argv[0]);
+esjs::Val js_readDataFile(const esjs::Args& a) {
+    esjs::Utf8 keyUtf8(a[0]); const char* key = keyUtf8 ? keyUtf8.c_str() : nullptr;
     const std::string path = pathIn(host().dataDir, key);
-    if (key) JS_FreeCString(ctx, key);
-    return readFileAt(ctx, path);
+    return readFileAt(path);
 }
 
 // es_writeDataFile(key, ArrayBuffer | TypedArray | string) -> bool.
-JSValue js_writeDataFile(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
-    if (argc < 2) return JS_FALSE;
-    const char* key = JS_ToCString(ctx, argv[0]);
+esjs::Val js_writeDataFile(const esjs::Args& a) {
+    if (a.size() < 2) return esjs::boolean(false);
+    esjs::Utf8 keyUtf8(a[0]); const char* key = keyUtf8 ? keyUtf8.c_str() : nullptr;
     const std::string path = pathIn(host().dataDir, key);
-    if (key) JS_FreeCString(ctx, key);
-    return writeFileAt(ctx, path, argv[1]);
+    return writeFileAt(path, a[1]);
 }
 
 // es_utf8Decode(ArrayBuffer | TypedArray) -> string. Backs the TextDecoder the
-// platform layer uses to read packaged JSON (manifests, scenes); QuickJS parses
+// platform layer uses to read packaged JSON (manifests, scenes); the engine reads
 // UTF-8 natively, so this beats decoding byte-by-byte in script.
-JSValue js_utf8Decode(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
-    if (argc < 1) return JS_NewString(ctx, "");
-    size_t size = 0;
-    if (uint8_t* raw = JS_GetArrayBuffer(ctx, &size, argv[0])) {
-        return JS_NewStringLen(ctx, reinterpret_cast<const char*>(raw), size);
-    }
-    JS_FreeValue(ctx, JS_GetException(ctx));   // not an ArrayBuffer — try a view
-    size_t offset = 0, length = 0, bytesPerEl = 0;
-    JSValue ab = JS_GetTypedArrayBuffer(ctx, argv[0], &offset, &length, &bytesPerEl);
-    if (JS_IsException(ab)) { JS_FreeValue(ctx, JS_GetException(ctx)); return JS_NewString(ctx, ""); }
-    uint8_t* base = JS_GetArrayBuffer(ctx, &size, ab);
-    JSValue out = (base && offset + length <= size)
-        ? JS_NewStringLen(ctx, reinterpret_cast<const char*>(base + offset), length)
-        : JS_NewString(ctx, "");
-    JS_FreeValue(ctx, ab);
-    return out;
+esjs::Val js_utf8Decode(const esjs::Args& a) {
+    esjs::Bytes bytes;
+    if (!esjs::bytesOf(a[0], &bytes)) return esjs::string("");
+    return esjs::string(std::string_view(reinterpret_cast<const char*>(bytes.data), bytes.size));
 }
 
 }  // namespace
@@ -185,14 +164,14 @@ std::vector<u8> readAsset(HostState& h, const char* path) {
     return h.platform ? h.platform->readAsset(path) : std::vector<u8>{};
 }
 
-void registerAssetBindings(HostState& h, JSValue global) {
-    bindGlobal(h, global, "es_readAsset", js_readAsset, 1);
-    bindGlobal(h, global, "es_loadImagePixels", js_loadImagePixels, 1);
-    bindGlobal(h, global, "es_readCacheFile", js_readCacheFile, 1);
-    bindGlobal(h, global, "es_writeCacheFile", js_writeCacheFile, 2);
-    bindGlobal(h, global, "es_readDataFile", js_readDataFile, 1);
-    bindGlobal(h, global, "es_writeDataFile", js_writeDataFile, 2);
-    bindGlobal(h, global, "es_utf8Decode", js_utf8Decode, 1);
+void registerAssetBindings(HostState& h, esjs::Val global) {
+    bindGlobal(global, "es_readAsset", js_readAsset, 1);
+    bindGlobal(global, "es_loadImagePixels", js_loadImagePixels, 1);
+    bindGlobal(global, "es_readCacheFile", js_readCacheFile, 1);
+    bindGlobal(global, "es_writeCacheFile", js_writeCacheFile, 2);
+    bindGlobal(global, "es_readDataFile", js_readDataFile, 1);
+    bindGlobal(global, "es_writeDataFile", js_writeDataFile, 2);
+    bindGlobal(global, "es_utf8Decode", js_utf8Decode, 1);
 }
 
 }  // namespace eshost

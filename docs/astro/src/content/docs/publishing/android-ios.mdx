@@ -8,9 +8,11 @@ import { Aside, Steps } from '@astrojs/starlight/components';
 **Android** and **iOS** package your project as a **real native app**: the engine's
 C++ core compiled to arm64, rendering through an embedded
 [Dawn](https://dawn.googlesource.com/dawn) (WebGPU → **Metal** on iOS, **Vulkan** on
-Android), with your game scripts running on an embedded JS engine
-([QuickJS-ng](https://github.com/quickjs-ng/quickjs)). It is **not** a WebView and
-not a wrapper around the web build — there is no browser in the process.
+Android), with your game scripts running on an embedded JS engine —
+[V8](https://v8.dev/), the JIT Chrome runs, on Android, and
+[QuickJS-ng](https://github.com/quickjs-ng/quickjs) on iOS, where Apple allows no
+JIT. It is **not** a WebView and not a wrapper around the web build — there is no
+browser in the process.
 
 The authoring model is identical to every other target. The same scenes, the same
 components, the same TypeScript. Nothing in a project is mobile-specific.
@@ -213,7 +215,7 @@ behaves exactly as it does in a browser.
 | Audio | Native mixer ([miniaudio](https://miniaud.io/)) — CoreAudio / AAudio |
 | Text input | The platform's **soft keyboard** is the field's editing surface |
 | Networking | The OS network stack (`NSURLSession` / `HttpURLConnection`) |
-| Terrain and streamed worlds | Run on the native runtime. A terrain's layer textures go to the device as bytes, as every other texture does (a device has no wasm heap to copy them through), and a chunked world's maker uses a cancellation handle of its own, because QuickJS has no `AbortController` |
+| Terrain and streamed worlds | Run on the native runtime. A terrain's layer textures go to the device as bytes, as every other texture does (a device has no wasm heap to copy them through), and a chunked world's maker uses a cancellation handle of its own, because the native runtime has no `AbortController` |
 | Compressed textures | KTX2 transcoded to the device's format (ASTC → ETC2 → BC), with mip chains |
 | Lifecycle | `onShow` / `onHide` and OS memory warnings reach the app |
 
@@ -261,20 +263,28 @@ Per-asset **Import Settings** have a tab per platform, mobile targets included �
 so a texture can be compressed harder for a phone than for the web without
 touching the source PNG. See [Assets](/docs/assets/overview/).
 
-### Your game script is interpreted
+### How fast your game script runs
 
-The engine runs native at full speed; **only your game script** runs on QuickJS,
-which has no JIT (Apple's rules leave no other option, and Android is kept
-identical rather than divergent). A per-entity loop written in TypeScript is the
-one thing that costs meaningfully more here than in a browser — prefer the
-engine's own systems and bulk APIs over hand-written per-entity iteration in the
-hot path.
+The engine runs native at full speed everywhere. Your game script does too on
+**Android**: it runs on V8 with its JIT, the engine Chrome runs — the same script
+is compiled to machine code as it would be in a browser, with nothing to change in
+the project. Measured with the same host on a desktop CPU, a frame of 5,000 scripted
+entities that took 76 ms on the interpreter takes 8 ms on V8; a phone is slower in
+both columns, by about the same factor.
 
-**On Android, a system marked `@compiled` runs as machine code instead.** The
+On **iOS** your game script is interpreted, by QuickJS: Apple's rules allow no JIT
+outside its own browser. A per-entity loop written in TypeScript is the one thing
+that costs meaningfully more there than in a browser — prefer the engine's own
+systems and bulk APIs over hand-written per-entity iteration in the hot path.
+
+**On Android, a system marked `@compiled` runs as machine code before the JIT has
+seen it.** The
 export cross-compiles every `/** @compiled */` system with the Android NDK, once per
 64-bit ABI the package carries (arm64-v8a, and x86_64 for the emulator), and the
 APK carries each build in `lib/<abi>/`. Where the interpreter spends microseconds
-per entity, the compiled system spends tens of nanoseconds. The NDK must be
+per entity, the compiled system spends tens of nanoseconds — and it still takes
+about six times off what the JIT leaves of a frame (8.3 ms → 1.4 ms in the
+measurement above). The NDK must be
 installed on the exporting machine (Android Studio's SDK Manager, or
 `ANDROID_NDK_HOME`); the Package dialog says so when a project promises compiled
 systems and it is missing. A system the host cannot bind falls back to the
@@ -283,16 +293,20 @@ still runs every system interpreted.
 
 ### The first launch after an install
 
-Parsing the SDK bundle on a device takes ~14 s, and a compile cache does not exist
-until one launch has paid for it — which would be the launch right after an
-install. So the **bytecode is built with the app** and rides along in its assets:
-fresh-install-to-first-frame is ~0.1 s rather than ~10 s.
+On **Android**, V8 compiles the SDK bundle at launch — a fraction of a second — and
+keeps the result in the app's cache, so later launches skip even that.
+
+On **iOS**, parsing the SDK bundle on the interpreter takes ~14 s, and a compile
+cache does not exist until one launch has paid for it — which would be the launch
+right after an install. So the **bytecode is built with the app** and rides along in
+its assets: fresh-install-to-first-frame is ~0.1 s rather than ~10 s.
 
 A build machine without a C compiler cannot produce it, and the app then compiles
 on first run instead: it still works, but that one launch spends ten seconds on a
 screen that a player reads as a hang. The boot record says which happened —
-`SDK bundle: loaded from bytecode shipped with the app`, or `bundle: NO bytecode`
-— so a slow first launch is a question with an answer rather than a mystery.
+`SDK bundle: loaded from the cache shipped with the app`, or `bundle: no compile
+cache` — so a slow first launch is a question with an answer rather than a mystery.
+The record's first lines also name the engine (`engine: V8 …` or `engine: QuickJS-ng …`).
 
 ### When something goes wrong on a device
 

@@ -31,8 +31,8 @@ using namespace esengine;
 namespace eshost {
 namespace {
 
-JSValue js_createEntity(JSContext* ctx, JSValueConst, int, JSValueConst*) {
-    return JS_NewUint32(ctx, host().registry->create().id());
+esjs::Val js_createEntity(const esjs::Args& a) {
+    return esjs::uint32(host().registry->create().id());
 }
 /**
  * Every pool's version in one number — `Registry::layoutEpoch`, which the web
@@ -40,62 +40,62 @@ JSValue js_createEntity(JSContext* ctx, JSValueConst, int, JSValueConst*) {
  * before trusting them for another frame, and a host that cannot answer makes
  * that holder re-resolve everything every frame.
  */
-JSValue js_layoutEpoch(JSContext* ctx, JSValueConst, int, JSValueConst*) {
-    return JS_NewFloat64(ctx, host().registry->layoutEpoch());
+esjs::Val js_layoutEpoch(const esjs::Args& a) {
+    return esjs::number(host().registry->layoutEpoch());
 }
-JSValue js_destroyEntity(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
-    host().registry->destroy(esn_entity(ctx, argv[0]));
-    return JS_UNDEFINED;
+esjs::Val js_destroyEntity(const esjs::Args& a) {
+    host().registry->destroy(esn_entity(a[0]));
+    return esjs::undefined();
 }
-JSValue js_setParent(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
-    return JS_NewBool(ctx, ecs::setParent(*host().registry, esn_entity(ctx, argv[0]), esn_entity(ctx, argv[1])));
+esjs::Val js_setParent(const esjs::Args& a) {
+    return esjs::boolean(ecs::setParent(*host().registry, esn_entity(a[0]), esn_entity(a[1])));
 }
-JSValue js_reserveDestruction(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
-    return JS_NewBool(ctx, host().registry->reserveDestruction(esn_entity(ctx, argv[0])));
+esjs::Val js_reserveDestruction(const esjs::Args& a) {
+    return esjs::boolean(host().registry->reserveDestruction(esn_entity(a[0])));
 }
-JSValue js_releaseDestruction(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
-    host().registry->releaseDestruction(esn_entity(ctx, argv[0]));
-    return JS_UNDEFINED;
+esjs::Val js_releaseDestruction(const esjs::Args& a) {
+    host().registry->releaseDestruction(esn_entity(a[0]));
+    return esjs::undefined();
 }
-JSValue js_destructionPending(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
-    return JS_NewBool(ctx, host().registry->destructionPending(esn_entity(ctx, argv[0])));
+esjs::Val js_destructionPending(const esjs::Args& a) {
+    return esjs::boolean(host().registry->destructionPending(esn_entity(a[0])));
 }
-JSValue js_setEntityEnabled(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
-    return JS_NewBool(ctx, host().registry->setEntityEnabled(esn_entity(ctx, argv[0]), JS_ToBool(ctx, argv[1]) != 0));
+esjs::Val js_setEntityEnabled(const esjs::Args& a) {
+    return esjs::boolean(host().registry->setEntityEnabled(esn_entity(a[0]), esjs::toBool(a[1])));
 }
-JSValue js_isEntityActive(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
-    return JS_NewBool(ctx, host().registry->isEntityActive(esn_entity(ctx, argv[0])));
+esjs::Val js_isEntityActive(const esjs::Args& a) {
+    return esjs::boolean(host().registry->isEntityActive(esn_entity(a[0])));
 }
-JSValue js_isEntityEnabled(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
-    return JS_NewBool(ctx, host().registry->isEntityEnabled(esn_entity(ctx, argv[0])));
+esjs::Val js_isEntityEnabled(const esjs::Args& a) {
+    return esjs::boolean(host().registry->isEntityEnabled(esn_entity(a[0])));
 }
-JSValue js_hasInactiveEntities(JSContext* ctx, JSValueConst, int, JSValueConst*) {
-    return JS_NewBool(ctx, host().registry->hasInactiveEntities());
+esjs::Val js_hasInactiveEntities(const esjs::Args& a) {
+    return esjs::boolean(host().registry->hasInactiveEntities());
 }
-JSValue js_activityEpoch(JSContext* ctx, JSValueConst, int, JSValueConst*) {
-    return JS_NewUint32(ctx, host().registry->activityEpoch());
+esjs::Val js_activityEpoch(const esjs::Args& a) {
+    return esjs::uint32(host().registry->activityEpoch());
 }
-JSValue js_hasParent(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
-    return JS_NewBool(ctx, host().registry->has<ecs::Parent>(esn_entity(ctx, argv[0])));
+esjs::Val js_hasParent(const esjs::Args& a) {
+    return esjs::boolean(host().registry->has<ecs::Parent>(esn_entity(a[0])));
 }
-JSValue js_getParent(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
-    auto* p = host().registry->tryGet<ecs::Parent>(esn_entity(ctx, argv[0]));
-    return JS_NewUint32(ctx, (p ? p->entity : INVALID_ENTITY).id());
+esjs::Val js_getParent(const esjs::Args& a) {
+    auto* p = host().registry->tryGet<ecs::Parent>(esn_entity(a[0]));
+    return esjs::uint32((p ? p->entity : INVALID_ENTITY).id());
 }
-JSValue js_removeParent(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
-    ecs::setParent(*host().registry, esn_entity(ctx, argv[0]), INVALID_ENTITY);
-    return JS_UNDEFINED;
+esjs::Val js_removeParent(const esjs::Args& a) {
+    ecs::setParent(*host().registry, esn_entity(a[0]), INVALID_ENTITY);
+    return esjs::undefined();
 }
-JSValue js_hasChildren(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
-    auto* c = host().registry->tryGet<ecs::Children>(esn_entity(ctx, argv[0]));
-    return JS_NewBool(ctx, c && !c->entities.empty());
+esjs::Val js_hasChildren(const esjs::Args& a) {
+    auto* c = host().registry->tryGet<ecs::Children>(esn_entity(a[0]));
+    return esjs::boolean(c && !c->entities.empty());
 }
-JSValue js_getChildren(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
-    JSValue arr = JS_NewArray(ctx);
-    if (auto* c = host().registry->tryGet<ecs::Children>(esn_entity(ctx, argv[0]))) {
+esjs::Val js_getChildren(const esjs::Args& a) {
+    esjs::Val arr = esjs::array();
+    if (auto* c = host().registry->tryGet<ecs::Children>(esn_entity(a[0]))) {
         uint32_t i = 0;
         for (Entity child : c->entities) {
-            JS_SetPropertyUint32(ctx, arr, i++, JS_NewUint32(ctx, child.id()));
+            esjs::setAt(arr, i++, esjs::uint32(child.id()));
         }
     }
     return arr;
@@ -104,31 +104,29 @@ JSValue js_getChildren(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
 // MeshSkin's joints are a variable-length entity list, so the component has no POD
 // layout and nothing generated can carry it — the same reason Children is here. A
 // glTF with a rig inserts one, and without these the insert fails on a device.
-JSValue js_getMeshSkinJoints(JSContext* ctx, JSValueConst, int, JSValueConst* argv) {
-    JSValue arr = JS_NewArray(ctx);
-    if (auto* s = host().registry->tryGet<ecs::MeshSkin>(esn_entity(ctx, argv[0]))) {
+esjs::Val js_getMeshSkinJoints(const esjs::Args& a) {
+    esjs::Val arr = esjs::array();
+    if (auto* s = host().registry->tryGet<ecs::MeshSkin>(esn_entity(a[0]))) {
         uint32_t i = 0;
         for (Entity joint : s->joints) {
-            JS_SetPropertyUint32(ctx, arr, i++, JS_NewUint32(ctx, joint.id()));
+            esjs::setAt(arr, i++, esjs::uint32(joint.id()));
         }
     }
     return arr;
 }
-JSValue js_setMeshSkinJoints(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
-    if (argc < 2) return JS_UNDEFINED;
-    auto& skin = host().registry->getOrEmplace<ecs::MeshSkin>(esn_entity(ctx, argv[0]));
+esjs::Val js_setMeshSkinJoints(const esjs::Args& a) {
+    if (a.size() < 2) return esjs::undefined();
+    auto& skin = host().registry->getOrEmplace<ecs::MeshSkin>(esn_entity(a[0]));
     skin.joints.clear();
     uint32_t len = 0;
-    JSValue lenv = JS_GetPropertyStr(ctx, argv[1], "length");
-    JS_ToUint32(ctx, &len, lenv);
-    JS_FreeValue(ctx, lenv);
+    esjs::Val lenv = esjs::get(a[1], "length");
+    len = esjs::toUint32(lenv);
     skin.joints.reserve(len);
     for (uint32_t i = 0; i < len; ++i) {
-        JSValue v = JS_GetPropertyUint32(ctx, argv[1], i);
-        skin.joints.push_back(esn_entity(ctx, v));
-        JS_FreeValue(ctx, v);
+        esjs::Val v = esjs::getAt(a[1], i);
+        skin.joints.push_back(esn_entity(v));
     }
-    return JS_UNDEFINED;
+    return esjs::undefined();
 }
 
 /**
@@ -136,83 +134,82 @@ JSValue js_setMeshSkinJoints(JSContext* ctx, JSValueConst, int argc, JSValueCons
  * Transform write announces through it, and an ABI call for one integer nearly
  * doubles the write it follows (bench/transform-invalidation).
  */
-JSValue js_transformEpochBuffer(JSContext* ctx, JSValueConst, int, JSValueConst*) {
-    return esn_arraybuffer(ctx, &ecs::transformMutationEpoch(), sizeof(u32));
+esjs::Val js_transformEpochBuffer(const esjs::Args& a) {
+    return esn_arraybuffer(&ecs::transformMutationEpoch(), sizeof(u32));
 }
 /** Whether composition also records which entities' output moved. Off by default;
  *  only a consumer maintaining an incremental structure pays for it. */
-JSValue js_transformSetChangeTracking(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
-    if (argc >= 1 && host().ctx) {
+esjs::Val js_transformSetChangeTracking(const esjs::Args& a) {
+    if (a.size() >= 1 && host().ctx) {
         if (auto* ts = host().ctx->tryGet<ecs::TransformSystem>()) {
-            ts->setChangeTracking(JS_ToBool(ctx, argv[0]) != 0);
+            ts->setChangeTracking(esjs::toBool(a[0]));
         }
     }
-    return JS_UNDEFINED;
+    return esjs::undefined();
 }
 /**
  * What every composition since the last acknowledgement changed. The buffer views
  * the system's own vector and the next composition may move it, so a consumer
  * reads, applies, and acknowledges within one turn.
  */
-JSValue js_transformCompositionChanges(JSContext* ctx, JSValueConst, int, JSValueConst*) {
+esjs::Val js_transformCompositionChanges(const esjs::Args& a) {
     static_assert(sizeof(Entity) == sizeof(u32), "the changed set is read as raw ids");
     auto* ts = host().ctx ? host().ctx->tryGet<ecs::TransformSystem>() : nullptr;
-    JSValue out = JS_NewObject(ctx);
-    JS_SetPropertyStr(ctx, out, "serial", JS_NewUint32(ctx, ts ? ts->compositionSerial() : 0));
-    JS_SetPropertyStr(ctx, out, "tracking", JS_NewBool(ctx, ts && ts->changeTracking()));
-    JS_SetPropertyStr(ctx, out, "overflowed", JS_NewBool(ctx, ts && ts->changesOverflowed()));
+    esjs::Val out = esjs::object();
+    esjs::set(out, "serial", esjs::uint32(ts ? ts->compositionSerial() : 0));
+    esjs::set(out, "tracking", esjs::boolean(ts && ts->changeTracking()));
+    esjs::set(out, "overflowed", esjs::boolean(ts && ts->changesOverflowed()));
     const size_t count = ts ? ts->pendingChanges().size() : 0;
-    JS_SetPropertyStr(ctx, out, "count", JS_NewUint32(ctx, static_cast<uint32_t>(count)));
-    JS_SetPropertyStr(ctx, out, "visited", JS_NewUint32(ctx, ts ? ts->visited() : 0));
-    JS_SetPropertyStr(ctx, out, "changed", count == 0 ? JS_NULL
-        : esn_arraybuffer(ctx, const_cast<Entity*>(ts->pendingChanges().data()), count * sizeof(Entity)));
+    esjs::set(out, "count", esjs::uint32(static_cast<uint32_t>(count)));
+    esjs::set(out, "visited", esjs::uint32(ts ? ts->visited() : 0));
+    esjs::set(out, "changed", count == 0 ? esjs::null()
+        : esn_arraybuffer(const_cast<Entity*>(ts->pendingChanges().data()), count * sizeof(Entity)));
     return out;
 }
 /** Applied: the set starts again. Separate from the read, so a consumer that
  *  throws half way through has not acknowledged and gets it again. */
-JSValue js_transformTakeChanges(JSContext* ctx, JSValueConst, int, JSValueConst*) {
-    (void)ctx;
+esjs::Val js_transformTakeChanges(const esjs::Args& a) {
     if (host().ctx) {
         if (auto* ts = host().ctx->tryGet<ecs::TransformSystem>()) ts->takeChanges();
     }
-    return JS_UNDEFINED;
+    return esjs::undefined();
 }
 /** The consumer half: compose if a producer said the inputs moved. A headless
  *  host installs no renderer, and nothing else would ever schedule it. */
-JSValue js_transformEnsureComposed(JSContext* ctx, JSValueConst, int, JSValueConst*) {
+esjs::Val js_transformEnsureComposed(const esjs::Args& a) {
     if (host().ctx && host().registry) {
         if (auto* ts = host().ctx->tryGet<ecs::TransformSystem>()) ts->ensureComposed(*host().registry);
     }
-    return JS_UNDEFINED;
+    return esjs::undefined();
 }
 
 }  // namespace
 
-void registerEcsBindings(HostState& h, JSValue global) {
-    bindGlobal(h, global, "es_createEntity", js_createEntity, 0);
-    bindGlobal(h, global, "es_destroyEntity", js_destroyEntity, 1);
-    bindGlobal(h, global, "es_setParent", js_setParent, 2);
-    bindGlobal(h, global, "es_reserveDestruction", js_reserveDestruction, 1);
-    bindGlobal(h, global, "es_releaseDestruction", js_releaseDestruction, 1);
-    bindGlobal(h, global, "es_destructionPending", js_destructionPending, 1);
-    bindGlobal(h, global, "es_setEntityEnabled", js_setEntityEnabled, 2);
-    bindGlobal(h, global, "es_isEntityActive", js_isEntityActive, 1);
-    bindGlobal(h, global, "es_isEntityEnabled", js_isEntityEnabled, 1);
-    bindGlobal(h, global, "es_hasInactiveEntities", js_hasInactiveEntities, 0);
-    bindGlobal(h, global, "es_activityEpoch", js_activityEpoch, 0);
-    bindGlobal(h, global, "es_hasParent", js_hasParent, 1);
-    bindGlobal(h, global, "es_getParent", js_getParent, 1);
-    bindGlobal(h, global, "es_removeParent", js_removeParent, 1);
-    bindGlobal(h, global, "es_hasChildren", js_hasChildren, 1);
-    bindGlobal(h, global, "es_getChildren", js_getChildren, 1);
-    bindGlobal(h, global, "es_getMeshSkinJoints", js_getMeshSkinJoints, 1);
-    bindGlobal(h, global, "es_setMeshSkinJoints", js_setMeshSkinJoints, 2);
-    bindGlobal(h, global, "es_registryLayoutEpoch", js_layoutEpoch, 0);
-    bindGlobal(h, global, "es_transformEpochBuffer", js_transformEpochBuffer, 0);
-    bindGlobal(h, global, "es_transformEnsureComposed", js_transformEnsureComposed, 0);
-    bindGlobal(h, global, "es_transformSetChangeTracking", js_transformSetChangeTracking, 1);
-    bindGlobal(h, global, "es_transformCompositionChanges", js_transformCompositionChanges, 0);
-    bindGlobal(h, global, "es_transformTakeChanges", js_transformTakeChanges, 0);
+void registerEcsBindings(HostState& h, esjs::Val global) {
+    bindGlobal(global, "es_createEntity", js_createEntity, 0);
+    bindGlobal(global, "es_destroyEntity", js_destroyEntity, 1);
+    bindGlobal(global, "es_setParent", js_setParent, 2);
+    bindGlobal(global, "es_reserveDestruction", js_reserveDestruction, 1);
+    bindGlobal(global, "es_releaseDestruction", js_releaseDestruction, 1);
+    bindGlobal(global, "es_destructionPending", js_destructionPending, 1);
+    bindGlobal(global, "es_setEntityEnabled", js_setEntityEnabled, 2);
+    bindGlobal(global, "es_isEntityActive", js_isEntityActive, 1);
+    bindGlobal(global, "es_isEntityEnabled", js_isEntityEnabled, 1);
+    bindGlobal(global, "es_hasInactiveEntities", js_hasInactiveEntities, 0);
+    bindGlobal(global, "es_activityEpoch", js_activityEpoch, 0);
+    bindGlobal(global, "es_hasParent", js_hasParent, 1);
+    bindGlobal(global, "es_getParent", js_getParent, 1);
+    bindGlobal(global, "es_removeParent", js_removeParent, 1);
+    bindGlobal(global, "es_hasChildren", js_hasChildren, 1);
+    bindGlobal(global, "es_getChildren", js_getChildren, 1);
+    bindGlobal(global, "es_getMeshSkinJoints", js_getMeshSkinJoints, 1);
+    bindGlobal(global, "es_setMeshSkinJoints", js_setMeshSkinJoints, 2);
+    bindGlobal(global, "es_registryLayoutEpoch", js_layoutEpoch, 0);
+    bindGlobal(global, "es_transformEpochBuffer", js_transformEpochBuffer, 0);
+    bindGlobal(global, "es_transformEnsureComposed", js_transformEnsureComposed, 0);
+    bindGlobal(global, "es_transformSetChangeTracking", js_transformSetChangeTracking, 1);
+    bindGlobal(global, "es_transformCompositionChanges", js_transformCompositionChanges, 0);
+    bindGlobal(global, "es_transformTakeChanges", js_transformTakeChanges, 0);
 }
 
 }  // namespace eshost

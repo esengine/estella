@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 //
-// Dawn and QuickJS, checked out at the commits this release builds against.
+// Dawn, QuickJS, SDL and V8, at the versions this release builds against.
 //
 // A runtime template is a binary other people install, so it has to be
 // reproducible: `git clone --depth 1` of a branch gives whatever landed today,
@@ -10,8 +10,9 @@
 // without a flag.
 
 import path from 'path';
-import { existsSync, readFileSync } from 'fs';
-import { mkdir } from 'fs/promises';
+import { createHash } from 'crypto';
+import { existsSync, readFileSync, readdirSync } from 'fs';
+import { cp, mkdir, readFile, rm, writeFile } from 'fs/promises';
 import config from '../build.config.js';
 import * as logger from '../utils/logger.js';
 import { runCommand, resolvePython } from '../utils/emscripten.js';
@@ -46,6 +47,8 @@ export function depsCacheKey(target, rootDir = config.paths.root) {
     const pins = nativePins(rootDir);
     const parts = [pins.dawn.commit, pins.quickjs.commit];
     if (isDesktopTarget(target)) parts.push(pins.sdl?.commit ?? 'no-sdl-pin');
+    // No V8 here, on purpose: it is downloaded, not built, and fetchV8 checks its
+    // own stamp against the pin — keying on it would only rebuild Dawn for nothing.
     return `native-deps-${target}-${parts.join('-')}`;
 }
 
@@ -98,12 +101,111 @@ export async function fetchNativeDeps(options = {}) {
     // to remember to ask for is one the next person's build is missing.
     const sdl = await fetchAt(path.join(deps, 'sdl'), pins.sdl.repo, pins.sdl.commit, 'SDL3');
 
+    // Prebuilt archives rather than checkouts: V8 builds only with Chromium's own
+    // toolchain. Both are fetched, like SDL, so no build has to remember to ask.
+    const v8 = {};
+    for (const platform of ['windows', 'android']) {
+        if (pins.v8?.[platform]) v8[platform] = await fetchV8(platform, { root: rootDir, depsDir: deps });
+    }
+
     logger.success(`Native dependencies ready in ${path.relative(rootDir, deps) || deps}`);
     logger.info('Build with: node build-tools/cli.js native            (Android)');
     logger.info('            node build-tools/cli.js native --target ios');
     logger.info('            node build-tools/cli.js native --target macos');
     logger.info('            node build-tools/cli.js native --target windows   (from a vcvars64 shell)');
-    return { dawn, quickjs, sdl };
+    return { dawn, quickjs, sdl, v8 };
+}
+
+/**
+ * The prebuilt V8 a target embeds, keyed by what the archive is built for: the
+ * Windows build serves the Windows desktop host, the NDK build every Android ABI.
+ * Null where the host embeds QuickJS (iOS, and the desktops no V8 is pinned for).
+ */
+export function v8Platform(target) {
+    return target === 'windows' || target === 'android' ? target : null;
+}
+
+/** Where a fetched V8 lands: `include/` plus the platform's libraries. */
+export function v8Dir(platform, rootDir = config.paths.root) {
+    return path.join(nativeDepsDir(rootDir), `v8-${platform}`);
+}
+
+async function download(url, sha256, label) {
+    logger.step(`Downloading ${label}...`);
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`${label}: ${url} answered ${res.status}`);
+    const bytes = Buffer.from(await res.arrayBuffer());
+    const got = createHash('sha256').update(bytes).digest('hex');
+    if (got !== sha256) {
+        throw new Error(`${label}: sha256 ${got} is not the pinned ${sha256} — refusing an archive `
+            + 'that is not the one this release was built against.');
+    }
+    return bytes;
+}
+
+/** Unpack a zip or a .tgz with Python's standard library: one spelling for every
+ *  OS a build runs on, where `tar` and `unzip` disagree about zips. */
+async function extract(archive, into, kind) {
+    const script = kind === 'zip'
+        ? 'import sys, zipfile; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])'
+        : 'import sys, tarfile; tarfile.open(sys.argv[1]).extractall(sys.argv[2])';
+    await runCommand(await resolvePython(), ['-c', script, archive, into], { silent: true });
+}
+
+/**
+ * Fetch and lay out the pinned V8 for @p platform, once per version.
+ *
+ *   windows  include/ + lib/Release/{v8,v8_libbase,v8_libplatform}.dll(.lib), the
+ *            ICU and zlib DLLs, icudtl.dat — the two NuGet packages, merged.
+ *   android  include/ + jni/<abi>/libv8android.so — out of the npm package's AAR.
+ *
+ * @returns {Promise<string>} the directory to hand CMake as ESTELLA_V8_DIR.
+ */
+export async function fetchV8(platform, options = {}) {
+    const rootDir = options.root || config.paths.root;
+    const pin = nativePins(rootDir).v8;
+    if (!pin?.[platform]) throw new Error(`toolchain.manifest.json pins no V8 for ${platform}.`);
+    const deps = options.depsDir || nativeDepsDir(rootDir);
+    const dir = path.join(deps, `v8-${platform}`);
+    const stamp = path.join(dir, '.estella-v8');
+    const want = `${pin.version}\n${JSON.stringify(pin[platform])}`;
+    if (existsSync(stamp) && (await readFile(stamp, 'utf8')) === want) {
+        logger.info(`V8 ${pin.version} (${platform}) already fetched`);
+        return dir;
+    }
+    await rm(dir, { recursive: true, force: true });
+    const scratch = path.join(deps, `v8-${platform}.download`);
+    await rm(scratch, { recursive: true, force: true });
+    await mkdir(scratch, { recursive: true });
+
+    if (platform === 'windows') {
+        for (const [i, part] of pin.windows.entries()) {
+            const archive = path.join(scratch, `part${i}.zip`);
+            await writeFile(archive, await download(part.url, part.sha256, `V8 ${pin.version} (windows, ${i + 1}/${pin.windows.length})`));
+            await extract(archive, dir, 'zip');
+        }
+    } else {
+        const archive = path.join(scratch, 'v8.tgz');
+        await writeFile(archive, await download(pin.android.url, pin.android.sha256, `V8 ${pin.version} (android)`));
+        await extract(archive, scratch, 'tgz');
+        const dist = path.join(scratch, 'package', 'dist');
+        const aar = path.join(dist, 'org', 'chromium', 'v8-android');
+        const versions = existsSync(aar)
+            ? readdirSync(aar, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name) : [];
+        const aarFile = versions.length === 1
+            ? path.join(aar, versions[0], `v8-android-${versions[0]}.aar`) : null;
+        if (!aarFile || !existsSync(aarFile)) throw new Error(`V8 (android): no AAR under ${aar}`);
+        await mkdir(dir, { recursive: true });
+        await extract(aarFile, dir, 'zip');
+        await cp(path.join(dist, 'include'), path.join(dir, 'include'), { recursive: true });
+    }
+    if (!existsSync(path.join(dir, 'include', 'v8.h'))) {
+        throw new Error(`V8 (${platform}): the archive laid out no include/v8.h under ${dir}`);
+    }
+    await rm(scratch, { recursive: true, force: true });
+    await writeFile(stamp, want);
+    logger.success(`V8 ${pin.version} (${platform}): ${dir}`);
+    return dir;
 }
 
 /**

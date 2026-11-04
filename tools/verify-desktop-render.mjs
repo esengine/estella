@@ -106,7 +106,7 @@ function packageAndRun(project, templateDir, work) {
     // to itself passes here and fails on their machine.
     const run = spawnSync(exe, [], {
         cwd: ROOT,
-        env: { ...process.env, ESTELLA_SHOT: path.join(out, 'frame.raw'), ESTELLA_SHOT_FRAME: String(SHOT_FRAME), ESTELLA_SHOT_QUIT: '1' },
+        env: { ...process.env, ESTELLA_HIDDEN_WINDOW: process.env.ESTELLA_HIDDEN_WINDOW ?? '1', ESTELLA_SHOT: path.join(out, 'frame.raw'), ESTELLA_SHOT_FRAME: String(SHOT_FRAME), ESTELLA_SHOT_QUIT: '1' },
         encoding: 'utf8',
         timeout: 120_000,
     });

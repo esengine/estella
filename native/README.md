@@ -4,20 +4,31 @@ A native iOS/Android runtime for Estella: the **same** engine C++ core and the
 same authoring model as the web build, compiled to arm64 and rendering through an
 **embedded [Dawn](https://dawn.googlesource.com/dawn)** (WebGPU → Metal on iOS /
 Vulkan on Android) — a real native app, **not a WebView**. Game scripts run on an
-embedded JS engine ([QuickJS-ng](https://github.com/quickjs-ng/quickjs)); the
-engine runs native (full speed), so only the game script is interpreted.
+embedded JS engine: [V8](https://v8.dev/) with its JIT where one is allowed (Android,
+the Windows desktop) and [QuickJS-ng](https://github.com/quickjs-ng/quickjs) where it
+is not (iOS) — and on the desktops no V8 is pinned for yet (macOS, Linux). The engine
+itself runs native, full speed, on all of them.
 
 This directory holds the host and the build recipe:
 
-- **`host/`** — the app. A QuickJS runtime drives the engine through the **real
+- **`host/`** — the app. A JS runtime drives the engine through the **real
   esengine SDK**, bundled to one file (`dist/index.native.bundled.js`, installing
   `ESEngine`); an editor export boots on it through the same `App` and `World` the
   web build uses. One host with a platform seam, not one per OS:
   - `Host.{hpp,cpp}` — the contract a platform implements (`eshost::Platform`) and
     the entry points its event loop drives: boot, the frame, lifecycle.
-  - `Runtime.{hpp,cpp}` — the QuickJS runtime and the state the host shares: the
+  - `Runtime.{hpp,cpp}` — the JS runtime and the state the host shares: the
     environment the language does not ship (console, timers, a clock), the eval +
-    bytecode cache, and the layered boot (SDK bundle → bootstrap → project).
+    compile cache, and the layered boot (SDK bundle → bootstrap → project).
+  - `js/esjs.hpp` — the engine, behind one small surface every binding (hand-written
+    and generated) is written against: values, objects, byte buffers, functions,
+    calls, and V8's lifetime rule (a value lives as long as the scope that made it;
+    `esjs::Ref` keeps one longer). `js/esjs_v8.cpp` and `js/esjs_quickjs.cpp` are the
+    two backends; one build compiles one of them (`ESTELLA_JS_ENGINE`, chosen by
+    `cli native --js-engine`). V8 comes prebuilt and pinned by sha256
+    (`toolchain.manifest.json` → `native.v8`, fetched with `--fetch-deps`): version
+    10.0.139.9 on both Windows and Android, neither with V8's sandbox, which is what
+    lets the host hand JS zero-copy views of engine memory.
   - `bootstrap.js` — the host's own JavaScript (the bridge install and the default
     init/update), embedded at build time. A real .js file, not a C++ literal.
   - `bindings/` — the `es_*` surface, one TU per pillar (Ecs, Render, Assets,
@@ -76,7 +87,7 @@ runs exactly the commands below; nothing about producing a template is CI-only.
 On the web, Box2D, the Spine runtime and the MPEG-1 decoder ship as standalone wasm
 side modules a realm fetches. A device has no dynamic-linking story and no reason for
 one, so the **same C sources** link straight into the host binary — all three are
-vendored — and the SDK reaches them through the QuickJS wrappers EHT generates from
+vendored — and the SDK reaches them through the native wrappers EHT generates from
 their binding headers. `app.sideModules` still answers them, so the runtime's own
 gating installs physics or spine exactly as it does in a browser (see
 `sdk/src/ecs/nativeSideModules.ts`).
@@ -103,7 +114,7 @@ the tree:
 | GL gate | `EstellaContext` under `ES_PLATFORM_WEB` | native drops the WebGL entry |
 | Glyph source | `Platform::loadFont` + `host/media/glyph_raster.cpp` | the device has no 2D canvas: the OS names a font file, stb_truetype rasterizes, the engine's own `sdfFromAlpha` encodes |
 | Bindings | `python -m eht --native-output` | `es_set_<C>` / `es_<C>_buffer` from the same reflection as the web embind bindings |
-| Entry points | `python -m eht --native-functions` | `es_renderer_*`, `es_uiLayout_*`, `es_rm_*` — QuickJS wrappers over the SAME `bindings/*.hpp` declarations embind registers |
+| Entry points | `python -m eht --native-functions` | `es_renderer_*`, `es_uiLayout_*`, `es_rm_*` — native wrappers (written against `js/esjs.hpp`) over the SAME `bindings/*.hpp` declarations embind registers |
 | Data marshalling | `sdk/src/ecs/ptrAccessors.generated.ts` | POD components are wasm32/arm64 layout-identical → the generated accessors write native component memory unchanged (via a zero-copy `ArrayBuffer`) |
 | Host platform | `eshost::Platform` (`host/Host.hpp`) | packaged assets, cache dir, backend, window surface + size, log — the only things the two OS glue files answer differently |
 
@@ -132,8 +143,8 @@ NDK / CMake automatically — `ANDROID_HOME`, `ANDROID_NDK_HOME`, or Android
 Studio's default install), a JDK for the Java shim, and the SDK bundle
 (`pnpm --filter ./sdk build`) — the host embeds it.
 
-**One-time: fetch the dependencies.** Dawn and QuickJS-ng are multi-GB / separate
-projects, PINNED in `toolchain.manifest.json` rather than vendored or tracked as
+**One-time: fetch the dependencies.** Dawn, QuickJS-ng, SDL and the prebuilt V8 are
+multi-GB / separate projects, PINNED in `toolchain.manifest.json` rather than vendored or tracked as
 submodules — a `--depth 1` clone of a branch makes a template unreproducible, and
 Dawn fetches its own dependencies with a script anyway, so a submodule would save
 nobody the fetch while putting a huge clone in front of everyone who only builds

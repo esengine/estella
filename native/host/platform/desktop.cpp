@@ -562,6 +562,12 @@ int main(int argc, char** argv) {
 
     bool running = true;
     bool shown = false;
+    // ESTELLA_HIDDEN_WINDOW=1: never show the window. The surface is bound and
+    // every frame is drawn and presented exactly as in a visible run — the window
+    // just never reaches the screen — so a bench, a shot or a conformance trace can
+    // run on a desktop without putting an app in front of whoever is using it.
+    const char* hiddenEnv = SDL_getenv("ESTELLA_HIDDEN_WINDOW");
+    const bool keepHidden = hiddenEnv && hiddenEnv[0] == '1';
     // SDL reports mouse positions in window coordinates; the host contract is
     // surface pixels, as it is for touch.
     auto pixelScale = [&] { return SDL_GetWindowPixelDensity(window); };
@@ -657,7 +663,7 @@ int main(int argc, char** argv) {
             // Shown once something has been drawn on it: sizing happens during
             // boot, and a window shown before that is a default-sized empty
             // rectangle that then jumps.
-            if (!shown) {
+            if (!shown && !keepHidden) {
                 shown = true;
                 SDL_ShowWindow(window);
                 // And in front: a game that opens behind the window it was

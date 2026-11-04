@@ -1,10 +1,12 @@
-"""Native (QuickJS) binding generator — the native sibling of the embind generator.
+"""Native binding generator — the native sibling of the embind generator.
 
-Emits, per ES_COMPONENT, QuickJS-callable member getters/setters for reflected
+Emits, per ES_COMPONENT, script-callable member getters/setters for reflected
 strings, scalars, vectors and enums, plus compiler-validated zero-copy buffers and an
 ``esn_register()`` that installs them as script globals. It consumes the SAME
 parsed reflection (data.Component) as EmbindGenerator, so the web (embind) and
-native (QuickJS) binding surfaces are generated from one source and cannot drift.
+native binding surfaces are generated from one source and cannot drift. The
+emitted code is written against the host's engine surface (esjs.hpp), so it is
+the same whichever JS engine the host embeds.
 
 Opt-in: only emitted when ``python -m eht --native-output PATH`` is given, so the
 default EHT run (and the committed *.generated.* files it produces) is unchanged.
@@ -50,52 +52,51 @@ class NativeBindingsGenerator:
         n = prop.name
         members = self._members(ct)
         if members:
-            lines = ['    { JSValue v = JS_NewObject(ctx);']
-            lines += [f'      JS_SetPropertyStr(ctx, v, "{m}", JS_NewFloat64(ctx, c->{n}.{m}));'
+            lines = ['    { const esjs::Val v = esjs::object();']
+            lines += [f'      esjs::set(v, "{m}", esjs::number(c->{n}.{m}));'
                       for m in members]
-            return lines + [f'      JS_SetPropertyStr(ctx, o, "{n}", v); }}']
+            return lines + [f'      esjs::set(o, "{n}", v); }}']
         if ct == 'std::string':
-            value = f'JS_NewStringLen(ctx, c->{n}.data(), c->{n}.size())'
+            value = f'esjs::string(std::string_view(c->{n}.data(), c->{n}.size()))'
         elif ct == 'bool':
-            value = f'JS_NewBool(ctx, c->{n})'
+            value = f'esjs::boolean(c->{n})'
         elif self.types.is_handle(ct):
-            value = f'JS_NewFloat64(ctx, c->{n}.id())'
+            value = f'esjs::number(c->{n}.id())'
         elif ct == 'Entity':
-            value = f'JS_NewFloat64(ctx, static_cast<esengine::u32>(c->{n}))'
+            value = f'esjs::number(static_cast<esengine::u32>(c->{n}))'
         elif ct in _FLOAT | _INT or self.types.is_enum(ct):
-            value = f'JS_NewFloat64(ctx, static_cast<double>(c->{n}))'
+            value = f'esjs::number(static_cast<double>(c->{n}))'
         else:
             return []
-        return [f'    JS_SetPropertyStr(ctx, o, "{n}", {value});']
+        return [f'    esjs::set(o, "{n}", {value});']
 
     def _field(self, prop) -> str:
         t = prop.cpp_type
         n = prop.name
         ct = self.types.clean_type(t)
         if ct == 'std::string':
-            return (f'    {{ JSValue v = JS_GetPropertyStr(ctx, o, "{n}"); '
-                    'if (!JS_IsUndefined(v)) { size_t len; const char* s = JS_ToCStringLen(ctx, &len, v); '
-                    f'if (s) {{ c.{n}.assign(s, len); JS_FreeCString(ctx, s); }} }} '
-                    'JS_FreeValue(ctx, v); }')
+            return (f'    {{ const esjs::Val v = esjs::get(o, "{n}"); '
+                    'if (!esjs::isUndefined(v)) { const esjs::Utf8 s(v); '
+                    f'if (s) c.{n}.assign(s.c_str(), s.size()); }} }}')
         if self._members(ct):
-            lines = [f'    {{ JSValue v = JS_GetPropertyStr(ctx, o, "{n}");']
-            lines.append('      if (JS_IsObject(v)) {')
+            lines = [f'    {{ const esjs::Val v = esjs::get(o, "{n}");']
+            lines.append('      if (esjs::isObject(v)) {')
             for i, m in enumerate(self._members(ct)):
-                lines.append(f'      {{ double x; if (esn_getnum(ctx, v, JS_IsArray(v) ? "{i}" : "{m}", &x)) '
+                lines.append(f'      {{ double x; if (esn_getnum(v, esjs::isArray(v) ? "{i}" : "{m}", &x)) '
                              f'c.{n}.{m} = static_cast<decltype(c.{n}.{m})>(x); }}')
-            return '\n'.join(lines + ['      } JS_FreeValue(ctx, v); }'])
+            return '\n'.join(lines + ['      } }'])
         if ct == 'bool':
-            return f'    {{ int _b; if (esn_getbool(ctx, o, "{n}", &_b)) c.{n} = _b != 0; }}'
+            return f'    {{ int _b; if (esn_getbool(o, "{n}", &_b)) c.{n} = _b != 0; }}'
         if self.types.is_enum(t) or ct in _INT or ct == 'Entity':
-            return (f'    {{ double _v; if (esn_getnum(ctx, o, "{n}", &_v)) '
+            return (f'    {{ double _v; if (esn_getnum(o, "{n}", &_v)) '
                     f'c.{n} = static_cast<decltype(c.{n})>(static_cast<long long>(_v)); }}')
         if ct in _FLOAT:
-            return (f'    {{ double _v; if (esn_getnum(ctx, o, "{n}", &_v)) '
+            return (f'    {{ double _v; if (esn_getnum(o, "{n}", &_v)) '
                     f'c.{n} = static_cast<decltype(c.{n})>(_v); }}')
         if self.types.is_handle(t):
             # A resource handle (e.g. TextureHandle): the script passes the packed
             # id returned by a resource binding (es_createTexture); reconstruct it.
-            return (f'    {{ double _v; if (esn_getnum(ctx, o, "{n}", &_v)) '
+            return (f'    {{ double _v; if (esn_getnum(o, "{n}", &_v)) '
                     f'c.{n} = decltype(c.{n})(static_cast<esengine::u32>(static_cast<long long>(_v))); }}')
         if self.types.is_struct_vector(ct):
             return f'    // {n}: a list, carried by its own _set/_get pair'
@@ -130,70 +131,64 @@ class NativeBindingsGenerator:
     def _list_binding(self, comp, full, prop, members) -> List[str]:
         get_name = f'es_{comp.name}_{prop.name}_get'
         set_name = f'es_{comp.name}_{prop.name}_set'
-        out = [f'static JSValue {get_name}(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {{',
-               '    JSValue arr = JS_NewArray(ctx);',
-               '    if (argc < 1) return arr;',
-               f'    const auto* c = esn_reg().tryGet<{full}>(esn_entity(ctx, argv[0]));',
+        out = [f'static esjs::Val {get_name}(const esjs::Args& a) {{',
+               '    const esjs::Val arr = esjs::array();',
+               '    if (a.size() < 1) return arr;',
+               f'    const auto* c = esn_reg().tryGet<{full}>(esn_entity(a[0]));',
                '    if (!c) return arr;',
                '    uint32_t i = 0;',
                f'    for (const auto& v : c->{prop.name}) {{']
         if members:
-            out.append('        JSValue o = JS_NewObject(ctx);')
+            out.append('        const esjs::Val o = esjs::object();')
             for m in members:
-                out.append(f'        JS_SetPropertyStr(ctx, o, "{m}", JS_NewFloat64(ctx, v.{m}));')
-            out.append('        JS_SetPropertyUint32(ctx, arr, i++, o);')
+                out.append(f'        esjs::set(o, "{m}", esjs::number(v.{m}));')
+            out.append('        esjs::setAt(arr, i++, o);')
         else:
-            out.append('        JS_SetPropertyUint32(ctx, arr, i++, JS_NewFloat64(ctx, v));')
+            out.append('        esjs::setAt(arr, i++, esjs::number(v));')
         out += ['    }',
                 '    return arr;',
                 '}',
-                f'static JSValue {set_name}(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {{',
-                '    if (argc < 2) return JS_UNDEFINED;',
-                f'    auto& c = esn_reg().getOrEmplace<{full}>(esn_entity(ctx, argv[0]));',
+                f'static esjs::Val {set_name}(const esjs::Args& a) {{',
+                '    if (a.size() < 2) return esjs::undefined();',
+                f'    auto& c = esn_reg().getOrEmplace<{full}>(esn_entity(a[0]));',
                 f'    c.{prop.name}.clear();',
-                '    uint32_t len = 0;',
-                '    JSValue lenv = JS_GetPropertyStr(ctx, argv[1], "length");',
-                '    JS_ToUint32(ctx, &len, lenv);',
-                '    JS_FreeValue(ctx, lenv);',
+                '    const uint32_t len = esjs::lengthOf(a[1]);',
                 f'    c.{prop.name}.reserve(len);',
                 '    for (uint32_t i = 0; i < len; ++i) {',
-                '        JSValue e = JS_GetPropertyUint32(ctx, argv[1], i);',
-                f'        decltype(c.{prop.name})::value_type v{{}};',
-                '        double n = 0;']
+                '        esjs::Scope scope;',
+                '        const esjs::Val e = esjs::getAt(a[1], i);',
+                f'        decltype(c.{prop.name})::value_type v{{}};']
         if members:
             for m in members:
-                out += [f'        {{ JSValue f = JS_GetPropertyStr(ctx, e, "{m}");',
-                        f'          if (JS_ToFloat64(ctx, &n, f) == 0) v.{m} = static_cast<decltype(v.{m})>(n);',
-                        '          JS_FreeValue(ctx, f); }']
+                out.append(f'        v.{m} = static_cast<decltype(v.{m})>(esjs::toNumber(esjs::get(e, "{m}")));')
         else:
-            out += ['        if (JS_ToFloat64(ctx, &n, e) == 0) v = static_cast<decltype(v)>(n);']
+            out.append('        v = static_cast<decltype(v)>(esjs::toNumber(e));')
         out += [f'        c.{prop.name}.push_back(v);',
-                '        JS_FreeValue(ctx, e);',
                 '    }',
-                '    return JS_UNDEFINED;',
+                '    return esjs::undefined();',
                 '}']
         return out
 
     def _component(self, comp: Component) -> List[str]:
         full = f'{comp.namespace}::{comp.name}' if comp.namespace else comp.name
         # Per-field setter: es_set_<Component>(entityId, obj).
-        out = [f'static JSValue es_set_{comp.name}(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {{',
-               '    if (argc < 2) return JS_UNDEFINED;',
-               '    esengine::Entity e = esn_entity(ctx, argv[0]);',
+        out = [f'static esjs::Val es_set_{comp.name}(const esjs::Args& a) {{',
+               '    if (a.size() < 2) return esjs::undefined();',
+               '    esengine::Entity e = esn_entity(a[0]);',
                f'    auto& c = esn_reg().getOrEmplace<{full}>(e);',
-               '    JSValueConst o = argv[1];',
+               '    const esjs::Val o = a[1];',
                '    (void)c; (void)o;']
         for prop in comp.properties:
             if 'readonly' not in prop.annotations:
                 out.append(self._field(prop))
         if comp.name in WRITE_HOOKS:
             out.append(f'    {WRITE_HOOKS[comp.name]}')
-        out.append('    return JS_UNDEFINED;')
+        out.append('    return esjs::undefined();')
         out.append('}')
-        out += [f'static JSValue es_get_{comp.name}(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {{',
-                '    JSValue o = JS_NewObject(ctx);',
-                '    if (argc < 1) return o;',
-                f'    auto* c = esn_reg().tryGet<{full}>(esn_entity(ctx, argv[0]));',
+        out += [f'static esjs::Val es_get_{comp.name}(const esjs::Args& a) {{',
+                '    const esjs::Val o = esjs::object();',
+                '    if (a.size() < 1) return o;',
+                f'    auto* c = esn_reg().tryGet<{full}>(esn_entity(a[0]));',
                 '    if (!c) return o;']
         read_hook = READ_HOOKS.get(comp.name)
         if read_hook:
@@ -204,28 +199,28 @@ class NativeBindingsGenerator:
         # The buffer implementation is registered below only if the native
         # compiler proves trivial ownership and the actual wasm accessor offsets.
         # getOrEmplace so a first write (component add) also creates the component.
-        out.append(f'static JSValue es_{comp.name}_buffer(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {{')
-        out.append('    if (argc < 1) return JS_UNDEFINED;')
-        out.append('    esengine::Entity e = esn_entity(ctx, argv[0]);')
+        out.append(f'static esjs::Val es_{comp.name}_buffer(const esjs::Args& a) {{')
+        out.append('    if (a.size() < 1) return esjs::undefined();')
+        out.append('    esengine::Entity e = esn_entity(a[0]);')
         out.append(f'    auto& c = esn_reg().getOrEmplace<{full}>(e);')
         read_hook = READ_HOOKS.get(comp.name)
         if read_hook:
             out.append(f'    c.{read_hook}();   // lazily derived fields, see READ_HOOKS')
-        out.append(f'    return esn_arraybuffer(ctx, &c, sizeof({full}));')
+        out.append(f'    return esn_arraybuffer(&c, sizeof({full}));')
         out.append('}')
         # Lifecycle: the native siblings of the embind Registry's has/remove. With
         # the buffer (getOrEmplace = add) + ptrAccessors (fields), these complete the
         # component API the SDK's BuiltinBridge drives (getBuiltinMethods).
-        out.append(f'static JSValue es_{comp.name}_has(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {{')
-        out.append('    if (argc < 1) return JS_UNDEFINED;')
-        out.append('    esengine::Entity e = esn_entity(ctx, argv[0]);')
-        out.append(f'    return JS_NewBool(ctx, esn_reg().has<{full}>(e));')
+        out.append(f'static esjs::Val es_{comp.name}_has(const esjs::Args& a) {{')
+        out.append('    if (a.size() < 1) return esjs::undefined();')
+        out.append('    esengine::Entity e = esn_entity(a[0]);')
+        out.append(f'    return esjs::boolean(esn_reg().has<{full}>(e));')
         out.append('}')
-        out.append(f'static JSValue es_{comp.name}_remove(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {{')
-        out.append('    if (argc < 1) return JS_UNDEFINED;')
-        out.append('    esengine::Entity e = esn_entity(ctx, argv[0]);')
+        out.append(f'static esjs::Val es_{comp.name}_remove(const esjs::Args& a) {{')
+        out.append('    if (a.size() < 1) return esjs::undefined();')
+        out.append('    esengine::Entity e = esn_entity(a[0]);')
         out.append(f'    if (esn_reg().has<{full}>(e)) esn_reg().remove<{full}>(e);')
-        out.append('    return JS_UNDEFINED;')
+        out.append('    return esjs::undefined();')
         out.append('}')
         for prop, members in self._list_fields(comp):
             out.extend(self._list_binding(comp, full, prop, members))
@@ -235,7 +230,7 @@ class NativeBindingsGenerator:
     def generate(self) -> str:
         lines = [
             '// Auto-generated by EHT (native_bindings) — DO NOT EDIT.',
-            '// Native QuickJS sibling of WebBindings.generated.cpp — one reflection source.',
+            '// Native sibling of WebBindings.generated.cpp — one reflection source.',
             f'#include "{self.shim_header}"',
             '#include <type_traits>',
             '#include <cstddef>',
@@ -261,45 +256,38 @@ class NativeBindingsGenerator:
         for comp in components:
             lines.extend(self._component(comp))
         lines.extend([
-            'static JSValue es_getBuiltinComponentNames(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {',
-            '    if (argc < 1) return JS_UNDEFINED;',
-            '    const auto e = esn_entity(ctx, argv[0]);',
+            'static esjs::Val es_getBuiltinComponentNames(const esjs::Args& a) {',
+            '    if (a.size() < 1) return esjs::undefined();',
+            '    const auto e = esn_entity(a[0]);',
             '    std::string names;',
         ])
         for comp in components:
             full = f'{comp.namespace}::{comp.name}' if comp.namespace else comp.name
             lines.append(f'    if (esn_reg().has<{full}>(e)) {{ if (!names.empty()) names += "|"; names += "{comp.name}"; }}')
         lines.extend([
-            '    return JS_NewStringLen(ctx, names.data(), names.size());',
+            '    return esjs::string(names);',
             '}', '',
         ])
         lines.extend([
-            'static JSValue es_componentTypeId(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {',
-            '    if (argc < 1) return JS_NewInt32(ctx, -1);',
-            '    const char* raw = JS_ToCString(ctx, argv[0]);',
-            '    if (!raw) return JS_EXCEPTION;',
-            '    const std::string name(raw);',
-            '    JS_FreeCString(ctx, raw);',
+            'static esjs::Val es_componentTypeId(const esjs::Args& a) {',
+            '    if (a.size() < 1) return esjs::int32(-1);',
+            '    const std::string name = esjs::toString(a[0]);',
         ])
         for comp in components:
             full = f'{comp.namespace}::{comp.name}' if comp.namespace else comp.name
-            lines.append(f'    if (name == "{comp.name}") return JS_NewInt64(ctx, esengine::componentTypeId<{full}>());')
-        lines.extend(['    return JS_NewInt32(ctx, -1);', '}', ''])
-        lines.append('void esn_register(JSContext* ctx, JSValue global) {')
-        lines.append('    JS_SetPropertyStr(ctx, global, "es_componentTypeId", '
-                     'JS_NewCFunction(ctx, es_componentTypeId, "es_componentTypeId", 1));')
-        lines.append('    JS_SetPropertyStr(ctx, global, "es_getBuiltinComponentNames", '
-                     'JS_NewCFunction(ctx, es_getBuiltinComponentNames, "es_getBuiltinComponentNames", 1));')
+            lines.append(f'    if (name == "{comp.name}") return esjs::int64(esengine::componentTypeId<{full}>());')
+        lines.extend(['    return esjs::int32(-1);', '}', ''])
+        lines.append('void esn_register(esjs::Val global) {')
+        lines.append('    esjs::setFunction(global, "es_componentTypeId", es_componentTypeId, 1);')
+        lines.append('    esjs::setFunction(global, "es_getBuiltinComponentNames", es_getBuiltinComponentNames, 1);')
         for comp in components:
             setter = f'es_set_{comp.name}'
             buffer = f'es_{comp.name}_buffer'
             has = f'es_{comp.name}_has'
             remove = f'es_{comp.name}_remove'
-            lines.append(f'    JS_SetPropertyStr(ctx, global, "{setter}", '
-                         f'JS_NewCFunction(ctx, {setter}, "{setter}", 2));')
+            lines.append(f'    esjs::setFunction(global, "{setter}", {setter}, 2);')
             getter = f'es_get_{comp.name}'
-            lines.append(f'    JS_SetPropertyStr(ctx, global, "{getter}", '
-                         f'JS_NewCFunction(ctx, {getter}, "{getter}", 1));')
+            lines.append(f'    esjs::setFunction(global, "{getter}", {getter}, 1);')
             # Expose the raw buffer ONLY when this compiler proves every accessed
             # offset matches wasm32 and no owned string/vector can be overwritten.
             full = f'{comp.namespace}::{comp.name}' if comp.namespace else comp.name
@@ -313,18 +301,14 @@ class NativeBindingsGenerator:
                     checks += [f'offsetof(decltype({full}::{f["name"]}), {m["name"]}) == {m["offset"]}'
                                for m in f.get('members', [])]
                 lines.append(f'    if constexpr ({" && ".join(checks)}) {{')
-                lines.append(f'        JS_SetPropertyStr(ctx, global, "{buffer}", '
-                             f'JS_NewCFunction(ctx, {buffer}, "{buffer}", 1));')
+                lines.append(f'        esjs::setFunction(global, "{buffer}", {buffer}, 1);')
                 lines.append('    }')
-            lines.append(f'    JS_SetPropertyStr(ctx, global, "{has}", '
-                         f'JS_NewCFunction(ctx, {has}, "{has}", 1));')
-            lines.append(f'    JS_SetPropertyStr(ctx, global, "{remove}", '
-                         f'JS_NewCFunction(ctx, {remove}, "{remove}", 1));')
+            lines.append(f'    esjs::setFunction(global, "{has}", {has}, 1);')
+            lines.append(f'    esjs::setFunction(global, "{remove}", {remove}, 1);')
             for prop, _members in self._list_fields(comp):
                 for fn, arity in ((f'es_{comp.name}_{prop.name}_get', 1),
                                   (f'es_{comp.name}_{prop.name}_set', 2)):
-                    lines.append(f'    JS_SetPropertyStr(ctx, global, "{fn}", '
-                                 f'JS_NewCFunction(ctx, {fn}, "{fn}", {arity}));')
+                    lines.append(f'    esjs::setFunction(global, "{fn}", {fn}, {arity});')
         lines.append('}')
         lines.append('')
         return '\n'.join(lines)

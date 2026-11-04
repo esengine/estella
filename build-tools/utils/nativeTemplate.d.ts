@@ -47,6 +47,12 @@ export interface FoundTemplate {
 export const TEMPLATE_FORMAT: number;
 export const TEMPLATE_MANIFEST: string;
 export const BYTECODE_FILE: string;
+/** What a V8 desktop host loads beside itself on Windows (all or none). */
+export const V8_WINDOWS_RUNTIME: readonly string[];
+/** The V8 an Android V8 host links, one per ABI beside the host library. */
+export const V8_ANDROID_LIBRARY: string;
+/** The JS engine a template's host embeds, read off the files it carries. */
+export function templateJsEngine(dir: string, platform: TemplatePlatform): 'v8' | 'quickjs';
 export const ANDROID_ABIS: readonly string[];
 /** The ABIs a phone can run; a package carries only these unless asked for the emulator's. */
 export const ANDROID_DEVICE_ABIS: readonly string[];
@@ -71,6 +77,8 @@ export interface TemplateEntry {
     optional?: boolean;
     /** Produced by the emitter rather than copied (the Java shim's dex). */
     produced?: boolean;
+    /** Not owed when this other entry is present (a V8 template owes no QuickJS bytecode). */
+    excusedBy?: string;
 }
 
 export function templateLayout(platform: TemplatePlatform, options?: { abis?: readonly string[] }): TemplateEntry[];
@@ -141,6 +149,8 @@ export function desktopTemplateSources(dir: string, platform?: TemplatePlatform)
     bytecode: string;
     /** Windows only. */
     d3dCompiler: string;
+    /** A V8 host's runtime, beside the executable; empty in a QuickJS template. */
+    v8Runtime: string[];
     /** Steam's redistributable, when the template was emitted with an SDK. */
     steamRedist: string;
 };

@@ -47,6 +47,29 @@ export const DEFAULT_ICON = 'icon.png';
  */
 export const D3D_COMPILER = 'd3dcompiler_47.dll';
 
+/**
+ * What a V8 desktop host loads beside itself on Windows: V8 is a set of DLLs plus
+ * the Intl data its build carries. All or none — a QuickJS host has none of them,
+ * and a V8 host missing one does not start (see native/host/js/esjs_v8.cpp).
+ */
+export const V8_WINDOWS_RUNTIME = [
+    'v8.dll', 'v8_libbase.dll', 'v8_libplatform.dll', 'icuuc.dll', 'icui18n.dll', 'zlib.dll', 'icudtl.dat',
+];
+
+/** The V8 an Android V8 host links, one per ABI beside the host library. */
+export const V8_ANDROID_LIBRARY = 'libv8android.so';
+
+/** The JS engine a template's host embeds, read off the files it carries: 'v8'
+ *  when the V8 runtime is there, 'quickjs' otherwise. */
+export function templateJsEngine(dir, platform) {
+    if (platform === 'windows') return existsSync(path.join(dir, 'v8.dll')) ? 'v8' : 'quickjs';
+    if (platform === 'android') {
+        return ANDROID_ABIS.some((abi) => existsSync(path.join(dir, 'lib', abi, V8_ANDROID_LIBRARY)))
+            ? 'v8' : 'quickjs';
+    }
+    return 'quickjs';
+}
+
 /** Steam's redistributable, per platform — the filename the host dlopens. */
 export const STEAM_REDIST = {
     windows: 'steam_api64.dll',
@@ -166,10 +189,17 @@ export function templateLayout(platform, options = {}) {
             // Beside the game's own files, not in a directory of its own: the host
             // reads it through Platform::readAsset, which is one namespace — the
             // same one the APK's assets/ is.
+            // QuickJS only: a V8 host compiles the bundle on the device (and caches
+            // it), so its template carries the V8 runtime instead and owes no bytecode.
             {
                 rel: BYTECODE_FILE, optional: true, releaseRequired: true,
+                excusedBy: platform === 'windows' ? 'v8.dll' : undefined,
                 from: (ctx) => path.join(ctx.root, buildDir, 'gen', BYTECODE_FILE),
             },
+            ...(platform === 'windows' ? V8_WINDOWS_RUNTIME.map((rel) => ({
+                rel, optional: true,
+                from: (ctx) => path.join(ctx.root, buildDir, rel),
+            })) : []),
             // The bundle description macOS wants; Windows has no counterpart, and
             // an entry every consumer would have to check for is worse than a
             // layout that differs where the platforms do.
@@ -214,6 +244,13 @@ export function templateLayout(platform, options = {}) {
                 rel: `lib/${abi}/libc++_shared.so`, strip: true, abi, optional: n > 0, releaseRequired: true,
                 from: (ctx) => ctx.libcxxShared?.(abi),
             },
+            {
+                // The JIT a V8 host runs on — placed beside the host by its build
+                // (native/CMakeLists.txt). Absent from a QuickJS build, which is why
+                // it is optional: the host it belongs to cannot load without it.
+                rel: `lib/${abi}/${V8_ANDROID_LIBRARY}`, strip: true, abi, optional: true,
+                from: (ctx) => path.join(ctx.root, 'build/cmake/native', abi, V8_ANDROID_LIBRARY),
+            },
         ]);
         return [
             ...libs,
@@ -235,6 +272,7 @@ export function templateLayout(platform, options = {}) {
             // built from that template opened black.
             {
                 rel: `assets/${BYTECODE_FILE}`, optional: true, releaseRequired: true,
+                excusedBy: `lib/${abis[0]}/${V8_ANDROID_LIBRARY}`,
                 from: (ctx) => path.join(ctx.root, 'build/cmake/native', 'gen', BYTECODE_FILE),
             },
             {
@@ -312,9 +350,13 @@ export function noPackageAbisMessage(dir, options = {}) {
         + `${options.emulator ? '' : ', or ask for the emulator ABI (emulatorAbi / --emulator-abi) to package an emulator-only template'}.`;
 }
 
-/** What a template is missing, if anything — the one readiness test. */
+/** What a template is missing, if anything — the one readiness test. An entry
+ *  `excusedBy` another is not owed when that other is there: a V8 host's template
+ *  owes no QuickJS bytecode. */
 export function missingTemplateFiles(dir, platform, options) {
-    return requiredTemplateFiles(platform, options).filter((rel) => !existsSync(path.join(dir, rel)));
+    const has = (rel) => existsSync(path.join(dir, rel));
+    return requiredTemplateEntries(platform, options)
+        .filter((e) => !has(e.rel) && !(e.excusedBy && has(e.excusedBy))).map((e) => e.rel);
 }
 
 /**
@@ -331,7 +373,8 @@ export function missingTemplateEntries(names, platform, options = {}) {
     const has = (e) => (e.kind === 'dir'
         ? held.some((n) => n === e.rel || n.startsWith(`${e.rel}/`))
         : set.has(e.rel));
-    return requiredTemplateEntries(platform, options).filter((e) => !has(e)).map((e) => e.rel);
+    return requiredTemplateEntries(platform, options)
+        .filter((e) => !has(e) && !(e.excusedBy && set.has(e.excusedBy))).map((e) => e.rel);
 }
 
 // =============================================================================
@@ -526,6 +569,8 @@ export function desktopTemplateSources(dir, platform = 'macos') {
         bytecode: path.join(dir, BYTECODE_FILE),
         /** Windows only; absent elsewhere. */
         d3dCompiler: path.join(dir, D3D_COMPILER),
+        /** A V8 host's runtime, beside the executable; none of it in a QuickJS template. */
+        v8Runtime: platform === 'windows' ? V8_WINDOWS_RUNTIME.map((rel) => path.join(dir, rel)) : [],
         /** Steam's redistributable, when the template was emitted with an SDK. */
         steamRedist: path.join(dir, STEAM_REDIST[platform] ?? STEAM_REDIST.macos),
     };

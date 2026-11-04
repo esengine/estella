@@ -53,69 +53,65 @@ std::string deviceName() {
 #endif
 }
 
-JSValue js_deviceName(JSContext* ctx, JSValueConst, int, JSValueConst*) {
-    return JS_NewString(ctx, deviceName().c_str());
+esjs::Val js_deviceName(const esjs::Args& a) {
+    return esjs::string(deviceName().c_str());
 }
 
-JSValue js_deviceCapabilities(JSContext* ctx, JSValueConst, int, JSValueConst*) {
-    return JS_NewInt32(ctx, hostAlive() && host().platform ? host().platform->deviceCapabilities() : 0);
+esjs::Val js_deviceCapabilities(const esjs::Args& a) {
+    return esjs::int32(hostAlive() && host().platform ? host().platform->deviceCapabilities() : 0);
 }
-JSValue js_startMotion(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
-    if (!hostAlive() || !host().platform || argc < 3) return JS_FALSE;
-    int32_t interval = 16;
-    if (JS_ToInt32(ctx, &interval, argv[2]) < 0) return JS_EXCEPTION;
-    return JS_NewBool(ctx, host().platform->startMotion(JS_ToBool(ctx, argv[0]) > 0,
-        JS_ToBool(ctx, argv[1]) > 0, interval));
+esjs::Val js_startMotion(const esjs::Args& a) {
+    if (!hostAlive() || !host().platform || a.size() < 3) return esjs::boolean(false);
+    const int32_t interval = esjs::toInt32(a[2]);
+    return esjs::boolean(host().platform->startMotion(esjs::toBool(a[0]), esjs::toBool(a[1]), interval));
 }
-JSValue js_stopMotion(JSContext*, JSValueConst, int, JSValueConst*) {
+esjs::Val js_stopMotion(const esjs::Args&) {
     if (hostAlive() && host().platform) host().platform->stopMotion();
-    return JS_UNDEFINED;
+    return esjs::undefined();
 }
-JSValue motionVector(JSContext* ctx, const float* value) {
-    JSValue object = JS_NewObject(ctx);
-    JS_SetPropertyStr(ctx, object, "x", JS_NewFloat64(ctx, value[0]));
-    JS_SetPropertyStr(ctx, object, "y", JS_NewFloat64(ctx, value[1]));
-    JS_SetPropertyStr(ctx, object, "z", JS_NewFloat64(ctx, value[2]));
+esjs::Val motionVector(const float* value) {
+    esjs::Val object = esjs::object();
+    esjs::set(object, "x", esjs::number(value[0]));
+    esjs::set(object, "y", esjs::number(value[1]));
+    esjs::set(object, "z", esjs::number(value[2]));
     return object;
 }
-JSValue js_pollMotion(JSContext* ctx, JSValueConst, int, JSValueConst*) {
+esjs::Val js_pollMotion(const esjs::Args& a) {
     MotionState motion;
-    if (!hostAlive() || !host().platform || !host().platform->pollMotion(motion)) return JS_NULL;
-    JSValue result = JS_NewObject(ctx);
-    JS_SetPropertyStr(ctx, result, "timestamp", JS_NewFloat64(ctx, motion.timestamp));
-    JS_SetPropertyStr(ctx, result, "accelerationIncludingGravity", motion.hasAcceleration
-        ? motionVector(ctx, motion.acceleration) : JS_NULL);
-    JS_SetPropertyStr(ctx, result, "gyroscope", motion.hasGyroscope ? motionVector(ctx, motion.gyroscope) : JS_NULL);
+    if (!hostAlive() || !host().platform || !host().platform->pollMotion(motion)) return esjs::null();
+    esjs::Val result = esjs::object();
+    esjs::set(result, "timestamp", esjs::number(motion.timestamp));
+    esjs::set(result, "accelerationIncludingGravity", motion.hasAcceleration
+        ? motionVector(motion.acceleration) : esjs::null());
+    esjs::set(result, "gyroscope", motion.hasGyroscope ? motionVector(motion.gyroscope) : esjs::null());
     return result;
 }
-JSValue js_vibrate(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
-    if (!hostAlive() || !host().platform || argc < 2) return JS_FALSE;
-    int32_t duration = 15, intensity = 2;
-    if (JS_ToInt32(ctx, &duration, argv[0]) < 0 || JS_ToInt32(ctx, &intensity, argv[1]) < 0) return JS_EXCEPTION;
-    return JS_NewBool(ctx, host().platform->vibrate(duration, intensity));
+esjs::Val js_vibrate(const esjs::Args& a) {
+    if (!hostAlive() || !host().platform || a.size() < 2) return esjs::boolean(false);
+    const int32_t duration = esjs::toInt32(a[0]), intensity = esjs::toInt32(a[1]);
+    return esjs::boolean(host().platform->vibrate(duration, intensity));
 }
-JSValue js_keepScreenOn(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
-    return JS_NewBool(ctx, hostAlive() && host().platform && argc > 0
-        && host().platform->keepScreenOn(JS_ToBool(ctx, argv[0]) > 0));
+esjs::Val js_keepScreenOn(const esjs::Args& a) {
+    return esjs::boolean(hostAlive() && host().platform && a.size() > 0
+        && host().platform->keepScreenOn(esjs::toBool(a[0])));
 }
-JSValue js_setTargetFrameRate(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
-    double fps = 0;
-    if (argc > 0 && JS_ToFloat64(ctx, &fps, argv[0]) < 0) return JS_EXCEPTION;
+esjs::Val js_setTargetFrameRate(const esjs::Args& a) {
+    const double fps = a.size() > 0 ? esjs::toNumber(a[0]) : 0;
     if (hostAlive() && host().platform) host().platform->setTargetFrameRate(fps > 0 ? (float)fps : 0.0f);
-    return JS_UNDEFINED;
+    return esjs::undefined();
 }
 
 }  // namespace
 
-void registerDeviceBindings(HostState& h, JSValue global) {
-    bindGlobal(h, global, "es_deviceName", js_deviceName, 0);
-    bindGlobal(h, global, "es_deviceCapabilities", js_deviceCapabilities, 0);
-    bindGlobal(h, global, "es_startMotion", js_startMotion, 3);
-    bindGlobal(h, global, "es_stopMotion", js_stopMotion, 0);
-    bindGlobal(h, global, "es_pollMotion", js_pollMotion, 0);
-    bindGlobal(h, global, "es_vibrate", js_vibrate, 2);
-    bindGlobal(h, global, "es_keepScreenOn", js_keepScreenOn, 1);
-    bindGlobal(h, global, "es_setTargetFrameRate", js_setTargetFrameRate, 1);
+void registerDeviceBindings(HostState& h, esjs::Val global) {
+    bindGlobal(global, "es_deviceName", js_deviceName, 0);
+    bindGlobal(global, "es_deviceCapabilities", js_deviceCapabilities, 0);
+    bindGlobal(global, "es_startMotion", js_startMotion, 3);
+    bindGlobal(global, "es_stopMotion", js_stopMotion, 0);
+    bindGlobal(global, "es_pollMotion", js_pollMotion, 0);
+    bindGlobal(global, "es_vibrate", js_vibrate, 2);
+    bindGlobal(global, "es_keepScreenOn", js_keepScreenOn, 1);
+    bindGlobal(global, "es_setTargetFrameRate", js_setTargetFrameRate, 1);
 }
 
 }  // namespace eshost

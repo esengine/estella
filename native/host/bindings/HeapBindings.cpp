@@ -157,36 +157,37 @@ namespace {
 // es_heap() -> ArrayBuffer over the whole arena. The SDK builds its typed-array
 // views on this once (`createNativeHeap`); the arena never moves, so unlike a
 // growable wasm heap the views stay valid for the process lifetime.
-JSValue js_heap(JSContext* ctx, JSValueConst, int, JSValueConst*) {
+esjs::Val js_heap(const esjs::Args& a) {
     uint8_t* base = heapBase();
-    if (!base) return JS_NULL;
-    return esn_arraybuffer(ctx, base, heapSize());
+    if (!base) return esjs::null();
+    return esn_arraybuffer(base, heapSize());
 }
 
 // es_malloc(bytes) -> offset (0 when full, which reads as null like _malloc).
-JSValue js_malloc(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
-    if (argc < 1) return JS_NewUint32(ctx, 0);
+esjs::Val js_malloc(const esjs::Args& a) {
+    if (a.size() < 1) return esjs::uint32(0);
     int64_t bytes = 0;
-    JS_ToInt64(ctx, &bytes, argv[0]);
-    if (bytes <= 0) return JS_NewUint32(ctx, 0);
-    return JS_NewUint32(ctx, heapAlloc(static_cast<size_t>(bytes)));
+    bytes = esjs::toInt64(a[0]);
+    if (bytes <= 0) return esjs::uint32(0);
+    return esjs::uint32(heapAlloc(static_cast<size_t>(bytes)));
 }
 
 // es_free(offset).
-JSValue js_free(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
-    if (argc < 1) return JS_UNDEFINED;
+esjs::Val js_free(const esjs::Args& a) {
+    if (a.size() < 1) return esjs::undefined();
     uint32_t offset = 0;
-    JS_ToUint32(ctx, &offset, argv[0]);
+    offset = esjs::toUint32(a[0]);
     heapFree(offset);
-    return JS_UNDEFINED;
+    return esjs::undefined();
 }
 
 }  // namespace
 
-void registerHeapBindings(HostState& h, JSValue global) {
-    JS_SetPropertyStr(h.js, global, "es_heap", JS_NewCFunction(h.js, js_heap, "es_heap", 0));
-    JS_SetPropertyStr(h.js, global, "es_malloc", JS_NewCFunction(h.js, js_malloc, "es_malloc", 1));
-    JS_SetPropertyStr(h.js, global, "es_free", JS_NewCFunction(h.js, js_free, "es_free", 1));
+void registerHeapBindings(HostState& h, esjs::Val global) {
+    (void)h;
+    bindGlobal(global, "es_heap", js_heap, 0);
+    bindGlobal(global, "es_malloc", js_malloc, 1);
+    bindGlobal(global, "es_free", js_free, 1);
 }
 
 }  // namespace eshost

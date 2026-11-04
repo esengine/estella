@@ -10,7 +10,7 @@
 //   2. An archive is untrusted input, and an incomplete one must not replace a
 //      working install.
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -355,6 +355,32 @@ describe('what a PUBLISHED template must carry', () => {
     expect(missingTemplateEntries(shipped(), 'android')).toEqual([]);
     expect(missingTemplateEntries(shipped(), 'android', { release: true })).toEqual([BYTECODE]);
     expect(missingTemplateEntries(shipped([BYTECODE]), 'android', { release: true })).toEqual([]);
+  });
+
+  it('owes no QuickJS bytecode from a template whose host runs V8', () => {
+    // A V8 host compiles the bundle on the device and caches it; the bytecode is
+    // the interpreter's first-launch fix and means nothing to a JIT.
+    const v8 = shipped(['lib/arm64-v8a/libv8android.so', 'lib/x86_64/libv8android.so']);
+    expect(missingTemplateEntries(v8, 'android', { release: true })).toEqual([]);
+    const windows = ['estella_desktop.exe', 'icon.png', 'd3dcompiler_47.dll', 'template.json'];
+    expect(missingTemplateEntries(windows, 'windows', { release: true })).toEqual(['esengine.native.qjsbc']);
+    expect(missingTemplateEntries([...windows, 'v8.dll'], 'windows', { release: true })).toEqual([]);
+  });
+
+  it('reads the JS engine off the files a template carries', async () => {
+    const { templateJsEngine, V8_WINDOWS_RUNTIME } = await import('../../build-tools/utils/nativeTemplate.js');
+    const dir = path.join(scratch, 'engine');
+    mkdirSync(path.join(dir, 'lib', 'arm64-v8a'), { recursive: true });
+    expect(templateJsEngine(dir, 'windows')).toBe('quickjs');
+    expect(templateJsEngine(dir, 'android')).toBe('quickjs');
+    writeFileSync(path.join(dir, 'v8.dll'), '');
+    writeFileSync(path.join(dir, 'lib', 'arm64-v8a', 'libv8android.so'), '');
+    expect(templateJsEngine(dir, 'windows')).toBe('v8');
+    expect(templateJsEngine(dir, 'android')).toBe('v8');
+    expect(templateJsEngine(dir, 'ios')).toBe('quickjs');
+    // Every file the V8 host loads is one the Windows layout carries.
+    const rels = templateLayout('windows').map((e: { rel: string }) => e.rel);
+    for (const f of V8_WINDOWS_RUNTIME) expect(rels).toContain(f);
   });
 
   it('holds a release to every ABI the template claims', () => {

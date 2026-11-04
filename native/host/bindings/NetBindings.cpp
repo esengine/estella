@@ -41,35 +41,17 @@ std::queue<FetchResult> g_fetchQueue;
 std::mutex g_wsMutex;
 std::queue<WsEvent> g_wsQueue;
 
-std::string fetchStrProp(JSContext* ctx, JSValueConst obj, const char* key, const char* dflt) {
-    JSValue v = JS_GetPropertyStr(ctx, obj, key);
-    std::string out = dflt ? dflt : "";
-    if (JS_IsString(v)) {
-        if (const char* s = JS_ToCString(ctx, v)) { out = s; JS_FreeCString(ctx, s); }
-    }
-    JS_FreeValue(ctx, v);
-    return out;
+std::string fetchStrProp(esjs::Val obj, const char* key, const char* dflt) {
+    const esjs::Val v = esjs::get(obj, key);
+    return esjs::isString(v) ? esjs::toString(v) : std::string(dflt ? dflt : "");
 }
 
-void readFetchHeaders(JSContext* ctx, JSValueConst obj, FetchRequest& req) {
-    JSValue h = JS_GetPropertyStr(ctx, obj, "headers");
-    if (JS_IsObject(h)) {
-        JSPropertyEnum* tab = nullptr;
-        uint32_t len = 0;
-        if (JS_GetOwnPropertyNames(ctx, &tab, &len, h, JS_GPN_STRING_MASK | JS_GPN_ENUM_ONLY) == 0) {
-            for (uint32_t i = 0; i < len; ++i) {
-                const char* key = JS_AtomToCString(ctx, tab[i].atom);
-                JSValue val = JS_GetProperty(ctx, h, tab[i].atom);
-                const char* vs = JS_ToCString(ctx, val);
-                if (key && vs) req.headers.emplace_back(key, vs);
-                if (vs) JS_FreeCString(ctx, vs);
-                if (key) JS_FreeCString(ctx, key);
-                JS_FreeValue(ctx, val);
-            }
-            JS_FreePropertyEnum(ctx, tab, len);
-        }
+void readFetchHeaders(esjs::Val obj, FetchRequest& req) {
+    const esjs::Val h = esjs::get(obj, "headers");
+    if (!esjs::isObject(h)) return;
+    for (const std::string& key : esjs::ownKeys(h)) {
+        req.headers.emplace_back(key, esjs::toString(esjs::get(h, key.c_str())));
     }
-    JS_FreeValue(ctx, h);
 }
 
 // es_fetch(request, callback): request = { url, method?, headers?, body?,
@@ -77,28 +59,24 @@ void readFetchHeaders(JSContext* ctx, JSValueConst obj, FetchRequest& req) {
 // { ok, status, statusText, headers, arrayBuffer | text, error? }. The bridge
 // wraps this in a Promise. responseType 'text' returns a string; everything else
 // returns an ArrayBuffer (the bridge decodes text/json from it on demand).
-JSValue js_fetch(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
-    if (argc < 2 || !JS_IsObject(argv[0]) || !JS_IsFunction(ctx, argv[1])) return JS_UNDEFINED;
+esjs::Val js_fetch(const esjs::Args& a) {
+    if (a.size() < 2 || !esjs::isObject(a[0]) || !esjs::isFunction(a[1])) return esjs::undefined();
     HostState& h = host();
     FetchRequest req;
     req.id = h.nextFetchId++;
-    req.url = fetchStrProp(ctx, argv[0], "url", "");
-    req.method = fetchStrProp(ctx, argv[0], "method", "GET");
-    req.wantText = fetchStrProp(ctx, argv[0], "responseType", "arraybuffer") == "text";
-    readFetchHeaders(ctx, argv[0], req);
-    JSValue body = JS_GetPropertyStr(ctx, argv[0], "body");
-    if (JS_IsString(body)) {
-        size_t len = 0;
-        if (const char* s = JS_ToCStringLen(ctx, &len, body)) {
-            req.body.assign(s, s + len);
-            JS_FreeCString(ctx, s);
-        }
-    } else if (!JS_IsUndefined(body) && !JS_IsNull(body)) {
-        readByteSource(ctx, body, req.body);
+    req.url = fetchStrProp(a[0], "url", "");
+    req.method = fetchStrProp(a[0], "method", "GET");
+    req.wantText = fetchStrProp(a[0], "responseType", "arraybuffer") == "text";
+    readFetchHeaders(a[0], req);
+    const esjs::Val body = esjs::get(a[0], "body");
+    if (esjs::isString(body)) {
+        const esjs::Utf8 text(body);
+        req.body.assign(text.c_str(), text.c_str() + text.size());
+    } else if (!esjs::isNullish(body)) {
+        readByteSource(body, req.body);
     }
-    JS_FreeValue(ctx, body);
 
-    h.fetchCallbacks[req.id] = JS_DupValue(ctx, argv[1]);
+    h.fetchCallbacks[req.id] = esjs::Ref(a[1]);
     if (req.url.empty()) {
         FetchResult err;
         err.id = req.id;
@@ -107,72 +85,58 @@ JSValue js_fetch(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
     } else {
         h.platform->startFetch(req);
     }
-    return JS_UNDEFINED;
+    return esjs::undefined();
 }
 
-JSValue makeFetchResult(HostState& h, const FetchResult& r) {
-    JSValue o = JS_NewObject(h.js);
-    JS_SetPropertyStr(h.js, o, "ok", JS_NewBool(h.js, r.ok));
-    JS_SetPropertyStr(h.js, o, "status", JS_NewInt32(h.js, r.status));
-    JS_SetPropertyStr(h.js, o, "statusText", JS_NewString(h.js, r.statusText.c_str()));
-    if (!r.error.empty()) JS_SetPropertyStr(h.js, o, "error", JS_NewString(h.js, r.error.c_str()));
-    JSValue headers = JS_NewObject(h.js);
-    for (const auto& kv : r.headers) {
-        JS_SetPropertyStr(h.js, headers, kv.first.c_str(), JS_NewString(h.js, kv.second.c_str()));
-    }
-    JS_SetPropertyStr(h.js, o, "headers", headers);
+esjs::Val makeFetchResult(const FetchResult& r) {
+    const esjs::Val o = esjs::object();
+    esjs::set(o, "ok", esjs::boolean(r.ok));
+    esjs::set(o, "status", esjs::int32(r.status));
+    esjs::set(o, "statusText", esjs::string(r.statusText));
+    if (!r.error.empty()) esjs::set(o, "error", esjs::string(r.error));
+    const esjs::Val headers = esjs::object();
+    for (const auto& kv : r.headers) esjs::set(headers, kv.first.c_str(), esjs::string(kv.second));
+    esjs::set(o, "headers", headers);
     if (r.isText) {
-        JS_SetPropertyStr(h.js, o, "text",
-            JS_NewStringLen(h.js, reinterpret_cast<const char*>(r.body.data()), r.body.size()));
+        esjs::set(o, "text", esjs::string(std::string_view(reinterpret_cast<const char*>(r.body.data()), r.body.size())));
     } else {
-        JS_SetPropertyStr(h.js, o, "arrayBuffer",
-            JS_NewArrayBufferCopy(h.js, r.body.data(), r.body.size()));
+        esjs::set(o, "arrayBuffer", esjs::arrayBufferCopy(r.body.data(), r.body.size()));
     }
     return o;
 }
 
 // es_wsOpen(url, onEvent) -> id: onEvent({ type: 'open' | 'message' | 'error' | 'close',
 // data?: string | ArrayBuffer, code?, reason? }). 'close' is always the last event.
-JSValue js_wsOpen(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
-    if (argc < 2 || !JS_IsFunction(ctx, argv[1])) return JS_ThrowTypeError(ctx, "es_wsOpen(url, onEvent)");
-    const char* url = JS_ToCString(ctx, argv[0]);
-    if (!url) return JS_EXCEPTION;
-    const std::string u = url;
-    JS_FreeCString(ctx, url);
+esjs::Val js_wsOpen(const esjs::Args& a) {
+    if (a.size() < 2 || !esjs::isFunction(a[1])) return esjs::throwTypeError("es_wsOpen(url, onEvent)");
+    const std::string u = esjs::toString(a[0]);
     const int id = wsOpen(u, [](WsEvent e) {
         std::lock_guard<std::mutex> lk(g_wsMutex);
         g_wsQueue.push(std::move(e));
     });
-    host().wsCallbacks[id] = JS_DupValue(ctx, argv[1]);
-    return JS_NewInt32(ctx, id);
+    host().wsCallbacks[id] = esjs::Ref(a[1]);
+    return esjs::int32(id);
 }
 
-JSValue js_wsSend(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
-    int32_t id = 0;
-    if (argc < 2 || JS_ToInt32(ctx, &id, argv[0])) return JS_FALSE;
-    if (JS_IsString(argv[1])) {
-        size_t len = 0;
-        const char* s = JS_ToCStringLen(ctx, &len, argv[1]);
-        if (!s) return JS_EXCEPTION;
-        const bool ok = wsSend(id, reinterpret_cast<const uint8_t*>(s), len, true);
-        JS_FreeCString(ctx, s);
-        return JS_NewBool(ctx, ok);
+esjs::Val js_wsSend(const esjs::Args& a) {
+    if (a.size() < 2) return esjs::boolean(false);
+    const int32_t id = esjs::toInt32(a[0]);
+    if (esjs::isString(a[1])) {
+        const esjs::Utf8 text(a[1]);
+        return esjs::boolean(wsSend(id, reinterpret_cast<const uint8_t*>(text.c_str()), text.size(), true));
     }
     std::vector<uint8_t> bytes;
-    readByteSource(ctx, argv[1], bytes);
-    return JS_NewBool(ctx, wsSend(id, bytes.data(), bytes.size(), false));
+    readByteSource(a[1], bytes);
+    return esjs::boolean(wsSend(id, bytes.data(), bytes.size(), false));
 }
 
-JSValue js_wsClose(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
-    int32_t id = 0, code = 1000;
-    if (argc < 1 || JS_ToInt32(ctx, &id, argv[0])) return JS_UNDEFINED;
-    if (argc > 1 && !JS_IsUndefined(argv[1])) JS_ToInt32(ctx, &code, argv[1]);
-    std::string reason;
-    if (argc > 2 && JS_IsString(argv[2])) {
-        if (const char* r = JS_ToCString(ctx, argv[2])) { reason = r; JS_FreeCString(ctx, r); }
-    }
+esjs::Val js_wsClose(const esjs::Args& a) {
+    if (a.size() < 1) return esjs::undefined();
+    const int32_t id = esjs::toInt32(a[0]);
+    const int32_t code = a.size() > 1 && !esjs::isUndefined(a[1]) ? esjs::toInt32(a[1]) : 1000;
+    const std::string reason = a.size() > 2 && esjs::isString(a[2]) ? esjs::toString(a[2]) : std::string();
     wsClose(id, code, reason);
-    return JS_UNDEFINED;
+    return esjs::undefined();
 }
 
 }  // namespace
@@ -181,60 +145,55 @@ void drainSockets(HostState& h) {
     std::queue<WsEvent> events;
     { std::lock_guard<std::mutex> lk(g_wsMutex); events.swap(g_wsQueue); }
     if (events.empty()) return;
-    jsEntry(h);
+    esjs::Enter enter;
     while (!events.empty()) {
         WsEvent e = std::move(events.front());
         events.pop();
         auto it = h.wsCallbacks.find(e.id);
         if (it == h.wsCallbacks.end()) continue;
-        JSValue o = JS_NewObject(h.js);
+        esjs::Scope scope;
+        const esjs::Val o = esjs::object();
         const char* type = e.kind == WsEvent::Kind::Open ? "open"
             : e.kind == WsEvent::Kind::Error ? "error"
             : e.kind == WsEvent::Kind::Close ? "close" : "message";
-        JS_SetPropertyStr(h.js, o, "type", JS_NewString(h.js, type));
+        esjs::set(o, "type", esjs::string(type));
         if (e.kind == WsEvent::Kind::Text) {
-            JS_SetPropertyStr(h.js, o, "data",
-                JS_NewStringLen(h.js, reinterpret_cast<const char*>(e.data.data()), e.data.size()));
+            esjs::set(o, "data", esjs::string(std::string_view(reinterpret_cast<const char*>(e.data.data()), e.data.size())));
         } else if (e.kind == WsEvent::Kind::Binary) {
-            JS_SetPropertyStr(h.js, o, "data", JS_NewArrayBufferCopy(h.js, e.data.data(), e.data.size()));
+            esjs::set(o, "data", esjs::arrayBufferCopy(e.data.data(), e.data.size()));
         }
-        if (e.kind == WsEvent::Kind::Close) JS_SetPropertyStr(h.js, o, "code", JS_NewInt32(h.js, e.code));
-        if (!e.reason.empty()) JS_SetPropertyStr(h.js, o, "reason", JS_NewString(h.js, e.reason.c_str()));
-        JSValue cb = it->second;
+        if (e.kind == WsEvent::Kind::Close) esjs::set(o, "code", esjs::int32(e.code));
+        if (!e.reason.empty()) esjs::set(o, "reason", esjs::string(e.reason));
+        // A close is the last event: the callback is released once it has run.
+        esjs::Ref cb = e.kind == WsEvent::Kind::Close ? std::move(it->second) : esjs::Ref(it->second.get());
         if (e.kind == WsEvent::Kind::Close) h.wsCallbacks.erase(it);
-        JSValue ret = JS_Call(h.js, cb, JS_UNDEFINED, 1, &o);
-        if (JS_IsException(ret)) logJsError(h.js, "es_wsOpen event");
-        JS_FreeValue(h.js, ret);
-        JS_FreeValue(h.js, o);
-        if (e.kind == WsEvent::Kind::Close) JS_FreeValue(h.js, cb);
+        esjs::call(cb.get(), esjs::undefined(), 1, &o, "es_wsOpen event");
     }
 }
 
 void drainFetches(HostState& h) {
-    jsEntry(h);
     std::queue<FetchResult> done;
     { std::lock_guard<std::mutex> lk(g_fetchMutex); done.swap(g_fetchQueue); }
+    if (done.empty()) return;
+    esjs::Enter enter;
     while (!done.empty()) {
         const FetchResult r = std::move(done.front());
         done.pop();
         auto it = h.fetchCallbacks.find(r.id);
         if (it == h.fetchCallbacks.end()) continue;   // never happens, but stay safe
-        JSValue cb = it->second;
+        esjs::Ref cb = std::move(it->second);
         h.fetchCallbacks.erase(it);
-        JSValue arg = makeFetchResult(h, r);
-        JSValue ret = JS_Call(h.js, cb, JS_UNDEFINED, 1, &arg);
-        if (JS_IsException(ret)) logJsError(h.js, "es_fetch callback");
-        JS_FreeValue(h.js, ret);
-        JS_FreeValue(h.js, arg);
-        JS_FreeValue(h.js, cb);
+        esjs::Scope scope;
+        const esjs::Val arg = makeFetchResult(r);
+        esjs::call(cb.get(), esjs::undefined(), 1, &arg, "es_fetch callback");
     }
 }
 
-void registerNetBindings(HostState& h, JSValue global) {
-    bindGlobal(h, global, "es_fetch", js_fetch, 2);
-    bindGlobal(h, global, "es_wsOpen", js_wsOpen, 2);
-    bindGlobal(h, global, "es_wsSend", js_wsSend, 2);
-    bindGlobal(h, global, "es_wsClose", js_wsClose, 3);
+void registerNetBindings(HostState& h, esjs::Val global) {
+    bindGlobal(global, "es_fetch", js_fetch, 2);
+    bindGlobal(global, "es_wsOpen", js_wsOpen, 2);
+    bindGlobal(global, "es_wsSend", js_wsSend, 2);
+    bindGlobal(global, "es_wsClose", js_wsClose, 3);
 }
 
 // Thread-safe: the platform's HTTP completion (any thread) queues its reply here;

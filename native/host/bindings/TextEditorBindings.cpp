@@ -52,59 +52,48 @@ void push(EditorPush item) {
     g_queue.push(std::move(item));
 }
 
-std::string argString(JSContext* ctx, JSValueConst v) {
-    std::string out;
-    if (const char* s = JS_ToCString(ctx, v)) {
-        out = s;
-        JS_FreeCString(ctx, s);
-    }
-    return out;
-}
+std::string argString(esjs::Val v) { return esjs::toString(v); }
 
-int argInt(JSContext* ctx, JSValueConst v) {
-    int32_t out = 0;
-    JS_ToInt32(ctx, &out, v);
-    return out;
-}
+int argInt(esjs::Val v) { return esjs::toInt32(v); }
 
 // es_textEditor_focus(value, selectionStart, selectionEnd, multiline, maxLength, password)
-JSValue js_textEditor_focus(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
-    if (argc < 6 || !hostAlive() || !host().platform) return JS_UNDEFINED;
-    host().platform->textEditorFocus(argString(ctx, argv[0]), argInt(ctx, argv[1]),
-                                     argInt(ctx, argv[2]), JS_ToBool(ctx, argv[3]) != 0,
-                                     argInt(ctx, argv[4]), JS_ToBool(ctx, argv[5]) != 0);
-    return JS_UNDEFINED;
+esjs::Val js_textEditor_focus(const esjs::Args& a) {
+    if (a.size() < 6 || !hostAlive() || !host().platform) return esjs::undefined();
+    host().platform->textEditorFocus(argString(a[0]), argInt(a[1]),
+                                     argInt(a[2]), esjs::toBool(a[3]),
+                                     argInt(a[4]), esjs::toBool(a[5]));
+    return esjs::undefined();
 }
 
-JSValue js_textEditor_blur(JSContext*, JSValueConst, int, JSValueConst*) {
+esjs::Val js_textEditor_blur(const esjs::Args&) {
     if (hostAlive() && host().platform) host().platform->textEditorBlur();
-    return JS_UNDEFINED;
+    return esjs::undefined();
 }
 
 // es_textEditor_write(value, selectionStart, selectionEnd)
-JSValue js_textEditor_write(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
-    if (argc < 3 || !hostAlive() || !host().platform) return JS_UNDEFINED;
-    host().platform->textEditorWrite(argString(ctx, argv[0]), argInt(ctx, argv[1]),
-                                     argInt(ctx, argv[2]));
-    return JS_UNDEFINED;
+esjs::Val js_textEditor_write(const esjs::Args& a) {
+    if (a.size() < 3 || !hostAlive() || !host().platform) return esjs::undefined();
+    host().platform->textEditorWrite(argString(a[0]), argInt(a[1]),
+                                     argInt(a[2]));
+    return esjs::undefined();
 }
 
 /** The push as the SDK's `es_onNativeTextEditor` reads it. */
-JSValue makePush(HostState& h, const EditorPush& item) {
-    JSValue obj = JS_NewObject(h.js);
+esjs::Val makePush(const EditorPush& item) {
+    esjs::Val obj = esjs::object();
     switch (item.kind) {
         case EditorPush::Kind::State:
-            JS_SetPropertyStr(h.js, obj, "kind", JS_NewString(h.js, "state"));
-            JS_SetPropertyStr(h.js, obj, "value", JS_NewString(h.js, item.value.c_str()));
-            JS_SetPropertyStr(h.js, obj, "selectionStart", JS_NewInt32(h.js, item.selectionStart));
-            JS_SetPropertyStr(h.js, obj, "selectionEnd", JS_NewInt32(h.js, item.selectionEnd));
-            JS_SetPropertyStr(h.js, obj, "composing", JS_NewBool(h.js, item.composing));
+            esjs::set(obj, "kind", esjs::string("state"));
+            esjs::set(obj, "value", esjs::string(item.value.c_str()));
+            esjs::set(obj, "selectionStart", esjs::int32(item.selectionStart));
+            esjs::set(obj, "selectionEnd", esjs::int32(item.selectionEnd));
+            esjs::set(obj, "composing", esjs::boolean(item.composing));
             break;
         case EditorPush::Kind::Submit:
-            JS_SetPropertyStr(h.js, obj, "kind", JS_NewString(h.js, "submit"));
+            esjs::set(obj, "kind", esjs::string("submit"));
             break;
         case EditorPush::Kind::Cancel:
-            JS_SetPropertyStr(h.js, obj, "kind", JS_NewString(h.js, "cancel"));
+            esjs::set(obj, "kind", esjs::string("cancel"));
             break;
     }
     return obj;
@@ -116,32 +105,27 @@ void drainTextEditor(HostState& h) {
     std::queue<EditorPush> pending;
     { std::lock_guard<std::mutex> lk(g_mutex); pending.swap(g_queue); }
     if (pending.empty()) return;
-    jsEntry(h);
-
-    JSValue global = JS_GetGlobalObject(h.js);
-    JSValue fn = JS_GetPropertyStr(h.js, global, "es_onNativeTextEditor");
+    (void)h;
+    esjs::Enter enter;
+    const esjs::Val fn = esjs::get(esjs::global(), "es_onNativeTextEditor");
     while (!pending.empty()) {
         const EditorPush item = std::move(pending.front());
         pending.pop();
-        if (!JS_IsFunction(h.js, fn)) continue;   // the SDK has not installed it (yet)
-        JSValue arg = makePush(h, item);
-        JSValue ret = JS_Call(h.js, fn, JS_UNDEFINED, 1, &arg);
-        if (JS_IsException(ret)) logJsError(h.js, "es_onNativeTextEditor");
-        JS_FreeValue(h.js, ret);
-        JS_FreeValue(h.js, arg);
+        if (!esjs::isFunction(fn)) continue;   // the SDK has not installed it (yet)
+        esjs::Scope scope;
+        const esjs::Val arg = makePush(item);
+        esjs::call(fn, esjs::undefined(), 1, &arg, "es_onNativeTextEditor");
     }
-    JS_FreeValue(h.js, fn);
-    JS_FreeValue(h.js, global);
 }
 
-void registerTextEditorBindings(HostState& h, JSValue global) {
+void registerTextEditorBindings(HostState& h, esjs::Val global) {
     // Only when the platform has a keyboard: the SDK treats the entry points as
     // an all-or-nothing group, so a half-bound host has no surface at all rather
     // than one that opens a keyboard nobody reads.
     if (!h.platform || !h.platform->hasTextEditor()) return;
-    bindGlobal(h, global, "es_textEditor_focus", js_textEditor_focus, 6);
-    bindGlobal(h, global, "es_textEditor_blur", js_textEditor_blur, 0);
-    bindGlobal(h, global, "es_textEditor_write", js_textEditor_write, 3);
+    bindGlobal(global, "es_textEditor_focus", js_textEditor_focus, 6);
+    bindGlobal(global, "es_textEditor_blur", js_textEditor_blur, 0);
+    bindGlobal(global, "es_textEditor_write", js_textEditor_write, 3);
 }
 
 // Thread-safe: the platform reports from its UI thread, the frame loop delivers.

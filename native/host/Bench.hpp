@@ -11,10 +11,11 @@
  *          Bun/JavaScriptCore.
  *
  *          The proxy stopped being necessary the day this host learned to dispatch
- *          to compiled systems. It embeds QuickJS-ng, which has no JIT — the same
- *          constraint iOS puts on JavaScriptCore — so a desktop build IS a no-JIT
+ *          to compiled systems. A desktop build that embeds QuickJS-ng has no JIT —
+ *          the same constraint iOS puts on JavaScriptCore — so it IS a no-JIT
  *          measurement of the real engine, the real SDK and a real exported
- *          project. What was missing was not a harness. It was a clock.
+ *          project; one that embeds V8 measures the JIT road the same way. What
+ *          was missing was not a harness. It was a clock.
  *
  *          Four spans, because one number cannot say what it is a share OF:
  *          - `update` — the `update` call itself, which on this host only

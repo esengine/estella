@@ -80,6 +80,8 @@ try {
     cwd: path.dirname(exe),
     env: {
       ...process.env,
+      // Drawn and presented as in a visible run, never put on the screen.
+      ESTELLA_HIDDEN_WINDOW: process.env.ESTELLA_HIDDEN_WINDOW ?? '1',
       ESTELLA_SHOT: path.join(out, 'frame.raw'),
       ESTELLA_SHOT_FRAME: SHOT_FRAME,
       ESTELLA_SHOT_QUIT: '1',

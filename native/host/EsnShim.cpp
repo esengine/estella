@@ -35,45 +35,34 @@ esengine::resource::ResourceManager& esn_rm() {
 
 // — Entity ids cross the boundary as the native Entity's raw u32. —
 
-esengine::Entity esn_entity(JSContext* ctx, JSValueConst v) {
-    uint32_t raw = Entity::INVALID_RAW;
-    JS_ToUint32(ctx, &raw, v);
-    return Entity::fromRaw(raw);
+esengine::Entity esn_entity(esjs::Val v) {
+    return Entity::fromRaw(esjs::toUint32(v));
 }
 
-// — Field readers the per-component marshalling is emitted against. —
-
-bool esn_getnum(JSContext* ctx, JSValueConst obj, const char* key, double* out) {
-    JSValue p = JS_GetPropertyStr(ctx, obj, key);
-    bool ok = !JS_IsUndefined(p) && !JS_IsNull(p) && JS_ToFloat64(ctx, out, p) == 0;
-    JS_FreeValue(ctx, p);
-    return ok;
-}
-
-bool esn_getbool(JSContext* ctx, JSValueConst obj, const char* key, int* out) {
-    JSValue p = JS_GetPropertyStr(ctx, obj, key);
-    if (JS_IsUndefined(p) || JS_IsNull(p)) { JS_FreeValue(ctx, p); return false; }
-    *out = JS_ToBool(ctx, p);
-    JS_FreeValue(ctx, p);
+bool esn_getnum(esjs::Val obj, const char* key, double* out) {
+    const esjs::Val p = esjs::get(obj, key);
+    if (esjs::isNullish(p)) return false;
+    *out = esjs::toNumber(p);
     return true;
 }
 
-void esn_getvec(JSContext* ctx, JSValueConst obj, const char* key, float* dst, int n) {
-    JSValue arr = JS_GetPropertyStr(ctx, obj, key);
-    if (JS_IsArray(arr)) {
-        for (int i = 0; i < n; ++i) {
-            JSValue el = JS_GetPropertyUint32(ctx, arr, (uint32_t)i);
-            double d = 0;
-            JS_ToFloat64(ctx, &d, el);
-            dst[i] = (float)d;
-            JS_FreeValue(ctx, el);
-        }
-    }
-    JS_FreeValue(ctx, arr);
+bool esn_getbool(esjs::Val obj, const char* key, int* out) {
+    const esjs::Val p = esjs::get(obj, key);
+    if (esjs::isNullish(p)) return false;
+    *out = esjs::toBool(p) ? 1 : 0;
+    return true;
 }
 
-void esn_bytes(JSContext* ctx, JSValueConst v, std::vector<esengine::u8>& out) {
-    eshost::readByteSource(ctx, v, out);
+void esn_getvec(esjs::Val obj, const char* key, float* dst, int n) {
+    const esjs::Val arr = esjs::get(obj, key);
+    if (!esjs::isArray(arr)) return;
+    for (int i = 0; i < n; ++i) {
+        dst[i] = static_cast<float>(esjs::toNumber(esjs::getAt(arr, static_cast<uint32_t>(i))));
+    }
+}
+
+void esn_bytes(esjs::Val v, std::vector<esengine::u8>& out) {
+    eshost::readByteSource(v, out);
 }
 
 // — The heap a `uintptr_t` argument addresses. A number IS the offset (the SDK
@@ -81,14 +70,10 @@ void esn_bytes(JSContext* ctx, JSValueConst v, std::vector<esengine::u8>& out) {
 //   straight across, which we copy into the arena so the binding still receives
 //   memory inside the region BoundarySpan validates against. —
 
-uint32_t esn_argOffset(JSContext* ctx, JSValueConst v) {
-    if (JS_IsNumber(v)) {
-        uint32_t offset = 0;
-        JS_ToUint32(ctx, &offset, v);
-        return offset;
-    }
+uint32_t esn_argOffset(esjs::Val v) {
+    if (esjs::isNumber(v)) return esjs::toUint32(v);
     std::vector<esengine::u8> bytes;
-    eshost::readByteSource(ctx, v, bytes);
+    eshost::readByteSource(v, bytes);
     if (bytes.empty()) return 0;
     const uint32_t offset = eshost::heapAlloc(bytes.size());
     void* dst = eshost::heapPtr(offset, bytes.size());
@@ -97,8 +82,8 @@ uint32_t esn_argOffset(JSContext* ctx, JSValueConst v) {
     return offset;
 }
 
-void esn_argRelease(JSContext* ctx, JSValueConst v, uint32_t offset) {
-    if (JS_IsNumber(v)) return;   // the caller owns it
+void esn_argRelease(esjs::Val v, uint32_t offset) {
+    if (esjs::isNumber(v)) return;   // the caller owns it
     eshost::heapFree(offset);
 }
 
@@ -119,6 +104,6 @@ uint32_t esn_publish(EsnSlot& slot, const void* src, size_t bytes) {
     return slot.offset;
 }
 
-JSValue esn_arraybuffer(JSContext* ctx, void* ptr, size_t size) {
-    return JS_NewArrayBuffer(ctx, reinterpret_cast<uint8_t*>(ptr), size, nullptr, nullptr, false);
+esjs::Val esn_arraybuffer(void* ptr, size_t size) {
+    return esjs::arrayBufferWrap(ptr, size);
 }

@@ -1,4 +1,4 @@
-"""Native (QuickJS) wrappers for the engine's binding ENTRY POINTS.
+"""Native wrappers for the engine's binding ENTRY POINTS.
 
 The component half of the boundary has been generated from one reflection source
 for a while (``native_bindings.py`` + ``embind.py``). The function half was not:
@@ -9,8 +9,9 @@ drives (the frame, the UI layout, tilemaps, particles) worked on the web and had
 to be rewritten in C++ to work on a device.
 
 This generator removes the second hand-written copy. It reads the declarations in
-``bindings/*.hpp`` — the same ones embind registers — and emits a QuickJS wrapper
-per function that marshals the arguments and calls it. The BODY is shared: the
+``bindings/*.hpp`` — the same ones embind registers — and emits a wrapper per
+function that marshals the arguments and calls it, written against the host's
+engine surface (esjs.hpp) so it is the same whichever JS engine the host embeds. The BODY is shared: the
 binding TU itself compiles natively (see cmake/ESEngineSources.cmake), so both
 platforms run the same implementation; only the registration differs.
 
@@ -38,7 +39,7 @@ is what tells you which entry points still need a hand-written binding.
 import re
 from typing import List, NamedTuple, Optional, Tuple
 
-# What the wrapper can marshal, and how each maps to a QuickJS read.
+# What the wrapper can marshal, and how each maps to a JS read.
 _INT_TYPES = {'i8', 'i16', 'i32', 'i64', 'u8', 'u16', 'u32', 'u64',
               'int', 'int32_t', 'uint32_t', 'size_t', 'long'}
 _FLOAT_TYPES = {'f32', 'f64', 'float', 'double'}
@@ -268,7 +269,7 @@ def _qualify(cpp_type: str) -> str:
 
 
 class NativeFunctionsGenerator:
-    """Emit ``es_<name>`` QuickJS wrappers for parsed binding declarations."""
+    """Emit ``es_<name>`` native wrappers for parsed binding declarations."""
 
     def __init__(self, headers: List[Tuple[str, str]], shim_header: str = 'esn_shim.hpp'):
         # headers: (include path as the generated TU should spell it, source text)
@@ -290,18 +291,15 @@ class NativeFunctionsGenerator:
     def _wrapper(self, fn: Function) -> List[str]:
         js_params = [p for p in fn.params if p.cpp_type not in _IMPLICIT_REFS]
         out = [f'#ifdef {g}' for g in fn.guards]
-        out.append(f'static JSValue {self._js_name(fn.name)}'
-                   f'(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {{')
+        out.append(f'static esjs::Val {self._js_name(fn.name)}(const esjs::Args& a) {{')
         if js_params:
-            out.append(f'    if (argc < {len(js_params)}) return JS_UNDEFINED;')
-        out.append('    (void)argc; (void)argv;')
+            out.append(f'    if (a.size() < {len(js_params)}) return esjs::undefined();')
+        out.append('    (void)a;')
 
         call_args: List[str] = []
         # (local, js argument index) per buffer argument, so a copied-in buffer is
         # released after the call — see esn_argRelease.
         ptr_releases: List[Tuple[str, int]] = []
-        # C-string arguments, freed after the call for the same reason.
-        cstr_frees: List[str] = []
         js_index = 0
         for param in fn.params:
             if param.cpp_type in _IMPLICIT_REFS:
@@ -314,66 +312,60 @@ class NativeFunctionsGenerator:
                 # buffer handed straight across is copied in and released after the
                 # call. The binding's own BoundarySpan check runs either way, and
                 # now against a real region.
-                out.append(f'    const uint32_t {local}_off = esn_argOffset(ctx, argv[{js_index}]);')
+                out.append(f'    const uint32_t {local}_off = esn_argOffset(a[{js_index}]);')
                 out.append(f'    const uintptr_t {local} = esn_heapAddr({local}_off);')
                 ptr_releases.append((local, js_index))
             elif param.cpp_type == _CSTR:
                 # Owned by the wrapper for the duration of the call. A missing or
                 # non-string argument reads as empty, matching how cwrap coerces one.
-                out.append(f'    const char* {local}_c = JS_ToCString(ctx, argv[{js_index}]);')
-                out.append(f'    const char* {local} = {local}_c ? {local}_c : "";')
-                cstr_frees.append(local)
+                out.append(f'    const esjs::Utf8 {local}_c(a[{js_index}]);')
+                out.append(f'    const char* {local} = {local}_c.c_str();')
             elif param.cpp_type == _STRING:
                 # A JS string, owned by the wrapper for the call. An absent or
                 # non-string argument reads as empty rather than aborting the call,
                 # matching how embind coerces one.
-                out.append(f'    const char* {local}_c = JS_ToCString(ctx, argv[{js_index}]);')
-                out.append(f'    const std::string {local} = {local}_c ? {local}_c : "";')
-                out.append(f'    if ({local}_c) JS_FreeCString(ctx, {local}_c);')
+                out.append(f'    const std::string {local} = esjs::toString(a[{js_index}]);')
             elif param.cpp_type in _BOOL_TYPES:
-                out.append(f'    const bool {local} = JS_ToBool(ctx, argv[{js_index}]) != 0;')
+                out.append(f'    const bool {local} = esjs::toBool(a[{js_index}]);')
             elif param.cpp_type in _FLOAT_TYPES:
                 cpp = _qualify(param.cpp_type)
-                out.append(f'    double {local}_d = 0; JS_ToFloat64(ctx, &{local}_d, argv[{js_index}]);')
-                out.append(f'    const {cpp} {local} = static_cast<{cpp}>({local}_d);')
+                out.append(f'    const {cpp} {local} = static_cast<{cpp}>(esjs::toNumber(a[{js_index}]));')
             else:
                 cpp = _qualify(param.cpp_type)
-                out.append(f'    int64_t {local}_i = 0; JS_ToInt64(ctx, &{local}_i, argv[{js_index}]);')
-                out.append(f'    const {cpp} {local} = static_cast<{cpp}>({local}_i);')
+                out.append(f'    const {cpp} {local} = static_cast<{cpp}>(esjs::toInt64(a[{js_index}]));')
             call_args.append(local)
             js_index += 1
 
         scope = '' if fn.extern_c else 'esengine::'
         call = f'{scope}{fn.name}({", ".join(call_args)})'
-        releases = [f'    esn_argRelease(ctx, argv[{index}], {local}_off);'
+        releases = [f'    esn_argRelease(a[{index}], {local}_off);'
                     for local, index in ptr_releases]
-        releases += [f'    if ({local}_c) JS_FreeCString(ctx, {local}_c);' for local in cstr_frees]
         if fn.ret == _VOID:
             out.append(f'    {call};')
             out.extend(releases)
-            out.append('    return JS_UNDEFINED;')
+            out.append('    return esjs::undefined();')
         else:
             # Hold the result, release the scratch, then convert — a wrapper must
             # not leak the copy on the returning paths.
             if fn.ret in _BOOL_TYPES:
                 out.append(f'    const bool result = {call};')
                 out.extend(releases)
-                out.append('    return JS_NewBool(ctx, result);')
+                out.append('    return esjs::boolean(result);')
             elif fn.ret in _FLOAT_TYPES:
                 out.append(f'    const double result = static_cast<double>({call});')
                 out.extend(releases)
-                out.append('    return JS_NewFloat64(ctx, result);')
+                out.append('    return esjs::number(result);')
             elif fn.ret == _STRING:
                 out.append(f'    const std::string result = {call};')
                 out.extend(releases)
-                out.append('    return JS_NewStringLen(ctx, result.data(), result.size());')
+                out.append('    return esjs::string(result);')
             elif fn.ret == _CSTR:
                 # The module owns the storage (a static scratch string), so the value
                 # is copied into a JS string here rather than published to the heap.
                 # A null answers as empty, which is what UTF8ToString(0) reads as.
                 out.append(f'    const char* result = {call};')
                 out.extend(releases)
-                out.append('    return JS_NewString(ctx, result ? result : "");')
+                out.append('    return esjs::string(result ? result : "");')
             elif fn.ret == 'uintptr_t':
                 # Module-owned memory: copy `@heapreturn` bytes into this entry
                 # point's own heap slot and answer the offset, so the SDK reads the
@@ -383,12 +375,12 @@ class NativeFunctionsGenerator:
                 out.append(f'    const uintptr_t src = {call};')
                 out.append(f'    const size_t bytes = static_cast<size_t>({fn.heap_return});')
                 out.extend(releases)
-                out.append('    return JS_NewUint32(ctx, esn_publish(slot, '
+                out.append('    return esjs::uint32(esn_publish(slot, '
                            'reinterpret_cast<const void*>(src), bytes));')
             else:
                 out.append(f'    const int64_t result = static_cast<int64_t>({call});')
                 out.extend(releases)
-                out.append('    return JS_NewInt64(ctx, result);')
+                out.append('    return esjs::int64(result);')
         out.append('}')
         out.extend('#endif' for _ in fn.guards)
         out.append('')
@@ -443,7 +435,7 @@ class NativeFunctionsGenerator:
         lines.append('}')
         lines.append('')
         lines.extend([
-            '/** Build the API over a host scope (the QuickJS global object; a plain object',
+            '/** Build the API over a host scope (the native host global object; a plain object',
             ' *  in tests). A name the host did not bind simply stays absent. */',
             'export function createNativeEngineApi(',
             '    scope: Record<string, unknown> = globalThis as unknown as Record<string, unknown>,',
@@ -479,7 +471,7 @@ class NativeFunctionsGenerator:
     def generate(self) -> str:
         lines = [
             '// Auto-generated by EHT (native_functions) — DO NOT EDIT.',
-            '// QuickJS wrappers for the engine binding entry points embind also registers,',
+            '// Native wrappers for the engine binding entry points embind also registers,',
             '// from the SAME declarations. The bodies live in the binding TUs, which this',
             '// build compiles too — one implementation, two registration layers.',
             f'#include "{self.shim_header}"',
@@ -501,13 +493,12 @@ class NativeFunctionsGenerator:
             self.emitted.append(fn.name)
             lines.extend(self._wrapper(fn))
 
-        lines.append('void esn_register_functions(JSContext* ctx, JSValue global) {')
+        lines.append('void esn_register_functions(esjs::Val global) {')
         for fn in sorted(functions, key=lambda f: f.name):
             js_arity = len([p for p in fn.params if p.cpp_type not in _IMPLICIT_REFS])
             lines.extend(f'#ifdef {g}' for g in fn.guards)
             js = self._js_name(fn.name)
-            lines.append(f'    JS_SetPropertyStr(ctx, global, "{js}", '
-                         f'JS_NewCFunction(ctx, {js}, "{js}", {js_arity}));')
+            lines.append(f'    esjs::setFunction(global, "{js}", {js}, {js_arity});')
             lines.extend('#endif' for _ in fn.guards)
         lines.append('}')
         lines.append('')

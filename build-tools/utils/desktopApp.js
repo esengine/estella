@@ -128,7 +128,7 @@ export async function assembleDesktopApp(options) {
             + 'at redistributable_bin/<os>/. This build reaches no store.');
     }
     let steamLibrary = null;
-    for (const lib of [sources.d3dCompiler, steamLib]) {
+    for (const lib of [sources.d3dCompiler, steamLib, ...sources.v8Runtime]) {
         if (!lib || !existsSync(lib)) continue;
         const shipped = path.join(besideExe, path.basename(lib));
         await cp(lib, shipped);

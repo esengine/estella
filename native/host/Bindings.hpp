@@ -32,43 +32,43 @@ namespace eshost {
 /** The linear heap bulk data crosses through — `es_heap` / `es_malloc` / `es_free`.
  *  What makes a `…Ptr` argument mean the same thing here as it does on the web
  *  (see heap.hpp), so an SDK subsystem module needs no native-only backend. */
-void registerHeapBindings(HostState& h, JSValue global);
+void registerHeapBindings(HostState& h, esjs::Val global);
 
 /** Entity + hierarchy: the base Registry surface the SDK's World drives. */
-void registerEcsBindings(HostState& h, JSValue global);
+void registerEcsBindings(HostState& h, esjs::Val global);
 
 /** Textures, the clear colour, the surface size, the camera list and the text
  *  batch — what the SDK's renderer and glyph atlas need from the device. */
-void registerRenderBindings(HostState& h, JSValue global);
+void registerRenderBindings(HostState& h, esjs::Val global);
 
 /** Packaged assets, image decode, the on-disk cache and UTF-8 decoding. */
-void registerAssetBindings(HostState& h, JSValue global);
+void registerAssetBindings(HostState& h, esjs::Val global);
 
 /** es_audio* over the native engine — bound ONLY when a sound device came up, so
  *  the SDK's hasAudioBindings() gates the native backend on real availability. */
-void registerAudioBindings(HostState& h, JSValue global);
+void registerAudioBindings(HostState& h, esjs::Val global);
 
 /** es_pollGamepads — the one half of input the engine pulls rather than is
  *  pushed; see InputBindings.cpp. */
-void registerInputBindings(HostState& h, JSValue global);
+void registerInputBindings(HostState& h, esjs::Val global);
 
 /** es_steam_* — the store's half of achievements. Desktop only: bound where a
  *  Steam client can exist, and answering `available: false` where one cannot. */
-void registerSteamBindings(HostState& h, JSValue global);
+void registerSteamBindings(HostState& h, esjs::Val global);
 
 /** es_fetch over the platform's native networking. */
-void registerNetBindings(HostState& h, JSValue global);
-void registerDeviceBindings(HostState& h, JSValue global);
+void registerNetBindings(HostState& h, esjs::Val global);
+void registerDeviceBindings(HostState& h, esjs::Val global);
 
 /** es_aot_* — the compiled systems a shipped build loads, and the naming a
  *  host does for them. Absent on the web, where the module shares the engine's
  *  memory and the rows are packed in JS. */
-void registerAotBindings(HostState& h, JSValue global);
+void registerAotBindings(HostState& h, esjs::Val global);
 
 /** es_textEditor_* over the platform's soft keyboard — bound ONLY when the
  *  platform has one, so the SDK gates its editing surface on real availability
  *  exactly as it does audio. */
-void registerTextEditorBindings(HostState& h, JSValue global);
+void registerTextEditorBindings(HostState& h, esjs::Val global);
 
 /** Run the JS callbacks for HTTP replies that arrived since the last frame. JS
  *  thread only; {@link deliverFetch} queued them from the completion thread. */

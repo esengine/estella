@@ -50,12 +50,8 @@ std::string svText(const WGPUStringView& v) {
 /** Has the SDK's render pipeline taken over the frame? It declares itself through
  *  `es_jsOwnsFrame` (see HOST_FLAGS in the SDK's nativeBindings) once installed. */
 bool jsOwnsFrame(HostState& h) {
-    JSValue global = JS_GetGlobalObject(h.js);
-    JSValue v = JS_GetPropertyStr(h.js, global, "es_jsOwnsFrame");
-    const bool owns = JS_ToBool(h.js, v) != 0;
-    JS_FreeValue(h.js, v);
-    JS_FreeValue(h.js, global);
-    return owns;
+    esjs::Enter enter;
+    return esjs::toBool(esjs::get(esjs::global(), "es_jsOwnsFrame"));
 }
 
 /** The clear colour of the host's fallback pass. A game's own clear colour comes
@@ -350,22 +346,24 @@ void frame(long long vsyncNanos) {
     // renderer's own endFrame (see Shot.hpp).
     shotBeforeFrame(*h.gfx, h.frame, (u32)h.w, (u32)h.h);
 
-    JSValue dt = JS_NewFloat64(h.js, deltaSeconds);
     benchUpdateBegin();
-    callJs(h, "update", 1, &dt);
+    {
+        esjs::Enter enter;
+        const esjs::Val dt = esjs::number(deltaSeconds);
+        callJs(h, "update", 1, &dt);
+    }
     benchUpdateEnd();
-    JS_FreeValue(h.js, dt);
     benchPumpBegin();
     pumpJs(h);   // run the App tick's async systems and any timers they set
     benchPumpEnd();
 
     // Notify JS of voices that ended on their own (the audio thread never touches
-    // QuickJS; we poll on this thread and push, like touch). onEnd handlers may
+    // the JS engine; we poll on this thread and push, like touch). onEnd handlers may
     // start new sounds synchronously — safe, pumpEnded iterates a snapshot.
     h.audio.pumpEnded([&h](int voiceId) {
-        JSValue arg = JS_NewInt32(h.js, voiceId);
+        esjs::Enter enter;
+        const esjs::Val arg = esjs::int32(voiceId);
         callJs(h, "es_onNativeAudioEnded", 1, &arg);
-        JS_FreeValue(h.js, arg);
     });
 
     // Run the callbacks for any HTTP replies that landed since last frame, then
@@ -420,39 +418,39 @@ bool quitRequested() { return hostAlive() && host().quitRequested; }
 void touch(int type, int id, float x, float y) {
     if (!booted()) return;
     HostState& h = host();
-    JSValue args[4] = {
-        JS_NewInt32(h.js, type), JS_NewInt32(h.js, id),
-        JS_NewFloat64(h.js, x), JS_NewFloat64(h.js, y),
+    esjs::Enter enter;
+    const esjs::Val args[4] = {
+        esjs::int32(type), esjs::int32(id),
+        esjs::number(x), esjs::number(y),
     };
     callJs(h, "es_onNativeTouch", 4, args);
-    for (JSValue& v : args) JS_FreeValue(h.js, v);
 }
 
 void pointer(int type, int button, float x, float y) {
     if (!booted()) return;
     HostState& h = host();
-    JSValue args[4] = {
-        JS_NewInt32(h.js, type), JS_NewInt32(h.js, button),
-        JS_NewFloat64(h.js, x), JS_NewFloat64(h.js, y),
+    esjs::Enter enter;
+    const esjs::Val args[4] = {
+        esjs::int32(type), esjs::int32(button),
+        esjs::number(x), esjs::number(y),
     };
     callJs(h, "es_onNativePointer", 4, args);
-    for (JSValue& v : args) JS_FreeValue(h.js, v);
 }
 
 void wheel(float dx, float dy) {
     if (!booted()) return;
     HostState& h = host();
-    JSValue args[2] = {JS_NewFloat64(h.js, dx), JS_NewFloat64(h.js, dy)};
+    esjs::Enter enter;
+    const esjs::Val args[2] = {esjs::number(dx), esjs::number(dy)};
     callJs(h, "es_onNativeWheel", 2, args);
-    for (JSValue& v : args) JS_FreeValue(h.js, v);
 }
 
 void key(bool down, const char* code) {
     if (!booted() || !code || !code[0]) return;
     HostState& h = host();
-    JSValue args[2] = {JS_NewBool(h.js, down), JS_NewString(h.js, code)};
+    esjs::Enter enter;
+    const esjs::Val args[2] = {esjs::boolean(down), esjs::string(code)};
     callJs(h, "es_onNativeKey", 2, args);
-    for (JSValue& v : args) JS_FreeValue(h.js, v);
 }
 
 // The app went to background (visible=false) or returned. Suspend/resume the
@@ -462,9 +460,11 @@ void setVisible(bool visible) {
     if (!booted()) return;
     HostState& h = host();
     if (visible) h.audio.resumeAll(); else h.audio.suspendAll();
-    JSValue arg = JS_NewBool(h.js, visible);
-    callJs(h, "es_onNativeVisibility", 1, &arg);
-    JS_FreeValue(h.js, arg);
+    {
+        esjs::Enter enter;
+        const esjs::Val arg = esjs::boolean(visible);
+        callJs(h, "es_onNativeVisibility", 1, &arg);
+    }
     pumpJs(h);
 }
 

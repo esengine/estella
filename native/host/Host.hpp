@@ -13,8 +13,8 @@
  *             scenes) packaged with the app, booted by bootstrap.js through
  *             ESEngine.initNativeGame.
  *
- *          The host itself is split by concern: Runtime.hpp owns the QuickJS
- *          runtime and the shared state, bindings/ owns the es_* surface (one TU
+ *          The host itself is split by concern: Runtime.hpp owns the JS runtime
+ *          (the engine is behind js/esjs.hpp) and the shared state, bindings/ owns the es_* surface (one TU
  *          per pillar), and Host.cpp owns boot, the frame and lifecycle.
  *          Everything that differs between Android and iOS lives behind
  *          {@link eshost::Platform}; the glue (platform/android.cpp,
@@ -293,7 +293,7 @@ void deliverTextEditorSubmit();
 /** The keyboard was dismissed without committing (back gesture, done). Thread-safe. */
 void deliverTextEditorCancel();
 
-/** @brief Boots Dawn, EstellaContext, QuickJS, the SDK bundle and the packaged
+/** @brief Boots Dawn, EstellaContext, the JS engine, the SDK bundle and the packaged
  *         project. Call once, when a window first exists; @p platform must
  *         outlive the host.
  *  @return false if any stage failed (the reason is already logged). */

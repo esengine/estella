@@ -12,8 +12,8 @@ also writes what SteamPipe needs.
 
 The desktop build is a **native app** — the engine's C++ core with an embedded
 [Dawn](https://dawn.googlesource.com/dawn) (Metal on macOS, D3D12 on Windows,
-Vulkan on Linux) and
-[QuickJS-ng](https://github.com/quickjs-ng/quickjs), on SDL3. There is no browser
+Vulkan on Linux) and a JS engine — [V8](https://v8.dev/), with its JIT, on Windows;
+[QuickJS-ng](https://github.com/quickjs-ng/quickjs) on macOS and Linux — on SDL3. There is no browser
 in the process, which is also why the Steam overlay, Steam Input and exclusive
 fullscreen behave the way players expect them to.
 

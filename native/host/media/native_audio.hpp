@@ -74,7 +74,7 @@ public:
     /** Report every non-looping voice that ended on its own since the last call,
      *  then free it. Runs on the game thread each frame — miniaudio's public API
      *  is game-thread safe, so the notification reaches JS with no cross-thread
-     *  hop into QuickJS. */
+     *  hop into the JS engine. */
     void pumpEnded(const std::function<void(int)>& onEnded);
 
 private:

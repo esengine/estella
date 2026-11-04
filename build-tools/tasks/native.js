@@ -18,7 +18,7 @@ import { requireSdk, requireNdk, sdkCmake } from '../utils/android.js';
 import { emitNativeTemplate, writeTemplateIndex, readEngineVersion } from './nativeTemplateEmit.js';
 import {
     fetchNativeDeps, pinnedDep, ensureDawnBuild, ensureSdlBuild, dawnLibrary,
-    isDesktopTarget, depsCacheKey, DAWN_TARGETS, MACOS_MIN,
+    isDesktopTarget, depsCacheKey, DAWN_TARGETS, MACOS_MIN, fetchV8, v8Platform,
 } from './nativeDeps.js';
 import {
     ANDROID_ABIS, BYTECODE_FILE, findTemplate, iosTemplateSources, templateStoreDir,
@@ -269,7 +269,7 @@ async function stageEditorHeaders(rootDir, quickjs) {
 
 // Every generated artifact goes in the build tree; nothing committed can drift
 // from the reflection / SDK / bootstrap source.
-async function prepareGenerated(rootDir, buildDir, quickjs) {
+async function prepareGenerated(rootDir, buildDir, quickjs, engine = 'quickjs') {
     if (!existsSync(quickjs)) {
         throw new Error(`QuickJS source dir not found: ${quickjs}. Clone `
             + 'https://github.com/quickjs-ng/quickjs (see native/README.md).');
@@ -285,8 +285,14 @@ async function prepareGenerated(rootDir, buildDir, quickjs) {
     await generateSdkBundle(rootDir, genDir);
     logger.step('Embedding the host bootstrap (native/host/bootstrap.js)...');
     await generateBootstrap(rootDir, genDir);
-    logger.step('Precompiling the bundle to bytecode (so the first launch need not)...');
-    await precompileBundleBytecode(rootDir, genDir, quickjs);
+    if (engine === 'quickjs') {
+        logger.step('Precompiling the bundle to bytecode (so the first launch need not)...');
+        await precompileBundleBytecode(rootDir, genDir, quickjs);
+    } else {
+        // A V8 host compiles the bundle itself and caches the result on the device;
+        // QuickJS bytecode beside it would be dead weight in every package.
+        await rm(path.join(genDir, BYTECODE_FILE), { force: true });
+    }
     await stageEditorHeaders(rootDir, quickjs);
     return genDir;
 }
@@ -323,6 +329,31 @@ async function dawnPaths(options, target, toolchain = {}) {
  *  checkout unless something says otherwise. */
 function quickjsDir(options) {
     return options.quickjs || process.env.ESTELLA_QUICKJS_DIR || pinnedDep('quickjs');
+}
+
+/**
+ * The JS engine a target's host embeds, and the V8 it embeds when that is V8.
+ *
+ * V8 wherever one is pinned (the Windows desktop, Android) — a JIT, so the SDK and
+ * the game run compiled as they do in a browser; QuickJS everywhere else, and on
+ * iOS always. `--js-engine quickjs` (or ESTELLA_JS_ENGINE) builds the interpreter
+ * anywhere, which is how the no-JIT road stays measurable on a desktop. The same
+ * "nothing has to be passed" rule as Dawn: a V8 that is not fetched yet is fetched.
+ */
+async function jsEngineFor(options, target) {
+    const want = (options.jsEngine || process.env.ESTELLA_JS_ENGINE || '').toLowerCase();
+    if (want && want !== 'v8' && want !== 'quickjs') {
+        throw new Error(`--js-engine must be v8 or quickjs (got "${want}").`);
+    }
+    const platform = v8Platform(target);
+    if (want === 'quickjs' || (!want && !platform)) return { engine: 'quickjs', v8: null };
+    if (!platform) {
+        throw new Error(`No V8 is pinned for ${target}: its host embeds QuickJS (drop --js-engine v8).`);
+    }
+    // fetchV8 answers at once when the pinned version is already there, and
+    // replaces one that is not — so a cached deps dir can never hand over a stale V8.
+    const dir = options.v8 || process.env.ESTELLA_V8_DIR || await fetchV8(platform);
+    return { engine: 'v8', v8: dir };
 }
 
 /** SDL's install prefix for a desktop target, built if it is not built yet — the
@@ -367,7 +398,8 @@ async function buildDesktopHost(options) {
 
     const buildDir = path.join(rootDir, DESKTOP_BUILD_DIR[target]);
     await mkdir(buildDir, { recursive: true });
-    const genDir = await prepareGenerated(rootDir, buildDir, quickjs);
+    const js = await jsEngineFor(options, target);
+    const genDir = await prepareGenerated(rootDir, buildDir, quickjs, js.engine);
 
     const deploymentTarget = options.macosMin || MACOS_MIN;
     logger.step(`Configuring desktop host (${target})...`);
@@ -386,6 +418,8 @@ async function buildDesktopHost(options) {
         `-DESTELLA_QUICKJS_DIR=${fwd(quickjs)}`,
         `-DESTELLA_SDL_DIR=${fwd(sdl)}`,
         `-DESTELLA_NATIVE_GEN_DIR=${fwd(genDir)}`,
+        `-DESTELLA_JS_ENGINE=${js.engine}`,
+        `-DESTELLA_V8_DIR=${js.v8 ? fwd(js.v8) : ''}`,
     ], { cwd: rootDir });
 
     logger.step('Building desktop host...');
@@ -435,9 +469,11 @@ async function buildAndroidHost(options) {
     // the QuickJS host — a game script driving the engine through the generated
     // bindings + the real SDK ptrAccessors.
     const quickjs = quickjsDir(options);
+    const js = quickjs ? await jsEngineFor(options, 'android') : null;
     // The generated sources are the same for every ABI (bindings, the SDK bundle,
     // its bytecode), so they live once beside the per-ABI trees.
-    const genDir = quickjs ? await prepareGenerated(rootDir, path.join(rootDir, 'build/cmake/native'), quickjs) : null;
+    const genDir = quickjs
+        ? await prepareGenerated(rootDir, path.join(rootDir, 'build/cmake/native'), quickjs, js.engine) : null;
 
     logger.step(`Configuring native host (${abi}, ${platform})...`);
     const configureArgs = [
@@ -458,7 +494,8 @@ async function buildAndroidHost(options) {
     ];
     if (ninja) configureArgs.push(`-DCMAKE_MAKE_PROGRAM=${ninja}`);
     if (quickjs) {
-        configureArgs.push(`-DESTELLA_QUICKJS_DIR=${fwd(quickjs)}`, `-DESTELLA_NATIVE_GEN_DIR=${fwd(genDir)}`);
+        configureArgs.push(`-DESTELLA_QUICKJS_DIR=${fwd(quickjs)}`, `-DESTELLA_NATIVE_GEN_DIR=${fwd(genDir)}`,
+            `-DESTELLA_JS_ENGINE=${js.engine}`, `-DESTELLA_V8_DIR=${js.v8 ? fwd(js.v8) : ''}`);
     }
     await runCommand(cmake, configureArgs, { cwd: rootDir });
 

@@ -303,6 +303,68 @@ if(ESTELLA_QUICKJS_DIR)
     target_compile_definitions(qjs PRIVATE _GNU_SOURCE)
     es_silence_warnings(qjs)
 
+    # The JS engine the host embeds, behind host/js/esjs.hpp. V8 where a JIT is
+    # allowed and a prebuilt V8 was handed in (ESTELLA_V8_DIR, staged by
+    # `cli native`); QuickJS otherwise — and always on iOS, which allows no JIT.
+    # One build carries one engine, so the choice is a source file, not a branch.
+    set(ESTELLA_JS_ENGINE "" CACHE STRING
+        "JS engine for the native host: v8 | quickjs (empty: v8 when ESTELLA_V8_DIR is set and the platform allows a JIT)")
+    set(ESTELLA_V8_DIR "" CACHE PATH "A prebuilt V8 (include/ + the platform's libraries)")
+    set(ESJS_ENGINE "${ESTELLA_JS_ENGINE}")
+    if(NOT ESJS_ENGINE)
+        if(ESTELLA_V8_DIR AND NOT ESTELLA_IOS)
+            set(ESJS_ENGINE v8)
+        else()
+            set(ESJS_ENGINE quickjs)
+        endif()
+    endif()
+    add_library(esjs_engine INTERFACE)
+    set(ESTELLA_V8_RUNTIME "")
+    if(ESJS_ENGINE STREQUAL "v8")
+        if(ESTELLA_IOS)
+            message(FATAL_ERROR "iOS allows no JIT: the native host embeds QuickJS there.")
+        endif()
+        if(NOT EXISTS "${ESTELLA_V8_DIR}/include/v8.h")
+            message(FATAL_ERROR "ESTELLA_JS_ENGINE=v8 needs ESTELLA_V8_DIR with include/v8.h (got '${ESTELLA_V8_DIR}').")
+        endif()
+        target_include_directories(esjs_engine INTERFACE "${ESTELLA_V8_DIR}/include")
+        # The embedder must be compiled as V8 was, or V8::Initialize refuses it:
+        # both prebuilts compress pointers on 64-bit targets.
+        if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+            target_compile_definitions(esjs_engine INTERFACE V8_COMPRESS_POINTERS V8_31BIT_SMIS_ON_64BIT_ARCH)
+        endif()
+        if(ANDROID)
+            set(_v8_so "${ESTELLA_V8_DIR}/jni/${ANDROID_ABI}/libv8android.so")
+            if(NOT EXISTS "${_v8_so}")
+                message(FATAL_ERROR "No V8 for ${ANDROID_ABI}: ${_v8_so} is missing.")
+            endif()
+            add_library(esjs_v8 SHARED IMPORTED)
+            set_target_properties(esjs_v8 PROPERTIES IMPORTED_LOCATION "${_v8_so}")
+            target_link_libraries(esjs_engine INTERFACE esjs_v8)
+        elseif(WIN32)
+            set(_v8_lib "${ESTELLA_V8_DIR}/lib/Release")
+            # The Windows build carries Intl, whose data file ships beside the exe.
+            target_compile_definitions(esjs_engine INTERFACE ESJS_V8_ICU)
+            target_link_libraries(esjs_engine INTERFACE
+                "${_v8_lib}/v8.dll.lib" "${_v8_lib}/v8_libbase.dll.lib" "${_v8_lib}/v8_libplatform.dll.lib"
+                winmm dbghelp shlwapi)
+            file(GLOB ESTELLA_V8_RUNTIME "${_v8_lib}/*.dll" "${_v8_lib}/icudtl.dat")
+        else()
+            message(FATAL_ERROR "No prebuilt V8 is wired for this platform yet: configure with -DESTELLA_JS_ENGINE=quickjs.")
+        endif()
+        set(ESJS_BACKEND host/js/esjs_v8.cpp)
+        if(MSVC)
+            # V8's headers test __cplusplus, which MSVC reports as C++98 without this.
+            set_source_files_properties(host/js/esjs_v8.cpp PROPERTIES COMPILE_OPTIONS "/Zc:__cplusplus")
+        endif()
+    elseif(ESJS_ENGINE STREQUAL "quickjs")
+        target_link_libraries(esjs_engine INTERFACE qjs)
+        set(ESJS_BACKEND host/js/esjs_quickjs.cpp)
+    else()
+        message(FATAL_ERROR "ESTELLA_JS_ENGINE must be v8 or quickjs (got '${ESJS_ENGINE}').")
+    endif()
+    message(STATUS "Native host JS engine: ${ESJS_ENGINE}")
+
     # basis_universal transcoder (KTX2 -> ETC2/ASTC/BC), one big vendored TU behind
     # host/media/ktx2_decode.cpp, plus basis's bundled single-file zstd decoder (KTX2
     # zstd supercompression). Third-party, so silence their warnings.
@@ -321,6 +383,7 @@ if(ESTELLA_QUICKJS_DIR)
         host/Shot.cpp
         host/Bench.cpp
         host/EsnShim.cpp
+        ${ESJS_BACKEND}
         host/bindings/HeapBindings.cpp
         host/bindings/EcsBindings.cpp
         host/bindings/RenderBindings.cpp
@@ -360,7 +423,7 @@ if(ESTELLA_QUICKJS_DIR)
             COMPILE_OPTIONS "-x;objective-c++")
         target_link_libraries(estella_js_host esengine estella_physics estella_physics3d
             estella_video estella_spine
-            estella_dragonbones qjs
+            estella_dragonbones esjs_engine
             "-framework UIKit" "-framework QuartzCore" "-framework Foundation"
             "-framework CoreMotion" "-framework CoreHaptics"
             "-framework AVFoundation" "-framework CoreAudio" "-framework AudioToolbox"
@@ -396,7 +459,23 @@ if(ESTELLA_QUICKJS_DIR)
         set_target_properties(estella_js_host PROPERTIES OUTPUT_NAME estella_desktop)
         target_compile_definitions(estella_js_host PRIVATE ESTELLA_DESKTOP)
         target_link_libraries(estella_js_host esengine estella_physics estella_physics3d
-            estella_video estella_spine estella_dragonbones qjs SDL3::SDL3)
+            estella_video estella_spine estella_dragonbones esjs_engine SDL3::SDL3)
+        if(ESTELLA_V8_RUNTIME)
+            # V8 is a set of DLLs plus its Intl data; the exe finds them beside it.
+            add_custom_command(TARGET estella_js_host POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ESTELLA_V8_RUNTIME} $<TARGET_FILE_DIR:estella_js_host>
+                COMMENT "Placing the V8 runtime beside the desktop host")
+        elseif(ESTELLA_WINDOWS)
+            # A QuickJS host in a tree that once built V8: what that build placed
+            # here would otherwise ride into this host's template as dead weight.
+            add_custom_command(TARGET estella_js_host POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E rm -f
+                    $<TARGET_FILE_DIR:estella_js_host>/v8.dll $<TARGET_FILE_DIR:estella_js_host>/v8_libbase.dll
+                    $<TARGET_FILE_DIR:estella_js_host>/v8_libplatform.dll $<TARGET_FILE_DIR:estella_js_host>/icuuc.dll
+                    $<TARGET_FILE_DIR:estella_js_host>/icui18n.dll $<TARGET_FILE_DIR:estella_js_host>/zlib.dll
+                    $<TARGET_FILE_DIR:estella_js_host>/icudtl.dat
+                COMMENT "Clearing a V8 runtime a previous build left beside the host")
+        endif()
         if(ESTELLA_WINDOWS)
             # Dawn's D3D12 backend, DirectWrite for the font match, WinHTTP for the
             # fetch. miniaudio reaches WASAPI through the COM headers it includes.
@@ -430,8 +509,19 @@ if(ESTELLA_QUICKJS_DIR)
         add_library(estella_js_host SHARED ${HOST_SOURCES} host/platform/android.cpp host/platform/android_device.cpp)
         target_link_libraries(estella_js_host esengine estella_physics estella_physics3d
             estella_video estella_spine
-            estella_dragonbones qjs native_app_glue android log)
+            estella_dragonbones esjs_engine native_app_glue android log)
         set_target_properties(estella_js_host PROPERTIES LINK_FLAGS "-u ANativeActivity_onCreate")
+        if(ESJS_ENGINE STREQUAL "v8")
+            # The host links libv8android.so by name; the template takes it from
+            # beside the host library (build-tools/utils/nativeTemplate.js).
+            add_custom_command(TARGET estella_js_host POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_v8_so}" $<TARGET_FILE_DIR:estella_js_host>
+                COMMENT "Placing libv8android.so beside the Android host")
+        else()
+            add_custom_command(TARGET estella_js_host POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E rm -f $<TARGET_FILE_DIR:estella_js_host>/libv8android.so
+                COMMENT "Clearing a V8 a previous build left beside the host")
+        endif()
     endif()
     # host/ is the include root: every host TU spells its siblings from there
     # ("Bindings.hpp", "media/glyph_raster.hpp"), and the generated TUs include

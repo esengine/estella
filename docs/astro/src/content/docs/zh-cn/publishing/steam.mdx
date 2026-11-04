@@ -10,8 +10,8 @@ Steam 是**桌面目标下的一个发行渠道**,不是一个单独的平台。
 外加一个开关,让导出顺带写出 SteamPipe 需要的东西。
 
 桌面构建是**原生应用**——引擎的 C++ 核心,内嵌
-[Dawn](https://dawn.googlesource.com/dawn)(macOS 走 Metal,Windows 走 D3D12,Linux 走 Vulkan)与
-[QuickJS-ng](https://github.com/quickjs-ng/quickjs),窗口与输入来自 SDL3。进程里没有浏览器,
+[Dawn](https://dawn.googlesource.com/dawn)(macOS 走 Metal,Windows 走 D3D12,Linux 走 Vulkan)与 JS 引擎——Windows 上是带 JIT 的 [V8](https://v8.dev/),macOS 与 Linux 上是
+[QuickJS-ng](https://github.com/quickjs-ng/quickjs)——窗口与输入来自 SDL3。进程里没有浏览器,
 这也是 Steam 覆盖层、Steam Input 和独占全屏能如玩家预期那样工作的原因。
 
 <Aside type="note" title="每个编辑器版本下载一次">

@@ -6,9 +6,7 @@
 // each bound component's header — so the shim itself needs no component headers.
 #pragma once
 
-extern "C" {
-#include "quickjs.h"
-}
+#include "js/esjs.hpp"                     // the engine surface every binding is written against
 
 #include "esengine/ecs/Registry.hpp"             // esengine::ecs::Registry + esengine::Entity
 #include "esengine/resource/ResourceManager.hpp" // esengine::resource::ResourceManager
@@ -23,18 +21,18 @@ extern "C" {
 // a JS argument.
 esengine::ecs::Registry& esn_reg();
 esengine::resource::ResourceManager& esn_rm();
-esengine::Entity esn_entity(JSContext* ctx, JSValueConst v);
+esengine::Entity esn_entity(esjs::Val v);
 // Read obj[key] as a number into *out; returns true if present & numeric.
-bool esn_getnum(JSContext* ctx, JSValueConst obj, const char* key, double* out);
+bool esn_getnum(esjs::Val obj, const char* key, double* out);
 // Read obj[key] as a truthy int into *out; returns true if present.
-bool esn_getbool(JSContext* ctx, JSValueConst obj, const char* key, int* out);
+bool esn_getbool(esjs::Val obj, const char* key, int* out);
 // Read obj[key] as an array of n numbers into dst[0..n-1] (no-op if absent).
-void esn_getvec(JSContext* ctx, JSValueConst obj, const char* key, float* dst, int n);
+void esn_getvec(esjs::Val obj, const char* key, float* dst, int n);
 // Wrap [ptr, ptr+size) as a zero-copy JS ArrayBuffer (native owns the memory).
-JSValue esn_arraybuffer(JSContext* ctx, void* ptr, size_t size);
+esjs::Val esn_arraybuffer(void* ptr, size_t size);
 // Read a JS byte source (ArrayBuffer, typed-array view, or plain number array)
 // into `out`.
-void esn_bytes(JSContext* ctx, JSValueConst v, std::vector<esengine::u8>& out);
+void esn_bytes(esjs::Val v, std::vector<esengine::u8>& out);
 
 // --- the heap a `uintptr_t` argument addresses (see host/heap.hpp) ------------
 // A generated wrapper reads such an argument through this pair, so the entry
@@ -48,9 +46,9 @@ void esn_bytes(JSContext* ctx, JSValueConst v, std::vector<esengine::u8>& out);
 //                 that hand bytes straight across (the renderer's native backend).
 //
 // Returns 0 when there is nothing to pass, which every binding treats as null.
-uint32_t esn_argOffset(JSContext* ctx, JSValueConst v);
+uint32_t esn_argOffset(esjs::Val v);
 // Release what esn_argOffset copied in. A no-op when the argument was an offset.
-void esn_argRelease(JSContext* ctx, JSValueConst v, uint32_t offset);
+void esn_argRelease(esjs::Val v, uint32_t offset);
 // Resolve a heap offset to the real address a binding takes, or 0 if out of range.
 uintptr_t esn_heapAddr(uint32_t offset);
 
@@ -69,5 +67,5 @@ uint32_t esn_publish(EsnSlot& slot, const void* src, size_t bytes);
 // Components (NativeBindings.generated.cpp) and the engine's binding entry
 // points (NativeFunctionBindings.generated.cpp), from the same declarations the
 // web build registers with embind.
-void esn_register(JSContext* ctx, JSValue global);
-void esn_register_functions(JSContext* ctx, JSValue global);
+void esn_register(esjs::Val global);
+void esn_register_functions(esjs::Val global);

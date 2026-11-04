@@ -3,12 +3,13 @@
 /**
  * @file    Runtime.hpp
  * @brief   The host's INTERNAL surface: the state every part of it shares, and
- *          the QuickJS plumbing the binding TUs are written against.
+ *          the JS plumbing the binding TUs are written against.
  * @details Not part of the host's contract with a platform — that is Host.hpp.
  *          This is what Host.cpp and the binding TUs share: one state struct, the
- *          JS runtime that owns the language-level environment QuickJS does not
+ *          JS runtime that owns the language-level environment an engine does not
  *          ship (console, timers, a clock), and the value readers every binding
- *          needs. A binding TU includes this and nothing else of the host.
+ *          needs. A binding TU includes this and nothing else of the host; the
+ *          engine itself is behind js/esjs.hpp.
  *
  * @author  ESEngine Team
  * @date    2026
@@ -21,9 +22,7 @@
 #include "Host.hpp"
 #include "media/native_audio.hpp"
 
-extern "C" {
-#include "quickjs.h"
-}
+#include "js/esjs.hpp"
 
 #include "esengine/core/EstellaContext.hpp"
 #include "esengine/ecs/Registry.hpp"
@@ -37,13 +36,13 @@ extern "C" {
 
 namespace eshost {
 
-/** A pending setTimeout / setInterval callback. QuickJS is only the language: the
- *  timers, like console, are the host's job. */
+/** A pending setTimeout / setInterval callback. An engine is only the language:
+ *  the timers, like console, are the host's job. */
 struct Timer {
     int64_t id;
     double due;        ///< nowMs() deadline.
     double interval;   ///< Repeat period; 0 for a one-shot.
-    JSValue fn;
+    esjs::Ref fn;
 };
 
 /**
@@ -61,14 +60,12 @@ struct HostState {
     esengine::EstellaContext* ctx = nullptr;
     esengine::ecs::Registry* registry = nullptr;
 
-    // — Script: the QuickJS runtime the SDK and the game run in —
-    JSRuntime* rt = nullptr;
-    JSContext* js = nullptr;
+    // — Script: the JS engine the SDK and the game run in (js/esjs.hpp) —
     std::vector<Timer> timers;
     int64_t nextTimerId = 1;
-    std::unordered_map<int, JSValue> fetchCallbacks;   ///< in-flight es_fetch id -> JS callback
+    std::unordered_map<int, esjs::Ref> fetchCallbacks;   ///< in-flight es_fetch id -> JS callback
     int nextFetchId = 1;
-    std::unordered_map<int, JSValue> wsCallbacks;      ///< open es_wsOpen id -> JS event callback
+    std::unordered_map<int, esjs::Ref> wsCallbacks;      ///< open es_wsOpen id -> JS event callback
 
     AudioEngine audio;              ///< native sound (miniaudio); silent if no device
     std::string cacheDir;           ///< reclaimable — SDK bytecode cache + hot-update content
@@ -119,9 +116,9 @@ void hostLog(bool error, const char* fmt, ...);
 double nowMs();
 
 /**
- * Bring up QuickJS with the environment the SDK expects but the language does not
- * provide (console, timers, performance), install every es_* binding, then
- * evaluate the SDK bundle and bootstrap.js. Leaves the packaged project's own
+ * Bring up the JS engine with the environment the SDK expects but the language
+ * does not provide (console, timers, performance), install every es_* binding,
+ * then evaluate the SDK bundle and bootstrap.js. Leaves the packaged project's own
  * scripts and init() to {@link runPackagedGame}.
  */
 void initRuntime(HostState& h);
@@ -131,22 +128,16 @@ void initRuntime(HostState& h);
 bool runPackagedGame(HostState& h);
 
 /** Bind one global function. */
-void bindGlobal(HostState& h, JSValue global, const char* name, JSCFunction* fn, int argc);
+void bindGlobal(esjs::Val global, const char* name, esjs::NativeFn fn, int argc);
 
-/** Report a pending JS exception through the platform log, with its stack. */
-void logJsError(JSContext* ctx, const char* where);
-
-/** Re-anchor QuickJS's stack-overflow check to the calling thread's stack.
- *  Must open every host→JS entry: the runtime outlives the thread that made it
- *  (Android activity recreate), and a stale anchor turns every call into a
- *  false "Maximum call stack size exceeded" — permanently. */
-void jsEntry(HostState& h);
-
-/** Evaluate a global script; exceptions are logged, not propagated. */
+/** Evaluate a global script; exceptions are logged, not propagated. Opens its own
+ *  {@link esjs::Enter}. */
 void evalJs(HostState& h, const std::string& src, const char* name);
 
-/** Call a global function by name; missing is a no-op, exceptions are logged. */
-void callJs(HostState& h, const char* fn, int argc, JSValue* argv);
+/** Call a global function by name; missing is a no-op, exceptions are logged.
+ *  Opens its own {@link esjs::Enter}, which the caller's argument values must
+ *  already be inside. */
+void callJs(HostState& h, const char* fn, int argc, const esjs::Val* argv);
 
 /** One turn of the host's event loop: microtasks, then timers, then whatever
  *  microtasks those timers queued. */
@@ -161,7 +152,7 @@ void pumpJs(HostState& h);
  * ArrayBuffer (audio clip bytes, cache writes), a typed-array view (texture
  * pixels), or a plain JS number array.
  */
-void readByteSource(JSContext* ctx, JSValueConst v, std::vector<esengine::u8>& out);
+void readByteSource(esjs::Val v, std::vector<esengine::u8>& out);
 
 /** A packaged, project-relative file. Empty when missing or before boot. */
 std::vector<esengine::u8> readAsset(HostState& h, const char* path);

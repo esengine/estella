@@ -48,6 +48,22 @@ same-machine ratio sees it: an engine that stopped dispatching reads ~1x. A mill
 ceiling would not — one calibrated on this machine fails on slower ones and passes on
 faster ones regardless of the code.
 
+## The JIT host (2026-11-04, i5-14600K, Windows)
+
+The Windows and Android hosts now embed V8 (`native/host/js/esjs.hpp`), so on them the
+*interpreted* export is a JIT frame. The same bench, the same tree, the two hosts side
+by side (`BENCH_TEMPLATE` points at the QuickJS template; the desktop host runs with
+`ESTELLA_HIDDEN_WINDOW=1`, which the bench sets):
+
+| body | build | QuickJS-ng host | V8 host |
+|---|---|---|---|
+| thin | interpreted | 76.28 ms | **8.33 ms** |
+| thin | compiled | 2.46 ms | **1.35 ms** |
+
+5000 entities, 300 frames after 120, best of 3. A game that marks nothing `@compiled`
+gets the 9.2x with no change; a compiled system still takes ~6x off the JIT's frame.
+The QuickJS column is the iOS road (and macOS / Linux, which embed no V8 yet).
+
 ## What was measured (2026-08-27, i5-14600K, Windows, QuickJS-ng in the native host)
 
 5000 entities, each with `Transform` + `Sprite` + a script component, 200 timed frames
