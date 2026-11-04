@@ -499,6 +499,36 @@ TEST_CASE("finalize: adjacent same-key Batch draws with different textures merge
     CHECK(verts[7].texIndex == 1.0f);
 }
 
+TEST_CASE("finalize: material draws with different textures stay apart, the same texture still merges") {
+    // A material's shader samples the sprite at slot 0 alone, so a merged run that
+    // gave the second sprite slot 1 drew it with the first sprite's picture.
+    Harness h;
+    BatchVertex quad[4] = {
+        { {0, 0, 0}, 0xFFFFFFFFu, {0, 0} },
+        { {1, 0, 0}, 0xFFFFFFFFu, {1, 0} },
+        { {1, 1, 0}, 0xFFFFFFFFu, {1, 1} },
+        { {0, 1, 0}, 0xFFFFFFFFu, {0, 1} },
+    };
+    BatchDrawKey a = quadKey(42);
+    a.materialId = 7;
+    BatchDrawKey b = quadKey(43);
+    b.materialId = 7;
+    appendQuad(h.pool, h.list, h.clips, quad, a);
+    appendQuad(h.pool, h.list, h.clips, quad, a);
+    appendQuad(h.pool, h.list, h.clips, quad, b);
+
+    h.list.finalize(h.pool);
+
+    REQUIRE(h.list.mergedDrawCallCount() == 2);
+    CHECK(h.list.command(0).texture_count == 1);
+    CHECK(h.list.command(0).texture_ids[0] == 42);
+    CHECK(h.list.command(0).index_count == 12);
+    CHECK(h.list.command(1).texture_ids[0] == 43);
+    CHECK(h.list.command(1).break_reason == BatchBreak::TextureSlots);
+    const auto* verts = reinterpret_cast<const BatchVertex*>(h.pool.vertexData(LayoutId::Batch));
+    CHECK(verts[8].texIndex == 0.0f);
+}
+
 TEST_CASE("finalize: a frame with the same keys as the last takes its order, a frame with other keys is sorted again") {
     Harness h;
     BatchVertex quad[4] = {};
@@ -2932,7 +2962,9 @@ TEST_CASE("transparent: equal depth still groups by material for the merge") {
 
     BatchDrawKey a1 = quadKey(1, 3); a1.materialId = 7; a1.depth = 0.0f;
     BatchDrawKey b = quadKey(2, 3);  b.materialId = 8;  b.depth = 0.0f;
-    BatchDrawKey a2 = quadKey(3, 3); a2.materialId = 7; a2.depth = 0.0f;
+    // The same texture as a1: a material run carries one texture (its shader reads
+    // slot 0 alone), so this pins the grouping, not a cross-texture merge.
+    BatchDrawKey a2 = quadKey(1, 3); a2.materialId = 7; a2.depth = 0.0f;
 
     // Submitted adjacent so their index ranges stay contiguous — the merge needs
     // that as well as adjacency after the sort.
@@ -2954,7 +2986,7 @@ TEST_CASE("opaque: material still outranks depth, since order cannot change the 
     a1.blend = BlendMode::None; a1.materialId = 7; a1.depth = 100.0f;
     BatchDrawKey b = quadKey(2, 3);  b.stage = RenderStage::Opaque;
     b.blend = BlendMode::None;  b.materialId = 8;  b.depth = 0.0f;
-    BatchDrawKey a2 = quadKey(3, 3); a2.stage = RenderStage::Opaque;
+    BatchDrawKey a2 = quadKey(1, 3); a2.stage = RenderStage::Opaque;  // a1's texture: see above
     a2.blend = BlendMode::None; a2.materialId = 7; a2.depth = -100.0f;
 
     appendQuad(h.pool, h.list, h.clips, quad, a1);
@@ -2974,9 +3006,11 @@ TEST_CASE("opaque: material still outranks depth, since order cannot change the 
 TEST_CASE("transparent: sorted index runs preserve distinct depth keys and quantized ties") {
     Harness h;
     BatchVertex quad[4] = {};
+    // No material: the two textures are what tells the draws apart in the merged
+    // run, and a material run keeps to one texture.
 
-    BatchDrawKey nearer = quadKey(1, 3); nearer.materialId = 1; nearer.depth = 10.01f;
-    BatchDrawKey farther = quadKey(2, 3); farther.materialId = 1; farther.depth = 10.00f;
+    BatchDrawKey nearer = quadKey(1, 3); nearer.depth = 10.01f;
+    BatchDrawKey farther = quadKey(2, 3); farther.depth = 10.00f;
     appendQuad(h.pool, h.list, h.clips, quad, nearer);
     appendQuad(h.pool, h.list, h.clips, quad, farther);
     CHECK(h.list.command(1).sort_key < h.list.command(0).sort_key);
@@ -2990,8 +3024,8 @@ TEST_CASE("transparent: sorted index runs preserve distinct depth keys and quant
     CHECK(sorted[6] == 0);
 
     Harness fine;
-    BatchDrawKey a = quadKey(1, 3); a.materialId = 1; a.depth = 10.001f;
-    BatchDrawKey b = quadKey(2, 3); b.materialId = 1; b.depth = 10.000f;
+    BatchDrawKey a = quadKey(1, 3); a.depth = 10.001f;
+    BatchDrawKey b = quadKey(2, 3); b.depth = 10.000f;
     appendQuad(fine.pool, fine.list, fine.clips, quad, a);
     appendQuad(fine.pool, fine.list, fine.clips, quad, b);
     CHECK(fine.list.command(0).sort_key == fine.list.command(1).sort_key);

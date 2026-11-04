@@ -219,7 +219,7 @@ void DrawList::finalize(TransientBufferPool& pool) {
             // use that copy. Existing samplers still fit at the slot ceiling.
             if ((blocker == BatchBreak::None || blocker == BatchBreak::IndexGap)
                 && head.layout_id == LayoutId::Batch && commands_[i].texture_count >= 1
-                && head.texture_count >= MAX_CMD_TEXTURE_SLOTS - mask_2d_slots_) {
+                && head.texture_count >= head.textureSlotBudget(mask_2d_slots_)) {
                 const auto* begin = head.texture_ids;
                 const auto* end = begin + head.texture_count;
                 if (std::find(begin, end, commands_[i].texture_ids[0]) == end) {
@@ -256,8 +256,7 @@ void DrawList::finalize(TransientBufferPool& pool) {
                 if (head.layout_id == LayoutId::Batch && commands_[i].texture_count >= 1) {
                     // Multi-texture: give this command's texture a slot in the head's set
                     // (or bail to a new draw if all 8 slots are taken), then stamp its verts.
-                    const u8 slotBudget =
-                        static_cast<u8>(MAX_CMD_TEXTURE_SLOTS - mask_2d_slots_);
+                    const u8 slotBudget = head.textureSlotBudget(mask_2d_slots_);
                     i32 slot = head.addTextureSlot(commands_[i].texture_ids[0], slotBudget);
                     if (slot >= 0) {
                         // Staging verts default to texIndex 0, so only a non-zero slot

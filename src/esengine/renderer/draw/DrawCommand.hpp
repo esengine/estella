@@ -341,6 +341,21 @@ struct DrawCommand {
      *         @p limit is how many slots the merge may spend: a frame with a 2D shadow
      *         mask keeps the top one for it, and a merge that took it would bind a
      *         sprite where every Lit fragment reads its shadow. */
+    /**
+     * How many sprite textures a merged run headed by this draw may carry.
+     *
+     * The Batch stream merges draws of different textures by giving each its own
+     * sampler slot and stamping the slot on its vertices — which only the engine's
+     * own batch program reads. A material's shader samples the sprite at slot 0
+     * and nothing else (`u_textures[0]` / `t0`), so a run of material draws that
+     * merged across textures drew every sprite with the first one's picture.
+     * Such a run keeps to one texture; a second one starts a new draw.
+     */
+    u8 textureSlotBudget(u8 reservedSlots) const {
+        if (material_id != 0) return 1;
+        return static_cast<u8>(MAX_CMD_TEXTURE_SLOTS - reservedSlots);
+    }
+
     i32 addTextureSlot(u32 texId, u8 limit = MAX_CMD_TEXTURE_SLOTS) {
         for (u8 i = 0; i < texture_count; ++i) {
             if (texture_ids[i] == texId) return static_cast<i32>(i);
