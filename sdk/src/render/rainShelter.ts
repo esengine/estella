@@ -318,7 +318,8 @@ export function installRainShelter(app: App): () => void {
         { name: 'RainShelterSystem' },
     );
     // After the cover fade has moved the sprites' alpha (it is installed first), and before the frame is drawn.
-    app.addSystemToSchedule(Schedule.PostUpdate, system);
+    // Nothing to do in a scene without one; the frame after the last goes still runs, to put back what it changed.
+    app.addSystemToSchedule(Schedule.PostUpdate, system, { activeWhen: [RainShelter, RainUpright] });
 
     return () => {
         sheltersNow = [];

@@ -148,7 +148,8 @@ export function installCoverFade(app: App): () => void {
         },
         { name: 'CoverFadeSystem' },
     );
-    app.addSystemToSchedule(Schedule.PostUpdate, system);
+    // Nothing to do in a scene without one; the frame after the last goes still runs, to restore what it faded.
+    app.addSystemToSchedule(Schedule.PostUpdate, system, { activeWhen: [CoverFade] });
 
     return () => {
         const world = app.world;

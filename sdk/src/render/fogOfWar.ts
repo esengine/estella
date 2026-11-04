@@ -351,7 +351,8 @@ export function installFogOfWar(app: App): () => void {
         { name: 'FogOfWarSystem' },
     );
     // After the sight system has read the walls (it is installed first), and before the frame is drawn.
-    app.addSystemToSchedule(Schedule.PostUpdate, system);
+    // Nothing to do in a scene without one; the frame after the last goes still runs, to let its texture go.
+    app.addSystemToSchedule(Schedule.PostUpdate, system, { activeWhen: [FogOfWar] });
 
     return () => {
         fogNow = null;

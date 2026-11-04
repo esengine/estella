@@ -102,7 +102,8 @@ export function installSwayPush(app: App): () => void {
         },
         { name: 'SwayPushSystem' },
     );
-    app.addSystemToSchedule(Schedule.PostUpdate, system);
+    // Nothing to do in a scene without one; the frame after the last goes still runs, to clear the push it wrote.
+    app.addSystemToSchedule(Schedule.PostUpdate, system, { activeWhen: [SwayPusher] });
 
     return () => { clear(); };
 }

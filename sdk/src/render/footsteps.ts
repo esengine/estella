@@ -319,7 +319,8 @@ export function installFootsteps(app: App): () => void {
         },
         { name: 'FootstepsSystem' },
     );
-    app.addSystemToSchedule(Schedule.PostUpdate, system);
+    // Nothing to do in a scene without one; the frame after the last goes still runs, to finish what it started.
+    app.addSystemToSchedule(Schedule.PostUpdate, system, { activeWhen: [Footsteps] });
 
     return () => {
         const world = app.world;

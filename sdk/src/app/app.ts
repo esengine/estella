@@ -466,7 +466,13 @@ export class App {
     addSystemToSchedule(
         schedule: Schedule,
         system: SystemDef,
-        options?: { runBefore?: string[]; runAfter?: string[]; runIf?: RunCondition; profileDomain?: string }
+        options?: {
+            runBefore?: string[]; runAfter?: string[]; runIf?: RunCondition; profileDomain?: string;
+            /** This system alone, gated as Plugin.activeWhen gates a whole plugin: skipped while no
+             *  entity has any of these, and run one frame past the last. Takes precedence over the
+             *  building plugin's gate. */
+            activeWhen?: readonly AnyComponentDef[];
+        }
     ): this {
         const name = system._name || `System_${++this.systemCounter_}`;
         const scoped = rescopeSystem(system, name);
@@ -478,7 +484,9 @@ export class App {
             subsystem: this.buildingPlugin_ ?? undefined,
             fromBundle: this.addingBundleSystems_ || undefined,
             domain: options?.profileDomain ?? this.registeringDomain_(),
-            ...(this.buildingGate_ ? { gate: this.buildingGate_ } : {}),
+            ...(options?.activeWhen?.length
+                ? { gate: { components: options.activeWhen, frame: -1, open: true, present: true } }
+                : this.buildingGate_ ? { gate: this.buildingGate_ } : {}),
         });
         this.sortedSystemsCache_.delete(schedule);
         this.dependencyCache_.delete(schedule);

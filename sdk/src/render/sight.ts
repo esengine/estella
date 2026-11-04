@@ -218,7 +218,8 @@ export function installSight(app: App): () => void {
         },
         { name: 'SightSystem' },
     );
-    app.addSystemToSchedule(Schedule.PostUpdate, system);
+    // Nothing to do in a scene without one; the frame after the last goes still runs, to restore what it hid.
+    app.addSystemToSchedule(Schedule.PostUpdate, system, { activeWhen: [SightViewer, SightTarget] });
 
     return () => {
         ringsNow = [];

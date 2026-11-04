@@ -49,4 +49,22 @@ describe('Plugin.activeWhen', () => {
         await app.tick(1 / 60);
         expect(runs).toBe(2);
     });
+
+    it('gates one system on its own, inside a plugin that is not gated', async () => {
+        const Lamp = defineComponent('ActiveWhenLamp', { on: true });
+        let gated = 0, always = 0;
+        const app = App.new();
+        app.addPlugin({ name: 'mixed', build(a) {
+            a.addSystemToSchedule(Schedule.Update, defineSystem([], () => { always++; }, { name: 'Always2' }));
+            a.addSystemToSchedule(Schedule.Update, defineSystem([], () => { gated++; }, { name: 'LampSystem' }), { activeWhen: [Lamp] });
+        } });
+        await app.tick(1 / 60);
+        gated = 0; always = 0;
+        await app.tick(1 / 60);
+        expect([gated, always]).toEqual([0, 1]);
+        const e = app.world.spawn();
+        app.world.insert(e, Lamp, { on: true });
+        await app.tick(1 / 60);
+        expect([gated, always]).toEqual([1, 2]);
+    });
 });
