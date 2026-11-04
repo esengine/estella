@@ -803,8 +803,12 @@ ParsedShader ShaderParser::parse(const std::string& source, const ShaderIncludeR
             if (!prop.name.empty()) {
                 // Engine-injected uniforms — a param with the same name would redeclare them.
                 if (prop.name == "u_time" || prop.name == "u_viewport" || prop.name == "u_projection") {
+                    // Say what to do instead: the clock and the canvas size are
+                    // already there, and the author wanted exactly them.
                     result.errorMessage = "#pragma param '" + prop.name +
-                                          "' is reserved (engine-injected uniform)";
+                        "' is reserved: the engine injects it into every shader. Remove the param and read it directly "
+                        "(GLSL: u_time.x = seconds, u_time.y = frame delta, u_viewport.xy = canvas pixels; "
+                        "WGSL: tc.u_time / tc.u_viewport). Give a parameter of your own a different name.";
                     return result;
                 }
                 result.properties.push_back(prop);
