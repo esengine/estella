@@ -825,7 +825,7 @@ export { PlacementDiffs, type PlacementChange, type PlacementDiffsData } from '.
 // Splines and water are optional modules too (`esengine/spline`, `esengine/water`).
 export { Bakes, BakesRes, bakesOf, finish, type WorkJob, type BakeProgress } from './runtime/bakes';
 export { CollisionGeometry, CollisionGeometryRes, collisionGeometryOf, type CollisionPiece } from './runtime/collisionGeometry';
-export { Spline, SplinePlugin, splinePlugin, type SplineData } from './spline/splinePlugin';
+export { Spline, SplinePlugin, splinePlugin, PathFollower, PathMode, PathOrient, pathPlace, type SplineData, type PathFollowerData } from './spline/splinePlugin';
 export { SplineCurve, type SplinePoint, type SplineNearest } from './spline/curve';
 export {
     WaterBody, WaterForm, Waters, WatersRes, WaterPlugin, waterPlugin, type WaterBodyData, type WaterSample,
