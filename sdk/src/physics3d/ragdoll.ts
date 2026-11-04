@@ -19,7 +19,7 @@ import type { Entity, Quat, Vec3 } from '../types';
 import { defineSystem, Schedule } from '../ecs/system';
 import { Res, Time, type TimeData } from '../ecs/resource';
 import { playModeOnly } from '../ecs/env';
-import { defineComponent, getComponent, Parent, Children, Transform, type ComponentDef, type ParentData, type ChildrenData, type TransformData } from '../ecs/component';
+import { defineComponent, getComponent, Name, Parent, Children, Transform, type ComponentDef, type ParentData, type ChildrenData, type TransformData } from '../ecs/component';
 import type { MeshSkinData } from '../ecs/component.generated';
 import { q } from '../math/quat';
 import { log } from '../util/logger';
@@ -27,15 +27,25 @@ import { v3 } from '../math/vec3';
 import { RigidBody3D, BoxCollider3D } from './Physics3DComponents';
 import { SwingTwistJoint3D } from './AdvancedJoint3D';
 
+/** How a ragdoll's joints are limited. */
+export const RagdollProfile = {
+    /** Every joint gets `swing` and `twist`. */
+    Uniform: 0,
+    /** Each joint gets the share of them its part of a body has, read from the bone's name: a spine stiff, a shoulder loose, a shin almost a hinge. A bone the names do not place gets all of it. */
+    Humanoid: 1,
+} as const;
+
 /** The fields of the `Ragdoll` component. @experimental */
 export interface RagdollData {
     /** Whether the character is limp. Turn it on when it is knocked down, off to stand it up. */
     active: boolean;
     /** The entity that holds the `MeshSkin` whose joints are the skeleton. 0 looks on this entity and then below it. */
     skin: number;
-    /** How far a limb may swing from its bone's line, in degrees, either way. */
+    /** {@link RagdollProfile}: whether every joint gets the same limits, or each the limits its part of a body has. */
+    profile: number;
+    /** How far a limb may swing from its bone's line, in degrees, either way. With the humanoid profile this is the most a loose joint (a shoulder, a hip) is given. */
     swing: number;
-    /** How far a limb may twist about its own line, in degrees, either way. */
+    /** How far a limb may twist about its own line, in degrees, either way. With the humanoid profile this is the most a loose joint is given. */
     twist: number;
     /** A limb's thickness as a fraction of its length. */
     thickness: number;
@@ -52,14 +62,15 @@ export interface RagdollData {
  * @experimental
  */
 export const Ragdoll: ComponentDef<RagdollData> = defineComponent<RagdollData>('Ragdoll', {
-    active: false, skin: 0, swing: 70, twist: 45, thickness: 0.25, minBoneLength: 0.05, friction: 0.5, recoverTime: 0.4,
+    active: false, skin: 0, profile: RagdollProfile.Humanoid, swing: 100, twist: 60, thickness: 0.25, minBoneLength: 0.05, friction: 0.5, recoverTime: 0.4,
 }, {
     entityFields: ['skin'],
     fields: {
         active: { category: 'Ragdoll', tooltip: 'Whether the character is limp. Turn it on when it is knocked down, off to stand it up.' },
         skin: { category: 'Ragdoll', tooltip: 'The entity that holds the skinned mesh, whose joints are the skeleton. Empty looks on this entity and then below it.' },
-        swing: { min: 0, max: 175, category: 'Limits', tooltip: 'How far a limb may swing from its bone\'s line, in degrees.' },
-        twist: { min: 0, max: 175, category: 'Limits', tooltip: 'How far a limb may twist about its own line, in degrees.' },
+        profile: { enum: [{ label: 'Uniform', value: RagdollProfile.Uniform }, { label: 'Humanoid', value: RagdollProfile.Humanoid }], category: 'Limits', tooltip: 'Uniform gives every joint the same limits. Humanoid gives each the share of them its part of a body has, read from the bone\'s name: a spine stiff, a shoulder loose, a shin almost a hinge.' },
+        swing: { min: 0, max: 175, category: 'Limits', tooltip: 'How far a limb may swing from its bone\'s line, in degrees. With the humanoid profile, the most a loose joint (a shoulder, a hip) is given.' },
+        twist: { min: 0, max: 175, category: 'Limits', tooltip: 'How far a limb may twist about its own line, in degrees. With the humanoid profile, the most a loose joint is given.' },
         thickness: { min: 0.01, max: 2, category: 'Bodies', tooltip: 'A limb\'s thickness as a fraction of its length.' },
         minBoneLength: { min: 0, category: 'Bodies', tooltip: 'A bone shorter than this gets no body of its own (a finger, a toe): its parent carries it.' },
         friction: { min: 0, category: 'Bodies' },
@@ -70,6 +81,8 @@ export const Ragdoll: ComponentDef<RagdollData> = defineComponent<RagdollData>('
 /** A bone as the plan reads it: where it is in the world, and the nearest bone above it. */
 export interface RagdollBone {
     id: number;
+    /** What the bone is called, which is how the humanoid profile tells a knee from a shoulder. */
+    name?: string;
     parent: number | null;
     position: Vec3;
     rotation: Quat;
@@ -85,6 +98,54 @@ export interface RagdollLimb {
     /** The twist axis and a reference perpendicular to it, in this bone's own frame. */
     axis: Vec3;
     normalAxis: Vec3;
+    /** The share (0 to 1) of the component's swing and twist this joint gets. */
+    swing: number;
+    twist: number;
+}
+
+/** The parts of a body whose joints are limited differently. */
+export type BoneClass = 'spine' | 'neck' | 'head' | 'shoulder' | 'upperArm' | 'forearm' | 'hand' | 'thigh' | 'shin' | 'foot' | 'toe' | 'other';
+
+/** The share of the swing and twist each part gets: a trunk bends little, a shoulder and a hip go round, a knee and an elbow are almost hinges. */
+export const BONE_LIMITS: Readonly<Record<BoneClass, { swing: number; twist: number }>> = {
+    spine: { swing: 0.3, twist: 0.35 },
+    neck: { swing: 0.45, twist: 0.6 },
+    head: { swing: 0.4, twist: 0.6 },
+    shoulder: { swing: 0.25, twist: 0.15 },
+    upperArm: { swing: 1, twist: 0.8 },
+    forearm: { swing: 0.8, twist: 0.1 },
+    hand: { swing: 0.45, twist: 0.25 },
+    thigh: { swing: 0.75, twist: 0.4 },
+    shin: { swing: 0.9, twist: 0.08 },
+    foot: { swing: 0.35, twist: 0.2 },
+    toe: { swing: 0.25, twist: 0.08 },
+    other: { swing: 1, twist: 1 },
+};
+
+/**
+ * Which part of a body a bone is, from its name (Rigify's `DEF-upper_arm.L`, Mixamo's `LeftArm`, a plain `forearm_r`). The checks go from the more specific to the less, because
+ * a forearm is also an arm and a shin a leg.
+ *
+ * @experimental
+ */
+export function classifyBone(name: string | undefined): BoneClass {
+    const n = (name ?? '').toLowerCase().replace(/[^a-z]/g, '');
+    if (!n) return 'other';
+    if (/toe/.test(n)) return 'toe';
+    if (/foot|ankle/.test(n)) return 'foot';
+    if (/shin|calf|lowerleg|knee/.test(n)) return 'shin';
+    if (/thigh|upperleg|upleg/.test(n)) return 'thigh';
+    if (/hand|wrist|palm/.test(n)) return 'hand';
+    if (/forearm|lowerarm|elbow/.test(n)) return 'forearm';
+    if (/upperarm|uparm/.test(n)) return 'upperArm';
+    if (/shoulder|clavicle|collar/.test(n)) return 'shoulder';
+    if (/neck/.test(n)) return 'neck';
+    if (/head/.test(n)) return 'head';
+    if (/spine|chest|torso|abdomen|belly/.test(n)) return 'spine';
+    // A bare "arm" or "leg": Mixamo's LeftArm is the upper arm, its LeftLeg the thigh.
+    if (/arm/.test(n)) return 'upperArm';
+    if (/leg/.test(n)) return 'thigh';
+    return 'other';
 }
 
 const EPS = 1e-9;
@@ -103,7 +164,7 @@ function perpendicular(a: Vec3): Vec3 {
  *
  * @experimental
  */
-export function planRagdoll(bones: readonly RagdollBone[], options: { thickness: number; minBoneLength: number }): RagdollLimb[] {
+export function planRagdoll(bones: readonly RagdollBone[], options: { thickness: number; minBoneLength: number; profile?: number }): RagdollLimb[] {
     const byId = new Map(bones.map((b) => [b.id, b]));
     const children = new Map<number, RagdollBone[]>();
     for (const b of bones) {
@@ -157,6 +218,7 @@ export function planRagdoll(bones: readonly RagdollBone[], options: { thickness:
             center: { x: local.x / 2, y: local.y / 2, z: local.z / 2 },
             axis,
             normalAxis: perpendicular(axis),
+            ...(options.profile === RagdollProfile.Uniform ? { swing: 1, twist: 1 } : BONE_LIMITS[classifyBone(bone.name)]),
         };
         limbs.push(limb);
         limbOf.set(bone.id, limb);
@@ -256,13 +318,14 @@ export function installRagdolls(app: App): void {
             const t = world.get(j, Transform) as TransformData;
             return {
                 id: j as number, parent: nearestBone(j),
+                name: world.has(j, Name) ? (world.get(j, Name) as { value: string }).value : undefined,
                 position: { x: t.worldPosition.x, y: t.worldPosition.y, z: t.worldPosition.z },
                 rotation: { w: t.worldRotation.w, x: t.worldRotation.x, y: t.worldRotation.y, z: t.worldRotation.z },
             };
         });
-        const limbs = planRagdoll(bones, { thickness: data.thickness, minBoneLength: data.minBoneLength });
+        const limbs = planRagdoll(bones, { thickness: data.thickness, minBoneLength: data.minBoneLength, profile: data.profile });
         log.info('physics3d', `Ragdoll on entity ${entity}: ${limbs.length} limbs from ${bones.length} bones`);
-        const swing = (data.swing * Math.PI) / 180, twist = (data.twist * Math.PI) / 180;
+        const rad = (deg: number): number => (Math.min(Math.max(deg, 0), 175) * Math.PI) / 180;
         for (const limb of limbs) {
             const e = limb.entity as Entity;
             world.insert(e, RigidBody3D, { bodyType: 2, enabled: true });
@@ -271,7 +334,8 @@ export function installRagdolls(app: App): void {
                 world.insert(e, SwingTwistJoint3D, {
                     connectedEntity: limb.connected, anchor: { x: 0, y: 0, z: 0 }, axis: limb.axis, normalAxis: limb.normalAxis,
                     enableMotor: false, angularVelocity: { x: 0, y: 0, z: 0 }, maxMotorTorque: 10, collideConnected: false, enabled: true,
-                    normalHalfConeAngle: swing, planeHalfConeAngle: swing, twistMinAngle: -twist, twistMaxAngle: twist,
+                    normalHalfConeAngle: rad(data.swing * limb.swing), planeHalfConeAngle: rad(data.swing * limb.swing),
+                    twistMinAngle: -rad(data.twist * limb.twist), twistMaxAngle: rad(data.twist * limb.twist),
                 });
             }
         }

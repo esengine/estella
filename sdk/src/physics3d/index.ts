@@ -107,6 +107,6 @@ export {
 
 // Importing this subpath INSTALLS 3D physics — see spine/index.ts.
 import { registerPhysics3DSupport } from './physics3dSupport';
-export { Ragdoll, planRagdoll, type RagdollData, type RagdollBone, type RagdollLimb } from './ragdoll';
+export { Ragdoll, RagdollProfile, classifyBone, BONE_LIMITS, planRagdoll, type BoneClass, type RagdollData, type RagdollBone, type RagdollLimb } from './ragdoll';
 
 registerPhysics3DSupport();

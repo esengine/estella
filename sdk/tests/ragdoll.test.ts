@@ -4,7 +4,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { World } from '../src/ecs/world';
 import { Transform, Parent, getComponent, ensureBuiltinComponentsRegistered } from '../src/ecs/component';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
-import { Ragdoll, planRagdoll, installRagdolls, type RagdollBone, type RagdollData } from '../src/physics3d/ragdoll';
+import { Ragdoll, RagdollProfile, classifyBone, BONE_LIMITS, planRagdoll, installRagdolls, type RagdollBone, type RagdollData } from '../src/physics3d/ragdoll';
 import { RigidBody3D, BoxCollider3D } from '../src/physics3d/Physics3DComponents';
 import { SwingTwistJoint3D } from '../src/physics3d/AdvancedJoint3D';
 import { HAS_WASM, WASM_DIR, loadWasmModule } from './helpers/loadWasm';
@@ -202,5 +202,40 @@ describe.skipIf(!HAS_SOLVER)('a ragdoll under the real solver', () => {
             registry.delete();
             module._physics3d_shutdown();
         }
+    });
+});
+
+describe('limits by joint', () => {
+    it('places a bone by its name, whichever rig spelled it', () => {
+        const cases: Array<[string, string]> = [
+            ['DEF-spine.002', 'spine'], ['DEF-neck', 'neck'], ['DEF-head', 'head'], ['DEF-shoulder.L', 'shoulder'],
+            ['DEF-upper_arm.L', 'upperArm'], ['DEF-forearm.R', 'forearm'], ['DEF-hand.L', 'hand'],
+            ['DEF-thigh.L', 'thigh'], ['DEF-shin.R', 'shin'], ['DEF-foot.L', 'foot'], ['DEF-toe.R', 'toe'],
+            ['upperarm.l', 'upperArm'], ['forearm.l', 'forearm'], ['mixamorig:LeftArm', 'upperArm'], ['mixamorig:LeftForeArm', 'forearm'],
+            ['mixamorig:RightUpLeg', 'thigh'], ['mixamorig:RightLeg', 'thigh'], ['mixamorig:LeftToeBase', 'toe'],
+            ['DEF-hips', 'other'], ['root', 'other'], ['', 'other'],
+        ];
+        for (const [name, expected] of cases) expect(classifyBone(name), name).toBe(expected);
+    });
+
+    it('gives a stiff trunk, a loose shoulder and a shin that is nearly a hinge', () => {
+        expect(BONE_LIMITS.spine.swing).toBeLessThan(BONE_LIMITS.upperArm.swing);
+        expect(BONE_LIMITS.shin.twist).toBeLessThan(0.15);
+        expect(BONE_LIMITS.upperArm.twist).toBeGreaterThan(BONE_LIMITS.forearm.twist);
+        for (const l of Object.values(BONE_LIMITS)) { expect(l.swing).toBeGreaterThan(0); expect(l.swing).toBeLessThanOrEqual(1); }
+    });
+
+    it('limits each limb by its part of the body, unless the profile is uniform', () => {
+        const named = (id: number, parent: number | null, y: number, name: string): RagdollBone => ({ ...bone(id, parent, 0, y), name });
+        const chain = [named(1, null, 0, 'DEF-hips'), named(2, 1, 1, 'DEF-spine.001'), named(3, 2, 2, 'DEF-thigh.L'), named(4, 3, 3, 'DEF-shin.L'), named(5, 4, 4, 'DEF-foot.L')];
+        const humanoid = planRagdoll(chain, { ...options, profile: RagdollProfile.Humanoid });
+        const byId = (id: number) => humanoid.find((l) => l.entity === id)!;
+        expect(byId(2).swing).toBe(BONE_LIMITS.spine.swing);
+        expect(byId(3).swing).toBe(BONE_LIMITS.thigh.swing);
+        expect(byId(4).twist).toBe(BONE_LIMITS.shin.twist);
+        // A bone the names do not place takes the whole of it.
+        expect(byId(1).swing).toBe(1);
+        const uniform = planRagdoll(chain, { ...options, profile: RagdollProfile.Uniform });
+        expect(uniform.every((l) => l.swing === 1 && l.twist === 1)).toBe(true);
     });
 });
