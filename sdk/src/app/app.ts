@@ -882,6 +882,9 @@ export class App {
     setTargetFrameRate(fps: number): void {
         this.targetFrameInterval_ = fps > 0 ? 1000 / fps : 0;
         this.nextCapFrameAt_ = 0;
+        // A native host steps the app from its own display-driven loop, not from mainLoop above, so the cap
+        // is the host's to hold (and to tell the OS, so the panel settles on a rate the game can keep).
+        (globalThis as { es_setTargetFrameRate?: (fps: number) => void }).es_setTargetFrameRate?.(fps > 0 ? fps : 0);
     }
 
     getTargetFrameRate(): number {

@@ -278,6 +278,20 @@ describe('App.stepFrames()', () => {
         }
     });
 
+    it('hands the cap to a native host, which paces its own display-driven loop', () => {
+        const host = globalThis as { es_setTargetFrameRate?: (fps: number) => void };
+        const seen: number[] = [];
+        host.es_setTargetFrameRate = (fps) => { seen.push(fps); };
+        try {
+            const app = App.new();
+            app.setTargetFrameRate(45);
+            app.setTargetFrameRate(0);
+            expect(seen).toEqual([45, 0]);
+        } finally {
+            delete host.es_setTargetFrameRate;
+        }
+    });
+
     it.each([30, 48])('a %i fps cap on a 60 Hz display runs at the cap, whatever the jitter', async (cap) => {
         const realRaf = globalThis.requestAnimationFrame;
         let pending: ((ts: number) => void) | null = null;

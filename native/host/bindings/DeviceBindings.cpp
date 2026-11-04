@@ -98,6 +98,12 @@ JSValue js_keepScreenOn(JSContext* ctx, JSValueConst, int argc, JSValueConst* ar
     return JS_NewBool(ctx, hostAlive() && host().platform && argc > 0
         && host().platform->keepScreenOn(JS_ToBool(ctx, argv[0]) > 0));
 }
+JSValue js_setTargetFrameRate(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv) {
+    double fps = 0;
+    if (argc > 0 && JS_ToFloat64(ctx, &fps, argv[0]) < 0) return JS_EXCEPTION;
+    if (hostAlive() && host().platform) host().platform->setTargetFrameRate(fps > 0 ? (float)fps : 0.0f);
+    return JS_UNDEFINED;
+}
 
 }  // namespace
 
@@ -109,6 +115,7 @@ void registerDeviceBindings(HostState& h, JSValue global) {
     bindGlobal(h, global, "es_pollMotion", js_pollMotion, 0);
     bindGlobal(h, global, "es_vibrate", js_vibrate, 2);
     bindGlobal(h, global, "es_keepScreenOn", js_keepScreenOn, 1);
+    bindGlobal(h, global, "es_setTargetFrameRate", js_setTargetFrameRate, 1);
 }
 
 }  // namespace eshost

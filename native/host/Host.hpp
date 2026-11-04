@@ -112,6 +112,9 @@ struct Platform {
     virtual bool pollMotion(MotionState&) { return false; }
     virtual bool vibrate(int, int) { return false; }
     virtual bool keepScreenOn(bool) { return false; }
+    /** The game's target frame rate, as App.setTargetFrameRate set it (0 = as fast as the display goes). A host stepped by
+     *  the display paces itself to it; one that is not (desktop's own loop) ignores it. */
+    virtual void setTargetFrameRate(float /*fps*/) {}
     virtual ~Platform() = default;
 
     /** A packaged, project-relative file — the APK's `assets/` on Android, the

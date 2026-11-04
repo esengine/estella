@@ -165,7 +165,10 @@ void performHttp(JNIEnv* env, const eshost::FetchRequest& req, eshost::FetchResu
     env->DeleteLocalRef(conn);
 }
 
+void framesTargetRate(float fps);   // FrameDriver, below
+
 struct AndroidPlatform final : eshost::Platform {
+    void setTargetFrameRate(float fps) override { framesTargetRate(fps); }
     eshost::AndroidDevice device;
     int deviceCapabilities() const override { return device.capabilities(); }
     bool startMotion(bool a, bool g, int interval) override { return device.start(a, g, interval); }
@@ -514,8 +517,7 @@ void framesResumed(bool is);
 // vsync, and the period lands on 16.6 / 25 / 33 ms at random — 45 to 55 fps and uneven motion. 60 Hz is an exact fraction of
 // 120 Hz and of 60 Hz, so the system can hold it on either. ANativeWindow_setFrameRate is API 30; the manifest floor is 29,
 // so it is looked up like PerformanceHints' symbols rather than made a load-time requirement.
-void hintFrameRate(ANativeWindow* window) {
-    constexpr float kTargetFps = 60.0f;
+void hintFrameRate(ANativeWindow* window, float fps) {
     constexpr int8_t kCompatibilityDefault = 0;   // ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT
     using SetFrameRateFn = int32_t (*)(ANativeWindow*, float, int8_t);
     const auto set = reinterpret_cast<SetFrameRateFn>(dlsym(RTLD_DEFAULT, "ANativeWindow_setFrameRate"));
@@ -523,10 +525,15 @@ void hintFrameRate(ANativeWindow* window) {
         if (window) __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "frame rate hint: unavailable (API < 30)");
         return;
     }
-    const int32_t result = set(window, kTargetFps, kCompatibilityDefault);
+    const int32_t result = set(window, fps, kCompatibilityDefault);   // 0 fps = no preference: the panel's own rate
     __android_log_print(result == 0 ? ANDROID_LOG_INFO : ANDROID_LOG_WARN, LOG_TAG,
-                        "frame rate hint: %.0f fps (%s)", kTargetFps, result == 0 ? "accepted" : "refused");
+                        "frame rate hint: %.0f fps (%s)", fps, result == 0 ? "accepted" : "refused");
 }
+
+// What the game wants until it says otherwise (App.setTargetFrameRate -> es_setTargetFrameRate).
+constexpr float kDefaultFps = 60.0f;
+float g_targetFps = kDefaultFps;
+bool g_targetSet = false;
 
 void onAppCmd(android_app* app, int32_t cmd) {
     // NativeActivity supplies a content rectangle in window pixels; the glue
@@ -542,7 +549,7 @@ void onAppCmd(android_app* app, int32_t cmd) {
                 else eshost::bindSurface();
                 // Ask for frames only once there is something to present to, the
                 // same order iOS unpauses its display link in.
-                hintFrameRate(app->window);   // per window: a recreated surface forgets it
+                hintFrameRate(app->window, g_targetFps);   // per window: a recreated surface forgets it
                 framesSurface(eshost::surfaceBound());
             }
             break;
@@ -725,10 +732,27 @@ struct FrameDriver {
         AChoreographer_postFrameCallback64(choreographer, &FrameDriver::onVsync64, this);
     }
 
+    /// When the next frame is due, on the vsync clock; 0 restarts the cadence.
+    int64_t nextRunNanos = 0;
+
 private:
+    /// The cap the game asked for, held as a cadence and not as a minimum gap — the web loop's rule (App.mainLoop): a gap
+    /// measured frame to frame loses to jitter half the time and waits a third. Only an explicit cap paces here; the default
+    /// 60 is the system's to hold, through the hint. Returns false for a vsync this frame is skipped on.
+    bool due(int64_t vsyncNanos) {
+        if (!g_targetSet || g_targetFps <= 0.0f || vsyncNanos <= 0) return true;
+        const int64_t interval = (int64_t)(1e9 / g_targetFps);
+        constexpr int64_t kJitter = 2'000'000;   // 2 ms
+        if (vsyncNanos < nextRunNanos - kJitter) return false;
+        nextRunNanos = (nextRunNanos == 0 || vsyncNanos - nextRunNanos > interval)
+            ? vsyncNanos + interval : nextRunNanos + interval;
+        return true;
+    }
+
     void tick(int64_t vsyncNanos) {
         posted = false;
         if (!running) return;
+        if (!due(vsyncNanos)) { post(); return; }
         // Timed around the frame alone, and re-posted after it: asking for the
         // next vsync first would let a frame that overran queue behind itself.
         const auto begin = std::chrono::steady_clock::now();
@@ -743,6 +767,13 @@ private:
 
 FrameDriver g_frames;
 
+void framesTargetRate(float fps) {
+    if (g_targetSet && fps == g_targetFps) return;
+    g_targetSet = true;
+    g_targetFps = fps;
+    g_frames.nextRunNanos = 0;
+    hintFrameRate(g_platform.window, fps);
+}
 void framesSurface(bool has) { g_frames.setSurface(has); }
 void framesResumed(bool is) { g_frames.setResumed(is); }
 
