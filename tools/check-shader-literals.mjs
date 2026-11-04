@@ -32,20 +32,24 @@ function sources(dir, out = []) {
     return out;
 }
 
-/** Every raw string literal in `src`, as [name, byteLength, endLine]. */
+/** Every raw string literal in `src`, as [name, byteLength, endLine] — with or
+ *  without a delimiter: the embedded shaders are `R"esshader(...)esshader"`, and a
+ *  scan that only knew `R"(` passed a 28 KB one that MSVC truncates. */
 function literals(src) {
     const out = [];
-    const open = /R"\(/g;
+    const open = /R"([^()\\\s]{0,16})\(/g;
     let m;
     while ((m = open.exec(src))) {
-        const end = src.indexOf(')"', m.index + 3);
+        const close = `)${m[1]}"`;
+        const start = m.index + m[0].length;
+        const end = src.indexOf(close, start);
         if (end < 0) continue;
-        const body = src.slice(m.index + 3, end);
+        const body = src.slice(start, end);
         const before = src.slice(0, m.index);
         const name = before.match(/(\w+)\s*=\s*$/)?.[1]
             ?? before.match(/(\w+)[^=\w]*$/)?.[1] ?? '(unnamed)';
         out.push([name, Buffer.byteLength(body, 'utf8'), src.slice(0, end).split('\n').length]);
-        open.lastIndex = end + 2;
+        open.lastIndex = end + close.length;
     }
     return out;
 }

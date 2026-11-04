@@ -1090,7 +1090,8 @@ fn esPrevBone(joint : u32) -> mat4x4f {
         let L = vec4f(local, 1.0);
 #endif
         let before = esInstanceTint();
-        out.v_velCur = out.pos;
+)esshader"
+    R"esshader(        out.v_velCur = out.pos;
         let prev = vec4f(dot(esInstanceTexel(4), L), dot(esInstanceTexel(5), L),
                          dot(esInstanceTexel(6), L), dot(esInstanceTexel(7), L));
         out.v_velPrev = vec4f(prev.xy + before.xy * prev.w, prev.zw);

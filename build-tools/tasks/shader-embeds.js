@@ -23,6 +23,27 @@ function stripComments(source) {
     return source.split('\n').map((line) => (line.trimStart().startsWith('//') ? '' : line)).join('\n');
 }
 
+/**
+ * MSVC truncates ONE string literal at 16380 bytes (C2026) — the mesh shader is
+ * past twice that. Adjacent literals concatenate with no such cap, so a long
+ * source is emitted as several, cut at line ends: the string the engine reads is
+ * byte-for-byte the same, and so is every line number a diagnostic quotes.
+ */
+const LITERAL_CHUNK = 12000;
+
+function rawLiterals(text) {
+    const pieces = [];
+    let at = 0;
+    while (text.length - at > LITERAL_CHUNK) {
+        const cut = text.lastIndexOf('\n', at + LITERAL_CHUNK);
+        const end = cut > at ? cut + 1 : at + LITERAL_CHUNK;
+        pieces.push(text.slice(at, end));
+        at = end;
+    }
+    pieces.push(text.slice(at));
+    return pieces.map((piece) => `R"esshader(${piece})esshader"`).join('\n    ');
+}
+
 export async function generateShaderEmbeds() {
     const rootDir = config.paths.root;
     const shadersDir = path.join(rootDir, 'src/esengine/data/shaders');
@@ -49,7 +70,7 @@ export async function generateShaderEmbeds() {
     for (const file of files) {
         const content = await readFile(path.join(shadersDir, file), 'utf-8');
         const id = toCppIdentifier(file);
-        lines.push(`inline constexpr const char* ${id} = R"esshader(${stripComments(content)})esshader";`);
+        lines.push(`inline constexpr const char* ${id} = ${rawLiterals(stripComments(content))};`);
         lines.push('');
     }
 
