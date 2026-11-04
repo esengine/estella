@@ -92,7 +92,7 @@ whole. Exported for the web at Low and run in a headless browser (software rende
 
 A headless browser draws in software, a frame or two a second, so it grows textures far slower than a GPU does: `bistro` was still
 fetching a file every five seconds or so at two minutes, and these are what was downloaded by then, not what it settles at. On a GPU
-in the editor, ten seconds in, 40 of 's textures had grown past their copies and their files come to 8.9 MB: with the 3.4 MB
+in the editor, ten seconds in, 40 of `bistro`'s textures had grown past their copies and their files come to 8.9 MB: with the 3.4 MB
 of copies, about 12.4 MB of textures to download where a build without them takes 35.3 MB. The
 copies cost the package their own size (430 KB beside `dusk-fort`'s 42.6 MB of textures). A mini game downloads its package whole,
 so no copies are made for one; nor for a texture something other than a mesh draws.
