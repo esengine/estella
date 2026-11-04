@@ -975,6 +975,21 @@ export class SceneManagerState {
         return Array.from(this.scenes_.keys());
     }
 
+    /** Scenes whose load has started and not yet finished, in the order they began. */
+    getLoading(): string[] {
+        return Array.from(this.loadPromises_.keys());
+    }
+
+    /**
+     * Resolves once every load in flight NOW has finished, failed or been
+     * cancelled — loads read their files in wall time, so a caller that advances
+     * the game by frames (a test, an automation driver) cannot count its way to
+     * a loaded scene. A load started after this call is not waited for.
+     */
+    async whenLoadsSettle(): Promise<void> {
+        await Promise.allSettled([...this.loadPromises_.values()]);
+    }
+
     getLoadOrder(): string[] {
         return [...this.loadOrder_];
     }
