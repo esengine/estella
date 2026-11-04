@@ -14,6 +14,9 @@
 #include "../../ecs/components/LODGroup.hpp"
 #include "../../ecs/components/Billboard.hpp"
 #include "../draw/BillboardFacing.hpp"
+#include "../draw/ImpostorFrames.hpp"
+#include "../draw/BatchBuilder.hpp"
+#include "../../ecs/components/Impostor.hpp"
 #include "../../resource/Mesh.hpp"
 #include "../../resource/ShaderParser.hpp"
 #include "../../core/Log.hpp"
@@ -554,6 +557,50 @@ void MeshPlugin::trackPose(const RenderFrameContext& ctx, Entity entity, const g
 
 namespace {
 /**
+ * @brief The card an impostor draws: the picture taken nearest this view's direction to the object, on a square facing that way.
+ *
+ * @details The card is turned as its picture was taken, in the object's own space: from the frame's direction, with that picture's
+ *          up. A view between two frames sees the card a few degrees off square, which is the price of not blending two pictures.
+ *          Every impostor sharing an atlas shares this key but for its depth, so a crowd of them merges into a few draws.
+ */
+void emitImpostorCard(RenderCollectContext& collect, const RenderFrame::ImpostorAtlas& atlas, const ecs::MeshRenderer& mesh,
+                      Entity entity, const glm::vec3& centre, f32 radius, const glm::quat& rotation) {
+    const glm::vec4 eye = collect.camera.eye;
+    glm::vec3 toward = eye.w > 0.5f ? glm::vec3(eye) - centre : glm::vec3(eye);
+    if (glm::dot(toward, toward) < 1e-12f) return;
+    const glm::vec3 local = glm::inverse(rotation) * glm::normalize(toward);
+    const glm::uvec2 frame = impostor::nearestFrame(local, atlas.frames);
+    const glm::vec3 d = impostor::frameDirection(frame.x, frame.y, atlas.frames);
+    const glm::vec3 upLocal = impostor::pictureUp(d);
+    const glm::vec3 up = rotation * upLocal * radius;
+    const glm::vec3 right = rotation * glm::cross(upLocal, d) * radius;
+    const f32 n = static_cast<f32>(atlas.frames);
+    const f32 u0 = static_cast<f32>(frame.x) / n, u1 = static_cast<f32>(frame.x + 1u) / n;
+    const f32 v0 = static_cast<f32>(frame.y) / n, v1 = static_cast<f32>(frame.y + 1u) / n;
+    const BatchVertex quad[4] = {
+        {centre - right - up, 0xFFFFFFFFu, {u0, v0}},
+        {centre + right - up, 0xFFFFFFFFu, {u1, v0}},
+        {centre + right + up, 0xFFFFFFFFu, {u1, v1}},
+        {centre - right + up, 0xFFFFFFFFu, {u0, v1}},
+    };
+    // Blended over what is behind it, the picture's empty corners being transparent, and depth-tested so a nearer wall hides it.
+    BatchDrawKey key{
+        .stage = RenderStage::Transparent,
+        .layer = mesh.layer,
+        .shaderId = collect.frame_context.batch_shader_id,
+        .blend = BlendMode::Normal,
+        .textureId = atlas.texture,
+        .depth = collect.camera.viewDepth(centre),
+        .y = centre.y,
+        .entity = entity,
+        .type = RenderType::Mesh,
+    };
+    key.depthTest = true;
+    key.depthWrite = false;
+    appendQuad(collect.buffer_pool, collect.draw_list, collect.clip_state, quad, key);
+}
+
+/**
  * @brief Writes the placements of a MeshInstances as instances of one draw per level of detail.
  *
  * @details Each placement is judged on its own: past `drawDistance` from the eye it is not drawn, outside the view it is not drawn, and
@@ -748,6 +795,23 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
             }
         }
         tick(1);
+        // Small enough, and an impostor with its pictures taken: a card facing this view stands in for the mesh. Only the scene's own
+        // views draw one: a card casts no shadow, and a picture has no motion to write.
+        if (ctx.purpose == RenderPurpose::Scene && resident && !placements && ctx.frame) {
+            const auto* stand = registry.tryGet<ecs::Impostor>(entity);
+            const RenderFrame::ImpostorAtlas* atlas = stand && stand->enabled ? ctx.frame->impostorAtlas(entity) : nullptr;
+            if (atlas) {
+                glm::vec3 centre;
+                f32 radius = 0.0f;
+                lod::boundingSphere(position, transform.worldRotation, scale, resident->localMin, resident->localMax, centre, radius);
+                if (radius > 0.0f && lod::screenRelativeSize(ctx.view_projection, centre, radius) < stand->screenSize) {
+                    if (collect_ctx.frustum.intersectsAABB(centre, glm::vec3(radius))) {
+                        emitImpostorCard(collect_ctx, *atlas, mesh, entity, centre, radius, transform.worldRotation);
+                    }
+                    continue;
+                }
+            }
+        }
         // A set of placements is bounded by where they stand, grown by how far the mesh reaches from its origin at the greatest scale.
         const glm::vec3 reach = (placements ? glm::max(glm::abs(resident->localMin), glm::abs(resident->localMax)) * placements->maxScale
                                             : glm::vec3(0.0f));

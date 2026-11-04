@@ -126,6 +126,7 @@ const DISPOSITION = {
   'Terrain.sizeX': ['renders', 'the ground drawn at it is the outline'],
   'Terrain.sizeZ': ['renders', 'the ground drawn at it is the outline'],
   'Terrain.height': ['renders', 'the ground drawn at it is the outline'],
+  'Impostor.screenSize': ['not-world', 'a fraction of the view\'s height below which the card replaces the mesh, as LODGroup\'s sizes are'],
   'Terrain.dirtHeight': ['not-world', 'a share of the height of the terrain, 0 to 1'],
   'Terrain.snowHeight': ['not-world', 'a share of the height of the terrain, 0 to 1'],
   'Footsteps.width': ['no-place', 'how far apart the left and right feet land, a spacing between steps and not a region of the walker'],

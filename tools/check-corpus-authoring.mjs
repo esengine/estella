@@ -140,6 +140,7 @@ const DISPOSITION = {
   Ragdoll: ['owed', 'no example carries a skinned character that is knocked down yet; the first one with a rigged enemy goes into one'],
   RagdollJoint: ['owed', 'arrives with the first example that has a Ragdoll, which is the only place a bone needs a say of its own'],
   TerrainBand2D: ['owed', 'no example draws a 2D ground from a spline yet; the first side-scroller built on one carries it'],
+  Impostor: ['owed', 'no example has far objects small enough to stand a picture in for yet; an open 3D world with distant props is the first to'],
   Billboard: ['owed', 'no example draws a card that faces the camera yet; a 3D scene with signs or far trees on cards is the first to'],
   Replicated: ['code-only', 'multiplayer-arena declares its replicated set beside the server systems that own it; the wire table is a contract both ends compile against, not scene content'],
 

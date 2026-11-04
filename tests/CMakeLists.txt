@@ -392,6 +392,14 @@ target_include_directories(test_billboard_facing PRIVATE
 )
 add_test(NAME test_billboard_facing COMMAND test_billboard_facing)
 
+# Which direction each picture of an impostor atlas is taken from, and which a view is shown. Header-only.
+add_executable(test_impostor_frames renderer/test_impostor_frames.cpp)
+target_include_directories(test_impostor_frames PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party/glm
+)
+add_test(NAME test_impostor_frames COMMAND test_impostor_frames)
+
 # How a view shades its meshes: Shaded unless it asked, and no entry left once it goes back.
 add_executable(test_view_shading renderer/test_view_shading.cpp)
 target_include_directories(test_view_shading PRIVATE

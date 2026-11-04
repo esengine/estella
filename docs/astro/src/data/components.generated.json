@@ -2688,6 +2688,39 @@
       ]
     },
     {
+      "name": "Impostor",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "screenSize",
+          "type": "number",
+          "default": "0.06",
+          "doc": "Screen height fraction below which the card replaces the mesh.",
+          "range": "0–1"
+        },
+        {
+          "key": "frames",
+          "type": "number",
+          "default": "8",
+          "doc": "Pictures along each side of the atlas (frames x frames in all). More is smoother as the view goes round, and smaller each.",
+          "range": "2–16, step 1"
+        },
+        {
+          "key": "resolution",
+          "type": "number",
+          "default": "1024",
+          "doc": "The atlas's side in pixels; each picture is this divided by frames.",
+          "range": "128–4096, step 128"
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true",
+          "doc": "Off: the mesh is always drawn as itself."
+        }
+      ]
+    },
+    {
       "name": "Interactable",
       "source": "cpp",
       "fields": [

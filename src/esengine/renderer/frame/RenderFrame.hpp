@@ -120,6 +120,20 @@ public:
     /// (a tiled one), the second pass is geometry paid for twice.
     void setDepthPrepass(bool on) { depth_prepass_ = on; }
     void setPlanarQuality(f32 scale, u32 maxSize, f32 updatesPerSecond);
+    /** @brief An impostor's pictures: the atlas texture and how many frames along its side. */
+    struct ImpostorAtlas {
+        u32 texture = 0;
+        u32 frames = 0;
+    };
+    /** @brief Hand @p entity the atlas its Impostor draws from; a zero texture takes it away. */
+    void setImpostorAtlas(Entity entity, u32 texture, u32 frames) {
+        if (texture == 0 || frames < 2) { impostor_atlases_.erase(entity.raw); return; }
+        impostor_atlases_[entity.raw] = {texture, frames};
+    }
+    const ImpostorAtlas* impostorAtlas(Entity entity) const {
+        const auto it = impostor_atlases_.find(entity.raw);
+        return it == impostor_atlases_.end() ? nullptr : &it->second;
+    }
     u32 planarTextureFor(Entity entity) const {
         return entity == planar_receiver_ ? planar_texture_ : 0;
     }
@@ -739,6 +753,8 @@ private:
     f32 planar_rate_ = 0;
     Entity planar_receiver_ = INVALID_ENTITY;
     u32 planar_texture_ = 0;
+    /// Each impostor's atlas, by raw entity id: set by the SDK's bake, read by the mesh collect.
+    std::unordered_map<u32, ImpostorAtlas> impostor_atlases_;
     PlanarConstants planar_constants_;
     glm::vec4 scene_clear_{0.0f, 0.0f, 0.0f, 1.0f};
     rg::ResourceId planar_resource_ = rg::kNoResource;

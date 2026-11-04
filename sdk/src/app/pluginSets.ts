@@ -29,6 +29,7 @@ import { trailPlugin } from '../trail';
 import { springBonePlugin } from '../springbone';
 import { meshRendererPlugin } from '../render/meshRenderer';
 import { staticBatchPlugin } from '../render/staticBatchPlugin';
+import { impostorPlugin } from '../render/impostor';
 import { postProcessPlugin } from '../postprocess';
 import { timerPlugin } from '../ecs/timer';
 import { velocityPlugin } from '../velocity';
@@ -57,7 +58,7 @@ export const simulationBasePlugins = (): Plugin[] => [
 
 /** What exists to be seen. Every entry drives the engine through `engineApi`. */
 export const presentationBasePlugins = (): Plugin[] => [
-    animationPlugin, videoPlugin, particlePlugin, trailPlugin, springBonePlugin, meshRendererPlugin, staticBatchPlugin,
+    animationPlugin, videoPlugin, particlePlugin, trailPlugin, springBonePlugin, meshRendererPlugin, staticBatchPlugin, impostorPlugin,
     postProcessPlugin,
 ];
 
@@ -68,7 +69,7 @@ export const presentationBasePlugins = (): Plugin[] => [
  */
 export const PLUGIN_BUILD_ORDER: readonly string[] = [
     'Diagnostics', 'timer', 'velocity', 'lifecycle', 'animation', 'audio', 'video',
-    'particle', 'trail', 'springBone', 'meshRenderer', 'staticBatch', 'terrain', 'foliage', 'spline', 'water', 'floating', 'underwater', 'tilemap', 'postProcess', 'timeline',
+    'particle', 'trail', 'springBone', 'meshRenderer', 'staticBatch', 'impostor', 'terrain', 'foliage', 'spline', 'water', 'floating', 'underwater', 'tilemap', 'postProcess', 'timeline',
     'gameplay',
     'perception', 'fsm', 'bt', 'scriptGraph', 'nav', 'eventBinding', 'replication',
     'services',
@@ -94,7 +95,7 @@ export function inBuildOrder(plugins: readonly Plugin[]): Plugin[] {
 export const webBasePlugins = (): Plugin[] => [
     diagnosticsPlugin,
     timerPlugin, velocityPlugin, lifecyclePlugin, animationPlugin, audioPlugin, videoPlugin,
-    particlePlugin, trailPlugin, springBonePlugin, meshRendererPlugin, staticBatchPlugin, postProcessPlugin,
+    particlePlugin, trailPlugin, springBonePlugin, meshRendererPlugin, staticBatchPlugin, impostorPlugin, postProcessPlugin,
     eventBindingPlugin,
     servicesPlugin,
 ];

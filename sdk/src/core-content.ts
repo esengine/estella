@@ -857,6 +857,10 @@ export {
     mergeMeshes, planStaticBatches, STATIC_BATCH_DEFAULTS,
     type StaticBatchGroup, type StaticBatchLimits, type StaticBatchRefusal, type StaticBatchReport,
 } from './render/staticBatch';
+export {
+    ImpostorPlugin, impostorPlugin, ImpostorAtlases, ImpostorAtlasesRes, IMPOSTOR_BAKE_LAYER,
+    impostorEncode, impostorDecode, impostorFrameDirection, impostorPictureUp, impostorKindKey,
+} from './render/impostor';
 export { drawBudgetReport, type DrawBudgetReport, type DrawPass, type DrawPassShare } from './render/drawBudget';
 
 // =============================================================================

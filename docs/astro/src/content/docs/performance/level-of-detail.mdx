@@ -126,6 +126,29 @@ CPU spent choosing, GPU saved drawing. The exchange rate improves with the count
 which is the point — it is the mechanism that decides whether a field of ten
 thousand props is shippable at all.
 
+## Impostors: a picture in place of a far mesh
+
+An `Impostor` beside a MeshRenderer stands a card in for the mesh once the object covers less than `screenSize` of the view.
+The card shows a picture of the mesh taken from the direction the view is looking from, so from far away it is the object, at
+two triangles.
+
+```typescript
+world.insert(tree, Impostor, { screenSize: 0.06, frames: 8, resolution: 1024 });
+```
+
+- **The pictures** are taken while the game runs, once per kind: `frames` x `frames` orthographic cameras of the engine's own look
+  at a copy of the mesh from the directions of the upper half of a sphere, each into its own cell of one atlas `resolution`
+  pixels on a side. They are ordinary cameras, so the pictures have the mesh's material, textures and the scene's light, on
+  every backend. Entities with the same mesh, material, texture and colour share one atlas; kinds are photographed one after
+  another, a frame or two each.
+- **The card** is drawn by the renderer in each view: the picture taken nearest that view's direction, on a square facing it.
+  Every card is drawn through the sprite batch, so cards whose atlases fit in one draw's texture slots are one draw. In the
+  `impostor` editor check, five objects of five kinds draw as one draw where their meshes, instanced by shape, drew as two.
+- **What it cannot do.** A picture keeps the light it was taken in, in the object's own frame: an object turned in the world is lit
+  as if the sun had turned with it, so impostors suit objects lit softly or not turned. The picture changes in steps as the view
+  goes round (more `frames` is smaller steps), a card casts no shadow and is not seen from below, and the pictures are taken in
+  Play and in a built game, not in the editor's own viewport.
+
 ## What this is not
 
 `LODGroup` is about **one object at different sizes**. It is not a streaming

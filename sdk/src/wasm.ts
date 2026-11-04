@@ -686,6 +686,8 @@ export interface ESEngineModule {
     renderer_getDrawCalls(): number;
     /** Every draw the GPU was asked for in the last frame, every pass included. Optional: older engine builds do not carry it. */
     renderer_getGpuDrawCalls?(): number;
+    /** Hand an entity's Impostor the atlas it draws from (0 takes it away). Optional: older engine builds do not carry it. */
+    renderer_setImpostorAtlas?(entity: number, texture: number, frames: number): void;
     /**
      * GPU objects the device has created and not destroyed, for the resource
      * census. Null when no device is initialized — a census must record those

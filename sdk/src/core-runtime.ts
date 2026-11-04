@@ -114,6 +114,8 @@ export {
     Billboard,
     type BillboardData,
     BillboardMode,
+    Impostor,
+    type ImpostorData,
     MeshRenderer,
     type MeshRendererData,
     type MeshRendererGeometry,

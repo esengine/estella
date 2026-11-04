@@ -19,7 +19,7 @@ import type {
     SortingGroupData, GroupOpacityData, SpriteMaskData, LightProbeVolumeData, OccluderData,
     ReflectionProbeData, PlanarReflectionData,
     CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData, DragonBonesAnimationData,
-    TilemapLayerData, BitmapTextData, TrailRendererData, ParticleForceFieldData, SpringBoneData, SpringBoneColliderData, BillboardData,
+    TilemapLayerData, BitmapTextData, TrailRendererData, ParticleForceFieldData, SpringBoneData, SpringBoneColliderData, BillboardData, ImpostorData,
     CameraData as CameraDataCpp, ParticleEmitterData as ParticleEmitterDataCpp,
     MeshRendererData as MeshRendererDataCpp,
 } from './component.generated';
@@ -846,7 +846,7 @@ export type {
     SortingGroupData, GroupOpacityData, SpriteMaskData, LightProbeVolumeData, OccluderData,
     ReflectionProbeData, PlanarReflectionData,
     CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData, DragonBonesAnimationData,
-    TilemapLayerData, BitmapTextData, TrailRendererData, ParticleForceFieldData, SpringBoneData, SpringBoneColliderData, BillboardData,
+    TilemapLayerData, BitmapTextData, TrailRendererData, ParticleForceFieldData, SpringBoneData, SpringBoneColliderData, BillboardData, ImpostorData,
 };
 
 export type LocalTransformData = TransformData;
@@ -1154,6 +1154,11 @@ export const SpringBoneCollider = defineBuiltin<SpringBoneColliderData>('SpringB
 // A card that faces the camera. The renderer turns the MeshRenderer beside it to each view as the view collects it; the Transform is not written.
 export const Billboard = defineBuiltin<BillboardData>('Billboard',
     metaDefaults<BillboardData>('Billboard')
+);
+
+// A picture of a mesh drawn in its place once it is small. The renderer draws the card; impostorPlugin takes the pictures.
+export const Impostor = defineBuiltin<ImpostorData>('Impostor',
+    metaDefaults<ImpostorData>('Impostor')
 );
 
 // Particle force field. A scene-placed zone (wind, attractor, vortex, drag) that the

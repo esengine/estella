@@ -298,6 +298,12 @@ i32 renderer_lodInspect(u32 view, u32 entity, uintptr_t outPtr);
 void renderer_setLodPreview(u32 view, u32 entity, i32 level);
 
 /**
+ * @brief Hand @p entity's Impostor the atlas it draws from: @p texture holds @p frames x @p frames pictures.
+ * @details A zero texture takes it away, and the mesh is drawn as itself at any size.
+ */
+void renderer_setImpostorAtlas(u32 entity, u32 texture, u32 frames);
+
+/**
  * @brief Shade a view's meshes as authored (0), as neutral clay (1) or as flat albedo (2).
  * @details View state, like the LOD preview beside it: the same scene drawn through
  *          another view keeps its own look. Out-of-range modes mean authored.

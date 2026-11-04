@@ -642,6 +642,13 @@ export interface GroupOpacity {
     enabled: boolean;
 }
 
+export interface Impostor {
+    screenSize: number;
+    frames: number;
+    resolution: number;
+    enabled: boolean;
+}
+
 export interface Interactable {
     enabled: boolean;
     blockRaycast: boolean;
@@ -1177,6 +1184,10 @@ export interface Registry {
     getGroupOpacity(entity: Entity): GroupOpacity;
     addGroupOpacity(entity: Entity, component: GroupOpacity): void;
     removeGroupOpacity(entity: Entity): void;
+    hasImpostor(entity: Entity): boolean;
+    getImpostor(entity: Entity): Impostor;
+    addImpostor(entity: Entity, component: Impostor): void;
+    removeImpostor(entity: Entity): void;
     hasInteractable(entity: Entity): boolean;
     getInteractable(entity: Entity): Interactable;
     addInteractable(entity: Entity, component: Interactable): void;
@@ -1361,6 +1372,7 @@ export interface ESEngineModule {
     DragonBonesAnimation: new () => DragonBonesAnimation;
     FlexContainer: new () => FlexContainer;
     GroupOpacity: new () => GroupOpacity;
+    Impostor: new () => Impostor;
     Interactable: new () => Interactable;
     LODGroup: new () => LODGroup;
     Light: new () => Light;

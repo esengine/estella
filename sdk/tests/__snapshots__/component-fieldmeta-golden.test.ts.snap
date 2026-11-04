@@ -242,6 +242,28 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       "tooltip": "Opacity of this entity and everything under it, multiplied with the opacity of every group above it.",
     },
   },
+  "Impostor": {
+    "enabled": {
+      "tooltip": "Off: the mesh is always drawn as itself.",
+    },
+    "frames": {
+      "max": 16,
+      "min": 2,
+      "step": 1,
+      "tooltip": "Pictures along each side of the atlas (frames x frames in all). More is smoother as the view goes round, and smaller each.",
+    },
+    "resolution": {
+      "max": 4096,
+      "min": 128,
+      "step": 128,
+      "tooltip": "The atlas's side in pixels; each picture is this divided by frames.",
+    },
+    "screenSize": {
+      "max": 1,
+      "min": 0,
+      "tooltip": "Screen height fraction below which the card replaces the mesh.",
+    },
+  },
   "Light": {
     "aimFollowedSun": {
       "advanced": true,

@@ -225,6 +225,15 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'enabled', type: 'bool', offset: 4 },
         ],
     },
+    Impostor: {
+        ptrFn: 'getImpostorPtr',
+        fields: [
+            { name: 'screenSize', type: 'f32', offset: 0 },
+            { name: 'frames', type: 'i32', offset: 4 },
+            { name: 'resolution', type: 'i32', offset: 8 },
+            { name: 'enabled', type: 'bool', offset: 12 },
+        ],
+    },
     Interactable: {
         ptrFn: 'getInteractablePtr',
         fields: [

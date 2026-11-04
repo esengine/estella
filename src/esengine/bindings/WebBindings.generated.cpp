@@ -24,6 +24,7 @@
 #include "../ecs/components/FlexContainer.hpp"
 #include "../ecs/components/GroupOpacity.hpp"
 #include "../ecs/components/Hierarchy.hpp"
+#include "../ecs/components/Impostor.hpp"
 #include "../ecs/components/Interactable.hpp"
 #include "../ecs/components/LODGroup.hpp"
 #include "../ecs/components/Light.hpp"
@@ -1998,6 +1999,12 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
         .field("opacity", &esengine::ecs::GroupOpacity::opacity)
         .field("enabled", &esengine::ecs::GroupOpacity::enabled);
 
+    value_object<esengine::ecs::Impostor>("Impostor")
+        .field("screenSize", &esengine::ecs::Impostor::screenSize)
+        .field("frames", &esengine::ecs::Impostor::frames)
+        .field("resolution", &esengine::ecs::Impostor::resolution)
+        .field("enabled", &esengine::ecs::Impostor::enabled);
+
     value_object<esengine::ecs::Interactable>("Interactable")
         .field("enabled", &esengine::ecs::Interactable::enabled)
         .field("blockRaycast", &esengine::ecs::Interactable::blockRaycast)
@@ -2466,6 +2473,7 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             if (r.has<esengine::ecs::DragonBonesAnimation>(entity)) { if (!names.empty()) names += "|"; names += "DragonBonesAnimation"; }
             if (r.has<esengine::ecs::FlexContainer>(entity)) { if (!names.empty()) names += "|"; names += "FlexContainer"; }
             if (r.has<esengine::ecs::GroupOpacity>(entity)) { if (!names.empty()) names += "|"; names += "GroupOpacity"; }
+            if (r.has<esengine::ecs::Impostor>(entity)) { if (!names.empty()) names += "|"; names += "Impostor"; }
             if (r.has<esengine::ecs::Interactable>(entity)) { if (!names.empty()) names += "|"; names += "Interactable"; }
             if (r.has<esengine::ecs::LODGroup>(entity)) { if (!names.empty()) names += "|"; names += "LODGroup"; }
             if (r.has<esengine::ecs::Light>(entity)) { if (!names.empty()) names += "|"; names += "Light"; }
@@ -2524,6 +2532,7 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             if (name == "DragonBonesAnimation") return static_cast<int>(componentTypeId<esengine::ecs::DragonBonesAnimation>());
             if (name == "FlexContainer") return static_cast<int>(componentTypeId<esengine::ecs::FlexContainer>());
             if (name == "GroupOpacity") return static_cast<int>(componentTypeId<esengine::ecs::GroupOpacity>());
+            if (name == "Impostor") return static_cast<int>(componentTypeId<esengine::ecs::Impostor>());
             if (name == "Interactable") return static_cast<int>(componentTypeId<esengine::ecs::Interactable>());
             if (name == "LODGroup") return static_cast<int>(componentTypeId<esengine::ecs::LODGroup>());
             if (name == "Light") return static_cast<int>(componentTypeId<esengine::ecs::Light>());
@@ -2938,6 +2947,27 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             auto entity = static_cast<Entity>(e);
             if (!r.valid(entity) || !r.has<esengine::ecs::GroupOpacity>(entity)) return;
             r.remove<esengine::ecs::GroupOpacity>(entity);
+        }))
+
+        // Impostor
+        .function("hasImpostor", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::Impostor>(static_cast<Entity>(e));
+        }))
+        .function("getImpostor", optional_override([](Registry& r, u32 e) -> esengine::ecs::Impostor& {
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::Impostor s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::Impostor>(entity)) return s_dummy;
+            return r.get<esengine::ecs::Impostor>(entity);
+        }), allow_raw_pointers())
+        .function("addImpostor", optional_override([](Registry& r, u32 e, const esengine::ecs::Impostor& c) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::Impostor>(entity, c);
+        }))
+        .function("removeImpostor", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::Impostor>(entity)) return;
+            r.remove<esengine::ecs::Impostor>(entity);
         }))
 
         // Interactable
@@ -3825,6 +3855,7 @@ emscripten::val esengineGetBuiltinComponentNames() {
     arr.set(i++, val(std::string("DragonBonesAnimation")));
     arr.set(i++, val(std::string("FlexContainer")));
     arr.set(i++, val(std::string("GroupOpacity")));
+    arr.set(i++, val(std::string("Impostor")));
     arr.set(i++, val(std::string("Interactable")));
     arr.set(i++, val(std::string("LODGroup")));
     arr.set(i++, val(std::string("Light")));
@@ -3994,6 +4025,10 @@ static_assert(offsetof(esengine::ecs::FlexContainer, gap) == 8, "ABI offset drif
 static_assert(offsetof(esengine::ecs::FlexContainer, padding) == 16, "ABI offset drift: esengine::ecs::FlexContainer.padding (EHT expected 16)");
 static_assert(offsetof(esengine::ecs::GroupOpacity, opacity) == 0, "ABI offset drift: esengine::ecs::GroupOpacity.opacity (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::GroupOpacity, enabled) == 4, "ABI offset drift: esengine::ecs::GroupOpacity.enabled (EHT expected 4)");
+static_assert(offsetof(esengine::ecs::Impostor, screenSize) == 0, "ABI offset drift: esengine::ecs::Impostor.screenSize (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::Impostor, frames) == 4, "ABI offset drift: esengine::ecs::Impostor.frames (EHT expected 4)");
+static_assert(offsetof(esengine::ecs::Impostor, resolution) == 8, "ABI offset drift: esengine::ecs::Impostor.resolution (EHT expected 8)");
+static_assert(offsetof(esengine::ecs::Impostor, enabled) == 12, "ABI offset drift: esengine::ecs::Impostor.enabled (EHT expected 12)");
 static_assert(offsetof(esengine::ecs::Interactable, enabled) == 0, "ABI offset drift: esengine::ecs::Interactable.enabled (EHT expected 0)");
 static_assert(offsetof(esengine::ecs::Interactable, blockRaycast) == 1, "ABI offset drift: esengine::ecs::Interactable.blockRaycast (EHT expected 1)");
 static_assert(offsetof(esengine::ecs::Interactable, raycastTarget) == 2, "ABI offset drift: esengine::ecs::Interactable.raycastTarget (EHT expected 2)");
@@ -4336,7 +4371,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "04cb5f0f12687160";
+static const char* kEsAbiLayoutHash = "0f608f110f54e807";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

@@ -801,6 +801,42 @@ export function createGroupOpacityData(): GroupOpacityPtrData {
     };
 }
 
+export interface ImpostorPtrData {
+    screenSize: number;
+    frames: number;
+    resolution: number;
+    enabled: boolean;
+}
+
+export function fillImpostor(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: ImpostorPtrData,
+): void {
+    out.screenSize = f32[ptr >> 2];
+    out.frames = u32[(ptr + 4) >> 2] | 0;
+    out.resolution = u32[(ptr + 8) >> 2] | 0;
+    out.enabled = u8[ptr + 12] !== 0;
+}
+
+export function writeImpostor(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: ImpostorPtrData,
+): void {
+    f32[ptr >> 2] = data.screenSize;
+    u32[(ptr + 4) >> 2] = data.frames | 0;
+    u32[(ptr + 8) >> 2] = data.resolution | 0;
+    u8[ptr + 12] = data.enabled ? 1 : 0;
+}
+
+export function createImpostorData(): ImpostorPtrData {
+    return {
+        screenSize: 0,
+        frames: 0,
+        resolution: 0,
+        enabled: false,
+    };
+}
+
 export interface InteractablePtrData {
     enabled: boolean;
     blockRaycast: boolean;
@@ -2848,6 +2884,7 @@ export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
     DragonBonesAnimation: { fill: fillDragonBonesAnimation, write: writeDragonBonesAnimation, create: createDragonBonesAnimationData },
     FlexContainer: { fill: fillFlexContainer, write: writeFlexContainer, create: createFlexContainerData },
     GroupOpacity: { fill: fillGroupOpacity, write: writeGroupOpacity, create: createGroupOpacityData },
+    Impostor: { fill: fillImpostor, write: writeImpostor, create: createImpostorData },
     Interactable: { fill: fillInteractable, write: writeInteractable, create: createInteractableData },
     LODGroup: { fill: fillLODGroup, write: writeLODGroup, create: createLODGroupData },
     Light: { fill: fillLight, write: writeLight, create: createLightData },

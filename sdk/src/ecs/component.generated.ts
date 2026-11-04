@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BillboardMode, BodyType, Canv
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '04cb5f0f12687160';
+export const ABI_LAYOUT_HASH = '0f608f110f54e807';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -459,6 +459,24 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         animatableFields: [],
         fields: {
             opacity: { min: 0, max: 1, step: 0.01, tooltip: "Opacity of this entity and everything under it, multiplied with the opacity of every group above it." },
+        },
+    },
+    Impostor: {
+        defaults: {
+            screenSize: 0.06,
+            frames: 8,
+            resolution: 1024,
+            enabled: true,
+        },
+        assetFields: [],
+        entityFields: [],
+        colorFields: [],
+        animatableFields: [],
+        fields: {
+            screenSize: { min: 0, max: 1, tooltip: "Screen height fraction below which the card replaces the mesh." },
+            frames: { min: 2, max: 16, step: 1, tooltip: "Pictures along each side of the atlas (frames x frames in all). More is smoother as the view goes round, and smaller each." },
+            resolution: { min: 128, max: 4096, step: 128, tooltip: "The atlas's side in pixels; each picture is this divided by frames." },
+            enabled: { tooltip: "Off: the mesh is always drawn as itself." },
         },
     },
     Interactable: {
@@ -1633,6 +1651,19 @@ export interface FlexContainerData {
  */
 export interface GroupOpacityData {
     opacity: number;
+    enabled: boolean;
+}
+
+/**
+ * The fields of the engine's `Impostor` component, generated from
+ * the C++ struct so the two shapes cannot drift.
+ *
+ * @beta
+ */
+export interface ImpostorData {
+    screenSize: number;
+    frames: number;
+    resolution: number;
     enabled: boolean;
 }
 

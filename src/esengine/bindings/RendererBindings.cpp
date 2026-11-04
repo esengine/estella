@@ -1338,6 +1338,11 @@ i32 renderer_lodInspect(u32 view, u32 entity, uintptr_t outPtr) {
     return 1;
 }
 
+void renderer_setImpostorAtlas(u32 entity, u32 texture, u32 frames) {
+    if (!g_renderFrame) return;
+    g_renderFrame->setImpostorAtlas(Entity::fromRaw(entity), texture, frames);
+}
+
 void renderer_setLodPreview(u32 view, u32 entity, i32 level) {
     if (!g_renderFrame) return;
     const u8 held = level < 0 ? lod::kNoPreview : static_cast<u8>(level);

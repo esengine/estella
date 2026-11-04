@@ -33,6 +33,7 @@ import { RenderPipeline } from '../render/renderPipeline';
 import { Input } from '../input/input';
 import { pendingShaders } from '../render/shaderWarmup';
 import { renderTargetSize } from '../render/renderTexture';
+import { cameraClearColor } from './cameraClear';
 import { Renderer } from '../render/renderer';
 import { followRenderOrigin, pushRenderOrigin, renderOrigin } from '../render/renderOrigin';
 import { platformNow, platformDevicePixelRatio } from '../platform';
@@ -966,7 +967,7 @@ export function cameraPlugin(
                                     clearFlags: cam.clearFlags,
                                     elapsed,
                                     cameraEntity: cam.entity,
-                                    clearColor,
+                                    clearColor: cameraClearColor(cam.entity as Entity, clearColor),
                                     cullingMask: cam.cullingMask,
                                     // A released target leaves the handle behind; drawing
                                     // to it would draw nowhere, so it falls to the screen.
