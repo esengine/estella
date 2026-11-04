@@ -125,6 +125,12 @@ reconnects automatically rather than stranding the agent.
 
 ## What the agent can do
 
+The everyday tools (about fifty: the scene, Play, opening and saving, screenshots, logs) are listed from the start; the rest are in
+groups the agent turns on with `enable_tools` when it needs them: `assets`, `prefab`, `authoring`, `view`, `play`, `render`,
+`project`, `code`, `device` and `agent`. A full list handed over before the first call costs every session thousands of tokens and
+makes the right tool harder to find; any tool can still be called by name without being listed. Add `--all-tools` for a client
+that cannot follow a change of the tool list. The table below names tools from every group.
+
 | Area | Tools (excerpt) |
 | --- | --- |
 | Observe | `get_scene_tree`, `get_inspector`, `get_stats`, `get_diagnostics`, `capture_viewport` (PNG), `screenshot` (whole window, includes play), `world_component` (live-World probe), `capture_frame` / `frame_draws` / `replay_draw` (the frame debugger: each draw call, why it started, the entities it drew) |
