@@ -5,6 +5,7 @@ import type { ParentData, AnyComponentDef } from '../../ecs/component';
 import type { Entity } from '../../types';
 import type { World } from '../../ecs/world';
 import { UIVisual, UIVisualType } from '../core/ui-visual';
+import { UINode, UIPointerEvents } from '../core/ui-node';
 import type { CppRegistry } from '../../wasm';
 import type { EngineApi } from '../../ecs/bridge/engineApi';
 import { WasmBridge } from '../../wasm/WasmBridge';
@@ -86,6 +87,28 @@ export function getUINodeHeight(entity: Entity): number {
     return 0;
 }
 
+
+/**
+ * Whether the pointer passes through @p entity because of `UINode.pointerEvents`:
+ * the nearest node, itself first, whose value is not Auto decides — None lets the
+ * pointer through, Receive takes it back (CSS `pointer-events: auto` written on a
+ * child). The rule the engine's layout applies; this is it for code that asks
+ * between layouts.
+ */
+export function isPointerBlockedInTree(world: Pick<World, 'has' | 'get' | 'valid'>, entity: Entity): boolean {
+    const decided = (e: Entity): boolean | null => {
+        if (!world.has(e, UINode)) return null;
+        const value = (world.get(e, UINode) as { pointerEvents: number }).pointerEvents;
+        return value === UIPointerEvents.None ? true : value === UIPointerEvents.Receive ? false : null;
+    };
+    let blocked = decided(entity);
+    if (blocked !== null) return blocked;
+    walkParentChain(world, entity, (parent) => {
+        blocked = decided(parent);
+        return blocked !== null;
+    });
+    return blocked === true;
+}
 
 export function walkParentChain(
     world: Pick<World, 'has' | 'get' | 'valid'>, entity: Entity,

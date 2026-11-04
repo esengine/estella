@@ -1564,6 +1564,38 @@ TEST_CASE("detached UI refreshes inherited state without relocating its geometry
     CHECK(registry.get<ecs::UINode>(leaf).alpha_in_tree_ == doctest::Approx(.4f));
 }
 
+TEST_CASE("pointer events: Receive takes the pointer back under a None ancestor, in and out of the layout tree") {
+    for (bool inTree : {true, false}) {
+        ecs::Registry registry;
+        ecs::UISystem ui;
+        const auto node = [&](Entity parent, ecs::UIPointerEvents pe) {
+            const Entity e = registry.create();
+            registry.emplace<ecs::Transform>(e);
+            registry.emplace<ecs::UINode>(e).pointerEvents = pe;
+            if (parent != INVALID_ENTITY) {
+                registry.emplace<ecs::Parent>(e).entity = parent;
+                if (!registry.has<ecs::Children>(parent)) registry.emplace<ecs::Children>(parent);
+                registry.get<ecs::Children>(parent).entities.push_back(e);
+            }
+            return e;
+        };
+        const Entity overlay = node(INVALID_ENTITY, ecs::UIPointerEvents::None);
+        if (inTree) registry.emplace<ecs::Canvas>(overlay);
+        const Entity label = node(overlay, ecs::UIPointerEvents::Auto);
+        const Entity close = node(overlay, ecs::UIPointerEvents::Receive);
+        const Entity icon = node(close, ecs::UIPointerEvents::Auto);
+        const Entity quiet = node(close, ecs::UIPointerEvents::None);
+        ui.layoutUpdate(registry, -100, -100, 100, 100, true);
+        const auto blocked = [&](Entity e) { return registry.get<ecs::UINode>(e).pointer_blocked_in_tree_; };
+        CAPTURE(inTree);
+        CHECK(blocked(overlay));
+        CHECK(blocked(label));
+        CHECK_FALSE(blocked(close));
+        CHECK_FALSE(blocked(icon));
+        CHECK(blocked(quiet));
+    }
+}
+
 TEST_CASE("detached UI state walks shared deep ancestry iteratively and recovers from reparenting") {
     ecs::Registry registry;
     ecs::UISystem ui;

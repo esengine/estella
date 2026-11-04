@@ -359,7 +359,8 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
 
     enum_<esengine::ecs::UIPointerEvents>("UIPointerEvents")
         .value("Auto", esengine::ecs::UIPointerEvents::Auto)
-        .value("None", esengine::ecs::UIPointerEvents::None);
+        .value("None", esengine::ecs::UIPointerEvents::None)
+        .value("Receive", esengine::ecs::UIPointerEvents::Receive);
 
     enum_<esengine::ecs::UIPositionType>("UIPositionType")
         .value("Relative", esengine::ecs::UIPositionType::Relative)
@@ -4371,7 +4372,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "0f608f110f54e807";
+static const char* kEsAbiLayoutHash = "ace63550c0783bc7";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

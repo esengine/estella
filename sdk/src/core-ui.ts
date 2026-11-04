@@ -69,6 +69,7 @@ export {
     uiWorldToScreen,
     uiHitTestWorld,
     uiHitAtScreen,
+    isPointerBlockedInTree,
     uiPickWorld,
     uiPickAllWorld,
     type PickableWorld,

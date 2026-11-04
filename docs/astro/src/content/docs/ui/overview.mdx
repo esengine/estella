@@ -246,7 +246,7 @@ resolves `display`:
 | Field | Default | Effect |
 |---|---|---|
 | `opacity` | `1` | Multiplied down the tree like CSS `opacity`. Fades a whole panel with one value. |
-| `pointerEvents` | `Auto` | `None` makes the node **and its subtree** transparent to the pointer — still drawn, hits pass straight through. |
+| `pointerEvents` | `Auto` | `None` makes the node **and its subtree** transparent to the pointer — still drawn, hits pass straight through. A child set to `Receive` takes the pointer back (and gives it to its own subtree) — CSS's `pointer-events: auto` written on the child: a click-through overlay whose close button still answers. |
 
 These are the "CanvasGroup" knobs: fading a panel used to mean touching every visual's
 `color.a`, and a decorative overlay had no way to stop eating clicks (`Interactable.blockRaycast`

@@ -287,6 +287,7 @@ world: string
 
 ## PlanetPlugin — class @experimental
 ```
+activeWhen: ComponentDef<PlanetData>[]
 build: (app: App) => void
 cleanup: (app?: App) => void
 name: string
@@ -544,6 +545,7 @@ z0: number
 
 ## TerrainPlugin — class @experimental
 ```
+activeWhen: ComponentDef<TerrainData>[]
 build: (app: App) => void
 cleanup: (app?: App) => void
 name: string

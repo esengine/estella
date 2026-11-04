@@ -218,6 +218,7 @@ y: number | undefined
 
 ## BtPlugin — class @experimental
 ```
+activeWhen: ComponentDef<BehaviorTreeAgentData>[]
 build: (app: App) => void
 name: string
 static new (): BtPlugin
@@ -304,6 +305,7 @@ transition: FsmTransition
 
 ## FsmPlugin — class @experimental
 ```
+activeWhen: ComponentDef<StateMachineAgentData>[]
 build: (app: App) => void
 name: string
 static new (): FsmPlugin
@@ -548,6 +550,7 @@ status: "unknown" | "unavailable" | "complete" | "partial"
 
 ## NavPlugin — class @experimental
 ```
+activeWhen: (ComponentDef<NavAgentData> | ComponentDef<NavVolumeData>)[]
 build: (app: App) => void
 name: string
 static new (): NavPlugin
@@ -665,6 +668,7 @@ visible: boolean
 
 ## PerceptionPlugin — class @experimental
 ```
+activeWhen: ComponentDef<PerceiverData>[]
 build: (app: App) => void
 name: string
 static new (): PerceptionPlugin

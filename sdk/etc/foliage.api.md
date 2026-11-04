@@ -64,6 +64,7 @@ static prototype: FoliageField
 
 ## FoliagePlugin — class @experimental
 ```
+activeWhen: ComponentDef<FoliageData>[]
 build: (app: App) => void
 cleanup: (app?: App) => void
 name: string

@@ -11,6 +11,7 @@ export {
     nextPowerOf2,
     ensureComponent,
     walkParentChain,
+    isPointerBlockedInTree,
     EntityStateMap,
 } from './util/helpers';
 

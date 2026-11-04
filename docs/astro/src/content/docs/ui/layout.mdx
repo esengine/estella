@@ -65,7 +65,7 @@ isAuto(d)    // true when d is the auto length
 | `position` | `UIPositionType` | `Relative` | `Relative` = in the flex flow; `Absolute` = out of flow, placed by insets. |
 | `display` | `UIDisplay` | `Flex` | `None` removes this node **and its whole subtree** from layout, rendering, and hit-testing — the hierarchical show/hide. Contrast `UIVisual.enabled`, which hides only this entity's visual. |
 | `opacity` | number | `1` | Subtree opacity, multiplied down the tree like CSS `opacity` (it multiplies into each descendant's own alpha; the subtree is not composited offscreen). |
-| `pointerEvents` | `UIPointerEvents` | `Auto` | `None` makes this node **and its subtree** transparent to the pointer: still drawn, hits pass through. |
+| `pointerEvents` | `UIPointerEvents` | `Auto` | `None` makes this node **and its subtree** transparent to the pointer: still drawn, hits pass through. A child set to `Receive` takes the pointer back (and gives it to its own subtree) — CSS's `pointer-events: auto` written on the child: a click-through overlay whose close button still answers. |
 | `width` / `height` | `Dimension` | `auto()` | Box size; `auto` = content-/flex-driven. |
 | `minWidth` / `minHeight` | `Dimension` | `auto()` | Lower size bounds; `auto` = unconstrained. |
 | `maxWidth` / `maxHeight` | `Dimension` | `auto()` | Upper size bounds; `auto` = unconstrained. |

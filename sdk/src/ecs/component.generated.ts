@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BillboardMode, BodyType, Canv
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '0f608f110f54e807';
+export const ABI_LAYOUT_HASH = 'ace63550c0783bc7';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -1384,7 +1384,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             position: { enum: [{ label: 'Relative', value: 0 }, { label: 'Absolute', value: 1 }] },
             display: { enum: [{ label: 'Flex', value: 0 }, { label: 'None', value: 1 }], tooltip: "None removes this node and its whole subtree from layout, rendering and input." },
             opacity: { min: 0, max: 1, tooltip: "Subtree opacity, multiplied down the tree. Fades this node and everything under it." },
-            pointerEvents: { enum: [{ label: 'Auto', value: 0 }, { label: 'None', value: 1 }], tooltip: "None makes this node and its subtree transparent to the pointer — hits pass through to what is behind." },
+            pointerEvents: { enum: [{ label: 'Auto', value: 0 }, { label: 'None', value: 1 }, { label: 'Receive', value: 2 }], tooltip: "None makes this node and its subtree transparent to the pointer — hits pass through to what is behind." },
             alignSelf: { enum: [{ label: 'Auto', value: 0 }, { label: 'Start', value: 1 }, { label: 'Center', value: 2 }, { label: 'End', value: 3 }, { label: 'Stretch', value: 4 }] },
         },
     },

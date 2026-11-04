@@ -835,7 +835,7 @@ std::string editor_getComponentSchema(const std::string& name) {
   {"key":"position","type":"enum","group":"UINode","values":["Relative","Absolute"]},
   {"key":"display","type":"enum","group":"UINode","values":["Flex","None"]},
   {"key":"opacity","type":"float","group":"UINode"},
-  {"key":"pointerEvents","type":"enum","group":"UINode","values":["Auto","None"]},
+  {"key":"pointerEvents","type":"enum","group":"UINode","values":["Auto","None","Receive"]},
   {"key":"width.value","type":"float","group":"UINode"},
   {"key":"width.unit","type":"float","group":"UINode"},
   {"key":"height.value","type":"float","group":"UINode"},

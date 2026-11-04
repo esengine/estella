@@ -8,13 +8,13 @@ import { Input, type InputState } from '../../input/input';
 import type { World } from '../../ecs/world';
 import type { Entity, Vec2 } from '../../types';
 import { worldEngineApi } from '../../ecs/bridge/engineApi';
-import { UINode, UIPointerEvents } from '../core/ui-node';
+import { UINode } from '../core/ui-node';
 import { px, DimensionUnit } from '../core/dimension';
 import { UIEventType, type UIEventQueue } from '../core/events';
 import { Interactable } from '../input/interactable';
 import { UIControlPointers, type ControlPointer } from '../input/control-pointers';
 import { isScreenEntity } from '../util/ui-pick';
-import { walkParentChain } from '../util/helpers';
+import { isPointerBlockedInTree } from '../util/helpers';
 import { createLiveVisibilityQuery } from '../util/live-visibility';
 import { createLocalTransformReader } from '../util/local-transform';
 
@@ -73,12 +73,7 @@ export function createVirtualControlSystem(world: World, events: UIEventQueue) {
         if (!world.valid(entity) || !world.isEntityActive(entity) || world.isDestructionPending(entity)
             || (world.has(entity, Interactable) && !world.get(entity, Interactable).enabled)
             || hidden(entity)) return false;
-        let blocked = world.has(entity, UINode) && world.get(entity, UINode).pointerEvents === UIPointerEvents.None;
-        walkParentChain(world, entity, parent => {
-            if (world.has(parent, UINode) && world.get(parent, UINode).pointerEvents === UIPointerEvents.None) blocked = true;
-            return blocked;
-        });
-        return !blocked;
+        return !isPointerBlockedInTree(world, entity);
     };
     const getState = (entity: Entity): ControlState => {
         let state = states.get(entity);

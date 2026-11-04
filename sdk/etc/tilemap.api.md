@@ -442,6 +442,7 @@ Staggered = 2
 
 ## TilemapPlugin — class @experimental
 ```
+activeWhen: (ComponentDef<TilemapData> | BuiltinComponentDef<TilemapLayerData>)[]
 build: (app: App) => void
 cleanup: (app?: App) => void
 name: string

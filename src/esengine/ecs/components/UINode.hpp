@@ -49,16 +49,23 @@ enum class UIDisplay : u8 {
 };
 
 /**
- * @brief CSS `pointer-events`. None makes the node AND its whole subtree
+ * @brief CSS `pointer-events`. None makes the node AND its subtree
  *        transparent to the pointer — still drawn, but hits pass straight
  *        through to whatever is behind. The hierarchical input gate (a panel
  *        mid-fade, a decorative overlay). Contrast with Interactable.enabled,
  *        which silences one entity without letting hits through it.
+ *
+ *        Auto inherits: a node under a None ancestor is transparent too.
+ *        Receive takes the pointer even there, and gives it back to its own
+ *        subtree — CSS's `pointer-events: auto` written on the child, Unity's
+ *        CanvasGroup "ignore parent groups": a click-through overlay whose one
+ *        close button still answers.
  */
 ES_ENUM()
 enum class UIPointerEvents : u8 {
     Auto,
-    None
+    None,
+    Receive
 };
 
 /**

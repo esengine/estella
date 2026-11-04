@@ -175,6 +175,7 @@ static prototype: WaterField
 
 ## WaterPlugin — class @experimental
 ```
+activeWhen: (ComponentDef<WaterBodyData> | ComponentDef<WaterZoneData>)[]
 build: (app: App) => void
 cleanup: (app?: App) => void
 name: string

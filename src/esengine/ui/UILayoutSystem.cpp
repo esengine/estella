@@ -417,7 +417,8 @@ void propagateInheritedUIState(Registry& registry, UITree& tree) {
             continue;
         }
         const f32 alpha = parentAlpha * std::clamp(n->opacity, 0.0f, 1.0f);
-        const bool blocked = parentBlocked || n->pointerEvents == UIPointerEvents::None;
+        const bool blocked = n->pointerEvents == UIPointerEvents::None
+            || (parentBlocked && n->pointerEvents != UIPointerEvents::Receive);
         n->alpha_in_tree_ = alpha;
         n->pointer_blocked_in_tree_ = blocked;
         inherited_alpha_stack_[depth] = alpha;
@@ -553,7 +554,8 @@ void UISystem::propagateDetachedUIState(Registry& registry) {
             if (auto* node = registry.tryGet<UINode>(*it)) {
                 state.hidden = state.hidden || node->display == UIDisplay::None;
                 state.alpha *= std::clamp(node->opacity, 0.0f, 1.0f);
-                state.blocked = state.blocked || node->pointerEvents == UIPointerEvents::None;
+                state.blocked = node->pointerEvents == UIPointerEvents::None
+                    || (state.blocked && node->pointerEvents != UIPointerEvents::Receive);
                 node->hidden_in_tree_ = state.hidden;
                 node->alpha_in_tree_ = state.alpha;
                 node->pointer_blocked_in_tree_ = state.blocked;

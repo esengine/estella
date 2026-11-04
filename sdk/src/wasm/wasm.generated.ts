@@ -433,6 +433,7 @@ export enum UIFillOrigin {
 export enum UIPointerEvents {
     Auto = 0,
     None = 1,
+    Receive = 2,
 }
 
 export enum UIPositionType {

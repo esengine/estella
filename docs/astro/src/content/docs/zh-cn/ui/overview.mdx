@@ -221,7 +221,7 @@ pages.close('shop');
 | 字段 | 默认 | 效果 |
 |---|---|---|
 | `opacity` | `1` | 像 CSS `opacity` 一样沿树相乘。一个值淡出整块面板。 |
-| `pointerEvents` | `Auto` | `None` 让该节点**及其子树**对指针透明——照常绘制,点击直接穿过。 |
+| `pointerEvents` | `Auto` | `None` 让该节点**及其子树**对指针透明——照常绘制,点击直接穿过。 子节点设为 `Receive` 会重新接收指针(并交给它自己的子树)——相当于在子节点上写 CSS 的 `pointer-events: auto`:可点穿的遮罩上,关闭按钮照样能点。 |
 
 这就是 "CanvasGroup" 那组旋钮:以前淡出一块面板意味着挨个改每个视觉的 `color.a`,而装饰性
 覆盖层没有办法不吃掉点击(`Interactable.blockRaycast` 是逐实体的,不继承)。`opacity` 遵循
