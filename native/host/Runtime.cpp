@@ -305,6 +305,16 @@ void bindGlobal(esjs::Val global, const char* name, esjs::NativeFn fn, int argc)
 
 void initRuntime(HostState& h) {
     const double t0 = nowMs();
+#if defined(ESJS_V8_SNAPSHOT_ASSET)
+    // This V8 keeps its startup snapshot outside the library, and an isolate made
+    // without it dies on the spot ("Failed to deserialize the V8 snapshot blob").
+    const std::vector<u8> snapshot = readAsset(h, ESJS_V8_SNAPSHOT_ASSET);
+    if (snapshot.empty()) {
+        ESHOST_LOGE("JS engine: the package carries no %s — the V8 runtime cannot start",
+                    ESJS_V8_SNAPSHOT_ASSET);
+    }
+    esjs::setStartupSnapshot(snapshot.data(), snapshot.size());
+#endif
     esjs::init(engineLog, nullptr);
     ESHOST_LOGI("JS engine: %s%s", esjs::engineName().c_str(), esjs::hasJit() ? " (JIT)" : " (interpreter)");
     bootNote("engine: %s", esjs::engineName().c_str());
@@ -341,6 +351,12 @@ void initRuntime(HostState& h) {
     registerInputBindings(h, global);
 #if defined(ESTELLA_DESKTOP)
     registerSteamBindings(h, global);
+#endif
+#if defined(ESTELLA_DESKTOP) || defined(__ANDROID__)
+    // Where a package can carry compiled systems: a desktop app beside its
+    // executable, an APK in lib/<abi>/ (the system linker finds it by name).
+    // Without these the SDK falls back to the wasm install, which a native core
+    // cannot serve — every @compiled system then stays interpreted.
     registerAotBindings(h, global);
 #endif
     registerNetBindings(h, global);

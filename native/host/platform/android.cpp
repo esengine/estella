@@ -28,6 +28,7 @@
 
 #include <chrono>
 #include <cstdarg>
+#include <string>
 #include <thread>
 
 #include "Host.hpp"
@@ -954,7 +955,43 @@ std::string queryCacheDir(ANativeActivity* activity) {
 
 }  // namespace
 
+/**
+ * An app's stdout and stderr go nowhere on Android, and a native library that
+ * reports a fatal error by printing it and aborting (V8 does exactly that) then
+ * dies with a backtrace and no reason. Route both into logcat, line by line, once
+ * per process — before anything that could print.
+ */
+static void forwardStdioToLog() {
+    static bool started = false;
+    if (started) return;
+    int fds[2];
+    if (pipe(fds) != 0) return;
+    started = true;
+    setvbuf(stdout, nullptr, _IOLBF, 0);
+    setvbuf(stderr, nullptr, _IONBF, 0);
+    dup2(fds[1], STDOUT_FILENO);
+    dup2(fds[1], STDERR_FILENO);
+    close(fds[1]);
+    std::thread([fd = fds[0]] {
+        char buf[1024];
+        std::string line;
+        for (;;) {
+            const ssize_t n = read(fd, buf, sizeof(buf));
+            if (n <= 0) break;
+            for (ssize_t i = 0; i < n; ++i) {
+                if (buf[i] == '\n') {
+                    __android_log_write(ANDROID_LOG_WARN, LOG_TAG, line.c_str());
+                    line.clear();
+                } else {
+                    line += buf[i];
+                }
+            }
+        }
+    }).detach();
+}
+
 void android_main(android_app* app) {
+    forwardStdioToLog();
     g_platform.device.activity = app->activity;
     g_platform.assets = app->activity->assetManager;   // APK assets/ (the exported project)
     g_platform.vm = app->activity->vm;                  // for JNI HttpURLConnection (es_fetch)

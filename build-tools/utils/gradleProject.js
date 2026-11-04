@@ -255,6 +255,10 @@ export async function emitAndroidGradleProject(contentDir, app, sources, icon) {
     if (sources.bytecode && existsSync(sources.bytecode)) {
         await cp(sources.bytecode, path.join(assetsDir, path.basename(sources.bytecode)));
     }
+    // So does a V8 host's startup snapshot, without which the engine cannot start.
+    if (sources.v8Snapshots && existsSync(sources.v8Snapshots)) {
+        await cp(sources.v8Snapshots, path.join(assetsDir, 'v8'), { recursive: true });
+    }
 
     await cp(sources.libs, path.join(mainDir, 'jniLibs'), { recursive: true });
     // What the export built per ABI (the project's compiled systems), beside the template's.

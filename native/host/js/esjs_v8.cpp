@@ -419,6 +419,15 @@ void Ref::reset() {
 // The engine
 // =============================================================================
 
+std::vector<uint8_t> g_snapshot;           // must outlive the isolate
+v8::StartupData g_snapshotData{nullptr, 0};
+
+void setStartupSnapshot(const uint8_t* data, size_t size) {
+    g_snapshot.assign(data, data + size);
+    g_snapshotData = {reinterpret_cast<const char*>(g_snapshot.data()), static_cast<int>(g_snapshot.size())};
+    v8::V8::SetSnapshotDataBlob(&g_snapshotData);
+}
+
 void init(Logger log, const char* exePath) {
     g_log = log;
 #if defined(ESJS_V8_ICU)

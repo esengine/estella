@@ -51,6 +51,8 @@ export const BYTECODE_FILE: string;
 export const V8_WINDOWS_RUNTIME: readonly string[];
 /** The V8 an Android V8 host links, one per ABI beside the host library. */
 export const V8_ANDROID_LIBRARY: string;
+/** Where an Android V8 host reads its startup snapshot from, inside the assets. */
+export function v8SnapshotAsset(abi: string): string;
 /** The JS engine a template's host embeds, read off the files it carries. */
 export function templateJsEngine(dir: string, platform: TemplatePlatform): 'v8' | 'quickjs';
 export const ANDROID_ABIS: readonly string[];
@@ -139,6 +141,8 @@ export function androidTemplateSources(dir: string): {
     icon: string;
     /** Precompiled SDK bytecode, when the template's build machine could produce it. */
     bytecode: string;
+    /** A V8 host's startup snapshots (assets/v8/<abi>/), absent from a QuickJS template. */
+    v8Snapshots: string;
 };
 
 export function desktopTemplateSources(dir: string, platform?: TemplatePlatform): {

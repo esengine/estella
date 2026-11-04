@@ -60,9 +60,9 @@ void registerSteamBindings(HostState& h, esjs::Val global);
 void registerNetBindings(HostState& h, esjs::Val global);
 void registerDeviceBindings(HostState& h, esjs::Val global);
 
-/** es_aot_* — the compiled systems a shipped build loads, and the naming a
- *  host does for them. Absent on the web, where the module shares the engine's
- *  memory and the rows are packed in JS. */
+/** es_aot_* — the compiled systems a shipped build loads (desktop, Android), and
+ *  the naming a host does for them. Absent on the web, where the module shares the
+ *  engine's memory and the rows are packed in JS, and on iOS, which loads none. */
 void registerAotBindings(HostState& h, esjs::Val global);
 
 /** es_textEditor_* over the platform's soft keyboard — bound ONLY when the

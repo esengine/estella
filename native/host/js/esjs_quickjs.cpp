@@ -342,6 +342,8 @@ void Ref::reset() {
 // The engine
 // =============================================================================
 
+void setStartupSnapshot(const uint8_t*, size_t) {}
+
 void init(Logger log, const char*) {
     g_log = log;
     g_rt = JS_NewRuntime();

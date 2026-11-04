@@ -13,6 +13,9 @@
 #include "Bench.hpp"
 
 #include <algorithm>
+#include <cctype>
+#include <cstring>
+#include <utility>
 #include <chrono>
 #include <cstdlib>
 #include <string>
@@ -34,6 +37,10 @@
 #endif
 
 #include "Runtime.hpp"   // ESHOST_LOGI
+
+#if defined(__ANDROID__)
+#include <sys/system_properties.h>
+#endif
 
 namespace eshost {
 namespace {
@@ -98,8 +105,33 @@ struct BenchState {
     unsigned aotPacked = 0, aotPackedFrame = 0;
 };
 
+/**
+ * A bench switch: the environment variable, or — on Android, where an app is
+ * started with no environment of its own — the system property it maps to:
+ * ESTELLA_BENCH_FRAMES is `debug.estella.bench_frames`, which a shell can set
+ * (`adb shell setprop debug.estella.bench_frames 300`) before the app starts.
+ * The same bench then runs on a phone without a rebuilt package.
+ */
+const char* benchEnv(const char* name) {
+    if (const char* v = std::getenv(name)) return v;
+#if defined(__ANDROID__)
+    static std::vector<std::pair<std::string, std::string>> read;
+    for (const auto& [key, value] : read) if (key == name) return value.empty() ? nullptr : value.c_str();
+    std::string prop = "debug.estella.";
+    for (const char* c = name + std::strlen("ESTELLA_"); *c; ++c) {
+        prop += static_cast<char>(std::tolower(static_cast<unsigned char>(*c)));
+    }
+    char value[PROP_VALUE_MAX] = {};
+    __system_property_get(prop.c_str(), value);
+    read.emplace_back(name, value);
+    return read.back().second.empty() ? nullptr : read.back().second.c_str();
+#else
+    return nullptr;
+#endif
+}
+
 long envLong(const char* name, long fallback) {
-    const char* v = std::getenv(name);
+    const char* v = benchEnv(name);
     if (v == nullptr || v[0] == '\0') return fallback;
     const long n = std::strtol(v, nullptr, 10);
     return n >= 0 ? n : fallback;
@@ -108,16 +140,16 @@ long envLong(const char* name, long fallback) {
 BenchState& state() {
     static BenchState s = [] {
         BenchState init;
-        const char* frames = std::getenv("ESTELLA_BENCH_FRAMES");
+        const char* frames = benchEnv("ESTELLA_BENCH_FRAMES");
         init.frames = envLong("ESTELLA_BENCH_FRAMES", 0);
         init.asked = frames != nullptr && frames[0] != '\0' && init.frames > 0;
         init.warmup = envLong("ESTELLA_BENCH_WARMUP", 120);
-        if (const char* dt = std::getenv("ESTELLA_BENCH_DT")) {
+        if (const char* dt = benchEnv("ESTELLA_BENCH_DT")) {
             const double v = std::strtod(dt, nullptr);
             if (v > 0.0) init.dt = v;
         }
-        if (const char* label = std::getenv("ESTELLA_BENCH_LABEL")) init.label = label;
-        if (const char* quit = std::getenv("ESTELLA_BENCH_QUIT")) init.quitAfter = quit[0] != '0';
+        if (const char* label = benchEnv("ESTELLA_BENCH_LABEL")) init.label = label;
+        if (const char* quit = benchEnv("ESTELLA_BENCH_QUIT")) init.quitAfter = quit[0] != '0';
         if (init.asked) {
             init.update.ms.reserve(static_cast<size_t>(init.frames));
             init.pump.ms.reserve(static_cast<size_t>(init.frames));

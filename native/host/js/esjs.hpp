@@ -204,6 +204,11 @@ private:
 /** Where the engine's own messages go: an uncaught exception, a rejected cache. */
 using Logger = void (*)(bool error, const char* message);
 
+/** The startup snapshot an engine built with external startup data needs, handed
+ *  over before {@link init} (V8 on Android). The bytes are copied. A no-op for an
+ *  engine that has its snapshot built in, or none. */
+void setStartupSnapshot(const uint8_t* data, size_t size);
+
 /** Bring the engine up: one runtime, one context, for the process. @p exePath is
  *  where an engine that ships data files beside the binary looks for them. */
 void init(Logger log, const char* exePath);

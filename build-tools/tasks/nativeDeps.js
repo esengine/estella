@@ -168,7 +168,10 @@ export async function fetchV8(platform, options = {}) {
     const deps = options.depsDir || nativeDepsDir(rootDir);
     const dir = path.join(deps, `v8-${platform}`);
     const stamp = path.join(dir, '.estella-v8');
-    const want = `${pin.version}\n${JSON.stringify(pin[platform])}`;
+    // The layout version: what this function lays out, beside what it fetched — a
+    // directory laid out by an older version of it is laid out again.
+    const LAYOUT = 2;
+    const want = `${pin.version}\n${JSON.stringify(pin[platform])}\nlayout ${LAYOUT}`;
     if (existsSync(stamp) && (await readFile(stamp, 'utf8')) === want) {
         logger.info(`V8 ${pin.version} (${platform}) already fetched`);
         return dir;
@@ -198,9 +201,15 @@ export async function fetchV8(platform, options = {}) {
         await mkdir(dir, { recursive: true });
         await extract(aarFile, dir, 'zip');
         await cp(path.join(dist, 'include'), path.join(dir, 'include'), { recursive: true });
+        // This build keeps its startup snapshot OUTSIDE the library: without it
+        // Isolate::New dies with "Failed to deserialize the V8 snapshot blob".
+        await cp(path.join(dist, 'snapshot_blob'), path.join(dir, 'snapshot'), { recursive: true });
     }
     if (!existsSync(path.join(dir, 'include', 'v8.h'))) {
         throw new Error(`V8 (${platform}): the archive laid out no include/v8.h under ${dir}`);
+    }
+    if (platform === 'android' && !existsSync(path.join(dir, 'snapshot', 'arm64-v8a', 'snapshot_blob.bin'))) {
+        throw new Error(`V8 (android): the archive carried no startup snapshot under ${dir}/snapshot`);
     }
     await rm(scratch, { recursive: true, force: true });
     await writeFile(stamp, want);

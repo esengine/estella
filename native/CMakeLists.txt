@@ -341,6 +341,14 @@ if(ESTELLA_QUICKJS_DIR)
             add_library(esjs_v8 SHARED IMPORTED)
             set_target_properties(esjs_v8 PROPERTIES IMPORTED_LOCATION "${_v8_so}")
             target_link_libraries(esjs_engine INTERFACE esjs_v8)
+            # This V8 keeps its startup snapshot outside the library; the package
+            # carries it as an asset and the host hands it over before Isolate::New.
+            set(_v8_snapshot "${ESTELLA_V8_DIR}/snapshot/${ANDROID_ABI}/snapshot_blob.bin")
+            if(NOT EXISTS "${_v8_snapshot}")
+                message(FATAL_ERROR "No V8 startup snapshot for ${ANDROID_ABI}: ${_v8_snapshot} is missing (re-run --fetch-deps).")
+            endif()
+            target_compile_definitions(esjs_engine INTERFACE
+                ESJS_V8_SNAPSHOT_ASSET="v8/${ANDROID_ABI}/snapshot_blob.bin")
         elseif(WIN32)
             set(_v8_lib "${ESTELLA_V8_DIR}/lib/Release")
             # The Windows build carries Intl, whose data file ships beside the exe.
@@ -516,10 +524,13 @@ if(ESTELLA_QUICKJS_DIR)
             # beside the host library (build-tools/utils/nativeTemplate.js).
             add_custom_command(TARGET estella_js_host POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_v8_so}" $<TARGET_FILE_DIR:estella_js_host>
-                COMMENT "Placing libv8android.so beside the Android host")
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${_v8_snapshot}"
+                        $<TARGET_FILE_DIR:estella_js_host>/v8_snapshot_blob.bin
+                COMMENT "Placing libv8android.so and its startup snapshot beside the Android host")
         else()
             add_custom_command(TARGET estella_js_host POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E rm -f $<TARGET_FILE_DIR:estella_js_host>/libv8android.so
+                        $<TARGET_FILE_DIR:estella_js_host>/v8_snapshot_blob.bin
                 COMMENT "Clearing a V8 a previous build left beside the host")
         endif()
     endif()

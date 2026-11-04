@@ -268,9 +268,10 @@ touching the source PNG. See [Assets](/docs/assets/overview/).
 The engine runs native at full speed everywhere. Your game script does too on
 **Android**: it runs on V8 with its JIT, the engine Chrome runs — the same script
 is compiled to machine code as it would be in a browser, with nothing to change in
-the project. Measured with the same host on a desktop CPU, a frame of 5,000 scripted
-entities that took 76 ms on the interpreter takes 8 ms on V8; a phone is slower in
-both columns, by about the same factor.
+the project. On a Snapdragon 8 Elite phone, a frame of 5,000 scripted entities that
+took 64 ms on the interpreter takes 14 ms on V8 (on a desktop CPU: 76 ms → 8 ms).
+V8 adds about 11 MB to a package (`libv8android.so` per ABI, stored uncompressed as
+Android prefers for native libraries).
 
 On **iOS** your game script is interpreted, by QuickJS: Apple's rules allow no JIT
 outside its own browser. A per-entity loop written in TypeScript is the one thing
@@ -283,8 +284,8 @@ export cross-compiles every `/** @compiled */` system with the Android NDK, once
 64-bit ABI the package carries (arm64-v8a, and x86_64 for the emulator), and the
 APK carries each build in `lib/<abi>/`. Where the interpreter spends microseconds
 per entity, the compiled system spends tens of nanoseconds — and it still takes
-about six times off what the JIT leaves of a frame (8.3 ms → 1.4 ms in the
-measurement above). The NDK must be
+a large share off what the JIT leaves of a frame (14 ms → 4.2 ms on that phone,
+8.3 ms → 1.4 ms on the desktop). The NDK must be
 installed on the exporting machine (Android Studio's SDK Manager, or
 `ANDROID_NDK_HOME`); the Package dialog says so when a project promises compiled
 systems and it is missing. A system the host cannot bind falls back to the

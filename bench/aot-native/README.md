@@ -64,6 +64,19 @@ by side (`BENCH_TEMPLATE` points at the QuickJS template; the desktop host runs 
 gets the 9.2x with no change; a compiled system still takes ~6x off the JIT's frame.
 The QuickJS column is the iOS road (and macOS / Linux, which embed no V8 yet).
 
+On a phone (2026-11-04, Xiaomi 24129PN74C, Snapdragon 8 Elite, Android 16, arm64),
+the same project exported as APKs from each Android template. The bench switches are
+system properties there (`adb shell setprop debug.estella.bench_frames 300`, likewise
+`bench_warmup`, `bench_dt`), read before the app starts, and the bench line is in logcat:
+
+| body | build | QuickJS-ng host | V8 host |
+|---|---|---|---|
+| thin | interpreted | 63.68 ms | **13.97 ms** |
+| thin | compiled | 5.01 ms | **4.15 ms** |
+
+4.6x on the phone for a project that changes nothing. The V8 APK is 11.5 MB larger
+(44.4 vs 32.9 MB): `libv8android.so` is 15.5 MB, stored uncompressed.
+
 ## What was measured (2026-08-27, i5-14600K, Windows, QuickJS-ng in the native host)
 
 5000 entities, each with `Transform` + `Sprite` + a script component, 200 timed frames

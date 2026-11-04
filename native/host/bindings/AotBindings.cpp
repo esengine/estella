@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 /**
  * @file    AotBindings.cpp
- * @brief   es_aot_* — the compiled systems a shipped desktop build loads.
+ * @brief   es_aot_* — the compiled systems a shipped desktop or Android build loads.
  * @details The web road hands the module the engine's memory and lets JS pack
  *          the rows. Here the engine IS the process: an address is a pointer
  *          nothing in JS can hold, so the rows are packed on this side and

@@ -59,6 +59,12 @@ export const V8_WINDOWS_RUNTIME = [
 /** The V8 an Android V8 host links, one per ABI beside the host library. */
 export const V8_ANDROID_LIBRARY = 'libv8android.so';
 
+/** Where an Android V8 host reads its startup snapshot from, inside the package's
+ *  assets — the name native/CMakeLists.txt compiles in as ESJS_V8_SNAPSHOT_ASSET. */
+export function v8SnapshotAsset(abi) {
+    return `v8/${abi}/snapshot_blob.bin`;
+}
+
 /** The JS engine a template's host embeds, read off the files it carries: 'v8'
  *  when the V8 runtime is there, 'quickjs' otherwise. */
 export function templateJsEngine(dir, platform) {
@@ -251,6 +257,12 @@ export function templateLayout(platform, options = {}) {
                 rel: `lib/${abi}/${V8_ANDROID_LIBRARY}`, strip: true, abi, optional: true,
                 from: (ctx) => path.join(ctx.root, 'build/cmake/native', abi, V8_ANDROID_LIBRARY),
             },
+            {
+                // Its startup snapshot, which this V8 keeps outside the library. An
+                // asset, read by the host before the engine starts (Runtime.cpp).
+                rel: `assets/${v8SnapshotAsset(abi)}`, abi, optional: true,
+                from: (ctx) => path.join(ctx.root, 'build/cmake/native', abi, 'v8_snapshot_blob.bin'),
+            },
         ]);
         return [
             ...libs,
@@ -322,6 +334,8 @@ export function androidTemplateSources(dir) {
         manifestIn: path.join(dir, 'AndroidManifest.xml.in'),
         icon: path.join(dir, DEFAULT_ICON),
         bytecode: path.join(dir, 'assets', BYTECODE_FILE),
+        /** A V8 host's startup snapshots, one per ABI; absent from a QuickJS template. */
+        v8Snapshots: path.join(dir, 'assets', 'v8'),
     };
 }
 
