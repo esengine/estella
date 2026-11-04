@@ -20,6 +20,7 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **An agent call over MCP is one undo step, files included.** Everything one call changes — its scene edits and the project files it writes — goes back with one Undo and forward with one Redo, shown in History as **AI · *tool***. A call that only wrote files does not mark the scene unsaved, and the `undo` / `redo` tools answer once the files are back on disk. Every tool also carries MCP annotations from what it does (read-only, undoable, destructive), so a client asks before only the calls that leave the project or run unlisted code; a long call sends a progress note every five seconds; arguments are checked inside arrays and objects, with the place named; and each call is noted in a local log (`~/.estella/mcp-calls.jsonl`, never the arguments, `ESTELLA_MCP_CALL_LOG=0` to turn off) that `desktop/scripts/mcp-call-stats.mjs` summarises by the tools that fail most. `write_project_file` no longer reports a failure for a script it wrote outside the project's script folders.
 - **Plugin agent tools reach MCP clients.** A tool a plugin lends with `ctx.agentTools.register` is now listed to every connected MCP client beside the editor's own, and a call runs in the editor. Its `schema` is checked first, and a tool whose `effect` is not `read` is offered only while the editor lets agents change the project. The LDtk plugin's `estella_ldtk_import` is the first.
 
 ## [0.97.0] - 2026-10-31
