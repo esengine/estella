@@ -498,3 +498,15 @@ export function circlePoints(cx: number, cy: number, radius: number, segments = 
     }
     return out;
 }
+
+/**
+ * The triangles (indices into `ring`) that cover a simple polygon, whichever way round it is given.
+ * @experimental
+ */
+export function triangulateRing(ring: readonly Vec2[]): number[] {
+    if (ring.length < 3) return [];
+    if (signedArea(ring) >= 0) return earClip(ring);
+    // Clockwise: clip the reverse and map the indices back.
+    const n = ring.length;
+    return earClip(ring.slice().reverse()).map((i) => n - 1 - i);
+}

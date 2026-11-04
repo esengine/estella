@@ -14,6 +14,7 @@ import { Res, Time, type TimeData } from '../ecs/resource';
 import { playModeOnly } from '../ecs/env';
 import { defineComponent, Transform, type ComponentDef, type TransformData } from '../ecs/component';
 import { SplineCurve, type SplinePoint } from './curve';
+import { installTerrainBands } from './terrainBand2D';
 
 /** The fields of the `Spline` component. @experimental */
 export interface SplineData {
@@ -118,6 +119,7 @@ export class SplinePlugin implements Plugin {
         app.addSystemToSchedule(Schedule.Update,
             defineSystem([Res(Time)], (time: TimeData) => this.follow(app, time.delta), { name: 'PathFollowerSystem' }),
             { runIf: playModeOnly });
+        installTerrainBands(app);
     }
 
     private curveOf(app: App, entity: number): { curve: SplineCurve; at: TransformData } | null {
