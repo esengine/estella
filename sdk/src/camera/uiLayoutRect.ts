@@ -87,9 +87,10 @@ export const EDITOR_UI_ANCHOR = { x: 0, y: 0 } as const;
  * its CENTER is where that area sits in the world, which places screen roots (a UI
  * root with no transform parent) — so in play the HUD tracks the camera.
  *
- * Scene cameras already bake the fit's design resolution into halfW/halfH, so their
- * box is simply those extents centered on the camera — UINode px map 1:1 to design
- * px and the UI is stable. The editor view instead renders the world at a *free
+ * A scene camera's extents carry its zoom (`orthoSize` fitted to the screen), so
+ * under a fit its box is the design resolution fitted to the camera's aspect and
+ * centred on the camera — UINode px map 1:1 to design px and a zoom does not reflow
+ * the UI. Without a fit the box is the camera's extents. The editor view instead renders the world at a *free
  * zoom* with a raw orthoSize (editorCameraInfo passes a null fit, for predictable
  * navigation), so laying UI out in its zoomed extents would rescale and reflow every
  * element on each zoom. For it, recover the *fixed* design-resolution box from the
@@ -112,7 +113,18 @@ export function uiLayoutRect(
     let centerX = cam.cameraX;
     let centerY = cam.cameraY;
 
-    if (cam.entity === EDITOR_VIEW_ENTITY && fit && width > 0 && height > 0) {
+    if (cam.entity !== EDITOR_VIEW_ENTITY && fit && cam.halfH > 0) {
+        // A scene camera's extents carry its zoom (orthoSize), which UI must not
+        // follow: the box is the design resolution fitted to the camera's aspect,
+        // centred where the camera looks. At orthoSize = designResolution.y / 2 it
+        // is exactly the camera's extents, as it always was.
+        const camAspect = cam.halfW / cam.halfH;
+        const designAspect = fit.designResolution.x / fit.designResolution.y;
+        halfH = computeEffectiveOrthoSize(
+            fit.designResolution.y / 2, designAspect, camAspect, fit.scaleMode, fit.matchWidthOrHeight,
+        );
+        halfW = halfH * camAspect;
+    } else if (cam.entity === EDITOR_VIEW_ENTITY && fit && width > 0 && height > 0) {
         // Lay UI out against the *preview screen*, independent of the editor panel's aspect —
         // so the editor is WYSIWYG with the design-frame overlay. `previewAspect > 0` fits the
         // design resolution into a simulated device's aspect (the device simulator: UI adapts

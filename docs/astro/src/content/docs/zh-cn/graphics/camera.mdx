@@ -77,24 +77,21 @@ const zoomIn = defineSystem([Res(Tween)], (tween) => {
 
 ## 设计分辨率适配
 
-发布的游戏里,主相机通常**不会**按原始 `orthoSize` 渲染。引擎每帧解析一个*适配源*,当其
-生效时,把项目的设计分辨率(默认 1920×1080)letterbox 进实际屏幕宽高比——可见半高由
-`designResolution.y / 2` 加一个缩放模式算出,让世界单位在任何设备上都是设计像素。适配源
-按此顺序:
+发布的游戏会跑在各种宽高比的屏幕上。引擎每帧解析一个*适配源*,当其生效时,把主相机适配到
+实际屏幕的宽高比:`orthoSize` 是相机**在设计宽高比下**的半高,缩放模式决定屏幕更宽或更窄时
+怎么处理(保持高度、保持宽度、扩展、收缩或按比例混合)。适配源按此顺序:
 
 1. **`ScreenScaling`** 资源(设置 → 项目 → 游戏 → 显示 → 相机适配),当其 `scaleMode` 是真实模式
    (`≥ 0`)时;
 2. 否则,场景的 **`Canvas`** 组件(若存在);
 3. 否则无——相机按原始 `orthoSize` 渲染。
 
-<Aside type="caution">
-  适配源生效期间,相机自己写的 `orthoSize` **不会被使用**——可见区域来自设计分辨率与
-  缩放模式。通过 `orthoSize` 缩放(含上面的 tween)只在场景无 `Canvas` 且项目适配关闭时
-  生效。
-</Aside>
+有适配时 `orthoSize` 仍然是缩放——场景里有 `Canvas` 时上面的 tween 同样生效。UI 不跟随缩放:
+UI 的布局框是适配到屏幕的设计分辨率,缩放相机不会让 UI 重新排版,屏幕空间 UI 也走自己的投影。
 
-默认 `orthoSize` 为 `540`,恰是 `designResolution.y / 2`,所以有无适配的视图在设计宽高比
-下一致。缩放模式、letterbox 实例与 `ScreenScaling` 字段详见
+想正好显示设计画面,就把 `orthoSize` 设为 `designResolution.y / 2`(默认的 `540` 对应默认 1080
+高的设计分辨率)。0.97 及之前,适配会忽略 `orthoSize`、固定使用 `designResolution.y / 2`;在适配下
+写了其它值的场景,现在会按那个值显示。缩放模式、letterbox 实例与 `ScreenScaling` 字段详见
 [屏幕与设计分辨率](/docs/zh-cn/core-concepts/screen/)。
 
 ![第三人称示例:相机跟在角色身后,前方是树木之间的台阶](@/assets/guides/zh/play-third-person.png)

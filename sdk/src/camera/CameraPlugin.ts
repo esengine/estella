@@ -307,10 +307,15 @@ export function buildCameraInfo(
     if (pov.projection === ProjectionType.Orthographic) {
         halfH = pov.orthoSize;
         if (canvas && (pov.renderTarget ?? 0) === 0 && isFullFrame(pov.viewport)) {
-            const baseOrthoSize = canvas.designResolution.y / 2;
+            // The fit adapts the camera's OWN size to the screen's aspect — it does
+            // not replace it. orthoSize is the camera's half-height at the design
+            // aspect, so it stays the zoom a script or a tween drives; it used to be
+            // discarded for designResolution.y / 2 whenever a Canvas or the project
+            // fit was active, and zooming did nothing. The UI box is the design's,
+            // not the camera's (see uiLayoutRect), so a zoom does not reflow UI.
             const designAspect = canvas.designResolution.x / canvas.designResolution.y;
             halfH = computeEffectiveOrthoSize(
-                baseOrthoSize, designAspect, aspect,
+                pov.orthoSize, designAspect, aspect,
                 canvas.scaleMode, canvas.matchWidthOrHeight,
             );
         }

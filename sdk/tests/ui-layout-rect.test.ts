@@ -91,3 +91,15 @@ describe('computeEffectiveOrthoSize', () => {
         expect(computeEffectiveOrthoSize(base, designAspect, 2.0, CanvasScaleMode.Shrink, 0)).toBeCloseTo(480, 0);
     });
 });
+
+describe('uiLayoutRect under a camera zoom', () => {
+    it('keeps the design box while the scene camera zooms, centred on the camera', () => {
+        const fit = { designResolution: { x: 1920, y: 1080 }, scaleMode: 1, matchWidthOrHeight: 0.5 };
+        // Zoomed in 2x: the camera shows half the design height.
+        const rect = uiLayoutRect({ entity: 5, cameraX: 100, cameraY: -40, halfW: 270 * 16 / 9, halfH: 270 }, fit, 1920, 1080);
+        expect(rect.top - rect.bottom).toBeCloseTo(1080);
+        expect(rect.right - rect.left).toBeCloseTo(1920);
+        expect((rect.left + rect.right) / 2).toBeCloseTo(100);
+        expect((rect.top + rect.bottom) / 2).toBeCloseTo(-40);
+    });
+});

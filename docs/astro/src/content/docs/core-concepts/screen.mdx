@@ -143,12 +143,14 @@ there is one design resolution in play at a time — a scene whose `Canvas` stil
 carries an older resolution than the project fit cannot lay UI out one way in the
 editor and another in the shipped build.
 
-<Aside type="caution">
-  While a fit source is active, a full-screen orthographic scene camera's authored
-  `orthoSize` is **not used** — the visible half-height comes entirely from the
-  design resolution and the scale mode. Sub-viewport cameras, cameras that render
-  into a texture and perspective cameras keep their own zoom. Zoom by editing/tweening `orthoSize` only takes effect when no
-  fit source is active (no `Canvas` in the scene and `ScreenScaling` off).
+<Aside>
+  While a fit source is active, a full-screen orthographic scene camera's `orthoSize`
+  is its half-height **at the design aspect**; the scale mode adapts it to the screen.
+  It stays the zoom, so editing or tweening it works with a `Canvas` in the scene.
+  The UI layout box is the design resolution fitted to the screen, not the camera's
+  view, so a zoom does not reflow UI. Sub-viewport cameras, cameras that render into a
+  texture and perspective cameras are not fitted. (Up to 0.97 a fit ignored
+  `orthoSize` and always used `designResolution.y / 2`.)
 </Aside>
 
 The default scene camera is authored with `orthoSize: 540 = designResolution.y / 2`

@@ -130,10 +130,11 @@ const halfH = computeEffectiveOrthoSize(
 场景的 `Canvas` 即使还留着比项目适配更旧的分辨率,也不会出现"编辑器里一个盒子、发行版
 里另一个盒子"。
 
-<Aside type="caution">
-  适配源生效期间,全屏正交场景相机自己写的 `orthoSize` **不会被使用**——可见半高完全来自设计分辨率
-  与缩放模式。子视口相机、渲染到纹理的相机和透视相机保留自己的缩放。通过编辑/tween `orthoSize` 缩放,只在没有适配源时生效(场景无 `Canvas`
-  且项目适配关闭)。
+<Aside>
+  适配源生效期间,全屏正交场景相机的 `orthoSize` 是它**在设计宽高比下**的半高,缩放模式再把它适配到
+  实际屏幕。它仍然是缩放,场景里有 `Canvas` 时编辑或 tween 它同样生效。UI 布局框是适配到屏幕的设计
+  分辨率,而不是相机的视野,所以缩放不会让 UI 重新排版。子视口相机、渲染到纹理的相机和透视相机不参与
+  适配。(0.97 及之前,适配会忽略 `orthoSize`、固定使用 `designResolution.y / 2`。)
 </Aside>
 
 默认场景相机写的正是 `orthoSize: 540 = designResolution.y / 2`,所以有无适配的视图在设计

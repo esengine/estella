@@ -82,7 +82,7 @@ describe('render order: transforms resolve before cameras are read', () => {
         const registry = module.getRegistry() as unknown as Record<string, unknown> & CppRegistry;
         const cam = app.world.spawn('camera') as Entity;
         app.world.insert(cam, Transform, { position: { x: 0, y: 0, z: 0 } });
-        app.world.insert(cam, Camera, { isActive: true, projectionType: ProjectionType.Orthographic, orthoSize: 180 });
+        app.world.insert(cam, Camera, { isActive: true, projectionType: ProjectionType.Orthographic, orthoSize: 300 });
         registry.getCameraEntities = () => [cam];
         registry.getCanvasEntities = () => [];
         app.setPipeline(new RenderPipeline());
@@ -115,10 +115,13 @@ describe('render order: transforms resolve before cameras are read', () => {
         app.setPipeline(new RenderPipeline());
         setRendererBackend(fakeBackend(registry, [cam]));
         app.addPlugin(cameraPlugin(() => ({ width: 800, height: 600 })));
-        app.insertResource(ScreenScaling, { designWidth: 800, designHeight: 600, scaleMode: 1, matchWidthOrHeight: 0.5 });
+        // FixedWidth on a wider design than the screen: the fit changes what the
+        // camera shows, so a preview that skipped it would not match the game.
+        app.insertResource(ScreenScaling, { designWidth: 1000, designHeight: 600, scaleMode: 0, matchWidthOrHeight: 0.5 });
         await app.tick(1 / 60);
         const gameProjection = Array.from(lastViewProjection!);
-        expect(ndcX(lastViewProjection!, 400, 0)).toBeCloseTo(1);
+        // The raw camera would put x = 400 (orthoSize 300 at 4:3) on the edge.
+        expect(Math.abs(ndcX(lastViewProjection!, 400, 0) - 1)).toBeGreaterThan(0.05);
         app.world.update(cam, Camera, data => { data.isActive = false; });
         expect(renderCameraFrame(app, 800, 600, cam)).toBe(true);
         expect(Array.from(lastViewProjection!)).toEqual(gameProjection);

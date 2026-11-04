@@ -28,7 +28,7 @@
           "type": "Camera",
           "data": {
             "projectionType": 1,
-            "orthoSize": 350,
+            "orthoSize": 300,
             "isActive": true,
             "priority": 0
           }

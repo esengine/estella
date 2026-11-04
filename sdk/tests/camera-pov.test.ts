@@ -68,8 +68,13 @@ describe('camera POV → view-projection', () => {
     const cam = buildCameraInfo(pov({ orthoSize: 100, ...over }), 800, 600, fit, [], 0);
     expect(cam.halfH).toBe(100);
     expect(ndc(cam.viewProjection, 0, 100).y).toBeCloseTo(1);
+    // The full-screen camera is fitted too, but around its OWN size: orthoSize is
+    // the zoom, and FixedHeight keeps it as the half-height.
     const main = buildCameraInfo(pov({ orthoSize: 100 }), 800, 600, fit, [], 0);
-    expect(main.halfH).toBe(540);
+    expect(main.halfH).toBe(100);
+    // FixedWidth keeps the design's width instead: 100 at 16:9 is 177.8 wide, on 4:3.
+    const wide = buildCameraInfo(pov({ orthoSize: 100 }), 800, 600, { ...fit, scaleMode: 0 }, [], 0);
+    expect(wide.halfW).toBeCloseTo(100 * 1920 / 1080);
   });
 
   it('rotation 0 keeps the old translation-only view (center → clip origin)', () => {
