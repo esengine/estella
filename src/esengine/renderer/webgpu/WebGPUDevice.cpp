@@ -536,7 +536,7 @@ bool WebGPUDevice::configureSwapchain(u32 width, u32 height) {
     if (present_uncapped_) {
         ES_LOG_WARN("WebGPUDevice: uncapped present asked for, surface gave {}",
                     cfg.presentMode == WGPUPresentMode_Immediate ? "Immediate"
-                    : cfg.presentMode == WGPUPresentMode_Mailbox ? "Mailbox — still vsynced on Metal"
+                    : cfg.presentMode == WGPUPresentMode_Mailbox ? "Mailbox — the compositor still shows one frame per vsync"
                                                                  : "Fifo — the frame IS the refresh interval");
     }
     wgpuSurfaceConfigure(surface_, &cfg);

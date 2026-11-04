@@ -521,7 +521,13 @@ void framesResumed(bool is);
 void hintFrameRate(ANativeWindow* window, float fps) {
     constexpr int8_t kCompatibilityDefault = 0;   // ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT
     using SetFrameRateFn = int32_t (*)(ANativeWindow*, float, int8_t);
-    const auto set = reinterpret_cast<SetFrameRateFn>(dlsym(RTLD_DEFAULT, "ANativeWindow_setFrameRate"));
+    // From libnativewindow, which exports it: RTLD_DEFAULT searches only what this
+    // namespace loaded globally, and on a current device that is not the library
+    // this symbol lives in — the lookup came back empty on Android 16 and the hint
+    // was never given, which is the 120 Hz cadence problem above, every frame.
+    static void* const nativeWindow = dlopen("libnativewindow.so", RTLD_NOW | RTLD_LOCAL);
+    auto set = nativeWindow ? reinterpret_cast<SetFrameRateFn>(dlsym(nativeWindow, "ANativeWindow_setFrameRate")) : nullptr;
+    if (!set) set = reinterpret_cast<SetFrameRateFn>(dlsym(RTLD_DEFAULT, "ANativeWindow_setFrameRate"));
     if (!window || !set) {
         if (window) __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "frame rate hint: unavailable (API < 30)");
         return;
