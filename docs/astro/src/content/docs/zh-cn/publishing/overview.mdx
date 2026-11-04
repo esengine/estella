@@ -216,7 +216,8 @@ node build-tools/cli.js build -t wechat
 
 | 模块 | 产物 | 何时加载 |
 |---|---|---|
-| 物理(Box2D) | `physics.js` / `physics.wasm` | 项目声明了物理,或场景使用了物理组件。 |
+| 物理(Box2D) | `physics.js` / `physics.wasm` | 项目声明了物理,或场景使用了 2D 物理组件。 |
+| 3D 物理(Jolt) | `physics3d.js` / `physics3d.wasm` | 场景使用了 3D 刚体(`RigidBody3D`)。只在这时加载,与 2D 模块并存,不取代它。 |
 | Spine | `spine21` / `spine38` / `spine41` / `spine42` / `spine43` 的 `.js`/`.wasm` | 场景使用了对应格式版本的 Spine 骨骼。 |
 | DragonBones | `dragonbones.js` / `dragonbones.wasm` | 场景使用了 DragonBones 骨架。一个模块读所有版本。 |
 | Basis 转码器 | `basis.js` / `basis.wasm` | 构建里发布了 KTX2 压缩纹理。 |
@@ -261,7 +262,7 @@ node build-tools/cli.js build -t wechat
 它没有的：
 
 - **WebGPU**：JavaScript 引擎始终走 WebGL2。
-- **侧模块**（物理、Spine、DragonBones、Basis、视频）：它们是 WebAssembly 二进制。
+- **侧模块**（2D 与 3D 物理、Spine、DragonBones、Basis、视频）：它们是 WebAssembly 二进制。
   在没有 WebAssembly 的环境里，每个侧模块只报一条写明模块名的错误，然后保持缺席，
   它提供的功能不会运行。
 - **编译（`@compiled`）系统**：它们也是 wasm 模块，这里保持解释执行，

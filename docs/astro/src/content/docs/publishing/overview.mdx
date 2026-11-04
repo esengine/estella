@@ -253,7 +253,8 @@ the base engine stays small:
 
 | Module | Artifacts | Loaded when |
 |---|---|---|
-| Physics (Box2D) | `physics.js` / `physics.wasm` | The project declares physics or a scene uses physics components. |
+| Physics (Box2D) | `physics.js` / `physics.wasm` | The project declares physics or a scene uses 2D physics components. |
+| 3D physics (Jolt) | `physics3d.js` / `physics3d.wasm` | A scene uses 3D rigid bodies (`RigidBody3D`). Loaded only then, and alongside the 2D module, not in place of it. |
 | Spine | `spine21` / `spine38` / `spine41` / `spine42` / `spine43` `.js`/`.wasm` | A scene uses a Spine skeleton of that format version. |
 | DragonBones | `dragonbones.js` / `dragonbones.wasm` | A scene uses a DragonBones armature. One module reads every version. |
 | Basis transcoder | `basis.js` / `basis.wasm` | The build shipped KTX2-compressed textures. |
@@ -309,7 +310,7 @@ What it costs, measured on `hello-world` in headless Chromium:
 What it does not have:
 
 - **WebGPU.** The JavaScript engine always renders through WebGL2.
-- **Side modules** (physics, Spine, DragonBones, Basis, video). These are
+- **Side modules** (2D and 3D physics, Spine, DragonBones, Basis, video). These are
   WebAssembly binaries. On a host without WebAssembly each one logs a single
   error naming the module and stays absent, and the features it provides do not run.
 - **Compiled (`@compiled`) systems.** These are wasm modules too. They stay
