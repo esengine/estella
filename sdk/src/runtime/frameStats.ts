@@ -9,7 +9,9 @@ import type { App, FrameCosts } from '../app/app';
 import { engineApi } from '../ecs/bridge/engineApi';
 import { Quality } from '../render/qualityRuntime';
 import { Audio } from '../audio/Audio';
+import { Assets } from '../asset/AssetPlugin';
 import { StaticBatchingRes, type StaticBatchSummary } from '../render/staticBatchPlugin';
+import { TextureStreamingRes } from '../render/textureStreaming';
 import type { QualityReport } from '../render/quality';
 
 export interface FrameStatsReport {
@@ -38,6 +40,8 @@ export interface FrameStatsReport {
     /** What static batching merged and left out; absent until a mesh has been marked. */
     staticBatch?: StaticBatchSummary;
     quality?: QualityReport;
+    /** What texture streaming holds: how many textures, the megabytes they take and would at full size, and how many moves it has made. */
+    textureStreaming?: { enabled: boolean; textures: number; streamedMB: number; fullMB: number; moves: number; failures: number; startedSmall: number };
 }
 
 function jsonMap(json: string | undefined): Record<string, number> {
@@ -71,5 +75,15 @@ export function frameStatsReport(app: App): FrameStatsReport {
         ...audioStats(app),
         ...(app.hasResource(StaticBatchingRes) ? (() => { const s = app.getResource(StaticBatchingRes).summary(); return s ? { staticBatch: s } : {}; })() : {}),
         quality: app.hasResource(Quality) ? app.getResource(Quality)?.report() : undefined,
+        ...textureStreamingStats(app),
     };
+}
+
+function textureStreamingStats(app: App): Pick<FrameStatsReport, 'textureStreaming'> {
+    if (!app.hasResource(TextureStreamingRes)) return {};
+    const s = app.getResource(TextureStreamingRes);
+    const b = s.bytes();
+    const loader = app.hasResource(Assets) ? app.getResource(Assets).getTextureLoader() : null;
+    return { textureStreaming: { enabled: s.enabled, textures: s.textures.size, streamedMB: b.now / 1048576, fullMB: b.full / 1048576,
+        moves: s.moves, failures: s.failures, startedSmall: loader?.startedSmall ?? 0 } };
 }

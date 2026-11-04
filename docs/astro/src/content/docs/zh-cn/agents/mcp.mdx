@@ -74,6 +74,8 @@ claude mcp add estella --env ESTELLA_MCP_ALLOW_WRITES=1 -- \
 
 `--editor` 会以启用 MCP 端点的方式启动安装版编辑器。PATH 里需要 Node.js 20+。
 
+编辑器在第一次调用工具时才启动,而不是在 AI 工具启动服务器的时候:服务器立刻就能应答,一次工具都没调用的会话不会拉起编辑器,冷启动慢的编辑器也不会让 AI 工具放弃这个服务器。加 `--eager` 可以在 AI 工具连上后就在后台启动它,加 `--hidden` 则不显示窗口。
+
 <Aside type="caution">
 不设 `ESTELLA_MCP_ALLOW_WRITES=1` 时代理只能**观察**——所有会产生修改的工具
 （创建实体、改字段、保存、导出）都被隐藏并拒绝。写权限请有意识地授予。
@@ -201,7 +203,7 @@ claude mcp add estella --env ESTELLA_MCP_ALLOW_WRITES=1 -- \
 ## 从源码仓库使用（贡献者）
 
 源码仓库里，`pnpm --filter @estella/editor editor:mcp` 用无头夹具宿主提供同一套
-注册表（仅场景工具），`editor:mcp -- --editor` 拉起开发版编辑器；两套 e2e
+注册表（仅场景工具），`editor:mcp -- --editor` 拉起开发版编辑器(加 `--hidden` 不显示窗口)；两套 e2e
 （`editor:mcp:e2e`、`editor:mcp:editor-e2e`）验证完整闭环。
 
 ## 参见

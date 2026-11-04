@@ -81,6 +81,11 @@ claude mcp add estella --env ESTELLA_MCP_ALLOW_WRITES=1 -- \
 `--editor` launches the installed editor with the MCP endpoint enabled. Node.js 20+
 must be on your PATH.
 
+The editor is launched by the first tool call, not when your AI tool starts the server: the server answers at once, a
+session that calls no tool never starts an editor, and an editor slow to come up cold cannot make the tool give up on the
+server. Add `--eager` to start it in the background as soon as the tool connects, and `--hidden` to drive it without a
+window.
+
 <Aside type="caution">
 Without `ESTELLA_MCP_ALLOW_WRITES=1` the agent can only **observe** — every
 mutating tool (creating entities, editing fields, saving, exporting) is hidden and
@@ -219,7 +224,7 @@ folder in one call — each asset keeps the settings the patch does not name.
 
 In a source checkout, `pnpm --filter @estella/editor editor:mcp` serves the same
 registry against a headless fixtures host (scene tools only), `editor:mcp -- --editor`
-boots the dev editor, and two e2e suites (`editor:mcp:e2e`,
+boots the dev editor (add `--hidden` to keep its window from appearing), and two e2e suites (`editor:mcp:e2e`,
 `editor:mcp:editor-e2e`) prove the full loop.
 
 ## See also
