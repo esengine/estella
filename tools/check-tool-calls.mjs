@@ -15,11 +15,10 @@
  * BOOT, in the suite people run last, and only on the branch that happened to be
  * exercised. Both names are readable from here in a second.
  *
- * The agent's SYSTEM PROMPT. It names its tools in prose, and a name that goes
- * stale there is worse than one in a script: the model is TAUGHT to reach for
- * something that does not exist, in every conversation, and the only symptom is
- * an agent that keeps trying a call it never gets to make. This repo has already
- * shipped a prompt teaching an API that had not compiled in six months.
+ * The MCP GUIDE. It names tools in prose, and a name that goes stale there is
+ * worse than one in a script: whoever reads it — a person, or an agent handed the
+ * page — is TAUGHT to reach for something that does not exist. (This half read the
+ * built-in agent's system prompt until that agent was removed.)
  *
  * Deliberately narrow in both halves. A call is inspected only when it can be
  * read with certainty — a literal tool name and a literal object of arguments;
@@ -82,21 +81,23 @@ for (const file of SCANNED.flatMap((d) => scripts(d))) {
 }
 
 /**
- * The prompt names its tools in prose, so every snake_case identifier in it is
- * one — with one documented exception: shader code, whose varyings and uniforms
- * carry the `v_`/`u_` prefix by convention. Anything else with an underscore in
- * a system prompt is an identifier, and the only identifiers this prompt has
- * business naming are tools.
+ * The MCP guide names tools in prose, for the agents and people who read it — a stale name there teaches a call that
+ * does not exist. Only backticked snake_case is read: that is how the guide spells a tool, and anything else with an
+ * underscore in backticks is one too, apart from what the front itself answers (`enable_tools`) and shader names.
  */
 const SHADER_IDENT = /^[uv]_/;
-const PROMPT = path.join(DESKTOP, 'electron', 'agent', 'prompt.ts');
-const prompt = readFileSync(PROMPT, 'utf8');
-const promptWhere = path.relative(ROOT, PROMPT);
-for (const token of new Set(prompt.match(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g) ?? [])) {
-  if (SHADER_IDENT.test(token)) continue;
-  checked++;
-  if (!declared.has(token)) {
-    problems.push(`${promptWhere}: the prompt teaches "${token}", which is not a tool the catalog has`);
+const FRONT_TOOLS = new Set(['enable_tools']);
+const GUIDES = [
+  path.join(ROOT, 'docs', 'astro', 'src', 'content', 'docs', 'agents', 'mcp.mdx'),
+  path.join(ROOT, 'docs', 'astro', 'src', 'content', 'docs', 'zh-cn', 'agents', 'mcp.mdx'),
+];
+for (const guide of GUIDES) {
+  const text = readFileSync(guide, 'utf8');
+  const where = path.relative(ROOT, guide);
+  for (const [, token] of text.matchAll(/`([a-z][a-z0-9]*(?:_[a-z0-9]+)+)`/g)) {
+    if (SHADER_IDENT.test(token) || FRONT_TOOLS.has(token)) continue;
+    checked++;
+    if (!declared.has(token)) problems.push(`${where}: the guide names "${token}", which is not a tool the catalog has`);
   }
 }
 
@@ -106,4 +107,4 @@ if (problems.length > 0) {
   console.log('\nFix the name, or declare it in desktop/shared/toolCatalog.mjs.');
   process.exit(1);
 }
-console.log(`check-tool-calls: ${checked} name(s) in scripts and the agent prompt are tools the catalog has.`);
+console.log(`check-tool-calls: ${checked} name(s) in scripts and the MCP guide are tools the catalog has.`);

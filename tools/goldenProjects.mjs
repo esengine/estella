@@ -326,7 +326,7 @@ export const SHIPPED = {
   // — 0.71.0 —
   'Settings can find out whether a model reads pictures, instead of asking you to know.':
     { notCertifiable: 'an editor settings row and one request to the model vendor; no game frame is'
-      + ' involved, and tests/vision-probe.test.ts holds the picture and the reading of the answer' },
+      + ' involved; tests/vision-probe.test.ts held the picture and the reading of the answer until the built-in agent was removed' },
   'The agent can take an overview and a close-up instead of one full-size picture.':
     { notCertifiable: "the editor agent's capture tools; the capture-framing editor check holds both"
       + ' implementations against a real window' },
