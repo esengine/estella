@@ -184,13 +184,17 @@ way it can:
 
 ### Shipping what only code names
 
-Reachability is what keeps a build from shipping everything — and it is **blind to
-anything your code names at runtime**: a texture in rich-text markup, a clip played
-by url, a prefab spawned by path. Those get culled, and nothing warns you, because
-the editor serves the project straight off disk and never needs the manifest. The
-first symptom is a silent button or a missing image in a real build.
+Reachability is what keeps a build from shipping everything, and it starts at the
+scenes. Your scripts are read too: a string literal that is an asset's whole path
+(`'assets/ui/coin.png'`) or an `@uuid:` ref ships that asset, and a template literal
+that builds paths inside a folder (`` `assets/sfx/${name}.wav` ``) ships the whole
+folder, with a build warning saying so. A shipped game that asks for a file the
+package lacks logs which one and why.
 
-Declare the folder instead. In the **Content Browser**, right-click it and pick
+What the scripts cannot show is still culled: a path assembled from pieces, a name
+read from data, a texture in rich-text markup. The editor serves the project straight
+off disk, so the first symptom is a missing image in a real build. For those, declare
+the folder. In the **Content Browser**, right-click it and pick
 **Delivery → Always include in builds** — the same menu that sets local /
 subpackage / remote delivery, writing to the same `.esengine/asset-groups.json`:
 
