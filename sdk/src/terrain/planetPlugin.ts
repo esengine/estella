@@ -176,6 +176,8 @@ export class Planets {
 
 export class PlanetPlugin implements Plugin {
     name = 'planet';
+    /** No planet, no work; the frame after the last one goes still lets it go. */
+    readonly activeWhen = [Planet];
 
     private stock_ = 0;
     private planets_: Planets | null = null;

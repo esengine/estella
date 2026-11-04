@@ -146,6 +146,7 @@ export const scorePlugin: Plugin = {
 | `dependencies` | `PluginDependency[]?` | 前置条件,每项是插件**名**(`string`)或**资源定义**。缺失时 `addPlugin` 抛错;`addPlugins` 还会用名字边为整批排序。 |
 | `before` / `after` | `string[]?` | 相对其他插件名的软排序提示,在 `addPlugins` 批量安装时生效。 |
 | `build(app)` | 必需 | 注册系统、资源与事件。`addPlugin` 时立即执行。 |
+| `activeWhen` | `ComponentDef[]?` | 插件工作所针对的组件。当没有任何实体拥有其中之一时,它在 `build()` 里注册的系统会被跳过——从不放水体的游戏,每帧不为水体插件付出任何开销。最后一个组件消失后仍会再运行一帧,让插件释放持有的资源。不写则始终运行。引擎的 water、terrain、planet 插件已声明。 |
 | `finish(app)` | 可选 | 在**所有**插件 build 完、应用首次 tick/run 时执行一次——用于需要完整集合的接线。 |
 | `cleanup(app?)` | 可选 | `app.quit()` 时按安装逆序执行。 |
 

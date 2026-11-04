@@ -559,6 +559,8 @@ async function windowOf(provider: TerrainProvider, data: TerrainData, cx: number
 
 export class TerrainPlugin implements Plugin {
     name = 'terrain';
+    /** No terrain, no work; the frame after the last one goes still runs its sweep. */
+    readonly activeWhen = [Terrain];
 
     /** The stock materials a terrain with none of its own is an instance of: without layers, and with. */
     private stock_ = 0;

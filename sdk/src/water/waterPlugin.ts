@@ -379,6 +379,8 @@ interface Surface {
 
 export class WaterPlugin implements Plugin {
     name = 'water';
+    /** Nothing to bake, carve or draw without a body or a zone; the frame after the last one goes still runs, and lets go. */
+    readonly activeWhen = [WaterBody, WaterZone];
 
     /** The stock material the surface is an instance of when the zone names none, made once from the Water shader. */
     private stock_ = 0;

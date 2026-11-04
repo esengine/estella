@@ -45,7 +45,7 @@ import { SceneManager } from '../scene/sceneManager';
 import { sceneManagerPlugin } from '../scene/scenePlugin';
 import { getDefaultContext } from '../ecs/context';
 import { setLinearColorSpace } from '../ecs/env';
-import { seedEngineComponents } from '../ecs/component';
+import { seedEngineComponents, type AnyComponentDef } from '../ecs/component';
 import { cameraPlugin } from '../camera/CameraPlugin';
 import { ScreenScaling, SCREEN_FIT_OFF, type ScreenScalingData } from '../camera/ScreenScaling';
 import { RenderResolution } from '../camera/presentPlan';
@@ -85,6 +85,13 @@ export interface Plugin {
     /** Cost domain the profiler files this plugin's systems under. Defaults to
      *  `name`; declare it where the two differ, as `camera` producing `render`. */
     profileDomain?: string;
+    /**
+     * The components this plugin's work is about: while no entity has any of them,
+     * its systems are not run — a game that never places water pays nothing for the
+     * water plugin each frame. They keep running for one frame after the last one
+     * goes, so a plugin can release what it held. Absent: always run.
+     */
+    activeWhen?: readonly AnyComponentDef[];
     build(app: App): void;
     finish?(app: App): void;
     /** Releases acquired resources on quit or a failed build; must tolerate a
@@ -112,8 +119,19 @@ interface InflightSystem {
     done: Promise<void>;
 }
 
+/** One plugin's {@link Plugin.activeWhen}, decided once a frame for all its systems. */
+interface ActivityGate {
+    readonly components: readonly AnyComponentDef[];
+    frame: number;
+    open: boolean;
+    /** Whether any of them existed when last decided: the frame after the last goes still runs. */
+    present: boolean;
+}
+
 interface SystemEntry {
     startupInvoked?: boolean;
+    /** Skipped while the owning plugin's components are absent (see Plugin.activeWhen). */
+    gate?: ActivityGate;
     system: SystemDef;
     runBefore?: string[];
     runAfter?: string[];
@@ -209,6 +227,7 @@ export class App {
     private buildingPlugin_: string | null = null;
     /** The cost domain of that plugin, which is its name unless it declared one. */
     private buildingDomain_: string | null = null;
+    private buildingGate_: ActivityGate | null = null;
     /** Registration undo actions for the current build; nested builds own theirs. */
     private buildRollback_: Array<() => void> | null = null;
     private addingBundleSystems_ = false;
@@ -319,12 +338,15 @@ export class App {
         }
         const prevBuilding = this.buildingPlugin_;
         const prevDomain = this.buildingDomain_;
+        const prevGate = this.buildingGate_;
         const prevRollback = this.buildRollback_;
         const rollback: Array<() => void> = [];
         const buildEpoch = this.quitEpoch_;
         this.buildRollback_ = rollback;
         this.buildingPlugin_ = plugin.name ?? null;
         this.buildingDomain_ = plugin.profileDomain ?? plugin.name ?? null;
+        this.buildingGate_ = plugin.activeWhen?.length
+            ? { components: plugin.activeWhen, frame: -1, open: true, present: true } : null;
         try {
             plugin.build(this);
             // Sync plugin: live once build() returns → promote. An async plugin
@@ -343,6 +365,7 @@ export class App {
         } finally {
             this.buildingPlugin_ = prevBuilding;
             this.buildingDomain_ = prevDomain;
+            this.buildingGate_ = prevGate;
             this.buildRollback_ = prevRollback;
         }
         return this;
@@ -393,6 +416,22 @@ export class App {
      * read properties of undefined (reading 'push')" thrown from inside a
      * minified bundle, naming neither the system nor the value.
      */
+    /** Whether a plugin's systems run this frame: some entity has one of its components, or had last frame. */
+    private gateOpen_(gate: ActivityGate): boolean {
+        const frame = this.hasResource(Time) ? this.getResource(Time).frameCount : 0;
+        if (gate.frame === frame) return gate.open;
+        const world = this.world;
+        let present = false;
+        for (const c of gate.components) {
+            // A cached query: unchanged structure answers without walking anything.
+            if (world.queryEntities([c]).length > 0) { present = true; break; }
+        }
+        gate.open = present || gate.present;
+        gate.present = present;
+        gate.frame = frame;
+        return gate.open;
+    }
+
     private registeringDomain_(): string {
         if (this.buildingDomain_) return this.buildingDomain_;
         return this.addingBundleSystems_ ? DOMAIN_SCRIPTS : DOMAIN_UNATTRIBUTED;
@@ -432,6 +471,7 @@ export class App {
             subsystem: this.buildingPlugin_ ?? undefined,
             fromBundle: this.addingBundleSystems_ || undefined,
             domain: options?.profileDomain ?? this.registeringDomain_(),
+            ...(this.buildingGate_ ? { gate: this.buildingGate_ } : {}),
         });
         this.sortedSystemsCache_.delete(schedule);
         this.dependencyCache_.delete(schedule);
@@ -1851,6 +1891,7 @@ export class App {
             if (this.frame_paused_ || this.isExecutionHeld() || executionEpoch !== this.executionEpoch_) break;
             if (schedule === Schedule.Startup && entry.startupInvoked) continue;
             if (entry.runIf && !entry.runIf()) { if (schedule === Schedule.Startup) entry.startupInvoked = true; continue; }
+            if (entry.gate && schedule !== Schedule.Startup && !this.gateOpen_(entry.gate)) continue;
 
             // Where the declarations are spent rather than reported: a system
             // starts beside an unfinished one only when it neither depends on it
