@@ -116,3 +116,10 @@ describe('InputMap', () => {
         expect(map2.actions()).toEqual(['Jump']);
     });
 });
+
+describe('MouseButton names', () => {
+    it('names the three DOM buttons, and the constructor still builds a binding', () => {
+        expect([MouseButton.Left, MouseButton.Middle, MouseButton.Right]).toEqual([0, 1, 2]);
+        expect(MouseButton(MouseButton.Right)).toEqual({ kind: 'mouse', button: 2 });
+    });
+});

@@ -80,9 +80,16 @@ const INPUT_MAP_ASSET_VERSION = 1;
  *  it types, so WASD stays WASD on AZERTY.
  *  @public */
 export const Key = (code: string): Binding => ({ kind: 'key', code });
-/** A mouse button, by the DOM numbering (0 = left, 1 = middle, 2 = right).
+/** A mouse button, by the DOM numbering (0 = left, 1 = middle, 2 = right) — and
+ *  those three by name, so `MouseButton.Left` reads the same in a binding
+ *  (`MouseButton(MouseButton.Left)`) and in a direct query
+ *  (`input.isMouseButtonDown(MouseButton.Left)`). Before the names existed
+ *  `MouseButton.Left` was undefined, and a query with it was never true.
  *  @public */
-export const MouseButton = (button: number): Binding => ({ kind: 'mouse', button });
+export const MouseButton = Object.assign(
+    (button: number): Binding => ({ kind: 'mouse', button }),
+    { Left: 0, Middle: 1, Right: 2 } as const,
+);
 /** A gamepad button — see {@link GamepadButton}. `pad` defaults to the first one.
  *  @public */
 export const GpButton = (button: number, pad?: number): Binding => ({ kind: 'gpButton', button, pad });

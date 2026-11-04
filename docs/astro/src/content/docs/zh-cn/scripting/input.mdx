@@ -116,7 +116,7 @@ if (Controls.pressed('Jump')) { /* 本帧边沿 */ }
 | 绑定 | 供给 | 含义 |
 |---|---|---|
 | `Key(code)` | button / axis | 一个键盘键。 |
-| `MouseButton(b)` | button / axis | 一个鼠标键。 |
+| `MouseButton(b)` | button / axis | 一个鼠标键(`MouseButton.Left` / `.Middle` / `.Right` = 0 / 1 / 2,同样可直接用于 `input.isMouseButtonDown`)。 |
 | `GpButton(btn, pad?)` | button / axis | 一个手柄键(扳机给模拟值)。 |
 | `GpAxis(axis, pad?, scale?)` | axis | 一根原始手柄轴。 |
 | `Keys1D(neg, pos)` | axis | 两个键 → 带符号的 1D 轴。 |
