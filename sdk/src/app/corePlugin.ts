@@ -13,7 +13,6 @@ import { initGeometryAPI, shutdownGeometryAPI } from '../render/geometry';
 import { initPostProcessAPI, shutdownPostProcessAPI } from '../postprocess';
 import { initRendererAPI, shutdownRendererAPI } from '../render/renderer';
 import { initGLDebugAPI, shutdownGLDebugAPI } from '../render/glDebug';
-import { CameraView, CameraViewAPI, PresentedCameraView, presentedCameraView } from '../camera/Camera';
 
 let offMemoryWarning: (() => void) | null = null;
 
@@ -39,11 +38,6 @@ export const corePlugin: Plugin = {
         initPostProcessAPI(module);
         initRendererAPI(module);
         initGLDebugAPI(module);
-        app.insertResource(CameraView, new CameraViewAPI(app));
-        // Published beside it, not instead of it: a system inside the frame
-        // wants the camera being resolved, and an overlay on the picture wants
-        // the one that drew it. Two questions, so two resources.
-        app.insertResource(PresentedCameraView, presentedCameraView(app));
         // One integer a frame, in the core rather than in whoever drives the
         // recovery: a host without the asset layer loses its device too, and a
         // game learns the picture came back from one place either way.

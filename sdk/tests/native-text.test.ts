@@ -12,6 +12,7 @@
  * collect and flush, close it. That order IS the contract with the host, which
  * only presents afterwards.
  */
+import { CameraView, CameraViewAPI, PresentedCameraView } from '../src/camera/Camera';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createNativeApp } from '../src/ecs/bridge/nativeRuntime';
 import { shutdownResourceManager } from '../src/wasm/resourceManager';
@@ -179,6 +180,17 @@ function buildScene(app: ReturnType<typeof createNativeApp>, setScene: (canvas: 
 }
 
 describe('a frame on the native core', () => {
+    it('publishes the camera queries the web publishes', async () => {
+        const host = makeHostScope();
+        const app = createNativeApp(makeBridge(host.scope), host.scope);
+        await app.tick(0);
+        // A game reads these the same way on both cores; null on a device was a
+        // per-frame throw the editor's Play never showed.
+        expect(app.getResource(CameraView)).toBeInstanceOf(CameraViewAPI);
+        expect(app.getResource(PresentedCameraView)).toBeInstanceOf(CameraViewAPI);
+        app.quit({ keepRenderer: true });
+    });
+
     it('keeps bitmap geometry aligned with the native viewport after DPR changes', async () => {
         const host = makeHostScope();
         let density = 1;

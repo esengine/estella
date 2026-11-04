@@ -17,6 +17,7 @@ import type { World } from '../ecs/world';
 import type { Entity } from '../types';
 import { UICameraInfo, type UICameraData } from '../ui/core/ui-camera-info';
 import { CameraCommit, cameraCommitChanged } from './CameraCommit';
+import { CameraView, CameraViewAPI, PresentedCameraView, presentedCameraView } from './Camera';
 import { ScreenLayout, screenLayoutRect, screenProjection } from '../ui/core/screen-layout';
 import { ScreenOverlay } from '../ui/core/screen-overlay';
 import { ProjectionType, SceneOwner, ClearFlags } from '../ecs/component';
@@ -834,6 +835,14 @@ export function cameraPlugin(
             // games call setViewTarget(app, entity, {time, curve}) to blend, or
             // shakeCamera(app, {...}) to shake. Fresh state (own arrays) per App.
             app.insertResource(CameraDirector, createDirectorState());
+            // The camera queries belong to the plugin that resolves the camera,
+            // not to one core's bootstrap: the native core never runs corePlugin,
+            // and publishing them there left both null on every device.
+            app.insertResource(CameraView, new CameraViewAPI(app));
+            // Published beside it, not instead of it: a system inside the frame
+            // wants the camera being resolved, and an overlay on the picture wants
+            // the one that drew it. Two questions, so two resources.
+            app.insertResource(PresentedCameraView, presentedCameraView(app));
 
             const viewport = getViewportSize ?? (() => {
                 const dpr = platformDevicePixelRatio();
