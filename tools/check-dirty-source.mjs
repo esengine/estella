@@ -32,7 +32,7 @@ import { dirname, join, resolve, relative } from 'node:path';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-/** The automation surface: what MCP and the built-in agent drive the editor through. */
+/** The automation surface: what MCP agents drive the editor through. */
 const SURFACE = join(ROOT, 'desktop', 'src', 'main.tsx');
 /** Where the aggregate is defined, and where the rule is written down. */
 const REGISTRY = join(ROOT, 'desktop', 'src', 'document', 'DirtyRegistry.ts');

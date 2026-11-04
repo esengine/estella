@@ -368,7 +368,7 @@ const CONSUMPTION = {
      *  row looks like every other one, so silence still reads as "this works". */
     disclaimedBy: 'set.project.spine.version.desc',
     /**
-     * The readers that are not the settings UI. The built-in agent's tool
+     * The readers that are not the settings UI. An agent tool's
      * description promised "the build bundles that runtime", which matches no
      * BUILD_PROMISE pattern — enumerating the ways to lie does not work. So the
      * rule is the row's: wherever it is described, it says what it does not do.

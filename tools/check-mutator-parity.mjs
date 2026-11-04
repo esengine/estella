@@ -4,8 +4,8 @@
  * @file  check-mutator-parity.mjs — automation may not reach a project setting a
  *        person cannot.
  *
- * The editor has a built-in agent, and every project mutator is exposed to it
- * through one facade. That is the right shape until a mutator has ONLY that
+ * Connected agents drive the editor through MCP, and every project mutator is
+ * exposed to them through one facade. That is the right shape until a mutator has ONLY that
  * caller: `setAudio` writes bus volumes, effects and duck rules, is reachable
  * from the automation surface, and has no button, row or panel anywhere — so an
  * agent can author the project mixer and the person who owns the project cannot.

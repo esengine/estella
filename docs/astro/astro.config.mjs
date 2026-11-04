@@ -69,9 +69,11 @@ const MOVED = {
   'guides/services': 'publishing/ads-sharing',
   'guides/profiling': 'performance/profiling',
   'guides/editor-plugins': 'extending/editor-plugins',
-  'guides/agent': 'agents/built-in',
+  'guides/agent': 'agents/mcp',
   'guides/mcp': 'agents/mcp',
-  'extending/built-in-agent': 'agents/built-in',
+  'extending/built-in-agent': 'agents/mcp',
+  // The editor no longer ships its own agent; an agent connects over MCP.
+  'agents/built-in': 'agents/mcp',
   'extending/mcp': 'agents/mcp',
 };
 
@@ -177,13 +179,12 @@ export default defineConfig({
         {
           // Driving the editor, not extending it — which is why this sits beside
           // the editor rather than under "Extending", where it read as a plugin
-          // topic. Both pages describe one tool catalog with two front doors.
+          // topic.
           label: 'AI Agents',
           translations: { 'zh-CN': 'AI 智能体' },
           collapsed: true,
           items: [
-            { label: 'The Built-in Agent', translations: { 'zh-CN': '内置智能体' }, slug: 'agents/built-in' },
-            { label: 'External Agents (MCP)', translations: { 'zh-CN': '外部智能体 (MCP)' }, slug: 'agents/mcp' },
+            { label: 'Connecting an Agent (MCP)', translations: { 'zh-CN': '连接智能体 (MCP)' }, slug: 'agents/mcp' },
           ],
         },
         {

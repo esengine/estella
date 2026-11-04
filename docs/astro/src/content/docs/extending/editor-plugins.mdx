@@ -399,9 +399,10 @@ bundle inputs. Editing an imported source, imported JSON or `plugin.json` still 
 
 ### Lending the agent a tool
 
-The built-in agent's entire vocabulary is the tool catalog. A plugin that adds a
-capability without adding a tool has added it for the person and not for the
-agent — so if your plugin can bake occlusion, teach the agent to ask for it:
+An agent connected over [MCP](/docs/agents/mcp/) can do only what the tool list
+offers. A plugin that adds a capability without adding a tool has added it for
+the person and not for the agent — so if your plugin can bake occlusion, teach
+the agent to ask for it:
 
 ```typescript
 ctx.agentTools.register({
@@ -419,20 +420,24 @@ ctx.agentTools.register({
 deciding whether this is the right tool. Say what it does and when to reach for
 it.
 
-`effect` decides whether the person is asked first, and the tiers are drawn
-where going back stops working. `read` and `undoable` run unasked — the turn's
-checkpoint is the approval. So does `journaled`, which is what to declare when
-your tool writes project files through `ctx.fs.writeProject`: those are captured
-before they land, so the turn's Revert takes them back with the scene. Reserve
-`irreversible` for what no checkpoint reaches — work outside the open project,
-or code whose effects nobody enumerated; it stops and asks.
+The tool is listed to every connected MCP client beside the editor's own, and a
+call runs your `run` in the editor. `schema` is checked first: a call with a
+missing argument, or one the schema does not declare, is refused before your
+handler sees it.
+
+`effect` decides who may call it. A `read` tool is offered to every connected
+agent. `undoable` (edits that go through the undo history), `journaled` (project
+files written through `ctx.fs.writeProject`, which are captured before they land)
+and `irreversible` (work outside the open project, or code whose effects nobody
+enumerated) are offered only while the person lets agents change the project
+(**Settings › AI Agents**), and refused otherwise.
 
 Nothing verifies the field, and that is not a gap — your plugin already runs
 with the whole editor surface in reach, so it could do the same work through a
 command. The boundary is the trust prompt at install. What the field buys is
-the confirm gate behaving correctly for an honest plugin, so declare it
-honestly: a tool that calls itself `journaled` while writing outside `ctx.fs`
-claims a safety net that is not holding it.
+the permission behaving correctly for an honest plugin, so declare it honestly:
+a tool that calls itself `read` while changing the project runs for an agent
+the person only let look.
 
 The name must be namespaced with your plugin id, and may contain only letters,
 digits, `_` and `-` — up to 64 of them. Both halves of that matter. An

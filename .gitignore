@@ -155,8 +155,8 @@ docs/local/
 # Plugin API typings: written by the editor on project open, always matching the
 # running version. A committed copy would go stale against a different editor.
 **/.esengine/plugins/.types/
-# Conversations with the built-in agent (electron/agent/store.ts): one person's
-# working notes, holding whatever they typed and whatever the model read back.
+# Conversations an older editor's built-in agent kept: one person's working
+# notes, holding whatever they typed and whatever the model read back.
 **/.esengine/agent/
 # What each target weighed last build (pipeline/src/export/sizeHistory.ts) — one
 # machine's measurement of one moment, which the next build compares against.

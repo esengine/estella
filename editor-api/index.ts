@@ -400,7 +400,7 @@ export interface ContextMenuTarget {
 }
 
 /**
- * A tool the built-in agent may call.
+ * A tool a connected (MCP) agent may call.
  *
  * The agent's entire vocabulary is the tool catalog, so a plugin that adds a
  * capability without adding a tool has added it for the person and not for the
@@ -424,15 +424,17 @@ export interface AgentToolContribution {
     description: string;
     /**
      * JSON Schema for `input`. Defaults to "an object with no properties".
-     * The kernel validates against this before your handler runs, so a
-     * malformed call is refused rather than handed to you half-parsed.
+     * The MCP front validates against this before your handler runs, so a
+     * malformed call — or an argument the schema does not declare — is refused
+     * rather than handed to you half-parsed.
      */
     schema?: unknown;
     /**
-     * What calling it costs, which decides whether the person is asked first.
-     * The turn's checkpoint covers `read`, `undoable` and `journaled`, so all
-     * three run unasked; `journaled` is for writes through `ctx.fs.writeProject`,
-     * which are captured before they land. `irreversible` stops to ask.
+     * What calling it costs, which decides who may call it. A `read` tool is
+     * offered to every connected agent; anything else is offered only while the
+     * person lets agents change the project (Settings > AI Agents), and refused
+     * otherwise. `journaled` is for writes through `ctx.fs.writeProject`, which
+     * are captured before they land.
      *
      * Declare it honestly — nothing verifies it. A tool calling itself
      * `journaled` while writing outside `ctx.fs` claims a net not holding it.
@@ -658,7 +660,7 @@ export interface PluginContext {
   readonly contextMenus: {
     register(item: ContextMenuContribution): Disposable;
   };
-  /** Lend the built-in agent a tool. See {@link AgentToolContribution}. */
+  /** Lend connected (MCP) agents a tool. See {@link AgentToolContribution}. */
   readonly agentTools: {
     register(tool: AgentToolContribution): Disposable;
   };

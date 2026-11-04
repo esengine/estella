@@ -158,18 +158,6 @@ const IDENTITIES = [
     places: NAMES_THE_SAME_THING,
   },
   {
-    token: /^--nebula(?:-soft)?$/,
-    names: 'the built-in agent',
-    places: [
-      ['.ag-', 'the agent drawer'],
-      ['.md-', "the agent's rendered replies"],
-      ['.row.agent-', 'Outliner rows the agent touched'],
-      ['.act-agent', "the agent's activity-bar button"],
-      ['.viewport__agentpeek', 'what the agent is pointing at in the viewport'],
-      ['@keyframes ag-', "the agent's own animations"],
-    ],
-  },
-  {
     token: /^--info-warm(?:-soft|-line)?$/,
     names: 'a prefab',
     places: [
@@ -531,7 +519,6 @@ const ICON_BUTTONS_KEPT = {
   'tab-popout': "dock tab chrome, styled with the dock's tabs",
   'tab-x': "dock tab chrome, styled with the dock's tabs",
   'dv-collapse': "dock group chrome, styled with the dock's tabs",
-  'ag-send': "the composer's send: the drawer's accent-filled primary action",
   'awp-play': "an audio preview's play: the accent-outlined primary control",
   'transport__play': "the transport's play: the accent-outlined primary control",
   'ts-zone': 'a cell of the tile being edited; the cell is the content, not an icon',
@@ -547,7 +534,6 @@ const ICON_BUTTONS_KEPT = {
   'prop-reset': 'resets a changed property, in the modified colour, only when there is a change',
   'ctrl-chip-x': "a chip's remove, in the chip's own colour, shown on hover",
   'proj-card__remove': 'a remove badge placed over a project card',
-  'ag-att-x': 'a remove badge placed over an attachment thumbnail',
   'lc-field__browse': "the browse end of a path field, part of the field's well",
   'build__scene-start': 'marks the start scene; its state is its fill',
   'ovbtn': "a viewport overlay menu trigger; the rest of its family carry text",

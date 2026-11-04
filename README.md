@@ -52,7 +52,7 @@ Estella is a **2D and 3D game engine** — sprites, tilemaps and UI as much as l
 | **TypeScript SDK** | Type-safe API: `defineSystem`, `defineComponent`, `Query`, `Commands` |
 | **Cross-Platform** | One project → web, desktop, WeChat MiniGames, playable ads, and native Android / iOS |
 | **Native mobile** | A real arm64 app rendering through an embedded Dawn (Metal / Vulkan) — not a WebView |
-| **AI agents** | The editor is an MCP server with 130+ tools, and ships a built-in agent that drives the same ones |
+| **AI agents** | The editor is an MCP server with 130+ tools: connect Claude Code, Cursor or your own agent |
 
 ## Getting Started
 
@@ -101,14 +101,10 @@ entities from the same Create menu you use, edits component fields, enters play 
 takes a screenshot to *see* what it built, and exports the finished game. Sixty-five
 tools, all of them the pipelines the UI itself calls.
 
-It also ships an agent of its own, so you don't need an external tool to start: type a
-sentence in the editor and watch every tool call it makes. Both front doors drive one
-catalog — what the built-in agent can do and what your MCP client can do are the same
-list, and both go through the editor's command surface, so creates are undoable and you
-can take the mouse back mid-turn.
+Every call goes through the editor's command surface, so creates are undoable and you
+can take the mouse back at any time. Tools a plugin adds are listed beside the editor's own.
 
-- [The Built-in Agent](https://estellaengine.com/docs/agents/built-in/) — set up a provider and start asking
-- [External Agents (MCP)](https://estellaengine.com/docs/agents/mcp/) — connect Claude Code, Cursor, or your own
+- [Connecting an Agent (MCP)](https://estellaengine.com/docs/agents/mcp/) — connect Claude Code, Cursor, or your own
 
 ## Documentation
 
@@ -122,7 +118,7 @@ Full documentation: [estellaengine.com/docs](https://estellaengine.com/docs)
 - [Systems](https://estellaengine.com/docs/core-concepts/systems/)
 - [Building & Exporting](https://estellaengine.com/docs/publishing/overview/)
 - [Android & iOS](https://estellaengine.com/docs/publishing/android-ios/)
-- [AI Agents](https://estellaengine.com/docs/agents/built-in/)
+- [AI Agents](https://estellaengine.com/docs/agents/mcp/)
 
 ## Contributing
 

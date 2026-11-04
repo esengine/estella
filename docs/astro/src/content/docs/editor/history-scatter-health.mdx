@@ -12,16 +12,8 @@ Command Palette for any of them.
 marking where you are. It is the visible form of Undo / Redo (`Ctrl/⌘ + Z`,
 `Ctrl/⌘ + Shift + Z`): click an earlier row to step back to that state.
 
-A run of the [built-in Agent](/docs/agents/built-in/) folds into **one row**, named
-after the prompt (**Agent · …**). That row has a **Revert** button which takes the
-**whole run** back — the scene edits *and* the project files it wrote. Because files
-are involved, going back past a run asks first and says how many runs and files it
-will undo. This one cannot be redone. Anything too large to hold a copy of is listed
-and left as it is.
-
-After a run, History can offer **Keep this check**: a verification the run passed —
-the scene has nothing flagged, or the scripts compile — that you can pin to the
-project. Every later run is measured against it, and no run can weaken or remove it.
+Edits an [agent connected over MCP](/docs/agents/mcp/) makes land here like your own,
+one row per step, and step back the same way.
 
 ## Scatter Brush
 

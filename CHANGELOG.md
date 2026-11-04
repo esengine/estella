@@ -14,6 +14,14 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Removed
+
+- **The editor no longer has an agent of its own.** The Agent drawer, its panel, the status-bar and activity-bar entries, the palette's "Hand to Agent" row, the provider settings (keys, models, custom endpoints), the agent marks in the Outliner and viewport, and the History panel's folded agent runs are gone, with the `agent_send`, `agent_status`, `agent_confirm`, `agent_transcript` and `done_when` tools. Agents connect over MCP (Window → Connect AI Tools…), where the same tools have always been served. History now lists every step on its own line.
+
+### Changed
+
+- **Plugin agent tools reach MCP clients.** A tool a plugin lends with `ctx.agentTools.register` is now listed to every connected MCP client beside the editor's own, and a call runs in the editor. Its `schema` is checked first, and a tool whose `effect` is not `read` is offered only while the editor lets agents change the project. The LDtk plugin's `estella_ldtk_import` is the first.
+
 ## [0.97.0] - 2026-10-31
 
 ### Added

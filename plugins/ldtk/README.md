@@ -33,7 +33,7 @@ larger one.
 
 Nothing here reaches into the engine: it is an editor plugin using
 `ctx.assets.registerImporter`, `ctx.fs.readProject` / `writeProject` (which is why
-it declares the `fs:project` capability), and one agent tool so the built-in agent
+it declares the `fs:project` capability), and one agent tool so an agent connected over MCP
 can run the import too. The conversion itself is a pure function over JSON —
 `src/convert.ts`, tested on its own.
 
