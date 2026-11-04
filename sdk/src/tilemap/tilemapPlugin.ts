@@ -806,6 +806,8 @@ export const TilemapRuntimeState = defineResource<TilemapRuntime>(null!, 'Tilema
  */
 export class TilemapPlugin implements Plugin {
     name = 'tilemap';
+    /** Layers to sync, animate and give colliders; the frame after the last one goes still tears them down. */
+    readonly activeWhen = [TilemapLayer, Tilemap];
 
     build(app: App): void {
         const runtime = new TilemapRuntime();

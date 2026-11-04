@@ -118,6 +118,8 @@ export function makeLosCheck3D(queries: Physics3DQueries): LosCheck {
 
 export class PerceptionPlugin implements Plugin {
     name = 'perception';
+    /** Perception is a perceiver's: without one there is no one to see. */
+    readonly activeWhen = [Perceiver];
 
     build(app: App): void {
         app.addSystemToSchedule(

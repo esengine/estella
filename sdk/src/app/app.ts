@@ -424,7 +424,14 @@ export class App {
         let present = false;
         for (const c of gate.components) {
             // A cached query: unchanged structure answers without walking anything.
-            if (world.queryEntities([c]).length > 0) { present = true; break; }
+            // A core that cannot answer for the component (compiled out) is not a
+            // reason to stop the plugin: it runs as it did before there was a gate.
+            try {
+                if (world.queryEntities([c]).length > 0) { present = true; break; }
+            } catch {
+                present = true;
+                break;
+            }
         }
         gate.open = present || gate.present;
         gate.present = present;

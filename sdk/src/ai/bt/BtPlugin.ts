@@ -149,6 +149,8 @@ export const AiBt = defineResource<BehaviorTrees>(null!, 'AiBt');
 
 export class BtPlugin implements Plugin {
     name = 'bt';
+    /** Nothing to tick without an agent; state per entity is dropped on despawn. */
+    readonly activeWhen = [BehaviorTreeAgent];
 
     build(app: App): void {
         ensureBuiltinAiRegistrations();

@@ -71,6 +71,8 @@ export const velocitySystem = defineSystem(
 
 export const velocityPlugin: Plugin = {
     name: 'Velocity',
+    // One query over Velocity: with none in the scene, skipped rather than walked.
+    activeWhen: [Velocity],
     profileDomain: 'velocity',
     build(app) {
         app.addSystemToSchedule(Schedule.Update, velocitySystem, { runIf: playModeOnly });

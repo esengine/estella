@@ -576,6 +576,8 @@ const WAYPOINT_REACH = 8;
 
 export class NavPlugin implements Plugin {
     name = 'nav';
+    /** A volume to bake or an agent to move; the frame after the last one goes still runs, so a mesh is let go. */
+    readonly activeWhen = [NavVolume, NavAgent];
 
     build(app: App): void {
         app.insertResource(Nav, new Navigation());

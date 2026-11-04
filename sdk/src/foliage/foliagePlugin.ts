@@ -166,6 +166,8 @@ export const FoliageRes = defineResource<FoliageField>(new FoliageField(), 'Foli
 
 export class FoliagePlugin implements Plugin {
     name = 'foliage';
+    /** No foliage, no work; the frame after the last one goes still runs its sweep. */
+    readonly activeWhen = [Foliage];
 
     build(app: App): void {
         const field = new FoliageField();

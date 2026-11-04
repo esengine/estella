@@ -171,6 +171,8 @@ export const AiFsm = defineResource<StateMachines>(null!, 'AiFsm');
 
 export class FsmPlugin implements Plugin {
     name = 'fsm';
+    /** Nothing to step without an agent; state per entity is dropped on despawn. */
+    readonly activeWhen = [StateMachineAgent];
 
     build(app: App): void {
         ensureBuiltinAiRegistrations();
