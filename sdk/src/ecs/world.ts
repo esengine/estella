@@ -142,6 +142,10 @@ export function queryDepIds(
     return ids;
 }
 
+
+/** @internal Loads the asset paths an engine-backed component was handed; see World.setAssetFieldResolver. */
+export type AssetFieldResolver = (entity: Entity, component: AnyComponentDef, authored: Record<string, unknown>) => void;
+
 /**
  * The entity store, as `GetWorld()` hands it to a system — the escape hatch for
  * work the declared parameters cannot express. Prefer `Query`/`Res`/`Commands`:
@@ -172,6 +176,7 @@ export class World {
     private nextGeneration_ = 0;
     private spawnCallbacks_: Array<(entity: Entity) => void> = [];
     private despawnCallbacks_: Array<(entity: Entity) => void> = [];
+    private assetFieldResolver_: AssetFieldResolver | null = null;
     private despawning_: Set<Entity> | null = null;
 
     /** @internal */
@@ -827,7 +832,10 @@ export class World {
             return this.insertHierarchy_(entity, component, data) as ComponentData<C>;
         }
         if (isBuiltinComponent(component)) {
-            return this.insertBuiltin_(entity, component, data) as ComponentData<C>;
+            const refs = this.takeAssetRefs_(component, data as Record<string, unknown> | undefined);
+            const merged = this.insertBuiltin_(entity, component, (refs?.clean ?? data) as Partial<ComponentData<C>>) as ComponentData<C>;
+            if (refs) this.resolveAssetRefs_(entity, component, refs.authored);
+            return merged;
         }
         return this.insertScript_(entity, component as ComponentDef<any>, data) as ComponentData<C>;
     }
@@ -843,6 +851,12 @@ export class World {
             return;
         }
         if (isBuiltinComponent(component)) {
+            const refs = this.takeAssetRefs_(component, data as Record<string, unknown>);
+            if (refs) {
+                this.set(entity, component, refs.clean as ComponentData<C>);
+                this.resolveAssetRefs_(entity, component, refs.authored);
+                return;
+            }
             // `set` is insert-or-replace: adding a builtin the entity LACKS must run
             // the full structural bookkeeping (entity set + query dirty + recordAdded),
             // or the C++ side holds it while queries / has() (entity-set fast path)
@@ -891,6 +905,48 @@ export class World {
             this.names_.update(entity, (data as { value: string }).value);
         }
         notifyBridge('onComponentChanged', entity, component._name);
+    }
+
+    /**
+     * @internal What turns an asset path written into an engine-backed
+     * component's handle field (`Sprite.texture = 'assets/hero.png'`,
+     * `MeshRenderer.mesh = 'builtin:cube'`) into the handle. Installed by the
+     * asset layer on every core; see bindAssetReferenceTracking.
+     */
+    setAssetFieldResolver(resolver: AssetFieldResolver | null): void {
+        this.assetFieldResolver_ = resolver;
+    }
+
+    /**
+     * An engine-backed component's asset fields hold handles, and the engine
+     * cannot store a string there: written straight through, `texture` read
+     * back as the path while the engine held 0, and nothing drew. A string in
+     * one is a path to load — the same ref a scene file carries — so it leaves
+     * the data here (the field takes its default until the load lands) and goes
+     * to the resolver.
+     */
+    private takeAssetRefs_(
+        component: AnyComponentDef, data: Record<string, unknown> | undefined,
+    ): { clean: Record<string, unknown>; authored: Record<string, unknown> } | null {
+        const fields = (component as { assetFields?: readonly { field: string }[] }).assetFields;
+        if (!data || !fields || fields.length === 0) return null;
+        let clean: Record<string, unknown> | null = null;
+        for (const { field } of fields) {
+            const value = data[field];
+            if (typeof value !== 'string') continue;
+            clean ??= { ...data };
+            clean[field] = (component._default as Record<string, unknown>)[field] ?? 0;
+        }
+        return clean ? { clean, authored: data } : null;
+    }
+
+    private resolveAssetRefs_(entity: Entity, component: AnyComponentDef, authored: Record<string, unknown>): void {
+        if (this.assetFieldResolver_) {
+            this.assetFieldResolver_(entity, component, authored);
+            return;
+        }
+        log.warn('world', `${component._name} on entity ${entity} was given an asset path, but this world has no asset layer `
+            + 'to load it: the field holds no handle. Load it first (await assets.loadTexture(path)) and write the handle.');
     }
 
     /**

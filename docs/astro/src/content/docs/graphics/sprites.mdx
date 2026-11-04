@@ -39,7 +39,7 @@ Content Browser onto an entity, or set the Sprite's texture field in Details.
 
 | Field | Default | Description |
 |---|---|---|
-| `texture` | `0` | Texture handle from a loader (`0` = untextured, draws a white quad). |
+| `texture` | `0` | Texture handle from a loader (`0` = untextured, draws a white quad). An asset path written here at run time (`insert(Sprite, { texture: 'assets/hero.png' })`) is loaded and swapped for its handle; the field reads `0` until the load lands. |
 | `color` | `{1,1,1,1}` | Tint multiplied into the texture (white = unchanged). |
 | `size` | `{100,100}` | Rendered size in world units. |
 | `pivot` | `{0.5,0.5}` | Anchor point the sprite rotates and scales about, as a fraction of its `size`. Values outside 0–1 sit off the sprite. |
