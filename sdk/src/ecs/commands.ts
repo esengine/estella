@@ -101,7 +101,9 @@ type Command =
 /**
  * One entity's share of a {@link CommandsInstance}: chain `insert`/`remove` and
  * let the queue apply them. Asking {@link EntityCommands.id} for a spawn's
- * entity materialises it early, because an id has to exist to be answered.
+ * entity materialises it early, because an id has to exist to be answered —
+ * except inside a running query, where the id is reserved and the spawn still
+ * lands at the flush.
  *
  * @public
  */
@@ -177,7 +179,11 @@ export class EntityCommands {
 
     id(): Entity {
         if (this.isNew_ && this.entityRef_.entity === 0) {
-            this.finalize();
+            // Inside a running query the spawn cannot happen yet, but its identity
+            // can: reserve it, and let the flush spawn into it. Outside one the
+            // spawn lands now, as it always has.
+            if (this.commands_.isWorldIterating()) this.entityRef_.entity = this.commands_.reserveEntity();
+            else this.finalize();
         }
         return this.entityRef_.entity;
     }
@@ -259,6 +265,16 @@ export class CommandsInstance {
         this.pending_.push({ type: 'set_parent', entity, parent });
     }
 
+    /** @internal Whether the world is inside a query walk, where a spawn must wait. */
+    isWorldIterating(): boolean {
+        return this.world_.isIterating();
+    }
+
+    /** @internal An identity for a spawn that will be applied at flush. */
+    reserveEntity(): Entity {
+        return this.world_.reserveEntity();
+    }
+
     /** @internal How EntityCommands applies a deferred spawn — `entityRef` is the
      *  handle it already gave the caller, filled in once the entity exists. */
     spawnImmediate(
@@ -267,7 +283,10 @@ export class CommandsInstance {
         name?: string,
         parent?: Entity | null,
     ): void {
-        const entity = this.world_.spawn(name);
+        // A reserved id (see EntityCommands.id) is spawned into, not replaced.
+        let entity = entityRef.entity;
+        if (entity !== 0 && this.world_.valid(entity)) this.world_.commitReservedSpawn(entity, name);
+        else entity = this.world_.spawn(name);
         entityRef.entity = entity;
 
         for (const entry of components) {

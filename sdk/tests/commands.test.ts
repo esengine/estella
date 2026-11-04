@@ -17,6 +17,7 @@ function createMockWorld() {
     const components = new Map<Entity, Map<string, any>>();
 
     const world = {
+        isIterating: () => false,
         spawn: vi.fn((name?: string) => {
             const entity = nextId++ as Entity;
             validEntities.add(entity);

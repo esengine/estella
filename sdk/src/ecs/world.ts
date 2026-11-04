@@ -268,7 +268,31 @@ export class World {
                 'Use Commands to defer entity creation until after iteration completes.'
             );
         }
+        const entity = this.allocateEntity_();
+        this.commitSpawn_(entity, name);
+        return entity;
+    }
 
+    /**
+     * @internal An identity for a spawn {@link Commands} will apply later — what
+     * `cmds.spawn(...).id()` answers while a query is running. Allowed mid-iteration
+     * because it touches no component storage: a bare id is in no query. The spawn
+     * itself (name, components, spawn callbacks) happens at
+     * {@link commitReservedSpawn}, when the commands flush.
+     */
+    reserveEntity(): Entity {
+        if (this.speculation_) {
+            throw new Error('Cannot reserve an entity inside a speculation.');
+        }
+        return this.allocateEntity_();
+    }
+
+    /** @internal Finish a spawn begun by {@link reserveEntity}. */
+    commitReservedSpawn(entity: Entity, name?: string): void {
+        this.commitSpawn_(entity, name);
+    }
+
+    private allocateEntity_(): Entity {
         let entity: Entity;
         const cppRegistry = this.builtin_.getCppRegistry();
 
@@ -299,6 +323,10 @@ export class World {
         }
         this.entities_.set(entity, generation);
         this.indexGeneration_.set(entityIndex(entity), entityGeneration(entity));
+        return entity;
+    }
+
+    private commitSpawn_(entity: Entity, name?: string): void {
         this.queries_.markStructuralChange();
 
         if (name !== undefined) {
@@ -310,8 +338,6 @@ export class World {
         }
 
         notifyBridge('onEntitySpawned', entity, name);
-
-        return entity;
     }
 
     /**
