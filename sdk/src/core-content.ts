@@ -236,6 +236,7 @@ export {
     RENAMED_COMPONENT_TYPES,
     SCENE_FORMAT_VERSION,
     registerSceneComponentCodec,
+    sceneOutOfBandFields,
     getComponentAssetFields,
     getComponentAssetFieldDescriptors,
     getComponentSkeletalFieldDescriptor,

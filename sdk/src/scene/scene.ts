@@ -279,6 +279,26 @@ export function registerSceneComponentCodec(type: string, codec: SceneComponentC
     sceneComponentCodecs.set(type, codec);
 }
 
+/**
+ * What a component carries beside its fields — a MeshRenderer's inline `geometry`:
+ * saved with the scene by its codec, but no field, so no inspector or set_field
+ * reaches it. Empty for a component without such data.
+ */
+export function sceneOutOfBandFields(type: string): readonly string[] {
+    return sceneComponentCodecs.get(type)?.outOfBandFields ?? declaredOutOfBand.get(type) ?? [];
+}
+
+const declaredOutOfBand = new Map<string, readonly string[]>();
+
+/**
+ * @internal Say which data a component carries beside its fields before its codec
+ * is installed (codecs install with their plugin, which a tool asking about a
+ * component may never build).
+ */
+export function declareSceneOutOfBandFields(type: string, fields: readonly string[]): void {
+    declaredOutOfBand.set(type, fields);
+}
+
 // =============================================================================
 // Prefab instance entries (runtime play == ship)
 // =============================================================================

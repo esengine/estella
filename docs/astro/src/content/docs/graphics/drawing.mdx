@@ -154,6 +154,12 @@ automatically; to **mutate it at runtime**, go through the `MeshRenderers` resou
 `getGeometry` / `clearGeometry` round it out. Direct writes to the `geometry`
 field alone are not change-detected.
 
+Inline `geometry` is data code supplies while the game runs: it is not an inspector
+field, `set_field` does not reach it, and the edit viewport does not show geometry a
+script builds. For geometry an entity should keep, use the `mesh` field instead — a
+built-in shape (`builtin:cube`, `builtin:sphere`, `builtin:plane`, …), an `.esmesh`
+asset, or at run time a handle from `assets.createMesh(data)`.
+
 ### Cards that face the camera: `Billboard`
 
 A `Billboard` beside a MeshRenderer turns the mesh to each view that draws it: a sign, a sprite of a character in a 3D world, a

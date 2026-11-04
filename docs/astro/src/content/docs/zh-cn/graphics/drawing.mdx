@@ -142,6 +142,8 @@ cmds.spawn()
 `MeshRenderers` 资源——`setGeometry(entity, geometry)` 重新上传(索引在引擎侧校验),
 另有 `getGeometry` / `clearGeometry`。只改 `geometry` 字段本身不会被变更检测。
 
+内联 `geometry` 是游戏运行时由代码提供的数据:它不是检查器字段,`set_field` 改不到,编辑视口也看不到脚本生成的几何体。实体需要长期保有的几何体请用 `mesh` 字段:内置形状(`builtin:cube`、`builtin:sphere`、`builtin:plane` 等)、`.esmesh` 资源,或运行时用 `assets.createMesh(data)` 得到的句柄。
+
 ### 朝向相机的卡片:`Billboard`
 
 MeshRenderer 旁边的 `Billboard` 会把网格转向每个画它的视图:招牌、3D 世界里角色的精灵、画在卡片上的远处的树、镜头闪光。

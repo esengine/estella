@@ -12,7 +12,7 @@ import type { EngineApi } from '../ecs/bridge/engineApi';
 import { engineApi } from '../ecs/bridge/engineApi';
 import type { MeshRendererGeometry } from '../ecs/component';
 import { defineResource } from '../ecs/resource';
-import { registerSceneComponentCodec } from '../scene/scene';
+import { declareSceneOutOfBandFields, registerSceneComponentCodec } from '../scene/scene';
 import { withScratch } from '../wasm/wasmScratch';
 import { installBlobShadows } from './blobShadow';
 
@@ -23,6 +23,10 @@ function packRgba(colors: number[], v: number): number {
         | (clamp(colors[v * 4 + 2] ?? 1) << 16)
         | (clamp(colors[v * 4 + 3] ?? 1) << 24)) >>> 0;
 }
+
+/** The inline vertices are the codec's, not a field's — known before the plugin builds. */
+const OUT_OF_BAND = ['geometry'] as const;
+declareSceneOutOfBandFields('MeshRenderer', OUT_OF_BAND);
 
 export class MeshRendererAPI {
     /** Entity → authored geometry, so scene save round-trips what was uploaded. */
@@ -121,7 +125,7 @@ export class MeshRendererPlugin implements Plugin {
         // field — carry it out-of-band and upload it through the validated entry
         // point on load (the same pattern as particle gradients / tilemap chunks).
         registerSceneComponentCodec('MeshRenderer', {
-            outOfBandFields: ['geometry'],
+            outOfBandFields: OUT_OF_BAND,
             importData: (entity, outOfBand) => {
                 const g = outOfBand.geometry as MeshRendererGeometry | undefined;
                 if (g && g.positions?.length && g.indices?.length) {
