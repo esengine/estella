@@ -25,7 +25,7 @@ import { q } from '../math/quat';
 import { log } from '../util/logger';
 import { v3 } from '../math/vec3';
 import { RigidBody3D, BoxCollider3D } from './Physics3DComponents';
-import { SwingTwistJoint3D } from './AdvancedJoint3D';
+import { SwingTwistJoint3D, SixDOFJoint3D, JointMotion3D } from './AdvancedJoint3D';
 
 /** How a ragdoll's joints are limited. */
 export const RagdollProfile = {
@@ -34,6 +34,9 @@ export const RagdollProfile = {
     /** Each joint gets the share of them its part of a body has, read from the bone's name: a spine stiff, a shoulder loose, a shin almost a hinge. A bone the names do not place gets all of it. */
     Humanoid: 1,
 } as const;
+
+/** Which of its own axes a character looks along. */
+export const RagdollFacing = { PlusZ: 0, MinusZ: 1, PlusX: 2, MinusX: 3 } as const;
 
 /** The fields of the `Ragdoll` component. @experimental */
 export interface RagdollData {
@@ -47,6 +50,10 @@ export interface RagdollData {
     swing: number;
     /** How far a limb may twist about its own line, in degrees, either way. With the humanoid profile this is the most a loose joint is given. */
     twist: number;
+    /** How far a knee or an elbow may bend, in degrees, and only one way: a shin folds back, a forearm folds forward. 0 leaves them swinging like any other joint. Humanoid profile only. */
+    bend: number;
+    /** {@link RagdollFacing}: which way the character looks, in its own frame. It is what tells a knee from a hyperextended one. */
+    facing: number;
     /** A limb's thickness as a fraction of its length. */
     thickness: number;
     /** A bone shorter than this (world units) gets no body of its own: a finger, a toe. Its parent carries it. */
@@ -62,7 +69,7 @@ export interface RagdollData {
  * @experimental
  */
 export const Ragdoll: ComponentDef<RagdollData> = defineComponent<RagdollData>('Ragdoll', {
-    active: false, skin: 0, profile: RagdollProfile.Humanoid, swing: 100, twist: 60, thickness: 0.25, minBoneLength: 0.05, friction: 0.5, recoverTime: 0.4,
+    active: false, skin: 0, profile: RagdollProfile.Humanoid, swing: 100, twist: 60, bend: 130, facing: RagdollFacing.PlusZ, thickness: 0.25, minBoneLength: 0.05, friction: 0.5, recoverTime: 0.4,
 }, {
     entityFields: ['skin'],
     fields: {
@@ -73,6 +80,8 @@ export const Ragdoll: ComponentDef<RagdollData> = defineComponent<RagdollData>('
         twist: { min: 0, max: 175, category: 'Limits', tooltip: 'How far a limb may twist about its own line, in degrees. With the humanoid profile, the most a loose joint is given.' },
         thickness: { min: 0.01, max: 2, category: 'Bodies', tooltip: 'A limb\'s thickness as a fraction of its length.' },
         minBoneLength: { min: 0, category: 'Bodies', tooltip: 'A bone shorter than this gets no body of its own (a finger, a toe): its parent carries it.' },
+        bend: { min: 0, max: 175, category: 'Limits', tooltip: 'How far a knee or an elbow may bend, in degrees, and only one way: a shin folds back, a forearm folds forward. 0 leaves them swinging like any other joint. Humanoid profile only.' },
+        facing: { enum: [{ label: '+Z', value: RagdollFacing.PlusZ }, { label: '-Z', value: RagdollFacing.MinusZ }, { label: '+X', value: RagdollFacing.PlusX }, { label: '-X', value: RagdollFacing.MinusX }], category: 'Limits', tooltip: 'Which of its own axes the character looks along. It is what tells a knee from a hyperextended one.' },
         friction: { min: 0, category: 'Bodies' },
         recoverTime: { min: 0, category: 'Recovery', tooltip: 'Seconds to blend from the limp pose back to the animation once the ragdoll is turned off.' },
     },
@@ -101,6 +110,11 @@ export interface RagdollLimb {
     /** The share (0 to 1) of the component's swing and twist this joint gets. */
     swing: number;
     twist: number;
+    /**
+     * Set where the joint is a one-way hinge (a knee, an elbow): the hinge axis and a reference perpendicular to it, in this bone's own frame, and
+     * how far the bone may turn about it either way from the pose it is in when the joint is made, in radians (the lower is at most 0, the upper at least 0).
+     */
+    hinge?: { axis: Vec3; normalAxis: Vec3; lower: number; upper: number };
 }
 
 /** The parts of a body whose joints are limited differently. */
@@ -164,7 +178,7 @@ function perpendicular(a: Vec3): Vec3 {
  *
  * @experimental
  */
-export function planRagdoll(bones: readonly RagdollBone[], options: { thickness: number; minBoneLength: number; profile?: number }): RagdollLimb[] {
+export function planRagdoll(bones: readonly RagdollBone[], options: { thickness: number; minBoneLength: number; profile?: number; bend?: number; forward?: Vec3 }): RagdollLimb[] {
     const byId = new Map(bones.map((b) => [b.id, b]));
     const children = new Map<number, RagdollBone[]>();
     for (const b of bones) {
@@ -220,6 +234,13 @@ export function planRagdoll(bones: readonly RagdollBone[], options: { thickness:
             normalAxis: perpendicular(axis),
             ...(options.profile === RagdollProfile.Uniform ? { swing: 1, twist: 1 } : BONE_LIMITS[classifyBone(bone.name)]),
         };
+        // A knee folds back and an elbow folds forward, from the straight line the bone above makes: the hinge is across that line and the way the character faces, and what it may do
+        // is measured from the pose it is in now, so the allowance is the bend left and the extension it already has.
+        const kind = classifyBone(bone.name);
+        if (options.profile !== RagdollProfile.Uniform && options.bend && options.bend > 0 && options.forward && above && (kind === 'shin' || kind === 'forearm')) {
+            const hinge = hingeFor(bone, above, target, kind === 'shin' ? -1 : 1, options.forward, (options.bend * Math.PI) / 180);
+            if (hinge) limb.hinge = hinge;
+        }
         limbs.push(limb);
         limbOf.set(bone.id, limb);
     }
@@ -228,6 +249,28 @@ export function planRagdoll(bones: readonly RagdollBone[], options: { thickness:
 
 /** A bone's local pose. */
 interface Pose { position: Vec3; rotation: Quat }
+
+/**
+ * The one-way hinge of a knee or an elbow, or null where the character's facing runs along the bone so no side is the bending one.
+ *
+ * `along` is the bone above's line, from its own origin to this bone's; `bendSide` is 1 where the bone folds toward the way the character looks and -1 where it folds away.
+ */
+function hingeFor(bone: RagdollBone, above: RagdollBone, target: Vec3, bendSide: 1 | -1, forward: Vec3, bend: number): RagdollLimb['hinge'] | null {
+    const run = v3.sub(bone.position, above.position);
+    if (Math.hypot(run.x, run.y, run.z) < 1e-9) return null;
+    const a0 = v3.normalize(run);
+    const f = v3.scale(forward, bendSide);
+    const side = v3.sub(f, v3.scale(a0, v3.dot(f, a0)));
+    if (Math.hypot(side.x, side.y, side.z) < 0.3) return null;
+    const d = v3.normalize(side);
+    const h = v3.normalize(v3.cross(a0, d));
+    const b = v3.normalize(target);
+    // How far it is bent now, toward the bending side (negative if it is past straight the other way).
+    const now = Math.atan2(v3.dot(v3.cross(a0, b), h), v3.dot(a0, b));
+    const toLocal = (v: Vec3): Vec3 => q.rotate(q.conjugate(bone.rotation), v);
+    const axis = toLocal(h);
+    return { axis, normalAxis: perpendicular(axis), lower: Math.min(-now, -0.02), upper: Math.max(bend - now, 0.02) };
+}
 
 /** What a ragdoll holds while it is limp. */
 interface Limp {
@@ -323,14 +366,28 @@ export function installRagdolls(app: App): void {
                 rotation: { w: t.worldRotation.w, x: t.worldRotation.x, y: t.worldRotation.y, z: t.worldRotation.z },
             };
         });
-        const limbs = planRagdoll(bones, { thickness: data.thickness, minBoneLength: data.minBoneLength, profile: data.profile });
+        const facing = [{ x: 0, y: 0, z: 1 }, { x: 0, y: 0, z: -1 }, { x: 1, y: 0, z: 0 }, { x: -1, y: 0, z: 0 }][data.facing] ?? { x: 0, y: 0, z: 1 };
+        const rootT = world.get(entity, Transform) as TransformData;
+        const forward = q.rotate({ w: rootT.worldRotation.w, x: rootT.worldRotation.x, y: rootT.worldRotation.y, z: rootT.worldRotation.z }, facing);
+        const limbs = planRagdoll(bones, { thickness: data.thickness, minBoneLength: data.minBoneLength, profile: data.profile, bend: data.bend, forward });
         log.info('physics3d', `Ragdoll on entity ${entity}: ${limbs.length} limbs from ${bones.length} bones`);
         const rad = (deg: number): number => (Math.min(Math.max(deg, 0), 175) * Math.PI) / 180;
         for (const limb of limbs) {
             const e = limb.entity as Entity;
             world.insert(e, RigidBody3D, { bodyType: 2, enabled: true });
             world.insert(e, BoxCollider3D, { halfExtents: limb.halfExtents, center: limb.center, friction: data.friction, restitution: 0, isSensor: false, enabled: true });
-            if (limb.connected !== null) {
+            if (limb.connected !== null && limb.hinge) {
+                // The joint is made on this bone and names the bone above, so the rotation it limits is the bone above's relative to this one: the hinge's turn, the other way round.
+                const h = limb.hinge, none = { x: 0, y: 0, z: 0 };
+                world.insert(e, SixDOFJoint3D, {
+                    connectedEntity: limb.connected, anchor: none, axis: h.axis, normalAxis: h.normalAxis,
+                    enableMotor: false, angularVelocity: none, maxMotorTorque: 10, collideConnected: false, enabled: true,
+                    translationMotion: none, rotationMotion: { x: JointMotion3D.Limited, y: JointMotion3D.Locked, z: JointMotion3D.Locked },
+                    translationLower: none, translationUpper: none,
+                    rotationLower: { x: -h.upper, y: 0, z: 0 }, rotationUpper: { x: -h.lower, y: 0, z: 0 },
+                    linearVelocity: none, maxMotorForce: 0,
+                });
+            } else if (limb.connected !== null) {
                 world.insert(e, SwingTwistJoint3D, {
                     connectedEntity: limb.connected, anchor: { x: 0, y: 0, z: 0 }, axis: limb.axis, normalAxis: limb.normalAxis,
                     enableMotor: false, angularVelocity: { x: 0, y: 0, z: 0 }, maxMotorTorque: 10, collideConnected: false, enabled: true,
@@ -351,6 +408,7 @@ export function installRagdolls(app: App): void {
         for (const e of held.limbs) {
             if (!world.valid(e)) continue;
             world.remove(e, SwingTwistJoint3D);
+            world.remove(e, SixDOFJoint3D);
             world.remove(e, BoxCollider3D);
             world.remove(e, RigidBody3D);
         }

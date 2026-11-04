@@ -2,9 +2,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { World } from '../src/ecs/world';
-import { Transform, Parent, getComponent, ensureBuiltinComponentsRegistered } from '../src/ecs/component';
+import { Transform, Name, Parent, getComponent, ensureBuiltinComponentsRegistered } from '../src/ecs/component';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
-import { Ragdoll, RagdollProfile, classifyBone, BONE_LIMITS, planRagdoll, installRagdolls, type RagdollBone, type RagdollData } from '../src/physics3d/ragdoll';
+import { Ragdoll, RagdollProfile, RagdollFacing, classifyBone, BONE_LIMITS, planRagdoll, installRagdolls, type RagdollBone, type RagdollData } from '../src/physics3d/ragdoll';
 import { RigidBody3D, BoxCollider3D } from '../src/physics3d/Physics3DComponents';
 import { SwingTwistJoint3D } from '../src/physics3d/AdvancedJoint3D';
 import { HAS_WASM, WASM_DIR, loadWasmModule } from './helpers/loadWasm';
@@ -237,5 +237,72 @@ describe('limits by joint', () => {
         expect(byId(1).swing).toBe(1);
         const uniform = planRagdoll(chain, { ...options, profile: RagdollProfile.Uniform });
         expect(uniform.every((l) => l.swing === 1 && l.twist === 1)).toBe(true);
+    });
+});
+
+/** A leg hanging from a fixed hip and thigh: gravity pulls the foot sideways and the knee answers for it. */
+describe.skipIf(!HAS_SOLVER)('a knee under the real solver', () => {
+    let engine: ESEngineModule;
+    beforeAll(async () => { engine = await loadWasmModule(); });
+
+    /** How far the foot ends up in front of the knee (+z) after two seconds of gravity along z. */
+    async function footZ(gravityZ: number, over: Partial<RagdollData> = {}): Promise<{ foot: number; shinLength: number }> {
+        const raw = (await import(/* @vite-ignore */ pathToFileURL(resolve(WASM_DIR, 'physics3d.js')).href)) as { default: (o: object) => Promise<never> };
+        const wasmBinary = readFileSync(resolve(WASM_DIR, 'physics3d.wasm'));
+        const module = await loadPhysics3DModule('', (() => raw.default({ wasmBinary })) as unknown as Physics3DModuleFactory);
+        const config = { ...DEFAULT_PHYSICS3D_CONFIG, pixelsPerUnit: 1 };
+        module._physics3d_init(0, 0, gravityZ, 256);
+        ensureBuiltinComponentsRegistered();
+        const registry = new engine.Registry();
+        const world = new World();
+        world.connectCpp(registry, engine);
+        try {
+            const systems: Array<{ _fn: (...a: unknown[]) => void }> = [];
+            installRagdolls({ world, addSystemToSchedule: (_s: unknown, def: { _fn: () => void }) => { systems.push(def); } } as never);
+            const root = world.spawn();
+            world.insert(root, Transform);
+            const names = ['DEF-hips', 'DEF-thigh.L', 'DEF-shin.L', 'DEF-foot.L'];
+            const joints: Entity[] = [];
+            let parent: Entity = root;
+            names.forEach((name, i) => {
+                const j = world.spawn();
+                world.insert(j, Transform, { position: { x: 0, y: i === 0 ? 4 : -1, z: 0 } });
+                world.insert(j, Name, { value: name });
+                world.insert(j, Parent, { entity: parent });
+                joints.push(j);
+                parent = j;
+            });
+            world.insert(root, getComponent('MeshSkin')!, { joints });
+            world.insert(root, Ragdoll, { active: true, skin: 0, profile: RagdollProfile.Humanoid, swing: 100, twist: 60, bend: 130, facing: RagdollFacing.PlusZ, thickness: 0.2, minBoneLength: 0.05, friction: 0.5, recoverTime: 0, ...over });
+            for (const s of systems) s._fn({ delta: 1 / 60 });
+            // The hip and the thigh are held; the shin and the foot hang from them.
+            for (const j of [joints[0]!, joints[1]!]) world.insert(j, RigidBody3D, { bodyType: 0, enabled: true });
+            const bodies = new Map<Entity, number>();
+            for (let i = 0; i < 120; i++) stepPhysics3D({ world } as never, module, bodies, config, new Map(), undefined, new Map() as never, new Map(), null);
+            world.ensureTransformsComposed();
+            const at = (e: Entity) => (world.get(e, Transform) as { worldPosition: { x: number; y: number; z: number } }).worldPosition;
+            const knee = at(joints[2]!), foot = at(joints[3]!);
+            return { foot: foot.z - knee.z, shinLength: Math.hypot(foot.x - knee.x, foot.y - knee.y, foot.z - knee.z) };
+        } finally {
+            for (const e of world.getAllEntities()) world.despawn(e);
+            world.disconnectCpp();
+            registry.delete();
+            module._physics3d_shutdown();
+        }
+    }
+
+    it('folds back, the way a knee does, when gravity pulls the foot back', async () => {
+        const r = await footZ(-9.81);
+        expect(r.foot).toBeLessThan(-0.5);
+    });
+
+    it('holds straight when gravity pulls the foot forward, where a knee does not go', async () => {
+        const r = await footZ(9.81);
+        expect(Math.abs(r.foot)).toBeLessThan(0.1);
+    });
+
+    it('swings either way when the bend limit is off', async () => {
+        const r = await footZ(9.81, { bend: 0 });
+        expect(r.foot).toBeGreaterThan(0.3);
     });
 });
