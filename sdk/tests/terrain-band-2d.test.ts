@@ -102,7 +102,12 @@ describe.skipIf(!HAS_WASM)('TerrainBand2D system', () => {
 
     function install() {
         const uploads: number[] = [];
-        const api = { setGeometry: (e: number) => { uploads.push(e); }, clearGeometry: () => {} };
+        const held = new Set<number>();
+        const api = {
+            setGeometry: (e: number) => { uploads.push(e); held.add(e); },
+            clearGeometry: (e: number) => { held.delete(e); },
+            getGeometry: (e: number) => (held.has(e) ? {} : undefined),
+        };
         let system: { _fn: () => void } | null = null;
         const app = {
             world,
@@ -111,7 +116,7 @@ describe.skipIf(!HAS_WASM)('TerrainBand2D system', () => {
             addSystemToSchedule: (_s: unknown, def: { _fn: () => void }) => { system = def; },
         };
         installTerrainBands(app as never);
-        return { run: () => system!._fn(), uploads };
+        return { run: () => system!._fn(), uploads, lose: (e: number) => { held.delete(e); } };
     }
 
     function ground(over: Partial<TerrainBand2DData> = {}) {
@@ -129,6 +134,15 @@ describe.skipIf(!HAS_WASM)('TerrainBand2D system', () => {
         expect(world.has(e, MeshRenderer)).toBe(true);
         expect(uploads).toEqual([e]);
         world.insert(e, TerrainBand2D, band({ edgeWidth: 8 }));
+        run();
+        expect(uploads).toEqual([e, e]);
+    });
+
+    it('builds the mesh again when the editor has cleared it', () => {
+        const { run, uploads, lose } = install();
+        const e = ground();
+        run();
+        lose(e);
         run();
         expect(uploads).toEqual([e, e]);
     });

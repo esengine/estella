@@ -152,7 +152,8 @@ function pixelsPerUnit(app: App): number {
 
 /** Keeps every `TerrainBand2D`'s mesh and collider matching its spline. Called once by the spline plugin. */
 export function installTerrainBands(app: App): void {
-    const built = new Map<Entity, string>();
+    /** What each entity's mesh was last built from, and whether that left it any (an empty one is not worth looking for). */
+    const built = new Map<Entity, { key: string; empty: boolean }>();
     const wroteCollider = new Set<Entity>();
     app.world.onDespawn((entity: Entity) => { built.delete(entity); wroteCollider.delete(entity); });
 
@@ -165,9 +166,12 @@ export function installTerrainBands(app: App): void {
             const spline = world.get(entity, Spline) as SplineData;
             const ppu = band.collider ? pixelsPerUnit(app) : 0;
             const key = JSON.stringify([spline.points, spline.closed, band, ppu]);
-            if (built.get(entity) === key) continue;
-            built.set(entity, key);
+            const held = built.get(entity);
+            // The editor re-imports a MeshRenderer from its scene model, which carries no geometry, and that clears what was uploaded: a mesh
+            // that has gone missing is built again, not trusted to still be there.
+            if (held && held.key === key && (held.empty || api.getGeometry(entity))) continue;
             const result = buildTerrainBand(spline.points, spline.closed, band);
+            built.set(entity, { key, empty: !result });
             if (!world.has(entity, MeshRenderer)) world.insert(entity, MeshRenderer, { enabled: true });
             if (result) api.setGeometry(entity, result.geometry); else api.clearGeometry(entity);
             if (band.collider && result && result.outline.length >= 4) {
