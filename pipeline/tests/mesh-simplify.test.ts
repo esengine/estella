@@ -46,6 +46,14 @@ function sphere(rings: number, segments: number): MeshData {
 }
 
 describe('simplifyMesh', () => {
+    it('collapses further across borders and seams when the level is only seen small', async () => {
+        const src = sphere(32, 48);
+        const near = (await simplifyMesh(src, { ratio: 0.05, maxError: 0.5, flags: ['LockBorder'] }))!;
+        const far = (await simplifyMesh(src, { ratio: 0.05, maxError: 0.5, flags: ['Prune', 'Permissive'] }))!;
+        // Border and seam vertices that a near level holds still are free to go: the target is reached, not stopped short of.
+        expect(far.triangles).toBeLessThan(near.triangles * 0.85);
+    });
+
     it('keeps about the share of triangles it was asked for, and fewer vertices', async () => {
         const src = sphere(32, 48);
         const out = (await simplifyMesh(src, { ratio: 0.25, maxError: 0.5 }))!;

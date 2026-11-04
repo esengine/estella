@@ -16,7 +16,7 @@ import {
     type MeshData, type MaterialAssetData, type PrefabData, type PrefabEntityData,
     type PrefabComponentData as ComponentData,
 } from 'esengine';
-import { canSimplify, simplifyMesh } from './meshSimplify';
+import { canSimplify, simplifyMesh, type SimplifierFlag } from './meshSimplify';
 import { SPARSE_LIGHTMAP_UV, OVERLAPPING_LIGHTMAP_UV } from '../../../sdk/src/lightmap/atlas';
 
 /** One primitive's worth of geometry, named for the file it will be written to. */
@@ -491,6 +491,8 @@ const LOD_SIZES = [0.4, 0.18, 0.07];
 const LOD_MIN_SAVING = 0.15;
 /** The collapse may move the surface this far, relative to the mesh's extent. */
 const LOD_ERROR = [0.01, 0.03, 0.08];
+/** What each level may do to the surface: the near one keeps its borders; the far ones, seen small, may collapse across them and shed specks. */
+const LOD_FLAGS: SimplifierFlag[][] = [['LockBorder'], ['Prune', 'Permissive'], ['Prune', 'Permissive']];
 
 export interface LodOptions {
     /** How many levels to make below the original, 1–3. */
@@ -525,7 +527,7 @@ export async function generateLods(meshes: ImportedMesh[], options: LodOptions):
         let above = mesh.triangleCount;
         for (let level = 0; level < levels; level++) {
             // Collapse from the ORIGINAL each time: stacking collapses compounds their error.
-            const made = await simplifyMesh(mesh.data, { ratio: LOD_RATIOS[level]!, maxError: LOD_ERROR[level]! });
+            const made = await simplifyMesh(mesh.data, { ratio: LOD_RATIOS[level]!, maxError: LOD_ERROR[level]!, flags: LOD_FLAGS[level]! });
             if (!made || made.triangles > above * (1 - LOD_MIN_SAVING)) break;
             out.push({ data: made.data, triangleCount: made.triangles, size: LOD_SIZES[level]! });
             above = made.triangles;

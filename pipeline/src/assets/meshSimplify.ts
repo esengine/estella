@@ -24,7 +24,12 @@ export interface SimplifyOptions {
     ratio: number;
     /** The most the surface may move, relative to the mesh's extent. */
     maxError?: number;
+    /** How freely the collapse may treat the surface. Far levels are looked at small, so they can give up a mesh's open borders, collapse across a seam
+     *  and drop specks that are no longer a shape (`Permissive`, `Prune`); a near level keeps its borders (`LockBorder`), where a gap would show. */
+    flags?: SimplifierFlag[];
 }
+
+export type SimplifierFlag = 'LockBorder' | 'Sparse' | 'ErrorAbsolute' | 'Prune' | 'Regularize' | 'Permissive' | 'RegularizeLight';
 
 export interface Simplified {
     data: MeshData;
@@ -80,10 +85,11 @@ export async function simplifyMesh(data: MeshData, options: SimplifyOptions): Pr
     const triangles = data.indices.length / 3;
     const targetTriangles = Math.max(1, Math.floor(triangles * options.ratio));
     if (targetTriangles >= triangles) return null;
+    const flags = options.flags ?? ['LockBorder'];
     const [kept, error] = attributeStride > 0
         ? MeshoptSimplifier.simplifyWithAttributes(data.indices, positions, 3, attributes, attributeStride, weights,
-            null, targetTriangles * 3, options.maxError ?? 0.05, ['LockBorder'])
-        : MeshoptSimplifier.simplify(data.indices, positions, 3, targetTriangles * 3, options.maxError ?? 0.05, ['LockBorder']);
+            null, targetTriangles * 3, options.maxError ?? 0.05, flags)
+        : MeshoptSimplifier.simplify(data.indices, positions, 3, targetTriangles * 3, options.maxError ?? 0.05, flags);
     if (kept.length === 0 || kept.length >= data.indices.length) return null;
 
     // Only the vertices the survivors name are carried: a collapse leaves the rest behind.
