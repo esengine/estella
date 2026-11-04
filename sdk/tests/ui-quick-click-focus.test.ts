@@ -21,7 +21,7 @@ import { inspectableTypes } from '../src/runtime/worldSnapshot';
 const hit = vi.hoisted(() => ({ entity: null as number | null }));
 vi.mock('../src/ui/util/ui-pick', () => ({
   screenToUiWorld: () => ({ x: 0, y: 0 }), screenToUiLayout: () => ({ x: 0, y: 0 }),
-  uiPointerRay: () => ({}), uiLayoutRay: () => ({}), uiHitTestWorld: () => hit.entity,
+  uiPointerRay: () => ({}), uiLayoutRay: () => ({}), uiHitTestWorld: () => hit.entity, uiHitAtScreen: () => hit.entity,
 }));
 
 describe('quick pointer focus through real interaction projection', () => {

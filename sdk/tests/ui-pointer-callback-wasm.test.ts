@@ -28,7 +28,7 @@ vi.mock('../src/ui/util/ui-pick', () => ({
     screenToUiWorld: (_camera: unknown, x: number, y: number) => ({ x, y }),
     screenToUiLayout: (_overlay: unknown, x: number, y: number) => ({ x, y }),
     isScreenEntity: () => true,
-    uiPointerRay: () => ({}), uiLayoutRay: () => ({}), uiHitTestWorld: () => hit.entity,
+    uiPointerRay: () => ({}), uiLayoutRay: () => ({}), uiHitTestWorld: () => hit.entity, uiHitAtScreen: () => hit.entity,
 }));
 
 describe.skipIf(!HAS_WASM)('pointer callback lifecycle on real WASM', () => {
