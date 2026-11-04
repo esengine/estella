@@ -13,7 +13,7 @@
  * Glyph metrics from the atlas are in renderSize px; everything scales by
  * displaySize / atlas.renderSize (SDF is resolution-independent).
  */
-import type { GlyphAtlas } from './glyph-atlas';
+import type { GlyphAtlas, GlyphEntry } from './glyph-atlas';
 import { TEXT_VERTEX_FLOATS } from './submit';
 import { parseRichText, type TextSegment, type ImageSegment, type RichTextRun } from './rich-text-parser';
 import { UI_TEXT_BOLD, UI_TEXT_ITALIC } from './text-transform';
@@ -37,6 +37,8 @@ export interface LaidGlyph {
     x1: number; y1: number; // top-right
     pageId: number;
     color?: RGBA;
+    /** The atlas entry the quad was cut from — what an outline of the glyph is grown from. */
+    entry?: GlyphEntry;
 }
 
 /** One placed inline `<img>` run: a box in the same local space as glyphs
@@ -100,7 +102,7 @@ export function layoutLine(
             const y1 = g.bearingY * scale;            // top, above baseline
             const x1 = x0 + g.width * scale;
             const y0 = y1 - g.height * scale;          // bottom
-            glyphs.push({ u0: g.u0, v0: g.v0, u1: g.u1, v1: g.v1, x0, y0, x1, y1, pageId: g.pageId });
+            glyphs.push({ u0: g.u0, v0: g.v0, u1: g.u1, v1: g.v1, x0, y0, x1, y1, pageId: g.pageId, entry: g });
         }
         penX += g.advance * scale + spacing;
     }
@@ -676,7 +678,7 @@ export function layoutRichRuns(
                 glyphs.push({
                     u0: gph.u0, v0: gph.v0, u1: gph.u1, v1: gph.v1,
                     x0, y0: y1 - gph.height * scale, x1: x0 + gph.width * scale, y1,
-                    pageId: gph.pageId, color,
+                    pageId: gph.pageId, color, entry: gph,
                 });
             }
             penX += gph.advance * scale + spacing;

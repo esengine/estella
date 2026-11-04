@@ -102,16 +102,93 @@ interface GlyphPlacement {
     fontFamily: string;
     style: number;
     pixelSize: number;
+    /** The outline radius this cell was grown by, in rasterized px; 0 for the glyph itself. */
+    outline: number;
     x: number;
     y: number;
     width: number;
     height: number;
 }
 
+/** Which glyph an entry is, for an atlas that has to produce a variant of it. */
+interface GlyphIdentity {
+    codepoint: number;
+    fontFamily: string;
+    style: number;
+    pixelSize: number;
+}
+
+/**
+ * Grow a coverage glyph by @p radius texels: every texel takes the strongest
+ * coverage within the radius, faded over its last texel so the ring's edge is
+ * antialiased like the glyph's own. The tile gains `margin` texels on every side
+ * for the ring to grow into. Pure.
+ *
+ * This is the outline a coverage glyph can have. A distance-field glyph is grown
+ * by moving the edge the shader reads (see text-renderer outlineBias); a coverage
+ * one has no distance to move, and stamping copies of it around a circle draws
+ * the glyph several times rather than drawing a ring — fine for a hairline, eight
+ * ghosts at the widths a game label asks for.
+ */
+export function dilateCoverage(alpha: Uint8Array, width: number, height: number, radius: number): {
+    alpha: Uint8Array; width: number; height: number; margin: number;
+} {
+    const r = Math.max(0, radius);
+    const margin = Math.ceil(r) + 1;
+    const w = width + margin * 2;
+    const h = height + margin * 2;
+    const out = new Uint8Array(w * h);
+    // The disk's offsets and their weights, once: a texel at distance d inside
+    // r - 0.5 counts whole, one past r + 0.5 not at all.
+    const reach = Math.ceil(r + 0.5);
+    const taps: number[] = [];
+    for (let dy = -reach; dy <= reach; dy++) {
+        for (let dx = -reach; dx <= reach; dx++) {
+            const weight = Math.min(1, Math.max(0, r + 0.5 - Math.hypot(dx, dy)));
+            if (weight > 0) taps.push(dx, dy, weight);
+        }
+    }
+    for (let y = 0; y < h; y++) {
+        const sy = y - margin;
+        for (let x = 0; x < w; x++) {
+            const sx = x - margin;
+            let best = 0;
+            for (let t = 0; t < taps.length; t += 3) {
+                const ix = sx + taps[t];
+                const iy = sy + taps[t + 1];
+                if (ix < 0 || iy < 0 || ix >= width || iy >= height) continue;
+                const v = alpha[iy * width + ix] * taps[t + 2];
+                if (v > best) best = v;
+            }
+            out[y * w + x] = best + 0.5;
+        }
+    }
+    return { alpha: out, width: w, height: h, margin };
+}
+
+/** A coverage tile grown into its outline, in the atlas's RGBA format (RGB 255, A coverage). */
+function outlineRaster(raster: RasterGlyph, radius: number): RasterGlyph {
+    const n = raster.width * raster.height;
+    const alpha = new Uint8Array(n);
+    for (let i = 0; i < n; i++) alpha[i] = raster.pixels[i * 4 + 3];
+    const grown = dilateCoverage(alpha, raster.width, raster.height, radius);
+    const pixels = new Uint8Array(grown.width * grown.height * 4);
+    for (let i = 0; i < grown.alpha.length; i++) {
+        const o = i * 4;
+        pixels[o] = 255; pixels[o + 1] = 255; pixels[o + 2] = 255; pixels[o + 3] = grown.alpha[i];
+    }
+    return {
+        pixels, width: grown.width, height: grown.height, advance: raster.advance,
+        bearingX: raster.bearingX - grown.margin, bearingY: raster.bearingY + grown.margin,
+    };
+}
+
 /**
  * Caches glyphs into one or more atlas pages, rasterizing on first use.
  */
 export class GlyphAtlas {
+    /** Which glyph each placed entry is — what an outline of it is grown from. */
+    private readonly identity_ = new WeakMap<GlyphEntry, GlyphIdentity>();
     private readonly pageSize: number;
     private readonly padding: number;
     private readonly sdf: boolean;
@@ -238,8 +315,11 @@ export class GlyphAtlas {
     /** Reported families with non-drawable glyphs still in the bounded CPU cache. */
     private readonly mute_ = new Set<string>();
 
-    private key(codepoint: number, fontFamily: string, style: number, pixelSize: number): string {
-        return `${fontFamily}|${codepoint}|${style % STYLE_COUNT_HINT}|${pixelSize}`;
+    private key(codepoint: number, fontFamily: string, style: number, pixelSize: number, outline = 0): string {
+        // The radius rides on the size segment, so the key keeps the three numeric
+        // suffixes familyFromKey strips.
+        const size = outline > 0 ? `${pixelSize}o${outline}` : `${pixelSize}`;
+        return `${fontFamily}|${codepoint}|${style % STYLE_COUNT_HINT}|${size}`;
     }
 
     /**
@@ -250,7 +330,29 @@ export class GlyphAtlas {
     getGlyph(codepoint: number, fontFamily: string, style = 0, pixelSize = this.renderSize): GlyphEntry | null {
         // A bitmap font is its own atlas: the glyph is already on a page the engine holds.
         if (bitmapFontOf(fontFamily)) return bitmapGlyph(fontFamily, codepoint);
-        const k = this.key(codepoint, fontFamily, style, pixelSize);
+        return this.glyph_({ codepoint, fontFamily, style, pixelSize }, 0);
+    }
+
+    /**
+     * @p entry's glyph grown by @p radius rasterized px — the shape its outline
+     * is drawn with, in one pass, on an atlas of coverage glyphs. Placed and cached
+     * like the glyph itself (one cell per glyph, size and radius), with metrics in
+     * the same units: its box is the glyph's, `margin` larger on every side.
+     *
+     * Null on a distance-field atlas (the shader grows those, see outlineBias), for
+     * a glyph this atlas did not place (a bitmap font's), and when the glyph cannot
+     * be produced — the caller keeps its own fallback for all three.
+     */
+    outlined(entry: GlyphEntry, radius: number): GlyphEntry | null {
+        if (this.sdf || !(radius > 0)) return null;
+        const id = this.identity_.get(entry);
+        if (!id) return null;
+        return this.glyph_(id, radius);
+    }
+
+    private glyph_(id: GlyphIdentity, outline: number): GlyphEntry | null {
+        const { codepoint, fontFamily, style, pixelSize } = id;
+        const k = this.key(codepoint, fontFamily, style, pixelSize, outline);
         const hit = this.cache.get(k);
         if (hit !== undefined) return hit;
         const cpuHit = this.cpuCache.get(k);
@@ -260,7 +362,7 @@ export class GlyphAtlas {
             return cpuHit;
         }
 
-        const raster = this.rasterizer.rasterize(codepoint, fontFamily, style, pixelSize);
+        const raster = this.raster_(codepoint, fontFamily, style, pixelSize, outline);
         if (!raster) {
             // Cached non-drawable glyphs own their family's diagnostic suppression.
             this.cacheCPU(k, null);
@@ -308,7 +410,7 @@ export class GlyphAtlas {
         const pageId = this.pages[placed.page];
         this.store.uploadSubRegion(pageId, placed.x, placed.y, raster.width, raster.height, raster.pixels);
         this.placements[placed.page].push({
-            codepoint, fontFamily, style, pixelSize,
+            codepoint, fontFamily, style, pixelSize, outline,
             x: placed.x, y: placed.y, width: raster.width, height: raster.height,
         });
 
@@ -326,7 +428,16 @@ export class GlyphAtlas {
             bearingY: raster.bearingY,
         };
         this.cache.set(k, entry);
+        if (outline === 0) this.identity_.set(entry, id);
         return entry;
+    }
+
+    /** The tile for one cell: the glyph as rasterized, or grown into its outline. */
+    private raster_(codepoint: number, fontFamily: string, style: number, pixelSize: number,
+                    outline: number): RasterGlyph | null {
+        const raster = this.rasterizer.rasterize(codepoint, fontFamily, style, pixelSize);
+        if (!raster || outline <= 0 || raster.width <= 0 || raster.height <= 0) return raster;
+        return outlineRaster(raster, outline);
     }
 
     /** Page-free entries can be recreated without changing any live layout or UV. */
@@ -389,7 +500,7 @@ export class GlyphAtlas {
     private paintPage(glyphs: readonly GlyphPlacement[], pixels: Uint8Array): void {
         const size = this.pageSize;
         for (const g of glyphs) {
-            const raster = this.rasterizer.rasterize(g.codepoint, g.fontFamily, g.style, g.pixelSize);
+            const raster = this.raster_(g.codepoint, g.fontFamily, g.style, g.pixelSize, g.outline);
             if (!raster) continue;
             const width = Math.min(raster.width, g.width);
             const height = Math.min(raster.height, g.height);

@@ -88,7 +88,7 @@ Defaults below are the component defaults (what the inspector shows).
 | `lineHeight` | number | `1.2` | Line spacing as a **ratio of `fontSize`** (baseline-to-baseline = `lineHeight × fontSize`). |
 | `bold` / `italic` | boolean | `false` | Base font style (rich-text `<b>`/`<i>` layer on top). |
 | `strokeColor` | Color | `{0,0,0,1}` | Outline color. |
-| `strokeWidth` | number | `0` | Outline width in px; `0` disables. On an SDF atlas the glyph's own edge is pushed outward, so it stays the glyph's shape at any width (see [below](#outlines)). |
+| `strokeWidth` | number | `0` | Outline width in px; `0` disables. An SDF glyph's own edge is pushed outward and a bitmap glyph is grown, so it stays the glyph's shape at any width (see [below](#outlines)). |
 | `shadowColor` | Color | `{0,0,0,1}` | Drop-shadow color. The shadow and the outline fade with the text's own `color` alpha, so a label faded out leaves neither behind. |
 | `shadowOffsetX` / `shadowOffsetY` | number | `0` | Shadow offset in px. |
 | `shadowBlur` | number | `0` | Softens the shadow, in px. `0` is a hard offset copy; above that the shadow spreads into a ring, so it reads as a soft mass under the glyphs rather than a second stamp of them. A blur with no offset is a halo. |
@@ -143,10 +143,14 @@ through the atlas's spread and render size, so it means the same thing at every
 `fontSize` and every camera zoom, and asking for more than the atlas can dilate
 degrades to the widest real outline instead of flooding the glyph's cell.
 
-**Bitmap** glyphs have no distance to push, so they keep the old eight-direction
-stamp of the glyph. That reads as an outline while it is a hairline and merges
-into a blob past a few pixels — force [`renderMode: Sdf`](#the-two-glyph-pipelines)
-for anything thicker than about a pixel.
+**Bitmap** glyphs have no distance to push, so each one is grown instead: the
+atlas places the glyph again, dilated by the width (in the texels it was
+rasterized at), and the outline draws those grown glyphs once behind the fill.
+The ring is solid and antialiased at any width, and a grown glyph is cached per
+size and width like the glyph itself. (Up to 0.97 this path stamped the glyph in
+eight directions, which turned anything wider than a hairline into eight ghost
+copies of the label.) A bitmap font without a baked outline keeps that stamp, the
+one glyph source the atlas cannot grow.
 
 A `shadowBlur` above 0 stamps the shadow at the centre plus a ring of eight
 around it, with each tap's alpha inverted out of the compositing equation so the

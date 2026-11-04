@@ -202,6 +202,57 @@ function addUnderlines(layout: TextLayout, atlas: GlyphAtlas, fontFamily: string
     }
 }
 
+/** Glyphs grouped by the atlas page (texture) they sample, each group cut to one
+ *  batch's worth — a string can reference glyphs across several pages. */
+function pageChunks(glyphs: readonly LaidGlyph[]): Array<[number, readonly LaidGlyph[]]> {
+    const byPage = new Map<number, LaidGlyph[]>();
+    for (const g of glyphs) {
+        let arr = byPage.get(g.pageId);
+        if (!arr) { arr = []; byPage.set(g.pageId, arr); }
+        arr.push(g);
+    }
+    const chunks: Array<[number, readonly LaidGlyph[]]> = [];
+    for (const [pageId, list] of byPage) {
+        for (let start = 0; start < list.length; start += MAX_TEXT_BATCH_GLYPHS) {
+            chunks.push([pageId, list.length <= MAX_TEXT_BATCH_GLYPHS
+                ? list : list.slice(start, start + MAX_TEXT_BATCH_GLYPHS)]);
+        }
+    }
+    return chunks;
+}
+
+/**
+ * The outline of laid-out coverage glyphs: each glyph's own cell grown by
+ * @p widthPx (text px), placed over the glyph's box grown by the same amount.
+ * The radius is asked in rasterized texels, halved to 0.5-texel steps so labels
+ * of one size share cells. A quad cut from no glyph (an underline bar) is solid,
+ * and grows by simply being drawn larger. Null when any glyph cannot be grown —
+ * the caller then has one fallback for the whole label, never a mixed ring.
+ */
+export function outlineGlyphs(atlas: GlyphAtlas, glyphs: readonly LaidGlyph[], widthPx: number): LaidGlyph[] | null {
+    const out: LaidGlyph[] = [];
+    for (const g of glyphs) {
+        const entry = g.entry;
+        if (!entry) {
+            out.push({ ...g, color: undefined, x0: g.x0 - widthPx, y0: g.y0 - widthPx, x1: g.x1 + widthPx, y1: g.y1 + widthPx });
+            continue;
+        }
+        if (entry.width <= 0) return null;
+        const perTexel = (g.x1 - g.x0) / entry.width;          // text px per rasterized texel
+        if (!(perTexel > 0)) return null;
+        const radius = Math.max(0.5, Math.round((widthPx / perTexel) * 2) / 2);
+        const grown = atlas.outlined(entry, radius);
+        if (!grown) return null;
+        const grow = ((grown.width - entry.width) / 2) * perTexel;
+        out.push({
+            u0: grown.u0, v0: grown.v0, u1: grown.u1, v1: grown.v1,
+            x0: g.x0 - grow, y0: g.y0 - grow, x1: g.x1 + grow, y1: g.y1 + grow,
+            pageId: grown.pageId,
+        });
+    }
+    return out;
+}
+
 export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTextParams): number {
     if (atlas.metricsOnly) throw new Error('Measurement atlases cannot submit text.');
     const opacity = p.opacity ?? 1;
@@ -239,21 +290,8 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
         boxHeight, layout.lineHeight, fontSizePx, p.verticalAlign, lineHeightPx, ascent,
     );
 
-    // A string can reference glyphs across several atlas pages; each page is a
-    // distinct texture. Split oversized pages once, before emitting effects.
-    const byPage = new Map<number, LaidGlyph[]>();
-    for (const g of layout.glyphs) {
-        let arr = byPage.get(g.pageId);
-        if (!arr) { arr = []; byPage.set(g.pageId, arr); }
-        arr.push(g);
-    }
-    const chunks: Array<[number, readonly LaidGlyph[]]> = [];
-    for (const [pageId, glyphs] of byPage) {
-        for (let start = 0; start < glyphs.length; start += MAX_TEXT_BATCH_GLYPHS) {
-            chunks.push([pageId, glyphs.length <= MAX_TEXT_BATCH_GLYPHS
-                ? glyphs : glyphs.slice(start, start + MAX_TEXT_BATCH_GLYPHS)]);
-        }
-    }
+    // Split oversized pages once, before emitting effects.
+    const chunks = pageChunks(layout.glyphs);
 
     const baseX = (p.originX ?? 0) + textBlockOffsetX(p.align, boxWidth, layout.width);
     // Emit the glyph set once per page, recolored + offset. All passes are SDF
@@ -263,8 +301,9 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
     // that is a shape — shadow, the outline ring — and Fill for the glyph. The page's own colours never show, so the ring is
     // whatever colour the outline asks for, and without an outline there is no ring at all.
     const baked = bitmapFontOf(p.fontFamily)?.outlineInAlpha === true;
-    const emitPass = (color: RGBA, dx: number, dy: number, bias = 0, useGlyphColors = false, mode?: TextGlyphMode): void => {
-        for (const [pageId, glyphs] of chunks) {
+    const emitChunks = (set: ReadonlyArray<readonly [number, readonly LaidGlyph[]]>, color: RGBA, dx: number, dy: number,
+                        bias = 0, useGlyphColors = false, mode?: TextGlyphMode): void => {
+        for (const [pageId, glyphs] of set) {
             const { vertices, indices } = buildGlyphVertices(glyphs, color, baseX + dx, originY + dy, bias, useGlyphColors);
             if (opacity !== 1) {
                 for (let i = 7; i < vertices.length; i += TEXT_VERTEX_FLOATS) vertices[i] *= opacity;
@@ -272,6 +311,9 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
             sink(vertices, indices, pageId, mode);
         }
     };
+    const emitPass = (color: RGBA, dx: number, dy: number, bias = 0, useGlyphColors = false, mode?: TextGlyphMode): void =>
+        emitChunks(chunks, color, dx, dy, bias, useGlyphColors, mode);
+    const emitGlyphs = (glyphs: readonly LaidGlyph[], color: RGBA): void => emitChunks(pageChunks(glyphs), color, 0, 0);
 
     // A label's shadow and outline belong to it: they fade with its own alpha, so
     // a text faded out by its colour leaves no shadow behind (Unity's rule; CSS
@@ -295,10 +337,11 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
             emitPass(color, dx, -dy, 0, false, baked ? TextGlyphMode.Mask : undefined);
         }
     }
-    // Outline. On a distance-field atlas this is the glyph drawn once more with
-    // its edge pushed out — a real dilation, so the shape survives any width. The
-    // bitmap atlas has no distance to push, so it keeps the eight-way stamp, which
-    // is only ever asked for hairlines there.
+    // Outline: the glyphs grown by the width, drawn once behind the fill. On a
+    // distance-field atlas the shader grows them (the edge it reads is moved), so
+    // the shape survives any width. A coverage atlas has no distance to move, so
+    // it places each glyph grown into its own cell (GlyphAtlas.outlined) — a ring,
+    // where stamping eight offset copies drew the label eight more times.
     const outlineColor = p.outline ? decoration(p.outline.color) : null;
     if (baked) {
         // The page has the ring already: it is drawn, not grown, so the width only says whether there is one.
@@ -306,7 +349,10 @@ export function drawTextWith(atlas: GlyphAtlas, sink: GlyphBatchSink, p: DrawTex
     } else if (p.outline && p.outline.width > 0 && outlineColor![3] > 0) {
         const w = p.outline.width;
         const bias = outlineBias(atlas, fontSizePx, w);
+        const ring = bias > 0 ? null : outlineGlyphs(atlas, layout.glyphs, w);
         if (bias > 0) emitPass(outlineColor!, 0, 0, bias);
+        else if (ring) emitGlyphs(ring, outlineColor!);
+        // A glyph the atlas cannot grow (a bitmap font without a baked ring) keeps the stamp.
         else for (const [ox, oy] of OUTLINE_OFFSETS) emitPass(outlineColor!, ox * w, oy * w);
     }
     // Fill (on top).

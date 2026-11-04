@@ -193,9 +193,40 @@ describe('REARCH_GUI P1.3b: drawTextWith', () => {
         expect(fill[8]).toBe(0);
     });
 
-    it('falls back to the stamp fan when the glyphs are coverage, not distance', () => {
-        // A bitmap atlas has no distance to move, so the only way to widen a glyph
-        // is still to draw it around itself.
+    it('outlines coverage glyphs with one pass of grown cells, not eight stamped copies', () => {
+        // A bitmap atlas has no distance to move. Stamping the glyph around itself
+        // drew the label eight more times, and at a game label's width (#104: 3-8px)
+        // that reads as ghosts, not a ring — so each glyph is grown into a cell of its own.
+        const ink = new Uint8Array(10 * 12 * 4);
+        for (let i = 3; i < ink.length; i += 4) ink[i] = 255;
+        const rasterizer: GlyphRasterizer = {
+            renderSize: 48,
+            spread: 0,
+            rasterize: (): RasterGlyph =>
+                ({ pixels: ink, width: 10, height: 12, advance: 11, bearingX: 1, bearingY: 10 }),
+        };
+        let next = 2000;
+        const uploads: Array<{ w: number; h: number }> = [];
+        const store: AtlasPageStore = { createPage: () => next++, uploadSubRegion: (_p, _x, _y, w, h) => { uploads.push({ w, h }); } };
+        const atlas = new GlyphAtlas(rasterizer, store, { pageSize: 1024, padding: 1, sdf: false });
+        const sink = vi.fn();
+        drawTextWith(atlas, sink, {
+            text: 'AB', fontFamily: 'Arial', fontSizePx: 24, color: [1, 1, 1, 1],
+            outline: { color: [0, 0, 0, 1], width: 3 },
+        });
+        expect(sink).toHaveBeenCalledTimes(2); // the ring, then the fill
+        const [ring, fill] = sink.mock.calls.map((c) => c[0] as Float32Array);
+        // Same glyph count, each ring quad wider than its glyph by the outline on both sides.
+        expect(ring.length).toBe(fill.length);
+        const widthOf = (v: Float32Array) => v[TEXT_VERTEX_FLOATS] - v[0];
+        expect(widthOf(ring) - widthOf(fill)).toBeGreaterThanOrEqual(2 * 3);
+        // The ring was placed as cells of its own: two glyphs, and each grown once.
+        expect(uploads.length).toBe(4);
+    });
+
+    it('keeps the stamp for glyphs it cannot grow', () => {
+        // A quad cut from no atlas entry of this atlas (here: every glyph comes from
+        // an atlas whose outlined() answers null) still gets an outline.
         const rasterizer: GlyphRasterizer = {
             renderSize: 48,
             spread: 0,
@@ -205,6 +236,7 @@ describe('REARCH_GUI P1.3b: drawTextWith', () => {
         let next = 2000;
         const store: AtlasPageStore = { createPage: () => next++, uploadSubRegion: () => {} };
         const atlas = new GlyphAtlas(rasterizer, store, { pageSize: 1024, padding: 1, sdf: false });
+        atlas.outlined = () => null;
         const sink = vi.fn();
         drawTextWith(atlas, sink, {
             text: 'AB', fontFamily: 'Arial', fontSizePx: 24, color: [1, 1, 1, 1],
