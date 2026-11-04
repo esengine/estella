@@ -76,4 +76,24 @@ describe('createSideModuleHost', () => {
       spy.mockRestore();
     }
   });
+
+  // The engine's JavaScript build runs where there is no WebAssembly, and a side
+  // module is a wasm binary: say so by name, once, and never call the transport.
+  it('answers null without instantiating on a host with no WebAssembly', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const saved = globalThis.WebAssembly;
+    try {
+      delete (globalThis as { WebAssembly?: unknown }).WebAssembly;
+      const instantiate = vi.fn().mockResolvedValue({});
+      const host = createSideModuleHost(instantiate);
+      expect(await host.acquire('physics')).toBeNull();
+      expect(await host.acquire('physics')).toBeNull();
+      expect(instantiate).not.toHaveBeenCalled();
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(String(spy.mock.calls[0].join(' '))).toMatch(/no WebAssembly/);
+    } finally {
+      globalThis.WebAssembly = saved;
+      spy.mockRestore();
+    }
+  });
 });

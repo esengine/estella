@@ -29,6 +29,16 @@ option(ES_MAIN_DISABLE_SIMD "Disable wasm SIMD for the main module (compat fallb
 # Hosts on V8 older than 8.5 reject an i64 in a wasm↔JS signature ("wasm function
 # signature contains illegal type"); OFF legalizes i64 into i32 pairs instead.
 option(ES_WASM_BIGINT "Pass i64 across the wasm↔JS boundary as BigInt" ON)
+# The engine as plain JavaScript (emscripten's wasm2js, -sWASM=0) for a host that
+# has no WebAssembly at all: the same C++, the same embind surface, the same SDK —
+# only the core's container changes. wasm2js has no SIMD and no BigInt i64, so a
+# configure that asks for it gets neither (see the checks below).
+option(ES_WASM2JS "Build the SDK engine as plain JavaScript (wasm2js) instead of wasm" OFF)
+if(ES_WASM2JS)
+    if(NOT ES_MAIN_DISABLE_SIMD OR ES_WASM_BIGINT)
+        message(FATAL_ERROR "ES_WASM2JS needs -DES_MAIN_DISABLE_SIMD=ON -DES_WASM_BIGINT=OFF: wasm2js lowers neither SIMD nor BigInt i64.")
+    endif()
+endif()
 if(NOT ES_MAIN_DISABLE_SIMD)
     list(APPEND ES_EMSCRIPTEN_COMPILE_FLAGS -msimd128 -msse2)
 endif()
@@ -256,7 +266,13 @@ function(es_apply_sdk_settings TARGET_NAME)
     if(ES_BUILD_WEB OR ES_BUILD_WXGAME)
         target_compile_options(${TARGET_NAME} PRIVATE ${ES_EMSCRIPTEN_COMPILE_FLAGS} -flto -fno-exceptions)
 
-        string(REPLACE ";" " " LINK_FLAGS_STR "${ES_EMSCRIPTEN_SDK_LINK_FLAGS}")
+        set(_SDK_LINK ${ES_EMSCRIPTEN_SDK_LINK_FLAGS})
+        if(ES_WASM2JS)
+            # One output, the module itself in JS: no .wasm beside it to fetch.
+            list(TRANSFORM _SDK_LINK REPLACE "^-sWASM=1$" "-sWASM=0")
+            list(APPEND _SDK_LINK -sWASM_BIGINT=0)
+        endif()
+        string(REPLACE ";" " " LINK_FLAGS_STR "${_SDK_LINK}")
         set_target_properties(${TARGET_NAME} PROPERTIES
             SUFFIX ".js"
             LINK_FLAGS "${LINK_FLAGS_STR}"

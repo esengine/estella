@@ -472,6 +472,9 @@ function esengineGlobalPlugin(): Plugin {
   };
 }
 
+/** The engine built as plain JavaScript (wasm2js), beside the wasm one in the runtime dir. */
+export const ENGINE_JS_FILE = 'esengine.asm.js';
+
 export interface ExportGameOptions {
   /** Editor LAN preview only; shipping exports leave the preview client out. */
   developmentPreview?: boolean;
@@ -496,6 +499,8 @@ export interface ExportGameOptions {
   webChannel?: 'poki' | 'crazygames' | 'youtube';
   /** Origins the web page's policy lets the game connect to (project: packaging.platforms.web.connect). */
   webConnect?: string[];
+  /** Web: carry the plain-JavaScript engine for browsers without WebAssembly. Absent ⇒ true. */
+  webEngineJs?: boolean;
   leaderboardEncryptionKey?: string;
   sdkDistDir: string;
   /** The engine runtime to copy. */
@@ -1208,6 +1213,11 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       await cp(opts.wasmDir, wasmOut, {
         recursive: true, filter: shipsSideModule(files.map((f) => f.file)),
       });
+      // The plain-JavaScript engine is the web page's answer to a browser with no
+      // WebAssembly; any other package has an engine of its own kind, or none.
+      if (platform !== 'web' || opts.webEngineJs === false) {
+        await rm(path.join(wasmOut, ENGINE_JS_FILE), { force: true });
+      }
     } else errors.push(`wasm runtime dir not found: ${opts.wasmDir}`);
   }
 
@@ -1247,6 +1257,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     ...(debugChannel ? { debugChannel } : {}),
     ...(existsSync(path.join(payloadDir, 'wasm', 'esengine.wasm'))
       ? { engineBytes: statSync(path.join(payloadDir, 'wasm', 'esengine.wasm')).size } : {}),
+    ...(existsSync(path.join(payloadDir, 'wasm', ENGINE_JS_FILE)) ? { engineJs: true } : {}),
   };
   await writeFile(path.join(payloadDir, 'game.config.json'), JSON.stringify(gameConfig, null, 2) + '\n');
 

@@ -62,8 +62,22 @@ export const HAS_WASM = !NO_WASM_MODE;
 
 let cachedModule: ESEngineModule | null = null;
 
+/**
+ * ESENGINE_ENGINE=asmjs runs the boundary suites on the engine built as plain
+ * JavaScript (build/wasm/web/esengine.asm.js, wasm2js) instead of the wasm one —
+ * the same C++ in the container a host without WebAssembly loads, held to the
+ * same tests. Side modules stay wasm: only the core has a JS build.
+ */
+export const ENGINE_IS_ASMJS = process.env.ESENGINE_ENGINE === 'asmjs';
+const ASMJS_FILE = resolve(__dirname, '../../../build/wasm/web/esengine.asm.js');
+
 export async function loadWasmModule(): Promise<ESEngineModule> {
     if (cachedModule) return cachedModule;
+    if (ENGINE_IS_ASMJS) {
+        const factory = (await import(ASMJS_FILE)).default;
+        cachedModule = await factory({}) as ESEngineModule;
+        return cachedModule;
+    }
     const wasmBinary = readFileSync(WASM_FILE);
     const factory = (await import(resolve(WASM_DIR, 'esengine.js'))).default;
     cachedModule = await factory({ wasmBinary }) as ESEngineModule;

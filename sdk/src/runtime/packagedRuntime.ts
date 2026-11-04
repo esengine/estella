@@ -93,6 +93,9 @@ export interface PackagedGameConfig {
      * counts, so the boot bar measures against this instead.
      */
     engineBytes?: number;
+    /** The package carries the engine built as plain JavaScript (wasm/esengine.asm.js),
+     *  which the page loads where there is no WebAssembly. */
+    engineJs?: boolean;
     /**
      * Install physics even when the shipped scene shows no bodies — a project
      * that spawns them from script (Project Settings → Physics → Enabled).

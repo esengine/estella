@@ -16,6 +16,7 @@ export default {
 
     optimization: {
         web: { cmakeOpt: '-O2', wasmOpt: '-O2' },
+        'web-js': { cmakeOpt: '-O2', wasmOpt: '-O2' },
         wechat: { cmakeOpt: '-O2', wasmOpt: '-O2' },
         'wechat-glx': { cmakeOpt: '-O2', wasmOpt: '-O2' },
         'wechat-lite': { cmakeOpt: '-O2', wasmOpt: '-O2' },
@@ -33,6 +34,21 @@ export default {
             outputs: {
                 'sdk/esengine.js': 'wasm/web/esengine.js',
                 'sdk/esengine.wasm': 'wasm/web/esengine.wasm',
+            },
+        },
+        // The same engine as plain JavaScript (wasm2js), for a host with no
+        // WebAssembly: an exported web page loads it only when `WebAssembly` is
+        // absent (gameHost). No SIMD, no BigInt, no WebGPU — a host without wasm
+        // has none of the three.
+        'web-js': {
+            buildDir: 'build/cmake/web-js',
+            cmakeFlags: ['-DES_BUILD_WEB=ON', '-DES_BUILD_TESTS=OFF', '-DES_WASM2JS=ON',
+                '-DES_MAIN_DISABLE_SIMD=ON', '-DES_WASM_BIGINT=OFF'],
+            targets: ['esengine_sdk'],
+            // Beside the wasm engine, so the editor's copy and every web export
+            // carry both and the page picks at boot.
+            outputs: {
+                'sdk/esengine.js': 'wasm/web/esengine.asm.js',
             },
         },
         wechat: {

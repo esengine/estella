@@ -1193,6 +1193,14 @@ export class App {
                     + 'system reads the memory of one');
             }
             const memory = module.wasmMemory;
+            // An engine built as plain JavaScript (wasm2js, for a host without
+            // WebAssembly) has an ArrayBuffer where the Memory would be, and a
+            // compiled system is a wasm module that cannot import it. Not an error:
+            // every system keeps running interpreted, which is the no-cliff rule.
+            if (memory && (typeof WebAssembly === 'undefined' || !(memory instanceof WebAssembly.Memory))) {
+                log.info('runtime', 'AOT: this engine runs without WebAssembly, so its compiled systems stay interpreted');
+                return 0;
+            }
             if (!memory) {
                 throw new Error('installCompiledSystems: this engine artifact does not export '
                     + "'wasmMemory', so there is no memory for the module to import — rebuild the engine");

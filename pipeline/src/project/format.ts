@@ -453,6 +453,12 @@ export interface ProjectPackaging {
       /** Origins the page may open connections to (a game server): `wss://play.example.com`, or a bare `wss:`.
        *  The page's Content-Security-Policy allows only its own origin otherwise. */
       connect?: string[];
+      /**
+       * Carry the engine built as plain JavaScript beside the wasm one (default true),
+       * for a browser with no WebAssembly. It is fetched only there; elsewhere it is
+       * ~4 MB the server holds and nobody downloads.
+       */
+      engineJs?: boolean;
     };
     wechat?: WeChatPackaging;
     douyin?: MiniGamePackaging;
@@ -1015,6 +1021,7 @@ export function parseManifest(raw: unknown): ProjectManifest {
           const connect = cspConnectSources(web.connect as string[]);
           if (connect.length) config.connect = connect;
         }
+        if (typeof web.engineJs === 'boolean') config.engineJs = web.engineJs;
         if (Object.keys(config).length) platforms.web = config;
       }
       const wx = pl.wechat as Record<string, unknown> | undefined;

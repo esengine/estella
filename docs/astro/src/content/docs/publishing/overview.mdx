@@ -276,6 +276,43 @@ play == ship covers these modules too. See
 [App Setup & Lifecycle](/docs/core-concepts/app-lifecycle/#side-modules) for the
 runtime API.
 
+## Browsers without WebAssembly
+
+A Web export carries the engine twice: `wasm/esengine.wasm`, and the same engine
+compiled to plain JavaScript as `wasm/esengine.asm.js`. The page picks at boot.
+Where `WebAssembly` exists it loads the wasm engine, and the JavaScript one is
+never downloaded. Where it does not exist (some locked-down WebViews and
+embedded browsers), the page loads `esengine.asm.js`, and the game runs the same
+scenes and scripts.
+
+To try the JavaScript engine in an ordinary browser, add `?engine=js` to the
+page URL.
+
+What it costs, measured on `hello-world` in headless Chromium:
+
+| | WebAssembly engine | JavaScript engine |
+|---|---|---|
+| Engine file | 2.1 MB (0.67 MB gzip) | 4.3 MB (0.98 MB gzip) |
+| Main-thread time per frame | 9.3 ms | ~11.5 ms |
+
+What it does not have:
+
+- **WebGPU.** The JavaScript engine always renders through WebGL2.
+- **Side modules** (physics, Spine, DragonBones, Basis, video). These are
+  WebAssembly binaries. On a host without WebAssembly each one logs a single
+  error naming the module and stays absent, and the features it provides do not run.
+- **Compiled (`@compiled`) systems.** These are wasm modules too. They stay
+  interpreted, which is the same result as an export without AOT.
+
+To leave the file out (it is about 4 MB on the server, though nobody with
+WebAssembly downloads it), set `engineJs` to `false`:
+
+```json
+"packaging": { "platforms": { "web": { "engineJs": false } } }
+```
+
+A browser with no WebAssembly then gets a clear error instead of a game.
+
 ## Build config & source maps
 
 - **Development** — an unminified build; pair it with source maps for debuggable

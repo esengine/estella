@@ -233,6 +233,40 @@ node build-tools/cli.js build -t wechat
 编辑器 origin 拉取侧模块——所以"玩到的即发布的"同样覆盖这些模块。运行时 API 见
 [应用设置与生命周期](/docs/zh-cn/core-concepts/app-lifecycle/#侧模块)。
 
+## 不支持 WebAssembly 的浏览器
+
+Web 导出会带两份引擎：`wasm/esengine.wasm`，以及同一引擎编译成纯 JavaScript 的
+`wasm/esengine.asm.js`。页面启动时二选一。有 `WebAssembly` 的环境加载 wasm 引擎，
+JavaScript 版本不会被下载。没有 `WebAssembly` 的环境（一些锁死的 WebView、
+嵌入式浏览器）加载 `esengine.asm.js`，游戏照常运行同样的场景和脚本。
+
+要在普通浏览器里试 JavaScript 引擎，在页面地址后加 `?engine=js`。
+
+代价（`hello-world`，headless Chromium 实测）：
+
+| | WebAssembly 引擎 | JavaScript 引擎 |
+|---|---|---|
+| 引擎文件 | 2.1 MB（gzip 0.67 MB） | 4.3 MB（gzip 0.98 MB） |
+| 每帧主线程耗时 | 9.3 ms | 约 11.5 ms |
+
+它没有的：
+
+- **WebGPU**：JavaScript 引擎始终走 WebGL2。
+- **侧模块**（物理、Spine、DragonBones、Basis、视频）：它们是 WebAssembly 二进制。
+  在没有 WebAssembly 的环境里，每个侧模块只报一条写明模块名的错误，然后保持缺席，
+  它提供的功能不会运行。
+- **编译（`@compiled`）系统**：它们也是 wasm 模块，这里保持解释执行，
+  结果和不开 AOT 的导出一样。
+
+不想带这个文件（服务器上约 4 MB，有 WebAssembly 的用户不会下载它），
+把 `engineJs` 设为 `false`：
+
+```json
+"packaging": { "platforms": { "web": { "engineJs": false } } }
+```
+
+这样一来，没有 WebAssembly 的浏览器会看到一条明确的报错，而不是游戏。
+
 ## 构建配置与 source map
 
 - **Development** —— 不压缩的构建;配上 source map 得到可调试的输出。

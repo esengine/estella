@@ -61,6 +61,16 @@ export function createSideModuleHost(instantiate: SideModuleInstantiator): SideM
             const cached = cache.get(id);
             if (cached) return cached;
             const descriptor = sideModuleDescriptor(id);
+            // A side module is a WebAssembly module; a host with none runs the
+            // engine's JavaScript build, which carries the core and nothing beside
+            // it. Said once, by name, instead of "WebAssembly is not defined".
+            if (descriptor && typeof WebAssembly === 'undefined') {
+                log.error('sidemodule', `"${id}" is a WebAssembly module and this host has no WebAssembly: `
+                    + 'the engine runs as JavaScript here, and the features it provides are unavailable');
+                const none = Promise.resolve(null);
+                cache.set(id, none);
+                return none;
+            }
             const pending: Promise<SideModule | null> = descriptor
                 ? instantiate(descriptor, id).catch((e: unknown) => {
                       // Absent BY DESIGN is the answer null already means; only a

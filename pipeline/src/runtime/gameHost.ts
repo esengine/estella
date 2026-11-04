@@ -195,13 +195,25 @@ async function boot(): Promise<void> {
 
   splash?.reach('scene');
   const wasmBase = new URL('./wasm/', import.meta.url).href; // relative → mount-path agnostic
-  const { default: createModule } = (await import(/* @vite-ignore */ `${wasmBase}esengine.js`)) as {
+  // A host with no WebAssembly (an old WebView, a locked-down runtime) gets the
+  // same engine built as plain JavaScript, when the build carries it; `?engine=js`
+  // asks for it anywhere, which is how it is tested in a browser that has wasm.
+  const engineAsJs = (typeof WebAssembly === 'undefined'
+    || new URLSearchParams(location.search).get('engine') === 'js') && cfg.engineJs === true;
+  if (typeof WebAssembly === 'undefined' && !engineAsJs) {
+    throw new Error('This browser has no WebAssembly, and this build carries no JavaScript engine '
+      + '(packaging.platforms.web.engineJs is off).');
+  }
+  const { default: createModule } = (await import(
+    /* @vite-ignore */ `${wasmBase}${engineAsJs ? 'esengine.asm.js' : 'esengine.js'}`)) as {
     default: (options?: Record<string, unknown>) => Promise<ESEngineModule>;
   };
+  if (engineAsJs) console.info('[estella] engine: JavaScript build (no WebAssembly)');
   // The device has to exist before the module reads it, and the fallback IS the
   // contract. `?headless` pins WebGL2: a driver reads the frame back through the
-  // GL context, which is what the capture hook below has.
-  const wantsWebGPU = cfg.renderBackend === 'webgpu' && !headless;
+  // GL context, which is what the capture hook below has. The JavaScript engine is
+  // built without WebGPU: a host with no wasm has no WebGPU either.
+  const wantsWebGPU = cfg.renderBackend === 'webgpu' && !headless && !engineAsJs;
   const gpu = await acquireWebGPUDevice(wantsWebGPU ? 'webgpu' : 'webgl2',
     (m) => console.error(m));
   if (wantsWebGPU && !gpu.device) console.warn(`[estella] WebGPU unavailable (${gpu.reason}) — using WebGL2.`);
@@ -209,7 +221,8 @@ async function boot(): Promise<void> {
   const module = await createModule({
     canvas,
     locateFile: (p: string) => `${wasmBase}${p}`,
-    instantiateWasm: engineInstantiator(`${wasmBase}esengine.wasm`, splash, cfg.engineBytes),
+    // The JavaScript engine is the whole module in its own file: nothing to instantiate.
+    ...(engineAsJs ? {} : { instantiateWasm: engineInstantiator(`${wasmBase}esengine.wasm`, splash, cfg.engineBytes) }),
     print: (t: string) => console.log(t),
     printErr: (t: string) => console.error(t),
     ...(gpu.device ? { preinitializedWebGPUDevice: gpu.device } : {}),
