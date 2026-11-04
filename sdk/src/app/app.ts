@@ -175,6 +175,10 @@ export class App {
     private readonly executionObservers_: Array<(held: boolean) => void> = [];
     private loopVersion_ = 0;
     private queuedFrame_: number | null = null;
+    /** Whether {@link queuedFrame_} is a timer (hidden + runInBackground) rather than a rAF id. */
+    private queuedOnTimer_ = false;
+    private runInBackground_ = false;
+    private onVisibility_: (() => void) | null = null;
     private frameInFlight_: Promise<void> | null = null;
     private frameTiming_: { seq: number; frameMs: number } | null = null;
     private lastTime_ = 0;
@@ -887,6 +891,38 @@ export class App {
         (globalThis as { es_setTargetFrameRate?: (fps: number) => void }).es_setTargetFrameRate?.(fps > 0 ? fps : 0);
     }
 
+    /**
+     * Keep simulating while the page is hidden — a window behind others, a
+     * minimized one, or one never shown (an editor driven by automation).
+     *
+     * A browser stops `requestAnimationFrame` for a hidden document, so without
+     * this the game holds still there: what a shipped game wants, since nobody is
+     * watching and the battery is. An editor's Play wants the opposite; Unity
+     * calls the same switch `Application.runInBackground`. While hidden the loop
+     * runs on a timer at the frame cap (60 fps when uncapped).
+     */
+    setRunInBackground(on: boolean): void {
+        this.runInBackground_ = on;
+        if (typeof document === 'undefined') return;
+        if (on && !this.onVisibility_) {
+            // A rAF queued just before the page hid never fires: move it to the timer.
+            this.onVisibility_ = () => {
+                if (this.queuedFrame_ === null || this.queuedOnTimer_ || document.visibilityState !== 'hidden') return;
+                if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(this.queuedFrame_);
+                this.queuedFrame_ = null;
+                this.queueLoopFrame_();
+            };
+            document.addEventListener('visibilitychange', this.onVisibility_);
+        } else if (!on && this.onVisibility_) {
+            document.removeEventListener('visibilitychange', this.onVisibility_);
+            this.onVisibility_ = null;
+        }
+    }
+
+    getRunInBackground(): boolean {
+        return this.runInBackground_;
+    }
+
     getTargetFrameRate(): number {
         return this.targetFrameInterval_ > 0 ? 1000 / this.targetFrameInterval_ : 0;
     }
@@ -1310,8 +1346,9 @@ export class App {
 
     private invalidateLoop_(): void {
         this.loopVersion_++;
-        if (this.queuedFrame_ !== null && typeof cancelAnimationFrame === 'function') {
-            cancelAnimationFrame(this.queuedFrame_);
+        if (this.queuedFrame_ !== null) {
+            if (this.queuedOnTimer_) clearTimeout(this.queuedFrame_);
+            else if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(this.queuedFrame_);
         }
         this.queuedFrame_ = null;
     }
@@ -1320,6 +1357,18 @@ export class App {
         if (this.isExecutionHeld() || this.queuedFrame_ !== null) return;
         if (typeof requestAnimationFrame !== 'function') return;
         const version = this.loopVersion_;
+        const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
+        if (hidden && this.runInBackground_) {
+            // No rAF arrives for a hidden document; a timer at the frame cadence does.
+            this.queuedOnTimer_ = true;
+            this.queuedFrame_ = setTimeout(() => {
+                if (version !== this.loopVersion_) return;
+                this.queuedFrame_ = null;
+                void this.mainLoop(platformNow(), version);
+            }, this.targetFrameInterval_ > 0 ? this.targetFrameInterval_ : 1000 / 60) as unknown as number;
+            return;
+        }
+        this.queuedOnTimer_ = false;
         this.queuedFrame_ = requestAnimationFrame((time) => {
             if (version !== this.loopVersion_) return;
             this.queuedFrame_ = null;
@@ -1387,6 +1436,7 @@ export class App {
         this.executionHolds_.clear();
         if (this.hasResource(Input)) setInputExecutionHeld(this.getResource(Input), this, false);
         this.invalidateLoop_();
+        this.setRunInBackground(false);
         this.running_ = false;
 
         for (let i = this.installed_plugins_.length - 1; i >= 0; i--) {
