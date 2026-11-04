@@ -103,8 +103,13 @@ export async function encodeWavToMp3(wav: Uint8Array, bitrateKbps: number): Prom
     channels: parsed.channels.length as 1 | 2,
     bitrate: bitrateKbps,
   });
-  const head = encoder.encode(parsed.channels);
-  const tail = encoder.finalize();
+  // Both calls answer with a view of the encoder's own wasm memory, valid only
+  // until its next call: finalize() writes its last frames over the bytes encode()
+  // returned. Read without a copy, the file began with flush bytes and no frame
+  // sync, and a decoder dropped tens of milliseconds hunting for one — the attack
+  // of a short effect.
+  const head = encoder.encode(parsed.channels).slice();
+  const tail = encoder.finalize().slice();
   const out = new Uint8Array(head.byteLength + tail.byteLength);
   out.set(head, 0);
   out.set(tail, head.byteLength);

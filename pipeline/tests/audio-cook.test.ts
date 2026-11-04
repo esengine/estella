@@ -77,6 +77,31 @@ describe('encodeWavToMp3', () => {
     expect(mp3!.byteLength).toBeLessThan(wav.byteLength);
   }, 30000);
 
+  it('is a chain of whole MPEG frames from the first byte to the last', async () => {
+    // finalize() reuses the memory encode() answered with; without a copy the
+    // stream's head was flush bytes, and a decoder lost the attack of a short
+    // effect hunting for the first sync.
+    for (const frames of [Math.round(44100 * 0.07), 44100]) {
+      const wav = makeWav({ frames, sample: (f) => Math.sin((f / 44100) * 2 * Math.PI * 440) * 0.7 });
+      const mp3 = (await encodeWavToMp3(wav, 128))!;
+      const BITRATES = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320];
+      const RATES = [44100, 48000, 32000];
+      let at = 0;
+      let count = 0;
+      while (at < mp3.byteLength) {
+        expect(mp3[at]).toBe(0xff);
+        expect(mp3[at + 1] & 0xe0).toBe(0xe0);
+        const bitrate = BITRATES[mp3[at + 2] >> 4] * 1000;
+        const rate = RATES[(mp3[at + 2] >> 2) & 3];
+        const padding = (mp3[at + 2] >> 1) & 1;
+        at += Math.floor((144 * bitrate) / rate) + padding;
+        count++;
+      }
+      expect(at).toBe(mp3.byteLength);
+      expect(count).toBeGreaterThan(1);
+    }
+  }, 30000);
+
   it('returns null for unparseable input', async () => {
     expect(await encodeWavToMp3(new Uint8Array(64), 128)).toBeNull();
   });
