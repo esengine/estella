@@ -5,6 +5,7 @@
  * @brief   Loads the 3D physics module and drives one world from the ECS.
  */
 import { installPlanetGravity } from './planetGravity';
+import { installRagdolls } from './ragdoll';
 import { Physics3DRuntime } from './physics3dRuntime';
 import type { App, Plugin } from '../app/app';
 import { Schedule, defineSystem } from '../ecs/system';
@@ -53,6 +54,8 @@ export class Physics3DPlugin implements Plugin {
         app.insertResource(Physics3DRuntime, runtime);
         // A planet in the world pulls bodies toward its centre; with none, this does nothing.
         installPlanetGravity(app);
+        // A character with a Ragdoll component can go limp; with none, the systems find nothing.
+        installRagdolls(app);
         app.subsystems?.transition?.('physics3d', 'initializing');
 
         const initPromise = loadPhysics3DModule(this.wasmUrl_, this.factory_).then((module) => {
