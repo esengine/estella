@@ -8,6 +8,7 @@
 
 import type { SpriteAnimClip, SpriteAnimFrame } from './SpriteAnimator';
 import { log } from '../util/logger';
+import { uvRectFromPixels } from '../render/uvRect';
 import {
     sheetCols, sheetRows, sheetCellRect, sheetCellUv, type SheetGrid,
 } from '../asset/sheetGrid';
@@ -409,16 +410,7 @@ function uvFromRect(
     pageWidth: number,
     pageHeight: number,
 ): Pick<SpriteAnimFrame, 'uvOffset' | 'uvScale'> {
-    return {
-        uvOffset: {
-            x: rect.x / pageWidth,
-            y: 1.0 - (rect.y + rect.height) / pageHeight,
-        },
-        uvScale: {
-            x: rect.width / pageWidth,
-            y: rect.height / pageHeight,
-        },
-    };
+    return uvRectFromPixels(rect, pageWidth, pageHeight);
 }
 
 /**

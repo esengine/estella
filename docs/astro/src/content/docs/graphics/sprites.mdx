@@ -387,6 +387,12 @@ so a sprite at z = -400 is grabbable where it is drawn.
   the cell's normalized rectangle — or pack separate textures onto one canvas at run time with
   [`TextureAtlas`](/docs/graphics/drawing/#packing-textures-onto-one-canvas-textureatlas). (For frame-by-frame animation, drive these from the
   [Animator](/docs/animation/overview/) instead of by hand.)
+- **UV space is y-up**: `v = 0` is the picture's *bottom* row and `v = 1` its top, the
+  opposite of image-editor pixel coordinates. A cell measured in pixels from the top-left
+  converts with `uvRectFromPixels({ x, y, width, height }, textureWidth, textureHeight)`,
+  which returns `{ uvOffset, uvScale }` to spread into the `Sprite`. Writing
+  `uvOffset.y = y / height` by hand shows the cell mirrored vertically — invisible on a
+  quad that shows the whole picture, wrong on every atlas cell.
 - **Scrolling**: animate `uvOffset` over time to scroll a texture (water, conveyor
   belts), and set `tileSize` to repeat it across a large sprite.
 

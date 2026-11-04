@@ -327,6 +327,7 @@ world.applyEntityOrder([other, another, card]);
 - 用 `flipX` / `flipY` **翻转**精灵——例如让角色朝左或朝右,而不用另一张纹理。
 - **图集**:把 `uvOffset` 和 `uvScale` 设为某个单元格的归一化矩形,显示打包图集里的一格;分散的纹理可以用 [`TextureAtlas`](/docs/zh-cn/graphics/drawing/) 在运行时合到一张画布上。(逐帧动画
   请用 [Animator](/docs/zh-cn/animation/overview/) 驱动这些,而非手动。)
+- **UV 空间 y 轴向上**:`v = 0` 是图片的*最下面*一行,`v = 1` 是最上面一行,和图片编辑器的像素坐标相反。按左上角为原点量出的像素格子,用 `uvRectFromPixels({ x, y, width, height }, textureWidth, textureHeight)` 换算,返回的 `{ uvOffset, uvScale }` 直接展开进 `Sprite`。手写 `uvOffset.y = y / height` 会让格子上下颠倒——整图铺满一个 quad 时看不出来,取图集格子时每格都错。
 - **滚动**:随时间改 `uvOffset` 来滚动纹理(水面、传送带),并设 `tileSize` 把它在大精灵上重复平铺。
 
 ## 纹理过滤与环绕

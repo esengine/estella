@@ -19,6 +19,8 @@
  * already addresses it.
  */
 
+import { uvRectFromPixels } from '../render/uvRect';
+
 /**
  * A sheet's cutting geometry, in the image's own pixels. `pageWidth`/`pageHeight`
  * are the whole image, which is what turns a pixel rect into a UV window.
@@ -80,15 +82,5 @@ export function sheetCellUv(
     grid: SheetGrid,
     cell: number,
 ): { uvOffset: { x: number; y: number }; uvScale: { x: number; y: number } } {
-    const rect = sheetCellRect(grid, cell);
-    return {
-        uvOffset: {
-            x: rect.x / grid.pageWidth,
-            y: 1.0 - (rect.y + rect.height) / grid.pageHeight,
-        },
-        uvScale: {
-            x: rect.width / grid.pageWidth,
-            y: rect.height / grid.pageHeight,
-        },
-    };
+    return uvRectFromPixels(sheetCellRect(grid, cell), grid.pageWidth, grid.pageHeight);
 }

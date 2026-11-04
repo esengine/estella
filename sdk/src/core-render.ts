@@ -315,6 +315,8 @@ export {
     type AtlasEntry,
 } from './render/textureAtlas';
 
+export { uvRectFromPixels, type UvRect } from './render/uvRect';
+
 export {
     TextureCanvas,
     type TextureCanvasHandle,

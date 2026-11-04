@@ -10,6 +10,7 @@ import { Renderer, onDeviceRestored } from './renderer';
 import { RenderTexture, type RenderTextureHandle } from './renderTexture';
 import { getResourceManager, getTextureDimensions } from '../wasm/resourceManager';
 import { log } from '../util/logger';
+import { uvRectFromPixels } from './uvRect';
 
 /** Where one source texture sits on an atlas. @experimental */
 export interface AtlasEntry {
@@ -149,8 +150,7 @@ export const TextureAtlas = {
             const { width, height } = sizes[i];
             entries.set(source, {
                 x, y, width, height,
-                uvOffset: { x: x / layout.width, y: 1 - (y + height) / layout.height },
-                uvScale: { x: width / layout.width, y: height / layout.height },
+                ...uvRectFromPixels({ x, y, width, height }, layout.width, layout.height),
             });
         });
 
