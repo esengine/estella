@@ -8,7 +8,7 @@
  *          switch and a few numbers. Turning `active` on gives each bone that is long enough a box along the bone (a box, because a capsule is
  *          aligned to its body's y and a bone is not) and a `SwingTwistJoint3D` to the nearest bone above it that has one, at the pose the animation had that frame,
  *          so nothing snaps. The bodies are the ordinary 3D physics ones: the solver writes each bone's pose back through the hierarchy, and the
- *          skin follows. The animators on the character are held off while it is limp.
+ *          skin follows. The animation keeps running underneath and the bodies' pose is put back over it each frame.
  *
  *          Turning it off removes the bodies and lets the animation drive again, and over `recoverTime` seconds blends from the pose the body
  *          was in to the one the animation gives, so a character does not pop upright. That is the whole of a passive ragdoll; driving the limbs
@@ -19,10 +19,10 @@ import type { Entity, Quat, Vec3 } from '../types';
 import { defineSystem, Schedule } from '../ecs/system';
 import { Res, Time, type TimeData } from '../ecs/resource';
 import { playModeOnly } from '../ecs/env';
-import { defineComponent, getComponent, Parent, Transform, type ComponentDef, type ParentData, type TransformData } from '../ecs/component';
+import { defineComponent, getComponent, Parent, Children, Transform, type ComponentDef, type ParentData, type ChildrenData, type TransformData } from '../ecs/component';
 import type { MeshSkinData } from '../ecs/component.generated';
-import { Animator, type AnimatorData } from '../animation/Animator';
 import { q } from '../math/quat';
+import { log } from '../util/logger';
 import { v3 } from '../math/vec3';
 import { RigidBody3D, BoxCollider3D } from './Physics3DComponents';
 import { SwingTwistJoint3D } from './AdvancedJoint3D';
@@ -31,7 +31,7 @@ import { SwingTwistJoint3D } from './AdvancedJoint3D';
 export interface RagdollData {
     /** Whether the character is limp. Turn it on when it is knocked down, off to stand it up. */
     active: boolean;
-    /** The entity that holds the `MeshSkin` whose joints are the skeleton; -1 is this entity. */
+    /** The entity that holds the `MeshSkin` whose joints are the skeleton. 0 looks on this entity and then below it. */
     skin: number;
     /** How far a limb may swing from its bone's line, in degrees, either way. */
     swing: number;
@@ -52,12 +52,12 @@ export interface RagdollData {
  * @experimental
  */
 export const Ragdoll: ComponentDef<RagdollData> = defineComponent<RagdollData>('Ragdoll', {
-    active: false, skin: -1, swing: 45, twist: 30, thickness: 0.25, minBoneLength: 0.05, friction: 0.5, recoverTime: 0.4,
+    active: false, skin: 0, swing: 70, twist: 45, thickness: 0.25, minBoneLength: 0.05, friction: 0.5, recoverTime: 0.4,
 }, {
     entityFields: ['skin'],
     fields: {
         active: { category: 'Ragdoll', tooltip: 'Whether the character is limp. Turn it on when it is knocked down, off to stand it up.' },
-        skin: { category: 'Ragdoll', tooltip: 'The entity that holds the skinned mesh, whose joints are the skeleton. Empty is this entity.' },
+        skin: { category: 'Ragdoll', tooltip: 'The entity that holds the skinned mesh, whose joints are the skeleton. Empty looks on this entity and then below it.' },
         swing: { min: 0, max: 175, category: 'Limits', tooltip: 'How far a limb may swing from its bone\'s line, in degrees.' },
         twist: { min: 0, max: 175, category: 'Limits', tooltip: 'How far a limb may twist about its own line, in degrees.' },
         thickness: { min: 0.01, max: 2, category: 'Bodies', tooltip: 'A limb\'s thickness as a fraction of its length.' },
@@ -164,19 +164,21 @@ export function planRagdoll(bones: readonly RagdollBone[], options: { thickness:
     return limbs;
 }
 
-/** What a ragdoll holds while it is limp: the bodies it made, and the animators it held off. */
+/** A bone's local pose. */
+interface Pose { position: Vec3; rotation: Quat }
+
+/** What a ragdoll holds while it is limp. */
 interface Limp {
     limbs: Entity[];
-    /** Every bone of the skeleton, for the pose to be blended back. */
-    bones: Entity[];
-    animators: Entity[];
+    /** The pose each limb's body left it in at the last fixed step: what is put back after the animation has written its own. */
+    posed: Map<Entity, Pose>;
 }
 
-/** The pose a bone was left in, to blend from. */
+/** Limbs handed back to the animation, and the pose each was left in. */
 interface Recovery {
     elapsed: number;
     duration: number;
-    from: Map<Entity, { position: Vec3; rotation: Quat }>;
+    from: Map<Entity, Pose>;
 }
 
 const smooth = (t: number): number => t * t * (3 - 2 * t);
@@ -187,37 +189,59 @@ function nlerp(a: Quat, b: Quat, t: number): Quat {
     return q.normalize({ w: a.w + (s * b.w - a.w) * t, x: a.x + (s * b.x - a.x) * t, y: a.y + (s * b.y - a.y) * t, z: a.z + (s * b.z - a.z) * t });
 }
 
-/** Installs the system that turns a `Ragdoll`'s switch into bodies, and back. Called once by the 3D physics plugin. */
+/**
+ * Installs the systems that turn a `Ragdoll`'s switch into bodies and back. Called once by the 3D physics plugin.
+ *
+ * The animation is never switched off. A frame runs the fixed steps (the solver writes the bodies' poses into the bones), then Update (the
+ * animator writes its own over them), then PostUpdate: where the bodies' poses are written back, so what is drawn is the ragdoll and the next
+ * fixed step starts from it. Holding the animator off instead meant restoring it afterwards, which it does not do cleanly (it comes back on
+ * a pose of its own), and left a character with no animation to blend back to; run underneath, it is already where it should be.
+ */
 export function installRagdolls(app: App): void {
     const limp = new Map<Entity, Limp>();
     const recovering = new Map<Entity, Recovery>();
     const world = app.world;
 
     const skeletonOf = (entity: Entity, data: RagdollData): { skin: Entity; joints: Entity[] } | null => {
-        const skin = (data.skin >= 0 ? data.skin : entity) as Entity;
         // By name: the skin's joints are a variable-length list the component table has no layout for.
         const skinDef = getComponent('MeshSkin');
-        if (!skinDef || !world.valid(skin) || !world.has(skin, skinDef)) return null;
+        if (!skinDef) return null;
+        // The named entity, or else this one, or else the first thing below it that is skinned (an imported character keeps its mesh on a child).
+        let skin: Entity | null = null;
+        if (data.skin > 0 && world.valid(data.skin as Entity) && world.has(data.skin as Entity, skinDef)) skin = data.skin as Entity;
+        const queue: Entity[] = data.skin > 0 ? [] : [entity];
+        for (let i = 0; skin === null && i < queue.length && i < 4096; i++) {
+            const e = queue[i]!;
+            if (!world.valid(e)) continue;
+            if (world.has(e, skinDef)) { skin = e; break; }
+            if (world.has(e, Children)) queue.push(...(world.get(e, Children) as ChildrenData).entities);
+        }
+        if (skin === null) return null;
         const joints = (world.get(skin, skinDef) as MeshSkinData).joints.filter((j) => world.valid(j) && world.has(j, Transform));
         return joints.length > 0 ? { skin, joints } : null;
     };
 
-    /** The animators that would fight the bodies: on the character, its skin, and what they hang from. */
-    const animatorsOf = (entity: Entity, skin: Entity): Entity[] => {
-        const found = new Set<Entity>();
-        for (const start of [entity, skin]) {
-            let e: Entity | undefined = start;
-            for (let guard = 0; e !== undefined && world.valid(e) && guard < 64; guard++) {
-                if (world.has(e, Animator)) found.add(e);
-                e = world.has(e, Parent) ? (world.get(e, Parent) as ParentData).entity : undefined;
-            }
-        }
-        return [...found];
+    const localPose = (bone: Entity): Pose => {
+        const t = world.get(bone, Transform) as TransformData;
+        return {
+            position: { x: t.position.x, y: t.position.y, z: t.position.z },
+            rotation: { w: t.rotation.w, x: t.rotation.x, y: t.rotation.y, z: t.rotation.z },
+        };
+    };
+
+    const writePose = (bone: Entity, pose: Pose): void => {
+        const t = world.get(bone, Transform) as TransformData;
+        t.position.x = pose.position.x; t.position.y = pose.position.y; t.position.z = pose.position.z;
+        t.rotation.x = pose.rotation.x; t.rotation.y = pose.rotation.y; t.rotation.z = pose.rotation.z; t.rotation.w = pose.rotation.w;
+        world.set(bone, Transform, t);
     };
 
     const activate = (entity: Entity, data: RagdollData): void => {
         const rig = skeletonOf(entity, data);
-        if (!rig) return;
+        if (!rig) {
+            log.warn('physics3d', `Ragdoll on entity ${entity} found no skinned mesh with joints on it or below it`);
+            return;
+        }
         world.ensureTransformsComposed();
         const set = new Set<number>(rig.joints as number[]);
         const nearestBone = (e: Entity): number | null => {
@@ -237,6 +261,7 @@ export function installRagdolls(app: App): void {
             };
         });
         const limbs = planRagdoll(bones, { thickness: data.thickness, minBoneLength: data.minBoneLength });
+        log.info('physics3d', `Ragdoll on entity ${entity}: ${limbs.length} limbs from ${bones.length} bones`);
         const swing = (data.swing * Math.PI) / 180, twist = (data.twist * Math.PI) / 180;
         for (const limb of limbs) {
             const e = limb.entity as Entity;
@@ -250,41 +275,23 @@ export function installRagdolls(app: App): void {
                 });
             }
         }
-        const animators = animatorsOf(entity, rig.skin);
-        for (const a of animators) {
-            const d = world.get(a, Animator) as AnimatorData;
-            if (d.enabled) world.insert(a, Animator, { ...d, enabled: false });
-        }
         recovering.delete(entity);
-        limp.set(entity, { limbs: limbs.map((l) => l.entity as Entity), bones: rig.joints, animators });
+        limp.set(entity, { limbs: limbs.map((l) => l.entity as Entity), posed: new Map() });
     };
 
     const deactivate = (entity: Entity, data: RagdollData): void => {
         const held = limp.get(entity);
         if (!held) return;
         limp.delete(entity);
-        // The pose the bodies were left in, before they are taken away.
-        const from = new Map<Entity, { position: Vec3; rotation: Quat }>();
-        for (const bone of held.bones) {
-            if (!world.valid(bone)) continue;
-            const t = world.get(bone, Transform) as TransformData;
-            from.set(bone, {
-                position: { x: t.position.x, y: t.position.y, z: t.position.z },
-                rotation: { w: t.rotation.w, x: t.rotation.x, y: t.rotation.y, z: t.rotation.z },
-            });
-        }
+        log.info('physics3d', `Ragdoll on entity ${entity} stands up (blend ${data.recoverTime}s)`);
         for (const e of held.limbs) {
             if (!world.valid(e)) continue;
             world.remove(e, SwingTwistJoint3D);
             world.remove(e, BoxCollider3D);
             world.remove(e, RigidBody3D);
         }
-        for (const a of held.animators) {
-            if (!world.valid(a)) continue;
-            const d = world.get(a, Animator) as AnimatorData;
-            world.insert(a, Animator, { ...d, enabled: true });
-        }
-        if (data.recoverTime > 0) recovering.set(entity, { elapsed: 0, duration: data.recoverTime, from });
+        // From where the bodies left each limb, to wherever the animation (which has been running all along) has it.
+        if (data.recoverTime > 0 && held.posed.size > 0) recovering.set(entity, { elapsed: 0, duration: data.recoverTime, from: held.posed });
     };
 
     app.addSystemToSchedule(Schedule.Update, defineSystem([], () => {
@@ -298,22 +305,34 @@ export function installRagdolls(app: App): void {
         for (const entity of [...recovering.keys()]) if (!world.valid(entity)) recovering.delete(entity);
     }, { name: 'RagdollSystem' }), { runIf: playModeOnly });
 
-    // After the animation has written its pose for the frame: the blend is between that and where the body was.
+    // The solver has just written the bodies' poses into the bones; remember them before the animation writes over them.
+    app.addSystemToSchedule(Schedule.FixedPostUpdate, defineSystem([], () => {
+        for (const held of limp.values()) {
+            for (const bone of held.limbs) if (world.valid(bone)) held.posed.set(bone, localPose(bone));
+        }
+    }, { name: 'RagdollCaptureSystem' }), { runIf: playModeOnly });
+
+    // After the animation has written its pose for the frame: what is drawn is the bodies', and a limb handed back is blended from them.
     app.addSystemToSchedule(Schedule.PostUpdate, defineSystem([Res(Time)], (time: TimeData) => {
+        for (const held of limp.values()) {
+            for (const [bone, pose] of held.posed) if (world.valid(bone)) writePose(bone, pose);
+        }
         for (const [entity, r] of recovering) {
             r.elapsed += time.delta;
             const w = smooth(Math.min(r.elapsed / r.duration, 1));
             for (const [bone, was] of r.from) {
                 if (!world.valid(bone)) continue;
-                const t = world.get(bone, Transform) as TransformData;
-                t.position.x = was.position.x + (t.position.x - was.position.x) * w;
-                t.position.y = was.position.y + (t.position.y - was.position.y) * w;
-                t.position.z = was.position.z + (t.position.z - was.position.z) * w;
-                const r2 = nlerp(was.rotation, { w: t.rotation.w, x: t.rotation.x, y: t.rotation.y, z: t.rotation.z }, w);
-                t.rotation.x = r2.x; t.rotation.y = r2.y; t.rotation.z = r2.z; t.rotation.w = r2.w;
-                world.set(bone, Transform, t);
+                const now = localPose(bone);
+                writePose(bone, {
+                    position: {
+                        x: was.position.x + (now.position.x - was.position.x) * w,
+                        y: was.position.y + (now.position.y - was.position.y) * w,
+                        z: was.position.z + (now.position.z - was.position.z) * w,
+                    },
+                    rotation: nlerp(was.rotation, now.rotation, w),
+                });
             }
-            if (r.elapsed >= r.duration) recovering.delete(entity);
+            if (r.elapsed >= r.duration) { recovering.delete(entity); log.info('physics3d', `Ragdoll on entity ${entity} is back on the animation`); }
         }
-    }, { name: 'RagdollRecoverSystem' }), { runIf: playModeOnly });
+    }, { name: 'RagdollPoseSystem' }), { runIf: playModeOnly });
 }

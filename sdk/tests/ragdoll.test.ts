@@ -3,7 +3,6 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { World } from '../src/ecs/world';
 import { Transform, Parent, getComponent, ensureBuiltinComponentsRegistered } from '../src/ecs/component';
-import { Animator } from '../src/animation/Animator';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
 import { Ragdoll, planRagdoll, installRagdolls, type RagdollBone, type RagdollData } from '../src/physics3d/ragdoll';
 import { RigidBody3D, BoxCollider3D } from '../src/physics3d/Physics3DComponents';
@@ -80,14 +79,13 @@ describe.skipIf(!HAS_WASM)('the Ragdoll system', () => {
     beforeEach(() => { ensureBuiltinComponentsRegistered(); registry = new engine.Registry(); world = new World(); world.connectCpp(registry, engine); });
     afterEach(() => { for (const e of world.getAllEntities()) world.despawn(e); world.disconnectCpp(); registry.delete(); });
 
-    /** A character: a root with an Animator and a Ragdoll, and a skin whose three joints hang one from the next. */
+    /** A character: a root with a Ragdoll, and a skin whose three joints hang one from the next. */
     function character(over: Partial<RagdollData> = {}) {
         const systems: Array<{ _fn: (...a: unknown[]) => void }> = [];
         const app = { world, addSystemToSchedule: (_s: unknown, def: { _fn: () => void }) => { systems.push(def); } };
         installRagdolls(app as never);
         const root = world.spawn();
         world.insert(root, Transform);
-        world.insert(root, Animator, { controller: '', avatar: '', currentState: '', layerStates: [], enabled: true });
         const joints: number[] = [];
         let parent: number = root as number;
         for (let i = 0; i < 3; i++) {
@@ -99,11 +97,11 @@ describe.skipIf(!HAS_WASM)('the Ragdoll system', () => {
         }
         const skin = getComponent('MeshSkin')!;
         world.insert(root, skin, { joints });
-        world.insert(root, Ragdoll, { active: false, skin: -1, swing: 45, twist: 30, thickness: 0.25, minBoneLength: 0.05, friction: 0.5, recoverTime: 0, ...over });
+        world.insert(root, Ragdoll, { active: false, skin: 0, swing: 45, twist: 30, thickness: 0.25, minBoneLength: 0.05, friction: 0.5, recoverTime: 0, ...over });
         return { root, joints, run: () => { for (const s of systems) s._fn({ delta: 0.016 }); } };
     }
 
-    it('gives the bones bodies and joints when it goes limp, and holds the animator off', () => {
+    it('gives the bones bodies and joints when it goes limp', () => {
         const { root, joints, run } = character();
         run();
         expect(world.has(joints[0] as never, RigidBody3D)).toBe(false);
@@ -116,10 +114,9 @@ describe.skipIf(!HAS_WASM)('the Ragdoll system', () => {
         // The topmost hangs from nothing; the others from the one above.
         expect(world.has(joints[0] as never, SwingTwistJoint3D)).toBe(false);
         expect((world.get(joints[1] as never, SwingTwistJoint3D) as { connectedEntity: number }).connectedEntity).toBe(joints[0]);
-        expect((world.get(root, Animator) as { enabled: boolean }).enabled).toBe(false);
     });
 
-    it('takes the bodies away and gives the animator back when it stands up', () => {
+    it('takes the bodies away when it stands up', () => {
         const { root, joints, run } = character();
         world.insert(root, Ragdoll, { ...(world.get(root, Ragdoll) as RagdollData), active: true });
         run();
@@ -129,7 +126,6 @@ describe.skipIf(!HAS_WASM)('the Ragdoll system', () => {
             expect(world.has(j as never, RigidBody3D)).toBe(false);
             expect(world.has(j as never, SwingTwistJoint3D)).toBe(false);
         }
-        expect((world.get(root, Animator) as { enabled: boolean }).enabled).toBe(true);
     });
 });
 
@@ -175,7 +171,7 @@ describe.skipIf(!HAS_SOLVER)('a ragdoll under the real solver', () => {
                 parent = j;
             }
             world.insert(root, getComponent('MeshSkin')!, { joints });
-            world.insert(root, Ragdoll, { active: true, skin: -1, swing: 45, twist: 30, thickness: 0.2, minBoneLength: 0.05, friction: 0.5, recoverTime: 0 });
+            world.insert(root, Ragdoll, { active: true, skin: 0, swing: 45, twist: 30, thickness: 0.2, minBoneLength: 0.05, friction: 0.5, recoverTime: 0 });
             for (const s of systems) s._fn({ delta: 1 / 60 });
 
             const bodies = new Map<Entity, number>(), joint3 = new Map<never, never>();
