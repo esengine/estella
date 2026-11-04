@@ -387,6 +387,14 @@ function warnAmbiguousRelease_(key: string): void {
         + 'which may not be the one the caller holds. Release it by its lease instead.');
 }
 
+/**
+ * What edge a mesh texture is first loaded at, asked as each one loads (texture streaming says, by the quality level): set once per
+ * realm, before any Assets exists, since a scene can load before the first frame. 0 loads it whole.
+ */
+let textureStreamingStart: () => number = () => 0;
+/** @internal */
+export function setTextureStreamingStartProvider(provider: () => number): void { textureStreamingStart = provider; }
+
 export class Assets {
     readonly backend: Backend;
     readonly catalog: Catalog;
@@ -479,6 +487,12 @@ export class Assets {
      *  load. The REVERSE of resolution — inspectors and tooling that only hold a
      *  live World handle use it to name the asset (see {@link pathForHandle}). */
     private handleToPath_ = new Map<string, string>();
+    /** Textures a mesh draws, by resolved path, directly or through a material: what texture streaming may load small to begin with. */
+    private readonly meshTextures_ = new Set<string>();
+    /** Materials a mesh draws with, by resolved path: their textures join {@link meshTextures_} as the material loads them. */
+    private readonly meshMaterials_ = new Set<string>();
+    /** The edge a mesh texture is first loaded at while texture streaming is on; 0 loads it whole. */
+    private streamingStartEdge_: number | (() => number) = 0;
 
     /**
      * Geometry built at run time rather than loaded (a static batch), by handle. It has no file to be replayed
@@ -555,6 +569,19 @@ export class Assets {
         const size = await this.textureLoader_.resize(handle, maxEdge, this.getLoadContext_());
         if (size) evictTextureDimensions(handle);
         return size;
+    }
+
+    /** The size of the file behind @p handle, whatever size it is held at; null for a texture no file of this realm's stands behind. */
+    textureFullSize(handle: number): { width: number; height: number } | null {
+        return this.textureLoader_.fullSize(handle);
+    }
+
+    /**
+     * Load the textures meshes draw no larger than @p edge on a side to begin with (0 loads them whole): texture streaming grows each
+     * to what its views need. A texture something else also draws is put back at its size by the streamer.
+     */
+    setTextureStreamingStart(edge: number | (() => number)): void {
+        this.streamingStartEdge_ = edge;
     }
 
     /** Whether {@link resizeTexture} can move @p handle between sizes. */
@@ -729,6 +756,10 @@ export class Assets {
             const revived = this.reviveResidentTexture_(cacheKey);
             if (revived) return Promise.resolve(revived);
             this.textureLoader_.setPendingSettings(settings);
+            // Asked as each texture loads: what decides it (the quality level) may arrive after whoever said how to ask.
+            const own = typeof this.streamingStartEdge_ === 'function' ? this.streamingStartEdge_() : this.streamingStartEdge_;
+            const start = own > 0 ? own : textureStreamingStart();
+            if (start > 0 && this.meshTextures_.has(path)) this.textureLoader_.setPendingStartEdge(start);
             return flip
                 ? this.textureLoader_.load(path, this.getLoadContext_())
                 : this.textureLoader_.loadRaw(path, this.getLoadContext_());
@@ -778,6 +809,7 @@ export class Assets {
             rm.releaseTexture(handle);
             return null;
         }
+        this.textureLoader_.adoptRevived(handle, cacheKey);
         return { handle, width: dims.width, height: dims.height };
     }
 
@@ -1599,6 +1631,8 @@ export class Assets {
     ): Promise<SceneAssetResult> {
         const missing: MissingAsset[] = [];
         const discovered = discoverSceneAssets(sceneData, (ref) => this.resolveRef(ref));
+        for (const p of discovered.meshTextures) this.meshTextures_.add(p);
+        for (const p of discovered.meshMaterials) this.meshMaterials_.add(p);
         for (const ref of discovered.unresolved) {
             missing.push({ ref, reason: 'unresolved' });
         }
@@ -2997,6 +3031,11 @@ export class Assets {
             async acquireTexture(path: string, flipY?: boolean): Promise<AssetLease<TextureResult>> {
                 const { result, lease } = await self.acquireTextureVariant_(path, flipY !== false);
                 return self.textureLease_(lease, result);
+            },
+            noteMaterialTexture(material: string, texture: string): void {
+                if (self.meshMaterials_.has(self.resolveLoadPath_(material)) || self.meshMaterials_.has(material)) {
+                    self.meshTextures_.add(self.resolveLoadPath_(texture));
+                }
             },
             async acquireAsset<T>(type: string, ref: string): Promise<AssetLease<T>> {
                 return self.acquireTyped<T>(type, ref);

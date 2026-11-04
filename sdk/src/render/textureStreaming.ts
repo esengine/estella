@@ -22,6 +22,7 @@ import { defineResource } from '../ecs/resource';
 import { getComponent } from '../ecs/component';
 import { playModeOnly } from '../ecs/env';
 import { Assets } from '../asset/AssetPlugin';
+import { setTextureStreamingStartProvider } from '../asset/Assets';
 import { engineApi } from '../ecs/bridge/engineApi';
 import { getTextureDimensions } from '../wasm/resourceManager';
 import { platformNow } from '../platform';
@@ -134,6 +135,8 @@ export class TextureStreaming {
     readonly held = new Set<number>();
     /** Textures that came back larger than asked (a host that cannot cut a file at a level): left alone from then on. */
     readonly refused = new Set<number>();
+    /** Textures being put back at their size because something other than a mesh draws them. */
+    readonly restoring = new Set<number>();
     moves = 0;
     failures = 0;
     inFlight = 0;
@@ -165,7 +168,16 @@ export class TextureStreamingPlugin implements Plugin {
         app.insertResource(TextureStreamingRes, state);
         const world = app.world;
         let last = 0, lastHeld = -Infinity;
-        const MAX_IN_FLIGHT = 2;
+        const MAX_IN_FLIGHT = 4;
+        /** The edge a mesh texture starts at while streaming is on. */
+        const START_EDGE = 256;
+        // Asked as each texture loads, not first in the frame loop: a scene may start loading before the first frame does, and the
+        // quality level may be settled after this plugin is built.
+        const startEdge = (): number => {
+            const quality = app.hasResource(Quality) ? app.getResource(Quality) : null;
+            return quality?.profile.textureStreaming && engineApi(app)?.renderer_takeTextureWants ? START_EDGE : 0;
+        };
+        setTextureStreamingStartProvider(startEdge);
 
         const parse = (raw: string): Map<number, number> => {
             const out = new Map<number, number>();
@@ -207,15 +219,26 @@ export class TextureStreamingPlugin implements Plugin {
                 let entry = state.textures.get(handle);
                 if (!entry) {
                     if (!assets.textureResizable(handle)) continue;
-                    const size = getTextureDimensions(handle);
+                    const size = assets.textureFullSize(handle) ?? getTextureDimensions(handle);
                     if (!size || size.width <= 0 || size.height <= 0) continue;
-                    entry = { handle, fullWidth: size.width, fullHeight: size.height, edge: Math.max(size.width, size.height), wanted: 0, seenAt: now, smallerSince: -1 };
+                    const held = getTextureDimensions(handle);
+                    entry = { handle, fullWidth: size.width, fullHeight: size.height, edge: held ? Math.max(held.width, held.height) : Math.max(size.width, size.height), wanted: 0, seenAt: now, smallerSince: -1 };
                     state.textures.set(handle, entry);
                 }
                 entry.wanted = entry.seenAt === now ? Math.max(entry.wanted, side) : side;
                 entry.seenAt = now;
             }
-            for (const handle of state.held) state.textures.delete(handle);
+            for (const handle of state.held) {
+                state.textures.delete(handle);
+                // Loaded small for a mesh and drawn by something no view measures: put back at its size.
+                const full = assets.textureFullSize(handle), now_ = getTextureDimensions(handle);
+                if (full && now_ && (now_.width < full.width || now_.height < full.height) && state.inFlight < MAX_IN_FLIGHT && !state.restoring.has(handle)) {
+                    state.restoring.add(handle);
+                    state.inFlight++;
+                    void assets.resizeTexture(handle, 0).catch(() => { state.failures++; })
+                        .finally(() => { state.inFlight--; state.restoring.delete(handle); });
+                }
+            }
 
             const options: TextureStreamingOptions = {
                 ...TEXTURE_STREAMING_DEFAULTS,

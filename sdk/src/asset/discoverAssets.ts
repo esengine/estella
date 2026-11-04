@@ -66,6 +66,10 @@ export interface SceneAssetRefs {
      * assets don't silently turn into texture handle 0.
      */
     unresolved: string[];
+    /** Resolved paths of the textures a MeshRenderer draws directly (its texture and normal map): what texture streaming may start small. */
+    meshTextures: Set<string>;
+    /** Resolved paths of the materials a MeshRenderer draws with: their textures may start small too. */
+    meshMaterials: Set<string>;
 }
 
 /** Turns a raw serialized ref into a concrete path (or null if unknown). */
@@ -84,6 +88,8 @@ export function discoverSceneAssets(
     // belong to two runtimes.
     const skeletalKeys = new Set<string>();
     const unresolved: string[] = [];
+    const meshTextures = new Set<string>();
+    const meshMaterials = new Set<string>();
 
     const resolve = (raw: string): string | null => {
         const r = refResolver ? refResolver(raw) : raw;
@@ -126,6 +132,14 @@ export function discoverSceneAssets(
 
             const data = compData.data as Record<string, unknown>;
 
+            if (compData.type === 'MeshRenderer') {
+                for (const [field, into] of [['texture', meshTextures], ['normalMap', meshTextures], ['material', meshMaterials]] as const) {
+                    const raw = data[field];
+                    const at = typeof raw === 'string' && raw ? (refResolver ? refResolver(raw) : raw) : null;
+                    if (at) into.add(at);
+                }
+            }
+
             if (comp.discoverAssets) {
                 for (const ref of comp.discoverAssets(data)) {
                     if (typeof ref.path === 'string' && ref.path) {
@@ -163,7 +177,7 @@ export function discoverSceneAssets(
         }
     }
 
-    return { byType, rawByType, rawFor, spines, dragonBones, unresolved };
+    return { byType, rawByType, rawFor, spines, dragonBones, unresolved, meshTextures, meshMaterials };
 }
 
 export function getAssetPathsByType(refs: SceneAssetRefs, type: AssetFieldType): Set<string> {

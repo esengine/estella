@@ -14,6 +14,9 @@ export interface TextureResult {
     handle: TextureHandle;
     width: number;
     height: number;
+    /** The file's own size, where it was made smaller than that (texture streaming); absent when it is the file's size. */
+    fullWidth?: number;
+    fullHeight?: number;
 }
 
 /**
@@ -122,6 +125,8 @@ export interface LoadContext {
      * this loader was handed.
      */
     acquireTexture(path: string, flipY?: boolean): Promise<AssetLease<TextureResult>>;
+    /** Say that material @p material binds texture @p texture, before it is acquired: a mesh material's textures may start small. */
+    noteMaterialTexture?(material: string, texture: string): void;
     /**
      * The same for an asset of ANY type — a material instance acquiring the
      * parent it diffs against. The general door; {@link acquireTexture} is the

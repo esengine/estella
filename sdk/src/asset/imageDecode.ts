@@ -47,6 +47,9 @@ export interface DecodedPixels {
     width: number;
     height: number;
     pixels: Uint8Array;
+    /** The image's own size, where it was decoded smaller than that; absent when it is the image's size. */
+    sourceWidth?: number;
+    sourceHeight?: number;
 }
 
 /**
@@ -56,9 +59,13 @@ export interface DecodedPixels {
  * v=1=top for general textures, v=0=top for spine / bitmap fonts.
  */
 export async function decodeImagePixels(src: ImageBitmapSource, maxEdge = 0): Promise<DecodedPixels> {
-    const bitmap = await shrinkBitmap(await decodeImageBitmap(src, false), maxEdge);
+    const whole = await decodeImageBitmap(src, false);
+    const sourceWidth = whole.width, sourceHeight = whole.height;
+    const bitmap = await shrinkBitmap(whole, maxEdge);
     try {
-        return readImagePixels(bitmap, maxEdge);
+        const pixels = readImagePixels(bitmap, maxEdge);
+        // The bitmap was already made smaller, so the read cannot see what it was made from.
+        return pixels.width < sourceWidth || pixels.height < sourceHeight ? { ...pixels, sourceWidth, sourceHeight } : pixels;
     } finally {
         bitmap.close?.();
     }
@@ -107,7 +114,8 @@ export function readImagePixels(image: PlatformImage | ImageBitmap, maxEdge = 0)
     if (!ctx) throw new Error('imageDecode: 2D context unavailable for pixel decode');
     ctx.drawImage(image, 0, 0, width, height);
     const data = ctx.getImageData(0, 0, width, height);
-    return { width, height, pixels: new Uint8Array(data.data.buffer) };
+    const pixels = new Uint8Array(data.data.buffer);
+    return scale < 1 ? { width, height, pixels, sourceWidth: image.width, sourceHeight: image.height } : { width, height, pixels };
 }
 
 /**

@@ -1088,7 +1088,9 @@ setManifest: (manifest: AddressableManifest | ManifestModel | null) => void
 setRefCounter: (counter: AssetRefCounter) => void
 setRemoteRoot: (url: string | undefined) => void
 setTextureImportSettingsResolver: (resolver: TextureImportSettingsResolver | null) => void
+setTextureStreamingStart: (edge: number | (() => number)) => void
 textureFormatReport: () => TextureFormatReport
+textureFullSize: (handle: number) => { width: number; height: number; } | null
 textureResizable: (handle: number) => boolean
 texturesAwaitingReupload: () => { handle: number; content: TextureContent; path: string; }[]
 trackSceneAssetReferences: (scene: SceneData, entities: ReadonlyMap<number, number>) => void
@@ -3235,6 +3237,8 @@ positions: Float32Array<ArrayBufferLike>
 ```
 height: number
 pixels: Uint8Array<ArrayBufferLike>
+sourceHeight: number | undefined
+sourceWidth: number | undefined
 width: number
 ```
 
@@ -8990,6 +8994,8 @@ skipped: AmbientSkip | null
 ```
 byType: Map<string, Set<string>>
 dragonBones: SpineAssetRef[]
+meshMaterials: Set<string>
+meshTextures: Set<string>
 rawByType: Map<string, Set<string>>
 rawFor: Map<string, string>
 spines: SpineAssetRef[]
@@ -11350,6 +11356,8 @@ number
 
 ## TextureInfo — interface @experimental
 ```
+fullHeight: number | undefined
+fullWidth: number | undefined
 handle: number
 height: number
 width: number
@@ -11370,6 +11378,7 @@ held: Set<number>
 inFlight: number
 moves: number
 refused: Set<number>
+restoring: Set<number>
 textures: Map<number, StreamedTexture>
 static new (): TextureStreaming
 static prototype: TextureStreaming

@@ -32,7 +32,7 @@ export type TexturePixelDecoder = (
     path: string,
     flip: boolean,
     maxEdge?: number,
-) => Promise<{ width: number; height: number; pixels: Uint8Array }>;
+) => Promise<{ width: number; height: number; pixels: Uint8Array; sourceWidth?: number; sourceHeight?: number }>;
 
 /**
  * Where a host keeps its textures GPU-compressed: the KTX2 for `path`, `'pending'`
@@ -132,7 +132,13 @@ export class TextureLoader implements AssetLoader<TextureResult> {
      */
     private readonly formats_ = new TextureFormatLog();
     /** Where each texture this loader decoded from a file came from: what a resize decodes again. */
-    private readonly sources_ = new Map<number, { path: string; flip: boolean; settings?: TextureImportSettings }>();
+    private readonly sources_ = new Map<number, { path: string; flip: boolean; settings?: TextureImportSettings; fullWidth: number; fullHeight: number }>();
+    private pendingStartEdge_ = 0;
+    /** How many loads began smaller than their file (texture streaming), and how many were asked to: a report, and what a check reads. */
+    startedSmall = 0;
+    askedSmall = 0;
+    /** The same sources by residency key, kept past a release: a texture revived from the warm cache is the same file at the size it was left at. */
+    private readonly sourcesByKey_ = new Map<string, { path: string; flip: boolean; settings?: TextureImportSettings; fullWidth: number; fullHeight: number }>();
     /** The decision the in-flight upload came to. Set by the one entry point that
      *  chooses a path (decodeAndUpload_) and read by the one that records. */
     private lastDecision_: TextureUploadDecision = RAW_PAYLOAD_UPLOAD;
@@ -237,11 +243,32 @@ export class TextureLoader implements AssetLoader<TextureResult> {
     /** Whether @p handle was decoded from a file by this loader, so it can be decoded again at another size. */
     resizable(handle: number): boolean { return this.sources_.has(handle); }
 
+    /** The size of the file behind @p handle, whatever size it is held at; null for one this loader did not decode from a file. */
+    fullSize(handle: number): { width: number; height: number } | null {
+        const s = this.sources_.get(handle);
+        return s ? { width: s.fullWidth, height: s.fullHeight } : null;
+    }
+
+    /** Decode the next load no larger than @p edge on a side (texture streaming's start), where the file's own size can still be known. */
+    setPendingStartEdge(edge: number): void { this.pendingStartEdge_ = Math.max(0, edge); }
+
+    /** A texture the warm cache gave back under @p key is the one this loader decoded under it: resizable again. */
+    adoptRevived(handle: number, key: string): void {
+        const source = this.sourcesByKey_.get(key);
+        if (source) this.sources_.set(handle, source);
+    }
+
     private async loadWithFlip(
         path: string, ctx: LoadContext, flip: boolean, settings?: TextureImportSettings,
     ): Promise<TextureResult> {
-        const result = await this.decodeAndUpload_(path, ctx, flip, settings);
-        this.sources_.set(result.handle, { path, flip, settings });
+        const start = this.pendingStartEdge_;
+        this.pendingStartEdge_ = 0;
+        if (start > 0) this.askedSmall++;
+        const result = await this.decodeAndUpload_(path, ctx, flip, settings, start);
+        const source = { path, flip, settings, fullWidth: result.fullWidth ?? result.width, fullHeight: result.fullHeight ?? result.height };
+        this.sources_.set(result.handle, source);
+        if (result.fullWidth !== undefined) this.startedSmall++;
+        this.sourcesByKey_.set(textureResidencyKey(path, flip), source);
         // Recorded HERE, once, for every path into the loader — the compressed
         // paths, the pixel decoder and the <img> upload alike. A record kept only
         // where a fallback happens cannot say that everything else was fine.
@@ -277,11 +304,17 @@ export class TextureLoader implements AssetLoader<TextureResult> {
         if (this.pixelDecoder_) {
             const result = await this.pixelDecoder_(path, flip, edge);
             const handle = createTextureFromPixels(this.module_, result, TextureContent.Asset, flip, pixelParams(settings));
-            return { handle, width: result.width, height: result.height };
+            // A decoder that made it smaller says what it was made from; one that could not (a host decoding whole) answers with the
+            // file's own size, and the texture is simply whole.
+            return result.sourceWidth !== undefined && result.sourceHeight !== undefined
+                ? { handle, width: result.width, height: result.height, fullWidth: result.sourceWidth, fullHeight: result.sourceHeight }
+                : { handle, width: result.width, height: result.height };
         }
         const url = ctx.backend.resolveUrl(ctx.catalog.getBuildPath(path));
-        const img = await this.loadImage(url, flip, edge, this.imageRevisions_.get(path));
-        return this.createTextureFromImage(img, flip, settings);
+        const full = { width: 0, height: 0 };
+        const img = await this.loadImage(url, flip, edge, this.imageRevisions_.get(path), full);
+        const made = this.createTextureFromImage(img, flip, settings);
+        return full.width > made.width || full.height > made.height ? { ...made, fullWidth: full.width, fullHeight: full.height } : made;
     }
 
     /**
@@ -290,6 +323,19 @@ export class TextureLoader implements AssetLoader<TextureResult> {
      * the `flip` flag does not apply.
      */
     private async uploadKtx2_(
+        path: string, bytes: Uint8Array, settings?: TextureImportSettings, maxEdge = 0,
+    ): Promise<TextureResult> {
+        const made = await this.uploadKtx2Levels_(path, bytes, settings, maxEdge);
+        // The header's pixelWidth and pixelHeight (bytes 20 and 24): the file's size, whatever level the upload started at.
+        if (bytes.byteLength >= 28) {
+            const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+            const fullWidth = view.getUint32(20, true), fullHeight = view.getUint32(24, true);
+            if (fullWidth > made.width || fullHeight > made.height) return { ...made, fullWidth, fullHeight };
+        }
+        return made;
+    }
+
+    private async uploadKtx2Levels_(
         path: string, bytes: Uint8Array, settings?: TextureImportSettings, maxEdge = 0,
     ): Promise<TextureResult> {
         if (!isKtx2(bytes)) throw new Error(`TextureLoader: ${path} is not a KTX2 file`);
@@ -377,11 +423,12 @@ export class TextureLoader implements AssetLoader<TextureResult> {
      * on it uploads every texture upside-down. The raw `<img>` fallback keeps the
      * flag (it works for element/pixel sources) — see {@link createTextureFromImage}.
      */
-    private loadImage(src: string, flip: boolean, maxEdge = 0, revision?: number): Promise<PlatformImage | ImageBitmap> {
+    private loadImage(src: string, flip: boolean, maxEdge = 0, revision?: number, full?: { width: number; height: number }): Promise<PlatformImage | ImageBitmap> {
         return new Promise((resolve, reject) => {
             const img = platformCreateImage();
             img.crossOrigin = 'anonymous';
             img.onload = async () => {
+                if (full) { full.width = img.width; full.height = img.height; }
                 if (typeof createImageBitmap !== 'undefined') {
                     try {
                         resolve(await shrinkBitmap(await decodeImageBitmap(img, flip), maxEdge));

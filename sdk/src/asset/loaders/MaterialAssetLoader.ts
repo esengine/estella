@@ -55,6 +55,7 @@ export class MaterialAssetLoader implements AssetLoader<MaterialResult> {
         for (const [name, value] of Object.entries(data.properties)) {
             if (typeof value !== 'string') continue;
             const texPath = resolveDocumentRef(matPath, value);
+            ctx.noteMaterialTexture?.(matPath, texPath);
             try {
                 const tex = await ctx.acquireTexture(texPath);
                 Material.setUniform(handle, name, Material.tex(tex.value.handle));
