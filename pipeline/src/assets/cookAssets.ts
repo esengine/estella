@@ -22,6 +22,7 @@ import { writeFile, mkdir, readFile, open } from 'node:fs/promises';
 import { statSync } from 'node:fs';
 import { isInsideRoot } from '../fs/pathSandbox';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { scanAssetDatabase, type AssetEntry } from './assetDb';
 import { packAtlas, decodePngImage, encodePagePng, type AtlasInputImage } from './atlasPacker';
 // Per-asset texture cook settings (compress opt-out / format / size cap), read
@@ -468,7 +469,12 @@ let twinDeriver: Promise<((source: string) => Promise<string>) | null> | undefin
 function shaderTwinDeriver(): Promise<((source: string) => Promise<string>) | null> {
   twinDeriver ??= (async () => {
     try {
-      const specifier = '../../../tools/lib/derivedTwin.mjs';
+      // A host that ships the converters (the packaged editor) says where they are;
+      // a checkout of the engine finds them beside this file.
+      const root = process.env.ESTELLA_SHADER_TWINS_ROOT;
+      const specifier = root
+        ? pathToFileURL(path.join(root, 'tools', 'lib', 'derivedTwin.mjs')).href
+        : '../../../tools/lib/derivedTwin.mjs';
       return ((await import(/* @vite-ignore */ specifier)) as { withDerivedTwin: (source: string) => Promise<string> }).withDerivedTwin;
     } catch {
       return null;
@@ -933,16 +939,17 @@ export async function cookAssets(
       // sources carry none, so one is derived here from the GLSL when the converters
       // are at hand (a checkout of the engine); a project that ships its own twin has it
       // already, and one with neither is worth a cook-time warning.
-      if (ext.toLowerCase() === '.esshader' &&
-          !Buffer.from(data).toString('utf8').includes('#pragma fragment wgsl')) {
+      // Asked of every shader: a generated twin that no longer matches its GLSL is
+      // derived afresh, and a hand-written one is left exactly as it is.
+      if (ext.toLowerCase() === '.esshader') {
         const derive = await shaderTwinDeriver();
         if (derive) data = Buffer.from(await derive(Buffer.from(data).toString('utf8')), 'utf8');
       }
       if (ext.toLowerCase() === '.esshader' &&
           !Buffer.from(data).toString('utf8').includes('#pragma fragment wgsl')) {
         warnings.push(
-          `${entry.path}: no WGSL twin — this shader will not render on the WebGPU backend ` +
-          '(run tools/gen-shader-twins.mjs to generate one)',
+          `${entry.path}: no WGSL twin, and it could not be derived from the GLSL here — this shader will not ` +
+          'render on the WebGPU backend (export from the editor, which derives it, or add a `#pragma fragment wgsl` twin)',
         );
       }
       const hash = contentHashHex(data);

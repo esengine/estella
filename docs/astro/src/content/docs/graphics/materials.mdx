@@ -178,6 +178,14 @@ One file holds every stage plus its metadata, separated by pragmas:
 | `#pragma vertex` / `#pragma fragment` … `#pragma end` | Stage bodies. **The vertex block is optional for 2D domains** — the engine injects the canonical stage. |
 | `#include "path"` | Textual include (resolved by the host). |
 
+**Write the GLSL; the WGSL is derived.** The editor's viewport draws through WebGPU,
+and a web build may too, so every shader also needs a WGSL version. You do not write
+it: the editor derives it from your GLSL as the shader is read, and every export
+derives it as the shader is packaged (a generated twin that no longer matches the
+GLSL is derived again). A shader with its own hand-written `#pragma fragment wgsl`
+block keeps it untouched. If a GLSL construct cannot be translated, the build warns
+and that shader runs on the WebGL2 path only.
+
 ### Fragment-only authoring
 
 2D sprites bake their world transform into the batch vertices, so every 2D shader

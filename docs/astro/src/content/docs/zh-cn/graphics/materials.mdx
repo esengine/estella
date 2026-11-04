@@ -147,6 +147,11 @@ Terrain、Foliage、Water、Hair、Skin、Eye 这几个模板属于各自的模�
 | `#pragma vertex` / `#pragma fragment` … `#pragma end` | Stage 代码体。**2D 域的顶点段可省略**——引擎注入规范顶点段。 |
 | `#include "path"` | 文本 include(由宿主解析)。 |
 
+**只写 GLSL,WGSL 自动生成。** 编辑器视口走 WebGPU,网页构建也可能用到,所以每个 shader 都需要一份
+WGSL。不用自己写:编辑器读取 shader 时会从 GLSL 自动派生,每次导出打包时也会派生(已有的生成版本与 GLSL
+不一致时会重新生成)。自己手写了 `#pragma fragment wgsl` 块的 shader 保持原样。若某段 GLSL 无法转换,
+构建会给出警告,该 shader 只在 WebGL2 下运行。
+
 ### 只写片元
 
 2D 精灵的世界变换烘焙进批处理顶点,所以所有 2D 着色器共享同一个顶点段。省略
