@@ -90,6 +90,7 @@ export const RESOURCE_BINDINGS = {
     releaseTexture: 'es_rm_releaseTexture',
     registerTextureWithPath: 'es_rm_registerTextureWithPath',
     getTextureDimensions: 'es_getTextureDimensions',
+    setTextureMetadata: 'es_rm_setTextureMetadata',
 } as const;
 
 /**

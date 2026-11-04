@@ -72,12 +72,18 @@ void BatchPlugin::emitNineSlice(
     if (uvScale.x < 0.0f) std::swap(L, R);
     if (uvScale.y < 0.0f) std::swap(T, B);
 
-    // Fit destination borders proportionally when the box is smaller than
-    // their sum. Source UV borders still sample the original texture region.
+    // Fit destination borders when the box is smaller than their sum, by ONE
+    // factor for both axes — the rule CSS applies to border radii. Fitting each
+    // axis on its own squeezes a short panel's corners into ellipses: a 20px
+    // round corner on a 30px-tall box became 20x15. Source UV borders still
+    // sample the original texture region.
     const f32 directionX = std::copysign(1.0f, size.x);
     const f32 directionY = std::copysign(1.0f, size.y);
-    const f32 sx = directionX * (L + R > 0.0f ? std::min(1.0f, std::abs(size.x) / (L + R)) : 1.0f);
-    const f32 sy = directionY * (T + B > 0.0f ? std::min(1.0f, std::abs(size.y) / (T + B)) : 1.0f);
+    const f32 fitX = L + R > 0.0f ? std::abs(size.x) / (L + R) : 1.0f;
+    const f32 fitY = T + B > 0.0f ? std::abs(size.y) / (T + B) : 1.0f;
+    const f32 fit = std::min(1.0f, std::min(fitX, fitY));
+    const f32 sx = directionX * fit;
+    const f32 sy = directionY * fit;
 
     f32 baseX = position.x - size.x * pivotNorm.x;
     f32 baseY = position.y - size.y * pivotNorm.y;

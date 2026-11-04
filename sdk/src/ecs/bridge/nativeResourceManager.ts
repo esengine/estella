@@ -121,6 +121,13 @@ export function createNativeResourceManager(
             hostCallOpt(scope, RESOURCE_BINDINGS.registerTextureWithPath, [handle, path]);
         },
 
+        // A texture's nine-slice border, from its import settings. Without it a
+        // UIVisual that takes its border from the texture draws as one stretched
+        // quad on a device — the corners of a rounded panel come out square.
+        setTextureMetadata: (handle, left, right, top, bottom): void => {
+            hostCallOpt(scope, RESOURCE_BINDINGS.setTextureMetadata, [handle, left, right, top, bottom]);
+        },
+
         getTextureDimensions: (handle): { width: number; height: number } | null =>
             (hostCallOpt(scope, RESOURCE_BINDINGS.getTextureDimensions, [handle]) as
                 { width: number; height: number } | null | undefined) ?? null,
