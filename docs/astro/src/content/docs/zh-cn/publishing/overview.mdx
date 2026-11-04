@@ -235,12 +235,21 @@ node build-tools/cli.js build -t wechat
 
 ## 不支持 WebAssembly 的浏览器
 
-Web 导出会带两份引擎：`wasm/esengine.wasm`，以及同一引擎编译成纯 JavaScript 的
-`wasm/esengine.asm.js`。页面启动时二选一。有 `WebAssembly` 的环境加载 wasm 引擎，
-JavaScript 版本不会被下载。没有 `WebAssembly` 的环境（一些锁死的 WebView、
-嵌入式浏览器）加载 `esengine.asm.js`，游戏照常运行同样的场景和脚本。
+打开 **项目设置 → 打包 → Web → 无 WebAssembly 时运行** 后，Web 导出会带两份引擎：
+`wasm/esengine.wasm`，以及同一引擎编译成纯 JavaScript 的 `wasm/esengine.asm.js`。
+页面启动时二选一。有 `WebAssembly` 的环境加载 wasm 引擎，JavaScript 版本不会被下载。
+没有 `WebAssembly` 的环境（一些锁死的 WebView、嵌入式浏览器）加载 `esengine.asm.js`，
+游戏照常运行同样的场景和脚本。清单里对应的写法：
 
-要在普通浏览器里试 JavaScript 引擎，在页面地址后加 `?engine=js`。
+```json
+"packaging": { "platforms": { "web": { "engineJs": true } } }
+```
+
+默认关闭。有 WebAssembly 的用户不会下载这个文件，但每个包都会多出约 4 MB，
+会计入托管平台的上传限制。关闭时，没有 WebAssembly 的浏览器会显示一条写明这个设置的报错。
+小游戏目标从不带它：它们支持的平台都能跑 WebAssembly，而且单这一个文件就超过微信 4 MB 的主包。
+
+要在普通浏览器里试 JavaScript 引擎，打开这个设置导出，再在页面地址后加 `?engine=js`。
 
 代价（`hello-world`，headless Chromium 实测）：
 
@@ -257,15 +266,6 @@ JavaScript 版本不会被下载。没有 `WebAssembly` 的环境（一些锁死
   它提供的功能不会运行。
 - **编译（`@compiled`）系统**：它们也是 wasm 模块，这里保持解释执行，
   结果和不开 AOT 的导出一样。
-
-不想带这个文件（服务器上约 4 MB，有 WebAssembly 的用户不会下载它），
-把 `engineJs` 设为 `false`：
-
-```json
-"packaging": { "platforms": { "web": { "engineJs": false } } }
-```
-
-这样一来，没有 WebAssembly 的浏览器会看到一条明确的报错，而不是游戏。
 
 ## 构建配置与 source map
 

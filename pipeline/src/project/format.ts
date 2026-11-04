@@ -454,9 +454,9 @@ export interface ProjectPackaging {
        *  The page's Content-Security-Policy allows only its own origin otherwise. */
       connect?: string[];
       /**
-       * Carry the engine built as plain JavaScript beside the wasm one (default true),
-       * for a browser with no WebAssembly. It is fetched only there; elsewhere it is
-       * ~4 MB the server holds and nobody downloads.
+       * Carry the engine built as plain JavaScript beside the wasm one (default false),
+       * for a browser with no WebAssembly. It is fetched only there, but it is ~4 MB
+       * in every package, so a project that needs it turns it on.
        */
       engineJs?: boolean;
     };

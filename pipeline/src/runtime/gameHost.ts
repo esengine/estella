@@ -202,7 +202,7 @@ async function boot(): Promise<void> {
     || new URLSearchParams(location.search).get('engine') === 'js') && cfg.engineJs === true;
   if (typeof WebAssembly === 'undefined' && !engineAsJs) {
     throw new Error('This browser has no WebAssembly, and this build carries no JavaScript engine '
-      + '(packaging.platforms.web.engineJs is off).');
+      + '(Project Settings → Web → "Run without WebAssembly", packaging.platforms.web.engineJs).');
   }
   const { default: createModule } = (await import(
     /* @vite-ignore */ `${wasmBase}${engineAsJs ? 'esengine.asm.js' : 'esengine.js'}`)) as {

@@ -499,7 +499,7 @@ export interface ExportGameOptions {
   webChannel?: 'poki' | 'crazygames' | 'youtube';
   /** Origins the web page's policy lets the game connect to (project: packaging.platforms.web.connect). */
   webConnect?: string[];
-  /** Web: carry the plain-JavaScript engine for browsers without WebAssembly. Absent ⇒ true. */
+  /** Web: carry the plain-JavaScript engine for browsers without WebAssembly. Absent ⇒ false. */
   webEngineJs?: boolean;
   leaderboardEncryptionKey?: string;
   sdkDistDir: string;
@@ -1215,7 +1215,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       });
       // The plain-JavaScript engine is the web page's answer to a browser with no
       // WebAssembly; any other package has an engine of its own kind, or none.
-      if (platform !== 'web' || opts.webEngineJs === false) {
+      if (platform !== 'web' || opts.webEngineJs !== true) {
         await rm(path.join(wasmOut, ENGINE_JS_FILE), { force: true });
       }
     } else errors.push(`wasm runtime dir not found: ${opts.wasmDir}`);
