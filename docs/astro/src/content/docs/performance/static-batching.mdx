@@ -59,7 +59,7 @@ Use instancing for many copies of one mesh, and static batching for many differe
 
 ## A measured example
 
-The `dusk-fort` example (39 meshes, 20 distinct shapes), every mesh marked, in the editor's Play on WebGL2:
+The `dusk-fort` example (39 meshes, 17 distinct shapes, 5 materials), every mesh marked, in the editor's Play on WebGL2:
 
 | | Not marked | Marked |
 |---|---|---|
@@ -72,6 +72,6 @@ batches stand for 32 draws before instancing and hold 2.05 MB of copied vertices
 already did most of the saving here, so the merge's share is the last five draws: a scene made of
 many different pieces gains more than one made of a few repeated ones.
 
-The two frames differ by one level of 255 on 1.1% of the pixels, along geometry edges, from
+The two frames differ on 1.1% of the pixels, by one level of 255 on 96% of those and at most five, all along geometry edges, from
 the merged vertices being transformed on the CPU in 32-bit floats; run to run the same scene differs on
 0.003%.
