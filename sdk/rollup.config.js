@@ -50,6 +50,11 @@ export default [
             // Several shared chunks are named after an `index` module; the second would be deduplicated to `index.d2.ts`, which is
             // not a declaration file to TypeScript. Those carry their hash instead.
             chunkFileNames: (chunk) => (chunk.name === 'index' ? 'shared/[name]-[hash].d.ts' : 'shared/[name].d.ts'),
+            // Real names between chunks. Minified, every entry imported `a as Entity`
+            // and a shared chunk exported `jg as UINode`, so searching the shipped
+            // types for a symbol (what an agent or an IDE-less reader does) found a
+            // one-line alias list instead of the declaration.
+            minifyInternalExports: false,
         },
         plugins: [dts()],
     },
