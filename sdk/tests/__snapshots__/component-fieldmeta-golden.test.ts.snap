@@ -2,6 +2,24 @@
 
 exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapshot of every builtin with declared field metadata 1`] = `
 {
+  "Billboard": {
+    "enabled": {
+      "tooltip": "Off: the mesh keeps the entity's own rotation.",
+    },
+    "mode": {
+      "enum": [
+        {
+          "label": "ViewPlane",
+          "value": 0,
+        },
+        {
+          "label": "Upright",
+          "value": 1,
+        },
+      ],
+      "tooltip": "View plane lies flat in the view, like a particle. Upright turns about world up only, so it stays standing as the camera looks down.",
+    },
+  },
   "BitmapText": {
     "align": {
       "enum": [

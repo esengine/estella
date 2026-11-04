@@ -49,13 +49,14 @@ export const StaticBatchState = {
     NoMesh: 9,
     Layout: 10,
     Disabled: 11,
+    Billboard: 12,
 } as const;
 
 const REFUSAL_STATE: Record<StaticBatchRefusal, number> = {
     skinned: StaticBatchState.Skinned, morph: StaticBatchState.Morph, lod: StaticBatchState.Lod,
     blended: StaticBatchState.Blended, moves: StaticBatchState.Moves, baked: StaticBatchState.Baked,
     alone: StaticBatchState.Alone, 'no-mesh': StaticBatchState.NoMesh, layout: StaticBatchState.Layout,
-    disabled: StaticBatchState.Disabled,
+    disabled: StaticBatchState.Disabled, billboard: StaticBatchState.Billboard,
 };
 
 /** The fields of the `StaticBatch` component. @experimental */
@@ -98,9 +99,10 @@ export const StaticBatch: ComponentDef<StaticBatchData> = defineComponent<Static
                 { label: 'Not merged: no mesh', value: StaticBatchState.NoMesh },
                 { label: 'Not merged: vertex layout', value: StaticBatchState.Layout },
                 { label: 'Not merged: disabled', value: StaticBatchState.Disabled },
+                { label: 'Not merged: billboard', value: StaticBatchState.Billboard },
             ],
             // Nothing to say before a pass has run, so the row stays out of the way in the editor.
-            shownWhen: { field: 'state', values: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] },
+            shownWhen: { field: 'state', values: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] },
         },
         batched: { label: 'Batched meshes', min: 0, shownWhen: { field: 'state', values: [1] } },
     },
@@ -258,6 +260,7 @@ export class StaticBatchPlugin implements Plugin {
     private async pass(app: App, state: StaticBatching, assets: ReturnType<App['getResource']> & any, entities: Entity[]): Promise<void> {
         const world = app.world;
         const lodDef = getComponent('LODGroup');
+        const billboardDef = getComponent('Billboard');
         const skinDef = getComponent('MeshSkin');
         const probeDef = getComponent('LightProbeVolume');
         const bakedDef = getComponent('BakedLighting');
@@ -279,6 +282,7 @@ export class StaticBatchPlugin implements Plugin {
             if (!mr.enabled) { this.refuse(app, state, e, 'disabled'); continue; }
             if (!mr.opaque) { this.refuse(app, state, e, 'blended'); continue; }
             if (lodDef && world.has(e, lodDef)) { this.refuse(app, state, e, 'lod'); continue; }
+            if (billboardDef && world.has(e, billboardDef) && (world.get(e, billboardDef) as { enabled: boolean }).enabled) { this.refuse(app, state, e, 'billboard'); continue; }
             if (skinDef && world.has(e, skinDef)) { this.refuse(app, state, e, 'skinned'); continue; }
             if ((characterDef && world.has(e, characterDef))
                 || (bodyDef && world.has(e, bodyDef) && (world.get(e, bodyDef) as { bodyType: number }).bodyType !== BodyType.Static)) {

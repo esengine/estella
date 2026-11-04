@@ -142,6 +142,20 @@ cmds.spawn()
 `MeshRenderers` 资源——`setGeometry(entity, geometry)` 重新上传(索引在引擎侧校验),
 另有 `getGeometry` / `clearGeometry`。只改 `geometry` 字段本身不会被变更检测。
 
+### 朝向相机的卡片:`Billboard`
+
+MeshRenderer 旁边的 `Billboard` 会把网格转向每个画它的视图:招牌、3D 世界里角色的精灵、画在卡片上的远处的树、镜头闪光。
+
+```typescript
+world.insert(card, MeshRenderer, { mesh: 'builtin:quad', texture: tree, lit: false });
+world.insert(card, Billboard, { mode: BillboardMode.Upright });
+```
+
+- **视平面**(默认)平躺在视图里,和粒子一样:同一视图里的卡片全都朝同一个方向。
+- **直立**只绕世界的上方向转,所以相机往下看时它仍然立着。树、招牌和角色用这个,否则相机升高时它们会向后倒。
+
+网格的 +Z 转向观察者,+Y 朝上,也就是 `builtin:quad` 本来立着的样子。旋转由每个视图在绘制时各自算出,所以两台相机都能正面看到卡片,而实体的 Transform 从不被写入:脚本、物理和编辑器的 Gizmo 读到的都是编辑时设的旋转。阴影贴图也是一个视图,所以卡片在那里会转向光源,投下完整的轮廓。Billboard 不会被[静态合并](/docs/zh-cn/performance/static-batching/)合进去,一组摆放实例(`MeshInstances`)也不会被转动。
+
 ## 自定义几何:`Geometry` API
 
 `MeshRenderer` 是*组件*路径,`Geometry` 则是*即时*路径:它上传一个索引顶点缓冲,交回

@@ -384,6 +384,14 @@ target_include_directories(test_lod_selection PRIVATE
 )
 add_test(NAME test_lod_selection COMMAND test_lod_selection)
 
+# How a Billboard is turned to a view: the view plane, upright about world up, an orthographic view. Header-only.
+add_executable(test_billboard_facing renderer/test_billboard_facing.cpp)
+target_include_directories(test_billboard_facing PRIVATE
+    ${CMAKE_SOURCE_DIR}/src
+    ${CMAKE_SOURCE_DIR}/third_party/glm
+)
+add_test(NAME test_billboard_facing COMMAND test_billboard_facing)
+
 # How a view shades its meshes: Shaded unless it asked, and no entry left once it goes back.
 add_executable(test_view_shading renderer/test_view_shading.cpp)
 target_include_directories(test_view_shading PRIVATE

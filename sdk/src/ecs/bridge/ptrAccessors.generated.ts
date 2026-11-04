@@ -9,6 +9,34 @@ interface Vec3 { x: number; y: number; z: number; }
 interface Vec4 { x: number; y: number; z: number; w: number; }
 interface Color { r: number; g: number; b: number; a: number; }
 
+export interface BillboardPtrData {
+    mode: number;
+    enabled: boolean;
+}
+
+export function fillBillboard(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, out: BillboardPtrData,
+): void {
+    out.mode = u32[ptr >> 2] | 0;
+    out.enabled = u8[ptr + 4] !== 0;
+}
+
+export function writeBillboard(
+    f32: Float32Array, u32: Uint32Array, u8: Uint8Array,
+    ptr: number, data: BillboardPtrData,
+): void {
+    u32[ptr >> 2] = data.mode | 0;
+    u8[ptr + 4] = data.enabled ? 1 : 0;
+}
+
+export function createBillboardData(): BillboardPtrData {
+    return {
+        mode: 0,
+        enabled: false,
+    };
+}
+
 export interface BitmapTextPtrData {
     color: Color;
     fontSize: number;
@@ -2804,6 +2832,7 @@ export interface PtrAccessor<T> {
 }
 
 export const PTR_ACCESSORS: Record<string, PtrAccessor<any>> = {
+    Billboard: { fill: fillBillboard, write: writeBillboard, create: createBillboardData },
     BitmapText: { fill: fillBitmapText, write: writeBitmapText, create: createBitmapTextData },
     BoxCollider2D: { fill: fillBoxCollider2D, write: writeBoxCollider2D, create: createBoxCollider2DData },
     BoxCollider3D: { fill: fillBoxCollider3D, write: writeBoxCollider3D, create: createBoxCollider3DData },

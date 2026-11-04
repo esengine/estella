@@ -31,6 +31,8 @@ export type StaticBatchRefusal =
     | 'morph'
     /** Chooses among levels of detail at run time, which a merged mesh cannot. */
     | 'lod'
+    /** A billboard: it turns to each view, and a merged mesh is fixed where it was baked. */
+    | 'billboard'
     /** Lit by a bake: its atlas patch belongs to the object, not to the batch. */
     | 'baked'
     /** Blended: its result depends on order, and merging is the loss of order. */

@@ -9,6 +9,7 @@
 
 #include "esengine/ecs/Entity.hpp"
 #include "esengine/ecs/Registry.hpp"
+#include "esengine/ecs/components/Billboard.hpp"
 #include "esengine/ecs/components/BitmapText.hpp"
 #include "esengine/ecs/components/Collider2D.hpp"
 #include "esengine/ecs/components/RigidBody3D.hpp"
@@ -68,6 +69,11 @@ Candidates denseAsIds(std::span<const Entity> dense) {
 }  // namespace
 
 ComponentAt engineComponentAt(ecs::Registry& registry, const char* name) {
+    if (std::strcmp(name, "Billboard") == 0) {
+        return [&registry](std::uint32_t raw) -> void* {
+            return registry.tryGet<esengine::ecs::Billboard>(Entity::fromRaw(raw));
+        };
+    }
     if (std::strcmp(name, "BitmapText") == 0) {
         return [&registry](std::uint32_t raw) -> void* {
             return registry.tryGet<esengine::ecs::BitmapText>(Entity::fromRaw(raw));
@@ -337,6 +343,11 @@ ComponentAt engineComponentAt(ecs::Registry& registry, const char* name) {
 }
 
 CandidatesOf engineComponentCandidates(ecs::Registry& registry, const char* name) {
+    if (std::strcmp(name, "Billboard") == 0) {
+        return [&registry]() -> Candidates {
+            return denseAsIds(registry.entitiesWith<esengine::ecs::Billboard>());
+        };
+    }
     if (std::strcmp(name, "BitmapText") == 0) {
         return [&registry]() -> Candidates {
             return denseAsIds(registry.entitiesWith<esengine::ecs::BitmapText>());
@@ -606,6 +617,7 @@ CandidatesOf engineComponentCandidates(ecs::Registry& registry, const char* name
 }
 
 bool isEngineComponent(const char* name) {
+    if (std::strcmp(name, "Billboard") == 0) return true;
     if (std::strcmp(name, "BitmapText") == 0) return true;
     if (std::strcmp(name, "BoxCollider2D") == 0) return true;
     if (std::strcmp(name, "BoxCollider3D") == 0) return true;

@@ -7,7 +7,7 @@
 import type { AssetFieldType } from '../scene/scene';
 import type { FieldMeta } from './component';
 import type { Color, Entity, Quat, Vec2, Vec3, Vec4 } from '../types';
-import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, ClearFlags, Dimension, EmitterShape, FlexDirection, FlexWrap, ForceFieldType, JustifyContent, LightType, MaskMode, Padding, ParticleCollisionFallback, ParticleCollisionMode, ParticleEasing, ParticleRenderMode, ProjectionType, ReflectionAxis, ReflectionQuality, ReflectionUpdate, ScrollMovement, ShapeType, SimulationSpace, SpringBoneShape, SpriteDrawMode, SpriteMaskInteraction, SubEmitterTrigger, TextAlign, TilemapOrientation, TilemapStaggerAxis, TilemapStaggerIndex, UIDisplay, UIFillMethod, UIFillOrigin, UIPointerEvents, UIPositionType, UIVisualFit, UIVisualType } from '../wasm/wasm.generated';
+import type { AlignContent, AlignItems, AlignSelf, BillboardMode, BodyType, CanvasScaleMode, ClearFlags, Dimension, EmitterShape, FlexDirection, FlexWrap, ForceFieldType, JustifyContent, LightType, MaskMode, Padding, ParticleCollisionFallback, ParticleCollisionMode, ParticleEasing, ParticleRenderMode, ProjectionType, ReflectionAxis, ReflectionQuality, ReflectionUpdate, ScrollMovement, ShapeType, SimulationSpace, SpringBoneShape, SpriteDrawMode, SpriteMaskInteraction, SubEmitterTrigger, TextAlign, TilemapOrientation, TilemapStaggerAxis, TilemapStaggerIndex, UIDisplay, UIFillMethod, UIFillOrigin, UIPointerEvents, UIPositionType, UIVisualFit, UIVisualType } from '../wasm/wasm.generated';
 
 /**
  * Single-source-of-truth hash of the C++/TS boundary ABI (component
@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BodyType, CanvasScaleMode, Cl
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = '790a68ffa2098d35';
+export const ABI_LAYOUT_HASH = '04cb5f0f12687160';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -103,6 +103,20 @@ export interface ComponentMetaEntry {
 }
 
 export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
+    Billboard: {
+        defaults: {
+            mode: 0,
+            enabled: true,
+        },
+        assetFields: [],
+        entityFields: [],
+        colorFields: [],
+        animatableFields: [],
+        fields: {
+            mode: { enum: [{ label: 'ViewPlane', value: 0 }, { label: 'Upright', value: 1 }], tooltip: "View plane lies flat in the view, like a particle. Upright turns about world up only, so it stays standing as the camera looks down." },
+            enabled: { tooltip: "Off: the mesh keeps the entity's own rotation." },
+        },
+    },
     BitmapText: {
         defaults: {
             text: '',
@@ -1422,6 +1436,17 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
 // C++-backed builtin component data shapes — the ES_COMPONENT struct fields,
 // generated so the TS field types cannot drift from the C++ structs. A consumer
 // adds any TS-only authoring field (e.g. Camera.showFrustum) by extending these.
+
+/**
+ * The fields of the engine's `Billboard` component, generated from
+ * the C++ struct so the two shapes cannot drift.
+ *
+ * @beta
+ */
+export interface BillboardData {
+    mode: BillboardMode;
+    enabled: boolean;
+}
 
 export interface BitmapTextData {
     text: string;

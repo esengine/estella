@@ -55,6 +55,16 @@ export enum AlignSelf {
     Stretch = 4,
 }
 
+/**
+ * The engine's `BillboardMode`, generated from the C++ enum.
+ *
+ * @beta
+ */
+export enum BillboardMode {
+    ViewPlane = 0,
+    Upright = 1,
+}
+
 export enum BodyType {
     Static = 0,
     Kinematic = 1,
@@ -456,6 +466,11 @@ export enum UIVisualType {
 }
 
 // Components
+
+export interface Billboard {
+    mode: number;
+    enabled: boolean;
+}
 
 export interface BitmapText {
     text: string;
@@ -1094,6 +1109,10 @@ export interface Registry {
     /** Host-local component ID; -1 for an unknown name. */
     componentTypeId?(name: string): number;
 
+    hasBillboard(entity: Entity): boolean;
+    getBillboard(entity: Entity): Billboard;
+    addBillboard(entity: Entity, component: Billboard): void;
+    removeBillboard(entity: Entity): void;
     hasBitmapText(entity: Entity): boolean;
     getBitmapText(entity: Entity): BitmapText;
     addBitmapText(entity: Entity, component: BitmapText): void;
@@ -1325,6 +1344,7 @@ export interface ESEngineModule {
      * the shipped SDK and the actual WASM module.
      */
     getBuiltinComponentNames(): string[];
+    Billboard: new () => Billboard;
     BitmapText: new () => BitmapText;
     BoxCollider2D: new () => BoxCollider2D;
     BoxCollider3D: new () => BoxCollider3D;

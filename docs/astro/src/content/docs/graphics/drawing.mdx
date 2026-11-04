@@ -154,6 +154,26 @@ automatically; to **mutate it at runtime**, go through the `MeshRenderers` resou
 `getGeometry` / `clearGeometry` round it out. Direct writes to the `geometry`
 field alone are not change-detected.
 
+### Cards that face the camera: `Billboard`
+
+A `Billboard` beside a MeshRenderer turns the mesh to each view that draws it: a sign, a sprite of a character in a 3D world, a
+distant tree drawn on a card, a lens glint.
+
+```typescript
+world.insert(card, MeshRenderer, { mesh: 'builtin:quad', texture: tree, lit: false });
+world.insert(card, Billboard, { mode: BillboardMode.Upright });
+```
+
+- **View plane** (the default) lies flat in the view, the way a particle does: every card in a view faces the same way.
+- **Upright** turns about world up only, so it stays standing as the camera looks down on it. It is the one for trees, signs and
+  characters, which would otherwise tip back as the camera rises.
+
+The mesh's +Z is turned toward the viewer and its +Y up, which is how `builtin:quad` stands. The rotation is worked out by each
+view as it draws, so two cameras each see the card face on, and the entity's Transform is never written: scripts, physics and the
+editor's gizmo read the rotation that was authored. A shadow map is a view too, so a card turns to the light there and casts its
+whole outline. A Billboard is not merged by [static batching](/docs/performance/static-batching/), and a set of placements
+(`MeshInstances`) is not turned.
+
 ## Custom geometry: the `Geometry` API
 
 Where `MeshRenderer` is the *component* path, `Geometry` is the *immediate* one: it

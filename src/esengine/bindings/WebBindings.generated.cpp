@@ -12,6 +12,7 @@
 #include "../ui/UITypes.hpp"
 #include "../animation/TweenData.hpp"
 #include "../ecs/TransformSystem.hpp"
+#include "../ecs/components/Billboard.hpp"
 #include "../ecs/components/BitmapText.hpp"
 #include "../ecs/components/BodyType.hpp"
 #include "../ecs/components/Camera.hpp"
@@ -121,6 +122,10 @@ EMSCRIPTEN_BINDINGS(esengine_enums) {
         .value("Center", esengine::ecs::AlignSelf::Center)
         .value("End", esengine::ecs::AlignSelf::End)
         .value("Stretch", esengine::ecs::AlignSelf::Stretch);
+
+    enum_<esengine::ecs::BillboardMode>("BillboardMode")
+        .value("ViewPlane", esengine::ecs::BillboardMode::ViewPlane)
+        .value("Upright", esengine::ecs::BillboardMode::Upright);
 
     enum_<esengine::ecs::BodyType>("BodyType")
         .value("Static", esengine::ecs::BodyType::Static)
@@ -1835,6 +1840,10 @@ EMSCRIPTEN_BINDINGS(esengine_components) {
 
     register_vector<f32>("VectorFloat");
 
+    value_object<esengine::ecs::Billboard>("Billboard")
+        .field("mode", &esengine::ecs::Billboard::mode)
+        .field("enabled", &esengine::ecs::Billboard::enabled);
+
     value_object<BitmapTextJS>("BitmapText")
         .field("text", &BitmapTextJS::text)
         .field("color", &BitmapTextJS::color)
@@ -2440,6 +2449,7 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         .function("getBuiltinComponentNames", optional_override([](Registry& r, u32 e) {
             const auto entity = static_cast<Entity>(e);
             std::string names;
+            if (r.has<esengine::ecs::Billboard>(entity)) { if (!names.empty()) names += "|"; names += "Billboard"; }
             if (r.has<esengine::ecs::BitmapText>(entity)) { if (!names.empty()) names += "|"; names += "BitmapText"; }
             if (r.has<esengine::ecs::BoxCollider2D>(entity)) { if (!names.empty()) names += "|"; names += "BoxCollider2D"; }
             if (r.has<esengine::ecs::BoxCollider3D>(entity)) { if (!names.empty()) names += "|"; names += "BoxCollider3D"; }
@@ -2497,6 +2507,7 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
         }))
 
         .function("componentTypeId", optional_override([](Registry&, const std::string& name) {
+            if (name == "Billboard") return static_cast<int>(componentTypeId<esengine::ecs::Billboard>());
             if (name == "BitmapText") return static_cast<int>(componentTypeId<esengine::ecs::BitmapText>());
             if (name == "BoxCollider2D") return static_cast<int>(componentTypeId<esengine::ecs::BoxCollider2D>());
             if (name == "BoxCollider3D") return static_cast<int>(componentTypeId<esengine::ecs::BoxCollider3D>());
@@ -2551,6 +2562,27 @@ EMSCRIPTEN_BINDINGS(esengine_registry) {
             if (name == "UIVisual") return static_cast<int>(componentTypeId<esengine::ecs::UIVisual>());
             if (name == "Velocity") return static_cast<int>(componentTypeId<esengine::ecs::Velocity>());
             return -1;
+        }))
+
+        // Billboard
+        .function("hasBillboard", optional_override([](Registry& r, u32 e) {
+            return r.has<esengine::ecs::Billboard>(static_cast<Entity>(e));
+        }))
+        .function("getBillboard", optional_override([](Registry& r, u32 e) -> esengine::ecs::Billboard& {
+            auto entity = static_cast<Entity>(e);
+            static esengine::ecs::Billboard s_dummy{};
+            if (!r.valid(entity) || !r.has<esengine::ecs::Billboard>(entity)) return s_dummy;
+            return r.get<esengine::ecs::Billboard>(entity);
+        }), allow_raw_pointers())
+        .function("addBillboard", optional_override([](Registry& r, u32 e, const esengine::ecs::Billboard& c) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity)) return;
+            r.emplaceOrReplace<esengine::ecs::Billboard>(entity, c);
+        }))
+        .function("removeBillboard", optional_override([](Registry& r, u32 e) {
+            auto entity = static_cast<Entity>(e);
+            if (!r.valid(entity) || !r.has<esengine::ecs::Billboard>(entity)) return;
+            r.remove<esengine::ecs::Billboard>(entity);
         }))
 
         // BitmapText
@@ -3776,6 +3808,7 @@ emscripten::val esengineGetBuiltinComponentNames() {
     using namespace emscripten;
     auto arr = val::array();
     size_t i = 0;
+    arr.set(i++, val(std::string("Billboard")));
     arr.set(i++, val(std::string("BitmapText")));
     arr.set(i++, val(std::string("BoxCollider2D")));
     arr.set(i++, val(std::string("BoxCollider3D")));
@@ -3843,6 +3876,8 @@ EMSCRIPTEN_BINDINGS(esengine_reflection) {
 // compiler layout matches. A failure here means the TS pointer accessors would
 // read the wrong bytes -- fix the struct or regenerate EHT. DO NOT EDIT.
 
+static_assert(offsetof(esengine::ecs::Billboard, mode) == 0, "ABI offset drift: esengine::ecs::Billboard.mode (EHT expected 0)");
+static_assert(offsetof(esengine::ecs::Billboard, enabled) == 4, "ABI offset drift: esengine::ecs::Billboard.enabled (EHT expected 4)");
 static_assert(offsetof(esengine::ecs::BitmapText, color) == 12, "ABI offset drift: esengine::ecs::BitmapText.color (EHT expected 12)");
 static_assert(offsetof(esengine::ecs::BitmapText, fontSize) == 28, "ABI offset drift: esengine::ecs::BitmapText.fontSize (EHT expected 28)");
 static_assert(offsetof(esengine::ecs::BitmapText, align) == 32, "ABI offset drift: esengine::ecs::BitmapText.align (EHT expected 32)");
@@ -4301,7 +4336,7 @@ static_assert(offsetof(esengine::ecs::Velocity, angular) == 12, "ABI offset drif
 // ABI Hash -- runtime handshake against the SDK bundle
 // =============================================================================
 
-static const char* kEsAbiLayoutHash = "790a68ffa2098d35";
+static const char* kEsAbiLayoutHash = "04cb5f0f12687160";
 
 std::string esengineGetAbiLayoutHash() {
     return std::string(kEsAbiLayoutHash);

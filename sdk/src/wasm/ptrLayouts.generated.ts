@@ -27,6 +27,13 @@ export interface PtrLayout {
 }
 
 export const PTR_LAYOUTS: Record<string, PtrLayout> = {
+    Billboard: {
+        ptrFn: 'getBillboardPtr',
+        fields: [
+            { name: 'mode', type: 'i32', offset: 0 },
+            { name: 'enabled', type: 'bool', offset: 4 },
+        ],
+    },
     BitmapText: {
         ptrFn: 'getBitmapTextPtr',
         fields: [

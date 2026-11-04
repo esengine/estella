@@ -260,6 +260,28 @@
       ]
     },
     {
+      "name": "Billboard",
+      "source": "cpp",
+      "fields": [
+        {
+          "key": "mode",
+          "type": "enum",
+          "default": "ViewPlane",
+          "doc": "View plane lies flat in the view, like a particle. Upright turns about world up only, so it stays standing as the camera looks down.",
+          "values": [
+            "ViewPlane",
+            "Upright"
+          ]
+        },
+        {
+          "key": "enabled",
+          "type": "boolean",
+          "default": "true",
+          "doc": "Off: the mesh keeps the entity's own rotation."
+        }
+      ]
+    },
+    {
       "name": "BitmapText",
       "source": "cpp",
       "fields": [
@@ -6434,7 +6456,8 @@
             "Not merged: alone in its group",
             "Not merged: no mesh",
             "Not merged: vertex layout",
-            "Not merged: disabled"
+            "Not merged: disabled",
+            "Not merged: billboard"
           ],
           "readonly": true
         },

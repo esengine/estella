@@ -19,7 +19,7 @@ import type {
     SortingGroupData, GroupOpacityData, SpriteMaskData, LightProbeVolumeData, OccluderData,
     ReflectionProbeData, PlanarReflectionData,
     CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData, DragonBonesAnimationData,
-    TilemapLayerData, BitmapTextData, TrailRendererData, ParticleForceFieldData, SpringBoneData, SpringBoneColliderData,
+    TilemapLayerData, BitmapTextData, TrailRendererData, ParticleForceFieldData, SpringBoneData, SpringBoneColliderData, BillboardData,
     CameraData as CameraDataCpp, ParticleEmitterData as ParticleEmitterDataCpp,
     MeshRendererData as MeshRendererDataCpp,
 } from './component.generated';
@@ -28,7 +28,7 @@ import type {
 // C++ enum and the editor dropdowns derive from the same values. ScaleMode's
 // canonical values come from CanvasScaleMode (only its Cocos-compat aliases
 // ShowAll/NoBorder are TS-side).
-import { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, SubEmitterTrigger, ForceFieldType, LightType, CanvasScaleMode, ShapeType, ParticleEasing, ParticleCollisionMode, ParticleCollisionFallback, ParticleRenderMode, ReflectionAxis, ReflectionQuality, ReflectionUpdate, SpriteMaskInteraction, SpriteDrawMode } from '../wasm/wasm.generated';
+import { ProjectionType, ClearFlags, EmitterShape, SimulationSpace, SubEmitterTrigger, ForceFieldType, LightType, CanvasScaleMode, ShapeType, ParticleEasing, ParticleCollisionMode, ParticleCollisionFallback, ParticleRenderMode, ReflectionAxis, ReflectionQuality, ReflectionUpdate, SpriteMaskInteraction, SpriteDrawMode, BillboardMode } from '../wasm/wasm.generated';
 import { BlendMode } from '../render/blend';
 import { getDefaultContext } from './context';
 import type {
@@ -846,7 +846,7 @@ export type {
     SortingGroupData, GroupOpacityData, SpriteMaskData, LightProbeVolumeData, OccluderData,
     ReflectionProbeData, PlanarReflectionData,
     CanvasData, VelocityData, ParentData, ChildrenData, SpineAnimationData, DragonBonesAnimationData,
-    TilemapLayerData, BitmapTextData, TrailRendererData, ParticleForceFieldData, SpringBoneData, SpringBoneColliderData,
+    TilemapLayerData, BitmapTextData, TrailRendererData, ParticleForceFieldData, SpringBoneData, SpringBoneColliderData, BillboardData,
 };
 
 export type LocalTransformData = TransformData;
@@ -1151,6 +1151,11 @@ export const SpringBoneCollider = defineBuiltin<SpringBoneColliderData>('SpringB
     metaDefaults<SpringBoneColliderData>('SpringBoneCollider')
 );
 
+// A card that faces the camera. The renderer turns the MeshRenderer beside it to each view as the view collects it; the Transform is not written.
+export const Billboard = defineBuiltin<BillboardData>('Billboard',
+    metaDefaults<BillboardData>('Billboard')
+);
+
 // Particle force field. A scene-placed zone (wind, attractor, vortex, drag) that the
 // C++ ParticleSystem folds into every nearby world-space particle's integration.
 export const ParticleForceField = defineBuiltin<ParticleForceFieldData>('ParticleForceField',
@@ -1203,7 +1208,7 @@ export const TilemapLayer = defineBuiltin<TilemapLayerData>('TilemapLayer',
 // EmitterShape, SimulationSpace and ParticleEasing are re-exported from the
 // generated module (see the import at the top) — single-sourced from their C++
 // ES_ENUMs beside the component fields that serialize them.
-export { ParticleEasing, ParticleCollisionMode, ParticleCollisionFallback, ParticleRenderMode, ReflectionAxis, ReflectionQuality, ReflectionUpdate };
+export { ParticleEasing, ParticleCollisionMode, ParticleCollisionFallback, ParticleRenderMode, ReflectionAxis, ReflectionQuality, ReflectionUpdate, BillboardMode };
 
 // =============================================================================
 // ParticleEmitter Component

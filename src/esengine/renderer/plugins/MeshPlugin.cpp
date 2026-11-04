@@ -12,6 +12,8 @@
 #include "../../ecs/components/Transform.hpp"
 #include "../../ecs/components/MeshRenderer.hpp"
 #include "../../ecs/components/LODGroup.hpp"
+#include "../../ecs/components/Billboard.hpp"
+#include "../draw/BillboardFacing.hpp"
 #include "../../resource/Mesh.hpp"
 #include "../../resource/ShaderParser.hpp"
 #include "../../core/Log.hpp"
@@ -704,7 +706,12 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         const glm::vec3 position = shadowDepth
             ? rebased(transform.worldPosition)
             : parallaxedWorldPosition(transform, mesh.parallax, collect_ctx.camera);
-        const auto& rotation = transform.worldRotation;
+        // A card turns to THIS view, whichever it is: the Transform keeps what was authored. Placements are each turned by their own
+        // record, so a set of them is left as it stands.
+        const ecs::Billboard* card = registry.tryGet<ecs::Billboard>(entity);
+        const glm::quat rotation = card && card->enabled && !registry.tryGet<ecs::MeshInstances>(entity)
+            ? billboard::facing(card->mode, ctx.view_projection, collect_ctx.camera.eye, position)
+            : transform.worldRotation;
         const auto& scale = transform.worldScale;
         tick(0);
 
