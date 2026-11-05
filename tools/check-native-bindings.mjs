@@ -47,6 +47,7 @@ if (failed) {
 const out = mkdtempSync(path.join(tmpdir(), 'estella-nfb-'));
 const generated = path.join(out, 'NativeFunctionBindings.generated.cpp');
 const renames = path.join(out, 'PhysX3DRename.generated.hpp');
+const physxWrappers = path.join(out, 'PhysX3DFunctionBindings.generated.cpp');
 // `python` is not a command macOS ships; `python3` is. Asking the same resolver
 // the build asks is why this gate can run on a developer's machine at all — it
 // was CI-only on the belief that it could not.
@@ -64,6 +65,7 @@ try {
         '--native-functions-output', generated,
         '--native-shim', 'esn_shim.hpp',
         '--native-functions-alias', PHYSX_ALIAS,
+        '--native-functions-alias-output', physxWrappers,
         '--native-functions-alias-header', renames,
     ], { cwd: ROOT, stdio: 'pipe' });
 } catch (e) {
@@ -86,7 +88,10 @@ for (const inc of includes) {
 //    wrapper has its physx3d_* twin, and every declared name is renamed (one left
 //    out would collide with Jolt's symbol in the host link).
 const joltWrapped = new Set([...text.matchAll(/setFunction\(global, "es_physics3d_(\w+)"/g)].map((m) => m[1]));
-const physxWrapped = new Set([...text.matchAll(/setFunction\(global, "es_physx3d_(\w+)"/g)].map((m) => m[1]));
+const physxText = readFileSync(physxWrappers, 'utf8');
+if (/es_physx3d_/.test(text)) fail('physx3d_* wrappers leaked into the host TU — they belong in their own (PhysX3DFunctionBindings)');
+if (!/^void esn_register_functions_physx3d\(esjs::Val global\)/m.test(physxText)) fail('the PhysX TU has no esn_register_functions_physx3d');
+const physxWrapped = new Set([...physxText.matchAll(/setFunction\(global, "es_physx3d_(\w+)"/g)].map((m) => m[1]));
 for (const name of joltWrapped) {
     if (!physxWrapped.has(name)) fail(`physics3d_${name} has no physx3d_ twin in the generated wrappers`);
 }

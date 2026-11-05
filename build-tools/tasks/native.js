@@ -22,6 +22,7 @@ import {
 } from './nativeDeps.js';
 import {
     ANDROID_ABIS, BYTECODE_FILE, findTemplate, iosTemplateSources, templateStoreDir,
+    androidPhysXLibs, packageAbis,
 } from '../utils/nativeTemplate.js';
 import { readAppConfig, fillTemplate, iosInterfaceOrientations } from '../utils/nativeApp.js';
 import { emitIosXcodeProject } from '../utils/iosProject.js';
@@ -104,8 +105,11 @@ async function generateNativeFunctionBindings(rootDir, genDir, python) {
         '--native-shim', 'esn_shim.hpp',
         // PhysX answers the same 3D physics surface as Jolt and links beside it, so
         // its copy of the surface is renamed (the header below is force-included
-        // into its TUs) and wrapped a second time from the same declarations.
+        // into its TUs) and wrapped a second time from the same declarations — in
+        // a TU of its own, linked wherever PhysX is (the host on a desktop, its own
+        // library on Android: native/CMakeLists.txt).
         '--native-functions-alias', PHYSX_ALIAS,
+        '--native-functions-alias-output', path.join(genDir, 'PhysX3DFunctionBindings.generated.cpp'),
         '--native-functions-alias-header', path.join(genDir, 'PhysX3DRename.generated.hpp'),
     ], { cwd: rootDir });
     // The TS engine surface: the CORE headers only. It is committed (the SDK compiles
@@ -781,6 +785,15 @@ async function packageAndroidApk(options) {
     if (!options.key) logger.info('Signing with the development key (sideload only — not for a store).');
 
     const assembly = { templateDir: template.dir, contentDir, app, key };
+    // PhysX rides along only for a project that picked it, as the editor's export
+    // does it (pipeline/src/export/exportGame.ts) — read from the packaged config.
+    const configFile = path.join(contentDir, 'game.config.json');
+    const packaged = existsSync(configFile) ? JSON.parse(readFileSync(configFile, 'utf8')) : {};
+    if (packaged.physics3dBackend === 'physx') {
+        const physx = androidPhysXLibs(template.dir, packageAbis(template.dir));
+        if (physx) assembly.extraLibs = physx;
+        else logger.warn('The project’s 3D solver is PhysX and this template has no PhysX library: it runs on Jolt.');
+    }
     logger.step('Assembling the APK...');
     const apk = assembleApk(assembly);
     const out = path.join(contentDir, apkFileName(app.id));

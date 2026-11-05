@@ -14,6 +14,7 @@ import { assembleApk, withExtractNativeLibs } from '../../build-tools/utils/apk.
 import { readZip } from '../../build-tools/utils/zip.js';
 import { debugSigningKey } from '../../build-tools/utils/androidKeystore.js';
 import { ANDROID_AOT_LIBRARY } from '../src/export/androidAot';
+import { ANDROID_PHYSX_LIBRARY, androidPhysXLibs } from '../../build-tools/utils/nativeTemplate.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -118,5 +119,59 @@ describe('how an APK packs its native libraries', () => {
         expect(withExtractNativeLibs(written, false)).toContain('android:extractNativeLibs="false"');
         expect(withExtractNativeLibs('<application android:label="x">', true))
             .toContain('<application android:extractNativeLibs="true" android:label="x">');
+    });
+});
+
+describe('PhysX on Android is in the package only when the project picked it', () => {
+    const fixture = () => {
+        const dir = mkdtempSync(path.join(tmpdir(), 'estella-apk-physx-'));
+        const template = path.join(dir, 'template');
+        mkdirSync(path.join(template, 'lib', 'arm64-v8a'), { recursive: true });
+        writeFileSync(path.join(template, 'lib', 'arm64-v8a', 'libestella_js_host.so'), Buffer.from('host'));
+        // Where the template keeps it: outside lib/, which every package copies.
+        mkdirSync(path.join(template, 'plugins', 'arm64-v8a'), { recursive: true });
+        writeFileSync(path.join(template, 'plugins', 'arm64-v8a', ANDROID_PHYSX_LIBRARY), Buffer.from('physx'));
+        copyFileSync(path.join(ROOT, 'native/android/host/AndroidManifest.xml.in'), path.join(template, 'AndroidManifest.xml.in'));
+        copyFileSync(path.join(ROOT, 'native/icon.png'), path.join(template, 'icon.png'));
+        const content = path.join(dir, 'content');
+        mkdirSync(content, { recursive: true });
+        writeFileSync(path.join(content, 'game.config.json'), '{}');
+        const apk = (extraLibs?: Record<string, string[]>) => new Map(readZip(assembleApk({
+            templateDir: template, contentDir: content,
+            app: { id: 'com.example.physx', name: 'PhysX', version: '1.0', versionCode: 1 } as never,
+            key: debugSigningKey(), ...(extraLibs ? { extraLibs } : {}),
+        })).map((e) => [e.name, e.data]));
+        return { dir, template, apk };
+    };
+
+    it('leaves it out of the package of a Jolt project', () => {
+        const { dir, apk } = fixture();
+        try {
+            expect([...apk().keys()].filter((n) => n.includes(ANDROID_PHYSX_LIBRARY))).toEqual([]);
+        } finally {
+            rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+        }
+    });
+
+    it('puts it in lib/<abi>/ for a PhysX project, where the host dlopens it by name', () => {
+        const { dir, template, apk } = fixture();
+        try {
+            const libs = androidPhysXLibs(template, ['arm64-v8a', 'x86_64']);
+            // Only the ABIs the template built it for.
+            expect(Object.keys(libs ?? {})).toEqual(['arm64-v8a']);
+            expect(apk(libs!).get(`lib/arm64-v8a/${ANDROID_PHYSX_LIBRARY}`)?.toString()).toBe('physx');
+            expect([...apk(libs!).keys()].some((n) => n.startsWith('plugins/'))).toBe(false);
+        } finally {
+            rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+        }
+    });
+
+    it('answers null for a template built without PhysX, so the export can say so', () => {
+        const dir = mkdtempSync(path.join(tmpdir(), 'estella-apk-nophysx-'));
+        try {
+            expect(androidPhysXLibs(dir, ['arm64-v8a'])).toBeNull();
+        } finally {
+            rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+        }
     });
 });

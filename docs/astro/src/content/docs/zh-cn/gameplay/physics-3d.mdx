@@ -49,9 +49,10 @@ PhysX 按 Unity 的默认值设置：投影高斯-赛德尔求解、patch 摩擦
 
 代价：PhysX 的 Web 模块 3.5 MB（gzip 1.14 MB），Jolt 是 1.3 MB；只有选了它的项目才加载。
 混沌的场景（比如球擦过铰链门的边缘）在两个求解器上的结果会不同，任何两个引擎之间都会这样。
-Windows、Linux 和 Android 的原生包把两个求解器都编进应用，运行项目选的那个，
-所以原生游戏和它的 Web 版用的是同一个求解器。带上 PhysX 会让每个原生应用都变大，不管它用哪个求解器：
-Windows 可执行文件大约多 4 MB，Android 下载包大约多 2 MB（每个 ABI 安装后多 4.7 MB）。
+Windows、Linux 和 Android 的原生包运行项目选的那个求解器，所以原生游戏和它的 Web 版用的是同一个求解器。
+桌面应用把两个求解器都编进去，每个 Windows 可执行文件大约多 4 MB。Android 包把 PhysX 作为单独的库
+`libestella_physx.so`，只有选了 PhysX 的项目才带：下载包大约多 2 MB（每个 ABI 安装后多 4.9 MB），
+用 Jolt 的项目不增加任何体积。
 macOS 和 iOS 包目前只编进了 Jolt，选了 PhysX 的项目在这两个平台上运行 Jolt，启动时会记一条日志说明。
 
 ## 刚体

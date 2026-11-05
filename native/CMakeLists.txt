@@ -335,8 +335,15 @@ if(ESTELLA_QUICKJS_DIR)
         else()
             target_compile_options(estella_physics3d_physx PRIVATE -include "${PHYSX_RENAME}")
         endif()
-        # INTERFACE: what turns the es_physx3d_* wrappers on is linking this.
+        # INTERFACE: what tells a TU that links this that PhysX is in its binary.
         target_compile_definitions(estella_physics3d_physx INTERFACE ES_ENABLE_PHYSX)
+        # PhysX's es_physx3d_* wrappers, generated from the same declarations as
+        # Jolt's (build-tools/tasks/native.js, PHYSX_ALIAS) and linked wherever
+        # PhysX is: into the host on a desktop, into libestella_physx.so on Android.
+        set(PHYSX_FN_BINDINGS "${ESTELLA_NATIVE_GEN_DIR}/PhysX3DFunctionBindings.generated.cpp")
+        if(NOT EXISTS "${PHYSX_FN_BINDINGS}")
+            message(FATAL_ERROR "Missing ${PHYSX_FN_BINDINGS} — generate it via `cli native`.")
+        endif()
     endif()
 
     # QuickJS-ng interpreter — core is just these four C files.
@@ -513,6 +520,10 @@ if(ESTELLA_QUICKJS_DIR)
         target_link_libraries(estella_js_host esengine estella_physics estella_physics3d
             estella_video estella_spine estella_dragonbones esjs_engine SDL3::SDL3)
         if(TARGET estella_physics3d_physx)
+            # Linked in: a desktop app's size is not a download a player waits on
+            # the way a phone's is, and an executable cannot be linked against
+            # by a library the way the Android host is below.
+            target_sources(estella_js_host PRIVATE "${PHYSX_FN_BINDINGS}")
             target_link_libraries(estella_js_host estella_physics3d_physx)
         endif()
         if(ESTELLA_V8_RUNTIME)
@@ -566,7 +577,18 @@ if(ESTELLA_QUICKJS_DIR)
             estella_video estella_spine
             estella_dragonbones esjs_engine native_app_glue android log)
         if(TARGET estella_physics3d_physx)
-            target_link_libraries(estella_js_host estella_physics3d_physx)
+            # A library of its own, so a package carries it only when its project
+            # picked PhysX (4.9 MB per ABI): the template keeps it under plugins/,
+            # the export copies it into lib/<abi>/, and the host dlopens it by name
+            # (host/Runtime.cpp). It links against the host for the engine surface
+            # and the heap its wrappers marshal through.
+            add_library(estella_physx SHARED "${PHYSX_FN_BINDINGS}" host/plugins/physx_plugin.cpp)
+            target_link_libraries(estella_physx PRIVATE estella_physics3d_physx estella_js_host)
+            target_include_directories(estella_physx PRIVATE
+                "${CMAKE_CURRENT_SOURCE_DIR}/host" "${ESTELLA_NATIVE_GEN_DIR}"
+                $<TARGET_PROPERTY:esengine,INTERFACE_INCLUDE_DIRECTORIES>)
+            target_compile_definitions(estella_physx PRIVATE
+                $<TARGET_PROPERTY:esengine,INTERFACE_COMPILE_DEFINITIONS>)
         endif()
         set_target_properties(estella_js_host PROPERTIES LINK_FLAGS "-u ANativeActivity_onCreate")
         if(ESJS_ENGINE STREQUAL "v8")

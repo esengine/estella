@@ -48,6 +48,14 @@ def _emit_native_functions(args) -> int:
         print(f"[FAIL] --native-functions-alias: {err}")
         return 1
     gen = NativeFunctionsGenerator(headers, shim_header=args.native_shim, aliases=aliases)
+    if aliases and args.native_functions_alias_output is None:
+        print("[FAIL] --native-functions-alias needs --native-functions-alias-output "
+              "(the aliased wrappers are a TU of their own)")
+        return 1
+    if args.native_functions_alias_output is not None:
+        args.native_functions_alias_output.parent.mkdir(parents=True, exist_ok=True)
+        print(f"Generating: {args.native_functions_alias_output}")
+        _write_lf(args.native_functions_alias_output, gen.generate_aliases())
     if args.native_functions_alias_header is not None:
         args.native_functions_alias_header.parent.mkdir(parents=True, exist_ok=True)
         print(f"Generating: {args.native_functions_alias_header}")
@@ -136,6 +144,8 @@ def main() -> int:
     # behind GATE, and the alias header renames that implementation's symbols.
     parser.add_argument('--native-functions-alias', type=str, action='append', default=None,
                         help='Also wrap <src>* entry points as <dst>* behind GATE: <src>=<dst>:<GATE>')
+    parser.add_argument('--native-functions-alias-output', type=Path, default=None,
+                        help='Where to write the aliased wrappers and their registration (.cpp)')
     parser.add_argument('--native-functions-alias-header', type=Path, default=None,
                         help='Write the #define rename header for the aliases (.hpp)')
     args = parser.parse_args()

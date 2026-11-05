@@ -70,7 +70,7 @@ import { orientationCss, orientationOverlayHtml, orientationLockScript, orientat
 import { PAGE_BACKGROUND, splashCss, splashHtml, type SplashLook } from './splash';
 import { emitIosXcodeProject, type IosProjectSources } from '../../../build-tools/utils/iosProject.js';
 import { emitAndroidGradleProject } from '../../../build-tools/utils/gradleProject.js';
-import { androidTemplateSources, packageAbis } from '../../../build-tools/utils/nativeTemplate.js';
+import { androidPhysXLibs, androidTemplateSources, packageAbis } from '../../../build-tools/utils/nativeTemplate.js';
 import { assembleApk, apkFileName } from '../../../build-tools/utils/apk.js';
 import { ANDROID_AOT_LIBRARY, androidAotCompilers } from './androidAot';
 import { assembleAab, aabFileName } from '../../../build-tools/utils/aab.js';
@@ -1372,6 +1372,19 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
     if (platform === 'android') {
       const template = opts.androidTemplate ?? null;
       const wantsProject = opts.androidOutput === 'project';
+      // PhysX is the host's optional library: in this package only when the project
+      // picked it, beside the compiled systems in lib/<abi>/ (the host dlopens it).
+      let extraLibs = androidAotLibs;
+      if (template && opts.features?.physics?.backend3d === 'physx') {
+        const physx = androidPhysXLibs(template, packageAbis(template, { emulator: opts.androidEmulatorAbi === true }));
+        if (physx) {
+          extraLibs = { ...(extraLibs ?? {}) };
+          for (const [abi, files] of Object.entries(physx)) extraLibs[abi] = [...(extraLibs[abi] ?? []), ...files];
+        } else {
+          warnings.push('This project’s 3D solver is PhysX, and the installed Android runtime template carries no '
+            + 'PhysX library: the app runs on Jolt. Install a template built with PhysX, then export again.');
+        }
+      }
       if (!template) {
         warnings.push(`No Android runtime template is installed for this editor version, so no ${
           wantsProject ? 'project was written' : 'APK was assembled'} — the content is here. `
@@ -1379,7 +1392,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
       } else if (wantsProject) {
         progress({ phase: 'Writing Android Studio project' });
         androidProject = await emitAndroidGradleProject(
-          absOut, appConfig, { ...androidTemplateSources(template), ...(androidAotLibs ? { extraLibs: androidAotLibs } : {}) }, icon);
+          absOut, appConfig, { ...androidTemplateSources(template), ...(extraLibs ? { extraLibs } : {}) }, icon);
       } else {
         progress({ phase: 'Assembling the APK' });
         const release = opts.minify && opts.androidKey
@@ -1393,7 +1406,7 @@ async function produceExport(opts: ExportGameOptions): Promise<ExportGameResult>
           templateDir: template, contentDir: absOut, app: appConfig, key, icon,
           emulatorAbi: opts.androidEmulatorAbi === true,
           compressNativeLibs: opts.androidCompressNativeLibs !== false,
-          ...(androidAotLibs ? { extraLibs: androidAotLibs } : {}),
+          ...(extraLibs ? { extraLibs } : {}),
         };
         apkFile = path.join(absOut, apkFileName(appConfig.id));
         await writeFile(apkFile, assembleApk(assembly));

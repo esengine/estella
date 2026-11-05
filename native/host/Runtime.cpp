@@ -28,6 +28,10 @@
 #include "esengine_bundle.h"     // the real SDK, bundled: installs globalThis.ESEngine
 #include "host_bootstrap.h"      // bootstrap.js, embedded
 
+#if defined(__ANDROID__) && !defined(ES_ENABLE_PHYSX)
+#include <dlfcn.h>
+#endif
+
 #include <chrono>
 #include <cstdarg>
 #include <cstdio>
@@ -35,6 +39,12 @@
 #include <ctime>
 
 using namespace esengine;
+
+// PhysX's copy of the 3D physics surface (es_physx3d_*), generated beside the
+// host's own wrappers. Where PhysX is linked into this binary (a desktop host) it
+// is registered directly; an Android host ships it as libestella_physx.so, which
+// only a PhysX project's package carries (see loadPhysXLibrary).
+void esn_register_functions_physx3d(esjs::Val global);
 
 namespace eshost {
 
@@ -100,6 +110,31 @@ void readByteSource(esjs::Val v, std::vector<u8>& out) {
 // =============================================================================
 
 namespace {
+
+#if defined(__ANDROID__) && !defined(ES_ENABLE_PHYSX)
+/**
+ * PhysX, on Android, is a library of its own: 4.9 MB per ABI that a project on
+ * Jolt should not download. The export packs libestella_physx.so into lib/<abi>/
+ * only for a project whose 3D solver is PhysX, and the app's linker namespace
+ * finds it there by its bare name. It links against this host for the engine
+ * surface and the heap, and registers its es_physx3d_* wrappers when called.
+ *
+ * Absent is the normal case, not an error: the SDK then answers a PhysX project
+ * with Jolt and says so (sdk/src/ecs/bridge/nativeSideModules.ts).
+ */
+void loadPhysXLibrary(esjs::Val global) {
+    void* lib = dlopen("libestella_physx.so", RTLD_NOW | RTLD_LOCAL);
+    if (lib == nullptr) return;
+    using Register = void (*)(esjs::Val*);
+    auto reg = reinterpret_cast<Register>(dlsym(lib, "estella_physx_register"));
+    if (reg == nullptr) {
+        ESHOST_LOGE("libestella_physx.so has no estella_physx_register: %s", dlerror());
+        return;
+    }
+    reg(&global);
+    ESHOST_LOGI("PhysX loaded (libestella_physx.so)");
+}
+#endif
 
 esjs::Val consoleWrite(const esjs::Args& a, bool error) {
     std::string line;
@@ -368,6 +403,11 @@ void initRuntime(HostState& h) {
     // from, so the SDK reaches the engine by the same names on either platform.
     esn_register(global);
     esn_register_functions(global);
+#if defined(ES_ENABLE_PHYSX)
+    esn_register_functions_physx3d(global);
+#elif defined(__ANDROID__)
+    loadPhysXLibrary(global);
+#endif
 
     // Layer 1: the real SDK bundle, embedded — installs `ESEngine`.
     const double tCtx = nowMs();

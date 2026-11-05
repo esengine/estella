@@ -59,6 +59,30 @@ export const V8_WINDOWS_RUNTIME = [
 /** The V8 an Android V8 host links, one per ABI beside the host library. */
 export const V8_ANDROID_LIBRARY = 'libv8android.so';
 
+/**
+ * PhysX, as the Android host's optional library (native/CMakeLists.txt). The
+ * template keeps it under `plugins/<abi>/`, outside the `lib/` every package
+ * copies, so a package carries it only when its project's 3D solver is PhysX
+ * ({@link androidPhysXLibs}); the host dlopens it by name when it is there.
+ */
+export const ANDROID_PHYSX_LIBRARY = 'libestella_physx.so';
+
+/**
+ * PhysX's library for each of `abis`, for a package's `lib/<abi>/` — or null when
+ * the template carries none (a host built with -DESTELLA_PHYSX=OFF), in which case
+ * a PhysX project runs on Jolt and its log says so.
+ *
+ * @param {string} dir  An installed android template.
+ * @param {string[]} abis  The ABIs the package carries.
+ * @returns {Record<string, string[]> | null}
+ */
+export function androidPhysXLibs(dir, abis) {
+    const found = abis
+        .map((abi) => [abi, path.join(dir, 'plugins', abi, ANDROID_PHYSX_LIBRARY)])
+        .filter(([, file]) => existsSync(file));
+    return found.length === 0 ? null : Object.fromEntries(found.map(([abi, file]) => [abi, [file]]));
+}
+
 /** Where an Android V8 host reads its startup snapshot from, inside the package's
  *  assets — the name native/CMakeLists.txt compiles in as ESJS_V8_SNAPSHOT_ASSET. */
 export function v8SnapshotAsset(abi) {
@@ -256,6 +280,12 @@ export function templateLayout(platform, options = {}) {
                 // it is optional: the host it belongs to cannot load without it.
                 rel: `lib/${abi}/${V8_ANDROID_LIBRARY}`, strip: true, abi, optional: true,
                 from: (ctx) => path.join(ctx.root, 'build/cmake/native', abi, V8_ANDROID_LIBRARY),
+            },
+            {
+                // PhysX, the optional 3D solver: outside lib/ so that only a
+                // package whose project picked it carries it (androidPhysXLibs).
+                rel: `plugins/${abi}/${ANDROID_PHYSX_LIBRARY}`, strip: true, abi, optional: true,
+                from: (ctx) => path.join(ctx.root, 'build/cmake/native', abi, ANDROID_PHYSX_LIBRARY),
             },
             {
                 // Its startup snapshot, which this V8 keeps outside the library. An

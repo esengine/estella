@@ -129,6 +129,10 @@ export function releaseAssetBases(engineVersion: string, env?: NodeJS.ProcessEnv
 export function parseTemplateIndex(doc: unknown, engineVersion?: string): PublishedTemplate[] | null;
 export const DEFAULT_ICON: string;
 /** The pieces an exported Android Studio project is assembled from. */
+/** PhysX's optional Android library, kept under plugins/<abi>/ in a template. */
+export const ANDROID_PHYSX_LIBRARY: string;
+/** PhysX's library per packaged ABI, for lib/<abi>/; null when the template has none. */
+export function androidPhysXLibs(dir: string, abis: string[]): Record<string, string[]> | null;
 export function androidTemplateSources(dir: string): {
     /** The engine's shared libraries, one directory per ABI. */
     libs: string;

@@ -62,11 +62,12 @@ What it costs: the PhysX web module is 3.5 MB (1.14 MB gzipped), against Jolt's
 glancing off the edge of a hinged door) ends differently on the two solvers, as
 it would between any two engines.
 
-Native builds for Windows, Linux and Android compile both solvers into
-the app and run the one the project chose, so a native game and its web build use
-the same solver. Carrying PhysX makes every native app larger whichever solver it
-uses: 4 MB on the Windows executable, and 2 MB of an Android download (4.7 MB
-installed, per ABI). macOS and iOS builds include only Jolt for now. A PhysX
+Native builds for Windows, Linux and Android run the solver the project chose,
+so a native game and its web build use the same solver. Desktop apps compile both
+solvers in, which adds 4 MB to every Windows executable. An Android package
+carries PhysX as a library of its own, `libestella_physx.so`, only when the project
+chose PhysX: that adds about 2 MB to the download (4.9 MB installed, per ABI), and a
+Jolt project pays nothing. macOS and iOS builds include only Jolt for now. A PhysX
 project there runs on Jolt and logs that once at startup.
 
 ## Bodies
