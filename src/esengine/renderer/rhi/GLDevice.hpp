@@ -274,11 +274,13 @@ private:
     i16 current_depth_bias_ = 0;
     i8 depth_equal_ = -1;  ///< -1: unknown. 1 when the depth test passes on equal depth too.
     i8 alpha_to_coverage_ = -1;  ///< -1: unknown, so the next pipeline sets it.
-    /// The framebuffer being drawn into carries a second colour attachment, and which of the two draw
-    /// buffer sets is live: 0 = colour only, 1 = both, -1 = not yet said for this pass.
+    /// The framebuffer being drawn into carries a second colour attachment (and a third, the albedo, beside
+    /// it), and which draw buffer set is live: 0 = colour only, 1 = colour and surface, 2 = all three,
+    /// -1 = not yet said for this pass.
     bool current_fbo_has_gbuffer_ = false;
+    bool current_fbo_has_albedo_ = false;
     i8 draw_buffers_ = -1;
-    void applyDrawBuffers(bool gbuffer);
+    void applyDrawBuffers(bool gbuffer, bool albedo);
     /// OES_draw_buffers_indexed: 1 enabled, 0 absent (asked once at init).
     i8 indexed_blend_ = 0;
     /// Blending is off on the second draw buffer while the first blends (a composing draw writing the surface record).
@@ -329,6 +331,7 @@ private:
         u32 height = 0;
         bool depth = false;
         bool gbuffer = false;
+        bool albedo = false;
     };
     std::unordered_map<u32, ResolvePair> framebuffer_resolve_;
     /// Blit a multisampled target into the single-sample one it owns; no-op for

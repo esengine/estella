@@ -160,6 +160,8 @@ in highp vec3 v_worldXYZ;
 #ifdef ES_GBUFFER
 layout(location = 0) out vec4 fragColor;
 layout(location = 1) out vec4 fragSurface;
+// The surface's diffuse colour, for light an effect adds after this pass (bounce light): alpha 1 is "written".
+layout(location = 2) out vec4 fragAlbedo;
 
 vec2 packNormal(vec3 n) {
     n /= (abs(n.x) + abs(n.y) + abs(n.z));
@@ -306,6 +308,7 @@ void main() {
     fragColor = vec4(lit, 1.0);
 #ifdef ES_GBUFFER
     fragSurface = vec4(packNormal(N), roughness, 0.75);
+    fragAlbedo = vec4(albedo, 1.0);
 #endif
 }
 #pragma end
@@ -364,6 +367,7 @@ fn tnRead(layer : texture_2d<f32>, smp : sampler, p : vec2f, tile : f32, t : f32
 struct FragOut {
     @location(0) color : vec4f,
     @location(1) surface : vec4f,
+    @location(2) albedo : vec4f,
 };
 
 fn packNormal(n : vec3f) -> vec2f {
@@ -465,6 +469,7 @@ fn packNormal(n : vec3f) -> vec2f {
     var frag : FragOut;
     frag.color = vec4f(lit, 1.0);
     frag.surface = vec4f(packNormal(Ns), roughness, 0.75);
+    frag.albedo = vec4f(albedo, 1.0);
     return frag;
 #else
     return vec4f(lit, 1.0);
@@ -539,6 +544,8 @@ in highp vec3 v_worldXYZ;
 #ifdef ES_GBUFFER
 layout(location = 0) out vec4 fragColor;
 layout(location = 1) out vec4 fragSurface;
+// The surface's diffuse colour, for light an effect adds after this pass (bounce light): alpha 1 is "written".
+layout(location = 2) out vec4 fragAlbedo;
 
 vec2 packNormal(vec3 n) {
     n /= (abs(n.x) + abs(n.y) + abs(n.z));
@@ -723,6 +730,7 @@ void main() {
     fragColor = vec4(lit, 1.0);
 #ifdef ES_GBUFFER
     fragSurface = vec4(packNormal(N), roughness, 0.75);
+    fragAlbedo = vec4(colour, 1.0);
 #endif
 }
 #pragma end
@@ -798,6 +806,7 @@ fn tnBend(slope : vec2f, T0 : vec3f, B0 : vec3f, N : vec3f) -> vec3f {
 struct FragOut {
     @location(0) color : vec4f,
     @location(1) surface : vec4f,
+    @location(2) albedo : vec4f,
 };
 
 fn packNormal(n : vec3f) -> vec2f {
@@ -938,6 +947,7 @@ fn packNormal(n : vec3f) -> vec2f {
     var frag : FragOut;
     frag.color = vec4f(lit, 1.0);
     frag.surface = vec4f(packNormal(N), roughness, 0.75);
+    frag.albedo = vec4f(colour, 1.0);
     return frag;
 #else
     return vec4f(lit, 1.0);

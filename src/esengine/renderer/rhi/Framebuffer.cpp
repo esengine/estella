@@ -38,9 +38,13 @@ Framebuffer::Framebuffer(Framebuffer&& other) noexcept
       resolveColor_(other.resolveColor_),
       resolveDepth_(other.resolveDepth_),
       colorAttachment1_(other.colorAttachment1_),
-      resolveColor1_(other.resolveColor1_) {
+      resolveColor1_(other.resolveColor1_),
+      colorAttachment2_(other.colorAttachment2_),
+      resolveColor2_(other.resolveColor2_) {
     other.colorAttachment1_ = TextureHandle::Invalid;
     other.resolveColor1_ = TextureHandle::Invalid;
+    other.colorAttachment2_ = TextureHandle::Invalid;
+    other.resolveColor2_ = TextureHandle::Invalid;
     other.handle_ = FramebufferHandle::Default;
     other.colorAttachment_ = TextureHandle::Invalid;
     other.depthAttachment_ = TextureHandle::Invalid;
@@ -60,8 +64,12 @@ Framebuffer& Framebuffer::operator=(Framebuffer&& other) noexcept {
         resolveDepth_ = other.resolveDepth_;
         colorAttachment1_ = other.colorAttachment1_;
         resolveColor1_ = other.resolveColor1_;
+        colorAttachment2_ = other.colorAttachment2_;
+        resolveColor2_ = other.resolveColor2_;
         other.colorAttachment1_ = TextureHandle::Invalid;
         other.resolveColor1_ = TextureHandle::Invalid;
+        other.colorAttachment2_ = TextureHandle::Invalid;
+        other.resolveColor2_ = TextureHandle::Invalid;
         other.handle_ = FramebufferHandle::Default;
         other.colorAttachment_ = TextureHandle::Invalid;
         other.depthAttachment_ = TextureHandle::Invalid;
@@ -144,9 +152,13 @@ bool Framebuffer::initialize() {
         gDesc.minFilter = TextureFilter::Nearest;
         gDesc.magFilter = TextureFilter::Nearest;
         colorAttachment1_ = device_->createTexture(gDesc, GfxContent::transient(), nullptr);
+        // Beside it, the surface's diffuse colour: light an effect adds after the frame lit it (bounce
+        // light) is coloured by what it lands on, and the lit picture cannot say that where the frame left it dark.
+        colorAttachment2_ = device_->createTexture(gDesc, GfxContent::transient(), nullptr);
         if (samples > 1) {
             gDesc.samples = 1;
             resolveColor1_ = device_->createTexture(gDesc, GfxContent::transient(), nullptr);
+            resolveColor2_ = device_->createTexture(gDesc, GfxContent::transient(), nullptr);
         }
     }
 
@@ -183,6 +195,8 @@ bool Framebuffer::initialize() {
     fb.resolveDepthStencil = resolveDepth_;
     fb.color1 = colorAttachment1_;
     fb.resolveColor1 = resolveColor1_;
+    fb.color2 = colorAttachment2_;
+    fb.resolveColor2 = resolveColor2_;
     fb.width = spec_.width;
     fb.height = spec_.height;
     handle_ = device_->createFramebuffer(fb);
@@ -209,6 +223,14 @@ void Framebuffer::cleanup() {
     if (colorAttachment1_ != TextureHandle::Invalid) {
         device_->deleteTexture(colorAttachment1_);
         colorAttachment1_ = TextureHandle::Invalid;
+    }
+    if (resolveColor2_ != TextureHandle::Invalid) {
+        device_->deleteTexture(resolveColor2_);
+        resolveColor2_ = TextureHandle::Invalid;
+    }
+    if (colorAttachment2_ != TextureHandle::Invalid) {
+        device_->deleteTexture(colorAttachment2_);
+        colorAttachment2_ = TextureHandle::Invalid;
     }
     if (resolveDepth_ != TextureHandle::Invalid) {
         device_->deleteTexture(resolveDepth_);

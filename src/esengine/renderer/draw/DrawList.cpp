@@ -483,12 +483,14 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
         // record, written unblended where the device can say so per target.
         desc.gbuffer = gbuffer_pass_ && materials.programWritesGBuffer(cmd.shader_id)
                     && (!desc.blendEnabled || (composes && device.supportsUnblendedSurfaceTarget()));
+        desc.albedo = desc.gbuffer && materials.programWritesAlbedo(cmd.shader_id);
         if (prepass) {
             // Depth alone: the draw's depth program, unblended, no colour to either attachment. A cut-out keeps the alpha-to-coverage the colour pass draws with.
             desc.program = ShaderHandle{cmd.depth_shader_id};
             desc.blend = BlendMode::None;
             desc.blendEnabled = false;
             desc.gbuffer = false;
+            desc.albedo = false;
             desc.colorWrite = false;
         } else if (afterPrepass && takesPartInPrepass(cmd)) {
             // Its depth is already in the buffer: it lands where it is level with it, and writes nothing there again.

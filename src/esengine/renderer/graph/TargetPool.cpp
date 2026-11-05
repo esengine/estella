@@ -135,6 +135,11 @@ TextureHandle TargetPool::gbufferTextureOf(TargetHandle handle) const {
     return entry ? entry->fbo->getGBufferAttachment() : TextureHandle::Invalid;
 }
 
+TextureHandle TargetPool::albedoTextureOf(TargetHandle handle) const {
+    const Entry* entry = resolve(handle);
+    return entry ? entry->fbo->getAlbedoAttachment() : TextureHandle::Invalid;
+}
+
 void TargetPool::age() {
     for (auto& entry : entries_) {
         if (!entry.fbo || entry.inUse) continue;

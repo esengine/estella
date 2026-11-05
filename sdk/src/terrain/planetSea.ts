@@ -69,6 +69,8 @@ in highp vec3 v_worldXYZ;
 #ifdef ES_GBUFFER
 layout(location = 0) out vec4 fragColor;
 layout(location = 1) out vec4 fragSurface;
+// The surface's diffuse colour, for light an effect adds after this pass (bounce light): alpha 1 is "written".
+layout(location = 2) out vec4 fragAlbedo;
 #else
 out vec4 fragColor;
 #endif
@@ -88,6 +90,7 @@ void main() {
     fragColor = vec4(lit, u_seaOpacity);
 #ifdef ES_GBUFFER
     fragSurface = vec4(0.5, 0.5, roughness, 0.0);
+    fragAlbedo = vec4(u_seaColor.rgb, 1.0);
 #endif
 }
 #pragma end
@@ -97,6 +100,7 @@ void main() {
 struct FragOut {
     @location(0) color : vec4f,
     @location(1) surface : vec4f,
+    @location(2) albedo : vec4f,
 };
 @fragment fn fs_main(v : VSOut) -> FragOut {
 #else
@@ -120,6 +124,7 @@ struct FragOut {
     var frag : FragOut;
     frag.color = vec4f(lit, mc.u_seaOpacity);
     frag.surface = vec4f(0.5, 0.5, roughness, 0.0);
+    frag.albedo = vec4f(mc.u_seaColor.rgb, 1.0);
     return frag;
 #else
     return vec4f(lit, mc.u_seaOpacity);

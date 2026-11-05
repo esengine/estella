@@ -265,6 +265,8 @@ void main() {
         const source = `#pragma shader "PP VoxelGI Apply"
 #pragma version 300 es
 #pragma domain PostProcess
+// The scene's albedo, beside its surface record (alpha 1 where a surface wrote one); black is "none written".
+#pragma param u_sceneAlbedo texture default(black) texel(data)
 #pragma param u_intensity float default(1) range(0,4)
 #pragma param u_debug float default(0) range(0,1)
 
@@ -309,9 +311,12 @@ void main() {
         }
         if (total > 1e-4) light = acc / total;
     }
-    // What the gathered light is lit onto wears the surface's own colour (its chroma, kept below white).
+    // What the gathered light is lit onto reflects it by its own diffuse colour, which the surface wrote beside its
+    // normal. A surface that wrote none (a shader older than the attachment) has its colour guessed from the picture.
+    vec4 written = texelFetch(u_sceneAlbedo, min(t, textureSize(u_sceneAlbedo, 0) - ivec2(1)), 0);
     float lum = max(dot(src.rgb, vec3(0.2126, 0.7152, 0.0722)), 0.02);
-    vec3 albedo = mix(vec3(0.55), clamp(src.rgb / lum, vec3(0.0), vec3(1.6)) * 0.55, 0.7);
+    vec3 albedo = written.a > 0.5 ? written.rgb
+                                  : mix(vec3(0.55), clamp(src.rgb / lum, vec3(0.0), vec3(1.6)) * 0.55, 0.7);
     vec3 result = src.rgb + albedo * light * u_intensity;
     if (u_debug > 0.5) result = light * u_intensity;
     fragColor = vec4(result, src.a);

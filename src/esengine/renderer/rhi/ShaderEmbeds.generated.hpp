@@ -858,6 +858,8 @@ uniform sampler2D u_normalMap;
 layout(location = 0) out vec4 fragColor;
 layout(location = 1) out vec4 fragSurface;
 
+layout(location = 2) out vec4 fragAlbedo;
+
 vec2 packNormal(vec3 n) {
     n /= (abs(n.x) + abs(n.y) + abs(n.z));
     vec2 sgn = vec2(n.x >= 0.0 ? 1.0 : -1.0, n.y >= 0.0 ? 1.0 : -1.0);
@@ -916,6 +918,7 @@ void main() {
     fragColor = vec4(shaded, base.a);
 #ifdef ES_GBUFFER
     fragSurface = vec4(packNormal(normalize(N)), 1.0, 0.75);
+    fragAlbedo = vec4(base.rgb, 1.0);
 #endif
 #else
 #ifdef MESH_LIGHTMAP
@@ -1087,11 +1090,11 @@ fn esPrevBone(joint : u32) -> mat4x4f {
                      + v.a_weights.z * esPrevBone(v.a_joints.z) + v.a_weights.w * esPrevBone(v.a_joints.w);
         let L = prevSkin * vec4f(local, 1.0);
 #else
-        let L = vec4f(local, 1.0);
+)esshader"
+    R"esshader(        let L = vec4f(local, 1.0);
 #endif
         let before = esInstanceTint();
-)esshader"
-    R"esshader(        out.v_velCur = out.pos;
+        out.v_velCur = out.pos;
         let prev = vec4f(dot(esInstanceTexel(4), L), dot(esInstanceTexel(5), L),
                          dot(esInstanceTexel(6), L), dot(esInstanceTexel(7), L));
         out.v_velPrev = vec4f(prev.xy + before.xy * prev.w, prev.zw);
@@ -1186,6 +1189,7 @@ struct VSOut {
 struct FragOut {
     @location(0) color : vec4f,
     @location(1) surface : vec4f,
+    @location(2) albedo : vec4f,
 };
 
 fn packNormal(n : vec3f) -> vec2f {
@@ -1261,6 +1265,7 @@ fn packNormal(n : vec3f) -> vec2f {
     var frag : FragOut;
     frag.color = vec4f(shaded, base.a);
     frag.surface = vec4f(packNormal(normalize(N)), 1.0, 0.75);
+    frag.albedo = vec4f(base.rgb, 1.0);
     return frag;
 #else
     return vec4f(shaded, base.a);

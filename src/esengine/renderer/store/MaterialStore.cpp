@@ -72,10 +72,12 @@ u32 MaterialStore::meshProgram(u32 materialId, resource::ResourceManager& resour
                                bool lightmapped, bool gbuffer, bool tangents, bool tipPass) const {
     // Only for a shader that has something to write: one that never mentions the feature would
     // compile the same program twice and then be declared to write an output it does not have.
+    bool albedo = false;
     if (gbuffer) {
         const MaterialRecord* rec = find(materialId);
         const auto src = rec && rec->shaderRef.isValid() ? sources_.find(rec->shaderRef.id()) : sources_.end();
         gbuffer = src != sources_.end() && src->second.mentionsGbuffer;
+        albedo = gbuffer && src->second.writesAlbedo;
     }
     // Keyed by shader AND vertex shape: a layout may not declare an attribute its
     // shader ignores, so geometry with normals — or posed by bones — needs its own.
@@ -93,7 +95,7 @@ u32 MaterialStore::meshProgram(u32 materialId, resource::ResourceManager& resour
             if (const auto hit = bucket->second.find(shape); hit != bucket->second.end()) {
                 const Shader* shader = resources.getShader(hit->second);
                 const u32 cached = shader ? shader->getProgramId() : 0;
-                if (gbuffer && cached != 0) gbuffer_programs_.insert(cached);
+                if (gbuffer && cached != 0) markGBufferProgram(cached, albedo);
                 return cached;
             }
         }
@@ -114,7 +116,7 @@ u32 MaterialStore::meshProgram(u32 materialId, resource::ResourceManager& resour
     if (gbuffer) features.push_back("ES_GBUFFER");
     if (tipPass) features.push_back("ES_TIP_PASS");
     const u32 program = variantProgram(materialId, resources, shape, features, "resident geometry");
-    if (gbuffer && program != 0) gbuffer_programs_.insert(program);
+    if (gbuffer && program != 0) markGBufferProgram(program, albedo);
     return program;
 }
 

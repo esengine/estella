@@ -1,0 +1,611 @@
+{
+ "version": 4,
+ "name": "GiRoomBaked",
+ "entities": [
+  {
+   "id": 0,
+   "name": "Camera",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 160,
+       "z": -235
+      },
+      "rotation": {
+       "w": 0,
+       "x": 0,
+       "y": 0.9986811118055354,
+       "z": 0.05134235018831678
+      }
+     }
+    },
+    {
+     "type": "Camera",
+     "data": {
+      "projectionType": 0,
+      "fov": 62,
+      "nearPlane": 5,
+      "farPlane": 5000,
+      "isActive": true,
+      "priority": 0,
+      "clearFlags": 3
+     }
+    }
+   ]
+  },
+  {
+   "id": 10,
+   "name": "floor",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": -5,
+       "z": 0
+      },
+      "scale": {
+       "x": 4.2,
+       "y": 0.1,
+       "z": 5.2
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "color": {
+       "r": 0.85,
+       "g": 0.85,
+       "b": 0.85,
+       "a": 1
+      }
+     }
+    },
+    {
+     "type": "MeshLightmap",
+     "data": {
+      "lightmap": "@uuid:f8da09ee-644a-45a3-963e-240b1921cdf0",
+      "scaleOffset": {
+       "x": 0.1865234375,
+       "y": 0.1865234375,
+       "z": 0,
+       "w": 0
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": 11,
+   "name": "left",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 205,
+       "y": 150,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.1,
+       "y": 3,
+       "z": 5
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "color": {
+       "r": 0.8,
+       "g": 0.18,
+       "b": 0.15,
+       "a": 1
+      }
+     }
+    },
+    {
+     "type": "MeshLightmap",
+     "data": {
+      "lightmap": "@uuid:f8da09ee-644a-45a3-963e-240b1921cdf0",
+      "scaleOffset": {
+       "x": 0.1552734375,
+       "y": 0.1552734375,
+       "z": 0.1865234375,
+       "w": 0
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": 12,
+   "name": "right",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -205,
+       "y": 150,
+       "z": 0
+      },
+      "scale": {
+       "x": 0.1,
+       "y": 3,
+       "z": 5
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "color": {
+       "r": 0.18,
+       "g": 0.7,
+       "b": 0.22,
+       "a": 1
+      }
+     }
+    },
+    {
+     "type": "MeshLightmap",
+     "data": {
+      "lightmap": "@uuid:f8da09ee-644a-45a3-963e-240b1921cdf0",
+      "scaleOffset": {
+       "x": 0.1552734375,
+       "y": 0.1552734375,
+       "z": 0.341796875,
+       "w": 0
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": 13,
+   "name": "back",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 150,
+       "z": 255
+      },
+      "scale": {
+       "x": 4.2,
+       "y": 3,
+       "z": 0.1
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "color": {
+       "r": 0.85,
+       "g": 0.85,
+       "b": 0.85,
+       "a": 1
+      }
+     }
+    },
+    {
+     "type": "MeshLightmap",
+     "data": {
+      "lightmap": "@uuid:f8da09ee-644a-45a3-963e-240b1921cdf0",
+      "scaleOffset": {
+       "x": 0.142578125,
+       "y": 0.142578125,
+       "z": 0.4970703125,
+       "w": 0
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": 14,
+   "name": "front",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 150,
+       "z": -255
+      },
+      "scale": {
+       "x": 4.2,
+       "y": 3,
+       "z": 0.1
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "color": {
+       "r": 0.85,
+       "g": 0.85,
+       "b": 0.85,
+       "a": 1
+      }
+     }
+    },
+    {
+     "type": "MeshLightmap",
+     "data": {
+      "lightmap": "@uuid:f8da09ee-644a-45a3-963e-240b1921cdf0",
+      "scaleOffset": {
+       "x": 0.142578125,
+       "y": 0.142578125,
+       "z": 0.6396484375,
+       "w": 0
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": 15,
+   "name": "ceil_n",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 305,
+       "z": -130
+      },
+      "scale": {
+       "x": 4.2,
+       "y": 0.1,
+       "z": 2.6
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "color": {
+       "r": 0.85,
+       "g": 0.85,
+       "b": 0.85,
+       "a": 1
+      }
+     }
+    },
+    {
+     "type": "MeshLightmap",
+     "data": {
+      "lightmap": "@uuid:f8da09ee-644a-45a3-963e-240b1921cdf0",
+      "scaleOffset": {
+       "x": 0.1337890625,
+       "y": 0.1337890625,
+       "z": 0.7822265625,
+       "w": 0
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": 16,
+   "name": "ceil_s",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 0,
+       "y": 305,
+       "z": 190
+      },
+      "scale": {
+       "x": 4.2,
+       "y": 0.1,
+       "z": 1.4
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "color": {
+       "r": 0.85,
+       "g": 0.85,
+       "b": 0.85,
+       "a": 1
+      }
+     }
+    },
+    {
+     "type": "MeshLightmap",
+     "data": {
+      "lightmap": "@uuid:f8da09ee-644a-45a3-963e-240b1921cdf0",
+      "scaleOffset": {
+       "x": 0.099609375,
+       "y": 0.099609375,
+       "z": 0.7822265625,
+       "w": 0.1337890625
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": 17,
+   "name": "ceil_l",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": 135,
+       "y": 305,
+       "z": 60
+      },
+      "scale": {
+       "x": 1.5,
+       "y": 0.1,
+       "z": 1.2
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "color": {
+       "r": 0.85,
+       "g": 0.85,
+       "b": 0.85,
+       "a": 1
+      }
+     }
+    },
+    {
+     "type": "MeshLightmap",
+     "data": {
+      "lightmap": "@uuid:f8da09ee-644a-45a3-963e-240b1921cdf0",
+      "scaleOffset": {
+       "x": 0.056640625,
+       "y": 0.056640625,
+       "z": 0.916015625,
+       "w": 0.068359375
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": 18,
+   "name": "ceil_r",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -135,
+       "y": 305,
+       "z": 60
+      },
+      "scale": {
+       "x": 1.5,
+       "y": 0.1,
+       "z": 1.2
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "color": {
+       "r": 0.85,
+       "g": 0.85,
+       "b": 0.85,
+       "a": 1
+      }
+     }
+    },
+    {
+     "type": "MeshLightmap",
+     "data": {
+      "lightmap": "@uuid:f8da09ee-644a-45a3-963e-240b1921cdf0",
+      "scaleOffset": {
+       "x": 0.056640625,
+       "y": 0.056640625,
+       "z": 0.916015625,
+       "w": 0.125
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": 19,
+   "name": "block",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "position": {
+       "x": -90,
+       "y": 50,
+       "z": 80
+      },
+      "scale": {
+       "x": 1,
+       "y": 1,
+       "z": 1
+      }
+     }
+    },
+    {
+     "type": "MeshRenderer",
+     "data": {
+      "mesh": "builtin:cube",
+      "lit": true,
+      "opaque": true,
+      "cullBackfaces": true,
+      "color": {
+       "r": 0.85,
+       "g": 0.85,
+       "b": 0.85,
+       "a": 1
+      }
+     }
+    },
+    {
+     "type": "MeshLightmap",
+     "data": {
+      "lightmap": "@uuid:f8da09ee-644a-45a3-963e-240b1921cdf0",
+      "scaleOffset": {
+       "x": 0.068359375,
+       "y": 0.068359375,
+       "z": 0.916015625,
+       "w": 0
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": 5,
+   "name": "Sun",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "Transform",
+     "data": {
+      "rotation": {
+       "w": 0.5692033680809173,
+       "x": -0.814457456297922,
+       "y": -0.1125458912891015,
+       "z": 0
+      }
+     }
+    },
+    {
+     "type": "Light",
+     "data": {
+      "type": 1,
+      "color": {
+       "r": 1,
+       "g": 1,
+       "b": 1,
+       "a": 1
+      },
+      "intensity": 1,
+      "enabled": true,
+      "meshShadows": true,
+      "shadowExtent": 0,
+      "shadowStrength": 1,
+      "sourceAngle": 0
+     }
+    }
+   ]
+  },
+  {
+   "id": 6,
+   "name": "Lighting",
+   "parent": null,
+   "children": [],
+   "visible": true,
+   "components": [
+    {
+     "type": "BakedLighting",
+     "data": {
+      "atlasSize": 1024,
+      "texelsPerUnit": 0.2,
+      "bounces": 8,
+      "samples": 256,
+      "probeSamples": 128,
+      "bakedFrom": "afd4bbd19b80cded"
+     }
+    }
+   ]
+  }
+ ]
+}

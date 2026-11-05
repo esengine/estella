@@ -282,6 +282,8 @@ public:
 
     /** Its second colour attachment, for a resource declared with one. Invalid otherwise. */
     TextureHandle gbufferTextureOf(ResourceId id) const;
+    /// The third attachment of a gbuffer target: the surface's diffuse colour (alpha 1 where one was written).
+    TextureHandle albedoTextureOf(ResourceId id) const;
 
     /** Drops every pooled target. For shutdown and for device loss, after which
      *  the handles the pool holds name nothing. */

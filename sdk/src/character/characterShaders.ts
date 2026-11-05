@@ -79,6 +79,8 @@ uniform sampler2D u_textures[1];
 #ifdef ES_GBUFFER
 layout(location = 0) out vec4 fragColor;
 layout(location = 1) out vec4 fragSurface;
+// The surface's diffuse colour, for light an effect adds after this pass (bounce light): alpha 1 is "written".
+layout(location = 2) out vec4 fragAlbedo;
 
 vec2 packNormal(vec3 n) {
     n /= (abs(n.x) + abs(n.y) + abs(n.z));
@@ -148,6 +150,7 @@ void main() {
     fragColor = vec4(lit, alpha);
 #ifdef ES_GBUFFER
     fragSurface = vec4(packNormal(normalize(N)), u_roughness, 0.75);
+    fragAlbedo = vec4(base.rgb, 1.0);
 #endif
 }
 #pragma end
@@ -157,6 +160,7 @@ void main() {
 struct FragOut {
     @location(0) color : vec4f,
     @location(1) surface : vec4f,
+    @location(2) albedo : vec4f,
 };
 
 fn packNormal(n : vec3f) -> vec2f {
@@ -241,6 +245,7 @@ fn packNormal(n : vec3f) -> vec2f {
     var frag : FragOut;
     frag.color = vec4f(lit, alpha);
     frag.surface = vec4f(packNormal(normalize(N)), mc.u_roughness, 0.75);
+    frag.albedo = vec4f(base.rgb, 1.0);
     return frag;
 #else
     return vec4f(lit, alpha);
@@ -301,6 +306,8 @@ uniform sampler2D u_textures[1];
 #ifdef ES_GBUFFER
 layout(location = 0) out vec4 fragColor;
 layout(location = 1) out vec4 fragSurface;
+// The surface's diffuse colour, for light an effect adds after this pass (bounce light): alpha 1 is "written".
+layout(location = 2) out vec4 fragAlbedo;
 
 vec2 packNormal(vec3 n) {
     n /= (abs(n.x) + abs(n.y) + abs(n.z));
@@ -371,6 +378,7 @@ void main() {
     fragColor = vec4(diffuse + spec, alpha);
 #ifdef ES_GBUFFER
     fragSurface = vec4(packNormal(normalize(N)), rough, 0.75);
+    fragAlbedo = vec4(base.rgb, 1.0);
 #endif
 }
 #pragma end
@@ -380,6 +388,7 @@ void main() {
 struct FragOut {
     @location(0) color : vec4f,
     @location(1) surface : vec4f,
+    @location(2) albedo : vec4f,
 };
 
 fn packNormal(n : vec3f) -> vec2f {
@@ -453,6 +462,7 @@ fn packNormal(n : vec3f) -> vec2f {
     var frag : FragOut;
     frag.color = vec4f(diffuse + spec, alpha);
     frag.surface = vec4f(packNormal(normalize(N)), rough, 0.75);
+    frag.albedo = vec4f(base.rgb, 1.0);
     return frag;
 #else
     return vec4f(diffuse + spec, alpha);
@@ -505,6 +515,8 @@ uniform sampler2D u_textures[1];
 #ifdef ES_GBUFFER
 layout(location = 0) out vec4 fragColor;
 layout(location = 1) out vec4 fragSurface;
+// The surface's diffuse colour, for light an effect adds after this pass (bounce light): alpha 1 is "written".
+layout(location = 2) out vec4 fragAlbedo;
 
 vec2 packNormal(vec3 n) {
     n /= (abs(n.x) + abs(n.y) + abs(n.z));
@@ -573,6 +585,7 @@ void main() {
     fragColor = vec4((diffuse + spec) * lidShade, 1.0);
 #ifdef ES_GBUFFER
     fragSurface = vec4(packNormal(normalize(Nc)), u_corneaRoughness, 0.75);
+    fragAlbedo = vec4(albedo, 1.0);
 #endif
 }
 #pragma end
@@ -582,6 +595,7 @@ void main() {
 struct FragOut {
     @location(0) color : vec4f,
     @location(1) surface : vec4f,
+    @location(2) albedo : vec4f,
 };
 
 fn packNormal(n : vec3f) -> vec2f {
@@ -657,6 +671,7 @@ fn packNormal(n : vec3f) -> vec2f {
     var frag : FragOut;
     frag.color = vec4f((diffuse + spec) * lidShade, 1.0);
     frag.surface = vec4f(packNormal(normalize(Nc)), mc.u_corneaRoughness, 0.75);
+    frag.albedo = vec4f(albedo, 1.0);
     return frag;
 #else
     return vec4f((diffuse + spec) * lidShade, 1.0);

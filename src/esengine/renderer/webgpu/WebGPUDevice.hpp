@@ -400,7 +400,7 @@ private:
     };
     /// What a pass's second colour attachment means to the pipeline drawn into it: there is none, the
     /// pipeline writes it, or the pipeline leaves it alone (its target is declared with an empty write mask).
-    enum GBufferVariant : u32 { kGBufferNone = 0, kGBufferWrites = 1, kGBufferSkips = 2, kGBufferVariantCount = 3 };
+    enum GBufferVariant : u32 { kGBufferNone = 0, kGBufferWrites = 1, kGBufferSkips = 2, kGBufferWritesAlbedo = 3, kGBufferVariantCount = 4 };
     struct PipelineRec {
         /// Lazily built per pass shape:
         /// [((ds * kColorVariantCount + color) * kSampleVariantCount + samples) * kGBufferVariantCount + gbuffer].
@@ -555,6 +555,8 @@ private:
     u32 pass_samples_ = 1;
     /// The pass draws into a second colour attachment (always RGBA8) beside the first.
     bool pass_gbuffer_ = false;
+    /// The pass also carries the third attachment, the surface's diffuse colour (FramebufferDesc::color2).
+    bool pass_albedo_ = false;
     /// The multisampled depth attachment of the pass being ended, and the
     /// single-sample texture it owes its contents to. Both 0 unless resolving.
     u32 pass_depth_msaa_ = 0;

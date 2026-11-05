@@ -456,7 +456,7 @@ u32 MeshPlugin::meshProgram(RenderFrameContext& ctx, u32 variant) {
     };
     mesh_programs_[variant] = compile(features);
     // Said to the store the draw list asks, so the pipeline of a draw on this program declares the second output.
-    if (gbuffer && mesh_programs_[variant] != 0 && ctx.materials) ctx.materials->markGBufferProgram(mesh_programs_[variant]);
+    if (gbuffer && mesh_programs_[variant] != 0 && ctx.materials) ctx.materials->markGBufferProgram(mesh_programs_[variant], /*albedo=*/true);
     return mesh_programs_[variant];
 }
 

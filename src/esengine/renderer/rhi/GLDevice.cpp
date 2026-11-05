@@ -234,7 +234,8 @@ EM_JS(void, es_gl_surface_blend, (int off), {
     var ctx = GLctx;
     var ext = ctx && (ctx.esIndexedBlend || (ctx.esIndexedBlend = ctx.getExtension('OES_draw_buffers_indexed')));
     if (!ext) return;
-    if (off) ext.disableiOES(ctx.BLEND, 1); else ext.enableiOES(ctx.BLEND, 1);
+    if (off) { ext.disableiOES(ctx.BLEND, 1); ext.disableiOES(ctx.BLEND, 2); }
+    else { ext.enableiOES(ctx.BLEND, 1); ext.enableiOES(ctx.BLEND, 2); }
 });
 #endif
 
@@ -1206,7 +1207,7 @@ void GLDevice::backendSetPipeline(u32 id, const PipelineDesc& desc) {
         alpha_to_coverage_ = static_cast<i8>(desc.alphaToCoverage);
     }
 
-    if (current_fbo_has_gbuffer_) applyDrawBuffers(desc.gbuffer);
+    if (current_fbo_has_gbuffer_) applyDrawBuffers(desc.gbuffer, desc.albedo);
     applySurfaceBlend(desc.blendEnabled && desc.gbuffer && current_fbo_has_gbuffer_);
 
     current_pipeline_id_ = id;
@@ -1519,6 +1520,7 @@ bool GLDevice::backendCreateFramebuffer(u32 id, const FramebufferDesc& desc) {
 
     if (desc.color0 != TextureHandle::Invalid) attach(GL_COLOR_ATTACHMENT0, desc.color0);
     if (desc.color1 != TextureHandle::Invalid) attach(GL_COLOR_ATTACHMENT1, desc.color1);
+    if (desc.color2 != TextureHandle::Invalid) attach(GL_COLOR_ATTACHMENT2, desc.color2);
     if (desc.depthStencil != TextureHandle::Invalid) {
         // Attach point follows the texture's pixel format (depth-only vs packed depth+stencil).
         attach(depthPoint(desc.depthStencil), desc.depthStencil);
@@ -1541,6 +1543,7 @@ bool GLDevice::backendCreateFramebuffer(u32 id, const FramebufferDesc& desc) {
         glBindFramebuffer(GL_FRAMEBUFFER, dst);
         attach(GL_COLOR_ATTACHMENT0, desc.resolveColor0);
         if (desc.resolveColor1 != TextureHandle::Invalid) attach(GL_COLOR_ATTACHMENT1, desc.resolveColor1);
+        if (desc.resolveColor2 != TextureHandle::Invalid) attach(GL_COLOR_ATTACHMENT2, desc.resolveColor2);
         if (desc.resolveDepthStencil != TextureHandle::Invalid) {
             attach(depthPoint(desc.resolveDepthStencil), desc.resolveDepthStencil);
         }
@@ -1549,7 +1552,8 @@ bool GLDevice::backendCreateFramebuffer(u32 id, const FramebufferDesc& desc) {
         if (ok) {
             framebuffer_resolve_[id] = {dst, desc.width, desc.height,
                                         desc.resolveDepthStencil != TextureHandle::Invalid,
-                                        desc.resolveColor1 != TextureHandle::Invalid};
+                                        desc.resolveColor1 != TextureHandle::Invalid,
+                                        desc.resolveColor2 != TextureHandle::Invalid};
         } else {
             glDeleteFramebuffers(1, &dst);
             ES_LOG_ERROR("GLDevice: multisample resolve target incomplete");
@@ -1575,14 +1579,21 @@ void GLDevice::resolveFramebuffer(u32 framebufferId) {
     if (r.gbuffer) {
         // Each attachment on its own: a blit copies the read buffer into every live draw buffer,
         // and the two are different surfaces.
-        const GLenum only0[2] = {GL_COLOR_ATTACHMENT0, GL_NONE};
-        const GLenum only1[2] = {GL_NONE, GL_COLOR_ATTACHMENT1};
-        glDrawBuffers(2, only0);
+        const GLsizei count = r.albedo ? 3 : 2;
+        const GLenum only0[3] = {GL_COLOR_ATTACHMENT0, GL_NONE, GL_NONE};
+        const GLenum only1[3] = {GL_NONE, GL_COLOR_ATTACHMENT1, GL_NONE};
+        const GLenum only2[3] = {GL_NONE, GL_NONE, GL_COLOR_ATTACHMENT2};
+        glDrawBuffers(count, only0);
         glBlitFramebuffer(0, 0, w, h, 0, 0, w, h, GL_COLOR_BUFFER_BIT, GL_LINEAR);
         glReadBuffer(GL_COLOR_ATTACHMENT1);
-        glDrawBuffers(2, only1);
+        glDrawBuffers(count, only1);
         // Nearest: a normal or a roughness averaged with its neighbour's is neither's.
         glBlitFramebuffer(0, 0, w, h, 0, 0, w, h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        if (r.albedo) {
+            glReadBuffer(GL_COLOR_ATTACHMENT2);
+            glDrawBuffers(count, only2);
+            glBlitFramebuffer(0, 0, w, h, 0, 0, w, h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        }
         glReadBuffer(GL_COLOR_ATTACHMENT0);
     } else {
         glBlitFramebuffer(0, 0, w, h, 0, 0, w, h, GL_COLOR_BUFFER_BIT, GL_LINEAR);
@@ -1594,10 +1605,11 @@ void GLDevice::resolveFramebuffer(u32 framebufferId) {
     }
     if (pass_discard_msaa_) {
         // Resolved, and nothing draws on it again: a tile-based GPU need not write the samples out to memory.
-        GLenum attachments[4];
+        GLenum attachments[5];
         GLsizei n = 0;
         attachments[n++] = GL_COLOR_ATTACHMENT0;
         if (r.gbuffer) attachments[n++] = GL_COLOR_ATTACHMENT1;
+        if (r.albedo) attachments[n++] = GL_COLOR_ATTACHMENT2;
         attachments[n++] = GL_DEPTH_ATTACHMENT;
         attachments[n++] = GL_STENCIL_ATTACHMENT;
         glInvalidateFramebuffer(GL_READ_FRAMEBUFFER, n, attachments);
@@ -1671,6 +1683,9 @@ void GLDevice::beginRenderPass(const RenderPassDesc& desc) {
         if (fb->color1 != TextureHandle::Invalid) {
             evictSamplerBinding(nameOf(texture_names_, static_cast<u32>(fb->color1)));
         }
+        if (fb->color2 != TextureHandle::Invalid) {
+            evictSamplerBinding(nameOf(texture_names_, static_cast<u32>(fb->color2)));
+        }
     }
     // Which draw buffers are live is the framebuffer's own state and a pipeline decides it per draw,
     // so a pass starts by saying it is not yet known — and the pipeline cache forgets, or a pipeline
@@ -1682,6 +1697,7 @@ void GLDevice::beginRenderPass(const RenderPassDesc& desc) {
         draw_buffers_ = -1;
     }
     current_fbo_has_gbuffer_ = hasGBuffer;
+    current_fbo_has_albedo_ = hasGBuffer && passTarget->color2 != TextureHandle::Invalid;
 
     if (!desc.clearColor && !desc.clearDepth && !desc.clearStencil) return;
 
@@ -1707,12 +1723,13 @@ void GLDevice::beginRenderPass(const RenderPassDesc& desc) {
     }
     // The first attachment takes the clear colour (the camera's background); the second records what a
     // surface is, and the background is not one, so it clears to zero — "nothing wrote here".
-    if (hasGBuffer && desc.clearColor) applyDrawBuffers(false);
+    if (hasGBuffer && desc.clearColor) applyDrawBuffers(false, false);
     clear(desc.clearColor, desc.clearDepth, desc.clearStencil);
     if (hasGBuffer && desc.clearColor) {
-        applyDrawBuffers(true);
+        applyDrawBuffers(true, current_fbo_has_albedo_);
         const GLfloat zero[4] = {0.0f, 0.0f, 0.0f, 0.0f};
         glClearBufferfv(GL_COLOR, 1, zero);
+        if (current_fbo_has_albedo_) glClearBufferfv(GL_COLOR, 2, zero);
     }
     if (scoped) setScissorTest(false);
 }
@@ -1725,14 +1742,17 @@ void GLDevice::applySurfaceBlend(bool off) {
     surface_blend_off_ = off;
 }
 
-void GLDevice::applyDrawBuffers(bool gbuffer) {
-    const i8 want = gbuffer ? 1 : 0;
+void GLDevice::applyDrawBuffers(bool gbuffer, bool albedo) {
+    const i8 want = !gbuffer ? 0 : (albedo && current_fbo_has_albedo_) ? 2 : 1;
     if (draw_buffers_ == want) return;
-    // The second slot is NONE for a draw that does not write it, so a shader with one output does not
-    // leave an undefined value in the surface record.
-    const GLenum both[2] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
-    const GLenum first[2] = {GL_COLOR_ATTACHMENT0, GL_NONE};
-    glDrawBuffers(2, gbuffer ? both : first);
+    // A slot is NONE for a draw that does not write it, so a shader with fewer outputs does not leave an
+    // undefined value in the surface record or the albedo.
+    const GLenum sets[3][3] = {
+        {GL_COLOR_ATTACHMENT0, GL_NONE, GL_NONE},
+        {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_NONE},
+        {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2},
+    };
+    glDrawBuffers(current_fbo_has_albedo_ ? 3 : 2, sets[want]);
     draw_buffers_ = want;
 }
 
@@ -1743,6 +1763,7 @@ void GLDevice::endRenderPass() {
     pass_discard_depth_ = false;
     current_framebuffer_ = 0;
     current_fbo_has_gbuffer_ = false;
+    current_fbo_has_albedo_ = false;
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 

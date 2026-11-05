@@ -444,6 +444,10 @@ struct FramebufferDesc {
     TextureHandle color1 = TextureHandle::Invalid;
     /// Its single-sample twin, when the target is multisampled.
     TextureHandle resolveColor1 = TextureHandle::Invalid;
+    /// A third, beside the second whenever it is there: the surface's diffuse colour, for light an effect adds
+    /// after the frame (bounce light), which must be coloured by what it lands on. See `PipelineDesc::albedo`.
+    TextureHandle color2 = TextureHandle::Invalid;
+    TextureHandle resolveColor2 = TextureHandle::Invalid;
     /// Pixel size, required only when resolving: a blit needs a rectangle and an
     /// attachment handle carries no dimensions.
     u32 width = 0;

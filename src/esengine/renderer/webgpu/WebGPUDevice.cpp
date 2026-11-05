@@ -1295,7 +1295,9 @@ WGPURenderPipeline WebGPUDevice::ensurePipeline(u32 id) {
     PipelineRec& built = pipelines_[id];
     const u32 dsVariant = dsVariantOf(pass_ds_format_);
     const PipelineDesc& desc = *described;
+    const bool writesAlbedo = pass_albedo_ && desc.gbuffer && desc.albedo;
     const u32 gbufferVariant = !pass_gbuffer_ ? kGBufferNone
+                              : writesAlbedo ? kGBufferWritesAlbedo
                               : desc.gbuffer ? kGBufferWrites : kGBufferSkips;
     const u32 variant = ((dsVariant * kColorVariantCount + colorVariantOf(pass_color_format_))
                          * kSampleVariantCount + (pass_samples_ > 1 ? kMultiSample : kSingleSample))
@@ -1339,7 +1341,7 @@ WGPURenderPipeline WebGPUDevice::ensurePipeline(u32 id) {
     blendState.color = blend.color;
     blendState.alpha = blend.alpha;
 
-    WGPUColorTargetState targets[2]{};
+    WGPUColorTargetState targets[3]{};
     targets[0].format = pass_color_format_;
     targets[0].blend = desc.blendEnabled ? &blendState : nullptr;
     targets[0].writeMask = (writesStencil(desc.stencil) || !desc.colorWrite) ? WGPUColorWriteMask_None
@@ -1351,11 +1353,15 @@ WGPURenderPipeline WebGPUDevice::ensurePipeline(u32 id) {
     targets[1].format = WGPUTextureFormat_RGBA8Unorm;
     targets[1].writeMask = (desc.gbuffer && desc.colorWrite && !writesStencil(desc.stencil)) ? WGPUColorWriteMask_All
                                                                          : WGPUColorWriteMask_None;
+    // The third, the albedo, the same way: written only by a shader that has a location-2 output.
+    targets[2].format = WGPUTextureFormat_RGBA8Unorm;
+    targets[2].writeMask = (writesAlbedo && desc.colorWrite && !writesStencil(desc.stencil)) ? WGPUColorWriteMask_All
+                                                                                         : WGPUColorWriteMask_None;
 
     WGPUFragmentState fragment{};
     fragment.module = progIt->second.fragment;
     fragment.entryPoint = sv("fs_main");
-    fragment.targetCount = pass_gbuffer_ ? 2 : 1;
+    fragment.targetCount = !pass_gbuffer_ ? 1 : pass_albedo_ ? 3 : 2;
     fragment.targets = targets;
 
     WGPURenderPipelineDescriptor pd{};
@@ -1732,7 +1738,7 @@ void WebGPUDevice::resolveDepthAttachment(u32 msaaDepth, u32 resolveDepth) {
 WGPURenderPipeline WebGPUDevice::ensureClearPipeline(bool color, bool depth, bool stencil) {
     // The sample count is part of the key for the same reason the formats are:
     // a clear pipeline is validated against the pass it runs in.
-    const u32 key = (pass_gbuffer_ ? 1u << 12 : 0u) |
+    const u32 key = (pass_gbuffer_ ? 1u << 12 : 0u) | (pass_albedo_ ? 1u << 13 : 0u) |
                     colorVariantOf(pass_color_format_) << 6 |
                     dsVariantOf(pass_ds_format_) << 4 |
                     (pass_samples_ > 1 ? 8u : 0u) |
@@ -1794,17 +1800,19 @@ struct ClearColor { value : vec4f };
     WGPUShaderModule vs = makeModule(kClearVS);
     WGPUShaderModule fs = makeModule(kClearFS);
 
-    WGPUColorTargetState clearTargets[2]{};
+    WGPUColorTargetState clearTargets[3]{};
     clearTargets[0].format = pass_color_format_;
     clearTargets[0].writeMask = color ? WGPUColorWriteMask_All : WGPUColorWriteMask_None;
     // A scoped clear is the camera's background, which a surface record has no part in.
     clearTargets[1].format = WGPUTextureFormat_RGBA8Unorm;
     clearTargets[1].writeMask = WGPUColorWriteMask_None;
+    clearTargets[2].format = WGPUTextureFormat_RGBA8Unorm;
+    clearTargets[2].writeMask = WGPUColorWriteMask_None;
 
     WGPUFragmentState fragment{};
     fragment.module = fs;
     fragment.entryPoint = sv("fs_main");
-    fragment.targetCount = pass_gbuffer_ ? 2 : 1;
+    fragment.targetCount = !pass_gbuffer_ ? 1 : pass_albedo_ ? 3 : 2;
     fragment.targets = clearTargets;
 
     WGPURenderPipelineDescriptor pd{};
@@ -2209,8 +2217,11 @@ void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
     pass_is_surface_ = desc.target == FramebufferHandle::Default;
     pass_samples_ = 1;
     pass_gbuffer_ = false;
+    pass_albedo_ = false;
     WGPUTextureView gbufferView = nullptr;
     WGPUTextureView gbufferResolveView = nullptr;
+    WGPUTextureView albedoView = nullptr;
+    WGPUTextureView albedoResolveView = nullptr;
     pass_depth_msaa_ = 0;
     pass_depth_resolve_ = 0;
     if (desc.target != FramebufferHandle::Default) {
@@ -2257,6 +2268,21 @@ void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
                         return;
                     }
                     gbufferResolveView = gResolve->second.view;
+                }
+            }
+        }
+        if (pass_gbuffer_ && fb->color2 != TextureHandle::Invalid) {
+            auto aIt = textures_.find(static_cast<u32>(fb->color2));
+            if (aIt != textures_.end()) {
+                albedoView = aIt->second.view;
+                pass_albedo_ = true;
+                if (aIt->second.samples > 1) {
+                    auto aResolve = textures_.find(static_cast<u32>(fb->resolveColor2));
+                    if (aResolve == textures_.end()) {
+                        ES_LOG_ERROR("WebGPUDevice::beginRenderPass: a multisampled albedo with no resolve twin");
+                        return;
+                    }
+                    albedoResolveView = aResolve->second.view;
                 }
             }
         }
@@ -2362,7 +2388,7 @@ void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
     color.clearValue = toWGPUClearColor(desc);
 
     // The surface record clears to zero — "nothing wrote here" — whatever the background is.
-    WGPURenderPassColorAttachment colors[2]{};
+    WGPURenderPassColorAttachment colors[3]{};
     colors[0] = color;
     if (pass_gbuffer_) {
         colors[1].view = gbufferView;
@@ -2372,9 +2398,17 @@ void WebGPUDevice::beginRenderPass(const RenderPassDesc& desc) {
         colors[1].storeOp = (desc.discardMultisampled && gbufferResolveView) ? WGPUStoreOp_Discard : WGPUStoreOp_Store;
         colors[1].clearValue = {0.0, 0.0, 0.0, 0.0};
     }
+    if (pass_albedo_) {
+        colors[2].view = albedoView;
+        colors[2].resolveTarget = albedoResolveView;
+        colors[2].depthSlice = WGPU_DEPTH_SLICE_UNDEFINED;
+        colors[2].loadOp = toWGPULoadOp(desc.clearColor, scoped);
+        colors[2].storeOp = (desc.discardMultisampled && albedoResolveView) ? WGPUStoreOp_Discard : WGPUStoreOp_Store;
+        colors[2].clearValue = {0.0, 0.0, 0.0, 0.0};
+    }
 
     WGPURenderPassDescriptor rp{};
-    rp.colorAttachmentCount = pass_gbuffer_ ? 2 : 1;
+    rp.colorAttachmentCount = !pass_gbuffer_ ? 1 : pass_albedo_ ? 3 : 2;
     rp.colorAttachments = colors;
 
     WGPURenderPassDepthStencilAttachment ds{};

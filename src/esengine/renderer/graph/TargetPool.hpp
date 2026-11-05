@@ -89,6 +89,7 @@ public:
     TextureHandle depthTextureOf(TargetHandle handle) const;
     /** Its second colour attachment, Invalid for a target made without one. */
     TextureHandle gbufferTextureOf(TargetHandle handle) const;
+    TextureHandle albedoTextureOf(TargetHandle handle) const;
 
     /**
      * @brief One tick of the clock every borrowed target is aged against.

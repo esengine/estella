@@ -243,6 +243,7 @@ fn main(@builtin(global_invocation_id) id : vec3u) {
 const char* kApply = R"WGSL(
 @group(0) @binding(4) var scene : texture_2d<f32>;
 @group(0) @binding(5) var depthTex : texture_depth_2d;
+@group(0) @binding(6) var albedoTex : texture_2d<f32>;
 @group(0) @binding(7) var outTex : texture_storage_2d<rgba16float, write>;
 @group(0) @binding(8) var giTex : texture_2d<f32>;
 
@@ -277,9 +278,12 @@ fn main(@builtin(global_invocation_id) id : vec3u) {
         }
         if (total > 1e-4) { light = acc / total; }
     }
-    // What the gathered light is lit onto wears the surface's own colour (its chroma, kept below white).
+    // What the gathered light is lit onto reflects it by its own diffuse colour, which the surface wrote beside its
+    // normal. A surface that wrote none (a shader older than the attachment) has its colour guessed from the picture.
+    let written = textureLoad(albedoTex, t, 0);
     let lum = max(dot(src.rgb, vec3f(0.2126, 0.7152, 0.0722)), 0.02);
-    let albedo = mix(vec3f(0.55), clamp(src.rgb / lum, vec3f(0.0), vec3f(1.6)) * 0.55, 0.7);
+    let guessed = mix(vec3f(0.55), clamp(src.rgb / lum, vec3f(0.0), vec3f(1.6)) * 0.55, 0.7);
+    let albedo = select(guessed, written.rgb, written.a > 0.5);
     var result = src.rgb + albedo * light * gi.a.w;
     if (gi.b.w > 0.5) { result = light * gi.a.w; }
     textureStore(outTex, t, vec4f(result, src.a));
@@ -539,18 +543,21 @@ rg::ResourceId VoxelGI::declare(rg::RenderGraph& graph, rg::ResourceId input, rg
         pass.write = result;
         pass.execute = [this, &graph, scene, cur](const rg::PassContext& ctx) {
             const TextureHandle depth = graph.depthTextureOf(scene);
-            if (depth == TextureHandle::Invalid || ctx.output == TextureHandle::Invalid) return;
-            const GfxComputeBinding bindings[8] = {
+            const TextureHandle albedo = graph.albedoTextureOf(scene);
+            if (depth == TextureHandle::Invalid || albedo == TextureHandle::Invalid
+                || ctx.output == TextureHandle::Invalid) return;
+            const GfxComputeBinding bindings[9] = {
                 GfxComputeBinding::uniform(0, context_.frameUbo()),
                 GfxComputeBinding::uniform(1, params_),
                 GfxComputeBinding::storage(2, grid_),
                 GfxComputeBinding::storage(3, tags_),
                 GfxComputeBinding::sampled(4, ctx.input(0)),
                 GfxComputeBinding::depth(5, depth),
+                GfxComputeBinding::sampled(6, albedo),
                 GfxComputeBinding::storageTexture(7, ctx.output),
                 GfxComputeBinding::sampled(8, history_[cur]),
             };
-            device_.dispatchCompute(apply_, bindings, 8, (ctx.width + 7) / 8, (ctx.height + 7) / 8);
+            device_.dispatchCompute(apply_, bindings, 9, (ctx.width + 7) / 8, (ctx.height + 7) / 8);
         };
         graph.addPass(std::move(pass));
     }

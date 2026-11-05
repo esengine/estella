@@ -516,6 +516,8 @@ uniform sampler2D u_textures[1];
 // attachment asks for this variant.
 layout(location = 0) out vec4 fragColor;
 layout(location = 1) out vec4 fragSurface;
+// The surface's diffuse colour, for light an effect adds after this pass (bounce light): alpha 1 is "written".
+layout(location = 2) out vec4 fragAlbedo;
 
 // Octahedral normal: a unit vector in two channels, which is what an 8-bit target can hold.
 vec2 packNormal(vec3 n) {
@@ -646,6 +648,7 @@ void main() {
     // Alpha says something was drawn here (0 is "nothing wrote"), and carries the metalness above 0.75: a pixel that
     // multisampling averaged with an unwritten one falls below it, and an effect can tell such an edge from a surface.
     fragSurface = vec4(packNormal(normalize(N)), roughness, 0.75 + 0.25 * clamp(u_metallic * mr.b, 0.0, 1.0));
+    fragAlbedo = vec4(base.rgb * (1.0 - clamp(u_metallic * mr.b, 0.0, 1.0)), 1.0);
 #endif
 }
 #pragma end
@@ -664,6 +667,7 @@ fn specularAA(dndx : vec3f, dndy : vec3f, roughness : f32) -> f32 {
 struct FragOut {
     @location(0) color : vec4f,
     @location(1) surface : vec4f,
+    @location(2) albedo : vec4f,
 };
 
 fn packNormal(n : vec3f) -> vec2f {
@@ -788,6 +792,7 @@ fn packNormal(n : vec3f) -> vec2f {
     var frag : FragOut;
     frag.color = vec4f(lit + seen + emit, alpha);
     frag.surface = vec4f(packNormal(normalize(N)), roughness, 0.75 + 0.25 * clamp(mc.u_metallic * mr.b, 0.0, 1.0));
+    frag.albedo = vec4f(base.rgb * (1.0 - clamp(mc.u_metallic * mr.b, 0.0, 1.0)), 1.0);
     return frag;
 #else
     return vec4f(lit + seen + emit, alpha);
@@ -838,6 +843,8 @@ uniform sampler2D u_textures[1];
 #ifdef ES_GBUFFER
 layout(location = 0) out vec4 fragColor;
 layout(location = 1) out vec4 fragSurface;
+// The surface's diffuse colour, for light an effect adds after this pass (bounce light): alpha 1 is "written".
+layout(location = 2) out vec4 fragAlbedo;
 vec2 packNormal(vec3 n) {
     n /= (abs(n.x) + abs(n.y) + abs(n.z));
     vec2 sgn = vec2(n.x >= 0.0 ? 1.0 : -1.0, n.y >= 0.0 ? 1.0 : -1.0);
@@ -905,6 +912,7 @@ void main() {
     fragColor = vec4(colour + u_emissive.rgb * texture(u_emissiveMap, v_texCoord).rgb, alpha);
 #ifdef ES_GBUFFER
     fragSurface = vec4(packNormal(normalize(N)), roughness, 0.75);
+    fragAlbedo = vec4(base.rgb, 1.0);
 #endif
 }
 #pragma end
@@ -914,6 +922,7 @@ void main() {
 struct FragOut {
     @location(0) color : vec4f,
     @location(1) surface : vec4f,
+    @location(2) albedo : vec4f,
 };
 
 fn packNormal(n : vec3f) -> vec2f {
@@ -981,6 +990,7 @@ fn packNormal(n : vec3f) -> vec2f {
     var frag : FragOut;
     frag.color = vec4f(colour + emit, alpha);
     frag.surface = vec4f(packNormal(normalize(N)), roughness, 0.75);
+    frag.albedo = vec4f(base.rgb, 1.0);
     return frag;
 #else
     return vec4f(colour + emit, alpha);
@@ -1026,6 +1036,8 @@ uniform sampler2D u_textures[1];
 #ifdef ES_GBUFFER
 layout(location = 0) out vec4 fragColor;
 layout(location = 1) out vec4 fragSurface;
+// The surface's diffuse colour, for light an effect adds after this pass (bounce light): alpha 1 is "written".
+layout(location = 2) out vec4 fragAlbedo;
 vec2 packNormal(vec3 n) {
     n /= (abs(n.x) + abs(n.y) + abs(n.z));
     vec2 sgn = vec2(n.x >= 0.0 ? 1.0 : -1.0, n.y >= 0.0 ? 1.0 : -1.0);
@@ -1062,6 +1074,7 @@ void main() {
     fragColor = vec4(colour, alpha);
 #ifdef ES_GBUFFER
     fragSurface = vec4(packNormal(normalize(N)), 1.0, 0.75);
+    fragAlbedo = vec4(base.rgb, 1.0);
 #endif
 }
 #pragma end
@@ -1071,6 +1084,7 @@ void main() {
 struct FragOut {
     @location(0) color : vec4f,
     @location(1) surface : vec4f,
+    @location(2) albedo : vec4f,
 };
 
 fn packNormal(n : vec3f) -> vec2f {
@@ -1115,6 +1129,7 @@ fn packNormal(n : vec3f) -> vec2f {
     var frag : FragOut;
     frag.color = vec4f(colour, alpha);
     frag.surface = vec4f(packNormal(normalize(N)), 1.0, 0.75);
+    frag.albedo = vec4f(base.rgb, 1.0);
     return frag;
 #else
     return vec4f(colour, alpha);

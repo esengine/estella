@@ -696,6 +696,8 @@ ${WGSL}
         const source = `#pragma shader "PP SSGI Apply"
 #pragma version 300 es
 #pragma domain PostProcess
+// The scene's albedo, beside its surface record (alpha 1 where a surface wrote one); black is "none written".
+#pragma param u_sceneAlbedo texture default(black) texel(data)
 #pragma param u_intensity float default(1) range(0,4)
 #pragma gbuffer
 
@@ -741,9 +743,12 @@ void main() {
         }
     }
     vec3 gathered = wsum > 1e-4 ? sum / wsum : vec3(0.0);
-    // The bounced light wears the receiver's own colour (its chroma, kept below white so a bright surface does not run away).
+    // The bounced light is reflected by the receiver's own diffuse colour, which it wrote beside its normal; a surface
+    // that wrote none (a shader older than the attachment) has it guessed from the picture, kept below white.
+    vec4 written = texelFetch(u_sceneAlbedo, min(c, textureSize(u_sceneAlbedo, 0) - ivec2(1)), 0);
     float lum = max(dot(src.rgb, vec3(0.2126, 0.7152, 0.0722)), 0.02);
-    vec3 albedo = mix(vec3(0.55), clamp(src.rgb / lum, vec3(0.0), vec3(1.6)) * 0.55, 0.7);
+    vec3 albedo = written.a > 0.5 ? written.rgb
+                                  : mix(vec3(0.55), clamp(src.rgb / lum, vec3(0.0), vec3(1.6)) * 0.55, 0.7);
     fragColor = vec4(src.rgb + albedo * gathered * u_intensity, src.a);
 }
 #pragma end
@@ -781,8 +786,10 @@ ${GBUFFER_WGSL}
     }
     var gathered = vec3f(0.0);
     if (wsum > 1e-4) { gathered = sum / wsum; }
+    let written = textureLoad(u_sceneAlbedo, min(c, vec2i(textureDimensions(u_sceneAlbedo, 0)) - vec2i(1)), 0);
     let lum = max(dot(src.rgb, vec3f(0.2126, 0.7152, 0.0722)), 0.02);
-    let albedo = mix(vec3f(0.55), clamp(src.rgb / lum, vec3f(0.0), vec3f(1.6)) * 0.55, 0.7);
+    let guessed = mix(vec3f(0.55), clamp(src.rgb / lum, vec3f(0.0), vec3f(1.6)) * 0.55, 0.7);
+    let albedo = select(guessed, written.rgb, written.a > 0.5);
     return vec4f(src.rgb + albedo * gathered * mc.u_intensity, src.a);
 }
 #pragma end

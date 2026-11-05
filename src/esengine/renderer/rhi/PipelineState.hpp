@@ -80,6 +80,9 @@ struct PipelineDesc {
     /// to receive it. A pipeline without it draws into a target that has one and leaves it alone:
     /// WebGPU wants that said in the pipeline, and GL wants the draw buffers set to match.
     bool gbuffer = false;
+    /// With `gbuffer`: the shader also writes the surface's diffuse colour (location 2) into the target's
+    /// third attachment. A gbuffer shader that predates it writes two outputs and leaves the third alone.
+    bool albedo = false;
     /// False writes no colour, to either attachment: a depth-only pass, whose surfaces are then drawn again with colour.
     bool colorWrite = true;
     /// Passes where the depth is EQUAL to what the buffer holds, not only where it is less: a surface drawn a second time, after a pass that

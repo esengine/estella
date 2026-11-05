@@ -159,6 +159,11 @@ public:
         return resolveColor1_ != TextureHandle::Invalid ? resolveColor1_ : colorAttachment1_;
     }
 
+    /** @brief The third colour attachment, the surface's diffuse colour (RGBA8, alpha 1 where a surface wrote it). */
+    TextureHandle getAlbedoAttachment() const {
+        return resolveColor2_ != TextureHandle::Invalid ? resolveColor2_ : colorAttachment2_;
+    }
+
     /** @brief Gets the depth attachment texture (Invalid if none) */
     TextureHandle getDepthAttachment() const {
         return resolveDepth_ != TextureHandle::Invalid ? resolveDepth_ : depthAttachment_;
@@ -199,6 +204,9 @@ private:
     /// The second colour attachment and its single-sample twin (spec_.gbuffer).
     TextureHandle colorAttachment1_ = TextureHandle::Invalid;
     TextureHandle resolveColor1_ = TextureHandle::Invalid;
+    /// The third, the surface's diffuse colour, and its twin (also spec_.gbuffer).
+    TextureHandle colorAttachment2_ = TextureHandle::Invalid;
+    TextureHandle resolveColor2_ = TextureHandle::Invalid;
 };
 
 }  // namespace esengine

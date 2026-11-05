@@ -200,7 +200,8 @@ public:
     void rememberSource(resource::ShaderHandle shader, std::string source, std::string features) {
         if (shader.isValid()) {
             const bool mentionsGbuffer = source.find("ES_GBUFFER") != std::string::npos;
-            sources_[shader.id()] = { std::move(source), std::move(features), mentionsGbuffer };
+            const bool writesAlbedo = mentionsGbuffer && source.find("fragAlbedo") != std::string::npos;
+            sources_[shader.id()] = { std::move(source), std::move(features), mentionsGbuffer, writesAlbedo };
         }
     }
 
@@ -218,8 +219,15 @@ public:
     bool programWritesGBuffer(u32 programId) const {
         return gbuffer_programs_.count(programId) != 0;
     }
+    /// Of those, the ones that also write the surface's diffuse colour (location 2, `fragAlbedo`).
+    bool programWritesAlbedo(u32 programId) const {
+        return albedo_programs_.count(programId) != 0;
+    }
     /// A program that is not a material's — the engine's own mesh shader — says it writes the record.
-    void markGBufferProgram(u32 programId) const { gbuffer_programs_.insert(programId); }
+    void markGBufferProgram(u32 programId, bool albedo) const {
+        gbuffer_programs_.insert(programId);
+        if (albedo) albedo_programs_.insert(programId);
+    }
 
     /// The name of the shader @p materialId draws with, or "default" for the path's own batch shader.
     const std::string& shaderLabel(u32 materialId) const {
@@ -452,6 +460,9 @@ private:
         /// Whether the source mentions ES_GBUFFER, found once when it is stored: the mesh path asks it for every draw, and the answer was a
         /// substring search through the whole text each time.
         bool mentionsGbuffer = false;
+        /// Whether its gbuffer variant also writes `fragAlbedo` (location 2): a shader written before the
+        /// attachment existed writes two outputs, and its pipeline must leave the third alone.
+        bool writesAlbedo = false;
     };
     std::unordered_map<u32, ShaderSource> sources_;
     /// (Handle, vertex source) → the program compiled for it (0 = tried and
@@ -462,6 +473,8 @@ private:
     mutable std::unordered_map<u32, std::unordered_map<u64, resource::ShaderHandle>> mesh_programs_;
     /// Programs compiled with ES_GBUFFER (see programWritesGBuffer).
     mutable std::unordered_set<u32> gbuffer_programs_;
+    /// Of those, the ones that write `fragAlbedo` too (see programWritesAlbedo).
+    mutable std::unordered_set<u32> albedo_programs_;
     TextureHandle sceneColor_ = TextureHandle::Invalid;
     TextureHandle sceneDepth_ = TextureHandle::Invalid;
 

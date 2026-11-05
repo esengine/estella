@@ -925,6 +925,11 @@ void PostProcessPipeline::renderPass(PostProcessPass& pass, const rg::PassContex
             if (slot.name == "u_velocity" && velocity_active_ && velocity_fbo_) {
                 gpu = velocity_fbo_->getColorAttachment();
             }
+            // The scene's albedo, beside its surface record: what bounce light an effect adds is coloured by.
+            if (slot.name == "u_sceneAlbedo" && graph_ && scene_gbuffer_) {
+                const TextureHandle albedo = graph_->albedoTextureOf(sceneResource_);
+                if (albedo != TextureHandle::Invalid) gpu = albedo;
+            }
             if (slot.name == "u_rainCover" && cover_active_ && cover_fbo_) {
                 gpu = cover_fbo_->getColorAttachment();
             }

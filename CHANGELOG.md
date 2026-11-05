@@ -21,6 +21,7 @@ published separately; it ships inside the editor.
 ### Fixed
 
 - **Baked lighting shows on built-in meshes.** A `builtin:` cube, sphere or plane baked with `bake-scene` or the editor drew as if nothing had been baked: the bake unwrapped a lightmap UV set for its own use, but the mesh the game loaded had none, so the atlas was never read. The built-in meshes now carry that UV set, the bake lays out its charts by it, and existing bakes stay valid.
+- **Bounce light takes the colour of what it lands on.** Voxel GI and Screen Space GI guessed a surface's colour from the lit picture, so a wall the sun did not reach got its bounce as a dim grey: a red wall in a sunlit room received 15% of the red light a path tracer gives it. The scene pass now writes each surface's diffuse colour beside its normal, and both effects reflect the bounce by it. In the same room the red wall gets 50–75% and keeps its hue, and the ceiling went from 14% to 57–90%. A custom shader that writes the surface record keeps working and has its colour guessed as before until it also writes `fragAlbedo` (location 2).
 - **Baked lighting reflects light 8 times by default, not 2.** Two bounces left a room of light walls at about half the light a path tracer gives it, and a face only bounced light reaches at a tenth. Eight is within about 10% of Cycles in a measured room and cost a 252k-lumel bake 0.7 s more. The inspector now goes to 16. A scene that states its own bounces keeps them.
 
 ## [0.98.0] - 2026-11-05

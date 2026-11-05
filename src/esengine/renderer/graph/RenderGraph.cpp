@@ -400,6 +400,13 @@ TextureHandle RenderGraph::gbufferTextureOf(ResourceId id) const {
     return pool_.gbufferTextureOf(res.pooled);
 }
 
+TextureHandle RenderGraph::albedoTextureOf(ResourceId id) const {
+    if (id >= resources_.size()) return TextureHandle::Invalid;
+    const Resource& res = resources_[id];
+    if (res.kind != Kind::Transient || res.pooled == kNoTarget) return TextureHandle::Invalid;
+    return pool_.albedoTextureOf(res.pooled);
+}
+
 void RenderGraph::releasePool() {
     for (auto& res : resources_) {
         res.pooled = kNoTarget;

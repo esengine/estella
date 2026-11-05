@@ -56,7 +56,12 @@ Each figure is a region's linear value in the engine as a share of Cycles' value
 - **The bake is right once it bounces enough.** With 8 bounces it lands within 5–18% of Cycles, and with 12 within 4–10%. Two bounces, which was the default, left a light-walled room at about half its light. The default is 8 now, and the inspector goes to 16. More bounces cost little: a 252k-lumel bake took 1.7 s at 2 bounces and 2.4 s at 8.
 - **The real-time methods give a fraction of the bounce.** Voxel GI gives 0.04–0.15 of it, SSGI about none. Faces that only a later bounce reaches get nothing.
 - **Nothing off screen.** Both real-time methods seed from the frame's own picture, so `gi_away` is black under them. A surface cache lit independently of the view is what changes this.
-- **No colour bleed.** On the red wall the real-time red channel is 0.11–0.15 of Cycles while green and blue are 0.5–0.85: the bounce arrives grey.
+- **No colour bleed, until the albedo attachment.** On the red wall the real-time red channel was 0.11–0.15 of Cycles while green and blue were 0.5–0.85, so the bounce arrived grey. Both effects guessed the receiver's colour from the lit picture, which is black where the sun does not reach. Since the scene pass writes the albedo beside the normal, Voxel GI gives:
+  - WebGL2: ceiling 0.72–0.90, red wall 0.75/0.73/0.77, back wall 0.32–0.45.
+  - WebGPU compute: ceiling 0.57–0.71, red wall 0.48–0.57.
+  - Emissive room: ceiling 0.44–0.52 (SSGI 0.36–0.43).
+  
+  Still about 0: the floor in shade and the block's face, which need a second bounce, and `gi_away`. Render gates `gi-room-baked` and `gi-room-voxel` hold the bake and the albedo path.
 - **No leak in `gi_leak`.** That is only because the lit outside is never on screen.
 - **Banding.** The WebGL2 voxel fallback and SSGI band visibly in the emissive room.
 - **Built-in meshes did not draw their bake until d39f6842e.** They had no `TexCoord1` at runtime.
