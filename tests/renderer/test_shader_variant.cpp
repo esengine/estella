@@ -241,6 +241,67 @@ static void testTextureArrayParam() {
           "WGSL declares the array param as texture_2d_array at its unit's bindings");
 }
 
+// A material shader with `count` texture params u_m0.., each sampled in both languages; `extraGlsl` / `extraWgsl` go into the
+// fragment bodies, so a case can make the shader read an engine unit.
+static std::string manyTextures(const char* domain, int count, const std::string& extraGlsl = "",
+                                const std::string& extraWgsl = "") {
+    std::string src = std::string("#pragma shader \"Many\"\n#pragma version 300 es\n#pragma domain ") + domain + "\n";
+    for (int i = 0; i < count; ++i) src += "#pragma param u_m" + std::to_string(i) + " texture default(white)\n";
+    src += "#pragma fragment\nprecision mediump float;\nin vec2 v_texCoord;\nout vec4 fragColor;\nvoid main() {\n"
+           "    vec4 c = vec4(0.0);\n";
+    for (int i = 0; i < count; ++i) src += "    c += texture(u_m" + std::to_string(i) + ", v_texCoord);\n";
+    src += extraGlsl + "    fragColor = c;\n}\n#pragma end\n";
+    src += "#pragma fragment wgsl\n@fragment fn fs_main(v : VSOut) -> @location(0) vec4f {\n    var c = vec4f(0.0);\n";
+    for (int i = 0; i < count; ++i) {
+        const std::string n = "u_m" + std::to_string(i);
+        src += "    c += textureSample(" + n + ", " + n + "_s, v.v_texCoord);\n";
+    }
+    src += extraWgsl + "    return c;\n}\n#pragma end\n";
+    return src;
+}
+
+static int unitOf(const ParsedShader& p, const std::string& name) {
+    for (const auto& prop : p.properties) if (prop.name == name) return prop.textureUnit;
+    return -100;
+}
+
+static void testMaterialOverflowUnits() {
+    // Seven fill the material units as before; the rest take engine units this shader never reads, highest first.
+    ParsedShader unlit = ShaderParser::parse(manyTextures("Unlit", 9));
+    CHECK(unlit.valid, "a nine-texture Unlit shader parses");
+    CHECK(unitOf(unlit, "u_m0") == 8 && unitOf(unlit, "u_m6") == 14, "the first seven keep units 8..14");
+    CHECK(unitOf(unlit, "u_m7") == 7 && unitOf(unlit, "u_m8") == 6, "an Unlit shader's eighth and ninth take units 7 and 6");
+
+    const std::string wgsl = ShaderParser::assembleStage(unlit, ShaderStage::Fragment, "", {}, ShaderTargetLanguage::WGSL);
+    CHECK(wgsl.find("@group(1) @binding(7) var u_m7 : texture_2d<f32>;") != std::string::npos &&
+          wgsl.find("@group(1) @binding(15) var u_m7_s : sampler;") != std::string::npos &&
+          wgsl.find("@group(1) @binding(6) var u_m8 : texture_2d<f32>;") != std::string::npos,
+          "WGSL declares a low unit at the batch range's bindings");
+    CHECK(wgsl.find("var t7 :") == std::string::npos && wgsl.find("var s7 :") == std::string::npos &&
+          wgsl.find("var t6 :") == std::string::npos && wgsl.find("var t5 :") != std::string::npos,
+          "the batch declarations leave out exactly the units a material took");
+
+    // Lit reads the shadow map, reflections, morph, bake and both 2D masks (2..7): only 1 and 0 are left.
+    ParsedShader lit = ShaderParser::parse(manyTextures("Lit", 9));
+    CHECK(lit.valid && unitOf(lit, "u_m7") == 1 && unitOf(lit, "u_m8") == 0, "a Lit shader overflows into units 1 and 0");
+    ParsedShader litFull = ShaderParser::parse(manyTextures("Lit", 10));
+    CHECK(unitOf(litFull, "u_m9") == -1, "a Lit shader's tenth texture finds no unit");
+
+    // What the shader's own text reads is not free, in either language.
+    ParsedShader readsBatch = ShaderParser::parse(manyTextures("Unlit", 8, "    c += texture(u_textures[0], v_texCoord);\n"));
+    CHECK(unitOf(readsBatch, "u_m7") == -1, "a shader that reads the batch textures keeps all of 0..7");
+    ParsedShader readsT7 = ShaderParser::parse(manyTextures("Unlit", 8, "", "    c += textureSample(t7, s7, v.v_texCoord);\n"));
+    CHECK(unitOf(readsT7, "u_m7") == 6, "a WGSL twin that reads t7 leaves unit 7 alone");
+    ParsedShader readsShape = ShaderParser::parse(manyTextures("Unlit", 8, "    c += texture(u_lightShape2D, v_texCoord);\n"));
+    CHECK(unitOf(readsShape, "u_m7") == 7, "u_lightShape2D (unit 6) does not stop unit 7");
+    ParsedShader readsShadow2D = ShaderParser::parse(manyTextures("Unlit", 8, "    c += texture(u_shadow2D, v_texCoord);\n"));
+    CHECK(unitOf(readsShadow2D, "u_m7") == 6, "u_shadow2D keeps unit 7 for the engine");
+
+    // A fullscreen pass reaches its low units through its own conventions.
+    ParsedShader post = ShaderParser::parse(manyTextures("PostProcess", 8));
+    CHECK(unitOf(post, "u_m6") == 14 && unitOf(post, "u_m7") == -1, "a PostProcess shader stays at seven");
+}
+
 static void testWGSLEmission() {
     const auto wgsl = [](const ParsedShader& p, ShaderStage s,
                          const std::vector<std::string>& features = {}) {
@@ -736,6 +797,7 @@ int main() {
     testHandWrittenFrameBlock();
     testWGSLEmission();
     testTextureArrayParam();
+    testMaterialOverflowUnits();
     testSystemValuesTrailAttributes();
     testVertexHook();
     testShadowGraft();

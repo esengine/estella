@@ -16,6 +16,7 @@
 #pragma once
 
 #include "../../core/Types.hpp"
+#include "./EngineTextureUnits.hpp"
 #include "../rhi/GfxEnums.hpp"
 #include "../../math/Math.hpp"
 
@@ -26,10 +27,6 @@ inline constexpr u32 MORPH_CONSTANTS_BINDING = 6;
 
 /** @brief GLSL block name; must match the shader's declaration + Shader::compile lookup. */
 inline constexpr const char* MORPH_CONSTANTS_BLOCK = "MorphConstants";
-
-/** @brief The sampler the deltas arrive through, and the unit it is pinned to. */
-inline constexpr const char* MORPH_DELTA_SAMPLER = "u_morphDeltas";
-inline constexpr u32 MORPH_DELTA_TEXTURE_UNIT = 4;
 
 /** @brief std140 mirror of the block. */
 struct MorphConstants {

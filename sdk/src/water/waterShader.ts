@@ -108,6 +108,13 @@ const WATER = `#pragma shader "Water"
 #pragma param u_rippleRange float default(1) range(0.0001,1000) ui(slider)
 #pragma param u_sceneColor texture default(white)
 #pragma param u_sceneDepthMap texture default(white) texel(data)
+// What the foam is made of: a tiled texture whose red says how much foam a texel holds where foam is wanted (bubbles, threads, a web),
+// u_foamTile world units to a repeat, sliding u_foamFlow world units a second. Read as coverage, so the foam the shore, crests and ripples
+// ask for thins out through the texture's own pattern instead of dimming evenly; the default white keeps the foam exactly as computed.
+// Declared after every other texture, on purpose: the material units above it were full, and this one takes a unit the water never reads.
+#pragma param u_foamMap texture default(white) texel(data)
+#pragma param u_foamTile float default(3) range(0.01,100000) ui(slider)
+#pragma param u_foamFlow vec2 default(0.04,0.03)
 
 #pragma vertexbounds 16
 #pragma vertexoffset
@@ -629,6 +636,8 @@ void main() {
     float ripFade = smoothstep(0.0, 0.15, min(ripEdge.x, ripEdge.y));
     vec2 ripSlope = ripIn ? vec2(ripR - ripL, ripU - ripD) * u_rippleRange / ripCell * ripFade : vec2(0.0);
     float ripFoam = ripIn ? ripC.g * ripFade : 0.0;
+    // How much foam the foam texture holds here (1 where none was given), read with the ripples, before any branch.
+    float foamCover = texture(u_foamMap, (wp + u_foamFlow * time) / max(u_foamTile, 1e-4)).r;
     float crest;
     vec2 slope;
     if (dot(flow, flow) > 1e-6) {
@@ -639,9 +648,10 @@ void main() {
         float ph1 = fract(time / cycle + 0.5);
         float w0 = 1.0 - abs(2.0 * ph0 - 1.0);
         float crest0, crest1;
-        vec2 s0 = waterSurface(wp - flow * (ph0 * cycle), time, waterDist, damp, calm, crest0);
-        vec2 s1 = waterSurface(wp - flow * (ph1 * cycle), time, waterDist, damp, calm, crest1);
-        slope = mix(s1, s0, w0);
+        // Named copy0/copy1 because a t or s followed by a number is a texture unit's name (ShaderParser::materialOverflowUnits).
+        vec2 copy0 = waterSurface(wp - flow * (ph0 * cycle), time, waterDist, damp, calm, crest0);
+        vec2 copy1 = waterSurface(wp - flow * (ph1 * cycle), time, waterDist, damp, calm, crest1);
+        slope = mix(copy1, copy0, w0);
         crest = mix(crest1, crest0, w0);
     } else {
         slope = waterSurface(wp, time, waterDist, damp, calm, crest);
@@ -742,6 +752,9 @@ void main() {
     // A breaker whitens as much on a beach as the waves are big, but bursts whitest on rock.
     float surfFoam = surf.y * smoothstep(0.15, 0.6, breakup + surf.y * 0.4) * mix(0.2, 1.0, zoneOn ? waterZoneSteep(wp) : 1.0);
     float foam = clamp(max(max(max(shore, onCrest * u_foamCrest), ripFoam * (0.55 + 0.45 * breakup)), surfFoam), 0.0, 1.0);
+    // The texture as coverage: a texel holding c of foam shows where the foam asked for is more than 1 - c, rising to full over the rest,
+    // so thin foam keeps only the texture's densest marks and thick foam fills it. c = 1 leaves the foam as it was.
+    foam = clamp((foam - (1.0 - foamCover)) / max(foamCover, 1e-3), 0.0, 1.0);
     // Foam floats on top: from under the water it is a thin shadow on the light, not a white sheet.
     if (below) foam *= 0.2;
 
@@ -1106,6 +1119,8 @@ fn waterSurface(p : vec2f, time : f32, dist : f32, amp : f32, calm : f32) -> vec
     let ripEdge = min(ripUv, vec2f(1.0) - ripUv);
     let ripFade = smoothstep(0.0, 0.15, min(ripEdge.x, ripEdge.y));
     if (ripIn) { ripSlope = vec2f(ripR - ripL, ripU - ripD) * mc.u_rippleRange / ripCell * ripFade; ripFoam = ripC.g * ripFade; }
+    // How much foam the foam texture holds here (1 where none was given), read in uniform control flow with the ripples.
+    let foamCover = textureSample(u_foamMap, u_foamMap_s, (wp + mc.u_foamFlow * time) / max(mc.u_foamTile, 1e-4)).r;
     var surface = vec3f(0.0);
     if (dot(flow, flow) > 1e-6) {
         // A current: two copies of the surface carried downstream a cycle at a time, each fading in as the other fades out.
@@ -1113,9 +1128,10 @@ fn waterSurface(p : vec2f, time : f32, dist : f32, amp : f32, calm : f32) -> vec
         let ph0 = fract(time / cycle);
         let ph1 = fract(time / cycle + 0.5);
         let w0 = 1.0 - abs(2.0 * ph0 - 1.0);
-        let s0 = waterSurface(wp - flow * (ph0 * cycle), time, waterDist, damp, calm);
-        let s1 = waterSurface(wp - flow * (ph1 * cycle), time, waterDist, damp, calm);
-        surface = mix(s1, s0, w0);
+        // Named copy0/copy1: in WGSL an s followed by a number names a texture unit's sampler.
+        let copy0 = waterSurface(wp - flow * (ph0 * cycle), time, waterDist, damp, calm);
+        let copy1 = waterSurface(wp - flow * (ph1 * cycle), time, waterDist, damp, calm);
+        surface = mix(copy1, copy0, w0);
     } else {
         surface = waterSurface(wp, time, waterDist, damp, calm);
     }
@@ -1205,6 +1221,8 @@ fn waterSurface(p : vec2f, time : f32, dist : f32, amp : f32, calm : f32) -> vec
     if (zoneOn) { steepHere = waterZoneSteep(wp); }
     let surfFoam = surf.y * smoothstep(0.15, 0.6, breakup + surf.y * 0.4) * mix(0.2, 1.0, steepHere);
     var foam = clamp(max(max(max(shore, onCrest * mc.u_foamCrest), ripFoam * (0.55 + 0.45 * breakup)), surfFoam), 0.0, 1.0);
+    // The texture as coverage (see the GLSL): c = 1 leaves the foam as it was.
+    foam = clamp((foam - (1.0 - foamCover)) / max(foamCover, 1e-3), 0.0, 1.0);
     if (below) { foam = foam * 0.2; }
 
     var ext = surfaceExtNone(N);

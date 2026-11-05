@@ -13,6 +13,7 @@
 #pragma once
 
 #include "../../core/Types.hpp"
+#include "./EngineTextureUnits.hpp"
 #include "./TiledLights.hpp"
 
 #include <algorithm>
@@ -27,54 +28,11 @@ inline constexpr u32 LIGHT_CONSTANTS_BINDING = 2;
 inline constexpr const char* LIGHT_CONSTANTS_BLOCK = "LightConstants";
 
 /**
- * @brief The injected shadow-map sampler, and the texture unit Shader::compile pins it to.
- * @details Every Lit shader gets the sampler from the injected header, so the unit is a
- *          contract rather than something each compile site repeats. Slot 2 sits after the
- *          draw's own two (base colour, normal map) — see BatchBuilder's slot assembly.
- */
-inline constexpr const char* SHADOW_MAP_SAMPLER = "u_shadowMap";
-inline constexpr u32 SHADOW_MAP_TEXTURE_UNIT = 2;
-
-/** @brief The injected reflection sampler, one unit past the shadow map's. */
-inline constexpr const char* ENV_MAP_SAMPLER = "u_envMap";
-inline constexpr u32 ENV_MAP_TEXTURE_UNIT = 3;
-
-/**
- * @brief The baked-light atlas, and the unit a lightmapped mesh samples it from.
- * @details Unit 5 and not 4: the morph deltas hold that one and 6/7 are the
- *          frame's 2D masks, so this is the last a draw's own stream can claim.
- *          A lit fragment ADDS the bake as its indirect term; an unlit one takes
- *          it as the whole of its light.
- */
-inline constexpr const char* LIGHTMAP_SAMPLER = "u_lightmap";
-inline constexpr u32 LIGHTMAP_TEXTURE_UNIT = 5;
-
-/**
  * @brief Max simultaneous 2D lights packed into the UBO. The injected fragment loop is a fixed
  *        bound; inactive slots are zeroed (intensity 0) so they contribute nothing. Must match
  *        the `u_lights[..]` array size in ShaderParser's injected GLSL.
  */
 inline constexpr u32 MAX_LIGHTS = 16;
-
-/**
- * @brief The 2D shadow mask, and the texture unit every Lit shader samples it from.
- * @details One screen-sized RGBA8 target, a channel per casting light: the shadow pass
- *          draws what each occluder hides and a Lit fragment reads its own channel at
- *          its own pixel. Unit 7 is the top of the batch stream's eight, taken from it
- *          only while a mask exists — so a scene with no 2D shadows pays no merge slot.
- */
-inline constexpr const char* SHADOW_2D_SAMPLER = "u_shadow2D";
-inline constexpr u32 SHADOW_2D_TEXTURE_UNIT = 7;
-
-/**
- * @brief The 2D light-shape mask, and the unit below the shadow mask's.
- * @details The same target shape carrying the other half of "how much of this light is
- *          here": what its SHAPE covers, drawn as the light's own cookie. Two planes
- *          rather than one channel, because a fragment needs both numbers to multiply
- *          them — a single channel could only carry their sum.
- */
-inline constexpr const char* SHAPE_2D_SAMPLER = "u_lightShape2D";
-inline constexpr u32 SHAPE_2D_TEXTURE_UNIT = 6;
 
 /** @brief Lights whose SHAPE one frame can carry — the shape mask's four channels. */
 inline constexpr u32 MAX_SHAPE_2D_LIGHTS = 4;

@@ -411,8 +411,9 @@ void MaterialStore::bindForDraw(u32 materialId) {
         device_->setUniformBuffer(MATERIAL_CONSTANTS_BINDING, rec.ubo);
     }
 
-    // Texture params — bound to their sampler units (>= MATERIAL_TEXTURE_UNIT_BASE), above the
-    // batch path's 0..7. Iterate the shader's layout (not just the material's explicit bindings)
+    // Texture params — bound to their sampler units: MATERIAL_TEXTURE_UNIT_BASE upward, then any
+    // unit below it the shader never reads from the draw (ShaderParser::materialOverflowUnits), which
+    // is why the draw binds its own units first. Iterate the shader's layout (not just the material's explicit bindings)
     // so an unset param binds its declared default (white/black/flatnormal) instead of sampling
     // whatever stale texture is at the unit.
     if (lit != layouts_.end()) {

@@ -14,6 +14,7 @@
 #include "ShaderParser.hpp"
 #include "../core/Log.hpp"
 #include "../renderer/store/InstanceConstants.hpp"
+#include "../renderer/store/EngineTextureUnits.hpp"
 #include "../renderer/store/MaterialConstants.hpp"
 #include "../renderer/rhi/GfxEnums.hpp"
 #include "../renderer/rhi/WgslBindings.hpp"
@@ -1162,9 +1163,23 @@ const char* kTimeHeaderWGSL =
 // de-combined into texture_2d t0..t7 (bindings 0..7) + samplers s0..s7
 // (bindings 8..15) — the group-1 convention (WebGPUMappings). Bodies sample
 // `textureSampleLevel(t0, s0, uv, 0.0)` where GLSL reads u_textures[0].
-std::string wgslBatchTextureDecls(bool postProcess) {
+/** The units below the material base a material texture of @p parsed took (see ShaderParser::materialOverflowUnits). */
+u32 materialLowUnits(const ParsedShader& parsed) {
+    u32 mask = 0;
+    for (const auto& p : parsed.properties) {
+        if (p.fromParam && p.type == ShaderPropertyType::Texture && p.textureUnit >= 0
+            && p.textureUnit < static_cast<i32>(MATERIAL_TEXTURE_UNIT_BASE)) {
+            mask |= 1u << p.textureUnit;
+        }
+    }
+    return mask;
+}
+
+std::string wgslBatchTextureDecls(bool postProcess, u32 materialUnits = 0) {
     std::string src;
     for (u32 i = 0; i < 8; ++i) {
+        // A batch unit a material texture took is that texture's binding now: the shader reads no batch texture there.
+        if ((materialUnits & (1u << i)) != 0) continue;
         const std::string n = std::to_string(i);
         // A fullscreen pass reads the scene's DEPTH at the top engine unit, and a
         // depth texture is its own WGSL type with no sampler under it. PostProcess
@@ -1223,10 +1238,10 @@ std::string wgslMaterialTextureDecls(const ParsedShader& parsed, const std::stri
         if (!p.fromParam || p.type != ShaderPropertyType::Texture || p.textureUnit < 0) continue;
         if (only && only->find(p.name) == std::string::npos) continue;
         const u32 unit = static_cast<u32>(p.textureUnit);
-        src += "@group(1) @binding(" + std::to_string(unit + 8) + ") var " + p.name +
+        src += "@group(1) @binding(" + std::to_string(textureBindingForUnit(unit)) + ") var " + p.name +
                (p.layered ? " : texture_2d_array<f32>;\n" : " : texture_2d<f32>;\n");
         if (body.find(p.name + "_s") == std::string::npos) continue;
-        src += "@group(1) @binding(" + std::to_string(unit + 16) + ") var " + p.name +
+        src += "@group(1) @binding(" + std::to_string(samplerBindingForUnit(unit)) + ") var " + p.name +
                "_s : sampler;\n";
     }
     return src;
@@ -2434,7 +2449,7 @@ ShaderParser::AssembledStage assembleWGSLStage(const ParsedShader& parsed,
         // engine texture contract — fragment-only twins run under the batch
         // conventions (PostProcess reads its input/scene as t0/s0 and t1/s1).
         inject(parsed.domain == "PostProcess" ? wgslPPVSOut() : wgslCanonicalVSOut(lit));
-        inject(wgslBatchTextureDecls(parsed.domain == "PostProcess"));
+        inject(wgslBatchTextureDecls(parsed.domain == "PostProcess", materialLowUnits(parsed)));
     }
     inject(kFrameHeaderWGSL);
     inject(kTimeHeaderWGSL);
@@ -3915,6 +3930,75 @@ ShaderProperty ShaderParser::parseParamDirective(const std::string& argument) {
     return prop;
 }
 
+namespace {
+
+/** Whether @p text names @p word as a whole identifier. */
+bool namesIdentifier(const std::string& text, std::string_view word) {
+    const auto isIdent = [](char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_'; };
+    for (usize at = text.find(word); at != std::string::npos; at = text.find(word, at + 1)) {
+        const bool startOk = at == 0 || !isIdent(text[at - 1]);
+        const usize end = at + word.size();
+        if (startOk && (end >= text.size() || !isIdent(text[end]))) return true;
+    }
+    return false;
+}
+
+}  // namespace
+
+/**
+ * The units below MATERIAL_TEXTURE_UNIT_BASE a material texture may take on @p shader, as a mask.
+ * @details The engine binds those units per draw, so one is free only where this shader never reads what the engine puts
+ *          there. Two questions decide it. What the domain's injected code reads: a Lit stage takes the shadow map, the
+ *          reflection atlas, the bake and both 2D masks, and every mesh variant takes the morph deltas. And what the
+ *          shader's own text names, in either language, all variants at once: the batch textures (u_textures, every one
+ *          of 0..7, since a merged run puts its sprites there), an engine sampler by name, or a `tN`/`sN` unit. A
+ *          fullscreen pass and the UI reach their low units through their own conventions, so they keep none free.
+ */
+u32 ShaderParser::materialOverflowUnits(const ParsedShader& shader) {
+    u32 reads = 0;
+    if (shader.domain == "Lit") {
+        reads = (1u << SHADOW_MAP_TEXTURE_UNIT) | (1u << ENV_MAP_TEXTURE_UNIT) | (1u << MORPH_DELTA_TEXTURE_UNIT)
+              | (1u << LIGHTMAP_TEXTURE_UNIT) | (1u << SHAPE_2D_TEXTURE_UNIT) | (1u << SHADOW_2D_TEXTURE_UNIT);
+    } else if (shader.domain == "Unlit") {
+        reads = 1u << MORPH_DELTA_TEXTURE_UNIT;
+    } else {
+        return 0;
+    }
+
+    std::string glsl = shader.sharedCode + shader.vertexHook;
+    for (const auto& [stage, source] : shader.stages) glsl += source;
+    for (const auto& [platform, source] : shader.variants) glsl += source;
+    std::string wgsl = shader.wgslVertexHook;
+    for (const auto& [stage, source] : shader.wgslStages) wgsl += source;
+    const std::string both = glsl + wgsl;
+
+    if (namesIdentifier(both, "u_textures")) reads |= 0xFFu;
+    static constexpr struct { const char* name; u32 unit; } kEngine[] = {
+        {SHADOW_MAP_SAMPLER, SHADOW_MAP_TEXTURE_UNIT},   {ENV_MAP_SAMPLER, ENV_MAP_TEXTURE_UNIT},
+        {MORPH_DELTA_SAMPLER, MORPH_DELTA_TEXTURE_UNIT}, {LIGHTMAP_SAMPLER, LIGHTMAP_TEXTURE_UNIT},
+        {SHAPE_2D_SAMPLER, SHAPE_2D_TEXTURE_UNIT},       {SHADOW_2D_SAMPLER, SHADOW_2D_TEXTURE_UNIT},
+    };
+    for (const auto& e : kEngine) {
+        if (namesIdentifier(both, e.name)) reads |= 1u << e.unit;
+    }
+    u32 reachedTex = 0;
+    u32 reachedSam = 0;
+    scanWGSLReachedUnits(wgsl.c_str(), reachedTex, reachedSam);
+    reads |= reachedTex | reachedSam;
+
+    return ~reads & ((1u << MATERIAL_TEXTURE_UNIT_BASE) - 1u);
+}
+
+/** The next unit to hand out of @p free (see materialOverflowUnits), highest first, or -1 when none is left. */
+i32 ShaderParser::takeOverflowUnit(u32& free) {
+    for (i32 unit = static_cast<i32>(MATERIAL_TEXTURE_UNIT_BASE) - 1; unit >= 0; --unit) {
+        if ((free & (1u << unit)) == 0) continue;
+        free &= ~(1u << unit);
+        return unit;
+    }
+    return -1;
+}
+
 void ShaderParser::computeMaterialLayout(ParsedShader& shader) {
     // std140 size/alignment for the supported scalar/vector param types.
     auto sizeAlign = [](ShaderPropertyType t, u32& size, u32& align) {
@@ -3931,27 +4015,34 @@ void ShaderParser::computeMaterialLayout(ParsedShader& shader) {
     auto alignUp = [](u32 v, u32 a) -> u32 { return a == 0 ? v : (v + a - 1) & ~(a - 1); };
 
     // Material texture units start above the batch path's 0..7 slots
-    // (must match renderer/MaterialConstants.hpp MATERIAL_TEXTURE_UNIT_BASE).
-    u32 textureUnit = 8;
+    // (must match renderer/MaterialConstants.hpp MATERIAL_TEXTURE_UNIT_BASE). Past
+    // those, a texture takes a unit below the base that THIS shader never reads.
+    u32 textureUnit = MATERIAL_TEXTURE_UNIT_BASE;
+    u32 overflowFree = materialOverflowUnits(shader);
     u32 offset = 0;
 
     for (auto& p : shader.properties) {
         if (!p.fromParam) continue;  // legacy properties-block entries are reflection-only
         if (p.type == ShaderPropertyType::Texture) {
+            p.std140Offset = -1;
             // The top unit is the frame's per-object record, on every mesh shader
             // there is. Handing it out here would bind a material's texture over
             // the records and draw every object at the origin.
-            if (textureUnit >= MESH_INSTANCE_TEXTURE_UNIT) {
-                ES_LOG_ERROR("shader {}: texture param \"{}\" would take unit {}, which is the"
-                             " per-object record; a material reads at most {} textures",
-                             shader.name, p.name, textureUnit,
-                             MESH_INSTANCE_TEXTURE_UNIT - MATERIAL_TEXTURE_UNIT_BASE);
-                p.textureUnit = -1;
-                p.std140Offset = -1;
+            if (textureUnit < MESH_INSTANCE_TEXTURE_UNIT) {
+                p.textureUnit = static_cast<i32>(textureUnit++);
                 continue;
             }
-            p.textureUnit = static_cast<i32>(textureUnit++);
-            p.std140Offset = -1;
+            const i32 low = takeOverflowUnit(overflowFree);
+            if (low >= 0) {
+                p.textureUnit = low;
+                continue;
+            }
+            ES_LOG_ERROR("shader {}: texture param \"{}\" finds no free texture unit: units {}..{} are"
+                         " taken, and the {} domain leaves none of the engine's units below {} that this"
+                         " shader does not read",
+                         shader.name, p.name, MATERIAL_TEXTURE_UNIT_BASE, MESH_INSTANCE_TEXTURE_UNIT - 1,
+                         shader.domain, MATERIAL_TEXTURE_UNIT_BASE);
+            p.textureUnit = -1;
             continue;
         }
         u32 size = 0, align = 0;

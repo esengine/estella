@@ -398,6 +398,14 @@ private:
     /// and sets ParsedShader::materialBlockSize. Run once after all params are collected.
     static void computeMaterialLayout(ParsedShader& shader);
 
+public:
+    /// The units below the material base a texture param may take on @p shader (a mask): the ones it never reads from the engine.
+    static u32 materialOverflowUnits(const ParsedShader& shader);
+
+private:
+    /// Takes the highest unit left in @p free, or -1.
+    static i32 takeOverflowUnit(u32& free);
+
     static ShaderProperty parsePropertyAnnotation(const std::string& line);
 
     static ShaderPropertyType stringToPropertyType(const std::string& typeStr);

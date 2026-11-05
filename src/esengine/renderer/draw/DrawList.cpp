@@ -510,12 +510,6 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
         }
         device.setPipeline(lastHandle);
 
-        // Per-material constants (binding 1): upload-if-dirty + bind this draw's material UBO.
-        // A no-op for material 0 and for materials whose shader declares no params.
-        if (cmd.material_id != 0) {
-            materials.bindForDraw(cmd.material_id);
-        }
-
         if (cmd.skin_count > 0 && blocks.skin) {
             blocks.skin->bind(SKIN_CONSTANTS_BINDING, staged.skin);
         }
@@ -552,6 +546,14 @@ void DrawList::execute(GfxDevice& device, TransientBufferPool& buffers,
                                                                : white_texture_id);
                 device.bindTexture(slot, TextureHandle{tex});
             }
+        }
+
+        // Per-material constants (binding 1) and textures: upload-if-dirty + bind this draw's material UBO. A no-op for material 0 and
+        // for materials whose shader declares no params. After the draw's own units, because a material past seven textures takes units
+        // below the base that its shader never reads from the draw (ShaderParser::materialOverflowUnits): the material's binding is the
+        // one this draw samples there.
+        if (cmd.material_id != 0) {
+            materials.bindForDraw(cmd.material_id);
         }
 
         if (cmd.hasPersistentGeometry()) {

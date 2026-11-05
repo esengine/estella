@@ -80,3 +80,26 @@ export function noisePng(width, height, seed = 1) {
   return Buffer.concat([sig, chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)),
     chunk('IEND', Buffer.alloc(0))]);
 }
+
+/** A `width`×`height` image whose every texel `texel(x, y)` gives as `[r,g,b,a]` (0–255): a pattern a check can find again. */
+export function pixelPng(width, height, texel) {
+  const sig = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 6;
+  const rowLen = width * 4;
+  const raw = Buffer.alloc((rowLen + 1) * height);
+  for (let y = 0; y < height; y++) {
+    const off = y * (rowLen + 1);
+    raw[off] = 0;
+    for (let x = 0; x < width; x++) {
+      const [r, g, b, a] = texel(x, y);
+      const p = off + 1 + x * 4;
+      raw[p] = r; raw[p + 1] = g; raw[p + 2] = b; raw[p + 3] = a;
+    }
+  }
+  return Buffer.concat([sig, chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)),
+    chunk('IEND', Buffer.alloc(0))]);
+}

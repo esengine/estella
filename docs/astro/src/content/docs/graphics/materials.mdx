@@ -205,6 +205,16 @@ the engine derives from it. A material that is not a bake can read it for a mask
 The sprite's texture is `u_textures[0]` (declare `uniform sampler2D u_textures[8];`
 — units 0–7 belong to the batch; texture *params* bind above them automatically).
 
+A draw has sixteen texture units on every device the engine targets (WebGL2 and WebGPU promise no more), and the
+top one is the engine's. Texture params take units 8–14 in the order they are declared; past seven, each further
+one takes a unit below 8 that **this** shader never reads: one whose engine texture it does not sample. A `Lit`
+shader reads the shadow map, the reflections, the morph deltas, the bake and both 2D masks there, so it has units
+1 and 0 left, nine textures in all; an `Unlit` one has every unit but the morph deltas' (4), fourteen in all. A
+shader that reads `u_textures` keeps all of 0–7 for the batch, and a `PostProcess` one stays at seven. In a WGSL
+twin, a `t` or `s` followed by a number (`t1`, `s0`) is a unit's name, a local of that name included, so give a
+local any other name or that unit stays the engine's. A param past what is left draws its default and the console
+says which one found no unit.
+
 ### Declaring parameters with `#pragma param`
 
 ```glsl

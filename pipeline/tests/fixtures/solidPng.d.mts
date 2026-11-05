@@ -8,3 +8,8 @@ export function solidPng(
   rgba?: readonly [number, number, number, number],
 ): Buffer;
 export function noisePng(width: number, height: number, seed?: number): Buffer;
+export function pixelPng(
+  width: number,
+  height: number,
+  texel: (x: number, y: number) => readonly [number, number, number, number],
+): Buffer;
