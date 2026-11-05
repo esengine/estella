@@ -630,6 +630,25 @@ jobs:
           export ESTELLA_E2E_EXPORT=1
           (cd desktop && node scripts/editor-mcp-editor-e2e.mjs)
 
+      # When the installed editor dies, the front only knows that it stopped. The editor's
+      # own record of why (main-errors.log: uncaught exceptions, renderer and GPU process
+      # losses) and its crash dumps live in its profile, which the runner throws away.
+      - name: Keep the installed editor's logs and crash dumps
+        if: failure()
+        shell: bash
+        run: |
+          case "${{ runner.os }}" in
+            Windows) profile="$APPDATA/@estella/editor" ;;
+            macOS) profile="$HOME/Library/Application Support/@estella/editor" ;;
+            *) profile="$HOME/.config/@estella/editor" ;;
+          esac
+          out="$GITHUB_WORKSPACE/out/installer-acceptance/editor-profile"
+          mkdir -p "$out"
+          for d in logs Crashpad; do
+            [ -d "$profile/$d" ] && cp -R "$profile/$d" "$out/" || echo "no $d under $profile"
+          done
+          ls -R "$out" | head -50
+
       - name: Keep installed upgrade evidence
         if: always()
         uses: actions/upload-artifact@v7

@@ -93,10 +93,18 @@ try {
   await writeFile(path.join(evidence, `${mode}.json`), JSON.stringify(result, null, 2));
   console.log(`PASS upgrade project ${JSON.stringify(result)}`);
 } finally {
+  // The front says why its editor went away on stderr, a moment before the call that
+  // finds it gone answers on stdout. Read the pipe to its end before keeping the log,
+  // or the one line that explains a failure is the line that is lost.
+  const closed = new Promise((resolve) => {
+    if (child.exitCode !== null || child.signalCode !== null) resolve();
+    else child.once('close', resolve);
+  });
   if (process.platform === 'win32') {
     spawnSync('taskkill.exe', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' });
   } else {
     try { process.kill(-child.pid, 'SIGTERM'); } catch { /* already stopped */ }
   }
+  await Promise.race([closed, new Promise((resolve) => setTimeout(resolve, 5000))]);
   await writeFile(path.join(evidence, `${mode}-host.log`), stderr);
 }
