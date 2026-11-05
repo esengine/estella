@@ -10,7 +10,7 @@
  * union that lost a member must still fail.
  */
 import { describe, it, expect } from 'vitest';
-import { isAdditiveMembers, isWidenedUnion } from '../../tools/lib/apiSnapshot.mjs';
+import { isAddedConstMembers, isAdditiveMembers, isWidenedUnion } from '../../tools/lib/apiSnapshot.mjs';
 
 describe('api baseline: what counts as additive', () => {
     const A = "'texture' | 'material' | 'font'";
@@ -46,5 +46,29 @@ describe('api baseline: what counts as additive', () => {
 
     it('an interface that lost a member is not', () => {
         expect(isAdditiveMembers('a: string\nb: number | undefined', 'a: string')).toBe(false);
+    });
+});
+
+describe('api baseline: a const that gained properties', () => {
+    const F = '(button: number) => Binding';
+    const G = '((button: number) => Binding) & { readonly Left: 0; readonly Middle: 1; readonly Right: 2; }';
+
+    it('kept its type and gained readonly properties: additive', () => {
+        expect(isAddedConstMembers(F, G)).toBe(true);
+        const fence = (s: string) => '```\n' + s + '\n```';
+        expect(isAddedConstMembers(fence(F), fence(G))).toBe(true);
+    });
+
+    it('changed the type it kept: not', () => {
+        expect(isAddedConstMembers('(button: string) => Binding', G)).toBe(false);
+    });
+
+    it('took the properties away again: not', () => {
+        expect(isAddedConstMembers(G, F)).toBe(false);
+    });
+
+    it('added a writable or a method-shaped member: not', () => {
+        expect(isAddedConstMembers(F, `(${F}) & { Left: 0; }`)).toBe(false);
+        expect(isAddedConstMembers(F, `(${F}) & {}`)).toBe(false);
     });
 });

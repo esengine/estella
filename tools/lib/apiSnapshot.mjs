@@ -140,6 +140,23 @@ export function isWidenedUnion(before, after) {
 }
 
 /**
+ * A const that kept its released type and gained readonly properties beside it:
+ * `F` became `(F) & { readonly A: 0; ... }`. The value is still everything `F`
+ * was, so every use written against the release still compiles; the addition is
+ * a namespace hung on the same value (`MouseButton(0)` and `MouseButton.Left`).
+ * A changed `F`, or anything but readonly properties on the right, stays a failure.
+ */
+export function isAddedConstMembers(before, after) {
+    const body = (s) => s.split('\n').filter((l) => !l.startsWith('```')).join(' ').trim();
+    const was = body(before);
+    const now = body(after);
+    const prefix = `(${was}) & {`;
+    if (!now.startsWith(prefix) || !now.endsWith('}')) return false;
+    const members = now.slice(prefix.length, -1).split(';').map((m) => m.trim()).filter(Boolean);
+    return members.length > 0 && members.every((m) => /^readonly [A-Za-z_$][\w$]*: [^;{}]+$/.test(m));
+}
+
+/**
  * Compare one entry against its released self. Only @public carries a promise,
  * so only @public produces a failure; @beta is noted because "may adjust" should
  * still read as a decision someone made rather than a silent edit.
@@ -168,6 +185,9 @@ export function baselineFindings(was, now) {
                 } else if (before.kind === 'function'
                     && isAddedOptionalParam(promisedBody(before.body), promisedBody(after.body))) {
                     notes.push(`${name} — @public function gained an optional parameter`);
+                } else if (before.kind === 'const'
+                    && isAddedConstMembers(promisedBody(before.body), promisedBody(after.body))) {
+                    notes.push(`${name} — @public const gained readonly properties`);
                 } else if (before.kind === 'class'
                     && isAddedClassMembers(promisedBody(before.body), promisedBody(after.body))) {
                     notes.push(`${name} — @public class gained a member`);
