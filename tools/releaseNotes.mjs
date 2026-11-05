@@ -3806,4 +3806,6 @@ export const NOTED = {
     {"note":"The settings window shows what a project is set up with."},
   "feat(settings): each settings group folds its own tuning rows; modules, splash and the physics step are in the body":
     {"note":"The settings window shows what a project is set up with."},
+  "feat(launcher): the new-project gallery shows its templates in Chinese in a Chinese editor":
+    {"note":"The new-project gallery is in Chinese in a Chinese editor."},
 };

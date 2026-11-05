@@ -16,6 +16,7 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **The new-project gallery is in Chinese in a Chinese editor.** The starters and examples show Chinese names, descriptions and tags; a title that is a name (Bistro, Dusk Fort) keeps its own, and an example's suggested folder name stays its folder's.
 - **The settings window shows what a project is set up with.** Each group folds its own tuning rows at its foot, as Unreal's settings do, instead of one Advanced fold at the foot of the page. The engine modules, the splash screen, achievements and the physics fixed step and sub-steps are no longer folded, so Build opens to its decisions rather than two rows over a fold of 23; solver contact constants, the theme's colours, load timeouts and cache budgets stay folded.
 
 ## [0.98.0] - 2026-11-04
