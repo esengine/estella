@@ -3808,4 +3808,6 @@ export const NOTED = {
     {"note":"The settings window shows what a project is set up with."},
   "feat(launcher): the new-project gallery shows its templates in Chinese in a Chinese editor":
     {"note":"The new-project gallery is in Chinese in a Chinese editor."},
+  "fix(sdk): side modules load on a native host with no WebAssembly global, and a video's audio-track probe is not a missing asset":
+    {"internal":"corrects two regressions the v0.98.0 release boot found before any release shipped them"},
 };

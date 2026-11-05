@@ -14,12 +14,7 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
-### Changed
-
-- **The new-project gallery is in Chinese in a Chinese editor.** The starters and examples show Chinese names, descriptions and tags; a title that is a name (Bistro, Dusk Fort) keeps its own, and an example's suggested folder name stays its folder's.
-- **The settings window shows what a project is set up with.** Each group folds its own tuning rows at its foot, as Unreal's settings do, instead of one Advanced fold at the foot of the page. The engine modules, the splash screen, achievements and the physics fixed step and sub-steps are no longer folded, so Build opens to its decisions rather than two rows over a fold of 23; solver contact constants, the theme's colours, load timeouts and cache budgets stay folded.
-
-## [0.98.0] - 2026-11-04
+## [0.98.0] - 2026-11-05
 
 ### Added
 
@@ -46,6 +41,8 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **The new-project gallery is in Chinese in a Chinese editor.** The starters and examples show Chinese names, descriptions and tags; a title that is a name (Bistro, Dusk Fort) keeps its own, and an example's suggested folder name stays its folder's.
+- **The settings window shows what a project is set up with.** Each group folds its own tuning rows at its foot, as Unreal's settings do, instead of one Advanced fold at the foot of the page. The engine modules, the splash screen, achievements and the physics fixed step and sub-steps are no longer folded, so Build opens to its decisions rather than two rows over a fold of 23; solver contact constants, the theme's colours, load timeouts and cache budgets stay folded.
 - **An agent call over MCP is one undo step, files included.** Everything one call changes — its scene edits and the project files it writes — goes back with one Undo and forward with one Redo, shown in History as **AI · *tool***. A call that only wrote files does not mark the scene unsaved, and the `undo` / `redo` tools answer once the files are back on disk. Every tool also carries MCP annotations from what it does (read-only, undoable, destructive), so a client asks before only the calls that leave the project or run unlisted code; a long call sends a progress note every five seconds; arguments are checked inside arrays and objects, with the place named; and each call is noted in a local log (`~/.estella/mcp-calls.jsonl`, never the arguments, `ESTELLA_MCP_CALL_LOG=0` to turn off) that `desktop/scripts/mcp-call-stats.mjs` summarises by the tools that fail most. `write_project_file` no longer reports a failure for a script it wrote outside the project's script folders.
 - **The MCP connection survives an editor that fails to start, and tells the agent how to work.** A call made while the editor cannot start says why, in the editor's own output, and the next call tries again; the connection used to drop with it. Every session gets short server instructions at connect (tool groups, the open scene versus the running game, `step` instead of waiting, one call per undo step). Saves, exports, project creation and play-mode tools are no longer undo steps, so Undo does not roll a saved file back. A cancelled call does not start, and a composite one stops at its next step. `enable_tools` takes `plugins`, for clients that do not refresh their tool list.
 - **History shows where an agent run began, and an agent's undo reaches further back.** A rule marks each run's start (**AI run · client · time**), so taking the whole run back is one click on the row above it. Copies of the files agent calls write are kept by space (512 MB) instead of the last 32 calls, and a step whose copies had to go is marked **files kept** before anyone presses Undo. Screenshots an agent takes are sent at 1568 px on the long side by default — what Claude's vision input looks at — which halves their size with nothing seen lost.
