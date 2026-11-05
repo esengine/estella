@@ -785,8 +785,20 @@ void RenderFrame::end() {
             };
 #endif
         }
-        scene.execute = [this, glass, layered](const rg::PassContext&) {
-            drawScene(layered ? DrawList::Phase::OpaqueOnly : glass ? DrawList::Phase::WithoutSceneColor : DrawList::Phase::All);
+        // With no chain to take the scene from, water and glass draw in the one pass, and the order the list sorts blended draws in (by
+        // where each object stands) put a water surface after every pane in front of it: the surface follows the camera, so it stands
+        // nearest of all. Ordered by the pixel instead, as the layers above do without the copies: the opaque scene, then the water, which
+        // writes depth, then the blended draws, depth-tested against it. Those in front of the surface land on it, those under it are hidden.
+        const bool ordered = !glass && draw_list_.anyUsesSceneColor(context_.materials())
+                     && draw_list_.anyBlendedWithoutSceneColor(context_.materials());
+        scene.execute = [this, glass, layered, ordered](const rg::PassContext&) {
+            if (ordered) {
+                drawScene(DrawList::Phase::OpaqueOnly);
+                drawScene(DrawList::Phase::SceneColorOnly);
+                drawScene(DrawList::Phase::BlendedOnly);
+            } else {
+                drawScene(layered ? DrawList::Phase::OpaqueOnly : glass ? DrawList::Phase::WithoutSceneColor : DrawList::Phase::All);
+            }
             if (!glass && presented_overlay_draw_) presented_overlay_draw_->flushDeferred();
         };
         graph_.addPass(std::move(scene));
