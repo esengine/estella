@@ -16,7 +16,7 @@ the pthread calls they make. Each change is marked `ESTELLA` in the source.
 
 | File | Change |
 |---|---|
-| `include/foundation/PxMath.h` | no glibc `.symver` asm under emscripten |
+| `include/foundation/PxMath.h` | no glibc `.symver` asm under emscripten or on Android (bionic's libm has no `GLIBC_2.2.5` version, so an x86_64 Android link fails on `powf@GLIBC_2.2.5`) |
 | `include/foundation/PxThread.h` | `PxSpinLockPause()` is empty under emscripten (no `nop`) |
 | `include/foundation/PxHash.h` | the `size_t` hash overload also under emscripten (`size_t` is its own type on wasm32) |
 | `source/foundation/unix/FdUnixAtomic.cpp` | `PAUSE()` empty under emscripten |
