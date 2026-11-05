@@ -41,25 +41,26 @@ node tools/render-lab/gi_cost.mjs $O/web_vgi                                    
 
 ### 2026-11-05 results
 
-Each figure is a region's linear value in the engine as a share of Cycles' value there; 1.00 matches. WebGL2 numbers come from headless Chromium. The WebGPU column is the compute path, rendered in the MCP's hidden editor.
+Each figure is a region's linear value in the engine as a share of Cycles' value there; 1.00 matches. A `MeshRenderer.color` is linear albedo, on both sides. A first pass linearized it for Blender only, which made Cycles' walls darker than the engine's, so the direct light read 1.19 and the bake 1.6. WebGL2 numbers come from headless Chromium. The WebGPU column is the compute path, rendered in the MCP's hidden editor.
 
-| Region | Cycles | no GI | SSGI (radius 400) | Voxel GI default, WebGL2 | Voxel GI default, WebGPU |
-| --- | --- | --- | --- | --- | --- |
-| `gi_room` ceiling | 0.030 | 0 | 0 | 0.30 | 0.23 |
-| `gi_room` back wall | 0.021 | 0 | 0.02 | 0.17 | 0.09 |
-| `gi_room` floor in shade | 0.018 | 0 | 0 | 0.02 | 0.01 |
-| `gi_room` block, shaded face | 0.004 | 0 | 0 | 0 | 0 |
-| `gi_away`, every region | 0.010–0.014 | 0 | 0 | 0 | — |
-| `gi_emissive` ceiling | 0.16 | 0 | 0.07 | 0.12 | — |
-| `gi_emissive` floor | 0.14 | 0 | 0.04 | 0.08 | — |
+| Region | Cycles | SSGI (radius 400) | Voxel GI default, WebGL2 | Voxel GI default, WebGPU | Bake, 2 bounces | Bake, 8 bounces | Bake, 12 bounces |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `gi_room` ceiling | 0.056 | 0 | 0.15 | 0.12 | — | 0.90 | 0.93 |
+| `gi_room` back wall | 0.043 | 0.01 | 0.08 | 0.04 | 0.59 | 0.92 | 0.94 |
+| `gi_room` floor in shade | 0.042 | 0 | 0.01 | 0 | 0.59 | 0.95 | 0.96 |
+| `gi_room` block, shaded face | 0.014 | 0 | 0 | 0 | 0.10 | 0.82 | 0.93 |
+| `gi_away`, every region | 0.006–0.03 | 0 | 0 | — | | | |
+| `gi_emissive` ceiling | 0.24 | 0.04 | 0.08 | — | | | |
+| `gi_emissive` floor | 0.21 | 0.03 | 0.05 | — | | | |
 
-- **Too little light.** Where the engine's GI reaches at all, it gives a tenth to a third of the bounce Cycles does. Faces that only a second bounce reaches (the block's shaded side, the floor away from the patch) get nothing.
-- **Nothing off screen.** Both methods seed from the frame's own picture, so `gi_away` is black under every method. A surface cache lit independently of the view is what changes this.
-- **No colour bleed.** On the red wall the engine's red channel is 0.10–0.32 of Cycles, but green and blue are 1–5×. The bounce arrives grey, and the wall's albedo does not tint it the way Cycles does. The green wall shows the same.
-- **No leak in `gi_leak`.** That is only because the lit outside is never on screen, so there is nothing to leak.
-- **Banding.** The WebGL2 voxel fallback and SSGI both band visibly in the emissive room.
-- **The bake showed nothing on built-in meshes (fixed the same day).** A `builtin:` mesh had no `TexCoord1` at runtime, so `MESH_LIGHTMAP` never turned on. The templates now carry the bake's own unwrap. Since the fix, the baked `gi_room` is 1.5–1.8× Cycles everywhere (ceiling 1.53, back wall 1.64, floor in shade 1.9, the block's shaded face 1.6), with dark seams at chart edges. This calibration gap is still open, and it is on top of the 1.19 the direct light shows.
-- **Direct light is 19% bright.** The sun patch is 1.19 of Cycles on both backends. This is separate from GI and not explained yet.
+- **The bake is right once it bounces enough.** With 8 bounces it lands within 5–18% of Cycles, and with 12 within 4–10%. Two bounces, which was the default, left a light-walled room at about half its light. The default is 8 now, and the inspector goes to 16. More bounces cost little: a 252k-lumel bake took 1.7 s at 2 bounces and 2.4 s at 8.
+- **The real-time methods give a fraction of the bounce.** Voxel GI gives 0.04–0.15 of it, SSGI about none. Faces that only a later bounce reaches get nothing.
+- **Nothing off screen.** Both real-time methods seed from the frame's own picture, so `gi_away` is black under them. A surface cache lit independently of the view is what changes this.
+- **No colour bleed.** On the red wall the real-time red channel is 0.11–0.15 of Cycles while green and blue are 0.5–0.85: the bounce arrives grey.
+- **No leak in `gi_leak`.** That is only because the lit outside is never on screen.
+- **Banding.** The WebGL2 voxel fallback and SSGI band visibly in the emissive room.
+- **Built-in meshes did not draw their bake until d39f6842e.** They had no `TexCoord1` at runtime.
+- **Screenshots can come too early.** One `BAKE=1` shot came out with no indirect light at all; rerun, it was fine. The shot waits a fixed 12 s, and once that was not enough for the atlas to load.
 
 GPU cost at 1280×720, WebGL2, on this desktop:
 - SSGI: gather 0.8–0.9 ms + apply 0.4 ms. Frame 1.25 → 2.8 ms.

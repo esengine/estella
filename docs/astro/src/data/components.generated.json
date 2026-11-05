@@ -207,9 +207,9 @@
         {
           "key": "bounces",
           "type": "number",
-          "default": "2",
-          "doc": "How many times light may reflect. 0 = direct only.",
-          "range": "0–8"
+          "default": "8",
+          "doc": "How many times light may reflect. 0 = direct only. An enclosed room of light walls needs 8 or more, or it bakes too dark.",
+          "range": "0–16"
         },
         {
           "key": "samples",

@@ -55,7 +55,7 @@ if spec['sun']:
 
 if os.environ.get('BAKE') == '1':
     entities.append({'id': 6, 'name': 'Lighting', 'parent': None, 'children': [], 'visible': True, 'components': [
-        {'type': 'BakedLighting', 'data': {'atlasSize': 1024, 'texelsPerUnit': float(os.environ.get('TPU', '0.2')), 'bounces': 4,
+        {'type': 'BakedLighting', 'data': {'atlasSize': 1024, 'texelsPerUnit': float(os.environ.get('TPU', '0.2')), 'bounces': int(os.environ.get('BOUNCES', '4')),
                                            'samples': int(os.environ.get('BAKE_SAMPLES', '256')), 'probeSamples': 128}}]})
 
 effects = json.loads(os.environ.get('EFFECTS', '[]'))

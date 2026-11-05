@@ -59,7 +59,7 @@ export const BakedLighting: ComponentDef<BakedLightingData> = defineComponent<Ba
             atlasSize: { min: 64, step: 64, tooltip: 'Side of the square atlas, in texels.' },
             texelsPerUnit: { min: 0.01, step: 0.05, unit: 'tx/wu',
                              tooltip: 'How finely a surface is lit. A world unit is a design pixel.' },
-            bounces: { min: 0, max: 8, tooltip: 'How many times light may reflect. 0 = direct only.' },
+            bounces: { min: 0, max: 16, tooltip: 'How many times light may reflect. 0 = direct only. An enclosed room of light walls needs 8 or more, or it bakes too dark.' },
             samples: { min: 1, tooltip: 'Rays each lumel gathers per bounce.' },
             probeSamples: { min: 1, tooltip: 'Directions each probe gathers, over the whole sphere.' },
             bakedFrom: { advanced: true, tooltip: 'Fingerprint of the inputs the last bake read.' },

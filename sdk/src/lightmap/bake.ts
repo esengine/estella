@@ -87,7 +87,11 @@ export interface BakeResult {
 export const BAKE_DEFAULTS = {
     atlasSize: 1024,
     texelsPerUnit: 0.25,
-    bounces: 2,
+    // A room of light walls keeps most of its light after each reflection (0.85 white keeps 85%), so two bounces
+    // left a lit room at half the light a path tracer gives it and a face only bounce reaches at a tenth.
+    // Eight is within ~10% of Cycles' twelve in the render lab's room (tools/render-lab, gi_room), and each
+    // extra bounce is one more gather: 2 to 8 took a 252k-lumel bake from 1.7 s to 2.4 s.
+    bounces: 8,
     samples: 64,
     ambient: [0, 0, 0] as readonly [number, number, number],
     dilate: 2,

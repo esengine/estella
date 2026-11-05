@@ -40,7 +40,7 @@ for name, centre, size, colour in spec['boxes']:
     m = bpy.data.materials.new(name)
     m.use_nodes = True
     bsdf = m.node_tree.nodes['Principled BSDF']
-    lin = tuple(S.srgb_to_linear(c) for c in colour)
+    lin = tuple(colour)   # linear, as the engine takes MeshRenderer.color
     bsdf.inputs['Base Color'].default_value = (*lin, 1.0)
     bsdf.inputs['Roughness'].default_value = 1.0
     bsdf.inputs['Metallic'].default_value = 0.0

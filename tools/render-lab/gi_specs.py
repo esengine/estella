@@ -7,7 +7,8 @@ ratio engine / Cycles over a region is that method's answer for that region.
 Units: the engine's world is centimetres (the built-in cube is 100 across), Blender's is metres. Coordinates here are the engine's
 (+Y up), Blender's are (x, -z, y) / 100 of them.
 
-Colours are written as the editor shows them (sRGB); the engine linearizes them in a linear project and Blender is handed the linear value.
+Colours are linear albedo on both sides: a MeshRenderer's `color` reaches the mesh shader and the bake as written (only light and clear
+colours are linearized in a linear project), so Blender is handed the same numbers.
 """
 import math
 
