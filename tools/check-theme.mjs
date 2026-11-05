@@ -252,6 +252,10 @@ const offGridByFile = () => {
       // spacing step, and read as `5px` it was counted as one.
       for (const px of m[1].matchAll(/(?<![\d.])(\d+)px/g)) {
         const v = Number(px[1]);
+        // 1px is not a step of the grid but a seam: the hairline between joined
+        // segments (`gap: 1px` showing the groove through), a border's overlap
+        // (`margin: -1px`), a tag's optical inset. Unreal draws its seams the same.
+        if (v === 1) continue;
         if (v !== 0 && v % GRID !== 0) n++;
       }
     }
@@ -391,7 +395,9 @@ const PRIMITIVES = new Set([
   'components/Select.tsx', 'components/Segmented.tsx',
 ]);
 
-/** A button that declares itself an item of a list, tab strip or menu is not an action button. */
+/** A button that declares itself an item of a list, tab strip or menu is not an action button —
+ *  nor is one that marks the current page of a navigation (`aria-current`). */
+const NAV_ITEM = /\baria-current=/;
 const ITEM_ROLE = /\brole=(?:"|\{?['"`])(?:option|tab|menuitem|menuitemcheckbox|menuitemradio|radio)\b/;
 
 /**
@@ -408,7 +414,7 @@ const handRolledByFile = () => {
       const text = readFileSync(full, 'utf8');
       const rel = path.relative(path.join(ROOT, 'desktop', 'src'), full).replaceAll(path.sep, '/');
       if (PRIMITIVES.has(rel)) continue;
-      const n = [...text.matchAll(/<button\b([^<]*?)\/?>/gs)].filter((m) => !ITEM_ROLE.test(m[1])).length;
+      const n = [...text.matchAll(/<button\b([^<]*?)\/?>/gs)].filter((m) => !ITEM_ROLE.test(m[1]) && !NAV_ITEM.test(m[1])).length;
       if (n > 0) out[rel] = n;
     }
   };
