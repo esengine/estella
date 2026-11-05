@@ -7,7 +7,7 @@
 
 import { WasmModuleAborted } from '../wasm/moduleHealth';
 import { Entity, entityGeneration, entityIndex, makeEntity, INVALID_ENTITY } from '../types';
-import { AnyComponentDef, ComponentDef, ComponentData, BuiltinComponentDef, isBuiltinComponent, builtinComponentRegistry, extraBuiltinComponentRegistry, getUserComponents, getComponent, Disabled, Name, Parent, Children, type ParentData, type ChildrenData } from './component';
+import { AnyComponentDef, ComponentDef, ComponentData, BuiltinComponentDef, isBuiltinComponent, mergeIntoDefaults, builtinComponentRegistry, extraBuiltinComponentRegistry, getUserComponents, getComponent, Disabled, Name, Parent, Children, type ParentData, type ChildrenData } from './component';
 import type { CppRegistry, ESEngineModule } from '../wasm';
 import { handleWasmError } from '../wasm/wasmError';
 import { BuiltinBridge, builtinFromWasm, numberListFieldsOf, convertForWasm, type BridgeConnectOptions,
@@ -876,6 +876,11 @@ export class World {
                             delete wasmData[k];
                         }
                     }
+                    // Merged into the defaults one level in, as an add is: a field
+                    // that grew an axis (ParticleEmitter.gravity went vec2 -> vec3)
+                    // still reads the {x, y} a document wrote before it did, where
+                    // embind refused the whole value for its missing `z`.
+                    wasmData = mergeIntoDefaults(defaults, wasmData);
                     // Through the bridge's own write, so a replace marshals the
                     // way an add does: a list field crosses as the vector embind
                     // registered, never as the JS array a document holds.
