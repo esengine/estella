@@ -3814,4 +3814,12 @@ export const NOTED = {
     {"note":"A model of many parts that moves: `CompositeBatch`."},
   "feat(mcp): get_stats reports what each CompositeBatch root draws, and the composite-batch check holds the batch":
     {"note":"A model of many parts that moves: `CompositeBatch`."},
+  "fix(lightmap): built-in meshes carry the lightmap UV set the bake lays its charts by, so a baked cube or sphere draws its lightmap instead of nothing":
+    {"note":"Baked lighting shows on built-in meshes."},
+  "fix(lightmap): a bake reflects light 8 times by default, since two left a light-walled room at half the light Cycles gives it; the render lab takes MeshRenderer.color as the linear albedo it is":
+    {"note":"Baked lighting reflects light 8 times by default, not 2."},
+  "feat(render): the scene pass writes each surface's diffuse colour beside its normal, so Voxel GI and SSGI reflect bounce light by what it lands on instead of a grey guessed from the lit picture; render gates hold the baked and voxel-lit GI room":
+    {"note":"Bounce light takes the colour of what it lands on."},
+  "feat(render): Voxel GI on WebGPU reads the sun's shadow map back into its cache and feeds each bounce back, so light the camera does not see and light past the first bounce reach the picture":
+    {"note":"Voxel GI lights what the camera does not see, and bounces light more than once (WebGPU)."},
 };

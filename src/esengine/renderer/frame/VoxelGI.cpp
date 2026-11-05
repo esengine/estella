@@ -27,7 +27,7 @@ struct GI {
     origin : vec4i,   // xyz: the window's first cell; w: the frame
     dims : vec4u,     // xyz: voxels per axis; w: rays per point
     a : vec4f,        // x: voxel size, y: what the grid keeps, z: the brightest a surface gives, w: intensity
-    b : vec4f,        // x: how far a ray looks (cells), y: where it starts (cells), z: unused, w: debug
+    b : vec4f,        // x: how far a ray looks (cells), y: where it starts (cells), z: how much of the last bounce feeds back, w: debug
     view : vec4f,     // x: the gather's divisor, y: 1 when the last gather is a history to blend with, z: how much of this one goes in
     prevViewProjection : mat4x4f,
 };
@@ -39,6 +39,10 @@ struct GI {
 const WORDS : u32 = 8u;
 const FIXED : f32 = 1024.0;
 const FACING : f32 = 256.0;
+// A sample counts COUNT, not 1: the grid ages by a factor below one each frame and truncates, and a count of 1 aged to 0.93 truncates
+// to 0 — a voxel that one sample a frame lands in (a small voxel, or one far away) then never reached the 2 a ray asks for, and a
+// fine grid drew no bounce at all.
+const COUNT : u32 = 16u;
 
 fn hash3(c : vec3i) -> u32 {
     var h = (u32(c.x) * 73856093u) ^ (u32(c.y) * 19349663u) ^ (u32(c.z) * 83492791u);
@@ -103,11 +107,15 @@ fn main(@builtin(global_invocation_id) id : vec3u) {
 }
 )WGSL";
 
-/// The lit picture into the voxels its visible surfaces stand in.
+/// The lit picture into the voxels its visible surfaces stand in, with the bounce light the last gather found on them: what a surface
+/// gives off is what it was lit by, the bounce included, so each frame carries the light one surface further and the cache converges on
+/// the light of every bounce rather than of the first.
 const char* kInject = R"WGSL(
 @group(0) @binding(4) var scene : texture_2d<f32>;
 @group(0) @binding(5) var depthTex : texture_depth_2d;
 @group(0) @binding(6) var gbuffer : texture_2d<f32>;
+@group(0) @binding(8) var albedoTex : texture_2d<f32>;
+@group(0) @binding(9) var histTex : texture_2d<f32>;
 
 @compute @workgroup_size(8, 8)
 fn main(@builtin(global_invocation_id) id : vec3u) {
@@ -124,11 +132,18 @@ fn main(@builtin(global_invocation_id) id : vec3u) {
     let cell = vec3i(floor(p / gi.a.x));
     if (!inWindow(cell)) { return; }
     let base = wrapIndex(cell) * WORDS;
-    let c = clamp(textureLoad(scene, t, 0).rgb, vec3f(0.0), vec3f(gi.a.z));
+    var lit = textureLoad(scene, t, 0).rgb;
+    let albedo = textureLoad(albedoTex, t, 0);
+    if (gi.view.y > 0.5 && albedo.a > 0.5) {
+        let div = i32(gi.view.x);
+        let q = clamp(t / div, vec2i(0), vec2i(textureDimensions(histTex)) - vec2i(1));
+        lit = lit + albedo.rgb * textureLoad(histTex, q, 0).rgb * (gi.a.w * gi.b.z);
+    }
+    let c = clamp(lit, vec3f(0.0), vec3f(gi.a.z));
     atomicAdd(&grid[base], u32(c.r * FIXED));
     atomicAdd(&grid[base + 1u], u32(c.g * FIXED));
     atomicAdd(&grid[base + 2u], u32(c.b * FIXED));
-    atomicAdd(&grid[base + 3u], 1u);
+    atomicAdd(&grid[base + 3u], COUNT);
     let f = n * 0.5 + 0.5;
     atomicAdd(&grid[base + 4u], u32(f.x * FACING));
     atomicAdd(&grid[base + 5u], u32(f.y * FACING));
@@ -136,7 +151,74 @@ fn main(@builtin(global_invocation_id) id : vec3u) {
 }
 )WGSL";
 
-/// Rays from each visible surface through the grid, at a fraction of the picture's size.
+/// What the sun lights, whether the camera sees it or not: every texel of the sun shadow map is a surface the sun reaches, so the map
+/// is read back into world positions (the inverse of each tile matrix) and their direct light injected where they stand. Its colour is
+/// not in the map, so it is lit as a surface of one assumed albedo; where the camera also sees it, the picture colour averages in beside it.
+const char* kSun = R"WGSL(
+struct Sun {
+    light : vec4f,                    // rgb: the sun colour times its intensity; w: the albedo a surface is taken to have
+    toLight : vec4f,                  // xyz: unit vector toward the sun; w: how many tiles
+    samples : vec4u,                  // x: samples per tile side
+    rect : array<vec4f, 4>,           // each tile square in the atlas, low corner and side, in GL terms
+    inverse : array<mat4x4f, 4>,      // each tile clip space back to the world
+};
+// The atlas holds depth packed into colour (what the lit shaders unpack), not a depth texture.
+@group(0) @binding(4) var shadowTex : texture_2d<f32>;
+@group(0) @binding(10) var<uniform> sun : Sun;
+
+fn shadowPoint(k : u32, uv : vec2f, size : vec2f) -> vec4f {
+    let rect = sun.rect[k];
+    let base = vec2f(rect.x, 1.0 - rect.y - rect.z);
+    let at = base + vec2f(uv.x, 1.0 - uv.y) * rect.z;
+    let texel = clamp(vec2i(at * size), vec2i(0), vec2i(size) - vec2i(1));
+    let c = textureLoad(shadowTex, texel, 0).rgb;
+    let d = dot(c, vec3f(1.0, 1.0 / 255.0, 1.0 / 65025.0));
+    // The map stores clip z remapped to [0, 1] (z * 0.5 + 0.5, as the lit shaders compare it): undone before the inverse.
+    let w = sun.inverse[k] * vec4f(uv * 2.0 - 1.0, d * 2.0 - 1.0, 1.0);
+    return vec4f(w.xyz / w.w, d);
+}
+
+@compute @workgroup_size(8, 8)
+fn main(@builtin(global_invocation_id) id : vec3u) {
+    let n = sun.samples.x;
+    let k = id.x / n;
+    if (k >= u32(sun.toLight.w) || id.y >= n) { return; }
+    let size = vec2f(textureDimensions(shadowTex));
+    let step = 1.0 / f32(n);
+    let uv = (vec2f(f32(id.x % n), f32(id.y)) + 0.5) * step;
+    let p = shadowPoint(k, uv, size);
+    if (p.w >= 1.0 || p.w <= 0.0) { return; }
+    let px = shadowPoint(k, uv + vec2f(step, 0.0), size).xyz;
+    let py = shadowPoint(k, uv + vec2f(0.0, step), size).xyz;
+    let vs = gi.a.x;
+    // A neighbour across a depth edge (the top of a wall against the floor) gives no tangent: those samples carry no normal.
+    let ex = px - p.xyz;
+    let ey = py - p.xyz;
+    if (length(ex) > vs * 4.0 || length(ey) > vs * 4.0) { return; }
+    // Two neighbours on one texel (or on a line) give no plane: normalizing nothing is a NaN, and one NaN turned into the grid's
+    // fixed point poisons every ray that meets its voxel.
+    let cr = cross(ex, ey);
+    let area = dot(cr, cr);
+    if (!(area > 1e-12)) { return; }
+    var nrm = cr * inverseSqrt(area);
+    let L = sun.toLight.xyz;
+    if (dot(nrm, L) < 0.0) { nrm = -nrm; }
+    let cell = vec3i(floor((p.xyz + nrm * (vs * 0.25)) / vs));
+    if (!inWindow(cell)) { return; }
+    let base = wrapIndex(cell) * WORDS;
+    let c = clamp(sun.light.rgb * (sun.light.w * max(dot(nrm, L), 0.0)), vec3f(0.0), vec3f(gi.a.z));
+    atomicAdd(&grid[base], u32(c.r * FIXED));
+    atomicAdd(&grid[base + 1u], u32(c.g * FIXED));
+    atomicAdd(&grid[base + 2u], u32(c.b * FIXED));
+    atomicAdd(&grid[base + 3u], COUNT);
+    let f = nrm * 0.5 + 0.5;
+    atomicAdd(&grid[base + 4u], u32(f.x * FACING));
+    atomicAdd(&grid[base + 5u], u32(f.y * FACING));
+    atomicAdd(&grid[base + 6u], u32(f.z * FACING));
+}
+)WGSL";
+
+/// Rays from each visible surface through the grid, at a fraction of the picture size.
 const char* kGather = R"WGSL(
 @group(0) @binding(5) var depthTex : texture_depth_2d;
 @group(0) @binding(6) var gbuffer : texture_2d<f32>;
@@ -183,8 +265,8 @@ fn trace(origin : vec3f, dir : vec3f) -> vec3f {
         if (tags[idx] != hash3(cell)) { continue; }
         let base = idx * WORDS;
         let count = atomicLoad(&grid[base + 3u]);
-        if (count < 2u) { continue; }
-        let inv = 1.0 / f32(count);
+        if (count < 2u * COUNT) { continue; }
+        let inv = f32(COUNT) / f32(count);
         let facing = (vec3f(f32(atomicLoad(&grid[base + 4u])), f32(atomicLoad(&grid[base + 5u])), f32(atomicLoad(&grid[base + 6u]))) * inv / FACING) * 2.0 - 1.0;
         // A surface is met from the side it faces. One facing away is behind the ray, or the ray skims along it.
         if (dot(normalize(facing), dir) > -0.15) { continue; }
@@ -295,6 +377,7 @@ const char* const kCommon = "";
 const char* const kSurface = "";
 const char* const kMaintain = "";
 const char* const kInject = "";
+const char* const kSun = "";
 const char* const kGather = "";
 const char* const kApply = "";
 #endif
@@ -313,6 +396,17 @@ struct ParamsBlock {
 };
 static_assert(sizeof(ParamsBlock) == 144, "the GI block is five vec4s and a matrix");
 
+/// The sun shadow tiles as the sun kernel reads them back (see kSun).
+struct SunBlock {
+    f32 light[4];
+    f32 toLight[4];
+    u32 samples[4];
+    f32 rect[4][4];
+    f32 inverse[4][16];
+};
+static_assert(sizeof(SunBlock) == 368, "the sun block is three vec4s, four rects and four matrices");
+constexpr u32 kSunTiles = 4;
+
 }  // namespace
 
 VoxelGI::VoxelGI(GfxDevice& device, RenderContext& context) : device_(device), context_(context) {}
@@ -322,7 +416,7 @@ VoxelGI::~VoxelGI() {
 }
 
 void VoxelGI::release() {
-    for (BufferHandle* b : {&grid_, &tags_, &params_}) {
+    for (BufferHandle* b : {&grid_, &tags_, &params_, &sun_}) {
         if (*b != BufferHandle::Invalid) device_.deleteBuffer(*b);
         *b = BufferHandle::Invalid;
     }
@@ -332,7 +426,7 @@ void VoxelGI::release() {
     }
     historyWidth_ = historyHeight_ = 0;
     historyValid_ = false;
-    for (ComputeHandle* c : {&maintain_, &inject_, &gather_, &apply_}) {
+    for (ComputeHandle* c : {&maintain_, &inject_, &gather_, &apply_, &sunInject_}) {
         if (*c != ComputeHandle::Invalid) device_.deleteCompute(*c);
         *c = ComputeHandle::Invalid;
     }
@@ -347,8 +441,10 @@ bool VoxelGI::ensure() {
         grid_ = device_.createBuffer({GfxBufferUsage::Storage, voxels * kVoxelWords * 4u, false}, GfxContent::transient(), nullptr);
         tags_ = device_.createBuffer({GfxBufferUsage::Storage, voxels * 4u, false}, GfxContent::transient(), nullptr);
         params_ = device_.createBuffer({GfxBufferUsage::Uniform, sizeof(ParamsBlock), true}, GfxContent::transient(), nullptr);
+        sun_ = device_.createBuffer({GfxBufferUsage::Uniform, sizeof(SunBlock), true}, GfxContent::transient(), nullptr);
     }
-    if (grid_ == BufferHandle::Invalid || tags_ == BufferHandle::Invalid || params_ == BufferHandle::Invalid) {
+    if (grid_ == BufferHandle::Invalid || tags_ == BufferHandle::Invalid || params_ == BufferHandle::Invalid
+        || sun_ == BufferHandle::Invalid) {
         ES_LOG_ERROR("VoxelGI: could not allocate the voxel cache");
         failed_ = true;
         return false;
@@ -365,7 +461,8 @@ bool VoxelGI::ensure() {
         return true;
     };
     return make(maintain_, join(kCommon, kMaintain), "maintain") && make(inject_, join(kCommon, kSurface, kInject), "inject")
-        && make(gather_, join(kCommon, kSurface, kGather), "gather") && make(apply_, join(kCommon, kApply), "apply");
+        && make(gather_, join(kCommon, kSurface, kGather), "gather") && make(apply_, join(kCommon, kApply), "apply")
+        && make(sunInject_, join(kCommon, kSun), "sun");
 }
 
 bool VoxelGI::ensureHistory(u32 width, u32 height) {
@@ -410,6 +507,7 @@ void VoxelGI::writeParams(const VoxelGIParams& p) {
     block.a[3] = p.intensity;
     block.b[0] = std::clamp(p.range, 1.0f, 90.0f);
     block.b[1] = std::max(p.bias, 0.0f);
+    block.b[2] = std::clamp(p.bounceFeedback, 0.0f, 1.0f);
     block.b[3] = p.debug;
     block.view[0] = static_cast<f32>(std::clamp(p.divisor, 1u, 4u));
     // A change of voxel size makes every voxel a different place, so what was gathered under the old one is not history.
@@ -433,8 +531,44 @@ void VoxelGI::writeParams(const VoxelGIParams& p) {
     ++frame_;
 }
 
+u32 VoxelGI::writeSun(const VoxelGIParams& p) {
+    // The first directional light that owns shadow tiles: the sun whose map says what it reaches.
+    const LightConstants& lc = context_.lights().data();
+    if (lc.shadowParams.x < 0.5f || p.sunAlbedo <= 0.0f) return 0;
+    // Every slot, not a count: an empty slot reads as no light (zero colour, zero tiles).
+    for (u32 i = 0; i < MAX_LIGHTS; ++i) {
+        const GpuLight& l = lc.lights[i];
+        const bool directional = l.posDir.z > 0.5f && l.posDir.z < 1.5f;
+        const u32 tiles = static_cast<u32>(std::fmod(std::max(l.shadowMap.y, 0.0f), LIGHT_TILE_BITS));
+        if (!directional || tiles == 0) continue;
+        const u32 first = static_cast<u32>(std::max(l.shadowMap.x, 0.0f));
+        if (first >= MAX_SHADOW_TILES) continue;
+        SunBlock block{};
+        const glm::vec3 aim = glm::normalize(glm::vec3(l.posDir.x, l.posDir.y, l.posDir.w));
+        block.light[0] = l.color.r * l.color.a;
+        block.light[1] = l.color.g * l.color.a;
+        block.light[2] = l.color.b * l.color.a;
+        block.light[3] = p.sunAlbedo;
+        block.toLight[0] = -aim.x;
+        block.toLight[1] = -aim.y;
+        block.toLight[2] = -aim.z;
+        const u32 used = std::min({tiles, kSunTiles, MAX_SHADOW_TILES - first});
+        block.toLight[3] = static_cast<f32>(used);
+        block.samples[0] = kSunSamples;
+        for (u32 k = 0; k < used; ++k) {
+            const glm::vec4& r = lc.shadowTile[first + k];
+            block.rect[k][0] = r.x; block.rect[k][1] = r.y; block.rect[k][2] = r.z; block.rect[k][3] = r.w;
+            const glm::mat4 inv = glm::inverse(lc.shadowMatrix[first + k]);
+            std::copy(glm::value_ptr(inv), glm::value_ptr(inv) + 16, block.inverse[k]);
+        }
+        device_.updateBuffer(sun_, 0, &block, sizeof(block));
+        return used;
+    }
+    return 0;
+}
+
 rg::ResourceId VoxelGI::declare(rg::RenderGraph& graph, rg::ResourceId input, rg::ResourceId scene, const VoxelGIParams& params,
-                                u32 width, u32 height) {
+                                u32 width, u32 height, TextureHandle shadowAtlas, rg::ResourceId shadowResource) {
     if (!ensure() || input == rg::kNoResource || scene == rg::kNoResource) return input;
 
     // The passes are tied together by what each writes, since the graph only runs what the image reaches. The first two write a
@@ -484,11 +618,12 @@ rg::ResourceId VoxelGI::declare(rg::RenderGraph& graph, rg::ResourceId input, rg
         pass.reads = {input};
         pass.dependencies = {scene, maintainDone};
         pass.write = injectDone;
-        pass.execute = [this, &graph, scene, width, height](const rg::PassContext& ctx) {
+        pass.execute = [this, &graph, scene, width, height, cur](const rg::PassContext& ctx) {
             const TextureHandle depth = graph.depthTextureOf(scene);
             const TextureHandle gbuffer = graph.gbufferTextureOf(scene);
-            if (depth == TextureHandle::Invalid || gbuffer == TextureHandle::Invalid) return;
-            const GfxComputeBinding bindings[7] = {
+            const TextureHandle albedo = graph.albedoTextureOf(scene);
+            if (depth == TextureHandle::Invalid || gbuffer == TextureHandle::Invalid || albedo == TextureHandle::Invalid) return;
+            const GfxComputeBinding bindings[9] = {
                 GfxComputeBinding::uniform(0, context_.frameUbo()),
                 GfxComputeBinding::uniform(1, params_),
                 GfxComputeBinding::storage(2, grid_),
@@ -496,8 +631,36 @@ rg::ResourceId VoxelGI::declare(rg::RenderGraph& graph, rg::ResourceId input, rg
                 GfxComputeBinding::sampled(4, ctx.input(0)),
                 GfxComputeBinding::depth(5, depth),
                 GfxComputeBinding::sampled(6, gbuffer),
+                GfxComputeBinding::sampled(8, albedo),
+                // The last frame gather: written by the gather of the frame before, so the other of the two.
+                GfxComputeBinding::sampled(9, history_[cur ^ 1u]),
             };
-            device_.dispatchCompute(inject_, bindings, 7, (width / 2 + 7) / 8, (height / 2 + 7) / 8);
+            device_.dispatchCompute(inject_, bindings, 9, (width / 2 + 7) / 8, (height / 2 + 7) / 8);
+        };
+        graph.addPass(std::move(pass));
+    }
+
+    // The sun own light into the grid, after the picture and before anything reads it.
+    rg::ResourceId sunDone = injectDone;
+    if (shadowAtlas != TextureHandle::Invalid && shadowResource != rg::kNoResource && p.sunAlbedo > 0.0f) {
+        sunDone = graph.createTarget(token);
+        rg::PassDesc pass;
+        pass.name = "gi_sun";
+        pass.compute = true;
+        pass.dependencies = {shadowResource, injectDone};
+        pass.write = sunDone;
+        pass.execute = [this, p, shadowAtlas](const rg::PassContext&) {
+            const u32 tiles = writeSun(p);
+            if (tiles == 0) return;
+            const GfxComputeBinding bindings[6] = {
+                GfxComputeBinding::uniform(0, context_.frameUbo()),
+                GfxComputeBinding::uniform(1, params_),
+                GfxComputeBinding::storage(2, grid_),
+                GfxComputeBinding::storage(3, tags_),
+                GfxComputeBinding::sampled(4, shadowAtlas),
+                GfxComputeBinding::uniform(10, sun_),
+            };
+            device_.dispatchCompute(sunInject_, bindings, 6, (kSunSamples * tiles + 7) / 8, (kSunSamples + 7) / 8);
         };
         graph.addPass(std::move(pass));
     }
@@ -507,7 +670,7 @@ rg::ResourceId VoxelGI::declare(rg::RenderGraph& graph, rg::ResourceId input, rg
         rg::PassDesc pass;
         pass.name = "gi_gather";
         pass.compute = true;
-        pass.dependencies = {scene, injectDone};
+        pass.dependencies = {scene, sunDone};
         pass.write = gathered;
         pass.execute = [this, &graph, scene, cur](const rg::PassContext&) {
             const TextureHandle depth = graph.depthTextureOf(scene);

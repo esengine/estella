@@ -58,6 +58,11 @@ struct VoxelGIParams {
     f32 debug = 0.0f;
     /// How much of each frame's gather goes into the picture the next frame builds on (the rest is what the last frames agreed on).
     f32 blend = 0.2f;
+    /// The albedo a surface the sun lights is taken to have where the camera does not see it (the shadow map holds no colour);
+    /// 0 leaves the sun out of the cache, which then knows only what the picture shows.
+    f32 sunAlbedo = 0.6f;
+    /// How much of the light the last gather found on a surface it gives off again (the bounces after the first): 0 is one bounce.
+    f32 bounceFeedback = 1.0f;
 };
 
 class VoxelGI {
@@ -74,7 +79,11 @@ public:
      * @return The resource holding @p input with the gathered light added; @p input itself when there is nothing to do.
      */
     rg::ResourceId declare(rg::RenderGraph& graph, rg::ResourceId input, rg::ResourceId scene, const VoxelGIParams& params,
-                           u32 width, u32 height);
+                           u32 width, u32 height, TextureHandle shadowAtlas = TextureHandle::Invalid,
+                           rg::ResourceId shadowResource = rg::kNoResource);
+
+    /** Samples a side of each sun shadow tile the sun kernel reads back into the grid. */
+    static constexpr u32 kSunSamples = 256;
 
     /** Frees the device objects (the grid, the programs). */
     void release();
@@ -90,16 +99,20 @@ private:
     /// The two pictures the gathers accumulate into, made again when their size changes.
     bool ensureHistory(u32 width, u32 height);
     void writeParams(const VoxelGIParams& p);
+    /// Fills the sun block from the frame lights; the number of shadow tiles it carries, 0 when there is no sun with a map.
+    u32 writeSun(const VoxelGIParams& p);
 
     GfxDevice& device_;
     RenderContext& context_;
     BufferHandle grid_ = BufferHandle::Invalid;
     BufferHandle tags_ = BufferHandle::Invalid;
     BufferHandle params_ = BufferHandle::Invalid;
+    BufferHandle sun_ = BufferHandle::Invalid;
     ComputeHandle maintain_ = ComputeHandle::Invalid;
     ComputeHandle inject_ = ComputeHandle::Invalid;
     ComputeHandle gather_ = ComputeHandle::Invalid;
     ComputeHandle apply_ = ComputeHandle::Invalid;
+    ComputeHandle sunInject_ = ComputeHandle::Invalid;
     bool failed_ = false;
     u32 frame_ = 0;
     TextureHandle history_[2] = {TextureHandle::Invalid, TextureHandle::Invalid};

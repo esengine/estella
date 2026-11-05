@@ -55,7 +55,13 @@ Each figure is a region's linear value in the engine as a share of Cycles' value
 
 - **The bake is right once it bounces enough.** With 8 bounces it lands within 5–18% of Cycles, and with 12 within 4–10%. Two bounces, which was the default, left a light-walled room at about half its light. The default is 8 now, and the inspector goes to 16. More bounces cost little: a 252k-lumel bake took 1.7 s at 2 bounces and 2.4 s at 8.
 - **The real-time methods give a fraction of the bounce.** Voxel GI gives 0.04–0.15 of it, SSGI about none. Faces that only a later bounce reaches get nothing.
-- **Nothing off screen.** Both real-time methods seed from the frame's own picture, so `gi_away` is black under them. A surface cache lit independently of the view is what changes this.
+- **Nothing off screen, until the sun's map.** Both real-time methods seeded from the frame's own picture, so `gi_away` was black under them. The WebGPU cache now also reads the sun's shadow map back into world points (kernel `gi_sun`). With the default cascades `gi_away` gets 0.12–0.31 of Cycles, and with a fixed 6 m reach 0.10–0.28. `gi_leak` stays black.
+- **One bounce, until the feedback.** The WebGPU inject adds albedo × the last gather, so light keeps bouncing.
+  - 12 cm voxels, `gi_room`: ceiling 0.50–0.57, red wall 0.55–0.62, back wall 0.43–0.50, floor in shade 0.51–0.58 (was 0).
+  - Default 40 cm: frame light share 1.09 (mean |d| 0.0092, the lowest of every run). The ceiling and red wall overshoot (1.4–1.6) because a coarse voxel straddles both sides of a corner.
+  - The block face that only the off-screen, unlit front wall sees stays at 0.02: what the camera neither sees nor the sun lights is still missing.
+- **Fine grids drew nothing.** Below about 12 cm one sample a frame lands in a voxel, and the cache ages its count by 0.93 and truncates (1 → 0). It never reached the 2 a ray asks for. Samples now count 16.
+- **Shadow map traps.** The atlas is packed colour (unpack the rgb), not a depth texture, and a depth binding silently falls back to a dummy. Its z is clip z × 0.5 + 0.5, so undo it before the inverse, or every point lands toward the light and a closed room fills with sun.
 - **No colour bleed, until the albedo attachment.** On the red wall the real-time red channel was 0.11–0.15 of Cycles while green and blue were 0.5–0.85, so the bounce arrived grey. Both effects guessed the receiver's colour from the lit picture, which is black where the sun does not reach. Since the scene pass writes the albedo beside the normal, Voxel GI gives:
   - WebGL2: ceiling 0.72–0.90, red wall 0.75/0.73/0.77, back wall 0.32–0.45.
   - WebGPU compute: ceiling 0.57–0.71, red wall 0.48–0.57.

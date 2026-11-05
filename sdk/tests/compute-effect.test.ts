@@ -115,10 +115,14 @@ describe('native effects', () => {
         // The native side reads these by name, with these defaults when one is not set.
         expect(def!.uniforms.map((u) => u.name)).toEqual([
             'u_intensity', 'u_rays', 'u_voxelSize', 'u_range', 'u_maxBounce', 'u_decay', 'u_bias', 'u_divisor', 'u_blend', 'u_debug',
+            'u_sunAlbedo', 'u_bounceFeedback',
         ]);
         const defaults = Object.fromEntries(def!.uniforms.map((u) => [u.name, u.defaultValue]));
         expect(defaults.u_rays).toBe(8);
         expect(defaults.u_divisor).toBe(2);
+        // VoxelGIParams' own defaults (VoxelGI.hpp): the sun's off-screen light on, and every bounce fed back.
+        expect(defaults.u_sunAlbedo).toBe(0.6);
+        expect(defaults.u_bounceFeedback).toBe(1);
     });
 
     it('pushes a native pass by its kind, and leaves it out on a core that cannot', () => {

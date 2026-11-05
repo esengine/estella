@@ -1192,6 +1192,8 @@ void PostProcessPipeline::runChain(std::vector<PostProcessPass>& passes, rg::Res
                 gi.divisor = static_cast<u32>(std::max(get("u_divisor", static_cast<f32>(gi.divisor)), 1.0f));
                 gi.debug = get("u_debug", gi.debug);
                 gi.blend = get("u_blend", gi.blend);
+                gi.sunAlbedo = get("u_sunAlbedo", gi.sunAlbedo);
+                gi.bounceFeedback = get("u_bounceFeedback", gi.bounceFeedback);
                 auto& cache = voxel_gis_[temporalKey_];
                 if (!cache) {
                     // A handful of cameras at most have a cache each; one past that evicts another's, which rebuilds when its camera returns.
@@ -1202,7 +1204,8 @@ void PostProcessPipeline::runChain(std::vector<PostProcessPass>& passes, rg::Res
                     }
                     voxel_gis_[temporalKey_] = makeUnique<VoxelGI>(device_, context_);
                 }
-                input = voxel_gis_[temporalKey_]->declare(*graph_, input, scene, gi, width_, height_);
+                input = voxel_gis_[temporalKey_]->declare(*graph_, input, scene, gi, width_, height_,
+                                                          TextureHandle{shadow_texture_}, shadow_resource_);
             }
             continue;
         }
