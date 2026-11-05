@@ -3528,4 +3528,276 @@ export const NOTED = {
     {"note":"A drop on an Outliner row lands."},
   "fix(editor): a play that cannot start prints every compile error to the output log, and the status line carries the reason, not only that it failed":
     {"note":"A play that cannot start says why."},
+  "fix(api): a released const that gained readonly properties keeps its promise":
+    {"internal":"the API baseline check reads an additive const as additive; nothing a creator uses changed"},
+  "fix(assets): a core with no resource manager does not load authored asset paths":
+    {"internal":"a headless core used by the engine tests; a game always has a resource manager"},
+  "fix(ci): the API snapshots carry PhysX and the JS engine; Linux fetches no Windows V8":
+    {"internal":"CI snapshots and the Linux build fetch; nothing that ships changed"},
+  "fix(ecs): world.set reads a vector written before it grew an axis":
+    {"note":"Commands inside a query."},
+  "feat(android): PhysX is its own library, packed only for a PhysX project":
+    {"note":"PhysX as a second 3D solver."},
+  "feat(native): PhysX runs on Windows, Linux and Android hosts, beside Jolt":
+    {"note":"PhysX as a second 3D solver."},
+  "feat(physics3d): PhysX as a second 3D backend, chosen per project, set up like Unity":
+    {"note":"PhysX as a second 3D solver."},
+  "feat(web): the JavaScript engine is opt-in — Project Settings → Web → Run without WebAssembly":
+    {"note":"A web game can run in a browser without WebAssembly."},
+  "feat(web): a browser without WebAssembly runs the game — the engine also ships as JavaScript":
+    {"note":"A web game can run in a browser without WebAssembly."},
+  "fix(export): an exported web game's long music plays — its CSP allows blob: media":
+    {"note":"Long music plays in an exported web game and in Play."},
+  "feat(android): an APK deflates its native libraries — an empty project is 20 MB, not 54":
+    {"note":"An Android APK is less than half the size."},
+  "fix(native): a phone runs the scripts a browser runs — V8 with Intl, and TextEncoder":
+    {"note":"The Windows and Android hosts run the game"},
+  "fix(android): the 60 fps frame-rate hint reaches the system on current Android":
+    {"note":"A native game runs at the frame rate it asks for."},
+  "fix(android): the V8 host boots on a phone, and compiled systems install there":
+    {"note":"The Windows and Android hosts run the game"},
+  "fix(text): a bitmap glyph's outline is the glyph grown, not eight stamped copies of it":
+    {"note":"A bitmap glyph's outline is the glyph grown,"},
+  "feat(native): the Windows and Android hosts run the game's JS on V8, with its JIT":
+    {"note":"The Windows and Android hosts run the game"},
+  "fix(native): an embedded shader is cut into literals MSVC can hold, and the check sees delimited ones":
+    {"internal":"lets the Windows host compile; a shipped host behaves the same"},
+  "feat(ui): pointerEvents Receive takes the pointer back under a None ancestor":
+    {"note":"`pointerEvents: Receive` under a `None` ancestor."},
+  "perf(app): a single system can sit out the frames it has nothing to do in":
+    {"note":"Systems and plugins with nothing to do cost nothing."},
+  "feat(aot): an Android package runs its @compiled systems as machine code":
+    {"note":"An Android package runs its `@compiled` systems as machine code."},
+  "feat(history): Undo run takes back a whole agent run in one click":
+    {"note":"History shows where an agent run began"},
+  "feat(history): agent runs are marked in History, file undo is kept by space, captures stop at 1568 px":
+    {"note":"History shows where an agent run began"},
+  "perf(app): seven more subsystems sit out the frames a scene gives them nothing to do":
+    {"note":"Systems and plugins with nothing to do cost nothing."},
+  "fix(mcp): the connection survives an editor that fails to start, and tells the agent how to work":
+    {"note":"The MCP connection survives an editor that fails to start"},
+  "feat(app): Plugin.activeWhen — a plugin whose components no entity has costs nothing per frame":
+    {"note":"Systems and plugins with nothing to do cost nothing."},
+  "feat(mcp): a local log of which tools fail; the guide says how undo, permissions and progress work":
+    {"note":"An agent call over MCP is one undo step, files included."},
+  "feat(mcp): agent calls are undo steps with their files, tools carry annotations, long calls send progress":
+    {"note":"An agent call over MCP is one undo step, files included."},
+  "feat(shaders): the cook derives every shader's WGSL twin where the host ships the converters":
+    {"note":"Every shader's WGSL twin is derived as it is read."},
+  "feat(scene): sceneOutOfBandFields names what a component carries beside its fields":
+    {"note":"`sceneOutOfBandFields`."},
+  "fix(textures): atlas pages fill their clear texels too, and solid art is not taken for premultiplied":
+    {"note":"A transparent edge shows no dark fringe."},
+  "fix(textures): a transparent edge no longer shows a dark fringe":
+    {"note":"A transparent edge shows no dark fringe."},
+  "feat(assets): a package carries the assets its scripts name, and says which file it lacks":
+    {"note":"An asset path written into a component while the game runs is loaded."},
+  "feat(editor)!: remove the built-in agent; plugin agent tools reach MCP clients":
+    {"note":"The editor no longer has an agent of its own."},
+  "feat(camera): orthoSize stays the zoom under a design-resolution fit":
+    {"note":"`orthoSize` stays the zoom under a design-resolution fit."},
+  "feat(input): MouseButton.Left / Middle / Right":
+    {"note":"`MouseButton.Left`, `Middle` and `Right`."},
+  "fix(sdk): the shipped .d.ts files keep real names between their chunks":
+    {"note":"The shipped `.d.ts` files keep real names between their chunks."},
+  "feat(scene): SceneManager.getLoading and whenLoadsSettle":
+    {"note":"`SceneManager.getLoading` and `whenLoadsSettle`."},
+  "fix(text): a label's shadow and outline fade with its own colour alpha":
+    {"note":"A bitmap glyph's outline is the glyph grown,"},
+  "fix(ui): every Interactable carries its UIInteraction from the frame it appears; one exported game hit test":
+    {"note":"A UI press lands on the frame a control appears."},
+  "feat(assets): an asset path written into an engine component at run time is loaded into its handle":
+    {"note":"An asset path written into a component while the game runs is loaded."},
+  "fix(ecs): a Mut row kept past the loop stays live until the system returns":
+    {"note":"Commands inside a query."},
+  "fix(ecs): cmds.spawn(...).id() inside a query reserves the id instead of throwing":
+    {"note":"Commands inside a query."},
+  "fix(shader): a reserved #pragma param says how to read the uniform it shadows":
+    {"note":"A reserved `#pragma param` says how to read the uniform it shadows."},
+  "feat(mcp): frame stats carry what texture streaming holds; the MCP docs say when the editor starts":
+    {"note":"Mesh textures stream to the size their views need."},
+  "feat(app): App.setRunInBackground keeps the loop going while the page is hidden":
+    {"note":"`App.setRunInBackground`."},
+  "fix(debug): device_screenshot reads a native build's frame back":
+    {"note":"More of the editor answers over MCP."},
+  "feat(export): a web build ships a small copy of each texture a mesh draws, and streaming fetches the file only once a view needs more":
+    {"note":"Mesh textures stream to the size their views need."},
+  "fix(assets): a cooked MP3 starts with its first frame, not the encoder's flush bytes":
+    {"note":"A cooked MP3 starts with its first frame,"},
+  "feat(render): uvRectFromPixels, the one pixel-rect to UV conversion, and docs for y-up UV space":
+    {"note":"`uvRectFromPixels`."},
+  "fix(render): a material's sprites no longer merge across textures":
+    {"note":"A material's sprites no longer merge across textures."},
+  "fix(ui): nine-slice borders reach the native core, and a short box keeps its corners round":
+    {"note":"Nine-slice borders reach the native core,"},
+  "feat(camera): CameraView.pointerToWorld / pointerRay take the pointer as Input reports it":
+    {"note":"`CameraView.pointerToWorld` and `pointerRay`."},
+  "fix(camera): CameraView and PresentedCameraView are published on the native core too":
+    {"note":"`CameraView.pointerToWorld` and `pointerRay`."},
+  "feat(assets): a texture a mesh draws starts small while texture streaming is on, and grows to what its views need":
+    {"note":"Mesh textures stream to the size their views need."},
+  "feat(render): texture streaming holds each mesh texture at the size its views need, measured per draw from the mesh's UV density, and moves it behind the same handle":
+    {"note":"Mesh textures stream to the size their views need."},
+  "feat(render): an Impostor stands a picture of its mesh in once it is small, taken from many directions by the engine's own cameras and drawn as one batched card per view":
+    {"note":"Impostors."},
+  "feat(render): Billboard turns a mesh to each view that draws it, flat in the view plane or upright about world up, without writing its Transform":
+    {"note":"Billboards."},
+  "feat(render): the device counts every draw a frame asks of the GPU, every pass included, and a quality level holds a draw call budget against it":
+    {"note":"A draw call budget per quality level."},
+  "feat(gameplay): FirstPersonController looks, walks, jumps and crouches in a CharacterController3D; FirstPersonViewModel draws a held thing with a second camera so it does not go through walls":
+    {"note":"A first-person controller."},
+  "feat(physics3d): RagdollJoint gives a bone no body or limits of its own; the ragdoll plan is shared with the editor, which draws it":
+    {"note":"Ragdolls."},
+  "feat(spline): a terrain band's lip can be drawn with an image repeating along the surface; PathFollower is shown to answer a timeline track or graph node by property path":
+    {"note":"Move along a spline, and a 2D ground along one."},
+  "feat(physics3d): a ragdoll's knees and elbows are one-way hinges, folding back and forward from the pose they start in":
+    {"note":"Ragdolls."},
+  "feat(physics3d): a ragdoll's joints are limited by their part of the body (spine stiff, shoulder loose, shin almost a hinge), read from bone names":
+    {"note":"Ragdolls."},
+  "feat(import): far LOD levels may collapse across borders and seams and shed specks, so they reach their budget":
+    {"note":"Far LOD levels reach their budget."},
+  "fix(physics3d): a ragdoll keeps the animation running and puts the bodies' pose over it, finds a skin below its entity, and defaults to looser limits":
+    {"note":"Ragdolls."},
+  "feat(physics3d): Ragdoll turns a skinned character's bones into jointed bodies and blends back to the animation":
+    {"note":"Ragdolls."},
+  "fix(spline): TerrainBand2D and PathFollower pull the spline module into a build; a band rebuilds a mesh the editor cleared":
+    {"note":"Move along a spline, and a 2D ground along one."},
+  "feat(spline): TerrainBand2D draws a 2D ground along a Spline, with a surface lip and an optional chain collider":
+    {"note":"Move along a spline, and a 2D ground along one."},
+  "feat(spline): PathFollower moves an entity along a Spline at a steady speed (once, loop, ping-pong)":
+    {"note":"Move along a spline, and a 2D ground along one."},
+  "feat(native): the target frame rate reaches the host, which paces its display-driven loop to it":
+    {"note":"A native game runs at the frame rate it asks for."},
+  "fix(android): ask the system for 60 fps and clock frames by the vsync timestamp":
+    {"note":"A native game runs at the frame rate it asks for."},
+  "feat(terrain): brushes change an area's ground in place, with the pages made again only where a stroke reached":
+    {"note":"Terrain brushes."},
+  "fix(desktop): graph wires take Unreal's spline, a pinned tilemap mode has a way out, and dev keeps the main-process externals":
+    {"note":"Tilemap mode has a way out."},
+  "fix(viewport): a camera move wakes the paint that carries it":
+    {"note":"A camera move in the viewport always repaints."},
+  "fix(material): a live texture edit keeps drawing once the texture's cooked form lands":
+    {"note":"A live texture edit keeps drawing once the texture's cooked form lands,"},
+  "fix(checks): the editor checks run a fresh English profile and wake the lazy editor":
+    {"internal":"an editor or engine check, which a creator does not run"},
+  "fix(checks): collider3d-gizmo measures the dimmed wire by its ink, not by bright pixels":
+    {"internal":"an editor or engine check, which a creator does not run"},
+  "fix(checks): gizmo checks follow the orthoSize rule and the plane handles' new place":
+    {"internal":"an editor or engine check, which a creator does not run"},
+  "fix(scripts): a shipped editor type-checks with the TS standard library":
+    {"note":"A packaged editor type-checks scripts with TypeScript's standard library,"},
+  "fix(settings): an Android package carries PhysX only when it is chosen":
+    {"note":"PhysX as a second 3D solver."},
+  "fix(settings): the 3D solver note says native apps run the chosen solver":
+    {"note":"PhysX as a second 3D solver."},
+  "feat(settings): Project Settings → Physics → 3D solver picks Jolt or PhysX, and Play runs the one chosen":
+    {"note":"PhysX as a second 3D solver."},
+  "feat(settings): Web packaging can carry the JavaScript engine — off by default":
+    {"note":"A web game can run in a browser without WebAssembly."},
+  "fix(play): a streamed clip plays in Play — the realm's CSP allows blob: media":
+    {"note":"Long music plays in an exported web game and in Play."},
+  "feat(packaging): Android setting to compress the APK's native libraries (on by default)":
+    {"note":"An Android APK is less than half the size."},
+  "fix(ui-inspect): the pointer verdict asks the nearest decided node, so Receive under None reads as hit":
+    {"note":"`pointerEvents: Receive` under a `None` ancestor."},
+  "feat(build): the Package dialog says when an Android export needs the NDK for compiled systems":
+    {"note":"An Android package runs its `@compiled` systems as machine code."},
+  "feat(history): Undo run takes back a whole agent run in one click":
+    {"note":"History shows where an agent run began"},
+  "feat(history): an agent's undo reaches as far back as space allows, and History shows where its run began":
+    {"note":"History shows where an agent run began"},
+  "fix(mcp): an editor that fails to start is a tool error; the server tells a session how to work":
+    {"note":"The MCP connection survives an editor that fails to start"},
+  "feat(mcp): capture_viewport realm play reads the running game's own frame back":
+    {"note":"More of the editor answers over MCP."},
+  "feat(mcp): a local log of which tools fail, and a summary of it":
+    {"note":"An agent call over MCP is one undo step, files included."},
+  "feat(mcp): edit_controller and set_gear_binding author UI controllers and gears":
+    {"note":"More of the editor answers over MCP."},
+  "fix(mcp): take back two tools another session's work-in-progress lent my last commit":
+    {"internal":"reverted tools that a previous commit lent by mistake; no release carried them"},
+  "feat(mcp): arguments are checked all the way down, and the error names where":
+    {"note":"An agent call over MCP is one undo step, files included."},
+  "feat(shaders): a project shader's WGSL twin is derived as it is read, in a packaged editor too":
+    {"note":"Every shader's WGSL twin is derived as it is read."},
+  "feat(mcp): a long call tells the client it is still running":
+    {"note":"An agent call over MCP is one undo step, files included."},
+  "feat(mcp): every tool carries MCP annotations from its effect":
+    {"note":"An agent call over MCP is one undo step, files included."},
+  "feat(mcp): one agent call is one undo step, and its files go back with it":
+    {"note":"An agent call over MCP is one undo step, files included."},
+  "fix(mcp): set_field on a MeshRenderer's inline geometry says what to use instead":
+    {"note":"An agent call over MCP is one undo step, files included."},
+  "fix(editor): the editor shows a texture's shipped image, not only its KTX2":
+    {"note":"A live texture edit keeps drawing once the texture's cooked form lands,"},
+  "feat(build): the size report names assets that ship because the scripts name them":
+    {"note":"An asset path written into a component while the game runs is loaded."},
+  "feat(editor)!: remove the built-in agent; plugin agent tools are served over MCP":
+    {"note":"The editor no longer has an agent of its own."},
+  "fix(mcp): step waits for scene loads in flight and names them":
+    {"note":"More of the editor answers over MCP."},
+  "fix(mcp): a play_input click presses on the first frame it is given":
+    {"note":"More of the editor answers over MCP."},
+  "fix(mcp): click_ui confirms its target with the game's hit test":
+    {"note":"More of the editor answers over MCP."},
+  "feat(mcp): the everyday tools are listed from the start and the rest in groups enable_tools turns on; every tool stays callable by name":
+    {"note":"More of the editor answers over MCP."},
+  "refactor(mcp): the fourteen longest tool descriptions say the same in about half the words":
+    {"internal":"tool descriptions read shorter; what each tool does is unchanged"},
+  "feat(mcp): the editor starts on the first tool call, not before the handshake; get_stats answers for the running game; a probe has the SDK as sdk":
+    {"note":"More of the editor answers over MCP."},
+  "fix(play): Play keeps running in a hidden or background editor window":
+    {"note":"Play keeps running in a hidden or background editor window,"},
+  "fix(scripts): the shipped editor carries TypeScript's standard library, so check_scripts stops reporting 'Cannot find name Math'":
+    {"note":"A packaged editor type-checks scripts with TypeScript's standard library,"},
+  "fix(project): text writes publish whole files, so a reader never sees a half-written manifest":
+    {"note":"A project manifest is never seen half-written."},
+  "fix(export): an export that does not name an option takes what the Package dialog saved":
+    {"note":"An export that does not name an option takes what the Package dialog saved."},
+  "fix(editor): fitting a sprite to its texture never overwrites a size written after the texture":
+    {"note":"Fitting a sprite to its texture never overwrites a size written after the texture."},
+  "fix(play): a new Play reads textures as they are on disk now":
+    {"note":"Play keeps running in a hidden or background editor window,"},
+  "feat(checks): texture-streaming says what a build with small copies would fetch once settled; the streaming setting names the download it saves":
+    {"internal":"an editor or engine check, which a creator does not run"},
+  "feat(history): an edit made through an MCP tool is recorded as automation's, and an on-disk change reloads the scene without asking when those are the only unsaved steps":
+    {"note":"More of the editor answers over MCP."},
+  "feat(checks): texture-streaming reads the memory a scene first comes up in":
+    {"internal":"an editor or engine check, which a creator does not run"},
+  "feat(settings): a quality level streams its mesh textures within a budget, checked on dusk-fort and bistro; the mip-need library is typed":
+    {"note":"Mesh textures stream to the size their views need."},
+  "feat(checks): mip-need measures how much texture a 3D example holds that its first view does not need":
+    {"internal":"an editor or engine check, which a creator does not run"},
+  "feat(viewport): impostors are checked: every kind's pictures are taken, each card covers its mesh in its colour, and the cards are one draw":
+    {"internal":"an editor or engine check, which a creator does not run"},
+  "fix(overlays): a viewport dropdown closes on its own button and on a press of the scene, which cancels pointerdown and so never sent the mousedown the dismissal waited for":
+    {"note":"A viewport dropdown closes"},
+  "feat(content-browser): in a dock group 800px or wider the toolbar rides in the tab strip, so the grid starts right under the tabs":
+    {"note":"The content browser has one toolbar."},
+  "feat(viewport): a billboard is checked turning its quad to the camera in both modes; static batching names a billboard it leaves out":
+    {"internal":"an editor or engine check, which a creator does not run"},
+  "feat(content-browser): path, search and filter share one 26px toolbar; New and Import move to the empty-space menu; a bottom slider switches list and grid; a narrow dock gets the folder tree as a drawer":
+    {"note":"The content browser has one toolbar."},
+  "feat(profiler): the Render module shows the frame's GPU draws against the quality level's draw call budget, split by pass; a level's budget is a Quality setting":
+    {"note":"A draw call budget per quality level."},
+  "feat(viewport): a selected ragdoll shows the limbs and joint limits it would be made of":
+    {"note":"Ragdolls."},
+  "feat(viewport): a Spline on its own gets drag, insert and delete handles, on the screen's plane in 2D and the ground's in 3D":
+    {"note":"Move along a spline, and a 2D ground along one."},
+  "feat(gizmo): shafts brighten toward the tip, scale centre is a dotted disc, as in Unreal":
+    {"note":"The editor looks and handles like Unreal."},
+  "fix(viewport): empties, lights and cameras get no selection box, as in Unreal":
+    {"note":"The editor looks and handles like Unreal."},
+  "fix(gizmo): all three plane handles are always drawn, edge-on ones as slivers, as in Unreal":
+    {"note":"The editor looks and handles like Unreal."},
+  "fix(gizmo): a plane handle seen edge-on is hidden instead of drawn as a sliver over an axis":
+    {"note":"The editor looks and handles like Unreal."},
+  "feat(viewport): Alt + right drag dollies the eye, as in Unity and Unreal":
+    {"note":"The editor looks and handles like Unreal."},
+  "feat(terrain): a terrain brush raises, lowers, smooths and flattens an area's ground and paints its layers":
+    {"note":"Terrain brushes."},
+  "feat(viewport): the transform handles default to 1.2x, arrows 96px instead of 80 — they were small in a viewport that has the whole panel; the Handle size setting still runs 0.5 to 2":
+    {"note":"The editor looks and handles like Unreal."},
+  "fix(viewport): a selected camera in a 3D view draws its whole frustum, strongly, instead of only the flat frame where it meets z = 0; an unselected one stays a quiet outline and Show Frustum still forces the volume":
+    {"note":"The editor looks and handles like Unreal."},
 };

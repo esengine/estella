@@ -14,9 +14,30 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
-### Removed
+## [0.98.0] - 2026-11-04
 
-- **The editor no longer has an agent of its own.** The Agent drawer, its panel, the status-bar and activity-bar entries, the palette's "Hand to Agent" row, the provider settings (keys, models, custom endpoints), the agent marks in the Outliner and viewport, and the History panel's folded agent runs are gone, with the `agent_send`, `agent_status`, `agent_confirm`, `agent_transcript` and `done_when` tools. Agents connect over MCP (Window → Connect AI Tools…), where the same tools have always been served. History now lists every step on its own line.
+### Added
+
+- **PhysX as a second 3D solver.** Project Settings → Physics → 3D solver (`features.physics.backend3d`) picks Jolt, the default, or PhysX 5, set up with Unity's defaults (PGS, patch friction, average combine, 0.01 m contact offset, 2 m/s bounce threshold, 6/1 iterations), so a scene ported from Unity behaves the way it did there. Components, joints, characters, queries and events are the same on both. A web build carries only the solver chosen; the Windows, Linux and Android hosts link both and run the one the project chose, and on Android PhysX is a library of its own that only a PhysX project packs. macOS and iOS hosts run Jolt for a PhysX project and say so once. The PhysX module is 3.6 MB (1.15 MB gzip) against Jolt's 1.3 MB.
+- **A web game can run in a browser without WebAssembly.** Project Settings → Web → Run without WebAssembly (`packaging.platforms.web.engineJs`, off by default) packs the engine a second time as JavaScript (about 4 MB), which the page loads only where WebAssembly is missing or with `?engine=js`. It runs without WebGPU and with compiled systems interpreted; on a small project it cost about 2 ms more per frame. With the setting off, a browser without WebAssembly gets an error that names it.
+- **The Windows and Android hosts run the game's scripts on V8.** A game's scripts ran on an interpreter on these hosts, about nine times slower than in a browser; V8 now compiles them with its JIT, with `Intl` and `TextEncoder`, and nothing in the project changes. Measured on 5000 scripted entities: 76 to 8 ms a frame on the desktop, 64 to 14 ms on a phone. iOS keeps the interpreter (no JIT is allowed there), as do macOS and Linux for now.
+- **An Android package runs its `@compiled` systems as machine code.** The systems the AOT compiler takes are built into the package and installed at boot on the phone, as on the desktop host (14.3 to 4.1 ms per frame on a phone). The Package dialog says when an Android export needs the NDK for them.
+- **Mesh textures stream to the size their views need.** With texture streaming on, each texture a mesh draws is held at the size its views need, measured per draw from the mesh's UV density, behind the same handle, and a quality level keeps the total within a budget. A web build ships a small copy of each such texture first and fetches the file only once a view needs more. Measured on the examples, the first view needs none of 93% of dusk-fort's texture memory and 46% of bistro's.
+- **Impostors.** An `Impostor` stands a picture of its mesh in once the mesh is small on screen, taken from many directions by the engine's own cameras, and draws as one batched card per view.
+- **Billboards.** `Billboard` turns a mesh to each view that draws it, flat in the view plane or upright about world up, without writing its `Transform`.
+- **A draw call budget per quality level.** The device counts every draw a frame asks of the GPU, every pass included, and the profiler's Render module shows it split by pass against the quality level's budget (a Quality setting).
+- **A first-person controller.** `FirstPersonController` looks, walks, jumps and crouches in a `CharacterController3D`, and `FirstPersonViewModel` draws a held thing with a second camera so it does not go through walls.
+- **Ragdolls.** `Ragdoll` turns a skinned character's bones into jointed bodies and blends back to the animation. The joints are limited by their part of the body, read from bone names (a stiff spine, a loose shoulder, knees and elbows that fold one way), `RagdollJoint` gives a bone limits of its own or no body at all, and the viewport draws the limbs and limits of a selected ragdoll before it falls.
+- **Move along a spline, and a 2D ground along one.** `PathFollower` moves an entity along a `Spline` at a steady speed (once, loop or ping-pong). `TerrainBand2D` draws a 2D ground along a spline, with a surface lip that can repeat an image and an optional chain collider. A spline on its own gets drag, insert and delete handles in the viewport.
+- **Terrain brushes.** The terrain brush raises, lowers, smooths and flattens an area's ground and paints its layers, and only the pages a stroke reached are made again.
+- **`MouseButton.Left`, `Middle` and `Right`.** The binding function also names the three buttons, so `MouseButton.Left` reads where `0` did.
+- **`SceneManager.getLoading` and `whenLoadsSettle`.** What is loading now, and a promise for when it has all landed.
+- **`App.setRunInBackground`.** Keeps the game loop going while the page is hidden.
+- **`CameraView.pointerToWorld` and `pointerRay`.** They take the pointer as `Input` reports it, and the camera views are published on the native core as well.
+- **`uvRectFromPixels`.** The one conversion from a pixel rectangle of a texture to the y-up UV rectangle a `Sprite` takes.
+- **`pointerEvents: Receive` under a `None` ancestor.** A node set to Receive takes the pointer back inside a subtree whose ancestor lets it pass through.
+- **An asset path written into a component while the game runs is loaded.** A path written into `Sprite.texture`, `MeshRenderer.mesh` or any declared asset field of an engine component read back as the path while the engine held nothing, and nothing drew; it is now loaded as a scene file's paths are (atlas frames included) and held for as long as the entity, on every core. A package now carries the assets its scripts name, the size report says which, and a file they name that is missing is reported by name.
+- **`sceneOutOfBandFields`.** Names what a component's scene codec saves beside its fields (a `MeshRenderer`'s inline geometry), which no inspector or edit reaches.
 
 ### Changed
 
@@ -24,6 +45,44 @@ published separately; it ships inside the editor.
 - **The MCP connection survives an editor that fails to start, and tells the agent how to work.** A call made while the editor cannot start says why, in the editor's own output, and the next call tries again; the connection used to drop with it. Every session gets short server instructions at connect (tool groups, the open scene versus the running game, `step` instead of waiting, one call per undo step). Saves, exports, project creation and play-mode tools are no longer undo steps, so Undo does not roll a saved file back. A cancelled call does not start, and a composite one stops at its next step. `enable_tools` takes `plugins`, for clients that do not refresh their tool list.
 - **History shows where an agent run began, and an agent's undo reaches further back.** A rule marks each run's start (**AI run · client · time**), so taking the whole run back is one click on the row above it. Copies of the files agent calls write are kept by space (512 MB) instead of the last 32 calls, and a step whose copies had to go is marked **files kept** before anyone presses Undo. Screenshots an agent takes are sent at 1568 px on the long side by default — what Claude's vision input looks at — which halves their size with nothing seen lost.
 - **Plugin agent tools reach MCP clients.** A tool a plugin lends with `ctx.agentTools.register` is now listed to every connected MCP client beside the editor's own, and a call runs in the editor. Its `schema` is checked first, and a tool whose `effect` is not `read` is offered only while the editor lets agents change the project. The LDtk plugin's `estella_ldtk_import` is the first.
+- **More of the editor answers over MCP.** `edit_controller` and `set_gear_binding` author UI controllers and gears; `capture_viewport` can read the running game's own frame back, and `device_screenshot` a native build's; frame stats carry what texture streaming holds. The everyday tools are listed from the start and the rest in groups `enable_tools` turns on, every tool still callable by name; the editor starts on the first tool call; `step` waits for scene loads in flight and names them; `click_ui` confirms its target with the game's hit test and `play_input` presses on the first frame it is given. An edit made through a tool is recorded as automation's, and a change on disk reloads the scene without asking when those are the only unsaved steps.
+- **`orthoSize` stays the zoom under a design-resolution fit.** With a Canvas in the scene or the project's fit on, the main camera's `orthoSize` was replaced by half the design height, so changing or tweening it did nothing. The fit now adapts the camera's own size to the screen: `orthoSize` is the half-height at the design aspect, as in Unity, and the world UI box is the design resolution fitted to the camera, so a zoom never reflows UI. At `orthoSize` = half the design height everything is where it was; a project that authored another value under a fit now shows that value.
+- **The editor looks and handles like Unreal.** The transform gizmo takes Unreal's proportions: shafts that brighten toward the tip, all three plane handles near the centre, a dotted disc for uniform scale, and handles 1.2 times the old size by default. Empties, lights and cameras get no selection box; a selected camera in a 3D view draws its whole frustum. The chrome is flatter and denser, with one slate selection colour, solid viewport overlays, segmented controls and a lighter status bar. Graph wires follow Unreal's curve, a backward wire looping out to the right instead of under the nodes. Alt + right drag dollies the eye.
+- **The content browser has one toolbar.** Path, search and filter share one row; New and Import moved to the empty-space menu; a slider at the bottom switches between list and grid; a narrow dock shows the folder tree as a drawer; and in a dock group 800 px or wider the toolbar rides in the tab strip.
+- **Tilemap mode has a way out.** A mode pinned from the activity bar held through every click in the viewport. The tile toolbar now starts with Leave Tilemap Mode, and Escape with nothing selected releases a pinned mode.
+- **An Android APK is less than half the size.** Its native libraries are deflated (unpacked once at install), so an empty project is 20 MB instead of 54. Project Settings → Android → Compress native libraries turns it off, to store them for the system to map in place.
+- **A native game runs at the frame rate it asks for.** The target frame rate reaches the host, which paces its display-driven loop to it, and Android is asked for 60 fps and clocks frames by the vsync timestamp.
+- **Every shader's WGSL twin is derived as it is read.** A project shader keeps only GLSL; the cook and a packaged editor derive the WebGPU version where the host ships the converters.
+- **Far LOD levels reach their budget.** A far level may collapse across borders and seams and shed specks, where it used to stop short of its triangle target.
+
+### Removed
+
+- **The editor no longer has an agent of its own.** The Agent drawer, its panel, the status-bar and activity-bar entries, the palette's "Hand to Agent" row, the provider settings (keys, models, custom endpoints), the agent marks in the Outliner and viewport, and the History panel's folded agent runs are gone, with the `agent_send`, `agent_status`, `agent_confirm`, `agent_transcript` and `done_when` tools. Agents connect over MCP (Window → Connect AI Tools…), where the same tools have always been served. History now lists every step on its own line.
+
+### Performance
+
+- **Systems and plugins with nothing to do cost nothing.** A single system can sit out the frames it has nothing to do in, seven built-in subsystems do so for scenes that give them nothing, and `Plugin.activeWhen` names the components a plugin needs, so a plugin no entity uses costs nothing per frame.
+
+### Fixed
+
+- **A transparent edge shows no dark fringe.** Atlas pages fill their clear texels from the colour beside them, and solid art is no longer taken for premultiplied.
+- **A bitmap glyph's outline is the glyph grown,** not eight stamped copies of it, and a label's shadow and outline fade with its own colour alpha.
+- **A UI press lands on the frame a control appears.** Every `Interactable` carries its `UIInteraction` from its first frame, and an exported game has one hit test.
+- **Nine-slice borders reach the native core,** and a short box keeps its corners round.
+- **A material's sprites no longer merge across textures.**
+- **A cooked MP3 starts with its first frame,** not the encoder's flush bytes.
+- **Long music plays in an exported web game and in Play.** Their content security policy allows `blob:` media, which a streamed clip plays from.
+- **Commands inside a query.** `cmds.spawn(...).id()` inside a query reserves the id instead of throwing, a `Mut` row kept past the loop stays live until the system returns, and `world.set` reads a vector written before the component grew an axis.
+- **A reserved `#pragma param` says how to read the uniform it shadows.**
+- **The shipped `.d.ts` files keep real names between their chunks.**
+- **A packaged editor type-checks scripts with TypeScript's standard library,** so the script check no longer reports "Cannot find name 'Math'".
+- **Play keeps running in a hidden or background editor window,** and a new Play reads textures as they are on disk.
+- **A live texture edit keeps drawing once the texture's cooked form lands,** and the editor shows a texture's shipped image, not only its KTX2.
+- **Fitting a sprite to its texture never overwrites a size written after the texture.**
+- **A project manifest is never seen half-written.** Text writes publish whole files.
+- **An export that does not name an option takes what the Package dialog saved.**
+- **A viewport dropdown closes** on its own button and on a press of the scene.
+- **A camera move in the viewport always repaints.**
 
 ## [0.97.0] - 2026-10-31
 
@@ -15029,7 +15088,8 @@ not kept before this file was introduced — see the Git history at
 `github.com/esengine/estella` for the full commit-level record since the first
 commit on 2026-01-25.
 
-[Unreleased]: https://github.com/esengine/estella/compare/v0.97.0...HEAD
+[Unreleased]: https://github.com/esengine/estella/compare/v0.98.0...HEAD
+[0.98.0]: https://github.com/esengine/estella/compare/v0.97.0...v0.98.0
 [0.97.0]: https://github.com/esengine/estella/compare/v0.96.0...v0.97.0
 [0.96.0]: https://github.com/esengine/estella/compare/v0.95.0...v0.96.0
 [0.95.0]: https://github.com/esengine/estella/compare/v0.94.0...v0.95.0

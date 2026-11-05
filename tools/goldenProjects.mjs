@@ -1022,6 +1022,46 @@ export const SHIPPED = {
     { notCertifiable: "A rendering feature, covered by its unit tests and the Texture Canvas example run in the editor; no golden project pastes textures, and one packaged frame cannot decide a result that depends on the device." },
   "Pack several textures onto one canvas at run time: `TextureAtlas.pack`.":
     { notCertifiable: "A rendering feature, covered by its unit tests and by the Render Texture example run in the editor; no golden project packs textures, and one packaged frame cannot decide a result that depends on the device." },
+  "PhysX as a second 3D solver.":
+    { notCertifiable: "The solver is a project setting no golden project chooses; check-physics3d-physx runs the 98-behaviour 3D smoke against the PhysX module in CI, and verify-native-physx exports the 3D example on each solver and holds that the chosen one answered." },
+  "A web game can run in a browser without WebAssembly.":
+    { notCertifiable: "An opt-in packaging setting that no golden project turns on; the SDK suite runs against the JavaScript engine (ESENGINE_ENGINE=asmjs), and one packaged frame from a browser that has WebAssembly cannot decide the fallback." },
+  "The Windows and Android hosts run the game":
+    { notCertifiable: "A property of the native hosts, not of a game act; the native verifiers boot the hosts, and the speed is the bench/aot-native measurement, which no packaged frame decides." },
+  "An Android package runs its `@compiled` systems as machine code.":
+    { notCertifiable: "Needs an Android device to decide, which the golden runner does not drive; measured on a phone with the AOT bench." },
+  "Mesh textures stream to the size their views need.":
+    { notCertifiable: "A memory and bandwidth result, held by the texture-streaming and mip-need editor checks on the 3D examples; a packaged frame looks the same whether the texture streamed or not." },
+  "Impostors.":
+    { notCertifiable: "A rendering feature covered by impostor.test.ts and the impostor editor check; no golden project uses impostors." },
+  "Billboards.":
+    { notCertifiable: "A rendering feature covered by test_billboard_facing and the billboard editor check; no golden project uses billboards." },
+  "A draw call budget per quality level.":
+    { notCertifiable: "A counter and a profiler readout, covered by draw-budget.test.ts and the draw-budget editor check; no game act decides it." },
+  "A first-person controller.":
+    { notCertifiable: "A gameplay component covered by first-person.test.ts on the 3D physics module; no golden project is first-person." },
+  "Ragdolls.":
+    { notCertifiable: "A physics feature covered by ragdoll.test.ts and the ragdoll smokes on both 3D solvers (20 of 20); no golden project carries a ragdoll." },
+  "Move along a spline, and a 2D ground along one.":
+    { notCertifiable: "Covered by spline.test.ts and the editor's spline handles; no golden project lays a path or a band." },
+  "Terrain brushes.":
+    { notCertifiable: "An editor authoring tool and its engine edit, covered by terrain-sculpt.test.ts and the editor's terrain-sculpt-tools test; a packaged game does not paint terrain." },
+  "`MouseButton.Left`, `Middle` and `Right`.":
+    { notCertifiable: "An API name for values that already existed, covered by input-map.test.ts and the API baseline." },
+  "`SceneManager.getLoading` and `whenLoadsSettle`.":
+    { notCertifiable: "An API covered by scene-loads-settle.test.ts; no game act depends on asking what is loading." },
+  "`App.setRunInBackground`.":
+    { notCertifiable: "Behaviour of a hidden page, which a golden run (a visible frame) cannot reach; covered by app-run-in-background.test.ts." },
+  "`CameraView.pointerToWorld` and `pointerRay`.":
+    { notCertifiable: "An API of the camera view with no test of its own; no golden project turns a pointer into a ray, and a frame cannot show the conversion." },
+  "`uvRectFromPixels`.":
+    { notCertifiable: "A pure conversion from pixels to UV space with no test of its own; no golden project asks for it, and a frame cannot tell which helper made a rectangle." },
+  "`pointerEvents: Receive` under a `None` ancestor.":
+    { notCertifiable: "A hit-test rule covered by pointer-blocked-in-tree.test.ts; no golden project nests a Receive node under a None one." },
+  "An asset path written into a component while the game runs is loaded.":
+    { notCertifiable: "Covered by the asset field path tests on every core and by the export asset scan; no golden project writes an asset path at run time." },
+  "`sceneOutOfBandFields`.":
+    { notCertifiable: "A tooling query a game never calls; the MCP field edit uses it to name what to use instead, and it has no test of its own." },
 };
 
 /** Numeric compare of two `x.y.z` strings. */
