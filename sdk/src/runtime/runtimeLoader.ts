@@ -367,7 +367,11 @@ export async function prepareRuntimeScene(
     // spawns prefab instances exactly as Play does (play == ship), instead of
     // silently dropping them.
     const runtimeAssets = ensureRuntimeAssets(app, module, source);
-    let sceneData = options.sceneData;
+    // A private copy: resolution below writes handles over the asset refs, and the
+    // document given here is the one a registered scene loads from every time. A
+    // reload of the mutated one found no ref to acquire and spawned the handles the
+    // outgoing scene had just released, so a restarted scene drew its images white.
+    let sceneData = JSON.parse(JSON.stringify(options.sceneData)) as SceneData;
     if (sceneHasPrefabEntries(sceneData)) {
         sceneData = await timed('prefab', () => expandScenePrefabs(sceneData, async (ref) => {
             try {

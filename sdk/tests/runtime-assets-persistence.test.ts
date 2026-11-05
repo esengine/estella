@@ -93,6 +93,24 @@ describe('per-App runtime Assets persistence', () => {
         expect(assets.getManifest()).not.toBeNull();
     });
 
+    it('leaves the scene document it loads from as authored, so a restart acquires its assets again', async () => {
+        // The document a registered scene is loaded from every time. Resolution wrote
+        // handles over its refs, so a restart found nothing to acquire and spawned the
+        // handles the outgoing scene had just released: its images drew white.
+        const app = makeFakeApp();
+        const scene = makeScene('menu');
+        scene.entities.push({
+            id: 1, name: 'backdrop', parent: null, children: [], visible: true,
+            components: [{ type: 'UIVisual', data: { visualType: 2, texture: 'assets/bg_menu.png' } }],
+        } as SceneData['entities'][number]);
+        const authored = JSON.parse(JSON.stringify(scene));
+
+        await loadScene(app, scene);
+        expect(scene).toEqual(authored);
+        await loadScene(app, scene);
+        expect(scene).toEqual(authored);
+    });
+
     it('accumulates texture import settings across scenes instead of replacing them', async () => {
         const app = makeFakeApp();
         await loadScene(app, makeScene('a', {
