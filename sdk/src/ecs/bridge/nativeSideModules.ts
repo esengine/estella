@@ -49,15 +49,25 @@ const SPINE_PROBES = SPINE_VERSIONS.reduce<Partial<Record<SideModuleId, string>>
 export const NATIVE_SIDE_MODULE_PROBES: Partial<Record<SideModuleId, string>> = {
     physics: 'es_physics_init',
     physics3d: 'es_physics3d_init',
-    // A native host compiles Jolt in and not PhysX yet. Both answer the same
-    // physics3d_* surface, so a PhysX project still gets its 3D world, on Jolt,
-    // and is told so once rather than losing physics.
-    'physics3d:physx': 'es_physics3d_init',
+    // PhysX links beside Jolt, its copy of the same surface renamed (see
+    // NATIVE_PREFIX_ALIASES): the probe is that copy's first entry point.
+    'physics3d:physx': 'es_physx3d_init',
     videodec: 'es_video_open',
     // One entry, not one per version: the DragonBones format is frozen, so unlike
     // Spine there is no "which runtime did this binary link" question to ask.
     dragonbones: 'es_db_loadSkeleton',
     ...SPINE_PROBES,
+};
+
+/**
+ * A module whose C surface the host binds under another prefix. PhysX and Jolt
+ * implement the one `physics3d_*` surface and share a binary, so the host's build
+ * renames PhysX's copy to `physx3d_*` (build-tools/tasks/native.js, PHYSX_ALIAS)
+ * and this maps the emscripten names the SDK calls back onto it:
+ * `_physics3d_step` → `es_physx3d_step`.
+ */
+export const NATIVE_PREFIX_ALIASES: Partial<Record<SideModuleId, readonly [from: string, to: string]>> = {
+    'physics3d:physx': ['physics3d_', 'physx3d_'],
 };
 
 /** The host global that reports the linked Spine runtime (38 / 41 / 42 / 43). */
@@ -97,8 +107,9 @@ function writeUtf8(heap: NativeHeap, str: string): number {
  * carries it keeps it (`_es_video_open` → `es_video_open`) — the same rule the
  * generator applies when it registers the wrapper.
  */
-function hostGlobal(exportName: string): string {
-    const name = exportName.slice(1);
+function hostGlobal(exportName: string, alias?: readonly [string, string]): string {
+    let name = exportName.slice(1);
+    if (alias && name.startsWith(alias[0])) name = alias[1] + name.slice(alias[0].length);
     return name.startsWith('es_') ? name : `es_${name}`;
 }
 
@@ -107,7 +118,9 @@ function hostGlobal(exportName: string): string {
  * the host globals — plus the heap views, since a caller writes its buffers there
  * before passing an offset.
  */
-function nativeCModule(scope: Record<string, unknown>, heap: NativeHeap): SideModule {
+function nativeCModule(
+    scope: Record<string, unknown>, heap: NativeHeap, alias?: readonly [string, string],
+): SideModule {
     const resolved: Record<string, unknown> = {
         ...heap,
         /**
@@ -117,7 +130,7 @@ function nativeCModule(scope: Record<string, unknown>, heap: NativeHeap): SideMo
          * nothing left to convert — the argument types are the caller's statement about
          * a surface that already agrees with them.
          */
-        cwrap: (ident: string): unknown => scope[hostGlobal(`_${ident}`)],
+        cwrap: (ident: string): unknown => scope[hostGlobal(`_${ident}`, alias)],
         /** The heap's string helpers, in the same terms emscripten states them. */
         UTF8ToString: (ptr: number): string => readUtf8(heap, ptr),
         stringToNewUTF8: (str: string): number => writeUtf8(heap, str),
@@ -126,7 +139,7 @@ function nativeCModule(scope: Record<string, unknown>, heap: NativeHeap): SideMo
         get(target, prop): unknown {
             if (prop in target) return Reflect.get(target, prop);
             if (typeof prop !== 'string' || !prop.startsWith('_')) return undefined;
-            const fn = scope[hostGlobal(prop)];
+            const fn = scope[hostGlobal(prop, alias)];
             if (typeof fn !== 'function') return undefined;
             // Remembered, so repeat calls are a plain property read (and the
             // bridge's per-property guard wrapper keeps working).
@@ -136,7 +149,7 @@ function nativeCModule(scope: Record<string, unknown>, heap: NativeHeap): SideMo
         has(target, prop): boolean {
             if (prop in target) return true;
             return typeof prop === 'string' && prop.startsWith('_')
-                && typeof scope[hostGlobal(prop)] === 'function';
+                && typeof scope[hostGlobal(prop, alias)] === 'function';
         },
     }) as SideModule;
 }
@@ -150,12 +163,18 @@ export function createNativeSideModules(
     scope: Record<string, unknown> = globalThis as unknown as Record<string, unknown>,
 ): SideModuleHost {
     const heap = createNativeHeap(scope);
-    return createSideModuleHost(async (_descriptor, id): Promise<SideModule> => {
-        const probe = NATIVE_SIDE_MODULE_PROBES[id];
-        if (id === 'physics3d:physx') {
+    return createSideModuleHost(async (_descriptor, requested): Promise<SideModule> => {
+        let id = requested;
+        // A host built without PhysX (macOS and iOS for now, or -DESTELLA_PHYSX=OFF) still
+        // links Jolt, which answers the same surface: the project keeps its 3D
+        // world, on the other solver, and is told so once rather than losing it.
+        if (id === 'physics3d:physx' && typeof scope[NATIVE_SIDE_MODULE_PROBES[id]!] !== 'function'
+            && typeof scope[NATIVE_SIDE_MODULE_PROBES.physics3d!] === 'function') {
             log.warn('sidemodule', 'this native host has no PhysX compiled in: the 3D world runs on Jolt, '
                 + 'through the same interface, and a solver difference from the web build is expected');
+            id = 'physics3d';
         }
+        const probe = NATIVE_SIDE_MODULE_PROBES[id];
         if (!probe) {
             throw new SideModuleAbsent(id, 'a native host has no side modules beyond the '
                 + 'subsystems it compiles in (KTX2, for one, is decoded in C++)');
@@ -185,6 +204,6 @@ export function createNativeSideModules(
             );
         }
         log.info('sidemodule', `${id}: native (compiled into the host)`);
-        return nativeCModule(scope, heap);
+        return nativeCModule(scope, heap, NATIVE_PREFIX_ALIASES[id]);
     });
 }

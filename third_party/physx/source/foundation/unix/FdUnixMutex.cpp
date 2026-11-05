@@ -26,8 +26,10 @@ PX_FORCE_INLINE bool isLegalProtocol(const int mutexProtocol)
 	return
 	(
 		(PTHREAD_PRIO_NONE == mutexProtocol) ||
-		(PTHREAD_PRIO_INHERIT == mutexProtocol) ||
-		((PTHREAD_PRIO_PROTECT == mutexProtocol) &&  ((sched_getscheduler(0) == SCHED_FIFO) || (sched_getscheduler(0) == SCHED_RR)))
+		(PTHREAD_PRIO_INHERIT == mutexProtocol)
+#if !defined(__ANDROID__) // ESTELLA: bionic has no priority-ceiling mutexes
+		|| ((PTHREAD_PRIO_PROTECT == mutexProtocol) &&  ((sched_getscheduler(0) == SCHED_FIFO) || (sched_getscheduler(0) == SCHED_RR)))
+#endif
 	);
 }
 
@@ -68,7 +70,7 @@ PxMutexImpl::PxMutexImpl()
 	pthread_mutexattr_t attr;
 	pthread_mutexattr_init(&attr);
 	pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
-#if PX_LINUX && !PX_EMSCRIPTEN // ESTELLA: no priority protocols without threads
+#if PX_LINUX && !PX_EMSCRIPTEN && !defined(__ANDROID__) // ESTELLA: no priority protocols without threads, none in bionic
 	pthread_mutexattr_setprotocol(&attr, gMutexProtocol);
 	pthread_mutexattr_setprioceiling(&attr, 0);
 #endif

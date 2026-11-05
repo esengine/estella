@@ -28,7 +28,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = path.join(ROOT, 'src');
 const BINDINGS = path.join(SRC, 'esengine', 'bindings');
 
-const { NATIVE_BINDING_HEADERS } = await import('../build-tools/tasks/native.js');
+const { NATIVE_BINDING_HEADERS, PHYSX_ALIAS } = await import('../build-tools/tasks/native.js');
 
 let failed = false;
 const fail = (msg) => { console.error(msg); failed = true; };
@@ -46,6 +46,7 @@ if (failed) {
 // 2. The generator runs.
 const out = mkdtempSync(path.join(tmpdir(), 'estella-nfb-'));
 const generated = path.join(out, 'NativeFunctionBindings.generated.cpp');
+const renames = path.join(out, 'PhysX3DRename.generated.hpp');
 // `python` is not a command macOS ships; `python3` is. Asking the same resolver
 // the build asks is why this gate can run on a developer's machine at all — it
 // was CI-only on the belief that it could not.
@@ -62,6 +63,8 @@ try {
         '--native-functions', ...abs,
         '--native-functions-output', generated,
         '--native-shim', 'esn_shim.hpp',
+        '--native-functions-alias', PHYSX_ALIAS,
+        '--native-functions-alias-header', renames,
     ], { cwd: ROOT, stdio: 'pipe' });
 } catch (e) {
     console.error('EHT failed to generate the native entry-point bindings:');
@@ -78,7 +81,23 @@ const includes = [...text.matchAll(/^#include\s+"([^"]+)"/gm)].map((m) => m[1])
 for (const inc of includes) {
     if (!existsSync(path.join(SRC, inc))) fail(`generated #include does not resolve: ${inc}`);
 }
+
+// 4. The PhysX copy of the 3D surface is the whole surface: every physics3d_*
+//    wrapper has its physx3d_* twin, and every declared name is renamed (one left
+//    out would collide with Jolt's symbol in the host link).
+const joltWrapped = new Set([...text.matchAll(/setFunction\(global, "es_physics3d_(\w+)"/g)].map((m) => m[1]));
+const physxWrapped = new Set([...text.matchAll(/setFunction\(global, "es_physx3d_(\w+)"/g)].map((m) => m[1]));
+for (const name of joltWrapped) {
+    if (!physxWrapped.has(name)) fail(`physics3d_${name} has no physx3d_ twin in the generated wrappers`);
+}
+if (joltWrapped.size === 0) fail('no physics3d_* wrappers were generated at all');
+const renameText = readFileSync(renames, 'utf8');
+const header = readFileSync(path.join(BINDINGS, 'modules/physics3d/Physics3DBindings.hpp'), 'utf8');
+for (const [, name] of header.matchAll(/\b(physics3d_\w+)\s*\(/g)) {
+    if (!renameText.includes(`#define ${name} physx3d_`)) fail(`${name} is not renamed for the PhysX build`);
+}
 rmSync(out, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
 
 if (failed) process.exit(1);
-console.log(`native bindings OK: ${abs.length} headers, ${includes.length} generated include(s) resolve.`);
+console.log(`native bindings OK: ${abs.length} headers, ${includes.length} generated include(s) resolve, `
+    + `${physxWrapped.size} PhysX twins.`);

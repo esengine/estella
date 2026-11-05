@@ -10,7 +10,7 @@
 // Driven against a mock host scope — the marshalling is what these check, not Box2D.
 import { describe, it, expect, vi } from 'vitest';
 import {
-    createNativeSideModules, NATIVE_SIDE_MODULE_PROBES, SPINE_VERSION_BINDING,
+    createNativeSideModules, NATIVE_SIDE_MODULE_PROBES, NATIVE_PREFIX_ALIASES, SPINE_VERSION_BINDING,
 } from '../src/ecs/bridge/nativeSideModules';
 import { HEAP_BINDINGS } from '../src/ecs/bridge/nativeHeap';
 import type { PhysicsWasmModule } from '../src/physics/PhysicsModuleLoader';
@@ -218,5 +218,56 @@ describe('spine on a native host', () => {
         expect(mod.UTF8ToString(ptr)).toBe('走る');
         expect(mod.UTF8ToString(0)).toBe('');   // what UTF8ToString(0) answers on the web
         mod._free(ptr);
+    });
+});
+
+describe('3D physics on a native host: Jolt and PhysX side by side', () => {
+    /** A host with Jolt's es_physics3d_* globals and, optionally, PhysX's renamed copy. */
+    function physics3dHost(physx: boolean) {
+        const { scope } = mockNativeHost({ physics: false });
+        const calls: string[] = [];
+        for (const prefix of physx ? ['physics3d', 'physx3d'] : ['physics3d']) {
+            for (const name of ['init', 'step', 'addBox']) {
+                scope[`es_${prefix}_${name}`] = () => { calls.push(`${prefix}_${name}`); return 7; };
+            }
+        }
+        return { scope, calls };
+    }
+
+    it('answers the PhysX project with the physx3d_* copy, under the names the SDK calls', async () => {
+        const { scope, calls } = physics3dHost(true);
+        const mod = (await createNativeSideModules(scope).acquire('physics3d:physx')) as unknown as {
+            _physics3d_init(...a: number[]): void; _physics3d_addBox(...a: number[]): number;
+            cwrap(ident: string): (...a: unknown[]) => unknown;
+        };
+        mod._physics3d_init(0, -9.81, 0, 1024);
+        expect(mod._physics3d_addBox(1)).toBe(7);
+        (mod.cwrap('physics3d_step') as (...a: unknown[]) => unknown)(1 / 60, 1);
+        expect(calls).toEqual(['physx3d_init', 'physx3d_addBox', 'physx3d_step']);
+        expect(NATIVE_PREFIX_ALIASES['physics3d:physx']).toEqual(['physics3d_', 'physx3d_']);
+    });
+
+    it('answers the Jolt project with Jolt in the same binary', async () => {
+        const { scope, calls } = physics3dHost(true);
+        const mod = (await createNativeSideModules(scope).acquire('physics3d')) as unknown as {
+            _physics3d_init(...a: number[]): void;
+        };
+        mod._physics3d_init(0, -9.81, 0, 1024);
+        expect(calls).toEqual(['physics3d_init']);
+    });
+
+    it('runs a PhysX project on Jolt, and says so, on a host built without PhysX', async () => {
+        const { scope, calls } = physics3dHost(false);
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        try {
+            const mod = (await createNativeSideModules(scope).acquire('physics3d:physx')) as unknown as {
+                _physics3d_init(...a: number[]): void;
+            };
+            expect(mod).not.toBeNull();
+            mod._physics3d_init(0, -9.81, 0, 1024);
+            expect(calls).toEqual(['physics3d_init']);
+        } finally {
+            warn.mockRestore();
+        }
     });
 });

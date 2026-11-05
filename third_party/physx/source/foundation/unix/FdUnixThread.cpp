@@ -9,7 +9,7 @@
 #include "foundation/PxThread.h"
 
 #include <math.h>
-#if !PX_APPLE_FAMILY && !defined(__CYGWIN__) && !PX_EMSCRIPTEN
+#if !PX_APPLE_FAMILY && !defined(__CYGWIN__) && !PX_EMSCRIPTEN && !defined(__ANDROID__) // ESTELLA: bionic has it in <limits.h>
 #include <bits/local_lim.h> // PTHREAD_STACK_MIN
 #endif
 #include <stdio.h>
@@ -225,8 +225,10 @@ __attribute__((noreturn))
 
 void PxThreadImpl::kill()
 {
+#if !defined(__ANDROID__) // ESTELLA: bionic has no pthread_cancel; Estella runs PhysX with no worker threads
 	if(getThread(this)->state == ePxThreadStarted)
 		pthread_cancel(getThread(this)->thread);
+#endif
 	getThread(this)->state = ePxThreadStopped;
 }
 

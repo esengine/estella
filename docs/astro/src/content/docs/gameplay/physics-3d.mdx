@@ -57,11 +57,17 @@ threshold, a 0.005 sleep threshold, 6 position and 1 velocity iterations, and a
 - A character climbs onto a dynamic body no taller than its step height. A taller
   one is pushed, with no more force than its push strength.
 
-What it costs: the PhysX web module is 3.6 MB (1.15 MB gzipped), against Jolt's
+What it costs: the PhysX web module is 3.5 MB (1.14 MB gzipped), against Jolt's
 1.3 MB, and it loads only in a project that chose it. A chaotic scene (a ball
 glancing off the edge of a hinged door) ends differently on the two solvers, as
-it would between any two engines. Native builds (desktop, Android) compile Jolt
-in and run it either way for now; they log that once at startup.
+it would between any two engines.
+
+Native builds for Windows, Linux and Android compile both solvers into
+the app and run the one the project chose, so a native game and its web build use
+the same solver. Carrying PhysX makes every native app larger whichever solver it
+uses: 4 MB on the Windows executable, and 2 MB of an Android download (4.7 MB
+installed, per ABI). macOS and iOS builds include only Jolt for now. A PhysX
+project there runs on Jolt and logs that once at startup.
 
 ## Bodies
 

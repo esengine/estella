@@ -14,6 +14,7 @@ from .generators import (
     PtrLayoutGenerator, EditorAPIGenerator, NativeBindingsGenerator, AotComponentsGenerator,
     NativeFunctionsGenerator,
 )
+from .generators.native_functions import Alias
 
 
 def _write_lf(path, text):
@@ -41,7 +42,16 @@ def _emit_native_functions(args) -> int:
         include = '/'.join(parts[len(parts) - 1 - parts[::-1].index('src') + 1:])
         headers.append((include, path.read_text(encoding='utf-8')))
 
-    gen = NativeFunctionsGenerator(headers, shim_header=args.native_shim)
+    try:
+        aliases = [Alias.parse(spec) for spec in (args.native_functions_alias or [])]
+    except ValueError as err:
+        print(f"[FAIL] --native-functions-alias: {err}")
+        return 1
+    gen = NativeFunctionsGenerator(headers, shim_header=args.native_shim, aliases=aliases)
+    if args.native_functions_alias_header is not None:
+        args.native_functions_alias_header.parent.mkdir(parents=True, exist_ok=True)
+        print(f"Generating: {args.native_functions_alias_header}")
+        _write_lf(args.native_functions_alias_header, gen.generate_alias_header())
     if args.native_functions_output is not None:
         content = gen.generate()
         args.native_functions_output.parent.mkdir(parents=True, exist_ok=True)
@@ -121,6 +131,13 @@ def main() -> int:
                         help='Where to write the generated wrappers (.cpp)')
     parser.add_argument('--native-functions-ts', type=Path, default=None,
                         help='Also write the TS-side native engine API (.ts)')
+    # A second implementation of one C surface in the same binary (PhysX beside
+    # Jolt): <src>=<dst>:<GATE> wraps every <src>* entry point again as <dst>*,
+    # behind GATE, and the alias header renames that implementation's symbols.
+    parser.add_argument('--native-functions-alias', type=str, action='append', default=None,
+                        help='Also wrap <src>* entry points as <dst>* behind GATE: <src>=<dst>:<GATE>')
+    parser.add_argument('--native-functions-alias-header', type=Path, default=None,
+                        help='Write the #define rename header for the aliases (.hpp)')
     args = parser.parse_args()
 
     print("EHT - ESEngine Header Tool")

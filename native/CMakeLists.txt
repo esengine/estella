@@ -295,6 +295,50 @@ if(ESTELLA_QUICKJS_DIR)
         message(FATAL_ERROR "Missing ${NATIVE_FN_BINDINGS} — generate it via `cli native --quickjs`.")
     endif()
 
+    # PhysX, the second 3D solver a project can pick (Project Settings → Physics →
+    # 3D solver), linked BESIDE Jolt rather than instead of it: which one runs is
+    # the project's choice at boot, and a host binary is shared by every game.
+    # Both implement the one physics3d_* surface, so PhysX's TUs are compiled with
+    # a generated rename header (physics3d_init → physx3d_init, every name the
+    # header declares) and the wrappers bind that copy as es_physx3d_*, from the
+    # same declarations — the SDK maps the module id onto that prefix
+    # (sdk/src/ecs/bridge/nativeSideModules.ts). Off on Apple platforms: PhysX 5
+    # dropped macOS/iOS from its supported set and it has not been built on a Mac
+    # here, so a PhysX project there runs on Jolt and is told so.
+    if(APPLE)
+        set(_physx_default OFF)
+    else()
+        set(_physx_default ON)
+    endif()
+    option(ESTELLA_PHYSX "Link PhysX beside Jolt as the per-project 3D solver" ${_physx_default})
+    if(ESTELLA_PHYSX)
+        set(PHYSX_RENAME "${ESTELLA_NATIVE_GEN_DIR}/PhysX3DRename.generated.hpp")
+        if(NOT EXISTS "${PHYSX_RENAME}")
+            message(FATAL_ERROR "Missing ${PHYSX_RENAME} — generate it via `cli native`, "
+                "or configure with -DESTELLA_PHYSX=OFF.")
+        endif()
+        include("${REPO}/cmake/PhysX.cmake")
+        es_add_physx_library("${TP}/physx")
+        if(NOT MSVC)
+            # As on the web: PhysX uses neither, and dropping them is 0.5 MB of the
+            # Android library. Kept at the host's -O3 (as Jolt is): -Os saves another
+            # 0.45 MB compressed and costs the solver its speed on the device.
+            target_compile_options(physx PUBLIC -fno-exceptions -fno-rtti)
+        endif()
+        set(_PXM "${SRC}/esengine/bindings/modules/physics3d_physx")
+        add_library(estella_physics3d_physx STATIC
+            "${_PXM}/PhysXModuleEntry.cpp" "${_PXM}/PhysXQueries.cpp" "${_PXM}/PhysXJoints.cpp")
+        target_include_directories(estella_physics3d_physx PUBLIC "${SRC}")
+        target_link_libraries(estella_physics3d_physx PUBLIC physx)
+        if(MSVC)
+            target_compile_options(estella_physics3d_physx PRIVATE "/FI${PHYSX_RENAME}")
+        else()
+            target_compile_options(estella_physics3d_physx PRIVATE -include "${PHYSX_RENAME}")
+        endif()
+        # INTERFACE: what turns the es_physx3d_* wrappers on is linking this.
+        target_compile_definitions(estella_physics3d_physx INTERFACE ES_ENABLE_PHYSX)
+    endif()
+
     # QuickJS-ng interpreter — core is just these four C files.
     add_library(qjs STATIC
         "${ESTELLA_QUICKJS_DIR}/quickjs.c" "${ESTELLA_QUICKJS_DIR}/libregexp.c"
@@ -468,6 +512,9 @@ if(ESTELLA_QUICKJS_DIR)
         target_compile_definitions(estella_js_host PRIVATE ESTELLA_DESKTOP)
         target_link_libraries(estella_js_host esengine estella_physics estella_physics3d
             estella_video estella_spine estella_dragonbones esjs_engine SDL3::SDL3)
+        if(TARGET estella_physics3d_physx)
+            target_link_libraries(estella_js_host estella_physics3d_physx)
+        endif()
         if(ESTELLA_V8_RUNTIME)
             # V8 is a set of DLLs plus its Intl data; the exe finds them beside it.
             add_custom_command(TARGET estella_js_host POST_BUILD
@@ -518,6 +565,9 @@ if(ESTELLA_QUICKJS_DIR)
         target_link_libraries(estella_js_host esengine estella_physics estella_physics3d
             estella_video estella_spine
             estella_dragonbones esjs_engine native_app_glue android log)
+        if(TARGET estella_physics3d_physx)
+            target_link_libraries(estella_js_host estella_physics3d_physx)
+        endif()
         set_target_properties(estella_js_host PROPERTIES LINK_FLAGS "-u ANativeActivity_onCreate")
         if(ESJS_ENGINE STREQUAL "v8")
             # The host links libv8android.so by name; the template takes it from

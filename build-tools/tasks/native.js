@@ -81,6 +81,11 @@ export const MODULE_BINDING_HEADERS = [
 
 export const NATIVE_BINDING_HEADERS = [...ENGINE_BINDING_HEADERS, ...MODULE_BINDING_HEADERS];
 
+// The PhysX backend's copy of the 3D physics surface: `physics3d_*` as `physx3d_*`,
+// behind the define the host build sets when it links PhysX (native/CMakeLists.txt).
+// The SDK maps the module id onto the same prefix (ecs/bridge/nativeSideModules.ts).
+export const PHYSX_ALIAS = 'physics3d_=physx3d_:ES_ENABLE_PHYSX';
+
 // Generate the QuickJS wrappers for the engine's binding ENTRY POINTS — the same
 // declarations embind registers on the web, so the SDK reaches the engine by the
 // same names on both platforms and nothing is bound twice by hand. The bodies are
@@ -97,6 +102,11 @@ async function generateNativeFunctionBindings(rootDir, genDir, python) {
         '--native-functions', ...NATIVE_BINDING_HEADERS.map(abs),
         '--native-functions-output', out,
         '--native-shim', 'esn_shim.hpp',
+        // PhysX answers the same 3D physics surface as Jolt and links beside it, so
+        // its copy of the surface is renamed (the header below is force-included
+        // into its TUs) and wrapped a second time from the same declarations.
+        '--native-functions-alias', PHYSX_ALIAS,
+        '--native-functions-alias-header', path.join(genDir, 'PhysX3DRename.generated.hpp'),
     ], { cwd: rootDir });
     // The TS engine surface: the CORE headers only. It is committed (the SDK compiles
     // without running EHT), so it is refreshed here rather than updated by hand —

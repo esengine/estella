@@ -154,6 +154,20 @@ export const CRITERIA = [
     ],
   },
   {
+    id: 'a-native-game-runs-the-solver-its-project-chose',
+    says: 'a native app runs the 3D solver (Jolt or PhysX) its project chose, not the other one under its name',
+    // Both solvers answer one interface and a host links both, so the failure
+    // is silent: a PhysX project that reached Jolt still simulates. The run must
+    // say which module it acquired, and the character's skin (PhysX's, not
+    // Jolt's) must show in where it stands.
+    answeredBy: 'node tools/verify-native-physx.mjs',
+    needs: [
+      'tools/verify-native-physx.mjs',
+      'sdk/src/ecs/bridge/nativeSideModules.ts',
+      'examples/physics-3d/project.esproject',
+    ],
+  },
+  {
     id: 'a-web-game-runs-its-systems-as-machine-code',
     says: 'an exported web game loads its compiled systems and dispatches to them',
     // The claim the desktop road already makes, on the road most games ship on.
