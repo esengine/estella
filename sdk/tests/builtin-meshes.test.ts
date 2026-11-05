@@ -54,11 +54,11 @@ describe('built-in meshes', () => {
     expect(builtinMeshTemplate('builtin:teapot')).toBeUndefined();
   });
 
-  it('writes the channel layout the model import writes', () => {
+  it('writes the channel layout the model import writes with --lightmap-uv', () => {
     for (const t of BUILTIN_MESH_TEMPLATES) {
       const mesh = t.build();
       expect(mesh.channels.map((c) => c.semantic)).toEqual([
-        MeshChannel.Position, MeshChannel.TexCoord0, MeshChannel.Color, MeshChannel.Normal,
+        MeshChannel.Position, MeshChannel.TexCoord0, MeshChannel.Color, MeshChannel.Normal, MeshChannel.TexCoord1,
       ]);
       expect(mesh.channels.find((c) => c.semantic === MeshChannel.Color)!.type)
         .toBe(MeshChannelType.UNorm8);
@@ -106,6 +106,29 @@ describe('built-in meshes', () => {
       }
       const size = Math.max(...mesh.aabbMax.map((v, k) => v - mesh.aabbMin[k]!));
       expect(size).toBeCloseTo(100, 4);
+    }
+  });
+  // A bake lays its charts out by TexCoord1 and the renderer turns the lightmap on only for a mesh
+  // that has one: a template without it baked fine and drew as if nothing had been baked.
+  it('carries a lightmap UV set inside the unit square, the same each time it is built', () => {
+    for (const t of BUILTIN_MESH_TEMPLATES) {
+      const a = t.build();
+      const uv1 = a.channels.find((c) => c.semantic === MeshChannel.TexCoord1);
+      expect(uv1, t.id).toBeDefined();
+      expect(uv1!.type).toBe(MeshChannelType.Float32);
+      const view = new DataView(a.vertices.buffer, a.vertices.byteOffset, a.vertices.byteLength);
+      for (let v = 0; v < a.vertexCount; v++) {
+        for (let k = 0; k < 2; k++) {
+          const x = view.getFloat32(v * a.vertexStride + uv1!.offset + k * 4, true);
+          expect(x).toBeGreaterThanOrEqual(0);
+          expect(x).toBeLessThanOrEqual(1);
+        }
+      }
+      const b = t.build();
+      expect(Array.from(b.vertices)).toEqual(Array.from(a.vertices));
+      // A copy, not the cached geometry: what one caller changes, the next is not given.
+      a.vertices[0] ^= 0xff;
+      expect(t.build().vertices[0]).toBe(b.vertices[0]);
     }
   });
 });

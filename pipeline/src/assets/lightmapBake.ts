@@ -11,7 +11,7 @@
 import { readFileSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { PNG } from 'pngjs';
-import { bakeLightmapSteps, bakeRunner, lightmapImage, decodeMesh, unwrapLightmapUV, builtinMeshTemplate, MeshChannel,
+import { bakeLightmapSteps, bakeRunner, lightmapImage, decodeMesh, builtinMeshTemplate, MeshChannel,
          type MeshData, type BakeSurface, type BakeLight, type BakeOptions,
          type BakeStep, type CapturedPanorama, type ProbeGrid } from 'esengine';
 import { encodeRgbaPng } from './png';
@@ -153,11 +153,12 @@ export function probeDocumentText(doc: ProbeVolumeDocument): string {
         + `  "irradiance": ${JSON.stringify(doc.irradiance)}\n}\n`;
 }
 
-/** Stock geometry with a lightmap UV set, unwrapped once per bake. */
+/** Stock geometry as the runtime draws it: the template carries its lightmap UV set, so the bake
+ *  lays charts out by the very set the frame samples the atlas through. */
 function builtinGeometry(ref: string, cache: Map<string, MeshData | null>): MeshData | null {
     if (!cache.has(ref)) {
         const template = builtinMeshTemplate(ref);
-        cache.set(ref, template ? unwrapLightmapUV(template.build()).mesh : null);
+        cache.set(ref, template ? template.build() : null);
     }
     return cache.get(ref) ?? null;
 }

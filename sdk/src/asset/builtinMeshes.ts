@@ -7,6 +7,7 @@
 
 import { BUILTIN_REF_PREFIX, builtinRefId } from './documentRef';
 import { MeshChannel, MeshChannelType, packChannels, type MeshData } from './meshFormat';
+import { unwrapLightmapUV } from '../lightmap/unwrap';
 
 /**
  * The size every primitive is built at, matching `ShapeRenderer.size` — the other
@@ -31,6 +32,13 @@ export interface BuiltinMeshTemplate {
      * sees; a flat one stays two-sided, or a ground plane disappears from below.
      */
     closed: boolean;
+    /**
+     * The geometry, with its lightmap UV set (`TexCoord1`) already unwrapped: a
+     * bake lays its charts out by that set and the runtime samples the atlas
+     * through it, so both must read the same one, and the template is where it is
+     * made. Without it the renderer has no UV to read a baked atlas by, and a
+     * baked built-in mesh draws as if nothing had been baked.
+     */
     build(): MeshData;
 }
 
@@ -249,10 +257,22 @@ function toMeshData(b: Builder): MeshData {
     };
 }
 
+/** A copy a caller may change without changing what the next caller is given. */
+function copyMesh(m: MeshData): MeshData {
+    return { ...m, channels: m.channels.map((c) => ({ ...c })), vertices: m.vertices.slice(), indices: m.indices.slice(),
+             aabbMin: [...m.aabbMin] as [number, number, number], aabbMax: [...m.aabbMax] as [number, number, number] };
+}
+
 const template = (
     id: string, label: string, description: string, closed: boolean, build: () => Builder,
-): BuiltinMeshTemplate =>
-    ({ id, ref: BUILTIN_REF_PREFIX + id, label, description, closed, build: () => toMeshData(build()) });
+): BuiltinMeshTemplate => {
+    // Unwrapped once (a few milliseconds for the roundest shapes) and copied after.
+    let built: MeshData | null = null;
+    return {
+        id, ref: BUILTIN_REF_PREFIX + id, label, description, closed,
+        build: () => copyMesh(built ??= unwrapLightmapUV(toMeshData(build())).mesh),
+    };
+};
 
 export const BUILTIN_MESH_TEMPLATES: readonly BuiltinMeshTemplate[] = [
     template('cube', 'Cube', `A ${UNIT}-unit box, one flat normal per face.`, true,

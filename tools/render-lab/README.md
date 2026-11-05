@@ -58,7 +58,7 @@ Each figure is a region's linear value in the engine as a share of Cycles' value
 - **No colour bleed.** On the red wall the engine's red channel is 0.10–0.32 of Cycles, but green and blue are 1–5×. The bounce arrives grey, and the wall's albedo does not tint it the way Cycles does. The green wall shows the same.
 - **No leak in `gi_leak`.** That is only because the lit outside is never on screen, so there is nothing to leak.
 - **Banding.** The WebGL2 voxel fallback and SSGI both band visibly in the emissive room.
-- **The bake shows nothing on built-in meshes.** `BAKE=1` renders pixel-identical to no GI. `bake-scene` unwraps a built-in mesh for the bake (`pipeline/src/assets/lightmapBake.ts`), but the runtime's `builtin:cube` has no `TexCoord1`, so `MESH_LIGHTMAP` is never on and the atlas is never read. `examples/physics-3d` bakes `builtin:cube` too.
+- **The bake showed nothing on built-in meshes (fixed the same day).** A `builtin:` mesh had no `TexCoord1` at runtime, so `MESH_LIGHTMAP` never turned on. The templates now carry the bake's own unwrap. Since the fix, the baked `gi_room` is 1.5–1.8× Cycles everywhere (ceiling 1.53, back wall 1.64, floor in shade 1.9, the block's shaded face 1.6), with dark seams at chart edges. This calibration gap is still open, and it is on top of the 1.19 the direct light shows.
 - **Direct light is 19% bright.** The sun patch is 1.19 of Cycles on both backends. This is separate from GI and not explained yet.
 
 GPU cost at 1280×720, WebGL2, on this desktop:
