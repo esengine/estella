@@ -102,9 +102,13 @@ export async function fetchNativeDeps(options = {}) {
     const sdl = await fetchAt(path.join(deps, 'sdl'), pins.sdl.repo, pins.sdl.commit, 'SDL3');
 
     // Prebuilt archives rather than checkouts: V8 builds only with Chromium's own
-    // toolchain. Both are fetched, like SDL, so no build has to remember to ask.
+    // toolchain. Fetched ahead for what THIS machine can build — the Windows V8 only
+    // on Windows (MSVC links it), the NDK one anywhere — so a Linux desktop job no
+    // longer downloads a Windows archive it never links, and fails with it when
+    // that download does. A build still fetches its own on demand (jsEngineFor).
     const v8 = {};
-    for (const platform of ['windows', 'android']) {
+    const buildable = process.platform === 'win32' ? ['windows', 'android'] : ['android'];
+    for (const platform of buildable) {
         if (pins.v8?.[platform]) v8[platform] = await fetchV8(platform, { root: rootDir, depsDir: deps });
     }
 
