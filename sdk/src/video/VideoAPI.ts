@@ -6,6 +6,7 @@ import type { ESEngineModule } from '../wasm';
 import type { PlatformVideoBackend, VideoStreamHandle, VideoStreamOptions } from './PlatformVideoBackend';
 import { defineResource } from '../ecs/resource';
 import { log } from '../util/logger';
+import { probeRefs } from '../asset/AddressableManifest';
 import { getPlatform, isPlatformInitialized } from '../platform/base';
 
 export type VideoHandle = VideoStreamHandle;
@@ -119,7 +120,9 @@ export class VideoAPI {
     private resolveAudioTrack_(source: string): string | undefined {
         if (!this.refResolver_) return undefined;
         const siblingRef = source.startsWith('@uuid:') ? `${source}-audio` : `${source}.m4a`;
-        const resolved = this.refResolver_(siblingRef);
+        // A question, not a reference: most targets have no cooked sibling.
+        const resolver = this.refResolver_;
+        const resolved = probeRefs(() => resolver(siblingRef));
         return resolved !== siblingRef ? resolved : undefined;
     }
 

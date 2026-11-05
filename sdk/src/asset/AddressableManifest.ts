@@ -7,6 +7,23 @@ import { contentHashOf } from './contentHash';
 import { log } from '../util/logger';
 
 const warnedNotPackaged = new Set<string>();
+let probing = 0;
+
+/**
+ * Run `fn` asking about refs that may well not be packaged, without the warning
+ * for each one that is not. A video asks whether the cook demuxed an audio track
+ * beside it (`<video>.m4a`), and a target that plays the video whole, as the
+ * mobile hosts do, has none: said as a missing asset, the question failed every
+ * video example's boot on Android and iOS. Synchronous, so the window closes with it.
+ */
+export function probeRefs<T>(fn: () => T): T {
+    probing++;
+    try {
+        return fn();
+    } finally {
+        probing--;
+    }
+}
 
 /**
  * A project file the package does not carry, said once and with the reason —
@@ -14,7 +31,7 @@ const warnedNotPackaged = new Set<string>();
  * that look like files: `builtin:` meshes, URLs and blobs are not the cook's.
  */
 function warnNotPackaged(ref: string): void {
-    if (warnedNotPackaged.has(ref) || ref.includes(':') || !/\.[a-z0-9]{2,8}$/i.test(ref)) return;
+    if (probing > 0 || warnedNotPackaged.has(ref) || ref.includes(':') || !/\.[a-z0-9]{2,8}$/i.test(ref)) return;
     warnedNotPackaged.add(ref);
     log.warn('asset', `"${ref}" is not in this package. A build ships what its scenes reference, what the `
         + 'scripts name as a whole path in a string literal, and the folders asset-groups.json marks '

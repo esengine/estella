@@ -39,7 +39,7 @@ export function createFetchSideModuleHost(baseUrl: string): SideModuleHost {
         const { glueText, wasmBytes } = await fetchPair(descriptor);
         // Instantiation may detach the buffer it is given; the kept one stays whole.
         return instantiateFromGlueText(glueText, wasmBytes.slice(0), descriptor);
-    });
+    }, { requiresWebAssembly: true });
     return {
         ...host,
         async source(id: SideModuleId): Promise<SideModuleSource | null> {

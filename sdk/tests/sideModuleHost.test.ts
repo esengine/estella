@@ -85,7 +85,7 @@ describe('createSideModuleHost', () => {
     try {
       delete (globalThis as { WebAssembly?: unknown }).WebAssembly;
       const instantiate = vi.fn().mockResolvedValue({});
-      const host = createSideModuleHost(instantiate);
+      const host = createSideModuleHost(instantiate, { requiresWebAssembly: true });
       expect(await host.acquire('physics')).toBeNull();
       expect(await host.acquire('physics')).toBeNull();
       expect(instantiate).not.toHaveBeenCalled();
@@ -96,4 +96,21 @@ describe('createSideModuleHost', () => {
       spy.mockRestore();
     }
   });
+
+  // iOS runs QuickJS and WeChat has WXWebAssembly: neither realm has the global, and
+  // neither transport needs it. A native host's modules are linked in C++.
+  it('still loads through a transport that does not need WebAssembly, on a host without it', async () => {
+    const saved = globalThis.WebAssembly;
+    try {
+      delete (globalThis as { WebAssembly?: unknown }).WebAssembly;
+      const module = { tag: 'linked' };
+      const instantiate = vi.fn().mockResolvedValue(module);
+      const host = createSideModuleHost(instantiate);
+      expect(await host.acquire('physics')).toBe(module);
+      expect(instantiate).toHaveBeenCalledTimes(1);
+    } finally {
+      globalThis.WebAssembly = saved;
+    }
+  });
+
 });

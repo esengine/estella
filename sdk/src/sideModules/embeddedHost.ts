@@ -31,5 +31,5 @@ export function createEmbeddedSideModuleHost(registry: EmbeddedSideModuleRegistr
         const entry = registry[id];
         if (!entry) throw new Error(`side module "${id}" (${descriptor.file}) not embedded in this playable`);
         return instantiateFromGlueText(entry.glue, entry.wasm.buffer as ArrayBuffer, descriptor);
-    });
+    }, { requiresWebAssembly: true });
 }

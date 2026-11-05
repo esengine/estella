@@ -54,17 +54,29 @@ export class SideModuleAbsent extends Error {
  * missing artifact isn't refetched every frame). The transport is the only
  * realm-specific part; everything above it — gating, plugin install — is shared.
  */
-export function createSideModuleHost(instantiate: SideModuleInstantiator): SideModuleHost {
+export interface SideModuleHostOptions {
+    /**
+     * The transport instantiates a WebAssembly binary through the realm's own
+     * `WebAssembly` (the web's fetch and embedded hosts). A native host links its
+     * modules in C++, and a mini-game host instantiates through the vendor's
+     * WXWebAssembly, so neither needs the global, and iOS (QuickJS) and WeChat have
+     * none: asking every host for it turned off physics, Spine and DragonBones on
+     * every iOS build.
+     */
+    requiresWebAssembly?: boolean;
+}
+
+export function createSideModuleHost(instantiate: SideModuleInstantiator, options: SideModuleHostOptions = {}): SideModuleHost {
     const cache = new Map<SideModuleId, Promise<SideModule | null>>();
     return {
         acquire(id: SideModuleId): Promise<SideModule | null> {
             const cached = cache.get(id);
             if (cached) return cached;
             const descriptor = sideModuleDescriptor(id);
-            // A side module is a WebAssembly module; a host with none runs the
-            // engine's JavaScript build, which carries the core and nothing beside
+            // On the web a side module is a WebAssembly binary; a page with none runs
+            // the engine's JavaScript build, which carries the core and nothing beside
             // it. Said once, by name, instead of "WebAssembly is not defined".
-            if (descriptor && typeof WebAssembly === 'undefined') {
+            if (descriptor && options.requiresWebAssembly && typeof WebAssembly === 'undefined') {
                 log.error('sidemodule', `"${id}" is a WebAssembly module and this host has no WebAssembly: `
                     + 'the engine runs as JavaScript here, and the features it provides are unavailable');
                 const none = Promise.resolve(null);

@@ -69,6 +69,20 @@ describe('createNativeSideModules', () => {
         expect(mod).not.toBeNull();
     });
 
+    // iOS runs the game's JS on QuickJS, which has no WebAssembly global. The host's modules
+    // are linked in C++, so that must not matter: the release boot of every iOS template
+    // found physics, Spine and DragonBones all turned off by a check meant for the web.
+    it('answers physics on a host with no WebAssembly global', async () => {
+        const { scope } = mockNativeHost();
+        const saved = globalThis.WebAssembly;
+        try {
+            delete (globalThis as { WebAssembly?: unknown }).WebAssembly;
+            expect(await createNativeSideModules(scope).acquire('physics')).not.toBeNull();
+        } finally {
+            globalThis.WebAssembly = saved;
+        }
+    });
+
     it('answers null when the host did not — not an object that throws on first call', async () => {
         const { scope } = mockNativeHost({ physics: false });
         expect(await createNativeSideModules(scope).acquire('physics')).toBeNull();

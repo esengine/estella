@@ -4,6 +4,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
     ManifestModel,
     normalizeBundleMode,
+    probeRefs,
     type AddressableManifest,
 } from '../src/asset/AddressableManifest';
 
@@ -151,6 +152,19 @@ describe('ManifestModel resolution', () => {
         expect(said).toHaveLength(1);
         expect(said[0]).toContain('never-packaged.png');
         expect(said[0]).toContain('alwaysInclude');
+    });
+
+    // A video asks whether a demuxed audio track was packaged beside it; on a target
+    // that plays the video whole there is none, and that is an answer, not a fault.
+    it('resolvePath: a probe that misses says nothing, and a miss after it still does', () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        const m = model();
+        expect(probeRefs(() => m.resolvePath('assets/video/probe-only.mp4.m4a'))).toBe('assets/video/probe-only.mp4.m4a');
+        m.resolvePath('assets/video/really-missing.mp4');
+        const said = warn.mock.calls.map((c) => c.join(' ')).filter((t) => t.includes('not in this package'));
+        warn.mockRestore();
+        expect(said).toHaveLength(1);
+        expect(said[0]).toContain('really-missing.mp4');
     });
 
     it('resolvePath: miss returns the ref verbatim', () => {
