@@ -8,6 +8,7 @@ import { AssetRefCounter } from './AssetRefCounter';
 import { SCENE_FORMAT_VERSION, type SceneData } from '../scene/scene';
 import { prepareSpawnOwnership } from '../prefab/preparedAssetOwnership';
 import { log } from '../util/logger';
+import { getResourceManager } from '../wasm/resourceManager';
 
 const subscribed = new WeakSet<World>();
 
@@ -30,7 +31,11 @@ export function bindAssetReferenceTracking(
     world.onDespawn(entity => current()?.getRefCounter()?.removeAllRefsForEntity(entity));
     world.setAssetFieldResolver((entity, component, authored) => {
         const live = current();
-        if (live) void resolveAssetFields(world, live, entity, component, authored);
+        // A core with no resource manager (a headless server, a test world) loads
+        // nothing: asking it to turned every authored path into a failed load with
+        // an Error behind it — 6000 a scene in the scale suite, where the JS heap
+        // budget then failed and a worker ran out of memory.
+        if (live && getResourceManager()) void resolveAssetFields(world, live, entity, component, authored);
     });
 }
 

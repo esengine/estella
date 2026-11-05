@@ -14,8 +14,12 @@ import { World } from '../src/ecs/world';
 import { Sprite } from '../src/ecs/component';
 import { createMockModule } from './mocks/wasm';
 
-vi.mock('../src/wasm/resourceManager', () => ({
-    requireResourceManager: () => ({
+// One resource manager, answered by both doors as a real core answers them: the
+// path resolver loads only on a core that has one (see assetReferenceTracking).
+// `core.hasResourceManager` false plays a headless core, which has none.
+const core = vi.hoisted(() => ({ hasResourceManager: true }));
+vi.mock('../src/wasm/resourceManager', () => {
+    const rm = {
         createTexture: vi.fn(() => 42),
         registerExternalTexture: vi.fn(() => 42),
         releaseTexture: vi.fn(),
@@ -24,10 +28,9 @@ vi.mock('../src/wasm/resourceManager', () => ({
         acquireTextureByPath: vi.fn(() => 0),
         invalidateTexturePath: vi.fn(() => false),
         getTextureDimensions: vi.fn(() => ({ width: 64, height: 64 })),
-    }),
-    getResourceManager: () => null,
-    evictTextureDimensions: vi.fn(),
-}));
+    };
+    return { requireResourceManager: () => rm, getResourceManager: () => (core.hasResourceManager ? rm : null), evictTextureDimensions: vi.fn() };
+});
 
 // TextureLoader/imageDecode import the concrete base module (cycle-free); the
 // rest go through the barrel — mock both ids with one factory.
@@ -101,5 +104,29 @@ describe('asset paths in engine-backed components', () => {
         world.set(e, Sprite, { ...world.get(e, Sprite), texture: 7 });
         await new Promise((r) => setTimeout(r, 30));
         expect(world.get(e, Sprite).texture).toBe(7);
+    });
+
+    // A headless core (a server, the scale suite's world) has no resource manager
+    // and loads nothing. Asking it to failed every path with an Error behind it:
+    // 6000 a scene in the scale suite, which then ran its worker out of memory.
+    it('leaves a path alone on a core with no resource manager', async () => {
+        core.hasResourceManager = false;
+        try {
+            const mod = createMockModule();
+            const world = new World();
+            world.connectCpp(mod.getRegistry(), mod);
+            const backend = { fetchBinary: vi.fn(async () => new ArrayBuffer(8)), fetchText: vi.fn(async () => ''),
+                resolveUrl: (path: string) => `http://test/${path}` } as unknown as Backend;
+            const assets = Assets.create({ backend, catalog: Catalog.fromJson(catalogData), module: mockModule });
+            const preload = vi.spyOn(assets, 'preloadSceneAssets');
+            bindAssetReferenceTracking(world, assets, () => assets);
+            const e = world.spawn();
+            world.insert(e, Sprite, { texture: 'sprites/hero.png' as never });
+            await new Promise((r) => setTimeout(r, 30));
+            expect(preload).not.toHaveBeenCalled();
+            expect(backend.fetchBinary).not.toHaveBeenCalled();
+        } finally {
+            core.hasResourceManager = true;
+        }
     });
 });
