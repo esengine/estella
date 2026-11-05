@@ -16,7 +16,8 @@ namespace esengine {
 
 namespace {
 
-/// Eight u32 per voxel: radiance r, g, b (fixed point), a sample count, the facing x, y, z (fixed point), a spare.
+/// Eight u32 per voxel: radiance r, g, b (fixed point), a sample count, the facing x, y, z (fixed point), and how much of the
+/// voxel the surfaces in it cover (the area they put in it, over a face of the voxel, fixed point).
 constexpr u32 kVoxelWords = 8;
 
 #ifdef ES_ENABLE_WEBGPU
@@ -43,12 +44,23 @@ const FACING : f32 = 256.0;
 // to 0 — a voxel that one sample a frame lands in (a small voxel, or one far away) then never reached the 2 a ray asks for, and a
 // fine grid drew no bounce at all.
 const COUNT : u32 = 16u;
+// The covered area, in AREA parts of one voxel face. A ray that meets a voxel takes its light in proportion to how much of the voxel
+// a surface fills: averaged over a whole voxel, a bright patch that fills a corner of one would otherwise light like the whole voxel,
+// which spreads every light by up to a voxel and makes a coarse grid brighter than a fine one.
+const AREA : f32 = 4096.0;
+fn addArea(base : u32, area : f32) {
+    let vs = gi.a.x;
+    atomicAdd(&grid[base + 7u], u32(clamp(area / (vs * vs), 0.0, 1.0) * AREA));
+}
 
+// Set on a slot's tag by the inject when the picture showed its cell this frame, and cleared by the maintain each frame.
+const SEEN : u32 = 2u;
 fn hash3(c : vec3i) -> u32 {
     var h = (u32(c.x) * 73856093u) ^ (u32(c.y) * 19349663u) ^ (u32(c.z) * 83492791u);
     h = (h ^ (h >> 16u)) * 0x45d9f3bu;
     h = h ^ (h >> 16u);
-    return h | 1u;
+    // Bit 0 always set (no live cell hashes to 0, which an empty slot holds); bit 1 is not part of the hash, but the mark SEEN.
+    return (h | 1u) & ~SEEN;
 }
 fn wrapIndex(cell : vec3i) -> u32 {
     let d = vec3i(gi.dims.xyz);
@@ -96,11 +108,12 @@ fn main(@builtin(global_invocation_id) id : vec3u) {
     let cell = gi.origin.xyz + rel;
     let tag = hash3(cell);
     let base = i * WORDS;
-    if (tags[i] != tag) {
+    if ((tags[i] & ~SEEN) != tag) {
         tags[i] = tag;
         for (var k = 0u; k < WORDS; k = k + 1u) { atomicStore(&grid[base + k], 0u); }
     } else {
-        for (var k = 0u; k < 7u; k = k + 1u) {
+        tags[i] = tag;
+        for (var k = 0u; k < WORDS; k = k + 1u) {
             atomicStore(&grid[base + k], u32(f32(atomicLoad(&grid[base + k])) * gi.a.y));
         }
     }
@@ -132,6 +145,21 @@ fn main(@builtin(global_invocation_id) id : vec3u) {
     let cell = vec3i(floor(p / gi.a.x));
     if (!inWindow(cell)) { return; }
     let base = wrapIndex(cell) * WORDS;
+    // The surface this sample stands for: the two-by-two pixels around it, measured on the surface from the neighbours' depth
+    // (which carries the slant). A neighbour off the surface (an edge) leaves the footprint the pixel's own square seen face on.
+    let tx = select(t + vec2i(2, 0), t - vec2i(2, 0), t.x + 2 >= size.x);
+    let ty = select(t + vec2i(0, 2), t - vec2i(0, 2), t.y + 2 >= size.y);
+    let px = worldFromDepth((vec2f(tx) + 0.5) / vec2f(size), textureLoad(depthTex, tx, 0));
+    let py = worldFromDepth((vec2f(ty) + 0.5) / vec2f(size), textureLoad(depthTex, ty, 0));
+    var footprint = length(cross(px - p, py - p));
+    let side = max(length(px - p), length(py - p));
+    if (side > gi.a.x) {
+        footprint = min(length(px - p), length(py - p));
+        footprint = footprint * footprint;
+    }
+    addArea(base, footprint);
+    // Every writer writes the same value, so the race is harmless.
+    tags[wrapIndex(cell)] = hash3(cell) | SEEN;
     var lit = textureLoad(scene, t, 0).rgb;
     let albedo = textureLoad(albedoTex, t, 0);
     if (gi.view.y > 0.5 && albedo.a > 0.5) {
@@ -206,6 +234,10 @@ fn main(@builtin(global_invocation_id) id : vec3u) {
     let cell = vec3i(floor((p.xyz + nrm * (vs * 0.25)) / vs));
     if (!inWindow(cell)) { return; }
     let base = wrapIndex(cell) * WORDS;
+    // Where the picture has shown this voxel (the inject ran first this frame), its own colour is the better answer than an assumed
+    // albedo: the sun's estimate is what stands in only where the camera has not looked.
+    if ((tags[wrapIndex(cell)] & SEEN) != 0u) { return; }
+    addArea(base, sqrt(area));
     let c = clamp(sun.light.rgb * (sun.light.w * max(dot(nrm, L), 0.0)), vec3f(0.0), vec3f(gi.a.z));
     atomicAdd(&grid[base], u32(c.r * FIXED));
     atomicAdd(&grid[base + 1u], u32(c.g * FIXED));
@@ -250,6 +282,8 @@ fn trace(origin : vec3f, dir : vec3f) -> vec3f {
     var tMax = (next - pos) / safe;
     let range = gi.b.x;
     var t = 0.0;
+    var acc = vec3f(0.0);
+    var trans = 1.0;
     for (var i = 0; i < 96; i = i + 1) {
         if (t > range) { break; }
         // Step into the neighbouring cell along the axis whose boundary comes first.
@@ -262,7 +296,7 @@ fn trace(origin : vec3f, dir : vec3f) -> vec3f {
         }
         if (!inWindow(cell)) { break; }
         let idx = wrapIndex(cell);
-        if (tags[idx] != hash3(cell)) { continue; }
+        if ((tags[idx] & ~SEEN) != hash3(cell)) { continue; }
         let base = idx * WORDS;
         let count = atomicLoad(&grid[base + 3u]);
         if (count < 2u * COUNT) { continue; }
@@ -271,9 +305,18 @@ fn trace(origin : vec3f, dir : vec3f) -> vec3f {
         // A surface is met from the side it faces. One facing away is behind the ray, or the ray skims along it.
         if (dot(normalize(facing), dir) > -0.15) { continue; }
         let radiance = vec3f(f32(atomicLoad(&grid[base])), f32(atomicLoad(&grid[base + 1u])), f32(atomicLoad(&grid[base + 2u]))) * inv / FIXED;
-        return radiance * clamp(1.0 - t / range, 0.0, 1.0);
+        // The area aged the way every word is (a frame adds `a`, the sum settles at a / (1 - keep)), so one frame's worth of it is the
+        // sum times (1 - keep). Two surfaces in one voxel (a corner) add past one face, which is a voxel fully covered.
+        let covered = min(f32(atomicLoad(&grid[base + 7u])) / AREA * (1.0 - gi.a.y), 1.0);
+        // What a ray meets is what it brings, however far it went: distance is already in how few rays reach a far surface. A fade over
+        // the last stretch of the range only, so the edge of what a ray can see does not draw a line. (A falloff over the whole range had
+        // darkened every bounce by its distance: 40% at 4 m with 12 cm voxels.)
+        // A voxel a surface only partly fills lets the rest of the ray through to what stands behind it.
+        acc = acc + trans * covered * radiance * clamp((range - t) / (range * 0.15), 0.0, 1.0);
+        trans = trans * (1.0 - covered);
+        if (trans < 0.05) { return acc; }
     }
-    return vec3f(0.0);
+    return acc;
 }
 
 @compute @workgroup_size(8, 8)

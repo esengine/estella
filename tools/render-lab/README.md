@@ -76,3 +76,24 @@ Each figure is a region's linear value in the engine as a share of Cycles' value
 GPU cost at 1280×720, WebGL2, on this desktop:
 - SSGI: gather 0.8–0.9 ms + apply 0.4 ms. Frame 1.25 → 2.8 ms.
 - Voxel GI: voxels 0.6 ms + gather 1.9 ms + apply 0.1 ms. Frame → 4.3 ms.
+
+### Calibration (2026-11-05, WebGPU)
+
+| Run | Frame light share | Regions |
+| --- | --- | --- |
+| `gi_room` at 40 cm, before | 1.09 | 0.98–1.61 |
+| `gi_room` at 40 cm, after | 0.95 (mean \|d\| 0.0093) | 0.71–1.51 |
+| `gi_room` at 12 cm, before | 0.65 | 0.43–0.62 |
+| `gi_room` at 12 cm, after | 0.74 | 0.54–0.84 |
+| `gi_away` with cascades, before | 0.23 | — |
+| `gi_away` with cascades, after | 0.35 | 0.24–0.57 |
+
+`gi_leak` stays black. The block face that only the unlit, off-screen front wall sees stays at about 0. What changed:
+
+1. **No distance falloff.** A hit used to be scaled by 1 − t/range. Now only the last 15% of the range fades out.
+2. **Coverage.** Each voxel accumulates the surface area put into it, in word 7. For a screen sample that is its 2×2-pixel footprint measured on the surface; for a sun sample it is its texel on the surface. A ray takes covered × radiance and goes on through the rest of the voxel. A bright patch filling a corner of a coarse voxel had lit like the whole voxel, which was the coarse-grid overshoot.
+3. **A seen mark (tag bit 1).** Voxels the picture showed this frame keep their own colour rather than the sun's assumed albedo. This measured no different here, but it is the right priority.
+
+The remaining under-shoot at 12 cm (about 25%) has no single cause found. Rays still escape through partly covered voxels and past the facing test.
+
+Trap: the first frame captured right after the hidden editor restarts can be a stale one (no GI). Step and capture again before you read anything.

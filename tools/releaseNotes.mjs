@@ -3822,4 +3822,6 @@ export const NOTED = {
     {"note":"Bounce light takes the colour of what it lands on."},
   "feat(render): Voxel GI on WebGPU reads the sun's shadow map back into its cache and feeds each bounce back, so light the camera does not see and light past the first bounce reach the picture":
     {"note":"Voxel GI lights what the camera does not see, and bounces light more than once (WebGPU)."},
+  "fix(render): Voxel GI brings a bounce at full strength however far the ray went, and weighs each voxel by how much of it a surface covers, so a fine grid is no longer dim and a coarse one no longer brighter":
+    {"note":"Voxel GI lights what the camera does not see, and bounces light more than once (WebGPU)."},
 };
