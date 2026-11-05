@@ -3800,4 +3800,6 @@ export const NOTED = {
     {"note":"The editor looks and handles like Unreal."},
   "fix(viewport): a selected camera in a 3D view draws its whole frustum, strongly, instead of only the flat frame where it meets z = 0; an unselected one stays a quiet outline and Show Frustum still forces the volume":
     {"note":"The editor looks and handles like Unreal."},
+  "fix(native): the x86_64 Android PhysX library links — no glibc symbol versions on bionic":
+    {"internal":"the x86_64 Android PhysX library failed to link before any release shipped it"},
 };
