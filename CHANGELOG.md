@@ -14,6 +14,10 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Changed
+
+- **The settings window shows what a project is set up with.** Each group folds its own tuning rows at its foot, as Unreal's settings do, instead of one Advanced fold at the foot of the page. The engine modules, the splash screen, achievements and the physics fixed step and sub-steps are no longer folded, so Build opens to its decisions rather than two rows over a fold of 23; solver contact constants, the theme's colours, load timeouts and cache budgets stay folded.
+
 ## [0.98.0] - 2026-11-04
 
 ### Added

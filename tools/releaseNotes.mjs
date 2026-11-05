@@ -3802,4 +3802,8 @@ export const NOTED = {
     {"note":"The editor looks and handles like Unreal."},
   "fix(native): the x86_64 Android PhysX library links — no glibc symbol versions on bionic":
     {"internal":"the x86_64 Android PhysX library failed to link before any release shipped it"},
+  "feat(settings): each group folds its own tuning rows at its foot, and the modules, splash screen and physics step are in the body":
+    {"note":"The settings window shows what a project is set up with."},
+  "feat(settings): each settings group folds its own tuning rows; modules, splash and the physics step are in the body":
+    {"note":"The settings window shows what a project is set up with."},
 };
