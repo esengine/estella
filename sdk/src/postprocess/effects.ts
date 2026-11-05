@@ -481,10 +481,10 @@ registerEffect({
         // 1 shows the gathered light alone.
         { name: 'u_debug', label: 'Show GI Only', min: 0, max: 1, step: 1, defaultValue: 0 },
         // What the sun lights off screen is read from its shadow map, which holds no colour: such a surface is lit as one of this albedo.
-        // 0 leaves the sun out, and the cache then knows only what the picture shows. WebGPU only.
+        // 0 leaves the sun out, and the cache then knows only what the picture shows.
         { name: 'u_sunAlbedo', label: 'Off-screen Sun Albedo', min: 0, max: 1, step: 0.01, defaultValue: 0.6 },
         // How much of the light a surface was bounced gives off again, which is what carries light past the first bounce (into a
-        // corner, onto a face only another lit face sees). 0 is one bounce. WebGPU only.
+        // corner, onto a face only another lit face sees). 0 is one bounce.
         { name: 'u_bounceFeedback', label: 'Multi-bounce', min: 0, max: 1, step: 0.01, defaultValue: 1 },
     ],
 });

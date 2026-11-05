@@ -3821,7 +3821,9 @@ export const NOTED = {
   "feat(render): the scene pass writes each surface's diffuse colour beside its normal, so Voxel GI and SSGI reflect bounce light by what it lands on instead of a grey guessed from the lit picture; render gates hold the baked and voxel-lit GI room":
     {"note":"Bounce light takes the colour of what it lands on."},
   "feat(render): Voxel GI on WebGPU reads the sun's shadow map back into its cache and feeds each bounce back, so light the camera does not see and light past the first bounce reach the picture":
-    {"note":"Voxel GI lights what the camera does not see, and bounces light more than once (WebGPU)."},
+    {"note":"Voxel GI lights what the camera does not see, and bounces light more than once."},
   "fix(render): Voxel GI brings a bounce at full strength however far the ray went, and weighs each voxel by how much of it a surface covers, so a fine grid is no longer dim and a coarse one no longer brighter":
-    {"note":"Voxel GI lights what the camera does not see, and bounces light more than once (WebGPU)."},
+    {"note":"Voxel GI lights what the camera does not see, and bounces light more than once."},
+  "feat(render): the WebGL2 Voxel GI takes what the sun lights from its shadow map and bounces light more than once, as the WebGPU one does":
+    {"note":"Voxel GI lights what the camera does not see, and bounces light more than once."},
 };

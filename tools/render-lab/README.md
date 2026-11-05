@@ -97,3 +97,26 @@ GPU cost at 1280×720, WebGL2, on this desktop:
 The remaining under-shoot at 12 cm (about 25%) has no single cause found. Rays still escape through partly covered voxels and past the facing test.
 
 Trap: the first frame captured right after the hidden editor restarts can be a stale one (no GI). Step and capture again before you read anything.
+
+### The WebGL2 fallback (2026-11-05)
+
+The fallback has no compute stage, so it gets the same two things a different way, inside `gi_voxels`, where every atlas texel is one
+voxel:
+
+- **Sun.** The voxel's centre is projected into the sun's map (`#pragma lights`, `findSun`). The map's z (clip z × 0.5 + 0.5), taken
+  over one voxel toward the sun, turns into a distance. A sunlit surface within 0.75 voxels of the centre, measured along the ray, is
+  in the voxel; half a voxel missed a floor lying on a cell boundary. Its normal comes from the same test at two offsets. It is used
+  only where the picture showed nothing of the voxel.
+- **Bounce.** A voxel with content traces two rays through last frame's atlas (`u_feedback`) along its facing, and adds albedo × what
+  they bring. The albedo is the footprint's mean from `u_sceneAlbedo`, or the sun's assumed albedo.
+
+| Scene | Before | After |
+| --- | --- | --- |
+| `gi_room` at 40 cm | 0.56 | 1.00 (mean \|d\| 0.0078) |
+| `gi_room` at 12 cm | — | 0.80 (two runs, the same) |
+| `gi_away` at 12 cm | 0 | 0.20 |
+| `gi_leak` | — | mean 0.006/255, max 10/255 |
+
+The voxel pass went from 1.11 to 2.45 ms (frame 4.4 → 5.1 ms). There is no coverage term here (the atlas has no spare channel), so
+coarse grids still overshoot regionally: the ceiling is 1.4 at 40 cm. One headless run of 12 cm read 0.51. A rerun twice read 0.80,
+so take a single low reading as a capture timed before the grid filled.

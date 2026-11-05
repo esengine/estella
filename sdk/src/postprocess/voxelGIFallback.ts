@@ -54,6 +54,13 @@ export const voxelGIFallback = {
 #pragma param u_decay float default(0.93) range(0,0.99)
 #pragma param u_maxBounce float default(3) range(0.5,16)
 #pragma param u_feedback texture default(black)
+#pragma param u_sceneAlbedo texture default(black) texel(data)
+#pragma param u_intensity float default(1) range(0,4)
+#pragma param u_range float default(48) range(4,90)
+#pragma param u_bias float default(1.2) range(0,4)
+#pragma param u_sunAlbedo float default(0.6) range(0,1)
+#pragma param u_bounceFeedback float default(1) range(0,1)
+#pragma lights
 
 #pragma fragment
 precision highp float;
@@ -68,6 +75,99 @@ out vec4 fragColor;
 ${SSAO_GLSL}
 ${GBUFFER_GLSL}
 ${COMMON}
+
+// How far toward the sun from p the surface the sun lights is, in world units, read from tile t of its map; ok false where the map does not
+// cover p. The map stores clip z remapped to [0, 1], so the change of that number over one voxel toward the sun turns it into a distance.
+float sunAlong(vec3 p, vec3 L, int t, float vs, out bool ok) {
+    ok = false;
+    mat4 m = u_shadowMatrix[t];
+    vec4 a = m * vec4(p, 1.0);
+    if (a.w <= 0.0) return 0.0;
+    vec3 pa = a.xyz / a.w;
+    vec2 uv = pa.xy * 0.5 + 0.5;
+    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) return 0.0;
+    vec4 b = m * vec4(p + L * vs, 1.0);
+    float kz = (b.z / b.w - pa.z) * 0.5;
+    if (abs(kz) < 1e-9) return 0.0;
+    vec4 rect = u_shadowTile[t];
+    float d = unpackDepth(texture(u_shadowMap, rect.xy + uv * rect.z).rgb);
+    if (d >= 1.0 || d <= 0.0) return 0.0;
+    ok = true;
+    return (d - (pa.z * 0.5 + 0.5)) / kz * vs;
+}
+
+/// Whether the sun lights a surface inside the voxel at centre c, and if so its normal and the light it gives off as a surface of the
+/// assumed albedo: the sun's map is the one record of what it reaches that does not depend on where the camera looks.
+bool sunSurface(vec3 c, float vs, out vec3 nrm, out vec3 light) {
+    nrm = vec3(0.0);
+    light = vec3(0.0);
+    if (u_sunAlbedo <= 0.0 || u_shadowParams.x < 0.5) return false;
+    vec4 lightDir, lightColor;
+    ivec2 tiles;
+    findSun(lightDir, lightColor, tiles);
+    if (lightDir.w < 0.5 || tiles.y <= 0) return false;
+    vec3 L = normalize(lightDir.xyz);
+    vec3 up = abs(L.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+    vec3 X = normalize(cross(up, L));
+    vec3 Y = cross(L, X);
+    for (int k = 0; k < 4; ++k) {
+        if (k >= tiles.y) break;
+        int t = tiles.x + k;
+        bool ok;
+        float along = sunAlong(c, L, t, vs, ok);
+        if (!ok) continue;
+        // The surface the sun meets along the ray through this voxel's centre is in this voxel, or it belongs to another. Measured along
+        // a slanted ray, half a voxel is not enough: a floor on the boundary between two cells is more than half a voxel from either
+        // centre along a sun that is not overhead, and neither took it.
+        if (abs(along) > vs * 0.75) return false;
+        vec3 s0 = c + L * along;
+        bool okx, oky;
+        float ax = sunAlong(c + X * (vs * 0.5), L, t, vs, okx);
+        float ay = sunAlong(c + Y * (vs * 0.5), L, t, vs, oky);
+        if (!okx || !oky) return false;
+        vec3 sx = c + X * (vs * 0.5) + L * ax;
+        vec3 sy = c + Y * (vs * 0.5) + L * ay;
+        vec3 ex = sx - s0;
+        vec3 ey = sy - s0;
+        // A neighbour across a depth edge gives no plane.
+        if (length(ex) > vs * 2.0 || length(ey) > vs * 2.0) return false;
+        vec3 cr = cross(ex, ey);
+        if (!(dot(cr, cr) > 1e-12)) return false;
+        nrm = normalize(cr);
+        if (dot(nrm, L) < 0.0) nrm = -nrm;
+        light = clamp(lightColor.rgb * lightColor.a * (u_sunAlbedo * max(dot(nrm, L), 0.0)), vec3(0.0), vec3(u_maxBounce));
+        return true;
+    }
+    return false;
+}
+
+/// The light a ray from origin along dir brings back from LAST frame's grid (u_feedback): what a voxel is lit by, which is what carries
+/// light past the first bounce.
+vec3 traceHeld(vec3 origin, vec3 dir, ivec3 heldWindow, float vs) {
+    vec3 pos = origin / vs;
+    ivec3 cell = ivec3(floor(pos));
+    ivec3 stepv = ivec3(dir.x >= 0.0 ? 1 : -1, dir.y >= 0.0 ? 1 : -1, dir.z >= 0.0 ? 1 : -1);
+    vec3 safe = vec3(abs(dir.x) < 1e-6 ? 1e-6 : dir.x, abs(dir.y) < 1e-6 ? 1e-6 : dir.y, abs(dir.z) < 1e-6 ? 1e-6 : dir.z);
+    vec3 delta = abs(vec3(1.0) / safe);
+    vec3 next = vec3(dir.x >= 0.0 ? float(cell.x + 1) : float(cell.x), dir.y >= 0.0 ? float(cell.y + 1) : float(cell.y), dir.z >= 0.0 ? float(cell.z + 1) : float(cell.z));
+    vec3 tMax = (next - pos) / safe;
+    float t = 0.0;
+    for (int i = 0; i < 48; ++i) {
+        if (t > u_range) break;
+        if (tMax.x < tMax.y && tMax.x < tMax.z) { cell.x += stepv.x; t = tMax.x; tMax.x += delta.x; }
+        else if (tMax.y < tMax.z) { cell.y += stepv.y; t = tMax.y; tMax.y += delta.y; }
+        else { cell.z += stepv.z; t = tMax.z; tMax.z += delta.z; }
+        ivec3 slot = cell - heldWindow;
+        if (any(lessThan(slot, ivec3(0))) || any(greaterThanEqual(slot, DIMS))) break;
+        vec4 a = texelFetch(u_feedback, slotTexel(slot, 0), 0);
+        if (a.a < 2.0) continue;
+        vec4 b = texelFetch(u_feedback, slotTexel(slot, 1), 0);
+        vec3 facing = (b.xyz / max(b.w, 1.0)) * 2.0 - 1.0;
+        if (dot(normalize(facing), dir) > -0.15) continue;
+        return (a.rgb / a.a) * clamp((u_range - t) / (u_range * 0.15), 0.0, 1.0);
+    }
+    return vec3(0.0);
+}
 
 void main() {
     ivec2 t = ivec2(gl_FragCoord.xy);
@@ -93,49 +193,93 @@ void main() {
     vec3 centre = (vec3(cell) + 0.5) * vs;
     vec4 clip = u_projection * vec4(centre, 1.0);
     ivec2 size = textureSize(u_sceneDepth, 0);
-    if (clip.w <= 1e-3) { fragColor = held; return; }
-    vec2 ndc = clip.xy / clip.w;
-    if (abs(ndc.x) > 1.25 || abs(ndc.y) > 1.25) { fragColor = held; return; }
-    vec2 px = (ndc * 0.5 + 0.5) * vec2(size);
-    float radius = clamp(vs * 0.5 * abs(u_projection[1][1]) * 0.5 * float(size.y) / clip.w, 0.5, 48.0) * 1.15;
-
-    // Five looks first: if the surfaces the screen shows around this voxel are all well in front of it or well behind it, it is
-    // empty air or hidden, and the rest of the work is skipped. Most voxels are.
-    bool near = false;
-    for (int k = 0; k < 5; ++k) {
-        vec2 o = k == 0 ? vec2(0.0) : (k == 1 ? vec2(radius, 0.0) : (k == 2 ? vec2(-radius, 0.0) : (k == 3 ? vec2(0.0, radius) : vec2(0.0, -radius))));
-        ivec2 tp = clamp(ivec2(px + o), ivec2(0), size - ivec2(1));
-        float d = depthAt(tp, size);
-        if (d >= 1.0) continue;
-        float w = (u_projection * vec4(worldAt(tp, size), 1.0)).w;
-        if (abs(w - clip.w) < vs * 3.0) { near = true; break; }
-    }
-    if (!near) { fragColor = held; return; }
-
-    // Then the pixels in its footprint whose surface is inside it. The grid is jittered per voxel and per frame, so what the memory
-    // averages is the whole footprint and not one fixed pattern of it.
-    float frameSeed = floor(u_time.x * 30.0);
-    vec2 jit = vec2(hash1(vec3(cell) + frameSeed), hash1(vec3(cell.zxy) * 1.7 + frameSeed * 3.1)) - 0.5;
     vec3 sum = vec3(0.0);
     float count = 0.0;
-    for (int j = -2; j <= 2; ++j) {
-        for (int i = -2; i <= 2; ++i) {
-            ivec2 tp = ivec2(px + (vec2(float(i), float(j)) + jit * 0.9) * radius * 0.5);
-            if (tp.x < 0 || tp.y < 0 || tp.x >= size.x || tp.y >= size.y) continue;
+    vec3 albedoSum = vec3(0.0);
+    float albedoCount = 0.0;
+    vec2 ndc = clip.xy / max(clip.w, 1e-3);
+    bool onScreen = clip.w > 1e-3 && abs(ndc.x) <= 1.25 && abs(ndc.y) <= 1.25;
+    if (onScreen) {
+        vec2 px = (ndc * 0.5 + 0.5) * vec2(size);
+        float radius = clamp(vs * 0.5 * abs(u_projection[1][1]) * 0.5 * float(size.y) / clip.w, 0.5, 48.0) * 1.15;
+
+        // Five looks first: if the surfaces the screen shows around this voxel are all well in front of it or well behind it, it is
+        // empty air or hidden, and the footprint is skipped. Most voxels are.
+        bool near = false;
+        for (int k = 0; k < 5; ++k) {
+            vec2 o = k == 0 ? vec2(0.0) : (k == 1 ? vec2(radius, 0.0) : (k == 2 ? vec2(-radius, 0.0) : (k == 3 ? vec2(0.0, radius) : vec2(0.0, -radius))));
+            ivec2 tp = clamp(ivec2(px + o), ivec2(0), size - ivec2(1));
             float d = depthAt(tp, size);
             if (d >= 1.0) continue;
-            vec3 world = worldAt(tp, size);
-            if (any(notEqual(ivec3(floor(world / vs)), cell))) continue;
-            if (region == 0) {
-                sum += clamp(texelFetch(u_texture, tp, 0).rgb, vec3(0.0), vec3(u_maxBounce));
-            } else {
-                Surface s = readSurface(tp);
-                if (!s.known) continue;
-                vec3 n = s.normal;
-                if (dot(n, viewDirection(world)) < 0.0) n = -n;
-                sum += n * 0.5 + 0.5;
+            float w = (u_projection * vec4(worldAt(tp, size), 1.0)).w;
+            if (abs(w - clip.w) < vs * 3.0) { near = true; break; }
+        }
+        if (near) {
+            // Then the pixels in its footprint whose surface is inside it. The grid is jittered per voxel and per frame, so what the
+            // memory averages is the whole footprint and not one fixed pattern of it.
+            float frameSeed = floor(u_time.x * 30.0);
+            vec2 jit = vec2(hash1(vec3(cell) + frameSeed), hash1(vec3(cell.zxy) * 1.7 + frameSeed * 3.1)) - 0.5;
+            for (int j = -2; j <= 2; ++j) {
+                for (int i = -2; i <= 2; ++i) {
+                    ivec2 tp = ivec2(px + (vec2(float(i), float(j)) + jit * 0.9) * radius * 0.5);
+                    if (tp.x < 0 || tp.y < 0 || tp.x >= size.x || tp.y >= size.y) continue;
+                    float d = depthAt(tp, size);
+                    if (d >= 1.0) continue;
+                    vec3 world = worldAt(tp, size);
+                    if (any(notEqual(ivec3(floor(world / vs)), cell))) continue;
+                    if (region == 0) {
+                        sum += clamp(texelFetch(u_texture, tp, 0).rgb, vec3(0.0), vec3(u_maxBounce));
+                        vec4 al = texelFetch(u_sceneAlbedo, min(tp, textureSize(u_sceneAlbedo, 0) - ivec2(1)), 0);
+                        if (al.a > 0.5) { albedoSum += al.rgb; albedoCount += 1.0; }
+                    } else {
+                        Surface s = readSurface(tp);
+                        if (!s.known) continue;
+                        vec3 n = s.normal;
+                        if (dot(n, viewDirection(world)) < 0.0) n = -n;
+                        sum += n * 0.5 + 0.5;
+                    }
+                    count += 1.0;
+                }
             }
-            count += 1.0;
+        }
+    }
+
+    // What the sun lights where the picture showed nothing of this voxel: off screen, or hidden behind something nearer.
+    bool sunLit = false;
+    if (count == 0.0) {
+        vec3 sn, sl;
+        if (sunSurface(centre, vs, sn, sl)) {
+            sum = region == 0 ? sl : sn * 0.5 + 0.5;
+            count = 1.0;
+            sunLit = true;
+        }
+    }
+
+    // The bounce: a surface gives off again what it is lit by, read from last frame's grid along a few rays around the way it faces. Each
+    // frame carries light one surface further, so the grid converges on every bounce rather than on the first.
+    if (region == 0 && count > 0.0 && u_bounceFeedback > 0.0 && abs(meta.w - vs) < 0.5) {
+        // The window the last frame's grid was laid out in: this one, less how far it moved since (meta holds its origin mod 1024).
+        ivec3 heldWindow = origin - ivec3(floor(mod(vec3(origin) - meta.xyz + 512.0, 1024.0) - 512.0 + 0.5));
+        vec4 f = all(greaterThanEqual(was, ivec3(0))) && all(lessThan(was, DIMS)) ? texelFetch(u_feedback, slotTexel(was, 1), 0) : vec4(0.0);
+        vec3 n = f.w > 0.5 ? normalize((f.xyz / f.w) * 2.0 - 1.0) : vec3(0.0);
+        if (dot(n, n) > 0.5) {
+            vec3 o = centre + n * (vs * u_bias);
+            float seed = hash1(vec3(cell) * 0.37 + floor(u_time.x * 30.0));
+            vec3 up = abs(n.y) < 0.99 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+            vec3 tx = normalize(cross(up, n));
+            vec3 ty = cross(n, tx);
+            vec3 incoming = vec3(0.0);
+            for (int r = 0; r < 2; ++r) {
+                float u = fract(seed + float(r) * 0.5);
+                float v = fract(seed * 7.13 + float(r) * 0.618);
+                float rr = sqrt(u);
+                float phi = 6.2831853 * v;
+                vec3 dir = normalize(tx * (rr * cos(phi)) + ty * (rr * sin(phi)) + n * sqrt(max(1.0 - u, 0.0)));
+                incoming += traceHeld(o, dir, heldWindow, vs);
+            }
+            incoming *= 0.5;
+            vec3 albedo = albedoCount > 0.0 ? albedoSum / albedoCount : vec3(sunLit ? u_sunAlbedo : 0.0);
+            sum += clamp(albedo * incoming * (u_intensity * u_bounceFeedback), vec3(0.0), vec3(u_maxBounce)) * count;
         }
     }
     fragColor = held + vec4(sum, count);
@@ -210,7 +354,8 @@ vec3 trace(vec3 origin, vec3 dir, ivec3 window, float vs) {
         vec3 facing = (b.xyz / max(b.w, 1.0)) * 2.0 - 1.0;
         // A surface is met from the side it faces. One facing away is behind the ray, or the ray skims along it.
         if (dot(normalize(facing), dir) > -0.15) continue;
-        return (a.rgb / a.a) * clamp(1.0 - t / u_range, 0.0, 1.0);
+        // What a ray meets is what it brings, however far it went; only the last stretch of the range fades, so its edge draws no line.
+        return (a.rgb / a.a) * clamp((u_range - t) / (u_range * 0.15), 0.0, 1.0);
     }
     return vec3(0.0);
 }
