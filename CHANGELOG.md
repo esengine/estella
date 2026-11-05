@@ -14,6 +14,10 @@ published separately; it ships inside the editor.
 
 ## [Unreleased]
 
+### Added
+
+- **A model of many parts that moves: `CompositeBatch`.** Put it on the root of a ship, a vehicle or a moving platform assembled from many meshes, and while the game runs its parts are drawn in a few draws parented to the root: a mesh repeated four times or more (a deck plank, a rail post) as one instanced set that copies no vertices, every other part merged by draw state into chunks of the root's own space. Moving, turning or scaling the root moves the whole model and merges nothing again. Adding, removing, re-meshing or re-placing a part re-merges only its chunk within half a second (`CompositeBatchingRes.refresh(root)` looks at once), and a part that keeps moving inside the model is let go to draw itself. The root reports what it drew, and so does `get_stats`. On a model of 2,004 parts, the meshes handed to the renderer went from 2,003 to 5 and the CPU frame from 3.3 ms to 1.2–1.4 ms; a model of about a hundred parts costs the same either way. A part under a composite is never also statically batched.
+
 ## [0.98.0] - 2026-11-05
 
 ### Added

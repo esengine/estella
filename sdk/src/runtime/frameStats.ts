@@ -11,6 +11,7 @@ import { Quality } from '../render/qualityRuntime';
 import { Audio } from '../audio/Audio';
 import { Assets } from '../asset/AssetPlugin';
 import { StaticBatchingRes, type StaticBatchSummary } from '../render/staticBatchPlugin';
+import { CompositeBatch, type CompositeBatchData } from '../render/compositeBatchPlugin';
 import { TextureStreamingRes } from '../render/textureStreaming';
 import type { QualityReport } from '../render/quality';
 
@@ -39,6 +40,8 @@ export interface FrameStatsReport {
     audioStreamedSavedBytes?: number;
     /** What static batching merged and left out; absent until a mesh has been marked. */
     staticBatch?: StaticBatchSummary;
+    /** Per CompositeBatch root, what it draws now; absent while no root is in the scene. */
+    compositeBatch?: { entity: number; parts: number; instanced: number; draws: number; drawsBefore: number; moving: number }[];
     quality?: QualityReport;
     /** What texture streaming holds: how many textures, the megabytes they take and would at full size, and how many moves it has made. */
     textureStreaming?: { enabled: boolean; textures: number; streamedMB: number; fullMB: number; moves: number; failures: number; startedSmall: number };
@@ -76,6 +79,19 @@ export function frameStatsReport(app: App): FrameStatsReport {
         ...(app.hasResource(StaticBatchingRes) ? (() => { const s = app.getResource(StaticBatchingRes).summary(); return s ? { staticBatch: s } : {}; })() : {}),
         quality: app.hasResource(Quality) ? app.getResource(Quality)?.report() : undefined,
         ...textureStreamingStats(app),
+        ...compositeBatchStats(app),
+    };
+}
+
+/** What each CompositeBatch root says it draws, as the pass last wrote it on the root. */
+function compositeBatchStats(app: App): Pick<FrameStatsReport, 'compositeBatch'> {
+    const roots = app.world.getEntitiesWithComponents([CompositeBatch]);
+    if (roots.length === 0) return {};
+    return {
+        compositeBatch: roots.map((entity) => {
+            const c = app.world.get(entity, CompositeBatch) as CompositeBatchData;
+            return { entity, parts: c.parts, instanced: c.instanced, draws: c.draws, drawsBefore: c.drawsBefore, moving: c.moving };
+        }),
     };
 }
 

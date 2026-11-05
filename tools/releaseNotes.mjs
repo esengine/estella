@@ -3810,4 +3810,8 @@ export const NOTED = {
     {"note":"The new-project gallery is in Chinese in a Chinese editor."},
   "fix(sdk): side modules load on a native host with no WebAssembly global, and a video's audio-track probe is not a missing asset":
     {"internal":"corrects two regressions the v0.98.0 release boot found before any release shipped them"},
+  "feat(render): CompositeBatch draws a model of many parts in a few draws that follow its root, instancing repeated meshes and re-merging only the chunk an edit touches":
+    {"note":"A model of many parts that moves: `CompositeBatch`."},
+  "feat(mcp): get_stats reports what each CompositeBatch root draws, and the composite-batch check holds the batch":
+    {"note":"A model of many parts that moves: `CompositeBatch`."},
 };

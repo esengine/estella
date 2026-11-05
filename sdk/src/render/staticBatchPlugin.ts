@@ -34,6 +34,7 @@ import {
     type BatchPart, type StaticBatchCandidate, type StaticBatchGroup, type StaticBatchLimits, type StaticBatchRefusal,
     type StaticBatchReport,
 } from './staticBatch';
+import { underComposite } from './compositeBatchPlugin';
 
 /** Where a marked mesh stands after the last pass: not decided yet, merged, or left out and why. @experimental */
 export const StaticBatchState = {
@@ -241,7 +242,9 @@ export class StaticBatchPlugin implements Plugin {
     /** Marked entities with a mesh, not yet merged or refused. */
     private undecided(app: App, state: StaticBatching): Entity[] {
         const world = app.world;
-        return world.getEntitiesWithComponents([StaticBatch, MeshRenderer, Transform]).filter((e) => !state.seen_.has(e));
+        // A part under a CompositeBatch root moves with that root: baking it where it stands would leave it behind.
+        return world.getEntitiesWithComponents([StaticBatch, MeshRenderer, Transform])
+            .filter((e) => !state.seen_.has(e) && !underComposite(world, e));
     }
 
     private refuse(app: App, state: StaticBatching, entity: Entity, why: StaticBatchRefusal): void {

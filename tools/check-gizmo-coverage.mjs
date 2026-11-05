@@ -122,6 +122,7 @@ const DISPOSITION = {
   'Planet.cellSize': ['no-place', 'the finest cell of the ground\'s mesh near the eye, not a region of the entity'],
   'PlacedFoliage.sizeX': ['renders', 'the area the plants are placed over is the outline'],
   'PlacedFoliage.sizeZ': ['renders', 'the area the plants are placed over is the outline'],
+  'CompositeBatch.cellSize': ['no-place', 'the side of the chunks a model\'s merged parts are cut into in its root\'s space, which decides what an edit re-merges; not a region of the entity'],
   'PlacedFoliage.cellSize': ['no-place', 'the side of the cells the area is cut into, not a region of the entity'],
   'Terrain.sizeX': ['renders', 'the ground drawn at it is the outline'],
   'Terrain.sizeZ': ['renders', 'the ground drawn at it is the outline'],

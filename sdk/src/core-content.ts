@@ -797,6 +797,14 @@ export {
     StaticBatch, StaticBatching, StaticBatchingRes, StaticBatchPlugin, staticBatchPlugin,
     StaticBatchState, type StaticBatchData, type StaticBatchSummary,
 } from './render/staticBatchPlugin';
+export {
+    CompositeBatch, CompositeBatching, CompositeBatchingRes, CompositeBatchPlugin, compositeBatchPlugin,
+    type CompositeBatchData,
+} from './render/compositeBatchPlugin';
+export {
+    planComposite, rootLocalMatrix, COMPOSITE_DEFAULTS,
+    type CompositeLimits, type CompositePart, type CompositePlan, type CompositeChunk, type CompositeInstanceSet,
+} from './render/compositeBatch';
 // Terrain and Foliage are optional modules (`esengine/terrain`, `esengine/foliage` install them). Their API stays reachable from
 // here: a shared chunk is side-effect-free, so what nothing uses is not bundled.
 export {

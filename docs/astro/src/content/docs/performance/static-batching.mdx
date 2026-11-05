@@ -76,3 +76,53 @@ many different pieces gains more than one made of a few repeated ones.
 The two frames differ on 1.1% of the pixels, by one level of 255 on 96% of those and at most five, all along geometry edges, from
 the merged vertices being transformed on the CPU in 32-bit floats; run to run the same scene differs on
 0.003%.
+
+## A model that moves: `CompositeBatch`
+
+A static batch bakes each part where it stands in the world, so a ship, a vehicle or a moving
+platform assembled from planks, rails and props cannot use it. Put **`CompositeBatch`** on the
+model's **root** instead; the parts need nothing.
+
+```typescript
+const ship = world.spawn('Ship');
+world.insert(ship, Transform, {});
+world.insert(ship, CompositeBatch, {});
+// ...planks, posts and props parented under `ship`, each with its own MeshRenderer.
+```
+
+While the game runs, the parts are folded in the **root's own space**, and the meshes that draw
+them are the root's children:
+
+- Moving, turning or scaling the root moves the whole model. Nothing is merged again.
+- A mesh repeated at least **Instance at** times (4 by default), such as a deck plank or a rail
+  post, stays one resident mesh. It is drawn as one instanced set, which copies no vertices.
+- Every other part is merged, by draw state, into chunks of the root's space. Adding, removing,
+  re-meshing or re-placing a part re-merges only the chunk it is in, within half a second. Call
+  `app.getResource(CompositeBatchingRes).refresh(root)` to look at once.
+- A part that keeps moving inside the model, such as a door or a wheel, is let go after a few
+  looks and draws itself, so it never costs a merge a frame.
+- The rules a static batch keeps still hold. Skinned, morphing, LOD, billboard and blended parts
+  and dynamic bodies draw themselves. A part under a composite is never also statically batched.
+
+The root reports what it drew: **Batched parts**, **Instanced parts**, **Draws** and **Draws
+before**, and **Moving parts**.
+
+Measured in the editor's Play on WebGL2, a model of 2,004 parts (1,600 planks, 400 posts and four
+props) under one root:
+
+| | Plain | `CompositeBatch` |
+|---|---|---|
+| Meshes handed to the renderer per frame | 2,003 | 5 |
+| Draw calls per frame | 7 | 5 |
+| CPU frame cost (three runs of 180 frames) | 3.33–3.35 ms | 1.20–1.36 ms |
+
+Draws barely move, because the renderer already instances a repeated mesh. What the composite
+saves is collecting, culling and sorting every part each frame. That saving grows with the part
+count: a ship of 108 parts costs about the same either way (0.65–0.67 ms plain, 0.68–0.90 ms
+batched). At that size, the pass's own look at its parts, twice a second, is as large as what
+it saves.
+
+The `composite-batch` editor check holds the claims on that smaller ship. With mesh shadows off,
+its frame matches the plain one within the scene's own frame-to-frame difference, moving the
+root re-merges nothing, and an added part re-merges one chunk. With mesh shadows on, shadow edges
+land about a pixel apart along roughly 2% of the frame; why is not yet established.

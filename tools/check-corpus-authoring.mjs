@@ -157,6 +157,7 @@ const DISPOSITION = {
   CoverFadeTarget: ['owed', 'the tag that goes with CoverFade, and owed with it'],
   RainUpright: ['owed', 'no committed example places one yet; it arrives with the top-down rain example RainShelter is owed'],
   RainShelter: ['owed', 'no committed example places one yet; it arrives with the top-down rain example CoverFade is owed'],
+  CompositeBatch: ['owed', 'no corpus scene has a model that moves as a whole yet: its parts are folded while the game runs, which a golden project has no frame to certify — tests/composite-batch.test.ts and the composite-batch editor check (same frame as the plain ship, a moved root re-merges nothing, an added part re-merges one chunk) hold it'],
   StaticBatch: ['owed', 'no corpus scene marks a mesh yet: a marked mesh is merged while the game runs, which a golden project has no frame to certify — the static-batch-on / static-batch-off render scenes, tests/static-batch.test.ts and the static-batch editor check hold it'],
 };
 

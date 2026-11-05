@@ -29,6 +29,7 @@ import { trailPlugin } from '../trail';
 import { springBonePlugin } from '../springbone';
 import { meshRendererPlugin } from '../render/meshRenderer';
 import { staticBatchPlugin } from '../render/staticBatchPlugin';
+import { compositeBatchPlugin } from '../render/compositeBatchPlugin';
 import { impostorPlugin } from '../render/impostor';
 import { textureStreamingPlugin } from '../render/textureStreaming';
 import { postProcessPlugin } from '../postprocess';
@@ -59,7 +60,7 @@ export const simulationBasePlugins = (): Plugin[] => [
 
 /** What exists to be seen. Every entry drives the engine through `engineApi`. */
 export const presentationBasePlugins = (): Plugin[] => [
-    animationPlugin, videoPlugin, particlePlugin, trailPlugin, springBonePlugin, meshRendererPlugin, staticBatchPlugin, impostorPlugin, textureStreamingPlugin,
+    animationPlugin, videoPlugin, particlePlugin, trailPlugin, springBonePlugin, meshRendererPlugin, staticBatchPlugin, compositeBatchPlugin, impostorPlugin, textureStreamingPlugin,
     postProcessPlugin,
 ];
 
@@ -70,7 +71,7 @@ export const presentationBasePlugins = (): Plugin[] => [
  */
 export const PLUGIN_BUILD_ORDER: readonly string[] = [
     'Diagnostics', 'timer', 'velocity', 'lifecycle', 'animation', 'audio', 'video',
-    'particle', 'trail', 'springBone', 'meshRenderer', 'staticBatch', 'impostor', 'textureStreaming', 'terrain', 'foliage', 'spline', 'water', 'floating', 'underwater', 'tilemap', 'postProcess', 'timeline',
+    'particle', 'trail', 'springBone', 'meshRenderer', 'staticBatch', 'compositeBatch', 'impostor', 'textureStreaming', 'terrain', 'foliage', 'spline', 'water', 'floating', 'underwater', 'tilemap', 'postProcess', 'timeline',
     'gameplay',
     'perception', 'fsm', 'bt', 'scriptGraph', 'nav', 'eventBinding', 'replication',
     'services',
@@ -96,7 +97,7 @@ export function inBuildOrder(plugins: readonly Plugin[]): Plugin[] {
 export const webBasePlugins = (): Plugin[] => [
     diagnosticsPlugin,
     timerPlugin, velocityPlugin, lifecyclePlugin, animationPlugin, audioPlugin, videoPlugin,
-    particlePlugin, trailPlugin, springBonePlugin, meshRendererPlugin, staticBatchPlugin, impostorPlugin, textureStreamingPlugin, postProcessPlugin,
+    particlePlugin, trailPlugin, springBonePlugin, meshRendererPlugin, staticBatchPlugin, compositeBatchPlugin, impostorPlugin, textureStreamingPlugin, postProcessPlugin,
     eventBindingPlugin,
     servicesPlugin,
 ];

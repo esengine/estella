@@ -1105,6 +1105,65 @@
       ]
     },
     {
+      "name": "CompositeBatch",
+      "source": "ts",
+      "fields": [
+        {
+          "key": "instanceMin",
+          "type": "number",
+          "default": "4",
+          "doc": "Parts of one mesh at or past this count are drawn as one instanced set (no copy of their vertices). Fewer are merged.",
+          "range": "≥ 2"
+        },
+        {
+          "key": "cellSize",
+          "type": "number",
+          "default": "0",
+          "doc": "Side of a merge chunk in the root's space. Smaller chunks re-merge less on an edit and cull better; 0 chooses from the model's size.",
+          "range": "≥ 0"
+        },
+        {
+          "key": "parts",
+          "type": "number",
+          "default": "0",
+          "readonly": true
+        },
+        {
+          "key": "instanced",
+          "type": "number",
+          "default": "0",
+          "readonly": true
+        },
+        {
+          "key": "draws",
+          "type": "number",
+          "default": "0",
+          "readonly": true
+        },
+        {
+          "key": "drawsBefore",
+          "type": "number",
+          "default": "0",
+          "readonly": true
+        },
+        {
+          "key": "moving",
+          "type": "number",
+          "default": "0",
+          "readonly": true
+        }
+      ],
+      "animatable": [
+        "instanceMin",
+        "cellSize",
+        "parts",
+        "instanced",
+        "draws",
+        "drawsBefore",
+        "moving"
+      ]
+    },
+    {
       "name": "ContentRect",
       "source": "cpp",
       "fields": [
@@ -8223,7 +8282,8 @@
           "doc": "None makes this node and its subtree transparent to the pointer — hits pass through to what is behind.",
           "values": [
             "Auto",
-            "None"
+            "None",
+            "Receive"
           ]
         },
         {
