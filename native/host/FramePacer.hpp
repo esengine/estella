@@ -27,7 +27,7 @@
  *            while a surface is torn down ("GetCurrentTexture was not called"),
  *            and a loop with nothing else to stop it once ran 11.5 million frames
  *            in a backgrounded app. No display needs more than kFloorFps here;
- *            a bench that asked for an uncapped present lifts it.
+ *            a bench that asked for an uncapped present lifts it, and the cap.
  *
  *          The host loop asks untilDue(), serves input while it waits, and calls
  *          frameStarted() as it begins a frame. Plain data and steady_clock only:
@@ -60,14 +60,14 @@ public:
     }
     float target() const { return target_; }
 
-    /// True while a bench measures uncapped frames: the floor would be what it measured.
+    /// True while a bench measures uncapped frames: the cap and the floor would be what it measured.
     void setUnbounded(bool on) { unbounded_ = on; }
 
     /// How long from @p now until a frame is due; zero when one is. A host stepped by a display callback, which cannot spin,
     /// passes @p floor false: it needs the cap and nothing else.
     Clock::duration untilDue(Clock::time_point now, bool floor = true) const {
         Clock::time_point due = Clock::time_point{};
-        if (interval_ > Clock::duration::zero() && nextAt_ != Clock::time_point{}) due = nextAt_;
+        if (!unbounded_ && interval_ > Clock::duration::zero() && nextAt_ != Clock::time_point{}) due = nextAt_;
         if (floor && !unbounded_ && lastStart_ != Clock::time_point{}) {
             const auto floorAt = lastStart_ + kFloor;
             if (floorAt > due) due = floorAt;

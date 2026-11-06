@@ -42,11 +42,14 @@ TEST_CASE("a display-stepped host asks for the cap alone") {
     CHECK(ms(p.untilDue(at(26.7), false)) == doctest::Approx(16.67).epsilon(0.01));
 }
 
-TEST_CASE("a bench lifts the floor") {
+TEST_CASE("a bench lifts the floor and the cap") {
     FramePacer p;
     p.setUnbounded(true);
     p.frameStarted(at(0));
     CHECK(p.untilDue(at(0.1)) == Clock::duration::zero());
+    p.setTarget(60.0f);
+    p.frameStarted(at(1));
+    CHECK(p.untilDue(at(1.1)) == Clock::duration::zero());
 }
 
 TEST_CASE("a cap is a cadence, not a gap") {

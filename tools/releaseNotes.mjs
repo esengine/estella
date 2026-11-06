@@ -3838,4 +3838,6 @@ export const NOTED = {
     {"note":"A native Android build shows CJK text from the system font."},
   "perf(text): a new glyph is drawn and distance-transformed at 2x rather than 4x, and the transform skips what cannot change its bytes, so a phone pays a third of what it did":
     {"note":"A new character costs a phone about a third of what it did."},
+  "fix(native): a bench lifts the pacer's frame-rate cap as well as its floor, so a phone's benched frame reads what it cost":
+    {"internal":"only the bench switches reach it; a game never runs with them on"},
 };
