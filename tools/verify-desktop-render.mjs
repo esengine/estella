@@ -23,7 +23,7 @@
  * and the release is the run that builds the template it is given.
  */
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -124,6 +124,42 @@ function desktopPixelsFor(id) {
     }
 }
 
+/**
+ * A linear project's colours on the packaged host: a grey of 0.2 in linear light must reach the screen encoded, 124, and not as 51. The
+ * host knew nothing of the project's colour space, and every linear game showed its linear values, far too dark, for as long as there
+ * was a native road. No project could say so: the frames drew, and the probes compare against what each one looked like.
+ */
+function linearColourReachesTheScreen(templateDir, work) {
+    const project = path.join(work, 'linear-colour-project');
+    mkdirSync(path.join(project, 'assets', 'scenes'), { recursive: true });
+    writeFileSync(path.join(project, 'project.esproject'), JSON.stringify({
+        formatVersion: '1', name: 'LinearColour', version: '1.0.0', tag: '3D', defaultScene: 'assets/scenes/main.esscene',
+        designResolution: { width: 640, height: 360 }, spineVersion: 'none',
+        features: { rendering: { colorSpace: 'linear' } },
+    }));
+    writeFileSync(path.join(project, 'assets', 'scenes', 'main.esscene'), JSON.stringify({
+        version: 4, name: 'Main', entities: [
+            { id: 0, name: 'Camera', parent: null, children: [], visible: true, components: [
+                { type: 'Transform', data: { position: { x: 0, y: 0, z: 500 } } },
+                { type: 'Camera', data: { projectionType: 0, fov: 60, nearPlane: 1, farPlane: 2000, isActive: true, priority: 0, clearFlags: 3 } },
+            ] },
+            { id: 1, name: 'Grey', parent: null, children: [], visible: true, components: [
+                { type: 'Transform', data: { scale: { x: 20, y: 20, z: 1 } } },
+                { type: 'MeshRenderer', data: { mesh: 'builtin:cube', lit: false, opaque: true, color: { r: 0.2, g: 0.2, b: 0.2, a: 1 } } },
+            ] },
+        ],
+    }));
+    execFileSync(process.execPath, [path.join(ROOT, 'tools', 'asset-meta.js'), path.join(project, 'assets')], { stdio: 'pipe' });
+    const { verdict, raw } = packageAndRun(project, templateDir, work);
+    // The block fills the frame, so `rendered`, which asks for more than one colour, is not the question here.
+    if (!verdict) return 'no frame was captured';
+    const pixels = readFileSync(raw);
+    const at = (Math.floor(verdict.h / 2) * verdict.w + Math.floor(verdict.w / 2)) * 4;
+    const grey = pixels[at];
+    return Math.abs(grey - 124) <= 6 ? null : `a linear grey of 0.2 reached the screen as ${grey}, not 124`
+        + (Math.abs(grey - 51) <= 6 ? ': that is the value with no encode, so the host ignored the colour space of the project' : '');
+}
+
 const opts = parseArgs(process.argv.slice(2));
 const templateDir = opts.template ?? installedTemplateDir(
     JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version, HOST_OS);
@@ -203,6 +239,13 @@ try {
                     + (probes.length ? `, ${probes.length} point(s) as declared` : ''));
             }
         }
+    }
+    const wrong = linearColourReachesTheScreen(templateDir, work);
+    if (wrong) {
+        console.error(`✗ linear colour: ${wrong}`);
+        failed += 1;
+    } else {
+        console.log('✓ linear colour: a linear project is encoded on the way to the screen');
     }
 } finally {
     rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });

@@ -40,6 +40,7 @@ import { log } from '../../util/logger';
 import { setRendererBackend } from '../../render/renderer';
 import { RenderPipeline } from '../../render/renderPipeline';
 import { cameraPlugin } from '../../camera/CameraPlugin';
+import { applyAppOptions, applyColorSpace, applyFrameOptions, type RenderOptions } from '../../app/renderOptions';
 import { UICameraInfo } from '../../ui/core/ui-camera-info';
 import { ScreenLayout } from '../../ui/core/screen-layout';
 import { ScreenOverlay, defaultScreenOverlay } from '../../ui/core/screen-overlay';
@@ -118,6 +119,7 @@ export function createNativeWorld(
 export function createNativeApp(
     bridge: NativeBridge,
     scope: Record<string, unknown> = globalThis as unknown as Record<string, unknown>,
+    options?: RenderOptions,
 ): App {
     ensureBuiltinComponentsRegistered();
     // Route the SDK platform to the host before any plugin builds (inputPlugin binds
@@ -139,7 +141,11 @@ export function createNativeApp(
     // builds the equivalent over the native ResourceManager; prefabs and scene
     // loading declare Assets as a required resource, so it precedes them.
     installNativeEngine(scope);
+    // What the project declares about its frame, at the same moments the web app applies it (renderOptions.ts).
+    const api = engineApi(app);
+    if (api) applyColorSpace(api, options);
     installNativeRenderer(app, scope);
+    if (api) applyFrameOptions(api, options);
     installNativeAssets(app, scope);
     installNativeUI(app, scope);
     app.addPlugin(inputPlugin);
@@ -157,6 +163,7 @@ export function createNativeApp(
     // optional subsystem reaches an App through `entryPlugins`, and a factory
     // that names a couple of them by hand ships a device the rest never reach.
     app.addPlugins(inBuildOrder([...presentationBasePlugins(), ...entryPlugins()]));
+    applyAppOptions(app, options);
     return app;
 }
 

@@ -3854,4 +3854,6 @@ export const NOTED = {
     {"note":"Voxel GI costs a third of what it did."},
   "fix(render): Voxel GI's screen samples take a different pixel of four each frame, so a thin face no longer makes a wall's bounce change with the size of the picture":
     {"note":"Voxel GI no longer changes with the size of the picture."},
+  "fix(native): a packaged game's colour space, output transform, MSAA, quality, layers and camera fit reach a native host, so a linear project is no longer far too dark":
+    {"note":"A linear project on a native build is no longer far too dark."},
 };

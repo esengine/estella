@@ -7,7 +7,7 @@
 
 import { World } from '../ecs/world';
 
-import { installQuality } from '../render/qualityRuntime';
+import { applyAppOptions, applyColorSpace, applyFrameOptions } from './renderOptions';
 import type { QualityConfig } from '../render/quality';
 import { Schedule, SystemDef, SystemRunner, SystemSet, mergeOrderingEdges, rescopeSystem, type RunCondition } from '../ecs/system';
 import { builtinResource, declaredResource, ResourceStorage, Time, TimeData, type ResourceDef } from '../ecs/resource';
@@ -19,7 +19,7 @@ import type { AotManifest } from '../ecs/aot/AotSystems';
 import type { AotRuntime } from '../ecs/aot/AotRuntime';
 import { EventRegistry, eventNamed, type EventDef } from '../ecs/event';
 import type { ESEngineModule, CppRegistry } from '../wasm';
-import { outputTransformCode, type OutputTransform } from '../postprocess';
+import type { OutputTransform } from '../postprocess';
 import type { BridgeConnectOptions } from '../ecs/bridge/BuiltinBridge';
 import { UICameraInfo } from '../ui/core/ui-camera-info';
 import { ScreenLayout } from '../ui/core/screen-layout';
@@ -44,11 +44,9 @@ import type { SceneConfig } from '../scene/sceneManager';
 import { SceneManager } from '../scene/sceneManager';
 import { sceneManagerPlugin } from '../scene/scenePlugin';
 import { getDefaultContext } from '../ecs/context';
-import { setLinearColorSpace } from '../ecs/env';
 import { seedEngineComponents, type AnyComponentDef } from '../ecs/component';
 import { cameraPlugin } from '../camera/CameraPlugin';
-import { ScreenScaling, SCREEN_FIT_OFF, type ScreenScalingData } from '../camera/ScreenScaling';
-import { RenderResolution } from '../camera/presentPlan';
+import type { ScreenScalingData } from '../camera/ScreenScaling';
 import { Physics2DRuntime } from '../physics/Physics2DRuntime';
 import { SubsystemRegistry } from './subsystems';
 import { DOMAIN_SCRIPTS, DOMAIN_UNATTRIBUTED, type ScopeCost, type ScopeRemainder, type SystemCost } from './frameProfile';
@@ -2159,9 +2157,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
         app.connectCpp(cppRegistry, module, { strict: true, ownedRegistry: true });
 
         // BEFORE renderer init: shader compilation reads the color-space global.
-        // Always applied (realm reloads must reset a prior session's mode too).
-        setLinearColorSpace(options?.colorSpace === 'linear');
-        module.renderer_setColorSpace?.(options?.colorSpace === 'linear' ? 1 : 0);
+        applyColorSpace(module, options);
         if (options?.randomSeed !== undefined) module.engine_setRandomSeed?.(options.randomSeed >>> 0);
 
         const surface: RenderSurfaceSource = options?.renderSurface ?? { kind: 'default' };
@@ -2195,15 +2191,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
                 break;
         }
         surfaces.set(app, { graphics: graphicsPathFor(surface), size: options?.getViewportSize ?? null });
-        // Always applied (not only when set): the renderer outlives the App on realm
-        // reloads, so a fresh App must reset a prior session's y-sort state too.
-        module.renderer_setYSortLayers?.((options?.ySortLayers ?? 0) >>> 0);
-        module.renderer_setDepthLayers?.((options?.depthLayers ?? 0) >>> 0);
-        // After the renderer, not with the colour space above it: the post-process
-        // pipeline is created by the renderer, and a curve declared before it exists
-        // reaches nothing.
-        module.postprocess_setOutputTransform?.(outputTransformCode(options?.outputTransform));
-        module.postprocess_setMsaaSamples?.((options?.msaaSamples ?? 4) >>> 0);
+        applyFrameOptions(module, options);
 
         app.addPlugin(corePlugin);
         app.setPipeline(new RenderPipeline());
@@ -2219,19 +2207,7 @@ export function createWebApp(module: ESEngineModule, options?: WebAppOptions): A
             app.addPlugins(options.plugins);
         }
 
-        // Project camera fit: only install the resource when the project opts in (a real
-        // scaleMode). Absent ⇒ CameraPlugin.resolveFitSource sees no resource and keeps
-        // the legacy Canvas-or-raw fit, so an unconfigured game is byte-for-byte unchanged.
-        // Either opt-in installs it. The render policy does not need a camera fit —
-        // it takes the camera's world height whatever produced it — and gating one on
-        // the other made a project that wanted only the policy get neither.
-        if (options?.screenFit
-            && (options.screenFit.scaleMode > SCREEN_FIT_OFF
-                || (options.screenFit.renderPolicy ?? RenderResolution.Surface) !== RenderResolution.Surface)) {
-            app.insertResource(ScreenScaling, { ...options.screenFit });
-        }
-
-        if (options?.quality) installQuality(app, options.quality, options.msaaSamples ?? 4);
+        applyAppOptions(app, options);
         return app;
     } catch (error) {
         try { app.quit({ keepRenderer: true }); }

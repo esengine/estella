@@ -114,6 +114,13 @@ add_executable(test_frame_pacer
 target_include_directories(test_frame_pacer PRIVATE ${CMAKE_SOURCE_DIR}/native/host)
 add_test(NAME test_frame_pacer COMMAND test_frame_pacer)
 
+# What a native host reads of game.config.json before any shader compiles.
+add_executable(test_packaged_config
+    input/test_packaged_config.cpp
+)
+target_include_directories(test_packaged_config PRIVATE ${CMAKE_SOURCE_DIR}/native/host)
+add_test(NAME test_packaged_config COMMAND test_packaged_config)
+
 # The read-only mapping the native glyph rasterizer opens fonts through
 # (native/host/media/mapped_file.hpp): header-only, so no host is needed.
 add_executable(test_mapped_file

@@ -22,6 +22,7 @@
 
 #include "esengine/bindings/ActiveContext.hpp"   // g_activeContext — the context the generated bindings act on
 #include "Bench.hpp"
+#include "PackagedConfig.hpp"
 #include "Shot.hpp"
 #if defined(ESTELLA_DESKTOP)
 #include "steam/SteamApi.hpp"
@@ -31,6 +32,7 @@
 #include "esengine/ecs/TransformSystem.hpp"
 #include "esengine/renderer/frame/RenderContext.hpp"
 #include "esengine/renderer/frame/RenderFrame.hpp"
+#include "esengine/resource/ShaderParser.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -269,6 +271,12 @@ bool boot(Platform& platform) {
     context.state().viewport_width = (i32)h.w;
     context.state().viewport_height = (i32)h.h;
     bootPhase("engine context");
+    // Before the first shader compiles, as the web declares it before its renderer starts (PackagedConfig.hpp).
+    {
+        const std::vector<u8> config = platform.readAsset("game.config.json");
+        resource::ShaderParser::setLinearColorSpace(packagedConfigIsLinear(
+            std::string_view(reinterpret_cast<const char*>(config.data()), config.size())));
+    }
     if (!context.init(std::move(device))) { ESHOST_LOGE("context.init failed"); return false; }
 
     static ecs::Registry registry;

@@ -14653,7 +14653,7 @@ Plugin
 
 ## createNativeApp — function @experimental
 ```
-(bridge: NativeBridge, scope?: Record<string, unknown>): App
+(bridge: NativeBridge, scope?: Record<string, unknown>, options?: RenderOptions): App
 ```
 
 ## createNativeRegistry — function @experimental
