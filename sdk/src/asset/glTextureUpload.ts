@@ -115,6 +115,26 @@ export function findWebGL2Context(glObj: ESEngineModule['GL'] | undefined): WebG
     return null;
 }
 
+/**
+ * Run `fn` with `texture` bound, and leave the unit bound to what it had.
+ *
+ * The device's context is not ours to leave changed: the device remembers what
+ * each unit holds and skips a bind it thinks is already made. Binding here on the
+ * unit it last made active (often 15, the per-instance records) made the device's
+ * memory a lie: it kept skipping its own bind, every instanced mesh read this
+ * texture as its transforms, and once the texture was freed they read nothing and
+ * the whole scene drew black, for good.
+ */
+function withBoundTexture<R>(gl: WebGL2RenderingContext, texture: WebGLTexture, fn: () => R): R {
+    const previous = gl.getParameter(gl.TEXTURE_BINDING_2D) as WebGLTexture | null;
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    try {
+        return fn();
+    } finally {
+        gl.bindTexture(gl.TEXTURE_2D, previous);
+    }
+}
+
 /** What a texture handed to the device is, beyond its pixels. */
 export interface HandOverDesc {
     width: number;
@@ -140,8 +160,7 @@ export function handOverNewTexture(
     const texture = gl.createTexture();
     if (!texture) throw new Error('the GL context gave no texture (is it lost?)');
     try {
-        gl.bindTexture(gl.TEXTURE_2D, texture);
-        write(gl);
+        withBoundTexture(gl, texture, () => write(gl));
     } catch (err) {
         gl.deleteTexture(texture);
         throw err;
@@ -174,8 +193,7 @@ export function writeDeviceTexture(
     const id = requireResourceManager().getTextureNativeId?.(handle) ?? 0;
     const texture = id ? module.GL.textures[id] : null;
     if (!texture) return false;
-    gl.bindTexture(gl.TEXTURE_2D, texture);
-    write(gl);
+    withBoundTexture(gl, texture, () => write(gl));
     return true;
 }
 

@@ -23,8 +23,13 @@ const LINEAR = 0x2601;
 const LINEAR_MIPMAP_LINEAR = 0x2703;
 
 function makeGl() {
+    // What the unit holds, so the bridge's restore of it can be checked: the device
+    // remembers its bindings, and one left changed is one it never makes again.
+    const ENGINE_BOUND = { tag: 'the device\'s own' } as unknown as WebGLTexture;
+    let bound: WebGLTexture | null = ENGINE_BOUND;
     return {
-        TEXTURE_2D: 0x0de1, RGBA, UNSIGNED_BYTE: 0x1401, SRGB8_ALPHA8,
+        ENGINE_BOUND,
+        TEXTURE_2D: 0x0de1, TEXTURE_BINDING_2D: 0x8069, RGBA, UNSIGNED_BYTE: 0x1401, SRGB8_ALPHA8,
         NEAREST: 0x2600, LINEAR, LINEAR_MIPMAP_LINEAR, NEAREST_MIPMAP_NEAREST: 0x2700,
         CLAMP_TO_EDGE, MIRRORED_REPEAT: 0x8370, REPEAT: 0x2901,
         TEXTURE_MIN_FILTER, TEXTURE_MAG_FILTER: 0x2800,
@@ -34,7 +39,8 @@ function makeGl() {
         texStorage2D: vi.fn(),
         createTexture: vi.fn(() => ({ tag: 'first' }) as unknown as WebGLTexture),
         deleteTexture: vi.fn(),
-        bindTexture: vi.fn(),
+        bindTexture: vi.fn((_target: number, texture: WebGLTexture | null) => { bound = texture; }),
+        getParameter: vi.fn((name: number) => (name === 0x8069 ? bound : null)),
         texImage2D: vi.fn(),
         texParameteri: vi.fn(),
         pixelStorei: vi.fn(),
@@ -174,6 +180,17 @@ describe('createCanvasTexture', () => {
         expect(releaseTexture).toHaveBeenCalledTimes(1);
     });
 
+    it('leaves the unit bound to what the device bound there, on the first take and every re-take', () => {
+        // The device skips a bind it believes is made. A texture left on its unit (15,
+        // the per-instance records, when that was the last one it used) was read as
+        // every instanced mesh's transforms, and once freed the whole scene drew black.
+        const gl = makeGl();
+        const tex = createCanvasTexture(makeApp(gl), makeSource(8, 8))!;
+        expect(gl.getParameter(gl.TEXTURE_BINDING_2D)).toBe(gl.ENGINE_BOUND);
+        tex.update();
+        expect(gl.getParameter(gl.TEXTURE_BINDING_2D)).toBe(gl.ENGINE_BOUND);
+    });
+
     it('takes the canvas again into the texture the device rebuilt, and says the debt is paid', () => {
         const gl = makeGl();
         const app = makeApp(gl);
@@ -186,8 +203,11 @@ describe('createCanvasTexture', () => {
         pool[7] = rebuilt;
         expect(textureRefill(tex.handle)!()).toBe(true);
 
-        expect(gl.bindTexture).toHaveBeenLastCalledWith(gl.TEXTURE_2D, rebuilt);
-        expect(gl.bindTexture).not.toHaveBeenLastCalledWith(gl.TEXTURE_2D, beforeLoss);
+        const writes = gl.bindTexture.mock.calls.map((c) => c[1]).slice(-2);
+        expect(writes[0]).toBe(rebuilt);
+        expect(writes[0]).not.toBe(beforeLoss);
+        // ...and the unit is left holding what the device bound there.
+        expect(writes[1]).toBe(gl.ENGINE_BOUND);
         expect(gl.texImage2D).toHaveBeenCalledTimes(2);
         expect(restoreTextureContent).toHaveBeenCalledWith(tex.handle);
     });
