@@ -240,8 +240,8 @@ struct Platform {
 
     /**
      * Draw @p codepoint with the platform's OWN rasterizer, for a system whose
-     * font files the shared parser cannot read — Apple ships CFF2 outlines and
-     * stb_truetype has no CFF2. Reached only where the shared path could not, so
+     * font files the shared parser cannot read — Apple and Android ship CFF2 outlines
+     * and stb_truetype has no CFF2. Reached only where the shared path could not, so
      * the default false keeps stb_truetype and costs a platform nothing.
      */
     virtual bool drawGlyph(const std::string& /*family*/, esengine::u32 /*codepoint*/,

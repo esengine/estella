@@ -306,6 +306,58 @@ struct AndroidPlatform final : eshost::Platform {
         return out;
     }
 
+    // -- The platform's own rasterizer: com.estella.host.GlyphPainter ----------
+    //
+    // For a face stb_truetype cannot read: Android 16's system CJK font has CFF2
+    // outlines, so without this the native path drew no system CJK text at all.
+    // The same face the matcher chose is drawn by android.graphics, as Core Text
+    // draws it on Apple (Platform::drawGlyph).
+
+    jclass glyphPainter = nullptr;     // global ref, set by attachJavaShims
+    jmethodID glyphPainterDraw = nullptr;
+
+    bool drawGlyph(const std::string& family, u32 codepoint, int style, esengine::f32 pixelSize, int supersample,
+                   int padding, GlyphCoverage& out) override {
+        if (!glyphPainter || !vm) return false;
+        const eshost::FontMatch face = matchFont(family, codepoint, style);
+        if (face.path.empty()) return false;
+        JNIEnv* env = nullptr;
+        if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_OK) {
+            if (vm->AttachCurrentThread(&env, nullptr) != JNI_OK || !env) return false;
+        }
+        jstring path = env->NewStringUTF(face.path.c_str());
+        jfloatArray metrics = env->NewFloatArray(6);
+        auto alpha = (jbyteArray)env->CallStaticObjectMethod(
+            glyphPainter, glyphPainterDraw, path, (jint)face.faceIndex, (jint)codepoint, (jfloat)pixelSize,
+            (jint)supersample, (jint)padding, (jboolean)face.syntheticBold, (jboolean)face.syntheticItalic, metrics);
+        bool ok = false;
+        if (env->ExceptionCheck()) {
+            env->ExceptionDescribe();
+            env->ExceptionClear();
+        } else if (alpha) {
+            float m[6] = {};
+            env->GetFloatArrayRegion(metrics, 0, 6, m);
+            out.width = (int)m[0];
+            out.height = (int)m[1];
+            out.advance = m[2];
+            out.bearingX = m[3];
+            out.bearingY = m[4];
+            out.blank = m[5] != 0.0f;
+            const jsize n = env->GetArrayLength(alpha);
+            if (out.blank) {
+                ok = true;
+            } else if (out.width > 0 && out.height > 0 && n == (jsize)out.width * out.height) {
+                out.alpha.resize((size_t)n);
+                env->GetByteArrayRegion(alpha, 0, n, reinterpret_cast<jbyte*>(out.alpha.data()));
+                ok = true;
+            }
+            env->DeleteLocalRef(alpha);
+        }
+        env->DeleteLocalRef(metrics);
+        env->DeleteLocalRef(path);
+        return ok;
+    }
+
     // A detached JNI thread runs the request; deliverFetch is thread-safe and the
     // JS callback runs back on the main thread in drainFetches.
     void startFetch(const eshost::FetchRequest& req) override {
@@ -402,36 +454,45 @@ void jniTextSubmit(JNIEnv*, jclass) { eshost::deliverTextEditorSubmit(); }
 void jniTextCancel(JNIEnv*, jclass) { eshost::deliverTextEditorCancel(); }
 
 /**
- * Load com.estella.host.TextEditor, register its natives and construct it.
- *
- * Runs on the frame-loop thread, before boot binds the es_textEditor_* entry
- * points — the surface has to exist by then or the SDK correctly concludes there
- * is none. FindClass would fail here (off the UI thread it resolves through the
- * SYSTEM class loader, which knows nothing of the APK), so the app's own loader
- * is asked by name instead. Nothing touches a View: the shim posts all of that
- * to the UI thread itself.
+ * One of the APK's own classes (the shims in native/android/java), as a local ref;
+ * null when the APK does not carry it. FindClass would fail on this thread (off
+ * the UI thread it resolves through the SYSTEM class loader, which knows nothing
+ * of the APK), so the app's own loader is asked by name instead.
  */
-void attachTextEditor(ANativeActivity* activity) {
-    if (g_platform.editor || !activity->vm) return;
-    JNIEnv* env = nullptr;
-    if (activity->vm->AttachCurrentThread(&env, nullptr) != JNI_OK || !env) return;
-
+jclass loadAppClass(JNIEnv* env, ANativeActivity* activity, const char* name) {
     jclass activityCls = env->GetObjectClass(activity->clazz);
     const jmethodID getClassLoader =
         env->GetMethodID(activityCls, "getClassLoader", "()Ljava/lang/ClassLoader;");
     env->DeleteLocalRef(activityCls);
-    if (!getClassLoader) { env->ExceptionClear(); return; }
+    if (!getClassLoader) { env->ExceptionClear(); return nullptr; }
     jobject loader = env->CallObjectMethod(activity->clazz, getClassLoader);
     jclass loaderCls = env->FindClass("java/lang/ClassLoader");
     const jmethodID loadClass =
         env->GetMethodID(loaderCls, "loadClass", "(Ljava/lang/String;)Ljava/lang/Class;");
     env->DeleteLocalRef(loaderCls);
-    jstring name = env->NewStringUTF("com.estella.host.TextEditor");
-    jclass cls = (jclass)env->CallObjectMethod(loader, loadClass, name);
-    env->DeleteLocalRef(name);
+    jstring jname = env->NewStringUTF(name);
+    jclass cls = (jclass)env->CallObjectMethod(loader, loadClass, jname);
+    env->DeleteLocalRef(jname);
     env->DeleteLocalRef(loader);
     if (!cls || env->ExceptionCheck()) {
         env->ExceptionClear();
+        return nullptr;
+    }
+    return cls;
+}
+
+/**
+ * Load com.estella.host.TextEditor, register its natives and construct it.
+ *
+ * Runs on the frame-loop thread, before boot binds the es_textEditor_* entry
+ * points — the surface has to exist by then or the SDK correctly concludes there
+ * is none. Nothing touches a View: the shim posts all of that to the UI thread
+ * itself.
+ */
+void attachTextEditor(JNIEnv* env, ANativeActivity* activity) {
+    if (g_platform.editor) return;
+    jclass cls = loadAppClass(env, activity, "com.estella.host.TextEditor");
+    if (!cls) {
         __android_log_print(ANDROID_LOG_WARN, LOG_TAG,
                             "text editor: com.estella.host.TextEditor not in the APK — typing is off");
         return;
@@ -461,6 +522,33 @@ void attachTextEditor(ANativeActivity* activity) {
     if (instance) env->DeleteLocalRef(instance);
     env->DeleteLocalRef(cls);
     __android_log_print(ANDROID_LOG_INFO, LOG_TAG, "text editor: soft keyboard up (IME)");
+}
+
+/** Load com.estella.host.GlyphPainter (see AndroidPlatform::drawGlyph). Static methods only, so no instance. */
+void attachGlyphPainter(JNIEnv* env, ANativeActivity* activity) {
+    if (g_platform.glyphPainter) return;
+    jclass cls = loadAppClass(env, activity, "com.estella.host.GlyphPainter");
+    const jmethodID draw = cls ? env->GetStaticMethodID(cls, "draw", "(Ljava/lang/String;IIFIIZZ[F)[B") : nullptr;
+    if (!draw) {
+        env->ExceptionClear();
+        if (cls) env->DeleteLocalRef(cls);
+        __android_log_print(ANDROID_LOG_WARN, LOG_TAG,
+                            "glyphs: com.estella.host.GlyphPainter not in the APK — a face the shared parser cannot "
+                            "read draws nothing");
+        return;
+    }
+    g_platform.glyphPainter = (jclass)env->NewGlobalRef(cls);
+    g_platform.glyphPainterDraw = draw;
+    env->DeleteLocalRef(cls);
+}
+
+/** The APK's Java shims, loaded once on the frame-loop thread before boot binds what they answer. */
+void attachJavaShims(ANativeActivity* activity) {
+    if (!activity->vm) return;
+    JNIEnv* env = nullptr;
+    if (activity->vm->AttachCurrentThread(&env, nullptr) != JNI_OK || !env) return;
+    attachTextEditor(env, activity);
+    attachGlyphPainter(env, activity);
 }
 
 // The decoder's own copies of the MotionEvent constants, held against the NDK's
@@ -943,7 +1031,7 @@ void android_main(android_app* app) {
     g_platform.vm = app->activity->vm;                  // for JNI HttpURLConnection (es_fetch)
     // Before boot: whether there is an editing surface decides whether the
     // es_textEditor_* entry points are bound at all.
-    attachTextEditor(app->activity);
+    attachJavaShims(app->activity);
     // files/ holds what a player keeps; cache/ is the system's to reclaim.
     if (app->activity->internalDataPath) g_platform.data = app->activity->internalDataPath;
     g_platform.cache = queryCacheDir(app->activity);

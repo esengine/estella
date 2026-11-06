@@ -3834,4 +3834,6 @@ export const NOTED = {
     {"note":"Android frames no longer drop to 30 fps when they come close to the frame budget."},
   "fix(native): a platform only names the font face a glyph needs, and the rasterizer maps each face's file once, so a new glyph no longer reads a whole system font":
     {"note":"A new glyph on a native build no longer stalls the frame reading a whole system font."},
+  "fix(native): Android draws a face the shared rasterizer cannot read with its own, as Apple does, so a native build shows the system's CJK text":
+    {"note":"A native Android build shows CJK text from the system font."},
 };
