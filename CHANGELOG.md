@@ -60,6 +60,8 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **Color Grade contrast no longer blacks out a dark scene in a linear project.** It turned on 0.5, which is well above mid-grey in linear light, so raising it took everything dark to pure black: at 1.4, a night scene. It now turns on mid-grey, as a curve that keeps what is dark. Linear projects that set a contrast above 1 will look a little brighter in their shadows.
+
 - **A WeChat mini-game opens in WeChat DevTools.** A package stopped there at "BigInt64Array is not defined" while a phone ran it, as the engine and its side modules needed a global DevTools' game realm does not have. They no longer do.
 
 - **An agent is told when a child it adds inside a prefab instance will not last.** A scene stores an instance as its root and its changes, so such a child lost its parent on saving, and an exported game dropped it, with no word. `apply_scene_ops` now warns, and says what to do instead.

@@ -6,6 +6,7 @@
  */
 import type { ShaderHandle } from '../../render/material';
 import { Material } from '../../render/material';
+import { linearColorSpace } from '../../ecs/env';
 import { registerEffectSources, registerComputeSource } from '../effectSources';
 import { SHARPEN_WGSL } from '../computeEffects';
 import { lensEffects } from '../lensEffects';
@@ -404,6 +405,11 @@ void main() {
         return Material.compileShader(source);
     },
     createColorGrade(): ShaderHandle {
+        // Contrast about mid-grey, which is 0.5 of a gamma-encoded picture and 0.18 of a linear one. Linear light gets a power curve about it, as
+        // a straight line through 0.18 sends what is dark to black: at 1.4 everything under 0.05, the whole of a night scene.
+        const linear = linearColorSpace();
+        const contrastGlsl = linear ? 'c = 0.18 * pow(max(c, vec3(1e-6)) / 0.18, vec3(u_contrast));' : 'c = (c - 0.5) * u_contrast + 0.5;';
+        const contrastWgsl = linear ? 'c = 0.18 * pow(max(c, vec3f(1e-6)) / 0.18, vec3f(mc.u_contrast));' : 'c = (c - 0.5) * mc.u_contrast + 0.5;';
         const source = `#pragma shader "PP Color Grade"
 #pragma version 300 es
 #pragma domain PostProcess
@@ -433,7 +439,7 @@ void main() {
     c.g *= 1.0 + u_tint * 0.2;
 
     // Contrast about mid-grey.
-    c = (c - 0.5) * u_contrast + 0.5;
+    ${contrastGlsl}
 
     // Saturation about Rec.709 luma.
     float luma = dot(c, vec3(0.2126, 0.7152, 0.0722));
@@ -454,7 +460,7 @@ void main() {
     c.b *= 1.0 - mc.u_temperature * 0.2;
     c.g *= 1.0 + mc.u_tint * 0.2;
 
-    c = (c - 0.5) * mc.u_contrast + 0.5;
+    ${contrastWgsl}
 
     let luma = dot(c, vec3f(0.2126, 0.7152, 0.0722));
     c = mix(vec3f(luma), c, mc.u_saturation);

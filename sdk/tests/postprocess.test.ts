@@ -11,6 +11,7 @@ vi.mock('../src/render/material', () => ({
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { PostProcessAPI, PostProcessStack, postProcessEffects, initPostProcessAPI, shutdownPostProcessAPI, getEffectDef } from '../src/postprocess';
 import { Material } from '../src/render/material';
+import { setLinearColorSpace } from '../src/ecs/env';
 import type { ESEngineModule } from '../src/wasm';
 import { registerBasicEffectSources } from '../src/postprocess/sources/basic';
 import { registerAtmosphereEffectSources } from '../src/postprocess/sources/atmosphere';
@@ -413,6 +414,25 @@ describe('PostProcess API', () => {
             expect(defaults).toEqual({
                 u_exposure: 0, u_contrast: 1, u_saturation: 1, u_temperature: 0, u_tint: 0,
             });
+        });
+
+        it('colorGrade takes contrast about the mid-grey of the colour space it runs in', () => {
+            const sourceFor = (linear: boolean): string => {
+                setLinearColorSpace(linear);
+                try {
+                    postProcessEffects.createColorGrade();
+                    return lastSource();
+                } finally {
+                    setLinearColorSpace(false);
+                }
+            };
+            const gamma = sourceFor(false);
+            expect(gamma).toContain('c = (c - 0.5) * u_contrast + 0.5;');
+            expect(gamma).toContain('c = (c - 0.5) * mc.u_contrast + 0.5;');
+            const linear = sourceFor(true);
+            expect(linear).toContain('c = 0.18 * pow(max(c, vec3(1e-6)) / 0.18, vec3(u_contrast));');
+            expect(linear).toContain('c = 0.18 * pow(max(c, vec3f(1e-6)) / 0.18, vec3f(mc.u_contrast));');
+            expect(linear).not.toContain('- 0.5');
         });
 
         it('every effect ships a WGSL twin and stays fragment-only', () => {

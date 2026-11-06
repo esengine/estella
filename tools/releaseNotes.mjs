@@ -3884,6 +3884,8 @@ export const NOTED = {
     {"note":"A material's normal and metal-rough maps are read as data in the editor's Play."},
   "fix(minigame): no mini-game module needs BigInt64Array, so WeChat DevTools boots the game":
     {"note":"A WeChat mini-game opens in WeChat DevTools."},
+  "fix(postprocess): Color Grade contrast keeps a dark scene in a linear project":
+    {"note":"Color Grade contrast no longer blacks out a dark scene in a linear project."},
   "feat(look): pictures laid side by side, one outlined over another, and their exact colours":
     {"note":"An AI can put the game beside the pictures it is imitating."},
   "feat(mcp): reference_compare, field_sweep and motion_sheet show the game beside what it imitates, at several values and over time":
