@@ -162,6 +162,9 @@ export {
 export {
     solveAnimatorIK,
     type AnimatorIK,
+    type GroundContext,
+    type GroundHit,
+    type GroundProbe,
     type AnimatorIKKind,
 } from './animatorIK';
 

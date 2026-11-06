@@ -11,7 +11,7 @@
 import { MeshChannel, MeshChannelType, packChannels, unwrapLightmapUV, type MeshData, type MeshMorphTargets } from 'esengine';
 import { triangulateFace } from './triangulate';
 import { faceUvs } from './modelUv';
-import { adjustWeights, bindMatrices, computeWeights, resolveJoints, shapeDeltas, type RigJoint, type SkinWeights } from './rig';
+import { adjustWeights, bindMatrices, computeWeights, resolveJoints, shapeDeltas, type ControllerIk, type RigGoal, type RigJoint, type SkinWeights } from './rig';
 import { buildPolyMesh, validateModelSource, type ModelSource, type StepReport } from './modelSource';
 import {
     boundsOf, collectEdges, cross, dot, faceArea, faceNormal, length, normalize, sub,
@@ -51,7 +51,7 @@ export interface BakedModel {
     data: MeshData;
     report: ModelReport;
     /** Present on a rigged model. */
-    rig?: { joints: RigJoint[]; skin: SkinWeights };
+    rig?: { joints: RigJoint[]; skin: SkinWeights; ik?: readonly ControllerIk[]; goals?: readonly RigGoal[] };
     /** Present where a source has shapes: three offsets per surface vertex, for each. */
     shapes?: { names: string[]; deltas: Float32Array[] };
     /** One triangle per entry: its three positions' indices, and the face it came from. */
@@ -234,7 +234,7 @@ export function bakeModel(raw: unknown): BakedModel {
     let rig: BakedModel['rig'];
     if (source.rig) {
         const joints = resolveJoints(source.rig);
-        rig = { joints, skin: adjustWeights(mesh, joints, computeWeights(mesh, joints), source.rig.adjust ?? []) };
+        rig = { joints, skin: adjustWeights(mesh, joints, computeWeights(mesh, joints), source.rig.adjust ?? []), ik: source.controller?.ik ?? [], goals: source.rig.goals ?? [] };
     }
     const shapes = source.shapes ? { names: source.shapes.map((s) => s.name), deltas: source.shapes.map((s) => shapeDeltas(mesh, s)) } : undefined;
     // A mesh that moves takes no lightmap: a bake holds still.
@@ -278,6 +278,11 @@ export function bakeModel(raw: unknown): BakedModel {
         // A tip often moves nothing: it marks where the last bone ends.
         const idle = rig.joints.filter((j, i) => j.children.length > 0 && rig!.skin.dominant[i] === 0).map((j) => j.name);
         if (idle.length) warnings.push(`joint${idle.length > 1 ? 's' : ''} ${idle.join(', ')} move${idle.length > 1 ? '' : 's'} no vertex the most: too near another, or outside the surface`);
+    }
+
+    // The engine's delta texture is 2048 square, the most WebGL2 promises; past it the mesh draws, but never changes shape.
+    if (shapes && shapes.names.length * unwrapped.vertexCount * 2 > 2048 * 2048) {
+        warnings.push(`${shapes.names.length} shapes over ${unwrapped.vertexCount} vertices is more than the engine holds (${2048 * 2048} deltas, two each): it would draw but never change shape. Lower the resolution or use fewer shapes`);
     }
 
     const roundVec = (v: readonly number[]): Vec3 => v.map((x) => Math.round(x * 1e5) / 1e5) as unknown as Vec3;

@@ -35,7 +35,7 @@ import { MaskReach, type AnimatorMask } from './animatorMask';
 import {
     avatarResolver, rebasePose, travelRatio, type AnimatorAvatar, type JointResolver,
 } from './animatorAvatar';
-import { solveAnimatorIK, type AnimatorIK } from './animatorIK';
+import { solveAnimatorIK, type AnimatorIK, type GroundContext, type GroundProbe } from './animatorIK';
 import { AnimatorRootMotion, type AnimatorRootMotionData } from './animatorRootMotion';
 import type { AnimatorEventSink } from './animatorEvent';
 import { Transform, type TransformData } from '../ecs/component';
@@ -626,6 +626,7 @@ export class AnimatorControllerAPI {
     private readonly triggers = new Map<Entity, Set<string>>();
     private readonly runtimes_ = new Map<Entity, AnimatorRuntime>();
     private readonly motions_ = new MotionRegistry();
+    private groundProbe_: GroundProbe | null = null;
 
     constructor() {
         // The kinds the animation core itself can play. Everything else — a
@@ -651,6 +652,11 @@ export class AnimatorControllerAPI {
     /** Whether some driver can play `kind` here. */
     hasMotionDriver(kind: string): boolean {
         return this.motions_.has(kind);
+    }
+
+    /** What foot-plant constraints ask about the ground; a physics plugin wires it. Without one they leave the clip's feet alone. */
+    setGroundProbe(probe: GroundProbe | null): void {
+        this.groundProbe_ = probe;
     }
 
     /** Inject the Spine driver (SpinePlugin wires SpineManager here). Optional —
@@ -805,7 +811,8 @@ export class AnimatorControllerAPI {
             // between composing and writing — on the pose this frame stated,
             // never on the world's record of the last one.
             if (wrote && def.ik?.length) {
-                solveAnimatorIK(world, entity, rt.composed, def.ik, params, joints);
+                solveAnimatorIK(world, entity, rt.composed, def.ik, params, joints,
+                                this.groundFor(rt, dt));
             }
             // One write for the whole stack: a layer states values, and what the
             // entity ends up as is the stack's answer, not the topmost writer's.
@@ -1083,6 +1090,13 @@ export class AnimatorControllerAPI {
      * not rebuilt: a controller swapped for one with more layers keeps the base
      * layer mid-clip, which is what the entity is visibly doing.
      */
+    private groundFor(rt: AnimatorRuntime, dt: number): GroundContext {
+        const ground = rt.ground ??= { probe: null, dt: 0, memory: new Map() };
+        ground.probe = this.groundProbe_;
+        ground.dt = dt;
+        return ground;
+    }
+
     private runtimeFor(entity: Entity, layers: number): AnimatorRuntime {
         let rt = this.runtimes_.get(entity);
         if (!rt) {
@@ -1120,6 +1134,8 @@ const IDENTITY_QUAT = { w: 1, x: 0, y: 0, z: 0 };
 /** One entity's playback state: transient, so it lives here and not on the
  *  component, which is what a scene saves and an inspector shows. */
 interface AnimatorRuntime {
+    /** Where each planted foot had settled, for easing onto a new height. */
+    ground?: GroundContext;
     /** One per layer, the base layer at 0. */
     layers: LayerRuntime[];
     /** What the whole stack came to, written to the world once. */

@@ -706,7 +706,7 @@ function toWorld(joints: readonly RigJoint[], local: Pose['local']): Pose['world
 }
 
 /** Each joint at @p time, with every `reach` solved; the bind pose with no animation. */
-function poseAt(joints: readonly RigJoint[], animation: AnimationSource | null, time: number): Pose {
+function poseAt(joints: readonly RigJoint[], animation: AnimationSource | null, time: number, solve?: PoseSolve): Pose {
     const loop = animation?.loop !== false;
     const at = (keys: readonly (readonly number[])[], t: AnimationTrack): Vec3 => sample(keys, time, animation!.duration, loop, t.phase ?? 0, t.linear === true);
     const local: Pose['local'] = joints.map((j) => {
@@ -720,47 +720,133 @@ function poseAt(joints: readonly RigJoint[], animation: AnimationSource | null, 
     for (const track of animation?.tracks ?? []) {
         if (!track.reach) continue;
         const foot = joints.findIndex((j) => j.name === track.joint);
-        const lower = joints[foot]!.parent, upper = joints[lower]!.parent, above = joints[upper]!.parent;
-        const target = at(track.reach, track);
-        const a = world[upper]!.origin, b = world[lower]!.origin, c = world[foot]!.origin;
-        const upperLen = length(sub(joints[lower]!.at, joints[upper]!.at)), lowerLen = length(sub(joints[foot]!.at, joints[lower]!.at));
-        const toTarget = sub(target, a);
-        const near = Math.abs(upperLen - lowerLen) + 1e-4, far = upperLen + lowerLen - 1e-4;
-        // Out of reach it stretches straight toward the target; the report cannot say so per frame, the strip shows it.
-        const span = Math.max(near, Math.min(far, length(toTarget)));
-        const along = normalize(toTarget);
-        const bent = sub(b, add(a, scale(along, dot(sub(b, a), along))));
-        const hint = track.pole ?? (length(bent) > upperLen * 0.01 ? bent : [0, 0, 1] as Vec3);
-        let side = sub(hint, scale(along, dot(hint, along)));
-        if (length(side) < 1e-6) side = sub([1, 0, 0], scale(along, along[0]));
-        const toKnee = (upperLen * upperLen - lowerLen * lowerLen + span * span) / (2 * span);
-        const out = Math.sqrt(Math.max(0, upperLen * upperLen - toKnee * toKnee));
-        const knee = add(add(a, scale(along, toKnee)), scale(normalize(side), out));
-        const end = add(a, scale(along, span));
-        const upperWorld = quatMul(rotationBetween(sub(b, a), sub(knee, a)), world[upper]!.q);
-        // Where the foot would now be, carried by the upper bone, is what the lower bone turns from.
-        const carried = rotateBy(rotationBetween(sub(b, a), sub(knee, a)), sub(c, b));
-        const lowerWorld = quatMul(rotationBetween(carried, sub(end, knee)), quatMul(rotationBetween(sub(b, a), sub(knee, a)), world[lower]!.q));
         const held = track.rotate ? at(track.rotate, track) : [0, 0, 0] as Vec3;
-        const footWorld = eulerToQuat(held[0], held[1], held[2]);
-        const parentWorld = above >= 0 ? world[above]!.q : [0, 0, 0, 1] as Quat;
-        local[upper] = { ...local[upper]!, q: quatMul(conjugate(parentWorld), upperWorld) };
-        local[lower] = { ...local[lower]!, q: quatMul(conjugate(upperWorld), lowerWorld) };
-        local[foot] = { ...local[foot]!, q: quatMul(conjugate(lowerWorld), footWorld) };
-        world = toWorld(joints, local);
+        world = bendLimb(joints, local, world, foot, at(track.reach, track), track.pole, eulerToQuat(held[0], held[1], held[2]));
     }
+    if (solve) world = applyConstraints(joints, local, world, solve);
     return { local, world };
 }
 
+/**
+ * The two bones above @p foot turned to put it on @p target, leaving `local` changed and answering the world it makes.
+ * @p footWorld holds the foot at that orientation; left out it goes on as the clip had it, carried by the turn.
+ */
+function bendLimb(joints: readonly RigJoint[], local: Pose['local'], world: Pose['world'], foot: number, target: Vec3, pole: Vec3 | undefined, footWorld?: Quat): Pose['world'] {
+    const lower = joints[foot]!.parent, upper = joints[lower]!.parent, above = joints[upper]!.parent;
+    const a = world[upper]!.origin, b = world[lower]!.origin, c = world[foot]!.origin;
+    const upperLen = length(sub(joints[lower]!.at, joints[upper]!.at)), lowerLen = length(sub(joints[foot]!.at, joints[lower]!.at));
+    const toTarget = sub(target, a);
+    const near = Math.abs(upperLen - lowerLen) + 1e-4, far = upperLen + lowerLen - 1e-4;
+    // Out of reach it stretches straight toward the target; the report cannot say so per frame, the strip shows it.
+    const span = Math.max(near, Math.min(far, length(toTarget)));
+    const along = normalize(toTarget);
+    const bent = sub(b, add(a, scale(along, dot(sub(b, a), along))));
+    const hint = pole ?? (length(bent) > upperLen * 0.01 ? bent : [0, 0, 1] as Vec3);
+    let side = sub(hint, scale(along, dot(hint, along)));
+    if (length(side) < 1e-6) side = sub([1, 0, 0], scale(along, along[0]));
+    const toKnee = (upperLen * upperLen - lowerLen * lowerLen + span * span) / (2 * span);
+    const out = Math.sqrt(Math.max(0, upperLen * upperLen - toKnee * toKnee));
+    const knee = add(add(a, scale(along, toKnee)), scale(normalize(side), out));
+    const end = add(a, scale(along, span));
+    const turn = rotationBetween(sub(b, a), sub(knee, a));
+    const upperWorld = quatMul(turn, world[upper]!.q);
+    // Where the foot would now be, carried by the upper bone, is what the lower bone turns from.
+    const lowerWorld = quatMul(rotationBetween(rotateBy(turn, sub(c, b)), sub(end, knee)), quatMul(turn, world[lower]!.q));
+    const parentWorld = above >= 0 ? world[above]!.q : [0, 0, 0, 1] as Quat;
+    const keptFoot = footWorld ?? quatMul(conjugate(world[lower]!.q), world[foot]!.q);
+    local[upper] = { ...local[upper]!, q: quatMul(conjugate(parentWorld), upperWorld) };
+    local[lower] = { ...local[lower]!, q: quatMul(conjugate(upperWorld), lowerWorld) };
+    local[foot] = { ...local[foot]!, q: footWorld ? quatMul(conjugate(lowerWorld), keptFoot) : local[foot]!.q };
+    return toWorld(joints, local);
+}
+
+/** A flat test ground for a preview: `height` at the rig's origin, rising by `slope` per unit of x and z. */
+export interface PreviewGround {
+    height?: number;
+    slope?: readonly [number, number];
+}
+
+/** What the game does on top of the clips, for a preview: the controller's constraints, and the ground its foot-plants stand on. */
+export interface PoseSolve {
+    ik: readonly ControllerIk[];
+    goals: readonly RigGoal[];
+    /** Foot-plants do nothing without one: the game asks physics, and here there is none. */
+    ground?: PreviewGround;
+}
+
+const MAX_FOOT_TILT = Math.PI / 4;
+
+/** The engine's constraint pass, on the CPU: foot-plants first and together, the rest in order. Mirrors sdk/src/animation/animatorIK.ts. */
+function applyConstraints(joints: readonly RigJoint[], local: Pose['local'], start: Pose['world'], solve: PoseSolve): Pose['world'] {
+    let world = start;
+    const index = (name: string | undefined): number => (name === undefined ? -1 : joints.findIndex((j) => j.name === name));
+    const placeOf = (name: string | undefined): Vec3 | null => {
+        if (name === undefined) return null;
+        const j = index(name);
+        if (j >= 0) return world[j]!.origin;
+        const goal = solve.goals.find((g) => g.name === name);
+        if (!goal) return null;
+        const parent = index(goal.parent);
+        if (parent < 0) return goal.at;
+        return add(world[parent]!.origin, rotateBy(world[parent]!.q, sub(goal.at, joints[parent]!.at)));
+    };
+    if (solve.ground) {
+        const height = solve.ground.height ?? 0;
+        const [sx, sz] = solve.ground.slope ?? [0, 0];
+        const normal = normalize([-sx, 1, -sz]);
+        const feet = solve.ik.filter((k) => k.kind === 'foot-plant').map((k) => {
+            const foot = index(k.tip);
+            const at_ = world[foot]!.origin;
+            return { k, foot, at: at_, q: world[foot]!.q, lift: height + sx * at_[0] + sz * at_[2] };
+        });
+        const drops = new Map<string, number>();
+        for (const f of feet) if (f.k.pelvis) drops.set(f.k.pelvis, Math.min(drops.get(f.k.pelvis) ?? 0, f.lift * (f.k.weight ?? 1)));
+        for (const [name, drop] of drops) {
+            if (drop >= 0) continue;
+            const p = index(name);
+            const parent = joints[p]!.parent;
+            const inParent = parent >= 0 ? rotateBy(conjugate(world[parent]!.q), [0, drop, 0]) : [0, drop, 0] as Vec3;
+            local[p] = { ...local[p]!, offset: add(local[p]!.offset, inParent) };
+        }
+        if (drops.size) world = toWorld(joints, local);
+        const tilt = Math.acos(Math.min(1, normal[1]));
+        const limited = tilt > MAX_FOOT_TILT ? normalize(add(scale([0, 1, 0], Math.sin(tilt - MAX_FOOT_TILT)), scale(normal, Math.sin(MAX_FOOT_TILT)))) : normal;
+        for (const f of feet) {
+            const weight = Math.min(1, Math.max(0, f.k.weight ?? 1));
+            const goal: Vec3 = [f.at[0], f.at[1] + f.lift * weight, f.at[2]];
+            const aligned = f.k.align === false ? undefined : quatMul(rotationBetween([0, 1, 0], limited), f.q);
+            world = bendLimb(joints, local, world, f.foot, goal, placeOf(f.k.pole) ?? undefined, aligned);
+        }
+    }
+    for (const k of solve.ik) {
+        if (k.kind === 'foot-plant') continue;
+        const tip = index(k.tip);
+        const target = placeOf(k.target);
+        if (tip < 0 || !target) continue;
+        if (k.kind === 'two-bone') {
+            const pole = placeOf(k.pole);
+            world = bendLimb(joints, local, world, tip, target, pole ? sub(pole, world[joints[joints[tip]!.parent]!.parent]!.origin) : undefined);
+        } else {
+            const axis: Vec3 = k.axis === 'x' ? [1, 0, 0] : k.axis === 'y' ? [0, 1, 0] : [0, 0, 1];
+            const facing = rotateBy(world[tip]!.q, axis);
+            const wanted = quatMul(rotationBetween(facing, sub(target, world[tip]!.origin)), world[tip]!.q);
+            const parent = joints[tip]!.parent;
+            local[tip] = { ...local[tip]!, q: quatMul(conjugate(parent >= 0 ? world[parent]!.q : [0, 0, 0, 1]), wanted) };
+            world = toWorld(joints, local);
+        }
+    }
+    return world;
+}
+
 /** Where each joint is in a pose: for checking a foot landed. */
-export function jointPositions(joints: readonly RigJoint[], animation: AnimationSource | null, time: number): Record<string, Vec3> {
-    const { world } = poseAt(joints, animation, time);
+export function jointPositions(joints: readonly RigJoint[], animation: AnimationSource | null, time: number, solve?: PoseSolve): Record<string, Vec3> {
+    const { world } = poseAt(joints, animation, time, solve);
     return Object.fromEntries(joints.map((j, i) => [j.name, world[i]!.origin]));
 }
 
 /** The surface's positions in a pose, skinned as the engine skins it. */
-export function posedPositions(mesh: PolyMesh, joints: readonly RigJoint[], skin: SkinWeights, animation: AnimationSource | null, time: number): Vec3[] {
-    const pose = poseAt(joints, animation, time).world;
+export function posedPositions(mesh: PolyMesh, joints: readonly RigJoint[], skin: SkinWeights, animation: AnimationSource | null, time: number, solve?: PoseSolve): Vec3[] {
+    const pose = poseAt(joints, animation, time, solve).world;
     return mesh.positions.map((p, v) => {
         let out: Vec3 = [0, 0, 0];
         for (let k = 0; k < 4; k++) {
@@ -775,8 +861,8 @@ export function posedPositions(mesh: PolyMesh, joints: readonly RigJoint[], skin
 }
 
 /** The bones as lines in a pose, for drawing over a view. */
-export function boneLines(joints: readonly RigJoint[], animation: AnimationSource | null, time: number): [Vec3, Vec3][] {
-    const pose = poseAt(joints, animation, time).world;
+export function boneLines(joints: readonly RigJoint[], animation: AnimationSource | null, time: number, solve?: PoseSolve): [Vec3, Vec3][] {
+    const pose = poseAt(joints, animation, time, solve).world;
     return joints.flatMap((j, i) => (j.parent >= 0 ? [[pose[j.parent]!.origin, pose[i]!.origin] as [Vec3, Vec3]] : []));
 }
 
@@ -913,11 +999,21 @@ export interface ControllerSource {
 }
 
 export interface ControllerIk {
-    kind: 'two-bone' | 'look-at';
+    kind: 'two-bone' | 'look-at' | 'foot-plant';
     /** The joint the chain ends at. */
     tip: string;
-    /** A joint or a rig goal it reaches or looks at. */
-    target: string;
+    /** A joint or a rig goal it reaches or looks at. A foot-plant has none: the ground is its target. */
+    target?: string;
+    /** foot-plant: the joint lowered so the leg can reach the lower foot. */
+    pelvis?: string;
+    /** foot-plant: lay the foot along the slope. Default true. */
+    align?: boolean;
+    /** foot-plant: how far up and down to look for ground, in the model's units. */
+    reach?: number;
+    /** foot-plant: seconds to settle on a new height. */
+    smooth?: number;
+    /** foot-plant: the physics layers that count as ground. */
+    layers?: number;
     pole?: string;
     weight?: number;
     /** A float parameter scaling the weight, to fade it in. */
@@ -986,14 +1082,22 @@ export function checkController(raw: unknown, animations: unknown, rig?: RigSour
         const known = new Set([...jointNames, ...(rig?.goals ?? []).map((g) => g.name)]);
         const every = [...known].join(', ') || '(none)';
         for (const k of c.ik as ControllerIk[]) {
-            for (const key of Object.keys(k)) if (!['kind', 'tip', 'target', 'pole', 'weight', 'parameter', 'axis'].includes(key)) return `an ik constraint has an unknown field "${key}"; it takes kind, tip, target, pole, weight, parameter, axis`;
-            if (k.kind !== 'two-bone' && k.kind !== 'look-at') return `an ik constraint's kind ${JSON.stringify(k.kind)} must be two-bone or look-at`;
+            for (const key of Object.keys(k)) if (!['kind', 'tip', 'target', 'pole', 'weight', 'parameter', 'axis', 'pelvis', 'align', 'reach', 'smooth', 'layers'].includes(key)) return `an ik constraint has an unknown field "${key}"; it takes kind, tip, target, pole, weight, parameter, axis, pelvis, align, reach, smooth, layers`;
+            if (k.kind !== 'two-bone' && k.kind !== 'look-at' && k.kind !== 'foot-plant') return `an ik constraint's kind ${JSON.stringify(k.kind)} must be two-bone, look-at or foot-plant`;
             if (!jointNames.has(k.tip)) return `an ik constraint's tip "${k.tip}" is not a joint; there are ${[...jointNames].join(', ')}`;
-            if (!known.has(k.target)) return `an ik constraint's target "${k.target}" is not a joint or a goal; there are ${every}`;
+            if (k.kind === 'foot-plant') {
+                if (k.target !== undefined) return `a foot-plant on "${k.tip}" has no target: the ground is what it reaches`;
+                if (k.pelvis !== undefined && !jointNames.has(k.pelvis)) return `a foot-plant's pelvis "${k.pelvis}" is not a joint; there are ${[...jointNames].join(', ')}`;
+                for (const f of ['reach', 'smooth', 'layers'] as const) if (k[f] !== undefined && !isNum(k[f])) return `a foot-plant's ${f} must be a number`;
+                if (k.align !== undefined && typeof k.align !== 'boolean') return 'a foot-plant\'s align must be true or false';
+            } else {
+                if (k.pelvis !== undefined || k.align !== undefined || k.reach !== undefined || k.smooth !== undefined || k.layers !== undefined) return `pelvis, align, reach, smooth and layers belong to a foot-plant, not a ${k.kind}`;
+                if (!known.has(k.target as string)) return `an ik constraint's target "${String(k.target)}" is not a joint or a goal; there are ${every}`;
+            }
             if (k.pole !== undefined && !known.has(k.pole)) return `an ik constraint's pole "${k.pole}" is not a joint or a goal; there are ${every}`;
-            if (k.kind === 'two-bone') {
+            if (k.kind !== 'look-at') {
                 const tip = list.find((j) => j.name === k.tip)!;
-                if (tip.parent < 0 || list[tip.parent]!.parent < 0) return `two-bone ik needs two bones above "${k.tip}"`;
+                if (tip.parent < 0 || list[tip.parent]!.parent < 0) return `${k.kind} ik needs two bones above "${k.tip}"`;
             }
             if (k.weight !== undefined && !isNum(k.weight)) return 'an ik constraint\'s weight must be a number';
             if (k.parameter !== undefined && params.get(k.parameter) !== 'float') return `an ik constraint's parameter "${k.parameter}" must be a float parameter`;
@@ -1030,7 +1134,10 @@ export function controllerOf(source: ControllerSource, animations: readonly Anim
         initialState: source.initial,
         ...(source.any ? { anyStateTransitions: source.any.map(transition) } : {}),
         // An engine constraint names joints the way a clip does: by path from the root.
-        ...(source.ik ? { ik: source.ik.map((k) => ({ ...k, tip: pathTo(k.tip), target: pathTo(k.target), ...(k.pole ? { pole: pathTo(k.pole) } : {}) })) } : {}),
+        ...(source.ik ? { ik: source.ik.map((k) => ({
+            ...k, tip: pathTo(k.tip), target: k.target === undefined ? '' : pathTo(k.target),
+            ...(k.pole ? { pole: pathTo(k.pole) } : {}), ...(k.pelvis ? { pelvis: pathTo(k.pelvis) } : {}),
+        })) } : {}),
         states: source.states.map((s, i) => ({
             name: s.name, x: 80 + (i % 4) * 220, y: 80 + Math.floor(i / 4) * 140,
             motion: s.blend

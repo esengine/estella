@@ -225,7 +225,7 @@ describe('goals and ik', () => {
         const check = (ik: unknown, r: RigSource = rig) => validateModelSource({ version: 1, rig: r, animations: [clip], controller: { ...controller, ik }, steps: [limb] });
         expect(() => check([{ kind: 'look-at', tip: 'aim', target: 'aim' }])).toThrow(/tip "aim" is not a joint/);
         expect(() => check([{ kind: 'look-at', tip: 'tip', target: 'nope' }])).toThrow(/target "nope" is not a joint or a goal; there are base, mid, tip, aim, hold/);
-        expect(() => check([{ kind: 'spin', tip: 'tip', target: 'aim' }])).toThrow(/must be two-bone or look-at/);
+        expect(() => check([{ kind: 'spin', tip: 'tip', target: 'aim' }])).toThrow(/must be two-bone, look-at or foot-plant/);
         expect(() => check([{ kind: 'two-bone', tip: 'mid', target: 'aim' }])).toThrow(/two bones above "mid"/);
         expect(() => check([{ kind: 'look-at', tip: 'tip', target: 'aim', parameter: 'nope' }])).toThrow(/must be a float parameter/);
         const dup = { joints, goals: [{ name: 'mid', at: [0, 0, 0] }] };

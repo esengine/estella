@@ -290,5 +290,8 @@ export function updateIK(
     const merged = { ...current, ...patch };
     if (merged.kind === 'look-at') delete merged.pole;
     else delete merged.axis;
+    if (merged.kind !== 'foot-plant') {
+        delete merged.pelvis; delete merged.align; delete merged.reach; delete merged.smooth; delete merged.layers;
+    }
     return { ...def, ik: def.ik!.map((x, i) => (i === index ? merged : x)) };
 }

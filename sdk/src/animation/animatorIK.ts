@@ -32,7 +32,7 @@ import type { Pose } from './pose';
 import type { MotionParams } from './motion';
 
 /** What an IK constraint does to the joint it names. */
-export type AnimatorIKKind = 'two-bone' | 'look-at';
+export type AnimatorIKKind = 'two-bone' | 'look-at' | 'foot-plant';
 
 export interface AnimatorIK {
     kind: AnimatorIKKind;
@@ -48,6 +48,38 @@ export interface AnimatorIK {
     pole?: string;
     /** look-at: the tip's own axis that ends up pointing at the target. */
     axis?: 'x' | 'y' | 'z';
+    /** foot-plant: a joint lowered so the leg reaching the lowest foot still can: the hips. */
+    pelvis?: string;
+    /** foot-plant: lay the foot along the slope under it. Default true. */
+    align?: boolean;
+    /** foot-plant: how far up and down to look for ground, in the rig's units. Default the leg's length. */
+    reach?: number;
+    /** foot-plant: seconds to settle on a new height, so a step onto a kerb is not a jump. Default 0.06. */
+    smooth?: number;
+    /** foot-plant: the physics layers that count as ground. Default all of them. */
+    layers?: number;
+}
+
+/** What is under a point, in the world. */
+export interface GroundHit {
+    y: number;
+    normal: Vec3;
+}
+
+/**
+ * Asks what ground lies below `origin`, within `drop`. Injected rather than imported:
+ * the animation core runs in a game with no physics at all, and with no probe a
+ * foot-plant simply leaves the clip's feet where they are.
+ */
+export type GroundProbe = (origin: Vec3, drop: number, layers: number) => GroundHit | null;
+
+/** What a frame's foot-plants need beyond the pose: the probe, the step, and where each foot had settled. */
+export interface GroundContext {
+    probe: GroundProbe | null;
+    dt: number;
+    memory: Map<string, { lift: number; normal: Vec3 }>;
+    /** Each joint a foot-plant moves, as it stood before the first one did. */
+    rest?: Map<Entity, { position: Vec3; rotation: Quat }>;
 }
 
 interface Vec3 { x: number; y: number; z: number }
@@ -235,22 +267,31 @@ function solveTwoBone(
     const tip = resolveJoint(rigRoot, ik.tip);
     const target = resolveJoint(rigRoot, ik.target);
     if (tip === null || target === null) return false;
+    const pTarget = place(world, pose, rigRoot, target);
+    if (!pTarget) return false;
+    return bendChain(world, pose, rigRoot, tip, pTarget.position, ik, weight, resolveJoint) !== null;
+}
+
+/** The chain above `tip` bent to put it at `goal`, in the rig's space. Answers the rotation the tip's parent ends at, or null when there is no chain. */
+function bendChain(
+    world: World, pose: Pose, rigRoot: Entity, tip: Entity, goal: Vec3, ik: AnimatorIK, weight: number,
+    resolveJoint: JointResolver,
+): Quat | null {
     const mid = parentOf(world, tip);
     const root = mid === null ? null : parentOf(world, mid);
-    if (mid === null || root === null) return false;
+    if (mid === null || root === null) return null;
 
     const pTip = place(world, pose, rigRoot, tip);
     const pMid = place(world, pose, rigRoot, mid);
     const pRoot = place(world, pose, rigRoot, root);
-    const pTarget = place(world, pose, rigRoot, target);
-    if (!pTip || !pMid || !pRoot || !pTarget) return false;
+    if (!pTip || !pMid || !pRoot) return null;
 
     const upper = sub(pMid.position, pRoot.position);
     const lower = sub(pTip.position, pMid.position);
-    const reach = sub(pTarget.position, pRoot.position);
+    const reach = sub(goal, pRoot.position);
     const a = len(upper);
     const b = len(lower);
-    if (a < 1e-6 || b < 1e-6 || len(reach) < 1e-6) return false;
+    if (a < 1e-6 || b < 1e-6 || len(reach) < 1e-6) return null;
     const c = Math.min(Math.max(len(reach), Math.abs(a - b) + 1e-5), a + b - 1e-5);
     const along = normalized(reach);
 
@@ -281,8 +322,7 @@ function solveTwoBone(
         q.mul(carried, pMid.rotation)));
 
     const rootActual = leanJoint(world, pose, root, pRoot.parentRotation, rootWanted, weight);
-    leanJoint(world, pose, mid, rootActual, midWanted, weight);
-    return true;
+    return leanJoint(world, pose, mid, rootActual, midWanted, weight);
 }
 
 /** The first direction that leaves the line; any will do for a straight limb. */
@@ -313,17 +353,139 @@ function solveLookAt(
     return true;
 }
 
+/** The steepest a foot is laid over, whatever is under it: past this it is a wall, or a ray that found the wrong thing. */
+const MAX_FOOT_TILT = Math.PI / 4;
+const UP: Vec3 = { x: 0, y: 1, z: 0 };
+
+/** Where the rig stands in the world. A root with no parent is read from what it says this frame, not the record of the last. */
+function rigFrame(world: World, rigRoot: Entity): { p: Vec3; r: Quat; s: Vec3 } {
+    const t = world.get(rigRoot, Transform) as TransformData;
+    return parentOf(world, rigRoot) === null
+        ? { p: t.position, r: t.rotation, s: t.scale }
+        : { p: t.worldPosition, r: t.worldRotation, s: t.worldScale };
+}
+
+/**
+ * Feet on the ground the clip did not know about. The clip's height above the rig's
+ * floor is kept, so a lifted foot stays lifted, and the floor under each foot is
+ * moved to where the ground really is. Every foot is measured first, because the
+ * pelvis has to drop for the lowest of them before any leg is solved.
+ */
+function plantFeet(
+    world: World, pose: Pose, rigRoot: Entity, feet: readonly { ik: AnimatorIK; weight: number }[],
+    resolveJoint: JointResolver, ground: GroundContext,
+): void {
+    const frame = rigFrame(world, rigRoot);
+    const inverse = q.conjugate(frame.r);
+    const toWorld = (v: Vec3): Vec3 => add(frame.p, q.rotate(frame.r, { x: v.x * frame.s.x, y: v.y * frame.s.y, z: v.z * frame.s.z }));
+    const toRig = (v: Vec3): Vec3 => {
+        const l = q.rotate(inverse, sub(v, frame.p));
+        return { x: l.x / frame.s.x, y: l.y / frame.s.y, z: l.z / frame.s.z };
+    };
+    // A joint no clip keys keeps what was last written to it, which here is last frame's solve: measured as the
+    // clip's foot, that would read the lift as already done and take it off again, every other frame.
+    const rest = ground.rest ??= new Map();
+    const unbend = (joint: Entity | null): void => {
+        if (joint === null) return;
+        const local = localOf(world, pose, joint);
+        if (!local) return;
+        if (!rest.has(joint)) rest.set(joint, { position: { ...local.position }, rotation: { ...local.rotation } });
+        const was = rest.get(joint)!;
+        const track = pose.track(world, joint, Transform);
+        if (!track) return;
+        if (!track.touched.has('rotation')) { track.data.rotation = { ...was.rotation }; track.touched.add('rotation'); }
+        if (!track.touched.has('position')) { track.data.position = { ...was.position }; track.touched.add('position'); }
+    };
+    for (const { ik } of feet) {
+        const tip = resolveJoint(rigRoot, ik.tip);
+        if (tip === null) continue;
+        const mid = parentOf(world, tip);
+        unbend(tip);
+        unbend(mid);
+        unbend(mid === null ? null : parentOf(world, mid));
+        if (ik.pelvis) unbend(resolveJoint(rigRoot, ik.pelvis));
+    }
+
+    const planted: { ik: AnimatorIK; weight: number; tip: Entity; at: Vec3; rotation: Quat; lift: number; normal: Vec3 }[] = [];
+    for (const { ik, weight } of feet) {
+        const tip = resolveJoint(rigRoot, ik.tip);
+        if (tip === null) continue;
+        const pTip = place(world, pose, rigRoot, tip);
+        const mid = parentOf(world, tip);
+        const root = mid === null ? null : parentOf(world, mid);
+        const pMid = mid === null ? null : place(world, pose, rigRoot, mid);
+        const pRoot = root === null ? null : place(world, pose, rigRoot, root);
+        if (!pTip || !pMid || !pRoot) continue;
+
+        const reach = ik.reach ?? len(sub(pMid.position, pRoot.position)) + len(sub(pTip.position, pMid.position));
+        const foot = toWorld(pTip.position);
+        const span = reach * Math.abs(frame.s.y);
+        const hit = ground.probe!({ x: foot.x, y: foot.y + span, z: foot.z }, span * 2, ik.layers ?? 0);
+
+        let wantedLift = 0;
+        let wantedNormal = UP;
+        if (hit) {
+            // The same spot with the floor moved: its height above the floor kept, its place over the ground unchanged.
+            const landed = toRig({ x: foot.x, y: hit.y + pTip.position.y * frame.s.y, z: foot.z });
+            wantedLift = landed.y - pTip.position.y;
+            wantedNormal = q.rotate(inverse, hit.normal);
+        }
+        const key = `${rigRoot}/${ik.tip}`;
+        const held = ground.memory.get(key);
+        const tau = ik.smooth ?? 0.06;
+        const k = !held || tau <= 0 ? 1 : 1 - Math.exp(-ground.dt / tau);
+        const lift = held ? held.lift + (wantedLift - held.lift) * k : wantedLift;
+        const normal = normalized(held ? add(held.normal, scale(sub(wantedNormal, held.normal), k)) : wantedNormal);
+        ground.memory.set(key, { lift, normal });
+        planted.push({ ik, weight, tip, at: pTip.position, rotation: pTip.rotation, lift, normal });
+    }
+
+    // Each pelvis drops for the lowest foot under it, and only down: on rising ground the knees take it.
+    const drops = new Map<string, number>();
+    for (const f of planted) {
+        if (!f.ik.pelvis) continue;
+        drops.set(f.ik.pelvis, Math.min(drops.get(f.ik.pelvis) ?? 0, f.lift * f.weight));
+    }
+    for (const [path, drop] of drops) {
+        if (drop >= 0) continue;
+        const pelvis = resolveJoint(rigRoot, path);
+        const placed = pelvis === null ? null : place(world, pose, rigRoot, pelvis);
+        const track = pelvis === null ? null : pose.track(world, pelvis, Transform);
+        if (!placed || !track) continue;
+        track.data.position = add(track.data.position as Vec3, q.rotate(q.conjugate(placed.parentRotation), { x: 0, y: drop, z: 0 }));
+        track.touched.add('position');
+    }
+
+    for (const f of planted) {
+        // From where the clip had it, not where the dropped pelvis has carried it to.
+        const goal = { x: f.at.x, y: f.at.y + f.lift, z: f.at.z };
+        const carrier = bendChain(world, pose, rigRoot, f.tip, goal, f.ik, f.weight, resolveJoint);
+        if (!carrier || f.ik.align === false) continue;
+        const tilt = angleBetween(UP, f.normal);
+        const limited = tilt > MAX_FOOT_TILT ? normalized(add(scale(UP, Math.sin(tilt - MAX_FOOT_TILT)), scale(f.normal, Math.sin(MAX_FOOT_TILT)))) : f.normal;
+        leanJoint(world, pose, f.tip, carrier, q.normalize(q.mul(q.rotationTo(UP, limited), f.rotation)), f.weight);
+    }
+}
+
 /**
  * Apply every constraint to the stack's answer, in the order they are declared:
  * one can move a joint another then reads, and an author who wrote them in an
- * order meant it.
+ * order meant it. Foot-plants go first, together: where the feet land moves the
+ * body the others are measured from.
  */
 export function solveAnimatorIK(
     world: World, rigRoot: Entity, pose: Pose,
     constraints: readonly AnimatorIK[], params: MotionParams,
     resolveJoint: JointResolver = (root, path) => resolveChildEntity(world, root, path),
+    ground?: GroundContext,
 ): void {
+    if (ground?.probe) {
+        const feet = constraints.filter((ik) => ik.kind === 'foot-plant')
+            .map((ik) => ({ ik, weight: weightOf(ik, params) })).filter((f) => f.weight > 0);
+        if (feet.length) plantFeet(world, pose, rigRoot, feet, resolveJoint, ground);
+    }
     for (const ik of constraints) {
+        if (ik.kind === 'foot-plant') continue;
         const weight = weightOf(ik, params);
         if (weight <= 0) continue;
         if (ik.kind === 'look-at') solveLookAt(world, pose, rigRoot, ik, weight, resolveJoint);

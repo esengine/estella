@@ -3866,6 +3866,10 @@ export const NOTED = {
     {"note":"A sea seen from above is no longer scored with straight lines."},
   "feat(mcp): an agent builds a 3D model in the editor from steps, changes it by one number, and sees every side of it":
     {"note":"AI agents can build 3D models in the editor from steps."},
+  "feat(animation): a foot-plant constraint keeps a foot on the physics ground under it, slopes and steps included":
+    {"note":"A foot stands on the ground under it."},
+  "feat(mcp): model_write plants feet on the ground, and model_views runs the IK on a test floor":
+    {"note":"A foot stands on the ground under it."},
   "feat(modeling): found weights can be corrected, shapes make expressions, and a controller can reach and look at goals in the game":
     {"note":"AI agents can build 3D models in the editor from steps."},
   "feat(mcp): model_write corrects weights, makes shapes and wires ik goals":

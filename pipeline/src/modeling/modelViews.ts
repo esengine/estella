@@ -15,7 +15,7 @@
  *        What the model looks like in the game is what `screenshot` is for.
  */
 import type { BakedModel } from './modelBake';
-import { boneLines, jointColor, morphedPositions, posedPositions, shapeWeightsAt, type AnimationSource } from './rig';
+import { boneLines, jointColor, morphedPositions, posedPositions, shapeWeightsAt, type AnimationSource, type PoseSolve, type PreviewGround } from './rig';
 import { add, boundsOf, collectEdges, cross, dot, faceNormal, normalize, selectFaces, sub, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
 
 export const MODEL_VIEWS = {
@@ -193,6 +193,10 @@ export interface RigViewOptions {
     /** Draws this clip. With `times`, a strip of one view at each. */
     animation?: string;
     times?: readonly number[];
+    /** The controller's IK, run as the game runs it. Default on where the model has one. */
+    ik?: boolean;
+    /** A flat test ground, for foot-plants: in the game they ask physics. Drawn in orange. */
+    ground?: PreviewGround;
     /** Shows this shape at full weight. */
     shape?: string;
     /** Colours each face by the joint moving it most, or fades all but one joint's reach. */
@@ -230,13 +234,25 @@ export function renderRigSheet(model: BakedModel, animations: readonly Animation
     const anim = o.animation === undefined ? null : animations.find((a) => a.name === o.animation);
     if (o.animation !== undefined && !anim) throw new Error(`no animation "${o.animation}"; there are ${animations.map((a) => a.name).join(', ') || '(none)'}`);
     const skeleton = rig !== undefined && o.skeleton !== false;
+    const solve: PoseSolve | undefined = rig?.ik?.length && o.ik !== false ? { ik: rig.ik, goals: rig.goals ?? [], ...(o.ground ? { ground: o.ground } : {}) } : undefined;
+    const groundLines = (): [Vec3, Vec3][] => {
+        if (!o.ground) return [];
+        const { min, max } = boundsOf(model.poly);
+        const [sx, sz] = o.ground.slope ?? [0, 0];
+        const h = o.ground.height ?? 0;
+        const spot = (x: number, z: number): Vec3 => [x, h + sx * x + sz * z, z];
+        const pad = (max[0] - min[0] + (max[2] - min[2])) * 0.15;
+        const [a, b, c, d] = [spot(min[0] - pad, min[2] - pad), spot(max[0] + pad, min[2] - pad), spot(max[0] + pad, max[2] + pad), spot(min[0] - pad, max[2] + pad)];
+        return [[a, b], [b, c], [c, d], [d, a]];
+    };
+    const overlayAt = (time: number): [Vec3, Vec3][] => [...(skeleton ? boneLines(rig!.joints, anim ?? null, time, solve) : []), ...groundLines()];
     const weightsAt = (time: number): number[] => (o.shape !== undefined ? names.map((n) => (n === o.shape ? 1 : 0)) : shapeWeightsAt(names, anim ?? null, time));
     const posed = (time: number): BakedModel => {
         const shaped: PolyMesh = model.shapes ? { ...model.poly, positions: morphedPositions(model.poly, model.shapes.deltas, weightsAt(time)) } : model.poly;
-        return { ...drawn, poly: { ...drawn.poly, positions: rig ? posedPositions(shaped, rig.joints, rig.skin, anim ?? null, time) : shaped.positions } };
+        return { ...drawn, poly: { ...drawn.poly, positions: rig ? posedPositions(shaped, rig.joints, rig.skin, anim ?? null, time, solve) : shaped.positions } };
     };
     if (!anim) {
-        return renderModelSheet(posed(0), o.views ?? DEFAULT_MODEL_VIEWS, panel, o.focus, o.wire === true, skeleton ? { overlay: boneLines(rig!.joints, null, 0) } : {});
+        return renderModelSheet(posed(0), o.views ?? DEFAULT_MODEL_VIEWS, panel, o.focus, o.wire === true, { overlay: overlayAt(0) });
     }
     const times = o.times ?? Array.from({ length: 4 }, (_, i) => (i / 4) * anim.duration);
     if (times.length === 0) throw new Error('`times` names no moment');
@@ -249,7 +265,7 @@ export function renderRigSheet(model: BakedModel, animations: readonly Animation
     if (framedBy.length === 0) throw new Error(`focus ${JSON.stringify(o.focus)} matched no face`);
     const frame = boundsOf({ positions: framedBy, faces: [] });
     const sheets = poses.map((m, i) => renderModelSheet(m, [view], panel, undefined, o.wire === true, {
-        frame, ...(skeleton ? { overlay: boneLines(rig!.joints, anim, times[i]!) } : {}),
+        frame, overlay: overlayAt(times[i]!),
     }));
     const width = times.length * panel + (times.length - 1);
     const height = sheets[0]!.height;
