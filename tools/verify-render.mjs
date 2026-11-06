@@ -80,9 +80,18 @@ const LAUNCH_MARGIN_MS = 30_000;
 // A tier run on the second backend takes the scenes that DECLARE it; naming
 // scenes explicitly is a decision already made, so `--only` is not filtered —
 // that is how a scene earns the declaration in the first place.
+// A Linux runner has no GPU, so WebGL2 there is a software rasteriser, and a scene that says `softwareGpu: false` takes its GPU process
+// down before it draws, every launch. That says nothing about the scene and spends a budget the other scenes need. Named below, and
+// still run wherever there is a GPU, the second backend's Metal runner included.
+const softwareGpu = process.platform === 'linux' && Boolean(process.env.CI);
+const tierScenes = scenesAtTier(TIER);
+const needsGpu = BACKEND === 'webgl2' && softwareGpu ? tierScenes.filter((s) => s.softwareGpu === false) : [];
 const selected = only
   ? SCENES.filter((s) => only.has(s.id))
-  : scenesAtTier(TIER).filter((s) => (BACKEND === 'webgpu' ? Boolean(s.webgpu) : true));
+  : tierScenes.filter((s) => (BACKEND === 'webgpu' ? Boolean(s.webgpu) : !needsGpu.includes(s)));
+if (!only && needsGpu.length > 0) {
+  console.log(`not run on this machine's software rasteriser: ${needsGpu.map((s) => s.id).join(', ')}`);
+}
 const scenes = selected.map((s) => ({
   id: s.id,
   // Which host answers this scene's driving surface. The engine's is the
