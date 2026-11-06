@@ -209,7 +209,7 @@ function finestShare(p: DisplaceParams): number {
  * like any other, and the new vertex joins that face's outline: it keeps its shape and no gap opens. Left whole, such an edge
  * could never get short, and the triangles against it would go on splitting for as long as there was budget.
  */
-function refine(mesh: PolyMesh, chosen: ReadonlySet<number>, longest: number): { mesh: PolyMesh; short: boolean } {
+function refine(mesh: PolyMesh, chosen: ReadonlySet<number>, longest: number, budget: number): { mesh: PolyMesh; short: boolean } {
     const positions: Vec3[] = [...mesh.positions];
     // Room for every vertex the budget could make, in a number that stays exact.
     const keyOf = (a: number, b: number): number => (a < b ? a * 67108864 + b : b * 67108864 + a);
@@ -246,7 +246,7 @@ function refine(mesh: PolyMesh, chosen: ReadonlySet<number>, longest: number): {
             after += 1 + (mask & 1) + ((mask >> 1) & 1) + ((mask >> 2) & 1);
         }
         if (made.size === 0) break;
-        if (after + outside > MAX_DISPLACE_TRIANGLES) { short = true; break; }
+        if (after + outside > budget) { short = true; break; }
         moved = true;
         const middle = (a: number, b: number): number => {
             const key = keyOf(a, b);
@@ -303,7 +303,7 @@ function refine(mesh: PolyMesh, chosen: ReadonlySet<number>, longest: number): {
     return { mesh: { positions, faces }, short };
 }
 
-export function displace(mesh: PolyMesh, p: DisplaceParams): PolyMesh {
+export function displace(mesh: PolyMesh, p: DisplaceParams, budget = MAX_DISPLACE_TRIANGLES): PolyMesh {
     if (!DISPLACE_PATTERNS.includes(p.pattern)) throw new Error(`pattern ${JSON.stringify(p.pattern)} must be one of ${DISPLACE_PATTERNS.join(', ')}`);
     if (!(p.scale > 0)) throw new Error(`scale ${p.scale} must be positive`);
     if (p.octaves !== undefined && !(p.octaves >= 1 && p.octaves <= 6)) throw new Error(`octaves ${p.octaves} must be 1..6`);
@@ -328,7 +328,7 @@ export function displace(mesh: PolyMesh, p: DisplaceParams): PolyMesh {
 
     const smallest = Math.min(...(p.stretch ?? [1, 1, 1])) * p.scale;
     const longest = p.detail ?? smallest * finestShare(p);
-    const { mesh: fine, short } = refine(mesh, new Set(hit), longest);
+    const { mesh: fine, short } = refine(mesh, new Set(hit), longest, budget);
 
     // Splitting puts the step's faces last, in place of the ones it was given; with nothing to split they are where they were.
     const chosen = new Set(hit);
@@ -383,5 +383,5 @@ export function displace(mesh: PolyMesh, p: DisplaceParams): PolyMesh {
     });
 
     const out = compact({ positions, faces: fine.faces });
-    return short ? { ...out, notes: [`this pattern wants edges of ${longest.toPrecision(3)} and stopped at ${MAX_DISPLACE_TRIANGLES} triangles, so its finest detail is lost: raise \`scale\`, narrow it with \`faces\` or \`near\`, or give a larger \`detail\``] } : out;
+    return short ? { ...out, notes: [`this pattern wants edges of ${longest.toPrecision(3)} and stopped at ${budget} triangles, so its finest detail is lost: raise \`scale\`, narrow it with \`faces\` or \`near\`, or give a larger \`detail\``] } : out;
 }

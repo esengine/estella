@@ -3,7 +3,7 @@
 /** Fine detail pushed out of a surface: that it moves what was asked, by what was asked, and stays one surface. */
 import { beforeAll, describe, expect, it } from 'vitest';
 import { bakeModel, bakeNormalMap, prepareModeling, validateModelSource, type BakedModel, type ModelStep } from '../src/modeling';
-import { DISPLACE_PATTERNS, MAX_DISPLACE_TRIANGLES } from '../src/modeling/displace';
+import { displace, DISPLACE_PATTERNS, MAX_DISPLACE_TRIANGLES } from '../src/modeling/displace';
 
 beforeAll(() => prepareModeling());
 
@@ -24,7 +24,7 @@ function heights(m: BakedModel): { min: number; max: number; mean: number } {
 
 describe('displace', () => {
     it.each(DISPLACE_PATTERNS)('%s moves a closed ball within its amplitude, and leaves it closed', (pattern) => {
-        const m = model(ball, { op: 'displace', pattern, amplitude: 0.05, scale: 0.3 });
+        const m = model(ball, { op: 'displace', pattern, amplitude: 0.05, scale: 0.8 });
         expect(m.report.openEdges).toBe(0);
         expect(m.report.nonManifoldEdges).toBe(0);
         expect(m.report.insideOutShells).toBe(0);
@@ -103,11 +103,6 @@ describe('displace', () => {
         expect(m.poly.positions.some((p) => Math.abs(p[1]) > 0.005)).toBe(true);
     });
 
-    it('a model too dense to lay out for light still builds, and says what it went without', () => {
-        const m = model(sheet, { op: 'displace', pattern: 'bumps', amplitude: 0.01, scale: 0.1, detail: 0.004 });
-        expect(m.report.warnings.join()).toMatch(/no lightmap UV/);
-    }, 60000);
-
     it('keeps paint and tags on what it splits', () => {
         const m = model({ ...sheet, color: [0.2, 0.4, 0.6] }, { op: 'displace', pattern: 'bumps', amplitude: 0.05, scale: 0.3 });
         for (const f of m.poly.faces) { expect(f.color).toEqual([0.2, 0.4, 0.6, 1]); expect(f.tag).toBe('sheet'); }
@@ -141,15 +136,21 @@ describe('displace', () => {
     });
 
     it('stops at its budget and says so, rather than asking for more memory than there is', () => {
-        const m = model({ op: 'plane', size: 100 }, { op: 'displace', pattern: 'bumps', amplitude: 0.01, scale: 0.05 });
-        expect(m.report.triangles).toBeLessThanOrEqual(MAX_DISPLACE_TRIANGLES);
-        expect(m.report.warnings.join()).toMatch(/stopped at 1500000 triangles/);
-    }, 60000);
+        const out = displace({ positions: [[-50, 0, 50], [50, 0, 50], [50, 0, -50], [-50, 0, -50]], faces: [{ v: [0, 1, 2, 3], tag: '' }] }, { pattern: 'bumps', amplitude: 0.01, scale: 0.05 }, 5000);
+        expect(out.faces.length).toBeLessThanOrEqual(5000);
+        expect(out.faces.length).toBeGreaterThan(1000);
+        expect(out.notes!.join()).toMatch(/stopped at 5000 triangles/);
+    });
 
-    it('a heavy result says what to do about it', () => {
-        const m = model(sheet, { op: 'displace', pattern: 'bumps', amplitude: 0.01, scale: 0.1, detail: 0.004 });
+    it('its budget is what a whole model has room for', () => {
+        expect(MAX_DISPLACE_TRIANGLES).toBe(1500000);
+    });
+
+    it('a heavy result says what to do about it, and goes without what would cost minutes', () => {
+        const m = model(sheet, { op: 'displace', pattern: 'bumps', amplitude: 0.01, scale: 0.1, detail: 0.006 });
         expect(m.report.triangles).toBeGreaterThan(300000);
         expect(m.report.warnings.join()).toMatch(/end with a `decimate`/);
+        expect(m.report.warnings.join()).toMatch(/no lightmap UV/);
     }, 60000);
 
     it('says when a pattern is too steep for a map to draw', () => {

@@ -12,7 +12,7 @@
 
 import { MeshChannel, MeshChannelType, type MeshData, type MeshChannelDesc } from '../asset/meshFormat';
 import { buildCharts, weldByPosition, type Tri } from './charts';
-import { packSkyline } from './pack';
+import { packOutlines, packSkyline, type ChartOutline, type PackedRect } from './pack';
 
 export interface UnwrapOptions {
     /** Widest angle two neighbouring faces may differ by and stay one chart. */
@@ -31,12 +31,21 @@ export interface UnwrapResult {
      *  different lightmap UV for each side of it. */
     mesh: MeshData;
     charts: number;
-    /** Fraction of the unit square the charts occupy. What is left is the price
-     *  of packing rectangles, and of the padding that keeps them apart. */
+    /** Fraction of the unit square the triangles cover. What is left is the price
+     *  of packing charts, and of the padding that keeps them apart. */
     coverage: number;
 }
 
 const DEFAULTS = { maxChartAngleDegrees: 60, paddingTexels: 2, atlasSize: 1024 };
+
+/** Cells along a side when laying out by outline. Past this a chart's outline is finer than anything packing gains from. */
+const MAX_LAYOUT_GRID = 512;
+/** Beyond these, charts are packed as rectangles: outlines cost a pass over every triangle per size tried. */
+const MAX_OUTLINE_CHARTS = 1500;
+const MAX_OUTLINE_TRIANGLES = 200000;
+const SHRINK = 0.8;
+/** Halvings of the gap between a size that fits and one that does not: from a gap of 20%, to about a third of a percent. */
+const REFINE_STEPS = 6;
 
 function channelAt(channels: readonly MeshChannelDesc[], semantic: number): MeshChannelDesc | undefined {
     return channels.find((c) => c.semantic === semantic);
@@ -117,22 +126,48 @@ export function unwrapLightmapUV(mesh: MeshData, options: UnwrapOptions = {}): U
     }
     const pad = opts.paddingTexels / opts.atlasSize;
 
-    // ONE ratio for every chart, found by shrinking until they fit. A chart
-    // scaled on its own would be lit at a different resolution from the surface
-    // it joins, and the seam is where that shows.
+    // Every chart's triangles in its own units, for what is laid out and how much of the square they really fill.
+    const pieces: number[][] = Array.from({ length: charts.count }, () => []);
     let area = 0;
-    for (const [w, h] of extent) area += w * h;
-    let scale = area > 0 ? Math.sqrt(0.5 / area) : 1;
-    let placed = null as ReturnType<typeof packSkyline>;
-    for (let attempt = 0; attempt < 24 && !placed; attempt++) {
-        const boxes = extent.map(([w, h]) => [w * scale + pad * 2, h * scale + pad * 2] as const);
-        placed = packSkyline(boxes, 1);
-        if (!placed) scale *= 0.8;
+    for (let t = 0; t < tris.length; t++) {
+        const chart = charts.chartOf[t];
+        const piece = pieces[chart];
+        for (let k = 0; k < 3; k++) piece.push(cornerU[t * 3 + k] - lo[chart * 2], cornerV[t * 3 + k] - lo[chart * 2 + 1]);
+        area += Math.abs((cornerU[t * 3 + 1] - cornerU[t * 3]) * (cornerV[t * 3 + 2] - cornerV[t * 3])
+                       - (cornerU[t * 3 + 2] - cornerU[t * 3]) * (cornerV[t * 3 + 1] - cornerV[t * 3])) / 2;
     }
-    if (!placed) throw new Error('unwrapLightmapUV: charts do not fit even at 0.5% of their size');
+    const grid = Math.min(opts.atlasSize, MAX_LAYOUT_GRID);
+    const padCells = Math.max(1, Math.ceil(pad * grid));
+    const byOutline = charts.count <= MAX_OUTLINE_CHARTS && tris.length <= MAX_OUTLINE_TRIANGLES;
+    const outlines: ChartOutline[] = byOutline ? pieces.map((triangles, c) => ({ triangles, width: extent[c][0], height: extent[c][1] })) : [];
+    const layout = (at: number): PackedRect[] | null => {
+        if (byOutline) return packOutlines(outlines, at, grid, padCells);
+        const boxes = extent.map(([w, h]) => [w * at + pad * 2, h * at + pad * 2] as const);
+        const laid = packSkyline(boxes, 1);
+        // A box holds its chart inside its padding; the outline's places are the chart's own already.
+        return laid && laid.map((box) => ({ ...box, x: box.x + pad, y: box.y + pad }));
+    };
 
-    let covered = 0;
-    for (let c = 0; c < charts.count; c++) covered += extent[c][0] * extent[c][1] * scale * scale;
+    // ONE ratio for every chart, the largest that fits. A chart scaled on its own would be lit at a different
+    // resolution from the surface it joins, and the seam is where that shows. No layout can fill more than the
+    // whole square, so that is where the search starts, and it shrinks until something fits.
+    let scale = area > 0 ? Math.sqrt(1 / area) : 1;
+    let placed: PackedRect[] | null = null;
+    let tooBig = scale;
+    for (let attempt = 0; attempt < 32 && !placed; attempt++) {
+        placed = layout(scale);
+        if (!placed) { tooBig = scale; scale *= SHRINK; }
+    }
+    if (!placed) throw new Error('unwrapLightmapUV: charts do not fit even at 0.1% of their size');
+    // Then toward the last size that did not: the room a first fit leaves is what this is all for.
+    let fits = scale;
+    for (let step = 0; step < REFINE_STEPS && tooBig > fits; step++) {
+        const middle = Math.sqrt(fits * tooBig);
+        const tried = layout(middle);
+        if (tried) { placed = tried; fits = middle; } else { tooBig = middle; }
+    }
+    scale = fits;
+    const covered = area * scale * scale;
 
     // Split: a vertex is one new vertex per chart that uses it.
     const remap = new Map<number, number>();
@@ -152,8 +187,8 @@ export function unwrapLightmapUV(mesh: MeshData, options: UnwrapOptions = {}): U
                 source.push(corners[k]);
                 const du = (cornerU[t * 3 + k] - lo[chart * 2]) * scale;
                 const dv = (cornerV[t * 3 + k] - lo[chart * 2 + 1]) * scale;
-                uv.push(box.rotated ? box.x + pad + dv : box.x + pad + du,
-                        box.rotated ? box.y + pad + du : box.y + pad + dv);
+                uv.push(box.rotated ? box.x + dv : box.x + du,
+                        box.rotated ? box.y + du : box.y + dv);
             }
             indices[t * 3 + k] = out;
         }

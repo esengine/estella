@@ -11,6 +11,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { unwrapLightmapUV } from '../src/lightmap';
+import { packOutlines, type ChartOutline } from '../src/lightmap/pack';
 import { decodeMesh, MeshChannel, MeshChannelType, type MeshData, type MeshChannelDesc } from '../src/asset/meshFormat';
 
 const chan = (m: MeshData, s: number): MeshChannelDesc =>
@@ -58,7 +59,7 @@ function cube(): MeshData {
  *
  * A texel centre inside two triangles is the failure a lightmap cannot survive:
  * one surface's light is written over the other's, and which one wins depends on
- * the order the bake happened to visit them in.
+ * the order the bake visits them in. A centre exactly on a shared edge is one point of one surface, and not that.
  */
 function coverage(mesh: MeshData, n: number): { max: number; touched: number } {
     const count = new Uint16Array(n * n);
@@ -77,7 +78,7 @@ function coverage(mesh: MeshData, n: number): { max: number; touched: number } {
                 const w0 = ((p[1][0] - cx) * (p[2][1] - cy) - (p[2][0] - cx) * (p[1][1] - cy)) / area;
                 const w1 = ((p[2][0] - cx) * (p[0][1] - cy) - (p[0][0] - cx) * (p[2][1] - cy)) / area;
                 const w2 = 1 - w0 - w1;
-                if (w0 >= 0 && w1 >= 0 && w2 >= 0) count[y * n + x]++;
+                if (w0 > 1e-9 && w1 > 1e-9 && w2 > 1e-9) count[y * n + x]++;
             }
         }
     }
@@ -210,5 +211,81 @@ describe('a lightmap UV set', () => {
         expect(mesh.vertexCount).toBeGreaterThanOrEqual(source.vertexCount);
         expect(filled).toBeGreaterThan(0.05);
         expect(coverage(mesh, 256).max).toBe(1);
+    });
+
+    it('uses the room there is: a cube fills all it can, not a fixed half of its square', () => {
+        const { coverage: filled } = unwrapLightmapUV(cube());
+        // Six squares at one size in a square: two rows of three is 2/3 of it, less the padding.
+        expect(filled).toBeGreaterThan(0.6);
+        expect(filled).toBeLessThanOrEqual(2 / 3);
+    });
+
+    it('keeps its padding between charts', () => {
+        const atlasSize = 256, paddingTexels = 4;
+        const { mesh } = unwrapLightmapUV(cube(), { atlasSize, paddingTexels });
+        const boxes: number[][] = [];
+        for (let i = 0; i < mesh.indices.length; i += 6) {
+            const uv = [0, 1, 2, 5].map((k) => readVec(mesh, MeshChannel.TexCoord1, mesh.indices[i + k], 2));
+            boxes.push([Math.min(...uv.map((p) => p[0])), Math.min(...uv.map((p) => p[1])), Math.max(...uv.map((p) => p[0])), Math.max(...uv.map((p) => p[1]))]);
+        }
+        expect(boxes.length).toBe(6);
+        for (let a = 0; a < 6; a++) {
+            for (let b = a + 1; b < 6; b++) {
+                const apart = Math.max(boxes[b][0] - boxes[a][2], boxes[a][0] - boxes[b][2], boxes[b][1] - boxes[a][3], boxes[a][1] - boxes[b][3]);
+                expect(apart * atlasSize).toBeGreaterThanOrEqual(paddingTexels - 0.01);
+            }
+        }
+    });
+
+    it('still holds with more charts than it lays out by outline', () => {
+        // Scattered triangles facing every way: each its own chart, past where rasterising them all is worth it.
+        const count = 2000;
+        const vertices = new Uint8Array(count * 3 * 12);
+        const view = new DataView(vertices.buffer);
+        const indices: number[] = [];
+        for (let t = 0; t < count; t++) {
+            const [x, y, z] = [t % 13, (t * 7) % 17, (t * 3) % 19];
+            const tri = [[x, y, z], [x + 0.4, y, z], [x, y + 0.4, z]];
+            tri.forEach((p, k) => p.forEach((c, n) => view.setFloat32((t * 3 + k) * 12 + n * 4, c + (n === 2 ? t * 40 : 0), true)));
+            indices.push(t * 3, t * 3 + 1, t * 3 + 2);
+        }
+        const { mesh, charts } = unwrapLightmapUV({
+            channels: [{ semantic: MeshChannel.Position, components: 3, type: MeshChannelType.Float32, offset: 0 }],
+            vertexStride: 12, vertexCount: count * 3, vertices, indices: Uint32Array.from(indices),
+            aabbMin: [0, 0, 0], aabbMax: [13, 17, count * 40],
+        });
+        expect(charts).toBe(count);
+        expect(coverage(mesh, 2048).max).toBe(1);
+        for (let v = 0; v < mesh.vertexCount; v++) {
+            for (const c of readVec(mesh, MeshChannel.TexCoord1, v, 2)) { expect(c).toBeGreaterThanOrEqual(0); expect(c).toBeLessThanOrEqual(1); }
+        }
+    });
+});
+
+describe('packing by outline', () => {
+    /** An L: most of its bounding box is the bite out of its corner. */
+    const ell: ChartOutline = {
+        width: 1, height: 1,
+        triangles: [0, 0, 1, 0, 1, 0.2, 0, 0, 1, 0.2, 0, 0.2, 0, 0.2, 0.2, 0.2, 0.2, 1, 0, 0.2, 0.2, 1, 0, 1],
+    };
+    const square = (side: number): ChartOutline => ({ width: side, height: side, triangles: [0, 0, side, 0, side, side, 0, 0, side, side, 0, side] });
+
+    it('sets a small chart in the bite of a large one, where their rectangles would need twice the room', () => {
+        const placed = packOutlines([ell, square(0.5)], 0.95, 128, 1)!;
+        expect(placed).not.toBeNull();
+        const [a, b] = placed;
+        expect(Math.max(b!.x - a!.x, b!.y - a!.y)).toBeGreaterThan(0);
+        // The square is inside the L's rectangle: it did not need room of its own.
+        expect(b!.x + 0.5 * 0.95).toBeLessThanOrEqual(a!.x + 0.95 + 1e-6);
+        expect(b!.y + 0.5 * 0.95).toBeLessThanOrEqual(a!.y + 0.95 + 1e-6);
+    });
+
+    it('says when they do not fit', () => {
+        expect(packOutlines([square(1), square(1)], 0.9, 64, 1)).toBeNull();
+    });
+
+    it('reads the same every time', () => {
+        const charts = [ell, square(0.3), square(0.2), square(0.1)];
+        expect(packOutlines(charts, 0.7, 128, 1)).toEqual(packOutlines(charts, 0.7, 128, 1));
     });
 });

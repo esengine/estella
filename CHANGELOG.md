@@ -38,6 +38,8 @@ published separately; it ships inside the editor.
 
 ### Changed
 
+- **A lightmap or a baked normal map gets nearly twice as many texels on its model.** Charts are laid out by their outlines and at the largest size that fits, so they fill about half of their atlas where they filled about a third. A model's lightmap UVs change the next time it is imported, so bake its scene again.
+
 - **Phones and tablets take Medium when a project names no level.** Full-screen water on a Snapdragon 8 Elite is 8.6 ms a frame there against 25.8 as authored, mostly by leaving four samples behind. Naming a level still wins, Off included, and the setting gains Default for naming none. Mini games keep their own defaults. Such a project on a handheld also draws without multisampling, with Medium's particle limit of 5000, three shadow cascades and streamed textures: name a level to keep what it had.
 - **The temporal smoothing of a quality level leaves orthographic cameras alone.** Medium and any level set to `temporal` put it on every camera, which softened a 2D game's sprites and text and gave it a full-screen chain. A `taa` an author lists on an orthographic camera still runs.
 - **The blank template starts in the linear pipeline.** A lit mesh in gamma clips and washes out, and blank is where a project with no other plan starts. Only the template changes: a project that says nothing stays gamma.
