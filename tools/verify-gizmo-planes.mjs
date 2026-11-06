@@ -18,7 +18,8 @@ fs.writeFileSync(path.join(project,'src/main.ts'),'export {};');fs.writeFileSync
 const read=`(async()=>{const e=window.__estellaEditor;const snap=()=>{const t=e.surface.serializeScene().entities.find(v=>v.id===1).components.find(c=>c.type==='Transform').data;return {position:t.position??{x:0,y:0,z:0},scale:t.scale??{x:1,y:1,z:1},rotation:t.rotation??{x:0,y:0,z:0,w:1}};};const pose=snap(),layout=e.gizmoLayout();if(!window.__planesRead){window.__planesRead=true;return {pose,layout};}e.surface.undo();const undone=snap();e.surface.setViewPerspective(false);e.surface.setViewOrbit(0,0);e.runCommand('tool.move');await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));return {pose,layout,undone,flatLayout:e.gizmoLayout()};})()`;
 // CSS px of GIZMO in desktop/src/tools/gizmo.ts: the view ring starts at its radius and a quarter turn ends
 // that far down; a centre scale drag of one axisLen is a factor of 2.
-const VIEW_RING=78,SCALE_LENGTH=80;
+// At gizmoSize 1.2, the store's default.
+const VIEW_RING=93.6,SCALE_LENGTH=96;
 const records=[];
 try{
  for(const axis of ['xy','yz','zx','view','xyz','rotate-view']){

@@ -40,6 +40,8 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **An agent's `get_stats` waits out a long frame.** It gave a running game two seconds to answer, so on a machine that takes that long to draw a frame it said the game had stopped.
+- **A saved scene reaches a device preview on Linux.** The project watch followed each file's inode, so a file replaced by rename stopped reporting. It watches each folder there now, which also ends the crash when a watched folder was deleted during a scan.
 - **Water costs a phone half of what it did.** A full-screen sea on a Snapdragon 8 Elite went from 45 ms to 21.5 at full quality, with the same picture. Every lit material on a phone gains part of it: the light loop read all sixteen slots for every pixel, and now stops at the lights there are. A surface can also declare `#pragma lighting direct` to compile out what it never reaches. Water does, so water takes the first sixteen lights only.
 - **A quality level can skip every effect there is.** The list was cut at thirty-two and there are forty effects now, so the last ones in name order kept running while the row showed them off.
 - **A new material no longer shows the inside of a sphere.** An opaque mesh tests and writes depth whatever its material says, and a new surface material tests depth.

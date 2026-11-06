@@ -42,20 +42,21 @@ const records = [];
 try {
   // Where a drag starts is where the handle IS, in CSS px from the pivot: the rotate ring's radius, the end of the
   // scale arrow, the end of the universal tool's separate scale arrow — GIZMO in desktop/src/tools/gizmo.ts.
-  const RING = 66, SCALE_ARROW = 80, UNIVERSAL_SCALE = 100;
+  // All at gizmoSize 1.2, the store's default: at the bare constants a drag starts inside the ring and marquee-selects instead.
+  const RING = 79, SCALE_ARROW = 96, UNIVERSAL_SCALE = 120, MOVE_SHAFT = 60, UNIVERSAL_SHAFT = 50, UNIVERSAL_RING = 56;
   const cases = [
     ...['center', 'individual'].flatMap(pivot => [
       { pivot, mode: 'rotate', ox: RING, dx: -RING, dy: -RING },
       { pivot, mode: 'scale', ox: SCALE_ARROW, dx: SCALE_ARROW, dy: 0 },
-      { pivot, mode: 'move', ox: 50, dx: 25, dy: 0 },
+      { pivot, mode: 'move', ox: MOVE_SHAFT, dx: 25, dy: 0 },
     ]),
     { pivot: 'individual', mode: 'scale', ox: SCALE_ARROW, dx: SCALE_ARROW, dy: 0, cancel: true },
     { pivot: 'individual', mode: 'rotate', ox: RING, dx: -RING, dy: -RING, alt: true },
-    { pivot: 'individual', tool: 'universal', mode: 'move', ox: 42, dx: 25, dy: 0 },
+    { pivot: 'individual', tool: 'universal', mode: 'move', ox: UNIVERSAL_SHAFT, dx: 25, dy: 0 },
     { pivot: 'individual', tool: 'universal', mode: 'scale', ox: UNIVERSAL_SCALE, dx: UNIVERSAL_SCALE, dy: 0 },
-    { pivot: 'individual', tool: 'universal', mode: 'rotate', ox: 47, oy: -47, dx: -90, dy: 0 },
+    { pivot: 'individual', tool: 'universal', mode: 'rotate', ox: UNIVERSAL_RING, oy: -UNIVERSAL_RING, dx: -90, dy: 0 },
     { pivot: 'individual', tool: 'universal', mode: 'scale', ox: UNIVERSAL_SCALE, dx: UNIVERSAL_SCALE, dy: 0, cancel: true },
-    { pivot: 'individual', tool: 'universal', mode: 'rotate', ox: 47, oy: -47, dx: -90, dy: 0, alt: true },
+    { pivot: 'individual', tool: 'universal', mode: 'rotate', ox: UNIVERSAL_RING, oy: -UNIVERSAL_RING, dx: -90, dy: 0, alt: true },
   ];
   for (const c of cases) {
     const name = `${c.tool === 'universal' ? 'universal-' : ''}${c.pivot}-${c.mode}${c.cancel ? '-escape' : c.alt ? '-duplicate' : ''}`;

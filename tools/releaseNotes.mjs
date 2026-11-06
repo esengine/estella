@@ -3948,4 +3948,8 @@ export const NOTED = {
     {"internal": "CI only: which scenes a runner launches."},
   "fix(templates): the 3D templates' camera no longer names a field Camera dropped, and the debug channel's test knows the world the stats read":
     {"internal": "The stale field was dropped on load either way, so no frame changes; the rest is a test."},
+  "fix(play): get_stats waits out a long frame, where two seconds read a slow machine as a game that had stopped":
+    {"note": "An agent's `get_stats` waits out a long frame."},
+  "fix(project): a saved file reaches the device preview on Linux, where the watch followed the file's old inode":
+    {"note": "A saved scene reaches a device preview on Linux."},
 };
