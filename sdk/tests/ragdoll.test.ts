@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { World } from '../src/ecs/world';
+import type { Entity } from '../src/types';
 import { Transform, Name, Parent, getComponent, ensureBuiltinComponentsRegistered } from '../src/ecs/component';
 import type { CppRegistry, ESEngineModule } from '../src/wasm';
 import { Ragdoll, RagdollProfile, RagdollFacing, classifyBone, BONE_LIMITS, planRagdoll, installRagdolls, type RagdollBone, type RagdollData } from '../src/physics3d/ragdoll';

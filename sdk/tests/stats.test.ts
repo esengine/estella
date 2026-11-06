@@ -578,7 +578,7 @@ await app.tick(1 / 60);
     describe('render stats from Renderer.getStats()', () => {
         it('should copy all render stats fields', async () => {
             const mockStats: rendererModule.RenderStats = {
-                drawCalls: 42, triangles: 8400, sprites: 100,
+                drawCalls: 42, gpuDraws: 42, triangles: 8400, sprites: 100,
                 text: 12, skeletal: 3, meshes: 5, culled: 7,
             };
             vi.spyOn(rendererModule.Renderer, 'getStats').mockReturnValue(mockStats);
@@ -599,11 +599,11 @@ await app.tick(1 / 60);
 
         it('should update render stats each tick', async () => {
             const tick1: rendererModule.RenderStats = {
-                drawCalls: 10, triangles: 2000, sprites: 50,
+                drawCalls: 10, gpuDraws: 10, triangles: 2000, sprites: 50,
                 text: 5, skeletal: 1, meshes: 2, culled: 3,
             };
             const tick2: rendererModule.RenderStats = {
-                drawCalls: 20, triangles: 4000, sprites: 80,
+                drawCalls: 20, gpuDraws: 20, triangles: 4000, sprites: 80,
                 text: 8, skeletal: 2, meshes: 4, culled: 6,
             };
 
@@ -697,7 +697,7 @@ describe('StatsOverlay', () => {
             fps: 0, frameTimeMs: 0, entityCount: 0,
             systemTimings: new Map(),
             phaseTimings: new Map(),
-            drawCalls: 0, triangles: 0, sprites: 0,
+            drawCalls: 0, gpuDraws: 0, drawCallBudget: 0, triangles: 0, sprites: 0,
             text: 0, skeletal: 0, meshes: 0, culled: 0,
             ...overrides,
         };
