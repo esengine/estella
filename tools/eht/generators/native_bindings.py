@@ -108,15 +108,16 @@ class NativeBindingsGenerator:
 
         A variable-length field has no place in the zero-copy component buffer the
         ptr accessors write through — its storage is a pointer — so it crosses as
-        its own pair of bindings. Entity lists predate this and keep the
-        hand-written pair the registry wires them by (MeshSkin, Children).
+        its own pair of bindings. Two entity lists predate this and keep the
+        hand-written pair the registry wires them by (TypeSystem.HAND_WIRED_ENTITY_LISTS).
         """
         out = []
         for prop in comp.properties:
             t = self.types.clean_type(prop.cpp_type)
             # A list of plain numbers crosses as a list of numbers: no members to
             # walk, which is what the empty list below means downstream.
-            if t in self.types.VECTOR_TYPES and 'entity_ref' not in prop.annotations:
+            if t in self.types.VECTOR_TYPES and ('entity_ref' not in prop.annotations
+                                                 or comp.name not in self.types.HAND_WIRED_ENTITY_LISTS):
                 out.append((prop, []))
                 continue
             if not self.types.is_struct_vector(t):
@@ -144,7 +145,9 @@ class NativeBindingsGenerator:
                 out.append(f'        esjs::set(o, "{m}", esjs::number(v.{m}));')
             out.append('        esjs::setAt(arr, i++, o);')
         else:
-            out.append('        esjs::setAt(arr, i++, esjs::number(v));')
+            # An Entity converts to a number through its id, as the embind side writes it.
+            wide = 'static_cast<esengine::u32>(v)' if 'entity_ref' in prop.annotations else 'v'
+            out.append(f'        esjs::setAt(arr, i++, esjs::number({wide}));')
         out += ['    }',
                 '    return arr;',
                 '}',
@@ -162,7 +165,10 @@ class NativeBindingsGenerator:
             for m in members:
                 out.append(f'        v.{m} = static_cast<decltype(v.{m})>(esjs::toNumber(esjs::get(e, "{m}")));')
         else:
-            out.append('        v = static_cast<decltype(v)>(esjs::toNumber(e));')
+            if 'entity_ref' in prop.annotations:
+                out.append('        v = decltype(v)(static_cast<esengine::u32>(esjs::toNumber(e)));')
+            else:
+                out.append('        v = static_cast<decltype(v)>(esjs::toNumber(e));')
         out += [f'        c.{prop.name}.push_back(v);',
                 '    }',
                 '    return esjs::undefined();',

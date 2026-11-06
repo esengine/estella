@@ -1138,6 +1138,7 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
         },
         assetFields: [],
         entityFields: ['colliders'],
+        listFields: ['colliders'],
         colorFields: [],
         animatableFields: [],
         fields: {

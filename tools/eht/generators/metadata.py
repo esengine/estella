@@ -70,6 +70,12 @@ class MetadataGenerator:
         t = self.types.clean_type(prop.cpp_type)
         return t in self.types.VECTOR_TYPES and 'entity_ref' not in prop.annotations
 
+    def _is_entity_list(self, comp: Component, prop) -> bool:
+        """A list of entities crossing as a generated pair, as other lists do on the native core."""
+        t = self.types.clean_type(prop.cpp_type)
+        return (t in self.types.VECTOR_TYPES and 'entity_ref' in prop.annotations
+                and comp.name not in self.types.HAND_WIRED_ENTITY_LISTS)
+
     def _get_entity_fields(self, comp: Component) -> List[str]:
         return [p.name for p in comp.properties if 'entity_ref' in p.annotations]
 
@@ -529,7 +535,8 @@ class MetadataGenerator:
 
             list_fields = [p.name for p in comp.properties
                            if self.types.is_struct_vector(p.cpp_type)
-                           or self._is_number_list(p)]
+                           or self._is_number_list(p)
+                           or self._is_entity_list(comp, p)]
             if list_fields:
                 parts = ', '.join(f"'{f}'" for f in list_fields)
                 lines.append(f'        listFields: [{parts}],')

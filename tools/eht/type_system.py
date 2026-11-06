@@ -37,6 +37,11 @@ class TypeSystem:
     # `std::vector<T>` fields the boundary marshals: element C++ type, the embind
     # vector registered for it, and the TS interface that names it. Adding one is
     # an entry here — every generator below reads the registry.
+    # Entity lists the native registry wires by hand, so the generators leave them out: a skin's joints go through
+    # their own binding, and Children is kept in step with Parent by the hierarchy system. Every other entity list
+    # crosses as a generated pair, or the native core silently has none of it.
+    HAND_WIRED_ENTITY_LISTS = {'Children', 'MeshSkin'}
+
     VECTOR_TYPES = {
         'std::vector<Entity>': ('u32', 'VectorEntity', 'VectorEntity'),
         'std::vector<f32>': ('f32', 'VectorFloat', 'VectorFloat'),
