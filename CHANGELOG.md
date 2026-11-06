@@ -56,6 +56,8 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A WeChat mini-game opens in WeChat DevTools.** A package stopped there at "BigInt64Array is not defined" while a phone ran it, as the engine and its side modules needed a global DevTools' game realm does not have. They no longer do.
+
 - **An agent is told when a child it adds inside a prefab instance will not last.** A scene stores an instance as its root and its changes, so such a child lost its parent on saving, and an exported game dropped it, with no word. `apply_scene_ops` now warns, and says what to do instead.
 
 - **A material's normal and metal-rough maps are read as data in the editor's Play.** A map named beside its `.esmaterial` missed its import settings there, as Play spells it by URL, so it was decoded as colour: mid-range roughness read far too smooth, and normal maps bent. Filter and wrap settings were lost the same way.
