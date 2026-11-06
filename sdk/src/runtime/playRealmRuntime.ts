@@ -15,6 +15,7 @@
  *          so its defineComponent/defineSystem populate the registry this drains. This
  *          entry only owns the runtime + snapshot + asset fetch.
  */
+import type { ParsedTextureImportSettings } from '../asset/textureImportSettings';
 import type { App } from '../app/app';
 import type { ESEngineModule } from '../wasm';
 import { Audio } from '../audio/Audio';
@@ -164,6 +165,27 @@ function manifestBackedSettings(model: ManifestModel): Partial<RuntimeAssetSourc
     };
 }
 
+/**
+ * A manifest's texture settings for a realm whose refs can be URLs. A material names its textures beside itself, and
+ * beside a URL is another URL: one the manifest knows by path or uuid. Without this its maps miss their settings and are
+ * decoded as colour, and every value in them bends.
+ */
+export function playRealmTextureSettings(
+    lookup: (ref: string) => ParsedTextureImportSettings | undefined,
+    manifest: Record<string, string>,
+    assetBaseUrl?: string,
+): (ref: string) => ParsedTextureImportSettings | undefined {
+    const keyOf = new Map(Object.entries(manifest).map(([key, url]) => [url, key]));
+    const base = assetBaseUrl?.replace(/\/$/, '');
+    return (ref) => {
+        const direct = lookup(ref);
+        if (direct) return direct;
+        const key = keyOf.get(ref);
+        if (key !== undefined) return lookup(key);
+        return base && ref.startsWith(`${base}/`) ? lookup(ref.slice(base.length + 1)) : undefined;
+    };
+}
+
 function createPlayRealmSource(
     manifest: Record<string, string>,
     assetBaseUrl?: string,
@@ -184,8 +206,13 @@ function createPlayRealmSource(
         // Sampling, and the spine culling contract, both come off the addressable
         // manifest — the same fields a cooked build reads, so Play and ship
         // cannot disagree about what an author promised.
-        ...(addressable ? manifestBackedSettings(ManifestModel.fromJson(addressable)) : {}),
+        ...(addressable ? withUrlSettings(manifestBackedSettings(ManifestModel.fromJson(addressable)), manifest, assetBaseUrl) : {}),
     };
+}
+
+function withUrlSettings(settings: Partial<RuntimeAssetSource>, manifest: Record<string, string>, assetBaseUrl?: string): Partial<RuntimeAssetSource> {
+    const lookup = settings.textureImportSettings;
+    return lookup ? { ...settings, textureImportSettings: playRealmTextureSettings(lookup, manifest, assetBaseUrl) } : settings;
 }
 
 /**
