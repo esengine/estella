@@ -96,6 +96,74 @@ describe('normalBake surface', () => {
     });
 });
 
+describe('normalBake occlusion', () => {
+    /** The occlusion map at the point of the thin mesh nearest @p want. */
+    function at(m: BakedModel, map: { size: number; rgba: Uint8Array }, want: readonly number[]): number {
+        const { data } = m;
+        const offset = (semantic: number) => data.channels.find((c) => c.semantic === semantic)!.offset;
+        const view = new DataView(data.vertices.buffer, data.vertices.byteOffset, data.vertices.byteLength);
+        let best = Infinity, u = 0, v = 0;
+        for (let t = 0; t < data.indices.length / 3; t++) {
+            const mean = (o: number, k: number): number => [0, 1, 2].reduce((sum, c) => sum + view.getFloat32(data.indices[t * 3 + c]! * data.vertexStride + o + k * 4, true), 0) / 3;
+            const d = Math.hypot(mean(offset(MeshChannel.Position), 0) - want[0]!, mean(offset(MeshChannel.Position), 1) - want[1]!, mean(offset(MeshChannel.Position), 2) - want[2]!);
+            if (d < best) { best = d; u = mean(offset(MeshChannel.TexCoord0), 0); v = mean(offset(MeshChannel.TexCoord0), 1); }
+        }
+        return map.rgba[(Math.floor((1 - v) * map.size) * map.size + Math.floor(u * map.size)) * 4]!;
+    }
+
+    it('is white over a ball, which nothing shades, and on any open flat', () => {
+        const m = bakeModel({ version: 1, normalBake: { size: 256, occlusion: true }, steps: [ball, thin] });
+        const { occlusion } = bakeNormalMap(m);
+        expect(occlusion!.size).toBe(128);
+        expect(at(m, occlusion!, [0, 1, 0])).toBeGreaterThan(245);
+        expect(at(m, occlusion!, [1, 0, 0])).toBeGreaterThan(245);
+    });
+
+    it('is dark at the bottom of a deep slot, and light on the open face beside it', () => {
+        const m = bakeModel({ version: 1, normalBake: { size: 512, from: 'form', occlusion: { reach: 1, samples: 64 } }, steps: [
+            { id: 'form', op: 'organic', resolution: 80, blend: 0.01, parts: [
+                { shape: 'box', size: [3, 2, 2] }, { shape: 'box', size: [0.3, 3, 1.4], at: [0, 0, 0.75], subtract: true, blend: 0.01 },
+            ] },
+        ] });
+        const { occlusion } = bakeNormalMap(m);
+        const inSlot = at(m, occlusion!, [0, 0, 0.05]);
+        const open = at(m, occlusion!, [1, 0, 1]);
+        expect(open).toBeGreaterThan(200);
+        expect(inSlot).toBeLessThan(open * 0.6);
+    }, 60000);
+
+    it('sees where two parts meet, and not one far away', () => {
+        const bake = (gap: number) => {
+            const m = bakeModel({ version: 1, normalBake: { size: 256, from: 'high', occlusion: { reach: 0.5, samples: 36, size: 128 } }, steps: [
+                { op: 'box', size: [4, 0.2, 4], at: [0, -0.1, 0], tag: 'floor' }, { op: 'sphere', radius: 0.5, rings: 24, sides: 48, at: [0, 0.5 + gap, 0], tag: 'ball' }, { id: 'high', op: 'tag', faces: 'floor', tag: 'floor' },
+            ] });
+            return at(m, bakeNormalMap(m).occlusion!, [0.2, 0, 0.1]);
+        };
+        expect(bake(0)).toBeLessThan(bake(3) * 0.75);
+    }, 60000);
+
+    it('fills past the charts\' edges, and is the same every time', () => {
+        const source = { version: 1, normalBake: { size: 256, occlusion: { samples: 9 } }, steps: [ball, thin] };
+        const a = bakeNormalMap(bakeModel(source)).occlusion!;
+        const b = bakeNormalMap(bakeModel(source)).occlusion!;
+        expect(a.rgba).toEqual(b.rgba);
+        expect(a.rgba.every((_, i) => i % 4 !== 3 || a.rgba[i] === 255)).toBe(true);
+    });
+
+    it('is not worked out unless asked for', () => {
+        expect(bakeNormalMap(bakeModel({ version: 1, normalBake: { size: 64 }, steps: [ball, thin] })).occlusion).toBeUndefined();
+    });
+
+    it('refuses what cannot be meant', () => {
+        const steps = [ball, thin];
+        expect(() => validateModelSource({ steps, normalBake: { occlusion: 1 } })).toThrow(/occlusion must be true, false or/);
+        expect(() => validateModelSource({ steps, normalBake: { occlusion: { rays: 9 } } })).toThrow(/unknown field "rays"/);
+        expect(() => validateModelSource({ steps, normalBake: { occlusion: { samples: 0 } } })).toThrow(/samples must be 1..256/);
+        expect(() => validateModelSource({ steps, normalBake: { occlusion: { size: 100 } } })).toThrow(/power of two/);
+        expect(() => validateModelSource({ steps, normalBake: { occlusion: { strength: 2 } } })).toThrow(/strength must be 0..1/);
+    });
+});
+
 describe('the material a model writes', () => {
     it('is none where a MeshRenderer says it all', () => {
         expect(modelMaterialDoc(validateModelSource({ steps: [ball] }), true, {})).toBeNull();
@@ -111,6 +179,11 @@ describe('the material a model writes', () => {
     it('leaves a map\'s values unscaled: the factors multiply it, so they are 1', () => {
         const doc = modelMaterialDoc(validateModelSource({ steps: [ball, thin], material: { roughness: 0.3, metallic: 0 }, normalBake: { surface: true } }), true, { surface: 'a_surface.png' })!;
         expect(doc.properties).toEqual({ u_metallicRoughnessMap: 'a_surface.png', u_roughness: 1, u_metallic: 1 });
+    });
+
+    it('names an occlusion map and its strength, with constants left as they were', () => {
+        const doc = modelMaterialDoc(validateModelSource({ steps: [ball, thin], normalBake: { occlusion: { strength: 0.5 } } }), true, { occlusion: 'a_occlusion.png' })!;
+        expect(doc.properties).toEqual({ u_occlusionMap: 'a_occlusion.png', u_occlusionStrength: 0.5, u_roughness: 1, u_metallic: 0 });
     });
 
     it('culls as the surface allows', () => {

@@ -3882,6 +3882,10 @@ export const NOTED = {
     {"note":"A rotation given to an agent as a quaternion is that rotation."},
   "fix(asset): a map a material names keeps its import settings in Play, where it was decoded as colour":
     {"note":"A material's normal and metal-rough maps are read as data in the editor's Play."},
+  "feat(modeling): a bake works out how much sky a dense surface sees, and shades its creases by it":
+    {"note":"An AI building a model can shade its creases."},
+  "feat(mcp): model_write bakes an occlusion map, and a check draws a groove with and without it":
+    {"note":"An AI building a model can shade its creases."},
   "feat(modeling): a model says how rough and how metal it is, part by part, and a bake keeps that as a map":
     {"note":"An AI building a model can say what it is made of."},
   "feat(mcp): model_write writes a material and a surface map, and a check draws the map against its constant":

@@ -64,6 +64,17 @@ export interface ModelMaterial {
     metallic?: number;
 }
 
+export interface NormalBakeOcclusion {
+    /** How far a ray looks, in model units. Default about 6% of the model's diagonal. */
+    reach?: number;
+    /** Rays a texel, more for less noise. Default 25. */
+    samples?: number;
+    /** Pixels along a side of the map. Default a quarter of `size`, 128 to 512. */
+    size?: number;
+    /** How much it darkens, 0..1. Default 1. */
+    strength?: number;
+}
+
 export interface NormalBakeSource {
     /** The step whose result holds the detail. Default: what the last `decimate` started from. */
     from?: string;
@@ -75,6 +86,8 @@ export interface NormalBakeSource {
     color?: boolean;
     /** Also writes the dense surface's roughness and metal as a map. */
     surface?: boolean;
+    /** Also works out how much of the sky each place on the dense surface sees: dark in creases, where ambient light does not reach. */
+    occlusion?: boolean | NormalBakeOcclusion;
 }
 
 type Kind = 'number' | 'integer' | 'boolean' | 'string' | 'vec3' | 'number|vec3' | 'number|vec2' | 'number|numbers'
@@ -287,14 +300,23 @@ export class ModelBuildError extends Error {
 }
 
 function checkNormalBake(v: unknown, steps: readonly Partial<ModelStep>[]): string | null {
-    if (typeof v !== 'object' || v === null || Array.isArray(v)) return 'must be { from?, size?, distance?, color?, surface? }';
+    if (typeof v !== 'object' || v === null || Array.isArray(v)) return 'must be { from?, size?, distance?, color?, surface?, occlusion? }';
     const bake = v as Record<string, unknown>;
-    for (const key of Object.keys(bake)) if (!['from', 'size', 'distance', 'color', 'surface'].includes(key)) return `has an unknown field "${key}"; it takes from, size, distance, color, surface`;
+    for (const key of Object.keys(bake)) if (!['from', 'size', 'distance', 'color', 'surface', 'occlusion'].includes(key)) return `has an unknown field "${key}"; it takes from, size, distance, color, surface, occlusion`;
     const { size, distance, from } = bake;
     if (size !== undefined && !(Number.isInteger(size) && (size as number) >= 64 && (size as number) <= 4096 && ((size as number) & ((size as number) - 1)) === 0)) return 'size must be a power of two, 64..4096';
     if (distance !== undefined && !(isNum(distance) && distance > 0)) return 'distance must be a positive number';
     if (bake.color !== undefined && typeof bake.color !== 'boolean') return 'color must be true or false';
     if (bake.surface !== undefined && typeof bake.surface !== 'boolean') return 'surface must be true or false';
+    if (bake.occlusion !== undefined && typeof bake.occlusion !== 'boolean') {
+        const o = bake.occlusion as Record<string, unknown> | null;
+        if (typeof o !== 'object' || o === null || Array.isArray(o)) return 'occlusion must be true, false or { reach?, samples?, size?, strength? }';
+        for (const key of Object.keys(o)) if (!['reach', 'samples', 'size', 'strength'].includes(key)) return `occlusion has an unknown field "${key}"; it takes reach, samples, size, strength`;
+        if (o.reach !== undefined && !(isNum(o.reach) && o.reach > 0)) return 'occlusion.reach must be a positive number';
+        if (o.samples !== undefined && !(Number.isInteger(o.samples) && (o.samples as number) >= 1 && (o.samples as number) <= 256)) return 'occlusion.samples must be 1..256';
+        if (o.size !== undefined && !(Number.isInteger(o.size) && (o.size as number) >= 16 && (o.size as number) <= 2048 && ((o.size as number) & ((o.size as number) - 1)) === 0)) return 'occlusion.size must be a power of two, 16..2048';
+        if (o.strength !== undefined && !(isNum(o.strength) && o.strength >= 0 && o.strength <= 1)) return 'occlusion.strength must be 0..1';
+    }
     if (from !== undefined) {
         if (typeof from !== 'string') return 'from must be a step id';
         if (!steps.some((s) => s?.id === from)) return `from "${from}" is no step's id`;

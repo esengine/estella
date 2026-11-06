@@ -64,7 +64,7 @@ export interface BakedModel {
     /** One triangle per entry: its three positions' indices, and the face it came from. */
     triangles: { v: [number, number, number]; face: number }[];
     /** Present where a source has a normalBake: what bakeNormalMap carries, onto a mesh already unwrapped and given tangents for it. */
-    detail?: { high: PolyMesh; size: number; distance?: number; smoothAngle: number; lowColors?: Uint8Array; surface?: { roughness: number; metallic: number } };
+    detail?: { high: PolyMesh; size: number; distance?: number; smoothAngle: number; lowColors?: Uint8Array; surface?: { roughness: number; metallic: number }; occlusion?: { size?: number; reach?: number; samples?: number } };
 }
 
 // ---- Report -----------------------------------------------------------------------
@@ -272,9 +272,9 @@ function withTangents(mesh: MeshData): MeshData {
 }
 
 /** What a material has to say about a model, or null where a plain MeshRenderer says all of it. */
-export function modelMaterialDoc(source: ModelSource, cullBackfaces: boolean, maps: { normal?: string | null; surface?: string | null }): Record<string, unknown> | null {
+export function modelMaterialDoc(source: ModelSource, cullBackfaces: boolean, maps: { normal?: string | null; surface?: string | null; occlusion?: string | null }): Record<string, unknown> | null {
     const { material } = source;
-    if (!material && !maps.surface) return null;
+    if (!material && !maps.surface && !maps.occlusion) return null;
     return {
         version: MATERIAL_FORMAT_VERSION,
         type: 'material',
@@ -285,6 +285,10 @@ export function modelMaterialDoc(source: ModelSource, cullBackfaces: boolean, ma
         cull: cullBackfaces ? CullMode.Back : CullMode.None,
         properties: {
             ...(maps.normal ? { u_normalMap: maps.normal } : {}),
+            ...(maps.occlusion ? {
+                u_occlusionMap: maps.occlusion,
+                u_occlusionStrength: typeof source.normalBake?.occlusion === 'object' ? source.normalBake.occlusion.strength ?? 1 : 1,
+            } : {}),
             // A map holds the values and the factors multiply it, so they stand aside.
             ...(maps.surface
                 ? { u_metallicRoughnessMap: maps.surface, u_roughness: 1, u_metallic: 1 }
@@ -395,7 +399,7 @@ export function bakeModel(raw: unknown): BakedModel {
         data: unwrapped,
         ...(rig ? { rig } : {}),
         ...(shapes ? { shapes } : {}),
-        ...(bake && high ? { detail: { high, size, ...(bake.distance !== undefined ? { distance: bake.distance } : {}), smoothAngle: source.smoothAngle ?? DEFAULT_SMOOTH_ANGLE, ...(lowColors ? { lowColors } : {}), ...(bake.surface ? { surface: { roughness: source.material?.roughness ?? 1, metallic: source.material?.metallic ?? 0 } } : {}) } } : {}),
+        ...(bake && high ? { detail: { high, size, ...(bake.distance !== undefined ? { distance: bake.distance } : {}), smoothAngle: source.smoothAngle ?? DEFAULT_SMOOTH_ANGLE, ...(lowColors ? { lowColors } : {}), ...(bake.occlusion ? { occlusion: typeof bake.occlusion === 'object' ? bake.occlusion : {} } : {}), ...(bake.surface ? { surface: { roughness: source.material?.roughness ?? 1, metallic: source.material?.metallic ?? 0 } } : {}) } } : {}),
         triangles: triangles.flatMap((tris, face) => tris.map((v) => ({ v, face }))),
         report: {
             vertices: unwrapped.vertexCount,
