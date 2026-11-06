@@ -11,7 +11,7 @@
 import { ANIMATOR_FORMAT_VERSION, PREFAB_FORMAT_VERSION, TIMELINE_FORMAT_VERSION } from 'esengine';
 import { add, boundsOf, cross, dot, length, normalize, scale, selectFaces, sub, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
 
-export const MAX_RIG_JOINTS = 64;
+export const MAX_RIG_JOINTS = 256;
 const DEG = Math.PI / 180;
 const SAMPLE_RATE = 30;
 

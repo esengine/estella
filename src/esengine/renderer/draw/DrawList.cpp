@@ -329,7 +329,9 @@ void DrawList::stageBlocks(const PerDrawBlockSet& blocks) {
         // rather than erasing the last one's, so "unshaped" is an object instead
         // of an erasure someone has to remember to perform.
         if (blocks.morph && cmd.morph_index > 0) {
-            staged.morph = blocks.morph->stage(&morph_shapes_[cmd.morph_index - 1], sizeof(MorphConstants));
+            // Only the shapes that are live: the shader reads no further, and the pool lets the next draw start here.
+            const MorphConstants& shapes = morph_shapes_[cmd.morph_index - 1];
+            staged.morph = blocks.morph->stage(&shapes, static_cast<u32>(sizeof(glm::vec4)) * (1u + static_cast<u32>(shapes.info.x)));
         }
 
         // WHERE this draw's instances read their irradiance, not what it is: the

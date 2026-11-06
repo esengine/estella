@@ -266,7 +266,7 @@ joints.
 
 | Limit | Why |
 |---|---|
-| 64 joints per mesh | The pose is a uniform block, which is 4KB at that size — inside what a WebGL2 block is guaranteed. A mesh wanting more draws undeformed. |
+| 256 joints per mesh | The pose is a uniform block, which is 16KB at that size — exactly what a WebGL2 block is guaranteed. A draw sends only the joints it has, so a small rig pays nothing for the room. A mesh wanting more draws undeformed. |
 | Joint count must match the bind pose | A mesh whose `MeshSkin` names a different number of joints draws undeformed rather than with vertices resolved against the wrong matrices. |
 
 ## Morph targets

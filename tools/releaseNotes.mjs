@@ -3868,6 +3868,10 @@ export const NOTED = {
     {"note":"AI agents can build 3D models in the editor from steps."},
   "feat(mcp): model_write says 64 shapes count at once, and the modeling check proves sixteen do":
     {"note":"A mesh can blend 64 morph targets at once, up from 8."},
+  "feat(render): a mesh can have 256 joints where 64 imported a rig with fingers and a face as a statue":
+    {"note":"A mesh can have 256 joints, up from 64."},
+  "feat(mcp): model_write takes 256 joints, and the modeling check poses past the old limit":
+    {"note":"A mesh can have 256 joints, up from 64."},
   "feat(render): a draw blends up to 64 morph targets at once, where 8 left a face rig's lighter shapes reading as zero":
     {"note":"A mesh can blend 64 morph targets at once, up from 8."},
   "feat(animation): a foot-plant constraint keeps a foot on the physics ground under it, slopes and steps included":

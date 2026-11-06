@@ -634,7 +634,7 @@ layout(location = 4) in vec4 a_tangent;
 #ifdef SKINNED
 
 layout(std140) uniform SkinConstants {
-    mat4 u_bones[64];
+    mat4 u_bones[256];
 };
 #endif
 
@@ -936,7 +936,7 @@ void main() {
 
 #pragma vertex wgsl
 #ifdef SKINNED
-struct SkinConstants { bones : array<mat4x4f, 64> };
+struct SkinConstants { bones : array<mat4x4f, 256> };
 @group(0) @binding(5) var<uniform> skin : SkinConstants;
 #endif
 

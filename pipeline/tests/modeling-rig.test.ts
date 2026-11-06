@@ -260,8 +260,8 @@ describe('refusals name what to change', () => {
         expect(() => validateModelSource(source({ rig: { joints: [{ name: 'a', at: [0, 0, 0] }, { name: 'a', at: [0, 1, 0], parent: 'a' }] } }))).toThrow(/two joints called "a"/);
         expect(() => validateModelSource(source({ rig: { joints: [{ name: 'a/b', at: [0, 0, 0] }] } }))).toThrow(/cannot hold a slash/);
         expect(() => validateModelSource(source({ rig: { joints: [{ name: 'a', at: [0, 0, 0], bend: 1 }] } }))).toThrow(/unknown field "bend"/);
-        const many = Array.from({ length: 70 }, (_, i) => ({ name: `j${i}`, at: [0, i, 0], ...(i ? { parent: `j${i - 1}` } : {}) }));
-        expect(() => validateModelSource(source({ rig: { joints: many } }))).toThrow(/at most 64/);
+        const many = Array.from({ length: 260 }, (_, i) => ({ name: `j${i}`, at: [0, i, 0], ...(i ? { parent: `j${i - 1}` } : {}) }));
+        expect(() => validateModelSource(source({ rig: { joints: many } }))).toThrow(/at most 256/);
     });
 
     it('clips that do not fit the rig', () => {

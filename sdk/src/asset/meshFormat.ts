@@ -38,12 +38,12 @@ const CHANNEL_BYTES = 8;
 const MATRIX_BYTES = 64;
 
 /**
- * Joints one draw can be posed by — what the RENDERER holds (64 mat4 is 4KB,
- * inside WebGL2's guaranteed block), not what the format carries. A mesh bound
+ * Joints one draw can be posed by — what the RENDERER holds (256 mat4 is 16KB,
+ * exactly WebGL2's guaranteed block), not what the format carries. A mesh bound
  * to more is drawn in its bind pose: a joint index no uploaded matrix answers
  * moves the vertex nowhere in particular. Mirrors GfxEnums.hpp.
  */
-export const MESH_MAX_BONES = 64;
+export const MESH_MAX_BONES = 256;
 
 /**
  * What a channel means. The value IS the shader attribute location, and the first

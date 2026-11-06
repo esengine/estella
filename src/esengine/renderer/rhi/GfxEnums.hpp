@@ -126,9 +126,10 @@ static constexpr u32 MESH_INSTANCE_MAX_RECORDS =
 /// own stream can claim, because it is FRAME state; and the TOP of what remains,
 /// since a material's textures are handed units upward from unit 8.
 static constexpr u32 MESH_INSTANCE_TEXTURE_UNIT = 15;
-/// Bone matrices one skinned draw may carry. 64 mat4 is 4KB, inside the 16KB a
-/// WebGL2 uniform block is guaranteed; a mesh wanting more is drawn static.
-static constexpr u32 MESH_MAX_BONES = 64;
+/// Bone matrices one skinned draw may carry; a mesh wanting more is drawn static. 256 mat4
+/// is exactly the 16KB a WebGL2 uniform block is guaranteed, and a draw stages only the
+/// matrices it has, so a small rig pays nothing for the room.
+static constexpr u32 MESH_MAX_BONES = 256;
 /// Morph targets one draw may blend AT ONCE; past it the heaviest are taken. The shader
 /// loops over only the live ones, each a texture read or two per vertex, so an unused
 /// budget costs nothing beyond the larger block. Matches the bones: a face runs dozens.

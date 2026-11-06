@@ -5900,7 +5900,7 @@ Restart = 1
 
 ## MESH_MAX_BONES — const @experimental
 ```
-64
+256
 ```
 
 ## MIN_CHAIN_POINTS — const @experimental
