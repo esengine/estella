@@ -3866,6 +3866,10 @@ export const NOTED = {
     {"note":"A sea seen from above is no longer scored with straight lines."},
   "feat(mcp): an agent builds a 3D model in the editor from steps, changes it by one number, and sees every side of it":
     {"note":"AI agents can build 3D models in the editor from steps."},
+  "feat(modeling): an organic step makes one skin over parts that melt into each other, so an agent can build creatures, plants and rocks":
+    {"note":"AI agents can build 3D models in the editor from steps."},
+  "feat(mcp): model_views looks at one part up close and from more sides, and model_write explains how to build a body":
+    {"note":"AI agents can build 3D models in the editor from steps."},
   "feat(modeling): a model is the steps that build it, baked to the mesh a scene draws, so one number changes the whole shape":
     {"note":"AI agents can build 3D models in the editor from steps."},
 };

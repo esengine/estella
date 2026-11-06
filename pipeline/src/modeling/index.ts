@@ -8,5 +8,7 @@ export {
     MODEL_OPS, MODEL_SOURCE_EXT, MODEL_SOURCE_VERSION, ModelBuildError, applyModelEdits, buildPolyMesh, describeModelOps, validateModelSource,
     type ModelEdit, type ModelSource, type ModelStep, type StepReport,
 } from './modelSource';
+export { organic, ORGANIC_DEFAULT_RESOLUTION, ORGANIC_MAX_RESOLUTION, type OrganicParams, type OrganicPart } from './organic';
 export { bakeModel, type BakedModel, type ModelReport } from './modelBake';
+export type { FaceSelector } from './polyMesh';
 export { DEFAULT_MODEL_VIEWS, MODEL_VIEWS, renderModelSheet, type ModelSheet, type ModelViewName } from './modelViews';

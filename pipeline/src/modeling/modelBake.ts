@@ -142,10 +142,11 @@ function cornerNormals(mesh: PolyMesh, smoothAngle: number): Vec3[][] {
     });
     const areas = mesh.faces.map((f) => faceArea(mesh, f));
     return mesh.faces.map((face, f) => face.v.map((v) => {
-        if (smoothAngle <= 0) return normals[f]!;
+        if (smoothAngle <= 0 && !face.smooth) return normals[f]!;
         let sum: Vec3 = [0, 0, 0];
         for (const g of around.get(v)!) {
-            if (dot(normals[f]!, normals[g]!) < cosine) continue;
+            const skin = face.smooth && mesh.faces[g]!.smooth;
+            if (!skin && dot(normals[f]!, normals[g]!) < cosine) continue;
             const w = areas[g]!;
             sum = [sum[0] + normals[g]![0] * w, sum[1] + normals[g]![1] * w, sum[2] + normals[g]![2] * w];
         }
@@ -247,7 +248,7 @@ export function bakeModel(raw: unknown): BakedModel {
 
     const warnings: string[] = [];
     if (openEdges) warnings.push(`${openEdges} open edge${openEdges > 1 ? 's' : ''}: the surface has holes you can see into`);
-    if (nonManifoldEdges) warnings.push(`${nonManifoldEdges} edge${nonManifoldEdges > 1 ? 's' : ''} shared by more than two faces; \`weld\` may have joined things that should stay apart`);
+    if (nonManifoldEdges) warnings.push(`${nonManifoldEdges} edge${nonManifoldEdges > 1 ? 's' : ''} shared by more than two faces, which a later bevel refuses: \`weld\` may have joined things that should stay apart, or on an organic skin two parts just touch, so overlap them or raise blend`);
     if (degenerateFaces) warnings.push(`${degenerateFaces} face${degenerateFaces > 1 ? 's' : ''} with no area; \`weld\` removes them`);
     if (insideOutShells) warnings.push(`${insideOutShells} closed shell${insideOutShells > 1 ? 's are' : ' is'} inside out`);
 

@@ -18,6 +18,8 @@ export interface Face {
     tag: string;
     /** Linear RGBA, as MeshRenderer.color is; absent draws white. */
     color?: readonly [number, number, number, number];
+    /** Part of a continuous skin: shaded smooth with its neighbours whatever the angle, and its edges are not features. */
+    smooth?: boolean;
 }
 
 export interface PolyMesh {

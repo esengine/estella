@@ -13,6 +13,7 @@
  *        builds without complaint is a shape quietly using the default.
  */
 import * as ops from './modelOps';
+import { organic } from './organic';
 import { compact, type Face, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
 
 export const MODEL_SOURCE_VERSION = 1;
@@ -35,7 +36,7 @@ export interface ModelSource {
 }
 
 type Kind = 'number' | 'integer' | 'boolean' | 'string' | 'vec3' | 'number|vec3' | 'number|vec2' | 'number|numbers'
-    | 'color' | 'points' | 'faces' | 'edges' | 'axis' | 'pivot';
+    | 'color' | 'points' | 'faces' | 'edges' | 'axis' | 'pivot' | 'parts' | 'noise';
 
 interface OpSpec {
     params: Record<string, Kind>;
@@ -55,6 +56,7 @@ export const MODEL_OPS: Record<string, OpSpec> = {
     cone: { params: { radius: 'number', height: 'number', sides: 'integer', ...PLACED }, required: ['radius', 'height'], run: ops.cone as OpSpec['run'], says: 'adds an upright cone' },
     sphere: { params: { radius: 'number', rings: 'integer', sides: 'integer', ...PLACED }, required: ['radius'], run: ops.sphere as OpSpec['run'], says: 'adds a sphere' },
     prism: { params: { points: 'points', height: 'number', ...PLACED }, required: ['points', 'height'], run: ops.prism as OpSpec['run'], says: 'stands a floor plan of [x, z] points up to `height`' },
+    organic: { params: { parts: 'parts', resolution: 'integer', blend: 'number', noise: 'noise', at: 'vec3', tag: 'string', color: 'color' }, required: ['parts'], run: organic as unknown as OpSpec['run'], says: 'adds one continuous skin over a body of parts that melt into each other' },
     transform: { params: { faces: 'faces', translate: 'vec3', rotate: 'vec3', scale: 'number|vec3', pivot: 'pivot' }, required: [], run: ops.transform as OpSpec['run'], says: 'moves the vertices of the faces (default all): scaling a top face in makes a roof' },
     array: { params: { faces: 'faces', count: 'integer', offset: 'vec3', rotate: 'vec3', pivot: 'pivot', tag: 'string' }, required: ['count'], run: ops.array as OpSpec['run'], says: 'repeats the faces, `count` including the original' },
     mirror: { params: { faces: 'faces', axis: 'axis', at: 'number', keep: 'boolean', tag: 'string' }, required: ['axis'], run: ops.mirror as OpSpec['run'], says: 'adds a reflection across `axis` = `at`' },
@@ -119,6 +121,51 @@ function checkEdges(sel: unknown): string | null {
     return null;
 }
 
+const NOISE_KEYS = new Set(['amplitude', 'scale', 'octaves', 'seed']);
+function checkNoise(v: unknown): string | null {
+    if (typeof v !== 'object' || v === null || Array.isArray(v)) return 'must be { amplitude, scale, octaves?, seed? }';
+    const n = v as Record<string, unknown>;
+    for (const key of Object.keys(n)) if (!NOISE_KEYS.has(key)) return `has an unknown key "${key}"; it takes ${[...NOISE_KEYS].join(', ')}`;
+    if (!isNum(n.amplitude) || !isNum(n.scale) || n.scale <= 0) return 'needs a number amplitude and a positive scale';
+    if (n.octaves !== undefined && !(Number.isInteger(n.octaves) && (n.octaves as number) >= 1 && (n.octaves as number) <= 6)) return 'octaves must be 1..6';
+    if (n.seed !== undefined && !Number.isInteger(n.seed)) return 'seed must be a whole number';
+    return null;
+}
+
+const PART_FIELDS: Record<string, (v: unknown) => string | null> = {
+    shape: (v) => (['sphere', 'ellipsoid', 'box', 'torus', 'chain'].includes(v as string) ? null : 'must be sphere, ellipsoid, box, torus or chain'),
+    tag: (v) => (typeof v === 'string' ? null : 'must be a string'),
+    at: (v) => (isNums(v, 3) ? null : 'must be [x, y, z]'),
+    rotate: (v) => (isNums(v, 3) ? null : 'must be [x, y, z] degrees'),
+    radius: (v) => (isNum(v) ? null : 'must be a number'),
+    radii: (v) => (isNums(v, 3) ? null : 'must be [x, y, z]'),
+    size: (v) => (isNums(v, 3) ? null : 'must be [x, y, z]'),
+    rounding: (v) => (isNum(v) ? null : 'must be a number'),
+    tube: (v) => (isNum(v) ? null : 'must be a number'),
+    points: (v) => (Array.isArray(v) && v.every((q) => isNums(q, 4)) ? null : 'must be an array of [x, y, z, radius]'),
+    blend: (v) => (isNum(v) ? null : 'must be a number'),
+    subtract: (v) => (typeof v === 'boolean' ? null : 'must be true or false'),
+    mirror: (v) => (v === 'x' || v === 'y' || v === 'z' ? null : 'must be x, y or z'),
+    color: (v) => (isNums(v) ? null : 'must be [r, g, b] or [r, g, b, a]'),
+    noise: checkNoise,
+};
+
+function checkParts(v: unknown): string | null {
+    if (!Array.isArray(v) || v.length === 0) return 'must be a non-empty array of parts';
+    for (let i = 0; i < v.length; i++) {
+        const part = v[i] as Record<string, unknown> | null;
+        if (typeof part !== 'object' || part === null) return `[${i}] must be an object`;
+        if (part.shape === undefined) return `[${i}] needs a shape`;
+        for (const [key, value] of Object.entries(part)) {
+            const check = PART_FIELDS[key];
+            if (!check) return `[${i}] has an unknown field "${key}"; a part takes ${Object.keys(PART_FIELDS).join(', ')}`;
+            const bad = check(value);
+            if (bad) return `[${i}].${key} ${bad}`;
+        }
+    }
+    return null;
+}
+
 const KIND_CHECK: Record<Kind, (v: unknown) => string | null> = {
     number: (v) => (isNum(v) ? null : 'must be a number'),
     integer: (v) => (Number.isInteger(v) ? null : 'must be a whole number'),
@@ -133,6 +180,8 @@ const KIND_CHECK: Record<Kind, (v: unknown) => string | null> = {
     faces: checkFaces,
     edges: checkEdges,
     axis: (v) => (v === 'x' || v === 'y' || v === 'z' ? null : 'must be x, y or z'),
+    parts: checkParts,
+    noise: checkNoise,
     pivot: (v) => (v === 'center' || v === 'base' || isNums(v, 3) ? null : 'must be "center", "base" or [x, y, z]'),
 };
 
