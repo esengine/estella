@@ -932,7 +932,7 @@ export function timelineOf(animation: AnimationSource, joints: readonly RigJoint
  */
 const SWAY_COLLIDER = 'hairCollider';
 
-export function prefabOf(name: string, meshPath: string, joints: readonly RigJoint[], cullBackfaces: boolean, firstClip: string | null, controller: string | null = null, extra: { goals?: readonly RigGoal[]; shapes?: number; normalMap?: string; texture?: string; material?: string; opaque?: boolean; sway?: { chainRoots: readonly number[]; stiffness?: number; drag?: number; collider?: { at: Vec3; radius: number } } } = {}): Record<string, unknown> {
+export function prefabOf(name: string, meshPath: string, joints: readonly RigJoint[], cullBackfaces: boolean, firstClip: string | null, controller: string | null = null, extra: { goals?: readonly RigGoal[]; shapes?: number; normalMap?: string; texture?: string; material?: string; opaque?: boolean; attach?: readonly { joint: string; prefab: string }[]; sway?: { chainRoots: readonly number[]; stiffness?: number; drag?: number; collider?: { at: Vec3; radius: number } } } = {}): Record<string, unknown> {
     const idOf = (i: number): string => `j${i}`;
     const goals = extra.goals ?? [];
     const entities: Record<string, unknown>[] = [{
@@ -953,7 +953,7 @@ export function prefabOf(name: string, meshPath: string, joints: readonly RigJoi
         const rest = j.parent >= 0 ? sub(j.at, joints[j.parent]!.at) : j.at;
         entities.push({
             prefabEntityId: idOf(i), name: j.name, parent: j.parent >= 0 ? idOf(j.parent) : 'root',
-            children: [...j.children.map(idOf), ...goals.flatMap((g, k) => (g.parent === j.name ? [`g${k}`] : []))], visible: true,
+            children: [...j.children.map(idOf), ...goals.flatMap((g, k) => (g.parent === j.name ? [`g${k}`] : [])), ...(extra.attach ?? []).flatMap((a, k) => (a.joint === j.name ? [`a${k}`] : []))], visible: true,
             components: [
                 { type: 'Transform', data: { position: { x: rest[0], y: rest[1], z: rest[2] } } },
                 // On a chain's first bone, which stays where it is: the ones below it swing.
@@ -962,6 +962,16 @@ export function prefabOf(name: string, meshPath: string, joints: readonly RigJoi
                     ...(extra.sway.collider ? { colliders: [SWAY_COLLIDER] } : {}),
                 } }] : []),
             ],
+        });
+    });
+    // Inside the prefab and not beside it in a scene, where a parent inside an instance has no way to be written down. Built in this model's
+    // space, so its root goes back by as far as the joint it hangs from is out.
+    (extra.attach ?? []).forEach((a, k) => {
+        const joint = joints.findIndex((j) => j.name === a.joint);
+        const at = joints[joint]!.at;
+        entities.push({
+            prefabEntityId: `a${k}`, name: a.prefab.slice(a.prefab.lastIndexOf('/') + 1, -'.esprefab'.length), parent: idOf(joint), children: [], visible: true, components: [],
+            nestedPrefab: { prefabPath: a.prefab, overrides: [{ prefabEntityId: 'root', type: 'property', componentType: 'Transform', propertyName: 'position', value: { x: -at[0], y: -at[1], z: -at[2] } }] },
         });
     });
     if (extra.sway?.collider) {

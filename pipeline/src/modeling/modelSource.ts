@@ -22,7 +22,7 @@ import { decimate, triangleCount } from './decimate';
 import { displace, DISPLACE_PATTERNS } from './displace';
 import { stain } from './stain';
 import { cardsOnly, hair, hasCards, type HairSway } from './hair';
-import { checkAnimations, checkController, checkRig, checkShapes, type AnimationSource, type ControllerSource, type RigSource, type ShapeSource } from './rig';
+import { checkAnimations, checkController, checkRig, checkShapes, resolveJoints, type AnimationSource, type ControllerSource, type RigSource, type ShapeSource } from './rig';
 import { compact, type Face, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
 
 export const MODEL_SOURCE_VERSION = 1;
@@ -43,6 +43,8 @@ export interface ModelSource {
     uvScale?: number;
     /** Lay the base UV out so no two triangles share texels: for a texture painted for this one model, where tiling is not wanted. */
     uvAtlas?: boolean;
+    /** Other models this one wears: each a prefab, carried at a joint. */
+    attach?: ModelAttachment[];
     /** Bones through a hair model's cards, which swing as the game runs. */
     hairSway?: HairSway;
     /** What every face is made of until a `paint` or `stain` says otherwise. */
@@ -69,6 +71,13 @@ export interface ModelMaterial {
     alpha?: 'cutout' | 'blend';
     /** Below this a `cutout` is a hole. Default 0.5. */
     cutoff?: number;
+}
+
+export interface ModelAttachment {
+    /** The joint it follows. */
+    joint: string;
+    /** The prefab, by project path, built in this model's own space. */
+    prefab: string;
 }
 
 export interface NormalBakeOcclusion {
@@ -343,8 +352,8 @@ export function validateModelSource(raw: unknown): ModelSource {
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw new ModelBuildError('a model source must be an object with `steps`', null, null, null);
     const source = raw as Record<string, unknown>;
     for (const key of Object.keys(source)) {
-        if (!['version', 'smoothAngle', 'uvScale', 'uvAtlas', 'material', 'hairSway', 'normalBake', 'rig', 'shapes', 'animations', 'controller', 'steps'].includes(key)) {
-            throw new ModelBuildError(`unknown field "${key}"; a model source has version, smoothAngle, uvScale, uvAtlas, material, hairSway, normalBake, rig, shapes, animations, controller, steps`, null, null, null);
+        if (!['version', 'smoothAngle', 'uvScale', 'uvAtlas', 'material', 'hairSway', 'attach', 'normalBake', 'rig', 'shapes', 'animations', 'controller', 'steps'].includes(key)) {
+            throw new ModelBuildError(`unknown field "${key}"; a model source has version, smoothAngle, uvScale, uvAtlas, material, hairSway, attach, normalBake, rig, shapes, animations, controller, steps`, null, null, null);
         }
     }
     if (source.version !== undefined && source.version !== MODEL_SOURCE_VERSION) {
@@ -393,6 +402,18 @@ export function validateModelSource(raw: unknown): ModelSource {
     if (Array.isArray(source.steps) && (source.steps as Partial<ModelStep>[]).some((s) => s?.op === 'hair')) {
         if (source.normalBake !== undefined || source.uvAtlas) throw new ModelBuildError('a hair model\'s cards take their texture where the step puts them, so it has no normalBake or uvAtlas', null, null, null);
         if (source.rig !== undefined || source.shapes !== undefined) throw new ModelBuildError('a hair model has no rig or shapes of its own: `hairSway` gives it bones, and placed under a head joint it follows that', null, null, null);
+    }
+    if (source.attach !== undefined) {
+        const fail = (what: string): never => { throw new ModelBuildError(`attach ${what}`, null, null, null); };
+        if (!Array.isArray(source.attach)) fail('must be an array of { joint, prefab }');
+        if (source.rig === undefined) fail('needs a rig: it is carried by a joint');
+        const names = new Set(resolveJoints(source.rig as RigSource).map((j) => j.name));
+        (source.attach as Record<string, unknown>[]).forEach((a, i) => {
+            if (typeof a !== 'object' || a === null) fail(`[${i}] must be { joint, prefab }`);
+            for (const key of Object.keys(a)) if (key !== 'joint' && key !== 'prefab') fail(`[${i}] has an unknown field "${key}"; it takes joint, prefab`);
+            if (typeof a.joint !== 'string' || !names.has(a.joint)) fail(`[${i}].joint ${JSON.stringify(a.joint)} is no joint of the rig`);
+            if (typeof a.prefab !== 'string' || !a.prefab.endsWith('.esprefab')) fail(`[${i}].prefab must be a project path to an .esprefab`);
+        });
     }
     if (source.hairSway !== undefined) {
         const sway = source.hairSway as Record<string, unknown> | null;
@@ -498,7 +519,7 @@ export type ModelEdit =
     | { op: 'set'; step: string | number; fields: Record<string, unknown> }
     | { op: 'insert'; step: ModelStep; before?: string | number; after?: string | number }
     | { op: 'remove'; step: string | number }
-    | { op: 'settings'; fields: Pick<ModelSource, 'smoothAngle' | 'uvScale' | 'uvAtlas' | 'material' | 'normalBake' | 'rig' | 'shapes' | 'animations' | 'controller'> };
+    | { op: 'settings'; fields: Pick<ModelSource, 'smoothAngle' | 'uvScale' | 'uvAtlas' | 'material' | 'attach' | 'normalBake' | 'rig' | 'shapes' | 'animations' | 'controller'> };
 
 function indexOfStep(source: ModelSource, ref: string | number): number {
     const i = typeof ref === 'number' ? ref : source.steps.findIndex((s) => s.id === ref);

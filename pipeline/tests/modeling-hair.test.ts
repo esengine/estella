@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { MeshChannel } from 'esengine';
 import { bakeModel, bakeNormalMap, modelMaterialDoc, validateModelSource, type BakedModel, type ModelStep } from '../src/modeling';
 import { hairMaps } from '../src/modeling/hair';
+import { prefabOf, resolveJoints } from '../src/modeling/rig';
 
 const head: ModelStep = { op: 'sphere', radius: 1, rings: 24, sides: 48, tag: 'head' };
 const scalp = { within: { min: [null, 0.2, null] } };
@@ -192,6 +193,33 @@ describe('hairSway', () => {
         expect(() => validateModelSource({ steps, hairSway: { stiffness: 2 } })).toThrow(/stiffness must be 0..1/);
         expect(() => validateModelSource({ steps, hairSway: { collider: { at: [0, 0] } } })).toThrow(/collider must be/);
         expect(() => validateModelSource({ steps, hairSway: { swing: 1 } })).toThrow(/unknown field "swing"/);
+    });
+});
+
+describe('attach', () => {
+    const rig = { joints: [{ name: 'root', at: [0, 0, 0] }, { name: 'head', at: [0, 1.5, 0.1], parent: 'root' }] };
+    const head2: ModelStep = { op: 'sphere', radius: 1, rings: 8, sides: 12 };
+
+    it('nests the prefab under the joint, drawn back by as far as the joint is out', () => {
+        const joints = resolveJoints(rig as never);
+        const prefab = prefabOf('body', 'body.esmesh', joints, true, null, null, { attach: [{ joint: 'head', prefab: 'assets/wig.esprefab' }] }) as { entities: Record<string, unknown>[] };
+        const worn = prefab.entities.find((e) => e.prefabEntityId === 'a0')!;
+        const head = prefab.entities.find((e) => e.name === 'head')!;
+        expect(worn.parent).toBe(head.prefabEntityId);
+        expect(head.children).toContain('a0');
+        expect(worn.name).toBe('wig');
+        expect(worn.nestedPrefab).toEqual({
+            prefabPath: 'assets/wig.esprefab',
+            overrides: [{ prefabEntityId: 'root', type: 'property', componentType: 'Transform', propertyName: 'position', value: { x: -0, y: -1.5, z: -0.1 } }],
+        });
+    });
+
+    it('refuses what cannot be meant', () => {
+        expect(() => validateModelSource({ steps: [head2], attach: [{ joint: 'head', prefab: 'a.esprefab' }] })).toThrow(/needs a rig/);
+        expect(() => validateModelSource({ steps: [head2], rig, attach: [{ joint: 'tail', prefab: 'a.esprefab' }] })).toThrow(/"tail" is no joint/);
+        expect(() => validateModelSource({ steps: [head2], rig, attach: [{ joint: 'head', prefab: 'a.png' }] })).toThrow(/must be a project path to an .esprefab/);
+        expect(() => validateModelSource({ steps: [head2], rig, attach: [{ joint: 'head', prefab: 'a.esprefab', at: 1 }] })).toThrow(/unknown field "at"/);
+        expect(() => validateModelSource({ steps: [head2], rig, attach: { joint: 'head' } })).toThrow(/must be an array/);
     });
 });
 

@@ -3882,6 +3882,10 @@ export const NOTED = {
     {"note":"A rotation given to an agent as a quaternion is that rotation."},
   "fix(asset): a map a material names keeps its import settings in Play, where it was decoded as colour":
     {"note":"A material's normal and metal-rough maps are read as data in the editor's Play."},
+  "feat(modeling): a character wears another model at a joint, through saving and export":
+    {"note":"An AI building a model can make hair."},
+  "fix(mcp): a child added inside a prefab instance is warned about, and a check runs a real package of it all":
+    {"note":"An agent is told when a child it adds inside a prefab instance will not last."},
   "feat(modeling): a hair step grows cards from a scalp, and a material can cut holes or let light through":
     {"note":"An AI building a model can make hair."},
   "feat(mcp): model_write makes hair and see-through surfaces, and a check draws them":
