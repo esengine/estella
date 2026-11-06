@@ -141,7 +141,11 @@ const char* kInject = R"WGSL(
 @compute @workgroup_size(8, 8)
 fn main(@builtin(global_invocation_id) id : vec3u) {
     let size = vec2i(textureDimensions(depthTex));
-    let t = vec2i(id.xy) * 2;
+    // One pixel in four, a different one each frame, as the gather takes its own: always the same four left a face two rows tall (a block's
+    // top seen nearly edge on) in the grid at one row or two by the size of the picture, and what it lit moved with it. The grid ages over
+    // more frames than this takes, so it holds them all.
+    let frameIndex = i32(gi.origin.w);
+    let t = vec2i(id.xy) * 2 + vec2i(frameIndex & 1, (frameIndex >> 1) & 1);
     if (t.x >= size.x || t.y >= size.y) { return; }
     let depth = textureLoad(depthTex, t, 0);
     if (depth >= 1.0) { return; }

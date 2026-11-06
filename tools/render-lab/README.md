@@ -133,4 +133,10 @@ Windows host, hidden, RTX 3060, 720p, uncapped (`ESTELLA_BENCH_FRAMES`), scene `
 
 A two-level walk, skipping an empty 4x4x4 block in one step, was tried on top and measured nothing, in this room, with its walls removed, and at 12 cm: with the mark, a cell is already nearly free. It was taken out. About 1 ms of what is left does not depend on rays (the upkeep, the inject, the apply), and each ray costs about 0.4 ms.
 
-Held against the old kernels with this lab, the light share and the pixels match within the noise of two runs of one build (0.90 at the default size, 0.70 at 12 cm). Those are lower than the 0.95 and 0.74 recorded above, and that came with an earlier commit, not with this.
+Held against the old kernels with this lab, the light share and the pixels match within the noise of two runs of one build (0.90 at the default size, 0.70 at 12 cm). Those are lower than the 0.95 and 0.74 recorded above because of how those were taken, not because light was lost: they came from the editor's game view (1345x677, scaled and cropped to 1280x720). The current code taken that way reads 0.95 again. Compare readings only within one capture route.
+
+### Size of the picture (2026-11-05, WebGPU)
+
+The route above differed by 5% of the frame because the picture's exact size moved the light. It is not the aspect (1440x720 and 1600x720 read alike) and not chance (five restarts of one size read the same): the green wall probe went 47.3 to 52.7 from 1344x676 to 1344x677. Subtracting the two pictures put the difference on thin faces, the block's top and the patch's edge, and on the wall beside them. The inject took the same one pixel in four every frame, so a face two rows tall landed at one row or two. It now takes a different one each frame: 49.2 to 52.9 across eight sizes, with 1345x677 (odd both ways) still at 55.5, unexplained. Light share, mean error, the leak and frame-to-frame swing (1-3%) are unchanged.
+
+Moving the samples off the surface along the normal, as the sun's are, was tried for the same symptom. It did not help and darkened the wall by 18%, so it was taken out.

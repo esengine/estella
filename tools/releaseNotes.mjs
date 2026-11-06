@@ -3852,4 +3852,6 @@ export const NOTED = {
     {"note":"A spring bone's colliders work in a native build"},
   "perf(render): a Voxel GI ray asks a small table whether a cell holds anything and wraps it with a mask, so a default frame costs a third of what it did":
     {"note":"Voxel GI costs a third of what it did."},
+  "fix(render): Voxel GI's screen samples take a different pixel of four each frame, so a thin face no longer makes a wall's bounce change with the size of the picture":
+    {"note":"Voxel GI no longer changes with the size of the picture."},
 };
