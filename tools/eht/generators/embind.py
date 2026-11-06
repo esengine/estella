@@ -213,6 +213,8 @@ class EmbindGenerator:
                 elif self.types.is_enum(t):
                     lines.append(f'    c.{prop.name} = static_cast<{t}>(js.{prop.name});')
                 elif t in self.types.VECTOR_TYPES and self.types.VECTOR_TYPES[t][0] == 'u32' and 'Entity' in t:
+                    # Cleared: this writes into a component that already exists on every write after the first.
+                    lines.append(f'    c.{prop.name}.clear();')
                     lines.append(f'    c.{prop.name}.reserve(js.{prop.name}.size());')
                     lines.append(f'    for (auto v : js.{prop.name}) c.{prop.name}.push_back(Entity(v));')
                 elif self.types.is_struct_vector(t):

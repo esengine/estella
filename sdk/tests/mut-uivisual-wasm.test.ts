@@ -8,12 +8,13 @@
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { App } from '../src/app/app';
-import { Transform, builtinComponentRegistry, defineComponent } from '../src/ecs/component';
+import { Transform, builtinComponentRegistry, defineComponent, ensureBuiltinComponentsRegistered } from '../src/ecs/component';
 import { Query, Mut } from '../src/ecs/query';
 import { defineSystem, Schedule } from '../src/ecs/system';
 import { UIVisual } from '../src/ui/core/ui-visual';
 import { UINode } from '../src/ui/core/ui-node';
 import { uiPlugins } from '../src/app/uiPlugins';
+import { numberListFieldsOf } from '../src/ecs/bridge/BuiltinBridge';
 import type { ESEngineModule } from '../src/wasm';
 import { HAS_WASM, loadWasmModule } from './helpers/loadWasm';
 import { log } from '../src/util/logger';
@@ -21,6 +22,9 @@ import { log } from '../src/util/logger';
 let engine: ESEngineModule;
 const apps: App[] = [];
 afterEach(() => { for (const app of apps.splice(0)) app.quit(); vi.restoreAllMocks(); });
+
+// The whole catalogue, as the package entry fills it: the typed definitions alone leave out what only the generated metadata names.
+ensureBuiltinComponentsRegistered();
 
 const PressScale = defineComponent('MutUIVisualPressScale', { value: 1 });
 const RED = { r: 0.25, g: 0.5, b: 0.75, a: 1 };
@@ -132,5 +136,86 @@ describe.skipIf(!HAS_WASM)('Mut(UIVisual) on the web core', () => {
         expect(errors.mock.calls.map((c) => c.map(String).join(' '))).toEqual([]);
         expect(skipped).toEqual([]);
         expect(checked.length).toBeGreaterThan(20);
+    });
+
+    /** Every list field of every engine component: read off the same metadata the bridge marshals by, so a new one is covered. */
+    function listFields() {
+        const out: { name: string; def: never; field: string; values: (a: number, b: number) => number[]; kind: string }[] = [];
+        for (const [name, def] of builtinComponentRegistry()) {
+            // Kept in step with Parent by the hierarchy system: not the script's to write.
+            if (name === 'Children') continue;
+            const d = def as unknown as { _cppName: string; _default: Record<string, unknown>; entityFields?: readonly string[] };
+            for (const field of numberListFieldsOf(d._cppName)) {
+                out.push({ name, def: def as never, field, kind: 'number', values: () => [0.25, 0.5, 0.75] });
+            }
+            for (const field of d.entityFields ?? []) {
+                if (Array.isArray(d._default[field])) {
+                    out.push({ name, def: def as never, field, kind: 'entity', values: (a, b) => [a, b] });
+                }
+            }
+        }
+        return out;
+    }
+
+    it('there are list fields of both kinds to hold this against', () => {
+        const kinds = new Set(listFields().map((f) => f.kind));
+        expect([...kinds].sort()).toEqual(['entity', 'number']);
+    });
+
+    describe('a list field written through a Mut row', () => {
+        const row = (app: App, def: never, e: unknown) => app.world.get(e as never, def) as unknown as Record<string, number[]>;
+
+        function setUp(def: never) {
+            const app = start(false);
+            const errors = vi.spyOn(log, 'error');
+            const a = app.world.spawn();
+            const b = app.world.spawn();
+            const e = app.world.spawn();
+            if ((def as unknown) !== Transform) app.world.insert(e, Transform, {});
+            app.world.insert(e, def, {} as never);
+            return { app, errors, a: a as number, b: b as number, e };
+        }
+
+        it.each(listFields().map((f) => [`${f.name}.${f.field}`, f] as const))('%s: a new list is read back', async (_label, f) => {
+            const { app, errors, a, b, e } = setUp(f.def);
+            const want = f.values(a, b);
+            app.addSystemToSchedule(Schedule.Update, defineSystem([Query(Mut(f.def))], (q) => {
+                for (const [, r] of q as Iterable<[unknown, Record<string, number[]>]>) r[f.field] = [...want];
+            }));
+            await app.tick(1 / 60);
+            expect(Array.from(row(app, f.def, e)[f.field])).toEqual(want);
+            expect(errors).not.toHaveBeenCalled();
+        });
+
+        it.each(listFields().map((f) => [`${f.name}.${f.field}`, f] as const))('%s: pushing onto the list a row holds lands, frame after frame', async (_label, f) => {
+            const { app, errors, a, b, e } = setUp(f.def);
+            const want = f.values(a, b);
+            let frame = 0;
+            app.addSystemToSchedule(Schedule.Update, defineSystem([Query(Mut(f.def))], (q) => {
+                for (const [, r] of q as Iterable<[unknown, Record<string, number[]>]>) {
+                    expect(Array.isArray(r[f.field])).toBe(true);
+                    if (frame < want.length) r[f.field].push(want[frame]);
+                }
+                frame++;
+            }));
+            for (let i = 0; i < want.length + 2; i++) await app.tick(1 / 60);
+            expect(Array.from(row(app, f.def, e)[f.field])).toEqual(want);
+            expect(errors).not.toHaveBeenCalled();
+        });
+
+        it.each(listFields().map((f) => [`${f.name}.${f.field}`, f] as const))('%s: a row kept past the loop still holds an array, and its edit lands', async (_label, f) => {
+            const { app, errors, a, b, e } = setUp(f.def);
+            const want = f.values(a, b);
+            app.addSystemToSchedule(Schedule.Update, defineSystem([Query(Mut(f.def))], (q) => {
+                let kept: Record<string, number[]> | null = null;
+                for (const [, r] of q as Iterable<[unknown, Record<string, number[]>]>) kept = r;
+                // The loop has written it back once by now.
+                expect(Array.isArray(kept![f.field])).toBe(true);
+                kept![f.field] = [...want];
+            }));
+            await app.tick(1 / 60);
+            expect(Array.from(row(app, f.def, e)[f.field])).toEqual(want);
+            expect(errors).not.toHaveBeenCalled();
+        });
     });
 });

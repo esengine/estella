@@ -3846,4 +3846,8 @@ export const NOTED = {
     {"internal":"a release-gate table, nothing a creator can observe"},
   "fix(ecs): a Mut row is no longer rewritten by its own write-back, so walking one on the web keeps its colours and a list field crosses as a vector":
     {"note":"`Mut()` on the web no longer turns a component's colours to NaN"},
+  "fix(eht): writing an entity list on the web replaces it, where every write used to add to what was there and an empty list cleared nothing":
+    {"note":"Writing an entity list on the web replaces it"},
+  "fix(native): a component's entity list reaches the native core, so a spring bone's colliders work in a device build and a script can read them":
+    {"note":"A spring bone's colliders work in a native build"},
 };

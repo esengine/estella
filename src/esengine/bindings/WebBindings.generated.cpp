@@ -917,6 +917,7 @@ struct MeshSkinJS {
 };
 
 void meshskinApplyJS(esengine::ecs::MeshSkin& c, const MeshSkinJS& js) {
+    c.joints.clear();
     c.joints.reserve(js.joints.size());
     for (auto v : js.joints) c.joints.push_back(Entity(v));
 }
@@ -1395,6 +1396,7 @@ void springboneApplyJS(esengine::ecs::SpringBone& c, const SpringBoneJS& js) {
     c.endLength = js.endLength;
     c.radius = js.radius;
     c.weight = js.weight;
+    c.colliders.clear();
     c.colliders.reserve(js.colliders.size());
     for (auto v : js.colliders) c.colliders.push_back(Entity(v));
 }
