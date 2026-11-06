@@ -3836,4 +3836,6 @@ export const NOTED = {
     {"note":"A new glyph on a native build no longer stalls the frame reading a whole system font."},
   "fix(native): Android draws a face the shared rasterizer cannot read with its own, as Apple does, so a native build shows the system's CJK text":
     {"note":"A native Android build shows CJK text from the system font."},
+  "perf(text): a new glyph is drawn and distance-transformed at 2x rather than 4x, and the transform skips what cannot change its bytes, so a phone pays a third of what it did":
+    {"note":"A new character costs a phone about a third of what it did."},
 };

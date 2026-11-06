@@ -112,7 +112,7 @@ the tree:
 | Render surface | `WebGPUDevice::configureSurface(NativeSurface)` | `CAMetalLayer*` / `ANativeWindow*` → `WGPUSurface` (commit `bfc495da`) |
 | Instance / present | `WebGPUDevice(device, instance)` + `present()` | host shares its instance; flips the swapchain (native-only) |
 | GL gate | `EstellaContext` under `ES_PLATFORM_WEB` | native drops the WebGL entry |
-| Glyph source | `Platform::loadFont` + `host/media/glyph_raster.cpp` | the device has no 2D canvas: the OS names a font file, stb_truetype rasterizes, the engine's own `sdfFromAlpha` encodes |
+| Glyph source | `Platform::matchFont` + `host/media/glyph_raster.cpp` | the device has no 2D canvas: the OS names a font file, stb_truetype rasterizes (the OS itself where stb cannot read the face), the engine's own `sdfFromAlpha` encodes |
 | Bindings | `python -m eht --native-output` | `es_set_<C>` / `es_<C>_buffer` from the same reflection as the web embind bindings |
 | Entry points | `python -m eht --native-functions` | `es_renderer_*`, `es_uiLayout_*`, `es_rm_*` — native wrappers (written against `js/esjs.hpp`) over the SAME `bindings/*.hpp` declarations embind registers |
 | Data marshalling | `sdk/src/ecs/ptrAccessors.generated.ts` | POD components are wasm32/arm64 layout-identical → the generated accessors write native component memory unchanged (via a zero-copy `ArrayBuffer`) |

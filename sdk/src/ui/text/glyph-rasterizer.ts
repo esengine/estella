@@ -80,10 +80,14 @@ export interface CanvasGlyphRasterizerOptions {
 type Canvas2D = PlatformCanvas;
 type Ctx2D = PlatformCanvas2DContext;
 
-// SDF supersampling: rasterize + distance-transform at 4× the stored
+// SDF supersampling: rasterize + distance-transform at 2× the stored
 // resolution, then box-downsample — magnified glyphs stop showing the source
-// grid as edge wobble. One-time per glyph; atlas memory is unchanged.
-const SDF_SUPERSAMPLE = 4;
+// grid as edge wobble. One-time per glyph; atlas memory is unchanged. 2 and not
+// more: at 12× magnification 2× and 4× look the same on the densest CJK glyph
+// (1× loses its counters), and 4× costs 4 times the pixels to draw and transform,
+// which a phone pays in the frame a new character appears. The native rasterizer
+// uses the same number (native/host/media/glyph_raster.cpp).
+const SDF_SUPERSAMPLE = 2;
 
 export class CanvasGlyphRasterizer implements GlyphRasterizer {
     readonly renderSize: number;

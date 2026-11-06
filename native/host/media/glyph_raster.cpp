@@ -26,8 +26,9 @@ namespace {
 
 // The SDF is rasterized and distance-transformed at this multiple of the stored
 // resolution, then box-downsampled — magnified glyphs stop showing the source
-// grid as edge wobble. The SDK's canvas rasterizer supersamples by the same 4.
-constexpr int SDF_SUPERSAMPLE = 4;
+// grid as edge wobble. The SDK's canvas rasterizer uses the same number, and says
+// why it is 2 (sdk/src/ui/text/glyph-rasterizer.ts).
+constexpr int SDF_SUPERSAMPLE = 2;
 
 /** A parsed font file, kept for the life of the host: fonts are few, glyphs many. Mapped, not read (mapped_file.hpp): the
  *  parser touches the tables and the glyphs drawn, which is a small part of a CJK font. */
@@ -96,12 +97,12 @@ std::vector<uint8_t> downsample(const std::vector<uint8_t>& src, int width, int 
     const int area = factor * factor;
     for (int y = 0; y < h; y++) {
         for (int x = 0; x < w; x++) {
-            int sum = 0;
+            int sum = area / 2;   // rounds to nearest
             for (int sy = 0; sy < factor; sy++) {
                 const uint8_t* row = src.data() + (size_t)(y * factor + sy) * width + (size_t)x * factor;
                 for (int sx = 0; sx < factor; sx++) sum += row[sx];
             }
-            out[(size_t)y * w + x] = (uint8_t)std::lround((double)sum / area);
+            out[(size_t)y * w + x] = (uint8_t)(sum / area);
         }
     }
     return out;

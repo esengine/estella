@@ -6,6 +6,7 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Typeface;
 
@@ -32,6 +33,7 @@ final class GlyphPainter {
     private static final Paint PAINT = new Paint(Paint.ANTI_ALIAS_FLAG);
     private static final Path PATH = new Path();
     private static final RectF BOX = new RectF();
+    private static final Rect BOUNDS = new Rect();
     /** The oblique shear the shared rasterizer synthesizes italic with (FreeType's 12 degrees). */
     private static final float OBLIQUE_SHEAR = 0.2126f;
 
@@ -72,10 +74,15 @@ final class GlyphPainter {
         if (!p.hasGlyph(text)) return null;
 
         metrics[2] = p.measureText(text) / ss;
-        // The ink box from the outline itself, y down from the baseline: it follows the shear, where a text-bounds query
-        // reports the upright glyph. Fake bold strokes past the outline, so it is widened by that stroke.
-        p.getTextPath(text, 0, text.length(), 0f, 0f, PATH);
-        PATH.computeBounds(BOX, true);
+        // The ink box, y down from the baseline. Sheared, it has to come from the outline, since a text-bounds query reports
+        // the upright glyph; upright, that query is the cheap way. Fake bold strokes past both, so it is widened by that.
+        if (syntheticItalic) {
+            p.getTextPath(text, 0, text.length(), 0f, 0f, PATH);
+            PATH.computeBounds(BOX, true);
+        } else {
+            p.getTextBounds(text, 0, text.length(), BOUNDS);
+            BOX.set(BOUNDS);
+        }
         if (BOX.isEmpty()) {
             metrics[0] = 0; metrics[1] = 0; metrics[3] = 0; metrics[4] = 0; metrics[5] = 1;
             return new byte[0];
