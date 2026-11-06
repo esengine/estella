@@ -2,6 +2,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import type { PowerPolicy } from './power';
 
+/** A bound on a hand-edited file, well past the effects that exist: one lower quietly left the effects past it running. */
+const MAX_SKIPPED_EFFECTS = 1024;
+
 export type QualityLevel = 'low' | 'medium' | 'high';
 export type QualityMode = 'off' | 'auto' | QualityLevel;
 
@@ -266,7 +269,7 @@ function resolveProfile(level: QualityLevel, value: unknown): QualityProfile {
         waterCaustics: typeof r.waterCaustics === 'boolean' ? r.waterCaustics : base.waterCaustics,
         skipEffects: Array.isArray(r.skipEffects)
             ? r.skipEffects.filter((e): e is string => typeof e === 'string' && e.trim() !== '')
-                .map((e) => e.trim()).slice(0, 32)
+                .map((e) => e.trim()).slice(0, MAX_SKIPPED_EFFECTS)
             : base.skipEffects,
         shelterMaskSize: Math.round(finite(r.shelterMaskSize, base.shelterMaskSize, 64, 2048)),
         shadowSoftSamples: Math.round(finite(r.shadowSoftSamples, base.shadowSoftSamples, 1, 32)),

@@ -116,6 +116,12 @@ describe('dynamic resolution', () => {
 });
 
 describe('what a quality level lets the chain run', () => {
+    it('honours a list of every effect there is, however many that has become', () => {
+        const all = Array.from({ length: 64 }, (_, i) => `effect${i}`);
+        const q = new QualityController({ mode: 'low', profiles: { low: { skipEffects: all } } });
+        expect(q.profile.skipEffects).toHaveLength(64);
+    });
+
     const level = (skipEffects: string[], extra: object = {}) => new QualityController({
         mode: 'low', profiles: { low: { skipEffects, ...extra } },
     }).profile;
