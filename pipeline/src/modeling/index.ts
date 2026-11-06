@@ -6,11 +6,12 @@
  */
 export {
     MODEL_OPS, MODEL_SOURCE_EXT, MODEL_SOURCE_VERSION, ModelBuildError, applyModelEdits, buildPolyMesh, describeModelOps, validateModelSource,
-    type ModelEdit, type ModelSource, type ModelStep, type StepReport,
+    type ModelEdit, type ModelSource, type NormalBakeSource, type ModelStep, type StepReport,
 } from './modelSource';
 export { organic, ORGANIC_DEFAULT_RESOLUTION, ORGANIC_MAX_RESOLUTION, type OrganicParams, type OrganicPart } from './organic';
 export { needsPreparing, prepareModeling } from './booleans';
 export { bakeModel, type BakedModel, type ModelReport } from './modelBake';
+export { bakeNormalMap, type NormalBakeReport, type NormalMap } from './normalBake';
 export type { FaceSelector } from './polyMesh';
 export { DEFAULT_MODEL_VIEWS, MODEL_VIEWS, renderModelSheet, renderRigSheet, type ModelSheet, type ModelViewName, type RigViewOptions } from './modelViews';
 export { controllerOf, jointPositions, morphedPositions, posedPositions, prefabOf, timelineOf, type AnimationSource, type ControllerSource, type PoseSolve, type PreviewGround, type RigSource, type ShapeSource } from './rig';

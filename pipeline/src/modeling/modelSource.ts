@@ -18,6 +18,7 @@ import { booleanOp } from './booleans';
 import { uvStep } from './modelUv';
 import { lathe, loft } from './surfaces';
 import { subdivide } from './subdivide';
+import { decimate, triangleCount } from './decimate';
 import { checkAnimations, checkController, checkRig, checkShapes, type AnimationSource, type ControllerSource, type RigSource, type ShapeSource } from './rig';
 import { compact, type Face, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
 
@@ -39,6 +40,8 @@ export interface ModelSource {
     uvScale?: number;
     /** Lay the base UV out so no two triangles share texels: for a texture painted for this one model, where tiling is not wanted. */
     uvAtlas?: boolean;
+    /** Carries a denser state of the steps onto the final surface as a normal map. It lays the base UV out as uvAtlas does. */
+    normalBake?: NormalBakeSource;
     /** Joints: the mesh is skinned to them, with weights found from the surface. */
     rig?: RigSource;
     /** Clips moving the rig's joints, each written as an `.estimeline`. */
@@ -48,6 +51,15 @@ export interface ModelSource {
     /** Which clip plays when: an `.esanimator` the prefab's Animator runs. */
     controller?: ControllerSource;
     steps: ModelStep[];
+}
+
+export interface NormalBakeSource {
+    /** The step whose result holds the detail. Default: what the last `decimate` started from. */
+    from?: string;
+    /** Pixels along a side of the map, a power of two from 64 to 4096. Default 1024. */
+    size?: number;
+    /** How far from the final surface to look for the dense one, in model units. Default a twentieth of the diagonal. */
+    distance?: number;
 }
 
 type Kind = 'number' | 'integer' | 'boolean' | 'string' | 'vec3' | 'number|vec3' | 'number|vec2' | 'number|numbers'
@@ -83,6 +95,7 @@ export const MODEL_OPS: Record<string, OpSpec> = {
     slice: { params: { faces: 'faces', axis: 'axis', at: 'number|numbers' }, required: ['axis', 'at'], run: ops.slice as OpSpec['run'], says: 'cuts faces across planes, making the seams a window sits between' },
     boolean: { params: { operation: 'operation', with: 'faces', from: 'faces', keep: 'boolean', tag: 'string', color: 'color' }, required: ['operation', 'with'], run: booleanOp as unknown as OpSpec['run'], says: 'cuts or joins closed solids: subtract `with` from `from` makes a real hole' },
     subdivide: { params: { faces: 'faces', levels: 'integer', crease: 'number' }, required: [], run: subdivide as unknown as OpSpec['run'], says: 'rounds whole shells into smooth surfaces, keeping edges sharper than `crease` degrees' },
+    decimate: { params: { faces: 'faces', ratio: 'number', triangles: 'integer', error: 'number' }, required: [], run: decimate as unknown as OpSpec['run'], says: 'leaves fewer triangles over the same surface: `ratio` to keep or `triangles` to end with, stopping sooner if the surface would move more than `error` (default 0.02) of its size' },
     uv: { params: { faces: 'faces', mode: 'uvmode', axis: 'string', at: 'vec3', scale: 'number|vec2only', repeat: 'number|vec2only', offset: 'vec2', rotate: 'number' }, required: ['mode'], run: uvStep as unknown as OpSpec['run'], says: 'sets how faces take a texture: box, planar, cylinder or sphere' },
     delete: { params: { faces: 'faces' }, required: ['faces'], run: ops.deleteFaces as OpSpec['run'], says: 'removes faces, leaving a hole' },
     paint: { params: { faces: 'faces', color: 'color' }, required: ['faces', 'color'], run: ops.paint as OpSpec['run'], says: 'sets vertex colour: linear [r, g, b] in 0..1, multiplied into the material' },
@@ -250,6 +263,23 @@ export class ModelBuildError extends Error {
     }
 }
 
+function checkNormalBake(v: unknown, steps: readonly Partial<ModelStep>[]): string | null {
+    if (typeof v !== 'object' || v === null || Array.isArray(v)) return 'must be { from?, size?, distance? }';
+    const bake = v as Record<string, unknown>;
+    for (const key of Object.keys(bake)) if (!['from', 'size', 'distance'].includes(key)) return `has an unknown field "${key}"; it takes from, size, distance`;
+    const { size, distance, from } = bake;
+    if (size !== undefined && !(Number.isInteger(size) && (size as number) >= 64 && (size as number) <= 4096 && ((size as number) & ((size as number) - 1)) === 0)) return 'size must be a power of two, 64..4096';
+    if (distance !== undefined && !(isNum(distance) && distance > 0)) return 'distance must be a positive number';
+    if (from !== undefined) {
+        if (typeof from !== 'string') return 'from must be a step id';
+        if (!steps.some((s) => s?.id === from)) return `from "${from}" is no step's id`;
+        return null;
+    }
+    const last = steps.map((s) => s?.op).lastIndexOf('decimate');
+    if (last < 0) return 'needs a surface to carry: a decimate step, or `from` naming a step';
+    return last === 0 ? 'has nothing to carry: the decimate is the first step' : null;
+}
+
 const stepLabel = (step: Partial<ModelStep> | null, index: number): string =>
     `step ${index}${step?.id ? ` "${step.id}"` : ''}${step?.op ? ` (${step.op})` : ''}`;
 
@@ -258,8 +288,8 @@ export function validateModelSource(raw: unknown): ModelSource {
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw new ModelBuildError('a model source must be an object with `steps`', null, null, null);
     const source = raw as Record<string, unknown>;
     for (const key of Object.keys(source)) {
-        if (!['version', 'smoothAngle', 'uvScale', 'uvAtlas', 'rig', 'shapes', 'animations', 'controller', 'steps'].includes(key)) {
-            throw new ModelBuildError(`unknown field "${key}"; a model source has version, smoothAngle, uvScale, uvAtlas, rig, shapes, animations, controller, steps`, null, null, null);
+        if (!['version', 'smoothAngle', 'uvScale', 'uvAtlas', 'normalBake', 'rig', 'shapes', 'animations', 'controller', 'steps'].includes(key)) {
+            throw new ModelBuildError(`unknown field "${key}"; a model source has version, smoothAngle, uvScale, uvAtlas, normalBake, rig, shapes, animations, controller, steps`, null, null, null);
         }
     }
     if (source.version !== undefined && source.version !== MODEL_SOURCE_VERSION) {
@@ -293,6 +323,10 @@ export function validateModelSource(raw: unknown): ModelSource {
         if (bad) throw new ModelBuildError(bad, null, null, null);
     }
     if (!Array.isArray(source.steps)) throw new ModelBuildError('`steps` must be an array', null, null, null);
+    if (source.normalBake !== undefined) {
+        const bad = checkNormalBake(source.normalBake, source.steps as Partial<ModelStep>[]);
+        if (bad) throw new ModelBuildError(`normalBake ${bad}`, null, null, null);
+    }
     const ids = new Set<string>();
     source.steps.forEach((step: Partial<ModelStep> | null, index: number) => {
         const refuse = (what: string): never => {
@@ -324,27 +358,38 @@ export interface StepReport {
     op: string;
     /** Faces in the mesh after it ran. */
     faces: number;
+    /** A decimate: triangles it was given, and triangles it left. */
+    trianglesBefore?: number;
+    trianglesAfter?: number;
 }
 
 export interface ModelBuild {
     mesh: PolyMesh;
     steps: StepReport[];
+    /** The surface `normalBake` carries, as the steps stood then. */
+    high?: PolyMesh;
 }
 
 /** Runs the steps in order. A step that cannot run throws a {@link ModelBuildError} naming it. */
 export function buildPolyMesh(source: ModelSource): ModelBuild {
     let mesh: PolyMesh = { positions: [], faces: [] };
     const steps: StepReport[] = [];
+    const bake = source.normalBake;
+    // After this step, the surface is the one to carry: the one named, or the one before the last decimate.
+    const highAfter = !bake ? -2 : bake.from !== undefined ? source.steps.findIndex((s) => s.id === bake.from) : source.steps.map((s) => s.op).lastIndexOf('decimate') - 1;
+    let high: PolyMesh | undefined;
     source.steps.forEach((step, index) => {
         const { id, op, ...params } = step;
+        const before = op === 'decimate' ? triangleCount(mesh) : 0;
         try {
             mesh = MODEL_OPS[op]!.run(mesh, params as never);
         } catch (e) {
             throw new ModelBuildError(`${stepLabel(step, index)}: ${e instanceof Error ? e.message : String(e)}`, index, id ?? null, op);
         }
-        steps.push({ index, ...(id ? { id } : {}), op, faces: mesh.faces.length });
+        steps.push({ index, ...(id ? { id } : {}), op, faces: mesh.faces.length, ...(op === 'decimate' ? { trianglesBefore: before, trianglesAfter: triangleCount(mesh) } : {}) });
+        if (index === highAfter) high = compact(mesh);
     });
-    return { mesh: compact(mesh), steps };
+    return { mesh: compact(mesh), steps, ...(high ? { high } : {}) };
 }
 
 // ---- Edits: changing a source without restating it ------------------------------
@@ -353,7 +398,7 @@ export type ModelEdit =
     | { op: 'set'; step: string | number; fields: Record<string, unknown> }
     | { op: 'insert'; step: ModelStep; before?: string | number; after?: string | number }
     | { op: 'remove'; step: string | number }
-    | { op: 'settings'; fields: Pick<ModelSource, 'smoothAngle' | 'uvScale' | 'uvAtlas' | 'rig' | 'shapes' | 'animations' | 'controller'> };
+    | { op: 'settings'; fields: Pick<ModelSource, 'smoothAngle' | 'uvScale' | 'uvAtlas' | 'normalBake' | 'rig' | 'shapes' | 'animations' | 'controller'> };
 
 function indexOfStep(source: ModelSource, ref: string | number): number {
     const i = typeof ref === 'number' ? ref : source.steps.findIndex((s) => s.id === ref);
@@ -389,7 +434,11 @@ export function applyModelEdits(source: ModelSource, edits: readonly ModelEdit[]
                 next.steps.splice(indexOfStep(next, edit.step), 1);
                 break;
             case 'settings':
-                Object.assign(next, edit.fields);
+                // A null removes, as it does in `set`.
+                for (const [key, value] of Object.entries(edit.fields ?? {})) {
+                    if (value === null) delete (next as unknown as Record<string, unknown>)[key];
+                    else (next as unknown as Record<string, unknown>)[key] = value;
+                }
                 break;
             default:
                 throw new ModelBuildError(`unknown edit ${JSON.stringify((edit as { op?: unknown })?.op)}; there are set, insert, remove, settings`, null, null, null);

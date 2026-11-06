@@ -9,9 +9,11 @@
  *        where the same fault in a lit picture reads as a slightly odd shadow.
  */
 import { MeshChannel, MeshChannelType, packChannels, unwrapLightmapUV, type MeshData, type MeshMorphTargets } from 'esengine';
+import { generateTangents } from '../assets/meshTangents';
 import { triangulateFace } from './triangulate';
 import { faceUvs } from './modelUv';
 import { adjustWeights, bindMatrices, computeWeights, resolveJoints, shapeDeltas, type ControllerIk, type RigGoal, type RigJoint, type SkinWeights } from './rig';
+import type { NormalBakeReport } from './normalBake';
 import { buildPolyMesh, validateModelSource, type ModelSource, type StepReport } from './modelSource';
 import {
     boundsOf, collectEdges, cross, dot, faceArea, faceNormal, length, normalize, sub,
@@ -19,6 +21,7 @@ import {
 } from './polyMesh';
 
 const DEFAULT_SMOOTH_ANGLE = 30;
+const DEFAULT_NORMAL_SIZE = 1024;
 
 export interface ModelReport {
     vertices: number;
@@ -42,6 +45,8 @@ export interface ModelReport {
     steps: StepReport[];
     /** For a rigged model: each joint, and how many vertices it moves the most. */
     joints?: Record<string, number>;
+    /** What a normal map carries, once one has been baked. */
+    normalBake?: NormalBakeReport;
     /** The findings above that are worth stopping for, as sentences. */
     warnings: string[];
 }
@@ -56,6 +61,8 @@ export interface BakedModel {
     shapes?: { names: string[]; deltas: Float32Array[] };
     /** One triangle per entry: its three positions' indices, and the face it came from. */
     triangles: { v: [number, number, number]; face: number }[];
+    /** Present where a source has a normalBake: what bakeNormalMap carries, onto a mesh already unwrapped and given tangents for it. */
+    detail?: { high: PolyMesh; size: number; distance?: number; smoothAngle: number };
 }
 
 // ---- Report -----------------------------------------------------------------------
@@ -90,7 +97,7 @@ function signedVolume(mesh: PolyMesh, faces: readonly number[], tris: readonly [
 // ---- Bake -------------------------------------------------------------------------
 
 /** Per-corner normals: each face's, averaged with those of the faces round that vertex within @p smoothAngle. */
-function cornerNormals(mesh: PolyMesh, smoothAngle: number): Vec3[][] {
+export function cornerNormals(mesh: PolyMesh, smoothAngle: number): Vec3[][] {
     const normals = mesh.faces.map((f) => faceNormal(mesh, f));
     const cosine = Math.cos((smoothAngle * Math.PI) / 180);
     const around = new Map<number, number[]>();
@@ -224,10 +231,33 @@ function copyLightmapUvToBase(mesh: MeshData): void {
     }
 }
 
+/** The mesh with the frame a normal map is read in, from the UVs and normals as stored. */
+function withTangents(mesh: MeshData): MeshData {
+    const view = new DataView(mesh.vertices.buffer, mesh.vertices.byteOffset, mesh.vertices.byteLength);
+    const read = (semantic: number, components: number): Float32Array => {
+        const { offset } = mesh.channels.find((c) => c.semantic === semantic)!;
+        const out = new Float32Array(mesh.vertexCount * components);
+        for (let v = 0; v < mesh.vertexCount; v++) for (let k = 0; k < components; k++) out[v * components + k] = view.getFloat32(v * mesh.vertexStride + offset + k * 4, true);
+        return out;
+    };
+    const tangents = generateTangents(read(MeshChannel.Position, 3), read(MeshChannel.Normal, 3), read(MeshChannel.TexCoord0, 2), mesh.indices);
+    const stride = mesh.vertexStride + 16;
+    const vertices = new Uint8Array(mesh.vertexCount * stride);
+    const out = new DataView(vertices.buffer);
+    for (let v = 0; v < mesh.vertexCount; v++) {
+        vertices.set(mesh.vertices.subarray(v * mesh.vertexStride, (v + 1) * mesh.vertexStride), v * stride);
+        for (let k = 0; k < 4; k++) out.setFloat32(v * stride + mesh.vertexStride + k * 4, tangents[v * 4 + k]!, true);
+    }
+    return {
+        ...mesh, vertices, vertexStride: stride,
+        channels: [...mesh.channels, { semantic: MeshChannel.Tangent, components: 4, type: MeshChannelType.Float32, offset: mesh.vertexStride }],
+    };
+}
+
 /** Validates, builds and bakes @p raw. Throws a ModelBuildError naming the step that failed; writes nothing, so a failure leaves nothing half made. */
 export function bakeModel(raw: unknown): BakedModel {
     const source = validateModelSource(raw);
-    const { mesh, steps } = buildPolyMesh(source);
+    const { mesh, steps, high } = buildPolyMesh(source);
     if (mesh.faces.length === 0) throw new Error('the steps leave no faces; a model starts with a box, cylinder, cone, sphere, plane or prism');
 
     const triangles = mesh.faces.map((f) => triangulateFace(mesh, f));
@@ -237,10 +267,13 @@ export function bakeModel(raw: unknown): BakedModel {
         rig = { joints, skin: adjustWeights(mesh, joints, computeWeights(mesh, joints), source.rig.adjust ?? []), ik: source.controller?.ik ?? [], goals: source.rig.goals ?? [] };
     }
     const shapes = source.shapes ? { names: source.shapes.map((s) => s.name), deltas: source.shapes.map((s) => shapeDeltas(mesh, s)) } : undefined;
-    // A mesh that moves takes no lightmap: a bake holds still.
+    const bake = source.normalBake;
+    const size = bake?.size ?? DEFAULT_NORMAL_SIZE;
+    // A mesh that moves takes no lightmap: a bake holds still. A normal map moves with it, and needs texels of its own all the same.
     const baked = toMeshData(mesh, triangles, source, rig, shapes);
-    const unwrapped = rig || shapes ? baked : unwrapLightmapUV(baked).mesh;
-    if (source.uvAtlas) copyLightmapUvToBase(unwrapped);
+    let unwrapped = bake ? unwrapLightmapUV(baked, { atlasSize: size, paddingTexels: 4 }).mesh : rig || shapes ? baked : unwrapLightmapUV(baked).mesh;
+    if (source.uvAtlas || bake) copyLightmapUvToBase(unwrapped);
+    if (bake) unwrapped = withTangents(unwrapped);
 
     const edges = [...collectEdges(mesh).values()];
     const openEdges = edges.filter((e) => e.faces.length === 1).length;
@@ -281,6 +314,13 @@ export function bakeModel(raw: unknown): BakedModel {
     }
 
     // The engine's delta texture is 2048 square, the most WebGL2 guarantees; past it the mesh draws, but never changes shape.
+    for (const s of steps) {
+        const step = source.steps[s.index]!;
+        if (s.op !== 'decimate' || step.faces !== undefined) continue;
+        const target = (step.triangles as number | undefined) ?? Math.round(s.trianglesBefore! * (step.ratio as number));
+        if (s.trianglesAfter! > target * 1.1) warnings.push(`step ${s.index} (decimate) stopped at ${s.trianglesAfter} triangles of the ${target} asked: the surface would have moved more than \`error\` allows. Raise it to go further`);
+    }
+
     if (shapes && shapes.names.length * unwrapped.vertexCount * 2 > 2048 * 2048) {
         warnings.push(`${shapes.names.length} shapes over ${unwrapped.vertexCount} vertices is more than the engine holds (${2048 * 2048} deltas, two each): it would draw but never change shape. Lower the resolution or use fewer shapes`);
     }
@@ -291,6 +331,7 @@ export function bakeModel(raw: unknown): BakedModel {
         data: unwrapped,
         ...(rig ? { rig } : {}),
         ...(shapes ? { shapes } : {}),
+        ...(bake && high ? { detail: { high, size, ...(bake.distance !== undefined ? { distance: bake.distance } : {}), smoothAngle: source.smoothAngle ?? DEFAULT_SMOOTH_ANGLE } } : {}),
         triangles: triangles.flatMap((tris, face) => tris.map((v) => ({ v, face }))),
         report: {
             vertices: unwrapped.vertexCount,
