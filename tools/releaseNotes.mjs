@@ -3826,4 +3826,8 @@ export const NOTED = {
     {"note":"Voxel GI lights what the camera does not see, and bounces light more than once."},
   "feat(render): the WebGL2 Voxel GI takes what the sun lights from its shadow map and bounces light more than once, as the WebGPU one does":
     {"note":"Voxel GI lights what the camera does not see, and bounces light more than once."},
+  "fix(native): a native build asks its GPU for timestamps, so its GPU frame time reads a number instead of -1":
+    {"note":"A native build reports its GPU frame time."},
+  "perf(render): Voxel GI reads its cache plainly where nothing else writes it, and skips empty slots when it ages them, so a phone spends far less on its upkeep and its rays":
+    {"note":"Voxel GI costs less on mobile GPUs."},
 };

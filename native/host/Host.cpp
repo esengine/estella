@@ -109,11 +109,14 @@ bool createDevice(HostState& h) {
     wgpuInstanceWaitAny(h.instance, 1, &af, UINT64_MAX);
     if (!h.adapter) { ESHOST_LOGE("no adapter"); return false; }
 
-    WGPUFeatureName compFeats[3];
+    // Timestamps feed the engine's GPU frame timer (renderer_getGpuTimeMs, the
+    // profiler's GPU track); without them a device reports -1 for every frame.
+    WGPUFeatureName compFeats[4];
     size_t compCount = 0;
     for (WGPUFeatureName f : {WGPUFeatureName_TextureCompressionETC2,
                               WGPUFeatureName_TextureCompressionASTC,
-                              WGPUFeatureName_TextureCompressionBC}) {
+                              WGPUFeatureName_TextureCompressionBC,
+                              WGPUFeatureName_TimestampQuery}) {
         if (wgpuAdapterHasFeature(h.adapter, f)) compFeats[compCount++] = f;
     }
     auto onDevice = [](WGPURequestDeviceStatus s, WGPUDevice d, WGPUStringView, void* u, void*) {
