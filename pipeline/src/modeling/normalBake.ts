@@ -25,6 +25,10 @@ const GUTTER = 16;
 const LEAF = 4;
 /** Above this share of texels finding no surface, the map is probably missing what it was made for. */
 const MISSED_WARNING = 0.05;
+/** Degrees of mean bend past which a map is mostly slopes too steep to shade. */
+const STEEP_BEND = 25;
+/** Share of the image below which the surface broke into so many pieces that the map's resolution is mostly gone. */
+const SPARSE_COVERAGE = 0.1;
 
 export interface NormalBakeReport {
     size: number;
@@ -292,6 +296,8 @@ export function bakeNormalMap(model: BakedModel): NormalMap {
     const warnings: string[] = [];
     const missedShare = inside ? missed / inside : 1;
     if (missedShare > MISSED_WARNING) warnings.push(`${Math.round(missedShare * 100)}% of the normal map found no surface within ${distance.toPrecision(3)} and is flat: raise normalBake.distance, or decimate less`);
+    if (hits && (bend / hits) * 180 / Math.PI > STEEP_BEND) warnings.push(`the map bends light by ${Math.round((bend / hits) * 180 / Math.PI)} degrees on average, steeper than a normal map draws well: dark bands and lost shape. Lower the amplitude of a displace against its scale`);
+    if (inside / (size * size) < SPARSE_COVERAGE) warnings.push(`the surface broke into so many pieces that they fill only ${Math.round((inside / (size * size)) * 100)}% of the map, so most of its resolution is lost: lower the amplitude before the decimate, or keep more triangles`);
     if (from <= to) warnings.push(`the surface baked from has ${from} triangles and this one ${to}: there is no detail to carry. normalBake.from should name a step before the decimate`);
     return {
         size, rgba, warnings,

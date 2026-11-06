@@ -22,6 +22,8 @@ import {
 
 const DEFAULT_SMOOTH_ANGLE = 30;
 const DEFAULT_NORMAL_SIZE = 1024;
+const HEAVY_TRIANGLES = 300000;
+const LIGHTMAP_TRIANGLES = 150000;
 
 export interface ModelReport {
     vertices: number;
@@ -257,7 +259,7 @@ function withTangents(mesh: MeshData): MeshData {
 /** Validates, builds and bakes @p raw. Throws a ModelBuildError naming the step that failed; writes nothing, so a failure leaves nothing half made. */
 export function bakeModel(raw: unknown): BakedModel {
     const source = validateModelSource(raw);
-    const { mesh, steps, high } = buildPolyMesh(source);
+    const { mesh, steps, high, notes } = buildPolyMesh(source);
     if (mesh.faces.length === 0) throw new Error('the steps leave no faces; a model starts with a box, cylinder, cone, sphere, plane or prism');
 
     const triangles = mesh.faces.map((f) => triangulateFace(mesh, f));
@@ -271,8 +273,28 @@ export function bakeModel(raw: unknown): BakedModel {
     const size = bake?.size ?? DEFAULT_NORMAL_SIZE;
     // A mesh that moves takes no lightmap: a bake holds still. A normal map moves with it, and needs texels of its own all the same.
     const baked = toMeshData(mesh, triangles, source, rig, shapes);
-    let unwrapped = bake ? unwrapLightmapUV(baked, { atlasSize: size, paddingTexels: 4 }).mesh : rig || shapes ? baked : unwrapLightmapUV(baked).mesh;
-    if (source.uvAtlas || bake) copyLightmapUvToBase(unwrapped);
+    const triangleCount = triangles.reduce((n, t) => n + t.length, 0);
+    let layoutNote: string | null = null;
+    let unwrapped = baked;
+    if (bake || source.uvAtlas) {
+        try {
+            unwrapped = unwrapLightmapUV(baked, bake ? { atlasSize: size, paddingTexels: 4 } : {}).mesh;
+        } catch {
+            throw new Error(`${triangleCount} triangles break into too many pieces to lay out in one texture: decimate further, or give the surface less to carve before it`);
+        }
+        copyLightmapUvToBase(unwrapped);
+    } else if (!rig && !shapes) {
+        // This is optional, and costs minutes past a point where nobody would bake light onto the model anyway. Nothing else needs it.
+        layoutNote = 'it has no lightmap UV: baked light will not land on it, and is not worth it at this density';
+        if (triangleCount <= LIGHTMAP_TRIANGLES) {
+            try {
+                unwrapped = unwrapLightmapUV(baked).mesh;
+                layoutNote = null;
+            } catch {
+                layoutNote = 'it has no lightmap UV: its surface breaks into too many pieces to lay out';
+            }
+        }
+    }
     if (bake) unwrapped = withTangents(unwrapped);
 
     const edges = [...collectEdges(mesh).values()];
@@ -297,9 +319,9 @@ export function bakeModel(raw: unknown): BakedModel {
     const { min, max } = boundsOf(mesh);
     const tags: Record<string, number> = {};
     for (const f of mesh.faces) if (f.tag) tags[f.tag] = (tags[f.tag] ?? 0) + 1;
-    const triangleCount = triangles.reduce((n, t) => n + t.length, 0);
 
-    const warnings: string[] = [];
+    const warnings: string[] = [...notes, ...(layoutNote ? [layoutNote] : [])];
+    if (triangleCount > HEAVY_TRIANGLES) warnings.push(`${triangleCount} triangles is a lot to draw: end with a \`decimate\`, and \`normalBake\` to keep the detail`);
     if (openEdges) warnings.push(`${openEdges} open edge${openEdges > 1 ? 's' : ''}: the surface has holes you can see into`);
     if (nonManifoldEdges) warnings.push(`${nonManifoldEdges} edge${nonManifoldEdges > 1 ? 's' : ''} shared by more than two faces, which a later bevel refuses: \`weld\` may have joined things that should stay apart, or on an organic skin two parts just touch, so overlap them or raise blend`);
     if (flippedEdges) warnings.push(`${flippedEdges} edge${flippedEdges > 1 ? 's' : ''} between faces wound opposite ways: part of the surface faces inward`);

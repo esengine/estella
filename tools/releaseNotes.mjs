@@ -3872,6 +3872,10 @@ export const NOTED = {
     {"note":"A linear game looks the same on every Play."},
   "test(editor): a scene draws the same on every Play, with effects or without":
     {"internal":"a check, for a fix the engine commit carries"},
+  "feat(modeling): a displace step carves wrinkles, cracks, scales and weave into a surface":
+    {"note":"An AI building a model can carve fine detail into it."},
+  "feat(mcp): model_write carves fine detail, and a check takes every pattern through the bake":
+    {"note":"An AI building a model can carve fine detail into it."},
   "feat(modeling): a model thins to a few triangles and keeps its detail as a normal map":
     {"note":"An AI building a model can make it light and keep its detail."},
   "feat(mcp): model_write thins a model and bakes its detail, and a check compares it lit against the dense one":

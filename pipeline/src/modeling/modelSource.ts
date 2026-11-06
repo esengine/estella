@@ -19,6 +19,7 @@ import { uvStep } from './modelUv';
 import { lathe, loft } from './surfaces';
 import { subdivide } from './subdivide';
 import { decimate, triangleCount } from './decimate';
+import { displace, DISPLACE_PATTERNS } from './displace';
 import { checkAnimations, checkController, checkRig, checkShapes, type AnimationSource, type ControllerSource, type RigSource, type ShapeSource } from './rig';
 import { compact, type Face, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
 
@@ -63,7 +64,7 @@ export interface NormalBakeSource {
 }
 
 type Kind = 'number' | 'integer' | 'boolean' | 'string' | 'vec3' | 'number|vec3' | 'number|vec2' | 'number|numbers'
-    | 'color' | 'points' | 'faces' | 'edges' | 'axis' | 'pivot' | 'parts' | 'noise' | 'sections' | 'section' | 'vec3s' | 'numbers' | 'operation' | 'uvmode' | 'number|vec2only' | 'vec2';
+    | 'color' | 'points' | 'faces' | 'edges' | 'axis' | 'pivot' | 'parts' | 'noise' | 'sections' | 'section' | 'vec3s' | 'numbers' | 'operation' | 'uvmode' | 'number|vec2only' | 'vec2' | 'pattern' | 'near';
 
 interface OpSpec {
     params: Record<string, Kind>;
@@ -95,6 +96,7 @@ export const MODEL_OPS: Record<string, OpSpec> = {
     slice: { params: { faces: 'faces', axis: 'axis', at: 'number|numbers' }, required: ['axis', 'at'], run: ops.slice as OpSpec['run'], says: 'cuts faces across planes, making the seams a window sits between' },
     boolean: { params: { operation: 'operation', with: 'faces', from: 'faces', keep: 'boolean', tag: 'string', color: 'color' }, required: ['operation', 'with'], run: booleanOp as unknown as OpSpec['run'], says: 'cuts or joins closed solids: subtract `with` from `from` makes a real hole' },
     subdivide: { params: { faces: 'faces', levels: 'integer', crease: 'number' }, required: [], run: subdivide as unknown as OpSpec['run'], says: 'rounds whole shells into smooth surfaces, keeping edges sharper than `crease` degrees' },
+    displace: { params: { faces: 'faces', near: 'near', pattern: 'pattern', amplitude: 'number', scale: 'number', octaves: 'integer', seed: 'integer', stretch: 'vec3', warp: 'number', width: 'number', axis: 'axis', mirror: 'axis', detail: 'number' }, required: ['pattern', 'amplitude', 'scale'], run: displace as unknown as OpSpec['run'], says: 'pushes fine detail out of the surface along its normal, splitting faces as far as the pattern needs: bumps, wrinkles, cracks, scales, pores, ribs, weave or scratches' },
     decimate: { params: { faces: 'faces', ratio: 'number', triangles: 'integer', error: 'number' }, required: [], run: decimate as unknown as OpSpec['run'], says: 'leaves fewer triangles over the same surface: `ratio` to keep or `triangles` to end with, stopping sooner if the surface would move more than `error` (default 0.02) of its size' },
     uv: { params: { faces: 'faces', mode: 'uvmode', axis: 'string', at: 'vec3', scale: 'number|vec2only', repeat: 'number|vec2only', offset: 'vec2', rotate: 'number' }, required: ['mode'], run: uvStep as unknown as OpSpec['run'], says: 'sets how faces take a texture: box, planar, cylinder or sphere' },
     delete: { params: { faces: 'faces' }, required: ['faces'], run: ops.deleteFaces as OpSpec['run'], says: 'removes faces, leaving a hole' },
@@ -252,6 +254,11 @@ const KIND_CHECK: Record<Kind, (v: unknown) => string | null> = {
     uvmode: (v) => (['box', 'planar', 'cylinder', 'sphere'].includes(v as string) ? null : 'must be box, planar, cylinder or sphere'),
     'number|vec2only': (v) => (isNum(v) || isNums(v, 2) ? null : 'must be a number or [u, v]'),
     vec2: (v) => (isNums(v, 2) ? null : 'must be [u, v]'),
+    pattern: (v) => (DISPLACE_PATTERNS.includes(v as never) ? null : `must be one of ${DISPLACE_PATTERNS.join(', ')}`),
+    near: (v) => {
+        const n = v as { at?: unknown; radius?: unknown } | null;
+        return typeof n === 'object' && n !== null && isNums(n.at, 3) && isNum(n.radius) && Object.keys(n).every((k) => k === 'at' || k === 'radius') ? null : 'must be { at: [x, y, z], radius }';
+    },
     noise: checkNoise,
     pivot: (v) => (v === 'center' || v === 'base' || isNums(v, 3) ? null : 'must be "center", "base" or [x, y, z]'),
 };
@@ -368,6 +375,8 @@ export interface ModelBuild {
     steps: StepReport[];
     /** The surface `normalBake` carries, as the steps stood then. */
     high?: PolyMesh;
+    /** What steps wanted said, in their order. */
+    notes: string[];
 }
 
 /** Runs the steps in order. A step that cannot run throws a {@link ModelBuildError} naming it. */
@@ -378,6 +387,7 @@ export function buildPolyMesh(source: ModelSource): ModelBuild {
     // After this step, the surface is the one to carry: the one named, or the one before the last decimate.
     const highAfter = !bake ? -2 : bake.from !== undefined ? source.steps.findIndex((s) => s.id === bake.from) : source.steps.map((s) => s.op).lastIndexOf('decimate') - 1;
     let high: PolyMesh | undefined;
+    const notes: string[] = [];
     source.steps.forEach((step, index) => {
         const { id, op, ...params } = step;
         const before = op === 'decimate' ? triangleCount(mesh) : 0;
@@ -386,10 +396,14 @@ export function buildPolyMesh(source: ModelSource): ModelBuild {
         } catch (e) {
             throw new ModelBuildError(`${stepLabel(step, index)}: ${e instanceof Error ? e.message : String(e)}`, index, id ?? null, op);
         }
+        if (mesh.notes) {
+            for (const note of mesh.notes) notes.push(`${stepLabel(step, index)}: ${note}`);
+            mesh = { positions: mesh.positions, faces: mesh.faces };
+        }
         steps.push({ index, ...(id ? { id } : {}), op, faces: mesh.faces.length, ...(op === 'decimate' ? { trianglesBefore: before, trianglesAfter: triangleCount(mesh) } : {}) });
         if (index === highAfter) high = compact(mesh);
     });
-    return { mesh: compact(mesh), steps, ...(high ? { high } : {}) };
+    return { mesh: compact(mesh), steps, notes, ...(high ? { high } : {}) };
 }
 
 // ---- Edits: changing a source without restating it ------------------------------
