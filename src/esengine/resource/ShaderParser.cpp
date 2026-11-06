@@ -1365,6 +1365,7 @@ struct LightConstants {
     tiledLights : array<Light, 96>,
     tileMask : array<vec4u, 192>,
     tileInfo : vec4f,
+    u_ambientGround : vec4f,
 };
 @group(0) @binding(2) var<uniform> lc : LightConstants;
 struct ProbeConstants { u_probeIrradiance : array<vec4f, 1000>, u_probeTail : vec4f };
@@ -1826,9 +1827,12 @@ fn shIrradiance(sh : array<vec4f, 9>, N : vec3f) -> vec3f {
         + sh[7].rgb * (1.092548 * N.x * N.z)
         + sh[8].rgb * (0.546274 * (N.x * N.x - N.y * N.y));
 }
+fn ambientFacing(dir : vec3f) -> vec3f {
+    return lc.u_ambient.rgb + lc.u_ambientGround.rgb * (0.5 - 0.5 * dir.y);
+}
 fn envIrradiance(Nw : vec3f) -> vec3f {
     let sh = shIrradiance(lc.u_envIrradiance, envDirection(Nw));
-    return lc.u_ambient.rgb + max(sh, vec3f(0.0)) * lc.u_envTint.rgb;
+    return ambientFacing(Nw) + max(sh, vec3f(0.0)) * lc.u_envTint.rgb;
 }
 // The GLSL twin's indirectIrradiance: a volume replaces the environment, because a
 // surface has one indirect term and a volume already holds every light and bounce
@@ -1925,7 +1929,7 @@ fn envRadiance(R : vec3f, roughness : f32, column : f32, P : vec3f) -> vec3f {
             + textureSampleLevel(t3, s3, clamp(uv - vec2f(0.0, r.y), vec2f(0.0), vec2f(1.0)), 0.0).rgb) * 0.125;
     }
 #endif
-    if (lc.u_envParams.x < 0.5) { return lc.u_ambient.rgb; }
+    if (lc.u_envParams.x < 0.5) { return ambientFacing(R); }
     let dir = reflectionDirection(R, P, column);
     let lod = clamp(roughness, 0.0, 1.0) * lc.u_envParams.z;
     let lo = floor(lod);
@@ -2707,6 +2711,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "    Light u_tiledLights[96];\n"
             "    highp uvec4 u_tileMask[192];\n"
             "    highp vec4 u_tileInfo;\n"
+            "    highp vec4 u_ambientGround;\n"
             "};\n"
             // One run of nine per INSTANCE, not one for the draw: a merged draw
             // holds objects standing in many places. The flag in w tells "no
@@ -3184,9 +3189,13 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             // The environment's diffuse half. With no environment the coefficients
             // are zero and this IS the flat ambient term, which keeps every existing
             // scene pixel-identical rather than merely close.
+            // A hemisphere light moves the flat term by which way this faces in the world, and by nothing with none.
+            "highp vec3 ambientFacing(in highp vec3 dir) {\n"
+            "    return u_ambient.rgb + u_ambientGround.rgb * (0.5 - 0.5 * dir.y);\n"
+            "}\n"
             "highp vec3 envIrradiance(in highp vec3 Nw) {\n"
             "    highp vec3 sh = shIrradiance(u_envIrradiance, envDirection(Nw));\n"
-            "    return u_ambient.rgb + max(sh, vec3(0.0)) * u_envTint.rgb;\n"
+            "    return ambientFacing(Nw) + max(sh, vec3(0.0)) * u_envTint.rgb;\n"
             "}\n"
             // The indirect term every lit surface starts from. A volume REPLACES the
             // environment rather than adding to it — a surface has one indirect term
@@ -3289,7 +3298,7 @@ ShaderParser::AssembledStage ShaderParser::assembleStageEx(const ParsedShader& p
             "            + textureLod(u_envMap, clamp(uv - vec2(0.0, r.y), 0.0, 1.0), 0.0).rgb) * 0.125;\n"
             "    }\n"
             "#endif\n"
-            "    if (u_envParams.x < 0.5) return u_ambient.rgb;\n"
+            "    if (u_envParams.x < 0.5) return ambientFacing(R);\n"
             "    highp vec3 dir = reflectionDirection(R, P, column);\n"
             "    highp float lod = clamp(roughness, 0.0, 1.0) * u_envParams.z;\n"
             "    highp float lo = floor(lod);\n"

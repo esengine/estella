@@ -61,7 +61,9 @@ const addSun = defineSystem([Commands()], (cmds) => {
 | `shadowExtent` | `0` | Directional only: radius the mesh shadow map covers, centred on the camera; `0` fits the view. |
 | `followEnvironmentSun` | `false` | Directional only: take direction and strength from the environment's sun, and light the sky without it. |
 | `aimFollowedSun` | `false` | With `followEnvironmentSun`: aim by this light's `Transform` instead of the panorama's sun. |
-| `environment` | — | Ambient only: a baked `.esenv` environment. |
+| `hemisphere` | `false` | Ambient only: light from above in `color`, from below in `groundColor`, blended by which way a surface faces. |
+| `groundColor` | `#5a4d40` | Ambient only: what a surface facing straight down receives with `hemisphere` on. Scaled by `intensity`. |
+| `environment` | — | Ambient only: a baked `.esenv` environment. It replaces the flat term, `hemisphere` included. |
 | `environmentRotation` | `0` | Ambient only: turn the environment about the up axis, in degrees. |
 | `drawEnvironment` | `false` | Ambient only: also draw the environment as the sky behind the scene. |
 | `reflectionScale` | `1` | Ambient only: scale what baked reflection probes show (`1` = as baked). |
@@ -540,6 +542,12 @@ WeChat, playable — boot the same pipeline. Code-first projects pass it at app 
 ```typescript
 const app = createWebApp(module, { colorSpace: 'linear' });
 ```
+
+The colour pickers show what the screen shows either way. In a linear project a `Sprite`'s or a `Light`'s colour is stored as sRGB and decoded by the engine, while a resident mesh's `MeshRenderer.color` and a material's colours reach the shader as they are, so those are stored linear: `0.25` in a scene file is what the picker shows as `#89`. Writing a mesh's colour from code takes the linear value.
+
+### Coming from three.js
+
+`intensity` has no factor of pi in it: a directional light of `1` facing a surface gives it its full colour, where three.js (r155 and later) divides diffuse light by pi. Numbers carried over from a three.js scene are therefore about three times too bright. Divide its light intensities by pi. Its `HemisphereLight` is an `Ambient` light with `hemisphere` on.
 
 ## Dynamic planar reflections
 

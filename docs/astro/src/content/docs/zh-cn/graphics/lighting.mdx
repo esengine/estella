@@ -59,7 +59,9 @@ const addSun = defineSystem([Commands()], (cmds) => {
 | `shadowExtent` | `0` | 仅 Directional:mesh 阴影图覆盖的半径,以相机为中心;`0` 表示贴合视野。 |
 | `followEnvironmentSun` | `false` | 仅 Directional:方向和强度取自环境里的太阳,天空光则不再带太阳。 |
 | `aimFollowedSun` | `false` | 配合 `followEnvironmentSun`:按这盏灯自己的 `Transform` 定向,而不是全景图里的太阳。 |
-| `environment` | — | 仅 Ambient:烘焙好的 `.esenv` 环境。 |
+| `hemisphere` | `false` | 仅 Ambient:上方来的光用 `color`,下方来的光用 `groundColor`,按表面朝向混合。 |
+| `groundColor` | `#5a4d40` | 仅 Ambient:打开 `hemisphere` 时,正对下方的表面受到的颜色。受 `intensity` 缩放。 |
+| `environment` | — | 仅 Ambient:烘焙好的 `.esenv` 环境。它会取代平坦环境光项,包括 `hemisphere`。 |
 | `environmentRotation` | `0` | 仅 Ambient:绕向上轴转动环境,度。 |
 | `drawEnvironment` | `false` | 仅 Ambient:同时把环境画成场景背后的天空。 |
 | `reflectionScale` | `1` | 仅 Ambient:缩放烘焙反射探针显示的内容(`1` = 烘焙原样)。 |
@@ -473,6 +475,12 @@ Lighting 面板会说场景已经过期。
 ```typescript
 const app = createWebApp(module, { colorSpace: 'linear' });
 ```
+
+无论哪种模式,拾色器显示的都是屏幕上的颜色。线性项目里,`Sprite` 和 `Light` 的颜色按 sRGB 存储,由引擎解码;常驻网格的 `MeshRenderer.color` 和材质颜色则原样传给着色器,所以存的是线性值:场景文件里的 `0.25` 在拾色器里显示为 `#89`。用代码写网格颜色时要传线性值。
+
+### 从 three.js 迁移
+
+`intensity` 不含 π 因子:强度为 `1` 的平行光正对表面时,给它的是完整的颜色;three.js(r155 起)的漫反射光要除以 π。所以从 three.js 场景抄过来的数值大约亮三倍,要把光照强度除以 π。它的 `HemisphereLight` 对应打开 `hemisphere` 的 `Ambient` 灯。
 
 ## 动态平面反射
 

@@ -179,6 +179,10 @@ struct LightConstants {
     glm::uvec4 tileMask[TILE_COLUMNS * TILE_ROWS]{};
     /// x = how many tiled lights there are (0 = the loop does not run), y = tile columns, z = tile rows, w unused.
     glm::vec4 tileInfo{0.0f};
+    /// rgb = what the ambient term moves by between a surface facing up and one facing down: ground minus
+    /// sky, so zero (no hemisphere light) leaves `ambient` as the flat term, pixel for pixel. Last, because a
+    /// block that does not read it is free not to declare it.
+    glm::vec4 ambientGround{0.0f};
 };
 
 static_assert(sizeof(GpuLight) == 96, "GpuLight must be std140-tight (six vec4s)");
@@ -187,7 +191,7 @@ static_assert(sizeof(LightConstants) == 16 + 96 * MAX_LIGHTS + 16
                                         + 64 * MAX_SHADOW_TILES + 16 * MAX_SHADOW_TILES
                                         + 16 + 16 * 9 + 16 + 16
                                         + 16 + 32 * MAX_REFLECTION_PROBES + 16
-                                        + 96 * MAX_TILED_LIGHTS + 16 * TILE_COLUMNS * TILE_ROWS + 16,
+                                        + 96 * MAX_TILED_LIGHTS + 16 * TILE_COLUMNS * TILE_ROWS + 16 + 16,
               "LightConstants must match the std140 GLSL block layout");
 
 }  // namespace esengine

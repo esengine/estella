@@ -3055,6 +3055,18 @@
           "advanced": true
         },
         {
+          "key": "hemisphere",
+          "type": "boolean",
+          "default": "false",
+          "doc": "Light from above in Color, from below in Ground Color, blended by which way a surface faces."
+        },
+        {
+          "key": "groundColor",
+          "type": "Color",
+          "default": "#594d40",
+          "doc": "The ambient colour a surface facing straight down receives (Hemisphere)."
+        },
+        {
           "key": "enabled",
           "type": "boolean",
           "default": "true"
@@ -3076,7 +3088,11 @@
         "outerAngle",
         "shadowSoftness",
         "sourceAngle",
-        "shadowDistance"
+        "shadowDistance",
+        "groundColor.r",
+        "groundColor.g",
+        "groundColor.b",
+        "groundColor.a"
       ]
     },
     {

@@ -55,6 +55,15 @@ public:
         dirty_ = true;
     }
 
+    /// How far a hemisphere Ambient light moves the ambient term between a surface facing up and one
+    /// facing down (ground minus sky, already scaled by intensity). Sums the way the term itself does.
+    void addAmbientGround(const glm::vec3& delta) {
+        data_.ambientGround.x += delta.x;
+        data_.ambientGround.y += delta.y;
+        data_.ambientGround.z += delta.z;
+        dirty_ = true;
+    }
+
     /// Appends a point/directional light. Silently drops past MAX_LIGHTS (the fixed shader loop
     /// bound); callers keep the most significant lights first if they exceed the cap.
     void addLight(const GpuLight& light) {

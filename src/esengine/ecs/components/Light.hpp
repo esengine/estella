@@ -239,6 +239,20 @@ struct Light {
                 tooltip="Multiply baked indirect light (lightmaps, probe volumes) by this colour (1 = as baked).")
     glm::vec4 bakedTint{1.0f, 1.0f, 1.0f, 1.0f};
 
+    /** @brief Make this Ambient light two colours: @ref color from above, @ref groundColor
+     *         from below, blended by which way a surface faces. Off is the flat term it has
+     *         always been. A sky and the ground it bounces off, without baking a panorama;
+     *         ignored where @ref environment is set, whose irradiance already says that. */
+    ES_PROPERTY(shown_when=type:Ambient,
+                tooltip="Light from above in Color, from below in Ground Color, blended by which way a surface faces.")
+    bool hemisphere{false};
+
+    /** @brief What a surface facing straight down receives with @ref hemisphere on. Scaled by
+     *         @ref intensity, and authored the way @ref color is. */
+    ES_PROPERTY(animatable, shown_when=type:Ambient,
+                tooltip="The ambient colour a surface facing straight down receives (Hemisphere).")
+    glm::vec4 groundColor{0.35f, 0.3f, 0.25f, 1.0f};
+
     /** @brief Disabled lights are skipped during collection. */
     ES_PROPERTY()
     bool enabled{true};

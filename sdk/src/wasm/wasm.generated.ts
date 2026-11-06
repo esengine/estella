@@ -695,6 +695,8 @@ export interface Light {
     reflectionScale: number;
     reflectionSaturation: number;
     bakedTint: Vec4;
+    hemisphere: boolean;
+    groundColor: Vec4;
     enabled: boolean;
 }
 

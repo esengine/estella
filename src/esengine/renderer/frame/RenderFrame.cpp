@@ -1673,6 +1673,11 @@ void RenderFrame::collectLights(ecs::Registry& registry) {
             if (collectEnvironment(light, rgb * light.intensity,
                                    sunCast && entity == skyLight)) continue;
             lights.addAmbient(rgb * light.intensity);
+            if (light.hemisphere) {
+                const glm::vec3 ground = linear_color_ ? srgbToLinearCpu(glm::vec3{light.groundColor})
+                                                       : glm::vec3{light.groundColor};
+                lights.addAmbientGround((ground - rgb) * light.intensity);
+            }
             continue;
         }
 

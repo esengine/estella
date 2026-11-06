@@ -285,7 +285,9 @@ export const PTR_LAYOUTS: Record<string, PtrLayout> = {
             { name: 'reflectionScale', type: 'f32', offset: 104 },
             { name: 'reflectionSaturation', type: 'f32', offset: 108 },
             { name: 'bakedTint', type: 'color', offset: 112 },
-            { name: 'enabled', type: 'bool', offset: 128 },
+            { name: 'hemisphere', type: 'bool', offset: 128 },
+            { name: 'groundColor', type: 'color', offset: 132 },
+            { name: 'enabled', type: 'bool', offset: 148 },
         ],
     },
     LightProbeVolume: {

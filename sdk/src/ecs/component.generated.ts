@@ -15,7 +15,7 @@ import type { AlignContent, AlignItems, AlignSelf, BillboardMode, BodyType, Canv
  * getAbiLayoutHash(); BuiltinBridge.connect() compares them and refuses to
  * run on mismatch, because mismatched offsets read the wrong heap bytes.
  */
-export const ABI_LAYOUT_HASH = 'ace63550c0783bc7';
+export const ABI_LAYOUT_HASH = '6bf8e03097b59051';
 
 /**
  * One asset-valued field of a component: which field, and what kind of
@@ -546,13 +546,15 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             reflectionScale: 1,
             reflectionSaturation: 1,
             bakedTint: { r: 1, g: 1, b: 1, a: 1 },
+            hemisphere: false,
+            groundColor: { r: 0.35, g: 0.3, b: 0.25, a: 1 },
             enabled: true,
         },
         renderableField: 'enabled',
         assetFields: [{ field: 'cookie', type: 'texture' as AssetFieldType }, { field: 'environment', type: 'environment' as AssetFieldType }],
         entityFields: [],
-        colorFields: ['color', 'bakedTint'],
-        animatableFields: ['color.r', 'color.g', 'color.b', 'color.a', 'intensity', 'radius', 'innerRadius', 'falloff', 'shadowStrength', 'cookieSize.x', 'cookieSize.y', 'innerAngle', 'outerAngle', 'shadowSoftness', 'sourceAngle', 'shadowDistance'],
+        colorFields: ['color', 'bakedTint', 'groundColor'],
+        animatableFields: ['color.r', 'color.g', 'color.b', 'color.a', 'intensity', 'radius', 'innerRadius', 'falloff', 'shadowStrength', 'cookieSize.x', 'cookieSize.y', 'innerAngle', 'outerAngle', 'shadowSoftness', 'sourceAngle', 'shadowDistance', 'groundColor.r', 'groundColor.g', 'groundColor.b', 'groundColor.a'],
         fields: {
             type: { enum: [{ label: 'Point', value: 0 }, { label: 'Directional', value: 1 }, { label: 'Ambient', value: 2 }, { label: 'Spot', value: 3 }], tooltip: "Point, Directional, Ambient, or Spot." },
             intensity: { min: 0, tooltip: "Brightness multiplier of the light." },
@@ -579,6 +581,8 @@ export const COMPONENT_META: Record<string, ComponentMetaEntry> = {
             reflectionScale: { min: 0, tooltip: "Scale what baked reflection probes show (1 = as baked).", advanced: true, shownWhen: { field: "type", values: [2] } },
             reflectionSaturation: { min: 0, max: 1, tooltip: "How much colour baked reflection probes keep (0 = grey).", advanced: true, shownWhen: { field: "type", values: [2] } },
             bakedTint: { tooltip: "Multiply baked indirect light (lightmaps, probe volumes) by this colour (1 = as baked).", advanced: true, shownWhen: { field: "type", values: [2] } },
+            hemisphere: { tooltip: "Light from above in Color, from below in Ground Color, blended by which way a surface faces.", shownWhen: { field: "type", values: [2] } },
+            groundColor: { tooltip: "The ambient colour a surface facing straight down receives (Hemisphere).", shownWhen: { field: "type", values: [2] } },
         },
     },
     LightProbeVolume: {
@@ -1719,6 +1723,8 @@ export interface LightData {
     reflectionScale: number;
     reflectionSaturation: number;
     bakedTint: Color;
+    hemisphere: boolean;
+    groundColor: Color;
     enabled: boolean;
 }
 

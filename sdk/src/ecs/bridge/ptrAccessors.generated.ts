@@ -952,6 +952,8 @@ export interface LightPtrData {
     reflectionScale: number;
     reflectionSaturation: number;
     bakedTint: Color;
+    hemisphere: boolean;
+    groundColor: Color;
     enabled: boolean;
 }
 
@@ -985,7 +987,9 @@ export function fillLight(
     out.reflectionScale = f32[(ptr + 104) >> 2];
     out.reflectionSaturation = f32[(ptr + 108) >> 2];
     const bakedTint_ = out.bakedTint; bakedTint_.r = f32[(ptr + 112) >> 2]; bakedTint_.g = f32[((ptr + 112) >> 2) + 1]; bakedTint_.b = f32[((ptr + 112) >> 2) + 2]; bakedTint_.a = f32[((ptr + 112) >> 2) + 3];
-    out.enabled = u8[ptr + 128] !== 0;
+    out.hemisphere = u8[ptr + 128] !== 0;
+    const groundColor_ = out.groundColor; groundColor_.r = f32[(ptr + 132) >> 2]; groundColor_.g = f32[((ptr + 132) >> 2) + 1]; groundColor_.b = f32[((ptr + 132) >> 2) + 2]; groundColor_.a = f32[((ptr + 132) >> 2) + 3];
+    out.enabled = u8[ptr + 148] !== 0;
 }
 
 export function writeLight(
@@ -1018,7 +1022,9 @@ export function writeLight(
     f32[(ptr + 104) >> 2] = data.reflectionScale;
     f32[(ptr + 108) >> 2] = data.reflectionSaturation;
     f32[(ptr + 112) >> 2] = data.bakedTint.r; f32[((ptr + 112) >> 2) + 1] = data.bakedTint.g; f32[((ptr + 112) >> 2) + 2] = data.bakedTint.b; f32[((ptr + 112) >> 2) + 3] = data.bakedTint.a;
-    u8[ptr + 128] = data.enabled ? 1 : 0;
+    u8[ptr + 128] = data.hemisphere ? 1 : 0;
+    f32[(ptr + 132) >> 2] = data.groundColor.r; f32[((ptr + 132) >> 2) + 1] = data.groundColor.g; f32[((ptr + 132) >> 2) + 2] = data.groundColor.b; f32[((ptr + 132) >> 2) + 3] = data.groundColor.a;
+    u8[ptr + 148] = data.enabled ? 1 : 0;
 }
 
 export function createLightData(): LightPtrData {
@@ -1049,6 +1055,8 @@ export function createLightData(): LightPtrData {
         reflectionScale: 0,
         reflectionSaturation: 0,
         bakedTint: { r: 0, g: 0, b: 0, a: 0 },
+        hemisphere: false,
+        groundColor: { r: 0, g: 0, b: 0, a: 0 },
         enabled: false,
     };
 }

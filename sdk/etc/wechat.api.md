@@ -5564,6 +5564,8 @@ environment: number
 environmentRotation: number
 falloff: number
 followEnvironmentSun: boolean
+groundColor: Color
+hemisphere: boolean
 innerAngle: number
 innerRadius: number
 intensity: number

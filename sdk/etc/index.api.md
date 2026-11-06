@@ -5,7 +5,7 @@ Symbols: 115 public · 164 beta · 2049 experimental · 3 deprecated
 
 ## ABI_LAYOUT_HASH — const @experimental
 ```
-"ace63550c0783bc7"
+"6bf8e03097b59051"
 ```
 
 ## ANCHOR_AXES — const @experimental
@@ -5562,6 +5562,8 @@ environment: number
 environmentRotation: number
 falloff: number
 followEnvironmentSun: boolean
+groundColor: Color
+hemisphere: boolean
 innerAngle: number
 innerRadius: number
 intensity: number

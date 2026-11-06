@@ -355,6 +355,24 @@ exports[`builtin FieldMeta (RC9-1 equivalence gate) > matches the golden snapsho
       },
       "tooltip": "Take direction and strength from the environment's sun, and light the sky without it.",
     },
+    "groundColor": {
+      "shownWhen": {
+        "field": "type",
+        "values": [
+          2,
+        ],
+      },
+      "tooltip": "The ambient colour a surface facing straight down receives (Hemisphere).",
+    },
+    "hemisphere": {
+      "shownWhen": {
+        "field": "type",
+        "values": [
+          2,
+        ],
+      },
+      "tooltip": "Light from above in Color, from below in Ground Color, blended by which way a surface faces.",
+    },
     "innerAngle": {
       "advanced": true,
       "max": 180,
