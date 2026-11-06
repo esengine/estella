@@ -42,6 +42,10 @@ export interface RigGoal {
 }
 
 export interface RigSource {
+    /** Hanging parts, as chains that swing. */
+    drape?: DrapeSource[];
+    /** Shapes on joints that swinging parts stay out of. */
+    colliders?: RigCollider[];
     joints: readonly RigJointSource[];
     adjust?: readonly WeightAdjust[];
     goals?: readonly RigGoal[];
@@ -287,6 +291,115 @@ export function computeWeights(mesh: PolyMesh, joints: readonly RigJoint[]): Ski
 }
 
 /** @p skin with @p adjusts applied, the rest of each touched vertex rescaled to still sum to one. */
+/**
+ * A hanging part, as bones: a skirt, a cape, a coat's tail. A ring of chains from its top edge to its hem, shared out by the way
+ * round it. Every vertex blends between the two chains either side and the two bones above and below, so the part swings as one sheet.
+ */
+export interface DrapeSource {
+    faces: FaceSelector;
+    /** The joint it hangs from. */
+    parent: string;
+    /** Chains round it. Default 10. */
+    chains?: number;
+    /** Bones down each. Default 3. */
+    bones?: number;
+    /** How hard it goes back to where it was, 0..1. Default 0.12. */
+    stiffness?: number;
+    /** How much speed it loses each frame, 0..1. Default 0.35. */
+    drag?: number;
+    /** Names from `rig.colliders` it stays out of. */
+    colliders?: string[];
+}
+
+/** A shape on a joint that swinging parts stay out of: a ball, or with `height` a capsule along the joint's own y. */
+export interface RigCollider {
+    name: string;
+    joint: string;
+    /** In the model's own space, where the joint rests. Default where the joint is. */
+    at?: Vec3;
+    radius: number;
+    height?: number;
+}
+
+/** A chain that swings: the joint it starts at, which is held, and what moves it. */
+export interface RigSpring {
+    root: number;
+    stiffness: number;
+    drag: number;
+    colliders: readonly string[];
+}
+
+/** Adds each drape's chains to the rig and binds its faces to them, leaving alone any vertex a face outside it also uses. */
+export function drapeRig(mesh: PolyMesh, joints: readonly RigJoint[], skin: SkinWeights, drapes: readonly DrapeSource[]): { joints: RigJoint[]; skin: SkinWeights; springs: RigSpring[] } {
+    const out: RigJoint[] = joints.map((j) => ({ ...j, children: [...j.children] }));
+    const springs: RigSpring[] = [];
+    const dominant = [...skin.dominant];
+    drapes.forEach((drape, d) => {
+        const hit = selectFaces(mesh, drape.faces);
+        if (hit.length === 0) throw new Error(`rig.drape ${d}: \`faces\` ${JSON.stringify(drape.faces)} matched no face`);
+        const chosen = new Set(hit);
+        const held = new Uint8Array(mesh.positions.length);
+        mesh.faces.forEach((face, f) => { if (!chosen.has(f)) for (const v of face.v) held[v] = 1; });
+        const verts = [...new Set(hit.flatMap((f) => mesh.faces[f]!.v))];
+        const parent = out.findIndex((j) => j.name === drape.parent);
+        const chains = drape.chains ?? 10;
+        const bones = drape.bones ?? 3;
+        let [cx, cz, top, bottom] = [0, 0, -Infinity, Infinity];
+        for (const v of verts) {
+            const p = mesh.positions[v]!;
+            cx += p[0]; cz += p[2];
+            top = Math.max(top, p[1]); bottom = Math.min(bottom, p[1]);
+        }
+        cx /= verts.length; cz /= verts.length;
+        const tall = Math.max(top - bottom, 1e-6);
+        const width = (Math.PI * 2) / chains;
+        const angleOf = (p: Vec3): number => (Math.atan2(p[0] - cx, p[2] - cz) + Math.PI * 2) % (Math.PI * 2);
+        const firstBones = new Int32Array(chains).fill(-1);
+        for (let k = 0; k < chains; k++) {
+            const middle = (k + 0.5) * width;
+            const mine = verts.filter((v) => {
+                const gap = Math.abs(angleOf(mesh.positions[v]!) - middle);
+                return Math.min(gap, Math.PI * 2 - gap) < width * 0.75;
+            });
+            if (mine.length === 0) continue;
+            // Where this slice of the part is at each height: a cape has no vertices round the far side, and so no chain there.
+            let up = parent;
+            firstBones[k] = out.length;
+            for (let b = 0; b <= bones; b++) {
+                const want = b / bones;
+                const near = [...mine].sort((p, q) => Math.abs((top - mesh.positions[p]![1]) / tall - want) - Math.abs((top - mesh.positions[q]![1]) / tall - want)).slice(0, Math.max(3, Math.ceil(mine.length / (bones * 2))));
+                let sum: Vec3 = [0, 0, 0];
+                for (const v of near) sum = add(sum, mesh.positions[v]!);
+                const index = out.length;
+                out.push({ name: `drape${d}.${k}.${b}`, at: scale(sum, 1 / near.length), parent: up, children: [] });
+                dominant.push(0);
+                out[up]!.children.push(index);
+                up = index;
+            }
+            springs.push({ root: firstBones[k]!, stiffness: drape.stiffness ?? 0.12, drag: drape.drag ?? 0.35, colliders: drape.colliders ?? [] });
+        }
+        for (const v of verts) {
+            if (held[v]) continue;
+            const p = mesh.positions[v]!;
+            const place = angleOf(p) / width - 0.5;
+            const k0 = Math.floor(place);
+            const blend = place - k0;
+            let a = firstBones[(k0 + chains) % chains]!, b = firstBones[(k0 + 1) % chains]!;
+            if (a < 0) a = b;
+            if (b < 0) b = a;
+            const along = Math.min(bones - 1e-6, ((top - p[1]) / tall) * bones);
+            const i = Math.floor(along);
+            const down = along - i;
+            const pairs: [number, number][] = [[a + i, (1 - blend) * (1 - down)], [a + i + 1, (1 - blend) * down], [b + i, blend * (1 - down)], [b + i + 1, blend * down]];
+            pairs.forEach(([joint, weight], n) => { skin.joints[v * 4 + n] = joint; skin.weights[v * 4 + n] = weight; });
+            const most = pairs.reduce((x, y) => (y[1] > x[1] ? y : x));
+            dominant[most[0]]!++;
+        }
+    });
+    if (out.length > MAX_RIG_JOINTS) throw new Error(`rig.drape makes ${out.length} joints, and a rig holds at most ${MAX_RIG_JOINTS}: use fewer chains or bones`);
+    return { joints: out, skin: { ...skin, dominant }, springs };
+}
+
 export function adjustWeights(mesh: PolyMesh, joints: readonly RigJoint[], skin: SkinWeights, adjusts: readonly WeightAdjust[]): SkinWeights {
     if (adjusts.length === 0) return skin;
     const outJoints = skin.joints.slice();
@@ -484,7 +597,7 @@ const vec3 = (v: unknown): boolean => Array.isArray(v) && v.length === 3 && v.ev
 export function checkRig(raw: unknown): string | null {
     const r = raw as { joints?: unknown };
     if (typeof raw !== 'object' || raw === null || !Array.isArray(r.joints)) return 'rig must be { joints: [{ name, at, parent?, mirror? }] }';
-    for (const key of Object.keys(raw)) if (!['joints', 'adjust', 'goals'].includes(key)) return `rig has an unknown field "${key}"; it takes joints, adjust, goals`;
+    for (const key of Object.keys(raw)) if (!['joints', 'adjust', 'goals', 'drape', 'colliders'].includes(key)) return `rig has an unknown field "${key}"; it takes joints, adjust, goals`;
     for (const [i, j] of (r.joints as Record<string, unknown>[]).entries()) {
         if (typeof j !== 'object' || j === null) return `rig joint ${i} must be an object`;
         for (const key of Object.keys(j)) if (!['name', 'at', 'parent', 'mirror'].includes(key)) return `rig joint ${i} has an unknown field "${key}"; a joint takes name, at, parent, mirror`;
@@ -501,6 +614,34 @@ export function checkRig(raw: unknown): string | null {
         return (e as Error).message;
     }
     const rig = raw as RigSource;
+    const colliderNames = new Set<string>();
+    if (rig.colliders !== undefined) {
+        if (!Array.isArray(rig.colliders)) return 'rig.colliders must be an array of { name, joint, radius, at?, height? }';
+        for (const c of rig.colliders as unknown as Record<string, unknown>[]) {
+            for (const key of Object.keys(c)) if (!['name', 'joint', 'at', 'radius', 'height'].includes(key)) return `rig.colliders has an unknown field "${key}"; it takes name, joint, at, radius, height`;
+            if (typeof c.name !== 'string' || !c.name) return 'a rig collider needs a name';
+            if (!names.has(c.joint as string)) return `rig collider "${c.name}" names no joint "${String(c.joint)}"`;
+            if (!(typeof c.radius === 'number' && c.radius > 0)) return `rig collider "${c.name}": radius must be positive`;
+            if (c.height !== undefined && !(typeof c.height === 'number' && c.height >= 0)) return `rig collider "${c.name}": height must be 0 or more`;
+            if (c.at !== undefined && !vec3(c.at)) return `rig collider "${c.name}": at must be [x, y, z]`;
+            colliderNames.add(c.name);
+        }
+    }
+    if (rig.drape !== undefined) {
+        if (!Array.isArray(rig.drape)) return 'rig.drape must be an array of { faces, parent, chains?, bones?, stiffness?, drag?, colliders? }';
+        for (const [i, d] of (rig.drape as unknown as Record<string, unknown>[]).entries()) {
+            for (const key of Object.keys(d)) if (!['faces', 'parent', 'chains', 'bones', 'stiffness', 'drag', 'colliders'].includes(key)) return `rig.drape ${i} has an unknown field "${key}"; it takes faces, parent, chains, bones, stiffness, drag, colliders`;
+            if (d.faces === undefined) return `rig.drape ${i} needs faces`;
+            if (!names.has(d.parent as string)) return `rig.drape ${i} names no joint "${String(d.parent)}" as its parent`;
+            if (d.chains !== undefined && !(Number.isInteger(d.chains) && (d.chains as number) >= 2 && (d.chains as number) <= 40)) return `rig.drape ${i}: chains must be 2..40`;
+            if (d.bones !== undefined && !(Number.isInteger(d.bones) && (d.bones as number) >= 1 && (d.bones as number) <= 6)) return `rig.drape ${i}: bones must be 1..6`;
+            for (const key of ['stiffness', 'drag'] as const) if (d[key] !== undefined && !(typeof d[key] === 'number' && (d[key] as number) >= 0 && (d[key] as number) <= 1)) return `rig.drape ${i}: ${key} must be 0..1`;
+            if (d.colliders !== undefined) {
+                if (!Array.isArray(d.colliders)) return `rig.drape ${i}: colliders must be names from rig.colliders`;
+                for (const c of d.colliders) if (!colliderNames.has(c as string)) return `rig.drape ${i}: no collider "${String(c)}" in rig.colliders`;
+            }
+        }
+    }
     if (rig.adjust !== undefined) {
         if (!Array.isArray(rig.adjust)) return 'rig.adjust must be an array';
         for (const a of rig.adjust as unknown as Record<string, unknown>[]) {
@@ -932,7 +1073,7 @@ export function timelineOf(animation: AnimationSource, joints: readonly RigJoint
  */
 const SWAY_COLLIDER = 'hairCollider';
 
-export function prefabOf(name: string, meshPath: string, joints: readonly RigJoint[], cullBackfaces: boolean, firstClip: string | null, controller: string | null = null, extra: { goals?: readonly RigGoal[]; shapes?: number; normalMap?: string; texture?: string; material?: string; opaque?: boolean; attach?: readonly { joint: string; prefab: string }[]; sway?: { chainRoots: readonly number[]; stiffness?: number; drag?: number; collider?: { at: Vec3; radius: number } } } = {}): Record<string, unknown> {
+export function prefabOf(name: string, meshPath: string, joints: readonly RigJoint[], cullBackfaces: boolean, firstClip: string | null, controller: string | null = null, extra: { goals?: readonly RigGoal[]; shapes?: number; normalMap?: string; texture?: string; material?: string; opaque?: boolean; attach?: readonly { joint: string; prefab: string }[]; springs?: readonly RigSpring[]; colliders?: readonly RigCollider[]; sway?: { chainRoots: readonly number[]; stiffness?: number; drag?: number; collider?: { at: Vec3; radius: number } } } = {}): Record<string, unknown> {
     const idOf = (i: number): string => `j${i}`;
     const goals = extra.goals ?? [];
     const entities: Record<string, unknown>[] = [{
@@ -953,7 +1094,7 @@ export function prefabOf(name: string, meshPath: string, joints: readonly RigJoi
         const rest = j.parent >= 0 ? sub(j.at, joints[j.parent]!.at) : j.at;
         entities.push({
             prefabEntityId: idOf(i), name: j.name, parent: j.parent >= 0 ? idOf(j.parent) : 'root',
-            children: [...j.children.map(idOf), ...goals.flatMap((g, k) => (g.parent === j.name ? [`g${k}`] : [])), ...(extra.attach ?? []).flatMap((a, k) => (a.joint === j.name ? [`a${k}`] : []))], visible: true,
+            children: [...j.children.map(idOf), ...goals.flatMap((g, k) => (g.parent === j.name ? [`g${k}`] : [])), ...(extra.attach ?? []).flatMap((a, k) => (a.joint === j.name ? [`a${k}`] : [])), ...(extra.colliders ?? []).flatMap((c) => (c.joint === j.name ? [`collider:${c.name}`] : []))], visible: true,
             components: [
                 { type: 'Transform', data: { position: { x: rest[0], y: rest[1], z: rest[2] } } },
                 // On a chain's first bone, which stays where it is: the ones below it swing.
@@ -961,9 +1102,24 @@ export function prefabOf(name: string, meshPath: string, joints: readonly RigJoi
                     enabled: true, stiffness: extra.sway.stiffness ?? 0.08, drag: extra.sway.drag ?? 0.3,
                     ...(extra.sway.collider ? { colliders: [SWAY_COLLIDER] } : {}),
                 } }] : []),
+                ...(extra.springs ?? []).filter((s) => s.root === i).map((s) => ({ type: 'SpringBone', data: {
+                    enabled: true, stiffness: s.stiffness, drag: s.drag,
+                    ...(s.colliders.length ? { colliders: s.colliders.map((c) => `collider:${c}`) } : {}),
+                } })),
             ],
         });
     });
+    for (const c of extra.colliders ?? []) {
+        const joint = joints.find((j) => j.name === c.joint)!;
+        const at = c.at ?? joint.at;
+        entities.push({
+            prefabEntityId: `collider:${c.name}`, name: c.name, parent: idOf(joints.indexOf(joint)), children: [], visible: true,
+            components: [
+                { type: 'Transform', data: { position: { x: at[0] - joint.at[0], y: at[1] - joint.at[1], z: at[2] - joint.at[2] } } },
+                { type: 'SpringBoneCollider', data: { shape: c.height ? 1 : 0, radius: c.radius, ...(c.height ? { height: c.height } : {}) } },
+            ],
+        });
+    }
     // Inside the prefab and not beside it in a scene, where a parent inside an instance has no way to be written down. Built in this model's
     // space, so its root goes back by as far as the joint it hangs from is out.
     (extra.attach ?? []).forEach((a, k) => {

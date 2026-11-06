@@ -13,7 +13,7 @@ import { boundsOf, compact, dot, faceArea, faceNormal, normalize, selectFaces, t
 import { hash3 } from './organic';
 import { triangulateFace } from './triangulate';
 
-export const DISPLACE_PATTERNS = ['bumps', 'wrinkles', 'cracks', 'scales', 'pores', 'ribs', 'weave', 'scratches'] as const;
+export const DISPLACE_PATTERNS = ['bumps', 'wrinkles', 'cracks', 'scales', 'pores', 'ribs', 'weave', 'scratches', 'pleats'] as const;
 export type DisplacePattern = typeof DISPLACE_PATTERNS[number];
 
 export interface DisplaceParams {
@@ -34,6 +34,8 @@ export interface DisplaceParams {
     warp?: number;
     /** How wide a line or dot is, as a share of a feature: cracks, pores, scratches. */
     width?: number;
+    /** Folds round the y axis through `at`: pleats. Default 24. */
+    count?: number;
     /** The axis ribs run across. Default y. */
     axis?: 'x' | 'y' | 'z';
     /** The same pattern on both sides of this axis, as a face wants. */
@@ -186,6 +188,9 @@ function patternAt(p: DisplaceParams, x: number, y: number, z: number, n: Vec3):
         }
         case 'scratches':
             return scratches(x, y, z, seed, p.width ?? 0.12, n);
+        case 'pleats':
+            // A sawtooth softened at its peak: a pressed fold is sharp on one side, where a wave is even on both.
+            return Math.pow(((Math.atan2(x, z) / (2 * Math.PI) + 1) * (p.count ?? 24)) % 1, 1.5) * 2 - 1;
     }
 }
 
@@ -201,6 +206,7 @@ export function finestShare(p: DisplaceParams): number {
         case 'ribs': return 1 / 8;
         case 'weave': return 1 / 6;
         case 'scratches': return (p.width ?? 0.12) / 2;
+        case 'pleats': return 1 / 8;
     }
 }
 

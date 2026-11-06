@@ -13,7 +13,7 @@ import { generateTangents } from '../assets/meshTangents';
 import { hairMaps, hairRig, hasCards, type HairMaps } from './hair';
 import { triangulateFace } from './triangulate';
 import { faceUvs } from './modelUv';
-import { adjustWeights, bindMatrices, computeWeights, resolveJoints, shapeDeltas, type ControllerIk, type RigGoal, type RigJoint, type SkinWeights } from './rig';
+import { adjustWeights, bindMatrices, computeWeights, drapeRig, resolveJoints, shapeDeltas, type ControllerIk, type RigGoal, type RigJoint, type RigSpring, type SkinWeights } from './rig';
 import type { NormalBakeReport } from './normalBake';
 import { buildPolyMesh, validateModelSource, type ModelSource, type StepReport } from './modelSource';
 import {
@@ -60,7 +60,7 @@ export interface BakedModel {
     data: MeshData;
     report: ModelReport;
     /** Present on a rigged model. */
-    rig?: { joints: RigJoint[]; skin: SkinWeights; ik?: readonly ControllerIk[]; goals?: readonly RigGoal[] };
+    rig?: { joints: RigJoint[]; skin: SkinWeights; ik?: readonly ControllerIk[]; goals?: readonly RigGoal[]; springs?: readonly RigSpring[] };
     /** Present on a model of hair cards: the textures they read, and where its chains start if it swings. */
     hair?: { maps: HairMaps; chainRoots?: number[] };
     /** Present where a source has shapes: three offsets per surface vertex, for each. */
@@ -334,7 +334,9 @@ export function bakeModel(raw: unknown): BakedModel {
     let rig: BakedModel['rig'];
     if (source.rig) {
         const joints = resolveJoints(source.rig);
-        rig = { joints, skin: adjustWeights(mesh, joints, computeWeights(mesh, joints), source.rig.adjust ?? []), ik: source.controller?.ik ?? [], goals: source.rig.goals ?? [] };
+        const found = adjustWeights(mesh, joints, computeWeights(mesh, joints), source.rig.adjust ?? []);
+        const draped = source.rig.drape ? drapeRig(mesh, joints, found, source.rig.drape) : null;
+        rig = { joints: draped?.joints ?? joints, skin: draped?.skin ?? found, ik: source.controller?.ik ?? [], goals: source.rig.goals ?? [], ...(draped ? { springs: draped.springs } : {}) };
     }
     const cards = hasCards(mesh);
     const swing = cards && source.hairSway ? hairRig(mesh, source.hairSway) : null;
