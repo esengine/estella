@@ -3874,6 +3874,10 @@ export const NOTED = {
     {"internal":"a check, for a fix the engine commit carries"},
   "perf(lightmap): charts are laid out by their outlines at the largest size that fits, about half of an atlas where it was a third":
     {"note":"A lightmap or a baked normal map gets nearly twice as many texels on its model."},
+  "feat(modeling): a decimate can start from the form before its detail, and a mirrored displace takes its spot with it":
+    {"note":"An AI building a model can make it light and keep its detail."},
+  "feat(mcp): model_write teaches thinning the form rather than its detail":
+    {"note":"An AI building a model can make it light and keep its detail."},
   "feat(modeling): a displace step carves wrinkles, cracks, scales and weave into a surface":
     {"note":"An AI building a model can carve fine detail into it."},
   "feat(mcp): model_write carves fine detail, and a check takes every pattern through the bake":

@@ -128,6 +128,31 @@ describe('decimate', () => {
         expect(m.data.channels.some((c) => c.semantic === MeshChannel.Joints)).toBe(true);
     });
 
+    it('`from` thins the surface before its fine detail, so the triangles go to the form and not to the noise', () => {
+        const box: ModelStep = { id: 'form', op: 'organic', resolution: 64, blend: 0.02, parts: [{ shape: 'box', size: [2, 2, 2], rounding: 0.05 }] };
+        const noise: ModelStep = { op: 'displace', pattern: 'bumps', amplitude: 0.04, scale: 0.1, octaves: 2 };
+        const after = model(box, noise, { op: 'decimate', triangles: 300, error: 0.5 });
+        const before = model(box, noise, { op: 'decimate', from: 'form', triangles: 300, error: 0.5 });
+        // Its corners are where the form put them: the noise cannot have moved or spent them.
+        const reach = (m: BakedModel): number => Math.max(...m.poly.positions.map((p) => Math.min(Math.abs(p[0]), Math.abs(p[1]), Math.abs(p[2]))));
+        expect(reach(before)).toBeGreaterThan(0.9);
+        expect(reach(before)).toBeLessThanOrEqual(1.001);
+        expect(before.report.steps.at(-1)!.trianglesBefore).toBeLessThan(after.report.steps.at(-1)!.trianglesBefore!);
+    }, 60000);
+
+    it('`from` with a bake carries what the step before it made onto what it left', () => {
+        const m = bakeModel({ version: 1, normalBake: { size: 128 }, steps: [{ ...ball, id: 'form' }, { op: 'displace', pattern: 'bumps', amplitude: 0.04, scale: 0.2, octaves: 2 }, { op: 'decimate', from: 'form', triangles: 300, error: 0.5 }] });
+        const map = bakeNormalMap(m);
+        expect(map.report.from).toBeGreaterThan(map.report.to * 10);
+        expect(map.report.meanBend).toBeGreaterThan(3);
+        expect(map.report.missed).toBeLessThan(0.05);
+    }, 60000);
+
+    it('`from` must name an earlier step', () => {
+        expect(() => validateModelSource({ steps: [ball, { op: 'decimate', from: 'nope', ratio: 0.5 }] })).toThrow(/no earlier step's id/);
+        expect(() => validateModelSource({ steps: [{ op: 'decimate', from: 'later', ratio: 0.5 }, { ...ball, id: 'later' }] })).toThrow(/no earlier step's id/);
+    });
+
     it('refuses what cannot be meant', () => {
         expect(() => model(ball, { op: 'decimate' })).toThrow(/one of `ratio` and `triangles`/);
         expect(() => model(ball, { op: 'decimate', ratio: 0.5, triangles: 10 })).toThrow(/one of `ratio` and `triangles`/);

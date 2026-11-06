@@ -9,7 +9,7 @@
  *        pattern's finest feature has triangles to land on. That count is what a
  *        `decimate` and a `normalBake` afterwards exist to pay back.
  */
-import { boundsOf, compact, dot, faceArea, faceNormal, length, normalize, selectFaces, sub, type Face, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
+import { boundsOf, compact, dot, faceArea, faceNormal, normalize, selectFaces, type Face, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
 import { hash3 } from './organic';
 import { triangulateFace } from './triangulate';
 
@@ -318,10 +318,14 @@ export function displace(mesh: PolyMesh, p: DisplaceParams, budget = MAX_DISPLAC
     if (p.near) {
         const { at, radius } = p.near;
         // By the box round a face: one large face can cross the ball with every corner far outside it.
+        const across = p.mirror ? { x: 0, y: 1, z: 2 }[p.mirror] : -1;
+        const twin: Vec3 = across === 0 ? [-at[0], at[1], at[2]] : across === 1 ? [at[0], -at[1], at[2]] : across === 2 ? [at[0], at[1], -at[2]] : at;
         hit = hit.filter((f) => {
             const { min, max } = boundsOf(mesh, mesh.faces[f]!.v);
-            const gap = [0, 1, 2].map((k) => Math.max(min[k]! - at[k]!, 0, at[k]! - max[k]!));
-            return Math.hypot(gap[0]!, gap[1]!, gap[2]!) < radius;
+            return [at, twin].some((c) => {
+                const gap = [0, 1, 2].map((k) => Math.max(min[k]! - c[k]!, 0, c[k]! - max[k]!));
+                return Math.hypot(gap[0]!, gap[1]!, gap[2]!) < radius;
+            });
         });
         if (hit.length === 0) throw new Error(`no surface of \`faces\` within ${radius} of ${JSON.stringify(at)}`);
     }
@@ -358,17 +362,20 @@ export function displace(mesh: PolyMesh, p: DisplaceParams, budget = MAX_DISPLAC
     const warp = p.warp ?? 0;
     const positions: Vec3[] = fine.positions.map((at, v) => {
         if (!inside[v]) return at;
-        let weight = 1;
-        if (p.near) {
-            const t = 1 - length(sub(at, p.near.at)) / p.near.radius;
-            if (t <= 0) return at;
-            weight = t * t * (3 - 2 * t);
-        }
-        const n = normalize([normals[v * 3]!, normals[v * 3 + 1]!, normals[v * 3 + 2]!]);
+        // Mirrored first, so `near` is mirrored with the pattern: one spot asked for on one side is that spot on both.
         let [x, y, z] = [at[0], at[1], at[2]];
         if (p.mirror === 'x') x = Math.abs(x);
         if (p.mirror === 'y') y = Math.abs(y);
         if (p.mirror === 'z') z = Math.abs(z);
+        let weight = 1;
+        if (p.near) {
+            const c = p.near.at;
+            const toward = (axis: 'x' | 'y' | 'z', k: 0 | 1 | 2, v: number): number => (p.mirror === axis ? Math.abs(c[k]) : v);
+            const t = 1 - Math.hypot(x - toward('x', 0, c[0]), y - toward('y', 1, c[1]), z - toward('z', 2, c[2])) / p.near.radius;
+            if (t <= 0) return at;
+            weight = t * t * (3 - 2 * t);
+        }
+        const n = normalize([normals[v * 3]!, normals[v * 3 + 1]!, normals[v * 3 + 2]!]);
         x /= sx; y /= sy; z /= sz;
         if (warp > 0) {
             const [wx, wy, wz] = [

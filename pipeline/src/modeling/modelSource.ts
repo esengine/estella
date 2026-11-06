@@ -97,7 +97,7 @@ export const MODEL_OPS: Record<string, OpSpec> = {
     boolean: { params: { operation: 'operation', with: 'faces', from: 'faces', keep: 'boolean', tag: 'string', color: 'color' }, required: ['operation', 'with'], run: booleanOp as unknown as OpSpec['run'], says: 'cuts or joins closed solids: subtract `with` from `from` makes a real hole' },
     subdivide: { params: { faces: 'faces', levels: 'integer', crease: 'number' }, required: [], run: subdivide as unknown as OpSpec['run'], says: 'rounds whole shells into smooth surfaces, keeping edges sharper than `crease` degrees' },
     displace: { params: { faces: 'faces', near: 'near', pattern: 'pattern', amplitude: 'number', scale: 'number', octaves: 'integer', seed: 'integer', stretch: 'vec3', warp: 'number', width: 'number', axis: 'axis', mirror: 'axis', detail: 'number' }, required: ['pattern', 'amplitude', 'scale'], run: ((mesh: PolyMesh, params: never) => displace(mesh, params)) as OpSpec['run'], says: 'pushes fine detail out of the surface along its normal, splitting faces as far as the pattern needs: bumps, wrinkles, cracks, scales, pores, ribs, weave or scratches' },
-    decimate: { params: { faces: 'faces', ratio: 'number', triangles: 'integer', error: 'number' }, required: [], run: decimate as unknown as OpSpec['run'], says: 'leaves fewer triangles over the same surface: `ratio` to keep or `triangles` to end with, stopping sooner if the surface would move more than `error` (default 0.02) of its size' },
+    decimate: { params: { from: 'string', faces: 'faces', ratio: 'number', triangles: 'integer', error: 'number' }, required: [], run: decimate as unknown as OpSpec['run'], says: 'leaves fewer triangles over the same surface: `ratio` to keep or `triangles` to end with, stopping sooner if the surface would move more than `error` (default 0.02) of its size; `from` thins the surface as it stood after that step, before its fine detail' },
     uv: { params: { faces: 'faces', mode: 'uvmode', axis: 'string', at: 'vec3', scale: 'number|vec2only', repeat: 'number|vec2only', offset: 'vec2', rotate: 'number' }, required: ['mode'], run: uvStep as unknown as OpSpec['run'], says: 'sets how faces take a texture: box, planar, cylinder or sphere' },
     delete: { params: { faces: 'faces' }, required: ['faces'], run: ops.deleteFaces as OpSpec['run'], says: 'removes faces, leaving a hole' },
     paint: { params: { faces: 'faces', color: 'color' }, required: ['faces', 'color'], run: ops.paint as OpSpec['run'], says: 'sets vertex colour: linear [r, g, b] in 0..1, multiplied into the material' },
@@ -354,6 +354,7 @@ export function validateModelSource(raw: unknown): ModelSource {
             if (bad) refuse(`${key} ${bad}`);
         }
         for (const need of spec.required) if (step[need] === undefined) refuse(`${need} is required`);
+        if (step.op === 'decimate' && step.from !== undefined && !(source.steps as Partial<ModelStep>[]).slice(0, index).some((s) => s?.id === step.from)) refuse(`from "${String(step.from)}" is no earlier step's id`);
         return undefined;
     });
     return { version: MODEL_SOURCE_VERSION, ...(source as unknown as Omit<ModelSource, 'version'>) };
@@ -388,11 +389,16 @@ export function buildPolyMesh(source: ModelSource): ModelBuild {
     const highAfter = !bake ? -2 : bake.from !== undefined ? source.steps.findIndex((s) => s.id === bake.from) : source.steps.map((s) => s.op).lastIndexOf('decimate') - 1;
     let high: PolyMesh | undefined;
     const notes: string[] = [];
+    // The states a later decimate starts from instead of the one it finds, and only those: a dense model is a lot to keep.
+    const wanted = new Set(source.steps.flatMap((s) => (s.op === 'decimate' && typeof s.from === 'string' ? [s.from] : [])));
+    const kept = new Map<string, PolyMesh>();
     source.steps.forEach((step, index) => {
         const { id, op, ...params } = step;
-        const before = op === 'decimate' ? triangleCount(mesh) : 0;
+        const { from, ...rest } = params as { from?: string };
+        const input = op === 'decimate' && from !== undefined ? kept.get(from)! : mesh;
+        const before = op === 'decimate' ? triangleCount(input) : 0;
         try {
-            mesh = MODEL_OPS[op]!.run(mesh, params as never);
+            mesh = MODEL_OPS[op]!.run(input, (op === 'decimate' ? rest : params) as never);
         } catch (e) {
             throw new ModelBuildError(`${stepLabel(step, index)}: ${e instanceof Error ? e.message : String(e)}`, index, id ?? null, op);
         }
@@ -402,6 +408,7 @@ export function buildPolyMesh(source: ModelSource): ModelBuild {
         }
         steps.push({ index, ...(id ? { id } : {}), op, faces: mesh.faces.length, ...(op === 'decimate' ? { trianglesBefore: before, trianglesAfter: triangleCount(mesh) } : {}) });
         if (index === highAfter) high = compact(mesh);
+        if (id && wanted.has(id)) kept.set(id, mesh);
     });
     return { mesh: compact(mesh), steps, notes, ...(high ? { high } : {}) };
 }

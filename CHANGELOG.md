@@ -24,7 +24,7 @@ published separately; it ships inside the editor.
 
 - **An AI building a model can carve fine detail into it.** A `displace` step pushes bumps, wrinkles, cracks, scales, pores, ribs, weave or scratches out of a surface along its normal. A pattern needs no UV and has no seams, can be limited to some faces or to around a point, stacks with others, and splits the surface as far as it needs. Followed by `decimate` and `normalBake`, half a million triangles of detail draw on 1,500.
 
-- **An AI building a model can make it light and keep its detail.** A `decimate` step thins a model to a share or a number of triangles, keeping paint and tags on the side they were on, and rigs and shapes are found on what it leaves. `normalBake` writes the surface as it stood before that as a normal map on the thinned one, rigged or not: a 77,000-triangle rock at 800 triangles lights close to the original, and the map bakes in about a second.
+- **An AI building a model can make it light and keep its detail.** A `decimate` step thins a model to a share or a number of triangles, keeping paint and tags on the side they were on, and rigs and shapes are found on what it leaves. With `from` it thins the form as it stood before the fine detail, so edges and features keep their triangles. `normalBake` writes the surface as it stood before that as a normal map on the thinned one, rigged or not: a 77,000-triangle rock at 800 triangles lights close to the original, and the map bakes in about a second.
 
 - **A mesh can have 256 joints, up from 64.** A rig with fingers, a face and hair no longer imports as a statue. A draw sends only the joints it has, so a small rig costs what it did.
 

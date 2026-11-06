@@ -129,6 +129,14 @@ describe('displace', () => {
         expect(pairs).toBeGreaterThan(50);
     });
 
+    it('`mirror` takes `near` with it: a spot named on one side is on both', () => {
+        const m = model(sheet, { op: 'displace', pattern: 'bumps', amplitude: 0.1, scale: 0.15, near: { at: [0.5, 0, 0], radius: 0.3 }, mirror: 'x' });
+        const movedAt = (side: number): number => m.poly.positions.filter((p) => Math.sign(p[0]) === side && Math.abs(p[1]) > 1e-4).length;
+        expect(movedAt(1)).toBeGreaterThan(20);
+        expect(movedAt(-1)).toBe(movedAt(1));
+        for (const p of m.poly.positions) if (Math.abs(p[1]) > 1e-4) expect(Math.hypot(Math.abs(p[0]) - 0.5, p[2])).toBeLessThan(0.31);
+    });
+
     it('`detail` sets how far it splits', () => {
         const coarse = model(sheet, { op: 'displace', pattern: 'bumps', amplitude: 0.05, scale: 0.5, detail: 0.5 });
         const fine = model(sheet, { op: 'displace', pattern: 'bumps', amplitude: 0.05, scale: 0.5, detail: 0.1 });
