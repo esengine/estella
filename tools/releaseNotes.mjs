@@ -3850,4 +3850,6 @@ export const NOTED = {
     {"note":"Writing an entity list on the web replaces it"},
   "fix(native): a component's entity list reaches the native core, so a spring bone's colliders work in a device build and a script can read them":
     {"note":"A spring bone's colliders work in a native build"},
+  "perf(render): a Voxel GI ray asks a small table whether a cell holds anything and wraps it with a mask, so a default frame costs a third of what it did":
+    {"note":"Voxel GI costs a third of what it did."},
 };

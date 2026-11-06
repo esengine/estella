@@ -55,16 +55,21 @@ fn addArea(base : u32, area : f32) {
 
 // Set on a slot's tag by the inject when the picture showed its cell this frame, and cleared by the maintain each frame.
 const SEEN : u32 = 2u;
+// Set on a slot's tag while it holds anything. What a ray asks of every cell it crosses, most of them empty: the tags are an eighth of the
+// grid, so the answer is mostly in cache, where the grid's own count is a miss.
+const HELD : u32 = 4u;
+const MARKS : u32 = SEEN | HELD;
 fn hash3(c : vec3i) -> u32 {
     var h = (u32(c.x) * 73856093u) ^ (u32(c.y) * 19349663u) ^ (u32(c.z) * 83492791u);
     h = (h ^ (h >> 16u)) * 0x45d9f3bu;
     h = h ^ (h >> 16u);
-    // Bit 0 always set (no live cell hashes to 0, which an empty slot holds); bit 1 is not part of the hash, but the mark SEEN.
-    return (h | 1u) & ~SEEN;
+    // Bit 0 always set (no live cell hashes to 0, which an empty slot holds); the marks are not part of the hash.
+    return (h | 1u) & ~MARKS;
 }
 fn wrapIndex(cell : vec3i) -> u32 {
-    let d = vec3i(gi.dims.xyz);
-    let w = ((cell % d) + d) % d;
+    // The dims are powers of two (VoxelGI.hpp), so a mask wraps a negative cell too, and costs nothing where a modulo is an integer
+    // division: a ray takes this every step.
+    let w = cell & (vec3i(gi.dims.xyz) - vec3i(1));
     return u32(w.x) + u32(w.y) * gi.dims.x + u32(w.z) * gi.dims.x * gi.dims.y;
 }
 fn inWindow(cell : vec3i) -> bool {
@@ -101,22 +106,24 @@ fn main(@builtin(global_invocation_id) id : vec3u) {
     let total = gi.dims.x * gi.dims.y * gi.dims.z;
     let i = id.x;
     if (i >= total) { return; }
-    let g = vec3i(i32(i % gi.dims.x), i32((i / gi.dims.x) % gi.dims.y), i32(i / (gi.dims.x * gi.dims.y)));
+    let g = vec3i(i32(i & (gi.dims.x - 1u)), i32((i >> countTrailingZeros(gi.dims.x)) & (gi.dims.y - 1u)),
+                  i32(i >> countTrailingZeros(gi.dims.x * gi.dims.y)));
     let d = vec3i(gi.dims.xyz);
     // The cell this slot stands for in the window as it is now: toroidal, so the window slides over the same memory.
-    let rel = ((g - gi.origin.xyz) % d + d) % d;
+    let rel = (g - gi.origin.xyz) & (d - vec3i(1));
     let cell = gi.origin.xyz + rel;
     let tag = hash3(cell);
     let base = i * WORDS;
     // Each invocation owns its slot, so the words are read and written plainly (readWriteCache): ageing a million slots through atomics
     // every frame was most of what the cache cost a phone. An empty slot (no samples, no area) has nothing to age and is left alone.
-    if ((tags[i] & ~SEEN) != tag) {
+    if ((tags[i] & ~MARKS) != tag) {
         tags[i] = tag;
         for (var k = 0u; k < WORDS; k = k + 1u) { grid[base + k] = 0u; }
     } else {
         tags[i] = tag;
         if ((grid[base] | grid[base + 1u] | grid[base + 2u] | grid[base + 3u] | grid[base + 7u]) == 0u) { return; }
         for (var k = 0u; k < WORDS; k = k + 1u) { grid[base + k] = u32(f32(grid[base + k]) * gi.a.y); }
+        if (grid[base + 3u] != 0u) { tags[i] = tag | HELD; }
     }
 }
 )WGSL";
@@ -160,7 +167,7 @@ fn main(@builtin(global_invocation_id) id : vec3u) {
     }
     addArea(base, footprint);
     // Every writer writes the same value, so the race is harmless.
-    tags[wrapIndex(cell)] = hash3(cell) | SEEN;
+    tags[wrapIndex(cell)] = hash3(cell) | MARKS;
     var lit = textureLoad(scene, t, 0).rgb;
     let albedo = textureLoad(albedoTex, t, 0);
     if (gi.view.y > 0.5 && albedo.a > 0.5) {
@@ -238,6 +245,7 @@ fn main(@builtin(global_invocation_id) id : vec3u) {
     // Where the picture has shown this voxel (the inject ran first this frame), its own colour is the better answer than an assumed
     // albedo: the sun's estimate is what stands in only where the camera has not looked.
     if ((tags[wrapIndex(cell)] & SEEN) != 0u) { return; }
+    tags[wrapIndex(cell)] = hash3(cell) | HELD;
     addArea(base, sqrt(area));
     let c = clamp(sun.light.rgb * (sun.light.w * max(dot(nrm, L), 0.0)), vec3f(0.0), vec3f(gi.a.z));
     atomicAdd(&grid[base], u32(c.r * FIXED));
@@ -296,9 +304,10 @@ fn trace(origin : vec3f, dir : vec3f) -> vec3f {
             cell.z = cell.z + stepv.z; t = tMax.z; tMax.z = tMax.z + delta.z;
         }
         if (!inWindow(cell)) { break; }
-        let idx = wrapIndex(cell);
-        if ((tags[idx] & ~SEEN) != hash3(cell)) { continue; }
-        let base = idx * WORDS;
+        // A slot in the window is that cell's: the maintain re-tagged every slot this frame, and the window was just asked.
+        let slot = wrapIndex(cell);
+        if ((tags[slot] & HELD) == 0u) { continue; }
+        let base = slot * WORDS;
         let count = atomicLoad(&grid[base + 3u]);
         if (count < 2u * COUNT) { continue; }
         let inv = f32(COUNT) / f32(count);

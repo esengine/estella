@@ -120,3 +120,17 @@ voxel:
 The voxel pass went from 1.11 to 2.45 ms (frame 4.4 → 5.1 ms). There is no coverage term here (the atlas has no spare channel), so
 coarse grids still overshoot regionally: the ceiling is 1.4 at 40 cm. One headless run of 12 cm read 0.51. A rerun twice read 0.80,
 so take a single low reading as a capture timed before the grid filled.
+
+### Cost of a voxel step (2026-11-05, WebGPU)
+
+Windows host, hidden, RTX 3060, 720p, uncapped (`ESTELLA_BENCH_FRAMES`), scene `gi_room` (0.77 ms with GI off):
+
+| Change | Default frame | One ray per point |
+| --- | --- | --- |
+| Before | 17.3 ms | 3.5 ms |
+| Masks for the modulos, no per-step hash check | 11.5 ms | 2.7 ms |
+| A held mark in the tags, read before the grid | 5.2 ms | 2.1 ms |
+
+A two-level walk, skipping an empty 4x4x4 block in one step, was tried on top and measured nothing, in this room, with its walls removed, and at 12 cm: with the mark, a cell is already nearly free. It was taken out. About 1 ms of what is left does not depend on rays (the upkeep, the inject, the apply), and each ray costs about 0.4 ms.
+
+Held against the old kernels with this lab, the light share and the pixels match within the noise of two runs of one build (0.90 at the default size, 0.70 at 12 cm). Those are lower than the 0.95 and 0.74 recorded above, and that came with an earlier commit, not with this.

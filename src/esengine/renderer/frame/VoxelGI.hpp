@@ -92,6 +92,8 @@ public:
     static constexpr u32 kDimsX = 128;
     static constexpr u32 kDimsY = 64;
     static constexpr u32 kDimsZ = 128;
+    static_assert((kDimsX & (kDimsX - 1)) == 0 && (kDimsY & (kDimsY - 1)) == 0 && (kDimsZ & (kDimsZ - 1)) == 0,
+                  "the kernels wrap a cell into the grid with a mask");
 
 private:
     struct Programs;
