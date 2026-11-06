@@ -3856,4 +3856,6 @@ export const NOTED = {
     {"note":"Voxel GI no longer changes with the size of the picture."},
   "fix(native): a packaged game's colour space, output transform, MSAA, quality, layers and camera fit reach a native host, so a linear project is no longer far too dark":
     {"note":"A linear project on a native build is no longer far too dark."},
+  "fix(water): the albedo lines of the water shader go back inside its source, where a misplaced edit left them as top-level script that stopped every export from loading":
+    {"internal":"broke after 0.98.0 and before any release, so no creator ever had it"},
 };

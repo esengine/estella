@@ -334,6 +334,8 @@ in highp vec3 v_worldXYZ;
 #ifdef ES_GBUFFER
 layout(location = 0) out vec4 fragColor;
 layout(location = 1) out vec4 fragSurface;
+// The surface's diffuse colour, for light an effect adds after this pass (bounce light): alpha 1 is "written".
+layout(location = 2) out vec4 fragAlbedo;
 
 vec2 packNormal(vec3 n) {
     n /= (abs(n.x) + abs(n.y) + abs(n.z));
@@ -341,8 +343,6 @@ vec2 packNormal(vec3 n) {
     vec2 e = n.z >= 0.0 ? n.xy : (1.0 - abs(n.yx)) * sgn;
     return e * 0.5 + 0.5;
 }
-// The surface's diffuse colour, for light an effect adds after this pass (bounce light): alpha 1 is "written".
-layout(location = 2) out vec4 fragAlbedo;
 #else
 out vec4 fragColor;
 #endif
@@ -799,6 +799,7 @@ void main() {
 #ifdef ES_GBUFFER
     // 0.72: a surface, and water (see readSurface): what lands on it is the water's, not a wet floor's.
     fragSurface = vec4(packNormal(normalize(N)), roughness, 0.72);
+    fragAlbedo = vec4(0.0);
 #endif
 }
 #pragma end
@@ -808,11 +809,11 @@ void main() {
 struct FragOut {
     @location(0) color : vec4f,
     @location(1) surface : vec4f,
+    @location(2) albedo : vec4f,
 };
 
 fn packNormal(n : vec3f) -> vec2f {
     let a = n / (abs(n.x) + abs(n.y) + abs(n.z));
-    fragAlbedo = vec4(0.0);
     let sgn = vec2f(select(-1.0, 1.0, a.x >= 0.0), select(-1.0, 1.0, a.y >= 0.0));
     var e = a.xy;
     if (a.z < 0.0) { e = (vec2f(1.0) - abs(a.yx)) * sgn; }
@@ -822,7 +823,6 @@ fn packNormal(n : vec3f) -> vec2f {
 
 fn waterHash(p0 : vec2f) -> f32 {
     var p = fract(p0 * vec2f(0.1031, 0.1030));
-    @location(2) albedo : vec4f,
     p = p + dot(p, p.yx + 33.33);
     return fract((p.x + p.y) * p.x);
 }
@@ -1266,6 +1266,7 @@ fn waterSurface(p : vec2f, time : f32, dist : f32, amp : f32, calm : f32) -> vec
     var frag : FragOut;
     frag.color = vec4f(color, alpha);
     frag.surface = vec4f(packNormal(normalize(N)), roughness, 0.72);
+    frag.albedo = vec4f(0.0);
     return frag;
 #else
     return vec4f(color, alpha);
@@ -1276,4 +1277,3 @@ fn waterSurface(p : vec2f, time : f32, dist : f32, amp : f32, calm : f32) -> vec
 
 export const WATER_SHADER_TEMPLATE = makeBuiltinShaderTemplate('water', 'Water',
     'Waves, refraction, reflection, depth absorption and foam for a horizontal body of water.', WATER);
-    frag.albedo = vec4f(0.0);
