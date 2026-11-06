@@ -48,6 +48,8 @@ published separately; it ships inside the editor.
 
 ### Fixed
 
+- **A rotation given to an agent as a quaternion is that rotation.** `set_field` and `apply_scene_ops` read `{ w, x, y, z }` as degrees and dropped `w`, so a character meant to turn 90 degrees turned under one, with no error. A joint posed this way looked as if the skin did not follow it.
+
 - **An agent's `get_stats` waits out a long frame.** It gave a running game two seconds to answer, so on a machine that takes that long to draw a frame it said the game had stopped.
 - **A saved scene reaches a device preview on Linux.** The project watch followed each file's inode, so a file replaced by rename stopped reporting. It watches each folder there now, which also ends the crash when a watched folder was deleted during a scan.
 - **A linear game looks the same on every Play.** From the second Play on, a scene with no post-process effects showed raw linear values, about a third as bright, with nothing in the log. Stopping a game shut down the pipeline that encodes the frame, and nothing brought it back unless the camera had an effect.
