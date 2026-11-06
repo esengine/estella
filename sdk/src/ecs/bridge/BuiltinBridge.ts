@@ -51,24 +51,24 @@ export function convertFromWasm(
 }
 
 /**
- * Rewrite color-typed fields from the SDK {r,g,b,a} shape into the WASM
- * {x,y,z,w} shape. The outer object is always a fresh merge constructed
- * by the caller, but inner color values may alias user-supplied data or
- * the shared component defaults, so we replace those slots with fresh
- * {x,y,z,w} objects rather than mutating them.
+ * The SDK's {r,g,b,a} colour fields in the WASM {x,y,z,w} shape, as a new object:
+ * @p obj is left as it was. It can be a Mut row, which the game still holds and
+ * which is written back more than once; rewritten in place, its colour had no `r`
+ * the second time and every channel crossed as NaN (issue #107).
  */
 export function convertForWasm(
     obj: Record<string, unknown>,
     colorKeys: readonly string[],
 ): Record<string, unknown> {
     if (colorKeys.length === 0) return obj;
+    const out = { ...obj };
     for (const key of colorKeys) {
         const val = obj[key] as { r?: number; g?: number; b?: number; a?: number } | null | undefined;
         if (val && typeof val === 'object') {
-            obj[key] = { x: val.r, y: val.g, z: val.b, w: val.a };
+            out[key] = { x: val.r, y: val.g, z: val.b, w: val.a };
         }
     }
-    return obj;
+    return out;
 }
 
 /** An embind std::vector, which its owner has to free. */
@@ -889,10 +889,13 @@ export class BuiltinBridge {
             entityFields: readonly string[] = []): void {
         const module = this.module_ as unknown as
             { VectorEntity?: new () => WasmVector; VectorFloat?: new () => WasmVector } | null;
-        const vectors = materializeEntityVectors(payload, entityFields, module);
-        vectors.push(...materializeNumberVectors(payload, numberListFieldsOf(cppName), module));
+        const numberFields = numberListFieldsOf(cppName);
+        // On a copy: the vectors are freed below, and @p payload can be a Mut row the game still holds.
+        const out = entityFields.length > 0 || numberFields.length > 0 ? { ...payload } : payload;
+        const vectors = materializeEntityVectors(out, entityFields, module);
+        vectors.push(...materializeNumberVectors(out, numberFields, module));
         try {
-            this.getBuiltinMethods(cppName).add(entity, payload);
+            this.getBuiltinMethods(cppName).add(entity, out);
         } finally {
             for (const v of vectors) v.delete();
         }

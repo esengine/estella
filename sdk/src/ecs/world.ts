@@ -1182,12 +1182,15 @@ export class World {
                 if (ptrSetter) return ptrSetter;
             }
 
-            const methods = this.builtin_.getBuiltinMethods(component._cppName);
-            const colorKeys = component.colorKeys;
-            if (colorKeys.length === 0) {
+            const name = component._cppName;
+            const { colorKeys, entityFields } = component;
+            if (colorKeys.length === 0 && entityFields.length === 0 && numberListFieldsOf(name).length === 0) {
+                const methods = this.builtin_.getBuiltinMethods(name);
                 return (e, d) => methods.add(e, d);
             }
-            return (e, d) => methods.add(e, convertForWasm(d as Record<string, unknown>, colorKeys));
+            // The one marshalled write, as world.set and insert take it: a list field crosses as the vector embind
+            // registered, never as the JS array a row holds.
+            return (e, d) => this.builtin_.replace(e, name, convertForWasm(d as Record<string, unknown>, colorKeys), entityFields);
         }
         // Through ScriptStorage, not into the map: a pooled component's stored
         // value is a live view onto its row, and replacing it with a plain

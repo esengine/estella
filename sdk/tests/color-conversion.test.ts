@@ -60,10 +60,18 @@ describe('convertForWasm', () => {
         expect(out.color).toEqual({ x: 0.1, y: 0.2, z: 0.3, w: 0.4 });
     });
 
-    it('returns the same outer object (zero outer allocation)', () => {
-        const src = { color: { r: 1, g: 0, b: 0, a: 1 } };
+    it('leaves its input as it was: the input can be a row the game still holds', () => {
+        const color = { r: 1, g: 0, b: 0, a: 1 };
+        const src = { color };
         const out = convertForWasm(src as Record<string, unknown>, ['color']);
-        expect(out).toBe(src);
+        expect(out).not.toBe(src);
+        expect(src.color).toBe(color);
+        expect(color).toEqual({ r: 1, g: 0, b: 0, a: 1 });
+    });
+
+    it('converts the same row twice to the same thing', () => {
+        const src = { color: { r: 1, g: 0.5, b: 0.25, a: 1 } } as Record<string, unknown>;
+        expect(convertForWasm(src, ['color'])).toEqual(convertForWasm(src, ['color']));
     });
 });
 

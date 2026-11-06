@@ -3844,4 +3844,6 @@ export const NOTED = {
     {"note":"Glyphs can be put on the atlas before they are shown."},
   "fix(tools): the preload note's golden classification waits for the release, which is when check-golden reads a feature as shipped":
     {"internal":"a release-gate table, nothing a creator can observe"},
+  "fix(ecs): a Mut row is no longer rewritten by its own write-back, so walking one on the web keeps its colours and a list field crosses as a vector":
+    {"note":"`Mut()` on the web no longer turns a component's colours to NaN"},
 };
