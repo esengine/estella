@@ -150,7 +150,7 @@ describe('what the channel costs a device', () => {
             getFrameCosts: () => null,
             getFrameTiming: () => null,
             wasmModule: null,
-            world: { getAllEntities: () => [] },
+            world: { getAllEntities: () => [], getEntitiesWithComponents: () => [] },
         } as unknown as App);
         s.receive({ t: 'query', reqId: 21, kind: 'stats' });
         await flush();
