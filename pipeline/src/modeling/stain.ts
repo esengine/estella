@@ -22,6 +22,8 @@ export interface StainParams {
     roughness?: number;
     /** How much metal to make it, 0..1: bare steel where the paint has worn off. */
     metallic?: number;
+    /** How solid to make it, 0..1: 0 is a hole, under a material with `alpha`. */
+    alpha?: number;
     /** How strongly, 0..1, where the rest say all the way. Default 1. */
     amount?: number;
     pattern?: DisplacePattern;
@@ -106,9 +108,9 @@ function relief(mesh: PolyMesh, normals: Float64Array, reach: number | undefined
 }
 
 export function stain(mesh: PolyMesh, p: StainParams, budget = MAX_DISPLACE_TRIANGLES, surfaceDefaults?: { roughness: number; metallic: number }): PolyMesh {
-    if (p.color === undefined && p.roughness === undefined && p.metallic === undefined) throw new Error('give at least one of color, roughness, metallic');
+    if (p.color === undefined && p.roughness === undefined && p.metallic === undefined && p.alpha === undefined) throw new Error('give at least one of color, roughness, metallic, alpha');
     if (p.color !== undefined && p.color.length < 3) throw new Error('color must be [r, g, b]');
-    for (const [name, v] of [['roughness', p.roughness], ['metallic', p.metallic]] as const) {
+    for (const [name, v] of [['roughness', p.roughness], ['metallic', p.metallic], ['alpha', p.alpha]] as const) {
         if (v !== undefined && !(v >= 0 && v <= 1)) throw new Error(`${name} ${v} must be 0..1`);
     }
     if (p.pattern !== undefined && !DISPLACE_PATTERNS.includes(p.pattern)) throw new Error(`pattern ${JSON.stringify(p.pattern)} must be one of ${DISPLACE_PATTERNS.join(', ')}`);
@@ -191,7 +193,12 @@ export function stain(mesh: PolyMesh, p: StainParams, budget = MAX_DISPLACE_TRIA
         const was = face.color ?? [1, 1, 1, 1];
         return {
             ...face,
-            ...(color ? { color: [was[0] + (color[0] - was[0]) * m, was[1] + (color[1] - was[1]) * m, was[2] + (color[2] - was[2]) * m, was[3]] as const } : {}),
+            ...(color || p.alpha !== undefined ? {
+                color: [
+                    was[0] + ((color?.[0] ?? was[0]) - was[0]) * m, was[1] + ((color?.[1] ?? was[1]) - was[1]) * m, was[2] + ((color?.[2] ?? was[2]) - was[2]) * m,
+                    was[3] + ((p.alpha ?? was[3]) - was[3]) * m,
+                ] as const,
+            } : {}),
             ...(p.roughness !== undefined ? { roughness: (face.roughness ?? defaults.roughness) + (p.roughness - (face.roughness ?? defaults.roughness)) * m } : {}),
             ...(p.metallic !== undefined ? { metallic: (face.metallic ?? defaults.metallic) + (p.metallic - (face.metallic ?? defaults.metallic)) * m } : {}),
         };

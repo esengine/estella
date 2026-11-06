@@ -10,6 +10,7 @@
  */
 import { BlendMode, CullMode, MATERIAL_FORMAT_VERSION, MeshChannel, MeshChannelType, packChannels, unwrapLightmapUV, type MeshData, type MeshMorphTargets } from 'esengine';
 import { generateTangents } from '../assets/meshTangents';
+import { hairMaps, hairRig, hasCards, type HairMaps } from './hair';
 import { triangulateFace } from './triangulate';
 import { faceUvs } from './modelUv';
 import { adjustWeights, bindMatrices, computeWeights, resolveJoints, shapeDeltas, type ControllerIk, type RigGoal, type RigJoint, type SkinWeights } from './rig';
@@ -23,6 +24,7 @@ import {
 const DEFAULT_SMOOTH_ANGLE = 30;
 const DEFAULT_NORMAL_SIZE = 1024;
 const HEAVY_TRIANGLES = 300000;
+export const HAIR_CUTOFF = 0.35;
 const LIGHTMAP_TRIANGLES = 150000;
 
 export interface ModelReport {
@@ -59,6 +61,8 @@ export interface BakedModel {
     report: ModelReport;
     /** Present on a rigged model. */
     rig?: { joints: RigJoint[]; skin: SkinWeights; ik?: readonly ControllerIk[]; goals?: readonly RigGoal[] };
+    /** Present on a model of hair cards: the textures they read, and where its chains start if it swings. */
+    hair?: { maps: HairMaps; chainRoots?: number[] };
     /** Present where a source has shapes: three offsets per surface vertex, for each. */
     shapes?: { names: string[]; deltas: Float32Array[] };
     /** One triangle per entry: its three positions' indices, and the face it came from. */
@@ -272,18 +276,41 @@ function withTangents(mesh: MeshData): MeshData {
 }
 
 /** What a material has to say about a model, or null where a plain MeshRenderer says all of it. */
-export function modelMaterialDoc(source: ModelSource, cullBackfaces: boolean, maps: { normal?: string | null; surface?: string | null; occlusion?: string | null }): Record<string, unknown> | null {
+export function modelMaterialDoc(source: ModelSource, cullBackfaces: boolean, maps: { normal?: string | null; surface?: string | null; occlusion?: string | null; hair?: { flow: string; shift: string } | null }): Record<string, unknown> | null {
     const { material } = source;
+    if (maps.hair) {
+        return {
+            version: MATERIAL_FORMAT_VERSION,
+            type: 'material',
+            // Cut out and feathered by coverage, which only an unblended draw gets; both sides of a card show.
+            shader: 'builtin:hair',
+            blendMode: BlendMode.None,
+            depthTest: true,
+            depthWrite: true,
+            cull: CullMode.None,
+            properties: {
+                u_flowMap: maps.hair.flow, u_shiftMap: maps.hair.shift,
+                u_alphaCutoff: HAIR_CUTOFF, u_tipSoftness: 0.2,
+                u_roughness: material?.roughness ?? 0.4, u_specular: 0.7, u_lobeGain: 0.5,
+                u_shiftAmount: 0.35, u_translucency: 0.2, u_strandDiffuse: 0.45, u_rootDark: 0,
+                u_clumpCount: 5, u_clumpTone: 0.25, u_clumpShift: 0.4, u_clumpGap: 0.4,
+                u_hairShadow: 400,
+            },
+        };
+    }
     if (!material && !maps.surface && !maps.occlusion) return null;
+    const blended = material?.alpha === 'blend';
     return {
         version: MATERIAL_FORMAT_VERSION,
         type: 'material',
         shader: 'builtin:model',
-        blendMode: BlendMode.None,
+        blendMode: blended ? BlendMode.Normal : BlendMode.None,
         depthTest: true,
-        depthWrite: true,
-        cull: cullBackfaces ? CullMode.Back : CullMode.None,
+        // What is seen through a blended surface is drawn first, so it must not stop what lies behind it from being drawn.
+        depthWrite: !blended,
+        cull: cullBackfaces && !material?.alpha ? CullMode.Back : CullMode.None,
         properties: {
+            ...(material?.alpha === 'cutout' ? { u_alphaCutoff: material.cutoff ?? 0.5 } : {}),
             ...(maps.normal ? { u_normalMap: maps.normal } : {}),
             ...(maps.occlusion ? {
                 u_occlusionMap: maps.occlusion,
@@ -309,6 +336,9 @@ export function bakeModel(raw: unknown): BakedModel {
         const joints = resolveJoints(source.rig);
         rig = { joints, skin: adjustWeights(mesh, joints, computeWeights(mesh, joints), source.rig.adjust ?? []), ik: source.controller?.ik ?? [], goals: source.rig.goals ?? [] };
     }
+    const cards = hasCards(mesh);
+    const swing = cards && source.hairSway ? hairRig(mesh, source.hairSway) : null;
+    if (swing) rig = { joints: swing.joints, skin: swing.skin, ik: [], goals: [] };
     const shapes = source.shapes ? { names: source.shapes.map((s) => s.name), deltas: source.shapes.map((s) => shapeDeltas(mesh, s)) } : undefined;
     const bake = source.normalBake;
     const size = bake?.size ?? DEFAULT_NORMAL_SIZE;
@@ -324,6 +354,9 @@ export function bakeModel(raw: unknown): BakedModel {
             throw new Error(`${triangleCount} triangles break into too many pieces to lay out in one texture: decimate further, or give the surface less to carve before it`);
         }
         copyLightmapUvToBase(unwrapped);
+    } else if (cards) {
+        // Cards are read from a strand texture by the frame it runs in, and nobody bakes light onto hair.
+        unwrapped = withTangents(baked);
     } else if (!rig && !shapes) {
         // This is optional, and costs minutes past a point where nobody would bake light onto the model anyway. Nothing else needs it.
         layoutNote = 'it has no lightmap UV: baked light will not land on it, and is not worth it at this density';
@@ -368,14 +401,14 @@ export function bakeModel(raw: unknown): BakedModel {
         warnings.push(`faces say their own roughness or metallic, and nothing carries that: give normalBake \`surface: true\`${uniform ? ', or say it once in `material`' : ''}`);
     }
     if (triangleCount > HEAVY_TRIANGLES) warnings.push(`${triangleCount} triangles is a lot to draw: end with a \`decimate\`, and \`normalBake\` to keep the detail`);
-    if (openEdges) warnings.push(`${openEdges} open edge${openEdges > 1 ? 's' : ''}: the surface has holes you can see into`);
+    if (openEdges && !cards) warnings.push(`${openEdges} open edge${openEdges > 1 ? 's' : ''}: the surface has holes you can see into`);
     if (nonManifoldEdges) warnings.push(`${nonManifoldEdges} edge${nonManifoldEdges > 1 ? 's' : ''} shared by more than two faces, which a later bevel refuses: \`weld\` may have joined things that should stay apart, or on an organic skin two parts just touch, so overlap them or raise blend`);
     if (flippedEdges) warnings.push(`${flippedEdges} edge${flippedEdges > 1 ? 's' : ''} between faces wound opposite ways: part of the surface faces inward`);
     if (degenerateFaces) warnings.push(`${degenerateFaces} face${degenerateFaces > 1 ? 's' : ''} with no area; \`weld\` removes them`);
     if (insideOutShells) warnings.push(`${insideOutShells} closed shell${insideOutShells > 1 ? 's are' : ' is'} inside out`);
 
     const jointReport = rig ? Object.fromEntries(rig.joints.map((j, i) => [j.name, rig!.skin.dominant[i]!])) : undefined;
-    if (rig) {
+    if (rig && !cards) {
         // A tip often moves nothing: it marks where the last bone ends.
         const idle = rig.joints.filter((j, i) => j.children.length > 0 && rig!.skin.dominant[i] === 0).map((j) => j.name);
         if (idle.length) warnings.push(`joint${idle.length > 1 ? 's' : ''} ${idle.join(', ')} move${idle.length > 1 ? '' : 's'} no vertex the most: too near another, or outside the surface`);
@@ -399,6 +432,7 @@ export function bakeModel(raw: unknown): BakedModel {
         data: unwrapped,
         ...(rig ? { rig } : {}),
         ...(shapes ? { shapes } : {}),
+        ...(cards ? { hair: { maps: hairMaps((source.steps.find((s) => s.op === 'hair')?.seed as number | undefined) ?? 1), ...(swing ? { chainRoots: swing.chainRoots } : {}) } } : {}),
         ...(bake && high ? { detail: { high, size, ...(bake.distance !== undefined ? { distance: bake.distance } : {}), smoothAngle: source.smoothAngle ?? DEFAULT_SMOOTH_ANGLE, ...(lowColors ? { lowColors } : {}), ...(bake.occlusion ? { occlusion: typeof bake.occlusion === 'object' ? bake.occlusion : {} } : {}), ...(bake.surface ? { surface: { roughness: source.material?.roughness ?? 1, metallic: source.material?.metallic ?? 0 } } : {}) } } : {}),
         triangles: triangles.flatMap((tris, face) => tris.map((v) => ({ v, face }))),
         report: {

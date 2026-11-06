@@ -22,6 +22,10 @@ export interface Face {
     roughness?: number;
     /** How much metal, 0..1. Absent takes the source's `material`. */
     metallic?: number;
+    /** The hair card this is part of, with `cornerUvs` where its texture lands. */
+    card?: number;
+    /** A texture's place at each corner, in the order of `v`, in place of any projection. */
+    cornerUvs?: readonly (readonly [number, number])[];
     /** Part of a continuous skin: shaded smooth with its neighbours whatever the angle, and its edges are not features. */
     smooth?: boolean;
     /** How this face takes its texture, from a `uv` step; absent, a box projection at the source's uvScale. */

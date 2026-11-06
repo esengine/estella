@@ -3882,6 +3882,10 @@ export const NOTED = {
     {"note":"A rotation given to an agent as a quaternion is that rotation."},
   "fix(asset): a map a material names keeps its import settings in Play, where it was decoded as colour":
     {"note":"A material's normal and metal-rough maps are read as data in the editor's Play."},
+  "feat(modeling): a hair step grows cards from a scalp, and a material can cut holes or let light through":
+    {"note":"An AI building a model can make hair."},
+  "feat(mcp): model_write makes hair and see-through surfaces, and a check draws them":
+    {"note":"An AI building a model can make things see-through."},
   "feat(modeling): a bake works out how much sky a dense surface sees, and shades its creases by it":
     {"note":"An AI building a model can shade its creases."},
   "feat(mcp): model_write bakes an occlusion map, and a check draws a groove with and without it":

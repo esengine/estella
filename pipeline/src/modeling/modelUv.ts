@@ -68,6 +68,10 @@ function finish(uv: FaceUv | undefined, u: number, v: number): [number, number] 
 /** The UV at each corner of @p face. */
 export function faceUvs(mesh: PolyMesh, face: Face, uvScale: number): Map<number, readonly [number, number]> {
     const out = new Map<number, readonly [number, number]>();
+    if (face.cornerUvs) {
+        face.v.forEach((i, n) => out.set(i, face.cornerUvs![n]!));
+        return out;
+    }
     const uv = face.uv;
     if (!uv || uv.mode === 'box' || uv.mode === 'planar') {
         const normal = uv?.mode === 'planar' ? axisVector(uv.axis as never) : faceNormal(mesh, face);

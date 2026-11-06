@@ -930,16 +930,18 @@ export function timelineOf(animation: AnimationSource, joints: readonly RigJoint
  * The prefab that draws and moves it: the mesh on the root, the joints below it as
  * entities named so a clip's paths find them, and a player for the first clip.
  */
-export function prefabOf(name: string, meshPath: string, joints: readonly RigJoint[], cullBackfaces: boolean, firstClip: string | null, controller: string | null = null, extra: { goals?: readonly RigGoal[]; shapes?: number; normalMap?: string; texture?: string; material?: string } = {}): Record<string, unknown> {
+const SWAY_COLLIDER = 'hairCollider';
+
+export function prefabOf(name: string, meshPath: string, joints: readonly RigJoint[], cullBackfaces: boolean, firstClip: string | null, controller: string | null = null, extra: { goals?: readonly RigGoal[]; shapes?: number; normalMap?: string; texture?: string; material?: string; opaque?: boolean; sway?: { chainRoots: readonly number[]; stiffness?: number; drag?: number; collider?: { at: Vec3; radius: number } } } = {}): Record<string, unknown> {
     const idOf = (i: number): string => `j${i}`;
     const goals = extra.goals ?? [];
     const entities: Record<string, unknown>[] = [{
         prefabEntityId: 'root', name, parent: null,
-        children: [...joints.flatMap((j, i) => (j.parent < 0 ? [idOf(i)] : [])), ...goals.flatMap((g, i) => (g.parent === undefined ? [`g${i}`] : []))],
+        children: [...joints.flatMap((j, i) => (j.parent < 0 ? [idOf(i)] : [])), ...goals.flatMap((g, i) => (g.parent === undefined ? [`g${i}`] : [])), ...(extra.sway?.collider ? [SWAY_COLLIDER] : [])],
         visible: true,
         components: [
             { type: 'Transform', data: {} },
-            { type: 'MeshRenderer', data: { mesh: meshPath, ...(extra.normalMap ? { normalMap: extra.normalMap } : {}), ...(extra.texture ? { texture: extra.texture } : {}), ...(extra.material ? { material: extra.material } : {}), lit: true, opaque: true, cullBackfaces, enabled: true } },
+            { type: 'MeshRenderer', data: { mesh: meshPath, ...(extra.normalMap ? { normalMap: extra.normalMap } : {}), ...(extra.texture ? { texture: extra.texture } : {}), ...(extra.material ? { material: extra.material } : {}), lit: true, opaque: extra.opaque ?? true, cullBackfaces, enabled: true } },
             ...(joints.length ? [{ type: 'MeshSkin', data: { joints: joints.map((_, i) => idOf(i)) } }] : []),
             ...(extra.shapes ? [{ type: 'MeshMorph', data: { weights: Array.from({ length: extra.shapes }, () => 0) } }] : []),
             // A controller decides what plays; a player beside it would fight it for the same joints.
@@ -952,9 +954,23 @@ export function prefabOf(name: string, meshPath: string, joints: readonly RigJoi
         entities.push({
             prefabEntityId: idOf(i), name: j.name, parent: j.parent >= 0 ? idOf(j.parent) : 'root',
             children: [...j.children.map(idOf), ...goals.flatMap((g, k) => (g.parent === j.name ? [`g${k}`] : []))], visible: true,
-            components: [{ type: 'Transform', data: { position: { x: rest[0], y: rest[1], z: rest[2] } } }],
+            components: [
+                { type: 'Transform', data: { position: { x: rest[0], y: rest[1], z: rest[2] } } },
+                // On a chain's first bone, which stays where it is: the ones below it swing.
+                ...(extra.sway?.chainRoots.includes(i) ? [{ type: 'SpringBone', data: {
+                    enabled: true, stiffness: extra.sway.stiffness ?? 0.08, drag: extra.sway.drag ?? 0.3,
+                    ...(extra.sway.collider ? { colliders: [SWAY_COLLIDER] } : {}),
+                } }] : []),
+            ],
         });
     });
+    if (extra.sway?.collider) {
+        const { at, radius } = extra.sway.collider;
+        entities.push({
+            prefabEntityId: SWAY_COLLIDER, name: 'hair collider', parent: 'root', children: [], visible: true,
+            components: [{ type: 'Transform', data: { position: { x: at[0], y: at[1], z: at[2] } } }, { type: 'SpringBoneCollider', data: { shape: 0, radius } }],
+        });
+    }
     goals.forEach((g, i) => {
         const parent = g.parent === undefined ? -1 : joints.findIndex((j) => j.name === g.parent);
         const rest = parent >= 0 ? sub(g.at, joints[parent]!.at) : g.at;

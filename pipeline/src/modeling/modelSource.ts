@@ -21,6 +21,7 @@ import { subdivide } from './subdivide';
 import { decimate, triangleCount } from './decimate';
 import { displace, DISPLACE_PATTERNS } from './displace';
 import { stain } from './stain';
+import { cardsOnly, hair, hasCards, type HairSway } from './hair';
 import { checkAnimations, checkController, checkRig, checkShapes, type AnimationSource, type ControllerSource, type RigSource, type ShapeSource } from './rig';
 import { compact, type Face, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
 
@@ -42,6 +43,8 @@ export interface ModelSource {
     uvScale?: number;
     /** Lay the base UV out so no two triangles share texels: for a texture painted for this one model, where tiling is not wanted. */
     uvAtlas?: boolean;
+    /** Bones through a hair model's cards, which swing as the game runs. */
+    hairSway?: HairSway;
     /** What every face is made of until a `paint` or `stain` says otherwise. */
     material?: ModelMaterial;
     /** Carries a denser state of the steps onto the final surface as a normal map. It lays the base UV out as uvAtlas does. */
@@ -62,6 +65,10 @@ export interface ModelMaterial {
     roughness?: number;
     /** 0 is anything else, 1 is metal. Default 0. */
     metallic?: number;
+    /** What a colour's alpha means. `cutout` is solid or nothing, by `cutoff`: leaves, lace, torn edges. `blend` lets through what is behind: glass, gauze. Default neither. */
+    alpha?: 'cutout' | 'blend';
+    /** Below this a `cutout` is a hole. Default 0.5. */
+    cutoff?: number;
 }
 
 export interface NormalBakeOcclusion {
@@ -124,7 +131,8 @@ export const MODEL_OPS: Record<string, OpSpec> = {
     boolean: { params: { operation: 'operation', with: 'faces', from: 'faces', keep: 'boolean', tag: 'string', color: 'color' }, required: ['operation', 'with'], run: booleanOp as unknown as OpSpec['run'], says: 'cuts or joins closed solids: subtract `with` from `from` makes a real hole' },
     subdivide: { params: { faces: 'faces', levels: 'integer', crease: 'number' }, required: [], run: subdivide as unknown as OpSpec['run'], says: 'rounds whole shells into smooth surfaces, keeping edges sharper than `crease` degrees' },
     displace: { params: { faces: 'faces', near: 'near', pattern: 'pattern', amplitude: 'number', scale: 'number', octaves: 'integer', seed: 'integer', stretch: 'vec3', warp: 'number', width: 'number', axis: 'axis', mirror: 'axis', detail: 'number' }, required: ['pattern', 'amplitude', 'scale'], run: ((mesh: PolyMesh, params: never) => displace(mesh, params)) as OpSpec['run'], says: 'pushes fine detail out of the surface along its normal, splitting faces as far as the pattern needs: bumps, wrinkles, cracks, scales, pores, ribs, weave or scratches' },
-    stain: { params: { faces: 'faces', near: 'near', hard: 'boolean', color: 'color', roughness: 'number', metallic: 'number', amount: 'number', pattern: 'pattern', scale: 'number', octaves: 'integer', seed: 'integer', stretch: 'vec3', warp: 'number', width: 'number', axis: 'axis', mirror: 'axis', threshold: 'number', softness: 'number', where: 'where', reach: 'number', facing: 'vec3', detail: 'number' }, required: [], run: ((mesh: PolyMesh, params: never) => stain(mesh, params)) as OpSpec['run'], says: 'lays colour, `roughness` or `metallic` over the surface by a pattern, by shape (`where`: cavity for dirt in what is sunken, edges for wear on what stands out), by which way it faces, or around a spot: pupils, moss, grime' },
+    hair: { params: { faces: 'faces', count: 'integer', length: 'number', width: 'number', segments: 'integer', droop: 'number', comb: 'vec3', spread: 'number', uneven: 'number', wave: 'number', taper: 'number', seed: 'integer', color: 'color', tipColor: 'color', tag: 'string' }, required: ['faces', 'length'], run: hair as unknown as OpSpec['run'], says: 'grows cards of hair from these faces, falling around what is there; run it again for another layer, and only the cards are kept' },
+    stain: { params: { faces: 'faces', near: 'near', hard: 'boolean', color: 'color', roughness: 'number', metallic: 'number', alpha: 'number', amount: 'number', pattern: 'pattern', scale: 'number', octaves: 'integer', seed: 'integer', stretch: 'vec3', warp: 'number', width: 'number', axis: 'axis', mirror: 'axis', threshold: 'number', softness: 'number', where: 'where', reach: 'number', facing: 'vec3', detail: 'number' }, required: [], run: ((mesh: PolyMesh, params: never) => stain(mesh, params)) as OpSpec['run'], says: 'lays colour, `roughness`, `metallic` or `alpha` over the surface by a pattern, by shape (`where`: cavity for dirt in what is sunken, edges for wear on what stands out), by which way it faces, or around a spot: pupils, moss, grime' },
     decimate: { params: { from: 'string', faces: 'faces', ratio: 'number', triangles: 'integer', error: 'number' }, required: [], run: decimate as unknown as OpSpec['run'], says: 'leaves fewer triangles over the same surface: `ratio` to keep or `triangles` to end with, stopping sooner if the surface would move more than `error` (default 0.02) of its size; `from` thins the surface as it stood after that step, before its fine detail' },
     uv: { params: { faces: 'faces', mode: 'uvmode', axis: 'string', at: 'vec3', scale: 'number|vec2only', repeat: 'number|vec2only', offset: 'vec2', rotate: 'number' }, required: ['mode'], run: uvStep as unknown as OpSpec['run'], says: 'sets how faces take a texture: box, planar, cylinder or sphere' },
     delete: { params: { faces: 'faces' }, required: ['faces'], run: ops.deleteFaces as OpSpec['run'], says: 'removes faces, leaving a hole' },
@@ -335,8 +343,8 @@ export function validateModelSource(raw: unknown): ModelSource {
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw new ModelBuildError('a model source must be an object with `steps`', null, null, null);
     const source = raw as Record<string, unknown>;
     for (const key of Object.keys(source)) {
-        if (!['version', 'smoothAngle', 'uvScale', 'uvAtlas', 'material', 'normalBake', 'rig', 'shapes', 'animations', 'controller', 'steps'].includes(key)) {
-            throw new ModelBuildError(`unknown field "${key}"; a model source has version, smoothAngle, uvScale, uvAtlas, material, normalBake, rig, shapes, animations, controller, steps`, null, null, null);
+        if (!['version', 'smoothAngle', 'uvScale', 'uvAtlas', 'material', 'hairSway', 'normalBake', 'rig', 'shapes', 'animations', 'controller', 'steps'].includes(key)) {
+            throw new ModelBuildError(`unknown field "${key}"; a model source has version, smoothAngle, uvScale, uvAtlas, material, hairSway, normalBake, rig, shapes, animations, controller, steps`, null, null, null);
         }
     }
     if (source.version !== undefined && source.version !== MODEL_SOURCE_VERSION) {
@@ -372,11 +380,31 @@ export function validateModelSource(raw: unknown): ModelSource {
     if (!Array.isArray(source.steps)) throw new ModelBuildError('`steps` must be an array', null, null, null);
     if (source.material !== undefined) {
         const m = source.material as Record<string, unknown> | null;
-        if (typeof m !== 'object' || m === null || Array.isArray(m)) throw new ModelBuildError('material must be { roughness?, metallic? }', null, null, null);
+        if (typeof m !== 'object' || m === null || Array.isArray(m)) throw new ModelBuildError('material must be { roughness?, metallic?, alpha?, cutoff? }', null, null, null);
         for (const [key, value] of Object.entries(m)) {
-            if (key !== 'roughness' && key !== 'metallic') throw new ModelBuildError(`material has an unknown field "${key}"; it takes roughness, metallic`, null, null, null);
+            if (key === 'alpha') {
+                if (value !== 'cutout' && value !== 'blend') throw new ModelBuildError('material.alpha must be cutout or blend', null, null, null);
+                continue;
+            }
+            if (!['roughness', 'metallic', 'cutoff'].includes(key)) throw new ModelBuildError(`material has an unknown field "${key}"; it takes roughness, metallic, alpha, cutoff`, null, null, null);
             if (!(isNum(value) && value >= 0 && value <= 1)) throw new ModelBuildError(`material.${key} must be 0..1`, null, null, null);
         }
+    }
+    if (Array.isArray(source.steps) && (source.steps as Partial<ModelStep>[]).some((s) => s?.op === 'hair')) {
+        if (source.normalBake !== undefined || source.uvAtlas) throw new ModelBuildError('a hair model\'s cards take their texture where the step puts them, so it has no normalBake or uvAtlas', null, null, null);
+        if (source.rig !== undefined || source.shapes !== undefined) throw new ModelBuildError('a hair model has no rig or shapes of its own: `hairSway` gives it bones, and placed under a head joint it follows that', null, null, null);
+    }
+    if (source.hairSway !== undefined) {
+        const sway = source.hairSway as Record<string, unknown> | null;
+        const fail = (what: string): never => { throw new ModelBuildError(`hairSway ${what}`, null, null, null); };
+        if (typeof sway !== 'object' || sway === null || Array.isArray(sway)) fail('must be { chains?, bones?, stiffness?, drag?, collider? }');
+        for (const key of Object.keys(sway!)) if (!['chains', 'bones', 'stiffness', 'drag', 'collider'].includes(key)) fail(`has an unknown field "${key}"; it takes chains, bones, stiffness, drag, collider`);
+        const { chains, bones, stiffness, drag, collider } = sway!;
+        if (chains !== undefined && !(Number.isInteger(chains) && (chains as number) >= 1 && (chains as number) <= 60)) fail('chains must be 1..60');
+        if (bones !== undefined && !(Number.isInteger(bones) && (bones as number) >= 1 && (bones as number) <= 4)) fail('bones must be 1..4');
+        for (const [name, v] of [['stiffness', stiffness], ['drag', drag]] as const) if (v !== undefined && !(isNum(v) && v >= 0 && v <= 1)) fail(`${name} must be 0..1`);
+        if (collider !== undefined && KIND_CHECK.near(collider)) fail('collider must be { at: [x, y, z], radius }');
+        if (!(Array.isArray(source.steps) && (source.steps as Partial<ModelStep>[]).some((s) => s?.op === 'hair'))) fail('needs a hair step to swing');
     }
     if (source.normalBake !== undefined) {
         const bad = checkNormalBake(source.normalBake, source.steps as Partial<ModelStep>[]);
@@ -461,7 +489,7 @@ export function buildPolyMesh(source: ModelSource): ModelBuild {
         if (index === highAfter) high = compact(mesh);
         if (id && wanted.has(id)) kept.set(id, mesh);
     });
-    return { mesh: compact(mesh), steps, notes, ...(high ? { high } : {}) };
+    return { mesh: hasCards(mesh) ? cardsOnly(mesh) : compact(mesh), steps, notes, ...(high ? { high } : {}) };
 }
 
 // ---- Edits: changing a source without restating it ------------------------------
