@@ -25,6 +25,7 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 
+#include <chrono>
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -656,9 +657,16 @@ int main(int argc, char** argv) {
         SDL_Event e;
         // A hidden or minimized window has no surface to present to, so the loop
         // blocks for an event rather than spinning at the display's refresh rate.
-        if (!eshost::surfaceBound() && SDL_WaitEvent(&e)) handleEvent(e);
+        if (!eshost::surfaceBound()) {
+            if (SDL_WaitEvent(&e)) handleEvent(e);
+        } else if (const auto wait = eshost::untilFrameDue(); wait > std::chrono::steady_clock::duration::zero()) {
+            // The game's cap holds the next frame back (FramePacer.hpp): wait for it, serving input meanwhile. Rounded up,
+            // since waking early only goes round the loop again. Otherwise the present's own block is the pace.
+            const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(wait + std::chrono::microseconds(999)).count();
+            if (SDL_WaitEventTimeout(&e, (Sint32)ms)) handleEvent(e);
+        }
         while (SDL_PollEvent(&e)) handleEvent(e);
-        if (running && eshost::surfaceBound()) {
+        if (running && eshost::surfaceBound() && eshost::untilFrameDue() == std::chrono::steady_clock::duration::zero()) {
             eshost::frame();
             // Shown once something has been drawn on it: sizing happens during
             // boot, and a window shown before that is a default-sized empty

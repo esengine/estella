@@ -192,6 +192,7 @@ bool bindSurface() {
     h.gfx->setSurfaceReadback(shotWanted());
     // A benched frame must not be quantised to the panel's refresh — see Bench.hpp.
     h.gfx->setPresentUncapped(benchWanted());
+    framePacer().setUnbounded(benchWanted());   // nor held to the pacer's floor
     if (!h.gfx->configureSurface(h.platform->surface(), w, hh)) {
         ESHOST_LOGE("configureSurface failed");
         return false;
@@ -210,6 +211,15 @@ void surfaceLost() {
 }
 
 bool booted() { return hostAlive() && host().ready; }
+
+FramePacer& framePacer() {
+    static FramePacer pacer;
+    return pacer;
+}
+
+std::chrono::steady_clock::duration untilFrameDue(bool floor) {
+    return framePacer().untilDue(std::chrono::steady_clock::now(), floor);
+}
 
 bool surfaceBound() { return hostAlive() && host().surfaceReady; }
 
@@ -300,8 +310,9 @@ void frame(long long vsyncNanos) {
         ESHOST_LOGI("surface bound again — drawing resumes");
     }
     // Past the point where a frame can be skipped, so what is timed below is a
-    // frame that actually happened (see Bench.hpp).
+    // frame that actually happened (see Bench.hpp), and what the pacer counts too.
     benchFrameBegin();
+    framePacer().frameStarted(std::chrono::steady_clock::now());
 
     // A window can change size without being recreated: a rotation, an insets
     // change (the system bars leaving on the frame after launch), a layout on
@@ -316,7 +327,7 @@ void frame(long long vsyncNanos) {
     }
 
     // How much time actually passed, not how much we wish had. A host is stepped
-    // by the display — CADisplayLink on iOS, the Choreographer on Android — so the
+    // by the display — CADisplayLink on iOS, its own present elsewhere — so the
     // rate is the panel's, and a fixed 1/60 is only right on a 60 Hz one. A 120 Hz
     // phone ran this game at 2.02x real speed for exactly that reason, which reads
     // as "the animations are too fast" rather than as a clock bug.
@@ -328,7 +339,7 @@ void frame(long long vsyncNanos) {
     constexpr double kMaxDelta = 0.25;
     constexpr double kFirstFrameDelta = 1.0 / 60.0;
     // The vsync being drawn for when the display supplied one — the web loop's rule too (rAF's timestamp, not callback
-    // entry). Android's Choreographer stamps on CLOCK_MONOTONIC, which is the steady clock there.
+    // entry); otherwise the steady clock as the frame starts.
     const auto nowAt = vsyncNanos > 0
         ? std::chrono::steady_clock::time_point(std::chrono::nanoseconds(vsyncNanos))
         : std::chrono::steady_clock::now();

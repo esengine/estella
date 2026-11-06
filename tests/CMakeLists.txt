@@ -106,6 +106,14 @@ add_executable(test_touch_stream
 target_include_directories(test_touch_stream PRIVATE ${CMAKE_SOURCE_DIR}/native/host)
 add_test(NAME test_touch_stream COMMAND test_touch_stream)
 
+# The native hosts' frame pacer: header-only, the cap and the floor every looping
+# host draws by (native/host/FramePacer.hpp).
+add_executable(test_frame_pacer
+    input/test_frame_pacer.cpp
+)
+target_include_directories(test_frame_pacer PRIVATE ${CMAKE_SOURCE_DIR}/native/host)
+add_test(NAME test_frame_pacer COMMAND test_frame_pacer)
+
 # Tilemap system tests
 add_executable(test_tilemap
     tilemap/test_tilemap.cpp

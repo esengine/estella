@@ -97,7 +97,10 @@ esjs::Val js_keepScreenOn(const esjs::Args& a) {
 }
 esjs::Val js_setTargetFrameRate(const esjs::Args& a) {
     const double fps = a.size() > 0 ? esjs::toNumber(a[0]) : 0;
-    if (hostAlive() && host().platform) host().platform->setTargetFrameRate(fps > 0 ? (float)fps : 0.0f);
+    const float target = fps > 0 ? (float)fps : 0.0f;
+    // The loop holds the cap (FramePacer, the same on every host); the platform only tells its OS, where it has a say.
+    framePacer().setTarget(target);
+    if (hostAlive() && host().platform) host().platform->setTargetFrameRate(target);
     return esjs::undefined();
 }
 

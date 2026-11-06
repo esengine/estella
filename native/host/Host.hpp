@@ -28,12 +28,14 @@
  */
 #pragma once
 
+#include <chrono>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "esengine/core/Types.hpp"
 #include "esengine/renderer/webgpu/WebGPUDevice.hpp"
+#include "FramePacer.hpp"
 
 namespace eshost {
 
@@ -112,8 +114,8 @@ struct Platform {
     virtual bool pollMotion(MotionState&) { return false; }
     virtual bool vibrate(int, int) { return false; }
     virtual bool keepScreenOn(bool) { return false; }
-    /** The game's target frame rate, as App.setTargetFrameRate set it (0 = as fast as the display goes). A host stepped by
-     *  the display paces itself to it; one that is not (desktop's own loop) ignores it. */
+    /** The game's target frame rate, as App.setTargetFrameRate set it (0 = as fast as the display goes). The loop already
+     *  holds it through framePacer(); this is for telling the OS (Android's frame-rate hint), which only a platform can. */
     virtual void setTargetFrameRate(float /*fps*/) {}
     virtual ~Platform() = default;
 
@@ -311,11 +313,21 @@ void surfaceLost();
 /** @brief Runs the game's update + one rendered, presented frame. No-op until
  *         boot() has succeeded and a surface is bound.
  *
- *  @param vsyncNanos The vsync this frame is for, on the steady clock's timeline
- *         (Android's Choreographer hands one over), or 0 to measure the wall clock.
- *         Frame to frame it is the display's cadence; the wall clock at callback
- *         entry carries the scheduler's jitter, which reads as uneven motion. */
+ *  @param vsyncNanos The vsync this frame is for, on the steady clock's timeline,
+ *         when a display callback hands one over, or 0 to measure the wall clock.
+ *         A host whose loop is paced by its present (FramePacer.hpp) passes 0. */
 void frame(long long vsyncNanos = 0);
+
+/** @brief The pacer every native host's loop shares (FramePacer.hpp): the cap
+ *         App.setTargetFrameRate set, and the floor that keeps a loop from
+ *         spinning. Exists before boot, so a host can set its default cap. */
+FramePacer& framePacer();
+
+/** @brief How long until the next frame is due (zero: now). A looping host waits
+ *         this long, serving input meanwhile, before it calls frame(); one stepped
+ *         by a display callback passes @p floor false and skips the vsyncs the
+ *         cap falls between. */
+std::chrono::steady_clock::duration untilFrameDue(bool floor = true);
 
 /** @brief Feeds one touch to the game. @p type: 0 start / 1 move / 2 end / 3 cancel.
  *         Coordinates are in surface pixels, top-left origin (as on the web). */

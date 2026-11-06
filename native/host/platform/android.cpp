@@ -22,7 +22,6 @@
 #include <android/font.h>
 #include <android/font_matcher.h>
 #include <android/native_window.h>
-#include <android/choreographer.h>
 #include <jni.h>
 #include <unistd.h>
 
@@ -513,10 +512,9 @@ int32_t onInput(android_app*, AInputEvent* ev) {
 void framesSurface(bool has);
 void framesResumed(bool is);
 
-// Tells the system what rate the game is meant to run at, so the panel and the Choreographer settle on a cadence the game can
-// hold. Without it a 120 Hz panel calls the frame every 8.3 ms, a frame that costs 10 ms plus a blocked present misses by a
-// vsync, and the period lands on 16.6 / 25 / 33 ms at random — 45 to 55 fps and uneven motion. 60 Hz is an exact fraction of
-// 120 Hz and of 60 Hz, so the system can hold it on either. ANativeWindow_setFrameRate is API 30; the manifest floor is 29,
+// Tells the system what rate the game is meant to run at, so the panel settles on a refresh the game can hold: a 120 Hz panel
+// left at 120 holds every present to an 8.3 ms grid, and a frame the cap spaces 16.7 ms apart then lands a vsync early or late
+// at random. 60 Hz is an exact fraction of 120 Hz and of 60 Hz, so the system can hold it on either. ANativeWindow_setFrameRate is API 30; the manifest floor is 29,
 // so it is looked up like PerformanceHints' symbols rather than made a load-time requirement.
 void hintFrameRate(ANativeWindow* window, float fps) {
     constexpr int8_t kCompatibilityDefault = 0;   // ANATIVEWINDOW_FRAME_RATE_COMPATIBILITY_DEFAULT
@@ -537,10 +535,11 @@ void hintFrameRate(ANativeWindow* window, float fps) {
                         "frame rate hint: %.0f fps (%s)", fps, result == 0 ? "accepted" : "refused");
 }
 
-// What the game wants until it says otherwise (App.setTargetFrameRate -> es_setTargetFrameRate).
+// What the game wants until it says otherwise (App.setTargetFrameRate -> es_setTargetFrameRate): a phone holds 60 by default,
+// where the web and the desktop take the display's rate, since a phone's panel is often 120 Hz and its battery and heat pay
+// for every frame past what the game was made for.
 constexpr float kDefaultFps = 60.0f;
 float g_targetFps = kDefaultFps;
-bool g_targetSet = false;
 
 void onAppCmd(android_app* app, int32_t cmd) {
     // NativeActivity supplies a content rectangle in window pixels; the glue
@@ -611,8 +610,8 @@ void onAppCmd(android_app* app, int32_t cmd) {
 struct PerformanceHints {
     void* session = nullptr;
 
-    // One display refresh. The Choreographer is what calls the frame, so the
-    // deadline is the panel's cadence, whatever it happens to be.
+    // The deadline a session opens with: one 60 Hz refresh, the default cap.
+    // updateTarget() moves it with the cap.
     static constexpr int64_t kFrameBudgetNanos = 16'666'667;
 
     // Opaque on purpose: the header's typedefs come with the same availability
@@ -623,7 +622,9 @@ struct PerformanceHints {
     using CloseFn = void (*)(void*);
 
     ReportFn reportFn = nullptr;
+    ReportFn updateTargetFn = nullptr;   // APerformanceHint_updateTargetWorkDuration: the same shape as report
     CloseFn closeFn = nullptr;
+    int64_t targetNanos = kFrameBudgetNanos;
 
     void open() {
         // RTLD_DEFAULT: libandroid is already loaded — this asks whether THIS
@@ -636,6 +637,8 @@ struct PerformanceHints {
             dlsym(RTLD_DEFAULT, "APerformanceHint_reportActualWorkDuration"));
         closeFn = reinterpret_cast<CloseFn>(
             dlsym(RTLD_DEFAULT, "APerformanceHint_closeSession"));
+        updateTargetFn = reinterpret_cast<ReportFn>(
+            dlsym(RTLD_DEFAULT, "APerformanceHint_updateTargetWorkDuration"));
 
         if (getManager && createSession && reportFn && closeFn) {
             if (void* manager = getManager()) {
@@ -648,6 +651,14 @@ struct PerformanceHints {
         }
         __android_log_print(session ? ANDROID_LOG_INFO : ANDROID_LOG_WARN, LOG_TAG,
                             "perf hints: %s", session ? "session up (ADPF)" : "unavailable");
+    }
+
+    /// The deadline is the frame budget the pacer holds, so it follows the cap.
+    void updateTarget(std::chrono::steady_clock::duration budget) {
+        const int64_t nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(budget).count();
+        if (!session || !updateTargetFn || nanos <= 0 || nanos == targetNanos) return;
+        targetNanos = nanos;
+        updateTargetFn(session, nanos);
     }
 
     void report(std::chrono::steady_clock::duration frame) {
@@ -666,32 +677,27 @@ struct PerformanceHints {
 // The frame source
 // =============================================================================
 //
-// The display drives the frame, and nothing else does. That is what iOS already
-// says with a CADisplayLink and what the web says with requestAnimationFrame;
-// this is the Android third of the same sentence, and it is a Choreographer.
+// One clock paces a frame: the swapchain's Fifo present, which blocks until the
+// display takes the frame. The loop in android_main serves input, waits until
+// eshost::untilFrameDue() says a frame is due (the game's cap, held as a cadence,
+// and a floor against a present that stops blocking — FramePacer.hpp), and
+// otherwise calls frame() back to back. The desktop loop is the same loop.
 //
-// It replaces a loop that polled with a zero timeout and called frame()
-// immediately, forever, trusting the swapchain's FIFO present to be the thing
-// that blocked. That holds right up until a present does NOT block — a surface
-// mid-teardown answers "GetCurrentTexture was not called this frame prior to
-// Present" and returns — and then the only brake is gone and the loop runs as
-// fast as the CPU allows. One backgrounded app was measured 11.5 million frames
-// in, holding a quarter of a core to render about one frame a second. A vsync
-// source cannot fail that way: no callback, no frame.
+// It used to be a Choreographer callback, posted again after each frame. With a
+// present that also blocks that is two clocks: a frame whose present waited past
+// the next vsync asked for a callback only after it, which then came a vsync
+// later again. A 15 ms frame on a 60 Hz cadence ran at 30 fps, every interval
+// 33 ms, on a Snapdragon 8 Elite; issue #105 measured 33/50/66 ms in a real game.
 //
 // Two conditions, both required, exactly the pair iOS pauses its display link on:
 // there has to be a surface to present to, and the activity has to be the one the
 // user is looking at. Either alone is not enough — pressing HOME leaves the
-// surface alive, so a driver gated on the surface only goes on rendering the game
+// surface alive, so a loop gated on the surface only goes on rendering the game
 // at the full panel rate onto a window nobody can see. (Measured: 121 fps from the
 // home screen.) The host already treats PAUSE as "not visible" by suspending audio
-// and the game clock; this makes rendering agree with the other two.
-struct FrameDriver {
-    AChoreographer* choreographer = nullptr;
-    PerformanceHints* hints = nullptr;
-    /// A callback is in flight. Guards against posting twice for one vsync, which
-    /// would double the frame rate for as long as both chains lived.
-    bool posted = false;
+// and the game clock; this makes rendering agree with the other two. While either
+// is missing the loop blocks in the poll: no frames, and no spinning.
+struct FrameGate {
     bool hasSurface = false;
     /// Starts true, and only APP_CMD_PAUSE clears it. Waiting for a RESUME to
     /// arrive first is what broke this once: a launch that never delivered one
@@ -700,26 +706,12 @@ struct FrameDriver {
     /// nothing, where a missed PAUSE is the thing actually being guarded against,
     /// and PAUSE always arrives because the OS is what sends it.
     bool resumed = true;
-    /// Derived from the two above; kept so a callback already in flight can tell
-    /// it was cancelled.
+    /// Derived from the two above: whether the loop draws.
     bool running = false;
-
-    /// Must be called on the thread that will receive callbacks (the glue's own,
-    /// which has a prepared looper).
-    void attach() {
-        choreographer = AChoreographer_getInstance();
-        if (!choreographer) {
-            __android_log_print(ANDROID_LOG_ERROR, LOG_TAG,
-                                "no Choreographer on this thread — nothing will drive frames");
-        }
-    }
 
     void setSurface(bool has) { hasSurface = has; sync(); }
     void setResumed(bool is) { resumed = is; sync(); }
 
-    /// Start or stop asking for frames, to match the two conditions. An already
-    /// posted callback still arrives and is ignored — there is no API to cancel
-    /// one, and dropping it is what pausing means anyway.
     void sync() {
         const bool want = hasSurface && resumed;
         if (want == running) return;
@@ -728,57 +720,16 @@ struct FrameDriver {
         // one place that can explain a black screen, which is otherwise silent.
         __android_log_print(ANDROID_LOG_INFO, LOG_TAG, "frames: %s (surface=%d resumed=%d)",
                             running ? "running" : "paused", (int)hasSurface, (int)resumed);
-        if (running) post();
     }
-
-    void post() {
-        if (!choreographer || posted || !running) return;
-        posted = true;
-        // The 64-bit callback is API 29, which is the floor (see the manifest
-        // template for why the floor cannot go lower).
-        AChoreographer_postFrameCallback64(choreographer, &FrameDriver::onVsync64, this);
-    }
-
-    /// When the next frame is due, on the vsync clock; 0 restarts the cadence.
-    int64_t nextRunNanos = 0;
-
-private:
-    /// The cap the game asked for, held as a cadence and not as a minimum gap — the web loop's rule (App.mainLoop): a gap
-    /// measured frame to frame loses to jitter half the time and waits a third. Only an explicit cap paces here; the default
-    /// 60 is the system's to hold, through the hint. Returns false for a vsync this frame is skipped on.
-    bool due(int64_t vsyncNanos) {
-        if (!g_targetSet || g_targetFps <= 0.0f || vsyncNanos <= 0) return true;
-        const int64_t interval = (int64_t)(1e9 / g_targetFps);
-        constexpr int64_t kJitter = 2'000'000;   // 2 ms
-        if (vsyncNanos < nextRunNanos - kJitter) return false;
-        nextRunNanos = (nextRunNanos == 0 || vsyncNanos - nextRunNanos > interval)
-            ? vsyncNanos + interval : nextRunNanos + interval;
-        return true;
-    }
-
-    void tick(int64_t vsyncNanos) {
-        posted = false;
-        if (!running) return;
-        if (!due(vsyncNanos)) { post(); return; }
-        // Timed around the frame alone, and re-posted after it: asking for the
-        // next vsync first would let a frame that overran queue behind itself.
-        const auto begin = std::chrono::steady_clock::now();
-        eshost::frame(vsyncNanos);
-        if (hints) hints->report(std::chrono::steady_clock::now() - begin);
-        post();
-    }
-
-    // The vsync's own timestamp is the game clock's tick (Host::frame), not the moment this callback happened to run.
-    static void onVsync64(int64_t frameTimeNanos, void* data) { static_cast<FrameDriver*>(data)->tick(frameTimeNanos); }
 };
 
-FrameDriver g_frames;
+FrameGate g_frames;
 
+/// The cap itself is the pacer's (es_setTargetFrameRate set it before calling this); the OS is told here, the one part only
+/// the platform can do.
 void framesTargetRate(float fps) {
-    if (g_targetSet && fps == g_targetFps) return;
-    g_targetSet = true;
+    if (fps == g_targetFps) return;
     g_targetFps = fps;
-    g_frames.nextRunNanos = 0;
     hintFrameRate(g_platform.window, fps);
 }
 void framesSurface(bool has) { g_frames.setSurface(has); }
@@ -1018,26 +969,46 @@ void android_main(android_app* app) {
     app->activity->callbacks->onWindowFocusChanged = onWindowFocusChanged;
     PerformanceHints hints;
     hints.open();
-    g_frames.hints = &hints;
-    g_frames.attach();
+    eshost::framePacer().setTarget(kDefaultFps);
 
-    // Nothing but waiting. Frames arrive as Choreographer callbacks and input as
-    // looper events, both dispatched from inside the poll — so there is no state
-    // this loop has to sample, and therefore no reason for it to ever spin.
+    // The frame loop (see FrameGate). Each turn waits for input or for the next
+    // frame to fall due, whichever comes first, serves every event already queued,
+    // and then draws if a frame is due. Drawing does not wait for the queue to run
+    // dry: a touch panel reporting at 240-480 Hz keeps it non-empty, and a loop
+    // that drew only on a timed-out poll starved frames for up to a second while a
+    // finger was down.
+    using Clock = std::chrono::steady_clock;
     while (true) {
-        int events;
-        android_poll_source* source;
-        const int id = ALooper_pollOnce(-1, nullptr, &events, (void**)&source);
-        if (id == ALOOPER_POLL_ERROR) {
-            __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, "looper error — leaving the frame loop");
-            return;
+        int timeoutMs = -1;   // not drawing: sleep until the OS has something
+        if (g_frames.running) {
+            const auto wait = eshost::untilFrameDue();
+            // Rounded up: waking early only goes round the loop again.
+            timeoutMs = wait > Clock::duration::zero()
+                ? (int)std::chrono::duration_cast<std::chrono::milliseconds>(wait + std::chrono::microseconds(999)).count()
+                : 0;
         }
-        if (id >= 0 && source) source->process(app, source);
-        if (app->destroyRequested) {
-            g_platform.device.stop();
-            g_platform.device.activity = nullptr;
-            framesResumed(false);
-            return;
+        for (;;) {
+            int events;
+            android_poll_source* source;
+            const int id = ALooper_pollOnce(timeoutMs, nullptr, &events, (void**)&source);
+            if (id == ALOOPER_POLL_TIMEOUT) break;
+            if (id == ALOOPER_POLL_ERROR) {
+                __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, "looper error — leaving the frame loop");
+                return;
+            }
+            if (id >= 0 && source) source->process(app, source);
+            if (app->destroyRequested) {
+                g_platform.device.stop();
+                g_platform.device.activity = nullptr;
+                framesResumed(false);
+                return;
+            }
+            timeoutMs = 0;   // the rest of what is queued, without waiting for more
         }
+        if (!g_frames.running || eshost::untilFrameDue() > Clock::duration::zero()) continue;
+        hints.updateTarget(eshost::framePacer().budget());
+        const auto begin = Clock::now();
+        eshost::frame();
+        hints.report(Clock::now() - begin);
     }
 }

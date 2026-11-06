@@ -3830,4 +3830,6 @@ export const NOTED = {
     {"note":"A native build reports its GPU frame time."},
   "perf(render): Voxel GI reads its cache plainly where nothing else writes it, and skips empty slots when it ages them, so a phone spends far less on its upkeep and its rays":
     {"note":"Voxel GI costs less on mobile GPUs."},
+  "fix(native): every native host draws from one pacer, its present's own block and the game's cap, so an Android frame near its budget holds 60 fps instead of dropping to 30":
+    {"note":"Android frames no longer drop to 30 fps when they come close to the frame budget."},
 };

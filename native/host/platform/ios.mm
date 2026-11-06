@@ -249,7 +249,12 @@ IOSPlatform g_platform;
     }
 }
 
-- (void)step:(CADisplayLink*)link { eshost::frame(); }
+// The display link is the clock here; the pacer only holds the game's cap (FramePacer.hpp), skipping the vsyncs it falls
+// between, as every host does.
+- (void)step:(CADisplayLink*)link {
+    if (eshost::untilFrameDue(/*floor=*/false) > std::chrono::steady_clock::duration::zero()) return;
+    eshost::frame();
+}
 
 - (void)viewSafeAreaInsetsDidChange {
     [super viewSafeAreaInsetsDidChange];
