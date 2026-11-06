@@ -3832,4 +3832,6 @@ export const NOTED = {
     {"note":"Voxel GI costs less on mobile GPUs."},
   "fix(native): every native host draws from one pacer, its present's own block and the game's cap, so an Android frame near its budget holds 60 fps instead of dropping to 30":
     {"note":"Android frames no longer drop to 30 fps when they come close to the frame budget."},
+  "fix(native): a platform only names the font face a glyph needs, and the rasterizer maps each face's file once, so a new glyph no longer reads a whole system font":
+    {"note":"A new glyph on a native build no longer stalls the frame reading a whole system font."},
 };

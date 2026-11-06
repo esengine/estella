@@ -268,8 +268,8 @@ struct AndroidPlatform final : eshost::Platform {
     // installed families, applies weight/italic, and — the part worth having —
     // falls back per codepoint, so CJK text resolves to Noto without the host
     // hard-coding a single font path.
-    eshost::FontFile loadFont(const std::string& family, u32 codepoint, int style) override {
-        eshost::FontFile out;
+    eshost::FontMatch matchFont(const std::string& family, u32 codepoint, int style) override {
+        eshost::FontMatch out;
         AFontMatcher* matcher = AFontMatcher_create();
         if (!matcher) return out;
         AFontMatcher_setStyle(matcher, (style & eshost::GLYPH_BOLD) ? AFONT_WEIGHT_BOLD : AFONT_WEIGHT_NORMAL,
@@ -301,19 +301,8 @@ struct AndroidPlatform final : eshost::Platform {
         if (const char* path = AFont_getFontFilePath(font)) {
             out.path = path;
             out.faceIndex = (int)AFont_getCollectionIndex(font);
-            if (FILE* f = fopen(path, "rb")) {
-                fseek(f, 0, SEEK_END);
-                const long size = ftell(f);
-                fseek(f, 0, SEEK_SET);
-                if (size > 0) {
-                    out.bytes.resize((size_t)size);
-                    if (fread(out.bytes.data(), 1, out.bytes.size(), f) != out.bytes.size()) out.bytes.clear();
-                }
-                fclose(f);
-            }
         }
         AFont_close(font);
-        if (out.bytes.empty()) out.path.clear();
         return out;
     }
 

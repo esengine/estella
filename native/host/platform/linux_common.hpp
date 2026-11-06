@@ -28,11 +28,11 @@
 namespace eshost {
 
 /** A font file for @p family covering @p codepoint, with @p style's bold/italic
- *  bits applied — implements Platform::loadFont.
+ *  bits applied — implements Platform::matchFont.
  *
  *  fontconfig falls back across the installed fonts when given the codepoint as a
  *  required charset: the CJK path, with no per-distribution path hard-coded. */
-FontFile linuxLoadFont(const std::string& family, esengine::u32 codepoint, int style);
+FontMatch linuxMatchFont(const std::string& family, esengine::u32 codepoint, int style);
 
 /** Run @p req on a libcurl worker thread and hand the reply to deliverFetch —
  *  see Platform::startFetch. */

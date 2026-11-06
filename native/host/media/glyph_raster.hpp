@@ -11,7 +11,7 @@
  *          identically on both platforms.
  *
  *          Only picking the font file is per-OS (Android's font matcher, Core
- *          Text on iOS); it sits behind {@link eshost::Platform::loadFont}.
+ *          Text on iOS); it sits behind {@link eshost::Platform::matchFont}.
  *
  * @author  ESEngine Team
  * @date    2026

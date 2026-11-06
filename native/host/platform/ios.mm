@@ -158,8 +158,8 @@ struct IOSPlatform final : eshost::Platform {
         NSLog(@"[Estella]%s %s", error ? " ERROR:" : "", message);
     }
 
-    eshost::FontFile loadFont(const std::string& family, u32 codepoint, int style) override {
-        return eshost::appleLoadFont(family, codepoint, style);
+    eshost::FontMatch matchFont(const std::string& family, u32 codepoint, int style) override {
+        return eshost::appleMatchFont(family, codepoint, style);
     }
 
     // Core Text draws what stb_truetype cannot read — see Platform::drawGlyph.

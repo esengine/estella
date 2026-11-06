@@ -37,21 +37,6 @@ FcConfig* fonts() {
     return config;
 }
 
-std::vector<u8> readWholeFile(const char* path) {
-    std::vector<u8> out;
-    std::FILE* file = std::fopen(path, "rb");
-    if (!file) return out;
-    std::fseek(file, 0, SEEK_END);
-    const long size = std::ftell(file);
-    std::fseek(file, 0, SEEK_SET);
-    if (size > 0) {
-        out.resize(static_cast<size_t>(size));
-        if (std::fread(out.data(), 1, out.size(), file) != out.size()) out.clear();
-    }
-    std::fclose(file);
-    return out;
-}
-
 /** The default family, matching the role Segoe UI plays on Windows and Helvetica
  *  on Apple: whatever this machine calls its sans-serif, which fontconfig knows
  *  and no distribution spells the same way. */
@@ -59,8 +44,8 @@ constexpr const char* kDefaultFamily = "sans-serif";
 
 }  // namespace
 
-FontFile linuxLoadFont(const std::string& family, u32 codepoint, int style) {
-    FontFile out;
+FontMatch linuxMatchFont(const std::string& family, u32 codepoint, int style) {
+    FontMatch out;
     FcConfig* config = fonts();
     if (!config) return out;
 
@@ -90,11 +75,9 @@ FontFile linuxLoadFont(const std::string& family, u32 codepoint, int style) {
         int index = 0;
         if (FcPatternGetString(matched, FC_FILE, 0, &file) == FcResultMatch && file) {
             out.path = reinterpret_cast<const char*>(file);
-            out.bytes = readWholeFile(out.path.c_str());
-            if (out.bytes.empty()) out.path.clear();
         }
         // A collection (.ttc) holds several faces, so the index travels with the
-        // bytes or the rasterizer reads the wrong one.
+        // path or the rasterizer reads the wrong one.
         if (FcPatternGetInteger(matched, FC_INDEX, 0, &index) == FcResultMatch) out.faceIndex = index;
 
         // What the matched file does NOT provide of what was asked for. fontconfig

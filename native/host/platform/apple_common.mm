@@ -84,8 +84,8 @@ CTFontRef matchFace(const std::string& family, u32 codepoint, int style, CGFloat
     return font;
 }
 
-FontFile appleLoadFont(const std::string& family, u32 codepoint, int style) {
-    FontFile out;
+FontMatch appleMatchFont(const std::string& family, u32 codepoint, int style) {
+    FontMatch out;
     CTFontRef font = matchFace(family, codepoint, style, 16.0,
                                &out.syntheticBold, &out.syntheticItalic);
     if (!font) return out;
@@ -119,13 +119,7 @@ FontFile appleLoadFont(const std::string& family, u32 codepoint, int style) {
     CFRelease(font);
     NSString* path = [(__bridge NSURL*)url path];
     CFRelease(url);
-    if (!path) return out;
-
-    NSData* data = [NSData dataWithContentsOfFile:path];
-    if (!data) return out;
-    out.path = std::string([path UTF8String]);
-    out.bytes.resize(data.length);
-    memcpy(out.bytes.data(), data.bytes, data.length);
+    if (path) out.path = std::string([path UTF8String]);
     return out;
 }
 

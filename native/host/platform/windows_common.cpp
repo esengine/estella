@@ -66,8 +66,9 @@ IDWriteFactory* factory() {
 }
 
 /** The file behind a font face, and which face inside it. A collection (.ttc)
- *  holds several, so the index has to travel with the bytes. */
-bool readFaceFile(IDWriteFontFace* face, FontFile& out) {
+ *  holds several, so the index has to travel with the path. Only a face on disk
+ *  has one: a font from another loader (a memory font) answers false. */
+bool faceFilePath(IDWriteFontFace* face, FontMatch& out) {
     UINT32 fileCount = 0;
     if (FAILED(face->GetFiles(&fileCount, nullptr)) || fileCount == 0) return false;
     std::vector<IDWriteFontFile*> files(fileCount, nullptr);
@@ -87,23 +88,9 @@ bool readFaceFile(IDWriteFontFace* face, FontFile& out) {
                 std::wstring path(length + 1, L'\0');
                 if (SUCCEEDED(local->GetFilePathFromKey(key, keySize, path.data(), length + 1))) {
                     path.resize(length);
-                    if (HANDLE handle = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ,
-                                                    nullptr, OPEN_EXISTING,
-                                                    FILE_ATTRIBUTE_NORMAL, nullptr);
-                        handle != INVALID_HANDLE_VALUE) {
-                        LARGE_INTEGER size{};
-                        if (GetFileSizeEx(handle, &size) && size.QuadPart > 0) {
-                            out.bytes.resize((size_t)size.QuadPart);
-                            DWORD read = 0;
-                            ok = ReadFile(handle, out.bytes.data(), (DWORD)out.bytes.size(), &read, nullptr)
-                                && read == out.bytes.size();
-                        }
-                        CloseHandle(handle);
-                    }
-                    if (ok) {
-                        out.path = narrow(path);
-                        out.faceIndex = (int)face->GetIndex();
-                    }
+                    out.path = narrow(path);
+                    out.faceIndex = (int)face->GetIndex();
+                    ok = !out.path.empty();
                 }
             }
             local->Release();
@@ -116,8 +103,8 @@ bool readFaceFile(IDWriteFontFace* face, FontFile& out) {
 
 }  // namespace
 
-FontFile windowsLoadFont(const std::string& family, u32 codepoint, int style) {
-    FontFile out;
+FontMatch windowsMatchFont(const std::string& family, u32 codepoint, int style) {
+    FontMatch out;
     IDWriteFactory* dw = factory();
     if (!dw) return out;
 
@@ -181,7 +168,7 @@ FontFile windowsLoadFont(const std::string& family, u32 codepoint, int style) {
 
     IDWriteFontFace* face = nullptr;
     if (SUCCEEDED(font->CreateFontFace(&face)) && face) {
-        if (!readFaceFile(face, out)) out.path.clear();
+        if (!faceFilePath(face, out)) out.path.clear();
         face->Release();
     }
     font->Release();

@@ -20,12 +20,12 @@
 
 namespace eshost {
 
-/** A font file for @p family covering @p codepoint, with @p style's bold/italic
- *  bits applied — implements Platform::loadFont.
+/** The face for @p family covering @p codepoint, with @p style's bold/italic
+ *  bits applied — implements Platform::matchFont.
  *
  *  DirectWrite resolves the family and finds a face covering the codepoint: the
  *  CJK fallback, without a hard-coded path. */
-FontFile windowsLoadFont(const std::string& family, esengine::u32 codepoint, int style);
+FontMatch windowsMatchFont(const std::string& family, esengine::u32 codepoint, int style);
 
 /** Run @p req on a WinHTTP worker thread and hand the reply to deliverFetch —
  *  see Platform::startFetch. TLS is the OS's, which is why this is platform code. */

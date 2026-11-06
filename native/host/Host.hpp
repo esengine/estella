@@ -64,14 +64,16 @@ struct FetchResult {
 };
 
 /**
- * A font file the glyph rasterizer can parse. `path` identifies it (the cache
- * key — empty means the platform found nothing), `faceIndex` selects a face
- * inside a collection (.ttc), and `bytes` is the file, read only the first time
- * a path is seen.
+ * Which face draws a glyph: the file it lives in (`path`, empty when the platform
+ * found nothing) and which face inside it (`faceIndex`, for a collection — .ttc).
+ * Only the answer: opening the file is the rasterizer's, once per face for the
+ * life of the host (media/glyph_raster.cpp). Every platform used to read the
+ * whole file into this on every call, which is every glyph rasterized, and a CJK
+ * system font is tens of MB: a frame stalled each time a new glyph appeared
+ * (issue #106).
  */
-struct FontFile {
+struct FontMatch {
     std::string path;
-    std::vector<esengine::u8> bytes;
     int faceIndex = 0;
     /**
      * What the matched file does NOT provide of the style that was asked for, so
@@ -210,14 +212,16 @@ struct Platform {
 
     virtual void log(bool error, const char* message) = 0;
 
-    /** A font for @p family that covers @p codepoint, with @p style's bold/italic
+    /** The face for @p family that covers @p codepoint, with @p style's bold/italic
      *  bits (see GLYPH_BOLD / GLYPH_ITALIC) applied to the match. Empty `path`
      *  when the platform has nothing — the glyph then simply does not draw.
      *
-     *  This is the ONLY per-OS part of text: which file to open. Android asks its
-     *  font matcher (which handles CJK fallback), iOS asks Core Text; the
-     *  rasterization and the SDF conversion are shared (see media/glyph_raster.hpp). */
-    virtual FontFile loadFont(const std::string& family, esengine::u32 codepoint, int style) = 0;
+     *  This is the ONLY per-OS part of text: which face. Android asks its font
+     *  matcher (which handles CJK fallback), Apple Core Text, Linux fontconfig,
+     *  Windows DirectWrite; reading the file, the rasterization and the SDF
+     *  conversion are shared (see media/glyph_raster.hpp). Called per glyph, so it
+     *  must not touch the file. */
+    virtual FontMatch matchFont(const std::string& family, esengine::u32 codepoint, int style) = 0;
 
     /**
      * Coverage the platform drew itself, padded and supersampled as the shared

@@ -27,12 +27,12 @@ namespace eshost {
 
 /**
  * A font file for @p family covering @p codepoint, with @p style's bold/italic
- * bits (GLYPH_BOLD / GLYPH_ITALIC) applied — implements Platform::loadFont.
+ * bits (GLYPH_BOLD / GLYPH_ITALIC) applied — implements Platform::matchFont.
  *
  * Core Text resolves the family and CTFontCreateForString picks a face that
  * covers the codepoint: the CJK fallback, without a hard-coded path.
  */
-FontFile appleLoadFont(const std::string& family, esengine::u32 codepoint, int style);
+FontMatch appleMatchFont(const std::string& family, esengine::u32 codepoint, int style);
 
 /**
  * Coverage for @p codepoint drawn by Core Text — implements Platform::drawGlyph.

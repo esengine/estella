@@ -301,8 +301,8 @@ struct DesktopPlatform final : eshost::Platform {
     }
 
 #if defined(__APPLE__)
-    eshost::FontFile loadFont(const std::string& family, u32 codepoint, int style) override {
-        return eshost::appleLoadFont(family, codepoint, style);
+    eshost::FontMatch matchFont(const std::string& family, u32 codepoint, int style) override {
+        return eshost::appleMatchFont(family, codepoint, style);
     }
 
     // Core Text draws what stb_truetype cannot read — see Platform::drawGlyph.
@@ -313,14 +313,14 @@ struct DesktopPlatform final : eshost::Platform {
 
     void startFetch(const eshost::FetchRequest& req) override { eshost::appleStartFetch(req); }
 #elif defined(_WIN32)
-    eshost::FontFile loadFont(const std::string& family, u32 codepoint, int style) override {
-        return eshost::windowsLoadFont(family, codepoint, style);
+    eshost::FontMatch matchFont(const std::string& family, u32 codepoint, int style) override {
+        return eshost::windowsMatchFont(family, codepoint, style);
     }
 
     void startFetch(const eshost::FetchRequest& req) override { eshost::windowsStartFetch(req); }
 #else
-    eshost::FontFile loadFont(const std::string& family, u32 codepoint, int style) override {
-        return eshost::linuxLoadFont(family, codepoint, style);
+    eshost::FontMatch matchFont(const std::string& family, u32 codepoint, int style) override {
+        return eshost::linuxMatchFont(family, codepoint, style);
     }
 
     void startFetch(const eshost::FetchRequest& req) override { eshost::linuxStartFetch(req); }

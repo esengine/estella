@@ -8,6 +8,7 @@
 
 #include "Host.hpp"
 #include "Runtime.hpp"
+#include "mapped_file.hpp"
 
 #include "esengine/text/SdfGenerator.hpp"
 
@@ -28,21 +29,22 @@ namespace {
 // grid as edge wobble. The SDK's canvas rasterizer supersamples by the same 4.
 constexpr int SDF_SUPERSAMPLE = 4;
 
-/** A parsed font file, kept for the life of the host: fonts are few, glyphs many. */
+/** A parsed font file, kept for the life of the host: fonts are few, glyphs many. Mapped, not read (mapped_file.hpp): the
+ *  parser touches the tables and the glyphs drawn, which is a small part of a CJK font. */
 struct Font {
-    std::vector<uint8_t> bytes;
+    MappedFile file;
     stbtt_fontinfo info{};
     bool ok = false;
 };
 
 /** Parsed fonts by file AND face — the matcher answers both per glyph, and only
- *  a face we have not seen costs a read + parse. Keyed by the pair because a
+ *  a face we have not seen costs a map + parse. Keyed by the pair because a
  *  collection holds several faces at one path: keyed by path alone, whichever
  *  face was parsed first answers for every other one in the same file. */
 std::unordered_map<std::string, std::unique_ptr<Font>> g_fonts;
 
 /** The cache key: a path names a file, a file may hold many faces. */
-std::string faceKey(const FontFile& file) {
+std::string faceKey(const FontMatch& file) {
     return file.path + '#' + std::to_string(file.faceIndex);
 }
 
@@ -55,7 +57,7 @@ struct FontLookup {
 
 FontLookup loadFont(Platform& platform, const std::string& family, uint32_t codepoint, int style,
                     bool& syntheticBold, bool& syntheticItalic) {
-    FontFile file = platform.loadFont(family, codepoint, style);
+    const FontMatch file = platform.matchFont(family, codepoint, style);
     syntheticBold = file.syntheticBold;
     syntheticItalic = file.syntheticItalic;
     if (file.path.empty()) return {};
@@ -65,10 +67,14 @@ FontLookup loadFont(Platform& platform, const std::string& family, uint32_t code
     if (it != g_fonts.end()) return {it->second->ok ? it->second.get() : nullptr, !it->second->ok};
 
     auto font = std::make_unique<Font>();
-    font->bytes = std::move(file.bytes);
-    const int offset = stbtt_GetFontOffsetForIndex(font->bytes.data(), file.faceIndex);
-    if (offset >= 0 && stbtt_InitFont(&font->info, font->bytes.data(), offset)) {
-        font->ok = true;
+    if (font->file.open(file.path)) {
+        const int offset = stbtt_GetFontOffsetForIndex(font->file.data(), file.faceIndex);
+        if (offset >= 0 && stbtt_InitFont(&font->info, font->file.data(), offset)) font->ok = true;
+    } else {
+        // A file the matcher named and nobody can open: cached all the same, so it is not retried for every glyph.
+        ESHOST_LOGE("font: %s could not be opened", file.path.c_str());
+        g_fonts.emplace(key, std::move(font));
+        return {};
     }
     Font* raw = font.get();
     if (!raw->ok) {

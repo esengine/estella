@@ -114,6 +114,14 @@ add_executable(test_frame_pacer
 target_include_directories(test_frame_pacer PRIVATE ${CMAKE_SOURCE_DIR}/native/host)
 add_test(NAME test_frame_pacer COMMAND test_frame_pacer)
 
+# The read-only mapping the native glyph rasterizer opens fonts through
+# (native/host/media/mapped_file.hpp): header-only, so no host is needed.
+add_executable(test_mapped_file
+    text/test_mapped_file.cpp
+)
+target_include_directories(test_mapped_file PRIVATE ${CMAKE_SOURCE_DIR}/native/host)
+add_test(NAME test_mapped_file COMMAND test_mapped_file)
+
 # Tilemap system tests
 add_executable(test_tilemap
     tilemap/test_tilemap.cpp
