@@ -11,7 +11,7 @@
 import {
     add, boundsOf, collectEdges, compact, cross, dot, edgeKey, faceCenter, faceNormal, length, normalize, scale,
     selectEdges, selectFaces, sub,
-    type EdgeSelector, type Face, type FaceSelector, type PolyMesh, type Vec3,
+    type Edge, type EdgeSelector, type Face, type FaceSelector, type PolyMesh, type Vec3,
 } from './polyMesh';
 
 const EPS = 1e-6;
@@ -540,17 +540,47 @@ export function weld(mesh: PolyMesh, p: { distance?: number }): PolyMesh {
  * edge slides along the other. Three or more new vertices round a vertex close with a
  * cap; two are the edge the strips share, which is the mitre.
  */
-export function bevel(mesh: PolyMesh, p: { edges: EdgeSelector | 'all'; width: number; tag?: string }): PolyMesh {
+export function bevel(mesh: PolyMesh, p: { edges: EdgeSelector | 'all'; width: number; round?: number; tag?: string }): PolyMesh {
     if (p.width <= 0) throw new Error(`width ${p.width} must be positive`);
+    const passes = p.round ?? 0;
+    if (!Number.isInteger(passes) || passes < 0 || passes > 3) throw new Error(`round ${passes} must be a whole number, 0..3`);
     const chosen = selectEdges(mesh, p.edges === 'all' ? {} : p.edges);
     if (chosen.length === 0) throw new Error(`\`edges\` ${JSON.stringify(p.edges)} matched no edge between two faces. Open rims cannot be bevelled, and edges closer to flat than \`sharp\` (default 10 degrees) are left out`);
+    // Rounded by cutting corners again: each pass takes a quarter off both sides of every corner the last one left, which closes on a curve.
+    let out = chamferEdges(mesh, chosen, p.width, p.tag);
+    let width = p.width * Math.SQRT2;
+    const firstNew = mesh.faces.length;
+    for (let pass = 0; pass < passes; pass++) {
+        width /= 4;
+        const corners = cornerEdges(out, firstNew);
+        const before = out.faces.length;
+        out = chamferEdges(out, corners, width, p.tag, true);
+        // Faces keep their order through a pass and its new ones go on the end, so the bevel's own run from the same place.
+        void before;
+        width *= 2;
+    }
+    return compact(out);
+}
+
+/** The edges where a bevel's own faces (those from @p firstNew on) meet anything at an angle: what the next rounding pass cuts. */
+function cornerEdges(mesh: PolyMesh, firstNew: number): Edge[] {
+    const flat = Math.cos((2 * Math.PI) / 180);
+    return [...collectEdges(mesh).values()].filter((e) => e.faces.length === 2 && e.faces.some((f) => f >= firstNew)
+        && dot(faceNormal(mesh, mesh.faces[e.faces[0]!]!), faceNormal(mesh, mesh.faces[e.faces[1]!]!)) < flat);
+}
+
+/** How far along an edge a rounding pass may cut: both ends must leave something of it, whatever size of sliver a corner left. */
+const ROUND_LIMIT = 0.45;
+
+/** @p fit keeps every cut on its edge instead of refusing one that overruns: a user's width is checked on the first pass, and later ones are the kernel's own. */
+function chamferEdges(mesh: PolyMesh, chosen: readonly Edge[], width: number, tag?: string, fit = false): PolyMesh {
+    const p = { tag };
     const edges = collectEdges(mesh);
     for (const edge of edges.values()) {
         if (edge.faces.length > 2) throw new Error(`an edge at ${JSON.stringify(roundVec(mesh.positions[edge.a]!))} is shared by ${edge.faces.length} faces; weld or separate them first`);
     }
     const isChosen = new Set(chosen.map((e) => edgeKey(e.a, e.b)));
     const positions = mesh.positions.slice();
-    const width = p.width;
 
     // How far each end of an edge is eaten, to refuse a bevel wider than the edge. The most any face at that end asks: two faces share it.
     const eaten = new Map<string, number>();
@@ -574,7 +604,8 @@ export function bevel(mesh: PolyMesh, p: { edges: EdgeSelector | 'all'; width: n
         if (known !== undefined) return known;
         const lean = dot(along, across);
         // An edge running away from the chamfer, or nearly along it, has no distance that is `width` across: fall back on `width`.
-        const t = lean > 0.05 ? width / lean : width;
+        const wanted = lean > 0.05 ? width / lean : width;
+        const t = fit ? Math.min(wanted, length(sub(mesh.positions[far]!, mesh.positions[v]!)) * ROUND_LIMIT) : wanted;
         eat(v, far, t);
         const at = positions.length;
         positions.push(add(mesh.positions[v]!, scale(along, t)));
@@ -594,7 +625,13 @@ export function bevel(mesh: PolyMesh, p: { edges: EdgeSelector | 'all'; width: n
             const inNext = normalize(cross(n, toNext)), inPrev = normalize(cross(toPrev, n));
             let run: number[];
             if (nextChosen && prevChosen) {
-                const q = offsetCorner(at, n, toNext, toPrev, width, width);
+                let q = offsetCorner(at, n, toNext, toPrev, width, width);
+                if (fit) {
+                    // Shrunk toward the corner until it is within both edges' share.
+                    const room = ROUND_LIMIT * Math.min(length(sub(mesh.positions[next]!, at)), length(sub(mesh.positions[prev]!, at)));
+                    const along = Math.max(dot(sub(q, at), toNext), dot(sub(q, at), toPrev), length(sub(q, at)));
+                    if (along > room) q = add(at, scale(sub(q, at), room / along));
+                }
                 eat(v, next, dot(sub(q, at), toNext));
                 eat(v, prev, dot(sub(q, at), toPrev));
                 run = [positions.length];
@@ -611,7 +648,7 @@ export function bevel(mesh: PolyMesh, p: { edges: EdgeSelector | 'all'; width: n
     });
 
     // Refused before any face is built: an overrun edge is a bow-tie, and it would look like a rendering bug.
-    for (const [key, t] of eaten) {
+    if (!fit) for (const [key, t] of eaten) {
         const [a, b] = key.split('>').map(Number) as [number, number];
         const needs = t + (eaten.get(`${b}>${a}`) ?? 0);
         const long = length(sub(mesh.positions[a]!, mesh.positions[b]!));

@@ -269,7 +269,7 @@ describe('refusals name what to change', () => {
         const anim = (tracks: unknown[], extra = {}) => source({ rig, animations: [{ name: 'a', duration: 1, tracks, ...extra }] });
         expect(() => validateModelSource(source({ animations: [] }))).toThrow(/no rig/);
         expect(() => validateModelSource(anim([{ joint: 'elbow', rotate: [[0, 0, 0, 0]] }]))).toThrow(/no joint "elbow"; there are base, mid, tip/);
-        expect(() => validateModelSource(anim([{ joint: 'mid' }]))).toThrow(/neither rotate nor move/);
+        expect(() => validateModelSource(anim([{ joint: 'mid' }]))).toThrow(/none of rotate, move, reach/);
         expect(() => validateModelSource(anim([{ joint: 'mid', rotate: [[2, 0, 0, 0]] }]))).toThrow(/time 2 is outside/);
         expect(() => validateModelSource(anim([{ joint: 'mid', rotate: [[0.5, 0, 0, 0], [0.2, 0, 0, 0]] }]))).toThrow(/time order/);
         expect(() => validateModelSource(anim([{ joint: 'mid', rotate: [[0, 0, 0]] }]))).toThrow(/every key is \[time, x, y, z\]/);

@@ -3866,6 +3866,10 @@ export const NOTED = {
     {"note":"A sea seen from above is no longer scored with straight lines."},
   "feat(mcp): an agent builds a 3D model in the editor from steps, changes it by one number, and sees every side of it":
     {"note":"AI agents can build 3D models in the editor from steps."},
+  "feat(modeling): a foot can be told where to land, a controller says which clip plays when, and surfaces can be subdivided and edges rounded":
+    {"note":"AI agents can build 3D models in the editor from steps."},
+  "feat(mcp): model_write plants feet, writes an animator, subdivides and rounds":
+    {"note":"AI agents can build 3D models in the editor from steps."},
   "feat(modeling): a model can have a rig with weights found over its surface, and clips of a few keys, so what an agent builds can move":
     {"note":"AI agents can build 3D models in the editor from steps."},
   "feat(mcp): model_write rigs and animates a model, and model_views shows the bones, the weights and a clip through time":

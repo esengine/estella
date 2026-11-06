@@ -8,8 +8,8 @@
  *        close through the air and far apart over the skin, and only the second is
  *        whether one should drag the other.
  */
-import { PREFAB_FORMAT_VERSION, TIMELINE_FORMAT_VERSION } from 'esengine';
-import { add, boundsOf, cross, dot, length, scale, sub, type PolyMesh, type Vec3 } from './polyMesh';
+import { ANIMATOR_FORMAT_VERSION, PREFAB_FORMAT_VERSION, TIMELINE_FORMAT_VERSION } from 'esengine';
+import { add, boundsOf, cross, dot, length, normalize, scale, sub, type PolyMesh, type Vec3 } from './polyMesh';
 
 export const MAX_RIG_JOINTS = 64;
 const DEG = Math.PI / 180;
@@ -33,6 +33,16 @@ export interface AnimationTrack {
     rotate?: readonly (readonly number[])[];
     /** [time, x, y, z] from where the joint rests. */
     move?: readonly (readonly number[])[];
+    /**
+     * [time, x, y, z] where this joint must be, in the model's own space: the foot of a two-bone limb,
+     * whose parent and grandparent turn to put it there. `rotate` on the same track then holds it at
+     * that orientation in the model's space, and left out it stays level with the ground.
+     */
+    reach?: readonly (readonly number[])[];
+    /** The way the middle joint of a `reach` bends: forward for a knee, back for an elbow. Default the way it already bends, else +Z. */
+    pole?: Vec3;
+    /** Straight lines between keys, for a foot sliding along the ground: a curve would dip through it. */
+    linear?: boolean;
     /** Shifts the keys by this fraction of the clip: the other leg, half a stride behind. */
     phase?: number;
 }
@@ -298,7 +308,8 @@ function checkKeys(keys: unknown, duration: number, label: string): string | nul
 export function checkAnimations(raw: unknown, rig: unknown): string | null {
     if (!Array.isArray(raw)) return 'animations must be an array';
     if (!rig) return 'animations move joints, and this source has no rig';
-    const names = new Set(resolveJoints(rig as RigSource).map((j) => j.name));
+    const jointList = resolveJoints(rig as RigSource);
+    const names = new Set(jointList.map((j) => j.name));
     const seen = new Set<string>();
     for (const [i, a] of (raw as Record<string, unknown>[]).entries()) {
         if (typeof a !== 'object' || a === null) return `animation ${i} must be an object`;
@@ -311,17 +322,35 @@ export function checkAnimations(raw: unknown, rig: unknown): string | null {
         if (!Array.isArray(a.tracks) || a.tracks.length === 0) return `animation "${a.name}" needs tracks`;
         const tracked = new Set<string>();
         for (const t of a.tracks as Record<string, unknown>[]) {
-            for (const key of Object.keys(t)) if (!['joint', 'rotate', 'move', 'phase'].includes(key)) return `animation "${a.name}": a track has an unknown field "${key}"; it takes joint, rotate, move, phase`;
+            for (const key of Object.keys(t)) if (!['joint', 'rotate', 'move', 'reach', 'pole', 'linear', 'phase'].includes(key)) return `animation "${a.name}": a track has an unknown field "${key}"; it takes joint, rotate, move, reach, pole, linear, phase`;
             if (!names.has(t.joint as string)) return `animation "${a.name}": no joint "${String(t.joint)}"; there are ${[...names].join(', ')}`;
             if (tracked.has(t.joint as string)) return `animation "${a.name}": two tracks for joint "${t.joint as string}"; put their keys in one`;
             tracked.add(t.joint as string);
-            if (t.rotate === undefined && t.move === undefined) return `animation "${a.name}": the track for "${t.joint as string}" has neither rotate nor move`;
-            for (const kind of ['rotate', 'move'] as const) {
+            if (t.rotate === undefined && t.move === undefined && t.reach === undefined) return `animation "${a.name}": the track for "${t.joint as string}" has none of rotate, move, reach`;
+            if (t.reach !== undefined) {
+                if (t.move !== undefined) return `animation "${a.name}": "${t.joint as string}" has both reach and move; reach already says where it goes`;
+                const chain = jointList.find((j) => j.name === t.joint)!;
+                const lower = chain.parent >= 0 ? jointList[chain.parent]! : null;
+                if (!lower || lower.parent < 0) return `animation "${a.name}": reach needs two bones above the joint, and "${t.joint as string}" has fewer`;
+            }
+            if (t.pole !== undefined && (!vec3(t.pole) || t.reach === undefined)) return `animation "${a.name}": pole on "${t.joint as string}" must be [x, y, z], and goes with reach`;
+            if (t.linear !== undefined && typeof t.linear !== 'boolean') return `animation "${a.name}": linear must be true or false`;
+            for (const kind of ['rotate', 'move', 'reach'] as const) {
                 if (t[kind] === undefined) continue;
                 const bad = checkKeys(t[kind], a.duration, `animation "${a.name}", ${t.joint as string}.${kind}`);
                 if (bad) return bad;
             }
             if (t.phase !== undefined && !isNum(t.phase)) return `animation "${a.name}": phase must be a number`;
+        }
+        // A reach decides its limb, so a rotate on the two joints it turns would be silently thrown away.
+        for (const t of a.tracks as AnimationTrack[]) {
+            if (!t.reach) continue;
+            const foot = jointList.find((j) => j.name === t.joint)!;
+            const lower = jointList[foot.parent]!, upper = jointList[lower.parent]!;
+            for (const taken of [lower, upper]) {
+                const clash = (a.tracks as AnimationTrack[]).find((o) => o.joint === taken.name && o.rotate);
+                if (clash) return `animation "${a.name}": "${taken.name}" has rotate keys, but the reach on "${t.joint}" decides how it turns`;
+            }
         }
     }
     return null;
@@ -356,7 +385,7 @@ function rotateBy(q: Quat, v: Vec3): Vec3 {
 }
 
 /** A key track's value at @p time: a smooth line through the keys, passing through each exactly. */
-function sample(keys: readonly (readonly number[])[], time: number, duration: number, loop: boolean, phase: number): Vec3 {
+function sample(keys: readonly (readonly number[])[], time: number, duration: number, loop: boolean, phase: number, linear = false): Vec3 {
     const shifted = keys.map((k) => [k[0]! + phase * duration, k[1]!, k[2]!, k[3]!] as const);
     const wrap = (t: number): number => ((t % duration) + duration) % duration;
     const list = (loop ? shifted.map((k) => [wrap(k[0]), k[1], k[2], k[3]] as const) : shifted).slice().sort((a, b) => a[0] - b[0]);
@@ -378,6 +407,7 @@ function sample(keys: readonly (readonly number[])[], time: number, duration: nu
     const [p0, p1, p2, p3] = [at(i - 1), at(i), at(i + 1), at(i + 2)];
     const span = p2[0]! - p1[0]!;
     const u = span > 0 ? (t - p1[0]!) / span : 0;
+    if (linear) return [1, 2, 3].map((c) => p1[c]! + (p2[c]! - p1[c]!) * u) as unknown as Vec3;
     const [u2, u3] = [u * u, u * u * u];
     const v = [1, 2, 3].map((c) => {
         const [a, b] = [p1[c]!, p2[c]!];
@@ -388,29 +418,99 @@ function sample(keys: readonly (readonly number[])[], time: number, duration: nu
     return v as unknown as Vec3;
 }
 
-/** Each joint's world rotation and origin at @p time; the bind pose with no animation. */
-function poseAt(joints: readonly RigJoint[], animation: AnimationSource | null, time: number): { q: Quat; origin: Vec3 }[] {
-    const out: { q: Quat; origin: Vec3 }[] = [];
+const conjugate = (q: Quat): Quat => [-q[0], -q[1], -q[2], q[3]];
+
+/** The shortest rotation taking direction @p from onto @p to. */
+function rotationBetween(from: Vec3, to: Vec3): Quat {
+    const a = normalize(from), b = normalize(to);
+    const d = dot(a, b);
+    if (d > 1 - 1e-9) return [0, 0, 0, 1];
+    if (d < -1 + 1e-9) {
+        const side = normalize(cross(a, Math.abs(a[0]) < 0.9 ? [1, 0, 0] : [0, 1, 0]));
+        return [side[0], side[1], side[2], 0];
+    }
+    const c = cross(a, b);
+    const w = 1 + d;
+    const len = Math.hypot(c[0], c[1], c[2], w);
+    return [c[0] / len, c[1] / len, c[2] / len, w / len];
+}
+
+interface Pose {
+    /** Relative to the parent: what a clip writes. */
+    local: { q: Quat; offset: Vec3 }[];
+    /** In the model's space: what skinning reads. */
+    world: { q: Quat; origin: Vec3 }[];
+}
+
+function toWorld(joints: readonly RigJoint[], local: Pose['local']): Pose['world'] {
+    const world: Pose['world'] = [];
     joints.forEach((j, i) => {
-        const track = animation?.tracks.find((t) => t.joint === j.name);
-        const loop = animation?.loop !== false;
-        const euler = track?.rotate ? sample(track.rotate, time, animation!.duration, loop, track.phase ?? 0) : [0, 0, 0] as Vec3;
-        const moved = track?.move ? sample(track.move, time, animation!.duration, loop, track.phase ?? 0) : [0, 0, 0] as Vec3;
-        const local = eulerToQuat(euler[0], euler[1], euler[2]);
-        const rest = j.parent >= 0 ? sub(j.at, joints[j.parent]!.at) : j.at;
-        const offset = add(rest, moved);
-        if (j.parent < 0) out[i] = { q: local, origin: offset };
+        const l = local[i]!;
+        if (j.parent < 0) world[i] = { q: l.q, origin: l.offset };
         else {
-            const p = out[j.parent]!;
-            out[i] = { q: quatMul(p.q, local), origin: add(p.origin, rotateBy(p.q, offset)) };
+            const p = world[j.parent]!;
+            world[i] = { q: quatMul(p.q, l.q), origin: add(p.origin, rotateBy(p.q, l.offset)) };
         }
     });
-    return out;
+    return world;
+}
+
+/** Each joint at @p time, with every `reach` solved; the bind pose with no animation. */
+function poseAt(joints: readonly RigJoint[], animation: AnimationSource | null, time: number): Pose {
+    const loop = animation?.loop !== false;
+    const at = (keys: readonly (readonly number[])[], t: AnimationTrack): Vec3 => sample(keys, time, animation!.duration, loop, t.phase ?? 0, t.linear === true);
+    const local: Pose['local'] = joints.map((j) => {
+        const track = animation?.tracks.find((t) => t.joint === j.name);
+        const euler = track?.rotate && !track.reach ? at(track.rotate, track) : [0, 0, 0] as Vec3;
+        const moved = track?.move ? at(track.move, track) : [0, 0, 0] as Vec3;
+        const rest = j.parent >= 0 ? sub(j.at, joints[j.parent]!.at) : j.at;
+        return { q: eulerToQuat(euler[0], euler[1], euler[2]), offset: add(rest, moved) };
+    });
+    let world = toWorld(joints, local);
+    for (const track of animation?.tracks ?? []) {
+        if (!track.reach) continue;
+        const foot = joints.findIndex((j) => j.name === track.joint);
+        const lower = joints[foot]!.parent, upper = joints[lower]!.parent, above = joints[upper]!.parent;
+        const target = at(track.reach, track);
+        const a = world[upper]!.origin, b = world[lower]!.origin, c = world[foot]!.origin;
+        const upperLen = length(sub(joints[lower]!.at, joints[upper]!.at)), lowerLen = length(sub(joints[foot]!.at, joints[lower]!.at));
+        const toTarget = sub(target, a);
+        const near = Math.abs(upperLen - lowerLen) + 1e-4, far = upperLen + lowerLen - 1e-4;
+        // Out of reach it stretches straight toward the target; the report cannot say so per frame, the strip shows it.
+        const span = Math.max(near, Math.min(far, length(toTarget)));
+        const along = normalize(toTarget);
+        const bent = sub(b, add(a, scale(along, dot(sub(b, a), along))));
+        const hint = track.pole ?? (length(bent) > upperLen * 0.01 ? bent : [0, 0, 1] as Vec3);
+        let side = sub(hint, scale(along, dot(hint, along)));
+        if (length(side) < 1e-6) side = sub([1, 0, 0], scale(along, along[0]));
+        const toKnee = (upperLen * upperLen - lowerLen * lowerLen + span * span) / (2 * span);
+        const out = Math.sqrt(Math.max(0, upperLen * upperLen - toKnee * toKnee));
+        const knee = add(add(a, scale(along, toKnee)), scale(normalize(side), out));
+        const end = add(a, scale(along, span));
+        const upperWorld = quatMul(rotationBetween(sub(b, a), sub(knee, a)), world[upper]!.q);
+        // Where the foot would now be, carried by the upper bone, is what the lower bone turns from.
+        const carried = rotateBy(rotationBetween(sub(b, a), sub(knee, a)), sub(c, b));
+        const lowerWorld = quatMul(rotationBetween(carried, sub(end, knee)), quatMul(rotationBetween(sub(b, a), sub(knee, a)), world[lower]!.q));
+        const held = track.rotate ? at(track.rotate, track) : [0, 0, 0] as Vec3;
+        const footWorld = eulerToQuat(held[0], held[1], held[2]);
+        const parentWorld = above >= 0 ? world[above]!.q : [0, 0, 0, 1] as Quat;
+        local[upper] = { ...local[upper]!, q: quatMul(conjugate(parentWorld), upperWorld) };
+        local[lower] = { ...local[lower]!, q: quatMul(conjugate(upperWorld), lowerWorld) };
+        local[foot] = { ...local[foot]!, q: quatMul(conjugate(lowerWorld), footWorld) };
+        world = toWorld(joints, local);
+    }
+    return { local, world };
+}
+
+/** Where each joint is in a pose: for checking a foot landed. */
+export function jointPositions(joints: readonly RigJoint[], animation: AnimationSource | null, time: number): Record<string, Vec3> {
+    const { world } = poseAt(joints, animation, time);
+    return Object.fromEntries(joints.map((j, i) => [j.name, world[i]!.origin]));
 }
 
 /** The surface's positions in a pose, skinned as the engine skins it. */
 export function posedPositions(mesh: PolyMesh, joints: readonly RigJoint[], skin: SkinWeights, animation: AnimationSource | null, time: number): Vec3[] {
-    const pose = poseAt(joints, animation, time);
+    const pose = poseAt(joints, animation, time).world;
     return mesh.positions.map((p, v) => {
         let out: Vec3 = [0, 0, 0];
         for (let k = 0; k < 4; k++) {
@@ -426,7 +526,7 @@ export function posedPositions(mesh: PolyMesh, joints: readonly RigJoint[], skin
 
 /** The bones as lines in a pose, for drawing over a view. */
 export function boneLines(joints: readonly RigJoint[], animation: AnimationSource | null, time: number): [Vec3, Vec3][] {
-    const pose = poseAt(joints, animation, time);
+    const pose = poseAt(joints, animation, time).world;
     return joints.flatMap((j, i) => (j.parent >= 0 ? [[pose[j.parent]!.origin, pose[i]!.origin] as [Vec3, Vec3]] : []));
 }
 
@@ -444,18 +544,29 @@ export function timelineOf(animation: AnimationSource, joints: readonly RigJoint
         for (let at = i; at >= 0; at = joints[at]!.parent) parts.unshift(joints[at]!.name);
         return parts.join('/');
     };
-    const tracks = animation.tracks.map((track) => {
+    // Every joint the clip turns, a reach's two bones among them: they have no keys of their own, only the solved pose.
+    const turned = new Set<number>();
+    const moved = new Set<number>();
+    for (const track of animation.tracks) {
         const index = joints.findIndex((j) => j.name === track.joint);
-        const joint = joints[index]!;
+        if (track.rotate || track.reach) turned.add(index);
+        if (track.move) moved.add(index);
+        if (track.reach) {
+            turned.add(joints[index]!.parent);
+            turned.add(joints[joints[index]!.parent]!.parent);
+        }
+    }
+    const poses = times.map((t) => poseAt(joints, animation, t).local);
+    const tracks = joints.flatMap((joint, index) => {
+        if (!turned.has(index) && !moved.has(index)) return [];
         const channels: { property: string; keyframes: Keyframe[] }[] = [];
         const push = (property: string, values: number[]): void => {
             channels.push({ property, keyframes: values.map((value, f) => ({ time: times[f]!, value, inTangent: 0, outTangent: 0, interpolation: 'linear' })) });
         };
-        if (track.rotate) {
+        if (turned.has(index)) {
             let last: Quat | null = null;
-            const qs = times.map((t) => {
-                const e = sample(track.rotate!, t, animation.duration, loop, track.phase ?? 0);
-                let q = eulerToQuat(e[0], e[1], e[2]);
+            const qs = poses.map((pose) => {
+                let q = pose[index]!.q;
                 // The short way round between samples: the two signs of a quaternion are one rotation, and interpolated apart they spin the long way.
                 if (last && q[0] * last[0] + q[1] * last[1] + q[2] * last[2] + q[3] * last[3] < 0) q = [-q[0], -q[1], -q[2], -q[3]];
                 last = q;
@@ -463,12 +574,10 @@ export function timelineOf(animation: AnimationSource, joints: readonly RigJoint
             });
             ['x', 'y', 'z', 'w'].forEach((c, k) => push(`rotation.${c}`, qs.map((q) => q[k]!)));
         }
-        if (track.move) {
-            const rest = joint.parent >= 0 ? sub(joint.at, joints[joint.parent]!.at) : joint.at;
-            const ps = times.map((t) => add(rest, sample(track.move!, t, animation.duration, loop, track.phase ?? 0)));
-            ['x', 'y', 'z'].forEach((c, k) => push(`position.${c}`, ps.map((p) => p[k]!)));
+        if (moved.has(index)) {
+            ['x', 'y', 'z'].forEach((c, k) => push(`position.${c}`, poses.map((pose) => pose[index]!.offset[k]!)));
         }
-        return { type: 'property', name: joint.name, childPath: pathOf(index), component: 'Transform', channels };
+        return [{ type: 'property', name: joint.name, childPath: pathOf(index), component: 'Transform', channels }];
     });
     return { version: TIMELINE_FORMAT_VERSION, type: 'timeline', duration: animation.duration, wrapMode: loop ? 'loop' : 'once', tracks };
 }
@@ -477,7 +586,7 @@ export function timelineOf(animation: AnimationSource, joints: readonly RigJoint
  * The prefab that draws and moves it: the mesh on the root, the joints below it as
  * entities named so a clip's paths find them, and a player for the first clip.
  */
-export function prefabOf(name: string, meshPath: string, joints: readonly RigJoint[], cullBackfaces: boolean, firstClip: string | null): Record<string, unknown> {
+export function prefabOf(name: string, meshPath: string, joints: readonly RigJoint[], cullBackfaces: boolean, firstClip: string | null, controller: string | null = null): Record<string, unknown> {
     const idOf = (i: number): string => `j${i}`;
     const entities: Record<string, unknown>[] = [{
         prefabEntityId: 'root', name, parent: null,
@@ -487,7 +596,9 @@ export function prefabOf(name: string, meshPath: string, joints: readonly RigJoi
             { type: 'Transform', data: {} },
             { type: 'MeshRenderer', data: { mesh: meshPath, lit: true, opaque: true, cullBackfaces, enabled: true } },
             { type: 'MeshSkin', data: { joints: joints.map((_, i) => idOf(i)) } },
-            ...(firstClip ? [{ type: 'TimelinePlayer', data: { timeline: firstClip, playing: true } }] : []),
+            // A controller decides what plays; a player beside it would fight it for the same joints.
+            ...(controller ? [{ type: 'Animator', data: { controller, enabled: true } }]
+                : firstClip ? [{ type: 'TimelinePlayer', data: { timeline: firstClip, playing: true } }] : []),
         ],
     }];
     joints.forEach((j, i) => {
@@ -499,6 +610,118 @@ export function prefabOf(name: string, meshPath: string, joints: readonly RigJoi
         });
     });
     return { version: PREFAB_FORMAT_VERSION, name, rootEntityId: 'root', entities };
+}
+
+// ---- Controller -----------------------------------------------------------------
+
+export interface ControllerTransition {
+    to: string;
+    /** Every one must hold. Left out, it leaves as soon as `afterClip` lets it. */
+    when?: readonly { param: string; op: 'gt' | 'lt' | 'eq' | 'neq' | 'true' | 'false' | 'trigger'; value?: number }[];
+    /** Seconds to cross-fade. */
+    blend?: number;
+    /** Only once the state's clip has finished. */
+    afterClip?: boolean;
+}
+
+export interface ControllerState {
+    name: string;
+    /** The animation it plays. */
+    clip?: string;
+    /** Or one chosen by a float: idle, walk, run as speed rises. */
+    blend?: { parameter: string; stops: readonly { value: number; clip: string }[] };
+    speed?: number;
+    transitions?: readonly ControllerTransition[];
+}
+
+export interface ControllerSource {
+    parameters?: readonly { name: string; type: 'float' | 'bool' | 'trigger'; default?: number | boolean }[];
+    initial: string;
+    states: readonly ControllerState[];
+    /** Checked from every state first: a hit reaction, a death. */
+    any?: readonly ControllerTransition[];
+}
+
+/** What is wrong with a source's `controller`, or null. */
+export function checkController(raw: unknown, animations: unknown): string | null {
+    const c = raw as Record<string, unknown>;
+    if (typeof raw !== 'object' || raw === null) return 'controller must be { parameters?, initial, states, any? }';
+    for (const key of Object.keys(c)) if (!['parameters', 'initial', 'states', 'any'].includes(key)) return `controller has an unknown field "${key}"; it takes parameters, initial, states, any`;
+    if (!Array.isArray(animations) || animations.length === 0) return 'a controller plays animations, and this source has none';
+    const clips = new Set((animations as AnimationSource[]).map((a) => a.name));
+    const params = new Map<string, string>();
+    for (const p of (c.parameters ?? []) as Record<string, unknown>[]) {
+        if (typeof p.name !== 'string' || !['float', 'bool', 'trigger'].includes(p.type as string)) return 'a controller parameter is { name, type: float | bool | trigger, default? }';
+        if (params.has(p.name)) return `there are two parameters called "${p.name}"`;
+        params.set(p.name, p.type as string);
+    }
+    if (!Array.isArray(c.states) || c.states.length === 0) return 'a controller needs states';
+    const states = new Set<string>();
+    for (const s of c.states as ControllerState[]) {
+        if (typeof s.name !== 'string' || !s.name) return 'every controller state needs a name';
+        if (states.has(s.name)) return `there are two states called "${s.name}"`;
+        states.add(s.name);
+    }
+    if (!states.has(c.initial as string)) return `initial ${JSON.stringify(c.initial)} is not a state; there are ${[...states].join(', ')}`;
+    const needClip = (clip: unknown, where: string): string | null => (clips.has(clip as string) ? null : `${where} plays ${JSON.stringify(clip)}, which is not an animation; there are ${[...clips].join(', ')}`);
+    const checkTransitions = (list: unknown, where: string): string | null => {
+        if (list === undefined) return null;
+        if (!Array.isArray(list)) return `${where}: transitions must be an array`;
+        for (const t of list as ControllerTransition[]) {
+            for (const key of Object.keys(t)) if (!['to', 'when', 'blend', 'afterClip'].includes(key)) return `${where}: a transition has an unknown field "${key}"; it takes to, when, blend, afterClip`;
+            if (!states.has(t.to)) return `${where}: a transition goes to "${t.to}", which is not a state; there are ${[...states].join(', ')}`;
+            for (const w of t.when ?? []) {
+                const type = params.get(w.param);
+                if (!type) return `${where}: a condition reads "${w.param}", which is not a parameter; declare it in parameters`;
+                if (!['gt', 'lt', 'eq', 'neq', 'true', 'false', 'trigger'].includes(w.op)) return `${where}: op ${JSON.stringify(w.op)} must be gt, lt, eq, neq, true, false or trigger`;
+                if (['gt', 'lt', 'eq', 'neq'].includes(w.op) && (type !== 'float' || !isNum(w.value))) return `${where}: ${w.op} compares a float parameter with a number \`value\``;
+                if ((w.op === 'true' || w.op === 'false') && type !== 'bool') return `${where}: ${w.op} reads a bool parameter, and "${w.param}" is a ${type}`;
+                if (w.op === 'trigger' && type !== 'trigger') return `${where}: trigger reads a trigger parameter, and "${w.param}" is a ${type}`;
+            }
+        }
+        return null;
+    };
+    for (const s of c.states as ControllerState[]) {
+        for (const key of Object.keys(s)) if (!['name', 'clip', 'blend', 'speed', 'transitions'].includes(key)) return `state "${s.name}" has an unknown field "${key}"; it takes name, clip, blend, speed, transitions`;
+        if ((s.clip === undefined) === (s.blend === undefined)) return `state "${s.name}" needs exactly one of clip, blend`;
+        if (s.clip !== undefined) { const bad = needClip(s.clip, `state "${s.name}"`); if (bad) return bad; }
+        if (s.blend) {
+            if (params.get(s.blend.parameter) !== 'float') return `state "${s.name}": a blend is chosen by a float parameter, and "${s.blend.parameter}" is not one`;
+            if (!Array.isArray(s.blend.stops) || s.blend.stops.length === 0) return `state "${s.name}": a blend needs stops`;
+            for (const stop of s.blend.stops) { const bad = needClip(stop.clip, `state "${s.name}"`); if (bad) return bad; }
+        }
+        const bad = checkTransitions(s.transitions, `state "${s.name}"`);
+        if (bad) return bad;
+    }
+    return checkTransitions(c.any, 'any');
+}
+
+/** A controller as an `.esanimator`. @p clipFile turns an animation's name into the file it plays, as written beside this one. */
+export function controllerOf(source: ControllerSource, animations: readonly AnimationSource[], clipFile: (name: string) => string): Record<string, unknown> {
+    const motionOf = (clip: string, speed?: number): Record<string, unknown> => ({
+        kind: 'timeline', clip: clipFile(clip),
+        loop: animations.find((a) => a.name === clip)?.loop !== false,
+        ...(speed !== undefined ? { speed } : {}),
+    });
+    const transition = (t: ControllerTransition): Record<string, unknown> => ({
+        to: t.to,
+        conditions: (t.when ?? []).map((w) => (w.value !== undefined ? { param: w.param, op: w.op, value: w.value } : { param: w.param, op: w.op })),
+        ...(t.blend !== undefined ? { duration: t.blend } : {}),
+        ...(t.afterClip ? { hasExitTime: true } : {}),
+    });
+    return {
+        version: ANIMATOR_FORMAT_VERSION,
+        parameters: (source.parameters ?? []).map((p) => ({ ...p })),
+        initialState: source.initial,
+        ...(source.any ? { anyStateTransitions: source.any.map(transition) } : {}),
+        states: source.states.map((s, i) => ({
+            name: s.name, x: 80 + (i % 4) * 220, y: 80 + Math.floor(i / 4) * 140,
+            motion: s.blend
+                ? { kind: 'blend1d', parameter: s.blend.parameter, thresholds: s.blend.stops.map((stop) => ({ value: stop.value, motion: motionOf(stop.clip, s.speed) })) }
+                : motionOf(s.clip!, s.speed),
+            transitions: (s.transitions ?? []).map(transition),
+        })),
+    };
 }
 
 /** One bind matrix per joint: a joint's bind pose is unrotated, so each is only the way back to its rest position. */

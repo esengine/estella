@@ -17,7 +17,8 @@ import { organic } from './organic';
 import { booleanOp } from './booleans';
 import { uvStep } from './modelUv';
 import { lathe, loft } from './surfaces';
-import { checkAnimations, checkRig, type AnimationSource, type RigSource } from './rig';
+import { subdivide } from './subdivide';
+import { checkAnimations, checkController, checkRig, type AnimationSource, type ControllerSource, type RigSource } from './rig';
 import { compact, type Face, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
 
 export const MODEL_SOURCE_VERSION = 1;
@@ -42,6 +43,8 @@ export interface ModelSource {
     rig?: RigSource;
     /** Clips moving the rig's joints, each written as an `.estimeline`. */
     animations?: AnimationSource[];
+    /** Which clip plays when: an `.esanimator` the prefab's Animator runs. */
+    controller?: ControllerSource;
     steps: ModelStep[];
 }
 
@@ -74,9 +77,10 @@ export const MODEL_OPS: Record<string, OpSpec> = {
     mirror: { params: { faces: 'faces', axis: 'axis', at: 'number', keep: 'boolean', tag: 'string' }, required: ['axis'], run: ops.mirror as OpSpec['run'], says: 'adds a reflection across `axis` = `at`' },
     extrude: { params: { faces: 'faces', distance: 'number', direction: 'vec3', individual: 'boolean', tag: 'string', sideTag: 'string' }, required: ['faces', 'distance'], run: ops.extrude as OpSpec['run'], says: 'pushes faces out along their normals, walls joining them to where they were; negative recesses' },
     inset: { params: { faces: 'faces', amount: 'number', tag: 'string' }, required: ['faces', 'amount'], run: ops.inset as OpSpec['run'], says: 'adds a smaller copy inside each face; `tag` names that copy' },
-    bevel: { params: { edges: 'edges', width: 'number', tag: 'string' }, required: ['edges', 'width'], run: ops.bevel as OpSpec['run'], says: 'chamfers edges flat, mitring where they meet' },
+    bevel: { params: { edges: 'edges', width: 'number', round: 'integer', tag: 'string' }, required: ['edges', 'width'], run: ops.bevel as OpSpec['run'], says: 'chamfers edges, mitring where they meet; `round` 1..3 rounds them off' },
     slice: { params: { faces: 'faces', axis: 'axis', at: 'number|numbers' }, required: ['axis', 'at'], run: ops.slice as OpSpec['run'], says: 'cuts faces across planes, making the seams a window sits between' },
     boolean: { params: { operation: 'operation', with: 'faces', from: 'faces', keep: 'boolean', tag: 'string', color: 'color' }, required: ['operation', 'with'], run: booleanOp as unknown as OpSpec['run'], says: 'cuts or joins closed solids: subtract `with` from `from` makes a real hole' },
+    subdivide: { params: { faces: 'faces', levels: 'integer', crease: 'number' }, required: [], run: subdivide as unknown as OpSpec['run'], says: 'rounds whole shells into smooth surfaces, keeping edges sharper than `crease` degrees' },
     uv: { params: { faces: 'faces', mode: 'uvmode', axis: 'string', at: 'vec3', scale: 'number|vec2only', repeat: 'number|vec2only', offset: 'vec2', rotate: 'number' }, required: ['mode'], run: uvStep as unknown as OpSpec['run'], says: 'sets how faces take a texture: box, planar, cylinder or sphere' },
     delete: { params: { faces: 'faces' }, required: ['faces'], run: ops.deleteFaces as OpSpec['run'], says: 'removes faces, leaving a hole' },
     paint: { params: { faces: 'faces', color: 'color' }, required: ['faces', 'color'], run: ops.paint as OpSpec['run'], says: 'sets vertex colour: linear [r, g, b] in 0..1, multiplied into the material' },
@@ -252,8 +256,8 @@ export function validateModelSource(raw: unknown): ModelSource {
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw new ModelBuildError('a model source must be an object with `steps`', null, null, null);
     const source = raw as Record<string, unknown>;
     for (const key of Object.keys(source)) {
-        if (!['version', 'smoothAngle', 'uvScale', 'uvAtlas', 'rig', 'animations', 'steps'].includes(key)) {
-            throw new ModelBuildError(`unknown field "${key}"; a model source has version, smoothAngle, uvScale, uvAtlas, rig, animations, steps`, null, null, null);
+        if (!['version', 'smoothAngle', 'uvScale', 'uvAtlas', 'rig', 'animations', 'controller', 'steps'].includes(key)) {
+            throw new ModelBuildError(`unknown field "${key}"; a model source has version, smoothAngle, uvScale, uvAtlas, rig, animations, controller, steps`, null, null, null);
         }
     }
     if (source.version !== undefined && source.version !== MODEL_SOURCE_VERSION) {
@@ -275,6 +279,10 @@ export function validateModelSource(raw: unknown): ModelSource {
     }
     if (source.animations !== undefined) {
         const bad = checkAnimations(source.animations, source.rig);
+        if (bad) throw new ModelBuildError(bad, null, null, null);
+    }
+    if (source.controller !== undefined) {
+        const bad = checkController(source.controller, source.animations);
         if (bad) throw new ModelBuildError(bad, null, null, null);
     }
     if (!Array.isArray(source.steps)) throw new ModelBuildError('`steps` must be an array', null, null, null);
@@ -338,7 +346,7 @@ export type ModelEdit =
     | { op: 'set'; step: string | number; fields: Record<string, unknown> }
     | { op: 'insert'; step: ModelStep; before?: string | number; after?: string | number }
     | { op: 'remove'; step: string | number }
-    | { op: 'settings'; fields: Pick<ModelSource, 'smoothAngle' | 'uvScale' | 'uvAtlas' | 'rig' | 'animations'> };
+    | { op: 'settings'; fields: Pick<ModelSource, 'smoothAngle' | 'uvScale' | 'uvAtlas' | 'rig' | 'animations' | 'controller'> };
 
 function indexOfStep(source: ModelSource, ref: string | number): number {
     const i = typeof ref === 'number' ? ref : source.steps.findIndex((s) => s.id === ref);
