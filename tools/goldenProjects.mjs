@@ -92,7 +92,6 @@ export const CENSUS_FLOOR = '0.60.0';
  * that does not exist, and release notes are a different act. Theirs is ungated.
  */
 export const SHIPPED = {
-  "Glyphs can be put on the atlas before they are shown.": { notCertifiable: "A pure frame-time saving that changes no pixel, covered by the glyph-preload tests and measured on a device; no golden project shows enough new characters at once to notice." },
   "Connect AI tools to the editor from one dialog.": { notCertifiable: "The connect dialog is an editor feature, covered by the mcp-connect editor authoring check and the editor tests; a packaged game carries no editor and no MCP endpoint." },
   "Dynamic planar reflections.": { notCertifiable: "Planar reflection is covered by the planar-reflection and planar-reflection-off render-scene pixel gates, tools/tests/planar-reflection.e2e.mjs, test_planar_reflection and the planar-reflection editor authoring check; no golden project carries a reflecting surface." },
   "SUD OpenPaaS development export.": { notCertifiable: "The OpenPaaS export is covered by the pipeline export and package tests, the native SUD runtime end-to-end check and the packer verification; no golden project is packaged for OpenPaaS." },

@@ -3842,4 +3842,6 @@ export const NOTED = {
     {"internal":"only the bench switches reach it; a game never runs with them on"},
   "feat(text): preloadGlyphs puts a text's characters on the atlas ahead of time, a slice a frame, so the frame that shows them does not pay for them":
     {"note":"Glyphs can be put on the atlas before they are shown."},
+  "fix(tools): the preload note's golden classification waits for the release, which is when check-golden reads a feature as shipped":
+    {"internal":"a release-gate table, nothing a creator can observe"},
 };
