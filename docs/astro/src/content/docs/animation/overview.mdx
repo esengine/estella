@@ -621,6 +621,16 @@ towards an optional `pole`; `look-at` turns a joint until its own `axis` points 
 target. Each has a `weight`, and a float `parameter` can fade it. IK belongs to the
 controller, not to a layer, and runs once on the stack's answer.
 
+`foot-plant` keeps a foot on the ground. It takes a `tip` and no target: it casts down
+through 3D physics from where the clip put the foot, and bends the leg so the foot lands
+on what it finds, keeping any lift the clip gave it, so a walk still walks. `pelvis`
+names a joint lowered so the leg can reach the lower foot; `align: false` keeps the foot
+from lying along the slope; `reach` is how far to look, `smooth` the seconds to settle on
+a new height, and `layers` the physics layers that count as ground. Set `layers` when the
+character has a collider of its own, or the ray stops on it. The rig should stand with its
+feet at height 0 and its root on the ground. Foot-plants run before the other constraints,
+and with no physics in the game they leave the clip alone.
+
 **Avatars.** A clip names joints by whatever the exporter called them, so two
 characters rigged by two people share no clip. A `.esavatar` (New menu) is the rig's
 own translation of those names and records its bind pose; a controller's `avatar` names

@@ -645,7 +645,7 @@ layout(std140) uniform SkinConstants {
 layout(std140) uniform MorphConstants {
 
     vec4 u_morphInfo;
-    vec4 u_morphShape[8];
+    vec4 u_morphShape[64];
 };
 
 
@@ -662,7 +662,7 @@ vec3 morphDelta(float index) {
 void applyMorph(inout vec3 position, inout vec3 normal) {
     int live = int(u_morphInfo.x);
     float perVertex = u_morphInfo.z;
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 64; i++) {
         if (i >= live) break;
         float at = (u_morphShape[i].x * u_morphInfo.y + float(gl_VertexID)) * perVertex;
         position += u_morphShape[i].y * morphDelta(at);
@@ -944,7 +944,7 @@ struct SkinConstants { bones : array<mat4x4f, 64> };
 
 
 
-struct MorphConstants { info : vec4f, shape : array<vec4f, 8> };
+struct MorphConstants { info : vec4f, shape : array<vec4f, 64> };
 @group(0) @binding(6) var<uniform> morph : MorphConstants;
 @group(1) @binding(4) var t4 : texture_2d<f32>;
 
@@ -1030,7 +1030,7 @@ fn esPrevBone(joint : u32) -> mat4x4f {
 
 
     let live = i32(morph.info.x);
-    for (var i = 0; i < 8; i = i + 1) {
+    for (var i = 0; i < 64; i = i + 1) {
         if (i >= live) { break; }
         let at = (morph.shape[i].x * morph.info.y + f32(v.vertexIndex)) * morph.info.z;
         local = local + morph.shape[i].y * morphDelta(at);

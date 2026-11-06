@@ -3866,6 +3866,10 @@ export const NOTED = {
     {"note":"A sea seen from above is no longer scored with straight lines."},
   "feat(mcp): an agent builds a 3D model in the editor from steps, changes it by one number, and sees every side of it":
     {"note":"AI agents can build 3D models in the editor from steps."},
+  "feat(mcp): model_write says 64 shapes count at once, and the modeling check proves sixteen do":
+    {"note":"A mesh can blend 64 morph targets at once, up from 8."},
+  "feat(render): a draw blends up to 64 morph targets at once, where 8 left a face rig's lighter shapes reading as zero":
+    {"note":"A mesh can blend 64 morph targets at once, up from 8."},
   "feat(animation): a foot-plant constraint keeps a foot on the physics ground under it, slopes and steps included":
     {"note":"A foot stands on the ground under it."},
   "feat(mcp): model_write plants feet on the ground, and model_views runs the IK on a test floor":

@@ -129,10 +129,10 @@ static constexpr u32 MESH_INSTANCE_TEXTURE_UNIT = 15;
 /// Bone matrices one skinned draw may carry. 64 mat4 is 4KB, inside the 16KB a
 /// WebGL2 uniform block is guaranteed; a mesh wanting more is drawn static.
 static constexpr u32 MESH_MAX_BONES = 64;
-/// Morph targets one draw may be blended by AT ONCE — a budget on what is LIVE,
-/// since a face holds a handful of expressions open while its mesh carries a
-/// hundred. The heaviest weights are taken; the rest read as zero.
-static constexpr u32 MESH_MAX_ACTIVE_MORPHS = 8;
+/// Morph targets one draw may blend AT ONCE; past it the heaviest are taken. The shader
+/// loops over only the live ones, each a texture read or two per vertex, so an unused
+/// budget costs nothing beyond the larger block. Matches the bones: a face runs dozens.
+static constexpr u32 MESH_MAX_ACTIVE_MORPHS = 64;
 /// Texels per row of a mesh's delta texture. 2048 is the smallest MAX_TEXTURE_SIZE
 /// WebGL2 guarantees, so a square of them is the most any device here must hold.
 static constexpr u32 MORPH_TEXTURE_WIDTH = 2048;

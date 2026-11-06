@@ -280,7 +280,7 @@ export function bakeModel(raw: unknown): BakedModel {
         if (idle.length) warnings.push(`joint${idle.length > 1 ? 's' : ''} ${idle.join(', ')} move${idle.length > 1 ? '' : 's'} no vertex the most: too near another, or outside the surface`);
     }
 
-    // The engine's delta texture is 2048 square, the most WebGL2 promises; past it the mesh draws, but never changes shape.
+    // The engine's delta texture is 2048 square, the most WebGL2 guarantees; past it the mesh draws, but never changes shape.
     if (shapes && shapes.names.length * unwrapped.vertexCount * 2 > 2048 * 2048) {
         warnings.push(`${shapes.names.length} shapes over ${unwrapped.vertexCount} vertices is more than the engine holds (${2048 * 2048} deltas, two each): it would draw but never change shape. Lower the resolution or use fewer shapes`);
     }

@@ -282,7 +282,8 @@ glTF states none, and pushing past 1 or below 0 is a shape an author may want.
 
 | Limit | Why |
 |---|---|
-| 8 shapes blended at once | A budget on what is LIVE, not on what a mesh carries — a face holds a handful of expressions open while its mesh has a hundred. The heaviest weights are taken; the rest read as zero, which is what an untouched weight already means. |
+| 64 shapes blended at once | A budget on what is LIVE, not on what a mesh carries. A draw pays only for the shapes it is using, each a texture read or two per vertex, so dozens live on a dense mesh cost more than a handful. Past 64 the heaviest weights are taken; the rest read as zero, which is what an untouched weight already means. |
+| 4,194,304 deltas per mesh | Shapes × vertices, twice that with normals: a 2048-square texture, the most WebGL2 guarantees. Past it the mesh draws but never changes shape. |
 | Normals deform only where the geometry has them | A mesh with no `NORMAL` channel is shaded off a constant normal, which no delta can bend. |
 | Morph targets carry no tangents | The mesh keeps the tangent frame it has at rest; a shape moves the surface but not the frame its normal map was baked in. |
 | An FBX's in-between shapes | A channel that passes through shapes on its way to the last one carries only the last; the import says which it dropped. |
