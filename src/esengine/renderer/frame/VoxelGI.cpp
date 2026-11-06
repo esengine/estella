@@ -108,14 +108,15 @@ fn main(@builtin(global_invocation_id) id : vec3u) {
     let cell = gi.origin.xyz + rel;
     let tag = hash3(cell);
     let base = i * WORDS;
+    // Each invocation owns its slot, so the words are read and written plainly (readWriteCache): ageing a million slots through atomics
+    // every frame was most of what the cache cost a phone. An empty slot (no samples, no area) has nothing to age and is left alone.
     if ((tags[i] & ~SEEN) != tag) {
         tags[i] = tag;
-        for (var k = 0u; k < WORDS; k = k + 1u) { atomicStore(&grid[base + k], 0u); }
+        for (var k = 0u; k < WORDS; k = k + 1u) { grid[base + k] = 0u; }
     } else {
         tags[i] = tag;
-        for (var k = 0u; k < WORDS; k = k + 1u) {
-            atomicStore(&grid[base + k], u32(f32(atomicLoad(&grid[base + k])) * gi.a.y));
-        }
+        if ((grid[base] | grid[base + 1u] | grid[base + 2u] | grid[base + 3u] | grid[base + 7u]) == 0u) { return; }
+        for (var k = 0u; k < WORDS; k = k + 1u) { grid[base + k] = u32(f32(grid[base + k]) * gi.a.y); }
     }
 }
 )WGSL";
@@ -429,6 +430,25 @@ std::string join(const char* a, const char* b, const char* c = "") {
     return std::string(a) + b + c;
 }
 
+/// The gather only reads the cache, so it gets it as a plain read-only array. Every word read through atomicLoad cost a trip past the
+/// cache on a mobile GPU (Adreno under Vulkan): the gather of a 720p frame took over a second a frame on a phone, against a few
+/// milliseconds read plainly. The writers' atomics stay, and the gather's dispatch follows them in the graph, so it sees their sums.
+std::string plainCache(std::string s, const char* access) {
+    const auto replace = [&s](const std::string& from, const std::string& to) {
+        for (size_t at = s.find(from); at != std::string::npos; at = s.find(from, at + to.size())) s.replace(at, from.size(), to);
+    };
+    replace("var<storage, read_write> grid : array<atomic<u32>>;", std::string("var<storage, ") + access + "> grid : array<u32>;");
+    replace("var<storage, read_write> tags : array<u32>;", std::string("var<storage, ") + access + "> tags : array<u32>;");
+    // addArea adds atomically; neither kernel calls it, but a plain array cannot even name an atomicAdd.
+    const size_t from = s.find("fn addArea(");
+    if (from != std::string::npos) s.erase(from, s.find("\n}", from) + 2 - from);
+    replace("atomicLoad(&grid[", "(grid[");
+    return s;
+}
+std::string readOnlyCache(const std::string& s) { return plainCache(s, "read"); }
+/// For the maintain, whose every invocation owns one slot outright.
+std::string readWriteCache(const std::string& s) { return plainCache(s, "read_write"); }
+
 struct ParamsBlock {
     i32 origin[4];
     u32 dims[4];
@@ -503,8 +523,8 @@ bool VoxelGI::ensure() {
         }
         return true;
     };
-    return make(maintain_, join(kCommon, kMaintain), "maintain") && make(inject_, join(kCommon, kSurface, kInject), "inject")
-        && make(gather_, join(kCommon, kSurface, kGather), "gather") && make(apply_, join(kCommon, kApply), "apply")
+    return make(maintain_, readWriteCache(join(kCommon, kMaintain)), "maintain") && make(inject_, join(kCommon, kSurface, kInject), "inject")
+        && make(gather_, readOnlyCache(join(kCommon, kSurface, kGather)), "gather") && make(apply_, join(kCommon, kApply), "apply")
         && make(sunInject_, join(kCommon, kSun), "sun");
 }
 
@@ -722,8 +742,8 @@ rg::ResourceId VoxelGI::declare(rg::RenderGraph& graph, rg::ResourceId input, rg
             const GfxComputeBinding bindings[8] = {
                 GfxComputeBinding::uniform(0, context_.frameUbo()),
                 GfxComputeBinding::uniform(1, params_),
-                GfxComputeBinding::storage(2, grid_),
-                GfxComputeBinding::storage(3, tags_),
+                GfxComputeBinding::storageRead(2, grid_),
+                GfxComputeBinding::storageRead(3, tags_),
                 GfxComputeBinding::depth(5, depth),
                 GfxComputeBinding::sampled(6, gbuffer),
                 GfxComputeBinding::storageTexture(7, history_[cur]),
