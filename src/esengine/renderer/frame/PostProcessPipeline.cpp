@@ -39,7 +39,8 @@ PostProcessPipeline::PostProcessPipeline(GfxDevice& device,
     : device_(device)
     , context_(context)
     , resourceManager_(resourceManager)
-    , graph_(&graph) {
+    , graph_(&graph)
+    , frameGraph_(&graph) {
 }
 
 PostProcessPipeline::PostProcessPipeline(GfxDevice& device,
@@ -229,7 +230,9 @@ void PostProcessPipeline::shutdown() {
     }
 
     ownedGraph_.reset();
-    graph_ = nullptr;
+    // Back to the frame's, not to none: the frame outlives a shutdown and goes on running its graph,
+    // so a pipeline restarted on a graph of its own declares passes nothing executes, and presents black.
+    graph_ = frameGraph_;
     screenFBO_.reset();
     sceneResource_ = rg::kNoResource;
     screenCaptureActive_ = false;

@@ -3868,6 +3868,10 @@ export const NOTED = {
     {"note":"AI agents can build 3D models in the editor from steps."},
   "feat(mcp): model_write says 64 shapes count at once, and the modeling check proves sixteen do":
     {"note":"A mesh can blend 64 morph targets at once, up from 8."},
+  "fix(render): a linear game looks the same on every Play, where from the second on a scene with no effects showed raw linear values":
+    {"note":"A linear game looks the same on every Play."},
+  "test(editor): a scene draws the same on every Play, with effects or without":
+    {"internal":"a check, for a fix the engine commit carries"},
   "feat(render): a mesh can have 256 joints where 64 imported a rig with fingers and a face as a statue":
     {"note":"A mesh can have 256 joints, up from 64."},
   "feat(mcp): model_write takes 256 joints, and the modeling check poses past the old limit":

@@ -66,11 +66,20 @@ export interface HdrFormat {
  * ES_ENABLE_POSTPROCESS answers none of these entry points; the plugin checks that
  * before calling, which is what makes the narrowing here sound.
  */
+/** Whether the last App shut the pipeline down under a renderer that may have outlived it. */
+let restartOwed = false;
+
 export function initPostProcessAPI(engine: NonNullable<EngineApi>): void {
     bridge.connect(engine);
     module = bridge.module as PostProcessCore;
     const heap = engine as unknown as { _malloc?(n: number): number };
     if (!hdrPtr && typeof heap._malloc === 'function') hdrPtr = heap._malloc(4 * 4);
+    // The renderer outlives an App on a warm restart, and the last App shut this down. A linear frame is encoded here,
+    // so waiting for a camera with effects to bring it back left every scene without one showing raw linear values.
+    // Only then: on a first boot the renderer starts its own, and starting one before it exists would make a second.
+    const core = module as PostProcessCore;
+    if (restartOwed && hasPostProcessCore(core) && !core.postprocess_isInitialized()) core.postprocess_init(1, 1);
+    restartOwed = false;
 }
 
 /** A core built without ES_ENABLE_POSTPROCESS (the lite mini-game engine) has none of these entry points: no chain, nothing to ask. */
@@ -83,7 +92,10 @@ export function shutdownPostProcessAPI(): void {
     // Per-App state dies with its App; here we only tear down the shared module.
     if (module) {
         try {
-            if (hasPostProcessCore(module) && module.postprocess_isInitialized()) module.postprocess_shutdown();
+            if (hasPostProcessCore(module) && module.postprocess_isInitialized()) {
+                module.postprocess_shutdown();
+                restartOwed = true;
+            }
         } catch (e) {
             handleWasmError(e, 'PostProcess.shutdown');
         }

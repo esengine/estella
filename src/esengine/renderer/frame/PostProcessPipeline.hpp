@@ -626,6 +626,8 @@ private:
 
     /// The frame's graph when one was given; `ownedGraph_` otherwise.
     rg::RenderGraph* graph_ = nullptr;
+    /// The frame's graph, kept so a shutdown can hand it back. Null with no frame.
+    rg::RenderGraph* frameGraph_ = nullptr;
     Unique<rg::RenderGraph> ownedGraph_;
     VertexLayoutHandle screen_quad_layout_ = VertexLayoutHandle::Invalid;
     BufferHandle screen_quad_vbo_ = BufferHandle::Invalid;
