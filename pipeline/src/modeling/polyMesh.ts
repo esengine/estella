@@ -20,6 +20,23 @@ export interface Face {
     color?: readonly [number, number, number, number];
     /** Part of a continuous skin: shaded smooth with its neighbours whatever the angle, and its edges are not features. */
     smooth?: boolean;
+    /** How this face takes its texture, from a `uv` step; absent, a box projection at the source's uvScale. */
+    uv?: FaceUv;
+}
+
+export interface FaceUv {
+    mode: 'box' | 'planar' | 'cylinder' | 'sphere';
+    /** planar: the way it faces. cylinder: the axis it wraps. */
+    axis?: string;
+    center: Vec3;
+    /** What the curved modes stretch over: a cylinder's length along its axis. */
+    extent: number;
+    /** box, planar: world units one repeat covers. */
+    scale: readonly [number, number];
+    /** cylinder, sphere: repeats around and along. */
+    repeat: readonly [number, number];
+    offset: readonly [number, number];
+    rotate: number;
 }
 
 export interface PolyMesh {

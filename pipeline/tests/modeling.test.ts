@@ -299,7 +299,7 @@ describe('the source format', () => {
     });
 
     it('refuses an unknown op, listing them', () => {
-        expect(() => validateModelSource({ steps: [{ op: 'boolean' }] })).toThrow(/unknown op "boolean"; there are box/);
+        expect(() => validateModelSource({ steps: [{ op: 'lathe' }] })).toThrow(/unknown op "lathe"; there are box/);
     });
 
     it('refuses a missing required field and a wrong type', () => {

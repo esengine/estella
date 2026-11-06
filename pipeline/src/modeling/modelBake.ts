@@ -9,10 +9,12 @@
  *        where the same fault in a lit picture reads as a slightly odd shadow.
  */
 import { MeshChannel, MeshChannelType, packChannels, unwrapLightmapUV, type MeshData } from 'esengine';
+import { triangulateFace } from './triangulate';
+import { faceUvs } from './modelUv';
 import { buildPolyMesh, validateModelSource, type ModelSource, type StepReport } from './modelSource';
 import {
     boundsOf, collectEdges, cross, dot, faceArea, faceNormal, length, normalize, sub,
-    type Face, type PolyMesh, type Vec3,
+    type PolyMesh, type Vec3,
 } from './polyMesh';
 
 const DEFAULT_SMOOTH_ANGLE = 30;
@@ -45,57 +47,6 @@ export interface BakedModel {
     report: ModelReport;
     /** One triangle per entry: its three positions' indices, and the face it came from. */
     triangles: { v: [number, number, number]; face: number }[];
-}
-
-// ---- Triangulation ---------------------------------------------------------------
-
-/** Ear clipping in the face's own plane: n-gons here can be concave (a prism's floor plan). */
-function triangulateFace(mesh: PolyMesh, face: Face): [number, number, number][] {
-    const count = face.v.length;
-    if (count < 3) return [];
-    if (count === 3) return [[face.v[0]!, face.v[1]!, face.v[2]!]];
-    const n = faceNormal(mesh, face);
-    const ref = Math.abs(n[0]) < 0.9 ? [1, 0, 0] as Vec3 : [0, 1, 0] as Vec3;
-    const u = normalize(cross(ref, n));
-    const w = cross(n, u);
-    const flat = face.v.map((i) => {
-        const p = mesh.positions[i]!;
-        return [dot(p, u), dot(p, w)] as const;
-    });
-    const area2 = (a: number, b: number, c: number): number => {
-        const [ax, ay] = flat[a]!, [bx, by] = flat[b]!, [cx, cy] = flat[c]!;
-        return (bx - ax) * (cy - ay) - (cx - ax) * (by - ay);
-    };
-    const span = Math.max(...flat.map((q) => Math.hypot(q[0] - flat[0]![0], q[1] - flat[0]![1])), 1e-9);
-    const tiny = span * span * 1e-10;
-    const out: [number, number, number][] = [];
-    const loop = flat.map((_, i) => i);
-    let guard = count * count + 8;
-    while (loop.length > 3 && guard-- > 0) {
-        let clipped = false;
-        for (let i = 0; i < loop.length; i++) {
-            const a = loop[(i + loop.length - 1) % loop.length]!, b = loop[i]!, c = loop[(i + 1) % loop.length]!;
-            if (area2(a, b, c) <= tiny) continue; // reflex, or a vertex lying on a straight run (kept: a neighbour may rely on it)
-            let blocked = false;
-            for (const q of loop) {
-                if (q === a || q === b || q === c) continue;
-                if (area2(a, b, q) >= -tiny && area2(b, c, q) >= -tiny && area2(c, a, q) >= -tiny) { blocked = true; break; }
-            }
-            if (blocked) continue;
-            out.push([face.v[a]!, face.v[b]!, face.v[c]!]);
-            loop.splice(i, 1);
-            clipped = true;
-            break;
-        }
-        if (!clipped) break;
-    }
-    // What is left is a triangle, or a loop no ear could be cut from: a self-crossing face. Fanned, it still draws something to look at.
-    for (let i = 1; i + 1 < loop.length; i++) {
-        if (Math.abs(area2(loop[0]!, loop[i]!, loop[i + 1]!)) > tiny) {
-            out.push([face.v[loop[0]!]!, face.v[loop[i]!]!, face.v[loop[i + 1]!]!]);
-        }
-    }
-    return out;
 }
 
 // ---- Report -----------------------------------------------------------------------
@@ -154,14 +105,6 @@ function cornerNormals(mesh: PolyMesh, smoothAngle: number): Vec3[][] {
     }));
 }
 
-/** A box projection, face by face: the same scale everywhere, so a tiling texture does not stretch. */
-function projectUv(p: Vec3, n: Vec3, uvScale: number): [number, number] {
-    const [ax, ay, az] = [Math.abs(n[0]), Math.abs(n[1]), Math.abs(n[2])];
-    if (ay >= ax && ay >= az) return [p[0] / uvScale, (n[1] > 0 ? -p[2] : p[2]) / uvScale];
-    if (ax >= az) return [(n[0] > 0 ? -p[2] : p[2]) / uvScale, p[1] / uvScale];
-    return [(n[2] > 0 ? p[0] : -p[0]) / uvScale, p[1] / uvScale];
-}
-
 function toMeshData(mesh: PolyMesh, triangles: readonly [number, number, number][][], source: ModelSource): MeshData {
     const { channels, vertexStride } = packChannels([
         { semantic: MeshChannel.Position, components: 3, type: MeshChannelType.Float32 },
@@ -174,12 +117,14 @@ function toMeshData(mesh: PolyMesh, triangles: readonly [number, number, number]
     const seen = new Map<string, number>();
     const pos: number[] = [], nrm: number[] = [], uv: number[] = [], col: number[] = [];
     const indices: number[] = [];
+    const uvs = new Map<number, Map<number, readonly [number, number]>>();
     const vertexOf = (f: number, v: number): number => {
         const face = mesh.faces[f]!;
         const n = normals[f]![face.v.indexOf(v)]!;
-        const flat = faceNormal(mesh, face);
         const p = mesh.positions[v]!;
-        const [tu, tv] = projectUv(p, flat, uvScale);
+        let corners = uvs.get(f);
+        if (!corners) { corners = faceUvs(mesh, face, uvScale); uvs.set(f, corners); }
+        const [tu, tv] = corners.get(v)!;
         const color = (face.color ?? [1, 1, 1, 1]).map((c) => Math.round(c * 255));
         const key = `${v}|${n.map((x) => x.toFixed(4))}|${tu.toFixed(5)},${tv.toFixed(5)}|${color}`;
         let at = seen.get(key);
@@ -222,6 +167,18 @@ function toMeshData(mesh: PolyMesh, triangles: readonly [number, number, number]
     };
 }
 
+/** Gives the base UV the unwrap's: no two triangles share texels, so a texture can be painted for this one model. */
+function copyLightmapUvToBase(mesh: MeshData): void {
+    const from = mesh.channels.find((c) => c.semantic === MeshChannel.TexCoord1)!.offset;
+    const to = mesh.channels.find((c) => c.semantic === MeshChannel.TexCoord0)!.offset;
+    const view = new DataView(mesh.vertices.buffer, mesh.vertices.byteOffset, mesh.vertices.byteLength);
+    for (let i = 0; i < mesh.vertexCount; i++) {
+        const at = i * mesh.vertexStride;
+        view.setFloat32(at + to, view.getFloat32(at + from, true), true);
+        view.setFloat32(at + to + 4, view.getFloat32(at + from + 4, true), true);
+    }
+}
+
 /** Validates, builds and bakes @p raw. Throws a ModelBuildError naming the step that failed; writes nothing, so a failure leaves nothing half made. */
 export function bakeModel(raw: unknown): BakedModel {
     const source = validateModelSource(raw);
@@ -230,6 +187,7 @@ export function bakeModel(raw: unknown): BakedModel {
 
     const triangles = mesh.faces.map((f) => triangulateFace(mesh, f));
     const unwrapped = unwrapLightmapUV(toMeshData(mesh, triangles, source)).mesh;
+    if (source.uvAtlas) copyLightmapUvToBase(unwrapped);
 
     const edges = [...collectEdges(mesh).values()];
     const openEdges = edges.filter((e) => e.faces.length === 1).length;
