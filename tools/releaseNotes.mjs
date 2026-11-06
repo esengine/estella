@@ -3858,4 +3858,6 @@ export const NOTED = {
     {"note":"A linear project on a native build is no longer far too dark."},
   "fix(water): the albedo lines of the water shader go back inside its source, where a misplaced edit left them as top-level script that stopped every export from loading":
     {"internal":"broke after 0.98.0 and before any release, so no creator ever had it"},
+  "fix(render): the target pool no longer destroys a frame's own targets every frame once they add up past its idle budget, which cost a phone 40 ms at quality high":
+    {"note":"Quality high no longer costs a phone 40 ms a frame."},
 };

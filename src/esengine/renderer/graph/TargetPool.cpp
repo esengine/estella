@@ -152,15 +152,17 @@ void TargetPool::age() {
         }
     }
     // A viewport that is being resized borrows a new shape every tick and leaves the last one idle: two seconds of that is a hundred
-    // sets of targets. What sits idle past the budget goes at once, the longest idle first, whatever its age.
+    // sets of targets. What sits idle past the budget goes at once, the longest idle first, whatever its age. Only what has really been
+    // left: everything a frame borrows has just been given back when this runs, so counting that too destroyed and rebuilt a frame's own
+    // targets every frame once they added up past the budget (a 4096 shadow atlas and a 4x scene target at 2670x1200: 40 ms on a phone).
     u64 idleBytes = 0;
     for (const auto& entry : entries_) {
-        if (entry.fbo && !entry.inUse) idleBytes += static_cast<u64>(entry.shape.width) * entry.shape.height * texelBytes(entry.shape);
+        if (entry.fbo && !entry.inUse && entry.idle >= kBudgetGraceTicks) idleBytes += static_cast<u64>(entry.shape.width) * entry.shape.height * texelBytes(entry.shape);
     }
     while (idleBytes > kIdleByteBudget) {
         Entry* oldest = nullptr;
         for (auto& entry : entries_) {
-            if (entry.fbo && !entry.inUse && (!oldest || entry.idle > oldest->idle)) oldest = &entry;
+            if (entry.fbo && !entry.inUse && entry.idle >= kBudgetGraceTicks && (!oldest || entry.idle > oldest->idle)) oldest = &entry;
         }
         if (!oldest) break;
         idleBytes -= static_cast<u64>(oldest->shape.width) * oldest->shape.height * texelBytes(oldest->shape);

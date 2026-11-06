@@ -428,6 +428,41 @@ int main() {
         CHECK(pool.count() < 200, "and the sizes the window has left are gone");
     }
 
+    // --- what a frame uses every frame is kept, however much of it there is ---
+    {
+        MockGfxDevice d;
+        rg::TargetPool pool(d);
+        // Past the idle budget between them, as a 4096 shadow atlas and a 4x scene target at 2670x1200 are. All of it has just been given
+        // back when the pool ages, and that is not the same as nobody wanting it.
+        rg::TargetShape atlas;
+        atlas.width = atlas.height = 4096;
+        atlas.depthStencil = true;
+        rg::TargetShape scene;
+        scene.width = 2670;
+        scene.height = 1200;
+        scene.format = GfxPixelFormat::RGBA16F;
+        scene.depthStencil = true;
+        scene.samples = 4;
+        const rg::TargetHandle firstAtlas = pool.acquire(atlas);
+        const rg::TargetHandle firstScene = pool.acquire(scene);
+        CHECK(pool.bytes() > rg::TargetPool::kIdleByteBudget, "the two together are past the budget");
+        pool.release(firstAtlas);
+        pool.release(firstScene);
+        for (u32 frame = 0; frame < 300; ++frame) {
+            pool.age();
+            const rg::TargetHandle a = pool.acquire(atlas);
+            const rg::TargetHandle s = pool.acquire(scene);
+            pool.release(a);
+            pool.release(s);
+        }
+        CHECK(pool.holds(firstAtlas) && pool.holds(firstScene), "a frame's own targets are not destroyed and rebuilt every frame");
+        CHECK(pool.count() == 2, "and no second set has grown");
+
+        // And once nothing asks for them, they do go.
+        for (u32 tick = 0; tick < rg::TargetPool::kBudgetGraceTicks + 1; ++tick) pool.age();
+        CHECK(pool.bytes() <= rg::TargetPool::kIdleByteBudget, "left alone, they answer to the budget again");
+    }
+
     // --- a handle outliving its target names nothing, not the next thing ---
     {
         MockGfxDevice d;

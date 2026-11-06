@@ -125,6 +125,10 @@ public:
     /** @brief Bytes of unborrowed targets the pool keeps, whatever their age: past it the longest idle are destroyed. */
     static constexpr u64 kIdleByteBudget = 256ull * 1024 * 1024;
 
+    /** @brief Ticks unborrowed before a target counts against that budget. More than one, since age runs once per graph and a frame can
+     *  have several: a target one graph borrows is otherwise idle on the ticks the others take. */
+    static constexpr u32 kBudgetGraceTicks = 4;
+
 private:
     struct Entry {
         Unique<Framebuffer> fbo;
