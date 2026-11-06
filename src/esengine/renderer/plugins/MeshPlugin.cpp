@@ -830,7 +830,7 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
         // A material that bends its vertices can put them outside the mesh's own box; culling the
         // box would drop a bent mesh that is still on screen, so it grows by what the material says.
         const f32 bend = material ? ctx.materials->vertexBounds(mesh.material) : 0.0f;
-        const bool depthTested = material ? material->depthTest : mesh.opaque;
+        const bool depthTested = mesh.opaque || (material && material->depthTest);
 
         glm::vec3 aabbCenter(0.0f), halfExtents(0.0f);
         orientedWorldAabb(position, rotation, scale, localMin - glm::vec3(bend), localMax + glm::vec3(bend),
@@ -974,8 +974,10 @@ void MeshPlugin::collect(RenderCollectContext& collect_ctx) {
                 // no surface record (screen-space reflections and rain read nothing) and a cut-out lost its alpha-to-coverage.
                 key.blend = mesh.opaque ? BlendMode::None : m->blend;
                 key.materialId = mesh.material;
-                key.depthTest = m->depthTest;
-                key.depthWrite = m->depthWrite;
+                // Depth likewise, or a sphere's far side draws over its near side: a new material says depthTest false, and
+                // the surface reads as the inside of a bowl, under light and shadow that look wrong for no reason a person can see.
+                key.depthTest = mesh.opaque || m->depthTest;
+                key.depthWrite = mesh.opaque || m->depthWrite;
                 key.cull = static_cast<u8>(m->cull);
                 key.depthBias = m->depthBias;
             }
