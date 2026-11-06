@@ -3840,4 +3840,6 @@ export const NOTED = {
     {"note":"A new character costs a phone about a third of what it did."},
   "fix(native): a bench lifts the pacer's frame-rate cap as well as its floor, so a phone's benched frame reads what it cost":
     {"internal":"only the bench switches reach it; a game never runs with them on"},
+  "feat(text): preloadGlyphs puts a text's characters on the atlas ahead of time, a slice a frame, so the frame that shows them does not pay for them":
+    {"note":"Glyphs can be put on the atlas before they are shown."},
 };

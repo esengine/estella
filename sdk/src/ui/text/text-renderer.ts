@@ -398,6 +398,8 @@ export class SdfTextRenderer {
     private readonly drawn_ = new Set<number>();
     /** The atlas pages the retained labels of this renderer draw from, so the pages outlive the frames the labels are not rebuilt in. */
     private readonly retainedPages_ = new Map<number, number[]>();
+    /** Pages held for glyphs not on screen yet, by the preload holding them. */
+    private readonly pinnedPages_ = new Map<object, Set<number>>();
 
     /** `module` is null on the native core (no wasm heap); the glyph source is
      *  then the platform's own rasterizer, since there is no 2D canvas to draw
@@ -435,13 +437,32 @@ export class SdfTextRenderer {
             for (const batch of entry.batches) pages.add(batch.pageId);
         }
         for (const list of this.retainedPages_.values()) for (const pageId of list) pages.add(pageId);
+        for (const pinned of this.pinnedPages_.values()) for (const pageId of pinned) pages.add(pageId);
         this.drawn_.clear();
         this.atlas.retainPages(pages);
+    }
+
+    /**
+     * Put a glyph on the atlas for text that is not drawn yet, at the size a layout of @p fontSizePx will ask for, and hold its page for
+     * @p holder: nothing refers to a page of preloaded glyphs, and the next beginFrame would release it.
+     */
+    preloadGlyph(holder: object, codepoint: number, fontFamily: string, style: number, fontSizePx: number): void {
+        const glyph = this.atlas.getGlyph(codepoint, fontFamily, style, this.atlas.pixelSizeFor(fontSizePx, fontFamily));
+        if (!glyph || glyph.width <= 0) return;
+        let pinned = this.pinnedPages_.get(holder);
+        if (!pinned) this.pinnedPages_.set(holder, pinned = new Set());
+        pinned.add(glyph.pageId);
+    }
+
+    /** Let go of the pages @p holder was holding: the next beginFrame releases those no text uses. */
+    releasePreload(holder: object): void {
+        this.pinnedPages_.delete(holder);
     }
 
     dispose(): void {
         this.drawn_.clear();
         this.cache_.clear();
+        this.pinnedPages_.clear();
         this.retainedPages_.clear();
         this.atlas.dispose();
     }

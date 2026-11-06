@@ -263,6 +263,25 @@ addStartupSystem(buildBubble);
 再用 `color` 画字形。`strokeWidth` 只表示有没有圈(页面里的圈是画出来的,不是长出来
 的);没有它时只画字形,所以描边可以是任意颜色、半透明,或者没有。
 
+## 预加载字形
+
+字第一次出现时才生成，要花时间：一两个字没感觉，但小说第一页有几百个新字，会全部挤在同一帧里。知道接下来要显示什么的话，可以在加载界面提前生成：
+
+```ts
+import { preloadGlyphs } from 'esengine';
+
+const preload = preloadGlyphs(app, label, chapterText, { budgetMs: 8 });
+showProgress(() => preload.progress);
+await preload.done;
+// ……这一章读完后：
+preload.release();
+```
+
+- 字体、字号、粗斜体、渲染模式都从 `label` 这个 `Text` 读取，它可以先不显示。
+- 每帧最多花 `budgetMs` 毫秒（默认 4），重复的字不花时间。
+- 预加载的字会一直占着图集页，直到调用 `release()`。一页 1024×1024 占 4 MB 显存，小说字号下约放两三百字。
+- 富文本里改了字号的文字和带描边的文字是另外的图集单元，仍在第一次显示时生成。
+
 ## 本地化
 
 不要手写 `content`,改设 `i18nKey`:存在 Localization 资源时(安装

@@ -29,7 +29,8 @@ import { UICameraInfo, type UICameraData } from '../core/ui-camera-info';
 import { ScreenOverlay } from '../core/screen-overlay';
 import { getUINodeWidth, getUINodeHeight, ensureUIVisual } from '../util/helpers';
 import { resolveTextFamily } from './font-registry';
-import { platformDevicePixelRatio } from '../../platform';
+import { DEFAULT_PRELOAD_BUDGET_MS, GlyphPreloadJob, preloadCodepoints, type GlyphPreload, type GlyphPreloadOptions } from './glyph-preload';
+import { platformDevicePixelRatio, platformNow } from '../../platform';
 import { engineApi, type EngineApi } from '../../ecs/bridge/engineApi';
 import { withScratch } from '../../wasm/wasmScratch';
 // UI quads use layer = base + uiOrder, off the C++ declaration that owns it.
@@ -147,6 +148,17 @@ export function sameSnapshot(s: TextSnapshot, t: TextData, family: string): bool
         && s.hr === t.shadowColor.r && s.hg === t.shadowColor.g && s.hb === t.shadowColor.b && s.ha === t.shadowColor.a;
 }
 
+/** How many frames a preload waits for the projection before it takes the size it can get. */
+const PRELOAD_PROJECTION_FRAMES = 30;
+
+/** One preload and where it stands. The object is also what holds its atlas pages. */
+interface PreloadRun {
+    entity: Entity;
+    framesWaited: number;
+    renderer: SdfTextRenderer | null;
+    job: GlyphPreloadJob;
+}
+
 /** The two domains a Text can belong to, and the state each keeps. */
 interface TextDomainState {
     bitmap: SdfTextRenderer | null;
@@ -162,7 +174,11 @@ export class TextPlugin implements Plugin {
         matrix: Float32Array;
         matrixHeap: Float32Array | null;
         retained: Map<number, RetainedLabel>;
+        preloads: PreloadRun[];
     }>();
+
+    /** Apps this plugin was built on: only those step a preload. */
+    private readonly built_ = new WeakSet<App>();
 
     private stateFor(app: App) {
         let state = this.states_.get(app);
@@ -172,6 +188,7 @@ export class TextPlugin implements Plugin {
                 screen: { bitmap: null, sdf: null },
                 matrix: new Float32Array(16), matrixHeap: null,
                 retained: new Map(),
+                preloads: [],
             };
             this.states_.set(app, state);
         }
@@ -183,6 +200,7 @@ export class TextPlugin implements Plugin {
         const state = this.states_.get(app);
         if (!state) return;
         this.states_.delete(app);
+        for (const run of state.preloads) run.job.finish();
         const errors: unknown[] = [];
         for (const renderer of [state.world.bitmap, state.world.sdf, state.screen.bitmap, state.screen.sdf]) {
             try { renderer?.dispose(); } catch (error) { errors.push(error); }
@@ -192,6 +210,7 @@ export class TextPlugin implements Plugin {
 
     build(app: App): void {
         registerComponent('Text', Text);
+        this.built_.add(app);
 
         const world = app.world;
 
@@ -202,6 +221,11 @@ export class TextPlugin implements Plugin {
                 renderer?.beginFrame();
             }
         }, { name: 'TextPageLifetimeSystem' }));
+
+        app.addSystemToSchedule(Schedule.PreUpdate, defineSystem([], () => {
+            const state = this.states_.get(app);
+            if (state && state.preloads.length > 0) this.stepPreloads(app, state.preloads);
+        }, { name: 'TextGlyphPreloadSystem' }));
 
         // A Text node inside a UINode is a UI render node: ensure it carries a
         // UIVisual (visualType None — not drawn as a quad) so the UI
@@ -589,6 +613,64 @@ export class TextPlugin implements Plugin {
         state.sdf?.retainOnly(seen);
     }
 
+    /**
+     * Put the glyphs of @p text on the atlas ahead of time, a slice a frame, as @p entity's Text will draw them: its font, size, style and
+     * pipeline, in its domain. Everything is read from the Text rather than asked for again, since a glyph at another size or in another
+     * atlas is a different cell and preloading it would buy nothing. See {@link preloadGlyphs}.
+     */
+    preload(app: App, entity: Entity, text: string, options: GlyphPreloadOptions = {}): GlyphPreload {
+        const budgetMs = options.budgetMs !== undefined && options.budgetMs > 0 ? options.budgetMs : DEFAULT_PRELOAD_BUDGET_MS;
+        const state = this.stateFor(app);
+        const run: PreloadRun = {
+            entity,
+            framesWaited: 0,
+            renderer: null,
+            job: new GlyphPreloadJob(preloadCodepoints(text), budgetMs, () => {
+                run.renderer?.releasePreload(run);
+                const at = state.preloads.indexOf(run);
+                if (at >= 0) state.preloads.splice(at, 1);
+            }),
+        };
+        // With nothing to draw with (a logic-only host) there is no atlas to fill.
+        if (!this.built_.has(app) || !app.pipeline) run.job.finish();
+        if (!run.job.finished) state.preloads.push(run);
+        return run.job;
+    }
+
+    private stepPreloads(app: App, runs: PreloadRun[]): void {
+        // One at a time, so that the budget is the frame's and not each preload's.
+        const run = runs.find((r) => !r.job.finished);
+        if (!run) return;
+        const world = app.world;
+        if (!world.valid(run.entity) || !world.has(run.entity, Text) || !world.has(run.entity, Transform)) {
+            run.job.finish();
+            return;
+        }
+        const api = engineApi(app);
+        const registry = world.getCppRegistry() as CppRegistry | null;
+        const screen = !!(api?.ui_isScreenDomain && registry) && api.ui_isScreenDomain(registry, run.entity as number);
+        // Bitmap glyphs are rasterized for the projection that draws them, which is known from the first frame on. Asked before it, they would
+        // be another size than the ones drawn. A scene that never has one draws no text, so this does not wait for ever.
+        if (!this.projectionKnown(app, screen) && run.framesWaited++ < PRELOAD_PROJECTION_FRAMES) return;
+
+        const t = world.get(run.entity, Text) as TextData;
+        const tr = world.get(run.entity, Transform) as TransformData;
+        const family = resolveTextFamily(t.font, t.fontFamily);
+        const kind = bitmapFontOf(family) ? 'bitmap' : resolveTextRenderMode(t.renderMode, tr.worldScale.x);
+        const dpr = platformDevicePixelRatio();
+        const contentScale = screen ? this.screenContentScale(app, dpr) : this.worldContentScale(app, dpr);
+        const appState = this.stateFor(app);
+        const renderer = this.rendererFor(app, screen ? appState.screen : appState.world, kind, contentScale, dpr);
+        run.renderer = renderer;
+        const style = (t.bold ? UI_TEXT_BOLD : 0) | (t.italic ? UI_TEXT_ITALIC : 0);
+        run.job.step((codepoint) => renderer.preloadGlyph(run, codepoint, family, style, t.fontSize), platformNow);
+    }
+
+    private projectionKnown(app: App, screen: boolean): boolean {
+        if (screen) return app.hasResource(ScreenOverlay) && app.getResource(ScreenOverlay).active;
+        return !!(app.getResource(UICameraInfo) as UICameraData | undefined)?.valid;
+    }
+
     /** World text rasterizes for the camera showing it — zoom in, get sharper. */
     private worldContentScale(app: App, dpr: number): number {
         const cam = app.getResource(UICameraInfo) as UICameraData | undefined;
@@ -632,3 +714,16 @@ export class TextPlugin implements Plugin {
 }
 
 export const textPlugin = new TextPlugin();
+
+/**
+ * Put the glyphs of @p text on the atlas before they are shown, so the frame that shows them does not pay for them. The first page of a
+ * novel is hundreds of new characters, and they all land in one frame otherwise. Give it what is coming (a chapter, the next scene's
+ * lines) on a loading screen and wait on `done`, or let it run behind the game: it spends `budgetMs` a frame.
+ *
+ * @param entity The Text that will show them, which says how they are drawn. It need not be visible.
+ * @param text   Repeated characters cost nothing. Text in a rich-text size or an outline is another cell, and is made when it first shows.
+ * @returns      Call `release()` when the text is over: the glyphs hold their atlas pages until then.
+ */
+export function preloadGlyphs(app: App, entity: Entity, text: string, options?: GlyphPreloadOptions): GlyphPreload {
+    return textPlugin.preload(app, entity, text, options);
+}

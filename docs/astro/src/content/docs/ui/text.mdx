@@ -299,6 +299,25 @@ first, in `strokeColor`, then the glyph in `color`. `strokeWidth` only says whet
 there is a ring (the page's ring is drawn, not grown), and without one only the
 glyph is drawn, so the outline can be any colour, translucent, or absent.
 
+## Preloading glyphs
+
+A character is made the first time it appears, and that takes time: one or two go unnoticed, but the first page of a novel is hundreds of new characters, all in one frame. If you know what is coming, make them on a loading screen:
+
+```ts
+import { preloadGlyphs } from 'esengine';
+
+const preload = preloadGlyphs(app, label, chapterText, { budgetMs: 8 });
+showProgress(() => preload.progress);
+await preload.done;
+// ...when the chapter is over:
+preload.release();
+```
+
+- The font, size, style and render mode are read from `label`'s `Text`, which need not be visible yet.
+- It spends at most `budgetMs` a frame (4 by default). Repeated characters cost nothing.
+- Preloaded glyphs hold their atlas pages until `release()`. A 1024×1024 page takes 4 MB of video memory and holds a few hundred characters at novel sizes.
+- Text in a rich-text size or an outline is another atlas cell, and is still made when it first shows.
+
 ## Localization
 
 Set `i18nKey` instead of hand-writing `content`: while a Localization resource
