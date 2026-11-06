@@ -180,9 +180,9 @@ export async function fetchV8(platform, options = {}) {
         logger.info(`V8 ${pin.version} (${platform}) already fetched`);
         return dir;
     }
-    await rm(dir, { recursive: true, force: true });
+    await rm(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     const scratch = path.join(deps, `v8-${platform}.download`);
-    await rm(scratch, { recursive: true, force: true });
+    await rm(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     await mkdir(scratch, { recursive: true });
 
     if (platform === 'windows') {
@@ -215,7 +215,7 @@ export async function fetchV8(platform, options = {}) {
     if (platform === 'android' && !existsSync(path.join(dir, 'snapshot', 'arm64-v8a', 'snapshot_blob.bin'))) {
         throw new Error(`V8 (android): the archive carried no startup snapshot under ${dir}/snapshot`);
     }
-    await rm(scratch, { recursive: true, force: true });
+    await rm(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     await writeFile(stamp, want);
     logger.success(`V8 ${pin.version} (${platform}): ${dir}`);
     return dir;

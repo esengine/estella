@@ -15,29 +15,9 @@ import { playModeOnly } from '../ecs/env';
 import { defineComponent, Transform, type ComponentDef, type TransformData } from '../ecs/component';
 import { SplineCurve, type SplinePoint } from './curve';
 import { installTerrainBands } from './terrainBand2D';
+import { Spline, type SplineData } from './splineComponent';
 
-/** The fields of the `Spline` component. @experimental */
-export interface SplineData {
-    /** The points the curve passes through, in the entity's own space, in order, each with the width of whatever follows it there. */
-    points: SplinePoint[];
-    /** Whether the curve joins its end to its start. Needs three points. */
-    closed: boolean;
-}
-
-/**
- * A curve through points. It is read by what follows it (a river's `WaterBody` on the same entity, a {@link PathFollower} on another).
- *
- * @experimental
- */
-export const Spline: ComponentDef<SplineData> = defineComponent<SplineData>('Spline', {
-    points: [{ x: -10, y: 0, z: 0, width: 4 }, { x: 10, y: 0, z: 0, width: 4 }] as SplinePoint[],
-    closed: false,
-}, {
-    fields: {
-        points: { category: 'Shape', tooltip: 'The points the curve passes through, in order, in the entity\'s own space. Each carries the width of whatever follows the curve there.' },
-        closed: { category: 'Shape', tooltip: 'Join the end of the curve to its start (three points or more).' },
-    },
-});
+export { Spline, type SplineData } from './splineComponent';
 
 /** What a {@link PathFollower} does at the end of the curve. */
 export const PathMode = { Once: 0, Loop: 1, PingPong: 2 } as const;

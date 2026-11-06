@@ -61,12 +61,15 @@ function scripts(dir, out = []) {
 
 const problems = [];
 let checked = 0;
+/** What the MCP front answers itself, ahead of the catalog. */
+const FRONT_TOOLS = new Set(['enable_tools']);
 
 for (const file of SCANNED.flatMap((d) => scripts(d))) {
   const source = readFileSync(file, 'utf8');
   const where = path.relative(ROOT, file);
   for (const [, tool, args] of source.matchAll(CALL)) {
     const known = declared.get(tool);
+    if (FRONT_TOOLS.has(tool)) continue;
     if (!known) {
       problems.push(`${where}: no tool named "${tool}"`);
       continue;
@@ -86,7 +89,6 @@ for (const file of SCANNED.flatMap((d) => scripts(d))) {
  * underscore in backticks is one too, apart from what the front itself answers (`enable_tools`) and shader names.
  */
 const SHADER_IDENT = /^[uv]_/;
-const FRONT_TOOLS = new Set(['enable_tools']);
 const GUIDES = [
   path.join(ROOT, 'docs', 'astro', 'src', 'content', 'docs', 'agents', 'mcp.mdx'),
   path.join(ROOT, 'docs', 'astro', 'src', 'content', 'docs', 'zh-cn', 'agents', 'mcp.mdx'),

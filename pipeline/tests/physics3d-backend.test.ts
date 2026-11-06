@@ -40,7 +40,7 @@ describe('3D physics backend', () => {
       expect([...physx]).toEqual(['physics3d:physx']);
       expect(sideModuleFiles(physx).files).toEqual([{ id: 'physics3d:physx', file: 'physics3d-physx' }]);
     } finally {
-      rmSync(root, { recursive: true, force: true });
+      rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
     }
   });
 });

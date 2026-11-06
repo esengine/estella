@@ -81,6 +81,9 @@ const DECLARED_GAPS = {
   physicsEnabled: {
     editor: 'edit mode does not simulate — bodies are authored, not stepped',
   },
+  physics3dBackend: {
+    editor: 'edit mode does not simulate — see physicsEnabled',
+  },
   physicsConfig: {
     editor: 'edit mode does not simulate — see physicsEnabled',
   },
@@ -119,6 +122,7 @@ const PARSE_KEY = {
   steamAppId: 'dt.steam',
   physicsEnabled: 'p.enabled',
   physicsConfig: 'physics',
+  physics3dBackend: 'backend3d',
   audioConfig: 'parseAudioProjectConfig',
   runtime: 'parseRuntimeBuildConfig',
   uiTheme: 'u.theme',
@@ -143,6 +147,7 @@ const AUTHORING = {
   achievements: { ui: 'project.packaging.achievements' },
   steamAppId: { ui: 'project.packaging.desktop.steam.appId' },
   physicsEnabled: { ui: 'project.physics.enabled' },
+  physics3dBackend: { ui: 'project.physics.backend3d' },
   physicsConfig: { ui: ['project.physics.gravityX', 'project.physics.gravityY', 'project.physics.fixedTimestep'] },
   audioConfig: { ui: ['project.audio.maxVoices', 'project.audio.buses', 'project.audio.effects'] },
   runtime: { ui: ['project.runtime.'] },

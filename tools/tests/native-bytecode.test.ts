@@ -25,7 +25,7 @@ describe('native bytecode source identity', () => {
 describe('which SDK a template embeds, whichever engine it runs', () => {
   const bundle = Buffer.from('globalThis.ESEngine = {};');
   let dir: string | null = null;
-  afterEach(() => { if (dir) rmSync(dir, { recursive: true, force: true }); dir = null; });
+  afterEach(() => { if (dir) rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }); dir = null; });
   const template = (files: Record<string, string | Buffer>) => {
     dir = mkdtempSync(path.join(tmpdir(), 'es-embeds-'));
     for (const [name, body] of Object.entries(files)) writeFileSync(path.join(dir, name), body);

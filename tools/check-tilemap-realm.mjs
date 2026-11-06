@@ -17,7 +17,8 @@
  *      records no dependency.
  *   3. No module-level mutable "active" binding in the tilemap sources: an
  *      editor world and a play world are two apps, and a pointer answers one.
- *   4. `TilemapPlugin` holds no state. What it installs is per app.
+ *   4. `TilemapPlugin` holds no state. What it installs is per app. Its name and the fixed
+ *      list of components it activates on (`activeWhen`) are what it is, not state.
  *
  * Run: node tools/check-tilemap-realm.mjs   (exit 1 on violation)
  */
@@ -86,7 +87,7 @@ if (!cls) {
   console.error('check-tilemap-realm: cannot read TilemapPlugin — this guard parses its body.');
   process.exit(1);
 }
-const field = /^\s{4}(?:private |readonly |private readonly )*(\w+)\s*[:=]/m.exec(cls[1].replace(/^\s*name = 'tilemap';$/m, ''));
+const field = /^\s{4}(?:private |readonly |private readonly )*(\w+)\s*[:=]/m.exec(cls[1].replace(/^\s*name = 'tilemap';$/m, '').replace(/^\s*readonly activeWhen = \[[^\]]*\];$/m, ''));
 if (field && field[1] !== 'name') {
   findings.push(`sdk/src/tilemap/tilemapPlugin.ts  TilemapPlugin holds \`${field[1]}\` — one plugin object installs into many apps, and every collection here is World-local.`);
 }

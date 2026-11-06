@@ -15,6 +15,7 @@
     "core-runtime.ts -> ./physics3d/Physics3DComponents",
     "core-runtime.ts -> ./physics3d/Physics3DDebugDraw",
     "core-runtime.ts -> ./physics3d/Physics3DJoints",
+    "core-runtime.ts -> ./physics3d/ragdoll",
     "platform/minigame/adapter.ts -> ../../video/WasmVideoBackend",
     "platform/web.ts -> ../video/WebVideoBackend",
     "runtime/packagedRuntime.ts -> ../video/VideoAPI",
