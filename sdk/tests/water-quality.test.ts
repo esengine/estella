@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, expect, it } from 'vitest';
-import { waveHeight, waveSlope, waveCount, type WaveParams } from '../src/water/waves';
+import { waveBend, waveHeight, waveSlope, waveCount, type WaveParams } from '../src/water/waves';
 import { FULL_WATER, waterQualityOf } from '../src/water/waterPlugin';
 import { defaultQualityProfile, resolveQualityProfile, parseQualityConfig } from '../src/render/quality';
 import { applyUnderwaterToEffects, type UnderwaterState } from '../src/postprocess/underwater';
@@ -25,7 +25,8 @@ describe('the wave count', () => {
         expect(waveHeight({ ...params, count: 4 }, x, z, t)).toBe(all);
         // The one wave is the set's first, at its own length and height.
         const k = 2 * Math.PI / 20, a = 30 * Math.PI / 180;
-        const theta = k * (Math.sin(a) * x + Math.cos(a) * z) - Math.sqrt(9.8 * k) * t;
+        const [bx, bz] = waveBend(x, z, 20);
+        const theta = k * (Math.sin(a) * bx + Math.cos(a) * bz) - Math.sqrt(9.8 * k) * t;
         expect(one).toBeCloseTo(Math.exp(Math.sin(theta) - 1), 9);
     });
 

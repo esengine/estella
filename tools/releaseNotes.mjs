@@ -3860,4 +3860,8 @@ export const NOTED = {
     {"internal":"broke after 0.98.0 and before any release, so no creator ever had it"},
   "fix(render): the target pool no longer destroys a frame's own targets every frame once they add up past its idle budget, which cost a phone 40 ms at quality high":
     {"note":"Quality high no longer costs a phone 40 ms a frame."},
+  "fix(water): crests bend and ripples spread wider, so a sea from above is no longer scored with straight parallel strokes that turn with the wind":
+    {"note":"A sea seen from above is no longer scored with straight lines."},
+  "fix(examples): Terrain & Water's detail map has waves in every direction, where one wave laid fine diagonal lines across its whole sea":
+    {"note":"A sea seen from above is no longer scored with straight lines."},
 };

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
 import { describe, expect, it } from 'vitest';
-import { WAVE_SET, waveFade, waveHeight, waveSlope, type WaveParams } from '../src/water/waves';
+import { WAVE_SET, waveBend, waveFade, waveHeight, waveSlope, type WaveParams } from '../src/water/waves';
+import { WATER_SHADER_TEMPLATE } from '../src/water/waterShader';
 import { buildOceanMesh, oceanReach, oceanSnap } from '../src/water/waterMesh';
 import { MeshChannel } from '../src/asset/meshFormat';
 import type { MeshData } from '../src/asset/meshFormat';
@@ -32,7 +33,8 @@ function facing(p: Float32Array, a: number, b: number, c: number): number {
 
 describe('the waves', () => {
     it('is the sum of the set\'s four peaked sines', () => {
-        const x = 3.7, z = -2.2, t = 1.3;
+        const t = 1.3;
+        const [x, z] = waveBend(3.7, -2.2, params.length);
         let expected = 0;
         for (const [heading, lengthShare, heightShare, speedShare] of WAVE_SET) {
             const k = 2 * Math.PI / (params.length * lengthShare);
@@ -40,7 +42,37 @@ describe('the waves', () => {
             const theta = k * (Math.sin(a) * x + Math.cos(a) * z) - Math.sqrt(9.8 * k) * params.speed * speedShare * t;
             expected += params.height * heightShare * Math.exp(Math.sin(theta) - 1);
         }
-        expect(waveHeight(params, x, z, t)).toBeCloseTo(expected, 10);
+        expect(waveHeight(params, 3.7, -2.2, t)).toBeCloseTo(expected, 10);
+    });
+
+    it("bends its crests: one wave's crest is no straight line", () => {
+        // Walk along the first wave's crest line as a straight sine would have it, and read how far the phase moves off it.
+        const a = params.direction * Math.PI / 180;
+        const along = [Math.cos(a), -Math.sin(a)];
+        const k = 2 * Math.PI / params.length;
+        const phases: number[] = [];
+        for (let s = 0; s <= 40; ++s) {
+            const [bx, bz] = waveBend(along[0]! * s * params.length, along[1]! * s * params.length, params.length);
+            phases.push(k * (Math.sin(a) * bx + Math.cos(a) * bz));
+        }
+        expect(Math.max(...phases) - Math.min(...phases)).toBeGreaterThan(Math.PI);
+    });
+
+    it('bends by no more than keeps the surface from folding over itself', () => {
+        for (let u = -50; u < 50; u += 0.37) {
+            const [, , xAlongZ, zAlongX] = waveBend(u * params.length, -u * 1.7 * params.length, params.length);
+            expect(Math.abs(xAlongZ)).toBeLessThan(0.4);
+            expect(Math.abs(zAlongX)).toBeLessThan(0.4);
+        }
+    });
+
+    it('is bent by the same numbers in the shader, in both languages and both stages', () => {
+        const source = JSON.stringify(WATER_SHADER_TEMPLATE);
+        for (const term of ['span * 0.45 * sin(q.y * 0.73 + 1.3)', 'span * 0.45 * sin(q.x * 0.61 + 2.7)', '0.3285 * cos(q.y * 0.73 + 1.3)', '0.2745 * cos(q.x * 0.61 + 2.7)']) {
+            expect(source.split(term).length - 1, term).toBeGreaterThanOrEqual(4);
+        }
+        expect(source.split('vec4 waterBend(').length - 1).toBe(2);
+        expect(source.split('fn waterBend(').length - 1).toBe(2);
     });
 
     it('has a slope that is the derivative of its height', () => {

@@ -9,6 +9,10 @@
  *          GLSL and WGSL, so what a floating object reads here is what is drawn there. Change a constant in one place and the other
  *          two places have to change with it; the table below is the one the shaders repeat.
  *
+ *          Each wave is taken at a place bent off the true one (`waveBend`). Straight sines a few directions apart add up to crests
+ *          that are long parallel lines, which is how a sea of them looked from above: scored with diagonal strokes, turning with the
+ *          wind.
+ *
  *          Everything here is in the body's own space: x and z along its surface, the height along its up.
  */
 
@@ -37,6 +41,26 @@ export interface WaveParams {
 const TAU = Math.PI * 2;
 const GRAVITY = 9.8;
 
+/** How far a crest is bent, as a share of the longest wave. Its slope is this times the bend's frequency, about 0.33 at most. */
+const BEND = 0.45;
+
+/**
+ * Where the waves are read for the true place (x, z), bent by a span of `length`: a slow sine of z moves x and one of x moves z, at
+ * frequencies that share no multiple, repeating every 8.6 and 10.3 lengths. Each axis depends only on the other, so the two terms a slope needs (how x's bend changes along z,
+ * z's along x) are all of its Jacobian. The shader's `waterBend` is the same arithmetic.
+ *
+ * @returns x and z to read at, then dx/dz and dz/dx.
+ */
+export function waveBend(x: number, z: number, length: number): [number, number, number, number] {
+    const u = x / length, v = z / length;
+    return [
+        x + length * BEND * Math.sin(v * 0.73 + 1.3),
+        z + length * BEND * Math.sin(u * 0.61 + 2.7),
+        BEND * 0.73 * Math.cos(v * 0.73 + 1.3),
+        BEND * 0.61 * Math.cos(u * 0.61 + 2.7),
+    ];
+}
+
 /**
  * How much of a wave a mesh of `cell`-sized cells can draw: none below three cells to a wavelength, all of it from six. The shader applies the
  * same ramp per vertex with the cell size of the ring the vertex is in, so a coarse far ring does not alias; `cell` 0 draws every wave.
@@ -55,6 +79,7 @@ export function waveCount(p: WaveParams): number {
 export function waveHeight(p: WaveParams, x: number, z: number, time: number, cell = 0): number {
     let height = 0;
     const base = p.direction * Math.PI / 180;
+    const [bx, bz] = waveBend(x, z, p.length);
     let used = waveCount(p);
     for (const [heading, lengthShare, heightShare, speedShare] of WAVE_SET) {
         if (used-- <= 0) break;
@@ -62,7 +87,7 @@ export function waveHeight(p: WaveParams, x: number, z: number, time: number, ce
         const k = TAU / length;
         const a = base + heading * Math.PI / 180;
         const omega = Math.sqrt(GRAVITY * k) * p.speed * speedShare;
-        const theta = k * (Math.sin(a) * x + Math.cos(a) * z) - omega * time;
+        const theta = k * (Math.sin(a) * bx + Math.cos(a) * bz) - omega * time;
         height += p.height * heightShare * Math.exp(Math.sin(theta) - 1) * waveFade(length, cell);
     }
     return height;
@@ -72,6 +97,7 @@ export function waveHeight(p: WaveParams, x: number, z: number, time: number, ce
 export function waveSlope(p: WaveParams, x: number, z: number, time: number): [number, number] {
     let sx = 0, sz = 0;
     const base = p.direction * Math.PI / 180;
+    const [bx, bz, xAlongZ, zAlongX] = waveBend(x, z, p.length);
     let used = waveCount(p);
     for (const [heading, lengthShare, heightShare, speedShare] of WAVE_SET) {
         if (used-- <= 0) break;
@@ -79,12 +105,12 @@ export function waveSlope(p: WaveParams, x: number, z: number, time: number): [n
         const a = base + heading * Math.PI / 180;
         const dx = Math.sin(a), dz = Math.cos(a);
         const omega = Math.sqrt(GRAVITY * k) * p.speed * speedShare;
-        const theta = k * (dx * x + dz * z) - omega * time;
+        const theta = k * (dx * bx + dz * bz) - omega * time;
         const rise = p.height * heightShare * Math.exp(Math.sin(theta) - 1) * Math.cos(theta) * k;
         sx += dx * rise;
         sz += dz * rise;
     }
-    return [sx, sz];
+    return [sx + sz * zAlongX, sz + sx * xAlongZ];
 }
 
 /**

@@ -119,7 +119,16 @@ const WATER = `#pragma shader "Water"
 #pragma vertexbounds 16
 #pragma vertexoffset
 // The height of the waves at p: the same four peaked sines the fragment takes its slope from, so the surface that is lit is the one that is drawn.
+// Where the waves are read for the true place p, bent by the given span (waves.ts: waveBend): crests of straight sines a few directions apart
+// add up to long parallel lines, a sea scored with strokes that turn with the wind. xy to read at; zw dx/dz and dz/dx, for a slope. One
+// sine an axis: this runs for every pixel of the water, and with a term more a phone paid 11 ms a frame for it.
+vec4 waterBend(vec2 p, float span) {
+    vec2 q = p / span;
+    return vec4(p.x + span * 0.45 * sin(q.y * 0.73 + 1.3), p.y + span * 0.45 * sin(q.x * 0.61 + 2.7),
+                0.3285 * cos(q.y * 0.73 + 1.3), 0.2745 * cos(q.x * 0.61 + 2.7));
+}
 float waterWaveHeight(vec2 p, float time, float cell) {
+    vec2 at = waterBend(p, u_waveLength).xy;
     const vec4 SET[4] = vec4[4](vec4(0.0, 1.0, 1.0, 1.0), vec4(28.0, 0.62, 0.55, 1.1), vec4(-37.0, 0.37, 0.3, 1.2), vec4(71.0, 0.21, 0.15, 1.35));
     float height = 0.0;
     float base = radians(u_waveDirection);
@@ -131,7 +140,7 @@ float waterWaveHeight(vec2 p, float time, float cell) {
         vec2 d = vec2(sin(a), cos(a));
         float omega = sqrt(9.8 * k) * u_waveSpeed * SET[i].w;
         float fade = cell > 0.0 ? clamp((length_ / cell - 3.0) / 3.0, 0.0, 1.0) : 1.0;
-        height += u_waveHeight * SET[i].z * exp(sin(k * dot(d, p) - omega * time) - 1.0) * fade;
+        height += u_waveHeight * SET[i].z * exp(sin(k * dot(d, at) - omega * time) - 1.0) * fade;
     }
     return height;
 }
@@ -217,7 +226,13 @@ void esMaterialVertex(inout vec3 local, inout vec3 localNormal, in vec2 uv) {
 #pragma end
 
 #pragma vertexoffset wgsl
+fn waterBend(p : vec2f, span : f32) -> vec4f {
+    let q = p / span;
+    return vec4f(p.x + span * 0.45 * sin(q.y * 0.73 + 1.3), p.y + span * 0.45 * sin(q.x * 0.61 + 2.7),
+                 0.3285 * cos(q.y * 0.73 + 1.3), 0.2745 * cos(q.x * 0.61 + 2.7));
+}
 fn waterWaveHeight(p : vec2f, time : f32, cell : f32) -> f32 {
+    let at = waterBend(p, mc.u_waveLength).xy;
     var wave = array<vec4f, 4>(vec4f(0.0, 1.0, 1.0, 1.0), vec4f(28.0, 0.62, 0.55, 1.1), vec4f(-37.0, 0.37, 0.3, 1.2), vec4f(71.0, 0.21, 0.15, 1.35));
     var height = 0.0;
     let base = radians(mc.u_waveDirection);
@@ -231,7 +246,7 @@ fn waterWaveHeight(p : vec2f, time : f32, cell : f32) -> f32 {
         let omega = sqrt(9.8 * k) * mc.u_waveSpeed * spec.w;
         var fade = 1.0;
         if (cell > 0.0) { fade = clamp((span / cell - 3.0) / 3.0, 0.0, 1.0); }
-        height = height + mc.u_waveHeight * spec.z * exp(sin(k * dot(d, p) - omega * time) - 1.0) * fade;
+        height = height + mc.u_waveHeight * spec.z * exp(sin(k * dot(d, at) - omega * time) - 1.0) * fade;
     }
     return height;
 }
@@ -347,6 +362,14 @@ vec2 packNormal(vec3 n) {
 out vec4 fragColor;
 #endif
 
+// Where the waves are read for the true place p, bent by the given span (waves.ts: waveBend): crests of straight sines a few directions apart
+// add up to long parallel lines, a sea scored with strokes that turn with the wind. xy to read at; zw dx/dz and dz/dx, for a slope. One
+// sine an axis: this runs for every pixel of the water, and with a term more a phone paid 11 ms a frame for it.
+vec4 waterBend(vec2 p, float span) {
+    vec2 q = p / span;
+    return vec4(p.x + span * 0.45 * sin(q.y * 0.73 + 1.3), p.y + span * 0.45 * sin(q.x * 0.61 + 2.7),
+                0.3285 * cos(q.y * 0.73 + 1.3), 0.2745 * cos(q.x * 0.61 + 2.7));
+}
 float waterHash(vec2 p) {
     p = fract(p * vec2(0.1031, 0.1030));
     p += dot(p, p.yx + 33.33);
@@ -359,12 +382,12 @@ float waterNoise(vec2 p) {
     return mix(mix(waterHash(i), waterHash(i + vec2(1.0, 0.0)), f.x),
                mix(waterHash(i + vec2(0.0, 1.0)), waterHash(i + vec2(1.0, 1.0)), f.x), f.y);
 }
-/// The slope of the ripples the wind raises at p: six short waves within forty degrees of it, from u_rippleLength down to a fifth of it, each
+/// The slope of the ripples the wind raises at p: six short waves within seventy-five degrees of it, from u_rippleLength down to a fifth of it, each
 /// running at the speed its length gives deep water and at a phase of its own, each as steep as u_rippleStrength a third. A sum of waves
 /// has no cells or blobs, which drifting noise has. A ripple shorter than a pixel would shimmer: each fades out with distance.
 vec2 rippleSlope(vec2 p, float time, float dist) {
-    const vec3 SET[6] = vec3[6](vec3(-12.0, 1.0, 0.0), vec3(23.0, 0.71, 1.7), vec3(-35.0, 0.53, 3.1),
-                                vec3(8.0, 0.39, 4.4), vec3(41.0, 0.29, 0.9), vec3(-27.0, 0.21, 2.6));
+    const vec3 SET[6] = vec3[6](vec3(-14.0, 1.0, 0.0), vec3(33.0, 0.71, 1.7), vec3(-58.0, 0.53, 3.1),
+                                vec3(11.0, 0.39, 4.4), vec3(74.0, 0.29, 0.9), vec3(-41.0, 0.21, 2.6));
     float base = radians(u_waveDirection);
     vec2 slope = vec2(0.0);
     for (int i = 0; i < 6; ++i) {
@@ -414,6 +437,7 @@ vec2 waveSlope(vec2 p, float time, float dist, out float crest) {
     float crestSum = 0.0;
     float weightSum = 0.0;
     float base = radians(u_waveDirection);
+    vec4 bend = waterBend(p, u_waveLength);
     for (int i = 0; i < 4; ++i) {
         if (float(i) >= u_waveCount) break;
         float length_ = u_waveLength * SET[i].y;
@@ -421,7 +445,7 @@ vec2 waveSlope(vec2 p, float time, float dist, out float crest) {
         float a = base + radians(SET[i].x);
         vec2 d = vec2(sin(a), cos(a));
         float omega = sqrt(9.8 * k) * u_waveSpeed * SET[i].w;
-        float theta = k * dot(d, p) - omega * time;
+        float theta = k * dot(d, bend.xy) - omega * time;
         float e = exp(sin(theta) - 1.0);
         // A wave much shorter than a pixel is noise, not a wave: it fades out with distance.
         float seen = clamp(1.0 - dist / (length_ * 220.0), 0.0, 1.0);
@@ -429,6 +453,7 @@ vec2 waveSlope(vec2 p, float time, float dist, out float crest) {
         crestSum += e * SET[i].z;
         weightSum += SET[i].z;
     }
+    slope = vec2(slope.x + slope.y * bend.w, slope.y + slope.x * bend.z);
     crest = crestSum / weightSum;
     return slope;
 }
@@ -821,6 +846,11 @@ fn packNormal(n : vec3f) -> vec2f {
 }
 #endif
 
+fn waterBend(p : vec2f, span : f32) -> vec4f {
+    let q = p / span;
+    return vec4f(p.x + span * 0.45 * sin(q.y * 0.73 + 1.3), p.y + span * 0.45 * sin(q.x * 0.61 + 2.7),
+                 0.3285 * cos(q.y * 0.73 + 1.3), 0.2745 * cos(q.x * 0.61 + 2.7));
+}
 fn waterHash(p0 : vec2f) -> f32 {
     var p = fract(p0 * vec2f(0.1031, 0.1030));
     p = p + dot(p, p.yx + 33.33);
@@ -834,8 +864,8 @@ fn waterNoise(p : vec2f) -> f32 {
                mix(waterHash(i + vec2f(0.0, 1.0)), waterHash(i + vec2f(1.0, 1.0)), f.x), f.y);
 }
 fn rippleSlope(p : vec2f, time : f32, dist : f32) -> vec2f {
-    let SET = array<vec3f, 6>(vec3f(-12.0, 1.0, 0.0), vec3f(23.0, 0.71, 1.7), vec3f(-35.0, 0.53, 3.1),
-                              vec3f(8.0, 0.39, 4.4), vec3f(41.0, 0.29, 0.9), vec3f(-27.0, 0.21, 2.6));
+    let SET = array<vec3f, 6>(vec3f(-14.0, 1.0, 0.0), vec3f(33.0, 0.71, 1.7), vec3f(-58.0, 0.53, 3.1),
+                              vec3f(11.0, 0.39, 4.4), vec3f(74.0, 0.29, 0.9), vec3f(-41.0, 0.21, 2.6));
     let base = radians(mc.u_waveDirection);
     var slope = vec2f(0.0);
     for (var i = 0; i < 6; i++) {
@@ -884,6 +914,7 @@ fn waveSlope(p : vec2f, time : f32, dist : f32) -> Waves {
     var crestSum = 0.0;
     var weightSum = 0.0;
     let base = radians(mc.u_waveDirection);
+    let bend = waterBend(p, mc.u_waveLength);
     for (var i : i32 = 0; i < 4; i = i + 1) {
         if (f32(i) >= mc.u_waveCount) { break; }
         let spec = wave[i];
@@ -892,7 +923,7 @@ fn waveSlope(p : vec2f, time : f32, dist : f32) -> Waves {
         let a = base + radians(spec.x);
         let d = vec2f(sin(a), cos(a));
         let omega = sqrt(9.8 * k) * mc.u_waveSpeed * spec.w;
-        let theta = k * dot(d, p) - omega * time;
+        let theta = k * dot(d, bend.xy) - omega * time;
         let e = exp(sin(theta) - 1.0);
         let seen = clamp(1.0 - dist / (span * 220.0), 0.0, 1.0);
         slope = slope + d * (mc.u_waveHeight * spec.z * e * cos(theta) * k * seen);
@@ -900,7 +931,7 @@ fn waveSlope(p : vec2f, time : f32, dist : f32) -> Waves {
         weightSum = weightSum + spec.z;
     }
     var out : Waves;
-    out.slope = slope;
+    out.slope = vec2f(slope.x + slope.y * bend.w, slope.y + slope.x * bend.z);
     out.crest = crestSum / weightSum;
     return out;
 }
