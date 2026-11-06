@@ -87,6 +87,10 @@ export const EXT_TO_TYPE = Object.freeze({
     '.esenv': 'environment',
     '.esprobes': 'probeVolume',
     '.esmesh': 'mesh',
+    // A model as the steps that build it. Never shipped: saving one bakes the sibling
+    // `.esmesh`, and that is what a scene references. Typed for the same reason
+    // `.esmatgraph` is, and apart from `model` because nothing imports it.
+    '.esmodel': 'modeling',
     '.esanim': 'animclip',
     '.esanimclip': 'animclip',
     '.estimeline': 'animation',

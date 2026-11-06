@@ -3864,4 +3864,8 @@ export const NOTED = {
     {"note":"A sea seen from above is no longer scored with straight lines."},
   "fix(examples): Terrain & Water's detail map has waves in every direction, where one wave laid fine diagonal lines across its whole sea":
     {"note":"A sea seen from above is no longer scored with straight lines."},
+  "feat(mcp): an agent builds a 3D model in the editor from steps, changes it by one number, and sees every side of it":
+    {"note":"AI agents can build 3D models in the editor from steps."},
+  "feat(modeling): a model is the steps that build it, baked to the mesh a scene draws, so one number changes the whole shape":
+    {"note":"AI agents can build 3D models in the editor from steps."},
 };
