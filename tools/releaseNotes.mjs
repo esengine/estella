@@ -3866,6 +3866,10 @@ export const NOTED = {
     {"note":"A sea seen from above is no longer scored with straight lines."},
   "feat(mcp): an agent builds a 3D model in the editor from steps, changes it by one number, and sees every side of it":
     {"note":"AI agents can build 3D models in the editor from steps."},
+  "feat(modeling): lathe and loft make curved solids from a few points, so an agent can build vases, pipes, handles and hulls":
+    {"note":"AI agents can build 3D models in the editor from steps."},
+  "feat(mcp): model_write turns outlines and joins sections into curved solids":
+    {"note":"AI agents can build 3D models in the editor from steps."},
   "feat(modeling): a boolean step cuts real holes and a uv step aims textures, with an atlas for a texture painted for one model":
     {"note":"AI agents can build 3D models in the editor from steps."},
   "feat(mcp): model_write cuts holes and lays out textures":

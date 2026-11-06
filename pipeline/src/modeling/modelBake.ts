@@ -34,6 +34,8 @@ export interface ModelReport {
     nonManifoldEdges: number;
     /** Faces with no area, which draw nothing and shade badly beside them. */
     degenerateFaces: number;
+    /** Edges whose two faces run it the same way: one of them faces the wrong way, whatever the rest of the shell does. */
+    flippedEdges: number;
     /** Closed shells whose faces point inward, which render as their own inside. */
     insideOutShells: number;
     steps: StepReport[];
@@ -193,6 +195,15 @@ export function bakeModel(raw: unknown): BakedModel {
     const openEdges = edges.filter((e) => e.faces.length === 1).length;
     const nonManifoldEdges = edges.filter((e) => e.faces.length > 2).length;
     const degenerateFaces = mesh.faces.filter((f) => faceArea(mesh, f) < 1e-10).length;
+    let flippedEdges = 0;
+    for (const e of edges) {
+        if (e.faces.length !== 2) continue;
+        const runs = (f: number): boolean => {
+            const v = mesh.faces[f]!.v;
+            return v.some((a, i) => a === e.a && v[(i + 1) % v.length] === e.b);
+        };
+        if (runs(e.faces[0]!) === runs(e.faces[1]!)) flippedEdges++;
+    }
     const shells = findShells(mesh);
     const edgeFaces = new Map<number, boolean>();
     for (const e of edges) for (const f of e.faces) if (e.faces.length !== 2) edgeFaces.set(f, true);
@@ -207,6 +218,7 @@ export function bakeModel(raw: unknown): BakedModel {
     const warnings: string[] = [];
     if (openEdges) warnings.push(`${openEdges} open edge${openEdges > 1 ? 's' : ''}: the surface has holes you can see into`);
     if (nonManifoldEdges) warnings.push(`${nonManifoldEdges} edge${nonManifoldEdges > 1 ? 's' : ''} shared by more than two faces, which a later bevel refuses: \`weld\` may have joined things that should stay apart, or on an organic skin two parts just touch, so overlap them or raise blend`);
+    if (flippedEdges) warnings.push(`${flippedEdges} edge${flippedEdges > 1 ? 's' : ''} between faces wound opposite ways: part of the surface faces inward`);
     if (degenerateFaces) warnings.push(`${degenerateFaces} face${degenerateFaces > 1 ? 's' : ''} with no area; \`weld\` removes them`);
     if (insideOutShells) warnings.push(`${insideOutShells} closed shell${insideOutShells > 1 ? 's are' : ' is'} inside out`);
 
@@ -225,7 +237,7 @@ export function bakeModel(raw: unknown): BakedModel {
                 size: roundVec(sub(max, min)),
                 center: roundVec([(min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2]),
             },
-            tags, openEdges, nonManifoldEdges, degenerateFaces, insideOutShells, steps, warnings,
+            tags, openEdges, nonManifoldEdges, flippedEdges, degenerateFaces, insideOutShells, steps, warnings,
         },
     };
 }

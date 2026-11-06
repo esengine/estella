@@ -16,6 +16,7 @@ import * as ops from './modelOps';
 import { organic } from './organic';
 import { booleanOp } from './booleans';
 import { uvStep } from './modelUv';
+import { lathe, loft } from './surfaces';
 import { compact, type Face, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
 
 export const MODEL_SOURCE_VERSION = 1;
@@ -40,7 +41,7 @@ export interface ModelSource {
 }
 
 type Kind = 'number' | 'integer' | 'boolean' | 'string' | 'vec3' | 'number|vec3' | 'number|vec2' | 'number|numbers'
-    | 'color' | 'points' | 'faces' | 'edges' | 'axis' | 'pivot' | 'parts' | 'noise' | 'operation' | 'uvmode' | 'number|vec2only' | 'vec2';
+    | 'color' | 'points' | 'faces' | 'edges' | 'axis' | 'pivot' | 'parts' | 'noise' | 'sections' | 'section' | 'vec3s' | 'numbers' | 'operation' | 'uvmode' | 'number|vec2only' | 'vec2';
 
 interface OpSpec {
     params: Record<string, Kind>;
@@ -60,6 +61,8 @@ export const MODEL_OPS: Record<string, OpSpec> = {
     cone: { params: { radius: 'number', height: 'number', sides: 'integer', ...PLACED }, required: ['radius', 'height'], run: ops.cone as OpSpec['run'], says: 'adds an upright cone' },
     sphere: { params: { radius: 'number', rings: 'integer', sides: 'integer', ...PLACED }, required: ['radius'], run: ops.sphere as OpSpec['run'], says: 'adds a sphere' },
     prism: { params: { points: 'points', height: 'number', ...PLACED }, required: ['points', 'height'], run: ops.prism as OpSpec['run'], says: 'stands a floor plan of [x, z] points up to `height`' },
+    lathe: { params: { profile: 'points', sides: 'integer', arc: 'number', closed: 'boolean', curve: 'integer', axis: 'axis', ...PLACED }, required: ['profile'], run: lathe as unknown as OpSpec['run'], says: 'turns a half-outline of [distance from axis, height] round an axis: a vase, a glass, a column' },
+    loft: { params: { sections: 'sections', path: 'vec3s', section: 'section', scales: 'numbers', sides: 'integer', closed: 'boolean', curve: 'integer', ...PLACED }, required: [], run: loft as unknown as OpSpec['run'], says: 'joins cross-sections along a path: a pipe, a handle, a bottle, a hull' },
     organic: { params: { parts: 'parts', resolution: 'integer', blend: 'number', noise: 'noise', at: 'vec3', tag: 'string', color: 'color' }, required: ['parts'], run: organic as unknown as OpSpec['run'], says: 'adds one continuous skin over a body of parts that melt into each other' },
     transform: { params: { faces: 'faces', translate: 'vec3', rotate: 'vec3', scale: 'number|vec3', pivot: 'pivot' }, required: [], run: ops.transform as OpSpec['run'], says: 'moves the vertices of the faces (default all): scaling a top face in makes a roof' },
     array: { params: { faces: 'faces', count: 'integer', offset: 'vec3', rotate: 'vec3', pivot: 'pivot', tag: 'string' }, required: ['count'], run: ops.array as OpSpec['run'], says: 'repeats the faces, `count` including the original' },
@@ -156,6 +159,36 @@ const PART_FIELDS: Record<string, (v: unknown) => string | null> = {
     noise: checkNoise,
 };
 
+const SECTION_FIELDS: Record<string, (v: unknown) => string | null> = {
+    at: (v) => (isNums(v, 3) ? null : 'must be [x, y, z]'),
+    radius: (v) => (isNum(v) ? null : 'must be a number'),
+    radii: (v) => (isNums(v, 2) ? null : 'must be [across, up]'),
+    size: (v) => (isNums(v, 2) ? null : 'must be [across, up]'),
+    points: (v) => (Array.isArray(v) && v.every((q) => isNums(q, 2)) ? null : 'must be an array of [across, up]'),
+    twist: (v) => (isNum(v) ? null : 'must be degrees'),
+    scale: (v) => (isNum(v) ? null : 'must be a number'),
+};
+
+function checkSection(v: unknown): string | null {
+    if (typeof v !== 'object' || v === null || Array.isArray(v)) return 'must be an object';
+    for (const [key, value] of Object.entries(v)) {
+        const check = SECTION_FIELDS[key];
+        if (!check) return `has an unknown field "${key}"; a section takes ${Object.keys(SECTION_FIELDS).join(', ')}`;
+        const bad = check(value);
+        if (bad) return `.${key} ${bad}`;
+    }
+    return null;
+}
+
+function checkSections(v: unknown): string | null {
+    if (!Array.isArray(v)) return 'must be an array of sections';
+    for (let i = 0; i < v.length; i++) {
+        const bad = checkSection(v[i]);
+        if (bad) return `[${i}] ${bad}`;
+    }
+    return null;
+}
+
 function checkParts(v: unknown): string | null {
     if (!Array.isArray(v) || v.length === 0) return 'must be a non-empty array of parts';
     for (let i = 0; i < v.length; i++) {
@@ -187,6 +220,10 @@ const KIND_CHECK: Record<Kind, (v: unknown) => string | null> = {
     edges: checkEdges,
     axis: (v) => (v === 'x' || v === 'y' || v === 'z' ? null : 'must be x, y or z'),
     parts: checkParts,
+    sections: checkSections,
+    section: checkSection,
+    vec3s: (v) => (Array.isArray(v) && v.every((q) => isNums(q, 3)) ? null : 'must be an array of [x, y, z]'),
+    numbers: (v) => (isNums(v) ? null : 'must be an array of numbers'),
     operation: (v) => (v === 'subtract' || v === 'union' || v === 'intersect' ? null : 'must be subtract, union or intersect'),
     uvmode: (v) => (['box', 'planar', 'cylinder', 'sphere'].includes(v as string) ? null : 'must be box, planar, cylinder or sphere'),
     'number|vec2only': (v) => (isNum(v) || isNums(v, 2) ? null : 'must be a number or [u, v]'),

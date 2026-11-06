@@ -299,7 +299,7 @@ describe('the source format', () => {
     });
 
     it('refuses an unknown op, listing them', () => {
-        expect(() => validateModelSource({ steps: [{ op: 'lathe' }] })).toThrow(/unknown op "lathe"; there are box/);
+        expect(() => validateModelSource({ steps: [{ op: 'sculpt' }] })).toThrow(/unknown op "sculpt"; there are box/);
     });
 
     it('refuses a missing required field and a wrong type', () => {
@@ -356,6 +356,22 @@ describe('edits', () => {
         expect(() => applyModelEdits(parsed, [{ op: 'set', step: 'up', fields: { distnce: 3 } }])).toThrow(/unknown field "distnce"/);
         expect(() => applyModelEdits(parsed, [{ op: 'remove', step: 'nope' }])).toThrow(/no step "nope".*body, up/);
         expect(parsed.steps[1]!.distance).toBe(1);
+    });
+});
+
+describe('winding', () => {
+    it('the report names faces wound against their neighbours, which a volume alone can miss', () => {
+        const m = model(cube);
+        expect(m.report.flippedEdges).toBe(0);
+        const every = [
+            model(cube, { op: 'bevel', edges: 'all', width: 0.1 }),
+            model(cube, { op: 'inset', faces: '+z', amount: 0.2 }, { op: 'extrude', faces: '+z', distance: 0.1 }),
+            model({ op: 'box', size: 1, at: [2, 0, 0] }, { op: 'mirror', axis: 'x' }),
+            model({ op: 'box', size: 1, at: [0.5, 0, 0] }, { op: 'mirror', axis: 'x' }, { op: 'weld' }),
+            model({ op: 'cylinder', radius: 1, height: 1 }, { op: 'cone', radius: 1, height: 1, at: [3, 0, 0] }, { op: 'sphere', radius: 1, at: [6, 0, 0] }),
+            model({ op: 'prism', points: [[0, 0], [2, 0], [2, 1], [1, 1], [1, 2], [0, 2]], height: 1 }),
+        ];
+        for (const each of every) expect(each.report.flippedEdges).toBe(0);
     });
 });
 

@@ -3,7 +3,7 @@
 /**
  * @file  modelViews.ts — a contact sheet of a model, drawn on the CPU.
  *
- *        Each view is drawn twice: shaded with its polygon edges, and as a bare
+ *        Each view is drawn twice: shaded with its hard edges, and as a bare
  *        silhouette under it. The silhouette is not decoration. Faults in a blockout
  *        (a limb too thin, a gap, a wrong proportion) have survived every lit view
  *        and shown at once in outline, because shading gives the eye something else
@@ -15,7 +15,7 @@
  *        What the model looks like in the game is what `screenshot` is for.
  */
 import type { BakedModel } from './modelBake';
-import { add, boundsOf, cross, dot, faceNormal, normalize, selectFaces, sub, type FaceSelector, type Vec3 } from './polyMesh';
+import { add, boundsOf, collectEdges, cross, dot, faceNormal, normalize, selectFaces, sub, type FaceSelector, type Vec3 } from './polyMesh';
 
 export const MODEL_VIEWS = {
     front: { right: [1, 0, 0], up: [0, 1, 0], toward: [0, 0, 1] },
@@ -56,7 +56,7 @@ const WIRE = [30, 30, 30] as const;
 const GUTTER = [120, 120, 120] as const;
 
 /** Lays the views out as columns over two rows, each panel `panel` pixels square. */
-export function renderModelSheet(model: BakedModel, views: readonly ModelViewName[] = DEFAULT_MODEL_VIEWS, panel = 384, focus?: FaceSelector): ModelSheet {
+export function renderModelSheet(model: BakedModel, views: readonly ModelViewName[] = DEFAULT_MODEL_VIEWS, panel = 384, focus?: FaceSelector, wire = false): ModelSheet {
     if (views.length === 0) throw new Error('name at least one view');
     for (const v of views) {
         if (!(v in MODEL_VIEWS)) throw new Error(`unknown view "${v}"; there are ${Object.keys(MODEL_VIEWS).join(', ')}`);
@@ -93,6 +93,12 @@ export function renderModelSheet(model: BakedModel, views: readonly ModelViewNam
     });
     for (let i = 0; i < vertexNormals.length; i++) if (vertexNormals[i]) vertexNormals[i] = normalize(vertexNormals[i]!);
     const depth = new Float32Array(panel * panel);
+    // The edges a shape actually has. Every polygon edge on a curved surface or a cut's triangles is a net over what is being judged, so that is on request.
+    const FEATURE = Math.cos((30 * Math.PI) / 180);
+    const lines = [...collectEdges(poly).values()].filter((e) => {
+        if (e.faces.every((f) => poly.faces[f]!.smooth)) return false;
+        return wire || e.faces.length !== 2 || dot(normals[e.faces[0]!]!, normals[e.faces[1]!]!) < FEATURE;
+    });
 
     views.forEach((name, column) => {
         const basis = MODEL_VIEWS[name];
@@ -144,18 +150,15 @@ export function renderModelSheet(model: BakedModel, views: readonly ModelViewNam
         }
         // Polygon edges, on top of whatever they are not behind: what tells a person how the surface is built.
         const bias = unitsPerPixel * 2;
-        for (const face of poly.faces) {
-            if (face.smooth) continue;
-            for (let i = 0; i < face.v.length; i++) {
-                const a = screen[face.v[i]!]!, b = screen[face.v[(i + 1) % face.v.length]!]!;
-                const steps = Math.max(1, Math.ceil(Math.max(Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1]))));
-                for (let s = 0; s <= steps; s++) {
-                    const t = s / steps;
-                    const x = Math.floor(a[0] + (b[0] - a[0]) * t), y = Math.floor(a[1] + (b[1] - a[1]) * t);
-                    if (x < 0 || y < 0 || x >= panel || y >= panel) continue;
-                    if (a[2] + (b[2] - a[2]) * t + bias < depth[y * panel + x]!) continue;
-                    put(ox + x, y, WIRE);
-                }
+        for (const edge of lines) {
+            const a = screen[edge.a]!, b = screen[edge.b]!;
+            const steps = Math.max(1, Math.ceil(Math.max(Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1]))));
+            for (let s = 0; s <= steps; s++) {
+                const t = s / steps;
+                const x = Math.floor(a[0] + (b[0] - a[0]) * t), y = Math.floor(a[1] + (b[1] - a[1]) * t);
+                if (x < 0 || y < 0 || x >= panel || y >= panel) continue;
+                if (a[2] + (b[2] - a[2]) * t + bias < depth[y * panel + x]!) continue;
+                put(ox + x, y, WIRE);
             }
         }
     });

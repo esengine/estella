@@ -41,7 +41,7 @@ const usedVertices = (mesh: PolyMesh, faces: readonly number[]): Set<number> => 
 
 // ---- Primitives: each appends a shell, leaving what is there alone ------------
 
-interface Placed { at?: Vec3; tag?: string; color?: readonly number[] }
+export interface Placed { at?: Vec3; tag?: string; color?: readonly number[] }
 
 /** A colour as a face holds it. Refused rather than clamped: past 1 is a sum gone wrong. */
 function toColor(c: readonly number[]): NonNullable<Face['color']> {
@@ -51,7 +51,7 @@ function toColor(c: readonly number[]): NonNullable<Face['color']> {
     return [c[0]!, c[1]!, c[2]!, c[3] ?? 1];
 }
 
-function append(mesh: PolyMesh, positions: readonly Vec3[], loops: readonly number[][], placed: Placed): PolyMesh {
+export function append(mesh: PolyMesh, positions: readonly Vec3[], loops: readonly number[][], placed: Placed): PolyMesh {
     guardSize(mesh.faces.length + loops.length);
     const base = mesh.positions.length;
     const at = placed.at ?? [0, 0, 0];
