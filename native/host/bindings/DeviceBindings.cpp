@@ -57,6 +57,14 @@ esjs::Val js_deviceName(const esjs::Args& a) {
     return esjs::string(deviceName().c_str());
 }
 
+esjs::Val js_isHandheld(const esjs::Args& a) {
+#if defined(__ANDROID__) || (defined(__APPLE__) && TARGET_OS_IPHONE)
+    return esjs::boolean(true);
+#else
+    return esjs::boolean(false);
+#endif
+}
+
 esjs::Val js_deviceCapabilities(const esjs::Args& a) {
     return esjs::int32(hostAlive() && host().platform ? host().platform->deviceCapabilities() : 0);
 }
@@ -108,6 +116,7 @@ esjs::Val js_setTargetFrameRate(const esjs::Args& a) {
 
 void registerDeviceBindings(HostState& h, esjs::Val global) {
     bindGlobal(global, "es_deviceName", js_deviceName, 0);
+    bindGlobal(global, "es_isHandheld", js_isHandheld, 0);
     bindGlobal(global, "es_deviceCapabilities", js_deviceCapabilities, 0);
     bindGlobal(global, "es_startMotion", js_startMotion, 3);
     bindGlobal(global, "es_stopMotion", js_stopMotion, 0);

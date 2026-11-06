@@ -350,7 +350,7 @@ export {
     type PreSceneDrawCallback,
     type PreSceneDrawInfo,
 } from './render/customDraw';
-export { QualityController, parseQualityConfig, resolveQualityProfile, defaultQualityProfile } from './render/quality';
+export { QualityController, parseQualityConfig, resolveQualityProfile, defaultQualityProfile, defaultQualityMode } from './render/quality';
 export type {
     QualityConfig, QualityProfile, QualityLevel, QualityMode,
     QualityReport, DeviceQualityInfo, DeviceQualityRule,

@@ -361,6 +361,10 @@ class WebPlatformAdapter implements PlatformAdapter {
         return typeof navigator !== 'undefined' ? browserDeviceName(navigator.userAgent) : '';
     }
 
+    isHandheld(): boolean {
+        return typeof navigator !== 'undefined' && browserIsHandheld(navigator.userAgent, navigator.maxTouchPoints ?? 0);
+    }
+
     deviceQualityInfo(): { memoryGB?: number; cores?: number } {
         if (typeof navigator === 'undefined') return {};
         return { memoryGB: (navigator as Navigator & { deviceMemory?: number }).deviceMemory,
@@ -432,6 +436,11 @@ export const webAdapter = new WebPlatformAdapter();
 
 /** A browser and the system it runs on, from its user agent. Chrome on Android
  *  no longer names the phone's model there, so this is as close as a page gets. */
+/** A phone or a tablet, by its browser. An iPad's Safari says it is a Mac by default; only its touch screen tells them apart. */
+export function browserIsHandheld(ua: string, touchPoints: number): boolean {
+    return /Android|iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && touchPoints > 1);
+}
+
 export function browserDeviceName(ua: string): string {
     const system = /Android/.test(ua) ? 'Android'
         : /iPhone/.test(ua) ? 'iPhone'

@@ -82,6 +82,8 @@ export interface RuntimeProjectConfig {
    *  device clamps it — this is the policy half, never the capability. */
   msaaSamples: number;
   quality: QualityConfig;
+  /** Whether the project names a level, `off` among them. One that names none takes the device's default (see `defaultQualityMode`). */
+  qualityModeNamed: boolean;
   /** GPU backend the build asks for; 'webgl2' is the default. Boot-fixed, and a
    *  request for 'webgpu' still falls back where the machine has none. */
   renderBackend: 'webgl2' | 'webgpu';
@@ -168,6 +170,7 @@ export function runtimeConfigOf(
       : f?.rendering?.outputTransform === 'neutral' ? 'neutral' : 'none',
     msaaSamples: msaaOf(f?.rendering?.msaa),
     quality: parseQualityConfig(f?.rendering?.quality),
+    qualityModeNamed: parseQualityConfig(f?.rendering?.quality).mode === (f?.rendering?.quality as { mode?: unknown } | undefined)?.mode,
     renderBackend: f?.rendering?.backend === 'webgpu' ? 'webgpu' : 'webgl2',
     screenFit: resolveScreenFit(manifest),
   };
@@ -211,7 +214,8 @@ export function packagedRuntimeFields(rc: RuntimeProjectConfig): PackagedRuntime
     ...(rc.msaaSamples !== 4 ? { msaaSamples: rc.msaaSamples } : {}),
     // The block also carries three delivery choices that have nothing to do with a quality level (compile shaders in the background, warm them up
     // behind the splash, draw only changing frames); with the level off they must still ship, or the switch is read from a project and never reaches a game.
-    ...(qualityShips(rc.quality) ? { quality: rc.quality } : {}),
+    // A named level ships, `off` too: left out, it would read as no level and a phone would take medium over the author's word.
+    ...(rc.qualityModeNamed ? { quality: rc.quality } : qualityShips(rc.quality) ? { quality: withoutMode(rc.quality) } : {}),
     ...(rc.renderBackend === 'webgpu' ? { renderBackend: rc.renderBackend } : {}),
     // ALWAYS, even with the fit off (`scaleMode < 0`): it carries the design
     // resolution, which is what a desktop window opens at. One representation, or
@@ -233,6 +237,11 @@ export function packagedRuntimeFields(rc: RuntimeProjectConfig): PackagedRuntime
     ...(rc.achievements.length ? { achievements: rc.achievements } : {}),
     ...(rc.steamAppId > 0 ? { steamAppId: rc.steamAppId } : {}),
   };
+}
+
+function withoutMode(quality: QualityConfig): QualityConfig {
+  const { mode: _unnamed, ...rest } = quality;
+  return rest;
 }
 
 /** Whether a build has anything to be told about quality: a level, or one of the delivery choices that hold whatever the level. */

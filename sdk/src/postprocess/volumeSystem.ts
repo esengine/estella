@@ -7,7 +7,7 @@ import { EDITOR_VIEW_ENTITY } from '../camera/uiLayoutRect';
 import { defineResource, Res } from '../ecs/resource';
 import { Query } from '../ecs/query';
 import type { Entity } from '../types';
-import { PostProcessVolume, Transform, Camera, type PostProcessVolumeData, type TransformData, type CameraData } from '../ecs/component';
+import { PostProcessVolume, Transform, Camera, ProjectionType, type PostProcessVolumeData, type TransformData, type CameraData } from '../ecs/component';
 import { PostProcess, deviceHasCompute, type PostProcessAPI } from './PostProcessAPI';
 import { getEffectDef } from './effects';
 import { blendVolumeEffects, computeVolumeFactor, type ActiveVolume, type BlendedEffect, type VolumeTransform } from './volumeBlending';
@@ -175,10 +175,11 @@ function effectsSignature(effects: ResolvedEffects): string {
 /**
  * The effects with the temporal anti-aliasing pass in them, where the quality level asks for it and the scene has not listed it: before the exposure
  * and the grading, after the lighting and the fog, which is where the harness measured it and where an author puts it. A level that does not ask
- * leaves the effects as they are.
+ * leaves the effects as they are, and so does an orthographic camera: jittered, sprites and text go soft, and a 2D game would pay a full-screen chain
+ * for it. An author who lists `taa` on one still gets it.
  */
-function withTemporalAntialiasing(api: PostProcessAPI, effects: ResolvedEffects): ResolvedEffects {
-    if (api.antialiasing !== 'temporal' || effects.has('taa')) return effects;
+export function withTemporalAntialiasing(api: PostProcessAPI, effects: ResolvedEffects, perspective: boolean): ResolvedEffects {
+    if (!perspective || api.antialiasing !== 'temporal' || effects.has('taa')) return effects;
     const taa: BlendedEffect = { enabled: true, uniforms: new Map([['u_blend', 0.1], ['u_objectMotion', 1]]), textures: new Map(), colors: new Map() };
     const out: ResolvedEffects = new Map();
     let placed = false;
@@ -197,8 +198,9 @@ function applyBlendedEffects(
     api: PostProcessAPI,
     camera: Entity,
     blended: ResolvedEffects,
+    perspective: boolean,
 ): void {
-    const effects = withTemporalAntialiasing(api, blended);
+    const effects = withTemporalAntialiasing(api, blended, perspective);
     if (effects.size === 0) {
         const existing = api.volumeStacks.get(camera);
         if (existing) {
@@ -333,7 +335,7 @@ export const postProcessVolumeSystem = defineSystem(
         for (const [cameraEntity, cameraData, cameraTransform] of cameraQuery) {
             if (!cameraData.isActive) continue;
             const p = cameraTransform.position;
-            applyBlendedEffects(api, cameraEntity, effectsAt(volumes, p.x, p.y, p.z));
+            applyBlendedEffects(api, cameraEntity, effectsAt(volumes, p.x, p.y, p.z), cameraData.projectionType !== ProjectionType.Orthographic);
         }
     },
     { name: 'PostProcessVolumeSystem' }
@@ -350,7 +352,7 @@ export function editorViewVolumeSystem(app: App) {
             const view = app.hasResource(EditorView) ? app.getResource(EditorView) : null;
             const eye = EDITOR_VIEW_ENTITY as Entity;
             if (!view || !view.active || !app.getResource(PostProcessVolumeConfigResource).enabled) {
-                if (api.volumeStacks.has(eye)) applyBlendedEffects(api, eye, new Map() as ResolvedEffects);
+                if (api.volumeStacks.has(eye)) applyBlendedEffects(api, eye, new Map() as ResolvedEffects, false);
                 return;
             }
             const volumes: { data: PostProcessVolumeData; tx: VolumeTransform }[] = [];
@@ -358,7 +360,7 @@ export function editorViewVolumeSystem(app: App) {
                 volumes.push({ data: volumeData, tx: { x: transform.position.x, y: transform.position.y, z: transform.position.z } });
             }
             const at = view.perspective ? editorViewEye(view) : { x: view.x, y: view.y, z: view.z };
-            applyBlendedEffects(api, eye, effectsAt(volumes, at.x, at.y, at.z));
+            applyBlendedEffects(api, eye, effectsAt(volumes, at.x, at.y, at.z), view.perspective);
         },
         { name: 'EditorViewVolumeSystem' },
     );

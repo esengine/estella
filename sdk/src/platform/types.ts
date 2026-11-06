@@ -597,6 +597,9 @@ export interface PlatformAdapter {
     /** What a person would call this device when picking it from a list: a
      *  phone's model, or a browser and its system. Optional. */
     deviceName?(): string;
+    /** Whether this is a phone or a tablet: a small GPU, on a battery, behind a very dense screen. Optional; absent is no. A mini-game host does not
+     *  answer: it already draws within its own defaults (see `waterQualityOf`). */
+    isHandheld?(): boolean;
 
     /** One rewarded ad unit. Mini-game hosts implement it over their
      *  RewardedVideoAd; platforms without an ad system (web, native until a

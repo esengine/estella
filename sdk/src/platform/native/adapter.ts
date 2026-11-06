@@ -304,6 +304,10 @@ export class NativePlatformAdapter implements PlatformAdapter {
         return () => { live = false; };
     }
 
+    isHandheld(): boolean {
+        return this.bridge_.isHandheld?.() ?? false;
+    }
+
     deviceName(): string {
         return this.bridge_.deviceName?.() ?? '';
     }

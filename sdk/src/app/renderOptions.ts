@@ -13,7 +13,8 @@ import { outputTransformCode, type OutputTransform } from '../postprocess';
 import { installQuality } from '../render/qualityRuntime';
 import { ScreenScaling, SCREEN_FIT_OFF, type ScreenScalingData } from '../camera/ScreenScaling';
 import { RenderResolution } from '../camera/presentPlan';
-import type { QualityConfig } from '../render/quality';
+import { defaultQualityMode, type QualityConfig } from '../render/quality';
+import { getPlatform } from '../platform';
 import type { App } from './app';
 
 /** The engine entry points these reach, by the names the wasm module and the native host's API share. */
@@ -65,5 +66,7 @@ export function applyAppOptions(app: App, options: RenderOptions | undefined): v
             || (options.screenFit.renderPolicy ?? RenderResolution.Surface) !== RenderResolution.Surface)) {
         app.insertResource(ScreenScaling, { ...options.screenFit });
     }
-    if (options?.quality) installQuality(app, options.quality, options.msaaSamples ?? 4);
+    // A block with no level in it (a build carrying only its delivery choices) has named none either.
+    const mode = options?.quality?.mode ?? defaultQualityMode(getPlatform().isHandheld?.() ?? false);
+    if (options?.quality || mode !== 'off') installQuality(app, { ...options?.quality, mode }, options?.msaaSamples ?? 4);
 }

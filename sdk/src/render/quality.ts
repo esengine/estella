@@ -182,6 +182,15 @@ function finite(value: unknown, fallback: number, min: number, max: number): num
         ? Math.min(max, Math.max(min, value)) : fallback;
 }
 
+/**
+ * The level a project gets that names none. A phone or tablet takes medium: all of a level's picture at a fraction of the cost (a full-screen sea on a
+ * Snapdragon 8 Elite is 25.7 ms a frame as authored and 9.0 at medium, mostly by leaving four samples behind). Elsewhere nothing is managed. Naming a
+ * level, `off` among them, always wins.
+ */
+export function defaultQualityMode(handheld: boolean): QualityMode {
+    return handheld ? 'medium' : 'off';
+}
+
 /** @experimental */
 export function parseQualityConfig(value: unknown): QualityConfig {
     const raw = record(value);

@@ -64,6 +64,10 @@ const SETTINGS_FILES = [SETTINGS, 'desktop/src/settings/qualitySettings.ts', 'de
  * printed by `--list` so the gaps stay visible rather than becoming folklore.
  */
 const DECLARED_GAPS = {
+  qualityModeNamed: {
+    parse: 'read off the quality block in place, whether its mode is one parseQualityConfig keeps; it is no manifest key of its own',
+    editor: 'the settings row reads the block as written (rawQuality), which says the same thing',
+  },
   achievements: {
     editor: 'nothing unlocks one while a scene is being authored — edit mode runs no '
       + 'gameplay, so the set is checked in Play and in a shipped build',
@@ -110,6 +114,7 @@ const DECLARED_GAPS = {
 
 /** The feature branch in the manifest parser each field is read from. */
 const PARSE_KEY = {
+  qualityModeNamed: 'r.quality',
   achievements: 'p.achievements',
   steamAppId: 'dt.steam',
   physicsEnabled: 'p.enabled',
@@ -134,6 +139,7 @@ const PARSE_KEY = {
  * a claim of "there is a UI" that nobody checked is the same as no UI.
  */
 const AUTHORING = {
+  qualityModeNamed: { internal: 'derived from the quality block; the setting an author touches is `quality`' },
   achievements: { ui: 'project.packaging.achievements' },
   steamAppId: { ui: 'project.packaging.desktop.steam.appId' },
   physicsEnabled: { ui: 'project.physics.enabled' },

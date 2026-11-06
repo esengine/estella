@@ -197,9 +197,18 @@ describe('the quality block that ships with the level off', () => {
       expect(packagedRuntimeFields(rc).quality?.mode).toBe('off');
     }
   });
-  it('still leaves the block out when nothing in it is on', () => {
+  it('ships a level named off, or a phone would read it as none named and take medium', () => {
     const rc = runtimeConfigOf({ features: { rendering: { quality: { mode: 'off', targetFps: 30 } } } });
-    expect(packagedRuntimeFields(rc)).not.toHaveProperty('quality');
+    expect(packagedRuntimeFields(rc).quality?.mode).toBe('off');
+  });
+  it('leaves the block out when the project says nothing in it', () => {
+    expect(packagedRuntimeFields(runtimeConfigOf({ features: { rendering: {} } }))).not.toHaveProperty('quality');
+    expect(packagedRuntimeFields(runtimeConfigOf({ features: { rendering: { quality: { targetFps: 30 } } } }))).not.toHaveProperty('quality');
+  });
+  it('ships delivery choices with no level when none is named', () => {
+    const fields = packagedRuntimeFields(runtimeConfigOf({ features: { rendering: { quality: { renderOnDemand: true } } } }));
+    expect(fields.quality?.renderOnDemand).toBe(true);
+    expect(fields.quality).not.toHaveProperty('mode');
   });
 });
 

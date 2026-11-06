@@ -112,6 +112,9 @@ export interface NativeHostBindings extends NativeDeviceHost {
     /** What the device is called in a list: its system and model. */
     es_deviceName?(): string;
 
+    /** Whether this host is a phone or a tablet. */
+    es_isHandheld?(): boolean;
+
     /** The host's `ws://` client: events arrive on the JS thread, `close` last. */
     es_wsOpen?(url: string, onEvent: (event: NativeSocketEvent) => void): number;
     es_wsSend?(id: number, data: string | ArrayBuffer): boolean;
@@ -204,6 +207,7 @@ export function createHostBridge(
         fileExists: (path) => Promise.resolve(bindings.es_readAsset(path) != null),
         fetch: (url, options) => hostFetch(bindings, url, options),
         ...(bindings.es_deviceName ? { deviceName: () => bindings.es_deviceName!() } : {}),
+        ...(bindings.es_isHandheld ? { isHandheld: () => bindings.es_isHandheld!() } : {}),
         ...(bindings.es_wsOpen && bindings.es_wsSend && bindings.es_wsClose ? {
             socket: {
                 open: (url, onEvent) => {
