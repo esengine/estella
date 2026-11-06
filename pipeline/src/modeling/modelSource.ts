@@ -17,6 +17,7 @@ import { organic } from './organic';
 import { booleanOp } from './booleans';
 import { uvStep } from './modelUv';
 import { lathe, loft } from './surfaces';
+import { checkAnimations, checkRig, type AnimationSource, type RigSource } from './rig';
 import { compact, type Face, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
 
 export const MODEL_SOURCE_VERSION = 1;
@@ -37,6 +38,10 @@ export interface ModelSource {
     uvScale?: number;
     /** Lay the base UV out so no two triangles share texels: for a texture painted for this one model, where tiling is not wanted. */
     uvAtlas?: boolean;
+    /** Joints: the mesh is skinned to them, with weights found from the surface. */
+    rig?: RigSource;
+    /** Clips moving the rig's joints, each written as an `.estimeline`. */
+    animations?: AnimationSource[];
     steps: ModelStep[];
 }
 
@@ -247,8 +252,8 @@ export function validateModelSource(raw: unknown): ModelSource {
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw new ModelBuildError('a model source must be an object with `steps`', null, null, null);
     const source = raw as Record<string, unknown>;
     for (const key of Object.keys(source)) {
-        if (!['version', 'smoothAngle', 'uvScale', 'uvAtlas', 'steps'].includes(key)) {
-            throw new ModelBuildError(`unknown field "${key}"; a model source has version, smoothAngle, uvScale, uvAtlas, steps`, null, null, null);
+        if (!['version', 'smoothAngle', 'uvScale', 'uvAtlas', 'rig', 'animations', 'steps'].includes(key)) {
+            throw new ModelBuildError(`unknown field "${key}"; a model source has version, smoothAngle, uvScale, uvAtlas, rig, animations, steps`, null, null, null);
         }
     }
     if (source.version !== undefined && source.version !== MODEL_SOURCE_VERSION) {
@@ -262,6 +267,15 @@ export function validateModelSource(raw: unknown): ModelSource {
     }
     if (source.uvAtlas !== undefined && typeof source.uvAtlas !== 'boolean') {
         throw new ModelBuildError('uvAtlas must be true or false', null, null, null);
+    }
+    if (source.rig !== undefined) {
+        const bad = checkRig(source.rig);
+        if (bad) throw new ModelBuildError(bad, null, null, null);
+        if (source.uvAtlas) throw new ModelBuildError('uvAtlas lays out with the lightmap unwrap, which a rigged mesh does not have: bones move it. Use uv steps', null, null, null);
+    }
+    if (source.animations !== undefined) {
+        const bad = checkAnimations(source.animations, source.rig);
+        if (bad) throw new ModelBuildError(bad, null, null, null);
     }
     if (!Array.isArray(source.steps)) throw new ModelBuildError('`steps` must be an array', null, null, null);
     const ids = new Set<string>();
@@ -324,7 +338,7 @@ export type ModelEdit =
     | { op: 'set'; step: string | number; fields: Record<string, unknown> }
     | { op: 'insert'; step: ModelStep; before?: string | number; after?: string | number }
     | { op: 'remove'; step: string | number }
-    | { op: 'settings'; fields: Pick<ModelSource, 'smoothAngle' | 'uvScale' | 'uvAtlas'> };
+    | { op: 'settings'; fields: Pick<ModelSource, 'smoothAngle' | 'uvScale' | 'uvAtlas' | 'rig' | 'animations'> };
 
 function indexOfStep(source: ModelSource, ref: string | number): number {
     const i = typeof ref === 'number' ? ref : source.steps.findIndex((s) => s.id === ref);

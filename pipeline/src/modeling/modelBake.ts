@@ -11,6 +11,7 @@
 import { MeshChannel, MeshChannelType, packChannels, unwrapLightmapUV, type MeshData } from 'esengine';
 import { triangulateFace } from './triangulate';
 import { faceUvs } from './modelUv';
+import { bindMatrices, computeWeights, resolveJoints, type RigJoint, type SkinWeights } from './rig';
 import { buildPolyMesh, validateModelSource, type ModelSource, type StepReport } from './modelSource';
 import {
     boundsOf, collectEdges, cross, dot, faceArea, faceNormal, length, normalize, sub,
@@ -39,6 +40,8 @@ export interface ModelReport {
     /** Closed shells whose faces point inward, which render as their own inside. */
     insideOutShells: number;
     steps: StepReport[];
+    /** For a rigged model: each joint, and how many vertices it moves the most. */
+    joints?: Record<string, number>;
     /** The findings above that are worth stopping for, as sentences. */
     warnings: string[];
 }
@@ -47,6 +50,8 @@ export interface BakedModel {
     poly: PolyMesh;
     data: MeshData;
     report: ModelReport;
+    /** Present on a rigged model. */
+    rig?: { joints: RigJoint[]; skin: SkinWeights };
     /** One triangle per entry: its three positions' indices, and the face it came from. */
     triangles: { v: [number, number, number]; face: number }[];
 }
@@ -107,17 +112,21 @@ function cornerNormals(mesh: PolyMesh, smoothAngle: number): Vec3[][] {
     }));
 }
 
-function toMeshData(mesh: PolyMesh, triangles: readonly [number, number, number][][], source: ModelSource): MeshData {
+function toMeshData(mesh: PolyMesh, triangles: readonly [number, number, number][][], source: ModelSource, rig?: BakedModel['rig']): MeshData {
     const { channels, vertexStride } = packChannels([
         { semantic: MeshChannel.Position, components: 3, type: MeshChannelType.Float32 },
         { semantic: MeshChannel.TexCoord0, components: 2, type: MeshChannelType.Float32 },
         { semantic: MeshChannel.Color, components: 4, type: MeshChannelType.UNorm8 },
         { semantic: MeshChannel.Normal, components: 3, type: MeshChannelType.Float32 },
+        ...(rig ? [
+            { semantic: MeshChannel.Joints, components: 4, type: MeshChannelType.UInt16 },
+            { semantic: MeshChannel.Weights, components: 4, type: MeshChannelType.Float32 },
+        ] : []),
     ]);
     const normals = cornerNormals(mesh, source.smoothAngle ?? DEFAULT_SMOOTH_ANGLE);
     const uvScale = source.uvScale ?? 1;
     const seen = new Map<string, number>();
-    const pos: number[] = [], nrm: number[] = [], uv: number[] = [], col: number[] = [];
+    const pos: number[] = [], nrm: number[] = [], uv: number[] = [], col: number[] = [], source_: number[] = [];
     const indices: number[] = [];
     const uvs = new Map<number, Map<number, readonly [number, number]>>();
     const vertexOf = (f: number, v: number): number => {
@@ -137,6 +146,7 @@ function toMeshData(mesh: PolyMesh, triangles: readonly [number, number, number]
             nrm.push(n[0], n[1], n[2]);
             uv.push(tu, tv);
             col.push(...color);
+            source_.push(v);
         }
         return at;
     };
@@ -159,6 +169,14 @@ function toMeshData(mesh: PolyMesh, triangles: readonly [number, number, number]
         view.setFloat32(at + uvAt, uv[i * 2]!, true);
         view.setFloat32(at + uvAt + 4, uv[i * 2 + 1]!, true);
         for (let k = 0; k < 4; k++) view.setUint8(at + colorAt + k, col[i * 4 + k]!);
+        if (rig) {
+            const from = source_[i]! * 4;
+            const [jointAt, weightAt] = [offset(MeshChannel.Joints), offset(MeshChannel.Weights)];
+            for (let k = 0; k < 4; k++) {
+                view.setUint16(at + jointAt + k * 2, rig.skin.joints[from + k]!, true);
+                view.setFloat32(at + weightAt + k * 4, rig.skin.weights[from + k]!, true);
+            }
+        }
     }
     const { min, max } = boundsOf(mesh);
     return {
@@ -166,6 +184,7 @@ function toMeshData(mesh: PolyMesh, triangles: readonly [number, number, number]
         indices: new Uint32Array(indices),
         aabbMin: [...min] as [number, number, number],
         aabbMax: [...max] as [number, number, number],
+        ...(rig ? { inverseBindMatrices: bindMatrices(rig.joints) } : {}),
     };
 }
 
@@ -188,7 +207,14 @@ export function bakeModel(raw: unknown): BakedModel {
     if (mesh.faces.length === 0) throw new Error('the steps leave no faces; a model starts with a box, cylinder, cone, sphere, plane or prism');
 
     const triangles = mesh.faces.map((f) => triangulateFace(mesh, f));
-    const unwrapped = unwrapLightmapUV(toMeshData(mesh, triangles, source)).mesh;
+    let rig: BakedModel['rig'];
+    if (source.rig) {
+        const joints = resolveJoints(source.rig);
+        rig = { joints, skin: computeWeights(mesh, joints) };
+    }
+    // A skinned mesh takes no lightmap: bones move it, and a bake holds still.
+    const baked = toMeshData(mesh, triangles, source, rig);
+    const unwrapped = rig ? baked : unwrapLightmapUV(baked).mesh;
     if (source.uvAtlas) copyLightmapUvToBase(unwrapped);
 
     const edges = [...collectEdges(mesh).values()];
@@ -222,10 +248,18 @@ export function bakeModel(raw: unknown): BakedModel {
     if (degenerateFaces) warnings.push(`${degenerateFaces} face${degenerateFaces > 1 ? 's' : ''} with no area; \`weld\` removes them`);
     if (insideOutShells) warnings.push(`${insideOutShells} closed shell${insideOutShells > 1 ? 's are' : ' is'} inside out`);
 
+    const jointReport = rig ? Object.fromEntries(rig.joints.map((j, i) => [j.name, rig!.skin.dominant[i]!])) : undefined;
+    if (rig) {
+        // A tip often moves nothing: it marks where the last bone ends.
+        const idle = rig.joints.filter((j, i) => j.children.length > 0 && rig!.skin.dominant[i] === 0).map((j) => j.name);
+        if (idle.length) warnings.push(`joint${idle.length > 1 ? 's' : ''} ${idle.join(', ')} move${idle.length > 1 ? '' : 's'} no vertex the most: too near another, or outside the surface`);
+    }
+
     const roundVec = (v: readonly number[]): Vec3 => v.map((x) => Math.round(x * 1e5) / 1e5) as unknown as Vec3;
     return {
         poly: mesh,
         data: unwrapped,
+        ...(rig ? { rig } : {}),
         triangles: triangles.flatMap((tris, face) => tris.map((v) => ({ v, face }))),
         report: {
             vertices: unwrapped.vertexCount,
@@ -237,7 +271,7 @@ export function bakeModel(raw: unknown): BakedModel {
                 size: roundVec(sub(max, min)),
                 center: roundVec([(min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2]),
             },
-            tags, openEdges, nonManifoldEdges, flippedEdges, degenerateFaces, insideOutShells, steps, warnings,
+            tags, openEdges, nonManifoldEdges, flippedEdges, degenerateFaces, insideOutShells, steps, ...(jointReport ? { joints: jointReport } : {}), warnings,
         },
     };
 }

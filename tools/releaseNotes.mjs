@@ -3831,9 +3831,9 @@ export const NOTED = {
   "perf(render): Voxel GI reads its cache plainly where nothing else writes it, and skips empty slots when it ages them, so a phone spends far less on its upkeep and its rays":
     {"note":"Voxel GI costs less on mobile GPUs."},
   "fix(native): every native host draws from one pacer, its present's own block and the game's cap, so an Android frame near its budget holds 60 fps instead of dropping to 30":
-    {"note":"Android frames no longer drop to 30 fps when they come close to the frame budget."},
+    {"note":"Android frames no longer drop to 30 fps when they come close to the frame budget"},
   "fix(native): a platform only names the font face a glyph needs, and the rasterizer maps each face's file once, so a new glyph no longer reads a whole system font":
-    {"note":"A new glyph on a native build no longer stalls the frame reading a whole system font."},
+    {"note":"A new glyph on a native build no longer stalls the frame reading a whole system font"},
   "fix(native): Android draws a face the shared rasterizer cannot read with its own, as Apple does, so a native build shows the system's CJK text":
     {"note":"A native Android build shows CJK text from the system font."},
   "perf(text): a new glyph is drawn and distance-transformed at 2x rather than 4x, and the transform skips what cannot change its bytes, so a phone pays a third of what it did":
@@ -3866,6 +3866,10 @@ export const NOTED = {
     {"note":"A sea seen from above is no longer scored with straight lines."},
   "feat(mcp): an agent builds a 3D model in the editor from steps, changes it by one number, and sees every side of it":
     {"note":"AI agents can build 3D models in the editor from steps."},
+  "feat(modeling): a model can have a rig with weights found over its surface, and clips of a few keys, so what an agent builds can move":
+    {"note":"AI agents can build 3D models in the editor from steps."},
+  "feat(mcp): model_write rigs and animates a model, and model_views shows the bones, the weights and a clip through time":
+    {"note":"AI agents can build 3D models in the editor from steps."},
   "feat(modeling): lathe and loft make curved solids from a few points, so an agent can build vases, pipes, handles and hulls":
     {"note":"AI agents can build 3D models in the editor from steps."},
   "feat(mcp): model_write turns outlines and joins sections into curved solids":
@@ -3880,4 +3884,48 @@ export const NOTED = {
     {"note":"AI agents can build 3D models in the editor from steps."},
   "feat(modeling): a model is the steps that build it, baked to the mesh a scene draws, so one number changes the whole shape":
     {"note":"AI agents can build 3D models in the editor from steps."},
+  "feat(quality): a phone or tablet takes Medium when a project names no level, and an orthographic camera is left out of its temporal smoothing":
+    {"note": "Phones and tablets take Medium when a project names no level."},
+  "feat(settings): the quality level can be left at Default, which holds a phone to Medium, and Off is a choice that holds there":
+    {"note": "Phones and tablets take Medium when a project names no level."},
+  "perf(water): a sea on a phone costs half of what it did, 45 ms to 21.5, with the same picture":
+    {"note": "Water costs a phone half of what it did."},
+  "feat(templates): the blank template starts in the linear pipeline":
+    {"note": "The blank template starts in the linear pipeline."},
+  "fix(quality): a level can skip every effect there is, where past thirty-two the rest quietly kept running":
+    {"note": "A quality level can skip every effect there is."},
+  "feat(render): an Ambient light can be two colours, sky and ground, without baking a panorama":
+    {"note": "An Ambient light can be two colours, sky and ground."},
+  "fix(render): an opaque mesh tests and writes depth whatever its material says, so a new material no longer shows a sphere's inside":
+    {"note": "A new material no longer shows the inside of a sphere."},
+  "fix(asset): a texture made or rewritten from JS leaves the device's unit bound as it was, so a scene view no longer goes black for good after a heightmap loads":
+    {"note": "A scene view no longer goes black for good after a heightmap loads."},
+  "fix(render): with no post-process chain, a blended pane in front of water is drawn over it instead of under it":
+    {"note": "A blended pane in front of water is drawn over it."},
+  "feat(render): a material past seven textures takes the units below 8 its shader never reads, and Water gains a foam texture":
+    {"note": "A material can hold more than seven textures, and Water gains a foam texture."},
+  "fix(runtime): a restarted scene draws its images again instead of white":
+    {"note": "A restarted scene draws its images again instead of white."},
+  "fix(editor): a saved layout of empty groups no longer leaves an editor with no viewport, and a plugin writing its cache is not reloaded on Windows":
+    {"note": "A saved layout of empty groups no longer leaves an editor with no viewport."},
+  "fix(project): a setting the manifest would refuse is not written, so one bad field can no longer leave a project that does not open":
+    {"note": "A setting the manifest would refuse is not written."},
+  "feat(mcp): every row of Project Settings reads and writes by id, and a partial write keeps what it did not name":
+    {"note": "Every row of Project Settings can be read and written by id over MCP."},
+  "fix(editor): a script-built mesh's colour stays as typed, the graph and terrain pickers show the true colour, and a lit mesh in gamma offers linear":
+    {"note": "A mesh's colour draws as picked."},
+  "fix(editor): a picked colour draws as its swatch on a mesh, and a new surface material tests depth":
+    {"note": "A mesh's colour draws as picked."},
+  "fix(inspector): one box of a vector row edits a material or a clip, and a Rotation scrub survives the pole":
+    {"note": "One box of a vector row edits a material or a clip, and Rotation boxes behave."},
+  "fix(inspector): typing one box of a Rotation row turns that axis, where it stored NaN in all four components":
+    {"note": "One box of a vector row edits a material or a clip, and Rotation boxes behave."},
+  "fix(mcp): a save is no undo step, so Undo after it takes back the edit instead of the save":
+    {"note": "Undo after a save takes back the edit over MCP."},
+  "fix(lighting): the bake's bounces start at 8 and go to 16 in the panel, as the SDK default now does":
+    {"note": "A lightmap bake's bounces start at 8 and go to 16 in the panel."},
+  "fix(ci): the WebGL2 Voxel GI scene is not launched on a runner with no GPU, where it kills the GPU process before it draws":
+    {"internal": "CI only: which scenes a runner launches."},
+  "fix(templates): the 3D templates' camera no longer names a field Camera dropped, and the debug channel's test knows the world the stats read":
+    {"internal": "The stale field was dropped on load either way, so no frame changes; the rest is a test."},
 };

@@ -12,4 +12,5 @@ export { organic, ORGANIC_DEFAULT_RESOLUTION, ORGANIC_MAX_RESOLUTION, type Organ
 export { needsPreparing, prepareModeling } from './booleans';
 export { bakeModel, type BakedModel, type ModelReport } from './modelBake';
 export type { FaceSelector } from './polyMesh';
-export { DEFAULT_MODEL_VIEWS, MODEL_VIEWS, renderModelSheet, type ModelSheet, type ModelViewName } from './modelViews';
+export { DEFAULT_MODEL_VIEWS, MODEL_VIEWS, renderModelSheet, renderRigSheet, type ModelSheet, type ModelViewName, type RigViewOptions } from './modelViews';
+export { posedPositions, prefabOf, timelineOf, type AnimationSource, type RigSource } from './rig';

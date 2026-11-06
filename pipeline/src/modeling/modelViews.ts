@@ -15,6 +15,7 @@
  *        What the model looks like in the game is what `screenshot` is for.
  */
 import type { BakedModel } from './modelBake';
+import { boneLines, jointColor, posedPositions, type AnimationSource } from './rig';
 import { add, boundsOf, collectEdges, cross, dot, faceNormal, normalize, selectFaces, sub, type FaceSelector, type Vec3 } from './polyMesh';
 
 export const MODEL_VIEWS = {
@@ -55,8 +56,16 @@ const SILHOUETTE = [20, 20, 20] as const;
 const WIRE = [30, 30, 30] as const;
 const GUTTER = [120, 120, 120] as const;
 
+/** What a rig's views add: lines drawn over the shaded row, and the box to frame so a strip of poses shares one scale. */
+export interface SheetExtras {
+    overlay?: readonly (readonly [Vec3, Vec3])[];
+    frame?: { min: Vec3; max: Vec3 };
+}
+
+const BONE = [255, 140, 0] as const;
+
 /** Lays the views out as columns over two rows, each panel `panel` pixels square. */
-export function renderModelSheet(model: BakedModel, views: readonly ModelViewName[] = DEFAULT_MODEL_VIEWS, panel = 384, focus?: FaceSelector, wire = false): ModelSheet {
+export function renderModelSheet(model: BakedModel, views: readonly ModelViewName[] = DEFAULT_MODEL_VIEWS, panel = 384, focus?: FaceSelector, wire = false, extra: SheetExtras = {}): ModelSheet {
     if (views.length === 0) throw new Error('name at least one view');
     for (const v of views) {
         if (!(v in MODEL_VIEWS)) throw new Error(`unknown view "${v}"; there are ${Object.keys(MODEL_VIEWS).join(', ')}`);
@@ -68,7 +77,7 @@ export function renderModelSheet(model: BakedModel, views: readonly ModelViewNam
         if (hit.length === 0) throw new Error(`focus ${JSON.stringify(focus)} matched no face`);
         framed = new Set(hit.flatMap((f) => poly.faces[f]!.v));
     }
-    const { min, max } = boundsOf(poly, framed);
+    const { min, max } = extra.frame ?? boundsOf(poly, framed);
     const center: Vec3 = [(min[0] + max[0]) / 2, (min[1] + max[1]) / 2, (min[2] + max[2]) / 2];
     // The bounding sphere's diameter fits every view, the iso one included.
     const diameter = Math.hypot(max[0] - min[0], max[1] - min[1], max[2] - min[2]) || 1;
@@ -161,6 +170,85 @@ export function renderModelSheet(model: BakedModel, views: readonly ModelViewNam
                 put(ox + x, y, WIRE);
             }
         }
+        // On top of everything: a bone is inside the body, which is the point of showing it.
+        for (const [from, to] of extra.overlay ?? []) {
+            const a = toScreen(from), b = toScreen(to);
+            const steps = Math.max(1, Math.ceil(Math.max(Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1]))));
+            for (let s = 0; s <= steps; s++) {
+                const t = s / steps;
+                for (const [dx, dy] of [[0, 0], [1, 0], [0, 1]] as const) {
+                    const x = Math.floor(a[0] + (b[0] - a[0]) * t) + dx, y = Math.floor(a[1] + (b[1] - a[1]) * t) + dy;
+                    if (x >= 0 && y >= 0 && x < panel && y < panel) put(ox + x, y, BONE);
+                }
+            }
+        }
     });
     return { width, height, rgba, views, unitsPerPixel };
+}
+
+/** The ways to look at a rigged model. */
+export interface RigViewOptions {
+    views?: readonly ModelViewName[];
+    panel?: number;
+    /** Draws this clip. With `times`, a strip of one view at each. */
+    animation?: string;
+    times?: readonly number[];
+    /** Colours each face by the joint moving it most, or fades all but one joint's reach. */
+    weights?: boolean | string;
+    /** Draws the bones over the shaded row. Default true on a rigged model. */
+    skeleton?: boolean;
+    focus?: FaceSelector;
+    wire?: boolean;
+}
+
+/** One sheet for a model's rig: the bind pose, a clip at some moments, or who moves what. */
+export function renderRigSheet(model: BakedModel, animations: readonly AnimationSource[], o: RigViewOptions = {}): ModelSheet {
+    const panel = o.panel ?? 384;
+    if (!model.rig) {
+        if (o.animation || o.weights) throw new Error('this model has no rig');
+        return renderModelSheet(model, o.views ?? DEFAULT_MODEL_VIEWS, panel, o.focus, o.wire === true);
+    }
+    const { joints, skin } = model.rig;
+    let drawn = model;
+    if (o.weights !== undefined && o.weights !== false) {
+        const only = typeof o.weights === 'string' ? joints.findIndex((j) => j.name === o.weights) : -1;
+        if (typeof o.weights === 'string' && only < 0) throw new Error(`no joint "${o.weights}"; there are ${joints.map((j) => j.name).join(', ')}`);
+        const faces = model.poly.faces.map((face) => {
+            const totals = joints.map(() => 0);
+            for (const v of face.v) for (let k = 0; k < 4; k++) totals[skin.joints[v * 4 + k]!]! += skin.weights[v * 4 + k]!;
+            if (only >= 0) {
+                const w = totals[only]! / face.v.length;
+                return { ...face, color: [0.15 + w * 0.85, 0.15, 0.15 + (1 - w) * 0.5, 1] as const };
+            }
+            return { ...face, color: jointColor(totals.indexOf(Math.max(...totals))) };
+        });
+        drawn = { ...model, poly: { ...model.poly, faces } };
+    }
+    const anim = o.animation === undefined ? null : animations.find((a) => a.name === o.animation);
+    if (o.animation !== undefined && !anim) throw new Error(`no animation "${o.animation}"; there are ${animations.map((a) => a.name).join(', ') || '(none)'}`);
+    const skeleton = o.skeleton !== false;
+    const posed = (time: number): BakedModel => ({ ...drawn, poly: { ...drawn.poly, positions: posedPositions(model.poly, joints, skin, anim ?? null, time) } });
+    if (!anim) {
+        return renderModelSheet(drawn, o.views ?? DEFAULT_MODEL_VIEWS, panel, o.focus, o.wire === true, skeleton ? { overlay: boneLines(joints, null, 0) } : {});
+    }
+    const times = o.times ?? Array.from({ length: 4 }, (_, i) => (i / 4) * anim.duration);
+    if (times.length === 0) throw new Error('`times` names no moment');
+    if (times.length * panel > 2048) throw new Error(`${times.length} panels of ${panel} is too wide a strip; use fewer or a smaller size`);
+    const view = o.views?.[0] ?? 'iso';
+    // One frame for all of them, so what moves in the strip is the model and not the camera.
+    const poses = times.map(posed);
+    const all = poses.flatMap((m) => m.poly.positions);
+    const frame = boundsOf({ positions: all, faces: [] });
+    const sheets = poses.map((m, i) => renderModelSheet(m, [view], panel, undefined, o.wire === true, {
+        frame, ...(skeleton ? { overlay: boneLines(joints, anim, times[i]!) } : {}),
+    }));
+    const width = times.length * panel + (times.length - 1);
+    const height = sheets[0]!.height;
+    const rgba = new Uint8Array(width * height * 4);
+    sheets.forEach((s, i) => {
+        for (let y = 0; y < height; y++) {
+            rgba.set(s.rgba.subarray(y * s.width * 4, (y + 1) * s.width * 4), (y * width + i * (panel + 1)) * 4);
+        }
+    });
+    return { width, height, rgba, views: times.map(() => view), unitsPerPixel: sheets[0]!.unitsPerPixel };
 }
