@@ -40,8 +40,8 @@ const DEFAULTS = { maxChartAngleDegrees: 60, paddingTexels: 2, atlasSize: 1024 }
 
 /** Cells along a side when laying out by outline. Past this a chart's outline is finer than anything packing gains from. */
 const MAX_LAYOUT_GRID = 512;
-/** Beyond these, charts are packed as rectangles: outlines cost a pass over every triangle per size tried. */
-const MAX_OUTLINE_CHARTS = 1500;
+/** Beyond these, charts are packed as rectangles: outlines cost seconds, and many small charts gain little from them. */
+const MAX_OUTLINE_CHARTS = 200;
 const MAX_OUTLINE_TRIANGLES = 200000;
 const SHRINK = 0.8;
 /** Halvings of the gap between a size that fits and one that does not: from a gap of 20%, to about a third of a percent. */

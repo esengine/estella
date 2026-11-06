@@ -20,6 +20,7 @@ import { lathe, loft } from './surfaces';
 import { subdivide } from './subdivide';
 import { decimate, triangleCount } from './decimate';
 import { displace, DISPLACE_PATTERNS } from './displace';
+import { stain } from './stain';
 import { checkAnimations, checkController, checkRig, checkShapes, type AnimationSource, type ControllerSource, type RigSource, type ShapeSource } from './rig';
 import { compact, type Face, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
 
@@ -61,10 +62,12 @@ export interface NormalBakeSource {
     size?: number;
     /** How far from the final surface to look for the dense one, in model units. Default a twentieth of the diagonal. */
     distance?: number;
+    /** Also writes the dense surface's paint as a base colour map, leaving the mesh's own vertex colours white. */
+    color?: boolean;
 }
 
 type Kind = 'number' | 'integer' | 'boolean' | 'string' | 'vec3' | 'number|vec3' | 'number|vec2' | 'number|numbers'
-    | 'color' | 'points' | 'faces' | 'edges' | 'axis' | 'pivot' | 'parts' | 'noise' | 'sections' | 'section' | 'vec3s' | 'numbers' | 'operation' | 'uvmode' | 'number|vec2only' | 'vec2' | 'pattern' | 'near';
+    | 'color' | 'points' | 'faces' | 'edges' | 'axis' | 'pivot' | 'parts' | 'noise' | 'sections' | 'section' | 'vec3s' | 'numbers' | 'operation' | 'uvmode' | 'number|vec2only' | 'vec2' | 'pattern' | 'near' | 'where';
 
 interface OpSpec {
     params: Record<string, Kind>;
@@ -97,6 +100,7 @@ export const MODEL_OPS: Record<string, OpSpec> = {
     boolean: { params: { operation: 'operation', with: 'faces', from: 'faces', keep: 'boolean', tag: 'string', color: 'color' }, required: ['operation', 'with'], run: booleanOp as unknown as OpSpec['run'], says: 'cuts or joins closed solids: subtract `with` from `from` makes a real hole' },
     subdivide: { params: { faces: 'faces', levels: 'integer', crease: 'number' }, required: [], run: subdivide as unknown as OpSpec['run'], says: 'rounds whole shells into smooth surfaces, keeping edges sharper than `crease` degrees' },
     displace: { params: { faces: 'faces', near: 'near', pattern: 'pattern', amplitude: 'number', scale: 'number', octaves: 'integer', seed: 'integer', stretch: 'vec3', warp: 'number', width: 'number', axis: 'axis', mirror: 'axis', detail: 'number' }, required: ['pattern', 'amplitude', 'scale'], run: ((mesh: PolyMesh, params: never) => displace(mesh, params)) as OpSpec['run'], says: 'pushes fine detail out of the surface along its normal, splitting faces as far as the pattern needs: bumps, wrinkles, cracks, scales, pores, ribs, weave or scratches' },
+    stain: { params: { faces: 'faces', near: 'near', hard: 'boolean', color: 'color', amount: 'number', pattern: 'pattern', scale: 'number', octaves: 'integer', seed: 'integer', stretch: 'vec3', warp: 'number', width: 'number', axis: 'axis', mirror: 'axis', threshold: 'number', softness: 'number', where: 'where', reach: 'number', facing: 'vec3', detail: 'number' }, required: ['color'], run: ((mesh: PolyMesh, params: never) => stain(mesh, params)) as OpSpec['run'], says: 'lays colour over the surface by a pattern, by shape (`where`: cavity for dirt in what is sunken, edges for wear on what stands out), by which way it faces, or around a spot: pupils, moss, grime' },
     decimate: { params: { from: 'string', faces: 'faces', ratio: 'number', triangles: 'integer', error: 'number' }, required: [], run: decimate as unknown as OpSpec['run'], says: 'leaves fewer triangles over the same surface: `ratio` to keep or `triangles` to end with, stopping sooner if the surface would move more than `error` (default 0.02) of its size; `from` thins the surface as it stood after that step, before its fine detail' },
     uv: { params: { faces: 'faces', mode: 'uvmode', axis: 'string', at: 'vec3', scale: 'number|vec2only', repeat: 'number|vec2only', offset: 'vec2', rotate: 'number' }, required: ['mode'], run: uvStep as unknown as OpSpec['run'], says: 'sets how faces take a texture: box, planar, cylinder or sphere' },
     delete: { params: { faces: 'faces' }, required: ['faces'], run: ops.deleteFaces as OpSpec['run'], says: 'removes faces, leaving a hole' },
@@ -255,6 +259,7 @@ const KIND_CHECK: Record<Kind, (v: unknown) => string | null> = {
     'number|vec2only': (v) => (isNum(v) || isNums(v, 2) ? null : 'must be a number or [u, v]'),
     vec2: (v) => (isNums(v, 2) ? null : 'must be [u, v]'),
     pattern: (v) => (DISPLACE_PATTERNS.includes(v as never) ? null : `must be one of ${DISPLACE_PATTERNS.join(', ')}`),
+    where: (v) => (v === 'cavity' || v === 'edges' ? null : 'must be cavity or edges'),
     near: (v) => {
         const n = v as { at?: unknown; radius?: unknown } | null;
         return typeof n === 'object' && n !== null && isNums(n.at, 3) && isNum(n.radius) && Object.keys(n).every((k) => k === 'at' || k === 'radius') ? null : 'must be { at: [x, y, z], radius }';
@@ -271,12 +276,13 @@ export class ModelBuildError extends Error {
 }
 
 function checkNormalBake(v: unknown, steps: readonly Partial<ModelStep>[]): string | null {
-    if (typeof v !== 'object' || v === null || Array.isArray(v)) return 'must be { from?, size?, distance? }';
+    if (typeof v !== 'object' || v === null || Array.isArray(v)) return 'must be { from?, size?, distance?, color? }';
     const bake = v as Record<string, unknown>;
-    for (const key of Object.keys(bake)) if (!['from', 'size', 'distance'].includes(key)) return `has an unknown field "${key}"; it takes from, size, distance`;
+    for (const key of Object.keys(bake)) if (!['from', 'size', 'distance', 'color'].includes(key)) return `has an unknown field "${key}"; it takes from, size, distance, color`;
     const { size, distance, from } = bake;
     if (size !== undefined && !(Number.isInteger(size) && (size as number) >= 64 && (size as number) <= 4096 && ((size as number) & ((size as number) - 1)) === 0)) return 'size must be a power of two, 64..4096';
     if (distance !== undefined && !(isNum(distance) && distance > 0)) return 'distance must be a positive number';
+    if (bake.color !== undefined && typeof bake.color !== 'boolean') return 'color must be true or false';
     if (from !== undefined) {
         if (typeof from !== 'string') return 'from must be a step id';
         if (!steps.some((s) => s?.id === from)) return `from "${from}" is no step's id`;

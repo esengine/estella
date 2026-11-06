@@ -190,7 +190,7 @@ function patternAt(p: DisplaceParams, x: number, y: number, z: number, n: Vec3):
 }
 
 /** The longest edge that still draws the pattern, as a share of one feature: a rise and fall needs several points, and a line needs some across its width. */
-function finestShare(p: DisplaceParams): number {
+export function finestShare(p: DisplaceParams): number {
     const layers = 2 ** ((p.octaves ?? 3) - 1);
     switch (p.pattern) {
         case 'bumps': return 1 / (4 * layers);
@@ -209,7 +209,7 @@ function finestShare(p: DisplaceParams): number {
  * like any other, and the new vertex joins that face's outline: it keeps its shape and no gap opens. Left whole, such an edge
  * could never get short, and the triangles against it would go on splitting for as long as there was budget.
  */
-function refine(mesh: PolyMesh, chosen: ReadonlySet<number>, longest: number, budget: number): { mesh: PolyMesh; short: boolean } {
+export function refine(mesh: PolyMesh, chosen: ReadonlySet<number>, longest: number, budget: number): { mesh: PolyMesh; short: boolean } {
     const positions: Vec3[] = [...mesh.positions];
     // Room for every vertex the budget could make, in a number that stays exact.
     const keyOf = (a: number, b: number): number => (a < b ? a * 67108864 + b : b * 67108864 + a);
@@ -303,6 +303,52 @@ function refine(mesh: PolyMesh, chosen: ReadonlySet<number>, longest: number, bu
     return { mesh: { positions, faces }, short };
 }
 
+/** A point on the side of the mirror patterns and spots are worked out on. */
+export function mirroredPoint(mirror: DisplaceParams['mirror'], at: Vec3): [number, number, number] {
+    return [mirror === 'x' ? Math.abs(at[0]) : at[0], mirror === 'y' ? Math.abs(at[1]) : at[1], mirror === 'z' ? Math.abs(at[2]) : at[2]];
+}
+
+/** How much of a spot reaches a mirrored point: 1 at its middle, 0 from its edge. One spot named on one side is that spot on both. */
+export function nearWeight(near: NonNullable<DisplaceParams['near']>, mirror: DisplaceParams['mirror'], x: number, y: number, z: number): number {
+    const c = mirroredPoint(mirror, near.at);
+    const t = 1 - Math.hypot(x - c[0], y - c[1], z - c[2]) / near.radius;
+    return t <= 0 ? 0 : t * t * (3 - 2 * t);
+}
+
+/** Those of @p hit a spot can touch, by the box round each: one large face can cross it with every corner far outside. */
+export function reachedFaces(mesh: PolyMesh, hit: readonly number[], near: NonNullable<DisplaceParams['near']>, mirror: DisplaceParams['mirror']): number[] {
+    const { at, radius } = near;
+    const across = mirror ? { x: 0, y: 1, z: 2 }[mirror] : -1;
+    const twin: Vec3 = across === 0 ? [-at[0], at[1], at[2]] : across === 1 ? [at[0], -at[1], at[2]] : across === 2 ? [at[0], at[1], -at[2]] : at;
+    return hit.filter((f) => {
+        const { min, max } = boundsOf(mesh, mesh.faces[f]!.v);
+        return [at, twin].some((c) => {
+            const gap = [0, 1, 2].map((k) => Math.max(min[k]! - c[k]!, 0, c[k]! - max[k]!));
+            return Math.hypot(gap[0]!, gap[1]!, gap[2]!) < radius;
+        });
+    });
+}
+
+/** The pattern of @p p as a function of a mirrored point and its normal. */
+export function patternField(p: DisplaceParams): (x: number, y: number, z: number, n: Vec3) => number {
+    const stretch = p.stretch ?? [1, 1, 1];
+    const [sx, sy, sz] = [p.scale * stretch[0], p.scale * stretch[1], p.scale * stretch[2]];
+    const seed = p.seed ?? 1;
+    const warp = p.warp ?? 0;
+    return (px, py, pz, n) => {
+        let [x, y, z] = [px / sx, py / sy, pz / sz];
+        if (warp > 0) {
+            const [wx, wy, wz] = [
+                gradientNoise(x * 0.7 + 3.1, y * 0.7, z * 0.7, seed + 40),
+                gradientNoise(x * 0.7, y * 0.7 + 5.7, z * 0.7, seed + 41),
+                gradientNoise(x * 0.7, y * 0.7, z * 0.7 + 9.3, seed + 42),
+            ];
+            x += wx * warp; y += wy * warp; z += wz * warp;
+        }
+        return patternAt(p, x, y, z, n);
+    };
+}
+
 export function displace(mesh: PolyMesh, p: DisplaceParams, budget = MAX_DISPLACE_TRIANGLES): PolyMesh {
     if (!DISPLACE_PATTERNS.includes(p.pattern)) throw new Error(`pattern ${JSON.stringify(p.pattern)} must be one of ${DISPLACE_PATTERNS.join(', ')}`);
     if (!(p.scale > 0)) throw new Error(`scale ${p.scale} must be positive`);
@@ -316,18 +362,8 @@ export function displace(mesh: PolyMesh, p: DisplaceParams, budget = MAX_DISPLAC
     let hit = selectFaces(mesh, selector);
     if (hit.length === 0) throw new Error(`\`faces\` ${JSON.stringify(selector)} matched no face`);
     if (p.near) {
-        const { at, radius } = p.near;
-        // By the box round a face: one large face can cross the ball with every corner far outside it.
-        const across = p.mirror ? { x: 0, y: 1, z: 2 }[p.mirror] : -1;
-        const twin: Vec3 = across === 0 ? [-at[0], at[1], at[2]] : across === 1 ? [at[0], -at[1], at[2]] : across === 2 ? [at[0], at[1], -at[2]] : at;
-        hit = hit.filter((f) => {
-            const { min, max } = boundsOf(mesh, mesh.faces[f]!.v);
-            return [at, twin].some((c) => {
-                const gap = [0, 1, 2].map((k) => Math.max(min[k]! - c[k]!, 0, c[k]! - max[k]!));
-                return Math.hypot(gap[0]!, gap[1]!, gap[2]!) < radius;
-            });
-        });
-        if (hit.length === 0) throw new Error(`no surface of \`faces\` within ${radius} of ${JSON.stringify(at)}`);
+        hit = reachedFaces(mesh, hit, p.near, p.mirror);
+        if (hit.length === 0) throw new Error(`no surface of \`faces\` within ${p.near.radius} of ${JSON.stringify(p.near.at)}`);
     }
 
     const smallest = Math.min(...(p.stretch ?? [1, 1, 1])) * p.scale;
@@ -356,36 +392,14 @@ export function displace(mesh: PolyMesh, p: DisplaceParams, budget = MAX_DISPLAC
             normals[v * 3 + 2]! += n[2] * area;
         }
     }
-    const stretch = p.stretch ?? [1, 1, 1];
-    const [sx, sy, sz] = [p.scale * stretch[0], p.scale * stretch[1], p.scale * stretch[2]];
-    const seed = p.seed ?? 1;
-    const warp = p.warp ?? 0;
+    const field = patternField(p);
     const positions: Vec3[] = fine.positions.map((at, v) => {
         if (!inside[v]) return at;
-        // Mirrored first, so `near` is mirrored with the pattern: one spot asked for on one side is that spot on both.
-        let [x, y, z] = [at[0], at[1], at[2]];
-        if (p.mirror === 'x') x = Math.abs(x);
-        if (p.mirror === 'y') y = Math.abs(y);
-        if (p.mirror === 'z') z = Math.abs(z);
-        let weight = 1;
-        if (p.near) {
-            const c = p.near.at;
-            const toward = (axis: 'x' | 'y' | 'z', k: 0 | 1 | 2, v: number): number => (p.mirror === axis ? Math.abs(c[k]) : v);
-            const t = 1 - Math.hypot(x - toward('x', 0, c[0]), y - toward('y', 1, c[1]), z - toward('z', 2, c[2])) / p.near.radius;
-            if (t <= 0) return at;
-            weight = t * t * (3 - 2 * t);
-        }
+        const [x, y, z] = mirroredPoint(p.mirror, at);
+        const weight = p.near ? nearWeight(p.near, p.mirror, x, y, z) : 1;
+        if (weight <= 0) return at;
         const n = normalize([normals[v * 3]!, normals[v * 3 + 1]!, normals[v * 3 + 2]!]);
-        x /= sx; y /= sy; z /= sz;
-        if (warp > 0) {
-            const [wx, wy, wz] = [
-                gradientNoise(x * 0.7 + 3.1, y * 0.7, z * 0.7, seed + 40),
-                gradientNoise(x * 0.7, y * 0.7 + 5.7, z * 0.7, seed + 41),
-                gradientNoise(x * 0.7, y * 0.7, z * 0.7 + 9.3, seed + 42),
-            ];
-            x += wx * warp; y += wy * warp; z += wz * warp;
-        }
-        const push = patternAt(p, x, y, z, n) * p.amplitude * weight;
+        const push = field(x, y, z, n) * p.amplitude * weight;
         return [at[0] + n[0] * push, at[1] + n[1] * push, at[2] + n[2] * push];
     });
 

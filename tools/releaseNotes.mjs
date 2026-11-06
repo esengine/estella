@@ -3878,6 +3878,10 @@ export const NOTED = {
     {"note":"An AI building a model can make it light and keep its detail."},
   "feat(mcp): model_write teaches thinning the form rather than its detail":
     {"note":"An AI building a model can make it light and keep its detail."},
+  "feat(modeling): a stain step colours a surface by what is there, and a bake keeps it as a colour map":
+    {"note":"An AI building a model can colour it finely, and keep that on a thin mesh."},
+  "feat(mcp): model_write stains and bakes colour, checked in both colour spaces":
+    {"note":"An AI building a model can colour it finely, and keep that on a thin mesh."},
   "feat(modeling): a displace step carves wrinkles, cracks, scales and weave into a surface":
     {"note":"An AI building a model can carve fine detail into it."},
   "feat(mcp): model_write carves fine detail, and a check takes every pattern through the bake":

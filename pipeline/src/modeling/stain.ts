@@ -1,0 +1,187 @@
+// SPDX-License-Identifier: Apache-2.0
+// SPDX-FileCopyrightText: Copyright (c) 2024-present ESEngine Team
+/**
+ * @file  stain.ts — the `stain` step: colour laid over a surface by what is there, in place of one flat paint.
+ *
+ *        Where it lands comes from up to four things multiplied together: a pattern, how the surface
+ *        is shaped there, which way it faces, and a spot. It works on faces, as all paint here does, so
+ *        how fine it can be is how fine the faces are: it splits them as far as its pattern needs, and a
+ *        normalBake with `color` carries the result onto a thin mesh.
+ */
+import { DISPLACE_PATTERNS, finestShare, mirroredPoint, nearWeight, patternField, reachedFaces, refine, MAX_DISPLACE_TRIANGLES, type DisplaceParams, type DisplacePattern } from './displace';
+import { compact, faceArea, faceNormal, normalize, selectFaces, type Face, type FaceSelector, type PolyMesh, type Vec3 } from './polyMesh';
+
+export interface StainParams {
+    faces?: FaceSelector;
+    /** Only around here. Fades to its edge, or with `hard` stops there: a pupil. */
+    near?: { at: Vec3; radius: number };
+    hard?: boolean;
+    /** Linear [r, g, b], over what is there. */
+    color: readonly number[];
+    /** How strongly, 0..1, where the rest say all the way. Default 1. */
+    amount?: number;
+    pattern?: DisplacePattern;
+    scale?: number;
+    octaves?: number;
+    seed?: number;
+    stretch?: Vec3;
+    warp?: number;
+    width?: number;
+    axis?: 'x' | 'y' | 'z';
+    mirror?: 'x' | 'y' | 'z';
+    /** How much of the pattern it takes, 0..1, higher being less of it. Default 0.5. */
+    threshold?: number;
+    /** How gradually it starts, around the threshold. Default 0.15. */
+    softness?: number;
+    /** Dirt in what is sunken, or wear on what stands out. */
+    where?: 'cavity' | 'edges';
+    /** How wide a dip or a ridge counts, in model units. Default about eight edges. */
+    reach?: number;
+    /** Only where the surface faces this way: moss on top, damp below. */
+    facing?: Vec3;
+    /** The longest edge to leave. */
+    detail?: number;
+}
+
+const smooth = (lo: number, hi: number, x: number): number => {
+    const t = Math.max(0, Math.min(1, (x - lo) / (hi - lo)));
+    return t * t * (3 - 2 * t);
+};
+
+const MAX_SMOOTHING = 40;
+/** Shape is judged against the steepest few percent: a model's own depth decides what counts as deep, whatever its units. */
+const SHAPE_PERCENTILE = 0.95;
+/** Patterns that are dents (0 and below) rather than a rise and fall about 0. */
+const DENTS: ReadonlySet<DisplacePattern> = new Set(['wrinkles', 'cracks', 'pores', 'scratches']);
+
+/**
+ * How far each vertex sits below (positive) or above its surroundings, in shares of the model's deepest: the surface
+ * against a smoothed copy of itself, along the normal.
+ */
+function relief(mesh: PolyMesh, normals: Float64Array, reach: number | undefined): Float32Array {
+    const count = mesh.positions.length;
+    const smoothed = new Float64Array(count * 3);
+    mesh.positions.forEach((p, v) => { smoothed[v * 3] = p[0]; smoothed[v * 3 + 1] = p[1]; smoothed[v * 3 + 2] = p[2]; });
+    let edgeCount = 0;
+    for (const face of mesh.faces) edgeCount += face.v.length;
+    const from = new Int32Array(edgeCount), to = new Int32Array(edgeCount);
+    let n = 0, total = 0;
+    for (const face of mesh.faces) {
+        for (let i = 0; i < face.v.length; i++) {
+            const [a, b] = [face.v[i]!, face.v[(i + 1) % face.v.length]!];
+            from[n] = a; to[n] = b; n++;
+            const [p, q] = [mesh.positions[a]!, mesh.positions[b]!];
+            total += Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
+        }
+    }
+    const edge = total / Math.max(1, n);
+    // Averaging spreads about one edge per pass squared, so the passes go with the square of how far it should reach.
+    const passes = Math.max(1, Math.min(MAX_SMOOTHING, Math.round(((reach ?? edge * 8) / edge) ** 2)));
+    const sum = new Float64Array(count * 3);
+    const links = new Int32Array(count);
+    for (let e = 0; e < n; e++) { links[from[e]!]!++; links[to[e]!]!++; }
+    for (let pass = 0; pass < passes; pass++) {
+        sum.fill(0);
+        for (let e = 0; e < n; e++) {
+            const [a, b] = [from[e]! * 3, to[e]! * 3];
+            for (let k = 0; k < 3; k++) { sum[a + k]! += smoothed[b + k]!; sum[b + k]! += smoothed[a + k]!; }
+        }
+        for (let v = 0; v < count; v++) {
+            if (links[v] === 0) continue;
+            for (let k = 0; k < 3; k++) smoothed[v * 3 + k] = sum[v * 3 + k]! / links[v]!;
+        }
+    }
+    const out = new Float32Array(count);
+    mesh.positions.forEach((p, v) => {
+        out[v] = (smoothed[v * 3]! - p[0]) * normals[v * 3]! + (smoothed[v * 3 + 1]! - p[1]) * normals[v * 3 + 1]! + (smoothed[v * 3 + 2]! - p[2]) * normals[v * 3 + 2]!;
+    });
+    const sorted = Float32Array.from(out, Math.abs).sort();
+    const deep = sorted[Math.floor((sorted.length - 1) * SHAPE_PERCENTILE)]! || 1;
+    for (let v = 0; v < count; v++) out[v]! /= deep;
+    return out;
+}
+
+export function stain(mesh: PolyMesh, p: StainParams, budget = MAX_DISPLACE_TRIANGLES): PolyMesh {
+    if (p.color.length < 3) throw new Error('color must be [r, g, b]');
+    if (p.pattern !== undefined && !DISPLACE_PATTERNS.includes(p.pattern)) throw new Error(`pattern ${JSON.stringify(p.pattern)} must be one of ${DISPLACE_PATTERNS.join(', ')}`);
+    if (p.pattern !== undefined && !(p.scale! > 0)) throw new Error('a pattern needs a positive `scale`');
+    if (p.amount !== undefined && !(p.amount >= 0 && p.amount <= 1)) throw new Error(`amount ${p.amount} must be 0..1`);
+    if (p.softness !== undefined && !(p.softness > 0)) throw new Error(`softness ${p.softness} must be positive`);
+    if (p.near && !(p.near.radius > 0)) throw new Error(`near.radius ${p.near.radius} must be positive`);
+    if (p.pattern === undefined && p.where === undefined && p.facing === undefined && p.near === undefined) throw new Error('say where: give at least one of pattern, where, facing, near; `paint` is for all of a set of faces');
+
+    const selector = p.faces ?? 'all';
+    let hit = selectFaces(mesh, selector);
+    if (hit.length === 0) throw new Error(`\`faces\` ${JSON.stringify(selector)} matched no face`);
+    if (p.near) {
+        hit = reachedFaces(mesh, hit, p.near, p.mirror);
+        if (hit.length === 0) throw new Error(`no surface of \`faces\` within ${p.near.radius} of ${JSON.stringify(p.near.at)}`);
+    }
+    const asPattern = { ...p, pattern: p.pattern ?? 'bumps', amplitude: 1, scale: p.scale ?? 1 } as DisplaceParams;
+    const longest = p.detail
+        ?? (p.pattern ? Math.min(...(p.stretch ?? [1, 1, 1])) * p.scale! * finestShare(asPattern)
+            // A hard edge is as clean as the faces it runs along.
+            : p.near && p.hard ? p.near.radius / 8 : null);
+    const { mesh: fine, short } = longest === null ? { mesh, short: false } : refine(mesh, new Set(hit), longest, budget);
+
+    const chosen = new Set(hit);
+    const isChosen = (f: number): boolean => (fine === mesh ? chosen.has(f) : f >= mesh.faces.length - hit.length);
+    const normals = new Float64Array(fine.positions.length * 3);
+    for (const face of fine.faces) {
+        const n = faceNormal(fine, face);
+        const area = faceArea(fine, face);
+        for (const v of face.v) { normals[v * 3]! += n[0] * area; normals[v * 3 + 1]! += n[1] * area; normals[v * 3 + 2]! += n[2] * area; }
+    }
+    for (let v = 0; v < fine.positions.length; v++) {
+        const l = Math.hypot(normals[v * 3]!, normals[v * 3 + 1]!, normals[v * 3 + 2]!) || 1;
+        normals[v * 3]! /= l; normals[v * 3 + 1]! /= l; normals[v * 3 + 2]! /= l;
+    }
+    const shape = p.where ? relief(fine, normals, p.reach) : null;
+    const facing = p.facing ? normalize(p.facing) : null;
+    const field = p.pattern ? patternField(asPattern) : null;
+    const threshold = p.threshold ?? 0.5, softness = p.softness ?? 0.15;
+    const amount = p.amount ?? 1;
+    const color = [p.color[0]!, p.color[1]!, p.color[2]!] as const;
+
+    const maskAt = (v: number): number => {
+        let m = 1;
+        const at = fine.positions[v]!;
+        const [x, y, z] = mirroredPoint(p.mirror, at);
+        if (p.near) {
+            const w = nearWeight(p.near, p.mirror, x, y, z);
+            m *= p.hard ? (w > 0 ? 1 : 0) : w;
+            if (m === 0) return 0;
+        }
+        const n: Vec3 = [normals[v * 3]!, normals[v * 3 + 1]!, normals[v * 3 + 2]!];
+        if (facing) {
+            m *= smooth(0.2, 0.75, n[0] * facing[0] + n[1] * facing[1] + n[2] * facing[2]);
+            if (m === 0) return 0;
+        }
+        if (shape) {
+            const sunk = p.where === 'cavity' ? shape[v]! : -shape[v]!;
+            m *= smooth(threshold * 0.4 - softness, threshold * 0.4 + softness, sunk);
+            if (m === 0) return 0;
+        }
+        if (field) {
+            const value = field(x, y, z, n);
+            const share = DENTS.has(p.pattern!) ? Math.max(0, -value) : value * 0.5 + 0.5;
+            m *= smooth(threshold - softness, threshold + softness, share);
+        }
+        return m;
+    };
+    const masks = new Float32Array(fine.positions.length).fill(-1);
+    const faces: Face[] = fine.faces.map((face, f) => {
+        if (!isChosen(f)) return face;
+        let sum = 0;
+        for (const v of face.v) {
+            if (masks[v]! < 0) masks[v] = maskAt(v);
+            sum += masks[v]!;
+        }
+        const m = (sum / face.v.length) * amount;
+        if (m <= 0) return face;
+        const was = face.color ?? [1, 1, 1, 1];
+        return { ...face, color: [was[0] + (color[0] - was[0]) * m, was[1] + (color[1] - was[1]) * m, was[2] + (color[2] - was[2]) * m, was[3]] as const };
+    });
+    const out = compact({ positions: fine.positions, faces });
+    return short ? { ...out, notes: [`this stain wants edges of ${longest!.toPrecision(3)} and stopped at ${budget} triangles, so it is coarser than asked: narrow it with \`faces\` or \`near\`, or give a larger \`detail\``] } : out;
+}

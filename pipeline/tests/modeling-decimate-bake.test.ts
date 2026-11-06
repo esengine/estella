@@ -130,7 +130,7 @@ describe('decimate', () => {
 
     it('`from` thins the surface before its fine detail, so the triangles go to the form and not to the noise', () => {
         const box: ModelStep = { id: 'form', op: 'organic', resolution: 64, blend: 0.02, parts: [{ shape: 'box', size: [2, 2, 2], rounding: 0.05 }] };
-        const noise: ModelStep = { op: 'displace', pattern: 'bumps', amplitude: 0.04, scale: 0.1, octaves: 2 };
+        const noise: ModelStep = { op: 'displace', pattern: 'bumps', amplitude: 0.04, scale: 0.1, octaves: 2, detail: 0.025 };
         const after = model(box, noise, { op: 'decimate', triangles: 300, error: 0.5 });
         const before = model(box, noise, { op: 'decimate', from: 'form', triangles: 300, error: 0.5 });
         // Its corners are where the form put them: the noise cannot have moved or spent them.
@@ -141,7 +141,7 @@ describe('decimate', () => {
     }, 60000);
 
     it('`from` with a bake carries what the step before it made onto what it left', () => {
-        const m = bakeModel({ version: 1, normalBake: { size: 128 }, steps: [{ ...ball, id: 'form' }, { op: 'displace', pattern: 'bumps', amplitude: 0.04, scale: 0.2, octaves: 2 }, { op: 'decimate', from: 'form', triangles: 300, error: 0.5 }] });
+        const m = bakeModel({ version: 1, normalBake: { size: 128 }, steps: [{ ...ball, id: 'form' }, { op: 'displace', pattern: 'bumps', amplitude: 0.04, scale: 0.2, octaves: 2, detail: 0.03 }, { op: 'decimate', from: 'form', triangles: 300, error: 0.5 }] });
         const map = bakeNormalMap(m);
         expect(map.report.from).toBeGreaterThan(map.report.to * 10);
         expect(map.report.meanBend).toBeGreaterThan(3);

@@ -24,7 +24,7 @@ function heights(m: BakedModel): { min: number; max: number; mean: number } {
 
 describe('displace', () => {
     it.each(DISPLACE_PATTERNS)('%s moves a closed ball within its amplitude, and leaves it closed', (pattern) => {
-        const m = model(ball, { op: 'displace', pattern, amplitude: 0.05, scale: 0.8 });
+        const m = model(ball, { op: 'displace', pattern, amplitude: 0.05, scale: 0.8, detail: 0.04 });
         expect(m.report.openEdges).toBe(0);
         expect(m.report.nonManifoldEdges).toBe(0);
         expect(m.report.insideOutShells).toBe(0);
@@ -35,9 +35,9 @@ describe('displace', () => {
     });
 
     it('is the same every time, and a seed makes another', () => {
-        const a = model(sheet, { op: 'displace', pattern: 'bumps', amplitude: 0.1, scale: 0.4 });
-        const b = model(sheet, { op: 'displace', pattern: 'bumps', amplitude: 0.1, scale: 0.4 });
-        const c = model(sheet, { op: 'displace', pattern: 'bumps', amplitude: 0.1, scale: 0.4, seed: 9 });
+        const a = model(sheet, { op: 'displace', pattern: 'bumps', amplitude: 0.1, scale: 0.4, detail: 0.05 });
+        const b = model(sheet, { op: 'displace', pattern: 'bumps', amplitude: 0.1, scale: 0.4, detail: 0.05 });
+        const c = model(sheet, { op: 'displace', pattern: 'bumps', amplitude: 0.1, scale: 0.4, seed: 9, detail: 0.05 });
         expect(a.poly.positions).toEqual(b.poly.positions);
         expect(a.poly.positions).not.toEqual(c.poly.positions);
     });
@@ -55,8 +55,8 @@ describe('displace', () => {
 
     it('cracks and wrinkles are dents at a positive amplitude and ridges at a negative one', () => {
         for (const pattern of ['cracks', 'wrinkles', 'pores', 'scratches'] as const) {
-            const down = heights(model(sheet, { op: 'displace', pattern, amplitude: 0.1, scale: 0.5 }));
-            const up = heights(model(sheet, { op: 'displace', pattern, amplitude: -0.1, scale: 0.5 }));
+            const down = heights(model(sheet, { op: 'displace', pattern, amplitude: 0.1, scale: 0.5, detail: 0.03 }));
+            const up = heights(model(sheet, { op: 'displace', pattern, amplitude: -0.1, scale: 0.5, detail: 0.03 }));
             expect(down.max).toBeLessThan(0.001);
             expect(down.min).toBeLessThan(-0.01);
             expect(up.min).toBeGreaterThan(-0.001);
@@ -65,7 +65,7 @@ describe('displace', () => {
     });
 
     it('`near` moves only inside its radius', () => {
-        const m = model(sheet, { op: 'displace', pattern: 'bumps', amplitude: 0.1, scale: 0.2, near: { at: [0.5, 0, 0], radius: 0.3 } });
+        const m = model(sheet, { op: 'displace', pattern: 'bumps', amplitude: 0.1, scale: 0.2, near: { at: [0.5, 0, 0], radius: 0.3 }, detail: 0.03 });
         let moved = 0;
         for (const p of m.poly.positions) {
             const inside = Math.hypot(p[0] - 0.5, p[2]) < 0.3 + 0.03;
@@ -93,18 +93,18 @@ describe('displace', () => {
     });
 
     it('splits only what its pattern needs: an edge shared with a face outside does not make it run away', () => {
-        const m = model({ op: 'box', size: 2 }, { op: 'tag', faces: '+y', tag: 'top' }, { op: 'displace', faces: 'top', pattern: 'bumps', amplitude: 0.1, scale: 0.4 });
+        const m = model({ op: 'box', size: 2 }, { op: 'tag', faces: '+y', tag: 'top' }, { op: 'displace', faces: 'top', pattern: 'bumps', amplitude: 0.1, scale: 0.4, detail: 0.05 });
         expect(m.report.triangles).toBeLessThan(100000);
         expect(m.report.warnings.join()).not.toMatch(/stopped at/);
     });
 
     it('`near` reaches a large face with every corner outside it', () => {
-        const m = model(sheet, { op: 'displace', pattern: 'bumps', amplitude: 0.1, scale: 0.1, near: { at: [0, 0, 0], radius: 0.2 } });
+        const m = model(sheet, { op: 'displace', pattern: 'bumps', amplitude: 0.1, scale: 0.1, near: { at: [0, 0, 0], radius: 0.2 }, detail: 0.02 });
         expect(m.poly.positions.some((p) => Math.abs(p[1]) > 0.005)).toBe(true);
     });
 
     it('keeps paint and tags on what it splits', () => {
-        const m = model({ ...sheet, color: [0.2, 0.4, 0.6] }, { op: 'displace', pattern: 'bumps', amplitude: 0.05, scale: 0.3 });
+        const m = model({ ...sheet, color: [0.2, 0.4, 0.6] }, { op: 'displace', pattern: 'bumps', amplitude: 0.05, scale: 0.3, detail: 0.05 });
         for (const f of m.poly.faces) { expect(f.color).toEqual([0.2, 0.4, 0.6, 1]); expect(f.tag).toBe('sheet'); }
     });
 
@@ -119,7 +119,7 @@ describe('displace', () => {
     });
 
     it('`mirror` gives both sides the same', () => {
-        const m = model(sheet, { op: 'displace', pattern: 'bumps', amplitude: 0.1, scale: 0.3, mirror: 'x' });
+        const m = model(sheet, { op: 'displace', pattern: 'bumps', amplitude: 0.1, scale: 0.3, mirror: 'x', detail: 0.03 });
         const at = new Map(m.poly.positions.map((p) => [`${p[0].toFixed(4)},${p[2].toFixed(4)}`, p[1]]));
         let pairs = 0;
         for (const p of m.poly.positions) {
@@ -130,7 +130,7 @@ describe('displace', () => {
     });
 
     it('`mirror` takes `near` with it: a spot named on one side is on both', () => {
-        const m = model(sheet, { op: 'displace', pattern: 'bumps', amplitude: 0.1, scale: 0.15, near: { at: [0.5, 0, 0], radius: 0.3 }, mirror: 'x' });
+        const m = model(sheet, { op: 'displace', pattern: 'bumps', amplitude: 0.1, scale: 0.15, near: { at: [0.5, 0, 0], radius: 0.3 }, mirror: 'x', detail: 0.02 });
         const movedAt = (side: number): number => m.poly.positions.filter((p) => Math.sign(p[0]) === side && Math.abs(p[1]) > 1e-4).length;
         expect(movedAt(1)).toBeGreaterThan(20);
         expect(movedAt(-1)).toBe(movedAt(1));
@@ -169,7 +169,7 @@ describe('displace', () => {
     }, 60000);
 
     it('scratches are lines, not dots: where one is, it runs on', () => {
-        const m = model(sheet, { op: 'displace', pattern: 'scratches', amplitude: 0.1, scale: 0.5, width: 0.1, detail: 0.008 });
+        const m = model(sheet, { op: 'displace', pattern: 'scratches', amplitude: 0.1, scale: 0.5, width: 0.1, detail: 0.012 });
         // Bin the cut into a grid. Dots would leave cells apart; lines run through the grid, so most cut cells have a cut neighbour and the longest run is long.
         const N = 125;
         const cut = new Uint8Array(N * N);
@@ -200,7 +200,7 @@ describe('displace', () => {
 
     it('what it adds survives a decimate as a normal map', () => {
         const without = bakeModel({ version: 1, normalBake: { size: 128 }, steps: [ball, { op: 'decimate', triangles: 400, error: 0.3 }] });
-        const withIt = bakeModel({ version: 1, normalBake: { size: 128 }, steps: [ball, { op: 'displace', pattern: 'wrinkles', amplitude: 0.03, scale: 0.3 }, { op: 'decimate', triangles: 400, error: 0.3 }] });
+        const withIt = bakeModel({ version: 1, normalBake: { size: 128 }, steps: [ball, { op: 'displace', pattern: 'wrinkles', amplitude: 0.03, scale: 0.3, detail: 0.02 }, { op: 'decimate', triangles: 400, error: 0.3 }] });
         expect(bakeNormalMap(withIt).report.meanBend).toBeGreaterThan(bakeNormalMap(without).report.meanBend + 2);
     }, 60000);
 

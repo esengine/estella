@@ -930,7 +930,7 @@ export function timelineOf(animation: AnimationSource, joints: readonly RigJoint
  * The prefab that draws and moves it: the mesh on the root, the joints below it as
  * entities named so a clip's paths find them, and a player for the first clip.
  */
-export function prefabOf(name: string, meshPath: string, joints: readonly RigJoint[], cullBackfaces: boolean, firstClip: string | null, controller: string | null = null, extra: { goals?: readonly RigGoal[]; shapes?: number; normalMap?: string } = {}): Record<string, unknown> {
+export function prefabOf(name: string, meshPath: string, joints: readonly RigJoint[], cullBackfaces: boolean, firstClip: string | null, controller: string | null = null, extra: { goals?: readonly RigGoal[]; shapes?: number; normalMap?: string; texture?: string } = {}): Record<string, unknown> {
     const idOf = (i: number): string => `j${i}`;
     const goals = extra.goals ?? [];
     const entities: Record<string, unknown>[] = [{
@@ -939,7 +939,7 @@ export function prefabOf(name: string, meshPath: string, joints: readonly RigJoi
         visible: true,
         components: [
             { type: 'Transform', data: {} },
-            { type: 'MeshRenderer', data: { mesh: meshPath, ...(extra.normalMap ? { normalMap: extra.normalMap } : {}), lit: true, opaque: true, cullBackfaces, enabled: true } },
+            { type: 'MeshRenderer', data: { mesh: meshPath, ...(extra.normalMap ? { normalMap: extra.normalMap } : {}), ...(extra.texture ? { texture: extra.texture } : {}), lit: true, opaque: true, cullBackfaces, enabled: true } },
             ...(joints.length ? [{ type: 'MeshSkin', data: { joints: joints.map((_, i) => idOf(i)) } }] : []),
             ...(extra.shapes ? [{ type: 'MeshMorph', data: { weights: Array.from({ length: extra.shapes }, () => 0) } }] : []),
             // A controller decides what plays; a player beside it would fight it for the same joints.

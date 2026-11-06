@@ -64,7 +64,7 @@ export interface BakedModel {
     /** One triangle per entry: its three positions' indices, and the face it came from. */
     triangles: { v: [number, number, number]; face: number }[];
     /** Present where a source has a normalBake: what bakeNormalMap carries, onto a mesh already unwrapped and given tangents for it. */
-    detail?: { high: PolyMesh; size: number; distance?: number; smoothAngle: number };
+    detail?: { high: PolyMesh; size: number; distance?: number; smoothAngle: number; lowColors?: Uint8Array };
 }
 
 // ---- Report -----------------------------------------------------------------------
@@ -233,6 +233,21 @@ function copyLightmapUvToBase(mesh: MeshData): void {
     }
 }
 
+/**
+ * Whitens a mesh's vertex colours in place, for a colour map that holds them instead: the two multiply, and painted twice
+ * a colour would come out squared. Answers what they were, 4 bytes a vertex: where a map finds no surface, it falls back on them.
+ */
+function whitenVertexColors(mesh: MeshData): Uint8Array {
+    const { offset } = mesh.channels.find((c) => c.semantic === MeshChannel.Color)!;
+    const out = new Uint8Array(mesh.vertexCount * 4);
+    for (let v = 0; v < mesh.vertexCount; v++) {
+        const at = v * mesh.vertexStride + offset;
+        out.set(mesh.vertices.subarray(at, at + 4), v * 4);
+        mesh.vertices.fill(255, at, at + 4);
+    }
+    return out;
+}
+
 /** The mesh with the frame a normal map is read in, from the UVs and normals as stored. */
 function withTangents(mesh: MeshData): MeshData {
     const view = new DataView(mesh.vertices.buffer, mesh.vertices.byteOffset, mesh.vertices.byteLength);
@@ -296,6 +311,7 @@ export function bakeModel(raw: unknown): BakedModel {
         }
     }
     if (bake) unwrapped = withTangents(unwrapped);
+    const lowColors = bake?.color ? whitenVertexColors(unwrapped) : undefined;
 
     const edges = [...collectEdges(mesh).values()];
     const openEdges = edges.filter((e) => e.faces.length === 1).length;
@@ -353,7 +369,7 @@ export function bakeModel(raw: unknown): BakedModel {
         data: unwrapped,
         ...(rig ? { rig } : {}),
         ...(shapes ? { shapes } : {}),
-        ...(bake && high ? { detail: { high, size, ...(bake.distance !== undefined ? { distance: bake.distance } : {}), smoothAngle: source.smoothAngle ?? DEFAULT_SMOOTH_ANGLE } } : {}),
+        ...(bake && high ? { detail: { high, size, ...(bake.distance !== undefined ? { distance: bake.distance } : {}), smoothAngle: source.smoothAngle ?? DEFAULT_SMOOTH_ANGLE, ...(lowColors ? { lowColors } : {}) } } : {}),
         triangles: triangles.flatMap((tris, face) => tris.map((v) => ({ v, face }))),
         report: {
             vertices: unwrapped.vertexCount,

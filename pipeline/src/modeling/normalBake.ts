@@ -49,6 +49,12 @@ export interface NormalMap {
     size: number;
     /** RGBA, row by row from the top: what a PNG holds. Data, not colour: it must be read without sRGB decoding. */
     rgba: Uint8Array;
+    /**
+     * The dense surface's paint, with `normalBake.color`, laid out the same. Linear, as a vertex colour is, and so also
+     * read without sRGB decoding: a vertex colour reaches the shader unconverted in a gamma project and a linear one
+     * alike, so this reaches it as the same number in both.
+     */
+    colorRgba?: Uint8Array;
     report: NormalBakeReport;
     warnings: string[];
 }
@@ -188,18 +194,26 @@ function readFloats(mesh: MeshData, semantic: number, components: number): Float
 }
 
 /** The dense surface as flat triangles, and the shading normal at each of their corners. */
-function denseSurface(high: PolyMesh, smoothAngle: number): { corners: Float64Array; normals: Float64Array } {
+function denseSurface(high: PolyMesh, smoothAngle: number): { corners: Float64Array; normals: Float64Array; colors: Uint8Array } {
     const normalsOf = cornerNormals(high, smoothAngle);
-    const positions: number[] = [], normals: number[] = [];
+    let count = 0;
+    for (const face of high.faces) count += Math.max(0, face.v.length - 2);
+    const corners = new Float64Array(count * 9), normals = new Float64Array(count * 9);
+    const colors = new Uint8Array(count * 4);
+    let t = 0;
     high.faces.forEach((face, f) => {
+        const color = face.color ?? [1, 1, 1, 1];
+        const bytes = [0, 1, 2, 3].map((k) => Math.round(Math.max(0, Math.min(1, color[k]!)) * 255));
         for (const tri of triangulateFace(high, face)) {
-            for (const v of tri) {
-                positions.push(...high.positions[v]!);
-                normals.push(...normalsOf[f]![face.v.indexOf(v)]!);
-            }
+            tri.forEach((v, c) => {
+                const [p, n] = [high.positions[v]!, normalsOf[f]![face.v.indexOf(v)]!];
+                for (let k = 0; k < 3; k++) { corners[t * 9 + c * 3 + k] = p[k]!; normals[t * 9 + c * 3 + k] = n[k]!; }
+            });
+            colors.set(bytes, t * 4);
+            t++;
         }
     });
-    return { corners: Float64Array.from(positions), normals: Float64Array.from(normals) };
+    return { corners: t === count ? corners : corners.subarray(0, t * 9), normals, colors };
 }
 
 /** Bakes @p model's `normalBake`. Throws if it has none. */
@@ -209,7 +223,7 @@ export function bakeNormalMap(model: BakedModel): NormalMap {
     const { size, high, smoothAngle } = detail;
     const { min, max } = boundsOf(high);
     const distance = detail.distance ?? Math.hypot(max[0] - min[0], max[1] - min[1], max[2] - min[2]) * DEFAULT_DISTANCE;
-    const { corners, normals } = denseSurface(high, smoothAngle);
+    const { corners, normals, colors } = denseSurface(high, smoothAngle);
     const tree = new TriangleTree(corners);
 
     const mesh = model.data;
@@ -220,6 +234,8 @@ export function bakeNormalMap(model: BakedModel): NormalMap {
 
     const rgba = new Uint8Array(size * size * 4);
     for (let i = 0; i < size * size; i++) { rgba[i * 4] = 128; rgba[i * 4 + 1] = 128; rgba[i * 4 + 2] = 255; rgba[i * 4 + 3] = 255; }
+    const lowColors = detail.lowColors;
+    const colorRgba = lowColors ? new Uint8Array(size * size * 4) : undefined;
     const covered = new Uint8Array(size * size);
     const place = new Float64Array(2);
     let hits = 0, missed = 0, bend = 0;
@@ -256,8 +272,14 @@ export function bakeNormalMap(model: BakedModel): NormalMap {
                     w0 * P[a * 3 + 2]! + w1 * P[b * 3 + 2]! + w2 * P[c * 3 + 2]!,
                     nx, ny, nz, distance, place,
                 );
-                if (hit < 0) { missed++; continue; }
+                if (hit < 0) {
+                    missed++;
+                    // No surface to read: what the thin mesh was painted itself.
+                    if (colorRgba) for (let k = 0; k < 4; k++) colorRgba[texel * 4 + k] = Math.round(w0 * lowColors![a * 4 + k]! + w1 * lowColors![b * 4 + k]! + w2 * lowColors![c * 4 + k]!);
+                    continue;
+                }
                 hits++;
+                if (colorRgba) colorRgba.set(colors.subarray(hit * 4, hit * 4 + 4), texel * 4);
 
                 const [hv, hw] = [place[0]!, place[1]!];
                 const hu = 1 - hv - hw;
@@ -290,7 +312,7 @@ export function bakeNormalMap(model: BakedModel): NormalMap {
         }
     }
     const inside = hits + missed;
-    dilate(rgba, covered, size);
+    dilate(colorRgba ? [rgba, colorRgba] : [rgba], covered, size);
 
     const from = corners.length / 9, to = mesh.indices.length / 3;
     const warnings: string[] = [];
@@ -300,7 +322,7 @@ export function bakeNormalMap(model: BakedModel): NormalMap {
     if (inside / (size * size) < SPARSE_COVERAGE) warnings.push(`the surface broke into so many pieces that they fill only ${Math.round((inside / (size * size)) * 100)}% of the map, so most of its resolution is lost: lower the amplitude before the decimate, or keep more triangles`);
     if (from <= to) warnings.push(`the surface baked from has ${from} triangles and this one ${to}: there is no detail to carry. normalBake.from should name a step before the decimate`);
     return {
-        size, rgba, warnings,
+        size, rgba, warnings, ...(colorRgba ? { colorRgba } : {}),
         report: {
             size, from, to,
             coverage: Math.round((inside / (size * size)) * 1000) / 1000,
@@ -311,8 +333,8 @@ export function bakeNormalMap(model: BakedModel): NormalMap {
     };
 }
 
-/** Spreads each chart's edge outward, nearest first. */
-function dilate(rgba: Uint8Array, covered: Uint8Array, size: number): void {
+/** Spreads each chart's edge outward through every image, nearest first. */
+function dilate(images: readonly Uint8Array[], covered: Uint8Array, size: number): void {
     let edge: number[] = [];
     for (let i = 0; i < covered.length; i++) if (covered[i]) edge.push(i);
     for (let pass = 0; pass < GUTTER && edge.length > 0; pass++) {
@@ -326,9 +348,7 @@ function dilate(rgba: Uint8Array, covered: Uint8Array, size: number): void {
                     const q = qy * size + qx;
                     if (covered[q]) continue;
                     covered[q] = 1;
-                    rgba[q * 4] = rgba[i * 4]!;
-                    rgba[q * 4 + 1] = rgba[i * 4 + 1]!;
-                    rgba[q * 4 + 2] = rgba[i * 4 + 2]!;
+                    for (const image of images) image.copyWithin(q * 4, i * 4, i * 4 + 4);
                     next.push(q);
                 }
             }
