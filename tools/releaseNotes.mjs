@@ -3884,6 +3884,10 @@ export const NOTED = {
     {"note":"A material's normal and metal-rough maps are read as data in the editor's Play."},
   "fix(minigame): no mini-game module needs BigInt64Array, so WeChat DevTools boots the game":
     {"note":"A WeChat mini-game opens in WeChat DevTools."},
+  "feat(look): pictures laid side by side, one outlined over another, and their exact colours":
+    {"note":"An AI can put the game beside the pictures it is imitating."},
+  "feat(mcp): reference_compare, field_sweep and motion_sheet show the game beside what it imitates, at several values and over time":
+    {"note":"An AI can put the game beside the pictures it is imitating."},
   "feat(modeling): a hanging part swings as a ring of chains, kept out of the legs, and a pattern presses pleats into it":
     {"note":"An AI building a model can dress it in clothes that swing."},
   "feat(mcp): model_write dresses a model in clothes that swing, and a check walks a skirt":
